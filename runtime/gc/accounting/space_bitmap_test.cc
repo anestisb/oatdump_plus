@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <memory>
 
+#include "base/mutex.h"
 #include "common_runtime_test.h"
 #include "globals.h"
 #include "space_bitmap-inl.h"
@@ -145,21 +146,20 @@ class RandGen {
   explicit RandGen(uint32_t seed) : val_(seed) {}
 
   uint32_t next() {
-    val_ = val_ * 48271 % 2147483647;
+    val_ = val_ * 48271 % 2147483647 + 13;
     return val_;
   }
 
   uint32_t val_;
 };
 
-template <size_t kAlignment>
-void RunTest() NO_THREAD_SAFETY_ANALYSIS {
+template <size_t kAlignment, typename TestFn>
+static void RunTest(TestFn&& fn) NO_THREAD_SAFETY_ANALYSIS {
   uint8_t* heap_begin = reinterpret_cast<uint8_t*>(0x10000000);
   size_t heap_capacity = 16 * MB;
 
   // Seed with 0x1234 for reproducability.
   RandGen r(0x1234);
-
 
   for (int i = 0; i < 5 ; ++i) {
     std::unique_ptr<ContinuousSpaceBitmap> space_bitmap(
@@ -177,15 +177,9 @@ void RunTest() NO_THREAD_SAFETY_ANALYSIS {
     }
 
     for (int j = 0; j < 50; ++j) {
-      size_t count = 0;
-      SimpleCounter c(&count);
-
-      size_t offset = RoundDown(r.next() % heap_capacity, kAlignment);
-      size_t remain = heap_capacity - offset;
-      size_t end = offset + RoundDown(r.next() % (remain + 1), kAlignment);
-
-      space_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(heap_begin) + offset,
-                                     reinterpret_cast<uintptr_t>(heap_begin) + end, c);
+      const size_t offset = RoundDown(r.next() % heap_capacity, kAlignment);
+      const size_t remain = heap_capacity - offset;
+      const size_t end = offset + RoundDown(r.next() % (remain + 1), kAlignment);
 
       size_t manual = 0;
       for (uintptr_t k = offset; k < end; k += kAlignment) {
@@ -194,17 +188,73 @@ void RunTest() NO_THREAD_SAFETY_ANALYSIS {
         }
       }
 
-      EXPECT_EQ(count, manual);
+      uintptr_t range_begin = reinterpret_cast<uintptr_t>(heap_begin) + offset;
+      uintptr_t range_end = reinterpret_cast<uintptr_t>(heap_begin) + end;
+
+      fn(space_bitmap.get(), range_begin, range_end, manual);
     }
   }
 }
 
+template <size_t kAlignment>
+static void RunTestCount() {
+  auto count_test_fn = [](ContinuousSpaceBitmap* space_bitmap,
+                          uintptr_t range_begin,
+                          uintptr_t range_end,
+                          size_t manual_count) {
+    size_t count = 0;
+    auto count_fn = [&count](mirror::Object* obj ATTRIBUTE_UNUSED) {
+      count++;
+    };
+    space_bitmap->VisitMarkedRange(range_begin, range_end, count_fn);
+    EXPECT_EQ(count, manual_count);
+  };
+  RunTest<kAlignment>(count_test_fn);
+}
+
 TEST_F(SpaceBitmapTest, VisitorObjectAlignment) {
-  RunTest<kObjectAlignment>();
+  RunTestCount<kObjectAlignment>();
 }
 
 TEST_F(SpaceBitmapTest, VisitorPageAlignment) {
-  RunTest<kPageSize>();
+  RunTestCount<kPageSize>();
+}
+
+template <size_t kAlignment>
+void RunTestOrder() {
+  auto order_test_fn = [](ContinuousSpaceBitmap* space_bitmap,
+                          uintptr_t range_begin,
+                          uintptr_t range_end,
+                          size_t manual_count)
+      REQUIRES_SHARED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
+    mirror::Object* last_ptr = nullptr;
+    auto order_check = [&last_ptr](mirror::Object* obj) {
+      EXPECT_LT(last_ptr, obj);
+      last_ptr = obj;
+    };
+
+    // Test complete walk.
+    space_bitmap->Walk(order_check);
+    if (manual_count > 0) {
+      EXPECT_NE(nullptr, last_ptr);
+    }
+
+    // Test range.
+    last_ptr = nullptr;
+    space_bitmap->VisitMarkedRange(range_begin, range_end, order_check);
+    if (manual_count > 0) {
+      EXPECT_NE(nullptr, last_ptr);
+    }
+  };
+  RunTest<kAlignment>(order_test_fn);
+}
+
+TEST_F(SpaceBitmapTest, OrderObjectAlignment) {
+  RunTestOrder<kObjectAlignment>();
+}
+
+TEST_F(SpaceBitmapTest, OrderPageAlignment) {
+  RunTestOrder<kPageSize>();
 }
 
 }  // namespace accounting
