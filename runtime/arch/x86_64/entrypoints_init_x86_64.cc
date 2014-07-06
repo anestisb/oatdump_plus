@@ -94,7 +94,6 @@ extern "C" void art_quick_invoke_super_trampoline_with_access_check(uint32_t, vo
 extern "C" void art_quick_invoke_virtual_trampoline_with_access_check(uint32_t, void*);
 
 // Thread entrypoints.
-extern void CheckSuspendFromCode(Thread* thread);
 extern "C" void art_quick_test_suspend();
 
 // Throw entrypoints.
@@ -112,6 +111,9 @@ extern void ResetQuickAllocEntryPoints(QuickEntryPoints* qpoints);
 
 void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
                      PortableEntryPoints* ppoints, QuickEntryPoints* qpoints) {
+#if defined(__APPLE__)
+  UNIMPLEMENTED(FATAL);
+#else
   // Interpreter
   ipoints->pInterpreterToInterpreterBridge = artInterpreterToInterpreterBridge;
   ipoints->pInterpreterToCompiledCodeBridge = artInterpreterToCompiledCodeBridge;
@@ -206,7 +208,6 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pInvokeVirtualTrampolineWithAccessCheck = art_quick_invoke_virtual_trampoline_with_access_check;
 
   // Thread
-  qpoints->pCheckSuspend = CheckSuspendFromCode;
   qpoints->pTestSuspend = art_quick_test_suspend;
 
   // Throws
@@ -216,6 +217,7 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pThrowNoSuchMethod = art_quick_throw_no_such_method;
   qpoints->pThrowNullPointer = art_quick_throw_null_pointer_exception;
   qpoints->pThrowStackOverflow = art_quick_throw_stack_overflow;
+#endif  // __APPLE__
 };
 
 }  // namespace art

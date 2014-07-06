@@ -21,6 +21,7 @@
 #include "base/logging.h"
 #include "base/stringprintf.h"
 #include "thread.h"
+#include <inttypes.h>
 
 namespace art {
 namespace x86 {
@@ -896,6 +897,14 @@ DISASSEMBLER_ENTRY(cmp,
   case 0x99:
     opcode << "cdq";
     break;
+  case 0x9B:
+    if (instr[1] == 0xDF && instr[2] == 0xE0) {
+      opcode << "fstsw\tax";
+      instr += 2;
+    } else {
+      opcode << StringPrintf("unknown opcode '%02X'", *instr);
+    }
+    break;
   case 0xAF:
     opcode << (prefix[2] == 0x66 ? "scasw" : "scasl");
     break;
@@ -906,6 +915,12 @@ DISASSEMBLER_ENTRY(cmp,
     reg_in_opcode = true;
     break;
   case 0xB8: case 0xB9: case 0xBA: case 0xBB: case 0xBC: case 0xBD: case 0xBE: case 0xBF:
+    if (rex == 0x48) {
+      opcode << "movabsq";
+      immediate_bytes = 8;
+      reg_in_opcode = true;
+      break;
+    }
     opcode << "mov";
     immediate_bytes = 4;
     reg_in_opcode = true;
@@ -942,11 +957,25 @@ DISASSEMBLER_ENTRY(cmp,
     break;
   case 0xCC: opcode << "int 3"; break;
   case 0xD9:
-    static const char* d9_opcodes[] = {"flds", "unknown-d9", "fsts", "fstps", "fldenv", "fldcw", "fnstenv", "fnstcw"};
-    modrm_opcodes = d9_opcodes;
-    store = true;
-    has_modrm = true;
-    reg_is_opcode = true;
+    if (instr[1] == 0xF8) {
+      opcode << "fprem";
+      instr++;
+    } else {
+      static const char* d9_opcodes[] = {"flds", "unknown-d9", "fsts", "fstps", "fldenv", "fldcw",
+                                         "fnstenv", "fnstcw"};
+      modrm_opcodes = d9_opcodes;
+      store = true;
+      has_modrm = true;
+      reg_is_opcode = true;
+    }
+    break;
+  case 0xDA:
+    if (instr[1] == 0xE9) {
+      opcode << "fucompp";
+      instr++;
+    } else {
+      opcode << StringPrintf("unknown opcode '%02X'", *instr);
+    }
     break;
   case 0xDB:
     static const char* db_opcodes[] = {"fildl", "unknown-db", "unknown-db", "unknown-db", "unknown-db", "unknown-db", "unknown-db", "unknown-db"};
@@ -983,11 +1012,18 @@ DISASSEMBLER_ENTRY(cmp,
     immediate_bytes = ((instr[1] & 0x38) == 0) ? 1 : 0;
     break;
   case 0xFF:
-    static const char* ff_opcodes[] = {"inc", "dec", "call", "call", "jmp", "jmp", "push", "unknown-ff"};
-    modrm_opcodes = ff_opcodes;
-    has_modrm = true;
-    reg_is_opcode = true;
-    load = true;
+    {
+      static const char* ff_opcodes[] = {"inc", "dec", "call", "call", "jmp", "jmp", "push", "unknown-ff"};
+      modrm_opcodes = ff_opcodes;
+      has_modrm = true;
+      reg_is_opcode = true;
+      load = true;
+      const uint8_t opcode_digit = (instr[1] >> 3) & 7;
+      // 'call', 'jmp' and 'push' are target specific instructions
+      if (opcode_digit == 2 || opcode_digit == 4 || opcode_digit == 6) {
+        target_specific = true;
+      }
+    }
     break;
   default:
     opcode << StringPrintf("unknown opcode '%02X'", *instr);
@@ -997,10 +1033,10 @@ DISASSEMBLER_ENTRY(cmp,
   // We force the REX prefix to be available for 64-bit target
   // in order to dump addr (base/index) registers correctly.
   uint8_t rex64 = supports_rex_ ? (rex | 0x40) : rex;
+  // REX.W should be forced for 64-target and target-specific instructions (i.e., push or pop).
+  uint8_t rex_w = (supports_rex_ && target_specific) ? (rex | 0x48) : rex;
   if (reg_in_opcode) {
     DCHECK(!has_modrm);
-    // REX.W should be forced for 64-target and target-specific instructions (i.e., push or pop).
-    uint8_t rex_w = (supports_rex_ && target_specific) ? (rex | 0x48) : rex;
     DumpOpcodeReg(args, rex_w, *instr & 0x7);
   }
   instr++;
@@ -1061,7 +1097,7 @@ DISASSEMBLER_ENTRY(cmp,
     } else {
       if (mod == 3) {
         if (!no_ops) {
-          DumpRmReg(address, rex, rm, byte_operand, prefix[2], load ? src_reg_file : dst_reg_file);
+          DumpRmReg(address, rex_w, rm, byte_operand, prefix[2], load ? src_reg_file : dst_reg_file);
         }
       } else {
         address << "[";
@@ -1122,8 +1158,7 @@ DISASSEMBLER_ENTRY(cmp,
     if (immediate_bytes == 1) {
       args << StringPrintf("%d", *reinterpret_cast<const int8_t*>(instr));
       instr++;
-    } else {
-      CHECK_EQ(immediate_bytes, 4u);
+    } else if (immediate_bytes == 4) {
       if (prefix[2] == 0x66) {  // Operand size override from 32-bit to 16-bit.
         args << StringPrintf("%d", *reinterpret_cast<const int16_t*>(instr));
         instr += 2;
@@ -1131,6 +1166,10 @@ DISASSEMBLER_ENTRY(cmp,
         args << StringPrintf("%d", *reinterpret_cast<const int32_t*>(instr));
         instr += 4;
       }
+    } else {
+      CHECK_EQ(immediate_bytes, 8u);
+      args << StringPrintf("%" PRId64, *reinterpret_cast<const int64_t*>(instr));
+      instr += 8;
     }
   } else if (branch_bytes > 0) {
     DCHECK(!has_modrm);

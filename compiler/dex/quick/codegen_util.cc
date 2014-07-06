@@ -79,6 +79,20 @@ void Mir2Lir::MarkSafepointPC(LIR* inst) {
   DCHECK(safepoint_pc->u.m.def_mask->Equals(kEncodeAll));
 }
 
+void Mir2Lir::MarkSafepointPCAfter(LIR* after) {
+  DCHECK(!after->flags.use_def_invalid);
+  after->u.m.def_mask = &kEncodeAll;
+  // As NewLIR0 uses Append, we need to create the LIR by hand.
+  LIR* safepoint_pc = RawLIR(current_dalvik_offset_, kPseudoSafepointPC);
+  if (after->next == nullptr) {
+    DCHECK_EQ(after, last_lir_insn_);
+    AppendLIR(safepoint_pc);
+  } else {
+    InsertLIRAfter(after, safepoint_pc);
+  }
+  DCHECK(safepoint_pc->u.m.def_mask->Equals(kEncodeAll));
+}
+
 /* Remove a LIR from the list. */
 void Mir2Lir::UnlinkLIR(LIR* lir) {
   if (UNLIKELY(lir == first_lir_insn_)) {
@@ -258,7 +272,7 @@ void Mir2Lir::DumpPromotionMap() {
     PromotionMap v_reg_map = promotion_map_[i];
     std::string buf;
     if (v_reg_map.fp_location == kLocPhysReg) {
-      StringAppendF(&buf, " : s%d", RegStorage::RegNum(v_reg_map.FpReg));
+      StringAppendF(&buf, " : s%d", RegStorage::RegNum(v_reg_map.fp_reg));
     }
 
     std::string buf3;
@@ -1112,7 +1126,7 @@ void Mir2Lir::InsertLIRBefore(LIR* current_lir, LIR* new_lir) {
 
 /*
  * Insert an LIR instruction after the current instruction, which cannot be the
- * first instruction.
+ * last instruction.
  *
  * current_lir -> new_lir -> old_next
  */
@@ -1170,7 +1184,8 @@ void Mir2Lir::LoadCodeAddress(const MethodReference& target_method, InvokeType t
     // resolve these invokes to the same method, so we don't care which one we record here.
     data_target->operands[2] = type;
   }
-  LIR* load_pc_rel = OpPcRelLoad(TargetReg(symbolic_reg), data_target);
+  // Loads a code pointer. Code from oat file can be mapped anywhere.
+  LIR* load_pc_rel = OpPcRelLoad(TargetPtrReg(symbolic_reg), data_target);
   AppendLIR(load_pc_rel);
   DCHECK_NE(cu_->instruction_set, kMips) << reinterpret_cast<void*>(data_target);
 }
@@ -1186,7 +1201,8 @@ void Mir2Lir::LoadMethodAddress(const MethodReference& target_method, InvokeType
     // resolve these invokes to the same method, so we don't care which one we record here.
     data_target->operands[2] = type;
   }
-  LIR* load_pc_rel = OpPcRelLoad(TargetReg(symbolic_reg), data_target);
+  // Loads an ArtMethod pointer, which is a reference as it lives in the heap.
+  LIR* load_pc_rel = OpPcRelLoad(TargetRefReg(symbolic_reg), data_target);
   AppendLIR(load_pc_rel);
   DCHECK_NE(cu_->instruction_set, kMips) << reinterpret_cast<void*>(data_target);
 }
@@ -1197,7 +1213,8 @@ void Mir2Lir::LoadClassType(uint32_t type_idx, SpecialTargetRegister symbolic_re
   if (data_target == nullptr) {
     data_target = AddWordData(&class_literal_list_, type_idx);
   }
-  LIR* load_pc_rel = OpPcRelLoad(TargetReg(symbolic_reg), data_target);
+  // Loads a Class pointer, which is a reference as it lives in the heap.
+  LIR* load_pc_rel = OpPcRelLoad(TargetRefReg(symbolic_reg), data_target);
   AppendLIR(load_pc_rel);
 }
 

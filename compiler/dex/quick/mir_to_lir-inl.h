@@ -31,7 +31,7 @@ inline void Mir2Lir::ClobberBody(RegisterInfo* p) {
     p->MarkDead();
     if (p->IsWide()) {
       p->SetIsWide(false);
-      if (p->GetReg() != p->Partner()) {
+      if (p->GetReg().NotExactlyEquals(p->Partner())) {
         // Register pair - deal with the other half.
         p = GetRegInfo(p->Partner());
         p->SetIsWide(false);
@@ -251,6 +251,19 @@ inline art::Mir2Lir::RegisterInfo* Mir2Lir::GetRegInfo(RegStorage reg) {
       reginfo_map_.Get(reg.GetReg());
   DCHECK(res != nullptr);
   return res;
+}
+
+inline void Mir2Lir::CheckRegLocation(RegLocation rl) const {
+  if (kFailOnSizeError || kReportSizeError) {
+    CheckRegLocationImpl(rl, kFailOnSizeError, kReportSizeError);
+  }
+}
+
+inline void Mir2Lir::CheckRegStorage(RegStorage rs, WidenessCheck wide, RefCheck ref, FPCheck fp)
+    const {
+  if (kFailOnSizeError || kReportSizeError) {
+    CheckRegStorageImpl(rs, wide, ref, fp, kFailOnSizeError, kReportSizeError);
+  }
 }
 
 }  // namespace art

@@ -353,6 +353,12 @@ const RegLocation x86_loc_c_return
 const RegLocation x86_loc_c_return_wide
     {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1,
      RegStorage(RegStorage::k64BitPair, rAX, rDX), INVALID_SREG, INVALID_SREG};
+const RegLocation x86_loc_c_return_ref
+    {kLocPhysReg, 0, 0, 0, 0, 0, 1, 0, 1,
+     RegStorage(RegStorage::k32BitSolo, rAX), INVALID_SREG, INVALID_SREG};
+const RegLocation x86_64_loc_c_return_ref
+    {kLocPhysReg, 0, 0, 0, 0, 0, 1, 0, 1,
+     RegStorage(RegStorage::k64BitSolo, rAX), INVALID_SREG, INVALID_SREG};
 const RegLocation x86_64_loc_c_return_wide
     {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1,
      RegStorage(RegStorage::k64BitSolo, rAX), INVALID_SREG, INVALID_SREG};
@@ -439,7 +445,7 @@ enum X86OpCode {
   kX86Lea32RA,
   kX86Mov64MR, kX86Mov64AR, kX86Mov64TR,
   kX86Mov64RR, kX86Mov64RM, kX86Mov64RA, kX86Mov64RT,
-  kX86Mov64RI, kX86Mov64MI, kX86Mov64AI, kX86Mov64TI,
+  kX86Mov64RI32, kX86Mov64RI64, kX86Mov64MI, kX86Mov64AI, kX86Mov64TI,
   kX86Lea64RM,
   kX86Lea64RA,
   // RRC - Register Register ConditionCode - cond_opcode reg1, reg2
@@ -500,6 +506,7 @@ enum X86OpCode {
   kx86Cdq32Da,
   kx86Cqo64Da,
   kX86Bswap32R,
+  kX86Bswap64R,
   kX86Push32R, kX86Pop32R,
 #undef UnaryOpcode
 #define Binary0fOpCode(opcode) \
@@ -602,13 +609,17 @@ enum X86OpCode {
   Binary0fOpCode(kX86Imul32),   // 32bit multiply
   Binary0fOpCode(kX86Imul64),   // 64bit multiply
   kX86CmpxchgRR, kX86CmpxchgMR, kX86CmpxchgAR,  // compare and exchange
-  kX86LockCmpxchgMR, kX86LockCmpxchgAR,  // locked compare and exchange
+  kX86LockCmpxchgMR, kX86LockCmpxchgAR, kX86LockCmpxchg64AR,  // locked compare and exchange
   kX86LockCmpxchg64M, kX86LockCmpxchg64A,  // locked compare and exchange
   kX86XchgMR,  // exchange memory with register (automatically locked)
   Binary0fOpCode(kX86Movzx8),   // zero-extend 8-bit value
   Binary0fOpCode(kX86Movzx16),  // zero-extend 16-bit value
   Binary0fOpCode(kX86Movsx8),   // sign-extend 8-bit value
   Binary0fOpCode(kX86Movsx16),  // sign-extend 16-bit value
+  Binary0fOpCode(kX86Movzx8q),   // zero-extend 8-bit value to quad word
+  Binary0fOpCode(kX86Movzx16q),  // zero-extend 16-bit value to quad word
+  Binary0fOpCode(kX86Movsx8q),   // sign-extend 8-bit value to quad word
+  Binary0fOpCode(kX86Movsx16q),  // sign-extend 16-bit value to quad word
 #undef Binary0fOpCode
   kX86Jcc8, kX86Jcc32,  // jCC rel8/32; lir operands - 0: rel, 1: CC, target assigned
   kX86Jmp8, kX86Jmp32,  // jmp rel8/32; lir operands - 0: rel, target assigned
@@ -645,6 +656,7 @@ enum X86EncodingKind {
   kRegImm, kMemImm, kArrayImm, kThreadImm,  // RI, MI, AI and TI instruction kinds.
   kRegRegImm, kRegMemImm, kRegArrayImm,     // RRI, RMI and RAI instruction kinds.
   kMovRegImm,                               // Shorter form move RI.
+  kMovRegQuadImm,                           // 64 bit move RI
   kRegRegImmStore,                          // RRI following the store modrm reg-reg encoding rather than the load.
   kMemRegImm,                               // MRI instruction kinds.
   kShiftRegImm, kShiftMemImm, kShiftArrayImm,  // Shift opcode with immediate.
@@ -707,6 +719,8 @@ struct X86EncodingMap {
 #define REX_X 0x42
 // Extension of the ModR/M r/m field, SIB base field, or Opcode reg field
 #define REX_B 0x41
+// Extended register set
+#define REX 0x40
 // Mask extracting the least 3 bits of r0..r15
 #define kRegNumMask32 0x07
 // Value indicating that base or reg is not used

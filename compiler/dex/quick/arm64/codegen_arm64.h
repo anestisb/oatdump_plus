@@ -24,12 +24,12 @@
 
 namespace art {
 
-class Arm64Mir2Lir : public Mir2Lir {
+class Arm64Mir2Lir FINAL : public Mir2Lir {
  protected:
   // TODO: consolidate 64-bit target support.
   class InToRegStorageMapper {
    public:
-    virtual RegStorage GetNextReg(bool is_double_or_float, bool is_wide) = 0;
+    virtual RegStorage GetNextReg(bool is_double_or_float, bool is_wide, bool is_ref) = 0;
     virtual ~InToRegStorageMapper() {}
   };
 
@@ -37,7 +37,7 @@ class Arm64Mir2Lir : public Mir2Lir {
    public:
     InToRegStorageArm64Mapper() : cur_core_reg_(0), cur_fp_reg_(0) {}
     virtual ~InToRegStorageArm64Mapper() {}
-    virtual RegStorage GetNextReg(bool is_double_or_float, bool is_wide);
+    virtual RegStorage GetNextReg(bool is_double_or_float, bool is_wide, bool is_ref);
    private:
     int cur_core_reg_;
     int cur_fp_reg_;
@@ -64,27 +64,32 @@ class Arm64Mir2Lir : public Mir2Lir {
 
     // Required for target - codegen helpers.
     bool SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div, RegLocation rl_src,
-                            RegLocation rl_dest, int lit);
+                            RegLocation rl_dest, int lit) OVERRIDE;
+    bool HandleEasyDivRem(Instruction::Code dalvik_opcode, bool is_div,
+                          RegLocation rl_src, RegLocation rl_dest, int lit) OVERRIDE;
     bool EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) OVERRIDE;
     LIR* CheckSuspendUsingLoad() OVERRIDE;
     RegStorage LoadHelper(ThreadOffset<4> offset) OVERRIDE;
     RegStorage LoadHelper(ThreadOffset<8> offset) OVERRIDE;
-    LIR* LoadBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_dest,
-                              OpSize size) OVERRIDE;
     LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
-                      OpSize size) OVERRIDE;
+                      OpSize size, VolatileKind is_volatile) OVERRIDE;
+    LIR* LoadRefDisp(RegStorage r_base, int displacement, RegStorage r_dest,
+                     VolatileKind is_volatile)
+        OVERRIDE;
     LIR* LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest, int scale,
                          OpSize size) OVERRIDE;
+    LIR* LoadRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest) OVERRIDE;
     LIR* LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
                              RegStorage r_dest, OpSize size) OVERRIDE;
     LIR* LoadConstantNoClobber(RegStorage r_dest, int value);
     LIR* LoadConstantWide(RegStorage r_dest, int64_t value);
-    LIR* StoreBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_dest,
-                               OpSize size) OVERRIDE;
     LIR* StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
-                       OpSize size) OVERRIDE;
+                       OpSize size, VolatileKind is_volatile) OVERRIDE;
+    LIR* StoreRefDisp(RegStorage r_base, int displacement, RegStorage r_src,
+                      VolatileKind is_volatile) OVERRIDE;
     LIR* StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src, int scale,
                           OpSize size) OVERRIDE;
+    LIR* StoreRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src) OVERRIDE;
     LIR* StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
                               RegStorage r_src, OpSize size) OVERRIDE;
     void MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) OVERRIDE;
@@ -92,7 +97,23 @@ class Arm64Mir2Lir : public Mir2Lir {
                            int offset, int check_value, LIR* target) OVERRIDE;
 
     // Required for target - register utilities.
-    RegStorage TargetReg(SpecialTargetRegister reg);
+    RegStorage TargetReg(SpecialTargetRegister reg) OVERRIDE;
+    RegStorage TargetReg(SpecialTargetRegister symbolic_reg, bool is_wide) OVERRIDE {
+      RegStorage reg = TargetReg(symbolic_reg);
+      if (is_wide) {
+        return (reg.Is64Bit()) ? reg : As64BitReg(reg);
+      } else {
+        return (reg.Is32Bit()) ? reg : As32BitReg(reg);
+      }
+    }
+    RegStorage TargetRefReg(SpecialTargetRegister symbolic_reg) OVERRIDE {
+      RegStorage reg = TargetReg(symbolic_reg);
+      return (reg.Is64Bit() ? reg : As64BitReg(reg));
+    }
+    RegStorage TargetPtrReg(SpecialTargetRegister symbolic_reg) OVERRIDE {
+      RegStorage reg = TargetReg(symbolic_reg);
+      return (reg.Is64Bit() ? reg : As64BitReg(reg));
+    }
     RegStorage GetArgMappingToPhysicalReg(int arg_num);
     RegLocation GetReturnAlt();
     RegLocation GetReturnWideAlt();
@@ -106,8 +127,6 @@ class Arm64Mir2Lir : public Mir2Lir {
     void ClobberCallerSave();
     void FreeCallTemps();
     void LockCallTemps();
-    void MarkPreservedSingle(int v_reg, RegStorage reg);
-    void MarkPreservedDouble(int v_reg, RegStorage reg);
     void CompilerInitializeRegAlloc();
 
     // Required for target - miscellaneous.
@@ -157,8 +176,11 @@ class Arm64Mir2Lir : public Mir2Lir {
     void GenCmpFP(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                   RegLocation rl_src2);
     void GenConversion(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src);
+    bool GenInlinedReverseBits(CallInfo* info, OpSize size);
+    bool GenInlinedAbsDouble(CallInfo* info) OVERRIDE;
     bool GenInlinedCas(CallInfo* info, bool is_long, bool is_object);
-    bool GenInlinedMinMaxInt(CallInfo* info, bool is_min);
+    bool GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long);
+    bool GenInlinedMinMaxFP(CallInfo* info, bool is_min, bool is_double);
     bool GenInlinedSqrt(CallInfo* info);
     bool GenInlinedPeek(CallInfo* info, OpSize size);
     bool GenInlinedPoke(CallInfo* info, OpSize size);
@@ -195,7 +217,6 @@ class Arm64Mir2Lir : public Mir2Lir {
     void GenNegFloat(RegLocation rl_dest, RegLocation rl_src);
     void GenPackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
     void GenSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
-    bool GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& special);
 
     uint32_t GenPairWise(uint32_t reg_mask, int* reg1, int* reg2);
     void UnSpillCoreRegs(RegStorage base, int offset, uint32_t reg_mask);
@@ -283,14 +304,33 @@ class Arm64Mir2Lir : public Mir2Lir {
      * @see As64BitReg
      */
     RegStorage As32BitReg(RegStorage reg) {
-      DCHECK(reg.Is64Bit());
       DCHECK(!reg.IsPair());
+      if ((kFailOnSizeError || kReportSizeError) && !reg.Is64Bit()) {
+        if (kFailOnSizeError) {
+          LOG(FATAL) << "Expected 64b register";
+        } else {
+          LOG(WARNING) << "Expected 64b register";
+          return reg;
+        }
+      }
       RegStorage ret_val = RegStorage(RegStorage::k32BitSolo,
                                       reg.GetRawBits() & RegStorage::kRegTypeMask);
       DCHECK_EQ(GetRegInfo(reg)->FindMatchingView(RegisterInfo::k32SoloStorageMask)
                                ->GetReg().GetReg(),
                 ret_val.GetReg());
       return ret_val;
+    }
+
+    RegStorage Check32BitReg(RegStorage reg) {
+      if ((kFailOnSizeError || kReportSizeError) && !reg.Is32Bit()) {
+        if (kFailOnSizeError) {
+          LOG(FATAL) << "Checked for 32b register";
+        } else {
+          LOG(WARNING) << "Checked for 32b register";
+          return As32BitReg(reg);
+        }
+      }
+      return reg;
     }
 
     /**
@@ -300,14 +340,33 @@ class Arm64Mir2Lir : public Mir2Lir {
      * @see As32BitReg
      */
     RegStorage As64BitReg(RegStorage reg) {
-      DCHECK(reg.Is32Bit());
       DCHECK(!reg.IsPair());
+      if ((kFailOnSizeError || kReportSizeError) && !reg.Is32Bit()) {
+        if (kFailOnSizeError) {
+          LOG(FATAL) << "Expected 32b register";
+        } else {
+          LOG(WARNING) << "Expected 32b register";
+          return reg;
+        }
+      }
       RegStorage ret_val = RegStorage(RegStorage::k64BitSolo,
                                       reg.GetRawBits() & RegStorage::kRegTypeMask);
       DCHECK_EQ(GetRegInfo(reg)->FindMatchingView(RegisterInfo::k64SoloStorageMask)
                                ->GetReg().GetReg(),
                 ret_val.GetReg());
       return ret_val;
+    }
+
+    RegStorage Check64BitReg(RegStorage reg) {
+      if ((kFailOnSizeError || kReportSizeError) && !reg.Is64Bit()) {
+        if (kFailOnSizeError) {
+          LOG(FATAL) << "Checked for 64b register";
+        } else {
+          LOG(WARNING) << "Checked for 64b register";
+          return As64BitReg(reg);
+        }
+      }
+      return reg;
     }
 
     LIR* LoadFPConstantValue(RegStorage r_dest, int32_t value);

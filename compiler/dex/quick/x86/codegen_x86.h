@@ -34,9 +34,11 @@ class X86Mir2Lir : public Mir2Lir {
 
   class InToRegStorageX86_64Mapper : public InToRegStorageMapper {
    public:
-    InToRegStorageX86_64Mapper() : cur_core_reg_(0), cur_fp_reg_(0) {}
+    explicit InToRegStorageX86_64Mapper(Mir2Lir* ml) : ml_(ml), cur_core_reg_(0), cur_fp_reg_(0) {}
     virtual ~InToRegStorageX86_64Mapper() {}
     virtual RegStorage GetNextReg(bool is_double_or_float, bool is_wide);
+   protected:
+    Mir2Lir* ml_;
    private:
     int cur_core_reg_;
     int cur_fp_reg_;
@@ -59,7 +61,7 @@ class X86Mir2Lir : public Mir2Lir {
   };
 
  public:
-  X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena, bool gen64bit);
+  X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena);
 
   // Required for target - codegen helpers.
   bool SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div, RegLocation rl_src,
@@ -68,20 +70,16 @@ class X86Mir2Lir : public Mir2Lir {
   LIR* CheckSuspendUsingLoad() OVERRIDE;
   RegStorage LoadHelper(ThreadOffset<4> offset) OVERRIDE;
   RegStorage LoadHelper(ThreadOffset<8> offset) OVERRIDE;
-  LIR* LoadBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_dest,
-                            OpSize size) OVERRIDE;
   LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
-                    OpSize size) OVERRIDE;
+                    OpSize size, VolatileKind is_volatile) OVERRIDE;
   LIR* LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest, int scale,
                        OpSize size) OVERRIDE;
   LIR* LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
                            RegStorage r_dest, OpSize size) OVERRIDE;
   LIR* LoadConstantNoClobber(RegStorage r_dest, int value);
   LIR* LoadConstantWide(RegStorage r_dest, int64_t value);
-  LIR* StoreBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_src,
-                             OpSize size) OVERRIDE;
   LIR* StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
-                     OpSize size) OVERRIDE;
+                     OpSize size, VolatileKind is_volatile) OVERRIDE;
   LIR* StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src, int scale,
                         OpSize size) OVERRIDE;
   LIR* StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
@@ -89,7 +87,22 @@ class X86Mir2Lir : public Mir2Lir {
   void MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg);
 
   // Required for target - register utilities.
-  RegStorage TargetReg(SpecialTargetRegister reg);
+  RegStorage TargetReg(SpecialTargetRegister reg) OVERRIDE;
+  RegStorage TargetReg32(SpecialTargetRegister reg);
+  RegStorage TargetReg(SpecialTargetRegister symbolic_reg, bool is_wide) OVERRIDE {
+    RegStorage reg = TargetReg32(symbolic_reg);
+    if (is_wide) {
+      return (reg.Is64Bit()) ? reg : As64BitReg(reg);
+    } else {
+      return (reg.Is32Bit()) ? reg : As32BitReg(reg);
+    }
+  }
+  RegStorage TargetRefReg(SpecialTargetRegister symbolic_reg) OVERRIDE {
+    return TargetReg(symbolic_reg, cu_->target64);
+  }
+  RegStorage TargetPtrReg(SpecialTargetRegister symbolic_reg) OVERRIDE {
+    return TargetReg(symbolic_reg, cu_->target64);
+  }
   RegStorage GetArgMappingToPhysicalReg(int arg_num);
   RegStorage GetCoreArgMappingToPhysicalReg(int core_arg_num);
   RegLocation GetReturnAlt();
@@ -104,8 +117,6 @@ class X86Mir2Lir : public Mir2Lir {
   void ClobberCallerSave();
   void FreeCallTemps();
   void LockCallTemps();
-  void MarkPreservedSingle(int v_reg, RegStorage reg);
-  void MarkPreservedDouble(int v_reg, RegStorage reg);
   void CompilerInitializeRegAlloc();
 
   // Required for target - miscellaneous.
@@ -153,7 +164,7 @@ class X86Mir2Lir : public Mir2Lir {
                 RegLocation rl_src2);
   void GenConversion(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src);
   bool GenInlinedCas(CallInfo* info, bool is_long, bool is_object);
-  bool GenInlinedMinMaxInt(CallInfo* info, bool is_min);
+  bool GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long);
   bool GenInlinedSqrt(CallInfo* info);
   bool GenInlinedAbsFloat(CallInfo* info) OVERRIDE;
   bool GenInlinedAbsDouble(CallInfo* info) OVERRIDE;
@@ -394,6 +405,43 @@ class X86Mir2Lir : public Mir2Lir {
   std::vector<uint8_t>* ReturnCallFrameInformation();
 
  protected:
+  // Casting of RegStorage
+  RegStorage As32BitReg(RegStorage reg) {
+    DCHECK(!reg.IsPair());
+    if ((kFailOnSizeError || kReportSizeError) && !reg.Is64Bit()) {
+      if (kFailOnSizeError) {
+        LOG(FATAL) << "Expected 64b register " << reg.GetReg();
+      } else {
+        LOG(WARNING) << "Expected 64b register " << reg.GetReg();
+        return reg;
+      }
+    }
+    RegStorage ret_val = RegStorage(RegStorage::k32BitSolo,
+                                    reg.GetRawBits() & RegStorage::kRegTypeMask);
+    DCHECK_EQ(GetRegInfo(reg)->FindMatchingView(RegisterInfo::k32SoloStorageMask)
+                             ->GetReg().GetReg(),
+              ret_val.GetReg());
+    return ret_val;
+  }
+
+  RegStorage As64BitReg(RegStorage reg) {
+    DCHECK(!reg.IsPair());
+    if ((kFailOnSizeError || kReportSizeError) && !reg.Is32Bit()) {
+      if (kFailOnSizeError) {
+        LOG(FATAL) << "Expected 32b register " << reg.GetReg();
+      } else {
+        LOG(WARNING) << "Expected 32b register " << reg.GetReg();
+        return reg;
+      }
+    }
+    RegStorage ret_val = RegStorage(RegStorage::k64BitSolo,
+                                    reg.GetRawBits() & RegStorage::kRegTypeMask);
+    DCHECK_EQ(GetRegInfo(reg)->FindMatchingView(RegisterInfo::k64SoloStorageMask)
+                             ->GetReg().GetReg(),
+              ret_val.GetReg());
+    return ret_val;
+  }
+
   size_t ComputeSize(const X86EncodingMap* entry, int32_t raw_reg, int32_t raw_index,
                      int32_t raw_base, int32_t displacement);
   void CheckValidByteRegister(const X86EncodingMap* entry, int32_t raw_reg);
@@ -806,8 +854,6 @@ class X86Mir2Lir : public Mir2Lir {
    */
   void AnalyzeInvokeStatic(int opcode, BasicBlock * bb, MIR *mir);
 
-  bool Gen64Bit() const  { return gen64bit_; }
-
   // Information derived from analysis of MIR
 
   // The compiler temporary for the code address of the method.
@@ -836,9 +882,6 @@ class X86Mir2Lir : public Mir2Lir {
 
   // Epilogue increment of stack pointer.
   LIR* stack_increment_;
-
-  // 64-bit mode
-  bool gen64bit_;
 
   // The list of const vector literals.
   LIR *const_vectors_;

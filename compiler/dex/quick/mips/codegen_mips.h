@@ -33,20 +33,16 @@ class MipsMir2Lir FINAL : public Mir2Lir {
     LIR* CheckSuspendUsingLoad() OVERRIDE;
     RegStorage LoadHelper(ThreadOffset<4> offset) OVERRIDE;
     RegStorage LoadHelper(ThreadOffset<8> offset) OVERRIDE;
-    LIR* LoadBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_dest,
-                              OpSize size) OVERRIDE;
     LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
-                      OpSize size) OVERRIDE;
+                      OpSize size, VolatileKind is_volatile) OVERRIDE;
     LIR* LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest, int scale,
                          OpSize size) OVERRIDE;
     LIR* LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
                              RegStorage r_dest, OpSize size) OVERRIDE;
     LIR* LoadConstantNoClobber(RegStorage r_dest, int value);
     LIR* LoadConstantWide(RegStorage r_dest, int64_t value);
-    LIR* StoreBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_src,
-                               OpSize size) OVERRIDE;
     LIR* StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
-                       OpSize size) OVERRIDE;
+                       OpSize size, VolatileKind is_volatile) OVERRIDE;
     LIR* StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src, int scale,
                           OpSize size) OVERRIDE;
     LIR* StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
@@ -54,6 +50,7 @@ class MipsMir2Lir FINAL : public Mir2Lir {
     void MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg);
 
     // Required for target - register utilities.
+    RegStorage Solo64ToPair64(RegStorage reg);
     RegStorage TargetReg(SpecialTargetRegister reg);
     RegStorage GetArgMappingToPhysicalReg(int arg_num);
     RegLocation GetReturnAlt();
@@ -68,8 +65,6 @@ class MipsMir2Lir FINAL : public Mir2Lir {
     void ClobberCallerSave();
     void FreeCallTemps();
     void LockCallTemps();
-    void MarkPreservedSingle(int v_reg, RegStorage reg);
-    void MarkPreservedDouble(int v_reg, RegStorage reg);
     void CompilerInitializeRegAlloc();
 
     // Required for target - miscellaneous.
@@ -116,7 +111,7 @@ class MipsMir2Lir FINAL : public Mir2Lir {
                   RegLocation rl_src2);
     void GenConversion(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src);
     bool GenInlinedCas(CallInfo* info, bool is_long, bool is_object);
-    bool GenInlinedMinMaxInt(CallInfo* info, bool is_min);
+    bool GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long);
     bool GenInlinedSqrt(CallInfo* info);
     bool GenInlinedPeek(CallInfo* info, OpSize size);
     bool GenInlinedPoke(CallInfo* info, OpSize size);
@@ -185,10 +180,10 @@ class MipsMir2Lir FINAL : public Mir2Lir {
 
     // TODO: collapse r_dest.
     LIR* LoadBaseDispBody(RegStorage r_base, int displacement, RegStorage r_dest,
-                          RegStorage r_dest_hi, OpSize size);
+                          OpSize size);
     // TODO: collapse r_src.
     LIR* StoreBaseDispBody(RegStorage r_base, int displacement, RegStorage r_src,
-                           RegStorage r_src_hi, OpSize size);
+                           OpSize size);
     void SpillCoreRegs();
     void UnSpillCoreRegs();
     static const MipsEncodingMap EncodingMap[kMipsLast];

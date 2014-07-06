@@ -4742,6 +4742,82 @@ const char* MixedBranch32Results[] = {
   " 80a:	0011      	movs	r1, r2\n",
   nullptr
 };
+const char* ShiftsResults[] = {
+  "   0:	0148      	lsls	r0, r1, #5\n",
+  "   2:	0948      	lsrs	r0, r1, #5\n",
+  "   4:	1148      	asrs	r0, r1, #5\n",
+  "   6:	4088      	lsls	r0, r1\n",
+  "   8:	40c8      	lsrs	r0, r1\n",
+  "   a:	4108      	asrs	r0, r1\n",
+  "   c:	ea4f 1841 	mov.w	r8, r1, lsl #5\n",
+  "  10:	ea4f 1058 	mov.w	r0, r8, lsr #5\n",
+  "  14:	ea4f 1861 	mov.w	r8, r1, asr #5\n",
+  "  18:	ea4f 1078 	mov.w	r0, r8, ror #5\n",
+  "  1c:	fa01 f002 	lsl.w	r0, r1, r2\n",
+  "  20:	fa21 f002 	lsr.w	r0, r1, r2\n",
+  "  24:	fa41 f002 	asr.w	r0, r1, r2\n",
+  "  28:	fa61 f002 	ror.w	r0, r1, r2\n",
+  "  2c:	fa01 f802 	lsl.w	r8, r1, r2\n",
+  "  30:	fa28 f002 	lsr.w	r0, r8, r2\n",
+  "  34:	fa41 f008 	asr.w	r0, r1, r8\n",
+  "  38:	ea5f 1841 	movs.w	r8, r1, lsl #5\n",
+  "  3c:	ea5f 1058 	movs.w	r0, r8, lsr #5\n",
+  "  40:	ea5f 1861 	movs.w	r8, r1, asr #5\n",
+  "  44:	ea5f 1078 	movs.w	r0, r8, ror #5\n",
+  "  48:	fa11 f002 	lsls.w	r0, r1, r2\n",
+  "  4c:	fa31 f002 	lsrs.w	r0, r1, r2\n",
+  "  50:	fa51 f002 	asrs.w	r0, r1, r2\n",
+  "  54:	fa71 f002 	rors.w	r0, r1, r2\n",
+  "  58:	fa11 f802 	lsls.w	r8, r1, r2\n",
+  "  5c:	fa38 f002 	lsrs.w	r0, r8, r2\n",
+  "  60:	fa51 f008 	asrs.w	r0, r1, r8\n",
+  nullptr
+};
+const char* LoadStoreRegOffsetResults[] = {
+  "   0:	5888      	ldr	r0, [r1, r2]\n",
+  "   2:	5088      	str	r0, [r1, r2]\n",
+  "   4:	f851 0012 	ldr.w	r0, [r1, r2, lsl #1]\n",
+  "   8:	f841 0012 	str.w	r0, [r1, r2, lsl #1]\n",
+  "   c:	f851 0032 	ldr.w	r0, [r1, r2, lsl #3]\n",
+  "  10:	f841 0032 	str.w	r0, [r1, r2, lsl #3]\n",
+  "  14:	f851 8002 	ldr.w	r8, [r1, r2]\n",
+  "  18:	f841 8002 	str.w	r8, [r1, r2]\n",
+  "  1c:	f858 1002 	ldr.w	r1, [r8, r2]\n",
+  "  20:	f848 2002 	str.w	r2, [r8, r2]\n",
+  "  24:	f851 0008 	ldr.w	r0, [r1, r8]\n",
+  "  28:	f841 0008 	str.w	r0, [r1, r8]\n",
+  nullptr
+};
+const char* LoadStoreLiteralResults[] = {
+  "   0:   4801            ldr     r0, [pc, #4]    ; (8 <LoadStoreLiteral+0x8>)\n",
+  "   2:   f8cf 0004       str.w   r0, [pc, #4]    ; 8 <LoadStoreLiteral+0x8>\n",
+  "   6:   f85f 0008       ldr.w   r0, [pc, #-8]   ; 0 <LoadStoreLiteral>\n",
+  "   a:   f84f 0008       str.w   r0, [pc, #-8]   ; 4 <LoadStoreLiteral+0x4>\n",
+  "   e:   48ff            ldr     r0, [pc, #1020] ; (40c <LoadStoreLiteral+0x40c>)\n",
+  "  10:   f8df 07ff       ldr.w   r0, [pc, #2047] ; 813 <LoadStoreLiteral+0x813>\n",
+  "  14:   f8cf 03ff       str.w   r0, [pc, #1023] ; 417 <LoadStoreLiteral+0x417>\n",
+  "  18:   f8cf 07ff       str.w   r0, [pc, #2047] ; 81b <LoadStoreLiteral+0x81b>\n",
+  nullptr
+};
+const char* LoadStoreLimitsResults[] = {
+  "   0:   6fe0            ldr     r0, [r4, #124]  ; 0x7c\n",
+  "   2:   f8d4 0080       ldr.w   r0, [r4, #128]  ; 0x80\n",
+  "   6:   7fe0            ldrb    r0, [r4, #31]\n",
+  "   8:   f894 0020       ldrb.w  r0, [r4, #32]\n",
+  "   c:   8fe0            ldrh    r0, [r4, #62]   ; 0x3e\n",
+  "   e:   f8b4 0040       ldrh.w  r0, [r4, #64]   ; 0x40\n",
+  "  12:   f994 001f       ldrsb.w r0, [r4, #31]\n",
+  "  16:   f994 0020       ldrsb.w r0, [r4, #32]\n",
+  "  1a:   f9b4 003e       ldrsh.w r0, [r4, #62]   ; 0x3e\n",
+  "  1e:   f9b4 0040       ldrsh.w r0, [r4, #64]   ; 0x40\n",
+  "  22:   67e0            str     r0, [r4, #124]  ; 0x7c\n",
+  "  24:   f8c4 0080       str.w   r0, [r4, #128]  ; 0x80\n",
+  "  28:   77e0            strb    r0, [r4, #31]\n",
+  "  2a:   f884 0020       strb.w  r0, [r4, #32]\n",
+  "  2e:   87e0            strh    r0, [r4, #62]   ; 0x3e\n",
+  "  30:   f8a4 0040       strh.w  r0, [r4, #64]   ; 0x40\n",
+  nullptr
+};
 std::map<std::string, const char**> test_results;
 void setup_results() {
     test_results["SimpleMov"] = SimpleMovResults;
@@ -4785,4 +4861,8 @@ void setup_results() {
     test_results["CompareAndBranchRelocation16"] = CompareAndBranchRelocation16Results;
     test_results["CompareAndBranchRelocation32"] = CompareAndBranchRelocation32Results;
     test_results["MixedBranch32"] = MixedBranch32Results;
+    test_results["Shifts"] = ShiftsResults;
+    test_results["LoadStoreRegOffset"] = LoadStoreRegOffsetResults;
+    test_results["LoadStoreLiteral"] = LoadStoreLiteralResults;
+    test_results["LoadStoreLimits"] = LoadStoreLimitsResults;
 }

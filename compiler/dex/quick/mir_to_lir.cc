@@ -61,7 +61,7 @@ void Mir2Lir::LockArg(int in_position, bool wide) {
   if (reg_arg_low.Valid()) {
     LockTemp(reg_arg_low);
   }
-  if (reg_arg_high.Valid() && reg_arg_low != reg_arg_high) {
+  if (reg_arg_high.Valid() && reg_arg_low.NotExactlyEquals(reg_arg_high)) {
     LockTemp(reg_arg_high);
   }
 }
@@ -92,7 +92,7 @@ RegStorage Mir2Lir::LoadArg(int in_position, RegisterClass reg_class, bool wide)
     if (!reg_arg.Valid()) {
       RegStorage new_reg =
           wide ?  AllocTypedTempWide(false, reg_class) : AllocTypedTemp(false, reg_class);
-      LoadBaseDisp(TargetReg(kSp), offset, new_reg, wide ? k64 : k32);
+      LoadBaseDisp(TargetPtrReg(kSp), offset, new_reg, wide ? k64 : k32, kNotVolatile);
       return new_reg;
     } else {
       // Check if we need to copy the arg to a different reg_class.
@@ -120,7 +120,7 @@ RegStorage Mir2Lir::LoadArg(int in_position, RegisterClass reg_class, bool wide)
     // If the low part is not in a reg, we allocate a pair. Otherwise, we just load to high reg.
     if (!reg_arg_low.Valid()) {
       RegStorage new_regs = AllocTypedTempWide(false, reg_class);
-      LoadBaseDisp(TargetReg(kSp), offset, new_regs, k64);
+      LoadBaseDisp(TargetPtrReg(kSp), offset, new_regs, k64, kNotVolatile);
       return new_regs;  // The reg_class is OK, we can return.
     } else {
       // Assume that no ABI allows splitting a wide fp reg between a narrow fp reg and memory,
@@ -128,7 +128,7 @@ RegStorage Mir2Lir::LoadArg(int in_position, RegisterClass reg_class, bool wide)
       DCHECK(!reg_arg_low.IsFloat());
       reg_arg_high = AllocTemp();
       int offset_high = offset + sizeof(uint32_t);
-      Load32Disp(TargetReg(kSp), offset_high, reg_arg_high);
+      Load32Disp(TargetPtrReg(kSp), offset_high, reg_arg_high);
       // Continue below to check the reg_class.
     }
   }
@@ -140,7 +140,7 @@ RegStorage Mir2Lir::LoadArg(int in_position, RegisterClass reg_class, bool wide)
     // conceivably break this assumption but Android supports only little-endian architectures.
     DCHECK(!wide);
     reg_arg_low = AllocTypedTemp(false, reg_class);
-    Load32Disp(TargetReg(kSp), offset, reg_arg_low);
+    Load32Disp(TargetPtrReg(kSp), offset, reg_arg_low);
     return reg_arg_low;  // The reg_class is OK, we can return.
   }
 
@@ -185,7 +185,7 @@ void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
     if (reg.Valid()) {
       OpRegCopy(rl_dest.reg, reg);
     } else {
-      Load32Disp(TargetReg(kSp), offset, rl_dest.reg);
+      Load32Disp(TargetPtrReg(kSp), offset, rl_dest.reg);
     }
   } else {
     if (cu_->target64) {
@@ -193,7 +193,7 @@ void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
       if (reg.Valid()) {
         OpRegCopy(rl_dest.reg, reg);
       } else {
-        LoadBaseDisp(TargetReg(kSp), offset, rl_dest.reg, k64);
+        LoadBaseDisp(TargetPtrReg(kSp), offset, rl_dest.reg, k64, kNotVolatile);
       }
       return;
     }
@@ -206,12 +206,12 @@ void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
     } else if (reg_arg_low.Valid() && !reg_arg_high.Valid()) {
       OpRegCopy(rl_dest.reg, reg_arg_low);
       int offset_high = offset + sizeof(uint32_t);
-      Load32Disp(TargetReg(kSp), offset_high, rl_dest.reg.GetHigh());
+      Load32Disp(TargetPtrReg(kSp), offset_high, rl_dest.reg.GetHigh());
     } else if (!reg_arg_low.Valid() && reg_arg_high.Valid()) {
       OpRegCopy(rl_dest.reg.GetHigh(), reg_arg_high);
-      Load32Disp(TargetReg(kSp), offset, rl_dest.reg.GetLow());
+      Load32Disp(TargetPtrReg(kSp), offset, rl_dest.reg.GetLow());
     } else {
-      LoadBaseDisp(TargetReg(kSp), offset, rl_dest.reg, k64);
+      LoadBaseDisp(TargetPtrReg(kSp), offset, rl_dest.reg, k64, kNotVolatile);
     }
   }
 }
@@ -243,16 +243,13 @@ bool Mir2Lir::GenSpecialIGet(MIR* mir, const InlineMethod& special) {
     r_result = wide ? AllocTypedTempWide(rl_dest.fp, reg_class)
                     : AllocTypedTemp(rl_dest.fp, reg_class);
   }
-  if (data.is_volatile) {
-    LoadBaseDispVolatile(reg_obj, data.field_offset, r_result, size);
-    // Without context sensitive analysis, we must issue the most conservative barriers.
-    // In this case, either a load or store may follow so we issue both barriers.
-    GenMemBarrier(kLoadLoad);
-    GenMemBarrier(kLoadStore);
+  if (ref) {
+    LoadRefDisp(reg_obj, data.field_offset, r_result, data.is_volatile ? kVolatile : kNotVolatile);
   } else {
-    LoadBaseDisp(reg_obj, data.field_offset, r_result, size);
+    LoadBaseDisp(reg_obj, data.field_offset, r_result, size, data.is_volatile ? kVolatile :
+        kNotVolatile);
   }
-  if (r_result != rl_dest.reg) {
+  if (r_result.NotExactlyEquals(rl_dest.reg)) {
     if (wide) {
       OpRegCopyWide(rl_dest.reg, r_result);
     } else {
@@ -288,14 +285,11 @@ bool Mir2Lir::GenSpecialIPut(MIR* mir, const InlineMethod& special) {
   RegStorage reg_obj = LoadArg(data.object_arg, kRefReg);
   RegisterClass reg_class = RegClassForFieldLoadStore(size, data.is_volatile);
   RegStorage reg_src = LoadArg(data.src_arg, reg_class, wide);
-  if (data.is_volatile) {
-    // There might have been a store before this volatile one so insert StoreStore barrier.
-    GenMemBarrier(kStoreStore);
-    StoreBaseDispVolatile(reg_obj, data.field_offset, reg_src, size);
-    // A load might follow the volatile store so insert a StoreLoad barrier.
-    GenMemBarrier(kStoreLoad);
+  if (ref) {
+    StoreRefDisp(reg_obj, data.field_offset, reg_src, data.is_volatile ? kVolatile : kNotVolatile);
   } else {
-    StoreBaseDisp(reg_obj, data.field_offset, reg_src, size);
+    StoreBaseDisp(reg_obj, data.field_offset, reg_src, size, data.is_volatile ? kVolatile :
+        kNotVolatile);
   }
   if (ref) {
     MarkGCCard(reg_src, reg_obj);
@@ -1271,6 +1265,57 @@ LIR* Mir2Lir::LIRSlowPath::GenerateTargetLabel(int opcode) {
   LIR* target = m2l_->NewLIR0(opcode);
   fromfast_->target = target;
   return target;
+}
+
+
+void Mir2Lir::CheckRegStorageImpl(RegStorage rs, WidenessCheck wide, RefCheck ref, FPCheck fp,
+                                  bool fail, bool report)
+    const  {
+  if (rs.Valid()) {
+    if (ref == RefCheck::kCheckRef) {
+      if (cu_->target64 && !rs.Is64Bit()) {
+        if (fail) {
+          CHECK(false) << "Reg storage not 64b for ref.";
+        } else if (report) {
+          LOG(WARNING) << "Reg storage not 64b for ref.";
+        }
+      }
+    }
+    if (wide == WidenessCheck::kCheckWide) {
+      if (!rs.Is64Bit()) {
+        if (fail) {
+          CHECK(false) << "Reg storage not 64b for wide.";
+        } else if (report) {
+          LOG(WARNING) << "Reg storage not 64b for wide.";
+        }
+      }
+    }
+    // A tighter check would be nice, but for now soft-float will not check float at all.
+    if (fp == FPCheck::kCheckFP && cu_->instruction_set != kArm) {
+      if (!rs.IsFloat()) {
+        if (fail) {
+          CHECK(false) << "Reg storage not float for fp.";
+        } else if (report) {
+          LOG(WARNING) << "Reg storage not float for fp.";
+        }
+      }
+    } else if (fp == FPCheck::kCheckNotFP) {
+      if (rs.IsFloat()) {
+        if (fail) {
+          CHECK(false) << "Reg storage float for not-fp.";
+        } else if (report) {
+          LOG(WARNING) << "Reg storage float for not-fp.";
+        }
+      }
+    }
+  }
+}
+
+void Mir2Lir::CheckRegLocationImpl(RegLocation rl, bool fail, bool report) const {
+  // Regrettably can't use the fp part of rl, as that is not really indicative of where a value
+  // will be stored.
+  CheckRegStorageImpl(rl.reg, rl.wide ? WidenessCheck::kCheckWide : WidenessCheck::kCheckNotWide,
+      rl.ref ? RefCheck::kCheckRef : RefCheck::kCheckNotRef, FPCheck::kIgnoreFP, fail, report);
 }
 
 }  // namespace art

@@ -16,7 +16,7 @@
 
 LOCAL_PATH := $(call my-dir)
 
-include art/build/Android.common.mk
+include art/build/Android.common_build.mk
 
 LIBART_COMMON_SRC_FILES := \
 	atomic.cc.arm \
@@ -197,7 +197,7 @@ LIBART_COMMON_SRC_FILES += \
 LIBART_GCC_ONLY_SRC_FILES := \
 	interpreter/interpreter_goto_table_impl.cc
 
-LIBART_TARGET_LDFLAGS := -Wl,--no-fatal-warnings
+LIBART_TARGET_LDFLAGS :=
 LIBART_HOST_LDFLAGS :=
 
 LIBART_TARGET_SRC_FILES := \
@@ -223,6 +223,7 @@ LIBART_TARGET_SRC_FILES_arm64 := \
 	arch/arm64/context_arm64.cc \
 	arch/arm64/entrypoints_init_arm64.cc \
 	arch/arm64/jni_entrypoints_arm64.S \
+	arch/arm64/memcmp16_arm64.S \
 	arch/arm64/portable_entrypoints_arm64.S \
 	arch/arm64/quick_entrypoints_arm64.S \
 	arch/arm64/thread_arm64.cc \
@@ -267,10 +268,6 @@ LIBART_TARGET_SRC_FILES_mips := \
 ifeq ($(TARGET_ARCH),mips64)
 $(info TODOMips64: $(LOCAL_PATH)/Android.mk Add mips64 specific runtime files)
 endif # TARGET_ARCH != mips64
-
-ifeq (,$(filter $(TARGET_ARCH),$(ART_SUPPORTED_ARCH)))
-$(warning unsupported TARGET_ARCH=$(TARGET_ARCH))
-endif
 
 LIBART_HOST_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
@@ -335,8 +332,8 @@ define build-libart
   art_target_or_host := $(1)
   art_ndebug_or_debug := $(2)
 
-  include $(CLEAR_VARS)
-  LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
+  include $$(CLEAR_VARS)
+  LOCAL_CPP_EXTENSION := $$(ART_CPP_EXTENSION)
   ifeq ($$(art_ndebug_or_debug),ndebug)
     LOCAL_MODULE := libart
   else # debug
@@ -347,13 +344,13 @@ define build-libart
   LOCAL_MODULE_CLASS := SHARED_LIBRARIES
 
   ifeq ($$(art_target_or_host),target)
-    LOCAL_SRC_FILES := $(LIBART_TARGET_SRC_FILES)
-    $(foreach arch,$(ART_SUPPORTED_ARCH),
-      LOCAL_SRC_FILES_$(arch) := $$(LIBART_TARGET_SRC_FILES_$(arch)))
+    LOCAL_SRC_FILES := $$(LIBART_TARGET_SRC_FILES)
+    $$(foreach arch,$$(ART_TARGET_SUPPORTED_ARCH), \
+      $$(eval LOCAL_SRC_FILES_$$(arch) := $$$$(LIBART_TARGET_SRC_FILES_$$(arch))))
   else # host
-    LOCAL_SRC_FILES := $(LIBART_HOST_SRC_FILES)
-    LOCAL_SRC_FILES_32 := $(LIBART_HOST_SRC_FILES_32)
-    LOCAL_SRC_FILES_64 := $(LIBART_HOST_SRC_FILES_64)
+    LOCAL_SRC_FILES := $$(LIBART_HOST_SRC_FILES)
+    LOCAL_SRC_FILES_32 := $$(LIBART_HOST_SRC_FILES_32)
+    LOCAL_SRC_FILES_64 := $$(LIBART_HOST_SRC_FILES_64)
     LOCAL_IS_HOST_MODULE := true
   endif
 
@@ -368,43 +365,43 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
 
   LOCAL_GENERATED_SOURCES += $$(ENUM_OPERATOR_OUT_GEN)
 
-  LOCAL_CFLAGS := $(LIBART_CFLAGS)
-  LOCAL_LDFLAGS := $(LIBART_LDFLAGS)
+  LOCAL_CFLAGS := $$(LIBART_CFLAGS)
+  LOCAL_LDFLAGS := $$(LIBART_LDFLAGS)
   ifeq ($$(art_target_or_host),target)
-    LOCAL_LDFLAGS += $(LIBART_TARGET_LDFLAGS)
+    LOCAL_LDFLAGS += $$(LIBART_TARGET_LDFLAGS)
   else
-    LOCAL_LDFLAGS += $(LIBART_HOST_LDFLAGS)
+    LOCAL_LDFLAGS += $$(LIBART_HOST_LDFLAGS)
   endif
-  $(foreach arch,$(ART_SUPPORTED_ARCH),
-    LOCAL_LDFLAGS_$(arch) := $$(LIBART_TARGET_LDFLAGS_$(arch)))
+  $$(foreach arch,$$(ART_TARGET_SUPPORTED_ARCH), \
+    $$(eval LOCAL_LDFLAGS_$$(arch) := $$(LIBART_TARGET_LDFLAGS_$$(arch))))
 
   # Clang usage
   ifeq ($$(art_target_or_host),target)
-    $(call set-target-local-clang-vars)
-    $(call set-target-local-cflags-vars,$(2))
+    $$(eval $$(call set-target-local-clang-vars))
+    $$(eval $$(call set-target-local-cflags-vars,$(2)))
     # TODO: Loop with ifeq, ART_TARGET_CLANG
-    ifneq ($$(ART_TARGET_CLANG_$(TARGET_ARCH)),true)
-      LOCAL_SRC_FILES_$(TARGET_ARCH) += $(LIBART_GCC_ONLY_SRC_FILES)
+    ifneq ($$(ART_TARGET_CLANG_$$(TARGET_ARCH)),true)
+      LOCAL_SRC_FILES_$$(TARGET_ARCH) += $$(LIBART_GCC_ONLY_SRC_FILES)
     endif
-    ifneq ($$(ART_TARGET_CLANG_$(TARGET_2ND_ARCH)),true)
-      LOCAL_SRC_FILES_$(TARGET_2ND_ARCH) += $(LIBART_GCC_ONLY_SRC_FILES)
+    ifneq ($$(ART_TARGET_CLANG_$$(TARGET_2ND_ARCH)),true)
+      LOCAL_SRC_FILES_$$(TARGET_2ND_ARCH) += $$(LIBART_GCC_ONLY_SRC_FILES)
     endif
   else # host
-    LOCAL_CLANG := $(ART_HOST_CLANG)
-    ifeq ($(ART_HOST_CLANG),false)
-      LOCAL_SRC_FILES += $(LIBART_GCC_ONLY_SRC_FILES)
+    LOCAL_CLANG := $$(ART_HOST_CLANG)
+    ifeq ($$(ART_HOST_CLANG),false)
+      LOCAL_SRC_FILES += $$(LIBART_GCC_ONLY_SRC_FILES)
     endif
-    LOCAL_CFLAGS += $(ART_HOST_CFLAGS)
+    LOCAL_CFLAGS += $$(ART_HOST_CFLAGS)
     ifeq ($$(art_ndebug_or_debug),debug)
-      LOCAL_CFLAGS += $(ART_HOST_DEBUG_CFLAGS)
-      LOCAL_LDLIBS += $(ART_HOST_DEBUG_LDLIBS)
+      LOCAL_CFLAGS += $$(ART_HOST_DEBUG_CFLAGS)
+      LOCAL_LDLIBS += $$(ART_HOST_DEBUG_LDLIBS)
       LOCAL_STATIC_LIBRARIES := libgtest_host
     else
-      LOCAL_CFLAGS += $(ART_HOST_NON_DEBUG_CFLAGS)
+      LOCAL_CFLAGS += $$(ART_HOST_NON_DEBUG_CFLAGS)
     endif
   endif
 
-  LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
+  LOCAL_C_INCLUDES += $$(ART_C_INCLUDES)
   LOCAL_C_INCLUDES += art/sigchainlib
 
   LOCAL_SHARED_LIBRARIES += liblog libnativehelper
@@ -416,23 +413,24 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   else # host
     LOCAL_STATIC_LIBRARIES += libcutils libziparchive-host libz libutils
     LOCAL_LDLIBS += -ldl -lpthread
-    ifeq ($(HOST_OS),linux)
+    ifeq ($$(HOST_OS),linux)
       LOCAL_LDLIBS += -lrt
     endif
+    LOCAL_MULTILIB := both
   endif
-  ifeq ($(ART_USE_PORTABLE_COMPILER),true)
-    include $(LLVM_GEN_INTRINSICS_MK)
+  ifeq ($$(ART_USE_PORTABLE_COMPILER),true)
+    include $$(LLVM_GEN_INTRINSICS_MK)
     ifeq ($$(art_target_or_host),target)
-      include $(LLVM_DEVICE_BUILD_MK)
+      include $$(LLVM_DEVICE_BUILD_MK)
     else # host
-      include $(LLVM_HOST_BUILD_MK)
+      include $$(LLVM_HOST_BUILD_MK)
     endif
   endif
-  LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
-  LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
+  LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
+#  LOCAL_ADDITIONAL_DEPENDENCIES += $$(LOCAL_PATH)/Android.mk
 
   ifeq ($$(art_target_or_host),target)
-    LOCAL_MODULE_TARGET_ARCH := $(ART_SUPPORTED_ARCH)
+    LOCAL_MODULE_TARGET_ARCH := $$(ART_TARGET_SUPPORTED_ARCH)
   endif
 
   ifeq ($$(art_target_or_host),target)
@@ -441,10 +439,17 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
       # produce meaningful name resolution.
       LOCAL_STRIP_MODULE := keep_symbols
     endif
-    include $(BUILD_SHARED_LIBRARY)
+    include $$(BUILD_SHARED_LIBRARY)
   else # host
-    include $(BUILD_HOST_SHARED_LIBRARY)
+    include $$(BUILD_HOST_SHARED_LIBRARY)
   endif
+
+  # Clear locally defined variables.
+  GENERATED_SRC_DIR :=
+  ENUM_OPERATOR_OUT_CC_FILES :=
+  ENUM_OPERATOR_OUT_GEN :=
+  art_target_or_host :=
+  art_ndebug_or_debug :=
 endef
 
 # We always build dex2oat and dependencies, even if the host build is otherwise disabled, since
@@ -457,9 +462,28 @@ ifeq ($(ART_BUILD_DEBUG),true)
 endif
 
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
+#  $(error $(call build-libart,target,ndebug))
   $(eval $(call build-libart,target,ndebug))
 endif
 ifeq ($(ART_BUILD_TARGET_DEBUG),true)
   $(eval $(call build-libart,target,debug))
 endif
 
+# Clear locally defined variables.
+LOCAL_PATH :=
+LIBART_COMMON_SRC_FILES :=
+LIBART_GCC_ONLY_SRC_FILES :=
+LIBART_TARGET_LDFLAGS :=
+LIBART_HOST_LDFLAGS :=
+LIBART_TARGET_SRC_FILES :=
+LIBART_TARGET_SRC_FILES_arm :=
+LIBART_TARGET_SRC_FILES_arm64 :=
+LIBART_TARGET_SRC_FILES_x86 :=
+LIBART_TARGET_SRC_FILES_x86_64 :=
+LIBART_TARGET_SRC_FILES_mips :=
+LIBART_HOST_SRC_FILES :=
+LIBART_HOST_SRC_FILES_32 :=
+LIBART_HOST_SRC_FILES_64 :=
+LIBART_ENUM_OPERATOR_OUT_HEADER_FILES :=
+LIBART_CFLAGS :=
+build-libart :=

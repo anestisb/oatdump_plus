@@ -367,12 +367,12 @@ class Dex2Oat {
 
     driver->CompileAll(class_loader, dex_files, &timings);
 
-    timings.NewSplit("dex2oat OatWriter");
+    TimingLogger::ScopedTiming t2("dex2oat OatWriter", &timings);
     std::string image_file_location;
     uint32_t image_file_location_oat_checksum = 0;
     uintptr_t image_file_location_oat_data_begin = 0;
     if (!driver->IsImage()) {
-      TimingLogger::ScopedSplit split("Loading image checksum", &timings);
+      TimingLogger::ScopedTiming t3("Loading image checksum", &timings);
       gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetImageSpace();
       image_file_location_oat_checksum = image_space->GetImageHeader().GetOatChecksum();
       image_file_location_oat_data_begin =
@@ -380,14 +380,13 @@ class Dex2Oat {
       image_file_location = image_space->GetImageFilename();
     }
 
-    OatWriter oat_writer(dex_files,
-                         image_file_location_oat_checksum,
+    OatWriter oat_writer(dex_files, image_file_location_oat_checksum,
                          image_file_location_oat_data_begin,
                          image_file_location,
                          driver.get(),
                          &timings);
 
-    TimingLogger::ScopedSplit split("Writing ELF", &timings);
+    t2.NewTiming("Writing ELF");
     if (!driver->WriteElf(android_root, is_host, dex_files, &oat_writer, oat_file)) {
       LOG(ERROR) << "Failed to write ELF file " << oat_file->GetPath();
       return nullptr;
@@ -479,11 +478,8 @@ class Dex2Oat {
         continue;
       }
       std::string error_msg;
-      const DexFile* dex_file = DexFile::Open(parsed[i].c_str(), parsed[i].c_str(), &error_msg);
-      if (dex_file == nullptr) {
+      if (!DexFile::Open(parsed[i].c_str(), parsed[i].c_str(), &error_msg, &dex_files)) {
         LOG(WARNING) << "Failed to open dex file '" << parsed[i] << "': " << error_msg;
-      } else {
-        dex_files.push_back(dex_file);
       }
     }
   }
@@ -537,12 +533,9 @@ static size_t OpenDexFiles(const std::vector<const char*>& dex_filenames,
       LOG(WARNING) << "Skipping non-existent dex file '" << dex_filename << "'";
       continue;
     }
-    const DexFile* dex_file = DexFile::Open(dex_filename, dex_location, &error_msg);
-    if (dex_file == nullptr) {
+    if (!DexFile::Open(dex_filename, dex_location, &error_msg, &dex_files)) {
       LOG(WARNING) << "Failed to open .dex from file '" << dex_filename << "': " << error_msg;
       ++failure_count;
-    } else {
-      dex_files.push_back(dex_file);
     }
     ATRACE_END();
   }
@@ -748,6 +741,7 @@ void CheckExplicitCheckOptions(InstructionSet isa, bool* explicit_null_checks,
                                bool* explicit_so_checks, bool* explicit_suspend_checks) {
   switch (isa) {
     case kArm:
+    case kThumb2:
       break;  // All checks implemented, leave as is.
 
     default:  // No checks implemented, reset all to explicit checks.
@@ -881,6 +875,8 @@ static int dex2oat(int argc, char** argv) {
       watch_dog_enabled = false;
     } else if (option == "--gen-gdb-info") {
       generate_gdb_information = true;
+      // Debug symbols are needed for gdb information.
+      include_debug_symbols = true;
     } else if (option == "--no-gen-gdb-info") {
       generate_gdb_information = false;
     } else if (option.starts_with("-j")) {
@@ -1002,7 +998,7 @@ static int dex2oat(int argc, char** argv) {
     } else if (option == "--no-profile-file") {
       // No profile
     } else if (option.starts_with("--top-k-profile-threshold=")) {
-      ParseDouble(option.data(), '=', 10.0, 90.0, &top_k_profile_threshold);
+      ParseDouble(option.data(), '=', 0.0, 100.0, &top_k_profile_threshold);
     } else if (option == "--print-pass-names") {
       PassDriverMEOpts::PrintPassNames();
     } else if (option.starts_with("--disable-passes=")) {
@@ -1039,8 +1035,8 @@ static int dex2oat(int argc, char** argv) {
         } else {
           Usage("--implicit-checks passed non-recognized value %s", val.c_str());
         }
-        has_explicit_checks_options = true;
       }
+      has_explicit_checks_options = true;
     } else {
       Usage("Unknown argument %s", option.data());
     }
@@ -1136,8 +1132,8 @@ static int dex2oat(int argc, char** argv) {
   }
 
   if (compiler_filter_string == nullptr) {
-    if (instruction_set == kMips) {
-      // TODO: fix compiler for Mips.
+    if (instruction_set == kMips64) {
+      // TODO: fix compiler for Mips64.
       compiler_filter_string = "interpret-only";
     } else if (image) {
       compiler_filter_string = "speed";
@@ -1211,7 +1207,7 @@ static int dex2oat(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  timings.StartSplit("dex2oat Setup");
+  timings.StartTiming("dex2oat Setup");
   LOG(INFO) << CommandLine();
 
   Runtime::Options runtime_options;
@@ -1256,7 +1252,17 @@ static int dex2oat(int argc, char** argv) {
   // TODO: Not sure whether it's a good idea to allow anything else but the runtime option in
   // this case at all, as we'll have to throw away produced code for a mismatch.
   if (!has_explicit_checks_options) {
-    if (instruction_set == kRuntimeISA) {
+    bool cross_compiling = true;
+    switch (kRuntimeISA) {
+      case kArm:
+      case kThumb2:
+        cross_compiling = instruction_set != kArm && instruction_set != kThumb2;
+        break;
+      default:
+        cross_compiling = instruction_set != kRuntimeISA;
+        break;
+    }
+    if (!cross_compiling) {
       Runtime* runtime = Runtime::Current();
       compiler_options.SetExplicitNullChecks(runtime->ExplicitNullChecks());
       compiler_options.SetExplicitStackOverflowChecks(runtime->ExplicitStackOverflowChecks());
@@ -1308,13 +1314,11 @@ static int dex2oat(int argc, char** argv) {
             << error_msg;
         return EXIT_FAILURE;
       }
-      const DexFile* dex_file = DexFile::Open(*zip_archive.get(), zip_location, &error_msg);
-      if (dex_file == nullptr) {
+      if (!DexFile::OpenFromZip(*zip_archive.get(), zip_location, &error_msg, &dex_files)) {
         LOG(ERROR) << "Failed to open dex from file descriptor for zip file '" << zip_location
             << "': " << error_msg;
         return EXIT_FAILURE;
       }
-      dex_files.push_back(dex_file);
       ATRACE_END();
     } else {
       size_t failure_count = OpenDexFiles(dex_filenames, dex_locations, dex_files);
@@ -1436,7 +1440,7 @@ static int dex2oat(int argc, char** argv) {
   // Elf32_Phdr.p_vaddr values by the desired base address.
   //
   if (image) {
-    timings.NewSplit("dex2oat ImageWriter");
+    TimingLogger::ScopedTiming t("dex2oat ImageWriter", &timings);
     bool image_creation_success = dex2oat->CreateImageFile(image_filename,
                                                            image_base,
                                                            oat_unstripped,
@@ -1449,6 +1453,7 @@ static int dex2oat(int argc, char** argv) {
   }
 
   if (is_host) {
+    timings.EndTiming();
     if (dump_timing || (dump_slow_timing && timings.GetTotalNs() > MsToNs(1000))) {
       LOG(INFO) << Dumpable<TimingLogger>(timings);
     }
@@ -1461,7 +1466,7 @@ static int dex2oat(int argc, char** argv) {
   // If we don't want to strip in place, copy from unstripped location to stripped location.
   // We need to strip after image creation because FixupElf needs to use .strtab.
   if (oat_unstripped != oat_stripped) {
-    timings.NewSplit("dex2oat OatFile copy");
+    TimingLogger::ScopedTiming t("dex2oat OatFile copy", &timings);
     oat_file.reset();
      std::unique_ptr<File> in(OS::OpenFileForReading(oat_unstripped.c_str()));
     std::unique_ptr<File> out(OS::CreateEmptyFile(oat_stripped.c_str()));
@@ -1496,7 +1501,7 @@ static int dex2oat(int argc, char** argv) {
   }
 #endif  // ART_USE_PORTABLE_COMPILER
 
-  timings.EndSplit();
+  timings.EndTiming();
 
   if (dump_timing || (dump_slow_timing && timings.GetTotalNs() > MsToNs(1000))) {
     LOG(INFO) << Dumpable<TimingLogger>(timings);

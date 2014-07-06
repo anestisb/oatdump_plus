@@ -22,6 +22,7 @@
 
 #include "dex/compiler_internals.h"
 #include "dex/quick/mir_to_lir-inl.h"
+#include "dex/reg_storage_eq.h"
 
 namespace art {
 
@@ -48,9 +49,9 @@ static constexpr RegStorage dp_regs_arr[] =
      rs_d16, rs_d17, rs_d18, rs_d19, rs_d20, rs_d21, rs_d22, rs_d23,
      rs_d24, rs_d25, rs_d26, rs_d27, rs_d28, rs_d29, rs_d30, rs_d31};
 static constexpr RegStorage reserved_regs_arr[] =
-    {rs_rA32_SUSPEND, rs_rA32_SELF, rs_rA32_SP, rs_rA32_LR, rs_wzr};
+    {rs_wSUSPEND, rs_wSELF, rs_wsp, rs_wLR, rs_wzr};
 static constexpr RegStorage reserved64_regs_arr[] =
-    {rs_rA64_SUSPEND, rs_rA64_SELF, rs_rA64_SP, rs_rA64_LR, rs_xzr};
+    {rs_xSUSPEND, rs_xSELF, rs_sp, rs_xLR, rs_xzr};
 // TUNING: Are there too many temp registers and too less promote target?
 // This definition need to be matched with runtime.cc, quick entry assembly and JNI compiler
 // Note: we are not able to call to C function directly if it un-match C ABI.
@@ -88,7 +89,7 @@ RegLocation Arm64Mir2Lir::LocCReturn() {
 }
 
 RegLocation Arm64Mir2Lir::LocCReturnRef() {
-  return arm_loc_c_return;
+  return arm_loc_c_return_ref;
 }
 
 RegLocation Arm64Mir2Lir::LocCReturnWide() {
@@ -107,11 +108,11 @@ RegLocation Arm64Mir2Lir::LocCReturnDouble() {
 RegStorage Arm64Mir2Lir::TargetReg(SpecialTargetRegister reg) {
   RegStorage res_reg = RegStorage::InvalidReg();
   switch (reg) {
-    case kSelf: res_reg = rs_rA64_SELF; break;
-    case kSuspend: res_reg = rs_rA64_SUSPEND; break;
-    case kLr: res_reg =  rs_rA64_LR; break;
+    case kSelf: res_reg = rs_xSELF; break;
+    case kSuspend: res_reg = rs_xSUSPEND; break;
+    case kLr: res_reg =  rs_xLR; break;
     case kPc: res_reg = RegStorage::InvalidReg(); break;
-    case kSp: res_reg =  rs_rA64_SP; break;
+    case kSp: res_reg =  rs_sp; break;
     case kArg0: res_reg = rs_x0; break;
     case kArg1: res_reg = rs_x1; break;
     case kArg2: res_reg = rs_x2; break;
@@ -130,7 +131,7 @@ RegStorage Arm64Mir2Lir::TargetReg(SpecialTargetRegister reg) {
     case kFArg7: res_reg = rs_f7; break;
     case kRet0: res_reg = rs_x0; break;
     case kRet1: res_reg = rs_x1; break;
-    case kInvokeTgt: res_reg = rs_rA64_LR; break;
+    case kInvokeTgt: res_reg = rs_xLR; break;
     case kHiddenArg: res_reg = rs_x12; break;
     case kHiddenFpArg: res_reg = RegStorage::InvalidReg(); break;
     case kCount: res_reg = RegStorage::InvalidReg(); break;
@@ -644,31 +645,8 @@ void Arm64Mir2Lir::CompilerInitializeRegAlloc() {
  */
 
 void Arm64Mir2Lir::AdjustSpillMask() {
-  core_spill_mask_ |= (1 << rs_rA64_LR.GetRegNum());
+  core_spill_mask_ |= (1 << rs_xLR.GetRegNum());
   num_core_spills_++;
-}
-
-/*
- * Mark a callee-save fp register as promoted.
- */
-void Arm64Mir2Lir::MarkPreservedSingle(int v_reg, RegStorage reg) {
-  DCHECK(reg.IsFloat());
-  int adjusted_reg_num = reg.GetRegNum() - A64_FP_CALLEE_SAVE_BASE;
-  // Ensure fp_vmap_table is large enough
-  int table_size = fp_vmap_table_.size();
-  for (int i = table_size; i < (adjusted_reg_num + 1); i++) {
-    fp_vmap_table_.push_back(INVALID_VREG);
-  }
-  // Add the current mapping
-  fp_vmap_table_[adjusted_reg_num] = v_reg;
-  // Size of fp_vmap_table is high-water mark, use to set mask
-  num_fp_spills_ = fp_vmap_table_.size();
-  fp_spill_mask_ = ((1 << num_fp_spills_) - 1) << A64_FP_CALLEE_SAVE_BASE;
-}
-
-void Arm64Mir2Lir::MarkPreservedDouble(int v_reg, RegStorage reg) {
-  DCHECK(reg.IsDouble());
-  MarkPreservedSingle(v_reg, reg);
 }
 
 /* Clobber all regs that might be used by an external C call */
@@ -789,13 +767,13 @@ RegStorage Arm64Mir2Lir::LoadHelper(ThreadOffset<4> offset) {
 RegStorage Arm64Mir2Lir::LoadHelper(ThreadOffset<8> offset) {
   // TODO(Arm64): use LoadWordDisp instead.
   //   e.g. LoadWordDisp(rs_rA64_SELF, offset.Int32Value(), rs_rA64_LR);
-  LoadBaseDisp(rs_rA64_SELF, offset.Int32Value(), rs_rA64_LR, k64);
-  return rs_rA64_LR;
+  LoadBaseDisp(rs_xSELF, offset.Int32Value(), rs_xLR, k64, kNotVolatile);
+  return rs_xLR;
 }
 
 LIR* Arm64Mir2Lir::CheckSuspendUsingLoad() {
   RegStorage tmp = rs_x0;
-  LoadWordDisp(rs_rA64_SELF, Thread::ThreadSuspendTriggerOffset<8>().Int32Value(), tmp);
+  LoadWordDisp(rs_xSELF, Thread::ThreadSuspendTriggerOffset<8>().Int32Value(), tmp);
   LIR* load2 = LoadWordDisp(tmp, 0, tmp);
   return load2;
 }
@@ -816,7 +794,8 @@ const char* Arm64Mir2Lir::GetTargetInstFmt(int opcode) {
 }
 
 RegStorage Arm64Mir2Lir::InToRegStorageArm64Mapper::GetNextReg(bool is_double_or_float,
-                                                               bool is_wide) {
+                                                               bool is_wide,
+                                                               bool is_ref) {
   const RegStorage coreArgMappingToPhysicalReg[] =
       {rs_x1, rs_x2, rs_x3, rs_x4, rs_x5, rs_x6, rs_x7};
   const int coreArgMappingToPhysicalRegSize =
@@ -829,6 +808,7 @@ RegStorage Arm64Mir2Lir::InToRegStorageArm64Mapper::GetNextReg(bool is_double_or
   RegStorage result = RegStorage::InvalidReg();
   if (is_double_or_float) {
     if (cur_fp_reg_ < fpArgMappingToPhysicalRegSize) {
+      DCHECK(!is_ref);
       result = fpArgMappingToPhysicalReg[cur_fp_reg_++];
       if (result.Valid()) {
         // TODO: switching between widths remains a bit ugly.  Better way?
@@ -842,7 +822,8 @@ RegStorage Arm64Mir2Lir::InToRegStorageArm64Mapper::GetNextReg(bool is_double_or
       if (result.Valid()) {
         // TODO: switching between widths remains a bit ugly.  Better way?
         int res_reg = result.GetReg();
-        result = is_wide ? RegStorage::Solo64(res_reg) : RegStorage::Solo32(res_reg);
+        DCHECK(!(is_wide && is_ref));
+        result = (is_wide || is_ref) ? RegStorage::Solo64(res_reg) : RegStorage::Solo32(res_reg);
       }
     }
   }
@@ -861,14 +842,16 @@ void Arm64Mir2Lir::InToRegStorageMapping::Initialize(RegLocation* arg_locs, int 
   max_mapped_in_ = -1;
   is_there_stack_mapped_ = false;
   for (int in_position = 0; in_position < count; in_position++) {
-     RegStorage reg = mapper->GetNextReg(arg_locs[in_position].fp, arg_locs[in_position].wide);
+     RegStorage reg = mapper->GetNextReg(arg_locs[in_position].fp,
+                                         arg_locs[in_position].wide,
+                                         arg_locs[in_position].ref);
      if (reg.Valid()) {
        mapping_[in_position] = reg;
-       max_mapped_in_ = std::max(max_mapped_in_, in_position);
-       if (reg.Is64BitSolo()) {
+       if (arg_locs[in_position].wide) {
          // We covered 2 args, so skip the next one
          in_position++;
        }
+       max_mapped_in_ = std::max(max_mapped_in_, in_position);
      } else {
        is_there_stack_mapped_ = true;
      }
@@ -899,7 +882,7 @@ static RegStorage GetArgPhysicalReg(RegLocation* loc, int* num_gpr_used, int* nu
     int n = *num_gpr_used;
     if (n < 8) {
       *num_gpr_used = n + 1;
-      if (loc->wide) {
+      if (loc->wide || loc->ref) {
         *op_size = k64;
         return RegStorage::Solo64(n);
       } else {
@@ -949,7 +932,7 @@ void Arm64Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
   StoreValue(rl_method, rl_src);
   // If Method* has been promoted, explicitly flush
   if (rl_method.location == kLocPhysReg) {
-    StoreRefDisp(TargetReg(kSp), 0, TargetReg(kArg0));
+    StoreRefDisp(TargetReg(kSp), 0, TargetReg(kArg0), kNotVolatile);
   }
 
   if (cu_->num_ins == 0) {
@@ -960,35 +943,64 @@ void Arm64Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
   ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
   int start_vreg = cu_->num_dalvik_registers - cu_->num_ins;
   for (int i = 0; i < cu_->num_ins; i++) {
-    PromotionMap* v_map = &promotion_map_[start_vreg + i];
     RegLocation* t_loc = &ArgLocs[i];
     OpSize op_size;
     RegStorage reg = GetArgPhysicalReg(t_loc, &num_gpr_used, &num_fpr_used, &op_size);
 
     if (reg.Valid()) {
-      if ((v_map->core_location == kLocPhysReg) && !t_loc->fp) {
-        OpRegCopy(RegStorage::Solo32(v_map->core_reg), reg);
-      } else if ((v_map->fp_location == kLocPhysReg) && t_loc->fp) {
-        OpRegCopy(RegStorage::Solo32(v_map->FpReg), reg);
+      // If arriving in register.
+
+      // We have already updated the arg location with promoted info
+      // so we can be based on it.
+      if (t_loc->location == kLocPhysReg) {
+        // Just copy it.
+        OpRegCopy(t_loc->reg, reg);
       } else {
-        StoreBaseDisp(TargetReg(kSp), SRegOffset(start_vreg + i), reg, op_size);
-        if (reg.Is64Bit()) {
-          if (SRegOffset(start_vreg + i) + 4 != SRegOffset(start_vreg + i + 1)) {
-            LOG(FATAL) << "64 bit value stored in non-consecutive 4 bytes slots";
-          }
-          i += 1;
+        // Needs flush.
+        if (t_loc->ref) {
+          StoreRefDisp(TargetReg(kSp), SRegOffset(start_vreg + i), reg, kNotVolatile);
+        } else {
+          StoreBaseDisp(TargetReg(kSp), SRegOffset(start_vreg + i), reg, t_loc->wide ? k64 : k32,
+              kNotVolatile);
         }
       }
     } else {
-      // If arriving in frame & promoted
-      if (v_map->core_location == kLocPhysReg) {
-        LoadWordDisp(TargetReg(kSp), SRegOffset(start_vreg + i),
-                     RegStorage::Solo32(v_map->core_reg));
-      }
-      if (v_map->fp_location == kLocPhysReg) {
-        LoadWordDisp(TargetReg(kSp), SRegOffset(start_vreg + i), RegStorage::Solo32(v_map->FpReg));
+      // If arriving in frame & promoted.
+      if (t_loc->location == kLocPhysReg) {
+        if (t_loc->ref) {
+          LoadRefDisp(TargetReg(kSp), SRegOffset(start_vreg + i), t_loc->reg, kNotVolatile);
+        } else {
+          LoadBaseDisp(TargetReg(kSp), SRegOffset(start_vreg + i), t_loc->reg,
+                       t_loc->wide ? k64 : k32, kNotVolatile);
+        }
       }
     }
+    if (t_loc->wide) {
+      // Increment i to skip the next one.
+      i++;
+    }
+    //      if ((v_map->core_location == kLocPhysReg) && !t_loc->fp) {
+    //        OpRegCopy(RegStorage::Solo32(v_map->core_reg), reg);
+    //      } else if ((v_map->fp_location == kLocPhysReg) && t_loc->fp) {
+    //        OpRegCopy(RegStorage::Solo32(v_map->fp_reg), reg);
+    //      } else {
+    //        StoreBaseDisp(TargetReg(kSp), SRegOffset(start_vreg + i), reg, op_size, kNotVolatile);
+    //        if (reg.Is64Bit()) {
+    //          if (SRegOffset(start_vreg + i) + 4 != SRegOffset(start_vreg + i + 1)) {
+    //            LOG(FATAL) << "64 bit value stored in non-consecutive 4 bytes slots";
+    //          }
+    //          i += 1;
+    //        }
+    //      }
+    //    } else {
+    //      // If arriving in frame & promoted
+    //      if (v_map->core_location == kLocPhysReg) {
+    //        LoadWordDisp(TargetReg(kSp), SRegOffset(start_vreg + i),
+    //                     RegStorage::Solo32(v_map->core_reg));
+    //      }
+    //      if (v_map->fp_location == kLocPhysReg) {
+    //        LoadWordDisp(TargetReg(kSp), SRegOffset(start_vreg + i), RegStorage::Solo32(v_map->fp_reg));
+    //      }
   }
 }
 
@@ -1042,29 +1054,31 @@ int Arm64Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
   InToRegStorageMapping in_to_reg_storage_mapping;
   in_to_reg_storage_mapping.Initialize(info->args, info->num_arg_words, &mapper);
   const int last_mapped_in = in_to_reg_storage_mapping.GetMaxMappedIn();
-  const int size_of_the_last_mapped = last_mapped_in == -1 ? 1 :
-          in_to_reg_storage_mapping.Get(last_mapped_in).Is64BitSolo() ? 2 : 1;
-  int regs_left_to_pass_via_stack = info->num_arg_words - (last_mapped_in + size_of_the_last_mapped);
+  int regs_left_to_pass_via_stack = info->num_arg_words - (last_mapped_in + 1);
 
   // Fisrt of all, check whether it make sense to use bulk copying
   // Optimization is aplicable only for range case
   // TODO: make a constant instead of 2
   if (info->is_range && regs_left_to_pass_via_stack >= 2) {
     // Scan the rest of the args - if in phys_reg flush to memory
-    for (int next_arg = last_mapped_in + size_of_the_last_mapped; next_arg < info->num_arg_words;) {
+    for (int next_arg = last_mapped_in + 1; next_arg < info->num_arg_words;) {
       RegLocation loc = info->args[next_arg];
       if (loc.wide) {
         loc = UpdateLocWide(loc);
         if (loc.location == kLocPhysReg) {
           ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-          StoreBaseDisp(TargetReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, k64);
+          StoreBaseDisp(TargetReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, k64, kNotVolatile);
         }
         next_arg += 2;
       } else {
         loc = UpdateLoc(loc);
         if (loc.location == kLocPhysReg) {
           ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-          StoreBaseDisp(TargetReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, k32);
+          if (loc.ref) {
+            StoreRefDisp(TargetReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, kNotVolatile);
+          } else {
+            StoreBaseDisp(TargetReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, k32, kNotVolatile);
+          }
         }
         next_arg++;
       }
@@ -1074,8 +1088,8 @@ int Arm64Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
     DCHECK_EQ(VRegOffset(static_cast<int>(kVRegMethodPtrBaseReg)), 0);
 
     // The rest can be copied together
-    int start_offset = SRegOffset(info->args[last_mapped_in + size_of_the_last_mapped].s_reg_low);
-    int outs_offset = StackVisitor::GetOutVROffset(last_mapped_in + size_of_the_last_mapped,
+    int start_offset = SRegOffset(info->args[last_mapped_in + 1].s_reg_low);
+    int outs_offset = StackVisitor::GetOutVROffset(last_mapped_in + 1,
                                                    cu_->instruction_set);
 
     int current_src_offset = start_offset;
@@ -1094,7 +1108,7 @@ int Arm64Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
 
       // Instead of allocating a new temp, simply reuse one of the registers being used
       // for argument passing.
-      RegStorage temp = TargetReg(kArg3);
+      RegStorage temp = TargetReg(kArg3, false);
 
       // Now load the argument VR and store to the outs.
       Load32Disp(TargetReg(kSp), current_src_offset, temp);
@@ -1122,18 +1136,27 @@ int Arm64Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
           ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
           if (rl_arg.wide) {
             if (rl_arg.location == kLocPhysReg) {
-              StoreBaseDisp(TargetReg(kSp), out_offset, rl_arg.reg, k64);
+              StoreBaseDisp(TargetReg(kSp), out_offset, rl_arg.reg, k64, kNotVolatile);
             } else {
               LoadValueDirectWideFixed(rl_arg, regWide);
-              StoreBaseDisp(TargetReg(kSp), out_offset, regWide, k64);
+              StoreBaseDisp(TargetReg(kSp), out_offset, regWide, k64, kNotVolatile);
             }
             i++;
           } else {
             if (rl_arg.location == kLocPhysReg) {
-              StoreBaseDisp(TargetReg(kSp), out_offset, rl_arg.reg, k32);
+              if (rl_arg.ref) {
+                StoreRefDisp(TargetReg(kSp), out_offset, rl_arg.reg, kNotVolatile);
+              } else {
+                StoreBaseDisp(TargetReg(kSp), out_offset, rl_arg.reg, k32, kNotVolatile);
+              }
             } else {
-              LoadValueDirectFixed(rl_arg, regSingle);
-              StoreBaseDisp(TargetReg(kSp), out_offset, regSingle, k32);
+              if (rl_arg.ref) {
+                LoadValueDirectFixed(rl_arg, regSingle);
+                StoreRefDisp(TargetReg(kSp), out_offset, regSingle, kNotVolatile);
+              } else {
+                LoadValueDirectFixed(rl_arg, As32BitReg(regSingle));
+                StoreBaseDisp(TargetReg(kSp), out_offset, As32BitReg(regSingle), k32, kNotVolatile);
+              }
             }
           }
         }

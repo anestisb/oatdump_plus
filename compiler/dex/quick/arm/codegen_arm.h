@@ -33,20 +33,16 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     LIR* CheckSuspendUsingLoad() OVERRIDE;
     RegStorage LoadHelper(ThreadOffset<4> offset) OVERRIDE;
     RegStorage LoadHelper(ThreadOffset<8> offset) OVERRIDE;
-    LIR* LoadBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_dest,
-                              OpSize size) OVERRIDE;
     LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
-                      OpSize size) OVERRIDE;
+                      OpSize size, VolatileKind is_volatile) OVERRIDE;
     LIR* LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest, int scale,
                          OpSize size) OVERRIDE;
     LIR* LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
                              RegStorage r_dest, OpSize size) OVERRIDE;
     LIR* LoadConstantNoClobber(RegStorage r_dest, int value);
     LIR* LoadConstantWide(RegStorage r_dest, int64_t value);
-    LIR* StoreBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_src,
-                               OpSize size) OVERRIDE;
     LIR* StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
-                       OpSize size) OVERRIDE;
+                       OpSize size, VolatileKind is_volatile) OVERRIDE;
     LIR* StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src, int scale,
                           OpSize size) OVERRIDE;
     LIR* StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
@@ -71,7 +67,6 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     void MarkPreservedSingle(int v_reg, RegStorage reg);
     void MarkPreservedDouble(int v_reg, RegStorage reg);
     void CompilerInitializeRegAlloc();
-    RegStorage AllocPreservedDouble(int s_reg);
 
     // Required for target - miscellaneous.
     void AssembleLIR();
@@ -118,7 +113,7 @@ class ArmMir2Lir FINAL : public Mir2Lir {
                   RegLocation rl_src2);
     void GenConversion(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src);
     bool GenInlinedCas(CallInfo* info, bool is_long, bool is_object);
-    bool GenInlinedMinMaxInt(CallInfo* info, bool is_min);
+    bool GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long);
     bool GenInlinedSqrt(CallInfo* info);
     bool GenInlinedPeek(CallInfo* info, OpSize size);
     bool GenInlinedPoke(CallInfo* info, OpSize size);
@@ -200,6 +195,8 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     bool InexpensiveConstantFloat(int32_t value);
     bool InexpensiveConstantLong(int64_t value);
     bool InexpensiveConstantDouble(int64_t value);
+    RegStorage AllocPreservedDouble(int s_reg);
+    RegStorage AllocPreservedSingle(int s_reg);
 
   private:
     void GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1, int64_t val,

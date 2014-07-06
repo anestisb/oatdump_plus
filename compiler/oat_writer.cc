@@ -91,31 +91,31 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
     size_oat_class_method_offsets_(0) {
   size_t offset;
   {
-    TimingLogger::ScopedSplit split("InitOatHeader", timings);
+    TimingLogger::ScopedTiming split("InitOatHeader", timings);
     offset = InitOatHeader();
   }
   {
-    TimingLogger::ScopedSplit split("InitOatDexFiles", timings);
+    TimingLogger::ScopedTiming split("InitOatDexFiles", timings);
     offset = InitOatDexFiles(offset);
   }
   {
-    TimingLogger::ScopedSplit split("InitDexFiles", timings);
+    TimingLogger::ScopedTiming split("InitDexFiles", timings);
     offset = InitDexFiles(offset);
   }
   {
-    TimingLogger::ScopedSplit split("InitOatClasses", timings);
+    TimingLogger::ScopedTiming split("InitOatClasses", timings);
     offset = InitOatClasses(offset);
   }
   {
-    TimingLogger::ScopedSplit split("InitOatMaps", timings);
+    TimingLogger::ScopedTiming split("InitOatMaps", timings);
     offset = InitOatMaps(offset);
   }
   {
-    TimingLogger::ScopedSplit split("InitOatCode", timings);
+    TimingLogger::ScopedTiming split("InitOatCode", timings);
     offset = InitOatCode(offset);
   }
   {
-    TimingLogger::ScopedSplit split("InitOatCodeDexFiles", timings);
+    TimingLogger::ScopedTiming split("InitOatCodeDexFiles", timings);
     offset = InitOatCodeDexFiles(offset);
   }
   size_ = offset;
@@ -800,6 +800,7 @@ size_t OatWriter::InitOatMaps(size_t offset) {
 size_t OatWriter::InitOatCode(size_t offset) {
   // calculate the offsets within OatHeader to executable code
   size_t old_offset = offset;
+  size_t adjusted_offset = offset;
   // required to be on a new page boundary
   offset = RoundUp(offset, kPageSize);
   oat_header_->SetExecutableOffset(offset);
@@ -809,7 +810,8 @@ size_t OatWriter::InitOatCode(size_t offset) {
 
     #define DO_TRAMPOLINE(field, fn_name) \
       offset = CompiledCode::AlignCode(offset, instruction_set); \
-      oat_header_->Set ## fn_name ## Offset(offset); \
+      adjusted_offset = offset + CompiledCode::CodeDelta(instruction_set); \
+      oat_header_->Set ## fn_name ## Offset(adjusted_offset); \
       field.reset(compiler_driver_->Create ## fn_name()); \
       offset += field->size();
 

@@ -112,6 +112,17 @@ static void ThrowNoSuchMethodError(ScopedObjectAccess& soa, mirror::Class* c,
                                  kind, c->GetDescriptor().c_str(), name, sig);
 }
 
+static void ReportInvalidJNINativeMethod(const ScopedObjectAccess& soa, mirror::Class* c,
+                                         const char* kind, jint idx, bool return_errors)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  LOG(return_errors ? ERROR : FATAL) << "Failed to register native method in "
+      << PrettyDescriptor(c) << " in " << c->GetDexCache()->GetLocation()->ToModifiedUtf8()
+      << ": " << kind << " is null at index " << idx;
+  ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
+  soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchMethodError;",
+                                 "%s is null at index %d", kind, idx);
+}
+
 static mirror::Class* EnsureInitialized(Thread* self, mirror::Class* klass)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (LIKELY(klass->IsInitialized())) {
@@ -592,7 +603,12 @@ class JNI {
     mirror::ArtMethod* m = soa.DecodeMethod(mid);
     CHECK(!kMovingMethods);
     jobject art_method = soa.AddLocalReference<jobject>(m);
-    jobject reflect_method = env->AllocObject(WellKnownClasses::java_lang_reflect_Method);
+    jobject reflect_method;
+    if (m->IsConstructor()) {
+      reflect_method = env->AllocObject(WellKnownClasses::java_lang_reflect_Constructor);
+    } else {
+      reflect_method = env->AllocObject(WellKnownClasses::java_lang_reflect_Method);
+    }
     if (env->ExceptionCheck()) {
       return nullptr;
     }
@@ -678,6 +694,11 @@ class JNI {
 
   static void ExceptionDescribe(JNIEnv* env) {
     ScopedObjectAccess soa(env);
+
+    // If we have no exception to describe, pass through.
+    if (!soa.Self()->GetException(nullptr)) {
+      return;
+    }
 
     StackHandleScope<3> hs(soa.Self());
     // TODO: Use nullptr instead of null handles?
@@ -2347,6 +2368,17 @@ class JNI {
     for (jint i = 0; i < method_count; ++i) {
       const char* name = methods[i].name;
       const char* sig = methods[i].signature;
+      const void* fnPtr = methods[i].fnPtr;
+      if (UNLIKELY(name == nullptr)) {
+        ReportInvalidJNINativeMethod(soa, c, "method name", i, return_errors);
+        return JNI_ERR;
+      } else if (UNLIKELY(sig == nullptr)) {
+        ReportInvalidJNINativeMethod(soa, c, "method signature", i, return_errors);
+        return JNI_ERR;
+      } else if (UNLIKELY(fnPtr == nullptr)) {
+        ReportInvalidJNINativeMethod(soa, c, "native function", i, return_errors);
+        return JNI_ERR;
+      }
       bool is_fast = false;
       if (*sig == '!') {
         is_fast = true;
@@ -2374,7 +2406,7 @@ class JNI {
 
       VLOG(jni) << "[Registering JNI native method " << PrettyMethod(m) << "]";
 
-      m->RegisterNative(soa.Self(), methods[i].fnPtr, is_fast);
+      m->RegisterNative(soa.Self(), fnPtr, is_fast);
     }
     return JNI_OK;
   }
@@ -2447,13 +2479,18 @@ class JNI {
   static jobject NewDirectByteBuffer(JNIEnv* env, void* address, jlong capacity) {
     if (capacity < 0) {
       JniAbortF("NewDirectByteBuffer", "negative buffer capacity: %" PRId64, capacity);
+      return nullptr;
     }
     if (address == nullptr && capacity != 0) {
       JniAbortF("NewDirectByteBuffer", "non-zero capacity for nullptr pointer: %" PRId64, capacity);
+      return nullptr;
     }
 
-    // At the moment, the capacity is limited to 32 bits.
-    CHECK_LE(capacity, 0xffffffff);
+    // At the moment, the capacity of DirectByteBuffer is limited to a signed int.
+    if (capacity > INT_MAX) {
+      JniAbortF("NewDirectByteBuffer", "buffer capacity greater than maximum jint: %" PRId64, capacity);
+      return nullptr;
+    }
     jlong address_arg = reinterpret_cast<jlong>(address);
     jint capacity_arg = static_cast<jint>(capacity);
 

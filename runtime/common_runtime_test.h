@@ -114,32 +114,42 @@ class CommonRuntimeTest : public testing::Test {
  public:
   static void SetEnvironmentVariables(std::string& android_data) {
     if (IsHost()) {
-      // $ANDROID_ROOT is set on the device, but not on the host.
-      // We need to set this so that icu4c can find its locale data.
-      std::string root;
-      const char* android_build_top = getenv("ANDROID_BUILD_TOP");
-      if (android_build_top != nullptr) {
-        root += android_build_top;
-      } else {
-        // Not set by build server, so default to current directory
-        char* cwd = getcwd(nullptr, 0);
-        setenv("ANDROID_BUILD_TOP", cwd, 1);
-        root += cwd;
-        free(cwd);
-      }
+      // $ANDROID_ROOT is set on the device, but not necessarily on the host.
+      // But it needs to be set so that icu4c can find its locale data.
+      const char* android_root_from_env = getenv("ANDROID_ROOT");
+      if (android_root_from_env == nullptr) {
+        // Use ANDROID_HOST_OUT for ANDROID_ROOT if it is set.
+        const char* android_host_out = getenv("ANDROID_HOST_OUT");
+        if (android_host_out != nullptr) {
+          setenv("ANDROID_ROOT", android_host_out, 1);
+        } else {
+          // Build it from ANDROID_BUILD_TOP or cwd
+          std::string root;
+          const char* android_build_top = getenv("ANDROID_BUILD_TOP");
+          if (android_build_top != nullptr) {
+            root += android_build_top;
+          } else {
+            // Not set by build server, so default to current directory
+            char* cwd = getcwd(nullptr, 0);
+            setenv("ANDROID_BUILD_TOP", cwd, 1);
+            root += cwd;
+            free(cwd);
+          }
 #if defined(__linux__)
-      root += "/out/host/linux-x86";
+          root += "/out/host/linux-x86";
 #elif defined(__APPLE__)
-      root += "/out/host/darwin-x86";
+          root += "/out/host/darwin-x86";
 #else
 #error unsupported OS
 #endif
-      setenv("ANDROID_ROOT", root.c_str(), 1);
+          setenv("ANDROID_ROOT", root.c_str(), 1);
+        }
+      }
       setenv("LD_LIBRARY_PATH", ":", 0);  // Required by java.lang.System.<clinit>.
 
       // Not set by build server, so default
       if (getenv("ANDROID_HOST_OUT") == nullptr) {
-        setenv("ANDROID_HOST_OUT", root.c_str(), 1);
+        setenv("ANDROID_HOST_OUT", getenv("ANDROID_ROOT"), 1);
       }
     }
 
@@ -156,6 +166,18 @@ class CommonRuntimeTest : public testing::Test {
     return !kIsTargetBuild;
   }
 
+  const DexFile* LoadExpectSingleDexFile(const char* location) {
+    std::vector<const DexFile*> dex_files;
+    std::string error_msg;
+    if (!DexFile::Open(location, location, &error_msg, &dex_files)) {
+      LOG(FATAL) << "Could not open .dex file '" << location << "': " << error_msg << "\n";
+      return nullptr;
+    } else {
+      CHECK_EQ(1U, dex_files.size()) << "Expected only one dex file in " << location;
+      return dex_files[0];
+    }
+  }
+
   virtual void SetUp() {
     SetEnvironmentVariables(android_data_);
     dalvik_cache_.append(android_data_.c_str());
@@ -164,12 +186,7 @@ class CommonRuntimeTest : public testing::Test {
     ASSERT_EQ(mkdir_result, 0);
 
     std::string error_msg;
-    java_lang_dex_file_ = DexFile::Open(GetLibCoreDexFileName().c_str(),
-                                        GetLibCoreDexFileName().c_str(), &error_msg);
-    if (java_lang_dex_file_ == nullptr) {
-      LOG(FATAL) << "Could not open .dex file '" << GetLibCoreDexFileName() << "': "
-          << error_msg << "\n";
-    }
+    java_lang_dex_file_ = LoadExpectSingleDexFile(GetLibCoreDexFileName().c_str());
     boot_class_path_.push_back(java_lang_dex_file_);
 
     std::string min_heap_string(StringPrintf("-Xms%zdm", gc::Heap::kDefaultInitialSize / MB));
@@ -233,7 +250,7 @@ class CommonRuntimeTest : public testing::Test {
     // There's a function to clear the array, but it's not public...
     typedef void (*IcuCleanupFn)();
     void* sym = dlsym(RTLD_DEFAULT, "u_cleanup_" U_ICU_VERSION_SHORT);
-    CHECK(sym != nullptr);
+    CHECK(sym != nullptr) << dlerror();
     IcuCleanupFn icu_cleanup_fn = reinterpret_cast<IcuCleanupFn>(sym);
     (*icu_cleanup_fn)();
 
@@ -264,7 +281,8 @@ class CommonRuntimeTest : public testing::Test {
     return GetAndroidRoot();
   }
 
-  const DexFile* OpenTestDexFile(const char* name) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  std::vector<const DexFile*> OpenTestDexFiles(const char* name)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(name != nullptr);
     std::string filename;
     if (IsHost()) {
@@ -273,30 +291,40 @@ class CommonRuntimeTest : public testing::Test {
     } else {
       filename += "/data/nativetest/art/";
     }
-    filename += "art-test-dex-";
+    filename += "art-gtest-";
     filename += name;
     filename += ".jar";
     std::string error_msg;
-    const DexFile* dex_file = DexFile::Open(filename.c_str(), filename.c_str(), &error_msg);
-    CHECK(dex_file != nullptr) << "Failed to open '" << filename << "': " << error_msg;
-    CHECK_EQ(PROT_READ, dex_file->GetPermissions());
-    CHECK(dex_file->IsReadOnly());
-    opened_dex_files_.push_back(dex_file);
-    return dex_file;
+    std::vector<const DexFile*> dex_files;
+    bool success = DexFile::Open(filename.c_str(), filename.c_str(), &error_msg, &dex_files);
+    CHECK(success) << "Failed to open '" << filename << "': " << error_msg;
+    for (const DexFile* dex_file : dex_files) {
+      CHECK_EQ(PROT_READ, dex_file->GetPermissions());
+      CHECK(dex_file->IsReadOnly());
+    }
+    opened_dex_files_.insert(opened_dex_files_.end(), dex_files.begin(), dex_files.end());
+    return dex_files;
+  }
+
+  const DexFile* OpenTestDexFile(const char* name)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    std::vector<const DexFile*> vector = OpenTestDexFiles(name);
+    EXPECT_EQ(1U, vector.size());
+    return vector[0];
   }
 
   jobject LoadDex(const char* dex_name) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile* dex_file = OpenTestDexFile(dex_name);
-    CHECK(dex_file != nullptr);
-    class_linker_->RegisterDexFile(*dex_file);
-    std::vector<const DexFile*> class_path;
-    class_path.push_back(dex_file);
+    std::vector<const DexFile*> dex_files = OpenTestDexFiles(dex_name);
+    CHECK_NE(0U, dex_files.size());
+    for (const DexFile* dex_file : dex_files) {
+      class_linker_->RegisterDexFile(*dex_file);
+    }
     ScopedObjectAccessUnchecked soa(Thread::Current());
     ScopedLocalRef<jobject> class_loader_local(soa.Env(),
         soa.Env()->AllocObject(WellKnownClasses::dalvik_system_PathClassLoader));
     jobject class_loader = soa.Env()->NewGlobalRef(class_loader_local.get());
     soa.Self()->SetClassLoaderOverride(soa.Decode<mirror::ClassLoader*>(class_loader_local.get()));
-    Runtime::Current()->SetCompileTimeClassPath(class_loader, class_path);
+    Runtime::Current()->SetCompileTimeClassPath(class_loader, dex_files);
     return class_loader;
   }
 

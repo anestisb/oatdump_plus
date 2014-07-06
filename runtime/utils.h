@@ -203,6 +203,19 @@ static inline bool NeedsEscaping(uint16_t ch) {
   return (ch < ' ' || ch > '~');
 }
 
+// Interpret the bit pattern of input (type U) as type V. Requires the size
+// of V >= size of U (compile-time checked).
+template<typename U, typename V>
+static inline V bit_cast(U in) {
+  COMPILE_ASSERT(sizeof(U) <= sizeof(V), size_of_u_not_le_size_of_v);
+  union {
+    U u;
+    V v;
+  } tmp;
+  tmp.u = in;
+  return tmp.v;
+}
+
 std::string PrintableChar(uint16_t ch);
 
 // Returns an ASCII string corresponding to the given UTF-8 string.
@@ -265,10 +278,11 @@ std::string PrettySize(int64_t size_in_bytes);
 // Returns a human-readable time string which prints every nanosecond while trying to limit the
 // number of trailing zeros. Prints using the largest human readable unit up to a second.
 // e.g. "1ms", "1.000000001s", "1.001us"
-std::string PrettyDuration(uint64_t nano_duration);
+std::string PrettyDuration(uint64_t nano_duration, size_t max_fraction_digits = 3);
 
 // Format a nanosecond time to specified units.
-std::string FormatDuration(uint64_t nano_duration, TimeUnit time_unit);
+std::string FormatDuration(uint64_t nano_duration, TimeUnit time_unit,
+                           size_t max_fraction_digits);
 
 // Get the appropriate unit for a nanosecond duration.
 TimeUnit GetAppropriateTimeUnit(uint64_t nano_duration);
@@ -400,6 +414,7 @@ std::string GetSystemImageFilename(const char* location, InstructionSet isa);
 
 // Returns an .odex file name next adjacent to the dex location.
 // For example, for "/foo/bar/baz.jar", return "/foo/bar/<isa>/baz.odex".
+// Note: does not support multidex location strings.
 std::string DexFilenameToOdexFilename(const std::string& location, InstructionSet isa);
 
 // Check whether the given magic matches a known file type.

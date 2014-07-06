@@ -94,7 +94,7 @@ void X86Mir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset,
     start_of_method_reg = rl_method.reg;
     store_method_addr_used_ = true;
   } else {
-    if (Gen64Bit()) {
+    if (cu_->target64) {
       start_of_method_reg = AllocTempWide();
     } else {
       start_of_method_reg = AllocTemp();
@@ -119,7 +119,7 @@ void X86Mir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset,
   NewLIR5(kX86PcRelLoadRA, disp_reg.GetReg(), start_of_method_reg.GetReg(), keyReg.GetReg(),
           2, WrapPointer(tab_rec));
   // Add displacement to start of method
-  if (Gen64Bit()) {
+  if (cu_->target64) {
     NewLIR2(kX86Add64RR, start_of_method_reg.GetReg(), disp_reg.GetReg());
   } else {
     OpRegReg(kOpAdd, start_of_method_reg, disp_reg);
@@ -158,29 +158,33 @@ void X86Mir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
 
   // Making a call - use explicit registers
   FlushAllRegs();   /* Everything to home location */
-  LoadValueDirectFixed(rl_src, rs_rX86_ARG0);
+  RegStorage array_ptr = TargetRefReg(kArg0);
+  RegStorage payload = TargetPtrReg(kArg1);
+  RegStorage method_start = TargetPtrReg(kArg2);
+
+  LoadValueDirectFixed(rl_src, array_ptr);
   // Materialize a pointer to the fill data image
   if (base_of_code_ != nullptr) {
     // We can use the saved value.
     RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
     if (rl_method.wide) {
-      LoadValueDirectWide(rl_method, rs_rX86_ARG2);
+      LoadValueDirectWide(rl_method, method_start);
     } else {
-      LoadValueDirect(rl_method, rs_rX86_ARG2);
+      LoadValueDirect(rl_method, method_start);
     }
     store_method_addr_used_ = true;
   } else {
     // TODO(64) force to be 64-bit
-    NewLIR1(kX86StartOfMethod, rs_rX86_ARG2.GetReg());
+    NewLIR1(kX86StartOfMethod, method_start.GetReg());
   }
-  NewLIR2(kX86PcRelAdr, rs_rX86_ARG1.GetReg(), WrapPointer(tab_rec));
-  NewLIR2(Gen64Bit() ? kX86Add64RR : kX86Add32RR, rs_rX86_ARG1.GetReg(), rs_rX86_ARG2.GetReg());
+  NewLIR2(kX86PcRelAdr, payload.GetReg(), WrapPointer(tab_rec));
+  OpRegReg(kOpAdd, payload, method_start);
   if (cu_->target64) {
-    CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(8, pHandleFillArrayData), rs_rX86_ARG0,
-                            rs_rX86_ARG1, true);
+    CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(8, pHandleFillArrayData), array_ptr,
+                            payload, true);
   } else {
-    CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(4, pHandleFillArrayData), rs_rX86_ARG0,
-                            rs_rX86_ARG1, true);
+    CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(4, pHandleFillArrayData), array_ptr,
+                            payload, true);
   }
 }
 
@@ -204,7 +208,7 @@ void X86Mir2Lir::MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) {
   int ct_offset = cu_->target64 ?
       Thread::CardTableOffset<8>().Int32Value() :
       Thread::CardTableOffset<4>().Int32Value();
-  if (Gen64Bit()) {
+  if (cu_->target64) {
     NewLIR2(kX86Mov64RT, reg_card_base.GetReg(), ct_offset);
   } else {
     NewLIR2(kX86Mov32RT, reg_card_base.GetReg(), ct_offset);
@@ -236,7 +240,7 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
    * a leaf *and* our frame size < fudge factor.
    */
   const bool skip_overflow_check = mir_graph_->MethodIsLeaf() &&
-      !IsLargeFrame(frame_size_, Gen64Bit() ? kX86_64 : kX86);
+      !IsLargeFrame(frame_size_, cu_->target64 ? kX86_64 : kX86);
   NewLIR0(kPseudoMethodEntry);
   /* Spill core callee saves */
   SpillCoreRegs();
@@ -291,11 +295,13 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
   FlushIns(ArgLocs, rl_method);
 
   if (base_of_code_ != nullptr) {
+    RegStorage method_start = TargetPtrReg(kArg0);
     // We have been asked to save the address of the method start for later use.
-    setup_method_address_[0] = NewLIR1(kX86StartOfMethod, rs_rX86_ARG0.GetReg());
+    setup_method_address_[0] = NewLIR1(kX86StartOfMethod, method_start.GetReg());
     int displacement = SRegOffset(base_of_code_->s_reg_low);
     // Native pointer - must be natural word size.
-    setup_method_address_[1] = StoreBaseDisp(rs_rX86_SP, displacement, rs_rX86_ARG0, Gen64Bit() ? k64 : k32);
+    setup_method_address_[1] = StoreBaseDisp(rs_rX86_SP, displacement, method_start,
+                                             cu_->target64 ? k64 : k32, kNotVolatile);
   }
 
   FreeTemp(rs_rX86_ARG0);

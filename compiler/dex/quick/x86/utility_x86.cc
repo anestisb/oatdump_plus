@@ -20,6 +20,7 @@
 #include "x86_lir.h"
 #include "dex/quick/dex_file_method_inliner.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
+#include "dex/reg_storage_eq.h"
 
 namespace art {
 
@@ -121,7 +122,7 @@ LIR* X86Mir2Lir::OpReg(OpKind op, RegStorage r_dest_src) {
   switch (op) {
     case kOpNeg: opcode = r_dest_src.Is64Bit() ? kX86Neg64R : kX86Neg32R; break;
     case kOpNot: opcode = r_dest_src.Is64Bit() ? kX86Not64R : kX86Not32R; break;
-    case kOpRev: opcode = kX86Bswap32R; break;
+    case kOpRev: opcode = r_dest_src.Is64Bit() ? kX86Bswap64R : kX86Bswap32R; break;
     case kOpBlx: opcode = kX86CallR; break;
     default:
       LOG(FATAL) << "Bad case in OpReg " << op;
@@ -355,7 +356,9 @@ LIR* X86Mir2Lir::OpMovMemReg(RegStorage r_base, int offset, RegStorage r_src, Mo
 LIR* X86Mir2Lir::OpCondRegReg(OpKind op, ConditionCode cc, RegStorage r_dest, RegStorage r_src) {
   // The only conditional reg to reg operation supported is Cmov
   DCHECK_EQ(op, kOpCmov);
-  return NewLIR3(kX86Cmov32RRC, r_dest.GetReg(), r_src.GetReg(), X86ConditionEncoding(cc));
+  DCHECK_EQ(r_dest.Is64Bit(), r_src.Is64Bit());
+  return NewLIR3(r_dest.Is64Bit() ? kX86Cmov64RRC : kX86Cmov32RRC, r_dest.GetReg(),
+                 r_src.GetReg(), X86ConditionEncoding(cc));
 }
 
 LIR* X86Mir2Lir::OpRegMem(OpKind op, RegStorage r_dest, RegStorage r_base, int offset) {
@@ -492,10 +495,10 @@ LIR* X86Mir2Lir::OpRegRegReg(OpKind op, RegStorage r_dest, RegStorage r_src1,
 }
 
 LIR* X86Mir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src, int value) {
-  if (op == kOpMul && !Gen64Bit()) {
+  if (op == kOpMul && !cu_->target64) {
     X86OpCode opcode = IS_SIMM8(value) ? kX86Imul32RRI8 : kX86Imul32RRI;
     return NewLIR3(opcode, r_dest.GetReg(), r_src.GetReg(), value);
-  } else if (op == kOpAnd && !Gen64Bit()) {
+  } else if (op == kOpAnd && !cu_->target64) {
     if (value == 0xFF && r_src.Low4()) {
       return NewLIR2(kX86Movzx8RR, r_dest.GetReg(), r_src.GetReg());
     } else if (value == 0xFFFF) {
@@ -585,7 +588,7 @@ LIR* X86Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
         // value.
         ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
         res = LoadBaseDisp(rl_method.reg, 256 /* bogus */, RegStorage::FloatSolo64(low_reg_val),
-                           kDouble);
+                           kDouble, kNotVolatile);
         res->target = data_target;
         res->flags.fixup = kFixupLoad;
         store_method_addr_used_ = true;
@@ -607,14 +610,12 @@ LIR* X86Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
         res = LoadConstantNoClobber(r_dest.GetLow(), val_lo);
         LoadConstantNoClobber(r_dest.GetHigh(), val_hi);
       } else {
-        // TODO(64) make int64_t value parameter of LoadConstantNoClobber
-        if (val_lo < 0) {
-          val_hi += 1;
-        }
-        res = LoadConstantNoClobber(RegStorage::Solo32(r_dest.GetReg()), val_hi);
-        NewLIR2(kX86Sal64RI, r_dest.GetReg(), 32);
-        if (val_lo != 0) {
-          NewLIR2(kX86Add64RI, r_dest.GetReg(), val_lo);
+        if (value == 0) {
+          res = NewLIR2(kX86Xor64RR, r_dest.GetReg(), r_dest.GetReg());
+        } else if (value >= INT_MIN && value <= INT_MAX) {
+          res = NewLIR2(kX86Mov64RI32, r_dest.GetReg(), val_lo);
+        } else {
+          res = NewLIR3(kX86Mov64RI64, r_dest.GetReg(), val_hi, val_lo);
         }
       }
     }
@@ -643,7 +644,7 @@ LIR* X86Mir2Lir::LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int 
       DCHECK_EQ((displacement & 0x3), 0);
       break;
     case kWord:
-      if (Gen64Bit()) {
+      if (cu_->target64) {
         opcode = is_array ? kX86Mov64RA  : kX86Mov64RM;
         CHECK_EQ(is_array, false);
         CHECK_EQ(r_dest.IsFloat(), false);
@@ -752,17 +753,22 @@ LIR* X86Mir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStora
   return LoadBaseIndexedDisp(r_base, r_index, scale, 0, r_dest, size);
 }
 
-LIR* X86Mir2Lir::LoadBaseDispVolatile(RegStorage r_base, int displacement, RegStorage r_dest,
-                                      OpSize size) {
+LIR* X86Mir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
+                              OpSize size, VolatileKind is_volatile) {
   // LoadBaseDisp() will emit correct insn for atomic load on x86
   // assuming r_dest is correctly prepared using RegClassForFieldLoadStore().
-  return LoadBaseDisp(r_base, displacement, r_dest, size);
-}
 
-LIR* X86Mir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
-                              OpSize size) {
-  return LoadBaseIndexedDisp(r_base, RegStorage::InvalidReg(), 0, displacement, r_dest,
-                             size);
+  LIR* load = LoadBaseIndexedDisp(r_base, RegStorage::InvalidReg(), 0, displacement, r_dest,
+                                  size);
+
+  if (UNLIKELY(is_volatile == kVolatile)) {
+    // Without context sensitive analysis, we must issue the most conservative barriers.
+    // In this case, either a load or store may follow so we issue both barriers.
+    GenMemBarrier(kLoadLoad);
+    GenMemBarrier(kLoadStore);
+  }
+
+  return load;
 }
 
 LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
@@ -787,7 +793,7 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int
       DCHECK_EQ((displacement & 0x3), 0);
       break;
     case kWord:
-      if (Gen64Bit()) {
+      if (cu_->target64) {
         opcode = is_array ? kX86Mov64AR  : kX86Mov64MR;
         CHECK_EQ(is_array, false);
         CHECK_EQ(r_src.IsFloat(), false);
@@ -850,20 +856,28 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int
 
 /* store value base base + scaled index. */
 LIR* X86Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src,
-                      int scale, OpSize size) {
+                                  int scale, OpSize size) {
   return StoreBaseIndexedDisp(r_base, r_index, scale, 0, r_src, size);
 }
 
-LIR* X86Mir2Lir::StoreBaseDispVolatile(RegStorage r_base, int displacement,
-                                       RegStorage r_src, OpSize size) {
+LIR* X86Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src, OpSize size,
+                               VolatileKind is_volatile) {
+  if (UNLIKELY(is_volatile == kVolatile)) {
+    // There might have been a store before this volatile one so insert StoreStore barrier.
+    GenMemBarrier(kStoreStore);
+  }
+
   // StoreBaseDisp() will emit correct insn for atomic store on x86
   // assuming r_dest is correctly prepared using RegClassForFieldLoadStore().
-  return StoreBaseDisp(r_base, displacement, r_src, size);
-}
 
-LIR* X86Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement,
-                               RegStorage r_src, OpSize size) {
-  return StoreBaseIndexedDisp(r_base, RegStorage::InvalidReg(), 0, displacement, r_src, size);
+  LIR* store = StoreBaseIndexedDisp(r_base, RegStorage::InvalidReg(), 0, displacement, r_src, size);
+
+  if (UNLIKELY(is_volatile == kVolatile)) {
+    // A load might follow the volatile store so insert a StoreLoad barrier.
+    GenMemBarrier(kStoreLoad);
+  }
+
+  return store;
 }
 
 LIR* X86Mir2Lir::OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg, RegStorage base_reg,
@@ -889,7 +903,7 @@ void X86Mir2Lir::AnalyzeMIR() {
 
   // Did we need a pointer to the method code?
   if (store_method_addr_) {
-    base_of_code_ = mir_graph_->GetNewCompilerTemp(kCompilerTempVR, Gen64Bit() == true);
+    base_of_code_ = mir_graph_->GetNewCompilerTemp(kCompilerTempVR, cu_->target64 == true);
   } else {
     base_of_code_ = nullptr;
   }

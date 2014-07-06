@@ -1485,33 +1485,34 @@ ENTRY art_quick_generic_jni_trampoline
     mov x1, xFP
     bl artQuickGenericJniTrampoline  // (Thread*, sp)
 
-    // Get the updated pointer. This is the bottom of the frame _with_ handle scope.
-    ldr xFP, [sp]
-    add x9, sp, #8
+    // The C call will have registered the complete save-frame on success.
+    // The result of the call is:
+    // x0: pointer to native code, 0 on error.
+    // x1: pointer to the bottom of the used area of the alloca, can restore stack till there.
 
-    cmp x0, #0
-    b.mi .Lentry_error      // Check for error, negative value.
+    // Check for error = 0.
+    cbz x0, .Lentry_error
 
-    // release part of the alloca.
-    add x9, x9, x0
+    // Release part of the alloca.
+    mov sp, x1
 
-    // Get the code pointer
-    ldr xIP0, [x9, #0]
+    // Save the code pointer
+    mov xIP0, x0
 
     // Load parameters from frame into registers.
     // TODO Check with artQuickGenericJniTrampoline.
     //      Also, check again APPCS64 - the stack arguments are interleaved.
-    ldp x0, x1, [x9, #8]
-    ldp x2, x3, [x9, #24]
-    ldp x4, x5, [x9, #40]
-    ldp x6, x7, [x9, #56]
+    ldp x0, x1, [sp]
+    ldp x2, x3, [sp, #16]
+    ldp x4, x5, [sp, #32]
+    ldp x6, x7, [sp, #48]
 
-    ldp d0, d1, [x9, #72]
-    ldp d2, d3, [x9, #88]
-    ldp d4, d5, [x9, #104]
-    ldp d6, d7, [x9, #120]
+    ldp d0, d1, [sp, #64]
+    ldp d2, d3, [sp, #80]
+    ldp d4, d5, [sp, #96]
+    ldp d6, d7, [sp, #112]
 
-    add sp, x9, #136
+    add sp, sp, #128
 
     blr xIP0           // native call.
 
@@ -1520,13 +1521,11 @@ ENTRY art_quick_generic_jni_trampoline
 
     // result sign extension is handled in C code
     // prepare for artQuickGenericJniEndTrampoline call
-    // (Thread*,  SP, result, result_f)
-    //   x0       x1   x2       x3       <= C calling convention
-    mov x5, x0      // Save return value
+    // (Thread*, result, result_f)
+    //    x0       x1       x2        <= C calling convention
+    mov x1, x0      // Result (from saved)
     mov x0, xSELF   // Thread register
-    mov x1, xFP     // Stack pointer
-    mov x2, x5      // Result (from saved)
-    fmov x3, d0     // d0 will contain floating point result, but needs to go into x3
+    fmov x2, d0     // d0 will contain floating point result, but needs to go into x2
 
     bl artQuickGenericJniEndTrampoline
 
@@ -1632,6 +1631,8 @@ ENTRY art_quick_instrumentation_exit
     ldr   x0, [sp], 16        // Restore integer result, and drop stack area.
     .cfi_adjust_cfa_offset 16
 
+    // Need to restore x18.
+    ldr   xSELF, [sp, #72]
     POP_REF_ONLY_CALLEE_SAVE_FRAME
 
     br    x9                  // Tail-call out.
@@ -1647,6 +1648,7 @@ ENTRY art_quick_deoptimize
     mov    x0, xSELF          // Pass thread.
     mov    x1, sp             // Pass SP.
     bl     artDeoptimize      // artDeoptimize(Thread*, SP)
+    brk 0
 END art_quick_deoptimize
 
 
@@ -1757,7 +1759,7 @@ END art_quick_indexof
      *    x1:   comp object pointer
      *
      */
-    .extern memcmp16_generic_static
+    .extern __memcmp16
 ENTRY art_quick_string_compareto
     mov    x2, x0         // x0 is return, use x2 for first input.
     sub    x0, x2, x1     // Same string object?
@@ -1850,16 +1852,17 @@ ENTRY art_quick_string_compareto
     ret
 
 .Ldo_memcmp16:
-    str x0, [sp,#-16]!           // Save x0
+    mov x14, x0                  // Save x0 and LR. __memcmp16 does not use these temps.
+    mov x15, xLR                 //                 TODO: Codify and check that?
 
     mov x0, x2
     uxtw x2, w3
-    bl memcmp16_generic_static
+    bl __memcmp16
 
-    ldr x1, [sp], #16            // Restore old x0 = length diff
+    mov xLR, x15                 // Restore LR.
 
-    cmp x0, #0                   // Check the memcmp difference
-    csel x0, x0, x1, ne          // x0 := x0 != 0 ? x0 : x1
+    cmp x0, #0                   // Check the memcmp difference.
+    csel x0, x0, x14, ne         // x0 := x0 != 0 ? x14(prev x0=length diff) : x1.
     ret
 END art_quick_string_compareto
 
@@ -1869,11 +1872,9 @@ END art_quick_string_compareto
 .macro NATIVE_DOWNCALL name, entrypoint
     .extern \entrypoint
 ENTRY \name
-    sub    sp, sp, #16
-    stp    xSELF, xLR, [sp]
+    stp    xSELF, xLR, [sp, #-16]!
     bl     \entrypoint
-    ldp    xSELF, xLR, [sp]
-    add    sp, sp, #16
+    ldp    xSELF, xLR, [sp], #16
     ret
 END \name
 .endm
@@ -1881,3 +1882,4 @@ END \name
 NATIVE_DOWNCALL art_quick_fmod fmod
 NATIVE_DOWNCALL art_quick_fmodf fmodf
 NATIVE_DOWNCALL art_quick_memcpy memcpy
+NATIVE_DOWNCALL art_quick_assignable_from_code artIsAssignableFromCode

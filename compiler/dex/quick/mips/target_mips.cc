@@ -75,6 +75,13 @@ RegLocation MipsMir2Lir::LocCReturnDouble() {
   return mips_loc_c_return_double;
 }
 
+// Convert k64BitSolo into k64BitPair
+RegStorage MipsMir2Lir::Solo64ToPair64(RegStorage reg) {
+    DCHECK(reg.IsDouble());
+    int reg_num = (reg.GetRegNum() & ~1) | RegStorage::kFloatingPoint;
+    return RegStorage(RegStorage::k64BitPair, reg_num, reg_num + 1);
+}
+
 // Return a target-dependent special register.
 RegStorage MipsMir2Lir::TargetReg(SpecialTargetRegister reg) {
   RegStorage res_reg;
@@ -123,7 +130,11 @@ RegStorage MipsMir2Lir::GetArgMappingToPhysicalReg(int arg_num) {
 ResourceMask MipsMir2Lir::GetRegMaskCommon(const RegStorage& reg) const {
   return reg.IsDouble()
       /* Each double register is equal to a pair of single-precision FP registers */
+#if (FR_BIT == 0)
+      ? ResourceMask::TwoBits((reg.GetRegNum() & ~1) + kMipsFPReg0)
+#else
       ? ResourceMask::TwoBits(reg.GetRegNum() * 2 + kMipsFPReg0)
+#endif
       : ResourceMask::Bit(reg.IsSingle() ? reg.GetRegNum() + kMipsFPReg0 : reg.GetRegNum());
 }
 
@@ -329,20 +340,6 @@ void MipsMir2Lir::AdjustSpillMask() {
   num_core_spills_++;
 }
 
-/*
- * Mark a callee-save fp register as promoted.  Note that
- * vpush/vpop uses contiguous register lists so we must
- * include any holes in the mask.  Associate holes with
- * Dalvik register INVALID_VREG (0xFFFFU).
- */
-void MipsMir2Lir::MarkPreservedSingle(int s_reg, RegStorage reg) {
-  LOG(FATAL) << "No support yet for promoted FP regs";
-}
-
-void MipsMir2Lir::MarkPreservedDouble(int s_reg, RegStorage reg) {
-  LOG(FATAL) << "No support yet for promoted FP regs";
-}
-
 /* Clobber all regs that might be used by an external C call */
 void MipsMir2Lir::ClobberCallerSave() {
   Clobber(rs_rZERO);
@@ -443,7 +440,11 @@ void MipsMir2Lir::CompilerInitializeRegAlloc() {
   GrowableArray<RegisterInfo*>::Iterator it(&reg_pool_->sp_regs_);
   for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
     int sp_reg_num = info->GetReg().GetRegNum();
+#if (FR_BIT == 0)
+    int dp_reg_num = sp_reg_num & ~1;
+#else
     int dp_reg_num = sp_reg_num >> 1;
+#endif
     RegStorage dp_reg = RegStorage::Solo64(RegStorage::kFloatingPoint | dp_reg_num);
     RegisterInfo* dp_reg_info = GetRegInfo(dp_reg);
     // Double precision register's master storage should refer to itself.
@@ -462,7 +463,11 @@ void MipsMir2Lir::CompilerInitializeRegAlloc() {
   // TODO: adjust when we roll to hard float calling convention.
   reg_pool_->next_core_reg_ = 2;
   reg_pool_->next_sp_reg_ = 2;
+#if (FR_BIT == 0)
+  reg_pool_->next_dp_reg_ = 2;
+#else
   reg_pool_->next_dp_reg_ = 1;
+#endif
 }
 
 /*
@@ -531,8 +536,13 @@ bool MipsMir2Lir::SupportsVolatileLoadStore(OpSize size) {
 }
 
 RegisterClass MipsMir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volatile) {
-  // No support for 64-bit atomic load/store on mips.
-  DCHECK(size != k64 && size != kDouble);
+  if (UNLIKELY(is_volatile)) {
+    // On Mips, atomic 64-bit load/store requires an fp register.
+    // Smaller aligned load/store is atomic for both core and fp registers.
+    if (size == k64 || size == kDouble) {
+      return kFPReg;
+    }
+  }
   // TODO: Verify that both core and fp registers are suitable for smaller sizes.
   return RegClassBySize(size);
 }

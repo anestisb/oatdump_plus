@@ -19,6 +19,7 @@
 #include "arm_lir.h"
 #include "codegen_arm.h"
 #include "dex/quick/mir_to_lir-inl.h"
+#include "dex/reg_storage_eq.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "mirror/array.h"
 
@@ -687,8 +688,11 @@ RegLocation ArmMir2Lir::GenDivRem(RegLocation rl_dest, RegStorage reg1, RegStora
   return rl_result;
 }
 
-bool ArmMir2Lir::GenInlinedMinMaxInt(CallInfo* info, bool is_min) {
+bool ArmMir2Lir::GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long) {
   DCHECK_EQ(cu_->instruction_set, kThumb2);
+  if (is_long) {
+    return false;
+  }
   RegLocation rl_src1 = info->args[0];
   RegLocation rl_src2 = info->args[1];
   rl_src1 = LoadValue(rl_src1, kCoreReg);
@@ -723,7 +727,7 @@ bool ArmMir2Lir::GenInlinedPeek(CallInfo* info, OpSize size) {
   } else {
     DCHECK(size == kSignedByte || size == kSignedHalf || size == k32);
     // Unaligned load with LDR and LDRSH is allowed on ARMv7 with SCTLR.A set to 0.
-    LoadBaseDisp(rl_address.reg, 0, rl_result.reg, size);
+    LoadBaseDisp(rl_address.reg, 0, rl_result.reg, size, kNotVolatile);
     StoreValue(rl_dest, rl_result);
   }
   return true;
@@ -737,13 +741,13 @@ bool ArmMir2Lir::GenInlinedPoke(CallInfo* info, OpSize size) {
   if (size == k64) {
     // Fake unaligned STRD by two unaligned STR instructions on ARMv7 with SCTLR.A set to 0.
     RegLocation rl_value = LoadValueWide(rl_src_value, kCoreReg);
-    StoreBaseDisp(rl_address.reg, 0, rl_value.reg.GetLow(), k32);
-    StoreBaseDisp(rl_address.reg, 4, rl_value.reg.GetHigh(), k32);
+    StoreBaseDisp(rl_address.reg, 0, rl_value.reg.GetLow(), k32, kNotVolatile);
+    StoreBaseDisp(rl_address.reg, 4, rl_value.reg.GetHigh(), k32, kNotVolatile);
   } else {
     DCHECK(size == kSignedByte || size == kSignedHalf || size == k32);
     // Unaligned store with STR and STRSH is allowed on ARMv7 with SCTLR.A set to 0.
     RegLocation rl_value = LoadValue(rl_src_value, kCoreReg);
-    StoreBaseDisp(rl_address.reg, 0, rl_value.reg, size);
+    StoreBaseDisp(rl_address.reg, 0, rl_value.reg, size, kNotVolatile);
   }
   return true;
 }
@@ -1230,7 +1234,7 @@ void ArmMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
       }
       FreeTemp(reg_len);
     }
-    LoadBaseDisp(reg_ptr, data_offset, rl_result.reg, size);
+    LoadBaseDisp(reg_ptr, data_offset, rl_result.reg, size, kNotVolatile);
     MarkPossibleNullPointerException(opt_flags);
     if (!constant_index) {
       FreeTemp(reg_ptr);
@@ -1330,7 +1334,7 @@ void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
       FreeTemp(reg_len);
     }
 
-    StoreBaseDisp(reg_ptr, data_offset, rl_src.reg, size);
+    StoreBaseDisp(reg_ptr, data_offset, rl_src.reg, size, kNotVolatile);
     MarkPossibleNullPointerException(opt_flags);
   } else {
     /* reg_ptr -> array data */

@@ -380,19 +380,39 @@ TEST_F(JniInternalTest, FromReflectedField_ToReflectedField) {
 
 TEST_F(JniInternalTest, FromReflectedMethod_ToReflectedMethod) {
   jclass jlrMethod = env_->FindClass("java/lang/reflect/Method");
+  ASSERT_NE(jlrMethod, nullptr);
+  jclass jlrConstructor = env_->FindClass("java/lang/reflect/Constructor");
+  ASSERT_NE(jlrConstructor, nullptr);
   jclass c = env_->FindClass("java/lang/String");
   ASSERT_NE(c, nullptr);
-  jmethodID mid = env_->GetMethodID(c, "length", "()I");
+
+  jmethodID mid = env_->GetMethodID(c, "<init>", "()V");
   ASSERT_NE(mid, nullptr);
-  // Turn the mid into a java.lang.reflect.Method...
+  // Turn the mid into a java.lang.reflect.Constructor...
   jobject method = env_->ToReflectedMethod(c, mid, JNI_FALSE);
-  ASSERT_NE(c, nullptr);
-  ASSERT_TRUE(env_->IsInstanceOf(method, jlrMethod));
+  ASSERT_NE(method, nullptr);
+  ASSERT_TRUE(env_->IsInstanceOf(method, jlrConstructor));
   // ...and back again.
   jmethodID mid2 = env_->FromReflectedMethod(method);
   ASSERT_NE(mid2, nullptr);
   // Make sure we can actually use it.
-  jstring s = env_->NewStringUTF("poop");
+  jstring s = reinterpret_cast<jstring>(env_->AllocObject(c));
+  ASSERT_NE(s, nullptr);
+  env_->CallVoidMethod(s, mid2);
+  ASSERT_EQ(JNI_FALSE, env_->ExceptionCheck());
+
+  mid = env_->GetMethodID(c, "length", "()I");
+  ASSERT_NE(mid, nullptr);
+  // Turn the mid into a java.lang.reflect.Method...
+  method = env_->ToReflectedMethod(c, mid, JNI_FALSE);
+  ASSERT_NE(method, nullptr);
+  ASSERT_TRUE(env_->IsInstanceOf(method, jlrMethod));
+  // ...and back again.
+  mid2 = env_->FromReflectedMethod(method);
+  ASSERT_NE(mid2, nullptr);
+  // Make sure we can actually use it.
+  s = env_->NewStringUTF("poop");
+  ASSERT_NE(s, nullptr);
   ASSERT_EQ(4, env_->CallIntMethod(s, mid2));
 
   // Bad arguments.
@@ -412,27 +432,49 @@ static void BogusMethod() {
 TEST_F(JniInternalTest, RegisterAndUnregisterNatives) {
   jclass jlobject = env_->FindClass("java/lang/Object");
   jclass jlnsme = env_->FindClass("java/lang/NoSuchMethodError");
+  void* native_function = reinterpret_cast<void*>(BogusMethod);
 
   // Sanity check that no exceptions are pending.
   ASSERT_FALSE(env_->ExceptionCheck());
 
+  // Check that registering method without name causes a NoSuchMethodError.
+  {
+    JNINativeMethod methods[] = { { nullptr, "()V", native_function } };
+    EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
+  }
+  ExpectException(jlnsme);
+
+  // Check that registering method without signature causes a NoSuchMethodError.
+  {
+    JNINativeMethod methods[] = { { "notify", nullptr, native_function } };
+    EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
+  }
+  ExpectException(jlnsme);
+
+  // Check that registering method without function causes a NoSuchMethodError.
+  {
+    JNINativeMethod methods[] = { { "notify", "()V", nullptr } };
+    EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
+  }
+  ExpectException(jlnsme);
+
   // Check that registering to a non-existent java.lang.Object.foo() causes a NoSuchMethodError.
   {
-    JNINativeMethod methods[] = { { "foo", "()V", nullptr } };
+    JNINativeMethod methods[] = { { "foo", "()V", native_function } };
     EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
   }
   ExpectException(jlnsme);
 
   // Check that registering non-native methods causes a NoSuchMethodError.
   {
-    JNINativeMethod methods[] = { { "equals", "(Ljava/lang/Object;)Z", nullptr } };
+    JNINativeMethod methods[] = { { "equals", "(Ljava/lang/Object;)Z", native_function } };
     EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
   }
   ExpectException(jlnsme);
 
   // Check that registering native methods is successful.
   {
-    JNINativeMethod methods[] = { { "notify", "()V", reinterpret_cast<void*>(BogusMethod) } };
+    JNINativeMethod methods[] = { { "notify", "()V", native_function } };
     EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_OK);
   }
   EXPECT_FALSE(env_->ExceptionCheck());
@@ -1452,6 +1494,12 @@ TEST_F(JniInternalTest, DeleteWeakGlobalRef) {
   env_->DeleteWeakGlobalRef(o2);
 }
 
+TEST_F(JniInternalTest, ExceptionDescribe) {
+  // This checks how ExceptionDescribe handles call without exception.
+  env_->ExceptionClear();
+  env_->ExceptionDescribe();
+}
+
 TEST_F(JniInternalTest, Throw) {
   EXPECT_EQ(JNI_ERR, env_->Throw(nullptr));
 
@@ -1515,6 +1563,12 @@ TEST_F(JniInternalTest, NewDirectBuffer_GetDirectBufferAddress_GetDirectBufferCa
   ASSERT_TRUE(env_->IsInstanceOf(buffer, buffer_class));
   ASSERT_EQ(env_->GetDirectBufferAddress(buffer), bytes);
   ASSERT_EQ(env_->GetDirectBufferCapacity(buffer), static_cast<jlong>(sizeof(bytes)));
+
+  {
+    CheckJniAbortCatcher check_jni_abort_catcher;
+    env_->NewDirectByteBuffer(bytes, static_cast<jlong>(INT_MAX) + 1);
+    check_jni_abort_catcher.Check("in call to NewDirectByteBuffer");
+  }
 }
 
 TEST_F(JniInternalTest, MonitorEnterExit) {
@@ -1568,7 +1622,6 @@ TEST_F(JniInternalTest, MonitorEnterExit) {
     CheckJniAbortCatcher check_jni_abort_catcher;
     env_->MonitorEnter(nullptr);
     check_jni_abort_catcher.Check("in call to MonitorEnter");
-
     env_->MonitorExit(nullptr);
     check_jni_abort_catcher.Check("in call to MonitorExit");
   }

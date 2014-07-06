@@ -23,6 +23,10 @@
      * Runtime::CreateCalleeSaveMethod(kSaveAll)
      */
 MACRO0(SETUP_SAVE_ALL_CALLEE_SAVE_FRAME)
+#if defined(__APPLE__)
+    int3
+    int3
+#else
     // R10 := Runtime::Current()
     movq _ZN3art7Runtime9instance_E@GOTPCREL(%rip), %r10
     movq (%r10), %r10
@@ -45,6 +49,7 @@ MACRO0(SETUP_SAVE_ALL_CALLEE_SAVE_FRAME)
 #if (FRAME_SIZE_SAVE_ALL_CALLEE_SAVE != 6*8 + 8 + 8)
 #error "SAVE_ALL_CALLEE_SAVE_FRAME(X86_64) size not as expected."
 #endif
+#endif  // __APPLE__
 END_MACRO
 
     /*
@@ -52,6 +57,10 @@ END_MACRO
      * Runtime::CreateCalleeSaveMethod(kRefsOnly)
      */
 MACRO0(SETUP_REF_ONLY_CALLEE_SAVE_FRAME)
+#if defined(__APPLE__)
+    int3
+    int3
+#else
     // R10 := Runtime::Current()
     movq _ZN3art7Runtime9instance_E@GOTPCREL(%rip), %r10
     movq (%r10), %r10
@@ -74,6 +83,7 @@ MACRO0(SETUP_REF_ONLY_CALLEE_SAVE_FRAME)
 #if (FRAME_SIZE_REFS_ONLY_CALLEE_SAVE != 6*8 + 8 + 8)
 #error "REFS_ONLY_CALLEE_SAVE_FRAME(X86_64) size not as expected."
 #endif
+#endif  // __APPLE__
 END_MACRO
 
 MACRO0(RESTORE_REF_ONLY_CALLEE_SAVE_FRAME)
@@ -93,6 +103,10 @@ END_MACRO
      * Runtime::CreateCalleeSaveMethod(kRefsAndArgs)
      */
 MACRO0(SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME)
+#if defined(__APPLE__)
+    int3
+    int3
+#else
     // R10 := Runtime::Current()
     movq _ZN3art7Runtime9instance_E@GOTPCREL(%rip), %r10
     movq (%r10), %r10
@@ -130,6 +144,7 @@ MACRO0(SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME)
 #if (FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE != 11*8 + 80 + 8)
 #error "REFS_AND_ARGS_CALLEE_SAVE_FRAME(X86_64) size not as expected."
 #endif
+#endif  // __APPLE__
 END_MACRO
 
 MACRO0(RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME)
@@ -366,6 +381,10 @@ END_MACRO
      *   r9 = char* shorty
      */
 DEFINE_FUNCTION art_quick_invoke_stub
+#if defined(__APPLE__)
+    int3
+    int3
+#else
     // Set up argument XMM registers.
     leaq 1(%r9), %r10             // R10 := shorty + 1  ; ie skip return arg character.
     leaq 4(%rsi), %r11            // R11 := arg_array + 4 ; ie skip this pointer.
@@ -431,6 +450,7 @@ DEFINE_FUNCTION art_quick_invoke_stub
 .Lreturn_float_quick:
     movss %xmm0, (%r8)           // Store the floating point result.
     ret
+#endif  // __APPLE__
 END_FUNCTION art_quick_invoke_stub
 
     /*
@@ -445,6 +465,10 @@ END_FUNCTION art_quick_invoke_stub
      *   r9 = char* shorty
      */
 DEFINE_FUNCTION art_quick_invoke_static_stub
+#if defined(__APPLE__)
+    int3
+    int3
+#else
     // Set up argument XMM registers.
     leaq 1(%r9), %r10             // R10 := shorty + 1  ; ie skip return arg character
     movq %rsi, %r11               // R11 := arg_array
@@ -509,6 +533,7 @@ DEFINE_FUNCTION art_quick_invoke_static_stub
 .Lreturn_float_quick2:
     movss %xmm0, (%r8)           // Store the floating point result.
     ret
+#endif  // __APPLE__
 END_FUNCTION art_quick_invoke_static_stub
 
 MACRO3(NO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
@@ -554,6 +579,45 @@ MACRO3(THREE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     movq %rsp, %r8                     // pass SP
     movq %gs:THREAD_SELF_OFFSET, %rcx  // pass Thread::Current()
     call PLT_VAR(cxx_name, 1)          // cxx_name(arg0, arg1, arg2, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
+    CALL_MACRO(return_macro, 2)        // return or deliver exception
+    END_FUNCTION VAR(c_name, 0)
+END_MACRO
+
+MACRO3(ONE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
+    DEFINE_FUNCTION VAR(c_name, 0)
+    movl 8(%rsp), %esi                 // pass referrer
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+                                       // arg0 is in rdi
+    movq %gs:THREAD_SELF_OFFSET, %rdx  // pass Thread::Current()
+    movq %rsp, %rcx                    // pass SP
+    call PLT_VAR(cxx_name, 1)          // cxx_name(arg0, referrer, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
+    CALL_MACRO(return_macro, 2)
+    END_FUNCTION VAR(c_name, 0)
+END_MACRO
+
+MACRO3(TWO_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
+    DEFINE_FUNCTION VAR(c_name, 0)
+    movl 8(%rsp), %edx                 // pass referrer
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+                                       // arg0 and arg1 are in rdi/rsi
+    movq %gs:THREAD_SELF_OFFSET, %rcx  // pass Thread::Current()
+    movq %rsp, %r8                     // pass SP
+    call PLT_VAR(cxx_name, 1)          // (arg0, arg1, referrer, Thread*, SP)
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
+    CALL_MACRO(return_macro, 2)
+    END_FUNCTION VAR(c_name, 0)
+END_MACRO
+
+MACRO3(THREE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
+    DEFINE_FUNCTION VAR(c_name, 0)
+    movl 8(%rsp), %ecx                 // pass referrer
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
+                                       // arg0, arg1, and arg2 are in rdi/rsi/rdx
+    movq %gs:THREAD_SELF_OFFSET, %r8    // pass Thread::Current()
+    movq %rsp, %r9                     // pass SP
+    call PLT_VAR(cxx_name, 1)          // cxx_name(arg0, arg1, arg2, referrer, Thread*, SP)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
     CALL_MACRO(return_macro, 2)        // return or deliver exception
     END_FUNCTION VAR(c_name, 0)
@@ -783,14 +847,23 @@ END_FUNCTION art_quick_check_cast
      * rdi(edi) = array, rsi(esi) = index, rdx(edx) = value
      */
 DEFINE_FUNCTION art_quick_aput_obj_with_null_and_bound_check
+#if defined(__APPLE__)
+    int3
+    int3
+#else
     testl %edi, %edi
 //  testq %rdi, %rdi
     jnz art_quick_aput_obj_with_bound_check_local
     jmp art_quick_throw_null_pointer_exception_local
+#endif  // __APPLE__
 END_FUNCTION art_quick_aput_obj_with_null_and_bound_check
 
 
 DEFINE_FUNCTION art_quick_aput_obj_with_bound_check
+#if defined(__APPLE__)
+    int3
+    int3
+#else
     movl ARRAY_LENGTH_OFFSET(%edi), %ecx
 //  movl ARRAY_LENGTH_OFFSET(%rdi), %ecx      // This zero-extends, so value(%rcx)=value(%ecx)
     cmpl %ecx, %esi
@@ -800,6 +873,7 @@ DEFINE_FUNCTION art_quick_aput_obj_with_bound_check
     mov %ecx, %esi
 //  mov %rcx, %rsi
     jmp art_quick_throw_array_bounds_local
+#endif  // __APPLE__
 END_FUNCTION art_quick_aput_obj_with_bound_check
 
 
@@ -894,47 +968,6 @@ UNIMPLEMENTED art_quick_lshl
 UNIMPLEMENTED art_quick_lshr
 UNIMPLEMENTED art_quick_lushr
 
-
-MACRO3(ONE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION VAR(c_name, 0)
-    movl 8(%rsp), %esi                 // pass referrer
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
-                                       // arg0 is in rdi
-    movq %gs:THREAD_SELF_OFFSET, %rdx  // pass Thread::Current()
-    movq %rsp, %rcx                    // pass SP
-    call PLT_VAR(cxx_name, 1)          // cxx_name(arg0, referrer, Thread*, SP)
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
-    CALL_MACRO(return_macro, 2)
-    END_FUNCTION VAR(c_name, 0)
-END_MACRO
-
-MACRO3(TWO_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION VAR(c_name, 0)
-    movl 8(%rsp), %edx                 // pass referrer
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
-                                       // arg0 and arg1 are in rdi/rsi
-    movq %gs:THREAD_SELF_OFFSET, %rcx  // pass Thread::Current()
-    movq %rsp, %r8                     // pass SP
-    call PLT_VAR(cxx_name, 1)          // (arg0, arg1, referrer, Thread*, SP)
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
-    CALL_MACRO(return_macro, 2)
-    END_FUNCTION VAR(c_name, 0)
-END_MACRO
-
-MACRO3(THREE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION VAR(c_name, 0)
-    movl 8(%rsp), %ecx                 // pass referrer
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME
-                                       // arg0, arg1, and arg2 are in rdi/rsi/rdx
-    movq %gs:THREAD_SELF_OFFSET, %r8    // pass Thread::Current()
-    movq %rsp, %r9                     // pass SP
-    call PLT_VAR(cxx_name, 1)          // cxx_name(arg0, arg1, arg2, referrer, Thread*, SP)
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
-    CALL_MACRO(return_macro, 2)        // return or deliver exception
-    END_FUNCTION VAR(c_name, 0)
-END_MACRO
-
-
 THREE_ARG_REF_DOWNCALL art_quick_set32_instance, artSet32InstanceFromCode, RETURN_IF_EAX_ZERO
 THREE_ARG_DOWNCALL art_quick_set64_instance, artSet64InstanceFromCode, RETURN_IF_EAX_ZERO
 THREE_ARG_REF_DOWNCALL art_quick_set_obj_instance, artSetObjInstanceFromCode, RETURN_IF_EAX_ZERO
@@ -1006,10 +1039,15 @@ END_FUNCTION art_quick_proxy_invoke_handler
      * rax is a hidden argument that holds the target method's dex method index.
      */
 DEFINE_FUNCTION art_quick_imt_conflict_trampoline
+#if defined(__APPLE__)
+    int3
+    int3
+#else
     movl 8(%rsp), %edi            // load caller Method*
     movl METHOD_DEX_CACHE_METHODS_OFFSET(%rdi), %edi  // load dex_cache_resolved_methods
     movl OBJECT_ARRAY_DATA_OFFSET(%rdi, %rax, 4), %edi  // load the target method
     jmp art_quick_invoke_interface_trampoline_local
+#endif  // __APPLE__
 END_FUNCTION art_quick_imt_conflict_trampoline
 
 DEFINE_FUNCTION art_quick_resolution_trampoline
@@ -1129,11 +1167,9 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     movq %xmm5, 56(%rsp)
     movq %xmm6, 64(%rsp)
     movq %xmm7, 72(%rsp)
-    // Store native ArtMethod* to bottom of stack.
-    movq %rdi, 0(%rsp)
-    movq %rsp, %rbp                 // save SP at callee-save frame
-    movq %rsp, %rbx
-    CFI_DEF_CFA_REGISTER(rbx)
+    movq %rdi, 0(%rsp)              // Store native ArtMethod* to bottom of stack.
+    movq %rsp, %rbp                 // save SP at (old) callee-save frame
+    CFI_DEF_CFA_REGISTER(rbp)
     //
     // reserve a lot of space
     //
@@ -1160,17 +1196,17 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     movq %rbp, %rsi
     call PLT_SYMBOL(artQuickGenericJniTrampoline)  // (Thread*, sp)
 
-    // At the bottom of the alloca we now have the name pointer to the method=bottom of callee-save
-    // get the adjusted frame pointer
-    popq %rbp
+    // The C call will have registered the complete save-frame on success.
+    // The result of the call is:
+    // %rax: pointer to native code, 0 on error.
+    // %rdx: pointer to the bottom of the used area of the alloca, can restore stack till there.
 
-    // Check for error, negative value.
+    // Check for error = 0.
     test %rax, %rax
-    js .Lentry_error
+    jz .Lentry_error
 
-    // release part of the alloca, get the code pointer
-    addq %rax, %rsp
-    popq %rax
+    // Release part of the alloca.
+    movq %rdx, %rsp
 
     // pop from the register-passing alloca region
     // what's the right layout?
@@ -1190,21 +1226,22 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     movq 48(%rsp), %xmm6
     movq 56(%rsp), %xmm7
     addq LITERAL(64), %rsp          // floating-point done
+
     // native call
-    call *%rax                      // Stack should be aligned 16B without the return addr?
+    call *%rax
+
     // result sign extension is handled in C code
     // prepare for artQuickGenericJniEndTrampoline call
-    // (Thread*,  SP, result, result_f)
-    //   rdi      rsi   rdx   rcx       <= C calling convention
-    //  gs:...    rbp   rax   xmm0      <= where they are
+    // (Thread*,  result, result_f)
+    //   rdi      rsi   rdx       <= C calling convention
+    //  gs:...    rax   xmm0      <= where they are
     movq %gs:THREAD_SELF_OFFSET, %rdi
-    movq %rbp, %rsi
-    movq %rax, %rdx
-    movq %xmm0, %rcx
+    movq %rax, %rsi
+    movq %xmm0, %rdx
     call PLT_SYMBOL(artQuickGenericJniEndTrampoline)
 
     // Tear down the alloca.
-    movq %rbx, %rsp
+    movq %rbp, %rsp
     CFI_DEF_CFA_REGISTER(rsp)
 
     // Pending exceptions possible.
@@ -1242,7 +1279,7 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     movq %rax, %xmm0
     ret
 .Lentry_error:
-    movq %rbx, %rsp
+    movq %rbp, %rsp
     CFI_DEF_CFA_REGISTER(rsp)
 .Lexception_in_native:
     // TODO: the handle scope contains the this pointer which is used by the debugger for exception
@@ -1294,6 +1331,10 @@ END_FUNCTION art_quick_to_interpreter_bridge
      * Routine that intercepts method calls and returns.
      */
 DEFINE_FUNCTION art_quick_instrumentation_entry
+#if defined(__APPLE__)
+    int3
+    int3
+#else
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
 
     movq %rdi, %r12               // Preserve method pointer in a callee-save.
@@ -1313,6 +1354,7 @@ DEFINE_FUNCTION art_quick_instrumentation_entry
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
 
     jmp *%rax                     // Tail call to intended method.
+#endif  // __APPLE__
 END_FUNCTION art_quick_instrumentation_entry
 
 DEFINE_FUNCTION art_quick_instrumentation_exit

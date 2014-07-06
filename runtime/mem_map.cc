@@ -44,6 +44,10 @@
 #endif
 #endif
 
+#ifndef MAP_ANONYMOUS
+#define MAP_ANONYMOUS MAP_ANON
+#endif
+
 namespace art {
 
 static std::ostream& operator<<(
@@ -73,7 +77,7 @@ std::ostream& operator<<(std::ostream& os, const std::multimap<void*, MemMap*>& 
 
 std::multimap<void*, MemMap*> MemMap::maps_;
 
-#if defined(__LP64__) && !defined(__x86_64__)
+#if USE_ART_LOW_4G_ALLOCATOR
 // Handling mem_map in 32b address range for 64b architectures that do not support MAP_32BIT.
 
 // The regular start of memory allocations. The first 64KB is protected by SELinux.
@@ -236,7 +240,7 @@ MemMap* MemMap::MapAnonymous(const char* name, byte* expected, size_t byte_count
   // A page allocator would be a useful abstraction here, as
   // 1) It is doubtful that MAP_32BIT on x86_64 is doing the right job for us
   // 2) The linear scheme, even with simple saving of the last known position, is very crude
-#if defined(__LP64__) && !defined(__x86_64__)
+#if USE_ART_LOW_4G_ALLOCATOR
   // MAP_32BIT only available on x86_64.
   void* actual = MAP_FAILED;
   if (low_4gb && expected == nullptr) {
@@ -300,7 +304,7 @@ MemMap* MemMap::MapAnonymous(const char* name, byte* expected, size_t byte_count
   }
 
 #else
-#ifdef __x86_64__
+#if defined(__LP64__)
   if (low_4gb && expected == nullptr) {
     flags |= MAP_32BIT;
   }

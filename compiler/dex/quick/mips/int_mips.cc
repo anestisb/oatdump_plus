@@ -18,6 +18,7 @@
 
 #include "codegen_mips.h"
 #include "dex/quick/mir_to_lir-inl.h"
+#include "dex/reg_storage_eq.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "mips_lir.h"
 #include "mirror/array.h"
@@ -294,7 +295,7 @@ bool MipsMir2Lir::GenInlinedPeek(CallInfo* info, OpSize size) {
   RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   DCHECK(size == kSignedByte);
-  LoadBaseDisp(rl_address.reg, 0, rl_result.reg, size);
+  LoadBaseDisp(rl_address.reg, 0, rl_result.reg, size, kNotVolatile);
   StoreValue(rl_dest, rl_result);
   return true;
 }
@@ -310,7 +311,7 @@ bool MipsMir2Lir::GenInlinedPoke(CallInfo* info, OpSize size) {
   RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
   DCHECK(size == kSignedByte);
   RegLocation rl_value = LoadValue(rl_src_value, kCoreReg);
-  StoreBaseDisp(rl_address.reg, 0, rl_value.reg, size);
+  StoreBaseDisp(rl_address.reg, 0, rl_value.reg, size, kNotVolatile);
   return true;
 }
 
@@ -485,8 +486,10 @@ void MipsMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
   int len_offset = mirror::Array::LengthOffset().Int32Value();
   int data_offset;
   RegLocation rl_result;
-  rl_array = LoadValue(rl_array, kCoreReg);
+  rl_array = LoadValue(rl_array, kRefReg);
   rl_index = LoadValue(rl_index, kCoreReg);
+
+  // FIXME: need to add support for rl_index.is_const.
 
   if (size == k64 || size == kDouble) {
     data_offset = mirror::Array::DataOffset(sizeof(int64_t)).Int32Value();
@@ -524,7 +527,7 @@ void MipsMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
       GenArrayBoundsCheck(rl_index.reg, reg_len);
       FreeTemp(reg_len);
     }
-    LoadBaseDisp(reg_ptr, 0, rl_result.reg, size);
+    LoadBaseDisp(reg_ptr, 0, rl_result.reg, size, kNotVolatile);
 
     FreeTemp(reg_ptr);
     StoreValueWide(rl_dest, rl_result);
@@ -558,8 +561,11 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Int32Value();
   }
 
-  rl_array = LoadValue(rl_array, kCoreReg);
+  rl_array = LoadValue(rl_array, kRefReg);
   rl_index = LoadValue(rl_index, kCoreReg);
+
+  // FIXME: need to add support for rl_index.is_const.
+
   RegStorage reg_ptr;
   bool allocated_reg_ptr_temp = false;
   if (IsTemp(rl_array.reg) && !card_mark) {
@@ -602,7 +608,7 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
       FreeTemp(reg_len);
     }
 
-    StoreBaseDisp(reg_ptr, 0, rl_src.reg, size);
+    StoreBaseDisp(reg_ptr, 0, rl_src.reg, size, kNotVolatile);
   } else {
     rl_src = LoadValue(rl_src, reg_class);
     if (needs_range_check) {
