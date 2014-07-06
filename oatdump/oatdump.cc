@@ -91,6 +91,17 @@ static void usage() {
           "    Example: --dump:raw_gc_map\n"
           "    Default: neither\n"
           "\n");
+  fprintf(stderr,
+          "  --class=<class_name>: class name to search for\n"
+          "    Example: --class=android.support.v4.app.NavUtils\n"
+          "\n");
+  fprintf(stderr,
+          "  --method=<method_name>: method name to search for in class_name\n"
+          "    Example: --method=getParentActivityIntent\n"
+          "\n");
+  fprintf(stderr,
+          "  --no-headers: to disable file header prints\n"
+          "\n");
   exit(EXIT_FAILURE);
 }
 
@@ -107,11 +118,15 @@ const char* image_roots_descriptions_[] = {
 
 class OatDumper {
  public:
-  explicit OatDumper(const OatFile& oat_file, bool dump_raw_mapping_table, bool dump_raw_gc_map)
+  explicit OatDumper(const OatFile& oat_file, bool dump_raw_mapping_table, bool dump_raw_gc_map,
+                     const char* class_name, const char* method_name, bool headers_enabled)
     : oat_file_(oat_file),
       oat_dex_files_(oat_file.GetOatDexFiles()),
       dump_raw_mapping_table_(dump_raw_mapping_table),
       dump_raw_gc_map_(dump_raw_gc_map),
+      class_name_(class_name),
+      method_name_(method_name),
+      headers_enabled_(headers_enabled),
       disassembler_(Disassembler::Create(oat_file_.GetOatHeader().GetInstructionSet())) {
     AddAllOffsets();
   }
@@ -119,75 +134,92 @@ class OatDumper {
   void Dump(std::ostream& os) {
     const OatHeader& oat_header = oat_file_.GetOatHeader();
 
-    os << "MAGIC:\n";
-    os << oat_header.GetMagic() << "\n\n";
+    if (headers_enabled_) {
+      os << "MAGIC:\n";
+      os << oat_header.GetMagic() << "\n\n";
 
-    os << "CHECKSUM:\n";
-    os << StringPrintf("0x%08x\n\n", oat_header.GetChecksum());
+      os << "CHECKSUM:\n";
+      os << StringPrintf("0x%08x\n\n", oat_header.GetChecksum());
 
-    os << "INSTRUCTION SET:\n";
-    os << oat_header.GetInstructionSet() << "\n\n";
+      os << "INSTRUCTION SET:\n";
+      os << oat_header.GetInstructionSet() << "\n\n";
 
-    os << "INSTRUCTION SET FEATURES:\n";
-    os << oat_header.GetInstructionSetFeatures().GetFeatureString() << "\n\n";
+      os << "INSTRUCTION SET FEATURES:\n";
+      os << oat_header.GetInstructionSetFeatures().GetFeatureString() << "\n\n";
 
-    os << "DEX FILE COUNT:\n";
-    os << oat_header.GetDexFileCount() << "\n\n";
+      os << "DEX FILE COUNT:\n";
+      os << oat_header.GetDexFileCount() << "\n\n";
 
 #define DUMP_OAT_HEADER_OFFSET(label, offset) \
-    os << label " OFFSET:\n"; \
-    os << StringPrintf("0x%08x", oat_header.offset()); \
-    if (oat_header.offset() != 0) { \
-      os << StringPrintf(" (%p)", oat_file_.Begin() + oat_header.offset()); \
-    } \
-    os << StringPrintf("\n\n");
+      os << label " OFFSET:\n"; \
+      os << StringPrintf("0x%08x", oat_header.offset()); \
+      if (oat_header.offset() != 0) { \
+        os << StringPrintf(" (%p)", oat_file_.Begin() + oat_header.offset()); \
+      } \
+      os << StringPrintf("\n\n");
 
-    DUMP_OAT_HEADER_OFFSET("EXECUTABLE", GetExecutableOffset);
-    DUMP_OAT_HEADER_OFFSET("INTERPRETER TO INTERPRETER BRIDGE",
-                           GetInterpreterToInterpreterBridgeOffset);
-    DUMP_OAT_HEADER_OFFSET("INTERPRETER TO COMPILED CODE BRIDGE",
-                           GetInterpreterToCompiledCodeBridgeOffset);
-    DUMP_OAT_HEADER_OFFSET("JNI DLSYM LOOKUP",
-                           GetJniDlsymLookupOffset);
-    DUMP_OAT_HEADER_OFFSET("PORTABLE IMT CONFLICT TRAMPOLINE",
-                           GetPortableImtConflictTrampolineOffset);
-    DUMP_OAT_HEADER_OFFSET("PORTABLE RESOLUTION TRAMPOLINE",
-                           GetPortableResolutionTrampolineOffset);
-    DUMP_OAT_HEADER_OFFSET("PORTABLE TO INTERPRETER BRIDGE",
-                           GetPortableToInterpreterBridgeOffset);
-    DUMP_OAT_HEADER_OFFSET("QUICK GENERIC JNI TRAMPOLINE",
-                           GetQuickGenericJniTrampolineOffset);
-    DUMP_OAT_HEADER_OFFSET("QUICK IMT CONFLICT TRAMPOLINE",
-                           GetQuickImtConflictTrampolineOffset);
-    DUMP_OAT_HEADER_OFFSET("QUICK RESOLUTION TRAMPOLINE",
-                           GetQuickResolutionTrampolineOffset);
-    DUMP_OAT_HEADER_OFFSET("QUICK TO INTERPRETER BRIDGE",
-                           GetQuickToInterpreterBridgeOffset);
+      DUMP_OAT_HEADER_OFFSET("EXECUTABLE", GetExecutableOffset);
+      DUMP_OAT_HEADER_OFFSET("INTERPRETER TO INTERPRETER BRIDGE",
+                             GetInterpreterToInterpreterBridgeOffset);
+      DUMP_OAT_HEADER_OFFSET("INTERPRETER TO COMPILED CODE BRIDGE",
+                             GetInterpreterToCompiledCodeBridgeOffset);
+      DUMP_OAT_HEADER_OFFSET("JNI DLSYM LOOKUP",
+                             GetJniDlsymLookupOffset);
+      DUMP_OAT_HEADER_OFFSET("PORTABLE IMT CONFLICT TRAMPOLINE",
+                             GetPortableImtConflictTrampolineOffset);
+      DUMP_OAT_HEADER_OFFSET("PORTABLE RESOLUTION TRAMPOLINE",
+                             GetPortableResolutionTrampolineOffset);
+      DUMP_OAT_HEADER_OFFSET("PORTABLE TO INTERPRETER BRIDGE",
+                             GetPortableToInterpreterBridgeOffset);
+      DUMP_OAT_HEADER_OFFSET("QUICK GENERIC JNI TRAMPOLINE",
+                             GetQuickGenericJniTrampolineOffset);
+      DUMP_OAT_HEADER_OFFSET("QUICK IMT CONFLICT TRAMPOLINE",
+                             GetQuickImtConflictTrampolineOffset);
+      DUMP_OAT_HEADER_OFFSET("QUICK RESOLUTION TRAMPOLINE",
+                             GetQuickResolutionTrampolineOffset);
+      DUMP_OAT_HEADER_OFFSET("QUICK TO INTERPRETER BRIDGE",
+                             GetQuickToInterpreterBridgeOffset);
 #undef DUMP_OAT_HEADER_OFFSET
 
-    os << "IMAGE FILE LOCATION OAT CHECKSUM:\n";
-    os << StringPrintf("0x%08x\n\n", oat_header.GetImageFileLocationOatChecksum());
+      os << "IMAGE FILE LOCATION OAT CHECKSUM:\n";
+      os << StringPrintf("0x%08x\n\n", oat_header.GetImageFileLocationOatChecksum());
 
-    os << "IMAGE FILE LOCATION OAT BEGIN:\n";
-    os << StringPrintf("0x%08x\n\n", oat_header.GetImageFileLocationOatDataBegin());
+      os << "IMAGE FILE LOCATION OAT BEGIN:\n";
+      os << StringPrintf("0x%08x\n\n", oat_header.GetImageFileLocationOatDataBegin());
 
-    os << "IMAGE FILE LOCATION:\n";
-    const std::string image_file_location(oat_header.GetImageFileLocation());
-    os << image_file_location;
-    os << "\n\n";
+      os << "IMAGE FILE LOCATION:\n";
+      const std::string image_file_location(oat_header.GetImageFileLocation());
+      os << image_file_location;
+      os << "\n\n";
 
-    os << "BEGIN:\n";
-    os << reinterpret_cast<const void*>(oat_file_.Begin()) << "\n\n";
+      os << "BEGIN:\n";
+      os << reinterpret_cast<const void*>(oat_file_.Begin()) << "\n\n";
 
-    os << "END:\n";
-    os << reinterpret_cast<const void*>(oat_file_.End()) << "\n\n";
+      os << "END:\n";
+      os << reinterpret_cast<const void*>(oat_file_.End()) << "\n\n";
 
-    os << std::flush;
+      os << std::flush;
+    } /* End of headers_enabled prints */
 
     for (size_t i = 0; i < oat_dex_files_.size(); i++) {
       const OatFile::OatDexFile* oat_dex_file = oat_dex_files_[i];
       CHECK(oat_dex_file != NULL);
-      DumpOatDexFile(os, *oat_dex_file);
+
+      /* If --class, search for that class */
+      if (class_name_ != NULL) {
+        /* Format class name */
+        char* class_descriptor = FormatClassDescriptor(class_name_);
+        if(!class_descriptor) {
+          fprintf(stderr, "Class name normalization failed\n");
+          return;
+        }
+        DumpOatDexByClassDesc(os, *oat_dex_file, class_descriptor, 
+                              method_name_, headers_enabled_);
+
+        free(class_descriptor);
+      }
+      else
+        DumpOatDexFile(os, *oat_dex_file);
     }
   }
 
@@ -318,6 +350,73 @@ class OatDumper {
     os << std::flush;
   }
 
+  void DumpOatDexByClassDesc(std::ostream& os, const OatFile::OatDexFile& oat_dex_file, 
+                             const char* class_desc, const char* method_desc, 
+                             bool headers_enabled) {
+    if (headers_enabled) {
+      os << "OAT DEX FILE:\n";
+      os << StringPrintf("location: %s\n", oat_dex_file.GetDexFileLocation().c_str());
+      os << StringPrintf("checksum: 0x%08x (which is retrieved from ZipEntry CRC instead of DEX header!!!)\n", 
+                         oat_dex_file.GetDexFileLocationChecksum());
+    }
+    std::string error_msg;
+    std::unique_ptr<const DexFile> dex_file(oat_dex_file.OpenDexFile(&error_msg));
+    if (dex_file.get() == NULL) {
+      os << "DEX FILE NOT FOUND\n\n";
+      return;
+    }
+
+    size_t class_def_index ;
+    for (class_def_index = 0; class_def_index < dex_file->NumClassDefs(); class_def_index++) {
+      const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
+      const char* pDescr = dex_file->GetClassDescriptor(class_def);
+      if(memcmp(pDescr, class_desc, strlen(pDescr)) == 0) {
+        const OatFile::OatClass oat_class(oat_dex_file.GetOatClass(class_def_index));
+        os << StringPrintf("%zd: %s (type_idx=%d) (", class_def_index, pDescr, class_def.class_idx_)
+           << oat_class.GetStatus() << ")"
+           << " (" << oat_class.GetType() << ")\n";
+        Indenter indent_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
+        std::ostream indented_os(&indent_filter);
+
+        /* If --method, limit the class dump to this method */
+        if (method_desc)
+          DumpOatClassByMethDesc(indented_os, oat_class, *(dex_file.get()), 
+                                 class_def, method_desc);
+        else
+          DumpOatClass(indented_os, oat_class, *(dex_file.get()), class_def);
+
+        /* Abort class walkthrough -- no doubles */
+        break;
+      }
+    }
+    if(class_def_index == dex_file->NumClassDefs())
+      os << StringPrintf("class '%s' not found\n", class_desc);
+  }
+
+  char* FormatClassDescriptor(const char* class_name) {
+
+    /* Check for already formatted class name */
+    if(class_name[0] == 'L' && class_name[strlen(class_name)-1] == ';' &&
+       !strchr(class_name, '.'))
+      /* Return a new copy */
+      return strdup(class_name);
+
+    size_t fDescSz = strlen(class_name) + 3;
+    char* fDesc = (char*)malloc(fDescSz);
+    if(!fDesc) return NULL;
+    memset(fDesc, 0, fDescSz);
+
+    /* Set prefix & suffix */
+    snprintf(fDesc, fDescSz, "L%s;", class_name);
+
+    /* Replace dots (.) with slashed (/) */
+    for(size_t i=0; i<fDescSz; i++) {
+      if(fDesc[i] == '.') fDesc[i] = '/';
+    }
+
+    return fDesc;
+  }
+
   static void SkipAllFields(ClassDataItemIterator& it) {
     while (it.HasNextStaticField()) {
       it.Next();
@@ -351,6 +450,54 @@ class OatDumper {
       it.Next();
     }
     DCHECK(!it.HasNext());
+    os << std::flush;
+  }
+
+  void DumpOatClassByMethDesc(std::ostream& os, const OatFile::OatClass& oat_class, const DexFile& dex_file,
+                    const DexFile::ClassDef& class_def, const char* method_desc) {
+    const byte* class_data = dex_file.GetClassData(class_def);
+    if (class_data == NULL) {  // empty class such as a marker interface?
+      return;
+    }
+    ClassDataItemIterator it(dex_file, class_data);
+    SkipAllFields(it);
+    uint32_t class_method_idx = 0;
+    const char* cur_method_name = NULL;
+    bool method_found = false;
+
+    /* Search Direct methods first */
+    while (it.HasNextDirectMethod()) {
+      /* Search by method description (name) */
+      const OatFile::OatMethod oat_method = oat_class.GetOatMethod(class_method_idx);
+      const DexFile::MethodId& method_id = dex_file.GetMethodId(it.GetMemberIndex());
+      cur_method_name = dex_file.GetMethodName(method_id);
+
+      if(memcmp(cur_method_name, method_desc, strlen(cur_method_name)) == 0) {
+        DumpOatMethod(os, class_def, class_method_idx, oat_method, dex_file,
+                      it.GetMemberIndex(), it.GetMethodCodeItem(), it.GetMemberAccessFlags());
+        method_found = true;
+      }
+      class_method_idx++;
+      it.Next();
+    }
+
+    /* Search Virtual methods */
+    while (it.HasNextVirtualMethod()) {
+      /* Search by method description (name) */
+      const OatFile::OatMethod oat_method = oat_class.GetOatMethod(class_method_idx);
+      const DexFile::MethodId& method_id = dex_file.GetMethodId(it.GetMemberIndex());
+      cur_method_name = dex_file.GetMethodName(method_id);
+
+      if(memcmp(cur_method_name, method_desc, strlen(cur_method_name)) == 0) {
+        DumpOatMethod(os, class_def, class_method_idx, oat_method, dex_file,
+                      it.GetMemberIndex(), it.GetMethodCodeItem(), it.GetMemberAccessFlags());
+        method_found = true;
+      }
+      class_method_idx++;
+      it.Next();
+    }
+    DCHECK(!it.HasNext());
+    if(!method_found) os << StringPrintf("method '%s' not found\n", method_desc);
     os << std::flush;
   }
 
@@ -731,6 +878,9 @@ class OatDumper {
   std::vector<const OatFile::OatDexFile*> oat_dex_files_;
   bool dump_raw_mapping_table_;
   bool dump_raw_gc_map_;
+  const char* class_name_;
+  const char* method_name_;
+  bool headers_enabled_;
   std::set<uintptr_t> offsets_;
   std::unique_ptr<Disassembler> disassembler_;
 };
@@ -821,7 +971,7 @@ class ImageDumper {
     stats_.oat_file_bytes = oat_file->Size();
 
     oat_dumper_.reset(new OatDumper(*oat_file, dump_raw_mapping_table_,
-        dump_raw_gc_map_));
+                                    dump_raw_gc_map_, NULL, NULL, true));
 
     for (const OatFile::OatDexFile* oat_dex_file : oat_file->GetOatDexFiles()) {
       CHECK(oat_dex_file != NULL);
@@ -1472,6 +1622,9 @@ static int oatdump(int argc, char** argv) {
   std::unique_ptr<std::ofstream> out;
   bool dump_raw_mapping_table = false;
   bool dump_raw_gc_map = false;
+  const char* class_name = NULL;
+  const char* method_name = NULL;
+  bool headers_enabled = true;
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
@@ -1511,6 +1664,12 @@ static int oatdump(int argc, char** argv) {
         usage();
       }
       os = out.get();
+    } else if (option.starts_with("--class=")) {
+      class_name = option.substr(strlen("--class=")).data();
+    } else if (option.starts_with("--method=")) {
+      method_name = option.substr(strlen("--method=")).data();
+    } else if (option.starts_with("--no-headers")) {
+      headers_enabled = false;
     } else {
       fprintf(stderr, "Unknown argument %s\n", option.data());
       usage();
@@ -1527,6 +1686,16 @@ static int oatdump(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+  if (class_name != NULL && oat_filename == NULL) {
+    fprintf(stderr, "Class level dump is available only for OAT files (use --oat-file)\n");
+    return EXIT_FAILURE;
+  }
+
+  if (class_name == NULL && method_name != NULL) {
+    fprintf(stderr, "Method level dump is available only if --class is specified\n");
+    return EXIT_FAILURE;
+  }
+
   if (oat_filename != NULL) {
     std::string error_msg;
     OatFile* oat_file =
@@ -1535,7 +1704,8 @@ static int oatdump(int argc, char** argv) {
       fprintf(stderr, "Failed to open oat file from '%s': %s\n", oat_filename, error_msg.c_str());
       return EXIT_FAILURE;
     }
-    OatDumper oat_dumper(*oat_file, dump_raw_mapping_table, dump_raw_gc_map);
+    OatDumper oat_dumper(*oat_file, dump_raw_mapping_table, dump_raw_gc_map,
+                         class_name, method_name, headers_enabled);
     oat_dumper.Dump(*os);
     return EXIT_SUCCESS;
   }
@@ -1590,5 +1760,7 @@ static int oatdump(int argc, char** argv) {
 }  // namespace art
 
 int main(int argc, char** argv) {
+  fprintf(stderr, "    --{ oatdump++ by @anestisb }--\n");
+  fprintf(stderr, "compatible with master AOSP ART branch\n\n"); 
   return art::oatdump(argc, argv);
 }

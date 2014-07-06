@@ -21,6 +21,11 @@
 #include <backtrace/BacktraceMap.h>
 #include <memory>
 
+/* Fix legacy define issue (Google how do you build without this?) */
+#ifndef MAP_ANONYMOUS
+#define MAP_ANONYMOUS MAP_ANON
+#endif
+
 // See CreateStartPos below.
 #ifdef __BIONIC__
 #include <sys/auxv.h>
