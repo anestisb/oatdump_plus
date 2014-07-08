@@ -1527,6 +1527,11 @@ bool Mir2Lir::GenInlinedDoubleCvt(CallInfo* info) {
   return true;
 }
 
+bool Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
+  return false;
+}
+
+
 /*
  * Fast String.indexOf(I) & (II).  Tests for simple case of char <= 0xFFFF,
  * otherwise bails to standard library code.
@@ -1692,8 +1697,11 @@ bool Mir2Lir::GenInlinedUnsafeGet(CallInfo* info,
       FreeTemp(rl_temp_offset);
     }
   } else {
-    LoadBaseIndexed(rl_object.reg, rl_offset.reg, rl_result.reg, 0,
-                    (rl_result.ref) ? kReference : k32);
+    if (rl_result.ref) {
+      LoadRefIndexed(rl_object.reg, rl_offset.reg, rl_result.reg, 0);
+    } else {
+      LoadBaseIndexed(rl_object.reg, rl_offset.reg, rl_result.reg, 0, k32);
+    }
   }
 
   if (is_volatile) {
@@ -1742,8 +1750,11 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
     }
   } else {
     rl_value = LoadValue(rl_src_value);
-    StoreBaseIndexed(rl_object.reg, rl_offset.reg, rl_value.reg, 0,
-                     (rl_value.ref) ? kReference : k32);
+    if (rl_value.ref) {
+      StoreRefIndexed(rl_object.reg, rl_offset.reg, rl_value.reg, 0);
+    } else {
+      StoreBaseIndexed(rl_object.reg, rl_offset.reg, rl_value.reg, 0, k32);
+    }
   }
 
   // Free up the temp early, to ensure x86 doesn't run out of temporaries in MarkGCCard.
