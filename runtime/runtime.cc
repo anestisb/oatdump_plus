@@ -147,6 +147,13 @@ Runtime::Runtime()
 }
 
 Runtime::~Runtime() {
+  if (method_trace_ && Thread::Current() == nullptr) {
+    // We need a current thread to shutdown method tracing: re-attach it now.
+    JNIEnv* unused_env;
+    if (GetJavaVM()->AttachCurrentThread(&unused_env, nullptr) != JNI_OK) {
+      LOG(ERROR) << "Could not attach current thread before runtime shutdown.";
+    }
+  }
   if (dump_gc_performance_on_shutdown_) {
     // This can't be called from the Heap destructor below because it
     // could call RosAlloc::InspectAll() which needs the thread_list
@@ -681,6 +688,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   Trace::SetDefaultClockSource(options->profile_clock_source_);
 
   if (options->method_trace_) {
+    ScopedThreadStateChange tsc(self, kWaitingForMethodTracingStart);
     Trace::Start(options->method_trace_file_.c_str(), -1, options->method_trace_file_size_, 0,
                  false, false, 0);
   }
@@ -930,7 +938,6 @@ void Runtime::VisitConstantRoots(RootCallback* callback, void* arg) {
 void Runtime::VisitConcurrentRoots(RootCallback* callback, void* arg, VisitRootFlags flags) {
   intern_table_->VisitRoots(callback, arg, flags);
   class_linker_->VisitRoots(callback, arg, flags);
-  Dbg::VisitRoots(callback, arg);
   if ((flags & kVisitRootFlagNewRoots) == 0) {
     // Guaranteed to have no new roots in the constant roots.
     VisitConstantRoots(callback, arg);

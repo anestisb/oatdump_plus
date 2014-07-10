@@ -23,6 +23,7 @@
 
 #include <pthread.h>
 
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -130,7 +131,8 @@ struct SingleStepControl {
 };
 
 // TODO rename to InstrumentationRequest.
-struct DeoptimizationRequest {
+class DeoptimizationRequest {
+ public:
   enum Kind {
     kNothing,                   // no action.
     kRegisterForEvent,          // start listening for instrumentation event.
@@ -141,25 +143,63 @@ struct DeoptimizationRequest {
     kSelectiveUndeoptimization  // undeoptimize one method.
   };
 
-  DeoptimizationRequest() : kind(kNothing), instrumentation_event(0), method(nullptr) {}
+  DeoptimizationRequest() : kind_(kNothing), instrumentation_event_(0), method_(nullptr) {}
 
-  void VisitRoots(RootCallback* callback, void* arg);
+  DeoptimizationRequest(const DeoptimizationRequest& other)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      : kind_(other.kind_), instrumentation_event_(other.instrumentation_event_) {
+    // Create a new JNI global reference for the method.
+    SetMethod(other.Method());
+  }
 
-  Kind kind;
+  mirror::ArtMethod* Method() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void SetMethod(mirror::ArtMethod* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Name 'Kind()' would collide with the above enum name.
+  Kind GetKind() const {
+    return kind_;
+  }
+
+  void SetKind(Kind kind) {
+    kind_ = kind;
+  }
+
+  uint32_t InstrumentationEvent() const {
+    return instrumentation_event_;
+  }
+
+  void SetInstrumentationEvent(uint32_t instrumentation_event) {
+    instrumentation_event_ = instrumentation_event;
+  }
+
+ private:
+  Kind kind_;
 
   // TODO we could use a union to hold the instrumentation_event and the method since they
   // respectively have sense only for kRegisterForEvent/kUnregisterForEvent and
   // kSelectiveDeoptimization/kSelectiveUndeoptimization.
 
   // Event to start or stop listening to. Only for kRegisterForEvent and kUnregisterForEvent.
-  uint32_t instrumentation_event;
+  uint32_t instrumentation_event_;
 
   // Method for selective deoptimization.
-  mirror::ArtMethod* method;
+  jmethodID method_;
 };
 
 class Dbg {
  public:
+  class TypeCache {
+   public:
+    // Returns a weak global for the input type. Deduplicates.
+    jobject Add(mirror::Class* t) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+    // Clears the type cache and deletes all the weak global refs.
+    void Clear();
+
+   private:
+    std::multimap<int32_t, jobject> objects_;
+  };
+
   static bool ParseJdwpOptions(const std::string& options);
   static void SetJdwpAllowed(bool allowed);
 
@@ -555,6 +595,10 @@ class Dbg {
   static void DdmSendHeapSegments(bool native)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  static TypeCache& GetTypeCache() {
+    return type_cache_;
+  }
+
  private:
   static void DdmBroadcast(bool connect) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostThreadStartOrStop(Thread*, uint32_t)
@@ -603,6 +647,9 @@ class Dbg {
   static size_t delayed_full_undeoptimization_count_ GUARDED_BY(deoptimization_lock_);
 
   static size_t* GetReferenceCounterForEvent(uint32_t instrumentation_event);
+
+  // Weak global type cache, TODO improve this.
+  static TypeCache type_cache_;
 
   // Instrumentation event reference counters.
   // TODO we could use an array instead of having all these dedicated counters. Instrumentation

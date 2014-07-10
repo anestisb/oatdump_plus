@@ -569,6 +569,9 @@ enum X86OpCode {
   kX86PextrbRRI,                // Extract 8 bits from XMM into GPR
   kX86PextrwRRI,                // Extract 16 bits from XMM into GPR
   kX86PextrdRRI,                // Extract 32 bits from XMM into GPR
+  kX86PextrbMRI,                // Extract 8 bits from XMM into memory
+  kX86PextrwMRI,                // Extract 16 bits from XMM into memory
+  kX86PextrdMRI,                // Extract 32 bits from XMM into memory
   kX86PshuflwRRI,               // Shuffle 16 bits in lower 64 bits of XMM.
   kX86PshufdRRI,                // Shuffle 32 bits in XMM.
   kX86ShufpsRRI,                // FP Shuffle 32 bits in XMM.
@@ -723,7 +726,7 @@ struct X86EncodingMap {
 #define REX_X 0x42
 // Extension of the ModR/M r/m field, SIB base field, or Opcode reg field
 #define REX_B 0x41
-// Extended register set
+// An empty REX prefix used to normalize the byte operations so that they apply to R4 through R15
 #define REX 0x40
 // Mask extracting the least 3 bits of r0..r15
 #define kRegNumMask32 0x07

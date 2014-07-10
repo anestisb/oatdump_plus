@@ -327,20 +327,17 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
 { kX86 ## opname ## RM, kRegMem,   IS_LOAD | IS_TERTIARY_OP | reg_def | REG_USE1,  { prefix, 0, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RM", "!0r,[!1r+!2d]" }, \
 { kX86 ## opname ## RA, kRegArray, IS_LOAD | IS_QUIN_OP     | reg_def | REG_USE12, { prefix, 0, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RA", "!0r,[!1r+!2r<<!3d+!4d]" }
 
-#define EXT_0F_REX_NO_PREFIX_ENCODING_MAP(opname, opcode, reg_def) \
-{ kX86 ## opname ## RR, kRegReg,             IS_BINARY_OP   | reg_def | REG_USE1,  { REX, 0x00, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RR", "!0r,!1r" }, \
-{ kX86 ## opname ## RM, kRegMem,   IS_LOAD | IS_TERTIARY_OP | reg_def | REG_USE1,  { REX, 0x00, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RM", "!0r,[!1r+!2d]" }, \
-{ kX86 ## opname ## RA, kRegArray, IS_LOAD | IS_QUIN_OP     | reg_def | REG_USE12, { REX, 0x00, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RA", "!0r,[!1r+!2r<<!3d+!4d]" }
+// This is a special encoding with r8_form on the second register only
+// for Movzx8 and Movsx8.
+#define EXT_0F_R8_FORM_ENCODING_MAP(opname, prefix, opcode, reg_def) \
+{ kX86 ## opname ## RR, kRegReg,             IS_BINARY_OP   | reg_def | REG_USE1,  { prefix, 0, 0x0F, opcode, 0, 0, 0, 0, true }, #opname "RR", "!0r,!1r" }, \
+{ kX86 ## opname ## RM, kRegMem,   IS_LOAD | IS_TERTIARY_OP | reg_def | REG_USE1,  { prefix, 0, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RM", "!0r,[!1r+!2d]" }, \
+{ kX86 ## opname ## RA, kRegArray, IS_LOAD | IS_QUIN_OP     | reg_def | REG_USE12, { prefix, 0, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RA", "!0r,[!1r+!2r<<!3d+!4d]" }
 
 #define EXT_0F_REX_W_ENCODING_MAP(opname, prefix, opcode, reg_def) \
 { kX86 ## opname ## RR, kRegReg,             IS_BINARY_OP   | reg_def | REG_USE1,  { prefix, REX_W, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RR", "!0r,!1r" }, \
 { kX86 ## opname ## RM, kRegMem,   IS_LOAD | IS_TERTIARY_OP | reg_def | REG_USE1,  { prefix, REX_W, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RM", "!0r,[!1r+!2d]" }, \
 { kX86 ## opname ## RA, kRegArray, IS_LOAD | IS_QUIN_OP     | reg_def | REG_USE12, { prefix, REX_W, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RA", "!0r,[!1r+!2r<<!3d+!4d]" }
-
-#define EXT_0F_REX_W_NO_PREFIX_ENCODING_MAP(opname, opcode, reg_def) \
-{ kX86 ## opname ## RR, kRegReg,             IS_BINARY_OP   | reg_def | REG_USE1,  { REX_W, 0x00, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RR", "!0r,!1r" }, \
-{ kX86 ## opname ## RM, kRegMem,   IS_LOAD | IS_TERTIARY_OP | reg_def | REG_USE1,  { REX_W, 0x00, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RM", "!0r,[!1r+!2d]" }, \
-{ kX86 ## opname ## RA, kRegArray, IS_LOAD | IS_QUIN_OP     | reg_def | REG_USE12, { REX_W, 0x00, 0x0F, opcode, 0, 0, 0, 0, false }, #opname "RA", "!0r,[!1r+!2r<<!3d+!4d]" }
 
 #define EXT_0F_ENCODING2_MAP(opname, prefix, opcode, opcode2, reg_def) \
 { kX86 ## opname ## RR, kRegReg,             IS_BINARY_OP   | reg_def | REG_USE1,  { prefix, 0, 0x0F, opcode, opcode2, 0, 0, 0, false }, #opname "RR", "!0r,!1r" }, \
@@ -405,9 +402,12 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   EXT_0F_ENCODING_MAP(Haddpd,    0x66, 0x7C, REG_DEF0_USE0),
   EXT_0F_ENCODING_MAP(Haddps,    0xF2, 0x7C, REG_DEF0_USE0),
 
-  { kX86PextrbRRI, kRegRegImm, IS_TERTIARY_OP | REG_DEF0 | REG_USE1, { 0x66, 0, 0x0F, 0x3A, 0x14, 0, 0, 1, false }, "PextbRRI", "!0r,!1r,!2d" },
-  { kX86PextrwRRI, kRegRegImm, IS_TERTIARY_OP | REG_DEF0 | REG_USE1, { 0x66, 0, 0x0F, 0xC5, 0x00, 0, 0, 1, false }, "PextwRRI", "!0r,!1r,!2d" },
-  { kX86PextrdRRI, kRegRegImm, IS_TERTIARY_OP | REG_DEF0 | REG_USE1, { 0x66, 0, 0x0F, 0x3A, 0x16, 0, 0, 1, false }, "PextdRRI", "!0r,!1r,!2d" },
+  { kX86PextrbRRI, kRegRegImm, IS_TERTIARY_OP | REG_DEF0  | REG_USE1, { 0x66, 0, 0x0F, 0x3A, 0x14, 0, 0, 1, false }, "PextbRRI", "!0r,!1r,!2d" },
+  { kX86PextrwRRI, kRegRegImm, IS_TERTIARY_OP | REG_DEF0  | REG_USE1, { 0x66, 0, 0x0F, 0xC5, 0x00, 0, 0, 1, false }, "PextwRRI", "!0r,!1r,!2d" },
+  { kX86PextrdRRI, kRegRegImm, IS_TERTIARY_OP | REG_DEF0  | REG_USE1, { 0x66, 0, 0x0F, 0x3A, 0x16, 0, 0, 1, false }, "PextdRRI", "!0r,!1r,!2d" },
+  { kX86PextrbMRI, kMemRegImm, IS_QUAD_OP     | REG_USE02 | IS_STORE, { 0x66, 0, 0x0F, 0x3A, 0x16, 0, 0, 1, false }, "kX86PextrbMRI", "[!0r+!1d],!2r,!3d" },
+  { kX86PextrwMRI, kMemRegImm, IS_QUAD_OP     | REG_USE02 | IS_STORE, { 0x66, 0, 0x0F, 0x3A, 0x16, 0, 0, 1, false }, "kX86PextrwMRI", "[!0r+!1d],!2r,!3d" },
+  { kX86PextrdMRI, kMemRegImm, IS_QUAD_OP     | REG_USE02 | IS_STORE, { 0x66, 0, 0x0F, 0x3A, 0x16, 0, 0, 1, false }, "kX86PextrdMRI", "[!0r+!1d],!2r,!3d" },
 
   { kX86PshuflwRRI, kRegRegImm, IS_TERTIARY_OP | REG_DEF0 | REG_USE1, { 0xF2, 0, 0x0F, 0x70, 0, 0, 0, 1, false }, "PshuflwRRI", "!0r,!1r,!2d" },
   { kX86PshufdRRI,  kRegRegImm, IS_TERTIARY_OP | REG_DEF0 | REG_USE1, { 0x66, 0, 0x0F, 0x70, 0, 0, 0, 1, false }, "PshuffRRI", "!0r,!1r,!2d" },
@@ -495,14 +495,14 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86LockCmpxchg64A, kArray,   IS_STORE | IS_QUAD_OP | REG_USE01 | REG_DEFAD_USEAD | REG_USEC | REG_USEB | SETS_CCODES,  { 0xF0, 0, 0x0F, 0xC7, 0, 1, 0, 0, false }, "Lock Cmpxchg8b", "[!0r+!1r<<!2d+!3d]" },
   { kX86XchgMR, kMemReg,          IS_STORE | IS_LOAD | IS_TERTIARY_OP | REG_DEF2 | REG_USE02,          { 0, 0, 0x87, 0, 0, 0, 0, 0, false }, "Xchg", "[!0r+!1d],!2r" },
 
-  EXT_0F_ENCODING_MAP(Movzx8,  0x00, 0xB6, REG_DEF0),
+  EXT_0F_R8_FORM_ENCODING_MAP(Movzx8,  0x00, 0xB6, REG_DEF0),
   EXT_0F_ENCODING_MAP(Movzx16, 0x00, 0xB7, REG_DEF0),
-  EXT_0F_ENCODING_MAP(Movsx8,  0x00, 0xBE, REG_DEF0),
+  EXT_0F_R8_FORM_ENCODING_MAP(Movsx8,  0x00, 0xBE, REG_DEF0),
   EXT_0F_ENCODING_MAP(Movsx16, 0x00, 0xBF, REG_DEF0),
-  EXT_0F_REX_NO_PREFIX_ENCODING_MAP(Movzx8q, 0xB6, REG_DEF0),
-  EXT_0F_REX_W_NO_PREFIX_ENCODING_MAP(Movzx16q, 0xB7, REG_DEF0),
-  EXT_0F_REX_NO_PREFIX_ENCODING_MAP(Movsx8q, 0xBE, REG_DEF0),
-  EXT_0F_REX_W_NO_PREFIX_ENCODING_MAP(Movsx16q, 0xBF, REG_DEF0),
+  EXT_0F_ENCODING_MAP(Movzx8q,  REX_W, 0xB6, REG_DEF0),
+  EXT_0F_ENCODING_MAP(Movzx16q, REX_W, 0xB7, REG_DEF0),
+  EXT_0F_ENCODING_MAP(Movsx8q,  REX, 0xBE, REG_DEF0),
+  EXT_0F_ENCODING_MAP(Movsx16q, REX_W, 0xBF, REG_DEF0),
 #undef EXT_0F_ENCODING_MAP
 
   { kX86Jcc8,  kJcc,  IS_BINARY_OP | IS_BRANCH | NEEDS_FIXUP | USES_CCODES, { 0,             0, 0x70, 0,    0, 0, 0, 0, false }, "Jcc8",  "!1c !0t" },
@@ -600,6 +600,10 @@ static bool ModrmIsRegReg(const X86EncodingMap* entry) {
   }
 }
 
+static bool IsByteSecondOperand(const X86EncodingMap* entry) {
+  return StartsWith(entry->name, "Movzx8") || StartsWith(entry->name, "Movsx8");
+}
+
 size_t X86Mir2Lir::ComputeSize(const X86EncodingMap* entry, int32_t raw_reg, int32_t raw_index,
                                int32_t raw_base, int32_t displacement) {
   bool has_modrm = HasModrm(entry);
@@ -620,14 +624,16 @@ size_t X86Mir2Lir::ComputeSize(const X86EncodingMap* entry, int32_t raw_reg, int
     bool registers_need_rex_prefix = NeedsRex(raw_reg) || NeedsRex(raw_index) || NeedsRex(raw_base);
     if (r8_form) {
       // Do we need an empty REX prefix to normalize byte registers?
-      registers_need_rex_prefix = registers_need_rex_prefix || (RegStorage::RegNum(raw_reg) >= 4);
+      registers_need_rex_prefix = registers_need_rex_prefix ||
+          (RegStorage::RegNum(raw_reg) >= 4 && !IsByteSecondOperand(entry));
       registers_need_rex_prefix = registers_need_rex_prefix ||
           (modrm_is_reg_reg && (RegStorage::RegNum(raw_base) >= 4));
     }
     if (registers_need_rex_prefix) {
       DCHECK(cu_->target64) << "Attempt to use a 64-bit only addressable register "
           << RegStorage::RegNum(raw_reg) << " with instruction " << entry->name;
-      if (entry->skeleton.prefix1 != REX_W && entry->skeleton.prefix2 != REX_W) {
+      if (entry->skeleton.prefix1 != REX_W && entry->skeleton.prefix2 != REX_W
+         && entry->skeleton.prefix1 != REX && entry->skeleton.prefix2 != REX) {
         ++size;  // rex
       }
     }
@@ -883,7 +889,7 @@ void X86Mir2Lir::EmitPrefix(const X86EncodingMap* entry,
   uint8_t rex = 0;
   if (r8_form) {
     // Do we need an empty REX prefix to normalize byte register addressing?
-    if (RegStorage::RegNum(raw_reg_r) >= 4) {
+    if (RegStorage::RegNum(raw_reg_r) >= 4 && !IsByteSecondOperand(entry)) {
       rex |= 0x40;  // REX.0000
     } else if (modrm_is_reg_reg && RegStorage::RegNum(raw_reg_b) >= 4) {
       rex |= 0x40;  // REX.0000
@@ -906,7 +912,8 @@ void X86Mir2Lir::EmitPrefix(const X86EncodingMap* entry,
       // 64 bit addresses by GS, not FS.
       code_buffer_.push_back(THREAD_PREFIX_GS);
     } else {
-      if (entry->skeleton.prefix1 == REX_W) {
+      if (entry->skeleton.prefix1 == REX_W || entry->skeleton.prefix1 == REX) {
+        DCHECK(cu_->target64);
         rex |= entry->skeleton.prefix1;
         code_buffer_.push_back(rex);
         rex = 0;
@@ -915,7 +922,8 @@ void X86Mir2Lir::EmitPrefix(const X86EncodingMap* entry,
       }
     }
     if (entry->skeleton.prefix2 != 0) {
-      if (entry->skeleton.prefix2 == REX_W) {
+      if (entry->skeleton.prefix2 == REX_W || entry->skeleton.prefix1 == REX) {
+        DCHECK(cu_->target64);
         rex |= entry->skeleton.prefix2;
         code_buffer_.push_back(rex);
         rex = 0;
@@ -1171,7 +1179,9 @@ void X86Mir2Lir::EmitRegThread(const X86EncodingMap* entry, int32_t raw_reg, int
 }
 
 void X86Mir2Lir::EmitRegReg(const X86EncodingMap* entry, int32_t raw_reg1, int32_t raw_reg2) {
-  CheckValidByteRegister(entry, raw_reg1);
+  if (!IsByteSecondOperand(entry)) {
+    CheckValidByteRegister(entry, raw_reg1);
+  }
   CheckValidByteRegister(entry, raw_reg2);
   EmitPrefixAndOpcode(entry, raw_reg1, NO_REG, raw_reg2);
   uint8_t low_reg1 = LowRegisterBits(raw_reg1);

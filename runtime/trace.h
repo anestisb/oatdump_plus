@@ -23,6 +23,7 @@
 #include <string>
 #include <vector>
 
+#include "atomic.h"
 #include "base/macros.h"
 #include "globals.h"
 #include "instrumentation.h"
@@ -65,11 +66,14 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
 
   static void Start(const char* trace_filename, int trace_fd, int buffer_size, int flags,
                     bool direct_to_ddms, bool sampling_enabled, int interval_us)
-  LOCKS_EXCLUDED(Locks::mutator_lock_,
-                 Locks::thread_list_lock_,
-                 Locks::thread_suspend_count_lock_,
-                 Locks::trace_lock_);
-  static void Stop() LOCKS_EXCLUDED(Locks::trace_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_,
+                     Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_,
+                     Locks::trace_lock_);
+  static void Stop()
+      LOCKS_EXCLUDED(Locks::mutator_lock_,
+                     Locks::thread_list_lock_,
+                     Locks::trace_lock_);
   static void Shutdown() LOCKS_EXCLUDED(Locks::trace_lock_);
   static TracingMode GetMethodTracingMode() LOCKS_EXCLUDED(Locks::trace_lock_);
 
@@ -163,7 +167,7 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
   const uint64_t start_time_;
 
   // Offset into buf_.
-  volatile int32_t cur_offset_;
+  AtomicInteger cur_offset_;
 
   // Did we overflow the buffer recording traces?
   bool overflow_;
