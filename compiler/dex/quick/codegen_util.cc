@@ -1046,9 +1046,19 @@ CompiledMethod* Mir2Lir::GetCompiledMethod() {
     }
     // Push a marker to take place of lr.
     vmap_encoder.PushBackUnsigned(VmapTable::kAdjustedFpMarker);
-    // fp regs already sorted.
-    for (uint32_t i = 0; i < fp_vmap_table_.size(); i++) {
-      vmap_encoder.PushBackUnsigned(fp_vmap_table_[i] + VmapTable::kEntryAdjustment);
+    if (cu_->instruction_set == kThumb2) {
+      // fp regs already sorted.
+      for (uint32_t i = 0; i < fp_vmap_table_.size(); i++) {
+        vmap_encoder.PushBackUnsigned(fp_vmap_table_[i] + VmapTable::kEntryAdjustment);
+      }
+    } else {
+      // For other platforms regs may have been inserted out of order - sort first.
+      std::sort(fp_vmap_table_.begin(), fp_vmap_table_.end());
+      for (size_t i = 0 ; i < fp_vmap_table_.size(); ++i) {
+        // Copy, stripping out the phys register sort key.
+        vmap_encoder.PushBackUnsigned(
+            ~(-1 << VREG_NUM_WIDTH) & (fp_vmap_table_[i] + VmapTable::kEntryAdjustment));
+      }
     }
   } else {
     DCHECK_EQ(POPCOUNT(core_spill_mask_), 0);
@@ -1162,9 +1172,12 @@ bool Mir2Lir::BadOverlap(RegLocation rl_src, RegLocation rl_dest) {
 }
 
 LIR *Mir2Lir::OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg, RegStorage base_reg,
-                                int offset, int check_value, LIR* target) {
+                                int offset, int check_value, LIR* target, LIR** compare) {
   // Handle this for architectures that can't compare to memory.
-  Load32Disp(base_reg, offset, temp_reg);
+  LIR* inst = Load32Disp(base_reg, offset, temp_reg);
+  if (compare != nullptr) {
+    *compare = inst;
+  }
   LIR* branch = OpCmpImmBranch(cond, temp_reg, check_value, target);
   return branch;
 }

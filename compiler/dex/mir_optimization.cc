@@ -137,7 +137,7 @@ MIR* MIRGraph::FindMoveResult(BasicBlock* bb, MIR* mir) {
       break;
     }
     // Keep going if pseudo op, otherwise terminate
-    if (IsPseudoMirOp(mir->dalvikInsn.opcode)) {
+    if (MIR::DecodedInstruction::IsPseudoMirOp(mir->dalvikInsn.opcode)) {
       mir = AdvanceMIR(&tbb, mir);
     } else {
       mir = NULL;
@@ -877,7 +877,7 @@ bool MIRGraph::EliminateNullChecksAndInferTypes(BasicBlock* bb) {
           struct BasicBlock* next_bb = GetBasicBlock(bb->fall_through);
           for (MIR* tmir = next_bb->first_mir_insn; tmir != NULL;
             tmir =tmir->next) {
-            if (IsPseudoMirOp(tmir->dalvikInsn.opcode)) {
+            if (MIR::DecodedInstruction::IsPseudoMirOp(tmir->dalvikInsn.opcode)) {
               continue;
             }
             // First non-pseudo should be MOVE_RESULT_OBJECT
@@ -1220,7 +1220,7 @@ void MIRGraph::ComputeInlineIFieldLoweringInfo(uint16_t field_idx, MIR* invoke, 
   iget_or_iput->meta.ifield_lowering_info = field_info_index;
 }
 
-bool MIRGraph::InlineCallsGate() {
+bool MIRGraph::InlineSpecialMethodsGate() {
   if ((cu_->disable_opt & (1 << kSuppressMethodInlining)) != 0 ||
       method_lowering_infos_.Size() == 0u) {
     return false;
@@ -1232,7 +1232,7 @@ bool MIRGraph::InlineCallsGate() {
   return true;
 }
 
-void MIRGraph::InlineCallsStart() {
+void MIRGraph::InlineSpecialMethodsStart() {
   // Prepare for inlining getters/setters. Since we're inlining at most 1 IGET/IPUT from
   // each INVOKE, we can index the data by the MIR::meta::method_lowering_info index.
 
@@ -1246,12 +1246,12 @@ void MIRGraph::InlineCallsStart() {
       temp_bit_vector_size_ * sizeof(*temp_insn_data_), kArenaAllocGrowableArray));
 }
 
-void MIRGraph::InlineCalls(BasicBlock* bb) {
+void MIRGraph::InlineSpecialMethods(BasicBlock* bb) {
   if (bb->block_type != kDalvikByteCode) {
     return;
   }
   for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
-    if (IsPseudoMirOp(mir->dalvikInsn.opcode)) {
+    if (MIR::DecodedInstruction::IsPseudoMirOp(mir->dalvikInsn.opcode)) {
       continue;
     }
     if (!(Instruction::FlagsOf(mir->dalvikInsn.opcode) & Instruction::kInvoke)) {
@@ -1270,17 +1270,17 @@ void MIRGraph::InlineCalls(BasicBlock* bb) {
     MethodReference target = method_info.GetTargetMethod();
     if (cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(target.dex_file)
             ->GenInline(this, bb, mir, target.dex_method_index)) {
-      if (cu_->verbose) {
-        LOG(INFO) << "In \"" << PrettyMethod(cu_->method_idx, *cu_->dex_file)
-            << "\" @0x" << std::hex << mir->offset
-            << " inlined " << method_info.GetInvokeType() << " (" << sharp_type << ") call to \""
-            << PrettyMethod(target.dex_method_index, *target.dex_file) << "\"";
+      if (cu_->verbose || cu_->print_pass) {
+        LOG(INFO) << "SpecialMethodInliner: Inlined " << method_info.GetInvokeType() << " ("
+            << sharp_type << ") call to \"" << PrettyMethod(target.dex_method_index, *target.dex_file)
+            << "\" from \"" << PrettyMethod(cu_->method_idx, *cu_->dex_file)
+            << "\" @0x" << std::hex << mir->offset;
       }
     }
   }
 }
 
-void MIRGraph::InlineCallsEnd() {
+void MIRGraph::InlineSpecialMethodsEnd() {
   DCHECK(temp_insn_data_ != nullptr);
   temp_insn_data_ = nullptr;
   DCHECK(temp_bit_vector_ != nullptr);

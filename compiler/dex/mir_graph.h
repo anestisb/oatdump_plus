@@ -80,6 +80,7 @@ enum DataFlowAttributePos {
   kSetsConst,
   kFormat35c,
   kFormat3rc,
+  kFormatExtended,       // Extended format for extended MIRs.
   kNullCheckSrc0,        // Null check of uses[0].
   kNullCheckSrc1,        // Null check of uses[1].
   kNullCheckSrc2,        // Null check of uses[2].
@@ -118,6 +119,7 @@ enum DataFlowAttributePos {
 #define DF_SETS_CONST           (UINT64_C(1) << kSetsConst)
 #define DF_FORMAT_35C           (UINT64_C(1) << kFormat35c)
 #define DF_FORMAT_3RC           (UINT64_C(1) << kFormat3rc)
+#define DF_FORMAT_EXTENDED      (UINT64_C(1) << kFormatExtended)
 #define DF_NULL_CHK_0           (UINT64_C(1) << kNullCheckSrc0)
 #define DF_NULL_CHK_1           (UINT64_C(1) << kNullCheckSrc1)
 #define DF_NULL_CHK_2           (UINT64_C(1) << kNullCheckSrc2)
@@ -284,34 +286,46 @@ struct MIR {
      */
     bool GetConstant(int64_t* ptr_value, bool* wide) const;
 
+    static bool IsPseudoMirOp(Instruction::Code opcode) {
+      return static_cast<int>(opcode) >= static_cast<int>(kMirOpFirst);
+    }
+
+    static bool IsPseudoMirOp(int opcode) {
+      return opcode >= static_cast<int>(kMirOpFirst);
+    }
+
+    bool IsInvoke() const {
+      return !IsPseudoMirOp(opcode) && ((Instruction::FlagsOf(opcode) & Instruction::kInvoke) == Instruction::kInvoke);
+    }
+
     bool IsStore() const {
-      return ((Instruction::FlagsOf(opcode) & Instruction::kStore) == Instruction::kStore);
+      return !IsPseudoMirOp(opcode) && ((Instruction::FlagsOf(opcode) & Instruction::kStore) == Instruction::kStore);
     }
 
     bool IsLoad() const {
-      return ((Instruction::FlagsOf(opcode) & Instruction::kLoad) == Instruction::kLoad);
+      return !IsPseudoMirOp(opcode) && ((Instruction::FlagsOf(opcode) & Instruction::kLoad) == Instruction::kLoad);
     }
 
     bool IsConditionalBranch() const {
-      return (Instruction::FlagsOf(opcode) == (Instruction::kContinue | Instruction::kBranch));
+      return !IsPseudoMirOp(opcode) && (Instruction::FlagsOf(opcode) == (Instruction::kContinue | Instruction::kBranch));
     }
 
     /**
      * @brief Is the register C component of the decoded instruction a constant?
      */
     bool IsCFieldOrConstant() const {
-      return ((Instruction::FlagsOf(opcode) & Instruction::kRegCFieldOrConstant) == Instruction::kRegCFieldOrConstant);
+      return !IsPseudoMirOp(opcode) && ((Instruction::FlagsOf(opcode) & Instruction::kRegCFieldOrConstant) == Instruction::kRegCFieldOrConstant);
     }
 
     /**
      * @brief Is the register C component of the decoded instruction a constant?
      */
     bool IsBFieldOrConstant() const {
-      return ((Instruction::FlagsOf(opcode) & Instruction::kRegBFieldOrConstant) == Instruction::kRegBFieldOrConstant);
+      return !IsPseudoMirOp(opcode) && ((Instruction::FlagsOf(opcode) & Instruction::kRegBFieldOrConstant) == Instruction::kRegBFieldOrConstant);
     }
 
     bool IsCast() const {
-      return ((Instruction::FlagsOf(opcode) & Instruction::kCast) == Instruction::kCast);
+      return !IsPseudoMirOp(opcode) && ((Instruction::FlagsOf(opcode) & Instruction::kCast) == Instruction::kCast);
     }
 
     /**
@@ -321,11 +335,11 @@ struct MIR {
      *            when crossing such an instruction.
      */
     bool Clobbers() const {
-      return ((Instruction::FlagsOf(opcode) & Instruction::kClobber) == Instruction::kClobber);
+      return !IsPseudoMirOp(opcode) && ((Instruction::FlagsOf(opcode) & Instruction::kClobber) == Instruction::kClobber);
     }
 
     bool IsLinear() const {
-      return (Instruction::FlagsOf(opcode) & (Instruction::kAdd | Instruction::kSubtract)) != 0;
+      return !IsPseudoMirOp(opcode) && (Instruction::FlagsOf(opcode) & (Instruction::kAdd | Instruction::kSubtract)) != 0;
     }
   } dalvikInsn;
 
@@ -877,14 +891,6 @@ class MIRGraph {
     return backward_branches_ + forward_branches_;
   }
 
-  static bool IsPseudoMirOp(Instruction::Code opcode) {
-    return static_cast<int>(opcode) >= static_cast<int>(kMirOpFirst);
-  }
-
-  static bool IsPseudoMirOp(int opcode) {
-    return opcode >= static_cast<int>(kMirOpFirst);
-  }
-
   // Is this vreg in the in set?
   bool IsInVReg(int vreg) {
     return (vreg >= cu_->num_regs);
@@ -956,10 +962,10 @@ class MIRGraph {
   void ComputeTopologicalSortOrder();
   BasicBlock* CreateNewBB(BBType block_type);
 
-  bool InlineCallsGate();
-  void InlineCallsStart();
-  void InlineCalls(BasicBlock* bb);
-  void InlineCallsEnd();
+  bool InlineSpecialMethodsGate();
+  void InlineSpecialMethodsStart();
+  void InlineSpecialMethods(BasicBlock* bb);
+  void InlineSpecialMethodsEnd();
 
   /**
    * @brief Perform the initial preparation for the Method Uses.
@@ -1059,6 +1065,9 @@ class MIRGraph {
   void HandleLiveInUse(ArenaBitVector* use_v, ArenaBitVector* def_v,
                        ArenaBitVector* live_in_v, int dalvik_reg_id);
   void HandleDef(ArenaBitVector* def_v, int dalvik_reg_id);
+  void HandleExtended(ArenaBitVector* use_v, ArenaBitVector* def_v,
+                      ArenaBitVector* live_in_v,
+                      const MIR::DecodedInstruction& d_insn);
   bool DoSSAConversion(BasicBlock* bb);
   bool InvokeUsesMethodStar(MIR* mir);
   int ParseInsn(const uint16_t* code_ptr, MIR::DecodedInstruction* decoded_instruction);
@@ -1080,6 +1089,7 @@ class MIRGraph {
   void HandleSSAUse(int* uses, int dalvik_reg, int reg_index);
   void DataFlowSSAFormat35C(MIR* mir);
   void DataFlowSSAFormat3RC(MIR* mir);
+  void DataFlowSSAFormatExtended(MIR* mir);
   bool FindLocalLiveIn(BasicBlock* bb);
   bool VerifyPredInfo(BasicBlock* bb);
   BasicBlock* NeedsVisit(BasicBlock* bb);

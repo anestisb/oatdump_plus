@@ -2112,30 +2112,40 @@ size_t RosAlloc::ReleasePages() {
     // result in occasionally not releasing pages which we could release.
     byte pm = page_map_[i];
     switch (pm) {
+      case kPageMapReleased:
+        // Fall through.
       case kPageMapEmpty: {
-        // Only lock if we have an empty page since we want to prevent other threads racing in.
+        // This is currently the start of a free page run.
+        // Acquire the lock to prevent other threads racing in and modifying the page map.
         MutexLock mu(self, lock_);
         // Check that it's still empty after we acquired the lock since another thread could have
         // raced in and placed an allocation here.
-        pm = page_map_[i];
-        if (LIKELY(pm == kPageMapEmpty)) {
-          // The start of a free page run. Release pages.
+        if (IsFreePage(i)) {
+          // Free page runs can start with a released page if we coalesced a released page free
+          // page run with an empty page run.
           FreePageRun* fpr = reinterpret_cast<FreePageRun*>(base_ + i * kPageSize);
-          DCHECK(free_page_runs_.find(fpr) != free_page_runs_.end());
-          size_t fpr_size = fpr->ByteSize(this);
-          DCHECK(IsAligned<kPageSize>(fpr_size));
-          byte* start = reinterpret_cast<byte*>(fpr);
-          reclaimed_bytes += ReleasePageRange(start, start + fpr_size);
-          i += fpr_size / kPageSize;
-          DCHECK_LE(i, page_map_size_);
+          // There is a race condition where FreePage can coalesce fpr with the previous
+          // free page run before we acquire lock_. In that case free_page_runs_.find will not find
+          // a run starting at fpr. To handle this race, we skip reclaiming the page range and go
+          // to the next page.
+          if (free_page_runs_.find(fpr) != free_page_runs_.end()) {
+            size_t fpr_size = fpr->ByteSize(this);
+            DCHECK(IsAligned<kPageSize>(fpr_size));
+            byte* start = reinterpret_cast<byte*>(fpr);
+            reclaimed_bytes += ReleasePageRange(start, start + fpr_size);
+            size_t pages = fpr_size / kPageSize;
+            CHECK_GT(pages, 0U) << "Infinite loop probable";
+            i += pages;
+            DCHECK_LE(i, page_map_size_);
+            break;
+          }
         }
-        break;
+        // Fall through.
       }
       case kPageMapLargeObject:      // Fall through.
       case kPageMapLargeObjectPart:  // Fall through.
       case kPageMapRun:              // Fall through.
       case kPageMapRunPart:          // Fall through.
-      case kPageMapReleased:         // Fall through since it is already released.
         ++i;
         break;  // Skip.
       default:
@@ -2173,6 +2183,34 @@ size_t RosAlloc::ReleasePageRange(byte* start, byte* end) {
     }
   }
   return reclaimed_bytes;
+}
+
+void RosAlloc::LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes) {
+  Thread* self = Thread::Current();
+  size_t largest_continuous_free_pages = 0;
+  WriterMutexLock wmu(self, bulk_free_lock_);
+  MutexLock mu(self, lock_);
+  for (FreePageRun* fpr : free_page_runs_) {
+    largest_continuous_free_pages = std::max(largest_continuous_free_pages,
+                                             fpr->ByteSize(this));
+  }
+  if (failed_alloc_bytes > kLargeSizeThreshold) {
+    // Large allocation.
+    size_t required_bytes = RoundUp(failed_alloc_bytes, kPageSize);
+    if (required_bytes > largest_continuous_free_pages) {
+      os << "; failed due to fragmentation (required continguous free "
+         << required_bytes << " bytes where largest contiguous free "
+         <<  largest_continuous_free_pages << " bytes)";
+    }
+  } else {
+    // Non-large allocation.
+    size_t required_bytes = numOfPages[SizeToIndex(failed_alloc_bytes)] * kPageSize;
+    if (required_bytes > largest_continuous_free_pages) {
+      os << "; failed due to fragmentation (required continguous free "
+         << required_bytes << " bytes for a new buffer where largest contiguous free "
+         <<  largest_continuous_free_pages << " bytes)";
+    }
+  }
 }
 
 }  // namespace allocator

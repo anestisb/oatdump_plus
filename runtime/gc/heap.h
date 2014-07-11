@@ -120,7 +120,7 @@ class Heap {
 
   static constexpr size_t kDefaultStartingSize = kPageSize;
   static constexpr size_t kDefaultInitialSize = 2 * MB;
-  static constexpr size_t kDefaultMaximumSize = 32 * MB;
+  static constexpr size_t kDefaultMaximumSize = 256 * MB;
   static constexpr size_t kDefaultMaxFree = 2 * MB;
   static constexpr size_t kDefaultMinFree = kDefaultMaxFree / 4;
   static constexpr size_t kDefaultLongPauseLogThreshold = MsToNs(5);
@@ -194,7 +194,6 @@ class Heap {
 
   void CheckPreconditionsForAllocObject(mirror::Class* c, size_t byte_count)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void ThrowOutOfMemoryError(size_t byte_count, bool large_object_allocation);
 
   void RegisterNativeAllocation(JNIEnv* env, int bytes);
   void RegisterNativeFree(JNIEnv* env, int bytes);
@@ -628,7 +627,7 @@ class Heap {
                                               size_t* usable_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void ThrowOutOfMemoryError(Thread* self, size_t byte_count, bool large_object_allocation)
+  void ThrowOutOfMemoryError(Thread* self, size_t byte_count, AllocatorType allocator_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template <bool kGrow>

@@ -48,6 +48,7 @@ static constexpr bool kIntrinsicIsStatic[] = {
     true,   // kIntrinsicMinMaxFloat
     true,   // kIntrinsicMinMaxDouble
     true,   // kIntrinsicSqrt
+    false,  // kIntrinsicGet
     false,  // kIntrinsicCharAt
     false,  // kIntrinsicCompareTo
     false,  // kIntrinsicIsEmptyOrLength
@@ -74,6 +75,7 @@ COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicMinMaxLong], MinMaxLong_must_be_stat
 COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicMinMaxFloat], MinMaxFloat_must_be_static);
 COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicMinMaxDouble], MinMaxDouble_must_be_static);
 COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicSqrt], Sqrt_must_be_static);
+COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicGet], Get_must_not_be_static);
 COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicCharAt], CharAt_must_not_be_static);
 COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicCompareTo], CompareTo_must_not_be_static);
 COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicIsEmptyOrLength], IsEmptyOrLength_must_not_be_static);
@@ -96,7 +98,7 @@ MIR* AllocReplacementMIR(MIRGraph* mir_graph, MIR* invoke, MIR* move_return) {
 
 uint32_t GetInvokeReg(MIR* invoke, uint32_t arg) {
   DCHECK_LT(arg, invoke->dalvikInsn.vA);
-  DCHECK(!MIRGraph::IsPseudoMirOp(invoke->dalvikInsn.opcode));
+  DCHECK(!MIR::DecodedInstruction::IsPseudoMirOp(invoke->dalvikInsn.opcode));
   if (Instruction::FormatOf(invoke->dalvikInsn.opcode) == Instruction::k3rc) {
     return invoke->dalvikInsn.vC + arg;  // Non-range invoke.
   } else {
@@ -107,7 +109,7 @@ uint32_t GetInvokeReg(MIR* invoke, uint32_t arg) {
 
 bool WideArgIsInConsecutiveDalvikRegs(MIR* invoke, uint32_t arg) {
   DCHECK_LT(arg + 1, invoke->dalvikInsn.vA);
-  DCHECK(!MIRGraph::IsPseudoMirOp(invoke->dalvikInsn.opcode));
+  DCHECK(!MIR::DecodedInstruction::IsPseudoMirOp(invoke->dalvikInsn.opcode));
   return Instruction::FormatOf(invoke->dalvikInsn.opcode) == Instruction::k3rc ||
       invoke->dalvikInsn.arg[arg + 1u] == invoke->dalvikInsn.arg[arg] + 1u;
 }
@@ -126,6 +128,7 @@ const char* const DexFileMethodInliner::kClassCacheNames[] = {
     "D",                       // kClassCacheDouble
     "V",                       // kClassCacheVoid
     "Ljava/lang/Object;",      // kClassCacheJavaLangObject
+    "Ljava/lang/ref/Reference;",  // kClassCacheJavaLangRefReference
     "Ljava/lang/String;",      // kClassCacheJavaLangString
     "Ljava/lang/Double;",      // kClassCacheJavaLangDouble
     "Ljava/lang/Float;",       // kClassCacheJavaLangFloat
@@ -152,6 +155,7 @@ const char* const DexFileMethodInliner::kNameCacheNames[] = {
     "max",                   // kNameCacheMax
     "min",                   // kNameCacheMin
     "sqrt",                  // kNameCacheSqrt
+    "get",                   // kNameCacheGet
     "charAt",                // kNameCacheCharAt
     "compareTo",             // kNameCacheCompareTo
     "isEmpty",               // kNameCacheIsEmpty
@@ -220,6 +224,8 @@ const DexFileMethodInliner::ProtoDef DexFileMethodInliner::kProtoCacheDefs[] = {
     { kClassCacheBoolean, 0, { } },
     // kProtoCache_I
     { kClassCacheInt, 0, { } },
+    // kProtoCache_Object
+    { kClassCacheJavaLangObject, 0, { } },
     // kProtoCache_Thread
     { kClassCacheJavaLangThread, 0, { } },
     // kProtoCacheJ_B
@@ -307,6 +313,8 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
 
     INTRINSIC(JavaLangMath,       Sqrt, D_D, kIntrinsicSqrt, 0),
     INTRINSIC(JavaLangStrictMath, Sqrt, D_D, kIntrinsicSqrt, 0),
+
+    INTRINSIC(JavaLangRefReference, Get, _Object, kIntrinsicGet, 0),
 
     INTRINSIC(JavaLangString, CharAt, I_C, kIntrinsicCharAt, 0),
     INTRINSIC(JavaLangString, CompareTo, String_I, kIntrinsicCompareTo, 0),
@@ -428,6 +436,8 @@ bool DexFileMethodInliner::GenIntrinsic(Mir2Lir* backend, CallInfo* info) {
       return backend->GenInlinedMinMaxFP(info, intrinsic.d.data & kIntrinsicFlagMin, true /* is_double */);
     case kIntrinsicSqrt:
       return backend->GenInlinedSqrt(info);
+    case kIntrinsicGet:
+      return backend->GenInlinedGet(info);
     case kIntrinsicCharAt:
       return backend->GenInlinedCharAt(info);
     case kIntrinsicCompareTo:

@@ -193,14 +193,16 @@ BasicBlock* MIRGraph::SplitBlock(DexOffset code_offset,
     bottom_block->successor_block_list_type = orig_block->successor_block_list_type;
     bottom_block->successor_blocks = orig_block->successor_blocks;
     orig_block->successor_block_list_type = kNotUsed;
-    orig_block->successor_blocks = NULL;
+    orig_block->successor_blocks = nullptr;
     GrowableArray<SuccessorBlockInfo*>::Iterator iterator(bottom_block->successor_blocks);
     while (true) {
       SuccessorBlockInfo* successor_block_info = iterator.Next();
-      if (successor_block_info == NULL) break;
+      if (successor_block_info == nullptr) break;
       BasicBlock* bb = GetBasicBlock(successor_block_info->block);
-      bb->predecessors->Delete(orig_block->id);
-      bb->predecessors->Insert(bottom_block->id);
+      if (bb != nullptr) {
+        bb->predecessors->Delete(orig_block->id);
+        bb->predecessors->Insert(bottom_block->id);
+      }
     }
   }
 
@@ -222,7 +224,7 @@ BasicBlock* MIRGraph::SplitBlock(DexOffset code_offset,
   DCHECK(insn == bottom_block->first_mir_insn);
   DCHECK_EQ(insn->offset, bottom_block->start_offset);
   DCHECK(static_cast<int>(insn->dalvikInsn.opcode) == kMirOpCheck ||
-         !IsPseudoMirOp(insn->dalvikInsn.opcode));
+         !MIR::DecodedInstruction::IsPseudoMirOp(insn->dalvikInsn.opcode));
   DCHECK_EQ(dex_pc_to_block_map_.Get(insn->offset), orig_block->id);
   MIR* p = insn;
   dex_pc_to_block_map_.Put(p->offset, bottom_block->id);
@@ -237,7 +239,7 @@ BasicBlock* MIRGraph::SplitBlock(DexOffset code_offset,
      * CHECK and work portions. Since the 2nd half of a split operation is always
      * the first in a BasicBlock, we can't hit it here.
      */
-    if ((opcode == kMirOpCheck) || !IsPseudoMirOp(opcode)) {
+    if ((opcode == kMirOpCheck) || !MIR::DecodedInstruction::IsPseudoMirOp(opcode)) {
       DCHECK_EQ(dex_pc_to_block_map_.Get(p->offset), orig_block->id);
       dex_pc_to_block_map_.Put(p->offset, bottom_block->id);
     }
@@ -861,11 +863,17 @@ uint64_t MIRGraph::GetDataFlowAttributes(MIR* mir) {
 /* Dump the CFG into a DOT graph */
 void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suffix) {
   FILE* file;
+  static AtomicInteger cnt(0);
+
+  // Increment counter to get a unique file number.
+  cnt++;
+
   std::string fname(PrettyMethod(cu_->method_idx, *cu_->dex_file));
   ReplaceSpecialChars(fname);
-  fname = StringPrintf("%s%s%x%s.dot", dir_prefix, fname.c_str(),
+  fname = StringPrintf("%s%s%x%s_%d.dot", dir_prefix, fname.c_str(),
                       GetBasicBlock(GetEntryBlock()->fall_through)->start_offset,
-                      suffix == nullptr ? "" : suffix);
+                      suffix == nullptr ? "" : suffix,
+                      cnt.LoadRelaxed());
   file = fopen(fname.c_str(), "w");
   if (file == NULL) {
     return;
@@ -882,6 +890,7 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suff
     BasicBlock* bb = GetBasicBlock(block_idx);
     if (bb == NULL) continue;
     if (bb->block_type == kDead) continue;
+    if (bb->hidden) continue;
     if (bb->block_type == kEntryBlock) {
       fprintf(file, "  entry_%d [shape=Mdiamond];\n", bb->id);
     } else if (bb->block_type == kExitBlock) {
@@ -916,7 +925,8 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suff
             } else {
               fprintf(file, "    {%04x %s %s %s %s\\l}%s\\\n", mir->offset,
                       mir->ssa_rep ? GetDalvikDisassembly(mir) :
-                      !IsPseudoMirOp(opcode) ? Instruction::Name(mir->dalvikInsn.opcode) :
+                      !MIR::DecodedInstruction::IsPseudoMirOp(opcode) ?
+                        Instruction::Name(mir->dalvikInsn.opcode) :
                         extended_mir_op_names_[opcode - kMirOpFirst],
                       (mir->optimization_flags & MIR_IGNORE_RANGE_CHECK) != 0 ? " no_rangecheck" : " ",
                       (mir->optimization_flags & MIR_IGNORE_NULL_CHECK) != 0 ? " no_nullcheck" : " ",
@@ -1222,7 +1232,7 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
     nop = true;
   }
 
-  if (IsPseudoMirOp(opcode)) {
+  if (MIR::DecodedInstruction::IsPseudoMirOp(opcode)) {
     str.append(extended_mir_op_names_[opcode - kMirOpFirst]);
   } else {
     dalvik_format = Instruction::FormatOf(insn.opcode);
@@ -1693,11 +1703,13 @@ BasicBlock* ChildBlockIterator::Next() {
   // We visited both taken and fallthrough. Now check if we have successors we need to visit.
   if (have_successors_ == true) {
     // Get information about next successor block.
-    SuccessorBlockInfo* successor_block_info = successor_iter_.Next();
-
-    // If we don't have anymore successors, return nullptr.
-    if (successor_block_info != nullptr) {
-      return mir_graph_->GetBasicBlock(successor_block_info->block);
+    for (SuccessorBlockInfo* successor_block_info = successor_iter_.Next();
+      successor_block_info != nullptr;
+      successor_block_info = successor_iter_.Next()) {
+      // If block was replaced by zero block, take next one.
+      if (successor_block_info->block != NullBasicBlockId) {
+        return mir_graph_->GetBasicBlock(successor_block_info->block);
+      }
     }
   }
 

@@ -531,7 +531,7 @@ class Mir2Lir : public Backend {
       LIRSlowPath(Mir2Lir* m2l, const DexOffset dexpc, LIR* fromfast,
                   LIR* cont = nullptr) :
         m2l_(m2l), cu_(m2l->cu_), current_dex_pc_(dexpc), fromfast_(fromfast), cont_(cont) {
-          m2l->StartSlowPath(cont);
+          m2l->StartSlowPath(this);
       }
       virtual ~LIRSlowPath() {}
       virtual void Compile() = 0;
@@ -705,17 +705,17 @@ class Mir2Lir : public Backend {
     int AssignLiteralOffset(CodeOffset offset);
     int AssignSwitchTablesOffset(CodeOffset offset);
     int AssignFillArrayDataOffset(CodeOffset offset);
-    LIR* InsertCaseLabel(DexOffset vaddr, int keyVal);
+    virtual LIR* InsertCaseLabel(DexOffset vaddr, int keyVal);
     void MarkPackedCaseLabels(Mir2Lir::SwitchTable* tab_rec);
     void MarkSparseCaseLabels(Mir2Lir::SwitchTable* tab_rec);
 
-    virtual void StartSlowPath(LIR *label) {}
+    virtual void StartSlowPath(LIRSlowPath* slowpath) {}
     virtual void BeginInvoke(CallInfo* info) {}
     virtual void EndInvoke(CallInfo* info) {}
 
 
     // Handle bookkeeping to convert a wide RegLocation to a narrow RegLocation.  No code generated.
-    RegLocation NarrowRegLoc(RegLocation loc);
+    virtual RegLocation NarrowRegLoc(RegLocation loc);
 
     // Shared by all targets - implemented in local_optimizations.cc
     void ConvertMemOpIntoMove(LIR* orig_lir, RegStorage dest, RegStorage src);
@@ -763,7 +763,7 @@ class Mir2Lir : public Backend {
     virtual bool IsTemp(RegStorage reg);
     bool IsPromoted(RegStorage reg);
     bool IsDirty(RegStorage reg);
-    void LockTemp(RegStorage reg);
+    virtual void LockTemp(RegStorage reg);
     void ResetDef(RegStorage reg);
     void NullifyRange(RegStorage reg, int s_reg);
     void MarkDef(RegLocation rl, LIR *start, LIR *finish);
@@ -838,6 +838,7 @@ class Mir2Lir : public Backend {
     LIR* GenImmedCheck(ConditionCode c_code, RegStorage reg, int imm_val, ThrowKind kind);
     LIR* GenNullCheck(RegStorage m_reg, int opt_flags);
     LIR* GenExplicitNullCheck(RegStorage m_reg, int opt_flags);
+    virtual void GenImplicitNullCheck(RegStorage reg, int opt_flags);
     void GenCompareAndBranch(Instruction::Code opcode, RegLocation rl_src1,
                              RegLocation rl_src2, LIR* taken, LIR* fall_through);
     void GenCompareZeroAndBranch(Instruction::Code opcode, RegLocation rl_src,
@@ -982,6 +983,7 @@ class Mir2Lir : public Backend {
      */
     RegLocation InlineTargetWide(CallInfo* info);
 
+    bool GenInlinedGet(CallInfo* info);
     bool GenInlinedCharAt(CallInfo* info);
     bool GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty);
     virtual bool GenInlinedReverseBits(CallInfo* info, OpSize size);
@@ -1147,10 +1149,12 @@ class Mir2Lir : public Backend {
      * @param base_reg The register holding the base address.
      * @param offset The offset from the base.
      * @param check_value The immediate to compare to.
+     * @param target branch target (or nullptr)
+     * @param compare output for getting LIR for comparison (or nullptr)
      * @returns The branch instruction that was generated.
      */
     virtual LIR* OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg, RegStorage base_reg,
-                                   int offset, int check_value, LIR* target);
+                                   int offset, int check_value, LIR* target, LIR** compare);
 
     // Required for target - codegen helpers.
     virtual bool SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div,
