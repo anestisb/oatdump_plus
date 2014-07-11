@@ -133,6 +133,23 @@ std::string Instruction::DumpHex(size_t code_units) const {
   return os.str();
 }
 
+std::string Instruction::DumpHexLE(size_t code_units) const {
+  size_t inst_length = SizeInCodeUnits();
+  if (inst_length > code_units) {
+    inst_length = code_units;
+  }
+  std::ostringstream os;
+  const uint16_t* insn = reinterpret_cast<const uint16_t*>(this);
+  for (size_t i = 0; i < inst_length; i++) {
+    const uint8_t* bytePtr = (const uint8_t*) insn[i];
+    os << StringPrintf("%02x%02x", bytePtr[0], bytePtr[1]) << " ";
+  }
+  for (size_t i = inst_length; i < code_units; i++) {
+    os << "       ";
+  }
+  return os.str();
+}
+
 std::string Instruction::DumpString(const DexFile* file) const {
   std::ostringstream os;
   const char* opcode = kInstructionNames[Opcode()];

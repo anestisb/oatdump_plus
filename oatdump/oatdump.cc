@@ -55,6 +55,14 @@
 #include "verifier/method_verifier.h"
 #include "vmap_table.h"
 
+/* Print out flags bit mask */
+#define SET_NO_HEADERS(x)  (x |= 0x1)
+#define SET_NO_DEX_CODE(x) (x |= 0x2)
+#define SET_NO_OAT_CODE(x) (x |= 0x4)
+#define IS_NO_HEADERS(x)   (x &= 0x1)
+#define IS_NO_DEX_CODE(x)  (x &= 0x2)
+#define IS_NO_OAT_CODE(x)  (x &= 0x4)
+
 namespace art {
 
 static void usage() {
@@ -102,6 +110,12 @@ static void usage() {
   fprintf(stderr,
           "  --no-headers: to disable file header prints\n"
           "\n");
+  fprintf(stderr,
+          "  --no-dex-code: to disable DEX bytecode dump\n"
+          "\n");
+  fprintf(stderr,
+          "  --no-oat-code: to disable OAT native code dump\n"
+          "\n");
   exit(EXIT_FAILURE);
 }
 
@@ -119,14 +133,14 @@ const char* image_roots_descriptions_[] = {
 class OatDumper {
  public:
   explicit OatDumper(const OatFile& oat_file, bool dump_raw_mapping_table, bool dump_raw_gc_map,
-                     const char* class_name, const char* method_name, bool headers_enabled)
+                     const char* class_name, const char* method_name, int print_mask)
     : oat_file_(oat_file),
       oat_dex_files_(oat_file.GetOatDexFiles()),
       dump_raw_mapping_table_(dump_raw_mapping_table),
       dump_raw_gc_map_(dump_raw_gc_map),
       class_name_(class_name),
       method_name_(method_name),
-      headers_enabled_(headers_enabled),
+      print_mask_(print_mask),
       disassembler_(Disassembler::Create(oat_file_.GetOatHeader().GetInstructionSet())) {
     AddAllOffsets();
   }
@@ -134,7 +148,7 @@ class OatDumper {
   void Dump(std::ostream& os) {
     const OatHeader& oat_header = oat_file_.GetOatHeader();
 
-    if (headers_enabled_) {
+    if (!IS_NO_HEADERS(print_mask_)) {
       os << "MAGIC:\n";
       os << oat_header.GetMagic() << "\n\n";
 
@@ -199,7 +213,7 @@ class OatDumper {
       os << reinterpret_cast<const void*>(oat_file_.End()) << "\n\n";
 
       os << std::flush;
-    } /* End of headers_enabled prints */
+    } /* End of header prints */
 
     for (size_t i = 0; i < oat_dex_files_.size(); i++) {
       const OatFile::OatDexFile* oat_dex_file = oat_dex_files_[i];
@@ -214,7 +228,7 @@ class OatDumper {
           return;
         }
         DumpOatDexByClassDesc(os, *oat_dex_file, class_descriptor, 
-                              method_name_, headers_enabled_);
+                              method_name_, print_mask_);
 
         free(class_descriptor);
       }
@@ -352,8 +366,8 @@ class OatDumper {
 
   void DumpOatDexByClassDesc(std::ostream& os, const OatFile::OatDexFile& oat_dex_file, 
                              const char* class_desc, const char* method_desc, 
-                             bool headers_enabled) {
-    if (headers_enabled) {
+                             int print_mask) {
+    if (!IS_NO_HEADERS(print_mask)) {
       os << "OAT DEX FILE:\n";
       os << StringPrintf("location: %s\n", oat_dex_file.GetDexFileLocation().c_str());
       os << StringPrintf("checksum: 0x%08x (which is retrieved from ZipEntry CRC instead of DEX header!!!)\n", 
@@ -381,7 +395,7 @@ class OatDumper {
         /* If --method, limit the class dump to this method */
         if (method_desc)
           DumpOatClassByMethDesc(indented_os, oat_class, *(dex_file.get()), 
-                                 class_def, method_desc);
+                                 class_def, method_desc, print_mask);
         else
           DumpOatClass(indented_os, oat_class, *(dex_file.get()), class_def);
 
@@ -438,14 +452,14 @@ class OatDumper {
     while (it.HasNextDirectMethod()) {
       const OatFile::OatMethod oat_method = oat_class.GetOatMethod(class_method_idx);
       DumpOatMethod(os, class_def, class_method_idx, oat_method, dex_file,
-                    it.GetMemberIndex(), it.GetMethodCodeItem(), it.GetMemberAccessFlags());
+                    it.GetMemberIndex(), it.GetMethodCodeItem(), it.GetMemberAccessFlags(), 0);
       class_method_idx++;
       it.Next();
     }
     while (it.HasNextVirtualMethod()) {
       const OatFile::OatMethod oat_method = oat_class.GetOatMethod(class_method_idx);
       DumpOatMethod(os, class_def, class_method_idx, oat_method, dex_file,
-                    it.GetMemberIndex(), it.GetMethodCodeItem(), it.GetMemberAccessFlags());
+                    it.GetMemberIndex(), it.GetMethodCodeItem(), it.GetMemberAccessFlags(), 0);
       class_method_idx++;
       it.Next();
     }
@@ -454,7 +468,7 @@ class OatDumper {
   }
 
   void DumpOatClassByMethDesc(std::ostream& os, const OatFile::OatClass& oat_class, const DexFile& dex_file,
-                    const DexFile::ClassDef& class_def, const char* method_desc) {
+                    const DexFile::ClassDef& class_def, const char* method_desc, int print_mask) {
     const byte* class_data = dex_file.GetClassData(class_def);
     if (class_data == NULL) {  // empty class such as a marker interface?
       return;
@@ -474,7 +488,8 @@ class OatDumper {
 
       if(memcmp(cur_method_name, method_desc, strlen(cur_method_name)) == 0) {
         DumpOatMethod(os, class_def, class_method_idx, oat_method, dex_file,
-                      it.GetMemberIndex(), it.GetMethodCodeItem(), it.GetMemberAccessFlags());
+                      it.GetMemberIndex(), it.GetMethodCodeItem(), 
+                      it.GetMemberAccessFlags(), print_mask);
         method_found = true;
       }
       class_method_idx++;
@@ -490,7 +505,8 @@ class OatDumper {
 
       if(memcmp(cur_method_name, method_desc, strlen(cur_method_name)) == 0) {
         DumpOatMethod(os, class_def, class_method_idx, oat_method, dex_file,
-                      it.GetMemberIndex(), it.GetMethodCodeItem(), it.GetMemberAccessFlags());
+                      it.GetMemberIndex(), it.GetMethodCodeItem(), 
+                      it.GetMemberAccessFlags(), print_mask);
         method_found = true;
       }
       class_method_idx++;
@@ -505,7 +521,7 @@ class OatDumper {
                      uint32_t class_method_index,
                      const OatFile::OatMethod& oat_method, const DexFile& dex_file,
                      uint32_t dex_method_idx, const DexFile::CodeItem* code_item,
-                     uint32_t method_access_flags) {
+                     uint32_t method_access_flags, int print_mask) {
     os << StringPrintf("%d: %s (dex_method_idx=%d)\n",
                        class_method_index, PrettyMethod(dex_method_idx, dex_file, true).c_str(),
                        dex_method_idx);
@@ -514,14 +530,19 @@ class OatDumper {
     Indenter indent2_filter(indent1_os->rdbuf(), kIndentChar, kIndentBy1Count);
     std::unique_ptr<std::ostream> indent2_os(new std::ostream(&indent2_filter));
     {
-      *indent1_os << "DEX CODE:\n";
-      DumpDexCode(*indent2_os, dex_file, code_item);
+      if(!IS_NO_DEX_CODE(print_mask)) {
+        *indent1_os << "DEX CODE:\n";
+        DumpDexCode(*indent2_os, dex_file, code_item);
+      }
     }
     if (Runtime::Current() != NULL) {
       *indent1_os << "VERIFIER TYPE ANALYSIS:\n";
       DumpVerifier(*indent2_os, dex_method_idx, &dex_file, class_def, code_item,
                    method_access_flags);
     }
+
+    if(IS_NO_OAT_CODE(print_mask)) return;
+
     {
       *indent1_os << "OAT DATA:\n";
 
@@ -824,7 +845,8 @@ class OatDumper {
       size_t i = 0;
       while (i < code_item->insns_size_in_code_units_) {
         const Instruction* instruction = Instruction::At(&code_item->insns_[i]);
-        os << StringPrintf("0x%04zx: %s\n", i, instruction->DumpString(&dex_file).c_str());
+        os << StringPrintf("0x%04zx: ",i) << instruction->DumpHexLE(5) 
+           << StringPrintf("| %s\n", instruction->DumpString(&dex_file).c_str());
         i += instruction->SizeInCodeUnits();
       }
     }
@@ -880,7 +902,7 @@ class OatDumper {
   bool dump_raw_gc_map_;
   const char* class_name_;
   const char* method_name_;
-  bool headers_enabled_;
+  int print_mask_;
   std::set<uintptr_t> offsets_;
   std::unique_ptr<Disassembler> disassembler_;
 };
@@ -1624,7 +1646,7 @@ static int oatdump(int argc, char** argv) {
   bool dump_raw_gc_map = false;
   const char* class_name = NULL;
   const char* method_name = NULL;
-  bool headers_enabled = true;
+  int print_mask = 0;
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
@@ -1669,7 +1691,11 @@ static int oatdump(int argc, char** argv) {
     } else if (option.starts_with("--method=")) {
       method_name = option.substr(strlen("--method=")).data();
     } else if (option.starts_with("--no-headers")) {
-      headers_enabled = false;
+      SET_NO_HEADERS(print_mask);
+    } else if (option.starts_with("--no-dex-code")) {
+      SET_NO_DEX_CODE(print_mask);
+    } else if (option.starts_with("--no-oat-code")) {
+      SET_NO_OAT_CODE(print_mask);;
     } else {
       fprintf(stderr, "Unknown argument %s\n", option.data());
       usage();
@@ -1705,7 +1731,7 @@ static int oatdump(int argc, char** argv) {
       return EXIT_FAILURE;
     }
     OatDumper oat_dumper(*oat_file, dump_raw_mapping_table, dump_raw_gc_map,
-                         class_name, method_name, headers_enabled);
+                         class_name, method_name, print_mask);
     oat_dumper.Dump(*os);
     return EXIT_SUCCESS;
   }
