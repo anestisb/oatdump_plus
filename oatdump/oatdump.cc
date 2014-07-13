@@ -59,9 +59,9 @@
 #define SET_NO_HEADERS(x)  (x |= 0x1)
 #define SET_NO_DEX_CODE(x) (x |= 0x2)
 #define SET_NO_OAT_CODE(x) (x |= 0x4)
-#define IS_NO_HEADERS(x)   (x &= 0x1)
-#define IS_NO_DEX_CODE(x)  (x &= 0x2)
-#define IS_NO_OAT_CODE(x)  (x &= 0x4)
+#define IS_NO_HEADERS(x)   (x & 0x1)
+#define IS_NO_DEX_CODE(x)  (x & 0x2)
+#define IS_NO_OAT_CODE(x)  (x & 0x4)
 
 namespace art {
 
@@ -116,6 +116,10 @@ static void usage() {
   fprintf(stderr,
           "  --no-oat-code: to disable OAT native code dump\n"
           "\n");
+  fprintf(stderr,
+          "  --dump-dex-to=<directory> dump embedded dex files\n"
+          "    Example: --dump-dex-to=/data/local/tmp\n"
+          "\n");
   exit(EXIT_FAILURE);
 }
 
@@ -133,7 +137,8 @@ const char* image_roots_descriptions_[] = {
 class OatDumper {
  public:
   explicit OatDumper(const OatFile& oat_file, bool dump_raw_mapping_table, bool dump_raw_gc_map,
-                     const char* class_name, const char* method_name, int print_mask)
+                     const char* class_name, const char* method_name, int print_mask,
+                     const char* dex_out_path)
     : oat_file_(oat_file),
       oat_dex_files_(oat_file.GetOatDexFiles()),
       dump_raw_mapping_table_(dump_raw_mapping_table),
@@ -141,6 +146,7 @@ class OatDumper {
       class_name_(class_name),
       method_name_(method_name),
       print_mask_(print_mask),
+      dex_out_path_(dex_out_path),
       disassembler_(Disassembler::Create(oat_file_.GetOatHeader().GetInstructionSet())) {
     AddAllOffsets();
   }
@@ -233,7 +239,11 @@ class OatDumper {
         free(class_descriptor);
       }
       else
-        DumpOatDexFile(os, *oat_dex_file);
+        DumpOatDexFile(os, *oat_dex_file, print_mask_);
+      
+      /* Check if DEX file dump is activated */
+      if (dex_out_path_)
+        DumpDexFile(os, oat_dex_file, dex_out_path_);
     }
   }
 
@@ -333,10 +343,13 @@ class OatDumper {
     offsets_.insert(oat_method.GetNativeGcMapOffset());
   }
 
-  void DumpOatDexFile(std::ostream& os, const OatFile::OatDexFile& oat_dex_file) {
-    os << "OAT DEX FILE:\n";
-    os << StringPrintf("location: %s\n", oat_dex_file.GetDexFileLocation().c_str());
-    os << StringPrintf("checksum: 0x%08x\n", oat_dex_file.GetDexFileLocationChecksum());
+  void DumpOatDexFile(std::ostream& os, const OatFile::OatDexFile& oat_dex_file,
+                      int print_mask) {
+    if (!IS_NO_HEADERS(print_mask)) {
+      os << "OAT DEX FILE:\n";
+      os << StringPrintf("location: %s\n", oat_dex_file.GetDexFileLocation().c_str());
+      os << StringPrintf("checksum: 0x%08x\n", oat_dex_file.GetDexFileLocationChecksum());
+    }
 
     // Create the verifier early.
 
@@ -358,7 +371,7 @@ class OatDumper {
       // TODO: include bitmap here if type is kOatClassSomeCompiled?
       Indenter indent_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
       std::ostream indented_os(&indent_filter);
-      DumpOatClass(indented_os, oat_class, *(dex_file.get()), class_def);
+      DumpOatClass(indented_os, oat_class, *(dex_file.get()), class_def, print_mask);
     }
 
     os << std::flush;
@@ -397,7 +410,7 @@ class OatDumper {
           DumpOatClassByMethDesc(indented_os, oat_class, *(dex_file.get()), 
                                  class_def, method_desc, print_mask);
         else
-          DumpOatClass(indented_os, oat_class, *(dex_file.get()), class_def);
+          DumpOatClass(indented_os, oat_class, *(dex_file.get()), class_def, print_mask);
 
         /* Abort class walkthrough -- no doubles */
         break;
@@ -441,7 +454,7 @@ class OatDumper {
   }
 
   void DumpOatClass(std::ostream& os, const OatFile::OatClass& oat_class, const DexFile& dex_file,
-                    const DexFile::ClassDef& class_def) {
+                    const DexFile::ClassDef& class_def, int print_mask) {
     const byte* class_data = dex_file.GetClassData(class_def);
     if (class_data == NULL) {  // empty class such as a marker interface?
       return;
@@ -452,14 +465,14 @@ class OatDumper {
     while (it.HasNextDirectMethod()) {
       const OatFile::OatMethod oat_method = oat_class.GetOatMethod(class_method_idx);
       DumpOatMethod(os, class_def, class_method_idx, oat_method, dex_file,
-                    it.GetMemberIndex(), it.GetMethodCodeItem(), it.GetMemberAccessFlags(), 0);
+                    it.GetMemberIndex(), it.GetMethodCodeItem(), it.GetMemberAccessFlags(), print_mask);
       class_method_idx++;
       it.Next();
     }
     while (it.HasNextVirtualMethod()) {
       const OatFile::OatMethod oat_method = oat_class.GetOatMethod(class_method_idx);
       DumpOatMethod(os, class_def, class_method_idx, oat_method, dex_file,
-                    it.GetMemberIndex(), it.GetMethodCodeItem(), it.GetMemberAccessFlags(), 0);
+                    it.GetMemberIndex(), it.GetMethodCodeItem(), it.GetMemberAccessFlags(), print_mask);
       class_method_idx++;
       it.Next();
     }
@@ -846,7 +859,7 @@ class OatDumper {
       while (i < code_item->insns_size_in_code_units_) {
         const Instruction* instruction = Instruction::At(&code_item->insns_[i]);
         os << StringPrintf("0x%04zx: ",i) << instruction->DumpHexLE(5) 
-           << StringPrintf("| %s\n", instruction->DumpString(&dex_file).c_str());
+           << StringPrintf("\t| %s\n", instruction->DumpString(&dex_file).c_str());
         i += instruction->SizeInCodeUnits();
       }
     }
@@ -895,6 +908,51 @@ class OatDumper {
       CHECK_EQ(code_size, 0U);  // TODO: disassembly of portable is currently not supported.
     }
   }
+  
+  /* Dump embedded DEX file in FS  */
+  void DumpDexFile(std::ostream& os, const OatFile::OatDexFile *oat_dex_file, 
+                    const char* path) {
+    std::string error_msg;
+    const DexFile* dex_file(oat_dex_file->OpenDexFile(&error_msg));
+    if (dex_file == NULL) {
+      os << "Failed to open DEX file (" << error_msg << ")\n\n";
+      return;
+    }
+    FILE *fd = NULL;
+    size_t fsize = oat_dex_file->FileSize();
+    
+    /* Some quick checks just in case */
+    if(fsize == 0 || fsize < 0x70) {
+      fprintf(stderr, "Invalid DEX file\n");
+      return;
+    }
+    
+    /* Get DEX path */
+    const char *origDexPath = oat_dex_file->GetDexFileLocation().c_str();
+    const char *origDexName = NULL;
+    
+    /* Get basename with no more includes */
+    char *s = strrchr(origDexPath, '/');
+    if (s == NULL)
+      origDexName = origDexPath;
+    else 
+      origDexName = ++s;
+    char outDexPath[PATH_MAX] = { 0 };
+    snprintf(outDexPath, PATH_MAX, "%s/%s_dexFromOat.dex", path, origDexName);
+    
+    if((fd = fopen(outDexPath, "w")) == NULL) {
+      fprintf(stderr, "fopen() failed (%s)\n", strerror(errno));
+      return;
+    }
+    
+    if(fwrite(dex_file->Begin(), 1, fsize, fd) < fsize) {
+      fprintf(stderr, "fwrite() error (%s)\n", strerror(errno));
+      return;
+    }
+    
+    fclose(fd);
+    os << StringPrintf("DEX has been dumped at %s (%zd bytes)\n", outDexPath, fsize);
+  }
 
   const OatFile& oat_file_;
   std::vector<const OatFile::OatDexFile*> oat_dex_files_;
@@ -903,6 +961,7 @@ class OatDumper {
   const char* class_name_;
   const char* method_name_;
   int print_mask_;
+  const char* dex_out_path_;
   std::set<uintptr_t> offsets_;
   std::unique_ptr<Disassembler> disassembler_;
 };
@@ -993,7 +1052,7 @@ class ImageDumper {
     stats_.oat_file_bytes = oat_file->Size();
 
     oat_dumper_.reset(new OatDumper(*oat_file, dump_raw_mapping_table_,
-                                    dump_raw_gc_map_, NULL, NULL, true));
+                                    dump_raw_gc_map_, NULL, NULL, 0, NULL));
 
     for (const OatFile::OatDexFile* oat_dex_file : oat_file->GetOatDexFiles()) {
       CHECK(oat_dex_file != NULL);
@@ -1647,6 +1706,7 @@ static int oatdump(int argc, char** argv) {
   const char* class_name = NULL;
   const char* method_name = NULL;
   int print_mask = 0;
+  const char* dex_out_path = NULL;
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
@@ -1695,7 +1755,9 @@ static int oatdump(int argc, char** argv) {
     } else if (option.starts_with("--no-dex-code")) {
       SET_NO_DEX_CODE(print_mask);
     } else if (option.starts_with("--no-oat-code")) {
-      SET_NO_OAT_CODE(print_mask);;
+      SET_NO_OAT_CODE(print_mask);
+    } else if (option.starts_with("--dump-dex-to=")) {
+      dex_out_path = option.substr(strlen("--dump-dex-to=")).data();
     } else {
       fprintf(stderr, "Unknown argument %s\n", option.data());
       usage();
@@ -1731,7 +1793,7 @@ static int oatdump(int argc, char** argv) {
       return EXIT_FAILURE;
     }
     OatDumper oat_dumper(*oat_file, dump_raw_mapping_table, dump_raw_gc_map,
-                         class_name, method_name, print_mask);
+                         class_name, method_name, print_mask, dex_out_path);
     oat_dumper.Dump(*os);
     return EXIT_SUCCESS;
   }

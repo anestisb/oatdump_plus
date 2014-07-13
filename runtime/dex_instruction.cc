@@ -141,8 +141,7 @@ std::string Instruction::DumpHexLE(size_t code_units) const {
   std::ostringstream os;
   const uint16_t* insn = reinterpret_cast<const uint16_t*>(this);
   for (size_t i = 0; i < inst_length; i++) {
-    const uint8_t* bytePtr = (const uint8_t*) insn[i];
-    os << StringPrintf("%02x%02x", bytePtr[0], bytePtr[1]) << " ";
+    os << StringPrintf("%02x%02x", (uint8_t)(insn[i] & 0x00FF), (uint8_t)((insn[i] & 0xFF00)>>8)) << " ";
   }
   for (size_t i = inst_length; i < code_units; i++) {
     os << "       ";

@@ -235,19 +235,19 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
   hook_exit_ = exit;
   hook_abort_ = NULL;  // We don't call abort(3) by default; see Runtime::Abort.
 
-//  gLogVerbosity.class_linker = true;  // TODO: don't check this in!
-//  gLogVerbosity.compiler = true;  // TODO: don't check this in!
-//  gLogVerbosity.gc = true;  // TODO: don't check this in!
-//  gLogVerbosity.heap = true;  // TODO: don't check this in!
-//  gLogVerbosity.jdwp = true;  // TODO: don't check this in!
-//  gLogVerbosity.jni = true;  // TODO: don't check this in!
-//  gLogVerbosity.monitor = true;  // TODO: don't check this in!
-//  gLogVerbosity.profiler = true;  // TODO: don't check this in!
-//  gLogVerbosity.signals = true;  // TODO: don't check this in!
-//  gLogVerbosity.startup = true;  // TODO: don't check this in!
-//  gLogVerbosity.third_party_jni = true;  // TODO: don't check this in!
-//  gLogVerbosity.threads = true;  // TODO: don't check this in!
-//  gLogVerbosity.verifier = true;  // TODO: don't check this in!
+  gLogVerbosity.class_linker = true;  // TODO: don't check this in!
+  gLogVerbosity.compiler = true;  // TODO: don't check this in!
+  gLogVerbosity.gc = true;  // TODO: don't check this in!
+  gLogVerbosity.heap = true;  // TODO: don't check this in!
+  gLogVerbosity.jdwp = true;  // TODO: don't check this in!
+  gLogVerbosity.jni = true;  // TODO: don't check this in!
+  gLogVerbosity.monitor = true;  // TODO: don't check this in!
+  gLogVerbosity.profiler = true;  // TODO: don't check this in!
+  gLogVerbosity.signals = true;  // TODO: don't check this in!
+  gLogVerbosity.startup = true;  // TODO: don't check this in!
+  gLogVerbosity.third_party_jni = true;  // TODO: don't check this in!
+  gLogVerbosity.threads = true;  // TODO: don't check this in!
+  gLogVerbosity.verifier = true;  // TODO: don't check this in!
 
   method_trace_ = false;
   method_trace_file_ = "/data/method-trace-file.bin";
