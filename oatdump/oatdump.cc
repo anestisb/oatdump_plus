@@ -16,6 +16,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <zlib.h>
 
 #include <fstream>
 #include <iostream>
@@ -117,7 +118,7 @@ static void usage() {
           "  --no-oat-code: to disable OAT native code dump\n"
           "\n");
   fprintf(stderr,
-          "  --dump-dex-to=<directory> dump embedded dex files\n"
+          "  --dump-dex-to=<directory> dump embedded dex files (code dumps are ignored)\n"
           "    Example: --dump-dex-to=/data/local/tmp\n"
           "\n");
   exit(EXIT_FAILURE);
@@ -224,6 +225,12 @@ class OatDumper {
     for (size_t i = 0; i < oat_dex_files_.size(); i++) {
       const OatFile::OatDexFile* oat_dex_file = oat_dex_files_[i];
       CHECK(oat_dex_file != NULL);
+      
+      /* Check if DEX file dump is activated */
+      if (dex_out_path_) {
+        DumpDexFile(os, oat_dex_file, dex_out_path_);
+        continue; // Skip the other dumps
+      }
 
       /* If --class, search for that class */
       if (class_name_ != NULL) {
@@ -240,10 +247,6 @@ class OatDumper {
       }
       else
         DumpOatDexFile(os, *oat_dex_file, print_mask_);
-      
-      /* Check if DEX file dump is activated */
-      if (dex_out_path_)
-        DumpDexFile(os, oat_dex_file, dex_out_path_);
     }
   }
 
@@ -852,14 +855,13 @@ class OatDumper {
     }
   }
 
-
   void DumpDexCode(std::ostream& os, const DexFile& dex_file, const DexFile::CodeItem* code_item) {
     if (code_item != NULL) {
       size_t i = 0;
       while (i < code_item->insns_size_in_code_units_) {
         const Instruction* instruction = Instruction::At(&code_item->insns_[i]);
-        os << StringPrintf("0x%04zx: ",i) << instruction->DumpHexLE(5) 
-           << StringPrintf("\t| %s\n", instruction->DumpString(&dex_file).c_str());
+        os << StringPrintf("0x%04zx:",i) << instruction->DumpHexLE(5) 
+           << StringPrintf("| %s\n", instruction->DumpString(&dex_file).c_str());
         i += instruction->SizeInCodeUnits();
       }
     }
@@ -920,17 +922,32 @@ class OatDumper {
     }
     FILE *fd = NULL;
     size_t fsize = oat_dex_file->FileSize();
-    
+
     /* Some quick checks just in case */
     if(fsize == 0 || fsize < 0x70) {
       fprintf(stderr, "Invalid DEX file\n");
       return;
     }
-    
+
+    /* 
+     * Repair header CRC. SHA1Digest also needs repair, although most tools 
+     * don't validate it, so leave it for the time being. Repaired CRC will
+     * not be patched in memory (only while writing in out file), avoiding more
+     * changes in the read-only defaults.
+     */
+    uint32_t origCRC = dex_file->GetHeader().checksum_;
+    uint32_t calculatedCRC = adler32(0L, Z_NULL, 0);
+    const uint32_t offset = sizeof(DexFile::Header::magic_) + sizeof(DexFile::Header::checksum_);
+    const byte* pOffset = dex_file->Begin() + offset;
+    calculatedCRC = adler32(calculatedCRC, pOffset, fsize - offset);
+    if (calculatedCRC != origCRC)
+      os << StringPrintf("[!] DEX header CRC has been repaired (from %08x to %08x)\n", 
+                         origCRC, calculatedCRC);
+
     /* Get DEX path */
     const char *origDexPath = oat_dex_file->GetDexFileLocation().c_str();
     const char *origDexName = NULL;
-    
+
     /* Get basename with no more includes */
     char *s = strrchr(origDexPath, '/');
     if (s == NULL)
@@ -939,19 +956,39 @@ class OatDumper {
       origDexName = ++s;
     char outDexPath[PATH_MAX] = { 0 };
     snprintf(outDexPath, PATH_MAX, "%s/%s_dexFromOat.dex", path, origDexName);
-    
+
     if((fd = fopen(outDexPath, "w")) == NULL) {
       fprintf(stderr, "fopen() failed (%s)\n", strerror(errno));
       return;
     }
-    
-    if(fwrite(dex_file->Begin(), 1, fsize, fd) < fsize) {
+
+    size_t writeOff = 0;
+    size_t curOffLen = sizeof(DexFile::Header::magic_);
+
+    /* Write magic number */
+    if (fwrite(dex_file->Begin(), 1, curOffLen, fd) < curOffLen) {
       fprintf(stderr, "fwrite() error (%s)\n", strerror(errno));
       return;
     }
-    
+    writeOff += curOffLen;
+    curOffLen = sizeof(DexFile::Header::checksum_);
+
+    /* Write fixed-up CRC */
+    if (fwrite(&calculatedCRC, 1, curOffLen, fd) < curOffLen) {
+      fprintf(stderr, "fwrite() error (%s)\n", strerror(errno));
+      return;
+    }
+    writeOff += curOffLen;
+    curOffLen = fsize - writeOff;
+
+    /* Write the rest of the file */
+    if (fwrite(dex_file->Begin() + writeOff, 1, curOffLen, fd) < curOffLen) {
+      fprintf(stderr, "fwrite() error (%s)\n", strerror(errno));
+      return;
+    }
+
     fclose(fd);
-    os << StringPrintf("DEX has been dumped at %s (%zd bytes)\n", outDexPath, fsize);
+    os << StringPrintf("[*] DEX has been dumped at %s (%zd bytes)\n", outDexPath, fsize);
   }
 
   const OatFile& oat_file_;
@@ -1784,6 +1821,11 @@ static int oatdump(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+  if (dex_out_path != NULL && oat_filename == NULL) {
+    fprintf(stderr, "DEX dump from OAT file requires an input OAT file (--oat-file)\n");
+    return EXIT_FAILURE;
+  }
+  
   if (oat_filename != NULL) {
     std::string error_msg;
     OatFile* oat_file =
@@ -1848,7 +1890,7 @@ static int oatdump(int argc, char** argv) {
 }  // namespace art
 
 int main(int argc, char** argv) {
-  fprintf(stderr, "    --{ oatdump++ by @anestisb }--\n");
-  fprintf(stderr, "compatible with master AOSP ART branch\n\n"); 
+  fprintf(stderr, "   --{ oatdump++ by @anestisb }--\n");
+  fprintf(stderr, "for AOSP ART master branch [from 03c672f]\n\n"); 
   return art::oatdump(argc, argv);
 }

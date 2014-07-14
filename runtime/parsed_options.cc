@@ -237,8 +237,8 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
 
   gLogVerbosity.class_linker = true;  // TODO: don't check this in!
   gLogVerbosity.compiler = true;  // TODO: don't check this in!
-  gLogVerbosity.gc = true;  // TODO: don't check this in!
-  gLogVerbosity.heap = true;  // TODO: don't check this in!
+//  gLogVerbosity.gc = true;  // TODO: don't check this in!
+//  gLogVerbosity.heap = true;  // TODO: don't check this in!
   gLogVerbosity.jdwp = true;  // TODO: don't check this in!
   gLogVerbosity.jni = true;  // TODO: don't check this in!
   gLogVerbosity.monitor = true;  // TODO: don't check this in!
@@ -246,7 +246,7 @@ bool ParsedOptions::Parse(const Runtime::Options& options, bool ignore_unrecogni
   gLogVerbosity.signals = true;  // TODO: don't check this in!
   gLogVerbosity.startup = true;  // TODO: don't check this in!
   gLogVerbosity.third_party_jni = true;  // TODO: don't check this in!
-  gLogVerbosity.threads = true;  // TODO: don't check this in!
+//  gLogVerbosity.threads = true;  // TODO: don't check this in!
   gLogVerbosity.verifier = true;  // TODO: don't check this in!
 
   method_trace_ = false;
