@@ -1906,6 +1906,6 @@ static int oatdump(int argc, char** argv) {
 
 int main(int argc, char** argv) {
   fprintf(stderr, "   --{ oatdump++ by @anestisb }--\n");
-  fprintf(stderr, "for AOSP ART master branch [from 03c672f]\n\n"); 
+  fprintf(stderr, "for AOSP ART master branch [from 5607c8e]\n\n"); 
   return art::oatdump(argc, argv);
 }
