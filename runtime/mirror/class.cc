@@ -18,17 +18,16 @@
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
-#include "class-inl.h"
 #include "class_linker.h"
 #include "class_loader.h"
+#include "class-inl.h"
 #include "dex_cache.h"
 #include "dex_file-inl.h"
 #include "gc/accounting/card_table-inl.h"
-#include "object-inl.h"
-#include "object_array-inl.h"
-#include "object_utils.h"
-#include "runtime.h"
 #include "handle_scope-inl.h"
+#include "object_array-inl.h"
+#include "object-inl.h"
+#include "runtime.h"
 #include "thread.h"
 #include "throwable.h"
 #include "utils.h"
@@ -37,24 +36,24 @@
 namespace art {
 namespace mirror {
 
-Class* Class::java_lang_Class_ = nullptr;
+GcRoot<Class> Class::java_lang_Class_;
 
 void Class::SetClassClass(Class* java_lang_Class) {
-  CHECK(java_lang_Class_ == nullptr)
-      << ReadBarrier::BarrierForRoot<mirror::Class, kWithReadBarrier>(&java_lang_Class_)
+  CHECK(java_lang_Class_.IsNull())
+      << java_lang_Class_.Read()
       << " " << java_lang_Class;
   CHECK(java_lang_Class != nullptr);
-  java_lang_Class_ = java_lang_Class;
+  java_lang_Class_ = GcRoot<Class>(java_lang_Class);
 }
 
 void Class::ResetClass() {
-  CHECK(java_lang_Class_ != nullptr);
-  java_lang_Class_ = nullptr;
+  CHECK(!java_lang_Class_.IsNull());
+  java_lang_Class_ = GcRoot<Class>(nullptr);
 }
 
 void Class::VisitRoots(RootCallback* callback, void* arg) {
-  if (java_lang_Class_ != nullptr) {
-    callback(reinterpret_cast<mirror::Object**>(&java_lang_Class_), arg, 0, kRootStickyClass);
+  if (!java_lang_Class_.IsNull()) {
+    java_lang_Class_.VisitRoot(callback, arg, 0, kRootStickyClass);
   }
 }
 
@@ -63,7 +62,8 @@ void Class::SetStatus(Status new_status, Thread* self) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   bool class_linker_initialized = class_linker != nullptr && class_linker->IsInitialized();
   if (LIKELY(class_linker_initialized)) {
-    if (UNLIKELY(new_status <= old_status && new_status != kStatusError)) {
+    if (UNLIKELY(new_status <= old_status && new_status != kStatusError &&
+                 new_status != kStatusRetired)) {
       LOG(FATAL) << "Unexpected change back of class status for " << PrettyClass(this) << " "
           << old_status << " -> " << new_status;
     }
@@ -87,18 +87,22 @@ void Class::SetStatus(Status new_status, Thread* self) {
     Handle<mirror::ArtMethod> old_throw_method(hs.NewHandle(old_throw_location.GetMethod()));
     uint32_t old_throw_dex_pc = old_throw_location.GetDexPc();
     bool is_exception_reported = self->IsExceptionReportedToInstrumentation();
-    // clear exception to call FindSystemClass
-    self->ClearException();
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    Class* eiie_class = class_linker->FindSystemClass(self,
-                                                      "Ljava/lang/ExceptionInInitializerError;");
-    CHECK(!self->IsExceptionPending());
-
-    // Only verification errors, not initialization problems, should set a verify error.
-    // This is to ensure that ThrowEarlierClassFailure will throw NoClassDefFoundError in that case.
-    Class* exception_class = old_exception->GetClass();
-    if (!eiie_class->IsAssignableFrom(exception_class)) {
-      SetVerifyErrorClass(exception_class);
+    Class* eiie_class;
+    // Do't attempt to use FindClass if we have an OOM error since this can try to do more
+    // allocations and may cause infinite loops.
+    if (old_exception.Get() == nullptr ||
+        old_exception->GetClass()->GetDescriptor() != "Ljava/lang/OutOfMemoryError;") {
+      // Clear exception to call FindSystemClass.
+      self->ClearException();
+      eiie_class = Runtime::Current()->GetClassLinker()->FindSystemClass(
+          self, "Ljava/lang/ExceptionInInitializerError;");
+      CHECK(!self->IsExceptionPending());
+      // Only verification errors, not initialization problems, should set a verify error.
+      // This is to ensure that ThrowEarlierClassFailure will throw NoClassDefFoundError in that case.
+      Class* exception_class = old_exception->GetClass();
+      if (!eiie_class->IsAssignableFrom(exception_class)) {
+        SetVerifyErrorClass(exception_class);
+      }
     }
 
     // Restore exception.
@@ -113,11 +117,27 @@ void Class::SetStatus(Status new_status, Thread* self) {
   } else {
     SetField32Volatile<false>(OFFSET_OF_OBJECT_MEMBER(Class, status_), new_status);
   }
-  // Classes that are being resolved or initialized need to notify waiters that the class status
-  // changed. See ClassLinker::EnsureResolved and ClassLinker::WaitForInitializeClass.
-  if ((old_status >= kStatusResolved || new_status >= kStatusResolved) &&
-      class_linker_initialized) {
-    NotifyAll(self);
+
+  if (!class_linker_initialized) {
+    // When the class linker is being initialized its single threaded and by definition there can be
+    // no waiters. During initialization classes may appear temporary but won't be retired as their
+    // size was statically computed.
+  } else {
+    // Classes that are being resolved or initialized need to notify waiters that the class status
+    // changed. See ClassLinker::EnsureResolved and ClassLinker::WaitForInitializeClass.
+    if (IsTemp()) {
+      // Class is a temporary one, ensure that waiters for resolution get notified of retirement
+      // so that they can grab the new version of the class from the class linker's table.
+      CHECK_LT(new_status, kStatusResolved) << PrettyDescriptor(this);
+      if (new_status == kStatusRetired || new_status == kStatusError) {
+        NotifyAll(self);
+      }
+    } else {
+      CHECK_NE(new_status, kStatusRetired);
+      if (old_status >= kStatusResolved || new_status >= kStatusResolved) {
+        NotifyAll(self);
+      }
+    }
   }
 }
 
@@ -217,35 +237,39 @@ void Class::DumpClass(std::ostream& os, int flags) {
       os << StringPrintf("    %2zd: %s (cl=%p)\n", i, PrettyClass(interface).c_str(), cl);
     }
   }
-  // After this point, this may have moved due to GetDirectInterface.
-  os << "  vtable (" << h_this->NumVirtualMethods() << " entries, "
-     << (h_super.Get() != nullptr ? h_super->NumVirtualMethods() : 0) << " in super):\n";
-  for (size_t i = 0; i < NumVirtualMethods(); ++i) {
-    os << StringPrintf("    %2zd: %s\n", i,
-                       PrettyMethod(h_this->GetVirtualMethodDuringLinking(i)).c_str());
-  }
-  os << "  direct methods (" << h_this->NumDirectMethods() << " entries):\n";
-  for (size_t i = 0; i < h_this->NumDirectMethods(); ++i) {
-    os << StringPrintf("    %2zd: %s\n", i, PrettyMethod(h_this->GetDirectMethod(i)).c_str());
-  }
-  if (h_this->NumStaticFields() > 0) {
-    os << "  static fields (" << h_this->NumStaticFields() << " entries):\n";
-    if (h_this->IsResolved() || h_this->IsErroneous()) {
-      for (size_t i = 0; i < h_this->NumStaticFields(); ++i) {
-        os << StringPrintf("    %2zd: %s\n", i, PrettyField(h_this->GetStaticField(i)).c_str());
-      }
-    } else {
-      os << "    <not yet available>";
+  if (!IsLoaded()) {
+    os << "  class not yet loaded";
+  } else {
+    // After this point, this may have moved due to GetDirectInterface.
+    os << "  vtable (" << h_this->NumVirtualMethods() << " entries, "
+        << (h_super.Get() != nullptr ? h_super->NumVirtualMethods() : 0) << " in super):\n";
+    for (size_t i = 0; i < NumVirtualMethods(); ++i) {
+      os << StringPrintf("    %2zd: %s\n", i,
+                         PrettyMethod(h_this->GetVirtualMethodDuringLinking(i)).c_str());
     }
-  }
-  if (h_this->NumInstanceFields() > 0) {
-    os << "  instance fields (" << h_this->NumInstanceFields() << " entries):\n";
-    if (h_this->IsResolved() || h_this->IsErroneous()) {
-      for (size_t i = 0; i < h_this->NumInstanceFields(); ++i) {
-        os << StringPrintf("    %2zd: %s\n", i, PrettyField(h_this->GetInstanceField(i)).c_str());
+    os << "  direct methods (" << h_this->NumDirectMethods() << " entries):\n";
+    for (size_t i = 0; i < h_this->NumDirectMethods(); ++i) {
+      os << StringPrintf("    %2zd: %s\n", i, PrettyMethod(h_this->GetDirectMethod(i)).c_str());
+    }
+    if (h_this->NumStaticFields() > 0) {
+      os << "  static fields (" << h_this->NumStaticFields() << " entries):\n";
+      if (h_this->IsResolved() || h_this->IsErroneous()) {
+        for (size_t i = 0; i < h_this->NumStaticFields(); ++i) {
+          os << StringPrintf("    %2zd: %s\n", i, PrettyField(h_this->GetStaticField(i)).c_str());
+        }
+      } else {
+        os << "    <not yet available>";
       }
-    } else {
-      os << "    <not yet available>";
+    }
+    if (h_this->NumInstanceFields() > 0) {
+      os << "  instance fields (" << h_this->NumInstanceFields() << " entries):\n";
+      if (h_this->IsResolved() || h_this->IsErroneous()) {
+        for (size_t i = 0; i < h_this->NumInstanceFields(); ++i) {
+          os << StringPrintf("    %2zd: %s\n", i, PrettyField(h_this->GetInstanceField(i)).c_str());
+        }
+      } else {
+        os << "    <not yet available>";
+      }
     }
   }
 }
@@ -721,9 +745,7 @@ uint32_t Class::NumDirectInterfaces() {
   } else if (IsArrayClass()) {
     return 2;
   } else if (IsProxyClass()) {
-    mirror::SynthesizedProxyClass* proxy_class=
-        reinterpret_cast<mirror::SynthesizedProxyClass*>(this);
-    mirror::ObjectArray<mirror::Class>* interfaces = proxy_class->GetInterfaces();
+    mirror::ObjectArray<mirror::Class>* interfaces = GetInterfaces();
     return interfaces != nullptr ? interfaces->GetLength() : 0;
   } else {
     const DexFile::TypeList* interfaces = GetInterfaceTypeList();
@@ -753,9 +775,7 @@ mirror::Class* Class::GetDirectInterface(Thread* self, Handle<mirror::Class> kla
       return class_linker->FindSystemClass(self, "Ljava/io/Serializable;");
     }
   } else if (klass->IsProxyClass()) {
-    mirror::SynthesizedProxyClass* proxy_class =
-        reinterpret_cast<mirror::SynthesizedProxyClass*>(klass.Get());
-    mirror::ObjectArray<mirror::Class>* interfaces = proxy_class->GetInterfaces();
+    mirror::ObjectArray<mirror::Class>* interfaces = klass.Get()->GetInterfaces();
     DCHECK(interfaces != nullptr);
     return interfaces->Get(idx);
   } else {
@@ -796,6 +816,78 @@ const DexFile::TypeList* Class::GetInterfaceTypeList() {
     return nullptr;
   }
   return GetDexFile().GetInterfacesList(*class_def);
+}
+
+void Class::PopulateEmbeddedImtAndVTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ObjectArray<ArtMethod>* table = GetImTable();
+  if (table != nullptr) {
+    for (uint32_t i = 0; i < kImtSize; i++) {
+      SetEmbeddedImTableEntry(i, table->Get(i));
+    }
+  }
+
+  table = GetVTableDuringLinking();
+  CHECK(table != nullptr) << PrettyClass(this);
+  SetEmbeddedVTableLength(table->GetLength());
+  for (int32_t i = 0; i < table->GetLength(); i++) {
+    SetEmbeddedVTableEntry(i, table->Get(i));
+  }
+
+  SetImTable(nullptr);
+  // Keep java.lang.Object class's vtable around for since it's easier
+  // to be reused by array classes during their linking.
+  if (!IsObjectClass()) {
+    SetVTable(nullptr);
+  }
+}
+
+// The pre-fence visitor for Class::CopyOf().
+class CopyClassVisitor {
+ public:
+  explicit CopyClassVisitor(Thread* self, Handle<mirror::Class>* orig,
+                            size_t new_length, size_t copy_bytes)
+      : self_(self), orig_(orig), new_length_(new_length),
+        copy_bytes_(copy_bytes) {
+  }
+
+  void operator()(Object* obj, size_t usable_size) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    UNUSED(usable_size);
+    mirror::Class* new_class_obj = obj->AsClass();
+    mirror::Object::CopyObject(self_, new_class_obj, orig_->Get(), copy_bytes_);
+    new_class_obj->SetStatus(Class::kStatusResolving, self_);
+    new_class_obj->PopulateEmbeddedImtAndVTable();
+    new_class_obj->SetClassSize(new_length_);
+  }
+
+ private:
+  Thread* const self_;
+  Handle<mirror::Class>* const orig_;
+  const size_t new_length_;
+  const size_t copy_bytes_;
+  DISALLOW_COPY_AND_ASSIGN(CopyClassVisitor);
+};
+
+Class* Class::CopyOf(Thread* self, int32_t new_length) {
+  DCHECK_GE(new_length, static_cast<int32_t>(sizeof(Class)));
+  // We may get copied by a compacting GC.
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Class> h_this(hs.NewHandle(this));
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  // The num_bytes (3rd param) is sizeof(Class) as opposed to SizeOf()
+  // to skip copying the tail part that we will overwrite here.
+  CopyClassVisitor visitor(self, &h_this, new_length, sizeof(Class));
+
+  mirror::Object* new_class =
+      kMovingClasses
+         ? heap->AllocObject<true>(self, java_lang_Class_.Read(), new_length, visitor)
+         : heap->AllocNonMovableObject<true>(self, java_lang_Class_.Read(), new_length, visitor);
+  if (UNLIKELY(new_class == nullptr)) {
+    CHECK(self->IsExceptionPending());  // Expect an OOME.
+    return NULL;
+  }
+
+  return new_class->AsClass();
 }
 
 }  // namespace mirror

@@ -68,6 +68,7 @@ MACRO0(SETUP_SAVE_ALL_CALLEE_SAVE_FRAME)
     subq MACRO_LITERAL(8), %rsp  // Space for Method* (also aligns the frame).
     CFI_ADJUST_CFA_OFFSET(8)
     // R10 := ArtMethod* for save all callee save frame method.
+    THIS_LOAD_REQUIRES_READ_BARRIER
     movq RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
     // Store ArtMethod* to bottom of stack.
     movq %r10, 0(%rsp)
@@ -108,6 +109,7 @@ MACRO0(SETUP_REF_ONLY_CALLEE_SAVE_FRAME)
     movq %xmm14, 24(%rsp)
     movq %xmm15, 32(%rsp)
     // R10 := ArtMethod* for refs only callee save frame method.
+    THIS_LOAD_REQUIRES_READ_BARRIER
     movq RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
     // Store ArtMethod* to bottom of stack.
     movq %r10, 0(%rsp)
@@ -164,6 +166,7 @@ MACRO0(SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME)
     subq MACRO_LITERAL(80 + 4 * 8), %rsp
     CFI_ADJUST_CFA_OFFSET(80 + 4 * 8)
     // R10 := ArtMethod* for ref and args callee save frame method.
+    THIS_LOAD_REQUIRES_READ_BARRIER
     movq RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
     // Save FPRs.
     movq %xmm0, 16(%rsp)
@@ -280,6 +283,18 @@ NO_ARG_RUNTIME_EXCEPTION art_quick_throw_div_zero, artThrowDivZeroFromCode
      * Called by managed code to create and deliver a StackOverflowError.
      */
 NO_ARG_RUNTIME_EXCEPTION art_quick_throw_stack_overflow, artThrowStackOverflowFromCode
+
+// On entry to this function, RAX contains the ESP value for the overflow region.
+DEFINE_FUNCTION art_quick_throw_stack_overflow_from_signal
+    // Here, the RSP is above the protected region.  We need to create a
+    // callee save frame and then move RSP down to the overflow region.
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
+    mov %rsp, %rsi                    // get current stack pointer, pass SP as second arg
+    mov %rax, %rsp                    // move RSP to the overflow region.
+    mov %gs:THREAD_SELF_OFFSET, %rdi  // pass Thread::Current() as first arg
+    call PLT_SYMBOL(artThrowStackOverflowFromCode)    // artThrowStackOverflowFromCode(Thread*, SP)
+    int3                              // unreached
+END_FUNCTION art_quick_throw_stack_overflow_from_signal
 
     /*
      * Called by managed code, saves callee saves and then calls artThrowException
@@ -1492,7 +1507,7 @@ DEFINE_FUNCTION art_quick_instrumentation_exit
     PUSH rax                  // Save integer result.
     subq LITERAL(8), %rsp     // Save floating-point result.
     CFI_ADJUST_CFA_OFFSET(8)
-    movd %xmm0, (%rsp)
+    movq %xmm0, (%rsp)
 
     movq  %gs:THREAD_SELF_OFFSET, %rdi        // Pass Thread.
     movq  %rax, %rdx                          // Pass integer result.
@@ -1503,7 +1518,7 @@ DEFINE_FUNCTION art_quick_instrumentation_exit
     movq  %rax, %rdi          // Store return PC
     movq  %rdx, %rsi          // Store second return PC in hidden arg.
 
-    movd (%rsp), %xmm0        // Restore floating-point result.
+    movq (%rsp), %xmm0        // Restore floating-point result.
     addq LITERAL(8), %rsp
     CFI_ADJUST_CFA_OFFSET(-8)
     POP rax                   // Restore integer result.

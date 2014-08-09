@@ -15,6 +15,7 @@
  */
 
 #include "compilers.h"
+
 #include "dex/mir_graph.h"
 #include "dex/quick/mir_to_lir.h"
 #include "elf_writer_quick.h"
@@ -36,9 +37,6 @@ extern "C" art::CompiledMethod* ArtQuickCompileMethod(art::CompilerDriver* drive
 extern "C" art::CompiledMethod* ArtQuickJniCompileMethod(art::CompilerDriver* driver,
                                                          uint32_t access_flags, uint32_t method_idx,
                                                          const art::DexFile& dex_file);
-
-// Hack for CFI CIE initialization
-extern std::vector<uint8_t>* X86CFIInitialization();
 
 void QuickCompiler::Init() const {
   ArtInitQuickCompilerContext(GetCompilerDriver());
@@ -123,17 +121,6 @@ Backend* QuickCompiler::GetCodeGenerator(CompilationUnit* cu, void* compilation_
     CHECK(set_max);
   }
   return mir_to_lir;
-}
-
-std::vector<uint8_t>* QuickCompiler::GetCallFrameInformationInitialization(
-    const CompilerDriver& driver) const {
-  if (driver.GetInstructionSet() == kX86) {
-    return X86CFIInitialization();
-  }
-  if (driver.GetInstructionSet() == kX86_64) {
-    return X86CFIInitialization();
-  }
-  return nullptr;
 }
 
 CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,

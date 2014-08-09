@@ -35,12 +35,14 @@ Mutex* Locks::allocated_thread_ids_lock_ = nullptr;
 Mutex* Locks::breakpoint_lock_ = nullptr;
 ReaderWriterMutex* Locks::classlinker_classes_lock_ = nullptr;
 ReaderWriterMutex* Locks::heap_bitmap_lock_ = nullptr;
+Mutex* Locks::jni_libraries_lock_ = nullptr;
 Mutex* Locks::logging_lock_ = nullptr;
 Mutex* Locks::mem_maps_lock_ = nullptr;
 Mutex* Locks::modify_ldt_lock_ = nullptr;
 ReaderWriterMutex* Locks::mutator_lock_ = nullptr;
 Mutex* Locks::runtime_shutdown_lock_ = nullptr;
 Mutex* Locks::thread_list_lock_ = nullptr;
+Mutex* Locks::thread_list_suspend_thread_lock_ = nullptr;
 Mutex* Locks::thread_suspend_count_lock_ = nullptr;
 Mutex* Locks::trace_lock_ = nullptr;
 Mutex* Locks::profiler_lock_ = nullptr;
@@ -149,7 +151,8 @@ void BaseMutex::CheckSafeToWait(Thread* self) {
     for (int i = kLockLevelCount - 1; i >= 0; --i) {
       if (i != level_) {
         BaseMutex* held_mutex = self->GetHeldMutex(static_cast<LockLevel>(i));
-        if (held_mutex != NULL) {
+        // We expect waits to happen while holding the thread list suspend thread lock.
+        if (held_mutex != NULL && i != kThreadListSuspendThreadLock) {
           LOG(ERROR) << "Holding \"" << held_mutex->name_ << "\" "
                      << "(level " << LockLevel(i) << ") while performing wait on "
                      << "\"" << name_ << "\" (level " << level_ << ")";
@@ -161,16 +164,10 @@ void BaseMutex::CheckSafeToWait(Thread* self) {
   }
 }
 
-inline void BaseMutex::ContentionLogData::AddToWaitTime(uint64_t value) {
+void BaseMutex::ContentionLogData::AddToWaitTime(uint64_t value) {
   if (kLogLockContentions) {
     // Atomically add value to wait_time.
-    uint64_t new_val, old_val;
-    volatile int64_t* addr = reinterpret_cast<volatile int64_t*>(&wait_time);
-    volatile const int64_t* caddr = const_cast<volatile const int64_t*>(addr);
-    do {
-      old_val = static_cast<uint64_t>(QuasiAtomic::Read64(caddr));
-      new_val = old_val + value;
-    } while (!QuasiAtomic::Cas64(static_cast<int64_t>(old_val), static_cast<int64_t>(new_val), addr));
+    wait_time.FetchAndAddSequentiallyConsistent(value);
   }
 }
 
@@ -204,7 +201,7 @@ void BaseMutex::DumpContention(std::ostream& os) const {
   if (kLogLockContentions) {
     const ContentionLogData* data = contention_log_data_;
     const ContentionLogEntry* log = data->contention_log;
-    uint64_t wait_time = data->wait_time;
+    uint64_t wait_time = data->wait_time.LoadRelaxed();
     uint32_t contention_count = data->contention_count.LoadRelaxed();
     if (contention_count == 0) {
       os << "never contended";
@@ -838,9 +835,11 @@ void Locks::Init() {
     DCHECK(breakpoint_lock_ != nullptr);
     DCHECK(classlinker_classes_lock_ != nullptr);
     DCHECK(heap_bitmap_lock_ != nullptr);
+    DCHECK(jni_libraries_lock_ != nullptr);
     DCHECK(logging_lock_ != nullptr);
     DCHECK(mutator_lock_ != nullptr);
     DCHECK(thread_list_lock_ != nullptr);
+    DCHECK(thread_list_suspend_thread_lock_ != nullptr);
     DCHECK(thread_suspend_count_lock_ != nullptr);
     DCHECK(trace_lock_ != nullptr);
     DCHECK(profiler_lock_ != nullptr);
@@ -848,13 +847,18 @@ void Locks::Init() {
     DCHECK(intern_table_lock_ != nullptr);
   } else {
     // Create global locks in level order from highest lock level to lowest.
-    LockLevel current_lock_level = kMutatorLock;
-    DCHECK(mutator_lock_ == nullptr);
-    mutator_lock_ = new ReaderWriterMutex("mutator lock", current_lock_level);
+    LockLevel current_lock_level = kThreadListSuspendThreadLock;
+    DCHECK(thread_list_suspend_thread_lock_ == nullptr);
+    thread_list_suspend_thread_lock_ =
+        new Mutex("thread list suspend thread by .. lock", current_lock_level);
 
     #define UPDATE_CURRENT_LOCK_LEVEL(new_level) \
-        DCHECK_LT(new_level, current_lock_level); \
-        current_lock_level = new_level;
+      DCHECK_LT(new_level, current_lock_level); \
+      current_lock_level = new_level;
+
+    UPDATE_CURRENT_LOCK_LEVEL(kMutatorLock);
+    DCHECK(mutator_lock_ == nullptr);
+    mutator_lock_ = new ReaderWriterMutex("mutator lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kHeapBitmapLock);
     DCHECK(heap_bitmap_lock_ == nullptr);
@@ -875,6 +879,10 @@ void Locks::Init() {
     UPDATE_CURRENT_LOCK_LEVEL(kThreadListLock);
     DCHECK(thread_list_lock_ == nullptr);
     thread_list_lock_ = new Mutex("thread list lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kJniLoadLibraryLock);
+    DCHECK(jni_libraries_lock_ == nullptr);
+    jni_libraries_lock_ = new Mutex("JNI shared libraries map lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kBreakpointLock);
     DCHECK(breakpoint_lock_ == nullptr);

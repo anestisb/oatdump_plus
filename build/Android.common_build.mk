@@ -183,8 +183,16 @@ endif
 art_non_debug_cflags := \
   -O3
 
+art_host_non_debug_cflags := \
+  $(art_non_debug_cflags)
+
+art_target_non_debug_cflags := \
+  $(art_non_debug_cflags)
+
 ifeq ($(HOST_OS),linux)
-  art_non_debug_cflags += -Wframe-larger-than=1728
+  # Larger frame-size for host clang builds today
+  art_host_non_debug_cflags += -Wframe-larger-than=2600
+  art_target_non_debug_cflags += -Wframe-larger-than=1728
 endif
 
 # FIXME: upstream LLVM has a vectorizer bug that needs to be fixed
@@ -207,6 +215,25 @@ ifndef LIBART_IMG_TARGET_BASE_ADDRESS
   $(error LIBART_IMG_TARGET_BASE_ADDRESS unset)
 endif
 ART_TARGET_CFLAGS := $(art_cflags) -DART_TARGET -DART_BASE_ADDRESS=$(LIBART_IMG_TARGET_BASE_ADDRESS)
+
+ifndef LIBART_IMG_HOST_MIN_BASE_ADDRESS_DELTA
+  LIBART_IMG_HOST_MIN_BASE_ADDRESS_DELTA=-0x1000000
+endif
+ifndef LIBART_IMG_HOST_MAX_BASE_ADDRESS_DELTA
+  LIBART_IMG_HOST_MAX_BASE_ADDRESS_DELTA=0x1000000
+endif
+ART_HOST_CFLAGS += -DART_BASE_ADDRESS_MIN_DELTA=$(LIBART_IMG_HOST_MIN_BASE_ADDRESS_DELTA)
+ART_HOST_CFLAGS += -DART_BASE_ADDRESS_MAX_DELTA=$(LIBART_IMG_HOST_MAX_BASE_ADDRESS_DELTA)
+
+ifndef LIBART_IMG_TARGET_MIN_BASE_ADDRESS_DELTA
+  LIBART_IMG_TARGET_MIN_BASE_ADDRESS_DELTA=-0x1000000
+endif
+ifndef LIBART_IMG_TARGET_MAX_BASE_ADDRESS_DELTA
+  LIBART_IMG_TARGET_MAX_BASE_ADDRESS_DELTA=0x1000000
+endif
+ART_TARGET_CFLAGS += -DART_BASE_ADDRESS_MIN_DELTA=$(LIBART_IMG_TARGET_MIN_BASE_ADDRESS_DELTA)
+ART_TARGET_CFLAGS += -DART_BASE_ADDRESS_MAX_DELTA=$(LIBART_IMG_TARGET_MAX_BASE_ADDRESS_DELTA)
+
 ART_TARGET_LDFLAGS :=
 ifeq ($(TARGET_CPU_SMP),true)
   ART_TARGET_CFLAGS += -DANDROID_SMP=1
@@ -220,14 +247,6 @@ else
   endif
 endif
 ART_TARGET_CFLAGS += $(ART_DEFAULT_GC_TYPE_CFLAGS)
-ifdef PGO_GEN
-  ART_TARGET_CFLAGS += -fprofile-generate=$(PGO_GEN)
-  ART_TARGET_LDFLAGS += -fprofile-generate=$(PGO_GEN)
-endif
-ifdef PGO_USE
-  ART_TARGET_CFLAGS += -fprofile-use=$(PGO_USE)
-  ART_TARGET_CFLAGS += -fprofile-correction -Wno-error
-endif
 
 # DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES is set in ../build/core/dex_preopt.mk based on
 # the TARGET_CPU_VARIANT
@@ -266,8 +285,8 @@ ifeq ($(TARGET_ARCH),arm)
   endif
 endif
 
-ART_HOST_NON_DEBUG_CFLAGS := $(art_non_debug_cflags)
-ART_TARGET_NON_DEBUG_CFLAGS := $(art_non_debug_cflags)
+ART_HOST_NON_DEBUG_CFLAGS := $(art_host_non_debug_cflags)
+ART_TARGET_NON_DEBUG_CFLAGS := $(art_target_non_debug_cflags)
 
 # TODO: move -fkeep-inline-functions to art_debug_cflags when target gcc > 4.4 (and -lsupc++)
 ART_HOST_DEBUG_CFLAGS := $(art_debug_cflags) -fkeep-inline-functions
@@ -329,5 +348,8 @@ endif
 ART_DEFAULT_GC_TYPE :=
 ART_DEFAULT_GC_TYPE_CFLAGS :=
 art_cflags :=
+art_target_non_debug_cflags :=
+art_host_non_debug_cflags :=
+art_non_debug_cflags :=
 
 endif # ANDROID_COMMON_BUILD_MK

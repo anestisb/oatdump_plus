@@ -16,6 +16,7 @@
 
 #include "art_method.h"
 
+#include "arch/context.h"
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/stringpiece.h"
@@ -26,12 +27,12 @@
 #include "interpreter/interpreter.h"
 #include "jni_internal.h"
 #include "mapping_table.h"
-#include "object-inl.h"
-#include "object_array.h"
+#include "method_helper.h"
 #include "object_array-inl.h"
+#include "object_array.h"
+#include "object-inl.h"
 #include "scoped_thread_state_change.h"
 #include "string.h"
-#include "object_utils.h"
 #include "well_known_classes.h"
 
 namespace art {
@@ -46,7 +47,7 @@ extern "C" void art_quick_invoke_static_stub(ArtMethod*, uint32_t*, uint32_t, Th
 #endif
 
 // TODO: get global references for these
-Class* ArtMethod::java_lang_reflect_ArtMethod_ = NULL;
+GcRoot<Class> ArtMethod::java_lang_reflect_ArtMethod_;
 
 ArtMethod* ArtMethod::FromReflectedMethod(const ScopedObjectAccessAlreadyRunnable& soa,
                                           jobject jlr_method) {
@@ -59,9 +60,8 @@ ArtMethod* ArtMethod::FromReflectedMethod(const ScopedObjectAccessAlreadyRunnabl
 
 
 void ArtMethod::VisitRoots(RootCallback* callback, void* arg) {
-  if (java_lang_reflect_ArtMethod_ != nullptr) {
-    callback(reinterpret_cast<mirror::Object**>(&java_lang_reflect_ArtMethod_), arg, 0,
-             kRootStickyClass);
+  if (!java_lang_reflect_ArtMethod_.IsNull()) {
+    java_lang_reflect_ArtMethod_.VisitRoot(callback, arg, 0, kRootStickyClass);
   }
 }
 
@@ -79,14 +79,14 @@ InvokeType ArtMethod::GetInvokeType() {
 }
 
 void ArtMethod::SetClass(Class* java_lang_reflect_ArtMethod) {
-  CHECK(java_lang_reflect_ArtMethod_ == NULL);
+  CHECK(java_lang_reflect_ArtMethod_.IsNull());
   CHECK(java_lang_reflect_ArtMethod != NULL);
-  java_lang_reflect_ArtMethod_ = java_lang_reflect_ArtMethod;
+  java_lang_reflect_ArtMethod_ = GcRoot<Class>(java_lang_reflect_ArtMethod);
 }
 
 void ArtMethod::ResetClass() {
-  CHECK(java_lang_reflect_ArtMethod_ != NULL);
-  java_lang_reflect_ArtMethod_ = NULL;
+  CHECK(!java_lang_reflect_ArtMethod_.IsNull());
+  java_lang_reflect_ArtMethod_ = GcRoot<Class>(nullptr);
 }
 
 void ArtMethod::SetDexCacheStrings(ObjectArray<String>* new_dex_cache_strings) {
@@ -129,12 +129,11 @@ ArtMethod* ArtMethod::FindOverriddenMethod() {
   Class* declaring_class = GetDeclaringClass();
   Class* super_class = declaring_class->GetSuperClass();
   uint16_t method_index = GetMethodIndex();
-  ObjectArray<ArtMethod>* super_class_vtable = super_class->GetVTable();
   ArtMethod* result = NULL;
   // Did this method override a super class method? If so load the result from the super class'
   // vtable
-  if (super_class_vtable != NULL && method_index < super_class_vtable->GetLength()) {
-    result = super_class_vtable->Get(method_index);
+  if (super_class->HasVTable() && method_index < super_class->GetVTableLength()) {
+    result = super_class->GetVTableEntry(method_index);
   } else {
     // Method didn't override superclass method so search interfaces
     if (IsProxyMethod()) {
@@ -158,12 +157,12 @@ ArtMethod* ArtMethod::FindOverriddenMethod() {
       }
     }
   }
-#ifndef NDEBUG
-  StackHandleScope<2> hs(Thread::Current());
-  MethodHelper result_mh(hs.NewHandle(result));
-  MethodHelper this_mh(hs.NewHandle(this));
-  DCHECK(result == NULL || this_mh.HasSameNameAndSignature(&result_mh));
-#endif
+  if (kIsDebugBuild) {
+    StackHandleScope<2> hs(Thread::Current());
+    MethodHelper result_mh(hs.NewHandle(result));
+    MethodHelper this_mh(hs.NewHandle(this));
+    DCHECK(result == nullptr || this_mh.HasSameNameAndSignature(&result_mh));
+  }
   return result;
 }
 
@@ -353,14 +352,6 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
 
   // Pop transition.
   self->PopManagedStackFragment(fragment);
-}
-
-bool ArtMethod::IsRegistered() {
-  void* native_method =
-      GetFieldPtr<void*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_jni_));
-  CHECK(native_method != nullptr);
-  void* jni_stub = GetJniDlsymLookupStub();
-  return native_method != jni_stub;
 }
 
 void ArtMethod::RegisterNative(Thread* self, const void* native_method, bool is_fast) {

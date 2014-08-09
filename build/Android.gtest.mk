@@ -61,6 +61,9 @@ ART_GTEST_transaction_test_DEX_DEPS := Transaction
 # The elf writer test has dependencies on core.oat.
 ART_GTEST_elf_writer_test_HOST_DEPS := $(HOST_CORE_OAT_OUT) $(2ND_HOST_CORE_OAT_OUT)
 ART_GTEST_elf_writer_test_TARGET_DEPS := $(TARGET_CORE_OAT_OUT) $(2ND_TARGET_CORE_OAT_OUT)
+ART_GTEST_jni_internal_test_TARGET_DEPS := $(TARGET_CORE_JARS)
+ART_GTEST_proxy_test_TARGET_DEPS := $(TARGET_CORE_JARS)
+ART_GTEST_proxy_test_HOST_DEPS := $(HOST_CORE_OAT_OUT) $(2ND_HOST_CORE_OAT_OUT)
 
 # The path for which all the source files are relative, not actually the current directory.
 LOCAL_PATH := art
@@ -91,6 +94,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/entrypoints/quick/quick_trampoline_entrypoints_test.cc \
   runtime/entrypoints_order_test.cc \
   runtime/exception_test.cc \
+  runtime/gc/accounting/card_table_test.cc \
   runtime/gc/accounting/space_bitmap_test.cc \
   runtime/gc/heap_test.cc \
   runtime/gc/space/dlmalloc_space_base_test.cc \
@@ -113,6 +117,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/monitor_pool_test.cc \
   runtime/monitor_test.cc \
   runtime/parsed_options_test.cc \
+  runtime/proxy_test.cc \
   runtime/reference_table_test.cc \
   runtime/thread_pool_test.cc \
   runtime/transaction_test.cc \
@@ -123,10 +128,10 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
 
 COMPILER_GTEST_COMMON_SRC_FILES := \
   runtime/jni_internal_test.cc \
-  runtime/proxy_test.cc \
   runtime/reflection_test.cc \
   compiler/dex/global_value_numbering_test.cc \
   compiler/dex/local_value_numbering_test.cc \
+  compiler/dex/mir_graph_test.cc \
   compiler/dex/mir_optimization_test.cc \
   compiler/driver/compiler_driver_test.cc \
   compiler/elf_writer_test.cc \
@@ -145,6 +150,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/optimizing/pretty_printer_test.cc \
   compiler/optimizing/register_allocator_test.cc \
   compiler/optimizing/ssa_test.cc \
+  compiler/optimizing/stack_map_test.cc \
   compiler/output_stream_test.cc \
   compiler/utils/arena_allocator_test.cc \
   compiler/utils/dedupe_set_test.cc \
@@ -171,6 +177,7 @@ COMPILER_GTEST_TARGET_SRC_FILES := \
 
 COMPILER_GTEST_HOST_SRC_FILES := \
   $(COMPILER_GTEST_COMMON_SRC_FILES) \
+  compiler/utils//assembler_thumb_test.cc \
   compiler/utils/x86/assembler_x86_test.cc \
   compiler/utils/x86_64/assembler_x86_64_test.cc
 
@@ -178,6 +185,42 @@ ART_TEST_CFLAGS :=
 ifeq ($(ART_USE_PORTABLE_COMPILER),true)
   ART_TEST_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
 endif
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := libart-gtest
+LOCAL_MODULE_TAGS := optional
+LOCAL_CPP_EXTENSION := cc
+LOCAL_CFLAGS := $(ART_TARGET_CFLAGS)
+LOCAL_SRC_FILES := runtime/common_runtime_test.cc compiler/common_compiler_test.cc
+LOCAL_C_INCLUDES := $(ART_C_INCLUDES) art/runtime art/compiler
+LOCAL_SHARED_LIBRARIES := libcutils libartd libartd-compiler libdl
+LOCAL_STATIC_LIBRARIES += libgtest_libc++
+LOCAL_CLANG := $(ART_TARGET_CLANG)
+LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
+LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.gtest.mk
+include external/libcxx/libcxx.mk
+include $(BUILD_SHARED_LIBRARY)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := libart-gtest
+LOCAL_MODULE_TAGS := optional
+LOCAL_CPP_EXTENSION := cc
+LOCAL_CFLAGS := $(ART_HOST_CFLAGS)
+LOCAL_SRC_FILES := runtime/common_runtime_test.cc compiler/common_compiler_test.cc
+LOCAL_C_INCLUDES := $(ART_C_INCLUDES) art/runtime art/compiler
+LOCAL_SHARED_LIBRARIES := libartd libartd-compiler
+LOCAL_STATIC_LIBRARIES := libcutils
+ifneq ($(WITHOUT_HOST_CLANG),true)
+  # GCC host compiled tests fail with this linked, presumably due to destructors that run.
+  LOCAL_STATIC_LIBRARIES += libgtest_libc++_host
+endif
+LOCAL_LDLIBS += -ldl -lpthread
+LOCAL_MULTILIB := both
+LOCAL_CLANG := $(ART_HOST_CLANG)
+LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
+LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.gtest.mk
+include external/libcxx/libcxx.mk
+include $(BUILD_HOST_SHARED_LIBRARY)
 
 # Variables holding collections of gtest pre-requisits used to run a number of gtests.
 ART_TEST_HOST_GTEST$(ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
@@ -285,12 +328,12 @@ define define-art-gtest
     LOCAL_MODULE_TAGS := tests
   endif
   LOCAL_CPP_EXTENSION := $$(ART_CPP_EXTENSION)
-  LOCAL_SRC_FILES := $$(art_gtest_filename) runtime/common_runtime_test.cc
+  LOCAL_SRC_FILES := $$(art_gtest_filename)
   LOCAL_C_INCLUDES += $$(ART_C_INCLUDES) art/runtime $$(art_gtest_extra_c_includes)
-  LOCAL_SHARED_LIBRARIES += libartd $$(art_gtest_extra_shared_libraries)
+  LOCAL_SHARED_LIBRARIES += libartd $$(art_gtest_extra_shared_libraries) libart-gtest
 
-  # LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
-  # LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.gtest.mk
+  LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
+  LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.gtest.mk
 
   # Mac OS linker doesn't understand --export-dynamic.
   ifneq ($$(HOST_OS)-$$(art_target_or_host),darwin-host)
@@ -304,7 +347,6 @@ define define-art-gtest
     $$(eval $$(call set-target-local-clang-vars))
     $$(eval $$(call set-target-local-cflags-vars,debug))
     LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libz libcutils libvixl
-    LOCAL_STATIC_LIBRARIES += libgtest_libc++
     LOCAL_MODULE_PATH_32 := $$(ART_TARGET_NATIVETEST_OUT)/$$(ART_TARGET_ARCH_32)
     LOCAL_MODULE_PATH_64 := $$(ART_TARGET_NATIVETEST_OUT)/$$(ART_TARGET_ARCH_64)
     LOCAL_MULTILIB := both
@@ -328,10 +370,6 @@ test-art-target-gtest-$$(art_gtest_name): $$(ART_TEST_TARGET_GTEST_$$(art_gtest_
     LOCAL_CFLAGS += $$(ART_HOST_CFLAGS) $$(ART_HOST_DEBUG_CFLAGS)
     LOCAL_SHARED_LIBRARIES += libicuuc-host libicui18n-host libnativehelper libz-host
     LOCAL_STATIC_LIBRARIES += libcutils libvixl
-    ifneq ($$(WITHOUT_HOST_CLANG),true)
-      # GCC host compiled tests fail with this linked, presumably due to destructors that run.
-      LOCAL_STATIC_LIBRARIES += libgtest_libc++_host
-    endif
     LOCAL_LDLIBS += -lpthread -ldl
     LOCAL_IS_HOST_MODULE := true
     LOCAL_MULTILIB := both

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <cstdint>
+
 #include "compiler.h"
 #include "compiler_internals.h"
 #include "driver/compiler_driver.h"
@@ -40,7 +42,7 @@ extern "C" void ArtUnInitQuickCompilerContext(art::CompilerDriver* driver) {
 
 /* Default optimizer/debug setting for the compiler. */
 static uint32_t kCompilerOptimizerDisableFlags = 0 |  // Disable specific optimizations
-  (1 << kLoadStoreElimination) |  // TODO: this pass has been broken for awhile - fix or delete.
+  // (1 << kLoadStoreElimination) |
   // (1 << kLoadHoisting) |
   // (1 << kSuppressLoads) |
   // (1 << kNullCheckElimination) |
@@ -94,13 +96,12 @@ static constexpr uint32_t kDisabledOptimizationsPerISA[] = {
     ~0U,
     // 1 = kArm, unused (will use kThumb2).
     ~0U,
-    // 2 = kArm64.     TODO(Arm64): enable optimizations once backend is mature enough.
-    (1 << kLoadStoreElimination) |
-    (1 << kLoadHoisting) |
+    // 2 = kArm64.
     0,
     // 3 = kThumb2.
     0,
     // 4 = kX86.
+    (1 << kLoadStoreElimination) |
     0,
     // 5 = kX86_64.
     (1 << kLoadStoreElimination) |
@@ -471,6 +472,10 @@ static const size_t kUnsupportedOpcodesSize[] = {
 COMPILE_ASSERT(sizeof(kUnsupportedOpcodesSize) == 8 * sizeof(size_t),
                kUnsupportedOpcodesSize_unexp);
 
+// The maximum amount of Dalvik register in a method for which we will start compiling. Tries to
+// avoid an abort when we need to manage more SSA registers than we can.
+static constexpr size_t kMaxAllowedDalvikRegisters = INT16_MAX / 2;
+
 CompilationUnit::CompilationUnit(ArenaPool* pool)
   : compiler_driver(nullptr),
     class_linker(nullptr),
@@ -549,6 +554,12 @@ static bool CanCompileShorty(const char* shorty, InstructionSet instruction_set)
 // Skip the method that we do not support currently.
 static bool CanCompileMethod(uint32_t method_idx, const DexFile& dex_file,
                              CompilationUnit& cu) {
+  // This is a limitation in mir_graph. See MirGraph::SetNumSSARegs.
+  if (cu.num_dalvik_registers > kMaxAllowedDalvikRegisters) {
+    VLOG(compiler) << "Too many dalvik registers : " << cu.num_dalvik_registers;
+    return false;
+  }
+
   // Check whether we do have limitations at all.
   if (kSupportedTypes[cu.instruction_set] == nullptr &&
       kUnsupportedOpcodesSize[cu.instruction_set] == 0U) {
@@ -736,7 +747,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
 
   /* Free Arenas from the cu.arena_stack for reuse by the cu.arena in the codegen. */
   if (cu.enable_debug & (1 << kDebugShowMemoryUsage)) {
-    if (cu.arena_stack.PeakBytesAllocated() > 256 * 1024) {
+    if (cu.arena_stack.PeakBytesAllocated() > 1 * 1024 * 1024) {
       MemStats stack_stats(cu.arena_stack.GetPeakStats());
       LOG(INFO) << method_name << " " << Dumpable<MemStats>(stack_stats);
     }

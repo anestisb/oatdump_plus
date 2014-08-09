@@ -24,7 +24,6 @@
 #include "base/mutex.h"
 #include "base/timing_logger.h"
 #include "class_reference.h"
-#include "compiled_class.h"
 #include "compiled_method.h"
 #include "compiler.h"
 #include "dex_file.h"
@@ -32,6 +31,7 @@
 #include "instruction_set.h"
 #include "invoke_type.h"
 #include "method_reference.h"
+#include "mirror/class.h"  // For mirror::Class::Status.
 #include "os.h"
 #include "profiler.h"
 #include "runtime.h"
@@ -46,6 +46,7 @@ namespace verifier {
 class MethodVerifier;
 }  // namespace verifier
 
+class CompiledClass;
 class CompilerOptions;
 class DexCompilationUnit;
 class DexFileToMethodInlinerMap;
@@ -212,6 +213,12 @@ class CompilerDriver {
                           bool* is_type_initialized, bool* use_direct_type_ptr,
                           uintptr_t* direct_type_ptr, bool* out_is_finalizable);
 
+  // Query methods for the java.lang.ref.Reference class.
+  bool CanEmbedReferenceTypeInCode(ClassReference* ref,
+                                   bool* use_direct_type_ptr, uintptr_t* direct_type_ptr);
+  uint32_t GetReferenceSlowFlagOffset() const;
+  uint32_t GetReferenceDisableFlagOffset() const;
+
   // Get the DexCache for the
   mirror::DexCache* GetDexCache(const DexCompilationUnit* mUnit)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -221,14 +228,14 @@ class CompilerDriver {
 
   // Resolve compiling method's class. Returns nullptr on failure.
   mirror::Class* ResolveCompilingMethodsClass(
-      ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
+      const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
       Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Resolve a field. Returns nullptr on failure, including incompatible class change.
   // NOTE: Unlike ClassLinker's ResolveField(), this method enforces is_static.
   mirror::ArtField* ResolveField(
-      ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
+      const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
       Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
       uint32_t field_idx, bool is_static)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -244,7 +251,7 @@ class CompilerDriver {
   // Can we fast-path an IGET/IPUT access to an instance field? If yes, compute the field offset.
   std::pair<bool, bool> IsFastInstanceField(
       mirror::DexCache* dex_cache, mirror::Class* referrer_class,
-      mirror::ArtField* resolved_field, uint16_t field_idx, MemberOffset* field_offset)
+      mirror::ArtField* resolved_field, uint16_t field_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Can we fast-path an SGET/SPUT access to a static field? If yes, compute the field offset,
@@ -297,6 +304,13 @@ class CompilerDriver {
                                 MemberOffset* field_offset, bool* is_volatile)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
+  mirror::ArtField* ComputeInstanceFieldInfo(uint32_t field_idx,
+                                             const DexCompilationUnit* mUnit,
+                                             bool is_put,
+                                             const ScopedObjectAccess& soa)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+
   // Can we fastpath static field access? Computes field's offset, volatility and whether the
   // field is within the referrer (which can avoid checking class initialization).
   bool ComputeStaticFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit, bool is_put,
@@ -348,6 +362,7 @@ class CompilerDriver {
                      uint16_t referrer_class_def_idx,
                      uint32_t referrer_method_idx,
                      uint32_t target_method_idx,
+                     const DexFile* target_dex_file,
                      size_t literal_offset)
       LOCKS_EXCLUDED(compiled_methods_lock_);
 
@@ -392,10 +407,6 @@ class CompilerDriver {
 
   bool GetDumpPasses() const {
     return dump_passes_;
-  }
-
-  bool DidIncludeDebugSymbols() const {
-    return compiler_options_->GetIncludeDebugSymbols();
   }
 
   CumulativeLogger* GetTimingsLogger() const {
@@ -541,6 +552,10 @@ class CompilerDriver {
 
   class TypePatchInformation : public PatchInformation {
    public:
+    const DexFile& GetTargetTypeDexFile() const {
+      return *target_type_dex_file_;
+    }
+
     uint32_t GetTargetTypeIdx() const {
       return target_type_idx_;
     }
@@ -557,13 +572,15 @@ class CompilerDriver {
                          uint16_t referrer_class_def_idx,
                          uint32_t referrer_method_idx,
                          uint32_t target_type_idx,
+                         const DexFile* target_type_dex_file,
                          size_t literal_offset)
         : PatchInformation(dex_file, referrer_class_def_idx,
                            referrer_method_idx, literal_offset),
-          target_type_idx_(target_type_idx) {
+          target_type_idx_(target_type_idx), target_type_dex_file_(target_type_dex_file) {
     }
 
     const uint32_t target_type_idx_;
+    const DexFile* target_type_dex_file_;
 
     friend class CompilerDriver;
     DISALLOW_COPY_AND_ASSIGN(TypePatchInformation);
@@ -590,14 +607,6 @@ class CompilerDriver {
   std::vector<uint8_t>* DeduplicateVMapTable(const std::vector<uint8_t>& code);
   std::vector<uint8_t>* DeduplicateGCMap(const std::vector<uint8_t>& code);
   std::vector<uint8_t>* DeduplicateCFIInfo(const std::vector<uint8_t>* cfi_info);
-
-  /*
-   * @brief return the pointer to the Call Frame Information.
-   * @return pointer to call frame information for this compilation.
-   */
-  std::vector<uint8_t>* GetCallFrameInformation() const {
-    return cfi_info_.get();
-  }
 
   ProfileFile profile_file_;
   bool profile_present_;
@@ -650,12 +659,14 @@ class CompilerDriver {
                ThreadPool* thread_pool, TimingLogger* timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
   void ResolveDexFile(jobject class_loader, const DexFile& dex_file,
+                      const std::vector<const DexFile*>& dex_files,
                       ThreadPool* thread_pool, TimingLogger* timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   void Verify(jobject class_loader, const std::vector<const DexFile*>& dex_files,
               ThreadPool* thread_pool, TimingLogger* timings);
   void VerifyDexFile(jobject class_loader, const DexFile& dex_file,
+                     const std::vector<const DexFile*>& dex_files,
                      ThreadPool* thread_pool, TimingLogger* timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
@@ -663,6 +674,7 @@ class CompilerDriver {
                          ThreadPool* thread_pool, TimingLogger* timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
   void InitializeClasses(jobject class_loader, const DexFile& dex_file,
+                         const std::vector<const DexFile*>& dex_files,
                          ThreadPool* thread_pool, TimingLogger* timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_, compiled_classes_lock_);
 
@@ -673,6 +685,7 @@ class CompilerDriver {
   void Compile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
                ThreadPool* thread_pool, TimingLogger* timings);
   void CompileDexFile(jobject class_loader, const DexFile& dex_file,
+                      const std::vector<const DexFile*>& dex_files,
                       ThreadPool* thread_pool, TimingLogger* timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
   void CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
@@ -757,9 +770,6 @@ class CompilerDriver {
   CompilerGetMethodCodeAddrFn compiler_get_method_code_addr_;
 
   bool support_boot_image_fixup_;
-
-  // Call Frame Information, which might be generated to help stack tracebacks.
-  std::unique_ptr<std::vector<uint8_t>> cfi_info_;
 
   // DeDuplication data structures, these own the corresponding byte arrays.
   class DedupeHashFunc {

@@ -27,9 +27,10 @@
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
 #include "dex_instruction.h"
-#include "entrypoints/entrypoint_utils.h"
+#include "entrypoints/entrypoint_utils-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "handle_scope-inl.h"
+#include "method_helper-inl.h"
 #include "nth_caller_visitor.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method.h"
@@ -39,7 +40,6 @@
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
-#include "object_utils.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
@@ -140,7 +140,8 @@ static inline bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
     return false;
   }
   const uint32_t vtable_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
-  ArtMethod* const method = receiver->GetClass()->GetVTable()->GetWithoutChecks(vtable_idx);
+  CHECK(receiver->GetClass()->ShouldHaveEmbeddedImtAndVTable());
+  ArtMethod* const method = receiver->GetClass()->GetEmbeddedVTableEntry(vtable_idx);
   if (UNLIKELY(method == nullptr)) {
     CHECK(self->IsExceptionPending());
     result->SetJ(0);

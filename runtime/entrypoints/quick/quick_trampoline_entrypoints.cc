@@ -18,7 +18,7 @@
 #include "common_throws.h"
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
-#include "entrypoints/entrypoint_utils.h"
+#include "entrypoints/entrypoint_utils-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "instruction_set.h"
 #include "interpreter/interpreter.h"
@@ -27,7 +27,6 @@
 #include "mirror/dex_cache-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
-#include "object_utils.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 
@@ -59,9 +58,12 @@ class QuickArgumentVisitor {
   static constexpr bool kQuickSoftFloatAbi = true;  // This is a soft float ABI.
   static constexpr size_t kNumQuickGprArgs = 3;  // 3 arguments passed in GPRs.
   static constexpr size_t kNumQuickFprArgs = 0;  // 0 arguments passed in FPRs.
-  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 0;  // Offset of first FPR arg.
-  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 8;  // Offset of first GPR arg.
-  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 44;  // Offset of return address.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset =
+      arm::ArmCalleeSaveFpr1Offset(Runtime::kRefsAndArgs);  // Offset of first FPR arg.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset =
+      arm::ArmCalleeSaveGpr1Offset(Runtime::kRefsAndArgs);  // Offset of first GPR arg.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset =
+      arm::ArmCalleeSaveLrOffset(Runtime::kRefsAndArgs);  // Offset of return address.
   static size_t GprIndexToGprOffset(uint32_t gpr_index) {
     return gpr_index * GetBytesPerGprSpillLocation(kRuntimeISA);
   }
@@ -75,13 +77,13 @@ class QuickArgumentVisitor {
   // | arg1 spill |  |
   // | Method*    | ---
   // | LR         |
-  // | X28        |
+  // | X29        |
   // |  :         |
-  // | X19        |
+  // | X20        |
   // | X7         |
   // | :          |
   // | X1         |
-  // | D15        |
+  // | D7         |
   // |  :         |
   // | D0         |
   // |            |    padding
@@ -89,9 +91,12 @@ class QuickArgumentVisitor {
   static constexpr bool kQuickSoftFloatAbi = false;  // This is a hard float ABI.
   static constexpr size_t kNumQuickGprArgs = 7;  // 7 arguments passed in GPRs.
   static constexpr size_t kNumQuickFprArgs = 8;  // 8 arguments passed in FPRs.
-  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 16;  // Offset of first FPR arg.
-  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 144;  // Offset of first GPR arg.
-  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 296;  // Offset of return address.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset =
+      arm64::Arm64CalleeSaveFpr1Offset(Runtime::kRefsAndArgs);  // Offset of first FPR arg.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset =
+      arm64::Arm64CalleeSaveGpr1Offset(Runtime::kRefsAndArgs);  // Offset of first GPR arg.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset =
+      arm64::Arm64CalleeSaveLrOffset(Runtime::kRefsAndArgs);  // Offset of return address.
   static size_t GprIndexToGprOffset(uint32_t gpr_index) {
     return gpr_index * GetBytesPerGprSpillLocation(kRuntimeISA);
   }
@@ -587,8 +592,7 @@ extern "C" uint64_t artQuickProxyInvokeHandler(mirror::ArtMethod* proxy_method,
   const char* old_cause =
       self->StartAssertNoThreadSuspension("Adding to IRT proxy object arguments");
   // Register the top of the managed stack, making stack crawlable.
-  DCHECK_EQ(sp->AsMirrorPtr(), proxy_method)
-  << PrettyMethod(proxy_method);
+  DCHECK_EQ(sp->AsMirrorPtr(), proxy_method) << PrettyMethod(proxy_method);
   self->SetTopOfStack(sp, 0);
   DCHECK_EQ(proxy_method->GetFrameSizeInBytes(),
             Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes())
@@ -786,8 +790,8 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
 
       // We came here because of sharpening. Ensure the dex cache is up-to-date on the method index
       // of the sharpened method.
-      if (called->GetDexCacheResolvedMethods() == caller->GetDexCacheResolvedMethods()) {
-        caller->GetDexCacheResolvedMethods()->Set<false>(called->GetDexMethodIndex(), called);
+      if (called->HasSameDexCacheResolvedMethods(caller)) {
+        caller->SetDexCacheResolvedMethod(called->GetDexMethodIndex(), called);
       } else {
         // Calling from one dex file to another, need to compute the method index appropriate to
         // the caller's dex file. Since we get here only if the original called was a runtime
@@ -797,7 +801,7 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
         MethodHelper mh(hs.NewHandle(called));
         uint32_t method_index = mh.FindDexMethodIndexInOtherDexFile(*dex_file, dex_method_idx);
         if (method_index != DexFile::kDexNoIndex) {
-          caller->GetDexCacheResolvedMethods()->Set<false>(method_index, called);
+          caller->SetDexCacheResolvedMethod(method_index, called);
         }
       }
     }

@@ -17,11 +17,11 @@
 #ifndef ART_RUNTIME_MIRROR_DEX_CACHE_H_
 #define ART_RUNTIME_MIRROR_DEX_CACHE_H_
 
+#include "art_field.h"
 #include "art_method.h"
 #include "class.h"
 #include "object.h"
 #include "object_array.h"
-#include "string.h"
 
 namespace art {
 
@@ -32,16 +32,19 @@ union JValue;
 
 namespace mirror {
 
-class ArtField;
-class Class;
+class String;
 
-class MANAGED DexCacheClass : public Class {
- private:
-  DISALLOW_IMPLICIT_CONSTRUCTORS(DexCacheClass);
-};
-
-class MANAGED DexCache : public Object {
+// C++ mirror of java.lang.DexCache.
+class MANAGED DexCache FINAL : public Object {
  public:
+  // Size of java.lang.DexCache.class.
+  static uint32_t ClassSize();
+
+  // Size of an instance of java.lang.DexCache not including referenced values.
+  static constexpr uint32_t InstanceSize() {
+    return sizeof(DexCache);
+  }
+
   void Init(const DexFile* dex_file,
             String* location,
             ObjectArray<String>* strings,
@@ -99,11 +102,8 @@ class MANAGED DexCache : public Object {
     return GetResolvedTypes()->Get(type_idx);
   }
 
-  void SetResolvedType(uint32_t type_idx, Class* resolved) ALWAYS_INLINE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // TODO default transaction support.
-    GetResolvedTypes()->Set(type_idx, resolved);
-  }
+  void SetResolvedType(uint32_t type_idx, Class* resolved)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ArtMethod* GetResolvedMethod(uint32_t method_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -114,7 +114,12 @@ class MANAGED DexCache : public Object {
 
   ArtField* GetResolvedField(uint32_t field_idx) ALWAYS_INLINE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetResolvedFields()->Get(field_idx);
+    ArtField* field = GetResolvedFields()->Get(field_idx);
+    if (UNLIKELY(field == nullptr || field->GetDeclaringClass()->IsErroneous())) {
+      return nullptr;
+    } else {
+      return field;
+    }
   }
 
   void SetResolvedField(uint32_t field_idx, ArtField* resolved) ALWAYS_INLINE

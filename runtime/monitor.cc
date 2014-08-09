@@ -28,7 +28,6 @@
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
-#include "object_utils.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
 #include "thread_list.h"
@@ -85,7 +84,7 @@ Monitor::Monitor(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_
       num_waiters_(0),
       owner_(owner),
       lock_count_(0),
-      obj_(obj),
+      obj_(GcRoot<mirror::Object>(obj)),
       wait_set_(NULL),
       hash_code_(hash_code),
       locking_method_(NULL),
@@ -108,7 +107,7 @@ Monitor::Monitor(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_
       num_waiters_(0),
       owner_(owner),
       lock_count_(0),
-      obj_(obj),
+      obj_(GcRoot<mirror::Object>(obj)),
       wait_set_(NULL),
       hash_code_(hash_code),
       locking_method_(NULL),
@@ -166,7 +165,9 @@ bool Monitor::Install(Thread* self) {
   bool success = GetObject()->CasLockWordWeakSequentiallyConsistent(lw, fat);
   // Lock profiling.
   if (success && owner_ != nullptr && lock_profiling_threshold_ != 0) {
-    locking_method_ = owner_->GetCurrentMethod(&locking_dex_pc_);
+    // Do not abort on dex pc errors. This can easily happen when we want to dump a stack trace on
+    // abort.
+    locking_method_ = owner_->GetCurrentMethod(&locking_dex_pc_, false);
   }
   return success;
 }
@@ -224,7 +225,7 @@ void Monitor::RemoveFromWaitSet(Thread *thread) {
 }
 
 void Monitor::SetObject(mirror::Object* object) {
-  obj_ = object;
+  obj_ = GcRoot<mirror::Object>(object);
 }
 
 void Monitor::Lock(Thread* self) {
@@ -635,7 +636,7 @@ bool Monitor::Deflate(Thread* self, mirror::Object* obj) {
     }
     // The monitor is deflated, mark the object as nullptr so that we know to delete it during the
     // next GC.
-    monitor->obj_ = nullptr;
+    monitor->obj_ = GcRoot<mirror::Object>(nullptr);
   }
   return true;
 }
@@ -681,6 +682,8 @@ void Monitor::InflateThinLocked(Thread* self, Handle<mirror::Object> obj, LockWo
     Thread* owner;
     {
       ScopedThreadStateChange tsc(self, kBlocked);
+      // Take suspend thread lock to avoid races with threads trying to suspend this one.
+      MutexLock mu(self, *Locks::thread_list_suspend_thread_lock_);
       owner = thread_list->SuspendThreadByThreadId(owner_thread_id, false, &timed_out);
     }
     if (owner != nullptr) {
@@ -746,7 +749,11 @@ mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
           contention_count++;
           Runtime* runtime = Runtime::Current();
           if (contention_count <= runtime->GetMaxSpinsBeforeThinkLockInflation()) {
-            NanoSleep(1000);  // Sleep for 1us and re-attempt.
+            // TODO: Consider switching the thread state to kBlocked when we are yielding.
+            // Use sched_yield instead of NanoSleep since NanoSleep can wait much longer than the
+            // parameter you pass in. This can cause thread suspension to take excessively long
+            // and make long pauses. See b/16307460.
+            sched_yield();
           } else {
             contention_count = 0;
             InflateThinLocked(self, h_obj, lock_word, 0);

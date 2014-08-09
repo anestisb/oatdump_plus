@@ -43,8 +43,7 @@ namespace art {
  *   add   rARM_PC, r_disp   ; This is the branch from which we compute displacement
  *   cbnz  r_idx, lp
  */
-void ArmMir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
-                                 RegLocation rl_src) {
+void ArmMir2Lir::GenLargeSparseSwitch(MIR* mir, uint32_t table_offset, RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   if (cu_->verbose) {
     DumpSparseSwitchTable(table);
@@ -92,8 +91,7 @@ void ArmMir2Lir::GenSparseSwitch(MIR* mir, uint32_t table_offset,
 }
 
 
-void ArmMir2Lir::GenPackedSwitch(MIR* mir, uint32_t table_offset,
-                                 RegLocation rl_src) {
+void ArmMir2Lir::GenLargePackedSwitch(MIR* mir, uint32_t table_offset, RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   if (cu_->verbose) {
     DumpPackedSwitchTable(table);
@@ -218,7 +216,7 @@ void ArmMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
 
     LIR* success_target = NewLIR0(kPseudoTargetLabel);
     lock_success_branch->target = success_target;
-    GenMemBarrier(kLoadLoad);
+    GenMemBarrier(kLoadAny);
   } else {
     // Explicit null-check as slow-path is entered using an IT.
     GenNullCheck(rs_r0, opt_flags);
@@ -240,7 +238,7 @@ void ArmMir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
     LIR* call_inst = OpReg(kOpBlx/*ne*/, rs_rARM_LR);
     OpEndIT(it);
     MarkSafepointPC(call_inst);
-    GenMemBarrier(kLoadLoad);
+    GenMemBarrier(kLoadAny);
   }
 }
 
@@ -269,7 +267,7 @@ void ArmMir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
     MarkPossibleNullPointerException(opt_flags);
     LoadConstantNoClobber(rs_r3, 0);
     LIR* slow_unlock_branch = OpCmpBranch(kCondNe, rs_r1, rs_r2, NULL);
-    GenMemBarrier(kStoreLoad);
+    GenMemBarrier(kAnyStore);
     Store32Disp(rs_r0, mirror::Object::MonitorOffset().Int32Value(), rs_r3);
     LIR* unlock_success_branch = OpUnconditionalBranch(NULL);
 
@@ -298,7 +296,7 @@ void ArmMir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
     OpRegReg(kOpCmp, rs_r1, rs_r2);
 
     LIR* it = OpIT(kCondEq, "EE");
-    if (GenMemBarrier(kStoreLoad)) {
+    if (GenMemBarrier(kAnyStore)) {
       UpdateIT(it, "TEE");
     }
     Store32Disp/*eq*/(rs_r0, mirror::Object::MonitorOffset().Int32Value(), rs_r3);
@@ -358,7 +356,7 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
    */
   bool skip_overflow_check = mir_graph_->MethodIsLeaf() && !IsLargeFrame(frame_size_, kArm);
   NewLIR0(kPseudoMethodEntry);
-  constexpr size_t kStackOverflowReservedUsableBytes = kArmStackOverflowReservedBytes -
+  const size_t kStackOverflowReservedUsableBytes = GetStackOverflowReservedBytes(kArm) -
       Thread::kStackOverflowSignalReservedBytes;
   bool large_frame = (static_cast<size_t>(frame_size_) > kStackOverflowReservedUsableBytes);
   if (!skip_overflow_check) {
@@ -381,7 +379,7 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
       // This is done before the callee save instructions to avoid any possibility
       // of these overflowing.  This uses r12 and that's never saved in a callee
       // save.
-      OpRegRegImm(kOpSub, rs_r12, rs_rARM_SP, kArmStackOverflowReservedBytes);
+      OpRegRegImm(kOpSub, rs_r12, rs_rARM_SP, GetStackOverflowReservedBytes(kArm));
       Load32Disp(rs_r12, 0, rs_r12);
       MarkPossibleStackOverflowException();
     }

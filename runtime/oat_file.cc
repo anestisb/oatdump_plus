@@ -17,6 +17,8 @@
 #include "oat_file.h"
 
 #include <dlfcn.h>
+#include <sstream>
+#include <string.h>
 
 #include "base/bit_vector.h"
 #include "base/stl_util.h"
@@ -28,6 +30,7 @@
 #include "mirror/class.h"
 #include "mirror/object-inl.h"
 #include "os.h"
+#include "runtime.h"
 #include "utils.h"
 #include "vmap_table.h"
 
@@ -55,33 +58,39 @@ OatFile* OatFile::Open(const std::string& filename,
                        std::string* error_msg) {
   CHECK(!filename.empty()) << location;
   CheckLocation(filename);
-  if (kUsePortableCompiler) {
+  std::unique_ptr<OatFile> ret;
+  if (kUsePortableCompiler && executable) {
     // If we are using PORTABLE, use dlopen to deal with relocations.
     //
     // We use our own ELF loader for Quick to deal with legacy apps that
     // open a generated dex file by name, remove the file, then open
     // another generated dex file with the same name. http://b/10614658
-    if (executable) {
-      return OpenDlopen(filename, location, requested_base, error_msg);
+    ret.reset(OpenDlopen(filename, location, requested_base, error_msg));
+  } else {
+    // If we aren't trying to execute, we just use our own ElfFile loader for a couple reasons:
+    //
+    // On target, dlopen may fail when compiling due to selinux restrictions on installd.
+    //
+    // On host, dlopen is expected to fail when cross compiling, so fall back to OpenElfFile.
+    // This won't work for portable runtime execution because it doesn't process relocations.
+    std::unique_ptr<File> file(OS::OpenFileForReading(filename.c_str()));
+    if (file.get() == NULL) {
+      *error_msg = StringPrintf("Failed to open oat filename for reading: %s", strerror(errno));
+      return nullptr;
     }
+    ret.reset(OpenElfFile(file.get(), location, requested_base, false, executable, error_msg));
   }
-  // If we aren't trying to execute, we just use our own ElfFile loader for a couple reasons:
-  //
-  // On target, dlopen may fail when compiling due to selinux restrictions on installd.
-  //
-  // On host, dlopen is expected to fail when cross compiling, so fall back to OpenElfFile.
-  // This won't work for portable runtime execution because it doesn't process relocations.
-  std::unique_ptr<File> file(OS::OpenFileForReading(filename.c_str()));
-  if (file.get() == NULL) {
-    *error_msg = StringPrintf("Failed to open oat filename for reading: %s", strerror(errno));
-    return NULL;
-  }
-  return OpenElfFile(file.get(), location, requested_base, false, executable, error_msg);
+  return ret.release();
 }
 
 OatFile* OatFile::OpenWritable(File* file, const std::string& location, std::string* error_msg) {
   CheckLocation(location);
   return OpenElfFile(file, location, NULL, true, false, error_msg);
+}
+
+OatFile* OatFile::OpenReadable(File* file, const std::string& location, std::string* error_msg) {
+  CheckLocation(location);
+  return OpenElfFile(file, location, NULL, false, false, error_msg);
 }
 
 OatFile* OatFile::OpenDlopen(const std::string& elf_filename,
@@ -112,7 +121,8 @@ OatFile* OatFile::OpenElfFile(File* file,
 }
 
 OatFile::OatFile(const std::string& location)
-    : location_(location), begin_(NULL), end_(NULL), dlopen_handle_(NULL) {
+    : location_(location), begin_(NULL), end_(NULL), dlopen_handle_(NULL),
+      secondary_lookup_lock_("OatFile secondary lookup lock", kOatFileSecondaryLookupLock) {
   CHECK(!location_.empty());
 }
 
@@ -206,11 +216,11 @@ bool OatFile::Setup(std::string* error_msg) {
     return false;
   }
 
-  oat += GetOatHeader().GetImageFileLocationSize();
+  oat += GetOatHeader().GetKeyValueStoreSize();
   if (oat > End()) {
-    *error_msg = StringPrintf("In oat file '%s' found truncated image file location: "
+    *error_msg = StringPrintf("In oat file '%s' found truncated variable-size data: "
                               "%p + %zd + %ud <= %p", GetLocation().c_str(),
-                              Begin(), sizeof(OatHeader), GetOatHeader().GetImageFileLocationSize(),
+                              Begin(), sizeof(OatHeader), GetOatHeader().GetKeyValueStoreSize(),
                               End());
     return false;
   }
@@ -292,12 +302,12 @@ bool OatFile::Setup(std::string* error_msg) {
       return false;
     }
 
+    // Create the OatDexFile and add it to the owning map indexed by the dex file location.
     OatDexFile* oat_dex_file = new OatDexFile(this,
                                               dex_file_location,
                                               dex_file_checksum,
                                               dex_file_pointer,
                                               methods_offsets_pointer);
-    // Use a StringPiece backed by the oat_dex_file's internal std::string as the key.
     StringPiece key(oat_dex_file->GetDexFileLocation());
     oat_dex_files_.Put(key, oat_dex_file);
   }
@@ -321,30 +331,79 @@ const byte* OatFile::End() const {
 const OatFile::OatDexFile* OatFile::GetOatDexFile(const char* dex_location,
                                                   const uint32_t* dex_location_checksum,
                                                   bool warn_if_not_found) const {
-  Table::const_iterator it = oat_dex_files_.find(dex_location);
-  if (it != oat_dex_files_.end()) {
-    const OatFile::OatDexFile* oat_dex_file = it->second;
-    if (dex_location_checksum == NULL ||
-        oat_dex_file->GetDexFileLocationChecksum() == *dex_location_checksum) {
-      return oat_dex_file;
+  // NOTE: We assume here that the canonical location for a given dex_location never
+  // changes. If it does (i.e. some symlink used by the filename changes) we may return
+  // an incorrect OatDexFile. As long as we have a checksum to check, we shall return
+  // an identical file or fail; otherwise we may see some unpredictable failures.
+
+  // TODO: Additional analysis of usage patterns to see if this can be simplified
+  // without any performance loss, for example by not doing the first lock-free lookup.
+
+  const OatFile::OatDexFile* oat_dex_file = nullptr;
+  StringPiece key(dex_location);
+  // Try to find the key cheaply in the oat_dex_files_ map which holds dex locations
+  // directly mentioned in the oat file and doesn't require locking.
+  auto primary_it = oat_dex_files_.find(key);
+  if (primary_it != oat_dex_files_.end()) {
+    oat_dex_file = primary_it->second;
+    DCHECK(oat_dex_file != nullptr);
+  } else {
+    // This dex_location is not one of the dex locations directly mentioned in the
+    // oat file. The correct lookup is via the canonical location but first see in
+    // the secondary_oat_dex_files_ whether we've looked up this location before.
+    MutexLock mu(Thread::Current(), secondary_lookup_lock_);
+    auto secondary_lb = secondary_oat_dex_files_.lower_bound(key);
+    if (secondary_lb != secondary_oat_dex_files_.end() && key == secondary_lb->first) {
+      oat_dex_file = secondary_lb->second;  // May be nullptr.
+    } else {
+      // We haven't seen this dex_location before, we must check the canonical location.
+      if (UNLIKELY(oat_dex_files_by_canonical_location_.empty())) {
+        // Lazily fill in the oat_dex_files_by_canonical_location_.
+        for (const auto& entry : oat_dex_files_) {
+          const std::string& dex_location = entry.second->GetDexFileLocation();
+          string_cache_.emplace_back(DexFile::GetDexCanonicalLocation(dex_location.c_str()));
+          StringPiece canonical_location_key(string_cache_.back());
+          oat_dex_files_by_canonical_location_.Put(canonical_location_key, entry.second);
+        }
+      }
+      std::string dex_canonical_location = DexFile::GetDexCanonicalLocation(dex_location);
+      StringPiece canonical_key(dex_canonical_location);
+      auto canonical_it = oat_dex_files_by_canonical_location_.find(canonical_key);
+      if (canonical_it != oat_dex_files_by_canonical_location_.end()) {
+        oat_dex_file = canonical_it->second;
+      }  // else keep nullptr.
+
+      // Copy the key to the string_cache_ and store the result in secondary map.
+      string_cache_.emplace_back(key.data(), key.length());
+      StringPiece key_copy(string_cache_.back());
+      secondary_oat_dex_files_.PutBefore(secondary_lb, key_copy, oat_dex_file);
     }
+  }
+  if (oat_dex_file != nullptr &&
+      (dex_location_checksum == nullptr ||
+       oat_dex_file->GetDexFileLocationChecksum() == *dex_location_checksum)) {
+    return oat_dex_file;
   }
 
   if (warn_if_not_found) {
+    std::string dex_canonical_location = DexFile::GetDexCanonicalLocation(dex_location);
     std::string checksum("<unspecified>");
     if (dex_location_checksum != NULL) {
       checksum = StringPrintf("0x%08x", *dex_location_checksum);
     }
     LOG(WARNING) << "Failed to find OatDexFile for DexFile " << dex_location
+                 << " ( canonical path " << dex_canonical_location << ")"
                  << " with checksum " << checksum << " in OatFile " << GetLocation();
     if (kIsDebugBuild) {
       for (Table::const_iterator it = oat_dex_files_.begin(); it != oat_dex_files_.end(); ++it) {
         LOG(WARNING) << "OatFile " << GetLocation()
                      << " contains OatDexFile " << it->second->GetDexFileLocation()
+                     << " (canonical path " << it->first << ")"
                      << " with checksum 0x" << std::hex << it->second->GetDexFileLocationChecksum();
       }
     }
   }
+
   return NULL;
 }
 

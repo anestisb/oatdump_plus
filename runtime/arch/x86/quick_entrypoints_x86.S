@@ -1113,7 +1113,8 @@ END_FUNCTION art_quick_imt_conflict_trampoline
 
 DEFINE_FUNCTION art_quick_resolution_trampoline
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    PUSH esp                      // pass SP
+    movl %esp, %edi
+    PUSH EDI                      // pass SP. do not just PUSH ESP; that messes up unwinding
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
     PUSH ecx                      // pass receiver
@@ -1277,14 +1278,12 @@ DEFINE_FUNCTION art_quick_instrumentation_exit
     mov  %esp, %ecx               // Remember SP
     subl LITERAL(8), %esp         // Save float return value.
     CFI_ADJUST_CFA_OFFSET(8)
-    movd %xmm0, (%esp)
+    movq %xmm0, (%esp)
     PUSH edx                      // Save gpr return value.
     PUSH eax
-    subl LITERAL(8), %esp         // Align stack
-    movd %xmm0, (%esp)
-    subl LITERAL(8), %esp         // Pass float return value.
-    CFI_ADJUST_CFA_OFFSET(8)
-    movd %xmm0, (%esp)
+    subl LITERAL(16), %esp        // Align stack
+    CFI_ADJUST_CFA_OFFSET(16)
+    movq %xmm0, (%esp)            // Pass float return value.
     PUSH edx                      // Pass gpr return value.
     PUSH eax
     PUSH ecx                      // Pass SP.
@@ -1299,7 +1298,7 @@ DEFINE_FUNCTION art_quick_instrumentation_exit
                                   // (ebx is pretending to be our LR).
     POP eax                       // Restore gpr return value.
     POP edx
-    movd (%esp), %xmm0            // Restore fpr return value.
+    movq (%esp), %xmm0            // Restore fpr return value.
     addl LITERAL(8), %esp
     CFI_ADJUST_CFA_OFFSET(-8)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME

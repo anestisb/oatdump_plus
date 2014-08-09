@@ -212,6 +212,7 @@ class GlobalValueNumberingTest : public testing::Test {
       if (def->type == kDalvikByteCode || def->type == kEntryBlock || def->type == kExitBlock) {
         bb->data_flow_info = static_cast<BasicBlockDataFlow*>(
             cu_.arena.Alloc(sizeof(BasicBlockDataFlow), kArenaAllocDFInfo));
+        bb->data_flow_info->live_in_v = live_in_v_;
       }
     }
     cu_.mir_graph->num_blocks_ = count;
@@ -273,23 +274,20 @@ class GlobalValueNumberingTest : public testing::Test {
   }
 
   void PerformGVN() {
-    cu_.mir_graph->SSATransformationStart();
-    cu_.mir_graph->ComputeDFSOrders();
-    cu_.mir_graph->ComputeDominators();
-    cu_.mir_graph->ComputeTopologicalSortOrder();
-    cu_.mir_graph->SSATransformationEnd();
-    DoPerformGVN<RepeatingPreOrderDfsIterator>();
+    DoPerformGVN<LoopRepeatingTopologicalSortIterator>();
   }
 
   void PerformPreOrderDfsGVN() {
-    cu_.mir_graph->SSATransformationStart();
-    cu_.mir_graph->ComputeDFSOrders();
-    cu_.mir_graph->SSATransformationEnd();
     DoPerformGVN<RepeatingPreOrderDfsIterator>();
   }
 
   template <typename IteratorType>
   void DoPerformGVN() {
+    cu_.mir_graph->SSATransformationStart();
+    cu_.mir_graph->ComputeDFSOrders();
+    cu_.mir_graph->ComputeDominators();
+    cu_.mir_graph->ComputeTopologicalSortOrder();
+    cu_.mir_graph->SSATransformationEnd();
     ASSERT_TRUE(gvn_ == nullptr);
     gvn_.reset(new (allocator_.get()) GlobalValueNumbering(&cu_, allocator_.get()));
     ASSERT_FALSE(gvn_->CanModify());
@@ -313,7 +311,7 @@ class GlobalValueNumberingTest : public testing::Test {
     ASSERT_TRUE(gvn_->Good());
     ASSERT_FALSE(gvn_->CanModify());
     gvn_->AllowModifications();
-    PreOrderDfsIterator iterator(cu_.mir_graph.get());
+    TopologicalSortIterator iterator(cu_.mir_graph.get());
     for (BasicBlock* bb = iterator.Next(); bb != nullptr; bb = iterator.Next()) {
       LocalValueNumbering* lvn = gvn_->PrepareBasicBlock(bb);
       if (lvn != nullptr) {
@@ -336,12 +334,22 @@ class GlobalValueNumberingTest : public testing::Test {
         ssa_reps_(),
         allocator_(),
         gvn_(),
-        value_names_() {
+        value_names_(),
+        live_in_v_(new (&cu_.arena) ArenaBitVector(&cu_.arena, kMaxSsaRegs, false, kBitMapMisc)) {
     cu_.mir_graph.reset(new MIRGraph(&cu_, &cu_.arena));
     cu_.access_flags = kAccStatic;  // Don't let "this" interfere with this test.
     allocator_.reset(ScopedArenaAllocator::Create(&cu_.arena_stack));
-    // gvn_->AllowModifications();
+    // Bind all possible sregs to live vregs for test purposes.
+    live_in_v_->SetInitialBits(kMaxSsaRegs);
+    cu_.mir_graph->ssa_base_vregs_ = new (&cu_.arena) GrowableArray<int>(&cu_.arena, kMaxSsaRegs);
+    cu_.mir_graph->ssa_subscripts_ = new (&cu_.arena) GrowableArray<int>(&cu_.arena, kMaxSsaRegs);
+    for (unsigned int i = 0; i < kMaxSsaRegs; i++) {
+      cu_.mir_graph->ssa_base_vregs_->Insert(i);
+      cu_.mir_graph->ssa_subscripts_->Insert(0);
+    }
   }
+
+  static constexpr size_t kMaxSsaRegs = 16384u;
 
   ArenaPool pool_;
   CompilationUnit cu_;
@@ -351,6 +359,7 @@ class GlobalValueNumberingTest : public testing::Test {
   std::unique_ptr<ScopedArenaAllocator> allocator_;
   std::unique_ptr<GlobalValueNumbering> gvn_;
   std::vector<uint16_t> value_names_;
+  ArenaBitVector* live_in_v_;
 };
 
 class GlobalValueNumberingTestDiamond : public GlobalValueNumberingTest {
@@ -1917,7 +1926,7 @@ TEST_F(GlobalValueNumberingTest, InfiniteLocationLoop) {
   PerformPreOrderDfsGVN();
 }
 
-TEST_F(GlobalValueNumberingTestTwoConsecutiveLoops, DISABLED_IFieldAndPhi) {
+TEST_F(GlobalValueNumberingTestTwoConsecutiveLoops, IFieldAndPhi) {
   static const IFieldDef ifields[] = {
       { 0u, 1u, 0u, false },  // Int.
   };
@@ -1954,7 +1963,7 @@ TEST_F(GlobalValueNumberingTestTwoConsecutiveLoops, DISABLED_IFieldAndPhi) {
   EXPECT_EQ(value_names_[5], value_names_[12]);
 }
 
-TEST_F(GlobalValueNumberingTestTwoConsecutiveLoops, DISABLED_NullCheck) {
+TEST_F(GlobalValueNumberingTestTwoConsecutiveLoops, NullCheck) {
   static const IFieldDef ifields[] = {
       { 0u, 1u, 0u, false },  // Int.
   };
@@ -2024,14 +2033,10 @@ TEST_F(GlobalValueNumberingTestTwoConsecutiveLoops, DISABLED_NullCheck) {
   EXPECT_NE(value_names_[2], value_names_[6]);
   EXPECT_NE(value_names_[3], value_names_[7]);
   EXPECT_NE(value_names_[4], value_names_[8]);
-  EXPECT_NE(value_names_[0], value_names_[12]);
-  EXPECT_NE(value_names_[1], value_names_[13]);
-  EXPECT_NE(value_names_[2], value_names_[14]);
-  EXPECT_NE(value_names_[3], value_names_[15]);
   EXPECT_EQ(value_names_[4], value_names_[12]);
-  EXPECT_NE(value_names_[5], value_names_[13]);
-  EXPECT_NE(value_names_[6], value_names_[14]);
-  EXPECT_NE(value_names_[7], value_names_[15]);
+  EXPECT_EQ(value_names_[5], value_names_[13]);
+  EXPECT_EQ(value_names_[6], value_names_[14]);
+  EXPECT_EQ(value_names_[7], value_names_[15]);
   EXPECT_EQ(value_names_[12], value_names_[20]);
   EXPECT_EQ(value_names_[13], value_names_[21]);
   EXPECT_EQ(value_names_[14], value_names_[22]);
@@ -2049,7 +2054,7 @@ TEST_F(GlobalValueNumberingTestTwoConsecutiveLoops, DISABLED_NullCheck) {
   }
 }
 
-TEST_F(GlobalValueNumberingTestTwoNestedLoops, DISABLED_IFieldAndPhi) {
+TEST_F(GlobalValueNumberingTestTwoNestedLoops, IFieldAndPhi) {
   static const IFieldDef ifields[] = {
       { 0u, 1u, 0u, false },  // Int.
   };
@@ -2088,6 +2093,39 @@ TEST_F(GlobalValueNumberingTestTwoNestedLoops, DISABLED_IFieldAndPhi) {
   EXPECT_EQ(value_names_[3], value_names_[10]);
   EXPECT_EQ(value_names_[3], value_names_[13]);
   EXPECT_EQ(value_names_[3], value_names_[14]);
+}
+
+TEST_F(GlobalValueNumberingTest, NormalPathToCatchEntry) {
+  // When there's an empty catch block, all the exception paths lead to the next block in
+  // the normal path and we can also have normal "taken" or "fall-through" branches to that
+  // path. Check that LocalValueNumbering::PruneNonAliasingRefsForCatch() can handle it.
+  static const BBDef bbs[] = {
+      DEF_BB(kNullBlock, DEF_SUCC0(), DEF_PRED0()),
+      DEF_BB(kEntryBlock, DEF_SUCC1(3), DEF_PRED0()),
+      DEF_BB(kExitBlock, DEF_SUCC0(), DEF_PRED1(5)),
+      DEF_BB(kDalvikByteCode, DEF_SUCC1(4), DEF_PRED1(1)),
+      DEF_BB(kDalvikByteCode, DEF_SUCC1(5), DEF_PRED1(3)),
+      DEF_BB(kDalvikByteCode, DEF_SUCC1(2), DEF_PRED2(3, 4)),
+  };
+  static const MIRDef mirs[] = {
+      DEF_INVOKE1(4, Instruction::INVOKE_STATIC, 100u),
+  };
+  PrepareBasicBlocks(bbs);
+  BasicBlock* catch_handler = cu_.mir_graph->GetBasicBlock(5u);
+  catch_handler->catch_entry = true;
+  // Add successor block info to the check block.
+  BasicBlock* check_bb = cu_.mir_graph->GetBasicBlock(3u);
+  check_bb->successor_block_list_type = kCatch;
+  check_bb->successor_blocks = new (&cu_.arena) GrowableArray<SuccessorBlockInfo*>(
+      &cu_.arena, 2, kGrowableArraySuccessorBlocks);
+  SuccessorBlockInfo* successor_block_info = reinterpret_cast<SuccessorBlockInfo*>
+      (cu_.arena.Alloc(sizeof(SuccessorBlockInfo), kArenaAllocSuccessor));
+  successor_block_info->block = catch_handler->id;
+  check_bb->successor_blocks->Insert(successor_block_info);
+  BasicBlock* merge_block = cu_.mir_graph->GetBasicBlock(4u);
+  std::swap(merge_block->taken, merge_block->fall_through);
+  PrepareMIRs(mirs);
+  PerformGVN();
 }
 
 }  // namespace art

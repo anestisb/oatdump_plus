@@ -19,15 +19,33 @@
 
 #include "art_method.h"
 
+#include "art_field.h"
+#include "class.h"
+#include "class_linker.h"
+#include "dex_cache.h"
 #include "dex_file.h"
 #include "entrypoints/entrypoint_utils.h"
+#include "method_helper.h"
+#include "object-inl.h"
 #include "object_array.h"
 #include "oat.h"
 #include "quick/quick_method_frame_info.h"
+#include "read_barrier-inl.h"
 #include "runtime-inl.h"
 
 namespace art {
 namespace mirror {
+
+inline uint32_t ArtMethod::ClassSize() {
+  uint32_t vtable_entries = Object::kVTableLength + 8;
+  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0);
+}
+
+template<ReadBarrierOption kReadBarrierOption>
+inline Class* ArtMethod::GetJavaLangReflectArtMethod() {
+  DCHECK(!java_lang_reflect_ArtMethod_.IsNull());
+  return java_lang_reflect_ArtMethod_.Read<kReadBarrierOption>();
+}
 
 inline Class* ArtMethod::GetDeclaringClass() {
   Class* result = GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, declaring_class_));
@@ -71,9 +89,58 @@ inline ObjectArray<ArtMethod>* ArtMethod::GetDexCacheResolvedMethods() {
       OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_methods_));
 }
 
+inline ArtMethod* ArtMethod::GetDexCacheResolvedMethod(uint16_t method_index) {
+  ArtMethod* method = GetDexCacheResolvedMethods()->Get(method_index);
+  if (method != nullptr && !method->GetDeclaringClass()->IsErroneous()) {
+    return method;
+  } else {
+    return nullptr;
+  }
+}
+
+inline void ArtMethod::SetDexCacheResolvedMethod(uint16_t method_idx, ArtMethod* new_method) {
+  GetDexCacheResolvedMethods()->Set<false>(method_idx, new_method);
+}
+
+inline bool ArtMethod::HasDexCacheResolvedMethods() {
+  return GetDexCacheResolvedMethods() != nullptr;
+}
+
+inline bool ArtMethod::HasSameDexCacheResolvedMethods(ObjectArray<ArtMethod>* other_cache) {
+  return GetDexCacheResolvedMethods() == other_cache;
+}
+
+inline bool ArtMethod::HasSameDexCacheResolvedMethods(ArtMethod* other) {
+  return GetDexCacheResolvedMethods() == other->GetDexCacheResolvedMethods();
+}
+
+
 inline ObjectArray<Class>* ArtMethod::GetDexCacheResolvedTypes() {
   return GetFieldObject<ObjectArray<Class>>(
       OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_types_));
+}
+
+template <bool kWithCheck>
+inline Class* ArtMethod::GetDexCacheResolvedType(uint32_t type_index) {
+  Class* klass;
+  if (kWithCheck) {
+    klass = GetDexCacheResolvedTypes()->Get(type_index);
+  } else {
+    klass = GetDexCacheResolvedTypes()->GetWithoutChecks(type_index);
+  }
+  return (klass != nullptr && !klass->IsErroneous()) ? klass : nullptr;
+}
+
+inline bool ArtMethod::HasDexCacheResolvedTypes() {
+  return GetDexCacheResolvedTypes() != nullptr;
+}
+
+inline bool ArtMethod::HasSameDexCacheResolvedTypes(ObjectArray<Class>* other_cache) {
+  return GetDexCacheResolvedTypes() == other_cache;
+}
+
+inline bool ArtMethod::HasSameDexCacheResolvedTypes(ArtMethod* other) {
+  return GetDexCacheResolvedTypes() == other->GetDexCacheResolvedTypes();
 }
 
 inline uint32_t ArtMethod::GetCodeSize() {
@@ -122,8 +189,8 @@ inline void ArtMethod::AssertPcIsWithinQuickCode(uintptr_t pc) {
     return;
   }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  if (code == GetQuickResolutionTrampoline(class_linker) ||
-      code == GetQuickToInterpreterBridgeTrampoline(class_linker)) {
+  if (code == class_linker->GetQuickResolutionTrampoline() ||
+      code == class_linker->GetQuickToInterpreterBridgeTrampoline()) {
     return;
   }
   DCHECK(IsWithinQuickCode(pc))
@@ -162,7 +229,7 @@ inline const void* ArtMethod::GetQuickOatEntryPoint() {
   // On failure, instead of nullptr we get the quick-generic-jni-trampoline for native method
   // indicating the generic JNI, or the quick-to-interpreter-bridge (but not the trampoline)
   // for non-native methods.
-  DCHECK(entry_point != GetQuickToInterpreterBridgeTrampoline(runtime->GetClassLinker()));
+  DCHECK(entry_point != runtime->GetClassLinker()->GetQuickToInterpreterBridgeTrampoline());
   if (UNLIKELY(entry_point == GetQuickToInterpreterBridge()) ||
       UNLIKELY(entry_point == runtime->GetClassLinker()->GetQuickGenericJniTrampoline())) {
     return nullptr;
@@ -289,7 +356,7 @@ inline QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
   // On failure, instead of nullptr we get the quick-generic-jni-trampoline for native method
   // indicating the generic JNI, or the quick-to-interpreter-bridge (but not the trampoline)
   // for non-native methods. And we really shouldn't see a failure for non-native methods here.
-  DCHECK(entry_point != GetQuickToInterpreterBridgeTrampoline(runtime->GetClassLinker()));
+  DCHECK(entry_point != runtime->GetClassLinker()->GetQuickToInterpreterBridgeTrampoline());
   CHECK(entry_point != GetQuickToInterpreterBridge());
 
   if (UNLIKELY(entry_point == runtime->GetClassLinker()->GetQuickGenericJniTrampoline())) {
@@ -380,7 +447,7 @@ inline const DexFile::CodeItem* ArtMethod::GetCodeItem() {
 
 inline bool ArtMethod::IsResolvedTypeIdx(uint16_t type_idx) {
   mirror::ArtMethod* method = GetInterfaceMethodIfProxy();
-  return method->GetDexCacheResolvedTypes()->Get(type_idx) != nullptr;
+  return method->GetDexCacheResolvedType(type_idx) != nullptr;
 }
 
 inline int32_t ArtMethod::GetLineNumFromDexPC(uint32_t dex_pc) {

@@ -16,16 +16,16 @@
 
 #include "entrypoints/entrypoint_utils.h"
 
+#include "base/mutex.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
 #include "gc/accounting/card_table-inl.h"
+#include "method_helper-inl.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
-#include "object_utils.h"
 #include "mirror/object_array-inl.h"
-#include "mirror/proxy.h"
 #include "reflection.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
@@ -41,7 +41,7 @@ static inline mirror::Class* CheckFilledNewArrayAlloc(uint32_t type_idx, mirror:
     ThrowNegativeArraySizeException(component_count);
     return nullptr;  // Failure
   }
-  mirror::Class* klass = referrer->GetDexCacheResolvedTypes()->GetWithoutChecks(type_idx);
+  mirror::Class* klass = referrer->GetDexCacheResolvedType<false>(type_idx);
   if (UNLIKELY(klass == NULL)) {  // Not in dex cache so try to resolve
     klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, referrer);
     if (klass == NULL) {  // Error
@@ -110,8 +110,8 @@ mirror::Array* CheckAndAllocArrayFromCodeInstrumented(uint32_t type_idx, mirror:
 
 void ThrowStackOverflowError(Thread* self) {
   if (self->IsHandlingStackOverflow()) {
-      LOG(ERROR) << "Recursive stack overflow.";
-      // We don't fail here because SetStackEndForStackOverflow will print better diagnostics.
+    LOG(ERROR) << "Recursive stack overflow.";
+    // We don't fail here because SetStackEndForStackOverflow will print better diagnostics.
   }
 
   if (Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled()) {
@@ -123,20 +123,116 @@ void ThrowStackOverflowError(Thread* self) {
   JNIEnvExt* env = self->GetJniEnv();
   std::string msg("stack size ");
   msg += PrettySize(self->GetStackSize());
-  // Use low-level JNI routine and pre-baked error class to avoid class linking operations that
-  // would consume more stack.
-  int rc = ::art::ThrowNewException(env, WellKnownClasses::java_lang_StackOverflowError,
-                                    msg.c_str(), NULL);
-  if (rc != JNI_OK) {
-    // TODO: ThrowNewException failed presumably because of an OOME, we continue to throw the OOME
-    //       or die in the CHECK below. We may want to throw a pre-baked StackOverflowError
-    //       instead.
-    LOG(ERROR) << "Couldn't throw new StackOverflowError because JNI ThrowNew failed.";
+
+  // Avoid running Java code for exception initialization.
+  // TODO: Checks to make this a bit less brittle.
+
+  std::string error_msg;
+
+  // Allocate an uninitialized object.
+  ScopedLocalRef<jobject> exc(env,
+                              env->AllocObject(WellKnownClasses::java_lang_StackOverflowError));
+  if (exc.get() != nullptr) {
+    // "Initialize".
+    // StackOverflowError -> VirtualMachineError -> Error -> Throwable -> Object.
+    // Only Throwable has "custom" fields:
+    //   String detailMessage.
+    //   Throwable cause (= this).
+    //   List<Throwable> suppressedExceptions (= Collections.emptyList()).
+    //   Object stackState;
+    //   StackTraceElement[] stackTrace;
+    // Only Throwable has a non-empty constructor:
+    //   this.stackTrace = EmptyArray.STACK_TRACE_ELEMENT;
+    //   fillInStackTrace();
+
+    // detailMessage.
+    // TODO: Use String::FromModifiedUTF...?
+    ScopedLocalRef<jstring> s(env, env->NewStringUTF(msg.c_str()));
+    if (s.get() != nullptr) {
+      jfieldID detail_message_id = env->GetFieldID(WellKnownClasses::java_lang_Throwable,
+                                                   "detailMessage", "Ljava/lang/String;");
+      env->SetObjectField(exc.get(), detail_message_id, s.get());
+
+      // cause.
+      jfieldID cause_id = env->GetFieldID(WellKnownClasses::java_lang_Throwable,
+                                          "cause", "Ljava/lang/Throwable;");
+      env->SetObjectField(exc.get(), cause_id, exc.get());
+
+      // suppressedExceptions.
+      jfieldID emptylist_id = env->GetStaticFieldID(WellKnownClasses::java_util_Collections,
+                                                    "EMPTY_LIST", "Ljava/util/List;");
+      ScopedLocalRef<jobject> emptylist(env, env->GetStaticObjectField(
+              WellKnownClasses::java_util_Collections, emptylist_id));
+      CHECK(emptylist.get() != nullptr);
+      jfieldID suppressed_id = env->GetFieldID(WellKnownClasses::java_lang_Throwable,
+                                               "suppressedExceptions", "Ljava/util/List;");
+      env->SetObjectField(exc.get(), suppressed_id, emptylist.get());
+
+      // stackState is set as result of fillInStackTrace. fillInStackTrace calls
+      // nativeFillInStackTrace.
+      ScopedLocalRef<jobject> stack_state_val(env, nullptr);
+      {
+        ScopedObjectAccessUnchecked soa(env);
+        stack_state_val.reset(soa.Self()->CreateInternalStackTrace<false>(soa));
+      }
+      if (stack_state_val.get() != nullptr) {
+        jfieldID stackstateID = env->GetFieldID(WellKnownClasses::java_lang_Throwable,
+            "stackState", "Ljava/lang/Object;");
+        env->SetObjectField(exc.get(), stackstateID, stack_state_val.get());
+
+        // stackTrace.
+        jfieldID stack_trace_elem_id = env->GetStaticFieldID(
+            WellKnownClasses::libcore_util_EmptyArray, "STACK_TRACE_ELEMENT",
+            "[Ljava/lang/StackTraceElement;");
+        ScopedLocalRef<jobject> stack_trace_elem(env, env->GetStaticObjectField(
+                WellKnownClasses::libcore_util_EmptyArray, stack_trace_elem_id));
+        jfieldID stacktrace_id = env->GetFieldID(
+            WellKnownClasses::java_lang_Throwable, "stackTrace", "[Ljava/lang/StackTraceElement;");
+        env->SetObjectField(exc.get(), stacktrace_id, stack_trace_elem.get());
+
+        // Throw the exception.
+        ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+        self->SetException(throw_location,
+            reinterpret_cast<mirror::Throwable*>(self->DecodeJObject(exc.get())));
+      } else {
+        error_msg = "Could not create stack trace.";
+      }
+    } else {
+      // Could not allocate a string object.
+      error_msg = "Couldn't throw new StackOverflowError because JNI NewStringUTF failed.";
+    }
+  } else {
+    error_msg = "Could not allocate StackOverflowError object.";
+  }
+
+  if (!error_msg.empty()) {
+    LOG(ERROR) << error_msg;
     CHECK(self->IsExceptionPending());
   }
 
   bool explicit_overflow_check = Runtime::Current()->ExplicitStackOverflowChecks();
   self->ResetDefaultStackEnd(!explicit_overflow_check);  // Return to default stack size.
+}
+
+void CheckReferenceResult(mirror::Object* o, Thread* self) {
+  if (o == NULL) {
+    return;
+  }
+  mirror::ArtMethod* m = self->GetCurrentMethod(NULL);
+  if (o == kInvalidIndirectRefObject) {
+    Runtime::Current()->GetJavaVM()->JniAbortF(NULL, "invalid reference returned from %s",
+                                               PrettyMethod(m).c_str());
+  }
+  // Make sure that the result is an instance of the type this method was expected to return.
+  StackHandleScope<1> hs(self);
+  Handle<mirror::ArtMethod> h_m(hs.NewHandle(m));
+  mirror::Class* return_type = MethodHelper(h_m).GetReturnType();
+
+  if (!o->InstanceOf(return_type)) {
+    Runtime::Current()->GetJavaVM()->JniAbortF(NULL, "attempt to return an instance of %s from %s",
+                                               PrettyTypeOf(o).c_str(),
+                                               PrettyMethod(h_m.Get()).c_str());
+  }
 }
 
 JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, const char* shorty,
@@ -219,8 +315,7 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
     mirror::Throwable* exception = soa.Self()->GetException(NULL);
     if (exception->IsCheckedException()) {
       mirror::Object* rcvr = soa.Decode<mirror::Object*>(rcvr_jobj);
-      mirror::SynthesizedProxyClass* proxy_class =
-          down_cast<mirror::SynthesizedProxyClass*>(rcvr->GetClass());
+      mirror::Class* proxy_class = rcvr->GetClass();
       mirror::ArtMethod* interface_method =
           soa.Decode<mirror::ArtMethod*>(interface_method_jobj);
       mirror::ArtMethod* proxy_method =

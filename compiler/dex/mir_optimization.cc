@@ -37,6 +37,7 @@ void MIRGraph::SetConstant(int32_t ssa_reg, int value) {
 
 void MIRGraph::SetConstantWide(int ssa_reg, int64_t value) {
   is_constant_v_->SetBit(ssa_reg);
+  is_constant_v_->SetBit(ssa_reg + 1);
   constant_values_[ssa_reg] = Low32Bits(value);
   constant_values_[ssa_reg + 1] = High32Bits(value);
 }
@@ -321,14 +322,15 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
     return true;
   }
   // Don't do a separate LVN if we did the GVN.
-  bool use_lvn = bb->use_lvn && (cu_->disable_opt & (1 << kGlobalValueNumbering)) != 0;
+  bool use_lvn = bb->use_lvn && (cu_->disable_opt & (1u << kGlobalValueNumbering)) != 0u;
   std::unique_ptr<ScopedArenaAllocator> allocator;
   std::unique_ptr<GlobalValueNumbering> global_valnum;
   std::unique_ptr<LocalValueNumbering> local_valnum;
   if (use_lvn) {
     allocator.reset(ScopedArenaAllocator::Create(&cu_->arena_stack));
     global_valnum.reset(new (allocator.get()) GlobalValueNumbering(cu_, allocator.get()));
-    local_valnum.reset(new (allocator.get()) LocalValueNumbering(global_valnum.get(), bb->id));
+    local_valnum.reset(new (allocator.get()) LocalValueNumbering(global_valnum.get(), bb->id,
+                                                                 allocator.get()));
   }
   while (bb != NULL) {
     for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
@@ -737,11 +739,9 @@ bool MIRGraph::EliminateNullChecksAndInferTypes(BasicBlock* bb) {
   ArenaBitVector* ssa_regs_to_check = temp_bit_vector_;
   if (do_nce) {
     /*
-     * Set initial state.  Be conservative with catch
-     * blocks and start with no assumptions about null check
-     * status (except for "this").
+     * Set initial state. Catch blocks don't need any special treatment.
      */
-    if ((bb->block_type == kEntryBlock) | bb->catch_entry) {
+    if (bb->block_type == kEntryBlock) {
       ssa_regs_to_check->ClearAllBits();
       // Assume all ins are objects.
       for (uint16_t in_reg = cu_->num_dalvik_registers - cu_->num_ins;
@@ -1047,12 +1047,11 @@ bool MIRGraph::EliminateClassInitChecks(BasicBlock* bb) {
   }
 
   /*
-   * Set initial state.  Be conservative with catch
-   * blocks and start with no assumptions about class init check status.
+   * Set initial state.  Catch blocks don't need any special treatment.
    */
   ArenaBitVector* classes_to_check = temp_bit_vector_;
   DCHECK(classes_to_check != nullptr);
-  if ((bb->block_type == kEntryBlock) | bb->catch_entry) {
+  if (bb->block_type == kEntryBlock) {
     classes_to_check->SetInitialBits(temp_bit_vector_size_);
   } else if (bb->predecessors->Size() == 1) {
     BasicBlock* pred_bb = GetBasicBlock(bb->predecessors->Get(0));
@@ -1142,11 +1141,7 @@ void MIRGraph::EliminateClassInitChecksEnd() {
 }
 
 bool MIRGraph::ApplyGlobalValueNumberingGate() {
-  if ((cu_->disable_opt & (1 << kGlobalValueNumbering)) != 0) {
-    return false;
-  }
-
-  if ((merged_df_flags_ & DF_LVN) == 0) {
+  if ((cu_->disable_opt & (1u << kGlobalValueNumbering)) != 0u) {
     return false;
   }
 
@@ -1176,13 +1171,14 @@ void MIRGraph::ApplyGlobalValueNumberingEnd() {
     temp_gvn_->AllowModifications();
     PreOrderDfsIterator iter(this);
     for (BasicBlock* bb = iter.Next(); bb != nullptr; bb = iter.Next()) {
-      LocalValueNumbering* lvn = temp_gvn_->PrepareBasicBlock(bb);
+      ScopedArenaAllocator allocator(&cu_->arena_stack);  // Reclaim memory after each LVN.
+      LocalValueNumbering* lvn = temp_gvn_->PrepareBasicBlock(bb, &allocator);
       if (lvn != nullptr) {
         for (MIR* mir = bb->first_mir_insn; mir != nullptr; mir = mir->next) {
           lvn->GetValueNumber(mir);
         }
         bool change = temp_gvn_->FinishBasicBlock(bb);
-        DCHECK(!change);
+        DCHECK(!change) << PrettyMethod(cu_->method_idx, *cu_->dex_file);
       }
     }
   } else {

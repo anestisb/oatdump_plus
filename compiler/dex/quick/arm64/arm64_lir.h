@@ -142,6 +142,8 @@ enum A64NativeRegisterPool {
   rwsp = rw31,
 
   // Aliases which are not defined in "ARM Architecture Reference, register names".
+  rxIP0 = rx16,
+  rxIP1 = rx17,
   rxSUSPEND = rx19,
   rxSELF = rx18,
   rxLR = rx30,
@@ -150,6 +152,8 @@ enum A64NativeRegisterPool {
    * the 64-bit view. However, for now we'll define a 32-bit view to keep these from being
    * allocated as 32-bit temp registers.
    */
+  rwIP0 = rw16,
+  rwIP1 = rw17,
   rwSUSPEND = rw19,
   rwSELF = rw18,
   rwLR = rw30,
@@ -165,6 +169,10 @@ A64_REGISTER_CODE_LIST(A64_DEFINE_REGSTORAGES)
 
 constexpr RegStorage rs_xzr(RegStorage::kValid | rxzr);
 constexpr RegStorage rs_wzr(RegStorage::kValid | rwzr);
+constexpr RegStorage rs_xIP0(RegStorage::kValid | rxIP0);
+constexpr RegStorage rs_wIP0(RegStorage::kValid | rwIP0);
+constexpr RegStorage rs_xIP1(RegStorage::kValid | rxIP1);
+constexpr RegStorage rs_wIP1(RegStorage::kValid | rwIP1);
 // Reserved registers.
 constexpr RegStorage rs_xSUSPEND(RegStorage::kValid | rxSUSPEND);
 constexpr RegStorage rs_xSELF(RegStorage::kValid | rxSELF);
@@ -245,6 +253,7 @@ enum ArmOpcode {
   kA64Cmp3RdT,       // cmp [01110001] shift[23-22] imm_12[21-10] rn[9-5] [11111].
   kA64Csel4rrrc,     // csel[s0011010100] rm[20-16] cond[15-12] [00] rn[9-5] rd[4-0].
   kA64Csinc4rrrc,    // csinc [s0011010100] rm[20-16] cond[15-12] [01] rn[9-5] rd[4-0].
+  kA64Csinv4rrrc,    // csinv [s1011010100] rm[20-16] cond[15-12] [00] rn[9-5] rd[4-0].
   kA64Csneg4rrrc,    // csneg [s1011010100] rm[20-16] cond[15-12] [01] rn[9-5] rd[4-0].
   kA64Dmb1B,         // dmb [11010101000000110011] CRm[11-8] [10111111].
   kA64Eor3Rrl,       // eor [s10100100] N[22] imm_r[21-16] imm_s[15-10] rn[9-5] rd[4-0].
@@ -258,6 +267,8 @@ enum ArmOpcode {
   kA64Fcvtzs2xf,     // fcvtzs [100111100s111000000000] rn[9-5] rd[4-0].
   kA64Fcvt2Ss,       // fcvt   [0001111000100010110000] rn[9-5] rd[4-0].
   kA64Fcvt2sS,       // fcvt   [0001111001100010010000] rn[9-5] rd[4-0].
+  kA64Fcvtms2ws,     // fcvtms [0001111000110000000000] rn[9-5] rd[4-0].
+  kA64Fcvtms2xS,     // fcvtms [1001111001110000000000] rn[9-5] rd[4-0].
   kA64Fdiv3fff,      // fdiv[000111100s1] rm[20-16] [000110] rn[9-5] rd[4-0].
   kA64Fmax3fff,      // fmax[000111100s1] rm[20-16] [010010] rn[9-5] rd[4-0].
   kA64Fmin3fff,      // fmin[000111100s1] rm[20-16] [010110] rn[9-5] rd[4-0].
@@ -269,6 +280,9 @@ enum ArmOpcode {
   kA64Fmov2xS,       // fmov[1001111001101111000000] rn[9-5] rd[4-0].
   kA64Fmul3fff,      // fmul[000111100s1] rm[20-16] [000010] rn[9-5] rd[4-0].
   kA64Fneg2ff,       // fneg[000111100s100001010000] rn[9-5] rd[4-0].
+  kA64Frintp2ff,     // frintp [000111100s100100110000] rn[9-5] rd[4-0].
+  kA64Frintm2ff,     // frintm [000111100s100101010000] rn[9-5] rd[4-0].
+  kA64Frintn2ff,     // frintn [000111100s100100010000] rn[9-5] rd[4-0].
   kA64Frintz2ff,     // frintz [000111100s100101110000] rn[9-5] rd[4-0].
   kA64Fsqrt2ff,      // fsqrt[000111100s100001110000] rn[9-5] rd[4-0].
   kA64Fsub3fff,      // fsub[000111100s1] rm[20-16] [001110] rn[9-5] rd[4-0].
@@ -318,9 +332,11 @@ enum ArmOpcode {
   kA64Scvtf2fx,      // scvtf  [100111100s100010000000] rn[9-5] rd[4-0].
   kA64Sdiv3rrr,      // sdiv[s0011010110] rm[20-16] [000011] rn[9-5] rd[4-0].
   kA64Smaddl4xwwx,   // smaddl [10011011001] rm[20-16] [0] ra[14-10] rn[9-5] rd[4-0].
+  kA64Smulh3xxx,     // smulh [10011011010] rm[20-16] [011111] rn[9-5] rd[4-0].
   kA64Stp4ffXD,      // stp [0s10110100] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
   kA64Stp4rrXD,      // stp [s010100100] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
   kA64StpPost4rrXD,  // stp [s010100010] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
+  kA64StpPre4ffXD,   // stp [0s10110110] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
   kA64StpPre4rrXD,   // stp [s010100110] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
   kA64Str3fXD,       // str [1s11110100] imm_12[21-10] rn[9-5] rt[4-0].
   kA64Str4fXxG,      // str [1s111100001] rm[20-16] [011] S[12] [10] rn[9-5] rt[4-0].
@@ -375,6 +391,7 @@ enum ArmOpDmbOptions {
   kST = 0xe,
   kISH = 0xb,
   kISHST = 0xa,
+  kISHLD = 0x9,
   kNSH = 0x7,
   kNSHST = 0x6
 };

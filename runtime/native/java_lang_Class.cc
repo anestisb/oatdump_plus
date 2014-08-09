@@ -21,8 +21,6 @@
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"
-#include "mirror/proxy.h"
-#include "object_utils.h"
 #include "scoped_thread_state_change.h"
 #include "scoped_fast_native_object_access.h"
 #include "ScopedLocalRef.h"
@@ -73,7 +71,10 @@ static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean
     jthrowable cnfe = reinterpret_cast<jthrowable>(env->NewObject(WellKnownClasses::java_lang_ClassNotFoundException,
                                                                   WellKnownClasses::java_lang_ClassNotFoundException_init,
                                                                   javaName, cause.get()));
-    env->Throw(cnfe);
+    if (cnfe != nullptr) {
+      // Make sure allocation didn't fail with an OOME.
+      env->Throw(cnfe);
+    }
     return nullptr;
   }
   if (initialize) {
@@ -91,8 +92,7 @@ static jstring Class_getNameNative(JNIEnv* env, jobject javaThis) {
 
 static jobjectArray Class_getProxyInterfaces(JNIEnv* env, jobject javaThis) {
   ScopedFastNativeObjectAccess soa(env);
-  mirror::SynthesizedProxyClass* c =
-      down_cast<mirror::SynthesizedProxyClass*>(DecodeClass(soa, javaThis));
+  mirror::Class* c = DecodeClass(soa, javaThis);
   return soa.AddLocalReference<jobjectArray>(c->GetInterfaces()->Clone(soa.Self()));
 }
 

@@ -15,15 +15,59 @@
  * limitations under the License.
  */
 
+#include "builder.h"
+
+#include "class_linker.h"
 #include "dex_file.h"
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
 #include "dex_instruction-inl.h"
-#include "builder.h"
+#include "driver/compiler_driver-inl.h"
+#include "mirror/art_field.h"
+#include "mirror/art_field-inl.h"
+#include "mirror/class_loader.h"
+#include "mirror/dex_cache.h"
 #include "nodes.h"
 #include "primitive.h"
+#include "scoped_thread_state_change.h"
+#include "thread.h"
 
 namespace art {
+
+/**
+ * Helper class to add HTemporary instructions. This class is used when
+ * converting a DEX instruction to multiple HInstruction, and where those
+ * instructions do not die at the following instruction, but instead spans
+ * multiple instructions.
+ */
+class Temporaries : public ValueObject {
+ public:
+  Temporaries(HGraph* graph, size_t count) : graph_(graph), count_(count), index_(0) {
+    graph_->UpdateNumberOfTemporaries(count_);
+  }
+
+  void Add(HInstruction* instruction) {
+    // We currently only support vreg size temps.
+    DCHECK(instruction->GetType() != Primitive::kPrimLong
+           && instruction->GetType() != Primitive::kPrimDouble);
+    HInstruction* temp = new (graph_->GetArena()) HTemporary(index_++);
+    instruction->GetBlock()->AddInstruction(temp);
+    DCHECK(temp->GetPrevious() == instruction);
+  }
+
+ private:
+  HGraph* const graph_;
+
+  // The total number of temporaries that will be used.
+  const size_t count_;
+
+  // Current index in the temporary stack, updated by `Add`.
+  size_t index_;
+};
+
+static bool IsTypeSupported(Primitive::Type type) {
+  return type != Primitive::kPrimFloat && type != Primitive::kPrimDouble;
+}
 
 void HGraphBuilder::InitializeLocals(uint16_t count) {
   graph_->SetNumberOfVRegs(count);
@@ -93,7 +137,7 @@ static bool CanHandleCodeItem(const DexFile::CodeItem& code_item) {
 }
 
 template<typename T>
-void HGraphBuilder::If_22t(const Instruction& instruction, int32_t dex_offset) {
+void HGraphBuilder::If_22t(const Instruction& instruction, uint32_t dex_offset) {
   HInstruction* first = LoadLocal(instruction.VRegA(), Primitive::kPrimInt);
   HInstruction* second = LoadLocal(instruction.VRegB(), Primitive::kPrimInt);
   T* comparison = new (arena_) T(first, second);
@@ -110,7 +154,7 @@ void HGraphBuilder::If_22t(const Instruction& instruction, int32_t dex_offset) {
 }
 
 template<typename T>
-void HGraphBuilder::If_21t(const Instruction& instruction, int32_t dex_offset) {
+void HGraphBuilder::If_21t(const Instruction& instruction, uint32_t dex_offset) {
   HInstruction* value = LoadLocal(instruction.VRegA(), Primitive::kPrimInt);
   T* comparison = new (arena_) T(value, GetIntConstant(0));
   current_block_->AddInstruction(comparison);
@@ -295,9 +339,13 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
       arena_, number_of_arguments, return_type, dex_offset, method_idx);
 
   size_t start_index = 0;
+  Temporaries temps(graph_, is_instance_call ? 1 : 0);
   if (is_instance_call) {
     HInstruction* arg = LoadLocal(is_range ? register_index : args[0], Primitive::kPrimNot);
-    invoke->SetArgumentAt(0, arg);
+    HNullCheck* null_check = new (arena_) HNullCheck(arg, dex_offset);
+    current_block_->AddInstruction(null_check);
+    temps.Add(null_check);
+    invoke->SetArgumentAt(0, null_check);
     start_index = 1;
   }
 
@@ -305,34 +353,111 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
   uint32_t argument_index = start_index;
   for (size_t i = start_index; i < number_of_vreg_arguments; i++, argument_index++) {
     Primitive::Type type = Primitive::GetType(descriptor[descriptor_index++]);
-    switch (type) {
-      case Primitive::kPrimFloat:
-      case Primitive::kPrimDouble:
-        return false;
-
-      default: {
-        if (!is_range && type == Primitive::kPrimLong && args[i] + 1 != args[i + 1]) {
-          LOG(WARNING) << "Non sequential register pair in " << dex_compilation_unit_->GetSymbol()
-                       << " at " << dex_offset;
-          // We do not implement non sequential register pair.
-          return false;
-        }
-        HInstruction* arg = LoadLocal(is_range ? register_index + i : args[i], type);
-        invoke->SetArgumentAt(argument_index, arg);
-        if (type == Primitive::kPrimLong) {
-          i++;
-        }
-      }
+    if (!IsTypeSupported(type)) {
+      return false;
+    }
+    if (!is_range && type == Primitive::kPrimLong && args[i] + 1 != args[i + 1]) {
+      LOG(WARNING) << "Non sequential register pair in " << dex_compilation_unit_->GetSymbol()
+                   << " at " << dex_offset;
+      // We do not implement non sequential register pair.
+      return false;
+    }
+    HInstruction* arg = LoadLocal(is_range ? register_index + i : args[i], type);
+    invoke->SetArgumentAt(argument_index, arg);
+    if (type == Primitive::kPrimLong) {
+      i++;
     }
   }
 
-  if (return_type == Primitive::kPrimDouble || return_type == Primitive::kPrimFloat) {
+  if (!IsTypeSupported(return_type)) {
     return false;
   }
 
   DCHECK_EQ(argument_index, number_of_arguments);
   current_block_->AddInstruction(invoke);
   return true;
+}
+
+bool HGraphBuilder::BuildFieldAccess(const Instruction& instruction,
+                                     uint32_t dex_offset,
+                                     bool is_put) {
+  uint32_t source_or_dest_reg = instruction.VRegA_22c();
+  uint32_t obj_reg = instruction.VRegB_22c();
+  uint16_t field_index = instruction.VRegC_22c();
+
+  ScopedObjectAccess soa(Thread::Current());
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::ArtField> resolved_field(hs.NewHandle(
+      compiler_driver_->ComputeInstanceFieldInfo(field_index, dex_compilation_unit_, is_put, soa)));
+
+  if (resolved_field.Get() == nullptr) {
+    return false;
+  }
+  if (resolved_field->IsVolatile()) {
+    return false;
+  }
+
+  Primitive::Type field_type = resolved_field->GetTypeAsPrimitiveType();
+  if (!IsTypeSupported(field_type)) {
+    return false;
+  }
+
+  HInstruction* object = LoadLocal(obj_reg, Primitive::kPrimNot);
+  current_block_->AddInstruction(new (arena_) HNullCheck(object, dex_offset));
+  if (is_put) {
+    Temporaries temps(graph_, 1);
+    HInstruction* null_check = current_block_->GetLastInstruction();
+    // We need one temporary for the null check.
+    temps.Add(null_check);
+    HInstruction* value = LoadLocal(source_or_dest_reg, field_type);
+    current_block_->AddInstruction(new (arena_) HInstanceFieldSet(
+        null_check,
+        value,
+        resolved_field->GetOffset()));
+  } else {
+    current_block_->AddInstruction(new (arena_) HInstanceFieldGet(
+        current_block_->GetLastInstruction(),
+        field_type,
+        resolved_field->GetOffset()));
+
+    UpdateLocal(source_or_dest_reg, current_block_->GetLastInstruction());
+  }
+  return true;
+}
+
+void HGraphBuilder::BuildArrayAccess(const Instruction& instruction,
+                                     uint32_t dex_offset,
+                                     bool is_put,
+                                     Primitive::Type anticipated_type) {
+  uint8_t source_or_dest_reg = instruction.VRegA_23x();
+  uint8_t array_reg = instruction.VRegB_23x();
+  uint8_t index_reg = instruction.VRegC_23x();
+
+  DCHECK(IsTypeSupported(anticipated_type));
+
+  // We need one temporary for the null check, one for the index, and one for the length.
+  Temporaries temps(graph_, 3);
+
+  HInstruction* object = LoadLocal(array_reg, Primitive::kPrimNot);
+  object = new (arena_) HNullCheck(object, dex_offset);
+  current_block_->AddInstruction(object);
+  temps.Add(object);
+
+  HInstruction* length = new (arena_) HArrayLength(object);
+  current_block_->AddInstruction(length);
+  temps.Add(length);
+  HInstruction* index = LoadLocal(index_reg, Primitive::kPrimInt);
+  index = new (arena_) HBoundsCheck(index, length, dex_offset);
+  current_block_->AddInstruction(index);
+  temps.Add(index);
+  if (is_put) {
+    HInstruction* value = LoadLocal(source_or_dest_reg, anticipated_type);
+    // TODO: Insert a type check node if the type is Object.
+    current_block_->AddInstruction(new (arena_) HArraySet(object, index, value, dex_offset));
+  } else {
+    current_block_->AddInstruction(new (arena_) HArrayGet(object, index, anticipated_type));
+    UpdateLocal(source_or_dest_reg, current_block_->GetLastInstruction());
+  }
 }
 
 bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_t dex_offset) {
@@ -580,6 +705,50 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_
 
     case Instruction::NOP:
       break;
+
+    case Instruction::IGET:
+    case Instruction::IGET_WIDE:
+    case Instruction::IGET_OBJECT:
+    case Instruction::IGET_BOOLEAN:
+    case Instruction::IGET_BYTE:
+    case Instruction::IGET_CHAR:
+    case Instruction::IGET_SHORT: {
+      if (!BuildFieldAccess(instruction, dex_offset, false)) {
+        return false;
+      }
+      break;
+    }
+
+    case Instruction::IPUT:
+    case Instruction::IPUT_WIDE:
+    case Instruction::IPUT_OBJECT:
+    case Instruction::IPUT_BOOLEAN:
+    case Instruction::IPUT_BYTE:
+    case Instruction::IPUT_CHAR:
+    case Instruction::IPUT_SHORT: {
+      if (!BuildFieldAccess(instruction, dex_offset, true)) {
+        return false;
+      }
+      break;
+    }
+
+#define ARRAY_XX(kind, anticipated_type)                                          \
+    case Instruction::AGET##kind: {                                               \
+      BuildArrayAccess(instruction, dex_offset, false, anticipated_type);         \
+      break;                                                                      \
+    }                                                                             \
+    case Instruction::APUT##kind: {                                               \
+      BuildArrayAccess(instruction, dex_offset, true, anticipated_type);          \
+      break;                                                                      \
+    }
+
+    ARRAY_XX(, Primitive::kPrimInt);
+    ARRAY_XX(_WIDE, Primitive::kPrimLong);
+    ARRAY_XX(_OBJECT, Primitive::kPrimNot);
+    ARRAY_XX(_BOOLEAN, Primitive::kPrimBoolean);
+    ARRAY_XX(_BYTE, Primitive::kPrimByte);
+    ARRAY_XX(_CHAR, Primitive::kPrimChar);
+    ARRAY_XX(_SHORT, Primitive::kPrimShort);
 
     default:
       return false;

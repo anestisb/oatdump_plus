@@ -31,7 +31,6 @@
 #include "entrypoints/jni/jni_entrypoints.h"
 #include "entrypoints/portable/portable_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints.h"
-#include "gc/allocator/rosalloc.h"
 #include "globals.h"
 #include "handle_scope.h"
 #include "instruction_set.h"
@@ -47,7 +46,7 @@ namespace art {
 
 namespace gc {
 namespace collector {
-class SemiSpace;
+  class SemiSpace;
 }  // namespace collector
 }  // namespace gc
 
@@ -61,7 +60,6 @@ namespace mirror {
   template<class T> class PrimitiveArray;
   typedef PrimitiveArray<int32_t> IntArray;
   class StackTraceElement;
-  class StaticStorageBase;
   class Throwable;
 }  // namespace mirror
 class BaseMutex;
@@ -94,6 +92,8 @@ enum ThreadFlag {
   kCheckpointRequest = 2  // Request that the thread do some checkpoint work and then continue.
 };
 
+static constexpr size_t kNumRosAllocThreadLocalSizeBrackets = 34;
+
 class Thread {
  public:
   // How much of the reserved bytes is reserved for incoming signals.
@@ -104,8 +104,7 @@ class Thread {
   // is protected against reads and the lower is available for use while
   // throwing the StackOverflow exception.
   static constexpr size_t kStackOverflowProtectedSize = 16 * KB;
-  static constexpr size_t kStackOverflowImplicitCheckSize = kStackOverflowProtectedSize +
-      kRuntimeStackOverflowReservedBytes;
+  static const size_t kStackOverflowImplicitCheckSize;
 
   // Creates a new native thread corresponding to the given managed peer.
   // Used to implement Thread.start.
@@ -323,7 +322,9 @@ class Thread {
     tlsPtr_.long_jump_context = context;
   }
 
-  mirror::ArtMethod* GetCurrentMethod(uint32_t* dex_pc) const
+  // Get the current method and dex pc. If there are errors in retrieving the dex pc, this will
+  // abort the runtime iff abort_on_error is true.
+  mirror::ArtMethod* GetCurrentMethod(uint32_t* dex_pc, bool abort_on_error = true) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ThrowLocation GetCurrentLocationForThrow() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -430,12 +431,11 @@ class Thread {
     tlsPtr_.wait_next = next;
   }
 
-  mirror::ClassLoader* GetClassLoaderOverride() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  jobject GetClassLoaderOverride() {
     return tlsPtr_.class_loader_override;
   }
 
-  void SetClassLoaderOverride(mirror::ClassLoader* class_loader_override)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetClassLoaderOverride(jobject class_loader_override);
 
   // Create the internal representation of a stack trace, that is more time
   // and space efficient to compute than the StackTraceElement[].
@@ -551,6 +551,16 @@ class Thread {
     return tlsPtr_.stack_size - (tlsPtr_.stack_end - tlsPtr_.stack_begin);
   }
 
+  byte* GetStackEndForInterpreter(bool implicit_overflow_check) const {
+    if (implicit_overflow_check) {
+      // The interpreter needs the extra overflow bytes that stack_end does
+      // not include.
+      return tlsPtr_.stack_end + GetStackOverflowReservedBytes(kRuntimeISA);
+    } else {
+      return tlsPtr_.stack_end;
+    }
+  }
+
   byte* GetStackEnd() const {
     return tlsPtr_.stack_end;
   }
@@ -567,7 +577,7 @@ class Thread {
       // overflow region.
       tlsPtr_.stack_end = tlsPtr_.stack_begin + kStackOverflowImplicitCheckSize;
     } else {
-      tlsPtr_.stack_end = tlsPtr_.stack_begin + kRuntimeStackOverflowReservedBytes;
+      tlsPtr_.stack_end = tlsPtr_.stack_begin + GetStackOverflowReservedBytes(kRuntimeISA);
     }
   }
 
@@ -781,7 +791,7 @@ class Thread {
   void RevokeThreadLocalAllocationStack();
 
   size_t GetThreadLocalBytesAllocated() const {
-    return tlsPtr_.thread_local_pos - tlsPtr_.thread_local_start;
+    return tlsPtr_.thread_local_end - tlsPtr_.thread_local_start;
   }
 
   size_t GetThreadLocalObjectsAllocated() const {
@@ -900,7 +910,7 @@ class Thread {
   // first if possible.
   /***********************************************************************************************/
 
-  struct PACKED(4)  tls_32bit_sized_values {
+  struct PACKED(4) tls_32bit_sized_values {
     // We have no control over the size of 'bool', but want our boolean fields
     // to be 4-byte quantities.
     typedef uint32_t bool32_t;
@@ -1029,7 +1039,7 @@ class Thread {
 
     // Needed to get the right ClassLoader in JNI_OnLoad, but also
     // useful for testing.
-    mirror::ClassLoader* class_loader_override;
+    jobject class_loader_override;
 
     // Thread local, lazily allocated, long jump context. Used to deliver exceptions.
     Context* long_jump_context;
@@ -1077,7 +1087,7 @@ class Thread {
     size_t thread_local_objects;
 
     // There are RosAlloc::kNumThreadLocalSizeBrackets thread-local size brackets per thread.
-    void* rosalloc_runs[gc::allocator::RosAlloc::kNumThreadLocalSizeBrackets];
+    void* rosalloc_runs[kNumRosAllocThreadLocalSizeBrackets];
 
     // Thread-local allocation stack data/routines.
     mirror::Object** thread_local_alloc_stack_top;

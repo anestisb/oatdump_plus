@@ -155,13 +155,9 @@ TEST_F(JniCompilerTest, CompileAndRunIntMethodThroughStub) {
   SetUpForTest(false, "bar", "(I)I", nullptr);
   // calling through stub will link with &Java_MyClassNatives_bar
 
-  ScopedObjectAccess soa(Thread::Current());
   std::string reason;
-  StackHandleScope<1> hs(soa.Self());
-  Handle<mirror::ClassLoader> class_loader(
-      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(class_loader_)));
-  ASSERT_TRUE(
-      Runtime::Current()->GetJavaVM()->LoadNativeLibrary("", class_loader, &reason)) << reason;
+  ASSERT_TRUE(Runtime::Current()->GetJavaVM()->LoadNativeLibrary(env_, "", class_loader_, &reason))
+      << reason;
 
   jint result = env_->CallNonvirtualIntMethod(jobj_, jklass_, jmethod_, 24);
   EXPECT_EQ(25, result);
@@ -172,13 +168,9 @@ TEST_F(JniCompilerTest, CompileAndRunStaticIntMethodThroughStub) {
   SetUpForTest(true, "sbar", "(I)I", nullptr);
   // calling through stub will link with &Java_MyClassNatives_sbar
 
-  ScopedObjectAccess soa(Thread::Current());
   std::string reason;
-  StackHandleScope<1> hs(soa.Self());
-  Handle<mirror::ClassLoader> class_loader(
-      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(class_loader_)));
-  ASSERT_TRUE(
-      Runtime::Current()->GetJavaVM()->LoadNativeLibrary("", class_loader, &reason)) << reason;
+  ASSERT_TRUE(Runtime::Current()->GetJavaVM()->LoadNativeLibrary(env_, "", class_loader_, &reason))
+      << reason;
 
   jint result = env_->CallStaticIntMethod(jklass_, jmethod_, 42);
   EXPECT_EQ(43, result);
@@ -720,10 +712,33 @@ TEST_F(JniCompilerTest, GetText) {
   EXPECT_EQ(result, 42);
 }
 
+int gJava_MyClassNatives_GetSinkProperties_calls = 0;
+jarray Java_MyClassNatives_GetSinkProperties(JNIEnv* env, jobject thisObj, jstring s) {
+  // 1 = thisObj
+  Thread* self = Thread::Current();
+  EXPECT_EQ(kNative, self->GetState());
+  Locks::mutator_lock_->AssertNotHeld(self);
+  EXPECT_EQ(self->GetJniEnv(), env);
+  EXPECT_TRUE(thisObj != nullptr);
+  EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
+  EXPECT_EQ(s, nullptr);
+  gJava_MyClassNatives_GetSinkProperties_calls++;
+  ScopedObjectAccess soa(self);
+  EXPECT_EQ(2U, self->NumStackReferences());
+  EXPECT_TRUE(self->HoldsLock(soa.Decode<mirror::Object*>(thisObj)));
+  return nullptr;
+}
+
 TEST_F(JniCompilerTest, GetSinkPropertiesNative) {
   TEST_DISABLED_FOR_PORTABLE();
-  SetUpForTest(false, "getSinkPropertiesNative", "(Ljava/lang/String;)[Ljava/lang/Object;", nullptr);
-  // This space intentionally left blank. Just testing compilation succeeds.
+  SetUpForTest(false, "getSinkPropertiesNative", "(Ljava/lang/String;)[Ljava/lang/Object;",
+               reinterpret_cast<void*>(&Java_MyClassNatives_GetSinkProperties));
+
+  EXPECT_EQ(0, gJava_MyClassNatives_GetSinkProperties_calls);
+  jarray result = down_cast<jarray>(
+      env_->CallNonvirtualObjectMethod(jobj_, jklass_, jmethod_, nullptr));
+  EXPECT_EQ(nullptr, result);
+  EXPECT_EQ(1, gJava_MyClassNatives_GetSinkProperties_calls);
 }
 
 // This should return jclass, but we're imitating a bug pattern.
@@ -748,10 +763,10 @@ TEST_F(JniCompilerTest, UpcallReturnTypeChecking_Instance) {
   check_jni_abort_catcher.Check("attempt to return an instance of java.lang.String from java.lang.Class MyClassNatives.instanceMethodThatShouldReturnClass()");
 
   // Here, we just call the method incorrectly; we should catch that too.
-  env_->CallVoidMethod(jobj_, jmethod_);
+  env_->CallObjectMethod(jobj_, jmethod_);
   check_jni_abort_catcher.Check("attempt to return an instance of java.lang.String from java.lang.Class MyClassNatives.instanceMethodThatShouldReturnClass()");
-  env_->CallStaticVoidMethod(jklass_, jmethod_);
-  check_jni_abort_catcher.Check("calling non-static method java.lang.Class MyClassNatives.instanceMethodThatShouldReturnClass() with CallStaticVoidMethodV");
+  env_->CallStaticObjectMethod(jklass_, jmethod_);
+  check_jni_abort_catcher.Check("calling non-static method java.lang.Class MyClassNatives.instanceMethodThatShouldReturnClass() with CallStaticObjectMethodV");
 }
 
 TEST_F(JniCompilerTest, UpcallReturnTypeChecking_Static) {
@@ -766,10 +781,10 @@ TEST_F(JniCompilerTest, UpcallReturnTypeChecking_Static) {
   check_jni_abort_catcher.Check("attempt to return an instance of java.lang.String from java.lang.Class MyClassNatives.staticMethodThatShouldReturnClass()");
 
   // Here, we just call the method incorrectly; we should catch that too.
-  env_->CallStaticVoidMethod(jklass_, jmethod_);
+  env_->CallStaticObjectMethod(jklass_, jmethod_);
   check_jni_abort_catcher.Check("attempt to return an instance of java.lang.String from java.lang.Class MyClassNatives.staticMethodThatShouldReturnClass()");
-  env_->CallVoidMethod(jobj_, jmethod_);
-  check_jni_abort_catcher.Check("calling static method java.lang.Class MyClassNatives.staticMethodThatShouldReturnClass() with CallVoidMethodV");
+  env_->CallObjectMethod(jobj_, jmethod_);
+  check_jni_abort_catcher.Check("calling static method java.lang.Class MyClassNatives.staticMethodThatShouldReturnClass() with CallObjectMethodV");
 }
 
 // This should take jclass, but we're imitating a bug pattern.

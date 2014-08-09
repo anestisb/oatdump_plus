@@ -18,6 +18,8 @@
 #define ART_COMPILER_OPTIMIZING_NODES_H_
 
 #include "locations.h"
+#include "offsets.h"
+#include "primitive.h"
 #include "utils/allocation.h"
 #include "utils/arena_bit_vector.h"
 #include "utils/growable_array.h"
@@ -75,6 +77,7 @@ class HGraph : public ArenaObject {
         maximum_number_of_out_vregs_(0),
         number_of_vregs_(0),
         number_of_in_vregs_(0),
+        number_of_temporaries_(0),
         current_instruction_id_(0) {}
 
   ArenaAllocator* GetArena() const { return arena_; }
@@ -112,6 +115,14 @@ class HGraph : public ArenaObject {
     maximum_number_of_out_vregs_ = std::max(new_value, maximum_number_of_out_vregs_);
   }
 
+  void UpdateNumberOfTemporaries(size_t count) {
+    number_of_temporaries_ = std::max(count, number_of_temporaries_);
+  }
+
+  size_t GetNumberOfTemporaries() const {
+    return number_of_temporaries_;
+  }
+
   void SetNumberOfVRegs(uint16_t number_of_vregs) {
     number_of_vregs_ = number_of_vregs;
   }
@@ -126,6 +137,10 @@ class HGraph : public ArenaObject {
 
   uint16_t GetNumberOfInVRegs() const {
     return number_of_in_vregs_;
+  }
+
+  uint16_t GetNumberOfLocalVRegs() const {
+    return number_of_vregs_ - number_of_in_vregs_;
   }
 
   const GrowableArray<HBasicBlock*>& GetReversePostOrder() const {
@@ -162,6 +177,9 @@ class HGraph : public ArenaObject {
 
   // The number of virtual registers used by parameters of this method.
   uint16_t number_of_in_vregs_;
+
+  // The number of temporaries that will be needed for the baseline compiler.
+  size_t number_of_temporaries_;
 
   // The current id to assign to a newly added instruction. See HInstruction.id_.
   int current_instruction_id_;
@@ -364,6 +382,8 @@ class HBasicBlock : public ArenaObject {
     }
   }
 
+  bool IsInLoop() const { return loop_information_ != nullptr; }
+
   // Returns wheter this block dominates the blocked passed as parameter.
   bool Dominates(HBasicBlock* block) const;
 
@@ -388,7 +408,7 @@ class HBasicBlock : public ArenaObject {
   DISALLOW_COPY_AND_ASSIGN(HBasicBlock);
 };
 
-#define FOR_EACH_INSTRUCTION(M)                            \
+#define FOR_EACH_CONCRETE_INSTRUCTION(M)                   \
   M(Add)                                                   \
   M(Condition)                                             \
   M(Equal)                                                 \
@@ -415,7 +435,18 @@ class HBasicBlock : public ArenaObject {
   M(StoreLocal)                                            \
   M(Sub)                                                   \
   M(Compare)                                               \
+  M(InstanceFieldGet)                                      \
+  M(InstanceFieldSet)                                      \
+  M(ArrayGet)                                              \
+  M(ArraySet)                                              \
+  M(ArrayLength)                                           \
+  M(BoundsCheck)                                           \
+  M(NullCheck)                                             \
+  M(Temporary)                                             \
 
+#define FOR_EACH_INSTRUCTION(M)                            \
+  FOR_EACH_CONCRETE_INSTRUCTION(M)                         \
+  M(Constant)
 
 #define FORWARD_DECLARATION(type) class H##type;
 FOR_EACH_INSTRUCTION(FORWARD_DECLARATION)
@@ -468,6 +499,9 @@ class HInstruction : public ArenaObject {
 
   HBasicBlock* GetBlock() const { return block_; }
   void SetBlock(HBasicBlock* block) { block_ = block; }
+  bool IsInBlock() const { return block_ != nullptr; }
+  bool IsInLoop() const { return block_->IsInLoop(); }
+  bool IsLoopHeaderPhi() { return IsPhi() && block_->IsLoopHeader(); }
 
   virtual size_t InputCount() const  = 0;
   virtual HInstruction* InputAt(size_t i) const = 0;
@@ -496,6 +530,7 @@ class HInstruction : public ArenaObject {
   HUseListNode<HEnvironment>* GetEnvUses() const { return env_uses_; }
 
   bool HasUses() const { return uses_ != nullptr || env_uses_ != nullptr; }
+  bool HasEnvironmentUses() const { return env_uses_ != nullptr; }
 
   size_t NumberOfUses() const {
     // TODO: Optimize this method if it is used outside of the HGraphVisualizer.
@@ -1051,11 +1086,21 @@ class HStoreLocal : public HTemplateInstruction<2> {
   DISALLOW_COPY_AND_ASSIGN(HStoreLocal);
 };
 
+class HConstant : public HExpression<0> {
+ public:
+  explicit HConstant(Primitive::Type type) : HExpression(type) {}
+
+  DECLARE_INSTRUCTION(Constant);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HConstant);
+};
+
 // Constants of the type int. Those can be from Dex instructions, or
 // synthesized (for example with the if-eqz instruction).
-class HIntConstant : public HExpression<0> {
+class HIntConstant : public HConstant {
  public:
-  explicit HIntConstant(int32_t value) : HExpression(Primitive::kPrimInt), value_(value) {}
+  explicit HIntConstant(int32_t value) : HConstant(Primitive::kPrimInt), value_(value) {}
 
   int32_t GetValue() const { return value_; }
 
@@ -1067,13 +1112,11 @@ class HIntConstant : public HExpression<0> {
   DISALLOW_COPY_AND_ASSIGN(HIntConstant);
 };
 
-class HLongConstant : public HExpression<0> {
+class HLongConstant : public HConstant {
  public:
-  explicit HLongConstant(int64_t value) : HExpression(Primitive::kPrimLong), value_(value) {}
+  explicit HLongConstant(int64_t value) : HConstant(Primitive::kPrimLong), value_(value) {}
 
   int64_t GetValue() const { return value_; }
-
-  virtual Primitive::Type GetType() const { return Primitive::kPrimLong; }
 
   DECLARE_INSTRUCTION(LongConstant);
 
@@ -1225,7 +1268,8 @@ class HPhi : public HInstruction {
   HPhi(ArenaAllocator* arena, uint32_t reg_number, size_t number_of_inputs, Primitive::Type type)
       : inputs_(arena, number_of_inputs),
         reg_number_(reg_number),
-        type_(type) {
+        type_(type),
+        is_live_(false) {
     inputs_.SetSize(number_of_inputs);
   }
 
@@ -1243,15 +1287,184 @@ class HPhi : public HInstruction {
 
   uint32_t GetRegNumber() const { return reg_number_; }
 
+  void SetDead() { is_live_ = false; }
+  void SetLive() { is_live_ = true; }
+  bool IsDead() const { return !is_live_; }
+  bool IsLive() const { return is_live_; }
+
   DECLARE_INSTRUCTION(Phi);
 
- protected:
+ private:
   GrowableArray<HInstruction*> inputs_;
   const uint32_t reg_number_;
   Primitive::Type type_;
+  bool is_live_;
+
+  DISALLOW_COPY_AND_ASSIGN(HPhi);
+};
+
+class HNullCheck : public HExpression<1> {
+ public:
+  HNullCheck(HInstruction* value, uint32_t dex_pc)
+      : HExpression(value->GetType()), dex_pc_(dex_pc) {
+    SetRawInputAt(0, value);
+  }
+
+  virtual bool NeedsEnvironment() const { return true; }
+
+  uint32_t GetDexPc() const { return dex_pc_; }
+
+  DECLARE_INSTRUCTION(NullCheck);
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(HPhi);
+  const uint32_t dex_pc_;
+
+  DISALLOW_COPY_AND_ASSIGN(HNullCheck);
+};
+
+class FieldInfo : public ValueObject {
+ public:
+  explicit FieldInfo(MemberOffset field_offset)
+      : field_offset_(field_offset) {}
+
+  MemberOffset GetFieldOffset() const { return field_offset_; }
+
+ private:
+  const MemberOffset field_offset_;
+};
+
+class HInstanceFieldGet : public HExpression<1> {
+ public:
+  HInstanceFieldGet(HInstruction* value,
+                    Primitive::Type field_type,
+                    MemberOffset field_offset)
+      : HExpression(field_type), field_info_(field_offset) {
+    SetRawInputAt(0, value);
+  }
+
+  MemberOffset GetFieldOffset() const { return field_info_.GetFieldOffset(); }
+
+  DECLARE_INSTRUCTION(InstanceFieldGet);
+
+ private:
+  const FieldInfo field_info_;
+
+  DISALLOW_COPY_AND_ASSIGN(HInstanceFieldGet);
+};
+
+class HInstanceFieldSet : public HTemplateInstruction<2> {
+ public:
+  HInstanceFieldSet(HInstruction* object,
+                    HInstruction* value,
+                    MemberOffset field_offset)
+      : field_info_(field_offset) {
+    SetRawInputAt(0, object);
+    SetRawInputAt(1, value);
+  }
+
+  MemberOffset GetFieldOffset() const { return field_info_.GetFieldOffset(); }
+
+  DECLARE_INSTRUCTION(InstanceFieldSet);
+
+ private:
+  const FieldInfo field_info_;
+
+  DISALLOW_COPY_AND_ASSIGN(HInstanceFieldSet);
+};
+
+class HArrayGet : public HExpression<2> {
+ public:
+  HArrayGet(HInstruction* array, HInstruction* index, Primitive::Type type)
+      : HExpression(type) {
+    SetRawInputAt(0, array);
+    SetRawInputAt(1, index);
+  }
+
+  DECLARE_INSTRUCTION(ArrayGet);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HArrayGet);
+};
+
+class HArraySet : public HTemplateInstruction<3> {
+ public:
+  HArraySet(HInstruction* array,
+            HInstruction* index,
+            HInstruction* value,
+            uint32_t dex_pc) : dex_pc_(dex_pc) {
+    SetRawInputAt(0, array);
+    SetRawInputAt(1, index);
+    SetRawInputAt(2, value);
+  }
+
+  virtual bool NeedsEnvironment() const {
+    // We currently always call a runtime method to catch array store
+    // exceptions.
+    return InputAt(2)->GetType() == Primitive::kPrimNot;
+  }
+
+  uint32_t GetDexPc() const { return dex_pc_; }
+
+  DECLARE_INSTRUCTION(ArraySet);
+
+ private:
+  const uint32_t dex_pc_;
+
+  DISALLOW_COPY_AND_ASSIGN(HArraySet);
+};
+
+class HArrayLength : public HExpression<1> {
+ public:
+  explicit HArrayLength(HInstruction* array) : HExpression(Primitive::kPrimInt) {
+    SetRawInputAt(0, array);
+  }
+
+  DECLARE_INSTRUCTION(ArrayLength);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HArrayLength);
+};
+
+class HBoundsCheck : public HExpression<2> {
+ public:
+  HBoundsCheck(HInstruction* index, HInstruction* length, uint32_t dex_pc)
+      : HExpression(index->GetType()), dex_pc_(dex_pc) {
+    DCHECK(index->GetType() == Primitive::kPrimInt);
+    SetRawInputAt(0, index);
+    SetRawInputAt(1, length);
+  }
+
+  virtual bool NeedsEnvironment() const { return true; }
+
+  uint32_t GetDexPc() const { return dex_pc_; }
+
+  DECLARE_INSTRUCTION(BoundsCheck);
+
+ private:
+  const uint32_t dex_pc_;
+
+  DISALLOW_COPY_AND_ASSIGN(HBoundsCheck);
+};
+
+/**
+ * Some DEX instructions are folded into multiple HInstructions that need
+ * to stay live until the last HInstruction. This class
+ * is used as a marker for the baseline compiler to ensure its preceding
+ * HInstruction stays live. `index` is the temporary number that is used
+ * for knowing the stack offset where to store the instruction.
+ */
+class HTemporary : public HTemplateInstruction<0> {
+ public:
+  explicit HTemporary(size_t index) : index_(index) {}
+
+  size_t GetIndex() const { return index_; }
+
+  DECLARE_INSTRUCTION(Temporary);
+
+ private:
+  const size_t index_;
+
+  DISALLOW_COPY_AND_ASSIGN(HTemporary);
 };
 
 class MoveOperands : public ArenaObject {

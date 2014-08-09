@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_DEX_FILE_VERIFIER_H_
 #define ART_RUNTIME_DEX_FILE_VERIFIER_H_
 
+#include <unordered_set>
+
 #include "dex_file.h"
 #include "safe_map.h"
 
@@ -40,8 +42,7 @@ class DexFileVerifier {
   bool Verify();
 
   bool CheckShortyDescriptorMatch(char shorty_char, const char* descriptor, bool is_return_type);
-  bool CheckPointerRange(const void* start, const void* end, const char* label);
-  bool CheckListSize(const void* start, uint32_t count, uint32_t element_size, const char* label);
+  bool CheckListSize(const void* start, size_t count, size_t element_size, const char* label);
   bool CheckIndex(uint32_t field, uint32_t limit, const char* label);
 
   bool CheckHeader();
@@ -115,6 +116,9 @@ class DexFileVerifier {
   const void* previous_item_;
 
   std::string failure_reason_;
+
+  // Set of type ids for which there are ClassDef elements in the dex file.
+  std::unordered_set<decltype(DexFile::ClassDef::class_idx_)> defined_classes_;
 };
 
 }  // namespace art

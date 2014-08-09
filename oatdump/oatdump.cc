@@ -30,6 +30,7 @@
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
 #include "disassembler.h"
+#include "field_helper.h"
 #include "gc_map.h"
 #include "gc/space/image_space.h"
 #include "gc/space/large_object_space.h"
@@ -46,7 +47,6 @@
 #include "noop_compiler_callbacks.h"
 #include "oat.h"
 #include "oat_file-inl.h"
-#include "object_utils.h"
 #include "os.h"
 #include "runtime.h"
 #include "safe_map.h"
@@ -202,16 +202,26 @@ class OatDumper {
                              GetQuickToInterpreterBridgeOffset);
 #undef DUMP_OAT_HEADER_OFFSET
 
+      os << "IMAGE PATCH DELTA:\n" << oat_header.GetImagePatchDelta();
+
       os << "IMAGE FILE LOCATION OAT CHECKSUM:\n";
       os << StringPrintf("0x%08x\n\n", oat_header.GetImageFileLocationOatChecksum());
 
       os << "IMAGE FILE LOCATION OAT BEGIN:\n";
       os << StringPrintf("0x%08x\n\n", oat_header.GetImageFileLocationOatDataBegin());
 
-      os << "IMAGE FILE LOCATION:\n";
-      const std::string image_file_location(oat_header.GetImageFileLocation());
-      os << image_file_location;
-      os << "\n\n";
+      // Print the key-value store.
+      {
+        os << "KEY VALUE STORE:\n";
+        size_t index = 0;
+        const char* key;
+        const char* value;
+        while (oat_header.GetStoreKeyValuePairByIndex(index, &key, &value)) {
+          os << key << " = " << value << "\n";
+          index++;
+        }
+        os << "\n";
+      }
 
       os << "BEGIN:\n";
       os << reinterpret_cast<const void*>(oat_file_.Begin()) << "\n\n";
@@ -1031,6 +1041,8 @@ class ImageDumper {
 
     os << "OAT FILE END:" << reinterpret_cast<void*>(image_header_.GetOatFileEnd()) << "\n\n";
 
+    os << "PATCH DELTA:" << image_header_.GetPatchDelta() << "\n\n";
+
     {
       os << "ROOTS: " << reinterpret_cast<void*>(image_header_.GetImageRoots()) << "\n";
       Indenter indent1_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
@@ -1079,10 +1091,13 @@ class ImageDumper {
     os << "OAT LOCATION: " << oat_location;
     os << "\n";
     std::string error_msg;
-    const OatFile* oat_file = class_linker->FindOatFileFromOatLocation(oat_location, &error_msg);
-    if (oat_file == NULL) {
-      os << "NOT FOUND: " << error_msg << "\n";
-      return;
+    const OatFile* oat_file = class_linker->FindOpenedOatFileFromOatLocation(oat_location);
+    if (oat_file == nullptr) {
+      oat_file = OatFile::Open(oat_location, oat_location, NULL, false, &error_msg);
+      if (oat_file == nullptr) {
+        os << "NOT FOUND: " << error_msg << "\n";
+        return;
+      }
     }
     os << "\n";
 
@@ -1244,7 +1259,7 @@ class ImageDumper {
   const void* GetQuickOatCodeBegin(mirror::ArtMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const void* quick_code = m->GetEntryPointFromQuickCompiledCode();
-    if (quick_code == GetQuickResolutionTrampoline(Runtime::Current()->GetClassLinker())) {
+    if (quick_code == Runtime::Current()->GetClassLinker()->GetQuickResolutionTrampoline()) {
       quick_code = oat_dumper_->GetQuickOatCode(m);
     }
     if (oat_dumper_->GetInstructionSet() == kThumb2) {
@@ -1840,7 +1855,7 @@ static int oatdump(int argc, char** argv) {
     return EXIT_SUCCESS;
   }
 
-  Runtime::Options options;
+  RuntimeOptions options;
   std::string image_option;
   std::string oat_option;
   std::string boot_image_option;

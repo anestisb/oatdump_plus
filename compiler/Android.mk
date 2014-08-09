@@ -72,6 +72,7 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/verification_results.cc \
 	dex/vreg_analysis.cc \
 	dex/ssa_transformation.cc \
+	dex/quick_compiler_callbacks.cc \
 	driver/compiler_driver.cc \
 	driver/dex_compilation_unit.cc \
 	jni/quick/arm/calling_convention_arm.cc \
@@ -94,6 +95,7 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/register_allocator.cc \
 	optimizing/ssa_builder.cc \
 	optimizing/ssa_liveness_analysis.cc \
+	optimizing/ssa_phi_elimination.cc \
 	optimizing/ssa_type_propagation.cc \
 	trampolines/trampoline_compiler.cc \
 	utils/arena_allocator.cc \
@@ -105,6 +107,7 @@ LIBART_COMPILER_SRC_FILES := \
 	utils/arm64/assembler_arm64.cc \
 	utils/arm64/managed_register_arm64.cc \
 	utils/assembler.cc \
+	utils/dwarf_cfi.cc \
 	utils/mips/assembler_mips.cc \
 	utils/mips/managed_register_mips.cc \
 	utils/x86/assembler_x86.cc \
@@ -116,6 +119,7 @@ LIBART_COMPILER_SRC_FILES := \
 	compilers.cc \
 	compiler.cc \
 	elf_fixup.cc \
+	elf_patcher.cc \
 	elf_stripper.cc \
 	elf_writer.cc \
 	elf_writer_quick.cc \
@@ -184,6 +188,7 @@ define build-libart-compiler
   ifeq ($$(art_ndebug_or_debug),ndebug)
     LOCAL_MODULE := libart-compiler
     LOCAL_SHARED_LIBRARIES += libart
+    LOCAL_FDO_SUPPORT := true
   else # debug
     LOCAL_MODULE := libartd-compiler
     LOCAL_SHARED_LIBRARIES += libartd
@@ -278,10 +283,10 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
 endef
 
 # We always build dex2oat and dependencies, even if the host build is otherwise disabled, since they are used to cross compile for the target.
-ifeq ($(ART_BUILD_NDEBUG),true)
+ifeq ($(ART_BUILD_HOST_NDEBUG),true)
   $(eval $(call build-libart-compiler,host,ndebug))
 endif
-ifeq ($(ART_BUILD_DEBUG),true)
+ifeq ($(ART_BUILD_HOST_DEBUG),true)
   $(eval $(call build-libart-compiler,host,debug))
 endif
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)

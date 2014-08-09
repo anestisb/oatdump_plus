@@ -18,9 +18,11 @@
 
 #include <float.h>
 #include <limits.h>
+#include "ScopedLocalRef.h"
 
 #include "common_compiler_test.h"
 #include "mirror/art_method-inl.h"
+#include "scoped_thread_state_change.h"
 
 namespace art {
 
@@ -109,7 +111,16 @@ class ReflectionTest : public CommonCompilerTest {
                         : c->FindVirtualMethod(method_name, method_signature);
     CHECK(method != nullptr);
 
-    *receiver = (is_static ? nullptr : c->AllocObject(self));
+    if (is_static) {
+      *receiver = nullptr;
+    } else {
+      // Ensure class is initialized before allocating object
+      StackHandleScope<1> hs(self);
+      Handle<mirror::Class> h_class(hs.NewHandle(c));
+      bool initialized = class_linker_->EnsureInitialized(h_class, true, true);
+      CHECK(initialized);
+      *receiver = c->AllocObject(self);
+    }
 
     // Start runtime.
     bool started = runtime_->Start();

@@ -25,11 +25,13 @@
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
+#include "field_helper.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
 #include "handle_scope.h"
 #include "jdwp/object_registry.h"
+#include "method_helper.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class.h"
@@ -39,7 +41,6 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
 #include "mirror/throwable.h"
-#include "object_utils.h"
 #include "quick/inline_method_analyser.h"
 #include "reflection.h"
 #include "safe_map.h"
@@ -2249,15 +2250,18 @@ void Dbg::ResumeVM() {
 }
 
 JDWP::JdwpError Dbg::SuspendThread(JDWP::ObjectId thread_id, bool request_suspension) {
-  ScopedLocalRef<jobject> peer(Thread::Current()->GetJniEnv(), NULL);
+  Thread* self = Thread::Current();
+  ScopedLocalRef<jobject> peer(self->GetJniEnv(), NULL);
   {
-    ScopedObjectAccess soa(Thread::Current());
+    ScopedObjectAccess soa(self);
     peer.reset(soa.AddLocalReference<jobject>(gRegistry->Get<mirror::Object*>(thread_id)));
   }
   if (peer.get() == NULL) {
     return JDWP::ERR_THREAD_NOT_ALIVE;
   }
-  // Suspend thread to build stack trace.
+  // Suspend thread to build stack trace. Take suspend thread lock to avoid races with threads
+  // trying to suspend this one.
+  MutexLock mu(self, *Locks::thread_list_suspend_thread_lock_);
   bool timed_out;
   Thread* thread = ThreadList::SuspendThreadByPeer(peer.get(), request_suspension, true,
                                                    &timed_out);
@@ -2449,12 +2453,9 @@ JDWP::JdwpError Dbg::GetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame
         }
         case JDWP::JT_DOUBLE: {
           CHECK_EQ(width_, 8U);
-          uint32_t lo;
-          uint32_t hi;
-          if (GetVReg(m, reg, kDoubleLoVReg, &lo) && GetVReg(m, reg + 1, kDoubleHiVReg, &hi)) {
-            uint64_t longVal = (static_cast<uint64_t>(hi) << 32) | lo;
-            VLOG(jdwp) << "get double local " << reg << " = "
-                       << hi << ":" << lo << " = " << longVal;
+          uint64_t longVal;
+          if (GetVRegPair(m, reg, kDoubleLoVReg, kDoubleHiVReg, &longVal)) {
+            VLOG(jdwp) << "get double local " << reg << " = " << longVal;
             JDWP::Set8BE(buf_+1, longVal);
           } else {
             VLOG(jdwp) << "failed to get double local " << reg;
@@ -2464,12 +2465,9 @@ JDWP::JdwpError Dbg::GetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame
         }
         case JDWP::JT_LONG: {
           CHECK_EQ(width_, 8U);
-          uint32_t lo;
-          uint32_t hi;
-          if (GetVReg(m, reg, kLongLoVReg, &lo) && GetVReg(m, reg + 1, kLongHiVReg, &hi)) {
-            uint64_t longVal = (static_cast<uint64_t>(hi) << 32) | lo;
-            VLOG(jdwp) << "get long local " << reg << " = "
-                       << hi << ":" << lo << " = " << longVal;
+          uint64_t longVal;
+          if (GetVRegPair(m, reg, kLongLoVReg, kLongHiVReg, &longVal)) {
+            VLOG(jdwp) << "get long local " << reg << " = " << longVal;
             JDWP::Set8BE(buf_+1, longVal);
           } else {
             VLOG(jdwp) << "failed to get long local " << reg;
@@ -2592,28 +2590,18 @@ JDWP::JdwpError Dbg::SetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame
         }
         case JDWP::JT_DOUBLE: {
           CHECK_EQ(width_, 8U);
-          const uint32_t lo = static_cast<uint32_t>(value_);
-          const uint32_t hi = static_cast<uint32_t>(value_ >> 32);
-          bool success = SetVReg(m, reg, lo, kDoubleLoVReg);
-          success &= SetVReg(m, reg + 1, hi, kDoubleHiVReg);
+          bool success = SetVRegPair(m, reg, value_, kDoubleLoVReg, kDoubleHiVReg);
           if (!success) {
-            uint64_t longVal = (static_cast<uint64_t>(hi) << 32) | lo;
-            VLOG(jdwp) << "failed to set double local " << reg << " = "
-                       << hi << ":" << lo << " = " << longVal;
+            VLOG(jdwp) << "failed to set double local " << reg << " = " << value_;
             error_ = kFailureErrorCode;
           }
           break;
         }
         case JDWP::JT_LONG: {
           CHECK_EQ(width_, 8U);
-          const uint32_t lo = static_cast<uint32_t>(value_);
-          const uint32_t hi = static_cast<uint32_t>(value_ >> 32);
-          bool success = SetVReg(m, reg, lo, kLongLoVReg);
-          success &= SetVReg(m, reg + 1, hi, kLongHiVReg);
+          bool success = SetVRegPair(m, reg, value_, kLongLoVReg, kLongHiVReg);
           if (!success) {
-            uint64_t longVal = (static_cast<uint64_t>(hi) << 32) | lo;
-            VLOG(jdwp) << "failed to set double local " << reg << " = "
-                       << hi << ":" << lo << " = " << longVal;
+            VLOG(jdwp) << "failed to set double local " << reg << " = " << value_;
             error_ = kFailureErrorCode;
           }
           break;
@@ -3047,7 +3035,7 @@ static const Breakpoint* FindFirstBreakpointForMethod(mirror::ArtMethod* m)
 
 // Sanity checks all existing breakpoints on the same method.
 static void SanityCheckExistingBreakpoints(mirror::ArtMethod* m, bool need_full_deoptimization)
-    EXCLUSIVE_LOCKS_REQUIRED(Locks::breakpoint_lock_)  {
+    EXCLUSIVE_LOCKS_REQUIRED(Locks::breakpoint_lock_) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (kIsDebugBuild) {
     for (const Breakpoint& breakpoint : gBreakpoints) {
       CHECK_EQ(need_full_deoptimization, breakpoint.NeedFullDeoptimization());
@@ -3143,7 +3131,7 @@ class ScopedThreadSuspension {
   ScopedThreadSuspension(Thread* self, JDWP::ObjectId thread_id)
       LOCKS_EXCLUDED(Locks::thread_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) :
-      thread_(NULL),
+      thread_(nullptr),
       error_(JDWP::ERR_NONE),
       self_suspend_(false),
       other_suspend_(false) {
@@ -3159,10 +3147,15 @@ class ScopedThreadSuspension {
         soa.Self()->TransitionFromRunnableToSuspended(kWaitingForDebuggerSuspension);
         jobject thread_peer = gRegistry->GetJObject(thread_id);
         bool timed_out;
-        Thread* suspended_thread = ThreadList::SuspendThreadByPeer(thread_peer, true, true,
-                                                                   &timed_out);
+        Thread* suspended_thread;
+        {
+          // Take suspend thread lock to avoid races with threads trying to suspend this one.
+          MutexLock mu(soa.Self(), *Locks::thread_list_suspend_thread_lock_);
+          suspended_thread = ThreadList::SuspendThreadByPeer(thread_peer, true, true,
+                                                             &timed_out);
+        }
         CHECK_EQ(soa.Self()->TransitionFromSuspendedToRunnable(), kWaitingForDebuggerSuspension);
-        if (suspended_thread == NULL) {
+        if (suspended_thread == nullptr) {
           // Thread terminated from under us while suspending.
           error_ = JDWP::ERR_INVALID_THREAD;
         } else {
@@ -3956,7 +3949,8 @@ class HeapChunkContext {
   HeapChunkContext(bool merge, bool native)
       : buf_(16384 - 16),
         type_(0),
-        merge_(merge) {
+        merge_(merge),
+        chunk_overhead_(0) {
     Reset();
     if (native) {
       type_ = CHUNK_TYPE("NHSG");
@@ -3969,6 +3963,14 @@ class HeapChunkContext {
     if (p_ > &buf_[0]) {
       Flush();
     }
+  }
+
+  void SetChunkOverhead(size_t chunk_overhead) {
+    chunk_overhead_ = chunk_overhead;
+  }
+
+  void ResetStartOfNextChunk() {
+    startOfNextMemoryChunk_ = nullptr;
   }
 
   void EnsureHeader(const void* chunk_ptr) {
@@ -4015,7 +4017,7 @@ class HeapChunkContext {
 
   void Reset() {
     p_ = &buf_[0];
-    startOfNextMemoryChunk_ = NULL;
+    ResetStartOfNextChunk();
     totalAllocationUnits_ = 0;
     needHeader_ = true;
     pieceLenField_ = NULL;
@@ -4042,6 +4044,8 @@ class HeapChunkContext {
      */
     bool native = type_ == CHUNK_TYPE("NHSG");
 
+    // TODO: I'm not sure using start of next chunk works well with multiple spaces. We shouldn't
+    // count gaps inbetween spaces as free memory.
     if (startOfNextMemoryChunk_ != NULL) {
         // Transmit any pending free memory. Native free memory of
         // over kMaxFreeLen could be because of the use of mmaps, so
@@ -4068,11 +4072,8 @@ class HeapChunkContext {
     // OLD-TODO: if context.merge, see if this chunk is different from the last chunk.
     // If it's the same, we should combine them.
     uint8_t state = ExamineObject(obj, native);
-    // dlmalloc's chunk header is 2 * sizeof(size_t), but if the previous chunk is in use for an
-    // allocation then the first sizeof(size_t) may belong to it.
-    const size_t dlMallocOverhead = sizeof(size_t);
-    AppendChunk(state, start, used_bytes + dlMallocOverhead);
-    startOfNextMemoryChunk_ = reinterpret_cast<char*>(start) + used_bytes + dlMallocOverhead;
+    AppendChunk(state, start, used_bytes + chunk_overhead_);
+    startOfNextMemoryChunk_ = reinterpret_cast<char*>(start) + used_bytes + chunk_overhead_;
   }
 
   void AppendChunk(uint8_t state, void* ptr, size_t length)
@@ -4161,9 +4162,17 @@ class HeapChunkContext {
   uint32_t type_;
   bool merge_;
   bool needHeader_;
+  size_t chunk_overhead_;
 
   DISALLOW_COPY_AND_ASSIGN(HeapChunkContext);
 };
+
+static void BumpPointerSpaceCallback(mirror::Object* obj, void* arg)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+  const size_t size = RoundUp(obj->SizeOf(), kObjectAlignment);
+  HeapChunkContext::HeapChunkCallback(
+      obj, reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(obj) + size), size, arg);
+}
 
 void Dbg::DdmSendHeapSegments(bool native) {
   Dbg::HpsgWhen when;
@@ -4205,14 +4214,27 @@ void Dbg::DdmSendHeapSegments(bool native) {
 #endif
   } else {
     gc::Heap* heap = Runtime::Current()->GetHeap();
-    const std::vector<gc::space::ContinuousSpace*>& spaces = heap->GetContinuousSpaces();
-    typedef std::vector<gc::space::ContinuousSpace*>::const_iterator It;
-    for (It cur = spaces.begin(), end = spaces.end(); cur != end; ++cur) {
-      if ((*cur)->IsMallocSpace()) {
-        (*cur)->AsMallocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
+    for (const auto& space : heap->GetContinuousSpaces()) {
+      if (space->IsDlMallocSpace()) {
+        // dlmalloc's chunk header is 2 * sizeof(size_t), but if the previous chunk is in use for an
+        // allocation then the first sizeof(size_t) may belong to it.
+        context.SetChunkOverhead(sizeof(size_t));
+        space->AsDlMallocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
+      } else if (space->IsRosAllocSpace()) {
+        context.SetChunkOverhead(0);
+        space->AsRosAllocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
+      } else if (space->IsBumpPointerSpace()) {
+        context.SetChunkOverhead(0);
+        ReaderMutexLock mu(self, *Locks::mutator_lock_);
+        WriterMutexLock mu2(self, *Locks::heap_bitmap_lock_);
+        space->AsBumpPointerSpace()->Walk(BumpPointerSpaceCallback, &context);
+      } else {
+        UNIMPLEMENTED(WARNING) << "Not counting objects in space " << *space;
       }
+      context.ResetStartOfNextChunk();
     }
     // Walk the large objects, these are not in the AllocSpace.
+    context.SetChunkOverhead(0);
     heap->GetLargeObjectsSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
   }
 

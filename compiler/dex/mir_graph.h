@@ -27,6 +27,8 @@
 #include "mir_method_info.h"
 #include "utils/arena_bit_vector.h"
 #include "utils/growable_array.h"
+#include "utils/arena_containers.h"
+#include "utils/scoped_arena_containers.h"
 #include "reg_location.h"
 #include "reg_storage.h"
 
@@ -689,6 +691,21 @@ class MIRGraph {
     return topological_order_;
   }
 
+  GrowableArray<BasicBlockId>* GetTopologicalSortOrderLoopEnds() {
+    DCHECK(topological_order_loop_ends_ != nullptr);
+    return topological_order_loop_ends_;
+  }
+
+  GrowableArray<BasicBlockId>* GetTopologicalSortOrderIndexes() {
+    DCHECK(topological_order_indexes_ != nullptr);
+    return topological_order_indexes_;
+  }
+
+  GrowableArray<std::pair<uint16_t, bool>>* GetTopologicalSortOrderLoopHeadStack() {
+    DCHECK(topological_order_loop_head_stack_ != nullptr);
+    return topological_order_loop_head_stack_;
+  }
+
   bool IsConst(int32_t s_reg) const {
     return is_constant_v_->IsBitSet(s_reg);
   }
@@ -727,7 +744,7 @@ class MIRGraph {
       * would be filtered out with current settings.  When orig_sreg field is removed
       * from RegLocation, expand s_reg_low to handle all possible cases and remove DCHECK().
       */
-    DCHECK_EQ(new_num, static_cast<int16_t>(new_num));
+    CHECK_EQ(new_num, static_cast<int16_t>(new_num));
     num_ssa_regs_ = new_num;
   }
 
@@ -1035,8 +1052,8 @@ class MIRGraph {
   std::set<uint32_t> catches_;
 
   // TODO: make these private.
-  RegLocation* reg_location_;                         // Map SSA names to location.
-  SafeMap<unsigned int, unsigned int> block_id_map_;  // Block collapse lookup cache.
+  RegLocation* reg_location_;                               // Map SSA names to location.
+  ArenaSafeMap<unsigned int, unsigned int> block_id_map_;   // Block collapse lookup cache.
 
   static const char* extended_mir_op_names_[kMirOpLast - kMirOpFirst];
   static const uint32_t analysis_attributes_[kMirOpLast];
@@ -1132,6 +1149,14 @@ class MIRGraph {
   GrowableArray<BasicBlockId>* dfs_post_order_;
   GrowableArray<BasicBlockId>* dom_post_order_traversal_;
   GrowableArray<BasicBlockId>* topological_order_;
+  // Indexes in topological_order_ need to be only as big as the BasicBlockId.
+  COMPILE_ASSERT(sizeof(BasicBlockId) == sizeof(uint16_t), assuming_16_bit_BasicBlockId);
+  // For each loop head, remember the past-the-end index of the end of the loop. 0 if not loop head.
+  GrowableArray<uint16_t>* topological_order_loop_ends_;
+  // Map BB ids to topological_order_ indexes. 0xffff if not included (hidden or null block).
+  GrowableArray<uint16_t>* topological_order_indexes_;
+  // Stack of the loop head indexes and recalculation flags for RepeatingTopologicalSortIterator.
+  GrowableArray<std::pair<uint16_t, bool>>* topological_order_loop_head_stack_;
   int* i_dom_list_;
   ArenaBitVector** def_block_matrix_;    // num_dalvik_register x num_blocks.
   std::unique_ptr<ScopedArenaAllocator> temp_scoped_alloc_;
@@ -1147,15 +1172,15 @@ class MIRGraph {
   unsigned int num_blocks_;
   const DexFile::CodeItem* current_code_item_;
   GrowableArray<uint16_t> dex_pc_to_block_map_;  // FindBlock lookup cache.
-  std::vector<DexCompilationUnit*> m_units_;     // List of methods included in this graph
+  ArenaVector<DexCompilationUnit*> m_units_;     // List of methods included in this graph
   typedef std::pair<int, int> MIRLocation;       // Insert point, (m_unit_ index, offset)
-  std::vector<MIRLocation> method_stack_;        // Include stack
+  ArenaVector<MIRLocation> method_stack_;        // Include stack
   int current_method_;
   DexOffset current_offset_;                     // Offset in code units
   int def_count_;                                // Used to estimate size of ssa name storage.
   int* opcode_count_;                            // Dex opcode coverage stats.
   int num_ssa_regs_;                             // Number of names following SSA transformation.
-  std::vector<BasicBlockId> extended_basic_blocks_;  // Heads of block "traces".
+  ArenaVector<BasicBlockId> extended_basic_blocks_;  // Heads of block "traces".
   int method_sreg_;
   unsigned int attributes_;
   Checkstats* checkstats_;
@@ -1177,6 +1202,7 @@ class MIRGraph {
   friend class ClassInitCheckEliminationTest;
   friend class GlobalValueNumberingTest;
   friend class LocalValueNumberingTest;
+  friend class TopologicalSortOrderTest;
 };
 
 }  // namespace art

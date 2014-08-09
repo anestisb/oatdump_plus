@@ -22,7 +22,8 @@
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "dex_file.h"
-#include "entrypoints/entrypoint_utils.h"
+#include "entrypoints/entrypoint_utils-inl.h"
+#include "field_helper.h"
 #include "gc/heap.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method.h"
@@ -34,7 +35,10 @@
 #include "mirror/proxy.h"
 #include "mirror/reference.h"
 #include "mirror/stack_trace_element.h"
+#include "mirror/string-inl.h"
 #include "handle_scope-inl.h"
+#include "scoped_thread_state_change.h"
+#include "thread-inl.h"
 
 namespace art {
 
@@ -87,7 +91,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_EQ(0U, primitive->NumInstanceFields());
     EXPECT_EQ(0U, primitive->NumStaticFields());
     EXPECT_EQ(0U, primitive->NumDirectInterfaces());
-    EXPECT_TRUE(primitive->GetVTable() == NULL);
+    EXPECT_FALSE(primitive->HasVTable());
     EXPECT_EQ(0, primitive->GetIfTableCount());
     EXPECT_TRUE(primitive->GetIfTable() == NULL);
     EXPECT_EQ(kAccPublic | kAccFinal | kAccAbstract, primitive->GetAccessFlags());
@@ -139,7 +143,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_EQ(0U, array->NumInstanceFields());
     EXPECT_EQ(0U, array->NumStaticFields());
     EXPECT_EQ(2U, array->NumDirectInterfaces());
-    EXPECT_TRUE(array->GetVTable() != NULL);
+    EXPECT_TRUE(array->ShouldHaveEmbeddedImtAndVTable());
     EXPECT_EQ(2, array->GetIfTableCount());
     ASSERT_TRUE(array->GetIfTable() != NULL);
     mirror::Class* direct_interface0 = mirror::Class::GetDirectInterface(self, array, 0);
@@ -152,20 +156,20 @@ class ClassLinkerTest : public CommonRuntimeTest {
   }
 
   void AssertMethod(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    EXPECT_TRUE(method != NULL);
-    EXPECT_TRUE(method->GetClass() != NULL);
-    EXPECT_TRUE(method->GetName() != NULL);
+    EXPECT_TRUE(method != nullptr);
+    EXPECT_TRUE(method->GetClass() != nullptr);
+    EXPECT_TRUE(method->GetName() != nullptr);
     EXPECT_TRUE(method->GetSignature() != Signature::NoSignature());
 
-    EXPECT_TRUE(method->GetDexCacheStrings() != NULL);
-    EXPECT_TRUE(method->GetDexCacheResolvedMethods() != NULL);
-    EXPECT_TRUE(method->GetDexCacheResolvedTypes() != NULL);
+    EXPECT_TRUE(method->GetDexCacheStrings() != nullptr);
+    EXPECT_TRUE(method->HasDexCacheResolvedMethods());
+    EXPECT_TRUE(method->HasDexCacheResolvedTypes());
     EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetStrings(),
               method->GetDexCacheStrings());
-    EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetResolvedMethods(),
-              method->GetDexCacheResolvedMethods());
-    EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetResolvedTypes(),
-              method->GetDexCacheResolvedTypes());
+    EXPECT_TRUE(method->HasSameDexCacheResolvedMethods(
+        method->GetDeclaringClass()->GetDexCache()->GetResolvedMethods()));
+    EXPECT_TRUE(method->HasSameDexCacheResolvedTypes(
+        method->GetDeclaringClass()->GetDexCache()->GetResolvedTypes()));
   }
 
   void AssertField(mirror::Class* klass, mirror::ArtField* field)
@@ -212,7 +216,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
         EXPECT_NE(0U, klass->NumDirectMethods());
       }
     }
-    EXPECT_EQ(klass->IsInterface(), klass->GetVTable() == NULL);
+    EXPECT_EQ(klass->IsInterface(), !klass->HasVTable());
     mirror::IfTable* iftable = klass->GetIfTable();
     for (int i = 0; i < klass->GetIfTableCount(); i++) {
       mirror::Class* interface = iftable->GetInterface(i);
@@ -572,37 +576,6 @@ struct ProxyOffsets : public CheckOffsets<mirror::Proxy> {
   };
 };
 
-struct ClassClassOffsets : public CheckOffsets<mirror::ClassClass> {
-  ClassClassOffsets() : CheckOffsets<mirror::ClassClass>(true, "Ljava/lang/Class;") {
-    // alphabetical 64-bit
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ClassClass, serialVersionUID_), "serialVersionUID"));
-  };
-};
-
-struct StringClassOffsets : public CheckOffsets<mirror::StringClass> {
-  StringClassOffsets() : CheckOffsets<mirror::StringClass>(true, "Ljava/lang/String;") {
-    // alphabetical references
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, ASCII_),                  "ASCII"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, CASE_INSENSITIVE_ORDER_), "CASE_INSENSITIVE_ORDER"));
-
-    // alphabetical 32-bit
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, REPLACEMENT_CHAR_),       "REPLACEMENT_CHAR"));
-
-    // alphabetical 64-bit
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::StringClass, serialVersionUID_),       "serialVersionUID"));
-  };
-};
-
-struct ArtFieldClassOffsets : public CheckOffsets<mirror::ArtFieldClass> {
-  ArtFieldClassOffsets() : CheckOffsets<mirror::ArtFieldClass>(true, "Ljava/lang/reflect/ArtField;") {
-  };
-};
-
-struct ArtMethodClassOffsets : public CheckOffsets<mirror::ArtMethodClass> {
-  ArtMethodClassOffsets() : CheckOffsets<mirror::ArtMethodClass>(true, "Ljava/lang/reflect/ArtMethod;") {
-  };
-};
-
 struct DexCacheOffsets : public CheckOffsets<mirror::DexCache> {
   DexCacheOffsets() : CheckOffsets<mirror::DexCache>(false, "Ljava/lang/DexCache;") {
     // alphabetical references
@@ -623,13 +596,6 @@ struct ReferenceOffsets : public CheckOffsets<mirror::Reference> {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Reference, queue_),         "queue"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Reference, queue_next_),    "queueNext"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Reference, referent_),      "referent"));
-  };
-};
-
-struct ReferenceClassOffsets : public CheckOffsets<mirror::ReferenceClass> {
-  ReferenceClassOffsets() : CheckOffsets<mirror::ReferenceClass>(true, "Ljava/lang/ref/Reference;") {
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ReferenceClass, disable_intrinsic_), "disableIntrinsic"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ReferenceClass, slow_path_enabled_), "slowPathEnabled"));
   };
 };
 
@@ -658,13 +624,7 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_TRUE(ProxyOffsets().Check());
   EXPECT_TRUE(DexCacheOffsets().Check());
   EXPECT_TRUE(ReferenceOffsets().Check());
-  EXPECT_TRUE(ReferenceClassOffsets().Check());
   EXPECT_TRUE(FinalizerReferenceOffsets().Check());
-
-  EXPECT_TRUE(ClassClassOffsets().Check());
-  EXPECT_TRUE(StringClassOffsets().Check());
-  EXPECT_TRUE(ArtFieldClassOffsets().Check());
-  EXPECT_TRUE(ArtMethodClassOffsets().Check());
 }
 
 TEST_F(ClassLinkerTest, FindClassNonexistent) {
@@ -1097,6 +1057,30 @@ TEST_F(ClassLinkerTest, ClassRootDescriptors) {
     EXPECT_STREQ(klass->GetDescriptor().c_str(),
                  class_linker_->GetClassRootDescriptor(ClassLinker::ClassRoot(i))) << " i = " << i;
   }
+}
+
+TEST_F(ClassLinkerTest, ValidatePredefinedClassSizes) {
+  ScopedObjectAccess soa(Thread::Current());
+  NullHandle<mirror::ClassLoader> class_loader;
+  mirror::Class* c;
+
+  c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Class;", class_loader);
+  EXPECT_EQ(c->GetClassSize(), mirror::Class::ClassClassSize());
+
+  c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Object;", class_loader);
+  EXPECT_EQ(c->GetClassSize(), mirror::Object::ClassSize());
+
+  c = class_linker_->FindClass(soa.Self(), "Ljava/lang/String;", class_loader);
+  EXPECT_EQ(c->GetClassSize(), mirror::String::ClassSize());
+
+  c = class_linker_->FindClass(soa.Self(), "Ljava/lang/DexCache;", class_loader);
+  EXPECT_EQ(c->GetClassSize(), mirror::DexCache::ClassSize());
+
+  c = class_linker_->FindClass(soa.Self(), "Ljava/lang/reflect/ArtField;", class_loader);
+  EXPECT_EQ(c->GetClassSize(), mirror::ArtField::ClassSize());
+
+  c = class_linker_->FindClass(soa.Self(), "Ljava/lang/reflect/ArtMethod;", class_loader);
+  EXPECT_EQ(c->GetClassSize(), mirror::ArtMethod::ClassSize());
 }
 
 }  // namespace art

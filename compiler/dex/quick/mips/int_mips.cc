@@ -215,6 +215,18 @@ void MipsMir2Lir::OpRegCopyWide(RegStorage r_dest, RegStorage r_src) {
   }
 }
 
+void MipsMir2Lir::GenSelectConst32(RegStorage left_op, RegStorage right_op, ConditionCode code,
+                                   int32_t true_val, int32_t false_val, RegStorage rs_dest,
+                                   int dest_reg_class) {
+  // Implement as a branch-over.
+  // TODO: Conditional move?
+  LoadConstant(rs_dest, false_val);  // Favors false.
+  LIR* ne_branchover = OpCmpBranch(code, left_op, right_op, NULL);
+  LoadConstant(rs_dest, true_val);
+  LIR* target_label = NewLIR0(kPseudoTargetLabel);
+  ne_branchover->target = target_label;
+}
+
 void MipsMir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
   UNIMPLEMENTED(FATAL) << "Need codegen for select";
 }
@@ -261,21 +273,18 @@ RegLocation MipsMir2Lir::GenDivRemLit(RegLocation rl_dest, RegLocation rl_src1, 
   return rl_dest;
 }
 
-void MipsMir2Lir::OpLea(RegStorage r_base, RegStorage reg1, RegStorage reg2, int scale,
-                        int offset) {
-  LOG(FATAL) << "Unexpected use of OpLea for Arm";
-}
-
-void MipsMir2Lir::OpTlsCmp(ThreadOffset<4> offset, int val) {
-  LOG(FATAL) << "Unexpected use of OpTlsCmp for Arm";
-}
-
-void MipsMir2Lir::OpTlsCmp(ThreadOffset<8> offset, int val) {
-  UNIMPLEMENTED(FATAL) << "Should not be called.";
-}
-
 bool MipsMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   DCHECK_NE(cu_->instruction_set, kThumb2);
+  return false;
+}
+
+bool MipsMir2Lir::GenInlinedAbsFloat(CallInfo* info) {
+  // TODO - add Mips implementation
+  return false;
+}
+
+bool MipsMir2Lir::GenInlinedAbsDouble(CallInfo* info) {
+  // TODO - add Mips implementation
   return false;
 }
 
@@ -383,11 +392,6 @@ void MipsMir2Lir::OpEndIT(LIR* it) {
 }
 
 
-void MipsMir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
-                             RegLocation rl_src1, RegLocation rl_src2) {
-  LOG(FATAL) << "Unexpected use of GenMulLong for Mips";
-}
-
 void MipsMir2Lir::GenAddLong(Instruction::Code opcode, RegLocation rl_dest,
                              RegLocation rl_src1, RegLocation rl_src2) {
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
@@ -432,13 +436,27 @@ void MipsMir2Lir::GenSubLong(Instruction::Code opcode, RegLocation rl_dest,
   StoreValueWide(rl_dest, rl_result);
 }
 
-void MipsMir2Lir::GenNotLong(RegLocation rl_dest, RegLocation rl_src) {
-  LOG(FATAL) << "Unexpected use GenNotLong()";
-}
+void MipsMir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                                 RegLocation rl_src2) {
+  switch (opcode) {
+    case Instruction::ADD_LONG:
+    case Instruction::ADD_LONG_2ADDR:
+      GenAddLong(opcode, rl_dest, rl_src1, rl_src2);
+      return;
+    case Instruction::SUB_LONG:
+    case Instruction::SUB_LONG_2ADDR:
+      GenSubLong(opcode, rl_dest, rl_src1, rl_src2);
+      return;
+    case Instruction::NEG_LONG:
+      GenNegLong(rl_dest, rl_src2);
+      return;
 
-void MipsMir2Lir::GenDivRemLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
-                           RegLocation rl_src2, bool is_div) {
-  LOG(FATAL) << "Unexpected use GenDivRemLong()";
+    default:
+      break;
+  }
+
+  // Fallback for all other ops.
+  Mir2Lir::GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2);
 }
 
 void MipsMir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src) {
@@ -459,22 +477,6 @@ void MipsMir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src) {
   OpRegRegReg(kOpSub, rl_result.reg.GetHigh(), rl_result.reg.GetHigh(), t_reg);
   FreeTemp(t_reg);
   StoreValueWide(rl_dest, rl_result);
-}
-
-void MipsMir2Lir::GenAndLong(Instruction::Code opcode, RegLocation rl_dest,
-                             RegLocation rl_src1,
-                             RegLocation rl_src2) {
-  LOG(FATAL) << "Unexpected use of GenAndLong for Mips";
-}
-
-void MipsMir2Lir::GenOrLong(Instruction::Code opcode, RegLocation rl_dest,
-                            RegLocation rl_src1, RegLocation rl_src2) {
-  LOG(FATAL) << "Unexpected use of GenOrLong for Mips";
-}
-
-void MipsMir2Lir::GenXorLong(Instruction::Code opcode, RegLocation rl_dest,
-                             RegLocation rl_src1, RegLocation rl_src2) {
-  LOG(FATAL) << "Unexpected use of GenXorLong for Mips";
 }
 
 /*

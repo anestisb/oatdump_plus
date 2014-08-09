@@ -70,10 +70,10 @@ enum LockLevel {
   kMarkSweepMarkStackLock,
   kTransactionLogLock,
   kInternTableLock,
+  kOatFileSecondaryLookupLock,
   kDefaultMutexLevel,
   kMarkSweepLargeObjectLock,
   kPinTableLock,
-  kLoadLibraryLock,
   kJdwpObjectRegistryLock,
   kModifyLdtLock,
   kAllocatedThreadIdsLock,
@@ -82,6 +82,7 @@ enum LockLevel {
   kBreakpointLock,
   kMonitorLock,
   kMonitorListLock,
+  kJniLoadLibraryLock,
   kThreadListLock,
   kBreakpointInvokeLock,
   kDeoptimizationLock,
@@ -93,6 +94,7 @@ enum LockLevel {
   kRuntimeShutdownLock,
   kHeapBitmapLock,
   kMutatorLock,
+  kThreadListSuspendThreadLock,
   kZygoteCreationLock,
 
   kLockLevelCount  // Must come last.
@@ -160,7 +162,7 @@ class BaseMutex {
     // Number of times the Mutex has been contended.
     AtomicInteger contention_count;
     // Sum of time waited by all contenders in ns.
-    volatile uint64_t wait_time;
+    Atomic<uint64_t> wait_time;
     void AddToWaitTime(uint64_t value);
     ContentionLogData() : wait_time(0) {}
   };
@@ -474,6 +476,15 @@ class Locks {
  public:
   static void Init();
 
+  // There's a potential race for two threads to try to suspend each other and for both of them
+  // to succeed and get blocked becoming runnable. This lock ensures that only one thread is
+  // requesting suspension of another at any time. As the the thread list suspend thread logic
+  // transitions to runnable, if the current thread were tried to be suspended then this thread
+  // would block holding this lock until it could safely request thread suspension of the other
+  // thread without that thread having a suspension request against this thread. This avoids a
+  // potential deadlock cycle.
+  static Mutex* thread_list_suspend_thread_lock_;
+
   // The mutator_lock_ is used to allow mutators to execute in a shared (reader) mode or to block
   // mutators by having an exclusive (writer) owner. In normal execution each mutator thread holds
   // a share on the mutator_lock_. The garbage collector may also execute with shared access but
@@ -532,7 +543,7 @@ class Locks {
   // else                                          |  .. running ..
   //   Goto x                                      |  .. running ..
   //  .. running ..                                |  .. running ..
-  static ReaderWriterMutex* mutator_lock_;
+  static ReaderWriterMutex* mutator_lock_ ACQUIRED_AFTER(thread_list_suspend_thread_lock_);
 
   // Allow reader-writer mutual exclusion on the mark and live bitmaps of the heap.
   static ReaderWriterMutex* heap_bitmap_lock_ ACQUIRED_AFTER(mutator_lock_);
@@ -550,8 +561,11 @@ class Locks {
   // attaching and detaching.
   static Mutex* thread_list_lock_ ACQUIRED_AFTER(trace_lock_);
 
+  // Guards maintaining loading library data structures.
+  static Mutex* jni_libraries_lock_ ACQUIRED_AFTER(thread_list_lock_);
+
   // Guards breakpoints.
-  static Mutex* breakpoint_lock_ ACQUIRED_AFTER(thread_list_lock_);
+  static Mutex* breakpoint_lock_ ACQUIRED_AFTER(jni_libraries_lock_);
 
   // Guards lists of classes within the class linker.
   static ReaderWriterMutex* classlinker_classes_lock_ ACQUIRED_AFTER(breakpoint_lock_);

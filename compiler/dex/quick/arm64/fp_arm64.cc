@@ -17,6 +17,7 @@
 #include "arm64_lir.h"
 #include "codegen_arm64.h"
 #include "dex/quick/mir_to_lir-inl.h"
+#include "utils.h"
 
 namespace art {
 
@@ -45,8 +46,7 @@ void Arm64Mir2Lir::GenArithOpFloat(Instruction::Code opcode, RegLocation rl_dest
     case Instruction::REM_FLOAT_2ADDR:
     case Instruction::REM_FLOAT:
       FlushAllRegs();   // Send everything to home location
-      CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(8, pFmodf), rl_src1, rl_src2,
-                                              false);
+      CallRuntimeHelperRegLocationRegLocation(kQuickFmodf, rl_src1, rl_src2, false);
       rl_result = GetReturn(kFPReg);
       StoreValue(rl_dest, rl_result);
       return;
@@ -89,12 +89,11 @@ void Arm64Mir2Lir::GenArithOpDouble(Instruction::Code opcode,
     case Instruction::REM_DOUBLE:
       FlushAllRegs();   // Send everything to home location
       {
-        ThreadOffset<8> helper_offset = QUICK_ENTRYPOINT_OFFSET(8, pFmod);
-        RegStorage r_tgt = CallHelperSetup(helper_offset);
+        RegStorage r_tgt = CallHelperSetup(kQuickFmod);
         LoadValueDirectWideFixed(rl_src1, rs_d0);
         LoadValueDirectWideFixed(rl_src2, rs_d1);
         ClobberCallerSave();
-        CallHelper(r_tgt, helper_offset, false);
+        CallHelper(r_tgt, kQuickFmod, false);
       }
       rl_result = GetReturnWide(kFPReg);
       StoreValueWide(rl_dest, rl_result);
@@ -323,12 +322,57 @@ void Arm64Mir2Lir::GenNegDouble(RegLocation rl_dest, RegLocation rl_src) {
   StoreValueWide(rl_dest, rl_result);
 }
 
+static RegisterClass RegClassForAbsFP(RegLocation rl_src, RegLocation rl_dest) {
+  // If src is in a core reg or, unlikely, dest has been promoted to a core reg, use core reg.
+  if ((rl_src.location == kLocPhysReg && !rl_src.reg.IsFloat()) ||
+      (rl_dest.location == kLocPhysReg && !rl_dest.reg.IsFloat())) {
+    return kCoreReg;
+  }
+  // If src is in an fp reg or dest has been promoted to an fp reg, use fp reg.
+  if (rl_src.location == kLocPhysReg || rl_dest.location == kLocPhysReg) {
+    return kFPReg;
+  }
+  // With both src and dest in the stack frame we have to perform load+abs+store. Whether this
+  // is faster using a core reg or fp reg depends on the particular CPU. For example, on A53
+  // it's faster using core reg while on A57 it's faster with fp reg, the difference being
+  // bigger on the A53. Without further investigation and testing we prefer core register.
+  // (If the result is subsequently used in another fp operation, the dalvik reg will probably
+  // get promoted and that should be handled by the cases above.)
+  return kCoreReg;
+}
+
+bool Arm64Mir2Lir::GenInlinedAbsFloat(CallInfo* info) {
+  if (info->result.location == kLocInvalid) {
+    return true;  // Result is unused: inlining successful, no code generated.
+  }
+  RegLocation rl_dest = info->result;
+  RegLocation rl_src = UpdateLoc(info->args[0]);
+  RegisterClass reg_class = RegClassForAbsFP(rl_src, rl_dest);
+  rl_src = LoadValue(rl_src, reg_class);
+  RegLocation rl_result = EvalLoc(rl_dest, reg_class, true);
+  if (reg_class == kFPReg) {
+    NewLIR2(kA64Fabs2ff, rl_result.reg.GetReg(), rl_src.reg.GetReg());
+  } else {
+    NewLIR4(kA64Ubfm4rrdd, rl_result.reg.GetReg(), rl_src.reg.GetReg(), 0, 30);
+  }
+  StoreValue(rl_dest, rl_result);
+  return true;
+}
+
 bool Arm64Mir2Lir::GenInlinedAbsDouble(CallInfo* info) {
-  RegLocation rl_src = info->args[0];
-  rl_src = LoadValueWide(rl_src, kCoreReg);
-  RegLocation rl_dest = InlineTargetWide(info);
-  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  NewLIR4(WIDE(kA64Ubfm4rrdd), rl_result.reg.GetReg(), rl_src.reg.GetReg(), 0, 62);
+  if (info->result.location == kLocInvalid) {
+    return true;  // Result is unused: inlining successful, no code generated.
+  }
+  RegLocation rl_dest = info->result;
+  RegLocation rl_src = UpdateLocWide(info->args[0]);
+  RegisterClass reg_class = RegClassForAbsFP(rl_src, rl_dest);
+  rl_src = LoadValueWide(rl_src, reg_class);
+  RegLocation rl_result = EvalLoc(rl_dest, reg_class, true);
+  if (reg_class == kFPReg) {
+    NewLIR2(FWIDE(kA64Fabs2ff), rl_result.reg.GetReg(), rl_src.reg.GetReg());
+  } else {
+    NewLIR4(WIDE(kA64Ubfm4rrdd), rl_result.reg.GetReg(), rl_src.reg.GetReg(), 0, 62);
+  }
   StoreValueWide(rl_dest, rl_result);
   return true;
 }
@@ -340,6 +384,52 @@ bool Arm64Mir2Lir::GenInlinedSqrt(CallInfo* info) {
   RegLocation rl_result = EvalLoc(rl_dest, kFPReg, true);
   NewLIR2(FWIDE(kA64Fsqrt2ff), rl_result.reg.GetReg(), rl_src.reg.GetReg());
   StoreValueWide(rl_dest, rl_result);
+  return true;
+}
+
+bool Arm64Mir2Lir::GenInlinedCeil(CallInfo* info) {
+  RegLocation rl_src = info->args[0];
+  RegLocation rl_dest = InlineTargetWide(info);
+  rl_src = LoadValueWide(rl_src, kFPReg);
+  RegLocation rl_result = EvalLoc(rl_dest, kFPReg, true);
+  NewLIR2(FWIDE(kA64Frintp2ff), rl_result.reg.GetReg(), rl_src.reg.GetReg());
+  StoreValueWide(rl_dest, rl_result);
+  return true;
+}
+
+bool Arm64Mir2Lir::GenInlinedFloor(CallInfo* info) {
+  RegLocation rl_src = info->args[0];
+  RegLocation rl_dest = InlineTargetWide(info);
+  rl_src = LoadValueWide(rl_src, kFPReg);
+  RegLocation rl_result = EvalLoc(rl_dest, kFPReg, true);
+  NewLIR2(FWIDE(kA64Frintm2ff), rl_result.reg.GetReg(), rl_src.reg.GetReg());
+  StoreValueWide(rl_dest, rl_result);
+  return true;
+}
+
+bool Arm64Mir2Lir::GenInlinedRint(CallInfo* info) {
+  RegLocation rl_src = info->args[0];
+  RegLocation rl_dest = InlineTargetWide(info);
+  rl_src = LoadValueWide(rl_src, kFPReg);
+  RegLocation rl_result = EvalLoc(rl_dest, kFPReg, true);
+  NewLIR2(FWIDE(kA64Frintn2ff), rl_result.reg.GetReg(), rl_src.reg.GetReg());
+  StoreValueWide(rl_dest, rl_result);
+  return true;
+}
+
+bool Arm64Mir2Lir::GenInlinedRound(CallInfo* info, bool is_double) {
+  int32_t encoded_imm = EncodeImmSingle(bit_cast<float, uint32_t>(0.5f));
+  ArmOpcode wide = (is_double) ? FWIDE(0) : FUNWIDE(0);
+  RegLocation rl_src = info->args[0];
+  RegLocation rl_dest = (is_double) ? InlineTargetWide(info) : InlineTarget(info);
+  rl_src = (is_double) ? LoadValueWide(rl_src, kFPReg) : LoadValue(rl_src, kFPReg);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  RegStorage r_tmp = (is_double) ? AllocTempDouble() : AllocTempSingle();
+  // 0.5f and 0.5d are encoded in the same way.
+  NewLIR2(kA64Fmov2fI | wide, r_tmp.GetReg(), encoded_imm);
+  NewLIR3(kA64Fadd3fff | wide, rl_src.reg.GetReg(), rl_src.reg.GetReg(), r_tmp.GetReg());
+  NewLIR2((is_double) ? kA64Fcvtms2xS : kA64Fcvtms2ws, rl_result.reg.GetReg(), rl_src.reg.GetReg());
+  (is_double) ? StoreValueWide(rl_dest, rl_result) : StoreValue(rl_dest, rl_result);
   return true;
 }
 

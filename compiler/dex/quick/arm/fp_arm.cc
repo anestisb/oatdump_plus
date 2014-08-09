@@ -49,8 +49,7 @@ void ArmMir2Lir::GenArithOpFloat(Instruction::Code opcode, RegLocation rl_dest,
     case Instruction::REM_FLOAT_2ADDR:
     case Instruction::REM_FLOAT:
       FlushAllRegs();   // Send everything to home location
-      CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(4, pFmodf), rl_src1, rl_src2,
-                                              false);
+      CallRuntimeHelperRegLocationRegLocation(kQuickFmodf, rl_src1, rl_src2, false);
       rl_result = GetReturn(kFPReg);
       StoreValue(rl_dest, rl_result);
       return;
@@ -92,8 +91,7 @@ void ArmMir2Lir::GenArithOpDouble(Instruction::Code opcode,
     case Instruction::REM_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE:
       FlushAllRegs();   // Send everything to home location
-      CallRuntimeHelperRegLocationRegLocation(QUICK_ENTRYPOINT_OFFSET(4, pFmod), rl_src1, rl_src2,
-                                              false);
+      CallRuntimeHelperRegLocationRegLocation(kQuickFmod, rl_src1, rl_src2, false);
       rl_result = GetReturnWide(kFPReg);
       StoreValueWide(rl_dest, rl_result);
       return;
@@ -160,7 +158,7 @@ void ArmMir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest, Re
       return;
     }
     case Instruction::FLOAT_TO_LONG:
-      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(4, pF2l), rl_dest, rl_src);
+      GenConversionCall(kQuickF2l, rl_dest, rl_src);
       return;
     case Instruction::LONG_TO_FLOAT: {
       rl_src = LoadValueWide(rl_src, kFPReg);
@@ -190,7 +188,7 @@ void ArmMir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest, Re
       return;
     }
     case Instruction::DOUBLE_TO_LONG:
-      GenConversionCall(QUICK_ENTRYPOINT_OFFSET(4, pD2l), rl_dest, rl_src);
+      GenConversionCall(kQuickD2l, rl_dest, rl_src);
       return;
     default:
       LOG(FATAL) << "Unexpected opcode: " << opcode;
@@ -336,6 +334,60 @@ void ArmMir2Lir::GenNegDouble(RegLocation rl_dest, RegLocation rl_src) {
   rl_result = EvalLoc(rl_dest, kFPReg, true);
   NewLIR2(kThumb2Vnegd, rl_result.reg.GetReg(), rl_src.reg.GetReg());
   StoreValueWide(rl_dest, rl_result);
+}
+
+static RegisterClass RegClassForAbsFP(RegLocation rl_src, RegLocation rl_dest) {
+  // If src is in a core reg or, unlikely, dest has been promoted to a core reg, use core reg.
+  if ((rl_src.location == kLocPhysReg && !rl_src.reg.IsFloat()) ||
+      (rl_dest.location == kLocPhysReg && !rl_dest.reg.IsFloat())) {
+    return kCoreReg;
+  }
+  // If src is in an fp reg or dest has been promoted to an fp reg, use fp reg.
+  if (rl_src.location == kLocPhysReg || rl_dest.location == kLocPhysReg) {
+    return kFPReg;
+  }
+  // With both src and dest in the stack frame we have to perform load+abs+store. Whether this
+  // is faster using a core reg or fp reg depends on the particular CPU. Without further
+  // investigation and testing we prefer core register. (If the result is subsequently used in
+  // another fp operation, the dalvik reg will probably get promoted and that should be handled
+  // by the cases above.)
+  return kCoreReg;
+}
+
+bool ArmMir2Lir::GenInlinedAbsFloat(CallInfo* info) {
+  if (info->result.location == kLocInvalid) {
+    return true;  // Result is unused: inlining successful, no code generated.
+  }
+  RegLocation rl_dest = info->result;
+  RegLocation rl_src = UpdateLoc(info->args[0]);
+  RegisterClass reg_class = RegClassForAbsFP(rl_src, rl_dest);
+  rl_src = LoadValue(rl_src, reg_class);
+  RegLocation rl_result = EvalLoc(rl_dest, reg_class, true);
+  if (reg_class == kFPReg) {
+    NewLIR2(kThumb2Vabss, rl_result.reg.GetReg(), rl_src.reg.GetReg());
+  } else {
+    OpRegRegImm(kOpAnd, rl_result.reg, rl_src.reg, 0x7fffffff);
+  }
+  StoreValue(rl_dest, rl_result);
+  return true;
+}
+
+bool ArmMir2Lir::GenInlinedAbsDouble(CallInfo* info) {
+  if (info->result.location == kLocInvalid) {
+    return true;  // Result is unused: inlining successful, no code generated.
+  }
+  RegLocation rl_dest = info->result;
+  RegLocation rl_src = UpdateLocWide(info->args[0]);
+  RegisterClass reg_class = RegClassForAbsFP(rl_src, rl_dest);
+  rl_src = LoadValueWide(rl_src, reg_class);
+  RegLocation rl_result = EvalLoc(rl_dest, reg_class, true);
+  if (reg_class == kFPReg) {
+    NewLIR2(kThumb2Vabsd, rl_result.reg.GetReg(), rl_src.reg.GetReg());
+  } else {
+    OpRegImm(kOpAnd, rl_result.reg.GetHigh(), 0x7fffffff);
+  }
+  StoreValueWide(rl_dest, rl_result);
+  return true;
 }
 
 bool ArmMir2Lir::GenInlinedSqrt(CallInfo* info) {

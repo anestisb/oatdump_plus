@@ -223,6 +223,8 @@ class AllocSpace {
   // threads, if the alloc space implementation uses any.
   virtual void RevokeAllThreadLocalBuffers() = 0;
 
+  virtual void LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes) = 0;
+
  protected:
   struct SweepCallbackContext {
     SweepCallbackContext(bool swap_bitmaps, space::Space* space);
@@ -407,11 +409,11 @@ class ContinuousMemMapAllocSpace : public MemMapSpace, public AllocSpace {
   // Clear the space back to an empty space.
   virtual void Clear() = 0;
 
-  accounting::ContinuousSpaceBitmap* GetLiveBitmap() const {
+  accounting::ContinuousSpaceBitmap* GetLiveBitmap() const OVERRIDE {
     return live_bitmap_.get();
   }
 
-  accounting::ContinuousSpaceBitmap* GetMarkBitmap() const {
+  accounting::ContinuousSpaceBitmap* GetMarkBitmap() const OVERRIDE {
     return mark_bitmap_.get();
   }
 

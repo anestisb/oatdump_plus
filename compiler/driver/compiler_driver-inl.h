@@ -18,13 +18,12 @@
 #define ART_COMPILER_DRIVER_COMPILER_DRIVER_INL_H_
 
 #include "compiler_driver.h"
+
 #include "dex/compiler_ir.h"
-#include "mirror/art_field.h"
+#include "field_helper.h"
 #include "mirror/art_field-inl.h"
-#include "mirror/art_method.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class_loader.h"
-#include "mirror/dex_cache.h"
 #include "mirror/dex_cache-inl.h"
 #include "mirror/art_field-inl.h"
 #include "scoped_thread_state_change.h"
@@ -42,7 +41,7 @@ inline mirror::ClassLoader* CompilerDriver::GetClassLoader(ScopedObjectAccess& s
 }
 
 inline mirror::Class* CompilerDriver::ResolveCompilingMethodsClass(
-    ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
+    const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
     Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit) {
   DCHECK_EQ(dex_cache->GetDexFile(), mUnit->GetDexFile());
   DCHECK_EQ(class_loader.Get(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
@@ -59,7 +58,7 @@ inline mirror::Class* CompilerDriver::ResolveCompilingMethodsClass(
 }
 
 inline mirror::ArtField* CompilerDriver::ResolveField(
-    ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
+    const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
     Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
     uint32_t field_idx, bool is_static) {
   DCHECK_EQ(dex_cache->GetDexFile(), mUnit->GetDexFile());
@@ -95,14 +94,13 @@ inline bool CompilerDriver::IsFieldVolatile(mirror::ArtField* field) {
 
 inline std::pair<bool, bool> CompilerDriver::IsFastInstanceField(
     mirror::DexCache* dex_cache, mirror::Class* referrer_class,
-    mirror::ArtField* resolved_field, uint16_t field_idx, MemberOffset* field_offset) {
+    mirror::ArtField* resolved_field, uint16_t field_idx) {
   DCHECK(!resolved_field->IsStatic());
   mirror::Class* fields_class = resolved_field->GetDeclaringClass();
   bool fast_get = referrer_class != nullptr &&
       referrer_class->CanAccessResolvedField(fields_class, resolved_field,
                                              dex_cache, field_idx);
   bool fast_put = fast_get && (!resolved_field->IsFinal() || fields_class == referrer_class);
-  *field_offset = fast_get ? resolved_field->GetOffset() : MemberOffset(0u);
   return std::make_pair(fast_get, fast_put);
 }
 
@@ -233,8 +231,8 @@ inline int CompilerDriver::IsFastInvoke(
   // the super class.
   bool can_sharpen_super_based_on_type = (*invoke_type == kSuper) &&
       (referrer_class != methods_class) && referrer_class->IsSubClass(methods_class) &&
-      resolved_method->GetMethodIndex() < methods_class->GetVTable()->GetLength() &&
-      (methods_class->GetVTable()->Get(resolved_method->GetMethodIndex()) == resolved_method);
+      resolved_method->GetMethodIndex() < methods_class->GetVTableLength() &&
+      (methods_class->GetVTableEntry(resolved_method->GetMethodIndex()) == resolved_method);
 
   if (can_sharpen_virtual_based_on_type || can_sharpen_super_based_on_type) {
     // Sharpen a virtual call into a direct call. The method_idx is into referrer's

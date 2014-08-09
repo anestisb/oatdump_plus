@@ -24,13 +24,13 @@
 #include "class.h"
 #include "class-inl.h"
 #include "class_linker-inl.h"
+#include "field_helper.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/heap.h"
 #include "iftable-inl.h"
 #include "monitor.h"
 #include "object-inl.h"
 #include "object_array-inl.h"
-#include "object_utils.h"
 #include "runtime.h"
 #include "handle_scope-inl.h"
 #include "throwable.h"
@@ -57,7 +57,7 @@ class CopyReferenceFieldsWithReadBarrierVisitor {
       ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Copy java.lang.ref.Reference.referent which isn't visited in
     // Object::VisitReferences().
-    DCHECK(klass->IsReferenceClass());
+    DCHECK(klass->IsTypeOfReferenceClass());
     this->operator()(ref, mirror::Reference::ReferentOffset(), false);
   }
 
@@ -65,8 +65,8 @@ class CopyReferenceFieldsWithReadBarrierVisitor {
   Object* const dest_obj_;
 };
 
-static Object* CopyObject(Thread* self, mirror::Object* dest, mirror::Object* src, size_t num_bytes)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+Object* Object::CopyObject(Thread* self, mirror::Object* dest, mirror::Object* src,
+                           size_t num_bytes) {
   // Copy instance data.  We assume memcpy copies by words.
   // TODO: expose and use move32.
   byte* src_bytes = reinterpret_cast<byte*>(src);
@@ -107,7 +107,7 @@ class CopyObjectVisitor {
   void operator()(Object* obj, size_t usable_size) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     UNUSED(usable_size);
-    CopyObject(self_, obj, orig_->Get(), num_bytes_);
+    Object::CopyObject(self_, obj, orig_->Get(), num_bytes_);
   }
 
  private:
@@ -156,7 +156,7 @@ int32_t Object::IdentityHashCode() const {
         // loop iteration.
         LockWord hash_word(LockWord::FromHashCode(GenerateIdentityHashCode()));
         DCHECK_EQ(hash_word.GetState(), LockWord::kHashCode);
-        if (const_cast<Object*>(this)->CasLockWordWeakSequentiallyConsistent(lw, hash_word)) {
+        if (const_cast<Object*>(this)->CasLockWordWeakRelaxed(lw, hash_word)) {
           return hash_word.GetHashCode();
         }
         break;

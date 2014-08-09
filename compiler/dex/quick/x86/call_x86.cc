@@ -27,8 +27,7 @@ namespace art {
  * The sparse table in the literal pool is an array of <key,displacement>
  * pairs.
  */
-void X86Mir2Lir::GenSparseSwitch(MIR* mir, DexOffset table_offset,
-                                 RegLocation rl_src) {
+void X86Mir2Lir::GenLargeSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   if (cu_->verbose) {
     DumpSparseSwitchTable(table);
@@ -61,8 +60,7 @@ void X86Mir2Lir::GenSparseSwitch(MIR* mir, DexOffset table_offset,
  * jmp  r_start_of_method
  * done:
  */
-void X86Mir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset,
-                                 RegLocation rl_src) {
+void X86Mir2Lir::GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
   const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
   if (cu_->verbose) {
     DumpPackedSwitchTable(table);
@@ -151,7 +149,7 @@ void X86Mir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
 
   // Making a call - use explicit registers
   FlushAllRegs();   /* Everything to home location */
-  RegStorage array_ptr = TargetRefReg(kArg0);
+  RegStorage array_ptr = TargetReg(kArg0, kRef);
   RegStorage payload = TargetPtrReg(kArg1);
   RegStorage method_start = TargetPtrReg(kArg2);
 
@@ -171,13 +169,7 @@ void X86Mir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
   }
   NewLIR2(kX86PcRelAdr, payload.GetReg(), WrapPointer(tab_rec));
   OpRegReg(kOpAdd, payload, method_start);
-  if (cu_->target64) {
-    CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(8, pHandleFillArrayData), array_ptr,
-                            payload, true);
-  } else {
-    CallRuntimeHelperRegReg(QUICK_ENTRYPOINT_OFFSET(4, pHandleFillArrayData), array_ptr,
-                            payload, true);
-  }
+  CallRuntimeHelperRegReg(kQuickHandleFillArrayData, array_ptr, payload, true);
 }
 
 void X86Mir2Lir::GenMoveException(RegLocation rl_dest) {
@@ -261,13 +253,8 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
         m2l_->OpRegImm(kOpAdd, rs_rX86_SP, sp_displace_);
         m2l_->ClobberCallerSave();
         // Assumes codegen and target are in thumb2 mode.
-        if (cu_->target64) {
-          m2l_->CallHelper(RegStorage::InvalidReg(), QUICK_ENTRYPOINT_OFFSET(8, pThrowStackOverflow),
-                           false /* MarkSafepointPC */, false /* UseLink */);
-        } else {
-          m2l_->CallHelper(RegStorage::InvalidReg(), QUICK_ENTRYPOINT_OFFSET(4, pThrowStackOverflow),
-                           false /* MarkSafepointPC */, false /* UseLink */);
-        }
+        m2l_->CallHelper(RegStorage::InvalidReg(), kQuickThrowStackOverflow,
+                         false /* MarkSafepointPC */, false /* UseLink */);
       }
 
      private:

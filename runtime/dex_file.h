@@ -382,6 +382,20 @@ class DexFile {
     return location_;
   }
 
+  // For normal dex files, location and base location coincide. If a dex file is part of a multidex
+  // archive, the base location is the name of the originating jar/apk, stripped of any internal
+  // classes*.dex path.
+  const std::string GetBaseLocation() const {
+    if (IsMultiDexLocation(location_.c_str())) {
+      std::pair<const char*, const char*> pair = SplitMultiDexLocation(location_.c_str());
+      std::string res(pair.first);
+      delete[] pair.first;
+      return res;
+    } else {
+      return location_;
+    }
+  }
+
   // For DexFiles directly from .dex files, this is the checksum from the DexFile::Header.
   // For DexFiles opened from a zip files, this will be the ZipEntry CRC32 of classes.dex.
   uint32_t GetLocationChecksum() const {
@@ -826,6 +840,23 @@ class DexFile {
   size_t Size() const {
     return size_;
   }
+
+  static std::string GetMultiDexClassesDexName(size_t number, const char* dex_location);
+
+  // Returns the canonical form of the given dex location.
+  //
+  // There are different flavors of "dex locations" as follows:
+  // the file name of a dex file:
+  //     The actual file path that the dex file has on disk.
+  // dex_location:
+  //     This acts as a key for the class linker to know which dex file to load.
+  //     It may correspond to either an old odex file or a particular dex file
+  //     inside an oat file. In the first case it will also match the file name
+  //     of the dex file. In the second case (oat) it will include the file name
+  //     and possibly some multidex annotation to uniquely identify it.
+  // canonical_dex_location:
+  //     the dex_location where it's file name part has been made canonical.
+  static std::string GetDexCanonicalLocation(const char* dex_location);
 
  private:
   // Opens a .dex file

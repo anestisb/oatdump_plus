@@ -20,14 +20,19 @@
 #include "art_field.h"
 
 #include "base/logging.h"
+#include "dex_cache.h"
 #include "gc/accounting/card_table-inl.h"
 #include "jvalue.h"
 #include "object-inl.h"
-#include "object_utils.h"
 #include "primitive.h"
 
 namespace art {
 namespace mirror {
+
+inline uint32_t ArtField::ClassSize() {
+  uint32_t vtable_entries = Object::kVTableLength + 6;
+  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0);
+}
 
 inline Class* ArtField::GetDeclaringClass() {
   Class* result = GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(ArtField, declaring_class_));

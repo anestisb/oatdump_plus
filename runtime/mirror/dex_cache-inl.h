@@ -19,10 +19,17 @@
 
 #include "dex_cache.h"
 
+#include "base/logging.h"
+#include "mirror/class.h"
 #include "runtime.h"
 
 namespace art {
 namespace mirror {
+
+inline uint32_t DexCache::ClassSize() {
+  uint32_t vtable_entries = Object::kVTableLength + 1;
+  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0);
+}
 
 inline ArtMethod* DexCache::GetResolvedMethod(uint32_t method_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -34,6 +41,12 @@ inline ArtMethod* DexCache::GetResolvedMethod(uint32_t method_idx)
   } else {
     return method;
   }
+}
+
+inline void DexCache::SetResolvedType(uint32_t type_idx, Class* resolved) {
+  // TODO default transaction support.
+  DCHECK(resolved == nullptr || !resolved->IsErroneous());
+  GetResolvedTypes()->Set(type_idx, resolved);
 }
 
 }  // namespace mirror

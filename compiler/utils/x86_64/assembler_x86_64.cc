@@ -20,6 +20,7 @@
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "memory_region.h"
 #include "thread.h"
+#include "utils/dwarf_cfi.h"
 
 namespace art {
 namespace x86_64 {
@@ -283,8 +284,8 @@ void X86_64Assembler::movw(CpuRegister /*dst*/, const Address& /*src*/) {
 
 void X86_64Assembler::movw(const Address& dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
-  EmitOptionalRex32(src, dst);
   EmitOperandSizeOverride();
+  EmitOptionalRex32(src, dst);
   EmitUint8(0x89);
   EmitOperand(src.LowBits(), dst);
 }
@@ -869,6 +870,22 @@ void X86_64Assembler::cmpq(CpuRegister reg0, CpuRegister reg1) {
 }
 
 
+void X86_64Assembler::cmpq(CpuRegister reg, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  CHECK(imm.is_int32());  // cmpq only supports 32b immediate.
+  EmitRex64(reg);
+  EmitComplex(7, Operand(reg), imm);
+}
+
+
+void X86_64Assembler::cmpq(CpuRegister reg, const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(reg);
+  EmitUint8(0x3B);
+  EmitOperand(reg.LowBits(), address);
+}
+
+
 void X86_64Assembler::addl(CpuRegister dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitOptionalRex32(dst, src);
@@ -931,6 +948,14 @@ void X86_64Assembler::testl(CpuRegister reg, const Immediate& immediate) {
     EmitOperand(0, Operand(reg));
     EmitImmediate(immediate);
   }
+}
+
+
+void X86_64Assembler::testq(CpuRegister reg, const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(reg);
+  EmitUint8(0x85);
+  EmitOperand(reg.LowBits(), address);
 }
 
 
@@ -1063,6 +1088,14 @@ void X86_64Assembler::addq(CpuRegister reg, const Immediate& imm) {
 }
 
 
+void X86_64Assembler::addq(CpuRegister dst, const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(dst);
+  EmitUint8(0x03);
+  EmitOperand(dst.LowBits(), address);
+}
+
+
 void X86_64Assembler::addq(CpuRegister dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   // 0x01 is addq r/m64 <- r/m64 + r64, with op1 in r/m and op2 in reg: so reverse EmitRex64
@@ -1115,6 +1148,14 @@ void X86_64Assembler::subq(CpuRegister dst, CpuRegister src) {
   EmitRex64(dst, src);
   EmitUint8(0x2B);
   EmitRegisterOperand(dst.LowBits(), src.LowBits());
+}
+
+
+void X86_64Assembler::subq(CpuRegister reg, const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(reg);
+  EmitUint8(0x2B);
+  EmitOperand(reg.LowBits() & 7, address);
 }
 
 
@@ -1201,7 +1242,7 @@ void X86_64Assembler::mull(const Address& address) {
 
 
 void X86_64Assembler::shll(CpuRegister reg, const Immediate& imm) {
-  EmitGenericShift(4, reg, imm);
+  EmitGenericShift(false, 4, reg, imm);
 }
 
 
@@ -1211,7 +1252,12 @@ void X86_64Assembler::shll(CpuRegister operand, CpuRegister shifter) {
 
 
 void X86_64Assembler::shrl(CpuRegister reg, const Immediate& imm) {
-  EmitGenericShift(5, reg, imm);
+  EmitGenericShift(false, 5, reg, imm);
+}
+
+
+void X86_64Assembler::shrq(CpuRegister reg, const Immediate& imm) {
+  EmitGenericShift(true, 5, reg, imm);
 }
 
 
@@ -1221,7 +1267,7 @@ void X86_64Assembler::shrl(CpuRegister operand, CpuRegister shifter) {
 
 
 void X86_64Assembler::sarl(CpuRegister reg, const Immediate& imm) {
-  EmitGenericShift(7, reg, imm);
+  EmitGenericShift(false, 7, reg, imm);
 }
 
 
@@ -1537,11 +1583,15 @@ void X86_64Assembler::EmitLabelLink(Label* label) {
 }
 
 
-void X86_64Assembler::EmitGenericShift(int reg_or_opcode,
-                                    CpuRegister reg,
-                                    const Immediate& imm) {
+void X86_64Assembler::EmitGenericShift(bool wide,
+                                       int reg_or_opcode,
+                                       CpuRegister reg,
+                                       const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   CHECK(imm.is_int8());
+  if (wide) {
+    EmitRex64(reg);
+  }
   if (imm.value() == 1) {
     EmitUint8(0xD1);
     EmitOperand(reg_or_opcode, Operand(reg));
@@ -1554,8 +1604,8 @@ void X86_64Assembler::EmitGenericShift(int reg_or_opcode,
 
 
 void X86_64Assembler::EmitGenericShift(int reg_or_opcode,
-                                    CpuRegister operand,
-                                    CpuRegister shifter) {
+                                       CpuRegister operand,
+                                       CpuRegister shifter) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   CHECK_EQ(shifter.AsRegister(), RCX);
   EmitUint8(0xD3);
@@ -1665,11 +1715,26 @@ void X86_64Assembler::EmitOptionalByteRegNormalizingRex32(CpuRegister dst, const
   }
 }
 
+void X86_64Assembler::InitializeFrameDescriptionEntry() {
+  WriteFDEHeader(&cfi_info_);
+}
+
+void X86_64Assembler::FinalizeFrameDescriptionEntry() {
+  WriteFDEAddressRange(&cfi_info_, buffer_.Size());
+  PadCFI(&cfi_info_);
+  WriteCFILength(&cfi_info_);
+}
+
 constexpr size_t kFramePointerSize = 8;
 
 void X86_64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
                                  const std::vector<ManagedRegister>& spill_regs,
                                  const ManagedRegisterEntrySpills& entry_spills) {
+  cfi_cfa_offset_ = kFramePointerSize;  // Only return address on stack
+  cfi_pc_ = buffer_.Size();  // Nothing emitted yet
+  DCHECK_EQ(cfi_pc_, 0U);
+
+  uint32_t reg_offset = 1;
   CHECK_ALIGNED(frame_size, kStackAlignment);
   int gpr_count = 0;
   for (int i = spill_regs.size() - 1; i >= 0; --i) {
@@ -1677,6 +1742,16 @@ void X86_64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
     if (spill.IsCpuRegister()) {
       pushq(spill.AsCpuRegister());
       gpr_count++;
+
+      // DW_CFA_advance_loc
+      DW_CFA_advance_loc(&cfi_info_, buffer_.Size() - cfi_pc_);
+      cfi_pc_ = buffer_.Size();
+      // DW_CFA_def_cfa_offset
+      cfi_cfa_offset_ += kFramePointerSize;
+      DW_CFA_def_cfa_offset(&cfi_info_, cfi_cfa_offset_);
+      // DW_CFA_offset reg offset
+      reg_offset++;
+      DW_CFA_offset(&cfi_info_, spill.DWARFRegId(), reg_offset);
     }
   }
   // return address then method on stack
@@ -1684,6 +1759,13 @@ void X86_64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
                           - (gpr_count * kFramePointerSize)
                           - kFramePointerSize /*return address*/;
   subq(CpuRegister(RSP), Immediate(rest_of_frame));
+  // DW_CFA_advance_loc
+  DW_CFA_advance_loc(&cfi_info_, buffer_.Size() - cfi_pc_);
+  cfi_pc_ = buffer_.Size();
+  // DW_CFA_def_cfa_offset
+  cfi_cfa_offset_ += rest_of_frame;
+  DW_CFA_def_cfa_offset(&cfi_info_, cfi_cfa_offset_);
+
   // spill xmms
   int64_t offset = rest_of_frame;
   for (int i = spill_regs.size() - 1; i >= 0; --i) {
@@ -1747,6 +1829,12 @@ void X86_64Assembler::RemoveFrame(size_t frame_size,
 void X86_64Assembler::IncreaseFrameSize(size_t adjust) {
   CHECK_ALIGNED(adjust, kStackAlignment);
   addq(CpuRegister(RSP), Immediate(-static_cast<int64_t>(adjust)));
+  // DW_CFA_advance_loc
+  DW_CFA_advance_loc(&cfi_info_, buffer_.Size() - cfi_pc_);
+  cfi_pc_ = buffer_.Size();
+  // DW_CFA_def_cfa_offset
+  cfi_cfa_offset_ += adjust;
+  DW_CFA_def_cfa_offset(&cfi_info_, cfi_cfa_offset_);
 }
 
 void X86_64Assembler::DecreaseFrameSize(size_t adjust) {

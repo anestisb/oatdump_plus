@@ -22,5 +22,10 @@ public class Main {
 
         PublicAccess pa = new PublicAccess();
         pa.main();
+
+        System.out.println(Iface.X);
+        System.out.println(Iface2.Y);
+        System.out.println(Iface2.A);
+        System.out.println(Iface2.B);
     }
 }

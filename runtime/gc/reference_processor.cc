@@ -35,11 +35,11 @@ ReferenceProcessor::ReferenceProcessor()
 }
 
 void ReferenceProcessor::EnableSlowPath() {
-  mirror::Reference::GetJavaLangRefReference()->SetSlowPathEnabled(true);
+  mirror::Reference::GetJavaLangRefReference()->SetSlowPath(true);
 }
 
 void ReferenceProcessor::DisableSlowPath(Thread* self) {
-  mirror::Reference::GetJavaLangRefReference()->SetSlowPathEnabled(false);
+  mirror::Reference::GetJavaLangRefReference()->SetSlowPath(false);
   condition_.Broadcast(self);
 }
 
@@ -183,7 +183,7 @@ void ReferenceProcessor::DelayReferenceReferent(mirror::Class* klass, mirror::Re
                                                 void* arg) {
   // klass can be the class of the old object if the visitor already updated the class of ref.
   DCHECK(klass != nullptr);
-  DCHECK(klass->IsReferenceClass());
+  DCHECK(klass->IsTypeOfReferenceClass());
   mirror::HeapReference<mirror::Object>* referent = ref->GetReferentReferenceAddr();
   if (referent->AsMirrorPtr() != nullptr && !is_marked_callback(referent, arg)) {
     Thread* self = Thread::Current();

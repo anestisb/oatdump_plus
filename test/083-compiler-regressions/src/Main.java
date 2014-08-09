@@ -36,6 +36,7 @@ public class Main {
         b5884080Test();
         b13679511Test();
         b16177324TestWrapper();
+        b16230771TestWrapper();
         largeFrameTest();
         largeFrameTestFloat();
         mulBy1Test();
@@ -57,6 +58,21 @@ public class Main {
         ManyFloatArgs();
         atomicLong();
         LiveFlags.test();
+        minDoubleWith3ConstsTest();
+    }
+
+    public static double minDouble(double a, double b, double c) {
+        return Math.min(Math.min(a, b), c);
+    }
+
+    public static void minDoubleWith3ConstsTest() {
+        double result = minDouble(1.2, 2.5, Double.NaN);
+        if (Double.isNaN(result)) {
+            System.out.println("minDoubleWith3ConstsTest passes");
+        } else {
+            System.out.println("minDoubleWith3ConstsTest fails: " + result +
+                               " (expecting NaN)");
+        }
     }
 
     public static void atomicLong() {
@@ -925,6 +941,28 @@ public class Main {
       int v3 = B16177324Values.values[0];        // Should throw NPE.
       // If the null-check for v3 was eliminated we should fail with SIGSEGV.
       System.out.println("Unexpectedly retrieved all values: " + v1 + ", " + v2 + ", " + v3);
+    }
+
+    static void b16230771TestWrapper() {
+      try {
+        b16230771Test();
+      } catch (NullPointerException expected) {
+        System.out.println("b16230771TestWrapper caught NPE as expected.");
+      }
+    }
+
+    static void b16230771Test() {
+      Integer[] array = { null };
+      for (Integer i : array) {
+        try {
+          int value = i;  // Null check on unboxing should fail.
+          System.out.println("Unexpectedly retrieved value " + value);
+        } catch (NullPointerException e) {
+          int value = i;  // Null check on unboxing should fail.
+          // The bug was a missing null check, so this would actually cause SIGSEGV.
+          System.out.println("Unexpectedly retrieved value " + value + " in NPE catch handler");
+        }
+      }
     }
 
     static double TooManyArgs(
@@ -9638,6 +9676,7 @@ class MirOpSelectTests {
     private static int ifGezThen7Else4(int i) { return (i >= 0) ? 7 : 4; }
     private static int ifGtzThen2Else9(int i) { return (i > 0) ? 2 : 9; }
     private static int ifLezThen8Else0(int i) { return (i <= 0) ? 8 : 0; }
+    private static int ifGtzThen8Else9(int i) { return (i > 0) ? 8 : 9; }
 
     private static int ifEqz(int src, int thn, int els) { return (src == 0) ? thn : els; }
     private static int ifNez(int src, int thn, int els) { return (src != 0) ? thn : els; }
@@ -9714,6 +9753,8 @@ class MirOpSelectTests {
             ifLez(-1, 116, 216), 116,
             ifLez(0, 117, 217), 117,
             ifLez(1, 118, 218), 218,
+            ifGtzThen8Else9(0), 9,
+            ifGtzThen8Else9(1), 8
         };
 
         boolean success = true;

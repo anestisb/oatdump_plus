@@ -30,7 +30,6 @@
 #include "mirror/dex_cache.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
-#include "object_utils.h"
 #include "os.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
@@ -115,7 +114,7 @@ static const uint16_t kTraceVersionDualClock      = 3;
 static const uint16_t kTraceRecordSizeSingleClock = 10;  // using v2
 static const uint16_t kTraceRecordSizeDualClock   = 14;  // using v3 with two timestamps
 
-ProfilerClockSource Trace::default_clock_source_ = kDefaultProfilerClockSource;
+TraceClockSource Trace::default_clock_source_ = kDefaultTraceClockSource;
 
 Trace* volatile Trace::the_trace_ = NULL;
 pthread_t Trace::sampling_pthread_ = 0U;
@@ -149,59 +148,59 @@ void Trace::FreeStackTrace(std::vector<mirror::ArtMethod*>* stack_trace) {
   temp_stack_trace_.reset(stack_trace);
 }
 
-void Trace::SetDefaultClockSource(ProfilerClockSource clock_source) {
+void Trace::SetDefaultClockSource(TraceClockSource clock_source) {
 #if defined(HAVE_POSIX_CLOCKS)
   default_clock_source_ = clock_source;
 #else
-  if (clock_source != kProfilerClockSourceWall) {
+  if (clock_source != kTraceClockSourceWall) {
     LOG(WARNING) << "Ignoring tracing request to use CPU time.";
   }
 #endif
 }
 
-static uint16_t GetTraceVersion(ProfilerClockSource clock_source) {
-  return (clock_source == kProfilerClockSourceDual) ? kTraceVersionDualClock
+static uint16_t GetTraceVersion(TraceClockSource clock_source) {
+  return (clock_source == kTraceClockSourceDual) ? kTraceVersionDualClock
                                                     : kTraceVersionSingleClock;
 }
 
-static uint16_t GetRecordSize(ProfilerClockSource clock_source) {
-  return (clock_source == kProfilerClockSourceDual) ? kTraceRecordSizeDualClock
+static uint16_t GetRecordSize(TraceClockSource clock_source) {
+  return (clock_source == kTraceClockSourceDual) ? kTraceRecordSizeDualClock
                                                     : kTraceRecordSizeSingleClock;
 }
 
 bool Trace::UseThreadCpuClock() {
-  return (clock_source_ == kProfilerClockSourceThreadCpu) ||
-      (clock_source_ == kProfilerClockSourceDual);
+  return (clock_source_ == kTraceClockSourceThreadCpu) ||
+      (clock_source_ == kTraceClockSourceDual);
 }
 
 bool Trace::UseWallClock() {
-  return (clock_source_ == kProfilerClockSourceWall) ||
-      (clock_source_ == kProfilerClockSourceDual);
+  return (clock_source_ == kTraceClockSourceWall) ||
+      (clock_source_ == kTraceClockSourceDual);
 }
 
-static void MeasureClockOverhead(Trace* trace) {
-  if (trace->UseThreadCpuClock()) {
+void Trace::MeasureClockOverhead() {
+  if (UseThreadCpuClock()) {
     Thread::Current()->GetCpuMicroTime();
   }
-  if (trace->UseWallClock()) {
+  if (UseWallClock()) {
     MicroTime();
   }
 }
 
 // Compute an average time taken to measure clocks.
-static uint32_t GetClockOverheadNanoSeconds(Trace* trace) {
+uint32_t Trace::GetClockOverheadNanoSeconds() {
   Thread* self = Thread::Current();
   uint64_t start = self->GetCpuMicroTime();
 
   for (int i = 4000; i > 0; i--) {
-    MeasureClockOverhead(trace);
-    MeasureClockOverhead(trace);
-    MeasureClockOverhead(trace);
-    MeasureClockOverhead(trace);
-    MeasureClockOverhead(trace);
-    MeasureClockOverhead(trace);
-    MeasureClockOverhead(trace);
-    MeasureClockOverhead(trace);
+    MeasureClockOverhead();
+    MeasureClockOverhead();
+    MeasureClockOverhead();
+    MeasureClockOverhead();
+    MeasureClockOverhead();
+    MeasureClockOverhead();
+    MeasureClockOverhead();
+    MeasureClockOverhead();
   }
 
   uint64_t elapsed_us = self->GetCpuMicroTime() - start;
@@ -445,7 +444,8 @@ TracingMode Trace::GetMethodTracingMode() {
 Trace::Trace(File* trace_file, int buffer_size, int flags, bool sampling_enabled)
     : trace_file_(trace_file), buf_(new uint8_t[buffer_size]()), flags_(flags),
       sampling_enabled_(sampling_enabled), clock_source_(default_clock_source_),
-      buffer_size_(buffer_size), start_time_(MicroTime()), cur_offset_(0),  overflow_(false) {
+      buffer_size_(buffer_size), start_time_(MicroTime()),
+      clock_overhead_ns_(GetClockOverheadNanoSeconds()), cur_offset_(0), overflow_(false) {
   // Set up the beginning of the trace.
   uint16_t trace_version = GetTraceVersion(clock_source_);
   memset(buf_.get(), 0, kTraceHeaderLength);
@@ -462,7 +462,7 @@ Trace::Trace(File* trace_file, int buffer_size, int flags, bool sampling_enabled
   cur_offset_.StoreRelaxed(kTraceHeaderLength);
 }
 
-static void DumpBuf(uint8_t* buf, size_t buf_size, ProfilerClockSource clock_source)
+static void DumpBuf(uint8_t* buf, size_t buf_size, TraceClockSource clock_source)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   uint8_t* ptr = buf + kTraceHeaderLength;
   uint8_t* end = buf + buf_size;
@@ -481,7 +481,6 @@ void Trace::FinishTracing() {
   uint64_t elapsed = MicroTime() - start_time_;
 
   size_t final_offset = cur_offset_.LoadRelaxed();
-  uint32_t clock_overhead_ns = GetClockOverheadNanoSeconds(this);
 
   if ((flags_ & kTraceCountAllocs) != 0) {
     Runtime::Current()->SetStatsEnabled(false);
@@ -507,7 +506,7 @@ void Trace::FinishTracing() {
   os << StringPrintf("elapsed-time-usec=%" PRIu64 "\n", elapsed);
   size_t num_records = (final_offset - kTraceHeaderLength) / GetRecordSize(clock_source_);
   os << StringPrintf("num-method-calls=%zd\n", num_records);
-  os << StringPrintf("clock-call-overhead-nsec=%d\n", clock_overhead_ns);
+  os << StringPrintf("clock-call-overhead-nsec=%d\n", clock_overhead_ns_);
   os << StringPrintf("vm=art\n");
   if ((flags_ & kTraceCountAllocs) != 0) {
     os << StringPrintf("alloc-count=%d\n", Runtime::Current()->GetStat(KIND_ALLOCATED_OBJECTS));

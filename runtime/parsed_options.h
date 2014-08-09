@@ -18,26 +18,39 @@
 #define ART_RUNTIME_PARSED_OPTIONS_H_
 
 #include <string>
+#include <vector>
 
+#include <jni.h>
+
+#include "globals.h"
 #include "gc/collector_type.h"
-#include "runtime.h"
-#include "trace.h"
+#include "instruction_set.h"
+#include "profiler_options.h"
 
 namespace art {
+
+class CompilerCallbacks;
+class DexFile;
+
+typedef std::vector<std::pair<std::string, const void*>> RuntimeOptions;
 
 class ParsedOptions {
  public:
   // returns null if problem parsing and ignore_unrecognized is false
-  static ParsedOptions* Create(const Runtime::Options& options, bool ignore_unrecognized);
+  static ParsedOptions* Create(const RuntimeOptions& options, bool ignore_unrecognized);
 
   const std::vector<const DexFile*>* boot_class_path_;
   std::string boot_class_path_string_;
   std::string class_path_string_;
   std::string image_;
   bool check_jni_;
+  bool force_copy_;
   std::string jni_trace_;
+  std::string native_bridge_library_string_;
   CompilerCallbacks* compiler_callbacks_;
   bool is_zygote_;
+  bool must_relocate_;
+  std::string patchoat_executable_;
   bool interpreter_only_;
   bool is_explicit_gc_disabled_;
   bool use_tlab_;
@@ -80,9 +93,16 @@ class ParsedOptions {
   std::vector<std::string> image_compiler_options_;
   ProfilerOptions profiler_options_;
   std::string profile_output_filename_;
-  ProfilerClockSource profile_clock_source_;
+  TraceClockSource profile_clock_source_;
   bool verify_;
   InstructionSet image_isa_;
+
+  // Whether or not we use homogeneous space compaction to avoid OOM errors. If enabled,
+  // the heap will attempt to create an extra space which enables compacting from a malloc space to
+  // another malloc space when we are about to throw OOM.
+  bool use_homogeneous_space_compaction_for_oom_;
+  // Minimal interval allowed between two homogeneous space compactions caused by OOM.
+  uint64_t min_interval_homogeneous_space_compaction_by_oom_;
 
  private:
   ParsedOptions() {}
@@ -94,7 +114,7 @@ class ParsedOptions {
   void Exit(int status);
   void Abort();
 
-  bool Parse(const Runtime::Options& options,  bool ignore_unrecognized);
+  bool Parse(const RuntimeOptions& options,  bool ignore_unrecognized);
   bool ParseXGcOption(const std::string& option);
   bool ParseStringAfterChar(const std::string& option, char after_char, std::string* parsed_value);
   bool ParseInteger(const std::string& option, char after_char, int* parsed_value);

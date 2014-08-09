@@ -551,8 +551,9 @@ LIR* MipsMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStora
 
 LIR* MipsMir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
                                OpSize size, VolatileKind is_volatile) {
-  if (is_volatile == kVolatile) {
-    DCHECK(size != k64 && size != kDouble);
+  if (UNLIKELY(is_volatile == kVolatile && (size == k64 || size == kDouble))) {
+    // Do atomic 64-bit load.
+    return GenAtomic64Load(r_base, displacement, r_dest);
   }
 
   // TODO: base this on target.
@@ -563,10 +564,7 @@ LIR* MipsMir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r
   load = LoadBaseDispBody(r_base, displacement, r_dest, size);
 
   if (UNLIKELY(is_volatile == kVolatile)) {
-    // Without context sensitive analysis, we must issue the most conservative barriers.
-    // In this case, either a load or store may follow so we issue both barriers.
-    GenMemBarrier(kLoadLoad);
-    GenMemBarrier(kLoadStore);
+    GenMemBarrier(kLoadAny);
   }
 
   return load;
@@ -657,34 +655,29 @@ LIR* MipsMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement,
 LIR* MipsMir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
                                 OpSize size, VolatileKind is_volatile) {
   if (is_volatile == kVolatile) {
-    DCHECK(size != k64 && size != kDouble);
-    // There might have been a store before this volatile one so insert StoreStore barrier.
-    GenMemBarrier(kStoreStore);
+    // Ensure that prior accesses become visible to other threads first.
+    GenMemBarrier(kAnyStore);
   }
 
-  // TODO: base this on target.
-  if (size == kWord) {
-    size = k32;
-  }
   LIR* store;
-  store = StoreBaseDispBody(r_base, displacement, r_src, size);
+  if (UNLIKELY(is_volatile == kVolatile && (size == k64 || size == kDouble))) {
+    // Do atomic 64-bit load.
+    store = GenAtomic64Store(r_base, displacement, r_src);
+  } else {
+    // TODO: base this on target.
+    if (size == kWord) {
+      size = k32;
+    }
+    store = StoreBaseDispBody(r_base, displacement, r_src, size);
+  }
 
   if (UNLIKELY(is_volatile == kVolatile)) {
-    // A load might follow the volatile store so insert a StoreLoad barrier.
-    GenMemBarrier(kStoreLoad);
+    // Preserve order with respect to any subsequent volatile loads.
+    // We need StoreLoad, but that generally requires the most expensive barrier.
+    GenMemBarrier(kAnyAny);
   }
 
   return store;
-}
-
-LIR* MipsMir2Lir::OpThreadMem(OpKind op, ThreadOffset<4> thread_offset) {
-  LOG(FATAL) << "Unexpected use of OpThreadMem for MIPS";
-  return NULL;
-}
-
-LIR* MipsMir2Lir::OpThreadMem(OpKind op, ThreadOffset<8> thread_offset) {
-  UNIMPLEMENTED(FATAL) << "Should not be called.";
-  return nullptr;
 }
 
 LIR* MipsMir2Lir::OpMem(OpKind op, RegStorage r_base, int disp) {
@@ -692,26 +685,13 @@ LIR* MipsMir2Lir::OpMem(OpKind op, RegStorage r_base, int disp) {
   return NULL;
 }
 
-LIR* MipsMir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
-                                       int displacement, RegStorage r_src, OpSize size) {
-  LOG(FATAL) << "Unexpected use of StoreBaseIndexedDisp for MIPS";
-  return NULL;
-}
-
-LIR* MipsMir2Lir::OpRegMem(OpKind op, RegStorage r_dest, RegStorage r_base, int offset) {
-  LOG(FATAL) << "Unexpected use of OpRegMem for MIPS";
-  return NULL;
-}
-
-LIR* MipsMir2Lir::LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
-                                      int displacement, RegStorage r_dest, OpSize size) {
-  LOG(FATAL) << "Unexpected use of LoadBaseIndexedDisp for MIPS";
-  return NULL;
-}
-
 LIR* MipsMir2Lir::OpCondBranch(ConditionCode cc, LIR* target) {
   LOG(FATAL) << "Unexpected use of OpCondBranch for MIPS";
   return NULL;
+}
+
+LIR* MipsMir2Lir::InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) {
+  return OpReg(op, r_tgt);
 }
 
 }  // namespace art

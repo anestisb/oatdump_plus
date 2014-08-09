@@ -35,6 +35,11 @@
 namespace art {
 namespace mirror {
 
+inline uint32_t Object::ClassSize() {
+  uint32_t vtable_entries = kVTableLength;
+  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0);
+}
+
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline Class* Object::GetClass() {
   return GetFieldObject<Class, kVerifyFlags, kReadBarrierOption>(
@@ -72,6 +77,12 @@ inline void Object::SetLockWord(LockWord new_val, bool as_volatile) {
 inline bool Object::CasLockWordWeakSequentiallyConsistent(LockWord old_val, LockWord new_val) {
   // Force use of non-transactional mode and do not check.
   return CasFieldWeakSequentiallyConsistent32<false, false>(
+      OFFSET_OF_OBJECT_MEMBER(Object, monitor_), old_val.GetValue(), new_val.GetValue());
+}
+
+inline bool Object::CasLockWordWeakRelaxed(LockWord old_val, LockWord new_val) {
+  // Force use of non-transactional mode and do not check.
+  return CasFieldWeakRelaxed32<false, false>(
       OFFSET_OF_OBJECT_MEMBER(Object, monitor_), old_val.GetValue(), new_val.GetValue());
 }
 
@@ -238,7 +249,7 @@ inline ArtMethod* Object::AsArtMethod() {
 
 template<VerifyObjectFlags kVerifyFlags>
 inline bool Object::IsReferenceInstance() {
-  return GetClass<kVerifyFlags>()->IsReferenceClass();
+  return GetClass<kVerifyFlags>()->IsTypeOfReferenceClass();
 }
 
 template<VerifyObjectFlags kVerifyFlags>
@@ -443,6 +454,8 @@ inline void Object::SetField32Volatile(MemberOffset field_offset, int32_t new_va
   SetField32<kTransactionActive, kCheckTransaction, kVerifyFlags, true>(field_offset, new_value);
 }
 
+// TODO: Pass memory_order_ and strong/weak as arguments to avoid code duplication?
+
 template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
 inline bool Object::CasFieldWeakSequentiallyConsistent32(MemberOffset field_offset,
                                                          int32_t old_value, int32_t new_value) {
@@ -459,6 +472,42 @@ inline bool Object::CasFieldWeakSequentiallyConsistent32(MemberOffset field_offs
   AtomicInteger* atomic_addr = reinterpret_cast<AtomicInteger*>(raw_addr);
 
   return atomic_addr->CompareExchangeWeakSequentiallyConsistent(old_value, new_value);
+}
+
+template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
+inline bool Object::CasFieldWeakRelaxed32(MemberOffset field_offset,
+                                          int32_t old_value, int32_t new_value) {
+  if (kCheckTransaction) {
+    DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
+  }
+  if (kTransactionActive) {
+    Runtime::Current()->RecordWriteField32(this, field_offset, old_value, true);
+  }
+  if (kVerifyFlags & kVerifyThis) {
+    VerifyObject(this);
+  }
+  byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
+  AtomicInteger* atomic_addr = reinterpret_cast<AtomicInteger*>(raw_addr);
+
+  return atomic_addr->CompareExchangeWeakRelaxed(old_value, new_value);
+}
+
+template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
+inline bool Object::CasFieldStrongSequentiallyConsistent32(MemberOffset field_offset,
+                                                           int32_t old_value, int32_t new_value) {
+  if (kCheckTransaction) {
+    DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
+  }
+  if (kTransactionActive) {
+    Runtime::Current()->RecordWriteField32(this, field_offset, old_value, true);
+  }
+  if (kVerifyFlags & kVerifyThis) {
+    VerifyObject(this);
+  }
+  byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
+  AtomicInteger* atomic_addr = reinterpret_cast<AtomicInteger*>(raw_addr);
+
+  return atomic_addr->CompareExchangeStrongSequentiallyConsistent(old_value, new_value);
 }
 
 template<VerifyObjectFlags kVerifyFlags, bool kIsVolatile>
@@ -524,6 +573,23 @@ inline bool Object::CasFieldWeakSequentiallyConsistent64(MemberOffset field_offs
   byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
   Atomic<int64_t>* atomic_addr = reinterpret_cast<Atomic<int64_t>*>(raw_addr);
   return atomic_addr->CompareExchangeWeakSequentiallyConsistent(old_value, new_value);
+}
+
+template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
+inline bool Object::CasFieldStrongSequentiallyConsistent64(MemberOffset field_offset,
+                                                           int64_t old_value, int64_t new_value) {
+  if (kCheckTransaction) {
+    DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
+  }
+  if (kTransactionActive) {
+    Runtime::Current()->RecordWriteField64(this, field_offset, old_value, true);
+  }
+  if (kVerifyFlags & kVerifyThis) {
+    VerifyObject(this);
+  }
+  byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
+  Atomic<int64_t>* atomic_addr = reinterpret_cast<Atomic<int64_t>*>(raw_addr);
+  return atomic_addr->CompareExchangeStrongSequentiallyConsistent(old_value, new_value);
 }
 
 template<class T, VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption,
@@ -644,6 +710,38 @@ inline bool Object::CasFieldWeakSequentiallyConsistentObject(MemberOffset field_
   return success;
 }
 
+template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
+inline bool Object::CasFieldStrongSequentiallyConsistentObject(MemberOffset field_offset,
+                                                             Object* old_value, Object* new_value) {
+  if (kCheckTransaction) {
+    DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
+  }
+  if (kVerifyFlags & kVerifyThis) {
+    VerifyObject(this);
+  }
+  if (kVerifyFlags & kVerifyWrites) {
+    VerifyObject(new_value);
+  }
+  if (kVerifyFlags & kVerifyReads) {
+    VerifyObject(old_value);
+  }
+  if (kTransactionActive) {
+    Runtime::Current()->RecordWriteFieldReference(this, field_offset, old_value, true);
+  }
+  HeapReference<Object> old_ref(HeapReference<Object>::FromMirrorPtr(old_value));
+  HeapReference<Object> new_ref(HeapReference<Object>::FromMirrorPtr(new_value));
+  byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
+  Atomic<uint32_t>* atomic_addr = reinterpret_cast<Atomic<uint32_t>*>(raw_addr);
+
+  bool success = atomic_addr->CompareExchangeStrongSequentiallyConsistent(old_ref.reference_,
+                                                                          new_ref.reference_);
+
+  if (success) {
+    Runtime::Current()->GetHeap()->WriteBarrierField(this, field_offset, new_value);
+  }
+  return success;
+}
+
 template<bool kVisitClass, bool kIsStatic, typename Visitor>
 inline void Object::VisitFieldsReferences(uint32_t ref_offsets, const Visitor& visitor) {
   if (LIKELY(ref_offsets != CLASS_WALK_SUPER)) {
@@ -687,6 +785,7 @@ inline void Object::VisitInstanceFieldsReferences(mirror::Class* klass, const Vi
 
 template<bool kVisitClass, typename Visitor>
 inline void Object::VisitStaticFieldsReferences(mirror::Class* klass, const Visitor& visitor) {
+  DCHECK(!klass->IsTemp());
   klass->VisitFieldsReferences<kVisitClass, true>(
       klass->GetReferenceStaticOffsets<kVerifyNone>(), visitor);
 }
@@ -707,7 +806,7 @@ inline void Object::VisitReferences(const Visitor& visitor,
   } else {
     DCHECK(!klass->IsVariableSize());
     VisitInstanceFieldsReferences<kVisitClass>(klass, visitor);
-    if (UNLIKELY(klass->IsReferenceClass<kVerifyNone>())) {
+    if (UNLIKELY(klass->IsTypeOfReferenceClass<kVerifyNone>())) {
       ref_visitor(klass, AsReference());
     }
   }

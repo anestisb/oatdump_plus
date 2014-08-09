@@ -30,6 +30,7 @@
 namespace art {
 
 class BitVector;
+class CompiledMethod;
 class OutputStream;
 
 // OatHeader         variable length with count of D OatDexFiles
@@ -79,9 +80,10 @@ class OatWriter {
   OatWriter(const std::vector<const DexFile*>& dex_files,
             uint32_t image_file_location_oat_checksum,
             uintptr_t image_file_location_oat_begin,
-            const std::string& image_file_location,
+            int32_t image_patch_delta,
             const CompilerDriver* compiler,
-            TimingLogger* timings);
+            TimingLogger* timings,
+            SafeMap<std::string, std::string>* key_value_store);
 
   const OatHeader& GetOatHeader() const {
     return *oat_header_;
@@ -96,20 +98,19 @@ class OatWriter {
   ~OatWriter();
 
   struct DebugInfo {
-    DebugInfo(const std::string& method_name, uint32_t low_pc, uint32_t high_pc)
-      : method_name_(method_name), low_pc_(low_pc), high_pc_(high_pc) {
+    DebugInfo(const std::string& method_name, uint32_t low_pc, uint32_t high_pc,
+              CompiledMethod* compiled_method)
+      : method_name_(method_name), low_pc_(low_pc), high_pc_(high_pc),
+        compiled_method_(compiled_method) {
     }
-    std::string method_name_;
+    std::string method_name_;  // Note: this name is a pretty-printed name.
     uint32_t    low_pc_;
     uint32_t    high_pc_;
+    CompiledMethod* compiled_method_;
   };
 
   const std::vector<DebugInfo>& GetCFIMethodInfo() const {
     return method_info_;
-  }
-
-  bool DidAddSymbols() const {
-    return compiler_driver_->DidIncludeDebugSymbols();
   }
 
  private:
@@ -253,9 +254,10 @@ class OatWriter {
   // dependencies on the image.
   uint32_t image_file_location_oat_checksum_;
   uintptr_t image_file_location_oat_begin_;
-  std::string image_file_location_;
+  int32_t image_patch_delta_;
 
   // data to write
+  SafeMap<std::string, std::string>* key_value_store_;
   OatHeader* oat_header_;
   std::vector<OatDexFile*> oat_dex_files_;
   std::vector<OatClass*> oat_classes_;
@@ -274,7 +276,7 @@ class OatWriter {
   uint32_t size_dex_file_alignment_;
   uint32_t size_executable_offset_alignment_;
   uint32_t size_oat_header_;
-  uint32_t size_oat_header_image_file_location_;
+  uint32_t size_oat_header_key_value_store_;
   uint32_t size_dex_file_;
   uint32_t size_interpreter_to_interpreter_bridge_;
   uint32_t size_interpreter_to_compiled_code_bridge_;

@@ -837,6 +837,7 @@ bool ElfFile::Load(bool executable, std::string* error_msg) {
     }
   }
 
+  bool reserved = false;
   for (Elf32_Word i = 0; i < GetProgramHeaderNum(); i++) {
     Elf32_Phdr& program_header = GetProgramHeader(i);
 
@@ -853,10 +854,8 @@ bool ElfFile::Load(bool executable, std::string* error_msg) {
 
     // Found something to load.
 
-    // If p_vaddr is zero, it must be the first loadable segment,
-    // since they must be in order.  Since it is zero, there isn't a
-    // specific address requested, so first request a contiguous chunk
-    // of required size for all segments, but with no
+    // Before load the actual segments, reserve a contiguous chunk
+    // of required size and address for all segments, but with no
     // permissions. We'll then carve that up with the proper
     // permissions as we load the actual segments. If p_vaddr is
     // non-zero, the segments require the specific address specified,
@@ -870,18 +869,24 @@ bool ElfFile::Load(bool executable, std::string* error_msg) {
       return false;
     }
     size_t file_length = static_cast<size_t>(temp_file_length);
-    if (program_header.p_vaddr == 0) {
+    if (!reserved) {
+      byte* reserve_base = ((program_header.p_vaddr != 0) ?
+                            reinterpret_cast<byte*>(program_header.p_vaddr) : nullptr);
       std::string reservation_name("ElfFile reservation for ");
       reservation_name += file_->GetPath();
       std::unique_ptr<MemMap> reserve(MemMap::MapAnonymous(reservation_name.c_str(),
-                                                     nullptr, GetLoadedSize(), PROT_NONE, false,
-                                                     error_msg));
+                                                           reserve_base,
+                                                           GetLoadedSize(), PROT_NONE, false,
+                                                           error_msg));
       if (reserve.get() == nullptr) {
         *error_msg = StringPrintf("Failed to allocate %s: %s",
                                   reservation_name.c_str(), error_msg->c_str());
         return false;
       }
-      base_address_ = reserve->Begin();
+      reserved = true;
+      if (reserve_base == nullptr) {
+        base_address_ = reserve->Begin();
+      }
       segments_.push_back(reserve.release());
     }
     // empty segment, nothing to map
@@ -1033,18 +1038,13 @@ static FDE* NextFDE(FDE* frame) {
 }
 
 static bool IsFDE(FDE* frame) {
-  // TODO This seems to be the constant everyone uses (for the .debug_frame
-  // section at least), however we should investigate this further.
-  const uint32_t kDwarfCIE_id = 0xffffffff;
-  const uint32_t kReservedLengths[] = {0xffffffff, 0xfffffff0};
-  return frame->CIE_pointer != kDwarfCIE_id &&
-      frame->raw_length_ != kReservedLengths[0] && frame->raw_length_ != kReservedLengths[1];
+  return frame->CIE_pointer != 0;
 }
 
 // TODO This only works for 32-bit Elf Files.
-static bool FixupDebugFrame(uintptr_t text_start, byte* dbg_frame, size_t dbg_frame_size) {
-  FDE* last_frame = reinterpret_cast<FDE*>(dbg_frame + dbg_frame_size);
-  FDE* frame = NextFDE(reinterpret_cast<FDE*>(dbg_frame));
+static bool FixupEHFrame(uintptr_t text_start, byte* eh_frame, size_t eh_frame_size) {
+  FDE* last_frame = reinterpret_cast<FDE*>(eh_frame + eh_frame_size);
+  FDE* frame = NextFDE(reinterpret_cast<FDE*>(eh_frame));
   for (; frame < last_frame; frame = NextFDE(frame)) {
     if (!IsFDE(frame)) {
       return false;
@@ -1301,7 +1301,7 @@ static bool FixupDebugInfo(uint32_t text_start, DebugInfoIterator* iter) {
 static bool FixupDebugSections(const byte* dbg_abbrev, size_t dbg_abbrev_size,
                                uintptr_t text_start,
                                byte* dbg_info, size_t dbg_info_size,
-                               byte* dbg_frame, size_t dbg_frame_size) {
+                               byte* eh_frame, size_t eh_frame_size) {
   std::unique_ptr<DebugAbbrev> abbrev(DebugAbbrev::Create(dbg_abbrev, dbg_abbrev_size));
   if (abbrev.get() == nullptr) {
     return false;
@@ -1313,7 +1313,7 @@ static bool FixupDebugSections(const byte* dbg_abbrev, size_t dbg_abbrev_size,
     return false;
   }
   return FixupDebugInfo(text_start, iter.get())
-      && FixupDebugFrame(text_start, dbg_frame, dbg_frame_size);
+      && FixupEHFrame(text_start, eh_frame, eh_frame_size);
 }
 
 void ElfFile::GdbJITSupport() {
@@ -1334,20 +1334,16 @@ void ElfFile::GdbJITSupport() {
   // Do we have interesting sections?
   const Elf32_Shdr* debug_info = all.FindSectionByName(".debug_info");
   const Elf32_Shdr* debug_abbrev = all.FindSectionByName(".debug_abbrev");
-  const Elf32_Shdr* debug_frame = all.FindSectionByName(".debug_frame");
+  const Elf32_Shdr* eh_frame = all.FindSectionByName(".eh_frame");
   const Elf32_Shdr* debug_str = all.FindSectionByName(".debug_str");
   const Elf32_Shdr* strtab_sec = all.FindSectionByName(".strtab");
   const Elf32_Shdr* symtab_sec = all.FindSectionByName(".symtab");
   Elf32_Shdr* text_sec = all.FindSectionByName(".text");
-  if (debug_info == nullptr || debug_abbrev == nullptr || debug_frame == nullptr ||
-      debug_str == nullptr || text_sec == nullptr || strtab_sec == nullptr || symtab_sec == nullptr) {
+  if (debug_info == nullptr || debug_abbrev == nullptr || eh_frame == nullptr ||
+      debug_str == nullptr || text_sec == nullptr || strtab_sec == nullptr ||
+      symtab_sec == nullptr) {
     return;
   }
-#ifdef __LP64__
-  if (true) {
-    return;  // No ELF debug support in 64bit.
-  }
-#endif
   // We need to add in a strtab and symtab to the image.
   // all is MAP_PRIVATE so it can be written to freely.
   // We also already have strtab and symtab so we are fine there.
@@ -1364,7 +1360,7 @@ void ElfFile::GdbJITSupport() {
   if (!FixupDebugSections(
         all.Begin() + debug_abbrev->sh_offset, debug_abbrev->sh_size, text_sec->sh_addr,
         all.Begin() + debug_info->sh_offset, debug_info->sh_size,
-        all.Begin() + debug_frame->sh_offset, debug_frame->sh_size)) {
+        all.Begin() + eh_frame->sh_offset, eh_frame->sh_size)) {
     LOG(ERROR) << "Failed to load GDB data";
     return;
   }

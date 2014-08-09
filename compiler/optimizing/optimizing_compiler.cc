@@ -25,6 +25,7 @@
 #include "graph_visualizer.h"
 #include "nodes.h"
 #include "register_allocator.h"
+#include "ssa_phi_elimination.h"
 #include "ssa_liveness_analysis.h"
 #include "utils/arena_allocator.h"
 
@@ -78,13 +79,14 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
                                                jobject class_loader,
                                                const DexFile& dex_file) const {
   InstructionSet instruction_set = GetCompilerDriver()->GetInstructionSet();
-  // The optimizing compiler currently does not have a Thumb2 assembler.
-  if (instruction_set == kThumb2) {
-    instruction_set = kArm;
+  // Always use the thumb2 assembler: some runtime functionality (like implicit stack
+  // overflow checks) assume thumb2.
+  if (instruction_set == kArm) {
+    instruction_set = kThumb2;
   }
 
   // Do not attempt to compile on architectures we do not support.
-  if (instruction_set != kX86 && instruction_set != kX86_64 && instruction_set != kArm) {
+  if (instruction_set != kX86 && instruction_set != kX86_64 && instruction_set != kThumb2) {
     return nullptr;
   }
 
@@ -101,7 +103,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
 
   ArenaPool pool;
   ArenaAllocator arena(&pool);
-  HGraphBuilder builder(&arena, &dex_compilation_unit, &dex_file);
+  HGraphBuilder builder(&arena, &dex_compilation_unit, &dex_file, GetCompilerDriver());
 
   HGraph* graph = builder.BuildGraph(*code_item);
   if (graph == nullptr) {
@@ -129,8 +131,11 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
     graph->BuildDominatorTree();
     graph->TransformToSSA();
     visualizer.DumpGraph("ssa");
-
     graph->FindNaturalLoops();
+
+    SsaRedundantPhiElimination(graph).Run();
+    SsaDeadPhiElimination(graph).Run();
+
     SsaLivenessAnalysis liveness(*graph, codegen);
     liveness.Analyze();
     visualizer.DumpGraph(kLivenessPassName);

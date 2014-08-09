@@ -30,7 +30,6 @@ class TimingLogger;
 namespace mirror {
 class Object;
 class Reference;
-class ReferenceClass;
 }  // namespace mirror
 
 namespace gc {

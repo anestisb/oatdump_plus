@@ -48,7 +48,12 @@ static constexpr bool kIntrinsicIsStatic[] = {
     true,   // kIntrinsicMinMaxFloat
     true,   // kIntrinsicMinMaxDouble
     true,   // kIntrinsicSqrt
-    false,  // kIntrinsicGet
+    true,   // kIntrinsicCeil
+    true,   // kIntrinsicFloor
+    true,   // kIntrinsicRint
+    true,   // kIntrinsicRoundFloat
+    true,   // kIntrinsicRoundDouble
+    false,  // kIntrinsicReferenceGet
     false,  // kIntrinsicCharAt
     false,  // kIntrinsicCompareTo
     false,  // kIntrinsicIsEmptyOrLength
@@ -75,7 +80,12 @@ COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicMinMaxLong], MinMaxLong_must_be_stat
 COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicMinMaxFloat], MinMaxFloat_must_be_static);
 COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicMinMaxDouble], MinMaxDouble_must_be_static);
 COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicSqrt], Sqrt_must_be_static);
-COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicGet], Get_must_not_be_static);
+COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicCeil], Ceil_must_be_static);
+COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicFloor], Floor_must_be_static);
+COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicRint], Rint_must_be_static);
+COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicRoundFloat], RoundFloat_must_be_static);
+COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicRoundDouble], RoundDouble_must_be_static);
+COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicReferenceGet], Get_must_not_be_static);
 COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicCharAt], CharAt_must_not_be_static);
 COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicCompareTo], CompareTo_must_not_be_static);
 COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicIsEmptyOrLength], IsEmptyOrLength_must_not_be_static);
@@ -155,7 +165,11 @@ const char* const DexFileMethodInliner::kNameCacheNames[] = {
     "max",                   // kNameCacheMax
     "min",                   // kNameCacheMin
     "sqrt",                  // kNameCacheSqrt
-    "get",                   // kNameCacheGet
+    "ceil",                  // kNameCacheCeil
+    "floor",                 // kNameCacheFloor
+    "rint",                  // kNameCacheRint
+    "round",                 // kNameCacheRound
+    "get",                   // kNameCacheReferenceGet
     "charAt",                // kNameCacheCharAt
     "compareTo",             // kNameCacheCompareTo
     "isEmpty",               // kNameCacheIsEmpty
@@ -314,7 +328,18 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
     INTRINSIC(JavaLangMath,       Sqrt, D_D, kIntrinsicSqrt, 0),
     INTRINSIC(JavaLangStrictMath, Sqrt, D_D, kIntrinsicSqrt, 0),
 
-    INTRINSIC(JavaLangRefReference, Get, _Object, kIntrinsicGet, 0),
+    INTRINSIC(JavaLangMath,       Ceil, D_D, kIntrinsicCeil, 0),
+    INTRINSIC(JavaLangStrictMath, Ceil, D_D, kIntrinsicCeil, 0),
+    INTRINSIC(JavaLangMath,       Floor, D_D, kIntrinsicFloor, 0),
+    INTRINSIC(JavaLangStrictMath, Floor, D_D, kIntrinsicFloor, 0),
+    INTRINSIC(JavaLangMath,       Rint, D_D, kIntrinsicRint, 0),
+    INTRINSIC(JavaLangStrictMath, Rint, D_D, kIntrinsicRint, 0),
+    INTRINSIC(JavaLangMath,       Round, F_I, kIntrinsicRoundFloat, 0),
+    INTRINSIC(JavaLangStrictMath, Round, F_I, kIntrinsicRoundFloat, 0),
+    INTRINSIC(JavaLangMath,       Round, D_J, kIntrinsicRoundDouble, 0),
+    INTRINSIC(JavaLangStrictMath, Round, D_J, kIntrinsicRoundDouble, 0),
+
+    INTRINSIC(JavaLangRefReference, ReferenceGet, _Object, kIntrinsicReferenceGet, 0),
 
     INTRINSIC(JavaLangString, CharAt, I_C, kIntrinsicCharAt, 0),
     INTRINSIC(JavaLangString, CompareTo, String_I, kIntrinsicCompareTo, 0),
@@ -436,8 +461,18 @@ bool DexFileMethodInliner::GenIntrinsic(Mir2Lir* backend, CallInfo* info) {
       return backend->GenInlinedMinMaxFP(info, intrinsic.d.data & kIntrinsicFlagMin, true /* is_double */);
     case kIntrinsicSqrt:
       return backend->GenInlinedSqrt(info);
-    case kIntrinsicGet:
-      return backend->GenInlinedGet(info);
+    case kIntrinsicCeil:
+      return backend->GenInlinedCeil(info);
+    case kIntrinsicFloor:
+      return backend->GenInlinedFloor(info);
+    case kIntrinsicRint:
+      return backend->GenInlinedRint(info);
+    case kIntrinsicRoundFloat:
+      return backend->GenInlinedRound(info, false /* is_double */);
+    case kIntrinsicRoundDouble:
+      return backend->GenInlinedRound(info, true /* is_double */);
+    case kIntrinsicReferenceGet:
+      return backend->GenInlinedReferenceGet(info);
     case kIntrinsicCharAt:
       return backend->GenInlinedCharAt(info);
     case kIntrinsicCompareTo:

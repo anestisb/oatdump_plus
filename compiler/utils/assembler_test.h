@@ -208,10 +208,15 @@ class AssemblerTest : public testing::Test {
     assembler_.reset(new Ass());
 
     // Fake a runtime test for ScratchFile
-    std::string android_data;
-    CommonRuntimeTest::SetEnvironmentVariables(android_data);
+    CommonRuntimeTest::SetUpAndroidData(android_data_);
 
     SetUpHelpers();
+  }
+
+  void TearDown() OVERRIDE {
+    // We leave temporaries in case this failed so we can debug issues.
+    CommonRuntimeTest::TearDownAndroidData(android_data_, false);
+    tmpnam_ = "";
   }
 
   // Override this to set up any architecture-specific things, e.g., register vectors.
@@ -356,12 +361,15 @@ class AssemblerTest : public testing::Test {
     } else {
       if (DisassembleBinaries(*data, *res.code, test_name)) {
         if (data->size() > res.code->size()) {
-          LOG(WARNING) << "Assembly code is not identical, but disassembly of machine code is "
-              "equal: this implies sub-optimal encoding! Our code size=" << data->size() <<
+          // Fail this test with a fancy colored warning being printed.
+          EXPECT_TRUE(false) << "Assembly code is not identical, but disassembly of machine code "
+              "is equal: this implies sub-optimal encoding! Our code size=" << data->size() <<
               ", gcc size=" << res.code->size();
         } else {
+          // Otherwise just print an info message and clean up.
           LOG(INFO) << "GCC chose a different encoding than ours, but the overall length is the "
               "same.";
+          Clean(&res);
         }
       } else {
         // This will output the assembly.
@@ -686,6 +694,8 @@ class AssemblerTest : public testing::Test {
   std::string resolved_assembler_cmd_;
   std::string resolved_objdump_cmd_;
   std::string resolved_disassemble_cmd_;
+
+  std::string android_data_;
 
   static constexpr size_t OBJDUMP_SECTION_LINE_MIN_TOKENS = 6;
 };

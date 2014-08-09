@@ -24,13 +24,10 @@
 #include <vector>
 
 #include "base/logging.h"
+#include "base/mutex.h"
 #include "globals.h"
 #include "instruction_set.h"
 #include "primitive.h"
-
-#ifdef HAVE_ANDROID_OS
-#include "cutils/properties.h"
-#endif
 
 namespace art {
 
@@ -167,11 +164,17 @@ struct TypeIdentity {
 
 // For rounding integers.
 template<typename T>
+static constexpr T RoundDown(T x, typename TypeIdentity<T>::type n) WARN_UNUSED;
+
+template<typename T>
 static constexpr T RoundDown(T x, typename TypeIdentity<T>::type n) {
   return
       DCHECK_CONSTEXPR(IsPowerOfTwo(n), , T(0))
       (x & -n);
 }
+
+template<typename T>
+static constexpr T RoundUp(T x, typename TypeIdentity<T>::type n) WARN_UNUSED;
 
 template<typename T>
 static constexpr T RoundUp(T x, typename TypeIdentity<T>::type n) {
@@ -180,9 +183,15 @@ static constexpr T RoundUp(T x, typename TypeIdentity<T>::type n) {
 
 // For aligning pointers.
 template<typename T>
+static inline T* AlignDown(T* x, uintptr_t n) WARN_UNUSED;
+
+template<typename T>
 static inline T* AlignDown(T* x, uintptr_t n) {
   return reinterpret_cast<T*>(RoundDown(reinterpret_cast<uintptr_t>(x), n));
 }
+
+template<typename T>
+static inline T* AlignUp(T* x, uintptr_t n) WARN_UNUSED;
 
 template<typename T>
 static inline T* AlignUp(T* x, uintptr_t n) {
@@ -265,9 +274,9 @@ bool EndsWith(const std::string& s, const char* suffix);
 std::string PrettyDescriptor(mirror::String* descriptor)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 std::string PrettyDescriptor(const std::string& descriptor);
-std::string PrettyDescriptor(Primitive::Type type);
 std::string PrettyDescriptor(mirror::Class* klass)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+std::string PrettyDescriptor(Primitive::Type type);
 
 // Returns a human-readable signature for 'f'. Something like "a.b.C.f" or
 // "int a.b.C.f" (depending on the value of 'with_type').
@@ -428,11 +437,22 @@ const char* GetAndroidRoot();
 
 // Find $ANDROID_DATA, /data, or abort.
 const char* GetAndroidData();
+// Find $ANDROID_DATA, /data, or return nullptr.
+const char* GetAndroidDataSafe(std::string* error_msg);
 
 // Returns the dalvik-cache location, or dies trying. subdir will be
 // appended to the cache location.
 std::string GetDalvikCacheOrDie(const char* subdir, bool create_if_absent = true);
+// Return true if we found the dalvik cache and stored it in the dalvik_cache argument.
+// have_android_data will be set to true if we have an ANDROID_DATA that exists,
+// dalvik_cache_exists will be true if there is a dalvik-cache directory that is present.
+void GetDalvikCache(const char* subdir, bool create_if_absent, std::string* dalvik_cache,
+                    bool* have_android_data, bool* dalvik_cache_exists);
 
+// Returns the absolute dalvik-cache path for a DexFile or OatFile. The path returned will be
+// rooted at cache_location.
+bool GetDalvikCacheFilename(const char* file_location, const char* cache_location,
+                            std::string* filename, std::string* error_msg);
 // Returns the absolute dalvik-cache path for a DexFile or OatFile, or
 // dies trying. The path returned will be rooted at cache_location.
 std::string GetDalvikCacheFilenameOrDie(const char* file_location,
@@ -474,6 +494,11 @@ class VoidFunctor {
     UNUSED(c);
   }
 };
+
+void PushWord(std::vector<uint8_t>* buf, int32_t data);
+
+void EncodeUnsignedLeb128(uint32_t data, std::vector<uint8_t>* buf);
+void EncodeSignedLeb128(int32_t data, std::vector<uint8_t>* buf);
 
 }  // namespace art
 

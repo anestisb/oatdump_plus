@@ -28,7 +28,7 @@
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "dex_file.h"
-#include "entrypoints/entrypoint_utils.h"
+#include "entrypoints/entrypoint_utils-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/heap.h"
 #include "iftable-inl.h"
@@ -36,6 +36,7 @@
 #include "object-inl.h"
 #include "object_array-inl.h"
 #include "handle_scope-inl.h"
+#include "scoped_thread_state_change.h"
 #include "string-inl.h"
 
 namespace art {
@@ -72,7 +73,12 @@ class ObjectTest : public CommonRuntimeTest {
   }
 };
 
-// Keep the assembly code in sync
+// Keep constants in sync.
+TEST_F(ObjectTest, Constants) {
+  EXPECT_EQ(kObjectReferenceSize, sizeof(mirror::HeapReference<mirror::Object>));
+}
+
+// Keep the assembly code constats in sync.
 TEST_F(ObjectTest, AsmConstants) {
   EXPECT_EQ(CLASS_OFFSET, Object::ClassOffset().Int32Value());
   EXPECT_EQ(LOCK_WORD_OFFSET, Object::MonitorOffset().Int32Value());

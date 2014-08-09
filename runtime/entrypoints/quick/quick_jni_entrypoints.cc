@@ -15,13 +15,12 @@
  */
 
 #include "dex_file-inl.h"
-#include "entrypoints/entrypoint_utils.h"
+#include "entrypoints/entrypoint_utils-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
-#include "object_utils.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
 #include "verify_object-inl.h"

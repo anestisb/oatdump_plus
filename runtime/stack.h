@@ -17,19 +17,15 @@
 #ifndef ART_RUNTIME_STACK_H_
 #define ART_RUNTIME_STACK_H_
 
-#include "dex_file.h"
-#include "instrumentation.h"
-#include "arch/context.h"
-#include "base/casts.h"
-#include "base/macros.h"
-#include "instruction_set.h"
-#include "mirror/object.h"
-#include "mirror/object_reference.h"
-#include "utils.h"
-#include "verify_object.h"
-
 #include <stdint.h>
 #include <string>
+
+#include "dex_file.h"
+#include "instruction_set.h"
+#include "mirror/object_reference.h"
+#include "throw_location.h"
+#include "utils.h"
+#include "verify_object.h"
 
 namespace art {
 
@@ -572,7 +568,24 @@ class StackVisitor {
     return val;
   }
 
+  bool GetVRegPair(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind_lo, VRegKind kind_hi,
+                   uint64_t* val) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  uint64_t GetVRegPair(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind_lo,
+                       VRegKind kind_hi) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    uint64_t val;
+    bool success = GetVRegPair(m, vreg, kind_lo, kind_hi, &val);
+    CHECK(success) << "Failed to read vreg pair " << vreg
+                   << " of kind [" << kind_lo << "," << kind_hi << "]";
+    return val;
+  }
+
   bool SetVReg(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_value, VRegKind kind)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  bool SetVRegPair(mirror::ArtMethod* m, uint16_t vreg, uint64_t new_value,
+                   VRegKind kind_lo, VRegKind kind_hi)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uintptr_t* GetGPRAddress(uint32_t reg) const;
@@ -710,8 +723,6 @@ class StackVisitor {
   bool SetGPR(uint32_t reg, uintptr_t value);
   bool GetFPR(uint32_t reg, uintptr_t* val) const;
   bool SetFPR(uint32_t reg, uintptr_t value);
-
-  instrumentation::InstrumentationStackFrame& GetInstrumentationStackFrame(uint32_t depth) const;
 
   void SanityCheckFrame() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

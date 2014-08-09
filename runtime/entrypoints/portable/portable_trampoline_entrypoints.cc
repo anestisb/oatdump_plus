@@ -18,11 +18,10 @@
 #define ART_RUNTIME_ENTRYPOINTS_PORTABLE_PORTABLE_ARGUMENT_VISITOR_H_
 
 #include "dex_instruction-inl.h"
-#include "entrypoints/entrypoint_utils.h"
+#include "entrypoints/entrypoint_utils-inl.h"
 #include "interpreter/interpreter.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/object-inl.h"
-#include "object_utils.h"
 #include "scoped_thread_state_change.h"
 
 namespace art {
@@ -431,7 +430,7 @@ extern "C" const void* artPortableResolutionTrampoline(mirror::ArtMethod* called
     // Expect class to at least be initializing.
     DCHECK(called->GetDeclaringClass()->IsInitializing());
     // Don't want infinite recursion.
-    DCHECK(code != GetPortableResolutionTrampoline(linker));
+    DCHECK(code != linker->GetPortableResolutionTrampoline());
     // Set up entry into main method
     *called_addr = called;
   }

@@ -30,15 +30,19 @@
 
 namespace art {
 
-void CodeGenerator::CompileBaseline(CodeAllocator* allocator) {
+void CodeGenerator::CompileBaseline(CodeAllocator* allocator, bool is_leaf) {
   const GrowableArray<HBasicBlock*>& blocks = GetGraph()->GetBlocks();
   DCHECK(blocks.Get(0) == GetGraph()->GetEntryBlock());
   DCHECK(GoesToNextBlock(GetGraph()->GetEntryBlock(), blocks.Get(1)));
   block_labels_.SetSize(blocks.Size());
 
   DCHECK_EQ(frame_size_, kUninitializedFrameSize);
+  if (!is_leaf) {
+    MarkNotLeaf();
+  }
   ComputeFrameSize(GetGraph()->GetMaximumNumberOfOutVRegs()
-                   + GetGraph()->GetNumberOfVRegs()
+                   + GetGraph()->GetNumberOfLocalVRegs()
+                   + GetGraph()->GetNumberOfTemporaries()
                    + 1 /* filler */);
   GenerateFrameEntry();
 
@@ -54,6 +58,7 @@ void CodeGenerator::CompileBaseline(CodeAllocator* allocator) {
       current->Accept(instruction_visitor);
     }
   }
+  GenerateSlowPaths();
 
   size_t code_size = GetAssembler()->CodeSize();
   uint8_t* buffer = allocator->Allocate(code_size);
@@ -79,11 +84,18 @@ void CodeGenerator::CompileOptimized(CodeAllocator* allocator) {
       current->Accept(instruction_visitor);
     }
   }
+  GenerateSlowPaths();
 
   size_t code_size = GetAssembler()->CodeSize();
   uint8_t* buffer = allocator->Allocate(code_size);
   MemoryRegion code(buffer, code_size);
   GetAssembler()->FinalizeInstructions(code);
+}
+
+void CodeGenerator::GenerateSlowPaths() {
+  for (size_t i = 0, e = slow_paths_.Size(); i < e; ++i) {
+    slow_paths_.Get(i)->EmitNativeCode(this);
+  }
 }
 
 size_t CodeGenerator::AllocateFreeRegisterInternal(
@@ -94,10 +106,42 @@ size_t CodeGenerator::AllocateFreeRegisterInternal(
       return regno;
     }
   }
-  LOG(FATAL) << "Unreachable";
   return -1;
 }
 
+void CodeGenerator::ComputeFrameSize(size_t number_of_spill_slots) {
+  SetFrameSize(RoundUp(
+      number_of_spill_slots * kVRegSize
+      + kVRegSize  // Art method
+      + FrameEntrySpillSize(),
+      kStackAlignment));
+}
+
+Location CodeGenerator::GetTemporaryLocation(HTemporary* temp) const {
+  uint16_t number_of_locals = GetGraph()->GetNumberOfLocalVRegs();
+  // Use the temporary region (right below the dex registers).
+  int32_t slot = GetFrameSize() - FrameEntrySpillSize()
+                                - kVRegSize  // filler
+                                - (number_of_locals * kVRegSize)
+                                - ((1 + temp->GetIndex()) * kVRegSize);
+  return Location::StackSlot(slot);
+}
+
+int32_t CodeGenerator::GetStackSlot(HLocal* local) const {
+  uint16_t reg_number = local->GetRegNumber();
+  uint16_t number_of_locals = GetGraph()->GetNumberOfLocalVRegs();
+  if (reg_number >= number_of_locals) {
+    // Local is a parameter of the method. It is stored in the caller's frame.
+    return GetFrameSize() + kVRegSize  // ART method
+                          + (reg_number - number_of_locals) * kVRegSize;
+  } else {
+    // Local is a temporary in this method. It is stored in this method's frame.
+    return GetFrameSize() - FrameEntrySpillSize()
+                          - kVRegSize  // filler.
+                          - (number_of_locals * kVRegSize)
+                          + (reg_number * kVRegSize);
+  }
+}
 
 void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
   LocationSummary* locations = instruction->GetLocations();
@@ -162,13 +206,6 @@ void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
       locations->SetTempAt(i, loc);
     }
   }
-
-  // Make all registers available for the return value.
-  for (size_t i = 0, e = GetNumberOfRegisters(); i < e; ++i) {
-    blocked_registers_[i] = false;
-  }
-  SetupBlockedRegisters(blocked_registers_);
-
   Location result_location = locations->Out();
   if (result_location.IsUnallocated()) {
     switch (result_location.GetPolicy()) {
@@ -187,6 +224,12 @@ void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
 
 void CodeGenerator::InitLocations(HInstruction* instruction) {
   if (instruction->GetLocations() == nullptr) {
+    if (instruction->IsTemporary()) {
+      HInstruction* previous = instruction->GetPrevious();
+      Location temp_location = GetTemporaryLocation(instruction->AsTemporary());
+      Move(previous, temp_location, instruction);
+      previous->GetLocations()->SetOut(temp_location);
+    }
     return;
   }
   AllocateRegistersLocally(instruction);

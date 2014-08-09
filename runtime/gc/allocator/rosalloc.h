@@ -30,6 +30,7 @@
 #include "base/logging.h"
 #include "globals.h"
 #include "mem_map.h"
+#include "thread.h"
 #include "utils.h"
 
 namespace art {
@@ -261,7 +262,7 @@ class RosAlloc {
   // The magic number for free pages.
   static const byte kMagicNumFree = 43;
   // The number of size brackets. Sync this with the length of Thread::rosalloc_runs_.
-  static const size_t kNumOfSizeBrackets = 34;
+  static const size_t kNumOfSizeBrackets = kNumRosAllocThreadLocalSizeBrackets;
   // The number of smaller size brackets that are 16 bytes apart.
   static const size_t kNumOfQuantumSizeBrackets = 32;
   // The sizes (the slot sizes, in bytes) of the size brackets.
@@ -440,7 +441,7 @@ class RosAlloc {
   // The mutexes, one per size bracket.
   Mutex* size_bracket_locks_[kNumOfSizeBrackets];
   // Bracket lock names (since locks only have char* names).
-  std::string size_bracket_lock_names[kNumOfSizeBrackets];
+  std::string size_bracket_lock_names_[kNumOfSizeBrackets];
   // The types of page map entries.
   enum {
     kPageMapReleased = 0,     // Zero and released back to the OS.
