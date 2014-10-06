@@ -15,7 +15,9 @@
  */
 
 #include "builder.h"
-#include "code_generator.h"
+#include "code_generator_arm.h"
+#include "code_generator_x86.h"
+#include "code_generator_x86_64.h"
 #include "common_compiler_test.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
@@ -47,7 +49,6 @@ class InternalCodeAllocator : public CodeAllocator {
   DISALLOW_COPY_AND_ASSIGN(InternalCodeAllocator);
 };
 
-#if defined(__i386__) || defined(__arm__) || defined(__x86_64__)
 static void Run(const InternalCodeAllocator& allocator,
                 const CodeGenerator& codegen,
                 bool has_result,
@@ -64,7 +65,6 @@ static void Run(const InternalCodeAllocator& allocator,
     CHECK_EQ(result, expected);
   }
 }
-#endif
 
 static void TestCode(const uint16_t* data, bool has_result = false, int32_t expected = 0) {
   ArenaPool pool;
@@ -72,28 +72,30 @@ static void TestCode(const uint16_t* data, bool has_result = false, int32_t expe
   HGraphBuilder builder(&arena);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
   HGraph* graph = builder.BuildGraph(*item);
+  // Remove suspend checks, they cannot be executed in this context.
+  RemoveSuspendChecks(graph);
   ASSERT_NE(graph, nullptr);
   InternalCodeAllocator allocator;
 
-  CodeGenerator* codegen = CodeGenerator::Create(&arena, graph, kX86);
+  x86::CodeGeneratorX86 codegenX86(graph);
   // We avoid doing a stack overflow check that requires the runtime being setup,
   // by making sure the compiler knows the methods we are running are leaf methods.
-  codegen->CompileBaseline(&allocator, true);
-#if defined(__i386__)
-  Run(allocator, *codegen, has_result, expected);
-#endif
+  codegenX86.CompileBaseline(&allocator, true);
+  if (kRuntimeISA == kX86) {
+    Run(allocator, codegenX86, has_result, expected);
+  }
 
-  codegen = CodeGenerator::Create(&arena, graph, kArm);
-  codegen->CompileBaseline(&allocator, true);
-#if defined(__arm__)
-  Run(allocator, *codegen, has_result, expected);
-#endif
+  arm::CodeGeneratorARM codegenARM(graph);
+  codegenARM.CompileBaseline(&allocator, true);
+  if (kRuntimeISA == kArm || kRuntimeISA == kThumb2) {
+    Run(allocator, codegenARM, has_result, expected);
+  }
 
-  codegen = CodeGenerator::Create(&arena, graph, kX86_64);
-  codegen->CompileBaseline(&allocator, true);
-#if defined(__x86_64__)
-  Run(allocator, *codegen, has_result, expected);
-#endif
+  x86_64::CodeGeneratorX86_64 codegenX86_64(graph);
+  codegenX86_64.CompileBaseline(&allocator, true);
+  if (kRuntimeISA == kX86_64) {
+    Run(allocator, codegenX86_64, has_result, expected);
+  }
 }
 
 TEST(CodegenTest, ReturnVoid) {

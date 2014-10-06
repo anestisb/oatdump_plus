@@ -40,7 +40,16 @@ class FaultManager {
 
   void Init();
 
+  // Unclaim signals.
+  void Release();
+
+  // Unclaim signals and delete registered handlers.
+  void Shutdown();
+
   void HandleFault(int sig, siginfo_t* info, void* context);
+  void HandleNestedSignal(int sig, siginfo_t* info, void* context);
+
+  // Added handlers are owned by the fault handler and will be freed on Shutdown().
   void AddHandler(FaultHandler* handler, bool generated_code);
   void RemoveHandler(FaultHandler* handler);
 
@@ -58,6 +67,7 @@ class FaultManager {
   std::vector<FaultHandler*> generated_code_handlers_;
   std::vector<FaultHandler*> other_handlers_;
   struct sigaction oldaction_;
+  bool initialized_;
   DISALLOW_COPY_AND_ASSIGN(FaultManager);
 };
 

@@ -26,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/allocator.h"
 #include "compiler_callbacks.h"
 #include "gc_root.h"
 #include "instrumentation.h"
@@ -105,6 +106,14 @@ class Runtime {
     return must_relocate_;
   }
 
+  bool IsDex2OatEnabled() const {
+    return dex2oat_enabled_ && IsImageDex2OatEnabled();
+  }
+
+  bool IsImageDex2OatEnabled() const {
+    return image_dex2oat_enabled_;
+  }
+
   CompilerCallbacks* GetCompilerCallbacks() {
     return compiler_callbacks_;
   }
@@ -126,6 +135,10 @@ class Runtime {
 
   const std::vector<std::string>& GetImageCompilerOptions() const {
     return image_compiler_options_;
+  }
+
+  const std::string& GetImageLocation() const {
+    return image_location_;
   }
 
   const ProfilerOptions& GetProfilerOptions() const {
@@ -187,8 +200,7 @@ class Runtime {
   // Detaches the current native thread from the runtime.
   void DetachCurrentThread() LOCKS_EXCLUDED(Locks::mutator_lock_);
 
-  void DumpForSigQuit(std::ostream& os)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void DumpForSigQuit(std::ostream& os);
   void DumpLockHolders(std::ostream& os);
 
   ~Runtime();
@@ -234,7 +246,16 @@ class Runtime {
     return monitor_pool_;
   }
 
+  // Is the given object the special object used to mark a cleared JNI weak global?
+  bool IsClearedJniWeakGlobal(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Get the special object used to mark a cleared JNI weak global.
+  mirror::Object* GetClearedJniWeakGlobal() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   mirror::Throwable* GetPreAllocatedOutOfMemoryError() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  mirror::Throwable* GetPreAllocatedNoClassDefFoundError()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const std::vector<std::string>& GetProperties() const {
     return properties_;
@@ -372,11 +393,16 @@ class Runtime {
 
   void ResetStats(int kinds);
 
-  void SetStatsEnabled(bool new_state);
+  void SetStatsEnabled(bool new_state) LOCKS_EXCLUDED(Locks::instrument_entrypoints_lock_,
+                                                      Locks::mutator_lock_);
 
+  enum class NativeBridgeAction {  // private
+    kUnload,
+    kInitialize
+  };
   void PreZygoteFork();
   bool InitZygote();
-  void DidForkFromZygote();
+  void DidForkFromZygote(JNIEnv* env, NativeBridgeAction action, const char* isa);
 
   const instrumentation::Instrumentation* GetInstrumentation() const {
     return &instrumentation_;
@@ -406,6 +432,14 @@ class Runtime {
   }
   void EnterTransactionMode(Transaction* transaction);
   void ExitTransactionMode();
+  void RecordWriteFieldBoolean(mirror::Object* obj, MemberOffset field_offset, uint8_t value,
+                               bool is_volatile) const;
+  void RecordWriteFieldByte(mirror::Object* obj, MemberOffset field_offset, int8_t value,
+                            bool is_volatile) const;
+  void RecordWriteFieldChar(mirror::Object* obj, MemberOffset field_offset, uint16_t value,
+                            bool is_volatile) const;
+  void RecordWriteFieldShort(mirror::Object* obj, MemberOffset field_offset, int16_t value,
+                          bool is_volatile) const;
   void RecordWriteField32(mirror::Object* obj, MemberOffset field_offset, uint32_t value,
                           bool is_volatile) const;
   void RecordWriteField64(mirror::Object* obj, MemberOffset field_offset, uint64_t value,
@@ -414,13 +448,13 @@ class Runtime {
                                  mirror::Object* value, bool is_volatile) const;
   void RecordWriteArray(mirror::Array* array, size_t index, uint64_t value) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void RecordStrongStringInsertion(mirror::String* s, uint32_t hash_code) const
+  void RecordStrongStringInsertion(mirror::String* s) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-  void RecordWeakStringInsertion(mirror::String* s, uint32_t hash_code) const
+  void RecordWeakStringInsertion(mirror::String* s) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-  void RecordStrongStringRemoval(mirror::String* s, uint32_t hash_code) const
+  void RecordStrongStringRemoval(mirror::String* s) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-  void RecordWeakStringRemoval(mirror::String* s, uint32_t hash_code) const
+  void RecordWeakStringRemoval(mirror::String* s) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
 
   void SetFaultMessage(const std::string& message);
@@ -432,16 +466,8 @@ class Runtime {
 
   void AddCurrentRuntimeFeaturesAsDex2OatArguments(std::vector<std::string>* arg_vector) const;
 
-  bool ExplicitNullChecks() const {
-    return null_pointer_handler_ == nullptr;
-  }
-
-  bool ExplicitSuspendChecks() const {
-    return suspend_handler_ == nullptr;
-  }
-
   bool ExplicitStackOverflowChecks() const {
-    return stack_overflow_handler_ == nullptr;
+    return !implicit_so_checks_;
   }
 
   bool IsVerificationEnabled() const {
@@ -491,9 +517,14 @@ class Runtime {
 
   GcRoot<mirror::ArtMethod> callee_save_methods_[kLastCalleeSaveType];
   GcRoot<mirror::Throwable> pre_allocated_OutOfMemoryError_;
+  GcRoot<mirror::Throwable> pre_allocated_NoClassDefFoundError_;
   GcRoot<mirror::ArtMethod> resolution_method_;
   GcRoot<mirror::ArtMethod> imt_conflict_method_;
   GcRoot<mirror::ObjectArray<mirror::ArtMethod>> default_imt_;
+
+  // Special sentinel object used to invalid conditions in JNI (cleared weak references) and
+  // JDWP (invalid references).
+  GcRoot<mirror::Object> sentinel_;
 
   InstructionSet instruction_set_;
   QuickMethodFrameInfo callee_save_method_frame_infos_[kLastCalleeSaveType];
@@ -503,11 +534,14 @@ class Runtime {
   bool must_relocate_;
   bool is_concurrent_gc_enabled_;
   bool is_explicit_gc_disabled_;
+  bool dex2oat_enabled_;
+  bool image_dex2oat_enabled_;
 
   std::string compiler_executable_;
   std::string patchoat_executable_;
   std::vector<std::string> compiler_options_;
   std::vector<std::string> image_compiler_options_;
+  std::string image_location_;
 
   std::string boot_class_path_string_;
   std::string class_path_string_;
@@ -581,7 +615,9 @@ class Runtime {
   size_t method_trace_file_size_;
   instrumentation::Instrumentation instrumentation_;
 
-  typedef SafeMap<jobject, std::vector<const DexFile*>, JobjectComparator> CompileTimeClassPaths;
+  typedef AllocationTrackingSafeMap<jobject, std::vector<const DexFile*>,
+                                    kAllocatorTagCompileTimeClassPath, JobjectComparator>
+      CompileTimeClassPaths;
   CompileTimeClassPaths compile_time_class_paths_;
   bool use_compile_time_class_path_;
 
@@ -596,9 +632,6 @@ class Runtime {
 
   // Transaction used for pre-initializing classes at compilation time.
   Transaction* preinitialization_transaction_;
-  NullPointerHandler* null_pointer_handler_;
-  SuspensionHandler* suspend_handler_;
-  StackOverflowHandler* stack_overflow_handler_;
 
   // If false, verification is disabled. True by default.
   bool verify_;
@@ -610,6 +643,15 @@ class Runtime {
   bool implicit_null_checks_;       // NullPointer checks are implicit.
   bool implicit_so_checks_;         // StackOverflow checks are implicit.
   bool implicit_suspend_checks_;    // Thread suspension checks are implicit.
+
+  // The filename to the native bridge library. If this is not empty the native bridge will be
+  // initialized and loaded from the given file (initialized and available). An empty value means
+  // that there's no native bridge (initialized but not available).
+  //
+  // The native bridge allows running native code compiled for a foreign ISA. The way it works is,
+  // if standard dlopen fails to load native library associated with native activity, it calls to
+  // the native bridge to load it and then gets the trampoline for the entry to native activity.
+  std::string native_bridge_library_filename_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };

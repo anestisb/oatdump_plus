@@ -39,11 +39,11 @@ inline const InstructionFlags& MethodVerifier::GetInstructionFlags(size_t index)
 }
 
 inline mirror::ClassLoader* MethodVerifier::GetClassLoader() {
-  return class_loader_->Get();
+  return class_loader_.Get();
 }
 
 inline mirror::DexCache* MethodVerifier::GetDexCache() {
-  return dex_cache_->Get();
+  return dex_cache_.Get();
 }
 
 inline MethodReference MethodVerifier::GetMethodReference() const {
@@ -66,9 +66,9 @@ inline bool MethodVerifier::HasFailures() const {
   return !failure_messages_.empty();
 }
 
-inline RegType& MethodVerifier::ResolveCheckedClass(uint32_t class_idx) {
+inline const RegType& MethodVerifier::ResolveCheckedClass(uint32_t class_idx) {
   DCHECK(!HasFailures());
-  RegType& result = ResolveClassAndCheckAccess(class_idx);
+  const RegType& result = ResolveClassAndCheckAccess(class_idx);
   DCHECK(!HasFailures());
   return result;
 }

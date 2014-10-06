@@ -16,6 +16,7 @@
 
 #include "builder.h"
 #include "code_generator.h"
+#include "code_generator_x86.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "nodes.h"
@@ -41,10 +42,10 @@ static bool Check(const uint16_t* data) {
   graph->BuildDominatorTree();
   graph->TransformToSSA();
   graph->FindNaturalLoops();
-  CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, kX86);
-  SsaLivenessAnalysis liveness(*graph, codegen);
+  x86::CodeGeneratorX86 codegen(graph);
+  SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
-  RegisterAllocator register_allocator(&allocator, codegen, liveness);
+  RegisterAllocator register_allocator(&allocator, &codegen, liveness);
   register_allocator.AllocateRegisters();
   return register_allocator.Validate(false);
 }
@@ -57,7 +58,7 @@ TEST(RegisterAllocatorTest, ValidateIntervals) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraph* graph = new (&allocator) HGraph(&allocator);
-  CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, kX86);
+  x86::CodeGeneratorX86 codegen(graph);
   GrowableArray<LiveInterval*> intervals(&allocator, 0);
 
   // Test with two intervals of the same range.
@@ -66,11 +67,11 @@ TEST(RegisterAllocatorTest, ValidateIntervals) {
     intervals.Add(BuildInterval(ranges, arraysize(ranges), &allocator, 0));
     intervals.Add(BuildInterval(ranges, arraysize(ranges), &allocator, 1));
     ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, codegen, &allocator, true, false));
 
     intervals.Get(1)->SetRegister(0);
     ASSERT_FALSE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, codegen, &allocator, true, false));
     intervals.Reset();
   }
 
@@ -81,11 +82,11 @@ TEST(RegisterAllocatorTest, ValidateIntervals) {
     static constexpr size_t ranges2[][2] = {{42, 43}};
     intervals.Add(BuildInterval(ranges2, arraysize(ranges2), &allocator, 1));
     ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, codegen, &allocator, true, false));
 
     intervals.Get(1)->SetRegister(0);
     ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, codegen, &allocator, true, false));
     intervals.Reset();
   }
 
@@ -96,11 +97,11 @@ TEST(RegisterAllocatorTest, ValidateIntervals) {
     static constexpr size_t ranges2[][2] = {{42, 43}};
     intervals.Add(BuildInterval(ranges2, arraysize(ranges2), &allocator, 1));
     ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, codegen, &allocator, true, false));
 
     intervals.Get(1)->SetRegister(0);
     ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, codegen, &allocator, true, false));
     intervals.Reset();
   }
 
@@ -111,11 +112,11 @@ TEST(RegisterAllocatorTest, ValidateIntervals) {
     static constexpr size_t ranges2[][2] = {{42, 47}};
     intervals.Add(BuildInterval(ranges2, arraysize(ranges2), &allocator, 1));
     ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, codegen, &allocator, true, false));
 
     intervals.Get(1)->SetRegister(0);
     ASSERT_FALSE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, codegen, &allocator, true, false));
     intervals.Reset();
   }
 
@@ -127,16 +128,16 @@ TEST(RegisterAllocatorTest, ValidateIntervals) {
     static constexpr size_t ranges2[][2] = {{42, 47}};
     intervals.Add(BuildInterval(ranges2, arraysize(ranges2), &allocator, 1));
     ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, codegen, &allocator, true, false));
 
     intervals.Get(1)->SetRegister(0);
     // Sibling of the first interval has no register allocated to it.
     ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, codegen, &allocator, true, false));
 
     intervals.Get(0)->GetNextSibling()->SetRegister(0);
     ASSERT_FALSE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, codegen, &allocator, true, false));
   }
 }
 
@@ -298,10 +299,10 @@ TEST(RegisterAllocatorTest, Loop3) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildSSAGraph(data, &allocator);
-  CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, kX86);
-  SsaLivenessAnalysis liveness(*graph, codegen);
+  x86::CodeGeneratorX86 codegen(graph);
+  SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
-  RegisterAllocator register_allocator(&allocator, codegen, liveness);
+  RegisterAllocator register_allocator(&allocator, &codegen, liveness);
   register_allocator.AllocateRegisters();
   ASSERT_TRUE(register_allocator.Validate(false));
 
@@ -330,15 +331,15 @@ TEST(RegisterAllocatorTest, FirstRegisterUse) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildSSAGraph(data, &allocator);
-  CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, kArm);
-  SsaLivenessAnalysis liveness(*graph, codegen);
+  x86::CodeGeneratorX86 codegen(graph);
+  SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
 
   HAdd* first_add = graph->GetBlocks().Get(1)->GetFirstInstruction()->AsAdd();
   HAdd* last_add = graph->GetBlocks().Get(1)->GetLastInstruction()->GetPrevious()->AsAdd();
   ASSERT_EQ(last_add->InputAt(0), first_add);
   LiveInterval* interval = first_add->GetLiveInterval();
-  ASSERT_EQ(interval->GetEnd(), last_add->GetLifetimePosition() + 1);
+  ASSERT_EQ(interval->GetEnd(), last_add->GetLifetimePosition());
   ASSERT_TRUE(interval->GetNextSibling() == nullptr);
 
   // We need a register for the output of the instruction.
@@ -347,14 +348,14 @@ TEST(RegisterAllocatorTest, FirstRegisterUse) {
   // Split at the next instruction.
   interval = interval->SplitAt(first_add->GetLifetimePosition() + 2);
   // The user of the split is the last add.
-  ASSERT_EQ(interval->FirstRegisterUse(), last_add->GetLifetimePosition() + 1);
+  ASSERT_EQ(interval->FirstRegisterUse(), last_add->GetLifetimePosition() - 1);
 
   // Split before the last add.
   LiveInterval* new_interval = interval->SplitAt(last_add->GetLifetimePosition() - 1);
   // Ensure the current interval has no register use...
   ASSERT_EQ(interval->FirstRegisterUse(), kNoLifetime);
   // And the new interval has it for the last add.
-  ASSERT_EQ(new_interval->FirstRegisterUse(), last_add->GetLifetimePosition() + 1);
+  ASSERT_EQ(new_interval->FirstRegisterUse(), last_add->GetLifetimePosition() - 1);
 }
 
 TEST(RegisterAllocatorTest, DeadPhi) {
@@ -383,12 +384,67 @@ TEST(RegisterAllocatorTest, DeadPhi) {
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildSSAGraph(data, &allocator);
   SsaDeadPhiElimination(graph).Run();
-  CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, kX86);
-  SsaLivenessAnalysis liveness(*graph, codegen);
+  x86::CodeGeneratorX86 codegen(graph);
+  SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
-  RegisterAllocator register_allocator(&allocator, codegen, liveness);
+  RegisterAllocator register_allocator(&allocator, &codegen, liveness);
   register_allocator.AllocateRegisters();
   ASSERT_TRUE(register_allocator.Validate(false));
+}
+
+/**
+ * Test that the TryAllocateFreeReg method works in the presence of inactive intervals
+ * that share the same register. It should split the interval it is currently
+ * allocating for at the minimum lifetime position between the two inactive intervals.
+ */
+TEST(RegisterAllocatorTest, FreeUntil) {
+  const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
+    Instruction::CONST_4 | 0 | 0,
+    Instruction::RETURN);
+
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+  HGraph* graph = BuildSSAGraph(data, &allocator);
+  SsaDeadPhiElimination(graph).Run();
+  x86::CodeGeneratorX86 codegen(graph);
+  SsaLivenessAnalysis liveness(*graph, &codegen);
+  liveness.Analyze();
+  RegisterAllocator register_allocator(&allocator, &codegen, liveness);
+
+  // Add an artifical range to cover the temps that will be put in the unhandled list.
+  LiveInterval* unhandled = graph->GetEntryBlock()->GetFirstInstruction()->GetLiveInterval();
+  unhandled->AddLoopRange(0, 60);
+
+  // Add three temps holding the same register, and starting at different positions.
+  // Put the one that should be picked in the middle of the inactive list to ensure
+  // we do not depend on an order.
+  LiveInterval* interval = LiveInterval::MakeTempInterval(&allocator, nullptr, Primitive::kPrimInt);
+  interval->SetRegister(0);
+  interval->AddRange(40, 50);
+  register_allocator.inactive_.Add(interval);
+
+  interval = LiveInterval::MakeTempInterval(&allocator, nullptr, Primitive::kPrimInt);
+  interval->SetRegister(0);
+  interval->AddRange(20, 30);
+  register_allocator.inactive_.Add(interval);
+
+  interval = LiveInterval::MakeTempInterval(&allocator, nullptr, Primitive::kPrimInt);
+  interval->SetRegister(0);
+  interval->AddRange(60, 70);
+  register_allocator.inactive_.Add(interval);
+
+  register_allocator.number_of_registers_ = 1;
+  register_allocator.registers_array_ = allocator.AllocArray<size_t>(1);
+  register_allocator.processing_core_registers_ = true;
+  register_allocator.unhandled_ = &register_allocator.unhandled_core_intervals_;
+
+  register_allocator.TryAllocateFreeReg(unhandled);
+
+  // Check that we have split the interval.
+  ASSERT_EQ(1u, register_allocator.unhandled_->Size());
+  // Check that we know need to find a new register where the next interval
+  // that uses the register starts.
+  ASSERT_EQ(20u, register_allocator.unhandled_->Get(0)->GetStart());
 }
 
 }  // namespace art

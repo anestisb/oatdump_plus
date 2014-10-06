@@ -17,14 +17,14 @@
 #include <jni.h>
 #include <vector>
 
-#include "common_runtime_test.h"
+#include "common_compiler_test.h"
 #include "field_helper.h"
 #include "mirror/art_field-inl.h"
 #include "scoped_thread_state_change.h"
 
 namespace art {
 
-class ProxyTest : public CommonRuntimeTest {
+class ProxyTest : public CommonCompilerTest {
  public:
   // Generate a proxy class with the given name and interfaces. This is a simplification from what
   // libcore does to fit to our test needs. We do not check for duplicated interfaces or methods and
@@ -103,12 +103,6 @@ class ProxyTest : public CommonRuntimeTest {
     soa.Self()->AssertNoPendingException();
     return proxyClass;
   }
-
- protected:
-  void SetUpRuntimeOptions(RuntimeOptions *options) OVERRIDE {
-    options->push_back(std::make_pair(StringPrintf("-Ximage:%s", GetLibCoreOatFileName().c_str()),
-                                      nullptr));
-  }
 };
 
 // Creates a proxy class and check ClassHelper works correctly.
@@ -139,8 +133,9 @@ TEST_F(ProxyTest, ProxyClassHelper) {
   EXPECT_EQ(2U, proxy_class->NumDirectInterfaces());  // Interfaces$I and Interfaces$J.
   EXPECT_EQ(I.Get(), mirror::Class::GetDirectInterface(soa.Self(), proxy_class, 0));
   EXPECT_EQ(J.Get(), mirror::Class::GetDirectInterface(soa.Self(), proxy_class, 1));
-  std::string proxy_class_descriptor(proxy_class->GetDescriptor());
-  EXPECT_STREQ("L$Proxy1234;", proxy_class_descriptor.c_str());
+  std::string temp;
+  const char* proxy_class_descriptor = proxy_class->GetDescriptor(&temp);
+  EXPECT_STREQ("L$Proxy1234;", proxy_class_descriptor);
   EXPECT_EQ(nullptr, proxy_class->GetSourceFile());
 }
 
@@ -188,7 +183,8 @@ TEST_F(ProxyTest, ProxyFieldHelper) {
   ASSERT_TRUE(throwsFieldClass.Get() != nullptr);
 
   // Test "Class[] interfaces" field.
-  FieldHelper fh(hs.NewHandle(static_fields->Get(0)));
+  MutableHandle<mirror::ArtField> fhandle = hs.NewHandle(static_fields->Get(0));
+  FieldHelper fh(fhandle);
   EXPECT_EQ("interfaces", std::string(fh.GetField()->GetName()));
   EXPECT_EQ("[Ljava/lang/Class;", std::string(fh.GetField()->GetTypeDescriptor()));
   EXPECT_EQ(interfacesFieldClass.Get(), fh.GetType());
@@ -196,12 +192,13 @@ TEST_F(ProxyTest, ProxyFieldHelper) {
   EXPECT_FALSE(fh.GetField()->IsPrimitiveType());
 
   // Test "Class[][] throws" field.
-  fh.ChangeField(static_fields->Get(1));
-  EXPECT_EQ("throws", std::string(fh.GetField()->GetName()));
-  EXPECT_EQ("[[Ljava/lang/Class;", std::string(fh.GetField()->GetTypeDescriptor()));
-  EXPECT_EQ(throwsFieldClass.Get(), fh.GetType());
-  EXPECT_EQ("L$Proxy1234;", std::string(fh.GetDeclaringClassDescriptor()));
-  EXPECT_FALSE(fh.GetField()->IsPrimitiveType());
+  fhandle.Assign(static_fields->Get(1));
+  FieldHelper fh2(fhandle);
+  EXPECT_EQ("throws", std::string(fh2.GetField()->GetName()));
+  EXPECT_EQ("[[Ljava/lang/Class;", std::string(fh2.GetField()->GetTypeDescriptor()));
+  EXPECT_EQ(throwsFieldClass.Get(), fh2.GetType());
+  EXPECT_EQ("L$Proxy1234;", std::string(fh2.GetDeclaringClassDescriptor()));
+  EXPECT_FALSE(fh2.GetField()->IsPrimitiveType());
 }
 
 }  // namespace art

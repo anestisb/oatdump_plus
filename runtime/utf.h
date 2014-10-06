@@ -55,7 +55,8 @@ void ConvertModifiedUtf8ToUtf16(uint16_t* utf16_out, const char* utf8_in);
 /*
  * Compare two modified UTF-8 strings as UTF-16 code point values in a non-locale sensitive manner
  */
-int CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(const char* utf8_1, const char* utf8_2);
+ALWAYS_INLINE int CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(const char* utf8_1,
+                                                                          const char* utf8_2);
 
 /*
  * Compare a modified UTF-8 string with a UTF-16 string as code point values in a non-locale
@@ -77,6 +78,9 @@ void ConvertUtf16ToModifiedUtf8(char* utf8_out, const uint16_t* utf16_in, size_t
 int32_t ComputeUtf16Hash(mirror::CharArray* chars, int32_t offset, size_t char_count)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 int32_t ComputeUtf16Hash(const uint16_t* chars, size_t char_count);
+
+// Compute a hash code of a UTF-8 string.
+int32_t ComputeUtf8Hash(const char* chars);
 
 /*
  * Retrieve the next UTF-16 character from a UTF-8 string.

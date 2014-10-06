@@ -18,6 +18,7 @@
 #define ART_COMPILER_OPTIMIZING_LOCATIONS_H_
 
 #include "base/bit_field.h"
+#include "base/bit_vector.h"
 #include "utils/allocation.h"
 #include "utils/growable_array.h"
 #include "utils/managed_register.h"
@@ -43,13 +44,13 @@ class Location : public ValueObject {
     // low bits are in the last parameter register, and the high
     // bits are in a stack slot. The kQuickParameter kind is for
     // handling this special case.
-    kQuickParameter = 5,
+    kQuickParameter = 6,
 
     // Unallocated location represents a location that is not fixed and can be
     // allocated by a register allocator.  Each unallocated location has
     // a policy that specifies what kind of location is suitable. Payload
     // contains register allocation policy.
-    kUnallocated = 6,
+    kUnallocated = 7,
   };
 
   Location() : value_(kInvalid) {
@@ -59,8 +60,8 @@ class Location : public ValueObject {
     COMPILE_ASSERT((kStackSlot & kLocationTagMask) != kConstant, TagError);
     COMPILE_ASSERT((kDoubleStackSlot & kLocationTagMask) != kConstant, TagError);
     COMPILE_ASSERT((kRegister & kLocationTagMask) != kConstant, TagError);
+    COMPILE_ASSERT((kQuickParameter & kLocationTagMask) != kConstant, TagError);
     COMPILE_ASSERT((kConstant & kLocationTagMask) == kConstant, TagError);
-    COMPILE_ASSERT((kQuickParameter & kLocationTagMask) == kConstant, TagError);
 
     DCHECK(!IsValid());
   }
@@ -173,7 +174,7 @@ class Location : public ValueObject {
   x86_64::X86_64ManagedRegister AsX86_64() const;
 
   Kind GetKind() const {
-    return KindField::Decode(value_);
+    return IsConstant() ? kConstant : KindField::Decode(value_);
   }
 
   bool Equals(Location other) const {
@@ -265,6 +266,34 @@ class Location : public ValueObject {
   uword value_;
 };
 
+class RegisterSet : public ValueObject {
+ public:
+  RegisterSet() : core_registers_(0), floating_point_registers_(0) {}
+
+  void Add(Location loc) {
+    // TODO: floating point registers.
+    core_registers_ |= (1 << loc.reg().RegId());
+  }
+
+  bool ContainsCoreRegister(uint32_t id) {
+    return Contains(core_registers_, id);
+  }
+
+  bool ContainsFloatingPointRegister(uint32_t id) {
+    return Contains(floating_point_registers_, id);
+  }
+
+  static bool Contains(uint32_t register_set, uint32_t reg) {
+    return (register_set & (1 << reg)) != 0;
+  }
+
+ private:
+  uint32_t core_registers_;
+  uint32_t floating_point_registers_;
+
+  DISALLOW_COPY_AND_ASSIGN(RegisterSet);
+};
+
 /**
  * The code generator computes LocationSummary for each instruction so that
  * the instruction itself knows what code to generate: where to find the inputs
@@ -275,7 +304,13 @@ class Location : public ValueObject {
  */
 class LocationSummary : public ArenaObject {
  public:
-  explicit LocationSummary(HInstruction* instruction);
+  enum CallKind {
+    kNoCall,
+    kCallOnSlowPath,
+    kCall
+  };
+
+  LocationSummary(HInstruction* instruction, CallKind call_kind = kNoCall);
 
   void SetInAt(uint32_t at, Location location) {
     inputs_.Put(at, location);
@@ -309,12 +344,74 @@ class LocationSummary : public ArenaObject {
     return temps_.Size();
   }
 
+  void SetEnvironmentAt(uint32_t at, Location location) {
+    environment_.Put(at, location);
+  }
+
+  Location GetEnvironmentAt(uint32_t at) const {
+    return environment_.Get(at);
+  }
+
   Location Out() const { return output_; }
+
+  bool CanCall() const { return call_kind_ != kNoCall; }
+  bool WillCall() const { return call_kind_ == kCall; }
+  bool OnlyCallsOnSlowPath() const { return call_kind_ == kCallOnSlowPath; }
+  bool NeedsSafepoint() const { return CanCall(); }
+
+  void SetStackBit(uint32_t index) {
+    stack_mask_->SetBit(index);
+  }
+
+  void ClearStackBit(uint32_t index) {
+    stack_mask_->ClearBit(index);
+  }
+
+  void SetRegisterBit(uint32_t reg_id) {
+    register_mask_ |= (1 << reg_id);
+  }
+
+  bool RegisterContainsObject(uint32_t reg_id) {
+    return RegisterSet::Contains(register_mask_, reg_id);
+  }
+
+  void AddLiveRegister(Location location) {
+    live_registers_.Add(location);
+  }
+
+  BitVector* GetStackMask() const {
+    return stack_mask_;
+  }
+
+  RegisterSet* GetLiveRegisters() {
+    return &live_registers_;
+  }
+
+  bool InputOverlapsWithOutputOrTemp(uint32_t input, bool is_environment) const {
+    if (is_environment) return true;
+    Location location = Out();
+    // TODO: Add more policies.
+    if (input == 0 && location.IsUnallocated() && location.GetPolicy() == Location::kSameAsFirstInput) {
+      return false;
+    }
+    return true;
+  }
 
  private:
   GrowableArray<Location> inputs_;
   GrowableArray<Location> temps_;
+  GrowableArray<Location> environment_;
   Location output_;
+  const CallKind call_kind_;
+
+  // Mask of objects that live in the stack.
+  BitVector* stack_mask_;
+
+  // Mask of objects that live in register.
+  uint32_t register_mask_;
+
+  // Registers that are in use at this position.
+  RegisterSet live_registers_;
 
   DISALLOW_COPY_AND_ASSIGN(LocationSummary);
 };

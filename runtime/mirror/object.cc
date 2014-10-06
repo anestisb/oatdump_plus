@@ -162,7 +162,8 @@ int32_t Object::IdentityHashCode() const {
         break;
       }
       case LockWord::kThinLocked: {
-        // Inflate the thin lock to a monitor and stick the hash code inside of the monitor.
+        // Inflate the thin lock to a monitor and stick the hash code inside of the monitor. May
+        // fail spuriously.
         Thread* self = Thread::Current();
         StackHandleScope<1> hs(self);
         Handle<mirror::Object> h_this(hs.NewHandle(current_this));
@@ -186,8 +187,7 @@ int32_t Object::IdentityHashCode() const {
       }
     }
   }
-  LOG(FATAL) << "Unreachable";
-  return 0;
+  UNREACHABLE();
 }
 
 void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, Object* new_value) {

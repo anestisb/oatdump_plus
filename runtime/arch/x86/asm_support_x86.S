@@ -112,6 +112,7 @@
     #define PLT_SYMBOL(name) _ ## name
 #endif
 
+// Directive to hide a function symbol.
 #if defined(__APPLE__)
     #define ASM_HIDDEN .private_extern
 #else
@@ -124,6 +125,17 @@ MACRO0(ALIGN_FUNCTION_ENTRY)
 END_MACRO
 
 MACRO1(DEFINE_FUNCTION, c_name)
+    FUNCTION_TYPE(\c_name, 0)
+    ASM_HIDDEN VAR(c_name, 0)
+    .globl VAR(c_name, 0)
+    ALIGN_FUNCTION_ENTRY
+VAR(c_name, 0):
+    CFI_STARTPROC
+    // Ensure we get a sane starting CFA.
+    CFI_DEF_CFA(esp, 4)
+END_MACRO
+
+MACRO1(DEFINE_FUNCTION_NO_HIDE, c_name)
     FUNCTION_TYPE(\c_name, 0)
     .globl VAR(c_name, 0)
     ALIGN_FUNCTION_ENTRY
@@ -167,15 +179,6 @@ MACRO0(SETUP_GOT_NOSAVE)
     call __x86.get_pc_thunk.bx
     addl $_GLOBAL_OFFSET_TABLE_, %ebx
 #endif
-END_MACRO
-
-MACRO0(SETUP_GOT)
-    PUSH  ebx
-    SETUP_GOT_NOSAVE
-END_MACRO
-
-MACRO0(UNDO_SETUP_GOT)
-    POP  ebx
 END_MACRO
 
 #endif  // ART_RUNTIME_ARCH_X86_ASM_SUPPORT_X86_S_

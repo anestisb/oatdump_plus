@@ -22,27 +22,9 @@
 
 #include "jni.h"
 #include "stdio.h"
-#include "string.h"
 #include "unistd.h"
 
-#include "native_bridge.h"
-
-
-// Native bridge interfaces...
-
-struct NativeBridgeArtCallbacks {
-  const char* (*getMethodShorty)(JNIEnv* env, jmethodID mid);
-  uint32_t (*getNativeMethodCount)(JNIEnv* env, jclass clazz);
-  uint32_t (*getNativeMethods)(JNIEnv* env, jclass clazz, JNINativeMethod* methods,
-                               uint32_t method_count);
-};
-
-struct NativeBridgeCallbacks {
-  bool (*initialize)(NativeBridgeArtCallbacks* art_cbs);
-  void* (*loadLibrary)(const char* libpath, int flag);
-  void* (*getTrampoline)(void* handle, const char* name, const char* shorty, uint32_t len);
-  bool (*isSupported)(const char* libpath);
-};
+#include "nativebridge/native_bridge.h"
 
 struct NativeBridgeMethod {
   const char* name;
@@ -53,7 +35,7 @@ struct NativeBridgeMethod {
 };
 
 static NativeBridgeMethod* find_native_bridge_method(const char *name);
-static NativeBridgeArtCallbacks* gNativeBridgeArtCallbacks;
+static const android::NativeBridgeRuntimeCallbacks* gNativeBridgeArtCallbacks;
 
 static jint trampoline_JNI_OnLoad(JavaVM* vm, void* reserved) {
   JNIEnv* env = nullptr;
@@ -225,7 +207,8 @@ static NativeBridgeMethod* find_native_bridge_method(const char *name) {
 }
 
 // NativeBridgeCallbacks implementations
-extern "C" bool native_bridge_initialize(NativeBridgeArtCallbacks* art_cbs) {
+extern "C" bool native_bridge_initialize(const android::NativeBridgeRuntimeCallbacks* art_cbs,
+                                         const char* private_dir, const char* isa) {
   if (art_cbs != nullptr) {
     gNativeBridgeArtCallbacks = art_cbs;
     printf("Native bridge initialized.\n");
@@ -281,9 +264,49 @@ extern "C" bool native_bridge_isSupported(const char* libpath) {
   return strcmp(libpath, "libjavacore.so") != 0;
 }
 
-NativeBridgeCallbacks NativeBridgeItf {
+namespace android {
+
+// Environment values required by the apps running with native bridge.
+struct NativeBridgeRuntimeValues {
+  const char* os_arch;
+  const char* cpu_abi;
+  const char* cpu_abi2;
+  const char* *supported_abis;
+  int32_t abi_count;
+};
+
+}  // namespace android
+
+const char* supported_abis[] = {
+    "supported1", "supported2", "supported3"
+};
+
+const struct android::NativeBridgeRuntimeValues nb_env {
+    .os_arch = "os.arch",
+    .cpu_abi = "cpu_abi",
+    .cpu_abi2 = "cpu_abi2",
+    .supported_abis = supported_abis,
+    .abi_count = 3
+};
+
+extern "C" const struct android::NativeBridgeRuntimeValues* native_bridge_getAppEnv(
+    const char* abi) {
+  printf("Checking for getEnvValues.\n");
+
+  if (abi == nullptr) {
+    return nullptr;
+  }
+
+  return &nb_env;
+}
+
+// "NativeBridgeItf" is effectively an API (it is the name of the symbol that will be loaded
+// by the native bridge library).
+android::NativeBridgeCallbacks NativeBridgeItf {
+  .version = 1,
   .initialize = &native_bridge_initialize,
   .loadLibrary = &native_bridge_loadLibrary,
   .getTrampoline = &native_bridge_getTrampoline,
-  .isSupported = &native_bridge_isSupported
+  .isSupported = &native_bridge_isSupported,
+  .getAppEnv = &native_bridge_getAppEnv
 };

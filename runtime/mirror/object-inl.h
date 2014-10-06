@@ -37,7 +37,7 @@ namespace mirror {
 
 inline uint32_t Object::ClassSize() {
   uint32_t vtable_entries = kVTableLength;
-  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0);
+  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0, 0, 0);
 }
 
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
@@ -408,17 +408,157 @@ inline size_t Object::SizeOf() {
 }
 
 template<VerifyObjectFlags kVerifyFlags, bool kIsVolatile>
+inline uint8_t Object::GetFieldBoolean(MemberOffset field_offset) {
+  if (kVerifyFlags & kVerifyThis) {
+    VerifyObject(this);
+  }
+  return GetField<uint8_t, kIsVolatile>(field_offset);
+}
+
+template<VerifyObjectFlags kVerifyFlags, bool kIsVolatile>
+inline int8_t Object::GetFieldByte(MemberOffset field_offset) {
+  if (kVerifyFlags & kVerifyThis) {
+    VerifyObject(this);
+  }
+  return GetField<int8_t, kIsVolatile>(field_offset);
+}
+
+template<VerifyObjectFlags kVerifyFlags>
+inline uint8_t Object::GetFieldBooleanVolatile(MemberOffset field_offset) {
+  return GetFieldBoolean<kVerifyFlags, true>(field_offset);
+}
+
+template<VerifyObjectFlags kVerifyFlags>
+inline int8_t Object::GetFieldByteVolatile(MemberOffset field_offset) {
+  return GetFieldByte<kVerifyFlags, true>(field_offset);
+}
+
+template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags,
+    bool kIsVolatile>
+inline void Object::SetFieldBoolean(MemberOffset field_offset, uint8_t new_value)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  if (kCheckTransaction) {
+    DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
+  }
+  if (kTransactionActive) {
+    Runtime::Current()->RecordWriteFieldBoolean(this, field_offset,
+                                           GetFieldBoolean<kVerifyFlags, kIsVolatile>(field_offset),
+                                           kIsVolatile);
+  }
+  if (kVerifyFlags & kVerifyThis) {
+    VerifyObject(this);
+  }
+  SetField<uint8_t, kIsVolatile>(field_offset, new_value);
+}
+
+template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags,
+    bool kIsVolatile>
+inline void Object::SetFieldByte(MemberOffset field_offset, int8_t new_value)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  if (kCheckTransaction) {
+    DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
+  }
+  if (kTransactionActive) {
+    Runtime::Current()->RecordWriteFieldByte(this, field_offset,
+                                           GetFieldByte<kVerifyFlags, kIsVolatile>(field_offset),
+                                           kIsVolatile);
+  }
+  if (kVerifyFlags & kVerifyThis) {
+    VerifyObject(this);
+  }
+  SetField<int8_t, kIsVolatile>(field_offset, new_value);
+}
+
+template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
+inline void Object::SetFieldBooleanVolatile(MemberOffset field_offset, uint8_t new_value) {
+  return SetFieldBoolean<kTransactionActive, kCheckTransaction, kVerifyFlags, true>(
+      field_offset, new_value);
+}
+
+template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
+inline void Object::SetFieldByteVolatile(MemberOffset field_offset, int8_t new_value) {
+  return SetFieldByte<kTransactionActive, kCheckTransaction, kVerifyFlags, true>(
+      field_offset, new_value);
+}
+
+template<VerifyObjectFlags kVerifyFlags, bool kIsVolatile>
+inline uint16_t Object::GetFieldChar(MemberOffset field_offset) {
+  if (kVerifyFlags & kVerifyThis) {
+    VerifyObject(this);
+  }
+  return GetField<uint16_t, kIsVolatile>(field_offset);
+}
+
+template<VerifyObjectFlags kVerifyFlags, bool kIsVolatile>
+inline int16_t Object::GetFieldShort(MemberOffset field_offset) {
+  if (kVerifyFlags & kVerifyThis) {
+    VerifyObject(this);
+  }
+  return GetField<int16_t, kIsVolatile>(field_offset);
+}
+
+template<VerifyObjectFlags kVerifyFlags>
+inline uint16_t Object::GetFieldCharVolatile(MemberOffset field_offset) {
+  return GetFieldChar<kVerifyFlags, true>(field_offset);
+}
+
+template<VerifyObjectFlags kVerifyFlags>
+inline int16_t Object::GetFieldShortVolatile(MemberOffset field_offset) {
+  return GetFieldShort<kVerifyFlags, true>(field_offset);
+}
+
+template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags,
+    bool kIsVolatile>
+inline void Object::SetFieldChar(MemberOffset field_offset, uint16_t new_value) {
+  if (kCheckTransaction) {
+    DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
+  }
+  if (kTransactionActive) {
+    Runtime::Current()->RecordWriteFieldChar(this, field_offset,
+                                           GetFieldChar<kVerifyFlags, kIsVolatile>(field_offset),
+                                           kIsVolatile);
+  }
+  if (kVerifyFlags & kVerifyThis) {
+    VerifyObject(this);
+  }
+  SetField<uint16_t, kIsVolatile>(field_offset, new_value);
+}
+
+template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags,
+    bool kIsVolatile>
+inline void Object::SetFieldShort(MemberOffset field_offset, int16_t new_value) {
+  if (kCheckTransaction) {
+    DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
+  }
+  if (kTransactionActive) {
+    Runtime::Current()->RecordWriteFieldChar(this, field_offset,
+                                           GetFieldShort<kVerifyFlags, kIsVolatile>(field_offset),
+                                           kIsVolatile);
+  }
+  if (kVerifyFlags & kVerifyThis) {
+    VerifyObject(this);
+  }
+  SetField<int16_t, kIsVolatile>(field_offset, new_value);
+}
+
+template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
+inline void Object::SetFieldCharVolatile(MemberOffset field_offset, uint16_t new_value) {
+  return SetFieldChar<kTransactionActive, kCheckTransaction, kVerifyFlags, true>(
+      field_offset, new_value);
+}
+
+template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
+inline void Object::SetFieldShortVolatile(MemberOffset field_offset, int16_t new_value) {
+  return SetFieldShort<kTransactionActive, kCheckTransaction, kVerifyFlags, true>(
+      field_offset, new_value);
+}
+
+template<VerifyObjectFlags kVerifyFlags, bool kIsVolatile>
 inline int32_t Object::GetField32(MemberOffset field_offset) {
   if (kVerifyFlags & kVerifyThis) {
     VerifyObject(this);
   }
-  const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset.Int32Value();
-  const int32_t* word_addr = reinterpret_cast<const int32_t*>(raw_addr);
-  if (UNLIKELY(kIsVolatile)) {
-    return reinterpret_cast<const Atomic<int32_t>*>(word_addr)->LoadSequentiallyConsistent();
-  } else {
-    return reinterpret_cast<const Atomic<int32_t>*>(word_addr)->LoadJavaData();
-  }
+  return GetField<int32_t, kIsVolatile>(field_offset);
 }
 
 template<VerifyObjectFlags kVerifyFlags>
@@ -440,13 +580,7 @@ inline void Object::SetField32(MemberOffset field_offset, int32_t new_value) {
   if (kVerifyFlags & kVerifyThis) {
     VerifyObject(this);
   }
-  byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
-  int32_t* word_addr = reinterpret_cast<int32_t*>(raw_addr);
-  if (kIsVolatile) {
-    reinterpret_cast<Atomic<int32_t>*>(word_addr)->StoreSequentiallyConsistent(new_value);
-  } else {
-    reinterpret_cast<Atomic<int32_t>*>(word_addr)->StoreJavaData(new_value);
-  }
+  SetField<int32_t, kIsVolatile>(field_offset, new_value);
 }
 
 template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
@@ -515,13 +649,7 @@ inline int64_t Object::GetField64(MemberOffset field_offset) {
   if (kVerifyFlags & kVerifyThis) {
     VerifyObject(this);
   }
-  const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset.Int32Value();
-  const int64_t* addr = reinterpret_cast<const int64_t*>(raw_addr);
-  if (kIsVolatile) {
-    return reinterpret_cast<const Atomic<int64_t>*>(addr)->LoadSequentiallyConsistent();
-  } else {
-    return reinterpret_cast<const Atomic<int64_t>*>(addr)->LoadJavaData();
-  }
+  return GetField<int64_t, kIsVolatile>(field_offset);
 }
 
 template<VerifyObjectFlags kVerifyFlags>
@@ -543,19 +671,35 @@ inline void Object::SetField64(MemberOffset field_offset, int64_t new_value) {
   if (kVerifyFlags & kVerifyThis) {
     VerifyObject(this);
   }
-  byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
-  int64_t* addr = reinterpret_cast<int64_t*>(raw_addr);
-  if (kIsVolatile) {
-    reinterpret_cast<Atomic<int64_t>*>(addr)->StoreSequentiallyConsistent(new_value);
-  } else {
-    reinterpret_cast<Atomic<int64_t>*>(addr)->StoreJavaData(new_value);
-  }
+  SetField<int64_t, kIsVolatile>(field_offset, new_value);
 }
 
 template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
 inline void Object::SetField64Volatile(MemberOffset field_offset, int64_t new_value) {
   return SetField64<kTransactionActive, kCheckTransaction, kVerifyFlags, true>(field_offset,
                                                                                new_value);
+}
+
+template<typename kSize, bool kIsVolatile>
+inline void Object::SetField(MemberOffset field_offset, kSize new_value) {
+  byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
+  kSize* addr = reinterpret_cast<kSize*>(raw_addr);
+  if (kIsVolatile) {
+    reinterpret_cast<Atomic<kSize>*>(addr)->StoreSequentiallyConsistent(new_value);
+  } else {
+    reinterpret_cast<Atomic<kSize>*>(addr)->StoreJavaData(new_value);
+  }
+}
+
+template<typename kSize, bool kIsVolatile>
+inline kSize Object::GetField(MemberOffset field_offset) {
+  const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset.Int32Value();
+  const kSize* addr = reinterpret_cast<const kSize*>(raw_addr);
+  if (kIsVolatile) {
+    return reinterpret_cast<const Atomic<kSize>*>(addr)->LoadSequentiallyConsistent();
+  } else {
+    return reinterpret_cast<const Atomic<kSize>*>(addr)->LoadJavaData();
+  }
 }
 
 template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
@@ -744,9 +888,9 @@ inline bool Object::CasFieldStrongSequentiallyConsistentObject(MemberOffset fiel
 
 template<bool kVisitClass, bool kIsStatic, typename Visitor>
 inline void Object::VisitFieldsReferences(uint32_t ref_offsets, const Visitor& visitor) {
-  if (LIKELY(ref_offsets != CLASS_WALK_SUPER)) {
+  if (!kIsStatic && LIKELY(ref_offsets != CLASS_WALK_SUPER)) {
     if (!kVisitClass) {
-     // Mask out the class from the reference offsets.
+      // Mask out the class from the reference offsets.
       ref_offsets ^= kWordHighBitMask;
     }
     DCHECK_EQ(ClassOffset().Uint32Value(), 0U);
@@ -758,7 +902,7 @@ inline void Object::VisitFieldsReferences(uint32_t ref_offsets, const Visitor& v
       ref_offsets &= ~(CLASS_HIGH_BIT >> right_shift);
     }
   } else {
-    // There is no reference offset bitmap.  In the non-static case, walk up the class
+    // There is no reference offset bitmap. In the non-static case, walk up the class
     // inheritance hierarchy and find reference offsets the hard way. In the static case, just
     // consider this class.
     for (mirror::Class* klass = kIsStatic ? AsClass() : GetClass(); klass != nullptr;
@@ -786,8 +930,7 @@ inline void Object::VisitInstanceFieldsReferences(mirror::Class* klass, const Vi
 template<bool kVisitClass, typename Visitor>
 inline void Object::VisitStaticFieldsReferences(mirror::Class* klass, const Visitor& visitor) {
   DCHECK(!klass->IsTemp());
-  klass->VisitFieldsReferences<kVisitClass, true>(
-      klass->GetReferenceStaticOffsets<kVerifyNone>(), visitor);
+  klass->VisitFieldsReferences<kVisitClass, true>(0, visitor);
 }
 
 template <const bool kVisitClass, VerifyObjectFlags kVerifyFlags, typename Visitor,

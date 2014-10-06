@@ -44,9 +44,7 @@
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
-#include "elf_fixup.h"
-#include "elf_patcher.h"
-#include "elf_stripper.h"
+#include "elf_writer.h"
 #include "gc/space/image_space.h"
 #include "gc/space/space-inl.h"
 #include "image_writer.h"
@@ -160,7 +158,14 @@ static void Usage(const char* fmt, ...) {
   UsageError("      Example: --compiler-backend=Portable");
   UsageError("      Default: Quick");
   UsageError("");
-  UsageError("  --compiler-filter=(verify-none|interpret-only|space|balanced|speed|everything):");
+  UsageError("  --compiler-filter="
+                "(verify-none"
+                "|interpret-only"
+                "|space"
+                "|balanced"
+                "|speed"
+                "|everything"
+                "|time):");
   UsageError("      select compiler filter.");
   UsageError("      Example: --compiler-filter=everything");
 #if ART_SMALL_MODE
@@ -226,6 +231,15 @@ static void Usage(const char* fmt, ...) {
   UsageError("  --disable-passes=<pass-names>:  disable one or more passes separated by comma.");
   UsageError("      Example: --disable-passes=UseCount,BBOptimizations");
   UsageError("");
+  UsageError("  --print-pass-options: print a list of passes that have configurable options along "
+             "with the setting.");
+  UsageError("      Will print default if no overridden setting exists.");
+  UsageError("");
+  UsageError("  --pass-options=Pass1Name:Pass1OptionName:Pass1Option#,"
+             "Pass2Name:Pass2OptionName:Pass2Option#");
+  UsageError("      Used to specify a pass specific option. The setting itself must be integer.");
+  UsageError("      Separator used between options is a comma.");
+  UsageError("");
   std::cerr << "See log for usage error information\n";
   exit(EXIT_FAILURE);
 }
@@ -245,12 +259,12 @@ class Dex2Oat {
     CHECK(verification_results != nullptr);
     CHECK(method_inliner_map != nullptr);
     std::unique_ptr<Dex2Oat> dex2oat(new Dex2Oat(&compiler_options,
-                                           compiler_kind,
-                                           instruction_set,
-                                           instruction_set_features,
-                                           verification_results,
-                                           method_inliner_map,
-                                           thread_count));
+                                                 compiler_kind,
+                                                 instruction_set,
+                                                 instruction_set_features,
+                                                 verification_results,
+                                                 method_inliner_map,
+                                                 thread_count));
     if (!dex2oat->CreateRuntime(runtime_options, instruction_set)) {
       *p_dex2oat = nullptr;
       return false;
@@ -271,20 +285,20 @@ class Dex2Oat {
 
 
   // Reads the class names (java.lang.Object) and returns a set of descriptors (Ljava/lang/Object;)
-  CompilerDriver::DescriptorSet* ReadImageClassesFromFile(const char* image_classes_filename) {
+  std::set<std::string>* ReadImageClassesFromFile(const char* image_classes_filename) {
     std::unique_ptr<std::ifstream> image_classes_file(new std::ifstream(image_classes_filename,
                                                                   std::ifstream::in));
     if (image_classes_file.get() == nullptr) {
       LOG(ERROR) << "Failed to open image classes file " << image_classes_filename;
       return nullptr;
     }
-    std::unique_ptr<CompilerDriver::DescriptorSet> result(ReadImageClasses(*image_classes_file));
+    std::unique_ptr<std::set<std::string>> result(ReadImageClasses(*image_classes_file));
     image_classes_file->close();
     return result.release();
   }
 
-  CompilerDriver::DescriptorSet* ReadImageClasses(std::istream& image_classes_stream) {
-    std::unique_ptr<CompilerDriver::DescriptorSet> image_classes(new CompilerDriver::DescriptorSet);
+  std::set<std::string>* ReadImageClasses(std::istream& image_classes_stream) {
+    std::unique_ptr<std::set<std::string>> image_classes(new std::set<std::string>);
     while (image_classes_stream.good()) {
       std::string dot;
       std::getline(image_classes_stream, dot);
@@ -298,7 +312,7 @@ class Dex2Oat {
   }
 
   // Reads the class names (java.lang.Object) and returns a set of descriptors (Ljava/lang/Object;)
-  CompilerDriver::DescriptorSet* ReadImageClassesFromZip(const char* zip_filename,
+  std::set<std::string>* ReadImageClassesFromZip(const char* zip_filename,
                                                          const char* image_classes_filename,
                                                          std::string* error_msg) {
     std::unique_ptr<ZipArchive> zip_archive(ZipArchive::Open(zip_filename, error_msg));
@@ -325,39 +339,16 @@ class Dex2Oat {
     return ReadImageClasses(image_classes_stream);
   }
 
-  bool PatchOatCode(const CompilerDriver* compiler_driver, File* oat_file,
-                    const std::string& oat_location, std::string* error_msg) {
-    // We asked to include patch information but we are not making an image. We need to fix
-    // everything up manually.
-    std::unique_ptr<ElfFile> elf_file(ElfFile::Open(oat_file, PROT_READ|PROT_WRITE,
-                                                    MAP_SHARED, error_msg));
-    if (elf_file.get() == NULL) {
-      LOG(ERROR) << error_msg;
-      return false;
-    }
-    {
-      ReaderMutexLock mu(Thread::Current(), *Locks::mutator_lock_);
-      return ElfPatcher::Patch(compiler_driver, elf_file.get(), oat_location, error_msg);
-    }
-  }
-
-  const CompilerDriver* CreateOatFile(const std::string& boot_image_option,
-                                      const std::string& android_root,
-                                      bool is_host,
-                                      const std::vector<const DexFile*>& dex_files,
-                                      File* oat_file,
-                                      const std::string& oat_location,
-                                      const std::string& bitcode_filename,
-                                      bool image,
-                                      std::unique_ptr<CompilerDriver::DescriptorSet>& image_classes,
-                                      bool dump_stats,
-                                      bool dump_passes,
-                                      TimingLogger& timings,
-                                      CumulativeLogger& compiler_phases_timings,
-                                      std::string profile_file,
-                                      SafeMap<std::string, std::string>* key_value_store) {
-    CHECK(key_value_store != nullptr);
-
+  void Compile(const std::string& boot_image_option,
+               const std::vector<const DexFile*>& dex_files,
+               const std::string& bitcode_filename,
+               bool image,
+               std::unique_ptr<std::set<std::string>>& image_classes,
+               bool dump_stats,
+               bool dump_passes,
+               TimingLogger* timings,
+               CumulativeLogger* compiler_phases_timings,
+               const std::string& profile_file) {
     // Handle and ClassLoader creation needs to come after Runtime::Create
     jobject class_loader = nullptr;
     Thread* self = Thread::Current();
@@ -376,31 +367,45 @@ class Dex2Oat {
       Runtime::Current()->SetCompileTimeClassPath(class_loader, class_path_files);
     }
 
-    std::unique_ptr<CompilerDriver> driver(new CompilerDriver(compiler_options_,
-                                                              verification_results_,
-                                                              method_inliner_map_,
-                                                              compiler_kind_,
-                                                              instruction_set_,
-                                                              instruction_set_features_,
-                                                              image,
-                                                              image_classes.release(),
-                                                              thread_count_,
-                                                              dump_stats,
-                                                              dump_passes,
-                                                              &compiler_phases_timings,
-                                                              profile_file));
+    driver_.reset(new CompilerDriver(compiler_options_,
+                                     verification_results_,
+                                     method_inliner_map_,
+                                     compiler_kind_,
+                                     instruction_set_,
+                                     instruction_set_features_,
+                                     image,
+                                     image_classes.release(),
+                                     thread_count_,
+                                     dump_stats,
+                                     dump_passes,
+                                     compiler_phases_timings,
+                                     profile_file));
 
-    driver->GetCompiler()->SetBitcodeFileName(*driver.get(), bitcode_filename);
+    driver_->GetCompiler()->SetBitcodeFileName(*driver_, bitcode_filename);
 
-    driver->CompileAll(class_loader, dex_files, &timings);
+    driver_->CompileAll(class_loader, dex_files, timings);
+  }
 
-    TimingLogger::ScopedTiming t2("dex2oat OatWriter", &timings);
+  void PrepareImageWriter(uintptr_t image_base) {
+    image_writer_.reset(new ImageWriter(*driver_, image_base));
+  }
+
+  bool CreateOatFile(const std::vector<const DexFile*>& dex_files,
+                     const std::string& android_root,
+                     bool is_host,
+                     File* oat_file,
+                     const std::string& oat_location,
+                     TimingLogger* timings,
+                     SafeMap<std::string, std::string>* key_value_store) {
+    CHECK(key_value_store != nullptr);
+
+    TimingLogger::ScopedTiming t2("dex2oat OatWriter", timings);
     std::string image_file_location;
     uint32_t image_file_location_oat_checksum = 0;
     uintptr_t image_file_location_oat_data_begin = 0;
     int32_t image_patch_delta = 0;
-    if (!driver->IsImage()) {
-      TimingLogger::ScopedTiming t3("Loading image checksum", &timings);
+    if (!driver_->IsImage()) {
+      TimingLogger::ScopedTiming t3("Loading image checksum", timings);
       gc::space::ImageSpace* image_space = Runtime::Current()->GetHeap()->GetImageSpace();
       image_file_location_oat_checksum = image_space->GetImageHeader().GetOatChecksum();
       image_file_location_oat_data_begin =
@@ -416,51 +421,57 @@ class Dex2Oat {
     OatWriter oat_writer(dex_files, image_file_location_oat_checksum,
                          image_file_location_oat_data_begin,
                          image_patch_delta,
-                         driver.get(),
-                         &timings,
+                         driver_.get(),
+                         image_writer_.get(),
+                         timings,
                          key_value_store);
 
-    t2.NewTiming("Writing ELF");
-    if (!driver->WriteElf(android_root, is_host, dex_files, &oat_writer, oat_file)) {
-      LOG(ERROR) << "Failed to write ELF file " << oat_file->GetPath();
-      return nullptr;
-    }
-
-    if (!driver->IsImage() && driver->GetCompilerOptions().GetIncludePatchInformation()) {
-      t2.NewTiming("Patching ELF");
-      std::string error_msg;
-      if (!PatchOatCode(driver.get(), oat_file, oat_location, &error_msg)) {
-        LOG(ERROR) << "Failed to fixup ELF file " << oat_file->GetPath() << ": " << error_msg;
-        return nullptr;
+    if (driver_->IsImage()) {
+      // The OatWriter constructor has already updated offsets in methods and we need to
+      // prepare method offsets in the image address space for direct method patching.
+      t2.NewTiming("Preparing image address space");
+      if (!image_writer_->PrepareImageAddressSpace()) {
+        LOG(ERROR) << "Failed to prepare image address space.";
+        return false;
       }
     }
 
-    return driver.release();
+    t2.NewTiming("Writing ELF");
+    if (!driver_->WriteElf(android_root, is_host, dex_files, &oat_writer, oat_file)) {
+      LOG(ERROR) << "Failed to write ELF file " << oat_file->GetPath();
+      return false;
+    }
+
+    // Flush result to disk.
+    t2.NewTiming("Flushing ELF");
+    if (oat_file->Flush() != 0) {
+      LOG(ERROR) << "Failed to flush ELF file " << oat_file->GetPath();
+      return false;
+    }
+
+    return true;
   }
 
   bool CreateImageFile(const std::string& image_filename,
-                       uintptr_t image_base,
                        const std::string& oat_filename,
-                       const std::string& oat_location,
-                       const CompilerDriver& compiler)
+                       const std::string& oat_location)
       LOCKS_EXCLUDED(Locks::mutator_lock_) {
-    uintptr_t oat_data_begin;
-    {
-      // ImageWriter is scoped so it can free memory before doing FixupElf
-      ImageWriter image_writer(compiler);
-      if (!image_writer.Write(image_filename, image_base, oat_filename, oat_location)) {
-        LOG(ERROR) << "Failed to create image file " << image_filename;
-        return false;
-      }
-      oat_data_begin = image_writer.GetOatDataBegin();
+    CHECK(image_writer_ != nullptr);
+    if (!image_writer_->Write(image_filename, oat_filename, oat_location)) {
+      LOG(ERROR) << "Failed to create image file " << image_filename;
+      return false;
     }
+    uintptr_t oat_data_begin = image_writer_->GetOatDataBegin();
+
+    // Destroy ImageWriter before doing FixupElf.
+    image_writer_.reset();
 
     std::unique_ptr<File> oat_file(OS::OpenFileReadWrite(oat_filename.c_str()));
     if (oat_file.get() == nullptr) {
       PLOG(ERROR) << "Failed to open ELF file: " << oat_filename;
       return false;
     }
-    if (!ElfFixup::Fixup(oat_file.get(), oat_data_begin)) {
+    if (!ElfWriter::Fixup(oat_file.get(), oat_data_begin)) {
       LOG(ERROR) << "Failed to fixup ELF file " << oat_file->GetPath();
       return false;
     }
@@ -483,7 +494,9 @@ class Dex2Oat {
         method_inliner_map_(method_inliner_map),
         runtime_(nullptr),
         thread_count_(thread_count),
-        start_ns_(NanoTime()) {
+        start_ns_(NanoTime()),
+        driver_(nullptr),
+        image_writer_(nullptr) {
     CHECK(compiler_options != nullptr);
     CHECK(verification_results != nullptr);
     CHECK(method_inliner_map != nullptr);
@@ -550,6 +563,8 @@ class Dex2Oat {
   Runtime* runtime_;
   size_t thread_count_;
   uint64_t start_ns_;
+  std::unique_ptr<CompilerDriver> driver_;
+  std::unique_ptr<ImageWriter> image_writer_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Dex2Oat);
 };
@@ -688,12 +703,18 @@ class WatchDog {
   }
 
   // When setting timeouts, keep in mind that the build server may not be as fast as your desktop.
+  // Debug builds are slower so they have larger timeouts.
+  static const unsigned int kSlowdownFactor = kIsDebugBuild ? 5U : 1U;
 #if ART_USE_PORTABLE_COMPILER
-  static const unsigned int kWatchDogWarningSeconds =  2 * 60;  // 2 minutes.
-  static const unsigned int kWatchDogTimeoutSeconds = 30 * 60;  // 25 minutes + buffer.
+  // 2 minutes scaled by kSlowdownFactor.
+  static const unsigned int kWatchDogWarningSeconds = kSlowdownFactor * 2 * 60;
+  // 30 minutes scaled by kSlowdownFactor.
+  static const unsigned int kWatchDogTimeoutSeconds = kSlowdownFactor * 30 * 60;
 #else
-  static const unsigned int kWatchDogWarningSeconds =  1 * 60;  // 1 minute.
-  static const unsigned int kWatchDogTimeoutSeconds =  6 * 60;  // 5 minutes + buffer.
+  // 1 minutes scaled by kSlowdownFactor.
+  static const unsigned int kWatchDogWarningSeconds = kSlowdownFactor * 1 * 60;
+  // 6 minutes scaled by kSlowdownFactor.
+  static const unsigned int kWatchDogTimeoutSeconds = kSlowdownFactor * 6 * 60;
 #endif
 
   bool is_watch_dog_enabled_;
@@ -847,6 +868,7 @@ static int dex2oat(int argc, char** argv) {
   bool dump_stats = false;
   bool dump_timing = false;
   bool dump_passes = false;
+  bool print_pass_options = false;
   bool include_patch_information = CompilerOptions::kDefaultIncludePatchInformation;
   bool include_debug_symbols = kIsDebugBuild;
   bool dump_slow_timing = kIsDebugBuild;
@@ -1013,6 +1035,7 @@ static int dex2oat(int argc, char** argv) {
       include_debug_symbols = true;
     } else if (option == "--no-include-debug-symbols" || option == "--strip-symbols") {
       include_debug_symbols = false;
+      generate_gdb_information = false;  // Depends on debug symbols, see above.
     } else if (option.starts_with("--profile-file=")) {
       profile_file = option.substr(strlen("--profile-file=")).data();
       VLOG(compiler) << "dex2oat: profile file is " << profile_file;
@@ -1033,6 +1056,11 @@ static int dex2oat(int argc, char** argv) {
     } else if (option.starts_with("--dump-cfg-passes=")) {
       std::string dump_passes = option.substr(strlen("--dump-cfg-passes=")).data();
       PassDriverMEOpts::SetDumpPassList(dump_passes);
+    } else if (option == "--print-pass-options") {
+      print_pass_options = true;
+    } else if (option.starts_with("--pass-options=")) {
+      std::string options = option.substr(strlen("--pass-options=")).data();
+      PassDriverMEOpts::SetOverriddenPassOptions(options);
     } else if (option == "--include-patch-information") {
       include_patch_information = true;
     } else if (option == "--no-include-patch-information") {
@@ -1159,6 +1187,8 @@ static int dex2oat(int argc, char** argv) {
     compiler_filter = CompilerOptions::kSpeed;
   } else if (strcmp(compiler_filter_string, "everything") == 0) {
     compiler_filter = CompilerOptions::kEverything;
+  } else if (strcmp(compiler_filter_string, "time") == 0) {
+    compiler_filter = CompilerOptions::kTime;
   } else {
     Usage("Unknown --compiler-filter value %s", compiler_filter_string);
   }
@@ -1177,6 +1207,10 @@ static int dex2oat(int argc, char** argv) {
     default:
       // Defaults are correct.
       break;
+  }
+
+  if (print_pass_options) {
+    PassDriverMEOpts::PrintPassOptions();
   }
 
   std::unique_ptr<CompilerOptions> compiler_options(new CompilerOptions(compiler_filter,
@@ -1212,6 +1246,7 @@ static int dex2oat(int argc, char** argv) {
   } else {
     oat_file.reset(new File(oat_fd, oat_location));
     oat_file->DisableAutoClose();
+    oat_file->SetLength(0);
   }
   if (oat_file.get() == nullptr) {
     PLOG(ERROR) << "Failed to create oat file: " << oat_location;
@@ -1276,7 +1311,7 @@ static int dex2oat(int argc, char** argv) {
   WellKnownClasses::Init(self->GetJniEnv());
 
   // If --image-classes was specified, calculate the full list of classes to include in the image
-  std::unique_ptr<CompilerDriver::DescriptorSet> image_classes(nullptr);
+  std::unique_ptr<std::set<std::string>> image_classes(nullptr);
   if (image_classes_filename != nullptr) {
     std::string error_msg;
     if (image_classes_zip_filename != nullptr) {
@@ -1292,7 +1327,7 @@ static int dex2oat(int argc, char** argv) {
       return EXIT_FAILURE;
     }
   } else if (image) {
-    image_classes.reset(new CompilerDriver::DescriptorSet);
+    image_classes.reset(new std::set<std::string>);
   }
 
   std::vector<const DexFile*> dex_files;
@@ -1350,7 +1385,7 @@ static int dex2oat(int argc, char** argv) {
    * If we're not in interpret-only or verify-none mode, go ahead and compile small applications.
    * Don't bother to check if we're doing the image.
    */
-  if (!image && compiler_options->IsCompilationEnabled()) {
+  if (!image && compiler_options->IsCompilationEnabled() && compiler_kind == Compiler::kQuick) {
     size_t num_methods = 0;
     for (size_t i = 0; i != dex_files.size(); ++i) {
       const DexFile* dex_file = dex_files[i];
@@ -1380,22 +1415,28 @@ static int dex2oat(int argc, char** argv) {
   oss << kRuntimeISA;
   key_value_store->Put(OatHeader::kDex2OatHostKey, oss.str());
 
-  std::unique_ptr<const CompilerDriver> compiler(dex2oat->CreateOatFile(boot_image_option,
-                                                                        android_root,
-                                                                        is_host,
-                                                                        dex_files,
-                                                                        oat_file.get(),
-                                                                        oat_location,
-                                                                        bitcode_filename,
-                                                                        image,
-                                                                        image_classes,
-                                                                        dump_stats,
-                                                                        dump_passes,
-                                                                        timings,
-                                                                        compiler_phases_timings,
-                                                                        profile_file,
-                                                                        key_value_store.get()));
-  if (compiler.get() == nullptr) {
+  dex2oat->Compile(boot_image_option,
+                   dex_files,
+                   bitcode_filename,
+                   image,
+                   image_classes,
+                   dump_stats,
+                   dump_passes,
+                   &timings,
+                   &compiler_phases_timings,
+                   profile_file);
+
+  if (image) {
+    dex2oat->PrepareImageWriter(image_base);
+  }
+
+  if (!dex2oat->CreateOatFile(dex_files,
+                              android_root,
+                              is_host,
+                              oat_file.get(),
+                              oat_location,
+                              &timings,
+                              key_value_store.get())) {
     LOG(ERROR) << "Failed to create oat file: " << oat_location;
     return EXIT_FAILURE;
   }
@@ -1431,34 +1472,43 @@ static int dex2oat(int argc, char** argv) {
   //
   // To get this all correct, we go through several steps.
   //
-  // 1. We have already created that oat file above with
-  // CreateOatFile. Originally this was just our own proprietary file
-  // but now it is contained within an ELF dynamic object (aka an .so
-  // file). The Compiler returned by CreateOatFile provides
-  // PatchInformation for references to oat code and Methods that need
-  // to be update once we know where the oat file will be located
-  // after the image.
+  // 1. We prepare offsets for all data in the oat file and calculate
+  // the oat data size and code size. During this stage, we also set
+  // oat code offsets in methods for use by the image writer.
   //
-  // 2. We create the image file. It needs to know where the oat file
+  // 2. We prepare offsets for the objects in the image and calculate
+  // the image size.
+  //
+  // 3. We create the oat file. Originally this was just our own proprietary
+  // file but now it is contained within an ELF dynamic object (aka an .so
+  // file). Since we know the image size and oat data size and code size we
+  // can prepare the ELF headers and we then know the ELF memory segment
+  // layout and we can now resolve all references. The compiler provides
+  // LinkerPatch information in each CompiledMethod and we resolve these,
+  // using the layout information and image object locations provided by
+  // image writer, as we're writing the method code.
+  //
+  // 4. We create the image file. It needs to know where the oat file
   // will be loaded after itself. Originally when oat file was simply
   // memory mapped so we could predict where its contents were based
   // on the file size. Now that it is an ELF file, we need to inspect
   // the ELF file to understand the in memory segment layout including
-  // where the oat header is located within. ElfPatcher's Patch method
-  // uses the PatchInformation from the Compiler to touch up absolute
-  // references in the oat file.
+  // where the oat header is located within.
+  // TODO: We could just remember this information from step 3.
   //
-  // 3. We fixup the ELF program headers so that dlopen will try to
+  // 5. We fixup the ELF program headers so that dlopen will try to
   // load the .so at the desired location at runtime by offsetting the
   // Elf32_Phdr.p_vaddr values by the desired base address.
+  // TODO: Do this in step 3. We already know the layout there.
+  //
+  // Steps 1.-3. are done by the CreateOatFile() above, steps 4.-5.
+  // are done by the CreateImageFile() below.
   //
   if (image) {
     TimingLogger::ScopedTiming t("dex2oat ImageWriter", &timings);
     bool image_creation_success = dex2oat->CreateImageFile(image_filename,
-                                                           image_base,
                                                            oat_unstripped,
-                                                           oat_location,
-                                                           *compiler.get());
+                                                           oat_location);
     if (!image_creation_success) {
       return EXIT_FAILURE;
     }
@@ -1471,7 +1521,7 @@ static int dex2oat(int argc, char** argv) {
       LOG(INFO) << Dumpable<TimingLogger>(timings);
     }
     if (dump_passes) {
-      LOG(INFO) << Dumpable<CumulativeLogger>(*compiler.get()->GetTimingsLogger());
+      LOG(INFO) << Dumpable<CumulativeLogger>(compiler_phases_timings);
     }
     return EXIT_SUCCESS;
   }

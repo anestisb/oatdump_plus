@@ -30,24 +30,33 @@
 namespace art {
 
 Mutex* Locks::abort_lock_ = nullptr;
+Mutex* Locks::alloc_tracker_lock_ = nullptr;
 Mutex* Locks::allocated_monitor_ids_lock_ = nullptr;
 Mutex* Locks::allocated_thread_ids_lock_ = nullptr;
-Mutex* Locks::breakpoint_lock_ = nullptr;
+ReaderWriterMutex* Locks::breakpoint_lock_ = nullptr;
 ReaderWriterMutex* Locks::classlinker_classes_lock_ = nullptr;
+Mutex* Locks::deoptimization_lock_ = nullptr;
 ReaderWriterMutex* Locks::heap_bitmap_lock_ = nullptr;
+Mutex* Locks::instrument_entrypoints_lock_ = nullptr;
+Mutex* Locks::intern_table_lock_ = nullptr;
 Mutex* Locks::jni_libraries_lock_ = nullptr;
 Mutex* Locks::logging_lock_ = nullptr;
 Mutex* Locks::mem_maps_lock_ = nullptr;
 Mutex* Locks::modify_ldt_lock_ = nullptr;
 ReaderWriterMutex* Locks::mutator_lock_ = nullptr;
+Mutex* Locks::profiler_lock_ = nullptr;
+Mutex* Locks::reference_processor_lock_ = nullptr;
+Mutex* Locks::reference_queue_cleared_references_lock_ = nullptr;
+Mutex* Locks::reference_queue_finalizer_references_lock_ = nullptr;
+Mutex* Locks::reference_queue_phantom_references_lock_ = nullptr;
+Mutex* Locks::reference_queue_soft_references_lock_ = nullptr;
+Mutex* Locks::reference_queue_weak_references_lock_ = nullptr;
 Mutex* Locks::runtime_shutdown_lock_ = nullptr;
 Mutex* Locks::thread_list_lock_ = nullptr;
 Mutex* Locks::thread_list_suspend_thread_lock_ = nullptr;
 Mutex* Locks::thread_suspend_count_lock_ = nullptr;
 Mutex* Locks::trace_lock_ = nullptr;
-Mutex* Locks::profiler_lock_ = nullptr;
 Mutex* Locks::unexpected_signal_lock_ = nullptr;
-Mutex* Locks::intern_table_lock_ = nullptr;
 
 struct AllMutexData {
   // A guard for all_mutexes_ that's not a mutex (Mutexes must CAS to acquire and busy wait).
@@ -771,8 +780,9 @@ void ConditionVariable::WaitHoldingLocks(Thread* self) {
   guard_.recursion_count_ = old_recursion_count;
 }
 
-void ConditionVariable::TimedWait(Thread* self, int64_t ms, int32_t ns) {
+bool ConditionVariable::TimedWait(Thread* self, int64_t ms, int32_t ns) {
   DCHECK(self == NULL || self == Thread::Current());
+  bool timed_out = false;
   guard_.AssertExclusiveHeld(self);
   guard_.CheckSafeToWait(self);
   unsigned int old_recursion_count = guard_.recursion_count_;
@@ -788,6 +798,7 @@ void ConditionVariable::TimedWait(Thread* self, int64_t ms, int32_t ns) {
   if (futex(sequence_.Address(), FUTEX_WAIT, cur_sequence, &rel_ts, NULL, 0) != 0) {
     if (errno == ETIMEDOUT) {
       // Timed out we're done.
+      timed_out = true;
     } else if ((errno == EAGAIN) || (errno == EINTR)) {
       // A signal or ConditionVariable::Signal/Broadcast has come in.
     } else {
@@ -812,13 +823,16 @@ void ConditionVariable::TimedWait(Thread* self, int64_t ms, int32_t ns) {
   timespec ts;
   InitTimeSpec(true, clock, ms, ns, &ts);
   int rc = TEMP_FAILURE_RETRY(pthread_cond_timedwait(&cond_, &guard_.mutex_, &ts));
-  if (rc != 0 && rc != ETIMEDOUT) {
+  if (rc == ETIMEDOUT) {
+    timed_out = true;
+  } else if (rc != 0) {
     errno = rc;
     PLOG(FATAL) << "TimedWait failed for " << name_;
   }
   guard_.exclusive_owner_ = old_owner;
 #endif
   guard_.recursion_count_ = old_recursion_count;
+  return timed_out;
 }
 
 void Locks::Init() {
@@ -830,21 +844,23 @@ void Locks::Init() {
       DCHECK(modify_ldt_lock_ == nullptr);
     }
     DCHECK(abort_lock_ != nullptr);
+    DCHECK(alloc_tracker_lock_ != nullptr);
     DCHECK(allocated_monitor_ids_lock_ != nullptr);
     DCHECK(allocated_thread_ids_lock_ != nullptr);
     DCHECK(breakpoint_lock_ != nullptr);
     DCHECK(classlinker_classes_lock_ != nullptr);
+    DCHECK(deoptimization_lock_ != nullptr);
     DCHECK(heap_bitmap_lock_ != nullptr);
+    DCHECK(intern_table_lock_ != nullptr);
     DCHECK(jni_libraries_lock_ != nullptr);
     DCHECK(logging_lock_ != nullptr);
     DCHECK(mutator_lock_ != nullptr);
+    DCHECK(profiler_lock_ != nullptr);
     DCHECK(thread_list_lock_ != nullptr);
     DCHECK(thread_list_suspend_thread_lock_ != nullptr);
     DCHECK(thread_suspend_count_lock_ != nullptr);
     DCHECK(trace_lock_ != nullptr);
-    DCHECK(profiler_lock_ != nullptr);
     DCHECK(unexpected_signal_lock_ != nullptr);
-    DCHECK(intern_table_lock_ != nullptr);
   } else {
     // Create global locks in level order from highest lock level to lowest.
     LockLevel current_lock_level = kThreadListSuspendThreadLock;
@@ -853,8 +869,17 @@ void Locks::Init() {
         new Mutex("thread list suspend thread by .. lock", current_lock_level);
 
     #define UPDATE_CURRENT_LOCK_LEVEL(new_level) \
-      DCHECK_LT(new_level, current_lock_level); \
+      if (new_level >= current_lock_level) { \
+        /* Do not use CHECKs or FATAL here, abort_lock_ is not setup yet. */ \
+        fprintf(stderr, "New local level %d is not less than current level %d\n", \
+                new_level, current_lock_level); \
+        exit(1); \
+      } \
       current_lock_level = new_level;
+
+    UPDATE_CURRENT_LOCK_LEVEL(kInstrumentEntrypointsLock);
+    DCHECK(instrument_entrypoints_lock_ == nullptr);
+    instrument_entrypoints_lock_ = new Mutex("instrument entrypoint lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kMutatorLock);
     DCHECK(mutator_lock_ == nullptr);
@@ -864,6 +889,10 @@ void Locks::Init() {
     DCHECK(heap_bitmap_lock_ == nullptr);
     heap_bitmap_lock_ = new ReaderWriterMutex("heap bitmap lock", current_lock_level);
 
+    UPDATE_CURRENT_LOCK_LEVEL(kTraceLock);
+    DCHECK(trace_lock_ == nullptr);
+    trace_lock_ = new Mutex("trace lock", current_lock_level);
+
     UPDATE_CURRENT_LOCK_LEVEL(kRuntimeShutdownLock);
     DCHECK(runtime_shutdown_lock_ == nullptr);
     runtime_shutdown_lock_ = new Mutex("runtime shutdown lock", current_lock_level);
@@ -872,9 +901,13 @@ void Locks::Init() {
     DCHECK(profiler_lock_ == nullptr);
     profiler_lock_ = new Mutex("profiler lock", current_lock_level);
 
-    UPDATE_CURRENT_LOCK_LEVEL(kTraceLock);
-    DCHECK(trace_lock_ == nullptr);
-    trace_lock_ = new Mutex("trace lock", current_lock_level);
+    UPDATE_CURRENT_LOCK_LEVEL(kDeoptimizationLock);
+    DCHECK(deoptimization_lock_ == nullptr);
+    deoptimization_lock_ = new Mutex("Deoptimization lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kAllocTrackerLock);
+    DCHECK(alloc_tracker_lock_ == nullptr);
+    alloc_tracker_lock_ = new Mutex("AllocTracker lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kThreadListLock);
     DCHECK(thread_list_lock_ == nullptr);
@@ -886,7 +919,7 @@ void Locks::Init() {
 
     UPDATE_CURRENT_LOCK_LEVEL(kBreakpointLock);
     DCHECK(breakpoint_lock_ == nullptr);
-    breakpoint_lock_ = new Mutex("breakpoint lock", current_lock_level);
+    breakpoint_lock_ = new ReaderWriterMutex("breakpoint lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kClassLinkerClassesLock);
     DCHECK(classlinker_classes_lock_ == nullptr);
@@ -911,6 +944,29 @@ void Locks::Init() {
     DCHECK(intern_table_lock_ == nullptr);
     intern_table_lock_ = new Mutex("InternTable lock", current_lock_level);
 
+    UPDATE_CURRENT_LOCK_LEVEL(kReferenceProcessorLock);
+    DCHECK(reference_processor_lock_ == nullptr);
+    reference_processor_lock_ = new Mutex("ReferenceProcessor lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kReferenceQueueClearedReferencesLock);
+    DCHECK(reference_queue_cleared_references_lock_ == nullptr);
+    reference_queue_cleared_references_lock_ = new Mutex("ReferenceQueue cleared references lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kReferenceQueueWeakReferencesLock);
+    DCHECK(reference_queue_weak_references_lock_ == nullptr);
+    reference_queue_weak_references_lock_ = new Mutex("ReferenceQueue cleared references lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kReferenceQueueFinalizerReferencesLock);
+    DCHECK(reference_queue_finalizer_references_lock_ == nullptr);
+    reference_queue_finalizer_references_lock_ = new Mutex("ReferenceQueue finalizer references lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kReferenceQueuePhantomReferencesLock);
+    DCHECK(reference_queue_phantom_references_lock_ == nullptr);
+    reference_queue_phantom_references_lock_ = new Mutex("ReferenceQueue phantom references lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kReferenceQueueSoftReferencesLock);
+    DCHECK(reference_queue_soft_references_lock_ == nullptr);
+    reference_queue_soft_references_lock_ = new Mutex("ReferenceQueue soft references lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kAbortLock);
     DCHECK(abort_lock_ == nullptr);

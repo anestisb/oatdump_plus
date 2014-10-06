@@ -314,7 +314,7 @@ void CommonCompilerTest::SetUp() {
                                               method_inliner_map_.get(),
                                               compiler_kind, instruction_set,
                                               instruction_set_features,
-                                              true, new CompilerDriver::DescriptorSet,
+                                              true, new std::set<std::string>,
                                               2, true, true, timer_.get()));
   }
   // We typically don't generate an image in unit tests, disable this optimization by default.
@@ -380,9 +380,9 @@ void CommonCompilerTest::CompileDirectMethod(Handle<mirror::ClassLoader> class_l
   CompileMethod(method);
 }
 
-void CommonCompilerTest::CompileVirtualMethod(Handle<mirror::ClassLoader> class_loader, const char* class_name,
-                                              const char* method_name, const char* signature)
-SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+void CommonCompilerTest::CompileVirtualMethod(Handle<mirror::ClassLoader> class_loader,
+                                              const char* class_name, const char* method_name,
+                                              const char* signature) {
   std::string class_descriptor(DotToDescriptor(class_name));
   Thread* self = Thread::Current();
   mirror::Class* klass = class_linker_->FindClass(self, class_descriptor.c_str(), class_loader);

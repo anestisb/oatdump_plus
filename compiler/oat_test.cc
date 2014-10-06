@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "class_linker.h"
 #include "common_compiler_test.h"
 #include "compiler.h"
 #include "dex/verification_results.h"
@@ -113,7 +114,6 @@ TEST_F(OatTest, WriteRead) {
     compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), &timings);
   }
 
-  ScopedObjectAccess soa(Thread::Current());
   ScratchFile tmp;
   SafeMap<std::string, std::string> key_value_store;
   key_value_store.Put(OatHeader::kImageLocationKey, "lue.art");
@@ -122,6 +122,7 @@ TEST_F(OatTest, WriteRead) {
                        4096U,
                        0,
                        compiler_driver_.get(),
+                       nullptr,
                        &timings,
                        &key_value_store);
   bool success = compiler_driver_->WriteElf(GetTestAndroidRoot(),
@@ -151,6 +152,7 @@ TEST_F(OatTest, WriteRead) {
                                                                     &dex_file_checksum);
   ASSERT_TRUE(oat_dex_file != nullptr);
   CHECK_EQ(dex_file->GetLocationChecksum(), oat_dex_file->GetDexFileLocationChecksum());
+  ScopedObjectAccess soa(Thread::Current());
   for (size_t i = 0; i < dex_file->NumClassDefs(); i++) {
     const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
     const byte* class_data = dex_file->GetClassData(class_def);
@@ -187,7 +189,7 @@ TEST_F(OatTest, OatHeaderSizeCheck) {
   EXPECT_EQ(84U, sizeof(OatHeader));
   EXPECT_EQ(8U, sizeof(OatMethodOffsets));
   EXPECT_EQ(24U, sizeof(OatQuickMethodHeader));
-  EXPECT_EQ(79 * GetInstructionSetPointerSize(kRuntimeISA), sizeof(QuickEntryPoints));
+  EXPECT_EQ(91 * GetInstructionSetPointerSize(kRuntimeISA), sizeof(QuickEntryPoints));
 }
 
 TEST_F(OatTest, OatHeaderIsValid) {
@@ -196,13 +198,13 @@ TEST_F(OatTest, OatHeaderIsValid) {
     std::vector<const DexFile*> dex_files;
     uint32_t image_file_location_oat_checksum = 0;
     uint32_t image_file_location_oat_begin = 0;
-    OatHeader* oat_header = OatHeader::Create(instruction_set,
-                                              instruction_set_features,
-                                              &dex_files,
-                                              image_file_location_oat_checksum,
-                                              image_file_location_oat_begin,
-                                              nullptr);
-    ASSERT_NE(oat_header, nullptr);
+    std::unique_ptr<OatHeader> oat_header(OatHeader::Create(instruction_set,
+                                                            instruction_set_features,
+                                                            &dex_files,
+                                                            image_file_location_oat_checksum,
+                                                            image_file_location_oat_begin,
+                                                            nullptr));
+    ASSERT_NE(oat_header.get(), nullptr);
     ASSERT_TRUE(oat_header->IsValid());
 
     char* magic = const_cast<char*>(oat_header->GetMagic());

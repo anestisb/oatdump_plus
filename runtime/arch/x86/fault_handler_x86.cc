@@ -34,13 +34,15 @@
 #define CTX_ESP uc_mcontext->__ss.__rsp
 #define CTX_EIP uc_mcontext->__ss.__rip
 #define CTX_EAX uc_mcontext->__ss.__rax
-#define CTX_METHOD uc_mcontext->__ss.__rax
+#define CTX_METHOD uc_mcontext->__ss.__rdi
+#define CTX_JMP_BUF uc_mcontext->__ss.__rdi
 #else
 // 32 bit mac build.
 #define CTX_ESP uc_mcontext->__ss.__esp
 #define CTX_EIP uc_mcontext->__ss.__eip
 #define CTX_EAX uc_mcontext->__ss.__eax
 #define CTX_METHOD uc_mcontext->__ss.__eax
+#define CTX_JMP_BUF uc_mcontext->__ss.__eax
 #endif
 
 #elif defined(__x86_64__)
@@ -49,12 +51,15 @@
 #define CTX_EIP uc_mcontext.gregs[REG_RIP]
 #define CTX_EAX uc_mcontext.gregs[REG_RAX]
 #define CTX_METHOD uc_mcontext.gregs[REG_RDI]
+#define CTX_RDI uc_mcontext.gregs[REG_RDI]
+#define CTX_JMP_BUF uc_mcontext.gregs[REG_RDI]
 #else
 // 32 bit linux build.
 #define CTX_ESP uc_mcontext.gregs[REG_ESP]
 #define CTX_EIP uc_mcontext.gregs[REG_EIP]
 #define CTX_EAX uc_mcontext.gregs[REG_EAX]
 #define CTX_METHOD uc_mcontext.gregs[REG_EAX]
+#define CTX_JMP_BUF uc_mcontext.gregs[REG_EAX]
 #endif
 
 //
@@ -66,15 +71,21 @@ namespace art {
 #if defined(__APPLE__) && defined(__x86_64__)
 // mac symbols have a prefix of _ on x86_64
 extern "C" void _art_quick_throw_null_pointer_exception();
-extern "C" void _art_quick_throw_stack_overflow_from_signal();
+extern "C" void _art_quick_throw_stack_overflow();
 extern "C" void _art_quick_test_suspend();
 #define EXT_SYM(sym) _ ## sym
 #else
 extern "C" void art_quick_throw_null_pointer_exception();
-extern "C" void art_quick_throw_stack_overflow_from_signal();
+extern "C" void art_quick_throw_stack_overflow();
 extern "C" void art_quick_test_suspend();
 #define EXT_SYM(sym) sym
 #endif
+
+// Note this is different from the others (no underscore on 64 bit mac) due to
+// the way the symbol is defined in the .S file.
+// TODO: fix the symbols for 64 bit mac - there is a double underscore prefix for some
+// of them.
+extern "C" void art_nested_signal_return();
 
 // Get the size of an instruction in bytes.
 // Return 0 if the instruction is not handled.
@@ -93,11 +104,17 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
   bool two_byte = false;
   uint32_t displacement_size = 0;
   uint32_t immediate_size = 0;
+  bool operand_size_prefix = false;
 
   // Prefixes.
   while (true) {
     bool prefix_present = false;
     switch (opcode) {
+      // Group 3
+      case 0x66:
+        operand_size_prefix = true;
+        // fallthrough
+
       // Group 1
       case 0xf0:
       case 0xf2:
@@ -110,9 +127,6 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
       case 0x26:
       case 0x64:
       case 0x65:
-
-      // Group 3
-      case 0x66:
 
       // Group 4
       case 0x67:
@@ -139,8 +153,8 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
 
   if (two_byte) {
     switch (opcode) {
-      case 0x10:            // vmovsd/ss
-      case 0x11:            // vmovsd/ss
+      case 0x10:        // vmovsd/ss
+      case 0x11:        // vmovsd/ss
       case 0xb6:        // movzx
       case 0xb7:
       case 0xbe:        // movsx
@@ -154,7 +168,8 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
     }
   } else {
     switch (opcode) {
-      case 0x89:            // mov
+      case 0x88:        // mov byte
+      case 0x89:        // mov
       case 0x8b:
       case 0x38:        // cmp with memory.
       case 0x39:
@@ -177,7 +192,7 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
       case 0x81:        // group 1, word immediate.
         modrm = *pc++;
         has_modrm = true;
-        immediate_size = 4;
+        immediate_size = operand_size_prefix ? 2 : 4;
         break;
 
       default:
@@ -192,18 +207,18 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
   }
 
   if (has_modrm) {
-    uint8_t mod = (modrm >> 6) & 0b11;
+    uint8_t mod = (modrm >> 6) & 3U /* 0b11 */;
 
     // Check for SIB.
-    if (mod != 0b11 && (modrm & 0b111) == 4) {
+    if (mod != 3U /* 0b11 */ && (modrm & 7U /* 0b111 */) == 4) {
       ++pc;     // SIB
     }
 
     switch (mod) {
-      case 0b00: break;
-      case 0b01: displacement_size = 1; break;
-      case 0b10: displacement_size = 4; break;
-      case 0b11:
+      case 0U /* 0b00 */: break;
+      case 1U /* 0b01 */: displacement_size = 1; break;
+      case 2U /* 0b10 */: displacement_size = 4; break;
+      case 3U /* 0b11 */:
         break;
     }
   }
@@ -213,6 +228,21 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
 
   VLOG(signals) << "x86 instruction length calculated as " << (pc - startpc);
   return pc - startpc;
+}
+
+void FaultManager::HandleNestedSignal(int sig, siginfo_t* info, void* context) {
+  // For the Intel architectures we need to go to an assembly language
+  // stub.  This is because the 32 bit call to longjmp is much different
+  // from the 64 bit ABI call and pushing things onto the stack inside this
+  // handler was unwieldy and ugly.  The use of the stub means we can keep
+  // this code the same for both 32 and 64 bit.
+
+  Thread* self = Thread::Current();
+  CHECK(self != nullptr);       // This will cause a SIGABRT if self is nullptr.
+
+  struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
+  uc->CTX_JMP_BUF = reinterpret_cast<uintptr_t>(*self->GetNestedSignalState());
+  uc->CTX_EIP = reinterpret_cast<uintptr_t>(art_nested_signal_return);
 }
 
 void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo, void* context,
@@ -382,30 +412,20 @@ bool StackOverflowHandler::Action(int sig, siginfo_t* info, void* context) {
   uintptr_t overflow_addr = sp - GetStackOverflowReservedBytes(kX86);
 #endif
 
-  Thread* self = Thread::Current();
-  uintptr_t pregion = reinterpret_cast<uintptr_t>(self->GetStackEnd()) -
-      Thread::kStackOverflowProtectedSize;
-
   // Check that the fault address is the value expected for a stack overflow.
   if (fault_addr != overflow_addr) {
     VLOG(signals) << "Not a stack overflow";
     return false;
   }
 
-  // We know this is a stack overflow.  We need to move the sp to the overflow region
-  // that exists below the protected region.  Determine the address of the next
-  // available valid address below the protected region.
-  VLOG(signals) << "setting sp to overflow region at " << std::hex << pregion;
+  VLOG(signals) << "Stack overflow found";
 
   // Since the compiler puts the implicit overflow
   // check before the callee save instructions, the SP is already pointing to
   // the previous frame.
 
-  // Tell the stack overflow code where the new stack pointer should be.
-  uc->CTX_EAX = pregion;
-
-  // Now arrange for the signal handler to return to art_quick_throw_stack_overflow_from_signal.
-  uc->CTX_EIP = reinterpret_cast<uintptr_t>(EXT_SYM(art_quick_throw_stack_overflow_from_signal));
+  // Now arrange for the signal handler to return to art_quick_throw_stack_overflow.
+  uc->CTX_EIP = reinterpret_cast<uintptr_t>(EXT_SYM(art_quick_throw_stack_overflow));
 
   return true;
 }

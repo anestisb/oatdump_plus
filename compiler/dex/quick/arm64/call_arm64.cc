@@ -44,7 +44,7 @@ namespace art {
  * quit:
  */
 void Arm64Mir2Lir::GenLargeSparseSwitch(MIR* mir, uint32_t table_offset, RegLocation rl_src) {
-  const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
+  const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
   if (cu_->verbose) {
     DumpSparseSwitchTable(table);
   }
@@ -55,7 +55,7 @@ void Arm64Mir2Lir::GenLargeSparseSwitch(MIR* mir, uint32_t table_offset, RegLoca
   tab_rec->vaddr = current_dalvik_offset_;
   uint32_t size = table[1];
   tab_rec->targets = static_cast<LIR**>(arena_->Alloc(size * sizeof(LIR*), kArenaAllocLIR));
-  switch_tables_.Insert(tab_rec);
+  switch_tables_.push_back(tab_rec);
 
   // Get the switch value
   rl_src = LoadValue(rl_src, kCoreReg);
@@ -96,7 +96,7 @@ void Arm64Mir2Lir::GenLargeSparseSwitch(MIR* mir, uint32_t table_offset, RegLoca
 
 
 void Arm64Mir2Lir::GenLargePackedSwitch(MIR* mir, uint32_t table_offset, RegLocation rl_src) {
-  const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
+  const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
   if (cu_->verbose) {
     DumpPackedSwitchTable(table);
   }
@@ -108,7 +108,7 @@ void Arm64Mir2Lir::GenLargePackedSwitch(MIR* mir, uint32_t table_offset, RegLoca
   uint32_t size = table[1];
   tab_rec->targets =
       static_cast<LIR**>(arena_->Alloc(size * sizeof(LIR*), kArenaAllocLIR));
-  switch_tables_.Insert(tab_rec);
+  switch_tables_.push_back(tab_rec);
 
   // Get the switch value
   rl_src = LoadValue(rl_src, kCoreReg);
@@ -156,8 +156,8 @@ void Arm64Mir2Lir::GenLargePackedSwitch(MIR* mir, uint32_t table_offset, RegLoca
  *
  * Total size is 4+(width * size + 1)/2 16-bit code units.
  */
-void Arm64Mir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src) {
-  const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
+void Arm64Mir2Lir::GenFillArrayData(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
+  const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
   // Add the table to the list - we'll process it later
   FillArrayData *tab_rec =
       static_cast<FillArrayData*>(arena_->Alloc(sizeof(FillArrayData), kArenaAllocData));
@@ -167,7 +167,7 @@ void Arm64Mir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src) {
   uint32_t size = tab_rec->table[2] | ((static_cast<uint32_t>(tab_rec->table[3])) << 16);
   tab_rec->size = (size * width) + 8;
 
-  fill_array_data_.Insert(tab_rec);
+  fill_array_data_.push_back(tab_rec);
 
   // Making a call - use explicit registers
   FlushAllRegs();   /* Everything to home location */
@@ -208,9 +208,9 @@ void Arm64Mir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
   OpRegRegImm(kOpAdd, rs_x2, rs_x0, mirror::Object::MonitorOffset().Int32Value());
   NewLIR2(kA64Ldxr2rX, rw3, rx2);
   MarkPossibleNullPointerException(opt_flags);
-  LIR* not_unlocked_branch = OpCmpImmBranch(kCondNe, rs_x1, 0, NULL);
+  LIR* not_unlocked_branch = OpCmpImmBranch(kCondNe, rs_w3, 0, NULL);
   NewLIR3(kA64Stxr3wrX, rw3, rw1, rx2);
-  LIR* lock_success_branch = OpCmpImmBranch(kCondEq, rs_x1, 0, NULL);
+  LIR* lock_success_branch = OpCmpImmBranch(kCondEq, rs_w3, 0, NULL);
 
   LIR* slow_path_target = NewLIR0(kPseudoTargetLabel);
   not_unlocked_branch->target = slow_path_target;
@@ -329,16 +329,20 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
    * We can safely skip the stack overflow check if we're
    * a leaf *and* our frame size < fudge factor.
    */
-  bool skip_overflow_check = mir_graph_->MethodIsLeaf() && !IsLargeFrame(frame_size_, kArm64);
+  bool skip_overflow_check = mir_graph_->MethodIsLeaf() && !FrameNeedsStackCheck(frame_size_, kArm64);
 
   NewLIR0(kPseudoMethodEntry);
 
+  const size_t kStackOverflowReservedUsableBytes = GetStackOverflowReservedBytes(kArm64);
+  const bool large_frame = static_cast<size_t>(frame_size_) > kStackOverflowReservedUsableBytes;
+  bool generate_explicit_stack_overflow_check = large_frame ||
+    !cu_->compiler_driver->GetCompilerOptions().GetImplicitStackOverflowChecks();
   const int spill_count = num_core_spills_ + num_fp_spills_;
   const int spill_size = (spill_count * kArm64PointerSize + 15) & ~0xf;  // SP 16 byte alignment.
   const int frame_size_without_spills = frame_size_ - spill_size;
 
   if (!skip_overflow_check) {
-    if (!cu_->compiler_driver->GetCompilerOptions().GetImplicitStackOverflowChecks()) {
+    if (generate_explicit_stack_overflow_check) {
       // Load stack limit
       LoadWordDisp(rs_xSELF, Thread::StackEndOffset<8>().Int32Value(), rs_xIP1);
     } else {
@@ -365,7 +369,7 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
   }
 
   if (!skip_overflow_check) {
-    if (!cu_->compiler_driver->GetCompilerOptions().GetImplicitStackOverflowChecks()) {
+    if (generate_explicit_stack_overflow_check) {
       class StackOverflowSlowPath: public LIRSlowPath {
       public:
         StackOverflowSlowPath(Mir2Lir* m2l, LIR* branch, size_t sp_displace) :

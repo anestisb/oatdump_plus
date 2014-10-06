@@ -16,6 +16,7 @@
 
 #include "register_allocator.h"
 
+#include "base/bit_vector-inl.h"
 #include "code_generator.h"
 #include "ssa_liveness_analysis.h"
 
@@ -30,18 +31,27 @@ RegisterAllocator::RegisterAllocator(ArenaAllocator* allocator,
       : allocator_(allocator),
         codegen_(codegen),
         liveness_(liveness),
-        unhandled_(allocator, 0),
+        unhandled_core_intervals_(allocator, 0),
+        unhandled_fp_intervals_(allocator, 0),
+        unhandled_(nullptr),
         handled_(allocator, 0),
         active_(allocator, 0),
         inactive_(allocator, 0),
         physical_register_intervals_(allocator, codegen->GetNumberOfRegisters()),
+        temp_intervals_(allocator, 4),
         spill_slots_(allocator, kDefaultNumberOfSpillSlots),
+        safepoints_(allocator, 0),
         processing_core_registers_(false),
         number_of_registers_(-1),
         registers_array_(nullptr),
-        blocked_registers_(allocator->AllocArray<bool>(codegen->GetNumberOfRegisters())) {
+        blocked_registers_(allocator->AllocArray<bool>(codegen->GetNumberOfRegisters())),
+        reserved_out_slots_(0),
+        maximum_number_of_live_registers_(0) {
   codegen->SetupBlockedRegisters(blocked_registers_);
   physical_register_intervals_.SetSize(codegen->GetNumberOfRegisters());
+  // Always reserve for the current method and the graph's max out registers.
+  // TODO: compute it instead.
+  reserved_out_slots_ = 1 + codegen->GetGraph()->GetMaximumNumberOfOutVRegs();
 }
 
 bool RegisterAllocator::CanAllocateRegistersFor(const HGraph& graph,
@@ -54,7 +64,6 @@ bool RegisterAllocator::CanAllocateRegistersFor(const HGraph& graph,
          !it.Done();
          it.Advance()) {
       HInstruction* current = it.Current();
-      if (current->NeedsEnvironment()) return false;
       if (current->GetType() == Primitive::kPrimLong && instruction_set != kX86_64) return false;
       if (current->GetType() == Primitive::kPrimFloat) return false;
       if (current->GetType() == Primitive::kPrimDouble) return false;
@@ -64,17 +73,14 @@ bool RegisterAllocator::CanAllocateRegistersFor(const HGraph& graph,
 }
 
 static bool ShouldProcess(bool processing_core_registers, LiveInterval* interval) {
+  if (interval == nullptr) return false;
   bool is_core_register = (interval->GetType() != Primitive::kPrimDouble)
       && (interval->GetType() != Primitive::kPrimFloat);
   return processing_core_registers == is_core_register;
 }
 
 void RegisterAllocator::AllocateRegisters() {
-  processing_core_registers_ = true;
   AllocateRegistersInternal();
-  processing_core_registers_ = false;
-  AllocateRegistersInternal();
-
   Resolve();
 
   if (kIsDebugBuild) {
@@ -100,78 +106,139 @@ void RegisterAllocator::BlockRegister(Location location,
   interval->AddRange(start, end);
 }
 
-// TODO: make the register allocator understand instructions like HCondition
-// that may not need to be materialized.  It doesn't need to allocate any
-// registers for it.
 void RegisterAllocator::AllocateRegistersInternal() {
-  number_of_registers_ = processing_core_registers_
-      ? codegen_->GetNumberOfCoreRegisters()
-      : codegen_->GetNumberOfFloatingPointRegisters();
-
-  registers_array_ = allocator_->AllocArray<size_t>(number_of_registers_);
-
   // Iterate post-order, to ensure the list is sorted, and the last added interval
   // is the one with the lowest start position.
-  for (size_t i = liveness_.GetNumberOfSsaValues(); i > 0; --i) {
-    HInstruction* instruction = liveness_.GetInstructionFromSsaIndex(i - 1);
-    LiveInterval* current = instruction->GetLiveInterval();
-    if (ShouldProcess(processing_core_registers_, current)) {
-      DCHECK(unhandled_.IsEmpty() || current->StartsBefore(unhandled_.Peek()));
-
-      LocationSummary* locations = instruction->GetLocations();
-      if (locations->GetTempCount() != 0) {
-        // Note that we already filtered out instructions requiring temporaries in
-        // RegisterAllocator::CanAllocateRegistersFor.
-        LOG(FATAL) << "Unimplemented";
-      }
-
-      // Some instructions define their output in fixed register/stack slot. We need
-      // to ensure we know these locations before doing register allocation. For a
-      // given register, we create an interval that covers these locations. The register
-      // will be unavailable at these locations when trying to allocate one for an
-      // interval.
-      //
-      // The backwards walking ensures the ranges are ordered on increasing start positions.
-      Location output = locations->Out();
-      size_t position = instruction->GetLifetimePosition();
-      if (output.IsRegister()) {
-        // Shift the interval's start by one to account for the blocked register.
-        current->SetFrom(position + 1);
-        current->SetRegister(output.reg().RegId());
-        BlockRegister(output, position, position + 1, instruction->GetType());
-      } else if (output.IsStackSlot() || output.IsDoubleStackSlot()) {
-        current->SetSpillSlot(output.GetStackIndex());
-      }
-      for (size_t i = 0; i < instruction->InputCount(); ++i) {
-        Location input = locations->InAt(i);
-        if (input.IsRegister()) {
-          BlockRegister(input, position, position + 1, instruction->InputAt(i)->GetType());
-        }
-      }
-
-      // Add the interval to the correct list.
-      if (current->HasRegister()) {
-        DCHECK(instruction->IsParameterValue());
-        inactive_.Add(current);
-      } else if (current->HasSpillSlot() || instruction->IsConstant()) {
-        // Split before first register use.
-        size_t first_register_use = current->FirstRegisterUse();
-        if (first_register_use != kNoLifetime) {
-          LiveInterval* split = Split(current, first_register_use - 1);
-          // Don't add direclty to `unhandled_`, it needs to be sorted and the start
-          // of this new interval might be after intervals already in the list.
-          AddToUnhandled(split);
-        } else {
-          // Nothing to do, we won't allocate a register for this value.
-        }
-      } else {
-        DCHECK(unhandled_.IsEmpty() || current->StartsBefore(unhandled_.Peek()));
-        unhandled_.Add(current);
-      }
+  for (HLinearPostOrderIterator it(liveness_); !it.Done(); it.Advance()) {
+    HBasicBlock* block = it.Current();
+    for (HBackwardInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+      ProcessInstruction(it.Current());
+    }
+    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+      ProcessInstruction(it.Current());
     }
   }
 
+  number_of_registers_ = codegen_->GetNumberOfCoreRegisters();
+  registers_array_ = allocator_->AllocArray<size_t>(number_of_registers_);
+  processing_core_registers_ = true;
+  unhandled_ = &unhandled_core_intervals_;
   LinearScan();
+
+  inactive_.Reset();
+  active_.Reset();
+  handled_.Reset();
+
+  number_of_registers_ = codegen_->GetNumberOfFloatingPointRegisters();
+  registers_array_ = allocator_->AllocArray<size_t>(number_of_registers_);
+  processing_core_registers_ = false;
+  unhandled_ = &unhandled_fp_intervals_;
+  // TODO: Enable FP register allocation.
+  DCHECK(unhandled_->IsEmpty());
+  LinearScan();
+}
+
+void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  size_t position = instruction->GetLifetimePosition();
+
+  if (locations == nullptr) return;
+
+  // Create synthesized intervals for temporaries.
+  for (size_t i = 0; i < locations->GetTempCount(); ++i) {
+    Location temp = locations->GetTemp(i);
+    if (temp.IsRegister()) {
+      BlockRegister(temp, position, position + 1, Primitive::kPrimInt);
+    } else {
+      LiveInterval* interval =
+          LiveInterval::MakeTempInterval(allocator_, instruction, Primitive::kPrimInt);
+      temp_intervals_.Add(interval);
+      interval->AddRange(position, position + 1);
+      unhandled_core_intervals_.Add(interval);
+    }
+  }
+
+  bool core_register = (instruction->GetType() != Primitive::kPrimDouble)
+      && (instruction->GetType() != Primitive::kPrimFloat);
+
+  GrowableArray<LiveInterval*>& unhandled = core_register
+      ? unhandled_core_intervals_
+      : unhandled_fp_intervals_;
+
+  if (locations->CanCall()) {
+    if (!instruction->IsSuspendCheck()) {
+      codegen_->MarkNotLeaf();
+    }
+    safepoints_.Add(instruction);
+    if (locations->OnlyCallsOnSlowPath()) {
+      // We add a synthesized range at this position to record the live registers
+      // at this position. Ideally, we could just update the safepoints when locations
+      // are updated, but we currently need to know the full stack size before updating
+      // locations (because of parameters and the fact that we don't have a frame pointer).
+      // And knowing the full stack size requires to know the maximum number of live
+      // registers at calls in slow paths.
+      // By adding the following interval in the algorithm, we can compute this
+      // maximum before updating locations.
+      LiveInterval* interval = LiveInterval::MakeSlowPathInterval(allocator_, instruction);
+      interval->AddRange(position, position + 1);
+      unhandled.Add(interval);
+    }
+  }
+
+  if (locations->WillCall()) {
+    // Block all registers.
+    for (size_t i = 0; i < codegen_->GetNumberOfCoreRegisters(); ++i) {
+      BlockRegister(Location::RegisterLocation(ManagedRegister(i)),
+                    position,
+                    position + 1,
+                    Primitive::kPrimInt);
+    }
+  }
+
+  for (size_t i = 0; i < instruction->InputCount(); ++i) {
+    Location input = locations->InAt(i);
+    if (input.IsRegister()) {
+      BlockRegister(input, position, position + 1, instruction->InputAt(i)->GetType());
+    }
+  }
+
+  LiveInterval* current = instruction->GetLiveInterval();
+  if (current == nullptr) return;
+
+  DCHECK(unhandled.IsEmpty() || current->StartsBeforeOrAt(unhandled.Peek()));
+  // Some instructions define their output in fixed register/stack slot. We need
+  // to ensure we know these locations before doing register allocation. For a
+  // given register, we create an interval that covers these locations. The register
+  // will be unavailable at these locations when trying to allocate one for an
+  // interval.
+  //
+  // The backwards walking ensures the ranges are ordered on increasing start positions.
+  Location output = locations->Out();
+  if (output.IsRegister()) {
+    // Shift the interval's start by one to account for the blocked register.
+    current->SetFrom(position + 1);
+    current->SetRegister(output.reg().RegId());
+    BlockRegister(output, position, position + 1, instruction->GetType());
+  } else if (output.IsStackSlot() || output.IsDoubleStackSlot()) {
+    current->SetSpillSlot(output.GetStackIndex());
+  }
+
+  // If needed, add interval to the list of unhandled intervals.
+  if (current->HasSpillSlot() || instruction->IsConstant()) {
+    // Split before first register use.
+    size_t first_register_use = current->FirstRegisterUse();
+    if (first_register_use != kNoLifetime) {
+      LiveInterval* split = Split(current, first_register_use);
+      // Don't add direclty to `unhandled`, it needs to be sorted and the start
+      // of this new interval might be after intervals already in the list.
+      AddSorted(&unhandled, split);
+    } else {
+      // Nothing to do, we won't allocate a register for this value.
+    }
+  } else {
+    DCHECK(unhandled.IsEmpty() || current->StartsBeforeOrAt(unhandled.Peek()));
+    unhandled.Add(current);
+  }
 }
 
 class AllRangesIterator : public ValueObject {
@@ -219,12 +286,20 @@ bool RegisterAllocator::ValidateInternal(bool log_fatal_on_failure) const {
     }
   }
 
-  return ValidateIntervals(intervals, spill_slots_.Size(), *codegen_, allocator_,
-                           processing_core_registers_, log_fatal_on_failure);
+  for (size_t i = 0, e = temp_intervals_.Size(); i < e; ++i) {
+    LiveInterval* temp = temp_intervals_.Get(i);
+    if (ShouldProcess(processing_core_registers_, temp)) {
+      intervals.Add(temp);
+    }
+  }
+
+  return ValidateIntervals(intervals, spill_slots_.Size(), reserved_out_slots_, *codegen_,
+                           allocator_, processing_core_registers_, log_fatal_on_failure);
 }
 
 bool RegisterAllocator::ValidateIntervals(const GrowableArray<LiveInterval*>& intervals,
                                           size_t number_of_spill_slots,
+                                          size_t number_of_out_slots,
                                           const CodeGenerator& codegen,
                                           ArenaAllocator* allocator,
                                           bool processing_core_registers,
@@ -248,8 +323,9 @@ bool RegisterAllocator::ValidateIntervals(const GrowableArray<LiveInterval*>& in
       if (current->GetParent()->HasSpillSlot()
            // Parameters have their own stack slot.
            && !(defined_by != nullptr && defined_by->IsParameterValue())) {
-        BitVector* liveness_of_spill_slot = liveness_of_values.Get(
-            number_of_registers + current->GetParent()->GetSpillSlot() / kVRegSize);
+        BitVector* liveness_of_spill_slot = liveness_of_values.Get(number_of_registers
+            + current->GetParent()->GetSpillSlot() / kVRegSize
+            - number_of_out_slots);
         for (size_t j = it.CurrentRange()->GetStart(); j < it.CurrentRange()->GetEnd(); ++j) {
           if (liveness_of_spill_slot->IsBitSet(j)) {
             if (log_fatal_on_failure) {
@@ -271,7 +347,11 @@ bool RegisterAllocator::ValidateIntervals(const GrowableArray<LiveInterval*>& in
           if (liveness_of_register->IsBitSet(j)) {
             if (log_fatal_on_failure) {
               std::ostringstream message;
-              message << "Register conflict at " << j << " for ";
+              message << "Register conflict at " << j << " ";
+              if (defined_by != nullptr) {
+                message << "(" << defined_by->DebugName() << ")";
+              }
+              message << "for ";
               if (processing_core_registers) {
                 codegen.DumpCoreRegister(message, current->GetRegister());
               } else {
@@ -308,10 +388,10 @@ void RegisterAllocator::DumpInterval(std::ostream& stream, LiveInterval* interva
 
 // By the book implementation of a linear scan register allocator.
 void RegisterAllocator::LinearScan() {
-  while (!unhandled_.IsEmpty()) {
+  while (!unhandled_->IsEmpty()) {
     // (1) Remove interval with the lowest start position from unhandled.
-    LiveInterval* current = unhandled_.Pop();
-    DCHECK(!current->IsFixed() && !current->HasRegister() && !current->HasSpillSlot());
+    LiveInterval* current = unhandled_->Pop();
+    DCHECK(!current->IsFixed() && !current->HasSpillSlot());
     size_t position = current->GetStart();
 
     // (2) Remove currently active intervals that are dead at this position.
@@ -343,6 +423,14 @@ void RegisterAllocator::LinearScan() {
         --i;
         active_.Add(interval);
       }
+    }
+
+    if (current->IsSlowPathSafepoint()) {
+      // Synthesized interval to record the maximum number of live registers
+      // at safepoints. No need to allocate a register for it.
+      maximum_number_of_live_registers_ =
+          std::max(maximum_number_of_live_registers_, active_.Size());
+      continue;
     }
 
     // (4) Try to find an available register.
@@ -380,7 +468,8 @@ bool RegisterAllocator::TryAllocateFreeReg(LiveInterval* current) {
     DCHECK(inactive->HasRegister());
     size_t next_intersection = inactive->FirstIntersectionWith(current);
     if (next_intersection != kNoLifetime) {
-      free_until[inactive->GetRegister()] = next_intersection;
+      free_until[inactive->GetRegister()] =
+          std::min(free_until[inactive->GetRegister()], next_intersection);
     }
   }
 
@@ -391,13 +480,19 @@ bool RegisterAllocator::TryAllocateFreeReg(LiveInterval* current) {
     free_until[interval->GetRegister()] = 0;
   }
 
-  // Pick the register that is free the longest.
   int reg = -1;
-  for (size_t i = 0; i < number_of_registers_; ++i) {
-    if (IsBlocked(i)) continue;
-    if (reg == -1 || free_until[i] > free_until[reg]) {
-      reg = i;
-      if (free_until[i] == kMaxLifetimePosition) break;
+  if (current->HasRegister()) {
+    // Some instructions have a fixed register output.
+    reg = current->GetRegister();
+    DCHECK_NE(free_until[reg], 0u);
+  } else {
+    // Pick the register that is free the longest.
+    for (size_t i = 0; i < number_of_registers_; ++i) {
+      if (IsBlocked(i)) continue;
+      if (reg == -1 || free_until[i] > free_until[reg]) {
+        reg = i;
+        if (free_until[i] == kMaxLifetimePosition) break;
+      }
     }
   }
 
@@ -413,7 +508,7 @@ bool RegisterAllocator::TryAllocateFreeReg(LiveInterval* current) {
     // the register is not available anymore.
     LiveInterval* split = Split(current, free_until[reg]);
     DCHECK(split != nullptr);
-    AddToUnhandled(split);
+    AddSorted(unhandled_, split);
   }
   return true;
 }
@@ -491,8 +586,8 @@ bool RegisterAllocator::AllocateBlockedReg(LiveInterval* current) {
     // If the first use of that instruction is after the last use of the found
     // register, we split this interval just before its first register use.
     AllocateSpillSlotFor(current);
-    LiveInterval* split = Split(current, first_register_use - 1);
-    AddToUnhandled(split);
+    LiveInterval* split = Split(current, first_register_use);
+    AddSorted(unhandled_, split);
     return false;
   } else {
     // Use this register and spill the active and inactives interval that
@@ -506,7 +601,7 @@ bool RegisterAllocator::AllocateBlockedReg(LiveInterval* current) {
         LiveInterval* split = Split(active, current->GetStart());
         active_.DeleteAt(i);
         handled_.Add(active);
-        AddToUnhandled(split);
+        AddSorted(unhandled_, split);
         break;
       }
     }
@@ -518,12 +613,12 @@ bool RegisterAllocator::AllocateBlockedReg(LiveInterval* current) {
         if (next_intersection != kNoLifetime) {
           if (inactive->IsFixed()) {
             LiveInterval* split = Split(current, next_intersection);
-            AddToUnhandled(split);
+            AddSorted(unhandled_, split);
           } else {
             LiveInterval* split = Split(inactive, current->GetStart());
             inactive_.DeleteAt(i);
             handled_.Add(inactive);
-            AddToUnhandled(split);
+            AddSorted(unhandled_, split);
             --i;
           }
         }
@@ -534,16 +629,16 @@ bool RegisterAllocator::AllocateBlockedReg(LiveInterval* current) {
   }
 }
 
-void RegisterAllocator::AddToUnhandled(LiveInterval* interval) {
+void RegisterAllocator::AddSorted(GrowableArray<LiveInterval*>* array, LiveInterval* interval) {
   size_t insert_at = 0;
-  for (size_t i = unhandled_.Size(); i > 0; --i) {
-    LiveInterval* current = unhandled_.Get(i - 1);
+  for (size_t i = array->Size(); i > 0; --i) {
+    LiveInterval* current = array->Get(i - 1);
     if (current->StartsAfter(interval)) {
       insert_at = i;
       break;
     }
   }
-  unhandled_.InsertAt(insert_at, interval);
+  array->InsertAt(insert_at, interval);
 }
 
 LiveInterval* RegisterAllocator::Split(LiveInterval* interval, size_t position) {
@@ -590,14 +685,6 @@ void RegisterAllocator::AllocateSpillSlotFor(LiveInterval* interval) {
   }
   size_t end = last_sibling->GetEnd();
 
-  if (NeedTwoSpillSlot(parent->GetType())) {
-    AllocateTwoSpillSlots(parent, end);
-  } else {
-    AllocateOneSpillSlot(parent, end);
-  }
-}
-
-void RegisterAllocator::AllocateTwoSpillSlots(LiveInterval* parent, size_t end) {
   // Find an available spill slot.
   size_t slot = 0;
   for (size_t e = spill_slots_.Size(); slot < e; ++slot) {
@@ -611,38 +698,28 @@ void RegisterAllocator::AllocateTwoSpillSlots(LiveInterval* parent, size_t end) 
     }
   }
 
-  if (slot == spill_slots_.Size()) {
-    // We need a new spill slot.
-    spill_slots_.Add(end);
-    spill_slots_.Add(end);
-  } else if (slot == spill_slots_.Size() - 1) {
-    spill_slots_.Put(slot, end);
-    spill_slots_.Add(end);
+  if (NeedTwoSpillSlot(parent->GetType())) {
+    if (slot == spill_slots_.Size()) {
+      // We need a new spill slot.
+      spill_slots_.Add(end);
+      spill_slots_.Add(end);
+    } else if (slot == spill_slots_.Size() - 1) {
+      spill_slots_.Put(slot, end);
+      spill_slots_.Add(end);
+    } else {
+      spill_slots_.Put(slot, end);
+      spill_slots_.Put(slot + 1, end);
+    }
   } else {
-    spill_slots_.Put(slot, end);
-    spill_slots_.Put(slot + 1, end);
-  }
-
-  parent->SetSpillSlot(slot * kVRegSize);
-}
-
-void RegisterAllocator::AllocateOneSpillSlot(LiveInterval* parent, size_t end) {
-  // Find an available spill slot.
-  size_t slot = 0;
-  for (size_t e = spill_slots_.Size(); slot < e; ++slot) {
-    if (spill_slots_.Get(slot) <= parent->GetStart()) {
-      break;
+    if (slot == spill_slots_.Size()) {
+      // We need a new spill slot.
+      spill_slots_.Add(end);
+    } else {
+      spill_slots_.Put(slot, end);
     }
   }
 
-  if (slot == spill_slots_.Size()) {
-    // We need a new spill slot.
-    spill_slots_.Add(end);
-  } else {
-    spill_slots_.Put(slot, end);
-  }
-
-  parent->SetSpillSlot(slot * kVRegSize);
+  parent->SetSpillSlot((slot + reserved_out_slots_) * kVRegSize);
 }
 
 static Location ConvertToLocation(LiveInterval* interval) {
@@ -672,31 +749,38 @@ static bool IsInputMove(HInstruction* instruction) {
   return instruction->GetLifetimePosition() == kInputMoveLifetimePosition;
 }
 
-void RegisterAllocator::AddInputMoveFor(HInstruction* instruction,
+static bool IsValidDestination(Location destination) {
+  return destination.IsRegister() || destination.IsStackSlot() || destination.IsDoubleStackSlot();
+}
+
+void RegisterAllocator::AddInputMoveFor(HInstruction* user,
                                         Location source,
                                         Location destination) const {
+  DCHECK(IsValidDestination(destination));
   if (source.Equals(destination)) return;
 
-  DCHECK(instruction->AsPhi() == nullptr);
+  DCHECK(user->AsPhi() == nullptr);
 
-  HInstruction* previous = instruction->GetPrevious();
+  HInstruction* previous = user->GetPrevious();
   HParallelMove* move = nullptr;
   if (previous == nullptr
       || previous->AsParallelMove() == nullptr
       || !IsInputMove(previous)) {
     move = new (allocator_) HParallelMove(allocator_);
     move->SetLifetimePosition(kInputMoveLifetimePosition);
-    instruction->GetBlock()->InsertInstructionBefore(move, instruction);
+    user->GetBlock()->InsertInstructionBefore(move, user);
   } else {
     move = previous->AsParallelMove();
   }
   DCHECK(IsInputMove(move));
-  move->AddMove(new (allocator_) MoveOperands(source, destination));
+  move->AddMove(new (allocator_) MoveOperands(source, destination, nullptr));
 }
 
 void RegisterAllocator::InsertParallelMoveAt(size_t position,
+                                             HInstruction* instruction,
                                              Location source,
                                              Location destination) const {
+  DCHECK(IsValidDestination(destination));
   if (source.Equals(destination)) return;
 
   HInstruction* at = liveness_.GetInstructionFromPosition(position / 2);
@@ -719,14 +803,26 @@ void RegisterAllocator::InsertParallelMoveAt(size_t position,
   } else {
     // Move must happen before the instruction.
     HInstruction* previous = at->GetPrevious();
-    if (previous != nullptr && previous->AsParallelMove() != nullptr) {
+    if (previous != nullptr && previous->IsParallelMove()) {
       // This is a parallel move for connecting siblings in a same block. We need to
       // differentiate it with moves for connecting blocks, and input moves.
       if (previous->GetLifetimePosition() != position) {
+        // If the previous instruction of the previous instruction is not a parallel
+        // move, we have to insert the new parallel move before the input or connecting
+        // block moves.
+        at = previous;
         previous = previous->GetPrevious();
       }
     }
-    if (previous == nullptr || previous->AsParallelMove() == nullptr) {
+    if (previous == nullptr
+        || !previous->IsParallelMove()
+        || previous->GetLifetimePosition() != position) {
+      // If the previous is a parallel move, then its position must be lower
+      // than the given `position`: it was added just after the non-parallel
+      // move instruction that precedes `instruction`.
+      DCHECK(previous == nullptr
+             || !previous->IsParallelMove()
+             || previous->GetLifetimePosition() < position);
       move = new (allocator_) HParallelMove(allocator_);
       move->SetLifetimePosition(position);
       at->GetBlock()->InsertInstructionBefore(move, at);
@@ -734,12 +830,14 @@ void RegisterAllocator::InsertParallelMoveAt(size_t position,
       move = previous->AsParallelMove();
     }
   }
-  move->AddMove(new (allocator_) MoveOperands(source, destination));
+  move->AddMove(new (allocator_) MoveOperands(source, destination, instruction));
 }
 
 void RegisterAllocator::InsertParallelMoveAtExitOf(HBasicBlock* block,
+                                                   HInstruction* instruction,
                                                    Location source,
                                                    Location destination) const {
+  DCHECK(IsValidDestination(destination));
   if (source.Equals(destination)) return;
 
   DCHECK_EQ(block->GetSuccessors().Size(), 1u);
@@ -748,7 +846,7 @@ void RegisterAllocator::InsertParallelMoveAtExitOf(HBasicBlock* block,
   HParallelMove* move;
   // This is a parallel move for connecting blocks. We need to differentiate
   // it with moves for connecting siblings in a same block, and output moves.
-  if (previous == nullptr || previous->AsParallelMove() == nullptr
+  if (previous == nullptr || !previous->IsParallelMove()
       || previous->AsParallelMove()->GetLifetimePosition() != block->GetLifetimeEnd()) {
     move = new (allocator_) HParallelMove(allocator_);
     move->SetLifetimePosition(block->GetLifetimeEnd());
@@ -756,12 +854,14 @@ void RegisterAllocator::InsertParallelMoveAtExitOf(HBasicBlock* block,
   } else {
     move = previous->AsParallelMove();
   }
-  move->AddMove(new (allocator_) MoveOperands(source, destination));
+  move->AddMove(new (allocator_) MoveOperands(source, destination, instruction));
 }
 
 void RegisterAllocator::InsertParallelMoveAtEntryOf(HBasicBlock* block,
+                                                    HInstruction* instruction,
                                                     Location source,
                                                     Location destination) const {
+  DCHECK(IsValidDestination(destination));
   if (source.Equals(destination)) return;
 
   HInstruction* first = block->GetFirstInstruction();
@@ -773,16 +873,17 @@ void RegisterAllocator::InsertParallelMoveAtEntryOf(HBasicBlock* block,
     move->SetLifetimePosition(block->GetLifetimeStart());
     block->InsertInstructionBefore(move, first);
   }
-  move->AddMove(new (allocator_) MoveOperands(source, destination));
+  move->AddMove(new (allocator_) MoveOperands(source, destination, instruction));
 }
 
 void RegisterAllocator::InsertMoveAfter(HInstruction* instruction,
                                         Location source,
                                         Location destination) const {
+  DCHECK(IsValidDestination(destination));
   if (source.Equals(destination)) return;
 
   if (instruction->AsPhi() != nullptr) {
-    InsertParallelMoveAtEntryOf(instruction->GetBlock(), source, destination);
+    InsertParallelMoveAtEntryOf(instruction->GetBlock(), instruction, source, destination);
     return;
   }
 
@@ -796,7 +897,7 @@ void RegisterAllocator::InsertMoveAfter(HInstruction* instruction,
     move->SetLifetimePosition(position);
     instruction->GetBlock()->InsertInstructionBefore(move, instruction->GetNext());
   }
-  move->AddMove(new (allocator_) MoveOperands(source, destination));
+  move->AddMove(new (allocator_) MoveOperands(source, destination, instruction));
 }
 
 void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
@@ -819,12 +920,14 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
     // Walk over all uses covered by this interval, and update the location
     // information.
     while (use != nullptr && use->GetPosition() <= current->GetEnd()) {
-      if (!use->GetIsEnvironment()) {
-        LocationSummary* locations = use->GetUser()->GetLocations();
+      LocationSummary* locations = use->GetUser()->GetLocations();
+      if (use->GetIsEnvironment()) {
+        locations->SetEnvironmentAt(use->GetInputIndex(), source);
+      } else {
         Location expected_location = locations->InAt(use->GetInputIndex());
         if (expected_location.IsUnallocated()) {
           locations->SetInAt(use->GetInputIndex(), source);
-        } else {
+        } else if (!expected_location.IsConstant()) {
           AddInputMoveFor(use->GetUser(), source, expected_location);
         }
       }
@@ -838,7 +941,38 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
         && next_sibling->HasRegister()
         && current->GetEnd() == next_sibling->GetStart()) {
       Location destination = ConvertToLocation(next_sibling);
-      InsertParallelMoveAt(current->GetEnd(), source, destination);
+      InsertParallelMoveAt(current->GetEnd(), interval->GetDefinedBy(), source, destination);
+    }
+
+    // At each safepoint, we record stack and register information.
+    for (size_t i = 0, e = safepoints_.Size(); i < e; ++i) {
+      HInstruction* safepoint = safepoints_.Get(i);
+      size_t position = safepoint->GetLifetimePosition();
+      LocationSummary* locations = safepoint->GetLocations();
+      if (!current->Covers(position)) continue;
+
+      if ((current->GetType() == Primitive::kPrimNot) && current->GetParent()->HasSpillSlot()) {
+        locations->SetStackBit(current->GetParent()->GetSpillSlot() / kVRegSize);
+      }
+
+      switch (source.GetKind()) {
+        case Location::kRegister: {
+          locations->AddLiveRegister(source);
+          if (current->GetType() == Primitive::kPrimNot) {
+            locations->SetRegisterBit(source.reg().RegId());
+          }
+          break;
+        }
+        case Location::kStackSlot:  // Fall-through
+        case Location::kDoubleStackSlot:  // Fall-through
+        case Location::kConstant: {
+          // Nothing to do.
+          break;
+        }
+        default: {
+          LOG(FATAL) << "Unexpected location for object";
+        }
+      }
     }
     current = next_sibling;
   } while (current != nullptr);
@@ -854,7 +988,11 @@ void RegisterAllocator::ConnectSplitSiblings(LiveInterval* interval,
   }
 
   size_t from_position = from->GetLifetimeEnd() - 1;
-  size_t to_position = to->GetLifetimeStart();
+  // When an instructions dies at entry of another, and the latter is the beginning
+  // of a block, the register allocator ensures the former has a register
+  // at block->GetLifetimeStart() + 1. Since this is at a block boundary, it must
+  // must be handled in this method.
+  size_t to_position = to->GetLifetimeStart() + 1;
 
   LiveInterval* destination = nullptr;
   LiveInterval* source = nullptr;
@@ -880,6 +1018,8 @@ void RegisterAllocator::ConnectSplitSiblings(LiveInterval* interval,
     return;
   }
 
+  DCHECK(destination != nullptr && source != nullptr);
+
   if (!destination->HasRegister()) {
     // Values are eagerly spilled. Spill slot already contains appropriate value.
     return;
@@ -888,10 +1028,16 @@ void RegisterAllocator::ConnectSplitSiblings(LiveInterval* interval,
   // If `from` has only one successor, we can put the moves at the exit of it. Otherwise
   // we need to put the moves at the entry of `to`.
   if (from->GetSuccessors().Size() == 1) {
-    InsertParallelMoveAtExitOf(from, ConvertToLocation(source), ConvertToLocation(destination));
+    InsertParallelMoveAtExitOf(from,
+                               interval->GetParent()->GetDefinedBy(),
+                               ConvertToLocation(source),
+                               ConvertToLocation(destination));
   } else {
     DCHECK_EQ(to->GetPredecessors().Size(), 1u);
-    InsertParallelMoveAtEntryOf(to, ConvertToLocation(source), ConvertToLocation(destination));
+    InsertParallelMoveAtEntryOf(to,
+                                interval->GetParent()->GetDefinedBy(),
+                                ConvertToLocation(source),
+                                ConvertToLocation(destination));
   }
 }
 
@@ -906,7 +1052,8 @@ static Location FindLocationAt(LiveInterval* interval, size_t position) {
 }
 
 void RegisterAllocator::Resolve() {
-  codegen_->ComputeFrameSize(spill_slots_.Size());
+  codegen_->ComputeFrameSize(
+      spill_slots_.Size(), maximum_number_of_live_registers_, reserved_out_slots_);
 
   // Adjust the Out Location of instructions.
   // TODO: Use pointers of Location inside LiveInterval to avoid doing another iteration.
@@ -973,9 +1120,23 @@ void RegisterAllocator::Resolve() {
         Location source = FindLocationAt(input->GetLiveInterval(),
                                          predecessor->GetLastInstruction()->GetLifetimePosition());
         Location destination = ConvertToLocation(phi->GetLiveInterval());
-        InsertParallelMoveAtExitOf(predecessor, source, destination);
+        InsertParallelMoveAtExitOf(predecessor, nullptr, source, destination);
       }
     }
+  }
+
+  // Assign temp locations.
+  HInstruction* current = nullptr;
+  size_t temp_index = 0;
+  for (size_t i = 0; i < temp_intervals_.Size(); ++i) {
+    LiveInterval* temp = temp_intervals_.Get(i);
+    if (temp->GetDefinedBy() != current) {
+      temp_index = 0;
+      current = temp->GetDefinedBy();
+    }
+    LocationSummary* locations = current->GetLocations();
+    locations->SetTempAt(
+        temp_index++, Location::RegisterLocation(ManagedRegister(temp->GetRegister())));
   }
 }
 

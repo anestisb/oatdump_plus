@@ -171,7 +171,7 @@ bool DexFileVerifier::CheckShortyDescriptorMatch(char shorty_char, const char* d
 }
 
 bool DexFileVerifier::CheckListSize(const void* start, size_t count, size_t elem_size,
-                                        const char* label) {
+                                    const char* label) {
   // Check that size is not 0.
   CHECK_NE(elem_size, 0U);
 
@@ -201,9 +201,40 @@ bool DexFileVerifier::CheckListSize(const void* start, size_t count, size_t elem
   return true;
 }
 
+bool DexFileVerifier::CheckList(size_t element_size, const char* label, const byte* *ptr) {
+  // Check that the list is available. The first 4B are the count.
+  if (!CheckListSize(*ptr, 1, 4U, label)) {
+    return false;
+  }
+
+  uint32_t count = *reinterpret_cast<const uint32_t*>(*ptr);
+  if (count > 0) {
+    if (!CheckListSize(*ptr + 4, count, element_size, label)) {
+      return false;
+    }
+  }
+
+  *ptr += 4 + count * element_size;
+  return true;
+}
+
 bool DexFileVerifier::CheckIndex(uint32_t field, uint32_t limit, const char* label) {
   if (UNLIKELY(field >= limit)) {
     ErrorStringPrintf("Bad index for %s: %x >= %x", label, field, limit);
+    return false;
+  }
+  return true;
+}
+
+bool DexFileVerifier::CheckValidOffsetAndSize(uint32_t offset, uint32_t size, const char* label) {
+  if (size == 0) {
+    if (offset != 0) {
+      ErrorStringPrintf("Offset(%d) should be zero when size is zero for %s.", offset, label);
+      return false;
+    }
+  }
+  if (size_ <= offset) {
+    ErrorStringPrintf("Offset(%d) should be within file size(%zu) for %s.", offset, size_, label);
     return false;
   }
   return true;
@@ -238,11 +269,29 @@ bool DexFileVerifier::CheckHeader() {
     return false;
   }
 
-  return true;
+  // Check that all offsets are inside the file.
+  bool result =
+      CheckValidOffsetAndSize(header_->link_off_, header_->link_size_, "link") &&
+      CheckValidOffsetAndSize(header_->map_off_, header_->map_off_, "map") &&
+      CheckValidOffsetAndSize(header_->string_ids_off_, header_->string_ids_size_, "string-ids") &&
+      CheckValidOffsetAndSize(header_->type_ids_off_, header_->type_ids_size_, "type-ids") &&
+      CheckValidOffsetAndSize(header_->proto_ids_off_, header_->proto_ids_size_, "proto-ids") &&
+      CheckValidOffsetAndSize(header_->field_ids_off_, header_->field_ids_size_, "field-ids") &&
+      CheckValidOffsetAndSize(header_->method_ids_off_, header_->method_ids_size_, "method-ids") &&
+      CheckValidOffsetAndSize(header_->class_defs_off_, header_->class_defs_size_, "class-defs") &&
+      CheckValidOffsetAndSize(header_->data_off_, header_->data_size_, "data");
+
+  return result;
 }
 
 bool DexFileVerifier::CheckMap() {
-  const DexFile::MapList* map = reinterpret_cast<const DexFile::MapList*>(begin_ + header_->map_off_);
+  const DexFile::MapList* map = reinterpret_cast<const DexFile::MapList*>(begin_ +
+                                                                          header_->map_off_);
+  // Check that map list content is available.
+  if (!CheckListSize(map, 1, sizeof(DexFile::MapList), "maplist content")) {
+    return false;
+  }
+
   const DexFile::MapItem* item = map->list_;
 
   uint32_t count = map->size_;
@@ -407,9 +456,7 @@ bool DexFileVerifier::CheckClassDataItemField(uint32_t idx, uint32_t access_flag
     return false;
   }
 
-  uint32_t access_field_mask = kAccPublic | kAccPrivate | kAccProtected | kAccStatic |
-      kAccFinal | kAccVolatile | kAccTransient | kAccSynthetic | kAccEnum;
-  if (UNLIKELY((access_flags & ~access_field_mask) != 0)) {
+  if (UNLIKELY((access_flags & ~kAccJavaFlagsMask) != 0)) {
     ErrorStringPrintf("Bad class_data_item field access_flags %x", access_flags);
     return false;
   }
@@ -433,9 +480,8 @@ bool DexFileVerifier::CheckClassDataItemMethod(uint32_t idx, uint32_t access_fla
     return false;
   }
 
-  uint32_t access_method_mask = kAccPublic | kAccPrivate | kAccProtected | kAccStatic |
-      kAccFinal | kAccSynchronized | kAccBridge | kAccVarargs | kAccNative | kAccAbstract |
-      kAccStrict | kAccSynthetic | kAccConstructor | kAccDeclaredSynchronized;
+  constexpr uint32_t access_method_mask = kAccJavaFlagsMask | kAccConstructor |
+      kAccDeclaredSynchronized;
   if (UNLIKELY(((access_flags & ~access_method_mask) != 0) ||
                (is_synchronized && !allow_synchronized))) {
     ErrorStringPrintf("Bad class_data_item method access_flags %x", access_flags);
@@ -637,24 +683,26 @@ bool DexFileVerifier::CheckEncodedAnnotation() {
 bool DexFileVerifier::CheckIntraClassDataItem() {
   ClassDataItemIterator it(*dex_file_, ptr_);
 
+  // These calls use the raw access flags to check whether the whole dex field is valid.
+
   for (; it.HasNextStaticField(); it.Next()) {
-    if (!CheckClassDataItemField(it.GetMemberIndex(), it.GetMemberAccessFlags(), true)) {
+    if (!CheckClassDataItemField(it.GetMemberIndex(), it.GetRawMemberAccessFlags(), true)) {
       return false;
     }
   }
   for (; it.HasNextInstanceField(); it.Next()) {
-    if (!CheckClassDataItemField(it.GetMemberIndex(), it.GetMemberAccessFlags(), false)) {
+    if (!CheckClassDataItemField(it.GetMemberIndex(), it.GetRawMemberAccessFlags(), false)) {
       return false;
     }
   }
   for (; it.HasNextDirectMethod(); it.Next()) {
-    if (!CheckClassDataItemMethod(it.GetMemberIndex(), it.GetMemberAccessFlags(),
+    if (!CheckClassDataItemMethod(it.GetMemberIndex(), it.GetRawMemberAccessFlags(),
         it.GetMethodCodeItemOffset(), true)) {
       return false;
     }
   }
   for (; it.HasNextVirtualMethod(); it.Next()) {
-    if (!CheckClassDataItemMethod(it.GetMemberIndex(), it.GetMemberAccessFlags(),
+    if (!CheckClassDataItemMethod(it.GetMemberIndex(), it.GetRawMemberAccessFlags(),
         it.GetMethodCodeItemOffset(), false)) {
       return false;
     }
@@ -1046,7 +1094,8 @@ bool DexFileVerifier::CheckIntraAnnotationsDirectoryItem() {
   return true;
 }
 
-bool DexFileVerifier::CheckIntraSectionIterate(size_t offset, uint32_t count, uint16_t type) {
+bool DexFileVerifier::CheckIntraSectionIterate(size_t offset, uint32_t section_count,
+                                               uint16_t type) {
   // Get the right alignment mask for the type of section.
   size_t alignment_mask;
   switch (type) {
@@ -1063,7 +1112,7 @@ bool DexFileVerifier::CheckIntraSectionIterate(size_t offset, uint32_t count, ui
   }
 
   // Iterate through the items in the section.
-  for (uint32_t i = 0; i < count; i++) {
+  for (uint32_t i = 0; i < section_count; i++) {
     size_t aligned_offset = (offset + alignment_mask) & ~alignment_mask;
 
     // Check the padding between items.
@@ -1116,43 +1165,21 @@ bool DexFileVerifier::CheckIntraSectionIterate(size_t offset, uint32_t count, ui
         break;
       }
       case DexFile::kDexTypeTypeList: {
-        const DexFile::TypeList* list = reinterpret_cast<const DexFile::TypeList*>(ptr_);
-        const DexFile::TypeItem* item = &list->GetTypeItem(0);
-        uint32_t count = list->Size();
-
-        if (!CheckListSize(list, 1, sizeof(DexFile::TypeList), "type_list") ||
-            !CheckListSize(item, count, sizeof(DexFile::TypeItem), "type_list size")) {
+        if (!CheckList(sizeof(DexFile::TypeItem), "type_list", &ptr_)) {
           return false;
         }
-        ptr_ = reinterpret_cast<const byte*>(item + count);
         break;
       }
       case DexFile::kDexTypeAnnotationSetRefList: {
-        const DexFile::AnnotationSetRefList* list =
-            reinterpret_cast<const DexFile::AnnotationSetRefList*>(ptr_);
-        const DexFile::AnnotationSetRefItem* item = list->list_;
-        uint32_t count = list->size_;
-
-        if (!CheckListSize(list, 1, sizeof(DexFile::AnnotationSetRefList),
-                               "annotation_set_ref_list") ||
-            !CheckListSize(item, count, sizeof(DexFile::AnnotationSetRefItem),
-                           "annotation_set_ref_list size")) {
+        if (!CheckList(sizeof(DexFile::AnnotationSetRefItem), "annotation_set_ref_list", &ptr_)) {
           return false;
         }
-        ptr_ = reinterpret_cast<const byte*>(item + count);
         break;
       }
       case DexFile::kDexTypeAnnotationSetItem: {
-        const DexFile::AnnotationSetItem* set =
-            reinterpret_cast<const DexFile::AnnotationSetItem*>(ptr_);
-        const uint32_t* item = set->entries_;
-        uint32_t count = set->size_;
-
-        if (!CheckListSize(set, 1, sizeof(DexFile::AnnotationSetItem), "annotation_set_item") ||
-            !CheckListSize(item, count, sizeof(uint32_t), "annotation_set_item size")) {
+        if (!CheckList(sizeof(uint32_t), "annotation_set_item", &ptr_)) {
           return false;
         }
-        ptr_ = reinterpret_cast<const byte*>(item + count);
         break;
       }
       case DexFile::kDexTypeClassDataItem: {

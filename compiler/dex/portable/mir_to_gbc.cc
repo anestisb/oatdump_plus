@@ -64,7 +64,7 @@ LLVMInfo::~LLVMInfo() {
 }
 
 ::llvm::Value* MirConverter::GetLLVMValue(int s_reg) {
-  return llvm_values_.Get(s_reg);
+  return llvm_values_[s_reg];
 }
 
 void MirConverter::SetVregOnValue(::llvm::Value* val, int s_reg) {
@@ -87,7 +87,7 @@ void MirConverter::DefineValueOnly(::llvm::Value* val, int s_reg) {
   }
   placeholder->replaceAllUsesWith(val);
   val->takeName(placeholder);
-  llvm_values_.Put(s_reg, val);
+  llvm_values_[s_reg] = val;
   ::llvm::Instruction* inst = ::llvm::dyn_cast< ::llvm::Instruction>(placeholder);
   DCHECK(inst != NULL);
   inst->eraseFromParent();
@@ -140,11 +140,11 @@ void MirConverter::InitIR() {
   return GetLLVMBlock(bb->id);
 }
 
-void MirConverter::ConvertPackedSwitch(BasicBlock* bb,
+void MirConverter::ConvertPackedSwitch(BasicBlock* bb, MIR* mir,
                                 int32_t table_offset, RegLocation rl_src) {
   const Instruction::PackedSwitchPayload* payload =
       reinterpret_cast<const Instruction::PackedSwitchPayload*>(
-      cu_->insns + current_dalvik_offset_ + table_offset);
+      mir_graph_->GetTable(mir, table_offset));
 
   ::llvm::Value* value = GetLLVMValue(rl_src.orig_sreg);
 
@@ -164,11 +164,11 @@ void MirConverter::ConvertPackedSwitch(BasicBlock* bb,
   bb->fall_through = NullBasicBlockId;
 }
 
-void MirConverter::ConvertSparseSwitch(BasicBlock* bb,
+void MirConverter::ConvertSparseSwitch(BasicBlock* bb, MIR* mir,
                                 int32_t table_offset, RegLocation rl_src) {
   const Instruction::SparseSwitchPayload* payload =
       reinterpret_cast<const Instruction::SparseSwitchPayload*>(
-      cu_->insns + current_dalvik_offset_ + table_offset);
+      mir_graph_->GetTable(mir, table_offset));
 
   const int32_t* keys = payload->GetKeys();
   const int32_t* targets = payload->GetTargets();
@@ -1536,9 +1536,9 @@ void MirConverter::SetMethodInfo() {
   ::llvm::Function* intr = intrinsic_helper_->GetIntrinsicFunction(id);
   ::llvm::Instruction* inst = irb_->CreateCall(intr);
   ::llvm::SmallVector< ::llvm::Value*, 2> reg_info;
-  reg_info.push_back(irb_->getInt32(cu_->num_ins));
-  reg_info.push_back(irb_->getInt32(cu_->num_regs));
-  reg_info.push_back(irb_->getInt32(cu_->num_outs));
+  reg_info.push_back(irb_->getInt32(mir_graph_->GetNumOfInVRs()));
+  reg_info.push_back(irb_->getInt32(mir_graph_->GetNumOfLocalCodeVRs()));
+  reg_info.push_back(irb_->getInt32(mir_graph_->GetNumOfOutVRs()));
   reg_info.push_back(irb_->getInt32(mir_graph_->GetNumUsedCompilerTemps()));
   reg_info.push_back(irb_->getInt32(mir_graph_->GetNumSSARegs()));
   ::llvm::MDNode* reg_info_node = ::llvm::MDNode::get(*context_, reg_info);
@@ -1669,12 +1669,12 @@ bool MirConverter::BlockBitcodeConversion(BasicBlock* bb) {
       art::llvm::IntrinsicHelper::IntrinsicId id =
               art::llvm::IntrinsicHelper::AllocaShadowFrame;
       ::llvm::Function* func = intrinsic_helper_->GetIntrinsicFunction(id);
-      ::llvm::Value* entries = irb_->getInt32(cu_->num_dalvik_registers);
+      ::llvm::Value* entries = irb_->getInt32(mir_graph_->GetNumOfCodeVRs());
       irb_->CreateCall(func, entries);
     }
 
     {  // Store arguments to vregs.
-      uint16_t arg_reg = cu_->num_regs;
+      uint16_t arg_reg = mir_graph_->GetFirstInVR();
 
       ::llvm::Function::arg_iterator arg_iter(func_->arg_begin());
 
@@ -1740,15 +1740,12 @@ bool MirConverter::BlockBitcodeConversion(BasicBlock* bb) {
             art::llvm::IntrinsicHelper::CatchTargets);
         ::llvm::Value* switch_key =
             irb_->CreateCall(intr, irb_->getInt32(mir->offset));
-        GrowableArray<SuccessorBlockInfo*>::Iterator iter(bb->successor_blocks);
         // New basic block to use for work half
         ::llvm::BasicBlock* work_bb =
             ::llvm::BasicBlock::Create(*context_, "", func_);
         ::llvm::SwitchInst* sw =
-            irb_->CreateSwitch(switch_key, work_bb, bb->successor_blocks->Size());
-        while (true) {
-          SuccessorBlockInfo *successor_block_info = iter.Next();
-          if (successor_block_info == NULL) break;
+            irb_->CreateSwitch(switch_key, work_bb, bb->successor_blocks.size());
+        for (SuccessorBlockInfo *successor_block_info : bb->successor_blocks) {
           ::llvm::BasicBlock *target =
               GetLLVMBlock(successor_block_info->block);
           int type_index = successor_block_info->key;
@@ -1843,7 +1840,7 @@ bool MirConverter::CreateFunction() {
   arg_iter->setName("method");
   ++arg_iter;
 
-  int start_sreg = cu_->num_regs;
+  int start_sreg = mir_graph_->GetFirstInVR();
 
   for (unsigned i = 0; arg_iter != arg_end; ++i, ++arg_iter) {
     arg_iter->setName(StringPrintf("v%i_0", start_sreg));
@@ -1908,18 +1905,18 @@ void MirConverter::MethodMIR2Bitcode() {
     ::llvm::Value* val;
     RegLocation rl_temp = mir_graph_->reg_location_[i];
     if ((mir_graph_->SRegToVReg(i) < 0) || rl_temp.high_word) {
-      llvm_values_.Insert(0);
-    } else if ((i < cu_->num_regs) ||
-               (i >= (cu_->num_regs + cu_->num_ins))) {
+      llvm_values_.push_back(0);
+    } else if ((i < mir_graph_->GetFirstInVR()) ||
+               (i >= (mir_graph_->GetFirstTempVR()))) {
       ::llvm::Constant* imm_value = mir_graph_->reg_location_[i].wide ?
          irb_->getJLong(0) : irb_->getJInt(0);
       val = EmitConst(imm_value, mir_graph_->reg_location_[i]);
       val->setName(mir_graph_->GetSSAName(i));
-      llvm_values_.Insert(val);
+      llvm_values_.push_back(val);
     } else {
       // Recover previously-created argument values
       ::llvm::Value* arg_val = arg_iter++;
-      llvm_values_.Insert(arg_val);
+      llvm_values_.push_back(arg_val);
     }
   }
 
@@ -1966,7 +1963,7 @@ void MirConverter::MethodMIR2Bitcode() {
      if (::llvm::verifyFunction(*func_, ::llvm::PrintMessageAction)) {
        LOG(INFO) << "Bitcode verification FAILED for "
                  << PrettyMethod(cu_->method_idx, *cu_->dex_file)
-                 << " of size " << cu_->code_item->insns_size_in_code_units_;
+                 << " of size " << mir_graph_->GetNumDalvikInsns();
        cu_->enable_debug |= (1 << kDebugDumpBitcodeFile);
      }
   }

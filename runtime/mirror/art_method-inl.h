@@ -38,7 +38,7 @@ namespace mirror {
 
 inline uint32_t ArtMethod::ClassSize() {
   uint32_t vtable_entries = Object::kVTableLength + 8;
-  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0);
+  return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0, 0, 0);
 }
 
 template<ReadBarrierOption kReadBarrierOption>
@@ -163,7 +163,9 @@ inline bool ArtMethod::CheckIncompatibleClassChange(InvokeType type) {
       return IsDirect() || (methods_class->IsInterface() && !IsMiranda());
     }
     case kSuper:
-      return false;  // TODO: appropriate checks for call to super class.
+      // Constructors and static methods are called with invoke-direct.
+      // Interface methods cannot be invoked with invoke-super.
+      return IsConstructor() || IsStatic() || GetDeclaringClass()->IsInterface();
     case kInterface: {
       Class* methods_class = GetDeclaringClass();
       return IsDirect() || !(methods_class->IsInterface() || methods_class->IsObjectClass());
@@ -269,6 +271,9 @@ inline const uint8_t* ArtMethod::GetVmapTable() {
 }
 
 inline const uint8_t* ArtMethod::GetVmapTable(const void* code_pointer) {
+  if (IsOptimized()) {
+    LOG(FATAL) << "Unimplemented vmap table for optimized compiler";
+  }
   DCHECK(code_pointer != nullptr);
   DCHECK(code_pointer == GetQuickOatCodePointer());
   uint32_t offset =
@@ -277,6 +282,20 @@ inline const uint8_t* ArtMethod::GetVmapTable(const void* code_pointer) {
     return nullptr;
   }
   return reinterpret_cast<const uint8_t*>(code_pointer) - offset;
+}
+
+inline StackMap ArtMethod::GetStackMap(uint32_t native_pc_offset) {
+  return GetOptimizedCodeInfo().GetStackMapForNativePcOffset(native_pc_offset);
+}
+
+inline CodeInfo ArtMethod::GetOptimizedCodeInfo() {
+  DCHECK(IsOptimized());
+  const void* code_pointer = GetQuickOatCodePointer();
+  DCHECK(code_pointer != nullptr);
+  uint32_t offset =
+      reinterpret_cast<const OatQuickMethodHeader*>(code_pointer)[-1].vmap_table_offset_;
+  const void* data = reinterpret_cast<const void*>(reinterpret_cast<const uint8_t*>(code_pointer) - offset);
+  return CodeInfo(data);
 }
 
 inline void ArtMethod::SetOatNativeGcMapOffset(uint32_t gc_map_offset) {
@@ -345,7 +364,11 @@ inline QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
     return QuickMethodFrameInfo(kStackAlignment, 0u, 0u);
   }
   Runtime* runtime = Runtime::Current();
-  if (UNLIKELY(IsAbstract()) || UNLIKELY(IsProxyMethod())) {
+  // For Proxy method we exclude direct method (there is only one direct method - constructor).
+  // Direct method is cloned from original java.lang.reflect.Proxy class together with code
+  // and as a result it is executed as usual quick compiled method without any stubs.
+  // So the frame info should be returned as it is a quick method not a stub.
+  if (UNLIKELY(IsAbstract()) || UNLIKELY(IsProxyMethod() && !IsDirect())) {
     return runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
   }
   if (UNLIKELY(IsRuntimeMethod())) {
@@ -417,7 +440,7 @@ inline const Signature ArtMethod::GetSignature() {
   return Signature::NoSignature();
 }
 
-inline const char* ArtMethod::GetName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+inline const char* ArtMethod::GetName() {
   mirror::ArtMethod* method = GetInterfaceMethodIfProxy();
   uint32_t dex_method_idx = method->GetDexMethodIndex();
   if (LIKELY(dex_method_idx != DexFile::kDexNoIndex)) {

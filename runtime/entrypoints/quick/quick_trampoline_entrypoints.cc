@@ -496,7 +496,7 @@ extern "C" uint64_t artQuickToInterpreterBridge(mirror::ArtMethod* method, Threa
       // Ensure static method's class is initialized.
       StackHandleScope<1> hs(self);
       Handle<mirror::Class> h_class(hs.NewHandle(method->GetDeclaringClass()));
-      if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(h_class, true, true)) {
+      if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(self, h_class, true, true)) {
         DCHECK(Thread::Current()->IsExceptionPending()) << PrettyMethod(method);
         self->PopManagedStackFragment(fragment);
         return 0;
@@ -808,7 +808,7 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
     // Ensure that the called method's class is initialized.
     StackHandleScope<1> hs(soa.Self());
     Handle<mirror::Class> called_class(hs.NewHandle(called->GetDeclaringClass()));
-    linker->EnsureInitialized(called_class, true, true);
+    linker->EnsureInitialized(soa.Self(), called_class, true, true);
     if (LIKELY(called_class->IsInitialized())) {
       code = called->GetEntryPointFromQuickCompiledCode();
     } else if (called_class->IsInitializing()) {
@@ -1488,7 +1488,7 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
       // Initialize padding entries.
       size_t expected_slots = handle_scope_->NumberOfReferences();
       while (cur_entry_ < expected_slots) {
-        handle_scope_->GetHandle(cur_entry_++).Assign(nullptr);
+        handle_scope_->GetMutableHandle(cur_entry_++).Assign(nullptr);
       }
       DCHECK_NE(cur_entry_, 0U);
     }
@@ -1509,7 +1509,7 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
 
 uintptr_t BuildGenericJniFrameVisitor::FillJniCall::PushHandle(mirror::Object* ref) {
   uintptr_t tmp;
-  Handle<mirror::Object> h = handle_scope_->GetHandle(cur_entry_);
+  MutableHandle<mirror::Object> h = handle_scope_->GetMutableHandle(cur_entry_);
   h.Assign(ref);
   tmp = reinterpret_cast<uintptr_t>(h.ToJObject());
   cur_entry_++;
@@ -1699,7 +1699,15 @@ extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self, jvalue result,
     artQuickGenericJniEndJNINonRef(self, cookie, lock);
 
     switch (return_shorty_char) {
-      case 'F':  // Fall-through.
+      case 'F': {
+        if (kRuntimeISA == kX86) {
+          // Convert back the result to float.
+          double d = bit_cast<uint64_t, double>(result_f);
+          return bit_cast<float, uint32_t>(static_cast<float>(d));
+        } else {
+          return result_f;
+        }
+      }
       case 'D':
         return result_f;
       case 'Z':

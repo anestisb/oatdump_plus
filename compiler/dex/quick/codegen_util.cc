@@ -15,6 +15,7 @@
  */
 
 #include "dex/compiler_internals.h"
+#include "driver/compiler_options.h"
 #include "dex_file-inl.h"
 #include "gc_map.h"
 #include "gc_map_builder.h"
@@ -56,16 +57,23 @@ bool Mir2Lir::IsInexpensiveConstant(RegLocation rl_src) {
   bool res = false;
   if (rl_src.is_const) {
     if (rl_src.wide) {
+      // For wide registers, check whether we're the high partner. In that case we need to switch
+      // to the lower one for the correct value.
+      if (rl_src.high_word) {
+        rl_src.high_word = false;
+        rl_src.s_reg_low--;
+        rl_src.orig_sreg--;
+      }
       if (rl_src.fp) {
-         res = InexpensiveConstantDouble(mir_graph_->ConstantValueWide(rl_src));
+        res = InexpensiveConstantDouble(mir_graph_->ConstantValueWide(rl_src));
       } else {
-         res = InexpensiveConstantLong(mir_graph_->ConstantValueWide(rl_src));
+        res = InexpensiveConstantLong(mir_graph_->ConstantValueWide(rl_src));
       }
     } else {
       if (rl_src.fp) {
-         res = InexpensiveConstantFloat(mir_graph_->ConstantValue(rl_src));
+        res = InexpensiveConstantFloat(mir_graph_->ConstantValue(rl_src));
       } else {
-         res = InexpensiveConstantInt(mir_graph_->ConstantValue(rl_src));
+        res = InexpensiveConstantInt(mir_graph_->ConstantValue(rl_src));
       }
     }
   }
@@ -267,8 +275,8 @@ void Mir2Lir::DumpLIRInsn(LIR* lir, unsigned char* base_addr) {
 }
 
 void Mir2Lir::DumpPromotionMap() {
-  int num_regs = cu_->num_dalvik_registers + mir_graph_->GetNumUsedCompilerTemps();
-  for (int i = 0; i < num_regs; i++) {
+  uint32_t num_regs = mir_graph_->GetNumOfCodeAndTempVRs();
+  for (uint32_t i = 0; i < num_regs; i++) {
     PromotionMap v_reg_map = promotion_map_[i];
     std::string buf;
     if (v_reg_map.fp_location == kLocPhysReg) {
@@ -276,12 +284,13 @@ void Mir2Lir::DumpPromotionMap() {
     }
 
     std::string buf3;
-    if (i < cu_->num_dalvik_registers) {
+    if (i < mir_graph_->GetNumOfCodeVRs()) {
       StringAppendF(&buf3, "%02d", i);
-    } else if (i == mir_graph_->GetMethodSReg()) {
+    } else if (i == mir_graph_->GetNumOfCodeVRs()) {
       buf3 = "Method*";
     } else {
-      StringAppendF(&buf3, "ct%d", i - cu_->num_dalvik_registers);
+      uint32_t diff = i - mir_graph_->GetNumOfCodeVRs();
+      StringAppendF(&buf3, "ct%d", diff);
     }
 
     LOG(INFO) << StringPrintf("V[%s] -> %s%d%s", buf3.c_str(),
@@ -310,11 +319,11 @@ void Mir2Lir::CodegenDump() {
   LOG(INFO) << "Dumping LIR insns for "
             << PrettyMethod(cu_->method_idx, *cu_->dex_file);
   LIR* lir_insn;
-  int insns_size = cu_->code_item->insns_size_in_code_units_;
+  int insns_size = mir_graph_->GetNumDalvikInsns();
 
-  LOG(INFO) << "Regs (excluding ins) : " << cu_->num_regs;
-  LOG(INFO) << "Ins          : " << cu_->num_ins;
-  LOG(INFO) << "Outs         : " << cu_->num_outs;
+  LOG(INFO) << "Regs (excluding ins) : " << mir_graph_->GetNumOfLocalCodeVRs();
+  LOG(INFO) << "Ins          : " << mir_graph_->GetNumOfInVRs();
+  LOG(INFO) << "Outs         : " << mir_graph_->GetNumOfOutVRs();
   LOG(INFO) << "CoreSpills       : " << num_core_spills_;
   LOG(INFO) << "FPSpills       : " << num_fp_spills_;
   LOG(INFO) << "CompilerTemps    : " << mir_graph_->GetNumUsedCompilerTemps();
@@ -438,15 +447,16 @@ static void Push32(std::vector<uint8_t>&buf, int data) {
   buf.push_back((data >> 24) & 0xff);
 }
 
-// Push 8 bytes on 64-bit target systems; 4 on 32-bit target systems.
-static void PushPointer(std::vector<uint8_t>&buf, const void* pointer, bool target64) {
-  uint64_t data = reinterpret_cast<uintptr_t>(pointer);
-  if (target64) {
-    Push32(buf, data & 0xFFFFFFFF);
-    Push32(buf, (data >> 32) & 0xFFFFFFFF);
-  } else {
-    Push32(buf, static_cast<uint32_t>(data));
-  }
+/**
+ * @brief Push a compressed reference which needs patching at link/patchoat-time.
+ * @details This needs to be kept consistent with the code which actually does the patching in
+ *   oat_writer.cc and in the patchoat tool.
+ */
+static void PushUnpatchedReference(std::vector<uint8_t>&buf) {
+  // Note that we can safely initialize the patches to zero. The code deduplication mechanism takes
+  // the patches into account when determining whether two pieces of codes are functionally
+  // equivalent.
+  Push32(buf, UINT32_C(0));
 }
 
 static void AlignBuffer(std::vector<uint8_t>&buf, size_t offset) {
@@ -463,23 +473,16 @@ void Mir2Lir::InstallLiteralPools() {
     Push32(code_buffer_, data_lir->operands[0]);
     data_lir = NEXT_LIR(data_lir);
   }
+  // TODO: patches_.reserve() as needed.
   // Push code and method literals, record offsets for the compiler to patch.
   data_lir = code_literal_list_;
   while (data_lir != NULL) {
     uint32_t target_method_idx = data_lir->operands[0];
     const DexFile* target_dex_file =
         reinterpret_cast<const DexFile*>(UnwrapPointer(data_lir->operands[1]));
-    cu_->compiler_driver->AddCodePatch(cu_->dex_file,
-                                       cu_->class_def_idx,
-                                       cu_->method_idx,
-                                       cu_->invoke_type,
-                                       target_method_idx,
-                                       target_dex_file,
-                                       static_cast<InvokeType>(data_lir->operands[2]),
-                                       code_buffer_.size());
-    const DexFile::MethodId& target_method_id = target_dex_file->GetMethodId(target_method_idx);
-    // unique value based on target to ensure code deduplication works
-    PushPointer(code_buffer_, &target_method_id, cu_->target64);
+    patches_.push_back(LinkerPatch::CodePatch(code_buffer_.size(),
+                                              target_dex_file, target_method_idx));
+    PushUnpatchedReference(code_buffer_);
     data_lir = NEXT_LIR(data_lir);
   }
   data_lir = method_literal_list_;
@@ -487,44 +490,27 @@ void Mir2Lir::InstallLiteralPools() {
     uint32_t target_method_idx = data_lir->operands[0];
     const DexFile* target_dex_file =
         reinterpret_cast<const DexFile*>(UnwrapPointer(data_lir->operands[1]));
-    cu_->compiler_driver->AddMethodPatch(cu_->dex_file,
-                                         cu_->class_def_idx,
-                                         cu_->method_idx,
-                                         cu_->invoke_type,
-                                         target_method_idx,
-                                         target_dex_file,
-                                         static_cast<InvokeType>(data_lir->operands[2]),
-                                         code_buffer_.size());
-    const DexFile::MethodId& target_method_id = target_dex_file->GetMethodId(target_method_idx);
-    // unique value based on target to ensure code deduplication works
-    PushPointer(code_buffer_, &target_method_id, cu_->target64);
+    patches_.push_back(LinkerPatch::MethodPatch(code_buffer_.size(),
+                                                target_dex_file, target_method_idx));
+    PushUnpatchedReference(code_buffer_);
     data_lir = NEXT_LIR(data_lir);
   }
   // Push class literals.
   data_lir = class_literal_list_;
   while (data_lir != NULL) {
-    uint32_t target_method_idx = data_lir->operands[0];
+    uint32_t target_type_idx = data_lir->operands[0];
     const DexFile* class_dex_file =
       reinterpret_cast<const DexFile*>(UnwrapPointer(data_lir->operands[1]));
-    cu_->compiler_driver->AddClassPatch(cu_->dex_file,
-                                        cu_->class_def_idx,
-                                        cu_->method_idx,
-                                        target_method_idx,
-                                        class_dex_file,
-                                        code_buffer_.size());
-    const DexFile::TypeId& target_method_id = class_dex_file->GetTypeId(target_method_idx);
-    // unique value based on target to ensure code deduplication works
-    PushPointer(code_buffer_, &target_method_id, cu_->target64);
+    patches_.push_back(LinkerPatch::TypePatch(code_buffer_.size(),
+                                              class_dex_file, target_type_idx));
+    PushUnpatchedReference(code_buffer_);
     data_lir = NEXT_LIR(data_lir);
   }
 }
 
 /* Write the switch tables to the output stream */
 void Mir2Lir::InstallSwitchTables() {
-  GrowableArray<SwitchTable*>::Iterator iterator(&switch_tables_);
-  while (true) {
-    Mir2Lir::SwitchTable* tab_rec = iterator.Next();
-    if (tab_rec == NULL) break;
+  for (Mir2Lir::SwitchTable* tab_rec : switch_tables_) {
     AlignBuffer(code_buffer_, tab_rec->offset);
     /*
      * For Arm, our reference point is the address of the bx
@@ -581,10 +567,7 @@ void Mir2Lir::InstallSwitchTables() {
 
 /* Write the fill array dta to the output stream */
 void Mir2Lir::InstallFillArrayData() {
-  GrowableArray<FillArrayData*>::Iterator iterator(&fill_array_data_);
-  while (true) {
-    Mir2Lir::FillArrayData *tab_rec = iterator.Next();
-    if (tab_rec == NULL) break;
+  for (Mir2Lir::FillArrayData* tab_rec : fill_array_data_) {
     AlignBuffer(code_buffer_, tab_rec->offset);
     for (int i = 0; i < (tab_rec->size + 1) / 2; i++) {
       code_buffer_.push_back(tab_rec->table[i] & 0xFF);
@@ -648,15 +631,19 @@ bool Mir2Lir::VerifyCatchEntries() {
 
 
 void Mir2Lir::CreateMappingTables() {
+  bool generate_src_map = cu_->compiler_driver->GetCompilerOptions().GetIncludeDebugSymbols();
+
   uint32_t pc2dex_data_size = 0u;
   uint32_t pc2dex_entries = 0u;
   uint32_t pc2dex_offset = 0u;
   uint32_t pc2dex_dalvik_offset = 0u;
+  uint32_t pc2dex_src_entries = 0u;
   uint32_t dex2pc_data_size = 0u;
   uint32_t dex2pc_entries = 0u;
   uint32_t dex2pc_offset = 0u;
   uint32_t dex2pc_dalvik_offset = 0u;
   for (LIR* tgt_lir = first_lir_insn_; tgt_lir != NULL; tgt_lir = NEXT_LIR(tgt_lir)) {
+    pc2dex_src_entries++;
     if (!tgt_lir->flags.is_nop && (tgt_lir->opcode == kPseudoSafepointPC)) {
       pc2dex_entries += 1;
       DCHECK(pc2dex_offset <= tgt_lir->offset);
@@ -677,6 +664,10 @@ void Mir2Lir::CreateMappingTables() {
     }
   }
 
+  if (generate_src_map) {
+    src_mapping_table_.reserve(pc2dex_src_entries);
+  }
+
   uint32_t total_entries = pc2dex_entries + dex2pc_entries;
   uint32_t hdr_data_size = UnsignedLeb128Size(total_entries) + UnsignedLeb128Size(pc2dex_entries);
   uint32_t data_size = hdr_data_size + pc2dex_data_size + dex2pc_data_size;
@@ -692,6 +683,10 @@ void Mir2Lir::CreateMappingTables() {
   dex2pc_offset = 0u;
   dex2pc_dalvik_offset = 0u;
   for (LIR* tgt_lir = first_lir_insn_; tgt_lir != NULL; tgt_lir = NEXT_LIR(tgt_lir)) {
+    if (generate_src_map && !tgt_lir->flags.is_nop) {
+      src_mapping_table_.push_back(SrcMapElem({tgt_lir->offset,
+              static_cast<int32_t>(tgt_lir->dalvik_offset)}));
+    }
     if (!tgt_lir->flags.is_nop && (tgt_lir->opcode == kPseudoSafepointPC)) {
       DCHECK(pc2dex_offset <= tgt_lir->offset);
       write_pos = EncodeUnsignedLeb128(write_pos, tgt_lir->offset - pc2dex_offset);
@@ -772,7 +767,9 @@ void Mir2Lir::CreateNativeGcMap() {
 /* Determine the offset of each literal field */
 int Mir2Lir::AssignLiteralOffset(CodeOffset offset) {
   offset = AssignLiteralOffsetCommon(literal_list_, offset);
-  unsigned int ptr_size = GetInstructionSetPointerSize(cu_->instruction_set);
+  constexpr unsigned int ptr_size = sizeof(uint32_t);
+  COMPILE_ASSERT(ptr_size >= sizeof(mirror::HeapReference<mirror::Object>),
+                 ptr_size_cannot_hold_a_heap_reference);
   offset = AssignLiteralPointerOffsetCommon(code_literal_list_, offset, ptr_size);
   offset = AssignLiteralPointerOffsetCommon(method_literal_list_, offset, ptr_size);
   offset = AssignLiteralPointerOffsetCommon(class_literal_list_, offset, ptr_size);
@@ -780,10 +777,7 @@ int Mir2Lir::AssignLiteralOffset(CodeOffset offset) {
 }
 
 int Mir2Lir::AssignSwitchTablesOffset(CodeOffset offset) {
-  GrowableArray<SwitchTable*>::Iterator iterator(&switch_tables_);
-  while (true) {
-    Mir2Lir::SwitchTable* tab_rec = iterator.Next();
-    if (tab_rec == NULL) break;
+  for (Mir2Lir::SwitchTable* tab_rec : switch_tables_) {
     tab_rec->offset = offset;
     if (tab_rec->table[0] == Instruction::kSparseSwitchSignature) {
       offset += tab_rec->table[1] * (sizeof(int) * 2);
@@ -797,15 +791,12 @@ int Mir2Lir::AssignSwitchTablesOffset(CodeOffset offset) {
 }
 
 int Mir2Lir::AssignFillArrayDataOffset(CodeOffset offset) {
-  GrowableArray<FillArrayData*>::Iterator iterator(&fill_array_data_);
-  while (true) {
-    Mir2Lir::FillArrayData *tab_rec = iterator.Next();
-    if (tab_rec == NULL) break;
+  for (Mir2Lir::FillArrayData* tab_rec : fill_array_data_) {
     tab_rec->offset = offset;
     offset += tab_rec->size;
     // word align
     offset = RoundUp(offset, 4);
-    }
+  }
   return offset;
 }
 
@@ -857,10 +848,7 @@ void Mir2Lir::MarkSparseCaseLabels(Mir2Lir::SwitchTable* tab_rec) {
 }
 
 void Mir2Lir::ProcessSwitchTables() {
-  GrowableArray<SwitchTable*>::Iterator iterator(&switch_tables_);
-  while (true) {
-    Mir2Lir::SwitchTable *tab_rec = iterator.Next();
-    if (tab_rec == NULL) break;
+  for (Mir2Lir::SwitchTable* tab_rec : switch_tables_) {
     if (tab_rec->table[0] == Instruction::kPackedSwitchSignature) {
       MarkPackedCaseLabels(tab_rec);
     } else if (tab_rec->table[0] == Instruction::kSparseSwitchSignature) {
@@ -985,21 +973,22 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       first_fixup_(NULL),
       cu_(cu),
       mir_graph_(mir_graph),
-      switch_tables_(arena, 4, kGrowableArraySwitchTables),
-      fill_array_data_(arena, 4, kGrowableArrayFillArrayData),
-      tempreg_info_(arena, 20, kGrowableArrayMisc),
-      reginfo_map_(arena, RegStorage::kMaxRegs, kGrowableArrayMisc),
-      pointer_storage_(arena, 128, kGrowableArrayMisc),
+      switch_tables_(arena->Adapter(kArenaAllocSwitchTable)),
+      fill_array_data_(arena->Adapter(kArenaAllocFillArrayData)),
+      tempreg_info_(arena->Adapter()),
+      reginfo_map_(arena->Adapter()),
+      pointer_storage_(arena->Adapter()),
       data_offset_(0),
       total_size_(0),
       block_label_list_(NULL),
       promotion_map_(NULL),
       current_dalvik_offset_(0),
       estimated_native_code_size_(0),
-      reg_pool_(NULL),
+      reg_pool_(nullptr),
       live_sreg_(0),
       core_vmap_table_(mir_graph->GetArena()->Adapter()),
       fp_vmap_table_(mir_graph->GetArena()->Adapter()),
+      patches_(mir_graph->GetArena()->Adapter()),
       num_core_spills_(0),
       num_fp_spills_(0),
       frame_size_(0),
@@ -1007,9 +996,15 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       fp_spill_mask_(0),
       first_lir_insn_(NULL),
       last_lir_insn_(NULL),
-      slow_paths_(arena, 32, kGrowableArraySlowPaths),
+      slow_paths_(arena->Adapter(kArenaAllocSlowPaths)),
       mem_ref_type_(ResourceMask::kHeapRef),
       mask_cache_(arena) {
+  switch_tables_.reserve(4);
+  fill_array_data_.reserve(4);
+  tempreg_info_.reserve(20);
+  reginfo_map_.reserve(RegStorage::kMaxRegs);
+  pointer_storage_.reserve(128);
+  slow_paths_.reserve(32);
   // Reserve pointer id 0 for NULL.
   size_t null_idx = WrapPointer(NULL);
   DCHECK_EQ(null_idx, 0U);
@@ -1085,11 +1080,17 @@ CompiledMethod* Mir2Lir::GetCompiledMethod() {
     vmap_encoder.PushBackUnsigned(0u);  // Size is 0.
   }
 
+  // Sort patches by literal offset for better deduplication.
+  std::sort(patches_.begin(), patches_.end(), [](const LinkerPatch& lhs, const LinkerPatch& rhs) {
+    return lhs.LiteralOffset() < rhs.LiteralOffset();
+  });
+
   std::unique_ptr<std::vector<uint8_t>> cfi_info(ReturnFrameDescriptionEntry());
   CompiledMethod* result =
       new CompiledMethod(cu_->compiler_driver, cu_->instruction_set, code_buffer_, frame_size_,
-                         core_spill_mask_, fp_spill_mask_, encoded_mapping_table_,
-                         vmap_encoder.GetData(), native_gc_map_, cfi_info.get());
+                         core_spill_mask_, fp_spill_mask_, &src_mapping_table_, encoded_mapping_table_,
+                         vmap_encoder.GetData(), native_gc_map_, cfi_info.get(),
+                         ArrayRef<LinkerPatch>(patches_));
   return result;
 }
 
@@ -1104,7 +1105,8 @@ size_t Mir2Lir::GetNumBytesForCompilerTempSpillRegion() {
   // By default assume that the Mir2Lir will need one slot for each temporary.
   // If the backend can better determine temps that have non-overlapping ranges and
   // temps that do not need spilled, it can actually provide a small region.
-  return (mir_graph_->GetNumUsedCompilerTemps() * sizeof(uint32_t));
+  mir_graph_->CommitCompilerTemps();
+  return mir_graph_->GetNumBytesForSpecialTemps() + mir_graph_->GetMaximumBytesForNonSpecialTemps();
 }
 
 int Mir2Lir::ComputeFrameSize() {
@@ -1112,7 +1114,8 @@ int Mir2Lir::ComputeFrameSize() {
   uint32_t size = num_core_spills_ * GetBytesPerGprSpillLocation(cu_->instruction_set)
                   + num_fp_spills_ * GetBytesPerFprSpillLocation(cu_->instruction_set)
                   + sizeof(uint32_t)  // Filler.
-                  + (cu_->num_regs + cu_->num_outs) * sizeof(uint32_t)
+                  + mir_graph_->GetNumOfLocalCodeVRs()  * sizeof(uint32_t)
+                  + mir_graph_->GetNumOfOutVRs() * sizeof(uint32_t)
                   + GetNumBytesForCompilerTempSpillRegion();
   /* Align and set */
   return RoundUp(size, kStackAlignment);
@@ -1200,7 +1203,8 @@ LIR *Mir2Lir::OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg, RegStor
 }
 
 void Mir2Lir::AddSlowPath(LIRSlowPath* slowpath) {
-  slow_paths_.Insert(slowpath);
+  slow_paths_.push_back(slowpath);
+  ResetDefTracking();
 }
 
 void Mir2Lir::LoadCodeAddress(const MethodReference& target_method, InvokeType type,

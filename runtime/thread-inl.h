@@ -45,6 +45,26 @@ inline Thread* Thread::Current() {
   }
 }
 
+inline void Thread::AllowThreadSuspension() {
+  DCHECK_EQ(Thread::Current(), this);
+  if (UNLIKELY(TestAllFlags())) {
+    CheckSuspend();
+  }
+}
+
+inline void Thread::CheckSuspend() {
+  DCHECK_EQ(Thread::Current(), this);
+  for (;;) {
+    if (ReadFlag(kCheckpointRequest)) {
+      RunCheckpointFunction();
+    } else if (ReadFlag(kSuspendRequest)) {
+      FullSuspendCheck();
+    } else {
+      break;
+    }
+  }
+}
+
 inline ThreadState Thread::SetState(ThreadState new_state) {
   // Cannot use this code to change into Runnable as changing to Runnable should fail if
   // old_state_and_flags.suspend_request is true.

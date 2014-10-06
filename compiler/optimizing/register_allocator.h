@@ -21,6 +21,8 @@
 #include "primitive.h"
 #include "utils/growable_array.h"
 
+#include "gtest/gtest.h"
+
 namespace art {
 
 class CodeGenerator;
@@ -59,6 +61,7 @@ class RegisterAllocator {
   // Helper method for validation. Used by unit testing.
   static bool ValidateIntervals(const GrowableArray<LiveInterval*>& intervals,
                                 size_t number_of_spill_slots,
+                                size_t number_of_out_slots,
                                 const CodeGenerator& codegen,
                                 ArenaAllocator* allocator,
                                 bool processing_core_registers,
@@ -83,8 +86,8 @@ class RegisterAllocator {
   bool AllocateBlockedReg(LiveInterval* interval);
   void Resolve();
 
-  // Add `interval` in the sorted list of unhandled intervals.
-  void AddToUnhandled(LiveInterval* interval);
+  // Add `interval` in the given sorted list.
+  static void AddSorted(GrowableArray<LiveInterval*>* array, LiveInterval* interval);
 
   // Split `interval` at the position `at`. The new interval starts at `at`.
   LiveInterval* Split(LiveInterval* interval, size_t at);
@@ -97,8 +100,6 @@ class RegisterAllocator {
 
   // Allocate a spill slot for the given interval.
   void AllocateSpillSlotFor(LiveInterval* interval);
-  void AllocateOneSpillSlot(LiveInterval* interval, size_t end);
-  void AllocateTwoSpillSlots(LiveInterval* interval, size_t end);
 
   // Connect adjacent siblings within blocks.
   void ConnectSiblings(LiveInterval* interval);
@@ -107,14 +108,24 @@ class RegisterAllocator {
   void ConnectSplitSiblings(LiveInterval* interval, HBasicBlock* from, HBasicBlock* to) const;
 
   // Helper methods to insert parallel moves in the graph.
-  void InsertParallelMoveAtExitOf(HBasicBlock* block, Location source, Location destination) const;
-  void InsertParallelMoveAtEntryOf(HBasicBlock* block, Location source, Location destination) const;
+  void InsertParallelMoveAtExitOf(HBasicBlock* block,
+                                  HInstruction* instruction,
+                                  Location source,
+                                  Location destination) const;
+  void InsertParallelMoveAtEntryOf(HBasicBlock* block,
+                                   HInstruction* instruction,
+                                   Location source,
+                                   Location destination) const;
   void InsertMoveAfter(HInstruction* instruction, Location source, Location destination) const;
-  void AddInputMoveFor(HInstruction* instruction, Location source, Location destination) const;
-  void InsertParallelMoveAt(size_t position, Location source, Location destination) const;
+  void AddInputMoveFor(HInstruction* user, Location source, Location destination) const;
+  void InsertParallelMoveAt(size_t position,
+                            HInstruction* instruction,
+                            Location source,
+                            Location destination) const;
 
   // Helper methods.
   void AllocateRegistersInternal();
+  void ProcessInstruction(HInstruction* instruction);
   bool ValidateInternal(bool log_fatal_on_failure) const;
   void DumpInterval(std::ostream& stream, LiveInterval* interval) const;
 
@@ -122,9 +133,17 @@ class RegisterAllocator {
   CodeGenerator* const codegen_;
   const SsaLivenessAnalysis& liveness_;
 
-  // List of intervals that must be processed, ordered by start position. Last entry
-  // is the interval that has the lowest start position.
-  GrowableArray<LiveInterval*> unhandled_;
+  // List of intervals for core registers that must be processed, ordered by start
+  // position. Last entry is the interval that has the lowest start position.
+  // This list is initially populated before doing the linear scan.
+  GrowableArray<LiveInterval*> unhandled_core_intervals_;
+
+  // List of intervals for floating-point registers. Same comments as above.
+  GrowableArray<LiveInterval*> unhandled_fp_intervals_;
+
+  // Currently processed list of unhandled intervals. Either `unhandled_core_intervals_`
+  // or `unhandled_fp_intervals_`.
+  GrowableArray<LiveInterval*>* unhandled_;
 
   // List of intervals that have been processed.
   GrowableArray<LiveInterval*> handled_;
@@ -137,12 +156,19 @@ class RegisterAllocator {
   // That is, they have a lifetime hole that spans the start of the new interval.
   GrowableArray<LiveInterval*> inactive_;
 
-  // Fixed intervals for physical registers. Such an interval covers the positions
+  // Fixed intervals for physical registers. Such intervals cover the positions
   // where an instruction requires a specific register.
   GrowableArray<LiveInterval*> physical_register_intervals_;
 
+  // Intervals for temporaries. Such intervals cover the positions
+  // where an instruction requires a temporary.
+  GrowableArray<LiveInterval*> temp_intervals_;
+
   // The spill slots allocated for live intervals.
   GrowableArray<size_t> spill_slots_;
+
+  // Instructions that need a safepoint.
+  GrowableArray<HInstruction*> safepoints_;
 
   // True if processing core registers. False if processing floating
   // point registers.
@@ -156,6 +182,14 @@ class RegisterAllocator {
 
   // Blocked registers, as decided by the code generator.
   bool* const blocked_registers_;
+
+  // Slots reserved for out arguments.
+  size_t reserved_out_slots_;
+
+  // The maximum live registers at safepoints.
+  size_t maximum_number_of_live_registers_;
+
+  FRIEND_TEST(RegisterAllocatorTest, FreeUntil);
 
   DISALLOW_COPY_AND_ASSIGN(RegisterAllocator);
 };

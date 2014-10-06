@@ -86,8 +86,8 @@ class LocalValueNumberingTest : public testing::Test {
     { opcode, 0u, 0u, 0, { }, 1, { reg } }  // CONST_CLASS, CONST_STRING, NEW_ARRAY, ...
 
   void DoPrepareIFields(const IFieldDef* defs, size_t count) {
-    cu_.mir_graph->ifield_lowering_infos_.Reset();
-    cu_.mir_graph->ifield_lowering_infos_.Resize(count);
+    cu_.mir_graph->ifield_lowering_infos_.clear();
+    cu_.mir_graph->ifield_lowering_infos_.reserve(count);
     for (size_t i = 0u; i != count; ++i) {
       const IFieldDef* def = &defs[i];
       MirIFieldLoweringInfo field_info(def->field_idx);
@@ -97,7 +97,7 @@ class LocalValueNumberingTest : public testing::Test {
         field_info.flags_ = 0u |  // Without kFlagIsStatic.
             (def->is_volatile ? MirIFieldLoweringInfo::kFlagIsVolatile : 0u);
       }
-      cu_.mir_graph->ifield_lowering_infos_.Insert(field_info);
+      cu_.mir_graph->ifield_lowering_infos_.push_back(field_info);
     }
   }
 
@@ -107,8 +107,8 @@ class LocalValueNumberingTest : public testing::Test {
   }
 
   void DoPrepareSFields(const SFieldDef* defs, size_t count) {
-    cu_.mir_graph->sfield_lowering_infos_.Reset();
-    cu_.mir_graph->sfield_lowering_infos_.Resize(count);
+    cu_.mir_graph->sfield_lowering_infos_.clear();
+    cu_.mir_graph->sfield_lowering_infos_.reserve(count);
     for (size_t i = 0u; i != count; ++i) {
       const SFieldDef* def = &defs[i];
       MirSFieldLoweringInfo field_info(def->field_idx);
@@ -120,7 +120,7 @@ class LocalValueNumberingTest : public testing::Test {
         field_info.declaring_field_idx_ = def->declaring_field_idx;
         field_info.flags_ |= (def->is_volatile ? MirSFieldLoweringInfo::kFlagIsVolatile : 0u);
       }
-      cu_.mir_graph->sfield_lowering_infos_.Insert(field_info);
+      cu_.mir_graph->sfield_lowering_infos_.push_back(field_info);
     }
   }
 
@@ -140,10 +140,10 @@ class LocalValueNumberingTest : public testing::Test {
       mir->dalvikInsn.vB = static_cast<int32_t>(def->value);
       mir->dalvikInsn.vB_wide = def->value;
       if (def->opcode >= Instruction::IGET && def->opcode <= Instruction::IPUT_SHORT) {
-        ASSERT_LT(def->field_info, cu_.mir_graph->ifield_lowering_infos_.Size());
+        ASSERT_LT(def->field_info, cu_.mir_graph->ifield_lowering_infos_.size());
         mir->meta.ifield_lowering_info = def->field_info;
       } else if (def->opcode >= Instruction::SGET && def->opcode <= Instruction::SPUT_SHORT) {
-        ASSERT_LT(def->field_info, cu_.mir_graph->sfield_lowering_infos_.Size());
+        ASSERT_LT(def->field_info, cu_.mir_graph->sfield_lowering_infos_.size());
         mir->meta.sfield_lowering_info = def->field_info;
       }
       mir->ssa_rep = &ssa_reps_[i];
@@ -170,8 +170,8 @@ class LocalValueNumberingTest : public testing::Test {
   }
 
   void MakeSFieldUninitialized(uint32_t sfield_index) {
-    CHECK_LT(sfield_index, cu_.mir_graph->sfield_lowering_infos_.Size());
-    cu_.mir_graph->sfield_lowering_infos_.GetRawStorage()[sfield_index].flags_ &=
+    CHECK_LT(sfield_index, cu_.mir_graph->sfield_lowering_infos_.size());
+    cu_.mir_graph->sfield_lowering_infos_[sfield_index].flags_ &=
         ~MirSFieldLoweringInfo::kFlagIsInitialized;
   }
 
@@ -338,16 +338,19 @@ TEST_F(LocalValueNumberingTest, Volatile) {
       DEF_IGET(Instruction::IGET, 1u,  0u, 0u),  // Non-volatile.
       DEF_IGET(Instruction::IGET, 2u, 10u, 1u),  // Volatile.
       DEF_IGET(Instruction::IGET, 3u,  2u, 1u),  // Non-volatile.
+      DEF_IGET(Instruction::IGET, 4u,  0u, 0u),  // Non-volatile.
   };
 
   PrepareIFields(ifields);
   PrepareMIRs(mirs);
   PerformLVN();
-  ASSERT_EQ(value_names_.size(), 4u);
+  ASSERT_EQ(value_names_.size(), 5u);
   EXPECT_NE(value_names_[0], value_names_[2]);  // Volatile has always different value name.
   EXPECT_NE(value_names_[1], value_names_[3]);  // Used different base because of volatile.
+  EXPECT_NE(value_names_[1], value_names_[4]);  // Not guaranteed to be the same after "acquire".
+
   for (size_t i = 0; i != arraysize(mirs); ++i) {
-    EXPECT_EQ((i == 2u) ? MIR_IGNORE_NULL_CHECK : 0,
+    EXPECT_EQ((i == 2u || i == 4u) ? MIR_IGNORE_NULL_CHECK : 0,
               mirs_[i].optimization_flags) << i;
   }
 }
@@ -363,7 +366,7 @@ TEST_F(LocalValueNumberingTest, UnresolvedIField) {
       DEF_IGET(Instruction::IGET, 1u, 20u, 0u),             // Resolved field #1, unique object.
       DEF_IGET(Instruction::IGET, 2u, 21u, 0u),             // Resolved field #1.
       DEF_IGET_WIDE(Instruction::IGET_WIDE, 3u, 21u, 1u),   // Resolved field #2.
-      DEF_IGET(Instruction::IGET, 4u, 22u, 2u),             // IGET doesn't clobber anything.
+      DEF_IGET(Instruction::IGET, 4u, 22u, 2u),             // Unresolved IGET can be "acquire".
       DEF_IGET(Instruction::IGET, 5u, 20u, 0u),             // Resolved field #1, unique object.
       DEF_IGET(Instruction::IGET, 6u, 21u, 0u),             // Resolved field #1.
       DEF_IGET_WIDE(Instruction::IGET_WIDE, 7u, 21u, 1u),   // Resolved field #2.
@@ -381,14 +384,15 @@ TEST_F(LocalValueNumberingTest, UnresolvedIField) {
   PrepareMIRs(mirs);
   PerformLVN();
   ASSERT_EQ(value_names_.size(), 16u);
-  EXPECT_EQ(value_names_[1], value_names_[5]);
-  EXPECT_EQ(value_names_[2], value_names_[6]);
-  EXPECT_EQ(value_names_[3], value_names_[7]);
-  EXPECT_EQ(value_names_[1], value_names_[9]);
-  EXPECT_NE(value_names_[2], value_names_[10]);  // This aliased with unresolved IPUT.
-  EXPECT_EQ(value_names_[3], value_names_[11]);
-  EXPECT_EQ(value_names_[12], value_names_[15]);
-  EXPECT_NE(value_names_[1], value_names_[14]);  // This aliased with unresolved IPUT.
+  // Unresolved field is potentially volatile, so we need to adhere to the volatile semantics.
+  EXPECT_EQ(value_names_[1], value_names_[5]);    // Unique object.
+  EXPECT_NE(value_names_[2], value_names_[6]);    // Not guaranteed to be the same after "acquire".
+  EXPECT_NE(value_names_[3], value_names_[7]);    // Not guaranteed to be the same after "acquire".
+  EXPECT_EQ(value_names_[1], value_names_[9]);    // Unique object.
+  EXPECT_NE(value_names_[6], value_names_[10]);   // This aliased with unresolved IPUT.
+  EXPECT_EQ(value_names_[7], value_names_[11]);   // Still the same after "release".
+  EXPECT_EQ(value_names_[12], value_names_[15]);  // Still the same after "release".
+  EXPECT_NE(value_names_[1], value_names_[14]);   // This aliased with unresolved IPUT.
   EXPECT_EQ(mirs_[0].optimization_flags, 0u);
   EXPECT_EQ(mirs_[1].optimization_flags, MIR_IGNORE_NULL_CHECK);
   EXPECT_EQ(mirs_[2].optimization_flags, 0u);
@@ -409,7 +413,7 @@ TEST_F(LocalValueNumberingTest, UnresolvedSField) {
   static const MIRDef mirs[] = {
       DEF_SGET(Instruction::SGET, 0u, 0u),            // Resolved field #1.
       DEF_SGET_WIDE(Instruction::SGET_WIDE, 1u, 1u),  // Resolved field #2.
-      DEF_SGET(Instruction::SGET, 2u, 2u),            // SGET doesn't clobber anything.
+      DEF_SGET(Instruction::SGET, 2u, 2u),            // Unresolved SGET can be "acquire".
       DEF_SGET(Instruction::SGET, 3u, 0u),            // Resolved field #1.
       DEF_SGET_WIDE(Instruction::SGET_WIDE, 4u, 1u),  // Resolved field #2.
       DEF_SPUT(Instruction::SPUT, 5u, 2u),            // SPUT clobbers field #1 (#2 is wide).
@@ -421,10 +425,11 @@ TEST_F(LocalValueNumberingTest, UnresolvedSField) {
   PrepareMIRs(mirs);
   PerformLVN();
   ASSERT_EQ(value_names_.size(), 8u);
-  EXPECT_EQ(value_names_[0], value_names_[3]);
-  EXPECT_EQ(value_names_[1], value_names_[4]);
-  EXPECT_NE(value_names_[0], value_names_[6]);  // This aliased with unresolved IPUT.
-  EXPECT_EQ(value_names_[1], value_names_[7]);
+  // Unresolved field is potentially volatile, so we need to adhere to the volatile semantics.
+  EXPECT_NE(value_names_[0], value_names_[3]);  // Not guaranteed to be the same after "acquire".
+  EXPECT_NE(value_names_[1], value_names_[4]);  // Not guaranteed to be the same after "acquire".
+  EXPECT_NE(value_names_[3], value_names_[6]);  // This aliased with unresolved IPUT.
+  EXPECT_EQ(value_names_[4], value_names_[7]);  // Still the same after "release".
   for (size_t i = 0u; i != mir_count_; ++i) {
     EXPECT_EQ(0, mirs_[i].optimization_flags) << i;
   }

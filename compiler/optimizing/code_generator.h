@@ -23,6 +23,7 @@
 #include "locations.h"
 #include "memory_region.h"
 #include "nodes.h"
+#include "stack_map_stream.h"
 #include "utils/assembler.h"
 
 namespace art {
@@ -32,6 +33,7 @@ static size_t constexpr kUninitializedFrameSize = 0;
 
 class CodeGenerator;
 class DexCompilationUnit;
+class SrcMap;
 
 class CodeAllocator {
  public:
@@ -96,7 +98,9 @@ class CodeGenerator : public ArenaObject {
   virtual HGraphVisitor* GetInstructionVisitor() = 0;
   virtual Assembler* GetAssembler() = 0;
   virtual size_t GetWordSize() const = 0;
-  void ComputeFrameSize(size_t number_of_spill_slots);
+  void ComputeFrameSize(size_t number_of_spill_slots,
+                        size_t maximum_number_of_live_registers,
+                        size_t number_of_out_slots);
   virtual size_t FrameEntrySpillSize() const = 0;
   int32_t GetStackSlot(HLocal* local) const;
   Location GetTemporaryLocation(HTemporary* temp) const;
@@ -112,13 +116,10 @@ class CodeGenerator : public ArenaObject {
   virtual void DumpCoreRegister(std::ostream& stream, int reg) const = 0;
   virtual void DumpFloatingPointRegister(std::ostream& stream, int reg) const = 0;
   virtual InstructionSet GetInstructionSet() const = 0;
+  virtual void SaveCoreRegister(Location stack_location, uint32_t reg_id) = 0;
+  virtual void RestoreCoreRegister(Location stack_location, uint32_t reg_id) = 0;
 
-  void RecordPcInfo(uint32_t dex_pc) {
-    struct PcInfo pc_info;
-    pc_info.dex_pc = dex_pc;
-    pc_info.native_pc = GetAssembler()->CodeSize();
-    pc_infos_.Add(pc_info);
-  }
+  void RecordPcInfo(HInstruction* instruction, uint32_t dex_pc);
 
   void AddSlowPath(SlowPathCode* slow_path) {
     slow_paths_.Add(slow_path);
@@ -126,10 +127,13 @@ class CodeGenerator : public ArenaObject {
 
   void GenerateSlowPaths();
 
-  void BuildMappingTable(std::vector<uint8_t>* vector) const;
+  void BuildMappingTable(std::vector<uint8_t>* vector, SrcMap* src_map) const;
   void BuildVMapTable(std::vector<uint8_t>* vector) const;
   void BuildNativeGCMap(
       std::vector<uint8_t>* vector, const DexCompilationUnit& dex_compilation_unit) const;
+  void BuildStackMaps(std::vector<uint8_t>* vector);
+  void SaveLiveRegisters(LocationSummary* locations);
+  void RestoreLiveRegisters(LocationSummary* locations);
 
   bool IsLeafMethod() const {
     return is_leaf_;
@@ -139,15 +143,25 @@ class CodeGenerator : public ArenaObject {
     is_leaf_ = false;
   }
 
+  // Clears the spill slots taken by loop phis in the `LocationSummary` of the
+  // suspend check. This is called when the code generator generates code
+  // for the suspend check at the back edge (instead of where the suspend check
+  // is, which is the loop entry). At this point, the spill slots for the phis
+  // have not been written to.
+  void ClearSpillSlotsFromLoopPhisInStackMap(HSuspendCheck* suspend_check) const;
+
  protected:
   CodeGenerator(HGraph* graph, size_t number_of_registers)
       : frame_size_(kUninitializedFrameSize),
+        core_spill_mask_(0),
+        first_register_slot_in_slow_path_(0),
         graph_(graph),
         block_labels_(graph->GetArena(), 0),
         pc_infos_(graph->GetArena(), 32),
         slow_paths_(graph->GetArena(), 8),
         blocked_registers_(graph->GetArena()->AllocArray<bool>(number_of_registers)),
-        is_leaf_(true) {}
+        is_leaf_(true),
+        stack_map_stream_(graph->GetArena()) {}
   ~CodeGenerator() {}
 
   // Register allocation logic.
@@ -166,9 +180,11 @@ class CodeGenerator : public ArenaObject {
   // Frame size required for this method.
   uint32_t frame_size_;
   uint32_t core_spill_mask_;
+  uint32_t first_register_slot_in_slow_path_;
 
  private:
   void InitLocations(HInstruction* instruction);
+  size_t GetStackOffsetOfSavedRegister(size_t index);
 
   HGraph* const graph_;
 
@@ -181,6 +197,8 @@ class CodeGenerator : public ArenaObject {
   bool* const blocked_registers_;
 
   bool is_leaf_;
+
+  StackMapStream stack_map_stream_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGenerator);
 };

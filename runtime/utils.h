@@ -20,6 +20,7 @@
 #include <pthread.h>
 
 #include <limits>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -258,7 +259,7 @@ std::string PrintableChar(uint16_t ch);
 
 // Returns an ASCII string corresponding to the given UTF-8 string.
 // Java escapes are used for non-ASCII characters.
-std::string PrintableString(const std::string& utf8);
+std::string PrintableString(const char* utf8);
 
 // Tests whether 's' starts with 'prefix'.
 bool StartsWith(const std::string& s, const char* prefix);
@@ -273,7 +274,7 @@ bool EndsWith(const std::string& s, const char* suffix);
 // "java.lang.String[]", and so forth.
 std::string PrettyDescriptor(mirror::String* descriptor)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-std::string PrettyDescriptor(const std::string& descriptor);
+std::string PrettyDescriptor(const char* descriptor);
 std::string PrettyDescriptor(mirror::Class* klass)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 std::string PrettyDescriptor(Primitive::Type type);
@@ -310,6 +311,10 @@ std::string PrettyClass(mirror::Class* c)
 std::string PrettyClassAndClassLoader(mirror::Class* c)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+// Returns a human-readable version of the Java part of the access flags, e.g., "private static "
+// (note the trailing whitespace).
+std::string PrettyJavaAccessFlags(uint32_t access_flags);
+
 // Returns a human-readable size string such as "1MB".
 std::string PrettySize(int64_t size_in_bytes);
 
@@ -335,10 +340,12 @@ std::string MangleForJni(const std::string& s);
 // Turn "java.lang.String" into "Ljava/lang/String;".
 std::string DotToDescriptor(const char* class_name);
 
-// Turn "Ljava/lang/String;" into "java.lang.String".
+// Turn "Ljava/lang/String;" into "java.lang.String" using the conventions of
+// java.lang.Class.getName().
 std::string DescriptorToDot(const char* descriptor);
 
-// Turn "Ljava/lang/String;" into "java/lang/String".
+// Turn "Ljava/lang/String;" into "java/lang/String" using the opposite conventions of
+// java.lang.Class.getName().
 std::string DescriptorToName(const char* descriptor);
 
 // Tests for whether 's' is a valid class name in the three common forms:
@@ -412,7 +419,7 @@ pid_t GetTid();
 std::string GetThreadName(pid_t tid);
 
 // Returns details of the given thread's stack.
-void GetThreadStack(pthread_t thread, void** stack_base, size_t* stack_size);
+void GetThreadStack(pthread_t thread, void** stack_base, size_t* stack_size, size_t* guard_size);
 
 // Reads data from "/proc/self/task/${tid}/stat".
 void GetTaskStats(pid_t tid, char* state, int* utime, int* stime, int* task_cpu);
@@ -446,8 +453,9 @@ std::string GetDalvikCacheOrDie(const char* subdir, bool create_if_absent = true
 // Return true if we found the dalvik cache and stored it in the dalvik_cache argument.
 // have_android_data will be set to true if we have an ANDROID_DATA that exists,
 // dalvik_cache_exists will be true if there is a dalvik-cache directory that is present.
+// The flag is_global_cache tells whether this cache is /data/dalvik-cache.
 void GetDalvikCache(const char* subdir, bool create_if_absent, std::string* dalvik_cache,
-                    bool* have_android_data, bool* dalvik_cache_exists);
+                    bool* have_android_data, bool* dalvik_cache_exists, bool* is_global_cache);
 
 // Returns the absolute dalvik-cache path for a DexFile or OatFile. The path returned will be
 // rooted at cache_location.
@@ -499,6 +507,18 @@ void PushWord(std::vector<uint8_t>* buf, int32_t data);
 
 void EncodeUnsignedLeb128(uint32_t data, std::vector<uint8_t>* buf);
 void EncodeSignedLeb128(int32_t data, std::vector<uint8_t>* buf);
+
+// Deleter using free() for use with std::unique_ptr<>. See also UniqueCPtr<> below.
+struct FreeDelete {
+  // NOTE: Deleting a const object is valid but free() takes a non-const pointer.
+  void operator()(const void* ptr) const {
+    free(const_cast<void*>(ptr));
+  }
+};
+
+// Alias for std::unique_ptr<> that uses the C function free() to delete objects.
+template <typename T>
+using UniqueCPtr = std::unique_ptr<T, FreeDelete>;
 
 }  // namespace art
 

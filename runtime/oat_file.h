@@ -40,6 +40,10 @@ class OatHeader;
 
 class OatFile {
  public:
+  // Opens an oat file contained within the given elf file. This is always opened as
+  // non-executable at the moment.
+  static OatFile* OpenWithElfFile(ElfFile* elf_file, const std::string& location,
+                                  std::string* error_msg);
   // Open an oat file. Returns NULL on failure.  Requested base can
   // optionally be used to request where the file should be loaded.
   static OatFile* Open(const std::string& filename,
@@ -63,6 +67,10 @@ class OatFile {
                              std::string* error_msg);
 
   ~OatFile();
+
+  bool IsExecutable() const {
+    return is_executable_;
+  }
 
   ElfFile* GetElfFile() const {
     CHECK_NE(reinterpret_cast<uintptr_t>(elf_file_.get()), reinterpret_cast<uintptr_t>(nullptr))
@@ -106,13 +114,22 @@ class OatFile {
       }
     }
 
+    // Returns 0.
     uint32_t GetPortableCodeSize() const {
       // TODO: With Quick, we store the size before the code. With Portable, the code is in a .o
       // file we don't manage ourselves. ELF symbols do have a concept of size, so we could capture
       // that and store it somewhere, such as the OatMethod.
       return 0;
     }
+
+    // Returns size of quick code.
     uint32_t GetQuickCodeSize() const;
+    uint32_t GetQuickCodeSizeOffset() const;
+
+    // Returns OatQuickMethodHeader for debugging. Most callers should
+    // use more specific methods such as GetQuickCodeSize.
+    const OatQuickMethodHeader* GetOatQuickMethodHeader() const;
+    uint32_t GetOatQuickMethodHeaderOffset() const;
 
     const uint8_t* GetNativeGcMap() const {
       return GetOatPointer<const uint8_t*>(native_gc_map_offset_);
@@ -121,17 +138,28 @@ class OatFile {
     size_t GetFrameSizeInBytes() const;
     uint32_t GetCoreSpillMask() const;
     uint32_t GetFpSpillMask() const;
-    uint32_t GetMappingTableOffset() const;
-    uint32_t GetVmapTableOffset() const;
-    const uint8_t* GetMappingTable() const;
-    const uint8_t* GetVmapTable() const;
 
-    ~OatMethod();
+    const uint8_t* GetMappingTable() const;
+    uint32_t GetMappingTableOffset() const;
+    uint32_t GetMappingTableOffsetOffset() const;
+
+    const uint8_t* GetVmapTable() const;
+    uint32_t GetVmapTableOffset() const;
+    uint32_t GetVmapTableOffsetOffset() const;
 
     // Create an OatMethod with offsets relative to the given base address
-    OatMethod(const byte* base,
-              const uint32_t code_offset,
-              const uint32_t gc_map_offset);
+    OatMethod(const byte* base, const uint32_t code_offset, const uint32_t gc_map_offset)
+      : begin_(base),
+        code_offset_(code_offset),
+        native_gc_map_offset_(gc_map_offset) {
+    }
+    ~OatMethod() {}
+
+    // A representation of an invalid OatMethod, used when an OatMethod or OatClass can't be found.
+    // See ClassLinker::FindOatMethodFor.
+    static const OatMethod Invalid() {
+      return OatMethod(nullptr, -1, -1);
+    }
 
    private:
     template<class T>
@@ -142,10 +170,10 @@ class OatFile {
       return reinterpret_cast<T>(begin_ + offset);
     }
 
-    const byte* begin_;
+    const byte* const begin_;
 
-    uint32_t code_offset_;
-    uint32_t native_gc_map_offset_;
+    const uint32_t code_offset_;
+    const uint32_t native_gc_map_offset_;
 
     friend class OatClass;
   };
@@ -161,10 +189,27 @@ class OatFile {
     }
 
     // Get the OatMethod entry based on its index into the class
-    // defintion. direct methods come first, followed by virtual
-    // methods. note that runtime created methods such as miranda
+    // defintion. Direct methods come first, followed by virtual
+    // methods. Note that runtime created methods such as miranda
     // methods are not included.
     const OatMethod GetOatMethod(uint32_t method_index) const;
+
+    // Return a pointer to the OatMethodOffsets for the requested
+    // method_index, or nullptr if none is present. Note that most
+    // callers should use GetOatMethod.
+    const OatMethodOffsets* GetOatMethodOffsets(uint32_t method_index) const;
+
+    // Return the offset from the start of the OatFile to the
+    // OatMethodOffsets for the requested method_index, or 0 if none
+    // is present. Note that most callers should use GetOatMethod.
+    uint32_t GetOatMethodOffsetsOffset(uint32_t method_index) const;
+
+    // A representation of an invalid OatClass, used when an OatClass can't be found.
+    // See ClassLinker::FindOatClass.
+    static OatClass Invalid() {
+      return OatClass(nullptr, mirror::Class::kStatusError, kOatClassNoneCompiled, 0, nullptr,
+                      nullptr);
+    }
 
    private:
     OatClass(const OatFile* oat_file,
@@ -182,7 +227,7 @@ class OatFile {
 
     const uint32_t* const bitmap_;
 
-    const OatMethodOffsets* methods_pointer_;
+    const OatMethodOffsets* const methods_pointer_;
 
     friend class OatDexFile;
   };
@@ -192,12 +237,21 @@ class OatFile {
     // Opens the DexFile referred to by this OatDexFile from within the containing OatFile.
     const DexFile* OpenDexFile(std::string* error_msg) const;
 
+    const OatFile* GetOatFile() const {
+      return oat_file_;
+    }
+
     // Returns the size of the DexFile refered to by this OatDexFile.
     size_t FileSize() const;
 
     // Returns original path of DexFile that was the source of this OatDexFile.
     const std::string& GetDexFileLocation() const {
       return dex_file_location_;
+    }
+
+    // Returns the canonical location of DexFile that was the source of this OatDexFile.
+    const std::string& GetCanonicalDexFileLocation() const {
+      return canonical_dex_file_location_;
     }
 
     // Returns checksum of original DexFile that was the source of this OatDexFile;
@@ -208,17 +262,22 @@ class OatFile {
     // Returns the OatClass for the class specified by the given DexFile class_def_index.
     OatClass GetOatClass(uint16_t class_def_index) const;
 
+    // Returns the offset to the OatClass information. Most callers should use GetOatClass.
+    uint32_t GetOatClassOffset(uint16_t class_def_index) const;
+
     ~OatDexFile();
 
    private:
     OatDexFile(const OatFile* oat_file,
                const std::string& dex_file_location,
+               const std::string& canonical_dex_file_location,
                uint32_t dex_file_checksum,
                const byte* dex_file_pointer,
                const uint32_t* oat_class_offsets_pointer);
 
     const OatFile* const oat_file_;
     const std::string dex_file_location_;
+    const std::string canonical_dex_file_location_;
     const uint32_t dex_file_location_checksum_;
     const byte* const dex_file_pointer_;
     const uint32_t* const oat_class_offsets_pointer_;
@@ -232,7 +291,9 @@ class OatFile {
                                   bool exception_if_not_found = true) const
       LOCKS_EXCLUDED(secondary_lookup_lock_);
 
-  std::vector<const OatDexFile*> GetOatDexFiles() const;
+  const std::vector<const OatDexFile*>& GetOatDexFiles() const {
+    return oat_dex_files_storage_;
+  }
 
   size_t Size() const {
     return End() - Begin();
@@ -256,7 +317,7 @@ class OatFile {
                               bool executable,
                               std::string* error_msg);
 
-  explicit OatFile(const std::string& filename);
+  explicit OatFile(const std::string& filename, bool executable);
   bool Dlopen(const std::string& elf_filename, byte* requested_base, std::string* error_msg);
   bool ElfFileOpen(File* file, byte* requested_base, bool writable, bool executable,
                    std::string* error_msg);
@@ -273,6 +334,9 @@ class OatFile {
   // Pointer to end of oat region for bounds checking.
   const byte* end_;
 
+  // Was this oat_file loaded executable?
+  const bool is_executable_;
+
   // Backing memory map for oat file during when opened by ElfWriter during initial compilation.
   std::unique_ptr<MemMap> mem_map_;
 
@@ -282,18 +346,21 @@ class OatFile {
   // dlopen handle during runtime.
   void* dlopen_handle_;
 
+  // Owning storage for the OatDexFile objects.
+  std::vector<const OatDexFile*> oat_dex_files_storage_;
+
   // NOTE: We use a StringPiece as the key type to avoid a memory allocation on every
   // lookup with a const char* key. The StringPiece doesn't own its backing storage,
   // therefore we're using the OatDexFile::dex_file_location_ as the backing storage
   // for keys in oat_dex_files_ and the string_cache_ entries for the backing storage
   // of keys in secondary_oat_dex_files_ and oat_dex_files_by_canonical_location_.
-  typedef SafeMap<StringPiece, const OatDexFile*> Table;
+  typedef AllocationTrackingSafeMap<StringPiece, const OatDexFile*, kAllocatorTagOatFile> Table;
 
-  // Map each plain dex file location retrieved from the oat file to its OatDexFile.
-  // This map doesn't change after it's constructed in Setup() and therefore doesn't
-  // need any locking and provides the cheapest dex file lookup for GetOatDexFile()
-  // for a very frequent use case. Never contains a nullptr value.
-  Table oat_dex_files_;                         // Owns the OatDexFile* values.
+  // Map each location and canonical location (if different) retrieved from the
+  // oat file to its OatDexFile. This map doesn't change after it's constructed in Setup()
+  // and therefore doesn't need any locking and provides the cheapest dex file lookup
+  // for GetOatDexFile() for a very frequent use case. Never contains a nullptr value.
+  Table oat_dex_files_;
 
   // Lock guarding all members needed for secondary lookup in GetOatDexFile().
   mutable Mutex secondary_lookup_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
@@ -303,10 +370,6 @@ class OatFile {
   // failed (null). If it doesn't contain an entry we need to calculate the canonical
   // location and use oat_dex_files_by_canonical_location_.
   mutable Table secondary_oat_dex_files_ GUARDED_BY(secondary_lookup_lock_);
-
-  // Map the canonical location to an OatDexFile. This lazily constructed map is used
-  // when we're doing the secondary lookup for a given location for the first time.
-  mutable Table oat_dex_files_by_canonical_location_ GUARDED_BY(secondary_lookup_lock_);
 
   // Cache of strings. Contains the backing storage for keys in the secondary_oat_dex_files_
   // and the lazily initialized oat_dex_files_by_canonical_location_.

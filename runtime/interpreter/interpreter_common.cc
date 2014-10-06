@@ -32,7 +32,7 @@ bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst
   const bool is_static = (find_type == StaticObjectRead) || (find_type == StaticPrimitiveRead);
   const uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
   ArtField* f = FindFieldFromCode<find_type, do_access_check>(field_idx, shadow_frame.GetMethod(), self,
-                                                              Primitive::FieldSize(field_type));
+                                                              Primitive::ComponentSize(field_type));
   if (UNLIKELY(f == nullptr)) {
     CHECK(self->IsExceptionPending());
     return false;
@@ -96,22 +96,22 @@ bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst
     EXPLICIT_DO_FIELD_GET_TEMPLATE_DECL(_find_type, _field_type, true);
 
 // iget-XXX
-EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(InstancePrimitiveRead, Primitive::kPrimBoolean);
-EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(InstancePrimitiveRead, Primitive::kPrimByte);
-EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(InstancePrimitiveRead, Primitive::kPrimChar);
-EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(InstancePrimitiveRead, Primitive::kPrimShort);
-EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(InstancePrimitiveRead, Primitive::kPrimInt);
-EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(InstancePrimitiveRead, Primitive::kPrimLong);
-EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(InstanceObjectRead, Primitive::kPrimNot);
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(InstancePrimitiveRead, Primitive::kPrimBoolean)
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(InstancePrimitiveRead, Primitive::kPrimByte)
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(InstancePrimitiveRead, Primitive::kPrimChar)
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(InstancePrimitiveRead, Primitive::kPrimShort)
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(InstancePrimitiveRead, Primitive::kPrimInt)
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(InstancePrimitiveRead, Primitive::kPrimLong)
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(InstanceObjectRead, Primitive::kPrimNot)
 
 // sget-XXX
-EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(StaticPrimitiveRead, Primitive::kPrimBoolean);
-EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(StaticPrimitiveRead, Primitive::kPrimByte);
-EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(StaticPrimitiveRead, Primitive::kPrimChar);
-EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(StaticPrimitiveRead, Primitive::kPrimShort);
-EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(StaticPrimitiveRead, Primitive::kPrimInt);
-EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(StaticPrimitiveRead, Primitive::kPrimLong);
-EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(StaticObjectRead, Primitive::kPrimNot);
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(StaticPrimitiveRead, Primitive::kPrimBoolean)
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(StaticPrimitiveRead, Primitive::kPrimByte)
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(StaticPrimitiveRead, Primitive::kPrimChar)
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(StaticPrimitiveRead, Primitive::kPrimShort)
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(StaticPrimitiveRead, Primitive::kPrimInt)
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(StaticPrimitiveRead, Primitive::kPrimLong)
+EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(StaticObjectRead, Primitive::kPrimNot)
 
 #undef EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL
 #undef EXPLICIT_DO_FIELD_GET_TEMPLATE_DECL
@@ -208,7 +208,7 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
   bool is_static = (find_type == StaticObjectWrite) || (find_type == StaticPrimitiveWrite);
   uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
   ArtField* f = FindFieldFromCode<find_type, do_access_check>(field_idx, shadow_frame.GetMethod(), self,
-                                                              Primitive::FieldSize(field_type));
+                                                              Primitive::ComponentSize(field_type));
   if (UNLIKELY(f == nullptr)) {
     CHECK(self->IsExceptionPending());
     return false;
@@ -270,12 +270,13 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
         }
         if (!reg->VerifierInstanceOf(field_class)) {
           // This should never happen.
+          std::string temp1, temp2, temp3;
           self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
                                    "Ljava/lang/VirtualMachineError;",
                                    "Put '%s' that is not instance of field '%s' in '%s'",
-                                   reg->GetClass()->GetDescriptor().c_str(),
-                                   field_class->GetDescriptor().c_str(),
-                                   f->GetDeclaringClass()->GetDescriptor().c_str());
+                                   reg->GetClass()->GetDescriptor(&temp1),
+                                   field_class->GetDescriptor(&temp2),
+                                   f->GetDeclaringClass()->GetDescriptor(&temp3));
           return false;
         }
       }
@@ -300,22 +301,22 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
     EXPLICIT_DO_FIELD_PUT_TEMPLATE_DECL(_find_type, _field_type, true, true);
 
 // iput-XXX
-EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(InstancePrimitiveWrite, Primitive::kPrimBoolean);
-EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(InstancePrimitiveWrite, Primitive::kPrimByte);
-EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(InstancePrimitiveWrite, Primitive::kPrimChar);
-EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(InstancePrimitiveWrite, Primitive::kPrimShort);
-EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(InstancePrimitiveWrite, Primitive::kPrimInt);
-EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(InstancePrimitiveWrite, Primitive::kPrimLong);
-EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(InstanceObjectWrite, Primitive::kPrimNot);
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(InstancePrimitiveWrite, Primitive::kPrimBoolean)
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(InstancePrimitiveWrite, Primitive::kPrimByte)
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(InstancePrimitiveWrite, Primitive::kPrimChar)
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(InstancePrimitiveWrite, Primitive::kPrimShort)
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(InstancePrimitiveWrite, Primitive::kPrimInt)
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(InstancePrimitiveWrite, Primitive::kPrimLong)
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(InstanceObjectWrite, Primitive::kPrimNot)
 
 // sput-XXX
-EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(StaticPrimitiveWrite, Primitive::kPrimBoolean);
-EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(StaticPrimitiveWrite, Primitive::kPrimByte);
-EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(StaticPrimitiveWrite, Primitive::kPrimChar);
-EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(StaticPrimitiveWrite, Primitive::kPrimShort);
-EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(StaticPrimitiveWrite, Primitive::kPrimInt);
-EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(StaticPrimitiveWrite, Primitive::kPrimLong);
-EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(StaticObjectWrite, Primitive::kPrimNot);
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(StaticPrimitiveWrite, Primitive::kPrimBoolean)
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(StaticPrimitiveWrite, Primitive::kPrimByte)
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(StaticPrimitiveWrite, Primitive::kPrimChar)
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(StaticPrimitiveWrite, Primitive::kPrimShort)
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(StaticPrimitiveWrite, Primitive::kPrimInt)
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(StaticPrimitiveWrite, Primitive::kPrimLong)
+EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(StaticObjectWrite, Primitive::kPrimNot)
 
 #undef EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL
 #undef EXPLICIT_DO_FIELD_PUT_TEMPLATE_DECL
@@ -345,6 +346,18 @@ bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instruction* inst, uint1
   }
   // Note: iput-x-quick instructions are only for non-volatile fields.
   switch (field_type) {
+    case Primitive::kPrimBoolean:
+      obj->SetFieldBoolean<transaction_active>(field_offset, shadow_frame.GetVReg(vregA));
+      break;
+    case Primitive::kPrimByte:
+      obj->SetFieldByte<transaction_active>(field_offset, shadow_frame.GetVReg(vregA));
+      break;
+    case Primitive::kPrimChar:
+      obj->SetFieldChar<transaction_active>(field_offset, shadow_frame.GetVReg(vregA));
+      break;
+    case Primitive::kPrimShort:
+      obj->SetFieldShort<transaction_active>(field_offset, shadow_frame.GetVReg(vregA));
+      break;
     case Primitive::kPrimInt:
       obj->SetField32<transaction_active>(field_offset, shadow_frame.GetVReg(vregA));
       break;
@@ -370,9 +383,13 @@ bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instruction* inst, uint1
   EXPLICIT_DO_IPUT_QUICK_TEMPLATE_DECL(_field_type, false);     \
   EXPLICIT_DO_IPUT_QUICK_TEMPLATE_DECL(_field_type, true);
 
-EXPLICIT_DO_IPUT_QUICK_ALL_TEMPLATE_DECL(Primitive::kPrimInt);    // iget-quick.
-EXPLICIT_DO_IPUT_QUICK_ALL_TEMPLATE_DECL(Primitive::kPrimLong);   // iget-wide-quick.
-EXPLICIT_DO_IPUT_QUICK_ALL_TEMPLATE_DECL(Primitive::kPrimNot);    // iget-object-quick.
+EXPLICIT_DO_IPUT_QUICK_ALL_TEMPLATE_DECL(Primitive::kPrimInt)      // iput-quick.
+EXPLICIT_DO_IPUT_QUICK_ALL_TEMPLATE_DECL(Primitive::kPrimBoolean)  // iput-boolean-quick.
+EXPLICIT_DO_IPUT_QUICK_ALL_TEMPLATE_DECL(Primitive::kPrimByte)     // iput-byte-quick.
+EXPLICIT_DO_IPUT_QUICK_ALL_TEMPLATE_DECL(Primitive::kPrimChar)     // iput-char-quick.
+EXPLICIT_DO_IPUT_QUICK_ALL_TEMPLATE_DECL(Primitive::kPrimShort)    // iput-short-quick.
+EXPLICIT_DO_IPUT_QUICK_ALL_TEMPLATE_DECL(Primitive::kPrimLong)     // iput-wide-quick.
+EXPLICIT_DO_IPUT_QUICK_ALL_TEMPLATE_DECL(Primitive::kPrimNot)      // iput-object-quick.
 #undef EXPLICIT_DO_IPUT_QUICK_ALL_TEMPLATE_DECL
 #undef EXPLICIT_DO_IPUT_QUICK_TEMPLATE_DECL
 
@@ -438,7 +455,7 @@ class CatchLocationFinder : public StackVisitor {
   Thread* const self_;
   StackHandleScope<1> handle_scope_;
   Handle<mirror::Throwable>* exception_;
-  Handle<mirror::ArtMethod> catch_method_;
+  MutableHandle<mirror::ArtMethod> catch_method_;
   uint32_t catch_dex_pc_;
   bool clear_exception_;
 
@@ -588,12 +605,13 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
             }
             if (!o->VerifierInstanceOf(arg_type)) {
               // This should never happen.
+              std::string temp1, temp2;
               self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
                                        "Ljava/lang/VirtualMachineError;",
                                        "Invoking %s with bad arg %d, type '%s' not instance of '%s'",
                                        method->GetName(), shorty_pos,
-                                       o->GetClass()->GetDescriptor().c_str(),
-                                       arg_type->GetDescriptor().c_str());
+                                       o->GetClass()->GetDescriptor(&temp1),
+                                       arg_type->GetDescriptor(&temp2));
               return false;
             }
           }
@@ -690,7 +708,8 @@ bool DoFilledNewArray(const Instruction* inst, const ShadowFrame& shadow_frame,
     }
     return false;
   }
-  Object* newArray = Array::Alloc<true>(self, arrayClass, length, arrayClass->GetComponentSize(),
+  Object* newArray = Array::Alloc<true>(self, arrayClass, length,
+                                        arrayClass->GetComponentSizeShift(),
                                         Runtime::Current()->GetHeap()->GetCurrentAllocator());
   if (UNLIKELY(newArray == NULL)) {
     DCHECK(self->IsExceptionPending());
@@ -775,14 +794,14 @@ static void UnstartedRuntimeFindClass(Thread* self, Handle<mirror::String> class
   if (found == nullptr && abort_if_not_found) {
     if (!self->IsExceptionPending()) {
       AbortTransaction(self, "%s failed in un-started runtime for class: %s",
-                       method_name.c_str(), PrettyDescriptor(descriptor).c_str());
+                       method_name.c_str(), PrettyDescriptor(descriptor.c_str()).c_str());
     }
     return;
   }
   if (found != nullptr && initialize_class) {
     StackHandleScope<1> hs(self);
     Handle<mirror::Class> h_class(hs.NewHandle(found));
-    if (!class_linker->EnsureInitialized(h_class, true, true)) {
+    if (!class_linker->EnsureInitialized(self, h_class, true, true)) {
       CHECK(self->IsExceptionPending());
       return;
     }

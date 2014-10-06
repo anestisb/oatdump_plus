@@ -91,6 +91,8 @@ class LocationsBuilderX86_64 : public HGraphVisitor {
 
 #undef DECLARE_VISIT_INSTRUCTION
 
+  void HandleInvoke(HInvoke* invoke);
+
  private:
   CodeGeneratorX86_64* const codegen_;
   InvokeDexCallingConventionVisitor parameter_visitor_;
@@ -114,6 +116,11 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
   X86_64Assembler* GetAssembler() const { return assembler_; }
 
  private:
+  // Generate code for the given suspend check. If not null, `successor`
+  // is the block to branch to if the suspend check is not needed, and after
+  // the suspend call.
+  void GenerateSuspendCheck(HSuspendCheck* instruction, HBasicBlock* successor);
+
   X86_64Assembler* const assembler_;
   CodeGeneratorX86_64* const codegen_;
 
@@ -129,6 +136,8 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   virtual void GenerateFrameExit() OVERRIDE;
   virtual void Bind(Label* label) OVERRIDE;
   virtual void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
+  virtual void SaveCoreRegister(Location stack_location, uint32_t reg_id) OVERRIDE;
+  virtual void RestoreCoreRegister(Location stack_location, uint32_t reg_id) OVERRIDE;
 
   virtual size_t GetWordSize() const OVERRIDE {
     return kX86_64WordSize;

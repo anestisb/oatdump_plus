@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "base/bit_vector-inl.h"
 #include "compiler_internals.h"
 #include "global_value_numbering.h"
 #include "local_value_numbering.h"
@@ -21,21 +22,22 @@
 #include "dex/global_value_numbering.h"
 #include "dex/quick/dex_file_method_inliner.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
+#include "stack.h"
 #include "utils/scoped_arena_containers.h"
 
 namespace art {
 
 static unsigned int Predecessors(BasicBlock* bb) {
-  return bb->predecessors->Size();
+  return bb->predecessors.size();
 }
 
 /* Setup a constant value for opcodes thare have the DF_SETS_CONST attribute */
-void MIRGraph::SetConstant(int32_t ssa_reg, int value) {
+void MIRGraph::SetConstant(int32_t ssa_reg, int32_t value) {
   is_constant_v_->SetBit(ssa_reg);
   constant_values_[ssa_reg] = value;
 }
 
-void MIRGraph::SetConstantWide(int ssa_reg, int64_t value) {
+void MIRGraph::SetConstantWide(int32_t ssa_reg, int64_t value) {
   is_constant_v_->SetBit(ssa_reg);
   is_constant_v_->SetBit(ssa_reg + 1);
   constant_values_[ssa_reg] = Low32Bits(value);
@@ -228,17 +230,31 @@ COMPILE_ASSERT(ConditionCodeForIfCcZ(Instruction::IF_GTZ) == kCondGt, check_if_g
 COMPILE_ASSERT(ConditionCodeForIfCcZ(Instruction::IF_LEZ) == kCondLe, check_if_lez_ccode);
 
 int MIRGraph::GetSSAUseCount(int s_reg) {
-  return raw_use_counts_.Get(s_reg);
+  DCHECK_LT(static_cast<size_t>(s_reg), ssa_subscripts_.size());
+  return raw_use_counts_[s_reg];
 }
 
-size_t MIRGraph::GetNumAvailableNonSpecialCompilerTemps() {
-  if (num_non_special_compiler_temps_ >= max_available_non_special_compiler_temps_) {
+size_t MIRGraph::GetNumBytesForSpecialTemps() const {
+  // This logic is written with assumption that Method* is only special temp.
+  DCHECK_EQ(max_available_special_compiler_temps_, 1u);
+  return sizeof(StackReference<mirror::ArtMethod>);
+}
+
+size_t MIRGraph::GetNumAvailableVRTemps() {
+  // First take into account all temps reserved for backend.
+  if (max_available_non_special_compiler_temps_ < reserved_temps_for_backend_) {
+    return 0;
+  }
+
+  // Calculate remaining ME temps available.
+  size_t remaining_me_temps = max_available_non_special_compiler_temps_ - reserved_temps_for_backend_;
+
+  if (num_non_special_compiler_temps_ >= remaining_me_temps) {
     return 0;
   } else {
-    return max_available_non_special_compiler_temps_ - num_non_special_compiler_temps_;
+    return remaining_me_temps - num_non_special_compiler_temps_;
   }
 }
-
 
 // FIXME - will probably need to revisit all uses of this, as type not defined.
 static const RegLocation temp_loc = {kLocCompilerTemp,
@@ -246,12 +262,31 @@ static const RegLocation temp_loc = {kLocCompilerTemp,
                                      RegStorage(), INVALID_SREG, INVALID_SREG};
 
 CompilerTemp* MIRGraph::GetNewCompilerTemp(CompilerTempType ct_type, bool wide) {
-  // There is a limit to the number of non-special temps so check to make sure it wasn't exceeded.
-  if (ct_type == kCompilerTempVR) {
-    size_t available_temps = GetNumAvailableNonSpecialCompilerTemps();
-    if (available_temps <= 0 || (available_temps <= 1 && wide)) {
-      return 0;
+  // Once the compiler temps have been committed, new ones cannot be requested anymore.
+  DCHECK_EQ(compiler_temps_committed_, false);
+  // Make sure that reserved for BE set is sane.
+  DCHECK_LE(reserved_temps_for_backend_, max_available_non_special_compiler_temps_);
+
+  bool verbose = cu_->verbose;
+  const char* ct_type_str = nullptr;
+
+  if (verbose) {
+    switch (ct_type) {
+      case kCompilerTempBackend:
+        ct_type_str = "backend";
+        break;
+      case kCompilerTempSpecialMethodPtr:
+        ct_type_str = "method*";
+        break;
+      case kCompilerTempVR:
+        ct_type_str = "VR";
+        break;
+      default:
+        ct_type_str = "unknown";
+        break;
     }
+    LOG(INFO) << "CompilerTemps: A compiler temp of type " << ct_type_str << " that is "
+        << (wide ? "wide is being requested." : "not wide is being requested.");
   }
 
   CompilerTemp *compiler_temp = static_cast<CompilerTemp *>(arena_->Alloc(sizeof(CompilerTemp),
@@ -260,51 +295,100 @@ CompilerTemp* MIRGraph::GetNewCompilerTemp(CompilerTempType ct_type, bool wide) 
   // Create the type of temp requested. Special temps need special handling because
   // they have a specific virtual register assignment.
   if (ct_type == kCompilerTempSpecialMethodPtr) {
+    // This has a special location on stack which is 32-bit or 64-bit depending
+    // on mode. However, we don't want to overlap with non-special section
+    // and thus even for 64-bit, we allow only a non-wide temp to be requested.
     DCHECK_EQ(wide, false);
-    compiler_temp->v_reg = static_cast<int>(kVRegMethodPtrBaseReg);
-    compiler_temp->s_reg_low = AddNewSReg(compiler_temp->v_reg);
 
-    // The MIR graph keeps track of the sreg for method pointer specially, so record that now.
-    method_sreg_ = compiler_temp->s_reg_low;
+    // The vreg is always the first special temp for method ptr.
+    compiler_temp->v_reg = GetFirstSpecialTempVR();
+
+  } else if (ct_type == kCompilerTempBackend) {
+    requested_backend_temp_ = true;
+
+    // Make sure that we are not exceeding temps reserved for BE.
+    // Since VR temps cannot be requested once the BE temps are requested, we
+    // allow reservation of VR temps as well for BE. We
+    size_t available_temps = reserved_temps_for_backend_ + GetNumAvailableVRTemps();
+    if (available_temps <= 0 || (available_temps <= 1 && wide)) {
+      if (verbose) {
+        LOG(INFO) << "CompilerTemps: Not enough temp(s) of type " << ct_type_str << " are available.";
+      }
+      return nullptr;
+    }
+
+    // Update the remaining reserved temps since we have now used them.
+    // Note that the code below is actually subtracting to remove them from reserve
+    // once they have been claimed. It is careful to not go below zero.
+    if (reserved_temps_for_backend_ >= 1) {
+      reserved_temps_for_backend_--;
+    }
+    if (wide && reserved_temps_for_backend_ >= 1) {
+      reserved_temps_for_backend_--;
+    }
+
+    // The new non-special compiler temp must receive a unique v_reg.
+    compiler_temp->v_reg = GetFirstNonSpecialTempVR() + num_non_special_compiler_temps_;
+    num_non_special_compiler_temps_++;
+  } else if (ct_type == kCompilerTempVR) {
+    // Once we start giving out BE temps, we don't allow anymore ME temps to be requested.
+    // This is done in order to prevent problems with ssa since these structures are allocated
+    // and managed by the ME.
+    DCHECK_EQ(requested_backend_temp_, false);
+
+    // There is a limit to the number of non-special temps so check to make sure it wasn't exceeded.
+    size_t available_temps = GetNumAvailableVRTemps();
+    if (available_temps <= 0 || (available_temps <= 1 && wide)) {
+      if (verbose) {
+        LOG(INFO) << "CompilerTemps: Not enough temp(s) of type " << ct_type_str << " are available.";
+      }
+      return nullptr;
+    }
+
+    // The new non-special compiler temp must receive a unique v_reg.
+    compiler_temp->v_reg = GetFirstNonSpecialTempVR() + num_non_special_compiler_temps_;
+    num_non_special_compiler_temps_++;
   } else {
-    DCHECK_EQ(ct_type, kCompilerTempVR);
+    UNIMPLEMENTED(FATAL) << "No handling for compiler temp type " << ct_type_str << ".";
+  }
 
-    // The new non-special compiler temp must receive a unique v_reg with a negative value.
-    compiler_temp->v_reg = static_cast<int>(kVRegNonSpecialTempBaseReg) -
-        num_non_special_compiler_temps_;
-    compiler_temp->s_reg_low = AddNewSReg(compiler_temp->v_reg);
+  // We allocate an sreg as well to make developer life easier.
+  // However, if this is requested from an ME pass that will recalculate ssa afterwards,
+  // this sreg is no longer valid. The caller should be aware of this.
+  compiler_temp->s_reg_low = AddNewSReg(compiler_temp->v_reg);
+
+  if (verbose) {
+    LOG(INFO) << "CompilerTemps: New temp of type " << ct_type_str << " with v" << compiler_temp->v_reg
+        << " and s" << compiler_temp->s_reg_low << " has been created.";
+  }
+
+  if (wide) {
+    // Only non-special temps are handled as wide for now.
+    // Note that the number of non special temps is incremented below.
+    DCHECK(ct_type == kCompilerTempBackend || ct_type == kCompilerTempVR);
+
+    // Ensure that the two registers are consecutive.
+    int ssa_reg_low = compiler_temp->s_reg_low;
+    int ssa_reg_high = AddNewSReg(compiler_temp->v_reg + 1);
     num_non_special_compiler_temps_++;
 
-    if (wide) {
-      // Create a new CompilerTemp for the high part.
-      CompilerTemp *compiler_temp_high =
-          static_cast<CompilerTemp *>(arena_->Alloc(sizeof(CompilerTemp), kArenaAllocRegAlloc));
-      compiler_temp_high->v_reg = compiler_temp->v_reg;
-      compiler_temp_high->s_reg_low = compiler_temp->s_reg_low;
-      compiler_temps_.Insert(compiler_temp_high);
+    if (verbose) {
+      LOG(INFO) << "CompilerTemps: The wide part of temp of type " << ct_type_str << " is v"
+          << compiler_temp->v_reg + 1 << " and s" << ssa_reg_high << ".";
+    }
 
-      // Ensure that the two registers are consecutive. Since the virtual registers used for temps
-      // grow in a negative fashion, we need the smaller to refer to the low part. Thus, we
-      // redefine the v_reg and s_reg_low.
-      compiler_temp->v_reg--;
-      int ssa_reg_high = compiler_temp->s_reg_low;
-      compiler_temp->s_reg_low = AddNewSReg(compiler_temp->v_reg);
-      int ssa_reg_low = compiler_temp->s_reg_low;
-
-      // If needed initialize the register location for the high part.
-      // The low part is handled later in this method on a common path.
-      if (reg_location_ != nullptr) {
-        reg_location_[ssa_reg_high] = temp_loc;
-        reg_location_[ssa_reg_high].high_word = 1;
-        reg_location_[ssa_reg_high].s_reg_low = ssa_reg_low;
-        reg_location_[ssa_reg_high].wide = true;
-      }
-
-      num_non_special_compiler_temps_++;
+    if (reg_location_ != nullptr) {
+      reg_location_[ssa_reg_high] = temp_loc;
+      reg_location_[ssa_reg_high].high_word = true;
+      reg_location_[ssa_reg_high].s_reg_low = ssa_reg_low;
+      reg_location_[ssa_reg_high].wide = true;
     }
   }
 
-  // Have we already allocated the register locations?
+  // If the register locations have already been allocated, add the information
+  // about the temp. We will not overflow because they have been initialized
+  // to support the maximum number of temps. For ME temps that have multiple
+  // ssa versions, the structures below will be expanded on the post pass cleanup.
   if (reg_location_ != nullptr) {
     int ssa_reg_low = compiler_temp->s_reg_low;
     reg_location_[ssa_reg_low] = temp_loc;
@@ -312,7 +396,6 @@ CompilerTemp* MIRGraph::GetNewCompilerTemp(CompilerTempType ct_type, bool wide) 
     reg_location_[ssa_reg_low].wide = wide;
   }
 
-  compiler_temps_.Insert(compiler_temp);
   return compiler_temp;
 }
 
@@ -596,26 +679,41 @@ void MIRGraph::CountChecks(struct BasicBlock* bb) {
   }
 }
 
-/* Try to make common case the fallthrough path */
+/* Try to make common case the fallthrough path. */
 bool MIRGraph::LayoutBlocks(BasicBlock* bb) {
-  // TODO: For now, just looking for direct throws.  Consider generalizing for profile feedback
+  // TODO: For now, just looking for direct throws.  Consider generalizing for profile feedback.
   if (!bb->explicit_throw) {
     return false;
   }
+
+  // If we visited it, we are done.
+  if (bb->visited) {
+    return false;
+  }
+  bb->visited = true;
+
   BasicBlock* walker = bb;
   while (true) {
-    // Check termination conditions
+    // Check termination conditions.
     if ((walker->block_type == kEntryBlock) || (Predecessors(walker) != 1)) {
       break;
     }
-    BasicBlock* prev = GetBasicBlock(walker->predecessors->Get(0));
+    DCHECK(!walker->predecessors.empty());
+    BasicBlock* prev = GetBasicBlock(walker->predecessors[0]);
+
+    // If we visited the predecessor, we are done.
+    if (prev->visited) {
+      return false;
+    }
+    prev->visited = true;
+
     if (prev->conditional_branch) {
       if (GetBasicBlock(prev->fall_through) == walker) {
-        // Already done - return
+        // Already done - return.
         break;
       }
       DCHECK_EQ(walker, GetBasicBlock(prev->taken));
-      // Got one.  Flip it and exit
+      // Got one.  Flip it and exit.
       Instruction::Code opcode = prev->last_mir_insn->dalvikInsn.opcode;
       switch (opcode) {
         case Instruction::IF_EQ: opcode = Instruction::IF_NE; break;
@@ -639,6 +737,10 @@ bool MIRGraph::LayoutBlocks(BasicBlock* bb) {
       break;
     }
     walker = prev;
+
+    if (walker->visited) {
+      break;
+    }
   }
   return false;
 }
@@ -684,7 +786,7 @@ void MIRGraph::CombineBlocks(struct BasicBlock* bb) {
     *bb->last_mir_insn = *throw_insn;
     // Use the successor info from the next block
     bb->successor_block_list_type = bb_next->successor_block_list_type;
-    bb->successor_blocks = bb_next->successor_blocks;
+    bb->successor_blocks.swap(bb_next->successor_blocks);  // Swap instead of copying.
     // Use the ending block linkage from the next block
     bb->fall_through = bb_next->fall_through;
     GetBasicBlock(bb->taken)->block_type = kDead;  // Kill the unused exception block
@@ -747,17 +849,17 @@ bool MIRGraph::EliminateNullChecksAndInferTypes(BasicBlock* bb) {
     if (bb->block_type == kEntryBlock) {
       ssa_regs_to_check->ClearAllBits();
       // Assume all ins are objects.
-      for (uint16_t in_reg = cu_->num_dalvik_registers - cu_->num_ins;
-           in_reg < cu_->num_dalvik_registers; in_reg++) {
+      for (uint16_t in_reg = GetFirstInVR();
+           in_reg < GetNumOfCodeVRs(); in_reg++) {
         ssa_regs_to_check->SetBit(in_reg);
       }
       if ((cu_->access_flags & kAccStatic) == 0) {
         // If non-static method, mark "this" as non-null
-        int this_reg = cu_->num_dalvik_registers - cu_->num_ins;
+        int this_reg = GetFirstInVR();
         ssa_regs_to_check->ClearBit(this_reg);
       }
-    } else if (bb->predecessors->Size() == 1) {
-      BasicBlock* pred_bb = GetBasicBlock(bb->predecessors->Get(0));
+    } else if (bb->predecessors.size() == 1) {
+      BasicBlock* pred_bb = GetBasicBlock(bb->predecessors[0]);
       // pred_bb must have already been processed at least once.
       DCHECK(pred_bb->data_flow_info->ending_check_v != nullptr);
       ssa_regs_to_check->Copy(pred_bb->data_flow_info->ending_check_v);
@@ -783,25 +885,22 @@ bool MIRGraph::EliminateNullChecksAndInferTypes(BasicBlock* bb) {
       }
     } else {
       // Starting state is union of all incoming arcs
-      GrowableArray<BasicBlockId>::Iterator iter(bb->predecessors);
-      BasicBlock* pred_bb = GetBasicBlock(iter.Next());
-      CHECK(pred_bb != NULL);
-      while (pred_bb->data_flow_info->ending_check_v == nullptr) {
-        pred_bb = GetBasicBlock(iter.Next());
-        // At least one predecessor must have been processed before this bb.
+      bool copied_first = false;
+      for (BasicBlockId pred_id : bb->predecessors) {
+        BasicBlock* pred_bb = GetBasicBlock(pred_id);
         DCHECK(pred_bb != nullptr);
-        DCHECK(pred_bb->data_flow_info != nullptr);
-      }
-      ssa_regs_to_check->Copy(pred_bb->data_flow_info->ending_check_v);
-      while (true) {
-        pred_bb = GetBasicBlock(iter.Next());
-        if (!pred_bb) break;
         DCHECK(pred_bb->data_flow_info != nullptr);
         if (pred_bb->data_flow_info->ending_check_v == nullptr) {
           continue;
         }
-        ssa_regs_to_check->Union(pred_bb->data_flow_info->ending_check_v);
+        if (!copied_first) {
+          copied_first = true;
+          ssa_regs_to_check->Copy(pred_bb->data_flow_info->ending_check_v);
+        } else {
+          ssa_regs_to_check->Union(pred_bb->data_flow_info->ending_check_v);
+        }
       }
+      DCHECK(copied_first);  // At least one predecessor must have been processed before this bb.
     }
     // At this point, ssa_regs_to_check shows which sregs have an object definition with
     // no intervening uses.
@@ -967,7 +1066,7 @@ bool MIRGraph::EliminateClassInitChecksGate() {
   temp_scoped_alloc_.reset(ScopedArenaAllocator::Create(&cu_->arena_stack));
 
   // Each insn we use here has at least 2 code units, offset/2 will be a unique index.
-  const size_t end = (cu_->code_item->insns_size_in_code_units_ + 1u) / 2u;
+  const size_t end = (GetNumDalvikInsns() + 1u) / 2u;
   temp_insn_data_ = static_cast<uint16_t*>(
       temp_scoped_alloc_->Alloc(end * sizeof(*temp_insn_data_), kArenaAllocGrowableArray));
 
@@ -1056,35 +1155,31 @@ bool MIRGraph::EliminateClassInitChecks(BasicBlock* bb) {
   DCHECK(classes_to_check != nullptr);
   if (bb->block_type == kEntryBlock) {
     classes_to_check->SetInitialBits(temp_bit_vector_size_);
-  } else if (bb->predecessors->Size() == 1) {
-    BasicBlock* pred_bb = GetBasicBlock(bb->predecessors->Get(0));
+  } else if (bb->predecessors.size() == 1) {
+    BasicBlock* pred_bb = GetBasicBlock(bb->predecessors[0]);
     // pred_bb must have already been processed at least once.
     DCHECK(pred_bb != nullptr);
     DCHECK(pred_bb->data_flow_info != nullptr);
     DCHECK(pred_bb->data_flow_info->ending_check_v != nullptr);
     classes_to_check->Copy(pred_bb->data_flow_info->ending_check_v);
   } else {
-    // Starting state is union of all incoming arcs
-    GrowableArray<BasicBlockId>::Iterator iter(bb->predecessors);
-    BasicBlock* pred_bb = GetBasicBlock(iter.Next());
-    DCHECK(pred_bb != NULL);
-    DCHECK(pred_bb->data_flow_info != NULL);
-    while (pred_bb->data_flow_info->ending_check_v == nullptr) {
-      pred_bb = GetBasicBlock(iter.Next());
-      // At least one predecessor must have been processed before this bb.
+    // Starting state is union of all incoming arcs.
+    bool copied_first = false;
+    for (BasicBlockId pred_id : bb->predecessors) {
+      BasicBlock* pred_bb = GetBasicBlock(pred_id);
       DCHECK(pred_bb != nullptr);
-      DCHECK(pred_bb->data_flow_info != nullptr);
-    }
-    classes_to_check->Copy(pred_bb->data_flow_info->ending_check_v);
-    while (true) {
-      pred_bb = GetBasicBlock(iter.Next());
-      if (!pred_bb) break;
       DCHECK(pred_bb->data_flow_info != nullptr);
       if (pred_bb->data_flow_info->ending_check_v == nullptr) {
         continue;
       }
-      classes_to_check->Union(pred_bb->data_flow_info->ending_check_v);
+      if (!copied_first) {
+        copied_first = true;
+        classes_to_check->Copy(pred_bb->data_flow_info->ending_check_v);
+      } else {
+        classes_to_check->Union(pred_bb->data_flow_info->ending_check_v);
+      }
     }
+    DCHECK(copied_first);  // At least one predecessor must have been processed before this bb.
   }
   // At this point, classes_to_check shows which classes need clinit checks.
 
@@ -1212,8 +1307,8 @@ void MIRGraph::ComputeInlineIFieldLoweringInfo(uint16_t field_idx, MIR* invoke, 
   MirIFieldLoweringInfo::Resolve(cu_->compiler_driver, &inlined_unit, &inlined_field_info, 1u);
   DCHECK(inlined_field_info.IsResolved());
 
-  uint32_t field_info_index = ifield_lowering_infos_.Size();
-  ifield_lowering_infos_.Insert(inlined_field_info);
+  uint32_t field_info_index = ifield_lowering_infos_.size();
+  ifield_lowering_infos_.push_back(inlined_field_info);
   temp_bit_vector_->SetBit(method_index);
   temp_insn_data_[method_index] = field_info_index;
   iget_or_iput->meta.ifield_lowering_info = field_info_index;
@@ -1221,7 +1316,7 @@ void MIRGraph::ComputeInlineIFieldLoweringInfo(uint16_t field_idx, MIR* invoke, 
 
 bool MIRGraph::InlineSpecialMethodsGate() {
   if ((cu_->disable_opt & (1 << kSuppressMethodInlining)) != 0 ||
-      method_lowering_infos_.Size() == 0u) {
+      method_lowering_infos_.size() == 0u) {
     return false;
   }
   if (cu_->compiler_driver->GetMethodInlinerMap() == nullptr) {
@@ -1237,7 +1332,7 @@ void MIRGraph::InlineSpecialMethodsStart() {
 
   DCHECK(temp_scoped_alloc_.get() == nullptr);
   temp_scoped_alloc_.reset(ScopedArenaAllocator::Create(&cu_->arena_stack));
-  temp_bit_vector_size_ = method_lowering_infos_.Size();
+  temp_bit_vector_size_ = method_lowering_infos_.size();
   temp_bit_vector_ = new (temp_scoped_alloc_.get()) ArenaBitVector(
       temp_scoped_alloc_.get(), temp_bit_vector_size_, false, kBitMapMisc);
   temp_bit_vector_->ClearAllBits();
@@ -1253,18 +1348,27 @@ void MIRGraph::InlineSpecialMethods(BasicBlock* bb) {
     if (MIR::DecodedInstruction::IsPseudoMirOp(mir->dalvikInsn.opcode)) {
       continue;
     }
-    if (!(Instruction::FlagsOf(mir->dalvikInsn.opcode) & Instruction::kInvoke)) {
+    if (!(mir->dalvikInsn.FlagsOf() & Instruction::kInvoke)) {
       continue;
     }
     const MirMethodLoweringInfo& method_info = GetMethodLoweringInfo(mir);
     if (!method_info.FastPath()) {
       continue;
     }
+
     InvokeType sharp_type = method_info.GetSharpType();
-    if ((sharp_type != kDirect) &&
-        (sharp_type != kStatic || method_info.NeedsClassInitialization())) {
+    if ((sharp_type != kDirect) && (sharp_type != kStatic)) {
       continue;
     }
+
+    if (sharp_type == kStatic) {
+      bool needs_clinit = method_info.NeedsClassInitialization() &&
+          ((mir->optimization_flags & MIR_IGNORE_CLINIT_CHECK) == 0);
+      if (needs_clinit) {
+        continue;
+      }
+    }
+
     DCHECK(cu_->compiler_driver->GetMethodInlinerMap() != nullptr);
     MethodReference target = method_info.GetTargetMethod();
     if (cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(target.dex_file)

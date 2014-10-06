@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # Run the code in test.jar using the host-mode virtual machine. The jar should
 # contain a top-level class named Main to run.
@@ -23,6 +23,12 @@ QUIET="n"
 FLAGS=""
 COMPILER_FLAGS=""
 BUILD_BOOT_OPT=""
+PATCHOAT=""
+DEX2OAT=""
+FALSE_BIN="/bin/false"
+HAVE_IMAGE="y"
+TIME_OUT="y"
+TIME_OUT_VALUE=5m
 exe="${ANDROID_HOST_OUT}/bin/dalvikvm32"
 main="Main"
 
@@ -32,6 +38,15 @@ while true; do
         shift
     elif [ "x$1" = "x--prebuild" ]; then
         PREBUILD="y"
+        shift
+    elif [ "x$1" = "x--no-prebuild" ]; then
+        PREBUILD="n"
+        shift
+    elif [ "x$1" = "x--no-dex2oat" ]; then
+        DEX2OAT="-Xcompiler:${FALSE_BIN}"
+        shift
+    elif [ "x$1" = "x--no-patchoat" ]; then
+        PATCHOAT="-Xpatchoat:${FALSE_BIN}"
         shift
     elif [ "x$1" = "x--lib" ]; then
         shift
@@ -44,6 +59,9 @@ while true; do
             LIB=${LIB/%so/dylib}
         fi
         shift
+    elif [ "x$1" = "x--no-image" ]; then
+        HAVE_IMAGE="n"
+        shift
     elif [ "x$1" = "x--boot" ]; then
         shift
         option="$1"
@@ -52,10 +70,12 @@ while true; do
         shift
     elif [ "x$1" = "x--debug" ]; then
         DEBUGGER="y"
+        TIME_OUT="n"
         shift
     elif [ "x$1" = "x--gdb" ]; then
         GDB="y"
         DEV_MODE="y"
+        TIME_OUT="n"
         shift
     elif [ "x$1" = "x--invoke-with" ]; then
         shift
@@ -76,7 +96,7 @@ while true; do
         INTERPRETER="y"
         shift
     elif [ "x$1" = "x--64" ]; then
-        ISA="x64"
+        ISA="x86_64"
         exe="${ANDROID_HOST_OUT}/bin/dalvikvm64"
         shift
     elif [ "x$1" = "x--no-verify" ]; then
@@ -157,6 +177,11 @@ if [ "$INTERPRETER" = "y" ]; then
     COMPILER_FLAGS="${COMPILER_FLAGS} --compiler-filter=interpret-only"
 fi
 
+if [ "$HAVE_IMAGE" = "n" ]; then
+    # Set image to a place were there isn't one.
+    BOOT_OPT="-Ximage:/system/non-existant/core.art"
+fi
+
 if [ "$RELOCATE" = "y" ]; then
   FLAGS="${FLAGS} -Xrelocate"
   COMPILER_FLAGS="${COMPILER_FLAGS} --runtime-arg -Xnorelocate --include-patch-information"
@@ -164,7 +189,9 @@ if [ "$RELOCATE" = "y" ]; then
   # since we are relocating. Get the total size of the /system/framework directory
   # in 512 byte blocks and set it as the ulimit. This should be more than enough
   # room.
-  ulimit -S $(du -c -B512 ${ANDROID_ROOT}/framework | tail -1 | cut -f1) || exit 1
+  if [ ! `uname` = "Darwin" ]; then  # TODO: Darwin doesn't support "du -B..."
+    ulimit -S $(du -c -B512 ${ANDROID_ROOT}/framework | tail -1 | cut -f1) || exit 1
+  fi
 else
   FLAGS="${FLAGS} -Xnorelocate"
   COMPILER_FLAGS="${COMPILER_FLAGS} --runtime-arg -Xnorelocate --no-include-patch-information"
@@ -178,7 +205,11 @@ else
 fi
 
 JNI_OPTS="-Xjnigreflimit:512 -Xcheck:jni"
-cmdline="$INVOKE_WITH $gdb $exe $gdbargs -XXlib:$LIB $JNI_OPTS $FLAGS $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar $main"
+cmdline="$INVOKE_WITH $gdb $exe $gdbargs -XXlib:$LIB $PATCHOAT $DEX2OAT $JNI_OPTS $FLAGS $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar $main"
+if [ "$TIME_OUT" = "y" ]; then
+  # Add timeout command if time out is desired.
+  cmdline="timeout $TIME_OUT_VALUE $cmdline"
+fi
 if [ "$DEV_MODE" = "y" ]; then
   if [ "$PREBUILD" = "y" ]; then
     echo "$mkdir_cmd && $prebuild_cmd && $cmdline"
@@ -190,4 +221,20 @@ if [ "$DEV_MODE" = "y" ]; then
 fi
 
 cd $ANDROID_BUILD_TOP
-$mkdir_cmd && $prebuild_cmd && LD_PRELOAD=libsigchain.so $cmdline "$@"
+
+$mkdir_cmd || exit 1
+$prebuild_cmd || exit 2
+
+if [ "$GDB" = "y" ]; then
+  # When running under gdb, we cannot do piping and grepping...
+  LD_PRELOAD=libsigchain.so $cmdline "$@"
+else
+  # If we are execing /bin/false we might not be on the same ISA as libsigchain.so
+  # ld.so will helpfully warn us of this. Unfortunately this messes up our error
+  # checking so we will just filter out the error with a grep.
+  LD_PRELOAD=libsigchain.so $cmdline "$@" 2>&1 | grep -v -E "^ERROR: ld\.so: object '.+\.so' from LD_PRELOAD cannot be preloaded.*: ignored\.$"
+  # Add extra detail if time out is enabled.
+  if [ ${PIPESTATUS[0]} = 124 ] && [ "$TIME_OUT" = "y" ]; then
+    echo -e "\e[91mTEST TIMED OUT!\e[0m" >&2
+  fi
+fi

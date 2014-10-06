@@ -60,11 +60,16 @@ enum LockLevel {
   kThreadSuspendCountLock,
   kAbortLock,
   kJdwpSocketLock,
+  kReferenceQueueSoftReferencesLock,
+  kReferenceQueuePhantomReferencesLock,
+  kReferenceQueueFinalizerReferencesLock,
+  kReferenceQueueWeakReferencesLock,
+  kReferenceQueueClearedReferencesLock,
+  kReferenceProcessorLock,
   kRosAllocGlobalLock,
   kRosAllocBracketLock,
   kRosAllocBulkFreeLock,
   kAllocSpaceLock,
-  kReferenceProcessorLock,
   kDexFileMethodInlinerLock,
   kDexFileToMethodInlinerMapLock,
   kMarkSweepMarkStackLock,
@@ -85,15 +90,17 @@ enum LockLevel {
   kJniLoadLibraryLock,
   kThreadListLock,
   kBreakpointInvokeLock,
+  kAllocTrackerLock,
   kDeoptimizationLock,
-  kTraceLock,
   kProfilerLock,
   kJdwpEventListLock,
   kJdwpAttachLock,
   kJdwpStartLock,
   kRuntimeShutdownLock,
+  kTraceLock,
   kHeapBitmapLock,
   kMutatorLock,
+  kInstrumentEntrypointsLock,
   kThreadListSuspendThreadLock,
   kZygoteCreationLock,
 
@@ -381,7 +388,7 @@ class ConditionVariable {
   // TODO: No thread safety analysis on Wait and TimedWait as they call mutex operations via their
   //       pointer copy, thereby defeating annotalysis.
   void Wait(Thread* self) NO_THREAD_SAFETY_ANALYSIS;
-  void TimedWait(Thread* self, int64_t ms, int32_t ns) NO_THREAD_SAFETY_ANALYSIS;
+  bool TimedWait(Thread* self, int64_t ms, int32_t ns) NO_THREAD_SAFETY_ANALYSIS;
   // Variant of Wait that should be used with caution. Doesn't validate that no mutexes are held
   // when waiting.
   // TODO: remove this.
@@ -485,6 +492,9 @@ class Locks {
   // potential deadlock cycle.
   static Mutex* thread_list_suspend_thread_lock_;
 
+  // Guards allocation entrypoint instrumenting.
+  static Mutex* instrument_entrypoints_lock_ ACQUIRED_AFTER(thread_list_suspend_thread_lock_);
+
   // The mutator_lock_ is used to allow mutators to execute in a shared (reader) mode or to block
   // mutators by having an exclusive (writer) owner. In normal execution each mutator thread holds
   // a share on the mutator_lock_. The garbage collector may also execute with shared access but
@@ -543,7 +553,7 @@ class Locks {
   // else                                          |  .. running ..
   //   Goto x                                      |  .. running ..
   //  .. running ..                                |  .. running ..
-  static ReaderWriterMutex* mutator_lock_ ACQUIRED_AFTER(thread_list_suspend_thread_lock_);
+  static ReaderWriterMutex* mutator_lock_ ACQUIRED_AFTER(instrument_entrypoints_lock_);
 
   // Allow reader-writer mutual exclusion on the mark and live bitmaps of the heap.
   static ReaderWriterMutex* heap_bitmap_lock_ ACQUIRED_AFTER(mutator_lock_);
@@ -557,15 +567,23 @@ class Locks {
   // Guards trace (ie traceview) requests.
   static Mutex* trace_lock_ ACQUIRED_AFTER(profiler_lock_);
 
+  // Guards debugger recent allocation records.
+  static Mutex* alloc_tracker_lock_ ACQUIRED_AFTER(trace_lock_);
+
+  // Guards updates to instrumentation to ensure mutual exclusion of
+  // events like deoptimization requests.
+  // TODO: improve name, perhaps instrumentation_update_lock_.
+  static Mutex* deoptimization_lock_ ACQUIRED_AFTER(alloc_tracker_lock_);
+
   // The thread_list_lock_ guards ThreadList::list_. It is also commonly held to stop threads
   // attaching and detaching.
-  static Mutex* thread_list_lock_ ACQUIRED_AFTER(trace_lock_);
+  static Mutex* thread_list_lock_ ACQUIRED_AFTER(deoptimization_lock_);
 
   // Guards maintaining loading library data structures.
   static Mutex* jni_libraries_lock_ ACQUIRED_AFTER(thread_list_lock_);
 
   // Guards breakpoints.
-  static Mutex* breakpoint_lock_ ACQUIRED_AFTER(jni_libraries_lock_);
+  static ReaderWriterMutex* breakpoint_lock_ ACQUIRED_AFTER(jni_libraries_lock_);
 
   // Guards lists of classes within the class linker.
   static ReaderWriterMutex* classlinker_classes_lock_ ACQUIRED_AFTER(breakpoint_lock_);
@@ -585,8 +603,26 @@ class Locks {
   // Guards intern table.
   static Mutex* intern_table_lock_ ACQUIRED_AFTER(modify_ldt_lock_);
 
+  // Guards reference processor.
+  static Mutex* reference_processor_lock_ ACQUIRED_AFTER(intern_table_lock_);
+
+  // Guards cleared references queue.
+  static Mutex* reference_queue_cleared_references_lock_ ACQUIRED_AFTER(reference_processor_lock_);
+
+  // Guards weak references queue.
+  static Mutex* reference_queue_weak_references_lock_ ACQUIRED_AFTER(reference_queue_cleared_references_lock_);
+
+  // Guards finalizer references queue.
+  static Mutex* reference_queue_finalizer_references_lock_ ACQUIRED_AFTER(reference_queue_weak_references_lock_);
+
+  // Guards phantom references queue.
+  static Mutex* reference_queue_phantom_references_lock_ ACQUIRED_AFTER(reference_queue_finalizer_references_lock_);
+
+  // Guards soft references queue.
+  static Mutex* reference_queue_soft_references_lock_ ACQUIRED_AFTER(reference_queue_phantom_references_lock_);
+
   // Have an exclusive aborting thread.
-  static Mutex* abort_lock_ ACQUIRED_AFTER(classlinker_classes_lock_);
+  static Mutex* abort_lock_ ACQUIRED_AFTER(reference_queue_soft_references_lock_);
 
   // Allow mutual exclusion when manipulating Thread::suspend_count_.
   // TODO: Does the trade-off of a per-thread lock make sense?

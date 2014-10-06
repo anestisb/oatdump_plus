@@ -528,6 +528,7 @@ enum ArmOpcode {
   kThumb2Vldms,      // vldms rd, <list>.
   kThumb2Vstms,      // vstms rd, <list>.
   kThumb2BUncond,    // b <label>.
+  kThumb2Bl,         // bl with linker fixup. [11110] S imm10 [11] J1 [1] J2 imm11.
   kThumb2MovImm16H,  // similar to kThumb2MovImm16, but target high hw.
   kThumb2AddPCR,     // Thumb2 2-operand add with hard-coded PC target.
   kThumb2Adr,        // Special purpose encoding of ADR for switch tables.
@@ -556,22 +557,24 @@ enum ArmOpDmbOptions {
 
 // Instruction assembly field_loc kind.
 enum ArmEncodingKind {
-  kFmtUnused,    // Unused field and marks end of formats.
-  kFmtBitBlt,    // Bit string using end/start.
-  kFmtDfp,       // Double FP reg.
-  kFmtSfp,       // Single FP reg.
-  kFmtModImm,    // Shifted 8-bit immed using [26,14..12,7..0].
-  kFmtImm16,     // Zero-extended immed using [26,19..16,14..12,7..0].
-  kFmtImm6,      // Encoded branch target using [9,7..3]0.
-  kFmtImm12,     // Zero-extended immediate using [26,14..12,7..0].
-  kFmtShift,     // Shift descriptor, [14..12,7..4].
-  kFmtLsb,       // least significant bit using [14..12][7..6].
-  kFmtBWidth,    // bit-field width, encoded as width-1.
-  kFmtShift5,    // Shift count, [14..12,7..6].
-  kFmtBrOffset,  // Signed extended [26,11,13,21-16,10-0]:0.
-  kFmtFPImm,     // Encoded floating point immediate.
-  kFmtOff24,     // 24-bit Thumb2 unconditional branch encoding.
-  kFmtSkip,      // Unused field, but continue to next.
+  kFmtUnused,      // Unused field and marks end of formats.
+  kFmtBitBlt,      // Bit string using end/start.
+  kFmtLdmRegList,  // Load multiple register list using [15,14,12..0].
+  kFmtStmRegList,  // Store multiple register list using [14,12..0].
+  kFmtDfp,         // Double FP reg.
+  kFmtSfp,         // Single FP reg.
+  kFmtModImm,      // Shifted 8-bit immed using [26,14..12,7..0].
+  kFmtImm16,       // Zero-extended immed using [26,19..16,14..12,7..0].
+  kFmtImm6,        // Encoded branch target using [9,7..3]0.
+  kFmtImm12,       // Zero-extended immediate using [26,14..12,7..0].
+  kFmtShift,       // Shift descriptor, [14..12,7..4].
+  kFmtLsb,         // least significant bit using [14..12][7..6].
+  kFmtBWidth,      // bit-field width, encoded as width-1.
+  kFmtShift5,      // Shift count, [14..12,7..6].
+  kFmtBrOffset,    // Signed extended [26,11,13,21-16,10-0]:0.
+  kFmtFPImm,       // Encoded floating point immediate.
+  kFmtOff24,       // 24-bit Thumb2 unconditional branch encoding.
+  kFmtSkip,        // Unused field, but continue to next.
 };
 
 // Struct used to define the snippet positions for each Thumb opcode.

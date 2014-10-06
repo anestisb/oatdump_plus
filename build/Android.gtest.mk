@@ -48,7 +48,7 @@ $(foreach dir,$(GTEST_DEX_DIRECTORIES), $(eval $(call build-art-test-dex,art-gte
 # Dex file dependencies for each gtest.
 ART_GTEST_class_linker_test_DEX_DEPS := Interfaces MyClass Nested Statics StaticsFromCode
 ART_GTEST_compiler_driver_test_DEX_DEPS := AbstractMethod
-ART_GTEST_dex_file_test_DEX_DEPS := GetMethodSignature
+ART_GTEST_dex_file_test_DEX_DEPS := GetMethodSignature Nested
 ART_GTEST_exception_test_DEX_DEPS := ExceptionHandle
 ART_GTEST_jni_compiler_test_DEX_DEPS := MyClassNatives
 ART_GTEST_jni_internal_test_DEX_DEPS := AllFields StaticLeafMethods
@@ -61,8 +61,8 @@ ART_GTEST_transaction_test_DEX_DEPS := Transaction
 # The elf writer test has dependencies on core.oat.
 ART_GTEST_elf_writer_test_HOST_DEPS := $(HOST_CORE_OAT_OUT) $(2ND_HOST_CORE_OAT_OUT)
 ART_GTEST_elf_writer_test_TARGET_DEPS := $(TARGET_CORE_OAT_OUT) $(2ND_TARGET_CORE_OAT_OUT)
-ART_GTEST_jni_internal_test_TARGET_DEPS := $(TARGET_CORE_JARS)
-ART_GTEST_proxy_test_TARGET_DEPS := $(TARGET_CORE_JARS)
+ART_GTEST_jni_internal_test_TARGET_DEPS := $(TARGET_CORE_DEX_FILES)
+ART_GTEST_proxy_test_TARGET_DEPS := $(TARGET_CORE_DEX_FILES)
 ART_GTEST_proxy_test_HOST_DEPS := $(HOST_CORE_OAT_OUT) $(2ND_HOST_CORE_OAT_OUT)
 
 # The path for which all the source files are relative, not actually the current directory.
@@ -79,6 +79,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/base/histogram_test.cc \
   runtime/base/mutex_test.cc \
   runtime/base/scoped_flock_test.cc \
+  runtime/base/stringprintf_test.cc \
   runtime/base/timing_logger_test.cc \
   runtime/base/unix_file/fd_file_test.cc \
   runtime/base/unix_file/mapped_file_test.cc \
@@ -117,7 +118,6 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/monitor_pool_test.cc \
   runtime/monitor_test.cc \
   runtime/parsed_options_test.cc \
-  runtime/proxy_test.cc \
   runtime/reference_table_test.cc \
   runtime/thread_pool_test.cc \
   runtime/transaction_test.cc \
@@ -128,6 +128,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
 
 COMPILER_GTEST_COMMON_SRC_FILES := \
   runtime/jni_internal_test.cc \
+  runtime/proxy_test.cc \
   runtime/reflection_test.cc \
   compiler/dex/global_value_numbering_test.cc \
   compiler/dex/local_value_numbering_test.cc \
@@ -139,18 +140,24 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/jni/jni_compiler_test.cc \
   compiler/oat_test.cc \
   compiler/optimizing/codegen_test.cc \
+  compiler/optimizing/dead_code_elimination_test.cc \
+  compiler/optimizing/constant_propagation_test.cc \
   compiler/optimizing/dominator_test.cc \
   compiler/optimizing/find_loops_test.cc \
+  compiler/optimizing/graph_checker_test.cc \
   compiler/optimizing/graph_test.cc \
+  compiler/optimizing/gvn_test.cc \
   compiler/optimizing/linearize_test.cc \
   compiler/optimizing/liveness_test.cc \
   compiler/optimizing/live_interval_test.cc \
   compiler/optimizing/live_ranges_test.cc \
+  compiler/optimizing/nodes_test.cc \
   compiler/optimizing/parallel_move_test.cc \
   compiler/optimizing/pretty_printer_test.cc \
   compiler/optimizing/register_allocator_test.cc \
   compiler/optimizing/ssa_test.cc \
   compiler/optimizing/stack_map_test.cc \
+  compiler/optimizing/suspend_check_test.cc \
   compiler/output_stream_test.cc \
   compiler/utils/arena_allocator_test.cc \
   compiler/utils/dedupe_set_test.cc \
@@ -442,7 +449,14 @@ define define-test-art-gtest-combination
   endif
 
   rule_name := $(3)test-art-$(1)-gtest$(4)
-  dependencies := $$(ART_TEST_$(2)_GTEST$(4)_RULES)
+  ifeq ($(3),valgrind-)
+    ifneq ($(1),host)
+      $$(error valgrind tests only wired up for the host)
+    endif
+    dependencies := $$(ART_TEST_$(2)_VALGRIND_GTEST$(4)_RULES)
+  else
+    dependencies := $$(ART_TEST_$(2)_GTEST$(4)_RULES)
+  endif
 
 .PHONY: $$(rule_name)
 $$(rule_name): $$(dependencies)

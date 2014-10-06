@@ -62,7 +62,7 @@ bool MipsMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
  *
  */
 void MipsMir2Lir::GenLargeSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
-  const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
+  const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
   if (cu_->verbose) {
     DumpSparseSwitchTable(table);
   }
@@ -74,7 +74,7 @@ void MipsMir2Lir::GenLargeSparseSwitch(MIR* mir, DexOffset table_offset, RegLoca
   int elements = table[1];
   tab_rec->targets =
       static_cast<LIR**>(arena_->Alloc(elements * sizeof(LIR*), kArenaAllocLIR));
-  switch_tables_.Insert(tab_rec);
+  switch_tables_.push_back(tab_rec);
 
   // The table is composed of 8-byte key/disp pairs
   int byte_size = elements * 8;
@@ -139,7 +139,7 @@ void MipsMir2Lir::GenLargeSparseSwitch(MIR* mir, DexOffset table_offset, RegLoca
  * done:
  */
 void MipsMir2Lir::GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
-  const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
+  const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
   if (cu_->verbose) {
     DumpPackedSwitchTable(table);
   }
@@ -151,7 +151,7 @@ void MipsMir2Lir::GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLoca
   int size = table[1];
   tab_rec->targets = static_cast<LIR**>(arena_->Alloc(size * sizeof(LIR*),
                                                       kArenaAllocLIR));
-  switch_tables_.Insert(tab_rec);
+  switch_tables_.push_back(tab_rec);
 
   // Get the switch value
   rl_src = LoadValue(rl_src, kCoreReg);
@@ -220,8 +220,8 @@ void MipsMir2Lir::GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLoca
  *
  * Total size is 4+(width * size + 1)/2 16-bit code units.
  */
-void MipsMir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
-  const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
+void MipsMir2Lir::GenFillArrayData(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
+  const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
   // Add the table to the list - we'll process it later
   FillArrayData* tab_rec =
       reinterpret_cast<FillArrayData*>(arena_->Alloc(sizeof(FillArrayData),
@@ -232,7 +232,7 @@ void MipsMir2Lir::GenFillArrayData(DexOffset table_offset, RegLocation rl_src) {
   uint32_t size = tab_rec->table[2] | ((static_cast<uint32_t>(tab_rec->table[3])) << 16);
   tab_rec->size = (size * width) + 8;
 
-  fill_array_data_.Insert(tab_rec);
+  fill_array_data_.push_back(tab_rec);
 
   // Making a call - use explicit registers
   FlushAllRegs();   /* Everything to home location */
@@ -303,7 +303,7 @@ void MipsMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) 
    * We can safely skip the stack overflow check if we're
    * a leaf *and* our frame size < fudge factor.
    */
-  bool skip_overflow_check = mir_graph_->MethodIsLeaf() && !IsLargeFrame(frame_size_, kMips);
+  bool skip_overflow_check = mir_graph_->MethodIsLeaf() && !FrameNeedsStackCheck(frame_size_, kMips);
   NewLIR0(kPseudoMethodEntry);
   RegStorage check_reg = AllocTemp();
   RegStorage new_sp = AllocTemp();

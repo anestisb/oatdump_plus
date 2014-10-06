@@ -31,8 +31,47 @@
 #include "llvm/intrinsic_helper.h"
 #include "llvm/llvm_compilation_unit.h"
 #include "safe_map.h"
+#include "utils/arena_containers.h"
+
+namespace llvm {
+  class Module;
+  class LLVMContext;
+}
 
 namespace art {
+
+namespace llvm {
+  class IntrinsicHelper;
+  class IRBuilder;
+}
+
+class LLVMInfo {
+  public:
+    LLVMInfo();
+    ~LLVMInfo();
+
+    ::llvm::LLVMContext* GetLLVMContext() {
+      return llvm_context_.get();
+    }
+
+    ::llvm::Module* GetLLVMModule() {
+      return llvm_module_;
+    }
+
+    art::llvm::IntrinsicHelper* GetIntrinsicHelper() {
+      return intrinsic_helper_.get();
+    }
+
+    art::llvm::IRBuilder* GetIRBuilder() {
+      return ir_builder_.get();
+    }
+
+  private:
+    std::unique_ptr< ::llvm::LLVMContext> llvm_context_;
+    ::llvm::Module* llvm_module_;  // Managed by context_.
+    std::unique_ptr<art::llvm::IntrinsicHelper> intrinsic_helper_;
+    std::unique_ptr<art::llvm::IRBuilder> ir_builder_;
+};
 
 struct BasicBlock;
 struct CallInfo;
@@ -66,9 +105,10 @@ class MirConverter : public Backend {
         placeholder_bb_(NULL),
         entry_bb_(NULL),
         entry_target_bb_(NULL),
-        llvm_values_(arena, mir_graph->GetNumSSARegs()),
+        llvm_values_(arena->Adapter()),
         temp_name_(0),
         current_dalvik_offset_(0) {
+      llvm_values_.reserve(mir_graph->GetNumSSARegs());
       if (kIsDebugBuild) {
         cu->enable_debug |= (1 << kDebugVerifyBitcode);
       }
@@ -91,9 +131,9 @@ class MirConverter : public Backend {
     ::llvm::Type* LlvmTypeFromLocRec(RegLocation loc);
     void InitIR();
     ::llvm::BasicBlock* FindCaseTarget(uint32_t vaddr);
-    void ConvertPackedSwitch(BasicBlock* bb, int32_t table_offset,
+    void ConvertPackedSwitch(BasicBlock* bb, MIR* mir, int32_t table_offset,
                              RegLocation rl_src);
-    void ConvertSparseSwitch(BasicBlock* bb, int32_t table_offset,
+    void ConvertSparseSwitch(BasicBlock* bb, MIR* mir, int32_t table_offset,
                              RegLocation rl_src);
     void ConvertSget(int32_t field_index,
                      art::llvm::IntrinsicHelper::IntrinsicId id, RegLocation rl_dest);
@@ -190,7 +230,7 @@ class MirConverter : public Backend {
     ::llvm::BasicBlock* entry_bb_;
     ::llvm::BasicBlock* entry_target_bb_;
     std::string bitcode_filename_;
-    GrowableArray< ::llvm::Value*> llvm_values_;
+    ArenaVector< ::llvm::Value*> llvm_values_;
     int32_t temp_name_;
     SafeMap<int32_t, ::llvm::BasicBlock*> id_to_block_map_;  // block id -> llvm bb.
     int current_dalvik_offset_;

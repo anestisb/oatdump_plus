@@ -19,6 +19,7 @@
 
 #include "arm64_lir.h"
 #include "dex/compiler_internals.h"
+#include "dex/quick/mir_to_lir.h"
 
 #include <map>
 
@@ -167,6 +168,7 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
   bool GenInlinedRound(CallInfo* info, bool is_double) OVERRIDE;
   bool GenInlinedPeek(CallInfo* info, OpSize size) OVERRIDE;
   bool GenInlinedPoke(CallInfo* info, OpSize size) OVERRIDE;
+  bool GenInlinedAbsInt(CallInfo* info) OVERRIDE;
   bool GenInlinedAbsLong(CallInfo* info) OVERRIDE;
   bool GenInlinedArrayCopyCharArray(CallInfo* info) OVERRIDE;
   void GenIntToLong(RegLocation rl_dest, RegLocation rl_src) OVERRIDE;
@@ -181,7 +183,7 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
   void GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) OVERRIDE;
   void GenExitSequence() OVERRIDE;
   void GenSpecialExitSequence() OVERRIDE;
-  void GenFillArrayData(DexOffset table_offset, RegLocation rl_src) OVERRIDE;
+  void GenFillArrayData(MIR* mir, DexOffset table_offset, RegLocation rl_src) OVERRIDE;
   void GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias, bool is_double) OVERRIDE;
   void GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) OVERRIDE;
   void GenSelect(BasicBlock* bb, MIR* mir) OVERRIDE;
@@ -393,7 +395,7 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
                      RegLocation rl_src2, bool is_div);
 
   InToRegStorageMapping in_to_reg_storage_mapping_;
-  static const ArmEncodingMap EncodingMap[kA64Last];
+  static const A64EncodingMap EncodingMap[kA64Last];
 };
 
 }  // namespace art

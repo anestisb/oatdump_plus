@@ -66,8 +66,9 @@ pid_t GetTid() {
   uint64_t owner;
   CHECK_PTHREAD_CALL(pthread_threadid_np, (NULL, &owner), __FUNCTION__);  // Requires Mac OS 10.6
   return owner;
+#elif defined(__BIONIC__)
+  return gettid();
 #else
-  // Neither bionic nor glibc exposes gettid(2).
   return syscall(__NR_gettid);
 #endif
 }
@@ -82,7 +83,7 @@ std::string GetThreadName(pid_t tid) {
   return result;
 }
 
-void GetThreadStack(pthread_t thread, void** stack_base, size_t* stack_size) {
+void GetThreadStack(pthread_t thread, void** stack_base, size_t* stack_size, size_t* guard_size) {
 #if defined(__APPLE__)
   *stack_size = pthread_get_stacksize_np(thread);
   void* stack_addr = pthread_get_stackaddr_np(thread);
@@ -95,11 +96,43 @@ void GetThreadStack(pthread_t thread, void** stack_base, size_t* stack_size) {
   } else {
     *stack_base = stack_addr;
   }
+
+  // This is wrong, but there doesn't seem to be a way to get the actual value on the Mac.
+  pthread_attr_t attributes;
+  CHECK_PTHREAD_CALL(pthread_attr_init, (&attributes), __FUNCTION__);
+  CHECK_PTHREAD_CALL(pthread_attr_getguardsize, (&attributes, guard_size), __FUNCTION__);
+  CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attributes), __FUNCTION__);
 #else
   pthread_attr_t attributes;
   CHECK_PTHREAD_CALL(pthread_getattr_np, (thread, &attributes), __FUNCTION__);
   CHECK_PTHREAD_CALL(pthread_attr_getstack, (&attributes, stack_base, stack_size), __FUNCTION__);
+  CHECK_PTHREAD_CALL(pthread_attr_getguardsize, (&attributes, guard_size), __FUNCTION__);
   CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attributes), __FUNCTION__);
+
+#if defined(__GLIBC__)
+  // If we're the main thread, check whether we were run with an unlimited stack. In that case,
+  // glibc will have reported a 2GB stack for our 32-bit process, and our stack overflow detection
+  // will be broken because we'll die long before we get close to 2GB.
+  bool is_main_thread = (::art::GetTid() == getpid());
+  if (is_main_thread) {
+    rlimit stack_limit;
+    if (getrlimit(RLIMIT_STACK, &stack_limit) == -1) {
+      PLOG(FATAL) << "getrlimit(RLIMIT_STACK) failed";
+    }
+    if (stack_limit.rlim_cur == RLIM_INFINITY) {
+      size_t old_stack_size = *stack_size;
+
+      // Use the kernel default limit as our size, and adjust the base to match.
+      *stack_size = 8 * MB;
+      *stack_base = reinterpret_cast<uint8_t*>(*stack_base) + (old_stack_size - *stack_size);
+
+      VLOG(threads) << "Limiting unlimited stack (reported as " << PrettySize(old_stack_size) << ")"
+                    << " to " << PrettySize(*stack_size)
+                    << " with base " << *stack_base;
+    }
+  }
+#endif
+
 #endif
 }
 
@@ -222,19 +255,20 @@ std::string PrettyDescriptor(mirror::String* java_descriptor) {
   if (java_descriptor == NULL) {
     return "null";
   }
-  return PrettyDescriptor(java_descriptor->ToModifiedUtf8());
+  return PrettyDescriptor(java_descriptor->ToModifiedUtf8().c_str());
 }
 
 std::string PrettyDescriptor(mirror::Class* klass) {
   if (klass == NULL) {
     return "null";
   }
-  return PrettyDescriptor(klass->GetDescriptor());
+  std::string temp;
+  return PrettyDescriptor(klass->GetDescriptor(&temp));
 }
 
-std::string PrettyDescriptor(const std::string& descriptor) {
+std::string PrettyDescriptor(const char* descriptor) {
   // Count the number of '['s to get the dimensionality.
-  const char* c = descriptor.c_str();
+  const char* c = descriptor;
   size_t dim = 0;
   while (*c == '[') {
     dim++;
@@ -275,15 +309,10 @@ std::string PrettyDescriptor(const std::string& descriptor) {
     result.push_back(ch);
   }
   // ...and replace the semicolon with 'dim' "[]" pairs:
-  while (dim--) {
+  for (size_t i = 0; i < dim; ++i) {
     result += "[]";
   }
   return result;
-}
-
-std::string PrettyDescriptor(Primitive::Type type) {
-  std::string descriptor_string(Primitive::Descriptor(type));
-  return PrettyDescriptor(descriptor_string);
 }
 
 std::string PrettyField(mirror::ArtField* f, bool with_type) {
@@ -341,8 +370,10 @@ std::string PrettyArguments(const char* signature) {
     } else {
       ++argument_length;
     }
-    std::string argument_descriptor(signature, argument_length);
-    result += PrettyDescriptor(argument_descriptor);
+    {
+      std::string argument_descriptor(signature, argument_length);
+      result += PrettyDescriptor(argument_descriptor.c_str());
+    }
     if (signature[argument_length] != ')') {
       result += ", ";
     }
@@ -410,9 +441,10 @@ std::string PrettyTypeOf(mirror::Object* obj) {
   if (obj->GetClass() == NULL) {
     return "(raw)";
   }
-  std::string result(PrettyDescriptor(obj->GetClass()->GetDescriptor()));
+  std::string temp;
+  std::string result(PrettyDescriptor(obj->GetClass()->GetDescriptor(&temp)));
   if (obj->IsClass()) {
-    result += "<" + PrettyDescriptor(obj->AsClass()->GetDescriptor()) + ">";
+    result += "<" + PrettyDescriptor(obj->AsClass()->GetDescriptor(&temp)) + ">";
   }
   return result;
 }
@@ -439,6 +471,35 @@ std::string PrettyClassAndClassLoader(mirror::Class* c) {
   result += PrettyTypeOf(c->GetClassLoader());
   // TODO: add an identifying hash value for the loader
   result += ">";
+  return result;
+}
+
+std::string PrettyJavaAccessFlags(uint32_t access_flags) {
+  std::string result;
+  if ((access_flags & kAccPublic) != 0) {
+    result += "public ";
+  }
+  if ((access_flags & kAccProtected) != 0) {
+    result += "protected ";
+  }
+  if ((access_flags & kAccPrivate) != 0) {
+    result += "private ";
+  }
+  if ((access_flags & kAccFinal) != 0) {
+    result += "final ";
+  }
+  if ((access_flags & kAccStatic) != 0) {
+    result += "static ";
+  }
+  if ((access_flags & kAccTransient) != 0) {
+    result += "transient ";
+  }
+  if ((access_flags & kAccVolatile) != 0) {
+    result += "volatile ";
+  }
+  if ((access_flags & kAccSynchronized) != 0) {
+    result += "synchronized ";
+  }
   return result;
 }
 
@@ -562,10 +623,10 @@ std::string PrintableChar(uint16_t ch) {
   return result;
 }
 
-std::string PrintableString(const std::string& utf) {
+std::string PrintableString(const char* utf) {
   std::string result;
   result += '"';
-  const char* p = utf.c_str();
+  const char* p = utf;
   size_t char_count = CountModifiedUtf8Chars(p);
   for (size_t i = 0; i < char_count; ++i) {
     uint16_t ch = GetUtf16FromUtf8(&p);
@@ -622,11 +683,20 @@ std::string DotToDescriptor(const char* class_name) {
 
 std::string DescriptorToDot(const char* descriptor) {
   size_t length = strlen(descriptor);
-  if (descriptor[0] == 'L' && descriptor[length - 1] == ';') {
-    std::string result(descriptor + 1, length - 2);
-    std::replace(result.begin(), result.end(), '/', '.');
-    return result;
+  if (length > 1) {
+    if (descriptor[0] == 'L' && descriptor[length - 1] == ';') {
+      // Descriptors have the leading 'L' and trailing ';' stripped.
+      std::string result(descriptor + 1, length - 2);
+      std::replace(result.begin(), result.end(), '/', '.');
+      return result;
+    } else {
+      // For arrays the 'L' and ';' remain intact.
+      std::string result(descriptor);
+      std::replace(result.begin(), result.end(), '/', '.');
+      return result;
+    }
   }
+  // Do nothing for non-class/array descriptors.
   return descriptor;
 }
 
@@ -778,7 +848,8 @@ bool IsValidMemberName(const char* s) {
 }
 
 enum ClassNameType { kName, kDescriptor };
-static bool IsValidClassName(const char* s, ClassNameType type, char separator) {
+template<ClassNameType kType, char kSeparator>
+static bool IsValidClassName(const char* s) {
   int arrayCount = 0;
   while (*s == '[') {
     arrayCount++;
@@ -790,7 +861,8 @@ static bool IsValidClassName(const char* s, ClassNameType type, char separator) 
     return false;
   }
 
-  if (arrayCount != 0) {
+  ClassNameType type = kType;
+  if (type != kDescriptor && arrayCount != 0) {
     /*
      * If we're looking at an array of some sort, then it doesn't
      * matter if what is being asked for is a class name; the
@@ -858,7 +930,7 @@ static bool IsValidClassName(const char* s, ClassNameType type, char separator) 
       return (type == kDescriptor) && !sepOrFirst && (s[1] == '\0');
     case '/':
     case '.':
-      if (c != separator) {
+      if (c != kSeparator) {
         // The wrong separator character.
         return false;
       }
@@ -880,15 +952,15 @@ static bool IsValidClassName(const char* s, ClassNameType type, char separator) 
 }
 
 bool IsValidBinaryClassName(const char* s) {
-  return IsValidClassName(s, kName, '.');
+  return IsValidClassName<kName, '.'>(s);
 }
 
 bool IsValidJniClassName(const char* s) {
-  return IsValidClassName(s, kName, '/');
+  return IsValidClassName<kName, '/'>(s);
 }
 
 bool IsValidDescriptor(const char* s) {
-  return IsValidClassName(s, kDescriptor, '/');
+  return IsValidClassName<kDescriptor, '/'>(s);
 }
 
 void Split(const std::string& s, char separator, std::vector<std::string>& result) {
@@ -987,7 +1059,7 @@ void SetThreadName(const char* thread_name) {
   } else {
     s = thread_name + len - 15;
   }
-#if defined(HAVE_ANDROID_PTHREAD_SETNAME_NP)
+#if defined(__BIONIC__)
   // pthread_setname_np fails rather than truncating long strings.
   char buf[16];       // MAX_TASK_COMM_LEN=16 is hard-coded into bionic
   strncpy(buf, s, sizeof(buf)-1);
@@ -1049,10 +1121,6 @@ std::string GetSchedulerGroupName(pid_t tid) {
 
 void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
     mirror::ArtMethod* current_method) {
-  // We may be called from contexts where current_method is not null, so we must assert this.
-  if (current_method != nullptr) {
-    Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
-  }
 #ifdef __linux__
   std::unique_ptr<Backtrace> backtrace(Backtrace::Create(BACKTRACE_CURRENT_PROCESS, tid));
   if (!backtrace->Unwind(0)) {
@@ -1084,7 +1152,9 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
         if (it->func_offset != 0) {
           os << "+" << it->func_offset;
         }
-      } else if (current_method != nullptr && current_method->IsWithinQuickCode(it->pc)) {
+      } else if (current_method != nullptr &&
+                 Locks::mutator_lock_->IsSharedHeld(Thread::Current()) &&
+                 current_method->IsWithinQuickCode(it->pc)) {
         const void* start_of_code = current_method->GetEntryPointFromQuickCompiledCode();
         os << JniLongName(current_method) << "+"
            << (it->pc - reinterpret_cast<uintptr_t>(start_of_code));
@@ -1187,13 +1257,14 @@ const char* GetAndroidDataSafe(std::string* error_msg) {
 }
 
 void GetDalvikCache(const char* subdir, const bool create_if_absent, std::string* dalvik_cache,
-                    bool* have_android_data, bool* dalvik_cache_exists) {
+                    bool* have_android_data, bool* dalvik_cache_exists, bool* is_global_cache) {
   CHECK(subdir != nullptr);
   std::string error_msg;
   const char* android_data = GetAndroidDataSafe(&error_msg);
   if (android_data == nullptr) {
     *have_android_data = false;
     *dalvik_cache_exists = false;
+    *is_global_cache = false;
     return;
   } else {
     *have_android_data = true;
@@ -1201,7 +1272,8 @@ void GetDalvikCache(const char* subdir, const bool create_if_absent, std::string
   const std::string dalvik_cache_root(StringPrintf("%s/dalvik-cache/", android_data));
   *dalvik_cache = dalvik_cache_root + subdir;
   *dalvik_cache_exists = OS::DirectoryExists(dalvik_cache->c_str());
-  if (create_if_absent && !*dalvik_cache_exists && strcmp(android_data, "/data") != 0) {
+  *is_global_cache = strcmp(android_data, "/data") == 0;
+  if (create_if_absent && !*dalvik_cache_exists && !*is_global_cache) {
     // Don't create the system's /data/dalvik-cache/... because it needs special permissions.
     *dalvik_cache_exists = ((mkdir(dalvik_cache_root.c_str(), 0700) == 0 || errno == EEXIST) &&
                             (mkdir(dalvik_cache->c_str(), 0700) == 0 || errno == EEXIST));
@@ -1360,21 +1432,11 @@ bool Exec(std::vector<std::string>& arg_vector, std::string* error_msg) {
 }
 
 void EncodeUnsignedLeb128(uint32_t data, std::vector<uint8_t>* dst) {
-  size_t encoded_size = UnsignedLeb128Size(data);
-  size_t cur_index = dst->size();
-  dst->resize(dst->size() + encoded_size);
-  uint8_t* write_pos = &((*dst)[cur_index]);
-  uint8_t* write_pos_after = EncodeUnsignedLeb128(write_pos, data);
-  DCHECK_EQ(static_cast<size_t>(write_pos_after - write_pos), encoded_size);
+  Leb128Encoder(dst).PushBackUnsigned(data);
 }
 
 void EncodeSignedLeb128(int32_t data, std::vector<uint8_t>* dst) {
-  size_t encoded_size = SignedLeb128Size(data);
-  size_t cur_index = dst->size();
-  dst->resize(dst->size() + encoded_size);
-  uint8_t* write_pos = &((*dst)[cur_index]);
-  uint8_t* write_pos_after = EncodeSignedLeb128(write_pos, data);
-  DCHECK_EQ(static_cast<size_t>(write_pos_after - write_pos), encoded_size);
+  Leb128Encoder(dst).PushBackSigned(data);
 }
 
 void PushWord(std::vector<uint8_t>* buf, int data) {
@@ -1382,6 +1444,10 @@ void PushWord(std::vector<uint8_t>* buf, int data) {
   buf->push_back((data >> 8) & 0xff);
   buf->push_back((data >> 16) & 0xff);
   buf->push_back((data >> 24) & 0xff);
+}
+
+std::string PrettyDescriptor(Primitive::Type type) {
+  return PrettyDescriptor(Primitive::Descriptor(type));
 }
 
 }  // namespace art

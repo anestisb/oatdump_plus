@@ -27,7 +27,7 @@
 #include "interpreter/interpreter.h"
 #include "jni_internal.h"
 #include "mapping_table.h"
-#include "method_helper.h"
+#include "method_helper-inl.h"
 #include "object_array-inl.h"
 #include "object_array.h"
 #include "object-inl.h"
@@ -105,9 +105,9 @@ void ArtMethod::SetDexCacheResolvedTypes(ObjectArray<Class>* new_dex_cache_class
 }
 
 size_t ArtMethod::NumArgRegisters(const StringPiece& shorty) {
-  CHECK_LE(1, shorty.length());
+  CHECK_LE(1U, shorty.length());
   uint32_t num_registers = 0;
-  for (int i = 1; i < shorty.length(); ++i) {
+  for (size_t i = 1; i < shorty.length(); ++i) {
     char ch = shorty[i];
     if (ch == 'D' || ch == 'J') {
       num_registers += 2;
@@ -143,7 +143,7 @@ ArtMethod* ArtMethod::FindOverriddenMethod() {
     } else {
       StackHandleScope<2> hs(Thread::Current());
       MethodHelper mh(hs.NewHandle(this));
-      MethodHelper interface_mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
+      MutableMethodHelper interface_mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
       IfTable* iftable = GetDeclaringClass()->GetIfTable();
       for (size_t i = 0; i < iftable->Count() && result == NULL; i++) {
         Class* interface = iftable->GetInterface(i);
@@ -281,8 +281,26 @@ uint32_t ArtMethod::FindCatchBlock(Handle<ArtMethod> h_this, Handle<Class> excep
   return found_dex_pc;
 }
 
+bool ArtMethod::IsEntrypointInterpreter() {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  const void* oat_quick_code = class_linker->GetOatMethodQuickCodeFor(this);
+  const void* oat_portable_code = class_linker->GetOatMethodPortableCodeFor(this);
+  if (!IsPortableCompiled()) {  // Quick.
+    return oat_quick_code == nullptr ||
+        oat_quick_code != GetEntryPointFromQuickCompiledCode();
+  } else {  // Portable.
+    return oat_portable_code == nullptr ||
+        oat_portable_code != GetEntryPointFromPortableCompiledCode();
+  }
+}
+
 void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result,
                        const char* shorty) {
+  if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEnd())) {
+    ThrowStackOverflowError(self);
+    return;
+  }
+
   if (kIsDebugBuild) {
     self->AssertThreadSuspensionIsAllowable();
     CHECK_EQ(kRunnable, self->GetState());
@@ -313,6 +331,13 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
                                   have_quick_code ? GetEntryPointFromQuickCompiledCode()
                                                   : GetEntryPointFromPortableCompiledCode());
       }
+
+      // Ensure that we won't be accidentally calling quick/portable compiled code when -Xint.
+      if (kIsDebugBuild && Runtime::Current()->GetInstrumentation()->IsForcedInterpretOnly()) {
+        CHECK(IsEntrypointInterpreter())
+            << "Don't call compiled code when -Xint " << PrettyMethod(this);
+      }
+
       if (!IsPortableCompiled()) {
 #ifdef __LP64__
         if (!IsStatic()) {

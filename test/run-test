@@ -77,7 +77,13 @@ usage="no"
 build_only="no"
 suffix64=""
 trace="false"
+basic_verify="false"
+gc_verify="false"
+gc_stress="false"
 always_clean="no"
+have_dex2oat="yes"
+have_patchoat="yes"
+have_image="yes"
 
 while true; do
     if [ "x$1" = "x--host" ]; then
@@ -87,6 +93,7 @@ while true; do
     elif [ "x$1" = "x--jvm" ]; then
         target_mode="no"
         runtime="jvm"
+        prebuild_mode="no"
         NEED_DEX="false"
         shift
     elif [ "x$1" = "x-O" ]; then
@@ -96,6 +103,15 @@ while true; do
         lib="libdvm.so"
         runtime="dalvik"
         shift
+    elif [ "x$1" = "x--no-dex2oat" ]; then
+        have_dex2oat="no"
+        shift
+    elif [ "x$1" = "x--no-patchoat" ]; then
+        have_patchoat="no"
+        shift
+    elif [ "x$1" = "x--no-image" ]; then
+        have_image="no"
+        shift
     elif [ "x$1" = "x--relocate" ]; then
         relocate="yes"
         shift
@@ -103,11 +119,21 @@ while true; do
         relocate="no"
         shift
     elif [ "x$1" = "x--prebuild" ]; then
+        run_args="${run_args} --prebuild"
         prebuild_mode="yes"
         shift;
     elif [ "x$1" = "x--no-prebuild" ]; then
+        run_args="${run_args} --no-prebuild"
         prebuild_mode="no"
         shift;
+    elif [ "x$1" = "x--gcverify" ]; then
+        basic_verify="true"
+        gc_verify="true"
+        shift
+    elif [ "x$1" = "x--gcstress" ]; then
+        basic_verify="true"
+        gc_stress="true"
+        shift
     elif [ "x$1" = "x--image" ]; then
         shift
         image="$1"
@@ -195,8 +221,26 @@ while true; do
         break
     fi
 done
+
+# tmp_dir may be relative, resolve.
+#
+# Cannot use realpath, as it does not exist on Mac.
+# Cannot us a simple "cd", as the path might not be created yet.
+# Cannot use readlink -m, as it does not exist on Mac.
+# Fallback to nuclear option:
+noncanonical_tmp_dir=$tmp_dir
+tmp_dir="`cd $oldwd ; python -c "import os; print os.path.realpath('$tmp_dir')"`"
 mkdir -p $tmp_dir
 
+if [ "$basic_verify" = "true" ]; then
+  run_args="${run_args} --runtime-option -Xgc:preverify --runtime-option -Xgc:postverify"
+fi
+if [ "$gc_verify" = "true" ]; then
+  run_args="${run_args} --runtime-option -Xgc:preverify_rosalloc --runtime-option -Xgc:postverify_rosalloc"
+fi
+if [ "$gc_stress" = "true" ]; then
+  run_args="${run_args} --runtime-option -Xgc:SS --runtime-option -Xms2m --runtime-option -Xmx2m"
+fi
 if [ "$trace" = "true" ]; then
     run_args="${run_args} --runtime-option -Xmethod-trace --runtime-option -Xmethod-trace-file:${DEX_LOCATION}/trace.bin --runtime-option -Xmethod-trace-file-size:2000000"
 fi
@@ -222,14 +266,15 @@ if [ "$target_mode" = "no" ]; then
         fi
     else
         RUN="${progdir}/etc/host-run-test-jar"
-        if [ "$prebuild_mode" = "yes" ]; then
-            run_args="${run_args} --prebuild"
-        fi
     fi
-else
-    if [ "$prebuild_mode" = "yes" ]; then
-        RUN="${progdir}/etc/push-and-run-prebuilt-test-jar"
-    fi
+fi
+
+if [ "$have_patchoat" = "no" ]; then
+  run_args="${run_args} --no-patchoat"
+fi
+
+if [ "$have_dex2oat" = "no" ]; then
+  run_args="${run_args} --no-dex2oat"
 fi
 
 if [ ! "$runtime" = "jvm" ]; then
@@ -265,6 +310,30 @@ elif [ "$runtime" = "art" ]; then
     else
       run_args="${run_args} --no-relocate"
     fi
+fi
+
+if [ "$have_image" = "no" ]; then
+    if [ "$runtime" != "art" ]; then
+        echo "--no-image is only supported on the art runtime"
+        exit 1
+    fi
+    if [ "$target_mode" = "no" ]; then
+        framework="${ANDROID_HOST_OUT}/framework"
+        bpath_suffix="-hostdex"
+    else
+        framework="/system/framework"
+        bpath_suffix=""
+    fi
+    # TODO If the target was compiled WITH_DEXPREOPT=true then these tests will
+    # fail since these jar files will be stripped.
+    bpath="${framework}/core-libart${bpath_suffix}.jar"
+    bpath="${bpath}:${framework}/conscrypt${bpath_suffix}.jar"
+    bpath="${bpath}:${framework}/okhttp${bpath_suffix}.jar"
+    bpath="${bpath}:${framework}/core-junit${bpath_suffix}.jar"
+    bpath="${bpath}:${framework}/bouncycastle${bpath_suffix}.jar"
+    # Pass down the bootclasspath
+    run_args="${run_args} --runtime-option -Xbootclasspath:${bpath}"
+    run_args="${run_args} --no-image"
 fi
 
 if [ "$dev_mode" = "yes" -a "$update_mode" = "yes" ]; then
@@ -318,6 +387,8 @@ if [ "$usage" = "yes" ]; then
         echo "    --zygote             Spawn the process from the Zygote." \
              "If used, then the"
         echo "                         other runtime options are ignored."
+        echo "    --no-dex2oat         Run as though dex2oat was failing."
+        echo "    --no-patchoat        Run as though patchoat was failing."
         echo "    --prebuild           Run dex2oat on the files before starting test. (default)"
         echo "    --no-prebuild        Do not run dex2oat on the files before starting"
         echo "                         the test."
@@ -333,6 +404,8 @@ if [ "$usage" = "yes" ]; then
              "files."
         echo "    --64                 Run the test in 64-bit mode"
         echo "    --trace              Run with method tracing"
+        echo "    --gcstress           Run with gc stress testing"
+        echo "    --gcverify           Run with gc verification"
         echo "    --always-clean       Delete the test files even if the test fails."
     ) 1>&2
     exit 1
@@ -444,6 +517,8 @@ else
         "./${run}" $run_args "$@" >"$output" 2>&1
     else
         cp "$build_output" "$output"
+        echo "Failed to build in tmpdir=${tmp_dir} from oldwd=${oldwd} and cwd=`pwd`"
+        echo "Non-canonical tmpdir was ${noncanonical_tmp_dir}"
         echo "build exit status: $build_exit" >>"$output"
     fi
     ./$check_cmd "$expected" "$output"

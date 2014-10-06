@@ -252,7 +252,7 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed) {
     // Special-case handling for format 35c/3rc invokes
     Instruction::Code opcode = mir->dalvikInsn.opcode;
     int flags = MIR::DecodedInstruction::IsPseudoMirOp(opcode) ?
-                  0 : Instruction::FlagsOf(mir->dalvikInsn.opcode);
+                  0 : mir->dalvikInsn.FlagsOf();
     if ((flags & Instruction::kInvoke) &&
         (attrs & (DF_FORMAT_35C | DF_FORMAT_3RC))) {
       DCHECK_EQ(next, 0);
@@ -401,33 +401,18 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed) {
   return changed;
 }
 
-static const char* storage_name[] = {" Frame ", "PhysReg", " Spill "};
+static const char* storage_name[] = {" Frame ", "PhysReg", " CompilerTemp "};
 
 void MIRGraph::DumpRegLocTable(RegLocation* table, int count) {
-  // FIXME: Quick-specific.  Move to Quick (and make a generic version for MIRGraph?
-  Mir2Lir* cg = static_cast<Mir2Lir*>(cu_->cg.get());
-  if (cg != NULL) {
-    for (int i = 0; i < count; i++) {
-      LOG(INFO) << StringPrintf("Loc[%02d] : %s, %c %c %c %c %c %c 0x%04x S%d",
-          table[i].orig_sreg, storage_name[table[i].location],
-          table[i].wide ? 'W' : 'N', table[i].defined ? 'D' : 'U',
-          table[i].fp ? 'F' : table[i].ref ? 'R' :'C',
-          table[i].is_const ? 'c' : 'n',
-          table[i].high_word ? 'H' : 'L', table[i].home ? 'h' : 't',
-          table[i].reg.GetRawBits(),
-          table[i].s_reg_low);
-    }
-  } else {
-    // Either pre-regalloc or Portable.
-    for (int i = 0; i < count; i++) {
-      LOG(INFO) << StringPrintf("Loc[%02d] : %s, %c %c %c %c %c %c S%d",
-          table[i].orig_sreg, storage_name[table[i].location],
-          table[i].wide ? 'W' : 'N', table[i].defined ? 'D' : 'U',
-          table[i].fp ? 'F' : table[i].ref ? 'R' :'C',
-          table[i].is_const ? 'c' : 'n',
-          table[i].high_word ? 'H' : 'L', table[i].home ? 'h' : 't',
-          table[i].s_reg_low);
-    }
+  for (int i = 0; i < count; i++) {
+    LOG(INFO) << StringPrintf("Loc[%02d] : %s, %c %c %c %c %c %c 0x%04x S%d",
+                              table[i].orig_sreg, storage_name[table[i].location],
+                              table[i].wide ? 'W' : 'N', table[i].defined ? 'D' : 'U',
+                              table[i].fp ? 'F' : table[i].ref ? 'R' :'C',
+                              table[i].is_const ? 'c' : 'n',
+                              table[i].high_word ? 'H' : 'L', table[i].home ? 'h' : 't',
+                              table[i].reg.GetRawBits(),
+                              table[i].s_reg_low);
   }
 }
 
@@ -436,7 +421,9 @@ static const RegLocation fresh_loc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0,
                                       RegStorage(), INVALID_SREG, INVALID_SREG};
 
 void MIRGraph::InitRegLocations() {
-  /* Allocate the location map */
+  // Allocate the location map. We also include the maximum possible temps because
+  // the temp allocation initializes reg location as well (in order to deal with
+  // case when it will be called after this pass).
   int max_regs = GetNumSSARegs() + GetMaxPossibleCompilerTemps();
   RegLocation* loc = static_cast<RegLocation*>(arena_->Alloc(max_regs * sizeof(*loc),
                                                              kArenaAllocRegAlloc));
@@ -447,22 +434,18 @@ void MIRGraph::InitRegLocations() {
     loc[i].wide = false;
   }
 
-  /* Patch up the locations for the compiler temps */
-  GrowableArray<CompilerTemp*>::Iterator iter(&compiler_temps_);
-  for (CompilerTemp* ct = iter.Next(); ct != NULL; ct = iter.Next()) {
-    loc[ct->s_reg_low].location = kLocCompilerTemp;
-    loc[ct->s_reg_low].defined = true;
-  }
-
   /* Treat Method* as a normal reference */
-  loc[GetMethodSReg()].ref = true;
+  int method_sreg = GetMethodSReg();
+  loc[method_sreg].ref = true;
+  loc[method_sreg].location = kLocCompilerTemp;
+  loc[method_sreg].defined = true;
 
   reg_location_ = loc;
 
-  int num_regs = cu_->num_dalvik_registers;
+  int num_regs = GetNumOfCodeVRs();
 
   /* Add types of incoming arguments based on signature */
-  int num_ins = cu_->num_ins;
+  int num_ins = GetNumOfInVRs();
   if (num_ins > 0) {
     int s_reg = num_regs - num_ins;
     if ((cu_->access_flags & kAccStatic) == 0) {
@@ -517,11 +500,9 @@ void MIRGraph::InitRegLocations() {
  */
 void MIRGraph::RemapRegLocations() {
   for (int i = 0; i < GetNumSSARegs(); i++) {
-    if (reg_location_[i].location != kLocCompilerTemp) {
-      int orig_sreg = reg_location_[i].s_reg_low;
-      reg_location_[i].orig_sreg = orig_sreg;
-      reg_location_[i].s_reg_low = SRegToVReg(orig_sreg);
-    }
+    int orig_sreg = reg_location_[i].s_reg_low;
+    reg_location_[i].orig_sreg = orig_sreg;
+    reg_location_[i].s_reg_low = SRegToVReg(orig_sreg);
   }
 }
 

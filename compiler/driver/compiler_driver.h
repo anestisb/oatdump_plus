@@ -76,28 +76,12 @@ enum DexToDexCompilationLevel {
   kOptimize               // Perform required transformation and peep-hole optimizations.
 };
 
-// Thread-local storage compiler worker threads
-class CompilerTls {
-  public:
-    CompilerTls() : llvm_info_(NULL) {}
-    ~CompilerTls() {}
-
-    void* GetLLVMInfo() { return llvm_info_; }
-
-    void SetLLVMInfo(void* llvm_info) { llvm_info_ = llvm_info; }
-
-  private:
-    void* llvm_info_;
-};
-
 class CompilerDriver {
  public:
-  typedef std::set<std::string> DescriptorSet;
-
   // Create a compiler targeting the requested "instruction_set".
   // "image" should be true if image specific optimizations should be
   // enabled.  "image_classes" lets the compiler know what classes it
-  // can assume will be in the image, with NULL implying all available
+  // can assume will be in the image, with nullptr implying all available
   // classes.
   explicit CompilerDriver(const CompilerOptions* compiler_options,
                           VerificationResults* verification_results,
@@ -105,7 +89,7 @@ class CompilerDriver {
                           Compiler::Kind compiler_kind,
                           InstructionSet instruction_set,
                           InstructionSetFeatures instruction_set_features,
-                          bool image, DescriptorSet* image_classes,
+                          bool image, std::set<std::string>* image_classes,
                           size_t thread_count, bool dump_stats, bool dump_passes,
                           CumulativeLogger* timer, std::string profile_file = "");
 
@@ -152,7 +136,7 @@ class CompilerDriver {
     return image_;
   }
 
-  DescriptorSet* GetImageClasses() const {
+  const std::set<std::string>* GetImageClasses() const {
     return image_classes_.get();
   }
 
@@ -185,6 +169,8 @@ class CompilerDriver {
 
   CompiledMethod* GetCompiledMethod(MethodReference ref) const
       LOCKS_EXCLUDED(compiled_methods_lock_);
+  size_t GetNonRelativeLinkerPatchCount() const
+      LOCKS_EXCLUDED(compiled_methods_lock_);
 
   void AddRequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
                                      uint16_t class_def_index);
@@ -199,9 +185,9 @@ class CompilerDriver {
 
   // Are runtime access checks necessary in the compiled code?
   bool CanAccessTypeWithoutChecks(uint32_t referrer_idx, const DexFile& dex_file,
-                                  uint32_t type_idx, bool* type_known_final = NULL,
-                                  bool* type_known_abstract = NULL,
-                                  bool* equals_referrers_class = NULL)
+                                  uint32_t type_idx, bool* type_known_final = nullptr,
+                                  bool* type_known_abstract = nullptr,
+                                  bool* equals_referrers_class = nullptr)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Are runtime access and instantiable checks necessary in the code?
@@ -276,7 +262,7 @@ class CompilerDriver {
       uint16_t* declaring_class_idx, uint16_t* declaring_method_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Get declaration location of a resolved field.
+  // Get the index in the vtable of the method.
   uint16_t GetResolvedMethodVTableIndex(
       mirror::ArtMethod* resolved_method, InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -329,43 +315,6 @@ class CompilerDriver {
   const VerifiedMethod* GetVerifiedMethod(const DexFile* dex_file, uint32_t method_idx) const;
   bool IsSafeCast(const DexCompilationUnit* mUnit, uint32_t dex_pc);
 
-  // Record patch information for later fix up.
-  void AddCodePatch(const DexFile* dex_file,
-                    uint16_t referrer_class_def_idx,
-                    uint32_t referrer_method_idx,
-                    InvokeType referrer_invoke_type,
-                    uint32_t target_method_idx,
-                    const DexFile* target_dex_file,
-                    InvokeType target_invoke_type,
-                    size_t literal_offset)
-      LOCKS_EXCLUDED(compiled_methods_lock_);
-  void AddRelativeCodePatch(const DexFile* dex_file,
-                            uint16_t referrer_class_def_idx,
-                            uint32_t referrer_method_idx,
-                            InvokeType referrer_invoke_type,
-                            uint32_t target_method_idx,
-                            const DexFile* target_dex_file,
-                            InvokeType target_invoke_type,
-                            size_t literal_offset,
-                            int32_t pc_relative_offset)
-      LOCKS_EXCLUDED(compiled_methods_lock_);
-  void AddMethodPatch(const DexFile* dex_file,
-                      uint16_t referrer_class_def_idx,
-                      uint32_t referrer_method_idx,
-                      InvokeType referrer_invoke_type,
-                      uint32_t target_method_idx,
-                      const DexFile* target_dex_file,
-                      InvokeType target_invoke_type,
-                      size_t literal_offset)
-      LOCKS_EXCLUDED(compiled_methods_lock_);
-  void AddClassPatch(const DexFile* dex_file,
-                     uint16_t referrer_class_def_idx,
-                     uint32_t referrer_method_idx,
-                     uint32_t target_method_idx,
-                     const DexFile* target_dex_file,
-                     size_t literal_offset)
-      LOCKS_EXCLUDED(compiled_methods_lock_);
-
   bool GetSupportBootImageFixup() const {
     return support_boot_image_fixup_;
   }
@@ -402,198 +351,12 @@ class CompilerDriver {
     return thread_count_;
   }
 
-  class CallPatchInformation;
-  class TypePatchInformation;
-
   bool GetDumpPasses() const {
     return dump_passes_;
   }
 
   CumulativeLogger* GetTimingsLogger() const {
     return timings_logger_;
-  }
-
-  class PatchInformation {
-   public:
-    const DexFile& GetDexFile() const {
-      return *dex_file_;
-    }
-    uint16_t GetReferrerClassDefIdx() const {
-      return referrer_class_def_idx_;
-    }
-    uint32_t GetReferrerMethodIdx() const {
-      return referrer_method_idx_;
-    }
-    size_t GetLiteralOffset() const {
-      return literal_offset_;
-    }
-
-    virtual bool IsCall() const {
-      return false;
-    }
-    virtual bool IsType() const {
-      return false;
-    }
-    virtual const CallPatchInformation* AsCall() const {
-      LOG(FATAL) << "Unreachable";
-      return nullptr;
-    }
-    virtual const TypePatchInformation* AsType() const {
-      LOG(FATAL) << "Unreachable";
-      return nullptr;
-    }
-
-   protected:
-    PatchInformation(const DexFile* dex_file,
-                     uint16_t referrer_class_def_idx,
-                     uint32_t referrer_method_idx,
-                     size_t literal_offset)
-      : dex_file_(dex_file),
-        referrer_class_def_idx_(referrer_class_def_idx),
-        referrer_method_idx_(referrer_method_idx),
-        literal_offset_(literal_offset) {
-      CHECK(dex_file_ != NULL);
-    }
-    virtual ~PatchInformation() {}
-
-    const DexFile* const dex_file_;
-    const uint16_t referrer_class_def_idx_;
-    const uint32_t referrer_method_idx_;
-    const size_t literal_offset_;
-
-    friend class CompilerDriver;
-  };
-
-  class CallPatchInformation : public PatchInformation {
-   public:
-    InvokeType GetReferrerInvokeType() const {
-      return referrer_invoke_type_;
-    }
-    uint32_t GetTargetMethodIdx() const {
-      return target_method_idx_;
-    }
-    const DexFile* GetTargetDexFile() const {
-      return target_dex_file_;
-    }
-    InvokeType GetTargetInvokeType() const {
-      return target_invoke_type_;
-    }
-
-    const CallPatchInformation* AsCall() const {
-      return this;
-    }
-    bool IsCall() const {
-      return true;
-    }
-    virtual bool IsRelative() const {
-      return false;
-    }
-    virtual int RelativeOffset() const {
-      return 0;
-    }
-
-   protected:
-    CallPatchInformation(const DexFile* dex_file,
-                         uint16_t referrer_class_def_idx,
-                         uint32_t referrer_method_idx,
-                         InvokeType referrer_invoke_type,
-                         uint32_t target_method_idx,
-                         const DexFile* target_dex_file,
-                         InvokeType target_invoke_type,
-                         size_t literal_offset)
-        : PatchInformation(dex_file, referrer_class_def_idx,
-                           referrer_method_idx, literal_offset),
-          referrer_invoke_type_(referrer_invoke_type),
-          target_method_idx_(target_method_idx),
-          target_dex_file_(target_dex_file),
-          target_invoke_type_(target_invoke_type) {
-    }
-
-   private:
-    const InvokeType referrer_invoke_type_;
-    const uint32_t target_method_idx_;
-    const DexFile* target_dex_file_;
-    const InvokeType target_invoke_type_;
-
-    friend class CompilerDriver;
-    DISALLOW_COPY_AND_ASSIGN(CallPatchInformation);
-  };
-
-  class RelativeCallPatchInformation : public CallPatchInformation {
-   public:
-    bool IsRelative() const {
-      return true;
-    }
-    int RelativeOffset() const {
-      return offset_;
-    }
-
-   private:
-    RelativeCallPatchInformation(const DexFile* dex_file,
-                                 uint16_t referrer_class_def_idx,
-                                 uint32_t referrer_method_idx,
-                                 InvokeType referrer_invoke_type,
-                                 uint32_t target_method_idx,
-                                 const DexFile* target_dex_file,
-                                 InvokeType target_invoke_type,
-                                 size_t literal_offset,
-                                 int32_t pc_relative_offset)
-        : CallPatchInformation(dex_file, referrer_class_def_idx,
-                           referrer_method_idx, referrer_invoke_type, target_method_idx,
-                           target_dex_file, target_invoke_type, literal_offset),
-          offset_(pc_relative_offset) {
-    }
-
-    const int offset_;
-
-    friend class CompilerDriver;
-    DISALLOW_COPY_AND_ASSIGN(RelativeCallPatchInformation);
-  };
-
-  class TypePatchInformation : public PatchInformation {
-   public:
-    const DexFile& GetTargetTypeDexFile() const {
-      return *target_type_dex_file_;
-    }
-
-    uint32_t GetTargetTypeIdx() const {
-      return target_type_idx_;
-    }
-
-    bool IsType() const {
-      return true;
-    }
-    const TypePatchInformation* AsType() const {
-      return this;
-    }
-
-   private:
-    TypePatchInformation(const DexFile* dex_file,
-                         uint16_t referrer_class_def_idx,
-                         uint32_t referrer_method_idx,
-                         uint32_t target_type_idx,
-                         const DexFile* target_type_dex_file,
-                         size_t literal_offset)
-        : PatchInformation(dex_file, referrer_class_def_idx,
-                           referrer_method_idx, literal_offset),
-          target_type_idx_(target_type_idx), target_type_dex_file_(target_type_dex_file) {
-    }
-
-    const uint32_t target_type_idx_;
-    const DexFile* target_type_dex_file_;
-
-    friend class CompilerDriver;
-    DISALLOW_COPY_AND_ASSIGN(TypePatchInformation);
-  };
-
-  const std::vector<const CallPatchInformation*>& GetCodeToPatch() const {
-    return code_to_patch_;
-  }
-  const std::vector<const CallPatchInformation*>& GetMethodsToPatch() const {
-    return methods_to_patch_;
-  }
-  const std::vector<const TypePatchInformation*>& GetClassesToPatch() const {
-    return classes_to_patch_;
   }
 
   // Checks if class specified by type_idx is one of the image_classes_
@@ -603,6 +366,7 @@ class CompilerDriver {
       LOCKS_EXCLUDED(compiled_classes_lock_);
 
   std::vector<uint8_t>* DeduplicateCode(const std::vector<uint8_t>& code);
+  SrcMap* DeduplicateSrcMappingTable(const SrcMap& src_map);
   std::vector<uint8_t>* DeduplicateMappingTable(const std::vector<uint8_t>& code);
   std::vector<uint8_t>* DeduplicateVMapTable(const std::vector<uint8_t>& code);
   std::vector<uint8_t>* DeduplicateGCMap(const std::vector<uint8_t>& code);
@@ -670,6 +434,13 @@ class CompilerDriver {
                      ThreadPool* thread_pool, TimingLogger* timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
+  void SetVerified(jobject class_loader, const std::vector<const DexFile*>& dex_files,
+                   ThreadPool* thread_pool, TimingLogger* timings);
+  void SetVerifiedDexFile(jobject class_loader, const DexFile& dex_file,
+                          const std::vector<const DexFile*>& dex_files,
+                          ThreadPool* thread_pool, TimingLogger* timings)
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
+
   void InitializeClasses(jobject class_loader, const std::vector<const DexFile*>& dex_files,
                          ThreadPool* thread_pool, TimingLogger* timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
@@ -697,10 +468,6 @@ class CompilerDriver {
   static void CompileClass(const ParallelCompilationManager* context, size_t class_def_index)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
-  std::vector<const CallPatchInformation*> code_to_patch_;
-  std::vector<const CallPatchInformation*> methods_to_patch_;
-  std::vector<const TypePatchInformation*> classes_to_patch_;
-
   const CompilerOptions* const compiler_options_;
   VerificationResults* const verification_results_;
   DexFileToMethodInlinerMap* const method_inliner_map_;
@@ -723,13 +490,16 @@ class CompilerDriver {
   // All method references that this compiler has compiled.
   mutable Mutex compiled_methods_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   MethodTable compiled_methods_ GUARDED_BY(compiled_methods_lock_);
+  // Number of non-relative patches in all compiled methods. These patches need space
+  // in the .oat_patches ELF section if requested in the compiler options.
+  size_t non_relative_linker_patch_count_ GUARDED_BY(compiled_methods_lock_);
 
   const bool image_;
 
   // If image_ is true, specifies the classes that will be included in
-  // the image. Note if image_classes_ is NULL, all classes are
+  // the image. Note if image_classes_ is nullptr, all classes are
   // included in the image.
-  std::unique_ptr<DescriptorSet> image_classes_;
+  std::unique_ptr<std::set<std::string>> image_classes_;
 
   size_t thread_count_;
   uint64_t start_ns_;
@@ -772,15 +542,16 @@ class CompilerDriver {
   bool support_boot_image_fixup_;
 
   // DeDuplication data structures, these own the corresponding byte arrays.
+  template <typename ByteArray>
   class DedupeHashFunc {
    public:
-    size_t operator()(const std::vector<uint8_t>& array) const {
+    size_t operator()(const ByteArray& array) const {
       // For small arrays compute a hash using every byte.
       static const size_t kSmallArrayThreshold = 16;
       size_t hash = 0x811c9dc5;
       if (array.size() <= kSmallArrayThreshold) {
-        for (uint8_t b : array) {
-          hash = (hash * 16777619) ^ b;
+        for (auto b : array) {
+          hash = (hash * 16777619) ^ static_cast<uint8_t>(b);
         }
       } else {
         // For larger arrays use the 2 bytes at 6 bytes (the location of a push registers
@@ -788,12 +559,12 @@ class CompilerDriver {
         // values at random.
         static const size_t kRandomHashCount = 16;
         for (size_t i = 0; i < 2; ++i) {
-          uint8_t b = array[i + 6];
+          uint8_t b = static_cast<uint8_t>(array[i + 6]);
           hash = (hash * 16777619) ^ b;
         }
         for (size_t i = 2; i < kRandomHashCount; ++i) {
           size_t r = i * 1103515245 + 12345;
-          uint8_t b = array[r % array.size()];
+          uint8_t b = static_cast<uint8_t>(array[r % array.size()]);
           hash = (hash * 16777619) ^ b;
         }
       }
@@ -805,11 +576,13 @@ class CompilerDriver {
       return hash;
     }
   };
-  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_code_;
-  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_mapping_table_;
-  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_vmap_table_;
-  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_gc_map_;
-  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_cfi_info_;
+
+  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc<std::vector<uint8_t>>, 4> dedupe_code_;
+  DedupeSet<SrcMap, size_t, DedupeHashFunc<SrcMap>, 4> dedupe_src_mapping_table_;
+  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc<std::vector<uint8_t>>, 4> dedupe_mapping_table_;
+  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc<std::vector<uint8_t>>, 4> dedupe_vmap_table_;
+  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc<std::vector<uint8_t>>, 4> dedupe_gc_map_;
+  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc<std::vector<uint8_t>>, 4> dedupe_cfi_info_;
 
   DISALLOW_COPY_AND_ASSIGN(CompilerDriver);
 };

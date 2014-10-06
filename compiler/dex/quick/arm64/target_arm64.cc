@@ -20,6 +20,7 @@
 
 #include <string>
 
+#include "backend_arm64.h"
 #include "dex/compiler_internals.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "dex/reg_storage_eq.h"
@@ -83,23 +84,23 @@ static constexpr ArrayRef<const RegStorage> sp_temps(sp_temps_arr);
 static constexpr ArrayRef<const RegStorage> dp_temps(dp_temps_arr);
 
 RegLocation Arm64Mir2Lir::LocCReturn() {
-  return arm_loc_c_return;
+  return a64_loc_c_return;
 }
 
 RegLocation Arm64Mir2Lir::LocCReturnRef() {
-  return arm_loc_c_return_ref;
+  return a64_loc_c_return_ref;
 }
 
 RegLocation Arm64Mir2Lir::LocCReturnWide() {
-  return arm_loc_c_return_wide;
+  return a64_loc_c_return_wide;
 }
 
 RegLocation Arm64Mir2Lir::LocCReturnFloat() {
-  return arm_loc_c_return_float;
+  return a64_loc_c_return_float;
 }
 
 RegLocation Arm64Mir2Lir::LocCReturnDouble() {
-  return arm_loc_c_return_double;
+  return a64_loc_c_return_double;
 }
 
 // Return a target-dependent special register.
@@ -152,7 +153,7 @@ ResourceMask Arm64Mir2Lir::GetRegMaskCommon(const RegStorage& reg) const {
 
   return ResourceMask::Bit(
       // FP register starts at bit position 32.
-      (reg.IsFloat() ? kArm64FPReg0 : 0) + reg.GetRegNum());
+      (reg.IsFloat() ? kA64FPReg0 : 0) + reg.GetRegNum());
 }
 
 ResourceMask Arm64Mir2Lir::GetPCUseDefEncoding() const {
@@ -172,15 +173,15 @@ void Arm64Mir2Lir::SetupTargetResourceMasks(LIR* lir, uint64_t flags,
   // These flags are somewhat uncommon - bypass if we can.
   if ((flags & (REG_DEF_SP | REG_USE_SP | REG_DEF_LR)) != 0) {
     if (flags & REG_DEF_SP) {
-      def_mask->SetBit(kArm64RegSP);
+      def_mask->SetBit(kA64RegSP);
     }
 
     if (flags & REG_USE_SP) {
-      use_mask->SetBit(kArm64RegSP);
+      use_mask->SetBit(kA64RegSP);
     }
 
     if (flags & REG_DEF_LR) {
-      def_mask->SetBit(kArm64RegLR);
+      def_mask->SetBit(kA64RegLR);
     }
   }
 }
@@ -248,19 +249,22 @@ static void DecodeRegExtendOrShift(int operand, char *buf, size_t buf_size) {
   }
 }
 
-#define BIT_MASK(w) ((UINT64_C(1) << (w)) - UINT64_C(1))
+static uint64_t bit_mask(unsigned width) {
+  DCHECK_LE(width, 64U);
+  return (width == 64) ? static_cast<uint64_t>(-1) : ((UINT64_C(1) << (width)) - UINT64_C(1));
+}
 
 static uint64_t RotateRight(uint64_t value, unsigned rotate, unsigned width) {
   DCHECK_LE(width, 64U);
   rotate &= 63;
-  value = value & BIT_MASK(width);
-  return ((value & BIT_MASK(rotate)) << (width - rotate)) | (value >> rotate);
+  value = value & bit_mask(width);
+  return ((value & bit_mask(rotate)) << (width - rotate)) | (value >> rotate);
 }
 
 static uint64_t RepeatBitsAcrossReg(bool is_wide, uint64_t value, unsigned width) {
   unsigned i;
   unsigned reg_size = (is_wide) ? 64 : 32;
-  uint64_t result = value & BIT_MASK(width);
+  uint64_t result = value & bit_mask(width);
   for (i = width; i < reg_size; i *= 2) {
     result |= (result << i);
   }
@@ -299,7 +303,7 @@ uint64_t Arm64Mir2Lir::DecodeLogicalImmediate(bool is_wide, int value) {
 
   if (n == 1) {
     DCHECK_NE(imm_s, 0x3fU);
-    uint64_t bits = BIT_MASK(imm_s + 1);
+    uint64_t bits = bit_mask(imm_s + 1);
     return RotateRight(bits, imm_r, 64);
   } else {
     DCHECK_NE((imm_s >> 1), 0x1fU);
@@ -307,7 +311,7 @@ uint64_t Arm64Mir2Lir::DecodeLogicalImmediate(bool is_wide, int value) {
       if ((imm_s & width) == 0) {
         unsigned mask = (unsigned)(width - 1);
         DCHECK_NE((imm_s & mask), mask);
-        uint64_t bits = BIT_MASK((imm_s & mask) + 1);
+        uint64_t bits = bit_mask((imm_s & mask) + 1);
         return RepeatBitsAcrossReg(is_wide, RotateRight(bits, imm_r & mask, width), width);
       }
     }
@@ -404,7 +408,7 @@ std::string Arm64Mir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned ch
              snprintf(tbuf, arraysize(tbuf), "d%d", operand & RegStorage::kRegNumMask);
              break;
            case 'f':
-             snprintf(tbuf, arraysize(tbuf), "%c%d", (IS_FWIDE(lir->opcode)) ? 'd' : 's',
+             snprintf(tbuf, arraysize(tbuf), "%c%d", (IS_WIDE(lir->opcode)) ? 'd' : 's',
                       operand & RegStorage::kRegNumMask);
              break;
            case 'l': {
@@ -504,6 +508,9 @@ std::string Arm64Mir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned ch
              else
                strcpy(tbuf, ", DecodeError3");
              break;
+           case 'h':
+             snprintf(tbuf, arraysize(tbuf), "%d", operand);
+             break;
            default:
              strcpy(tbuf, "DecodeError1");
              break;
@@ -527,7 +534,7 @@ void Arm64Mir2Lir::DumpResourceMask(LIR* arm_lir, const ResourceMask& mask, cons
     char num[8];
     int i;
 
-    for (i = 0; i < kArm64RegEnd; i++) {
+    for (i = 0; i < kA64RegEnd; i++) {
       if (mask.HasBit(i)) {
         snprintf(num, arraysize(num), "%d ", i);
         strcat(buf, num);
@@ -595,14 +602,13 @@ Mir2Lir* Arm64CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph
 }
 
 void Arm64Mir2Lir::CompilerInitializeRegAlloc() {
-  reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs, core64_regs, sp_regs, dp_regs,
-                                        reserved_regs, reserved64_regs, core_temps, core64_temps,
-                                        sp_temps, dp_temps);
+  reg_pool_.reset(new (arena_) RegisterPool(this, arena_, core_regs, core64_regs, sp_regs, dp_regs,
+                                            reserved_regs, reserved64_regs,
+                                            core_temps, core64_temps, sp_temps, dp_temps));
 
   // Target-specific adjustments.
   // Alias single precision float registers to corresponding double registers.
-  GrowableArray<RegisterInfo*>::Iterator fp_it(&reg_pool_->sp_regs_);
-  for (RegisterInfo* info = fp_it.Next(); info != nullptr; info = fp_it.Next()) {
+  for (RegisterInfo* info : reg_pool_->sp_regs_) {
     int fp_reg_num = info->GetReg().GetRegNum();
     RegStorage dp_reg = RegStorage::FloatSolo64(fp_reg_num);
     RegisterInfo* dp_reg_info = GetRegInfo(dp_reg);
@@ -615,8 +621,7 @@ void Arm64Mir2Lir::CompilerInitializeRegAlloc() {
   }
 
   // Alias 32bit W registers to corresponding 64bit X registers.
-  GrowableArray<RegisterInfo*>::Iterator w_it(&reg_pool_->core_regs_);
-  for (RegisterInfo* info = w_it.Next(); info != nullptr; info = w_it.Next()) {
+  for (RegisterInfo* info : reg_pool_->core_regs_) {
     int x_reg_num = info->GetReg().GetRegNum();
     RegStorage x_reg = RegStorage::Solo64(x_reg_num);
     RegisterInfo* x_reg_info = GetRegInfo(x_reg);
@@ -889,11 +894,11 @@ static RegStorage GetArgPhysicalReg(RegLocation* loc, int* num_gpr_used, int* nu
 
 RegStorage Arm64Mir2Lir::GetArgMappingToPhysicalReg(int arg_num) {
   if (!in_to_reg_storage_mapping_.IsInitialized()) {
-    int start_vreg = cu_->num_dalvik_registers - cu_->num_ins;
+    int start_vreg = mir_graph_->GetFirstInVR();
     RegLocation* arg_locs = &mir_graph_->reg_location_[start_vreg];
 
     InToRegStorageArm64Mapper mapper;
-    in_to_reg_storage_mapping_.Initialize(arg_locs, cu_->num_ins, &mapper);
+    in_to_reg_storage_mapping_.Initialize(arg_locs, mir_graph_->GetNumOfInVRs(), &mapper);
   }
   return in_to_reg_storage_mapping_.Get(arg_num);
 }
@@ -927,14 +932,14 @@ void Arm64Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
     StoreRefDisp(TargetPtrReg(kSp), 0, rl_src.reg, kNotVolatile);
   }
 
-  if (cu_->num_ins == 0) {
+  if (mir_graph_->GetNumOfInVRs() == 0) {
     return;
   }
 
   // Handle dalvik registers.
   ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-  int start_vreg = cu_->num_dalvik_registers - cu_->num_ins;
-  for (int i = 0; i < cu_->num_ins; i++) {
+  int start_vreg = mir_graph_->GetFirstInVR();
+  for (uint32_t i = 0; i < mir_graph_->GetNumOfInVRs(); i++) {
     RegLocation* t_loc = &ArgLocs[i];
     OpSize op_size;
     RegStorage reg = GetArgPhysicalReg(t_loc, &num_gpr_used, &num_fpr_used, &op_size);
@@ -1076,9 +1081,6 @@ int Arm64Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
         next_arg++;
       }
     }
-
-    // Logic below assumes that Method pointer is at offset zero from SP.
-    DCHECK_EQ(VRegOffset(static_cast<int>(kVRegMethodPtrBaseReg)), 0);
 
     // The rest can be copied together
     int start_offset = SRegOffset(info->args[last_mapped_in + 1].s_reg_low);

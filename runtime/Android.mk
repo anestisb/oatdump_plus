@@ -47,7 +47,6 @@ LIBART_COMMON_SRC_FILES := \
   gc/allocator/dlmalloc.cc \
   gc/allocator/rosalloc.cc \
   gc/accounting/card_table.cc \
-  gc/accounting/gc_allocator.cc \
   gc/accounting/heap_bitmap.cc \
   gc/accounting/mod_union_table.cc \
   gc/accounting/remembered_set.cc \
@@ -106,7 +105,7 @@ LIBART_COMMON_SRC_FILES := \
   mirror/string.cc \
   mirror/throwable.cc \
   monitor.cc \
-  native_bridge.cc \
+  native_bridge_art_interface.cc \
   native/dalvik_system_DexFile.cc \
   native/dalvik_system_VMDebug.cc \
   native/dalvik_system_VMRuntime.cc \
@@ -121,6 +120,7 @@ LIBART_COMMON_SRC_FILES := \
   native/java_lang_Thread.cc \
   native/java_lang_Throwable.cc \
   native/java_lang_VMClassLoader.cc \
+  native/java_lang_ref_FinalizerReference.cc \
   native/java_lang_ref_Reference.cc \
   native/java_lang_reflect_Array.cc \
   native/java_lang_reflect_Constructor.cc \
@@ -295,6 +295,7 @@ LIBART_HOST_SRC_FILES_64 := \
 
 LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
   arch/x86_64/registers_x86_64.h \
+  base/allocator.h \
   base/mutex.h \
   dex_file.h \
   dex_instruction.h \
@@ -417,11 +418,11 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   LOCAL_C_INCLUDES += $$(ART_C_INCLUDES)
   LOCAL_C_INCLUDES += art/sigchainlib
 
-  LOCAL_SHARED_LIBRARIES += liblog libnativehelper
+  LOCAL_SHARED_LIBRARIES += liblog libnativehelper libnativebridge
   include external/libcxx/libcxx.mk
   LOCAL_SHARED_LIBRARIES += libbacktrace_libc++
   ifeq ($$(art_target_or_host),target)
-    LOCAL_SHARED_LIBRARIES += libcutils libdl libselinux libutils libsigchain
+    LOCAL_SHARED_LIBRARIES += libcutils libdl libutils libsigchain
     LOCAL_STATIC_LIBRARIES := libziparchive libz
   else # host
     LOCAL_STATIC_LIBRARIES += libcutils libziparchive-host libz libutils
@@ -468,10 +469,10 @@ endef
 
 # We always build dex2oat and dependencies, even if the host build is otherwise disabled, since
 # they are used to cross compile for the target.
-ifeq ($(ART_BUILD_NDEBUG),true)
+ifeq ($(ART_BUILD_HOST_NDEBUG),true)
   $(eval $(call build-libart,host,ndebug))
 endif
-ifeq ($(ART_BUILD_DEBUG),true)
+ifeq ($(ART_BUILD_HOST_DEBUG),true)
   $(eval $(call build-libart,host,debug))
 endif
 

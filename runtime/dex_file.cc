@@ -50,20 +50,6 @@ namespace art {
 const byte DexFile::kDexMagic[] = { 'd', 'e', 'x', '\n' };
 const byte DexFile::kDexMagicVersion[] = { '0', '3', '5', '\0' };
 
-DexFile::ClassPathEntry DexFile::FindInClassPath(const char* descriptor,
-                                                 const ClassPath& class_path) {
-  for (size_t i = 0; i != class_path.size(); ++i) {
-    const DexFile* dex_file = class_path[i];
-    const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor);
-    if (dex_class_def != NULL) {
-      return ClassPathEntry(dex_file, dex_class_def);
-    }
-  }
-  // TODO: remove reinterpret_cast when issue with -std=gnu++0x host issue resolved
-  return ClassPathEntry(reinterpret_cast<const DexFile*>(NULL),
-                        reinterpret_cast<const DexFile::ClassDef*>(NULL));
-}
-
 static int OpenAndReadMagic(const char* filename, uint32_t* magic, std::string* error_msg) {
   CHECK(magic != NULL);
   ScopedFd fd(open(filename, O_RDONLY, 0));
@@ -91,14 +77,13 @@ bool DexFile::GetChecksum(const char* filename, uint32_t* checksum, std::string*
   // Strip ":...", which is the location
   const char* zip_entry_name = kClassesDex;
   const char* file_part = filename;
-  std::unique_ptr<const char> file_part_ptr;
+  std::string file_part_storage;
 
-
-  if (IsMultiDexLocation(filename)) {
-    std::pair<const char*, const char*> pair = SplitMultiDexLocation(filename);
-    file_part_ptr.reset(pair.first);
-    file_part = pair.first;
-    zip_entry_name = pair.second;
+  if (DexFile::IsMultiDexLocation(filename)) {
+    file_part_storage = GetBaseLocation(filename);
+    file_part = file_part_storage.c_str();
+    zip_entry_name = filename + file_part_storage.size() + 1;
+    DCHECK_EQ(zip_entry_name[-1], kMultiDexSeparator);
   }
 
   ScopedFd fd(OpenAndReadMagic(file_part, &magic, error_msg));
@@ -220,19 +205,20 @@ const DexFile* DexFile::OpenFile(int fd, const char* location, bool verify,
 
   const Header* dex_header = reinterpret_cast<const Header*>(map->Begin());
 
-  const DexFile* dex_file = OpenMemory(location, dex_header->checksum_, map.release(), error_msg);
-  if (dex_file == nullptr) {
+  std::unique_ptr<const DexFile> dex_file(OpenMemory(location, dex_header->checksum_, map.release(),
+                                                     error_msg));
+  if (dex_file.get() == nullptr) {
     *error_msg = StringPrintf("Failed to open dex file '%s' from memory: %s", location,
                               error_msg->c_str());
     return nullptr;
   }
 
-  if (verify && !DexFileVerifier::Verify(dex_file, dex_file->Begin(), dex_file->Size(), location,
-                                         error_msg)) {
+  if (verify && !DexFileVerifier::Verify(dex_file.get(), dex_file->Begin(), dex_file->Size(),
+                                         location, error_msg)) {
     return nullptr;
   }
 
-  return dex_file;
+  return dex_file.release();
 }
 
 const char* DexFile::kClassesDex = "classes.dex";
@@ -317,7 +303,7 @@ bool DexFile::OpenFromZip(const ZipArchive& zip_archive, const std::string& loca
 
     while (i < 100) {
       std::string name = StringPrintf("classes%zu.dex", i);
-      std::string fake_location = location + ":" + name;
+      std::string fake_location = location + kMultiDexSeparator + name;
       std::unique_ptr<const DexFile> next_dex_file(Open(zip_archive, name.c_str(), fake_location,
                                                         error_msg, &error_code));
       if (next_dex_file.get() == nullptr) {
@@ -366,7 +352,9 @@ DexFile::DexFile(const byte* base, size_t size,
       field_ids_(reinterpret_cast<const FieldId*>(base + header_->field_ids_off_)),
       method_ids_(reinterpret_cast<const MethodId*>(base + header_->method_ids_off_)),
       proto_ids_(reinterpret_cast<const ProtoId*>(base + header_->proto_ids_off_)),
-      class_defs_(reinterpret_cast<const ClassDef*>(base + header_->class_defs_off_)) {
+      class_defs_(reinterpret_cast<const ClassDef*>(base + header_->class_defs_off_)),
+      find_class_def_misses_(0),
+      class_def_index_(nullptr) {
   CHECK(begin_ != NULL) << GetLocation();
   CHECK_GT(size_, 0U) << GetLocation();
 }
@@ -376,6 +364,8 @@ DexFile::~DexFile() {
   // that's only called after DetachCurrentThread, which means there's no JNIEnv. We could
   // re-attach, but cleaning up these global references is not obviously useful. It's not as if
   // the global reference table is otherwise empty!
+  // Remove the index if one were created.
+  delete class_def_index_.LoadRelaxed();
 }
 
 bool DexFile::Init(std::string* error_msg) {
@@ -424,26 +414,52 @@ uint32_t DexFile::GetVersion() const {
 }
 
 const DexFile::ClassDef* DexFile::FindClassDef(const char* descriptor) const {
-  size_t num_class_defs = NumClassDefs();
+  // If we have an index lookup the descriptor via that as its constant time to search.
+  Index* index = class_def_index_.LoadSequentiallyConsistent();
+  if (index != nullptr) {
+    auto it = index->find(descriptor);
+    return (it == index->end()) ? nullptr : it->second;
+  }
+  // Fast path for rate no class defs case.
+  uint32_t num_class_defs = NumClassDefs();
   if (num_class_defs == 0) {
-    return NULL;
+    return nullptr;
   }
+  // Search for class def with 2 binary searches and then a linear search.
   const StringId* string_id = FindStringId(descriptor);
-  if (string_id == NULL) {
-    return NULL;
-  }
-  const TypeId* type_id = FindTypeId(GetIndexForStringId(*string_id));
-  if (type_id == NULL) {
-    return NULL;
-  }
-  uint16_t type_idx = GetIndexForTypeId(*type_id);
-  for (size_t i = 0; i < num_class_defs; ++i) {
-    const ClassDef& class_def = GetClassDef(i);
-    if (class_def.class_idx_ == type_idx) {
-      return &class_def;
+  if (string_id != nullptr) {
+    const TypeId* type_id = FindTypeId(GetIndexForStringId(*string_id));
+    if (type_id != nullptr) {
+      uint16_t type_idx = GetIndexForTypeId(*type_id);
+      for (size_t i = 0; i < num_class_defs; ++i) {
+        const ClassDef& class_def = GetClassDef(i);
+        if (class_def.class_idx_ == type_idx) {
+          return &class_def;
+        }
+      }
     }
   }
-  return NULL;
+  // A miss. If we've had kMaxFailedDexClassDefLookups misses then build an index to speed things
+  // up. This isn't done eagerly at construction as construction is not performed in multi-threaded
+  // sections of tools like dex2oat. If we're lazy we hopefully increase the chance of balancing
+  // out which thread builds the index.
+  const uint32_t kMaxFailedDexClassDefLookups = 100;
+  uint32_t old_misses = find_class_def_misses_.FetchAndAddSequentiallyConsistent(1);
+  if (old_misses == kMaxFailedDexClassDefLookups) {
+    // Are we the ones moving the miss count past the max? Sanity check the index doesn't exist.
+    CHECK(class_def_index_.LoadSequentiallyConsistent() == nullptr);
+    // Build the index.
+    index = new Index(num_class_defs);
+    for (uint32_t i = 0; i < num_class_defs;  ++i) {
+      const ClassDef& class_def = GetClassDef(i);
+      const char* descriptor = GetClassDescriptor(class_def);
+      index->insert(std::make_pair(descriptor, &class_def));
+    }
+    // Sanity check the index still doesn't exist, only 1 thread should build it.
+    CHECK(class_def_index_.LoadSequentiallyConsistent() == nullptr);
+    class_def_index_.StoreSequentiallyConsistent(index);
+  }
+  return nullptr;
 }
 
 const DexFile::ClassDef* DexFile::FindClassDef(uint16_t type_idx) const {
@@ -935,21 +951,6 @@ bool DexFile::IsMultiDexLocation(const char* location) {
   return strrchr(location, kMultiDexSeparator) != nullptr;
 }
 
-std::pair<const char*, const char*> DexFile::SplitMultiDexLocation(
-    const char* location) {
-  const char* colon_ptr = strrchr(location, kMultiDexSeparator);
-
-  // Check it's synthetic.
-  CHECK_NE(colon_ptr, static_cast<const char*>(nullptr));
-
-  size_t colon_index = colon_ptr - location;
-  char* tmp = new char[colon_index + 1];
-  strncpy(tmp, location, colon_index);
-  tmp[colon_index] = 0;
-
-  return std::make_pair(tmp, colon_ptr + 1);
-}
-
 std::string DexFile::GetMultiDexClassesDexName(size_t number, const char* dex_location) {
   if (number == 0) {
     return dex_location;
@@ -960,26 +961,17 @@ std::string DexFile::GetMultiDexClassesDexName(size_t number, const char* dex_lo
 
 std::string DexFile::GetDexCanonicalLocation(const char* dex_location) {
   CHECK_NE(dex_location, static_cast<const char*>(nullptr));
-  char* path = nullptr;
-  if (!IsMultiDexLocation(dex_location)) {
-    path = realpath(dex_location, nullptr);
+  std::string base_location = GetBaseLocation(dex_location);
+  const char* suffix = dex_location + base_location.size();
+  DCHECK(suffix[0] == 0 || suffix[0] == kMultiDexSeparator);
+  UniqueCPtr<const char[]> path(realpath(base_location.c_str(), nullptr));
+  if (path != nullptr && path.get() != base_location) {
+    return std::string(path.get()) + suffix;
+  } else if (suffix[0] == 0) {
+    return base_location;
   } else {
-    std::pair<const char*, const char*> pair = DexFile::SplitMultiDexLocation(dex_location);
-    const char* dex_real_location(realpath(pair.first, nullptr));
-    delete pair.first;
-    if (dex_real_location != nullptr) {
-      int length = strlen(dex_real_location) + strlen(pair.second) + strlen(kMultiDexSeparatorString) + 1;
-      char* multidex_canonical_location = reinterpret_cast<char*>(malloc(sizeof(char) * length));
-      snprintf(multidex_canonical_location, length, "%s" kMultiDexSeparatorString "%s", dex_real_location, pair.second);
-      free(const_cast<char*>(dex_real_location));
-      path = multidex_canonical_location;
-    }
+    return dex_location;
   }
-
-  // If realpath fails then we just copy the argument.
-  std::string result(path == nullptr ? dex_location : path);
-  free(path);
-  return result;
 }
 
 std::ostream& operator<<(std::ostream& os, const DexFile& dex_file) {
@@ -1200,7 +1192,7 @@ void EncodedStaticFieldValueIterator::Next() {
 }
 
 template<bool kTransactionActive>
-void EncodedStaticFieldValueIterator::ReadValueToField(mirror::ArtField* field) const {
+void EncodedStaticFieldValueIterator::ReadValueToField(Handle<mirror::ArtField> field) const {
   switch (type_) {
     case kBoolean: field->SetBoolean<kTransactionActive>(field->GetDeclaringClass(), jval_.z); break;
     case kByte:    field->SetByte<kTransactionActive>(field->GetDeclaringClass(), jval_.b); break;
@@ -1227,8 +1219,8 @@ void EncodedStaticFieldValueIterator::ReadValueToField(mirror::ArtField* field) 
     default: UNIMPLEMENTED(FATAL) << ": type " << type_;
   }
 }
-template void EncodedStaticFieldValueIterator::ReadValueToField<true>(mirror::ArtField* field) const;
-template void EncodedStaticFieldValueIterator::ReadValueToField<false>(mirror::ArtField* field) const;
+template void EncodedStaticFieldValueIterator::ReadValueToField<true>(Handle<mirror::ArtField> field) const;
+template void EncodedStaticFieldValueIterator::ReadValueToField<false>(Handle<mirror::ArtField> field) const;
 
 CatchHandlerIterator::CatchHandlerIterator(const DexFile::CodeItem& code_item, uint32_t address) {
   handler_.address_ = -1;

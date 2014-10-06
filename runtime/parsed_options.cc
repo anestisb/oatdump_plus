@@ -30,6 +30,87 @@
 
 namespace art {
 
+ParsedOptions::ParsedOptions()
+    :
+    boot_class_path_(nullptr),
+    check_jni_(kIsDebugBuild),                      // -Xcheck:jni is off by default for regular
+                                                    // builds but on by default in debug builds.
+    force_copy_(false),
+    compiler_callbacks_(nullptr),
+    is_zygote_(false),
+    must_relocate_(kDefaultMustRelocate),
+    dex2oat_enabled_(true),
+    image_dex2oat_enabled_(true),
+    interpreter_only_(kPoisonHeapReferences),       // kPoisonHeapReferences currently works with
+                                                    // the interpreter only.
+                                                    // TODO: make it work with the compiler.
+    is_explicit_gc_disabled_(false),
+    use_tlab_(false),
+    verify_pre_gc_heap_(false),
+    verify_pre_sweeping_heap_(kIsDebugBuild),       // Pre sweeping is the one that usually fails
+                                                    // if the GC corrupted the heap.
+    verify_post_gc_heap_(false),
+    verify_pre_gc_rosalloc_(kIsDebugBuild),
+    verify_pre_sweeping_rosalloc_(false),
+    verify_post_gc_rosalloc_(false),
+    long_pause_log_threshold_(gc::Heap::kDefaultLongPauseLogThreshold),
+    long_gc_log_threshold_(gc::Heap::kDefaultLongGCLogThreshold),
+    dump_gc_performance_on_shutdown_(false),
+    ignore_max_footprint_(false),
+    heap_initial_size_(gc::Heap::kDefaultInitialSize),
+    heap_maximum_size_(gc::Heap::kDefaultMaximumSize),
+    heap_growth_limit_(0),                          // 0 means no growth limit.
+    heap_min_free_(gc::Heap::kDefaultMinFree),
+    heap_max_free_(gc::Heap::kDefaultMaxFree),
+    heap_non_moving_space_capacity_(gc::Heap::kDefaultNonMovingSpaceCapacity),
+    large_object_space_type_(gc::Heap::kDefaultLargeObjectSpaceType),
+    large_object_threshold_(gc::Heap::kDefaultLargeObjectThreshold),
+    heap_target_utilization_(gc::Heap::kDefaultTargetUtilization),
+    foreground_heap_growth_multiplier_(gc::Heap::kDefaultHeapGrowthMultiplier),
+    parallel_gc_threads_(1),
+    conc_gc_threads_(0),                            // Only the main GC thread, no workers.
+    collector_type_(                                // The default GC type is set in makefiles.
+#if ART_DEFAULT_GC_TYPE_IS_CMS
+        gc::kCollectorTypeCMS),
+#elif ART_DEFAULT_GC_TYPE_IS_SS
+        gc::kCollectorTypeSS),
+#elif ART_DEFAULT_GC_TYPE_IS_GSS
+    gc::kCollectorTypeGSS),
+#else
+    gc::kCollectorTypeCMS),
+#error "ART default GC type must be set"
+#endif
+    background_collector_type_(gc::kCollectorTypeNone),
+                                                    // If background_collector_type_ is
+                                                    // kCollectorTypeNone, it defaults to the
+                                                    // collector_type_ after parsing options. If
+                                                    // you set this to kCollectorTypeHSpaceCompact
+                                                    // then we will do an hspace compaction when
+                                                    // we transition to background instead of a
+                                                    // normal collector transition.
+    stack_size_(0),                                 // 0 means default.
+    max_spins_before_thin_lock_inflation_(Monitor::kDefaultMaxSpinsBeforeThinLockInflation),
+    low_memory_mode_(false),
+    lock_profiling_threshold_(0),
+    method_trace_(false),
+    method_trace_file_("/data/method-trace-file.bin"),
+    method_trace_file_size_(10 * MB),
+    hook_is_sensitive_thread_(nullptr),
+    hook_vfprintf_(vfprintf),
+    hook_exit_(exit),
+    hook_abort_(nullptr),                           // We don't call abort(3) by default; see
+                                                    // Runtime::Abort.
+    profile_clock_source_(kDefaultTraceClockSource),
+    verify_(true),
+    image_isa_(kRuntimeISA),
+    use_homogeneous_space_compaction_for_oom_(false),  // If we are using homogeneous space
+                                                       // compaction then default background
+                                                       // compaction to off since homogeneous
+                                                       // space compactions when we transition
+                                                       // to not jank perceptible.
+    min_interval_homogeneous_space_compaction_by_oom_(MsToNs(100 * 1000))  // 100s.
+    {}
+
 ParsedOptions* ParsedOptions::Create(const RuntimeOptions& options, bool ignore_unrecognized) {
   std::unique_ptr<ParsedOptions> parsed(new ParsedOptions());
   if (parsed->Parse(options, ignore_unrecognized)) {
@@ -175,74 +256,9 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
   if (class_path_string != NULL) {
     class_path_string_ = class_path_string;
   }
-  // -Xcheck:jni is off by default for regular builds but on by default in debug builds.
-  check_jni_ = kIsDebugBuild;
-  force_copy_ = false;
 
-  heap_initial_size_ = gc::Heap::kDefaultInitialSize;
-  heap_maximum_size_ = gc::Heap::kDefaultMaximumSize;
-  heap_min_free_ = gc::Heap::kDefaultMinFree;
-  heap_max_free_ = gc::Heap::kDefaultMaxFree;
-  heap_target_utilization_ = gc::Heap::kDefaultTargetUtilization;
-  foreground_heap_growth_multiplier_ = gc::Heap::kDefaultHeapGrowthMultiplier;
-  heap_growth_limit_ = 0;  // 0 means no growth limit .
   // Default to number of processors minus one since the main GC thread also does work.
   parallel_gc_threads_ = sysconf(_SC_NPROCESSORS_CONF) - 1;
-  // Only the main GC thread, no workers.
-  conc_gc_threads_ = 0;
-  // The default GC type is set in makefiles.
-#if ART_DEFAULT_GC_TYPE_IS_CMS
-  collector_type_ = gc::kCollectorTypeCMS;
-#elif ART_DEFAULT_GC_TYPE_IS_SS
-  collector_type_ = gc::kCollectorTypeSS;
-#elif ART_DEFAULT_GC_TYPE_IS_GSS
-  collector_type_ = gc::kCollectorTypeGSS;
-#else
-#error "ART default GC type must be set"
-#endif
-  // If we are using homogeneous space compaction then default background compaction to off since
-  // homogeneous space compactions when we transition to not jank perceptible.
-  use_homogeneous_space_compaction_for_oom_ = false;
-  // If background_collector_type_ is kCollectorTypeNone, it defaults to the collector_type_ after
-  // parsing options. If you set this to kCollectorTypeHSpaceCompact then we will do an hspace
-  // compaction when we transition to background instead of a normal collector transition.
-  background_collector_type_ = gc::kCollectorTypeSS;
-  stack_size_ = 0;  // 0 means default.
-  max_spins_before_thin_lock_inflation_ = Monitor::kDefaultMaxSpinsBeforeThinLockInflation;
-  low_memory_mode_ = false;
-  use_tlab_ = false;
-  min_interval_homogeneous_space_compaction_by_oom_ = MsToNs(100 * 1000);  // 100s.
-  verify_pre_gc_heap_ = false;
-  // Pre sweeping is the one that usually fails if the GC corrupted the heap.
-  verify_pre_sweeping_heap_ = kIsDebugBuild;
-  verify_post_gc_heap_ = false;
-  verify_pre_gc_rosalloc_ = kIsDebugBuild;
-  verify_pre_sweeping_rosalloc_ = false;
-  verify_post_gc_rosalloc_ = false;
-
-  compiler_callbacks_ = nullptr;
-  is_zygote_ = false;
-  must_relocate_ = kDefaultMustRelocate;
-  if (kPoisonHeapReferences) {
-    // kPoisonHeapReferences currently works only with the interpreter only.
-    // TODO: make it work with the compiler.
-    interpreter_only_ = true;
-  } else {
-    interpreter_only_ = false;
-  }
-  is_explicit_gc_disabled_ = false;
-
-  long_pause_log_threshold_ = gc::Heap::kDefaultLongPauseLogThreshold;
-  long_gc_log_threshold_ = gc::Heap::kDefaultLongGCLogThreshold;
-  dump_gc_performance_on_shutdown_ = false;
-  ignore_max_footprint_ = false;
-
-  lock_profiling_threshold_ = 0;
-  hook_is_sensitive_thread_ = NULL;
-
-  hook_vfprintf_ = vfprintf;
-  hook_exit_ = exit;
-  hook_abort_ = NULL;  // We don't call abort(3) by default; see Runtime::Abort.
 
   gLogVerbosity.class_linker = true;  // TODO: don't check this in!
   gLogVerbosity.compiler = true;  // TODO: don't check this in!
@@ -257,15 +273,6 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
   gLogVerbosity.third_party_jni = true;  // TODO: don't check this in!
 //  gLogVerbosity.threads = true;  // TODO: don't check this in!
   gLogVerbosity.verifier = true;  // TODO: don't check this in!
-
-  method_trace_ = false;
-  method_trace_file_ = "/data/method-trace-file.bin";
-  method_trace_file_size_ = 10 * MB;
-
-  profile_clock_source_ = kDefaultTraceClockSource;
-
-  verify_ = true;
-  image_isa_ = kRuntimeISA;
 
   for (size_t i = 0; i < options.size(); ++i) {
     if (true && options[0].first == "-Xzygote") {
@@ -349,6 +356,14 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
         return false;
       }
       heap_max_free_ = size;
+    } else if (StartsWith(option, "-XX:NonMovingSpaceCapacity=")) {
+      size_t size = ParseMemoryOption(
+          option.substr(strlen("-XX:NonMovingSpaceCapacity=")).c_str(), 1024);
+      if (size == 0) {
+        Usage("Failed to parse memory option %s\n", option.c_str());
+        return false;
+      }
+      heap_non_moving_space_capacity_ = size;
     } else if (StartsWith(option, "-XX:HeapTargetUtilization=")) {
       if (!ParseDouble(option, '=', 0.1, 0.9, &heap_target_utilization_)) {
         return false;
@@ -409,8 +424,12 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
       compiler_callbacks_ =
           reinterpret_cast<CompilerCallbacks*>(const_cast<void*>(options[i].second));
     } else if (option == "imageinstructionset") {
-      image_isa_ = GetInstructionSetFromString(
-          reinterpret_cast<const char*>(options[i].second));
+      const char* isa_str = reinterpret_cast<const char*>(options[i].second);
+      image_isa_ = GetInstructionSetFromString(isa_str);
+      if (image_isa_ == kNone) {
+        Usage("%s is not a valid instruction set.", isa_str);
+        return false;
+      }
     } else if (option == "-Xzygote") {
       is_zygote_ = true;
     } else if (StartsWith(option, "-Xpatchoat:")) {
@@ -421,12 +440,46 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
       must_relocate_ = true;
     } else if (option == "-Xnorelocate") {
       must_relocate_ = false;
+    } else if (option == "-Xnodex2oat") {
+      dex2oat_enabled_ = false;
+    } else if (option == "-Xdex2oat") {
+      dex2oat_enabled_ = true;
+    } else if (option == "-Xnoimage-dex2oat") {
+      image_dex2oat_enabled_ = false;
+    } else if (option == "-Ximage-dex2oat") {
+      image_dex2oat_enabled_ = true;
     } else if (option == "-Xint") {
       interpreter_only_ = true;
     } else if (StartsWith(option, "-Xgc:")) {
       if (!ParseXGcOption(option)) {
         return false;
       }
+    } else if (StartsWith(option, "-XX:LargeObjectSpace=")) {
+      std::string substring;
+      if (!ParseStringAfterChar(option, '=', &substring)) {
+        return false;
+      }
+      if (substring == "disabled") {
+        large_object_space_type_ = gc::space::kLargeObjectSpaceTypeDisabled;
+      } else if (substring == "freelist") {
+        large_object_space_type_ = gc::space::kLargeObjectSpaceTypeFreeList;
+      } else if (substring == "map") {
+        large_object_space_type_ = gc::space::kLargeObjectSpaceTypeMap;
+      } else {
+        Usage("Unknown -XX:LargeObjectSpace= option %s\n", substring.c_str());
+        return false;
+      }
+    } else if (StartsWith(option, "-XX:LargeObjectThreshold=")) {
+      std::string substring;
+      if (!ParseStringAfterChar(option, '=', &substring)) {
+        return false;
+      }
+      size_t size = ParseMemoryOption(substring.c_str(), 1);
+      if (size == 0) {
+        Usage("Failed to parse memory option %s\n", option.c_str());
+        return false;
+      }
+      large_object_threshold_ = size;
     } else if (StartsWith(option, "-XX:BackgroundGC=")) {
       std::string substring;
       if (!ParseStringAfterChar(option, '=', &substring)) {
@@ -600,7 +653,7 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
         return false;
       }
     } else if (StartsWith(option, "-XX:NativeBridge=")) {
-      if (!ParseStringAfterChar(option, '=', &native_bridge_library_string_)) {
+      if (!ParseStringAfterChar(option, '=', &native_bridge_library_filename_)) {
         return false;
       }
     } else if (StartsWith(option, "-ea") ||
@@ -642,6 +695,12 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
       Usage("Unrecognized option %s\n", option.c_str());
       return false;
     }
+  }
+  // If not set, background collector type defaults to homogeneous compaction
+  // if not low memory mode, semispace otherwise.
+  if (background_collector_type_ == gc::kCollectorTypeNone) {
+    background_collector_type_ = low_memory_mode_ ?
+        gc::kCollectorTypeSS : gc::kCollectorTypeHomogeneousSpaceCompact;
   }
 
   // If a reference to the dalvik core.jar snuck in, replace it with
@@ -710,7 +769,7 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "The following standard options are supported:\n");
   UsageMessage(stream, "  -classpath classpath (-cp classpath)\n");
   UsageMessage(stream, "  -Dproperty=value\n");
-  UsageMessage(stream, "  -verbose:tag  ('gc', 'jni', or 'class')\n");
+  UsageMessage(stream, "  -verbose:tag ('gc', 'jni', or 'class')\n");
   UsageMessage(stream, "  -showversion\n");
   UsageMessage(stream, "  -help\n");
   UsageMessage(stream, "  -agentlib:jdwp=options\n");
@@ -720,9 +779,9 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -Xrunjdwp:<options>\n");
   UsageMessage(stream, "  -Xbootclasspath:bootclasspath\n");
   UsageMessage(stream, "  -Xcheck:tag  (e.g. 'jni')\n");
-  UsageMessage(stream, "  -XmsN  (min heap, must be multiple of 1K, >= 1MB)\n");
-  UsageMessage(stream, "  -XmxN  (max heap, must be multiple of 1K, >= 2MB)\n");
-  UsageMessage(stream, "  -XssN  (stack size)\n");
+  UsageMessage(stream, "  -XmsN (min heap, must be multiple of 1K, >= 1MB)\n");
+  UsageMessage(stream, "  -XmxN (max heap, must be multiple of 1K, >= 2MB)\n");
+  UsageMessage(stream, "  -XssN (stack size)\n");
   UsageMessage(stream, "  -Xint\n");
   UsageMessage(stream, "\n");
 
@@ -732,10 +791,10 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -Xstacktracefile:<filename>\n");
   UsageMessage(stream, "  -Xgc:[no]preverify\n");
   UsageMessage(stream, "  -Xgc:[no]postverify\n");
-  UsageMessage(stream, "  -XX:+DisableExplicitGC\n");
   UsageMessage(stream, "  -XX:HeapGrowthLimit=N\n");
   UsageMessage(stream, "  -XX:HeapMinFree=N\n");
   UsageMessage(stream, "  -XX:HeapMaxFree=N\n");
+  UsageMessage(stream, "  -XX:NonMovingSpaceCapacity=N\n");
   UsageMessage(stream, "  -XX:HeapTargetUtilization=doublevalue\n");
   UsageMessage(stream, "  -XX:ForegroundHeapGrowthMultiplier=doublevalue\n");
   UsageMessage(stream, "  -XX:LowMemoryMode\n");
@@ -748,6 +807,7 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -Xgc:[no]postverify_rosalloc\n");
   UsageMessage(stream, "  -Xgc:[no]presweepingverify\n");
   UsageMessage(stream, "  -Ximage:filename\n");
+  UsageMessage(stream, "  -XX:+DisableExplicitGC\n");
   UsageMessage(stream, "  -XX:ParallelGCThreads=integervalue\n");
   UsageMessage(stream, "  -XX:ConcGCThreads=integervalue\n");
   UsageMessage(stream, "  -XX:MaxSpinsBeforeThinLockInflation=integervalue\n");
@@ -757,6 +817,8 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -XX:IgnoreMaxFootprint\n");
   UsageMessage(stream, "  -XX:UseTLAB\n");
   UsageMessage(stream, "  -XX:BackgroundGC=none\n");
+  UsageMessage(stream, "  -XX:LargeObjectSpace={disabled,map,freelist}\n");
+  UsageMessage(stream, "  -XX:LargeObjectThreshold=N\n");
   UsageMessage(stream, "  -Xmethod-trace\n");
   UsageMessage(stream, "  -Xmethod-trace-file:filename");
   UsageMessage(stream, "  -Xmethod-trace-file-size:integervalue\n");
@@ -776,6 +838,8 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -Ximage-compiler-option dex2oat-option\n");
   UsageMessage(stream, "  -Xpatchoat:filename\n");
   UsageMessage(stream, "  -X[no]relocate\n");
+  UsageMessage(stream, "  -X[no]dex2oat (Whether to invoke dex2oat on the application)\n");
+  UsageMessage(stream, "  -X[no]image-dex2oat (Whether to create and use a boot image)\n");
   UsageMessage(stream, "\n");
 
   UsageMessage(stream, "The following previously supported Dalvik options are ignored:\n");
@@ -868,7 +932,7 @@ bool ParsedOptions::ParseDouble(const std::string& option, char after_char,
   }
   bool sane_val = true;
   double value;
-  if (false) {
+  if ((false)) {
     // TODO: this doesn't seem to work on the emulator.  b/15114595
     std::stringstream iss(substring);
     iss >> value;

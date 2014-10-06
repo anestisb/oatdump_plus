@@ -15,6 +15,7 @@
  */
 
 #include <memory>
+#include <setjmp.h>
 
 #include "base/macros.h"
 #include "common_runtime_test.h"
@@ -70,6 +71,10 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
     EXPECT_OFFSET_DIFFP(Thread, tls32_, daemon, throwing_OutOfMemoryError, 4);
     EXPECT_OFFSET_DIFFP(Thread, tls32_, throwing_OutOfMemoryError, no_thread_suspension, 4);
     EXPECT_OFFSET_DIFFP(Thread, tls32_, no_thread_suspension, thread_exit_check_count, 4);
+    EXPECT_OFFSET_DIFFP(Thread, tls32_, thread_exit_check_count,
+                        is_exception_reported_to_instrumentation_, 4);
+    EXPECT_OFFSET_DIFFP(Thread, tls32_, is_exception_reported_to_instrumentation_,
+                        handling_signal_, 4);
 
     // TODO: Better connection. Take alignment into account.
     EXPECT_OFFSET_DIFF_GT3(Thread, tls32_.thread_exit_check_count, tls64_.trace_clock_base, 4,
@@ -126,7 +131,7 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
                         kPointerSize);
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, thread_local_alloc_stack_end, held_mutexes, kPointerSize);
     EXPECT_OFFSET_DIFF(Thread, tlsPtr_.held_mutexes, Thread, wait_mutex_,
-                       kPointerSize * kLockLevelCount, thread_tlsptr_end);
+                       kPointerSize * kLockLevelCount + kPointerSize, thread_tlsptr_end);
   }
 
   void CheckInterpreterEntryPoints() {
@@ -181,13 +186,25 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pInitializeTypeAndVerifyAccess, pInitializeType,
                          kPointerSize);
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pInitializeType, pResolveString, kPointerSize);
-    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pResolveString, pSet32Instance, kPointerSize);
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pResolveString, pSet8Instance, kPointerSize);
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pSet8Instance, pSet8Static, kPointerSize);
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pSet8Static, pSet16Instance, kPointerSize);
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pSet16Instance, pSet16Static, kPointerSize);
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pSet16Static, pSet32Instance, kPointerSize);
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pSet32Instance, pSet32Static, kPointerSize);
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pSet32Static, pSet64Instance, kPointerSize);
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pSet64Instance, pSet64Static, kPointerSize);
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pSet64Static, pSetObjInstance, kPointerSize);
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pSetObjInstance, pSetObjStatic, kPointerSize);
-    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pSetObjStatic, pGet32Instance, kPointerSize);
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pSetObjStatic, pGetByteInstance, kPointerSize);
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pGetByteInstance, pGetBooleanInstance, kPointerSize);
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pGetBooleanInstance, pGetByteStatic, kPointerSize);
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pGetByteStatic, pGetBooleanStatic, kPointerSize);
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pGetBooleanStatic, pGetShortInstance, kPointerSize);
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pGetShortInstance, pGetCharInstance, kPointerSize);
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pGetCharInstance, pGetShortStatic, kPointerSize);
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pGetShortStatic, pGetCharStatic, kPointerSize);
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pGetCharStatic, pGet32Instance, kPointerSize);
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pGet32Instance, pGet32Static, kPointerSize);
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pGet32Static, pGet64Instance, kPointerSize);
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pGet64Instance, pGet64Static, kPointerSize);

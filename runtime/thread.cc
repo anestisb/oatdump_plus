@@ -76,8 +76,7 @@ namespace art {
 bool Thread::is_started_ = false;
 pthread_key_t Thread::pthread_key_self_;
 ConditionVariable* Thread::resume_cond_ = nullptr;
-const size_t Thread::kStackOverflowImplicitCheckSize = kStackOverflowProtectedSize +
-    GetStackOverflowReservedBytes(kRuntimeISA);
+const size_t Thread::kStackOverflowImplicitCheckSize = GetStackOverflowReservedBytes(kRuntimeISA);
 
 static const char* kThreadNameDuringStartup = "<native thread without managed peer>";
 
@@ -225,7 +224,8 @@ static size_t FixStackSize(size_t stack_size) {
   } else {
     // If we are going to use implicit stack checks, allocate space for the protected
     // region at the bottom of the stack.
-    stack_size += Thread::kStackOverflowImplicitCheckSize;
+    stack_size += Thread::kStackOverflowImplicitCheckSize +
+        GetStackOverflowReservedBytes(kRuntimeISA);
   }
 
   // Some systems require the stack size to be a multiple of the system page size, so round up.
@@ -238,92 +238,48 @@ static size_t FixStackSize(size_t stack_size) {
 byte dont_optimize_this;
 
 // Install a protected region in the stack.  This is used to trigger a SIGSEGV if a stack
-// overflow is detected.  It is located right below the stack_end_.  Just below that
-// is the StackOverflow reserved region used when creating the StackOverflow
-// exception.
+// overflow is detected.  It is located right below the stack_begin_.
 //
-// There is a little complexity here that deserves a special mention.  When running on the
-// host (glibc), the process's main thread's stack is allocated with a special flag
+// There is a little complexity here that deserves a special mention.  On some
+// architectures, the stack created using a VM_GROWSDOWN flag
 // to prevent memory being allocated when it's not needed.  This flag makes the
 // kernel only allocate memory for the stack by growing down in memory.  Because we
 // want to put an mprotected region far away from that at the stack top, we need
 // to make sure the pages for the stack are mapped in before we call mprotect.  We do
 // this by reading every page from the stack bottom (highest address) to the stack top.
 // We then madvise this away.
-void Thread::InstallImplicitProtection(bool is_main_stack) {
-  byte* pregion = tlsPtr_.stack_end;
-  byte* stack_lowmem = tlsPtr_.stack_begin;
-  byte* stack_top = reinterpret_cast<byte*>(reinterpret_cast<uintptr_t>(&pregion) &
+void Thread::InstallImplicitProtection() {
+  byte* pregion = tlsPtr_.stack_begin - kStackOverflowProtectedSize;
+  byte* stack_himem = tlsPtr_.stack_end;
+  byte* stack_top = reinterpret_cast<byte*>(reinterpret_cast<uintptr_t>(&stack_himem) &
       ~(kPageSize - 1));    // Page containing current top of stack.
 
-  const bool running_on_intel = (kRuntimeISA == kX86) || (kRuntimeISA == kX86_64);
+  // First remove the protection on the protected region as will want to read and
+  // write it.  This may fail (on the first attempt when the stack is not mapped)
+  // but we ignore that.
+  UnprotectStack();
 
-  if (running_on_intel) {
-    // On Intel, we need to map in the main stack.  This must be done by reading from the
-    // current stack pointer downwards as the stack is mapped using VM_GROWSDOWN
-    // in the kernel.  Any access more than a page below the current SP will cause
-    // a segv.
-    if (is_main_stack) {
-      // First we need to unprotect the protected region because this may
-      // be called more than once for a particular stack and we will crash
-      // if we try to read the protected page.
-      mprotect(pregion - kStackOverflowProtectedSize, kStackOverflowProtectedSize, PROT_READ);
+  // Map in the stack.  This must be done by reading from the
+  // current stack pointer downwards as the stack may be mapped using VM_GROWSDOWN
+  // in the kernel.  Any access more than a page below the current SP might cause
+  // a segv.
 
-      // Read every page from the high address to the low.
-      for (byte* p = stack_top; p > stack_lowmem; p -= kPageSize) {
-        dont_optimize_this = *p;
-      }
-    }
+  // Read every page from the high address to the low.
+  for (byte* p = stack_top; p >= pregion; p -= kPageSize) {
+    dont_optimize_this = *p;
   }
-
-  // Check and place a marker word at the lowest usable address in the stack.  This
-  // is used to prevent a double protection.
-  constexpr uint32_t kMarker = 0xdadadada;
-  uintptr_t *marker = reinterpret_cast<uintptr_t*>(pregion);
-  if (*marker == kMarker) {
-    // The region has already been set up.  But on the main stack on the host we have
-    // removed the protected region in order to read the stack memory.  We need to put
-    // this back again.
-    if (is_main_stack && running_on_intel) {
-      mprotect(pregion - kStackOverflowProtectedSize, kStackOverflowProtectedSize, PROT_NONE);
-      madvise(stack_lowmem, stack_top - stack_lowmem, MADV_DONTNEED);
-    }
-    return;
-  }
-  // Add marker so that we can detect a second attempt to do this.
-  *marker = kMarker;
-
-  if (!running_on_intel) {
-    // Running on !Intel, stacks are mapped cleanly.  The protected region for the
-    // main stack just needs to be mapped in.  We do this by writing one byte per page.
-    for (byte* p = pregion - kStackOverflowProtectedSize;  p < pregion; p += kPageSize) {
-      *p = 0;
-    }
-  }
-
-  pregion -= kStackOverflowProtectedSize;
 
   VLOG(threads) << "installing stack protected region at " << std::hex <<
       static_cast<void*>(pregion) << " to " <<
       static_cast<void*>(pregion + kStackOverflowProtectedSize - 1);
 
-
-  if (mprotect(pregion, kStackOverflowProtectedSize, PROT_NONE) == -1) {
-    LOG(FATAL) << "Unable to create protected region in stack for implicit overflow check. Reason:"
-        << strerror(errno) << kStackOverflowProtectedSize;
-  }
+  // Protect the bottom of the stack to prevent read/write to it.
+  ProtectStack();
 
   // Tell the kernel that we won't be needing these pages any more.
   // NB. madvise will probably write zeroes into the memory (on linux it does).
-  if (is_main_stack) {
-    if (running_on_intel) {
-      // On the host, it's the whole stack (minus a page to prevent overwrite of stack top).
-      madvise(stack_lowmem, stack_top - stack_lowmem - kPageSize, MADV_DONTNEED);
-    } else {
-      // On Android, just the protected region.
-      madvise(pregion, kStackOverflowProtectedSize, MADV_DONTNEED);
-    }
-  }
+  uint32_t unwanted_size = stack_top - pregion - kPageSize;
+  madvise(pregion, unwanted_size, MADV_DONTNEED);
 }
 
 void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_size, bool is_daemon) {
@@ -448,6 +404,8 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_g
     if (thread_name != nullptr) {
       self->tlsPtr_.name->assign(thread_name);
       ::art::SetThreadName(thread_name);
+    } else if (self->GetJniEnv()->check_jni) {
+      LOG(WARNING) << *Thread::Current() << " attached without supplying a name";
     }
   }
 
@@ -488,7 +446,7 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
 
   ScopedObjectAccess soa(self);
   StackHandleScope<1> hs(self);
-  Handle<mirror::String> peer_thread_name(hs.NewHandle(GetThreadName(soa)));
+  MutableHandle<mirror::String> peer_thread_name(hs.NewHandle(GetThreadName(soa)));
   if (peer_thread_name.Get() == nullptr) {
     // The Thread constructor should have set the Thread.name to a
     // non-null value. However, because we can run without code
@@ -529,73 +487,46 @@ void Thread::SetThreadName(const char* name) {
 void Thread::InitStackHwm() {
   void* read_stack_base;
   size_t read_stack_size;
-  GetThreadStack(tlsPtr_.pthread_self, &read_stack_base, &read_stack_size);
+  size_t read_guard_size;
+  GetThreadStack(tlsPtr_.pthread_self, &read_stack_base, &read_stack_size, &read_guard_size);
 
-  // TODO: include this in the thread dumps; potentially useful in SIGQUIT output?
-  VLOG(threads) << StringPrintf("Native stack is at %p (%s)", read_stack_base,
-                                PrettySize(read_stack_size).c_str());
+  // This is included in the SIGQUIT output, but it's useful here for thread debugging.
+  VLOG(threads) << StringPrintf("Native stack is at %p (%s with %s guard)",
+                                read_stack_base,
+                                PrettySize(read_stack_size).c_str(),
+                                PrettySize(read_guard_size).c_str());
 
   tlsPtr_.stack_begin = reinterpret_cast<byte*>(read_stack_base);
   tlsPtr_.stack_size = read_stack_size;
 
-  if (read_stack_size <= GetStackOverflowReservedBytes(kRuntimeISA)) {
+  // The minimum stack size we can cope with is the overflow reserved bytes (typically
+  // 8K) + the protected region size (4K) + another page (4K).  Typically this will
+  // be 8+4+4 = 16K.  The thread won't be able to do much with this stack even the GC takes
+  // between 8K and 12K.
+  uint32_t min_stack = GetStackOverflowReservedBytes(kRuntimeISA) + kStackOverflowProtectedSize
+    + 4 * KB;
+  if (read_stack_size <= min_stack) {
     LOG(FATAL) << "Attempt to attach a thread with a too-small stack (" << read_stack_size
-        << " bytes)";
+               << " bytes)";
   }
-
-  // TODO: move this into the Linux GetThreadStack implementation.
-#if defined(__APPLE__)
-  bool is_main_thread = false;
-#else
-  // If we're the main thread, check whether we were run with an unlimited stack. In that case,
-  // glibc will have reported a 2GB stack for our 32-bit process, and our stack overflow detection
-  // will be broken because we'll die long before we get close to 2GB.
-  bool is_main_thread = (::art::GetTid() == getpid());
-  if (is_main_thread) {
-    rlimit stack_limit;
-    if (getrlimit(RLIMIT_STACK, &stack_limit) == -1) {
-      PLOG(FATAL) << "getrlimit(RLIMIT_STACK) failed";
-    }
-    if (stack_limit.rlim_cur == RLIM_INFINITY) {
-      // Find the default stack size for new threads...
-      pthread_attr_t default_attributes;
-      size_t default_stack_size;
-      CHECK_PTHREAD_CALL(pthread_attr_init, (&default_attributes), "default stack size query");
-      CHECK_PTHREAD_CALL(pthread_attr_getstacksize, (&default_attributes, &default_stack_size),
-                         "default stack size query");
-      CHECK_PTHREAD_CALL(pthread_attr_destroy, (&default_attributes), "default stack size query");
-
-      // ...and use that as our limit.
-      size_t old_stack_size = read_stack_size;
-      tlsPtr_.stack_size = default_stack_size;
-      tlsPtr_.stack_begin += (old_stack_size - default_stack_size);
-      VLOG(threads) << "Limiting unlimited stack (reported as " << PrettySize(old_stack_size) << ")"
-                    << " to " << PrettySize(default_stack_size)
-                    << " with base " << reinterpret_cast<void*>(tlsPtr_.stack_begin);
-    }
-  }
-#endif
 
   // Set stack_end_ to the bottom of the stack saving space of stack overflows
-  bool implicit_stack_check = !Runtime::Current()->ExplicitStackOverflowChecks();
-  ResetDefaultStackEnd(implicit_stack_check);
+
+  Runtime* runtime = Runtime::Current();
+  bool implicit_stack_check = !runtime->ExplicitStackOverflowChecks() && !runtime->IsCompiler();
+  ResetDefaultStackEnd();
 
   // Install the protected region if we are doing implicit overflow checks.
   if (implicit_stack_check) {
-    if (is_main_thread) {
-      size_t guardsize;
-      pthread_attr_t attributes;
-      CHECK_PTHREAD_CALL(pthread_attr_init, (&attributes), "guard size query");
-      CHECK_PTHREAD_CALL(pthread_attr_getguardsize, (&attributes, &guardsize), "guard size query");
-      CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attributes), "guard size query");
-      // The main thread might have protected region at the bottom.  We need
-      // to install our own region so we need to move the limits
-      // of the stack to make room for it.
-      tlsPtr_.stack_begin += guardsize;
-      tlsPtr_.stack_end += guardsize;
-      tlsPtr_.stack_size -= guardsize;
-    }
-    InstallImplicitProtection(is_main_thread);
+    // The thread might have protected region at the bottom.  We need
+    // to install our own region so we need to move the limits
+    // of the stack to make room for it.
+
+    tlsPtr_.stack_begin += read_guard_size + kStackOverflowProtectedSize;
+    tlsPtr_.stack_end += read_guard_size + kStackOverflowProtectedSize;
+    tlsPtr_.stack_size -= read_guard_size;
+
+    InstallImplicitProtection();
   }
 
   // Sanity check.
@@ -661,7 +592,7 @@ static void UnsafeLogFatalForSuspendCount(Thread* self, Thread* thread) NO_THREA
     }
   }
   std::ostringstream ss;
-  Runtime::Current()->GetThreadList()->DumpLocked(ss);
+  Runtime::Current()->GetThreadList()->Dump(ss);
   LOG(FATAL) << ss.str();
 }
 
@@ -948,7 +879,8 @@ struct StackDumpVisitor : public StackVisitor {
         Monitor::DescribeWait(os, thread);
       }
       if (can_allocate) {
-        Monitor::VisitLocks(this, DumpLockedObject, &os);
+        // Visit locks, but do not abort on errors. This would trigger a nested abort.
+        Monitor::VisitLocks(this, DumpLockedObject, &os, false);
       }
     }
 
@@ -979,7 +911,6 @@ struct StackDumpVisitor : public StackVisitor {
   std::ostream& os;
   const Thread* thread;
   const bool can_allocate;
-  mirror::ArtMethod* method;
   mirror::ArtMethod* last_method;
   int last_line_number;
   int repetition_count;
@@ -998,6 +929,13 @@ static bool ShouldShowNativeStack(const Thread* thread)
   // In an Object.wait variant or Thread.sleep? That's not interesting.
   if (state == kTimedWaiting || state == kSleeping || state == kWaiting) {
     return false;
+  }
+
+  // Threads with no managed stack frames should be shown.
+  const ManagedStack* managed_stack = thread->GetManagedStack();
+  if (managed_stack == NULL || (managed_stack->GetTopQuickFrame() == NULL &&
+      managed_stack->GetTopShadowFrame() == NULL)) {
+    return true;
   }
 
   // In some other native method? That's interesting.
@@ -1030,7 +968,7 @@ void Thread::DumpStack(std::ostream& os) const {
     // If we're currently in native code, dump that stack before dumping the managed stack.
     if (dump_for_abort || ShouldShowNativeStack(this)) {
       DumpKernelStack(os, GetTid(), "  kernel: ", false);
-      DumpNativeStack(os, GetTid(), "  native: ", GetCurrentMethod(nullptr));
+      DumpNativeStack(os, GetTid(), "  native: ", GetCurrentMethod(nullptr, !dump_for_abort));
     }
     DumpJavaStack(os);
   } else {
@@ -1104,6 +1042,7 @@ Thread::Thread(bool daemon) : tls32_(daemon), wait_monitor_(nullptr), interrupte
   tlsPtr_.single_step_control = new SingleStepControl;
   tlsPtr_.instrumentation_stack = new std::deque<instrumentation::InstrumentationStackFrame>;
   tlsPtr_.name = new std::string(kThreadNameDuringStartup);
+  tlsPtr_.nested_signal_state = static_cast<jmp_buf*>(malloc(sizeof(jmp_buf)));
 
   CHECK_EQ((sizeof(Thread) % 4), 0U) << sizeof(Thread);
   tls32_.state_and_flags.as_struct.flags = 0;
@@ -1126,6 +1065,12 @@ bool Thread::IsStillStarting() const {
   // this thread _ever_ entered kRunnable".
   return (tlsPtr_.jpeer == nullptr && tlsPtr_.opeer == nullptr) ||
       (*tlsPtr_.name == kThreadNameDuringStartup);
+}
+
+void Thread::AssertPendingException() const {
+  if (UNLIKELY(!IsExceptionPending())) {
+    LOG(FATAL) << "Pending exception expected.";
+  }
 }
 
 void Thread::AssertNoPendingException() const {
@@ -1245,6 +1190,7 @@ Thread::~Thread() {
   delete tlsPtr_.instrumentation_stack;
   delete tlsPtr_.name;
   delete tlsPtr_.stack_trace_sample;
+  free(tlsPtr_.nested_signal_state);
 
   Runtime::Current()->GetHeap()->AssertThreadLocalBuffersAreRevoked(this);
 
@@ -1274,7 +1220,7 @@ void Thread::HandleUncaughtExceptions(ScopedObjectAccess& soa) {
 
   // Call the handler.
   tlsPtr_.jni_env->CallVoidMethod(handler.get(),
-      WellKnownClasses::java_lang_Thread$UncaughtExceptionHandler_uncaughtException,
+      WellKnownClasses::java_lang_Thread__UncaughtExceptionHandler_uncaughtException,
       peer.get(), exception.get());
 
   // If the handler threw, clear that exception too.
@@ -1298,7 +1244,7 @@ void Thread::RemoveFromThreadGroup(ScopedObjectAccess& soa) {
 
 size_t Thread::NumHandleReferences() {
   size_t count = 0;
-  for (HandleScope* cur = tlsPtr_.top_handle_scope; cur; cur = cur->GetLink()) {
+  for (HandleScope* cur = tlsPtr_.top_handle_scope; cur != nullptr; cur = cur->GetLink()) {
     count += cur->NumberOfReferences();
   }
   return count;
@@ -1307,7 +1253,7 @@ size_t Thread::NumHandleReferences() {
 bool Thread::HandleScopeContains(jobject obj) const {
   StackReference<mirror::Object>* hs_entry =
       reinterpret_cast<StackReference<mirror::Object>*>(obj);
-  for (HandleScope* cur = tlsPtr_.top_handle_scope; cur; cur = cur->GetLink()) {
+  for (HandleScope* cur = tlsPtr_.top_handle_scope; cur!= nullptr; cur = cur->GetLink()) {
     if (cur->Contains(hs_entry)) {
       return true;
     }
@@ -1340,6 +1286,7 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
   IndirectRef ref = reinterpret_cast<IndirectRef>(obj);
   IndirectRefKind kind = GetIndirectRefKind(ref);
   mirror::Object* result;
+  bool expect_null = false;
   // The "kinds" below are sorted by the frequency we expect to encounter them.
   if (kind == kLocal) {
     IndirectReferenceTable& locals = tlsPtr_.jni_env->locals;
@@ -1353,20 +1300,23 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
       result = reinterpret_cast<StackReference<mirror::Object>*>(obj)->AsMirrorPtr();
       VerifyObject(result);
     } else {
-      result = kInvalidIndirectRefObject;
+      tlsPtr_.jni_env->vm->JniAbortF(nullptr, "use of invalid jobject %p", obj);
+      expect_null = true;
+      result = nullptr;
     }
   } else if (kind == kGlobal) {
     result = tlsPtr_.jni_env->vm->DecodeGlobal(const_cast<Thread*>(this), ref);
   } else {
     DCHECK_EQ(kind, kWeakGlobal);
     result = tlsPtr_.jni_env->vm->DecodeWeakGlobal(const_cast<Thread*>(this), ref);
-    if (result == kClearedJniWeakGlobal) {
+    if (Runtime::Current()->IsClearedJniWeakGlobal(result)) {
       // This is a special case where it's okay to return nullptr.
-      return nullptr;
+      expect_null = true;
+      result = nullptr;
     }
   }
 
-  if (UNLIKELY(result == nullptr)) {
+  if (UNLIKELY(!expect_null && result == nullptr)) {
     tlsPtr_.jni_env->vm->JniAbortF(nullptr, "use of deleted %s %p",
                                    ToStr<IndirectRefKind>(kind).c_str(), obj);
   }
@@ -1659,7 +1609,8 @@ void Thread::ThrowNewExceptionV(const ThrowLocation& throw_location,
   ThrowNewException(throw_location, exception_class_descriptor, msg.c_str());
 }
 
-void Thread::ThrowNewException(const ThrowLocation& throw_location, const char* exception_class_descriptor,
+void Thread::ThrowNewException(const ThrowLocation& throw_location,
+                               const char* exception_class_descriptor,
                                const char* msg) {
   // Callers should either clear or call ThrowNewWrappedException.
   AssertNoPendingExceptionForNewException(msg);
@@ -1695,7 +1646,8 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
     return;
   }
 
-  if (UNLIKELY(!runtime->GetClassLinker()->EnsureInitialized(exception_class, true, true))) {
+  if (UNLIKELY(!runtime->GetClassLinker()->EnsureInitialized(soa.Self(), exception_class, true,
+                                                             true))) {
     DCHECK(IsExceptionPending());
     return;
   }
@@ -1887,12 +1839,24 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset) {
   QUICK_ENTRY_POINT_INFO(pInitializeTypeAndVerifyAccess)
   QUICK_ENTRY_POINT_INFO(pInitializeType)
   QUICK_ENTRY_POINT_INFO(pResolveString)
+  QUICK_ENTRY_POINT_INFO(pSet8Instance)
+  QUICK_ENTRY_POINT_INFO(pSet8Static)
+  QUICK_ENTRY_POINT_INFO(pSet16Instance)
+  QUICK_ENTRY_POINT_INFO(pSet16Static)
   QUICK_ENTRY_POINT_INFO(pSet32Instance)
   QUICK_ENTRY_POINT_INFO(pSet32Static)
   QUICK_ENTRY_POINT_INFO(pSet64Instance)
   QUICK_ENTRY_POINT_INFO(pSet64Static)
   QUICK_ENTRY_POINT_INFO(pSetObjInstance)
   QUICK_ENTRY_POINT_INFO(pSetObjStatic)
+  QUICK_ENTRY_POINT_INFO(pGetByteInstance)
+  QUICK_ENTRY_POINT_INFO(pGetBooleanInstance)
+  QUICK_ENTRY_POINT_INFO(pGetByteStatic)
+  QUICK_ENTRY_POINT_INFO(pGetBooleanStatic)
+  QUICK_ENTRY_POINT_INFO(pGetShortInstance)
+  QUICK_ENTRY_POINT_INFO(pGetCharInstance)
+  QUICK_ENTRY_POINT_INFO(pGetShortStatic)
+  QUICK_ENTRY_POINT_INFO(pGetCharStatic)
   QUICK_ENTRY_POINT_INFO(pGet32Instance)
   QUICK_ENTRY_POINT_INFO(pGet32Static)
   QUICK_ENTRY_POINT_INFO(pGet64Instance)
@@ -2115,48 +2079,72 @@ class ReferenceMapVisitor : public StackVisitor {
 
     // Process register map (which native and runtime methods don't have)
     if (!m->IsNative() && !m->IsRuntimeMethod() && !m->IsProxyMethod()) {
-      const uint8_t* native_gc_map = m->GetNativeGcMap();
-      CHECK(native_gc_map != nullptr) << PrettyMethod(m);
-      const DexFile::CodeItem* code_item = m->GetCodeItem();
-      DCHECK(code_item != nullptr) << PrettyMethod(m);  // Can't be nullptr or how would we compile its instructions?
-      NativePcOffsetToReferenceMap map(native_gc_map);
-      size_t num_regs = std::min(map.RegWidth() * 8,
-                                 static_cast<size_t>(code_item->registers_size_));
-      if (num_regs > 0) {
+      if (m->IsOptimized()) {
         Runtime* runtime = Runtime::Current();
         const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(m);
         uintptr_t native_pc_offset = m->NativePcOffset(GetCurrentQuickFramePc(), entry_point);
-        const uint8_t* reg_bitmap = map.FindBitMap(native_pc_offset);
-        DCHECK(reg_bitmap != nullptr);
-        const void* code_pointer = mirror::ArtMethod::EntryPointToCodePointer(entry_point);
-        const VmapTable vmap_table(m->GetVmapTable(code_pointer));
-        QuickMethodFrameInfo frame_info = m->GetQuickFrameInfo(code_pointer);
-        // For all dex registers in the bitmap
-        StackReference<mirror::ArtMethod>* cur_quick_frame = GetCurrentQuickFrame();
-        DCHECK(cur_quick_frame != nullptr);
-        for (size_t reg = 0; reg < num_regs; ++reg) {
-          // Does this register hold a reference?
-          if (TestBitmap(reg, reg_bitmap)) {
-            uint32_t vmap_offset;
-            if (vmap_table.IsInContext(reg, kReferenceVReg, &vmap_offset)) {
-              int vmap_reg = vmap_table.ComputeRegister(frame_info.CoreSpillMask(), vmap_offset,
-                                                        kReferenceVReg);
-              // This is sound as spilled GPRs will be word sized (ie 32 or 64bit).
-              mirror::Object** ref_addr = reinterpret_cast<mirror::Object**>(GetGPRAddress(vmap_reg));
-              if (*ref_addr != nullptr) {
-                visitor_(ref_addr, reg, this);
+        StackMap map = m->GetStackMap(native_pc_offset);
+        MemoryRegion mask = map.GetStackMask();
+        for (size_t i = 0; i < mask.size_in_bits(); ++i) {
+          if (mask.LoadBit(i)) {
+            StackReference<mirror::Object>* ref_addr =
+                  reinterpret_cast<StackReference<mirror::Object>*>(cur_quick_frame) + i;
+            mirror::Object* ref = ref_addr->AsMirrorPtr();
+            if (ref != nullptr) {
+              mirror::Object* new_ref = ref;
+              visitor_(&new_ref, -1, this);
+              if (ref != new_ref) {
+                ref_addr->Assign(new_ref);
               }
-            } else {
-              StackReference<mirror::Object>* ref_addr =
-                  reinterpret_cast<StackReference<mirror::Object>*>(
-                      GetVRegAddr(cur_quick_frame, code_item, frame_info.CoreSpillMask(),
-                                  frame_info.FpSpillMask(), frame_info.FrameSizeInBytes(), reg));
-              mirror::Object* ref = ref_addr->AsMirrorPtr();
-              if (ref != nullptr) {
-                mirror::Object* new_ref = ref;
-                visitor_(&new_ref, reg, this);
-                if (ref != new_ref) {
-                  ref_addr->Assign(new_ref);
+            }
+          }
+        }
+      } else {
+        const uint8_t* native_gc_map = m->GetNativeGcMap();
+        CHECK(native_gc_map != nullptr) << PrettyMethod(m);
+        const DexFile::CodeItem* code_item = m->GetCodeItem();
+        // Can't be nullptr or how would we compile its instructions?
+        DCHECK(code_item != nullptr) << PrettyMethod(m);
+        NativePcOffsetToReferenceMap map(native_gc_map);
+        size_t num_regs = std::min(map.RegWidth() * 8,
+                                   static_cast<size_t>(code_item->registers_size_));
+        if (num_regs > 0) {
+          Runtime* runtime = Runtime::Current();
+          const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(m);
+          uintptr_t native_pc_offset = m->NativePcOffset(GetCurrentQuickFramePc(), entry_point);
+          const uint8_t* reg_bitmap = map.FindBitMap(native_pc_offset);
+          DCHECK(reg_bitmap != nullptr);
+          const void* code_pointer = mirror::ArtMethod::EntryPointToCodePointer(entry_point);
+          const VmapTable vmap_table(m->GetVmapTable(code_pointer));
+          QuickMethodFrameInfo frame_info = m->GetQuickFrameInfo(code_pointer);
+          // For all dex registers in the bitmap
+          StackReference<mirror::ArtMethod>* cur_quick_frame = GetCurrentQuickFrame();
+          DCHECK(cur_quick_frame != nullptr);
+          for (size_t reg = 0; reg < num_regs; ++reg) {
+            // Does this register hold a reference?
+            if (TestBitmap(reg, reg_bitmap)) {
+              uint32_t vmap_offset;
+              if (vmap_table.IsInContext(reg, kReferenceVReg, &vmap_offset)) {
+                int vmap_reg = vmap_table.ComputeRegister(frame_info.CoreSpillMask(), vmap_offset,
+                                                          kReferenceVReg);
+                // This is sound as spilled GPRs will be word sized (ie 32 or 64bit).
+                mirror::Object** ref_addr =
+                    reinterpret_cast<mirror::Object**>(GetGPRAddress(vmap_reg));
+                if (*ref_addr != nullptr) {
+                  visitor_(ref_addr, reg, this);
+                }
+              } else {
+                StackReference<mirror::Object>* ref_addr =
+                    reinterpret_cast<StackReference<mirror::Object>*>(
+                        GetVRegAddr(cur_quick_frame, code_item, frame_info.CoreSpillMask(),
+                                    frame_info.FpSpillMask(), frame_info.FrameSizeInBytes(), reg));
+                mirror::Object* ref = ref_addr->AsMirrorPtr();
+                if (ref != nullptr) {
+                  mirror::Object* new_ref = ref;
+                  visitor_(&new_ref, reg, this);
+                  if (ref != new_ref) {
+                    ref_addr->Assign(new_ref);
+                  }
                 }
               }
             }
@@ -2266,6 +2254,14 @@ void Thread::SetStackEndForStackOverflow() {
   }
 
   tlsPtr_.stack_end = tlsPtr_.stack_begin;
+
+  // Remove the stack overflow protection if is it set up.
+  bool implicit_stack_check = !Runtime::Current()->ExplicitStackOverflowChecks();
+  if (implicit_stack_check) {
+    if (!UnprotectStack()) {
+      LOG(ERROR) << "Unable to remove stack protection for stack overflow";
+    }
+  }
 }
 
 void Thread::SetTlab(byte* start, byte* end) {
@@ -2290,5 +2286,22 @@ std::ostream& operator<<(std::ostream& os, const Thread& thread) {
   thread.ShortDump(os);
   return os;
 }
+
+void Thread::ProtectStack() {
+  void* pregion = tlsPtr_.stack_begin - kStackOverflowProtectedSize;
+  VLOG(threads) << "Protecting stack at " << pregion;
+  if (mprotect(pregion, kStackOverflowProtectedSize, PROT_NONE) == -1) {
+    LOG(FATAL) << "Unable to create protected region in stack for implicit overflow check. "
+        "Reason: "
+        << strerror(errno) << " size:  " << kStackOverflowProtectedSize;
+  }
+}
+
+bool Thread::UnprotectStack() {
+  void* pregion = tlsPtr_.stack_begin - kStackOverflowProtectedSize;
+  VLOG(threads) << "Unprotecting stack at " << pregion;
+  return mprotect(pregion, kStackOverflowProtectedSize, PROT_READ|PROT_WRITE) == 0;
+}
+
 
 }  // namespace art

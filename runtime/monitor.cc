@@ -176,10 +176,6 @@ Monitor::~Monitor() {
   // Deflated monitors have a null object.
 }
 
-/*
- * Links a thread into a monitor's wait set.  The monitor lock must be
- * held by the caller of this routine.
- */
 void Monitor::AppendToWaitSet(Thread* thread) {
   DCHECK(owner_ == Thread::Current());
   DCHECK(thread != NULL);
@@ -197,10 +193,6 @@ void Monitor::AppendToWaitSet(Thread* thread) {
   t->SetWaitNext(thread);
 }
 
-/*
- * Unlinks a thread from a monitor's wait set.  The monitor lock must
- * be held by the caller of this routine.
- */
 void Monitor::RemoveFromWaitSet(Thread *thread) {
   DCHECK(owner_ == Thread::Current());
   DCHECK(thread != NULL);
@@ -246,7 +238,7 @@ void Monitor::Lock(Thread* self) {
     }
     // Contended.
     const bool log_contention = (lock_profiling_threshold_ != 0);
-    uint64_t wait_start_ms = log_contention ? 0 : MilliTime();
+    uint64_t wait_start_ms = log_contention ? MilliTime() : 0;
     mirror::ArtMethod* owners_method = locking_method_;
     uint32_t owners_dex_pc = locking_dex_pc_;
     // Do this before releasing the lock so that we don't get deflated.
@@ -395,29 +387,6 @@ bool Monitor::Unlock(Thread* self) {
   return true;
 }
 
-/*
- * Wait on a monitor until timeout, interrupt, or notification.  Used for
- * Object.wait() and (somewhat indirectly) Thread.sleep() and Thread.join().
- *
- * If another thread calls Thread.interrupt(), we throw InterruptedException
- * and return immediately if one of the following are true:
- *  - blocked in wait(), wait(long), or wait(long, int) methods of Object
- *  - blocked in join(), join(long), or join(long, int) methods of Thread
- *  - blocked in sleep(long), or sleep(long, int) methods of Thread
- * Otherwise, we set the "interrupted" flag.
- *
- * Checks to make sure that "ns" is in the range 0-999999
- * (i.e. fractions of a millisecond) and throws the appropriate
- * exception if it isn't.
- *
- * The spec allows "spurious wakeups", and recommends that all code using
- * Object.wait() do so in a loop.  This appears to derive from concerns
- * about pthread_cond_wait() on multiprocessor systems.  Some commentary
- * on the web casts doubt on whether these can/should occur.
- *
- * Since we're allowed to wake up "early", we clamp extremely long durations
- * to return at the end of the 32-bit time epoch.
- */
 void Monitor::Wait(Thread* self, int64_t ms, int32_t ns,
                    bool interruptShouldThrow, ThreadState why) {
   DCHECK(self != NULL);
@@ -641,11 +610,6 @@ bool Monitor::Deflate(Thread* self, mirror::Object* obj) {
   return true;
 }
 
-/*
- * Changes the shape of a monitor from thin to fat, preserving the internal lock state. The calling
- * thread must own the lock or the owner must be suspended. There's a race with other threads
- * inflating the lock and so the caller should read the monitor following the call.
- */
 void Monitor::Inflate(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code) {
   DCHECK(self != nullptr);
   DCHECK(obj != nullptr);
@@ -823,38 +787,37 @@ bool Monitor::MonitorExit(Thread* self, mirror::Object* obj) {
   }
 }
 
-/*
- * Object.wait().  Also called for class init.
- */
 void Monitor::Wait(Thread* self, mirror::Object *obj, int64_t ms, int32_t ns,
                    bool interruptShouldThrow, ThreadState why) {
   DCHECK(self != nullptr);
   DCHECK(obj != nullptr);
   LockWord lock_word = obj->GetLockWord(true);
-  switch (lock_word.GetState()) {
-    case LockWord::kHashCode:
-      // Fall-through.
-    case LockWord::kUnlocked:
-      ThrowIllegalMonitorStateExceptionF("object not locked by thread before wait()");
-      return;  // Failure.
-    case LockWord::kThinLocked: {
-      uint32_t thread_id = self->GetThreadId();
-      uint32_t owner_thread_id = lock_word.ThinLockOwner();
-      if (owner_thread_id != thread_id) {
+  while (lock_word.GetState() != LockWord::kFatLocked) {
+    switch (lock_word.GetState()) {
+      case LockWord::kHashCode:
+        // Fall-through.
+      case LockWord::kUnlocked:
         ThrowIllegalMonitorStateExceptionF("object not locked by thread before wait()");
         return;  // Failure.
-      } else {
-        // We own the lock, inflate to enqueue ourself on the Monitor.
-        Inflate(self, self, obj, 0);
-        lock_word = obj->GetLockWord(true);
+      case LockWord::kThinLocked: {
+        uint32_t thread_id = self->GetThreadId();
+        uint32_t owner_thread_id = lock_word.ThinLockOwner();
+        if (owner_thread_id != thread_id) {
+          ThrowIllegalMonitorStateExceptionF("object not locked by thread before wait()");
+          return;  // Failure.
+        } else {
+          // We own the lock, inflate to enqueue ourself on the Monitor. May fail spuriously so
+          // re-load.
+          Inflate(self, self, obj, 0);
+          lock_word = obj->GetLockWord(true);
+        }
+        break;
       }
-      break;
-    }
-    case LockWord::kFatLocked:
-      break;  // Already set for a wait.
-    default: {
-      LOG(FATAL) << "Invalid monitor state " << lock_word.GetState();
-      return;
+      case LockWord::kFatLocked:  // Unreachable given the loop condition above. Fall-through.
+      default: {
+        LOG(FATAL) << "Invalid monitor state " << lock_word.GetState();
+        return;
+      }
     }
   }
   Monitor* mon = lock_word.FatLockMonitor();
@@ -982,7 +945,7 @@ mirror::Object* Monitor::GetContendedMonitor(Thread* thread) {
 }
 
 void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::Object*, void*),
-                         void* callback_context) {
+                         void* callback_context, bool abort_on_failure) {
   mirror::ArtMethod* m = stack_visitor->GetMethod();
   CHECK(m != NULL);
 
@@ -1002,12 +965,6 @@ void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::O
     return;
   }
 
-  // <clinit> is another special case. The runtime holds the class lock while calling <clinit>.
-  if (m->IsClassInitializer()) {
-    callback(m->GetDeclaringClass(), callback_context);
-    // Fall through because there might be synchronization in the user code too.
-  }
-
   // Is there any reason to believe there's any synchronization in this method?
   const DexFile::CodeItem* code_item = m->GetCodeItem();
   CHECK(code_item != NULL) << PrettyMethod(m);
@@ -1015,10 +972,19 @@ void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::O
     return;  // No "tries" implies no synchronization, so no held locks to report.
   }
 
+  // Get the dex pc. If abort_on_failure is false, GetDexPc will not abort in the case it cannot
+  // find the dex pc, and instead return kDexNoIndex. Then bail out, as it indicates we have an
+  // inconsistent stack anyways.
+  uint32_t dex_pc = stack_visitor->GetDexPc(abort_on_failure);
+  if (!abort_on_failure && dex_pc == DexFile::kDexNoIndex) {
+    LOG(ERROR) << "Could not find dex_pc for " << PrettyMethod(m);
+    return;
+  }
+
   // Ask the verifier for the dex pcs of all the monitor-enter instructions corresponding to
   // the locks held in this stack frame.
   std::vector<uint32_t> monitor_enter_dex_pcs;
-  verifier::MethodVerifier::FindLocksAtDexPc(m, stack_visitor->GetDexPc(), &monitor_enter_dex_pcs);
+  verifier::MethodVerifier::FindLocksAtDexPc(m, dex_pc, &monitor_enter_dex_pcs);
   if (monitor_enter_dex_pcs.empty()) {
     return;
   }

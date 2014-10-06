@@ -592,7 +592,6 @@ LIR* X86Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
                            kDouble, kNotVolatile);
         res->target = data_target;
         res->flags.fixup = kFixupLoad;
-        Clobber(rl_method.reg);
         store_method_addr_used_ = true;
       } else {
         if (r_dest.IsPair()) {
@@ -779,15 +778,20 @@ LIR* X86Mir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_
 }
 
 LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale,
-                                      int displacement, RegStorage r_src, OpSize size) {
+                                      int displacement, RegStorage r_src, OpSize size,
+                                      int opt_flags) {
   LIR *store = NULL;
   LIR *store2 = NULL;
   bool is_array = r_index.Valid();
   bool pair = r_src.IsPair();
   bool is64bit = (size == k64) || (size == kDouble);
+  bool consider_non_temporal = false;
+
   X86OpCode opcode = kX86Nop;
   switch (size) {
     case k64:
+      consider_non_temporal = true;
+      // Fall through!
     case kDouble:
       if (r_src.IsFloat()) {
         opcode = is_array ? kX86MovsdAR : kX86MovsdMR;
@@ -804,6 +808,7 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int
         opcode = is_array ? kX86Mov64AR  : kX86Mov64MR;
         CHECK_EQ(is_array, false);
         CHECK_EQ(r_src.IsFloat(), false);
+        consider_non_temporal = true;
         break;
       }  // else fall-through to k32 case
     case k32:
@@ -815,6 +820,7 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int
         DCHECK(r_src.IsSingle());
       }
       DCHECK_EQ((displacement & 0x3), 0);
+      consider_non_temporal = true;
       break;
     case kUnsignedHalf:
     case kSignedHalf:
@@ -827,6 +833,28 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int
       break;
     default:
       LOG(FATAL) << "Bad case in StoreBaseIndexedDispBody";
+  }
+
+  // Handle non temporal hint here.
+  if (consider_non_temporal && ((opt_flags & MIR_STORE_NON_TEMPORAL) != 0)) {
+    switch (opcode) {
+      // We currently only handle 32/64 bit moves here.
+      case kX86Mov64AR:
+        opcode = kX86Movnti64AR;
+        break;
+      case kX86Mov64MR:
+        opcode = kX86Movnti64MR;
+        break;
+      case kX86Mov32AR:
+        opcode = kX86Movnti32AR;
+        break;
+      case kX86Mov32MR:
+        opcode = kX86Movnti32MR;
+        break;
+      default:
+        // Do nothing here.
+        break;
+    }
   }
 
   if (!is_array) {
@@ -875,6 +903,17 @@ LIR* X86Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r
 
   // StoreBaseDisp() will emit correct insn for atomic store on x86
   // assuming r_dest is correctly prepared using RegClassForFieldLoadStore().
+  // x86 only allows registers EAX-EDX to be used as byte registers, if the input src is not
+  // valid, allocate a temp.
+  bool allocated_temp = false;
+  if (size == kUnsignedByte || size == kSignedByte) {
+    if (!cu_->target64 && !r_src.Low4()) {
+      RegStorage r_input = r_src;
+      r_src = AllocateByteRegister();
+      OpRegCopy(r_src, r_input);
+      allocated_temp = true;
+    }
+  }
 
   LIR* store = StoreBaseIndexedDisp(r_base, RegStorage::InvalidReg(), 0, displacement, r_src, size);
 
@@ -882,6 +921,10 @@ LIR* X86Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r
     // A volatile load might follow the volatile store so insert a StoreLoad barrier.
     // This does require a fence, even on x86.
     GenMemBarrier(kAnyAny);
+  }
+
+  if (allocated_temp) {
+    FreeTemp(r_src);
   }
 
   return store;
@@ -913,7 +956,8 @@ void X86Mir2Lir::AnalyzeMIR() {
 
   // Did we need a pointer to the method code?
   if (store_method_addr_) {
-    base_of_code_ = mir_graph_->GetNewCompilerTemp(kCompilerTempVR, cu_->target64 == true);
+    base_of_code_ = mir_graph_->GetNewCompilerTemp(kCompilerTempBackend, cu_->target64 == true);
+    DCHECK(base_of_code_ != nullptr);
   } else {
     base_of_code_ = nullptr;
   }
@@ -946,6 +990,17 @@ void X86Mir2Lir::AnalyzeExtendedMIR(int opcode, BasicBlock * bb, MIR *mir) {
     case kMirOpConstVector:
       store_method_addr_ = true;
       break;
+    case kMirOpPackedMultiply:
+    case kMirOpPackedShiftLeft:
+    case kMirOpPackedSignedShiftRight:
+    case kMirOpPackedUnsignedShiftRight: {
+      // Byte emulation requires constants from the literal pool.
+      OpSize opsize = static_cast<OpSize>(mir->dalvikInsn.vC >> 16);
+      if (opsize == kSignedByte || opsize == kUnsignedByte) {
+        store_method_addr_ = true;
+      }
+      break;
+    }
     default:
       // Ignore the rest.
       break;
@@ -980,6 +1035,7 @@ void X86Mir2Lir::AnalyzeMIR(int opcode, BasicBlock * bb, MIR *mir) {
       store_method_addr_ = true;
       break;
     case Instruction::INVOKE_STATIC:
+    case Instruction::INVOKE_STATIC_RANGE:
       AnalyzeInvokeStatic(opcode, bb, mir);
       break;
     default:
@@ -1057,20 +1113,18 @@ void X86Mir2Lir::AnalyzeInvokeStatic(int opcode, BasicBlock * bb, MIR *mir) {
   }
 
   uint32_t index = mir->dalvikInsn.vB;
-  if (!(mir->optimization_flags & MIR_INLINED)) {
-    DCHECK(cu_->compiler_driver->GetMethodInlinerMap() != nullptr);
-    DexFileMethodInliner* method_inliner =
-      cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(cu_->dex_file);
-    InlineMethod method;
-    if (method_inliner->IsIntrinsic(index, &method)) {
-      switch (method.opcode) {
-        case kIntrinsicAbsDouble:
-        case kIntrinsicMinMaxDouble:
-          store_method_addr_ = true;
-          break;
-        default:
-          break;
-      }
+  DCHECK(cu_->compiler_driver->GetMethodInlinerMap() != nullptr);
+  DexFileMethodInliner* method_inliner =
+    cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(cu_->dex_file);
+  InlineMethod method;
+  if (method_inliner->IsIntrinsic(index, &method)) {
+    switch (method.opcode) {
+      case kIntrinsicAbsDouble:
+      case kIntrinsicMinMaxDouble:
+        store_method_addr_ = true;
+        break;
+      default:
+        break;
     }
   }
 }

@@ -20,6 +20,8 @@
 #include "codegen_arm.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "gc/accounting/card_table.h"
+#include "mirror/art_method.h"
+#include "mirror/object_array-inl.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 
 namespace art {
@@ -44,7 +46,7 @@ namespace art {
  *   cbnz  r_idx, lp
  */
 void ArmMir2Lir::GenLargeSparseSwitch(MIR* mir, uint32_t table_offset, RegLocation rl_src) {
-  const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
+  const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
   if (cu_->verbose) {
     DumpSparseSwitchTable(table);
   }
@@ -55,7 +57,7 @@ void ArmMir2Lir::GenLargeSparseSwitch(MIR* mir, uint32_t table_offset, RegLocati
   tab_rec->vaddr = current_dalvik_offset_;
   uint32_t size = table[1];
   tab_rec->targets = static_cast<LIR**>(arena_->Alloc(size * sizeof(LIR*), kArenaAllocLIR));
-  switch_tables_.Insert(tab_rec);
+  switch_tables_.push_back(tab_rec);
 
   // Get the switch value
   rl_src = LoadValue(rl_src, kCoreReg);
@@ -92,7 +94,7 @@ void ArmMir2Lir::GenLargeSparseSwitch(MIR* mir, uint32_t table_offset, RegLocati
 
 
 void ArmMir2Lir::GenLargePackedSwitch(MIR* mir, uint32_t table_offset, RegLocation rl_src) {
-  const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
+  const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
   if (cu_->verbose) {
     DumpPackedSwitchTable(table);
   }
@@ -104,7 +106,7 @@ void ArmMir2Lir::GenLargePackedSwitch(MIR* mir, uint32_t table_offset, RegLocati
   uint32_t size = table[1];
   tab_rec->targets =
       static_cast<LIR**>(arena_->Alloc(size * sizeof(LIR*), kArenaAllocLIR));
-  switch_tables_.Insert(tab_rec);
+  switch_tables_.push_back(tab_rec);
 
   // Get the switch value
   rl_src = LoadValue(rl_src, kCoreReg);
@@ -147,8 +149,8 @@ void ArmMir2Lir::GenLargePackedSwitch(MIR* mir, uint32_t table_offset, RegLocati
  *
  * Total size is 4+(width * size + 1)/2 16-bit code units.
  */
-void ArmMir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src) {
-  const uint16_t* table = cu_->insns + current_dalvik_offset_ + table_offset;
+void ArmMir2Lir::GenFillArrayData(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
+  const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
   // Add the table to the list - we'll process it later
   FillArrayData *tab_rec =
       static_cast<FillArrayData*>(arena_->Alloc(sizeof(FillArrayData), kArenaAllocData));
@@ -158,7 +160,7 @@ void ArmMir2Lir::GenFillArrayData(uint32_t table_offset, RegLocation rl_src) {
   uint32_t size = tab_rec->table[2] | ((static_cast<uint32_t>(tab_rec->table[3])) << 16);
   tab_rec->size = (size * width) + 8;
 
-  fill_array_data_.Insert(tab_rec);
+  fill_array_data_.push_back(tab_rec);
 
   // Making a call - use explicit registers
   FlushAllRegs();   /* Everything to home location */
@@ -354,13 +356,14 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
    * We can safely skip the stack overflow check if we're
    * a leaf *and* our frame size < fudge factor.
    */
-  bool skip_overflow_check = mir_graph_->MethodIsLeaf() && !IsLargeFrame(frame_size_, kArm);
+  bool skip_overflow_check = mir_graph_->MethodIsLeaf() && !FrameNeedsStackCheck(frame_size_, kArm);
   NewLIR0(kPseudoMethodEntry);
-  const size_t kStackOverflowReservedUsableBytes = GetStackOverflowReservedBytes(kArm) -
-      Thread::kStackOverflowSignalReservedBytes;
+  const size_t kStackOverflowReservedUsableBytes = GetStackOverflowReservedBytes(kArm);
   bool large_frame = (static_cast<size_t>(frame_size_) > kStackOverflowReservedUsableBytes);
+  bool generate_explicit_stack_overflow_check = large_frame ||
+    !cu_->compiler_driver->GetCompilerOptions().GetImplicitStackOverflowChecks();
   if (!skip_overflow_check) {
-    if (!cu_->compiler_driver->GetCompilerOptions().GetImplicitStackOverflowChecks()) {
+    if (generate_explicit_stack_overflow_check) {
       if (!large_frame) {
         /* Load stack limit */
         LockTemp(rs_r12);
@@ -399,7 +402,7 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
   const int spill_size = spill_count * 4;
   const int frame_size_without_spills = frame_size_ - spill_size;
   if (!skip_overflow_check) {
-    if (!cu_->compiler_driver->GetCompilerOptions().GetImplicitStackOverflowChecks()) {
+    if (generate_explicit_stack_overflow_check) {
       class StackOverflowSlowPath : public LIRSlowPath {
        public:
         StackOverflowSlowPath(Mir2Lir* m2l, LIR* branch, bool restore_lr, size_t sp_displace)
@@ -496,6 +499,119 @@ void ArmMir2Lir::GenExitSequence() {
 
 void ArmMir2Lir::GenSpecialExitSequence() {
   NewLIR1(kThumbBx, rs_rARM_LR.GetReg());
+}
+
+static bool ArmUseRelativeCall(CompilationUnit* cu, const MethodReference& target_method) {
+  // Emit relative calls only within a dex file due to the limited range of the BL insn.
+  return cu->dex_file == target_method.dex_file;
+}
+
+/*
+ * Bit of a hack here - in the absence of a real scheduling pass,
+ * emit the next instruction in static & direct invoke sequences.
+ */
+static int ArmNextSDCallInsn(CompilationUnit* cu, CallInfo* info,
+                             int state, const MethodReference& target_method,
+                             uint32_t unused,
+                             uintptr_t direct_code, uintptr_t direct_method,
+                             InvokeType type) {
+  Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
+  if (direct_code != 0 && direct_method != 0) {
+    switch (state) {
+    case 0:  // Get the current Method* [sets kArg0]
+      if (direct_code != static_cast<uintptr_t>(-1)) {
+        cg->LoadConstant(cg->TargetPtrReg(kInvokeTgt), direct_code);
+      } else if (ArmUseRelativeCall(cu, target_method)) {
+        // Defer to linker patch.
+      } else {
+        cg->LoadCodeAddress(target_method, type, kInvokeTgt);
+      }
+      if (direct_method != static_cast<uintptr_t>(-1)) {
+        cg->LoadConstant(cg->TargetReg(kArg0, kRef), direct_method);
+      } else {
+        cg->LoadMethodAddress(target_method, type, kArg0);
+      }
+      break;
+    default:
+      return -1;
+    }
+  } else {
+    RegStorage arg0_ref = cg->TargetReg(kArg0, kRef);
+    switch (state) {
+    case 0:  // Get the current Method* [sets kArg0]
+      // TUNING: we can save a reg copy if Method* has been promoted.
+      cg->LoadCurrMethodDirect(arg0_ref);
+      break;
+    case 1:  // Get method->dex_cache_resolved_methods_
+      cg->LoadRefDisp(arg0_ref,
+                      mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value(),
+                      arg0_ref,
+                      kNotVolatile);
+      // Set up direct code if known.
+      if (direct_code != 0) {
+        if (direct_code != static_cast<uintptr_t>(-1)) {
+          cg->LoadConstant(cg->TargetPtrReg(kInvokeTgt), direct_code);
+        } else if (ArmUseRelativeCall(cu, target_method)) {
+          // Defer to linker patch.
+        } else {
+          CHECK_LT(target_method.dex_method_index, target_method.dex_file->NumMethodIds());
+          cg->LoadCodeAddress(target_method, type, kInvokeTgt);
+        }
+      }
+      break;
+    case 2:  // Grab target method*
+      CHECK_EQ(cu->dex_file, target_method.dex_file);
+      cg->LoadRefDisp(arg0_ref,
+                      mirror::ObjectArray<mirror::Object>::OffsetOfElement(
+                          target_method.dex_method_index).Int32Value(),
+                      arg0_ref,
+                      kNotVolatile);
+      break;
+    case 3:  // Grab the code from the method*
+      if (direct_code == 0) {
+        // kInvokeTgt := arg0_ref->entrypoint
+        cg->LoadWordDisp(arg0_ref,
+                         mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value(),
+                         cg->TargetPtrReg(kInvokeTgt));
+      }
+      break;
+    default:
+      return -1;
+    }
+  }
+  return state + 1;
+}
+
+NextCallInsn ArmMir2Lir::GetNextSDCallInsn() {
+  return ArmNextSDCallInsn;
+}
+
+LIR* ArmMir2Lir::CallWithLinkerFixup(const MethodReference& target_method, InvokeType type) {
+  // For ARM, just generate a relative BL instruction that will be filled in at 'link time'.
+  // If the target turns out to be too far, the linker will generate a thunk for dispatch.
+  int target_method_idx = target_method.dex_method_index;
+  const DexFile* target_dex_file = target_method.dex_file;
+
+  // Generate the call instruction and save index, dex_file, and type.
+  // NOTE: Method deduplication takes linker patches into account, so we can just pass 0
+  // as a placeholder for the offset.
+  LIR* call = RawLIR(current_dalvik_offset_, kThumb2Bl, 0,
+                     target_method_idx, WrapPointer(const_cast<DexFile*>(target_dex_file)), type);
+  AppendLIR(call);
+  call_method_insns_.push_back(call);
+  return call;
+}
+
+LIR* ArmMir2Lir::GenCallInsn(const MirMethodLoweringInfo& method_info) {
+  LIR* call_insn;
+  if (method_info.FastPath() && ArmUseRelativeCall(cu_, method_info.GetTargetMethod()) &&
+      (method_info.GetSharpType() == kDirect || method_info.GetSharpType() == kStatic) &&
+      method_info.DirectCode() == static_cast<uintptr_t>(-1)) {
+    call_insn = CallWithLinkerFixup(method_info.GetTargetMethod(), method_info.GetSharpType());
+  } else {
+    call_insn = OpReg(kOpBlx, TargetPtrReg(kInvokeTgt));
+  }
+  return call_insn;
 }
 
 }  // namespace art

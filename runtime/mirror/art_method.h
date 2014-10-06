@@ -25,6 +25,7 @@
 #include "object_callbacks.h"
 #include "quick/quick_method_frame_info.h"
 #include "read_barrier_option.h"
+#include "stack_map.h"
 
 namespace art {
 
@@ -148,6 +149,15 @@ class MANAGED ArtMethod FINAL : public Object {
   void SetPreverified() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(!IsPreverified());
     SetAccessFlags(GetAccessFlags() | kAccPreverified);
+  }
+
+  bool IsOptimized() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    // Temporary solution for detecting if a method has been optimized: the compiler
+    // does not create a GC map. Instead, the vmap table contains the stack map
+    // (as in stack_map.h).
+    return (GetEntryPointFromQuickCompiledCode() != nullptr)
+        && (GetQuickOatCodePointer() != nullptr)
+        && (GetNativeGcMap() == nullptr);
   }
 
   bool IsPortableCompiled() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -309,6 +319,11 @@ class MANAGED ArtMethod FINAL : public Object {
 
   void AssertPcIsWithinQuickCode(uintptr_t pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Returns true if the entrypoint points to the interpreter, as
+  // opposed to the compiled code, that is, this method will be
+  // interpretered on invocation.
+  bool IsEntrypointInterpreter() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   uint32_t GetQuickOatCodeOffset() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   uint32_t GetPortableOatCodeOffset() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetQuickOatCodeOffset(uint32_t code_offset) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -334,6 +349,9 @@ class MANAGED ArtMethod FINAL : public Object {
   const uint8_t* GetVmapTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const uint8_t* GetVmapTable(const void* code_pointer)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  StackMap GetStackMap(uint32_t native_pc_offset) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  CodeInfo GetOptimizedCodeInfo() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const uint8_t* GetNativeGcMap() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetFieldPtr<uint8_t*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, gc_map_));
@@ -446,7 +464,7 @@ class MANAGED ArtMethod FINAL : public Object {
 
   const Signature GetSignature() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  const char* GetName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE const char* GetName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const DexFile::CodeItem* GetCodeItem() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -473,7 +491,7 @@ class MANAGED ArtMethod FINAL : public Object {
 
   mirror::DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  ArtMethod* GetInterfaceMethodIfProxy() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE ArtMethod* GetInterfaceMethodIfProxy() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  protected:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".

@@ -65,6 +65,8 @@
 namespace art {
 
 struct ClassOffsets;
+template<class T> class Handle;
+template<class T> class Handle;
 class Signature;
 class StringPiece;
 
@@ -95,6 +97,12 @@ class MANAGED Class FINAL : public Object {
   };
 
   // Class Status
+  //
+  // kStatusRetired: Class that's temporarily used till class linking time
+  // has its (vtable) size figured out and has been cloned to one with the
+  // right size which will be the one used later. The old one is retired and
+  // will be gc'ed once all refs to the class point to the newly
+  // cloned version.
   //
   // kStatusNotReady: If a Class cannot be found in the class table by
   // FindClass, it allocates an new one with AllocClass in the
@@ -131,7 +139,7 @@ class MANAGED Class FINAL : public Object {
   //
   // TODO: Explain the other states
   enum Status {
-    kStatusRetired = -2,
+    kStatusRetired = -2,  // Retired, should not be used. Use the newly cloned one instead.
     kStatusError = -1,
     kStatusNotReady = 0,
     kStatusIdx = 1,  // Loaded, DEX idx in super_class_type_idx_ and interfaces_type_idx_.
@@ -217,10 +225,7 @@ class MANAGED Class FINAL : public Object {
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   uint32_t GetAccessFlags() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetAccessFlags(uint32_t new_access_flags) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // Not called within a transaction.
-    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), new_access_flags);
-  }
+  void SetAccessFlags(uint32_t new_access_flags) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns true if the class is an interface.
   bool IsInterface() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -259,6 +264,16 @@ class MANAGED Class FINAL : public Object {
   // Returns true if the class is synthetic.
   bool IsSynthetic() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccSynthetic) != 0;
+  }
+
+  // Returns true if the class can avoid access checks.
+  bool IsPreverified() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return (GetAccessFlags() & kAccPreverified) != 0;
+  }
+
+  void SetPreverified() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    uint32_t flags = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_));
+    SetAccessFlags(flags | kAccPreverified);
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
@@ -330,8 +345,15 @@ class MANAGED Class FINAL : public Object {
 
   void SetPrimitiveType(Primitive::Type new_type) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK_EQ(sizeof(Primitive::Type), sizeof(int32_t));
-    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, primitive_type_), new_type);
+    int32_t v32 = static_cast<int32_t>(new_type);
+    DCHECK_EQ(v32 & 0xFFFF, v32) << "upper 16 bits aren't zero";
+    // Store the component size shift in the upper 16 bits.
+    v32 |= Primitive::ComponentSizeShift(new_type) << 16;
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, primitive_type_), v32);
   }
+
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  size_t GetPrimitiveTypeSizeShift() ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns true if the class is a primitive type.
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
@@ -442,8 +464,12 @@ class MANAGED Class FINAL : public Object {
 
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   size_t GetComponentSize() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return Primitive::ComponentSize(
-        GetComponentType<kDefaultVerifyFlags, kReadBarrierOption>()->GetPrimitiveType());
+    return 1U << GetComponentSizeShift();
+  }
+
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
+  size_t GetComponentSizeShift() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetComponentType<kDefaultVerifyFlags, kReadBarrierOption>()->GetPrimitiveTypeSizeShift();
   }
 
   bool IsObjectClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -500,6 +526,8 @@ class MANAGED Class FINAL : public Object {
   // Compute how many bytes would be used a class with the given elements.
   static uint32_t ComputeClassSize(bool has_embedded_tables,
                                    uint32_t num_vtable_entries,
+                                   uint32_t num_8bit_static_fields,
+                                   uint32_t num_16bit_static_fields,
                                    uint32_t num_32bit_static_fields,
                                    uint32_t num_64bit_static_fields,
                                    uint32_t num_ref_static_fields);
@@ -508,12 +536,12 @@ class MANAGED Class FINAL : public Object {
   static uint32_t ClassClassSize() {
     // The number of vtable entries in java.lang.Class.
     uint32_t vtable_entries = Object::kVTableLength + 64;
-    return ComputeClassSize(true, vtable_entries, 0, 1, 0);
+    return ComputeClassSize(true, vtable_entries, 0, 0, 0, 1, 0);
   }
 
   // The size of a java.lang.Class representing a primitive such as int.class.
   static uint32_t PrimitiveClassSize() {
-    return ComputeClassSize(false, 0, 0, 0, 0);
+    return ComputeClassSize(false, 0, 0, 0, 0, 0, 0);
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
@@ -867,14 +895,6 @@ class MANAGED Class FINAL : public Object {
   // TODO: uint16_t
   void SetStaticField(uint32_t i, ArtField* f) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  uint32_t GetReferenceStaticOffsets() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, reference_static_offsets_));
-  }
-
-  void SetReferenceStaticOffsets(uint32_t new_reference_offsets)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   // Find a static or instance field using the JLS resolution order
   static ArtField* FindField(Thread* self, Handle<Class> klass, const StringPiece& name,
                              const StringPiece& type)
@@ -965,11 +985,15 @@ class MANAGED Class FINAL : public Object {
   template<typename Visitor>
   void VisitEmbeddedImtAndVTable(const Visitor& visitor) NO_THREAD_SAFETY_ANALYSIS;
 
-  std::string GetDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  // Get the descriptor of the class. In a few cases a std::string is required, rather than
+  // always create one the storage argument is populated and its internal c_str() returned. We do
+  // this to avoid memory allocation in the common case.
+  const char* GetDescriptor(std::string* storage) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  const char* GetArrayDescriptor(std::string* storage) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool DescriptorEquals(const char* match) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  std::string GetArrayDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const DexFile::ClassDef* GetClassDef() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -977,7 +1001,8 @@ class MANAGED Class FINAL : public Object {
 
   uint16_t GetDirectInterfaceTypeIdx(uint32_t idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static mirror::Class* GetDirectInterface(Thread* self, Handle<mirror::Class> klass, uint32_t idx)
+  static mirror::Class* GetDirectInterface(Thread* self, Handle<mirror::Class> klass,
+                                           uint32_t idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const char* GetSourceFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -1135,14 +1160,12 @@ class MANAGED Class FINAL : public Object {
   // See also class_size_.
   uint32_t object_size_;
 
-  // Primitive type value, or Primitive::kPrimNot (0); set for generated primitive classes.
-  Primitive::Type primitive_type_;
+  // The lower 16 bits contains a Primitive::Type value. The upper 16
+  // bits contains the size shift of the primitive type.
+  uint32_t primitive_type_;
 
   // Bitmap of offsets of ifields.
   uint32_t reference_instance_offsets_;
-
-  // Bitmap of offsets of sfields.
-  uint32_t reference_static_offsets_;
 
   // State of class initialization.
   Status status_;

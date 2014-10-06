@@ -192,7 +192,7 @@ static inline String* ResolveString(Thread* self, MethodHelper& mh, uint32_t str
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     StackHandleScope<1> hs(self);
     Handle<mirror::Class> h_class(hs.NewHandle(java_lang_string_class));
-    if (UNLIKELY(!class_linker->EnsureInitialized(h_class, true, true))) {
+    if (UNLIKELY(!class_linker->EnsureInitialized(self, h_class, true, true))) {
       DCHECK(self->IsExceptionPending());
       return nullptr;
     }
@@ -388,11 +388,11 @@ static inline bool IsBackwardBranch(int32_t branch_offset) {
   EXPLICIT_DO_INVOKE_TEMPLATE_DECL(_type, true, false);   \
   EXPLICIT_DO_INVOKE_TEMPLATE_DECL(_type, true, true);
 
-EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kStatic);      // invoke-static/range.
-EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kDirect);      // invoke-direct/range.
-EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kVirtual);     // invoke-virtual/range.
-EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kSuper);       // invoke-super/range.
-EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kInterface);   // invoke-interface/range.
+EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kStatic)      // invoke-static/range.
+EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kDirect)      // invoke-direct/range.
+EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kVirtual)     // invoke-virtual/range.
+EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kSuper)       // invoke-super/range.
+EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kInterface)   // invoke-interface/range.
 #undef EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL
 #undef EXPLICIT_DO_INVOKE_TEMPLATE_DECL
 

@@ -16,6 +16,7 @@
 
 #include <limits.h>
 
+#include "ScopedUtfChars.h"
 #include "class_linker-inl.h"
 #include "common_throws.h"
 #include "debugger.h"
@@ -24,6 +25,8 @@
 #include "gc/allocator/dlmalloc.h"
 #include "gc/heap.h"
 #include "gc/space/dlmalloc_space.h"
+#include "gc/space/image_space.h"
+#include "instruction_set.h"
 #include "intern_table.h"
 #include "jni_internal.h"
 #include "mirror/art_method-inl.h"
@@ -73,7 +76,8 @@ static jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaEle
   }
   gc::AllocatorType allocator = runtime->GetHeap()->GetCurrentNonMovingAllocator();
   mirror::Array* result = mirror::Array::Alloc<true>(soa.Self(), array_class, length,
-                                                     array_class->GetComponentSize(), allocator);
+                                                     array_class->GetComponentSizeShift(),
+                                                     allocator);
   return soa.AddLocalReference<jobject>(result);
 }
 
@@ -90,14 +94,15 @@ static jobject VMRuntime_newUnpaddedArray(JNIEnv* env, jobject, jclass javaEleme
     return nullptr;
   }
   Runtime* runtime = Runtime::Current();
-  mirror::Class* array_class = runtime->GetClassLinker()->FindArrayClass(soa.Self(), &element_class);
+  mirror::Class* array_class = runtime->GetClassLinker()->FindArrayClass(soa.Self(),
+                                                                         &element_class);
   if (UNLIKELY(array_class == nullptr)) {
     return nullptr;
   }
   gc::AllocatorType allocator = runtime->GetHeap()->GetCurrentAllocator();
-  mirror::Array* result = mirror::Array::Alloc<true>(soa.Self(), array_class, length,
-                                                     array_class->GetComponentSize(), allocator,
-                                                     true);
+  mirror::Array* result = mirror::Array::Alloc<true, true>(soa.Self(), array_class, length,
+                                                           array_class->GetComponentSizeShift(),
+                                                           allocator);
   return soa.AddLocalReference<jobject>(result);
 }
 
@@ -184,7 +189,7 @@ static void VMRuntime_registerNativeAllocation(JNIEnv* env, jobject, jint bytes)
     ThrowRuntimeException("allocation size negative %d", bytes);
     return;
   }
-  Runtime::Current()->GetHeap()->RegisterNativeAllocation(env, bytes);
+  Runtime::Current()->GetHeap()->RegisterNativeAllocation(env, static_cast<size_t>(bytes));
 }
 
 static void VMRuntime_registerNativeFree(JNIEnv* env, jobject, jint bytes) {
@@ -193,7 +198,7 @@ static void VMRuntime_registerNativeFree(JNIEnv* env, jobject, jint bytes) {
     ThrowRuntimeException("allocation size negative %d", bytes);
     return;
   }
-  Runtime::Current()->GetHeap()->RegisterNativeFree(env, bytes);
+  Runtime::Current()->GetHeap()->RegisterNativeFree(env, static_cast<size_t>(bytes));
 }
 
 static void VMRuntime_updateProcessState(JNIEnv* env, jobject, jint process_state) {
@@ -238,7 +243,7 @@ static void PreloadDexCachesResolveString(Handle<mirror::DexCache> dex_cache, ui
 }
 
 // Based on ClassLinker::ResolveType.
-static void PreloadDexCachesResolveType(mirror::DexCache* dex_cache, uint32_t type_idx)
+static void PreloadDexCachesResolveType(Thread* self, mirror::DexCache* dex_cache, uint32_t type_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Class* klass = dex_cache->GetResolvedType(type_idx);
   if (klass != NULL) {
@@ -250,7 +255,7 @@ static void PreloadDexCachesResolveType(mirror::DexCache* dex_cache, uint32_t ty
   if (class_name[1] == '\0') {
     klass = linker->FindPrimitiveClass(class_name[0]);
   } else {
-    klass = linker->LookupClass(class_name, NULL);
+    klass = linker->LookupClass(self, class_name, NULL);
   }
   if (klass == NULL) {
     return;
@@ -427,7 +432,6 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
 
   Runtime* runtime = Runtime::Current();
   ClassLinker* linker = runtime->GetClassLinker();
-  Thread* self = ThreadForEnv(env);
 
   // We use a std::map to avoid heap allocating StringObjects to lookup in gDvm.literalStrings
   StringTable strings;
@@ -440,7 +444,7 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
   for (size_t i = 0; i< boot_class_path.size(); i++) {
     const DexFile* dex_file = boot_class_path[i];
     CHECK(dex_file != NULL);
-    StackHandleScope<1> hs(self);
+    StackHandleScope<1> hs(soa.Self());
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(linker->FindDexCache(*dex_file)));
 
     if (kPreloadDexCachesStrings) {
@@ -451,7 +455,7 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
 
     if (kPreloadDexCachesTypes) {
       for (size_t i = 0; i < dex_cache->NumResolvedTypes(); i++) {
-        PreloadDexCachesResolveType(dex_cache.Get(), i);
+        PreloadDexCachesResolveType(soa.Self(), dex_cache.Get(), i);
       }
     }
 
@@ -518,6 +522,28 @@ static void VMRuntime_registerAppInfo(JNIEnv* env, jclass, jstring pkgName,
   env->ReleaseStringUTFChars(pkgName, pkgNameChars);
 }
 
+static jboolean VMRuntime_isBootClassPathOnDisk(JNIEnv* env, jclass, jstring java_instruction_set) {
+  ScopedUtfChars instruction_set(env, java_instruction_set);
+  if (instruction_set.c_str() == nullptr) {
+    return JNI_FALSE;
+  }
+  InstructionSet isa = GetInstructionSetFromString(instruction_set.c_str());
+  if (isa == kNone) {
+    ScopedLocalRef<jclass> iae(env, env->FindClass("java/lang/IllegalArgumentException"));
+    std::string message(StringPrintf("Instruction set %s is invalid.", instruction_set.c_str()));
+    env->ThrowNew(iae.get(), message.c_str());
+    return JNI_FALSE;
+  }
+  std::string error_msg;
+  std::unique_ptr<ImageHeader> image_header(gc::space::ImageSpace::ReadImageHeader(
+      Runtime::Current()->GetImageLocation().c_str(), isa, &error_msg));
+  return image_header.get() != nullptr;
+}
+
+static jstring VMRuntime_getCurrentInstructionSet(JNIEnv* env, jclass) {
+  return env->NewStringUTF(GetInstructionSetString(kRuntimeISA));
+}
+
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, addressOf, "!(Ljava/lang/Object;)J"),
   NATIVE_METHOD(VMRuntime, bootClassPath, "()Ljava/lang/String;"),
@@ -543,7 +569,10 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, is64Bit, "!()Z"),
   NATIVE_METHOD(VMRuntime, isCheckJniEnabled, "!()Z"),
   NATIVE_METHOD(VMRuntime, preloadDexCaches, "()V"),
-  NATIVE_METHOD(VMRuntime, registerAppInfo, "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V"),
+  NATIVE_METHOD(VMRuntime, registerAppInfo,
+                "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V"),
+  NATIVE_METHOD(VMRuntime, isBootClassPathOnDisk, "(Ljava/lang/String;)Z"),
+  NATIVE_METHOD(VMRuntime, getCurrentInstructionSet, "()Ljava/lang/String;"),
 };
 
 void register_dalvik_system_VMRuntime(JNIEnv* env) {

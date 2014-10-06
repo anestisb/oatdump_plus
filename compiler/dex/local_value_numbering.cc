@@ -464,7 +464,7 @@ void LocalValueNumbering::PruneNonAliasingRefsForCatch() {
     const MIR* mir = fall_through_bb->first_mir_insn;
     DCHECK(mir != nullptr);
     // Only INVOKEs can leak and clobber non-aliasing references if they throw.
-    if ((Instruction::FlagsOf(mir->dalvikInsn.opcode) & Instruction::kInvoke) != 0) {
+    if ((mir->dalvikInsn.FlagsOf() & Instruction::kInvoke) != 0) {
       for (uint16_t i = 0u; i != mir->ssa_rep->num_uses; ++i) {
         uint16_t value_name = lvn->GetOperandValue(mir->ssa_rep->uses[i]);
         non_aliasing_refs_.erase(value_name);
@@ -656,13 +656,37 @@ void LocalValueNumbering::MergeEscapedArrayClobberSets(
   }
 }
 
-void LocalValueNumbering::MergeNullChecked(const ValueNameSet::value_type& entry,
-                                           ValueNameSet::iterator hint) {
-  // Merge null_checked_ for this ref.
-  merge_names_.clear();
-  merge_names_.resize(gvn_->merge_lvns_.size(), entry);
-  if (gvn_->NullCheckedInAllPredecessors(merge_names_)) {
-    null_checked_.insert(hint, entry);
+void LocalValueNumbering::MergeNullChecked() {
+  DCHECK_GE(gvn_->merge_lvns_.size(), 2u);
+
+  // Find the LVN with the least entries in the set.
+  const LocalValueNumbering* least_entries_lvn = gvn_->merge_lvns_[0];
+  for (const LocalValueNumbering* lvn : gvn_->merge_lvns_) {
+    if (lvn->null_checked_.size() < least_entries_lvn->null_checked_.size()) {
+      least_entries_lvn = lvn;
+    }
+  }
+
+  // For each null-checked value name check if it's null-checked in all the LVNs.
+  for (const auto& value_name : least_entries_lvn->null_checked_) {
+    // Merge null_checked_ for this ref.
+    merge_names_.clear();
+    merge_names_.resize(gvn_->merge_lvns_.size(), value_name);
+    if (gvn_->NullCheckedInAllPredecessors(merge_names_)) {
+      null_checked_.insert(null_checked_.end(), value_name);
+    }
+  }
+
+  // Now check if the least_entries_lvn has a null-check as the last insn.
+  const BasicBlock* least_entries_bb = gvn_->GetBasicBlock(least_entries_lvn->Id());
+  if (gvn_->HasNullCheckLastInsn(least_entries_bb, id_)) {
+    int s_reg = least_entries_bb->last_mir_insn->ssa_rep->uses[0];
+    uint32_t value_name = least_entries_lvn->GetSRegValueName(s_reg);
+    merge_names_.clear();
+    merge_names_.resize(gvn_->merge_lvns_.size(), value_name);
+    if (gvn_->NullCheckedInAllPredecessors(merge_names_)) {
+      null_checked_.insert(value_name);
+    }
   }
 }
 
@@ -896,8 +920,7 @@ void LocalValueNumbering::Merge(MergeType merge_type) {
   IntersectSets<RangeCheckSet, &LocalValueNumbering::range_checked_>();
 
   // Merge null_checked_. We may later insert more, such as merged object field values.
-  MergeSets<ValueNameSet, &LocalValueNumbering::null_checked_,
-            &LocalValueNumbering::MergeNullChecked>();
+  MergeNullChecked();
 
   if (merge_type == kCatchMerge) {
     // Memory is clobbered. New memory version already created, don't merge aliasing locations.
@@ -1146,8 +1169,9 @@ uint16_t LocalValueNumbering::HandleIGet(MIR* mir, uint16_t opcode) {
   const MirFieldInfo& field_info = gvn_->GetMirGraph()->GetIFieldLoweringInfo(mir);
   uint16_t res;
   if (!field_info.IsResolved() || field_info.IsVolatile()) {
-    // Volatile fields always get a new memory version; field id is irrelevant.
     // Unresolved fields may be volatile, so handle them as such to be safe.
+    HandleInvokeOrClInitOrAcquireOp(mir);  // Volatile GETs have acquire semantics.
+    // Volatile fields always get a new memory version; field id is irrelevant.
     // Use result s_reg - will be unique.
     res = gvn_->LookupValue(kNoValue, mir->ssa_rep->defs[0], kNoValue, kNoValue);
   } else {
@@ -1246,14 +1270,16 @@ void LocalValueNumbering::HandleIPut(MIR* mir, uint16_t opcode) {
 
 uint16_t LocalValueNumbering::HandleSGet(MIR* mir, uint16_t opcode) {
   const MirSFieldLoweringInfo& field_info = gvn_->GetMirGraph()->GetSFieldLoweringInfo(mir);
-  if (!field_info.IsInitialized() && (mir->optimization_flags & MIR_IGNORE_CLINIT_CHECK) == 0) {
-    // Class initialization can call arbitrary functions, we need to wipe aliasing values.
-    HandleInvokeOrClInit(mir);
+  if (!field_info.IsResolved() || field_info.IsVolatile() ||
+      (!field_info.IsInitialized() && (mir->optimization_flags & MIR_IGNORE_CLINIT_CHECK) == 0)) {
+    // Volatile SGETs (and unresolved fields are potentially volatile) have acquire semantics
+    // and class initialization can call arbitrary functions, we need to wipe aliasing values.
+    HandleInvokeOrClInitOrAcquireOp(mir);
   }
   uint16_t res;
   if (!field_info.IsResolved() || field_info.IsVolatile()) {
-    // Volatile fields always get a new memory version; field id is irrelevant.
     // Unresolved fields may be volatile, so handle them as such to be safe.
+    // Volatile fields always get a new memory version; field id is irrelevant.
     // Use result s_reg - will be unique.
     res = gvn_->LookupValue(kNoValue, mir->ssa_rep->defs[0], kNoValue, kNoValue);
   } else {
@@ -1283,7 +1309,7 @@ void LocalValueNumbering::HandleSPut(MIR* mir, uint16_t opcode) {
   const MirSFieldLoweringInfo& field_info = gvn_->GetMirGraph()->GetSFieldLoweringInfo(mir);
   if (!field_info.IsInitialized() && (mir->optimization_flags & MIR_IGNORE_CLINIT_CHECK) == 0) {
     // Class initialization can call arbitrary functions, we need to wipe aliasing values.
-    HandleInvokeOrClInit(mir);
+    HandleInvokeOrClInitOrAcquireOp(mir);
   }
   uint16_t type = opcode - Instruction::SPUT;
   if (!field_info.IsResolved()) {
@@ -1328,7 +1354,7 @@ void LocalValueNumbering::RemoveSFieldsForType(uint16_t type) {
   }
 }
 
-void LocalValueNumbering::HandleInvokeOrClInit(MIR* mir) {
+void LocalValueNumbering::HandleInvokeOrClInitOrAcquireOp(MIR* mir) {
   // Use mir->offset as modifier; without elaborate inlining, it will be unique.
   global_memory_version_ =
       gvn_->LookupValue(kInvokeMemoryVersionBumpOp, 0u, 0u, mir->offset);
@@ -1381,9 +1407,7 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
 
     case Instruction::MONITOR_ENTER:
       HandleNullCheck(mir, GetOperandValue(mir->ssa_rep->uses[0]));
-      // NOTE: Keeping all aliasing values intact. Programs that rely on loads/stores of the
-      // same non-volatile locations outside and inside a synchronized block being different
-      // contain races that we cannot fix.
+      HandleInvokeOrClInitOrAcquireOp(mir);  // Acquire operation.
       break;
 
     case Instruction::MONITOR_EXIT:
@@ -1439,14 +1463,12 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
       // Intentional fall-through.
     case Instruction::INVOKE_STATIC:
     case Instruction::INVOKE_STATIC_RANGE:
-      if ((mir->optimization_flags & MIR_INLINED) == 0) {
-        // Make ref args aliasing.
-        for (size_t i = 0u, count = mir->ssa_rep->num_uses; i != count; ++i) {
-          uint16_t reg = GetOperandValue(mir->ssa_rep->uses[i]);
-          non_aliasing_refs_.erase(reg);
-        }
-        HandleInvokeOrClInit(mir);
+      // Make ref args aliasing.
+      for (size_t i = 0u, count = mir->ssa_rep->num_uses; i != count; ++i) {
+        uint16_t reg = GetOperandValue(mir->ssa_rep->uses[i]);
+        non_aliasing_refs_.erase(reg);
       }
+      HandleInvokeOrClInitOrAcquireOp(mir);
       break;
 
     case Instruction::MOVE_RESULT:

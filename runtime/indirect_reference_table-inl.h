@@ -19,6 +19,7 @@
 
 #include "indirect_reference_table.h"
 
+#include "runtime-inl.h"
 #include "verify_object-inl.h"
 
 namespace art {
@@ -46,7 +47,7 @@ inline bool IndirectReferenceTable::GetChecked(IndirectRef iref) const {
     AbortIfNoCheckJNI();
     return false;
   }
-  if (UNLIKELY(table_[idx].IsNull())) {
+  if (UNLIKELY(table_[idx].GetReference()->IsNull())) {
     LOG(ERROR) << "JNI ERROR (app bug): accessed deleted " << kind_ << " " << iref;
     AbortIfNoCheckJNI();
     return false;
@@ -73,15 +74,11 @@ inline bool IndirectReferenceTable::CheckEntry(const char* what, IndirectRef ire
 template<ReadBarrierOption kReadBarrierOption>
 inline mirror::Object* IndirectReferenceTable::Get(IndirectRef iref) const {
   if (!GetChecked(iref)) {
-    return kInvalidIndirectRefObject;
+    return nullptr;
   }
   uint32_t idx = ExtractIndex(iref);
-  mirror::Object* obj = table_[idx].Read<kWithoutReadBarrier>();
-  if (LIKELY(obj != kClearedJniWeakGlobal)) {
-    // The read barrier or VerifyObject won't handle kClearedJniWeakGlobal.
-    obj = table_[idx].Read();
-    VerifyObject(obj);
-  }
+  mirror::Object* obj = table_[idx].GetReference()->Read<kWithoutReadBarrier>();
+  VerifyObject(obj);
   return obj;
 }
 

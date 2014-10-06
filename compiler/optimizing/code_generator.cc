@@ -19,11 +19,13 @@
 #include "code_generator_arm.h"
 #include "code_generator_x86.h"
 #include "code_generator_x86_64.h"
+#include "compiled_method.h"
 #include "dex/verified_method.h"
 #include "driver/dex_compilation_unit.h"
 #include "gc_map_builder.h"
 #include "leb128.h"
 #include "mapping_table.h"
+#include "ssa_liveness_analysis.h"
 #include "utils/assembler.h"
 #include "verifier/dex_gc_map.h"
 #include "vmap_table.h"
@@ -40,17 +42,19 @@ void CodeGenerator::CompileBaseline(CodeAllocator* allocator, bool is_leaf) {
   if (!is_leaf) {
     MarkNotLeaf();
   }
-  ComputeFrameSize(GetGraph()->GetMaximumNumberOfOutVRegs()
-                   + GetGraph()->GetNumberOfLocalVRegs()
-                   + GetGraph()->GetNumberOfTemporaries()
-                   + 1 /* filler */);
+  ComputeFrameSize(GetGraph()->GetNumberOfLocalVRegs()
+                     + GetGraph()->GetNumberOfTemporaries()
+                     + 1 /* filler */,
+                   0, /* the baseline compiler does not have live registers at slow path */
+                   GetGraph()->GetMaximumNumberOfOutVRegs()
+                     + 1 /* current method */);
   GenerateFrameEntry();
 
+  HGraphVisitor* location_builder = GetLocationBuilder();
+  HGraphVisitor* instruction_visitor = GetInstructionVisitor();
   for (size_t i = 0, e = blocks.Size(); i < e; ++i) {
     HBasicBlock* block = blocks.Get(i);
     Bind(GetLabelOf(block));
-    HGraphVisitor* location_builder = GetLocationBuilder();
-    HGraphVisitor* instruction_visitor = GetInstructionVisitor();
     for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
       current->Accept(location_builder);
@@ -75,10 +79,10 @@ void CodeGenerator::CompileOptimized(CodeAllocator* allocator) {
   block_labels_.SetSize(blocks.Size());
 
   GenerateFrameEntry();
+  HGraphVisitor* instruction_visitor = GetInstructionVisitor();
   for (size_t i = 0, e = blocks.Size(); i < e; ++i) {
     HBasicBlock* block = blocks.Get(i);
     Bind(GetLabelOf(block));
-    HGraphVisitor* instruction_visitor = GetInstructionVisitor();
     for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
       current->Accept(instruction_visitor);
@@ -109,10 +113,15 @@ size_t CodeGenerator::AllocateFreeRegisterInternal(
   return -1;
 }
 
-void CodeGenerator::ComputeFrameSize(size_t number_of_spill_slots) {
+void CodeGenerator::ComputeFrameSize(size_t number_of_spill_slots,
+                                     size_t maximum_number_of_live_registers,
+                                     size_t number_of_out_slots) {
+  first_register_slot_in_slow_path_ = (number_of_out_slots + number_of_spill_slots) * kVRegSize;
+
   SetFrameSize(RoundUp(
       number_of_spill_slots * kVRegSize
-      + kVRegSize  // Art method
+      + number_of_out_slots * kVRegSize
+      + maximum_number_of_live_registers * GetWordSize()
       + FrameEntrySpillSize(),
       kStackAlignment));
 }
@@ -297,13 +306,17 @@ void CodeGenerator::BuildNativeGCMap(
   }
 }
 
-void CodeGenerator::BuildMappingTable(std::vector<uint8_t>* data) const {
+void CodeGenerator::BuildMappingTable(std::vector<uint8_t>* data, SrcMap* src_map) const {
   uint32_t pc2dex_data_size = 0u;
   uint32_t pc2dex_entries = pc_infos_.Size();
   uint32_t pc2dex_offset = 0u;
   int32_t pc2dex_dalvik_offset = 0;
   uint32_t dex2pc_data_size = 0u;
   uint32_t dex2pc_entries = 0u;
+
+  if (src_map != nullptr) {
+    src_map->reserve(pc2dex_entries);
+  }
 
   // We currently only have pc2dex entries.
   for (size_t i = 0; i < pc2dex_entries; i++) {
@@ -312,6 +325,9 @@ void CodeGenerator::BuildMappingTable(std::vector<uint8_t>* data) const {
     pc2dex_data_size += SignedLeb128Size(pc_info.dex_pc - pc2dex_dalvik_offset);
     pc2dex_offset = pc_info.native_pc;
     pc2dex_dalvik_offset = pc_info.dex_pc;
+    if (src_map != nullptr) {
+      src_map->push_back(SrcMapElem({pc2dex_offset, pc2dex_dalvik_offset}));
+    }
   }
 
   uint32_t total_entries = pc2dex_entries + dex2pc_entries;
@@ -366,6 +382,160 @@ void CodeGenerator::BuildVMapTable(std::vector<uint8_t>* data) const {
   vmap_encoder.PushBackUnsigned(VmapTable::kAdjustedFpMarker);
 
   *data = vmap_encoder.GetData();
+}
+
+void CodeGenerator::BuildStackMaps(std::vector<uint8_t>* data) {
+  uint32_t size = stack_map_stream_.ComputeNeededSize();
+  data->resize(size);
+  MemoryRegion region(data->data(), size);
+  stack_map_stream_.FillIn(region);
+}
+
+void CodeGenerator::RecordPcInfo(HInstruction* instruction, uint32_t dex_pc) {
+  // Collect PC infos for the mapping table.
+  struct PcInfo pc_info;
+  pc_info.dex_pc = dex_pc;
+  pc_info.native_pc = GetAssembler()->CodeSize();
+  pc_infos_.Add(pc_info);
+
+  // Populate stack map information.
+
+  if (instruction == nullptr) {
+    // For stack overflow checks.
+    stack_map_stream_.AddStackMapEntry(dex_pc, pc_info.native_pc, 0, 0, 0, 0);
+    return;
+  }
+
+  LocationSummary* locations = instruction->GetLocations();
+  HEnvironment* environment = instruction->GetEnvironment();
+
+  size_t environment_size = instruction->EnvironmentSize();
+
+  size_t register_mask = 0;
+  size_t inlining_depth = 0;
+  stack_map_stream_.AddStackMapEntry(
+      dex_pc, pc_info.native_pc, register_mask,
+      locations->GetStackMask(), environment_size, inlining_depth);
+
+  // Walk over the environment, and record the location of dex registers.
+  for (size_t i = 0; i < environment_size; ++i) {
+    HInstruction* current = environment->GetInstructionAt(i);
+    if (current == nullptr) {
+      stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kNone, 0);
+      continue;
+    }
+
+    Location location = locations->GetEnvironmentAt(i);
+    switch (location.GetKind()) {
+      case Location::kConstant: {
+        DCHECK(current == location.GetConstant());
+        if (current->IsLongConstant()) {
+          int64_t value = current->AsLongConstant()->GetValue();
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kConstant, Low32Bits(value));
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kConstant, High32Bits(value));
+          ++i;
+          DCHECK_LT(i, environment_size);
+        } else {
+          DCHECK(current->IsIntConstant());
+          int32_t value = current->AsIntConstant()->GetValue();
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kConstant, value);
+        }
+        break;
+      }
+
+      case Location::kStackSlot: {
+        stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInStack, location.GetStackIndex());
+        break;
+      }
+
+      case Location::kDoubleStackSlot: {
+        stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInStack, location.GetStackIndex());
+        stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInStack,
+                                              location.GetHighStackIndex(kVRegSize));
+        ++i;
+        DCHECK_LT(i, environment_size);
+        break;
+      }
+
+      case Location::kRegister : {
+        int id = location.reg().RegId();
+        stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInRegister, id);
+        if (current->GetType() == Primitive::kPrimDouble
+            || current->GetType() == Primitive::kPrimLong) {
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInRegister, id);
+          ++i;
+          DCHECK_LT(i, environment_size);
+        }
+        break;
+      }
+
+      default:
+        LOG(FATAL) << "Unexpected kind " << location.GetKind();
+    }
+  }
+}
+
+size_t CodeGenerator::GetStackOffsetOfSavedRegister(size_t index) {
+  return first_register_slot_in_slow_path_ + index * GetWordSize();
+}
+
+void CodeGenerator::SaveLiveRegisters(LocationSummary* locations) {
+  RegisterSet* register_set = locations->GetLiveRegisters();
+  uint32_t count = 0;
+  for (size_t i = 0, e = GetNumberOfCoreRegisters(); i < e; ++i) {
+    if (register_set->ContainsCoreRegister(i)) {
+      size_t stack_offset = GetStackOffsetOfSavedRegister(count);
+      ++count;
+      SaveCoreRegister(Location::StackSlot(stack_offset), i);
+      // If the register holds an object, update the stack mask.
+      if (locations->RegisterContainsObject(i)) {
+        locations->SetStackBit(stack_offset / kVRegSize);
+      }
+    }
+  }
+
+  for (size_t i = 0, e = GetNumberOfFloatingPointRegisters(); i < e; ++i) {
+    if (register_set->ContainsFloatingPointRegister(i)) {
+      LOG(FATAL) << "Unimplemented";
+    }
+  }
+}
+
+void CodeGenerator::RestoreLiveRegisters(LocationSummary* locations) {
+  RegisterSet* register_set = locations->GetLiveRegisters();
+  uint32_t count = 0;
+  for (size_t i = 0, e = GetNumberOfCoreRegisters(); i < e; ++i) {
+    if (register_set->ContainsCoreRegister(i)) {
+      size_t stack_offset = GetStackOffsetOfSavedRegister(count);
+      ++count;
+      RestoreCoreRegister(Location::StackSlot(stack_offset), i);
+    }
+  }
+
+  for (size_t i = 0, e = GetNumberOfFloatingPointRegisters(); i < e; ++i) {
+    if (register_set->ContainsFloatingPointRegister(i)) {
+      LOG(FATAL) << "Unimplemented";
+    }
+  }
+}
+
+void CodeGenerator::ClearSpillSlotsFromLoopPhisInStackMap(HSuspendCheck* suspend_check) const {
+  LocationSummary* locations = suspend_check->GetLocations();
+  HBasicBlock* block = suspend_check->GetBlock();
+  DCHECK(block->GetLoopInformation()->GetSuspendCheck() == suspend_check);
+  DCHECK(block->IsLoopHeader());
+
+  for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+    HInstruction* current = it.Current();
+    LiveInterval* interval = current->GetLiveInterval();
+    // We only need to clear bits of loop phis containing objects and allocated in register.
+    // Loop phis allocated on stack already have the object in the stack.
+    if (current->GetType() == Primitive::kPrimNot
+        && interval->HasRegister()
+        && interval->HasSpillSlot()) {
+      locations->ClearStackBit(interval->GetSpillSlot() / kVRegSize);
+    }
+  }
 }
 
 }  // namespace art

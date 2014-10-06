@@ -25,8 +25,10 @@
 #include "thread.h"
 #include "thread-inl.h"
 #include "dex/mir_graph.h"
+#include "dex/quick/mir_to_lir.h"
 #include "dex_instruction.h"
 #include "dex_instruction-inl.h"
+#include "driver/dex_compilation_unit.h"
 #include "verifier/method_verifier.h"
 #include "verifier/method_verifier-inl.h"
 
@@ -53,7 +55,7 @@ static constexpr bool kIntrinsicIsStatic[] = {
     true,   // kIntrinsicRint
     true,   // kIntrinsicRoundFloat
     true,   // kIntrinsicRoundDouble
-    false,  // kIntrinsicReferenceGet
+    false,  // kIntrinsicReferenceGetReferent
     false,  // kIntrinsicCharAt
     false,  // kIntrinsicCompareTo
     false,  // kIntrinsicIsEmptyOrLength
@@ -85,7 +87,7 @@ COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicFloor], Floor_must_be_static);
 COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicRint], Rint_must_be_static);
 COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicRoundFloat], RoundFloat_must_be_static);
 COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicRoundDouble], RoundDouble_must_be_static);
-COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicReferenceGet], Get_must_not_be_static);
+COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicReferenceGetReferent], Get_must_not_be_static);
 COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicCharAt], CharAt_must_not_be_static);
 COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicCompareTo], CompareTo_must_not_be_static);
 COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicIsEmptyOrLength], IsEmptyOrLength_must_not_be_static);
@@ -169,7 +171,7 @@ const char* const DexFileMethodInliner::kNameCacheNames[] = {
     "floor",                 // kNameCacheFloor
     "rint",                  // kNameCacheRint
     "round",                 // kNameCacheRound
-    "get",                   // kNameCacheReferenceGet
+    "getReferent",           // kNameCacheReferenceGet
     "charAt",                // kNameCacheCharAt
     "compareTo",             // kNameCacheCompareTo
     "isEmpty",               // kNameCacheIsEmpty
@@ -339,7 +341,7 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
     INTRINSIC(JavaLangMath,       Round, D_J, kIntrinsicRoundDouble, 0),
     INTRINSIC(JavaLangStrictMath, Round, D_J, kIntrinsicRoundDouble, 0),
 
-    INTRINSIC(JavaLangRefReference, ReferenceGet, _Object, kIntrinsicReferenceGet, 0),
+    INTRINSIC(JavaLangRefReference, ReferenceGetReferent, _Object, kIntrinsicReferenceGetReferent, 0),
 
     INTRINSIC(JavaLangString, CharAt, I_C, kIntrinsicCharAt, 0),
     INTRINSIC(JavaLangString, CompareTo, String_I, kIntrinsicCompareTo, 0),
@@ -471,8 +473,8 @@ bool DexFileMethodInliner::GenIntrinsic(Mir2Lir* backend, CallInfo* info) {
       return backend->GenInlinedRound(info, false /* is_double */);
     case kIntrinsicRoundDouble:
       return backend->GenInlinedRound(info, true /* is_double */);
-    case kIntrinsicReferenceGet:
-      return backend->GenInlinedReferenceGet(info);
+    case kIntrinsicReferenceGetReferent:
+      return backend->GenInlinedReferenceGetReferent(info);
     case kIntrinsicCharAt:
       return backend->GenInlinedCharAt(info);
     case kIntrinsicCompareTo:
@@ -561,11 +563,25 @@ bool DexFileMethodInliner::GenInline(MIRGraph* mir_graph, BasicBlock* bb, MIR* i
       break;
     default:
       LOG(FATAL) << "Unexpected inline op: " << method.opcode;
+      break;
   }
   if (result) {
-    invoke->optimization_flags |= MIR_INLINED;
+    // If the invoke has not been eliminated yet, check now whether we should do it.
+    // This is done so that dataflow analysis does not get tripped up seeing nop invoke.
+    if (static_cast<int>(invoke->dalvikInsn.opcode) != kMirOpNop) {
+      bool is_static = invoke->dalvikInsn.opcode == Instruction::INVOKE_STATIC ||
+          invoke->dalvikInsn.opcode == Instruction::INVOKE_STATIC_RANGE;
+      if (is_static || (invoke->optimization_flags & MIR_IGNORE_NULL_CHECK) != 0) {
+        // No null object register involved here so we can eliminate the invoke.
+        invoke->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
+      } else {
+        // Invoke was kept around because null check needed to be done.
+        invoke->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNullCheck);
+        // For invokes, the object register is in vC. For null check mir, it is in vA.
+        invoke->dalvikInsn.vA = invoke->dalvikInsn.vC;
+      }
+    }
     if (move_result != nullptr) {
-      move_result->optimization_flags |= MIR_INLINED;
       move_result->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
     }
   }

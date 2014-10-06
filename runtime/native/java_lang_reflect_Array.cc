@@ -34,7 +34,8 @@ static jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementCla
   DCHECK(javaDimArray != NULL);
   mirror::Object* dimensions_obj = soa.Decode<mirror::Object*>(javaDimArray);
   DCHECK(dimensions_obj->IsArrayInstance());
-  DCHECK_STREQ(dimensions_obj->GetClass()->GetDescriptor().c_str(), "[I");
+  DCHECK_EQ(dimensions_obj->GetClass()->GetComponentType()->GetPrimitiveType(),
+            Primitive::kPrimInt);
   Handle<mirror::IntArray> dimensions_array(
       hs.NewHandle(down_cast<mirror::IntArray*>(dimensions_obj)));
   mirror::Array* new_array = mirror::Array::CreateMultiArray(soa.Self(), element_class,
@@ -58,9 +59,10 @@ static jobject Array_createObjectArray(JNIEnv* env, jclass, jclass javaElementCl
     return NULL;
   }
   DCHECK(array_class->IsObjectArrayClass());
-  mirror::Array* new_array = mirror::Array::Alloc<true>(soa.Self(), array_class, length,
-                                                        sizeof(mirror::HeapReference<mirror::Object>),
-                                                        runtime->GetHeap()->GetCurrentAllocator());
+  mirror::Array* new_array = mirror::Array::Alloc<true>(
+      soa.Self(), array_class, length,
+      ComponentSizeShiftWidth<sizeof(mirror::HeapReference<mirror::Object>)>(),
+      runtime->GetHeap()->GetCurrentAllocator());
   return soa.AddLocalReference<jobject>(new_array);
 }
 

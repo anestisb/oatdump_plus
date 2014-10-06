@@ -17,25 +17,28 @@
 #ifndef ART_COMPILER_DEX_COMPILER_IR_H_
 #define ART_COMPILER_DEX_COMPILER_IR_H_
 
+#include <string>
 #include <vector>
 
 #include "compiler_enums.h"
-#include "dex/quick/mir_to_lir.h"
-#include "dex_instruction.h"
 #include "driver/compiler_driver.h"
-#include "driver/dex_compilation_unit.h"
-#include "safe_map.h"
 #include "utils/scoped_arena_allocator.h"
 #include "base/timing_logger.h"
 #include "utils/arena_allocator.h"
 
 namespace art {
 
-struct ArenaMemBlock;
 class Backend;
-struct Memstats;
+class ClassLinker;
 class MIRGraph;
-class Mir2Lir;
+
+/*
+ * TODO: refactoring pass to move these (and other) typedefs towards usage style of runtime to
+ * add type safety (see runtime/offsets.h).
+ */
+typedef uint32_t DexOffset;          // Dex offset in code units.
+typedef uint16_t NarrowDexOffset;    // For use in structs, Dex offsets range from 0 .. 0xffff.
+typedef uint32_t CodeOffset;         // Native code offset in bytes.
 
 struct CompilationUnit {
   explicit CompilationUnit(ArenaPool* pool);
@@ -55,7 +58,6 @@ struct CompilationUnit {
   jobject class_loader;                // compiling method's class loader.
   uint16_t class_def_idx;              // compiling method's defining class definition index.
   uint32_t method_idx;                 // compiling method's index into method_ids of DexFile.
-  const DexFile::CodeItem* code_item;  // compiling method's DexFile code_item.
   uint32_t access_flags;               // compiling method's access flags.
   InvokeType invoke_type;              // compiling method's invocation type.
   const char* shorty;                  // compiling method's shorty.
@@ -69,12 +71,6 @@ struct CompilationUnit {
   InstructionSetFeatures GetInstructionSetFeatures() {
     return compiler_driver->GetInstructionSetFeatures();
   }
-  // TODO: much of this info available elsewhere.  Go to the original source?
-  uint16_t num_dalvik_registers;        // method->registers_size.
-  const uint16_t* insns;
-  uint16_t num_ins;
-  uint16_t num_outs;
-  uint16_t num_regs;            // Unlike num_dalvik_registers, does not include ins.
 
   // If non-empty, apply optimizer/debug flags only to matching methods.
   std::string compiler_method_match;
@@ -89,6 +85,15 @@ struct CompilationUnit {
   std::unique_ptr<Backend> cg;           // Target-specific codegen.
   TimingLogger timings;
   bool print_pass;                 // Do we want to print a pass or not?
+
+  /**
+   * @brief Holds pass options for current pass being applied to compilation unit.
+   * @details This is updated for every pass to contain the overridden pass options
+   * that were specified by user. The pass itself will check this to see if the
+   * default settings have been changed. The key is simply the option string without
+   * the pass name.
+   */
+  SafeMap<const std::string, int> overridden_pass_options;
 };
 
 }  // namespace art

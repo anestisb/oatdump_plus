@@ -58,10 +58,10 @@ static const char* gReg64Names[] = {
 };
 
 // 64-bit opcode REX modifier.
-constexpr uint8_t REX_W = 0b1000;
-constexpr uint8_t REX_R = 0b0100;
-constexpr uint8_t REX_X = 0b0010;
-constexpr uint8_t REX_B = 0b0001;
+constexpr uint8_t REX_W = 8U /* 0b1000 */;
+constexpr uint8_t REX_R = 4U /* 0b0100 */;
+constexpr uint8_t REX_X = 2U /* 0b0010 */;
+constexpr uint8_t REX_B = 1U /* 0b0001 */;
 
 static void DumpReg0(std::ostream& os, uint8_t rex, size_t reg,
                      bool byte_operand, uint8_t size_override) {
@@ -558,14 +558,19 @@ DISASSEMBLER_ENTRY(cmp,
         has_modrm = true;
         src_reg_file = dst_reg_file = SSE;
         break;
-      case 0x62:
+      case 0x60: case 0x61: case 0x62: case 0x6C:
         if (prefix[2] == 0x66) {
           src_reg_file = dst_reg_file = SSE;
           prefix[2] = 0;  // Clear prefix now. It has served its purpose as part of the opcode.
         } else {
           src_reg_file = dst_reg_file = MMX;
         }
-        opcode << "punpckldq";
+        switch (*instr) {
+          case 0x60: opcode << "punpcklbw"; break;
+          case 0x61: opcode << "punpcklwd"; break;
+          case 0x62: opcode << "punpckldq"; break;
+          case 0x6c: opcode << "punpcklqdq"; break;
+        }
         load = true;
         has_modrm = true;
         break;
@@ -650,7 +655,7 @@ DISASSEMBLER_ENTRY(cmp,
         } else {
           dst_reg_file = MMX;
         }
-        static const char* x73_opcodes[] = {"unknown-73", "unknown-73", "psrlq", "unknown-73", "unknown-73", "unknown-73", "psllq", "unknown-73"};
+        static const char* x73_opcodes[] = {"unknown-73", "unknown-73", "psrlq", "psrldq", "unknown-73", "unknown-73", "psllq", "unknown-73"};
         modrm_opcodes = x73_opcodes;
         reg_is_opcode = true;
         has_modrm = true;
@@ -702,11 +707,23 @@ DISASSEMBLER_ENTRY(cmp,
         load = true;
         immediate_bytes = 1;
         break;
+      case 0xA5:
+        opcode << "shld";
+        has_modrm = true;
+        load = true;
+        cx = true;
+        break;
       case 0xAC:
         opcode << "shrd";
         has_modrm = true;
         load = true;
         immediate_bytes = 1;
+        break;
+      case 0xAD:
+        opcode << "shrd";
+        has_modrm = true;
+        load = true;
+        cx = true;
         break;
       case 0xAE:
         if (prefix[0] == 0xF3) {
@@ -750,8 +767,9 @@ DISASSEMBLER_ENTRY(cmp,
       case 0xB1: opcode << "cmpxchg"; has_modrm = true; store = true; break;
       case 0xB6: opcode << "movzxb"; has_modrm = true; load = true; byte_second_operand = true; break;
       case 0xB7: opcode << "movzxw"; has_modrm = true; load = true; break;
-      case 0xBE: opcode << "movsxb"; has_modrm = true; load = true; byte_second_operand = true; rex |= (rex == 0 ? 0 : 0b1000); break;
+      case 0xBE: opcode << "movsxb"; has_modrm = true; load = true; byte_second_operand = true; rex |= (rex == 0 ? 0 : REX_W); break;
       case 0xBF: opcode << "movsxw"; has_modrm = true; load = true; break;
+      case 0xC3: opcode << "movnti"; store = true; has_modrm = true; break;
       case 0xC5:
         if (prefix[2] == 0x66) {
           opcode << "pextrw";
@@ -786,6 +804,18 @@ DISASSEMBLER_ENTRY(cmp,
       case 0xC8: case 0xC9: case 0xCA: case 0xCB: case 0xCC: case 0xCD: case 0xCE: case 0xCF:
         opcode << "bswap";
         reg_in_opcode = true;
+        break;
+      case 0xD4:
+        if (prefix[2] == 0x66) {
+          src_reg_file = dst_reg_file = SSE;
+          prefix[2] = 0;
+        } else {
+          src_reg_file = dst_reg_file = MMX;
+        }
+        opcode << "paddq";
+        prefix[2] = 0;
+        has_modrm = true;
+        load = true;
         break;
       case 0xDB:
         if (prefix[2] == 0x66) {
@@ -834,66 +864,14 @@ DISASSEMBLER_ENTRY(cmp,
         has_modrm = true;
         load = true;
         break;
+      case 0xF4:
+      case 0xF6:
       case 0xF8:
-        if (prefix[2] == 0x66) {
-          src_reg_file = dst_reg_file = SSE;
-          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
-        } else {
-          src_reg_file = dst_reg_file = MMX;
-        }
-        opcode << "psubb";
-        prefix[2] = 0;
-        has_modrm = true;
-        load = true;
-        break;
       case 0xF9:
-        if (prefix[2] == 0x66) {
-          src_reg_file = dst_reg_file = SSE;
-          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
-        } else {
-          src_reg_file = dst_reg_file = MMX;
-        }
-        opcode << "psubw";
-        prefix[2] = 0;
-        has_modrm = true;
-        load = true;
-        break;
       case 0xFA:
-        if (prefix[2] == 0x66) {
-          src_reg_file = dst_reg_file = SSE;
-          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
-        } else {
-          src_reg_file = dst_reg_file = MMX;
-        }
-        opcode << "psubd";
-        prefix[2] = 0;
-        has_modrm = true;
-        load = true;
-        break;
+      case 0xFB:
       case 0xFC:
-        if (prefix[2] == 0x66) {
-          src_reg_file = dst_reg_file = SSE;
-          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
-        } else {
-          src_reg_file = dst_reg_file = MMX;
-        }
-        opcode << "paddb";
-        prefix[2] = 0;
-        has_modrm = true;
-        load = true;
-        break;
       case 0xFD:
-        if (prefix[2] == 0x66) {
-          src_reg_file = dst_reg_file = SSE;
-          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
-        } else {
-          src_reg_file = dst_reg_file = MMX;
-        }
-        opcode << "paddw";
-        prefix[2] = 0;
-        has_modrm = true;
-        load = true;
-        break;
       case 0xFE:
         if (prefix[2] == 0x66) {
           src_reg_file = dst_reg_file = SSE;
@@ -901,7 +879,17 @@ DISASSEMBLER_ENTRY(cmp,
         } else {
           src_reg_file = dst_reg_file = MMX;
         }
-        opcode << "paddd";
+        switch (*instr) {
+          case 0xF4: opcode << "pmuludq"; break;
+          case 0xF6: opcode << "psadbw"; break;
+          case 0xF8: opcode << "psubb"; break;
+          case 0xF9: opcode << "psubw"; break;
+          case 0xFA: opcode << "psubd"; break;
+          case 0xFB: opcode << "psubq"; break;
+          case 0xFC: opcode << "paddb"; break;
+          case 0xFD: opcode << "paddw"; break;
+          case 0xFE: opcode << "paddd"; break;
+        }
         prefix[2] = 0;
         has_modrm = true;
         load = true;
@@ -1227,7 +1215,9 @@ DISASSEMBLER_ENTRY(cmp,
       displacement = *reinterpret_cast<const int32_t*>(instr);
       instr += 4;
     }
-    args << StringPrintf("%+d (%p)", displacement, instr + displacement);
+    args << StringPrintf("%+d (", displacement)
+         << FormatInstructionPointer(instr + displacement)
+         << ")";
   }
   if (prefix[1] == kFs && !supports_rex_) {
     args << "  ; ";
@@ -1250,8 +1240,8 @@ DISASSEMBLER_ENTRY(cmp,
     default: LOG(FATAL) << "Unreachable";
   }
   prefixed_opcode << opcode.str();
-  os << StringPrintf("%p: %22s    \t%-7s ", begin_instr, hex.str().c_str(),
-                     prefixed_opcode.str().c_str())
+  os << FormatInstructionPointer(begin_instr)
+     << StringPrintf(": %22s    \t%-7s ", hex.str().c_str(), prefixed_opcode.str().c_str())
      << args.str() << '\n';
   return instr - begin_instr;
 }  // NOLINT(readability/fn_size)

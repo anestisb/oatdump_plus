@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "arm/codegen_arm.h"
 #include "dex/compiler_ir.h"
 #include "dex/frontend.h"
 #include "dex/quick/dex_file_method_inliner.h"
@@ -27,7 +28,7 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/string.h"
 #include "mir_to_lir-inl.h"
-#include "x86/codegen_x86.h"
+#include "scoped_thread_state_change.h"
 
 namespace art {
 
@@ -381,11 +382,11 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
     StoreRefDisp(TargetPtrReg(kSp), 0, rl_src.reg, kNotVolatile);
   }
 
-  if (cu_->num_ins == 0) {
+  if (mir_graph_->GetNumOfInVRs() == 0) {
     return;
   }
 
-  int start_vreg = cu_->num_dalvik_registers - cu_->num_ins;
+  int start_vreg = mir_graph_->GetFirstInVR();
   /*
    * Copy incoming arguments to their proper home locations.
    * NOTE: an older version of dx had an issue in which
@@ -399,7 +400,7 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
    * half to memory as well.
    */
   ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-  for (int i = 0; i < cu_->num_ins; i++) {
+  for (uint32_t i = 0; i < mir_graph_->GetNumOfInVRs(); i++) {
     PromotionMap* v_map = &promotion_map_[start_vreg + i];
     RegStorage reg = GetArgMappingToPhysicalReg(i);
 
@@ -493,15 +494,15 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
                           uint32_t unused,
                           uintptr_t direct_code, uintptr_t direct_method,
                           InvokeType type) {
+  DCHECK(cu->instruction_set != kX86 && cu->instruction_set != kX86_64 &&
+         cu->instruction_set != kThumb2 && cu->instruction_set != kArm);
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
   if (direct_code != 0 && direct_method != 0) {
     switch (state) {
     case 0:  // Get the current Method* [sets kArg0]
       if (direct_code != static_cast<uintptr_t>(-1)) {
-        if (cu->instruction_set != kX86 && cu->instruction_set != kX86_64) {
-          cg->LoadConstant(cg->TargetPtrReg(kInvokeTgt), direct_code);
-        }
-      } else if (cu->instruction_set != kX86 && cu->instruction_set != kX86_64) {
+        cg->LoadConstant(cg->TargetPtrReg(kInvokeTgt), direct_code);
+      } else {
         cg->LoadCodeAddress(target_method, type, kInvokeTgt);
       }
       if (direct_method != static_cast<uintptr_t>(-1)) {
@@ -529,7 +530,7 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       if (direct_code != 0) {
         if (direct_code != static_cast<uintptr_t>(-1)) {
           cg->LoadConstant(cg->TargetPtrReg(kInvokeTgt), direct_code);
-        } else if (cu->instruction_set != kX86 && cu->instruction_set != kX86_64) {
+        } else {
           CHECK_LT(target_method.dex_method_index, target_method.dex_file->NumMethodIds());
           cg->LoadCodeAddress(target_method, type, kInvokeTgt);
         }
@@ -547,7 +548,7 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
         if (CommonCallCodeLoadCodePointerIntoInvokeTgt(info, &arg0_ref, cu, cg)) {
           break;                                    // kInvokeTgt := arg0_ref->entrypoint
         }
-      } else if (cu->instruction_set != kX86 && cu->instruction_set != kX86_64) {
+      } else {
         break;
       }
       // Intentional fallthrough for x86
@@ -933,9 +934,6 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
     }
   }
 
-  // Logic below assumes that Method pointer is at offset zero from SP.
-  DCHECK_EQ(VRegOffset(static_cast<int>(kVRegMethodPtrBaseReg)), 0);
-
   // The first 3 arguments are passed via registers.
   // TODO: For 64-bit, instead of hardcoding 4 for Method* size, we should either
   // get size of uintptr_t or size of object reference according to model being used.
@@ -1110,9 +1108,12 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
 RegLocation Mir2Lir::InlineTarget(CallInfo* info) {
   RegLocation res;
   if (info->result.location == kLocInvalid) {
-    res = GetReturn(LocToRegClass(info->result));
+    // If result is unused, return a sink target based on type of invoke target.
+    res = GetReturn(ShortyToRegClass(mir_graph_->GetShortyFromTargetIdx(info->index)[0]));
   } else {
     res = info->result;
+    DCHECK_EQ(LocToRegClass(res),
+              ShortyToRegClass(mir_graph_->GetShortyFromTargetIdx(info->index)[0]));
   }
   return res;
 }
@@ -1120,14 +1121,17 @@ RegLocation Mir2Lir::InlineTarget(CallInfo* info) {
 RegLocation Mir2Lir::InlineTargetWide(CallInfo* info) {
   RegLocation res;
   if (info->result.location == kLocInvalid) {
-    res = GetReturnWide(kCoreReg);
+    // If result is unused, return a sink target based on type of invoke target.
+    res = GetReturnWide(ShortyToRegClass(mir_graph_->GetShortyFromTargetIdx(info->index)[0]));
   } else {
     res = info->result;
+    DCHECK_EQ(LocToRegClass(res),
+              ShortyToRegClass(mir_graph_->GetShortyFromTargetIdx(info->index)[0]));
   }
   return res;
 }
 
-bool Mir2Lir::GenInlinedReferenceGet(CallInfo* info) {
+bool Mir2Lir::GenInlinedReferenceGetReferent(CallInfo* info) {
   if (cu_->instruction_set == kMips) {
     // TODO - add Mips implementation
     return false;
@@ -1158,12 +1162,12 @@ bool Mir2Lir::GenInlinedReferenceGet(CallInfo* info) {
 
   // intrinsic logic start.
   RegLocation rl_obj = info->args[0];
-  rl_obj = LoadValue(rl_obj);
+  rl_obj = LoadValue(rl_obj, kRefReg);
 
   RegStorage reg_slow_path = AllocTemp();
   RegStorage reg_disabled = AllocTemp();
-  Load32Disp(reg_class, slow_path_flag_offset, reg_slow_path);
-  Load32Disp(reg_class, disable_flag_offset, reg_disabled);
+  Load8Disp(reg_class, slow_path_flag_offset, reg_slow_path);
+  Load8Disp(reg_class, disable_flag_offset, reg_disabled);
   FreeTemp(reg_class);
   LIR* or_inst = OpRegRegReg(kOpOr, reg_slow_path, reg_slow_path, reg_disabled);
   FreeTemp(reg_disabled);
@@ -1190,7 +1194,7 @@ bool Mir2Lir::GenInlinedReferenceGet(CallInfo* info) {
 
   LIR* intrinsic_finish = NewLIR0(kPseudoTargetLabel);
   AddIntrinsicSlowPath(info, slow_path_branch, intrinsic_finish);
-
+  ClobberCallerSave();  // We must clobber everything because slow path will return here
   return true;
 }
 
@@ -1297,10 +1301,10 @@ bool Mir2Lir::GenInlinedReverseBytes(CallInfo* info, OpSize size) {
     return false;
   }
   RegLocation rl_src_i = info->args[0];
-  RegLocation rl_i = (size == k64) ? LoadValueWide(rl_src_i, kCoreReg) : LoadValue(rl_src_i, kCoreReg);
-  RegLocation rl_dest = (size == k64) ? InlineTargetWide(info) : InlineTarget(info);  // result reg
+  RegLocation rl_i = IsWide(size) ? LoadValueWide(rl_src_i, kCoreReg) : LoadValue(rl_src_i, kCoreReg);
+  RegLocation rl_dest = IsWide(size) ? InlineTargetWide(info) : InlineTarget(info);  // result reg
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  if (size == k64) {
+  if (IsWide(size)) {
     if (cu_->instruction_set == kArm64 || cu_->instruction_set == kX86_64) {
       OpRegReg(kOpRev, rl_result.reg, rl_i.reg);
       StoreValueWide(rl_dest, rl_result);
@@ -1489,6 +1493,7 @@ bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
     LIR* resume_tgt = NewLIR0(kPseudoTargetLabel);
     info->opt_flags |= MIR_IGNORE_NULL_CHECK;  // Record that we've null checked.
     AddIntrinsicSlowPath(info, high_code_point_branch, resume_tgt);
+    ClobberCallerSave();  // We must clobber everything because slow path will return here
   } else {
     DCHECK_EQ(mir_graph_->ConstantValue(rl_char) & ~0xFFFF, 0);
     DCHECK(high_code_point_branch == nullptr);
@@ -1638,7 +1643,7 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
       FreeTemp(rl_temp_offset);
     }
   } else {
-    rl_value = LoadValue(rl_src_value);
+    rl_value = LoadValue(rl_src_value, LocToRegClass(rl_src_value));
     if (rl_value.ref) {
       StoreRefIndexed(rl_object.reg, rl_offset.reg, rl_value.reg, 0);
     } else {
@@ -1661,47 +1666,12 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
 }
 
 void Mir2Lir::GenInvoke(CallInfo* info) {
-  if ((info->opt_flags & MIR_INLINED) != 0) {
-    // Already inlined but we may still need the null check.
-    if (info->type != kStatic &&
-        ((cu_->disable_opt & (1 << kNullCheckElimination)) != 0 ||
-         (info->opt_flags & MIR_IGNORE_NULL_CHECK) == 0))  {
-      RegLocation rl_obj = LoadValue(info->args[0], kRefReg);
-      GenNullCheck(rl_obj.reg);
-    }
-    return;
-  }
   DCHECK(cu_->compiler_driver->GetMethodInlinerMap() != nullptr);
   if (cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(cu_->dex_file)
       ->GenIntrinsic(this, info)) {
     return;
   }
   GenInvokeNoInline(info);
-}
-
-static LIR* GenInvokeNoInlineCall(Mir2Lir* mir_to_lir, InvokeType type) {
-  QuickEntrypointEnum trampoline;
-  switch (type) {
-    case kInterface:
-      trampoline = kQuickInvokeInterfaceTrampolineWithAccessCheck;
-      break;
-    case kDirect:
-      trampoline = kQuickInvokeDirectTrampolineWithAccessCheck;
-      break;
-    case kStatic:
-      trampoline = kQuickInvokeStaticTrampolineWithAccessCheck;
-      break;
-    case kSuper:
-      trampoline = kQuickInvokeSuperTrampolineWithAccessCheck;
-      break;
-    case kVirtual:
-      trampoline = kQuickInvokeVirtualTrampolineWithAccessCheck;
-      break;
-    default:
-      LOG(FATAL) << "Unexpected invoke type";
-      trampoline = kQuickInvokeInterfaceTrampolineWithAccessCheck;
-  }
-  return mir_to_lir->InvokeTrampoline(kOpBlx, RegStorage::InvalidReg(), trampoline);
 }
 
 void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
@@ -1717,7 +1687,7 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
   cu_->compiler_driver->ProcessedInvoke(method_info.GetInvokeType(), method_info.StatsFlags());
   BeginInvoke(info);
   InvokeType original_type = static_cast<InvokeType>(method_info.GetInvokeType());
-  info->type = static_cast<InvokeType>(method_info.GetSharpType());
+  info->type = method_info.GetSharpType();
   bool fast_path = method_info.FastPath();
   bool skip_this;
   if (info->type == kInterface) {
@@ -1727,10 +1697,10 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
     if (fast_path) {
       p_null_ck = &null_ck;
     }
-    next_call_insn = fast_path ? NextSDCallInsn : NextDirectCallInsnSP;
+    next_call_insn = fast_path ? GetNextSDCallInsn() : NextDirectCallInsnSP;
     skip_this = false;
   } else if (info->type == kStatic) {
-    next_call_insn = fast_path ? NextSDCallInsn : NextStaticCallInsnSP;
+    next_call_insn = fast_path ? GetNextSDCallInsn() : NextStaticCallInsnSP;
     skip_this = false;
   } else if (info->type == kSuper) {
     DCHECK(!fast_path);  // Fast path is a direct call.
@@ -1758,25 +1728,9 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
     call_state = next_call_insn(cu_, info, call_state, target_method, method_info.VTableIndex(),
                                 method_info.DirectCode(), method_info.DirectMethod(), original_type);
   }
-  LIR* call_inst;
-  if (cu_->instruction_set != kX86 && cu_->instruction_set != kX86_64) {
-    call_inst = OpReg(kOpBlx, TargetPtrReg(kInvokeTgt));
-  } else {
-    if (fast_path) {
-      if (method_info.DirectCode() == static_cast<uintptr_t>(-1)) {
-        // We can have the linker fixup a call relative.
-        call_inst =
-          reinterpret_cast<X86Mir2Lir*>(this)->CallWithLinkerFixup(target_method, info->type);
-      } else {
-        call_inst = OpMem(kOpBlx, TargetReg(kArg0, kRef),
-                          mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value());
-      }
-    } else {
-      call_inst = GenInvokeNoInlineCall(this, info->type);
-    }
-  }
+  LIR* call_insn = GenCallInsn(method_info);
   EndInvoke(info);
-  MarkSafepointPC(call_inst);
+  MarkSafepointPC(call_insn);
 
   ClobberCallerSave();
   if (info->result.location != kLocInvalid) {
@@ -1789,6 +1743,16 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
       StoreValue(info->result, ret_loc);
     }
   }
+}
+
+NextCallInsn Mir2Lir::GetNextSDCallInsn() {
+  return NextSDCallInsn;
+}
+
+LIR* Mir2Lir::GenCallInsn(const MirMethodLoweringInfo& method_info) {
+  DCHECK(cu_->instruction_set != kX86 && cu_->instruction_set != kX86_64 &&
+         cu_->instruction_set != kThumb2 && cu_->instruction_set != kArm);
+  return OpReg(kOpBlx, TargetPtrReg(kInvokeTgt));
 }
 
 }  // namespace art

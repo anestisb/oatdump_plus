@@ -124,6 +124,7 @@ void HGraph::VisitBlockForDominatorTree(HBasicBlock* block,
   // dominator of the block. We can then start visiting its successors.
   if (visits->Get(block->GetBlockId()) ==
       block->GetPredecessors().Size() - block->NumberOfBackEdges()) {
+    block->GetDominator()->AddDominatedBlock(block);
     reverse_post_order_.Add(block);
     for (size_t i = 0; i < block->GetSuccessors().Size(); i++) {
       VisitBlockForDominatorTree(block->GetSuccessors().Get(i), block, visits);
@@ -140,7 +141,7 @@ void HGraph::TransformToSSA() {
 void HGraph::SplitCriticalEdge(HBasicBlock* block, HBasicBlock* successor) {
   // Insert a new node between `block` and `successor` to split the
   // critical edge.
-  HBasicBlock* new_block = new (arena_) HBasicBlock(this);
+  HBasicBlock* new_block = new (arena_) HBasicBlock(this, successor->GetDexPc());
   AddBlock(new_block);
   new_block->AddInstruction(new (arena_) HGoto());
   block->ReplaceSuccessor(successor, new_block);
@@ -161,8 +162,10 @@ void HGraph::SimplifyLoop(HBasicBlock* header) {
   // If there are more than one back edge, make them branch to the same block that
   // will become the only back edge. This simplifies finding natural loops in the
   // graph.
-  if (info->NumberOfBackEdges() > 1) {
-    HBasicBlock* new_back_edge = new (arena_) HBasicBlock(this);
+  // Also, if the loop is a do/while (that is the back edge is an if), change the
+  // back edge to be a goto. This simplifies code generation of suspend cheks.
+  if (info->NumberOfBackEdges() > 1 || info->GetBackEdges().Get(0)->GetLastInstruction()->IsIf()) {
+    HBasicBlock* new_back_edge = new (arena_) HBasicBlock(this, header->GetDexPc());
     AddBlock(new_back_edge);
     new_back_edge->AddInstruction(new (arena_) HGoto());
     for (size_t pred = 0, e = info->GetBackEdges().Size(); pred < e; ++pred) {
@@ -179,7 +182,7 @@ void HGraph::SimplifyLoop(HBasicBlock* header) {
   // loop.
   size_t number_of_incomings = header->GetPredecessors().Size() - info->NumberOfBackEdges();
   if (number_of_incomings != 1) {
-    HBasicBlock* pre_header = new (arena_) HBasicBlock(this);
+    HBasicBlock* pre_header = new (arena_) HBasicBlock(this, header->GetDexPc());
     AddBlock(pre_header);
     pre_header->AddInstruction(new (arena_) HGoto());
 
@@ -194,6 +197,23 @@ void HGraph::SimplifyLoop(HBasicBlock* header) {
     }
     pre_header->AddSuccessor(header);
   }
+
+  // Make sure the second predecessor of a loop header is the back edge.
+  if (header->GetPredecessors().Get(1) != info->GetBackEdges().Get(0)) {
+    header->SwapPredecessors();
+  }
+
+  // Place the suspend check at the beginning of the header, so that live registers
+  // will be known when allocating registers. Note that code generation can still
+  // generate the suspend check at the back edge, but needs to be careful with
+  // loop phi spill slots (which are not written to at back edge).
+  HInstruction* first_instruction = header->GetFirstInstruction();
+  if (!first_instruction->IsSuspendCheck()) {
+    HSuspendCheck* check = new (arena_) HSuspendCheck(header->GetDexPc());
+    header->InsertInstructionBefore(check, first_instruction);
+    first_instruction = check;
+  }
+  info->SetSuspendCheck(first_instruction->AsSuspendCheck());
 }
 
 void HGraph::SimplifyCFG() {
@@ -307,6 +327,14 @@ void HBasicBlock::InsertInstructionBefore(HInstruction* instruction, HInstructio
   instruction->SetId(GetGraph()->GetNextInstructionId());
 }
 
+void HBasicBlock::ReplaceAndRemoveInstructionWith(HInstruction* initial,
+                                                  HInstruction* replacement) {
+  DCHECK(initial->GetBlock() == this);
+  InsertInstructionBefore(replacement, initial);
+  initial->ReplaceWith(replacement);
+  RemoveInstruction(initial);
+}
+
 static void Add(HInstructionList* instruction_list,
                 HBasicBlock* block,
                 HInstruction* instruction) {
@@ -337,6 +365,16 @@ static void Remove(HInstructionList* instruction_list,
   for (size_t i = 0; i < instruction->InputCount(); i++) {
     instruction->InputAt(i)->RemoveUser(instruction, i);
   }
+
+  HEnvironment* environment = instruction->GetEnvironment();
+  if (environment != nullptr) {
+    for (size_t i = 0, e = environment->Size(); i < e; ++i) {
+      HInstruction* vreg = environment->GetInstructionAt(i);
+      if (vreg != nullptr) {
+        vreg->RemoveEnvironmentUser(environment, i);
+      }
+    }
+  }
 }
 
 void HBasicBlock::RemoveInstruction(HInstruction* instruction) {
@@ -347,13 +385,16 @@ void HBasicBlock::RemovePhi(HPhi* phi) {
   Remove(&phis_, this, phi);
 }
 
-void HInstruction::RemoveUser(HInstruction* user, size_t input_index) {
-  HUseListNode<HInstruction>* previous = nullptr;
-  HUseListNode<HInstruction>* current = uses_;
+template <typename T>
+static void RemoveFromUseList(T* user,
+                              size_t input_index,
+                              HUseListNode<T>** list) {
+  HUseListNode<T>* previous = nullptr;
+  HUseListNode<T>* current = *list;
   while (current != nullptr) {
     if (current->GetUser() == user && current->GetIndex() == input_index) {
       if (previous == NULL) {
-        uses_ = current->GetTail();
+        *list = current->GetTail();
       } else {
         previous->SetTail(current->GetTail());
       }
@@ -361,6 +402,14 @@ void HInstruction::RemoveUser(HInstruction* user, size_t input_index) {
     previous = current;
     current = current->GetTail();
   }
+}
+
+void HInstruction::RemoveUser(HInstruction* user, size_t input_index) {
+  RemoveFromUseList(user, input_index, &uses_);
+}
+
+void HInstruction::RemoveEnvironmentUser(HEnvironment* user, size_t input_index) {
+  RemoveFromUseList(user, input_index, &env_uses_);
 }
 
 void HInstructionList::AddInstruction(HInstruction* instruction) {
@@ -392,6 +441,63 @@ void HInstructionList::RemoveInstruction(HInstruction* instruction) {
   }
 }
 
+bool HInstructionList::Contains(HInstruction* instruction) const {
+  for (HInstructionIterator it(*this); !it.Done(); it.Advance()) {
+    if (it.Current() == instruction) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool HInstructionList::FoundBefore(const HInstruction* instruction1,
+                                   const HInstruction* instruction2) const {
+  DCHECK_EQ(instruction1->GetBlock(), instruction2->GetBlock());
+  for (HInstructionIterator it(*this); !it.Done(); it.Advance()) {
+    if (it.Current() == instruction1) {
+      return true;
+    }
+    if (it.Current() == instruction2) {
+      return false;
+    }
+  }
+  LOG(FATAL) << "Did not find an order between two instructions of the same block.";
+  return true;
+}
+
+bool HInstruction::Dominates(HInstruction* other_instruction) const {
+  HBasicBlock* block = GetBlock();
+  HBasicBlock* other_block = other_instruction->GetBlock();
+  if (block != other_block) {
+    return GetBlock()->Dominates(other_instruction->GetBlock());
+  } else {
+    // If both instructions are in the same block, ensure this
+    // instruction comes before `other_instruction`.
+    if (IsPhi()) {
+      if (!other_instruction->IsPhi()) {
+        // Phis appear before non phi-instructions so this instruction
+        // dominates `other_instruction`.
+        return true;
+      } else {
+        // There is no order among phis.
+        LOG(FATAL) << "There is no dominance between phis of a same block.";
+        return false;
+      }
+    } else {
+      // `this` is not a phi.
+      if (other_instruction->IsPhi()) {
+        // Phis appear before non phi-instructions so this instruction
+        // does not dominate `other_instruction`.
+        return false;
+      } else {
+        // Check whether this instruction comes before
+        // `other_instruction` in the instruction list.
+        return block->GetInstructions().FoundBefore(this, other_instruction);
+      }
+    }
+  }
+}
+
 void HInstruction::ReplaceWith(HInstruction* other) {
   DCHECK(other != nullptr);
   for (HUseIterator<HInstruction> it(GetUses()); !it.Done(); it.Advance()) {
@@ -412,6 +518,10 @@ void HInstruction::ReplaceWith(HInstruction* other) {
 
   uses_ = nullptr;
   env_uses_ = nullptr;
+}
+
+size_t HInstruction::EnvironmentSize() const {
+  return HasEnvironment() ? environment_->Size() : 0;
 }
 
 void HPhi::AddInput(HInstruction* input) {
@@ -445,6 +555,18 @@ void HGraphVisitor::VisitBasicBlock(HBasicBlock* block) {
   }
 }
 
+HConstant* HBinaryOperation::TryStaticEvaluation(ArenaAllocator* allocator) const {
+  if (GetLeft()->IsIntConstant() && GetRight()->IsIntConstant()) {
+    int32_t value = Evaluate(GetLeft()->AsIntConstant()->GetValue(),
+                             GetRight()->AsIntConstant()->GetValue());
+    return new(allocator) HIntConstant(value);
+  } else if (GetLeft()->IsLongConstant() && GetRight()->IsLongConstant()) {
+    int64_t value = Evaluate(GetLeft()->AsLongConstant()->GetValue(),
+                             GetRight()->AsLongConstant()->GetValue());
+    return new(allocator) HLongConstant(value);
+  }
+  return nullptr;
+}
 
 bool HCondition::NeedsMaterialization() const {
   if (!HasOnlyOneUse()) {
@@ -456,12 +578,34 @@ bool HCondition::NeedsMaterialization() const {
     return true;
   }
 
-  // TODO: should we allow intervening instructions with no side-effect between this condition
-  // and the If instruction?
+  // TODO: if there is no intervening instructions with side-effect between this condition
+  // and the If instruction, we should move the condition just before the If.
   if (GetNext() != user) {
     return true;
   }
   return false;
+}
+
+bool HCondition::IsBeforeWhenDisregardMoves(HIf* if_) const {
+  HInstruction* previous = if_->GetPrevious();
+  while (previous != nullptr && previous->IsParallelMove()) {
+    previous = previous->GetPrevious();
+  }
+  return previous == this;
+}
+
+bool HInstruction::Equals(HInstruction* other) const {
+  if (!InstructionTypeEquals(other)) return false;
+  DCHECK_EQ(GetKind(), other->GetKind());
+  if (!InstructionDataEquals(other)) return false;
+  if (GetType() != other->GetType()) return false;
+  if (InputCount() != other->InputCount()) return false;
+
+  for (size_t i = 0, e = InputCount(); i < e; ++i) {
+    if (InputAt(i) != other->InputAt(i)) return false;
+  }
+  DCHECK_EQ(ComputeHashCode(), other->ComputeHashCode());
+  return true;
 }
 
 }  // namespace art

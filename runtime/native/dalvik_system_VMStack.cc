@@ -34,12 +34,13 @@ static jobject GetThreadStack(const ScopedFastNativeObjectAccess& soa, jobject p
   } else {
     // Suspend thread to build stack trace.
     soa.Self()->TransitionFromRunnableToSuspended(kNative);
+    ThreadList* thread_list = Runtime::Current()->GetThreadList();
     bool timed_out;
     Thread* thread;
     {
       // Take suspend thread lock to avoid races with threads trying to suspend this one.
       MutexLock mu(soa.Self(), *Locks::thread_list_suspend_thread_lock_);
-      thread = ThreadList::SuspendThreadByPeer(peer, true, false, &timed_out);
+      thread = thread_list->SuspendThreadByPeer(peer, true, false, &timed_out);
     }
     if (thread != nullptr) {
       // Must be runnable to create returned array.
@@ -47,7 +48,7 @@ static jobject GetThreadStack(const ScopedFastNativeObjectAccess& soa, jobject p
       trace = thread->CreateInternalStackTrace<false>(soa);
       soa.Self()->TransitionFromRunnableToSuspended(kNative);
       // Restart suspended thread.
-      Runtime::Current()->GetThreadList()->Resume(thread, false);
+      thread_list->Resume(thread, false);
     } else {
       if (timed_out) {
         LOG(ERROR) << "Trying to get thread's stack failed as the thread failed to suspend within a "
@@ -76,6 +77,10 @@ static jobject VMStack_getCallingClassLoader(JNIEnv* env, jclass) {
   ScopedFastNativeObjectAccess soa(env);
   NthCallerVisitor visitor(soa.Self(), 2);
   visitor.WalkStack();
+  if (UNLIKELY(visitor.caller == nullptr)) {
+    // The caller is an attached native thread.
+    return nullptr;
+  }
   return soa.AddLocalReference<jobject>(visitor.caller->GetDeclaringClass()->GetClassLoader());
 }
 
@@ -113,6 +118,10 @@ static jclass VMStack_getStackClass2(JNIEnv* env, jclass) {
   ScopedFastNativeObjectAccess soa(env);
   NthCallerVisitor visitor(soa.Self(), 3);
   visitor.WalkStack();
+  if (UNLIKELY(visitor.caller == nullptr)) {
+    // The caller is an attached native thread.
+    return nullptr;
+  }
   return soa.AddLocalReference<jclass>(visitor.caller->GetDeclaringClass());
 }
 

@@ -32,12 +32,14 @@ class HInstruction;
 class HIntConstant;
 class HGraphVisitor;
 class HPhi;
+class HSuspendCheck;
 class LiveInterval;
 class LocationSummary;
 
 static const int kDefaultNumberOfBlocks = 8;
 static const int kDefaultNumberOfSuccessors = 2;
 static const int kDefaultNumberOfPredecessors = 2;
+static const int kDefaultNumberOfDominatedBlocks = 1;
 static const int kDefaultNumberOfBackEdges = 1;
 
 enum IfCondition {
@@ -55,6 +57,15 @@ class HInstructionList {
 
   void AddInstruction(HInstruction* instruction);
   void RemoveInstruction(HInstruction* instruction);
+
+  // Return true if this list contains `instruction`.
+  bool Contains(HInstruction* instruction) const;
+
+  // Return true if `instruction1` is found before `instruction2` in
+  // this instruction list and false otherwise.  Abort if none
+  // of these instructions is found.
+  bool FoundBefore(const HInstruction* instruction1,
+                   const HInstruction* instruction2) const;
 
  private:
   HInstruction* first_instruction_;
@@ -191,12 +202,18 @@ class HLoopInformation : public ArenaObject {
  public:
   HLoopInformation(HBasicBlock* header, HGraph* graph)
       : header_(header),
+        suspend_check_(nullptr),
         back_edges_(graph->GetArena(), kDefaultNumberOfBackEdges),
-        blocks_(graph->GetArena(), graph->GetBlocks().Size(), false) {}
+        // Make bit vector growable, as the number of blocks may change.
+        blocks_(graph->GetArena(), graph->GetBlocks().Size(), true) {}
 
   HBasicBlock* GetHeader() const {
     return header_;
   }
+
+  HSuspendCheck* GetSuspendCheck() const { return suspend_check_; }
+  void SetSuspendCheck(HSuspendCheck* check) { suspend_check_ = check; }
+  bool HasSuspendCheck() const { return suspend_check_ != nullptr; }
 
   void AddBackEdge(HBasicBlock* back_edge) {
     back_edges_.Add(back_edge);
@@ -246,6 +263,7 @@ class HLoopInformation : public ArenaObject {
   void PopulateRecursive(HBasicBlock* block);
 
   HBasicBlock* header_;
+  HSuspendCheck* suspend_check_;
   GrowableArray<HBasicBlock*> back_edges_;
   ArenaBitVector blocks_;
 
@@ -253,19 +271,23 @@ class HLoopInformation : public ArenaObject {
 };
 
 static constexpr size_t kNoLifetime = -1;
+static constexpr uint32_t kNoDexPc = -1;
 
 // A block in a method. Contains the list of instructions represented
 // as a double linked list. Each block knows its predecessors and
 // successors.
+
 class HBasicBlock : public ArenaObject {
  public:
-  explicit HBasicBlock(HGraph* graph)
+  explicit HBasicBlock(HGraph* graph, uint32_t dex_pc = kNoDexPc)
       : graph_(graph),
         predecessors_(graph->GetArena(), kDefaultNumberOfPredecessors),
         successors_(graph->GetArena(), kDefaultNumberOfSuccessors),
         loop_information_(nullptr),
         dominator_(nullptr),
+        dominated_blocks_(graph->GetArena(), kDefaultNumberOfDominatedBlocks),
         block_id_(-1),
+        dex_pc_(dex_pc),
         lifetime_start_(kNoLifetime),
         lifetime_end_(kNoLifetime) {}
 
@@ -275,6 +297,18 @@ class HBasicBlock : public ArenaObject {
 
   const GrowableArray<HBasicBlock*>& GetSuccessors() const {
     return successors_;
+  }
+
+  const GrowableArray<HBasicBlock*>& GetDominatedBlocks() const {
+    return dominated_blocks_;
+  }
+
+  bool IsEntryBlock() const {
+    return graph_->GetEntryBlock() == this;
+  }
+
+  bool IsExitBlock() const {
+    return graph_->GetExitBlock() == this;
   }
 
   void AddBackEdge(HBasicBlock* back_edge) {
@@ -292,6 +326,7 @@ class HBasicBlock : public ArenaObject {
 
   HBasicBlock* GetDominator() const { return dominator_; }
   void SetDominator(HBasicBlock* dominator) { dominator_ = dominator; }
+  void AddDominatedBlock(HBasicBlock* block) { dominated_blocks_.Add(block); }
 
   int NumberOfBackEdges() const {
     return loop_information_ == nullptr
@@ -331,6 +366,13 @@ class HBasicBlock : public ArenaObject {
     block->successors_.Add(this);
   }
 
+  void SwapPredecessors() {
+    DCHECK_EQ(predecessors_.Size(), 2u);
+    HBasicBlock* temp = predecessors_.Get(0);
+    predecessors_.Put(0, predecessors_.Get(1));
+    predecessors_.Put(1, temp);
+  }
+
   size_t GetPredecessorIndexOf(HBasicBlock* predecessor) {
     for (size_t i = 0, e = predecessors_.Size(); i < e; ++i) {
       if (predecessors_.Get(i) == predecessor) {
@@ -352,11 +394,20 @@ class HBasicBlock : public ArenaObject {
   void AddInstruction(HInstruction* instruction);
   void RemoveInstruction(HInstruction* instruction);
   void InsertInstructionBefore(HInstruction* instruction, HInstruction* cursor);
+  // Replace instruction `initial` with `replacement` within this block.
+  void ReplaceAndRemoveInstructionWith(HInstruction* initial,
+                                       HInstruction* replacement);
   void AddPhi(HPhi* phi);
   void RemovePhi(HPhi* phi);
 
   bool IsLoopHeader() const {
     return (loop_information_ != nullptr) && (loop_information_->GetHeader() == this);
+  }
+
+  bool IsLoopPreHeaderFirstPredecessor() const {
+    DCHECK(IsLoopHeader());
+    DCHECK(!GetPredecessors().IsEmpty());
+    return GetPredecessors().Get(0) == GetLoopInformation()->GetPreHeader();
   }
 
   HLoopInformation* GetLoopInformation() const {
@@ -393,6 +444,8 @@ class HBasicBlock : public ArenaObject {
   void SetLifetimeStart(size_t start) { lifetime_start_ = start; }
   void SetLifetimeEnd(size_t end) { lifetime_end_ = end; }
 
+  uint32_t GetDexPc() const { return dex_pc_; }
+
  private:
   HGraph* const graph_;
   GrowableArray<HBasicBlock*> predecessors_;
@@ -401,7 +454,10 @@ class HBasicBlock : public ArenaObject {
   HInstructionList phis_;
   HLoopInformation* loop_information_;
   HBasicBlock* dominator_;
+  GrowableArray<HBasicBlock*> dominated_blocks_;
   int block_id_;
+  // The dex program counter of the first instruction of this block.
+  const uint32_t dex_pc_;
   size_t lifetime_start_;
   size_t lifetime_end_;
 
@@ -422,6 +478,7 @@ class HBasicBlock : public ArenaObject {
   M(If)                                                    \
   M(IntConstant)                                           \
   M(InvokeStatic)                                          \
+  M(InvokeVirtual)                                         \
   M(LoadLocal)                                             \
   M(Local)                                                 \
   M(LongConstant)                                          \
@@ -443,19 +500,26 @@ class HBasicBlock : public ArenaObject {
   M(BoundsCheck)                                           \
   M(NullCheck)                                             \
   M(Temporary)                                             \
+  M(SuspendCheck)                                          \
 
 #define FOR_EACH_INSTRUCTION(M)                            \
   FOR_EACH_CONCRETE_INSTRUCTION(M)                         \
-  M(Constant)
+  M(Constant)                                              \
+  M(BinaryOperation)
 
 #define FORWARD_DECLARATION(type) class H##type;
 FOR_EACH_INSTRUCTION(FORWARD_DECLARATION)
 #undef FORWARD_DECLARATION
 
-#define DECLARE_INSTRUCTION(type)                          \
-  virtual const char* DebugName() const { return #type; }  \
-  virtual H##type* As##type() { return this; }             \
-  virtual void Accept(HGraphVisitor* visitor)              \
+#define DECLARE_INSTRUCTION(type)                                       \
+  virtual InstructionKind GetKind() const { return k##type; }           \
+  virtual const char* DebugName() const { return #type; }               \
+  virtual const H##type* As##type() const OVERRIDE { return this; }     \
+  virtual H##type* As##type() OVERRIDE { return this; }                 \
+  virtual bool InstructionTypeEquals(HInstruction* other) const {       \
+    return other->Is##type();                                           \
+  }                                                                     \
+  virtual void Accept(HGraphVisitor* visitor)
 
 template <typename T>
 class HUseListNode : public ArenaObject {
@@ -477,9 +541,72 @@ class HUseListNode : public ArenaObject {
   DISALLOW_COPY_AND_ASSIGN(HUseListNode);
 };
 
+// Represents the side effects an instruction may have.
+class SideEffects : public ValueObject {
+ public:
+  SideEffects() : flags_(0) {}
+
+  static SideEffects None() {
+    return SideEffects(0);
+  }
+
+  static SideEffects All() {
+    return SideEffects(ChangesSomething().flags_ | DependsOnSomething().flags_);
+  }
+
+  static SideEffects ChangesSomething() {
+    return SideEffects((1 << kFlagChangesCount) - 1);
+  }
+
+  static SideEffects DependsOnSomething() {
+    int count = kFlagDependsOnCount - kFlagChangesCount;
+    return SideEffects(((1 << count) - 1) << kFlagChangesCount);
+  }
+
+  SideEffects Union(SideEffects other) const {
+    return SideEffects(flags_ | other.flags_);
+  }
+
+  bool HasSideEffects() const {
+    size_t all_bits_set = (1 << kFlagChangesCount) - 1;
+    return (flags_ & all_bits_set) != 0;
+  }
+
+  bool HasAllSideEffects() const {
+    size_t all_bits_set = (1 << kFlagChangesCount) - 1;
+    return all_bits_set == (flags_ & all_bits_set);
+  }
+
+  bool DependsOn(SideEffects other) const {
+    size_t depends_flags = other.ComputeDependsFlags();
+    return (flags_ & depends_flags) != 0;
+  }
+
+  bool HasDependencies() const {
+    int count = kFlagDependsOnCount - kFlagChangesCount;
+    size_t all_bits_set = (1 << count) - 1;
+    return ((flags_ >> kFlagChangesCount) & all_bits_set) != 0;
+  }
+
+ private:
+  static constexpr int kFlagChangesSomething = 0;
+  static constexpr int kFlagChangesCount = kFlagChangesSomething + 1;
+
+  static constexpr int kFlagDependsOnSomething = kFlagChangesCount;
+  static constexpr int kFlagDependsOnCount = kFlagDependsOnSomething + 1;
+
+  explicit SideEffects(size_t flags) : flags_(flags) {}
+
+  size_t ComputeDependsFlags() const {
+    return flags_ << kFlagChangesCount;
+  }
+
+  size_t flags_;
+};
+
 class HInstruction : public ArenaObject {
  public:
-  HInstruction()
+  explicit HInstruction(SideEffects side_effects)
       : previous_(nullptr),
         next_(nullptr),
         block_(nullptr),
@@ -490,9 +617,16 @@ class HInstruction : public ArenaObject {
         environment_(nullptr),
         locations_(nullptr),
         live_interval_(nullptr),
-        lifetime_position_(kNoLifetime) {}
+        lifetime_position_(kNoLifetime),
+        side_effects_(side_effects) {}
 
   virtual ~HInstruction() {}
+
+#define DECLARE_KIND(type) k##type,
+  enum InstructionKind {
+    FOR_EACH_INSTRUCTION(DECLARE_KIND)
+  };
+#undef DECLARE_KIND
 
   HInstruction* GetNext() const { return next_; }
   HInstruction* GetPrevious() const { return previous_; }
@@ -503,7 +637,7 @@ class HInstruction : public ArenaObject {
   bool IsInLoop() const { return block_->IsInLoop(); }
   bool IsLoopHeaderPhi() { return IsPhi() && block_->IsLoopHeader(); }
 
-  virtual size_t InputCount() const  = 0;
+  virtual size_t InputCount() const = 0;
   virtual HInstruction* InputAt(size_t i) const = 0;
 
   virtual void Accept(HGraphVisitor* visitor) = 0;
@@ -514,17 +648,20 @@ class HInstruction : public ArenaObject {
 
   virtual bool NeedsEnvironment() const { return false; }
   virtual bool IsControlFlow() const { return false; }
+  bool HasSideEffects() const { return side_effects_.HasSideEffects(); }
 
   void AddUseAt(HInstruction* user, size_t index) {
     uses_ = new (block_->GetGraph()->GetArena()) HUseListNode<HInstruction>(user, index, uses_);
   }
 
   void AddEnvUseAt(HEnvironment* user, size_t index) {
+    DCHECK(user != nullptr);
     env_uses_ = new (block_->GetGraph()->GetArena()) HUseListNode<HEnvironment>(
         user, index, env_uses_);
   }
 
   void RemoveUser(HInstruction* user, size_t index);
+  void RemoveEnvironmentUser(HEnvironment* user, size_t index);
 
   HUseListNode<HInstruction>* GetUses() const { return uses_; }
   HUseListNode<HEnvironment>* GetEnvUses() const { return env_uses_; }
@@ -543,6 +680,10 @@ class HInstruction : public ArenaObject {
     return result;
   }
 
+  // Does this instruction dominate `other_instruction`?  Aborts if
+  // this instruction and `other_instruction` are both phis.
+  bool Dominates(HInstruction* other_instruction) const;
+
   int GetId() const { return id_; }
   void SetId(int id) { id_ = id; }
 
@@ -554,6 +695,10 @@ class HInstruction : public ArenaObject {
   HEnvironment* GetEnvironment() const { return environment_; }
   void SetEnvironment(HEnvironment* environment) { environment_ = environment; }
 
+  // Returns the number of entries in the environment. Typically, that is the
+  // number of dex registers in a method. It could be more in case of inlining.
+  size_t EnvironmentSize() const;
+
   LocationSummary* GetLocations() const { return locations_; }
   void SetLocations(LocationSummary* locations) { locations_ = locations; }
 
@@ -564,11 +709,40 @@ class HInstruction : public ArenaObject {
   }
 
 #define INSTRUCTION_TYPE_CHECK(type)                                           \
-  bool Is##type() { return (As##type() != nullptr); }                          \
+  bool Is##type() const { return (As##type() != nullptr); }                    \
+  virtual const H##type* As##type() const { return nullptr; }                  \
   virtual H##type* As##type() { return nullptr; }
 
   FOR_EACH_INSTRUCTION(INSTRUCTION_TYPE_CHECK)
 #undef INSTRUCTION_TYPE_CHECK
+
+  // Returns whether the instruction can be moved within the graph.
+  virtual bool CanBeMoved() const { return false; }
+
+  // Returns whether the two instructions are of the same kind.
+  virtual bool InstructionTypeEquals(HInstruction* other) const { return false; }
+
+  // Returns whether any data encoded in the two instructions is equal.
+  // This method does not look at the inputs. Both instructions must be
+  // of the same type, otherwise the method has undefined behavior.
+  virtual bool InstructionDataEquals(HInstruction* other) const { return false; }
+
+  // Returns whether two instructions are equal, that is:
+  // 1) They have the same type and contain the same data,
+  // 2) Their inputs are identical.
+  bool Equals(HInstruction* other) const;
+
+  virtual InstructionKind GetKind() const = 0;
+
+  virtual size_t ComputeHashCode() const {
+    size_t result = GetKind();
+    for (size_t i = 0, e = InputCount(); i < e; ++i) {
+      result = (result * 31) + InputAt(i)->GetId();
+    }
+    return result;
+  }
+
+  SideEffects GetSideEffects() const { return side_effects_; }
 
   size_t GetLifetimePosition() const { return lifetime_position_; }
   void SetLifetimePosition(size_t position) { lifetime_position_ = position; }
@@ -583,7 +757,7 @@ class HInstruction : public ArenaObject {
 
   // An instruction gets an id when it is added to the graph.
   // It reflects creation order. A negative id means the instruction
-  // has not beed added to the graph.
+  // has not been added to the graph.
   int id_;
 
   // When doing liveness analysis, instructions that have uses get an SSA index.
@@ -595,6 +769,8 @@ class HInstruction : public ArenaObject {
   // List of environments that contain this instruction.
   HUseListNode<HEnvironment>* env_uses_;
 
+  // The environment associated with this instruction. Not null if the instruction
+  // might jump out of the method.
   HEnvironment* environment_;
 
   // Set by the code generator.
@@ -606,6 +782,8 @@ class HInstruction : public ArenaObject {
   // Set by the liveness analysis, this is the position in a linear
   // order of blocks where this instruction's live interval start.
   size_t lifetime_position_;
+
+  const SideEffects side_effects_;
 
   friend class HBasicBlock;
   friend class HInstructionList;
@@ -660,9 +838,15 @@ class HEnvironment : public ArenaObject {
     vregs_.Put(index, instruction);
   }
 
+  HInstruction* GetInstructionAt(size_t index) const {
+    return vregs_.Get(index);
+  }
+
   GrowableArray<HInstruction*>* GetVRegs() {
     return &vregs_;
   }
+
+  size_t Size() const { return vregs_.Size(); }
 
  private:
   GrowableArray<HInstruction*> vregs_;
@@ -777,7 +961,8 @@ class EmbeddedArray<T, 0> {
 template<intptr_t N>
 class HTemplateInstruction: public HInstruction {
  public:
-  HTemplateInstruction<N>() : inputs_() {}
+  HTemplateInstruction<N>(SideEffects side_effects)
+      : HInstruction(side_effects), inputs_() {}
   virtual ~HTemplateInstruction() {}
 
   virtual size_t InputCount() const { return N; }
@@ -795,9 +980,10 @@ class HTemplateInstruction: public HInstruction {
 };
 
 template<intptr_t N>
-class HExpression: public HTemplateInstruction<N> {
+class HExpression : public HTemplateInstruction<N> {
  public:
-  explicit HExpression<N>(Primitive::Type type) : type_(type) {}
+  HExpression<N>(Primitive::Type type, SideEffects side_effects)
+      : HTemplateInstruction<N>(side_effects), type_(type) {}
   virtual ~HExpression() {}
 
   virtual Primitive::Type GetType() const { return type_; }
@@ -810,7 +996,7 @@ class HExpression: public HTemplateInstruction<N> {
 // instruction that branches to the exit block.
 class HReturnVoid : public HTemplateInstruction<0> {
  public:
-  HReturnVoid() {}
+  HReturnVoid() : HTemplateInstruction(SideEffects::None()) {}
 
   virtual bool IsControlFlow() const { return true; }
 
@@ -824,7 +1010,7 @@ class HReturnVoid : public HTemplateInstruction<0> {
 // instruction that branches to the exit block.
 class HReturn : public HTemplateInstruction<1> {
  public:
-  explicit HReturn(HInstruction* value) {
+  explicit HReturn(HInstruction* value) : HTemplateInstruction(SideEffects::None()) {
     SetRawInputAt(0, value);
   }
 
@@ -841,7 +1027,7 @@ class HReturn : public HTemplateInstruction<1> {
 // exit block.
 class HExit : public HTemplateInstruction<0> {
  public:
-  HExit() {}
+  HExit() : HTemplateInstruction(SideEffects::None()) {}
 
   virtual bool IsControlFlow() const { return true; }
 
@@ -854,13 +1040,13 @@ class HExit : public HTemplateInstruction<0> {
 // Jumps from one block to another.
 class HGoto : public HTemplateInstruction<0> {
  public:
-  HGoto() {}
+  HGoto() : HTemplateInstruction(SideEffects::None()) {}
+
+  virtual bool IsControlFlow() const { return true; }
 
   HBasicBlock* GetSuccessor() const {
     return GetBlock()->GetSuccessors().Get(0);
   }
-
-  virtual bool IsControlFlow() const { return true; }
 
   DECLARE_INSTRUCTION(Goto);
 
@@ -873,9 +1059,11 @@ class HGoto : public HTemplateInstruction<0> {
 // two successors.
 class HIf : public HTemplateInstruction<1> {
  public:
-  explicit HIf(HInstruction* input) {
+  explicit HIf(HInstruction* input) : HTemplateInstruction(SideEffects::None()) {
     SetRawInputAt(0, input);
   }
+
+  virtual bool IsControlFlow() const { return true; }
 
   HBasicBlock* IfTrueSuccessor() const {
     return GetBlock()->GetSuccessors().Get(0);
@@ -884,8 +1072,6 @@ class HIf : public HTemplateInstruction<1> {
   HBasicBlock* IfFalseSuccessor() const {
     return GetBlock()->GetSuccessors().Get(1);
   }
-
-  virtual bool IsControlFlow() const { return true; }
 
   DECLARE_INSTRUCTION(If);
 
@@ -899,7 +1085,7 @@ class HBinaryOperation : public HExpression<2> {
  public:
   HBinaryOperation(Primitive::Type result_type,
                    HInstruction* left,
-                   HInstruction* right) : HExpression(result_type) {
+                   HInstruction* right) : HExpression(result_type, SideEffects::None()) {
     SetRawInputAt(0, left);
     SetRawInputAt(1, right);
   }
@@ -909,6 +1095,20 @@ class HBinaryOperation : public HExpression<2> {
   Primitive::Type GetResultType() const { return GetType(); }
 
   virtual bool IsCommutative() { return false; }
+
+  virtual bool CanBeMoved() const { return true; }
+  virtual bool InstructionDataEquals(HInstruction* other) const { return true; }
+
+  // Try to statically evaluate `operation` and return an HConstant
+  // containing the result of this evaluation.  If `operation` cannot
+  // be evaluated as a constant, return nullptr.
+  HConstant* TryStaticEvaluation(ArenaAllocator* allocator) const;
+
+  // Apply this operation to `x` and `y`.
+  virtual int32_t Evaluate(int32_t x, int32_t y) const = 0;
+  virtual int64_t Evaluate(int64_t x, int64_t y) const = 0;
+
+  DECLARE_INSTRUCTION(BinaryOperation);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HBinaryOperation);
@@ -920,7 +1120,14 @@ class HCondition : public HBinaryOperation {
       : HBinaryOperation(Primitive::kPrimBoolean, first, second) {}
 
   virtual bool IsCommutative() { return true; }
+
+  // For register allocation purposes, returns whether this instruction needs to be
+  // materialized (that is, not just be in the processor flags).
   bool NeedsMaterialization() const;
+
+  // For code generation purposes, returns whether this instruction is just before
+  // `if_`, and disregard moves in between.
+  bool IsBeforeWhenDisregardMoves(HIf* if_) const;
 
   DECLARE_INSTRUCTION(Condition);
 
@@ -935,6 +1142,9 @@ class HEqual : public HCondition {
  public:
   HEqual(HInstruction* first, HInstruction* second)
       : HCondition(first, second) {}
+
+  virtual int32_t Evaluate(int32_t x, int32_t y) const { return x == y; }
+  virtual int64_t Evaluate(int64_t x, int64_t y) const { return x == y; }
 
   DECLARE_INSTRUCTION(Equal);
 
@@ -951,6 +1161,9 @@ class HNotEqual : public HCondition {
   HNotEqual(HInstruction* first, HInstruction* second)
       : HCondition(first, second) {}
 
+  virtual int32_t Evaluate(int32_t x, int32_t y) const { return x != y; }
+  virtual int64_t Evaluate(int64_t x, int64_t y) const { return x != y; }
+
   DECLARE_INSTRUCTION(NotEqual);
 
   virtual IfCondition GetCondition() const {
@@ -965,6 +1178,9 @@ class HLessThan : public HCondition {
  public:
   HLessThan(HInstruction* first, HInstruction* second)
       : HCondition(first, second) {}
+
+  virtual int32_t Evaluate(int32_t x, int32_t y) const { return x < y; }
+  virtual int64_t Evaluate(int64_t x, int64_t y) const { return x < y; }
 
   DECLARE_INSTRUCTION(LessThan);
 
@@ -981,6 +1197,9 @@ class HLessThanOrEqual : public HCondition {
   HLessThanOrEqual(HInstruction* first, HInstruction* second)
       : HCondition(first, second) {}
 
+  virtual int32_t Evaluate(int32_t x, int32_t y) const { return x <= y; }
+  virtual int64_t Evaluate(int64_t x, int64_t y) const { return x <= y; }
+
   DECLARE_INSTRUCTION(LessThanOrEqual);
 
   virtual IfCondition GetCondition() const {
@@ -996,6 +1215,9 @@ class HGreaterThan : public HCondition {
   HGreaterThan(HInstruction* first, HInstruction* second)
       : HCondition(first, second) {}
 
+  virtual int32_t Evaluate(int32_t x, int32_t y) const { return x > y; }
+  virtual int64_t Evaluate(int64_t x, int64_t y) const { return x > y; }
+
   DECLARE_INSTRUCTION(GreaterThan);
 
   virtual IfCondition GetCondition() const {
@@ -1010,6 +1232,9 @@ class HGreaterThanOrEqual : public HCondition {
  public:
   HGreaterThanOrEqual(HInstruction* first, HInstruction* second)
       : HCondition(first, second) {}
+
+  virtual int32_t Evaluate(int32_t x, int32_t y) const { return x >= y; }
+  virtual int64_t Evaluate(int64_t x, int64_t y) const { return x >= y; }
 
   DECLARE_INSTRUCTION(GreaterThanOrEqual);
 
@@ -1032,6 +1257,19 @@ class HCompare : public HBinaryOperation {
     DCHECK_EQ(type, second->GetType());
   }
 
+  virtual int32_t Evaluate(int32_t x, int32_t y) const {
+    return
+      x == y ? 0 :
+      x > y ? 1 :
+      -1;
+  }
+  virtual int64_t Evaluate(int64_t x, int64_t y) const {
+    return
+      x == y ? 0 :
+      x > y ? 1 :
+      -1;
+  }
+
   DECLARE_INSTRUCTION(Compare);
 
  private:
@@ -1041,7 +1279,8 @@ class HCompare : public HBinaryOperation {
 // A local in the graph. Corresponds to a Dex register.
 class HLocal : public HTemplateInstruction<0> {
  public:
-  explicit HLocal(uint16_t reg_number) : reg_number_(reg_number) {}
+  explicit HLocal(uint16_t reg_number)
+      : HTemplateInstruction(SideEffects::None()), reg_number_(reg_number) {}
 
   DECLARE_INSTRUCTION(Local);
 
@@ -1057,7 +1296,8 @@ class HLocal : public HTemplateInstruction<0> {
 // Load a given local. The local is an input of this instruction.
 class HLoadLocal : public HExpression<1> {
  public:
-  explicit HLoadLocal(HLocal* local, Primitive::Type type) : HExpression(type) {
+  HLoadLocal(HLocal* local, Primitive::Type type)
+      : HExpression(type, SideEffects::None()) {
     SetRawInputAt(0, local);
   }
 
@@ -1073,7 +1313,7 @@ class HLoadLocal : public HExpression<1> {
 // and the local.
 class HStoreLocal : public HTemplateInstruction<2> {
  public:
-  HStoreLocal(HLocal* local, HInstruction* value) {
+  HStoreLocal(HLocal* local, HInstruction* value) : HTemplateInstruction(SideEffects::None()) {
     SetRawInputAt(0, local);
     SetRawInputAt(1, value);
   }
@@ -1088,7 +1328,9 @@ class HStoreLocal : public HTemplateInstruction<2> {
 
 class HConstant : public HExpression<0> {
  public:
-  explicit HConstant(Primitive::Type type) : HExpression(type) {}
+  explicit HConstant(Primitive::Type type) : HExpression(type, SideEffects::None()) {}
+
+  virtual bool CanBeMoved() const { return true; }
 
   DECLARE_INSTRUCTION(Constant);
 
@@ -1104,6 +1346,12 @@ class HIntConstant : public HConstant {
 
   int32_t GetValue() const { return value_; }
 
+  virtual bool InstructionDataEquals(HInstruction* other) const {
+    return other->AsIntConstant()->value_ == value_;
+  }
+
+  virtual size_t ComputeHashCode() const { return GetValue(); }
+
   DECLARE_INSTRUCTION(IntConstant);
 
  private:
@@ -1117,6 +1365,12 @@ class HLongConstant : public HConstant {
   explicit HLongConstant(int64_t value) : HConstant(Primitive::kPrimLong), value_(value) {}
 
   int64_t GetValue() const { return value_; }
+
+  virtual bool InstructionDataEquals(HInstruction* other) const {
+    return other->AsLongConstant()->value_ == value_;
+  }
+
+  virtual size_t ComputeHashCode() const { return static_cast<size_t>(GetValue()); }
 
   DECLARE_INSTRUCTION(LongConstant);
 
@@ -1132,7 +1386,8 @@ class HInvoke : public HInstruction {
           uint32_t number_of_arguments,
           Primitive::Type return_type,
           uint32_t dex_pc)
-    : inputs_(arena, number_of_arguments),
+    : HInstruction(SideEffects::All()),
+      inputs_(arena, number_of_arguments),
       return_type_(return_type),
       dex_pc_(dex_pc) {
     inputs_.SetSize(number_of_arguments);
@@ -1186,10 +1441,32 @@ class HInvokeStatic : public HInvoke {
   DISALLOW_COPY_AND_ASSIGN(HInvokeStatic);
 };
 
+class HInvokeVirtual : public HInvoke {
+ public:
+  HInvokeVirtual(ArenaAllocator* arena,
+                 uint32_t number_of_arguments,
+                 Primitive::Type return_type,
+                 uint32_t dex_pc,
+                 uint32_t vtable_index)
+      : HInvoke(arena, number_of_arguments, return_type, dex_pc),
+        vtable_index_(vtable_index) {}
+
+  uint32_t GetVTableIndex() const { return vtable_index_; }
+
+  DECLARE_INSTRUCTION(InvokeVirtual);
+
+ private:
+  const uint32_t vtable_index_;
+
+  DISALLOW_COPY_AND_ASSIGN(HInvokeVirtual);
+};
+
 class HNewInstance : public HExpression<0> {
  public:
-  HNewInstance(uint32_t dex_pc, uint16_t type_index) : HExpression(Primitive::kPrimNot),
-    dex_pc_(dex_pc), type_index_(type_index) {}
+  HNewInstance(uint32_t dex_pc, uint16_t type_index)
+      : HExpression(Primitive::kPrimNot, SideEffects::None()),
+        dex_pc_(dex_pc),
+        type_index_(type_index) {}
 
   uint32_t GetDexPc() const { return dex_pc_; }
   uint16_t GetTypeIndex() const { return type_index_; }
@@ -1213,6 +1490,9 @@ class HAdd : public HBinaryOperation {
 
   virtual bool IsCommutative() { return true; }
 
+  virtual int32_t Evaluate(int32_t x, int32_t y) const { return x + y; }
+  virtual int64_t Evaluate(int64_t x, int64_t y) const { return x + y; }
+
   DECLARE_INSTRUCTION(Add);
 
  private:
@@ -1226,6 +1506,9 @@ class HSub : public HBinaryOperation {
 
   virtual bool IsCommutative() { return false; }
 
+  virtual int32_t Evaluate(int32_t x, int32_t y) const { return x + y; }
+  virtual int64_t Evaluate(int64_t x, int64_t y) const { return x + y; }
+
   DECLARE_INSTRUCTION(Sub);
 
  private:
@@ -1237,7 +1520,7 @@ class HSub : public HBinaryOperation {
 class HParameterValue : public HExpression<0> {
  public:
   HParameterValue(uint8_t index, Primitive::Type parameter_type)
-      : HExpression(parameter_type), index_(index) {}
+      : HExpression(parameter_type, SideEffects::None()), index_(index) {}
 
   uint8_t GetIndex() const { return index_; }
 
@@ -1253,9 +1536,12 @@ class HParameterValue : public HExpression<0> {
 
 class HNot : public HExpression<1> {
  public:
-  explicit HNot(HInstruction* input) : HExpression(Primitive::kPrimBoolean) {
+  explicit HNot(HInstruction* input) : HExpression(Primitive::kPrimBoolean, SideEffects::None()) {
     SetRawInputAt(0, input);
   }
+
+  virtual bool CanBeMoved() const { return true; }
+  virtual bool InstructionDataEquals(HInstruction* other) const { return true; }
 
   DECLARE_INSTRUCTION(Not);
 
@@ -1266,7 +1552,8 @@ class HNot : public HExpression<1> {
 class HPhi : public HInstruction {
  public:
   HPhi(ArenaAllocator* arena, uint32_t reg_number, size_t number_of_inputs, Primitive::Type type)
-      : inputs_(arena, number_of_inputs),
+      : HInstruction(SideEffects::None()),
+        inputs_(arena, number_of_inputs),
         reg_number_(reg_number),
         type_(type),
         is_live_(false) {
@@ -1306,9 +1593,12 @@ class HPhi : public HInstruction {
 class HNullCheck : public HExpression<1> {
  public:
   HNullCheck(HInstruction* value, uint32_t dex_pc)
-      : HExpression(value->GetType()), dex_pc_(dex_pc) {
+      : HExpression(value->GetType(), SideEffects::None()), dex_pc_(dex_pc) {
     SetRawInputAt(0, value);
   }
+
+  virtual bool CanBeMoved() const { return true; }
+  virtual bool InstructionDataEquals(HInstruction* other) const { return true; }
 
   virtual bool NeedsEnvironment() const { return true; }
 
@@ -1324,13 +1614,15 @@ class HNullCheck : public HExpression<1> {
 
 class FieldInfo : public ValueObject {
  public:
-  explicit FieldInfo(MemberOffset field_offset)
-      : field_offset_(field_offset) {}
+  FieldInfo(MemberOffset field_offset, Primitive::Type field_type)
+      : field_offset_(field_offset), field_type_(field_type) {}
 
   MemberOffset GetFieldOffset() const { return field_offset_; }
+  Primitive::Type GetFieldType() const { return field_type_; }
 
  private:
   const MemberOffset field_offset_;
+  const Primitive::Type field_type_;
 };
 
 class HInstanceFieldGet : public HExpression<1> {
@@ -1338,11 +1630,23 @@ class HInstanceFieldGet : public HExpression<1> {
   HInstanceFieldGet(HInstruction* value,
                     Primitive::Type field_type,
                     MemberOffset field_offset)
-      : HExpression(field_type), field_info_(field_offset) {
+      : HExpression(field_type, SideEffects::DependsOnSomething()),
+        field_info_(field_offset, field_type) {
     SetRawInputAt(0, value);
   }
 
+  virtual bool CanBeMoved() const { return true; }
+  virtual bool InstructionDataEquals(HInstruction* other) const {
+    size_t other_offset = other->AsInstanceFieldGet()->GetFieldOffset().SizeValue();
+    return other_offset == GetFieldOffset().SizeValue();
+  }
+
+  virtual size_t ComputeHashCode() const {
+    return (HInstruction::ComputeHashCode() << 7) | GetFieldOffset().SizeValue();
+  }
+
   MemberOffset GetFieldOffset() const { return field_info_.GetFieldOffset(); }
+  Primitive::Type GetFieldType() const { return field_info_.GetFieldType(); }
 
   DECLARE_INSTRUCTION(InstanceFieldGet);
 
@@ -1356,13 +1660,16 @@ class HInstanceFieldSet : public HTemplateInstruction<2> {
  public:
   HInstanceFieldSet(HInstruction* object,
                     HInstruction* value,
+                    Primitive::Type field_type,
                     MemberOffset field_offset)
-      : field_info_(field_offset) {
+      : HTemplateInstruction(SideEffects::ChangesSomething()),
+        field_info_(field_offset, field_type) {
     SetRawInputAt(0, object);
     SetRawInputAt(1, value);
   }
 
   MemberOffset GetFieldOffset() const { return field_info_.GetFieldOffset(); }
+  Primitive::Type GetFieldType() const { return field_info_.GetFieldType(); }
 
   DECLARE_INSTRUCTION(InstanceFieldSet);
 
@@ -1375,10 +1682,13 @@ class HInstanceFieldSet : public HTemplateInstruction<2> {
 class HArrayGet : public HExpression<2> {
  public:
   HArrayGet(HInstruction* array, HInstruction* index, Primitive::Type type)
-      : HExpression(type) {
+      : HExpression(type, SideEffects::DependsOnSomething()) {
     SetRawInputAt(0, array);
     SetRawInputAt(1, index);
   }
+
+  virtual bool CanBeMoved() const { return true; }
+  virtual bool InstructionDataEquals(HInstruction* other) const { return true; }
 
   DECLARE_INSTRUCTION(ArrayGet);
 
@@ -1391,7 +1701,11 @@ class HArraySet : public HTemplateInstruction<3> {
   HArraySet(HInstruction* array,
             HInstruction* index,
             HInstruction* value,
-            uint32_t dex_pc) : dex_pc_(dex_pc) {
+            Primitive::Type component_type,
+            uint32_t dex_pc)
+      : HTemplateInstruction(SideEffects::ChangesSomething()),
+        dex_pc_(dex_pc),
+        component_type_(component_type) {
     SetRawInputAt(0, array);
     SetRawInputAt(1, index);
     SetRawInputAt(2, value);
@@ -1405,19 +1719,28 @@ class HArraySet : public HTemplateInstruction<3> {
 
   uint32_t GetDexPc() const { return dex_pc_; }
 
+  Primitive::Type GetComponentType() const { return component_type_; }
+
   DECLARE_INSTRUCTION(ArraySet);
 
  private:
   const uint32_t dex_pc_;
+  const Primitive::Type component_type_;
 
   DISALLOW_COPY_AND_ASSIGN(HArraySet);
 };
 
 class HArrayLength : public HExpression<1> {
  public:
-  explicit HArrayLength(HInstruction* array) : HExpression(Primitive::kPrimInt) {
+  explicit HArrayLength(HInstruction* array)
+      : HExpression(Primitive::kPrimInt, SideEffects::None()) {
+    // Note that arrays do not change length, so the instruction does not
+    // depend on any write.
     SetRawInputAt(0, array);
   }
+
+  virtual bool CanBeMoved() const { return true; }
+  virtual bool InstructionDataEquals(HInstruction* other) const { return true; }
 
   DECLARE_INSTRUCTION(ArrayLength);
 
@@ -1428,11 +1751,14 @@ class HArrayLength : public HExpression<1> {
 class HBoundsCheck : public HExpression<2> {
  public:
   HBoundsCheck(HInstruction* index, HInstruction* length, uint32_t dex_pc)
-      : HExpression(index->GetType()), dex_pc_(dex_pc) {
+      : HExpression(index->GetType(), SideEffects::None()), dex_pc_(dex_pc) {
     DCHECK(index->GetType() == Primitive::kPrimInt);
     SetRawInputAt(0, index);
     SetRawInputAt(1, length);
   }
+
+  virtual bool CanBeMoved() const { return true; }
+  virtual bool InstructionDataEquals(HInstruction* other) const { return true; }
 
   virtual bool NeedsEnvironment() const { return true; }
 
@@ -1455,7 +1781,7 @@ class HBoundsCheck : public HExpression<2> {
  */
 class HTemporary : public HTemplateInstruction<0> {
  public:
-  explicit HTemporary(size_t index) : index_(index) {}
+  explicit HTemporary(size_t index) : HTemplateInstruction(SideEffects::None()), index_(index) {}
 
   size_t GetIndex() const { return index_; }
 
@@ -1467,10 +1793,29 @@ class HTemporary : public HTemplateInstruction<0> {
   DISALLOW_COPY_AND_ASSIGN(HTemporary);
 };
 
+class HSuspendCheck : public HTemplateInstruction<0> {
+ public:
+  explicit HSuspendCheck(uint32_t dex_pc)
+      : HTemplateInstruction(SideEffects::None()), dex_pc_(dex_pc) {}
+
+  virtual bool NeedsEnvironment() const {
+    return true;
+  }
+
+  uint32_t GetDexPc() const { return dex_pc_; }
+
+  DECLARE_INSTRUCTION(SuspendCheck);
+
+ private:
+  const uint32_t dex_pc_;
+
+  DISALLOW_COPY_AND_ASSIGN(HSuspendCheck);
+};
+
 class MoveOperands : public ArenaObject {
  public:
-  MoveOperands(Location source, Location destination)
-      : source_(source), destination_(destination) {}
+  MoveOperands(Location source, Location destination, HInstruction* instruction)
+      : source_(source), destination_(destination), instruction_(instruction) {}
 
   Location GetSource() const { return source_; }
   Location GetDestination() const { return destination_; }
@@ -1518,9 +1863,16 @@ class MoveOperands : public ArenaObject {
     return source_.IsInvalid();
   }
 
+  HInstruction* GetInstruction() const { return instruction_; }
+
  private:
   Location source_;
   Location destination_;
+  // The instruction this move is assocatied with. Null when this move is
+  // for moving an input in the expected locations of user (including a phi user).
+  // This is only used in debug mode, to ensure we do not connect interval siblings
+  // in the same parallel move.
+  HInstruction* instruction_;
 
   DISALLOW_COPY_AND_ASSIGN(MoveOperands);
 };
@@ -1529,9 +1881,16 @@ static constexpr size_t kDefaultNumberOfMoves = 4;
 
 class HParallelMove : public HTemplateInstruction<0> {
  public:
-  explicit HParallelMove(ArenaAllocator* arena) : moves_(arena, kDefaultNumberOfMoves) {}
+  explicit HParallelMove(ArenaAllocator* arena)
+      : HTemplateInstruction(SideEffects::None()), moves_(arena, kDefaultNumberOfMoves) {}
 
   void AddMove(MoveOperands* move) {
+    if (kIsDebugBuild && move->GetInstruction() != nullptr) {
+      for (size_t i = 0, e = moves_.Size(); i < e; ++i) {
+        DCHECK_NE(moves_.Get(i)->GetInstruction(), move->GetInstruction())
+          << "Doing parallel moves for the same instruction.";
+      }
+    }
     moves_.Add(move);
   }
 

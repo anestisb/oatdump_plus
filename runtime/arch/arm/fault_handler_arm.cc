@@ -16,6 +16,7 @@
 
 
 #include "fault_handler.h"
+
 #include <sys/ucontext.h>
 #include "base/macros.h"
 #include "base/hex_dump.h"
@@ -35,7 +36,7 @@
 namespace art {
 
 extern "C" void art_quick_throw_null_pointer_exception();
-extern "C" void art_quick_throw_stack_overflow_from_signal();
+extern "C" void art_quick_throw_stack_overflow();
 extern "C" void art_quick_implicit_suspend();
 
 // Get the size of a thumb2 instruction in bytes.
@@ -44,6 +45,23 @@ static uint32_t GetInstructionSize(uint8_t* pc) {
   bool is_32bit = ((instr & 0xF000) == 0xF000) || ((instr & 0xF800) == 0xE800);
   uint32_t instr_size = is_32bit ? 4 : 2;
   return instr_size;
+}
+
+void FaultManager::HandleNestedSignal(int sig, siginfo_t* info, void* context) {
+  // Note that in this handler we set up the registers and return to
+  // longjmp directly rather than going through an assembly language stub.  The
+  // reason for this is that longjmp is (currently) in ARM mode and that would
+  // require switching modes in the stub - incurring an unwanted relocation.
+
+  struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
+  struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
+  Thread* self = Thread::Current();
+  CHECK(self != nullptr);       // This will cause a SIGABRT if self is nullptr.
+
+  sc->arm_r0 = reinterpret_cast<uintptr_t>(*self->GetNestedSignalState());
+  sc->arm_r1 = 1;
+  sc->arm_pc = reinterpret_cast<uintptr_t>(longjmp);
+  VLOG(signals) << "longjmp address: " << reinterpret_cast<void*>(sc->arm_pc);
 }
 
 void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo, void* context,
@@ -194,40 +212,19 @@ bool StackOverflowHandler::Action(int sig, siginfo_t* info, void* context) {
 
   uintptr_t overflow_addr = sp - GetStackOverflowReservedBytes(kArm);
 
-  Thread* self = reinterpret_cast<Thread*>(sc->arm_r9);
-  CHECK_EQ(self, Thread::Current());
-  uintptr_t pregion = reinterpret_cast<uintptr_t>(self->GetStackEnd()) -
-      Thread::kStackOverflowProtectedSize;
-
   // Check that the fault address is the value expected for a stack overflow.
   if (fault_addr != overflow_addr) {
     VLOG(signals) << "Not a stack overflow";
     return false;
   }
 
-  // We know this is a stack overflow.  We need to move the sp to the overflow region
-  // that exists below the protected region.  Determine the address of the next
-  // available valid address below the protected region.
-  uintptr_t prevsp = sp;
-  sp = pregion;
-  VLOG(signals) << "setting sp to overflow region at " << std::hex << sp;
+  VLOG(signals) << "Stack overflow found";
 
-  // Since the compiler puts the implicit overflow
-  // check before the callee save instructions, the SP is already pointing to
-  // the previous frame.
-  VLOG(signals) << "previous frame: " << std::hex << prevsp;
-
-  // Now establish the stack pointer for the signal return.
-  sc->arm_sp = prevsp;
-
-  // Tell the stack overflow code where the new stack pointer should be.
-  sc->arm_ip = sp;      // aka r12
-
-  // Now arrange for the signal handler to return to art_quick_throw_stack_overflow_from_signal.
+  // Now arrange for the signal handler to return to art_quick_throw_stack_overflow_from.
   // The value of LR must be the same as it was when we entered the code that
   // caused this fault.  This will be inserted into a callee save frame by
-  // the function to which this handler returns (art_quick_throw_stack_overflow_from_signal).
-  sc->arm_pc = reinterpret_cast<uintptr_t>(art_quick_throw_stack_overflow_from_signal);
+  // the function to which this handler returns (art_quick_throw_stack_overflow).
+  sc->arm_pc = reinterpret_cast<uintptr_t>(art_quick_throw_stack_overflow);
 
   // The kernel will now return to the address in sc->arm_pc.
   return true;

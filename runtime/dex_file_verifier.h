@@ -43,6 +43,12 @@ class DexFileVerifier {
 
   bool CheckShortyDescriptorMatch(char shorty_char, const char* descriptor, bool is_return_type);
   bool CheckListSize(const void* start, size_t count, size_t element_size, const char* label);
+  // Check a list. The head is assumed to be at *ptr, and elements to be of size element_size. If
+  // successful, the ptr will be moved forward the amount covered by the list.
+  bool CheckList(size_t element_size, const char* label, const byte* *ptr);
+  // Checks whether the offset is zero (when size is zero) or that the offset falls within the area
+  // claimed by the file.
+  bool CheckValidOffsetAndSize(uint32_t offset, uint32_t size, const char* label);
   bool CheckIndex(uint32_t field, uint32_t limit, const char* label);
 
   bool CheckHeader();
@@ -111,7 +117,7 @@ class DexFileVerifier {
   const char* const location_;
   const DexFile::Header* const header_;
 
-  SafeMap<uint32_t, uint16_t> offset_to_type_map_;
+  AllocationTrackingSafeMap<uint32_t, uint16_t, kAllocatorTagDexFileVerifier> offset_to_type_map_;
   const byte* ptr_;
   const void* previous_item_;
 

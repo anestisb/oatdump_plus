@@ -14,15 +14,19 @@
  * limitations under the License.
  */
 
-#include <string>
+#include <cstdarg>
 #include <inttypes.h>
+#include <string>
 
+#include "backend_x86.h"
 #include "codegen_x86.h"
 #include "dex/compiler_internals.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "dex/reg_storage_eq.h"
 #include "mirror/array.h"
+#include "mirror/art_method.h"
 #include "mirror/string.h"
+#include "oat.h"
 #include "x86_lir.h"
 #include "utils/dwarf_cfi.h"
 
@@ -453,7 +457,7 @@ RegStorage X86Mir2Lir::AllocateByteRegister() {
 }
 
 RegStorage X86Mir2Lir::Get128BitRegister(RegStorage reg) {
-  return GetRegInfo(reg)->FindMatchingView(RegisterInfo::k128SoloStorageMask)->GetReg();
+  return GetRegInfo(reg)->Master()->GetReg();
 }
 
 bool X86Mir2Lir::IsByteRegister(RegStorage reg) {
@@ -596,6 +600,9 @@ bool X86Mir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
       mem_barrier = NewLIR0(kX86Mfence);
       ret = true;
     }
+  } else if (barrier_kind == kNTStoreStore) {
+      mem_barrier = NewLIR0(kX86Sfence);
+      ret = true;
   }
 
   // Now ensure that a scheduling barrier is in place.
@@ -614,13 +621,15 @@ bool X86Mir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
 
 void X86Mir2Lir::CompilerInitializeRegAlloc() {
   if (cu_->target64) {
-    reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs_64, core_regs_64q, sp_regs_64,
-                                          dp_regs_64, reserved_regs_64, reserved_regs_64q,
-                                          core_temps_64, core_temps_64q, sp_temps_64, dp_temps_64);
+    reg_pool_.reset(new (arena_) RegisterPool(this, arena_, core_regs_64, core_regs_64q, sp_regs_64,
+                                              dp_regs_64, reserved_regs_64, reserved_regs_64q,
+                                              core_temps_64, core_temps_64q,
+                                              sp_temps_64, dp_temps_64));
   } else {
-    reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs_32, empty_pool, sp_regs_32,
-                                          dp_regs_32, reserved_regs_32, empty_pool,
-                                          core_temps_32, empty_pool, sp_temps_32, dp_temps_32);
+    reg_pool_.reset(new (arena_) RegisterPool(this, arena_, core_regs_32, empty_pool, sp_regs_32,
+                                              dp_regs_32, reserved_regs_32, empty_pool,
+                                              core_temps_32, empty_pool,
+                                              sp_temps_32, dp_temps_32));
   }
 
   // Target-specific adjustments.
@@ -629,7 +638,7 @@ void X86Mir2Lir::CompilerInitializeRegAlloc() {
   const ArrayRef<const RegStorage> *xp_regs = cu_->target64 ? &xp_regs_64 : &xp_regs_32;
   for (RegStorage reg : *xp_regs) {
     RegisterInfo* info = new (arena_) RegisterInfo(reg, GetRegMaskCommon(reg));
-    reginfo_map_.Put(reg.GetReg(), info);
+    reginfo_map_[reg.GetReg()] = info;
   }
   const ArrayRef<const RegStorage> *xp_temps = cu_->target64 ? &xp_temps_64 : &xp_temps_32;
   for (RegStorage reg : *xp_temps) {
@@ -639,8 +648,7 @@ void X86Mir2Lir::CompilerInitializeRegAlloc() {
 
   // Alias single precision xmm to double xmms.
   // TODO: as needed, add larger vector sizes - alias all to the largest.
-  GrowableArray<RegisterInfo*>::Iterator it(&reg_pool_->sp_regs_);
-  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
+  for (RegisterInfo* info : reg_pool_->sp_regs_) {
     int sp_reg_num = info->GetReg().GetRegNum();
     RegStorage xp_reg = RegStorage::Solo128(sp_reg_num);
     RegisterInfo* xp_reg_info = GetRegInfo(xp_reg);
@@ -660,8 +668,7 @@ void X86Mir2Lir::CompilerInitializeRegAlloc() {
 
   if (cu_->target64) {
     // Alias 32bit W registers to corresponding 64bit X registers.
-    GrowableArray<RegisterInfo*>::Iterator w_it(&reg_pool_->core_regs_);
-    for (RegisterInfo* info = w_it.Next(); info != nullptr; info = w_it.Next()) {
+    for (RegisterInfo* info : reg_pool_->core_regs_) {
       int x_reg_num = info->GetReg().GetRegNum();
       RegStorage x_reg = RegStorage::Solo64(x_reg_num);
       RegisterInfo* x_reg_info = GetRegInfo(x_reg);
@@ -685,8 +692,11 @@ int X86Mir2Lir::VectorRegisterSize() {
   return 128;
 }
 
-int X86Mir2Lir::NumReservableVectorRegisters(bool fp_used) {
-  return fp_used ? 5 : 7;
+int X86Mir2Lir::NumReservableVectorRegisters(bool long_or_fp) {
+  int num_vector_temps = cu_->target64 ? xp_temps_64.size() : xp_temps_32.size();
+
+  // Leave a few temps for use by backend as scratch.
+  return long_or_fp ? num_vector_temps - 2 : num_vector_temps - 1;
 }
 
 void X86Mir2Lir::SpillCoreRegs() {
@@ -760,10 +770,7 @@ bool X86Mir2Lir::IsUnconditionalBranch(LIR* lir) {
 RegisterClass X86Mir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volatile) {
   // X86_64 can handle any size.
   if (cu_->target64) {
-    if (size == kReference) {
-      return kRefReg;
-    }
-    return kCoreReg;
+    return RegClassBySize(size);
   }
 
   if (UNLIKELY(is_volatile)) {
@@ -779,11 +786,14 @@ RegisterClass X86Mir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volatil
 X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
     : Mir2Lir(cu, mir_graph, arena),
       base_of_code_(nullptr), store_method_addr_(false), store_method_addr_used_(false),
-      method_address_insns_(arena, 100, kGrowableArrayMisc),
-      class_type_address_insns_(arena, 100, kGrowableArrayMisc),
-      call_method_insns_(arena, 100, kGrowableArrayMisc),
+      method_address_insns_(arena->Adapter()),
+      class_type_address_insns_(arena->Adapter()),
+      call_method_insns_(arena->Adapter()),
       stack_decrement_(nullptr), stack_increment_(nullptr),
       const_vectors_(nullptr) {
+  method_address_insns_.reserve(100);
+  class_type_address_insns_.reserve(100);
+  call_method_insns_.reserve(100);
   store_method_addr_used_ = false;
   if (kIsDebugBuild) {
     for (int i = 0; i < kX86Last; i++) {
@@ -863,9 +873,6 @@ X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator*
   rX86_RET1 = rDX;
   rX86_INVOKE_TGT = rAX;
   rX86_COUNT = rCX;
-
-  // Initialize the number of reserved vector registers
-  num_reserved_vector_regs_ = -1;
 }
 
 Mir2Lir* X86CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
@@ -974,7 +981,7 @@ void X86Mir2Lir::LoadMethodAddress(const MethodReference& target_method, InvokeT
                      static_cast<int>(target_method_id_ptr), target_method_idx,
                      WrapPointer(const_cast<DexFile*>(target_dex_file)), type);
   AppendLIR(move);
-  method_address_insns_.Insert(move);
+  method_address_insns_.push_back(move);
 }
 
 void X86Mir2Lir::LoadClassType(const DexFile& dex_file, uint32_t type_idx,
@@ -993,26 +1000,66 @@ void X86Mir2Lir::LoadClassType(const DexFile& dex_file, uint32_t type_idx,
                      static_cast<int>(ptr), type_idx,
                      WrapPointer(const_cast<DexFile*>(&dex_file)));
   AppendLIR(move);
-  class_type_address_insns_.Insert(move);
+  class_type_address_insns_.push_back(move);
 }
 
-LIR *X86Mir2Lir::CallWithLinkerFixup(const MethodReference& target_method, InvokeType type) {
+LIR* X86Mir2Lir::CallWithLinkerFixup(const MethodReference& target_method, InvokeType type) {
   /*
    * For x86, just generate a 32 bit call relative instruction, that will be filled
-   * in at 'link time'.  For now, put a unique value based on target to ensure that
-   * code deduplication works.
+   * in at 'link time'.
    */
   int target_method_idx = target_method.dex_method_index;
   const DexFile* target_dex_file = target_method.dex_file;
-  const DexFile::MethodId& target_method_id = target_dex_file->GetMethodId(target_method_idx);
-  uintptr_t target_method_id_ptr = reinterpret_cast<uintptr_t>(&target_method_id);
 
   // Generate the call instruction with the unique pointer and save index, dex_file, and type.
-  LIR *call = RawLIR(current_dalvik_offset_, kX86CallI, static_cast<int>(target_method_id_ptr),
+  // NOTE: Method deduplication takes linker patches into account, so we can just pass 0
+  // as a placeholder for the offset.
+  LIR* call = RawLIR(current_dalvik_offset_, kX86CallI, 0,
                      target_method_idx, WrapPointer(const_cast<DexFile*>(target_dex_file)), type);
   AppendLIR(call);
-  call_method_insns_.Insert(call);
+  call_method_insns_.push_back(call);
   return call;
+}
+
+static LIR* GenInvokeNoInlineCall(Mir2Lir* mir_to_lir, InvokeType type) {
+  QuickEntrypointEnum trampoline;
+  switch (type) {
+    case kInterface:
+      trampoline = kQuickInvokeInterfaceTrampolineWithAccessCheck;
+      break;
+    case kDirect:
+      trampoline = kQuickInvokeDirectTrampolineWithAccessCheck;
+      break;
+    case kStatic:
+      trampoline = kQuickInvokeStaticTrampolineWithAccessCheck;
+      break;
+    case kSuper:
+      trampoline = kQuickInvokeSuperTrampolineWithAccessCheck;
+      break;
+    case kVirtual:
+      trampoline = kQuickInvokeVirtualTrampolineWithAccessCheck;
+      break;
+    default:
+      LOG(FATAL) << "Unexpected invoke type";
+      trampoline = kQuickInvokeInterfaceTrampolineWithAccessCheck;
+  }
+  return mir_to_lir->InvokeTrampoline(kOpBlx, RegStorage::InvalidReg(), trampoline);
+}
+
+LIR* X86Mir2Lir::GenCallInsn(const MirMethodLoweringInfo& method_info) {
+  LIR* call_insn;
+  if (method_info.FastPath()) {
+    if (method_info.DirectCode() == static_cast<uintptr_t>(-1)) {
+      // We can have the linker fixup a call relative.
+      call_insn = CallWithLinkerFixup(method_info.GetTargetMethod(), method_info.GetSharpType());
+    } else {
+      call_insn = OpMem(kOpBlx, TargetReg(kArg0, kRef),
+                        mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value());
+    }
+  } else {
+    call_insn = GenInvokeNoInlineCall(this, method_info.GetSharpType());
+  }
+  return call_insn;
 }
 
 void X86Mir2Lir::InstallLiteralPools() {
@@ -1021,19 +1068,18 @@ void X86Mir2Lir::InstallLiteralPools() {
   DCHECK(method_literal_list_ == nullptr);
   DCHECK(class_literal_list_ == nullptr);
 
-  // Align to 16 byte boundary.  We have implicit knowledge that the start of the method is
-  // on a 4 byte boundary.   How can I check this if it changes (other than aligned loads
-  // will fail at runtime)?
+
   if (const_vectors_ != nullptr) {
-    int align_size = (16-4) - (code_buffer_.size() & 0xF);
-    if (align_size < 0) {
-      align_size += 16;
+    // Vector literals must be 16-byte aligned. The header that is placed
+    // in the code section causes misalignment so we take it into account.
+    // Otherwise, we are sure that for x86 method is aligned to 16.
+    DCHECK_EQ(GetInstructionSetAlignment(cu_->instruction_set), 16u);
+    uint32_t bytes_to_fill = (0x10 - ((code_buffer_.size() + sizeof(OatQuickMethodHeader)) & 0xF)) & 0xF;
+    while (bytes_to_fill > 0) {
+      code_buffer_.push_back(0);
+      bytes_to_fill--;
     }
 
-    while (align_size > 0) {
-      code_buffer_.push_back(0);
-      align_size--;
-    }
     for (LIR *p = const_vectors_; p != nullptr; p = p->next) {
       PushWord(&code_buffer_, p->operands[0]);
       PushWord(&code_buffer_, p->operands[1]);
@@ -1043,8 +1089,7 @@ void X86Mir2Lir::InstallLiteralPools() {
   }
 
   // Handle the fixups for methods.
-  for (uint32_t i = 0; i < method_address_insns_.Size(); i++) {
-      LIR* p = method_address_insns_.Get(i);
+  for (LIR* p : method_address_insns_) {
       DCHECK_EQ(p->opcode, kX86Mov32RI);
       uint32_t target_method_idx = p->operands[2];
       const DexFile* target_dex_file =
@@ -1052,32 +1097,27 @@ void X86Mir2Lir::InstallLiteralPools() {
 
       // The offset to patch is the last 4 bytes of the instruction.
       int patch_offset = p->offset + p->flags.size - 4;
-      cu_->compiler_driver->AddMethodPatch(cu_->dex_file, cu_->class_def_idx,
-                                           cu_->method_idx, cu_->invoke_type,
-                                           target_method_idx, target_dex_file,
-                                           static_cast<InvokeType>(p->operands[4]),
-                                           patch_offset);
+      patches_.push_back(LinkerPatch::MethodPatch(patch_offset,
+                                                  target_dex_file, target_method_idx));
   }
 
   // Handle the fixups for class types.
-  for (uint32_t i = 0; i < class_type_address_insns_.Size(); i++) {
-      LIR* p = class_type_address_insns_.Get(i);
+  for (LIR* p : class_type_address_insns_) {
       DCHECK_EQ(p->opcode, kX86Mov32RI);
 
       const DexFile* class_dex_file =
         reinterpret_cast<const DexFile*>(UnwrapPointer(p->operands[3]));
-      uint32_t target_method_idx = p->operands[2];
+      uint32_t target_type_idx = p->operands[2];
 
       // The offset to patch is the last 4 bytes of the instruction.
       int patch_offset = p->offset + p->flags.size - 4;
-      cu_->compiler_driver->AddClassPatch(cu_->dex_file, cu_->class_def_idx,
-                                          cu_->method_idx, target_method_idx, class_dex_file,
-                                          patch_offset);
+      patches_.push_back(LinkerPatch::TypePatch(patch_offset,
+                                                class_dex_file, target_type_idx));
   }
 
   // And now the PC-relative calls to methods.
-  for (uint32_t i = 0; i < call_method_insns_.Size(); i++) {
-      LIR* p = call_method_insns_.Get(i);
+  patches_.reserve(call_method_insns_.size());
+  for (LIR* p : call_method_insns_) {
       DCHECK_EQ(p->opcode, kX86CallI);
       uint32_t target_method_idx = p->operands[1];
       const DexFile* target_dex_file =
@@ -1085,11 +1125,8 @@ void X86Mir2Lir::InstallLiteralPools() {
 
       // The offset to patch is the last 4 bytes of the instruction.
       int patch_offset = p->offset + p->flags.size - 4;
-      cu_->compiler_driver->AddRelativeCodePatch(cu_->dex_file, cu_->class_def_idx,
-                                                 cu_->method_idx, cu_->invoke_type,
-                                                 target_method_idx, target_dex_file,
-                                                 static_cast<InvokeType>(p->operands[3]),
-                                                 patch_offset, -4 /* offset */);
+      patches_.push_back(LinkerPatch::RelativeCodePatch(patch_offset,
+                                                        target_dex_file, target_method_idx));
   }
 
   // And do the normal processing.
@@ -1122,37 +1159,51 @@ bool X86Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
   LoadValueDirectFixed(rl_src, rs_rAX);
   LoadWordDisp(rs_rAX, mirror::Array::LengthOffset().Int32Value(), rs_rAX);
   LIR* src_bad_len  = nullptr;
+  LIR* src_bad_off = nullptr;
   LIR* srcPos_negative  = nullptr;
   if (!rl_srcPos.is_const) {
     LoadValueDirectFixed(rl_srcPos, tmp_reg);
     srcPos_negative  = OpCmpImmBranch(kCondLt, tmp_reg, 0, nullptr);
-    OpRegReg(kOpAdd, tmp_reg, rs_rDX);
-    src_bad_len  = OpCmpBranch(kCondLt, rs_rAX, tmp_reg, nullptr);
+    // src_pos < src_len
+    src_bad_off = OpCmpBranch(kCondLt, rs_rAX, tmp_reg, nullptr);
+    // src_len - src_pos < copy_len
+    OpRegRegReg(kOpSub, tmp_reg, rs_rAX, tmp_reg);
+    src_bad_len = OpCmpBranch(kCondLt, tmp_reg, rs_rDX, nullptr);
   } else {
     int32_t pos_val = mir_graph_->ConstantValue(rl_srcPos.orig_sreg);
     if (pos_val == 0) {
       src_bad_len  = OpCmpBranch(kCondLt, rs_rAX, rs_rDX, nullptr);
     } else {
-      OpRegRegImm(kOpAdd, tmp_reg,  rs_rDX, pos_val);
-      src_bad_len  = OpCmpBranch(kCondLt, rs_rAX, tmp_reg, nullptr);
+      // src_pos < src_len
+      src_bad_off = OpCmpImmBranch(kCondLt, rs_rAX, pos_val, nullptr);
+      // src_len - src_pos < copy_len
+      OpRegRegImm(kOpSub, tmp_reg, rs_rAX, pos_val);
+      src_bad_len = OpCmpBranch(kCondLt, tmp_reg, rs_rDX, nullptr);
     }
   }
   LIR* dstPos_negative = nullptr;
   LIR* dst_bad_len = nullptr;
+  LIR* dst_bad_off = nullptr;
   LoadValueDirectFixed(rl_dst, rs_rAX);
   LoadWordDisp(rs_rAX, mirror::Array::LengthOffset().Int32Value(), rs_rAX);
   if (!rl_dstPos.is_const) {
     LoadValueDirectFixed(rl_dstPos, tmp_reg);
     dstPos_negative = OpCmpImmBranch(kCondLt, tmp_reg, 0, nullptr);
-    OpRegRegReg(kOpAdd, tmp_reg, tmp_reg, rs_rDX);
-    dst_bad_len = OpCmpBranch(kCondLt, rs_rAX, tmp_reg, nullptr);
+    // dst_pos < dst_len
+    dst_bad_off = OpCmpBranch(kCondLt, rs_rAX, tmp_reg, nullptr);
+    // dst_len - dst_pos < copy_len
+    OpRegRegReg(kOpSub, tmp_reg, rs_rAX, tmp_reg);
+    dst_bad_len = OpCmpBranch(kCondLt, tmp_reg, rs_rDX, nullptr);
   } else {
     int32_t pos_val = mir_graph_->ConstantValue(rl_dstPos.orig_sreg);
     if (pos_val == 0) {
       dst_bad_len = OpCmpBranch(kCondLt, rs_rAX, rs_rDX, nullptr);
     } else {
-      OpRegRegImm(kOpAdd, tmp_reg,  rs_rDX, pos_val);
-      dst_bad_len = OpCmpBranch(kCondLt, rs_rAX, tmp_reg, nullptr);
+      // dst_pos < dst_len
+      dst_bad_off = OpCmpImmBranch(kCondLt, rs_rAX, pos_val, nullptr);
+      // dst_len - dst_pos < copy_len
+      OpRegRegImm(kOpSub, tmp_reg, rs_rAX, pos_val);
+      dst_bad_len = OpCmpBranch(kCondLt, tmp_reg, rs_rDX, nullptr);
     }
   }
   // Everything is checked now.
@@ -1196,14 +1247,19 @@ bool X86Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
   src_null_branch->target = check_failed;
   if (srcPos_negative != nullptr)
     srcPos_negative ->target = check_failed;
+  if (src_bad_off != nullptr)
+    src_bad_off->target = check_failed;
   if (src_bad_len != nullptr)
     src_bad_len->target = check_failed;
   dst_null_branch->target = check_failed;
   if (dstPos_negative != nullptr)
     dstPos_negative->target = check_failed;
+  if (dst_bad_off != nullptr)
+    dst_bad_off->target = check_failed;
   if (dst_bad_len != nullptr)
     dst_bad_len->target = check_failed;
   AddIntrinsicSlowPath(info, launchpad_branch, return_point);
+  ClobberCallerSave();  // We must clobber everything because slow path will return here
   return true;
 }
 
@@ -1216,7 +1272,7 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   RegLocation rl_obj = info->args[0];
   RegLocation rl_char = info->args[1];
   RegLocation rl_start;  // Note: only present in III flavor or IndexOf.
-  // RBX is callee-save register in 64-bit mode.
+  // RBX is promotable in 64-bit mode.
   RegStorage rs_tmp = cu_->target64 ? rs_r11 : rs_rBX;
   int start_value = -1;
 
@@ -1236,23 +1292,7 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   // EBX or R11: temporary during execution (depending on mode).
   // REP SCASW: search instruction.
 
-  FlushReg(rs_rAX);
-  Clobber(rs_rAX);
-  LockTemp(rs_rAX);
-  FlushReg(rs_rCX);
-  Clobber(rs_rCX);
-  LockTemp(rs_rCX);
-  FlushReg(rs_rDX);
-  Clobber(rs_rDX);
-  LockTemp(rs_rDX);
-  FlushReg(rs_tmp);
-  Clobber(rs_tmp);
-  LockTemp(rs_tmp);
-  if (cu_->target64) {
-    FlushReg(rs_rDI);
-    Clobber(rs_rDI);
-    LockTemp(rs_rDI);
-  }
+  FlushAllRegs();
 
   RegLocation rl_return = GetReturn(kCoreReg);
   RegLocation rl_dest = InlineTarget(info);
@@ -1294,7 +1334,7 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   MarkPossibleNullPointerException(0);
 
   if (!cu_->target64) {
-    // EDI is callee-save register in 32-bit mode.
+    // EDI is promotable in 32-bit mode.
     NewLIR1(kX86Push32R, rs_rDI.GetReg());
   }
 
@@ -1332,10 +1372,12 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
       if (!cu_->target64 && rl_start.location != kLocPhysReg) {
         // Load the start index from stack, remembering that we pushed EDI.
         int displacement = SRegOffset(rl_start.s_reg_low) + sizeof(uint32_t);
-        {
-          ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-          Load32Disp(rs_rX86_SP, displacement, rs_rDI);
-        }
+        ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
+        Load32Disp(rs_rX86_SP, displacement, rs_rDI);
+        // Dalvik register annotation in LoadBaseIndexedDisp() used wrong offset. Fix it.
+        DCHECK(!DECODE_ALIAS_INFO_WIDE(last_lir_insn_->flags.alias_info));
+        int reg_id = DECODE_ALIAS_INFO_REG(last_lir_insn_->flags.alias_info) - 1;
+        AnnotateDalvikRegAccess(last_lir_insn_, reg_id, true, false);
       } else {
         LoadValueDirectFixed(rl_start, rs_rDI);
       }
@@ -1396,18 +1438,10 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   if (slowpath_branch != nullptr) {
     LIR *return_point = NewLIR0(kPseudoTargetLabel);
     AddIntrinsicSlowPath(info, slowpath_branch, return_point);
+    ClobberCallerSave();  // We must clobber everything because slow path will return here
   }
 
   StoreValue(rl_dest, rl_return);
-
-  FreeTemp(rs_rAX);
-  FreeTemp(rs_rCX);
-  FreeTemp(rs_rDX);
-  FreeTemp(rs_tmp);
-  if (cu_->target64) {
-    FreeTemp(rs_rDI);
-  }
-
   return true;
 }
 
@@ -1439,8 +1473,8 @@ std::vector<uint8_t>* X86Mir2Lir::ReturnFrameDescriptionEntry() {
   // Generate the FDE for the method.
   DCHECK_NE(data_offset_, 0U);
 
-  WriteFDEHeader(cfi_info);
-  WriteFDEAddressRange(cfi_info, data_offset_);
+  WriteFDEHeader(cfi_info, cu_->target64);
+  WriteFDEAddressRange(cfi_info, data_offset_, cu_->target64);
 
   // The instructions in the FDE.
   if (stack_decrement_ != nullptr) {
@@ -1500,7 +1534,7 @@ std::vector<uint8_t>* X86Mir2Lir::ReturnFrameDescriptionEntry() {
   }
 
   PadCFI(cfi_info);
-  WriteCFILength(cfi_info);
+  WriteCFILength(cfi_info, cu_->target64);
 
   return cfi_info;
 }
@@ -1511,7 +1545,7 @@ void X86Mir2Lir::GenMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir) {
       ReserveVectorRegisters(mir);
       break;
     case kMirOpReturnVectorRegisters:
-      ReturnVectorRegisters();
+      ReturnVectorRegisters(mir);
       break;
     case kMirOpConstVector:
       GenConst128(bb, mir);
@@ -1555,17 +1589,22 @@ void X86Mir2Lir::GenMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir) {
     case kMirOpPackedSet:
       GenSetVector(bb, mir);
       break;
+    case kMirOpMemBarrier:
+      GenMemBarrier(static_cast<MemBarrierKind>(mir->dalvikInsn.vA));
+      break;
+    case kMirOpPackedArrayGet:
+      GenPackedArrayGet(bb, mir);
+      break;
+    case kMirOpPackedArrayPut:
+      GenPackedArrayPut(bb, mir);
+      break;
     default:
       break;
   }
 }
 
 void X86Mir2Lir::ReserveVectorRegisters(MIR* mir) {
-  // We should not try to reserve twice without returning the registers
-  DCHECK_NE(num_reserved_vector_regs_, -1);
-
-  int num_vector_reg = mir->dalvikInsn.vA;
-  for (int i = 0; i < num_vector_reg; i++) {
+  for (uint32_t i = mir->dalvikInsn.vA; i <= mir->dalvikInsn.vB; i++) {
     RegStorage xp_reg = RegStorage::Solo128(i);
     RegisterInfo *xp_reg_info = GetRegInfo(xp_reg);
     Clobber(xp_reg);
@@ -1573,20 +1612,17 @@ void X86Mir2Lir::ReserveVectorRegisters(MIR* mir) {
     for (RegisterInfo *info = xp_reg_info->GetAliasChain();
                        info != nullptr;
                        info = info->GetAliasChain()) {
-      if (info->GetReg().IsSingle()) {
-        reg_pool_->sp_regs_.Delete(info);
-      } else {
-        reg_pool_->dp_regs_.Delete(info);
-      }
+      ArenaVector<RegisterInfo*>* regs =
+          info->GetReg().IsSingle() ? &reg_pool_->sp_regs_ : &reg_pool_->dp_regs_;
+      auto it = std::find(regs->begin(), regs->end(), info);
+      DCHECK(it != regs->end());
+      regs->erase(it);
     }
   }
-
-  num_reserved_vector_regs_ = num_vector_reg;
 }
 
-void X86Mir2Lir::ReturnVectorRegisters() {
-  // Return all the reserved registers
-  for (int i = 0; i < num_reserved_vector_regs_; i++) {
+void X86Mir2Lir::ReturnVectorRegisters(MIR* mir) {
+  for (uint32_t i = mir->dalvikInsn.vA; i <= mir->dalvikInsn.vB; i++) {
     RegStorage xp_reg = RegStorage::Solo128(i);
     RegisterInfo *xp_reg_info = GetRegInfo(xp_reg);
 
@@ -1594,23 +1630,18 @@ void X86Mir2Lir::ReturnVectorRegisters() {
                        info != nullptr;
                        info = info->GetAliasChain()) {
       if (info->GetReg().IsSingle()) {
-        reg_pool_->sp_regs_.Insert(info);
+        reg_pool_->sp_regs_.push_back(info);
       } else {
-        reg_pool_->dp_regs_.Insert(info);
+        reg_pool_->dp_regs_.push_back(info);
       }
     }
   }
-
-  // We don't have anymore reserved vector registers
-  num_reserved_vector_regs_ = -1;
 }
 
 void X86Mir2Lir::GenConst128(BasicBlock* bb, MIR* mir) {
-  store_method_addr_used_ = true;
-  int type_size = mir->dalvikInsn.vB;
-  // We support 128 bit vectors.
-  DCHECK_EQ(type_size & 0xFFFF, 128);
   RegStorage rs_dest = RegStorage::Solo128(mir->dalvikInsn.vA);
+  Clobber(rs_dest);
+
   uint32_t *args = mir->dalvikInsn.arg;
   int reg = rs_dest.GetReg();
   // Check for all 0 case.
@@ -1620,14 +1651,24 @@ void X86Mir2Lir::GenConst128(BasicBlock* bb, MIR* mir) {
   }
 
   // Append the mov const vector to reg opcode.
-  AppendOpcodeWithConst(kX86MovupsRM, reg, mir);
+  AppendOpcodeWithConst(kX86MovdqaRM, reg, mir);
 }
 
 void X86Mir2Lir::AppendOpcodeWithConst(X86OpCode opcode, int reg, MIR* mir) {
-  // Okay, load it from the constant vector area.
-  LIR *data_target = ScanVectorLiteral(mir);
+  // The literal pool needs position independent logic.
+  store_method_addr_used_ = true;
+
+  // To deal with correct memory ordering, reverse order of constants.
+  int32_t constants[4];
+  constants[3] = mir->dalvikInsn.arg[0];
+  constants[2] = mir->dalvikInsn.arg[1];
+  constants[1] = mir->dalvikInsn.arg[2];
+  constants[0] = mir->dalvikInsn.arg[3];
+
+  // Search if there is already a constant in pool with this value.
+  LIR *data_target = ScanVectorLiteral(constants);
   if (data_target == nullptr) {
-    data_target = AddVectorLiteral(mir);
+    data_target = AddVectorLiteral(constants);
   }
 
   // Address the start of the method.
@@ -1643,7 +1684,7 @@ void X86Mir2Lir::AppendOpcodeWithConst(X86OpCode opcode, int reg, MIR* mir) {
   // 4 byte offset.  We will fix this up in the assembler later to have the right
   // value.
   ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
-  LIR *load = NewLIR2(opcode, reg, rl_method.reg.GetReg());
+  LIR *load = NewLIR3(opcode, reg, rl_method.reg.GetReg(), 256 /* bogus */);
   load->flags.fixup = kFixupLoad;
   load->target = data_target;
 }
@@ -1652,16 +1693,12 @@ void X86Mir2Lir::GenMoveVector(BasicBlock *bb, MIR *mir) {
   // We only support 128 bit registers.
   DCHECK_EQ(mir->dalvikInsn.vC & 0xFFFF, 128U);
   RegStorage rs_dest = RegStorage::Solo128(mir->dalvikInsn.vA);
+  Clobber(rs_dest);
   RegStorage rs_src = RegStorage::Solo128(mir->dalvikInsn.vB);
-  NewLIR2(kX86Mova128RR, rs_dest.GetReg(), rs_src.GetReg());
+  NewLIR2(kX86MovdqaRR, rs_dest.GetReg(), rs_src.GetReg());
 }
 
-void X86Mir2Lir::GenMultiplyVectorSignedByte(BasicBlock *bb, MIR *mir) {
-  const int BYTE_SIZE = 8;
-  RegStorage rs_dest_src1 = RegStorage::Solo128(mir->dalvikInsn.vA);
-  RegStorage rs_src2 = RegStorage::Solo128(mir->dalvikInsn.vB);
-  RegStorage rs_src1_high_tmp = Get128BitRegister(AllocTempWide());
-
+void X86Mir2Lir::GenMultiplyVectorSignedByte(RegStorage rs_dest_src1, RegStorage rs_src2) {
   /*
    * Emulate the behavior of a kSignedByte by separating out the 16 values in the two XMM
    * and multiplying 8 at a time before recombining back into one XMM register.
@@ -1679,29 +1716,100 @@ void X86Mir2Lir::GenMultiplyVectorSignedByte(BasicBlock *bb, MIR *mir) {
    */
 
   // Copy xmm1.
-  NewLIR2(kX86Mova128RR, rs_src1_high_tmp.GetReg(), rs_dest_src1.GetReg());
+  RegStorage rs_src1_high_tmp = Get128BitRegister(AllocTempDouble());
+  RegStorage rs_dest_high_tmp = Get128BitRegister(AllocTempDouble());
+  NewLIR2(kX86MovdqaRR, rs_src1_high_tmp.GetReg(), rs_src2.GetReg());
+  NewLIR2(kX86MovdqaRR, rs_dest_high_tmp.GetReg(), rs_dest_src1.GetReg());
 
   // Multiply low bits.
+  // x7 *= x3
   NewLIR2(kX86PmullwRR, rs_dest_src1.GetReg(), rs_src2.GetReg());
 
   // xmm1 now has low bits.
   AndMaskVectorRegister(rs_dest_src1, 0x00FF00FF, 0x00FF00FF, 0x00FF00FF, 0x00FF00FF);
 
   // Prepare high bits for multiplication.
-  NewLIR2(kX86PsrlwRI, rs_src1_high_tmp.GetReg(), BYTE_SIZE);
-  AndMaskVectorRegister(rs_src2, 0xFF00FF00, 0xFF00FF00, 0xFF00FF00, 0xFF00FF00);
+  NewLIR2(kX86PsrlwRI, rs_src1_high_tmp.GetReg(), 0x8);
+  AndMaskVectorRegister(rs_dest_high_tmp,  0xFF00FF00, 0xFF00FF00, 0xFF00FF00, 0xFF00FF00);
 
   // Multiply high bits and xmm2 now has high bits.
-  NewLIR2(kX86PmullwRR, rs_src2.GetReg(), rs_src1_high_tmp.GetReg());
+  NewLIR2(kX86PmullwRR, rs_src1_high_tmp.GetReg(), rs_dest_high_tmp.GetReg());
 
   // Combine back into dest XMM register.
-  NewLIR2(kX86PorRR, rs_dest_src1.GetReg(), rs_src2.GetReg());
+  NewLIR2(kX86PorRR, rs_dest_src1.GetReg(), rs_src1_high_tmp.GetReg());
+}
+
+void X86Mir2Lir::GenMultiplyVectorLong(RegStorage rs_dest_src1, RegStorage rs_src2) {
+  /*
+   * We need to emulate the packed long multiply.
+   * For kMirOpPackedMultiply xmm1, xmm0:
+   * - xmm1 is src/dest
+   * - xmm0 is src
+   * - Get xmm2 and xmm3 as temp
+   * - Idea is to multiply the lower 32 of each operand with the higher 32 of the other.
+   * - Then add the two results.
+   * - Move it to the upper 32 of the destination
+   * - Then multiply the lower 32-bits of the operands and add the result to the destination.
+   *
+   * (op     dest   src )
+   * movdqa  %xmm2, %xmm1
+   * movdqa  %xmm3, %xmm0
+   * psrlq   %xmm3, $0x20
+   * pmuludq %xmm3, %xmm2
+   * psrlq   %xmm1, $0x20
+   * pmuludq %xmm1, %xmm0
+   * paddq   %xmm1, %xmm3
+   * psllq   %xmm1, $0x20
+   * pmuludq %xmm2, %xmm0
+   * paddq   %xmm1, %xmm2
+   *
+   * When both the operands are the same, then we need to calculate the lower-32 * higher-32
+   * calculation only once. Thus we don't need the xmm3 temp above. That sequence becomes:
+   *
+   * (op     dest   src )
+   * movdqa  %xmm2, %xmm1
+   * psrlq   %xmm1, $0x20
+   * pmuludq %xmm1, %xmm0
+   * paddq   %xmm1, %xmm1
+   * psllq   %xmm1, $0x20
+   * pmuludq %xmm2, %xmm0
+   * paddq   %xmm1, %xmm2
+   *
+   */
+
+  bool both_operands_same = (rs_dest_src1.GetReg() == rs_src2.GetReg());
+
+  RegStorage rs_tmp_vector_1;
+  RegStorage rs_tmp_vector_2;
+  rs_tmp_vector_1 = Get128BitRegister(AllocTempDouble());
+  NewLIR2(kX86MovdqaRR, rs_tmp_vector_1.GetReg(), rs_dest_src1.GetReg());
+
+  if (both_operands_same == false) {
+    rs_tmp_vector_2 = Get128BitRegister(AllocTempDouble());
+    NewLIR2(kX86MovdqaRR, rs_tmp_vector_2.GetReg(), rs_src2.GetReg());
+    NewLIR2(kX86PsrlqRI, rs_tmp_vector_2.GetReg(), 0x20);
+    NewLIR2(kX86PmuludqRR, rs_tmp_vector_2.GetReg(), rs_tmp_vector_1.GetReg());
+  }
+
+  NewLIR2(kX86PsrlqRI, rs_dest_src1.GetReg(), 0x20);
+  NewLIR2(kX86PmuludqRR, rs_dest_src1.GetReg(), rs_src2.GetReg());
+
+  if (both_operands_same == false) {
+    NewLIR2(kX86PaddqRR, rs_dest_src1.GetReg(), rs_tmp_vector_2.GetReg());
+  } else {
+    NewLIR2(kX86PaddqRR, rs_dest_src1.GetReg(), rs_dest_src1.GetReg());
+  }
+
+  NewLIR2(kX86PsllqRI, rs_dest_src1.GetReg(), 0x20);
+  NewLIR2(kX86PmuludqRR, rs_tmp_vector_1.GetReg(), rs_src2.GetReg());
+  NewLIR2(kX86PaddqRR, rs_dest_src1.GetReg(), rs_tmp_vector_1.GetReg());
 }
 
 void X86Mir2Lir::GenMultiplyVector(BasicBlock *bb, MIR *mir) {
   DCHECK_EQ(mir->dalvikInsn.vC & 0xFFFF, 128U);
   OpSize opsize = static_cast<OpSize>(mir->dalvikInsn.vC >> 16);
   RegStorage rs_dest_src1 = RegStorage::Solo128(mir->dalvikInsn.vA);
+  Clobber(rs_dest_src1);
   RegStorage rs_src2 = RegStorage::Solo128(mir->dalvikInsn.vB);
   int opcode = 0;
   switch (opsize) {
@@ -1719,7 +1827,10 @@ void X86Mir2Lir::GenMultiplyVector(BasicBlock *bb, MIR *mir) {
       break;
     case kSignedByte:
       // HW doesn't support 16x16 byte multiplication so emulate it.
-      GenMultiplyVectorSignedByte(bb, mir);
+      GenMultiplyVectorSignedByte(rs_dest_src1, rs_src2);
+      return;
+    case k64:
+      GenMultiplyVectorLong(rs_dest_src1, rs_src2);
       return;
     default:
       LOG(FATAL) << "Unsupported vector multiply " << opsize;
@@ -1732,11 +1843,15 @@ void X86Mir2Lir::GenAddVector(BasicBlock *bb, MIR *mir) {
   DCHECK_EQ(mir->dalvikInsn.vC & 0xFFFF, 128U);
   OpSize opsize = static_cast<OpSize>(mir->dalvikInsn.vC >> 16);
   RegStorage rs_dest_src1 = RegStorage::Solo128(mir->dalvikInsn.vA);
+  Clobber(rs_dest_src1);
   RegStorage rs_src2 = RegStorage::Solo128(mir->dalvikInsn.vB);
   int opcode = 0;
   switch (opsize) {
     case k32:
       opcode = kX86PadddRR;
+      break;
+    case k64:
+      opcode = kX86PaddqRR;
       break;
     case kSignedHalf:
     case kUnsignedHalf:
@@ -1763,11 +1878,15 @@ void X86Mir2Lir::GenSubtractVector(BasicBlock *bb, MIR *mir) {
   DCHECK_EQ(mir->dalvikInsn.vC & 0xFFFF, 128U);
   OpSize opsize = static_cast<OpSize>(mir->dalvikInsn.vC >> 16);
   RegStorage rs_dest_src1 = RegStorage::Solo128(mir->dalvikInsn.vA);
+  Clobber(rs_dest_src1);
   RegStorage rs_src2 = RegStorage::Solo128(mir->dalvikInsn.vB);
   int opcode = 0;
   switch (opsize) {
     case k32:
       opcode = kX86PsubdRR;
+      break;
+    case k64:
+      opcode = kX86PsubqRR;
       break;
     case kSignedHalf:
     case kUnsignedHalf:
@@ -1791,58 +1910,54 @@ void X86Mir2Lir::GenSubtractVector(BasicBlock *bb, MIR *mir) {
 }
 
 void X86Mir2Lir::GenShiftByteVector(BasicBlock *bb, MIR *mir) {
+  // Destination does not need clobbered because it has already been as part
+  // of the general packed shift handler (caller of this method).
   RegStorage rs_dest_src1 = RegStorage::Solo128(mir->dalvikInsn.vA);
-  RegStorage rs_tmp = Get128BitRegister(AllocTempWide());
 
   int opcode = 0;
-  int imm = mir->dalvikInsn.vB;
-
   switch (static_cast<ExtendedMIROpcode>(mir->dalvikInsn.opcode)) {
     case kMirOpPackedShiftLeft:
       opcode = kX86PsllwRI;
       break;
     case kMirOpPackedSignedShiftRight:
-      opcode = kX86PsrawRI;
-      break;
     case kMirOpPackedUnsignedShiftRight:
-      opcode = kX86PsrlwRI;
-      break;
+      // TODO Add support for emulated byte shifts.
     default:
       LOG(FATAL) << "Unsupported shift operation on byte vector " << opcode;
       break;
   }
 
-  /*
-   * xmm1 will have low bits
-   * xmm2 will have high bits
-   *
-   * xmm2 = xmm1
-   * xmm1 = xmm1 .<< N
-   * xmm2 = xmm2 && 0xFF00FF00FF00FF00FF00FF00FF00FF00
-   * xmm2 = xmm2 .<< N
-   * xmm1 = xmm1 | xmm2
-   */
-
-  // Copy xmm1.
-  NewLIR2(kX86Mova128RR, rs_tmp.GetReg(), rs_dest_src1.GetReg());
+  // Clear xmm register and return if shift more than byte length.
+  int imm = mir->dalvikInsn.vB;
+  if (imm >= 8) {
+    NewLIR2(kX86PxorRR, rs_dest_src1.GetReg(), rs_dest_src1.GetReg());
+    return;
+  }
 
   // Shift lower values.
   NewLIR2(opcode, rs_dest_src1.GetReg(), imm);
 
-  // Mask bottom bits.
-  AndMaskVectorRegister(rs_tmp, 0xFF00FF00, 0xFF00FF00, 0xFF00FF00, 0xFF00FF00);
+  /*
+   * The above shift will shift the whole word, but that means
+   * both the bytes will shift as well. To emulate a byte level
+   * shift, we can just throw away the lower (8 - N) bits of the
+   * upper byte, and we are done.
+   */
+  uint8_t byte_mask = 0xFF << imm;
+  uint32_t int_mask = byte_mask;
+  int_mask = int_mask << 8 | byte_mask;
+  int_mask = int_mask << 8 | byte_mask;
+  int_mask = int_mask << 8 | byte_mask;
 
-  // Shift higher values.
-  NewLIR2(opcode, rs_tmp.GetReg(), imm);
-
-  // Combine back into dest XMM register.
-  NewLIR2(kX86PorRR, rs_dest_src1.GetReg(), rs_tmp.GetReg());
+  // And the destination with the mask
+  AndMaskVectorRegister(rs_dest_src1, int_mask, int_mask, int_mask, int_mask);
 }
 
 void X86Mir2Lir::GenShiftLeftVector(BasicBlock *bb, MIR *mir) {
   DCHECK_EQ(mir->dalvikInsn.vC & 0xFFFF, 128U);
   OpSize opsize = static_cast<OpSize>(mir->dalvikInsn.vC >> 16);
   RegStorage rs_dest_src1 = RegStorage::Solo128(mir->dalvikInsn.vA);
+  Clobber(rs_dest_src1);
   int imm = mir->dalvikInsn.vB;
   int opcode = 0;
   switch (opsize) {
@@ -1871,6 +1986,7 @@ void X86Mir2Lir::GenSignedShiftRightVector(BasicBlock *bb, MIR *mir) {
   DCHECK_EQ(mir->dalvikInsn.vC & 0xFFFF, 128U);
   OpSize opsize = static_cast<OpSize>(mir->dalvikInsn.vC >> 16);
   RegStorage rs_dest_src1 = RegStorage::Solo128(mir->dalvikInsn.vA);
+  Clobber(rs_dest_src1);
   int imm = mir->dalvikInsn.vB;
   int opcode = 0;
   switch (opsize) {
@@ -1885,6 +2001,8 @@ void X86Mir2Lir::GenSignedShiftRightVector(BasicBlock *bb, MIR *mir) {
     case kUnsignedByte:
       GenShiftByteVector(bb, mir);
       return;
+    case k64:
+      // TODO Implement emulated shift algorithm.
     default:
       LOG(FATAL) << "Unsupported vector signed shift right " << opsize;
       break;
@@ -1896,6 +2014,7 @@ void X86Mir2Lir::GenUnsignedShiftRightVector(BasicBlock *bb, MIR *mir) {
   DCHECK_EQ(mir->dalvikInsn.vC & 0xFFFF, 128U);
   OpSize opsize = static_cast<OpSize>(mir->dalvikInsn.vC >> 16);
   RegStorage rs_dest_src1 = RegStorage::Solo128(mir->dalvikInsn.vA);
+  Clobber(rs_dest_src1);
   int imm = mir->dalvikInsn.vB;
   int opcode = 0;
   switch (opsize) {
@@ -1924,6 +2043,7 @@ void X86Mir2Lir::GenAndVector(BasicBlock *bb, MIR *mir) {
   // We only support 128 bit registers.
   DCHECK_EQ(mir->dalvikInsn.vC & 0xFFFF, 128U);
   RegStorage rs_dest_src1 = RegStorage::Solo128(mir->dalvikInsn.vA);
+  Clobber(rs_dest_src1);
   RegStorage rs_src2 = RegStorage::Solo128(mir->dalvikInsn.vB);
   NewLIR2(kX86PandRR, rs_dest_src1.GetReg(), rs_src2.GetReg());
 }
@@ -1932,6 +2052,7 @@ void X86Mir2Lir::GenOrVector(BasicBlock *bb, MIR *mir) {
   // We only support 128 bit registers.
   DCHECK_EQ(mir->dalvikInsn.vC & 0xFFFF, 128U);
   RegStorage rs_dest_src1 = RegStorage::Solo128(mir->dalvikInsn.vA);
+  Clobber(rs_dest_src1);
   RegStorage rs_src2 = RegStorage::Solo128(mir->dalvikInsn.vB);
   NewLIR2(kX86PorRR, rs_dest_src1.GetReg(), rs_src2.GetReg());
 }
@@ -1940,6 +2061,7 @@ void X86Mir2Lir::GenXorVector(BasicBlock *bb, MIR *mir) {
   // We only support 128 bit registers.
   DCHECK_EQ(mir->dalvikInsn.vC & 0xFFFF, 128U);
   RegStorage rs_dest_src1 = RegStorage::Solo128(mir->dalvikInsn.vA);
+  Clobber(rs_dest_src1);
   RegStorage rs_src2 = RegStorage::Solo128(mir->dalvikInsn.vB);
   NewLIR2(kX86PxorRR, rs_dest_src1.GetReg(), rs_src2.GetReg());
 }
@@ -1964,134 +2086,248 @@ void X86Mir2Lir::MaskVectorRegister(X86OpCode opcode, RegStorage rs_src1, uint32
 
 void X86Mir2Lir::GenAddReduceVector(BasicBlock *bb, MIR *mir) {
   OpSize opsize = static_cast<OpSize>(mir->dalvikInsn.vC >> 16);
-  RegStorage rs_src1 = RegStorage::Solo128(mir->dalvikInsn.vB);
-  RegLocation rl_dest = mir_graph_->GetDest(mir);
-  RegStorage rs_tmp;
+  RegStorage vector_src = RegStorage::Solo128(mir->dalvikInsn.vB);
+  bool is_wide = opsize == k64 || opsize == kDouble;
 
-  int vec_bytes = (mir->dalvikInsn.vC & 0xFFFF) / 8;
-  int vec_unit_size = 0;
-  int opcode = 0;
-  int extr_opcode = 0;
-  RegLocation rl_result;
-
-  switch (opsize) {
-    case k32:
-      extr_opcode = kX86PextrdRRI;
-      opcode = kX86PhadddRR;
-      vec_unit_size = 4;
-      break;
-    case kSignedByte:
-    case kUnsignedByte:
-      extr_opcode = kX86PextrbRRI;
-      opcode = kX86PhaddwRR;
-      vec_unit_size = 2;
-      break;
-    case kSignedHalf:
-    case kUnsignedHalf:
-      extr_opcode = kX86PextrwRRI;
-      opcode = kX86PhaddwRR;
-      vec_unit_size = 2;
-      break;
-    case kSingle:
-      rl_result = EvalLoc(rl_dest, kFPReg, true);
-      vec_unit_size = 4;
-      for (int i = 0; i < 3; i++) {
-        NewLIR2(kX86AddssRR, rl_result.reg.GetReg(), rs_src1.GetReg());
-        NewLIR3(kX86ShufpsRRI, rs_src1.GetReg(), rs_src1.GetReg(), 0x39);
-      }
-      NewLIR2(kX86AddssRR, rl_result.reg.GetReg(), rs_src1.GetReg());
-      StoreValue(rl_dest, rl_result);
-
-      // For single-precision floats, we are done here
-      return;
-    default:
-      LOG(FATAL) << "Unsupported vector add reduce " << opsize;
-      break;
-  }
-
-  int elems = vec_bytes / vec_unit_size;
-
-  // Emulate horizontal add instruction by reducing 2 vectors with 8 values before adding them again
-  // TODO is overflow handled correctly?
-  if (opsize == kSignedByte || opsize == kUnsignedByte) {
-    rs_tmp = Get128BitRegister(AllocTempWide());
-
-    // tmp = xmm1 .>> 8.
-    NewLIR2(kX86Mova128RR, rs_tmp.GetReg(), rs_src1.GetReg());
-    NewLIR2(kX86PsrlwRI, rs_tmp.GetReg(), 8);
-
-    // Zero extend low bits in xmm1.
-    AndMaskVectorRegister(rs_src1, 0x00FF00FF, 0x00FF00FF, 0x00FF00FF, 0x00FF00FF);
-  }
-
-  while (elems > 1) {
-    if (opsize == kSignedByte || opsize == kUnsignedByte) {
-      NewLIR2(opcode, rs_tmp.GetReg(), rs_tmp.GetReg());
-    }
-    NewLIR2(opcode, rs_src1.GetReg(), rs_src1.GetReg());
-    elems >>= 1;
-  }
-
-  // Combine the results if we separated them.
-  if (opsize == kSignedByte || opsize == kUnsignedByte) {
-    NewLIR2(kX86PaddbRR, rs_src1.GetReg(), rs_tmp.GetReg());
-  }
-
-  // We need to extract to a GPR.
-  RegStorage temp = AllocTemp();
-  NewLIR3(extr_opcode, temp.GetReg(), rs_src1.GetReg(), 0);
-
-  // Can we do this directly into memory?
-  rl_result = UpdateLocTyped(rl_dest, kCoreReg);
-  if (rl_result.location == kLocPhysReg) {
-    // Ensure res is in a core reg
-    rl_result = EvalLoc(rl_dest, kCoreReg, true);
-    OpRegReg(kOpAdd, rl_result.reg, temp);
-    StoreFinalValue(rl_dest, rl_result);
+  // Get the location of the virtual register. Since this bytecode is overloaded
+  // for different types (and sizes), we need different logic for each path.
+  // The design of bytecode uses same VR for source and destination.
+  RegLocation rl_src, rl_dest, rl_result;
+  if (is_wide) {
+    rl_src = mir_graph_->GetSrcWide(mir, 0);
+    rl_dest = mir_graph_->GetDestWide(mir);
   } else {
-    OpMemReg(kOpAdd, rl_result, temp.GetReg());
+    rl_src = mir_graph_->GetSrc(mir, 0);
+    rl_dest = mir_graph_->GetDest(mir);
   }
 
-  FreeTemp(temp);
+  // We need a temp for byte and short values
+  RegStorage temp;
+
+  // There is a different path depending on type and size.
+  if (opsize == kSingle) {
+    // Handle float case.
+    // TODO Add support for fast math (not value safe) and do horizontal add in that case.
+
+    rl_src = LoadValue(rl_src, kFPReg);
+    rl_result = EvalLoc(rl_dest, kFPReg, true);
+
+    // Since we are doing an add-reduce, we move the reg holding the VR
+    // into the result so we include it in result.
+    OpRegCopy(rl_result.reg, rl_src.reg);
+    NewLIR2(kX86AddssRR, rl_result.reg.GetReg(), vector_src.GetReg());
+
+    // Since FP must keep order of operation for value safety, we shift to low
+    // 32-bits and add to result.
+    for (int i = 0; i < 3; i++) {
+      NewLIR3(kX86ShufpsRRI, vector_src.GetReg(), vector_src.GetReg(), 0x39);
+      NewLIR2(kX86AddssRR, rl_result.reg.GetReg(), vector_src.GetReg());
+    }
+
+    StoreValue(rl_dest, rl_result);
+  } else if (opsize == kDouble) {
+    // Handle double case.
+    rl_src = LoadValueWide(rl_src, kFPReg);
+    rl_result = EvalLocWide(rl_dest, kFPReg, true);
+    LOG(FATAL) << "Unsupported vector add reduce for double.";
+  } else if (opsize == k64) {
+    /*
+     * Handle long case:
+     * 1) Reduce the vector register to lower half (with addition).
+     * 1-1) Get an xmm temp and fill it with vector register.
+     * 1-2) Shift the xmm temp by 8-bytes.
+     * 1-3) Add the xmm temp to vector register that is being reduced.
+     * 2) Allocate temp GP / GP pair.
+     * 2-1) In 64-bit case, use movq to move result to a 64-bit GP.
+     * 2-2) In 32-bit case, use movd twice to move to 32-bit GP pair.
+     * 3) Finish the add reduction by doing what add-long/2addr does,
+     * but instead of having a VR as one of the sources, we have our temp GP.
+     */
+    RegStorage rs_tmp_vector = Get128BitRegister(AllocTempDouble());
+    NewLIR2(kX86MovdqaRR, rs_tmp_vector.GetReg(), vector_src.GetReg());
+    NewLIR2(kX86PsrldqRI, rs_tmp_vector.GetReg(), 8);
+    NewLIR2(kX86PaddqRR, vector_src.GetReg(), rs_tmp_vector.GetReg());
+    FreeTemp(rs_tmp_vector);
+
+    // We would like to be able to reuse the add-long implementation, so set up a fake
+    // register location to pass it.
+    RegLocation temp_loc = mir_graph_->GetBadLoc();
+    temp_loc.core = 1;
+    temp_loc.wide = 1;
+    temp_loc.location = kLocPhysReg;
+    temp_loc.reg = AllocTempWide();
+
+    if (cu_->target64) {
+      DCHECK(!temp_loc.reg.IsPair());
+      NewLIR2(kX86MovqrxRR, temp_loc.reg.GetReg(), vector_src.GetReg());
+    } else {
+      NewLIR2(kX86MovdrxRR, temp_loc.reg.GetLowReg(), vector_src.GetReg());
+      NewLIR2(kX86PsrlqRI, vector_src.GetReg(), 0x20);
+      NewLIR2(kX86MovdrxRR, temp_loc.reg.GetHighReg(), vector_src.GetReg());
+    }
+
+    GenArithOpLong(Instruction::ADD_LONG_2ADDR, rl_dest, temp_loc, temp_loc);
+  } else if (opsize == kSignedByte || opsize == kUnsignedByte) {
+    RegStorage rs_tmp = Get128BitRegister(AllocTempDouble());
+    NewLIR2(kX86PxorRR, rs_tmp.GetReg(), rs_tmp.GetReg());
+    NewLIR2(kX86PsadbwRR, vector_src.GetReg(), rs_tmp.GetReg());
+    NewLIR3(kX86PshufdRRI, rs_tmp.GetReg(), vector_src.GetReg(), 0x4e);
+    NewLIR2(kX86PaddbRR, vector_src.GetReg(), rs_tmp.GetReg());
+    // Move to a GPR
+    temp = AllocTemp();
+    NewLIR2(kX86MovdrxRR, temp.GetReg(), vector_src.GetReg());
+  } else {
+    // Handle and the int and short cases together
+
+    // Initialize as if we were handling int case. Below we update
+    // the opcode if handling byte or short.
+    int vec_bytes = (mir->dalvikInsn.vC & 0xFFFF) / 8;
+    int vec_unit_size;
+    int horizontal_add_opcode;
+    int extract_opcode;
+
+    if (opsize == kSignedHalf || opsize == kUnsignedHalf) {
+      extract_opcode = kX86PextrwRRI;
+      horizontal_add_opcode = kX86PhaddwRR;
+      vec_unit_size = 2;
+    } else if (opsize == k32) {
+      vec_unit_size = 4;
+      horizontal_add_opcode = kX86PhadddRR;
+      extract_opcode = kX86PextrdRRI;
+    } else {
+      LOG(FATAL) << "Unsupported vector add reduce " << opsize;
+      return;
+    }
+
+    int elems = vec_bytes / vec_unit_size;
+
+    while (elems > 1) {
+      NewLIR2(horizontal_add_opcode, vector_src.GetReg(), vector_src.GetReg());
+      elems >>= 1;
+    }
+
+    // Handle this as arithmetic unary case.
+    ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
+
+    // Extract to a GP register because this is integral typed.
+    temp = AllocTemp();
+    NewLIR3(extract_opcode, temp.GetReg(), vector_src.GetReg(), 0);
+  }
+
+  if (opsize != k64 && opsize != kSingle && opsize != kDouble) {
+    // The logic below looks very similar to the handling of ADD_INT_2ADDR
+    // except the rhs is not a VR but a physical register allocated above.
+    // No load of source VR is done because it assumes that rl_result will
+    // share physical register / memory location.
+    rl_result = UpdateLocTyped(rl_dest, kCoreReg);
+    if (rl_result.location == kLocPhysReg) {
+      // Ensure res is in a core reg.
+      rl_result = EvalLoc(rl_dest, kCoreReg, true);
+      OpRegReg(kOpAdd, rl_result.reg, temp);
+      StoreFinalValue(rl_dest, rl_result);
+    } else {
+      // Do the addition directly to memory.
+      OpMemReg(kOpAdd, rl_result, temp.GetReg());
+    }
+  }
 }
 
 void X86Mir2Lir::GenReduceVector(BasicBlock *bb, MIR *mir) {
   OpSize opsize = static_cast<OpSize>(mir->dalvikInsn.vC >> 16);
   RegLocation rl_dest = mir_graph_->GetDest(mir);
-  RegStorage rs_src1 = RegStorage::Solo128(mir->dalvikInsn.vB);
-  int extract_index = mir->dalvikInsn.arg[0];
-  int extr_opcode = 0;
+  RegStorage vector_src = RegStorage::Solo128(mir->dalvikInsn.vB);
   RegLocation rl_result;
   bool is_wide = false;
 
-  switch (opsize) {
-    case k32:
-      rl_result = UpdateLocTyped(rl_dest, kCoreReg);
-      extr_opcode = (rl_result.location == kLocPhysReg) ? kX86PextrdMRI : kX86PextrdRRI;
-      break;
-    case kSignedHalf:
-    case kUnsignedHalf:
-      rl_result= UpdateLocTyped(rl_dest, kCoreReg);
-      extr_opcode = (rl_result.location == kLocPhysReg) ? kX86PextrwMRI : kX86PextrwRRI;
-      break;
-    default:
-      LOG(FATAL) << "Unsupported vector add reduce " << opsize;
-      return;
-      break;
-  }
+  // There is a different path depending on type and size.
+  if (opsize == kSingle) {
+    // Handle float case.
+    // TODO Add support for fast math (not value safe) and do horizontal add in that case.
 
-  if (rl_result.location == kLocPhysReg) {
-    NewLIR3(extr_opcode, rl_result.reg.GetReg(), rs_src1.GetReg(), extract_index);
-    if (is_wide == true) {
+    rl_result = EvalLoc(rl_dest, kFPReg, true);
+    NewLIR2(kX86PxorRR, rl_result.reg.GetReg(), rl_result.reg.GetReg());
+    NewLIR2(kX86AddssRR, rl_result.reg.GetReg(), vector_src.GetReg());
+
+    // Since FP must keep order of operation for value safety, we shift to low
+    // 32-bits and add to result.
+    for (int i = 0; i < 3; i++) {
+      NewLIR3(kX86ShufpsRRI, vector_src.GetReg(), vector_src.GetReg(), 0x39);
+      NewLIR2(kX86AddssRR, rl_result.reg.GetReg(), vector_src.GetReg());
+    }
+
+    StoreValue(rl_dest, rl_result);
+  } else if (opsize == kDouble) {
+    // TODO Handle double case.
+    LOG(FATAL) << "Unsupported add reduce for double.";
+  } else if (opsize == k64) {
+    /*
+     * Handle long case:
+     * 1) Reduce the vector register to lower half (with addition).
+     * 1-1) Get an xmm temp and fill it with vector register.
+     * 1-2) Shift the xmm temp by 8-bytes.
+     * 1-3) Add the xmm temp to vector register that is being reduced.
+     * 2) Evaluate destination to a GP / GP pair.
+     * 2-1) In 64-bit case, use movq to move result to a 64-bit GP.
+     * 2-2) In 32-bit case, use movd twice to move to 32-bit GP pair.
+     * 3) Store the result to the final destination.
+     */
+    NewLIR2(kX86PsrldqRI, vector_src.GetReg(), 8);
+    rl_result = EvalLocWide(rl_dest, kCoreReg, true);
+    if (cu_->target64) {
+      DCHECK(!rl_result.reg.IsPair());
+      NewLIR2(kX86MovqrxRR, rl_result.reg.GetReg(), vector_src.GetReg());
+    } else {
+      NewLIR2(kX86MovdrxRR, rl_result.reg.GetLowReg(), vector_src.GetReg());
+      NewLIR2(kX86PsrlqRI, vector_src.GetReg(), 0x20);
+      NewLIR2(kX86MovdrxRR, rl_result.reg.GetHighReg(), vector_src.GetReg());
+    }
+
+    StoreValueWide(rl_dest, rl_result);
+  } else {
+    int extract_index = mir->dalvikInsn.arg[0];
+    int extr_opcode = 0;
+    rl_result = UpdateLocTyped(rl_dest, kCoreReg);
+
+    // Handle the rest of integral types now.
+    switch (opsize) {
+      case k32:
+        extr_opcode = (rl_result.location == kLocPhysReg) ? kX86PextrdRRI : kX86PextrdMRI;
+        break;
+      case kSignedHalf:
+      case kUnsignedHalf:
+        extr_opcode = (rl_result.location == kLocPhysReg) ? kX86PextrwRRI : kX86PextrwMRI;
+        break;
+      case kSignedByte:
+        extr_opcode = (rl_result.location == kLocPhysReg) ? kX86PextrbRRI : kX86PextrbMRI;
+        break;
+      default:
+        LOG(FATAL) << "Unsupported vector reduce " << opsize;
+        return;
+    }
+
+    if (rl_result.location == kLocPhysReg) {
+      NewLIR3(extr_opcode, rl_result.reg.GetReg(), vector_src.GetReg(), extract_index);
       StoreFinalValue(rl_dest, rl_result);
     } else {
-      StoreFinalValueWide(rl_dest, rl_result);
+      int displacement = SRegOffset(rl_result.s_reg_low);
+      LIR *l = NewLIR3(extr_opcode, rs_rX86_SP.GetReg(), displacement, vector_src.GetReg());
+      AnnotateDalvikRegAccess(l, displacement >> 2, true /* is_load */, is_wide /* is_64bit */);
+      AnnotateDalvikRegAccess(l, displacement >> 2, false /* is_load */, is_wide /* is_64bit */);
     }
+  }
+}
+
+void X86Mir2Lir::LoadVectorRegister(RegStorage rs_dest, RegStorage rs_src,
+                                    OpSize opsize, int op_mov) {
+  if (!cu_->target64 && opsize == k64) {
+    // Logic assumes that longs are loaded in GP register pairs.
+    NewLIR2(kX86MovdxrRR, rs_dest.GetReg(), rs_src.GetLowReg());
+    RegStorage r_tmp = AllocTempDouble();
+    NewLIR2(kX86MovdxrRR, r_tmp.GetReg(), rs_src.GetHighReg());
+    NewLIR2(kX86PunpckldqRR, rs_dest.GetReg(), r_tmp.GetReg());
+    FreeTemp(r_tmp);
   } else {
-    int displacement = SRegOffset(rl_result.s_reg_low);
-    LIR *l = NewLIR3(extr_opcode, rs_rX86_SP.GetReg(), displacement, rs_src1.GetReg());
-    AnnotateDalvikRegAccess(l, displacement >> 2, true /* is_load */, is_wide /* is_64bit */);
-    AnnotateDalvikRegAccess(l, displacement >> 2, false /* is_load */, is_wide /* is_64bit */);
+    NewLIR2(op_mov, rs_dest.GetReg(), rs_src.GetReg());
   }
 }
 
@@ -2099,96 +2335,104 @@ void X86Mir2Lir::GenSetVector(BasicBlock *bb, MIR *mir) {
   DCHECK_EQ(mir->dalvikInsn.vC & 0xFFFF, 128U);
   OpSize opsize = static_cast<OpSize>(mir->dalvikInsn.vC >> 16);
   RegStorage rs_dest = RegStorage::Solo128(mir->dalvikInsn.vA);
-  int op_low = 0, op_high = 0, imm = 0, op_mov = kX86MovdxrRR;
+  Clobber(rs_dest);
+  int op_shuffle = 0, op_shuffle_high = 0, op_mov = kX86MovdxrRR;
   RegisterClass reg_type = kCoreReg;
+  bool is_wide = false;
 
   switch (opsize) {
     case k32:
-      op_low = kX86PshufdRRI;
+      op_shuffle = kX86PshufdRRI;
       break;
     case kSingle:
-      op_low = kX86PshufdRRI;
-      op_mov = kX86Mova128RR;
+      op_shuffle = kX86PshufdRRI;
+      op_mov = kX86MovdqaRR;
       reg_type = kFPReg;
       break;
     case k64:
-      op_low = kX86PshufdRRI;
-      imm = 0x44;
-      break;
-    case kDouble:
-      op_low = kX86PshufdRRI;
-      op_mov = kX86Mova128RR;
-      reg_type = kFPReg;
-      imm = 0x44;
+      op_shuffle = kX86PunpcklqdqRR;
+      op_mov = kX86MovqxrRR;
+      is_wide = true;
       break;
     case kSignedByte:
     case kUnsignedByte:
-      // Shuffle 8 bit value into 16 bit word.
-      // We set val = val + (val << 8) below and use 16 bit shuffle.
+      // We will have the source loaded up in a
+      // double-word before we use this shuffle
+      op_shuffle = kX86PshufdRRI;
+      break;
     case kSignedHalf:
     case kUnsignedHalf:
       // Handles low quadword.
-      op_low = kX86PshuflwRRI;
+      op_shuffle = kX86PshuflwRRI;
       // Handles upper quadword.
-      op_high = kX86PshufdRRI;
+      op_shuffle_high = kX86PshufdRRI;
       break;
     default:
       LOG(FATAL) << "Unsupported vector set " << opsize;
       break;
   }
 
-  RegLocation rl_src = mir_graph_->GetSrc(mir, 0);
-
-  // Load the value from the VR into the reg.
-  if (rl_src.wide == 0) {
+  // Load the value from the VR into a physical register.
+  RegLocation rl_src;
+  if (!is_wide) {
+    rl_src = mir_graph_->GetSrc(mir, 0);
     rl_src = LoadValue(rl_src, reg_type);
   } else {
+    rl_src = mir_graph_->GetSrcWide(mir, 0);
     rl_src = LoadValueWide(rl_src, reg_type);
   }
-
-  // If opsize is 8 bits wide then double value and use 16 bit shuffle instead.
-  if (opsize == kSignedByte || opsize == kUnsignedByte) {
-    RegStorage temp = AllocTemp();
-    // val = val + (val << 8).
-    NewLIR2(kX86Mov32RR, temp.GetReg(), rl_src.reg.GetReg());
-    NewLIR2(kX86Sal32RI, temp.GetReg(), 8);
-    NewLIR2(kX86Or32RR, rl_src.reg.GetReg(), temp.GetReg());
-    FreeTemp(temp);
-  }
+  RegStorage reg_to_shuffle = rl_src.reg;
 
   // Load the value into the XMM register.
-  NewLIR2(op_mov, rs_dest.GetReg(), rl_src.reg.GetReg());
+  LoadVectorRegister(rs_dest, reg_to_shuffle, opsize, op_mov);
+
+  if (opsize == kSignedByte || opsize == kUnsignedByte) {
+    // In the byte case, first duplicate it to be a word
+    // Then duplicate it to be a double-word
+    NewLIR2(kX86PunpcklbwRR, rs_dest.GetReg(), rs_dest.GetReg());
+    NewLIR2(kX86PunpcklwdRR, rs_dest.GetReg(), rs_dest.GetReg());
+  }
 
   // Now shuffle the value across the destination.
-  NewLIR3(op_low, rs_dest.GetReg(), rs_dest.GetReg(), imm);
+  if (op_shuffle == kX86PunpcklqdqRR) {
+    NewLIR2(op_shuffle, rs_dest.GetReg(), rs_dest.GetReg());
+  } else {
+    NewLIR3(op_shuffle, rs_dest.GetReg(), rs_dest.GetReg(), 0);
+  }
 
   // And then repeat as needed.
-  if (op_high != 0) {
-    NewLIR3(op_high, rs_dest.GetReg(), rs_dest.GetReg(), imm);
+  if (op_shuffle_high != 0) {
+    NewLIR3(op_shuffle_high, rs_dest.GetReg(), rs_dest.GetReg(), 0);
   }
 }
 
-LIR *X86Mir2Lir::ScanVectorLiteral(MIR *mir) {
-  int *args = reinterpret_cast<int*>(mir->dalvikInsn.arg);
+void X86Mir2Lir::GenPackedArrayGet(BasicBlock *bb, MIR *mir) {
+  UNIMPLEMENTED(FATAL) << "Extended opcode kMirOpPackedArrayGet not supported.";
+}
+
+void X86Mir2Lir::GenPackedArrayPut(BasicBlock *bb, MIR *mir) {
+  UNIMPLEMENTED(FATAL) << "Extended opcode kMirOpPackedArrayPut not supported.";
+}
+
+LIR* X86Mir2Lir::ScanVectorLiteral(int32_t* constants) {
   for (LIR *p = const_vectors_; p != nullptr; p = p->next) {
-    if (args[0] == p->operands[0] && args[1] == p->operands[1] &&
-        args[2] == p->operands[2] && args[3] == p->operands[3]) {
+    if (constants[0] == p->operands[0] && constants[1] == p->operands[1] &&
+        constants[2] == p->operands[2] && constants[3] == p->operands[3]) {
       return p;
     }
   }
   return nullptr;
 }
 
-LIR *X86Mir2Lir::AddVectorLiteral(MIR *mir) {
+LIR* X86Mir2Lir::AddVectorLiteral(int32_t* constants) {
   LIR* new_value = static_cast<LIR*>(arena_->Alloc(sizeof(LIR), kArenaAllocData));
-  int *args = reinterpret_cast<int*>(mir->dalvikInsn.arg);
-  new_value->operands[0] = args[0];
-  new_value->operands[1] = args[1];
-  new_value->operands[2] = args[2];
-  new_value->operands[3] = args[3];
+  new_value->operands[0] = constants[0];
+  new_value->operands[1] = constants[1];
+  new_value->operands[2] = constants[2];
+  new_value->operands[3] = constants[3];
   new_value->next = const_vectors_;
   if (const_vectors_ == nullptr) {
-    estimated_native_code_size_ += 12;  // Amount needed to align to 16 byte boundary.
+    estimated_native_code_size_ += 12;  // Maximum needed to align to 16 byte boundary.
   }
   estimated_native_code_size_ += 16;  // Space for one vector.
   const_vectors_ = new_value;
@@ -2253,11 +2497,11 @@ RegStorage X86Mir2Lir::GetArgMappingToPhysicalReg(int arg_num) {
   }
 
   if (!in_to_reg_storage_mapping_.IsInitialized()) {
-    int start_vreg = cu_->num_dalvik_registers - cu_->num_ins;
+    int start_vreg = cu_->mir_graph->GetFirstInVR();
     RegLocation* arg_locs = &mir_graph_->reg_location_[start_vreg];
 
     InToRegStorageX86_64Mapper mapper(this);
-    in_to_reg_storage_mapping_.Initialize(arg_locs, cu_->num_ins, &mapper);
+    in_to_reg_storage_mapping_.Initialize(arg_locs, mir_graph_->GetNumOfInVRs(), &mapper);
   }
   return in_to_reg_storage_mapping_.Get(arg_num);
 }
@@ -2306,11 +2550,11 @@ void X86Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
     StoreRefDisp(rs_rX86_SP, 0, As32BitReg(TargetReg(kArg0, kRef)), kNotVolatile);
   }
 
-  if (cu_->num_ins == 0) {
+  if (mir_graph_->GetNumOfInVRs() == 0) {
     return;
   }
 
-  int start_vreg = cu_->num_dalvik_registers - cu_->num_ins;
+  int start_vreg = cu_->mir_graph->GetFirstInVR();
   /*
    * Copy incoming arguments to their proper home locations.
    * NOTE: an older version of dx had an issue in which
@@ -2324,7 +2568,7 @@ void X86Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
    * half to memory as well.
    */
   ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-  for (int i = 0; i < cu_->num_ins; i++) {
+  for (uint32_t i = 0; i < mir_graph_->GetNumOfInVRs(); i++) {
     // get reg corresponding to input
     RegStorage reg = GetArgMappingToPhysicalReg(i);
 
@@ -2455,9 +2699,6 @@ int X86Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
         next_arg++;
       }
     }
-
-    // Logic below assumes that Method pointer is at offset zero from SP.
-    DCHECK_EQ(VRegOffset(static_cast<int>(kVRegMethodPtrBaseReg)), 0);
 
     // The rest can be copied together
     int start_offset = SRegOffset(info->args[last_mapped_in + size_of_the_last_mapped].s_reg_low);
@@ -2731,6 +2972,48 @@ bool X86Mir2Lir::GenInlinedCurrentThread(CallInfo* info) {
 
   StoreValue(rl_dest, rl_result);
   return true;
+}
+
+/**
+ * Lock temp registers for explicit usage. Registers will be freed in destructor.
+ */
+X86Mir2Lir::ExplicitTempRegisterLock::ExplicitTempRegisterLock(X86Mir2Lir* mir_to_lir,
+                                                               int n_regs, ...) :
+    temp_regs_(n_regs),
+    mir_to_lir_(mir_to_lir) {
+  va_list regs;
+  va_start(regs, n_regs);
+  for (int i = 0; i < n_regs; i++) {
+    RegStorage reg = *(va_arg(regs, RegStorage*));
+    RegisterInfo* info = mir_to_lir_->GetRegInfo(reg);
+
+    // Make sure we don't have promoted register here.
+    DCHECK(info->IsTemp());
+
+    temp_regs_.push_back(reg);
+    mir_to_lir_->FlushReg(reg);
+
+    if (reg.IsPair()) {
+      RegStorage partner = info->Partner();
+      temp_regs_.push_back(partner);
+      mir_to_lir_->FlushReg(partner);
+    }
+
+    mir_to_lir_->Clobber(reg);
+    mir_to_lir_->LockTemp(reg);
+  }
+
+  va_end(regs);
+}
+
+/*
+ * Free all locked registers.
+ */
+X86Mir2Lir::ExplicitTempRegisterLock::~ExplicitTempRegisterLock() {
+  // Free all locked temps.
+  for (auto it : temp_regs_) {
+    mir_to_lir_->FreeTemp(it);
+  }
 }
 
 }  // namespace art

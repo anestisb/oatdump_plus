@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "atomic.h"
+#include "base/allocator.h"
 #include "base/logging.h"
 #include "base/mutex.h"
 #include "base/stl_util.h"
@@ -43,7 +44,6 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
 #include "mirror/throwable.h"
-#include "native_bridge.h"
 #include "parsed_options.h"
 #include "reflection.h"
 #include "runtime.h"
@@ -84,9 +84,10 @@ static void ThrowNoSuchMethodError(ScopedObjectAccess& soa, mirror::Class* c,
                                    const char* name, const char* sig, const char* kind)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
+  std::string temp;
   soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchMethodError;",
                                  "no %s method \"%s.%s%s\"",
-                                 kind, c->GetDescriptor().c_str(), name, sig);
+                                 kind, c->GetDescriptor(&temp), name, sig);
 }
 
 static void ReportInvalidJNINativeMethod(const ScopedObjectAccess& soa, mirror::Class* c,
@@ -107,7 +108,7 @@ static mirror::Class* EnsureInitialized(Thread* self, mirror::Class* klass)
   }
   StackHandleScope<1> hs(self);
   Handle<mirror::Class> h_klass(hs.NewHandle(klass));
-  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(h_klass, true, true)) {
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(self, h_klass, true, true)) {
     return nullptr;
   }
   return h_klass.Get();
@@ -193,24 +194,26 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
     StackHandleScope<1> hs(soa.Self());
     Handle<mirror::Throwable> cause(hs.NewHandle(soa.Self()->GetException(&throw_location)));
     soa.Self()->ClearException();
+    std::string temp;
     soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchFieldError;",
                                    "no type \"%s\" found and so no field \"%s\" "
                                    "could be found in class \"%s\" or its superclasses", sig, name,
-                                   c->GetDescriptor().c_str());
+                                   c->GetDescriptor(&temp));
     soa.Self()->GetException(nullptr)->SetCause(cause.Get());
     return nullptr;
   }
+  std::string temp;
   if (is_static) {
     field = mirror::Class::FindStaticField(soa.Self(), c, name,
-                                           field_type->GetDescriptor().c_str());
+                                           field_type->GetDescriptor(&temp));
   } else {
-    field = c->FindInstanceField(name, field_type->GetDescriptor().c_str());
+    field = c->FindInstanceField(name, field_type->GetDescriptor(&temp));
   }
   if (field == nullptr) {
     ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
     soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchFieldError;",
                                    "no \"%s\" field \"%s\" in class \"%s\" or its superclasses",
-                                   sig, name, c->GetDescriptor().c_str());
+                                   sig, name, c->GetDescriptor(&temp));
     return nullptr;
   }
   return soa.EncodeField(field);
@@ -1692,7 +1695,6 @@ class JNI {
     ScopedObjectAccess soa(env);
     mirror::String* s = soa.Decode<mirror::String*>(java_string);
     mirror::CharArray* chars = s->GetCharArray();
-    soa.Vm()->PinPrimitiveArray(soa.Self(), chars);
     gc::Heap* heap = Runtime::Current()->GetHeap();
     if (heap->IsMovableObject(chars)) {
       if (is_copy != nullptr) {
@@ -1721,7 +1723,6 @@ class JNI {
     if (chars != (s_chars->GetData() + s->GetOffset())) {
       delete[] chars;
     }
-    soa.Vm()->UnpinPrimitiveArray(soa.Self(), s->GetCharArray());
   }
 
   static const jchar* GetStringCritical(JNIEnv* env, jstring java_string, jboolean* is_copy) {
@@ -1730,7 +1731,6 @@ class JNI {
     mirror::String* s = soa.Decode<mirror::String*>(java_string);
     mirror::CharArray* chars = s->GetCharArray();
     int32_t offset = s->GetOffset();
-    soa.Vm()->PinPrimitiveArray(soa.Self(), chars);
     gc::Heap* heap = Runtime::Current()->GetHeap();
     if (heap->IsMovableObject(chars)) {
       StackHandleScope<1> hs(soa.Self());
@@ -1746,8 +1746,6 @@ class JNI {
   static void ReleaseStringCritical(JNIEnv* env, jstring java_string, const jchar* chars) {
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(java_string);
     ScopedObjectAccess soa(env);
-    soa.Vm()->UnpinPrimitiveArray(soa.Self(),
-                                  soa.Decode<mirror::String*>(java_string)->GetCharArray());
     gc::Heap* heap = Runtime::Current()->GetHeap();
     mirror::String* s = soa.Decode<mirror::String*>(java_string);
     mirror::CharArray* s_chars = s->GetCharArray();
@@ -1903,7 +1901,6 @@ class JNI {
       // Re-decode in case the object moved since IncrementDisableGC waits for GC to complete.
       array = soa.Decode<mirror::Array*>(java_array);
     }
-    soa.Vm()->PinPrimitiveArray(soa.Self(), array);
     if (is_copy != nullptr) {
       *is_copy = JNI_FALSE;
     }
@@ -2258,25 +2255,15 @@ class JNI {
     IndirectRef ref = reinterpret_cast<IndirectRef>(java_object);
     IndirectRefKind kind = GetIndirectRefKind(ref);
     switch (kind) {
-    case kLocal: {
-      ScopedObjectAccess soa(env);
-      // The local refs don't need a read barrier.
-      if (static_cast<JNIEnvExt*>(env)->locals.Get<kWithoutReadBarrier>(ref) !=
-          kInvalidIndirectRefObject) {
-        return JNILocalRefType;
-      }
-      return JNIInvalidRefType;
-    }
+    case kLocal:
+      return JNILocalRefType;
     case kGlobal:
       return JNIGlobalRefType;
     case kWeakGlobal:
       return JNIWeakGlobalRefType;
     case kHandleScopeOrInvalid:
-      // Is it in a stack IRT?
-      if (static_cast<JNIEnvExt*>(env)->self->HandleScopeContains(java_object)) {
-        return JNILocalRefType;
-      }
-      return JNIInvalidRefType;
+      // Assume value is in a handle scope.
+      return JNILocalRefType;
     }
     LOG(FATAL) << "IndirectRefKind[" << kind << "]";
     return JNIInvalidRefType;
@@ -2338,7 +2325,6 @@ class JNI {
     if (UNLIKELY(array == nullptr)) {
       return nullptr;
     }
-    soa.Vm()->PinPrimitiveArray(soa.Self(), array);
     // Only make a copy if necessary.
     if (Runtime::Current()->GetHeap()->IsMovableObject(array)) {
       if (is_copy != nullptr) {
@@ -2401,7 +2387,6 @@ class JNI {
         // Non copy to a movable object must means that we had disabled the moving GC.
         heap->DecrementDisableMovingGC(soa.Self());
       }
-      soa.Vm()->UnpinPrimitiveArray(soa.Self(), array);
     }
   }
 

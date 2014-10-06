@@ -122,19 +122,19 @@ class LocalValueNumbering {
 
   void SetOperandValue(uint16_t s_reg, uint16_t value) {
     SetOperandValueImpl(s_reg, value, &sreg_value_map_);
-  };
+  }
 
   uint16_t GetOperandValue(int s_reg) const {
     return GetOperandValueImpl(s_reg, &sreg_value_map_);
-  };
+  }
 
   void SetOperandValueWide(uint16_t s_reg, uint16_t value) {
     SetOperandValueImpl(s_reg, value, &sreg_wide_value_map_);
-  };
+  }
 
   uint16_t GetOperandValueWide(int s_reg) const {
     return GetOperandValueImpl(s_reg, &sreg_wide_value_map_);
-  };
+  }
 
   struct RangeCheckKey {
     uint16_t array;
@@ -308,7 +308,7 @@ class LocalValueNumbering {
   uint16_t HandleSGet(MIR* mir, uint16_t opcode);
   void HandleSPut(MIR* mir, uint16_t opcode);
   void RemoveSFieldsForType(uint16_t type);
-  void HandleInvokeOrClInit(MIR* mir);
+  void HandleInvokeOrClInitOrAcquireOp(MIR* mir);
 
   bool SameMemoryVersion(const LocalValueNumbering& other) const;
 
@@ -343,11 +343,11 @@ class LocalValueNumbering {
                                      EscapedIFieldClobberSet::iterator hint);
   void MergeEscapedArrayClobberSets(const EscapedArrayClobberSet::value_type& entry,
                                     EscapedArrayClobberSet::iterator hint);
-  void MergeNullChecked(const ValueNameSet::value_type& entry, ValueNameSet::iterator hint);
   void MergeSFieldValues(const SFieldToValueMap::value_type& entry,
                          SFieldToValueMap::iterator hint);
   void MergeNonAliasingIFieldValues(const IFieldLocToValueMap::value_type& entry,
                                     IFieldLocToValueMap::iterator hint);
+  void MergeNullChecked();
 
   template <typename Map, Map LocalValueNumbering::*map_ptr, typename Versions>
   void MergeAliasingValues(const typename Map::value_type& entry, typename Map::iterator hint);

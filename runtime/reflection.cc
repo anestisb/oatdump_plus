@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "reflection.h"
+#include "reflection-inl.h"
 
 #include "class_linker.h"
 #include "common_throws.h"
@@ -211,11 +211,11 @@ class ArgArray {
   }
 
   static void ThrowIllegalPrimitiveArgumentException(const char* expected,
-                                                     const StringPiece& found_descriptor)
+                                                     const char* found_descriptor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ThrowIllegalArgumentException(nullptr,
         StringPrintf("Invalid primitive conversion from %s to %s", expected,
-                     PrettyDescriptor(found_descriptor.as_string()).c_str()).c_str());
+                     PrettyDescriptor(found_descriptor).c_str()).c_str());
   }
 
   bool BuildArgArrayFromObjectArray(const ScopedObjectAccessAlreadyRunnable& soa,
@@ -257,8 +257,9 @@ class ArgArray {
 #define DO_FAIL(expected) \
           } else { \
             if (arg->GetClass<>()->IsPrimitive()) { \
+              std::string temp; \
               ThrowIllegalPrimitiveArgumentException(expected, \
-                                                     arg->GetClass<>()->GetDescriptor().c_str()); \
+                                                     arg->GetClass<>()->GetDescriptor(&temp)); \
             } else { \
               ThrowIllegalArgumentException(nullptr, \
                   StringPrintf("method %s argument %zd has type %s, got %s", \
@@ -446,6 +447,14 @@ static void InvokeWithArgArray(const ScopedObjectAccessAlreadyRunnable& soa,
 JValue InvokeWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa, jobject obj, jmethodID mid,
                          va_list args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  // We want to make sure that the stack is not within a small distance from the
+  // protected region in case we are calling into a leaf function whose stack
+  // check has been elided.
+  if (UNLIKELY(__builtin_frame_address(0) < soa.Self()->GetStackEnd())) {
+    ThrowStackOverflowError(soa.Self());
+    return JValue();
+  }
+
   mirror::ArtMethod* method = soa.DecodeMethod(mid);
   mirror::Object* receiver = method->IsStatic() ? nullptr : soa.Decode<mirror::Object*>(obj);
   uint32_t shorty_len = 0;
@@ -459,6 +468,14 @@ JValue InvokeWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa, jobject o
 
 JValue InvokeWithJValues(const ScopedObjectAccessAlreadyRunnable& soa, mirror::Object* receiver,
                          jmethodID mid, jvalue* args) {
+  // We want to make sure that the stack is not within a small distance from the
+  // protected region in case we are calling into a leaf function whose stack
+  // check has been elided.
+  if (UNLIKELY(__builtin_frame_address(0) < soa.Self()->GetStackEnd())) {
+    ThrowStackOverflowError(soa.Self());
+    return JValue();
+  }
+
   mirror::ArtMethod* method = soa.DecodeMethod(mid);
   uint32_t shorty_len = 0;
   const char* shorty = method->GetShorty(&shorty_len);
@@ -471,6 +488,14 @@ JValue InvokeWithJValues(const ScopedObjectAccessAlreadyRunnable& soa, mirror::O
 
 JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccessAlreadyRunnable& soa,
                                            mirror::Object* receiver, jmethodID mid, jvalue* args) {
+  // We want to make sure that the stack is not within a small distance from the
+  // protected region in case we are calling into a leaf function whose stack
+  // check has been elided.
+  if (UNLIKELY(__builtin_frame_address(0) < soa.Self()->GetStackEnd())) {
+    ThrowStackOverflowError(soa.Self());
+    return JValue();
+  }
+
   mirror::ArtMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
   uint32_t shorty_len = 0;
   const char* shorty = method->GetShorty(&shorty_len);
@@ -483,6 +508,14 @@ JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccessAlreadyRunnab
 
 JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa,
                                            jobject obj, jmethodID mid, va_list args) {
+  // We want to make sure that the stack is not within a small distance from the
+  // protected region in case we are calling into a leaf function whose stack
+  // check has been elided.
+  if (UNLIKELY(__builtin_frame_address(0) < soa.Self()->GetStackEnd())) {
+    ThrowStackOverflowError(soa.Self());
+    return JValue();
+  }
+
   mirror::Object* receiver = soa.Decode<mirror::Object*>(obj);
   mirror::ArtMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
   uint32_t shorty_len = 0;
@@ -496,6 +529,14 @@ JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccessAlreadyRunnab
 
 void InvokeWithShadowFrame(Thread* self, ShadowFrame* shadow_frame, uint16_t arg_offset,
                            MethodHelper& mh, JValue* result) {
+  // We want to make sure that the stack is not within a small distance from the
+  // protected region in case we are calling into a leaf function whose stack
+  // check has been elided.
+  if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEnd())) {
+    ThrowStackOverflowError(self);
+    return;
+  }
+
   ArgArray arg_array(mh.GetShorty(), mh.GetShortyLength());
   arg_array.BuildArgArrayFromFrame(shadow_frame, arg_offset);
   shadow_frame->GetMethod()->Invoke(self, arg_array.GetArray(), arg_array.GetNumBytes(), result,
@@ -504,13 +545,22 @@ void InvokeWithShadowFrame(Thread* self, ShadowFrame* shadow_frame, uint16_t arg
 
 jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaMethod,
                      jobject javaReceiver, jobject javaArgs, bool accessible) {
+  // We want to make sure that the stack is not within a small distance from the
+  // protected region in case we are calling into a leaf function whose stack
+  // check has been elided.
+  if (UNLIKELY(__builtin_frame_address(0) <
+               soa.Self()->GetStackEndForInterpreter(true))) {
+    ThrowStackOverflowError(soa.Self());
+    return nullptr;
+  }
+
   mirror::ArtMethod* m = mirror::ArtMethod::FromReflectedMethod(soa, javaMethod);
 
   mirror::Class* declaring_class = m->GetDeclaringClass();
   if (UNLIKELY(!declaring_class->IsInitialized())) {
     StackHandleScope<1> hs(soa.Self());
     Handle<mirror::Class> h_class(hs.NewHandle(declaring_class));
-    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(h_class, true, true)) {
+    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(soa.Self(), h_class, true, true)) {
       return nullptr;
     }
     declaring_class = h_class.Get();
@@ -542,9 +592,16 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
   }
 
   // If method is not set to be accessible, verify it can be accessed by the caller.
-  if (!accessible && !VerifyAccess(receiver, declaring_class, m->GetAccessFlags())) {
-    ThrowIllegalAccessException(nullptr, StringPrintf("Cannot access method: %s",
-                                                      PrettyMethod(m).c_str()).c_str());
+  mirror::Class* calling_class = nullptr;
+  if (!accessible && !VerifyAccess(soa.Self(), receiver, declaring_class, m->GetAccessFlags(),
+                                   &calling_class)) {
+    ThrowIllegalAccessException(nullptr,
+        StringPrintf("Class %s cannot access %s method %s of class %s",
+            calling_class == nullptr ? "null" : PrettyClass(calling_class).c_str(),
+            PrettyJavaAccessFlags(m->GetAccessFlags()).c_str(),
+            PrettyMethod(m).c_str(),
+            m->GetDeclaringClass() == nullptr ? "null" :
+                PrettyClass(m->GetDeclaringClass()).c_str()).c_str());
     return nullptr;
   }
 
@@ -592,80 +649,6 @@ bool VerifyObjectIsClass(mirror::Object* o, mirror::Class* c) {
     return false;
   }
   return true;
-}
-
-bool ConvertPrimitiveValue(const ThrowLocation* throw_location, bool unbox_for_result,
-                           Primitive::Type srcType, Primitive::Type dstType,
-                           const JValue& src, JValue* dst) {
-  DCHECK(srcType != Primitive::kPrimNot && dstType != Primitive::kPrimNot);
-  if (LIKELY(srcType == dstType)) {
-    dst->SetJ(src.GetJ());
-    return true;
-  }
-  switch (dstType) {
-  case Primitive::kPrimBoolean:  // Fall-through.
-  case Primitive::kPrimChar:  // Fall-through.
-  case Primitive::kPrimByte:
-    // Only expect assignment with source and destination of identical type.
-    break;
-  case Primitive::kPrimShort:
-    if (srcType == Primitive::kPrimByte) {
-      dst->SetS(src.GetI());
-      return true;
-    }
-    break;
-  case Primitive::kPrimInt:
-    if (srcType == Primitive::kPrimByte || srcType == Primitive::kPrimChar ||
-        srcType == Primitive::kPrimShort) {
-      dst->SetI(src.GetI());
-      return true;
-    }
-    break;
-  case Primitive::kPrimLong:
-    if (srcType == Primitive::kPrimByte || srcType == Primitive::kPrimChar ||
-        srcType == Primitive::kPrimShort || srcType == Primitive::kPrimInt) {
-      dst->SetJ(src.GetI());
-      return true;
-    }
-    break;
-  case Primitive::kPrimFloat:
-    if (srcType == Primitive::kPrimByte || srcType == Primitive::kPrimChar ||
-        srcType == Primitive::kPrimShort || srcType == Primitive::kPrimInt) {
-      dst->SetF(src.GetI());
-      return true;
-    } else if (srcType == Primitive::kPrimLong) {
-      dst->SetF(src.GetJ());
-      return true;
-    }
-    break;
-  case Primitive::kPrimDouble:
-    if (srcType == Primitive::kPrimByte || srcType == Primitive::kPrimChar ||
-        srcType == Primitive::kPrimShort || srcType == Primitive::kPrimInt) {
-      dst->SetD(src.GetI());
-      return true;
-    } else if (srcType == Primitive::kPrimLong) {
-      dst->SetD(src.GetJ());
-      return true;
-    } else if (srcType == Primitive::kPrimFloat) {
-      dst->SetD(src.GetF());
-      return true;
-    }
-    break;
-  default:
-    break;
-  }
-  if (!unbox_for_result) {
-    ThrowIllegalArgumentException(throw_location,
-                                  StringPrintf("Invalid primitive conversion from %s to %s",
-                                               PrettyDescriptor(srcType).c_str(),
-                                               PrettyDescriptor(dstType).c_str()).c_str());
-  } else {
-    ThrowClassCastException(throw_location,
-                            StringPrintf("Couldn't convert result of type %s to %s",
-                                         PrettyDescriptor(srcType).c_str(),
-                                         PrettyDescriptor(dstType).c_str()).c_str());
-  }
-  return false;
 }
 
 mirror::Object* BoxPrimitive(Primitive::Type src_class, const JValue& value) {
@@ -815,11 +798,11 @@ static bool UnboxPrimitive(const ThrowLocation* throw_location, mirror::Object* 
     src_class = class_linker->FindPrimitiveClass('S');
     boxed_value.SetS(primitive_field->GetShort(o));
   } else {
+    std::string temp;
     ThrowIllegalArgumentException(throw_location,
-                                  StringPrintf("%s has type %s, got %s",
-                                               UnboxingFailureKind(f).c_str(),
-                                               PrettyDescriptor(dst_class).c_str(),
-                                               PrettyDescriptor(o->GetClass()->GetDescriptor()).c_str()).c_str());
+        StringPrintf("%s has type %s, got %s", UnboxingFailureKind(f).c_str(),
+            PrettyDescriptor(dst_class).c_str(),
+            PrettyDescriptor(o->GetClass()->GetDescriptor(&temp)).c_str()).c_str());
     return false;
   }
 
@@ -839,18 +822,23 @@ bool UnboxPrimitiveForResult(const ThrowLocation& throw_location, mirror::Object
   return UnboxPrimitive(&throw_location, o, dst_class, nullptr, unboxed_value);
 }
 
-bool VerifyAccess(mirror::Object* obj, mirror::Class* declaring_class, uint32_t access_flags) {
-  NthCallerVisitor visitor(Thread::Current(), 2);
+bool VerifyAccess(Thread* self, mirror::Object* obj, mirror::Class* declaring_class,
+                  uint32_t access_flags, mirror::Class** calling_class) {
+  if ((access_flags & kAccPublic) != 0) {
+    return true;
+  }
+  NthCallerVisitor visitor(self, 2);
   visitor.WalkStack();
   if (UNLIKELY(visitor.caller == nullptr)) {
     // The caller is an attached native thread.
-    return (access_flags & kAccPublic) != 0;
+    return false;
   }
   mirror::Class* caller_class = visitor.caller->GetDeclaringClass();
-
-  if (((access_flags & kAccPublic) != 0) || (caller_class == declaring_class)) {
+  if (caller_class == declaring_class) {
     return true;
   }
+  ScopedAssertNoThreadSuspension sants(self, "verify-access");
+  *calling_class = caller_class;
   if ((access_flags & kAccPrivate) != 0) {
     return false;
   }
@@ -862,10 +850,7 @@ bool VerifyAccess(mirror::Object* obj, mirror::Class* declaring_class, uint32_t 
       return true;
     }
   }
-  if (!declaring_class->IsInSamePackage(caller_class)) {
-    return false;
-  }
-  return true;
+  return declaring_class->IsInSamePackage(caller_class);
 }
 
 }  // namespace art

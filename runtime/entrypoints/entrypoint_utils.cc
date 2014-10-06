@@ -33,8 +33,10 @@
 
 namespace art {
 
-static inline mirror::Class* CheckFilledNewArrayAlloc(uint32_t type_idx, mirror::ArtMethod* referrer,
-                                                      int32_t component_count, Thread* self,
+static inline mirror::Class* CheckFilledNewArrayAlloc(uint32_t type_idx,
+                                                      mirror::ArtMethod* referrer,
+                                                      int32_t component_count,
+                                                      Thread* self,
                                                       bool access_check)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(component_count < 0)) {
@@ -56,9 +58,10 @@ static inline mirror::Class* CheckFilledNewArrayAlloc(uint32_t type_idx, mirror:
     } else {
       ThrowLocation throw_location = self->GetCurrentLocationForThrow();
       DCHECK(throw_location.GetMethod() == referrer);
-      self->ThrowNewExceptionF(throw_location, "Ljava/lang/InternalError;",
-                               "Found type %s; filled-new-array not implemented for anything but 'int'",
-                               PrettyDescriptor(klass).c_str());
+      self->ThrowNewExceptionF(
+          throw_location, "Ljava/lang/InternalError;",
+          "Found type %s; filled-new-array not implemented for anything but 'int'",
+          PrettyDescriptor(klass).c_str());
     }
     return nullptr;  // Failure
   }
@@ -87,13 +90,16 @@ mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::ArtMethod* 
   gc::Heap* heap = Runtime::Current()->GetHeap();
   // Use the current allocator type in case CheckFilledNewArrayAlloc caused us to suspend and then
   // the heap switched the allocator type while we were suspended.
-  return mirror::Array::Alloc<false>(self, klass, component_count, klass->GetComponentSize(),
+  return mirror::Array::Alloc<false>(self, klass, component_count,
+                                     klass->GetComponentSizeShift(),
                                      heap->GetCurrentAllocator());
 }
 
 // Helper function to allocate array for FILLED_NEW_ARRAY.
-mirror::Array* CheckAndAllocArrayFromCodeInstrumented(uint32_t type_idx, mirror::ArtMethod* referrer,
-                                                      int32_t component_count, Thread* self,
+mirror::Array* CheckAndAllocArrayFromCodeInstrumented(uint32_t type_idx,
+                                                      mirror::ArtMethod* referrer,
+                                                      int32_t component_count,
+                                                      Thread* self,
                                                       bool access_check,
                                                       gc::AllocatorType /* allocator_type */) {
   mirror::Class* klass = CheckFilledNewArrayAlloc(type_idx, referrer, component_count, self,
@@ -104,7 +110,8 @@ mirror::Array* CheckAndAllocArrayFromCodeInstrumented(uint32_t type_idx, mirror:
   gc::Heap* heap = Runtime::Current()->GetHeap();
   // Use the current allocator type in case CheckFilledNewArrayAlloc caused us to suspend and then
   // the heap switched the allocator type while we were suspended.
-  return mirror::Array::Alloc<true>(self, klass, component_count, klass->GetComponentSize(),
+  return mirror::Array::Alloc<true>(self, klass, component_count,
+                                    klass->GetComponentSizeShift(),
                                     heap->GetCurrentAllocator());
 }
 
@@ -112,11 +119,6 @@ void ThrowStackOverflowError(Thread* self) {
   if (self->IsHandlingStackOverflow()) {
     LOG(ERROR) << "Recursive stack overflow.";
     // We don't fail here because SetStackEndForStackOverflow will print better diagnostics.
-  }
-
-  if (Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled()) {
-    // Remove extra entry pushed onto second stack during method tracing.
-    Runtime::Current()->GetInstrumentation()->PopMethodForUnwind(self, false);
   }
 
   self->SetStackEndForStackOverflow();  // Allow space on the stack for constructor to execute.
@@ -149,24 +151,19 @@ void ThrowStackOverflowError(Thread* self) {
     // TODO: Use String::FromModifiedUTF...?
     ScopedLocalRef<jstring> s(env, env->NewStringUTF(msg.c_str()));
     if (s.get() != nullptr) {
-      jfieldID detail_message_id = env->GetFieldID(WellKnownClasses::java_lang_Throwable,
-                                                   "detailMessage", "Ljava/lang/String;");
-      env->SetObjectField(exc.get(), detail_message_id, s.get());
+      env->SetObjectField(exc.get(), WellKnownClasses::java_lang_Throwable_detailMessage, s.get());
 
       // cause.
-      jfieldID cause_id = env->GetFieldID(WellKnownClasses::java_lang_Throwable,
-                                          "cause", "Ljava/lang/Throwable;");
-      env->SetObjectField(exc.get(), cause_id, exc.get());
+      env->SetObjectField(exc.get(), WellKnownClasses::java_lang_Throwable_cause, exc.get());
 
       // suppressedExceptions.
-      jfieldID emptylist_id = env->GetStaticFieldID(WellKnownClasses::java_util_Collections,
-                                                    "EMPTY_LIST", "Ljava/util/List;");
       ScopedLocalRef<jobject> emptylist(env, env->GetStaticObjectField(
-              WellKnownClasses::java_util_Collections, emptylist_id));
+          WellKnownClasses::java_util_Collections,
+          WellKnownClasses::java_util_Collections_EMPTY_LIST));
       CHECK(emptylist.get() != nullptr);
-      jfieldID suppressed_id = env->GetFieldID(WellKnownClasses::java_lang_Throwable,
-                                               "suppressedExceptions", "Ljava/util/List;");
-      env->SetObjectField(exc.get(), suppressed_id, emptylist.get());
+      env->SetObjectField(exc.get(),
+                          WellKnownClasses::java_lang_Throwable_suppressedExceptions,
+                          emptylist.get());
 
       // stackState is set as result of fillInStackTrace. fillInStackTrace calls
       // nativeFillInStackTrace.
@@ -176,19 +173,17 @@ void ThrowStackOverflowError(Thread* self) {
         stack_state_val.reset(soa.Self()->CreateInternalStackTrace<false>(soa));
       }
       if (stack_state_val.get() != nullptr) {
-        jfieldID stackstateID = env->GetFieldID(WellKnownClasses::java_lang_Throwable,
-            "stackState", "Ljava/lang/Object;");
-        env->SetObjectField(exc.get(), stackstateID, stack_state_val.get());
+        env->SetObjectField(exc.get(),
+                            WellKnownClasses::java_lang_Throwable_stackState,
+                            stack_state_val.get());
 
         // stackTrace.
-        jfieldID stack_trace_elem_id = env->GetStaticFieldID(
-            WellKnownClasses::libcore_util_EmptyArray, "STACK_TRACE_ELEMENT",
-            "[Ljava/lang/StackTraceElement;");
         ScopedLocalRef<jobject> stack_trace_elem(env, env->GetStaticObjectField(
-                WellKnownClasses::libcore_util_EmptyArray, stack_trace_elem_id));
-        jfieldID stacktrace_id = env->GetFieldID(
-            WellKnownClasses::java_lang_Throwable, "stackTrace", "[Ljava/lang/StackTraceElement;");
-        env->SetObjectField(exc.get(), stacktrace_id, stack_trace_elem.get());
+            WellKnownClasses::libcore_util_EmptyArray,
+            WellKnownClasses::libcore_util_EmptyArray_STACK_TRACE_ELEMENT));
+        env->SetObjectField(exc.get(),
+                            WellKnownClasses::java_lang_Throwable_stackTrace,
+                            stack_trace_elem.get());
 
         // Throw the exception.
         ThrowLocation throw_location = self->GetCurrentLocationForThrow();
@@ -211,25 +206,27 @@ void ThrowStackOverflowError(Thread* self) {
   }
 
   bool explicit_overflow_check = Runtime::Current()->ExplicitStackOverflowChecks();
-  self->ResetDefaultStackEnd(!explicit_overflow_check);  // Return to default stack size.
+  self->ResetDefaultStackEnd();  // Return to default stack size.
+
+  // And restore protection if implicit checks are on.
+  if (!explicit_overflow_check) {
+    self->ProtectStack();
+  }
 }
 
 void CheckReferenceResult(mirror::Object* o, Thread* self) {
-  if (o == NULL) {
+  if (o == nullptr) {
     return;
   }
-  mirror::ArtMethod* m = self->GetCurrentMethod(NULL);
-  if (o == kInvalidIndirectRefObject) {
-    Runtime::Current()->GetJavaVM()->JniAbortF(NULL, "invalid reference returned from %s",
-                                               PrettyMethod(m).c_str());
-  }
+  mirror::ArtMethod* m = self->GetCurrentMethod(nullptr);
   // Make sure that the result is an instance of the type this method was expected to return.
   StackHandleScope<1> hs(self);
   Handle<mirror::ArtMethod> h_m(hs.NewHandle(m));
   mirror::Class* return_type = MethodHelper(h_m).GetReturnType();
 
   if (!o->InstanceOf(return_type)) {
-    Runtime::Current()->GetJavaVM()->JniAbortF(NULL, "attempt to return an instance of %s from %s",
+    Runtime::Current()->GetJavaVM()->JniAbortF(nullptr,
+                                               "attempt to return an instance of %s from %s",
                                                PrettyTypeOf(o).c_str(),
                                                PrettyMethod(h_m.Get()).c_str());
   }
@@ -329,7 +326,8 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
         }
       }
       CHECK_NE(throws_index, -1);
-      mirror::ObjectArray<mirror::Class>* declared_exceptions = proxy_class->GetThrows()->Get(throws_index);
+      mirror::ObjectArray<mirror::Class>* declared_exceptions =
+          proxy_class->GetThrows()->Get(throws_index);
       mirror::Class* exception_class = exception->GetClass();
       bool declares_exception = false;
       for (int i = 0; i < declared_exceptions->GetLength() && !declares_exception; i++) {

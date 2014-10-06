@@ -138,13 +138,15 @@ static bool CanHandleCodeItem(const DexFile::CodeItem& code_item) {
 
 template<typename T>
 void HGraphBuilder::If_22t(const Instruction& instruction, uint32_t dex_offset) {
+  int32_t target_offset = instruction.GetTargetOffset();
+  PotentiallyAddSuspendCheck(target_offset, dex_offset);
   HInstruction* first = LoadLocal(instruction.VRegA(), Primitive::kPrimInt);
   HInstruction* second = LoadLocal(instruction.VRegB(), Primitive::kPrimInt);
   T* comparison = new (arena_) T(first, second);
   current_block_->AddInstruction(comparison);
   HInstruction* ifinst = new (arena_) HIf(comparison);
   current_block_->AddInstruction(ifinst);
-  HBasicBlock* target = FindBlockStartingAt(dex_offset + instruction.GetTargetOffset());
+  HBasicBlock* target = FindBlockStartingAt(dex_offset + target_offset);
   DCHECK(target != nullptr);
   current_block_->AddSuccessor(target);
   target = FindBlockStartingAt(dex_offset + instruction.SizeInCodeUnits());
@@ -155,12 +157,14 @@ void HGraphBuilder::If_22t(const Instruction& instruction, uint32_t dex_offset) 
 
 template<typename T>
 void HGraphBuilder::If_21t(const Instruction& instruction, uint32_t dex_offset) {
+  int32_t target_offset = instruction.GetTargetOffset();
+  PotentiallyAddSuspendCheck(target_offset, dex_offset);
   HInstruction* value = LoadLocal(instruction.VRegA(), Primitive::kPrimInt);
   T* comparison = new (arena_) T(value, GetIntConstant(0));
   current_block_->AddInstruction(comparison);
   HInstruction* ifinst = new (arena_) HIf(comparison);
   current_block_->AddInstruction(ifinst);
-  HBasicBlock* target = FindBlockStartingAt(dex_offset + instruction.GetTargetOffset());
+  HBasicBlock* target = FindBlockStartingAt(dex_offset + target_offset);
   DCHECK(target != nullptr);
   current_block_->AddSuccessor(target);
   target = FindBlockStartingAt(dex_offset + instruction.SizeInCodeUnits());
@@ -179,9 +183,9 @@ HGraph* HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
 
   // Setup the graph with the entry block and exit block.
   graph_ = new (arena_) HGraph(arena_);
-  entry_block_ = new (arena_) HBasicBlock(graph_);
+  entry_block_ = new (arena_) HBasicBlock(graph_, 0);
   graph_->AddBlock(entry_block_);
-  exit_block_ = new (arena_) HBasicBlock(graph_);
+  exit_block_ = new (arena_) HBasicBlock(graph_, kNoDexPc);
   graph_->SetEntryBlock(entry_block_);
   graph_->SetExitBlock(exit_block_);
 
@@ -209,6 +213,8 @@ HGraph* HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
   // Add the exit block at the end to give it the highest id.
   graph_->AddBlock(exit_block_);
   exit_block_->AddInstruction(new (arena_) HExit());
+  // Add the suspend check to the entry block.
+  entry_block_->AddInstruction(new (arena_) HSuspendCheck(0));
   entry_block_->AddInstruction(new (arena_) HGoto());
   return graph_;
 }
@@ -235,7 +241,7 @@ void HGraphBuilder::ComputeBranchTargets(const uint16_t* code_ptr, const uint16_
   branch_targets_.SetSize(code_end - code_ptr);
 
   // Create the first block for the dex instructions, single successor of the entry block.
-  HBasicBlock* block = new (arena_) HBasicBlock(graph_);
+  HBasicBlock* block = new (arena_) HBasicBlock(graph_, 0);
   branch_targets_.Put(0, block);
   entry_block_->AddSuccessor(block);
 
@@ -248,13 +254,13 @@ void HGraphBuilder::ComputeBranchTargets(const uint16_t* code_ptr, const uint16_
       int32_t target = instruction.GetTargetOffset() + dex_offset;
       // Create a block for the target instruction.
       if (FindBlockStartingAt(target) == nullptr) {
-        block = new (arena_) HBasicBlock(graph_);
+        block = new (arena_) HBasicBlock(graph_, target);
         branch_targets_.Put(target, block);
       }
       dex_offset += instruction.SizeInCodeUnits();
       code_ptr += instruction.SizeInCodeUnits();
       if ((code_ptr < code_end) && (FindBlockStartingAt(dex_offset) == nullptr)) {
-        block = new (arena_) HBasicBlock(graph_);
+        block = new (arena_) HBasicBlock(graph_, dex_offset);
         branch_targets_.Put(dex_offset, block);
       }
     } else {
@@ -325,18 +331,61 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
                                 bool is_range,
                                 uint32_t* args,
                                 uint32_t register_index) {
+  Instruction::Code opcode = instruction.Opcode();
+  InvokeType invoke_type;
+  switch (opcode) {
+    case Instruction::INVOKE_STATIC:
+    case Instruction::INVOKE_STATIC_RANGE:
+      invoke_type = kStatic;
+      break;
+    case Instruction::INVOKE_DIRECT:
+    case Instruction::INVOKE_DIRECT_RANGE:
+      invoke_type = kDirect;
+      break;
+    case Instruction::INVOKE_VIRTUAL:
+    case Instruction::INVOKE_VIRTUAL_RANGE:
+      invoke_type = kVirtual;
+      break;
+    case Instruction::INVOKE_INTERFACE:
+    case Instruction::INVOKE_INTERFACE_RANGE:
+      invoke_type = kInterface;
+      break;
+    case Instruction::INVOKE_SUPER_RANGE:
+    case Instruction::INVOKE_SUPER:
+      invoke_type = kSuper;
+      break;
+    default:
+      LOG(FATAL) << "Unexpected invoke op: " << opcode;
+      return false;
+  }
+
   const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
   const DexFile::ProtoId& proto_id = dex_file_->GetProtoId(method_id.proto_idx_);
   const char* descriptor = dex_file_->StringDataByIdx(proto_id.shorty_idx_);
   Primitive::Type return_type = Primitive::GetType(descriptor[0]);
-  bool is_instance_call =
-      instruction.Opcode() != Instruction::INVOKE_STATIC
-      && instruction.Opcode() != Instruction::INVOKE_STATIC_RANGE;
+  bool is_instance_call = invoke_type != kStatic;
   const size_t number_of_arguments = strlen(descriptor) - (is_instance_call ? 0 : 1);
 
-  // Treat invoke-direct like static calls for now.
-  HInvoke* invoke = new (arena_) HInvokeStatic(
-      arena_, number_of_arguments, return_type, dex_offset, method_idx);
+  HInvoke* invoke = nullptr;
+  if (invoke_type == kVirtual) {
+    MethodReference target_method(dex_file_, method_idx);
+    uintptr_t direct_code;
+    uintptr_t direct_method;
+    int vtable_index;
+    // TODO: Add devirtualization support.
+    compiler_driver_->ComputeInvokeInfo(dex_compilation_unit_, dex_offset, true, true,
+                                        &invoke_type, &target_method, &vtable_index,
+                                        &direct_code, &direct_method);
+    if (vtable_index == -1) {
+      return false;
+    }
+    invoke = new (arena_) HInvokeVirtual(
+        arena_, number_of_arguments, return_type, dex_offset, vtable_index);
+  } else {
+    // Treat invoke-direct like static calls for now.
+    invoke = new (arena_) HInvokeStatic(
+        arena_, number_of_arguments, return_type, dex_offset, method_idx);
+  }
 
   size_t start_index = 0;
   Temporaries temps(graph_, is_instance_call ? 1 : 0);
@@ -413,6 +462,7 @@ bool HGraphBuilder::BuildFieldAccess(const Instruction& instruction,
     current_block_->AddInstruction(new (arena_) HInstanceFieldSet(
         null_check,
         value,
+        field_type,
         resolved_field->GetOffset()));
   } else {
     current_block_->AddInstruction(new (arena_) HInstanceFieldGet(
@@ -453,14 +503,23 @@ void HGraphBuilder::BuildArrayAccess(const Instruction& instruction,
   if (is_put) {
     HInstruction* value = LoadLocal(source_or_dest_reg, anticipated_type);
     // TODO: Insert a type check node if the type is Object.
-    current_block_->AddInstruction(new (arena_) HArraySet(object, index, value, dex_offset));
+    current_block_->AddInstruction(new (arena_) HArraySet(
+        object, index, value, anticipated_type, dex_offset));
   } else {
     current_block_->AddInstruction(new (arena_) HArrayGet(object, index, anticipated_type));
     UpdateLocal(source_or_dest_reg, current_block_->GetLastInstruction());
   }
 }
 
-bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_t dex_offset) {
+void HGraphBuilder::PotentiallyAddSuspendCheck(int32_t target_offset, uint32_t dex_offset) {
+  if (target_offset <= 0) {
+    // Unconditionnally add a suspend check to backward branches. We can remove
+    // them after we recognize loops in the graph.
+    current_block_->AddInstruction(new (arena_) HSuspendCheck(dex_offset));
+  }
+}
+
+bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32_t dex_offset) {
   if (current_block_ == nullptr) {
     return true;  // Dead code
   }
@@ -578,7 +637,9 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_
     case Instruction::GOTO:
     case Instruction::GOTO_16:
     case Instruction::GOTO_32: {
-      HBasicBlock* target = FindBlockStartingAt(instruction.GetTargetOffset() + dex_offset);
+      int32_t offset = instruction.GetTargetOffset();
+      PotentiallyAddSuspendCheck(offset, dex_offset);
+      HBasicBlock* target = FindBlockStartingAt(offset + dex_offset);
       DCHECK(target != nullptr);
       current_block_->AddInstruction(new (arena_) HGoto());
       current_block_->AddSuccessor(target);
@@ -602,7 +663,8 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_
     }
 
     case Instruction::INVOKE_STATIC:
-    case Instruction::INVOKE_DIRECT: {
+    case Instruction::INVOKE_DIRECT:
+    case Instruction::INVOKE_VIRTUAL: {
       uint32_t method_idx = instruction.VRegB_35c();
       uint32_t number_of_vreg_arguments = instruction.VRegA_35c();
       uint32_t args[5];
@@ -614,7 +676,8 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_
     }
 
     case Instruction::INVOKE_STATIC_RANGE:
-    case Instruction::INVOKE_DIRECT_RANGE: {
+    case Instruction::INVOKE_DIRECT_RANGE:
+    case Instruction::INVOKE_VIRTUAL_RANGE: {
       uint32_t method_idx = instruction.VRegB_3rc();
       uint32_t number_of_vreg_arguments = instruction.VRegA_3rc();
       uint32_t register_index = instruction.VRegC();
@@ -749,6 +812,13 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_
     ARRAY_XX(_BYTE, Primitive::kPrimByte);
     ARRAY_XX(_CHAR, Primitive::kPrimChar);
     ARRAY_XX(_SHORT, Primitive::kPrimShort);
+
+    case Instruction::ARRAY_LENGTH: {
+      HInstruction* object = LoadLocal(instruction.VRegB_12x(), Primitive::kPrimNot);
+      current_block_->AddInstruction(new (arena_) HArrayLength(object));
+      UpdateLocal(instruction.VRegA_12x(), current_block_->GetLastInstruction());
+      break;
+    }
 
     default:
       return false;

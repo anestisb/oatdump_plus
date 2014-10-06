@@ -20,6 +20,7 @@
 
 #include <string>
 
+#include "backend_arm.h"
 #include "dex/compiler_internals.h"
 #include "dex/quick/mir_to_lir-inl.h"
 
@@ -451,6 +452,11 @@ std::string ArmMir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned char
                  reinterpret_cast<uintptr_t>(base_addr) + lir->offset + 4 + (operand << 1),
                  lir->target);
              break;
+           case 'T':
+             snprintf(tbuf, arraysize(tbuf), "%s", PrettyMethod(
+                 static_cast<uint32_t>(lir->operands[1]),
+                 *reinterpret_cast<const DexFile*>(UnwrapPointer(lir->operands[2]))).c_str());
+             break;
            case 'u': {
              int offset_1 = lir->operands[0];
              int offset_2 = NEXT_LIR(lir)->operands[0];
@@ -550,7 +556,9 @@ RegisterClass ArmMir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volatil
 }
 
 ArmMir2Lir::ArmMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
-    : Mir2Lir(cu, mir_graph, arena) {
+    : Mir2Lir(cu, mir_graph, arena),
+      call_method_insns_(arena->Adapter()) {
+  call_method_insns_.reserve(100);
   // Sanity check - make sure encoding map lines up.
   for (int i = 0; i < kArmLast; i++) {
     if (ArmMir2Lir::EncodingMap[i].opcode != i) {
@@ -567,16 +575,16 @@ Mir2Lir* ArmCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
 }
 
 void ArmMir2Lir::CompilerInitializeRegAlloc() {
-  reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs, empty_pool /* core64 */, sp_regs,
-                                        dp_regs, reserved_regs, empty_pool /* reserved64 */,
-                                        core_temps, empty_pool /* core64_temps */, sp_temps,
-                                        dp_temps);
+  reg_pool_.reset(new (arena_) RegisterPool(this, arena_, core_regs, empty_pool /* core64 */,
+                                            sp_regs, dp_regs,
+                                            reserved_regs, empty_pool /* reserved64 */,
+                                            core_temps, empty_pool /* core64_temps */,
+                                            sp_temps, dp_temps));
 
   // Target-specific adjustments.
 
   // Alias single precision floats to appropriate half of overlapping double.
-  GrowableArray<RegisterInfo*>::Iterator it(&reg_pool_->sp_regs_);
-  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
+  for (RegisterInfo* info : reg_pool_->sp_regs_) {
     int sp_reg_num = info->GetReg().GetRegNum();
     int dp_reg_num = sp_reg_num >> 1;
     RegStorage dp_reg = RegStorage::Solo64(RegStorage::kFloatingPoint | dp_reg_num);
@@ -783,8 +791,7 @@ RegStorage ArmMir2Lir::AllocPreservedDouble(int s_reg) {
      * TODO: until runtime support is in, make sure we avoid promoting the same vreg to
      * different underlying physical registers.
      */
-    GrowableArray<RegisterInfo*>::Iterator it(&reg_pool_->dp_regs_);
-    for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
+    for (RegisterInfo* info : reg_pool_->dp_regs_) {
       if (!info->IsTemp() && !info->InUse()) {
         res = info->GetReg();
         info->MarkInUse();
@@ -808,8 +815,7 @@ RegStorage ArmMir2Lir::AllocPreservedDouble(int s_reg) {
 // Reserve a callee-save sp single register.
 RegStorage ArmMir2Lir::AllocPreservedSingle(int s_reg) {
   RegStorage res;
-  GrowableArray<RegisterInfo*>::Iterator it(&reg_pool_->sp_regs_);
-  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
+  for (RegisterInfo* info : reg_pool_->sp_regs_) {
     if (!info->IsTemp() && !info->InUse()) {
       res = info->GetReg();
       int p_map_idx = SRegToPMap(s_reg);
@@ -822,6 +828,23 @@ RegStorage ArmMir2Lir::AllocPreservedSingle(int s_reg) {
     }
   }
   return res;
+}
+
+void ArmMir2Lir::InstallLiteralPools() {
+  // PC-relative calls to methods.
+  patches_.reserve(call_method_insns_.size());
+  for (LIR* p : call_method_insns_) {
+      DCHECK_EQ(p->opcode, kThumb2Bl);
+      uint32_t target_method_idx = p->operands[1];
+      const DexFile* target_dex_file =
+          reinterpret_cast<const DexFile*>(UnwrapPointer(p->operands[2]));
+
+      patches_.push_back(LinkerPatch::RelativeCodePatch(p->offset,
+                                                        target_dex_file, target_method_idx));
+  }
+
+  // And do the normal processing.
+  Mir2Lir::InstallLiteralPools();
 }
 
 }  // namespace art

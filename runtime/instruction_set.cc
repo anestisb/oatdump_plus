@@ -42,21 +42,18 @@ const char* GetInstructionSetString(const InstructionSet isa) {
 InstructionSet GetInstructionSetFromString(const char* isa_str) {
   CHECK(isa_str != nullptr);
 
-  if (!strcmp("arm", isa_str)) {
+  if (strcmp("arm", isa_str) == 0) {
     return kArm;
-  } else if (!strcmp("arm64", isa_str)) {
+  } else if (strcmp("arm64", isa_str) == 0) {
     return kArm64;
-  } else if (!strcmp("x86", isa_str)) {
+  } else if (strcmp("x86", isa_str) == 0) {
     return kX86;
-  } else if (!strcmp("x86_64", isa_str)) {
+  } else if (strcmp("x86_64", isa_str) == 0) {
     return kX86_64;
-  } else if (!strcmp("mips", isa_str)) {
+  } else if (strcmp("mips", isa_str) == 0) {
     return kMips;
-  } else if (!strcmp("none", isa_str)) {
-    return kNone;
   }
 
-  LOG(FATAL) << "Unknown ISA " << isa_str;
   return kNone;
 }
 
@@ -87,11 +84,10 @@ size_t GetInstructionSetAlignment(InstructionSet isa) {
 static constexpr size_t kDefaultStackOverflowReservedBytes = 16 * KB;
 static constexpr size_t kMipsStackOverflowReservedBytes = kDefaultStackOverflowReservedBytes;
 
-// TODO: Lower once implicit stack-overflow checks can work with less than 16K.
-static constexpr size_t kArmStackOverflowReservedBytes =    (kIsDebugBuild ? 16 : 16) * KB;
-static constexpr size_t kArm64StackOverflowReservedBytes =  (kIsDebugBuild ? 16 : 16) * KB;
-static constexpr size_t kX86StackOverflowReservedBytes =    (kIsDebugBuild ? 16 : 16) * KB;
-static constexpr size_t kX86_64StackOverflowReservedBytes = (kIsDebugBuild ? 16 : 16) * KB;
+static constexpr size_t kArmStackOverflowReservedBytes =    8 * KB;
+static constexpr size_t kArm64StackOverflowReservedBytes =  8 * KB;
+static constexpr size_t kX86StackOverflowReservedBytes =    8 * KB;
+static constexpr size_t kX86_64StackOverflowReservedBytes = 8 * KB;
 
 size_t GetStackOverflowReservedBytes(InstructionSet isa) {
   switch (isa) {

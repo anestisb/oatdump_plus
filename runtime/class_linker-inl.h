@@ -29,11 +29,6 @@
 
 namespace art {
 
-inline bool ClassLinker::IsInBootClassPath(const char* descriptor) {
-  DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, boot_class_path_);
-  return pair.second != nullptr;
-}
-
 inline mirror::Class* ClassLinker::FindSystemClass(Thread* self, const char* descriptor) {
   return FindClass(self, descriptor, NullHandle<mirror::ClassLoader>());
 }
@@ -47,7 +42,9 @@ inline mirror::Class* ClassLinker::FindArrayClass(Thread* self, mirror::Class** 
     }
   }
   DCHECK(!(*element_class)->IsPrimitiveVoid());
-  std::string descriptor = "[" + (*element_class)->GetDescriptor();
+  std::string descriptor = "[";
+  std::string temp;
+  descriptor += (*element_class)->GetDescriptor(&temp);
   StackHandleScope<2> hs(Thread::Current());
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle((*element_class)->GetClassLoader()));
   HandleWrapper<mirror::Class> h_element_class(hs.NewHandleWrapper(element_class));
@@ -156,6 +153,11 @@ inline mirror::ArtField* ClassLinker::ResolveField(uint32_t field_idx, mirror::A
     //       might be an erroneous class, which results in it being hidden from us.
   }
   return resolved_field;
+}
+
+inline mirror::Object* ClassLinker::AllocObject(Thread* self) {
+  return GetClassRoot(kJavaLangObject)->Alloc<true, false>(self,
+      Runtime::Current()->GetHeap()->GetCurrentAllocator());
 }
 
 template <class T>

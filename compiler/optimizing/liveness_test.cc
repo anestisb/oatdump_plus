@@ -16,6 +16,7 @@
 
 #include "builder.h"
 #include "code_generator.h"
+#include "code_generator_x86.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "nodes.h"
@@ -49,8 +50,8 @@ static void TestCode(const uint16_t* data, const char* expected) {
   graph->BuildDominatorTree();
   graph->TransformToSSA();
   graph->FindNaturalLoops();
-  CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, InstructionSet::kX86);
-  SsaLivenessAnalysis liveness(*graph, codegen);
+  x86::CodeGeneratorX86 codegen(graph);
+  SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
 
   std::ostringstream buffer;
@@ -540,6 +541,53 @@ TEST(LivenessTest, Loop7) {
     Instruction::CONST_4 | 5 << 12 | 0,
     Instruction::GOTO | 0x0200,
     Instruction::GOTO | 0xF900,
+    Instruction::RETURN | 0 << 8);
+
+  TestCode(data, expected);
+}
+
+TEST(LivenessTest, Loop8) {
+  // var a = 0;
+  // while (a == a) {
+  //   a = a + a;
+  // }
+  // return a;
+  //
+  // We want to test that the ins of the loop exit
+  // does contain the phi.
+  // Bitsets are made of:
+  // (constant0, phi, add)
+  const char* expected =
+    "Block 0\n"
+    "  live in: (000)\n"
+    "  live out: (100)\n"
+    "  kill: (100)\n"
+    "Block 1\n"  // pre loop header
+    "  live in: (100)\n"
+    "  live out: (000)\n"
+    "  kill: (000)\n"
+    "Block 2\n"  // loop header
+    "  live in: (000)\n"
+    "  live out: (010)\n"
+    "  kill: (010)\n"
+    "Block 3\n"  // back edge
+    "  live in: (010)\n"
+    "  live out: (000)\n"
+    "  kill: (001)\n"
+    "Block 4\n"  // return block
+    "  live in: (010)\n"
+    "  live out: (000)\n"
+    "  kill: (000)\n"
+    "Block 5\n"  // exit block
+    "  live in: (000)\n"
+    "  live out: (000)\n"
+    "  kill: (000)\n";
+
+  const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
+    Instruction::CONST_4 | 0 | 0,
+    Instruction::IF_EQ, 6,
+    Instruction::ADD_INT, 0, 0,
+    Instruction::GOTO | 0xFB00,
     Instruction::RETURN | 0 << 8);
 
   TestCode(data, expected);

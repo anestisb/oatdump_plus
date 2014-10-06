@@ -25,18 +25,16 @@
 #include "mirror/art_method.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
-#include "native_bridge.h"
+#include "nativebridge/native_bridge.h"
 #include "java_vm_ext.h"
 #include "parsed_options.h"
+#include "runtime-inl.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
 #include "thread-inl.h"
 #include "thread_list.h"
 
 namespace art {
-
-static const size_t kPinTableInitial = 16;  // Arbitrary.
-static const size_t kPinTableMax = 1024;  // Arbitrary sanity check.
 
 static size_t gGlobalsInitial = 512;  // Arbitrary.
 static size_t gGlobalsMax = 51200;  // Arbitrary sanity check. (Must fit in 16 bits.)
@@ -135,7 +133,7 @@ class SharedLibrary {
     CHECK(NeedsNativeBridge());
 
     uint32_t len = 0;
-    return NativeBridgeGetTrampoline(handle_, symbol_name.c_str(), shorty, len);
+    return android::NativeBridgeGetTrampoline(handle_, symbol_name.c_str(), shorty, len);
   }
 
  private:
@@ -247,7 +245,7 @@ class Libraries {
   }
 
  private:
-  SafeMap<std::string, SharedLibrary*> libraries_;
+  AllocationTrackingSafeMap<std::string, SharedLibrary*, kAllocatorTagJNILibrarires> libraries_;
 };
 
 
@@ -364,8 +362,6 @@ JavaVMExt::JavaVMExt(Runtime* runtime, ParsedOptions* options)
       force_copy_(options->force_copy_),
       tracing_enabled_(!options->jni_trace_.empty() || VLOG_IS_ON(third_party_jni)),
       trace_(options->jni_trace_),
-      pins_lock_("JNI pin table lock", kPinTableLock),
-      pin_table_("pin table", kPinTableInitial, kPinTableMax),
       globals_lock_("JNI global reference table lock"),
       globals_(gGlobalsInitial, gGlobalsMax, kGlobal),
       libraries_(new Libraries),
@@ -522,10 +518,6 @@ void JavaVMExt::DumpForSigQuit(std::ostream& os) {
   }
   Thread* self = Thread::Current();
   {
-    MutexLock mu(self, pins_lock_);
-    os << "; pins=" << pin_table_.Size();
-  }
-  {
     ReaderMutexLock mu(self, globals_lock_);
     os << "; globals=" << globals_.Capacity();
   }
@@ -567,16 +559,6 @@ mirror::Object* JavaVMExt::DecodeWeakGlobal(Thread* self, IndirectRef ref) {
   return weak_globals_.Get(ref);
 }
 
-void JavaVMExt::PinPrimitiveArray(Thread* self, mirror::Array* array) {
-  MutexLock mu(self, pins_lock_);
-  pin_table_.Add(array);
-}
-
-void JavaVMExt::UnpinPrimitiveArray(Thread* self, mirror::Array* array) {
-  MutexLock mu(self, pins_lock_);
-  pin_table_.Remove(array);
-}
-
 void JavaVMExt::DumpReferenceTables(std::ostream& os) {
   Thread* self = Thread::Current();
   {
@@ -586,10 +568,6 @@ void JavaVMExt::DumpReferenceTables(std::ostream& os) {
   {
     MutexLock mu(self, weak_globals_lock_);
     weak_globals_.Dump(os);
-  }
-  {
-    MutexLock mu(self, pins_lock_);
-    pin_table_.Dump(os);
   }
 }
 
@@ -645,8 +623,8 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env, const std::string& path, jobject 
   void* handle = dlopen(path_str, RTLD_LAZY);
   bool needs_native_bridge = false;
   if (handle == nullptr) {
-    if (NativeBridgeIsSupported(path_str)) {
-      handle = NativeBridgeLoadLibrary(path_str, RTLD_LAZY);
+    if (android::NativeBridgeIsSupported(path_str)) {
+      handle = android::NativeBridgeLoadLibrary(path_str, RTLD_LAZY);
       needs_native_bridge = true;
     }
   }
@@ -759,9 +737,14 @@ void JavaVMExt::SweepJniWeakGlobals(IsMarkedCallback* callback, void* arg) {
   for (mirror::Object** entry : weak_globals_) {
     // Since this is called by the GC, we don't need a read barrier.
     mirror::Object* obj = *entry;
+    if (obj == nullptr) {
+      // Need to skip null here to distinguish between null entries
+      // and cleared weak ref entries.
+      continue;
+    }
     mirror::Object* new_obj = callback(obj, arg);
     if (new_obj == nullptr) {
-      new_obj = kClearedJniWeakGlobal;
+      new_obj = Runtime::Current()->GetClearedJniWeakGlobal();
     }
     *entry = new_obj;
   }
@@ -772,10 +755,6 @@ void JavaVMExt::VisitRoots(RootCallback* callback, void* arg) {
   {
     ReaderMutexLock mu(self, globals_lock_);
     globals_.VisitRoots(callback, arg, 0, kRootJNIGlobal);
-  }
-  {
-    MutexLock mu(self, pins_lock_);
-    pin_table_.VisitRoots(callback, arg, 0, kRootVMInternal);
   }
   // The weak_globals table is visited by the GC itself (because it mutates the table).
 }

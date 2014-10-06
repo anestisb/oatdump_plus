@@ -427,7 +427,7 @@ const ArmEncodingMap ArmMir2Lir::EncodingMap[kArmLast] = {
                  REG_DEF_LR | NEEDS_FIXUP, "vldr", "!0s, [!1C, #!2E]", 4, kFixupVLoad),
     ENCODING_MAP(kThumb2Vldrd,       0xed900b00,
                  kFmtDfp, 22, 12, kFmtBitBlt, 19, 16, kFmtBitBlt, 7, 0,
-                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1 | IS_LOAD_OFF |
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1 | IS_LOAD_OFF4 |
                  REG_DEF_LR | NEEDS_FIXUP, "vldr", "!0S, [!1C, #!2E]", 4, kFixupVLoad),
     ENCODING_MAP(kThumb2Vmuls,        0xee200a00,
                  kFmtSfp, 22, 12, kFmtSfp, 7, 16, kFmtSfp, 5, 0,
@@ -560,12 +560,12 @@ const ArmEncodingMap ArmMir2Lir::EncodingMap[kArmLast] = {
                  kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1 | IS_MOVE,
                  "vmov.f64 ", " !0S, !1S", 4, kFixupNone),
     ENCODING_MAP(kThumb2Ldmia,         0xe8900000,
-                 kFmtBitBlt, 19, 16, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
+                 kFmtBitBlt, 19, 16, kFmtLdmRegList, 15, 0, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1,
                  IS_BINARY_OP | REG_DEF0_USE0 | REG_DEF_LIST1 | IS_LOAD,
                  "ldmia", "!0C!!, <!1R>", 4, kFixupNone),
     ENCODING_MAP(kThumb2Stmia,         0xe8800000,
-                 kFmtBitBlt, 19, 16, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
+                 kFmtBitBlt, 19, 16, kFmtStmRegList, 15, 0, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1,
                  IS_BINARY_OP | REG_DEF0_USE0 | REG_USE_LIST1 | IS_STORE,
                  "stmia", "!0C!!, <!1R>", 4, kFixupNone),
@@ -935,7 +935,7 @@ const ArmEncodingMap ArmMir2Lir::EncodingMap[kArmLast] = {
                  IS_BINARY_OP | REG_DEF0 | REG_USE_PC | IS_LOAD_OFF,
                  "ldr", "!0C, [r15pc, -#!1d]", 4, kFixupNone),
     ENCODING_MAP(kThumb2Stm,          0xe9000000,
-                 kFmtBitBlt, 19, 16, kFmtBitBlt, 12, 0, kFmtUnused, -1, -1,
+                 kFmtBitBlt, 19, 16, kFmtStmRegList, 15, 0, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1,
                  IS_BINARY_OP | REG_USE0 | REG_USE_LIST1 | IS_STORE,
                  "stm", "!0C, <!1R>", 4, kFixupNone),
@@ -968,6 +968,10 @@ const ArmEncodingMap ArmMir2Lir::EncodingMap[kArmLast] = {
                  kFmtOff24, -1, -1, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, NO_OPERAND | IS_BRANCH,
                  "b", "!0t", 4, kFixupT2Branch),
+    ENCODING_MAP(kThumb2Bl,           0xf000d000,
+                 kFmtOff24, -1, -1, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_DEF_LR | NEEDS_FIXUP,
+                 "bl", "!0T", 4, kFixupLabel),
     ENCODING_MAP(kThumb2MovImm16H,       0xf2c00000,
                  kFmtBitBlt, 11, 8, kFmtImm16, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0 | REG_USE0,
@@ -992,7 +996,7 @@ const ArmEncodingMap ArmMir2Lir::EncodingMap[kArmLast] = {
                  kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0 | REG_USE0 | NEEDS_FIXUP,
                  "movt", "!0C, #!1M", 4, kFixupMovImmHST),
     ENCODING_MAP(kThumb2LdmiaWB,         0xe8b00000,
-                 kFmtBitBlt, 19, 16, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
+                 kFmtBitBlt, 19, 16, kFmtLdmRegList, 15, 0, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1,
                  IS_BINARY_OP | REG_DEF0_USE0 | REG_DEF_LIST1 | IS_LOAD,
                  "ldmia", "!0C!!, <!1R>", 4, kFixupNone),
@@ -1094,6 +1098,19 @@ uint8_t* ArmMir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
             bits |= value;
           } else {
             switch (encoder->field_loc[i].kind) {
+              case kFmtLdmRegList:
+                value = (operand << encoder->field_loc[i].start) &
+                    ((1 << (encoder->field_loc[i].end + 1)) - 1);
+                bits |= value;
+                DCHECK_EQ((bits & (1 << 13)), 0u);
+                break;
+              case kFmtStmRegList:
+                value = (operand << encoder->field_loc[i].start) &
+                    ((1 << (encoder->field_loc[i].end + 1)) - 1);
+                bits |= value;
+                DCHECK_EQ((bits & (1 << 13)), 0u);
+                DCHECK_EQ((bits & (1 << 15)), 0u);
+                break;
               case kFmtSkip:
                 break;  // Nothing to do, but continue to next.
               case kFmtUnused:

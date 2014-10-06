@@ -23,14 +23,9 @@
 #include <stdio.h>
 
 #include "base/logging.h"
-#include "class_linker.h"
-#include "driver/compiler_driver.h"
-#include "quick/mir_to_lir.h"
 #include "mir_graph.h"
 #include "compiler_ir.h"
-#include "frontend.h"
-#include "monitor.h"
-#include "thread.h"
+#include "frontend.h"  // Debug flags.
 #include "utils.h"
 
 #endif  // ART_COMPILER_DEX_COMPILER_INTERNALS_H_

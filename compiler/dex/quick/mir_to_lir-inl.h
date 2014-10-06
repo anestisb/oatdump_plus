@@ -97,7 +97,7 @@ inline LIR* Mir2Lir::NewLIR2(int opcode, int dest, int src1) {
 }
 
 inline LIR* Mir2Lir::NewLIR2NoDest(int opcode, int src, int info) {
-  DCHECK(IsPseudoLirOp(opcode) || (GetTargetInstFlags(opcode) & IS_UNARY_OP))
+  DCHECK(IsPseudoLirOp(opcode) || (GetTargetInstFlags(opcode) & IS_BINARY_OP))
       << GetTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cu_->method_idx, *cu_->dex_file) << " "
       << current_dalvik_offset_;
@@ -142,8 +142,9 @@ inline LIR* Mir2Lir::NewLIR5(int opcode, int dest, int src1, int src2, int info1
  */
 inline void Mir2Lir::SetupRegMask(ResourceMask* mask, int reg) {
   DCHECK_EQ((reg & ~RegStorage::kRegValMask), 0);
-  DCHECK(reginfo_map_.Get(reg) != nullptr) << "No info for 0x" << reg;
-  *mask = mask->Union(reginfo_map_.Get(reg)->DefUseMask());
+  DCHECK_LT(static_cast<size_t>(reg), reginfo_map_.size());
+  DCHECK(reginfo_map_[reg] != nullptr) << "No info for 0x" << reg;
+  *mask = mask->Union(reginfo_map_[reg]->DefUseMask());
 }
 
 /*
@@ -151,8 +152,9 @@ inline void Mir2Lir::SetupRegMask(ResourceMask* mask, int reg) {
  */
 inline void Mir2Lir::ClearRegMask(ResourceMask* mask, int reg) {
   DCHECK_EQ((reg & ~RegStorage::kRegValMask), 0);
-  DCHECK(reginfo_map_.Get(reg) != nullptr) << "No info for 0x" << reg;
-  *mask = mask->ClearBits(reginfo_map_.Get(reg)->DefUseMask());
+  DCHECK_LT(static_cast<size_t>(reg), reginfo_map_.size());
+  DCHECK(reginfo_map_[reg] != nullptr) << "No info for 0x" << reg;
+  *mask = mask->ClearBits(reginfo_map_[reg]->DefUseMask());
 }
 
 /*
@@ -249,15 +251,14 @@ inline void Mir2Lir::SetupResourceMasks(LIR* lir) {
   }
 
   // Handle target-specific actions
-  SetupTargetResourceMasks(lir, flags, &def_mask, &use_mask);
+  SetupTargetResourceMasks(lir, flags, &use_mask, &def_mask);
 
   lir->u.m.use_mask = mask_cache_.GetMask(use_mask);
   lir->u.m.def_mask = mask_cache_.GetMask(def_mask);
 }
 
 inline art::Mir2Lir::RegisterInfo* Mir2Lir::GetRegInfo(RegStorage reg) {
-  RegisterInfo* res = reg.IsPair() ? reginfo_map_.Get(reg.GetLowReg()) :
-      reginfo_map_.Get(reg.GetReg());
+  RegisterInfo* res = reg.IsPair() ? reginfo_map_[reg.GetLowReg()] : reginfo_map_[reg.GetReg()];
   DCHECK(res != nullptr);
   return res;
 }

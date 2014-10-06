@@ -23,6 +23,16 @@
 
 namespace art {
 
+inline bool Runtime::IsClearedJniWeakGlobal(mirror::Object* obj) {
+  return obj == GetClearedJniWeakGlobal();
+}
+
+inline mirror::Object* Runtime::GetClearedJniWeakGlobal() {
+  mirror::Object* obj = sentinel_.Read();
+  DCHECK(obj != nullptr);
+  return obj;
+}
+
 inline QuickMethodFrameInfo Runtime::GetRuntimeMethodFrameInfo(mirror::ArtMethod* method) {
   DCHECK(method != nullptr);
   // Cannot be imt-conflict-method or resolution-method.

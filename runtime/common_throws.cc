@@ -296,8 +296,9 @@ void ThrowNoSuchFieldError(const StringPiece& scope, mirror::Class* c,
                            const StringPiece& type, const StringPiece& name)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   std::ostringstream msg;
+  std::string temp;
   msg << "No " << scope << "field " << name << " of type " << type
-      << " in class " << c->GetDescriptor() << " or its superclasses";
+      << " in class " << c->GetDescriptor(&temp) << " or its superclasses";
   ThrowException(NULL, "Ljava/lang/NoSuchFieldError;", c, msg.str().c_str());
 }
 
@@ -306,8 +307,9 @@ void ThrowNoSuchFieldError(const StringPiece& scope, mirror::Class* c,
 void ThrowNoSuchMethodError(InvokeType type, mirror::Class* c, const StringPiece& name,
                             const Signature& signature) {
   std::ostringstream msg;
+  std::string temp;
   msg << "No " << type << " method " << name << signature
-      << " in class " << c->GetDescriptor() << " or its super classes";
+      << " in class " << c->GetDescriptor(&temp) << " or its super classes";
   ThrowException(NULL, "Ljava/lang/NoSuchMethodError;", c, msg.str().c_str());
 }
 
@@ -447,6 +449,10 @@ void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location) {
       break;
     }
     case Instruction::IPUT_QUICK:
+    case Instruction::IPUT_BOOLEAN_QUICK:
+    case Instruction::IPUT_BYTE_QUICK:
+    case Instruction::IPUT_CHAR_QUICK:
+    case Instruction::IPUT_SHORT_QUICK:
     case Instruction::IPUT_WIDE_QUICK:
     case Instruction::IPUT_OBJECT_QUICK: {
       // Since we replaced the field index, we ask the verifier to tell us which

@@ -19,14 +19,14 @@
 
 #include <stdint.h>
 
+#include "compiler_ir.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
-#include "compiler_ir.h"
+#include "driver/dex_compilation_unit.h"
 #include "invoke_type.h"
 #include "mir_field_info.h"
 #include "mir_method_info.h"
 #include "utils/arena_bit_vector.h"
-#include "utils/growable_array.h"
 #include "utils/arena_containers.h"
 #include "utils/scoped_arena_containers.h"
 #include "reg_location.h"
@@ -35,40 +35,6 @@
 namespace art {
 
 class GlobalValueNumbering;
-
-enum InstructionAnalysisAttributePos {
-  kUninterestingOp = 0,
-  kArithmeticOp,
-  kFPOp,
-  kSingleOp,
-  kDoubleOp,
-  kIntOp,
-  kLongOp,
-  kBranchOp,
-  kInvokeOp,
-  kArrayOp,
-  kHeavyweightOp,
-  kSimpleConstOp,
-  kMoveOp,
-  kSwitch
-};
-
-#define AN_NONE (1 << kUninterestingOp)
-#define AN_MATH (1 << kArithmeticOp)
-#define AN_FP (1 << kFPOp)
-#define AN_LONG (1 << kLongOp)
-#define AN_INT (1 << kIntOp)
-#define AN_SINGLE (1 << kSingleOp)
-#define AN_DOUBLE (1 << kDoubleOp)
-#define AN_FLOATMATH (1 << kFPOp)
-#define AN_BRANCH (1 << kBranchOp)
-#define AN_INVOKE (1 << kInvokeOp)
-#define AN_ARRAYOP (1 << kArrayOp)
-#define AN_HEAVYWEIGHT (1 << kHeavyweightOp)
-#define AN_SIMPLECONST (1 << kSimpleConstOp)
-#define AN_MOVE (1 << kMoveOp)
-#define AN_SWITCH (1 << kSwitch)
-#define AN_COMPUTATIONAL (AN_MATH | AN_ARRAYOP | AN_MOVE | AN_SIMPLECONST)
 
 enum DataFlowAttributePos {
   kUA = 0,
@@ -194,6 +160,7 @@ enum OatMethodAttributes {
 #define MIR_CALLEE                      (1 << kMIRCallee)
 #define MIR_IGNORE_SUSPEND_CHECK        (1 << kMIRIgnoreSuspendCheck)
 #define MIR_DUP                         (1 << kMIRDup)
+#define MIR_STORE_NON_TEMPORAL          (1 << kMIRStoreNonTemporal)
 
 #define BLOCK_NAME_LEN 80
 
@@ -215,6 +182,7 @@ struct CompilerTemp {
 enum CompilerTempType {
   kCompilerTempVR,                // A virtual register temporary.
   kCompilerTempSpecialMethodPtr,  // Temporary that keeps track of current method pointer.
+  kCompilerTempBackend,           // Temporary that is used by backend.
 };
 
 // When debug option enabled, records effectiveness of null and range check elimination.
@@ -297,37 +265,37 @@ struct MIR {
     }
 
     bool IsInvoke() const {
-      return !IsPseudoMirOp(opcode) && ((Instruction::FlagsOf(opcode) & Instruction::kInvoke) == Instruction::kInvoke);
+      return ((FlagsOf() & Instruction::kInvoke) == Instruction::kInvoke);
     }
 
     bool IsStore() const {
-      return !IsPseudoMirOp(opcode) && ((Instruction::FlagsOf(opcode) & Instruction::kStore) == Instruction::kStore);
+      return ((FlagsOf() & Instruction::kStore) == Instruction::kStore);
     }
 
     bool IsLoad() const {
-      return !IsPseudoMirOp(opcode) && ((Instruction::FlagsOf(opcode) & Instruction::kLoad) == Instruction::kLoad);
+      return ((FlagsOf() & Instruction::kLoad) == Instruction::kLoad);
     }
 
     bool IsConditionalBranch() const {
-      return !IsPseudoMirOp(opcode) && (Instruction::FlagsOf(opcode) == (Instruction::kContinue | Instruction::kBranch));
+      return (FlagsOf() == (Instruction::kContinue | Instruction::kBranch));
     }
 
     /**
      * @brief Is the register C component of the decoded instruction a constant?
      */
     bool IsCFieldOrConstant() const {
-      return !IsPseudoMirOp(opcode) && ((Instruction::FlagsOf(opcode) & Instruction::kRegCFieldOrConstant) == Instruction::kRegCFieldOrConstant);
+      return ((FlagsOf() & Instruction::kRegCFieldOrConstant) == Instruction::kRegCFieldOrConstant);
     }
 
     /**
      * @brief Is the register C component of the decoded instruction a constant?
      */
     bool IsBFieldOrConstant() const {
-      return !IsPseudoMirOp(opcode) && ((Instruction::FlagsOf(opcode) & Instruction::kRegBFieldOrConstant) == Instruction::kRegBFieldOrConstant);
+      return ((FlagsOf() & Instruction::kRegBFieldOrConstant) == Instruction::kRegBFieldOrConstant);
     }
 
     bool IsCast() const {
-      return !IsPseudoMirOp(opcode) && ((Instruction::FlagsOf(opcode) & Instruction::kCast) == Instruction::kCast);
+      return ((FlagsOf() & Instruction::kCast) == Instruction::kCast);
     }
 
     /**
@@ -337,12 +305,14 @@ struct MIR {
      *            when crossing such an instruction.
      */
     bool Clobbers() const {
-      return !IsPseudoMirOp(opcode) && ((Instruction::FlagsOf(opcode) & Instruction::kClobber) == Instruction::kClobber);
+      return ((FlagsOf() & Instruction::kClobber) == Instruction::kClobber);
     }
 
     bool IsLinear() const {
-      return !IsPseudoMirOp(opcode) && (Instruction::FlagsOf(opcode) & (Instruction::kAdd | Instruction::kSubtract)) != 0;
+      return (FlagsOf() & (Instruction::kAdd | Instruction::kSubtract)) != 0;
     }
+
+    int FlagsOf() const;
   } dalvikInsn;
 
   NarrowDexOffset offset;         // Offset of the instruction in code units.
@@ -389,6 +359,17 @@ struct MIR {
 struct SuccessorBlockInfo;
 
 struct BasicBlock {
+  BasicBlock(BasicBlockId block_id, BBType type, ArenaAllocator* allocator)
+      : id(block_id),
+        dfs_id(), start_offset(), fall_through(), taken(), i_dom(), nesting_depth(),
+        block_type(type),
+        successor_block_list_type(kNotUsed),
+        visited(), hidden(), catch_entry(), explicit_throw(), conditional_branch(),
+        terminated_by_return(), dominates_return(), use_lvn(), first_mir_insn(),
+        last_mir_insn(), data_flow_info(), dominators(), i_dominated(), dom_frontier(),
+        predecessors(allocator->Adapter(kArenaAllocBBPredecessors)),
+        successor_blocks(allocator->Adapter(kArenaAllocSuccessor)) {
+  }
   BasicBlockId id;
   BasicBlockId dfs_id;
   NarrowDexOffset start_offset;     // Offset in code units.
@@ -412,8 +393,8 @@ struct BasicBlock {
   ArenaBitVector* dominators;
   ArenaBitVector* i_dominated;      // Set nodes being immediately dominated.
   ArenaBitVector* dom_frontier;     // Dominance frontier.
-  GrowableArray<BasicBlockId>* predecessors;
-  GrowableArray<SuccessorBlockInfo*>* successor_blocks;
+  ArenaVector<BasicBlockId> predecessors;
+  ArenaVector<SuccessorBlockInfo*> successor_blocks;
 
   void AppendMIR(MIR* mir);
   void AppendMIRList(MIR* first_list_mir, MIR* last_list_mir);
@@ -441,7 +422,7 @@ struct BasicBlock {
    * @brief Hide the BasicBlock.
    * @details Set it to kDalvikByteCode, set hidden to true, remove all MIRs,
    *          remove itself from any predecessor edges, remove itself from any
-   *          child's predecessor growable array.
+   *          child's predecessor array.
    */
   void Hide(CompilationUnit* c_unit);
 
@@ -456,7 +437,12 @@ struct BasicBlock {
   bool ReplaceChild(BasicBlockId old_bb, BasicBlockId new_bb);
 
   /**
-   * @brief Update the predecessor growable array from old_pred to new_pred.
+   * @brief Erase the predecessor old_pred.
+   */
+  void ErasePredecessor(BasicBlockId old_pred);
+
+  /**
+   * @brief Update the predecessor array from old_pred to new_pred.
    */
   void UpdatePredecessor(BasicBlockId old_pred, BasicBlockId new_pred);
 
@@ -507,7 +493,7 @@ class ChildBlockIterator {
   bool visited_fallthrough_;
   bool visited_taken_;
   bool have_successors_;
-  GrowableArray<SuccessorBlockInfo*>::Iterator successor_iter_;
+  ArenaVector<SuccessorBlockInfo*>::const_iterator successor_iter_;
 };
 
 /*
@@ -539,7 +525,7 @@ const RegLocation bad_loc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0, RegStorage
 class MIRGraph {
  public:
   MIRGraph(CompilationUnit* cu, ArenaAllocator* arena);
-  ~MIRGraph();
+  virtual ~MIRGraph();
 
   /*
    * Examine the graph to determine whether it's worthwile to spend the time compiling
@@ -569,17 +555,36 @@ class MIRGraph {
     return current_code_item_->insns_;
   }
 
+  /**
+   * @brief Used to obtain the raw dex bytecode instruction pointer.
+   * @param m_unit_index The method index in MIRGraph (caused by having multiple methods).
+   * This is guaranteed to contain index 0 which is the base method being compiled.
+   * @return Returns the raw instruction pointer.
+   */
   const uint16_t* GetInsns(int m_unit_index) const {
     return m_units_[m_unit_index]->GetCodeItem()->insns_;
+  }
+
+  /**
+   * @brief Used to obtain the raw data table.
+   * @param mir sparse switch, packed switch, of fill-array-data
+   * @param table_offset The table offset from start of method.
+   * @return Returns the raw table pointer.
+   */
+  const uint16_t* GetTable(MIR* mir, uint32_t table_offset) const {
+    return GetInsns(mir->m_unit_index) + mir->offset + table_offset;
   }
 
   unsigned int GetNumBlocks() const {
     return num_blocks_;
   }
 
-  size_t GetNumDalvikInsns() const {
-    return cu_->code_item->insns_size_in_code_units_;
-  }
+  /**
+   * @brief Provides the total size in code units of all instructions in MIRGraph.
+   * @details Includes the sizes of all methods in compilation unit.
+   * @return Returns the cumulative sum of all insn sizes (in code units).
+   */
+  size_t GetNumDalvikInsns() const;
 
   ArenaBitVector* GetTryBlockAddr() const {
     return try_block_addr_;
@@ -594,26 +599,27 @@ class MIRGraph {
   }
 
   BasicBlock* GetBasicBlock(unsigned int block_id) const {
-    return (block_id == NullBasicBlockId) ? NULL : block_list_.Get(block_id);
+    DCHECK_LT(block_id, block_list_.size());  // NOTE: NullBasicBlockId is 0.
+    return (block_id == NullBasicBlockId) ? NULL : block_list_[block_id];
   }
 
   size_t GetBasicBlockListCount() const {
-    return block_list_.Size();
+    return block_list_.size();
   }
 
-  GrowableArray<BasicBlock*>* GetBlockList() {
-    return &block_list_;
+  const ArenaVector<BasicBlock*>& GetBlockList() {
+    return block_list_;
   }
 
-  GrowableArray<BasicBlockId>* GetDfsOrder() {
+  const ArenaVector<BasicBlockId>& GetDfsOrder() {
     return dfs_order_;
   }
 
-  GrowableArray<BasicBlockId>* GetDfsPostOrder() {
+  const ArenaVector<BasicBlockId>& GetDfsPostOrder() {
     return dfs_post_order_;
   }
 
-  GrowableArray<BasicBlockId>* GetDomPostOrder() {
+  const ArenaVector<BasicBlockId>& GetDomPostOrder() {
     return dom_post_order_traversal_;
   }
 
@@ -660,20 +666,20 @@ class MIRGraph {
   void DoCacheFieldLoweringInfo();
 
   const MirIFieldLoweringInfo& GetIFieldLoweringInfo(MIR* mir) const {
-    DCHECK_LT(mir->meta.ifield_lowering_info, ifield_lowering_infos_.Size());
-    return ifield_lowering_infos_.GetRawStorage()[mir->meta.ifield_lowering_info];
+    DCHECK_LT(mir->meta.ifield_lowering_info, ifield_lowering_infos_.size());
+    return ifield_lowering_infos_[mir->meta.ifield_lowering_info];
   }
 
   const MirSFieldLoweringInfo& GetSFieldLoweringInfo(MIR* mir) const {
-    DCHECK_LT(mir->meta.sfield_lowering_info, sfield_lowering_infos_.Size());
-    return sfield_lowering_infos_.GetRawStorage()[mir->meta.sfield_lowering_info];
+    DCHECK_LT(mir->meta.sfield_lowering_info, sfield_lowering_infos_.size());
+    return sfield_lowering_infos_[mir->meta.sfield_lowering_info];
   }
 
   void DoCacheMethodLoweringInfo();
 
   const MirMethodLoweringInfo& GetMethodLoweringInfo(MIR* mir) {
-    DCHECK_LT(mir->meta.method_lowering_info, method_lowering_infos_.Size());
-    return method_lowering_infos_.GetRawStorage()[mir->meta.method_lowering_info];
+    DCHECK_LT(mir->meta.method_lowering_info, method_lowering_infos_.size());
+    return method_lowering_infos_[mir->meta.method_lowering_info];
   }
 
   void ComputeInlineIFieldLoweringInfo(uint16_t field_idx, MIR* invoke, MIR* iget_or_iput);
@@ -686,24 +692,24 @@ class MIRGraph {
 
   void BasicBlockOptimization();
 
-  GrowableArray<BasicBlockId>* GetTopologicalSortOrder() {
-    DCHECK(topological_order_ != nullptr);
+  const ArenaVector<BasicBlockId>& GetTopologicalSortOrder() {
+    DCHECK(!topological_order_.empty());
     return topological_order_;
   }
 
-  GrowableArray<BasicBlockId>* GetTopologicalSortOrderLoopEnds() {
-    DCHECK(topological_order_loop_ends_ != nullptr);
+  const ArenaVector<BasicBlockId>& GetTopologicalSortOrderLoopEnds() {
+    DCHECK(!topological_order_loop_ends_.empty());
     return topological_order_loop_ends_;
   }
 
-  GrowableArray<BasicBlockId>* GetTopologicalSortOrderIndexes() {
-    DCHECK(topological_order_indexes_ != nullptr);
+  const ArenaVector<BasicBlockId>& GetTopologicalSortOrderIndexes() {
+    DCHECK(!topological_order_indexes_.empty());
     return topological_order_indexes_;
   }
 
-  GrowableArray<std::pair<uint16_t, bool>>* GetTopologicalSortOrderLoopHeadStack() {
-    DCHECK(topological_order_loop_head_stack_ != nullptr);
-    return topological_order_loop_head_stack_;
+  ArenaVector<std::pair<uint16_t, bool>>* GetTopologicalSortOrderLoopHeadStack() {
+    DCHECK(!topological_order_.empty());  // Checking the main array, not the stack.
+    return &topological_order_loop_head_stack_;
   }
 
   bool IsConst(int32_t s_reg) const {
@@ -724,11 +730,40 @@ class MIRGraph {
     return constant_values_[s_reg];
   }
 
+  /**
+   * @brief Used to obtain 64-bit value of a pair of ssa registers.
+   * @param s_reg_low The ssa register representing the low bits.
+   * @param s_reg_high The ssa register representing the high bits.
+   * @return Retusn the 64-bit constant value.
+   */
+  int64_t ConstantValueWide(int32_t s_reg_low, int32_t s_reg_high) const {
+    DCHECK(IsConst(s_reg_low));
+    DCHECK(IsConst(s_reg_high));
+    return (static_cast<int64_t>(constant_values_[s_reg_high]) << 32) |
+        Low32Bits(static_cast<int64_t>(constant_values_[s_reg_low]));
+  }
+
   int64_t ConstantValueWide(RegLocation loc) const {
     DCHECK(IsConst(loc));
+    DCHECK(!loc.high_word);  // Do not allow asking for the high partner.
+    DCHECK_LT(loc.orig_sreg + 1, GetNumSSARegs());
     return (static_cast<int64_t>(constant_values_[loc.orig_sreg + 1]) << 32) |
         Low32Bits(static_cast<int64_t>(constant_values_[loc.orig_sreg]));
   }
+
+  /**
+   * @brief Used to mark ssa register as being constant.
+   * @param ssa_reg The ssa register.
+   * @param value The constant value of ssa register.
+   */
+  void SetConstant(int32_t ssa_reg, int32_t value);
+
+  /**
+   * @brief Used to mark ssa register and its wide counter-part as being constant.
+   * @param ssa_reg The ssa register.
+   * @param value The 64-bit constant value of ssa register and its pair.
+   */
+  void SetConstantWide(int32_t ssa_reg, int64_t value);
 
   bool IsConstantNullRef(RegLocation loc) const {
     return loc.ref && loc.is_const && (ConstantValue(loc) == 0);
@@ -752,16 +787,19 @@ class MIRGraph {
     return num_reachable_blocks_;
   }
 
-  int GetUseCount(int vreg) const {
-    return use_counts_.Get(vreg);
+  uint32_t GetUseCount(int sreg) const {
+    DCHECK_LT(static_cast<size_t>(sreg), use_counts_.size());
+    return use_counts_[sreg];
   }
 
-  int GetRawUseCount(int vreg) const {
-    return raw_use_counts_.Get(vreg);
+  uint32_t GetRawUseCount(int sreg) const {
+    DCHECK_LT(static_cast<size_t>(sreg), raw_use_counts_.size());
+    return raw_use_counts_[sreg];
   }
 
   int GetSSASubscript(int ssa_reg) const {
-    return ssa_subscripts_->Get(ssa_reg);
+    DCHECK_LT(static_cast<size_t>(ssa_reg), ssa_subscripts_.size());
+    return ssa_subscripts_[ssa_reg];
   }
 
   RegLocation GetRawSrc(MIR* mir, int num) {
@@ -813,9 +851,26 @@ class MIRGraph {
    * @return Returns the number of compiler temporaries.
    */
   size_t GetNumUsedCompilerTemps() const {
-    size_t total_num_temps = compiler_temps_.Size();
-    DCHECK_LE(num_non_special_compiler_temps_, total_num_temps);
-    return total_num_temps;
+    // Assume that the special temps will always be used.
+    return GetNumNonSpecialCompilerTemps() + max_available_special_compiler_temps_;
+  }
+
+  /**
+   * @brief Used to obtain number of bytes needed for special temps.
+   * @details This space is always needed because temps have special location on stack.
+   * @return Returns number of bytes for the special temps.
+   */
+  size_t GetNumBytesForSpecialTemps() const;
+
+  /**
+   * @brief Used by backend as a hint for maximum number of bytes for non-special temps.
+   * @details Returns 4 bytes for each temp because that is the maximum amount needed
+   * for storing each temp. The BE could be smarter though and allocate a smaller
+   * spill region.
+   * @return Returns the maximum number of bytes needed for non-special temps.
+   */
+  size_t GetMaximumBytesForNonSpecialTemps() const {
+    return GetNumNonSpecialCompilerTemps() * sizeof(uint32_t);
   }
 
   /**
@@ -833,7 +888,9 @@ class MIRGraph {
    * @return Returns true if the max was set and false if failed to set.
    */
   bool SetMaxAvailableNonSpecialCompilerTemps(size_t new_max) {
-    if (new_max < GetNumNonSpecialCompilerTemps()) {
+    // Make sure that enough temps still exist for backend and also that the
+    // new max can still keep around all of the already requested temps.
+    if (new_max < (GetNumNonSpecialCompilerTemps() + reserved_temps_for_backend_)) {
       return false;
     } else {
       max_available_non_special_compiler_temps_ = new_max;
@@ -842,21 +899,12 @@ class MIRGraph {
   }
 
   /**
-   * @brief Provides the number of non-special compiler temps available.
+   * @brief Provides the number of non-special compiler temps available for use by ME.
    * @details Even if this returns zero, special compiler temps are guaranteed to be available.
+   * Additionally, this makes sure to not use any temps reserved for BE only.
    * @return Returns the number of available temps.
    */
-  size_t GetNumAvailableNonSpecialCompilerTemps();
-
-  /**
-   * @brief Used to obtain an existing compiler temporary.
-   * @param index The index of the temporary which must be strictly less than the
-   * number of temporaries.
-   * @return Returns the temporary that was asked for.
-   */
-  CompilerTemp* GetCompilerTemp(size_t index) const {
-    return compiler_temps_.Get(index);
-  }
+  size_t GetNumAvailableVRTemps();
 
   /**
    * @brief Used to obtain the maximum number of compiler temporaries that can be requested.
@@ -867,7 +915,22 @@ class MIRGraph {
   }
 
   /**
+   * @brief Used to signal that the compiler temps have been committed.
+   * @details This should be used once the number of temps can no longer change,
+   * such as after frame size is committed and cannot be changed.
+   */
+  void CommitCompilerTemps() {
+    compiler_temps_committed_ = true;
+  }
+
+  /**
    * @brief Used to obtain a new unique compiler temporary.
+   * @details Two things are done for convenience when allocating a new compiler
+   * temporary. The ssa register is automatically requested and the information
+   * about reg location is filled. This helps when the temp is requested post
+   * ssa initialization, such as when temps are requested by the backend.
+   * @warning If the temp requested will be used for ME and have multiple versions,
+   * the sreg provided by the temp will be invalidated on next ssa recalculation.
    * @param ct_type Type of compiler temporary requested.
    * @param wide Whether we should allocate a wide temporary.
    * @return Returns the newly created compiler temporary.
@@ -909,8 +972,49 @@ class MIRGraph {
   }
 
   // Is this vreg in the in set?
-  bool IsInVReg(int vreg) {
-    return (vreg >= cu_->num_regs);
+  bool IsInVReg(uint32_t vreg) {
+    return (vreg >= GetFirstInVR()) && (vreg < GetFirstTempVR());
+  }
+
+  uint32_t GetNumOfCodeVRs() const {
+    return current_code_item_->registers_size_;
+  }
+
+  uint32_t GetNumOfCodeAndTempVRs() const {
+    // Include all of the possible temps so that no structures overflow when initialized.
+    return GetNumOfCodeVRs() + GetMaxPossibleCompilerTemps();
+  }
+
+  uint32_t GetNumOfLocalCodeVRs() const {
+    // This also refers to the first "in" VR.
+    return GetNumOfCodeVRs() - current_code_item_->ins_size_;
+  }
+
+  uint32_t GetNumOfInVRs() const {
+    return current_code_item_->ins_size_;
+  }
+
+  uint32_t GetNumOfOutVRs() const {
+    return current_code_item_->outs_size_;
+  }
+
+  uint32_t GetFirstInVR() const {
+    return GetNumOfLocalCodeVRs();
+  }
+
+  uint32_t GetFirstTempVR() const {
+    // Temp VRs immediately follow code VRs.
+    return GetNumOfCodeVRs();
+  }
+
+  uint32_t GetFirstSpecialTempVR() const {
+    // Special temps appear first in the ordering before non special temps.
+    return GetFirstTempVR();
+  }
+
+  uint32_t GetFirstNonSpecialTempVR() const {
+    // We always leave space for all the special temps before the non-special ones.
+    return GetFirstSpecialTempVR() + max_available_special_compiler_temps_;
   }
 
   void DumpCheckStats();
@@ -963,6 +1067,7 @@ class MIRGraph {
     punt_to_interpreter_ = val;
   }
 
+  void DisassembleExtendedInstr(const MIR* mir, std::string* decoded_mir);
   char* GetDalvikDisassembly(const MIR* mir);
   void ReplaceSpecialChars(std::string& str);
   std::string GetSSAName(int ssa_reg);
@@ -1042,6 +1147,7 @@ class MIRGraph {
   void ComputeDefBlockMatrix();
   void ComputeDominators();
   void CompilerInitializeSSAConversion();
+  virtual void InitializeBasicBlockDataFlow();
   void InsertPhiNodes();
   void DoDFSPreOrderSSARename(BasicBlock* block);
 
@@ -1056,16 +1162,15 @@ class MIRGraph {
   ArenaSafeMap<unsigned int, unsigned int> block_id_map_;   // Block collapse lookup cache.
 
   static const char* extended_mir_op_names_[kMirOpLast - kMirOpFirst];
-  static const uint32_t analysis_attributes_[kMirOpLast];
 
   void HandleSSADef(int* defs, int dalvik_reg, int reg_index);
   bool InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed);
 
   // Used for removing redudant suspend tests
   void AppendGenSuspendTestList(BasicBlock* bb) {
-    if (gen_suspend_test_list_.Size() == 0 ||
-        gen_suspend_test_list_.Get(gen_suspend_test_list_.Size() - 1) != bb) {
-      gen_suspend_test_list_.Insert(bb);
+    if (gen_suspend_test_list_.size() == 0 ||
+        gen_suspend_test_list_.back() != bb) {
+      gen_suspend_test_list_.push_back(bb);
     }
   }
 
@@ -1086,7 +1191,6 @@ class MIRGraph {
                       ArenaBitVector* live_in_v,
                       const MIR::DecodedInstruction& d_insn);
   bool DoSSAConversion(BasicBlock* bb);
-  bool InvokeUsesMethodStar(MIR* mir);
   int ParseInsn(const uint16_t* code_ptr, MIR::DecodedInstruction* decoded_instruction);
   bool ContentIsInsn(const uint16_t* code_ptr);
   BasicBlock* SplitBlock(DexOffset code_offset, BasicBlock* orig_block,
@@ -1114,8 +1218,6 @@ class MIRGraph {
   void MarkPreOrder(BasicBlock* bb);
   void RecordDFSOrders(BasicBlock* bb);
   void ComputeDomPostOrderTraversal(BasicBlock* bb);
-  void SetConstant(int32_t ssa_reg, int value);
-  void SetConstantWide(int ssa_reg, int64_t value);
   int GetSSAUseCount(int s_reg);
   bool BasicBlockOpt(BasicBlock* bb);
   bool BuildExtendedBBList(struct BasicBlock* bb);
@@ -1133,45 +1235,45 @@ class MIRGraph {
                               std::string* skip_message);
 
   CompilationUnit* const cu_;
-  GrowableArray<int>* ssa_base_vregs_;
-  GrowableArray<int>* ssa_subscripts_;
+  ArenaVector<int> ssa_base_vregs_;
+  ArenaVector<int> ssa_subscripts_;
   // Map original Dalvik virtual reg i to the current SSA name.
   int* vreg_to_ssa_map_;            // length == method->registers_size
   int* ssa_last_defs_;              // length == method->registers_size
   ArenaBitVector* is_constant_v_;   // length == num_ssa_reg
   int* constant_values_;            // length == num_ssa_reg
   // Use counts of ssa names.
-  GrowableArray<uint32_t> use_counts_;      // Weighted by nesting depth
-  GrowableArray<uint32_t> raw_use_counts_;  // Not weighted
+  ArenaVector<uint32_t> use_counts_;      // Weighted by nesting depth
+  ArenaVector<uint32_t> raw_use_counts_;  // Not weighted
   unsigned int num_reachable_blocks_;
   unsigned int max_num_reachable_blocks_;
-  GrowableArray<BasicBlockId>* dfs_order_;
-  GrowableArray<BasicBlockId>* dfs_post_order_;
-  GrowableArray<BasicBlockId>* dom_post_order_traversal_;
-  GrowableArray<BasicBlockId>* topological_order_;
+  ArenaVector<BasicBlockId> dfs_order_;
+  ArenaVector<BasicBlockId> dfs_post_order_;
+  ArenaVector<BasicBlockId> dom_post_order_traversal_;
+  ArenaVector<BasicBlockId> topological_order_;
   // Indexes in topological_order_ need to be only as big as the BasicBlockId.
   COMPILE_ASSERT(sizeof(BasicBlockId) == sizeof(uint16_t), assuming_16_bit_BasicBlockId);
   // For each loop head, remember the past-the-end index of the end of the loop. 0 if not loop head.
-  GrowableArray<uint16_t>* topological_order_loop_ends_;
+  ArenaVector<uint16_t> topological_order_loop_ends_;
   // Map BB ids to topological_order_ indexes. 0xffff if not included (hidden or null block).
-  GrowableArray<uint16_t>* topological_order_indexes_;
+  ArenaVector<uint16_t> topological_order_indexes_;
   // Stack of the loop head indexes and recalculation flags for RepeatingTopologicalSortIterator.
-  GrowableArray<std::pair<uint16_t, bool>>* topological_order_loop_head_stack_;
+  ArenaVector<std::pair<uint16_t, bool>> topological_order_loop_head_stack_;
   int* i_dom_list_;
-  ArenaBitVector** def_block_matrix_;    // num_dalvik_register x num_blocks.
+  ArenaBitVector** def_block_matrix_;    // original num registers x num_blocks.
   std::unique_ptr<ScopedArenaAllocator> temp_scoped_alloc_;
   uint16_t* temp_insn_data_;
   uint32_t temp_bit_vector_size_;
   ArenaBitVector* temp_bit_vector_;
   std::unique_ptr<GlobalValueNumbering> temp_gvn_;
   static const int kInvalidEntry = -1;
-  GrowableArray<BasicBlock*> block_list_;
+  ArenaVector<BasicBlock*> block_list_;
   ArenaBitVector* try_block_addr_;
   BasicBlock* entry_block_;
   BasicBlock* exit_block_;
   unsigned int num_blocks_;
   const DexFile::CodeItem* current_code_item_;
-  GrowableArray<uint16_t> dex_pc_to_block_map_;  // FindBlock lookup cache.
+  ArenaVector<uint16_t> dex_pc_to_block_map_;    // FindBlock lookup cache.
   ArenaVector<DexCompilationUnit*> m_units_;     // List of methods included in this graph
   typedef std::pair<int, int> MIRLocation;       // Insert point, (m_unit_ index, offset)
   ArenaVector<MIRLocation> method_stack_;        // Include stack
@@ -1187,17 +1289,19 @@ class MIRGraph {
   ArenaAllocator* arena_;
   int backward_branches_;
   int forward_branches_;
-  GrowableArray<CompilerTemp*> compiler_temps_;
-  size_t num_non_special_compiler_temps_;
-  size_t max_available_non_special_compiler_temps_;
-  size_t max_available_special_compiler_temps_;
-  bool punt_to_interpreter_;                    // Difficult or not worthwhile - just interpret.
+  size_t num_non_special_compiler_temps_;  // Keeps track of allocated non-special compiler temps. These are VRs that are in compiler temp region on stack.
+  size_t max_available_non_special_compiler_temps_;  // Keeps track of maximum available non-special temps.
+  size_t max_available_special_compiler_temps_;      // Keeps track of maximum available special temps.
+  bool requested_backend_temp_;            // Keeps track whether BE temps have been requested.
+  size_t reserved_temps_for_backend_;      // Keeps track of the remaining temps that are reserved for BE.
+  bool compiler_temps_committed_;          // Keeps track whether number of temps has been frozen (for example post frame size calculation).
+  bool punt_to_interpreter_;               // Difficult or not worthwhile - just interpret.
   uint64_t merged_df_flags_;
-  GrowableArray<MirIFieldLoweringInfo> ifield_lowering_infos_;
-  GrowableArray<MirSFieldLoweringInfo> sfield_lowering_infos_;
-  GrowableArray<MirMethodLoweringInfo> method_lowering_infos_;
+  ArenaVector<MirIFieldLoweringInfo> ifield_lowering_infos_;
+  ArenaVector<MirSFieldLoweringInfo> sfield_lowering_infos_;
+  ArenaVector<MirMethodLoweringInfo> method_lowering_infos_;
   static const uint64_t oat_data_flow_attributes_[kMirOpLast];
-  GrowableArray<BasicBlock*> gen_suspend_test_list_;  // List of blocks containing suspend tests
+  ArenaVector<BasicBlock*> gen_suspend_test_list_;  // List of blocks containing suspend tests
 
   friend class ClassInitCheckEliminationTest;
   friend class GlobalValueNumberingTest;

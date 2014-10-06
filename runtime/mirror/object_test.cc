@@ -22,6 +22,7 @@
 
 #include "array-inl.h"
 #include "art_field-inl.h"
+#include "art_method-inl.h"
 #include "asm_support.h"
 #include "class-inl.h"
 #include "class_linker.h"
@@ -31,11 +32,11 @@
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/heap.h"
+#include "handle_scope-inl.h"
 #include "iftable-inl.h"
-#include "art_method-inl.h"
+#include "method_helper-inl.h"
 #include "object-inl.h"
 #include "object_array-inl.h"
-#include "handle_scope-inl.h"
 #include "scoped_thread_state_change.h"
 #include "string-inl.h"
 
@@ -160,20 +161,20 @@ TEST_F(ObjectTest, AllocArray) {
   ScopedObjectAccess soa(Thread::Current());
   Class* c = class_linker_->FindSystemClass(soa.Self(), "[I");
   StackHandleScope<1> hs(soa.Self());
-  Handle<Array> a(
-      hs.NewHandle(Array::Alloc<true>(soa.Self(), c, 1, c->GetComponentSize(),
+  MutableHandle<Array> a(
+      hs.NewHandle(Array::Alloc<true>(soa.Self(), c, 1, c->GetComponentSizeShift(),
                                       Runtime::Current()->GetHeap()->GetCurrentAllocator())));
   EXPECT_TRUE(c == a->GetClass());
   EXPECT_EQ(1, a->GetLength());
 
   c = class_linker_->FindSystemClass(soa.Self(), "[Ljava/lang/Object;");
-  a.Assign(Array::Alloc<true>(soa.Self(), c, 1, c->GetComponentSize(),
+  a.Assign(Array::Alloc<true>(soa.Self(), c, 1, c->GetComponentSizeShift(),
                               Runtime::Current()->GetHeap()->GetCurrentAllocator()));
   EXPECT_TRUE(c == a->GetClass());
   EXPECT_EQ(1, a->GetLength());
 
   c = class_linker_->FindSystemClass(soa.Self(), "[[Ljava/lang/Object;");
-  a.Assign(Array::Alloc<true>(soa.Self(), c, 1, c->GetComponentSize(),
+  a.Assign(Array::Alloc<true>(soa.Self(), c, 1, c->GetComponentSizeShift(),
                               Runtime::Current()->GetHeap()->GetCurrentAllocator()));
   EXPECT_TRUE(c == a->GetClass());
   EXPECT_EQ(1, a->GetLength());
@@ -183,27 +184,27 @@ TEST_F(ObjectTest, AllocArray_FillUsable) {
   ScopedObjectAccess soa(Thread::Current());
   Class* c = class_linker_->FindSystemClass(soa.Self(), "[B");
   StackHandleScope<1> hs(soa.Self());
-  Handle<Array> a(
-      hs.NewHandle(Array::Alloc<true>(soa.Self(), c, 1, c->GetComponentSize(),
-                                      Runtime::Current()->GetHeap()->GetCurrentAllocator(), true)));
+  MutableHandle<Array> a(
+      hs.NewHandle(Array::Alloc<true, true>(soa.Self(), c, 1, c->GetComponentSizeShift(),
+                                            Runtime::Current()->GetHeap()->GetCurrentAllocator())));
   EXPECT_TRUE(c == a->GetClass());
   EXPECT_LE(1, a->GetLength());
 
   c = class_linker_->FindSystemClass(soa.Self(), "[I");
-  a.Assign(Array::Alloc<true>(soa.Self(), c, 2, c->GetComponentSize(),
-                              Runtime::Current()->GetHeap()->GetCurrentAllocator(), true));
+  a.Assign(Array::Alloc<true, true>(soa.Self(), c, 2, c->GetComponentSizeShift(),
+                                    Runtime::Current()->GetHeap()->GetCurrentAllocator()));
   EXPECT_TRUE(c == a->GetClass());
   EXPECT_LE(2, a->GetLength());
 
   c = class_linker_->FindSystemClass(soa.Self(), "[Ljava/lang/Object;");
-  a.Assign(Array::Alloc<true>(soa.Self(), c, 2, c->GetComponentSize(),
-                              Runtime::Current()->GetHeap()->GetCurrentAllocator(), true));
+  a.Assign(Array::Alloc<true, true>(soa.Self(), c, 2, c->GetComponentSizeShift(),
+                                    Runtime::Current()->GetHeap()->GetCurrentAllocator()));
   EXPECT_TRUE(c == a->GetClass());
   EXPECT_LE(2, a->GetLength());
 
   c = class_linker_->FindSystemClass(soa.Self(), "[[Ljava/lang/Object;");
-  a.Assign(Array::Alloc<true>(soa.Self(), c, 2, c->GetComponentSize(),
-                             Runtime::Current()->GetHeap()->GetCurrentAllocator(), true));
+  a.Assign(Array::Alloc<true, true>(soa.Self(), c, 2, c->GetComponentSizeShift(),
+                                    Runtime::Current()->GetHeap()->GetCurrentAllocator()));
   EXPECT_TRUE(c == a->GetClass());
   EXPECT_LE(2, a->GetLength());
 }
@@ -286,7 +287,7 @@ TEST_F(ObjectTest, CreateMultiArray) {
 
   StackHandleScope<2> hs(soa.Self());
   Handle<Class> c(hs.NewHandle(class_linker_->FindSystemClass(soa.Self(), "I")));
-  Handle<IntArray> dims(hs.NewHandle(IntArray::Alloc(soa.Self(), 1)));
+  MutableHandle<IntArray> dims(hs.NewHandle(IntArray::Alloc(soa.Self(), 1)));
   dims->Set<false>(0, 1);
   Array* multi = Array::CreateMultiArray(soa.Self(), c, dims);
   EXPECT_TRUE(multi->GetClass() == class_linker_->FindSystemClass(soa.Self(), "[I"));
@@ -484,8 +485,8 @@ TEST_F(ObjectTest, DescriptorCompare) {
   ArtMethod* m4_2 = klass2->GetVirtualMethod(3);
   EXPECT_STREQ(m4_2->GetName(), "m4");
 
-  MethodHelper mh(hs.NewHandle(m1_1));
-  MethodHelper mh2(hs.NewHandle(m1_2));
+  MutableMethodHelper mh(hs.NewHandle(m1_1));
+  MutableMethodHelper mh2(hs.NewHandle(m1_2));
   EXPECT_TRUE(mh.HasSameNameAndSignature(&mh2));
   EXPECT_TRUE(mh2.HasSameNameAndSignature(&mh));
 

@@ -1,5 +1,6 @@
-Ready for native bridge tests.
 Native bridge initialized.
+Checking for getEnvValues.
+Ready for native bridge tests.
 Checking for support.
 Getting trampoline for JNI_OnLoad with shorty (null).
 Test ART callbacks: all JNI function number is 9.

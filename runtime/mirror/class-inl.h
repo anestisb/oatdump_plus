@@ -510,8 +510,19 @@ inline void Class::SetName(String* name) {
 template<VerifyObjectFlags kVerifyFlags>
 inline Primitive::Type Class::GetPrimitiveType() {
   DCHECK_EQ(sizeof(Primitive::Type), sizeof(int32_t));
-  return static_cast<Primitive::Type>(
-      GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, primitive_type_)));
+  int32_t v32 = GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, primitive_type_));
+  Primitive::Type type = static_cast<Primitive::Type>(v32 & 0xFFFF);
+  DCHECK_EQ(static_cast<size_t>(v32 >> 16), Primitive::ComponentSizeShift(type));
+  return type;
+}
+
+template<VerifyObjectFlags kVerifyFlags>
+inline size_t Class::GetPrimitiveTypeSizeShift() {
+  DCHECK_EQ(sizeof(Primitive::Type), sizeof(int32_t));
+  int32_t v32 = GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, primitive_type_));
+  size_t size_shift = static_cast<Primitive::Type>(v32 >> 16);
+  DCHECK_EQ(size_shift, Primitive::ComponentSizeShift(static_cast<Primitive::Type>(v32 & 0xFFFF)));
+  return size_shift;
 }
 
 inline void Class::CheckObjectAlloc() {
@@ -556,6 +567,8 @@ inline Object* Class::AllocNonMovableObject(Thread* self) {
 
 inline uint32_t Class::ComputeClassSize(bool has_embedded_tables,
                                         uint32_t num_vtable_entries,
+                                        uint32_t num_8bit_static_fields,
+                                        uint32_t num_16bit_static_fields,
                                         uint32_t num_32bit_static_fields,
                                         uint32_t num_64bit_static_fields,
                                         uint32_t num_ref_static_fields) {
@@ -569,18 +582,33 @@ inline uint32_t Class::ComputeClassSize(bool has_embedded_tables,
             sizeof(int32_t) /* vtable len */ +
             embedded_vtable_size;
   }
+
   // Space used by reference statics.
   size +=  num_ref_static_fields * sizeof(HeapReference<Object>);
-  // Possible pad for alignment.
-  if (((size & 7) != 0) && (num_64bit_static_fields > 0)) {
-    size += sizeof(uint32_t);
-    if (num_32bit_static_fields != 0) {
-      // Shuffle one 32 bit static field forward.
-      num_32bit_static_fields--;
+  if (!IsAligned<8>(size) && num_64bit_static_fields > 0) {
+    uint32_t gap = 8 - (size & 0x7);
+    size += gap;  // will be padded
+    // Shuffle 4-byte fields forward.
+    while (gap >= sizeof(uint32_t) && num_32bit_static_fields != 0) {
+      --num_32bit_static_fields;
+      gap -= sizeof(uint32_t);
+    }
+    // Shuffle 2-byte fields forward.
+    while (gap >= sizeof(uint16_t) && num_16bit_static_fields != 0) {
+      --num_16bit_static_fields;
+      gap -= sizeof(uint16_t);
+    }
+    // Shuffle byte fields forward.
+    while (gap >= sizeof(uint8_t) && num_8bit_static_fields != 0) {
+      --num_8bit_static_fields;
+      gap -= sizeof(uint8_t);
     }
   }
+  // Guaranteed to be at least 4 byte aligned. No need for further alignments.
   // Space used for primitive static fields.
-  size += (num_32bit_static_fields * sizeof(uint32_t)) +
+  size += (num_8bit_static_fields * sizeof(uint8_t)) +
+      (num_16bit_static_fields * sizeof(uint16_t)) +
+      (num_32bit_static_fields * sizeof(uint32_t)) +
       (num_64bit_static_fields * sizeof(uint64_t));
   return size;
 }
@@ -649,11 +677,11 @@ inline const DexFile& Class::GetDexFile() {
 }
 
 inline bool Class::DescriptorEquals(const char* match) {
-  if (UNLIKELY(IsArrayClass())) {
+  if (IsArrayClass()) {
     return match[0] == '[' && GetComponentType()->DescriptorEquals(match + 1);
-  } else if (UNLIKELY(IsPrimitive())) {
+  } else if (IsPrimitive()) {
     return strcmp(Primitive::Descriptor(GetPrimitiveType()), match) == 0;
-  } else if (UNLIKELY(IsProxyClass())) {
+  } else if (IsProxyClass()) {
     return Runtime::Current()->GetClassLinker()->GetDescriptorForProxy(this) == match;
   } else {
     const DexFile& dex_file = GetDexFile();
@@ -705,11 +733,11 @@ inline MemberOffset Class::GetSlowPathFlagOffset() {
 }
 
 inline bool Class::GetSlowPathEnabled() {
-  return GetField32(GetSlowPathFlagOffset());
+  return GetFieldBoolean(GetSlowPathFlagOffset());
 }
 
 inline void Class::SetSlowPath(bool enabled) {
-  SetField32<false>(GetSlowPathFlagOffset(), enabled);
+  SetFieldBoolean<false>(GetSlowPathFlagOffset(), enabled);
 }
 
 inline void Class::InitializeClassVisitor::operator()(
@@ -722,6 +750,15 @@ inline void Class::InitializeClassVisitor::operator()(
   klass->SetPrimitiveType(Primitive::kPrimNot);  // Default to not being primitive.
   klass->SetDexClassDefIndex(DexFile::kDexNoIndex16);  // Default to no valid class def index.
   klass->SetDexTypeIndex(DexFile::kDexNoIndex16);  // Default to no valid type index.
+}
+
+inline void Class::SetAccessFlags(uint32_t new_access_flags) {
+  // Called inside a transaction when setting pre-verified flag during boot image compilation.
+  if (Runtime::Current()->IsActiveTransaction()) {
+    SetField32<true>(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), new_access_flags);
+  } else {
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), new_access_flags);
+  }
 }
 
 }  // namespace mirror

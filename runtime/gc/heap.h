@@ -30,6 +30,7 @@
 #include "gc/collector/garbage_collector.h"
 #include "gc/collector/gc_type.h"
 #include "gc/collector_type.h"
+#include "gc/space/large_object_space.h"
 #include "globals.h"
 #include "gtest/gtest.h"
 #include "instruction_set.h"
@@ -79,6 +80,7 @@ namespace allocator {
 namespace space {
   class AllocSpace;
   class BumpPointerSpace;
+  class ContinuousMemMapAllocSpace;
   class DiscontinuousSpace;
   class DlMallocSpace;
   class ImageSpace;
@@ -87,7 +89,7 @@ namespace space {
   class RosAllocSpace;
   class Space;
   class SpaceTest;
-  class ContinuousMemMapAllocSpace;
+  class ZygoteSpace;
 }  // namespace space
 
 class AgeCardVisitor {
@@ -128,12 +130,10 @@ class Heap {
  public:
   // If true, measure the total allocation time.
   static constexpr bool kMeasureAllocationTime = false;
-  // Primitive arrays larger than this size are put in the large object space.
-  static constexpr size_t kDefaultLargeObjectThreshold = 3 * kPageSize;
-
   static constexpr size_t kDefaultStartingSize = kPageSize;
   static constexpr size_t kDefaultInitialSize = 2 * MB;
   static constexpr size_t kDefaultMaximumSize = 256 * MB;
+  static constexpr size_t kDefaultNonMovingSpaceCapacity = 64 * MB;
   static constexpr size_t kDefaultMaxFree = 2 * MB;
   static constexpr size_t kDefaultMinFree = kDefaultMaxFree / 4;
   static constexpr size_t kDefaultLongPauseLogThreshold = MsToNs(5);
@@ -141,7 +141,17 @@ class Heap {
   static constexpr size_t kDefaultTLABSize = 256 * KB;
   static constexpr double kDefaultTargetUtilization = 0.5;
   static constexpr double kDefaultHeapGrowthMultiplier = 2.0;
-
+  // Primitive arrays larger than this size are put in the large object space.
+  static constexpr size_t kDefaultLargeObjectThreshold = 3 * kPageSize;
+  // Whether or not we use the free list large object space. Only use it if USE_ART_LOW_4G_ALLOCATOR
+  // since this means that we have to use the slow msync loop in MemMap::MapAnonymous.
+#if USE_ART_LOW_4G_ALLOCATOR
+  static constexpr space::LargeObjectSpaceType kDefaultLargeObjectSpaceType =
+      space::kLargeObjectSpaceTypeFreeList;
+#else
+  static constexpr space::LargeObjectSpaceType kDefaultLargeObjectSpaceType =
+      space::kLargeObjectSpaceTypeMap;
+#endif
   // Used so that we don't overflow the allocation time atomic integer.
   static constexpr size_t kTimeAdjust = 1024;
 
@@ -156,9 +166,11 @@ class Heap {
   explicit Heap(size_t initial_size, size_t growth_limit, size_t min_free,
                 size_t max_free, double target_utilization,
                 double foreground_heap_growth_multiplier, size_t capacity,
+                size_t non_moving_space_capacity,
                 const std::string& original_image_file_name,
                 InstructionSet image_instruction_set,
                 CollectorType foreground_collector_type, CollectorType background_collector_type,
+                space::LargeObjectSpaceType large_object_space_type, size_t large_object_threshold,
                 size_t parallel_gc_threads, size_t conc_gc_threads, bool low_memory_mode,
                 size_t long_pause_threshold, size_t long_gc_threshold,
                 bool ignore_max_footprint, bool use_tlab,
@@ -209,8 +221,8 @@ class Heap {
   void CheckPreconditionsForAllocObject(mirror::Class* c, size_t byte_count)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void RegisterNativeAllocation(JNIEnv* env, int bytes);
-  void RegisterNativeFree(JNIEnv* env, int bytes);
+  void RegisterNativeAllocation(JNIEnv* env, size_t bytes);
+  void RegisterNativeFree(JNIEnv* env, size_t bytes);
 
   // Change the allocator, updates entrypoints.
   void ChangeAllocator(AllocatorType allocator)
@@ -255,7 +267,7 @@ class Heap {
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   // Returns true if there is any chance that the object (obj) will move.
-  bool IsMovableObject(const mirror::Object* obj) const;
+  bool IsMovableObject(const mirror::Object* obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Enables us to compacting GC until objects are released.
   void IncrementDisableMovingGC(Thread* self);
@@ -457,7 +469,7 @@ class Heap {
                                                               bool fail_ok) const;
   space::Space* FindSpaceFromObject(const mirror::Object*, bool fail_ok) const;
 
-  void DumpForSigQuit(std::ostream& os) EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void DumpForSigQuit(std::ostream& os);
 
   // Do a pending heap transition or trim.
   void DoPendingTransitionOrTrim() LOCKS_EXCLUDED(heap_trim_request_lock_);
@@ -515,8 +527,8 @@ class Heap {
   // Assumes there is only one image space.
   space::ImageSpace* GetImageSpace() const;
 
-  // Permenantly disable compaction.
-  void DisableCompaction();
+  // Permenantly disable moving garbage collection.
+  void DisableMovingGc();
 
   space::DlMallocSpace* GetDlMallocSpace() const {
     return dlmalloc_space_;
@@ -597,6 +609,10 @@ class Heap {
 
   ReferenceProcessor* GetReferenceProcessor() {
     return &reference_processor_;
+  }
+
+  bool HasZygoteSpace() const {
+    return zygote_space_ != nullptr;
   }
 
  private:
@@ -803,10 +819,12 @@ class Heap {
   std::unique_ptr<accounting::CardTable> card_table_;
 
   // A mod-union table remembers all of the references from the it's space to other spaces.
-  SafeMap<space::Space*, accounting::ModUnionTable*> mod_union_tables_;
+  AllocationTrackingSafeMap<space::Space*, accounting::ModUnionTable*, kAllocatorTagHeap>
+      mod_union_tables_;
 
   // A remembered set remembers all of the references from the it's space to the target space.
-  SafeMap<space::Space*, accounting::RememberedSet*> remembered_sets_;
+  AllocationTrackingSafeMap<space::Space*, accounting::RememberedSet*, kAllocatorTagHeap>
+      remembered_sets_;
 
   // The current collector type.
   CollectorType collector_type_;
@@ -849,8 +867,9 @@ class Heap {
   // Lock which guards zygote space creation.
   Mutex zygote_creation_lock_;
 
-  // If we have a zygote space.
-  bool have_zygote_space_;
+  // Non-null iff we have a zygote space. Doesn't contain the large objects allocated before
+  // zygote space creation.
+  space::ZygoteSpace* zygote_space_;
 
   // Minimum allocation size of large object.
   size_t large_object_threshold_;
@@ -884,9 +903,6 @@ class Heap {
   // The watermark at which a concurrent GC is requested by registerNativeAllocation.
   size_t native_footprint_gc_watermark_;
 
-  // The watermark at which a GC is performed inside of registerNativeAllocation.
-  size_t native_footprint_limit_;
-
   // Whether or not we need to run finalizers in the next native allocation.
   bool native_need_to_run_finalization_;
 
@@ -908,9 +924,6 @@ class Heap {
 
   // Bytes which are allocated and managed by native code but still need to be accounted for.
   Atomic<size_t> native_bytes_allocated_;
-
-  // Data structure GC overhead.
-  Atomic<size_t> gc_memory_overhead_;
 
   // Info related to the current or previous GC iteration.
   collector::Iteration current_gc_iteration_;

@@ -83,7 +83,7 @@ class ParallelMoveResolverARM : public ParallelMoveResolver {
 
 class LocationsBuilderARM : public HGraphVisitor {
  public:
-  explicit LocationsBuilderARM(HGraph* graph, CodeGeneratorARM* codegen)
+  LocationsBuilderARM(HGraph* graph, CodeGeneratorARM* codegen)
       : HGraphVisitor(graph), codegen_(codegen) {}
 
 #define DECLARE_VISIT_INSTRUCTION(name)     \
@@ -92,6 +92,8 @@ class LocationsBuilderARM : public HGraphVisitor {
   FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
 
 #undef DECLARE_VISIT_INSTRUCTION
+
+  void HandleInvoke(HInvoke* invoke);
 
  private:
   CodeGeneratorARM* const codegen_;
@@ -115,6 +117,11 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
   void LoadCurrentMethod(Register reg);
 
  private:
+  // Generate code for the given suspend check. If not null, `successor`
+  // is the block to branch to if the suspend check is not needed, and after
+  // the suspend call.
+  void GenerateSuspendCheck(HSuspendCheck* check, HBasicBlock* successor);
+
   ArmAssembler* const assembler_;
   CodeGeneratorARM* const codegen_;
 
@@ -124,12 +131,14 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
 class CodeGeneratorARM : public CodeGenerator {
  public:
   explicit CodeGeneratorARM(HGraph* graph);
-  virtual ~CodeGeneratorARM() { }
+  virtual ~CodeGeneratorARM() {}
 
   virtual void GenerateFrameEntry() OVERRIDE;
   virtual void GenerateFrameExit() OVERRIDE;
   virtual void Bind(Label* label) OVERRIDE;
   virtual void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
+  virtual void SaveCoreRegister(Location stack_location, uint32_t reg_id) OVERRIDE;
+  virtual void RestoreCoreRegister(Location stack_location, uint32_t reg_id) OVERRIDE;
 
   virtual size_t GetWordSize() const OVERRIDE {
     return kArmWordSize;

@@ -24,15 +24,16 @@ art_path := $(LOCAL_PATH)
 
 include $(art_path)/build/Android.common_path.mk
 
-# following the example of build's dont_bother for clean targets
-ifneq (,$(filter clean-oat,$(MAKECMDGOALS)))
-art_dont_bother := true
+# Following the example of build's dont_bother for clean targets.
+art_dont_bother := false
+ifneq (,$(filter clean-oat%,$(MAKECMDGOALS)))
+  art_dont_bother := true
 endif
-ifneq (,$(filter clean-oat-host,$(MAKECMDGOALS)))
-art_dont_bother := true
-endif
-ifneq (,$(filter clean-oat-target,$(MAKECMDGOALS)))
-art_dont_bother := true
+
+# Don't bother with tests unless there is a test-art* or build-art* target.
+art_test_bother := false
+ifneq (,$(filter %tests test-art% build-art%,$(MAKECMDGOALS)))
+  art_test_bother := true
 endif
 
 .PHONY: clean-oat
@@ -77,7 +78,8 @@ endif
 
 .PHONY: clean-oat-target
 clean-oat-target:
-	adb remount
+	adb root
+	adb wait-for-device remount
 	adb shell rm -rf $(ART_TARGET_NATIVETEST_DIR)
 	adb shell rm -rf $(ART_TARGET_TEST_DIR)
 	adb shell rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*/*
@@ -123,9 +125,14 @@ ART_TARGET_DEPENDENCIES := \
 ifdef TARGET_2ND_ARCH
 ART_TARGET_DEPENDENCIES += $(2ND_TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so
 endif
+ifdef HOST_2ND_ARCH
+ART_HOST_DEPENDENCIES += $(2ND_HOST_OUT_SHARED_LIBRARIES)/libjavacore.so
+endif
 
 ########################################################################
 # test rules
+
+ifeq ($(art_test_bother),true)
 
 # All the dependencies that must be built ahead of sync-ing them onto the target device.
 TEST_ART_TARGET_SYNC_DEPS :=
@@ -137,7 +144,8 @@ include $(art_path)/test/Android.run-test.mk
 # Sync test files to the target, depends upon all things that must be pushed to the target.
 .PHONY: test-art-target-sync
 test-art-target-sync: $(TEST_ART_TARGET_SYNC_DEPS)
-	adb remount
+	adb root
+	adb wait-for-device remount
 	adb sync
 
 # Undefine variable now its served its purpose.
@@ -229,6 +237,11 @@ test-art-host-interpreter$(2ND_ART_PHONY_TEST_HOST_SUFFIX): test-art-host-run-te
 	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
 endif
 
+# Valgrind. Currently only 32b gtests.
+.PHONY: valgrind-test-art-host
+valgrind-test-art-host: valgrind-test-art-host-gtest32
+	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
+
 ########################################################################
 # target test rules
 
@@ -290,6 +303,8 @@ test-art-target-interpreter$(2ND_ART_PHONY_TEST_TARGET_SUFFIX): test-art-target-
 	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
 endif
 
+endif  # art_test_bother
+
 ########################################################################
 # oat-target and oat-target-sync rules
 
@@ -340,7 +355,8 @@ oat-target: $(ART_TARGET_DEPENDENCIES) $(DEFAULT_DEX_PREOPT_INSTALLED_IMAGE) $(O
 
 .PHONY: oat-target-sync
 oat-target-sync: oat-target
-	adb remount
+	adb root
+	adb wait-for-device remount
 	adb sync
 
 ########################################################################
@@ -349,51 +365,39 @@ oat-target-sync: oat-target
 build-art: build-art-host build-art-target
 
 .PHONY: build-art-host
-build-art-host:   $(ART_HOST_EXECUTABLES)   $(ART_HOST_GTEST_EXECUTABLES)   $(HOST_CORE_IMG_OUT)   $(ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION)
+build-art-host:   $(HOST_OUT_EXECUTABLES)/art $(ART_HOST_DEPENDENCIES) $(HOST_CORE_IMG_OUT) $(2ND_HOST_CORE_IMG_OUT)
 
 .PHONY: build-art-target
-build-art-target: $(ART_TARGET_EXECUTABLES) $(ART_TARGET_GTEST_EXECUTABLES) $(TARGET_CORE_IMG_OUT) $(TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so
-
-########################################################################
-# "m art-host" for just building the files needed to run the art script
-.PHONY: art-host
-ifeq ($(HOST_PREFER_32_BIT),true)
-art-host:   $(HOST_OUT_EXECUTABLES)/art $(HOST_OUT)/bin/dalvikvm32 $(HOST_OUT)/lib/libart.so $(HOST_OUT)/bin/dex2oat $(HOST_OUT)/bin/patchoat $(HOST_CORE_IMG_OUT) $(HOST_OUT)/lib/libjavacore.so $(HOST_OUT)/bin/dalvikvm
-else
-art-host:   $(HOST_OUT_EXECUTABLES)/art $(HOST_OUT)/bin/dalvikvm64 $(HOST_OUT)/bin/dalvikvm32 $(HOST_OUT)/lib/libart.so $(HOST_OUT)/bin/dex2oat $(HOST_OUT)/bin/patchoat $(HOST_CORE_IMG_OUT) $(HOST_OUT)/lib/libjavacore.so $(HOST_OUT)/lib64/libjavacore.so $(HOST_OUT)/bin/dalvikvm
-endif
-
-.PHONY: art-host-debug
-art-host-debug:   art-host $(HOST_OUT)/lib/libartd.so $(HOST_OUT)/bin/dex2oatd $(HOST_OUT)/bin/patchoatd
+build-art-target: $(TARGET_OUT_EXECUTABLES)/art $(ART_TARGET_DEPENDENCIES) $(TARGET_CORE_IMG_OUT) $(2ND_TARGET_CORE_IMG_OUT)
 
 ########################################################################
 # targets to switch back and forth from libdvm to libart
 
 .PHONY: use-art
 use-art:
-	adb root && sleep 3
-	adb shell stop
+	adb root
+	adb wait-for-device shell stop
 	adb shell setprop persist.sys.dalvik.vm.lib.2 libart.so
 	adb shell start
 
 .PHONY: use-artd
 use-artd:
-	adb root && sleep 3
-	adb shell stop
+	adb root
+	adb wait-for-device shell stop
 	adb shell setprop persist.sys.dalvik.vm.lib.2 libartd.so
 	adb shell start
 
 .PHONY: use-dalvik
 use-dalvik:
-	adb root && sleep 3
-	adb shell stop
+	adb root
+	adb wait-for-device shell stop
 	adb shell setprop persist.sys.dalvik.vm.lib.2 libdvm.so
 	adb shell start
 
 .PHONY: use-art-full
 use-art-full:
-	adb root && sleep 3
-	adb shell stop
+	adb root
+	adb wait-for-device shell stop
 	adb shell rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*
 	adb shell setprop dalvik.vm.dex2oat-filter ""
 	adb shell setprop dalvik.vm.image-dex2oat-filter ""
@@ -402,8 +406,8 @@ use-art-full:
 
 .PHONY: use-artd-full
 use-artd-full:
-	adb root && sleep 3
-	adb shell stop
+	adb root
+	adb wait-for-device shell stop
 	adb shell rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*
 	adb shell setprop dalvik.vm.dex2oat-filter ""
 	adb shell setprop dalvik.vm.image-dex2oat-filter ""
@@ -412,8 +416,8 @@ use-artd-full:
 
 .PHONY: use-art-smart
 use-art-smart:
-	adb root && sleep 3
-	adb shell stop
+	adb root
+	adb wait-for-device shell stop
 	adb shell rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*
 	adb shell setprop dalvik.vm.dex2oat-filter "interpret-only"
 	adb shell setprop dalvik.vm.image-dex2oat-filter ""
@@ -422,8 +426,8 @@ use-art-smart:
 
 .PHONY: use-art-interpret-only
 use-art-interpret-only:
-	adb root && sleep 3
-	adb shell stop
+	adb root
+	adb wait-for-device shell stop
 	adb shell rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*
 	adb shell setprop dalvik.vm.dex2oat-filter "interpret-only"
 	adb shell setprop dalvik.vm.image-dex2oat-filter "interpret-only"
@@ -432,8 +436,8 @@ use-art-interpret-only:
 
 .PHONY: use-artd-interpret-only
 use-artd-interpret-only:
-	adb root && sleep 3
-	adb shell stop
+	adb root
+	adb wait-for-device shell stop
 	adb shell rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*
 	adb shell setprop dalvik.vm.dex2oat-filter "interpret-only"
 	adb shell setprop dalvik.vm.image-dex2oat-filter "interpret-only"
@@ -442,8 +446,8 @@ use-artd-interpret-only:
 
 .PHONY: use-art-verify-none
 use-art-verify-none:
-	adb root && sleep 3
-	adb shell stop
+	adb root
+	adb wait-for-device shell stop
 	adb shell rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*
 	adb shell setprop dalvik.vm.dex2oat-filter "verify-none"
 	adb shell setprop dalvik.vm.image-dex2oat-filter "verify-none"
@@ -453,3 +457,7 @@ use-art-verify-none:
 ########################################################################
 
 endif # !art_dont_bother
+
+# Clear locally used variables.
+art_dont_bother :=
+art_test_bother :=

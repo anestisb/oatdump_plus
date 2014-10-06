@@ -39,11 +39,11 @@ class ThreadList {
   ~ThreadList();
 
   void DumpForSigQuit(std::ostream& os)
-      LOCKS_EXCLUDED(Locks::thread_list_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void DumpLocked(std::ostream& os)  // For thread suspend timeout dumps.
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::thread_list_lock_);
+  // For thread suspend timeout dumps.
+  void Dump(std::ostream& os)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_);
   pid_t GetLockOwner();  // For SignalCatcher.
 
   // Thread suspension support.
@@ -66,8 +66,8 @@ class ThreadList {
   // If the thread should be suspended then value of request_suspension should be true otherwise
   // the routine will wait for a previous suspend request. If the suspension times out then *timeout
   // is set to true.
-  static Thread* SuspendThreadByPeer(jobject peer, bool request_suspension, bool debug_suspension,
-                                     bool* timed_out)
+  Thread* SuspendThreadByPeer(jobject peer, bool request_suspension, bool debug_suspension,
+                              bool* timed_out)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_suspend_thread_lock_)
       LOCKS_EXCLUDED(Locks::mutator_lock_,
                      Locks::thread_list_lock_,
@@ -93,7 +93,8 @@ class ThreadList {
                      Locks::thread_suspend_count_lock_);
 
   size_t RunCheckpointOnRunnableThreads(Closure* checkpoint_function)
-      LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::thread_suspend_count_lock_);
+  LOCKS_EXCLUDED(Locks::thread_list_lock_,
+                 Locks::thread_suspend_count_lock_);
 
   // Suspends all threads
   void SuspendAllForDebugger()

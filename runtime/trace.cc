@@ -334,8 +334,14 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
       return;
     }
   }
-  Runtime* runtime = Runtime::Current();
-  runtime->GetThreadList()->SuspendAll();
+
+  // Check interval if sampling is enabled
+  if (sampling_enabled && interval_us <= 0) {
+    LOG(ERROR) << "Invalid sampling interval: " << interval_us;
+    ScopedObjectAccess soa(self);
+    ThrowRuntimeException("Invalid sampling interval: %d", interval_us);
+    return;
+  }
 
   // Open trace file if not going directly to ddms.
   std::unique_ptr<File> trace_file;
@@ -348,12 +354,18 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
     }
     if (trace_file.get() == NULL) {
       PLOG(ERROR) << "Unable to open trace file '" << trace_filename << "'";
-      runtime->GetThreadList()->ResumeAll();
       ScopedObjectAccess soa(self);
       ThrowRuntimeException("Unable to open trace file '%s'", trace_filename);
       return;
     }
   }
+
+  Runtime* runtime = Runtime::Current();
+
+  // Enable count of allocs if specified in the flags.
+  bool enable_stats = false;
+
+  runtime->GetThreadList()->SuspendAll();
 
   // Create Trace object.
   {
@@ -361,15 +373,8 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
     if (the_trace_ != NULL) {
       LOG(ERROR) << "Trace already in progress, ignoring this request";
     } else {
+      enable_stats = (flags && kTraceCountAllocs) != 0;
       the_trace_ = new Trace(trace_file.release(), buffer_size, flags, sampling_enabled);
-
-      // Enable count of allocs if specified in the flags.
-      if ((flags && kTraceCountAllocs) != 0) {
-        runtime->SetStatsEnabled(true);
-      }
-
-
-
       if (sampling_enabled) {
         CHECK_PTHREAD_CALL(pthread_create, (&sampling_pthread_, NULL, &RunSamplingThread,
                                             reinterpret_cast<void*>(interval_us)),
@@ -383,10 +388,17 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
       }
     }
   }
+
   runtime->GetThreadList()->ResumeAll();
+
+  // Can't call this when holding the mutator lock.
+  if (enable_stats) {
+    runtime->SetStatsEnabled(true);
+  }
 }
 
 void Trace::Stop() {
+  bool stop_alloc_counting = false;
   Runtime* runtime = Runtime::Current();
   runtime->GetThreadList()->SuspendAll();
   Trace* the_trace = NULL;
@@ -399,10 +411,10 @@ void Trace::Stop() {
       the_trace = the_trace_;
       the_trace_ = NULL;
       sampling_pthread = sampling_pthread_;
-      sampling_pthread_ = 0U;
     }
   }
   if (the_trace != NULL) {
+    stop_alloc_counting = (the_trace->flags_ & kTraceCountAllocs) != 0;
     the_trace->FinishTracing();
 
     if (the_trace->sampling_enabled_) {
@@ -419,8 +431,14 @@ void Trace::Stop() {
   }
   runtime->GetThreadList()->ResumeAll();
 
+  if (stop_alloc_counting) {
+    // Can be racy since SetStatsEnabled is not guarded by any locks.
+    Runtime::Current()->SetStatsEnabled(false);
+  }
+
   if (sampling_pthread != 0U) {
     CHECK_PTHREAD_CALL(pthread_join, (sampling_pthread, NULL), "sampling thread shutdown");
+    sampling_pthread_ = 0U;
   }
 }
 
@@ -482,10 +500,6 @@ void Trace::FinishTracing() {
 
   size_t final_offset = cur_offset_.LoadRelaxed();
 
-  if ((flags_ & kTraceCountAllocs) != 0) {
-    Runtime::Current()->SetStatsEnabled(false);
-  }
-
   std::set<mirror::ArtMethod*> visited_methods;
   GetVisitedMethods(final_offset, &visited_methods);
 
@@ -546,7 +560,7 @@ void Trace::DexPcMoved(Thread* thread, mirror::Object* this_object,
                        mirror::ArtMethod* method, uint32_t new_dex_pc) {
   // We're not recorded to listen to this kind of event, so complain.
   LOG(ERROR) << "Unexpected dex PC event in tracing " << PrettyMethod(method) << " " << new_dex_pc;
-};
+}
 
 void Trace::FieldRead(Thread* /*thread*/, mirror::Object* this_object,
                        mirror::ArtMethod* method, uint32_t dex_pc, mirror::ArtField* field)

@@ -29,14 +29,14 @@
 namespace art {
 
 static constexpr bool kDebugExceptionDelivery = false;
-static constexpr size_t kInvalidFrameId = 0xffffffff;
+static constexpr size_t kInvalidFrameDepth = 0xffffffff;
 
 QuickExceptionHandler::QuickExceptionHandler(Thread* self, bool is_deoptimization)
   : self_(self), context_(self->GetLongJumpContext()), is_deoptimization_(is_deoptimization),
     method_tracing_active_(is_deoptimization ||
                            Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled()),
     handler_quick_frame_(nullptr), handler_quick_frame_pc_(0), handler_method_(nullptr),
-    handler_dex_pc_(0), clear_exception_(false), handler_frame_id_(kInvalidFrameId) {
+    handler_dex_pc_(0), clear_exception_(false), handler_frame_depth_(kInvalidFrameDepth) {
 }
 
 // Finds catch handler or prepares for deoptimization.
@@ -51,7 +51,7 @@ class CatchBlockStackVisitor FINAL : public StackVisitor {
 
   bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::ArtMethod* method = GetMethod();
-    exception_handler_->SetHandlerFrameId(GetFrameId());
+    exception_handler_->SetHandlerFrameDepth(GetFrameDepth());
     if (method == nullptr) {
       // This is the upcall, we remember the frame and last pc so that we may long jump to them.
       exception_handler_->SetHandlerQuickFramePc(GetCurrentQuickFramePc());
@@ -177,7 +177,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
   }
 
   bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    exception_handler_->SetHandlerFrameId(GetFrameId());
+    exception_handler_->SetHandlerFrameDepth(GetFrameDepth());
     mirror::ArtMethod* method = GetMethod();
     if (method == nullptr) {
       // This is the upcall, we remember the frame and last pc so that we may long jump to them.
@@ -206,13 +206,14 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
     const Instruction* inst = Instruction::At(code_item->insns_ + dex_pc);
     uint32_t new_dex_pc = dex_pc + inst->SizeInCodeUnits();
     ShadowFrame* new_frame = ShadowFrame::Create(num_regs, nullptr, m, new_dex_pc);
-    StackHandleScope<2> hs(self_);
+    StackHandleScope<3> hs(self_);
     mirror::Class* declaring_class = m->GetDeclaringClass();
     Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
     Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
-    verifier::MethodVerifier verifier(h_dex_cache->GetDexFile(), &h_dex_cache, &h_class_loader,
-                                      &m->GetClassDef(), code_item, m->GetDexMethodIndex(), m,
-                                      m->GetAccessFlags(), false, true, true);
+    Handle<mirror::ArtMethod> h_method(hs.NewHandle(m));
+    verifier::MethodVerifier verifier(self_, h_dex_cache->GetDexFile(), h_dex_cache, h_class_loader,
+                                      &m->GetClassDef(), code_item, m->GetDexMethodIndex(),
+                                      h_method, m->GetAccessFlags(), false, true, true);
     verifier.Verify();
     const std::vector<int32_t> kinds(verifier.DescribeVRegs(dex_pc));
     for (uint16_t reg = 0; reg < num_regs; ++reg) {
@@ -229,7 +230,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
                                       reinterpret_cast<mirror::Object*>(GetVReg(m, reg, kind)));
           break;
         case kLongLoVReg:
-          if (GetVRegKind(reg + 1, kinds), kLongHiVReg) {
+          if (GetVRegKind(reg + 1, kinds) == kLongHiVReg) {
             // Treat it as a "long" register pair.
             new_frame->SetVRegLong(reg, GetVRegPair(m, reg, kLongLoVReg, kLongHiVReg));
           } else {
@@ -237,14 +238,14 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
           }
           break;
         case kLongHiVReg:
-          if (GetVRegKind(reg - 1, kinds), kLongLoVReg) {
+          if (GetVRegKind(reg - 1, kinds) == kLongLoVReg) {
             // Nothing to do: we treated it as a "long" register pair.
           } else {
             new_frame->SetVReg(reg, GetVReg(m, reg, kind));
           }
           break;
         case kDoubleLoVReg:
-          if (GetVRegKind(reg + 1, kinds), kDoubleHiVReg) {
+          if (GetVRegKind(reg + 1, kinds) == kDoubleHiVReg) {
             // Treat it as a "double" register pair.
             new_frame->SetVRegLong(reg, GetVRegPair(m, reg, kDoubleLoVReg, kDoubleHiVReg));
           } else {
@@ -252,7 +253,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
           }
           break;
         case kDoubleHiVReg:
-          if (GetVRegKind(reg - 1, kinds), kDoubleLoVReg) {
+          if (GetVRegKind(reg - 1, kinds) == kDoubleLoVReg) {
             // Nothing to do: we treated it as a "double" register pair.
           } else {
             new_frame->SetVReg(reg, GetVReg(m, reg, kind));
@@ -295,17 +296,17 @@ void QuickExceptionHandler::DeoptimizeStack() {
 // Unwinds all instrumentation stack frame prior to catch handler or upcall.
 class InstrumentationStackVisitor : public StackVisitor {
  public:
-  InstrumentationStackVisitor(Thread* self, bool is_deoptimization, size_t frame_id)
+  InstrumentationStackVisitor(Thread* self, bool is_deoptimization, size_t frame_depth)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(self, nullptr),
-        self_(self), frame_id_(frame_id),
+        self_(self), frame_depth_(frame_depth),
         instrumentation_frames_to_pop_(0) {
-    CHECK_NE(frame_id_, kInvalidFrameId);
+    CHECK_NE(frame_depth_, kInvalidFrameDepth);
   }
 
   bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    size_t current_frame_id = GetFrameId();
-    if (current_frame_id > frame_id_) {
+    size_t current_frame_depth = GetFrameDepth();
+    if (current_frame_depth < frame_depth_) {
       CHECK(GetMethod() != nullptr);
       if (UNLIKELY(GetQuickInstrumentationExitPc() == GetReturnPc())) {
         ++instrumentation_frames_to_pop_;
@@ -323,7 +324,7 @@ class InstrumentationStackVisitor : public StackVisitor {
 
  private:
   Thread* const self_;
-  const size_t frame_id_;
+  const size_t frame_depth_;
   size_t instrumentation_frames_to_pop_;
 
   DISALLOW_COPY_AND_ASSIGN(InstrumentationStackVisitor);
@@ -331,7 +332,7 @@ class InstrumentationStackVisitor : public StackVisitor {
 
 void QuickExceptionHandler::UpdateInstrumentationStack() {
   if (method_tracing_active_) {
-    InstrumentationStackVisitor visitor(self_, is_deoptimization_, handler_frame_id_);
+    InstrumentationStackVisitor visitor(self_, is_deoptimization_, handler_frame_depth_);
     visitor.WalkStack(true);
 
     size_t instrumentation_frames_to_pop = visitor.GetInstrumentationFramesToPop();

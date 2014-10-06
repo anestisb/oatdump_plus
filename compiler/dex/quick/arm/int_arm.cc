@@ -377,7 +377,7 @@ LIR* ArmMir2Lir::OpCmpImmBranch(ConditionCode cond, RegStorage reg, int check_va
    * TODO: consider interspersing slowpaths in code following unconditional branches.
    */
   bool skip = ((target != NULL) && (target->opcode == kPseudoThrowTarget));
-  skip &= ((cu_->code_item->insns_size_in_code_units_ - current_dalvik_offset_) > 64);
+  skip &= ((mir_graph_->GetNumDalvikInsns() - current_dalvik_offset_) > 64);
   if (!skip && reg.Low8() && (check_value == 0)) {
     if (arm_cond == kArmCondEq || arm_cond == kArmCondNe) {
       branch = NewLIR2((arm_cond == kArmCondEq) ? kThumb2Cbz : kThumb2Cbnz,
@@ -845,7 +845,7 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   RegLocation rl_object = LoadValue(rl_src_obj, kRefReg);
   RegLocation rl_new_value;
   if (!is_long) {
-    rl_new_value = LoadValue(rl_src_new_value);
+    rl_new_value = LoadValue(rl_src_new_value, LocToRegClass(rl_src_new_value));
   } else if (load_early) {
     rl_new_value = LoadValueWide(rl_src_new_value, kCoreReg);
   }
@@ -868,7 +868,7 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
 
   RegLocation rl_expected;
   if (!is_long) {
-    rl_expected = LoadValue(rl_src_expected);
+    rl_expected = LoadValue(rl_src_expected, LocToRegClass(rl_src_new_value));
   } else if (load_early) {
     rl_expected = LoadValueWide(rl_src_expected, kCoreReg);
   } else {
@@ -1039,6 +1039,7 @@ bool ArmMir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
   jmp_to_ret->target = return_point;
 
   AddIntrinsicSlowPath(info, launchpad_branch, return_point);
+  ClobberCallerSave();  // We must clobber everything because slow path will return here
 
   return true;
 }

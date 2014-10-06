@@ -228,7 +228,10 @@ class ScopedCheck {
     }
     if (invoke != kStatic) {
       mirror::Object* o = soa.Decode<mirror::Object*>(jobj);
-      if (!o->InstanceOf(m->GetDeclaringClass())) {
+      if (o == nullptr) {
+        AbortF("can't call %s on null object", PrettyMethod(m).c_str());
+        return false;
+      } else if (!o->InstanceOf(m->GetDeclaringClass())) {
         AbortF("can't call %s on instance of %s", PrettyMethod(m).c_str(), PrettyTypeOf(o).c_str());
         return false;
       }
@@ -292,7 +295,10 @@ class ScopedCheck {
       return false;
     }
     mirror::Object* o = soa.Decode<mirror::Object*>(java_object);
-    if (!o->InstanceOf(m->GetDeclaringClass())) {
+    if (o == nullptr) {
+      AbortF("can't call %s on null object", PrettyMethod(m).c_str());
+      return false;
+    } else if (!o->InstanceOf(m->GetDeclaringClass())) {
       AbortF("can't call %s on instance of %s", PrettyMethod(m).c_str(), PrettyTypeOf(o).c_str());
       return false;
     }
@@ -644,6 +650,24 @@ class ScopedCheck {
     }
 
     mirror::Object* obj = soa.Decode<mirror::Object*>(java_object);
+    if (obj == nullptr) {
+      // Either java_object is invalid or is a cleared weak.
+      IndirectRef ref = reinterpret_cast<IndirectRef>(java_object);
+      bool okay;
+      if (GetIndirectRefKind(ref) != kWeakGlobal) {
+        okay = false;
+      } else {
+        obj = soa.Vm()->DecodeWeakGlobal(soa.Self(), ref);
+        okay = Runtime::Current()->IsClearedJniWeakGlobal(obj);
+      }
+      if (!okay) {
+        AbortF("%s is an invalid %s: %p (%p)",
+               what, ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(),
+               java_object, obj);
+        return false;
+      }
+    }
+
     if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(obj)) {
       Runtime::Current()->GetHeap()->DumpSpaces(LOG(ERROR));
       AbortF("%s is an invalid %s: %p (%p)",
@@ -778,8 +802,7 @@ class ScopedCheck {
         mirror::Class* c = soa.Decode<mirror::Class*>(jc);
         if (c == nullptr) {
           *msg += "NULL";
-        } else if (c == kInvalidIndirectRefObject ||
-            !Runtime::Current()->GetHeap()->IsValidObjectAddress(c)) {
+        } else if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(c)) {
           StringAppendF(msg, "INVALID POINTER:%p", jc);
         } else if (!c->IsClass()) {
           *msg += "INVALID NON-CLASS OBJECT OF TYPE:" + PrettyTypeOf(c);
@@ -1447,12 +1470,13 @@ class CheckJNI {
   }
 
   static jobjectRefType GetObjectRefType(JNIEnv* env, jobject obj) {
-    // Note: we use "Ep" rather than "EL" because this is the one JNI function that it's okay to
-    // pass an invalid reference to.
+    // Note: we use "EL" here but "Ep" has been used in the past on the basis that we'd like to
+    // know the object is invalid. The spec says that passing invalid objects or even ones that
+    // are deleted isn't supported.
     ScopedObjectAccess soa(env);
     ScopedCheck sc(kFlag_Default, __FUNCTION__);
-    JniValueType args[2] = {{.E = env }, {.p = obj}};
-    if (sc.Check(soa, true, "Ep", args)) {
+    JniValueType args[2] = {{.E = env }, {.L = obj}};
+    if (sc.Check(soa, true, "EL", args)) {
       JniValueType result;
       result.w = baseEnv(env)->GetObjectRefType(env, obj);
       if (sc.Check(soa, false, "w", &result)) {
@@ -1890,7 +1914,7 @@ class CheckJNI {
   }
 
   static void CallStaticVoidMethodA(JNIEnv* env, jclass c, jmethodID mid, jvalue* vargs) {
-    CallMethodA(__FUNCTION__, env, c, nullptr, mid, vargs, Primitive::kPrimVoid, kStatic);
+    CallMethodA(__FUNCTION__, env, nullptr, c, mid, vargs, Primitive::kPrimVoid, kStatic);
   }
 
   static void CallVoidMethodV(JNIEnv* env, jobject obj, jmethodID mid, va_list vargs) {

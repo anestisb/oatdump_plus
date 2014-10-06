@@ -84,7 +84,9 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
                                    &klass);
       if (obj == nullptr) {
         bool after_is_current_allocator = allocator == GetCurrentAllocator();
-        if (is_current_allocator && !after_is_current_allocator) {
+        // If there is a pending exception, fail the allocation right away since the next one
+        // could cause OOM and abort the runtime.
+        if (!self->IsExceptionPending() && is_current_allocator && !after_is_current_allocator) {
           // If the allocator changed, we need to restart the allocation.
           return AllocObject<kInstrumented>(self, klass, byte_count, pre_fence_visitor);
         }
@@ -138,7 +140,7 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
   }
   if (kInstrumented) {
     if (Dbg::IsAllocTrackingEnabled()) {
-      Dbg::RecordAllocation(klass, bytes_allocated);
+      Dbg::RecordAllocation(self, klass, bytes_allocated);
     }
   } else {
     DCHECK(!Dbg::IsAllocTrackingEnabled());
@@ -275,7 +277,7 @@ inline Heap::AllocationTimer::~AllocationTimer() {
       heap_->total_allocation_time_.FetchAndAddSequentiallyConsistent(allocation_end_time - allocation_start_time_);
     }
   }
-};
+}
 
 inline bool Heap::ShouldAllocLargeObject(mirror::Class* c, size_t byte_count) const {
   // We need to have a zygote space or else our newly allocated large object can end up in the

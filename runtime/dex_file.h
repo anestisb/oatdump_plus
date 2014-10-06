@@ -19,6 +19,7 @@
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "base/logging.h"
@@ -27,7 +28,7 @@
 #include "invoke_type.h"
 #include "jni.h"
 #include "modifiers.h"
-#include "safe_map.h"
+#include "utf.h"
 
 namespace art {
 
@@ -200,6 +201,24 @@ class DexFile {
     uint32_t class_data_off_;  // file offset to class_data_item
     uint32_t static_values_off_;  // file offset to EncodedArray
 
+    // Returns the valid access flags, that is, Java modifier bits relevant to the ClassDef type
+    // (class or interface). These are all in the lower 16b and do not contain runtime flags.
+    uint32_t GetJavaAccessFlags() const {
+      // Make sure that none of our runtime-only flags are set.
+      COMPILE_ASSERT((kAccValidClassFlags & kAccJavaFlagsMask) == kAccValidClassFlags,
+                     valid_class_flags_not_subset_of_java_flags);
+      COMPILE_ASSERT((kAccValidInterfaceFlags & kAccJavaFlagsMask) == kAccValidInterfaceFlags,
+                     valid_interface_flags_not_subset_of_java_flags);
+
+      if ((access_flags_ & kAccInterface) != 0) {
+        // Interface.
+        return access_flags_ & kAccValidInterfaceFlags;
+      } else {
+        // Class.
+        return access_flags_ & kAccValidClassFlags;
+      }
+    }
+
    private:
     DISALLOW_COPY_AND_ASSIGN(ClassDef);
   };
@@ -222,6 +241,16 @@ class DexFile {
     const TypeItem& GetTypeItem(uint32_t idx) const {
       DCHECK_LT(idx, this->size_);
       return this->list_[idx];
+    }
+
+    // Size in bytes of the part of the list that is common.
+    static constexpr size_t GetHeaderSize() {
+      return 4U;
+    }
+
+    // Size in bytes of the whole type list including all the stored elements.
+    static constexpr size_t GetListSize(size_t count) {
+      return GetHeaderSize() + sizeof(TypeItem) * count;
     }
 
    private:
@@ -346,13 +375,6 @@ class DexFile {
     DISALLOW_COPY_AND_ASSIGN(AnnotationItem);
   };
 
-  typedef std::pair<const DexFile*, const DexFile::ClassDef*> ClassPathEntry;
-  typedef std::vector<const DexFile*> ClassPath;
-
-  // Search a collection of DexFiles for a descriptor
-  static ClassPathEntry FindInClassPath(const char* descriptor,
-                                        const ClassPath& class_path);
-
   // Returns the checksum of a file for comparison with GetLocationChecksum().
   // For .dex files, this is the header checksum.
   // For zip files, this is the classes.dex zip entry CRC32 checksum.
@@ -385,14 +407,21 @@ class DexFile {
   // For normal dex files, location and base location coincide. If a dex file is part of a multidex
   // archive, the base location is the name of the originating jar/apk, stripped of any internal
   // classes*.dex path.
-  const std::string GetBaseLocation() const {
-    if (IsMultiDexLocation(location_.c_str())) {
-      std::pair<const char*, const char*> pair = SplitMultiDexLocation(location_.c_str());
-      std::string res(pair.first);
-      delete[] pair.first;
-      return res;
+  static std::string GetBaseLocation(const char* location) {
+    const char* pos = strrchr(location, kMultiDexSeparator);
+    if (pos == nullptr) {
+      return location;
     } else {
+      return std::string(location, pos - location);
+    }
+  }
+
+  std::string GetBaseLocation() const {
+    size_t pos = location_.rfind(kMultiDexSeparator);
+    if (pos == std::string::npos) {
       return location_;
+    } else {
+      return location_.substr(0, pos);
     }
   }
 
@@ -468,7 +497,7 @@ class DexFile {
   const StringId* FindStringId(const uint16_t* string) const;
 
   // Returns the number of type identifiers in the .dex file.
-  size_t NumTypeIds() const {
+  uint32_t NumTypeIds() const {
     DCHECK(header_ != NULL) << GetLocation();
     return header_->type_ids_size_;
   }
@@ -597,7 +626,7 @@ class DexFile {
     return StringDataAndUtf16LengthByIdx(GetProtoId(method_id.proto_idx_).shorty_idx_, length);
   }
   // Returns the number of class definitions in the .dex file.
-  size_t NumClassDefs() const {
+  uint32_t NumClassDefs() const {
     DCHECK(header_ != NULL) << GetLocation();
     return header_->class_defs_size_;
   }
@@ -914,13 +943,6 @@ class DexFile {
   // whether the string contains the separator character.
   static bool IsMultiDexLocation(const char* location);
 
-  // Splits a multidex location at the last separator character. The second component is a pointer
-  // to the character after the separator. The first is a copy of the substring up to the separator.
-  //
-  // Note: It's the caller's job to free the first component of the returned pair.
-  // Bug 15313523: gcc/libc++ don't allow a unique_ptr for the first component
-  static std::pair<const char*, const char*> SplitMultiDexLocation(const char* location);
-
 
   // The base address of the memory mapping.
   const byte* const begin_;
@@ -959,6 +981,22 @@ class DexFile {
 
   // Points to the base of the class definition list.
   const ClassDef* const class_defs_;
+
+  // Number of misses finding a class def from a descriptor.
+  mutable Atomic<uint32_t> find_class_def_misses_;
+
+  struct UTF16HashCmp {
+    // Hash function.
+    size_t operator()(const char* key) const {
+      return ComputeUtf8Hash(key);
+    }
+    // std::equal function.
+    bool operator()(const char* a, const char* b) const {
+      return CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(a, b) == 0;
+    }
+  };
+  typedef std::unordered_map<const char*, const ClassDef*, UTF16HashCmp, UTF16HashCmp> Index;
+  mutable Atomic<Index*> class_def_index_;
 };
 std::ostream& operator<<(std::ostream& os, const DexFile& dex_file);
 
@@ -1092,7 +1130,7 @@ class ClassDataItemIterator {
       return last_idx_ + method_.method_idx_delta_;
     }
   }
-  uint32_t GetMemberAccessFlags() const {
+  uint32_t GetRawMemberAccessFlags() const {
     if (pos_ < EndOfInstanceFieldsPos()) {
       return field_.access_flags_;
     } else {
@@ -1100,18 +1138,30 @@ class ClassDataItemIterator {
       return method_.access_flags_;
     }
   }
+  uint32_t GetFieldAccessFlags() const {
+    return GetRawMemberAccessFlags() & kAccValidFieldFlags;
+  }
+  uint32_t GetMethodAccessFlags() const {
+    return GetRawMemberAccessFlags() & kAccValidMethodFlags;
+  }
+  bool MemberIsNative() const {
+    return GetRawMemberAccessFlags() & kAccNative;
+  }
+  bool MemberIsFinal() const {
+    return GetRawMemberAccessFlags() & kAccFinal;
+  }
   InvokeType GetMethodInvokeType(const DexFile::ClassDef& class_def) const {
     if (HasNextDirectMethod()) {
-      if ((GetMemberAccessFlags() & kAccStatic) != 0) {
+      if ((GetRawMemberAccessFlags() & kAccStatic) != 0) {
         return kStatic;
       } else {
         return kDirect;
       }
     } else {
-      DCHECK_EQ(GetMemberAccessFlags() & kAccStatic, 0U);
+      DCHECK_EQ(GetRawMemberAccessFlags() & kAccStatic, 0U);
       if ((class_def.access_flags_ & kAccInterface) != 0) {
         return kInterface;
-      } else if ((GetMemberAccessFlags() & kAccConstructor) != 0) {
+      } else if ((GetRawMemberAccessFlags() & kAccConstructor) != 0) {
         return kSuper;
       } else {
         return kVirtual;
@@ -1199,7 +1249,7 @@ class EncodedStaticFieldValueIterator {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<bool kTransactionActive>
-  void ReadValueToField(mirror::ArtField* field) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void ReadValueToField(Handle<mirror::ArtField> field) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool HasNext() { return pos_ < array_size_; }
 

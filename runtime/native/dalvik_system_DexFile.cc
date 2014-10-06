@@ -27,6 +27,7 @@
 
 #include "base/logging.h"
 #include "base/stl_util.h"
+#include "base/stringprintf.h"
 #include "class_linker.h"
 #include "common_throws.h"
 #include "dex_file-inl.h"
@@ -114,7 +115,9 @@ static jlong DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceNa
   bool success = linker->OpenDexFilesFromOat(sourceName.c_str(), outputName.c_str(), &error_msgs,
                                              dex_files.get());
 
-  if (success) {
+  if (success || !dex_files->empty()) {
+    // In the case of non-success, we have not found or could not generate the oat file.
+    // But we may still have found a dex file that we can use.
     return static_cast<jlong>(reinterpret_cast<uintptr_t>(dex_files.release()));
   } else {
     // The vector should be empty after a failed loading attempt.
@@ -186,8 +189,8 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
       StackHandleScope<1> hs(soa.Self());
       Handle<mirror::ClassLoader> class_loader(
           hs.NewHandle(soa.Decode<mirror::ClassLoader*>(javaLoader)));
-      mirror::Class* result = class_linker->DefineClass(descriptor.c_str(), class_loader, *dex_file,
-                                                        *dex_class_def);
+      mirror::Class* result = class_linker->DefineClass(soa.Self(), descriptor.c_str(),
+                                                        class_loader, *dex_file, *dex_class_def);
       if (result != nullptr) {
         VLOG(class_linker) << "DexFile_defineClassNative returning " << result;
         return soa.AddLocalReference<jclass>(result);
@@ -289,7 +292,7 @@ static jbyte IsDexOptNeededForFile(const std::string& oat_filename, const char* 
   std::unique_ptr<const OatFile> oat_file(OatFile::Open(oat_filename, oat_filename, nullptr,
                                                         false, &error_msg));
   if (oat_file.get() == nullptr) {
-    if (kVerboseLogging) {
+    if (kReasonLogging) {
       LOG(INFO) << "DexFile_isDexOptNeeded failed to open oat file '" << oat_filename
           << "' for file location '" << filename << "': " << error_msg;
     }
@@ -316,13 +319,13 @@ static jbyte IsDexOptNeededForFile(const std::string& oat_filename, const char* 
         return kUpToDate;
       } else if (should_relocate_if_possible &&
                   ClassLinker::VerifyOatImageChecksum(oat_file.get(), target_instruction_set)) {
-        if (kVerboseLogging) {
+        if (kReasonLogging) {
           LOG(INFO) << "DexFile_isDexOptNeeded file " << oat_filename
                     << " needs to be relocated for " << filename;
         }
         return kPatchoatNeeded;
       } else {
-        if (kVerboseLogging) {
+        if (kReasonLogging) {
           LOG(INFO) << "DexFile_isDexOptNeeded file " << oat_filename
                     << " is out of date for " << filename;
         }
@@ -340,13 +343,13 @@ static jbyte IsDexOptNeededForFile(const std::string& oat_filename, const char* 
       } else if (location_checksum == oat_dex_file->GetDexFileLocationChecksum()
                   && should_relocate_if_possible
                   && ClassLinker::VerifyOatImageChecksum(oat_file.get(), target_instruction_set)) {
-        if (kVerboseLogging) {
+        if (kReasonLogging) {
           LOG(INFO) << "DexFile_isDexOptNeeded file " << oat_filename
                     << " needs to be relocated for " << filename;
         }
         return kPatchoatNeeded;
       } else {
-        if (kVerboseLogging) {
+        if (kReasonLogging) {
           LOG(INFO) << "DexFile_isDexOptNeeded file " << oat_filename
                     << " is out of date for " << filename;
         }
@@ -354,7 +357,7 @@ static jbyte IsDexOptNeededForFile(const std::string& oat_filename, const char* 
       }
     }
   } else {
-    if (kVerboseLogging) {
+    if (kReasonLogging) {
       LOG(INFO) << "DexFile_isDexOptNeeded file " << oat_filename
                 << " does not contain " << filename;
     }
@@ -364,9 +367,10 @@ static jbyte IsDexOptNeededForFile(const std::string& oat_filename, const char* 
 
 static jbyte IsDexOptNeededInternal(JNIEnv* env, const char* filename,
     const char* pkgname, const char* instruction_set, const jboolean defer) {
-  // TODO disable this logging.
-  const bool kVerboseLogging = false;  // Spammy logging.
-  const bool kReasonLogging = true;  // Logging of reason for returning JNI_TRUE.
+  // Spammy logging for kUpToDate
+  const bool kVerboseLogging = false;
+  // Logging of reason for returning kDexoptNeeded or kPatchoatNeeded.
+  const bool kReasonLogging = true;
 
   if ((filename == nullptr) || !OS::FileExists(filename)) {
     LOG(ERROR) << "DexFile_isDexOptNeeded file '" << filename << "' does not exist";
@@ -488,6 +492,12 @@ static jbyte IsDexOptNeededInternal(JNIEnv* env, const char* filename,
   }
 
   const InstructionSet target_instruction_set = GetInstructionSetFromString(instruction_set);
+  if (target_instruction_set == kNone) {
+    ScopedLocalRef<jclass> iae(env, env->FindClass("java/lang/IllegalArgumentException"));
+    std::string message(StringPrintf("Instruction set %s is invalid.", instruction_set));
+    env->ThrowNew(iae.get(), message.c_str());
+    return 0;
+  }
 
   // Get the filename for odex file next to the dex file.
   std::string odex_filename(DexFilenameToOdexFilename(filename, target_instruction_set));
@@ -495,7 +505,9 @@ static jbyte IsDexOptNeededInternal(JNIEnv* env, const char* filename,
   std::string cache_dir;
   bool have_android_data = false;
   bool dalvik_cache_exists = false;
-  GetDalvikCache(instruction_set, false, &cache_dir, &have_android_data, &dalvik_cache_exists);
+  bool is_global_cache = false;
+  GetDalvikCache(instruction_set, false, &cache_dir, &have_android_data, &dalvik_cache_exists,
+                 &is_global_cache);
   std::string cache_filename;  // was cache_location
   bool have_cache_filename = false;
   if (dalvik_cache_exists) {
@@ -549,8 +561,16 @@ static jbyte IsDexOptNeededInternal(JNIEnv* env, const char* filename,
 static jbyte DexFile_isDexOptNeededInternal(JNIEnv* env, jclass, jstring javaFilename,
     jstring javaPkgname, jstring javaInstructionSet, jboolean defer) {
   ScopedUtfChars filename(env, javaFilename);
+  if (env->ExceptionCheck()) {
+    return 0;
+  }
+
   NullableScopedUtfChars pkgname(env, javaPkgname);
+
   ScopedUtfChars instruction_set(env, javaInstructionSet);
+  if (env->ExceptionCheck()) {
+    return 0;
+  }
 
   return IsDexOptNeededInternal(env, filename.c_str(), pkgname.c_str(),
                                 instruction_set.c_str(), defer);

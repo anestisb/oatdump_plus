@@ -146,7 +146,7 @@ class Operand {
   uint8_t length_;
   uint8_t encoding_[6];
 
-  explicit Operand(CpuRegister reg) { SetModRM(3, reg); }
+  explicit Operand(CpuRegister reg) : rex_(0), length_(0) { SetModRM(3, reg); }
 
   // Get the operand encoding byte at the given index.
   uint8_t encoding_at(int index) const {
@@ -253,7 +253,7 @@ class Address : public Operand {
 
 class X86_64Assembler FINAL : public Assembler {
  public:
-  X86_64Assembler() {}
+  X86_64Assembler() : cfi_cfa_offset_(0), cfi_pc_(0) {}
   virtual ~X86_64Assembler() {}
 
   /*
@@ -377,6 +377,8 @@ class X86_64Assembler FINAL : public Assembler {
   void xchgl(CpuRegister dst, CpuRegister src);
   void xchgq(CpuRegister dst, CpuRegister src);
   void xchgl(CpuRegister reg, const Address& address);
+
+  void cmpw(const Address& address, const Immediate& imm);
 
   void cmpl(CpuRegister reg, const Immediate& imm);
   void cmpl(CpuRegister reg0, CpuRegister reg1);

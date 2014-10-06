@@ -41,6 +41,18 @@ class Transaction {
   ~Transaction();
 
   // Record object field changes.
+  void RecordWriteFieldBoolean(mirror::Object* obj, MemberOffset field_offset, uint8_t value,
+                               bool is_volatile)
+      LOCKS_EXCLUDED(log_lock_);
+  void RecordWriteFieldByte(mirror::Object* obj, MemberOffset field_offset, int8_t value,
+                               bool is_volatile)
+      LOCKS_EXCLUDED(log_lock_);
+  void RecordWriteFieldChar(mirror::Object* obj, MemberOffset field_offset, uint16_t value,
+                            bool is_volatile)
+      LOCKS_EXCLUDED(log_lock_);
+  void RecordWriteFieldShort(mirror::Object* obj, MemberOffset field_offset, int16_t value,
+                             bool is_volatile)
+      LOCKS_EXCLUDED(log_lock_);
   void RecordWriteField32(mirror::Object* obj, MemberOffset field_offset, uint32_t value,
                           bool is_volatile)
       LOCKS_EXCLUDED(log_lock_);
@@ -57,16 +69,16 @@ class Transaction {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Record intern string table changes.
-  void RecordStrongStringInsertion(mirror::String* s, uint32_t hash_code)
+  void RecordStrongStringInsertion(mirror::String* s)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_)
       LOCKS_EXCLUDED(log_lock_);
-  void RecordWeakStringInsertion(mirror::String* s, uint32_t hash_code)
+  void RecordWeakStringInsertion(mirror::String* s)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_)
       LOCKS_EXCLUDED(log_lock_);
-  void RecordStrongStringRemoval(mirror::String* s, uint32_t hash_code)
+  void RecordStrongStringRemoval(mirror::String* s)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_)
       LOCKS_EXCLUDED(log_lock_);
-  void RecordWeakStringRemoval(mirror::String* s, uint32_t hash_code)
+  void RecordWeakStringRemoval(mirror::String* s)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_)
       LOCKS_EXCLUDED(log_lock_);
 
@@ -82,6 +94,10 @@ class Transaction {
  private:
   class ObjectLog {
    public:
+    void LogBooleanValue(MemberOffset offset, uint8_t value, bool is_volatile);
+    void LogByteValue(MemberOffset offset, int8_t value, bool is_volatile);
+    void LogCharValue(MemberOffset offset, uint16_t value, bool is_volatile);
+    void LogShortValue(MemberOffset offset, int16_t value, bool is_volatile);
     void Log32BitsValue(MemberOffset offset, uint32_t value, bool is_volatile);
     void Log64BitsValue(MemberOffset offset, uint64_t value, bool is_volatile);
     void LogReferenceValue(MemberOffset offset, mirror::Object* obj, bool is_volatile);
@@ -95,6 +111,10 @@ class Transaction {
 
    private:
     enum FieldValueKind {
+      kBoolean,
+      kByte,
+      kChar,
+      kShort,
       k32Bits,
       k64Bits,
       kReference
@@ -106,6 +126,7 @@ class Transaction {
       bool is_volatile;
     };
 
+    void LogValue(FieldValueKind kind, MemberOffset offset, uint64_t value, bool is_volatile);
     void UndoFieldWrite(mirror::Object* obj, MemberOffset field_offset,
                         const FieldValue& field_value) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -142,8 +163,8 @@ class Transaction {
       kInsert,
       kRemove
     };
-    InternStringLog(mirror::String* s, uint32_t hash_code, StringKind kind, StringOp op)
-      : str_(s), hash_code_(hash_code), string_kind_(kind), string_op_(op) {
+    InternStringLog(mirror::String* s, StringKind kind, StringOp op)
+      : str_(s), string_kind_(kind), string_op_(op) {
       DCHECK(s != nullptr);
     }
 
@@ -154,7 +175,6 @@ class Transaction {
 
    private:
     mirror::String* str_;
-    uint32_t hash_code_;
     StringKind string_kind_;
     StringOp string_op_;
   };

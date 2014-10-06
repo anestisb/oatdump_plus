@@ -36,8 +36,8 @@ static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
     mirror::Class* array_class = runtime->GetClassLinker()->FindArrayClass(self, &element_class);
     DCHECK(array_class != nullptr);
     gc::AllocatorType allocator = runtime->GetHeap()->GetCurrentAllocator();
-    result->SetL(mirror::Array::Alloc<true>(self, array_class, length,
-                                            array_class->GetComponentSize(), allocator, true));
+    result->SetL(mirror::Array::Alloc<true, true>(self, array_class, length,
+                                                  array_class->GetComponentSizeShift(), allocator));
   } else if (name == "java.lang.ClassLoader dalvik.system.VMStack.getCallingClassLoader()") {
     result->SetL(NULL);
   } else if (name == "java.lang.Class dalvik.system.VMStack.getStackClass2()") {
@@ -462,7 +462,7 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     StackHandleScope<1> hs(self);
     Handle<mirror::Class> h_class(hs.NewHandle(method->GetDeclaringClass()));
-    if (UNLIKELY(!class_linker->EnsureInitialized(h_class, true, true))) {
+    if (UNLIKELY(!class_linker->EnsureInitialized(self, h_class, true, true))) {
       CHECK(self->IsExceptionPending());
       self->PopShadowFrame();
       return;
@@ -537,7 +537,7 @@ extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh
       StackHandleScope<1> hs(self);
       HandleWrapper<Class> h_declaring_class(hs.NewHandleWrapper(&declaring_class));
       if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(
-          h_declaring_class, true, true))) {
+          self, h_declaring_class, true, true))) {
         DCHECK(self->IsExceptionPending());
         self->PopShadowFrame();
         return;

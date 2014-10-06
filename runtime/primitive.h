@@ -26,6 +26,24 @@ namespace art {
 
 static constexpr size_t kObjectReferenceSize = 4;
 
+
+template<size_t kComponentSize>
+size_t ComponentSizeShiftWidth() {
+  switch (kComponentSize) {
+    case 1:
+      return 0U;
+    case 2:
+      return 1U;
+    case 4:
+      return 2U;
+    case 8:
+      return 3U;
+    default:
+      LOG(FATAL) << "Unexpected component size : " << kComponentSize;
+      return 0U;
+  }
+}
+
 class Primitive {
  public:
   enum Type {
@@ -66,6 +84,24 @@ class Primitive {
     }
   }
 
+  static size_t ComponentSizeShift(Type type) {
+    switch (type) {
+      case kPrimVoid:
+      case kPrimBoolean:
+      case kPrimByte:    return 0;
+      case kPrimChar:
+      case kPrimShort:   return 1;
+      case kPrimInt:
+      case kPrimFloat:   return 2;
+      case kPrimLong:
+      case kPrimDouble:  return 3;
+      case kPrimNot:     return ComponentSizeShiftWidth<kObjectReferenceSize>();
+      default:
+        LOG(FATAL) << "Invalid type " << static_cast<int>(type);
+        return 0;
+    }
+  }
+
   static size_t ComponentSize(Type type) {
     switch (type) {
       case kPrimVoid:    return 0;
@@ -82,10 +118,6 @@ class Primitive {
         LOG(FATAL) << "Invalid type " << static_cast<int>(type);
         return 0;
     }
-  }
-
-  static size_t FieldSize(Type type) {
-    return ComponentSize(type) <= 4 ? 4 : 8;
   }
 
   static const char* Descriptor(Type type) {

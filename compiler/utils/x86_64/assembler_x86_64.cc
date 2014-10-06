@@ -839,6 +839,14 @@ void X86_64Assembler::xchgl(CpuRegister reg, const Address& address) {
 }
 
 
+void X86_64Assembler::cmpw(const Address& address, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOptionalRex32(address);
+  EmitUint8(0x66);
+  EmitComplex(7, address, imm);
+}
+
+
 void X86_64Assembler::cmpl(CpuRegister reg, const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitOptionalRex32(reg);
@@ -1716,13 +1724,13 @@ void X86_64Assembler::EmitOptionalByteRegNormalizingRex32(CpuRegister dst, const
 }
 
 void X86_64Assembler::InitializeFrameDescriptionEntry() {
-  WriteFDEHeader(&cfi_info_);
+  WriteFDEHeader(&cfi_info_, true /* is_64bit */);
 }
 
 void X86_64Assembler::FinalizeFrameDescriptionEntry() {
-  WriteFDEAddressRange(&cfi_info_, buffer_.Size());
+  WriteFDEAddressRange(&cfi_info_, buffer_.Size(), true /* is_64bit */);
   PadCFI(&cfi_info_);
-  WriteCFILength(&cfi_info_);
+  WriteCFILength(&cfi_info_, true /* is_64bit */);
 }
 
 constexpr size_t kFramePointerSize = 8;
@@ -1983,7 +1991,10 @@ void X86_64Assembler::LoadRef(ManagedRegister mdest, ManagedRegister base,
                            MemberOffset offs) {
   X86_64ManagedRegister dest = mdest.AsX86_64();
   CHECK(dest.IsCpuRegister() && dest.IsCpuRegister());
-  movq(dest.AsCpuRegister(), Address(base.AsX86_64().AsCpuRegister(), offs));
+  movl(dest.AsCpuRegister(), Address(base.AsX86_64().AsCpuRegister(), offs));
+  if (kPoisonHeapReferences) {
+    negl(dest.AsCpuRegister());
+  }
 }
 
 void X86_64Assembler::LoadRawPtr(ManagedRegister mdest, ManagedRegister base,
@@ -2268,4 +2279,3 @@ void X86_64ExceptionSlowPath::Emit(Assembler *sasm) {
 
 }  // namespace x86_64
 }  // namespace art
-

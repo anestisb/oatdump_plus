@@ -746,10 +746,18 @@ void X86Assembler::xchgl(Register dst, Register src) {
   EmitRegisterOperand(dst, src);
 }
 
+
 void X86Assembler::xchgl(Register reg, const Address& address) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x87);
   EmitOperand(reg, address);
+}
+
+
+void X86Assembler::cmpw(const Address& address, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitComplex(7, address, imm);
 }
 
 
@@ -1409,13 +1417,13 @@ void X86Assembler::EmitGenericShift(int reg_or_opcode,
 }
 
 void X86Assembler::InitializeFrameDescriptionEntry() {
-  WriteFDEHeader(&cfi_info_);
+  WriteFDEHeader(&cfi_info_, false /* is_64bit */);
 }
 
 void X86Assembler::FinalizeFrameDescriptionEntry() {
-  WriteFDEAddressRange(&cfi_info_, buffer_.Size());
+  WriteFDEAddressRange(&cfi_info_, buffer_.Size(), false /* is_64bit */);
   PadCFI(&cfi_info_);
-  WriteCFILength(&cfi_info_);
+  WriteCFILength(&cfi_info_, false /* is_64bit */);
 }
 
 constexpr size_t kFramePointerSize = 4;

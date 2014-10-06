@@ -28,6 +28,7 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "gc/heap.h"
+#include "instruction_set.h"
 #include "os.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
@@ -42,20 +43,21 @@ static void DumpCmdLine(std::ostream& os) {
 #if defined(__linux__)
   // Show the original command line, and the current command line too if it's changed.
   // On Android, /proc/self/cmdline will have been rewritten to something like "system_server".
+  // Note: The string "Cmd line:" is chosen to match the format used by debuggerd.
   std::string current_cmd_line;
   if (ReadFileToString("/proc/self/cmdline", &current_cmd_line)) {
-    current_cmd_line.resize(current_cmd_line.size() - 1);  // Lose the trailing '\0'.
+    current_cmd_line.resize(current_cmd_line.find_last_not_of('\0') + 1);  // trim trailing '\0's
     std::replace(current_cmd_line.begin(), current_cmd_line.end(), '\0', ' ');
 
-    os << "Cmdline: " << current_cmd_line;
+    os << "Cmd line: " << current_cmd_line << "\n";
     const char* stashed_cmd_line = GetCmdLine();
-    if (stashed_cmd_line != NULL && current_cmd_line != stashed_cmd_line) {
-      os << "Original command line: " << stashed_cmd_line;
+    if (stashed_cmd_line != NULL && current_cmd_line != stashed_cmd_line
+            && strcmp(stashed_cmd_line, "<unset>") != 0) {
+      os << "Original command line: " << stashed_cmd_line << "\n";
     }
   }
-  os << "\n";
 #else
-  os << "Cmdline: " << GetCmdLine() << "\n";
+  os << "Cmd line: " << GetCmdLine() << "\n";
 #endif
 }
 
@@ -116,22 +118,14 @@ void SignalCatcher::Output(const std::string& s) {
 
 void SignalCatcher::HandleSigQuit() {
   Runtime* runtime = Runtime::Current();
-  ThreadList* thread_list = runtime->GetThreadList();
-
-  // Grab exclusively the mutator lock, set state to Runnable without checking for a pending
-  // suspend request as we're going to suspend soon anyway. We set the state to Runnable to avoid
-  // giving away the mutator lock.
-  thread_list->SuspendAll();
-  Thread* self = Thread::Current();
-  Locks::mutator_lock_->AssertExclusiveHeld(self);
-  const char* old_cause = self->StartAssertNoThreadSuspension("Handling SIGQUIT");
-  ThreadState old_state = self->SetStateUnsafe(kRunnable);
-
   std::ostringstream os;
   os << "\n"
       << "----- pid " << getpid() << " at " << GetIsoDate() << " -----\n";
 
   DumpCmdLine(os);
+
+  // Note: The string "ABI:" is chosen to match the format used by debuggerd.
+  os << "ABI: " << GetInstructionSetString(runtime->GetInstructionSet()) << "\n";
 
   os << "Build type: " << (kIsDebugBuild ? "debug" : "optimized") << "\n";
 
@@ -144,14 +138,6 @@ void SignalCatcher::HandleSigQuit() {
     }
   }
   os << "----- end " << getpid() << " -----\n";
-  CHECK_EQ(self->SetStateUnsafe(old_state), kRunnable);
-  self->EndAssertNoThreadSuspension(old_cause);
-  thread_list->ResumeAll();
-  // Run the checkpoints after resuming the threads to prevent deadlocks if the checkpoint function
-  // acquires the mutator lock.
-  if (self->ReadFlag(kCheckpointRequest)) {
-    self->RunCheckpointFunction();
-  }
   Output(os.str());
 }
 

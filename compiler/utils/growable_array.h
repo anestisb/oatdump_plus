@@ -26,61 +26,14 @@ namespace art {
 // Type of growable list for memory tuning.
 enum OatListKind {
   kGrowableArrayMisc = 0,
-  kGrowableArrayBlockList,
-  kGrowableArraySSAtoDalvikMap,
-  kGrowableArrayDfsOrder,
-  kGrowableArrayDfsPostOrder,
-  kGrowableArrayDomPostOrderTraversal,
-  kGrowableArraySwitchTables,
-  kGrowableArrayFillArrayData,
-  kGrowableArraySuccessorBlocks,
-  kGrowableArrayPredecessors,
-  kGrowableArraySlowPaths,
   kGNumListKinds
 };
 
+// Deprecated
+// TODO: Replace all uses with ArenaVector<T>.
 template<typename T>
 class GrowableArray {
   public:
-    class Iterator {
-      public:
-        explicit Iterator(GrowableArray* g_list)
-          : idx_(0),
-            g_list_(g_list) {}
-
-        explicit Iterator()
-          : idx_(0),
-            g_list_(nullptr) {}
-
-        // NOTE: returns 0/NULL when no next.
-        // TODO: redo to make usage consistent with other iterators.
-        T Next() {
-          DCHECK(g_list_ != nullptr);
-          if (idx_ >= g_list_->Size()) {
-            return 0;
-          } else {
-            return g_list_->Get(idx_++);
-          }
-        }
-
-        void Reset() {
-          idx_ = 0;
-        }
-
-        void Reset(GrowableArray* g_list) {
-          idx_ = 0;
-          g_list_ = g_list;
-        }
-
-        size_t GetIndex() const {
-          return idx_;
-        }
-
-      private:
-        size_t idx_;
-        GrowableArray* g_list_;
-    };
-
     GrowableArray(ArenaAllocator* arena, size_t init_length, OatListKind kind = kGrowableArrayMisc)
       : arena_(arena),
         num_allocated_(init_length),
@@ -88,7 +41,7 @@ class GrowableArray {
         kind_(kind) {
       elem_list_ = static_cast<T*>(arena_->Alloc(sizeof(T) * init_length,
                                                  kArenaAllocGrowableArray));
-    };
+    }
 
 
     // Expand the list size to at least new length.
@@ -105,7 +58,7 @@ class GrowableArray {
       memcpy(new_array, elem_list_, sizeof(T) * num_allocated_);
       num_allocated_ = target_length;
       elem_list_ = new_array;
-    };
+    }
 
     // NOTE: does not return storage, just resets use count.
     void Reset() {
@@ -136,7 +89,7 @@ class GrowableArray {
     T Get(size_t index) const {
       DCHECK_LT(index, num_used_);
       return elem_list_[index];
-    };
+    }
 
     // Overwrite existing element at position index.  List must be large enough.
     void Put(size_t index, T elem) {
@@ -167,14 +120,14 @@ class GrowableArray {
       // We should either have found the element, or it was the last (unscanned) element.
       DCHECK(found || (element == elem_list_[num_used_ - 1]));
       num_used_--;
-    };
+    }
 
     void DeleteAt(size_t index) {
       for (size_t i = index; i < num_used_ - 1; i++) {
         elem_list_[i] = elem_list_[i + 1];
       }
       num_used_--;
-    };
+    }
 
     size_t GetNumAllocated() const { return num_allocated_; }
 
@@ -201,7 +154,7 @@ class GrowableArray {
 
     static void* operator new(size_t size, ArenaAllocator* arena) {
       return arena->Alloc(sizeof(GrowableArray<T>), kArenaAllocGrowableArray);
-    };
+    }
     static void operator delete(void* p) {}  // Nop.
 
   private:

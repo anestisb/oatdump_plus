@@ -24,6 +24,7 @@
 
 #include "globals.h"
 #include "gc/collector_type.h"
+#include "gc/space/large_object_space.h"
 #include "instruction_set.h"
 #include "profiler_options.h"
 
@@ -46,10 +47,12 @@ class ParsedOptions {
   bool check_jni_;
   bool force_copy_;
   std::string jni_trace_;
-  std::string native_bridge_library_string_;
+  std::string native_bridge_library_filename_;
   CompilerCallbacks* compiler_callbacks_;
   bool is_zygote_;
   bool must_relocate_;
+  bool dex2oat_enabled_;
+  bool image_dex2oat_enabled_;
   std::string patchoat_executable_;
   bool interpreter_only_;
   bool is_explicit_gc_disabled_;
@@ -69,6 +72,9 @@ class ParsedOptions {
   size_t heap_growth_limit_;
   size_t heap_min_free_;
   size_t heap_max_free_;
+  size_t heap_non_moving_space_capacity_;
+  gc::space::LargeObjectSpaceType large_object_space_type_;
+  size_t large_object_threshold_;
   double heap_target_utilization_;
   double foreground_heap_growth_multiplier_;
   unsigned int parallel_gc_threads_;
@@ -105,7 +111,7 @@ class ParsedOptions {
   uint64_t min_interval_homogeneous_space_compaction_by_oom_;
 
  private:
-  ParsedOptions() {}
+  ParsedOptions();
 
   void Usage(const char* fmt, ...);
   void UsageMessage(FILE* stream, const char* fmt, ...);

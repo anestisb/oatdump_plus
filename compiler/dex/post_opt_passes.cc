@@ -36,9 +36,9 @@ bool MethodUseCount::Gate(const PassDataHolder* data) const {
   return res;
 }
 
-bool MethodUseCount::Worker(const PassDataHolder* data) const {
+bool MethodUseCount::Worker(PassDataHolder* data) const {
   DCHECK(data != nullptr);
-  const PassMEDataHolder* pass_me_data_holder = down_cast<const PassMEDataHolder*>(data);
+  PassMEDataHolder* pass_me_data_holder = down_cast<PassMEDataHolder*>(data);
   CompilationUnit* c_unit = pass_me_data_holder->c_unit;
   DCHECK(c_unit != nullptr);
   BasicBlock* bb = pass_me_data_holder->bb;
@@ -49,9 +49,9 @@ bool MethodUseCount::Worker(const PassDataHolder* data) const {
 }
 
 
-bool ClearPhiInstructions::Worker(const PassDataHolder* data) const {
+bool ClearPhiInstructions::Worker(PassDataHolder* data) const {
   DCHECK(data != nullptr);
-  const PassMEDataHolder* pass_me_data_holder = down_cast<const PassMEDataHolder*>(data);
+  PassMEDataHolder* pass_me_data_holder = down_cast<PassMEDataHolder*>(data);
   CompilationUnit* c_unit = pass_me_data_holder->c_unit;
   DCHECK(c_unit != nullptr);
   BasicBlock* bb = pass_me_data_holder->bb;
@@ -84,7 +84,7 @@ void CalculatePredecessors::Start(PassDataHolder* data) const {
   // First clear all predecessors.
   AllNodesIterator first(mir_graph);
   for (BasicBlock* bb = first.Next(); bb != nullptr; bb = first.Next()) {
-    bb->predecessors->Reset();
+    bb->predecessors.clear();
   }
 
   // Now calculate all predecessors.
@@ -100,7 +100,7 @@ void CalculatePredecessors::Start(PassDataHolder* data) const {
 
     // Now iterate through the children to set the predecessor bits.
     for (BasicBlock* child = child_iter.Next(); child != nullptr; child = child_iter.Next()) {
-      child->predecessors->Insert(bb->id);
+      child->predecessors.push_back(bb->id);
     }
   }
 }
