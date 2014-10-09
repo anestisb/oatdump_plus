@@ -186,6 +186,10 @@ static MIR* FindPhi(BasicBlock* bb, int ssa_name) {
 }
 
 static SelectInstructionKind SelectKind(MIR* mir) {
+  // Work with the case when mir is nullptr.
+  if (mir == nullptr) {
+    return kSelectNone;
+  }
   switch (mir->dalvikInsn.opcode) {
     case Instruction::MOVE:
     case Instruction::MOVE_OBJECT:
@@ -936,7 +940,7 @@ bool MIRGraph::EliminateNullChecksAndInferTypes(BasicBlock* bb) {
         mir->optimization_flags |= MIR_IGNORE_NULL_CHECK;
       } else {
         // Do the null check.
-        mir->optimization_flags &= ~MIR_IGNORE_NULL_CHECK;
+        // Do not clear MIR_IGNORE_NULL_CHECK flag as it may be set by another optimization
         // Mark s_reg as null-checked
         ssa_regs_to_check->ClearBit(src_sreg);
       }

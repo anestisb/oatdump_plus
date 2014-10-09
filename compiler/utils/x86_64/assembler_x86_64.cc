@@ -234,6 +234,7 @@ void X86_64Assembler::movb(const Address& dst, CpuRegister src) {
 
 void X86_64Assembler::movb(const Address& dst, const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOptionalRex32(dst);
   EmitUint8(0xC6);
   EmitOperand(Register::RAX, dst);
   CHECK(imm.is_int8());
@@ -291,11 +292,32 @@ void X86_64Assembler::movw(const Address& dst, CpuRegister src) {
 }
 
 
+void X86_64Assembler::movw(const Address& dst, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOperandSizeOverride();
+  EmitOptionalRex32(dst);
+  EmitUint8(0xC7);
+  EmitOperand(Register::RAX, dst);
+  CHECK(imm.is_uint16() || imm.is_int16());
+  EmitUint8(imm.value() & 0xFF);
+  EmitUint8(imm.value() >> 8);
+}
+
+
 void X86_64Assembler::leaq(CpuRegister dst, const Address& src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitRex64(dst, src);
   EmitUint8(0x8D);
   EmitOperand(dst.LowBits(), src);
+}
+
+
+void X86_64Assembler::movaps(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOptionalRex32(dst, src);
+  EmitUint8(0x0F);
+  EmitUint8(0x28);
+  EmitXmmRegisterOperand(src.LowBits(), dst);
 }
 
 

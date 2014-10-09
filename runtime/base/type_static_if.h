@@ -14,27 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_OPTIMIZING_INSTRUCTION_SIMPLIFIER_H_
-#define ART_COMPILER_OPTIMIZING_INSTRUCTION_SIMPLIFIER_H_
+#ifndef ART_RUNTIME_BASE_TYPE_STATIC_IF_H_
+#define ART_RUNTIME_BASE_TYPE_STATIC_IF_H_
 
-#include "nodes.h"
-
-namespace art {
-
-/**
- * Implements optimizations specific to each instruction.
- */
-class InstructionSimplifier : public HGraphVisitor {
- public:
-  explicit InstructionSimplifier(HGraph* graph) : HGraphVisitor(graph) {}
-
-  void Run();
-
- private:
-  virtual void VisitSuspendCheck(HSuspendCheck* check) OVERRIDE;
-  virtual void VisitEqual(HEqual* equal) OVERRIDE;
+// A static if which determines whether to return type A or B based on the condition boolean.
+template <bool condition, typename A, typename B>
+struct TypeStaticIf {
+  typedef A type;
 };
 
-}  // namespace art
+// Specialization to handle the false case.
+template <typename A, typename B>
+struct TypeStaticIf<false, A,  B> {
+  typedef B type;
+};
 
-#endif  // ART_COMPILER_OPTIMIZING_INSTRUCTION_SIMPLIFIER_H_
+#endif  // ART_RUNTIME_BASE_TYPE_STATIC_IF_H_

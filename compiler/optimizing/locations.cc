@@ -25,13 +25,16 @@ LocationSummary::LocationSummary(HInstruction* instruction, CallKind call_kind)
       temps_(instruction->GetBlock()->GetGraph()->GetArena(), 0),
       environment_(instruction->GetBlock()->GetGraph()->GetArena(),
                    instruction->EnvironmentSize()),
+      dies_at_entry_(instruction->GetBlock()->GetGraph()->GetArena(), instruction->InputCount()),
       call_kind_(call_kind),
       stack_mask_(nullptr),
       register_mask_(0),
       live_registers_() {
   inputs_.SetSize(instruction->InputCount());
+  dies_at_entry_.SetSize(instruction->InputCount());
   for (size_t i = 0; i < instruction->InputCount(); ++i) {
     inputs_.Put(i, Location());
+    dies_at_entry_.Put(i, false);
   }
   environment_.SetSize(instruction->EnvironmentSize());
   for (size_t i = 0; i < instruction->EnvironmentSize(); ++i) {
@@ -50,6 +53,17 @@ Location Location::RegisterOrConstant(HInstruction* instruction) {
   return instruction->IsConstant()
       ? Location::ConstantLocation(instruction->AsConstant())
       : Location::RequiresRegister();
+}
+
+Location Location::ByteRegisterOrConstant(ManagedRegister reg, HInstruction* instruction) {
+  return instruction->IsConstant()
+      ? Location::ConstantLocation(instruction->AsConstant())
+      : Location::RegisterLocation(reg);
+}
+
+std::ostream& operator<<(std::ostream& os, const Location& location) {
+  os << location.DebugString();
+  return os;
 }
 
 }  // namespace art

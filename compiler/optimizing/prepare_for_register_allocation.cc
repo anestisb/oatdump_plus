@@ -14,27 +14,27 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_OPTIMIZING_INSTRUCTION_SIMPLIFIER_H_
-#define ART_COMPILER_OPTIMIZING_INSTRUCTION_SIMPLIFIER_H_
-
-#include "nodes.h"
+#include "prepare_for_register_allocation.h"
 
 namespace art {
 
-/**
- * Implements optimizations specific to each instruction.
- */
-class InstructionSimplifier : public HGraphVisitor {
- public:
-  explicit InstructionSimplifier(HGraph* graph) : HGraphVisitor(graph) {}
+void PrepareForRegisterAllocation::Run() {
+  // Order does not matter.
+  for (HReversePostOrderIterator it(*GetGraph()); !it.Done(); it.Advance()) {
+    HBasicBlock* block = it.Current();
+    // No need to visit the phis.
+    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+      it.Current()->Accept(this);
+    }
+  }
+}
 
-  void Run();
+void PrepareForRegisterAllocation::VisitNullCheck(HNullCheck* check) {
+  check->ReplaceWith(check->InputAt(0));
+}
 
- private:
-  virtual void VisitSuspendCheck(HSuspendCheck* check) OVERRIDE;
-  virtual void VisitEqual(HEqual* equal) OVERRIDE;
-};
+void PrepareForRegisterAllocation::VisitBoundsCheck(HBoundsCheck* check) {
+  check->ReplaceWith(check->InputAt(0));
+}
 
 }  // namespace art
-
-#endif  // ART_COMPILER_OPTIMIZING_INSTRUCTION_SIMPLIFIER_H_
