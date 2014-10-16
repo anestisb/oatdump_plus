@@ -86,18 +86,8 @@ endif
 #
 # Used to enable optimizing compiler
 #
-ART_USE_OPTIMIZING_COMPILER := false
-ifneq ($(wildcard art/USE_OPTIMIZING_COMPILER),)
-$(info Enabling ART_USE_OPTIMIZING_COMPILER because of existence of art/USE_OPTIMIZING_COMPILER)
-ART_USE_OPTIMIZING_COMPILER := true
-endif
-ifeq ($(WITH_ART_USE_OPTIMIZING_COMPILER), true)
-ART_USE_OPTIMIZING_COMPILER := true
-endif
-
 ifeq ($(ART_USE_OPTIMIZING_COMPILER),true)
 DEX2OAT_FLAGS := --compiler-backend=Optimizing
-DALVIKVM_FLAGS += -Xcompiler-option --compiler-backend=Optimizing
 endif
 
 #
@@ -206,7 +196,7 @@ ART_TARGET_CLANG_CFLAGS_arm64 += \
   -fno-vectorize
 
 art_debug_cflags := \
-  -O1 \
+  -O2 \
   -DDYNAMIC_ANNOTATIONS_ENABLED=1 \
   -UNDEBUG
 
@@ -241,12 +231,22 @@ ART_TARGET_CFLAGS += -DART_BASE_ADDRESS_MIN_DELTA=$(LIBART_IMG_TARGET_MIN_BASE_A
 ART_TARGET_CFLAGS += -DART_BASE_ADDRESS_MAX_DELTA=$(LIBART_IMG_TARGET_MAX_BASE_ADDRESS_DELTA)
 
 # Colorize clang compiler warnings.
+art_clang_cflags := -fcolor-diagnostics
+
+# Warn if switch fallthroughs aren't annotated.
+art_clang_cflags += -Wimplicit-fallthrough
+
+# Enable float equality warnings.
+art_clang_cflags += -Wfloat-equal
+
 ifeq ($(ART_HOST_CLANG),true)
-  ART_HOST_CFLAGS += -fcolor-diagnostics
+  ART_HOST_CFLAGS += $(art_clang_cflags)
 endif
 ifeq ($(ART_TARGET_CLANG),true)
-  ART_TARGET_CFLAGS += -fcolor-diagnostics
+  ART_TARGET_CFLAGS += $(art_clang_cflags)
 endif
+
+art_clang_cflags :=
 
 ART_TARGET_LDFLAGS :=
 ifeq ($(TARGET_CPU_SMP),true)

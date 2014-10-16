@@ -23,7 +23,7 @@
 
 namespace art {
 
-class FileOutputStream : public OutputStream {
+class FileOutputStream FINAL : public OutputStream {
  public:
   explicit FileOutputStream(File* file);
 

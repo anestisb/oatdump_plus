@@ -92,7 +92,7 @@ class LocationsBuilderX86 : public HGraphVisitor {
   LocationsBuilderX86(HGraph* graph, CodeGeneratorX86* codegen)
       : HGraphVisitor(graph), codegen_(codegen) {}
 
-#define DECLARE_VISIT_INSTRUCTION(name)     \
+#define DECLARE_VISIT_INSTRUCTION(name, super)     \
   virtual void Visit##name(H##name* instr);
 
   FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
@@ -112,7 +112,7 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
  public:
   InstructionCodeGeneratorX86(HGraph* graph, CodeGeneratorX86* codegen);
 
-#define DECLARE_VISIT_INSTRUCTION(name)     \
+#define DECLARE_VISIT_INSTRUCTION(name, super)     \
   virtual void Visit##name(H##name* instr);
 
   FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
@@ -165,20 +165,10 @@ class CodeGeneratorX86 : public CodeGenerator {
     return &assembler_;
   }
 
-  virtual size_t GetNumberOfRegisters() const OVERRIDE;
-  virtual void SetupBlockedRegisters(bool* blocked_registers) const OVERRIDE;
-  virtual ManagedRegister AllocateFreeRegister(
-      Primitive::Type type, bool* blocked_registers) const OVERRIDE;
+  virtual void SetupBlockedRegisters() const OVERRIDE;
+  virtual Location AllocateFreeRegister(Primitive::Type type) const OVERRIDE;
 
   virtual Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
-
-  virtual size_t GetNumberOfCoreRegisters() const OVERRIDE {
-    return kNumberOfCpuRegisters;
-  }
-
-  virtual size_t GetNumberOfFloatingPointRegisters() const OVERRIDE {
-    return kNumberOfXmmRegisters;
-  }
 
   virtual void DumpCoreRegister(std::ostream& stream, int reg) const OVERRIDE;
   virtual void DumpFloatingPointRegister(std::ostream& stream, int reg) const OVERRIDE;

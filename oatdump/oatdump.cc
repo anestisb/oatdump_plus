@@ -120,10 +120,12 @@ const char* image_roots_descriptions_[] = {
   "kClassRoots",
 };
 
-class OatSymbolizer : public CodeOutput {
+class OatSymbolizer FINAL : public CodeOutput {
  public:
-  explicit OatSymbolizer(const OatFile* oat_file, std::string& output_name) :
-      oat_file_(oat_file), builder_(nullptr), elf_output_(nullptr), output_name_(output_name) {}
+  explicit OatSymbolizer(const OatFile* oat_file, const std::string& output_name) :
+      oat_file_(oat_file), builder_(nullptr), elf_output_(nullptr),
+      output_name_(output_name.empty() ? "symbolized.oat" : output_name) {
+  }
 
   bool Init() {
     Elf32_Word oat_data_size = oat_file_->GetOatHeader().GetExecutableOffset();
@@ -131,9 +133,6 @@ class OatSymbolizer : public CodeOutput {
     uint32_t diff = static_cast<uint32_t>(oat_file_->End() - oat_file_->Begin());
     uint32_t oat_exec_size = diff - oat_data_size;
 
-    if (output_name_.empty()) {
-      output_name_ = "symbolized.oat";
-    }
     elf_output_ = OS::CreateEmptyFile(output_name_.c_str());
 
     builder_.reset(new ElfBuilder<Elf32_Word, Elf32_Sword, Elf32_Addr, Elf32_Dyn,
@@ -220,7 +219,7 @@ class OatSymbolizer : public CodeOutput {
 
   void WalkOatClass(const OatFile::OatClass& oat_class, const DexFile& dex_file,
                     const DexFile::ClassDef& class_def, Callback callback) {
-    const byte* class_data = dex_file.GetClassData(class_def);
+    const uint8_t* class_data = dex_file.GetClassData(class_def);
     if (class_data == nullptr) {  // empty class such as a marker interface?
       return;
     }
@@ -307,11 +306,11 @@ class OatSymbolizer : public CodeOutput {
       }
 
       ElfSymtabBuilder<Elf32_Word, Elf32_Sword, Elf32_Addr,
-      Elf32_Sym, Elf32_Shdr>* symtab = &builder_->symtab_builder_;
+      Elf32_Sym, Elf32_Shdr>* symtab = builder_->GetSymtabBuilder();
 
-      symtab->AddSymbol(pretty_name, &builder_->text_builder_, oat_method.GetCodeOffset() -
-                        oat_file_->GetOatHeader().GetExecutableOffset(), true,
-                        oat_method.GetQuickCodeSize(), STB_GLOBAL, STT_FUNC);
+      symtab->AddSymbol(pretty_name, &builder_->GetTextBuilder(),
+          oat_method.GetCodeOffset() - oat_file_->GetOatHeader().GetExecutableOffset(),
+          true, oat_method.GetQuickCodeSize(), STB_GLOBAL, STT_FUNC);
     }
   }
 
@@ -340,7 +339,7 @@ class OatSymbolizer : public CodeOutput {
                               Elf32_Sym, Elf32_Ehdr, Elf32_Phdr, Elf32_Shdr> > builder_;
   File* elf_output_;
   std::unordered_map<uint32_t, uint32_t> state_;
-  std::string output_name_;
+  const std::string output_name_;
 };
 
 class OatDumperOptions {
@@ -483,8 +482,8 @@ class OatDumper {
   }
 
   size_t ComputeSize(const void* oat_data) {
-    if (reinterpret_cast<const byte*>(oat_data) < oat_file_.Begin() ||
-        reinterpret_cast<const byte*>(oat_data) > oat_file_.End()) {
+    if (reinterpret_cast<const uint8_t*>(oat_data) < oat_file_.Begin() ||
+        reinterpret_cast<const uint8_t*>(oat_data) > oat_file_.End()) {
       return 0;  // Address not in oat file
     }
     uintptr_t begin_offset = reinterpret_cast<uintptr_t>(oat_data) -
@@ -544,7 +543,7 @@ class OatDumper {
            class_def_index++) {
         const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
         const OatFile::OatClass oat_class = oat_dex_file->GetOatClass(class_def_index);
-        const byte* class_data = dex_file->GetClassData(class_def);
+        const uint8_t* class_data = dex_file->GetClassData(class_def);
         if (class_data != nullptr) {
           ClassDataItemIterator it(*dex_file, class_data);
           SkipAllFields(it);
@@ -632,7 +631,7 @@ class OatDumper {
   bool DumpOatClass(std::ostream& os, const OatFile::OatClass& oat_class, const DexFile& dex_file,
                     const DexFile::ClassDef& class_def) {
     bool success = true;
-    const byte* class_data = dex_file.GetClassData(class_def);
+    const uint8_t* class_data = dex_file.GetClassData(class_def);
     if (class_data == nullptr) {  // empty class such as a marker interface?
       os << std::flush;
       return success;

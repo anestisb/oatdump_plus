@@ -90,7 +90,7 @@ static void UsageError(const char* fmt, ...) {
   va_end(ap);
 }
 
-static void Usage(const char* fmt, ...) {
+[[noreturn]] static void Usage(const char* fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
   UsageErrorV(fmt, ap);
@@ -662,7 +662,7 @@ class WatchDog {
     Message('W', message);
   }
 
-  static void Fatal(const std::string& message) {
+  [[noreturn]] static void Fatal(const std::string& message) {
     Message('F', message);
     exit(1);
   }

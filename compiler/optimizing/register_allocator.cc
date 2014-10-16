@@ -37,18 +37,18 @@ RegisterAllocator::RegisterAllocator(ArenaAllocator* allocator,
         handled_(allocator, 0),
         active_(allocator, 0),
         inactive_(allocator, 0),
-        physical_register_intervals_(allocator, codegen->GetNumberOfRegisters()),
+        physical_register_intervals_(allocator, codegen->GetNumberOfCoreRegisters()),
         temp_intervals_(allocator, 4),
         spill_slots_(allocator, kDefaultNumberOfSpillSlots),
         safepoints_(allocator, 0),
         processing_core_registers_(false),
         number_of_registers_(-1),
         registers_array_(nullptr),
-        blocked_registers_(allocator->AllocArray<bool>(codegen->GetNumberOfRegisters())),
+        blocked_registers_(codegen->GetBlockedCoreRegisters()),
         reserved_out_slots_(0),
         maximum_number_of_live_registers_(0) {
-  codegen->SetupBlockedRegisters(blocked_registers_);
-  physical_register_intervals_.SetSize(codegen->GetNumberOfRegisters());
+  codegen->SetupBlockedRegisters();
+  physical_register_intervals_.SetSize(codegen->GetNumberOfCoreRegisters());
   // Always reserve for the current method and the graph's max out registers.
   // TODO: compute it instead.
   reserved_out_slots_ = 1 + codegen->GetGraph()->GetMaximumNumberOfOutVRegs();
@@ -95,7 +95,7 @@ void RegisterAllocator::BlockRegister(Location location,
                                       size_t start,
                                       size_t end,
                                       Primitive::Type type) {
-  int reg = location.reg().RegId();
+  int reg = location.reg();
   LiveInterval* interval = physical_register_intervals_.Get(reg);
   if (interval == nullptr) {
     interval = LiveInterval::MakeFixedInterval(allocator_, reg, type);
@@ -187,7 +187,7 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
   if (locations->WillCall()) {
     // Block all registers.
     for (size_t i = 0; i < codegen_->GetNumberOfCoreRegisters(); ++i) {
-      BlockRegister(Location::RegisterLocation(ManagedRegister(i)),
+      BlockRegister(Location::RegisterLocation(i),
                     position,
                     position + 1,
                     Primitive::kPrimInt);
@@ -216,7 +216,7 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
   if (output.IsRegister()) {
     // Shift the interval's start by one to account for the blocked register.
     current->SetFrom(position + 1);
-    current->SetRegister(output.reg().RegId());
+    current->SetRegister(output.reg());
     BlockRegister(output, position, position + 1, instruction->GetType());
   } else if (output.IsStackSlot() || output.IsDoubleStackSlot()) {
     current->SetSpillSlot(output.GetStackIndex());
@@ -821,6 +821,11 @@ void RegisterAllocator::InsertParallelMoveAtExitOf(HBasicBlock* block,
 
   DCHECK_EQ(block->GetSuccessors().Size(), 1u);
   HInstruction* last = block->GetLastInstruction();
+  // We insert moves at exit for phi predecessors and connecting blocks.
+  // A block ending with an if cannot branch to a block with phis because
+  // we do not allow critical edges. It can also not connect
+  // a split interval between two blocks: the move has to happen in the successor.
+  DCHECK(!last->IsIf());
   HInstruction* previous = last->GetPrevious();
   HParallelMove* move;
   // This is a parallel move for connecting blocks. We need to differentiate
@@ -884,7 +889,7 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
   if (current->HasSpillSlot() && current->HasRegister()) {
     // We spill eagerly, so move must be at definition.
     InsertMoveAfter(interval->GetDefinedBy(),
-                    Location::RegisterLocation(ManagedRegister(interval->GetRegister())),
+                    Location::RegisterLocation(interval->GetRegister()),
                     interval->NeedsTwoSpillSlots()
                         ? Location::DoubleStackSlot(interval->GetParent()->GetSpillSlot())
                         : Location::StackSlot(interval->GetParent()->GetSpillSlot()));
@@ -938,7 +943,7 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
         case Location::kRegister: {
           locations->AddLiveRegister(source);
           if (current->GetType() == Primitive::kPrimNot) {
-            locations->SetRegisterBit(source.reg().RegId());
+            locations->SetRegisterBit(source.reg());
           }
           break;
         }
@@ -1106,7 +1111,7 @@ void RegisterAllocator::Resolve() {
     }
     LocationSummary* locations = at->GetLocations();
     locations->SetTempAt(
-        temp_index++, Location::RegisterLocation(ManagedRegister(temp->GetRegister())));
+        temp_index++, Location::RegisterLocation(temp->GetRegister()));
   }
 }
 

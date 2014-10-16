@@ -113,7 +113,7 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
       // Group 3
       case 0x66:
         operand_size_prefix = true;
-        // fallthrough
+        FALLTHROUGH_INTENDED;
 
       // Group 1
       case 0xf0:
@@ -184,6 +184,7 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
 
       case 0x80:        // group 1, byte immediate.
       case 0x83:
+      case 0xc6:
         modrm = *pc++;
         has_modrm = true;
         immediate_size = 1;

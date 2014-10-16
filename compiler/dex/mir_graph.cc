@@ -94,11 +94,11 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       topological_order_indexes_(arena->Adapter(kArenaAllocTopologicalSortOrder)),
       topological_order_loop_head_stack_(arena->Adapter(kArenaAllocTopologicalSortOrder)),
       i_dom_list_(NULL),
-      def_block_matrix_(NULL),
       temp_scoped_alloc_(),
       temp_insn_data_(nullptr),
       temp_bit_vector_size_(0u),
       temp_bit_vector_(nullptr),
+      temp_bit_matrix_(nullptr),
       temp_gvn_(),
       block_list_(arena->Adapter(kArenaAllocBBList)),
       try_block_addr_(NULL),
@@ -352,7 +352,7 @@ void MIRGraph::ProcessTryCatchBlocks() {
   }
 
   // Iterate over each of the handlers to enqueue the empty Catch blocks.
-  const byte* handlers_ptr = DexFile::GetCatchHandlerData(*current_code_item_, 0);
+  const uint8_t* handlers_ptr = DexFile::GetCatchHandlerData(*current_code_item_, 0);
   uint32_t handlers_size = DecodeUnsignedLeb128(&handlers_ptr);
   for (uint32_t idx = 0; idx < handlers_size; idx++) {
     CatchHandlerIterator iterator(handlers_ptr);
@@ -391,7 +391,7 @@ bool MIRGraph::IsBadMonitorExitCatch(NarrowDexOffset monitor_exit_offset,
     switch (check_insn->Opcode()) {
       case Instruction::MOVE_WIDE:
         wide = true;
-        // Intentional fall-through.
+        FALLTHROUGH_INTENDED;
       case Instruction::MOVE_OBJECT:
       case Instruction::MOVE:
         dest = check_insn->VRegA_12x();
@@ -399,7 +399,7 @@ bool MIRGraph::IsBadMonitorExitCatch(NarrowDexOffset monitor_exit_offset,
 
       case Instruction::MOVE_WIDE_FROM16:
         wide = true;
-        // Intentional fall-through.
+        FALLTHROUGH_INTENDED;
       case Instruction::MOVE_OBJECT_FROM16:
       case Instruction::MOVE_FROM16:
         dest = check_insn->VRegA_22x();
@@ -407,7 +407,7 @@ bool MIRGraph::IsBadMonitorExitCatch(NarrowDexOffset monitor_exit_offset,
 
       case Instruction::MOVE_WIDE_16:
         wide = true;
-        // Intentional fall-through.
+        FALLTHROUGH_INTENDED;
       case Instruction::MOVE_OBJECT_16:
       case Instruction::MOVE_16:
         dest = check_insn->VRegA_32x();
@@ -417,7 +417,7 @@ bool MIRGraph::IsBadMonitorExitCatch(NarrowDexOffset monitor_exit_offset,
       case Instruction::GOTO_16:
       case Instruction::GOTO_32:
         check_insn = check_insn->RelativeAt(check_insn->GetTargetOffset());
-        // Intentional fall-through.
+        FALLTHROUGH_INTENDED;
       default:
         return check_insn->Opcode() == Instruction::MONITOR_EXIT &&
             check_insn->VRegA_11x() == monitor_reg;
@@ -1706,6 +1706,7 @@ void MIRGraph::SSATransformationEnd() {
 
   temp_bit_vector_size_ = 0u;
   temp_bit_vector_ = nullptr;
+  temp_bit_matrix_ = nullptr;  // Def block matrix.
   DCHECK(temp_scoped_alloc_.get() != nullptr);
   temp_scoped_alloc_.reset();
 

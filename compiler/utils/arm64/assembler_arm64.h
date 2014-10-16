@@ -59,12 +59,12 @@ class Arm64Exception;
 
 class Arm64Assembler FINAL : public Assembler {
  public:
-  Arm64Assembler() : vixl_buf_(new byte[kBufferSizeArm64]),
-  vixl_masm_(new vixl::MacroAssembler(vixl_buf_, kBufferSizeArm64)) {}
+  // We indicate the size of the initial code generation buffer to the VIXL
+  // assembler. From there we it will automatically manage the buffer.
+  Arm64Assembler() : vixl_masm_(new vixl::MacroAssembler(kArm64BaseBufferSize)) {}
 
   virtual ~Arm64Assembler() {
     delete vixl_masm_;
-    delete[] vixl_buf_;
   }
 
   // Emit slow paths queued during assembly.
@@ -213,11 +213,8 @@ class Arm64Assembler FINAL : public Assembler {
   void AddConstant(Register rd, int32_t value, vixl::Condition cond = vixl::al);
   void AddConstant(Register rd, Register rn, int32_t value, vixl::Condition cond = vixl::al);
 
-  // Vixl buffer.
-  byte* vixl_buf_;
-
   // Vixl assembler.
-  vixl::MacroAssembler* vixl_masm_;
+  vixl::MacroAssembler* const vixl_masm_;
 
   // List of exception blocks to generate at the end of the code cache.
   std::vector<Arm64Exception*> exception_blocks_;

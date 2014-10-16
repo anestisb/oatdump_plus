@@ -1596,7 +1596,7 @@ bool X86Mir2Lir::GenMulLongConst(RegLocation rl_dest, RegLocation rl_src1, int64
     return true;
   } else if (IsPowerOfTwo(val)) {
     int shift_amount = LowestSetBit(val);
-    if (!BadOverlap(rl_src1, rl_dest)) {
+    if (!PartiallyIntersects(rl_src1, rl_dest)) {
       rl_src1 = LoadValueWide(rl_src1, kCoreReg);
       RegLocation rl_result = GenShiftImmOpLong(Instruction::SHL_LONG, rl_dest, rl_src1,
                                                 shift_amount);
@@ -1808,7 +1808,6 @@ void X86Mir2Lir::GenLongRegOrMemOp(RegLocation rl_dest, RegLocation rl_src,
 
       x86op = GetOpcode(op, rl_dest, rl_src, true);
       NewLIR2(x86op, rl_dest.reg.GetHighReg(), rl_src.reg.GetHighReg());
-      FreeTemp(rl_src.reg);  // ???
     }
     return;
   }
@@ -1842,6 +1841,14 @@ void X86Mir2Lir::GenLongArith(RegLocation rl_dest, RegLocation rl_src, Instructi
     GenLongRegOrMemOp(rl_result, rl_src, op);
     StoreFinalValueWide(rl_dest, rl_result);
     return;
+  } else if (!cu_->target64 && Intersects(rl_src, rl_dest)) {
+    // Handle the case when src and dest are intersect.
+    rl_src = LoadValueWide(rl_src, kCoreReg);
+    RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
+    rl_src = UpdateLocWideTyped(rl_src, kCoreReg);
+    GenLongRegOrMemOp(rl_result, rl_src, op);
+    StoreFinalValueWide(rl_dest, rl_result);
+    return;
   }
 
   // It wasn't in registers, so it better be in memory.
@@ -1869,7 +1876,6 @@ void X86Mir2Lir::GenLongArith(RegLocation rl_dest, RegLocation rl_src, Instructi
     AnnotateDalvikRegAccess(lir, (displacement + HIWORD_OFFSET) >> 2,
                             false /* is_load */, true /* is64bit */);
   }
-  FreeTemp(rl_src.reg);
 }
 
 void X86Mir2Lir::GenLongArith(RegLocation rl_dest, RegLocation rl_src1,
@@ -2479,7 +2485,7 @@ void X86Mir2Lir::GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest
     GenArithOpLong(Instruction::ADD_LONG, rl_dest, rl_src, rl_src);
     return;
   }
-  if (BadOverlap(rl_src, rl_dest)) {
+  if (PartiallyIntersects(rl_src, rl_dest)) {
     GenShiftOpLong(opcode, rl_dest, rl_src, rl_shift);
     return;
   }
@@ -2924,25 +2930,25 @@ void X86Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
       break;
     case Instruction::ADD_INT_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::ADD_INT:
       op = kOpAdd;
       break;
     case Instruction::SUB_INT_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::SUB_INT:
       op = kOpSub;
       break;
     case Instruction::MUL_INT_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::MUL_INT:
       op = kOpMul;
       break;
     case Instruction::DIV_INT_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::DIV_INT:
       op = kOpDiv;
       is_div_rem = true;
@@ -2950,46 +2956,46 @@ void X86Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
     /* NOTE: returns in kArg1 */
     case Instruction::REM_INT_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::REM_INT:
       op = kOpRem;
       is_div_rem = true;
       break;
     case Instruction::AND_INT_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::AND_INT:
       op = kOpAnd;
       break;
     case Instruction::OR_INT_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::OR_INT:
       op = kOpOr;
       break;
     case Instruction::XOR_INT_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::XOR_INT:
       op = kOpXor;
       break;
     case Instruction::SHL_INT_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::SHL_INT:
       shift_op = true;
       op = kOpLsl;
       break;
     case Instruction::SHR_INT_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::SHR_INT:
       shift_op = true;
       op = kOpAsr;
       break;
     case Instruction::USHR_INT_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::USHR_INT:
       shift_op = true;
       op = kOpLsr;
@@ -3239,19 +3245,19 @@ void X86Mir2Lir::GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
   switch (opcode) {
     case Instruction::SHL_LONG_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::SHL_LONG:
       op = kOpLsl;
       break;
     case Instruction::SHR_LONG_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::SHR_LONG:
       op = kOpAsr;
       break;
     case Instruction::USHR_LONG_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::USHR_LONG:
       op = kOpLsr;
       break;

@@ -461,7 +461,7 @@ class ClassLinker {
   void LoadClass(Thread* self, const DexFile& dex_file, const DexFile::ClassDef& dex_class_def,
                  Handle<mirror::Class> klass, mirror::ClassLoader* class_loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void LoadClassMembers(Thread* self, const DexFile& dex_file, const byte* class_data,
+  void LoadClassMembers(Thread* self, const DexFile& dex_file, const uint8_t* class_data,
                         Handle<mirror::Class> klass, mirror::ClassLoader* class_loader,
                         const OatFile::OatClass* oat_class)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -538,8 +538,6 @@ class ClassLinker {
                 const DexFile& dex_file, uint32_t dex_method_index, uint32_t method_index)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void CreateReferenceInstanceOffsets(Handle<mirror::Class> klass)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void CreateReferenceOffsets(Handle<mirror::Class> klass, uint32_t reference_offsets)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // For use by ImageWriter to find DexCaches for its roots

@@ -202,7 +202,7 @@ class QuickArgumentVisitor {
   static mirror::ArtMethod* GetCallingMethod(StackReference<mirror::ArtMethod>* sp)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(sp->AsMirrorPtr()->IsCalleeSaveMethod());
-    byte* previous_sp = reinterpret_cast<byte*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_FrameSize;
+    uint8_t* previous_sp = reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_FrameSize;
     return reinterpret_cast<StackReference<mirror::ArtMethod>*>(previous_sp)->AsMirrorPtr();
   }
 
@@ -210,16 +210,16 @@ class QuickArgumentVisitor {
   static uintptr_t GetCallingPc(StackReference<mirror::ArtMethod>* sp)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(sp->AsMirrorPtr()->IsCalleeSaveMethod());
-    byte* lr = reinterpret_cast<byte*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_LrOffset;
+    uint8_t* lr = reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_LrOffset;
     return *reinterpret_cast<uintptr_t*>(lr);
   }
 
   QuickArgumentVisitor(StackReference<mirror::ArtMethod>* sp, bool is_static, const char* shorty,
                        uint32_t shorty_len) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) :
           is_static_(is_static), shorty_(shorty), shorty_len_(shorty_len),
-          gpr_args_(reinterpret_cast<byte*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset),
-          fpr_args_(reinterpret_cast<byte*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset),
-          stack_args_(reinterpret_cast<byte*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_FrameSize
+          gpr_args_(reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset),
+          fpr_args_(reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset),
+          stack_args_(reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_FrameSize
                       + StackArgumentStartFromShorty(is_static, shorty, shorty_len)),
           gpr_index_(0), fpr_index_(0), stack_index_(0), cur_type_(Primitive::kPrimVoid),
           is_split_long_or_double_(false) {}
@@ -232,7 +232,7 @@ class QuickArgumentVisitor {
     return cur_type_;
   }
 
-  byte* GetParamAddress() const {
+  uint8_t* GetParamAddress() const {
     if (!kQuickSoftFloatAbi) {
       Primitive::Type type = GetParamPrimitiveType();
       if (UNLIKELY((type == Primitive::kPrimDouble) || (type == Primitive::kPrimFloat))) {
@@ -398,9 +398,9 @@ class QuickArgumentVisitor {
   const uint32_t shorty_len_;
 
  private:
-  byte* const gpr_args_;  // Address of GPR arguments in callee save frame.
-  byte* const fpr_args_;  // Address of FPR arguments in callee save frame.
-  byte* const stack_args_;  // Address of stack arguments in caller's frame.
+  uint8_t* const gpr_args_;  // Address of GPR arguments in callee save frame.
+  uint8_t* const fpr_args_;  // Address of FPR arguments in callee save frame.
+  uint8_t* const stack_args_;  // Address of stack arguments in caller's frame.
   uint32_t gpr_index_;  // Index into spilled GPRs.
   uint32_t fpr_index_;  // Index into spilled FPRs.
   uint32_t stack_index_;  // Index into arguments on the stack.
@@ -1275,8 +1275,8 @@ class ComputeGenericJniFrameSize FINAL : public ComputeNativeCallFrameSize {
   // is at *m = sp. Will update to point to the bottom of the save frame.
   //
   // Note: assumes ComputeAll() has been run before.
-  void LayoutCalleeSaveFrame(StackReference<mirror::ArtMethod>** m, void* sp, HandleScope** table,
-                             uint32_t* handle_scope_entries)
+  void LayoutCalleeSaveFrame(Thread* self, StackReference<mirror::ArtMethod>** m, void* sp,
+                             HandleScope** handle_scope)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::ArtMethod* method = (*m)->AsMirrorPtr();
 
@@ -1286,11 +1286,9 @@ class ComputeGenericJniFrameSize FINAL : public ComputeNativeCallFrameSize {
     // We have to squeeze in the HandleScope, and relocate the method pointer.
 
     // "Free" the slot for the method.
-    sp8 += kPointerSize;  // In the callee-save frame we use a full pointer.
+    sp8 += sizeof(void*);  // In the callee-save frame we use a full pointer.
 
     // Under the callee saves put handle scope and new method stack reference.
-    *handle_scope_entries = num_handle_scope_references_;
-
     size_t handle_scope_size = HandleScope::SizeOf(num_handle_scope_references_);
     size_t scope_and_method = handle_scope_size + sizeof(StackReference<mirror::ArtMethod>);
 
@@ -1300,8 +1298,8 @@ class ComputeGenericJniFrameSize FINAL : public ComputeNativeCallFrameSize {
         reinterpret_cast<uintptr_t>(sp8), kStackAlignment));
 
     uint8_t* sp8_table = sp8 + sizeof(StackReference<mirror::ArtMethod>);
-    *table = reinterpret_cast<HandleScope*>(sp8_table);
-    (*table)->SetNumberOfReferences(num_handle_scope_references_);
+    *handle_scope = HandleScope::Create(sp8_table, self->GetTopHandleScope(),
+                                        num_handle_scope_references_);
 
     // Add a slot for the method pointer, and fill it. Fix the pointer-pointer given to us.
     uint8_t* method_pointer = sp8;
@@ -1319,12 +1317,12 @@ class ComputeGenericJniFrameSize FINAL : public ComputeNativeCallFrameSize {
 
   // Re-layout the callee-save frame (insert a handle-scope). Then add space for the cookie.
   // Returns the new bottom. Note: this may be unaligned.
-  uint8_t* LayoutJNISaveFrame(StackReference<mirror::ArtMethod>** m, void* sp, HandleScope** table,
-                              uint32_t* handle_scope_entries)
+  uint8_t* LayoutJNISaveFrame(Thread* self, StackReference<mirror::ArtMethod>** m, void* sp,
+                              HandleScope** handle_scope)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // First, fix up the layout of the callee-save frame.
     // We have to squeeze in the HandleScope, and relocate the method pointer.
-    LayoutCalleeSaveFrame(m, sp, table, handle_scope_entries);
+    LayoutCalleeSaveFrame(self, m, sp, handle_scope);
 
     // The bottom of the callee-save frame is now where the method is, *m.
     uint8_t* sp8 = reinterpret_cast<uint8_t*>(*m);
@@ -1336,14 +1334,15 @@ class ComputeGenericJniFrameSize FINAL : public ComputeNativeCallFrameSize {
   }
 
   // WARNING: After this, *sp won't be pointing to the method anymore!
-  uint8_t* ComputeLayout(StackReference<mirror::ArtMethod>** m, bool is_static, const char* shorty,
-                         uint32_t shorty_len, HandleScope** table, uint32_t* handle_scope_entries,
+  uint8_t* ComputeLayout(Thread* self, StackReference<mirror::ArtMethod>** m,
+                         bool is_static, const char* shorty, uint32_t shorty_len,
+                         HandleScope** handle_scope,
                          uintptr_t** start_stack, uintptr_t** start_gpr, uint32_t** start_fpr)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Walk(shorty, shorty_len);
 
     // JNI part.
-    uint8_t* sp8 = LayoutJNISaveFrame(m, reinterpret_cast<void*>(*m), table, handle_scope_entries);
+    uint8_t* sp8 = LayoutJNISaveFrame(self, m, reinterpret_cast<void*>(*m), handle_scope);
 
     sp8 = LayoutNativeCall(sp8, start_stack, start_gpr, start_fpr);
 
@@ -1426,20 +1425,19 @@ class FillNativeCall {
 // of transitioning into native code.
 class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
  public:
-  BuildGenericJniFrameVisitor(StackReference<mirror::ArtMethod>** sp, bool is_static,
-                              const char* shorty, uint32_t shorty_len, Thread* self)
+  BuildGenericJniFrameVisitor(Thread* self, bool is_static, const char* shorty, uint32_t shorty_len,
+                              StackReference<mirror::ArtMethod>** sp)
      : QuickArgumentVisitor(*sp, is_static, shorty, shorty_len),
        jni_call_(nullptr, nullptr, nullptr, nullptr), sm_(&jni_call_) {
     ComputeGenericJniFrameSize fsc;
     uintptr_t* start_gpr_reg;
     uint32_t* start_fpr_reg;
     uintptr_t* start_stack_arg;
-    uint32_t handle_scope_entries;
-    bottom_of_used_area_ = fsc.ComputeLayout(sp, is_static, shorty, shorty_len, &handle_scope_,
-                                             &handle_scope_entries, &start_stack_arg,
+    bottom_of_used_area_ = fsc.ComputeLayout(self, sp, is_static, shorty, shorty_len,
+                                             &handle_scope_,
+                                             &start_stack_arg,
                                              &start_gpr_reg, &start_fpr_reg);
 
-    handle_scope_->SetNumberOfReferences(handle_scope_entries);
     jni_call_.Reset(start_gpr_reg, start_fpr_reg, start_stack_arg, handle_scope_);
 
     // jni environment is always first argument
@@ -1611,7 +1609,7 @@ extern "C" TwoWordReturn artQuickGenericJniTrampoline(Thread* self,
   const char* shorty = called->GetShorty(&shorty_len);
 
   // Run the visitor.
-  BuildGenericJniFrameVisitor visitor(&sp, called->IsStatic(), shorty, shorty_len, self);
+  BuildGenericJniFrameVisitor visitor(self, called->IsStatic(), shorty, shorty_len, &sp);
   visitor.VisitArguments();
   visitor.FinalizeHandleScope(self);
 
@@ -1868,7 +1866,7 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(mirror::ArtMethod* interfa
 
     // Find the caller PC.
     constexpr size_t pc_offset = GetCalleeSavePCOffset(kRuntimeISA, Runtime::kRefsAndArgs);
-    uintptr_t caller_pc = *reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp) + pc_offset);
+    uintptr_t caller_pc = *reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(sp) + pc_offset);
 
     // Map the caller PC to a dex PC.
     uint32_t dex_pc = caller_method->ToDexPc(caller_pc);

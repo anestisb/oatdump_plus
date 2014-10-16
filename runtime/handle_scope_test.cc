@@ -25,7 +25,7 @@ namespace art {
 template<size_t kNumReferences>
 class NoThreadStackHandleScope : public HandleScope {
  public:
-  explicit NoThreadStackHandleScope() : HandleScope(kNumReferences) {
+  explicit NoThreadStackHandleScope(HandleScope* link) : HandleScope(link, kNumReferences) {
   }
   ~NoThreadStackHandleScope() {
   }
@@ -41,22 +41,20 @@ class NoThreadStackHandleScope : public HandleScope {
 TEST(HandleScopeTest, Offsets) NO_THREAD_SAFETY_ANALYSIS {
   // As the members of HandleScope are private, we cannot use OFFSETOF_MEMBER
   // here. So do the inverse: set some data, and access it through pointers created from the offsets.
-  NoThreadStackHandleScope<1> test_table;
+  NoThreadStackHandleScope<0x9ABC> test_table(reinterpret_cast<HandleScope*>(0x5678));
   test_table.SetReference(0, reinterpret_cast<mirror::Object*>(0x1234));
-  test_table.SetLink(reinterpret_cast<HandleScope*>(0x5678));
-  test_table.SetNumberOfReferences(0x9ABC);
 
-  byte* table_base_ptr = reinterpret_cast<byte*>(&test_table);
+  uint8_t* table_base_ptr = reinterpret_cast<uint8_t*>(&test_table);
 
   {
     uintptr_t* link_ptr = reinterpret_cast<uintptr_t*>(table_base_ptr +
-        HandleScope::LinkOffset(kPointerSize));
+        HandleScope::LinkOffset(sizeof(void*)));
     EXPECT_EQ(*link_ptr, static_cast<size_t>(0x5678));
   }
 
   {
     uint32_t* num_ptr = reinterpret_cast<uint32_t*>(table_base_ptr +
-        HandleScope::NumberOfReferencesOffset(kPointerSize));
+        HandleScope::NumberOfReferencesOffset(sizeof(void*)));
     EXPECT_EQ(*num_ptr, static_cast<size_t>(0x9ABC));
   }
 
@@ -66,7 +64,7 @@ TEST(HandleScopeTest, Offsets) NO_THREAD_SAFETY_ANALYSIS {
     EXPECT_EQ(sizeof(StackReference<mirror::Object>), sizeof(uint32_t));
 
     uint32_t* ref_ptr = reinterpret_cast<uint32_t*>(table_base_ptr +
-        HandleScope::ReferencesOffset(kPointerSize));
+        HandleScope::ReferencesOffset(sizeof(void*)));
     EXPECT_EQ(*ref_ptr, static_cast<uint32_t>(0x1234));
   }
 }

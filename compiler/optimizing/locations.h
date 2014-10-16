@@ -19,9 +19,9 @@
 
 #include "base/bit_field.h"
 #include "base/bit_vector.h"
-#include "utils/allocation.h"
+#include "base/value_object.h"
+#include "utils/arena_object.h"
 #include "utils/growable_array.h"
-#include "utils/managed_register.h"
 
 namespace art {
 
@@ -45,21 +45,26 @@ class Location : public ValueObject {
     kRegister = 4,  // Core register.
 
     // We do not use the value 5 because it conflicts with kLocationConstantMask.
-    kDoNotUse = 5,
+    kDoNotUse5 = 5,
 
     kFpuRegister = 6,  // Floating point processor.
+
+    kRegisterPair = 7,
 
     // On 32bits architectures, quick can pass a long where the
     // low bits are in the last parameter register, and the high
     // bits are in a stack slot. The kQuickParameter kind is for
     // handling this special case.
-    kQuickParameter = 7,
+    kQuickParameter = 8,
+
+    // We do not use the value 9 because it conflicts with kLocationConstantMask.
+    kDoNotUse9 = 9,
 
     // Unallocated location represents a location that is not fixed and can be
     // allocated by a register allocator.  Each unallocated location has
     // a policy that specifies what kind of location is suitable. Payload
     // contains register allocation policy.
-    kUnallocated = 8,
+    kUnallocated = 10,
   };
 
   Location() : value_(kInvalid) {
@@ -71,6 +76,7 @@ class Location : public ValueObject {
     COMPILE_ASSERT((kRegister & kLocationConstantMask) != kConstant, TagError);
     COMPILE_ASSERT((kQuickParameter & kLocationConstantMask) != kConstant, TagError);
     COMPILE_ASSERT((kFpuRegister & kLocationConstantMask) != kConstant, TagError);
+    COMPILE_ASSERT((kRegisterPair & kLocationConstantMask) != kConstant, TagError);
     COMPILE_ASSERT((kConstant & kLocationConstantMask) == kConstant, TagError);
 
     DCHECK(!IsValid());
@@ -89,7 +95,7 @@ class Location : public ValueObject {
 
   static Location ConstantLocation(HConstant* constant) {
     DCHECK(constant != nullptr);
-    return Location(kConstant | reinterpret_cast<uword>(constant));
+    return Location(kConstant | reinterpret_cast<uintptr_t>(constant));
   }
 
   HConstant* GetConstant() const {
@@ -111,12 +117,16 @@ class Location : public ValueObject {
   }
 
   // Register locations.
-  static Location RegisterLocation(ManagedRegister reg) {
-    return Location(kRegister, reg.RegId());
+  static Location RegisterLocation(int reg) {
+    return Location(kRegister, reg);
   }
 
-  static Location FpuRegisterLocation(ManagedRegister reg) {
-    return Location(kFpuRegister, reg.RegId());
+  static Location FpuRegisterLocation(int reg) {
+    return Location(kFpuRegister, reg);
+  }
+
+  static Location RegisterPairLocation(int low, int high) {
+    return Location(kRegisterPair, low << 16 | high);
   }
 
   bool IsRegister() const {
@@ -127,19 +137,40 @@ class Location : public ValueObject {
     return GetKind() == kFpuRegister;
   }
 
-  ManagedRegister reg() const {
-    DCHECK(IsRegister() || IsFpuRegister());
-    return static_cast<ManagedRegister>(GetPayload());
+  bool IsRegisterPair() const {
+    return GetKind() == kRegisterPair;
   }
 
-  static uword EncodeStackIndex(intptr_t stack_index) {
+  int reg() const {
+    DCHECK(IsRegister() || IsFpuRegister());
+    return GetPayload();
+  }
+
+  template <typename T>
+  T As() const {
+    return static_cast<T>(reg());
+  }
+
+  template <typename T>
+  T AsRegisterPairLow() const {
+    DCHECK(IsRegisterPair());
+    return static_cast<T>(GetPayload() >> 16);
+  }
+
+  template <typename T>
+  T AsRegisterPairHigh() const {
+    DCHECK(IsRegisterPair());
+    return static_cast<T>(GetPayload() & 0xFFFF);
+  }
+
+  static uintptr_t EncodeStackIndex(intptr_t stack_index) {
     DCHECK(-kStackIndexBias <= stack_index);
     DCHECK(stack_index < kStackIndexBias);
-    return static_cast<uword>(kStackIndexBias + stack_index);
+    return static_cast<uintptr_t>(kStackIndexBias + stack_index);
   }
 
   static Location StackSlot(intptr_t stack_index) {
-    uword payload = EncodeStackIndex(stack_index);
+    uintptr_t payload = EncodeStackIndex(stack_index);
     Location loc(kStackSlot, payload);
     // Ensure that sign is preserved.
     DCHECK_EQ(loc.GetStackIndex(), stack_index);
@@ -151,7 +182,7 @@ class Location : public ValueObject {
   }
 
   static Location DoubleStackSlot(intptr_t stack_index) {
-    uword payload = EncodeStackIndex(stack_index);
+    uintptr_t payload = EncodeStackIndex(stack_index);
     Location loc(kDoubleStackSlot, payload);
     // Ensure that sign is preserved.
     DCHECK_EQ(loc.GetStackIndex(), stack_index);
@@ -187,10 +218,6 @@ class Location : public ValueObject {
     return GetKind() == kQuickParameter;
   }
 
-  arm::ArmManagedRegister AsArm() const;
-  x86::X86ManagedRegister AsX86() const;
-  x86_64::X86_64ManagedRegister AsX86_64() const;
-
   Kind GetKind() const {
     return IsConstant() ? kConstant : KindField::Decode(value_);
   }
@@ -209,7 +236,9 @@ class Location : public ValueObject {
       case kUnallocated: return "U";
       case kConstant: return "C";
       case kFpuRegister: return "F";
-      case kDoNotUse:
+      case kRegisterPair: return "RP";
+      case kDoNotUse5:  // fall-through
+      case kDoNotUse9:
         LOG(FATAL) << "Should not use this location kind";
     }
     UNREACHABLE();
@@ -246,7 +275,7 @@ class Location : public ValueObject {
   }
 
   static Location RegisterOrConstant(HInstruction* instruction);
-  static Location ByteRegisterOrConstant(ManagedRegister reg, HInstruction* instruction);
+  static Location ByteRegisterOrConstant(int reg, HInstruction* instruction);
 
   // The location of the first input to the instruction will be
   // used to replace this unallocated location.
@@ -259,27 +288,27 @@ class Location : public ValueObject {
     return PolicyField::Decode(GetPayload());
   }
 
-  uword GetEncoding() const {
+  uintptr_t GetEncoding() const {
     return GetPayload();
   }
 
  private:
   // Number of bits required to encode Kind value.
   static constexpr uint32_t kBitsForKind = 4;
-  static constexpr uint32_t kBitsForPayload = kWordSize * kBitsPerByte - kBitsForKind;
-  static constexpr uword kLocationConstantMask = 0x3;
+  static constexpr uint32_t kBitsForPayload = kBitsPerIntPtrT - kBitsForKind;
+  static constexpr uintptr_t kLocationConstantMask = 0x3;
 
-  explicit Location(uword value) : value_(value) {}
+  explicit Location(uintptr_t value) : value_(value) {}
 
-  Location(Kind kind, uword payload)
+  Location(Kind kind, uintptr_t payload)
       : value_(KindField::Encode(kind) | PayloadField::Encode(payload)) {}
 
-  uword GetPayload() const {
+  uintptr_t GetPayload() const {
     return PayloadField::Decode(value_);
   }
 
   typedef BitField<Kind, 0, kBitsForKind> KindField;
-  typedef BitField<uword, kBitsForKind, kBitsForPayload> PayloadField;
+  typedef BitField<uintptr_t, kBitsForKind, kBitsForPayload> PayloadField;
 
   // Layout for kUnallocated locations payload.
   typedef BitField<Policy, 0, 3> PolicyField;
@@ -291,7 +320,7 @@ class Location : public ValueObject {
   // Location either contains kind and payload fields or a tagged handle for
   // a constant locations. Values of enumeration Kind are selected in such a
   // way that none of them can be interpreted as a kConstant tag.
-  uword value_;
+  uintptr_t value_;
 };
 
 class RegisterSet : public ValueObject {
@@ -299,8 +328,12 @@ class RegisterSet : public ValueObject {
   RegisterSet() : core_registers_(0), floating_point_registers_(0) {}
 
   void Add(Location loc) {
-    // TODO: floating point registers.
-    core_registers_ |= (1 << loc.reg().RegId());
+    if (loc.IsRegister()) {
+      core_registers_ |= (1 << loc.reg());
+    } else {
+      DCHECK(loc.IsFpuRegister());
+      floating_point_registers_ |= (1 << loc.reg());
+    }
   }
 
   bool ContainsCoreRegister(uint32_t id) {
