@@ -156,7 +156,7 @@ void CommonCompilerTest::SetUp() {
 
     const InstructionSet instruction_set = kRuntimeISA;
     // Take the default set of instruction features from the build.
-    instruction_set_features_.reset(InstructionSetFeatures::FromCppDefines());
+    instruction_set_features_ = InstructionSetFeatures::FromCppDefines();
 
     runtime_->SetInstructionSet(instruction_set);
     for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {

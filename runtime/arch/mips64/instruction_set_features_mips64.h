@@ -21,29 +21,32 @@
 
 namespace art {
 
+class Mips64InstructionSetFeatures;
+using Mips64FeaturesUniquePtr = std::unique_ptr<const Mips64InstructionSetFeatures>;
+
 // Instruction set features relevant to the MIPS64 architecture.
 class Mips64InstructionSetFeatures FINAL : public InstructionSetFeatures {
  public:
   // Process a CPU variant string like "r4000" and create InstructionSetFeatures.
-  static const Mips64InstructionSetFeatures* FromVariant(const std::string& variant,
-                                                        std::string* error_msg);
+  static Mips64FeaturesUniquePtr FromVariant(const std::string& variant,
+                                                                         std::string* error_msg);
 
   // Parse a bitmap and create an InstructionSetFeatures.
-  static const Mips64InstructionSetFeatures* FromBitmap(uint32_t bitmap);
+  static Mips64FeaturesUniquePtr FromBitmap(uint32_t bitmap);
 
   // Turn C pre-processor #defines into the equivalent instruction set features.
-  static const Mips64InstructionSetFeatures* FromCppDefines();
+  static Mips64FeaturesUniquePtr FromCppDefines();
 
   // Process /proc/cpuinfo and use kRuntimeISA to produce InstructionSetFeatures.
-  static const Mips64InstructionSetFeatures* FromCpuInfo();
+  static Mips64FeaturesUniquePtr FromCpuInfo();
 
   // Process the auxiliary vector AT_HWCAP entry and use kRuntimeISA to produce
   // InstructionSetFeatures.
-  static const Mips64InstructionSetFeatures* FromHwcap();
+  static Mips64FeaturesUniquePtr FromHwcap();
 
   // Use assembly tests of the current runtime (ie kRuntimeISA) to determine the
   // InstructionSetFeatures. This works around kernel bugs in AT_HWCAP and /proc/cpuinfo.
-  static const Mips64InstructionSetFeatures* FromAssembly();
+  static Mips64FeaturesUniquePtr FromAssembly();
 
   bool Equals(const InstructionSetFeatures* other) const OVERRIDE;
 
@@ -59,8 +62,9 @@ class Mips64InstructionSetFeatures FINAL : public InstructionSetFeatures {
 
  protected:
   // Parse a vector of the form "fpu32", "mips2" adding these to a new Mips64InstructionSetFeatures.
-  virtual const InstructionSetFeatures*
-      AddFeaturesFromSplitString(const bool smp, const std::vector<std::string>& features,
+  std::unique_ptr<const InstructionSetFeatures>
+      AddFeaturesFromSplitString(const bool smp,
+                                 const std::vector<std::string>& features,
                                  std::string* error_msg) const OVERRIDE;
 
  private:

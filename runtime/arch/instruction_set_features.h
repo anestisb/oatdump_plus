@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_ARCH_INSTRUCTION_SET_FEATURES_H_
 #define ART_RUNTIME_ARCH_INSTRUCTION_SET_FEATURES_H_
 
+#include <memory>
 #include <ostream>
 #include <vector>
 
@@ -36,31 +37,32 @@ class X86_64InstructionSetFeatures;
 class InstructionSetFeatures {
  public:
   // Process a CPU variant string for the given ISA and create an InstructionSetFeatures.
-  static const InstructionSetFeatures* FromVariant(InstructionSet isa,
-                                                   const std::string& variant,
-                                                   std::string* error_msg);
+  static std::unique_ptr<const InstructionSetFeatures> FromVariant(InstructionSet isa,
+                                                                   const std::string& variant,
+                                                                   std::string* error_msg);
 
   // Parse a bitmap for the given isa and create an InstructionSetFeatures.
-  static const InstructionSetFeatures* FromBitmap(InstructionSet isa, uint32_t bitmap);
+  static std::unique_ptr<const InstructionSetFeatures> FromBitmap(InstructionSet isa,
+                                                                  uint32_t bitmap);
 
   // Turn C pre-processor #defines into the equivalent instruction set features for kRuntimeISA.
-  static const InstructionSetFeatures* FromCppDefines();
+  static std::unique_ptr<const InstructionSetFeatures> FromCppDefines();
 
   // Process /proc/cpuinfo and use kRuntimeISA to produce InstructionSetFeatures.
-  static const InstructionSetFeatures* FromCpuInfo();
+  static std::unique_ptr<const InstructionSetFeatures> FromCpuInfo();
 
   // Process the auxiliary vector AT_HWCAP entry and use kRuntimeISA to produce
   // InstructionSetFeatures.
-  static const InstructionSetFeatures* FromHwcap();
+  static std::unique_ptr<const InstructionSetFeatures> FromHwcap();
 
   // Use assembly tests of the current runtime (ie kRuntimeISA) to determine the
   // InstructionSetFeatures. This works around kernel bugs in AT_HWCAP and /proc/cpuinfo.
-  static const InstructionSetFeatures* FromAssembly();
+  static std::unique_ptr<const InstructionSetFeatures> FromAssembly();
 
   // Parse a string of the form "div,-atomic_ldrd_strd" adding and removing these features to
   // create a new InstructionSetFeatures.
-  const InstructionSetFeatures* AddFeaturesFromString(const std::string& feature_list,
-                                                      std::string* error_msg) const WARN_UNUSED;
+  std::unique_ptr<const InstructionSetFeatures> AddFeaturesFromString(
+      const std::string& feature_list, std::string* error_msg) const WARN_UNUSED;
 
   // Are these features the same as the other given features?
   virtual bool Equals(const InstructionSetFeatures* other) const = 0;
@@ -107,7 +109,7 @@ class InstructionSetFeatures {
                                  const std::string& variant);
 
   // Add architecture specific features in sub-classes.
-  virtual const InstructionSetFeatures*
+  virtual std::unique_ptr<const InstructionSetFeatures>
       AddFeaturesFromSplitString(bool smp, const std::vector<std::string>& features,
                                  std::string* error_msg) const = 0;
 

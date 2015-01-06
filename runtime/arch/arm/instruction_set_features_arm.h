@@ -21,29 +21,31 @@
 
 namespace art {
 
+class ArmInstructionSetFeatures;
+using ArmFeaturesUniquePtr = std::unique_ptr<const ArmInstructionSetFeatures>;
+
 // Instruction set features relevant to the ARM architecture.
 class ArmInstructionSetFeatures FINAL : public InstructionSetFeatures {
  public:
   // Process a CPU variant string like "krait" or "cortex-a15" and create InstructionSetFeatures.
-  static const ArmInstructionSetFeatures* FromVariant(const std::string& variant,
-                                                      std::string* error_msg);
+  static ArmFeaturesUniquePtr FromVariant(const std::string& variant, std::string* error_msg);
 
   // Parse a bitmap and create an InstructionSetFeatures.
-  static const ArmInstructionSetFeatures* FromBitmap(uint32_t bitmap);
+  static ArmFeaturesUniquePtr FromBitmap(uint32_t bitmap);
 
   // Turn C pre-processor #defines into the equivalent instruction set features.
-  static const ArmInstructionSetFeatures* FromCppDefines();
+  static ArmFeaturesUniquePtr FromCppDefines();
 
   // Process /proc/cpuinfo and use kRuntimeISA to produce InstructionSetFeatures.
-  static const ArmInstructionSetFeatures* FromCpuInfo();
+  static ArmFeaturesUniquePtr FromCpuInfo();
 
   // Process the auxiliary vector AT_HWCAP entry and use kRuntimeISA to produce
   // InstructionSetFeatures.
-  static const ArmInstructionSetFeatures* FromHwcap();
+  static ArmFeaturesUniquePtr FromHwcap();
 
   // Use assembly tests of the current runtime (ie kRuntimeISA) to determine the
   // InstructionSetFeatures. This works around kernel bugs in AT_HWCAP and /proc/cpuinfo.
-  static const ArmInstructionSetFeatures* FromAssembly();
+  static ArmFeaturesUniquePtr FromAssembly();
 
   bool Equals(const InstructionSetFeatures* other) const OVERRIDE;
 
@@ -71,7 +73,7 @@ class ArmInstructionSetFeatures FINAL : public InstructionSetFeatures {
 
  protected:
   // Parse a vector of the form "div", "lpae" adding these to a new ArmInstructionSetFeatures.
-  const InstructionSetFeatures*
+  std::unique_ptr<const InstructionSetFeatures>
       AddFeaturesFromSplitString(const bool smp, const std::vector<std::string>& features,
                                  std::string* error_msg) const OVERRIDE;
 

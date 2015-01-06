@@ -19,12 +19,13 @@
 #include <fstream>
 #include <sstream>
 
+#include "base/stl_util.h"
 #include "base/stringprintf.h"
 #include "utils.h"  // For Trim.
 
 namespace art {
 
-const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromVariant(
+Arm64FeaturesUniquePtr Arm64InstructionSetFeatures::FromVariant(
     const std::string& variant, std::string* error_msg) {
   const bool smp = true;  // Conservative default.
 
@@ -52,22 +53,23 @@ const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromVariant(
   // The variants that need a fix for 843419 are the same that need a fix for 835769.
   bool needs_a53_843419_fix = needs_a53_835769_fix;
 
-  return new Arm64InstructionSetFeatures(smp, needs_a53_835769_fix, needs_a53_843419_fix);
+  return Arm64FeaturesUniquePtr(
+      new Arm64InstructionSetFeatures(smp, needs_a53_835769_fix, needs_a53_843419_fix));
 }
 
-const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromBitmap(uint32_t bitmap) {
+Arm64FeaturesUniquePtr Arm64InstructionSetFeatures::FromBitmap(uint32_t bitmap) {
   bool smp = (bitmap & kSmpBitfield) != 0;
   bool is_a53 = (bitmap & kA53Bitfield) != 0;
-  return new Arm64InstructionSetFeatures(smp, is_a53, is_a53);
+  return Arm64FeaturesUniquePtr(new Arm64InstructionSetFeatures(smp, is_a53, is_a53));
 }
 
-const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromCppDefines() {
+Arm64FeaturesUniquePtr Arm64InstructionSetFeatures::FromCppDefines() {
   const bool smp = true;
   const bool is_a53 = true;  // Pessimistically assume all ARM64s are A53s.
-  return new Arm64InstructionSetFeatures(smp, is_a53, is_a53);
+  return Arm64FeaturesUniquePtr(new Arm64InstructionSetFeatures(smp, is_a53, is_a53));
 }
 
-const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromCpuInfo() {
+Arm64FeaturesUniquePtr Arm64InstructionSetFeatures::FromCpuInfo() {
   // Look in /proc/cpuinfo for features we need.  Only use this when we can guarantee that
   // the kernel puts the appropriate feature flags in here.  Sometimes it doesn't.
   bool smp = false;
@@ -89,16 +91,16 @@ const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromCpuInfo() {
   } else {
     LOG(ERROR) << "Failed to open /proc/cpuinfo";
   }
-  return new Arm64InstructionSetFeatures(smp, is_a53, is_a53);
+  return Arm64FeaturesUniquePtr(new Arm64InstructionSetFeatures(smp, is_a53, is_a53));
 }
 
-const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromHwcap() {
+Arm64FeaturesUniquePtr Arm64InstructionSetFeatures::FromHwcap() {
   bool smp = sysconf(_SC_NPROCESSORS_CONF) > 1;
   const bool is_a53 = true;  // Pessimistically assume all ARM64s are A53s.
-  return new Arm64InstructionSetFeatures(smp, is_a53, is_a53);
+  return Arm64FeaturesUniquePtr(new Arm64InstructionSetFeatures(smp, is_a53, is_a53));
 }
 
-const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromAssembly() {
+Arm64FeaturesUniquePtr Arm64InstructionSetFeatures::FromAssembly() {
   UNIMPLEMENTED(WARNING);
   return FromCppDefines();
 }
@@ -130,7 +132,8 @@ std::string Arm64InstructionSetFeatures::GetFeatureString() const {
   return result;
 }
 
-const InstructionSetFeatures* Arm64InstructionSetFeatures::AddFeaturesFromSplitString(
+std::unique_ptr<const InstructionSetFeatures>
+Arm64InstructionSetFeatures::AddFeaturesFromSplitString(
     const bool smp, const std::vector<std::string>& features, std::string* error_msg) const {
   bool is_a53 = fix_cortex_a53_835769_;
   for (auto i = features.begin(); i != features.end(); i++) {
@@ -144,7 +147,8 @@ const InstructionSetFeatures* Arm64InstructionSetFeatures::AddFeaturesFromSplitS
       return nullptr;
     }
   }
-  return new Arm64InstructionSetFeatures(smp, is_a53, is_a53);
+  return std::unique_ptr<const InstructionSetFeatures>(
+      new Arm64InstructionSetFeatures(smp, is_a53, is_a53));
 }
 
 }  // namespace art

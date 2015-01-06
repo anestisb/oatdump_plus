@@ -21,30 +21,34 @@
 
 namespace art {
 
+class X86InstructionSetFeatures;
+using X86FeaturesUniquePtr = std::unique_ptr<const X86InstructionSetFeatures>;
+
 // Instruction set features relevant to the X86 architecture.
 class X86InstructionSetFeatures : public InstructionSetFeatures {
  public:
   // Process a CPU variant string like "atom" or "nehalem" and create InstructionSetFeatures.
-  static const X86InstructionSetFeatures* FromVariant(const std::string& variant,
-                                                        std::string* error_msg,
-                                                        bool x86_64 = false);
+  static X86FeaturesUniquePtr FromVariant(const std::string& variant,
+                                                                      std::string* error_msg,
+                                                                      bool x86_64 = false);
 
   // Parse a bitmap and create an InstructionSetFeatures.
-  static const X86InstructionSetFeatures* FromBitmap(uint32_t bitmap, bool x86_64 = false);
+  static X86FeaturesUniquePtr FromBitmap(uint32_t bitmap,
+                                                                     bool x86_64 = false);
 
   // Turn C pre-processor #defines into the equivalent instruction set features.
-  static const X86InstructionSetFeatures* FromCppDefines(bool x86_64 = false);
+  static X86FeaturesUniquePtr FromCppDefines(bool x86_64 = false);
 
   // Process /proc/cpuinfo and use kRuntimeISA to produce InstructionSetFeatures.
-  static const X86InstructionSetFeatures* FromCpuInfo(bool x86_64 = false);
+  static X86FeaturesUniquePtr FromCpuInfo(bool x86_64 = false);
 
   // Process the auxiliary vector AT_HWCAP entry and use kRuntimeISA to produce
   // InstructionSetFeatures.
-  static const X86InstructionSetFeatures* FromHwcap(bool x86_64 = false);
+  static X86FeaturesUniquePtr FromHwcap(bool x86_64 = false);
 
   // Use assembly tests of the current runtime (ie kRuntimeISA) to determine the
   // InstructionSetFeatures. This works around kernel bugs in AT_HWCAP and /proc/cpuinfo.
-  static const X86InstructionSetFeatures* FromAssembly(bool x86_64 = false);
+  static X86FeaturesUniquePtr FromAssembly(bool x86_64 = false);
 
   bool Equals(const InstructionSetFeatures* other) const OVERRIDE;
 
@@ -64,13 +68,13 @@ class X86InstructionSetFeatures : public InstructionSetFeatures {
 
  protected:
   // Parse a string of the form "ssse3" adding these to a new InstructionSetFeatures.
-  virtual const InstructionSetFeatures*
+  virtual std::unique_ptr<const InstructionSetFeatures>
       AddFeaturesFromSplitString(const bool smp, const std::vector<std::string>& features,
                                  std::string* error_msg) const OVERRIDE {
     return AddFeaturesFromSplitString(smp, features, false, error_msg);
   }
 
-  const InstructionSetFeatures*
+  std::unique_ptr<const InstructionSetFeatures>
       AddFeaturesFromSplitString(const bool smp, const std::vector<std::string>& features,
                                  bool x86_64, std::string* error_msg) const;
 
@@ -84,6 +88,15 @@ class X86InstructionSetFeatures : public InstructionSetFeatures {
         has_AVX2_(has_AVX2),
         has_POPCNT_(has_POPCNT) {
   }
+
+  static X86FeaturesUniquePtr Create(bool x86_64,
+                                     bool smp,
+                                     bool has_SSSE3,
+                                     bool has_SSE4_1,
+                                     bool has_SSE4_2,
+                                     bool has_AVX,
+                                     bool has_AVX2,
+                                     bool has_POPCNT);
 
  private:
   // Bitmap positions for encoding features as a bitmap.
