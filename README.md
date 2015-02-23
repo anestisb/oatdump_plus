@@ -1,19 +1,22 @@
 oatdump++
 =========
 
-Enhanced version of the original oatdump system utility compiled as part of the new Android ART runtime.
+Enhanced version of the original oatdump system utility from new Android ART runtime.
 
 ## New Features
 
-1. Class level dump(s)
-2. Method level dump
-3. Dump DEX bytecode next to the decoded instructions
-4. Embedded DEX file(s) dump in FS (support for framework OATs as well). If required (optimized bytecode) fix DEX header CRC as well here for convenience.
-5. Option to exclude OAT header info prints
-6. Option to exclude DEX bytecode print from method code dumps
-7. Option to exclude OAT native code print from method code dumps
+1. Class & method name filters for targeted searches
+2. Bulk class & method list exports (can be combined with filters)
+3. Print Little-Endian dex instructions bytecode before decoded area
+4. OAT embedded dex file(s) export in filesystem (support for framework OATs as well)
+5. Locate and disassemble method that includes provided relative address (addr2instr)
+6. More targeted printed information
 
 ## Useful Notes
+
+### Repair dex CRC checksums
+
+Automatic dex CRC repair has been removed from embedded dex files export in filesystem. You can used [dexRepair](https://github.com/anestisb/dexRepair) tool if you want to repair dex CRC checksums.
 
 ### Dalvik Opcode Changes in ART
 
@@ -65,183 +68,243 @@ The rest of the interpreter and runtime class linking logic is still under inves
 
 ## Building
 
-Fork the oatdump++ ART branch based on your working environment and build as desired (make, mm, etc.). If you want to build in debug mode (symbols, logs, etc.) consider modifying (TARGET_BUILD_TYPE) the envsetup.mk & envsetup.sh files in the AOSP build directory
+Fork the oatdump++ ART branch based on your working environment and build as desired (make, mm, etc.). If you want to build in debug mode (verbose print logs, etc.) consider exporting shell variables with debug targets as described in platform/art makefile.
 
-A standalone build (both for host & target) is in the to-do list (too many build deps and makefile levels that need some crafting).
-
-## Available Binaries
-
-4.4.x and l-preview branches will no longer be supported for oatdump++ as it's pointless to waste time there with all the changes happening in master. Probably will revise when Android L is released.
-
-### Target Binaries
-
-1. [oatdump++ for 4.4.1_r1 & 4.4.2_{r1,r2}](https://dl.dropboxusercontent.com/u/6842951/oatdump%2B%2B/oatdump%2B%2B_4.4.1-2) [MD5: c97c7731f1ecd7f97044bac8460f4358]
-2. [oatdump++ for l-preview](https://dl.dropboxusercontent.com/u/6842951/oatdump%2B%2B/oatdump%2B%2B_l-preview) [MD5: a123dc2544153411733d5bcd7992a16b]
-3. [oatdump++ for master (02-07-2014 from 4c0ad36)](https://dl.dropboxusercontent.com/u/6842951/oatdump%2B%2B/oatdump%2B%2B_master_02-07-2014) [MD5: fa49ff01a559de0a5bbb1e2d21ea7e82]
-4. [oatdumpd++ for master (13-07-2014 from 03c672f)]() [MD5: a9f6e14a877066509fec989ccfd15afa] -- __* Note-1__
-
-__* Note-1 (debug libartd is significantly slower -- be patient on first boot)__  -- You will also need due to DumpHexLE the following libart version. I've also included the disassembler and compiler debug libs for the lazy ones:
-
-* [libartd.so](https://dl.dropboxusercontent.com/u/6842951/oatdump%2B%2B/libartd.so_03c672f_4a0285a99e3c15638c84d4916923fc7e) [MD5: 4a0285a99e3c15638c84d4916923fc7e]
-* [libart-disassemblerd.so](https://dl.dropboxusercontent.com/u/6842951/oatdump%2B%2B/libart-disassemblerd.so_03c672f_2008b877b2feb957c5d0198cb7c306da) [MD5: 2008b877b2feb957c5d0198cb7c306da]
-* [libart-compilerd.so](https://dl.dropboxusercontent.com/u/6842951/oatdump%2B%2B/libart-compilerd.so_03c672f_1119598f30b51421b07f876e440fe076) [MD5: 1119598f30b51421b07f876e440fe076]
-
-### Host Binaries
-
-#### Darwin-x86
-
-1. [oatdump++ for master (13-07-2014 from 03c672f)](https://dl.dropboxusercontent.com/u/6842951/oatdump%2B%2B/oatdump%2B%2B_03c672f_086438d8b1fe551e55510b5238ed7881) [MD5: 086438d8b1fe551e55510b5238ed7881] -- __* Note-2__
-
-__* Note-2__  -- You will also need the following libraries:
-
-* [libart.dylib](https://dl.dropboxusercontent.com/u/6842951/oatdump%2B%2B/libart.dylib_03c672f_314c3fe44c927d19618ccbf16400360f) [MD5: 314c3fe44c927d19618ccbf16400360f]
-* [libart-disassembler.dylib](https://dl.dropboxusercontent.com/u/6842951/oatdump%2B%2B/libart-disassembler.dylib_03c672f_e8f93b7c3241ac8977c778bcfb489f37) [MD5: e8f93b7c3241ac8977c778bcfb489f37]
-
-## Running Examples
-
-### From Target
-
+## Usage Examples
 ```
-$ adb shell 'oatdump++ --no-headers --oat-file=/data/dalvik-cache/arm/data@app@com.example.android.notepad-1.apk@classes.dex --class=com/example/android/notepad/NotePadProvider --method=\<clinit\>'
-   --{ oatdump++ by @anestisb }--
-for AOSP ART master branch [from 03c672f]
-
-6: Lcom/example/android/notepad/NotePadProvider; (type_idx=61) (StatusVerified) (OatClassSomeCompiled)
-  0: void com.example.android.notepad.NotePadProvider.<clinit>() (dex_method_idx=150)
-    DEX CODE:
-      0x0000: 1236                    | const/4 v6, #+3
-      0x0001: 1225                    | const/4 v5, #+2
-      0x0002: 1204                    | const/4 v4, #+0
-      0x0003: 1213                    | const/4 v3, #+1
-      0x0004: 2360 6b00               | new-array v0, v6, java.lang.String[] // type@107
-      0x0006: 1a01 da00               | const-string v1, "_id" // string@218
-      0x0008: 4d01 0004               | aput-object v1, v0, v4
-      0x000a: 1a01 8701               | const-string v1, "note" // string@391
-      0x000c: 4d01 0003               | aput-object v1, v0, v3
-      0x000e: 1a01 e201               | const-string v1, "title" // string@482
-      0x0010: 4d01 0005               | aput-object v1, v0, v5
-      0x0012: 6900 2b00               | sput-object v0, [Ljava/lang/String; com.example.android.notepad.NotePadProvider.READ_NOTE_PROJECTION // field@43
-      0x0014: 2200 1300               | new-instance v0, android.content.UriMatcher // type@19
-      0x0016: 12f1                    | const/4 v1, #-1
-      0x0017: 7020 3100 1000          | invoke-direct {v0, v1}, void android.content.UriMatcher.<init>(int) // method@49
-      0x001a: 6900 3100               | sput-object v0, Landroid/content/UriMatcher; com.example.android.notepad.NotePadProvider.sUriMatcher // field@49
-      0x001c: 6200 3100               | sget-object  v0, Landroid/content/UriMatcher; com.example.android.notepad.NotePadProvider.sUriMatcher // field@49
-      0x001e: 1a01 0201               | const-string v1, "com.google.provider.NotePad" // string@258
-      0x0020: 1a02 8c01               | const-string v2, "notes" // string@396
-      0x0022: e940 0b00 1032          | invoke-virtual-quick {v0, v1, v2, v3},  // vtable@11
-      0x0025: 6200 3100               | sget-object  v0, Landroid/content/UriMatcher; com.example.android.notepad.NotePadProvider.sUriMatcher // field@49
-      0x0027: 1a01 0201               | const-string v1, "com.google.provider.NotePad" // string@258
-      0x0029: 1a02 8d01               | const-string v2, "notes/#" // string@397
-      0x002b: e940 0b00 1052          | invoke-virtual-quick {v0, v1, v2, v5},  // vtable@11
-      0x002e: 6200 3100               | sget-object  v0, Landroid/content/UriMatcher; com.example.android.notepad.NotePadProvider.sUriMatcher // field@49
-      0x0030: 1a01 0201               | const-string v1, "com.google.provider.NotePad" // string@258
-      0x0032: 1a02 6801               | const-string v2, "live_folders/notes" // string@360
-      0x0034: e940 0b00 1062          | invoke-virtual-quick {v0, v1, v2, v6},  // vtable@11
-      0x0037: 2200 6200               | new-instance v0, java.util.HashMap // type@98
-      0x0039: 7010 ed00 0000          | invoke-direct {v0}, void java.util.HashMap.<init>() // method@237
-      0x003c: 6900 3000               | sput-object v0, Ljava/util/HashMap; com.example.android.notepad.NotePadProvider.sNotesProjectionMap // field@48
-      0x003e: 6200 3000               | sget-object  v0, Ljava/util/HashMap; com.example.android.notepad.NotePadProvider.sNotesProjectionMap // field@48
-      0x0040: 1a01 da00               | const-string v1, "_id" // string@218
-      0x0042: 1a02 da00               | const-string v2, "_id" // string@218
-      0x0044: e930 1200 1002          | invoke-virtual-quick {v0, v1, v2},  // vtable@18
-      0x0047: 6200 3000               | sget-object  v0, Ljava/util/HashMap; com.example.android.notepad.NotePadProvider.sNotesProjectionMap // field@48
-      0x0049: 1a01 e201               | const-string v1, "title" // string@482
-      0x004b: 1a02 e201               | const-string v2, "title" // string@482
-      0x004d: e930 1200 1002          | invoke-virtual-quick {v0, v1, v2},  // vtable@18
-      0x0050: 6200 3000               | sget-object  v0, Ljava/util/HashMap; com.example.android.notepad.NotePadProvider.sNotesProjectionMap // field@48
-      0x0052: 1a01 8701               | const-string v1, "note" // string@391
-      0x0054: 1a02 8701               | const-string v2, "note" // string@391
-      0x0056: e930 1200 1002          | invoke-virtual-quick {v0, v1, v2},  // vtable@18
-      0x0059: 6200 3000               | sget-object  v0, Ljava/util/HashMap; com.example.android.notepad.NotePadProvider.sNotesProjectionMap // field@48
-      0x005b: 1a01 0f01               | const-string v1, "created" // string@271
-      0x005d: 1a02 0f01               | const-string v2, "created" // string@271
-      0x005f: e930 1200 1002          | invoke-virtual-quick {v0, v1, v2},  // vtable@18
-      0x0062: 6200 3000               | sget-object  v0, Ljava/util/HashMap; com.example.android.notepad.NotePadProvider.sNotesProjectionMap // field@48
-      0x0064: 1a01 8101               | const-string v1, "modified" // string@385
-      0x0066: 1a02 8101               | const-string v2, "modified" // string@385
-      0x0068: e930 1200 1002          | invoke-virtual-quick {v0, v1, v2},  // vtable@18
-      0x006b: 2200 6200               | new-instance v0, java.util.HashMap // type@98
-      0x006d: 7010 ed00 0000          | invoke-direct {v0}, void java.util.HashMap.<init>() // method@237
-      0x0070: 6900 2f00               | sput-object v0, Ljava/util/HashMap; com.example.android.notepad.NotePadProvider.sLiveFolderProjectionMap // field@47
-      0x0072: 6200 2f00               | sget-object  v0, Ljava/util/HashMap; com.example.android.notepad.NotePadProvider.sLiveFolderProjectionMap // field@47
-      0x0074: 1a01 da00               | const-string v1, "_id" // string@218
-      0x0076: 1a02 dc00               | const-string v2, "_id AS _id" // string@220
-      0x0078: e930 1200 1002          | invoke-virtual-quick {v0, v1, v2},  // vtable@18
-      0x007b: 6200 2f00               | sget-object  v0, Ljava/util/HashMap; com.example.android.notepad.NotePadProvider.sLiveFolderProjectionMap // field@47
-      0x007d: 1a01 8401               | const-string v1, "name" // string@388
-      0x007f: 1a02 e301               | const-string v2, "title AS name" // string@483
-      0x0081: e930 1200 1002          | invoke-virtual-quick {v0, v1, v2},  // vtable@18
-      0x0084: 2200 0800               | new-instance v0, android.content.ClipDescription // type@8
-      0x0086: 1201                    | const/4 v1, #+0
-      0x0087: 2332 6b00               | new-array v2, v3, java.lang.String[] // type@107
-      0x0089: 1a03 df01               | const-string v3, "text/plain" // string@479
-      0x008b: 4d03 0204               | aput-object v3, v2, v4
-      0x008d: 7030 1100 1002          | invoke-direct {v0, v1, v2}, void android.content.ClipDescription.<init>(java.lang.CharSequence, java.lang.String[]) // method@17
-      0x0090: 6900 2900               | sput-object v0, Landroid/content/ClipDescription; com.example.android.notepad.NotePadProvider.NOTE_STREAM_TYPES // field@41
-      0x0092: 0e00                    | return-void
-    OAT DATA:
-      frame_size_in_bytes: 0
-      core_spill_mask: 0x00000000 
-      fp_spill_mask: 0x00000000 
-      vmap_table: 0x0 (offset=0x00000000)
-      mapping_table: 0x0 (offset=0x00000000)
-      gc_map: 0x0 (offset=0x00000000)
-    CODE: 0x0 (offset=0x00000000 size=0)
-      NO CODE!
-```
-```
-$ adb shell 'oatdump++ --oat-file=/data/dalvik-cache/arm/system@framework@boot.oat --dump-dex-to=/data/local/tmp'
-   --{ oatdump++ by @anestisb }--
-for AOSP ART master branch [from 03c672f]
-
+$ adb shell 'oatdump --oat-file=/data/dalvik-cache/arm/data@app@com.example.android.notepad-1@base.apk@classes.dex --class-filter=com.example.android.notepad.NotePadProvider --list-methods'
 MAGIC:
 oat
-036
+055
 
 CHECKSUM:
-0x4a868317
+0xcfb6a14e
 
 INSTRUCTION SET:
 Thumb2
 
 INSTRUCTION SET FEATURES:
-div
+smp,div,atomic_ldrd_strd
 
 DEX FILE COUNT:
-15
+1
 
 EXECUTABLE OFFSET:
-0x01c14000 (0x726a0000)
+0x00009000
 
 INTERPRETER TO INTERPRETER BRIDGE OFFSET:
-0x01c14001 (0x726a0001)
+0x00000000
 
 INTERPRETER TO COMPILED CODE BRIDGE OFFSET:
-0x01c14009 (0x726a0009)
+0x00000000
 
 JNI DLSYM LOOKUP OFFSET:
-0x01c14011 (0x726a0011)
-
-PORTABLE IMT CONFLICT TRAMPOLINE OFFSET:
-0x01c14021 (0x726a0021)
-
-PORTABLE RESOLUTION TRAMPOLINE OFFSET:
-0x01c14029 (0x726a0029)
-
-PORTABLE TO INTERPRETER BRIDGE OFFSET:
-0x01c14031 (0x726a0031)
+0x00000000
 
 QUICK GENERIC JNI TRAMPOLINE OFFSET:
-0x01c14039 (0x726a0039)
+0x00000000
 
 QUICK IMT CONFLICT TRAMPOLINE OFFSET:
-0x01c14041 (0x726a0041)
+0x00000000
 
 QUICK RESOLUTION TRAMPOLINE OFFSET:
-0x01c14049 (0x726a0049)
+0x00000000
 
 QUICK TO INTERPRETER BRIDGE OFFSET:
-0x01c14051 (0x726a0051)
+0x00000000
+
+IMAGE PATCH DELTA:
+0 (0x00000000)
+
+IMAGE FILE LOCATION OAT CHECKSUM:
+0x93c80817
+
+IMAGE FILE LOCATION OAT BEGIN:
+0x7061f000
+
+KEY VALUE STORE:
+dex2oat-cmdline = --zip-fd=6 --zip-location=/data/app/com.example.android.notepad-1/base.apk --oat-fd=7 --oat-location=/data/dalvik-cache/arm/data@app@com.example.android.notepad-1@base.apk@classes.dex --instruction-set=arm --instruction-set-variant=krait --instruction-set-features=default --runtime-arg -Xms64m --runtime-arg -Xmx512m --swap-fd=8
+dex2oat-host = Arm
+image-location = /data/dalvik-cache/arm/system@framework@boot.art
+pic = false
+
+SIZE:
+55460
+
+OatDexFile:
+location: /data/app/com.example.android.notepad-1/base.apk
+checksum: 0x23e96fbd
+5: Lcom/example/android/notepad/NotePadProvider$DatabaseHelper; (offset=0x00006b2c) (type_idx=60) (StatusVerified) (OatClassAllCompiled)
+  0: void com.example.android.notepad.NotePadProvider$DatabaseHelper.<init>(android.content.Context) (dex_method_idx=145)
+  1: void com.example.android.notepad.NotePadProvider$DatabaseHelper.onCreate(android.database.sqlite.SQLiteDatabase) (dex_method_idx=148)
+  2: void com.example.android.notepad.NotePadProvider$DatabaseHelper.onUpgrade(android.database.sqlite.SQLiteDatabase, int, int) (dex_method_idx=149)
+6: Lcom/example/android/notepad/NotePadProvider; (offset=0x00006b3c) (type_idx=61) (StatusVerified) (OatClassSomeCompiled)
+  0: void com.example.android.notepad.NotePadProvider.<clinit>() (dex_method_idx=150)
+  1: void com.example.android.notepad.NotePadProvider.<init>() (dex_method_idx=151)
+  2: int com.example.android.notepad.NotePadProvider.delete(android.net.Uri, java.lang.String, java.lang.String[]) (dex_method_idx=152)
+  3: com.example.android.notepad.NotePadProvider$DatabaseHelper com.example.android.notepad.NotePadProvider.getOpenHelperForTest() (dex_method_idx=154)
+  4: java.lang.String[] com.example.android.notepad.NotePadProvider.getStreamTypes(android.net.Uri, java.lang.String) (dex_method_idx=155)
+  5: java.lang.String com.example.android.notepad.NotePadProvider.getType(android.net.Uri) (dex_method_idx=156)
+  6: android.net.Uri com.example.android.notepad.NotePadProvider.insert(android.net.Uri, android.content.ContentValues) (dex_method_idx=157)
+  7: boolean com.example.android.notepad.NotePadProvider.onCreate() (dex_method_idx=158)
+  8: android.content.res.AssetFileDescriptor com.example.android.notepad.NotePadProvider.openTypedAssetFile(android.net.Uri, java.lang.String, android.os.Bundle) (dex_method_idx=160)
+  9: android.database.Cursor com.example.android.notepad.NotePadProvider.query(android.net.Uri, java.lang.String[], java.lang.String, java.lang.String[], java.lang.String) (dex_method_idx=161)
+  10: int com.example.android.notepad.NotePadProvider.update(android.net.Uri, android.content.ContentValues, java.lang.String, java.lang.String[]) (dex_method_idx=162)
+  11: void com.example.android.notepad.NotePadProvider.writeDataToPipe(android.os.ParcelFileDescriptor, android.net.Uri, java.lang.String, android.os.Bundle, android.database.Cursor) (dex_method_idx=163)
+  12: void com.example.android.notepad.NotePadProvider.writeDataToPipe(android.os.ParcelFileDescriptor, android.net.Uri, java.lang.String, android.os.Bundle, java.lang.Object) (dex_method_idx=164)
+```
+
+```
+$ adb shell 'oatdump --oat-file=/data/dalvik-cache/arm/data@app@com.example.android.notepad-1@base.apk@classes.dex --class-filter=com.example.android.notepad.NotePadProvider --method-filter=delete'
+MAGIC:
+oat
+055
+
+CHECKSUM:
+0xcfb6a14e
+
+INSTRUCTION SET:
+Thumb2
+
+INSTRUCTION SET FEATURES:
+smp,div,atomic_ldrd_strd
+
+DEX FILE COUNT:
+1
+
+EXECUTABLE OFFSET:
+0x00009000
+
+INTERPRETER TO INTERPRETER BRIDGE OFFSET:
+0x00000000
+
+INTERPRETER TO COMPILED CODE BRIDGE OFFSET:
+0x00000000
+
+JNI DLSYM LOOKUP OFFSET:
+0x00000000
+
+QUICK GENERIC JNI TRAMPOLINE OFFSET:
+0x00000000
+
+QUICK IMT CONFLICT TRAMPOLINE OFFSET:
+0x00000000
+
+QUICK RESOLUTION TRAMPOLINE OFFSET:
+0x00000000
+
+QUICK TO INTERPRETER BRIDGE OFFSET:
+0x00000000
+
+IMAGE PATCH DELTA:
+0 (0x00000000)
+
+IMAGE FILE LOCATION OAT CHECKSUM:
+0x93c80817
+
+IMAGE FILE LOCATION OAT BEGIN:
+0x7061f000
+
+KEY VALUE STORE:
+dex2oat-cmdline = --zip-fd=6 --zip-location=/data/app/com.example.android.notepad-1/base.apk --oat-fd=7 --oat-location=/data/dalvik-cache/arm/data@app@com.example.android.notepad-1@base.apk@classes.dex --instruction-set=arm --instruction-set-variant=krait --instruction-set-features=default --runtime-arg -Xms64m --runtime-arg -Xmx512m --swap-fd=8
+dex2oat-host = Arm
+image-location = /data/dalvik-cache/arm/system@framework@boot.art
+pic = false
+
+SIZE:
+55460
+
+OatDexFile:
+location: /data/app/com.example.android.notepad-1/base.apk
+checksum: 0x23e96fbd
+5: Lcom/example/android/notepad/NotePadProvider$DatabaseHelper; (offset=0x00006b2c) (type_idx=60) (StatusVerified) (OatClassAllCompiled)
+6: Lcom/example/android/notepad/NotePadProvider; (offset=0x00006b3c) (type_idx=61) (StatusVerified) (OatClassSomeCompiled)
+  2: int com.example.android.notepad.NotePadProvider.delete(android.net.Uri, java.lang.String, java.lang.String[]) (dex_method_idx=152)
+    DEX CODE:
+      ...
+      0x000f: 2203 5900                      	| new-instance v3, java.lang.IllegalArgumentException // type@89
+      0x0011: 2204 5f00                      	| new-instance v4, java.lang.StringBuilder // type@95
+      0x0013: 1a05 c200                      	| const-string v5, "Unknown URI " // string@194
+      ...
+    OatMethodOffsets (offset=0x00006b4c)
+      code_offset: 0x0000a9ad 
+      gc_map: (offset=0x00006fe3)
+    OatQuickMethodHeader (offset=0x0000a990)
+      mapping_table: (offset=0x00007ac1)
+      vmap_table: (offset=0x00007fcb)
+      v10/r5, v3/r6, v4/r7, v2/r8, v7/r10, v0/r11, v65535/r15
+    QuickMethodFrameInfo
+      frame_size_in_bytes: 80
+      core_spill_mask: 0x00008de0 (r5, r6, r7, r8, r10, r11, r15)
+      fp_spill_mask: 0x00000000 
+      vr_stack_locations:
+      	locals: v0[sp + #24] v1[sp + #28] v2[sp + #32] v3[sp + #36] v4[sp + #40] v5[sp + #44]
+      	ins: v6[sp + #84] v7[sp + #88] v8[sp + #92] v9[sp + #96]
+      	method*: v10[sp + #0]
+      	outs: v0[sp + #4] v1[sp + #8] v2[sp + #12] v3[sp + #16]
+    CODE: (code_offset=0x0000a9ad size_offset=0x0000a9a8 size=828)...
+      0x0000a9ac: f5bd5c00	subs    r12, sp, #8192
+      0x0000a9b0: f8dcc000	ldr.w   r12, [r12, #0]
+      suspend point dex PC: 0x0000
+      GC map objects:  v6 ([sp + #84]), v7 (r10), v8 ([sp + #92]), v9 ([sp + #96])
+      0x0000a9b4: e92d4de0	push    {r5, r6, r7, r8, r10, r11, lr}
+      0x0000a9b8: b08d    	sub     sp, sp, #52
+      0x0000a9ba: 1c05    	mov     r5, r0
+      0x0000a9bc: 9000    	str     r0, [sp, #0]
+      0x0000a9be: 9115    	str     r1, [sp, #84]
+      0x0000a9c0: 4692    	mov     r10, r2
+      0x0000a9c2: 9317    	str     r3, [sp, #92]
+      0x0000a9c4: 9a15    	ldr     r2, [sp, #84]
+      0x0000a9c6: 6b16    	ldr     r6, [r2, #48]
+      0x0000a9c8: 1c31    	mov     r1, r6
+      0x0000a9ca: 6808    	ldr     r0, [r1, #0]
+      ...
+
+```
+```
+$ adb shell 'oatdump --oat-file=/data/dalvik-cache/arm/system@framework@boot.oat --export-dex-to=/data/local/tmp'
+MAGIC:
+oat
+055
+
+CHECKSUM:
+0x93c80817
+
+INSTRUCTION SET:
+Thumb2
+
+INSTRUCTION SET FEATURES:
+smp,div,atomic_ldrd_strd
+
+DEX FILE COUNT:
+14
+
+EXECUTABLE OFFSET:
+0x019f5000
+
+INTERPRETER TO INTERPRETER BRIDGE OFFSET:
+0x019f5001
+
+INTERPRETER TO COMPILED CODE BRIDGE OFFSET:
+0x019f5009
+
+JNI DLSYM LOOKUP OFFSET:
+0x019f5011
+
+QUICK GENERIC JNI TRAMPOLINE OFFSET:
+0x019f5021
+
+QUICK IMT CONFLICT TRAMPOLINE OFFSET:
+0x019f5029
+
+QUICK RESOLUTION TRAMPOLINE OFFSET:
+0x019f5031
+
+QUICK TO INTERPRETER BRIDGE OFFSET:
+0x019f5039
+
+IMAGE PATCH DELTA:
+0 (0x00000000)
 
 IMAGE FILE LOCATION OAT CHECKSUM:
 0x00000000
@@ -249,69 +312,230 @@ IMAGE FILE LOCATION OAT CHECKSUM:
 IMAGE FILE LOCATION OAT BEGIN:
 0x00000000
 
-IMAGE FILE LOCATION:
+KEY VALUE STORE:
+dex2oat-cmdline = --image=/data/dalvik-cache/arm/system@framework@boot.art --dex-file=/system/framework/core-libart.jar --dex-file=/system/framework/conscrypt.jar --dex-file=/system/framework/okhttp.jar --dex-file=/system/framework/core-junit.jar --dex-file=/system/framework/bouncycastle.jar --dex-file=/system/framework/ext.jar --dex-file=/system/framework/framework.jar --dex-file=/system/framework/telephony-common.jar --dex-file=/system/framework/voip-common.jar --dex-file=/system/framework/ims-common.jar --dex-file=/system/framework/mms-common.jar --dex-file=/system/framework/android.policy.jar --dex-file=/system/framework/apache-xml.jar --oat-file=/data/dalvik-cache/arm/system@framework@boot.oat --instruction-set=arm --instruction-set-features=smp,div,atomic_ldrd_strd --base=0x6fccc000 --runtime-arg -Xms64m --runtime-arg -Xmx64m --image-classes=/system/etc/preloaded-classes
+dex2oat-host = Arm
+pic = false
 
+SIZE:
+48272196
 
-BEGIN:
-0x70a8c000
-
-END:
-0x73d42fc8
-
-[*] DEX has been dumped at /data/local/tmp/android.policy.jar_dexFromOat.dex (231968 bytes)
-[*] DEX has been dumped at /data/local/tmp/apache-xml.jar_dexFromOat.dex (1224148 bytes)
-[*] DEX has been dumped at /data/local/tmp/bouncycastle.jar_dexFromOat.dex (1050952 bytes)
-[*] DEX has been dumped at /data/local/tmp/conscrypt.jar_dexFromOat.dex (266308 bytes)
-[*] DEX has been dumped at /data/local/tmp/core-junit.jar_dexFromOat.dex (24464 bytes)
-[*] DEX has been dumped at /data/local/tmp/core-libart.jar_dexFromOat.dex (2875896 bytes)
-[*] DEX has been dumped at /data/local/tmp/ext.jar_dexFromOat.dex (1342176 bytes)
-[*] DEX has been dumped at /data/local/tmp/framework.jar_dexFromOat.dex (8830636 bytes)
-[*] DEX has been dumped at /data/local/tmp/framework2.jar_dexFromOat.dex (1465852 bytes)
-[*] DEX has been dumped at /data/local/tmp/mms-common.jar_dexFromOat.dex (118100 bytes)
-[*] DEX has been dumped at /data/local/tmp/okhttp.jar_dexFromOat.dex (280796 bytes)
-[!] DEX header CRC has been repaired (from 85b21eef to 0b021f54)
-[*] DEX has been dumped at /data/local/tmp/services.jar_dexFromOat.dex (3182232 bytes)
-[*] DEX has been dumped at /data/local/tmp/telephony-common.jar_dexFromOat.dex (1168128 bytes)
-[*] DEX has been dumped at /data/local/tmp/voip-common.jar_dexFromOat.dex (152952 bytes)
-[*] DEX has been dumped at /data/local/tmp/webviewchromium.jar_dexFromOat.dex (737152 bytes)
+Dex file exported at /data/local/tmp//core-libart.jar_export.dex (2914572 bytes)
+Dex file exported at /data/local/tmp//conscrypt.jar_export.dex (268180 bytes)
+Dex file exported at /data/local/tmp//okhttp.jar_export.dex (368404 bytes)
+Dex file exported at /data/local/tmp//core-junit.jar_export.dex (24436 bytes)
+Dex file exported at /data/local/tmp//bouncycastle.jar_export.dex (1218424 bytes)
+Dex file exported at /data/local/tmp//ext.jar_export.dex (1361944 bytes)
+Dex file exported at /data/local/tmp//framework.jar_export.dex (9753052 bytes)
+Dex file exported at /data/local/tmp//framework.jar:classes2.dex_export.dex (3098408 bytes)
+Dex file exported at /data/local/tmp//telephony-common.jar_export.dex (1601272 bytes)
+Dex file exported at /data/local/tmp//voip-common.jar_export.dex (153028 bytes)
+Dex file exported at /data/local/tmp//ims-common.jar_export.dex (82132 bytes)
+Dex file exported at /data/local/tmp//mms-common.jar_export.dex (444 bytes)
+Dex file exported at /data/local/tmp//android.policy.jar_export.dex (268248 bytes)
+Dex file exported at /data/local/tmp//apache-xml.jar_export.dex (1224440 bytes)
 ```
-
-### From Host
 ```
-$ oatdump --no-headers --oat-file=data@app@com.example.android.notepad-1.apk@classes.dex --no-oat-code --class=com/example/android/notepad/TitleEditor --method=onCreate
-   --{ oatdump++ by @anestisb }--
-for AOSP ART master branch [from 03c672f]
+$ adb shell 'oatdump --oat-file=/data/dalvik-cache/arm/data@app@com.censuslabs.android.demo-1@base.apk@classes.dex --addr2instr=0x78424'
+MAGIC:
+oat
+055
 
-16: Lcom/example/android/notepad/TitleEditor; (type_idx=71) (StatusVerified) (OatClassSomeCompiled)
-  3: void com.example.android.notepad.TitleEditor.onCreate(android.os.Bundle) (dex_method_idx=208)
+CHECKSUM:
+0xcf309ea7
+
+INSTRUCTION SET:
+Thumb2
+
+INSTRUCTION SET FEATURES:
+smp,div,atomic_ldrd_strd
+
+DEX FILE COUNT:
+1
+
+EXECUTABLE OFFSET:
+0x0018b000
+
+INTERPRETER TO INTERPRETER BRIDGE OFFSET:
+0x00000000
+
+INTERPRETER TO COMPILED CODE BRIDGE OFFSET:
+0x00000000
+
+JNI DLSYM LOOKUP OFFSET:
+0x00000000
+
+QUICK GENERIC JNI TRAMPOLINE OFFSET:
+0x00000000
+
+QUICK IMT CONFLICT TRAMPOLINE OFFSET:
+0x00000000
+
+QUICK RESOLUTION TRAMPOLINE OFFSET:
+0x00000000
+
+QUICK TO INTERPRETER BRIDGE OFFSET:
+0x00000000
+
+IMAGE PATCH DELTA:
+0 (0x00000000)
+
+IMAGE FILE LOCATION OAT CHECKSUM:
+0x93c80817
+
+IMAGE FILE LOCATION OAT BEGIN:
+0x7061f000
+
+KEY VALUE STORE:
+dex2oat-cmdline = --zip-fd=6 --zip-location=/data/app/com.censuslabs.android.demo-1/base.apk --oat-fd=7 --oat-location=/data/dalvik-cache/arm/data@app@com.censuslabs.android.demo-1@base.apk@classes.dex --instruction-set=arm --instruction-set-variant=krait --instruction-set-features=default --runtime-arg -Xms64m --runtime-arg -Xmx512m --swap-fd=8
+dex2oat-host = Arm
+image-location = /data/dalvik-cache/arm/system@framework@boot.art
+pic = false
+
+SIZE:
+2547476
+
+SEARCH ADDRESS (executable offset + input):
+0x00203424
+
+OatDexFile:
+location: /data/app/com.censuslabs.android.demo-1/base.apk
+checksum: 0x6e214462
+0: Landroid/support/annotation/AnimRes; (offset=0x00159570) (type_idx=160) (StatusInitialized) (OatClassNoneCompiled)
+…
+573: Lcom/censuslabs/android/demo/AppLoad; (offset=0x0015d13c) (type_idx=1144) (StatusVerified) (OatClassSomeCompiled)
+  0: void com.censuslabs.android.demo.AppLoad.<clinit>() (dex_method_idx=9288)
+  1: void com.censuslabs.android.demo.AppLoad.<init>() (dex_method_idx=9289)
+  2: int com.censuslabs.android.demo.AppLoad.access$0() (dex_method_idx=9290)
+  3: int com.censuslabs.android.demo.AppLoad.action1(java.lang.String) (dex_method_idx=9291)
+  4: int com.censuslabs.android.demo.AppLoad.action2(java.lang.String, java.lang.String) (dex_method_idx=9292)
+  5: boolean com.censuslabs.android.demo.AppLoad.formatResource(java.io.InputStream, java.io.File) (dex_method_idx=9294)
+  6: boolean com.censuslabs.android.demo.AppLoad.isWifiConnected() (dex_method_idx=9300)
     DEX CODE:
-      0x0000: 1203                    | const/4 v3, #+0
-      0x0001: 6f20 0100 7600          | invoke-super {v6, v7}, void android.app.Activity.onCreate(android.os.Bundle) // method@1
-      0x0004: 1400 0200 037f          | const v0, #+2130903042
-      0x0007: 6e20 d300 0600          | invoke-virtual {v6, v0}, void com.example.android.notepad.TitleEditor.setContentView(int) // method@211
-      0x000a: 6e10 cd00 0600          | invoke-virtual {v6}, android.content.Intent com.example.android.notepad.TitleEditor.getIntent() // method@205
-      0x000d: 0c00                    | move-result-object v0
-      0x000e: 6e10 2b00 0000          | invoke-virtual {v0}, android.net.Uri android.content.Intent.getData() // method@43
-      0x0011: 0c00                    | move-result-object v0
-      0x0012: 5b60 6600               | iput-object v0, v6, Landroid/net/Uri; com.example.android.notepad.TitleEditor.mUri // field@102
-      0x0014: 5461 6600               | iget-object v1, v6, Landroid/net/Uri; com.example.android.notepad.TitleEditor.mUri // field@102
-      0x0016: 6202 6300               | sget-object  v2, [Ljava/lang/String; com.example.android.notepad.TitleEditor.PROJECTION // field@99
-      0x0018: 0760                    | move-object v0, v6
-      0x0019: 0734                    | move-object v4, v3
-      0x001a: 0735                    | move-object v5, v3
-      0x001b: 7406 ce00 0000          | invoke-virtual/range, {v0 .. v5}, android.database.Cursor com.example.android.notepad.TitleEditor.managedQuery(android.net.Uri, java.lang.String[], java.lang.String, java.lang.String[], java.lang.String) // method@206
-      0x001e: 0c00                    | move-result-object v0
-      0x001f: 5b60 6400               | iput-object v0, v6, Landroid/database/Cursor; com.example.android.notepad.TitleEditor.mCursor // field@100
-      0x0021: 1400 0100 067f          | const v0, #+2131099649
-      0x0024: 6e20 ca00 0600          | invoke-virtual {v6, v0}, android.view.View com.example.android.notepad.TitleEditor.findViewById(int) // method@202
-      0x0027: 0c00                    | move-result-object v0
-      0x0028: 1f00 3300               | check-cast v0, android.widget.EditText // type@51
-      0x002a: 5b60 6500               | iput-object v0, v6, Landroid/widget/EditText; com.example.android.notepad.TitleEditor.mText // field@101
-      0x002c: 0e00                    | return-void
+      0x0000: 1212                             	| const/4 v2, #+1
+      0x0001: 1a03 b612                      	| const-string v3, "connectivity" // string@4790
+      0x0003: 6e20 5324 3400               	| invoke-virtual {v4, v3}, java.lang.Object com.censuslabs.android.demo.AppLoad.getSystemService(java.lang.String) // method@9299
+      0x0006: 0c00                             	| move-result-object v0
+      0x0007: 1f00 7200                      	| check-cast v0, android.net.ConnectivityManager // type@114
+      0x0009: 6e20 3202 2000               	| invoke-virtual {v0, v2}, android.net.NetworkInfo android.net.ConnectivityManager.getNetworkInfo(int) // method@562
+      0x000c: 0c01                             	| move-result-object v1
+      0x000d: 6e10 3502 0100               	| invoke-virtual {v1}, boolean android.net.NetworkInfo.isConnected() // method@565
+      0x0010: 0a03                             	| move-result v3
+      0x0011: 3803 0300                      	| if-eqz v3, +3
+      0x0013: 0f02                             	| return v2
+      0x0014: 1202                             	| const/4 v2, #+0
+      0x0015: 28fe                             	| goto -2
+    OatMethodOffsets (offset=0x0015d15c)
+      code_offset: 0x0020341d 
+      gc_map: (offset=0x0016cf20)
+    OatQuickMethodHeader (offset=0x00203400)
+      mapping_table: (offset=0x00180b59)
+      vmap_table: (offset=0x001896a8)
+      v5/r5, v0/r6, v3/r7, v1/r8, v2/r10, v4/r11, v65535/r15
+    QuickMethodFrameInfo
+      frame_size_in_bytes: 64
+      core_spill_mask: 0x00008de0 (r5, r6, r7, r8, r10, r11, r15)
+      fp_spill_mask: 0x00000000 
+      vr_stack_locations:
+      	locals: v0[sp + #16] v1[sp + #20] v2[sp + #24] v3[sp + #28]
+      	ins: v4[sp + #68]
+      	method*: v5[sp + #0]
+      	outs: v0[sp + #4] v1[sp + #8]
+    CODE: (code_offset=0x0020341d size_offset=0x00203418 size=180)...
+      0x0020341c: f5bd5c00	subs    r12, sp, #8192
+      0x00203420: f8dcc000	ldr.w   r12, [r12, #0]
+      suspend point dex PC: 0x0000
+      GC map objects:  v4 (r11)
+      0x00203424: e92d4de0	push    {r5, r6, r7, r8, r10, r11, lr}
+      0x00203428: b089    	sub     sp, sp, #36
+      0x0020342a: 1c05    	mov     r5, r0
+      0x0020342c: 9000    	str     r0, [sp, #0]
+      0x0020342e: 468b    	mov     r11, r1
+      0x00203430: 68a8    	ldr     r0, [r5, #8]
+      0x00203432: f04f0a01	mov.w   r10, #1
+      0x00203436: 6940    	ldr     r0, [r0, #20]
+      0x00203438: f64424e4	movw    r4, #19172
+      0x0020343c: 5900    	ldr     r0, [r0, r4]
+      0x0020343e: b388    	cbz     r0, +98 (0x002034a4)
+      0x00203440: 1c07    	mov     r7, r0
+      0x00203442: 1c3a    	mov     r2, r7
+      0x00203444: 4659    	mov     r1, r11
+      0x00203446: 6808    	ldr     r0, [r1, #0]
+      0x00203448: f8d00284	ldr.w   r0, [r0, #644]
+      0x0020344c: f8d0e02c	ldr.w   lr, [r0, #44]
+      0x00203450: 47f0    	blx     lr
+      suspend point dex PC: 0x0003
+      GC map objects:  v3 (r7), v4 (r11)
+      0x00203452: 1c06    	mov     r6, r0
+      0x00203454: 1c29    	mov     r1, r5
+      0x00203456: 690a    	ldr     r2, [r1, #16]
+      0x00203458: f8d221d4	ldr.w   r2, [r2, #468]
+      0x0020345c: b34a    	cbz     r2, +82 (0x002034b2)
+      0x0020345e: 1c30    	mov     r0, r6
+      0x00203460: b110    	cbz     r0, +4 (0x00203468)
+      0x00203462: 6801    	ldr     r1, [r0, #0]
+      0x00203464: 4291    	cmp     r1, r2
+      0x00203466: d12a    	bne     +84 (0x002034be)
+      0x00203468: 4652    	mov     r2, r10
+      0x0020346a: 1c31    	mov     r1, r6
+      0x0020346c: 6808    	ldr     r0, [r1, #0]
+      suspend point dex PC: 0x0009
+      GC map objects:  v0 (r6), v3 (r7), v4 (r11)
+      0x0020346e: f8d001f0	ldr.w   r0, [r0, #496]
+      0x00203472: f8d0e02c	ldr.w   lr, [r0, #44]
+      0x00203476: 47f0    	blx     lr
+      suspend point dex PC: 0x0009
+      GC map objects:  v0 (r6), v3 (r7), v4 (r11)
+      0x00203478: 4680    	mov     r8, r0
+      0x0020347a: 4641    	mov     r1, r8
+      0x0020347c: 6808    	ldr     r0, [r1, #0]
+      suspend point dex PC: 0x000d
+      GC map objects:  v0 (r6), v1 (r8), v3 (r7), v4 (r11)
+      0x0020347e: f8d001c0	ldr.w   r0, [r0, #448]
+      0x00203482: f8d0e02c	ldr.w   lr, [r0, #44]
+      0x00203486: 47f0    	blx     lr
+      suspend point dex PC: 0x000d
+      GC map objects:  v0 (r6), v1 (r8), v3 (r7), v4 (r11)
+      0x00203488: 1c07    	mov     r7, r0
+      0x0020348a: b147    	cbz     r7, +16 (0x0020349e)
+      0x0020348c: f8b9c000	ldrh.w  r12, [r9, #0]  ; state_and_flags
+      0x00203490: f1bc0f00	cmp.w   r12, #0
+      0x00203494: d118    	bne     +48 (0x002034c8)
+      0x00203496: 4650    	mov     r0, r10
+      0x00203498: b009    	add     sp, sp, #36
+      0x0020349a: e8bd8de0	pop     {r5, r6, r7, r8, r10, r11, pc}
+      0x0020349e: f04f0a00	mov.w   r10, #0
+      0x002034a2: e7f3    	b       -26 (0x0020348c)
+      0x002034a4: f8d9e140	ldr.w   lr, [r9, #320]  ; pResolveString
+      0x002034a8: 1c29    	mov     r1, r5
+      0x002034aa: f24120b6	movw    r0, #4790
+      0x002034ae: 47f0    	blx     lr
+      suspend point dex PC: 0x0001
+      GC map objects:  v4 (r11)
+      0x002034b0: e7c6    	b       -116 (0x00203440)
+      0x002034b2: f8d9e13c	ldr.w   lr, [r9, #316]  ; pInitializeType
+      0x002034b6: 2072    	movs    r0, #114
+      0x002034b8: 47f0    	blx     lr
+      suspend point dex PC: 0x0007
+      GC map objects:  v0 (r6), v3 (r7), v4 (r11)
+      0x002034ba: 1c02    	mov     r2, r0
+      0x002034bc: e7cf    	b       -98 (0x0020345e)
+      0x002034be: f8d9e130	ldr.w   lr, [r9, #304]  ; pCheckCast
+      0x002034c2: 1c10    	mov     r0, r2
+      0x002034c4: 47f0    	blx     lr
+      suspend point dex PC: 0x0007
+      GC map objects:  v0 (r6), v3 (r7), v4 (r11)
+      0x002034c6: e7cf    	b       -98 (0x00203468)
+      0x002034c8: f8d9e250	ldr.w   lr, [r9, #592]  ; pTestSuspend
+      0x002034cc: 47f0    	blx     lr
+      suspend point dex PC: 0x0013
+      0x002034ce: e7e2    	b       -60 (0x00203496)
 ```
+
 
 ## To-do
 
-1. Standalone build
-2. Multiple classes/methods input filter support
+1. Regex support for class and method filters
+2. More switches for printed information control (useful if tool output is about to be scripted)
 3. Dereference vtable indexes for the invoke-virtual instructions while DEX dumping
+4. Optimize addr2instr feature for more targeted disassembled code dumps in target method

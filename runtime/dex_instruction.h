@@ -524,6 +524,9 @@ class Instruction {
 
   // Dump code_units worth of this instruction, padding to code_units for shorter instructions
   std::string DumpHex(size_t code_units) const;
+  
+  // Little-endian dump code_units worth of this instruction, padding to code_units for shorter instructions
+  std::string DumpHexLE(size_t code_units) const;
 
   // Dump little-endian 16bit code_units worth of this instruction, padding to code_units for shorter instructions
   std::string DumpHexLE(size_t code_units) const;
