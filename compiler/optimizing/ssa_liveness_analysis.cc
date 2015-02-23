@@ -28,11 +28,6 @@ void SsaLivenessAnalysis::Analyze() {
   ComputeLiveness();
 }
 
-static bool IsLoopExit(HLoopInformation* current, HLoopInformation* to) {
-  // `to` is either not part of a loop, or `current` is an inner loop of `to`.
-  return to == nullptr || (current != to && current->IsIn(*to));
-}
-
 static bool IsLoop(HLoopInformation* info) {
   return info != nullptr;
 }
@@ -48,46 +43,64 @@ static bool IsInnerLoop(HLoopInformation* outer, HLoopInformation* inner) {
       && inner->IsIn(*outer);
 }
 
-static void VisitBlockForLinearization(HBasicBlock* block,
-                                       GrowableArray<HBasicBlock*>* order,
-                                       ArenaBitVector* visited) {
-  if (visited->IsBitSet(block->GetBlockId())) {
-    return;
-  }
-  visited->SetBit(block->GetBlockId());
-  size_t number_of_successors = block->GetSuccessors().Size();
-  if (number_of_successors == 0) {
-    // Nothing to do.
-  } else if (number_of_successors == 1) {
-    VisitBlockForLinearization(block->GetSuccessors().Get(0), order, visited);
-  } else {
-    DCHECK_EQ(number_of_successors, 2u);
-    HBasicBlock* first_successor = block->GetSuccessors().Get(0);
-    HBasicBlock* second_successor = block->GetSuccessors().Get(1);
-    HLoopInformation* my_loop = block->GetLoopInformation();
-    HLoopInformation* first_loop = first_successor->GetLoopInformation();
-    HLoopInformation* second_loop = second_successor->GetLoopInformation();
-
-    if (!IsLoop(my_loop)) {
-      // Nothing to do. Current order is fine.
-    } else if (IsLoopExit(my_loop, second_loop) && InSameLoop(my_loop, first_loop)) {
-      // Visit the loop exit first in post order.
-      std::swap(first_successor, second_successor);
-    } else if (IsInnerLoop(my_loop, first_loop) && !IsInnerLoop(my_loop, second_loop)) {
-      // Visit the inner loop last in post order.
-      std::swap(first_successor, second_successor);
+static void AddToListForLinearization(GrowableArray<HBasicBlock*>* worklist, HBasicBlock* block) {
+  size_t insert_at = worklist->Size();
+  HLoopInformation* block_loop = block->GetLoopInformation();
+  for (; insert_at > 0; --insert_at) {
+    HBasicBlock* current = worklist->Get(insert_at - 1);
+    HLoopInformation* current_loop = current->GetLoopInformation();
+    if (InSameLoop(block_loop, current_loop)
+        || !IsLoop(current_loop)
+        || IsInnerLoop(current_loop, block_loop)) {
+      // The block can be processed immediately.
+      break;
     }
-    VisitBlockForLinearization(first_successor, order, visited);
-    VisitBlockForLinearization(second_successor, order, visited);
   }
-  order->Add(block);
+  worklist->InsertAt(insert_at, block);
 }
 
 void SsaLivenessAnalysis::LinearizeGraph() {
-  // For simplicity of the implementation, we create post linear order. The order for
-  // computing live ranges is the reverse of that order.
-  ArenaBitVector visited(graph_.GetArena(), graph_.GetBlocks().Size(), false);
-  VisitBlockForLinearization(graph_.GetEntryBlock(), &linear_post_order_, &visited);
+  // Create a reverse post ordering with the following properties:
+  // - Blocks in a loop are consecutive,
+  // - Back-edge is the last block before loop exits.
+
+  // (1): Record the number of forward predecessors for each block. This is to
+  //      ensure the resulting order is reverse post order. We could use the
+  //      current reverse post order in the graph, but it would require making
+  //      order queries to a GrowableArray, which is not the best data structure
+  //      for it.
+  GrowableArray<uint32_t> forward_predecessors(graph_.GetArena(), graph_.GetBlocks().Size());
+  forward_predecessors.SetSize(graph_.GetBlocks().Size());
+  for (size_t i = 0, e = graph_.GetBlocks().Size(); i < e; ++i) {
+    HBasicBlock* block = graph_.GetBlocks().Get(i);
+    size_t number_of_forward_predecessors = block->GetPredecessors().Size();
+    if (block->IsLoopHeader()) {
+      // We rely on having simplified the CFG.
+      DCHECK_EQ(1u, block->GetLoopInformation()->NumberOfBackEdges());
+      number_of_forward_predecessors--;
+    }
+    forward_predecessors.Put(block->GetBlockId(), number_of_forward_predecessors);
+  }
+
+  // (2): Following a worklist approach, first start with the entry block, and
+  //      iterate over the successors. When all non-back edge predecessors of a
+  //      successor block are visited, the successor block is added in the worklist
+  //      following an order that satisfies the requirements to build our linear graph.
+  GrowableArray<HBasicBlock*> worklist(graph_.GetArena(), 1);
+  worklist.Add(graph_.GetEntryBlock());
+  do {
+    HBasicBlock* current = worklist.Pop();
+    linear_order_.Add(current);
+    for (size_t i = 0, e = current->GetSuccessors().Size(); i < e; ++i) {
+      HBasicBlock* successor = current->GetSuccessors().Get(i);
+      int block_id = successor->GetBlockId();
+      size_t number_of_remaining_predecessors = forward_predecessors.Get(block_id);
+      if (number_of_remaining_predecessors == 1) {
+        AddToListForLinearization(&worklist, successor);
+      }
+      forward_predecessors.Put(block_id, number_of_remaining_predecessors - 1);
+    }
+  } while (!worklist.IsEmpty());
 }
 
 void SsaLivenessAnalysis::NumberInstructions() {
@@ -102,20 +115,19 @@ void SsaLivenessAnalysis::NumberInstructions() {
   // to differentiate between the start and end of an instruction. Adding 2 to
   // the lifetime position for each instruction ensures the start of an
   // instruction is different than the end of the previous instruction.
-  HGraphVisitor* location_builder = codegen_->GetLocationBuilder();
   for (HLinearOrderIterator it(*this); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
     block->SetLifetimeStart(lifetime_position);
 
-    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
-      HInstruction* current = it.Current();
-      current->Accept(location_builder);
+    for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
+      HInstruction* current = inst_it.Current();
+      codegen_->AllocateLocations(current);
       LocationSummary* locations = current->GetLocations();
       if (locations != nullptr && locations->Out().IsValid()) {
         instructions_from_ssa_index_.Add(current);
         current->SetSsaIndex(ssa_index++);
         current->SetLiveInterval(
-            new (graph_.GetArena()) LiveInterval(graph_.GetArena(), current->GetType(), current));
+            LiveInterval::MakeInterval(graph_.GetArena(), current->GetType(), current));
       }
       current->SetLifetimePosition(lifetime_position);
     }
@@ -124,15 +136,16 @@ void SsaLivenessAnalysis::NumberInstructions() {
     // Add a null marker to notify we are starting a block.
     instructions_from_lifetime_position_.Add(nullptr);
 
-    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
-      HInstruction* current = it.Current();
-      current->Accept(codegen_->GetLocationBuilder());
+    for (HInstructionIterator inst_it(block->GetInstructions()); !inst_it.Done();
+         inst_it.Advance()) {
+      HInstruction* current = inst_it.Current();
+      codegen_->AllocateLocations(current);
       LocationSummary* locations = current->GetLocations();
       if (locations != nullptr && locations->Out().IsValid()) {
         instructions_from_ssa_index_.Add(current);
         current->SetSsaIndex(ssa_index++);
         current->SetLiveInterval(
-            new (graph_.GetArena()) LiveInterval(graph_.GetArena(), current->GetType(), current));
+            LiveInterval::MakeInterval(graph_.GetArena(), current->GetType(), current));
       }
       instructions_from_lifetime_position_.Add(current);
       current->SetLifetimePosition(lifetime_position);
@@ -178,8 +191,8 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
       HBasicBlock* successor = block->GetSuccessors().Get(i);
       live_in->Union(GetLiveInSet(*successor));
       size_t phi_input_index = successor->GetPredecessorIndexOf(block);
-      for (HInstructionIterator it(successor->GetPhis()); !it.Done(); it.Advance()) {
-        HInstruction* phi = it.Current();
+      for (HInstructionIterator inst_it(successor->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
+        HInstruction* phi = inst_it.Current();
         HInstruction* input = phi->InputAt(phi_input_index);
         input->GetLiveInterval()->AddPhiUse(phi, phi_input_index, block);
         // A phi input whose last user is the phi dies at the end of the predecessor block,
@@ -195,8 +208,9 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
       current->GetLiveInterval()->AddRange(block->GetLifetimeStart(), block->GetLifetimeEnd());
     }
 
-    for (HBackwardInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
-      HInstruction* current = it.Current();
+    for (HBackwardInstructionIterator back_it(block->GetInstructions()); !back_it.Done();
+         back_it.Advance()) {
+      HInstruction* current = back_it.Current();
       if (current->HasSsaIndex()) {
         // Kill the instruction and shorten its interval.
         kill->SetBit(current->GetSsaIndex());
@@ -217,9 +231,9 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
 
       if (current->HasEnvironment()) {
         // All instructions in the environment must be live.
-        GrowableArray<HInstruction*>* environment = current->GetEnvironment()->GetVRegs();
+        HEnvironment* environment = current->GetEnvironment();
         for (size_t i = 0, e = environment->Size(); i < e; ++i) {
-          HInstruction* instruction = environment->Get(i);
+          HInstruction* instruction = environment->GetInstructionAt(i);
           if (instruction != nullptr) {
             DCHECK(instruction->HasSsaIndex());
             live_in->SetBit(instruction->GetSsaIndex());
@@ -230,8 +244,8 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
     }
 
     // Kill phis defined in this block.
-    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
-      HInstruction* current = it.Current();
+    for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
+      HInstruction* current = inst_it.Current();
       if (current->HasSsaIndex()) {
         kill->SetBit(current->GetSsaIndex());
         live_in->ClearBit(current->GetSsaIndex());
@@ -297,7 +311,12 @@ bool SsaLivenessAnalysis::UpdateLiveIn(const HBasicBlock& block) {
   return live_in->UnionIfNotIn(live_out, kill);
 }
 
+static int RegisterOrLowRegister(Location location) {
+  return location.IsPair() ? location.low() : location.reg();
+}
+
 int LiveInterval::FindFirstRegisterHint(size_t* free_until) const {
+  DCHECK(!IsHighInterval());
   if (GetParent() == this && defined_by_ != nullptr) {
     // This is the first interval for the instruction. Try to find
     // a register based on its definition.
@@ -319,8 +338,12 @@ int LiveInterval::FindFirstRegisterHint(size_t* free_until) const {
       if (user->IsPhi()) {
         // If the phi has a register, try to use the same.
         Location phi_location = user->GetLiveInterval()->ToLocation();
-        if (phi_location.IsRegister() && free_until[phi_location.reg()] >= use_position) {
-          return phi_location.reg();
+        if (phi_location.IsRegisterKind()) {
+          DCHECK(SameRegisterKind(phi_location));
+          int reg = RegisterOrLowRegister(phi_location);
+          if (free_until[reg] >= use_position) {
+            return reg;
+          }
         }
         const GrowableArray<HBasicBlock*>& predecessors = user->GetBlock()->GetPredecessors();
         // If the instruction dies at the phi assignment, we can try having the
@@ -333,8 +356,11 @@ int LiveInterval::FindFirstRegisterHint(size_t* free_until) const {
             HInstruction* input = user->InputAt(i);
             Location location = input->GetLiveInterval()->GetLocationAt(
                 predecessors.Get(i)->GetLifetimeEnd() - 1);
-            if (location.IsRegister() && free_until[location.reg()] >= use_position) {
-              return location.reg();
+            if (location.IsRegisterKind()) {
+              int reg = RegisterOrLowRegister(location);
+              if (free_until[reg] >= use_position) {
+                return reg;
+              }
             }
           }
         }
@@ -345,8 +371,12 @@ int LiveInterval::FindFirstRegisterHint(size_t* free_until) const {
         // We use the user's lifetime position - 1 (and not `use_position`) because the
         // register is blocked at the beginning of the user.
         size_t position = user->GetLifetimePosition() - 1;
-        if (expected.IsRegister() && free_until[expected.reg()] >= position) {
-          return expected.reg();
+        if (expected.IsRegisterKind()) {
+          DCHECK(SameRegisterKind(expected));
+          int reg = RegisterOrLowRegister(expected);
+          if (free_until[reg] >= position) {
+            return reg;
+          }
         }
       }
     }
@@ -368,8 +398,9 @@ int LiveInterval::FindHintAtDefinition() const {
         // If the input dies at the end of the predecessor, we know its register can
         // be reused.
         Location input_location = input_interval.ToLocation();
-        if (input_location.IsRegister()) {
-          return input_location.reg();
+        if (input_location.IsRegisterKind()) {
+          DCHECK(SameRegisterKind(input_location));
+          return RegisterOrLowRegister(input_location);
         }
       }
     }
@@ -384,8 +415,9 @@ int LiveInterval::FindHintAtDefinition() const {
         // If the input dies at the start of this instruction, we know its register can
         // be reused.
         Location location = input_interval.ToLocation();
-        if (location.IsRegister()) {
-          return location.reg();
+        if (location.IsRegisterKind()) {
+          DCHECK(SameRegisterKind(location));
+          return RegisterOrLowRegister(location);
         }
       }
     }
@@ -393,13 +425,42 @@ int LiveInterval::FindHintAtDefinition() const {
   return kNoRegister;
 }
 
+bool LiveInterval::SameRegisterKind(Location other) const {
+  if (IsFloatingPoint()) {
+    if (IsLowInterval() || IsHighInterval()) {
+      return other.IsFpuRegisterPair();
+    } else {
+      return other.IsFpuRegister();
+    }
+  } else {
+    if (IsLowInterval() || IsHighInterval()) {
+      return other.IsRegisterPair();
+    } else {
+      return other.IsRegister();
+    }
+  }
+}
+
 bool LiveInterval::NeedsTwoSpillSlots() const {
   return type_ == Primitive::kPrimLong || type_ == Primitive::kPrimDouble;
 }
 
 Location LiveInterval::ToLocation() const {
+  DCHECK(!IsHighInterval());
   if (HasRegister()) {
-    return Location::RegisterLocation(GetRegister());
+    if (IsFloatingPoint()) {
+      if (HasHighInterval()) {
+        return Location::FpuRegisterPairLocation(GetRegister(), GetHighInterval()->GetRegister());
+      } else {
+        return Location::FpuRegisterLocation(GetRegister());
+      }
+    } else {
+      if (HasHighInterval()) {
+        return Location::RegisterPairLocation(GetRegister(), GetHighInterval()->GetRegister());
+      } else {
+        return Location::RegisterLocation(GetRegister());
+      }
+    }
   } else {
     HInstruction* defined_by = GetParent()->GetDefinedBy();
     if (defined_by->IsConstant()) {

@@ -18,15 +18,28 @@
 
 #include <cstdint>
 
+#include "base/dumpable.h"
+#include "base/logging.h"
+#include "base/macros.h"
+#include "base/timing_logger.h"
 #include "compiler.h"
-#include "dex/frontend.h"
+#include "dex_file-inl.h"
+#include "dex_file_to_method_inliner_map.h"
+#include "dex/compiler_ir.h"
+#include "dex/dex_flags.h"
 #include "dex/mir_graph.h"
+#include "dex/pass_driver_me_opts.h"
+#include "dex/pass_driver_me_post_opt.h"
+#include "dex/pass_manager.h"
 #include "dex/quick/mir_to_lir.h"
 #include "driver/compiler_driver.h"
+#include "driver/compiler_options.h"
 #include "elf_writer_quick.h"
 #include "jni/quick/jni_compiler.h"
+#include "mir_to_lir.h"
 #include "mirror/art_method-inl.h"
-#include "base/logging.h"
+#include "mirror/object.h"
+#include "runtime.h"
 
 // Specific compiler backends.
 #include "dex/quick/arm/backend_arm.h"
@@ -36,56 +49,14 @@
 
 namespace art {
 
-class QuickCompiler : public Compiler {
- public:
-  explicit QuickCompiler(CompilerDriver* driver) : Compiler(driver, 100) {}
-
-  void Init() const OVERRIDE;
-
-  void UnInit() const OVERRIDE;
-
-  bool CanCompileMethod(uint32_t method_idx, const DexFile& dex_file, CompilationUnit* cu) const
-      OVERRIDE;
-
-  CompiledMethod* Compile(const DexFile::CodeItem* code_item,
-                          uint32_t access_flags,
-                          InvokeType invoke_type,
-                          uint16_t class_def_idx,
-                          uint32_t method_idx,
-                          jobject class_loader,
-                          const DexFile& dex_file) const OVERRIDE;
-
-  CompiledMethod* JniCompile(uint32_t access_flags,
-                             uint32_t method_idx,
-                             const DexFile& dex_file) const OVERRIDE;
-
-  uintptr_t GetEntryPointOf(mirror::ArtMethod* method) const OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  bool WriteElf(art::File* file,
-                OatWriter* oat_writer,
-                const std::vector<const art::DexFile*>& dex_files,
-                const std::string& android_root,
-                bool is_host) const
-    OVERRIDE
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  Backend* GetCodeGenerator(CompilationUnit* cu, void* compilation_unit) const OVERRIDE;
-
-  void InitCompilationUnit(CompilationUnit& cu) const OVERRIDE;
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(QuickCompiler);
-};
-
-COMPILE_ASSERT(0U == static_cast<size_t>(kNone), kNone_not_0);
-COMPILE_ASSERT(1U == static_cast<size_t>(kArm), kArm_not_1);
-COMPILE_ASSERT(2U == static_cast<size_t>(kArm64), kArm64_not_2);
-COMPILE_ASSERT(3U == static_cast<size_t>(kThumb2), kThumb2_not_3);
-COMPILE_ASSERT(4U == static_cast<size_t>(kX86), kX86_not_4);
-COMPILE_ASSERT(5U == static_cast<size_t>(kX86_64), kX86_64_not_5);
-COMPILE_ASSERT(6U == static_cast<size_t>(kMips), kMips_not_6);
-COMPILE_ASSERT(7U == static_cast<size_t>(kMips64), kMips64_not_7);
+static_assert(0U == static_cast<size_t>(kNone),   "kNone not 0");
+static_assert(1U == static_cast<size_t>(kArm),    "kArm not 1");
+static_assert(2U == static_cast<size_t>(kArm64),  "kArm64 not 2");
+static_assert(3U == static_cast<size_t>(kThumb2), "kThumb2 not 3");
+static_assert(4U == static_cast<size_t>(kX86),    "kX86 not 4");
+static_assert(5U == static_cast<size_t>(kX86_64), "kX86_64 not 5");
+static_assert(6U == static_cast<size_t>(kMips),   "kMips not 6");
+static_assert(7U == static_cast<size_t>(kMips64), "kMips64 not 7");
 
 // Additional disabled optimizations (over generally disabled) per instruction set.
 static constexpr uint32_t kDisabledOptimizationsPerISA[] = {
@@ -118,7 +89,8 @@ static constexpr uint32_t kDisabledOptimizationsPerISA[] = {
     // 7 = kMips64.
     ~0U
 };
-COMPILE_ASSERT(sizeof(kDisabledOptimizationsPerISA) == 8 * sizeof(uint32_t), kDisabledOpts_unexp);
+static_assert(sizeof(kDisabledOptimizationsPerISA) == 8 * sizeof(uint32_t),
+              "kDisabledOpts unexpected");
 
 // Supported shorty types per instruction set. nullptr means that all are available.
 // Z : boolean
@@ -149,7 +121,7 @@ static const char* kSupportedTypes[] = {
     // 7 = kMips64.
     ""
 };
-COMPILE_ASSERT(sizeof(kSupportedTypes) == 8 * sizeof(char*), kSupportedTypes_unexp);
+static_assert(sizeof(kSupportedTypes) == 8 * sizeof(char*), "kSupportedTypes unexpected");
 
 static int kAllOpcodes[] = {
     Instruction::NOP,
@@ -391,10 +363,10 @@ static int kAllOpcodes[] = {
     Instruction::IPUT_BYTE_QUICK,
     Instruction::IPUT_CHAR_QUICK,
     Instruction::IPUT_SHORT_QUICK,
-    Instruction::UNUSED_EF,
-    Instruction::UNUSED_F0,
-    Instruction::UNUSED_F1,
-    Instruction::UNUSED_F2,
+    Instruction::IGET_BOOLEAN_QUICK,
+    Instruction::IGET_BYTE_QUICK,
+    Instruction::IGET_CHAR_QUICK,
+    Instruction::IGET_SHORT_QUICK,
     Instruction::UNUSED_F3,
     Instruction::UNUSED_F4,
     Instruction::UNUSED_F5,
@@ -425,6 +397,21 @@ static int kAllOpcodes[] = {
     kMirOpSelect,
 };
 
+static int kInvokeOpcodes[] = {
+    Instruction::INVOKE_VIRTUAL,
+    Instruction::INVOKE_SUPER,
+    Instruction::INVOKE_DIRECT,
+    Instruction::INVOKE_STATIC,
+    Instruction::INVOKE_INTERFACE,
+    Instruction::INVOKE_VIRTUAL_RANGE,
+    Instruction::INVOKE_SUPER_RANGE,
+    Instruction::INVOKE_DIRECT_RANGE,
+    Instruction::INVOKE_STATIC_RANGE,
+    Instruction::INVOKE_INTERFACE_RANGE,
+    Instruction::INVOKE_VIRTUAL_QUICK,
+    Instruction::INVOKE_VIRTUAL_RANGE_QUICK,
+};
+
 // Unsupported opcodes. nullptr can be used when everything is supported. Size of the lists is
 // recorded below.
 static const int* kUnsupportedOpcodes[] = {
@@ -445,7 +432,7 @@ static const int* kUnsupportedOpcodes[] = {
     // 7 = kMips64.
     kAllOpcodes
 };
-COMPILE_ASSERT(sizeof(kUnsupportedOpcodes) == 8 * sizeof(int*), kUnsupportedOpcodes_unexp);
+static_assert(sizeof(kUnsupportedOpcodes) == 8 * sizeof(int*), "kUnsupportedOpcodes unexpected");
 
 // Size of the arrays stored above.
 static const size_t kUnsupportedOpcodesSize[] = {
@@ -466,8 +453,8 @@ static const size_t kUnsupportedOpcodesSize[] = {
     // 7 = kMips64.
     arraysize(kAllOpcodes),
 };
-COMPILE_ASSERT(sizeof(kUnsupportedOpcodesSize) == 8 * sizeof(size_t),
-               kUnsupportedOpcodesSize_unexp);
+static_assert(sizeof(kUnsupportedOpcodesSize) == 8 * sizeof(size_t),
+              "kUnsupportedOpcodesSize unexpected");
 
 // The maximum amount of Dalvik register in a method for which we will start compiling. Tries to
 // avoid an abort when we need to manage more SSA registers than we can.
@@ -523,8 +510,8 @@ bool QuickCompiler::CanCompileMethod(uint32_t method_idx, const DexFile& dex_fil
     for (MIR* mir = bb->first_mir_insn; mir != nullptr; mir = mir->next) {
       int opcode = mir->dalvikInsn.opcode;
       // Check if we support the byte code.
-      if (std::find(unsupport_list, unsupport_list + unsupport_list_size,
-                    opcode) != unsupport_list + unsupport_list_size) {
+      if (std::find(unsupport_list, unsupport_list + unsupport_list_size, opcode)
+          != unsupport_list + unsupport_list_size) {
         if (!MIR::DecodedInstruction::IsPseudoMirOp(opcode)) {
           VLOG(compiler) << "Unsupported dalvik byte code : "
               << mir->dalvikInsn.opcode;
@@ -535,11 +522,8 @@ bool QuickCompiler::CanCompileMethod(uint32_t method_idx, const DexFile& dex_fil
         return false;
       }
       // Check if it invokes a prototype that we cannot support.
-      if (Instruction::INVOKE_VIRTUAL == opcode ||
-          Instruction::INVOKE_SUPER == opcode ||
-          Instruction::INVOKE_DIRECT == opcode ||
-          Instruction::INVOKE_STATIC == opcode ||
-          Instruction::INVOKE_INTERFACE == opcode) {
+      if (std::find(kInvokeOpcodes, kInvokeOpcodes + arraysize(kInvokeOpcodes), opcode)
+          != kInvokeOpcodes + arraysize(kInvokeOpcodes)) {
         uint32_t invoke_method_idx = mir->dalvikInsn.vB;
         const char* invoke_method_shorty = dex_file.GetMethodShorty(
             dex_file.GetMethodId(invoke_method_idx));
@@ -560,13 +544,55 @@ void QuickCompiler::InitCompilationUnit(CompilationUnit& cu) const {
   cu.disable_opt |= kDisabledOptimizationsPerISA[cu.instruction_set];
 }
 
-void QuickCompiler::Init() const {
+void QuickCompiler::Init() {
   CHECK(GetCompilerDriver()->GetCompilerContext() == nullptr);
 }
 
 void QuickCompiler::UnInit() const {
   CHECK(GetCompilerDriver()->GetCompilerContext() == nullptr);
 }
+
+/* Default optimizer/debug setting for the compiler. */
+static uint32_t kCompilerOptimizerDisableFlags = 0 |  // Disable specific optimizations
+  // (1 << kLoadStoreElimination) |
+  // (1 << kLoadHoisting) |
+  // (1 << kSuppressLoads) |
+  // (1 << kNullCheckElimination) |
+  // (1 << kClassInitCheckElimination) |
+  // (1 << kGlobalValueNumbering) |
+  (1 << kGvnDeadCodeElimination) |
+  // (1 << kLocalValueNumbering) |
+  // (1 << kPromoteRegs) |
+  // (1 << kTrackLiveTemps) |
+  // (1 << kSafeOptimizations) |
+  // (1 << kBBOpt) |
+  // (1 << kSuspendCheckElimination) |
+  // (1 << kMatch) |
+  // (1 << kPromoteCompilerTemps) |
+  // (1 << kSuppressExceptionEdges) |
+  // (1 << kSuppressMethodInlining) |
+  0;
+
+static uint32_t kCompilerDebugFlags = 0 |     // Enable debug/testing modes
+  // (1 << kDebugDisplayMissingTargets) |
+  // (1 << kDebugVerbose) |
+  // (1 << kDebugDumpCFG) |
+  // (1 << kDebugSlowFieldPath) |
+  // (1 << kDebugSlowInvokePath) |
+  // (1 << kDebugSlowStringPath) |
+  // (1 << kDebugSlowestFieldPath) |
+  // (1 << kDebugSlowestStringPath) |
+  // (1 << kDebugExerciseResolveMethod) |
+  // (1 << kDebugVerifyDataflow) |
+  // (1 << kDebugShowMemoryUsage) |
+  // (1 << kDebugShowNops) |
+  // (1 << kDebugCountOpcodes) |
+  // (1 << kDebugDumpCheckStats) |
+  // (1 << kDebugShowSummaryMemoryUsage) |
+  // (1 << kDebugShowFilterStats) |
+  // (1 << kDebugTimings) |
+  // (1 << kDebugCodegenDump) |
+  0;
 
 CompiledMethod* QuickCompiler::Compile(const DexFile::CodeItem* code_item,
                                        uint32_t access_flags,
@@ -575,22 +601,163 @@ CompiledMethod* QuickCompiler::Compile(const DexFile::CodeItem* code_item,
                                        uint32_t method_idx,
                                        jobject class_loader,
                                        const DexFile& dex_file) const {
-  CompiledMethod* method = TryCompileWithSeaIR(code_item,
-                                               access_flags,
-                                               invoke_type,
-                                               class_def_idx,
-                                               method_idx,
-                                               class_loader,
-                                               dex_file);
-  if (method != nullptr) {
-    return method;
-  }
-
   // TODO: check method fingerprint here to determine appropriate backend type.  Until then, use
   // build default.
   CompilerDriver* driver = GetCompilerDriver();
-  return CompileOneMethod(driver, this, code_item, access_flags, invoke_type, class_def_idx,
-                          method_idx, class_loader, dex_file, nullptr /* use thread llvm_info */);
+
+  VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
+  if (Compiler::IsPathologicalCase(*code_item, method_idx, dex_file)) {
+    return nullptr;
+  }
+
+  DCHECK(driver->GetCompilerOptions().IsCompilationEnabled());
+
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  InstructionSet instruction_set = driver->GetInstructionSet();
+  if (instruction_set == kArm) {
+    instruction_set = kThumb2;
+  }
+  CompilationUnit cu(driver->GetArenaPool(), instruction_set, driver, class_linker);
+
+  // TODO: Mips64 is not yet implemented.
+  CHECK((cu.instruction_set == kThumb2) ||
+        (cu.instruction_set == kArm64) ||
+        (cu.instruction_set == kX86) ||
+        (cu.instruction_set == kX86_64) ||
+        (cu.instruction_set == kMips));
+
+  // TODO: set this from command line
+  constexpr bool compiler_flip_match = false;
+  const std::string compiler_method_match = "";
+
+  bool use_match = !compiler_method_match.empty();
+  bool match = use_match && (compiler_flip_match ^
+      (PrettyMethod(method_idx, dex_file).find(compiler_method_match) != std::string::npos));
+  if (!use_match || match) {
+    cu.disable_opt = kCompilerOptimizerDisableFlags;
+    cu.enable_debug = kCompilerDebugFlags;
+    cu.verbose = VLOG_IS_ON(compiler) ||
+        (cu.enable_debug & (1 << kDebugVerbose));
+  }
+
+  if (driver->GetCompilerOptions().HasVerboseMethods()) {
+    cu.verbose = driver->GetCompilerOptions().IsVerboseMethod(PrettyMethod(method_idx, dex_file));
+  }
+
+  if (cu.verbose) {
+    cu.enable_debug |= (1 << kDebugCodegenDump);
+  }
+
+  /*
+   * TODO: rework handling of optimization and debug flags.  Should we split out
+   * MIR and backend flags?  Need command-line setting as well.
+   */
+
+  InitCompilationUnit(cu);
+
+  cu.StartTimingSplit("BuildMIRGraph");
+  cu.mir_graph.reset(new MIRGraph(&cu, &cu.arena));
+
+  /*
+   * After creation of the MIR graph, also create the code generator.
+   * The reason we do this is that optimizations on the MIR graph may need to get information
+   * that is only available if a CG exists.
+   */
+  cu.cg.reset(GetCodeGenerator(&cu, nullptr));
+
+  /* Gathering opcode stats? */
+  if (kCompilerDebugFlags & (1 << kDebugCountOpcodes)) {
+    cu.mir_graph->EnableOpcodeCounting();
+  }
+
+  /* Build the raw MIR graph */
+  cu.mir_graph->InlineMethod(code_item, access_flags, invoke_type, class_def_idx, method_idx,
+                             class_loader, dex_file);
+
+  if (!CanCompileMethod(method_idx, dex_file, &cu)) {
+    VLOG(compiler)  << cu.instruction_set << ": Cannot compile method : "
+        << PrettyMethod(method_idx, dex_file);
+    cu.EndTiming();
+    return nullptr;
+  }
+
+  cu.NewTimingSplit("MIROpt:CheckFilters");
+  std::string skip_message;
+  if (cu.mir_graph->SkipCompilation(&skip_message)) {
+    VLOG(compiler) << cu.instruction_set << ": Skipping method : "
+        << PrettyMethod(method_idx, dex_file) << "  Reason = " << skip_message;
+    cu.EndTiming();
+    return nullptr;
+  }
+
+  /* Create the pass driver and launch it */
+  PassDriverMEOpts pass_driver(GetPreOptPassManager(), &cu);
+  pass_driver.Launch();
+
+  /* For non-leaf methods check if we should skip compilation when the profiler is enabled. */
+  if (cu.compiler_driver->ProfilePresent()
+      && !cu.mir_graph->MethodIsLeaf()
+      && cu.mir_graph->SkipCompilationByName(PrettyMethod(method_idx, dex_file))) {
+    cu.EndTiming();
+    return nullptr;
+  }
+
+  if (cu.enable_debug & (1 << kDebugDumpCheckStats)) {
+    cu.mir_graph->DumpCheckStats();
+  }
+
+  if (kCompilerDebugFlags & (1 << kDebugCountOpcodes)) {
+    cu.mir_graph->ShowOpcodeStats();
+  }
+
+  /* Reassociate sreg names with original Dalvik vreg names. */
+  cu.mir_graph->RemapRegLocations();
+
+  /* Free Arenas from the cu.arena_stack for reuse by the cu.arena in the codegen. */
+  if (cu.enable_debug & (1 << kDebugShowMemoryUsage)) {
+    if (cu.arena_stack.PeakBytesAllocated() > 1 * 1024 * 1024) {
+      MemStats stack_stats(cu.arena_stack.GetPeakStats());
+      LOG(INFO) << PrettyMethod(method_idx, dex_file) << " " << Dumpable<MemStats>(stack_stats);
+    }
+  }
+  cu.arena_stack.Reset();
+
+  CompiledMethod* result = nullptr;
+
+  if (cu.mir_graph->PuntToInterpreter()) {
+    VLOG(compiler) << cu.instruction_set << ": Punted method to interpreter: "
+        << PrettyMethod(method_idx, dex_file);
+    cu.EndTiming();
+    return nullptr;
+  }
+
+  cu.cg->Materialize();
+
+  cu.NewTimingSplit("Dedupe");  /* deduping takes up the vast majority of time in GetCompiledMethod(). */
+  result = cu.cg->GetCompiledMethod();
+  cu.NewTimingSplit("Cleanup");
+
+  if (result) {
+    VLOG(compiler) << cu.instruction_set << ": Compiled " << PrettyMethod(method_idx, dex_file);
+  } else {
+    VLOG(compiler) << cu.instruction_set << ": Deferred " << PrettyMethod(method_idx, dex_file);
+  }
+
+  if (cu.enable_debug & (1 << kDebugShowMemoryUsage)) {
+    if (cu.arena.BytesAllocated() > (1 * 1024 *1024)) {
+      MemStats mem_stats(cu.arena.GetMemStats());
+      LOG(INFO) << PrettyMethod(method_idx, dex_file) << " " << Dumpable<MemStats>(mem_stats);
+    }
+  }
+
+  if (cu.enable_debug & (1 << kDebugShowSummaryMemoryUsage)) {
+    LOG(INFO) << "MEMINFO " << cu.arena.BytesAllocated() << " " << cu.mir_graph->GetNumBlocks()
+                    << " " << PrettyMethod(method_idx, dex_file);
+  }
+
+  cu.EndTiming();
+  driver->GetTimingsLogger()->AddLogger(cu.timings);
+  return result;
 }
 
 CompiledMethod* QuickCompiler::JniCompile(uint32_t access_flags,
@@ -600,7 +767,8 @@ CompiledMethod* QuickCompiler::JniCompile(uint32_t access_flags,
 }
 
 uintptr_t QuickCompiler::GetEntryPointOf(mirror::ArtMethod* method) const {
-  return reinterpret_cast<uintptr_t>(method->GetEntryPointFromQuickCompiledCode());
+  return reinterpret_cast<uintptr_t>(method->GetEntryPointFromQuickCompiledCodePtrSize(
+      InstructionSetPointerSize(GetCompilerDriver()->GetInstructionSet())));
 }
 
 bool QuickCompiler::WriteElf(art::File* file,
@@ -612,7 +780,8 @@ bool QuickCompiler::WriteElf(art::File* file,
                                        *GetCompilerDriver());
 }
 
-Backend* QuickCompiler::GetCodeGenerator(CompilationUnit* cu, void* compilation_unit) const {
+Mir2Lir* QuickCompiler::GetCodeGenerator(CompilationUnit* cu, void* compilation_unit) const {
+  UNUSED(compilation_unit);
   Mir2Lir* mir_to_lir = nullptr;
   switch (cu->instruction_set) {
     case kThumb2:
@@ -642,8 +811,34 @@ Backend* QuickCompiler::GetCodeGenerator(CompilationUnit* cu, void* compilation_
   return mir_to_lir;
 }
 
+QuickCompiler::QuickCompiler(CompilerDriver* driver) : Compiler(driver, 100) {
+  const auto& compiler_options = driver->GetCompilerOptions();
+  auto* pass_manager_options = compiler_options.GetPassManagerOptions();
+  pre_opt_pass_manager_.reset(new PassManager(*pass_manager_options));
+  CHECK(pre_opt_pass_manager_.get() != nullptr);
+  PassDriverMEOpts::SetupPasses(pre_opt_pass_manager_.get());
+  pre_opt_pass_manager_->CreateDefaultPassList();
+  if (pass_manager_options->GetPrintPassOptions()) {
+    PassDriverMEOpts::PrintPassOptions(pre_opt_pass_manager_.get());
+  }
+  // TODO: Different options for pre vs post opts?
+  post_opt_pass_manager_.reset(new PassManager(PassManagerOptions()));
+  CHECK(post_opt_pass_manager_.get() != nullptr);
+  PassDriverMEPostOpt::SetupPasses(post_opt_pass_manager_.get());
+  post_opt_pass_manager_->CreateDefaultPassList();
+  if (pass_manager_options->GetPrintPassOptions()) {
+    PassDriverMEPostOpt::PrintPassOptions(post_opt_pass_manager_.get());
+  }
+}
+
+QuickCompiler::~QuickCompiler() {
+}
 
 Compiler* CreateQuickCompiler(CompilerDriver* driver) {
+  return QuickCompiler::Create(driver);
+}
+
+Compiler* QuickCompiler::Create(CompilerDriver* driver) {
   return new QuickCompiler(driver);
 }
 

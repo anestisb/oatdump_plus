@@ -77,12 +77,12 @@ bool InitSocketTransport(JdwpState* state, const JdwpOptions* options) {
       /* scan through a range of ports, binding to the first available */
       for (port = kBasePort; port <= kMaxPort; port++) {
         state->netState = SocketStartup(state, port, true);
-        if (state->netState != NULL) {
+        if (state->netState != nullptr) {
           break;
         }
       }
     }
-    if (state->netState == NULL) {
+    if (state->netState == nullptr) {
       LOG(ERROR) << "JDWP net startup failed (req port=" << options->port << ")";
       return false;
     }
@@ -157,7 +157,7 @@ static JdwpSocketState* SocketStartup(JdwpState* state, uint16_t port, bool prob
  fail:
   netState->Shutdown();
   delete netState;
-  return NULL;
+  return nullptr;
 }
 
 /*
@@ -170,20 +170,20 @@ static JdwpSocketState* SocketStartup(JdwpState* state, uint16_t port, bool prob
  * for an open port.)
  */
 void JdwpSocketState::Shutdown() {
-  int listenSock = this->listenSock;
-  int clientSock = this->clientSock;
+  int local_listenSock = this->listenSock;
+  int local_clientSock = this->clientSock;
 
   /* clear these out so it doesn't wake up and try to reuse them */
   this->listenSock = this->clientSock = -1;
 
   /* "shutdown" dislodges blocking read() and accept() calls */
-  if (listenSock != -1) {
-    shutdown(listenSock, SHUT_RDWR);
-    close(listenSock);
+  if (local_listenSock != -1) {
+    shutdown(local_listenSock, SHUT_RDWR);
+    close(local_listenSock);
   }
-  if (clientSock != -1) {
-    shutdown(clientSock, SHUT_RDWR);
-    close(clientSock);
+  if (local_clientSock != -1) {
+    shutdown(local_clientSock, SHUT_RDWR);
+    close(local_clientSock);
   }
 
   WakePipe();
@@ -272,7 +272,7 @@ bool JdwpSocketState::Establish(const JdwpOptions* options) {
   /*
    * Start by resolving the host name.
    */
-#ifdef HAVE_GETHOSTBYNAME_R
+#if defined(__linux__)
   hostent he;
   char auxBuf[128];
   int error;
@@ -284,7 +284,7 @@ bool JdwpSocketState::Establish(const JdwpOptions* options) {
 #else
   h_errno = 0;
   pEntry = gethostbyname(options->host.c_str());
-  if (pEntry == NULL) {
+  if (pEntry == nullptr) {
     PLOG(WARNING) << "gethostbyname('" << options->host << "') failed";
     return false;
   }
@@ -403,7 +403,7 @@ bool JdwpSocketState::ProcessIncoming() {
        * re-issue the select.  We're currently using #2, as it's more
        * reliable than #1 and generally better than #3.  Wastes two fds.
        */
-      selCount = select(maxfd+1, &readfds, NULL, NULL, NULL);
+      selCount = select(maxfd + 1, &readfds, nullptr, nullptr, nullptr);
       if (selCount < 0) {
         if (errno == EINTR) {
           continue;

@@ -32,7 +32,7 @@ class Thread;
 class ThrowLocation;
 class ShadowFrame;
 
-// Manages exception delivery for Quick backend. Not used by Portable backend.
+// Manages exception delivery for Quick backend.
 class QuickExceptionHandler {
  public:
   QuickExceptionHandler(Thread* self, bool is_deoptimization)
@@ -40,6 +40,7 @@ class QuickExceptionHandler {
 
   ~QuickExceptionHandler() {
     LOG(FATAL) << "UNREACHABLE";  // Expected to take long jump.
+    UNREACHABLE();
   }
 
   void FindCatch(const ThrowLocation& throw_location, mirror::Throwable* exception,

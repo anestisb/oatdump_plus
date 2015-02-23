@@ -17,12 +17,12 @@
 #ifndef ART_COMPILER_ELF_BUILDER_H_
 #define ART_COMPILER_ELF_BUILDER_H_
 
+#include "arch/instruction_set.h"
 #include "base/stl_util.h"
 #include "base/value_object.h"
 #include "buffered_output_stream.h"
 #include "elf_utils.h"
 #include "file_output_stream.h"
-#include "instruction_set.h"
 
 namespace art {
 
@@ -494,7 +494,7 @@ class ElfFileOatTextPiece FINAL : public ElfFilePiece<Elf_Word> {
       output_(output) {}
 
  protected:
-  bool DoActualWrite(File* elf_file) OVERRIDE {
+  bool DoActualWrite(File* elf_file ATTRIBUTE_UNUSED) OVERRIDE {
     // All data is written by the ElfFileRodataPiece right now, as the oat writer writes in one
     // piece. This is for future flexibility.
     UNUSED(output_);
@@ -1106,6 +1106,14 @@ class ElfBuilder FINAL {
                                EF_MIPS_CPIC      |
                                EF_MIPS_ABI_O32   |
                                EF_MIPS_ARCH_32R2);
+        break;
+      }
+      case kMips64: {
+        elf_header_.e_machine = EM_MIPS;
+        elf_header_.e_flags = (EF_MIPS_NOREORDER |
+                               EF_MIPS_PIC       |
+                               EF_MIPS_CPIC      |
+                               EF_MIPS_ARCH_64R6);
         break;
       }
       default: {

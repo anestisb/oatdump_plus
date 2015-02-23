@@ -18,9 +18,12 @@
 
 #include <dlfcn.h>
 
+#include "base/dumpable.h"
 #include "base/mutex.h"
 #include "base/stl_util.h"
 #include "check_jni.h"
+#include "dex_file-inl.h"
+#include "fault_handler.h"
 #include "indirect_reference_table-inl.h"
 #include "mirror/art_method.h"
 #include "mirror/class-inl.h"
@@ -29,6 +32,7 @@
 #include "java_vm_ext.h"
 #include "parsed_options.h"
 #include "runtime-inl.h"
+#include "runtime_options.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
 #include "thread-inl.h"
@@ -245,7 +249,7 @@ class Libraries {
   }
 
  private:
-  AllocationTrackingSafeMap<std::string, SharedLibrary*, kAllocatorTagJNILibrarires> libraries_;
+  AllocationTrackingSafeMap<std::string, SharedLibrary*, kAllocatorTagJNILibraries> libraries_;
 };
 
 
@@ -354,14 +358,15 @@ const JNIInvokeInterface gJniInvokeInterface = {
   JII::AttachCurrentThreadAsDaemon
 };
 
-JavaVMExt::JavaVMExt(Runtime* runtime, ParsedOptions* options)
+JavaVMExt::JavaVMExt(Runtime* runtime, const RuntimeArgumentMap& runtime_options)
     : runtime_(runtime),
       check_jni_abort_hook_(nullptr),
       check_jni_abort_hook_data_(nullptr),
       check_jni_(false),  // Initialized properly in the constructor body below.
-      force_copy_(options->force_copy_),
-      tracing_enabled_(!options->jni_trace_.empty() || VLOG_IS_ON(third_party_jni)),
-      trace_(options->jni_trace_),
+      force_copy_(runtime_options.Exists(RuntimeArgumentMap::JniOptsForceCopy)),
+      tracing_enabled_(runtime_options.Exists(RuntimeArgumentMap::JniTrace)
+                       || VLOG_IS_ON(third_party_jni)),
+      trace_(runtime_options.GetOrDefault(RuntimeArgumentMap::JniTrace)),
       globals_lock_("JNI global reference table lock"),
       globals_(gGlobalsInitial, gGlobalsMax, kGlobal),
       libraries_(new Libraries),
@@ -371,9 +376,7 @@ JavaVMExt::JavaVMExt(Runtime* runtime, ParsedOptions* options)
       allow_new_weak_globals_(true),
       weak_globals_add_condition_("weak globals add condition", weak_globals_lock_) {
   functions = unchecked_functions_;
-  if (options->check_jni_) {
-    SetCheckJniEnabled(true);
-  }
+  SetCheckJniEnabled(runtime_options.Exists(RuntimeArgumentMap::CheckJni));
 }
 
 JavaVMExt::~JavaVMExt() {
@@ -547,6 +550,13 @@ void JavaVMExt::AllowNewWeakGlobals() {
   weak_globals_add_condition_.Broadcast(self);
 }
 
+void JavaVMExt::EnsureNewWeakGlobalsDisallowed() {
+  // Lock and unlock once to ensure that no threads are still in the
+  // middle of adding new weak globals.
+  MutexLock mu(Thread::Current(), weak_globals_lock_);
+  CHECK(!allow_new_weak_globals_);
+}
+
 mirror::Object* JavaVMExt::DecodeGlobal(Thread* self, IndirectRef ref) {
   return globals_.SynchronizedGet(self, &globals_lock_, ref);
 }
@@ -688,6 +698,10 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env, const std::string& path, jobject 
     JNI_OnLoadFn jni_on_load = reinterpret_cast<JNI_OnLoadFn>(sym);
     int version = (*jni_on_load)(this, nullptr);
 
+    if (runtime_->GetTargetSdkVersion() != 0 && runtime_->GetTargetSdkVersion() <= 21) {
+      fault_manager.EnsureArtActionInFrontOfSignalChain();
+    }
+
     self->SetClassLoaderOverride(old_class_loader.get());
 
     if (version == JNI_ERR) {
@@ -750,12 +764,15 @@ void JavaVMExt::SweepJniWeakGlobals(IsMarkedCallback* callback, void* arg) {
   }
 }
 
+void JavaVMExt::TrimGlobals() {
+  WriterMutexLock mu(Thread::Current(), globals_lock_);
+  globals_.Trim();
+}
+
 void JavaVMExt::VisitRoots(RootCallback* callback, void* arg) {
   Thread* self = Thread::Current();
-  {
-    ReaderMutexLock mu(self, globals_lock_);
-    globals_.VisitRoots(callback, arg, 0, kRootJNIGlobal);
-  }
+  ReaderMutexLock mu(self, globals_lock_);
+  globals_.VisitRoots(callback, arg, RootInfo(kRootJNIGlobal));
   // The weak_globals table is visited by the GC itself (because it mutates the table).
 }
 
@@ -789,13 +806,13 @@ extern "C" jint JNI_CreateJavaVM(JavaVM** p_vm, JNIEnv** p_env, void* vm_args) {
   return JNI_OK;
 }
 
-extern "C" jint JNI_GetCreatedJavaVMs(JavaVM** vms, jsize, jsize* vm_count) {
+extern "C" jint JNI_GetCreatedJavaVMs(JavaVM** vms_buf, jsize buf_len, jsize* vm_count) {
   Runtime* runtime = Runtime::Current();
-  if (runtime == nullptr) {
+  if (runtime == nullptr || buf_len == 0) {
     *vm_count = 0;
   } else {
     *vm_count = 1;
-    vms[0] = runtime->GetJavaVM();
+    vms_buf[0] = runtime->GetJavaVM();
   }
   return JNI_OK;
 }

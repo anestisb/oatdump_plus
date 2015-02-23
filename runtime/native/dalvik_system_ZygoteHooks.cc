@@ -14,17 +14,19 @@
  * limitations under the License.
  */
 
+#include "dalvik_system_ZygoteHooks.h"
+
 #include <stdlib.h>
 
+#include "arch/instruction_set.h"
 #include "debugger.h"
-#include "instruction_set.h"
 #include "java_vm_ext.h"
 #include "jni_internal.h"
 #include "JNIHelp.h"
 #include "ScopedUtfChars.h"
 #include "thread-inl.h"
 
-#if defined(HAVE_PRCTL)
+#if defined(__linux__)
 #include <sys/prctl.h>
 #endif
 
@@ -33,9 +35,9 @@
 namespace art {
 
 static void EnableDebugger() {
+#if defined(__linux__)
   // To let a non-privileged gdbserver attach to this
   // process, we must set our dumpable flag.
-#if defined(HAVE_PRCTL)
   if (prctl(PR_SET_DUMPABLE, 1, 0, 0, 0) == -1) {
     PLOG(ERROR) << "prctl(PR_SET_DUMPABLE) failed for pid " << getpid();
   }
@@ -84,9 +86,15 @@ static void EnableDebugFeatures(uint32_t debug_flags) {
   }
   debug_flags &= ~DEBUG_ENABLE_DEBUGGER;
 
-  // These two are for backwards compatibility with Dalvik.
+  if ((debug_flags & DEBUG_ENABLE_SAFEMODE) != 0) {
+    // Ensure that any (secondary) oat files will be interpreted.
+    Runtime* runtime = Runtime::Current();
+    runtime->AddCompilerOption("--compiler-filter=interpret-only");
+    debug_flags &= ~DEBUG_ENABLE_SAFEMODE;
+  }
+
+  // This is for backwards compatibility with Dalvik.
   debug_flags &= ~DEBUG_ENABLE_ASSERT;
-  debug_flags &= ~DEBUG_ENABLE_SAFEMODE;
 
   if (debug_flags != 0) {
     LOG(ERROR) << StringPrintf("Unknown bits set in debug_flags: %#x", debug_flags);
@@ -100,8 +108,7 @@ static jlong ZygoteHooks_nativePreFork(JNIEnv* env, jclass) {
   runtime->PreZygoteFork();
 
   // Grab thread before fork potentially makes Thread::pthread_key_self_ unusable.
-  Thread* self = Thread::Current();
-  return reinterpret_cast<jlong>(self);
+  return reinterpret_cast<jlong>(ThreadForEnv(env));
 }
 
 static void ZygoteHooks_nativePostForkChild(JNIEnv* env, jclass, jlong token, jint debug_flags,

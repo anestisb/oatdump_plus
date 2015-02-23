@@ -20,6 +20,7 @@
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <ScopedLocalRef.h>
+#include <stdlib.h>
 
 #include "../../external/icu/icu4c/source/common/unicode/uvernum.h"
 #include "base/macros.h"
@@ -43,8 +44,13 @@
 #include "well_known_classes.h"
 
 int main(int argc, char **argv) {
+  // Gtests can be very noisy. For example, an executable with multiple tests will trigger native
+  // bridge warnings. The following line reduces the minimum log severity to ERROR and suppresses
+  // everything else. In case you want to see all messages, comment out the line.
+  setenv("ANDROID_LOG_TAGS", "*:e", 1);
+
   art::InitLogging(argv);
-  LOG(INFO) << "Running main() from common_runtime_test.cc...";
+  LOG(::art::INFO) << "Running main() from common_runtime_test.cc...";
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
@@ -59,7 +65,7 @@ ScratchFile::ScratchFile() {
   filename_ += "/TmpFile-XXXXXX";
   int fd = mkstemp(&filename_[0]);
   CHECK_NE(-1, fd);
-  file_.reset(new File(fd, GetFilename()));
+  file_.reset(new File(fd, GetFilename(), true));
 }
 
 ScratchFile::ScratchFile(const ScratchFile& other, const char* suffix) {
@@ -67,7 +73,7 @@ ScratchFile::ScratchFile(const ScratchFile& other, const char* suffix) {
   filename_ += suffix;
   int fd = open(filename_.c_str(), O_RDWR | O_CREAT, 0666);
   CHECK_NE(-1, fd);
-  file_.reset(new File(fd, GetFilename()));
+  file_.reset(new File(fd, GetFilename(), true));
 }
 
 ScratchFile::ScratchFile(File* file) {
@@ -84,16 +90,29 @@ int ScratchFile::GetFd() const {
   return file_->Fd();
 }
 
+void ScratchFile::Close() {
+  if (file_.get() != nullptr) {
+    if (file_->FlushCloseOrErase() != 0) {
+      PLOG(WARNING) << "Error closing scratch file.";
+    }
+  }
+}
+
 void ScratchFile::Unlink() {
   if (!OS::FileExists(filename_.c_str())) {
     return;
   }
+  Close();
   int unlink_result = unlink(filename_.c_str());
   CHECK_EQ(0, unlink_result);
 }
 
 CommonRuntimeTest::CommonRuntimeTest() {}
-CommonRuntimeTest::~CommonRuntimeTest() {}
+CommonRuntimeTest::~CommonRuntimeTest() {
+  // Ensure the dex files are cleaned up before the runtime.
+  loaded_dex_files_.clear();
+  runtime_.reset();
+}
 
 void CommonRuntimeTest::SetUpAndroidRoot() {
   if (IsHost()) {
@@ -164,16 +183,23 @@ void CommonRuntimeTest::TearDownAndroidData(const std::string& android_data, boo
   }
 }
 
+std::string CommonRuntimeTest::GetCoreArtLocation() {
+  return GetCoreFileLocation("art");
+}
 
-const DexFile* CommonRuntimeTest::LoadExpectSingleDexFile(const char* location) {
-  std::vector<const DexFile*> dex_files;
+std::string CommonRuntimeTest::GetCoreOatLocation() {
+  return GetCoreFileLocation("oat");
+}
+
+std::unique_ptr<const DexFile> CommonRuntimeTest::LoadExpectSingleDexFile(const char* location) {
+  std::vector<std::unique_ptr<const DexFile>> dex_files;
   std::string error_msg;
   if (!DexFile::Open(location, location, &error_msg, &dex_files)) {
     LOG(FATAL) << "Could not open .dex file '" << location << "': " << error_msg << "\n";
-    return nullptr;
+    UNREACHABLE();
   } else {
     CHECK_EQ(1U, dex_files.size()) << "Expected only one dex file in " << location;
-    return dex_files[0];
+    return std::move(dex_files[0]);
   }
 }
 
@@ -185,22 +211,20 @@ void CommonRuntimeTest::SetUp() {
   int mkdir_result = mkdir(dalvik_cache_.c_str(), 0700);
   ASSERT_EQ(mkdir_result, 0);
 
-  std::string error_msg;
-  java_lang_dex_file_ = LoadExpectSingleDexFile(GetLibCoreDexFileName().c_str());
-  boot_class_path_.push_back(java_lang_dex_file_);
-
   std::string min_heap_string(StringPrintf("-Xms%zdm", gc::Heap::kDefaultInitialSize / MB));
   std::string max_heap_string(StringPrintf("-Xmx%zdm", gc::Heap::kDefaultMaximumSize / MB));
 
   callbacks_.reset(new NoopCompilerCallbacks());
 
   RuntimeOptions options;
-  options.push_back(std::make_pair("bootclasspath", &boot_class_path_));
+  std::string boot_class_path_string = "-Xbootclasspath:" + GetLibCoreDexFileName();
+  options.push_back(std::make_pair(boot_class_path_string, nullptr));
   options.push_back(std::make_pair("-Xcheck:jni", nullptr));
-  options.push_back(std::make_pair(min_heap_string.c_str(), nullptr));
-  options.push_back(std::make_pair(max_heap_string.c_str(), nullptr));
+  options.push_back(std::make_pair(min_heap_string, nullptr));
+  options.push_back(std::make_pair(max_heap_string, nullptr));
   options.push_back(std::make_pair("compilercallbacks", callbacks_.get()));
   SetUpRuntimeOptions(&options);
+
   if (!Runtime::Create(options, false)) {
     LOG(FATAL) << "Failed to create runtime";
     return;
@@ -209,6 +233,9 @@ void CommonRuntimeTest::SetUp() {
   class_linker_ = runtime_->GetClassLinker();
   class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
   class_linker_->RunRootClinits();
+  boot_class_path_ = class_linker_->GetBootClassPath();
+  java_lang_dex_file_ = boot_class_path_[0];
+
 
   // Runtime::Create acquired the mutator_lock_ that is normally given away when we
   // Runtime::Start, give it away now and then switch to a more managable ScopedObjectAccess.
@@ -221,6 +248,11 @@ void CommonRuntimeTest::SetUp() {
   // pool is created by the runtime.
   runtime_->GetHeap()->CreateThreadPool();
   runtime_->GetHeap()->VerifyHeap();  // Check for heap corruption before the test
+
+  // Get the boot class path from the runtime so it can be used in tests.
+  boot_class_path_ = class_linker_->GetBootClassPath();
+  ASSERT_FALSE(boot_class_path_.empty());
+  java_lang_dex_file_ = boot_class_path_[0];
 }
 
 void CommonRuntimeTest::ClearDirectory(const char* dirpath) {
@@ -267,8 +299,6 @@ void CommonRuntimeTest::TearDown() {
   IcuCleanupFn icu_cleanup_fn = reinterpret_cast<IcuCleanupFn>(sym);
   (*icu_cleanup_fn)();
 
-  STLDeleteElements(&opened_dex_files_);
-
   Runtime::Current()->GetHeap()->VerifyHeap();  // Check for heap corruption after the test
 }
 
@@ -305,7 +335,7 @@ std::string CommonRuntimeTest::GetTestAndroidRoot() {
 #define ART_TARGET_NATIVETEST_DIR_STRING ""
 #endif
 
-std::vector<const DexFile*> CommonRuntimeTest::OpenTestDexFiles(const char* name) {
+std::vector<std::unique_ptr<const DexFile>> CommonRuntimeTest::OpenTestDexFiles(const char* name) {
   CHECK(name != nullptr);
   std::string filename;
   if (IsHost()) {
@@ -318,28 +348,30 @@ std::vector<const DexFile*> CommonRuntimeTest::OpenTestDexFiles(const char* name
   filename += name;
   filename += ".jar";
   std::string error_msg;
-  std::vector<const DexFile*> dex_files;
+  std::vector<std::unique_ptr<const DexFile>> dex_files;
   bool success = DexFile::Open(filename.c_str(), filename.c_str(), &error_msg, &dex_files);
   CHECK(success) << "Failed to open '" << filename << "': " << error_msg;
-  for (const DexFile* dex_file : dex_files) {
+  for (auto& dex_file : dex_files) {
     CHECK_EQ(PROT_READ, dex_file->GetPermissions());
     CHECK(dex_file->IsReadOnly());
   }
-  opened_dex_files_.insert(opened_dex_files_.end(), dex_files.begin(), dex_files.end());
   return dex_files;
 }
 
-const DexFile* CommonRuntimeTest::OpenTestDexFile(const char* name) {
-  std::vector<const DexFile*> vector = OpenTestDexFiles(name);
+std::unique_ptr<const DexFile> CommonRuntimeTest::OpenTestDexFile(const char* name) {
+  std::vector<std::unique_ptr<const DexFile>> vector = OpenTestDexFiles(name);
   EXPECT_EQ(1U, vector.size());
-  return vector[0];
+  return std::move(vector[0]);
 }
 
 jobject CommonRuntimeTest::LoadDex(const char* dex_name) {
-  std::vector<const DexFile*> dex_files = OpenTestDexFiles(dex_name);
+  std::vector<std::unique_ptr<const DexFile>> dex_files = OpenTestDexFiles(dex_name);
+  std::vector<const DexFile*> class_path;
   CHECK_NE(0U, dex_files.size());
-  for (const DexFile* dex_file : dex_files) {
+  for (auto& dex_file : dex_files) {
+    class_path.push_back(dex_file.get());
     class_linker_->RegisterDexFile(*dex_file);
+    loaded_dex_files_.push_back(std::move(dex_file));
   }
   Thread* self = Thread::Current();
   JNIEnvExt* env = self->GetJniEnv();
@@ -347,8 +379,23 @@ jobject CommonRuntimeTest::LoadDex(const char* dex_name) {
       env->AllocObject(WellKnownClasses::dalvik_system_PathClassLoader));
   jobject class_loader = env->NewGlobalRef(class_loader_local.get());
   self->SetClassLoaderOverride(class_loader_local.get());
-  Runtime::Current()->SetCompileTimeClassPath(class_loader, dex_files);
+  Runtime::Current()->SetCompileTimeClassPath(class_loader, class_path);
   return class_loader;
+}
+
+std::string CommonRuntimeTest::GetCoreFileLocation(const char* suffix) {
+  CHECK(suffix != nullptr);
+
+  std::string location;
+  if (IsHost()) {
+    const char* host_dir = getenv("ANDROID_HOST_OUT");
+    CHECK(host_dir != NULL);
+    location = StringPrintf("%s/framework/core.%s", host_dir, suffix);
+  } else {
+    location = StringPrintf("/data/art-test/core.%s", suffix);
+  }
+
+  return location;
 }
 
 CheckJniAbortCatcher::CheckJniAbortCatcher() : vm_(Runtime::Current()->GetJavaVM()) {

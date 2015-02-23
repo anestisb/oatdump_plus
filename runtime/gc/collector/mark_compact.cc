@@ -197,7 +197,7 @@ void MarkCompact::MarkingPhase() {
   BindBitmaps();
   t.NewTiming("ProcessCards");
   // Process dirty cards and add dirty cards to mod-union tables.
-  heap_->ProcessCards(GetTimings(), false);
+  heap_->ProcessCards(GetTimings(), false, false, true);
   // Clear the whole card table since we can not Get any additional dirty cards during the
   // paused GC. This saves memory but only works for pause the world collectors.
   t.NewTiming("ClearCardTable");
@@ -239,7 +239,7 @@ void MarkCompact::UpdateAndMarkModUnion() {
       accounting::ModUnionTable* table = heap_->FindModUnionTableFromSpace(space);
       if (table != nullptr) {
         // TODO: Improve naming.
-        TimingLogger::ScopedTiming t(
+        TimingLogger::ScopedTiming t2(
             space->IsZygoteSpace() ? "UpdateAndMarkZygoteModUnionTable" :
                                      "UpdateAndMarkImageModUnionTable", GetTimings());
         table->UpdateAndMarkReferences(MarkHeapReferenceCallback, this);
@@ -274,11 +274,11 @@ void MarkCompact::ReclaimPhase() {
 }
 
 void MarkCompact::ResizeMarkStack(size_t new_size) {
-  std::vector<Object*> temp(mark_stack_->Begin(), mark_stack_->End());
+  std::vector<StackReference<Object>> temp(mark_stack_->Begin(), mark_stack_->End());
   CHECK_LE(mark_stack_->Size(), new_size);
   mark_stack_->Resize(new_size);
-  for (const auto& obj : temp) {
-    mark_stack_->PushBack(obj);
+  for (auto& obj : temp) {
+    mark_stack_->PushBack(obj.AsMirrorPtr());
   }
 }
 
@@ -300,22 +300,20 @@ mirror::Object* MarkCompact::MarkObjectCallback(mirror::Object* root, void* arg)
 }
 
 void MarkCompact::MarkHeapReferenceCallback(mirror::HeapReference<mirror::Object>* obj_ptr,
-                                          void* arg) {
+                                            void* arg) {
   reinterpret_cast<MarkCompact*>(arg)->MarkObject(obj_ptr->AsMirrorPtr());
 }
 
 void MarkCompact::DelayReferenceReferentCallback(mirror::Class* klass, mirror::Reference* ref,
-                                               void* arg) {
+                                                 void* arg) {
   reinterpret_cast<MarkCompact*>(arg)->DelayReferenceReferent(klass, ref);
 }
 
-void MarkCompact::MarkRootCallback(Object** root, void* arg, uint32_t /*thread_id*/,
-                                   RootType /*root_type*/) {
+void MarkCompact::MarkRootCallback(Object** root, void* arg, const RootInfo& /*root_info*/) {
   reinterpret_cast<MarkCompact*>(arg)->MarkObject(*root);
 }
 
-void MarkCompact::UpdateRootCallback(Object** root, void* arg, uint32_t /*thread_id*/,
-                                     RootType /*root_type*/) {
+void MarkCompact::UpdateRootCallback(Object** root, void* arg, const RootInfo& /*root_info*/) {
   mirror::Object* obj = *root;
   mirror::Object* new_obj = reinterpret_cast<MarkCompact*>(arg)->GetMarkedForwardAddress(obj);
   if (obj != new_obj) {
@@ -348,7 +346,7 @@ void MarkCompact::UpdateReferences() {
     accounting::ModUnionTable* table = heap_->FindModUnionTableFromSpace(space);
     if (table != nullptr) {
       // TODO: Improve naming.
-      TimingLogger::ScopedTiming t(
+      TimingLogger::ScopedTiming t2(
           space->IsZygoteSpace() ? "UpdateZygoteModUnionTableReferences" :
                                    "UpdateImageModUnionTableReferences",
                                    GetTimings());
@@ -538,7 +536,7 @@ void MarkCompact::Sweep(bool swap_bitmaps) {
       if (!ShouldSweepSpace(alloc_space)) {
         continue;
       }
-      TimingLogger::ScopedTiming t(
+      TimingLogger::ScopedTiming t2(
           alloc_space->IsZygoteSpace() ? "SweepZygoteSpace" : "SweepAllocSpace", GetTimings());
       RecordFree(alloc_space->Sweep(swap_bitmaps));
     }

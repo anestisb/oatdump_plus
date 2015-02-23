@@ -52,9 +52,7 @@ void Class::ResetClass() {
 }
 
 void Class::VisitRoots(RootCallback* callback, void* arg) {
-  if (!java_lang_Class_.IsNull()) {
-    java_lang_Class_.VisitRoot(callback, arg, 0, kRootStickyClass);
-  }
+  java_lang_Class_.VisitRootIfNonNull(callback, arg, RootInfo(kRootStickyClass));
 }
 
 void Class::SetStatus(Status new_status, Thread* self) {
@@ -117,7 +115,7 @@ void Class::SetStatus(Status new_status, Thread* self) {
     self->SetException(gc_safe_throw_location, old_exception.Get());
     self->SetExceptionReportedToInstrumentation(is_exception_reported);
   }
-  COMPILE_ASSERT(sizeof(Status) == sizeof(uint32_t), size_of_status_not_uint32);
+  static_assert(sizeof(Status) == sizeof(uint32_t), "Size of status not equal to uint32");
   if (Runtime::Current()->IsActiveTransaction()) {
     SetField32Volatile<true>(OFFSET_OF_OBJECT_MEMBER(Class, status_), new_status);
   } else {
@@ -149,6 +147,7 @@ void Class::SetStatus(Status new_status, Thread* self) {
 
 void Class::SetDexCache(DexCache* new_dex_cache) {
   SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, dex_cache_), new_dex_cache);
+  SetDexCacheStrings(new_dex_cache != nullptr ? new_dex_cache->GetStrings() : nullptr);
 }
 
 void Class::SetClassSize(uint32_t new_class_size) {
@@ -489,7 +488,10 @@ ArtMethod* Class::FindDeclaredVirtualMethod(const DexCache* dex_cache, uint32_t 
   if (GetDexCache() == dex_cache) {
     for (size_t i = 0; i < NumVirtualMethods(); ++i) {
       ArtMethod* method = GetVirtualMethod(i);
-      if (method->GetDexMethodIndex() == dex_method_idx) {
+      if (method->GetDexMethodIndex() == dex_method_idx &&
+          // A miranda method may have a different DexCache and is always created by linking,
+          // never *declared* in the class.
+          !method->IsMiranda()) {
         return method;
       }
     }
@@ -625,8 +627,8 @@ ArtField* Class::FindStaticField(Thread* self, Handle<Class> klass, const String
     HandleWrapper<mirror::Class> h_k(hs.NewHandleWrapper(&k));
     // Is this field in any of this class' interfaces?
     for (uint32_t i = 0; i < h_k->NumDirectInterfaces(); ++i) {
-      StackHandleScope<1> hs(self);
-      Handle<mirror::Class> interface(hs.NewHandle(GetDirectInterface(self, h_k, i)));
+      StackHandleScope<1> hs2(self);
+      Handle<mirror::Class> interface(hs2.NewHandle(GetDirectInterface(self, h_k, i)));
       f = FindStaticField(self, interface, name, type);
       if (f != nullptr) {
         return f;
@@ -649,8 +651,8 @@ ArtField* Class::FindStaticField(Thread* self, Handle<Class> klass, const DexCac
     HandleWrapper<mirror::Class> h_k(hs.NewHandleWrapper(&k));
     // Is this field in any of this class' interfaces?
     for (uint32_t i = 0; i < h_k->NumDirectInterfaces(); ++i) {
-      StackHandleScope<1> hs(self);
-      Handle<mirror::Class> interface(hs.NewHandle(GetDirectInterface(self, h_k, i)));
+      StackHandleScope<1> hs2(self);
+      Handle<mirror::Class> interface(hs2.NewHandle(GetDirectInterface(self, h_k, i)));
       f = FindStaticField(self, interface, dex_cache, dex_field_idx);
       if (f != nullptr) {
         return f;
@@ -677,8 +679,8 @@ ArtField* Class::FindField(Thread* self, Handle<Class> klass, const StringPiece&
     StackHandleScope<1> hs(self);
     HandleWrapper<mirror::Class> h_k(hs.NewHandleWrapper(&k));
     for (uint32_t i = 0; i < h_k->NumDirectInterfaces(); ++i) {
-      StackHandleScope<1> hs(self);
-      Handle<mirror::Class> interface(hs.NewHandle(GetDirectInterface(self, h_k, i)));
+      StackHandleScope<1> hs2(self);
+      Handle<mirror::Class> interface(hs2.NewHandle(GetDirectInterface(self, h_k, i)));
       f = interface->FindStaticField(self, interface, name, type);
       if (f != nullptr) {
         return f;
@@ -736,24 +738,6 @@ const DexFile::ClassDef* Class::GetClassDef() {
     return nullptr;
   }
   return &GetDexFile().GetClassDef(class_def_idx);
-}
-
-uint32_t Class::NumDirectInterfaces() {
-  if (IsPrimitive()) {
-    return 0;
-  } else if (IsArrayClass()) {
-    return 2;
-  } else if (IsProxyClass()) {
-    mirror::ObjectArray<mirror::Class>* interfaces = GetInterfaces();
-    return interfaces != nullptr ? interfaces->GetLength() : 0;
-  } else {
-    const DexFile::TypeList* interfaces = GetInterfaceTypeList();
-    if (interfaces == nullptr) {
-      return 0;
-    } else {
-      return interfaces->Size();
-    }
-  }
 }
 
 uint16_t Class::GetDirectInterfaceTypeIdx(uint32_t idx) {
@@ -817,22 +801,21 @@ const DexFile::TypeList* Class::GetInterfaceTypeList() {
   return GetDexFile().GetInterfacesList(*class_def);
 }
 
-void Class::PopulateEmbeddedImtAndVTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ObjectArray<ArtMethod>* table = GetImTable();
-  if (table != nullptr) {
-    for (uint32_t i = 0; i < kImtSize; i++) {
-      SetEmbeddedImTableEntry(i, table->Get(i));
-    }
+void Class::PopulateEmbeddedImtAndVTable(StackHandleScope<kImtSize>* imt_handle_scope) {
+  for (uint32_t i = 0; i < kImtSize; i++) {
+    // Replace null with conflict.
+    mirror::Object* obj = imt_handle_scope->GetReference(i);
+    DCHECK(obj != nullptr);
+    SetEmbeddedImTableEntry(i, obj->AsArtMethod());
   }
 
-  table = GetVTableDuringLinking();
+  ObjectArray<ArtMethod>* table = GetVTableDuringLinking();
   CHECK(table != nullptr) << PrettyClass(this);
   SetEmbeddedVTableLength(table->GetLength());
   for (int32_t i = 0; i < table->GetLength(); i++) {
-    SetEmbeddedVTableEntry(i, table->Get(i));
+    SetEmbeddedVTableEntry(i, table->GetWithoutChecks(i));
   }
 
-  SetImTable(nullptr);
   // Keep java.lang.Object class's vtable around for since it's easier
   // to be reused by array classes during their linking.
   if (!IsObjectClass()) {
@@ -844,9 +827,10 @@ void Class::PopulateEmbeddedImtAndVTable() SHARED_LOCKS_REQUIRED(Locks::mutator_
 class CopyClassVisitor {
  public:
   explicit CopyClassVisitor(Thread* self, Handle<mirror::Class>* orig,
-                            size_t new_length, size_t copy_bytes)
+                            size_t new_length, size_t copy_bytes,
+                            StackHandleScope<mirror::Class::kImtSize>* imt_handle_scope)
       : self_(self), orig_(orig), new_length_(new_length),
-        copy_bytes_(copy_bytes) {
+        copy_bytes_(copy_bytes), imt_handle_scope_(imt_handle_scope) {
   }
 
   void operator()(Object* obj, size_t usable_size) const
@@ -855,7 +839,7 @@ class CopyClassVisitor {
     mirror::Class* new_class_obj = obj->AsClass();
     mirror::Object::CopyObject(self_, new_class_obj, orig_->Get(), copy_bytes_);
     new_class_obj->SetStatus(Class::kStatusResolving, self_);
-    new_class_obj->PopulateEmbeddedImtAndVTable();
+    new_class_obj->PopulateEmbeddedImtAndVTable(imt_handle_scope_);
     new_class_obj->SetClassSize(new_length_);
   }
 
@@ -864,10 +848,12 @@ class CopyClassVisitor {
   Handle<mirror::Class>* const orig_;
   const size_t new_length_;
   const size_t copy_bytes_;
+  StackHandleScope<mirror::Class::kImtSize>* const imt_handle_scope_;
   DISALLOW_COPY_AND_ASSIGN(CopyClassVisitor);
 };
 
-Class* Class::CopyOf(Thread* self, int32_t new_length) {
+Class* Class::CopyOf(Thread* self, int32_t new_length,
+                     StackHandleScope<kImtSize>* imt_handle_scope) {
   DCHECK_GE(new_length, static_cast<int32_t>(sizeof(Class)));
   // We may get copied by a compacting GC.
   StackHandleScope<1> hs(self);
@@ -875,17 +861,15 @@ Class* Class::CopyOf(Thread* self, int32_t new_length) {
   gc::Heap* heap = Runtime::Current()->GetHeap();
   // The num_bytes (3rd param) is sizeof(Class) as opposed to SizeOf()
   // to skip copying the tail part that we will overwrite here.
-  CopyClassVisitor visitor(self, &h_this, new_length, sizeof(Class));
-
+  CopyClassVisitor visitor(self, &h_this, new_length, sizeof(Class), imt_handle_scope);
   mirror::Object* new_class =
       kMovingClasses
          ? heap->AllocObject<true>(self, java_lang_Class_.Read(), new_length, visitor)
          : heap->AllocNonMovableObject<true>(self, java_lang_Class_.Read(), new_length, visitor);
   if (UNLIKELY(new_class == nullptr)) {
     CHECK(self->IsExceptionPending());  // Expect an OOME.
-    return NULL;
+    return nullptr;
   }
-
   return new_class->AsClass();
 }
 

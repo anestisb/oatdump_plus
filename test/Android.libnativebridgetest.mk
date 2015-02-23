@@ -47,11 +47,10 @@ define build-libnativebridgetest
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.libnativebridgetest.mk
-  include external/libcxx/libcxx.mk
   ifeq ($$(art_target_or_host),target)
     $(call set-target-local-clang-vars)
     $(call set-target-local-cflags-vars,debug)
-    LOCAL_SHARED_LIBRARIES += libdl libcutils
+    LOCAL_SHARED_LIBRARIES += libdl
     LOCAL_STATIC_LIBRARIES := libgtest
     LOCAL_MULTILIB := both
     LOCAL_MODULE_PATH_32 := $(ART_TARGET_TEST_OUT)/$(ART_TARGET_ARCH_32)
@@ -62,7 +61,7 @@ define build-libnativebridgetest
     LOCAL_CLANG := $(ART_HOST_CLANG)
     LOCAL_CFLAGS := $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
     LOCAL_STATIC_LIBRARIES := libcutils
-    LOCAL_LDLIBS += -ldl -lpthread
+    LOCAL_LDLIBS := $(ART_HOST_LDLIBS) -ldl -lpthread
     ifeq ($(HOST_OS),linux)
       LOCAL_LDLIBS += -lrt
     endif

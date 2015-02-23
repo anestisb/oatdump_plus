@@ -55,6 +55,7 @@ class ScratchFile {
 
   int GetFd() const;
 
+  void Close();
   void Unlink();
 
  private:
@@ -75,48 +76,60 @@ class CommonRuntimeTest : public testing::Test {
   CommonRuntimeTest();
   ~CommonRuntimeTest();
 
+  // Gets the path of the libcore dex file.
+  static std::string GetLibCoreDexFileName();
+
  protected:
   static bool IsHost() {
     return !kIsTargetBuild;
   }
 
-  const DexFile* LoadExpectSingleDexFile(const char* location);
+  // File location to core.art, e.g. $ANDROID_HOST_OUT/system/framework/core.art
+  static std::string GetCoreArtLocation();
+
+  // File location to core.oat, e.g. $ANDROID_HOST_OUT/system/framework/core.oat
+  static std::string GetCoreOatLocation();
+
+  std::unique_ptr<const DexFile> LoadExpectSingleDexFile(const char* location);
 
   virtual void SetUp();
 
   // Allow subclases such as CommonCompilerTest to add extra options.
-  virtual void SetUpRuntimeOptions(RuntimeOptions* options) {}
+  virtual void SetUpRuntimeOptions(RuntimeOptions* options ATTRIBUTE_UNUSED) {}
 
   void ClearDirectory(const char* dirpath);
 
   virtual void TearDown();
 
-  // Gets the path of the libcore dex file.
-  std::string GetLibCoreDexFileName();
-
   // Gets the path of the specified dex file for host or target.
-  std::string GetDexFileName(const std::string& jar_prefix);
+  static std::string GetDexFileName(const std::string& jar_prefix);
 
   std::string GetTestAndroidRoot();
 
-  std::vector<const DexFile*> OpenTestDexFiles(const char* name)
+  std::vector<std::unique_ptr<const DexFile>> OpenTestDexFiles(const char* name)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  const DexFile* OpenTestDexFile(const char* name) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  std::unique_ptr<const DexFile> OpenTestDexFile(const char* name)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   jobject LoadDex(const char* dex_name) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   std::string android_data_;
   std::string dalvik_cache_;
-  const DexFile* java_lang_dex_file_;  // owned by runtime_
-  std::vector<const DexFile*> boot_class_path_;
+
   std::unique_ptr<Runtime> runtime_;
-  // Owned by the runtime
+
+  // The class_linker_, java_lang_dex_file_, and boot_class_path_ are all
+  // owned by the runtime.
   ClassLinker* class_linker_;
+  const DexFile* java_lang_dex_file_;
+  std::vector<const DexFile*> boot_class_path_;
 
  private:
+  static std::string GetCoreFileLocation(const char* suffix);
+
   std::unique_ptr<CompilerCallbacks> callbacks_;
-  std::vector<const DexFile*> opened_dex_files_;
+  std::vector<std::unique_ptr<const DexFile>> loaded_dex_files_;
 };
 
 // Sets a CheckJni abort hook to catch failures. Note that this will cause CheckJNI to carry on
@@ -137,16 +150,6 @@ class CheckJniAbortCatcher {
 
   DISALLOW_COPY_AND_ASSIGN(CheckJniAbortCatcher);
 };
-
-// TODO: These tests were disabled for portable when we went to having
-// MCLinker link LLVM ELF output because we no longer just have code
-// blobs in memory. We'll need to dlopen to load and relocate
-// temporary output to resurrect these tests.
-#define TEST_DISABLED_FOR_PORTABLE() \
-  if (kUsePortableCompiler) { \
-    printf("WARNING: TEST DISABLED FOR PORTABLE\n"); \
-    return; \
-  }
 
 // TODO: When heap reference poisoning works with the compiler, get rid of this.
 #define TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING() \

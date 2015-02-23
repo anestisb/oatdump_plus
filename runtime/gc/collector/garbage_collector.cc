@@ -18,6 +18,10 @@
 
 #include "garbage_collector.h"
 
+#define ATRACE_TAG ATRACE_TAG_DALVIK
+#include "cutils/trace.h"
+
+#include "base/dumpable.h"
 #include "base/histogram-inl.h"
 #include "base/logging.h"
 #include "base/mutex-inl.h"
@@ -98,7 +102,7 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
   total_time_ns_ += current_iteration->GetDurationNs();
   for (uint64_t pause_time : current_iteration->GetPauseTimes()) {
     MutexLock mu(self, pause_histogram_lock_);
-    pause_histogram_.AddValue(pause_time / 1000);
+    pause_histogram_.AdjustAndAddValue(pause_time);
   }
   ATRACE_END();
 }
@@ -188,7 +192,7 @@ void GarbageCollector::DumpPerformanceInfo(std::ostream& os) {
   if (iterations == 0) {
     return;
   }
-  os << ConstDumpable<CumulativeLogger>(logger);
+  os << Dumpable<CumulativeLogger>(logger);
   const uint64_t total_ns = logger.GetTotalNs();
   double seconds = NsToMs(logger.GetTotalNs()) / 1000.0;
   const uint64_t freed_bytes = GetTotalFreedBytes();

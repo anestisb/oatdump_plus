@@ -17,7 +17,9 @@
 #ifndef ART_COMPILER_DEX_QUICK_X86_CODEGEN_X86_H_
 #define ART_COMPILER_DEX_QUICK_X86_CODEGEN_X86_H_
 
-#include "dex/compiler_internals.h"
+#include "base/logging.h"
+#include "dex/compiler_ir.h"
+#include "dex/mir_graph.h"
 #include "dex/quick/mir_to_lir.h"
 #include "x86_lir.h"
 
@@ -28,39 +30,40 @@ namespace art {
 
 class X86Mir2Lir : public Mir2Lir {
  protected:
-  class InToRegStorageMapper {
-   public:
-    virtual RegStorage GetNextReg(bool is_double_or_float, bool is_wide, bool is_ref) = 0;
-    virtual ~InToRegStorageMapper() {}
-  };
-
   class InToRegStorageX86_64Mapper : public InToRegStorageMapper {
    public:
-    explicit InToRegStorageX86_64Mapper(Mir2Lir* ml) : ml_(ml), cur_core_reg_(0), cur_fp_reg_(0) {}
-    virtual ~InToRegStorageX86_64Mapper() {}
-    virtual RegStorage GetNextReg(bool is_double_or_float, bool is_wide, bool is_ref);
+    explicit InToRegStorageX86_64Mapper(Mir2Lir* m2l)
+        : m2l_(m2l), cur_core_reg_(0), cur_fp_reg_(0) {}
+    virtual RegStorage GetNextReg(ShortyArg arg);
+    virtual void Reset() OVERRIDE {
+      cur_core_reg_ = 0;
+      cur_fp_reg_ = 0;
+    }
    protected:
-    Mir2Lir* ml_;
-   private:
-    int cur_core_reg_;
-    int cur_fp_reg_;
+    Mir2Lir* m2l_;
+    size_t cur_core_reg_;
+    size_t cur_fp_reg_;
   };
 
-  class InToRegStorageMapping {
+  class InToRegStorageX86Mapper : public InToRegStorageX86_64Mapper {
    public:
-    InToRegStorageMapping() : max_mapped_in_(0), is_there_stack_mapped_(false),
-    initialized_(false) {}
-    void Initialize(RegLocation* arg_locs, int count, InToRegStorageMapper* mapper);
-    int GetMaxMappedIn() { return max_mapped_in_; }
-    bool IsThereStackMapped() { return is_there_stack_mapped_; }
-    RegStorage Get(int in_position);
-    bool IsInitialized() { return initialized_; }
-   private:
-    std::map<int, RegStorage> mapping_;
-    int max_mapped_in_;
-    bool is_there_stack_mapped_;
-    bool initialized_;
+    explicit InToRegStorageX86Mapper(Mir2Lir* m2l)
+        : InToRegStorageX86_64Mapper(m2l) { }
+    virtual RegStorage GetNextReg(ShortyArg arg);
   };
+
+  InToRegStorageX86_64Mapper in_to_reg_storage_x86_64_mapper_;
+  InToRegStorageX86Mapper in_to_reg_storage_x86_mapper_;
+  InToRegStorageMapper* GetResetedInToRegStorageMapper() OVERRIDE {
+    InToRegStorageMapper* res;
+    if (cu_->target64) {
+      res = &in_to_reg_storage_x86_64_mapper_;
+    } else {
+      res = &in_to_reg_storage_x86_mapper_;
+    }
+    res->Reset();
+    return res;
+  }
 
   class ExplicitTempRegisterLock {
   public:
@@ -71,6 +74,8 @@ class X86Mir2Lir : public Mir2Lir {
     X86Mir2Lir* const mir_to_lir_;
   };
 
+  virtual int GenDalvikArgsBulkCopy(CallInfo* info, int first, int count) OVERRIDE;
+
  public:
   X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena);
 
@@ -78,6 +83,10 @@ class X86Mir2Lir : public Mir2Lir {
   bool SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div, RegLocation rl_src,
                           RegLocation rl_dest, int lit) OVERRIDE;
   bool EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) OVERRIDE;
+  void GenMultiplyByConstantFloat(RegLocation rl_dest, RegLocation rl_src1,
+                                  int32_t constant) OVERRIDE;
+  void GenMultiplyByConstantDouble(RegLocation rl_dest, RegLocation rl_src1,
+                                   int64_t constant) OVERRIDE;
   LIR* CheckSuspendUsingLoad() OVERRIDE;
   RegStorage LoadHelper(QuickEntrypointEnum trampoline) OVERRIDE;
   LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
@@ -86,11 +95,15 @@ class X86Mir2Lir : public Mir2Lir {
                        OpSize size) OVERRIDE;
   LIR* LoadConstantNoClobber(RegStorage r_dest, int value);
   LIR* LoadConstantWide(RegStorage r_dest, int64_t value);
+  void GenLongToInt(RegLocation rl_dest, RegLocation rl_src);
   LIR* StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
                      OpSize size, VolatileKind is_volatile) OVERRIDE;
   LIR* StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src, int scale,
                         OpSize size) OVERRIDE;
-  void MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) OVERRIDE;
+
+  /// @copydoc Mir2Lir::UnconditionallyMarkGCCard(RegStorage)
+  void UnconditionallyMarkGCCard(RegStorage tgt_addr_reg) OVERRIDE;
+
   void GenImplicitNullCheck(RegStorage reg, int opt_flags) OVERRIDE;
 
   // Required for target - register utilities.
@@ -100,9 +113,12 @@ class X86Mir2Lir : public Mir2Lir {
       if (cu_->target64) {
         return As64BitReg(TargetReg32(symbolic_reg));
       } else {
+        if (symbolic_reg >= kFArg0 && symbolic_reg <= kFArg3) {
+          // We want an XMM, not a pair.
+          return As64BitReg(TargetReg32(symbolic_reg));
+        }
         // x86: construct a pair.
         DCHECK((kArg0 <= symbolic_reg && symbolic_reg < kArg3) ||
-               (kFArg0 <= symbolic_reg && symbolic_reg < kFArg3) ||
                (kRet0 == symbolic_reg));
         return RegStorage::MakeRegPair(TargetReg32(symbolic_reg),
                                  TargetReg32(static_cast<SpecialTargetRegister>(symbolic_reg + 1)));
@@ -116,8 +132,6 @@ class X86Mir2Lir : public Mir2Lir {
   RegStorage TargetPtrReg(SpecialTargetRegister symbolic_reg) OVERRIDE {
     return TargetReg(symbolic_reg, cu_->target64 ? kWide : kNotWide);
   }
-
-  RegStorage GetArgMappingToPhysicalReg(int arg_num) OVERRIDE;
 
   RegLocation GetReturnAlt() OVERRIDE;
   RegLocation GetReturnWideAlt() OVERRIDE;
@@ -180,11 +194,11 @@ class X86Mir2Lir : public Mir2Lir {
 
   // Long instructions.
   void GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                      RegLocation rl_src2) OVERRIDE;
+                      RegLocation rl_src2, int flags) OVERRIDE;
   void GenArithImmOpLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                         RegLocation rl_src2) OVERRIDE;
+                         RegLocation rl_src2, int flags) OVERRIDE;
   void GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
-                         RegLocation rl_src1, RegLocation rl_shift) OVERRIDE;
+                         RegLocation rl_src1, RegLocation rl_shift, int flags) OVERRIDE;
   void GenCmpLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) OVERRIDE;
   void GenIntToLong(RegLocation rl_dest, RegLocation rl_src) OVERRIDE;
   void GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
@@ -245,12 +259,14 @@ class X86Mir2Lir : public Mir2Lir {
   void GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) OVERRIDE;
   void GenExitSequence() OVERRIDE;
   void GenSpecialExitSequence() OVERRIDE;
+  void GenSpecialEntryForSuspend() OVERRIDE;
+  void GenSpecialExitForSuspend() OVERRIDE;
   void GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias, bool is_double) OVERRIDE;
   void GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) OVERRIDE;
   void GenSelect(BasicBlock* bb, MIR* mir) OVERRIDE;
   void GenSelectConst32(RegStorage left_op, RegStorage right_op, ConditionCode code,
                         int32_t true_val, int32_t false_val, RegStorage rs_dest,
-                        int dest_reg_class) OVERRIDE;
+                        RegisterClass dest_reg_class) OVERRIDE;
   bool GenMemBarrier(MemBarrierKind barrier_kind) OVERRIDE;
   void GenMoveException(RegLocation rl_dest) OVERRIDE;
   void GenMultiplyByTwoBitMultiplier(RegLocation rl_src, RegLocation rl_result, int lit,
@@ -314,9 +330,10 @@ class X86Mir2Lir : public Mir2Lir {
    * @param rl_dest Destination for the result.
    * @param rl_lhs Left hand operand.
    * @param rl_rhs Right hand operand.
+   * @param flags The instruction optimization flags.
    */
   void GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_lhs,
-                     RegLocation rl_rhs) OVERRIDE;
+                     RegLocation rl_rhs, int flags) OVERRIDE;
 
   /*
    * @brief Load the Method* of a dex method into the register.
@@ -338,22 +355,7 @@ class X86Mir2Lir : public Mir2Lir {
   void LoadClassType(const DexFile& dex_file, uint32_t type_idx,
                      SpecialTargetRegister symbolic_reg) OVERRIDE;
 
-  void FlushIns(RegLocation* ArgLocs, RegLocation rl_method) OVERRIDE;
-
   NextCallInsn GetNextSDCallInsn() OVERRIDE;
-  int GenDalvikArgsNoRange(CallInfo* info, int call_state, LIR** pcrLabel,
-                           NextCallInsn next_call_insn,
-                           const MethodReference& target_method,
-                           uint32_t vtable_idx,
-                           uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
-                           bool skip_this) OVERRIDE;
-
-  int GenDalvikArgsRange(CallInfo* info, int call_state, LIR** pcrLabel,
-                         NextCallInsn next_call_insn,
-                         const MethodReference& target_method,
-                         uint32_t vtable_idx,
-                         uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
-                         bool skip_this) OVERRIDE;
 
   /*
    * @brief Generate a relative call to the method that will be patched at link time.
@@ -384,7 +386,7 @@ class X86Mir2Lir : public Mir2Lir {
   LIR* InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) OVERRIDE;
 
  protected:
-  RegStorage TargetReg32(SpecialTargetRegister reg);
+  RegStorage TargetReg32(SpecialTargetRegister reg) const;
   // Casting of RegStorage
   RegStorage As32BitReg(RegStorage reg) {
     DCHECK(!reg.IsPair());
@@ -426,8 +428,6 @@ class X86Mir2Lir : public Mir2Lir {
                            RegStorage r_dest, OpSize size);
   LIR* StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
                             RegStorage r_src, OpSize size, int opt_flags = 0);
-
-  RegStorage GetCoreArgMappingToPhysicalReg(int core_arg_num);
 
   int AssignInsnOffsets();
   void AssignOffsets();
@@ -498,7 +498,7 @@ class X86Mir2Lir : public Mir2Lir {
   void GenConstWide(RegLocation rl_dest, int64_t value);
   void GenMultiplyVectorSignedByte(RegStorage rs_dest_src1, RegStorage rs_src2);
   void GenMultiplyVectorLong(RegStorage rs_dest_src1, RegStorage rs_src2);
-  void GenShiftByteVector(BasicBlock *bb, MIR *mir);
+  void GenShiftByteVector(MIR* mir);
   void AndMaskVectorRegister(RegStorage rs_src1, uint32_t m1, uint32_t m2, uint32_t m3,
                              uint32_t m4);
   void MaskVectorRegister(X86OpCode opcode, RegStorage rs_src1, uint32_t m1, uint32_t m2,
@@ -525,7 +525,7 @@ class X86Mir2Lir : public Mir2Lir {
    * @brief Check if a register is byte addressable.
    * @returns true if a register is byte addressable.
    */
-  bool IsByteRegister(RegStorage reg);
+  bool IsByteRegister(RegStorage reg) const;
 
   void GenDivRemLongLit(RegLocation rl_dest, RegLocation rl_src, int64_t imm, bool is_div);
 
@@ -556,88 +556,80 @@ class X86Mir2Lir : public Mir2Lir {
 
   /*
    * @brief Load 128 bit constant into vector register.
-   * @param bb The basic block in which the MIR is from.
    * @param mir The MIR whose opcode is kMirConstVector
    * @note vA is the TypeSize for the register.
    * @note vB is the destination XMM register. arg[0..3] are 32 bit constant values.
    */
-  void GenConst128(BasicBlock* bb, MIR* mir);
+  void GenConst128(MIR* mir);
 
   /*
    * @brief MIR to move a vectorized register to another.
-   * @param bb The basic block in which the MIR is from.
    * @param mir The MIR whose opcode is kMirConstVector.
    * @note vA: TypeSize
    * @note vB: destination
    * @note vC: source
    */
-  void GenMoveVector(BasicBlock *bb, MIR *mir);
+  void GenMoveVector(MIR* mir);
 
   /*
    * @brief Packed multiply of units in two vector registers: vB = vB .* @note vC using vA to know
    * the type of the vector.
-   * @param bb The basic block in which the MIR is from.
    * @param mir The MIR whose opcode is kMirConstVector.
    * @note vA: TypeSize
    * @note vB: destination and source
    * @note vC: source
    */
-  void GenMultiplyVector(BasicBlock *bb, MIR *mir);
+  void GenMultiplyVector(MIR* mir);
 
   /*
    * @brief Packed addition of units in two vector registers: vB = vB .+ vC using vA to know the
    * type of the vector.
-   * @param bb The basic block in which the MIR is from.
    * @param mir The MIR whose opcode is kMirConstVector.
    * @note vA: TypeSize
    * @note vB: destination and source
    * @note vC: source
    */
-  void GenAddVector(BasicBlock *bb, MIR *mir);
+  void GenAddVector(MIR* mir);
 
   /*
    * @brief Packed subtraction of units in two vector registers: vB = vB .- vC using vA to know the
    * type of the vector.
-   * @param bb The basic block in which the MIR is from.
    * @param mir The MIR whose opcode is kMirConstVector.
    * @note vA: TypeSize
    * @note vB: destination and source
    * @note vC: source
    */
-  void GenSubtractVector(BasicBlock *bb, MIR *mir);
+  void GenSubtractVector(MIR* mir);
 
   /*
    * @brief Packed shift left of units in two vector registers: vB = vB .<< vC using vA to know the
    * type of the vector.
-   * @param bb The basic block in which the MIR is from.
    * @param mir The MIR whose opcode is kMirConstVector.
    * @note vA: TypeSize
    * @note vB: destination and source
    * @note vC: immediate
    */
-  void GenShiftLeftVector(BasicBlock *bb, MIR *mir);
+  void GenShiftLeftVector(MIR* mir);
 
   /*
    * @brief Packed signed shift right of units in two vector registers: vB = vB .>> vC using vA to
    * know the type of the vector.
-   * @param bb The basic block in which the MIR is from.
    * @param mir The MIR whose opcode is kMirConstVector.
    * @note vA: TypeSize
    * @note vB: destination and source
    * @note vC: immediate
    */
-  void GenSignedShiftRightVector(BasicBlock *bb, MIR *mir);
+  void GenSignedShiftRightVector(MIR* mir);
 
   /*
    * @brief Packed unsigned shift right of units in two vector registers: vB = vB .>>> vC using vA
    * to know the type of the vector.
-   * @param bb The basic block in which the MIR is from..
    * @param mir The MIR whose opcode is kMirConstVector.
    * @note vA: TypeSize
    * @note vB: destination and source
    * @note vC: immediate
    */
-  void GenUnsignedShiftRightVector(BasicBlock *bb, MIR *mir);
+  void GenUnsignedShiftRightVector(MIR* mir);
 
   /*
    * @brief Packed bitwise and of units in two vector registers: vB = vB .& vC using vA to know the
@@ -646,51 +638,47 @@ class X86Mir2Lir : public Mir2Lir {
    * @note vB: destination and source
    * @note vC: source
    */
-  void GenAndVector(BasicBlock *bb, MIR *mir);
+  void GenAndVector(MIR* mir);
 
   /*
    * @brief Packed bitwise or of units in two vector registers: vB = vB .| vC using vA to know the
    * type of the vector.
-   * @param bb The basic block in which the MIR is from.
    * @param mir The MIR whose opcode is kMirConstVector.
    * @note vA: TypeSize
    * @note vB: destination and source
    * @note vC: source
    */
-  void GenOrVector(BasicBlock *bb, MIR *mir);
+  void GenOrVector(MIR* mir);
 
   /*
    * @brief Packed bitwise xor of units in two vector registers: vB = vB .^ vC using vA to know the
    * type of the vector.
-   * @param bb The basic block in which the MIR is from.
    * @param mir The MIR whose opcode is kMirConstVector.
    * @note vA: TypeSize
    * @note vB: destination and source
    * @note vC: source
    */
-  void GenXorVector(BasicBlock *bb, MIR *mir);
+  void GenXorVector(MIR* mir);
 
   /*
    * @brief Reduce a 128-bit packed element into a single VR by taking lower bits
-   * @param bb The basic block in which the MIR is from.
    * @param mir The MIR whose opcode is kMirConstVector.
    * @details Instruction does a horizontal addition of the packed elements and then adds it to VR.
    * @note vA: TypeSize
    * @note vB: destination and source VR (not vector register)
    * @note vC: source (vector register)
    */
-  void GenAddReduceVector(BasicBlock *bb, MIR *mir);
+  void GenAddReduceVector(MIR* mir);
 
   /*
    * @brief Extract a packed element into a single VR.
-   * @param bb The basic block in which the MIR is from.
    * @param mir The MIR whose opcode is kMirConstVector.
    * @note vA: TypeSize
    * @note vB: destination VR (not vector register)
    * @note vC: source (vector register)
    * @note arg[0]: The index to use for extraction from vector register (which packed element).
    */
-  void GenReduceVector(BasicBlock *bb, MIR *mir);
+  void GenReduceVector(MIR* mir);
 
   /*
    * @brief Create a vector value, with all TypeSize values equal to vC
@@ -700,21 +688,21 @@ class X86Mir2Lir : public Mir2Lir {
    * @note vB: destination vector register.
    * @note vC: source VR (not vector register).
    */
-  void GenSetVector(BasicBlock *bb, MIR *mir);
+  void GenSetVector(MIR* mir);
 
   /**
    * @brief Used to generate code for kMirOpPackedArrayGet.
    * @param bb The basic block of MIR.
    * @param mir The mir whose opcode is kMirOpPackedArrayGet.
    */
-  void GenPackedArrayGet(BasicBlock *bb, MIR *mir);
+  void GenPackedArrayGet(BasicBlock* bb, MIR* mir);
 
   /**
    * @brief Used to generate code for kMirOpPackedArrayPut.
    * @param bb The basic block of MIR.
    * @param mir The mir whose opcode is kMirOpPackedArrayPut.
    */
-  void GenPackedArrayPut(BasicBlock *bb, MIR *mir);
+  void GenPackedArrayPut(BasicBlock* bb, MIR* mir);
 
   /*
    * @brief Generate code for a vector opcode.
@@ -768,10 +756,11 @@ class X86Mir2Lir : public Mir2Lir {
    * @param rl_src1 Numerator Location.
    * @param rl_src2 Divisor Location.
    * @param is_div 'true' if this is a division, 'false' for a remainder.
-   * @param check_zero 'true' if an exception should be generated if the divisor is 0.
+   * @param flags The instruction optimization flags. It can include information
+   * if exception check can be elided.
    */
   RegLocation GenDivRem(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2,
-                        bool is_div, bool check_zero);
+                        bool is_div, int flags);
 
   /*
    * @brief Generate an integer div or rem operation by a literal.
@@ -788,10 +777,11 @@ class X86Mir2Lir : public Mir2Lir {
    * @param rl_dest The destination.
    * @param rl_src The value to be shifted.
    * @param shift_amount How much to shift.
+   * @param flags The instruction optimization flags.
    * @returns the RegLocation of the result.
    */
   RegLocation GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
-                                RegLocation rl_src, int shift_amount);
+                                RegLocation rl_src, int shift_amount, int flags);
   /*
    * Generate an imul of a register by a constant or a better sequence.
    * @param dest Destination Register.
@@ -858,13 +848,13 @@ class X86Mir2Lir : public Mir2Lir {
 
   // Try to do a long multiplication where rl_src2 is a constant. This simplified setup might fail,
   // in which case false will be returned.
-  bool GenMulLongConst(RegLocation rl_dest, RegLocation rl_src1, int64_t val);
+  bool GenMulLongConst(RegLocation rl_dest, RegLocation rl_src1, int64_t val, int flags);
   void GenMulLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                  RegLocation rl_src2);
+                  RegLocation rl_src2, int flags);
   void GenNotLong(RegLocation rl_dest, RegLocation rl_src);
   void GenNegLong(RegLocation rl_dest, RegLocation rl_src);
   void GenDivRemLong(Instruction::Code, RegLocation rl_dest, RegLocation rl_src1,
-                     RegLocation rl_src2, bool is_div);
+                     RegLocation rl_src2, bool is_div, int flags);
 
   void SpillCoreRegs();
   void UnSpillCoreRegs();
@@ -887,8 +877,8 @@ class X86Mir2Lir : public Mir2Lir {
    * the value is live in a temp register of the correct class.  Additionally, if the value is in
    * a temp register of the wrong register class, it will be clobbered.
    */
-  RegLocation UpdateLocTyped(RegLocation loc, int reg_class);
-  RegLocation UpdateLocWideTyped(RegLocation loc, int reg_class);
+  RegLocation UpdateLocTyped(RegLocation loc);
+  RegLocation UpdateLocWideTyped(RegLocation loc);
 
   /*
    * @brief Analyze MIR before generating code, to prepare for the code generation.
@@ -899,7 +889,7 @@ class X86Mir2Lir : public Mir2Lir {
    * @brief Analyze one basic block.
    * @param bb Basic block to analyze.
    */
-  void AnalyzeBB(BasicBlock * bb);
+  void AnalyzeBB(BasicBlock* bb);
 
   /*
    * @brief Analyze one extended MIR instruction
@@ -907,7 +897,7 @@ class X86Mir2Lir : public Mir2Lir {
    * @param bb Basic block containing instruction.
    * @param mir Extended instruction to analyze.
    */
-  void AnalyzeExtendedMIR(int opcode, BasicBlock * bb, MIR *mir);
+  void AnalyzeExtendedMIR(int opcode, BasicBlock* bb, MIR* mir);
 
   /*
    * @brief Analyze one MIR instruction
@@ -915,7 +905,7 @@ class X86Mir2Lir : public Mir2Lir {
    * @param bb Basic block containing instruction.
    * @param mir Instruction to analyze.
    */
-  virtual void AnalyzeMIR(int opcode, BasicBlock * bb, MIR *mir);
+  virtual void AnalyzeMIR(int opcode, BasicBlock* bb, MIR* mir);
 
   /*
    * @brief Analyze one MIR float/double instruction
@@ -923,7 +913,7 @@ class X86Mir2Lir : public Mir2Lir {
    * @param bb Basic block containing instruction.
    * @param mir Instruction to analyze.
    */
-  virtual void AnalyzeFPInstruction(int opcode, BasicBlock * bb, MIR *mir);
+  virtual void AnalyzeFPInstruction(int opcode, BasicBlock* bb, MIR* mir);
 
   /*
    * @brief Analyze one use of a double operand.
@@ -937,7 +927,7 @@ class X86Mir2Lir : public Mir2Lir {
    * @param bb Basic block containing instruction.
    * @param mir Instruction to analyze.
    */
-  void AnalyzeInvokeStatic(int opcode, BasicBlock * bb, MIR *mir);
+  void AnalyzeInvokeStatic(int opcode, BasicBlock* bb, MIR* mir);
 
   // Information derived from analysis of MIR
 
@@ -984,12 +974,11 @@ class X86Mir2Lir : public Mir2Lir {
    */
   LIR* AddVectorLiteral(int32_t* constants);
 
-  InToRegStorageMapping in_to_reg_storage_mapping_;
-
-  bool WideGPRsAreAliases() OVERRIDE {
+  bool WideGPRsAreAliases() const OVERRIDE {
     return cu_->target64;  // On 64b, we have 64b GPRs.
   }
-  bool WideFPRsAreAliases() OVERRIDE {
+
+  bool WideFPRsAreAliases() const OVERRIDE {
     return true;  // xmm registers have 64b views even on x86.
   }
 
@@ -999,11 +988,15 @@ class X86Mir2Lir : public Mir2Lir {
    */
   static void DumpRegLocation(RegLocation loc);
 
-  static const X86EncodingMap EncodingMap[kX86Last];
-
  private:
   void SwapBits(RegStorage result_reg, int shift, int32_t value);
   void SwapBits64(RegStorage result_reg, int shift, int64_t value);
+
+  static const X86EncodingMap EncodingMap[kX86Last];
+
+  friend std::ostream& operator<<(std::ostream& os, const X86OpCode& rhs);
+
+  DISALLOW_COPY_AND_ASSIGN(X86Mir2Lir);
 };
 
 }  // namespace art

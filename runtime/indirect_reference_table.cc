@@ -126,7 +126,7 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, mirror::Object* obj) {
   }
   table_[index].Add(obj);
   result = ToIndirectRef(index);
-  if (false) {
+  if ((false)) {
     LOG(INFO) << "+++ added at " << ExtractIndex(result) << " top=" << segment_state_.parts.topIndex
               << " holes=" << segment_state_.parts.numHoles;
   }
@@ -162,13 +162,12 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
   DCHECK(table_ != NULL);
   DCHECK_GE(segment_state_.parts.numHoles, prevState.parts.numHoles);
 
-  int idx = ExtractIndex(iref);
-
   if (GetIndirectRefKind(iref) == kHandleScopeOrInvalid &&
       Thread::Current()->HandleScopeContains(reinterpret_cast<jobject>(iref))) {
     LOG(WARNING) << "Attempt to remove local handle scope entry from IRT, ignoring";
     return true;
   }
+  const int idx = ExtractIndex(iref);
   if (idx < bottomIndex) {
     // Wrong segment.
     LOG(WARNING) << "Attempt to remove index outside index area (" << idx
@@ -193,7 +192,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
     int numHoles = segment_state_.parts.numHoles - prevState.parts.numHoles;
     if (numHoles != 0) {
       while (--topIndex > bottomIndex && numHoles != 0) {
-        if (false) {
+        if ((false)) {
           LOG(INFO) << "+++ checking for hole at " << topIndex - 1
                     << " (cookie=" << cookie << ") val="
                     << table_[topIndex - 1].GetReference()->Read<kWithoutReadBarrier>();
@@ -201,7 +200,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
         if (!table_[topIndex - 1].GetReference()->IsNull()) {
           break;
         }
-        if (false) {
+        if ((false)) {
           LOG(INFO) << "+++ ate hole at " << (topIndex - 1);
         }
         numHoles--;
@@ -210,7 +209,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
       segment_state_.parts.topIndex = topIndex;
     } else {
       segment_state_.parts.topIndex = topIndex-1;
-      if (false) {
+      if ((false)) {
         LOG(INFO) << "+++ ate last entry " << topIndex - 1;
       }
     }
@@ -228,7 +227,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
 
     *table_[idx].GetReference() = GcRoot<mirror::Object>(nullptr);
     segment_state_.parts.numHoles++;
-    if (false) {
+    if ((false)) {
       LOG(INFO) << "+++ left hole at " << idx << ", holes=" << segment_state_.parts.numHoles;
     }
   }
@@ -236,15 +235,22 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
   return true;
 }
 
-void IndirectReferenceTable::VisitRoots(RootCallback* callback, void* arg, uint32_t tid,
-                                        RootType root_type) {
+void IndirectReferenceTable::Trim() {
+  const size_t top_index = Capacity();
+  auto* release_start = AlignUp(reinterpret_cast<uint8_t*>(&table_[top_index]), kPageSize);
+  uint8_t* release_end = table_mem_map_->End();
+  madvise(release_start, release_end - release_start, MADV_DONTNEED);
+}
+
+void IndirectReferenceTable::VisitRoots(RootCallback* callback, void* arg,
+                                        const RootInfo& root_info) {
   for (auto ref : *this) {
     if (*ref == nullptr) {
       // Need to skip null entries to make it possible to do the
       // non-null check after the call back.
       continue;
     }
-    callback(ref, arg, tid, root_type);
+    callback(ref, arg, root_info);
     DCHECK(*ref != nullptr);
   }
 }

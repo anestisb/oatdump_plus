@@ -21,10 +21,11 @@
 #include <string>
 #include <vector>
 
-#include "instruction_set.h"
+#include "arch/instruction_set.h"
 #include "method_reference.h"
 #include "utils.h"
 #include "utils/array_ref.h"
+#include "utils/swap_space.h"
 
 namespace llvm {
   class Function;
@@ -38,25 +39,17 @@ class CompiledCode {
  public:
   // For Quick to supply an code blob
   CompiledCode(CompilerDriver* compiler_driver, InstructionSet instruction_set,
-               const std::vector<uint8_t>& quick_code);
-
-  // For Portable to supply an ELF object
-  CompiledCode(CompilerDriver* compiler_driver, InstructionSet instruction_set,
-               const std::string& elf_object, const std::string &symbol);
+               const ArrayRef<const uint8_t>& quick_code);
 
   InstructionSet GetInstructionSet() const {
     return instruction_set_;
   }
 
-  const std::vector<uint8_t>* GetPortableCode() const {
-    return portable_code_;
-  }
-
-  const std::vector<uint8_t>* GetQuickCode() const {
+  const SwapVector<uint8_t>* GetQuickCode() const {
     return quick_code_;
   }
 
-  void SetCode(const std::vector<uint8_t>* quick_code, const std::vector<uint8_t>* portable_code);
+  void SetCode(const ArrayRef<const uint8_t>* quick_code);
 
   bool operator==(const CompiledCode& rhs) const;
 
@@ -77,7 +70,6 @@ class CompiledCode {
   static const void* CodePointer(const void* code_pointer,
                                  InstructionSet instruction_set);
 
-  const std::string& GetSymbol() const;
   const std::vector<uint32_t>& GetOatdataOffsetsToCompliledCodeOffset() const;
   void AddOatdataOffsetToCompliledCodeOffset(uint32_t offset);
 
@@ -86,14 +78,8 @@ class CompiledCode {
 
   const InstructionSet instruction_set_;
 
-  // The ELF image for portable.
-  std::vector<uint8_t>* portable_code_;
-
   // Used to store the PIC code for Quick.
-  std::vector<uint8_t>* quick_code_;
-
-  // Used for the Portable ELF symbol name.
-  const std::string symbol_;
+  SwapVector<uint8_t>* quick_code_;
 
   // There are offsets from the oatdata symbol to where the offset to
   // the compiled method will be found. These are computed by the
@@ -124,8 +110,23 @@ class SrcMapElem {
   }
 };
 
-class SrcMap FINAL : public std::vector<SrcMapElem> {
+template <class Allocator>
+class SrcMap FINAL : public std::vector<SrcMapElem, Allocator> {
  public:
+  using std::vector<SrcMapElem, Allocator>::begin;
+  using typename std::vector<SrcMapElem, Allocator>::const_iterator;
+  using std::vector<SrcMapElem, Allocator>::empty;
+  using std::vector<SrcMapElem, Allocator>::end;
+  using std::vector<SrcMapElem, Allocator>::resize;
+  using std::vector<SrcMapElem, Allocator>::shrink_to_fit;
+  using std::vector<SrcMapElem, Allocator>::size;
+
+  explicit SrcMap() {}
+
+  template <class InputIt>
+  SrcMap(InputIt first, InputIt last, const Allocator& alloc)
+      : std::vector<SrcMapElem, Allocator>(first, last, alloc) {}
+
   void SortByFrom() {
     std::sort(begin(), end(), [] (const SrcMapElem& lhs, const SrcMapElem& rhs) -> bool {
       return lhs.from_ < rhs.from_;
@@ -162,7 +163,7 @@ class SrcMap FINAL : public std::vector<SrcMapElem> {
       }
       this->resize(i + 1);
 
-      for (size_t i = size(); --i >= 1; ) {
+      for (i = size(); --i >= 1; ) {
         (*this)[i].from_ -= (*this)[i-1].from_;
         (*this)[i].to_ -= (*this)[i-1].to_;
       }
@@ -172,6 +173,10 @@ class SrcMap FINAL : public std::vector<SrcMapElem> {
     }
   }
 };
+
+using DefaultSrcMap = SrcMap<std::allocator<SrcMapElem>>;
+using SwapSrcMap = SrcMap<SwapAllocator<SrcMapElem>>;
+
 
 enum LinkerPatchType {
   kLinkerPatchMethod,
@@ -270,48 +275,56 @@ inline bool operator<(const LinkerPatch& lhs, const LinkerPatch& rhs) {
 
 class CompiledMethod FINAL : public CompiledCode {
  public:
-  // Constructs a CompiledMethod for Quick.
+  // Constructs a CompiledMethod.
+  // Note: Consider using the static allocation methods below that will allocate the CompiledMethod
+  //       in the swap space.
   CompiledMethod(CompilerDriver* driver,
                  InstructionSet instruction_set,
-                 const std::vector<uint8_t>& quick_code,
+                 const ArrayRef<const uint8_t>& quick_code,
                  const size_t frame_size_in_bytes,
                  const uint32_t core_spill_mask,
                  const uint32_t fp_spill_mask,
-                 SrcMap* src_mapping_table,
-                 const std::vector<uint8_t>& mapping_table,
-                 const std::vector<uint8_t>& vmap_table,
-                 const std::vector<uint8_t>& native_gc_map,
-                 const std::vector<uint8_t>* cfi_info,
+                 DefaultSrcMap* src_mapping_table,
+                 const ArrayRef<const uint8_t>& mapping_table,
+                 const ArrayRef<const uint8_t>& vmap_table,
+                 const ArrayRef<const uint8_t>& native_gc_map,
+                 const ArrayRef<const uint8_t>& cfi_info,
                  const ArrayRef<LinkerPatch>& patches = ArrayRef<LinkerPatch>());
 
-  // Constructs a CompiledMethod for Optimizing.
-  CompiledMethod(CompilerDriver* driver,
-                 InstructionSet instruction_set,
-                 const std::vector<uint8_t>& quick_code,
-                 const size_t frame_size_in_bytes,
-                 const uint32_t core_spill_mask,
-                 const uint32_t fp_spill_mask,
-                 const std::vector<uint8_t>& mapping_table,
-                 const std::vector<uint8_t>& vmap_table);
-
-  // Constructs a CompiledMethod for the QuickJniCompiler.
-  CompiledMethod(CompilerDriver* driver,
-                 InstructionSet instruction_set,
-                 const std::vector<uint8_t>& quick_code,
-                 const size_t frame_size_in_bytes,
-                 const uint32_t core_spill_mask,
-                 const uint32_t fp_spill_mask,
-                 const std::vector<uint8_t>* cfi_info);
-
-  // Constructs a CompiledMethod for the Portable compiler.
-  CompiledMethod(CompilerDriver* driver, InstructionSet instruction_set, const std::string& code,
-                 const std::vector<uint8_t>& gc_map, const std::string& symbol);
-
-  // Constructs a CompiledMethod for the Portable JniCompiler.
-  CompiledMethod(CompilerDriver* driver, InstructionSet instruction_set, const std::string& code,
-                 const std::string& symbol);
-
   ~CompiledMethod() {}
+
+  static CompiledMethod* SwapAllocCompiledMethod(
+      CompilerDriver* driver,
+      InstructionSet instruction_set,
+      const ArrayRef<const uint8_t>& quick_code,
+      const size_t frame_size_in_bytes,
+      const uint32_t core_spill_mask,
+      const uint32_t fp_spill_mask,
+      DefaultSrcMap* src_mapping_table,
+      const ArrayRef<const uint8_t>& mapping_table,
+      const ArrayRef<const uint8_t>& vmap_table,
+      const ArrayRef<const uint8_t>& native_gc_map,
+      const ArrayRef<const uint8_t>& cfi_info,
+      const ArrayRef<LinkerPatch>& patches = ArrayRef<LinkerPatch>());
+
+  static CompiledMethod* SwapAllocCompiledMethodStackMap(
+      CompilerDriver* driver,
+      InstructionSet instruction_set,
+      const ArrayRef<const uint8_t>& quick_code,
+      const size_t frame_size_in_bytes,
+      const uint32_t core_spill_mask,
+      const uint32_t fp_spill_mask,
+      const ArrayRef<const uint8_t>& stack_map);
+
+  static CompiledMethod* SwapAllocCompiledMethodCFI(CompilerDriver* driver,
+                                                    InstructionSet instruction_set,
+                                                    const ArrayRef<const uint8_t>& quick_code,
+                                                    const size_t frame_size_in_bytes,
+                                                    const uint32_t core_spill_mask,
+                                                    const uint32_t fp_spill_mask,
+                                                    const ArrayRef<const uint8_t>& cfi_info);
+
+  static void ReleaseSwapAllocatedCompiledMethod(CompilerDriver* driver, CompiledMethod* m);
 
   size_t GetFrameSizeInBytes() const {
     return frame_size_in_bytes_;
@@ -325,30 +338,29 @@ class CompiledMethod FINAL : public CompiledCode {
     return fp_spill_mask_;
   }
 
-  const SrcMap& GetSrcMappingTable() const {
+  const SwapSrcMap& GetSrcMappingTable() const {
     DCHECK(src_mapping_table_ != nullptr);
     return *src_mapping_table_;
   }
 
-  const std::vector<uint8_t>& GetMappingTable() const {
-    DCHECK(mapping_table_ != nullptr);
-    return *mapping_table_;
+  SwapVector<uint8_t> const* GetMappingTable() const {
+    return mapping_table_;
   }
 
-  const std::vector<uint8_t>& GetVmapTable() const {
+  const SwapVector<uint8_t>& GetVmapTable() const {
     DCHECK(vmap_table_ != nullptr);
     return *vmap_table_;
   }
 
-  std::vector<uint8_t> const* GetGcMap() const {
+  SwapVector<uint8_t> const* GetGcMap() const {
     return gc_map_;
   }
 
-  const std::vector<uint8_t>* GetCFIInfo() const {
+  const SwapVector<uint8_t>* GetCFIInfo() const {
     return cfi_info_;
   }
 
-  const std::vector<LinkerPatch>& GetPatches() const {
+  const SwapVector<LinkerPatch>& GetPatches() const {
     return patches_;
   }
 
@@ -360,19 +372,19 @@ class CompiledMethod FINAL : public CompiledCode {
   // For quick code, a bit mask describing spilled FPR callee-save registers.
   const uint32_t fp_spill_mask_;
   // For quick code, a set of pairs (PC, Line) mapping from native PC offset to Java line
-  SrcMap* src_mapping_table_;
+  SwapSrcMap* src_mapping_table_;
   // For quick code, a uleb128 encoded map from native PC offset to dex PC aswell as dex PC to
   // native PC offset. Size prefixed.
-  std::vector<uint8_t>* mapping_table_;
+  SwapVector<uint8_t>* mapping_table_;
   // For quick code, a uleb128 encoded map from GPR/FPR register to dex register. Size prefixed.
-  std::vector<uint8_t>* vmap_table_;
+  SwapVector<uint8_t>* vmap_table_;
   // For quick code, a map keyed by native PC indices to bitmaps describing what dalvik registers
-  // are live. For portable code, the key is a dalvik PC.
-  std::vector<uint8_t>* gc_map_;
+  // are live.
+  SwapVector<uint8_t>* gc_map_;
   // For quick code, a FDE entry for the debug_frame section.
-  std::vector<uint8_t>* cfi_info_;
+  SwapVector<uint8_t>* cfi_info_;
   // For quick code, linker patches needed by the method.
-  std::vector<LinkerPatch> patches_;
+  SwapVector<LinkerPatch> patches_;
 };
 
 }  // namespace art

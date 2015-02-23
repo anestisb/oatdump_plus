@@ -19,16 +19,16 @@
 
 #include <vector>
 
+#include "arch/instruction_set.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "arm/constants_arm.h"
-#include "mips/constants_mips.h"
-#include "x86/constants_x86.h"
-#include "x86_64/constants_x86_64.h"
-#include "instruction_set.h"
 #include "managed_register.h"
 #include "memory_region.h"
+#include "mips/constants_mips.h"
 #include "offsets.h"
+#include "x86/constants_x86.h"
+#include "x86_64/constants_x86_64.h"
 
 namespace art {
 
@@ -47,6 +47,9 @@ namespace arm64 {
 namespace mips {
   class MipsAssembler;
 }
+namespace mips64 {
+  class Mips64Assembler;
+}
 namespace x86 {
   class X86Assembler;
 }
@@ -56,9 +59,9 @@ namespace x86_64 {
 
 class ExternalLabel {
  public:
-  ExternalLabel(const char* name, uintptr_t address)
-      : name_(name), address_(address) {
-    DCHECK(name != nullptr);
+  ExternalLabel(const char* name_in, uintptr_t address_in)
+      : name_(name_in), address_(address_in) {
+    DCHECK(name_in != nullptr);
   }
 
   const char* name() const { return name_; }
@@ -118,7 +121,9 @@ class Label {
   friend class arm::ArmAssembler;
   friend class arm::Arm32Assembler;
   friend class arm::Thumb2Assembler;
+  friend class arm64::Arm64Assembler;
   friend class mips::MipsAssembler;
+  friend class mips64::Mips64Assembler;
   friend class x86::X86Assembler;
   friend class x86_64::X86_64Assembler;
 
@@ -139,10 +144,10 @@ class AssemblerFixup {
   int position_;
 
   AssemblerFixup* previous() const { return previous_; }
-  void set_previous(AssemblerFixup* previous) { previous_ = previous; }
+  void set_previous(AssemblerFixup* previous_in) { previous_ = previous_in; }
 
   int position() const { return position_; }
-  void set_position(int position) { position_ = position; }
+  void set_position(int position_in) { position_ = position_in; }
 
   friend class AssemblerBuffer;
 };
@@ -365,7 +370,7 @@ class Assembler {
   }
 
   // TODO: Implement with disassembler.
-  virtual void Comment(const char* format, ...) { }
+  virtual void Comment(const char* format, ...) { UNUSED(format); }
 
   // Emit code that will create an activation on the stack
   virtual void BuildFrame(size_t frame_size, ManagedRegister method_reg,
@@ -501,6 +506,8 @@ class Assembler {
 
   virtual void InitializeFrameDescriptionEntry() {}
   virtual void FinalizeFrameDescriptionEntry() {}
+  // Give a vector containing FDE data, or null if not used. Note: the assembler must take care
+  // of handling the lifecycle.
   virtual std::vector<uint8_t>* GetFrameDescriptionEntry() { return nullptr; }
 
   virtual ~Assembler() {}

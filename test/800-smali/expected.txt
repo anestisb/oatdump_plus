@@ -1,2 +1,17 @@
+PackedSwitch
 b/17790197
+b/17978759
+FloatBadArgReg
+negLong
+sameFieldNames
+b/18380491
+invoke-super abstract
+BadCaseInOpRegRegReg
+CmpLong
+FloatIntConstPassing
+b/18718277
+b/18800943 (1)
+b/18800943 (2)
+MoveExc
+MoveExceptionOnEntry
 Done!

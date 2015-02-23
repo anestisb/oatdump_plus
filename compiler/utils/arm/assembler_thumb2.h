@@ -118,6 +118,10 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   void sdiv(Register rd, Register rn, Register rm, Condition cond = AL) OVERRIDE;
   void udiv(Register rd, Register rn, Register rm, Condition cond = AL) OVERRIDE;
 
+  // Bit field extract instructions.
+  void sbfx(Register rd, Register rn, uint32_t lsb, uint32_t width, Condition cond = AL) OVERRIDE;
+  void ubfx(Register rd, Register rn, uint32_t lsb, uint32_t width, Condition cond = AL) OVERRIDE;
+
   // Load/store instructions.
   void ldr(Register rd, const Address& ad, Condition cond = AL) OVERRIDE;
   void str(Register rd, const Address& ad, Condition cond = AL) OVERRIDE;
@@ -145,6 +149,8 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   void ldrex(Register rd, Register rn, uint16_t imm, Condition cond = AL);
   void strex(Register rd, Register rt, Register rn, uint16_t imm, Condition cond = AL);
 
+  void ldrexd(Register rt, Register rt2, Register rn, Condition cond = AL) OVERRIDE;
+  void strexd(Register rd, Register rt, Register rt2, Register rn, Condition cond = AL) OVERRIDE;
 
   // Miscellaneous instructions.
   void clrex(Condition cond = AL) OVERRIDE;
@@ -259,6 +265,9 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   void CompareAndBranchIfZero(Register r, Label* label) OVERRIDE;
   void CompareAndBranchIfNonZero(Register r, Label* label) OVERRIDE;
 
+  // Memory barriers.
+  void dmb(DmbOptions flavor) OVERRIDE;
+
   // Macros.
   // Add signed constant value to rd. May clobber IP.
   void AddConstant(Register rd, int32_t value, Condition cond = AL) OVERRIDE;
@@ -266,14 +275,9 @@ class Thumb2Assembler FINAL : public ArmAssembler {
                    Condition cond = AL) OVERRIDE;
   void AddConstantSetFlags(Register rd, Register rn, int32_t value,
                            Condition cond = AL) OVERRIDE;
-  void AddConstantWithCarry(Register rd, Register rn, int32_t value,
-                            Condition cond = AL) {}
 
   // Load and Store. May clobber IP.
   void LoadImmediate(Register rd, int32_t value, Condition cond = AL) OVERRIDE;
-  void LoadSImmediate(SRegister sd, float value, Condition cond = AL) {}
-  void LoadDImmediate(DRegister dd, double value,
-                      Register scratch, Condition cond = AL) {}
   void MarkExceptionHandler(Label* label) OVERRIDE;
   void LoadFromOffset(LoadOperandType type,
                       Register reg,
@@ -302,6 +306,12 @@ class Thumb2Assembler FINAL : public ArmAssembler {
                       int32_t offset,
                       Condition cond = AL) OVERRIDE;
 
+  bool ShifterOperandCanHold(Register rd,
+                             Register rn,
+                             Opcode opcode,
+                             uint32_t immediate,
+                             ShifterOperand* shifter_op) OVERRIDE;
+
 
   static bool IsInstructionForExceptionHandling(uintptr_t pc);
 
@@ -321,40 +331,40 @@ class Thumb2Assembler FINAL : public ArmAssembler {
  private:
   // Emit a single 32 or 16 bit data processing instruction.
   void EmitDataProcessing(Condition cond,
-                  Opcode opcode,
-                  int set_cc,
-                  Register rn,
-                  Register rd,
-                  const ShifterOperand& so);
+                          Opcode opcode,
+                          bool set_cc,
+                          Register rn,
+                          Register rd,
+                          const ShifterOperand& so);
 
   // Must the instruction be 32 bits or can it possibly be encoded
   // in 16 bits?
   bool Is32BitDataProcessing(Condition cond,
-                  Opcode opcode,
-                  int set_cc,
-                  Register rn,
-                  Register rd,
-                  const ShifterOperand& so);
+                             Opcode opcode,
+                             bool set_cc,
+                             Register rn,
+                             Register rd,
+                             const ShifterOperand& so);
 
   // Emit a 32 bit data processing instruction.
   void Emit32BitDataProcessing(Condition cond,
-                  Opcode opcode,
-                  int set_cc,
-                  Register rn,
-                  Register rd,
-                  const ShifterOperand& so);
+                               Opcode opcode,
+                               bool set_cc,
+                               Register rn,
+                               Register rd,
+                               const ShifterOperand& so);
 
   // Emit a 16 bit data processing instruction.
   void Emit16BitDataProcessing(Condition cond,
-                  Opcode opcode,
-                  int set_cc,
-                  Register rn,
-                  Register rd,
-                  const ShifterOperand& so);
+                               Opcode opcode,
+                               bool set_cc,
+                               Register rn,
+                               Register rd,
+                               const ShifterOperand& so);
 
   void Emit16BitAddSub(Condition cond,
                        Opcode opcode,
-                       int set_cc,
+                       bool set_cc,
                        Register rn,
                        Register rd,
                        const ShifterOperand& so);
@@ -362,12 +372,12 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   uint16_t EmitCompareAndBranch(Register rn, uint16_t prev, bool n);
 
   void EmitLoadStore(Condition cond,
-                 bool load,
-                 bool byte,
-                 bool half,
-                 bool is_signed,
-                 Register rd,
-                 const Address& ad);
+                     bool load,
+                     bool byte,
+                     bool half,
+                     bool is_signed,
+                     Register rd,
+                     const Address& ad);
 
   void EmitMemOpAddressMode3(Condition cond,
                              int32_t mode,

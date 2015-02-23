@@ -17,8 +17,6 @@
 #ifndef ART_RUNTIME_MIRROR_STRING_H_
 #define ART_RUNTIME_MIRROR_STRING_H_
 
-#include <gtest/gtest.h>
-
 #include "gc_root.h"
 #include "object.h"
 #include "object_callbacks.h"
@@ -71,8 +69,6 @@ class MANAGED String FINAL : public Object {
 
   int32_t GetUtfLength() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  uint16_t CharAt(int32_t index) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   String* Intern() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static String* AllocFromUtf16(Thread* self,
@@ -88,9 +84,14 @@ class MANAGED String FINAL : public Object {
                                        const char* utf8_data_in)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // TODO: This is only used in the interpreter to compare against
+  // entries from a dex files constant pool (ArtField names). Should
+  // we unify this with Equals(const StringPiece&); ?
   bool Equals(const char* modified_utf8) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // TODO: do we need this overload? give it a more intention-revealing name.
+  // TODO: This is only used to compare DexCache.location with
+  // a dex_file's location (which is an std::string). Do we really
+  // need this in mirror::String just for that one usage ?
   bool Equals(const StringPiece& modified_utf8)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -111,6 +112,14 @@ class MANAGED String FINAL : public Object {
 
   int32_t CompareTo(String* other) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  void SetOffset(int32_t new_offset) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    // Offset is only used during testing so use non-transactional mode.
+    DCHECK_LE(0, new_offset);
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(String, offset_), new_offset);
+  }
+
+  void SetArray(CharArray* new_array) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   static Class* GetJavaLangString() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(!java_lang_String_.IsNull());
     return java_lang_String_.Read();
@@ -120,6 +129,9 @@ class MANAGED String FINAL : public Object {
   static void ResetClass();
   static void VisitRoots(RootCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // TODO: Make this private. It's only used on ObjectTest at the moment.
+  uint16_t UncheckedCharAt(int32_t index) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   void SetHashCode(int32_t new_hash_code) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -136,20 +148,11 @@ class MANAGED String FINAL : public Object {
     SetField32<false, false>(OFFSET_OF_OBJECT_MEMBER(String, count_), new_count);
   }
 
-  void SetOffset(int32_t new_offset) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // Offset is only used during testing so use non-transactional mode.
-    DCHECK_LE(0, new_offset);
-    DCHECK_GE(GetLength(), new_offset);
-    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(String, offset_), new_offset);
-  }
-
   static String* Alloc(Thread* self, int32_t utf16_length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static String* Alloc(Thread* self, Handle<CharArray> array)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  void SetArray(CharArray* new_array) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   HeapReference<CharArray> array_;
@@ -163,7 +166,8 @@ class MANAGED String FINAL : public Object {
   static GcRoot<Class> java_lang_String_;
 
   friend struct art::StringOffsets;  // for verifying offset information
-  FRIEND_TEST(ObjectTest, StringLength);  // for SetOffset and SetCount
+  ART_FRIEND_TEST(ObjectTest, StringLength);  // for SetOffset and SetCount
+
   DISALLOW_IMPLICIT_CONSTRUCTORS(String);
 };
 

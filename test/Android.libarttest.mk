@@ -24,6 +24,7 @@ LIBARTTEST_COMMON_SRC_FILES := \
   004-ReferenceMap/stack_walk_refmap_jni.cc \
   004-StackWalk/stack_walk_jni.cc \
   004-UnsafeTest/unsafe_test.cc \
+  051-thread/thread_test.cc \
   116-nodex2oat/nodex2oat.cc \
   117-nopatchoat/nopatchoat.cc \
   118-noimage-dex2oat/noimage-dex2oat.cc
@@ -54,12 +55,10 @@ define build-libarttest
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.libarttest.mk
-  include external/libcxx/libcxx.mk
   ifeq ($$(art_target_or_host),target)
     $(call set-target-local-clang-vars)
     $(call set-target-local-cflags-vars,debug)
-    LOCAL_SHARED_LIBRARIES += libdl libcutils
-    LOCAL_STATIC_LIBRARIES := libgtest
+    LOCAL_SHARED_LIBRARIES += libdl
     LOCAL_MULTILIB := both
     LOCAL_MODULE_PATH_32 := $(ART_TARGET_TEST_OUT)/$(ART_TARGET_ARCH_32)
     LOCAL_MODULE_PATH_64 := $(ART_TARGET_TEST_OUT)/$(ART_TARGET_ARCH_64)
@@ -68,11 +67,7 @@ define build-libarttest
   else # host
     LOCAL_CLANG := $(ART_HOST_CLANG)
     LOCAL_CFLAGS := $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
-    LOCAL_STATIC_LIBRARIES := libcutils
-    LOCAL_LDLIBS += -ldl -lpthread
-    ifeq ($(HOST_OS),linux)
-      LOCAL_LDLIBS += -lrt
-    endif
+    LOCAL_LDLIBS := $(ART_HOST_LDLIBS) -ldl -lpthread
     LOCAL_IS_HOST_MODULE := true
     LOCAL_MULTILIB := both
     include $(BUILD_HOST_SHARED_LIBRARY)

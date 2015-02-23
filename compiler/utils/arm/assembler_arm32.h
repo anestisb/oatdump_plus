@@ -96,6 +96,10 @@ class Arm32Assembler FINAL : public ArmAssembler {
   void sdiv(Register rd, Register rn, Register rm, Condition cond = AL) OVERRIDE;
   void udiv(Register rd, Register rn, Register rm, Condition cond = AL) OVERRIDE;
 
+  // Bit field extract instructions.
+  void sbfx(Register rd, Register rn, uint32_t lsb, uint32_t width, Condition cond = AL) OVERRIDE;
+  void ubfx(Register rd, Register rn, uint32_t lsb, uint32_t width, Condition cond = AL) OVERRIDE;
+
   // Load/store instructions.
   void ldr(Register rd, const Address& ad, Condition cond = AL) OVERRIDE;
   void str(Register rd, const Address& ad, Condition cond = AL) OVERRIDE;
@@ -119,6 +123,8 @@ class Arm32Assembler FINAL : public ArmAssembler {
 
   void ldrex(Register rd, Register rn, Condition cond = AL) OVERRIDE;
   void strex(Register rd, Register rt, Register rn, Condition cond = AL) OVERRIDE;
+  void ldrexd(Register rt, Register rt2, Register rn, Condition cond = AL) OVERRIDE;
+  void strexd(Register rd, Register rt, Register rt2, Register rn, Condition cond = AL) OVERRIDE;
 
   // Miscellaneous instructions.
   void clrex(Condition cond = AL) OVERRIDE;
@@ -228,6 +234,8 @@ class Arm32Assembler FINAL : public ArmAssembler {
   void CompareAndBranchIfZero(Register r, Label* label) OVERRIDE;
   void CompareAndBranchIfNonZero(Register r, Label* label) OVERRIDE;
 
+  // Memory barriers.
+  void dmb(DmbOptions flavor) OVERRIDE;
 
   // Macros.
   // Add signed constant value to rd. May clobber IP.
@@ -236,14 +244,9 @@ class Arm32Assembler FINAL : public ArmAssembler {
                    Condition cond = AL) OVERRIDE;
   void AddConstantSetFlags(Register rd, Register rn, int32_t value,
                            Condition cond = AL) OVERRIDE;
-  void AddConstantWithCarry(Register rd, Register rn, int32_t value,
-                            Condition cond = AL) {}
 
   // Load and Store. May clobber IP.
   void LoadImmediate(Register rd, int32_t value, Condition cond = AL) OVERRIDE;
-  void LoadSImmediate(SRegister sd, float value, Condition cond = AL) {}
-  void LoadDImmediate(DRegister dd, double value,
-                      Register scratch, Condition cond = AL) {}
   void MarkExceptionHandler(Label* label) OVERRIDE;
   void LoadFromOffset(LoadOperandType type,
                       Register reg,
@@ -271,6 +274,12 @@ class Arm32Assembler FINAL : public ArmAssembler {
                       Register base,
                       int32_t offset,
                       Condition cond = AL) OVERRIDE;
+
+  bool ShifterOperandCanHold(Register rd,
+                             Register rn,
+                             Opcode opcode,
+                             uint32_t immediate,
+                             ShifterOperand* shifter_op) OVERRIDE;
 
 
   static bool IsInstructionForExceptionHandling(uintptr_t pc);
@@ -358,6 +367,7 @@ class Arm32Assembler FINAL : public ArmAssembler {
   static int DecodeBranchOffset(int32_t inst);
   int32_t EncodeTstOffset(int offset, int32_t inst);
   int DecodeTstOffset(int32_t inst);
+  bool ShifterOperandCanHoldArm32(uint32_t immediate, ShifterOperand* shifter_op);
 };
 
 }  // namespace arm

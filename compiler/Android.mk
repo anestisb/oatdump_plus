@@ -21,6 +21,7 @@ include art/build/Android.common_build.mk
 LIBART_COMPILER_SRC_FILES := \
 	compiled_method.cc \
 	dex/global_value_numbering.cc \
+	dex/gvn_dead_code_elimination.cc \
 	dex/local_value_numbering.cc \
 	dex/quick/arm/assemble_arm.cc \
 	dex/quick/arm/call_arm.cc \
@@ -58,24 +59,25 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/quick/x86/target_x86.cc \
 	dex/quick/x86/utility_x86.cc \
 	dex/dex_to_dex_compiler.cc \
-	dex/mir_dataflow.cc \
-	dex/mir_field_info.cc \
-	dex/mir_method_info.cc \
-	dex/mir_optimization.cc \
 	dex/bb_optimizations.cc \
 	dex/compiler_ir.cc \
+	dex/mir_analysis.cc \
+	dex/mir_dataflow.cc \
+	dex/mir_field_info.cc \
+	dex/mir_graph.cc \
+	dex/mir_method_info.cc \
+	dex/mir_optimization.cc \
 	dex/post_opt_passes.cc \
 	dex/pass_driver_me_opts.cc \
 	dex/pass_driver_me_post_opt.cc \
-	dex/frontend.cc \
-	dex/mir_graph.cc \
-	dex/mir_analysis.cc \
+	dex/pass_manager.cc \
+	dex/ssa_transformation.cc \
 	dex/verified_method.cc \
 	dex/verification_results.cc \
 	dex/vreg_analysis.cc \
-	dex/ssa_transformation.cc \
 	dex/quick_compiler_callbacks.cc \
 	driver/compiler_driver.cc \
+	driver/compiler_options.cc \
 	driver/dex_compilation_unit.cc \
 	jni/quick/arm/calling_convention_arm.cc \
 	jni/quick/arm64/calling_convention_arm64.cc \
@@ -84,30 +86,39 @@ LIBART_COMPILER_SRC_FILES := \
 	jni/quick/x86_64/calling_convention_x86_64.cc \
 	jni/quick/calling_convention.cc \
 	jni/quick/jni_compiler.cc \
-	llvm/llvm_compiler.cc \
 	optimizing/builder.cc \
+	optimizing/bounds_check_elimination.cc \
 	optimizing/code_generator.cc \
 	optimizing/code_generator_arm.cc \
+	optimizing/code_generator_arm64.cc \
 	optimizing/code_generator_x86.cc \
 	optimizing/code_generator_x86_64.cc \
-	optimizing/constant_propagation.cc \
+	optimizing/constant_folding.cc \
 	optimizing/dead_code_elimination.cc \
 	optimizing/graph_checker.cc \
 	optimizing/graph_visualizer.cc \
 	optimizing/gvn.cc \
+	optimizing/inliner.cc \
 	optimizing/instruction_simplifier.cc \
+	optimizing/intrinsics.cc \
+	optimizing/intrinsics_arm.cc \
+	optimizing/intrinsics_arm64.cc \
+	optimizing/intrinsics_x86_64.cc \
+	optimizing/licm.cc \
 	optimizing/locations.cc \
 	optimizing/nodes.cc \
+	optimizing/optimization.cc \
 	optimizing/optimizing_compiler.cc \
 	optimizing/parallel_move_resolver.cc \
 	optimizing/prepare_for_register_allocation.cc \
 	optimizing/register_allocator.cc \
+	optimizing/side_effects_analysis.cc \
 	optimizing/ssa_builder.cc \
 	optimizing/ssa_liveness_analysis.cc \
 	optimizing/ssa_phi_elimination.cc \
-	optimizing/ssa_type_propagation.cc \
+	optimizing/primitive_type_propagation.cc \
+	optimizing/reference_type_propagation.cc \
 	trampolines/trampoline_compiler.cc \
-	utils/arena_allocator.cc \
 	utils/arena_bit_vector.cc \
 	utils/arm/assembler_arm.cc \
 	utils/arm/assembler_arm32.cc \
@@ -119,11 +130,13 @@ LIBART_COMPILER_SRC_FILES := \
 	utils/dwarf_cfi.cc \
 	utils/mips/assembler_mips.cc \
 	utils/mips/managed_register_mips.cc \
+	utils/mips64/assembler_mips64.cc \
+	utils/mips64/managed_register_mips64.cc \
 	utils/x86/assembler_x86.cc \
 	utils/x86/managed_register_x86.cc \
 	utils/x86_64/assembler_x86_64.cc \
 	utils/x86_64/managed_register_x86_64.cc \
-	utils/scoped_arena_allocator.cc \
+	utils/swap_space.cc \
 	buffered_output_stream.cc \
 	compiler.cc \
 	elf_writer.cc \
@@ -131,42 +144,25 @@ LIBART_COMPILER_SRC_FILES := \
 	file_output_stream.cc \
 	image_writer.cc \
 	oat_writer.cc \
+	output_stream.cc \
 	vector_output_stream.cc
-
-ifeq ($(ART_SEA_IR_MODE),true)
-LIBART_COMPILER_SRC_FILES += \
-	sea_ir/frontend.cc \
-	sea_ir/ir/instruction_tools.cc \
-	sea_ir/ir/sea.cc \
-	sea_ir/code_gen/code_gen.cc \
-	sea_ir/code_gen/code_gen_data.cc \
-	sea_ir/types/type_inference.cc \
-	sea_ir/types/type_inference_visitor.cc \
-	sea_ir/debug/dot_gen.cc
-endif
 
 LIBART_COMPILER_CFLAGS :=
 
-ifeq ($(ART_USE_PORTABLE_COMPILER),true)
-LIBART_COMPILER_SRC_FILES += \
-	dex/portable/mir_to_gbc.cc \
-	elf_writer_mclinker.cc \
-	jni/portable/jni_compiler.cc \
-	llvm/compiler_llvm.cc \
-	llvm/gbc_expander.cc \
-	llvm/generated/art_module.cc \
-	llvm/intrinsic_helper.cc \
-	llvm/ir_builder.cc \
-	llvm/llvm_compilation_unit.cc \
-	llvm/md_builder.cc \
-	llvm/runtime_support_builder.cc \
-	llvm/runtime_support_builder_arm.cc \
-	llvm/runtime_support_builder_x86.cc
-LIBART_COMPILER_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
-endif
-
 LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES := \
-	dex/compiler_enums.h
+  dex/quick/arm/arm_lir.h \
+  dex/quick/arm64/arm64_lir.h \
+  dex/quick/mips/mips_lir.h \
+  dex/quick/resource_mask.h \
+  dex/compiler_enums.h \
+  dex/global_value_numbering.h \
+  dex/pass_me.h \
+  driver/compiler_driver.h \
+  driver/compiler_options.h \
+  image_writer.h \
+  optimizing/locations.h \
+  utils/arm/constants_arm.h \
+  utils/dex_instruction_utils.h
 
 # $(1): target or host
 # $(2): ndebug or debug
@@ -193,7 +189,9 @@ define build-libart-compiler
   ifeq ($$(art_ndebug_or_debug),ndebug)
     LOCAL_MODULE := libart-compiler
     LOCAL_SHARED_LIBRARIES += libart
-    LOCAL_FDO_SUPPORT := true
+    ifeq ($$(art_target_or_host),target)
+      LOCAL_FDO_SUPPORT := true
+    endif
   else # debug
     LOCAL_MODULE := libartd-compiler
     LOCAL_SHARED_LIBRARIES += libartd
@@ -216,13 +214,13 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   LOCAL_GENERATED_SOURCES += $$(ENUM_OPERATOR_OUT_GEN)
 
   LOCAL_CFLAGS := $$(LIBART_COMPILER_CFLAGS)
-  include external/libcxx/libcxx.mk
   ifeq ($$(art_target_or_host),target)
     $(call set-target-local-clang-vars)
     $(call set-target-local-cflags-vars,$(2))
   else # host
     LOCAL_CLANG := $(ART_HOST_CLANG)
     LOCAL_CFLAGS += $(ART_HOST_CFLAGS)
+    LOCAL_LDLIBS := $(ART_HOST_LDLIBS)
     ifeq ($$(art_ndebug_or_debug),debug)
       LOCAL_CFLAGS += $(ART_HOST_DEBUG_CFLAGS)
     else
@@ -230,43 +228,28 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
     endif
   endif
 
-  # TODO: clean up the compilers and remove this.
-  LOCAL_CFLAGS += -Wno-unused-parameter
-
-  ifeq ($(ART_USE_PORTABLE_COMPILER),true)
-    LOCAL_SHARED_LIBRARIES += libLLVM
-    LOCAL_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
-    ifeq ($$(art_target_or_host),target)
-      LOCAL_STATIC_LIBRARIES_arm += libmcldARMInfo libmcldARMTarget
-      LOCAL_STATIC_LIBRARIES_x86 += libmcldX86Info libmcldX86Target
-      LOCAL_STATIC_LIBRARIES_x86_64 += libmcldX86Info libmcldX86Target
-      LOCAL_STATIC_LIBRARIES_mips += libmcldMipsInfo libmcldMipsTarget
-      ifeq ($(TARGET_ARCH),arm64)
-         $$(info TODOAArch64: $$(LOCAL_PATH)/Android.mk Add Arm64 specific MCLinker libraries)
-      endif # TARGET_ARCH != arm64
-      include $(LLVM_DEVICE_BUILD_MK)
-    else # host
-      LOCAL_STATIC_LIBRARIES += libmcldARMInfo libmcldARMTarget
-      LOCAL_STATIC_LIBRARIES += libmcldX86Info libmcldX86Target
-      LOCAL_STATIC_LIBRARIES += libmcldMipsInfo libmcldMipsTarget
-      include $(LLVM_HOST_BUILD_MK)
-    endif
-    LOCAL_STATIC_LIBRARIES += libmcldCore libmcldObject libmcldADT libmcldFragment libmcldTarget libmcldCodeGen libmcldLDVariant libmcldMC libmcldSupport libmcldLD libmcldScript
-    include $(LLVM_GEN_INTRINSICS_MK)
-  endif
-
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime
 
   ifeq ($$(art_target_or_host),host)
-    LOCAL_LDLIBS += -ldl -lpthread
+    # For compiler driver TLS.
+    LOCAL_LDLIBS += -lpthread
   endif
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
+  # Vixl assembly support for ARM64 targets.
+  ifeq ($$(art_ndebug_or_debug),debug)
+    LOCAL_SHARED_LIBRARIES += libvixld
+  else
+    LOCAL_SHARED_LIBRARIES += libvixl
+  endif
+
+  LOCAL_NATIVE_COVERAGE := $(ART_COVERAGE)
+
   ifeq ($$(art_target_or_host),target)
-    LOCAL_SHARED_LIBRARIES += libcutils libvixl
+    # For atrace.
+    LOCAL_SHARED_LIBRARIES += libcutils
     include $(BUILD_SHARED_LIBRARY)
   else # host
-    LOCAL_STATIC_LIBRARIES += libcutils libvixl
     LOCAL_MULTILIB := both
     include $(BUILD_HOST_SHARED_LIBRARY)
   endif
@@ -299,19 +282,4 @@ ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
 endif
 ifeq ($(ART_BUILD_TARGET_DEBUG),true)
   $(eval $(call build-libart-compiler,target,debug))
-endif
-
-# Rule to build /system/lib/libcompiler_rt.a
-# Usually static libraries are not installed on the device.
-ifeq ($(ART_USE_PORTABLE_COMPILER),true)
-ifeq ($(ART_BUILD_TARGET),true)
-# TODO: Move to external/compiler_rt
-$(eval $(call copy-one-file, $(call intermediates-dir-for,STATIC_LIBRARIES,libcompiler_rt,,)/libcompiler_rt.a, $(TARGET_OUT_SHARED_LIBRARIES)/libcompiler_rt.a))
-ifdef TARGET_2ND_ARCH
-$(eval $(call copy-one-file, $(call intermediates-dir-for,STATIC_LIBRARIES,libcompiler_rt,,,t)/libcompiler_rt.a, $(2ND_TARGET_OUT_SHARED_LIBRARIES)/libcompiler_rt.a))
-endif
-
-$(DEX2OAT): $(TARGET_OUT_SHARED_LIBRARIES)/libcompiler_rt.a
-
-endif
 endif

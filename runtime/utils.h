@@ -22,12 +22,13 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <vector>
 
+#include "arch/instruction_set.h"
 #include "base/logging.h"
 #include "base/mutex.h"
 #include "globals.h"
-#include "instruction_set.h"
 #include "primitive.h"
 
 namespace art {
@@ -84,7 +85,7 @@ static constexpr bool IsPowerOfTwo(T x) {
 
 template<int n, typename T>
 static inline bool IsAligned(T x) {
-  COMPILE_ASSERT((n & (n - 1)) == 0, n_not_power_of_two);
+  static_assert((n & (n - 1)) == 0, "n is not a power of two");
   return (x & (n - 1)) == 0;
 }
 
@@ -115,18 +116,45 @@ static inline bool IsInt(int N, intptr_t value) {
   return (-limit <= value) && (value < limit);
 }
 
-static inline bool IsUint(int N, intptr_t value) {
-  CHECK_LT(0, N);
-  CHECK_LT(N, kBitsPerIntPtrT);
-  intptr_t limit = static_cast<intptr_t>(1) << N;
-  return (0 <= value) && (value < limit);
+template <typename T>
+static constexpr T GetIntLimit(size_t bits) {
+  return
+      DCHECK_CONSTEXPR(bits > 0, "bits cannot be zero", 0)
+      DCHECK_CONSTEXPR(bits < kBitsPerByte * sizeof(T), "kBits must be < max.", 0)
+      static_cast<T>(1) << (bits - 1);
 }
 
-static inline bool IsAbsoluteUint(int N, intptr_t value) {
-  CHECK_LT(0, N);
-  CHECK_LT(N, kBitsPerIntPtrT);
-  if (value < 0) value = -value;
-  return IsUint(N, value);
+template <size_t kBits, typename T>
+static constexpr bool IsInt(T value) {
+  static_assert(kBits > 0, "kBits cannot be zero.");
+  static_assert(kBits <= kBitsPerByte * sizeof(T), "kBits must be <= max.");
+  static_assert(std::is_signed<T>::value, "Needs a signed type.");
+  // Corner case for "use all bits." Can't use the limits, as they would overflow, but it is
+  // trivially true.
+  return (kBits == kBitsPerByte * sizeof(T)) ?
+      true :
+      (-GetIntLimit<T>(kBits) <= value) && (value < GetIntLimit<T>(kBits));
+}
+
+template <size_t kBits, typename T>
+static constexpr bool IsUint(T value) {
+  static_assert(kBits > 0, "kBits cannot be zero.");
+  static_assert(kBits <= kBitsPerByte * sizeof(T), "kBits must be <= max.");
+  static_assert(std::is_integral<T>::value, "Needs an integral type.");
+  // Corner case for "use all bits." Can't use the limits, as they would overflow, but it is
+  // trivially true.
+  return (0 <= value) &&
+      (kBits == kBitsPerByte * sizeof(T) ||
+          (static_cast<typename std::make_unsigned<T>::type>(value) <=
+               GetIntLimit<typename std::make_unsigned<T>::type>(kBits + 1) - 1));
+}
+
+template <size_t kBits, typename T>
+static constexpr bool IsAbsoluteUint(T value) {
+  static_assert(kBits <= kBitsPerByte * sizeof(T), "kBits must be < max.");
+  return (kBits == kBitsPerByte * sizeof(T)) ?
+      true :
+      IsUint<kBits, T>(value < 0 ? -value : value);
 }
 
 static inline uint16_t Low16Bits(uint32_t value) {
@@ -150,6 +178,18 @@ template <typename T>
 struct TypeIdentity {
   typedef T type;
 };
+
+// Like sizeof, but count how many bits a type takes. Pass type explicitly.
+template <typename T>
+static constexpr size_t BitSizeOf() {
+  return sizeof(T) * CHAR_BIT;
+}
+
+// Like sizeof, but count how many bits a type takes. Infers type from parameter.
+template <typename T>
+static constexpr size_t BitSizeOf(T /*x*/) {
+  return sizeof(T) * CHAR_BIT;
+}
 
 // For rounding integers.
 template<typename T>
@@ -187,10 +227,39 @@ static inline T* AlignUp(T* x, uintptr_t n) {
   return reinterpret_cast<T*>(RoundUp(reinterpret_cast<uintptr_t>(x), n));
 }
 
+namespace utils {
+namespace detail {  // Private, implementation-specific namespace. Do not poke outside of this file.
+template <typename T>
+static constexpr inline T RoundUpToPowerOfTwoRecursive(T x, size_t bit) {
+  return bit == (BitSizeOf<T>()) ? x: RoundUpToPowerOfTwoRecursive(x | x >> bit, bit << 1);
+}
+}  // namespace detail
+}  // namespace utils
+
+// Recursive implementation is from "Hacker's Delight" by Henry S. Warren, Jr.,
+// figure 3-3, page 48, where the function is called clp2.
+template <typename T>
+static constexpr inline T RoundUpToPowerOfTwo(T x) {
+  return art::utils::detail::RoundUpToPowerOfTwoRecursive(x - 1, 1) + 1;
+}
+
+// Find the bit position of the most significant bit (0-based), or -1 if there were no bits set.
+template <typename T>
+static constexpr ssize_t MostSignificantBit(T value) {
+  return (value == 0) ? -1 : (MostSignificantBit(value >> 1) + 1);
+}
+
+// How many bits (minimally) does it take to store the constant 'value'? i.e. 1 for 1, 3 for 5, etc.
+template <typename T>
+static constexpr size_t MinimumBitsToStore(T value) {
+  return static_cast<size_t>(MostSignificantBit(value) + 1);
+}
+
 template<typename T>
 static constexpr int CLZ(T x) {
+  static_assert(sizeof(T) <= sizeof(long long), "T too large, must be smaller than long long");  // NOLINT [runtime/int] [4]
   return (sizeof(T) == sizeof(uint32_t))
-      ? __builtin_clz(x)
+      ? __builtin_clz(x)  // TODO: __builtin_clz[ll] has undefined behavior for x=0
       : __builtin_clzll(x);
 }
 
@@ -222,7 +291,7 @@ static inline bool NeedsEscaping(uint16_t ch) {
 // of V >= size of U (compile-time checked).
 template<typename U, typename V>
 static inline V bit_cast(U in) {
-  COMPILE_ASSERT(sizeof(U) <= sizeof(V), size_of_u_not_le_size_of_v);
+  static_assert(sizeof(U) <= sizeof(V), "Size of U not <= size of V");
   union {
     U u;
     V v;
@@ -375,18 +444,19 @@ static constexpr inline uint64_t MsToNs(uint64_t ns) {
 // Sleep for the given number of nanoseconds, a bad way to handle contention.
 void NanoSleep(uint64_t ns);
 
-// Initialize a timespec to either an absolute or relative time.
+// Initialize a timespec to either a relative time (ms,ns), or to the absolute
+// time corresponding to the indicated clock value plus the supplied offset.
 void InitTimeSpec(bool absolute, int clock, int64_t ms, int32_t ns, timespec* ts);
 
 // Splits a string using the given separator character into a vector of
 // strings. Empty strings will be omitted.
-void Split(const std::string& s, char separator, std::vector<std::string>& result);
+void Split(const std::string& s, char separator, std::vector<std::string>* result);
 
 // Trims whitespace off both ends of the given string.
-std::string Trim(std::string s);
+std::string Trim(const std::string& s);
 
 // Joins a vector of strings into a single string, using the given separator.
-template <typename StringT> std::string Join(std::vector<StringT>& strings, char separator);
+template <typename StringT> std::string Join(const std::vector<StringT>& strings, char separator);
 
 // Returns the calling thread's tid. (The C libraries don't expose this.)
 pid_t GetTid();
@@ -409,7 +479,7 @@ void SetThreadName(const char* thread_name);
 
 // Dumps the native stack for thread 'tid' to 'os'.
 void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix = "",
-    mirror::ArtMethod* current_method = nullptr)
+    mirror::ArtMethod* current_method = nullptr, void* ucontext = nullptr)
     NO_THREAD_SAFETY_ANALYSIS;
 
 // Dumps the kernel stack for thread 'tid' to 'os'. Note that this is only available on linux-x86.
@@ -467,19 +537,22 @@ class VoidFunctor {
 
   template <typename A, typename B>
   inline void operator() (A a, B b) const {
-    UNUSED(a);
-    UNUSED(b);
+    UNUSED(a, b);
   }
 
   template <typename A, typename B, typename C>
   inline void operator() (A a, B b, C c) const {
-    UNUSED(a);
-    UNUSED(b);
-    UNUSED(c);
+    UNUSED(a, b, c);
   }
 };
 
-void PushWord(std::vector<uint8_t>* buf, int32_t data);
+template <typename Alloc>
+void Push32(std::vector<uint8_t, Alloc>* buf, int32_t data) {
+  buf->push_back(data & 0xff);
+  buf->push_back((data >> 8) & 0xff);
+  buf->push_back((data >> 16) & 0xff);
+  buf->push_back((data >> 24) & 0xff);
+}
 
 void EncodeUnsignedLeb128(uint32_t data, std::vector<uint8_t>* buf);
 void EncodeSignedLeb128(int32_t data, std::vector<uint8_t>* buf);
@@ -495,6 +568,13 @@ struct FreeDelete {
 // Alias for std::unique_ptr<> that uses the C function free() to delete objects.
 template <typename T>
 using UniqueCPtr = std::unique_ptr<T, FreeDelete>;
+
+// C++14 from-the-future import (std::make_unique)
+// Invoke the constructor of 'T' with the provided args, and wrap the result in a unique ptr.
+template <typename T, typename ... Args>
+std::unique_ptr<T> MakeUnique(Args&& ... args) {
+  return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+}
 
 }  // namespace art
 

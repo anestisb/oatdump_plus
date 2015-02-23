@@ -19,12 +19,12 @@
 
 #include <string>
 
-#include "base/macros.h"
+#include "base/logging.h"
+
 namespace art {
 
 // Forward declarations.
-struct BasicBlock;
-struct CompilationUnit;
+class BasicBlock;
 class Pass;
 
 // Empty Pass Data Class, can be extended by any pass extending the base Pass class.
@@ -81,27 +81,10 @@ class Pass {
    * @param data the object containing data necessary for the pass.
    * @return whether or not there is a change when walking the BasicBlock
    */
-  virtual bool Worker(PassDataHolder* data) const {
-    // Unused parameter.
-    UNUSED(data);
-
-    // BasicBlock did not change.
-    return false;
-  }
-
-  static void BasePrintMessage(CompilationUnit* c_unit, const char* pass_name, const char* message, ...) {
-    // Check if we want to log something or not.
-    if (c_unit->print_pass) {
-      // Stringify the message.
-      va_list args;
-      va_start(args, message);
-      std::string stringified_message;
-      StringAppendV(&stringified_message, message, args);
-      va_end(args);
-
-      // Log the message and ensure to include pass name.
-      LOG(INFO) << pass_name << ": " << stringified_message;
-    }
+  virtual bool Worker(PassDataHolder* data ATTRIBUTE_UNUSED) const {
+    // Passes that do all their work in Start() or End() should not allow useless node iteration.
+    LOG(FATAL) << "Unsupported default Worker() used for " << GetName();
+    UNREACHABLE();
   }
 
  protected:

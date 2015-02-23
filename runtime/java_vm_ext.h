@@ -34,10 +34,11 @@ namespace mirror {
 class Libraries;
 class ParsedOptions;
 class Runtime;
+struct RuntimeArgumentMap;
 
 class JavaVMExt : public JavaVM {
  public:
-  JavaVMExt(Runtime* runtime, ParsedOptions* options);
+  JavaVMExt(Runtime* runtime, const RuntimeArgumentMap& runtime_options);
   ~JavaVMExt();
 
   bool ForceCopy() const {
@@ -104,9 +105,9 @@ class JavaVMExt : public JavaVM {
 
   void VisitRoots(RootCallback* callback, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void DisallowNewWeakGlobals() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
-
+  void DisallowNewWeakGlobals() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void AllowNewWeakGlobals() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void EnsureNewWeakGlobalsDisallowed() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   jobject AddGlobalRef(Thread* self, mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -130,6 +131,9 @@ class JavaVMExt : public JavaVM {
   const JNIInvokeInterface* GetUncheckedFunctions() const {
     return unchecked_functions_;
   }
+
+  void TrimGlobals() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(globals_lock_);
 
  private:
   Runtime* const runtime_;

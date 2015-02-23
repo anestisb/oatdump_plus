@@ -25,6 +25,8 @@
     #define MACRO1(macro_name, macro_arg1) .macro macro_name
     #define MACRO2(macro_name, macro_arg1, macro_args2) .macro macro_name
     #define MACRO3(macro_name, macro_arg1, macro_args2, macro_args3) .macro macro_name
+    #define MACRO4(macro_name, macro_arg1, macro_arg2, macro_arg3, macro_arg4) .macro macro_name
+    #define MACRO5(macro_name, macro_arg1, macro_arg2, macro_arg3, macro_arg4, macro_arg5) .macro macro_name
     #define END_MACRO .endmacro
 
     // Clang's as(1) uses $0, $1, and so on for macro arguments.
@@ -43,6 +45,8 @@
     #define MACRO1(macro_name, macro_arg1) .macro macro_name macro_arg1
     #define MACRO2(macro_name, macro_arg1, macro_arg2) .macro macro_name macro_arg1, macro_arg2
     #define MACRO3(macro_name, macro_arg1, macro_arg2, macro_arg3) .macro macro_name macro_arg1, macro_arg2, macro_arg3
+    #define MACRO4(macro_name, macro_arg1, macro_arg2, macro_arg3, macro_arg4) .macro macro_name macro_arg1, macro_arg2, macro_arg3, macro_arg4
+    #define MACRO5(macro_name, macro_arg1, macro_arg2, macro_arg3, macro_arg4, macro_arg5) .macro macro_name macro_arg1, macro_arg2, macro_arg3, macro_arg4, macro_arg5
     #define END_MACRO .endm
 
     // Regular gas(1) uses \argument_name for macro arguments.
@@ -135,16 +139,6 @@ VAR(c_name, 0):
     CFI_DEF_CFA(esp, 4)
 END_MACRO
 
-MACRO1(DEFINE_FUNCTION_NO_HIDE, c_name)
-    FUNCTION_TYPE(\c_name, 0)
-    .globl VAR(c_name, 0)
-    ALIGN_FUNCTION_ENTRY
-VAR(c_name, 0):
-    CFI_STARTPROC
-    // Ensure we get a sane starting CFA.
-    CFI_DEF_CFA(esp, 4)
-END_MACRO
-
 MACRO1(END_FUNCTION, c_name)
     CFI_ENDPROC
     SIZE(\c_name, 0)
@@ -174,10 +168,14 @@ VAR(name, 0):
     SIZE(\name, 0)
 END_MACRO
 
-MACRO0(SETUP_GOT_NOSAVE)
+MACRO1(SETUP_GOT_NOSAVE, got_reg)
 #ifndef __APPLE__
-    call __x86.get_pc_thunk.bx
-    addl $_GLOBAL_OFFSET_TABLE_, %ebx
+    .ifc RAW_VAR(got_reg, 0), ebx
+      call __x86.get_pc_thunk.bx
+      addl $_GLOBAL_OFFSET_TABLE_, %ebx
+    .else
+      .error "Unknown GOT register \got_reg"
+    .endif
 #endif
 END_MACRO
 

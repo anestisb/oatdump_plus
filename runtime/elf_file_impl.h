@@ -21,11 +21,9 @@
 #include <memory>
 #include <vector>
 
-#include "base/unix_file/fd_file.h"
-#include "globals.h"
-#include "elf_utils.h"
+// Explicitly include our own elf.h to avoid Linux and other dependencies.
+#include "./elf.h"
 #include "mem_map.h"
-#include "os.h"
 
 namespace art {
 
@@ -38,7 +36,8 @@ template <typename Elf_Ehdr, typename Elf_Phdr, typename Elf_Shdr, typename Elf_
           typename Elf_Rela, typename Elf_Dyn, typename Elf_Off>
 class ElfFileImpl {
  public:
-  static ElfFileImpl* Open(File* file, bool writable, bool program_header_only, std::string* error_msg);
+  static ElfFileImpl* Open(File* file, bool writable, bool program_header_only,
+                           std::string* error_msg, uint8_t* requested_base = nullptr);
   static ElfFileImpl* Open(File* file, int mmap_prot, int mmap_flags, std::string* error_msg);
   ~ElfFileImpl();
 
@@ -114,7 +113,7 @@ class ElfFileImpl {
   bool Strip(std::string* error_msg);
 
  private:
-  ElfFileImpl(File* file, bool writable, bool program_header_only);
+  ElfFileImpl(File* file, bool writable, bool program_header_only, uint8_t* requested_base);
 
   bool Setup(int prot, int flags, std::string* error_msg);
 
@@ -207,13 +206,12 @@ class ElfFileImpl {
                   Elf_Sword, Elf_Addr, Elf_Sym, Elf_Rel,
                   Elf_Rela, Elf_Dyn, Elf_Off>> gdb_file_mapping_;
   void GdbJITSupport();
-};
 
-// Explicitly instantiated in elf_file.cc
-typedef ElfFileImpl<Elf32_Ehdr, Elf32_Phdr, Elf32_Shdr, Elf32_Word, Elf32_Sword,
-                    Elf32_Addr, Elf32_Sym, Elf32_Rel, Elf32_Rela, Elf32_Dyn, Elf32_Off> ElfFileImpl32;
-typedef ElfFileImpl<Elf64_Ehdr, Elf64_Phdr, Elf64_Shdr, Elf64_Word, Elf64_Sword,
-                    Elf64_Addr, Elf64_Sym, Elf64_Rel, Elf64_Rela, Elf64_Dyn, Elf64_Off> ElfFileImpl64;
+  // Override the 'base' p_vaddr in the first LOAD segment with this value (if non-null).
+  uint8_t* requested_base_;
+
+  DISALLOW_COPY_AND_ASSIGN(ElfFileImpl);
+};
 
 }  // namespace art
 

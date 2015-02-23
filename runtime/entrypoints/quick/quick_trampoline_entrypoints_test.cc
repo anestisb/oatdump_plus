@@ -25,6 +25,12 @@ namespace art {
 
 class QuickTrampolineEntrypointsTest : public CommonRuntimeTest {
  protected:
+  void SetUpRuntimeOptions(RuntimeOptions *options) OVERRIDE {
+    // Use 64-bit ISA for runtime setup to make method size potentially larger
+    // than necessary (rather than smaller) during CreateCalleeSaveMethod
+    options->push_back(std::make_pair("imageinstructionset", "x86_64"));
+  }
+
   static mirror::ArtMethod* CreateCalleeSaveMethod(InstructionSet isa,
                                                    Runtime::CalleeSaveType type)
       NO_THREAD_SAFETY_ANALYSIS {
@@ -34,7 +40,7 @@ class QuickTrampolineEntrypointsTest : public CommonRuntimeTest {
     t->TransitionFromSuspendedToRunnable();  // So we can create callee-save methods.
 
     r->SetInstructionSet(isa);
-    mirror::ArtMethod* save_method = r->CreateCalleeSaveMethod(type);
+    mirror::ArtMethod* save_method = r->CreateCalleeSaveMethod();
     r->SetCalleeSaveMethod(save_method, type);
 
     t->TransitionFromRunnableToSuspended(ThreadState::kNative);  // So we can shut down.
@@ -55,9 +61,10 @@ class QuickTrampolineEntrypointsTest : public CommonRuntimeTest {
       NO_THREAD_SAFETY_ANALYSIS {
     mirror::ArtMethod* save_method = CreateCalleeSaveMethod(isa, type);
     QuickMethodFrameInfo frame_info = save_method->GetQuickFrameInfo();
-    EXPECT_EQ(save_method->GetReturnPcOffsetInBytes(), pc_offset) << "Expected and real pc offset"
-        " differs for " << type << " core spills=" << std::hex << frame_info.CoreSpillMask() <<
-        " fp spills=" << frame_info.FpSpillMask() << std::dec << " ISA " << isa;
+    EXPECT_EQ(save_method->GetReturnPcOffset().SizeValue(), pc_offset)
+        << "Expected and real pc offset differs for " << type
+        << " core spills=" << std::hex << frame_info.CoreSpillMask()
+        << " fp spills=" << frame_info.FpSpillMask() << std::dec << " ISA " << isa;
   }
 };
 
@@ -97,11 +104,11 @@ TEST_F(QuickTrampolineEntrypointsTest, ReturnPC) {
   // Note: we can only check against the kRuntimeISA, because the ArtMethod computation uses
   // sizeof(void*), which is wrong when the target bitwidth is not the same as the host's.
   CheckPCOffset(kRuntimeISA, Runtime::kRefsAndArgs,
-                GetCalleeSavePCOffset(kRuntimeISA, Runtime::kRefsAndArgs));
+                GetCalleeSaveReturnPcOffset(kRuntimeISA, Runtime::kRefsAndArgs));
   CheckPCOffset(kRuntimeISA, Runtime::kRefsOnly,
-                GetCalleeSavePCOffset(kRuntimeISA, Runtime::kRefsOnly));
+                GetCalleeSaveReturnPcOffset(kRuntimeISA, Runtime::kRefsOnly));
   CheckPCOffset(kRuntimeISA, Runtime::kSaveAll,
-                GetCalleeSavePCOffset(kRuntimeISA, Runtime::kSaveAll));
+                GetCalleeSaveReturnPcOffset(kRuntimeISA, Runtime::kSaveAll));
 }
 
 }  // namespace art

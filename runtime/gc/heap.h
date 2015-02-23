@@ -22,18 +22,18 @@
 #include <vector>
 
 #include "allocator_type.h"
+#include "arch/instruction_set.h"
 #include "atomic.h"
 #include "base/timing_logger.h"
 #include "gc/accounting/atomic_stack.h"
 #include "gc/accounting/card_table.h"
+#include "gc/accounting/read_barrier_table.h"
 #include "gc/gc_cause.h"
 #include "gc/collector/garbage_collector.h"
 #include "gc/collector/gc_type.h"
 #include "gc/collector_type.h"
 #include "gc/space/large_object_space.h"
 #include "globals.h"
-#include "gtest/gtest.h"
-#include "instruction_set.h"
 #include "jni.h"
 #include "object_callbacks.h"
 #include "offsets.h"
@@ -58,6 +58,7 @@ namespace mirror {
 namespace gc {
 
 class ReferenceProcessor;
+class TaskProcessor;
 
 namespace accounting {
   class HeapBitmap;
@@ -86,6 +87,7 @@ namespace space {
   class ImageSpace;
   class LargeObjectSpace;
   class MallocSpace;
+  class RegionSpace;
   class RosAllocSpace;
   class Space;
   class SpaceTest;
@@ -143,15 +145,14 @@ class Heap {
   static constexpr double kDefaultHeapGrowthMultiplier = 2.0;
   // Primitive arrays larger than this size are put in the large object space.
   static constexpr size_t kDefaultLargeObjectThreshold = 3 * kPageSize;
+
   // Whether or not we use the free list large object space. Only use it if USE_ART_LOW_4G_ALLOCATOR
   // since this means that we have to use the slow msync loop in MemMap::MapAnonymous.
-#if USE_ART_LOW_4G_ALLOCATOR
   static constexpr space::LargeObjectSpaceType kDefaultLargeObjectSpaceType =
-      space::kLargeObjectSpaceTypeFreeList;
-#else
-  static constexpr space::LargeObjectSpaceType kDefaultLargeObjectSpaceType =
-      space::kLargeObjectSpaceTypeMap;
-#endif
+      USE_ART_LOW_4G_ALLOCATOR ?
+          space::LargeObjectSpaceType::kFreeList
+        : space::LargeObjectSpaceType::kMap;
+
   // Used so that we don't overflow the allocation time atomic integer.
   static constexpr size_t kTimeAdjust = 1024;
 
@@ -216,7 +217,11 @@ class Heap {
 
   // Visit all of the live objects in the heap.
   void VisitObjects(ObjectCallback callback, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
+  void VisitObjectsPaused(ObjectCallback callback, void* arg)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
 
   void CheckPreconditionsForAllocObject(mirror::Class* c, size_t byte_count)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -245,7 +250,7 @@ class Heap {
   void VerifyHeap() LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
   // Returns how many failures occured.
   size_t VerifyHeapReferences(bool verify_referents = true)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool VerifyMissingCardMarks()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
@@ -301,6 +306,10 @@ class Heap {
   // Removes the growth limit on the alloc space so it may grow to its maximum capacity. Used to
   // implement dalvik.system.VMRuntime.clearGrowthLimit.
   void ClearGrowthLimit();
+
+  // Make the current growth limit the new maximum capacity, unmaps pages at the end of spaces
+  // which will never be used. Used to implement dalvik.system.VMRuntime.clampGrowthLimit.
+  void ClampGrowthLimit();
 
   // Target ideal heap utilization ratio, implements
   // dalvik.system.VMRuntime.getTargetHeapUtilization.
@@ -383,23 +392,27 @@ class Heap {
 
   // Must be called if a field of an Object in the heap changes, and before any GC safe-point.
   // The call is not needed if NULL is stored in the field.
-  void WriteBarrierField(const mirror::Object* dst, MemberOffset /*offset*/,
-                         const mirror::Object* /*new_value*/) {
+  ALWAYS_INLINE void WriteBarrierField(const mirror::Object* dst, MemberOffset /*offset*/,
+                                       const mirror::Object* /*new_value*/) {
     card_table_->MarkCard(dst);
   }
 
   // Write barrier for array operations that update many field positions
-  void WriteBarrierArray(const mirror::Object* dst, int /*start_offset*/,
-                         size_t /*length TODO: element_count or byte_count?*/) {
+  ALWAYS_INLINE void WriteBarrierArray(const mirror::Object* dst, int /*start_offset*/,
+                                       size_t /*length TODO: element_count or byte_count?*/) {
     card_table_->MarkCard(dst);
   }
 
-  void WriteBarrierEveryFieldOf(const mirror::Object* obj) {
+  ALWAYS_INLINE void WriteBarrierEveryFieldOf(const mirror::Object* obj) {
     card_table_->MarkCard(obj);
   }
 
   accounting::CardTable* GetCardTable() const {
     return card_table_.get();
+  }
+
+  accounting::ReadBarrierTable* GetReadBarrierTable() const {
+    return rb_table_.get();
   }
 
   void AddFinalizerReference(Thread* self, mirror::Object** object);
@@ -471,11 +484,11 @@ class Heap {
 
   void DumpForSigQuit(std::ostream& os);
 
-  // Do a pending heap transition or trim.
-  void DoPendingTransitionOrTrim() LOCKS_EXCLUDED(heap_trim_request_lock_);
+  // Do a pending collector transition.
+  void DoPendingCollectorTransition();
 
-  // Trim the managed and native heaps by releasing unused memory back to the OS.
-  void Trim() LOCKS_EXCLUDED(heap_trim_request_lock_);
+  // Deflate monitors, ... and trim the spaces.
+  void Trim(Thread* self) LOCKS_EXCLUDED(gc_complete_lock_);
 
   void RevokeThreadLocalBuffers(Thread* thread);
   void RevokeRosAllocThreadLocalBuffers(Thread* thread);
@@ -501,6 +514,7 @@ class Heap {
 
   // Mark and empty stack.
   void FlushAllocStack()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Revoke all the thread-local allocation stacks.
@@ -514,10 +528,12 @@ class Heap {
                       accounting::SpaceBitmap<kObjectAlignment>* bitmap2,
                       accounting::SpaceBitmap<kLargeObjectAlignment>* large_objects,
                       accounting::ObjectStack* stack)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Mark the specified allocation stack as live.
   void MarkAllocStackAsLive(accounting::ObjectStack* stack)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Unbind any bound bitmaps.
@@ -602,20 +618,54 @@ class Heap {
   void RemoveRememberedSet(space::Space* space);
 
   bool IsCompilingBoot() const;
-  bool RunningOnValgrind() const {
-    return running_on_valgrind_;
-  }
   bool HasImageSpace() const;
 
   ReferenceProcessor* GetReferenceProcessor() {
     return &reference_processor_;
+  }
+  TaskProcessor* GetTaskProcessor() {
+    return task_processor_.get();
   }
 
   bool HasZygoteSpace() const {
     return zygote_space_ != nullptr;
   }
 
+  collector::ConcurrentCopying* ConcurrentCopyingCollector() {
+    return concurrent_copying_collector_;
+  }
+
+  CollectorType CurrentCollectorType() {
+    return collector_type_;
+  }
+
+  bool IsGcConcurrentAndMoving() const {
+    if (IsGcConcurrent() && IsMovingGc(collector_type_)) {
+      // Assume no transition when a concurrent moving collector is used.
+      DCHECK_EQ(collector_type_, foreground_collector_type_);
+      DCHECK_EQ(foreground_collector_type_, background_collector_type_)
+          << "Assume no transition such that collector_type_ won't change";
+      return true;
+    }
+    return false;
+  }
+
+  bool IsMovingGCDisabled(Thread* self) {
+    MutexLock mu(self, *gc_complete_lock_);
+    return disable_moving_gc_count_ > 0;
+  }
+
+  // Request an asynchronous trim.
+  void RequestTrim(Thread* self) LOCKS_EXCLUDED(pending_task_lock_);
+
+  // Request asynchronous GC.
+  void RequestConcurrentGC(Thread* self) LOCKS_EXCLUDED(pending_task_lock_);
+
  private:
+  class ConcurrentGCTask;
+  class CollectorTransitionTask;
+  class HeapTrimTask;
+
   // Compact source space to target space.
   void Compact(space::ContinuousMemMapAllocSpace* target_space,
                space::ContinuousMemMapAllocSpace* source_space,
@@ -626,8 +676,7 @@ class Heap {
 
   // Create a mem map with a preferred base address.
   static MemMap* MapAnonymousPreferredAddress(const char* name, uint8_t* request_begin,
-                                              size_t capacity, int prot_flags,
-                                              std::string* out_error_str);
+                                              size_t capacity, std::string* out_error_str);
 
   bool SupportHSpaceCompaction() const {
     // Returns true if we can do hspace compaction
@@ -637,10 +686,14 @@ class Heap {
   static ALWAYS_INLINE bool AllocatorHasAllocationStack(AllocatorType allocator_type) {
     return
         allocator_type != kAllocatorTypeBumpPointer &&
-        allocator_type != kAllocatorTypeTLAB;
+        allocator_type != kAllocatorTypeTLAB &&
+        allocator_type != kAllocatorTypeRegion &&
+        allocator_type != kAllocatorTypeRegionTLAB;
   }
   static ALWAYS_INLINE bool AllocatorMayHaveConcurrentGC(AllocatorType allocator_type) {
-    return AllocatorHasAllocationStack(allocator_type);
+    return
+        allocator_type != kAllocatorTypeBumpPointer &&
+        allocator_type != kAllocatorTypeTLAB;
   }
   static bool IsMovingGc(CollectorType collector_type) {
     return collector_type == kCollectorTypeSS || collector_type == kCollectorTypeGSS ||
@@ -659,7 +712,7 @@ class Heap {
 
   // We don't force this to be inlined since it is a slow path.
   template <bool kInstrumented, typename PreFenceVisitor>
-  mirror::Object* AllocLargeObject(Thread* self, mirror::Class* klass, size_t byte_count,
+  mirror::Object* AllocLargeObject(Thread* self, mirror::Class** klass, size_t byte_count,
                                    const PreFenceVisitor& pre_fence_visitor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -707,12 +760,10 @@ class Heap {
       EXCLUSIVE_LOCKS_REQUIRED(gc_complete_lock_);
 
   void RequestCollectorTransition(CollectorType desired_collector_type, uint64_t delta_time)
-      LOCKS_EXCLUDED(heap_trim_request_lock_);
-  void RequestHeapTrim() LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
+      LOCKS_EXCLUDED(pending_task_lock_);
+
   void RequestConcurrentGCAndSaveObject(Thread* self, mirror::Object** obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void RequestConcurrentGC(Thread* self)
-      LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
   bool IsGCRequestPending() const;
 
   // Sometimes CollectGarbageInternal decides to run a different Gc than you requested. Returns
@@ -730,7 +781,8 @@ class Heap {
   void PrePauseRosAllocVerification(collector::GarbageCollector* gc)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
   void PreSweepingGcVerification(collector::GarbageCollector* gc)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
   void PostGcVerification(collector::GarbageCollector* gc)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
   void PostGcVerificationPaused(collector::GarbageCollector* gc)
@@ -757,8 +809,10 @@ class Heap {
 
   // Given the current contents of the alloc space, increase the allowed heap footprint to match
   // the target utilization ratio.  This should only be called immediately after a full garbage
-  // collection.
-  void GrowForUtilization(collector::GarbageCollector* collector_ran);
+  // collection. bytes_allocated_before_gc is used to measure bytes / second for the period which
+  // the GC was run.
+  void GrowForUtilization(collector::GarbageCollector* collector_ran,
+                          uint64_t bytes_allocated_before_gc = 0);
 
   size_t GetPercentFree();
 
@@ -766,14 +820,13 @@ class Heap {
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Swap the allocation stack with the live stack.
-  void SwapStacks(Thread* self);
+  void SwapStacks(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Clear cards and update the mod union table.
-  void ProcessCards(TimingLogger* timings, bool use_rem_sets);
-
-  // Signal the heap trim daemon that there is something to do, either a heap transition or heap
-  // trim.
-  void SignalHeapTrimDaemon(Thread* self);
+  // Clear cards and update the mod union table. When process_alloc_space_cards is true,
+  // if clear_alloc_space_cards is true, then we clear cards instead of ageing them. We do
+  // not process the alloc space if process_alloc_space_cards is false.
+  void ProcessCards(TimingLogger* timings, bool use_rem_sets, bool process_alloc_space_cards,
+                    bool clear_alloc_space_cards);
 
   // Push an object onto the allocation stack.
   void PushOnAllocationStack(Thread* self, mirror::Object** obj)
@@ -783,11 +836,28 @@ class Heap {
   void PushOnThreadLocalAllocationStackWithInternalGC(Thread* thread, mirror::Object** obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  void ClearConcurrentGCRequest();
+  void ClearPendingTrim(Thread* self) LOCKS_EXCLUDED(pending_task_lock_);
+  void ClearPendingCollectorTransition(Thread* self) LOCKS_EXCLUDED(pending_task_lock_);
+
   // What kind of concurrency behavior is the runtime after? Currently true for concurrent mark
   // sweep GC, false for other GC types.
   bool IsGcConcurrent() const ALWAYS_INLINE {
     return collector_type_ == kCollectorTypeCMS || collector_type_ == kCollectorTypeCC;
   }
+
+  // Trim the managed and native spaces by releasing unused memory back to the OS.
+  void TrimSpaces(Thread* self) LOCKS_EXCLUDED(gc_complete_lock_);
+
+  // Trim 0 pages at the end of reference tables.
+  void TrimIndirectReferenceTables(Thread* self);
+
+  void VisitObjectsInternal(ObjectCallback callback, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
+  void VisitObjectsInternalRegionSpace(ObjectCallback callback, void* arg)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
 
   // All-known continuous spaces, where objects lie within fixed bounds.
   std::vector<space::ContinuousSpace*> continuous_spaces_;
@@ -818,6 +888,8 @@ class Heap {
   // The card table, dirtied by the write barrier.
   std::unique_ptr<accounting::CardTable> card_table_;
 
+  std::unique_ptr<accounting::ReadBarrierTable> rb_table_;
+
   // A mod-union table remembers all of the references from the it's space to other spaces.
   AllocationTrackingSafeMap<space::Space*, accounting::ModUnionTable*, kAllocatorTagHeap>
       mod_union_tables_;
@@ -835,14 +907,8 @@ class Heap {
   // Desired collector type, heap trimming daemon transitions the heap if it is != collector_type_.
   CollectorType desired_collector_type_;
 
-  // Lock which guards heap trim requests.
-  Mutex* heap_trim_request_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  // When we want to perform the next heap trim (nano seconds).
-  uint64_t last_trim_time_ GUARDED_BY(heap_trim_request_lock_);
-  // When we want to perform the next heap transition (nano seconds) or heap trim.
-  uint64_t heap_transition_or_trim_target_time_ GUARDED_BY(heap_trim_request_lock_);
-  // If we have a heap trim request pending.
-  bool heap_trim_request_pending_ GUARDED_BY(heap_trim_request_lock_);
+  // Lock which guards pending tasks.
+  Mutex* pending_task_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 
   // How many GC threads we may use for paused parts of garbage collection.
   const size_t parallel_gc_threads_;
@@ -882,6 +948,9 @@ class Heap {
   // Reference processor;
   ReferenceProcessor reference_processor_;
 
+  // Task processor, proxies heap trim requests to the daemon threads.
+  std::unique_ptr<TaskProcessor> task_processor_;
+
   // True while the garbage collector is running.
   volatile CollectorType collector_type_running_ GUARDED_BY(gc_complete_lock_);
 
@@ -890,7 +959,7 @@ class Heap {
   collector::GcType next_gc_type_;
 
   // Maximum size that the heap can reach.
-  const size_t capacity_;
+  size_t capacity_;
 
   // The size the heap is limited to. This is initially smaller than capacity, but for largeHeap
   // programs it is "cleared" making it the same as capacity.
@@ -968,12 +1037,6 @@ class Heap {
   // Parallel GC data structures.
   std::unique_ptr<ThreadPool> thread_pool_;
 
-  // The nanosecond time at which the last GC ended.
-  uint64_t last_gc_time_ns_;
-
-  // How many bytes were allocated at the end of the last GC.
-  uint64_t last_gc_size_;
-
   // Estimated allocation rate (bytes / second). Computed between the time of the last GC cycle
   // and the start of the current one.
   uint64_t allocation_rate_;
@@ -1004,6 +1067,8 @@ class Heap {
   space::BumpPointerSpace* bump_pointer_space_;
   // Temp space is the space which the semispace collector copies to.
   space::BumpPointerSpace* temp_space_;
+
+  space::RegionSpace* region_space_;
 
   // Minimum free guarantees that you always have at least min_free_ free bytes after growing for
   // utilization, regardless of target utilization ratio.
@@ -1060,11 +1125,20 @@ class Heap {
   // Count for performed homogeneous space compaction.
   Atomic<size_t> count_performed_homogeneous_space_compaction_;
 
+  // Whether or not a concurrent GC is pending.
+  Atomic<bool> concurrent_gc_pending_;
+
+  // Active tasks which we can modify (change target time, desired collector type, etc..).
+  CollectorTransitionTask* pending_collector_transition_ GUARDED_BY(pending_task_lock_);
+  HeapTrimTask* pending_heap_trim_ GUARDED_BY(pending_task_lock_);
+
   // Whether or not we use homogeneous space compaction to avoid OOM errors.
   bool use_homogeneous_space_compaction_for_oom_;
 
+  friend class CollectorTransitionTask;
   friend class collector::GarbageCollector;
   friend class collector::MarkCompact;
+  friend class collector::ConcurrentCopying;
   friend class collector::MarkSweep;
   friend class collector::SemiSpace;
   friend class ReferenceQueue;

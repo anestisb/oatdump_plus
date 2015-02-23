@@ -17,16 +17,21 @@
 /* This file contains codegen for the Mips ISA */
 
 #include "codegen_mips.h"
+
+#include "base/logging.h"
+#include "dex/mir_graph.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "gc/accounting/card_table.h"
 #include "mips_lir.h"
+#include "mirror/art_method.h"
+#include "mirror/object_array-inl.h"
 
 namespace art {
 
-bool MipsMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
-                                 const InlineMethod& special) {
+bool MipsMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& special) {
   // TODO
+  UNUSED(bb, mir, special);
   return false;
 }
 
@@ -57,23 +62,19 @@ bool MipsMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
  *   bne   r_val, r_key, loop
  *   lw    r_disp, -4(r_base)
  *   addu  rRA, r_disp
- *   jr    rRA
+ *   jalr  rZERO, rRA
  * done:
  *
  */
 void MipsMir2Lir::GenLargeSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
   const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
-  if (cu_->verbose) {
-    DumpSparseSwitchTable(table);
-  }
   // Add the table to the list - we'll process it later
   SwitchTable* tab_rec =
       static_cast<SwitchTable*>(arena_->Alloc(sizeof(SwitchTable), kArenaAllocData));
+  tab_rec->switch_mir = mir;
   tab_rec->table = table;
   tab_rec->vaddr = current_dalvik_offset_;
   int elements = table[1];
-  tab_rec->targets =
-      static_cast<LIR**>(arena_->Alloc(elements * sizeof(LIR*), kArenaAllocLIR));
   switch_tables_.push_back(tab_rec);
 
   // The table is composed of 8-byte key/disp pairs
@@ -135,22 +136,18 @@ void MipsMir2Lir::GenLargeSparseSwitch(MIR* mir, DexOffset table_offset, RegLoca
  *   bound check -> done
  *   lw    r_disp, [rRA, r_val]
  *   addu  rRA, r_disp
- *   jr    rRA
+ *   jalr  rZERO, rRA
  * done:
  */
 void MipsMir2Lir::GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
   const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
-  if (cu_->verbose) {
-    DumpPackedSwitchTable(table);
-  }
   // Add the table to the list - we'll process it later
   SwitchTable* tab_rec =
       static_cast<SwitchTable*>(arena_->Alloc(sizeof(SwitchTable), kArenaAllocData));
+  tab_rec->switch_mir = mir;
   tab_rec->table = table;
   tab_rec->vaddr = current_dalvik_offset_;
   int size = table[1];
-  tab_rec->targets = static_cast<LIR**>(arena_->Alloc(size * sizeof(LIR*),
-                                                      kArenaAllocLIR));
   switch_tables_.push_back(tab_rec);
 
   // Get the switch value
@@ -221,19 +218,13 @@ void MipsMir2Lir::GenMoveException(RegLocation rl_dest) {
   StoreValue(rl_dest, rl_result);
 }
 
-/*
- * Mark garbage collection card. Skip if the value we're storing is null.
- */
-void MipsMir2Lir::MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) {
+void MipsMir2Lir::UnconditionallyMarkGCCard(RegStorage tgt_addr_reg) {
   RegStorage reg_card_base = AllocTemp();
   RegStorage reg_card_no = AllocTemp();
-  LIR* branch_over = OpCmpImmBranch(kCondEq, val_reg, 0, NULL);
   // NOTE: native pointer.
   LoadWordDisp(rs_rMIPS_SELF, Thread::CardTableOffset<4>().Int32Value(), reg_card_base);
   OpRegRegImm(kOpLsr, reg_card_no, tgt_addr_reg, gc::accounting::CardTable::kCardShift);
   StoreBaseIndexed(reg_card_base, reg_card_no, reg_card_base, 0, kUnsignedByte);
-  LIR* target = NewLIR0(kPseudoTargetLabel);
-  branch_over->target = target;
   FreeTemp(reg_card_base);
   FreeTemp(reg_card_no);
 }
@@ -322,6 +313,106 @@ void MipsMir2Lir::GenExitSequence() {
 
 void MipsMir2Lir::GenSpecialExitSequence() {
   OpReg(kOpBx, rs_rRA);
+}
+
+void MipsMir2Lir::GenSpecialEntryForSuspend() {
+  // Keep 16-byte stack alignment - push A0, i.e. ArtMethod*, 2 filler words and RA.
+  core_spill_mask_ = (1u << rs_rRA.GetRegNum());
+  num_core_spills_ = 1u;
+  fp_spill_mask_ = 0u;
+  num_fp_spills_ = 0u;
+  frame_size_ = 16u;
+  core_vmap_table_.clear();
+  fp_vmap_table_.clear();
+  OpRegImm(kOpSub, rs_rMIPS_SP, frame_size_);
+  Store32Disp(rs_rMIPS_SP, frame_size_ - 4, rs_rRA);
+  Store32Disp(rs_rMIPS_SP, 0, rs_rA0);
+}
+
+void MipsMir2Lir::GenSpecialExitForSuspend() {
+  // Pop the frame. Don't pop ArtMethod*, it's no longer needed.
+  Load32Disp(rs_rMIPS_SP, frame_size_ - 4, rs_rRA);
+  OpRegImm(kOpAdd, rs_rMIPS_SP, frame_size_);
+}
+
+/*
+ * Bit of a hack here - in the absence of a real scheduling pass,
+ * emit the next instruction in static & direct invoke sequences.
+ */
+static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info ATTRIBUTE_UNUSED,
+                          int state, const MethodReference& target_method,
+                          uint32_t,
+                          uintptr_t direct_code, uintptr_t direct_method,
+                          InvokeType type) {
+  Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
+  if (direct_code != 0 && direct_method != 0) {
+    switch (state) {
+    case 0:  // Get the current Method* [sets kArg0]
+      if (direct_code != static_cast<uintptr_t>(-1)) {
+        cg->LoadConstant(cg->TargetPtrReg(kInvokeTgt), direct_code);
+      } else {
+        cg->LoadCodeAddress(target_method, type, kInvokeTgt);
+      }
+      if (direct_method != static_cast<uintptr_t>(-1)) {
+        cg->LoadConstant(cg->TargetReg(kArg0, kRef), direct_method);
+      } else {
+        cg->LoadMethodAddress(target_method, type, kArg0);
+      }
+      break;
+    default:
+      return -1;
+    }
+  } else {
+    RegStorage arg0_ref = cg->TargetReg(kArg0, kRef);
+    switch (state) {
+    case 0:  // Get the current Method* [sets kArg0]
+      // TUNING: we can save a reg copy if Method* has been promoted.
+      cg->LoadCurrMethodDirect(arg0_ref);
+      break;
+    case 1:  // Get method->dex_cache_resolved_methods_
+      cg->LoadRefDisp(arg0_ref,
+                      mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value(),
+                      arg0_ref,
+                      kNotVolatile);
+      // Set up direct code if known.
+      if (direct_code != 0) {
+        if (direct_code != static_cast<uintptr_t>(-1)) {
+          cg->LoadConstant(cg->TargetPtrReg(kInvokeTgt), direct_code);
+        } else {
+          CHECK_LT(target_method.dex_method_index, target_method.dex_file->NumMethodIds());
+          cg->LoadCodeAddress(target_method, type, kInvokeTgt);
+        }
+      }
+      break;
+    case 2:  // Grab target method*
+      CHECK_EQ(cu->dex_file, target_method.dex_file);
+      cg->LoadRefDisp(arg0_ref,
+                      mirror::ObjectArray<mirror::Object>::
+                          OffsetOfElement(target_method.dex_method_index).Int32Value(),
+                      arg0_ref,
+                      kNotVolatile);
+      break;
+    case 3:  // Grab the code from the method*
+      if (direct_code == 0) {
+        int32_t offset = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+            InstructionSetPointerSize(cu->instruction_set)).Int32Value();
+        // Get the compiled code address [use *alt_from or kArg0, set kInvokeTgt]
+        cg->LoadWordDisp(arg0_ref, offset, cg->TargetPtrReg(kInvokeTgt));
+      }
+      break;
+    default:
+      return -1;
+    }
+  }
+  return state + 1;
+}
+
+NextCallInsn MipsMir2Lir::GetNextSDCallInsn() {
+  return NextSDCallInsn;
+}
+
+LIR* MipsMir2Lir::GenCallInsn(const MirMethodLoweringInfo& method_info ATTRIBUTE_UNUSED) {
+  return OpReg(kOpBlx, TargetPtrReg(kInvokeTgt));
 }
 
 }  // namespace art

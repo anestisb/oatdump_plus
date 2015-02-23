@@ -17,9 +17,8 @@
 #include "context_mips.h"
 
 #include "mirror/art_method-inl.h"
-#include "mirror/object-inl.h"
 #include "quick/quick_method_frame_info.h"
-#include "stack.h"
+#include "utils.h"
 
 namespace art {
 namespace mips {
@@ -68,26 +67,18 @@ void MipsContext::FillCalleeSaves(const StackVisitor& fr) {
   }
 }
 
-bool MipsContext::SetGPR(uint32_t reg, uintptr_t value) {
+void MipsContext::SetGPR(uint32_t reg, uintptr_t value) {
   CHECK_LT(reg, static_cast<uint32_t>(kNumberOfCoreRegisters));
+  DCHECK(IsAccessibleGPR(reg));
   CHECK_NE(gprs_[reg], &gZero);  // Can't overwrite this static value since they are never reset.
-  if (gprs_[reg] != nullptr) {
-    *gprs_[reg] = value;
-    return true;
-  } else {
-    return false;
-  }
+  *gprs_[reg] = value;
 }
 
-bool MipsContext::SetFPR(uint32_t reg, uintptr_t value) {
+void MipsContext::SetFPR(uint32_t reg, uintptr_t value) {
   CHECK_LT(reg, static_cast<uint32_t>(kNumberOfFRegisters));
+  DCHECK(IsAccessibleFPR(reg));
   CHECK_NE(fprs_[reg], &gZero);  // Can't overwrite this static value since they are never reset.
-  if (fprs_[reg] != nullptr) {
-    *fprs_[reg] = value;
-    return true;
-  } else {
-    return false;
-  }
+  *fprs_[reg] = value;
 }
 
 void MipsContext::SmashCallerSaves() {

@@ -17,25 +17,37 @@
 #ifndef ART_RUNTIME_ELF_FILE_H_
 #define ART_RUNTIME_ELF_FILE_H_
 
+#include <memory>
 #include <string>
 
-#include "base/unix_file/fd_file.h"
-#include "elf_file_impl.h"
+#include "base/macros.h"
+// Explicitly include our own elf.h to avoid Linux and other dependencies.
+#include "./elf.h"
+#include "os.h"
 
 namespace art {
+template <typename Elf_Ehdr, typename Elf_Phdr, typename Elf_Shdr, typename Elf_Word,
+          typename Elf_Sword, typename Elf_Addr, typename Elf_Sym, typename Elf_Rel,
+          typename Elf_Rela, typename Elf_Dyn, typename Elf_Off>
+class ElfFileImpl;
+
+// Explicitly instantiated in elf_file.cc
+typedef ElfFileImpl<Elf32_Ehdr, Elf32_Phdr, Elf32_Shdr, Elf32_Word, Elf32_Sword,
+                    Elf32_Addr, Elf32_Sym, Elf32_Rel, Elf32_Rela, Elf32_Dyn, Elf32_Off> ElfFileImpl32;
+typedef ElfFileImpl<Elf64_Ehdr, Elf64_Phdr, Elf64_Shdr, Elf64_Word, Elf64_Sword,
+                    Elf64_Addr, Elf64_Sym, Elf64_Rel, Elf64_Rela, Elf64_Dyn, Elf64_Off> ElfFileImpl64;
 
 // Used for compile time and runtime for ElfFile access. Because of
 // the need for use at runtime, cannot directly use LLVM classes such as
 // ELFObjectFile.
 class ElfFile {
  public:
-  static ElfFile* Open(File* file, bool writable, bool program_header_only, std::string* error_msg);
+  static ElfFile* Open(File* file, bool writable, bool program_header_only, std::string* error_msg,
+                       uint8_t* requested_base = nullptr);  // TODO: move arg to before error_msg.
   // Open with specific mmap flags, Always maps in the whole file, not just the
   // program header sections.
   static ElfFile* Open(File* file, int mmap_prot, int mmap_flags, std::string* error_msg);
   ~ElfFile();
-
-  const bool is_elf64_;
 
   // Load segments into memory based on PT_LOAD program headers
   bool Load(bool executable, std::string* error_msg);
@@ -44,8 +56,10 @@ class ElfFile {
 
   size_t Size() const;
 
+  // The start of the memory map address range for this ELF file.
   uint8_t* Begin() const;
 
+  // The end of the memory map address range for this ELF file.
   uint8_t* End() const;
 
   const File& GetFile() const;
@@ -68,17 +82,26 @@ class ElfFile {
 
   bool Fixup(uintptr_t base_address);
 
-  ElfFileImpl32* GetImpl32() const;
-  ElfFileImpl64* GetImpl64() const;
+  bool Is64Bit() const {
+    return elf64_.get() != nullptr;
+  }
+
+  ElfFileImpl32* GetImpl32() const {
+    return elf32_.get();
+  }
+
+  ElfFileImpl64* GetImpl64() const {
+    return elf64_.get();
+  }
 
  private:
   explicit ElfFile(ElfFileImpl32* elf32);
   explicit ElfFile(ElfFileImpl64* elf64);
 
-  union ElfFileContainer {
-    ElfFileImpl32* elf32_;
-    ElfFileImpl64* elf64_;
-  } elf_;
+  const std::unique_ptr<ElfFileImpl32> elf32_;
+  const std::unique_ptr<ElfFileImpl64> elf64_;
+
+  DISALLOW_COPY_AND_ASSIGN(ElfFile);
 };
 
 }  // namespace art

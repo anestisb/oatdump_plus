@@ -19,6 +19,7 @@
 
 #include "array.h"
 
+#include "base/stringprintf.h"
 #include "class.h"
 #include "gc/heap-inl.h"
 #include "thread.h"
@@ -81,6 +82,7 @@ static inline size_t ComputeArraySize(Thread* self, Class* array_class, int32_t 
   // 64-bit. No overflow as component_count is 32-bit and the maximum
   // component size is 8.
   DCHECK_LE((1U << component_size_shift), 8U);
+  UNUSED(self);
 #else
   // 32-bit.
   DCHECK_NE(header_size, 0U);
@@ -198,9 +200,7 @@ inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_c
 
 template<class T>
 inline void PrimitiveArray<T>::VisitRoots(RootCallback* callback, void* arg) {
-  if (!array_class_.IsNull()) {
-    array_class_.VisitRoot(callback, arg, 0, kRootStickyClass);
-  }
+  array_class_.VisitRootIfNonNull(callback, arg, RootInfo(kRootStickyClass));
 }
 
 template<typename T>

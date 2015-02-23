@@ -17,7 +17,9 @@
 #ifndef ART_RUNTIME_THREAD_LIST_H_
 #define ART_RUNTIME_THREAD_LIST_H_
 
+#include "base/histogram.h"
 #include "base/mutex.h"
+#include "gc_root.h"
 #include "jni.h"
 #include "object_callbacks.h"
 
@@ -25,6 +27,11 @@
 #include <list>
 
 namespace art {
+namespace gc {
+  namespace collector {
+    class GarbageCollector;
+  }  // namespac collector
+}  // namespace gc
 class Closure;
 class Thread;
 class TimingLogger;
@@ -39,11 +46,10 @@ class ThreadList {
   ~ThreadList();
 
   void DumpForSigQuit(std::ostream& os)
-      LOCKS_EXCLUDED(Locks::thread_list_lock_);
+      LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::mutator_lock_);
   // For thread suspend timeout dumps.
   void Dump(std::ostream& os)
-      LOCKS_EXCLUDED(Locks::thread_list_lock_,
-                     Locks::thread_suspend_count_lock_);
+      LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::thread_suspend_count_lock_);
   pid_t GetLockOwner();  // For SignalCatcher.
 
   // Thread suspension support.
@@ -68,7 +74,6 @@ class ThreadList {
   // is set to true.
   Thread* SuspendThreadByPeer(jobject peer, bool request_suspension, bool debug_suspension,
                               bool* timed_out)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_suspend_thread_lock_)
       LOCKS_EXCLUDED(Locks::mutator_lock_,
                      Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_);
@@ -78,7 +83,6 @@ class ThreadList {
   // the thread terminating. Note that as thread ids are recycled this may not suspend the expected
   // thread, that may be terminating. If the suspension times out then *timeout is set to true.
   Thread* SuspendThreadByThreadId(uint32_t thread_id, bool debug_suspension, bool* timed_out)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_suspend_thread_lock_)
       LOCKS_EXCLUDED(Locks::mutator_lock_,
                      Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_);
@@ -96,6 +100,14 @@ class ThreadList {
   LOCKS_EXCLUDED(Locks::thread_list_lock_,
                  Locks::thread_suspend_count_lock_);
 
+  // Flip thread roots from from-space refs to to-space refs. Used by
+  // the concurrent copying collector.
+  size_t FlipThreadRoots(Closure* thread_flip_visitor, Closure* flip_callback,
+                         gc::collector::GarbageCollector* collector)
+      LOCKS_EXCLUDED(Locks::mutator_lock_,
+                     Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_);
+
   // Suspends all threads
   void SuspendAllForDebugger()
       LOCKS_EXCLUDED(Locks::mutator_lock_,
@@ -104,6 +116,11 @@ class ThreadList {
 
   void SuspendSelfForDebugger()
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_);
+
+  // Resume all threads
+  void ResumeAllForDebugger()
+      LOCKS_EXCLUDED(Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_);
 
   void UndoDebuggerSuspensions()
       LOCKS_EXCLUDED(Locks::thread_list_lock_,
@@ -120,9 +137,6 @@ class ThreadList {
   void Unregister(Thread* self) LOCKS_EXCLUDED(Locks::mutator_lock_, Locks::thread_list_lock_);
 
   void VisitRoots(RootCallback* callback, void* arg) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  void VerifyRoots(VerifyRootCallback* callback, void* arg) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Return a copy of the thread list.
@@ -165,6 +179,10 @@ class ThreadList {
 
   // Signaled when threads terminate. Used to determine when all non-daemons have terminated.
   ConditionVariable thread_exit_cond_ GUARDED_BY(Locks::thread_list_lock_);
+
+  // Thread suspend time histogram. Only modified when all the threads are suspended, so guarding
+  // by mutator lock ensures no thread can read when another thread is modifying it.
+  Histogram<uint64_t> suspend_all_historam_ GUARDED_BY(Locks::mutator_lock_);
 
   friend class Thread;
 

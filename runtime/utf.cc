@@ -38,15 +38,30 @@ size_t CountModifiedUtf8Chars(const char* utf8) {
       // two-byte encoding
       continue;
     }
-    // three-byte encoding
     utf8++;
+    if ((ic & 0x10) == 0) {
+      // three-byte encoding
+      continue;
+    }
+
+    // four-byte encoding: needs to be converted into a surrogate
+    // pair.
+    utf8++;
+    len++;
   }
   return len;
 }
 
 void ConvertModifiedUtf8ToUtf16(uint16_t* utf16_data_out, const char* utf8_data_in) {
   while (*utf8_data_in != '\0') {
-    *utf16_data_out++ = GetUtf16FromUtf8(&utf8_data_in);
+    const uint32_t ch = GetUtf16FromUtf8(&utf8_data_in);
+    const uint16_t leading = GetLeadingUtf16Char(ch);
+    const uint16_t trailing = GetTrailingUtf16Char(ch);
+
+    *utf16_data_out++ = leading;
+    if (trailing != 0) {
+      *utf16_data_out++ = trailing;
+    }
   }
 }
 
@@ -70,42 +85,61 @@ void ConvertUtf16ToModifiedUtf8(char* utf8_out, const uint16_t* utf16_in, size_t
 
 int32_t ComputeUtf16Hash(mirror::CharArray* chars, int32_t offset,
                          size_t char_count) {
-  int32_t hash = 0;
+  uint32_t hash = 0;
   for (size_t i = 0; i < char_count; i++) {
     hash = hash * 31 + chars->Get(offset + i);
   }
-  return hash;
+  return static_cast<int32_t>(hash);
 }
 
 int32_t ComputeUtf16Hash(const uint16_t* chars, size_t char_count) {
-  int32_t hash = 0;
+  uint32_t hash = 0;
   while (char_count--) {
     hash = hash * 31 + *chars++;
   }
-  return hash;
+  return static_cast<int32_t>(hash);
 }
 
-int32_t ComputeUtf8Hash(const char* chars) {
-  int32_t hash = 0;
+size_t ComputeModifiedUtf8Hash(const char* chars) {
+  size_t hash = 0;
   while (*chars != '\0') {
-    hash = hash * 31 + GetUtf16FromUtf8(&chars);
+    hash = hash * 31 + *chars++;
   }
-  return hash;
+  return static_cast<int32_t>(hash);
 }
 
-int CompareModifiedUtf8ToUtf16AsCodePointValues(const char* utf8_1, const uint16_t* utf8_2) {
+int CompareModifiedUtf8ToUtf16AsCodePointValues(const char* utf8, const uint16_t* utf16,
+                                                size_t utf16_length) {
   for (;;) {
-    if (*utf8_1 == '\0') {
-      return (*utf8_2 == '\0') ? 0 : -1;
-    } else if (*utf8_2 == '\0') {
+    if (*utf8 == '\0') {
+      return (utf16_length == 0) ? 0 : -1;
+    } else if (utf16_length == 0) {
       return 1;
     }
 
-    int c1 = GetUtf16FromUtf8(&utf8_1);
-    int c2 = *utf8_2;
+    const uint32_t pair = GetUtf16FromUtf8(&utf8);
 
-    if (c1 != c2) {
-      return c1 > c2 ? 1 : -1;
+    // First compare the leading utf16 char.
+    const uint16_t lhs = GetLeadingUtf16Char(pair);
+    const uint16_t rhs = *utf16++;
+    --utf16_length;
+    if (lhs != rhs) {
+      return lhs > rhs ? 1 : -1;
+    }
+
+    // Then compare the trailing utf16 char. First check if there
+    // are any characters left to consume.
+    const uint16_t lhs2 = GetTrailingUtf16Char(pair);
+    if (lhs2 != 0) {
+      if (utf16_length == 0) {
+        return 1;
+      }
+
+      const uint16_t rhs2 = *utf16++;
+      --utf16_length;
+      if (lhs2 != rhs2) {
+        return lhs2 > rhs2 ? 1 : -1;
+      }
     }
   }
 }

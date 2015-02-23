@@ -19,6 +19,7 @@
 #include <inttypes.h>
 
 #include <iomanip>
+#include <sstream>
 
 #include "base/stringprintf.h"
 #include "dex_file-inl.h"
@@ -112,7 +113,7 @@ size_t Instruction::SizeInCodeUnitsComplexOpcode() const {
         return 1;  // NOP.
       } else {
         LOG(FATAL) << "Unreachable: " << DumpString(nullptr);
-        return 0;
+        UNREACHABLE();
       }
   }
 }

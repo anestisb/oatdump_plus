@@ -15,15 +15,18 @@
  */
 
 #include "oat.h"
-#include "utils.h"
 
 #include <string.h>
 #include <zlib.h>
 
+#include "arch/instruction_set_features.h"
+#include "base/stringprintf.h"
+#include "utils.h"
+
 namespace art {
 
-const uint8_t OatHeader::kOatMagic[] = { 'o', 'a', 't', '\n' };
-const uint8_t OatHeader::kOatVersion[] = { '0', '4', '2', '\0' };
+constexpr uint8_t OatHeader::kOatMagic[4];
+constexpr uint8_t OatHeader::kOatVersion[4];
 
 static size_t ComputeOatHeaderSize(const SafeMap<std::string, std::string>* variable_data) {
   size_t estimate = 0U;
@@ -39,7 +42,7 @@ static size_t ComputeOatHeaderSize(const SafeMap<std::string, std::string>* vari
 }
 
 OatHeader* OatHeader::Create(InstructionSet instruction_set,
-                             const InstructionSetFeatures& instruction_set_features,
+                             const InstructionSetFeatures* instruction_set_features,
                              const std::vector<const DexFile*>* dex_files,
                              uint32_t image_file_location_oat_checksum,
                              uint32_t image_file_location_oat_data_begin,
@@ -60,11 +63,18 @@ OatHeader* OatHeader::Create(InstructionSet instruction_set,
 }
 
 OatHeader::OatHeader(InstructionSet instruction_set,
-                     const InstructionSetFeatures& instruction_set_features,
+                     const InstructionSetFeatures* instruction_set_features,
                      const std::vector<const DexFile*>* dex_files,
                      uint32_t image_file_location_oat_checksum,
                      uint32_t image_file_location_oat_data_begin,
                      const SafeMap<std::string, std::string>* variable_data) {
+  // Don't want asserts in header as they would be checked in each file that includes it. But the
+  // fields are private, so we check inside a method.
+  static_assert(sizeof(magic_) == sizeof(kOatMagic),
+                "Oat magic and magic_ have different lengths.");
+  static_assert(sizeof(version_) == sizeof(kOatVersion),
+                "Oat version and version_ have different lengths.");
+
   memcpy(magic_, kOatMagic, sizeof(kOatMagic));
   memcpy(version_, kOatVersion, sizeof(kOatVersion));
   executable_offset_ = 0;
@@ -76,8 +86,8 @@ OatHeader::OatHeader(InstructionSet instruction_set,
   instruction_set_ = instruction_set;
   UpdateChecksum(&instruction_set_, sizeof(instruction_set_));
 
-  instruction_set_features_ = instruction_set_features;
-  UpdateChecksum(&instruction_set_features_, sizeof(instruction_set_features_));
+  instruction_set_features_bitmap_ = instruction_set_features->AsBitmap();
+  UpdateChecksum(&instruction_set_features_bitmap_, sizeof(instruction_set_features_bitmap_));
 
   dex_file_count_ = dex_files->size();
   UpdateChecksum(&dex_file_count_, sizeof(dex_file_count_));
@@ -103,9 +113,6 @@ OatHeader::OatHeader(InstructionSet instruction_set,
   interpreter_to_interpreter_bridge_offset_ = 0;
   interpreter_to_compiled_code_bridge_offset_ = 0;
   jni_dlsym_lookup_offset_ = 0;
-  portable_imt_conflict_trampoline_offset_ = 0;
-  portable_resolution_trampoline_offset_ = 0;
-  portable_to_interpreter_bridge_offset_ = 0;
   quick_generic_jni_trampoline_offset_ = 0;
   quick_imt_conflict_trampoline_offset_ = 0;
   quick_resolution_trampoline_offset_ = 0;
@@ -126,6 +133,28 @@ bool OatHeader::IsValid() const {
     return false;
   }
   return true;
+}
+
+std::string OatHeader::GetValidationErrorMessage() const {
+  if (memcmp(magic_, kOatMagic, sizeof(kOatMagic)) != 0) {
+    static_assert(sizeof(kOatMagic) == 4, "kOatMagic has unexpected length");
+    return StringPrintf("Invalid oat magic, expected 0x%x%x%x%x, got 0x%x%x%x%x.",
+                        kOatMagic[0], kOatMagic[1], kOatMagic[2], kOatMagic[3],
+                        magic_[0], magic_[1], magic_[2], magic_[3]);
+  }
+  if (memcmp(version_, kOatVersion, sizeof(kOatVersion)) != 0) {
+    static_assert(sizeof(kOatVersion) == 4, "kOatVersion has unexpected length");
+    return StringPrintf("Invalid oat version, expected 0x%x%x%x%x, got 0x%x%x%x%x.",
+                        kOatVersion[0], kOatVersion[1], kOatVersion[2], kOatVersion[3],
+                        version_[0], version_[1], version_[2], version_[3]);
+  }
+  if (!IsAligned<kPageSize>(executable_offset_)) {
+    return "Executable offset not page-aligned.";
+  }
+  if (!IsAligned<kPageSize>(image_patch_delta_)) {
+    return "Image patch delta not page-aligned.";
+  }
+  return "";
 }
 
 const char* OatHeader::GetMagic() const {
@@ -149,9 +178,9 @@ InstructionSet OatHeader::GetInstructionSet() const {
   return instruction_set_;
 }
 
-const InstructionSetFeatures& OatHeader::GetInstructionSetFeatures() const {
+uint32_t OatHeader::GetInstructionSetFeaturesBitmap() const {
   CHECK(IsValid());
-  return instruction_set_features_;
+  return instruction_set_features_bitmap_;
 }
 
 uint32_t OatHeader::GetExecutableOffset() const {
@@ -229,75 +258,18 @@ void OatHeader::SetJniDlsymLookupOffset(uint32_t offset) {
   UpdateChecksum(&jni_dlsym_lookup_offset_, sizeof(offset));
 }
 
-const void* OatHeader::GetPortableImtConflictTrampoline() const {
-  return reinterpret_cast<const uint8_t*>(this) + GetPortableImtConflictTrampolineOffset();
-}
-
-uint32_t OatHeader::GetPortableImtConflictTrampolineOffset() const {
-  DCHECK(IsValid());
-  CHECK_GE(portable_imt_conflict_trampoline_offset_, jni_dlsym_lookup_offset_);
-  return portable_imt_conflict_trampoline_offset_;
-}
-
-void OatHeader::SetPortableImtConflictTrampolineOffset(uint32_t offset) {
-  CHECK(offset == 0 || offset >= jni_dlsym_lookup_offset_);
-  DCHECK(IsValid());
-  DCHECK_EQ(portable_imt_conflict_trampoline_offset_, 0U) << offset;
-
-  portable_imt_conflict_trampoline_offset_ = offset;
-  UpdateChecksum(&portable_imt_conflict_trampoline_offset_, sizeof(offset));
-}
-
-const void* OatHeader::GetPortableResolutionTrampoline() const {
-  return reinterpret_cast<const uint8_t*>(this) + GetPortableResolutionTrampolineOffset();
-}
-
-uint32_t OatHeader::GetPortableResolutionTrampolineOffset() const {
-  DCHECK(IsValid());
-  CHECK_GE(portable_resolution_trampoline_offset_, portable_imt_conflict_trampoline_offset_);
-  return portable_resolution_trampoline_offset_;
-}
-
-void OatHeader::SetPortableResolutionTrampolineOffset(uint32_t offset) {
-  CHECK(offset == 0 || offset >= portable_imt_conflict_trampoline_offset_);
-  DCHECK(IsValid());
-  DCHECK_EQ(portable_resolution_trampoline_offset_, 0U) << offset;
-
-  portable_resolution_trampoline_offset_ = offset;
-  UpdateChecksum(&portable_resolution_trampoline_offset_, sizeof(offset));
-}
-
-const void* OatHeader::GetPortableToInterpreterBridge() const {
-  return reinterpret_cast<const uint8_t*>(this) + GetPortableToInterpreterBridgeOffset();
-}
-
-uint32_t OatHeader::GetPortableToInterpreterBridgeOffset() const {
-  DCHECK(IsValid());
-  CHECK_GE(portable_to_interpreter_bridge_offset_, portable_resolution_trampoline_offset_);
-  return portable_to_interpreter_bridge_offset_;
-}
-
-void OatHeader::SetPortableToInterpreterBridgeOffset(uint32_t offset) {
-  CHECK(offset == 0 || offset >= portable_resolution_trampoline_offset_);
-  DCHECK(IsValid());
-  DCHECK_EQ(portable_to_interpreter_bridge_offset_, 0U) << offset;
-
-  portable_to_interpreter_bridge_offset_ = offset;
-  UpdateChecksum(&portable_to_interpreter_bridge_offset_, sizeof(offset));
-}
-
 const void* OatHeader::GetQuickGenericJniTrampoline() const {
   return reinterpret_cast<const uint8_t*>(this) + GetQuickGenericJniTrampolineOffset();
 }
 
 uint32_t OatHeader::GetQuickGenericJniTrampolineOffset() const {
   DCHECK(IsValid());
-  CHECK_GE(quick_generic_jni_trampoline_offset_, portable_to_interpreter_bridge_offset_);
+  CHECK_GE(quick_generic_jni_trampoline_offset_, jni_dlsym_lookup_offset_);
   return quick_generic_jni_trampoline_offset_;
 }
 
 void OatHeader::SetQuickGenericJniTrampolineOffset(uint32_t offset) {
-  CHECK(offset == 0 || offset >= portable_to_interpreter_bridge_offset_);
+  CHECK(offset == 0 || offset >= jni_dlsym_lookup_offset_);
   DCHECK(IsValid());
   DCHECK_EQ(quick_generic_jni_trampoline_offset_, 0U) << offset;
 
@@ -470,6 +442,12 @@ size_t OatHeader::GetHeaderSize() const {
   return sizeof(OatHeader) + key_value_store_size_;
 }
 
+bool OatHeader::IsPic() const {
+  const char* pic_string = GetStoreValueByKey(OatHeader::kPicKey);
+  static const char kTrue[] = "true";
+  return (pic_string != nullptr && strncmp(pic_string, kTrue, sizeof(kTrue)) == 0);
+}
+
 void OatHeader::Flatten(const SafeMap<std::string, std::string>* key_value_store) {
   char* data_ptr = reinterpret_cast<char*>(&key_value_store_);
   if (key_value_store != nullptr) {
@@ -485,35 +463,19 @@ void OatHeader::Flatten(const SafeMap<std::string, std::string>* key_value_store
   key_value_store_size_ = data_ptr - reinterpret_cast<char*>(&key_value_store_);
 }
 
-OatMethodOffsets::OatMethodOffsets()
-  : code_offset_(0),
-    gc_map_offset_(0)
-{}
-
-OatMethodOffsets::OatMethodOffsets(uint32_t code_offset,
-                                   uint32_t gc_map_offset
-                                   )
-  : code_offset_(code_offset),
-    gc_map_offset_(gc_map_offset)
-{}
+OatMethodOffsets::OatMethodOffsets(uint32_t code_offset) : code_offset_(code_offset) {
+}
 
 OatMethodOffsets::~OatMethodOffsets() {}
 
-OatQuickMethodHeader::OatQuickMethodHeader()
-  : mapping_table_offset_(0),
-    vmap_table_offset_(0),
-    frame_info_(0, 0, 0),
-    code_size_(0)
-{}
-
 OatQuickMethodHeader::OatQuickMethodHeader(
-    uint32_t mapping_table_offset, uint32_t vmap_table_offset, uint32_t frame_size_in_bytes,
-    uint32_t core_spill_mask, uint32_t fp_spill_mask, uint32_t code_size)
-  : mapping_table_offset_(mapping_table_offset),
-    vmap_table_offset_(vmap_table_offset),
-    frame_info_(frame_size_in_bytes, core_spill_mask, fp_spill_mask),
-    code_size_(code_size)
-{}
+    uint32_t mapping_table_offset, uint32_t vmap_table_offset, uint32_t gc_map_offset,
+    uint32_t frame_size_in_bytes, uint32_t core_spill_mask, uint32_t fp_spill_mask,
+    uint32_t code_size)
+    : mapping_table_offset_(mapping_table_offset), vmap_table_offset_(vmap_table_offset),
+      gc_map_offset_(gc_map_offset),
+      frame_info_(frame_size_in_bytes, core_spill_mask, fp_spill_mask), code_size_(code_size) {
+}
 
 OatQuickMethodHeader::~OatQuickMethodHeader() {}
 

@@ -15,104 +15,283 @@
  */
 
 #include "gvn.h"
+#include "side_effects_analysis.h"
 
 namespace art {
 
-void GlobalValueNumberer::Run() {
-  ComputeSideEffects();
+/**
+ * A node in the collision list of a ValueSet. Encodes the instruction,
+ * the hash code, and the next node in the collision list.
+ */
+class ValueSetNode : public ArenaObject<kArenaAllocMisc> {
+ public:
+  ValueSetNode(HInstruction* instruction, size_t hash_code, ValueSetNode* next)
+      : instruction_(instruction), hash_code_(hash_code), next_(next) {}
 
+  size_t GetHashCode() const { return hash_code_; }
+  HInstruction* GetInstruction() const { return instruction_; }
+  ValueSetNode* GetNext() const { return next_; }
+  void SetNext(ValueSetNode* node) { next_ = node; }
+
+ private:
+  HInstruction* const instruction_;
+  const size_t hash_code_;
+  ValueSetNode* next_;
+
+  DISALLOW_COPY_AND_ASSIGN(ValueSetNode);
+};
+
+/**
+ * A ValueSet holds instructions that can replace other instructions. It is updated
+ * through the `Add` method, and the `Kill` method. The `Kill` method removes
+ * instructions that are affected by the given side effect.
+ *
+ * The `Lookup` method returns an equivalent instruction to the given instruction
+ * if there is one in the set. In GVN, we would say those instructions have the
+ * same "number".
+ */
+class ValueSet : public ArenaObject<kArenaAllocMisc> {
+ public:
+  explicit ValueSet(ArenaAllocator* allocator)
+      : allocator_(allocator), number_of_entries_(0), collisions_(nullptr) {
+    for (size_t i = 0; i < kDefaultNumberOfEntries; ++i) {
+      table_[i] = nullptr;
+    }
+  }
+
+  // Adds an instruction in the set.
+  void Add(HInstruction* instruction) {
+    DCHECK(Lookup(instruction) == nullptr);
+    size_t hash_code = instruction->ComputeHashCode();
+    size_t index = hash_code % kDefaultNumberOfEntries;
+    if (table_[index] == nullptr) {
+      table_[index] = instruction;
+    } else {
+      collisions_ = new (allocator_) ValueSetNode(instruction, hash_code, collisions_);
+    }
+    ++number_of_entries_;
+  }
+
+  // If in the set, returns an equivalent instruction to the given instruction. Returns
+  // null otherwise.
+  HInstruction* Lookup(HInstruction* instruction) const {
+    size_t hash_code = instruction->ComputeHashCode();
+    size_t index = hash_code % kDefaultNumberOfEntries;
+    HInstruction* existing = table_[index];
+    if (existing != nullptr && existing->Equals(instruction)) {
+      return existing;
+    }
+
+    for (ValueSetNode* node = collisions_; node != nullptr; node = node->GetNext()) {
+      if (node->GetHashCode() == hash_code) {
+        existing = node->GetInstruction();
+        if (existing->Equals(instruction)) {
+          return existing;
+        }
+      }
+    }
+    return nullptr;
+  }
+
+  // Returns whether `instruction` is in the set.
+  HInstruction* IdentityLookup(HInstruction* instruction) const {
+    size_t hash_code = instruction->ComputeHashCode();
+    size_t index = hash_code % kDefaultNumberOfEntries;
+    HInstruction* existing = table_[index];
+    if (existing != nullptr && existing == instruction) {
+      return existing;
+    }
+
+    for (ValueSetNode* node = collisions_; node != nullptr; node = node->GetNext()) {
+      if (node->GetHashCode() == hash_code) {
+        existing = node->GetInstruction();
+        if (existing == instruction) {
+          return existing;
+        }
+      }
+    }
+    return nullptr;
+  }
+
+  // Removes all instructions in the set that are affected by the given side effects.
+  void Kill(SideEffects side_effects) {
+    for (size_t i = 0; i < kDefaultNumberOfEntries; ++i) {
+      HInstruction* instruction = table_[i];
+      if (instruction != nullptr && instruction->GetSideEffects().DependsOn(side_effects)) {
+        table_[i] = nullptr;
+        --number_of_entries_;
+      }
+    }
+
+    for (ValueSetNode* current = collisions_, *previous = nullptr;
+         current != nullptr;
+         current = current->GetNext()) {
+      HInstruction* instruction = current->GetInstruction();
+      if (instruction->GetSideEffects().DependsOn(side_effects)) {
+        if (previous == nullptr) {
+          collisions_ = current->GetNext();
+        } else {
+          previous->SetNext(current->GetNext());
+        }
+        --number_of_entries_;
+      } else {
+        previous = current;
+      }
+    }
+  }
+
+  // Returns a copy of this set.
+  ValueSet* Copy() const {
+    ValueSet* copy = new (allocator_) ValueSet(allocator_);
+
+    for (size_t i = 0; i < kDefaultNumberOfEntries; ++i) {
+      copy->table_[i] = table_[i];
+    }
+
+    // Note that the order will be inverted in the copy. This is fine, as the order is not
+    // relevant for a ValueSet.
+    for (ValueSetNode* node = collisions_; node != nullptr; node = node->GetNext()) {
+      copy->collisions_ = new (allocator_) ValueSetNode(
+          node->GetInstruction(), node->GetHashCode(), copy->collisions_);
+    }
+
+    copy->number_of_entries_ = number_of_entries_;
+    return copy;
+  }
+
+  void Clear() {
+    number_of_entries_ = 0;
+    collisions_ = nullptr;
+    for (size_t i = 0; i < kDefaultNumberOfEntries; ++i) {
+      table_[i] = nullptr;
+    }
+  }
+
+  // Update this `ValueSet` by intersecting with instructions in `other`.
+  void IntersectionWith(ValueSet* other) {
+    if (IsEmpty()) {
+      return;
+    } else if (other->IsEmpty()) {
+      Clear();
+    } else {
+      for (size_t i = 0; i < kDefaultNumberOfEntries; ++i) {
+        if (table_[i] != nullptr && other->IdentityLookup(table_[i]) == nullptr) {
+          --number_of_entries_;
+          table_[i] = nullptr;
+        }
+      }
+      for (ValueSetNode* current = collisions_, *previous = nullptr;
+           current != nullptr;
+           current = current->GetNext()) {
+        if (other->IdentityLookup(current->GetInstruction()) == nullptr) {
+          if (previous == nullptr) {
+            collisions_ = current->GetNext();
+          } else {
+            previous->SetNext(current->GetNext());
+          }
+          --number_of_entries_;
+        } else {
+          previous = current;
+        }
+      }
+    }
+  }
+
+  bool IsEmpty() const { return number_of_entries_ == 0; }
+  size_t GetNumberOfEntries() const { return number_of_entries_; }
+
+ private:
+  static constexpr size_t kDefaultNumberOfEntries = 8;
+
+  ArenaAllocator* const allocator_;
+
+  // The number of entries in the set.
+  size_t number_of_entries_;
+
+  // The internal implementation of the set. It uses a combination of a hash code based
+  // fixed-size list, and a linked list to handle hash code collisions.
+  // TODO: Tune the fixed size list original size, and support growing it.
+  ValueSetNode* collisions_;
+  HInstruction* table_[kDefaultNumberOfEntries];
+
+  DISALLOW_COPY_AND_ASSIGN(ValueSet);
+};
+
+/**
+ * Optimization phase that removes redundant instruction.
+ */
+class GlobalValueNumberer : public ValueObject {
+ public:
+  GlobalValueNumberer(ArenaAllocator* allocator,
+                      HGraph* graph,
+                      const SideEffectsAnalysis& side_effects)
+      : graph_(graph),
+        allocator_(allocator),
+        side_effects_(side_effects),
+        sets_(allocator, graph->GetBlocks().Size(), nullptr) {}
+
+  void Run();
+
+ private:
+  // Per-block GVN. Will also update the ValueSet of the dominated and
+  // successor blocks.
+  void VisitBasicBlock(HBasicBlock* block);
+
+  HGraph* graph_;
+  ArenaAllocator* const allocator_;
+  const SideEffectsAnalysis& side_effects_;
+
+  // ValueSet for blocks. Initially null, but for an individual block they
+  // are allocated and populated by the dominator, and updated by all blocks
+  // in the path from the dominator to the block.
+  GrowableArray<ValueSet*> sets_;
+
+  DISALLOW_COPY_AND_ASSIGN(GlobalValueNumberer);
+};
+
+void GlobalValueNumberer::Run() {
+  DCHECK(side_effects_.HasRun());
   sets_.Put(graph_->GetEntryBlock()->GetBlockId(), new (allocator_) ValueSet(allocator_));
 
-  // Do reverse post order to ensure the non back-edge predecessors of a block are
+  // Use the reverse post order to ensure the non back-edge predecessors of a block are
   // visited before the block itself.
   for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     VisitBasicBlock(it.Current());
   }
 }
 
-void GlobalValueNumberer::UpdateLoopEffects(HLoopInformation* info, SideEffects effects) {
-  int id = info->GetHeader()->GetBlockId();
-  loop_effects_.Put(id, loop_effects_.Get(id).Union(effects));
-}
-
-void GlobalValueNumberer::ComputeSideEffects() {
-  if (kIsDebugBuild) {
-    for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-      HBasicBlock* block = it.Current();
-      SideEffects effects = GetBlockEffects(block);
-      DCHECK(!effects.HasSideEffects() && !effects.HasDependencies());
-      if (block->IsLoopHeader()) {
-        effects = GetLoopEffects(block);
-        DCHECK(!effects.HasSideEffects() && !effects.HasDependencies());
-      }
-    }
-  }
-
-  // Do a post order visit to ensure we visit a loop header after its loop body.
-  for (HPostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-    HBasicBlock* block = it.Current();
-
-    SideEffects effects = SideEffects::None();
-    // Update `effects` with the side effects of all instructions in this block.
-    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
-      HInstruction* instruction = it.Current();
-      effects = effects.Union(instruction->GetSideEffects());
-      if (effects.HasAllSideEffects()) {
-        break;
-      }
-    }
-
-    block_effects_.Put(block->GetBlockId(), effects);
-
-    if (block->IsLoopHeader()) {
-      // The side effects of the loop header are part of the loop.
-      UpdateLoopEffects(block->GetLoopInformation(), effects);
-      HBasicBlock* pre_header = block->GetLoopInformation()->GetPreHeader();
-      if (pre_header->IsInLoop()) {
-        // Update the side effects of the outer loop with the side effects of the inner loop.
-        // Note that this works because we know all the blocks of the inner loop are visited
-        // before the loop header of the outer loop.
-        UpdateLoopEffects(pre_header->GetLoopInformation(), GetLoopEffects(block));
-      }
-    } else if (block->IsInLoop()) {
-      // Update the side effects of the loop with the side effects of this block.
-      UpdateLoopEffects(block->GetLoopInformation(), effects);
-    }
-  }
-}
-
-SideEffects GlobalValueNumberer::GetLoopEffects(HBasicBlock* block) const {
-  DCHECK(block->IsLoopHeader());
-  return loop_effects_.Get(block->GetBlockId());
-}
-
-SideEffects GlobalValueNumberer::GetBlockEffects(HBasicBlock* block) const {
-  return block_effects_.Get(block->GetBlockId());
-}
-
-static bool IsLoopExit(HBasicBlock* block, HBasicBlock* successor) {
-  HLoopInformation* block_info = block->GetLoopInformation();
-  HLoopInformation* other_info = successor->GetLoopInformation();
-  return block_info != other_info && (other_info == nullptr || block_info->IsIn(*other_info));
-}
-
 void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
-  if (kIsDebugBuild) {
-    // Check that all non back-edge processors have been visited.
-    for (size_t i = 0, e = block->GetPredecessors().Size(); i < e; ++i) {
-      HBasicBlock* predecessor = block->GetPredecessors().Get(i);
-      DCHECK(visited_.Get(predecessor->GetBlockId())
-             || (block->GetLoopInformation() != nullptr
-                 && (block->GetLoopInformation()->GetBackEdges().Get(0) == predecessor)));
+  ValueSet* set = nullptr;
+  const GrowableArray<HBasicBlock*>& predecessors = block->GetPredecessors();
+  if (predecessors.Size() == 0 || predecessors.Get(0)->IsEntryBlock()) {
+    // The entry block should only accumulate constant instructions, and
+    // the builder puts constants only in the entry block.
+    // Therefore, there is no need to propagate the value set to the next block.
+    set = new (allocator_) ValueSet(allocator_);
+  } else {
+    HBasicBlock* dominator = block->GetDominator();
+    set = sets_.Get(dominator->GetBlockId())->Copy();
+    if (dominator->GetSuccessors().Size() != 1 || dominator->GetSuccessors().Get(0) != block) {
+      // We have to copy if the dominator has other successors, or `block` is not a successor
+      // of the dominator.
+      set = set->Copy();
     }
-    visited_.Put(block->GetBlockId(), true);
+    if (!set->IsEmpty()) {
+      if (block->IsLoopHeader()) {
+        DCHECK_EQ(block->GetDominator(), block->GetLoopInformation()->GetPreHeader());
+        set->Kill(side_effects_.GetLoopEffects(block));
+      } else if (predecessors.Size() > 1) {
+        for (size_t i = 0, e = predecessors.Size(); i < e; ++i) {
+          set->IntersectionWith(sets_.Get(predecessors.Get(i)->GetBlockId()));
+          if (set->IsEmpty()) {
+            break;
+          }
+        }
+      }
+    }
   }
 
-  ValueSet* set = sets_.Get(block->GetBlockId());
-
-  if (block->IsLoopHeader()) {
-    set->Kill(GetLoopEffects(block));
-  }
+  sets_.Put(block->GetBlockId(), set);
 
   HInstruction* current = block->GetFirstInstruction();
   while (current != nullptr) {
@@ -130,57 +309,11 @@ void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
     }
     current = next;
   }
+}
 
-  if (block == graph_->GetEntryBlock()) {
-    // The entry block should only accumulate constant instructions, and
-    // the builder puts constants only in the entry block.
-    // Therefore, there is no need to propagate the value set to the next block.
-    DCHECK_EQ(block->GetDominatedBlocks().Size(), 1u);
-    HBasicBlock* dominated = block->GetDominatedBlocks().Get(0);
-    sets_.Put(dominated->GetBlockId(), new (allocator_) ValueSet(allocator_));
-    return;
-  }
-
-  // Copy the value set to dominated blocks. We can re-use
-  // the current set for the last dominated block because we are done visiting
-  // this block.
-  for (size_t i = 0, e = block->GetDominatedBlocks().Size(); i < e; ++i) {
-    HBasicBlock* dominated = block->GetDominatedBlocks().Get(i);
-    sets_.Put(dominated->GetBlockId(), i == e - 1 ? set : set->Copy());
-  }
-
-  // Kill instructions in the value set of each successor. If the successor
-  // is a loop exit, then we use the side effects of the loop. If not, we use
-  // the side effects of this block.
-  for (size_t i = 0, e = block->GetSuccessors().Size(); i < e; ++i) {
-    HBasicBlock* successor = block->GetSuccessors().Get(i);
-    if (successor->IsLoopHeader()
-        && successor->GetLoopInformation()->GetBackEdges().Get(0) == block) {
-      // In case of a back edge, we already have visited the loop header.
-      // We should not update its value set, because the last dominated block
-      // of the loop header uses the same value set.
-      DCHECK(visited_.Get(successor->GetBlockId()));
-      continue;
-    }
-    DCHECK(!visited_.Get(successor->GetBlockId()));
-    ValueSet* successor_set = sets_.Get(successor->GetBlockId());
-    // The dominator sets the set, and we are guaranteed to have visited it already.
-    DCHECK(successor_set != nullptr);
-
-    // If this block dominates this successor there is nothing to do.
-    // Also if the set is empty, there is nothing to kill.
-    if (successor->GetDominator() != block && !successor_set->IsEmpty()) {
-      if (block->IsInLoop() && IsLoopExit(block, successor)) {
-        // All instructions killed in the loop must be killed for a loop exit.
-        SideEffects effects = GetLoopEffects(block->GetLoopInformation()->GetHeader());
-        sets_.Get(successor->GetBlockId())->Kill(effects);
-      } else {
-        // Following block (that might be in the same loop).
-        // Just kill instructions based on this block's side effects.
-        sets_.Get(successor->GetBlockId())->Kill(GetBlockEffects(block));
-      }
-    }
-  }
+void GVNOptimization::Run() {
+  GlobalValueNumberer gvn(graph_->GetArena(), graph_, side_effects_);
+  gvn.Run();
 }
 
 }  // namespace art

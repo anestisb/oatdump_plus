@@ -17,7 +17,10 @@
 /* This file contains codegen for the X86 ISA */
 
 #include "codegen_x86.h"
+
+#include "base/logging.h"
 #include "dex/quick/mir_to_lir-inl.h"
+#include "driver/compiler_driver.h"
 #include "gc/accounting/card_table.h"
 #include "mirror/art_method.h"
 #include "mirror/object_array-inl.h"
@@ -30,20 +33,7 @@ namespace art {
  * pairs.
  */
 void X86Mir2Lir::GenLargeSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
-  const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
-  if (cu_->verbose) {
-    DumpSparseSwitchTable(table);
-  }
-  int entries = table[1];
-  const int32_t* keys = reinterpret_cast<const int32_t*>(&table[2]);
-  const int32_t* targets = &keys[entries];
-  rl_src = LoadValue(rl_src, kCoreReg);
-  for (int i = 0; i < entries; i++) {
-    int key = keys[i];
-    BasicBlock* case_block =
-        mir_graph_->FindBlock(current_dalvik_offset_ + targets[i]);
-    OpCmpImmBranch(kCondEq, rl_src.reg, key, &block_label_list_[case_block->id]);
-  }
+  GenSmallSparseSwitch(mir, table_offset, rl_src);
 }
 
 /*
@@ -64,40 +54,18 @@ void X86Mir2Lir::GenLargeSparseSwitch(MIR* mir, DexOffset table_offset, RegLocat
  */
 void X86Mir2Lir::GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
   const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
-  if (cu_->verbose) {
-    DumpPackedSwitchTable(table);
-  }
   // Add the table to the list - we'll process it later
   SwitchTable* tab_rec =
       static_cast<SwitchTable*>(arena_->Alloc(sizeof(SwitchTable), kArenaAllocData));
+  tab_rec->switch_mir = mir;
   tab_rec->table = table;
   tab_rec->vaddr = current_dalvik_offset_;
   int size = table[1];
-  tab_rec->targets = static_cast<LIR**>(arena_->Alloc(size * sizeof(LIR*),
-                                                      kArenaAllocLIR));
   switch_tables_.push_back(tab_rec);
 
   // Get the switch value
   rl_src = LoadValue(rl_src, kCoreReg);
-  // NewLIR0(kX86Bkpt);
 
-  // Materialize a pointer to the switch table
-  RegStorage start_of_method_reg;
-  if (base_of_code_ != nullptr) {
-    // We can use the saved value.
-    RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
-    if (rl_method.wide) {
-      rl_method = LoadValueWide(rl_method, kCoreReg);
-    } else {
-      rl_method = LoadValue(rl_method, kCoreReg);
-    }
-    start_of_method_reg = rl_method.reg;
-    store_method_addr_used_ = true;
-  } else {
-    start_of_method_reg = AllocTempRef();
-    NewLIR1(kX86StartOfMethod, start_of_method_reg.GetReg());
-  }
-  DCHECK_EQ(start_of_method_reg.Is64Bit(), cu_->target64);
   int low_key = s4FromSwitchData(&table[2]);
   RegStorage keyReg;
   // Remove the bias, if necessary
@@ -107,19 +75,49 @@ void X86Mir2Lir::GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLocat
     keyReg = AllocTemp();
     OpRegRegImm(kOpSub, keyReg, rl_src.reg, low_key);
   }
+
   // Bounds check - if < 0 or >= size continue following switch
   OpRegImm(kOpCmp, keyReg, size - 1);
   LIR* branch_over = OpCondBranch(kCondHi, NULL);
 
-  // Load the displacement from the switch table
-  RegStorage disp_reg = AllocTemp();
-  NewLIR5(kX86PcRelLoadRA, disp_reg.GetReg(), start_of_method_reg.GetReg(), keyReg.GetReg(),
-          2, WrapPointer(tab_rec));
-  // Add displacement to start of method
-  OpRegReg(kOpAdd, start_of_method_reg, cu_->target64 ? As64BitReg(disp_reg) : disp_reg);
+  RegStorage addr_for_jump;
+  if (cu_->target64) {
+    RegStorage table_base = AllocTempWide();
+    // Load the address of the table into table_base.
+    LIR* lea = RawLIR(current_dalvik_offset_, kX86Lea64RM, table_base.GetReg(), kRIPReg,
+                      256, 0, WrapPointer(tab_rec));
+    lea->flags.fixup = kFixupSwitchTable;
+    AppendLIR(lea);
+
+    // Load the offset from the table out of the table.
+    addr_for_jump = AllocTempWide();
+    NewLIR5(kX86MovsxdRA, addr_for_jump.GetReg(), table_base.GetReg(), keyReg.GetReg(), 2, 0);
+
+    // Add the offset from the table to the table base.
+    OpRegReg(kOpAdd, addr_for_jump, table_base);
+  } else {
+    // Materialize a pointer to the switch table.
+    RegStorage start_of_method_reg;
+    if (base_of_code_ != nullptr) {
+      // We can use the saved value.
+      RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
+      rl_method = LoadValue(rl_method, kCoreReg);
+      start_of_method_reg = rl_method.reg;
+      store_method_addr_used_ = true;
+    } else {
+      start_of_method_reg = AllocTempRef();
+      NewLIR1(kX86StartOfMethod, start_of_method_reg.GetReg());
+    }
+    // Load the displacement from the switch table.
+    addr_for_jump = AllocTemp();
+    NewLIR5(kX86PcRelLoadRA, addr_for_jump.GetReg(), start_of_method_reg.GetReg(), keyReg.GetReg(),
+            2, WrapPointer(tab_rec));
+    // Add displacement to start of method.
+    OpRegReg(kOpAdd, addr_for_jump, start_of_method_reg);
+  }
+
   // ..and go!
-  LIR* switch_branch = NewLIR1(kX86JmpR, start_of_method_reg.GetReg());
-  tab_rec->anchor = switch_branch;
+  tab_rec->anchor = NewLIR1(kX86JmpR, addr_for_jump.GetReg());
 
   /* branch_over target here */
   LIR* target = NewLIR0(kPseudoTargetLabel);
@@ -136,23 +134,16 @@ void X86Mir2Lir::GenMoveException(RegLocation rl_dest) {
   StoreValue(rl_dest, rl_result);
 }
 
-/*
- * Mark garbage collection card. Skip if the value we're storing is null.
- */
-void X86Mir2Lir::MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) {
+void X86Mir2Lir::UnconditionallyMarkGCCard(RegStorage tgt_addr_reg) {
   DCHECK_EQ(tgt_addr_reg.Is64Bit(), cu_->target64);
-  DCHECK_EQ(val_reg.Is64Bit(), cu_->target64);
   RegStorage reg_card_base = AllocTempRef();
   RegStorage reg_card_no = AllocTempRef();
-  LIR* branch_over = OpCmpImmBranch(kCondEq, val_reg, 0, NULL);
   int ct_offset = cu_->target64 ?
       Thread::CardTableOffset<8>().Int32Value() :
       Thread::CardTableOffset<4>().Int32Value();
   NewLIR2(cu_->target64 ? kX86Mov64RT : kX86Mov32RT, reg_card_base.GetReg(), ct_offset);
   OpRegRegImm(kOpLsr, reg_card_no, tgt_addr_reg, gc::accounting::CardTable::kCardShift);
   StoreBaseIndexed(reg_card_base, reg_card_no, reg_card_base, 0, kUnsignedByte);
-  LIR* target = NewLIR0(kPseudoTargetLabel);
-  branch_over->target = target;
   FreeTemp(reg_card_base);
   FreeTemp(reg_card_no);
 }
@@ -164,16 +155,20 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
    * expanding the frame or flushing.  This leaves the utility
    * code with no spare temps.
    */
-  LockTemp(rs_rX86_ARG0);
-  LockTemp(rs_rX86_ARG1);
-  LockTemp(rs_rX86_ARG2);
+  const RegStorage arg0 = TargetReg32(kArg0);
+  const RegStorage arg1 = TargetReg32(kArg1);
+  const RegStorage arg2 = TargetReg32(kArg2);
+  LockTemp(arg0);
+  LockTemp(arg1);
+  LockTemp(arg2);
 
   /*
    * We can safely skip the stack overflow check if we're
    * a leaf *and* our frame size < fudge factor.
    */
-  InstructionSet isa =  cu_->target64 ? kX86_64 : kX86;
+  const InstructionSet isa =  cu_->target64 ? kX86_64 : kX86;
   bool skip_overflow_check = mir_graph_->MethodIsLeaf() && !FrameNeedsStackCheck(frame_size_, isa);
+  const RegStorage rs_rSP = cu_->target64 ? rs_rX86_SP_64 : rs_rX86_SP_32;
 
   // If we doing an implicit stack overflow check, perform the load immediately
   // before the stack pointer is decremented and anything is saved.
@@ -182,12 +177,12 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
     // Implicit stack overflow check.
     // test eax,[esp + -overflow]
     int overflow = GetStackOverflowReservedBytes(isa);
-    NewLIR3(kX86Test32RM, rs_rAX.GetReg(), rs_rX86_SP.GetReg(), -overflow);
+    NewLIR3(kX86Test32RM, rs_rAX.GetReg(), rs_rSP.GetReg(), -overflow);
     MarkPossibleStackOverflowException();
   }
 
   /* Build frame, return address already on stack */
-  stack_decrement_ = OpRegImm(kOpSub, rs_rX86_SP, frame_size_ -
+  stack_decrement_ = OpRegImm(kOpSub, rs_rSP, frame_size_ -
                               GetInstructionSetPointerSize(cu_->instruction_set));
 
   NewLIR0(kPseudoMethodEntry);
@@ -204,7 +199,8 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
         m2l_->ResetRegPool();
         m2l_->ResetDefTracking();
         GenerateTargetLabel(kPseudoThrowTarget);
-        m2l_->OpRegImm(kOpAdd, rs_rX86_SP, sp_displace_);
+        const RegStorage local_rs_rSP = cu_->target64 ? rs_rX86_SP_64 : rs_rX86_SP_32;
+        m2l_->OpRegImm(kOpAdd, local_rs_rSP, sp_displace_);
         m2l_->ClobberCallerSave();
         // Assumes codegen and target are in thumb2 mode.
         m2l_->CallHelper(RegStorage::InvalidReg(), kQuickThrowStackOverflow,
@@ -225,9 +221,9 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
       // may have moved us outside of the reserved area at the end of the stack.
       // cmp rs_rX86_SP, fs:[stack_end_]; jcc throw_slowpath
       if (cu_->target64) {
-        OpRegThreadMem(kOpCmp, rs_rX86_SP, Thread::StackEndOffset<8>());
+        OpRegThreadMem(kOpCmp, rs_rX86_SP_64, Thread::StackEndOffset<8>());
       } else {
-        OpRegThreadMem(kOpCmp, rs_rX86_SP, Thread::StackEndOffset<4>());
+        OpRegThreadMem(kOpCmp, rs_rX86_SP_32, Thread::StackEndOffset<4>());
       }
       LIR* branch = OpCondBranch(kCondUlt, nullptr);
       AddSlowPath(
@@ -245,13 +241,13 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
     setup_method_address_[0] = NewLIR1(kX86StartOfMethod, method_start.GetReg());
     int displacement = SRegOffset(base_of_code_->s_reg_low);
     // Native pointer - must be natural word size.
-    setup_method_address_[1] = StoreBaseDisp(rs_rX86_SP, displacement, method_start,
+    setup_method_address_[1] = StoreBaseDisp(rs_rSP, displacement, method_start,
                                              cu_->target64 ? k64 : k32, kNotVolatile);
   }
 
-  FreeTemp(rs_rX86_ARG0);
-  FreeTemp(rs_rX86_ARG1);
-  FreeTemp(rs_rX86_ARG2);
+  FreeTemp(arg0);
+  FreeTemp(arg1);
+  FreeTemp(arg2);
 }
 
 void X86Mir2Lir::GenExitSequence() {
@@ -266,12 +262,49 @@ void X86Mir2Lir::GenExitSequence() {
   UnSpillCoreRegs();
   UnSpillFPRegs();
   /* Remove frame except for return address */
-  stack_increment_ = OpRegImm(kOpAdd, rs_rX86_SP, frame_size_ - GetInstructionSetPointerSize(cu_->instruction_set));
+  const RegStorage rs_rSP = cu_->target64 ? rs_rX86_SP_64 : rs_rX86_SP_32;
+  stack_increment_ = OpRegImm(kOpAdd, rs_rSP,
+                              frame_size_ - GetInstructionSetPointerSize(cu_->instruction_set));
   NewLIR0(kX86Ret);
 }
 
 void X86Mir2Lir::GenSpecialExitSequence() {
   NewLIR0(kX86Ret);
+}
+
+void X86Mir2Lir::GenSpecialEntryForSuspend() {
+  // Keep 16-byte stack alignment, there's already the return address, so
+  //   - for 32-bit push EAX, i.e. ArtMethod*, ESI, EDI,
+  //   - for 64-bit push RAX, i.e. ArtMethod*.
+  if (!cu_->target64) {
+    DCHECK(!IsTemp(rs_rSI));
+    DCHECK(!IsTemp(rs_rDI));
+    core_spill_mask_ =
+        (1u << rs_rDI.GetRegNum()) | (1u << rs_rSI.GetRegNum()) | (1u << rs_rRET.GetRegNum());
+    num_core_spills_ = 3u;
+  } else {
+    core_spill_mask_ = (1u << rs_rRET.GetRegNum());
+    num_core_spills_ = 1u;
+  }
+  fp_spill_mask_ = 0u;
+  num_fp_spills_ = 0u;
+  frame_size_ = 16u;
+  core_vmap_table_.clear();
+  fp_vmap_table_.clear();
+  if (!cu_->target64) {
+    NewLIR1(kX86Push32R, rs_rDI.GetReg());
+    NewLIR1(kX86Push32R, rs_rSI.GetReg());
+  }
+  NewLIR1(kX86Push32R, TargetReg(kArg0, kRef).GetReg());  // ArtMethod*
+}
+
+void X86Mir2Lir::GenSpecialExitForSuspend() {
+  // Pop the frame. (ArtMethod* no longer needed but restore it anyway.)
+  NewLIR1(kX86Pop32R, TargetReg(kArg0, kRef).GetReg());  // ArtMethod*
+  if (!cu_->target64) {
+    NewLIR1(kX86Pop32R, rs_rSI.GetReg());
+    NewLIR1(kX86Pop32R, rs_rDI.GetReg());
+  }
 }
 
 void X86Mir2Lir::GenImplicitNullCheck(RegStorage reg, int opt_flags) {
@@ -290,9 +323,10 @@ void X86Mir2Lir::GenImplicitNullCheck(RegStorage reg, int opt_flags) {
  */
 static int X86NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
                              int state, const MethodReference& target_method,
-                             uint32_t unused,
+                             uint32_t,
                              uintptr_t direct_code, uintptr_t direct_method,
                              InvokeType type) {
+  UNUSED(info, direct_code);
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
   if (direct_method != 0) {
     switch (state) {

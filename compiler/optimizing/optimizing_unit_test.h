@@ -19,6 +19,7 @@
 
 #include "nodes.h"
 #include "builder.h"
+#include "compiler/dex/pass_manager.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "ssa_liveness_analysis.h"
@@ -30,23 +31,27 @@ namespace art {
 #define NUM_INSTRUCTIONS(...)  \
   (sizeof((uint16_t[]) {__VA_ARGS__}) /sizeof(uint16_t))
 
-#define ZERO_REGISTER_CODE_ITEM(...)                                       \
-    { 0, 0, 0, 0, 0, 0, NUM_INSTRUCTIONS(__VA_ARGS__), 0, __VA_ARGS__ }
+#define N_REGISTERS_CODE_ITEM(NUM_REGS, ...)                            \
+    { NUM_REGS, 0, 0, 0, 0, 0, NUM_INSTRUCTIONS(__VA_ARGS__), 0, __VA_ARGS__ }
 
-#define ONE_REGISTER_CODE_ITEM(...)                                        \
-    { 1, 0, 0, 0, 0, 0, NUM_INSTRUCTIONS(__VA_ARGS__), 0, __VA_ARGS__ }
+#define ZERO_REGISTER_CODE_ITEM(...)   N_REGISTERS_CODE_ITEM(0, __VA_ARGS__)
+#define ONE_REGISTER_CODE_ITEM(...)    N_REGISTERS_CODE_ITEM(1, __VA_ARGS__)
+#define TWO_REGISTERS_CODE_ITEM(...)   N_REGISTERS_CODE_ITEM(2, __VA_ARGS__)
+#define THREE_REGISTERS_CODE_ITEM(...) N_REGISTERS_CODE_ITEM(3, __VA_ARGS__)
+#define FOUR_REGISTERS_CODE_ITEM(...)  N_REGISTERS_CODE_ITEM(4, __VA_ARGS__)
+#define FIVE_REGISTERS_CODE_ITEM(...)  N_REGISTERS_CODE_ITEM(5, __VA_ARGS__)
+#define SIX_REGISTERS_CODE_ITEM(...)   N_REGISTERS_CODE_ITEM(6, __VA_ARGS__)
 
-#define TWO_REGISTERS_CODE_ITEM(...)                                       \
-    { 2, 0, 0, 0, 0, 0, NUM_INSTRUCTIONS(__VA_ARGS__), 0, __VA_ARGS__ }
-
-#define THREE_REGISTERS_CODE_ITEM(...)                                     \
-    { 3, 0, 0, 0, 0, 0, NUM_INSTRUCTIONS(__VA_ARGS__), 0, __VA_ARGS__ }
 
 LiveInterval* BuildInterval(const size_t ranges[][2],
                             size_t number_of_ranges,
                             ArenaAllocator* allocator,
-                            int reg = -1) {
-  LiveInterval* interval = new (allocator) LiveInterval(allocator, Primitive::kPrimInt);
+                            int reg = -1,
+                            HInstruction* defined_by = nullptr) {
+  LiveInterval* interval = LiveInterval::MakeInterval(allocator, Primitive::kPrimInt, defined_by);
+  if (defined_by != nullptr) {
+    defined_by->SetLiveInterval(interval);
+  }
   for (size_t i = number_of_ranges; i > 0; --i) {
     interval->AddRange(ranges[i - 1][0], ranges[i - 1][1]);
   }
@@ -71,11 +76,12 @@ void RemoveSuspendChecks(HGraph* graph) {
 inline HGraph* CreateCFG(ArenaAllocator* allocator,
                          const uint16_t* data,
                          Primitive::Type return_type = Primitive::kPrimInt) {
-  HGraphBuilder builder(allocator, return_type);
+  HGraph* graph = new (allocator) HGraph(allocator);
+  HGraphBuilder builder(graph, return_type);
   const DexFile::CodeItem* item =
     reinterpret_cast<const DexFile::CodeItem*>(data);
-  HGraph* graph = builder.BuildGraph(*item);
-  return graph;
+  bool graph_built = builder.BuildGraph(*item);
+  return graph_built ? graph : nullptr;
 }
 
 // Naive string diff data type.
@@ -94,6 +100,11 @@ inline std::string Patch(const std::string& original, const diff_t& diff) {
     result.replace(pos, p.first.size(), p.second);
   }
   return result;
+}
+
+// Returns if the instruction is removed from the graph.
+inline bool IsRemoved(HInstruction* instruction) {
+  return instruction->GetBlock() == nullptr;
 }
 
 }  // namespace art

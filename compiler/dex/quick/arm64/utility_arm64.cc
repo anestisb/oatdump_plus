@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
-#include "arm64_lir.h"
 #include "codegen_arm64.h"
+
+#include "arm64_lir.h"
+#include "base/logging.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "dex/reg_storage_eq.h"
 
@@ -306,7 +308,7 @@ static int GetNumFastHalfWords(uint64_t value) {
 // algorithm will give it a low priority for promotion, even when it is referenced many times in
 // the code.
 
-bool Arm64Mir2Lir::InexpensiveConstantInt(int32_t value) {
+bool Arm64Mir2Lir::InexpensiveConstantInt(int32_t value ATTRIBUTE_UNUSED) {
   // A 32-bit int can always be loaded with 2 instructions (and without using the literal pool).
   // We therefore return true and give it a low priority for promotion.
   return true;
@@ -345,7 +347,7 @@ bool Arm64Mir2Lir::InexpensiveConstantInt(int32_t value, Instruction::Code opcod
   case Instruction::SUB_INT_2ADDR:
     // The code below is consistent with the implementation of OpRegRegImm().
     {
-      int32_t abs_value = std::abs(value);
+      uint32_t abs_value = (value == INT_MIN) ? value : std::abs(value);
       if (abs_value < 0x1000) {
         return true;
       } else if ((abs_value & UINT64_C(0xfff)) == 0 && ((abs_value >> 12) < 0x1000)) {
@@ -673,19 +675,24 @@ LIR* Arm64Mir2Lir::OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2
   }
 }
 
-LIR* Arm64Mir2Lir::OpMovRegMem(RegStorage r_dest, RegStorage r_base, int offset, MoveType move_type) {
+LIR* Arm64Mir2Lir::OpMovRegMem(RegStorage r_dest, RegStorage r_base, int offset,
+                               MoveType move_type) {
+  UNUSED(r_dest, r_base, offset, move_type);
   UNIMPLEMENTED(FATAL);
-  return nullptr;
+  UNREACHABLE();
 }
 
-LIR* Arm64Mir2Lir::OpMovMemReg(RegStorage r_base, int offset, RegStorage r_src, MoveType move_type) {
+LIR* Arm64Mir2Lir::OpMovMemReg(RegStorage r_base, int offset, RegStorage r_src,
+                               MoveType move_type) {
+  UNUSED(r_base, offset, r_src, move_type);
   UNIMPLEMENTED(FATAL);
   return nullptr;
 }
 
 LIR* Arm64Mir2Lir::OpCondRegReg(OpKind op, ConditionCode cc, RegStorage r_dest, RegStorage r_src) {
+  UNUSED(op, cc, r_dest, r_src);
   LOG(FATAL) << "Unexpected use of OpCondRegReg for Arm64";
-  return NULL;
+  UNREACHABLE();
 }
 
 LIR* Arm64Mir2Lir::OpRegRegRegShift(OpKind op, RegStorage r_dest, RegStorage r_src1,
@@ -768,8 +775,8 @@ LIR* Arm64Mir2Lir::OpRegRegRegExtend(OpKind op, RegStorage r_dest, RegStorage r_
       opcode = kA64Sub4RRre;
       break;
     default:
-      LOG(FATAL) << "Unimplemented opcode: " << op;
-      break;
+      UNIMPLEMENTED(FATAL) << "Unimplemented opcode: " << op;
+      UNREACHABLE();
   }
   A64Opcode widened_opcode = r_dest.Is64Bit() ? WIDE(opcode) : opcode;
 
@@ -805,7 +812,7 @@ LIR* Arm64Mir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src1, 
 LIR* Arm64Mir2Lir::OpRegRegImm64(OpKind op, RegStorage r_dest, RegStorage r_src1, int64_t value) {
   LIR* res;
   bool neg = (value < 0);
-  int64_t abs_value = (neg) ? -value : value;
+  uint64_t abs_value = (neg & !(value == LLONG_MIN)) ? -value : value;
   A64Opcode opcode = kA64Brk1d;
   A64Opcode alt_opcode = kA64Brk1d;
   bool is_logical = false;
@@ -938,7 +945,7 @@ LIR* Arm64Mir2Lir::OpRegImm64(OpKind op, RegStorage r_dest_src1, int64_t value) 
   A64Opcode neg_opcode = kA64Brk1d;
   bool shift;
   bool neg = (value < 0);
-  uint64_t abs_value = (neg) ? -value : value;
+  uint64_t abs_value = (neg & !(value == LLONG_MIN)) ? -value : value;
 
   if (LIKELY(abs_value < 0x1000)) {
     // abs_value is a 12-bit immediate.
@@ -1057,9 +1064,11 @@ LIR* Arm64Mir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegSto
       opcode = WIDE(kA64Ldr4rXxG);
       expected_scale = 3;
       break;
-    case kSingle:     // Intentional fall-through.
-    case k32:         // Intentional fall-through.
     case kReference:
+      r_dest = As32BitReg(r_dest);
+      FALLTHROUGH_INTENDED;
+    case kSingle:     // Intentional fall-through.
+    case k32:
       r_dest = Check32BitReg(r_dest);
       opcode = kA64Ldr4rXxG;
       expected_scale = 2;
@@ -1098,11 +1107,6 @@ LIR* Arm64Mir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegSto
   }
 
   return load;
-}
-
-LIR* Arm64Mir2Lir::LoadRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest,
-                                  int scale) {
-  return LoadBaseIndexed(r_base, r_index, As32BitReg(r_dest), scale, kReference);
 }
 
 LIR* Arm64Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src,
@@ -1145,9 +1149,11 @@ LIR* Arm64Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegSt
       opcode = WIDE(kA64Str4rXxG);
       expected_scale = 3;
       break;
-    case kSingle:     // Intentional fall-trough.
-    case k32:         // Intentional fall-trough.
     case kReference:
+      r_src = As32BitReg(r_src);
+      FALLTHROUGH_INTENDED;
+    case kSingle:     // Intentional fall-trough.
+    case k32:
       r_src = Check32BitReg(r_src);
       opcode = kA64Str4rXxG;
       expected_scale = 2;
@@ -1180,11 +1186,6 @@ LIR* Arm64Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegSt
   return store;
 }
 
-LIR* Arm64Mir2Lir::StoreRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src,
-                                   int scale) {
-  return StoreBaseIndexed(r_base, r_index, As32BitReg(r_src), scale, kReference);
-}
-
 /*
  * Load value from base + displacement.  Optionally perform null check
  * on base (which must have an associated s_reg and MIR).  If not
@@ -1212,9 +1213,11 @@ LIR* Arm64Mir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStor
         alt_opcode = WIDE(kA64Ldur3rXd);
       }
       break;
-    case kSingle:     // Intentional fall-through.
-    case k32:         // Intentional fall-trough.
     case kReference:
+      r_dest = As32BitReg(r_dest);
+      FALLTHROUGH_INTENDED;
+    case kSingle:     // Intentional fall-through.
+    case k32:
       r_dest = Check32BitReg(r_dest);
       scale = 2;
       if (r_dest.IsFloat()) {
@@ -1255,13 +1258,15 @@ LIR* Arm64Mir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStor
     // TODO: cleaner support for index/displacement registers?  Not a reference, but must match width.
     RegStorage r_scratch = AllocTempWide();
     LoadConstantWide(r_scratch, displacement);
-    load = LoadBaseIndexed(r_base, r_scratch, r_dest, 0, size);
+    load = LoadBaseIndexed(r_base, r_scratch,
+                           (size == kReference) ? As64BitReg(r_dest) : r_dest,
+                           0, size);
     FreeTemp(r_scratch);
   }
 
   // TODO: in future may need to differentiate Dalvik accesses w/ spills
   if (mem_ref_type_ == ResourceMask::kDalvikReg) {
-    DCHECK(r_base == rs_sp);
+    DCHECK_EQ(r_base, rs_sp);
     AnnotateDalvikRegAccess(load, displacement >> 2, true /* is_load */, r_dest.Is64Bit());
   }
   return load;
@@ -1280,11 +1285,6 @@ LIR* Arm64Mir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage 
   }
 
   return load;
-}
-
-LIR* Arm64Mir2Lir::LoadRefDisp(RegStorage r_base, int displacement, RegStorage r_dest,
-                               VolatileKind is_volatile) {
-  return LoadBaseDisp(r_base, displacement, As32BitReg(r_dest), kReference, is_volatile);
 }
 
 LIR* Arm64Mir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStorage r_src,
@@ -1309,9 +1309,11 @@ LIR* Arm64Mir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegSto
         alt_opcode = WIDE(kA64Stur3rXd);
       }
       break;
-    case kSingle:     // Intentional fall-through.
-    case k32:         // Intentional fall-trough.
     case kReference:
+      r_src = As32BitReg(r_src);
+      FALLTHROUGH_INTENDED;
+    case kSingle:     // Intentional fall-through.
+    case k32:
       r_src = Check32BitReg(r_src);
       scale = 2;
       if (r_src.IsFloat()) {
@@ -1346,13 +1348,15 @@ LIR* Arm64Mir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegSto
     // Use long sequence.
     RegStorage r_scratch = AllocTempWide();
     LoadConstantWide(r_scratch, displacement);
-    store = StoreBaseIndexed(r_base, r_scratch, r_src, 0, size);
+    store = StoreBaseIndexed(r_base, r_scratch,
+                             (size == kReference) ? As64BitReg(r_src) : r_src,
+                             0, size);
     FreeTemp(r_scratch);
   }
 
   // TODO: In future, may need to differentiate Dalvik & spill accesses.
   if (mem_ref_type_ == ResourceMask::kDalvikReg) {
-    DCHECK(r_base == rs_sp);
+    DCHECK_EQ(r_base, rs_sp);
     AnnotateDalvikRegAccess(store, displacement >> 2, false /* is_load */, r_src.Is64Bit());
   }
   return store;
@@ -1380,22 +1384,21 @@ LIR* Arm64Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage
   return store;
 }
 
-LIR* Arm64Mir2Lir::StoreRefDisp(RegStorage r_base, int displacement, RegStorage r_src,
-                                VolatileKind is_volatile) {
-  return StoreBaseDisp(r_base, displacement, As32BitReg(r_src), kReference, is_volatile);
-}
-
 LIR* Arm64Mir2Lir::OpFpRegCopy(RegStorage r_dest, RegStorage r_src) {
+  UNUSED(r_dest, r_src);
   LOG(FATAL) << "Unexpected use of OpFpRegCopy for Arm64";
-  return NULL;
+  UNREACHABLE();
 }
 
 LIR* Arm64Mir2Lir::OpMem(OpKind op, RegStorage r_base, int disp) {
+  UNUSED(op, r_base, disp);
   LOG(FATAL) << "Unexpected use of OpMem for Arm64";
-  return NULL;
+  UNREACHABLE();
 }
 
-LIR* Arm64Mir2Lir::InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) {
+LIR* Arm64Mir2Lir::InvokeTrampoline(OpKind op, RegStorage r_tgt,
+                                    QuickEntrypointEnum trampoline ATTRIBUTE_UNUSED) {
+  // The address of the trampoline is already loaded into r_tgt.
   return OpReg(op, r_tgt);
 }
 

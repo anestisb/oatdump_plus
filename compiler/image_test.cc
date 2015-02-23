@@ -63,18 +63,15 @@ TEST_F(ImageTest, WriteRead) {
   ScratchFile oat_file(OS::CreateEmptyFile(oat_filename.c_str()));
 
   const uintptr_t requested_image_base = ART_BASE_ADDRESS;
-  ImageWriter writer(*compiler_driver_, requested_image_base);
+  std::unique_ptr<ImageWriter> writer(new ImageWriter(*compiler_driver_, requested_image_base,
+                                                      /*compile_pic*/false));
+  // TODO: compile_pic should be a test argument.
   {
     {
       jobject class_loader = NULL;
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
       TimingLogger timings("ImageTest::WriteRead", false, false);
       TimingLogger::ScopedTiming t("CompileAll", &timings);
-      if (kUsePortableCompiler) {
-        // TODO: we disable this for portable so the test executes in a reasonable amount of time.
-        //       We shouldn't need to do this.
-        compiler_options_->SetCompilerFilter(CompilerOptions::kInterpretOnly);
-      }
       for (const DexFile* dex_file : class_linker->GetBootClassPath()) {
         dex_file->EnableWrite();
       }
@@ -83,8 +80,8 @@ TEST_F(ImageTest, WriteRead) {
       t.NewTiming("WriteElf");
       SafeMap<std::string, std::string> key_value_store;
       OatWriter oat_writer(class_linker->GetBootClassPath(), 0, 0, 0, compiler_driver_.get(),
-                           &writer, &timings, &key_value_store);
-      bool success = writer.PrepareImageAddressSpace() &&
+                           writer.get(), &timings, &key_value_store);
+      bool success = writer->PrepareImageAddressSpace() &&
           compiler_driver_->WriteElf(GetTestAndroidRoot(),
                                      !kIsTargetBuild,
                                      class_linker->GetBootClassPath(),
@@ -99,17 +96,20 @@ TEST_F(ImageTest, WriteRead) {
 
   {
     bool success_image =
-        writer.Write(image_file.GetFilename(), dup_oat->GetPath(), dup_oat->GetPath());
+        writer->Write(image_file.GetFilename(), dup_oat->GetPath(), dup_oat->GetPath());
     ASSERT_TRUE(success_image);
-    bool success_fixup = ElfWriter::Fixup(dup_oat.get(), writer.GetOatDataBegin());
+    bool success_fixup = ElfWriter::Fixup(dup_oat.get(), writer->GetOatDataBegin());
     ASSERT_TRUE(success_fixup);
+
+    ASSERT_EQ(dup_oat->FlushCloseOrErase(), 0) << "Could not flush and close oat file "
+                                               << oat_file.GetFilename();
   }
 
   {
     std::unique_ptr<File> file(OS::OpenFileForReading(image_file.GetFilename().c_str()));
     ASSERT_TRUE(file.get() != NULL);
     ImageHeader image_header;
-    file->ReadFully(&image_header, sizeof(image_header));
+    ASSERT_EQ(file->ReadFully(&image_header, sizeof(image_header)), true);
     ASSERT_TRUE(image_header.IsValid());
     ASSERT_GE(image_header.GetImageBitmapOffset(), sizeof(image_header));
     ASSERT_NE(0U, image_header.GetImageBitmapSize());
@@ -130,13 +130,17 @@ TEST_F(ImageTest, WriteRead) {
   compiler_driver_.reset();
 
   // Tear down old runtime before making a new one, clearing out misc state.
+
+  // Remove the reservation of the memory for use to load the image.
+  // Need to do this before we reset the runtime.
+  UnreserveImageSpace();
+  writer.reset(nullptr);
+
   runtime_.reset();
   java_lang_dex_file_ = NULL;
 
+  MemMap::Init();
   std::unique_ptr<const DexFile> dex(LoadExpectSingleDexFile(GetLibCoreDexFileName().c_str()));
-
-  // Remove the reservation of the memory for use to load the image.
-  UnreserveImageSpace();
 
   RuntimeOptions options;
   std::string image("-Ximage:");
@@ -208,7 +212,8 @@ TEST_F(ImageTest, ImageHeaderIsValid) {
                              oat_file_begin,
                              oat_data_begin,
                              oat_data_end,
-                             oat_file_end);
+                             oat_file_end,
+                             /*compile_pic*/false);
     ASSERT_TRUE(image_header.IsValid());
 
     char* magic = const_cast<char*>(image_header.GetMagic());

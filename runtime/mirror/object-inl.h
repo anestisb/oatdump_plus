@@ -121,7 +121,7 @@ inline Object* Object::GetReadBarrierPointer() {
       OFFSET_OF_OBJECT_MEMBER(Object, x_rb_ptr_));
 #else
   LOG(FATAL) << "Unreachable";
-  return nullptr;
+  UNREACHABLE();
 #endif
 }
 
@@ -134,6 +134,8 @@ inline void Object::SetReadBarrierPointer(Object* rb_ptr) {
       OFFSET_OF_OBJECT_MEMBER(Object, x_rb_ptr_), rb_ptr);
 #else
   LOG(FATAL) << "Unreachable";
+  UNREACHABLE();
+  UNUSED(rb_ptr);
 #endif
 }
 
@@ -152,11 +154,11 @@ inline bool Object::AtomicSetReadBarrierPointer(Object* expected_rb_ptr, Object*
     }
   } while (!atomic_rb_ptr->CompareExchangeWeakSequentiallyConsistent(expected_ref.reference_,
                                                                      new_ref.reference_));
-  DCHECK_EQ(new_ref.reference_, atomic_rb_ptr->LoadRelaxed());
   return true;
 #else
+  UNUSED(expected_rb_ptr, rb_ptr);
   LOG(FATAL) << "Unreachable";
-  return false;
+  UNREACHABLE();
 #endif
 }
 
@@ -166,13 +168,12 @@ inline void Object::AssertReadBarrierPointer() const {
     DCHECK(obj->GetReadBarrierPointer() == nullptr)
         << "Bad Baker pointer: obj=" << reinterpret_cast<void*>(obj)
         << " ptr=" << reinterpret_cast<void*>(obj->GetReadBarrierPointer());
-  } else if (kUseBrooksReadBarrier) {
+  } else {
+    CHECK(kUseBrooksReadBarrier);
     Object* obj = const_cast<Object*>(this);
     DCHECK_EQ(obj, obj->GetReadBarrierPointer())
         << "Bad Brooks pointer: obj=" << reinterpret_cast<void*>(obj)
         << " ptr=" << reinterpret_cast<void*>(obj->GetReadBarrierPointer());
-  } else {
-    LOG(FATAL) << "Unreachable";
   }
 }
 
@@ -402,8 +403,7 @@ inline size_t Object::SizeOf() {
   }
   DCHECK_GE(result, sizeof(Object))
       << " class=" << PrettyTypeOf(GetClass<kNewFlags, kReadBarrierOption>());
-  DCHECK(!(IsArtField<kNewFlags, kReadBarrierOption>())  || result == sizeof(ArtField));
-  DCHECK(!(IsArtMethod<kNewFlags, kReadBarrierOption>()) || result == sizeof(ArtMethod));
+  DCHECK(!(IsArtField<kNewFlags, kReadBarrierOption>()) || result == sizeof(ArtField));
   return result;
 }
 
@@ -825,6 +825,17 @@ inline HeapReference<Object>* Object::GetFieldObjectReferenceAddr(MemberOffset f
 template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
 inline bool Object::CasFieldWeakSequentiallyConsistentObject(MemberOffset field_offset,
                                                              Object* old_value, Object* new_value) {
+  bool success = CasFieldWeakSequentiallyConsistentObjectWithoutWriteBarrier<
+      kTransactionActive, kCheckTransaction, kVerifyFlags>(field_offset, old_value, new_value);
+  if (success) {
+    Runtime::Current()->GetHeap()->WriteBarrierField(this, field_offset, new_value);
+  }
+  return success;
+}
+
+template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
+inline bool Object::CasFieldWeakSequentiallyConsistentObjectWithoutWriteBarrier(
+    MemberOffset field_offset, Object* old_value, Object* new_value) {
   if (kCheckTransaction) {
     DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
   }
@@ -847,7 +858,14 @@ inline bool Object::CasFieldWeakSequentiallyConsistentObject(MemberOffset field_
 
   bool success = atomic_addr->CompareExchangeWeakSequentiallyConsistent(old_ref.reference_,
                                                                         new_ref.reference_);
+  return success;
+}
 
+template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
+inline bool Object::CasFieldStrongSequentiallyConsistentObject(MemberOffset field_offset,
+                                                               Object* old_value, Object* new_value) {
+  bool success = CasFieldStrongSequentiallyConsistentObjectWithoutWriteBarrier<
+      kTransactionActive, kCheckTransaction, kVerifyFlags>(field_offset, old_value, new_value);
   if (success) {
     Runtime::Current()->GetHeap()->WriteBarrierField(this, field_offset, new_value);
   }
@@ -855,8 +873,8 @@ inline bool Object::CasFieldWeakSequentiallyConsistentObject(MemberOffset field_
 }
 
 template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
-inline bool Object::CasFieldStrongSequentiallyConsistentObject(MemberOffset field_offset,
-                                                             Object* old_value, Object* new_value) {
+inline bool Object::CasFieldStrongSequentiallyConsistentObjectWithoutWriteBarrier(
+    MemberOffset field_offset, Object* old_value, Object* new_value) {
   if (kCheckTransaction) {
     DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
   }
@@ -879,10 +897,6 @@ inline bool Object::CasFieldStrongSequentiallyConsistentObject(MemberOffset fiel
 
   bool success = atomic_addr->CompareExchangeStrongSequentiallyConsistent(old_ref.reference_,
                                                                           new_ref.reference_);
-
-  if (success) {
-    Runtime::Current()->GetHeap()->WriteBarrierField(this, field_offset, new_value);
-  }
   return success;
 }
 
@@ -909,13 +923,19 @@ inline void Object::VisitFieldsReferences(uint32_t ref_offsets, const Visitor& v
         klass = kIsStatic ? nullptr : klass->GetSuperClass()) {
       size_t num_reference_fields =
           kIsStatic ? klass->NumReferenceStaticFields() : klass->NumReferenceInstanceFields();
+      if (num_reference_fields == 0u) {
+        continue;
+      }
+      MemberOffset field_offset = kIsStatic
+          ? klass->GetFirstReferenceStaticFieldOffset()
+          : klass->GetFirstReferenceInstanceFieldOffset();
       for (size_t i = 0; i < num_reference_fields; ++i) {
-        mirror::ArtField* field = kIsStatic ? klass->GetStaticField(i) : klass->GetInstanceField(i);
-        MemberOffset field_offset = field->GetOffset();
         // TODO: Do a simpler check?
         if (kVisitClass || field_offset.Uint32Value() != ClassOffset().Uint32Value()) {
           visitor(this, field_offset, kIsStatic);
         }
+        field_offset = MemberOffset(field_offset.Uint32Value() +
+                                    sizeof(mirror::HeapReference<mirror::Object>));
       }
     }
   }
@@ -954,7 +974,6 @@ inline void Object::VisitReferences(const Visitor& visitor,
     }
   }
 }
-
 }  // namespace mirror
 }  // namespace art
 

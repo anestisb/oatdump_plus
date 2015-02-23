@@ -240,11 +240,23 @@ class MANAGED LOCKABLE Object {
   bool CasFieldWeakSequentiallyConsistentObject(MemberOffset field_offset, Object* old_value,
                                                 Object* new_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  template<bool kTransactionActive, bool kCheckTransaction = true,
+      VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  bool CasFieldWeakSequentiallyConsistentObjectWithoutWriteBarrier(MemberOffset field_offset,
+                                                                   Object* old_value,
+                                                                   Object* new_value)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<bool kTransactionActive, bool kCheckTransaction = true,
       VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool CasFieldStrongSequentiallyConsistentObject(MemberOffset field_offset, Object* old_value,
                                                   Object* new_value)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  template<bool kTransactionActive, bool kCheckTransaction = true,
+      VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  bool CasFieldStrongSequentiallyConsistentObjectWithoutWriteBarrier(MemberOffset field_offset,
+                                                                     Object* old_value,
+                                                                     Object* new_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
@@ -392,15 +404,26 @@ class MANAGED LOCKABLE Object {
       VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, typename T>
   void SetFieldPtr(MemberOffset field_offset, T new_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-#ifndef __LP64__
-    SetField32<kTransactionActive, kCheckTransaction, kVerifyFlags>(
-        field_offset, reinterpret_cast<int32_t>(new_value));
-#else
-    SetField64<kTransactionActive, kCheckTransaction, kVerifyFlags>(
-        field_offset, reinterpret_cast<int64_t>(new_value));
-#endif
+    SetFieldPtrWithSize<kTransactionActive, kCheckTransaction, kVerifyFlags>(
+        field_offset, new_value, sizeof(void*));
   }
 
+  template<bool kTransactionActive, bool kCheckTransaction = true,
+      VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, typename T>
+  ALWAYS_INLINE void SetFieldPtrWithSize(MemberOffset field_offset, T new_value,
+                                         size_t pointer_size)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(pointer_size == 4 || pointer_size == 8) << pointer_size;
+    if (pointer_size == 4) {
+      intptr_t ptr  = reinterpret_cast<intptr_t>(new_value);
+      DCHECK_EQ(static_cast<int32_t>(ptr), ptr);  // Check that we dont lose any non 0 bits.
+      SetField32<kTransactionActive, kCheckTransaction, kVerifyFlags>(
+          field_offset, static_cast<int32_t>(ptr));
+    } else {
+      SetField64<kTransactionActive, kCheckTransaction, kVerifyFlags>(
+          field_offset, static_cast<int64_t>(reinterpret_cast<intptr_t>(new_value)));
+    }
+  }
   // TODO fix thread safety analysis broken by the use of template. This should be
   // SHARED_LOCKS_REQUIRED(Locks::mutator_lock_).
   template <const bool kVisitClass, VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
@@ -408,16 +431,31 @@ class MANAGED LOCKABLE Object {
   void VisitReferences(const Visitor& visitor, const JavaLangRefVisitor& ref_visitor)
       NO_THREAD_SAFETY_ANALYSIS;
 
+  // Used by object_test.
+  static void SetHashCodeSeed(uint32_t new_seed);
+  // Generate an identity hash code. Public for object test.
+  static uint32_t GenerateIdentityHashCode();
+
  protected:
   // Accessors for non-Java type fields
   template<class T, VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kIsVolatile = false>
   T GetFieldPtr(MemberOffset field_offset)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-#ifndef __LP64__
-    return reinterpret_cast<T>(GetField32<kVerifyFlags, kIsVolatile>(field_offset));
-#else
-    return reinterpret_cast<T>(GetField64<kVerifyFlags, kIsVolatile>(field_offset));
-#endif
+    return GetFieldPtrWithSize<T, kVerifyFlags, kIsVolatile>(field_offset, sizeof(void*));
+  }
+
+  template<class T, VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kIsVolatile = false>
+  ALWAYS_INLINE T GetFieldPtrWithSize(MemberOffset field_offset, size_t pointer_size)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(pointer_size == 4 || pointer_size == 8) << pointer_size;
+    if (pointer_size == 4) {
+      return reinterpret_cast<T>(GetField32<kVerifyFlags, kIsVolatile>(field_offset));
+    } else {
+      int64_t v = GetField64<kVerifyFlags, kIsVolatile>(field_offset);
+      // Check that we dont lose any non 0 bits.
+      DCHECK_EQ(reinterpret_cast<int64_t>(reinterpret_cast<T>(v)), v);
+      return reinterpret_cast<T>(v);
+    }
   }
 
   // TODO: Fixme when anotatalysis works with visitors.
@@ -450,15 +488,14 @@ class MANAGED LOCKABLE Object {
     }
   }
 
-  // Generate an identity hash code.
-  static int32_t GenerateIdentityHashCode();
-
   // A utility function that copies an object in a read barrier and
   // write barrier-aware way. This is internally used by Clone() and
   // Class::CopyOf().
   static Object* CopyObject(Thread* self, mirror::Object* dest, mirror::Object* src,
                             size_t num_bytes)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static Atomic<uint32_t> hash_code_seed;
 
   // The Class representing the type of the object.
   HeapReference<Class> klass_;
@@ -478,6 +515,7 @@ class MANAGED LOCKABLE Object {
   friend struct art::ObjectOffsets;  // for verifying offset information
   friend class CopyObjectVisitor;  // for CopyObject().
   friend class CopyClassVisitor;   // for CopyObject().
+  DISALLOW_ALLOCATION();
   DISALLOW_IMPLICIT_CONSTRUCTORS(Object);
 };
 

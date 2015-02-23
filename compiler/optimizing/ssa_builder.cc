@@ -17,7 +17,8 @@
 #include "ssa_builder.h"
 
 #include "nodes.h"
-#include "ssa_type_propagation.h"
+#include "primitive_type_propagation.h"
+#include "ssa_phi_elimination.h"
 
 namespace art {
 
@@ -41,24 +42,46 @@ void SsaBuilder::BuildSsa() {
     }
   }
 
-  // 3) Propagate types of phis.
-  SsaTypePropagation type_propagation(GetGraph());
+  // 3) Mark dead phis. This will mark phis that are only used by environments:
+  // at the DEX level, the type of these phis does not need to be consistent, but
+  // our code generator will complain if the inputs of a phi do not have the same
+  // type. The marking allows the type propagation to know which phis it needs
+  // to handle. We mark but do not eliminate: the elimination will be done in
+  // step 5).
+  {
+    SsaDeadPhiElimination dead_phis(GetGraph());
+    dead_phis.MarkDeadPhis();
+  }
+
+  // 4) Propagate types of phis. At this point, phis are typed void in the general
+  // case, or float/double/reference when we created an equivalent phi. So we
+  // need to propagate the types across phis to give them a correct type.
+  PrimitiveTypePropagation type_propagation(GetGraph());
   type_propagation.Run();
 
-  // 4) Clear locals.
+  // 5) Step 4) changes inputs of phis which may lead to dead phis again. We re-run
+  // the algorithm and this time elimimates them.
+  // TODO: Make this work with debug info and reference liveness. We currently
+  // eagerly remove phis used in environments.
+  {
+    SsaDeadPhiElimination dead_phis(GetGraph());
+    dead_phis.Run();
+  }
+
+  // 6) Clear locals.
   // TODO: Move this to a dead code eliminator phase.
   for (HInstructionIterator it(GetGraph()->GetEntryBlock()->GetInstructions());
        !it.Done();
        it.Advance()) {
     HInstruction* current = it.Current();
-    if (current->AsLocal() != nullptr) {
+    if (current->IsLocal()) {
       current->GetBlock()->RemoveInstruction(current);
     }
   }
 }
 
 HInstruction* SsaBuilder::ValueOfLocal(HBasicBlock* block, size_t local) {
-  return GetLocalsFor(block)->Get(local);
+  return GetLocalsFor(block)->GetInstructionAt(local);
 }
 
 void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
@@ -75,7 +98,7 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
         HPhi* phi = new (GetGraph()->GetArena()) HPhi(
             GetGraph()->GetArena(), local, 0, Primitive::kPrimVoid);
         block->AddPhi(phi);
-        current_locals_->Put(local, phi);
+        current_locals_->SetRawEnvAt(local, phi);
       }
     }
     // Save the loop header so that the last phase of the analysis knows which
@@ -109,13 +132,13 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
         HPhi* phi = new (GetGraph()->GetArena()) HPhi(
             GetGraph()->GetArena(), local, block->GetPredecessors().Size(), Primitive::kPrimVoid);
         for (size_t i = 0; i < block->GetPredecessors().Size(); i++) {
-          HInstruction* value = ValueOfLocal(block->GetPredecessors().Get(i), local);
-          phi->SetRawInputAt(i, value);
+          HInstruction* pred_value = ValueOfLocal(block->GetPredecessors().Get(i), local);
+          phi->SetRawInputAt(i, pred_value);
         }
         block->AddPhi(phi);
         value = phi;
       }
-      current_locals_->Put(local, value);
+      current_locals_->SetRawEnvAt(local, value);
     }
   }
 
@@ -129,13 +152,136 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
   }
 }
 
+/**
+ * Constants in the Dex format are not typed. So the builder types them as
+ * integers, but when doing the SSA form, we might realize the constant
+ * is used for floating point operations. We create a floating-point equivalent
+ * constant to make the operations correctly typed.
+ */
+static HFloatConstant* GetFloatEquivalent(HIntConstant* constant) {
+  // We place the floating point constant next to this constant.
+  HFloatConstant* result = constant->GetNext()->AsFloatConstant();
+  if (result == nullptr) {
+    HGraph* graph = constant->GetBlock()->GetGraph();
+    ArenaAllocator* allocator = graph->GetArena();
+    result = new (allocator) HFloatConstant(bit_cast<int32_t, float>(constant->GetValue()));
+    constant->GetBlock()->InsertInstructionBefore(result, constant->GetNext());
+  } else {
+    // If there is already a constant with the expected type, we know it is
+    // the floating point equivalent of this constant.
+    DCHECK_EQ((bit_cast<float, int32_t>(result->GetValue())), constant->GetValue());
+  }
+  return result;
+}
+
+/**
+ * Wide constants in the Dex format are not typed. So the builder types them as
+ * longs, but when doing the SSA form, we might realize the constant
+ * is used for floating point operations. We create a floating-point equivalent
+ * constant to make the operations correctly typed.
+ */
+static HDoubleConstant* GetDoubleEquivalent(HLongConstant* constant) {
+  // We place the floating point constant next to this constant.
+  HDoubleConstant* result = constant->GetNext()->AsDoubleConstant();
+  if (result == nullptr) {
+    HGraph* graph = constant->GetBlock()->GetGraph();
+    ArenaAllocator* allocator = graph->GetArena();
+    result = new (allocator) HDoubleConstant(bit_cast<int64_t, double>(constant->GetValue()));
+    constant->GetBlock()->InsertInstructionBefore(result, constant->GetNext());
+  } else {
+    // If there is already a constant with the expected type, we know it is
+    // the floating point equivalent of this constant.
+    DCHECK_EQ((bit_cast<double, int64_t>(result->GetValue())), constant->GetValue());
+  }
+  return result;
+}
+
+/**
+ * Because of Dex format, we might end up having the same phi being
+ * used for non floating point operations and floating point / reference operations.
+ * Because we want the graph to be correctly typed (and thereafter avoid moves between
+ * floating point registers and core registers), we need to create a copy of the
+ * phi with a floating point / reference type.
+ */
+static HPhi* GetFloatDoubleOrReferenceEquivalentOfPhi(HPhi* phi, Primitive::Type type) {
+  // We place the floating point /reference phi next to this phi.
+  HInstruction* next = phi->GetNext();
+  if (next != nullptr
+      && next->AsPhi()->GetRegNumber() == phi->GetRegNumber()
+      && next->GetType() != type) {
+    // Move to the next phi to see if it is the one we are looking for.
+    next = next->GetNext();
+  }
+
+  if (next == nullptr
+      || (next->AsPhi()->GetRegNumber() != phi->GetRegNumber())
+      || (next->GetType() != type)) {
+    ArenaAllocator* allocator = phi->GetBlock()->GetGraph()->GetArena();
+    HPhi* new_phi = new (allocator) HPhi(allocator, phi->GetRegNumber(), phi->InputCount(), type);
+    for (size_t i = 0, e = phi->InputCount(); i < e; ++i) {
+      // Copy the inputs. Note that the graph may not be correctly typed by doing this copy,
+      // but the type propagation phase will fix it.
+      new_phi->SetRawInputAt(i, phi->InputAt(i));
+    }
+    phi->GetBlock()->InsertPhiAfter(new_phi, phi);
+    return new_phi;
+  } else {
+    DCHECK_EQ(next->GetType(), type);
+    return next->AsPhi();
+  }
+}
+
+HInstruction* SsaBuilder::GetFloatOrDoubleEquivalent(HInstruction* user,
+                                                     HInstruction* value,
+                                                     Primitive::Type type) {
+  if (value->IsArrayGet()) {
+    // The verifier has checked that values in arrays cannot be used for both
+    // floating point and non-floating point operations. It is therefore safe to just
+    // change the type of the operation.
+    value->AsArrayGet()->SetType(type);
+    return value;
+  } else if (value->IsLongConstant()) {
+    return GetDoubleEquivalent(value->AsLongConstant());
+  } else if (value->IsIntConstant()) {
+    return GetFloatEquivalent(value->AsIntConstant());
+  } else if (value->IsPhi()) {
+    return GetFloatDoubleOrReferenceEquivalentOfPhi(value->AsPhi(), type);
+  } else {
+    // For other instructions, we assume the verifier has checked that the dex format is correctly
+    // typed and the value in a dex register will not be used for both floating point and
+    // non-floating point operations. So the only reason an instruction would want a floating
+    // point equivalent is for an unused phi that will be removed by the dead phi elimination phase.
+    DCHECK(user->IsPhi());
+    return value;
+  }
+}
+
+HInstruction* SsaBuilder::GetReferenceTypeEquivalent(HInstruction* value) {
+  if (value->IsIntConstant()) {
+    DCHECK_EQ(value->AsIntConstant()->GetValue(), 0);
+    return value->GetBlock()->GetGraph()->GetNullConstant();
+  } else {
+    DCHECK(value->IsPhi());
+    return GetFloatDoubleOrReferenceEquivalentOfPhi(value->AsPhi(), Primitive::kPrimNot);
+  }
+}
+
 void SsaBuilder::VisitLoadLocal(HLoadLocal* load) {
-  load->ReplaceWith(current_locals_->Get(load->GetLocal()->GetRegNumber()));
+  HInstruction* value = current_locals_->GetInstructionAt(load->GetLocal()->GetRegNumber());
+  // If the operation requests a specific type, we make sure its input is of that type.
+  if (load->GetType() != value->GetType()) {
+    if (load->GetType() == Primitive::kPrimFloat || load->GetType() == Primitive::kPrimDouble) {
+      value = GetFloatOrDoubleEquivalent(load, value, load->GetType());
+    } else if (load->GetType() == Primitive::kPrimNot) {
+      value = GetReferenceTypeEquivalent(value);
+    }
+  }
+  load->ReplaceWith(value);
   load->GetBlock()->RemoveInstruction(load);
 }
 
 void SsaBuilder::VisitStoreLocal(HStoreLocal* store) {
-  current_locals_->Put(store->GetLocal()->GetRegNumber(), store->InputAt(1));
+  current_locals_->SetRawEnvAt(store->GetLocal()->GetRegNumber(), store->InputAt(1));
   store->GetBlock()->RemoveInstruction(store);
 }
 
@@ -145,8 +291,13 @@ void SsaBuilder::VisitInstruction(HInstruction* instruction) {
   }
   HEnvironment* environment = new (GetGraph()->GetArena()) HEnvironment(
       GetGraph()->GetArena(), current_locals_->Size());
-  environment->Populate(*current_locals_);
+  environment->CopyFrom(current_locals_);
   instruction->SetEnvironment(environment);
+}
+
+void SsaBuilder::VisitTemporary(HTemporary* temp) {
+  // Temporaries are only used by the baseline register allocator.
+  temp->GetBlock()->RemoveInstruction(temp);
 }
 
 }  // namespace art

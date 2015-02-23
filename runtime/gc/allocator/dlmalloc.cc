@@ -19,8 +19,8 @@
 #include "base/logging.h"
 
 // ART specific morecore implementation defined in space.cc.
+static void* art_heap_morecore(void* m, intptr_t increment);
 #define MORECORE(x) art_heap_morecore(m, x)
-extern "C" void* art_heap_morecore(void* m, intptr_t increment);
 
 // Custom heap error handling.
 #define PROCEED_ON_ERROR 0
@@ -31,19 +31,24 @@ static void art_heap_usage_error(const char* function, void* p);
 
 // Ugly inclusion of C file so that ART specific #defines configure dlmalloc for our use for
 // mspaces (regular dlmalloc is still declared in bionic).
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wredundant-decls"
 #pragma GCC diagnostic ignored "-Wempty-body"
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 #include "../../../bionic/libc/upstream-dlmalloc/malloc.c"
-#pragma GCC diagnostic warning "-Wstrict-aliasing"
-#pragma GCC diagnostic warning "-Wempty-body"
+#pragma GCC diagnostic pop
 
+static void* art_heap_morecore(void* m, intptr_t increment) {
+  return ::art::gc::allocator::ArtDlMallocMoreCore(m, increment);
+}
 
 static void art_heap_corruption(const char* function) {
-  LOG(FATAL) << "Corrupt heap detected in: " << function;
+  LOG(::art::FATAL) << "Corrupt heap detected in: " << function;
 }
 
 static void art_heap_usage_error(const char* function, void* p) {
-  LOG(FATAL) << "Incorrect use of function '" << function << "' argument " << p << " not expected";
+  LOG(::art::FATAL) << "Incorrect use of function '" << function << "' argument " << p
+      << " not expected";
 }
 
 #include "globals.h"
@@ -63,14 +68,16 @@ extern "C" void DlmallocMadviseCallback(void* start, void* end, size_t used_byte
     int rc = madvise(start, length, MADV_DONTNEED);
     if (UNLIKELY(rc != 0)) {
       errno = rc;
-      PLOG(FATAL) << "madvise failed during heap trimming";
+      PLOG(::art::FATAL) << "madvise failed during heap trimming";
     }
     size_t* reclaimed = reinterpret_cast<size_t*>(arg);
     *reclaimed += length;
   }
 }
 
-extern "C" void DlmallocBytesAllocatedCallback(void* start, void* end, size_t used_bytes, void* arg) {
+extern "C" void DlmallocBytesAllocatedCallback(void* start ATTRIBUTE_UNUSED,
+                                               void* end ATTRIBUTE_UNUSED, size_t used_bytes,
+                                               void* arg) {
   if (used_bytes == 0) {
     return;
   }
@@ -78,7 +85,10 @@ extern "C" void DlmallocBytesAllocatedCallback(void* start, void* end, size_t us
   *bytes_allocated += used_bytes + sizeof(size_t);
 }
 
-extern "C" void DlmallocObjectsAllocatedCallback(void* start, void* end, size_t used_bytes, void* arg) {
+extern "C" void DlmallocObjectsAllocatedCallback(void* start, void* end, size_t used_bytes,
+                                                 void* arg) {
+  UNUSED(start);
+  UNUSED(end);
   if (used_bytes == 0) {
     return;
   }

@@ -120,6 +120,22 @@ void DexCompiler::Compile() {
         CompileInstanceFieldAccess(inst, dex_pc, Instruction::IGET_OBJECT_QUICK, false);
         break;
 
+      case Instruction::IGET_BOOLEAN:
+        CompileInstanceFieldAccess(inst, dex_pc, Instruction::IGET_BOOLEAN_QUICK, false);
+        break;
+
+      case Instruction::IGET_BYTE:
+        CompileInstanceFieldAccess(inst, dex_pc, Instruction::IGET_BYTE_QUICK, false);
+        break;
+
+      case Instruction::IGET_CHAR:
+        CompileInstanceFieldAccess(inst, dex_pc, Instruction::IGET_CHAR_QUICK, false);
+        break;
+
+      case Instruction::IGET_SHORT:
+        CompileInstanceFieldAccess(inst, dex_pc, Instruction::IGET_SHORT_QUICK, false);
+        break;
+
       case Instruction::IPUT:
         CompileInstanceFieldAccess(inst, dex_pc, Instruction::IPUT_QUICK, true);
         break;
@@ -222,7 +238,7 @@ void DexCompiler::CompileInstanceFieldAccess(Instruction* inst,
   bool is_volatile;
   bool fast_path = driver_.ComputeInstanceFieldInfo(field_idx, &unit_, is_put,
                                                     &field_offset, &is_volatile);
-  if (fast_path && !is_volatile && IsUint(16, field_offset.Int32Value())) {
+  if (fast_path && !is_volatile && IsUint<16>(field_offset.Int32Value())) {
     VLOG(compiler) << "Quickening " << Instruction::Name(inst->Opcode())
                    << " to " << Instruction::Name(new_opcode)
                    << " by replacing field index " << field_idx
@@ -258,7 +274,7 @@ void DexCompiler::CompileInvokeVirtual(Instruction* inst,
                                              &target_method, &vtable_idx,
                                              &direct_code, &direct_method);
   if (fast_path && original_invoke_type == invoke_type) {
-    if (vtable_idx >= 0 && IsUint(16, vtable_idx)) {
+    if (vtable_idx >= 0 && IsUint<16>(vtable_idx)) {
       VLOG(compiler) << "Quickening " << Instruction::Name(inst->Opcode())
                      << "(" << PrettyMethod(method_idx, GetDexFile(), true) << ")"
                      << " to " << Instruction::Name(new_opcode)
@@ -282,10 +298,11 @@ void DexCompiler::CompileInvokeVirtual(Instruction* inst,
 }  // namespace art
 
 extern "C" void ArtCompileDEX(art::CompilerDriver& driver, const art::DexFile::CodeItem* code_item,
-                  uint32_t access_flags, art::InvokeType invoke_type,
-                  uint16_t class_def_idx, uint32_t method_idx, jobject class_loader,
-                  const art::DexFile& dex_file,
-                  art::DexToDexCompilationLevel dex_to_dex_compilation_level) {
+                              uint32_t access_flags, art::InvokeType invoke_type,
+                              uint16_t class_def_idx, uint32_t method_idx, jobject class_loader,
+                              const art::DexFile& dex_file,
+                              art::DexToDexCompilationLevel dex_to_dex_compilation_level) {
+  UNUSED(invoke_type);
   if (dex_to_dex_compilation_level != art::kDontDexToDexCompile) {
     art::DexCompilationUnit unit(NULL, class_loader, art::Runtime::Current()->GetClassLinker(),
                                  dex_file, code_item, class_def_idx, method_idx, access_flags,

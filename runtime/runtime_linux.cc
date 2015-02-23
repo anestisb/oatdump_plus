@@ -21,24 +21,37 @@
 #include <sys/utsname.h>
 #include <inttypes.h>
 
+#include <sstream>
+
+#include "base/dumpable.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/mutex.h"
 #include "base/stringprintf.h"
 #include "thread-inl.h"
+#include "thread_list.h"
 #include "utils.h"
 
 namespace art {
 
 static constexpr bool kDumpHeapObjectOnSigsevg = false;
+static constexpr bool kUseSigRTTimeout = true;
 
 struct Backtrace {
-  void Dump(std::ostream& os) {
-    DumpNativeStack(os, GetTid(), "\t");
+ public:
+  explicit Backtrace(void* raw_context) : raw_context_(raw_context) {}
+  void Dump(std::ostream& os) const {
+    DumpNativeStack(os, GetTid(), "\t", nullptr, raw_context_);
   }
+ private:
+  // Stores the context of the signal that was unexpected and will terminate the runtime. The
+  // DumpNativeStack code will take care of casting it to the expected type. This is required
+  // as our signal handler runs on an alternate stack.
+  void* raw_context_;
 };
 
 struct OsInfo {
-  void Dump(std::ostream& os) {
+  void Dump(std::ostream& os) const {
     utsname info;
     uname(&info);
     // Linux 2.6.38.8-gg784 (x86_64)
@@ -132,9 +145,11 @@ static const char* GetSignalCodeName(int signal_number, int signal_code) {
 }
 
 struct UContext {
-  explicit UContext(void* raw_context) : context(reinterpret_cast<ucontext_t*>(raw_context)->uc_mcontext) {}
+  explicit UContext(void* raw_context) :
+      context(reinterpret_cast<ucontext_t*>(raw_context)->uc_mcontext) {
+  }
 
-  void Dump(std::ostream& os) {
+  void Dump(std::ostream& os) const {
     // TODO: support non-x86 hosts (not urgent because this code doesn't run on targets).
 #if defined(__APPLE__) && defined(__i386__)
     DumpRegister32(os, "eax", context->__ss.__eax);
@@ -228,15 +243,15 @@ struct UContext {
 #endif
   }
 
-  void DumpRegister32(std::ostream& os, const char* name, uint32_t value) {
+  void DumpRegister32(std::ostream& os, const char* name, uint32_t value) const {
     os << StringPrintf(" %6s: 0x%08x", name, value);
   }
 
-  void DumpRegister64(std::ostream& os, const char* name, uint64_t value) {
+  void DumpRegister64(std::ostream& os, const char* name, uint64_t value) const {
     os << StringPrintf(" %6s: 0x%016" PRIx64, name, value);
   }
 
-  void DumpX86Flags(std::ostream& os, uint32_t flags) {
+  void DumpX86Flags(std::ostream& os, uint32_t flags) const {
     os << " [";
     if ((flags & (1 << 0)) != 0) {
       os << " CF";
@@ -271,11 +286,29 @@ struct UContext {
   mcontext_t& context;
 };
 
+// Return the signal number we recognize as timeout. -1 means not active/supported.
+static int GetTimeoutSignal() {
+#if defined(__APPLE__)
+  // Mac does not support realtime signals.
+  UNUSED(kUseSigRTTimeout);
+  return -1;
+#else
+  return kUseSigRTTimeout ? (SIGRTMIN + 2) : -1;
+#endif
+}
+
+static bool IsTimeoutSignal(int signal_number) {
+  return signal_number == GetTimeoutSignal();
+}
+
 void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_context) {
   static bool handlingUnexpectedSignal = false;
   if (handlingUnexpectedSignal) {
-    LogMessageData data(__FILE__, __LINE__, INTERNAL_FATAL, -1);
-    LogMessage::LogLine(data, "HandleUnexpectedSignal reentered\n");
+    LogMessage::LogLine(__FILE__, __LINE__, INTERNAL_FATAL, "HandleUnexpectedSignal reentered\n");
+    if (IsTimeoutSignal(signal_number)) {
+      // Ignore a recursive timeout.
+      return;
+    }
     _exit(1);
   }
   handlingUnexpectedSignal = true;
@@ -294,7 +327,7 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
   pid_t tid = GetTid();
   std::string thread_name(GetThreadName(tid));
   UContext thread_context(raw_context);
-  Backtrace thread_backtrace;
+  Backtrace thread_backtrace(raw_context);
 
   LOG(INTERNAL_FATAL) << "*** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***\n"
                       << StringPrintf("Fatal signal %d (%s), code %d (%s)",
@@ -309,6 +342,10 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
                       << "Backtrace:\n" << Dumpable<Backtrace>(thread_backtrace);
   Runtime* runtime = Runtime::Current();
   if (runtime != nullptr) {
+    if (IsTimeoutSignal(signal_number)) {
+      // Special timeout signal. Try to dump all threads.
+      runtime->GetThreadList()->DumpForSigQuit(LOG(INTERNAL_FATAL));
+    }
     gc::Heap* heap = runtime->GetHeap();
     LOG(INTERNAL_FATAL) << "Fault message: " << runtime->GetFaultMessage();
     if (kDumpHeapObjectOnSigsevg && heap != nullptr && info != nullptr) {
@@ -363,6 +400,10 @@ void Runtime::InitPlatformSignalHandlers() {
   rc += sigaction(SIGSTKFLT, &action, NULL);
 #endif
   rc += sigaction(SIGTRAP, &action, NULL);
+  // Special dump-all timeout.
+  if (GetTimeoutSignal() != -1) {
+    rc += sigaction(GetTimeoutSignal(), &action, NULL);
+  }
   CHECK_EQ(rc, 0);
 }
 

@@ -16,27 +16,57 @@
 
 #include <functional>
 
+#include "arch/instruction_set.h"
+#include "arch/arm/instruction_set_features_arm.h"
+#include "base/macros.h"
 #include "builder.h"
 #include "code_generator_arm.h"
+#include "code_generator_arm64.h"
 #include "code_generator_x86.h"
 #include "code_generator_x86_64.h"
 #include "common_compiler_test.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
-#include "instruction_set.h"
+#include "driver/compiler_options.h"
 #include "nodes.h"
 #include "optimizing_unit_test.h"
 #include "prepare_for_register_allocation.h"
 #include "register_allocator.h"
 #include "ssa_liveness_analysis.h"
+#include "utils.h"
 
 #include "gtest/gtest.h"
 
 namespace art {
 
+// Provide our own codegen, that ensures the C calling conventions
+// are preserved. Currently, ART and C do not match as R4 is caller-save
+// in ART, and callee-save in C. Alternatively, we could use or write
+// the stub that saves and restores all registers, but it is easier
+// to just overwrite the code generator.
+class TestCodeGeneratorARM : public arm::CodeGeneratorARM {
+ public:
+  TestCodeGeneratorARM(HGraph* graph,
+                       const ArmInstructionSetFeatures& isa_features,
+                       const CompilerOptions& compiler_options)
+      : arm::CodeGeneratorARM(graph, isa_features, compiler_options) {
+    AddAllocatedRegister(Location::RegisterLocation(6));
+    AddAllocatedRegister(Location::RegisterLocation(7));
+  }
+
+  void SetupBlockedRegisters(bool is_baseline) const OVERRIDE {
+    arm::CodeGeneratorARM::SetupBlockedRegisters(is_baseline);
+    blocked_core_registers_[4] = true;
+    blocked_core_registers_[6] = false;
+    blocked_core_registers_[7] = false;
+    // Makes pair R6-R7 available.
+    blocked_register_pairs_[6 >> 1] = false;
+  }
+};
+
 class InternalCodeAllocator : public CodeAllocator {
  public:
-  InternalCodeAllocator() { }
+  InternalCodeAllocator() : size_(0) { }
 
   virtual uint8_t* Allocate(size_t size) {
     size_ = size;
@@ -54,27 +84,30 @@ class InternalCodeAllocator : public CodeAllocator {
   DISALLOW_COPY_AND_ASSIGN(InternalCodeAllocator);
 };
 
+template <typename Expected>
 static void Run(const InternalCodeAllocator& allocator,
                 const CodeGenerator& codegen,
                 bool has_result,
-                int32_t expected) {
-  typedef int32_t (*fptr)();
+                Expected expected) {
+  typedef Expected (*fptr)();
   CommonCompilerTest::MakeExecutable(allocator.GetMemory(), allocator.GetSize());
   fptr f = reinterpret_cast<fptr>(allocator.GetMemory());
   if (codegen.GetInstructionSet() == kThumb2) {
     // For thumb we need the bottom bit set.
     f = reinterpret_cast<fptr>(reinterpret_cast<uintptr_t>(f) + 1);
   }
-  int32_t result = f();
+  Expected result = f();
   if (has_result) {
     ASSERT_EQ(result, expected);
   }
 }
 
-static void RunCodeBaseline(HGraph* graph, bool has_result, int32_t expected) {
+template <typename Expected>
+static void RunCodeBaseline(HGraph* graph, bool has_result, Expected expected) {
   InternalCodeAllocator allocator;
 
-  x86::CodeGeneratorX86 codegenX86(graph);
+  CompilerOptions compiler_options;
+  x86::CodeGeneratorX86 codegenX86(graph, compiler_options);
   // We avoid doing a stack overflow check that requires the runtime being setup,
   // by making sure the compiler knows the methods we are running are leaf methods.
   codegenX86.CompileBaseline(&allocator, true);
@@ -82,24 +115,33 @@ static void RunCodeBaseline(HGraph* graph, bool has_result, int32_t expected) {
     Run(allocator, codegenX86, has_result, expected);
   }
 
-  arm::CodeGeneratorARM codegenARM(graph);
+  std::unique_ptr<const ArmInstructionSetFeatures> features(
+      ArmInstructionSetFeatures::FromCppDefines());
+  TestCodeGeneratorARM codegenARM(graph, *features.get(), compiler_options);
   codegenARM.CompileBaseline(&allocator, true);
   if (kRuntimeISA == kArm || kRuntimeISA == kThumb2) {
     Run(allocator, codegenARM, has_result, expected);
   }
 
-  x86_64::CodeGeneratorX86_64 codegenX86_64(graph);
+  x86_64::CodeGeneratorX86_64 codegenX86_64(graph, compiler_options);
   codegenX86_64.CompileBaseline(&allocator, true);
   if (kRuntimeISA == kX86_64) {
     Run(allocator, codegenX86_64, has_result, expected);
   }
+
+  arm64::CodeGeneratorARM64 codegenARM64(graph, compiler_options);
+  codegenARM64.CompileBaseline(&allocator, true);
+  if (kRuntimeISA == kArm64) {
+    Run(allocator, codegenARM64, has_result, expected);
+  }
 }
 
+template <typename Expected>
 static void RunCodeOptimized(CodeGenerator* codegen,
                              HGraph* graph,
                              std::function<void(HGraph*)> hook_before_codegen,
                              bool has_result,
-                             int32_t expected) {
+                             Expected expected) {
   SsaLivenessAnalysis liveness(*graph, codegen);
   liveness.Analyze();
 
@@ -112,18 +154,25 @@ static void RunCodeOptimized(CodeGenerator* codegen,
   Run(allocator, *codegen, has_result, expected);
 }
 
+template <typename Expected>
 static void RunCodeOptimized(HGraph* graph,
                              std::function<void(HGraph*)> hook_before_codegen,
                              bool has_result,
-                             int32_t expected) {
-  if (kRuntimeISA == kX86) {
-    x86::CodeGeneratorX86 codegenX86(graph);
-    RunCodeOptimized(&codegenX86, graph, hook_before_codegen, has_result, expected);
-  } else if (kRuntimeISA == kArm || kRuntimeISA == kThumb2) {
-    arm::CodeGeneratorARM codegenARM(graph);
+                             Expected expected) {
+  CompilerOptions compiler_options;
+  if (kRuntimeISA == kArm || kRuntimeISA == kThumb2) {
+    TestCodeGeneratorARM codegenARM(graph,
+                                    *ArmInstructionSetFeatures::FromCppDefines(),
+                                    compiler_options);
     RunCodeOptimized(&codegenARM, graph, hook_before_codegen, has_result, expected);
+  } else if (kRuntimeISA == kArm64) {
+    arm64::CodeGeneratorARM64 codegenARM64(graph, compiler_options);
+    RunCodeOptimized(&codegenARM64, graph, hook_before_codegen, has_result, expected);
+  } else if (kRuntimeISA == kX86) {
+    x86::CodeGeneratorX86 codegenX86(graph, compiler_options);
+    RunCodeOptimized(&codegenX86, graph, hook_before_codegen, has_result, expected);
   } else if (kRuntimeISA == kX86_64) {
-    x86_64::CodeGeneratorX86_64 codegenX86_64(graph);
+    x86_64::CodeGeneratorX86_64 codegenX86_64(graph, compiler_options);
     RunCodeOptimized(&codegenX86_64, graph, hook_before_codegen, has_result, expected);
   }
 }
@@ -131,12 +180,26 @@ static void RunCodeOptimized(HGraph* graph,
 static void TestCode(const uint16_t* data, bool has_result = false, int32_t expected = 0) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
-  HGraphBuilder builder(&arena);
+  HGraph* graph = new (&arena) HGraph(&arena);
+  HGraphBuilder builder(graph);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
-  HGraph* graph = builder.BuildGraph(*item);
+  bool graph_built = builder.BuildGraph(*item);
+  ASSERT_TRUE(graph_built);
   // Remove suspend checks, they cannot be executed in this context.
   RemoveSuspendChecks(graph);
-  ASSERT_NE(graph, nullptr);
+  RunCodeBaseline(graph, has_result, expected);
+}
+
+static void TestCodeLong(const uint16_t* data, bool has_result, int64_t expected) {
+  ArenaPool pool;
+  ArenaAllocator arena(&pool);
+  HGraph* graph = new (&arena) HGraph(&arena);
+  HGraphBuilder builder(graph, Primitive::kPrimLong);
+  const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
+  bool graph_built = builder.BuildGraph(*item);
+  ASSERT_TRUE(graph_built);
+  // Remove suspend checks, they cannot be executed in this context.
+  RemoveSuspendChecks(graph);
   RunCodeBaseline(graph, has_result, expected);
 }
 
@@ -260,6 +323,100 @@ TEST(CodegenTest, ReturnIf2) {
   TestCode(data, true, 0);
 }
 
+// Exercise bit-wise (one's complement) not-int instruction.
+#define NOT_INT_TEST(TEST_NAME, INPUT, EXPECTED_OUTPUT) \
+TEST(CodegenTest, TEST_NAME) {                          \
+  const int32_t input = INPUT;                          \
+  const uint16_t input_lo = Low16Bits(input);           \
+  const uint16_t input_hi = High16Bits(input);          \
+  const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(      \
+      Instruction::CONST | 0 << 8, input_lo, input_hi,  \
+      Instruction::NOT_INT | 1 << 8 | 0 << 12 ,         \
+      Instruction::RETURN | 1 << 8);                    \
+                                                        \
+  TestCode(data, true, EXPECTED_OUTPUT);                \
+}
+
+NOT_INT_TEST(ReturnNotIntMinus2, -2, 1)
+NOT_INT_TEST(ReturnNotIntMinus1, -1, 0)
+NOT_INT_TEST(ReturnNotInt0, 0, -1)
+NOT_INT_TEST(ReturnNotInt1, 1, -2)
+NOT_INT_TEST(ReturnNotIntINT32_MIN, -2147483648, 2147483647)  // (2^31) - 1
+NOT_INT_TEST(ReturnNotIntINT32_MINPlus1, -2147483647, 2147483646)  // (2^31) - 2
+NOT_INT_TEST(ReturnNotIntINT32_MAXMinus1, 2147483646, -2147483647)  // -(2^31) - 1
+NOT_INT_TEST(ReturnNotIntINT32_MAX, 2147483647, -2147483648)  // -(2^31)
+
+#undef NOT_INT_TEST
+
+// Exercise bit-wise (one's complement) not-long instruction.
+#define NOT_LONG_TEST(TEST_NAME, INPUT, EXPECTED_OUTPUT)                 \
+TEST(CodegenTest, TEST_NAME) {                                           \
+  const int64_t input = INPUT;                                           \
+  const uint16_t word0 = Low16Bits(Low32Bits(input));   /* LSW. */       \
+  const uint16_t word1 = High16Bits(Low32Bits(input));                   \
+  const uint16_t word2 = Low16Bits(High32Bits(input));                   \
+  const uint16_t word3 = High16Bits(High32Bits(input)); /* MSW. */       \
+  const uint16_t data[] = FOUR_REGISTERS_CODE_ITEM(                      \
+      Instruction::CONST_WIDE | 0 << 8, word0, word1, word2, word3,      \
+      Instruction::NOT_LONG | 2 << 8 | 0 << 12,                          \
+      Instruction::RETURN_WIDE | 2 << 8);                                \
+                                                                         \
+  TestCodeLong(data, true, EXPECTED_OUTPUT);                             \
+}
+
+NOT_LONG_TEST(ReturnNotLongMinus2, INT64_C(-2), INT64_C(1))
+NOT_LONG_TEST(ReturnNotLongMinus1, INT64_C(-1), INT64_C(0))
+NOT_LONG_TEST(ReturnNotLong0, INT64_C(0), INT64_C(-1))
+NOT_LONG_TEST(ReturnNotLong1, INT64_C(1), INT64_C(-2))
+
+NOT_LONG_TEST(ReturnNotLongINT32_MIN,
+              INT64_C(-2147483648),
+              INT64_C(2147483647))  // (2^31) - 1
+NOT_LONG_TEST(ReturnNotLongINT32_MINPlus1,
+              INT64_C(-2147483647),
+              INT64_C(2147483646))  // (2^31) - 2
+NOT_LONG_TEST(ReturnNotLongINT32_MAXMinus1,
+              INT64_C(2147483646),
+              INT64_C(-2147483647))  // -(2^31) - 1
+NOT_LONG_TEST(ReturnNotLongINT32_MAX,
+              INT64_C(2147483647),
+              INT64_C(-2147483648))  // -(2^31)
+
+// Note that the C++ compiler won't accept
+// INT64_C(-9223372036854775808) (that is, INT64_MIN) as a valid
+// int64_t literal, so we use INT64_C(-9223372036854775807)-1 instead.
+NOT_LONG_TEST(ReturnNotINT64_MIN,
+              INT64_C(-9223372036854775807)-1,
+              INT64_C(9223372036854775807));  // (2^63) - 1
+NOT_LONG_TEST(ReturnNotINT64_MINPlus1,
+              INT64_C(-9223372036854775807),
+              INT64_C(9223372036854775806));  // (2^63) - 2
+NOT_LONG_TEST(ReturnNotLongINT64_MAXMinus1,
+              INT64_C(9223372036854775806),
+              INT64_C(-9223372036854775807));  // -(2^63) - 1
+NOT_LONG_TEST(ReturnNotLongINT64_MAX,
+              INT64_C(9223372036854775807),
+              INT64_C(-9223372036854775807)-1);  // -(2^63)
+
+#undef NOT_LONG_TEST
+
+TEST(CodegenTest, IntToLongOfLongToInt) {
+  const int64_t input = INT64_C(4294967296);             // 2^32
+  const uint16_t word0 = Low16Bits(Low32Bits(input));    // LSW.
+  const uint16_t word1 = High16Bits(Low32Bits(input));
+  const uint16_t word2 = Low16Bits(High32Bits(input));
+  const uint16_t word3 = High16Bits(High32Bits(input));  // MSW.
+  const uint16_t data[] = FIVE_REGISTERS_CODE_ITEM(
+      Instruction::CONST_WIDE | 0 << 8, word0, word1, word2, word3,
+      Instruction::CONST_WIDE | 2 << 8, 1, 0, 0, 0,
+      Instruction::ADD_LONG | 0, 0 << 8 | 2,             // v0 <- 2^32 + 1
+      Instruction::LONG_TO_INT | 4 << 8 | 0 << 12,
+      Instruction::INT_TO_LONG | 2 << 8 | 4 << 12,
+      Instruction::RETURN_WIDE | 2 << 8);
+
+  TestCodeLong(data, true, 1);
+}
+
 TEST(CodegenTest, ReturnAdd1) {
   const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
     Instruction::CONST_4 | 3 << 12 | 0,
@@ -340,13 +497,191 @@ TEST(CodegenTest, NonMaterializedCondition) {
   PrepareForRegisterAllocation(graph).Run();
   ASSERT_FALSE(equal->NeedsMaterialization());
 
-  auto hook_before_codegen = [](HGraph* graph) {
-    HBasicBlock* block = graph->GetEntryBlock()->GetSuccessors().Get(0);
-    HParallelMove* move = new (graph->GetArena()) HParallelMove(graph->GetArena());
+  auto hook_before_codegen = [](HGraph* graph_in) {
+    HBasicBlock* block = graph_in->GetEntryBlock()->GetSuccessors().Get(0);
+    HParallelMove* move = new (graph_in->GetArena()) HParallelMove(graph_in->GetArena());
     block->InsertInstructionBefore(move, block->GetLastInstruction());
   };
 
   RunCodeOptimized(graph, hook_before_codegen, true, 0);
+}
+
+#define MUL_TEST(TYPE, TEST_NAME)                     \
+  TEST(CodegenTest, Return ## TEST_NAME) {            \
+    const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(  \
+      Instruction::CONST_4 | 3 << 12 | 0,             \
+      Instruction::CONST_4 | 4 << 12 | 1 << 8,        \
+      Instruction::MUL_ ## TYPE, 1 << 8 | 0,          \
+      Instruction::RETURN);                           \
+                                                      \
+    TestCode(data, true, 12);                         \
+  }                                                   \
+                                                      \
+  TEST(CodegenTest, Return ## TEST_NAME ## 2addr) {   \
+    const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(  \
+      Instruction::CONST_4 | 3 << 12 | 0,             \
+      Instruction::CONST_4 | 4 << 12 | 1 << 8,        \
+      Instruction::MUL_ ## TYPE ## _2ADDR | 1 << 12,  \
+      Instruction::RETURN);                           \
+                                                      \
+    TestCode(data, true, 12);                         \
+  }
+
+MUL_TEST(INT, MulInt);
+MUL_TEST(LONG, MulLong);
+
+TEST(CodegenTest, ReturnMulIntLit8) {
+  const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
+    Instruction::CONST_4 | 4 << 12 | 0 << 8,
+    Instruction::MUL_INT_LIT8, 3 << 8 | 0,
+    Instruction::RETURN);
+
+  TestCode(data, true, 12);
+}
+
+TEST(CodegenTest, ReturnMulIntLit16) {
+  const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
+    Instruction::CONST_4 | 4 << 12 | 0 << 8,
+    Instruction::MUL_INT_LIT16, 3,
+    Instruction::RETURN);
+
+  TestCode(data, true, 12);
+}
+
+TEST(CodegenTest, MaterializedCondition1) {
+  // Check that condition are materialized correctly. A materialized condition
+  // should yield `1` if it evaluated to true, and `0` otherwise.
+  // We force the materialization of comparisons for different combinations of
+  // inputs and check the results.
+
+  int lhs[] = {1, 2, -1, 2, 0xabc};
+  int rhs[] = {2, 1, 2, -1, 0xabc};
+
+  for (size_t i = 0; i < arraysize(lhs); i++) {
+    ArenaPool pool;
+    ArenaAllocator allocator(&pool);
+    HGraph* graph = new (&allocator) HGraph(&allocator);
+
+    HBasicBlock* entry_block = new (&allocator) HBasicBlock(graph);
+    graph->AddBlock(entry_block);
+    graph->SetEntryBlock(entry_block);
+    entry_block->AddInstruction(new (&allocator) HGoto());
+    HBasicBlock* code_block = new (&allocator) HBasicBlock(graph);
+    graph->AddBlock(code_block);
+    HBasicBlock* exit_block = new (&allocator) HBasicBlock(graph);
+    graph->AddBlock(exit_block);
+    exit_block->AddInstruction(new (&allocator) HExit());
+
+    entry_block->AddSuccessor(code_block);
+    code_block->AddSuccessor(exit_block);
+    graph->SetExitBlock(exit_block);
+
+    HIntConstant cst_lhs(lhs[i]);
+    code_block->AddInstruction(&cst_lhs);
+    HIntConstant cst_rhs(rhs[i]);
+    code_block->AddInstruction(&cst_rhs);
+    HLessThan cmp_lt(&cst_lhs, &cst_rhs);
+    code_block->AddInstruction(&cmp_lt);
+    HReturn ret(&cmp_lt);
+    code_block->AddInstruction(&ret);
+
+    auto hook_before_codegen = [](HGraph* graph_in) {
+      HBasicBlock* block = graph_in->GetEntryBlock()->GetSuccessors().Get(0);
+      HParallelMove* move = new (graph_in->GetArena()) HParallelMove(graph_in->GetArena());
+      block->InsertInstructionBefore(move, block->GetLastInstruction());
+    };
+
+    RunCodeOptimized(graph, hook_before_codegen, true, lhs[i] < rhs[i]);
+  }
+}
+
+TEST(CodegenTest, MaterializedCondition2) {
+  // Check that HIf correctly interprets a materialized condition.
+  // We force the materialization of comparisons for different combinations of
+  // inputs. An HIf takes the materialized combination as input and returns a
+  // value that we verify.
+
+  int lhs[] = {1, 2, -1, 2, 0xabc};
+  int rhs[] = {2, 1, 2, -1, 0xabc};
+
+
+  for (size_t i = 0; i < arraysize(lhs); i++) {
+    ArenaPool pool;
+    ArenaAllocator allocator(&pool);
+    HGraph* graph = new (&allocator) HGraph(&allocator);
+
+    HBasicBlock* entry_block = new (&allocator) HBasicBlock(graph);
+    graph->AddBlock(entry_block);
+    graph->SetEntryBlock(entry_block);
+    entry_block->AddInstruction(new (&allocator) HGoto());
+
+    HBasicBlock* if_block = new (&allocator) HBasicBlock(graph);
+    graph->AddBlock(if_block);
+    HBasicBlock* if_true_block = new (&allocator) HBasicBlock(graph);
+    graph->AddBlock(if_true_block);
+    HBasicBlock* if_false_block = new (&allocator) HBasicBlock(graph);
+    graph->AddBlock(if_false_block);
+    HBasicBlock* exit_block = new (&allocator) HBasicBlock(graph);
+    graph->AddBlock(exit_block);
+    exit_block->AddInstruction(new (&allocator) HExit());
+
+    graph->SetEntryBlock(entry_block);
+    entry_block->AddSuccessor(if_block);
+    if_block->AddSuccessor(if_true_block);
+    if_block->AddSuccessor(if_false_block);
+    if_true_block->AddSuccessor(exit_block);
+    if_false_block->AddSuccessor(exit_block);
+    graph->SetExitBlock(exit_block);
+
+    HIntConstant cst_lhs(lhs[i]);
+    if_block->AddInstruction(&cst_lhs);
+    HIntConstant cst_rhs(rhs[i]);
+    if_block->AddInstruction(&cst_rhs);
+    HLessThan cmp_lt(&cst_lhs, &cst_rhs);
+    if_block->AddInstruction(&cmp_lt);
+    // We insert a temporary to separate the HIf from the HLessThan and force
+    // the materialization of the condition.
+    HTemporary force_materialization(0);
+    if_block->AddInstruction(&force_materialization);
+    HIf if_lt(&cmp_lt);
+    if_block->AddInstruction(&if_lt);
+
+    HIntConstant cst_lt(1);
+    if_true_block->AddInstruction(&cst_lt);
+    HReturn ret_lt(&cst_lt);
+    if_true_block->AddInstruction(&ret_lt);
+    HIntConstant cst_ge(0);
+    if_false_block->AddInstruction(&cst_ge);
+    HReturn ret_ge(&cst_ge);
+    if_false_block->AddInstruction(&ret_ge);
+
+    auto hook_before_codegen = [](HGraph* graph_in) {
+      HBasicBlock* block = graph_in->GetEntryBlock()->GetSuccessors().Get(0);
+      HParallelMove* move = new (graph_in->GetArena()) HParallelMove(graph_in->GetArena());
+      block->InsertInstructionBefore(move, block->GetLastInstruction());
+    };
+
+    RunCodeOptimized(graph, hook_before_codegen, true, lhs[i] < rhs[i]);
+  }
+}
+
+TEST(CodegenTest, ReturnDivIntLit8) {
+  const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
+    Instruction::CONST_4 | 4 << 12 | 0 << 8,
+    Instruction::DIV_INT_LIT8, 3 << 8 | 0,
+    Instruction::RETURN);
+
+  TestCode(data, true, 1);
+}
+
+TEST(CodegenTest, ReturnDivInt2Addr) {
+  const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
+    Instruction::CONST_4 | 4 << 12 | 0,
+    Instruction::CONST_4 | 2 << 12 | 1 << 8,
+    Instruction::DIV_INT_2ADDR | 1 << 12,
+    Instruction::RETURN);
+
+  TestCode(data, true, 2);
 }
 
 }  // namespace art

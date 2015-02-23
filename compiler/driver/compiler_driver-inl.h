@@ -19,9 +19,7 @@
 
 #include "compiler_driver.h"
 
-#include "dex/compiler_ir.h"
 #include "dex_compilation_unit.h"
-#include "field_helper.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class_loader.h"
@@ -93,6 +91,10 @@ inline bool CompilerDriver::IsFieldVolatile(mirror::ArtField* field) {
   return field->IsVolatile();
 }
 
+inline MemberOffset CompilerDriver::GetFieldOffset(mirror::ArtField* field) {
+  return field->GetOffset();
+}
+
 inline std::pair<bool, bool> CompilerDriver::IsFastInstanceField(
     mirror::DexCache* dex_cache, mirror::Class* referrer_class,
     mirror::ArtField* resolved_field, uint16_t field_idx) {
@@ -107,16 +109,12 @@ inline std::pair<bool, bool> CompilerDriver::IsFastInstanceField(
 
 inline std::pair<bool, bool> CompilerDriver::IsFastStaticField(
     mirror::DexCache* dex_cache, mirror::Class* referrer_class,
-    mirror::ArtField* resolved_field, uint16_t field_idx, MemberOffset* field_offset,
-    uint32_t* storage_index, bool* is_referrers_class, bool* is_initialized) {
+    mirror::ArtField* resolved_field, uint16_t field_idx, uint32_t* storage_index) {
   DCHECK(resolved_field->IsStatic());
   if (LIKELY(referrer_class != nullptr)) {
     mirror::Class* fields_class = resolved_field->GetDeclaringClass();
     if (fields_class == referrer_class) {
-      *field_offset = resolved_field->GetOffset();
       *storage_index = fields_class->GetDexTypeIndex();
-      *is_referrers_class = true;  // implies no worrying about class initialization
-      *is_initialized = true;
       return std::make_pair(true, true);
     }
     if (referrer_class->CanAccessResolvedField(fields_class, resolved_field,
@@ -134,10 +132,9 @@ inline std::pair<bool, bool> CompilerDriver::IsFastStaticField(
       } else {
         // Search dex file for localized ssb index, may fail if field's class is a parent
         // of the class mentioned in the dex file and there is no dex cache entry.
-        StackHandleScope<1> hs(Thread::Current());
+        std::string temp;
         const DexFile::StringId* string_id =
-            dex_file->FindStringId(
-                FieldHelper(hs.NewHandle(resolved_field)).GetDeclaringClassDescriptor());
+            dex_file->FindStringId(resolved_field->GetDeclaringClass()->GetDescriptor(&temp));
         if (string_id != nullptr) {
           const DexFile::TypeId* type_id =
              dex_file->FindTypeId(dex_file->GetIndexForStringId(*string_id));
@@ -148,21 +145,28 @@ inline std::pair<bool, bool> CompilerDriver::IsFastStaticField(
         }
       }
       if (storage_idx != DexFile::kDexNoIndex) {
-        *field_offset = resolved_field->GetOffset();
         *storage_index = storage_idx;
-        *is_referrers_class = false;
-        *is_initialized = fields_class->IsInitialized() &&
-            CanAssumeTypeIsPresentInDexCache(*dex_file, storage_idx);
         return std::make_pair(true, !resolved_field->IsFinal());
       }
     }
   }
   // Conservative defaults.
-  *field_offset = MemberOffset(0u);
   *storage_index = DexFile::kDexNoIndex;
-  *is_referrers_class = false;
-  *is_initialized = false;
   return std::make_pair(false, false);
+}
+
+inline bool CompilerDriver::IsStaticFieldInReferrerClass(mirror::Class* referrer_class,
+                                                         mirror::ArtField* resolved_field) {
+  DCHECK(resolved_field->IsStatic());
+  mirror::Class* fields_class = resolved_field->GetDeclaringClass();
+  return referrer_class == fields_class;
+}
+
+inline bool CompilerDriver::IsStaticFieldsClassInitialized(mirror::Class* referrer_class,
+                                                           mirror::ArtField* resolved_field) {
+  DCHECK(resolved_field->IsStatic());
+  mirror::Class* fields_class = resolved_field->GetDeclaringClass();
+  return fields_class == referrer_class || fields_class->IsInitialized();
 }
 
 inline mirror::ArtMethod* CompilerDriver::ResolveMethod(
@@ -233,7 +237,8 @@ inline int CompilerDriver::IsFastInvoke(
   bool can_sharpen_super_based_on_type = (*invoke_type == kSuper) &&
       (referrer_class != methods_class) && referrer_class->IsSubClass(methods_class) &&
       resolved_method->GetMethodIndex() < methods_class->GetVTableLength() &&
-      (methods_class->GetVTableEntry(resolved_method->GetMethodIndex()) == resolved_method);
+      (methods_class->GetVTableEntry(resolved_method->GetMethodIndex()) == resolved_method) &&
+      !resolved_method->IsAbstract();
 
   if (can_sharpen_virtual_based_on_type || can_sharpen_super_based_on_type) {
     // Sharpen a virtual call into a direct call. The method_idx is into referrer's
@@ -243,8 +248,14 @@ inline int CompilerDriver::IsFastInvoke(
     CHECK(referrer_class->GetDexCache()->GetResolvedMethod(target_method->dex_method_index) ==
         resolved_method) << PrettyMethod(resolved_method);
     int stats_flags = kFlagMethodResolved;
-    GetCodeAndMethodForDirectCall(invoke_type, kDirect, false, referrer_class, resolved_method,
-                                  &stats_flags, target_method, direct_code, direct_method);
+    GetCodeAndMethodForDirectCall(/*out*/invoke_type,
+                                  kDirect,  // Sharp type
+                                  false,    // The dex cache is guaranteed to be available
+                                  referrer_class, resolved_method,
+                                  /*out*/&stats_flags,
+                                  target_method,
+                                  /*out*/direct_code,
+                                  /*out*/direct_method);
     DCHECK_NE(*invoke_type, kSuper) << PrettyMethod(resolved_method);
     if (*invoke_type == kDirect) {
       stats_flags |= kFlagsMethodResolvedVirtualMadeDirect;
@@ -273,8 +284,14 @@ inline int CompilerDriver::IsFastInvoke(
     CHECK(called_method != NULL);
     CHECK(!called_method->IsAbstract());
     int stats_flags = kFlagMethodResolved;
-    GetCodeAndMethodForDirectCall(invoke_type, kDirect, true, referrer_class, called_method,
-                                  &stats_flags, target_method, direct_code, direct_method);
+    GetCodeAndMethodForDirectCall(/*out*/invoke_type,
+                                  kDirect,  // Sharp type
+                                  true,     // The dex cache may not be available
+                                  referrer_class, called_method,
+                                  /*out*/&stats_flags,
+                                  target_method,
+                                  /*out*/direct_code,
+                                  /*out*/direct_method);
     DCHECK_NE(*invoke_type, kSuper);
     if (*invoke_type == kDirect) {
       stats_flags |= kFlagsMethodResolvedPreciseTypeDevirtualization;
@@ -289,19 +306,24 @@ inline int CompilerDriver::IsFastInvoke(
 
   // Sharpening failed so generate a regular resolved method dispatch.
   int stats_flags = kFlagMethodResolved;
-  GetCodeAndMethodForDirectCall(invoke_type, *invoke_type, false, referrer_class, resolved_method,
-                                &stats_flags, target_method, direct_code, direct_method);
+  GetCodeAndMethodForDirectCall(/*out*/invoke_type,
+                                *invoke_type,  // Sharp type
+                                false,         // The dex cache is guaranteed to be available
+                                referrer_class, resolved_method,
+                                /*out*/&stats_flags,
+                                target_method,
+                                /*out*/direct_code,
+                                /*out*/direct_method);
   return stats_flags;
 }
 
-inline bool CompilerDriver::NeedsClassInitialization(mirror::Class* referrer_class,
-                                                     mirror::ArtMethod* resolved_method) {
+inline bool CompilerDriver::IsMethodsClassInitialized(mirror::Class* referrer_class,
+                                                      mirror::ArtMethod* resolved_method) {
   if (!resolved_method->IsStatic()) {
-    return false;
+    return true;
   }
   mirror::Class* methods_class = resolved_method->GetDeclaringClass();
-  // NOTE: Unlike in IsFastStaticField(), we don't check CanAssumeTypeIsPresentInDexCache() here.
-  return methods_class != referrer_class && !methods_class->IsInitialized();
+  return methods_class == referrer_class || methods_class->IsInitialized();
 }
 
 }  // namespace art

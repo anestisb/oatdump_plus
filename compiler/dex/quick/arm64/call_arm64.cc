@@ -16,9 +16,13 @@
 
 /* This file contains codegen for the Thumb2 ISA. */
 
-#include "arm64_lir.h"
 #include "codegen_arm64.h"
+
+#include "arm64_lir.h"
+#include "base/logging.h"
+#include "dex/mir_graph.h"
 #include "dex/quick/mir_to_lir-inl.h"
+#include "driver/compiler_driver.h"
 #include "gc/accounting/card_table.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "mirror/art_method.h"
@@ -47,16 +51,13 @@ namespace art {
  */
 void Arm64Mir2Lir::GenLargeSparseSwitch(MIR* mir, uint32_t table_offset, RegLocation rl_src) {
   const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
-  if (cu_->verbose) {
-    DumpSparseSwitchTable(table);
-  }
   // Add the table to the list - we'll process it later
   SwitchTable *tab_rec =
       static_cast<SwitchTable*>(arena_->Alloc(sizeof(SwitchTable), kArenaAllocData));
+  tab_rec->switch_mir = mir;
   tab_rec->table = table;
   tab_rec->vaddr = current_dalvik_offset_;
   uint32_t size = table[1];
-  tab_rec->targets = static_cast<LIR**>(arena_->Alloc(size * sizeof(LIR*), kArenaAllocLIR));
   switch_tables_.push_back(tab_rec);
 
   // Get the switch value
@@ -99,17 +100,13 @@ void Arm64Mir2Lir::GenLargeSparseSwitch(MIR* mir, uint32_t table_offset, RegLoca
 
 void Arm64Mir2Lir::GenLargePackedSwitch(MIR* mir, uint32_t table_offset, RegLocation rl_src) {
   const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
-  if (cu_->verbose) {
-    DumpPackedSwitchTable(table);
-  }
   // Add the table to the list - we'll process it later
   SwitchTable *tab_rec =
       static_cast<SwitchTable*>(arena_->Alloc(sizeof(SwitchTable),  kArenaAllocData));
+  tab_rec->switch_mir = mir;
   tab_rec->table = table;
   tab_rec->vaddr = current_dalvik_offset_;
   uint32_t size = table[1];
-  tab_rec->targets =
-      static_cast<LIR**>(arena_->Alloc(size * sizeof(LIR*), kArenaAllocLIR));
   switch_tables_.push_back(tab_rec);
 
   // Get the switch value
@@ -251,20 +248,14 @@ void Arm64Mir2Lir::GenMoveException(RegLocation rl_dest) {
   StoreValue(rl_dest, rl_result);
 }
 
-/*
- * Mark garbage collection card. Skip if the value we're storing is null.
- */
-void Arm64Mir2Lir::MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) {
+void Arm64Mir2Lir::UnconditionallyMarkGCCard(RegStorage tgt_addr_reg) {
   RegStorage reg_card_base = AllocTempWide();
   RegStorage reg_card_no = AllocTempWide();  // Needs to be wide as addr is ref=64b
-  LIR* branch_over = OpCmpImmBranch(kCondEq, val_reg, 0, NULL);
   LoadWordDisp(rs_xSELF, Thread::CardTableOffset<8>().Int32Value(), reg_card_base);
   OpRegRegImm(kOpLsr, reg_card_no, tgt_addr_reg, gc::accounting::CardTable::kCardShift);
   // TODO(Arm64): generate "strb wB, [xB, wC, uxtw]" rather than "strb wB, [xB, xC]"?
   StoreBaseIndexed(reg_card_base, reg_card_no, As32BitReg(reg_card_base),
                    0, kUnsignedByte);
-  LIR* target = NewLIR0(kPseudoTargetLabel);
-  branch_over->target = target;
   FreeTemp(reg_card_base);
   FreeTemp(reg_card_no);
 }
@@ -296,7 +287,8 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
    * We can safely skip the stack overflow check if we're
    * a leaf *and* our frame size < fudge factor.
    */
-  bool skip_overflow_check = mir_graph_->MethodIsLeaf() && !FrameNeedsStackCheck(frame_size_, kArm64);
+  bool skip_overflow_check = mir_graph_->MethodIsLeaf() &&
+    !FrameNeedsStackCheck(frame_size_, kArm64);
 
   NewLIR0(kPseudoMethodEntry);
 
@@ -320,7 +312,7 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
       // TODO: If the frame size is small enough, is it possible to make this a pre-indexed load,
       //       so that we can avoid the following "sub sp" when spilling?
       OpRegRegImm(kOpSub, rs_x8, rs_sp, GetStackOverflowReservedBytes(kArm64));
-      LoadWordDisp(rs_x8, 0, rs_x8);
+      Load32Disp(rs_x8, 0, rs_wzr);
       MarkPossibleStackOverflowException();
     }
   }
@@ -400,9 +392,26 @@ void Arm64Mir2Lir::GenSpecialExitSequence() {
   NewLIR0(kA64Ret);
 }
 
+void Arm64Mir2Lir::GenSpecialEntryForSuspend() {
+  // Keep 16-byte stack alignment - push x0, i.e. ArtMethod*, lr.
+  core_spill_mask_ = (1u << rs_xLR.GetRegNum());
+  num_core_spills_ = 1u;
+  fp_spill_mask_ = 0u;
+  num_fp_spills_ = 0u;
+  frame_size_ = 16u;
+  core_vmap_table_.clear();
+  fp_vmap_table_.clear();
+  NewLIR4(WIDE(kA64StpPre4rrXD), rs_x0.GetReg(), rs_xLR.GetReg(), rs_sp.GetReg(), -frame_size_ / 8);
+}
+
+void Arm64Mir2Lir::GenSpecialExitForSuspend() {
+  // Pop the frame. (ArtMethod* no longer needed but restore it anyway.)
+  NewLIR4(WIDE(kA64LdpPost4rrXD), rs_x0.GetReg(), rs_xLR.GetReg(), rs_sp.GetReg(), frame_size_ / 8);
+}
+
 static bool Arm64UseRelativeCall(CompilationUnit* cu, const MethodReference& target_method) {
-  // Always emit relative calls.
-  return true;
+  // Emit relative calls anywhere in the image or within a dex file otherwise.
+  return cu->compiler_driver->IsImage() || cu->dex_file == target_method.dex_file;
 }
 
 /*
@@ -411,9 +420,10 @@ static bool Arm64UseRelativeCall(CompilationUnit* cu, const MethodReference& tar
  */
 static int Arm64NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
                                int state, const MethodReference& target_method,
-                               uint32_t unused,
+                               uint32_t unused_idx,
                                uintptr_t direct_code, uintptr_t direct_method,
                                InvokeType type) {
+  UNUSED(info, unused_idx);
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
   if (direct_code != 0 && direct_method != 0) {
     switch (state) {
@@ -470,8 +480,8 @@ static int Arm64NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       if (direct_code == 0) {
         // kInvokeTgt := arg0_ref->entrypoint
         cg->LoadWordDisp(arg0_ref,
-                         mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value(),
-                         cg->TargetPtrReg(kInvokeTgt));
+                         mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+                             kArm64PointerSize).Int32Value(), cg->TargetPtrReg(kInvokeTgt));
       }
       break;
     default:

@@ -26,11 +26,11 @@
 #include <utility>
 #include <vector>
 
+#include "arch/instruction_set.h"
 #include "base/allocator.h"
 #include "compiler_callbacks.h"
 #include "gc_root.h"
 #include "instrumentation.h"
-#include "instruction_set.h"
 #include "jobject_comparator.h"
 #include "object_callbacks.h"
 #include "offsets.h"
@@ -43,6 +43,9 @@ namespace art {
 
 namespace gc {
   class Heap;
+  namespace collector {
+    class GarbageCollector;
+  }  // namespace collector
 }  // namespace gc
 namespace mirror {
   class ArtMethod;
@@ -55,9 +58,10 @@ namespace mirror {
   class Throwable;
 }  // namespace mirror
 namespace verifier {
-class MethodVerifier;
-}
+  class MethodVerifier;
+}  // namespace verifier
 class ClassLinker;
+class Closure;
 class DexFile;
 class InternTable;
 class JavaVMExt;
@@ -131,6 +135,10 @@ class Runtime {
 
   const std::vector<std::string>& GetCompilerOptions() const {
     return compiler_options_;
+  }
+
+  void AddCompilerOption(std::string option) {
+    compiler_options_.push_back(option);
   }
 
   const std::vector<std::string>& GetImageCompilerOptions() const {
@@ -266,8 +274,9 @@ class Runtime {
     return "2.1.0";
   }
 
-  void DisallowNewSystemWeaks() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void DisallowNewSystemWeaks() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void AllowNewSystemWeaks() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void EnsureNewSystemWeaksDisallowed() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Visit all the roots. If only_dirty is true then non-dirty roots won't be visited. If
   // clean_dirty is true then dirty roots will be marked as non-dirty after visiting.
@@ -282,6 +291,17 @@ class Runtime {
   // Visit all of the non thread roots, we can do this with mutators unpaused.
   void VisitNonThreadRoots(RootCallback* visitor, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void VisitTransactionRoots(RootCallback* visitor, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Visit all of the thread roots.
+  void VisitThreadRoots(RootCallback* visitor, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Flip thread roots from from-space refs to to-space refs.
+  size_t FlipThreadRoots(Closure* thread_flip_visitor, Closure* flip_callback,
+                         gc::collector::GarbageCollector* collector)
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Visit all other roots which must be done with mutators suspended.
   void VisitNonConcurrentRoots(RootCallback* visitor, void* arg)
@@ -312,6 +332,7 @@ class Runtime {
 
   // Returns a special method that calls into a trampoline for runtime imt conflicts.
   mirror::ArtMethod* GetImtConflictMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::ArtMethod* GetImtUnimplementedMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool HasImtConflictMethod() const {
     return !imt_conflict_method_.IsNull();
@@ -319,6 +340,9 @@ class Runtime {
 
   void SetImtConflictMethod(mirror::ArtMethod* method) {
     imt_conflict_method_ = GcRoot<mirror::ArtMethod>(method);
+  }
+  void SetImtUnimplementedMethod(mirror::ArtMethod* method) {
+    imt_unimplemented_method_ = GcRoot<mirror::ArtMethod>(method);
   }
 
   mirror::ArtMethod* CreateImtConflictMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -375,8 +399,7 @@ class Runtime {
 
   void SetCalleeSaveMethod(mirror::ArtMethod* method, CalleeSaveType type);
 
-  mirror::ArtMethod* CreateCalleeSaveMethod(CalleeSaveType type)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::ArtMethod* CreateCalleeSaveMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   int32_t GetStat(int kind);
 
@@ -418,6 +441,9 @@ class Runtime {
       LOCKS_EXCLUDED(method_verifier_lock_);
 
   const std::vector<const DexFile*>& GetCompileTimeClassPath(jobject class_loader);
+
+  // The caller is responsible for ensuring the class_path DexFiles remain
+  // valid as long as the Runtime object remains valid.
   void SetCompileTimeClassPath(jobject class_loader, std::vector<const DexFile*>& class_path);
 
   void StartProfiler(const char* profile_output_filename);
@@ -429,6 +455,13 @@ class Runtime {
   }
   void EnterTransactionMode(Transaction* transaction);
   void ExitTransactionMode();
+  bool IsTransactionAborted() const;
+
+  void AbortTransactionAndThrowInternalError(Thread* self, const std::string& abort_message)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void ThrowInternalErrorForAbortedTransaction(Thread* self)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   void RecordWriteFieldBoolean(mirror::Object* obj, MemberOffset field_offset, uint8_t value,
                                bool is_volatile) const;
   void RecordWriteFieldByte(mirror::Object* obj, MemberOffset field_offset, int8_t value,
@@ -483,8 +516,8 @@ class Runtime {
     return target_sdk_version_;
   }
 
-  static const char* GetDefaultInstructionSetFeatures() {
-    return kDefaultInstructionSetFeatures;
+  uint32_t GetZygoteMaxFailedBoots() const {
+    return zygote_max_failed_boots_;
   }
 
  private:
@@ -506,8 +539,6 @@ class Runtime {
   // A pointer to the active runtime or NULL.
   static Runtime* instance_;
 
-  static const char* kDefaultInstructionSetFeatures;
-
   // NOTE: these must match the gc::ProcessState values as they come directly from the framework.
   static constexpr int kProfileForground = 0;
   static constexpr int kProfileBackgrouud = 1;
@@ -517,6 +548,9 @@ class Runtime {
   GcRoot<mirror::Throwable> pre_allocated_NoClassDefFoundError_;
   GcRoot<mirror::ArtMethod> resolution_method_;
   GcRoot<mirror::ArtMethod> imt_conflict_method_;
+  // Unresolved method has the same behavior as the conflict method, it is used by the class linker
+  // for differentiating between unfilled imt slots vs conflict slots in superclasses.
+  GcRoot<mirror::ArtMethod> imt_unimplemented_method_;
   GcRoot<mirror::ObjectArray<mirror::ArtMethod>> default_imt_;
 
   // Special sentinel object used to invalid conditions in JNI (cleared weak references) and
@@ -641,17 +675,25 @@ class Runtime {
   bool implicit_so_checks_;         // StackOverflow checks are implicit.
   bool implicit_suspend_checks_;    // Thread suspension checks are implicit.
 
-  // The filename to the native bridge library. If this is not empty the native bridge will be
-  // initialized and loaded from the given file (initialized and available). An empty value means
-  // that there's no native bridge (initialized but not available).
+  // Whether or not a native bridge has been loaded.
   //
   // The native bridge allows running native code compiled for a foreign ISA. The way it works is,
   // if standard dlopen fails to load native library associated with native activity, it calls to
   // the native bridge to load it and then gets the trampoline for the entry to native activity.
-  std::string native_bridge_library_filename_;
+  //
+  // The option 'native_bridge_library_filename' specifies the name of the native bridge.
+  // When non-empty the native bridge will be loaded from the given file. An empty value means
+  // that there's no native bridge.
+  bool is_native_bridge_loaded_;
+
+  // The maximum number of failed boots we allow before pruning the dalvik cache
+  // and trying again. This option is only inspected when we're running as a
+  // zygote.
+  uint32_t zygote_max_failed_boots_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };
+std::ostream& operator<<(std::ostream& os, const Runtime::CalleeSaveType& rhs);
 
 }  // namespace art
 

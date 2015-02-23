@@ -18,8 +18,10 @@
 #define ART_COMPILER_DEX_BB_OPTIMIZATIONS_H_
 
 #include "base/casts.h"
-#include "compiler_internals.h"
+#include "compiler_ir.h"
+#include "dex_flags.h"
 #include "pass_me.h"
+#include "mir_graph.h"
 
 namespace art {
 
@@ -143,7 +145,7 @@ class CodeLayout : public PassME {
 class NullCheckElimination : public PassME {
  public:
   NullCheckElimination()
-    : PassME("NCE", kRepeatingTopologicalSortTraversal, "3_post_nce_cfg") {
+    : PassME("NCE", kRepeatingPreOrderDFSTraversal, "3_post_nce_cfg") {
   }
 
   bool Gate(const PassDataHolder* data) const {
@@ -171,31 +173,10 @@ class NullCheckElimination : public PassME {
   }
 };
 
-/**
- * @class TypeInference
- * @brief Type inference pass.
- */
-class TypeInference : public PassME {
- public:
-  TypeInference()
-    : PassME("TypeInference", kRepeatingTopologicalSortTraversal, "4_post_type_cfg") {
-  }
-
-  bool Worker(PassDataHolder* data) const {
-    DCHECK(data != nullptr);
-    PassMEDataHolder* pass_me_data_holder = down_cast<PassMEDataHolder*>(data);
-    CompilationUnit* c_unit = pass_me_data_holder->c_unit;
-    DCHECK(c_unit != nullptr);
-    BasicBlock* bb = pass_me_data_holder->bb;
-    DCHECK(bb != nullptr);
-    return c_unit->mir_graph->InferTypes(bb);
-  }
-};
-
 class ClassInitCheckElimination : public PassME {
  public:
   ClassInitCheckElimination()
-    : PassME("ClInitCheckElimination", kLoopRepeatingTopologicalSortTraversal) {
+    : PassME("ClInitCheckElimination", kRepeatingPreOrderDFSTraversal) {
   }
 
   bool Gate(const PassDataHolder* data) const {
@@ -259,6 +240,41 @@ class GlobalValueNumberingPass : public PassME {
 };
 
 /**
+ * @class DeadCodeEliminationPass
+ * @brief Performs the GVN-based dead code elimination pass.
+ */
+class DeadCodeEliminationPass : public PassME {
+ public:
+  DeadCodeEliminationPass() : PassME("DCE", kPreOrderDFSTraversal, "4_post_dce_cfg") {
+  }
+
+  bool Gate(const PassDataHolder* data) const OVERRIDE {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    return c_unit->mir_graph->EliminateDeadCodeGate();
+  }
+
+  bool Worker(PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    PassMEDataHolder* pass_me_data_holder = down_cast<PassMEDataHolder*>(data);
+    CompilationUnit* c_unit = pass_me_data_holder->c_unit;
+    DCHECK(c_unit != nullptr);
+    BasicBlock* bb = pass_me_data_holder->bb;
+    DCHECK(bb != nullptr);
+    return c_unit->mir_graph->EliminateDeadCode(bb);
+  }
+
+  void End(PassDataHolder* data) const OVERRIDE {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    c_unit->mir_graph->EliminateDeadCodeEnd();
+    down_cast<PassMEDataHolder*>(data)->dirty = !c_unit->mir_graph->MirSsaRepUpToDate();
+  }
+};
+
+/**
  * @class BBCombine
  * @brief Perform the basic block combination pass.
  */
@@ -271,10 +287,53 @@ class BBCombine : public PassME {
     DCHECK(data != nullptr);
     CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
     DCHECK(c_unit != nullptr);
-    return ((c_unit->disable_opt & (1 << kSuppressExceptionEdges)) != 0);
+    return c_unit->mir_graph->HasTryCatchBlocks() ||
+        ((c_unit->disable_opt & (1 << kSuppressExceptionEdges)) != 0);
   }
 
   bool Worker(PassDataHolder* data) const;
+};
+
+/**
+ * @class ConstantPropagation
+ * @brief Perform a constant propagation pass.
+ */
+class ConstantPropagation : public PassME {
+ public:
+  ConstantPropagation() : PassME("ConstantPropagation") {
+  }
+
+  void Start(PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    c_unit->mir_graph->InitializeConstantPropagation();
+  }
+
+  bool Worker(PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    BasicBlock* bb = down_cast<PassMEDataHolder*>(data)->bb;
+    DCHECK(bb != nullptr);
+    c_unit->mir_graph->DoConstantPropagation(bb);
+    // No need of repeating, so just return false.
+    return false;
+  }
+};
+
+/**
+ * @class MethodUseCount
+ * @brief Count the register uses of the method
+ */
+class MethodUseCount : public PassME {
+ public:
+  MethodUseCount() : PassME("UseCount") {
+  }
+
+  bool Worker(PassDataHolder* data) const;
+
+  bool Gate(const PassDataHolder* data) const;
 };
 
 /**
@@ -283,7 +342,8 @@ class BBCombine : public PassME {
  */
 class BBOptimizations : public PassME {
  public:
-  BBOptimizations() : PassME("BBOptimizations", kNoNodes, "5_post_bbo_cfg") {
+  BBOptimizations()
+      : PassME("BBOptimizations", kNoNodes, kOptimizationBasicBlockChange, "5_post_bbo_cfg") {
   }
 
   bool Gate(const PassDataHolder* data) const {
@@ -293,7 +353,63 @@ class BBOptimizations : public PassME {
     return ((c_unit->disable_opt & (1 << kBBOpt)) == 0);
   }
 
-  void Start(PassDataHolder* data) const;
+  void Start(PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    c_unit->mir_graph->BasicBlockOptimizationStart();
+
+    /*
+     * This pass has a different ordering depending on the suppress exception,
+     * so do the pass here for now:
+     *   - Later, the Start should just change the ordering and we can move the extended
+     *     creation into the pass driver's main job with a new iterator
+     */
+    c_unit->mir_graph->BasicBlockOptimization();
+  }
+
+  void End(PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    c_unit->mir_graph->BasicBlockOptimizationEnd();
+    down_cast<PassMEDataHolder*>(data)->dirty = !c_unit->mir_graph->DfsOrdersUpToDate();
+  }
+};
+
+/**
+ * @class SuspendCheckElimination
+ * @brief Any simple BasicBlock optimization can be put here.
+ */
+class SuspendCheckElimination : public PassME {
+ public:
+  SuspendCheckElimination()
+    : PassME("SuspendCheckElimination", kTopologicalSortTraversal, "6_post_sce_cfg") {
+  }
+
+  bool Gate(const PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    return c_unit->mir_graph->EliminateSuspendChecksGate();
+  }
+
+  bool Worker(PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    PassMEDataHolder* pass_me_data_holder = down_cast<PassMEDataHolder*>(data);
+    CompilationUnit* c_unit = pass_me_data_holder->c_unit;
+    DCHECK(c_unit != nullptr);
+    BasicBlock* bb = pass_me_data_holder->bb;
+    DCHECK(bb != nullptr);
+    return c_unit->mir_graph->EliminateSuspendChecks(bb);
+  }
+
+  void End(PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    c_unit->mir_graph->EliminateSuspendChecksEnd();
+  }
 };
 
 }  // namespace art

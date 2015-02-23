@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "compiler_ir.h"
 #include "mir_graph.h"
 #include "gtest/gtest.h"
 
@@ -89,7 +90,6 @@ class TopologicalSortOrderTest : public testing::Test {
             cu_.arena.Alloc(sizeof(BasicBlockDataFlow), kArenaAllocDFInfo));
       }
     }
-    cu_.mir_graph->num_blocks_ = count;
     ASSERT_EQ(count, cu_.mir_graph->block_list_.size());
     cu_.mir_graph->entry_block_ = cu_.mir_graph->block_list_[1];
     ASSERT_EQ(kEntryBlock, cu_.mir_graph->entry_block_->block_type);
@@ -149,7 +149,7 @@ class TopologicalSortOrderTest : public testing::Test {
 
   TopologicalSortOrderTest()
       : pool_(),
-        cu_(&pool_) {
+        cu_(&pool_, kRuntimeISA, nullptr, nullptr) {
     cu_.mir_graph.reset(new MIRGraph(&cu_, &cu_.arena));
   }
 

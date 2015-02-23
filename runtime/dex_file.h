@@ -22,8 +22,10 @@
 #include <unordered_map>
 #include <vector>
 
+#include "base/hash_map.h"
 #include "base/logging.h"
 #include "base/mutex.h"  // For Locks::mutator_lock_.
+#include "base/value_object.h"
 #include "globals.h"
 #include "invoke_type.h"
 #include "jni.h"
@@ -42,6 +44,7 @@ namespace mirror {
 }  // namespace mirror
 class ClassLinker;
 class MemMap;
+class OatFile;
 class Signature;
 template<class T> class Handle;
 class StringPiece;
@@ -205,10 +208,10 @@ class DexFile {
     // (class or interface). These are all in the lower 16b and do not contain runtime flags.
     uint32_t GetJavaAccessFlags() const {
       // Make sure that none of our runtime-only flags are set.
-      COMPILE_ASSERT((kAccValidClassFlags & kAccJavaFlagsMask) == kAccValidClassFlags,
-                     valid_class_flags_not_subset_of_java_flags);
-      COMPILE_ASSERT((kAccValidInterfaceFlags & kAccJavaFlagsMask) == kAccValidInterfaceFlags,
-                     valid_interface_flags_not_subset_of_java_flags);
+      static_assert((kAccValidClassFlags & kAccJavaFlagsMask) == kAccValidClassFlags,
+                    "Valid class flags not a subset of Java flags");
+      static_assert((kAccValidInterfaceFlags & kAccJavaFlagsMask) == kAccValidInterfaceFlags,
+                    "Valid interface flags not a subset of Java flags");
 
       if ((access_flags_ & kAccInterface) != 0) {
         // Interface.
@@ -383,19 +386,21 @@ class DexFile {
 
   // Opens .dex files found in the container, guessing the container format based on file extension.
   static bool Open(const char* filename, const char* location, std::string* error_msg,
-                   std::vector<const DexFile*>* dex_files);
+                   std::vector<std::unique_ptr<const DexFile>>* dex_files);
 
   // Opens .dex file, backed by existing memory
-  static const DexFile* Open(const uint8_t* base, size_t size,
-                             const std::string& location,
-                             uint32_t location_checksum,
-                             std::string* error_msg) {
-    return OpenMemory(base, size, location, location_checksum, NULL, error_msg);
+  static std::unique_ptr<const DexFile> Open(const uint8_t* base, size_t size,
+                                             const std::string& location,
+                                             uint32_t location_checksum,
+                                             const OatFile* oat_file,
+                                             std::string* error_msg) {
+    return OpenMemory(base, size, location, location_checksum, NULL, oat_file, error_msg);
   }
 
   // Open all classesXXX.dex files from a zip archive.
   static bool OpenFromZip(const ZipArchive& zip_archive, const std::string& location,
-                          std::string* error_msg, std::vector<const DexFile*>* dex_files);
+                          std::string* error_msg,
+                          std::vector<std::unique_ptr<const DexFile>>* dex_files);
 
   // Closes a .dex file.
   virtual ~DexFile();
@@ -494,7 +499,7 @@ class DexFile {
   const StringId* FindStringId(const char* string) const;
 
   // Looks up a string id for a given utf16 string.
-  const StringId* FindStringId(const uint16_t* string) const;
+  const StringId* FindStringId(const uint16_t* string, size_t length) const;
 
   // Returns the number of type identifiers in the .dex file.
   uint32_t NumTypeIds() const {
@@ -648,8 +653,9 @@ class DexFile {
     return StringByTypeIdx(class_def.class_idx_);
   }
 
-  // Looks up a class definition by its class descriptor.
-  const ClassDef* FindClassDef(const char* descriptor) const;
+  // Looks up a class definition by its class descriptor. Hash must be
+  // ComputeModifiedUtf8Hash(descriptor).
+  const ClassDef* FindClassDef(const char* descriptor, size_t hash) const;
 
   // Looks up a class definition by its type index.
   const ClassDef* FindClassDef(uint16_t type_idx) const;
@@ -887,13 +893,18 @@ class DexFile {
   //     the dex_location where it's file name part has been made canonical.
   static std::string GetDexCanonicalLocation(const char* dex_location);
 
+  const OatFile* GetOatFile() const {
+    return oat_file_;
+  }
+
  private:
   // Opens a .dex file
-  static const DexFile* OpenFile(int fd, const char* location, bool verify, std::string* error_msg);
+  static std::unique_ptr<const DexFile> OpenFile(int fd, const char* location,
+                                                 bool verify, std::string* error_msg);
 
   // Opens dex files from within a .jar, .zip, or .apk file
   static bool OpenZip(int fd, const std::string& location, std::string* error_msg,
-                      std::vector<const DexFile*>* dex_files);
+                      std::vector<std::unique_ptr<const DexFile>>* dex_files);
 
   enum class ZipOpenErrorCode {  // private
     kNoError,
@@ -906,28 +917,30 @@ class DexFile {
 
   // Opens .dex file from the entry_name in a zip archive. error_code is undefined when non-nullptr
   // return.
-  static const DexFile* Open(const ZipArchive& zip_archive, const char* entry_name,
-                             const std::string& location, std::string* error_msg,
-                             ZipOpenErrorCode* error_code);
+  static std::unique_ptr<const DexFile> Open(const ZipArchive& zip_archive, const char* entry_name,
+                                             const std::string& location, std::string* error_msg,
+                                             ZipOpenErrorCode* error_code);
 
   // Opens a .dex file at the given address backed by a MemMap
-  static const DexFile* OpenMemory(const std::string& location,
-                                   uint32_t location_checksum,
-                                   MemMap* mem_map,
-                                   std::string* error_msg);
+  static std::unique_ptr<const DexFile> OpenMemory(const std::string& location,
+                                                   uint32_t location_checksum,
+                                                   MemMap* mem_map,
+                                                   std::string* error_msg);
 
   // Opens a .dex file at the given address, optionally backed by a MemMap
-  static const DexFile* OpenMemory(const uint8_t* dex_file,
-                                   size_t size,
-                                   const std::string& location,
-                                   uint32_t location_checksum,
-                                   MemMap* mem_map,
-                                   std::string* error_msg);
+  static std::unique_ptr<const DexFile> OpenMemory(const uint8_t* dex_file,
+                                                   size_t size,
+                                                   const std::string& location,
+                                                   uint32_t location_checksum,
+                                                   MemMap* mem_map,
+                                                   const OatFile* oat_file,
+                                                   std::string* error_msg);
 
   DexFile(const uint8_t* base, size_t size,
           const std::string& location,
           uint32_t location_checksum,
-          MemMap* mem_map);
+          MemMap* mem_map,
+          const OatFile* oat_file);
 
   // Top-level initializer that calls other Init methods.
   bool Init(std::string* error_msg);
@@ -985,18 +998,35 @@ class DexFile {
   // Number of misses finding a class def from a descriptor.
   mutable Atomic<uint32_t> find_class_def_misses_;
 
+  struct UTF16EmptyFn {
+    void MakeEmpty(std::pair<const char*, const ClassDef*>& pair) const {
+      pair.first = nullptr;
+      pair.second = nullptr;
+    }
+    bool IsEmpty(const std::pair<const char*, const ClassDef*>& pair) const {
+      if (pair.first == nullptr) {
+        DCHECK(pair.second == nullptr);
+        return true;
+      }
+      return false;
+    }
+  };
   struct UTF16HashCmp {
     // Hash function.
     size_t operator()(const char* key) const {
-      return ComputeUtf8Hash(key);
+      return ComputeModifiedUtf8Hash(key);
     }
     // std::equal function.
     bool operator()(const char* a, const char* b) const {
       return CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(a, b) == 0;
     }
   };
-  typedef std::unordered_map<const char*, const ClassDef*, UTF16HashCmp, UTF16HashCmp> Index;
+  typedef HashMap<const char*, const ClassDef*, UTF16EmptyFn, UTF16HashCmp, UTF16HashCmp> Index;
   mutable Atomic<Index*> class_def_index_;
+
+  // The oat file this dex file was loaded from. May be null in case the dex file is not coming
+  // from an oat file, e.g., directly from an apk.
+  const OatFile* oat_file_;
 };
 std::ostream& operator<<(std::ostream& os, const DexFile& dex_file);
 
@@ -1027,7 +1057,7 @@ class DexFileParameterIterator {
 };
 
 // Abstract the signature of a method.
-class Signature {
+class Signature : public ValueObject {
  public:
   std::string ToString() const;
 
@@ -1251,7 +1281,7 @@ class EncodedStaticFieldValueIterator {
   template<bool kTransactionActive>
   void ReadValueToField(Handle<mirror::ArtField> field) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool HasNext() { return pos_ < array_size_; }
+  bool HasNext() const { return pos_ < array_size_; }
 
   void Next();
 

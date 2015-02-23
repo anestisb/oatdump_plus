@@ -214,10 +214,7 @@ class OatWriter {
     }
 
     // Offset of start of OatClass from beginning of OatHeader. It is
-    // used to validate file position when writing. For Portable, it
-    // is also used to calculate the position of the OatMethodOffsets
-    // so that code pointers within the OatMethodOffsets can be
-    // patched to point to code in the Portable .o ELF objects.
+    // used to validate file position when writing.
     size_t offset_;
 
     // CompiledMethods for each class_def_method_index, or NULL if no method is available.
@@ -231,10 +228,10 @@ class OatWriter {
 
     // data to write
 
-    COMPILE_ASSERT(mirror::Class::Status::kStatusMax < (2 ^ 16), class_status_wont_fit_in_16bits);
+    static_assert(mirror::Class::Status::kStatusMax < (2 ^ 16), "class status won't fit in 16bits");
     int16_t status_;
 
-    COMPILE_ASSERT(OatClassType::kOatClassMax < (2 ^ 16), oat_class_type_wont_fit_in_16bits);
+    static_assert(OatClassType::kOatClassMax < (2 ^ 16), "oat_class type won't fit in 16bits");
     uint16_t type_;
 
     uint32_t method_bitmap_size_;
@@ -285,9 +282,6 @@ class OatWriter {
   std::unique_ptr<const std::vector<uint8_t>> interpreter_to_interpreter_bridge_;
   std::unique_ptr<const std::vector<uint8_t>> interpreter_to_compiled_code_bridge_;
   std::unique_ptr<const std::vector<uint8_t>> jni_dlsym_lookup_;
-  std::unique_ptr<const std::vector<uint8_t>> portable_imt_conflict_trampoline_;
-  std::unique_ptr<const std::vector<uint8_t>> portable_resolution_trampoline_;
-  std::unique_ptr<const std::vector<uint8_t>> portable_to_interpreter_bridge_;
   std::unique_ptr<const std::vector<uint8_t>> quick_generic_jni_trampoline_;
   std::unique_ptr<const std::vector<uint8_t>> quick_imt_conflict_trampoline_;
   std::unique_ptr<const std::vector<uint8_t>> quick_resolution_trampoline_;
@@ -302,9 +296,6 @@ class OatWriter {
   uint32_t size_interpreter_to_interpreter_bridge_;
   uint32_t size_interpreter_to_compiled_code_bridge_;
   uint32_t size_jni_dlsym_lookup_;
-  uint32_t size_portable_imt_conflict_trampoline_;
-  uint32_t size_portable_resolution_trampoline_;
-  uint32_t size_portable_to_interpreter_bridge_;
   uint32_t size_quick_generic_jni_trampoline_;
   uint32_t size_quick_imt_conflict_trampoline_;
   uint32_t size_quick_resolution_trampoline_;
@@ -347,11 +338,14 @@ class OatWriter {
         return lhs->GetQuickCode() < rhs->GetQuickCode();
       }
       // If the code is the same, all other fields are likely to be the same as well.
-      if (UNLIKELY(&lhs->GetMappingTable() != &rhs->GetMappingTable())) {
-        return &lhs->GetMappingTable() < &rhs->GetMappingTable();
+      if (UNLIKELY(lhs->GetMappingTable() != rhs->GetMappingTable())) {
+        return lhs->GetMappingTable() < rhs->GetMappingTable();
       }
       if (UNLIKELY(&lhs->GetVmapTable() != &rhs->GetVmapTable())) {
         return &lhs->GetVmapTable() < &rhs->GetVmapTable();
+      }
+      if (UNLIKELY(lhs->GetGcMap() != rhs->GetGcMap())) {
+        return lhs->GetGcMap() < rhs->GetGcMap();
       }
       const auto& lhs_patches = lhs->GetPatches();
       const auto& rhs_patches = rhs->GetPatches();

@@ -23,7 +23,9 @@
 #include <string.h>
 #include <sys/file.h>
 #include <sys/stat.h>
+
 #include <memory>
+#include <sstream>
 
 #include "base/logging.h"
 #include "base/stringprintf.h"
@@ -37,13 +39,17 @@
 #include "mirror/string.h"
 #include "os.h"
 #include "safe_map.h"
-#include "ScopedFd.h"
 #include "handle_scope-inl.h"
 #include "thread.h"
 #include "utf-inl.h"
 #include "utils.h"
 #include "well_known_classes.h"
 #include "zip_archive.h"
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
+#include "ScopedFd.h"
+#pragma GCC diagnostic pop
 
 namespace art {
 
@@ -119,7 +125,8 @@ bool DexFile::GetChecksum(const char* filename, uint32_t* checksum, std::string*
 }
 
 bool DexFile::Open(const char* filename, const char* location, std::string* error_msg,
-                   std::vector<const DexFile*>* dex_files) {
+                   std::vector<std::unique_ptr<const DexFile>>* dex_files) {
+  DCHECK(dex_files != nullptr) << "DexFile::Open: out-param is NULL";
   uint32_t magic;
   ScopedFd fd(OpenAndReadMagic(filename, &magic, error_msg));
   if (fd.get() == -1) {
@@ -133,7 +140,7 @@ bool DexFile::Open(const char* filename, const char* location, std::string* erro
     std::unique_ptr<const DexFile> dex_file(DexFile::OpenFile(fd.release(), location, true,
                                                               error_msg));
     if (dex_file.get() != nullptr) {
-      dex_files->push_back(dex_file.release());
+      dex_files->push_back(std::move(dex_file));
       return true;
     } else {
       return false;
@@ -173,8 +180,8 @@ bool DexFile::DisableWrite() const {
   }
 }
 
-const DexFile* DexFile::OpenFile(int fd, const char* location, bool verify,
-                                 std::string* error_msg) {
+std::unique_ptr<const DexFile> DexFile::OpenFile(int fd, const char* location, bool verify,
+                                                 std::string* error_msg) {
   CHECK(location != nullptr);
   std::unique_ptr<MemMap> map;
   {
@@ -218,13 +225,14 @@ const DexFile* DexFile::OpenFile(int fd, const char* location, bool verify,
     return nullptr;
   }
 
-  return dex_file.release();
+  return dex_file;
 }
 
 const char* DexFile::kClassesDex = "classes.dex";
 
 bool DexFile::OpenZip(int fd, const std::string& location, std::string* error_msg,
-                      std::vector<const  DexFile*>* dex_files) {
+                      std::vector<std::unique_ptr<const DexFile>>* dex_files) {
+  DCHECK(dex_files != nullptr) << "DexFile::OpenZip: out-param is NULL";
   std::unique_ptr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(fd, location.c_str(), error_msg));
   if (zip_archive.get() == nullptr) {
     DCHECK(!error_msg->empty());
@@ -233,21 +241,22 @@ bool DexFile::OpenZip(int fd, const std::string& location, std::string* error_ms
   return DexFile::OpenFromZip(*zip_archive, location, error_msg, dex_files);
 }
 
-const DexFile* DexFile::OpenMemory(const std::string& location,
-                                   uint32_t location_checksum,
-                                   MemMap* mem_map,
-                                   std::string* error_msg) {
+std::unique_ptr<const DexFile> DexFile::OpenMemory(const std::string& location,
+                                                   uint32_t location_checksum,
+                                                   MemMap* mem_map,
+                                                   std::string* error_msg) {
   return OpenMemory(mem_map->Begin(),
                     mem_map->Size(),
                     location,
                     location_checksum,
                     mem_map,
+                    nullptr,
                     error_msg);
 }
 
-const DexFile* DexFile::Open(const ZipArchive& zip_archive, const char* entry_name,
-                             const std::string& location, std::string* error_msg,
-                             ZipOpenErrorCode* error_code) {
+std::unique_ptr<const DexFile> DexFile::Open(const ZipArchive& zip_archive, const char* entry_name,
+                                             const std::string& location, std::string* error_msg,
+                                             ZipOpenErrorCode* error_code) {
   CHECK(!location.empty());
   std::unique_ptr<ZipEntry> zip_entry(zip_archive.Find(entry_name, error_msg));
   if (zip_entry.get() == NULL) {
@@ -281,11 +290,13 @@ const DexFile* DexFile::Open(const ZipArchive& zip_archive, const char* entry_na
     return nullptr;
   }
   *error_code = ZipOpenErrorCode::kNoError;
-  return dex_file.release();
+  return dex_file;
 }
 
 bool DexFile::OpenFromZip(const ZipArchive& zip_archive, const std::string& location,
-                          std::string* error_msg, std::vector<const DexFile*>* dex_files) {
+                          std::string* error_msg,
+                          std::vector<std::unique_ptr<const DexFile>>* dex_files) {
+  DCHECK(dex_files != nullptr) << "DexFile::OpenFromZip: out-param is NULL";
   ZipOpenErrorCode error_code;
   std::unique_ptr<const DexFile> dex_file(Open(zip_archive, kClassesDex, location, error_msg,
                                                &error_code));
@@ -293,7 +304,7 @@ bool DexFile::OpenFromZip(const ZipArchive& zip_archive, const std::string& loca
     return false;
   } else {
     // Had at least classes.dex.
-    dex_files->push_back(dex_file.release());
+    dex_files->push_back(std::move(dex_file));
 
     // Now try some more.
     size_t i = 2;
@@ -312,7 +323,7 @@ bool DexFile::OpenFromZip(const ZipArchive& zip_archive, const std::string& loca
         }
         break;
       } else {
-        dex_files->push_back(next_dex_file.release());
+        dex_files->push_back(std::move(next_dex_file));
       }
 
       i++;
@@ -323,24 +334,27 @@ bool DexFile::OpenFromZip(const ZipArchive& zip_archive, const std::string& loca
 }
 
 
-const DexFile* DexFile::OpenMemory(const uint8_t* base,
-                                   size_t size,
-                                   const std::string& location,
-                                   uint32_t location_checksum,
-                                   MemMap* mem_map, std::string* error_msg) {
+std::unique_ptr<const DexFile> DexFile::OpenMemory(const uint8_t* base,
+                                                   size_t size,
+                                                   const std::string& location,
+                                                   uint32_t location_checksum,
+                                                   MemMap* mem_map,
+                                                   const OatFile* oat_file,
+                                                   std::string* error_msg) {
   CHECK_ALIGNED(base, 4);  // various dex file structures must be word aligned
-  std::unique_ptr<DexFile> dex_file(new DexFile(base, size, location, location_checksum, mem_map));
+  std::unique_ptr<DexFile> dex_file(
+      new DexFile(base, size, location, location_checksum, mem_map, oat_file));
   if (!dex_file->Init(error_msg)) {
-    return nullptr;
-  } else {
-    return dex_file.release();
+    dex_file.reset();
   }
+  return std::unique_ptr<const DexFile>(dex_file.release());
 }
 
 DexFile::DexFile(const uint8_t* base, size_t size,
                  const std::string& location,
                  uint32_t location_checksum,
-                 MemMap* mem_map)
+                 MemMap* mem_map,
+                 const OatFile* oat_file)
     : begin_(base),
       size_(size),
       location_(location),
@@ -354,7 +368,8 @@ DexFile::DexFile(const uint8_t* base, size_t size,
       proto_ids_(reinterpret_cast<const ProtoId*>(base + header_->proto_ids_off_)),
       class_defs_(reinterpret_cast<const ClassDef*>(base + header_->class_defs_off_)),
       find_class_def_misses_(0),
-      class_def_index_(nullptr) {
+      class_def_index_(nullptr),
+      oat_file_(oat_file) {
   CHECK(begin_ != NULL) << GetLocation();
   CHECK_GT(size_, 0U) << GetLocation();
 }
@@ -413,11 +428,12 @@ uint32_t DexFile::GetVersion() const {
   return atoi(version);
 }
 
-const DexFile::ClassDef* DexFile::FindClassDef(const char* descriptor) const {
+const DexFile::ClassDef* DexFile::FindClassDef(const char* descriptor, size_t hash) const {
+  DCHECK_EQ(ComputeModifiedUtf8Hash(descriptor), hash);
   // If we have an index lookup the descriptor via that as its constant time to search.
   Index* index = class_def_index_.LoadSequentiallyConsistent();
   if (index != nullptr) {
-    auto it = index->find(descriptor);
+    auto it = index->FindWithHash(descriptor, hash);
     return (it == index->end()) ? nullptr : it->second;
   }
   // Fast path for rate no class defs case.
@@ -449,11 +465,11 @@ const DexFile::ClassDef* DexFile::FindClassDef(const char* descriptor) const {
     // Are we the ones moving the miss count past the max? Sanity check the index doesn't exist.
     CHECK(class_def_index_.LoadSequentiallyConsistent() == nullptr);
     // Build the index.
-    index = new Index(num_class_defs);
+    index = new Index();
     for (uint32_t i = 0; i < num_class_defs;  ++i) {
       const ClassDef& class_def = GetClassDef(i);
-      const char* descriptor = GetClassDescriptor(class_def);
-      index->insert(std::make_pair(descriptor, &class_def));
+      const char* class_descriptor = GetClassDescriptor(class_def);
+      index->Insert(std::make_pair(class_descriptor, &class_def));
     }
     // Sanity check the index still doesn't exist, only 1 thread should build it.
     CHECK(class_def_index_.LoadSequentiallyConsistent() == nullptr);
@@ -562,14 +578,14 @@ const DexFile::StringId* DexFile::FindStringId(const char* string) const {
   return NULL;
 }
 
-const DexFile::StringId* DexFile::FindStringId(const uint16_t* string) const {
+const DexFile::StringId* DexFile::FindStringId(const uint16_t* string, size_t length) const {
   int32_t lo = 0;
   int32_t hi = NumStringIds() - 1;
   while (hi >= lo) {
     int32_t mid = (hi + lo) / 2;
     const DexFile::StringId& str_id = GetStringId(mid);
     const char* str = GetStringData(str_id);
-    int compare = CompareModifiedUtf8ToUtf16AsCodePointValues(str, string);
+    int compare = CompareModifiedUtf8ToUtf16AsCodePointValues(str, string, length);
     if (compare > 0) {
       lo = mid + 1;
     } else if (compare < 0) {
@@ -1148,15 +1164,15 @@ void EncodedStaticFieldValueIterator::Next() {
     break;
   case kByte:
     jval_.i = ReadSignedInt(ptr_, value_arg);
-    CHECK(IsInt(8, jval_.i));
+    CHECK(IsInt<8>(jval_.i));
     break;
   case kShort:
     jval_.i = ReadSignedInt(ptr_, value_arg);
-    CHECK(IsInt(16, jval_.i));
+    CHECK(IsInt<16>(jval_.i));
     break;
   case kChar:
     jval_.i = ReadUnsignedInt(ptr_, value_arg, false);
-    CHECK(IsUint(16, jval_.i));
+    CHECK(IsUint<16>(jval_.i));
     break;
   case kInt:
     jval_.i = ReadSignedInt(ptr_, value_arg);
@@ -1180,13 +1196,14 @@ void EncodedStaticFieldValueIterator::Next() {
   case kArray:
   case kAnnotation:
     UNIMPLEMENTED(FATAL) << ": type " << type_;
-    break;
+    UNREACHABLE();
   case kNull:
     jval_.l = NULL;
     width = 0;
     break;
   default:
     LOG(FATAL) << "Unreached";
+    UNREACHABLE();
   }
   ptr_ += width;
 }

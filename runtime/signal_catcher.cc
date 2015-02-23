@@ -25,10 +25,12 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <sstream>
+
+#include "arch/instruction_set.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "gc/heap.h"
-#include "instruction_set.h"
 #include "os.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
@@ -108,11 +110,17 @@ void SignalCatcher::Output(const std::string& s) {
     PLOG(ERROR) << "Unable to open stack trace file '" << stack_trace_file_ << "'";
     return;
   }
-  std::unique_ptr<File> file(new File(fd, stack_trace_file_));
-  if (!file->WriteFully(s.data(), s.size())) {
-    PLOG(ERROR) << "Failed to write stack traces to '" << stack_trace_file_ << "'";
+  std::unique_ptr<File> file(new File(fd, stack_trace_file_, true));
+  bool success = file->WriteFully(s.data(), s.size());
+  if (success) {
+    success = file->FlushCloseOrErase() == 0;
   } else {
+    file->Erase();
+  }
+  if (success) {
     LOG(INFO) << "Wrote stack traces to '" << stack_trace_file_ << "'";
+  } else {
+    PLOG(ERROR) << "Failed to write stack traces to '" << stack_trace_file_ << "'";
   }
 }
 
@@ -131,7 +139,7 @@ void SignalCatcher::HandleSigQuit() {
 
   runtime->DumpForSigQuit(os);
 
-  if (false) {
+  if ((false)) {
     std::string maps;
     if (ReadFileToString("/proc/self/maps", &maps)) {
       os << "/proc/self/maps:\n" << maps;

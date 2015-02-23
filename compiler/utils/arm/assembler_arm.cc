@@ -92,16 +92,29 @@ uint32_t ShifterOperand::encodingArm() const {
       break;
     case kRegister:
       if (is_shift_) {
+        uint32_t shift_type;
+        switch (shift_) {
+          case arm::Shift::ROR:
+            shift_type = static_cast<uint32_t>(shift_);
+            CHECK_NE(immed_, 0U);
+            break;
+          case arm::Shift::RRX:
+            shift_type = static_cast<uint32_t>(arm::Shift::ROR);  // Same encoding as ROR.
+            CHECK_EQ(immed_, 0U);
+            break;
+          default:
+            shift_type = static_cast<uint32_t>(shift_);
+        }
         // Shifted immediate or register.
         if (rs_ == kNoRegister) {
           // Immediate shift.
           return immed_ << kShiftImmShift |
-                          static_cast<uint32_t>(shift_) << kShiftShift |
+                          shift_type << kShiftShift |
                           static_cast<uint32_t>(rm_);
         } else {
           // Register shift.
           return static_cast<uint32_t>(rs_) << kShiftRegisterShift |
-              static_cast<uint32_t>(shift_) << kShiftShift | (1 << 4) |
+              shift_type << kShiftShift | (1 << 4) |
               static_cast<uint32_t>(rm_);
         }
       } else {
@@ -152,38 +165,8 @@ uint32_t ShifterOperand::encodingThumb() const {
   return 0;
 }
 
-bool ShifterOperand::CanHoldThumb(Register rd, Register rn, Opcode opcode,
-                                  uint32_t immediate, ShifterOperand* shifter_op) {
-  shifter_op->type_ = kImmediate;
-  shifter_op->immed_ = immediate;
-  shifter_op->is_shift_ = false;
-  shifter_op->is_rotate_ = false;
-  switch (opcode) {
-    case ADD:
-    case SUB:
-      if (rn == SP) {
-        if (rd == SP) {
-          return immediate < (1 << 9);    // 9 bits allowed.
-        } else {
-          return immediate < (1 << 12);   // 12 bits.
-        }
-      }
-      if (immediate < (1 << 12)) {    // Less than (or equal to) 12 bits can always be done.
-        return true;
-      }
-      return ArmAssembler::ModifiedImmediate(immediate) != kInvalidModifiedImmediate;
-
-    case MOV:
-      // TODO: Support less than or equal to 12bits.
-      return ArmAssembler::ModifiedImmediate(immediate) != kInvalidModifiedImmediate;
-    case MVN:
-    default:
-      return ArmAssembler::ModifiedImmediate(immediate) != kInvalidModifiedImmediate;
-  }
-}
-
 uint32_t Address::encodingArm() const {
-  CHECK(IsAbsoluteUint(12, offset_));
+  CHECK(IsAbsoluteUint<12>(offset_));
   uint32_t encoding;
   if (is_immed_offset_) {
     if (offset_ < 0) {
@@ -192,10 +175,9 @@ uint32_t Address::encodingArm() const {
       encoding =  am_ | offset_;
     }
   } else {
-    uint32_t imm5 = offset_;
     uint32_t shift = shift_;
     if (shift == RRX) {
-      imm5 = 0;
+      CHECK_EQ(offset_, 0);
       shift = ROR;
     }
     encoding = am_ | static_cast<uint32_t>(rm_) | shift << 5 | offset_ << 7 | B25;
@@ -263,6 +245,7 @@ uint32_t Address::encodingThumb(bool is_32bit) const {
 
 // This is very like the ARM encoding except the offset is 10 bits.
 uint32_t Address::encodingThumbLdrdStrd() const {
+  DCHECK(IsImmediate());
   uint32_t encoding;
   uint32_t am = am_;
   // If P is 0 then W must be 1 (Different from ARM).
@@ -295,17 +278,18 @@ uint32_t Address::encoding3() const {
 
 // Encoding for vfp load/store addressing.
 uint32_t Address::vencoding() const {
+  CHECK(IsAbsoluteUint<10>(offset_));  // In the range -1020 to +1020.
+  CHECK_ALIGNED(offset_, 2);  // Multiple of 4.
+
   const uint32_t offset_mask = (1 << 12) - 1;
   uint32_t encoding = encodingArm();
   uint32_t offset = encoding & offset_mask;
-  CHECK(IsAbsoluteUint(10, offset));  // In the range -1020 to +1020.
-  CHECK_ALIGNED(offset, 2);  // Multiple of 4.
   CHECK((am_ == Offset) || (am_ == NegOffset));
-  uint32_t vencoding = (encoding & (0xf << kRnShift)) | (offset >> 2);
+  uint32_t vencoding_value = (encoding & (0xf << kRnShift)) | (offset >> 2);
   if (am_ == Offset) {
-    vencoding |= 1 << 23;
+    vencoding_value |= 1 << 23;
   }
-  return vencoding;
+  return vencoding_value;
 }
 
 
@@ -315,16 +299,16 @@ bool Address::CanHoldLoadOffsetArm(LoadOperandType type, int offset) {
     case kLoadSignedHalfword:
     case kLoadUnsignedHalfword:
     case kLoadWordPair:
-      return IsAbsoluteUint(8, offset);  // Addressing mode 3.
+      return IsAbsoluteUint<8>(offset);  // Addressing mode 3.
     case kLoadUnsignedByte:
     case kLoadWord:
-      return IsAbsoluteUint(12, offset);  // Addressing mode 2.
+      return IsAbsoluteUint<12>(offset);  // Addressing mode 2.
     case kLoadSWord:
     case kLoadDWord:
-      return IsAbsoluteUint(10, offset);  // VFP addressing mode.
+      return IsAbsoluteUint<10>(offset);  // VFP addressing mode.
     default:
       LOG(FATAL) << "UNREACHABLE";
-      return false;
+      UNREACHABLE();
   }
 }
 
@@ -333,16 +317,16 @@ bool Address::CanHoldStoreOffsetArm(StoreOperandType type, int offset) {
   switch (type) {
     case kStoreHalfword:
     case kStoreWordPair:
-      return IsAbsoluteUint(8, offset);  // Addressing mode 3.
+      return IsAbsoluteUint<8>(offset);  // Addressing mode 3.
     case kStoreByte:
     case kStoreWord:
-      return IsAbsoluteUint(12, offset);  // Addressing mode 2.
+      return IsAbsoluteUint<12>(offset);  // Addressing mode 2.
     case kStoreSWord:
     case kStoreDWord:
-      return IsAbsoluteUint(10, offset);  // VFP addressing mode.
+      return IsAbsoluteUint<10>(offset);  // VFP addressing mode.
     default:
       LOG(FATAL) << "UNREACHABLE";
-      return false;
+      UNREACHABLE();
   }
 }
 
@@ -353,15 +337,15 @@ bool Address::CanHoldLoadOffsetThumb(LoadOperandType type, int offset) {
     case kLoadUnsignedHalfword:
     case kLoadUnsignedByte:
     case kLoadWord:
-      return IsAbsoluteUint(12, offset);
+      return IsAbsoluteUint<12>(offset);
     case kLoadSWord:
     case kLoadDWord:
-      return IsAbsoluteUint(10, offset);  // VFP addressing mode.
+      return IsAbsoluteUint<10>(offset);  // VFP addressing mode.
     case kLoadWordPair:
-      return IsAbsoluteUint(10, offset);
-  default:
+      return IsAbsoluteUint<10>(offset);
+    default:
       LOG(FATAL) << "UNREACHABLE";
-      return false;
+      UNREACHABLE();
   }
 }
 
@@ -371,15 +355,15 @@ bool Address::CanHoldStoreOffsetThumb(StoreOperandType type, int offset) {
     case kStoreHalfword:
     case kStoreByte:
     case kStoreWord:
-      return IsAbsoluteUint(12, offset);
+      return IsAbsoluteUint<12>(offset);
     case kStoreSWord:
     case kStoreDWord:
-      return IsAbsoluteUint(10, offset);  // VFP addressing mode.
+      return IsAbsoluteUint<10>(offset);  // VFP addressing mode.
     case kStoreWordPair:
-      return IsAbsoluteUint(10, offset);
-  default:
+      return IsAbsoluteUint<10>(offset);
+    default:
       LOG(FATAL) << "UNREACHABLE";
-      return false;
+      UNREACHABLE();
   }
 }
 
@@ -417,9 +401,23 @@ void ArmAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   StoreToOffset(kStoreWord, R0, SP, 0);
 
   // Write out entry spills.
+  int32_t offset = frame_size + sizeof(StackReference<mirror::ArtMethod>);
   for (size_t i = 0; i < entry_spills.size(); ++i) {
-    Register reg = entry_spills.at(i).AsArm().AsCoreRegister();
-    StoreToOffset(kStoreWord, reg, SP, frame_size + kFramePointerSize + (i * kFramePointerSize));
+    ArmManagedRegister reg = entry_spills.at(i).AsArm();
+    if (reg.IsNoRegister()) {
+      // only increment stack offset.
+      ManagedRegisterSpill spill = entry_spills.at(i);
+      offset += spill.getSize();
+    } else if (reg.IsCoreRegister()) {
+      StoreToOffset(kStoreWord, reg.AsCoreRegister(), SP, offset);
+      offset += 4;
+    } else if (reg.IsSRegister()) {
+      StoreSToOffset(reg.AsSRegister(), SP, offset);
+      offset += 4;
+    } else if (reg.IsDRegister()) {
+      StoreDToOffset(reg.AsDRegister(), SP, offset);
+      offset += 8;
+    }
   }
 }
 

@@ -19,11 +19,8 @@
 #include "context_arm64.h"
 
 #include "mirror/art_method-inl.h"
-#include "mirror/object-inl.h"
 #include "quick/quick_method_frame_info.h"
-#include "stack.h"
-#include "thread.h"
-
+#include "utils.h"
 
 namespace art {
 namespace arm64 {
@@ -31,7 +28,7 @@ namespace arm64 {
 static constexpr uint64_t gZero = 0;
 
 void Arm64Context::Reset() {
-  for (size_t i = 0; i < kNumberOfCoreRegisters; i++) {
+  for (size_t i = 0; i < kNumberOfXRegisters; i++) {
     gprs_[i] = nullptr;
   }
   for (size_t i = 0; i < kNumberOfDRegisters; i++) {
@@ -52,7 +49,7 @@ void Arm64Context::FillCalleeSaves(const StackVisitor& fr) {
   if (spill_count > 0) {
     // Lowest number spill is farthest away, walk registers and fill into context.
     int j = 1;
-    for (size_t i = 0; i < kNumberOfCoreRegisters; i++) {
+    for (size_t i = 0; i < kNumberOfXRegisters; i++) {
       if (((frame_info.CoreSpillMask() >> i) & 1) != 0) {
         gprs_[i] = fr.CalleeSaveAddress(spill_count  - j, frame_info.FrameSizeInBytes());
         j++;
@@ -73,26 +70,19 @@ void Arm64Context::FillCalleeSaves(const StackVisitor& fr) {
   }
 }
 
-bool Arm64Context::SetGPR(uint32_t reg, uintptr_t value) {
-  DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfCoreRegisters));
+void Arm64Context::SetGPR(uint32_t reg, uintptr_t value) {
+  DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfXRegisters));
+  DCHECK_NE(reg, static_cast<uint32_t>(XZR));
+  DCHECK(IsAccessibleGPR(reg));
   DCHECK_NE(gprs_[reg], &gZero);  // Can't overwrite this static value since they are never reset.
-  if (gprs_[reg] != nullptr) {
-    *gprs_[reg] = value;
-    return true;
-  } else {
-    return false;
-  }
+  *gprs_[reg] = value;
 }
 
-bool Arm64Context::SetFPR(uint32_t reg, uintptr_t value) {
+void Arm64Context::SetFPR(uint32_t reg, uintptr_t value) {
   DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfDRegisters));
+  DCHECK(IsAccessibleFPR(reg));
   DCHECK_NE(fprs_[reg], &gZero);  // Can't overwrite this static value since they are never reset.
-  if (fprs_[reg] != nullptr) {
-    *fprs_[reg] = value;
-    return true;
-  } else {
-    return false;
-  }
+  *fprs_[reg] = value;
 }
 
 void Arm64Context::SmashCallerSaves() {
@@ -146,11 +136,13 @@ void Arm64Context::SmashCallerSaves() {
 extern "C" void art_quick_do_long_jump(uint64_t*, uint64_t*);
 
 void Arm64Context::DoLongJump() {
-  uint64_t gprs[32];
+  uint64_t gprs[kNumberOfXRegisters];
   uint64_t fprs[kNumberOfDRegisters];
 
-  // Do not use kNumberOfCoreRegisters, as this is with the distinction of SP and XZR
-  for (size_t i = 0; i < 32; ++i) {
+  // The long jump routine called below expects to find the value for SP at index 31.
+  DCHECK_EQ(SP, 31);
+
+  for (size_t i = 0; i < kNumberOfXRegisters; ++i) {
     gprs[i] = gprs_[i] != nullptr ? *gprs_[i] : Arm64Context::kBadGprBase + i;
   }
   for (size_t i = 0; i < kNumberOfDRegisters; ++i) {

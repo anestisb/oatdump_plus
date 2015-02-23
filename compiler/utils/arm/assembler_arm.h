@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "base/logging.h"
+#include "base/value_object.h"
 #include "constants_arm.h"
 #include "utils/arm/managed_register_arm.h"
 #include "utils/assembler.h"
@@ -28,6 +29,9 @@
 
 namespace art {
 namespace arm {
+
+class Arm32Assembler;
+class Thumb2Assembler;
 
 class ShifterOperand {
  public:
@@ -102,33 +106,6 @@ class ShifterOperand {
     kImmediate
   };
 
-  static bool CanHoldArm(uint32_t immediate, ShifterOperand* shifter_op) {
-    // Avoid the more expensive test for frequent small immediate values.
-    if (immediate < (1 << kImmed8Bits)) {
-      shifter_op->type_ = kImmediate;
-      shifter_op->is_rotate_ = true;
-      shifter_op->rotate_ = 0;
-      shifter_op->immed_ = immediate;
-      return true;
-    }
-    // Note that immediate must be unsigned for the test to work correctly.
-    for (int rot = 0; rot < 16; rot++) {
-      uint32_t imm8 = (immediate << 2*rot) | (immediate >> (32 - 2*rot));
-      if (imm8 < (1 << kImmed8Bits)) {
-        shifter_op->type_ = kImmediate;
-        shifter_op->is_rotate_ = true;
-        shifter_op->rotate_ = rot;
-        shifter_op->immed_ = imm8;
-        return true;
-      }
-    }
-    return false;
-  }
-
-  static bool CanHoldThumb(Register rd, Register rn, Opcode opcode,
-                           uint32_t immediate, ShifterOperand* shifter_op);
-
-
  private:
   Type type_;
   Register rm_;
@@ -138,6 +115,9 @@ class ShifterOperand {
   Shift shift_;
   uint32_t rotate_;
   uint32_t immed_;
+
+  friend class Arm32Assembler;
+  friend class Thumb2Assembler;
 
 #ifdef SOURCE_ASSEMBLER_SUPPORT
   friend class BinaryAssembler;
@@ -179,8 +159,12 @@ enum BlockAddressMode {
   DB_W         = (8|0|1) << 21,  // decrement before with writeback to base
   IB_W         = (8|4|1) << 21   // increment before with writeback to base
 };
+inline std::ostream& operator<<(std::ostream& os, const BlockAddressMode& rhs) {
+  os << static_cast<int>(rhs);
+  return os;
+}
 
-class Address {
+class Address : public ValueObject {
  public:
   // Memory operand addressing mode (in ARM encoding form.  For others we need
   // to adjust)
@@ -260,13 +244,17 @@ class Address {
   }
 
  private:
-  Register rn_;
-  Register rm_;
-  int32_t offset_;      // Used as shift amount for register offset.
-  Mode am_;
-  bool is_immed_offset_;
-  Shift shift_;
+  const Register rn_;
+  const Register rm_;
+  const int32_t offset_;      // Used as shift amount for register offset.
+  const Mode am_;
+  const bool is_immed_offset_;
+  const Shift shift_;
 };
+inline std::ostream& operator<<(std::ostream& os, const Address::Mode& rhs) {
+  os << static_cast<int>(rhs);
+  return os;
+}
 
 // Instruction encoding bits.
 enum {
@@ -344,10 +332,6 @@ constexpr uint32_t kInvalidModifiedImmediate = -1;
 
 extern const char* kRegisterNames[];
 extern const char* kConditionNames[];
-extern std::ostream& operator<<(std::ostream& os, const Register& rhs);
-extern std::ostream& operator<<(std::ostream& os, const SRegister& rhs);
-extern std::ostream& operator<<(std::ostream& os, const DRegister& rhs);
-extern std::ostream& operator<<(std::ostream& os, const Condition& rhs);
 
 // This is an abstract ARM assembler.  Subclasses provide assemblers for the individual
 // instruction sets (ARM32, Thumb2, etc.)
@@ -416,6 +400,12 @@ class ArmAssembler : public Assembler {
   virtual void sdiv(Register rd, Register rn, Register rm, Condition cond = AL) = 0;
   virtual void udiv(Register rd, Register rn, Register rm, Condition cond = AL) = 0;
 
+  // Bit field extract instructions.
+  virtual void sbfx(Register rd, Register rn, uint32_t lsb, uint32_t width,
+                    Condition cond = AL) = 0;
+  virtual void ubfx(Register rd, Register rn, uint32_t lsb, uint32_t width,
+                    Condition cond = AL) = 0;
+
   // Load/store instructions.
   virtual void ldr(Register rd, const Address& ad, Condition cond = AL) = 0;
   virtual void str(Register rd, const Address& ad, Condition cond = AL) = 0;
@@ -439,6 +429,8 @@ class ArmAssembler : public Assembler {
 
   virtual void ldrex(Register rd, Register rn, Condition cond = AL) = 0;
   virtual void strex(Register rd, Register rt, Register rn, Condition cond = AL) = 0;
+  virtual void ldrexd(Register rt, Register rt2, Register rn, Condition cond = AL) = 0;
+  virtual void strexd(Register rd, Register rt, Register rt2, Register rn, Condition cond = AL) = 0;
 
   // Miscellaneous instructions.
   virtual void clrex(Condition cond = AL) = 0;
@@ -448,8 +440,10 @@ class ArmAssembler : public Assembler {
   virtual void bkpt(uint16_t imm16) = 0;
   virtual void svc(uint32_t imm24) = 0;
 
-  virtual void it(Condition firstcond, ItState i1 = kItOmitted,
-                  ItState i2 = kItOmitted, ItState i3 = kItOmitted) {
+  virtual void it(Condition firstcond ATTRIBUTE_UNUSED,
+                  ItState i1 ATTRIBUTE_UNUSED = kItOmitted,
+                  ItState i2 ATTRIBUTE_UNUSED = kItOmitted,
+                  ItState i3 ATTRIBUTE_UNUSED = kItOmitted) {
     // Ignored if not supported.
   }
 
@@ -523,6 +517,9 @@ class ArmAssembler : public Assembler {
   virtual void blx(Register rm, Condition cond = AL) = 0;
   virtual void bx(Register rm, Condition cond = AL) = 0;
 
+  // Memory barriers.
+  virtual void dmb(DmbOptions flavor) = 0;
+
   void Pad(uint32_t bytes);
 
   // Macros.
@@ -534,14 +531,52 @@ class ArmAssembler : public Assembler {
                            Condition cond = AL) = 0;
   virtual void AddConstantSetFlags(Register rd, Register rn, int32_t value,
                                    Condition cond = AL) = 0;
-  virtual void AddConstantWithCarry(Register rd, Register rn, int32_t value,
-                                    Condition cond = AL) = 0;
 
   // Load and Store. May clobber IP.
   virtual void LoadImmediate(Register rd, int32_t value, Condition cond = AL) = 0;
-  virtual void LoadSImmediate(SRegister sd, float value, Condition cond = AL) = 0;
-  virtual void LoadDImmediate(DRegister dd, double value,
-                              Register scratch, Condition cond = AL) = 0;
+  void LoadSImmediate(SRegister sd, float value, Condition cond = AL) {
+    if (!vmovs(sd, value, cond)) {
+      int32_t int_value = bit_cast<int32_t, float>(value);
+      if (int_value == bit_cast<int32_t, float>(0.0f)) {
+        // 0.0 is quite common, so we special case it by loading
+        // 2.0 in `sd` and then substracting it.
+        bool success = vmovs(sd, 2.0, cond);
+        CHECK(success);
+        vsubs(sd, sd, sd, cond);
+      } else {
+        LoadImmediate(IP, int_value, cond);
+        vmovsr(sd, IP, cond);
+      }
+    }
+  }
+
+  void LoadDImmediate(DRegister sd, double value, Condition cond = AL) {
+    if (!vmovd(sd, value, cond)) {
+      uint64_t int_value = bit_cast<uint64_t, double>(value);
+      if (int_value == bit_cast<uint64_t, double>(0.0)) {
+        // 0.0 is quite common, so we special case it by loading
+        // 2.0 in `sd` and then substracting it.
+        bool success = vmovd(sd, 2.0, cond);
+        CHECK(success);
+        vsubd(sd, sd, sd, cond);
+      } else {
+        if (sd < 16) {
+          SRegister low = static_cast<SRegister>(sd << 1);
+          SRegister high = static_cast<SRegister>(low + 1);
+          LoadSImmediate(low, bit_cast<float, uint32_t>(Low32Bits(int_value)), cond);
+          if (High32Bits(int_value) == Low32Bits(int_value)) {
+            vmovs(high, low);
+          } else {
+            LoadSImmediate(high, bit_cast<float, uint32_t>(High32Bits(int_value)), cond);
+          }
+        } else {
+          LOG(FATAL) << "Unimplemented loading of double into a D register "
+                     << "that cannot be split into two S registers";
+        }
+      }
+    }
+  }
+
   virtual void MarkExceptionHandler(Label* label) = 0;
   virtual void LoadFromOffset(LoadOperandType type,
                               Register reg,
@@ -599,6 +634,14 @@ class ArmAssembler : public Assembler {
                    Condition cond = AL) = 0;
   virtual void Ror(Register rd, Register rm, Register rn, bool setcc = false,
                    Condition cond = AL) = 0;
+
+  // Returns whether the `immediate` can fit in a `ShifterOperand`. If yes,
+  // `shifter_op` contains the operand.
+  virtual bool ShifterOperandCanHold(Register rd,
+                                     Register rn,
+                                     Opcode opcode,
+                                     uint32_t immediate,
+                                     ShifterOperand* shifter_op) = 0;
 
   static bool IsInstructionForExceptionHandling(uintptr_t pc);
 

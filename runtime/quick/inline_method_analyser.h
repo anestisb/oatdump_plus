@@ -103,12 +103,13 @@ enum IntrinsicFlags {
   kIntrinsicFlagIsObject   = 4,
   // kIntrinsicUnsafePut
   kIntrinsicFlagIsOrdered  = 8,
+
+  // kIntrinsicDoubleCvt, kIntrinsicFloatCvt.
+  kIntrinsicFlagToFloatingPoint = kIntrinsicFlagMin,
 };
 
 struct InlineIGetIPutData {
-  // The op_variant below is opcode-Instruction::IGET for IGETs and
-  // opcode-Instruction::IPUT for IPUTs. This is because the runtime
-  // doesn't know the OpSize enumeration.
+  // The op_variant below is DexMemAccessType but the runtime doesn't know that enumeration.
   uint16_t op_variant : 3;
   uint16_t method_is_static : 1;
   uint16_t object_arg : 4;
@@ -118,7 +119,7 @@ struct InlineIGetIPutData {
   uint32_t is_volatile : 1;
   uint32_t field_offset : 31;
 };
-COMPILE_ASSERT(sizeof(InlineIGetIPutData) == sizeof(uint64_t), InvalidSizeOfInlineIGetIPutData);
+static_assert(sizeof(InlineIGetIPutData) == sizeof(uint64_t), "Invalid size of InlineIGetIPutData");
 
 struct InlineReturnArgData {
   uint16_t arg;
@@ -127,7 +128,8 @@ struct InlineReturnArgData {
   uint16_t reserved : 14;
   uint32_t reserved2;
 };
-COMPILE_ASSERT(sizeof(InlineReturnArgData) == sizeof(uint64_t), InvalidSizeOfInlineReturnArgData);
+static_assert(sizeof(InlineReturnArgData) == sizeof(uint64_t),
+              "Invalid size of InlineReturnArgData");
 
 struct InlineMethod {
   InlineMethodOpcode opcode;

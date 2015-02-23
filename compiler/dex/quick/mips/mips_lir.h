@@ -17,7 +17,8 @@
 #ifndef ART_COMPILER_DEX_QUICK_MIPS_MIPS_LIR_H_
 #define ART_COMPILER_DEX_QUICK_MIPS_MIPS_LIR_H_
 
-#include "dex/compiler_internals.h"
+#include "dex/reg_location.h"
+#include "dex/reg_storage.h"
 
 namespace art {
 
@@ -142,7 +143,7 @@ enum MipsResourceEncodingPos {
 // This bit determines how the CPU access FP registers.
 #define FR_BIT   0
 
-enum MipsNativeRegisterPool {
+enum MipsNativeRegisterPool {  // private marker to avoid generate-operator-out.py from processing.
   rZERO = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  0,
   rAT   = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  1,
   rV0   = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  2,
@@ -214,44 +215,43 @@ enum MipsNativeRegisterPool {
   rF30 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 30,
   rF31 = RegStorage::k32BitSolo | RegStorage::kFloatingPoint | 31,
 #endif
-#if (FR_BIT == 0)
-  rD0  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  0,
-  rD1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  2,
-  rD2  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  4,
-  rD3  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  6,
-  rD4  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  8,
-  rD5  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 10,
-  rD6  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 12,
-  rD7  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 14,
+  // Double precision registers where the FPU is in 32-bit mode.
+  rD0_fr0  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  0,
+  rD1_fr0  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  2,
+  rD2_fr0  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  4,
+  rD3_fr0  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  6,
+  rD4_fr0  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  8,
+  rD5_fr0  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 10,
+  rD6_fr0  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 12,
+  rD7_fr0  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 14,
 #if 0  // TODO: expand resource mask to enable use of all MIPS fp registers.
-  rD8  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 16,
-  rD9  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 18,
-  rD10 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 20,
-  rD11 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 22,
-  rD12 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 24,
-  rD13 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 26,
-  rD14 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 28,
-  rD15 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 30,
+  rD8_fr0  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 16,
+  rD9_fr0  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 18,
+  rD10_fr0 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 20,
+  rD11_fr0 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 22,
+  rD12_fr0 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 24,
+  rD13_fr0 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 26,
+  rD14_fr0 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 28,
+  rD15_fr0 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 30,
 #endif
-#else
-  rD0  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  0,
-  rD1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  1,
-  rD2  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  2,
-  rD3  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  3,
-  rD4  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  4,
-  rD5  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  5,
-  rD6  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  6,
-  rD7  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  7,
+  // Double precision registers where the FPU is in 64-bit mode.
+  rD0_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  0,
+  rD1_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  1,
+  rD2_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  2,
+  rD3_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  3,
+  rD4_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  4,
+  rD5_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  5,
+  rD6_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  6,
+  rD7_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  7,
 #if 0  // TODO: expand resource mask to enable use of all MIPS fp registers.
-  rD8  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  8,
-  rD9  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  9,
-  rD10 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 10,
-  rD11 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 11,
-  rD12 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 12,
-  rD13 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 13,
-  rD14 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 14,
-  rD15 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 15,
-#endif
+  rD8_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  8,
+  rD9_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  9,
+  rD10_fr1 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 10,
+  rD11_fr1 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 11,
+  rD12_fr1 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 12,
+  rD13_fr1 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 13,
+  rD14_fr1 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 14,
+  rD15_fr1 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 15,
 #endif
 };
 
@@ -309,14 +309,23 @@ constexpr RegStorage rs_rF13(RegStorage::kValid | rF13);
 constexpr RegStorage rs_rF14(RegStorage::kValid | rF14);
 constexpr RegStorage rs_rF15(RegStorage::kValid | rF15);
 
-constexpr RegStorage rs_rD0(RegStorage::kValid | rD0);
-constexpr RegStorage rs_rD1(RegStorage::kValid | rD1);
-constexpr RegStorage rs_rD2(RegStorage::kValid | rD2);
-constexpr RegStorage rs_rD3(RegStorage::kValid | rD3);
-constexpr RegStorage rs_rD4(RegStorage::kValid | rD4);
-constexpr RegStorage rs_rD5(RegStorage::kValid | rD5);
-constexpr RegStorage rs_rD6(RegStorage::kValid | rD6);
-constexpr RegStorage rs_rD7(RegStorage::kValid | rD7);
+constexpr RegStorage rs_rD0_fr0(RegStorage::kValid | rD0_fr0);
+constexpr RegStorage rs_rD1_fr0(RegStorage::kValid | rD1_fr0);
+constexpr RegStorage rs_rD2_fr0(RegStorage::kValid | rD2_fr0);
+constexpr RegStorage rs_rD3_fr0(RegStorage::kValid | rD3_fr0);
+constexpr RegStorage rs_rD4_fr0(RegStorage::kValid | rD4_fr0);
+constexpr RegStorage rs_rD5_fr0(RegStorage::kValid | rD5_fr0);
+constexpr RegStorage rs_rD6_fr0(RegStorage::kValid | rD6_fr0);
+constexpr RegStorage rs_rD7_fr0(RegStorage::kValid | rD7_fr0);
+
+constexpr RegStorage rs_rD0_fr1(RegStorage::kValid | rD0_fr1);
+constexpr RegStorage rs_rD1_fr1(RegStorage::kValid | rD1_fr1);
+constexpr RegStorage rs_rD2_fr1(RegStorage::kValid | rD2_fr1);
+constexpr RegStorage rs_rD3_fr1(RegStorage::kValid | rD3_fr1);
+constexpr RegStorage rs_rD4_fr1(RegStorage::kValid | rD4_fr1);
+constexpr RegStorage rs_rD5_fr1(RegStorage::kValid | rD5_fr1);
+constexpr RegStorage rs_rD6_fr1(RegStorage::kValid | rD6_fr1);
+constexpr RegStorage rs_rD7_fr1(RegStorage::kValid | rD7_fr1);
 
 // TODO: reduce/eliminate use of these.
 #define rMIPS_SUSPEND rS0
@@ -408,9 +417,7 @@ enum MipsOpCode {
   kMipsBnez,  // bnez s,o [000101] s[25..21] [00000] o[15..0].
   kMipsBne,   // bne s,t,o [000101] s[25..21] t[20..16] o[15..0].
   kMipsDiv,   // div s,t [000000] s[25..21] t[20..16] [0000000000011010].
-#if __mips_isa_rev >= 2
   kMipsExt,   // ext t,s,p,z [011111] s[25..21] t[20..16] z[15..11] p[10..6] [000000].
-#endif
   kMipsJal,   // jal t [000011] t[25..0].
   kMipsJalr,  // jalr d,s [000000] s[25..21] [00000] d[15..11] hint[10..6] [001001].
   kMipsJr,    // jr s [000000] s[25..21] [0000000000] hint[10..6] [001000].
@@ -433,10 +440,8 @@ enum MipsOpCode {
   kMipsOri,   // ori t,s,imm16 [001001] s[25..21] t[20..16] imm16[15..0].
   kMipsPref,  // pref h,o(b) [101011] b[25..21] h[20..16] o[15..0].
   kMipsSb,    // sb t,o(b) [101000] b[25..21] t[20..16] o[15..0].
-#if __mips_isa_rev >= 2
   kMipsSeb,   // seb d,t [01111100000] t[20..16] d[15..11] [10000100000].
   kMipsSeh,   // seh d,t [01111100000] t[20..16] d[15..11] [11000100000].
-#endif
   kMipsSh,    // sh t,o(b) [101001] b[25..21] t[20..16] o[15..0].
   kMipsSll,   // sll d,t,a [00000000000] t[20..16] d[15..11] a[10..6] [000000].
   kMipsSllv,  // sllv d,t,s [000000] s[25..21] t[20..16] d[15..11] [00000000100].
@@ -481,15 +486,17 @@ enum MipsOpCode {
   kMipsUndefined,  // undefined [011001xxxxxxxxxxxxxxxx].
   kMipsLast
 };
+std::ostream& operator<<(std::ostream& os, const MipsOpCode& rhs);
 
 // Instruction assembly field_loc kind.
 enum MipsEncodingKind {
   kFmtUnused,
-  kFmtBitBlt,    /* Bit string using end/start */
-  kFmtDfp,       /* Double FP reg */
-  kFmtSfp,       /* Single FP reg */
-  kFmtBlt5_2,    /* Same 5-bit field to 2 locations */
+  kFmtBitBlt,    // Bit string using end/start.
+  kFmtDfp,       // Double FP reg.
+  kFmtSfp,       // Single FP reg
+  kFmtBlt5_2,    // Same 5-bit field to 2 locations.
 };
+std::ostream& operator<<(std::ostream& os, const MipsEncodingKind& rhs);
 
 // Struct used to define the snippet positions for each MIPS opcode.
 struct MipsEncodingMap {

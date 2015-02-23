@@ -35,7 +35,7 @@ void MirIFieldLoweringInfo::Resolve(CompilerDriver* compiler_driver,
     DCHECK(field_infos != nullptr);
     DCHECK_NE(count, 0u);
     for (auto it = field_infos, end = field_infos + count; it != end; ++it) {
-      MirIFieldLoweringInfo unresolved(it->field_idx_);
+      MirIFieldLoweringInfo unresolved(it->field_idx_, it->MemAccessType());
       DCHECK_EQ(memcmp(&unresolved, &*it, sizeof(*it)), 0);
     }
   }
@@ -62,10 +62,11 @@ void MirIFieldLoweringInfo::Resolve(CompilerDriver* compiler_driver,
     compiler_driver->GetResolvedFieldDexFileLocation(resolved_field,
         &it->declaring_dex_file_, &it->declaring_class_idx_, &it->declaring_field_idx_);
     bool is_volatile = compiler_driver->IsFieldVolatile(resolved_field);
-    it->field_offset_ = resolved_field->GetOffset();
+    it->field_offset_ = compiler_driver->GetFieldOffset(resolved_field);
     std::pair<bool, bool> fast_path = compiler_driver->IsFastInstanceField(
         dex_cache.Get(), referrer_class.Get(), resolved_field, field_idx);
     it->flags_ = 0u |  // Without kFlagIsStatic.
+        (it->flags_ & (kMemAccessTypeMask << kBitMemAccessTypeBegin)) |
         (is_volatile ? kFlagIsVolatile : 0u) |
         (fast_path.first ? kFlagFastGet : 0u) |
         (fast_path.second ? kFlagFastPut : 0u);
@@ -79,7 +80,7 @@ void MirSFieldLoweringInfo::Resolve(CompilerDriver* compiler_driver,
     DCHECK(field_infos != nullptr);
     DCHECK_NE(count, 0u);
     for (auto it = field_infos, end = field_infos + count; it != end; ++it) {
-      MirSFieldLoweringInfo unresolved(it->field_idx_);
+      MirSFieldLoweringInfo unresolved(it->field_idx_, it->MemAccessType());
       // In 64-bit builds, there's padding after storage_index_, don't include it in memcmp.
       size_t size = OFFSETOF_MEMBER(MirSFieldLoweringInfo, storage_index_) +
           sizeof(it->storage_index_);
@@ -94,7 +95,7 @@ void MirSFieldLoweringInfo::Resolve(CompilerDriver* compiler_driver,
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(compiler_driver->GetDexCache(mUnit)));
   Handle<mirror::ClassLoader> class_loader(
       hs.NewHandle(compiler_driver->GetClassLoader(soa, mUnit)));
-  Handle<mirror::Class> referrer_class(hs.NewHandle(
+  Handle<mirror::Class> referrer_class_handle(hs.NewHandle(
       compiler_driver->ResolveCompilingMethodsClass(soa, dex_cache, class_loader, mUnit)));
   // Even if the referrer class is unresolved (i.e. we're compiling a method without class
   // definition) we still want to resolve fields and record all available info.
@@ -110,16 +111,28 @@ void MirSFieldLoweringInfo::Resolve(CompilerDriver* compiler_driver,
         &it->declaring_dex_file_, &it->declaring_class_idx_, &it->declaring_field_idx_);
     bool is_volatile = compiler_driver->IsFieldVolatile(resolved_field) ? 1u : 0u;
 
-    bool is_referrers_class, is_initialized;
+    mirror::Class* referrer_class = referrer_class_handle.Get();
     std::pair<bool, bool> fast_path = compiler_driver->IsFastStaticField(
-        dex_cache.Get(), referrer_class.Get(), resolved_field, field_idx, &it->field_offset_,
-        &it->storage_index_, &is_referrers_class, &is_initialized);
-    it->flags_ = kFlagIsStatic |
+        dex_cache.Get(), referrer_class, resolved_field, field_idx, &it->storage_index_);
+    uint16_t flags = kFlagIsStatic |
+        (it->flags_ & (kMemAccessTypeMask << kBitMemAccessTypeBegin)) |
         (is_volatile ? kFlagIsVolatile : 0u) |
         (fast_path.first ? kFlagFastGet : 0u) |
-        (fast_path.second ? kFlagFastPut : 0u) |
-        (is_referrers_class ? kFlagIsReferrersClass : 0u) |
-        (is_initialized ? kFlagIsInitialized : 0u);
+        (fast_path.second ? kFlagFastPut : 0u);
+    if (fast_path.first) {
+      it->field_offset_ = compiler_driver->GetFieldOffset(resolved_field);
+      bool is_referrers_class =
+          compiler_driver->IsStaticFieldInReferrerClass(referrer_class, resolved_field);
+      bool is_class_initialized =
+          compiler_driver->IsStaticFieldsClassInitialized(referrer_class, resolved_field);
+      bool is_class_in_dex_cache = !is_referrers_class &&  // If referrer's class, we don't care.
+          compiler_driver->CanAssumeTypeIsPresentInDexCache(*dex_cache->GetDexFile(),
+                                                            it->storage_index_);
+      flags |= (is_referrers_class ? kFlagIsReferrersClass : 0u) |
+          (is_class_initialized ? kFlagClassIsInitialized : 0u) |
+          (is_class_in_dex_cache ? kFlagClassIsInDexCache : 0u);
+    }
+    it->flags_ = flags;
   }
 }
 

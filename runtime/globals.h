@@ -58,14 +58,14 @@ static constexpr bool kIsTargetBuild = true;
 static constexpr bool kIsTargetBuild = false;
 #endif
 
-#if defined(ART_USE_PORTABLE_COMPILER)
-static constexpr bool kUsePortableCompiler = true;
+#if defined(ART_USE_OPTIMIZING_COMPILER)
+static constexpr bool kUseOptimizingCompiler = true;
 #else
-static constexpr bool kUsePortableCompiler = false;
+static constexpr bool kUseOptimizingCompiler = false;
 #endif
 
 // Garbage collector constants.
-static constexpr bool kMovingCollector = true && !kUsePortableCompiler;
+static constexpr bool kMovingCollector = true;
 static constexpr bool kMarkCompactSupport = false && kMovingCollector;
 // True if we allow moving field arrays, this can cause complication with mark compact.
 static constexpr bool kMoveFieldArrays = !kMarkCompactSupport;
@@ -92,25 +92,39 @@ static constexpr bool kUseBrooksReadBarrier = true;
 static constexpr bool kUseBrooksReadBarrier = false;
 #endif
 
+#ifdef USE_TABLE_LOOKUP_READ_BARRIER
+static constexpr bool kUseTableLookupReadBarrier = true;
+#else
+static constexpr bool kUseTableLookupReadBarrier = false;
+#endif
+
 static constexpr bool kUseBakerOrBrooksReadBarrier = kUseBakerReadBarrier || kUseBrooksReadBarrier;
+static constexpr bool kUseReadBarrier = kUseBakerReadBarrier || kUseBrooksReadBarrier ||
+    kUseTableLookupReadBarrier;
 
 // If true, references within the heap are poisoned (negated).
+#ifdef ART_HEAP_POISONING
+static constexpr bool kPoisonHeapReferences = true;
+#else
 static constexpr bool kPoisonHeapReferences = false;
+#endif
 
 // Kinds of tracing clocks.
-enum TraceClockSource {
-  kTraceClockSourceThreadCpu,
-  kTraceClockSourceWall,
-  kTraceClockSourceDual,  // Both wall and thread CPU clocks.
+enum class TraceClockSource {
+  kThreadCpu,
+  kWall,
+  kDual,  // Both wall and thread CPU clocks.
 };
 
-#if defined(HAVE_POSIX_CLOCKS)
-static constexpr TraceClockSource kDefaultTraceClockSource = kTraceClockSourceDual;
+#if defined(__linux__)
+static constexpr TraceClockSource kDefaultTraceClockSource = TraceClockSource::kDual;
 #else
-static constexpr TraceClockSource kDefaultTraceClockSource = kTraceClockSourceWall;
+static constexpr TraceClockSource kDefaultTraceClockSource = TraceClockSource::kWall;
 #endif
 
 static constexpr bool kDefaultMustRelocate = true;
+
+static constexpr bool kArm32QuickCodeUseSoftFloat = false;
 
 }  // namespace art
 

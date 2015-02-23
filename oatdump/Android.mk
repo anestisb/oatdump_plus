@@ -21,19 +21,8 @@ include art/build/Android.executable.mk
 OATDUMP_SRC_FILES := \
 	oatdump.cc
 
-ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
-  $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libcutils libart-disassembler libart-compiler,art/disassembler art/compiler,target,ndebug))
-endif
-ifeq ($(ART_BUILD_TARGET_DEBUG),true)
-  $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libcutils libartd-disassembler libart-compiler,art/disassembler art/compiler,target,debug))
-endif
-
-ifeq ($(ART_BUILD_HOST_NDEBUG),true)
-  $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libart-disassembler libart-compiler,art/disassembler art/compiler,host,ndebug))
-endif
-ifeq ($(ART_BUILD_HOST_DEBUG),true)
-  $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libartd-disassembler libart-compiler,art/disassembler art/compiler,host,debug))
-endif
+# Build variants {target,host} x {debug,ndebug}
+$(eval $(call build-art-multi-executable,oatdump,$(OATDUMP_SRC_FILES),libart-compiler libart-disassembler,libcutils,,art/compiler art/disassembler))
 
 ########################################################################
 # oatdump targets
@@ -53,14 +42,14 @@ dump-oat-core: dump-oat-core-host dump-oat-core-target
 
 .PHONY: dump-oat-core-host
 ifeq ($(ART_BUILD_HOST),true)
-dump-oat-core-host: $(HOST_CORE_IMG_OUT) $(OATDUMP)
+dump-oat-core-host: $(HOST_CORE_IMG_OUTS) $(OATDUMP)
 	$(OATDUMP) --image=$(HOST_CORE_IMG_LOCATION) --output=$(ART_DUMP_OAT_PATH)/core.host.oatdump.txt
 	@echo Output in $(ART_DUMP_OAT_PATH)/core.host.oatdump.txt
 endif
 
 .PHONY: dump-oat-core-target
 ifeq ($(ART_BUILD_TARGET),true)
-dump-oat-core-target: $(TARGET_CORE_IMG_OUT) $(OATDUMP)
+dump-oat-core-target: $(TARGET_CORE_IMAGE_default_no-pic_32) $(OATDUMP)
 	$(OATDUMP) --image=$(TARGET_CORE_IMG_LOCATION) \
 	  --output=$(ART_DUMP_OAT_PATH)/core.target.oatdump.txt --instruction-set=$(TARGET_ARCH)
 	@echo Output in $(ART_DUMP_OAT_PATH)/core.target.oatdump.txt

@@ -390,59 +390,72 @@ class JniInternalTest : public CommonCompilerTest {
   void ReleasePrimitiveArrayElementsOfWrongType(bool check_jni) {
     bool old_check_jni = vm_->SetCheckJniEnabled(check_jni);
     CheckJniAbortCatcher jni_abort_catcher;
+    {
+      jbooleanArray array = env_->NewBooleanArray(10);
+      ASSERT_TRUE(array != nullptr);
+      jboolean is_copy;
+      jboolean* elements = env_->GetBooleanArrayElements(array, &is_copy);
+      ASSERT_TRUE(elements != nullptr);
+      env_->ReleaseByteArrayElements(reinterpret_cast<jbyteArray>(array),
+                                     reinterpret_cast<jbyte*>(elements), 0);
+      jni_abort_catcher.Check(
+          check_jni ? "incompatible array type boolean[] expected byte[]"
+              : "attempt to release byte primitive array elements with an object of type boolean[]");
+      env_->ReleaseShortArrayElements(reinterpret_cast<jshortArray>(array),
+                                      reinterpret_cast<jshort*>(elements), 0);
+      jni_abort_catcher.Check(
+          check_jni ? "incompatible array type boolean[] expected short[]"
+              : "attempt to release short primitive array elements with an object of type boolean[]");
+      env_->ReleaseCharArrayElements(reinterpret_cast<jcharArray>(array),
+                                     reinterpret_cast<jchar*>(elements), 0);
+      jni_abort_catcher.Check(
+          check_jni ? "incompatible array type boolean[] expected char[]"
+              : "attempt to release char primitive array elements with an object of type boolean[]");
+      env_->ReleaseIntArrayElements(reinterpret_cast<jintArray>(array),
+                                    reinterpret_cast<jint*>(elements), 0);
+      jni_abort_catcher.Check(
+          check_jni ? "incompatible array type boolean[] expected int[]"
+              : "attempt to release int primitive array elements with an object of type boolean[]");
+      env_->ReleaseLongArrayElements(reinterpret_cast<jlongArray>(array),
+                                     reinterpret_cast<jlong*>(elements), 0);
+      jni_abort_catcher.Check(
+          check_jni ? "incompatible array type boolean[] expected long[]"
+              : "attempt to release long primitive array elements with an object of type boolean[]");
+      env_->ReleaseFloatArrayElements(reinterpret_cast<jfloatArray>(array),
+                                      reinterpret_cast<jfloat*>(elements), 0);
+      jni_abort_catcher.Check(
+          check_jni ? "incompatible array type boolean[] expected float[]"
+              : "attempt to release float primitive array elements with an object of type boolean[]");
+      env_->ReleaseDoubleArrayElements(reinterpret_cast<jdoubleArray>(array),
+                                       reinterpret_cast<jdouble*>(elements), 0);
+      jni_abort_catcher.Check(
+          check_jni ? "incompatible array type boolean[] expected double[]"
+              : "attempt to release double primitive array elements with an object of type boolean[]");
 
-    jbooleanArray array = env_->NewBooleanArray(10);
-    ASSERT_TRUE(array != nullptr);
-    jboolean is_copy;
-    jboolean* elements = env_->GetBooleanArrayElements(array, &is_copy);
-    ASSERT_TRUE(elements != nullptr);
-    env_->ReleaseByteArrayElements(reinterpret_cast<jbyteArray>(array),
-                                   reinterpret_cast<jbyte*>(elements), 0);
-    jni_abort_catcher.Check(
-        check_jni ? "incompatible array type boolean[] expected byte[]"
-            : "attempt to release byte primitive array elements with an object of type boolean[]");
-    env_->ReleaseShortArrayElements(reinterpret_cast<jshortArray>(array),
-                                    reinterpret_cast<jshort*>(elements), 0);
-    jni_abort_catcher.Check(
-        check_jni ? "incompatible array type boolean[] expected short[]"
-            : "attempt to release short primitive array elements with an object of type boolean[]");
-    env_->ReleaseCharArrayElements(reinterpret_cast<jcharArray>(array),
-                                   reinterpret_cast<jchar*>(elements), 0);
-    jni_abort_catcher.Check(
-        check_jni ? "incompatible array type boolean[] expected char[]"
-            : "attempt to release char primitive array elements with an object of type boolean[]");
-    env_->ReleaseIntArrayElements(reinterpret_cast<jintArray>(array),
-                                  reinterpret_cast<jint*>(elements), 0);
-    jni_abort_catcher.Check(
-        check_jni ? "incompatible array type boolean[] expected int[]"
-            : "attempt to release int primitive array elements with an object of type boolean[]");
-    env_->ReleaseLongArrayElements(reinterpret_cast<jlongArray>(array),
-                                   reinterpret_cast<jlong*>(elements), 0);
-    jni_abort_catcher.Check(
-        check_jni ? "incompatible array type boolean[] expected long[]"
-            : "attempt to release long primitive array elements with an object of type boolean[]");
-    env_->ReleaseFloatArrayElements(reinterpret_cast<jfloatArray>(array),
-                                    reinterpret_cast<jfloat*>(elements), 0);
-    jni_abort_catcher.Check(
-        check_jni ? "incompatible array type boolean[] expected float[]"
-            : "attempt to release float primitive array elements with an object of type boolean[]");
-    env_->ReleaseDoubleArrayElements(reinterpret_cast<jdoubleArray>(array),
-                                     reinterpret_cast<jdouble*>(elements), 0);
-    jni_abort_catcher.Check(
-        check_jni ? "incompatible array type boolean[] expected double[]"
-            : "attempt to release double primitive array elements with an object of type boolean[]");
-    jbyteArray array2 = env_->NewByteArray(10);
-    env_->ReleaseBooleanArrayElements(reinterpret_cast<jbooleanArray>(array2), elements, 0);
-    jni_abort_catcher.Check(
-        check_jni ? "incompatible array type byte[] expected boolean[]"
-            : "attempt to release boolean primitive array elements with an object of type byte[]");
-    jobject object = env_->NewStringUTF("Test String");
-    env_->ReleaseBooleanArrayElements(reinterpret_cast<jbooleanArray>(object), elements, 0);
-    jni_abort_catcher.Check(
-        check_jni ? "jarray argument has non-array type: java.lang.String"
-            : "attempt to release boolean primitive array elements with an object of type "
+      // Don't leak the elements array.
+      env_->ReleaseBooleanArrayElements(array, elements, 0);
+    }
+    {
+      jbyteArray array = env_->NewByteArray(10);
+      jboolean is_copy;
+      jbyte* elements = env_->GetByteArrayElements(array, &is_copy);
+
+      env_->ReleaseBooleanArrayElements(reinterpret_cast<jbooleanArray>(array),
+                                        reinterpret_cast<jboolean*>(elements), 0);
+      jni_abort_catcher.Check(
+          check_jni ? "incompatible array type byte[] expected boolean[]"
+              : "attempt to release boolean primitive array elements with an object of type byte[]");
+      jobject object = env_->NewStringUTF("Test String");
+      env_->ReleaseBooleanArrayElements(reinterpret_cast<jbooleanArray>(object),
+                                        reinterpret_cast<jboolean*>(elements), 0);
+      jni_abort_catcher.Check(
+          check_jni ? "jarray argument has non-array type: java.lang.String"
+              : "attempt to release boolean primitive array elements with an object of type "
               "java.lang.String");
 
+      // Don't leak the elements array.
+      env_->ReleaseByteArrayElements(array, elements, 0);
+    }
     EXPECT_EQ(check_jni, vm_->SetCheckJniEnabled(old_check_jni));
   }
 
@@ -621,6 +634,9 @@ TEST_F(JniInternalTest, GetVersion) {
 }
 
 TEST_F(JniInternalTest, FindClass) {
+  // This tests leads to warnings in the log.
+  ScopedLogSeverity sls(LogSeverity::ERROR);
+
   FindClassTest(false);
   FindClassTest(true);
 }
@@ -799,6 +815,11 @@ TEST_F(JniInternalTest, FromReflectedField_ToReflectedField) {
   ASSERT_NE(fid, nullptr);
   // Turn the fid into a java.lang.reflect.Field...
   jobject field = env_->ToReflectedField(c, fid, JNI_FALSE);
+  for (size_t i = 0; i <= kLocalsMax; ++i) {
+    // Regression test for b/18396311, ToReflectedField leaking local refs causing a local
+    // reference table overflows with 512 references to ArtField
+    env_->DeleteLocalRef(env_->ToReflectedField(c, fid, JNI_FALSE));
+  }
   ASSERT_NE(c, nullptr);
   ASSERT_TRUE(env_->IsInstanceOf(field, jlrField));
   // ...and back again.
@@ -825,6 +846,11 @@ TEST_F(JniInternalTest, FromReflectedMethod_ToReflectedMethod) {
   ASSERT_NE(mid, nullptr);
   // Turn the mid into a java.lang.reflect.Constructor...
   jobject method = env_->ToReflectedMethod(c, mid, JNI_FALSE);
+  for (size_t i = 0; i <= kLocalsMax; ++i) {
+    // Regression test for b/18396311, ToReflectedMethod leaking local refs causing a local
+    // reference table overflows with 512 references to ArtMethod
+    env_->DeleteLocalRef(env_->ToReflectedMethod(c, mid, JNI_FALSE));
+  }
   ASSERT_NE(method, nullptr);
   ASSERT_TRUE(env_->IsInstanceOf(method, jlrConstructor));
   // ...and back again.
@@ -867,40 +893,44 @@ TEST_F(JniInternalTest, RegisterAndUnregisterNatives) {
   // Sanity check that no exceptions are pending.
   ASSERT_FALSE(env_->ExceptionCheck());
 
-  // Check that registering method without name causes a NoSuchMethodError.
+  // The following can print errors to the log we'd like to ignore.
   {
-    JNINativeMethod methods[] = { { nullptr, "()V", native_function } };
-    EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
-  }
-  ExpectException(jlnsme);
+    ScopedLogSeverity sls(LogSeverity::FATAL);
+    // Check that registering method without name causes a NoSuchMethodError.
+    {
+      JNINativeMethod methods[] = { { nullptr, "()V", native_function } };
+      EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
+    }
+    ExpectException(jlnsme);
 
-  // Check that registering method without signature causes a NoSuchMethodError.
-  {
-    JNINativeMethod methods[] = { { "notify", nullptr, native_function } };
-    EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
-  }
-  ExpectException(jlnsme);
+    // Check that registering method without signature causes a NoSuchMethodError.
+    {
+      JNINativeMethod methods[] = { { "notify", nullptr, native_function } };
+      EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
+    }
+    ExpectException(jlnsme);
 
-  // Check that registering method without function causes a NoSuchMethodError.
-  {
-    JNINativeMethod methods[] = { { "notify", "()V", nullptr } };
-    EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
-  }
-  ExpectException(jlnsme);
+    // Check that registering method without function causes a NoSuchMethodError.
+    {
+      JNINativeMethod methods[] = { { "notify", "()V", nullptr } };
+      EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
+    }
+    ExpectException(jlnsme);
 
-  // Check that registering to a non-existent java.lang.Object.foo() causes a NoSuchMethodError.
-  {
-    JNINativeMethod methods[] = { { "foo", "()V", native_function } };
-    EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
-  }
-  ExpectException(jlnsme);
+    // Check that registering to a non-existent java.lang.Object.foo() causes a NoSuchMethodError.
+    {
+      JNINativeMethod methods[] = { { "foo", "()V", native_function } };
+      EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
+    }
+    ExpectException(jlnsme);
 
-  // Check that registering non-native methods causes a NoSuchMethodError.
-  {
-    JNINativeMethod methods[] = { { "equals", "(Ljava/lang/Object;)Z", native_function } };
-    EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
+    // Check that registering non-native methods causes a NoSuchMethodError.
+    {
+      JNINativeMethod methods[] = { { "equals", "(Ljava/lang/Object;)Z", native_function } };
+      EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
+    }
+    ExpectException(jlnsme);
   }
-  ExpectException(jlnsme);
 
   // Check that registering native methods is successful.
   {
@@ -1170,7 +1200,15 @@ TEST_F(JniInternalTest, NewObjectArrayWithInitialValue) {
 }
 
 TEST_F(JniInternalTest, GetArrayLength) {
-  // Already tested in NewObjectArray/NewPrimitiveArray.
+  // Already tested in NewObjectArray/NewPrimitiveArray except for NULL.
+  CheckJniAbortCatcher jni_abort_catcher;
+  bool old_check_jni = vm_->SetCheckJniEnabled(false);
+  EXPECT_EQ(0, env_->GetArrayLength(nullptr));
+  jni_abort_catcher.Check("java_array == null");
+  EXPECT_FALSE(vm_->SetCheckJniEnabled(true));
+  EXPECT_EQ(JNI_ERR, env_->GetArrayLength(nullptr));
+  jni_abort_catcher.Check("jarray was NULL");
+  EXPECT_TRUE(vm_->SetCheckJniEnabled(old_check_jni));
 }
 
 TEST_F(JniInternalTest, GetObjectClass) {
@@ -1269,16 +1307,20 @@ TEST_F(JniInternalTest, GetObjectRefType) {
   jweak weak_global = env_->NewWeakGlobalRef(local);
   EXPECT_EQ(JNIWeakGlobalRefType, env_->GetObjectRefType(weak_global));
 
-  CheckJniAbortCatcher jni_abort_catcher;
-  jobject invalid = reinterpret_cast<jobject>(this);
-  EXPECT_EQ(JNIInvalidRefType, env_->GetObjectRefType(invalid));
-  jni_abort_catcher.Check("use of invalid jobject");
+  {
+    CheckJniAbortCatcher jni_abort_catcher;
+    jobject invalid = reinterpret_cast<jobject>(this);
+    EXPECT_EQ(JNIInvalidRefType, env_->GetObjectRefType(invalid));
+    jni_abort_catcher.Check("use of invalid jobject");
+  }
 
   // TODO: invoke a native method and test that its arguments are considered local references.
 
-  // Null as object should fail.
+  // Null as pointer should not fail and return invalid-ref. b/18820997
   EXPECT_EQ(JNIInvalidRefType, env_->GetObjectRefType(nullptr));
-  jni_abort_catcher.Check("java_object == null");
+
+  // TODO: Null as reference should return the original type.
+  // This requires running a GC so a non-null object gets freed.
 }
 
 TEST_F(JniInternalTest, StaleWeakGlobal) {
@@ -1309,7 +1351,36 @@ TEST_F(JniInternalTest, NewStringUTF) {
   EXPECT_EQ(5, env_->GetStringLength(s));
   EXPECT_EQ(5, env_->GetStringUTFLength(s));
 
-  // TODO: check some non-ASCII strings.
+  // Encoded surrogate pair.
+  s = env_->NewStringUTF("\xed\xa0\x81\xed\xb0\x80");
+  EXPECT_NE(s, nullptr);
+  EXPECT_EQ(2, env_->GetStringLength(s));
+  // Note that this uses 2 x 3 byte UTF sequences, one
+  // for each half of the surrogate pair.
+  EXPECT_EQ(6, env_->GetStringUTFLength(s));
+  const char* chars = env_->GetStringUTFChars(s, nullptr);
+  EXPECT_STREQ("\xed\xa0\x81\xed\xb0\x80", chars);
+  env_->ReleaseStringUTFChars(s, chars);
+
+  // 4 byte UTF sequence appended to an encoded surrogate pair.
+  s = env_->NewStringUTF("\xed\xa0\x81\xed\xb0\x80 \xf0\x9f\x8f\xa0");
+  EXPECT_NE(s, nullptr);
+  EXPECT_EQ(5, env_->GetStringLength(s));
+  EXPECT_EQ(13, env_->GetStringUTFLength(s));
+  chars = env_->GetStringUTFChars(s, nullptr);
+  // The 4 byte sequence {0xf0, 0x9f, 0x8f, 0xa0} is converted into a surrogate
+  // pair {0xd83c, 0xdfe0} which is then converted into a two three byte
+  // sequences {0xed 0xa0, 0xbc} and {0xed, 0xbf, 0xa0}, one for each half of
+  // the surrogate pair.
+  EXPECT_STREQ("\xed\xa0\x81\xed\xb0\x80 \xed\xa0\xbc\xed\xbf\xa0", chars);
+  env_->ReleaseStringUTFChars(s, chars);
+
+  // A string with 1, 2, 3 and 4 byte UTF sequences with spaces
+  // between them
+  s = env_->NewStringUTF("\x24 \xc2\xa2 \xe2\x82\xac \xf0\x9f\x8f\xa0");
+  EXPECT_NE(s, nullptr);
+  EXPECT_EQ(8, env_->GetStringLength(s));
+  EXPECT_EQ(15, env_->GetStringUTFLength(s));
 }
 
 TEST_F(JniInternalTest, NewString) {
@@ -1593,7 +1664,6 @@ TEST_F(JniInternalTest, GetObjectArrayElement_SetObjectArrayElement) {
 
 
 TEST_F(JniInternalTest, GetPrimitiveField_SetPrimitiveField) {
-  TEST_DISABLED_FOR_PORTABLE();
   Thread::Current()->TransitionFromSuspendedToRunnable();
   LoadDex("AllFields");
   bool started = runtime_->Start();
@@ -1624,7 +1694,6 @@ TEST_F(JniInternalTest, GetPrimitiveField_SetPrimitiveField) {
 }
 
 TEST_F(JniInternalTest, GetObjectField_SetObjectField) {
-  TEST_DISABLED_FOR_PORTABLE();
   Thread::Current()->TransitionFromSuspendedToRunnable();
   LoadDex("AllFields");
   runtime_->Start();
@@ -1674,6 +1743,9 @@ TEST_F(JniInternalTest, DeleteLocalRef_nullptr) {
 }
 
 TEST_F(JniInternalTest, DeleteLocalRef) {
+  // This tests leads to warnings and errors in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
   jstring s = env_->NewStringUTF("");
   ASSERT_NE(s, nullptr);
   env_->DeleteLocalRef(s);
@@ -1710,6 +1782,9 @@ TEST_F(JniInternalTest, PushLocalFrame_10395422) {
   ASSERT_EQ(JNI_OK, env_->PushLocalFrame(0));
   env_->PopLocalFrame(nullptr);
 
+  // The following two tests will print errors to the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
   // Negative capacities are not allowed.
   ASSERT_EQ(JNI_ERR, env_->PushLocalFrame(-1));
 
@@ -1718,6 +1793,9 @@ TEST_F(JniInternalTest, PushLocalFrame_10395422) {
 }
 
 TEST_F(JniInternalTest, PushLocalFrame_PopLocalFrame) {
+  // This tests leads to errors in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
   jobject original = env_->NewStringUTF("");
   ASSERT_NE(original, nullptr);
 
@@ -1782,6 +1860,9 @@ TEST_F(JniInternalTest, DeleteGlobalRef_nullptr) {
 }
 
 TEST_F(JniInternalTest, DeleteGlobalRef) {
+  // This tests leads to warnings and errors in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
   jstring s = env_->NewStringUTF("");
   ASSERT_NE(s, nullptr);
 
@@ -1832,6 +1913,9 @@ TEST_F(JniInternalTest, DeleteWeakGlobalRef_nullptr) {
 }
 
 TEST_F(JniInternalTest, DeleteWeakGlobalRef) {
+  // This tests leads to warnings and errors in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
   jstring s = env_->NewStringUTF("");
   ASSERT_NE(s, nullptr);
 
@@ -1956,6 +2040,9 @@ TEST_F(JniInternalTest, NewDirectBuffer_GetDirectBufferAddress_GetDirectBufferCa
 }
 
 TEST_F(JniInternalTest, MonitorEnterExit) {
+  // This will print some error messages. Suppress.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
   // Create an object to torture.
   jclass object_class = env_->FindClass("java/lang/Object");
   ASSERT_NE(object_class, nullptr);
@@ -2009,16 +2096,6 @@ TEST_F(JniInternalTest, MonitorEnterExit) {
     env_->MonitorExit(nullptr);
     check_jni_abort_catcher.Check("in call to MonitorExit");
   }
-}
-
-TEST_F(JniInternalTest, DetachCurrentThread) {
-  CleanUpJniEnv();  // cleanup now so TearDown won't have junk from wrong JNIEnv
-  jint ok = vm_->DetachCurrentThread();
-  EXPECT_EQ(JNI_OK, ok);
-
-  jint err = vm_->DetachCurrentThread();
-  EXPECT_EQ(JNI_ERR, err);
-  vm_->AttachCurrentThread(&env_, nullptr);  // need attached thread for CommonRuntimeTest::TearDown
 }
 
 }  // namespace art

@@ -18,18 +18,15 @@
 
 #include <algorithm>
 
+#include "base/logging.h"
 #include "base/macros.h"
-#include "base/mutex.h"
 #include "base/mutex-inl.h"
-#include "dex/frontend.h"
-#include "thread.h"
+#include "dex/compiler_ir.h"
 #include "thread-inl.h"
 #include "dex/mir_graph.h"
 #include "dex/quick/mir_to_lir.h"
-#include "dex_instruction.h"
 #include "dex_instruction-inl.h"
 #include "driver/dex_compilation_unit.h"
-#include "verifier/method_verifier.h"
 #include "verifier/method_verifier-inl.h"
 
 namespace art {
@@ -68,40 +65,41 @@ static constexpr bool kIntrinsicIsStatic[] = {
     false,  // kIntrinsicUnsafePut
     true,   // kIntrinsicSystemArrayCopyCharArray
 };
-COMPILE_ASSERT(arraysize(kIntrinsicIsStatic) == kInlineOpNop, check_arraysize_kIntrinsicIsStatic);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicDoubleCvt], DoubleCvt_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicFloatCvt], FloatCvt_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicReverseBits], ReverseBits_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicReverseBytes], ReverseBytes_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicAbsInt], AbsInt_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicAbsLong], AbsLong_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicAbsFloat], AbsFloat_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicAbsDouble], AbsDouble_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicMinMaxInt], MinMaxInt_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicMinMaxLong], MinMaxLong_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicMinMaxFloat], MinMaxFloat_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicMinMaxDouble], MinMaxDouble_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicSqrt], Sqrt_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicCeil], Ceil_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicFloor], Floor_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicRint], Rint_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicRoundFloat], RoundFloat_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicRoundDouble], RoundDouble_must_be_static);
-COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicReferenceGetReferent], Get_must_not_be_static);
-COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicCharAt], CharAt_must_not_be_static);
-COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicCompareTo], CompareTo_must_not_be_static);
-COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicIsEmptyOrLength], IsEmptyOrLength_must_not_be_static);
-COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicIndexOf], IndexOf_must_not_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicCurrentThread], CurrentThread_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicPeek], Peek_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicPoke], Poke_must_be_static);
-COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicCas], Cas_must_not_be_static);
-COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicUnsafeGet], UnsafeGet_must_not_be_static);
-COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicUnsafePut], UnsafePut_must_not_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicSystemArrayCopyCharArray],
-               SystemArrayCopyCharArray_must_be_static);
+static_assert(arraysize(kIntrinsicIsStatic) == kInlineOpNop,
+              "arraysize of kIntrinsicIsStatic unexpected");
+static_assert(kIntrinsicIsStatic[kIntrinsicDoubleCvt], "DoubleCvt must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicFloatCvt], "FloatCvt must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicReverseBits], "ReverseBits must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicReverseBytes], "ReverseBytes must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicAbsInt], "AbsInt must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicAbsLong], "AbsLong must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicAbsFloat], "AbsFloat must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicAbsDouble], "AbsDouble must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicMinMaxInt], "MinMaxInt must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicMinMaxLong], "MinMaxLong_must_be_static");
+static_assert(kIntrinsicIsStatic[kIntrinsicMinMaxFloat], "MinMaxFloat_must_be_static");
+static_assert(kIntrinsicIsStatic[kIntrinsicMinMaxDouble], "MinMaxDouble_must_be_static");
+static_assert(kIntrinsicIsStatic[kIntrinsicSqrt], "Sqrt must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicCeil], "Ceil must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicFloor], "Floor must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicRint], "Rint must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicRoundFloat], "RoundFloat must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicRoundDouble], "RoundDouble must be static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicReferenceGetReferent], "Get must not be static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicCharAt], "CharAt must not be static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicCompareTo], "CompareTo must not be static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicIsEmptyOrLength], "IsEmptyOrLength must not be static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicIndexOf], "IndexOf must not be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicCurrentThread], "CurrentThread must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicPeek], "Peek must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicPoke], "Poke must be static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicCas], "Cas must not be static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicUnsafeGet], "UnsafeGet_must_not_be_static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicUnsafePut], "UnsafePut must not be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicSystemArrayCopyCharArray],
+              "SystemArrayCopyCharArray must be static");
 
-MIR* AllocReplacementMIR(MIRGraph* mir_graph, MIR* invoke, MIR* move_return) {
+MIR* AllocReplacementMIR(MIRGraph* mir_graph, MIR* invoke) {
   MIR* insn = mir_graph->NewMIR();
   insn->offset = invoke->offset;
   insn->optimization_flags = MIR_CALLEE;
@@ -111,18 +109,18 @@ MIR* AllocReplacementMIR(MIRGraph* mir_graph, MIR* invoke, MIR* move_return) {
 uint32_t GetInvokeReg(MIR* invoke, uint32_t arg) {
   DCHECK_LT(arg, invoke->dalvikInsn.vA);
   DCHECK(!MIR::DecodedInstruction::IsPseudoMirOp(invoke->dalvikInsn.opcode));
-  if (Instruction::FormatOf(invoke->dalvikInsn.opcode) == Instruction::k3rc) {
-    return invoke->dalvikInsn.vC + arg;  // Non-range invoke.
+  if (IsInvokeInstructionRange(invoke->dalvikInsn.opcode)) {
+    return invoke->dalvikInsn.vC + arg;  // Range invoke.
   } else {
     DCHECK_EQ(Instruction::FormatOf(invoke->dalvikInsn.opcode), Instruction::k35c);
-    return invoke->dalvikInsn.arg[arg];  // Range invoke.
+    return invoke->dalvikInsn.arg[arg];  // Non-range invoke.
   }
 }
 
 bool WideArgIsInConsecutiveDalvikRegs(MIR* invoke, uint32_t arg) {
   DCHECK_LT(arg + 1, invoke->dalvikInsn.vA);
   DCHECK(!MIR::DecodedInstruction::IsPseudoMirOp(invoke->dalvikInsn.opcode));
-  return Instruction::FormatOf(invoke->dalvikInsn.opcode) == Instruction::k3rc ||
+  return IsInvokeInstructionRange(invoke->dalvikInsn.opcode) ||
       invoke->dalvikInsn.arg[arg + 1u] == invoke->dalvikInsn.arg[arg] + 1u;
 }
 
@@ -292,9 +290,9 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
     { { kClassCache ## c, kNameCache ## n, kProtoCache ## p }, { o, kInlineIntrinsic, { d } } }
 
     INTRINSIC(JavaLangDouble, DoubleToRawLongBits, D_J, kIntrinsicDoubleCvt, 0),
-    INTRINSIC(JavaLangDouble, LongBitsToDouble, J_D, kIntrinsicDoubleCvt, 0),
+    INTRINSIC(JavaLangDouble, LongBitsToDouble, J_D, kIntrinsicDoubleCvt, kIntrinsicFlagToFloatingPoint),
     INTRINSIC(JavaLangFloat, FloatToRawIntBits, F_I, kIntrinsicFloatCvt, 0),
-    INTRINSIC(JavaLangFloat, IntBitsToFloat, I_F, kIntrinsicFloatCvt, 0),
+    INTRINSIC(JavaLangFloat, IntBitsToFloat, I_F, kIntrinsicFloatCvt, kIntrinsicFlagToFloatingPoint),
 
     INTRINSIC(JavaLangInteger, ReverseBytes, I_I, kIntrinsicReverseBytes, k32),
     INTRINSIC(JavaLangLong, ReverseBytes, J_J, kIntrinsicReverseBytes, k64),
@@ -395,12 +393,15 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
 DexFileMethodInliner::DexFileMethodInliner()
     : lock_("DexFileMethodInliner lock", kDexFileMethodInlinerLock),
       dex_file_(NULL) {
-  COMPILE_ASSERT(kClassCacheFirst == 0, kClassCacheFirst_not_0);
-  COMPILE_ASSERT(arraysize(kClassCacheNames) == kClassCacheLast, bad_arraysize_kClassCacheNames);
-  COMPILE_ASSERT(kNameCacheFirst == 0, kNameCacheFirst_not_0);
-  COMPILE_ASSERT(arraysize(kNameCacheNames) == kNameCacheLast, bad_arraysize_kNameCacheNames);
-  COMPILE_ASSERT(kProtoCacheFirst == 0, kProtoCacheFirst_not_0);
-  COMPILE_ASSERT(arraysize(kProtoCacheDefs) == kProtoCacheLast, bad_arraysize_kProtoCacheNames);
+  static_assert(kClassCacheFirst == 0, "kClassCacheFirst not 0");
+  static_assert(arraysize(kClassCacheNames) == kClassCacheLast,
+                "bad arraysize for kClassCacheNames");
+  static_assert(kNameCacheFirst == 0, "kNameCacheFirst not 0");
+  static_assert(arraysize(kNameCacheNames) == kNameCacheLast,
+                "bad arraysize for kNameCacheNames");
+  static_assert(kProtoCacheFirst == 0, "kProtoCacheFirst not 0");
+  static_assert(arraysize(kProtoCacheDefs) == kProtoCacheLast,
+                "bad arraysize kProtoCacheNames");
 }
 
 DexFileMethodInliner::~DexFileMethodInliner() {
@@ -555,11 +556,11 @@ bool DexFileMethodInliner::GenInline(MIRGraph* mir_graph, BasicBlock* bb, MIR* i
       break;
     case kInlineOpIGet:
       move_result = mir_graph->FindMoveResult(bb, invoke);
-      result = GenInlineIGet(mir_graph, bb, invoke, move_result, method, method_idx);
+      result = GenInlineIGet(mir_graph, bb, invoke, move_result, method);
       break;
     case kInlineOpIPut:
       move_result = mir_graph->FindMoveResult(bb, invoke);
-      result = GenInlineIPut(mir_graph, bb, invoke, move_result, method, method_idx);
+      result = GenInlineIPut(mir_graph, bb, invoke, move_result, method);
       break;
     default:
       LOG(FATAL) << "Unexpected inline op: " << method.opcode;
@@ -569,8 +570,7 @@ bool DexFileMethodInliner::GenInline(MIRGraph* mir_graph, BasicBlock* bb, MIR* i
     // If the invoke has not been eliminated yet, check now whether we should do it.
     // This is done so that dataflow analysis does not get tripped up seeing nop invoke.
     if (static_cast<int>(invoke->dalvikInsn.opcode) != kMirOpNop) {
-      bool is_static = invoke->dalvikInsn.opcode == Instruction::INVOKE_STATIC ||
-          invoke->dalvikInsn.opcode == Instruction::INVOKE_STATIC_RANGE;
+      bool is_static = IsInstructionInvokeStatic(invoke->dalvikInsn.opcode);
       if (is_static || (invoke->optimization_flags & MIR_IGNORE_NULL_CHECK) != 0) {
         // No null object register involved here so we can eliminate the invoke.
         invoke->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
@@ -737,7 +737,7 @@ bool DexFileMethodInliner::GenInlineConst(MIRGraph* mir_graph, BasicBlock* bb, M
              method.d.data == 0u));
 
   // Insert the CONST instruction.
-  MIR* insn = AllocReplacementMIR(mir_graph, invoke, move_result);
+  MIR* insn = AllocReplacementMIR(mir_graph, invoke);
   insn->dalvikInsn.opcode = Instruction::CONST;
   insn->dalvikInsn.vA = move_result->dalvikInsn.vA;
   insn->dalvikInsn.vB = method.d.data;
@@ -775,7 +775,7 @@ bool DexFileMethodInliner::GenInlineReturnArg(MIRGraph* mir_graph, BasicBlock* b
   }
 
   // Insert the move instruction
-  MIR* insn = AllocReplacementMIR(mir_graph, invoke, move_result);
+  MIR* insn = AllocReplacementMIR(mir_graph, invoke);
   insn->dalvikInsn.opcode = opcode;
   insn->dalvikInsn.vA = move_result->dalvikInsn.vA;
   insn->dalvikInsn.vB = arg;
@@ -784,8 +784,7 @@ bool DexFileMethodInliner::GenInlineReturnArg(MIRGraph* mir_graph, BasicBlock* b
 }
 
 bool DexFileMethodInliner::GenInlineIGet(MIRGraph* mir_graph, BasicBlock* bb, MIR* invoke,
-                                         MIR* move_result, const InlineMethod& method,
-                                         uint32_t method_idx) {
+                                         MIR* move_result, const InlineMethod& method) {
   CompilationUnit* cu = mir_graph->GetCurrentDexCompilationUnit()->GetCompilationUnit();
   if (cu->enable_debug & (1 << kDebugSlowFieldPath)) {
     return false;
@@ -801,9 +800,7 @@ bool DexFileMethodInliner::GenInlineIGet(MIRGraph* mir_graph, BasicBlock* bb, MI
     return !data.is_volatile;
   }
 
-  DCHECK_EQ(data.method_is_static != 0u,
-            invoke->dalvikInsn.opcode == Instruction::INVOKE_STATIC ||
-            invoke->dalvikInsn.opcode == Instruction::INVOKE_STATIC_RANGE);
+  DCHECK_EQ(data.method_is_static != 0u, IsInstructionInvokeStatic(invoke->dalvikInsn.opcode));
   bool object_is_this = (data.method_is_static == 0u && data.object_arg == 0u);
   if (!object_is_this) {
     // TODO: Implement inlining of IGET on non-"this" registers (needs correct stack trace for NPE).
@@ -819,7 +816,7 @@ bool DexFileMethodInliner::GenInlineIGet(MIRGraph* mir_graph, BasicBlock* bb, MI
     invoke->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
   }
 
-  MIR* insn = AllocReplacementMIR(mir_graph, invoke, move_result);
+  MIR* insn = AllocReplacementMIR(mir_graph, invoke);
   insn->offset = invoke->offset;
   insn->dalvikInsn.opcode = opcode;
   insn->dalvikInsn.vA = move_result->dalvikInsn.vA;
@@ -836,8 +833,7 @@ bool DexFileMethodInliner::GenInlineIGet(MIRGraph* mir_graph, BasicBlock* bb, MI
 }
 
 bool DexFileMethodInliner::GenInlineIPut(MIRGraph* mir_graph, BasicBlock* bb, MIR* invoke,
-                                         MIR* move_result, const InlineMethod& method,
-                                         uint32_t method_idx) {
+                                         MIR* move_result, const InlineMethod& method) {
   CompilationUnit* cu = mir_graph->GetCurrentDexCompilationUnit()->GetCompilationUnit();
   if (cu->enable_debug & (1 << kDebugSlowFieldPath)) {
     return false;
@@ -863,9 +859,7 @@ bool DexFileMethodInliner::GenInlineIPut(MIRGraph* mir_graph, BasicBlock* bb, MI
     return false;
   }
 
-  DCHECK_EQ(data.method_is_static != 0u,
-            invoke->dalvikInsn.opcode == Instruction::INVOKE_STATIC ||
-            invoke->dalvikInsn.opcode == Instruction::INVOKE_STATIC_RANGE);
+  DCHECK_EQ(data.method_is_static != 0u, IsInstructionInvokeStatic(invoke->dalvikInsn.opcode));
   bool object_is_this = (data.method_is_static == 0u && data.object_arg == 0u);
   if (!object_is_this) {
     // TODO: Implement inlining of IPUT on non-"this" registers (needs correct stack trace for NPE).
@@ -881,7 +875,7 @@ bool DexFileMethodInliner::GenInlineIPut(MIRGraph* mir_graph, BasicBlock* bb, MI
     invoke->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
   }
 
-  MIR* insn = AllocReplacementMIR(mir_graph, invoke, move_result);
+  MIR* insn = AllocReplacementMIR(mir_graph, invoke);
   insn->dalvikInsn.opcode = opcode;
   insn->dalvikInsn.vA = src_reg;
   insn->dalvikInsn.vB = object_reg;
@@ -895,7 +889,7 @@ bool DexFileMethodInliner::GenInlineIPut(MIRGraph* mir_graph, BasicBlock* bb, MI
   bb->InsertMIRAfter(invoke, insn);
 
   if (move_result != nullptr) {
-    MIR* move = AllocReplacementMIR(mir_graph, invoke, move_result);
+    MIR* move = AllocReplacementMIR(mir_graph, invoke);
     move->offset = move_result->offset;
     if (move_result->dalvikInsn.opcode == Instruction::MOVE_RESULT) {
       move->dalvikInsn.opcode = Instruction::MOVE_FROM16;

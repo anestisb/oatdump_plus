@@ -21,8 +21,6 @@
 #include "primitive.h"
 #include "utils/growable_array.h"
 
-#include "gtest/gtest.h"
-
 namespace art {
 
 class CodeGenerator;
@@ -69,10 +67,11 @@ class RegisterAllocator {
 
   static bool CanAllocateRegistersFor(const HGraph& graph, InstructionSet instruction_set);
   static bool Supports(InstructionSet instruction_set) {
-    return instruction_set == kX86
-        || instruction_set == kArm
-        || instruction_set == kX86_64
-        || instruction_set == kThumb2;
+    return instruction_set == kArm
+        || instruction_set == kArm64
+        || instruction_set == kThumb2
+        || instruction_set == kX86
+        || instruction_set == kX86_64;
   }
 
   size_t GetNumberOfSpillSlots() const {
@@ -96,7 +95,7 @@ class RegisterAllocator {
   bool IsBlocked(int reg) const;
 
   // Update the interval for the register in `location` to cover [start, end).
-  void BlockRegister(Location location, size_t start, size_t end, Primitive::Type type);
+  void BlockRegister(Location location, size_t start, size_t end);
 
   // Allocate a spill slot for the given interval.
   void AllocateSpillSlotFor(LiveInterval* interval);
@@ -128,6 +127,13 @@ class RegisterAllocator {
   void ProcessInstruction(HInstruction* instruction);
   bool ValidateInternal(bool log_fatal_on_failure) const;
   void DumpInterval(std::ostream& stream, LiveInterval* interval) const;
+  void DumpAllIntervals(std::ostream& stream) const;
+  int FindAvailableRegisterPair(size_t* next_use, size_t starting_at) const;
+  int FindAvailableRegister(size_t* next_use) const;
+
+  // Try splitting an active non-pair interval at the given `position`.
+  // Returns whether it was successful at finding such an interval.
+  bool TrySplitNonPairIntervalAt(size_t position, size_t first_register_use, size_t* next_use);
 
   ArenaAllocator* const allocator_;
   CodeGenerator* const codegen_;
@@ -158,7 +164,8 @@ class RegisterAllocator {
 
   // Fixed intervals for physical registers. Such intervals cover the positions
   // where an instruction requires a specific register.
-  GrowableArray<LiveInterval*> physical_register_intervals_;
+  GrowableArray<LiveInterval*> physical_core_register_intervals_;
+  GrowableArray<LiveInterval*> physical_fp_register_intervals_;
 
   // Intervals for temporaries. Such intervals cover the positions
   // where an instruction requires a temporary.
@@ -181,15 +188,20 @@ class RegisterAllocator {
   size_t* registers_array_;
 
   // Blocked registers, as decided by the code generator.
-  bool* const blocked_registers_;
+  bool* const blocked_core_registers_;
+  bool* const blocked_fp_registers_;
 
   // Slots reserved for out arguments.
   size_t reserved_out_slots_;
 
-  // The maximum live registers at safepoints.
-  size_t maximum_number_of_live_registers_;
+  // The maximum live core registers at safepoints.
+  size_t maximum_number_of_live_core_registers_;
 
-  FRIEND_TEST(RegisterAllocatorTest, FreeUntil);
+  // The maximum live FP registers at safepoints.
+  size_t maximum_number_of_live_fp_registers_;
+
+  ART_FRIEND_TEST(RegisterAllocatorTest, FreeUntil);
+  ART_FRIEND_TEST(RegisterAllocatorTest, SpillInactive);
 
   DISALLOW_COPY_AND_ASSIGN(RegisterAllocator);
 };

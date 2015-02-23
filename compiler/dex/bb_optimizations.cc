@@ -52,19 +52,31 @@ bool BBCombine::Worker(PassDataHolder* data) const {
 }
 
 /*
- * BasicBlock Optimization pass implementation start.
+ * MethodUseCount pass implementation start.
  */
-void BBOptimizations::Start(PassDataHolder* data) const {
+bool MethodUseCount::Gate(const PassDataHolder* data) const {
   DCHECK(data != nullptr);
-  CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
+  CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
   DCHECK(c_unit != nullptr);
-  /*
-   * This pass has a different ordering depEnding on the suppress exception,
-   * so do the pass here for now:
-   *   - Later, the Start should just change the ordering and we can move the extended
-   *     creation into the pass driver's main job with a new iterator
-   */
-  c_unit->mir_graph->BasicBlockOptimization();
+  // First initialize the data.
+  c_unit->mir_graph->InitializeMethodUses();
+
+  // Now check if the pass is to be ignored.
+  bool res = ((c_unit->disable_opt & (1 << kPromoteRegs)) == 0);
+
+  return res;
+}
+
+bool MethodUseCount::Worker(PassDataHolder* data) const {
+  DCHECK(data != nullptr);
+  PassMEDataHolder* pass_me_data_holder = down_cast<PassMEDataHolder*>(data);
+  CompilationUnit* c_unit = pass_me_data_holder->c_unit;
+  DCHECK(c_unit != nullptr);
+  BasicBlock* bb = pass_me_data_holder->bb;
+  DCHECK(bb != nullptr);
+  c_unit->mir_graph->CountUses(bb);
+  // No need of repeating, so just return false.
+  return false;
 }
 
 }  // namespace art

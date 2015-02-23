@@ -15,11 +15,12 @@
  */
 
 #include "mem_map.h"
-#include "thread-inl.h"
 
-#include <inttypes.h>
 #include <backtrace/BacktraceMap.h>
+#include <inttypes.h>
+
 #include <memory>
+#include <sstream>
 
 /* Fix legacy define issue (Google how do you build without this?) */
 #ifndef MAP_ANONYMOUS
@@ -32,7 +33,13 @@
 #endif
 
 #include "base/stringprintf.h"
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
 #include "ScopedFd.h"
+#pragma GCC diagnostic pop
+
+#include "thread-inl.h"
 #include "utils.h"
 
 #define USE_ASHMEM 1
@@ -75,7 +82,7 @@ std::ostream& operator<<(std::ostream& os, const MemMap::Maps& mem_maps) {
   return os;
 }
 
-MemMap::Maps MemMap::maps_;
+MemMap::Maps* MemMap::maps_ = nullptr;
 
 #if USE_ART_LOW_4G_ALLOCATOR
 // Handling mem_map in 32b address range for 64b architectures that do not support MAP_32BIT.
@@ -241,6 +248,9 @@ static bool CheckMapRequest(uint8_t* expected_ptr, void* actual_ptr, size_t byte
 
 MemMap* MemMap::MapAnonymous(const char* name, uint8_t* expected_ptr, size_t byte_count, int prot,
                              bool low_4gb, std::string* error_msg) {
+#ifndef __LP64__
+  UNUSED(low_4gb);
+#endif
   if (byte_count == 0) {
     return new MemMap(name, nullptr, 0, nullptr, 0, prot, false);
   }
@@ -462,11 +472,12 @@ MemMap::~MemMap() {
   // Remove it from maps_.
   MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
   bool found = false;
-  for (auto it = maps_.lower_bound(base_begin_), end = maps_.end();
+  DCHECK(maps_ != nullptr);
+  for (auto it = maps_->lower_bound(base_begin_), end = maps_->end();
        it != end && it->first == base_begin_; ++it) {
     if (it->second == this) {
       found = true;
-      maps_.erase(it);
+      maps_->erase(it);
       break;
     }
   }
@@ -488,7 +499,8 @@ MemMap::MemMap(const std::string& name, uint8_t* begin, size_t size, void* base_
 
     // Add it to maps_.
     MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
-    maps_.insert(std::pair<void*, MemMap*>(base_begin_, this));
+    DCHECK(maps_ != nullptr);
+    maps_->insert(std::make_pair(base_begin_, this));
   }
 }
 
@@ -619,7 +631,7 @@ void MemMap::DumpMapsLocked(std::ostream& os) {
 
 bool MemMap::HasMemMap(MemMap* map) {
   void* base_begin = map->BaseBegin();
-  for (auto it = maps_.lower_bound(base_begin), end = maps_.end();
+  for (auto it = maps_->lower_bound(base_begin), end = maps_->end();
        it != end && it->first == base_begin; ++it) {
     if (it->second == map) {
       return true;
@@ -631,7 +643,8 @@ bool MemMap::HasMemMap(MemMap* map) {
 MemMap* MemMap::GetLargestMemMapAt(void* address) {
   size_t largest_size = 0;
   MemMap* largest_map = nullptr;
-  for (auto it = maps_.lower_bound(address), end = maps_.end();
+  DCHECK(maps_ != nullptr);
+  for (auto it = maps_->lower_bound(address), end = maps_->end();
        it != end && it->first == address; ++it) {
     MemMap* map = it->second;
     CHECK(map != nullptr);
@@ -641,6 +654,33 @@ MemMap* MemMap::GetLargestMemMapAt(void* address) {
     }
   }
   return largest_map;
+}
+
+void MemMap::Init() {
+  MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
+  if (maps_ == nullptr) {
+    // dex2oat calls MemMap::Init twice since its needed before the runtime is created.
+    maps_ = new Maps;
+  }
+}
+
+void MemMap::Shutdown() {
+  MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
+  delete maps_;
+  maps_ = nullptr;
+}
+
+void MemMap::SetSize(size_t new_size) {
+  if (new_size == base_size_) {
+    return;
+  }
+  CHECK_ALIGNED(new_size, kPageSize);
+  CHECK_EQ(base_size_, size_) << "Unsupported";
+  CHECK_LE(new_size, base_size_);
+  CHECK_EQ(munmap(reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(BaseBegin()) + new_size),
+                  base_size_ - new_size), 0) << new_size << " " << base_size_;
+  base_size_ = new_size;
+  size_ = new_size;
 }
 
 std::ostream& operator<<(std::ostream& os, const MemMap& mem_map) {

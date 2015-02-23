@@ -54,9 +54,8 @@ class CardTable {
   static CardTable* Create(const uint8_t* heap_begin, size_t heap_capacity);
 
   // Set the card associated with the given address to GC_CARD_DIRTY.
-  void MarkCard(const void *addr) {
-    uint8_t* card_addr = CardFromAddr(addr);
-    *card_addr = kCardDirty;
+  ALWAYS_INLINE void MarkCard(const void *addr) {
+    *CardFromAddr(addr) = kCardDirty;
   }
 
   // Is the object on a dirty card?
@@ -102,7 +101,7 @@ class CardTable {
 
   // For every dirty at least minumum age between begin and end invoke the visitor with the
   // specified argument. Returns how many cards the visitor was run on.
-  template <typename Visitor>
+  template <bool kClearCard, typename Visitor>
   size_t Scan(SpaceBitmap<kObjectAlignment>* bitmap, uint8_t* scan_begin, uint8_t* scan_end,
               const Visitor& visitor,
               const uint8_t minimum_age = kCardDirty) const
@@ -114,6 +113,7 @@ class CardTable {
 
   // Resets all of the bytes in the card table to clean.
   void ClearCardTable();
+  void ClearCardRange(uint8_t* start, uint8_t* end);
 
   // Resets all of the bytes in the card table which do not map to the image space.
   void ClearSpaceCards(space::ContinuousSpace* space);

@@ -20,14 +20,16 @@
 #include <memory>
 #include <vector>
 
-#include "dex_instruction.h"
-#include "reg_type.h"
 #include "safe_map.h"
 
 namespace art {
+
+class Instruction;
+
 namespace verifier {
 
 class MethodVerifier;
+class RegType;
 
 /*
  * Register type categories, for type checking.
@@ -118,9 +120,7 @@ class RegisterLine {
 
   void FillWithGarbage() {
     memset(&line_, 0xf1, num_regs_ * sizeof(uint16_t));
-    while (!monitors_.empty()) {
-      monitors_.pop_back();
-    }
+    monitors_.clear();
     reg_to_lock_depths_.clear();
   }
 
@@ -156,6 +156,18 @@ class RegisterLine {
    * somehow didn't get initialized.
    */
   bool CheckConstructorReturn(MethodVerifier* verifier) const;
+
+  /*
+   * Check if an UninitializedThis at the specified location has been overwritten before
+   * being correctly initialized.
+   */
+  bool WasUninitializedThisOverwritten(MethodVerifier* verifier, size_t this_loc,
+                                       bool was_invoke_direct) const;
+
+  /*
+   * Get the first location of an UninitializedThis type, or return kInvalidVreg if there are none.
+   */
+  bool GetUninitializedThisLoc(MethodVerifier* verifier, size_t* vreg) const;
 
   // Compare two register lines. Returns 0 if they match.
   // Using this for a sort is unwise, since the value can change based on machine endianness.
@@ -277,15 +289,7 @@ class RegisterLine {
   bool MergeRegisters(MethodVerifier* verifier, const RegisterLine* incoming_line)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  size_t GetMaxNonZeroReferenceReg(MethodVerifier* verifier, size_t max_ref_reg) {
-    size_t i = static_cast<int>(max_ref_reg) < 0 ? 0 : max_ref_reg;
-    for (; i < num_regs_; i++) {
-      if (GetRegisterType(verifier, i).IsNonZeroReferenceTypes()) {
-        max_ref_reg = i;
-      }
-    }
-    return max_ref_reg;
-  }
+  size_t GetMaxNonZeroReferenceReg(MethodVerifier* verifier, size_t max_ref_reg) const;
 
   // Write a bit at each register location that holds a reference.
   void WriteReferenceBitMap(MethodVerifier* verifier, std::vector<uint8_t>* data, size_t max_bytes);
@@ -315,15 +319,18 @@ class RegisterLine {
     }
   }
 
-  void SetRegToLockDepth(size_t reg, size_t depth) {
+  bool SetRegToLockDepth(size_t reg, size_t depth) {
     CHECK_LT(depth, 32u);
-    DCHECK(!IsSetLockDepth(reg, depth));
+    if (IsSetLockDepth(reg, depth)) {
+      return false;  // Register already holds lock so locking twice is erroneous.
+    }
     auto it = reg_to_lock_depths_.find(reg);
     if (it == reg_to_lock_depths_.end()) {
       reg_to_lock_depths_.Put(reg, 1 << depth);
     } else {
       it->second |= (1 << depth);
     }
+    return true;
   }
 
   void ClearRegToLockDepth(size_t reg, size_t depth) {
@@ -349,21 +356,23 @@ class RegisterLine {
     SetResultTypeToUnknown(verifier);
   }
 
-  // Storage for the result register's type, valid after an invocation
+  // Storage for the result register's type, valid after an invocation.
   uint16_t result_[2];
 
   // Length of reg_types_
   const uint32_t num_regs_;
 
-  // A stack of monitor enter locations
+  // A stack of monitor enter locations.
   std::vector<uint32_t, TrackingAllocator<uint32_t, kAllocatorTagVerifier>> monitors_;
   // A map from register to a bit vector of indices into the monitors_ stack. As we pop the monitor
   // stack we verify that monitor-enter/exit are correctly nested. That is, if there was a
-  // monitor-enter on v5 and then on v6, we expect the monitor-exit to be on v6 then on v5
+  // monitor-enter on v5 and then on v6, we expect the monitor-exit to be on v6 then on v5.
   AllocationTrackingSafeMap<uint32_t, uint32_t, kAllocatorTagVerifier> reg_to_lock_depths_;
 
   // An array of RegType Ids associated with each dex register.
   uint16_t line_[0];
+
+  DISALLOW_COPY_AND_ASSIGN(RegisterLine);
 };
 
 }  // namespace verifier

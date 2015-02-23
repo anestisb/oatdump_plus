@@ -73,14 +73,12 @@ class JniCompilerTest : public CommonCompilerTest {
     }
     ASSERT_TRUE(method != nullptr) << method_name << " " << method_sig;
     if (check_generic_jni_) {
-      method->SetEntryPointFromQuickCompiledCode(class_linker_->GetQuickGenericJniTrampoline());
+      method->SetEntryPointFromQuickCompiledCode(class_linker_->GetRuntimeQuickGenericJniStub());
     } else {
-      if (method->GetEntryPointFromQuickCompiledCode() == nullptr ||
-          method->GetEntryPointFromQuickCompiledCode() == class_linker_->GetQuickGenericJniTrampoline()) {
+      const void* code = method->GetEntryPointFromQuickCompiledCode();
+      if (code == nullptr || class_linker_->IsQuickGenericJniStub(code)) {
         CompileMethod(method);
         ASSERT_TRUE(method->GetEntryPointFromQuickCompiledCode() != nullptr)
-            << method_name << " " << method_sig;
-        ASSERT_TRUE(method->GetEntryPointFromPortableCompiledCode() != nullptr)
             << method_name << " " << method_sig;
       }
     }
@@ -204,7 +202,6 @@ void Java_MyClassNatives_foo(JNIEnv* env, jobject thisObj) {
 }
 
 void JniCompilerTest::CompileAndRunNoArgMethodImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(false, "foo", "()V", reinterpret_cast<void*>(&Java_MyClassNatives_foo));
 
   EXPECT_EQ(0, gJava_MyClassNatives_foo_calls);
@@ -219,7 +216,6 @@ void JniCompilerTest::CompileAndRunNoArgMethodImpl() {
 JNI_TEST(CompileAndRunNoArgMethod)
 
 void JniCompilerTest::CompileAndRunIntMethodThroughStubImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(false, "bar", "(I)I", nullptr);
   // calling through stub will link with &Java_MyClassNatives_bar
 
@@ -234,7 +230,6 @@ void JniCompilerTest::CompileAndRunIntMethodThroughStubImpl() {
 JNI_TEST(CompileAndRunIntMethodThroughStub)
 
 void JniCompilerTest::CompileAndRunStaticIntMethodThroughStubImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(true, "sbar", "(I)I", nullptr);
   // calling through stub will link with &Java_MyClassNatives_sbar
 
@@ -262,7 +257,6 @@ jint Java_MyClassNatives_fooI(JNIEnv* env, jobject thisObj, jint x) {
 }
 
 void JniCompilerTest::CompileAndRunIntMethodImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(false, "fooI", "(I)I",
                reinterpret_cast<void*>(&Java_MyClassNatives_fooI));
 
@@ -293,7 +287,6 @@ jint Java_MyClassNatives_fooII(JNIEnv* env, jobject thisObj, jint x, jint y) {
 }
 
 void JniCompilerTest::CompileAndRunIntIntMethodImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(false, "fooII", "(II)I",
                reinterpret_cast<void*>(&Java_MyClassNatives_fooII));
 
@@ -325,7 +318,6 @@ jlong Java_MyClassNatives_fooJJ(JNIEnv* env, jobject thisObj, jlong x, jlong y) 
 }
 
 void JniCompilerTest::CompileAndRunLongLongMethodImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(false, "fooJJ", "(JJ)J",
                reinterpret_cast<void*>(&Java_MyClassNatives_fooJJ));
 
@@ -358,7 +350,6 @@ jdouble Java_MyClassNatives_fooDD(JNIEnv* env, jobject thisObj, jdouble x, jdoub
 }
 
 void JniCompilerTest::CompileAndRunDoubleDoubleMethodImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(false, "fooDD", "(DD)D",
                reinterpret_cast<void*>(&Java_MyClassNatives_fooDD));
 
@@ -390,7 +381,6 @@ jlong Java_MyClassNatives_fooJJ_synchronized(JNIEnv* env, jobject thisObj, jlong
 }
 
 void JniCompilerTest::CompileAndRun_fooJJ_synchronizedImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(false, "fooJJ_synchronized", "(JJ)J",
                reinterpret_cast<void*>(&Java_MyClassNatives_fooJJ_synchronized));
 
@@ -430,7 +420,6 @@ jobject Java_MyClassNatives_fooIOO(JNIEnv* env, jobject thisObj, jint x, jobject
 }
 
 void JniCompilerTest::CompileAndRunIntObjectObjectMethodImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(false, "fooIOO",
                "(ILjava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
                reinterpret_cast<void*>(&Java_MyClassNatives_fooIOO));
@@ -479,7 +468,6 @@ jint Java_MyClassNatives_fooSII(JNIEnv* env, jclass klass, jint x, jint y) {
 }
 
 void JniCompilerTest::CompileAndRunStaticIntIntMethodImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(true, "fooSII", "(II)I",
                reinterpret_cast<void*>(&Java_MyClassNatives_fooSII));
 
@@ -507,7 +495,6 @@ jdouble Java_MyClassNatives_fooSDD(JNIEnv* env, jclass klass, jdouble x, jdouble
 }
 
 void JniCompilerTest::CompileAndRunStaticDoubleDoubleMethodImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(true, "fooSDD", "(DD)D",
                reinterpret_cast<void*>(&Java_MyClassNatives_fooSDD));
 
@@ -530,12 +517,11 @@ JNI_TEST(CompileAndRunStaticDoubleDoubleMethod)
 // point return value would be in xmm0. We use log, to somehow ensure
 // the compiler will use the floating point stack.
 
-jdouble Java_MyClassNatives_logD(JNIEnv* env, jclass klass, jdouble x) {
+jdouble Java_MyClassNatives_logD(JNIEnv*, jclass, jdouble x) {
   return log(x);
 }
 
 void JniCompilerTest::RunStaticLogDoubleMethodImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(true, "logD", "(D)D", reinterpret_cast<void*>(&Java_MyClassNatives_logD));
 
   jdouble result = env_->CallStaticDoubleMethod(jklass_, jmethod_, 2.0);
@@ -544,12 +530,11 @@ void JniCompilerTest::RunStaticLogDoubleMethodImpl() {
 
 JNI_TEST(RunStaticLogDoubleMethod)
 
-jfloat Java_MyClassNatives_logF(JNIEnv* env, jclass klass, jfloat x) {
+jfloat Java_MyClassNatives_logF(JNIEnv*, jclass, jfloat x) {
   return logf(x);
 }
 
 void JniCompilerTest::RunStaticLogFloatMethodImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(true, "logF", "(F)F", reinterpret_cast<void*>(&Java_MyClassNatives_logF));
 
   jfloat result = env_->CallStaticFloatMethod(jklass_, jmethod_, 2.0);
@@ -558,20 +543,19 @@ void JniCompilerTest::RunStaticLogFloatMethodImpl() {
 
 JNI_TEST(RunStaticLogFloatMethod)
 
-jboolean Java_MyClassNatives_returnTrue(JNIEnv* env, jclass klass) {
+jboolean Java_MyClassNatives_returnTrue(JNIEnv*, jclass) {
   return JNI_TRUE;
 }
 
-jboolean Java_MyClassNatives_returnFalse(JNIEnv* env, jclass klass) {
+jboolean Java_MyClassNatives_returnFalse(JNIEnv*, jclass) {
   return JNI_FALSE;
 }
 
-jint Java_MyClassNatives_returnInt(JNIEnv* env, jclass klass) {
+jint Java_MyClassNatives_returnInt(JNIEnv*, jclass) {
   return 42;
 }
 
 void JniCompilerTest::RunStaticReturnTrueImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(true, "returnTrue", "()Z", reinterpret_cast<void*>(&Java_MyClassNatives_returnTrue));
 
   jboolean result = env_->CallStaticBooleanMethod(jklass_, jmethod_);
@@ -581,7 +565,6 @@ void JniCompilerTest::RunStaticReturnTrueImpl() {
 JNI_TEST(RunStaticReturnTrue)
 
 void JniCompilerTest::RunStaticReturnFalseImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(true, "returnFalse", "()Z",
                reinterpret_cast<void*>(&Java_MyClassNatives_returnFalse));
 
@@ -592,7 +575,6 @@ void JniCompilerTest::RunStaticReturnFalseImpl() {
 JNI_TEST(RunStaticReturnFalse)
 
 void JniCompilerTest::RunGenericStaticReturnIntImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(true, "returnInt", "()I", reinterpret_cast<void*>(&Java_MyClassNatives_returnInt));
 
   jint result = env_->CallStaticIntMethod(jklass_, jmethod_);
@@ -626,7 +608,6 @@ jobject Java_MyClassNatives_fooSIOO(JNIEnv* env, jclass klass, jint x, jobject y
 
 
 void JniCompilerTest::CompileAndRunStaticIntObjectObjectMethodImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(true, "fooSIOO",
                "(ILjava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
                reinterpret_cast<void*>(&Java_MyClassNatives_fooSIOO));
@@ -684,7 +665,6 @@ jobject Java_MyClassNatives_fooSSIOO(JNIEnv* env, jclass klass, jint x, jobject 
 }
 
 void JniCompilerTest::CompileAndRunStaticSynchronizedIntObjectObjectMethodImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(true, "fooSSIOO",
                "(ILjava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
                reinterpret_cast<void*>(&Java_MyClassNatives_fooSSIOO));
@@ -725,7 +705,6 @@ void Java_MyClassNatives_throwException(JNIEnv* env, jobject) {
 }
 
 void JniCompilerTest::ExceptionHandlingImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   {
     ASSERT_FALSE(runtime_->IsStarted());
     ScopedObjectAccess soa(Thread::Current());
@@ -785,9 +764,9 @@ jint Java_MyClassNatives_nativeUpCall(JNIEnv* env, jobject thisObj, jint i) {
     EXPECT_EQ(11, trace_array->GetLength());
 
     // Check stack trace entries have expected values
-    for (int32_t i = 0; i < trace_array->GetLength(); ++i) {
-      EXPECT_EQ(-2, trace_array->Get(i)->GetLineNumber());
-      mirror::StackTraceElement* ste = trace_array->Get(i);
+    for (int32_t j = 0; j < trace_array->GetLength(); ++j) {
+      EXPECT_EQ(-2, trace_array->Get(j)->GetLineNumber());
+      mirror::StackTraceElement* ste = trace_array->Get(j);
       EXPECT_STREQ("MyClassNatives.java", ste->GetFileName()->ToModifiedUtf8().c_str());
       EXPECT_STREQ("MyClassNatives", ste->GetDeclaringClass()->ToModifiedUtf8().c_str());
       EXPECT_STREQ("fooI", ste->GetMethodName()->ToModifiedUtf8().c_str());
@@ -810,7 +789,6 @@ jint Java_MyClassNatives_nativeUpCall(JNIEnv* env, jobject thisObj, jint i) {
 }
 
 void JniCompilerTest::NativeStackTraceElementImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(false, "fooI", "(I)I",
                reinterpret_cast<void*>(&Java_MyClassNatives_nativeUpCall));
   jint result = env_->CallNonvirtualIntMethod(jobj_, jklass_, jmethod_, 10);
@@ -824,7 +802,6 @@ jobject Java_MyClassNatives_fooO(JNIEnv* env, jobject, jobject x) {
 }
 
 void JniCompilerTest::ReturnGlobalRefImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(false, "fooO", "(Ljava/lang/Object;)Ljava/lang/Object;",
                reinterpret_cast<void*>(&Java_MyClassNatives_fooO));
   jobject result = env_->CallNonvirtualObjectMethod(jobj_, jklass_, jmethod_, jobj_);
@@ -844,7 +821,6 @@ jint local_ref_test(JNIEnv* env, jobject thisObj, jint x) {
 }
 
 void JniCompilerTest::LocalReferenceTableClearingTestImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(false, "fooI", "(I)I", reinterpret_cast<void*>(&local_ref_test));
   // 1000 invocations of a method that adds 10 local references
   for (int i = 0; i < 1000; i++) {
@@ -865,7 +841,6 @@ void my_arraycopy(JNIEnv* env, jclass klass, jobject src, jint src_pos, jobject 
 }
 
 void JniCompilerTest::JavaLangSystemArrayCopyImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(true, "arraycopy", "(Ljava/lang/Object;ILjava/lang/Object;II)V",
                reinterpret_cast<void*>(&my_arraycopy));
   env_->CallStaticVoidMethod(jklass_, jmethod_, jobj_, 1234, jklass_, 5678, 9876);
@@ -883,7 +858,6 @@ jboolean my_casi(JNIEnv* env, jobject unsafe, jobject obj, jlong offset, jint ex
 }
 
 void JniCompilerTest::CompareAndSwapIntImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(false, "compareAndSwapInt", "(Ljava/lang/Object;JII)Z",
                reinterpret_cast<void*>(&my_casi));
   jboolean result = env_->CallBooleanMethod(jobj_, jmethod_, jobj_, INT64_C(0x12345678ABCDEF88),
@@ -903,7 +877,6 @@ jint my_gettext(JNIEnv* env, jclass klass, jlong val1, jobject obj1, jlong val2,
 }
 
 void JniCompilerTest::GetTextImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(true, "getText", "(JLjava/lang/Object;JLjava/lang/Object;)I",
                reinterpret_cast<void*>(&my_gettext));
   jint result = env_->CallStaticIntMethod(jklass_, jmethod_, 0x12345678ABCDEF88ll, jobj_,
@@ -931,7 +904,6 @@ jarray Java_MyClassNatives_GetSinkProperties(JNIEnv* env, jobject thisObj, jstri
 }
 
 void JniCompilerTest::GetSinkPropertiesNativeImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(false, "getSinkPropertiesNative", "(Ljava/lang/String;)[Ljava/lang/Object;",
                reinterpret_cast<void*>(&Java_MyClassNatives_GetSinkProperties));
 
@@ -957,12 +929,10 @@ jobject Java_MyClassNatives_staticMethodThatShouldReturnClass(JNIEnv* env, jclas
 }
 
 void JniCompilerTest::UpcallReturnTypeChecking_InstanceImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(false, "instanceMethodThatShouldReturnClass", "()Ljava/lang/Class;",
                reinterpret_cast<void*>(&Java_MyClassNatives_instanceMethodThatShouldReturnClass));
 
   CheckJniAbortCatcher check_jni_abort_catcher;
-  // TODO: check type of returns with portable JNI compiler.
   // This native method is bad, and tries to return a jstring as a jclass.
   env_->CallObjectMethod(jobj_, jmethod_);
   check_jni_abort_catcher.Check("attempt to return an instance of java.lang.String from java.lang.Class MyClassNatives.instanceMethodThatShouldReturnClass()");
@@ -977,12 +947,10 @@ void JniCompilerTest::UpcallReturnTypeChecking_InstanceImpl() {
 JNI_TEST(UpcallReturnTypeChecking_Instance)
 
 void JniCompilerTest::UpcallReturnTypeChecking_StaticImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(true, "staticMethodThatShouldReturnClass", "()Ljava/lang/Class;",
                reinterpret_cast<void*>(&Java_MyClassNatives_staticMethodThatShouldReturnClass));
 
   CheckJniAbortCatcher check_jni_abort_catcher;
-  // TODO: check type of returns with portable JNI compiler.
   // This native method is bad, and tries to return a jstring as a jclass.
   env_->CallStaticObjectMethod(jklass_, jmethod_);
   check_jni_abort_catcher.Check("attempt to return an instance of java.lang.String from java.lang.Class MyClassNatives.staticMethodThatShouldReturnClass()");
@@ -1005,7 +973,9 @@ void Java_MyClassNatives_staticMethodThatShouldTakeClass(JNIEnv*, jclass, jclass
 }
 
 void JniCompilerTest::UpcallArgumentTypeChecking_InstanceImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
+  // This will lead to error messages in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
   SetUpForTest(false, "instanceMethodThatShouldTakeClass", "(ILjava/lang/Class;)V",
                reinterpret_cast<void*>(&Java_MyClassNatives_instanceMethodThatShouldTakeClass));
 
@@ -1018,7 +988,9 @@ void JniCompilerTest::UpcallArgumentTypeChecking_InstanceImpl() {
 JNI_TEST(UpcallArgumentTypeChecking_Instance)
 
 void JniCompilerTest::UpcallArgumentTypeChecking_StaticImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
+  // This will lead to error messages in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
   SetUpForTest(true, "staticMethodThatShouldTakeClass", "(ILjava/lang/Class;)V",
                reinterpret_cast<void*>(&Java_MyClassNatives_staticMethodThatShouldTakeClass));
 
@@ -1041,7 +1013,6 @@ jfloat Java_MyClassNatives_checkFloats(JNIEnv* env, jobject thisObj, jfloat f1, 
 }
 
 void JniCompilerTest::CompileAndRunFloatFloatMethodImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(false, "checkFloats", "(FF)F",
                reinterpret_cast<void*>(&Java_MyClassNatives_checkFloats));
 
@@ -1056,7 +1027,10 @@ void JniCompilerTest::CompileAndRunFloatFloatMethodImpl() {
 
 JNI_TEST(CompileAndRunFloatFloatMethod)
 
-void Java_MyClassNatives_checkParameterAlign(JNIEnv* env, jobject thisObj, jint i1, jlong l1) {
+void Java_MyClassNatives_checkParameterAlign(JNIEnv* env ATTRIBUTE_UNUSED,
+                                             jobject thisObj ATTRIBUTE_UNUSED,
+                                             jint i1 ATTRIBUTE_UNUSED,
+                                             jlong l1 ATTRIBUTE_UNUSED) {
 //  EXPECT_EQ(kNative, Thread::Current()->GetState());
 //  EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
 //  EXPECT_TRUE(thisObj != nullptr);
@@ -1068,7 +1042,6 @@ void Java_MyClassNatives_checkParameterAlign(JNIEnv* env, jobject thisObj, jint 
 }
 
 void JniCompilerTest::CheckParameterAlignImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(false, "checkParameterAlign", "(IJ)V",
                reinterpret_cast<void*>(&Java_MyClassNatives_checkParameterAlign));
 
@@ -1483,7 +1456,6 @@ const char* longSig =
     "Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)V";
 
 void JniCompilerTest::MaxParamNumberImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(false, "maxParamNumber", longSig,
                reinterpret_cast<void*>(&Java_MyClassNatives_maxParamNumber));
 
@@ -1509,7 +1481,9 @@ void JniCompilerTest::MaxParamNumberImpl() {
 JNI_TEST(MaxParamNumber)
 
 void JniCompilerTest::WithoutImplementationImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
+  // This will lead to error messages in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
   SetUpForTest(false, "withoutImplementation", "()V", nullptr);
 
   env_->CallVoidMethod(jobj_, jmethod_);
@@ -1520,7 +1494,7 @@ void JniCompilerTest::WithoutImplementationImpl() {
 
 JNI_TEST(WithoutImplementation)
 
-void Java_MyClassNatives_stackArgsIntsFirst(JNIEnv* env, jclass klass, jint i1, jint i2, jint i3,
+void Java_MyClassNatives_stackArgsIntsFirst(JNIEnv*, jclass, jint i1, jint i2, jint i3,
                                             jint i4, jint i5, jint i6, jint i7, jint i8, jint i9,
                                             jint i10, jfloat f1, jfloat f2, jfloat f3, jfloat f4,
                                             jfloat f5, jfloat f6, jfloat f7, jfloat f8, jfloat f9,
@@ -1559,7 +1533,6 @@ void Java_MyClassNatives_stackArgsIntsFirst(JNIEnv* env, jclass klass, jint i1, 
 }
 
 void JniCompilerTest::StackArgsIntsFirstImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(true, "stackArgsIntsFirst", "(IIIIIIIIIIFFFFFFFFFF)V",
                reinterpret_cast<void*>(&Java_MyClassNatives_stackArgsIntsFirst));
 
@@ -1591,7 +1564,7 @@ void JniCompilerTest::StackArgsIntsFirstImpl() {
 
 JNI_TEST(StackArgsIntsFirst)
 
-void Java_MyClassNatives_stackArgsFloatsFirst(JNIEnv* env, jclass klass, jfloat f1, jfloat f2,
+void Java_MyClassNatives_stackArgsFloatsFirst(JNIEnv*, jclass, jfloat f1, jfloat f2,
                                               jfloat f3, jfloat f4, jfloat f5, jfloat f6, jfloat f7,
                                               jfloat f8, jfloat f9, jfloat f10, jint i1, jint i2,
                                               jint i3, jint i4, jint i5, jint i6, jint i7, jint i8,
@@ -1630,7 +1603,6 @@ void Java_MyClassNatives_stackArgsFloatsFirst(JNIEnv* env, jclass klass, jfloat 
 }
 
 void JniCompilerTest::StackArgsFloatsFirstImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(true, "stackArgsFloatsFirst", "(FFFFFFFFFFIIIIIIIIII)V",
                reinterpret_cast<void*>(&Java_MyClassNatives_stackArgsFloatsFirst));
 
@@ -1662,7 +1634,7 @@ void JniCompilerTest::StackArgsFloatsFirstImpl() {
 
 JNI_TEST(StackArgsFloatsFirst)
 
-void Java_MyClassNatives_stackArgsMixed(JNIEnv* env, jclass klass, jint i1, jfloat f1, jint i2,
+void Java_MyClassNatives_stackArgsMixed(JNIEnv*, jclass, jint i1, jfloat f1, jint i2,
                                         jfloat f2, jint i3, jfloat f3, jint i4, jfloat f4, jint i5,
                                         jfloat f5, jint i6, jfloat f6, jint i7, jfloat f7, jint i8,
                                         jfloat f8, jint i9, jfloat f9, jint i10, jfloat f10) {
@@ -1700,7 +1672,6 @@ void Java_MyClassNatives_stackArgsMixed(JNIEnv* env, jclass klass, jint i1, jflo
 }
 
 void JniCompilerTest::StackArgsMixedImpl() {
-  TEST_DISABLED_FOR_PORTABLE();
   SetUpForTest(true, "stackArgsMixed", "(IFIFIFIFIFIFIFIFIFIF)V",
                reinterpret_cast<void*>(&Java_MyClassNatives_stackArgsMixed));
 

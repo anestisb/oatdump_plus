@@ -15,8 +15,12 @@
  */
 
 #include "codegen_mips.h"
+
+#include "arch/mips/instruction_set_features_mips.h"
+#include "base/logging.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "dex/reg_storage_eq.h"
+#include "driver/compiler_driver.h"
 #include "mips_lir.h"
 
 namespace art {
@@ -52,18 +56,22 @@ LIR* MipsMir2Lir::OpFpRegCopy(RegStorage r_dest, RegStorage r_src) {
 }
 
 bool MipsMir2Lir::InexpensiveConstantInt(int32_t value) {
-  return ((value == 0) || IsUint(16, value) || ((value < 0) && (value >= -32768)));
+  // For encodings, see LoadConstantNoClobber below.
+  return ((value == 0) || IsUint<16>(value) || IsInt<16>(value));
 }
 
 bool MipsMir2Lir::InexpensiveConstantFloat(int32_t value) {
+  UNUSED(value);
   return false;  // TUNING
 }
 
 bool MipsMir2Lir::InexpensiveConstantLong(int64_t value) {
+  UNUSED(value);
   return false;  // TUNING
 }
 
 bool MipsMir2Lir::InexpensiveConstantDouble(int64_t value) {
+  UNUSED(value);
   return false;  // TUNING
 }
 
@@ -89,9 +97,11 @@ LIR* MipsMir2Lir::LoadConstantNoClobber(RegStorage r_dest, int value) {
   /* See if the value can be constructed cheaply */
   if (value == 0) {
     res = NewLIR2(kMipsMove, r_dest.GetReg(), rZERO);
-  } else if ((value > 0) && (value <= 65535)) {
+  } else if (IsUint<16>(value)) {
+    // Use OR with (unsigned) immediate to encode 16b unsigned int.
     res = NewLIR3(kMipsOri, r_dest.GetReg(), rZERO, value);
-  } else if ((value < 0) && (value >= -32768)) {
+  } else if (IsInt<16>(value)) {
+    // Use ADD with (signed) immediate to encode 16b signed int.
     res = NewLIR3(kMipsAddiu, r_dest.GetReg(), rZERO, value);
   } else {
     res = NewLIR2(kMipsLui, r_dest.GetReg(), value >> 16);
@@ -120,7 +130,7 @@ LIR* MipsMir2Lir::OpReg(OpKind op, RegStorage r_dest_src) {
       opcode = kMipsJalr;
       break;
     case kOpBx:
-      return NewLIR1(kMipsJr, r_dest_src.GetReg());
+      return NewLIR2(kMipsJalr, rZERO, r_dest_src.GetReg());
       break;
     default:
       LOG(FATAL) << "Bad case in OpReg";
@@ -223,17 +233,17 @@ LIR* MipsMir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src1, i
       }
       break;
     case kOpLsl:
-        DCHECK(value >= 0 && value <= 31);
-        opcode = kMipsSll;
-        break;
+      DCHECK(value >= 0 && value <= 31);
+      opcode = kMipsSll;
+      break;
     case kOpLsr:
-        DCHECK(value >= 0 && value <= 31);
-        opcode = kMipsSrl;
-        break;
+      DCHECK(value >= 0 && value <= 31);
+      opcode = kMipsSrl;
+      break;
     case kOpAsr:
-        DCHECK(value >= 0 && value <= 31);
-        opcode = kMipsSra;
-        break;
+      DCHECK(value >= 0 && value <= 31);
+      opcode = kMipsSra;
+      break;
     case kOpAnd:
       if (IS_UIMM16((value))) {
         opcode = kMipsAndi;
@@ -301,44 +311,49 @@ LIR* MipsMir2Lir::OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2)
     case kOpXor:
       return OpRegRegReg(op, r_dest_src1, r_dest_src1, r_src2);
     case kOp2Byte:
-#if __mips_isa_rev >= 2
-      res = NewLIR2(kMipsSeb, r_dest_src1.GetReg(), r_src2.GetReg());
-#else
-      res = OpRegRegImm(kOpLsl, r_dest_src1, r_src2, 24);
-      OpRegRegImm(kOpAsr, r_dest_src1, r_dest_src1, 24);
-#endif
+      if (cu_->compiler_driver->GetInstructionSetFeatures()->AsMipsInstructionSetFeatures()
+          ->IsMipsIsaRevGreaterThanEqual2()) {
+        res = NewLIR2(kMipsSeb, r_dest_src1.GetReg(), r_src2.GetReg());
+      } else {
+        res = OpRegRegImm(kOpLsl, r_dest_src1, r_src2, 24);
+        OpRegRegImm(kOpAsr, r_dest_src1, r_dest_src1, 24);
+      }
       return res;
     case kOp2Short:
-#if __mips_isa_rev >= 2
-      res = NewLIR2(kMipsSeh, r_dest_src1.GetReg(), r_src2.GetReg());
-#else
-      res = OpRegRegImm(kOpLsl, r_dest_src1, r_src2, 16);
-      OpRegRegImm(kOpAsr, r_dest_src1, r_dest_src1, 16);
-#endif
+      if (cu_->compiler_driver->GetInstructionSetFeatures()->AsMipsInstructionSetFeatures()
+          ->IsMipsIsaRevGreaterThanEqual2()) {
+        res = NewLIR2(kMipsSeh, r_dest_src1.GetReg(), r_src2.GetReg());
+      } else {
+        res = OpRegRegImm(kOpLsl, r_dest_src1, r_src2, 16);
+        OpRegRegImm(kOpAsr, r_dest_src1, r_dest_src1, 16);
+      }
       return res;
     case kOp2Char:
-       return NewLIR3(kMipsAndi, r_dest_src1.GetReg(), r_src2.GetReg(), 0xFFFF);
+      return NewLIR3(kMipsAndi, r_dest_src1.GetReg(), r_src2.GetReg(), 0xFFFF);
     default:
       LOG(FATAL) << "Bad case in OpRegReg";
-      break;
+      UNREACHABLE();
   }
   return NewLIR2(opcode, r_dest_src1.GetReg(), r_src2.GetReg());
 }
 
 LIR* MipsMir2Lir::OpMovRegMem(RegStorage r_dest, RegStorage r_base, int offset,
                               MoveType move_type) {
+  UNUSED(r_dest, r_base, offset, move_type);
   UNIMPLEMENTED(FATAL);
-  return nullptr;
+  UNREACHABLE();
 }
 
 LIR* MipsMir2Lir::OpMovMemReg(RegStorage r_base, int offset, RegStorage r_src, MoveType move_type) {
+  UNUSED(r_base, offset, r_src, move_type);
   UNIMPLEMENTED(FATAL);
-  return nullptr;
+  UNREACHABLE();
 }
 
 LIR* MipsMir2Lir::OpCondRegReg(OpKind op, ConditionCode cc, RegStorage r_dest, RegStorage r_src) {
+  UNUSED(op, cc, r_dest, r_src);
   LOG(FATAL) << "Unexpected use of OpCondRegReg for MIPS";
-  return NULL;
+  UNREACHABLE();
 }
 
 LIR* MipsMir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
@@ -538,7 +553,7 @@ LIR* MipsMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStora
   }
 
   if (mem_ref_type_ == ResourceMask::kDalvikReg) {
-    DCHECK(r_base == rs_rMIPS_SP);
+    DCHECK_EQ(r_base, rs_rMIPS_SP);
     AnnotateDalvikRegAccess(load, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
                             true /* is_load */, pair /* is64bit */);
     if (pair) {
@@ -640,7 +655,7 @@ LIR* MipsMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement,
   }
 
   if (mem_ref_type_ == ResourceMask::kDalvikReg) {
-    DCHECK(r_base == rs_rMIPS_SP);
+    DCHECK_EQ(r_base, rs_rMIPS_SP);
     AnnotateDalvikRegAccess(store, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
                             false /* is_load */, pair /* is64bit */);
     if (pair) {
@@ -681,16 +696,19 @@ LIR* MipsMir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage 
 }
 
 LIR* MipsMir2Lir::OpMem(OpKind op, RegStorage r_base, int disp) {
+  UNUSED(op, r_base, disp);
   LOG(FATAL) << "Unexpected use of OpMem for MIPS";
-  return NULL;
+  UNREACHABLE();
 }
 
 LIR* MipsMir2Lir::OpCondBranch(ConditionCode cc, LIR* target) {
+  UNUSED(cc, target);
   LOG(FATAL) << "Unexpected use of OpCondBranch for MIPS";
-  return NULL;
+  UNREACHABLE();
 }
 
 LIR* MipsMir2Lir::InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) {
+  UNUSED(trampoline);  // The address of the trampoline is already loaded into r_tgt.
   return OpReg(op, r_tgt);
 }
 

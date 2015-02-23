@@ -24,7 +24,7 @@
 #include "class.h"
 #include "class-inl.h"
 #include "class_linker-inl.h"
-#include "field_helper.h"
+#include "dex_file-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/heap.h"
 #include "iftable-inl.h"
@@ -38,6 +38,8 @@
 
 namespace art {
 namespace mirror {
+
+Atomic<uint32_t> Object::hash_code_seed(987654321U + std::time(nullptr));
 
 class CopyReferenceFieldsWithReadBarrierVisitor {
  public:
@@ -73,7 +75,7 @@ Object* Object::CopyObject(Thread* self, mirror::Object* dest, mirror::Object* s
   uint8_t* dst_bytes = reinterpret_cast<uint8_t*>(dest);
   size_t offset = sizeof(Object);
   memcpy(dst_bytes + offset, src_bytes + offset, num_bytes - offset);
-  if (kUseBakerOrBrooksReadBarrier) {
+  if (kUseReadBarrier) {
     // We need a RB here. After the memcpy that covers the whole
     // object above, copy references fields one by one again with a
     // RB. TODO: Optimize this later?
@@ -135,15 +137,18 @@ Object* Object::Clone(Thread* self) {
   return copy;
 }
 
-int32_t Object::GenerateIdentityHashCode() {
-  static AtomicInteger seed(987654321 + std::time(nullptr));
-  int32_t expected_value, new_value;
+uint32_t Object::GenerateIdentityHashCode() {
+  uint32_t expected_value, new_value;
   do {
-    expected_value = static_cast<uint32_t>(seed.LoadRelaxed());
+    expected_value = hash_code_seed.LoadRelaxed();
     new_value = expected_value * 1103515245 + 12345;
-  } while ((expected_value & LockWord::kHashMask) == 0 ||
-      !seed.CompareExchangeWeakRelaxed(expected_value, new_value));
+  } while (!hash_code_seed.CompareExchangeWeakRelaxed(expected_value, new_value) ||
+      (expected_value & LockWord::kHashMask) == 0);
   return expected_value & LockWord::kHashMask;
+}
+
+void Object::SetHashCodeSeed(uint32_t new_seed) {
+  hash_code_seed.StoreRelaxed(new_seed);
 }
 
 int32_t Object::IdentityHashCode() const {
@@ -200,13 +205,18 @@ void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, Object* new_val
   for (Class* cur = c; cur != NULL; cur = cur->GetSuperClass()) {
     ObjectArray<ArtField>* fields = cur->GetIFields();
     if (fields != NULL) {
-      size_t num_ref_ifields = cur->NumReferenceInstanceFields();
-      for (size_t i = 0; i < num_ref_ifields; ++i) {
+      size_t num_ifields = fields->GetLength();
+      for (size_t i = 0; i < num_ifields; ++i) {
+        StackHandleScope<1> hs(Thread::Current());
+        Handle<Object> h_object(hs.NewHandle(new_value));
         ArtField* field = fields->Get(i);
         if (field->GetOffset().Int32Value() == field_offset.Int32Value()) {
-          StackHandleScope<1> hs(Thread::Current());
-          FieldHelper fh(hs.NewHandle(field));
-          CHECK(fh.GetType()->IsAssignableFrom(new_value->GetClass()));
+          CHECK_NE(field->GetTypeAsPrimitiveType(), Primitive::kPrimNot);
+          // TODO: resolve the field type for moving GC.
+          mirror::Class* field_type = field->GetType(!kMovingCollector);
+          if (field_type != nullptr) {
+            CHECK(field_type->IsAssignableFrom(new_value->GetClass()));
+          }
           return;
         }
       }
@@ -219,13 +229,16 @@ void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, Object* new_val
   if (IsClass()) {
     ObjectArray<ArtField>* fields = AsClass()->GetSFields();
     if (fields != NULL) {
-      size_t num_ref_sfields = AsClass()->NumReferenceStaticFields();
-      for (size_t i = 0; i < num_ref_sfields; ++i) {
+      size_t num_sfields = fields->GetLength();
+      for (size_t i = 0; i < num_sfields; ++i) {
         ArtField* field = fields->Get(i);
         if (field->GetOffset().Int32Value() == field_offset.Int32Value()) {
-          StackHandleScope<1> hs(Thread::Current());
-          FieldHelper fh(hs.NewHandle(field));
-          CHECK(fh.GetType()->IsAssignableFrom(new_value->GetClass()));
+          CHECK_NE(field->GetTypeAsPrimitiveType(), Primitive::kPrimNot);
+          // TODO: resolve the field type for moving GC.
+          mirror::Class* field_type = field->GetType(!kMovingCollector);
+          if (field_type != nullptr) {
+            CHECK(field_type->IsAssignableFrom(new_value->GetClass()));
+          }
           return;
         }
       }
@@ -233,6 +246,7 @@ void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, Object* new_val
   }
   LOG(FATAL) << "Failed to find field for assignment to " << reinterpret_cast<void*>(this)
       << " of type " << PrettyDescriptor(c) << " at offset " << field_offset;
+  UNREACHABLE();
 }
 
 }  // namespace mirror

@@ -105,6 +105,9 @@ class RosAlloc {
         rosalloc->ReleasePageRange(start, start + byte_size);
       }
     }
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(FreePageRun);
   };
 
   // Represents a run of memory slots of the same size.
@@ -246,7 +249,7 @@ class RosAlloc {
     // Dump the run metadata for debugging.
     std::string Dump();
     // Verify for debugging.
-    void Verify(Thread* self, RosAlloc* rosalloc)
+    void Verify(Thread* self, RosAlloc* rosalloc, bool running_on_valgrind)
         EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
         EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_);
 
@@ -256,6 +259,8 @@ class RosAlloc {
     size_t MarkFreeBitMapShared(void* ptr, uint32_t* free_bit_map_base, const char* caller_name);
     // Turns the bit map into a string for debugging.
     static std::string BitMapToStr(uint32_t* bit_map_base, size_t num_vec);
+
+    // TODO: DISALLOW_COPY_AND_ASSIGN(Run);
   };
 
   // The magic number for a run.
@@ -355,13 +360,14 @@ class RosAlloc {
   // Returns the page map index from an address. Requires that the
   // address is page size aligned.
   size_t ToPageMapIndex(const void* addr) const {
-    DCHECK(base_ <= addr && addr < base_ + capacity_);
+    DCHECK_LE(base_, addr);
+    DCHECK_LT(addr, base_ + capacity_);
     size_t byte_offset = reinterpret_cast<const uint8_t*>(addr) - base_;
     DCHECK_EQ(byte_offset % static_cast<size_t>(kPageSize), static_cast<size_t>(0));
     return byte_offset / kPageSize;
   }
   // Returns the page map index from an address with rounding.
-  size_t RoundDownToPageMapIndex(void* addr) const {
+  size_t RoundDownToPageMapIndex(const void* addr) const {
     DCHECK(base_ <= addr && addr < reinterpret_cast<uint8_t*>(base_) + capacity_);
     return (reinterpret_cast<uintptr_t>(addr) - reinterpret_cast<uintptr_t>(base_)) / kPageSize;
   }
@@ -372,6 +378,10 @@ class RosAlloc {
 
   // If true, check that the returned memory is actually zero.
   static constexpr bool kCheckZeroMemory = kIsDebugBuild;
+  // Valgrind protects memory, so do not check memory when running under valgrind. In a normal
+  // build with kCheckZeroMemory the whole test should be optimized away.
+  // TODO: Unprotect before checks.
+  ALWAYS_INLINE bool ShouldCheckZeroMemory();
 
   // If true, log verbose details of operations.
   static constexpr bool kTraceRosAlloc = false;
@@ -404,8 +414,7 @@ class RosAlloc {
 
   // We use thread-local runs for the size Brackets whose indexes
   // are less than this index. We use shared (current) runs for the rest.
-
-  static const size_t kNumThreadLocalSizeBrackets = 11;
+  static const size_t kNumThreadLocalSizeBrackets = 8;
 
  private:
   // The base address of the memory region that's managed by this allocator.
@@ -446,7 +455,7 @@ class RosAlloc {
   // Bracket lock names (since locks only have char* names).
   std::string size_bracket_lock_names_[kNumOfSizeBrackets];
   // The types of page map entries.
-  enum {
+  enum PageMapKind {
     kPageMapReleased = 0,     // Zero and released back to the OS.
     kPageMapEmpty,            // Zero but probably dirty.
     kPageMapRun,              // The beginning of a run.
@@ -479,6 +488,9 @@ class RosAlloc {
   // Under kPageReleaseModeSize(AndEnd), if the free page run size is
   // greater than or equal to this value, release pages.
   const size_t page_release_size_threshold_;
+
+  // Whether this allocator is running under Valgrind.
+  bool running_on_valgrind_;
 
   // The base address of the memory region that's managed by this allocator.
   uint8_t* Begin() { return base_; }
@@ -526,11 +538,16 @@ class RosAlloc {
   // Release a range of pages.
   size_t ReleasePageRange(uint8_t* start, uint8_t* end) EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
+  // Dumps the page map for debugging.
+  std::string DumpPageMap() EXCLUSIVE_LOCKS_REQUIRED(lock_);
+
  public:
   RosAlloc(void* base, size_t capacity, size_t max_capacity,
            PageReleaseMode page_release_mode,
+           bool running_on_valgrind,
            size_t page_release_size_threshold = kDefaultPageReleaseSizeThreshold);
   ~RosAlloc();
+
   // If kThreadUnsafe is true then the allocator may avoid acquiring some locks as an optimization.
   // If used, this may cause race conditions if multiple threads are allocating at the same time.
   template<bool kThreadSafe = true>
@@ -540,8 +557,9 @@ class RosAlloc {
       LOCKS_EXCLUDED(bulk_free_lock_);
   size_t BulkFree(Thread* self, void** ptrs, size_t num_ptrs)
       LOCKS_EXCLUDED(bulk_free_lock_);
+
   // Returns the size of the allocated slot for a given allocated memory chunk.
-  size_t UsableSize(void* ptr);
+  size_t UsableSize(const void* ptr);
   // Returns the size of the allocated slot for a given size.
   size_t UsableSize(size_t bytes) {
     if (UNLIKELY(bytes > kLargeSizeThreshold)) {
@@ -557,6 +575,7 @@ class RosAlloc {
   void InspectAll(void (*handler)(void* start, void* end, size_t used_bytes, void* callback_arg),
                   void* arg)
       LOCKS_EXCLUDED(lock_);
+
   // Release empty pages.
   size_t ReleasePages() LOCKS_EXCLUDED(lock_);
   // Returns the current footprint.
@@ -565,6 +584,7 @@ class RosAlloc {
   size_t FootprintLimit() LOCKS_EXCLUDED(lock_);
   // Update the current capacity.
   void SetFootprintLimit(size_t bytes) LOCKS_EXCLUDED(lock_);
+
   // Releases the thread-local runs assigned to the given thread back to the common set of runs.
   void RevokeThreadLocalRuns(Thread* thread);
   // Releases the thread-local runs assigned to all the threads back to the common set of runs.
@@ -573,8 +593,7 @@ class RosAlloc {
   void AssertThreadLocalRunsAreRevoked(Thread* thread);
   // Assert all the thread local runs are revoked.
   void AssertAllThreadLocalRunsAreRevoked() LOCKS_EXCLUDED(Locks::thread_list_lock_);
-  // Dumps the page map for debugging.
-  std::string DumpPageMap() EXCLUSIVE_LOCKS_REQUIRED(lock_);
+
   static Run* GetDedicatedFullRun() {
     return dedicated_full_run_;
   }
@@ -597,7 +616,17 @@ class RosAlloc {
   void Verify() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes);
+
+ private:
+  friend std::ostream& operator<<(std::ostream& os, const RosAlloc::PageMapKind& rhs);
+
+  DISALLOW_COPY_AND_ASSIGN(RosAlloc);
 };
+std::ostream& operator<<(std::ostream& os, const RosAlloc::PageMapKind& rhs);
+
+// Callback from rosalloc when it needs to increase the footprint. Must be implemented somewhere
+// else (currently rosalloc_space.cc).
+void* ArtRosAllocMoreCore(allocator::RosAlloc* rosalloc, intptr_t increment);
 
 }  // namespace allocator
 }  // namespace gc

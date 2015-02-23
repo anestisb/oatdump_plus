@@ -31,6 +31,8 @@
 
 namespace art {
 
+class RootInfo;
+
 namespace mirror {
 class Object;
 }  // namespace mirror
@@ -316,7 +318,7 @@ class IndirectReferenceTable {
     return IrtIterator(table_, Capacity(), Capacity());
   }
 
-  void VisitRoots(RootCallback* callback, void* arg, uint32_t tid, RootType root_type)
+  void VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uint32_t GetSegmentState() const {
@@ -330,6 +332,9 @@ class IndirectReferenceTable {
   static Offset SegmentStateOffset() {
     return Offset(OFFSETOF_MEMBER(IndirectReferenceTable, segment_state_));
   }
+
+  // Release pages past the end of the table that may have previously held references.
+  void Trim() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   // Extract the table index from an indirect reference.

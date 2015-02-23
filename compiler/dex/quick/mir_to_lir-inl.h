@@ -19,7 +19,8 @@
 
 #include "mir_to_lir.h"
 
-#include "dex/compiler_internals.h"
+#include "base/logging.h"
+#include "dex/compiler_ir.h"
 
 namespace art {
 
@@ -274,6 +275,24 @@ inline void Mir2Lir::CheckRegStorage(RegStorage rs, WidenessCheck wide, RefCheck
   if (kFailOnSizeError || kReportSizeError) {
     CheckRegStorageImpl(rs, wide, ref, fp, kFailOnSizeError, kReportSizeError);
   }
+}
+
+inline Mir2Lir::ShortyIterator::ShortyIterator(const char* shorty, bool is_static)
+    : cur_(shorty + 1), pending_this_(!is_static), initialized_(false) {
+  DCHECK(shorty != nullptr);
+  DCHECK_NE(*shorty, 0);
+}
+
+inline bool Mir2Lir::ShortyIterator::Next() {
+  if (!initialized_) {
+    initialized_ = true;
+  } else if (pending_this_) {
+    pending_this_ = false;
+  } else if (*cur_ != 0) {
+    cur_++;
+  }
+
+  return *cur_ != 0 || pending_this_;
 }
 
 }  // namespace art

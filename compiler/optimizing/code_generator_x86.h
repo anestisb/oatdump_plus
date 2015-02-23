@@ -18,6 +18,8 @@
 #define ART_COMPILER_OPTIMIZING_CODE_GENERATOR_X86_H_
 
 #include "code_generator.h"
+#include "dex/compiler_enums.h"
+#include "driver/compiler_options.h"
 #include "nodes.h"
 #include "parallel_move_resolver.h"
 #include "utils/x86/assembler_x86.h"
@@ -25,15 +27,17 @@
 namespace art {
 namespace x86 {
 
-static constexpr size_t kX86WordSize = 4;
+// Use a local definition to prevent copying mistakes.
+static constexpr size_t kX86WordSize = kX86PointerSize;
 
 class CodeGeneratorX86;
+class SlowPathCodeX86;
 
 static constexpr Register kParameterCoreRegisters[] = { ECX, EDX, EBX };
 static constexpr RegisterPair kParameterCorePairRegisters[] = { ECX_EDX, EDX_EBX };
 static constexpr size_t kParameterCoreRegistersLength = arraysize(kParameterCoreRegisters);
-static constexpr XmmRegister kParameterFpuRegisters[] = { };
-static constexpr size_t kParameterFpuRegistersLength = 0;
+static constexpr XmmRegister kParameterFpuRegisters[] = { XMM0, XMM1, XMM2, XMM3 };
+static constexpr size_t kParameterFpuRegistersLength = arraysize(kParameterFpuRegisters);
 
 class InvokeDexCallingConvention : public CallingConvention<Register, XmmRegister> {
  public:
@@ -54,13 +58,18 @@ class InvokeDexCallingConvention : public CallingConvention<Register, XmmRegiste
 
 class InvokeDexCallingConventionVisitor {
  public:
-  InvokeDexCallingConventionVisitor() : gp_index_(0) {}
+  InvokeDexCallingConventionVisitor() : gp_index_(0), fp_index_(0), stack_index_(0) {}
 
   Location GetNextLocation(Primitive::Type type);
 
  private:
   InvokeDexCallingConvention calling_convention;
+  // The current index for cpu registers.
   uint32_t gp_index_;
+  // The current index for fpu registers.
+  uint32_t fp_index_;
+  // The current stack index.
+  uint32_t stack_index_;
 
   DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionVisitor);
 };
@@ -70,17 +79,19 @@ class ParallelMoveResolverX86 : public ParallelMoveResolver {
   ParallelMoveResolverX86(ArenaAllocator* allocator, CodeGeneratorX86* codegen)
       : ParallelMoveResolver(allocator), codegen_(codegen) {}
 
-  virtual void EmitMove(size_t index) OVERRIDE;
-  virtual void EmitSwap(size_t index) OVERRIDE;
-  virtual void SpillScratch(int reg) OVERRIDE;
-  virtual void RestoreScratch(int reg) OVERRIDE;
+  void EmitMove(size_t index) OVERRIDE;
+  void EmitSwap(size_t index) OVERRIDE;
+  void SpillScratch(int reg) OVERRIDE;
+  void RestoreScratch(int reg) OVERRIDE;
 
   X86Assembler* GetAssembler() const;
 
  private:
   void Exchange(Register reg, int mem);
   void Exchange(int mem1, int mem2);
-  void MoveMemoryToMemory(int dst, int src);
+  void Exchange32(XmmRegister reg, int mem);
+  void MoveMemoryToMemory32(int dst, int src);
+  void MoveMemoryToMemory64(int dst, int src);
 
   CodeGeneratorX86* const codegen_;
 
@@ -93,15 +104,19 @@ class LocationsBuilderX86 : public HGraphVisitor {
       : HGraphVisitor(graph), codegen_(codegen) {}
 
 #define DECLARE_VISIT_INSTRUCTION(name, super)     \
-  virtual void Visit##name(H##name* instr);
+  void Visit##name(H##name* instr) OVERRIDE;
 
   FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
 
 #undef DECLARE_VISIT_INSTRUCTION
 
-  void HandleInvoke(HInvoke* invoke);
-
  private:
+  void HandleBitwiseOperation(HBinaryOperation* instruction);
+  void HandleInvoke(HInvoke* invoke);
+  void HandleShift(HBinaryOperation* instruction);
+  void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
+  void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
+
   CodeGeneratorX86* const codegen_;
   InvokeDexCallingConventionVisitor parameter_visitor_;
 
@@ -113,13 +128,11 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
   InstructionCodeGeneratorX86(HGraph* graph, CodeGeneratorX86* codegen);
 
 #define DECLARE_VISIT_INSTRUCTION(name, super)     \
-  virtual void Visit##name(H##name* instr);
+  void Visit##name(H##name* instr) OVERRIDE;
 
   FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
 
 #undef DECLARE_VISIT_INSTRUCTION
-
-  void LoadCurrentMethod(Register reg);
 
   X86Assembler* GetAssembler() const { return assembler_; }
 
@@ -128,6 +141,22 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
   // is the block to branch to if the suspend check is not needed, and after
   // the suspend call.
   void GenerateSuspendCheck(HSuspendCheck* check, HBasicBlock* successor);
+  void GenerateClassInitializationCheck(SlowPathCodeX86* slow_path, Register class_reg);
+  void HandleBitwiseOperation(HBinaryOperation* instruction);
+  void GenerateDivRemIntegral(HBinaryOperation* instruction);
+  void GenerateRemFP(HRem *rem);
+  void HandleShift(HBinaryOperation* instruction);
+  void GenerateShlLong(const Location& loc, Register shifter);
+  void GenerateShrLong(const Location& loc, Register shifter);
+  void GenerateUShrLong(const Location& loc, Register shifter);
+  void GenerateMemoryBarrier(MemBarrierKind kind);
+  void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
+  void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
+  void PushOntoFPStack(Location source, uint32_t temp_offset,
+                       uint32_t stack_adjustment, bool is_float);
+
+  void GenerateImplicitNullCheck(HNullCheck* instruction);
+  void GenerateExplicitNullCheck(HNullCheck* instruction);
 
   X86Assembler* const assembler_;
   CodeGeneratorX86* const codegen_;
@@ -137,47 +166,60 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
 
 class CodeGeneratorX86 : public CodeGenerator {
  public:
-  explicit CodeGeneratorX86(HGraph* graph);
+  CodeGeneratorX86(HGraph* graph, const CompilerOptions& compiler_options);
   virtual ~CodeGeneratorX86() {}
 
-  virtual void GenerateFrameEntry() OVERRIDE;
-  virtual void GenerateFrameExit() OVERRIDE;
-  virtual void Bind(Label* label) OVERRIDE;
-  virtual void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
-  virtual void SaveCoreRegister(Location stack_location, uint32_t reg_id) OVERRIDE;
-  virtual void RestoreCoreRegister(Location stack_location, uint32_t reg_id) OVERRIDE;
+  void GenerateFrameEntry() OVERRIDE;
+  void GenerateFrameExit() OVERRIDE;
+  void Bind(HBasicBlock* block) OVERRIDE;
+  void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
+  size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  size_t RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
 
-  virtual size_t GetWordSize() const OVERRIDE {
+  size_t GetWordSize() const OVERRIDE {
     return kX86WordSize;
   }
 
-  virtual size_t FrameEntrySpillSize() const OVERRIDE;
+  size_t GetFloatingPointSpillSlotSize() const OVERRIDE {
+    // 8 bytes == 2 words for each spill.
+    return 2 * kX86WordSize;
+  }
 
-  virtual HGraphVisitor* GetLocationBuilder() OVERRIDE {
+  HGraphVisitor* GetLocationBuilder() OVERRIDE {
     return &location_builder_;
   }
 
-  virtual HGraphVisitor* GetInstructionVisitor() OVERRIDE {
+  HGraphVisitor* GetInstructionVisitor() OVERRIDE {
     return &instruction_visitor_;
   }
 
-  virtual X86Assembler* GetAssembler() OVERRIDE {
+  X86Assembler* GetAssembler() OVERRIDE {
     return &assembler_;
   }
 
-  virtual void SetupBlockedRegisters() const OVERRIDE;
-  virtual Location AllocateFreeRegister(Primitive::Type type) const OVERRIDE;
+  uintptr_t GetAddressOf(HBasicBlock* block) const OVERRIDE {
+    return GetLabelOf(block)->Position();
+  }
 
-  virtual Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
+  void SetupBlockedRegisters(bool is_baseline) const OVERRIDE;
 
-  virtual void DumpCoreRegister(std::ostream& stream, int reg) const OVERRIDE;
-  virtual void DumpFloatingPointRegister(std::ostream& stream, int reg) const OVERRIDE;
+  Location AllocateFreeRegister(Primitive::Type type) const OVERRIDE;
 
-  ParallelMoveResolverX86* GetMoveResolver() {
+  Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
+
+  void DumpCoreRegister(std::ostream& stream, int reg) const OVERRIDE;
+  void DumpFloatingPointRegister(std::ostream& stream, int reg) const OVERRIDE;
+
+  // Blocks all register pairs made out of blocked core registers.
+  void UpdateBlockedPairRegisters() const;
+
+  ParallelMoveResolverX86* GetMoveResolver() OVERRIDE {
     return &move_resolver_;
   }
 
-  virtual InstructionSet GetInstructionSet() const OVERRIDE {
+  InstructionSet GetInstructionSet() const OVERRIDE {
     return InstructionSet::kX86;
   }
 
@@ -189,7 +231,26 @@ class CodeGeneratorX86 : public CodeGenerator {
   // Emit a write barrier.
   void MarkGCCard(Register temp, Register card, Register object, Register value);
 
+  void LoadCurrentMethod(Register reg);
+
+  Label* GetLabelOf(HBasicBlock* block) const {
+    return CommonGetLabelOf<Label>(block_labels_.GetRawStorage(), block);
+  }
+
+  void Initialize() OVERRIDE {
+    block_labels_.SetSize(GetGraph()->GetBlocks().Size());
+  }
+
+  bool NeedsTwoRegisters(Primitive::Type type) const OVERRIDE {
+    return type == Primitive::kPrimLong;
+  }
+
+  Label* GetFrameEntryLabel() { return &frame_entry_label_; }
+
  private:
+  // Labels for each block that will be compiled.
+  GrowableArray<Label> block_labels_;
+  Label frame_entry_label_;
   LocationsBuilderX86 location_builder_;
   InstructionCodeGeneratorX86 instruction_visitor_;
   ParallelMoveResolverX86 move_resolver_;

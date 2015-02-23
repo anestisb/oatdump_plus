@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
-#include "compiler_internals.h"
+#include "base/logging.h"
+#include "base/stringprintf.h"
+#include "compiler_ir.h"
 #include "dex/dataflow_iterator-inl.h"
+#include "dex_flags.h"
 
 namespace art {
 
@@ -276,8 +279,7 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed) {
       }
       int num_uses = mir->dalvikInsn.vA;
       // If this is a non-static invoke, mark implicit "this"
-      if (((mir->dalvikInsn.opcode != Instruction::INVOKE_STATIC) &&
-          (mir->dalvikInsn.opcode != Instruction::INVOKE_STATIC_RANGE))) {
+      if (!IsInstructionInvokeStatic(mir->dalvikInsn.opcode)) {
         reg_location_[uses[next]].defined = true;
         reg_location_[uses[next]].ref = true;
         type_mismatch |= reg_location_[uses[next]].wide;
@@ -378,7 +380,20 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed) {
         changed |= SetWide(defs[1]);
         changed |= SetHigh(defs[1]);
       }
+
+      bool has_ins = (GetNumOfInVRs() > 0);
+
       for (int i = 0; i < ssa_rep->num_uses; i++) {
+        if (has_ins && IsInVReg(uses[i])) {
+          // NB: The SSA name for the first def of an in-reg will be the same as
+          // the reg's actual name.
+          if (!reg_location_[uses[i]].fp && defined_fp) {
+            // If we were about to infer that this first def of an in-reg is a float
+            // when it wasn't previously (because float/int is set during SSA initialization),
+            // do not allow this to happen.
+            continue;
+          }
+        }
         changed |= SetFp(uses[i], defined_fp);
         changed |= SetCore(uses[i], defined_core);
         changed |= SetRef(uses[i], defined_ref);
@@ -425,12 +440,11 @@ void MIRGraph::InitRegLocations() {
   // the temp allocation initializes reg location as well (in order to deal with
   // case when it will be called after this pass).
   int max_regs = GetNumSSARegs() + GetMaxPossibleCompilerTemps();
-  RegLocation* loc = static_cast<RegLocation*>(arena_->Alloc(max_regs * sizeof(*loc),
-                                                             kArenaAllocRegAlloc));
+  RegLocation* loc = arena_->AllocArray<RegLocation>(max_regs, kArenaAllocRegAlloc);
   for (int i = 0; i < GetNumSSARegs(); i++) {
     loc[i] = fresh_loc;
     loc[i].s_reg_low = i;
-    loc[i].is_const = is_constant_v_->IsBitSet(i);
+    loc[i].is_const = false;  // Constants will be marked by constant propagation pass later.
     loc[i].wide = false;
   }
 

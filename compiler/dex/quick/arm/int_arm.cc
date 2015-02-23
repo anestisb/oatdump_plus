@@ -16,12 +16,19 @@
 
 /* This file contains codegen for the Thumb2 ISA. */
 
-#include "arm_lir.h"
 #include "codegen_arm.h"
+
+#include "arch/instruction_set_features.h"
+#include "arm_lir.h"
+#include "base/logging.h"
+#include "dex/compiler_ir.h"
+#include "dex/mir_graph.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "dex/reg_storage_eq.h"
+#include "driver/compiler_driver.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "mirror/array-inl.h"
+#include "utils.h"
 
 namespace art {
 
@@ -209,7 +216,8 @@ void ArmMir2Lir::GenFusedLongCmpImmBranch(BasicBlock* bb, RegLocation rl_src1,
 
 void ArmMir2Lir::GenSelectConst32(RegStorage left_op, RegStorage right_op, ConditionCode code,
                                   int32_t true_val, int32_t false_val, RegStorage rs_dest,
-                                  int dest_reg_class) {
+                                  RegisterClass dest_reg_class) {
+  UNUSED(dest_reg_class);
   // TODO: Generalize the IT below to accept more than one-instruction loads.
   DCHECK(InexpensiveConstantInt(true_val));
   DCHECK(InexpensiveConstantInt(false_val));
@@ -232,6 +240,7 @@ void ArmMir2Lir::GenSelectConst32(RegStorage left_op, RegStorage right_op, Condi
 }
 
 void ArmMir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
+  UNUSED(bb);
   RegLocation rl_result;
   RegLocation rl_src = mir_graph_->GetSrc(mir, 0);
   RegLocation rl_dest = mir_graph_->GetDest(mir);
@@ -442,6 +451,15 @@ void ArmMir2Lir::OpRegCopyWide(RegStorage r_dest, RegStorage r_src) {
     bool src_fp = r_src.IsFloat();
     DCHECK(r_dest.Is64Bit());
     DCHECK(r_src.Is64Bit());
+    // Note: If the register is get by register allocator, it should never be a pair.
+    // But some functions in mir_2_lir assume 64-bit registers are 32-bit register pairs.
+    // TODO: Rework Mir2Lir::LoadArg() and Mir2Lir::LoadArgDirect().
+    if (dest_fp && r_dest.IsPair()) {
+      r_dest = As64BitFloatReg(r_dest);
+    }
+    if (src_fp && r_src.IsPair()) {
+      r_src = As64BitFloatReg(r_src);
+    }
     if (dest_fp) {
       if (src_fp) {
         OpRegCopy(r_dest, r_src);
@@ -495,6 +513,7 @@ static const MagicTable magic_table[] = {
 // Integer division by constant via reciprocal multiply (Hacker's Delight, 10-4)
 bool ArmMir2Lir::SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div,
                                     RegLocation rl_src, RegLocation rl_dest, int lit) {
+  UNUSED(dalvik_opcode);
   if ((lit < 0) || (lit >= static_cast<int>(sizeof(magic_table)/sizeof(magic_table[0])))) {
     return false;
   }
@@ -554,21 +573,30 @@ bool ArmMir2Lir::SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div
 
 // Try to convert *lit to 1 RegRegRegShift/RegRegShift form.
 bool ArmMir2Lir::GetEasyMultiplyOp(int lit, ArmMir2Lir::EasyMultiplyOp* op) {
+  if (lit == 0) {
+    // Special case for *divide-by-zero*. The ops won't actually be used to generate code, as
+    // GenArithOpIntLit will directly generate exception-throwing code, and multiply-by-zero will
+    // have been optimized away earlier.
+    op->op = kOpInvalid;
+    op->shift = 0;
+    return true;
+  }
+
   if (IsPowerOfTwo(lit)) {
     op->op = kOpLsl;
-    op->shift = LowestSetBit(lit);
+    op->shift = CTZ(lit);
     return true;
   }
 
   if (IsPowerOfTwo(lit - 1)) {
     op->op = kOpAdd;
-    op->shift = LowestSetBit(lit - 1);
+    op->shift = CTZ(lit - 1);
     return true;
   }
 
   if (IsPowerOfTwo(lit + 1)) {
     op->op = kOpRsub;
-    op->shift = LowestSetBit(lit + 1);
+    op->shift = CTZ(lit + 1);
     return true;
   }
 
@@ -579,7 +607,6 @@ bool ArmMir2Lir::GetEasyMultiplyOp(int lit, ArmMir2Lir::EasyMultiplyOp* op) {
 
 // Try to convert *lit to 1~2 RegRegRegShift/RegRegShift forms.
 bool ArmMir2Lir::GetEasyMultiplyTwoOps(int lit, EasyMultiplyOp* ops) {
-  GetEasyMultiplyOp(lit, &ops[0]);
   if (GetEasyMultiplyOp(lit, &ops[0])) {
     ops[1].op = kOpInvalid;
     ops[1].shift = 0;
@@ -587,7 +614,7 @@ bool ArmMir2Lir::GetEasyMultiplyTwoOps(int lit, EasyMultiplyOp* ops) {
   }
 
   int lit1 = lit;
-  uint32_t shift = LowestSetBit(lit1);
+  uint32_t shift = CTZ(lit1);
   if (GetEasyMultiplyOp(lit1 >> shift, &ops[0])) {
     ops[1].op = kOpLsl;
     ops[1].shift = shift;
@@ -595,7 +622,7 @@ bool ArmMir2Lir::GetEasyMultiplyTwoOps(int lit, EasyMultiplyOp* ops) {
   }
 
   lit1 = lit - 1;
-  shift = LowestSetBit(lit1);
+  shift = CTZ(lit1);
   if (GetEasyMultiplyOp(lit1 >> shift, &ops[0])) {
     ops[1].op = kOpAdd;
     ops[1].shift = shift;
@@ -603,7 +630,7 @@ bool ArmMir2Lir::GetEasyMultiplyTwoOps(int lit, EasyMultiplyOp* ops) {
   }
 
   lit1 = lit + 1;
-  shift = LowestSetBit(lit1);
+  shift = CTZ(lit1);
   if (GetEasyMultiplyOp(lit1 >> shift, &ops[0])) {
     ops[1].op = kOpRsub;
     ops[1].shift = shift;
@@ -678,14 +705,17 @@ bool ArmMir2Lir::EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) 
 }
 
 RegLocation ArmMir2Lir::GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
-                      RegLocation rl_src2, bool is_div, bool check_zero) {
+                                  RegLocation rl_src2, bool is_div, int flags) {
+  UNUSED(rl_dest, rl_src1, rl_src2, is_div, flags);
   LOG(FATAL) << "Unexpected use of GenDivRem for Arm";
-  return rl_dest;
+  UNREACHABLE();
 }
 
-RegLocation ArmMir2Lir::GenDivRemLit(RegLocation rl_dest, RegLocation rl_src1, int lit, bool is_div) {
+RegLocation ArmMir2Lir::GenDivRemLit(RegLocation rl_dest, RegLocation rl_src1, int lit,
+                                     bool is_div) {
+  UNUSED(rl_dest, rl_src1, lit, is_div);
   LOG(FATAL) << "Unexpected use of GenDivRemLit for Arm";
-  return rl_dest;
+  UNREACHABLE();
 }
 
 RegLocation ArmMir2Lir::GenDivRemLit(RegLocation rl_dest, RegStorage reg1, int lit, bool is_div) {
@@ -856,7 +886,7 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
 
   if (is_object && !mir_graph_->IsConstantNullRef(rl_new_value)) {
     // Mark card for object assuming new value is stored.
-    MarkGCCard(rl_new_value.reg, rl_object.reg);
+    MarkGCCard(0, rl_new_value.reg, rl_object.reg);
   }
 
   RegLocation rl_offset = LoadValue(rl_src_offset, kCoreReg);
@@ -1060,9 +1090,21 @@ LIR* ArmMir2Lir::OpVstm(RegStorage r_base, int count) {
   return NewLIR3(kThumb2Vstms, r_base.GetReg(), rs_fr0.GetReg(), count);
 }
 
+void ArmMir2Lir::GenMaddMsubInt(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2,
+                                RegLocation rl_src3, bool is_sub) {
+  rl_src1 = LoadValue(rl_src1, kCoreReg);
+  rl_src2 = LoadValue(rl_src2, kCoreReg);
+  rl_src3 = LoadValue(rl_src3, kCoreReg);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  NewLIR4(is_sub ? kThumb2Mls : kThumb2Mla, rl_result.reg.GetReg(), rl_src1.reg.GetReg(),
+          rl_src2.reg.GetReg(), rl_src3.reg.GetReg());
+  StoreValue(rl_dest, rl_result);
+}
+
 void ArmMir2Lir::GenMultiplyByTwoBitMultiplier(RegLocation rl_src,
                                                RegLocation rl_result, int lit,
                                                int first_bit, int second_bit) {
+  UNUSED(lit);
   OpRegRegRegShift(kOpAdd, rl_result.reg, rl_src.reg, rl_src.reg,
                    EncodeShift(kArmLsl, second_bit - first_bit));
   if (first_bit != 0) {
@@ -1086,7 +1128,7 @@ LIR* ArmMir2Lir::OpTestSuspend(LIR* target) {
 #else
   RegStorage t_reg = AllocTemp();
   LoadBaseDisp(rs_rARM_SELF, Thread::ThreadFlagsOffset<4>().Int32Value(),
-    t_reg, kUnsignedHalf);
+    t_reg, kUnsignedHalf, kNotVolatile);
   LIR* cmp_branch = OpCmpImmBranch((target == NULL) ? kCondNe : kCondEq, t_reg,
     0, target);
   FreeTemp(t_reg);
@@ -1103,7 +1145,9 @@ LIR* ArmMir2Lir::OpDecAndBranch(ConditionCode c_code, RegStorage reg, LIR* targe
 }
 
 bool ArmMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
-#if ANDROID_SMP != 0
+  if (!cu_->compiler_driver->GetInstructionSetFeatures()->IsSmp()) {
+    return false;
+  }
   // Start off with using the last LIR as the barrier. If it is not enough, then we will generate one.
   LIR* barrier = last_lir_insn_;
 
@@ -1133,9 +1177,6 @@ bool ArmMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
   DCHECK(!barrier->flags.use_def_invalid);
   barrier->u.m.def_mask = &kEncodeAll;
   return ret;
-#else
-  return false;
-#endif
 }
 
 void ArmMir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src) {
@@ -1146,6 +1187,7 @@ void ArmMir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src) {
   // Check for destructive overlap
   if (rl_result.reg.GetLowReg() == rl_src.reg.GetHighReg()) {
     RegStorage t_reg = AllocTemp();
+    OpRegCopy(t_reg, rl_result.reg.GetLow());
     OpRegRegReg(kOpSub, rl_result.reg.GetLow(), z_reg, rl_src.reg.GetLow());
     OpRegRegReg(kOpSbc, rl_result.reg.GetHigh(), z_reg, t_reg);
     FreeTemp(t_reg);
@@ -1159,112 +1201,113 @@ void ArmMir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src) {
 
 void ArmMir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
                             RegLocation rl_src1, RegLocation rl_src2) {
-    /*
-     * tmp1     = src1.hi * src2.lo;  // src1.hi is no longer needed
-     * dest     = src1.lo * src2.lo;
-     * tmp1    += src1.lo * src2.hi;
-     * dest.hi += tmp1;
-     *
-     * To pull off inline multiply, we have a worst-case requirement of 7 temporary
-     * registers.  Normally for Arm, we get 5.  We can get to 6 by including
-     * lr in the temp set.  The only problematic case is all operands and result are
-     * distinct, and none have been promoted.  In that case, we can succeed by aggressively
-     * freeing operand temp registers after they are no longer needed.  All other cases
-     * can proceed normally.  We'll just punt on the case of the result having a misaligned
-     * overlap with either operand and send that case to a runtime handler.
-     */
-    RegLocation rl_result;
-    if (PartiallyIntersects(rl_src1, rl_dest) || (PartiallyIntersects(rl_src2, rl_dest))) {
-      FlushAllRegs();
-      CallRuntimeHelperRegLocationRegLocation(kQuickLmul, rl_src1, rl_src2, false);
-      rl_result = GetReturnWide(kCoreReg);
-      StoreValueWide(rl_dest, rl_result);
-      return;
-    }
-
-    rl_src1 = LoadValueWide(rl_src1, kCoreReg);
-    rl_src2 = LoadValueWide(rl_src2, kCoreReg);
-
-    int reg_status = 0;
-    RegStorage res_lo;
-    RegStorage res_hi;
-    bool dest_promoted = rl_dest.location == kLocPhysReg && rl_dest.reg.Valid() &&
-        !IsTemp(rl_dest.reg.GetLow()) && !IsTemp(rl_dest.reg.GetHigh());
-    bool src1_promoted = !IsTemp(rl_src1.reg.GetLow()) && !IsTemp(rl_src1.reg.GetHigh());
-    bool src2_promoted = !IsTemp(rl_src2.reg.GetLow()) && !IsTemp(rl_src2.reg.GetHigh());
-    // Check if rl_dest is *not* either operand and we have enough temp registers.
-    if ((rl_dest.s_reg_low != rl_src1.s_reg_low && rl_dest.s_reg_low != rl_src2.s_reg_low) &&
-        (dest_promoted || src1_promoted || src2_promoted)) {
-      // In this case, we do not need to manually allocate temp registers for result.
-      rl_result = EvalLoc(rl_dest, kCoreReg, true);
-      res_lo = rl_result.reg.GetLow();
-      res_hi = rl_result.reg.GetHigh();
-    } else {
-      res_lo = AllocTemp();
-      if ((rl_src1.s_reg_low == rl_src2.s_reg_low) || src1_promoted || src2_promoted) {
-        // In this case, we have enough temp registers to be allocated for result.
-        res_hi = AllocTemp();
-        reg_status = 1;
-      } else {
-        // In this case, all temps are now allocated.
-        // res_hi will be allocated after we can free src1_hi.
-        reg_status = 2;
-      }
-    }
-
-    // Temporarily add LR to the temp pool, and assign it to tmp1
-    MarkTemp(rs_rARM_LR);
-    FreeTemp(rs_rARM_LR);
-    RegStorage tmp1 = rs_rARM_LR;
-    LockTemp(rs_rARM_LR);
-
-    if (rl_src1.reg == rl_src2.reg) {
-      DCHECK(res_hi.Valid());
-      DCHECK(res_lo.Valid());
-      NewLIR3(kThumb2MulRRR, tmp1.GetReg(), rl_src1.reg.GetLowReg(), rl_src1.reg.GetHighReg());
-      NewLIR4(kThumb2Umull, res_lo.GetReg(), res_hi.GetReg(), rl_src1.reg.GetLowReg(),
-              rl_src1.reg.GetLowReg());
-      OpRegRegRegShift(kOpAdd, res_hi, res_hi, tmp1, EncodeShift(kArmLsl, 1));
-    } else {
-      NewLIR3(kThumb2MulRRR, tmp1.GetReg(), rl_src2.reg.GetLowReg(), rl_src1.reg.GetHighReg());
-      if (reg_status == 2) {
-        DCHECK(!res_hi.Valid());
-        DCHECK_NE(rl_src1.reg.GetLowReg(), rl_src2.reg.GetLowReg());
-        DCHECK_NE(rl_src1.reg.GetHighReg(), rl_src2.reg.GetHighReg());
-        // Will force free src1_hi, so must clobber.
-        Clobber(rl_src1.reg);
-        FreeTemp(rl_src1.reg.GetHigh());
-        res_hi = AllocTemp();
-      }
-      DCHECK(res_hi.Valid());
-      DCHECK(res_lo.Valid());
-      NewLIR4(kThumb2Umull, res_lo.GetReg(), res_hi.GetReg(), rl_src2.reg.GetLowReg(),
-              rl_src1.reg.GetLowReg());
-      NewLIR4(kThumb2Mla, tmp1.GetReg(), rl_src1.reg.GetLowReg(), rl_src2.reg.GetHighReg(),
-              tmp1.GetReg());
-      NewLIR4(kThumb2AddRRR, res_hi.GetReg(), tmp1.GetReg(), res_hi.GetReg(), 0);
-      if (reg_status == 2) {
-        FreeTemp(rl_src1.reg.GetLow());
-      }
-    }
-
-    // Now, restore lr to its non-temp status.
-    FreeTemp(tmp1);
-    Clobber(rs_rARM_LR);
-    UnmarkTemp(rs_rARM_LR);
-
-    if (reg_status != 0) {
-      // We had manually allocated registers for rl_result.
-      // Now construct a RegLocation.
-      rl_result = GetReturnWide(kCoreReg);  // Just using as a template.
-      rl_result.reg = RegStorage::MakeRegPair(res_lo, res_hi);
-    }
-
+  UNUSED(opcode);
+  /*
+   * tmp1     = src1.hi * src2.lo;  // src1.hi is no longer needed
+   * dest     = src1.lo * src2.lo;
+   * tmp1    += src1.lo * src2.hi;
+   * dest.hi += tmp1;
+   *
+   * To pull off inline multiply, we have a worst-case requirement of 7 temporary
+   * registers.  Normally for Arm, we get 5.  We can get to 6 by including
+   * lr in the temp set.  The only problematic case is all operands and result are
+   * distinct, and none have been promoted.  In that case, we can succeed by aggressively
+   * freeing operand temp registers after they are no longer needed.  All other cases
+   * can proceed normally.  We'll just punt on the case of the result having a misaligned
+   * overlap with either operand and send that case to a runtime handler.
+   */
+  RegLocation rl_result;
+  if (PartiallyIntersects(rl_src1, rl_dest) || (PartiallyIntersects(rl_src2, rl_dest))) {
+    FlushAllRegs();
+    CallRuntimeHelperRegLocationRegLocation(kQuickLmul, rl_src1, rl_src2, false);
+    rl_result = GetReturnWide(kCoreReg);
     StoreValueWide(rl_dest, rl_result);
+    return;
+  }
+
+  rl_src1 = LoadValueWide(rl_src1, kCoreReg);
+  rl_src2 = LoadValueWide(rl_src2, kCoreReg);
+
+  int reg_status = 0;
+  RegStorage res_lo;
+  RegStorage res_hi;
+  bool dest_promoted = rl_dest.location == kLocPhysReg && rl_dest.reg.Valid() &&
+      !IsTemp(rl_dest.reg.GetLow()) && !IsTemp(rl_dest.reg.GetHigh());
+  bool src1_promoted = !IsTemp(rl_src1.reg.GetLow()) && !IsTemp(rl_src1.reg.GetHigh());
+  bool src2_promoted = !IsTemp(rl_src2.reg.GetLow()) && !IsTemp(rl_src2.reg.GetHigh());
+  // Check if rl_dest is *not* either operand and we have enough temp registers.
+  if ((rl_dest.s_reg_low != rl_src1.s_reg_low && rl_dest.s_reg_low != rl_src2.s_reg_low) &&
+      (dest_promoted || src1_promoted || src2_promoted)) {
+    // In this case, we do not need to manually allocate temp registers for result.
+    rl_result = EvalLoc(rl_dest, kCoreReg, true);
+    res_lo = rl_result.reg.GetLow();
+    res_hi = rl_result.reg.GetHigh();
+  } else {
+    res_lo = AllocTemp();
+    if ((rl_src1.s_reg_low == rl_src2.s_reg_low) || src1_promoted || src2_promoted) {
+      // In this case, we have enough temp registers to be allocated for result.
+      res_hi = AllocTemp();
+      reg_status = 1;
+    } else {
+      // In this case, all temps are now allocated.
+      // res_hi will be allocated after we can free src1_hi.
+      reg_status = 2;
+    }
+  }
+
+  // Temporarily add LR to the temp pool, and assign it to tmp1
+  MarkTemp(rs_rARM_LR);
+  FreeTemp(rs_rARM_LR);
+  RegStorage tmp1 = rs_rARM_LR;
+  LockTemp(rs_rARM_LR);
+
+  if (rl_src1.reg == rl_src2.reg) {
+    DCHECK(res_hi.Valid());
+    DCHECK(res_lo.Valid());
+    NewLIR3(kThumb2MulRRR, tmp1.GetReg(), rl_src1.reg.GetLowReg(), rl_src1.reg.GetHighReg());
+    NewLIR4(kThumb2Umull, res_lo.GetReg(), res_hi.GetReg(), rl_src1.reg.GetLowReg(),
+            rl_src1.reg.GetLowReg());
+    OpRegRegRegShift(kOpAdd, res_hi, res_hi, tmp1, EncodeShift(kArmLsl, 1));
+  } else {
+    NewLIR3(kThumb2MulRRR, tmp1.GetReg(), rl_src2.reg.GetLowReg(), rl_src1.reg.GetHighReg());
+    if (reg_status == 2) {
+      DCHECK(!res_hi.Valid());
+      DCHECK_NE(rl_src1.reg.GetLowReg(), rl_src2.reg.GetLowReg());
+      DCHECK_NE(rl_src1.reg.GetHighReg(), rl_src2.reg.GetHighReg());
+      // Will force free src1_hi, so must clobber.
+      Clobber(rl_src1.reg);
+      FreeTemp(rl_src1.reg.GetHigh());
+      res_hi = AllocTemp();
+    }
+    DCHECK(res_hi.Valid());
+    DCHECK(res_lo.Valid());
+    NewLIR4(kThumb2Umull, res_lo.GetReg(), res_hi.GetReg(), rl_src2.reg.GetLowReg(),
+            rl_src1.reg.GetLowReg());
+    NewLIR4(kThumb2Mla, tmp1.GetReg(), rl_src1.reg.GetLowReg(), rl_src2.reg.GetHighReg(),
+            tmp1.GetReg());
+    NewLIR4(kThumb2AddRRR, res_hi.GetReg(), tmp1.GetReg(), res_hi.GetReg(), 0);
+    if (reg_status == 2) {
+      FreeTemp(rl_src1.reg.GetLow());
+    }
+  }
+
+  // Now, restore lr to its non-temp status.
+  FreeTemp(tmp1);
+  Clobber(rs_rARM_LR);
+  UnmarkTemp(rs_rARM_LR);
+
+  if (reg_status != 0) {
+    // We had manually allocated registers for rl_result.
+    // Now construct a RegLocation.
+    rl_result = GetReturnWide(kCoreReg);  // Just using as a template.
+    rl_result.reg = RegStorage::MakeRegPair(res_lo, res_hi);
+  }
+
+  StoreValueWide(rl_dest, rl_result);
 }
 
 void ArmMir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                                RegLocation rl_src2) {
+                                RegLocation rl_src2, int flags) {
   switch (opcode) {
     case Instruction::MUL_LONG:
     case Instruction::MUL_LONG_2ADDR:
@@ -1279,7 +1322,7 @@ void ArmMir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest, R
   }
 
   // Fallback for all other ops.
-  Mir2Lir::GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2);
+  Mir2Lir::GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2, flags);
 }
 
 /*
@@ -1342,7 +1385,6 @@ void ArmMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
       FreeTemp(reg_len);
     }
     LoadBaseDisp(reg_ptr, data_offset, rl_result.reg, size, kNotVolatile);
-    MarkPossibleNullPointerException(opt_flags);
     if (!constant_index) {
       FreeTemp(reg_ptr);
     }
@@ -1363,7 +1405,6 @@ void ArmMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
       FreeTemp(reg_len);
     }
     LoadBaseIndexed(reg_ptr, rl_index.reg, rl_result.reg, scale, size);
-    MarkPossibleNullPointerException(opt_flags);
     FreeTemp(reg_ptr);
     StoreValue(rl_dest, rl_result);
   }
@@ -1442,7 +1483,6 @@ void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     }
 
     StoreBaseDisp(reg_ptr, data_offset, rl_src.reg, size, kNotVolatile);
-    MarkPossibleNullPointerException(opt_flags);
   } else {
     /* reg_ptr -> array data */
     OpRegRegImm(kOpAdd, reg_ptr, rl_array.reg, data_offset);
@@ -1452,19 +1492,20 @@ void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
       FreeTemp(reg_len);
     }
     StoreBaseIndexed(reg_ptr, rl_index.reg, rl_src.reg, scale, size);
-    MarkPossibleNullPointerException(opt_flags);
   }
   if (allocated_reg_ptr_temp) {
     FreeTemp(reg_ptr);
   }
   if (card_mark) {
-    MarkGCCard(rl_src.reg, rl_array.reg);
+    MarkGCCard(opt_flags, rl_src.reg, rl_array.reg);
   }
 }
 
 
 void ArmMir2Lir::GenShiftImmOpLong(Instruction::Code opcode,
-                                   RegLocation rl_dest, RegLocation rl_src, RegLocation rl_shift) {
+                                   RegLocation rl_dest, RegLocation rl_src, RegLocation rl_shift,
+                                   int flags) {
+  UNUSED(flags);
   rl_src = LoadValueWide(rl_src, kCoreReg);
   // Per spec, we only care about low 6 bits of shift amount.
   int shift_amount = mir_graph_->ConstantValue(rl_shift) & 0x3f;
@@ -1537,11 +1578,12 @@ void ArmMir2Lir::GenShiftImmOpLong(Instruction::Code opcode,
 }
 
 void ArmMir2Lir::GenArithImmOpLong(Instruction::Code opcode,
-                                   RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
+                                   RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2,
+                                   int flags) {
   if ((opcode == Instruction::SUB_LONG_2ADDR) || (opcode == Instruction::SUB_LONG)) {
     if (!rl_src2.is_const) {
       // Don't bother with special handling for subtract from immediate.
-      GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2);
+      GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2, flags);
       return;
     }
   } else {
@@ -1552,7 +1594,7 @@ void ArmMir2Lir::GenArithImmOpLong(Instruction::Code opcode,
     }
   }
   if (PartiallyIntersects(rl_src1, rl_dest)) {
-    GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2);
+    GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2, flags);
     return;
   }
   DCHECK(rl_src2.is_const);
@@ -1569,7 +1611,7 @@ void ArmMir2Lir::GenArithImmOpLong(Instruction::Code opcode,
     case Instruction::SUB_LONG:
     case Instruction::SUB_LONG_2ADDR:
       if ((mod_imm_lo < 0) || (mod_imm_hi < 0)) {
-        GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2);
+        GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2, flags);
         return;
       }
       break;
@@ -1617,6 +1659,21 @@ void ArmMir2Lir::GenArithImmOpLong(Instruction::Code opcode,
       LOG(FATAL) << "Unexpected opcode " << opcode;
   }
   StoreValueWide(rl_dest, rl_result);
+}
+
+bool ArmMir2Lir::HandleEasyDivRem(Instruction::Code dalvik_opcode, bool is_div,
+                                  RegLocation rl_src, RegLocation rl_dest, int lit) {
+  if (lit < 2) {
+    return false;
+  }
+
+  // ARM does either not support a division instruction, or it is potentially expensive. Look for
+  // more special cases.
+  if (!IsPowerOfTwo(lit)) {
+    return SmallLiteralDivRem(dalvik_opcode, is_div, rl_src, rl_dest, lit);
+  }
+
+  return Mir2Lir::HandleEasyDivRem(dalvik_opcode, is_div, rl_src, rl_dest, lit);
 }
 
 }  // namespace art

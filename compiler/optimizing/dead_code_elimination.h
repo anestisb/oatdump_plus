@@ -18,6 +18,7 @@
 #define ART_COMPILER_OPTIMIZING_DEAD_CODE_ELIMINATION_H_
 
 #include "nodes.h"
+#include "optimization.h"
 
 namespace art {
 
@@ -25,17 +26,18 @@ namespace art {
  * Optimization pass performing dead code elimination (removal of
  * unused variables/instructions) on the SSA form.
  */
-class DeadCodeElimination : public ValueObject {
+class HDeadCodeElimination : public HOptimization {
  public:
-  explicit DeadCodeElimination(HGraph* graph)
-      : graph_(graph) {}
+  explicit HDeadCodeElimination(HGraph* graph)
+      : HOptimization(graph, true, kDeadCodeEliminationPassName) {}
 
-  void Run();
+  void Run() OVERRIDE;
+
+  static constexpr const char* kDeadCodeEliminationPassName =
+    "dead_code_elimination";
 
  private:
-  HGraph* const graph_;
-
-  DISALLOW_COPY_AND_ASSIGN(DeadCodeElimination);
+  DISALLOW_COPY_AND_ASSIGN(HDeadCodeElimination);
 };
 
 }  // namespace art

@@ -15,7 +15,10 @@
  */
 
 #include "codegen_x86.h"
-#include "dex/quick/mir_to_lir-inl.h"
+
+#include "base/logging.h"
+#include "dex/compiler_ir.h"
+#include "dex/quick/mir_to_lir.h"
 #include "oat.h"
 #include "x86_lir.h"
 
@@ -424,15 +427,15 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86PextrbRRI, kRegRegImmStore, IS_TERTIARY_OP | REG_DEF0  | REG_USE1, { 0x66, 0, 0x0F, 0x3A, 0x14, 0, 0, 1, false }, "PextbRRI", "!0r,!1r,!2d" },
   { kX86PextrwRRI, kRegRegImm, IS_TERTIARY_OP | REG_DEF0  | REG_USE1, { 0x66, 0, 0x0F, 0xC5, 0x00, 0, 0, 1, false }, "PextwRRI", "!0r,!1r,!2d" },
   { kX86PextrdRRI, kRegRegImmStore, IS_TERTIARY_OP | REG_DEF0  | REG_USE1, { 0x66, 0, 0x0F, 0x3A, 0x16, 0, 0, 1, false }, "PextdRRI", "!0r,!1r,!2d" },
-  { kX86PextrbMRI, kMemRegImm, IS_QUAD_OP     | REG_USE02 | IS_STORE, { 0x66, 0, 0x0F, 0x3A, 0x16, 0, 0, 1, false }, "kX86PextrbMRI", "[!0r+!1d],!2r,!3d" },
-  { kX86PextrwMRI, kMemRegImm, IS_QUAD_OP     | REG_USE02 | IS_STORE, { 0x66, 0, 0x0F, 0x3A, 0x16, 0, 0, 1, false }, "kX86PextrwMRI", "[!0r+!1d],!2r,!3d" },
-  { kX86PextrdMRI, kMemRegImm, IS_QUAD_OP     | REG_USE02 | IS_STORE, { 0x66, 0, 0x0F, 0x3A, 0x16, 0, 0, 1, false }, "kX86PextrdMRI", "[!0r+!1d],!2r,!3d" },
+  { kX86PextrbMRI, kMemRegImm, IS_QUAD_OP     | REG_USE02 | IS_STORE, { 0x66, 0, 0x0F, 0x3A, 0x16, 0, 0, 1, false }, "PextrbMRI", "[!0r+!1d],!2r,!3d" },
+  { kX86PextrwMRI, kMemRegImm, IS_QUAD_OP     | REG_USE02 | IS_STORE, { 0x66, 0, 0x0F, 0x3A, 0x16, 0, 0, 1, false }, "PextrwMRI", "[!0r+!1d],!2r,!3d" },
+  { kX86PextrdMRI, kMemRegImm, IS_QUAD_OP     | REG_USE02 | IS_STORE, { 0x66, 0, 0x0F, 0x3A, 0x16, 0, 0, 1, false }, "PextrdMRI", "[!0r+!1d],!2r,!3d" },
 
   { kX86PshuflwRRI, kRegRegImm, IS_TERTIARY_OP | REG_DEF0 | REG_USE1, { 0xF2, 0, 0x0F, 0x70, 0, 0, 0, 1, false }, "PshuflwRRI", "!0r,!1r,!2d" },
   { kX86PshufdRRI,  kRegRegImm, IS_TERTIARY_OP | REG_DEF0 | REG_USE1, { 0x66, 0, 0x0F, 0x70, 0, 0, 0, 1, false }, "PshuffRRI", "!0r,!1r,!2d" },
 
-  { kX86ShufpsRRI, kRegRegImm, IS_TERTIARY_OP | REG_DEF0 | REG_USE1, { 0x00, 0, 0x0F, 0xC6, 0, 0, 0, 1, false }, "kX86ShufpsRRI", "!0r,!1r,!2d" },
-  { kX86ShufpdRRI, kRegRegImm, IS_TERTIARY_OP | REG_DEF0 | REG_USE1, { 0x66, 0, 0x0F, 0xC6, 0, 0, 0, 1, false }, "kX86ShufpdRRI", "!0r,!1r,!2d" },
+  { kX86ShufpsRRI, kRegRegImm, IS_TERTIARY_OP | REG_DEF0_USE0 | REG_USE1, { 0x00, 0, 0x0F, 0xC6, 0, 0, 0, 1, false }, "ShufpsRRI", "!0r,!1r,!2d" },
+  { kX86ShufpdRRI, kRegRegImm, IS_TERTIARY_OP | REG_DEF0_USE0 | REG_USE1, { 0x66, 0, 0x0F, 0xC6, 0, 0, 0, 1, false }, "ShufpdRRI", "!0r,!1r,!2d" },
 
   { kX86PsrawRI, kRegImm, IS_BINARY_OP | REG_DEF0_USE0, { 0x66, 0, 0x0F, 0x71, 0, 4, 0, 1, false }, "PsrawRI", "!0r,!1d" },
   { kX86PsradRI, kRegImm, IS_BINARY_OP | REG_DEF0_USE0, { 0x66, 0, 0x0F, 0x72, 0, 4, 0, 1, false }, "PsradRI", "!0r,!1d" },
@@ -541,14 +544,19 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86CallI, kCall, IS_UNARY_OP  | IS_BRANCH,                             { 0,             0, 0xE8, 0,    0, 0, 0, 4, false }, "CallI", "!0d" },
   { kX86Ret,   kNullary, NO_OPERAND | IS_BRANCH,                            { 0,             0, 0xC3, 0,    0, 0, 0, 0, false }, "Ret", "" },
 
-  { kX86StartOfMethod, kMacro,  IS_UNARY_OP | SETS_CCODES,             { 0, 0, 0,    0, 0, 0, 0, 0, false }, "StartOfMethod", "!0r" },
+  { kX86StartOfMethod, kMacro,  IS_UNARY_OP | REG_DEF0 | SETS_CCODES,  { 0, 0, 0,    0, 0, 0, 0, 0, false }, "StartOfMethod", "!0r" },
   { kX86PcRelLoadRA,   kPcRel,  IS_LOAD | IS_QUIN_OP | REG_DEF0_USE12, { 0, 0, 0x8B, 0, 0, 0, 0, 0, false }, "PcRelLoadRA",   "!0r,[!1r+!2r<<!3d+!4p]" },
   { kX86PcRelAdr,      kPcRel,  IS_LOAD | IS_BINARY_OP | REG_DEF0,     { 0, 0, 0xB8, 0, 0, 0, 0, 4, false }, "PcRelAdr",      "!0r,!1p" },
   { kX86RepneScasw,    kNullary, NO_OPERAND | REG_USEA | REG_USEC | SETS_CCODES, { 0x66, 0xF2, 0xAF, 0, 0, 0, 0, 0, false }, "RepNE ScasW", "" },
 };
 
+std::ostream& operator<<(std::ostream& os, const X86OpCode& rhs) {
+  os << X86Mir2Lir::EncodingMap[rhs].name;
+  return os;
+}
+
 static bool NeedsRex(int32_t raw_reg) {
-  return RegStorage::RegNum(raw_reg) > 7;
+  return raw_reg != kRIPReg && RegStorage::RegNum(raw_reg) > 7;
 }
 
 static uint8_t LowRegisterBits(int32_t raw_reg) {
@@ -672,7 +680,7 @@ size_t X86Mir2Lir::ComputeSize(const X86EncodingMap* entry, int32_t raw_reg, int
     ++size;  // modrm
   }
   if (!modrm_is_reg_reg) {
-    if (has_sib || LowRegisterBits(raw_base) == rs_rX86_SP.GetRegNum()
+    if (has_sib || (LowRegisterBits(raw_base) == rs_rX86_SP_32.GetRegNum())
         || (cu_->target64 && entry->skeleton.prefix1 == THREAD_PREFIX)) {
       // SP requires a SIB byte.
       // GS access also needs a SIB byte for absolute adressing in 64-bit mode.
@@ -684,7 +692,13 @@ size_t X86Mir2Lir::ComputeSize(const X86EncodingMap* entry, int32_t raw_reg, int
           entry->opcode != kX86Lea32RM && entry->opcode != kX86Lea64RM) {
         DCHECK_NE(entry->flags & (IS_LOAD | IS_STORE), UINT64_C(0)) << entry->name;
       }
-      size += IS_SIMM8(displacement) ? 1 : 4;
+      if (raw_base == kRIPReg) {
+        DCHECK(cu_->target64) <<
+          "Attempt to use a 64-bit RIP adressing with instruction " << entry->name;
+        size += 4;
+      } else {
+        size += IS_SIMM8(displacement) ? 1 : 4;
+      }
     }
   }
   size += entry->skeleton.immediate_bytes;
@@ -1005,9 +1019,9 @@ void X86Mir2Lir::EmitDisp(uint8_t base, int32_t disp) {
 void X86Mir2Lir::EmitModrmThread(uint8_t reg_or_opcode) {
   if (cu_->target64) {
     // Absolute adressing for GS access.
-    uint8_t modrm = (0 << 6) | (reg_or_opcode << 3) | rs_rX86_SP.GetRegNum();
+    uint8_t modrm = (0 << 6) | (reg_or_opcode << 3) | rs_rX86_SP_32.GetRegNum();
     code_buffer_.push_back(modrm);
-    uint8_t sib = (0/*TIMES_1*/ << 6) | (rs_rX86_SP.GetRegNum() << 3) | rs_rBP.GetRegNum();
+    uint8_t sib = (0/*TIMES_1*/ << 6) | (rs_rX86_SP_32.GetRegNum() << 3) | rs_rBP.GetRegNum();
     code_buffer_.push_back(sib);
   } else {
     uint8_t modrm = (0 << 6) | (reg_or_opcode << 3) | rs_rBP.GetRegNum();
@@ -1017,21 +1031,31 @@ void X86Mir2Lir::EmitModrmThread(uint8_t reg_or_opcode) {
 
 void X86Mir2Lir::EmitModrmDisp(uint8_t reg_or_opcode, uint8_t base, int32_t disp) {
   DCHECK_LT(reg_or_opcode, 8);
-  DCHECK_LT(base, 8);
-  uint8_t modrm = (ModrmForDisp(base, disp) << 6) | (reg_or_opcode << 3) | base;
-  code_buffer_.push_back(modrm);
-  if (base == rs_rX86_SP.GetRegNum()) {
-    // Special SIB for SP base
-    code_buffer_.push_back(0 << 6 | rs_rX86_SP.GetRegNum() << 3 | rs_rX86_SP.GetRegNum());
+  if (base == kRIPReg) {
+    // x86_64 RIP handling: always 32 bit displacement.
+    uint8_t modrm = (0x0 << 6) | (reg_or_opcode << 3) | 0x5;
+    code_buffer_.push_back(modrm);
+    code_buffer_.push_back(disp & 0xFF);
+    code_buffer_.push_back((disp >> 8) & 0xFF);
+    code_buffer_.push_back((disp >> 16) & 0xFF);
+    code_buffer_.push_back((disp >> 24) & 0xFF);
+  } else {
+    DCHECK_LT(base, 8);
+    uint8_t modrm = (ModrmForDisp(base, disp) << 6) | (reg_or_opcode << 3) | base;
+    code_buffer_.push_back(modrm);
+    if (base == rs_rX86_SP_32.GetRegNum()) {
+      // Special SIB for SP base
+      code_buffer_.push_back(0 << 6 | rs_rX86_SP_32.GetRegNum() << 3 | rs_rX86_SP_32.GetRegNum());
+    }
+    EmitDisp(base, disp);
   }
-  EmitDisp(base, disp);
 }
 
 void X86Mir2Lir::EmitModrmSibDisp(uint8_t reg_or_opcode, uint8_t base, uint8_t index,
                                   int scale, int32_t disp) {
   DCHECK_LT(RegStorage::RegNum(reg_or_opcode), 8);
   uint8_t modrm = (ModrmForDisp(base, disp) << 6) | RegStorage::RegNum(reg_or_opcode) << 3 |
-      rs_rX86_SP.GetRegNum();
+      rs_rX86_SP_32.GetRegNum();
   code_buffer_.push_back(modrm);
   DCHECK_LT(scale, 4);
   DCHECK_LT(RegStorage::RegNum(index), 8);
@@ -1136,7 +1160,7 @@ void X86Mir2Lir::EmitMemReg(const X86EncodingMap* entry, int32_t raw_base, int32
   CheckValidByteRegister(entry, raw_reg);
   EmitPrefixAndOpcode(entry, raw_reg, NO_REG, raw_base);
   uint8_t low_reg = LowRegisterBits(raw_reg);
-  uint8_t low_base = LowRegisterBits(raw_base);
+  uint8_t low_base = (raw_base == kRIPReg) ? raw_base : LowRegisterBits(raw_base);
   EmitModrmDisp(low_reg, low_base, disp);
   DCHECK_EQ(0, entry->skeleton.modrm_opcode);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
@@ -1579,7 +1603,7 @@ void X86Mir2Lir::EmitPcRel(const X86EncodingMap* entry, int32_t raw_reg, int32_t
     DCHECK_EQ(0, entry->skeleton.extra_opcode1);
     DCHECK_EQ(0, entry->skeleton.extra_opcode2);
     uint8_t low_reg = LowRegisterBits(raw_reg);
-    uint8_t modrm = (2 << 6) | (low_reg << 3) | rs_rX86_SP.GetRegNum();
+    uint8_t modrm = (2 << 6) | (low_reg << 3) | rs_rX86_SP_32.GetRegNum();
     code_buffer_.push_back(modrm);
     DCHECK_LT(scale, 4);
     uint8_t low_base_or_table = LowRegisterBits(raw_base_or_table);
@@ -1631,6 +1655,7 @@ void X86Mir2Lir::EmitUnimplemented(const X86EncodingMap* entry, LIR* lir) {
  * sequence or request that the trace be shortened and retried.
  */
 AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
+  UNUSED(start_addr);
   LIR *lir;
   AssemblerStatus res = kSuccess;  // Assume success
 
@@ -1752,12 +1777,29 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
             LIR *target_lir = lir->target;
             DCHECK(target_lir != NULL);
             CodeOffset target = target_lir->offset;
-            lir->operands[2] = target;
-            int newSize = GetInsnSize(lir);
-            if (newSize != lir->flags.size) {
-              lir->flags.size = newSize;
-              res = kRetryAll;
+            // Handle 64 bit RIP addressing.
+            if (lir->operands[1] == kRIPReg) {
+              // Offset is relative to next instruction.
+              lir->operands[2] = target - (lir->offset + lir->flags.size);
+            } else {
+              lir->operands[2] = target;
+              int newSize = GetInsnSize(lir);
+              if (newSize != lir->flags.size) {
+                lir->flags.size = newSize;
+                res = kRetryAll;
+              }
             }
+          } else if (lir->flags.fixup == kFixupSwitchTable) {
+            DCHECK(cu_->target64);
+            DCHECK_EQ(lir->opcode, kX86Lea64RM) << "Unknown instruction: " << X86Mir2Lir::EncodingMap[lir->opcode].name;
+            DCHECK_EQ(lir->operands[1], static_cast<int>(kRIPReg));
+            // Grab the target offset from the saved data.
+            Mir2Lir::EmbeddedData* tab_rec =
+                reinterpret_cast<Mir2Lir::EmbeddedData*>(UnwrapPointer(lir->operands[4]));
+            CodeOffset target = tab_rec->offset;
+            // Handle 64 bit RIP addressing.
+            // Offset is relative to next instruction.
+            lir->operands[2] = target - (lir->offset + lir->flags.size);
           }
           break;
       }

@@ -17,6 +17,7 @@
 #include "elf_file.h"
 
 #include "base/stringprintf.h"
+#include "base/unix_file/fd_file.h"
 #include "common_compiler_test.h"
 #include "oat.h"
 #include "utils.h"
@@ -45,15 +46,12 @@ class ElfWriterTest : public CommonCompilerTest {
     EXPECT_EQ(expected_value, ef->FindDynamicSymbolAddress(symbol_name)); \
   } while (false)
 
+#if defined(ART_USE_OPTIMIZING_COMPILER)
+TEST_F(ElfWriterTest, DISABLED_dlsym) {
+#else
 TEST_F(ElfWriterTest, dlsym) {
-  std::string elf_location;
-  if (IsHost()) {
-    const char* host_dir = getenv("ANDROID_HOST_OUT");
-    CHECK(host_dir != NULL);
-    elf_location = StringPrintf("%s/framework/core.oat", host_dir);
-  } else {
-    elf_location = "/data/art-test/core.oat";
-  }
+#endif
+  std::string elf_location = GetCoreOatLocation();
   std::string elf_filename = GetSystemImageFilename(elf_location.c_str(), kRuntimeISA);
   LOG(INFO) << "elf_filename=" << elf_filename;
 
@@ -61,28 +59,6 @@ TEST_F(ElfWriterTest, dlsym) {
   void* dl_oatdata = NULL;
   void* dl_oatexec = NULL;
   void* dl_oatlastword = NULL;
-
-#if defined(ART_USE_PORTABLE_COMPILER)
-  {
-    // We only use dlopen for loading with portable. See OatFile::Open.
-    void* dl_oat_so = dlopen(elf_filename.c_str(), RTLD_NOW);
-    ASSERT_TRUE(dl_oat_so != NULL) << dlerror();
-    dl_oatdata = dlsym(dl_oat_so, "oatdata");
-    ASSERT_TRUE(dl_oatdata != NULL);
-
-    OatHeader* dl_oat_header = reinterpret_cast<OatHeader*>(dl_oatdata);
-    ASSERT_TRUE(dl_oat_header->IsValid());
-    dl_oatexec = dlsym(dl_oat_so, "oatexec");
-    ASSERT_TRUE(dl_oatexec != NULL);
-    ASSERT_LT(dl_oatdata, dl_oatexec);
-
-    dl_oatlastword = dlsym(dl_oat_so, "oatlastword");
-    ASSERT_TRUE(dl_oatlastword != NULL);
-    ASSERT_LT(dl_oatexec, dl_oatlastword);
-
-    ASSERT_EQ(0, dlclose(dl_oat_so));
-  }
-#endif
 
   std::unique_ptr<File> file(OS::OpenFileForReading(elf_filename.c_str()));
   ASSERT_TRUE(file.get() != NULL);

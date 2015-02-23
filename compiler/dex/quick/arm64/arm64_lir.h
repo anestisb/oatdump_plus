@@ -17,7 +17,9 @@
 #ifndef ART_COMPILER_DEX_QUICK_ARM64_ARM64_LIR_H_
 #define ART_COMPILER_DEX_QUICK_ARM64_ARM64_LIR_H_
 
-#include "dex/compiler_internals.h"
+#include "dex/compiler_enums.h"
+#include "dex/reg_location.h"
+#include "dex/reg_storage.h"
 
 namespace art {
 
@@ -127,7 +129,7 @@ enum A64ResourceEncodingPos {
   R(24) R(25) R(26) R(27) R(28) R(29) R(30) R(31)
 
 // Registers (integer) values.
-enum A64NativeRegisterPool {
+enum A64NativeRegisterPool {  // private marker to avoid generate-operator-out.py from processing.
 #  define A64_DEFINE_REGISTERS(nr) \
     rw##nr = RegStorage::k32BitSolo | RegStorage::kCoreRegister | nr, \
     rx##nr = RegStorage::k64BitSolo | RegStorage::kCoreRegister | nr, \
@@ -312,6 +314,7 @@ enum A64Opcode {
   kA64Lsl3rrr,       // lsl [s0011010110] rm[20-16] [001000] rn[9-5] rd[4-0].
   kA64Lsr3rrd,       // lsr alias of "ubfm arg0, arg1, arg2, #{31/63}".
   kA64Lsr3rrr,       // lsr [s0011010110] rm[20-16] [001001] rn[9-5] rd[4-0].
+  kA64Madd4rrrr,     // madd[s0011011000] rm[20-16] [0] ra[14-10] rn[9-5] rd[4-0].
   kA64Movk3rdM,      // mov [010100101] hw[22-21] imm_16[20-5] rd[4-0].
   kA64Movn3rdM,      // mov [000100101] hw[22-21] imm_16[20-5] rd[4-0].
   kA64Movz3rdM,      // mov [011100101] hw[22-21] imm_16[20-5] rd[4-0].
@@ -320,6 +323,7 @@ enum A64Opcode {
   kA64Mul3rrr,       // mul [00011011000] rm[20-16] [011111] rn[9-5] rd[4-0].
   kA64Msub4rrrr,     // msub[s0011011000] rm[20-16] [1] ra[14-10] rn[9-5] rd[4-0].
   kA64Neg3rro,       // neg alias of "sub arg0, rzr, arg1, arg2".
+  kA64Nop0,          // nop alias of "hint #0" [11010101000000110010000000011111].
   kA64Orr3Rrl,       // orr [s01100100] N[22] imm_r[21-16] imm_s[15-10] rn[9-5] rd[4-0].
   kA64Orr4rrro,      // orr [s0101010] shift[23-22] [0] rm[20-16] imm_6[15-10] rn[9-5] rd[4-0].
   kA64Ret,           // ret [11010110010111110000001111000000].
@@ -332,7 +336,7 @@ enum A64Opcode {
   kA64Scvtf2fw,      // scvtf  [000111100s100010000000] rn[9-5] rd[4-0].
   kA64Scvtf2fx,      // scvtf  [100111100s100010000000] rn[9-5] rd[4-0].
   kA64Sdiv3rrr,      // sdiv[s0011010110] rm[20-16] [000011] rn[9-5] rd[4-0].
-  kA64Smaddl4xwwx,   // smaddl [10011011001] rm[20-16] [0] ra[14-10] rn[9-5] rd[4-0].
+  kA64Smull3xww,     // smull [10011011001] rm[20-16] [011111] rn[9-5] rd[4-0].
   kA64Smulh3xxx,     // smulh [10011011010] rm[20-16] [011111] rn[9-5] rd[4-0].
   kA64Stp4ffXD,      // stp [0s10110100] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
   kA64Stp4rrXD,      // stp [s010100100] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
@@ -362,9 +366,10 @@ enum A64Opcode {
   kA64Tbz3rht,       // tbz imm_6_b5[31] [0110110] imm_6_b40[23-19] imm_14[18-5] rt[4-0].
   kA64Ubfm4rrdd,     // ubfm[s10100110] N[22] imm_r[21-16] imm_s[15-10] rn[9-5] rd[4-0].
   kA64Last,
-  kA64NotWide = 0,   // Flag used to select the first instruction variant.
-  kA64Wide = 0x1000  // Flag used to select the second instruction variant.
+  kA64NotWide = kA64First,  // 0 - Flag used to select the first instruction variant.
+  kA64Wide = 0x1000         // Flag used to select the second instruction variant.
 };
+std::ostream& operator<<(std::ostream& os, const A64Opcode& rhs);
 
 /*
  * The A64 instruction set provides two variants for many instructions. For example, "mov wN, wM"
@@ -414,6 +419,7 @@ enum A64EncodingKind {
   kFmtExtend,     // Register extend, 9-bit at [23..21, 15..10].
   kFmtSkip,       // Unused field, but continue to next.
 };
+std::ostream& operator<<(std::ostream& os, const A64EncodingKind & rhs);
 
 // Struct used to define the snippet positions for each A64 opcode.
 struct A64EncodingMap {

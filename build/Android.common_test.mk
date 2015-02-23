@@ -14,8 +14,8 @@
 # limitations under the License.
 #
 
-ifndef ANDROID_COMMON_TEST_MK
-ANDROID_COMMON_TEST_MK = true
+ifndef ART_ANDROID_COMMON_TEST_MK
+ART_ANDROID_COMMON_TEST_MK = true
 
 include art/build/Android.common_path.mk
 
@@ -25,21 +25,7 @@ ART_TARGET_CFLAGS += -DART_TARGET_NATIVETEST_DIR=${ART_TARGET_NATIVETEST_DIR}
 
 # List of known broken tests that we won't attempt to execute. The test name must be the full
 # rule name such as test-art-host-oat-optimizing-HelloWorld64.
-ART_TEST_KNOWN_BROKEN := \
-  test-art-target-run-test-gcstress-optimizing-prebuild-004-SignalTest32 \
-  test-art-target-run-test-gcstress-optimizing-norelocate-004-SignalTest32 \
-  test-art-target-run-test-gcstress-default-prebuild-004-SignalTest32 \
-  test-art-target-run-test-gcstress-default-norelocate-004-SignalTest32 \
-  test-art-target-run-test-gcstress-optimizing-relocate-004-SignalTest32 \
-  test-art-target-run-test-gcstress-default-relocate-004-SignalTest32 \
-  test-art-target-run-test-gcstress-optimizing-no-prebuild-004-SignalTest32 \
-  test-art-target-run-test-gcstress-default-no-prebuild-004-SignalTest32 \
-  test-art-host-run-test-gcstress-default-prebuild-114-ParallelGC32 \
-  test-art-host-run-test-gcstress-interpreter-prebuild-114-ParallelGC32 \
-  test-art-host-run-test-gcstress-optimizing-prebuild-114-ParallelGC32 \
-  test-art-host-run-test-gcstress-default-prebuild-114-ParallelGC64 \
-  test-art-host-run-test-gcstress-interpreter-prebuild-114-ParallelGC64 \
-  test-art-host-run-test-gcstress-optimizing-prebuild-114-ParallelGC64
+ART_TEST_KNOWN_BROKEN :=
 
 # Failing valgrind tests.
 # Note: *all* 64b tests involving the runtime do not work currently. b/15170219.
@@ -63,6 +49,12 @@ ART_TEST_INTERPRETER ?= $(ART_TEST_FULL)
 # Do you want optimizing compiler tests run?
 ART_TEST_OPTIMIZING ?= $(ART_TEST_FULL)
 
+# Do we want to test a PIC-compiled core image?
+ART_TEST_PIC_IMAGE ?= $(ART_TEST_FULL)
+
+# Do we want to test PIC-compiled tests ("apps")?
+ART_TEST_PIC_TEST ?= $(ART_TEST_FULL)
+
 # Do you want tracing tests run?
 ART_TEST_TRACE ?= $(ART_TEST_FULL)
 
@@ -78,6 +70,9 @@ ART_TEST_JNI_FORCECOPY ?= $(ART_TEST_FULL)
 # Do you want run-tests with relocation disabled run?
 ART_TEST_RUN_TEST_NO_RELOCATE ?= $(ART_TEST_FULL)
 
+# Do you want run-tests with prebuilding?
+ART_TEST_RUN_TEST_PREBUILD ?= true
+
 # Do you want run-tests with no prebuilding enabled run?
 ART_TEST_RUN_TEST_NO_PREBUILD ?= $(ART_TEST_FULL)
 
@@ -89,6 +84,15 @@ ART_TEST_RUN_TEST_RELOCATE_NO_PATCHOAT ?= $(ART_TEST_FULL)
 
 # Do you want run-tests without a dex2oat?
 ART_TEST_RUN_TEST_NO_DEX2OAT ?= $(ART_TEST_FULL)
+
+# Do you want run-tests with libartd.so?
+ART_TEST_RUN_TEST_DEBUG ?= true
+
+# Do you want run-tests with libart.so?
+ART_TEST_RUN_TEST_NDEBUG ?= $(ART_TEST_FULL)
+
+# Do you want run-tests with the host/target's second arch?
+ART_TEST_RUN_TEST_2ND_ARCH ?= true
 
 # Do you want failed tests to have their artifacts cleaned up?
 ART_TEST_RUN_TEST_ALWAYS_CLEAN ?= true
@@ -179,4 +183,4 @@ define build-art-test-dex
   endif
 endef
 
-endif # ANDROID_COMMON_TEST_MK
+endif # ART_ANDROID_COMMON_TEST_MK

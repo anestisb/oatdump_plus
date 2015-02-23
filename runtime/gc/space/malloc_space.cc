@@ -173,7 +173,8 @@ ZygoteSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool l
   // stored in between objects.
   // Remaining size is for the new alloc space.
   const size_t growth_limit = growth_limit_ - size;
-  const size_t capacity = Capacity() - size;
+  // Use mem map limit in case error for clear growth limit.
+  const size_t capacity = NonGrowthLimitCapacity() - size;
   VLOG(heap) << "Begin " << reinterpret_cast<const void*>(begin_) << "\n"
              << "End " << reinterpret_cast<const void*>(End()) << "\n"
              << "Size " << size << "\n"
@@ -198,7 +199,7 @@ ZygoteSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool l
   if (capacity > initial_size_) {
     CHECK_MEMORY_CALL(mprotect, (end, capacity - initial_size_, PROT_NONE), alloc_space_name);
   }
-  *out_malloc_space = CreateInstance(alloc_space_name, mem_map.release(), allocator, End(), end,
+  *out_malloc_space = CreateInstance(mem_map.release(), alloc_space_name, allocator, End(), end,
                                      limit_, growth_limit, CanMoveObjects());
   SetLimit(End());
   live_bitmap_->SetHeapLimit(reinterpret_cast<uintptr_t>(End()));
@@ -245,6 +246,16 @@ void MallocSpace::SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* ar
   // of allocation.
   context->freed.objects += num_ptrs;
   context->freed.bytes += space->FreeList(self, num_ptrs, ptrs);
+}
+
+void MallocSpace::ClampGrowthLimit() {
+  size_t new_capacity = Capacity();
+  CHECK_LE(new_capacity, NonGrowthLimitCapacity());
+  GetLiveBitmap()->SetHeapSize(new_capacity);
+  GetMarkBitmap()->SetHeapSize(new_capacity);
+  GetMemMap()->SetSize(new_capacity);
+  limit_ = Begin() + new_capacity;
+  CHECK(temp_bitmap_.get() == nullptr);
 }
 
 }  // namespace space

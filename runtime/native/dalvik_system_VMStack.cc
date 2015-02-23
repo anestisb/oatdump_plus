@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "dalvik_system_VMStack.h"
+
 #include "jni_internal.h"
 #include "nth_caller_visitor.h"
 #include "mirror/art_method-inl.h"
@@ -36,12 +38,7 @@ static jobject GetThreadStack(const ScopedFastNativeObjectAccess& soa, jobject p
     soa.Self()->TransitionFromRunnableToSuspended(kNative);
     ThreadList* thread_list = Runtime::Current()->GetThreadList();
     bool timed_out;
-    Thread* thread;
-    {
-      // Take suspend thread lock to avoid races with threads trying to suspend this one.
-      MutexLock mu(soa.Self(), *Locks::thread_list_suspend_thread_lock_);
-      thread = thread_list->SuspendThreadByPeer(peer, true, false, &timed_out);
-    }
+    Thread* thread = thread_list->SuspendThreadByPeer(peer, true, false, &timed_out);
     if (thread != nullptr) {
       // Must be runnable to create returned array.
       CHECK_EQ(soa.Self()->TransitionFromSuspendedToRunnable(), kNative);
@@ -87,8 +84,10 @@ static jobject VMStack_getCallingClassLoader(JNIEnv* env, jclass) {
 static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject javaBootstrap,
                                                  jobject javaSystem) {
   struct ClosestUserClassLoaderVisitor : public StackVisitor {
-    ClosestUserClassLoaderVisitor(Thread* thread, mirror::Object* bootstrap, mirror::Object* system)
-      : StackVisitor(thread, NULL), bootstrap(bootstrap), system(system), class_loader(NULL) {}
+    ClosestUserClassLoaderVisitor(Thread* thread, mirror::Object* bootstrap_in,
+                                  mirror::Object* system_in)
+      : StackVisitor(thread, NULL), bootstrap(bootstrap_in), system(system_in),
+        class_loader(NULL) {}
 
     bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
       DCHECK(class_loader == NULL);

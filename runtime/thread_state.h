@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_THREAD_STATE_H_
 #define ART_RUNTIME_THREAD_STATE_H_
 
+#include <ostream>
+
 namespace art {
 
 enum ThreadState {
@@ -39,10 +41,12 @@ enum ThreadState {
   kWaitingInMainSignalCatcherLoop,  // WAITING        TS_WAIT      blocking/reading/processing signals
   kWaitingForDeoptimization,        // WAITING        TS_WAIT      waiting for deoptimization suspend all
   kWaitingForMethodTracingStart,    // WAITING        TS_WAIT      waiting for method tracing to start
+  kWaitingForVisitObjects,          // WAITING        TS_WAIT      waiting for visiting objects
   kStarting,                        // NEW            TS_WAIT      native thread started, not yet ready to run managed code
   kNative,                          // RUNNABLE       TS_RUNNING   running in a JNI native method
   kSuspended,                       // RUNNABLE       TS_RUNNING   suspended by GC or debugger
 };
+std::ostream& operator<<(std::ostream& os, const ThreadState& rhs);
 
 }  // namespace art
 

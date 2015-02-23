@@ -57,7 +57,7 @@ BumpPointerSpace::BumpPointerSpace(const std::string& name, MemMap* mem_map)
                                  kGcRetentionPolicyAlwaysCollect),
       growth_end_(mem_map->End()),
       objects_allocated_(0), bytes_allocated_(0),
-      block_lock_("Block lock"),
+      block_lock_("Block lock", kBumpPointerSpaceBlockLock),
       main_block_size_(0),
       num_blocks_(0) {
 }
@@ -172,7 +172,8 @@ void BumpPointerSpace::Walk(ObjectCallback* callback, void* arg) {
   // Walk all of the objects in the main block first.
   while (pos < main_end) {
     mirror::Object* obj = reinterpret_cast<mirror::Object*>(pos);
-    if (obj->GetClass() == nullptr) {
+    // No read barrier because obj may not be a valid object.
+    if (obj->GetClass<kDefaultVerifyFlags, kWithoutReadBarrier>() == nullptr) {
       // There is a race condition where a thread has just allocated an object but not set the
       // class. We can't know the size of this object, so we don't visit it and exit the function
       // since there is guaranteed to be not other blocks.
@@ -188,11 +189,12 @@ void BumpPointerSpace::Walk(ObjectCallback* callback, void* arg) {
     size_t block_size = header->size_;
     pos += sizeof(BlockHeader);  // Skip the header so that we know where the objects
     mirror::Object* obj = reinterpret_cast<mirror::Object*>(pos);
-    const mirror::Object* end = reinterpret_cast<const mirror::Object*>(pos + block_size);
-    CHECK_LE(reinterpret_cast<const uint8_t*>(end), End());
+    const mirror::Object* end_obj = reinterpret_cast<const mirror::Object*>(pos + block_size);
+    CHECK_LE(reinterpret_cast<const uint8_t*>(end_obj), End());
     // We don't know how many objects are allocated in the current block. When we hit a null class
     // assume its the end. TODO: Have a thread update the header when it flushes the block?
-    while (obj < end && obj->GetClass() != nullptr) {
+    // No read barrier because obj may not be a valid object.
+    while (obj < end_obj && obj->GetClass<kDefaultVerifyFlags, kWithoutReadBarrier>() != nullptr) {
       callback(obj, arg);
       obj = GetNextObject(obj);
     }
@@ -201,8 +203,8 @@ void BumpPointerSpace::Walk(ObjectCallback* callback, void* arg) {
 }
 
 accounting::ContinuousSpaceBitmap::SweepCallback* BumpPointerSpace::GetSweepCallback() {
-  LOG(FATAL) << "Unimplemented";
-  return nullptr;
+  UNIMPLEMENTED(FATAL);
+  UNREACHABLE();
 }
 
 uint64_t BumpPointerSpace::GetBytesAllocated() {

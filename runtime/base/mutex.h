@@ -60,6 +60,7 @@ enum LockLevel {
   kThreadSuspendCountLock,
   kAbortLock,
   kJdwpSocketLock,
+  kRegionSpaceRegionLock,
   kReferenceQueueSoftReferencesLock,
   kReferenceQueuePhantomReferencesLock,
   kReferenceQueueFinalizerReferencesLock,
@@ -70,6 +71,7 @@ enum LockLevel {
   kRosAllocBracketLock,
   kRosAllocBulkFreeLock,
   kAllocSpaceLock,
+  kBumpPointerSpaceBlockLock,
   kDexFileMethodInlinerLock,
   kDexFileToMethodInlinerMapLock,
   kMarkSweepMarkStackLock,
@@ -101,7 +103,6 @@ enum LockLevel {
   kHeapBitmapLock,
   kMutatorLock,
   kInstrumentEntrypointsLock,
-  kThreadListSuspendThreadLock,
   kZygoteCreationLock,
 
   kLockLevelCount  // Must come last.
@@ -361,6 +362,9 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
 
  private:
 #if ART_USE_FUTEXES
+  // Out-of-inline path for handling contention for a SharedLock.
+  void HandleSharedLockContention(Thread* self, int32_t cur_state);
+
   // -1 implies held exclusive, +ve shared held by state_ many owners.
   AtomicInteger state_;
   // Exclusive owner. Modification guarded by this mutex.
@@ -432,7 +436,7 @@ class SCOPED_LOCKABLE MutexLock {
   DISALLOW_COPY_AND_ASSIGN(MutexLock);
 };
 // Catch bug where variable name is omitted. "MutexLock (lock);" instead of "MutexLock mu(lock)".
-#define MutexLock(x) COMPILE_ASSERT(0, mutex_lock_declaration_missing_variable_name)
+#define MutexLock(x) static_assert(0, "MutexLock declaration missing variable name")
 
 // Scoped locker/unlocker for a ReaderWriterMutex that acquires read access to mu upon
 // construction and releases it upon destruction.
@@ -454,7 +458,7 @@ class SCOPED_LOCKABLE ReaderMutexLock {
 };
 // Catch bug where variable name is omitted. "ReaderMutexLock (lock);" instead of
 // "ReaderMutexLock mu(lock)".
-#define ReaderMutexLock(x) COMPILE_ASSERT(0, reader_mutex_lock_declaration_missing_variable_name)
+#define ReaderMutexLock(x) static_assert(0, "ReaderMutexLock declaration missing variable name")
 
 // Scoped locker/unlocker for a ReaderWriterMutex that acquires write access to mu upon
 // construction and releases it upon destruction.
@@ -476,24 +480,15 @@ class SCOPED_LOCKABLE WriterMutexLock {
 };
 // Catch bug where variable name is omitted. "WriterMutexLock (lock);" instead of
 // "WriterMutexLock mu(lock)".
-#define WriterMutexLock(x) COMPILE_ASSERT(0, writer_mutex_lock_declaration_missing_variable_name)
+#define WriterMutexLock(x) static_assert(0, "WriterMutexLock declaration missing variable name")
 
 // Global mutexes corresponding to the levels above.
 class Locks {
  public:
   static void Init();
 
-  // There's a potential race for two threads to try to suspend each other and for both of them
-  // to succeed and get blocked becoming runnable. This lock ensures that only one thread is
-  // requesting suspension of another at any time. As the the thread list suspend thread logic
-  // transitions to runnable, if the current thread were tried to be suspended then this thread
-  // would block holding this lock until it could safely request thread suspension of the other
-  // thread without that thread having a suspension request against this thread. This avoids a
-  // potential deadlock cycle.
-  static Mutex* thread_list_suspend_thread_lock_;
-
   // Guards allocation entrypoint instrumenting.
-  static Mutex* instrument_entrypoints_lock_ ACQUIRED_AFTER(thread_list_suspend_thread_lock_);
+  static Mutex* instrument_entrypoints_lock_;
 
   // The mutator_lock_ is used to allow mutators to execute in a shared (reader) mode or to block
   // mutators by having an exclusive (writer) owner. In normal execution each mutator thread holds

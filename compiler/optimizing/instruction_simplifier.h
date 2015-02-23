@@ -18,21 +18,22 @@
 #define ART_COMPILER_OPTIMIZING_INSTRUCTION_SIMPLIFIER_H_
 
 #include "nodes.h"
+#include "optimization.h"
+#include "optimizing_compiler_stats.h"
 
 namespace art {
 
 /**
  * Implements optimizations specific to each instruction.
  */
-class InstructionSimplifier : public HGraphVisitor {
+class InstructionSimplifier : public HOptimization {
  public:
-  explicit InstructionSimplifier(HGraph* graph) : HGraphVisitor(graph) {}
+  InstructionSimplifier(HGraph* graph,
+                        OptimizingCompilerStats* stats = nullptr,
+                        const char* name = "instruction_simplifier")
+    : HOptimization(graph, true, name, stats) {}
 
-  void Run();
-
- private:
-  virtual void VisitSuspendCheck(HSuspendCheck* check) OVERRIDE;
-  virtual void VisitEqual(HEqual* equal) OVERRIDE;
+  void Run() OVERRIDE;
 };
 
 }  // namespace art

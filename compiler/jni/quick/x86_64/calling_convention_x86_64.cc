@@ -17,6 +17,7 @@
 #include "calling_convention_x86_64.h"
 
 #include "base/logging.h"
+#include "handle_scope-inl.h"
 #include "utils/x86_64/managed_register_x86_64.h"
 #include "utils.h"
 
@@ -38,6 +39,7 @@ ManagedRegister X86_64JniCallingConvention::ReturnScratchRegister() const {
 }
 
 static ManagedRegister ReturnRegisterForShorty(const char* shorty, bool jni) {
+  UNUSED(jni);
   if (shorty[0] == 'F' || shorty[0] == 'D') {
     return X86_64ManagedRegister::FromXmmRegister(XMM0);
   } else if (shorty[0] == 'J') {

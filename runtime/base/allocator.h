@@ -62,7 +62,7 @@ enum AllocatorTag {
   kAllocatorTagRememberedSet,
   kAllocatorTagModUnionCardSet,
   kAllocatorTagModUnionReferenceArray,
-  kAllocatorTagJNILibrarires,
+  kAllocatorTagJNILibraries,
   kAllocatorTagCompileTimeClassPath,
   kAllocatorTagOatFile,
   kAllocatorTagDexFileVerifier,
@@ -101,7 +101,7 @@ inline void RegisterFree(AllocatorTag tag, size_t bytes) {
 
 // Tracking allocator for use with STL types, tracks how much memory is used.
 template<class T, AllocatorTag kTag>
-class TrackingAllocatorImpl {
+class TrackingAllocatorImpl : public std::allocator<T> {
  public:
   typedef typename std::allocator<T>::value_type value_type;
   typedef typename std::allocator<T>::size_type size_type;
@@ -114,11 +114,12 @@ class TrackingAllocatorImpl {
   // Used internally by STL data structures.
   template <class U>
   TrackingAllocatorImpl(const TrackingAllocatorImpl<U, kTag>& alloc) throw() {
+    UNUSED(alloc);
   }
 
   // Used internally by STL data structures.
   TrackingAllocatorImpl() throw() {
-    COMPILE_ASSERT(kTag < kAllocatorTagCount, must_be_less_than_count);
+    static_assert(kTag < kAllocatorTagCount, "kTag must be less than kAllocatorTagCount");
   }
 
   // Enables an allocator for objects of one type to allocate storage for objects of another type.
@@ -129,6 +130,7 @@ class TrackingAllocatorImpl {
   };
 
   pointer allocate(size_type n, const_pointer hint = 0) {
+    UNUSED(hint);
     const size_t size = n * sizeof(T);
     TrackedAllocators::RegisterAllocation(GetTag(), size);
     return reinterpret_cast<pointer>(malloc(size));

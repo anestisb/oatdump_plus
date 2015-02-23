@@ -16,6 +16,8 @@
 
 #include "object_registry.h"
 
+#include "handle_scope-inl.h"
+#include "jni_internal.h"
 #include "mirror/class.h"
 #include "scoped_thread_state_change.h"
 
@@ -46,12 +48,17 @@ JDWP::ObjectId ObjectRegistry::InternalAdd(mirror::Object* o) {
     return 0;
   }
 
+  Thread* const self = Thread::Current();
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Object> obj_h(hs.NewHandle(o));
+
   // Call IdentityHashCode here to avoid a lock level violation between lock_ and monitor_lock.
-  int32_t identity_hash_code = o->IdentityHashCode();
-  ScopedObjectAccessUnchecked soa(Thread::Current());
+  int32_t identity_hash_code = obj_h->IdentityHashCode();
+
+  ScopedObjectAccessUnchecked soa(self);
   MutexLock mu(soa.Self(), lock_);
   ObjectRegistryEntry* entry = nullptr;
-  if (ContainsLocked(soa.Self(), o, identity_hash_code, &entry)) {
+  if (ContainsLocked(soa.Self(), obj_h.Get(), identity_hash_code, &entry)) {
     // This object was already in our map.
     ++entry->reference_count;
   } else {
@@ -66,7 +73,7 @@ JDWP::ObjectId ObjectRegistry::InternalAdd(mirror::Object* o) {
     // This object isn't in the registry yet, so add it.
     JNIEnv* env = soa.Env();
 
-    jobject local_reference = soa.AddLocalReference<jobject>(o);
+    jobject local_reference = soa.AddLocalReference<jobject>(obj_h.Get());
 
     entry->jni_reference_type = JNIWeakGlobalRefType;
     entry->jni_reference = env->NewWeakGlobalRef(local_reference);
@@ -78,17 +85,6 @@ JDWP::ObjectId ObjectRegistry::InternalAdd(mirror::Object* o) {
     env->DeleteLocalRef(local_reference);
   }
   return entry->id;
-}
-
-bool ObjectRegistry::Contains(mirror::Object* o, ObjectRegistryEntry** out_entry) {
-  if (o == nullptr) {
-    return false;
-  }
-  // Call IdentityHashCode here to avoid a lock level violation between lock_ and monitor_lock.
-  int32_t identity_hash_code = o->IdentityHashCode();
-  Thread* self = Thread::Current();
-  MutexLock mu(self, lock_);
-  return ContainsLocked(self, o, identity_hash_code, out_entry);
 }
 
 bool ObjectRegistry::ContainsLocked(Thread* self, mirror::Object* o, int32_t identity_hash_code,
@@ -108,7 +104,20 @@ bool ObjectRegistry::ContainsLocked(Thread* self, mirror::Object* o, int32_t ide
 }
 
 void ObjectRegistry::Clear() {
-  Thread* self = Thread::Current();
+  Thread* const self = Thread::Current();
+
+  // We must not hold the mutator lock exclusively if we want to delete weak global
+  // references. Otherwise this can lead to a deadlock with a running GC:
+  // 1. GC thread disables access to weak global references, then releases
+  //    mutator lock.
+  // 2. JDWP thread takes mutator lock exclusively after suspending all
+  //    threads.
+  // 3. GC thread waits for shared mutator lock which is held by JDWP
+  //    thread.
+  // 4. JDWP thread clears weak global references but need to wait for GC
+  //    thread to re-enable access to them.
+  Locks::mutator_lock_->AssertNotExclusiveHeld(self);
+
   MutexLock mu(self, lock_);
   VLOG(jdwp) << "Object registry contained " << object_to_entry_.size() << " entries";
   // Delete all the JNI references.
@@ -142,7 +151,7 @@ mirror::Object* ObjectRegistry::InternalGet(JDWP::ObjectId id, JDWP::JdwpError* 
 
 jobject ObjectRegistry::GetJObject(JDWP::ObjectId id) {
   if (id == 0) {
-    return NULL;
+    return nullptr;
   }
   Thread* self = Thread::Current();
   MutexLock mu(self, lock_);
@@ -198,7 +207,7 @@ bool ObjectRegistry::IsCollected(JDWP::ObjectId id) {
   ObjectRegistryEntry& entry = *it->second;
   if (entry.jni_reference_type == JNIWeakGlobalRefType) {
     JNIEnv* env = self->GetJniEnv();
-    return env->IsSameObject(entry.jni_reference, NULL);  // Has the jweak been collected?
+    return env->IsSameObject(entry.jni_reference, nullptr);  // Has the jweak been collected?
   } else {
     return false;  // We hold a strong reference, so we know this is live.
   }
@@ -218,10 +227,10 @@ void ObjectRegistry::DisposeObject(JDWP::ObjectId id, uint32_t reference_count) 
     // Erase the object from the maps. Note object may be null if it's
     // a weak ref and the GC has cleared it.
     int32_t hash_code = entry->identity_hash_code;
-    for (auto it = object_to_entry_.lower_bound(hash_code), end = object_to_entry_.end();
-         it != end && it->first == hash_code; ++it) {
-      if (entry == it->second) {
-        object_to_entry_.erase(it);
+    for (auto inner_it = object_to_entry_.lower_bound(hash_code), end = object_to_entry_.end();
+         inner_it != end && inner_it->first == hash_code; ++inner_it) {
+      if (entry == inner_it->second) {
+        object_to_entry_.erase(inner_it);
         break;
       }
     }

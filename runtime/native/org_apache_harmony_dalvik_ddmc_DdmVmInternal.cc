@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "org_apache_harmony_dalvik_ddmc_DdmVmInternal.h"
+
 #include "base/logging.h"
 #include "base/mutex.h"
 #include "debugger.h"
@@ -61,12 +63,7 @@ static jobjectArray DdmVmInternal_getStackTraceById(JNIEnv* env, jclass, jint th
     }
 
     // Suspend thread to build stack trace.
-    Thread* thread;
-    {
-      // Take suspend thread lock to avoid races with threads trying to suspend this one.
-      MutexLock mu(self, *Locks::thread_list_suspend_thread_lock_);
-      thread = thread_list->SuspendThreadByThreadId(thin_lock_id, false, &timed_out);
-    }
+    Thread* thread = thread_list->SuspendThreadByThreadId(thin_lock_id, false, &timed_out);
     if (thread != nullptr) {
       {
         ScopedObjectAccess soa(env);

@@ -21,8 +21,8 @@
 #include <list>
 #include <map>
 
+#include "arch/instruction_set.h"
 #include "atomic.h"
-#include "instruction_set.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "gc_root.h"
@@ -103,13 +103,13 @@ struct InstrumentationListener {
 class Instrumentation {
  public:
   enum InstrumentationEvent {
-    kMethodEntered =   1 << 0,
-    kMethodExited =    1 << 1,
-    kMethodUnwind =    1 << 2,
-    kDexPcMoved =      1 << 3,
-    kFieldRead =       1 << 4,
-    kFieldWritten =    1 << 5,
-    kExceptionCaught = 1 << 6,
+    kMethodEntered   = 1,  // 1 << 0
+    kMethodExited    = 2,  // 1 << 1
+    kMethodUnwind    = 4,  // 1 << 2
+    kDexPcMoved      = 8,  // 1 << 3
+    kFieldRead       = 16,  // 1 << 4,
+    kFieldWritten    = 32,  // 1 << 5
+    kExceptionCaught = 64,  // 1 << 6
   };
 
   Instrumentation();
@@ -193,14 +193,13 @@ class Instrumentation {
   void ResetQuickAllocEntryPoints() EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_);
 
   // Update the code of a method respecting any installed stubs.
-  void UpdateMethodsCode(mirror::ArtMethod* method, const void* quick_code,
-                         const void* portable_code, bool have_portable_code)
+  void UpdateMethodsCode(mirror::ArtMethod* method, const void* quick_code)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get the quick code for the given method. More efficient than asking the class linker as it
   // will short-cut to GetCode if instrumentation and static method resolution stubs aren't
   // installed.
-  const void* GetQuickCodeFor(mirror::ArtMethod* method) const
+  const void* GetQuickCodeFor(mirror::ArtMethod* method, size_t pointer_size) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void ForceInterpretOnly() {
@@ -215,10 +214,6 @@ class Instrumentation {
 
   bool IsForcedInterpretOnly() const {
     return forced_interpret_only_;
-  }
-
-  bool ShouldPortableCodeDeoptimize() const {
-    return instrumentation_stubs_installed_;
   }
 
   bool AreExitStubsInstalled() const {
@@ -333,7 +328,7 @@ class Instrumentation {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Call back for configure stubs.
-  bool InstallStubsForClass(mirror::Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void InstallStubsForClass(mirror::Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void InstallStubsForMethod(mirror::ArtMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -464,6 +459,7 @@ class Instrumentation {
 
   DISALLOW_COPY_AND_ASSIGN(Instrumentation);
 };
+std::ostream& operator<<(std::ostream& os, const Instrumentation::InstrumentationEvent& rhs);
 
 // An element in the instrumentation side stack maintained in art::Thread.
 struct InstrumentationStackFrame {

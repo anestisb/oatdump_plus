@@ -21,6 +21,9 @@
 
 #include <math.h>
 
+#include <iostream>
+#include <sstream>
+
 #include "base/logging.h"
 #include "class_linker-inl.h"
 #include "common_throws.h"
@@ -30,7 +33,6 @@
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "handle_scope-inl.h"
-#include "method_helper-inl.h"
 #include "nth_caller_visitor.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method.h"
@@ -67,13 +69,11 @@ namespace interpreter {
 // External references to both interpreter implementations.
 
 template<bool do_access_check, bool transaction_active>
-extern JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh,
-                                const DexFile::CodeItem* code_item,
+extern JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
                                 ShadowFrame& shadow_frame, JValue result_register);
 
 template<bool do_access_check, bool transaction_active>
-extern JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh,
-                              const DexFile::CodeItem* code_item,
+extern JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item,
                               ShadowFrame& shadow_frame, JValue result_register);
 
 void ThrowNullPointerExceptionFromInterpreter(const ShadowFrame& shadow_frame)
@@ -97,7 +97,7 @@ void RecordArrayElementsInTransaction(mirror::Array* array, int32_t count)
 // DoInvokeVirtualQuick functions.
 // Returns true on success, otherwise throws an exception and returns false.
 template<bool is_range, bool do_assignability_check>
-bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
+bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
             const Instruction* inst, uint16_t inst_data, JValue* result);
 
 // Handles invoke-XXX/range instructions.
@@ -109,19 +109,20 @@ static inline bool DoInvoke(Thread* self, ShadowFrame& shadow_frame, const Instr
   const uint32_t vregC = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
   Object* receiver = (type == kStatic) ? nullptr : shadow_frame.GetVRegReference(vregC);
   mirror::ArtMethod* sf_method = shadow_frame.GetMethod();
-  ArtMethod* const method = FindMethodFromCode<type, do_access_check>(
+  ArtMethod* const called_method = FindMethodFromCode<type, do_access_check>(
       method_idx, &receiver, &sf_method, self);
   // The shadow frame should already be pushed, so we don't need to update it.
-  if (UNLIKELY(method == nullptr)) {
+  if (UNLIKELY(called_method == nullptr)) {
     CHECK(self->IsExceptionPending());
     result->SetJ(0);
     return false;
-  } else if (UNLIKELY(method->IsAbstract())) {
-    ThrowAbstractMethodError(method);
+  } else if (UNLIKELY(called_method->IsAbstract())) {
+    ThrowAbstractMethodError(called_method);
     result->SetJ(0);
     return false;
   } else {
-    return DoCall<is_range, do_access_check>(method, self, shadow_frame, inst, inst_data, result);
+    return DoCall<is_range, do_access_check>(called_method, self, shadow_frame, inst, inst_data,
+                                             result);
   }
 }
 
@@ -141,18 +142,18 @@ static inline bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
   }
   const uint32_t vtable_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
   CHECK(receiver->GetClass()->ShouldHaveEmbeddedImtAndVTable());
-  ArtMethod* const method = receiver->GetClass()->GetEmbeddedVTableEntry(vtable_idx);
-  if (UNLIKELY(method == nullptr)) {
+  ArtMethod* const called_method = receiver->GetClass()->GetEmbeddedVTableEntry(vtable_idx);
+  if (UNLIKELY(called_method == nullptr)) {
     CHECK(self->IsExceptionPending());
     result->SetJ(0);
     return false;
-  } else if (UNLIKELY(method->IsAbstract())) {
-    ThrowAbstractMethodError(method);
+  } else if (UNLIKELY(called_method->IsAbstract())) {
+    ThrowAbstractMethodError(called_method);
     result->SetJ(0);
     return false;
   } else {
     // No need to check since we've been quickened.
-    return DoCall<is_range, false>(method, self, shadow_frame, inst, inst_data, result);
+    return DoCall<is_range, false>(called_method, self, shadow_frame, inst, inst_data, result);
   }
 }
 
@@ -184,7 +185,7 @@ bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instruction* inst, uint1
 
 // Handles string resolution for const-string and const-string-jumbo instructions. Also ensures the
 // java.lang.String class is initialized.
-static inline String* ResolveString(Thread* self, MethodHelper& mh, uint32_t string_idx)
+static inline String* ResolveString(Thread* self, ShadowFrame& shadow_frame, uint32_t string_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   CHECK(!kMovingMethods);
   Class* java_lang_string_class = String::GetJavaLangString();
@@ -197,7 +198,16 @@ static inline String* ResolveString(Thread* self, MethodHelper& mh, uint32_t str
       return nullptr;
     }
   }
-  return mh.ResolveString(string_idx);
+  mirror::ArtMethod* method = shadow_frame.GetMethod();
+  mirror::Class* declaring_class = method->GetDeclaringClass();
+  mirror::String* s = declaring_class->GetDexCacheStrings()->Get(string_idx);
+  if (UNLIKELY(s == nullptr)) {
+    StackHandleScope<1> hs(self);
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
+    s = Runtime::Current()->GetClassLinker()->ResolveString(*method->GetDexFile(), string_idx,
+                                                            dex_cache);
+  }
+  return s;
 }
 
 // Handles div-int, div-int/2addr, div-int/li16 and div-int/lit8 instructions.
@@ -205,7 +215,7 @@ static inline String* ResolveString(Thread* self, MethodHelper& mh, uint32_t str
 static inline bool DoIntDivide(ShadowFrame& shadow_frame, size_t result_reg,
                                int32_t dividend, int32_t divisor)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  const int32_t kMinInt = std::numeric_limits<int32_t>::min();
+  constexpr int32_t kMinInt = std::numeric_limits<int32_t>::min();
   if (UNLIKELY(divisor == 0)) {
     ThrowArithmeticExceptionDivideByZero();
     return false;
@@ -223,7 +233,7 @@ static inline bool DoIntDivide(ShadowFrame& shadow_frame, size_t result_reg,
 static inline bool DoIntRemainder(ShadowFrame& shadow_frame, size_t result_reg,
                                   int32_t dividend, int32_t divisor)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  const int32_t kMinInt = std::numeric_limits<int32_t>::min();
+  constexpr int32_t kMinInt = std::numeric_limits<int32_t>::min();
   if (UNLIKELY(divisor == 0)) {
     ThrowArithmeticExceptionDivideByZero();
     return false;
@@ -339,12 +349,12 @@ uint32_t FindNextInstructionFollowingException(Thread* self, ShadowFrame& shadow
     uint32_t dex_pc, const instrumentation::Instrumentation* instrumentation)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-void UnexpectedOpcode(const Instruction* inst, MethodHelper& mh)
+void UnexpectedOpcode(const Instruction* inst, const ShadowFrame& shadow_frame)
   __attribute__((cold, noreturn))
   SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 static inline void TraceExecution(const ShadowFrame& shadow_frame, const Instruction* inst,
-                                  const uint32_t dex_pc, MethodHelper& mh)
+                                  const uint32_t dex_pc)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   constexpr bool kTracing = false;
   if (kTracing) {
@@ -352,7 +362,7 @@ static inline void TraceExecution(const ShadowFrame& shadow_frame, const Instruc
     std::ostringstream oss;
     oss << PrettyMethod(shadow_frame.GetMethod())
         << StringPrintf("\n0x%x: ", dex_pc)
-        << inst->DumpString(mh.GetMethod()->GetDexFile()) << "\n";
+        << inst->DumpString(shadow_frame.GetMethod()->GetDexFile()) << "\n";
     for (uint32_t i = 0; i < shadow_frame.NumberOfVRegs(); ++i) {
       uint32_t raw_value = shadow_frame.GetVReg(i);
       Object* ref_value = shadow_frame.GetVRegReference(i);

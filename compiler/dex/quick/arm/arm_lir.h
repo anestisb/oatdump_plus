@@ -17,7 +17,9 @@
 #ifndef ART_COMPILER_DEX_QUICK_ARM_ARM_LIR_H_
 #define ART_COMPILER_DEX_QUICK_ARM_ARM_LIR_H_
 
-#include "dex/compiler_internals.h"
+#include "dex/compiler_enums.h"
+#include "dex/reg_location.h"
+#include "dex/reg_storage.h"
 
 namespace art {
 
@@ -97,7 +99,7 @@ namespace art {
 // First FP callee save.
 #define ARM_FP_CALLEE_SAVE_BASE 16
 // Flag for using R4 to do suspend check
-#define ARM_R4_SUSPEND_FLAG
+// #define ARM_R4_SUSPEND_FLAG
 
 enum ArmResourceEncodingPos {
   kArmGPReg0   = 0,
@@ -109,7 +111,7 @@ enum ArmResourceEncodingPos {
   kArmRegEnd   = 48,
 };
 
-enum ArmNativeRegisterPool {
+enum ArmNativeRegisterPool {  // private marker to avoid generate-operator-out.py from processing.
   r0           = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  0,
   r1           = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  1,
   r2           = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  2,
@@ -297,19 +299,20 @@ constexpr RegStorage rs_dr30(RegStorage::kValid | dr30);
 constexpr RegStorage rs_dr31(RegStorage::kValid | dr31);
 #endif
 
-// RegisterLocation templates return values (r0, or r0/r1).
-const RegLocation arm_loc_c_return
-    {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1,
-     RegStorage(RegStorage::k32BitSolo, r0), INVALID_SREG, INVALID_SREG};
-const RegLocation arm_loc_c_return_wide
+// RegisterLocation templates return values (r0, r0/r1, s0, or d0).
+// Note: The return locations are shared between quick code and quick helper. This follows quick
+// ABI. Quick helper assembly routine needs to handle the ABI differences.
+const RegLocation arm_loc_c_return =
+    {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, rs_r0, INVALID_SREG, INVALID_SREG};
+const RegLocation arm_loc_c_return_wide =
     {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1,
-     RegStorage(RegStorage::k64BitPair, r0, r1), INVALID_SREG, INVALID_SREG};
-const RegLocation arm_loc_c_return_float
-    {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1,
-     RegStorage(RegStorage::k32BitSolo, r0), INVALID_SREG, INVALID_SREG};
-const RegLocation arm_loc_c_return_double
-    {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1,
-     RegStorage(RegStorage::k64BitPair, r0, r1), INVALID_SREG, INVALID_SREG};
+     RegStorage::MakeRegPair(rs_r0, rs_r1), INVALID_SREG, INVALID_SREG};
+const RegLocation arm_loc_c_return_float = kArm32QuickCodeUseSoftFloat
+    ? arm_loc_c_return
+    : RegLocation({kLocPhysReg, 0, 0, 0, 1, 0, 0, 0, 1, rs_fr0, INVALID_SREG, INVALID_SREG});
+const RegLocation arm_loc_c_return_double = kArm32QuickCodeUseSoftFloat
+    ? arm_loc_c_return_wide
+    : RegLocation({kLocPhysReg, 1, 0, 0, 1, 0, 0, 0, 1, rs_dr0, INVALID_SREG, INVALID_SREG});
 
 enum ArmShiftEncodings {
   kArmLsl = 0x0,
@@ -480,13 +483,14 @@ enum ArmOpcode {
   kThumb2LsrRRR,     // lsr [111110100010] rn[19..16] [1111] rd[11..8] [0000] rm[3..0].
   kThumb2AsrRRR,     // asr [111110100100] rn[19..16] [1111] rd[11..8] [0000] rm[3..0].
   kThumb2RorRRR,     // ror [111110100110] rn[19..16] [1111] rd[11..8] [0000] rm[3..0].
-  kThumb2LslRRI5,    // lsl [11101010010011110] imm[14.12] rd[11..8] [00] rm[3..0].
-  kThumb2LsrRRI5,    // lsr [11101010010011110] imm[14.12] rd[11..8] [01] rm[3..0].
-  kThumb2AsrRRI5,    // asr [11101010010011110] imm[14.12] rd[11..8] [10] rm[3..0].
-  kThumb2RorRRI5,    // ror [11101010010011110] imm[14.12] rd[11..8] [11] rm[3..0].
+  kThumb2LslRRI5,    // lsl [11101010010011110] imm3[14..12] rd[11..8] imm2[7..6] [00] rm[3..0].
+  kThumb2LsrRRI5,    // lsr [11101010010011110] imm3[14..12] rd[11..8] imm2[7..6] [01] rm[3..0].
+  kThumb2AsrRRI5,    // asr [11101010010011110] imm3[14..12] rd[11..8] imm2[7..6] [10] rm[3..0].
+  kThumb2RorRRI5,    // ror [11101010010011110] imm3[14..12] rd[11..8] imm2[7..6] [11] rm[3..0].
   kThumb2BicRRI8M,   // bic rd, rn, #<const> [11110] i [000010] rn[19..16] [0] imm3[14..12] rd[11..8] imm8[7..0].
   kThumb2AndRRI8M,   // and rd, rn, #<const> [11110] i [000000] rn[19..16] [0] imm3[14..12] rd[11..8] imm8[7..0].
   kThumb2OrrRRI8M,   // orr rd, rn, #<const> [11110] i [000100] rn[19..16] [0] imm3[14..12] rd[11..8] imm8[7..0].
+  kThumb2OrnRRI8M,   // orn rd, rn, #<const> [11110] i [000110] rn[19..16] [0] imm3[14..12] rd[11..8] imm8[7..0].
   kThumb2EorRRI8M,   // eor rd, rn, #<const> [11110] i [001000] rn[19..16] [0] imm3[14..12] rd[11..8] imm8[7..0].
   kThumb2AddRRI8M,   // add rd, rn, #<const> [11110] i [010001] rn[19..16] [0] imm3[14..12] rd[11..8] imm8[7..0].
   kThumb2AdcRRI8M,   // adc rd, rn, #<const> [11110] i [010101] rn[19..16] [0] imm3[14..12] rd[11..8] imm8[7..0].
@@ -510,7 +514,8 @@ enum ArmOpcode {
   kThumb2Vnegs,      // vneg.f32 [111011101] D [110000] rd[15-12] [1010110] M [0] vm[3-0].
   kThumb2Vmovs_IMM8,  // vmov.f32 [111011101] D [11] imm4h[19-16] vd[15-12] [10100000] imm4l[3-0].
   kThumb2Vmovd_IMM8,  // vmov.f64 [111011101] D [11] imm4h[19-16] vd[15-12] [10110000] imm4l[3-0].
-  kThumb2Mla,        // mla [111110110000] rn[19-16] ra[15-12] rd[7-4] [0000] rm[3-0].
+  kThumb2Mla,        // mla [111110110000] rn[19-16] ra[15-12] rd[11-8] [0000] rm[3-0].
+  kThumb2Mls,        // mls [111110110000] rn[19-16] ra[15-12] rd[11-8] [0001] rm[3-0].
   kThumb2Umull,      // umull [111110111010] rn[19-16], rdlo[15-12] rdhi[11-8] [0000] rm[3-0].
   kThumb2Ldrex,      // ldrex [111010000101] rn[19-16] rt[15-12] [1111] imm8[7-0].
   kThumb2Ldrexd,     // ldrexd [111010001101] rn[19-16] rt[15-12] rt2[11-8] [11111111].
@@ -545,6 +550,7 @@ enum ArmOpcode {
   kThumb2StrdI8,     // strd rt, rt2, [rn +-/1024].
   kArmLast,
 };
+std::ostream& operator<<(std::ostream& os, const ArmOpcode& rhs);
 
 enum ArmOpDmbOptions {
   kSY = 0xf,
@@ -576,6 +582,7 @@ enum ArmEncodingKind {
   kFmtOff24,       // 24-bit Thumb2 unconditional branch encoding.
   kFmtSkip,        // Unused field, but continue to next.
 };
+std::ostream& operator<<(std::ostream& os, const ArmEncodingKind& rhs);
 
 // Struct used to define the snippet positions for each Thumb opcode.
 struct ArmEncodingMap {

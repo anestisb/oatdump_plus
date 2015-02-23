@@ -16,13 +16,18 @@
 
 /* This file contains codegen for the Thumb2 ISA. */
 
-#include "arm_lir.h"
 #include "codegen_arm.h"
+
+#include "arm_lir.h"
+#include "base/logging.h"
+#include "dex/mir_graph.h"
 #include "dex/quick/mir_to_lir-inl.h"
+#include "driver/compiler_driver.h"
 #include "gc/accounting/card_table.h"
 #include "mirror/art_method.h"
 #include "mirror/object_array-inl.h"
 #include "entrypoints/quick/quick_entrypoints.h"
+#include "utils.h"
 
 namespace art {
 
@@ -47,16 +52,13 @@ namespace art {
  */
 void ArmMir2Lir::GenLargeSparseSwitch(MIR* mir, uint32_t table_offset, RegLocation rl_src) {
   const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
-  if (cu_->verbose) {
-    DumpSparseSwitchTable(table);
-  }
   // Add the table to the list - we'll process it later
   SwitchTable *tab_rec =
       static_cast<SwitchTable*>(arena_->Alloc(sizeof(SwitchTable), kArenaAllocData));
+  tab_rec->switch_mir = mir;
   tab_rec->table = table;
   tab_rec->vaddr = current_dalvik_offset_;
   uint32_t size = table[1];
-  tab_rec->targets = static_cast<LIR**>(arena_->Alloc(size * sizeof(LIR*), kArenaAllocLIR));
   switch_tables_.push_back(tab_rec);
 
   // Get the switch value
@@ -95,17 +97,13 @@ void ArmMir2Lir::GenLargeSparseSwitch(MIR* mir, uint32_t table_offset, RegLocati
 
 void ArmMir2Lir::GenLargePackedSwitch(MIR* mir, uint32_t table_offset, RegLocation rl_src) {
   const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
-  if (cu_->verbose) {
-    DumpPackedSwitchTable(table);
-  }
   // Add the table to the list - we'll process it later
   SwitchTable *tab_rec =
       static_cast<SwitchTable*>(arena_->Alloc(sizeof(SwitchTable),  kArenaAllocData));
+  tab_rec->switch_mir = mir;
   tab_rec->table = table;
   tab_rec->vaddr = current_dalvik_offset_;
   uint32_t size = table[1];
-  tab_rec->targets =
-      static_cast<LIR**>(arena_->Alloc(size * sizeof(LIR*), kArenaAllocLIR));
   switch_tables_.push_back(tab_rec);
 
   // Get the switch value
@@ -288,18 +286,12 @@ void ArmMir2Lir::GenMoveException(RegLocation rl_dest) {
   StoreValue(rl_dest, rl_result);
 }
 
-/*
- * Mark garbage collection card. Skip if the value we're storing is null.
- */
-void ArmMir2Lir::MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) {
+void ArmMir2Lir::UnconditionallyMarkGCCard(RegStorage tgt_addr_reg) {
   RegStorage reg_card_base = AllocTemp();
   RegStorage reg_card_no = AllocTemp();
-  LIR* branch_over = OpCmpImmBranch(kCondEq, val_reg, 0, NULL);
   LoadWordDisp(rs_rARM_SELF, Thread::CardTableOffset<4>().Int32Value(), reg_card_base);
   OpRegRegImm(kOpLsr, reg_card_no, tgt_addr_reg, gc::accounting::CardTable::kCardShift);
   StoreBaseIndexed(reg_card_base, reg_card_no, reg_card_base, 0, kUnsignedByte);
-  LIR* target = NewLIR0(kPseudoTargetLabel);
-  branch_over->target = target;
   FreeTemp(reg_card_base);
   FreeTemp(reg_card_no);
 }
@@ -353,7 +345,20 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
     }
   }
   /* Spill core callee saves */
-  NewLIR1(kThumb2Push, core_spill_mask_);
+  if (core_spill_mask_ == 0u) {
+    // Nothing to spill.
+  } else if ((core_spill_mask_ & ~(0xffu | (1u << rs_rARM_LR.GetRegNum()))) == 0u) {
+    // Spilling only low regs and/or LR, use 16-bit PUSH.
+    constexpr int lr_bit_shift = rs_rARM_LR.GetRegNum() - 8;
+    NewLIR1(kThumbPush,
+            (core_spill_mask_ & ~(1u << rs_rARM_LR.GetRegNum())) |
+            ((core_spill_mask_ & (1u << rs_rARM_LR.GetRegNum())) >> lr_bit_shift));
+  } else if (IsPowerOfTwo(core_spill_mask_)) {
+    // kThumb2Push cannot be used to spill a single register.
+    NewLIR1(kThumb2Push1, CTZ(core_spill_mask_));
+  } else {
+    NewLIR1(kThumb2Push, core_spill_mask_);
+  }
   /* Need to spill any FP regs? */
   if (num_fp_spills_) {
     /*
@@ -450,13 +455,26 @@ void ArmMir2Lir::GenExitSequence() {
   if (num_fp_spills_) {
     NewLIR1(kThumb2VPopCS, num_fp_spills_);
   }
-  if (core_spill_mask_ & (1 << rs_rARM_LR.GetRegNum())) {
+  if ((core_spill_mask_ & (1 << rs_rARM_LR.GetRegNum())) != 0) {
     /* Unspill rARM_LR to rARM_PC */
     core_spill_mask_ &= ~(1 << rs_rARM_LR.GetRegNum());
     core_spill_mask_ |= (1 << rs_rARM_PC.GetRegNum());
   }
-  NewLIR1(kThumb2Pop, core_spill_mask_);
-  if (!(core_spill_mask_ & (1 << rs_rARM_PC.GetRegNum()))) {
+  if (core_spill_mask_ == 0u) {
+    // Nothing to unspill.
+  } else if ((core_spill_mask_ & ~(0xffu | (1u << rs_rARM_PC.GetRegNum()))) == 0u) {
+    // Unspilling only low regs and/or PC, use 16-bit POP.
+    constexpr int pc_bit_shift = rs_rARM_PC.GetRegNum() - 8;
+    NewLIR1(kThumbPop,
+            (core_spill_mask_ & ~(1u << rs_rARM_PC.GetRegNum())) |
+            ((core_spill_mask_ & (1u << rs_rARM_PC.GetRegNum())) >> pc_bit_shift));
+  } else if (IsPowerOfTwo(core_spill_mask_)) {
+    // kThumb2Pop cannot be used to unspill a single register.
+    NewLIR1(kThumb2Pop1, CTZ(core_spill_mask_));
+  } else {
+    NewLIR1(kThumb2Pop, core_spill_mask_);
+  }
+  if ((core_spill_mask_ & (1 << rs_rARM_PC.GetRegNum())) == 0) {
     /* We didn't pop to rARM_PC, so must do a bv rARM_LR */
     NewLIR1(kThumbBx, rs_rARM_LR.GetReg());
   }
@@ -464,6 +482,28 @@ void ArmMir2Lir::GenExitSequence() {
 
 void ArmMir2Lir::GenSpecialExitSequence() {
   NewLIR1(kThumbBx, rs_rARM_LR.GetReg());
+}
+
+void ArmMir2Lir::GenSpecialEntryForSuspend() {
+  // Keep 16-byte stack alignment - push r0, i.e. ArtMethod*, r5, r6, lr.
+  DCHECK(!IsTemp(rs_r5));
+  DCHECK(!IsTemp(rs_r6));
+  core_spill_mask_ =
+      (1u << rs_r5.GetRegNum()) | (1u << rs_r6.GetRegNum()) | (1u << rs_rARM_LR.GetRegNum());
+  num_core_spills_ = 3u;
+  fp_spill_mask_ = 0u;
+  num_fp_spills_ = 0u;
+  frame_size_ = 16u;
+  core_vmap_table_.clear();
+  fp_vmap_table_.clear();
+  NewLIR1(kThumbPush, (1u << rs_r0.GetRegNum()) |                 // ArtMethod*
+          (core_spill_mask_ & ~(1u << rs_rARM_LR.GetRegNum())) |  // Spills other than LR.
+          (1u << 8));                                             // LR encoded for 16-bit push.
+}
+
+void ArmMir2Lir::GenSpecialExitForSuspend() {
+  // Pop the frame. (ArtMethod* no longer needed but restore it anyway.)
+  NewLIR1(kThumb2Pop, (1u << rs_r0.GetRegNum()) | core_spill_mask_);  // 32-bit because of LR.
 }
 
 static bool ArmUseRelativeCall(CompilationUnit* cu, const MethodReference& target_method) {
@@ -475,9 +515,9 @@ static bool ArmUseRelativeCall(CompilationUnit* cu, const MethodReference& targe
  * Bit of a hack here - in the absence of a real scheduling pass,
  * emit the next instruction in static & direct invoke sequences.
  */
-static int ArmNextSDCallInsn(CompilationUnit* cu, CallInfo* info,
+static int ArmNextSDCallInsn(CompilationUnit* cu, CallInfo* info ATTRIBUTE_UNUSED,
                              int state, const MethodReference& target_method,
-                             uint32_t unused,
+                             uint32_t unused_idx ATTRIBUTE_UNUSED,
                              uintptr_t direct_code, uintptr_t direct_method,
                              InvokeType type) {
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
@@ -536,8 +576,8 @@ static int ArmNextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       if (direct_code == 0) {
         // kInvokeTgt := arg0_ref->entrypoint
         cg->LoadWordDisp(arg0_ref,
-                         mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value(),
-                         cg->TargetPtrReg(kInvokeTgt));
+                         mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+                             kArmPointerSize).Int32Value(), cg->TargetPtrReg(kInvokeTgt));
       }
       break;
     default:

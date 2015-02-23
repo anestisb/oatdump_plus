@@ -66,7 +66,7 @@ CardTable* CardTable::Create(const uint8_t* heap_begin, size_t heap_capacity) {
   CHECK(mem_map.get() != NULL) << "couldn't allocate card table: " << error_msg;
   // All zeros is the correct initial value; all clean. Anonymous mmaps are initialized to zero, we
   // don't clear the card table to avoid unnecessary pages being allocated
-  COMPILE_ASSERT(kCardClean == 0, card_clean_must_be_0);
+  static_assert(kCardClean == 0, "kCardClean must be 0");
 
   uint8_t* cardtable_begin = mem_map->Begin();
   CHECK(cardtable_begin != NULL);
@@ -98,8 +98,28 @@ void CardTable::ClearSpaceCards(space::ContinuousSpace* space) {
 }
 
 void CardTable::ClearCardTable() {
-  COMPILE_ASSERT(kCardClean == 0, clean_card_must_be_0);
+  static_assert(kCardClean == 0, "kCardClean must be 0");
   mem_map_->MadviseDontNeedAndZero();
+}
+
+void CardTable::ClearCardRange(uint8_t* start, uint8_t* end) {
+  if (!kMadviseZeroes) {
+    memset(start, 0, end - start);
+    return;
+  }
+  CHECK_ALIGNED(reinterpret_cast<uintptr_t>(start), kCardSize);
+  CHECK_ALIGNED(reinterpret_cast<uintptr_t>(end), kCardSize);
+  static_assert(kCardClean == 0, "kCardClean must be 0");
+  uint8_t* start_card = CardFromAddr(start);
+  uint8_t* end_card = CardFromAddr(end);
+  uint8_t* round_start = AlignUp(start_card, kPageSize);
+  uint8_t* round_end = AlignDown(end_card, kPageSize);
+  if (round_start < round_end) {
+    madvise(round_start, round_end - round_start, MADV_DONTNEED);
+  }
+  // Handle unaligned regions at start / end.
+  memset(start_card, 0, std::min(round_start, end_card) - start_card);
+  memset(std::max(round_end, start_card), 0, end_card - std::max(round_end, start_card));
 }
 
 bool CardTable::AddrIsInCardTable(const void* addr) const {

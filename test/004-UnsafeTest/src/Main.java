@@ -25,14 +25,14 @@ public class Main {
   private static void check(int actual, int expected, String msg) {
     if (actual != expected) {
       System.out.println(msg + " : " + actual + " != " + expected);
-      System.exit(-1);
+      System.exit(1);
     }
   }
 
   private static void check(long actual, long expected, String msg) {
     if (actual != expected) {
       System.out.println(msg + " : " + actual + " != " + expected);
-      System.exit(-1);
+      System.exit(1);
     }
   }
 
@@ -94,6 +94,16 @@ public class Main {
     unsafe.putLong(t, longOffset, longValue);
     check(t.longVar, longValue, "Unsafe.putLong(Object, long, long)");
     check(unsafe.getLong(t, longOffset), longValue, "Unsafe.getLong(Object, long)");
+
+    if (unsafe.compareAndSwapInt(t, intOffset, 0, 1)) {
+        System.out.println("Unexpectedly succeeding compareAndSwap...");
+    }
+    if (!unsafe.compareAndSwapInt(t, intOffset, intValue, 0)) {
+        System.out.println("Unexpectedly not succeeding compareAndSwap...");
+    }
+    if (!unsafe.compareAndSwapInt(t, intOffset, 0, 1)) {
+        System.out.println("Unexpectedly not succeeding compareAndSwap...");
+    }
   }
 
   private static class TestClass {

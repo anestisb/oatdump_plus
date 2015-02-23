@@ -135,6 +135,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
     FrameOffset handle_scope_offset = main_jni_conv->CurrentParamHandleScopeEntryOffset();
     // Check handle scope offset is within frame
     CHECK_LT(handle_scope_offset.Uint32Value(), frame_size);
+    // TODO: Insert the read barrier for this load.
     __ LoadRef(main_jni_conv->InterproceduralScratchRegister(),
                mr_conv->MethodRegister(), mirror::ArtMethod::DeclaringClassOffset());
     __ VerifyObject(main_jni_conv->InterproceduralScratchRegister(), false);
@@ -176,12 +177,8 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   // 4. Write out the end of the quick frames.
   if (is_64_bit_target) {
     __ StoreStackPointerToThread64(Thread::TopOfManagedStackOffset<8>());
-    __ StoreImmediateToThread64(Thread::TopOfManagedStackPcOffset<8>(), 0,
-                              mr_conv->InterproceduralScratchRegister());
   } else {
     __ StoreStackPointerToThread32(Thread::TopOfManagedStackOffset<4>());
-    __ StoreImmediateToThread32(Thread::TopOfManagedStackPcOffset<4>(), 0,
-                              mr_conv->InterproceduralScratchRegister());
   }
 
   // 5. Move frame down to allow space for out going args.
@@ -311,7 +308,9 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   }
 
   // 9. Plant call to native code associated with method.
-  __ Call(main_jni_conv->MethodStackOffset(), mirror::ArtMethod::NativeMethodOffset(),
+  MemberOffset jni_entrypoint_offset = mirror::ArtMethod::EntryPointFromJniOffset(
+      InstructionSetPointerSize(instruction_set));
+  __ Call(main_jni_conv->MethodStackOffset(), jni_entrypoint_offset,
           mr_conv->InterproceduralScratchRegister());
 
   // 10. Fix differences in result widths.
@@ -432,13 +431,18 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   MemoryRegion code(&managed_code[0], managed_code.size());
   __ FinalizeInstructions(code);
   jni_asm->FinalizeFrameDescriptionEntry();
-  return new CompiledMethod(driver,
-                            instruction_set,
-                            managed_code,
-                            frame_size,
-                            main_jni_conv->CoreSpillMask(),
-                            main_jni_conv->FpSpillMask(),
-                            jni_asm->GetFrameDescriptionEntry());
+  std::vector<uint8_t>* fde(jni_asm->GetFrameDescriptionEntry());
+  ArrayRef<const uint8_t> cfi_ref;
+  if (fde != nullptr) {
+    cfi_ref = ArrayRef<const uint8_t>(*fde);
+  }
+  return CompiledMethod::SwapAllocCompiledMethodCFI(driver,
+                                                    instruction_set,
+                                                    ArrayRef<const uint8_t>(managed_code),
+                                                    frame_size,
+                                                    main_jni_conv->CoreSpillMask(),
+                                                    main_jni_conv->FpSpillMask(),
+                                                    cfi_ref);
 }
 
 // Copy a single parameter from the managed to the JNI calling convention

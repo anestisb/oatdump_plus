@@ -29,25 +29,23 @@
 namespace art {
 namespace x86 {
 
-class Immediate {
+class Immediate : public ValueObject {
  public:
-  explicit Immediate(int32_t value) : value_(value) {}
+  explicit Immediate(int32_t value_in) : value_(value_in) {}
 
   int32_t value() const { return value_; }
 
-  bool is_int8() const { return IsInt(8, value_); }
-  bool is_uint8() const { return IsUint(8, value_); }
-  bool is_int16() const { return IsInt(16, value_); }
-  bool is_uint16() const { return IsUint(16, value_); }
+  bool is_int8() const { return IsInt<8>(value_); }
+  bool is_uint8() const { return IsUint<8>(value_); }
+  bool is_int16() const { return IsInt<16>(value_); }
+  bool is_uint16() const { return IsUint<16>(value_); }
 
  private:
   const int32_t value_;
-
-  DISALLOW_COPY_AND_ASSIGN(Immediate);
 };
 
 
-class Operand {
+class Operand : public ValueObject {
  public:
   uint8_t mod() const {
     return (encoding_at(0) >> 6) & 3;
@@ -90,16 +88,16 @@ class Operand {
   // Operand can be sub classed (e.g: Address).
   Operand() : length_(0) { }
 
-  void SetModRM(int mod, Register rm) {
-    CHECK_EQ(mod & ~3, 0);
-    encoding_[0] = (mod << 6) | rm;
+  void SetModRM(int mod_in, Register rm_in) {
+    CHECK_EQ(mod_in & ~3, 0);
+    encoding_[0] = (mod_in << 6) | rm_in;
     length_ = 1;
   }
 
-  void SetSIB(ScaleFactor scale, Register index, Register base) {
+  void SetSIB(ScaleFactor scale_in, Register index_in, Register base_in) {
     CHECK_EQ(length_, 1);
-    CHECK_EQ(scale & ~3, 0);
-    encoding_[1] = (scale << 6) | (index << 3) | base;
+    CHECK_EQ(scale_in & ~3, 0);
+    encoding_[1] = (scale_in << 6) | (index_in << 3) | base_in;
     length_ = 2;
   }
 
@@ -122,72 +120,69 @@ class Operand {
   explicit Operand(Register reg) { SetModRM(3, reg); }
 
   // Get the operand encoding byte at the given index.
-  uint8_t encoding_at(int index) const {
-    CHECK_GE(index, 0);
-    CHECK_LT(index, length_);
-    return encoding_[index];
+  uint8_t encoding_at(int index_in) const {
+    CHECK_GE(index_in, 0);
+    CHECK_LT(index_in, length_);
+    return encoding_[index_in];
   }
 
   friend class X86Assembler;
-
-  DISALLOW_COPY_AND_ASSIGN(Operand);
 };
 
 
 class Address : public Operand {
  public:
-  Address(Register base, int32_t disp) {
-    Init(base, disp);
+  Address(Register base_in, int32_t disp) {
+    Init(base_in, disp);
   }
 
-  Address(Register base, Offset disp) {
-    Init(base, disp.Int32Value());
+  Address(Register base_in, Offset disp) {
+    Init(base_in, disp.Int32Value());
   }
 
-  Address(Register base, FrameOffset disp) {
-    CHECK_EQ(base, ESP);
+  Address(Register base_in, FrameOffset disp) {
+    CHECK_EQ(base_in, ESP);
     Init(ESP, disp.Int32Value());
   }
 
-  Address(Register base, MemberOffset disp) {
-    Init(base, disp.Int32Value());
+  Address(Register base_in, MemberOffset disp) {
+    Init(base_in, disp.Int32Value());
   }
 
-  void Init(Register base, int32_t disp) {
-    if (disp == 0 && base != EBP) {
-      SetModRM(0, base);
-      if (base == ESP) SetSIB(TIMES_1, ESP, base);
+  void Init(Register base_in, int32_t disp) {
+    if (disp == 0 && base_in != EBP) {
+      SetModRM(0, base_in);
+      if (base_in == ESP) SetSIB(TIMES_1, ESP, base_in);
     } else if (disp >= -128 && disp <= 127) {
-      SetModRM(1, base);
-      if (base == ESP) SetSIB(TIMES_1, ESP, base);
+      SetModRM(1, base_in);
+      if (base_in == ESP) SetSIB(TIMES_1, ESP, base_in);
       SetDisp8(disp);
     } else {
-      SetModRM(2, base);
-      if (base == ESP) SetSIB(TIMES_1, ESP, base);
+      SetModRM(2, base_in);
+      if (base_in == ESP) SetSIB(TIMES_1, ESP, base_in);
       SetDisp32(disp);
     }
   }
 
-
-  Address(Register index, ScaleFactor scale, int32_t disp) {
-    CHECK_NE(index, ESP);  // Illegal addressing mode.
+  Address(Register index_in, ScaleFactor scale_in, int32_t disp) {
+    CHECK_NE(index_in, ESP);  // Illegal addressing mode.
     SetModRM(0, ESP);
-    SetSIB(scale, index, EBP);
+    SetSIB(scale_in, index_in, EBP);
     SetDisp32(disp);
   }
 
-  Address(Register base, Register index, ScaleFactor scale, int32_t disp) {
-    CHECK_NE(index, ESP);  // Illegal addressing mode.
-    if (disp == 0 && base != EBP) {
+  Address(Register base_in, Register index_in, ScaleFactor scale_in, int32_t disp) {
+    CHECK_NE(index_in, ESP);  // Illegal addressing mode.
+    if (disp == 0 && base_in != EBP) {
       SetModRM(0, ESP);
-      SetSIB(scale, index, base);
+      SetSIB(scale_in, index_in, base_in);
     } else if (disp >= -128 && disp <= 127) {
       SetModRM(1, ESP);
-      SetSIB(scale, index, base);
+      SetSIB(scale_in, index_in, base_in);
       SetDisp8(disp);
     } else {
       SetModRM(2, ESP);
-      SetSIB(scale, index, base);
+      SetSIB(scale_in, index_in, base_in);
       SetDisp32(disp);
     }
   }
@@ -205,14 +200,12 @@ class Address : public Operand {
 
  private:
   Address() {}
-
-  DISALLOW_COPY_AND_ASSIGN(Address);
 };
 
 
 class X86Assembler FINAL : public Assembler {
  public:
-  explicit X86Assembler() {}
+  explicit X86Assembler() : cfi_cfa_offset_(0), cfi_pc_(0) {}
   virtual ~X86Assembler() {}
 
   /*
@@ -281,6 +274,9 @@ class X86Assembler FINAL : public Assembler {
   void movsd(const Address& dst, XmmRegister src);
   void movsd(XmmRegister dst, XmmRegister src);
 
+  void psrlq(XmmRegister reg, const Immediate& shift_count);
+  void punpckldq(XmmRegister dst, XmmRegister src);
+
   void addsd(XmmRegister dst, XmmRegister src);
   void addsd(XmmRegister dst, const Address& src);
   void subsd(XmmRegister dst, XmmRegister src);
@@ -306,6 +302,8 @@ class X86Assembler FINAL : public Assembler {
 
   void comiss(XmmRegister a, XmmRegister b);
   void comisd(XmmRegister a, XmmRegister b);
+  void ucomiss(XmmRegister a, XmmRegister b);
+  void ucomisd(XmmRegister a, XmmRegister b);
 
   void sqrtsd(XmmRegister dst, XmmRegister src);
   void sqrtss(XmmRegister dst, XmmRegister src);
@@ -319,9 +317,15 @@ class X86Assembler FINAL : public Assembler {
 
   void flds(const Address& src);
   void fstps(const Address& dst);
+  void fsts(const Address& dst);
 
   void fldl(const Address& src);
   void fstpl(const Address& dst);
+  void fstl(const Address& dst);
+
+  void fstsw();
+
+  void fucompp();
 
   void fnstcw(const Address& dst);
   void fldcw(const Address& src);
@@ -336,6 +340,7 @@ class X86Assembler FINAL : public Assembler {
   void fsin();
   void fcos();
   void fptan();
+  void fprem();
 
   void xchgl(Register dst, Register src);
   void xchgl(Register reg, const Address& address);
@@ -355,12 +360,15 @@ class X86Assembler FINAL : public Assembler {
 
   void andl(Register dst, const Immediate& imm);
   void andl(Register dst, Register src);
+  void andl(Register dst, const Address& address);
 
   void orl(Register dst, const Immediate& imm);
   void orl(Register dst, Register src);
+  void orl(Register dst, const Address& address);
 
   void xorl(Register dst, Register src);
   void xorl(Register dst, const Immediate& imm);
+  void xorl(Register dst, const Address& address);
 
   void addl(Register dst, Register src);
   void addl(Register reg, const Immediate& imm);
@@ -407,7 +415,8 @@ class X86Assembler FINAL : public Assembler {
   void shrl(Register operand, Register shifter);
   void sarl(Register reg, const Immediate& imm);
   void sarl(Register operand, Register shifter);
-  void shld(Register dst, Register src);
+  void shld(Register dst, Register src, Register shifter);
+  void shrd(Register dst, Register src, Register shifter);
 
   void negl(Register reg);
   void notl(Register reg);
@@ -442,12 +451,8 @@ class X86Assembler FINAL : public Assembler {
 
   void AddImmediate(Register reg, const Immediate& imm);
 
+  void LoadLongConstant(XmmRegister dst, int64_t value);
   void LoadDoubleConstant(XmmRegister dst, double value);
-
-  void DoubleNegate(XmmRegister d);
-  void FloatNegate(XmmRegister f);
-
-  void DoubleAbs(XmmRegister reg);
 
   void LockCmpxchgl(const Address& address, Register reg) {
     lock()->cmpxchgl(address, reg);

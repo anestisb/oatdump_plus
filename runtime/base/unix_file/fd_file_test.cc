@@ -24,7 +24,7 @@ namespace unix_file {
 class FdFileTest : public RandomAccessFileTest {
  protected:
   virtual RandomAccessFile* MakeTestFile() {
-    return new FdFile(fileno(tmpfile()));
+    return new FdFile(fileno(tmpfile()), false);
   }
 };
 
@@ -53,6 +53,7 @@ TEST_F(FdFileTest, OpenClose) {
   ASSERT_TRUE(file.Open(good_path, O_CREAT | O_WRONLY));
   EXPECT_GE(file.Fd(), 0);
   EXPECT_TRUE(file.IsOpened());
+  EXPECT_EQ(0, file.Flush());
   EXPECT_EQ(0, file.Close());
   EXPECT_EQ(-1, file.Fd());
   EXPECT_FALSE(file.IsOpened());
@@ -60,7 +61,7 @@ TEST_F(FdFileTest, OpenClose) {
   EXPECT_GE(file.Fd(), 0);
   EXPECT_TRUE(file.IsOpened());
 
-  file.Close();
+  ASSERT_EQ(file.Close(), 0);
   ASSERT_EQ(unlink(good_path.c_str()), 0);
 }
 
@@ -73,6 +74,40 @@ TEST_F(FdFileTest, ReadFullyEmptyFile) {
   EXPECT_TRUE(file.IsOpened());
   uint8_t buffer[16];
   EXPECT_FALSE(file.ReadFully(&buffer, 4));
+}
+
+template <size_t Size>
+static void NullTerminateCharArray(char (&array)[Size]) {
+  array[Size - 1] = '\0';
+}
+
+TEST_F(FdFileTest, ReadFullyWithOffset) {
+  // New scratch file, zero-length.
+  art::ScratchFile tmp;
+  FdFile file;
+  ASSERT_TRUE(file.Open(tmp.GetFilename(), O_RDWR));
+  EXPECT_GE(file.Fd(), 0);
+  EXPECT_TRUE(file.IsOpened());
+
+  char ignore_prefix[20] = {'a', };
+  NullTerminateCharArray(ignore_prefix);
+  char read_suffix[10] = {'b', };
+  NullTerminateCharArray(read_suffix);
+
+  off_t offset = 0;
+  // Write scratch data to file that we can read back into.
+  EXPECT_TRUE(file.Write(ignore_prefix, sizeof(ignore_prefix), offset));
+  offset += sizeof(ignore_prefix);
+  EXPECT_TRUE(file.Write(read_suffix, sizeof(read_suffix), offset));
+
+  ASSERT_EQ(file.Flush(), 0);
+
+  // Reading at an offset should only produce 'bbbb...', since we ignore the 'aaa...' prefix.
+  char buffer[sizeof(read_suffix)];
+  EXPECT_TRUE(file.PreadFully(buffer, sizeof(read_suffix), offset));
+  EXPECT_STREQ(&read_suffix[0], &buffer[0]);
+
+  ASSERT_EQ(file.Close(), 0);
 }
 
 }  // namespace unix_file

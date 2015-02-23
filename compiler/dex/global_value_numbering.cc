@@ -16,21 +16,22 @@
 
 #include "global_value_numbering.h"
 
+#include "base/stl_util.h"
 #include "local_value_numbering.h"
 
 namespace art {
 
-GlobalValueNumbering::GlobalValueNumbering(CompilationUnit* cu, ScopedArenaAllocator* allocator)
+GlobalValueNumbering::GlobalValueNumbering(CompilationUnit* cu, ScopedArenaAllocator* allocator,
+                                           Mode mode)
     : cu_(cu),
       mir_graph_(cu->mir_graph.get()),
       allocator_(allocator),
       bbs_processed_(0u),
       max_bbs_to_process_(kMaxBbsToProcessMultiplyFactor * mir_graph_->GetNumReachableBlocks()),
-      last_value_(0u),
-      modifications_allowed_(false),
+      last_value_(kNullValue),
+      modifications_allowed_(true),
+      mode_(mode),
       global_value_map_(std::less<uint64_t>(), allocator->Adapter()),
-      field_index_map_(FieldReferenceComparator(), allocator->Adapter()),
-      field_index_reverse_map_(allocator->Adapter()),
       array_location_map_(ArrayLocationComparator(), allocator->Adapter()),
       array_location_reverse_map_(allocator->Adapter()),
       ref_set_map_(std::less<ValueNameSet>(), allocator->Adapter()),
@@ -48,19 +49,19 @@ LocalValueNumbering* GlobalValueNumbering::PrepareBasicBlock(BasicBlock* bb,
   if (UNLIKELY(!Good())) {
     return nullptr;
   }
-  if (UNLIKELY(bb->data_flow_info == nullptr)) {
-    return nullptr;
-  }
-  if (UNLIKELY(bb->block_type == kExitBlock)) {
+  if (bb->block_type != kDalvikByteCode && bb->block_type != kEntryBlock) {
     DCHECK(bb->first_mir_insn == nullptr);
     return nullptr;
   }
-  if (UNLIKELY(bbs_processed_ == max_bbs_to_process_)) {
+  if (mode_ == kModeGvn && UNLIKELY(bbs_processed_ == max_bbs_to_process_)) {
     // If we're still trying to converge, stop now. Otherwise, proceed to apply optimizations.
-    if (!modifications_allowed_) {
-      last_value_ = kNoValue;  // Make bad.
-      return nullptr;
-    }
+    last_value_ = kNoValue;  // Make bad.
+    return nullptr;
+  }
+  if (mode_ == kModeGvnPostProcessing &&
+    mir_graph_->GetTopologicalSortOrderLoopHeadStack()->empty()) {
+    // Modifications outside loops are performed during the main phase.
+    return nullptr;
   }
   if (allocator == nullptr) {
     allocator = allocator_;
@@ -68,12 +69,8 @@ LocalValueNumbering* GlobalValueNumbering::PrepareBasicBlock(BasicBlock* bb,
   DCHECK(work_lvn_.get() == nullptr);
   work_lvn_.reset(new (allocator) LocalValueNumbering(this, bb->id, allocator));
   if (bb->block_type == kEntryBlock) {
-    if ((cu_->access_flags & kAccStatic) == 0) {
-      // If non-static method, mark "this" as non-null
-      int this_reg = cu_->mir_graph->GetFirstInVR();
-      uint16_t value_name = work_lvn_->GetSRegValueName(this_reg);
-      work_lvn_->SetValueNameNullChecked(value_name);
-    }
+    work_lvn_->PrepareEntryBlock();
+    DCHECK(bb->first_mir_insn == nullptr);  // modifications_allowed_ is irrelevant.
   } else {
     // To avoid repeated allocation on the ArenaStack, reuse a single vector kept as a member.
     DCHECK(merge_lvns_.empty());
@@ -83,19 +80,18 @@ LocalValueNumbering* GlobalValueNumbering::PrepareBasicBlock(BasicBlock* bb,
     // topological order, or we're recalculating a loop head and need to merge all incoming
     // LVNs. When we're not at a loop head (including having an empty loop head stack) all
     // predecessors should be preceding blocks and we shall merge all of them anyway.
-    //
-    // If we're running the modification phase of the full GVN, the loop head stack will be
-    // empty and we need to merge all incoming LVNs. If we're running just a simple LVN,
-    // the loop head stack will also be empty and there will be nothing to merge anyway.
     bool use_all_predecessors = true;
     uint16_t loop_head_idx = 0u;  // Used only if !use_all_predecessors.
-    if (mir_graph_->GetTopologicalSortOrderLoopHeadStack()->size() != 0) {
+    if (mode_ == kModeGvn && mir_graph_->GetTopologicalSortOrderLoopHeadStack()->size() != 0) {
       // Full GVN inside a loop, see if we're at the loop head for the first time.
+      modifications_allowed_ = false;
       auto top = mir_graph_->GetTopologicalSortOrderLoopHeadStack()->back();
       loop_head_idx = top.first;
       bool recalculating = top.second;
       use_all_predecessors = recalculating ||
           loop_head_idx != mir_graph_->GetTopologicalSortOrderIndexes()[bb->id];
+    } else {
+      modifications_allowed_ = true;
     }
     for (BasicBlockId pred_id : bb->predecessors) {
       DCHECK_NE(pred_id, NullBasicBlockId);
@@ -110,27 +106,14 @@ LocalValueNumbering* GlobalValueNumbering::PrepareBasicBlock(BasicBlock* bb,
     if (bb->catch_entry) {
       merge_type = LocalValueNumbering::kCatchMerge;
     } else if (bb->last_mir_insn != nullptr &&
-        (bb->last_mir_insn->dalvikInsn.opcode == Instruction::RETURN_VOID ||
-         bb->last_mir_insn->dalvikInsn.opcode == Instruction::RETURN ||
-         bb->last_mir_insn->dalvikInsn.opcode == Instruction::RETURN_OBJECT ||
-         bb->last_mir_insn->dalvikInsn.opcode == Instruction::RETURN_WIDE) &&
-        (bb->first_mir_insn == bb->last_mir_insn ||
-         (static_cast<int>(bb->first_mir_insn->dalvikInsn.opcode) == kMirOpPhi &&
-          (bb->first_mir_insn->next == bb->last_mir_insn ||
-           (static_cast<int>(bb->first_mir_insn->next->dalvikInsn.opcode) == kMirOpPhi &&
-            bb->first_mir_insn->next->next == bb->last_mir_insn))))) {
+        IsInstructionReturn(bb->last_mir_insn->dalvikInsn.opcode) &&
+        bb->GetFirstNonPhiInsn() == bb->last_mir_insn) {
       merge_type = LocalValueNumbering::kReturnMerge;
     }
     // At least one predecessor must have been processed before this bb.
     CHECK(!merge_lvns_.empty());
     if (merge_lvns_.size() == 1u) {
       work_lvn_->MergeOne(*merge_lvns_[0], merge_type);
-      BasicBlock* pred_bb = mir_graph_->GetBasicBlock(merge_lvns_[0]->Id());
-      if (HasNullCheckLastInsn(pred_bb, bb->id)) {
-        int s_reg = pred_bb->last_mir_insn->ssa_rep->uses[0];
-        uint16_t value_name = merge_lvns_[0]->GetSRegValueName(s_reg);
-        work_lvn_->SetValueNameNullChecked(value_name);
-      }
     } else {
       work_lvn_->Merge(merge_type);
     }
@@ -145,26 +128,17 @@ bool GlobalValueNumbering::FinishBasicBlock(BasicBlock* bb) {
   merge_lvns_.clear();
 
   bool change = (lvns_[bb->id] == nullptr) || !lvns_[bb->id]->Equals(*work_lvn_);
-  if (change) {
+  if (mode_ == kModeGvn) {
+    // In GVN mode, keep the latest LVN even if Equals() indicates no change. This is
+    // to keep the correct values of fields that do not contribute to Equals() as long
+    // as they depend only on predecessor LVNs' fields that do contribute to Equals().
+    // Currently, that's LVN::merge_map_ used by LVN::GetStartingVregValueNumberImpl().
     std::unique_ptr<const LocalValueNumbering> old_lvn(lvns_[bb->id]);
     lvns_[bb->id] = work_lvn_.release();
   } else {
     work_lvn_.reset();
   }
   return change;
-}
-
-uint16_t GlobalValueNumbering::GetFieldId(const MirFieldInfo& field_info, uint16_t type) {
-  FieldReference key = { field_info.DeclaringDexFile(), field_info.DeclaringFieldIndex(), type };
-  auto lb = field_index_map_.lower_bound(key);
-  if (lb != field_index_map_.end() && !field_index_map_.key_comp()(key, lb->first)) {
-    return lb->second;
-  }
-  DCHECK_LT(field_index_map_.size(), kNoValue);
-  uint16_t id = field_index_map_.size();
-  auto it = field_index_map_.PutBefore(lb, key, id);
-  field_index_reverse_map_.push_back(&*it);
-  return id;
 }
 
 uint16_t GlobalValueNumbering::GetArrayLocation(uint16_t base, uint16_t index) {
@@ -208,9 +182,25 @@ bool GlobalValueNumbering::NullCheckedInAllPredecessors(
       }
       // IF_EQZ/IF_NEZ checks some sreg, see if that sreg contains the value_name.
       int s_reg = pred_bb->last_mir_insn->ssa_rep->uses[0];
-      if (!pred_lvn->IsSregValue(s_reg, value_name)) {
+      if (pred_lvn->GetSregValue(s_reg) != value_name) {
         return false;
       }
+    }
+  }
+  return true;
+}
+
+bool GlobalValueNumbering::DivZeroCheckedInAllPredecessors(
+    const ScopedArenaVector<uint16_t>& merge_names) const {
+  // Implicit parameters:
+  //   - *work_lvn: the LVN for which we're checking predecessors.
+  //   - merge_lvns_: the predecessor LVNs.
+  DCHECK_EQ(merge_lvns_.size(), merge_names.size());
+  for (size_t i = 0, size = merge_lvns_.size(); i != size; ++i) {
+    const LocalValueNumbering* pred_lvn = merge_lvns_[i];
+    uint16_t value_name = merge_names[i];
+    if (!pred_lvn->IsValueDivZeroChecked(value_name)) {
+      return false;
     }
   }
   return true;

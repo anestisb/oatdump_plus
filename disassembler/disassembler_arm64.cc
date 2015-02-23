@@ -18,7 +18,7 @@
 
 #include <inttypes.h>
 
-#include <iostream>
+#include <sstream>
 
 #include "base/logging.h"
 #include "base/stringprintf.h"
@@ -27,15 +27,92 @@
 namespace art {
 namespace arm64 {
 
-static uint32_t ReadU32(const uint8_t* ptr) {
-  return *((const uint32_t*)ptr);
+// This enumeration should mirror the declarations in
+// runtime/arch/arm64/registers_arm64.h. We do not include that file to
+// avoid a dependency on libart.
+enum {
+  TR  = 18,
+  ETR = 21,
+  IP0 = 16,
+  IP1 = 17,
+  FP  = 29,
+  LR  = 30
+};
+
+void CustomDisassembler::AppendRegisterNameToOutput(
+    const vixl::Instruction* instr,
+    const vixl::CPURegister& reg) {
+  USE(instr);
+  if (reg.IsRegister()) {
+    switch (reg.code()) {
+      case IP0: AppendToOutput(reg.Is64Bits() ? "ip0" : "wip0"); return;
+      case IP1: AppendToOutput(reg.Is64Bits() ? "ip1" : "wip1"); return;
+      case TR:  AppendToOutput(reg.Is64Bits() ? "tr"  :  "w18"); return;
+      case ETR: AppendToOutput(reg.Is64Bits() ? "etr" :  "w21"); return;
+      case FP:  AppendToOutput(reg.Is64Bits() ? "fp"  :  "w29"); return;
+      case LR:  AppendToOutput(reg.Is64Bits() ? "lr"  :  "w30"); return;
+      default:
+        // Fall through.
+        break;
+    }
+  }
+  // Print other register names as usual.
+  Disassembler::AppendRegisterNameToOutput(instr, reg);
+}
+
+void CustomDisassembler::VisitLoadLiteral(const vixl::Instruction* instr) {
+  Disassembler::VisitLoadLiteral(instr);
+
+  if (!read_literals_) {
+    return;
+  }
+
+  void* data_address = instr->LiteralAddress<void*>();
+  vixl::Instr op = instr->Mask(vixl::LoadLiteralMask);
+
+  switch (op) {
+    case vixl::LDR_w_lit:
+    case vixl::LDR_x_lit:
+    case vixl::LDRSW_x_lit: {
+      int64_t data = op == vixl::LDR_x_lit ? *reinterpret_cast<int64_t*>(data_address)
+                                           : *reinterpret_cast<int32_t*>(data_address);
+      AppendToOutput(" (0x%" PRIx64 " / %" PRId64 ")", data, data);
+      break;
+    }
+    case vixl::LDR_s_lit:
+    case vixl::LDR_d_lit: {
+      double data = (op == vixl::LDR_s_lit) ? *reinterpret_cast<float*>(data_address)
+                                            : *reinterpret_cast<double*>(data_address);
+      AppendToOutput(" (%g)", data);
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+void CustomDisassembler::VisitLoadStoreUnsignedOffset(const vixl::Instruction* instr) {
+  Disassembler::VisitLoadStoreUnsignedOffset(instr);
+
+  if (instr->Rn() == TR) {
+    int64_t offset = instr->ImmLSUnsigned() << instr->SizeLS();
+    std::ostringstream tmp_stream;
+    Thread::DumpThreadOffset<8>(tmp_stream, static_cast<uint32_t>(offset));
+    AppendToOutput(" (%s)", tmp_stream.str().c_str());
+  }
 }
 
 size_t DisassemblerArm64::Dump(std::ostream& os, const uint8_t* begin) {
-  uint32_t instruction = ReadU32(begin);
-  decoder.Decode(reinterpret_cast<vixl::Instruction*>(&instruction));
-  os << FormatInstructionPointer(begin)
-     << StringPrintf(": %08x\t%s\n", instruction, disasm.GetOutput());
+  const vixl::Instruction* instr = reinterpret_cast<const vixl::Instruction*>(begin);
+  decoder.Decode(instr);
+  // TODO: Use FormatInstructionPointer() once VIXL provides the appropriate
+  // features.
+  // VIXL does not yet allow remapping addresses disassembled. Using
+  // FormatInstructionPointer() would show incoherences between the instruction
+  // location addresses and the target addresses disassembled by VIXL (eg. for
+  // branch instructions).
+  os << StringPrintf("%p", instr)
+     << StringPrintf(": %08x\t%s\n", instr->InstructionBits(), disasm.GetOutput());
   return vixl::kInstructionSize;
 }
 

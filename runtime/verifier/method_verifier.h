@@ -18,32 +18,26 @@
 #define ART_RUNTIME_VERIFIER_METHOD_VERIFIER_H_
 
 #include <memory>
-#include <set>
 #include <vector>
 
-#include "base/casts.h"
 #include "base/macros.h"
-#include "base/stl_util.h"
-#include "class_reference.h"
 #include "dex_file.h"
-#include "dex_instruction.h"
 #include "handle.h"
 #include "instruction_flags.h"
 #include "method_reference.h"
-#include "reg_type.h"
 #include "reg_type_cache.h"
-#include "register_line.h"
-#include "safe_map.h"
 
 namespace art {
 
+class Instruction;
 struct ReferenceMap2Visitor;
-template<class T> class Handle;
 
 namespace verifier {
 
-class MethodVerifier;
 class DexPcToReferenceMap;
+class MethodVerifier;
+class RegisterLine;
+class RegType;
 
 /*
  * "Direct" and "virtual" methods are stored independently. The type of call used to invoke the
@@ -128,6 +122,8 @@ class PcToRegisterLineTable {
  private:
   std::unique_ptr<RegisterLine*[]> register_lines_;
   size_t size_;
+
+  DISALLOW_COPY_AND_ASSIGN(PcToRegisterLineTable);
 };
 
 // The verifier
@@ -211,10 +207,11 @@ class MethodVerifier {
                  const DexFile::CodeItem* code_item, uint32_t method_idx,
                  Handle<mirror::ArtMethod> method,
                  uint32_t access_flags, bool can_load_classes, bool allow_soft_failures,
-                 bool need_precise_constants) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+                 bool need_precise_constants, bool allow_thread_suspension)
+          SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : MethodVerifier(self, dex_file, dex_cache, class_loader, class_def, code_item, method_idx,
                        method, access_flags, can_load_classes, allow_soft_failures,
-                       need_precise_constants, false) {}
+                       need_precise_constants, false, allow_thread_suspension) {}
 
   ~MethodVerifier();
 
@@ -242,6 +239,20 @@ class MethodVerifier {
   bool HasFailures() const;
   const RegType& ResolveCheckedClass(uint32_t class_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::ArtMethod* GetQuickInvokedMethod(const Instruction* inst,
+                                           RegisterLine* reg_line,
+                                           bool is_range)
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Is the method being verified a constructor?
+  bool IsConstructor() const {
+    return (method_access_flags_ & kAccConstructor) != 0;
+  }
+
+  // Is the method verified static?
+  bool IsStatic() const {
+    return (method_access_flags_ & kAccStatic) != 0;
+  }
 
  private:
   // Private constructor for dumping.
@@ -250,7 +261,7 @@ class MethodVerifier {
                  const DexFile::CodeItem* code_item, uint32_t method_idx,
                  Handle<mirror::ArtMethod> method, uint32_t access_flags,
                  bool can_load_classes, bool allow_soft_failures, bool need_precise_constants,
-                 bool verify_to_dump)
+                 bool verify_to_dump, bool allow_thread_suspension)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Adds the given string to the beginning of the last failure message.
@@ -511,14 +522,14 @@ class MethodVerifier {
   // Lookup static field and fail for resolution violations
   mirror::ArtField* GetStaticField(int field_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Perform verification of an iget or sget instruction.
-  void VerifyISGet(const Instruction* inst, const RegType& insn_type,
-                   bool is_primitive, bool is_static)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  // Perform verification of an iput or sput instruction.
-  void VerifyISPut(const Instruction* inst, const RegType& insn_type,
-                   bool is_primitive, bool is_static)
+  // Perform verification of an iget/sget/iput/sput instruction.
+  enum class FieldAccessType {  // private
+    kAccGet,
+    kAccPut
+  };
+  template <FieldAccessType kAccType>
+  void VerifyISFieldAccess(const Instruction* inst, const RegType& insn_type,
+                           bool is_primitive, bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns the access field of a quick field access (iget/iput-quick) or nullptr
@@ -526,14 +537,8 @@ class MethodVerifier {
   mirror::ArtField* GetQuickFieldAccess(const Instruction* inst, RegisterLine* reg_line)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Perform verification of an iget-quick instruction.
-  void VerifyIGetQuick(const Instruction* inst, const RegType& insn_type,
-                       bool is_primitive)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  // Perform verification of an iput-quick instruction.
-  void VerifyIPutQuick(const Instruction* inst, const RegType& insn_type,
-                       bool is_primitive)
+  template <FieldAccessType kAccType>
+  void VerifyQuickFieldAccess(const Instruction* inst, const RegType& insn_type, bool is_primitive)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Resolves a class based on an index and performs access checks to ensure the referrer can
@@ -596,11 +601,6 @@ class MethodVerifier {
                                                       mirror::ArtMethod* res_method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::ArtMethod* GetQuickInvokedMethod(const Instruction* inst,
-                                           RegisterLine* reg_line,
-                                           bool is_range)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   mirror::ArtMethod* VerifyInvokeVirtualQuickArgs(const Instruction* inst, bool is_range)
   SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -635,16 +635,6 @@ class MethodVerifier {
   */
   bool UpdateRegisters(uint32_t next_insn, RegisterLine* merge_line, bool update_merge_line)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  // Is the method being verified a constructor?
-  bool IsConstructor() const {
-    return (method_access_flags_ & kAccConstructor) != 0;
-  }
-
-  // Is the method verified static?
-  bool IsStatic() const {
-    return (method_access_flags_ & kAccStatic) != 0;
-  }
 
   // Return the register type for the method.
   const RegType& GetMethodReturnType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -739,6 +729,13 @@ class MethodVerifier {
   // even though we might detect to be a compiler. Should only be set when running
   // VerifyMethodAndDump.
   const bool verify_to_dump_;
+
+  // Whether or not we call AllowThreadSuspension periodically, we want a way to disable this for
+  // thread dumping checkpoints since we may get thread suspension at an inopportune time due to
+  // FindLocksAtDexPC, resulting in deadlocks.
+  const bool allow_thread_suspension_;
+
+  DISALLOW_COPY_AND_ASSIGN(MethodVerifier);
 };
 std::ostream& operator<<(std::ostream& os, const MethodVerifier::FailureKind& rhs);
 

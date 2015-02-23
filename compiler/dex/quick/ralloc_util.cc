@@ -16,9 +16,12 @@
 
 /* This file contains register alloction support. */
 
-#include "dex/compiler_ir.h"
-#include "dex/compiler_internals.h"
 #include "mir_to_lir-inl.h"
+
+#include "dex/compiler_ir.h"
+#include "dex/mir_graph.h"
+#include "driver/compiler_driver.h"
+#include "driver/dex_compilation_unit.h"
 
 namespace art {
 
@@ -316,16 +319,16 @@ RegStorage Mir2Lir::AllocPreservedFpReg(int s_reg) {
 
 // TODO: this is Thumb2 only.  Remove when DoPromotion refactored.
 RegStorage Mir2Lir::AllocPreservedDouble(int s_reg) {
-  RegStorage res;
+  UNUSED(s_reg);
   UNIMPLEMENTED(FATAL) << "Unexpected use of AllocPreservedDouble";
-  return res;
+  UNREACHABLE();
 }
 
 // TODO: this is Thumb2 only.  Remove when DoPromotion refactored.
 RegStorage Mir2Lir::AllocPreservedSingle(int s_reg) {
-  RegStorage res;
+  UNUSED(s_reg);
   UNIMPLEMENTED(FATAL) << "Unexpected use of AllocPreservedSingle";
-  return res;
+  UNREACHABLE();
 }
 
 
@@ -1188,8 +1191,7 @@ void Mir2Lir::DoPromotion() {
   int num_regs = mir_graph_->GetNumOfCodeAndTempVRs();
   const int promotion_threshold = 1;
   // Allocate the promotion map - one entry for each Dalvik vReg or compiler temp
-  promotion_map_ = static_cast<PromotionMap*>
-      (arena_->Alloc(num_regs * sizeof(promotion_map_[0]), kArenaAllocRegAlloc));
+  promotion_map_ = arena_->AllocArray<PromotionMap>(num_regs, kArenaAllocRegAlloc);
 
   // Allow target code to add any special registers
   AdjustSpillMask();
@@ -1207,12 +1209,8 @@ void Mir2Lir::DoPromotion() {
    */
   size_t core_reg_count_size = WideGPRsAreAliases() ? num_regs : num_regs * 2;
   size_t fp_reg_count_size = WideFPRsAreAliases() ? num_regs : num_regs * 2;
-  RefCounts *core_regs =
-      static_cast<RefCounts*>(arena_->Alloc(sizeof(RefCounts) * core_reg_count_size,
-                                            kArenaAllocRegAlloc));
-  RefCounts *fp_regs =
-      static_cast<RefCounts *>(arena_->Alloc(sizeof(RefCounts) * fp_reg_count_size,
-                                             kArenaAllocRegAlloc));
+  RefCounts *core_regs = arena_->AllocArray<RefCounts>(core_reg_count_size, kArenaAllocRegAlloc);
+  RefCounts *fp_regs = arena_->AllocArray<RefCounts>(fp_reg_count_size, kArenaAllocRegAlloc);
   // Set ssa names for original Dalvik registers
   for (int i = 0; i < num_regs; i++) {
     core_regs[i].s_reg = fp_regs[i].s_reg = i;
@@ -1392,6 +1390,7 @@ int Mir2Lir::GetSRegHi(int lowSreg) {
 }
 
 bool Mir2Lir::LiveOut(int s_reg) {
+  UNUSED(s_reg);
   // For now.
   return true;
 }

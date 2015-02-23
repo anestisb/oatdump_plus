@@ -57,10 +57,10 @@ TEST(BitVector, Test) {
 
   BitVector::IndexIterator iterator = bv.Indexes().begin();
   EXPECT_TRUE(iterator != bv.Indexes().end());
-  EXPECT_EQ(0, *iterator);
+  EXPECT_EQ(0u, *iterator);
   ++iterator;
   EXPECT_TRUE(iterator != bv.Indexes().end());
-  EXPECT_EQ(static_cast<int>(kBits - 1), *iterator);
+  EXPECT_EQ(kBits - 1u, *iterator);
   ++iterator;
   EXPECT_TRUE(iterator == bv.Indexes().end());
 }
@@ -139,6 +139,32 @@ TEST(BitVector, SetInitialBits) {
   EXPECT_EQ(63u, bv.NumSetBits());
   bv.SetInitialBits(64u);
   EXPECT_EQ(64u, bv.NumSetBits());
+}
+
+TEST(BitVector, UnionIfNotIn) {
+  {
+    BitVector first(2, true, Allocator::GetMallocAllocator());
+    BitVector second(5, true, Allocator::GetMallocAllocator());
+    BitVector third(5, true, Allocator::GetMallocAllocator());
+
+    second.SetBit(64);
+    third.SetBit(64);
+    bool changed = first.UnionIfNotIn(&second, &third);
+    EXPECT_EQ(0u, first.NumSetBits());
+    EXPECT_FALSE(changed);
+  }
+
+  {
+    BitVector first(2, true, Allocator::GetMallocAllocator());
+    BitVector second(5, true, Allocator::GetMallocAllocator());
+    BitVector third(5, true, Allocator::GetMallocAllocator());
+
+    second.SetBit(64);
+    bool changed = first.UnionIfNotIn(&second, &third);
+    EXPECT_EQ(1u, first.NumSetBits());
+    EXPECT_TRUE(changed);
+    EXPECT_TRUE(first.IsBitSet(64));
+  }
 }
 
 }  // namespace art

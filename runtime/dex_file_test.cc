@@ -21,6 +21,7 @@
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "common_runtime_test.h"
+#include "dex_file-inl.h"
 #include "os.h"
 #include "scoped_thread_state_change.h"
 #include "thread-inl.h"
@@ -31,8 +32,8 @@ class DexFileTest : public CommonRuntimeTest {};
 
 TEST_F(DexFileTest, Open) {
   ScopedObjectAccess soa(Thread::Current());
-  const DexFile* dex(OpenTestDexFile("Nested"));
-  ASSERT_TRUE(dex != NULL);
+  std::unique_ptr<const DexFile> dex(OpenTestDexFile("Nested"));
+  ASSERT_TRUE(dex.get() != NULL);
 }
 
 static const uint8_t kBase64Map[256] = {
@@ -132,8 +133,8 @@ static const char kRawDex[] =
   "AAACAAAAQAEAAAEgAAACAAAAVAEAAAYgAAACAAAAiAEAAAEQAAABAAAAqAEAAAIgAAAPAAAArgEA"
   "AAMgAAACAAAAiAIAAAQgAAADAAAAlAIAAAAgAAACAAAAqwIAAAAQAAABAAAAxAIAAA==";
 
-static const DexFile* OpenDexFileBase64(const char* base64,
-                                        const char* location) {
+static std::unique_ptr<const DexFile> OpenDexFileBase64(const char* base64,
+                                                        const char* location) {
   // decode base64
   CHECK(base64 != NULL);
   size_t length;
@@ -146,16 +147,19 @@ static const DexFile* OpenDexFileBase64(const char* base64,
   if (!file->WriteFully(dex_bytes.get(), length)) {
     PLOG(FATAL) << "Failed to write base64 as dex file";
   }
+  if (file->FlushCloseOrErase() != 0) {
+    PLOG(FATAL) << "Could not flush and close test file.";
+  }
   file.reset();
 
   // read dex file
   ScopedObjectAccess soa(Thread::Current());
   std::string error_msg;
-  std::vector<const DexFile*> tmp;
+  std::vector<std::unique_ptr<const DexFile>> tmp;
   bool success = DexFile::Open(location, location, &error_msg, &tmp);
   CHECK(success) << error_msg;
   EXPECT_EQ(1U, tmp.size());
-  const DexFile* dex_file = tmp[0];
+  std::unique_ptr<const DexFile> dex_file = std::move(tmp[0]);
   EXPECT_EQ(PROT_READ, dex_file->GetPermissions());
   EXPECT_TRUE(dex_file->IsReadOnly());
   return dex_file;
@@ -194,7 +198,7 @@ TEST_F(DexFileTest, Header) {
 
 TEST_F(DexFileTest, GetLocationChecksum) {
   ScopedObjectAccess soa(Thread::Current());
-  const DexFile* raw(OpenTestDexFile("Main"));
+  std::unique_ptr<const DexFile> raw(OpenTestDexFile("Main"));
   EXPECT_NE(raw->GetHeader().checksum_, raw->GetLocationChecksum());
 }
 
@@ -209,8 +213,8 @@ TEST_F(DexFileTest, GetChecksum) {
 
 TEST_F(DexFileTest, ClassDefs) {
   ScopedObjectAccess soa(Thread::Current());
-  const DexFile* raw(OpenTestDexFile("Nested"));
-  ASSERT_TRUE(raw != NULL);
+  std::unique_ptr<const DexFile> raw(OpenTestDexFile("Nested"));
+  ASSERT_TRUE(raw.get() != nullptr);
   EXPECT_EQ(2U, raw->NumClassDefs());
 
   const DexFile::ClassDef& c0 = raw->GetClassDef(0);
@@ -222,8 +226,8 @@ TEST_F(DexFileTest, ClassDefs) {
 
 TEST_F(DexFileTest, GetMethodSignature) {
   ScopedObjectAccess soa(Thread::Current());
-  const DexFile* raw(OpenTestDexFile("GetMethodSignature"));
-  ASSERT_TRUE(raw != NULL);
+  std::unique_ptr<const DexFile> raw(OpenTestDexFile("GetMethodSignature"));
+  ASSERT_TRUE(raw.get() != nullptr);
   EXPECT_EQ(1U, raw->NumClassDefs());
 
   const DexFile::ClassDef& class_def = raw->GetClassDef(0);
@@ -272,8 +276,8 @@ TEST_F(DexFileTest, GetMethodSignature) {
 
 TEST_F(DexFileTest, FindStringId) {
   ScopedObjectAccess soa(Thread::Current());
-  const DexFile* raw(OpenTestDexFile("GetMethodSignature"));
-  ASSERT_TRUE(raw != NULL);
+  std::unique_ptr<const DexFile> raw(OpenTestDexFile("GetMethodSignature"));
+  ASSERT_TRUE(raw.get() != nullptr);
   EXPECT_EQ(1U, raw->NumClassDefs());
 
   const char* strings[] = { "LGetMethodSignature;", "Ljava/lang/Float;", "Ljava/lang/Object;",

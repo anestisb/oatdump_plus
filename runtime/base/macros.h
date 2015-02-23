@@ -41,43 +41,34 @@
 #define FINAL
 #endif
 
-// The COMPILE_ASSERT macro can be used to verify that a compile time
-// expression is true. For example, you could use it to verify the
-// size of a static array:
-//
-//   COMPILE_ASSERT(ARRAYSIZE(content_type_names) == CONTENT_NUM_TYPES,
-//                  content_type_names_incorrect_size);
-//
-// or to make sure a struct is smaller than a certain size:
-//
-//   COMPILE_ASSERT(sizeof(foo) < 128, foo_too_large);
-//
-// The second argument to the macro is the name of the variable. If
-// the expression is false, most compilers will issue a warning/error
-// containing the name of the variable.
+// Declare a friend relationship in a class with a test. Used rather that FRIEND_TEST to avoid
+// globally importing gtest/gtest.h into the main ART header files.
+#define ART_FRIEND_TEST(test_set_name, individual_test)\
+friend class test_set_name##_##individual_test##_Test
 
-template <bool>
-struct CompileAssert {
-};
-
-#define COMPILE_ASSERT(expr, msg) \
-  typedef CompileAssert<(bool(expr))> msg[bool(expr) ? 1 : -1] // NOLINT
-
-// DISALLOW_COPY_AND_ASSIGN disallows the copy and operator= functions.
-// It goes in the private: declarations in a class.
+// DISALLOW_COPY_AND_ASSIGN disallows the copy and operator= functions. It goes in the private:
+// declarations in a class.
+#if !defined(DISALLOW_COPY_AND_ASSIGN)
 #define DISALLOW_COPY_AND_ASSIGN(TypeName) \
-  TypeName(const TypeName&);               \
-  void operator=(const TypeName&)
+  TypeName(const TypeName&) = delete;  \
+  void operator=(const TypeName&) = delete
+#endif
 
-// A macro to disallow all the implicit constructors, namely the
-// default constructor, copy constructor and operator= functions.
+// A macro to disallow all the implicit constructors, namely the default constructor, copy
+// constructor and operator= functions.
 //
-// This should be used in the private: declarations for a class
-// that wants to prevent anyone from instantiating it. This is
-// especially useful for classes containing only static methods.
+// This should be used in the private: declarations for a class that wants to prevent anyone from
+// instantiating it. This is especially useful for classes containing only static methods.
 #define DISALLOW_IMPLICIT_CONSTRUCTORS(TypeName) \
-  TypeName();                                    \
+  TypeName() = delete;  \
   DISALLOW_COPY_AND_ASSIGN(TypeName)
+
+// A macro to disallow new and delete operators for a class. It goes in the private: declarations.
+#define DISALLOW_ALLOCATION() \
+  public: \
+    ALWAYS_INLINE void operator delete(void*, size_t) { UNREACHABLE(); } \
+  private: \
+    void* operator new(size_t) = delete
 
 // The arraysize(arr) macro returns the # of elements in an array arr.
 // The expression is a compile-time constant, and therefore can be
@@ -167,6 +158,8 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 #define ALWAYS_INLINE_LAMBDA ALWAYS_INLINE
 #endif
 
+#define NO_INLINE __attribute__ ((noinline))
+
 #if defined (__APPLE__)
 #define HOT_ATTR
 #define COLD_ATTR
@@ -178,7 +171,19 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 #define PURE __attribute__ ((__pure__))
 #define WARN_UNUSED __attribute__((warn_unused_result))
 
-template<typename T> void UNUSED(const T&) {}
+// A deprecated function to call to create a false use of the parameter, for example:
+//   int foo(int x) { UNUSED(x); return 10; }
+// to avoid compiler warnings. Going forward we prefer ATTRIBUTE_UNUSED.
+template<typename... T> void UNUSED(const T&...) {}
+
+// An attribute to place on a parameter to a function, for example:
+//   int foo(int x ATTRIBUTE_UNUSED) { return 10; }
+// to avoid compiler warnings.
+#define ATTRIBUTE_UNUSED __attribute__((__unused__))
+
+// Define that a position within code is unreachable, for example:
+//   int foo () { LOG(FATAL) << "Don't call me"; UNREACHABLE(); }
+// without the UNREACHABLE a return statement would be necessary.
 #define UNREACHABLE  __builtin_unreachable
 
 // The FALLTHROUGH_INTENDED macro can be used to annotate implicit fall-through

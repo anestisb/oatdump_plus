@@ -18,6 +18,8 @@
 #define ART_COMPILER_OPTIMIZING_CODE_GENERATOR_X86_64_H_
 
 #include "code_generator.h"
+#include "dex/compiler_enums.h"
+#include "driver/compiler_options.h"
 #include "nodes.h"
 #include "parallel_move_resolver.h"
 #include "utils/x86_64/assembler_x86_64.h"
@@ -25,7 +27,8 @@
 namespace art {
 namespace x86_64 {
 
-static constexpr size_t kX86_64WordSize = 8;
+// Use a local definition to prevent copying mistakes.
+static constexpr size_t kX86_64WordSize = kX86_64PointerSize;
 
 static constexpr Register kParameterCoreRegisters[] = { RSI, RDX, RCX, R8, R9 };
 static constexpr FloatRegister kParameterFloatRegisters[] =
@@ -66,22 +69,38 @@ class InvokeDexCallingConventionVisitor {
 
 class CodeGeneratorX86_64;
 
+class SlowPathCodeX86_64 : public SlowPathCode {
+ public:
+  SlowPathCodeX86_64() : entry_label_(), exit_label_() {}
+
+  Label* GetEntryLabel() { return &entry_label_; }
+  Label* GetExitLabel() { return &exit_label_; }
+
+ private:
+  Label entry_label_;
+  Label exit_label_;
+
+  DISALLOW_COPY_AND_ASSIGN(SlowPathCodeX86_64);
+};
+
 class ParallelMoveResolverX86_64 : public ParallelMoveResolver {
  public:
   ParallelMoveResolverX86_64(ArenaAllocator* allocator, CodeGeneratorX86_64* codegen)
       : ParallelMoveResolver(allocator), codegen_(codegen) {}
 
-  virtual void EmitMove(size_t index) OVERRIDE;
-  virtual void EmitSwap(size_t index) OVERRIDE;
-  virtual void SpillScratch(int reg) OVERRIDE;
-  virtual void RestoreScratch(int reg) OVERRIDE;
+  void EmitMove(size_t index) OVERRIDE;
+  void EmitSwap(size_t index) OVERRIDE;
+  void SpillScratch(int reg) OVERRIDE;
+  void RestoreScratch(int reg) OVERRIDE;
 
   X86_64Assembler* GetAssembler() const;
 
  private:
   void Exchange32(CpuRegister reg, int mem);
+  void Exchange32(XmmRegister reg, int mem);
   void Exchange32(int mem1, int mem2);
   void Exchange64(CpuRegister reg, int mem);
+  void Exchange64(XmmRegister reg, int mem);
   void Exchange64(int mem1, int mem2);
 
   CodeGeneratorX86_64* const codegen_;
@@ -95,15 +114,19 @@ class LocationsBuilderX86_64 : public HGraphVisitor {
       : HGraphVisitor(graph), codegen_(codegen) {}
 
 #define DECLARE_VISIT_INSTRUCTION(name, super)     \
-  virtual void Visit##name(H##name* instr);
+  void Visit##name(H##name* instr) OVERRIDE;
 
   FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
 
 #undef DECLARE_VISIT_INSTRUCTION
 
-  void HandleInvoke(HInvoke* invoke);
-
  private:
+  void HandleInvoke(HInvoke* invoke);
+  void HandleBitwiseOperation(HBinaryOperation* operation);
+  void HandleShift(HBinaryOperation* operation);
+  void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
+  void HandleFieldGet(HInstruction* instruction);
+
   CodeGeneratorX86_64* const codegen_;
   InvokeDexCallingConventionVisitor parameter_visitor_;
 
@@ -115,13 +138,11 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
   InstructionCodeGeneratorX86_64(HGraph* graph, CodeGeneratorX86_64* codegen);
 
 #define DECLARE_VISIT_INSTRUCTION(name, super)     \
-  virtual void Visit##name(H##name* instr);
+  void Visit##name(H##name* instr) OVERRIDE;
 
   FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
 
 #undef DECLARE_VISIT_INSTRUCTION
-
-  void LoadCurrentMethod(CpuRegister reg);
 
   X86_64Assembler* GetAssembler() const { return assembler_; }
 
@@ -130,6 +151,18 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
   // is the block to branch to if the suspend check is not needed, and after
   // the suspend call.
   void GenerateSuspendCheck(HSuspendCheck* instruction, HBasicBlock* successor);
+  void GenerateClassInitializationCheck(SlowPathCodeX86_64* slow_path, CpuRegister class_reg);
+  void HandleBitwiseOperation(HBinaryOperation* operation);
+  void GenerateRemFP(HRem *rem);
+  void GenerateDivRemIntegral(HBinaryOperation* instruction);
+  void HandleShift(HBinaryOperation* operation);
+  void GenerateMemoryBarrier(MemBarrierKind kind);
+  void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
+  void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
+  void GenerateImplicitNullCheck(HNullCheck* instruction);
+  void GenerateExplicitNullCheck(HNullCheck* instruction);
+  void PushOntoFPStack(Location source, uint32_t temp_offset,
+                       uint32_t stack_adjustment, bool is_float);
 
   X86_64Assembler* const assembler_;
   CodeGeneratorX86_64* const codegen_;
@@ -139,46 +172,54 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
 
 class CodeGeneratorX86_64 : public CodeGenerator {
  public:
-  explicit CodeGeneratorX86_64(HGraph* graph);
+  CodeGeneratorX86_64(HGraph* graph, const CompilerOptions& compiler_options);
   virtual ~CodeGeneratorX86_64() {}
 
-  virtual void GenerateFrameEntry() OVERRIDE;
-  virtual void GenerateFrameExit() OVERRIDE;
-  virtual void Bind(Label* label) OVERRIDE;
-  virtual void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
-  virtual void SaveCoreRegister(Location stack_location, uint32_t reg_id) OVERRIDE;
-  virtual void RestoreCoreRegister(Location stack_location, uint32_t reg_id) OVERRIDE;
+  void GenerateFrameEntry() OVERRIDE;
+  void GenerateFrameExit() OVERRIDE;
+  void Bind(HBasicBlock* block) OVERRIDE;
+  void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
+  size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  size_t RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
 
-  virtual size_t GetWordSize() const OVERRIDE {
+  size_t GetWordSize() const OVERRIDE {
     return kX86_64WordSize;
   }
 
-  virtual size_t FrameEntrySpillSize() const OVERRIDE;
+  size_t GetFloatingPointSpillSlotSize() const OVERRIDE {
+    return kX86_64WordSize;
+  }
 
-  virtual HGraphVisitor* GetLocationBuilder() OVERRIDE {
+  HGraphVisitor* GetLocationBuilder() OVERRIDE {
     return &location_builder_;
   }
 
-  virtual HGraphVisitor* GetInstructionVisitor() OVERRIDE {
+  HGraphVisitor* GetInstructionVisitor() OVERRIDE {
     return &instruction_visitor_;
   }
 
-  virtual X86_64Assembler* GetAssembler() OVERRIDE {
+  X86_64Assembler* GetAssembler() OVERRIDE {
     return &assembler_;
   }
 
-  ParallelMoveResolverX86_64* GetMoveResolver() {
+  ParallelMoveResolverX86_64* GetMoveResolver() OVERRIDE {
     return &move_resolver_;
   }
 
-  virtual Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
+  uintptr_t GetAddressOf(HBasicBlock* block) const OVERRIDE {
+    return GetLabelOf(block)->Position();
+  }
 
-  virtual void SetupBlockedRegisters() const OVERRIDE;
-  virtual Location AllocateFreeRegister(Primitive::Type type) const OVERRIDE;
-  virtual void DumpCoreRegister(std::ostream& stream, int reg) const OVERRIDE;
-  virtual void DumpFloatingPointRegister(std::ostream& stream, int reg) const OVERRIDE;
+  Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
 
-  virtual InstructionSet GetInstructionSet() const OVERRIDE {
+  void SetupBlockedRegisters(bool is_baseline) const OVERRIDE;
+  Location AllocateFreeRegister(Primitive::Type type) const OVERRIDE;
+  void DumpCoreRegister(std::ostream& stream, int reg) const OVERRIDE;
+  void DumpFloatingPointRegister(std::ostream& stream, int reg) const OVERRIDE;
+
+  InstructionSet GetInstructionSet() const OVERRIDE {
     return InstructionSet::kX86_64;
   }
 
@@ -188,7 +229,26 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   // Helper method to move a value between two locations.
   void Move(Location destination, Location source);
 
+  void LoadCurrentMethod(CpuRegister reg);
+
+  Label* GetLabelOf(HBasicBlock* block) const {
+    return CommonGetLabelOf<Label>(block_labels_.GetRawStorage(), block);
+  }
+
+  void Initialize() OVERRIDE {
+    block_labels_.SetSize(GetGraph()->GetBlocks().Size());
+  }
+
+  bool NeedsTwoRegisters(Primitive::Type type ATTRIBUTE_UNUSED) const OVERRIDE {
+    return false;
+  }
+
+  void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, CpuRegister temp);
+
  private:
+  // Labels for each block that will be compiled.
+  GrowableArray<Label> block_labels_;
+  Label frame_entry_label_;
   LocationsBuilderX86_64 location_builder_;
   InstructionCodeGeneratorX86_64 instruction_visitor_;
   ParallelMoveResolverX86_64 move_resolver_;

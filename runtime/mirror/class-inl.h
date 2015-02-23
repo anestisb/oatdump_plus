@@ -112,20 +112,21 @@ inline uint32_t Class::NumVirtualMethods() {
 
 template<VerifyObjectFlags kVerifyFlags>
 inline ArtMethod* Class::GetVirtualMethod(uint32_t i) {
-  DCHECK(IsResolved<kVerifyFlags>() || IsErroneous<kVerifyFlags>());
-  return GetVirtualMethods()->Get(i);
+  DCHECK(IsResolved<kVerifyFlags>() || IsErroneous<kVerifyFlags>())
+      << PrettyClass(this) << " status=" << GetStatus();
+  return GetVirtualMethods()->GetWithoutChecks(i);
 }
 
 inline ArtMethod* Class::GetVirtualMethodDuringLinking(uint32_t i) {
   DCHECK(IsLoaded() || IsErroneous());
-  return GetVirtualMethods()->Get(i);
+  return GetVirtualMethods()->GetWithoutChecks(i);
 }
 
 inline void Class::SetVirtualMethod(uint32_t i, ArtMethod* f)  // TODO: uint16_t
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ObjectArray<ArtMethod>* virtual_methods =
       GetFieldObject<ObjectArray<ArtMethod>>(OFFSET_OF_OBJECT_MEMBER(Class, virtual_methods_));
-  virtual_methods->Set<false>(i, f);
+  virtual_methods->SetWithoutChecks<false>(i, f);
 }
 
 inline ObjectArray<ArtMethod>* Class::GetVTable() {
@@ -142,14 +143,6 @@ inline void Class::SetVTable(ObjectArray<ArtMethod>* new_vtable) {
   SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, vtable_), new_vtable);
 }
 
-inline ObjectArray<ArtMethod>* Class::GetImTable() {
-  return GetFieldObject<ObjectArray<ArtMethod>>(OFFSET_OF_OBJECT_MEMBER(Class, imtable_));
-}
-
-inline void Class::SetImTable(ObjectArray<ArtMethod>* new_imtable) {
-  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, imtable_), new_imtable);
-}
-
 inline ArtMethod* Class::GetEmbeddedImTableEntry(uint32_t i) {
   uint32_t offset = EmbeddedImTableOffset().Uint32Value() + i * sizeof(ImTableEntry);
   return GetFieldObject<mirror::ArtMethod>(MemberOffset(offset));
@@ -158,7 +151,6 @@ inline ArtMethod* Class::GetEmbeddedImTableEntry(uint32_t i) {
 inline void Class::SetEmbeddedImTableEntry(uint32_t i, ArtMethod* method) {
   uint32_t offset = EmbeddedImTableOffset().Uint32Value() + i * sizeof(ImTableEntry);
   SetFieldObject<false>(MemberOffset(offset), method);
-  CHECK(method == GetImTable()->Get(i));
 }
 
 inline bool Class::HasVTable() {
@@ -287,7 +279,7 @@ inline bool Class::ResolvedFieldAccessTest(Class* access_to, ArtField* field,
 template <bool throw_on_failure, bool use_referrers_cache, InvokeType throw_invoke_type>
 inline bool Class::ResolvedMethodAccessTest(Class* access_to, ArtMethod* method,
                                             uint32_t method_idx, DexCache* dex_cache) {
-  COMPILE_ASSERT(throw_on_failure || throw_invoke_type == kStatic, non_default_throw_invoke_type);
+  static_assert(throw_on_failure || throw_invoke_type == kStatic, "Non-default throw invoke type");
   DCHECK_EQ(use_referrers_cache, dex_cache == nullptr);
   if (UNLIKELY(!this->CanAccess(access_to))) {
     // The referrer class can't access the method's declaring class but may still be able
@@ -410,6 +402,36 @@ inline ObjectArray<ArtField>* Class::GetIFields() {
   return GetFieldObject<ObjectArray<ArtField>>(OFFSET_OF_OBJECT_MEMBER(Class, ifields_));
 }
 
+inline MemberOffset Class::GetFirstReferenceInstanceFieldOffset() {
+  Class* super_class = GetSuperClass();
+  return (super_class != nullptr)
+      ? MemberOffset(RoundUp(super_class->GetObjectSize(),
+                             sizeof(mirror::HeapReference<mirror::Object>)))
+      : ClassOffset();
+}
+
+inline MemberOffset Class::GetFirstReferenceStaticFieldOffset() {
+  DCHECK(IsResolved());
+  uint32_t base = sizeof(mirror::Class);  // Static fields come after the class.
+  if (ShouldHaveEmbeddedImtAndVTable()) {
+    // Static fields come after the embedded tables.
+    base = mirror::Class::ComputeClassSize(true, GetEmbeddedVTableLength(),
+                                           0, 0, 0, 0, 0);
+  }
+  return MemberOffset(base);
+}
+
+inline MemberOffset Class::GetFirstReferenceStaticFieldOffsetDuringLinking() {
+  DCHECK(IsLoaded());
+  uint32_t base = sizeof(mirror::Class);  // Static fields come after the class.
+  if (ShouldHaveEmbeddedImtAndVTable()) {
+    // Static fields come after the embedded tables.
+    base = mirror::Class::ComputeClassSize(true, GetVTableDuringLinking()->GetLength(),
+                                           0, 0, 0, 0, 0);
+  }
+  return MemberOffset(base);
+}
+
 inline void Class::SetIFields(ObjectArray<ArtField>* new_ifields)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(NULL == GetFieldObject<ObjectArray<ArtField>>(OFFSET_OF_OBJECT_MEMBER(Class, ifields_)));
@@ -492,7 +514,15 @@ inline uint32_t Class::GetAccessFlags() {
          IsErroneous<static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis)>() ||
          this == String::GetJavaLangString() ||
          this == ArtField::GetJavaLangReflectArtField() ||
-         this == ArtMethod::GetJavaLangReflectArtMethod());
+         this == ArtMethod::GetJavaLangReflectArtMethod())
+      << "IsIdxLoaded=" << IsIdxLoaded<kVerifyFlags>()
+      << " IsRetired=" << IsRetired<kVerifyFlags>()
+      << " IsErroneous=" <<
+          IsErroneous<static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis)>()
+      << " IsString=" << (this == String::GetJavaLangString())
+      << " IsArtField=" << (this == ArtField::GetJavaLangReflectArtField())
+      << " IsArtMethod=" << (this == ArtMethod::GetJavaLangReflectArtMethod())
+      << " descriptor=" << PrettyDescriptor(this);
   return GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_));
 }
 
@@ -553,6 +583,10 @@ inline Object* Class::Alloc(Thread* self, gc::AllocatorType allocator_type) {
                                                              allocator_type, VoidFunctor());
   if (add_finalizer && LIKELY(obj != nullptr)) {
     heap->AddFinalizerReference(self, &obj);
+    if (UNLIKELY(self->IsExceptionPending())) {
+      // Failed to allocate finalizer reference, it means that the whole allocation failed.
+      obj = nullptr;
+    }
   }
   return obj;
 }
@@ -615,12 +649,18 @@ inline uint32_t Class::ComputeClassSize(bool has_embedded_tables,
 
 template <bool kVisitClass, typename Visitor>
 inline void Class::VisitReferences(mirror::Class* klass, const Visitor& visitor) {
-  // Visit the static fields first so that we don't overwrite the SFields / IFields instance
-  // fields.
   VisitInstanceFieldsReferences<kVisitClass>(klass, visitor);
-  if (!IsTemp()) {
+  // Right after a class is allocated, but not yet loaded
+  // (kStatusNotReady, see ClassLinkder::LoadClass()), GC may find it
+  // and scan it. IsTemp() may call Class::GetAccessFlags() but may
+  // fail in the DCHECK in Class::GetAccessFlags() because the class
+  // status is kStatusNotReady. To avoid it, rely on IsResolved()
+  // only. This is fine because a temp class never goes into the
+  // kStatusResolved state.
+  if (IsResolved()) {
     // Temp classes don't ever populate imt/vtable or static fields and they are not even
-    // allocated with the right size for those.
+    // allocated with the right size for those. Also, unresolved classes don't have fields
+    // linked yet.
     VisitStaticFieldsReferences<kVisitClass>(this, visitor);
     if (ShouldHaveEmbeddedImtAndVTable()) {
       VisitEmbeddedImtAndVTable(visitor);
@@ -759,6 +799,32 @@ inline void Class::SetAccessFlags(uint32_t new_access_flags) {
   } else {
     SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), new_access_flags);
   }
+}
+
+inline uint32_t Class::NumDirectInterfaces() {
+  if (IsPrimitive()) {
+    return 0;
+  } else if (IsArrayClass()) {
+    return 2;
+  } else if (IsProxyClass()) {
+    mirror::ObjectArray<mirror::Class>* interfaces = GetInterfaces();
+    return interfaces != nullptr ? interfaces->GetLength() : 0;
+  } else {
+    const DexFile::TypeList* interfaces = GetInterfaceTypeList();
+    if (interfaces == nullptr) {
+      return 0;
+    } else {
+      return interfaces->Size();
+    }
+  }
+}
+
+inline void Class::SetDexCacheStrings(ObjectArray<String>* new_dex_cache_strings) {
+  SetFieldObject<false>(DexCacheStringsOffset(), new_dex_cache_strings);
+}
+
+inline ObjectArray<String>* Class::GetDexCacheStrings() {
+  return GetFieldObject<ObjectArray<String>>(DexCacheStringsOffset());
 }
 
 }  // namespace mirror

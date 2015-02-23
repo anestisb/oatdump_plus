@@ -18,6 +18,7 @@
 
 #include "arch/context.h"
 #include "base/hex_dump.h"
+#include "entrypoints/runtime_asm_entrypoints.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object.h"
@@ -112,6 +113,9 @@ uint32_t StackVisitor::GetDexPc(bool abort_on_failure) const {
   }
 }
 
+extern "C" mirror::Object* artQuickGetProxyThisObject(StackReference<mirror::ArtMethod>* sp)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
 mirror::Object* StackVisitor::GetThisObject() const {
   mirror::ArtMethod* m = GetMethod();
   if (m->IsStatic()) {
@@ -119,14 +123,22 @@ mirror::Object* StackVisitor::GetThisObject() const {
   } else if (m->IsNative()) {
     if (cur_quick_frame_ != nullptr) {
       HandleScope* hs = reinterpret_cast<HandleScope*>(
-          reinterpret_cast<char*>(cur_quick_frame_) + m->GetHandleScopeOffsetInBytes());
+          reinterpret_cast<char*>(cur_quick_frame_) + m->GetHandleScopeOffset().SizeValue());
       return hs->GetReference(0);
     } else {
       return cur_shadow_frame_->GetVRegReference(0);
     }
-  } else if (m->IsOptimized()) {
+  } else if (m->IsProxyMethod()) {
+    if (cur_quick_frame_ != nullptr) {
+      return artQuickGetProxyThisObject(cur_quick_frame_);
+    } else {
+      return cur_shadow_frame_->GetVRegReference(0);
+    }
+  } else if (m->IsOptimized(GetInstructionSetPointerSize(
+      Runtime::Current()->GetInstructionSet()))) {
     // TODO: Implement, currently only used for exceptions when jdwp is enabled.
-    LOG(WARNING) << "StackVisitor::GetThisObject is unimplemented with the optimizing compiler";
+    UNIMPLEMENTED(WARNING)
+        << "StackVisitor::GetThisObject is unimplemented with the optimizing compiler";
     return nullptr;
   } else {
     const DexFile::CodeItem* code_item = m->GetCodeItem();
@@ -143,7 +155,7 @@ mirror::Object* StackVisitor::GetThisObject() const {
 
 size_t StackVisitor::GetNativePcOffset() const {
   DCHECK(!IsShadowFrame());
-  return GetMethod()->NativePcOffset(cur_quick_frame_pc_);
+  return GetMethod()->NativeQuickPcOffset(cur_quick_frame_pc_);
 }
 
 bool StackVisitor::GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind,
@@ -151,9 +163,9 @@ bool StackVisitor::GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind,
   if (cur_quick_frame_ != nullptr) {
     DCHECK(context_ != nullptr);  // You can't reliably read registers without a context.
     DCHECK(m == GetMethod());
-    const void* code_pointer = m->GetQuickOatCodePointer();
+    const void* code_pointer = m->GetQuickOatCodePointer(sizeof(void*));
     DCHECK(code_pointer != nullptr);
-    const VmapTable vmap_table(m->GetVmapTable(code_pointer));
+    const VmapTable vmap_table(m->GetVmapTable(code_pointer, sizeof(void*)));
     QuickMethodFrameInfo frame_info = m->GetQuickFrameInfo(code_pointer);
     uint32_t vmap_offset;
     // TODO: IsInContext stops before spotting floating point registers.
@@ -161,11 +173,10 @@ bool StackVisitor::GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind,
       bool is_float = (kind == kFloatVReg) || (kind == kDoubleLoVReg) || (kind == kDoubleHiVReg);
       uint32_t spill_mask = is_float ? frame_info.FpSpillMask() : frame_info.CoreSpillMask();
       uint32_t reg = vmap_table.ComputeRegister(spill_mask, vmap_offset, kind);
-      uintptr_t ptr_val;
-      bool success = is_float ? GetFPR(reg, &ptr_val) : GetGPR(reg, &ptr_val);
-      if (!success) {
+      if (!IsAccessibleRegister(reg, is_float)) {
         return false;
       }
+      uintptr_t ptr_val = GetRegister(reg, is_float);
       bool target64 = Is64BitInstructionSet(kRuntimeISA);
       if (target64) {
         bool wide_lo = (kind == kLongLoVReg) || (kind == kDoubleLoVReg);
@@ -183,11 +194,14 @@ bool StackVisitor::GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind,
       const DexFile::CodeItem* code_item = m->GetCodeItem();
       DCHECK(code_item != nullptr) << PrettyMethod(m);  // Can't be NULL or how would we compile
                                                         // its instructions?
-      *val = *GetVRegAddr(cur_quick_frame_, code_item, frame_info.CoreSpillMask(),
-                          frame_info.FpSpillMask(), frame_info.FrameSizeInBytes(), vreg);
+      uint32_t* addr = GetVRegAddr(cur_quick_frame_, code_item, frame_info.CoreSpillMask(),
+                                   frame_info.FpSpillMask(), frame_info.FrameSizeInBytes(), vreg);
+      DCHECK(addr != nullptr);
+      *val = *addr;
       return true;
     }
   } else {
+    DCHECK(cur_shadow_frame_ != nullptr);
     *val = cur_shadow_frame_->GetVReg(vreg);
     return true;
   }
@@ -205,9 +219,9 @@ bool StackVisitor::GetVRegPair(mirror::ArtMethod* m, uint16_t vreg, VRegKind kin
   if (cur_quick_frame_ != nullptr) {
     DCHECK(context_ != nullptr);  // You can't reliably read registers without a context.
     DCHECK(m == GetMethod());
-    const void* code_pointer = m->GetQuickOatCodePointer();
+    const void* code_pointer = m->GetQuickOatCodePointer(sizeof(void*));
     DCHECK(code_pointer != nullptr);
-    const VmapTable vmap_table(m->GetVmapTable(code_pointer));
+    const VmapTable vmap_table(m->GetVmapTable(code_pointer, sizeof(void*)));
     QuickMethodFrameInfo frame_info = m->GetQuickFrameInfo(code_pointer);
     uint32_t vmap_offset_lo, vmap_offset_hi;
     // TODO: IsInContext stops before spotting floating point registers.
@@ -217,12 +231,11 @@ bool StackVisitor::GetVRegPair(mirror::ArtMethod* m, uint16_t vreg, VRegKind kin
       uint32_t spill_mask = is_float ? frame_info.FpSpillMask() : frame_info.CoreSpillMask();
       uint32_t reg_lo = vmap_table.ComputeRegister(spill_mask, vmap_offset_lo, kind_lo);
       uint32_t reg_hi = vmap_table.ComputeRegister(spill_mask, vmap_offset_hi, kind_hi);
-      uintptr_t ptr_val_lo, ptr_val_hi;
-      bool success = is_float ? GetFPR(reg_lo, &ptr_val_lo) : GetGPR(reg_lo, &ptr_val_lo);
-      success &= is_float ? GetFPR(reg_hi, &ptr_val_hi) : GetGPR(reg_hi, &ptr_val_hi);
-      if (!success) {
+      if (!IsAccessibleRegister(reg_lo, is_float) || !IsAccessibleRegister(reg_hi, is_float)) {
         return false;
       }
+      uintptr_t ptr_val_lo = GetRegister(reg_lo, is_float);
+      uintptr_t ptr_val_hi = GetRegister(reg_hi, is_float);
       bool target64 = Is64BitInstructionSet(kRuntimeISA);
       if (target64) {
         int64_t value_long_lo = static_cast<int64_t>(ptr_val_lo);
@@ -238,10 +251,12 @@ bool StackVisitor::GetVRegPair(mirror::ArtMethod* m, uint16_t vreg, VRegKind kin
                                                         // its instructions?
       uint32_t* addr = GetVRegAddr(cur_quick_frame_, code_item, frame_info.CoreSpillMask(),
                                    frame_info.FpSpillMask(), frame_info.FrameSizeInBytes(), vreg);
+      DCHECK(addr != nullptr);
       *val = *reinterpret_cast<uint64_t*>(addr);
       return true;
     }
   } else {
+    DCHECK(cur_shadow_frame_ != nullptr);
     *val = cur_shadow_frame_->GetVRegLong(vreg);
     return true;
   }
@@ -252,9 +267,9 @@ bool StackVisitor::SetVReg(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_val
   if (cur_quick_frame_ != nullptr) {
     DCHECK(context_ != nullptr);  // You can't reliably write registers without a context.
     DCHECK(m == GetMethod());
-    const void* code_pointer = m->GetQuickOatCodePointer();
+    const void* code_pointer = m->GetQuickOatCodePointer(sizeof(void*));
     DCHECK(code_pointer != nullptr);
-    const VmapTable vmap_table(m->GetVmapTable(code_pointer));
+    const VmapTable vmap_table(m->GetVmapTable(code_pointer, sizeof(void*)));
     QuickMethodFrameInfo frame_info = m->GetQuickFrameInfo(code_pointer);
     uint32_t vmap_offset;
     // TODO: IsInContext stops before spotting floating point registers.
@@ -262,17 +277,16 @@ bool StackVisitor::SetVReg(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_val
       bool is_float = (kind == kFloatVReg) || (kind == kDoubleLoVReg) || (kind == kDoubleHiVReg);
       uint32_t spill_mask = is_float ? frame_info.FpSpillMask() : frame_info.CoreSpillMask();
       const uint32_t reg = vmap_table.ComputeRegister(spill_mask, vmap_offset, kind);
+      if (!IsAccessibleRegister(reg, is_float)) {
+        return false;
+      }
       bool target64 = Is64BitInstructionSet(kRuntimeISA);
       // Deal with 32 or 64-bit wide registers in a way that builds on all targets.
       if (target64) {
         bool wide_lo = (kind == kLongLoVReg) || (kind == kDoubleLoVReg);
         bool wide_hi = (kind == kLongHiVReg) || (kind == kDoubleHiVReg);
         if (wide_lo || wide_hi) {
-          uintptr_t old_reg_val;
-          bool success = is_float ? GetFPR(reg, &old_reg_val) : GetGPR(reg, &old_reg_val);
-          if (!success) {
-            return false;
-          }
+          uintptr_t old_reg_val = GetRegister(reg, is_float);
           uint64_t new_vreg_portion = static_cast<uint64_t>(new_value);
           uint64_t old_reg_val_as_wide = static_cast<uint64_t>(old_reg_val);
           uint64_t mask = 0xffffffff;
@@ -284,21 +298,20 @@ bool StackVisitor::SetVReg(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_val
           new_value = static_cast<uintptr_t>((old_reg_val_as_wide & mask) | new_vreg_portion);
         }
       }
-      if (is_float) {
-        return SetFPR(reg, new_value);
-      } else {
-        return SetGPR(reg, new_value);
-      }
+      SetRegister(reg, new_value, is_float);
+      return true;
     } else {
       const DexFile::CodeItem* code_item = m->GetCodeItem();
       DCHECK(code_item != nullptr) << PrettyMethod(m);  // Can't be NULL or how would we compile
                                                         // its instructions?
       uint32_t* addr = GetVRegAddr(cur_quick_frame_, code_item, frame_info.CoreSpillMask(),
                                    frame_info.FpSpillMask(), frame_info.FrameSizeInBytes(), vreg);
+      DCHECK(addr != nullptr);
       *addr = new_value;
       return true;
     }
   } else {
+    DCHECK(cur_shadow_frame_ != nullptr);
     cur_shadow_frame_->SetVReg(vreg, new_value);
     return true;
   }
@@ -316,9 +329,9 @@ bool StackVisitor::SetVRegPair(mirror::ArtMethod* m, uint16_t vreg, uint64_t new
   if (cur_quick_frame_ != nullptr) {
     DCHECK(context_ != nullptr);  // You can't reliably write registers without a context.
     DCHECK(m == GetMethod());
-    const void* code_pointer = m->GetQuickOatCodePointer();
+    const void* code_pointer = m->GetQuickOatCodePointer(sizeof(void*));
     DCHECK(code_pointer != nullptr);
-    const VmapTable vmap_table(m->GetVmapTable(code_pointer));
+    const VmapTable vmap_table(m->GetVmapTable(code_pointer, sizeof(void*)));
     QuickMethodFrameInfo frame_info = m->GetQuickFrameInfo(code_pointer);
     uint32_t vmap_offset_lo, vmap_offset_hi;
     // TODO: IsInContext stops before spotting floating point registers.
@@ -328,17 +341,16 @@ bool StackVisitor::SetVRegPair(mirror::ArtMethod* m, uint16_t vreg, uint64_t new
       uint32_t spill_mask = is_float ? frame_info.FpSpillMask() : frame_info.CoreSpillMask();
       uint32_t reg_lo = vmap_table.ComputeRegister(spill_mask, vmap_offset_lo, kind_lo);
       uint32_t reg_hi = vmap_table.ComputeRegister(spill_mask, vmap_offset_hi, kind_hi);
+      if (!IsAccessibleRegister(reg_lo, is_float) || !IsAccessibleRegister(reg_hi, is_float)) {
+        return false;
+      }
       uintptr_t new_value_lo = static_cast<uintptr_t>(new_value & 0xFFFFFFFF);
       uintptr_t new_value_hi = static_cast<uintptr_t>(new_value >> 32);
       bool target64 = Is64BitInstructionSet(kRuntimeISA);
       // Deal with 32 or 64-bit wide registers in a way that builds on all targets.
       if (target64) {
-        uintptr_t old_reg_val_lo, old_reg_val_hi;
-        bool success = is_float ? GetFPR(reg_lo, &old_reg_val_lo) : GetGPR(reg_lo, &old_reg_val_lo);
-        success &= is_float ? GetFPR(reg_hi, &old_reg_val_hi) : GetGPR(reg_hi, &old_reg_val_hi);
-        if (!success) {
-          return false;
-        }
+        uintptr_t old_reg_val_lo = GetRegister(reg_lo, is_float);
+        uintptr_t old_reg_val_hi = GetRegister(reg_hi, is_float);
         uint64_t new_vreg_portion_lo = static_cast<uint64_t>(new_value_lo);
         uint64_t new_vreg_portion_hi = static_cast<uint64_t>(new_value_hi) << 32;
         uint64_t old_reg_val_lo_as_wide = static_cast<uint64_t>(old_reg_val_lo);
@@ -348,67 +360,84 @@ bool StackVisitor::SetVRegPair(mirror::ArtMethod* m, uint16_t vreg, uint64_t new
         new_value_lo = static_cast<uintptr_t>((old_reg_val_lo_as_wide & mask_lo) | new_vreg_portion_lo);
         new_value_hi = static_cast<uintptr_t>((old_reg_val_hi_as_wide & mask_hi) | new_vreg_portion_hi);
       }
-      bool success = is_float ? SetFPR(reg_lo, new_value_lo) : SetGPR(reg_lo, new_value_lo);
-      success &= is_float ? SetFPR(reg_hi, new_value_hi) : SetGPR(reg_hi, new_value_hi);
-      return success;
+      SetRegister(reg_lo, new_value_lo, is_float);
+      SetRegister(reg_hi, new_value_hi, is_float);
+      return true;
     } else {
       const DexFile::CodeItem* code_item = m->GetCodeItem();
       DCHECK(code_item != nullptr) << PrettyMethod(m);  // Can't be NULL or how would we compile
                                                         // its instructions?
       uint32_t* addr = GetVRegAddr(cur_quick_frame_, code_item, frame_info.CoreSpillMask(),
                                    frame_info.FpSpillMask(), frame_info.FrameSizeInBytes(), vreg);
+      DCHECK(addr != nullptr);
       *reinterpret_cast<uint64_t*>(addr) = new_value;
       return true;
     }
   } else {
+    DCHECK(cur_shadow_frame_ != nullptr);
     cur_shadow_frame_->SetVRegLong(vreg, new_value);
     return true;
   }
 }
 
+bool StackVisitor::IsAccessibleGPR(uint32_t reg) const {
+  DCHECK(context_ != nullptr);
+  return context_->IsAccessibleGPR(reg);
+}
+
 uintptr_t* StackVisitor::GetGPRAddress(uint32_t reg) const {
-  DCHECK(cur_quick_frame_ != NULL) << "This is a quick frame routine";
+  DCHECK(cur_quick_frame_ != nullptr) << "This is a quick frame routine";
+  DCHECK(context_ != nullptr);
   return context_->GetGPRAddress(reg);
 }
 
-bool StackVisitor::GetGPR(uint32_t reg, uintptr_t* val) const {
-  DCHECK(cur_quick_frame_ != NULL) << "This is a quick frame routine";
-  return context_->GetGPR(reg, val);
+uintptr_t StackVisitor::GetGPR(uint32_t reg) const {
+  DCHECK(cur_quick_frame_ != nullptr) << "This is a quick frame routine";
+  DCHECK(context_ != nullptr);
+  return context_->GetGPR(reg);
 }
 
-bool StackVisitor::SetGPR(uint32_t reg, uintptr_t value) {
-  DCHECK(cur_quick_frame_ != NULL) << "This is a quick frame routine";
-  return context_->SetGPR(reg, value);
+void StackVisitor::SetGPR(uint32_t reg, uintptr_t value) {
+  DCHECK(cur_quick_frame_ != nullptr) << "This is a quick frame routine";
+  DCHECK(context_ != nullptr);
+  context_->SetGPR(reg, value);
 }
 
-bool StackVisitor::GetFPR(uint32_t reg, uintptr_t* val) const {
-  DCHECK(cur_quick_frame_ != NULL) << "This is a quick frame routine";
-  return context_->GetFPR(reg, val);
+bool StackVisitor::IsAccessibleFPR(uint32_t reg) const {
+  DCHECK(context_ != nullptr);
+  return context_->IsAccessibleFPR(reg);
 }
 
-bool StackVisitor::SetFPR(uint32_t reg, uintptr_t value) {
-  DCHECK(cur_quick_frame_ != NULL) << "This is a quick frame routine";
-  return context_->SetFPR(reg, value);
+uintptr_t StackVisitor::GetFPR(uint32_t reg) const {
+  DCHECK(cur_quick_frame_ != nullptr) << "This is a quick frame routine";
+  DCHECK(context_ != nullptr);
+  return context_->GetFPR(reg);
+}
+
+void StackVisitor::SetFPR(uint32_t reg, uintptr_t value) {
+  DCHECK(cur_quick_frame_ != nullptr) << "This is a quick frame routine";
+  DCHECK(context_ != nullptr);
+  context_->SetFPR(reg, value);
 }
 
 uintptr_t StackVisitor::GetReturnPc() const {
   uint8_t* sp = reinterpret_cast<uint8_t*>(GetCurrentQuickFrame());
   DCHECK(sp != NULL);
-  uint8_t* pc_addr = sp + GetMethod()->GetReturnPcOffsetInBytes();
+  uint8_t* pc_addr = sp + GetMethod()->GetReturnPcOffset().SizeValue();
   return *reinterpret_cast<uintptr_t*>(pc_addr);
 }
 
 void StackVisitor::SetReturnPc(uintptr_t new_ret_pc) {
   uint8_t* sp = reinterpret_cast<uint8_t*>(GetCurrentQuickFrame());
   CHECK(sp != NULL);
-  uint8_t* pc_addr = sp + GetMethod()->GetReturnPcOffsetInBytes();
+  uint8_t* pc_addr = sp + GetMethod()->GetReturnPcOffset().SizeValue();
   *reinterpret_cast<uintptr_t*>(pc_addr) = new_ret_pc;
 }
 
 size_t StackVisitor::ComputeNumFrames(Thread* thread) {
   struct NumFramesVisitor : public StackVisitor {
-    explicit NumFramesVisitor(Thread* thread)
-        : StackVisitor(thread, NULL), frames(0) {}
+    explicit NumFramesVisitor(Thread* thread_in)
+        : StackVisitor(thread_in, NULL), frames(0) {}
 
     bool VisitFrame() OVERRIDE {
       frames++;
@@ -459,8 +488,8 @@ bool StackVisitor::GetNextMethodAndDexPc(mirror::ArtMethod** next_method, uint32
 
 void StackVisitor::DescribeStack(Thread* thread) {
   struct DescribeStackVisitor : public StackVisitor {
-    explicit DescribeStackVisitor(Thread* thread)
-        : StackVisitor(thread, NULL) {}
+    explicit DescribeStackVisitor(Thread* thread_in)
+        : StackVisitor(thread_in, NULL) {}
 
     bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
       LOG(INFO) << "Frame Id=" << GetFrameId() << " " << DescribeLocation();
@@ -509,7 +538,7 @@ void StackVisitor::SanityCheckFrame() const {
       // const size_t kMaxExpectedFrameSize = (256 + 2 + 3 + 3) * sizeof(word);
       const size_t kMaxExpectedFrameSize = 2 * KB;
       CHECK_LE(frame_size, kMaxExpectedFrameSize);
-      size_t return_pc_offset = method->GetReturnPcOffsetInBytes();
+      size_t return_pc_offset = method->GetReturnPcOffset().SizeValue();
       CHECK_LT(return_pc_offset, frame_size);
     }
   }
@@ -525,7 +554,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
        current_fragment = current_fragment->GetLink()) {
     cur_shadow_frame_ = current_fragment->GetTopShadowFrame();
     cur_quick_frame_ = current_fragment->GetTopQuickFrame();
-    cur_quick_frame_pc_ = current_fragment->GetTopQuickFramePc();
+    cur_quick_frame_pc_ = 0;
 
     if (cur_quick_frame_ != NULL) {  // Handle quick stack frames.
       // Can't be both a shadow and a quick fragment.
@@ -543,13 +572,13 @@ void StackVisitor::WalkStack(bool include_transitions) {
         }
         size_t frame_size = method->GetFrameSizeInBytes();
         // Compute PC for next stack frame from return PC.
-        size_t return_pc_offset = method->GetReturnPcOffsetInBytes(frame_size);
+        size_t return_pc_offset = method->GetReturnPcOffset(frame_size).SizeValue();
         uint8_t* return_pc_addr = reinterpret_cast<uint8_t*>(cur_quick_frame_) + return_pc_offset;
         uintptr_t return_pc = *reinterpret_cast<uintptr_t*>(return_pc_addr);
         if (UNLIKELY(exit_stubs_installed)) {
           // While profiling, the return pc is restored from the side stack, except when walking
           // the stack for an exception where the side stack will be unwound in VisitFrame.
-          if (GetQuickInstrumentationExitPc() == return_pc) {
+          if (reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc()) == return_pc) {
             const instrumentation::InstrumentationStackFrame& instrumentation_frame =
                 GetInstrumentationStackFrame(thread_, instrumentation_stack_depth);
             instrumentation_stack_depth++;
@@ -601,6 +630,13 @@ void StackVisitor::WalkStack(bool include_transitions) {
   if (num_frames_ != 0) {
     CHECK_EQ(cur_depth_, num_frames_);
   }
+}
+
+void JavaFrameRootInfo::Describe(std::ostream& os) const {
+  const StackVisitor* visitor = stack_visitor_;
+  CHECK(visitor != nullptr);
+  os << "Type=" << GetType() << " thread_id=" << GetThreadId() << " location=" <<
+      visitor->DescribeLocation() << " vreg=" << vreg_;
 }
 
 }  // namespace art

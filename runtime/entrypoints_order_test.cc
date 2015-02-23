@@ -130,8 +130,11 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, thread_local_alloc_stack_top, thread_local_alloc_stack_end,
                         sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, thread_local_alloc_stack_end, held_mutexes, sizeof(void*));
-    EXPECT_OFFSET_DIFF(Thread, tlsPtr_.held_mutexes, Thread, wait_mutex_,
-                       sizeof(void*) * kLockLevelCount + sizeof(void*), thread_tlsptr_end);
+    EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, held_mutexes, nested_signal_state,
+                        sizeof(void*) * kLockLevelCount);
+    EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, nested_signal_state, flip_function, sizeof(void*));
+    EXPECT_OFFSET_DIFF(Thread, tlsPtr_.flip_function, Thread, wait_mutex_, sizeof(void*),
+                       thread_tlsptr_end);
   }
 
   void CheckInterpreterEntryPoints() {
@@ -148,17 +151,6 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
             JniEntryPoints_start_with_dlsymlookup);
     CHECKED(OFFSETOF_MEMBER(JniEntryPoints, pDlsymLookup)
             + sizeof(void*) == sizeof(JniEntryPoints), JniEntryPoints_all);
-  }
-
-  void CheckPortableEntryPoints() {
-    CHECKED(OFFSETOF_MEMBER(PortableEntryPoints, pPortableImtConflictTrampoline) == 0,
-            PortableEntryPoints_start_with_imt);
-    EXPECT_OFFSET_DIFFNP(PortableEntryPoints, pPortableImtConflictTrampoline,
-                         pPortableResolutionTrampoline, sizeof(void*));
-    EXPECT_OFFSET_DIFFNP(PortableEntryPoints, pPortableResolutionTrampoline,
-                         pPortableToInterpreterBridge, sizeof(void*));
-    CHECKED(OFFSETOF_MEMBER(PortableEntryPoints, pPortableToInterpreterBridge)
-            + sizeof(void*) == sizeof(PortableEntryPoints), PortableEntryPoints_all);
   }
 
   void CheckQuickEntryPoints() {
@@ -294,10 +286,6 @@ TEST_F(EntrypointsOrderTest, InterpreterEntryPoints) {
 
 TEST_F(EntrypointsOrderTest, JniEntryPoints) {
   CheckJniEntryPoints();
-}
-
-TEST_F(EntrypointsOrderTest, PortableEntryPoints) {
-  CheckPortableEntryPoints();
 }
 
 TEST_F(EntrypointsOrderTest, QuickEntryPoints) {

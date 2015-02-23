@@ -34,7 +34,6 @@
 #include "gc/heap.h"
 #include "handle_scope-inl.h"
 #include "iftable-inl.h"
-#include "method_helper-inl.h"
 #include "object-inl.h"
 #include "object_array-inl.h"
 #include "scoped_thread_state_change.h"
@@ -68,7 +67,7 @@ class ObjectTest : public CommonRuntimeTest {
     ASSERT_TRUE(string->Equals(utf8_in) || (expected_utf16_length == 1 && strlen(utf8_in) == 0));
     ASSERT_TRUE(string->Equals(StringPiece(utf8_in)) || (expected_utf16_length == 1 && strlen(utf8_in) == 0));
     for (int32_t i = 0; i < expected_utf16_length; i++) {
-      EXPECT_EQ(utf16_expected[i], string->CharAt(i));
+      EXPECT_EQ(utf16_expected[i], string->UncheckedCharAt(i));
     }
     EXPECT_EQ(expected_hash, string->GetHashCode());
   }
@@ -78,26 +77,10 @@ class ObjectTest : public CommonRuntimeTest {
 TEST_F(ObjectTest, Constants) {
   EXPECT_EQ(kObjectReferenceSize, sizeof(HeapReference<Object>));
   EXPECT_EQ(kObjectHeaderSize, sizeof(Object));
-}
-
-// Keep the assembly code constats in sync.
-TEST_F(ObjectTest, AsmConstants) {
-  EXPECT_EQ(CLASS_OFFSET, Object::ClassOffset().Int32Value());
-  EXPECT_EQ(LOCK_WORD_OFFSET, Object::MonitorOffset().Int32Value());
-
-  EXPECT_EQ(CLASS_COMPONENT_TYPE_OFFSET, Class::ComponentTypeOffset().Int32Value());
-
-  EXPECT_EQ(ARRAY_LENGTH_OFFSET, Array::LengthOffset().Int32Value());
-  EXPECT_EQ(OBJECT_ARRAY_DATA_OFFSET, Array::DataOffset(sizeof(HeapReference<Object>)).Int32Value());
-
-  EXPECT_EQ(STRING_VALUE_OFFSET, String::ValueOffset().Int32Value());
-  EXPECT_EQ(STRING_COUNT_OFFSET, String::CountOffset().Int32Value());
-  EXPECT_EQ(STRING_OFFSET_OFFSET, String::OffsetOffset().Int32Value());
-  EXPECT_EQ(STRING_DATA_OFFSET, Array::DataOffset(sizeof(uint16_t)).Int32Value());
-
-  EXPECT_EQ(METHOD_DEX_CACHE_METHODS_OFFSET, ArtMethod::DexCacheResolvedMethodsOffset().Int32Value());
-  EXPECT_EQ(METHOD_PORTABLE_CODE_OFFSET, ArtMethod::EntryPointFromPortableCompiledCodeOffset().Int32Value());
-  EXPECT_EQ(METHOD_QUICK_CODE_OFFSET, ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value());
+  EXPECT_EQ(MIRROR_ART_METHOD_QUICK_CODE_OFFSET_32,
+            ArtMethod::EntryPointFromQuickCompiledCodeOffset(4).Int32Value());
+  EXPECT_EQ(MIRROR_ART_METHOD_QUICK_CODE_OFFSET_64,
+            ArtMethod::EntryPointFromQuickCompiledCodeOffset(8).Int32Value());
 }
 
 TEST_F(ObjectTest, IsInSamePackage) {
@@ -330,7 +313,7 @@ TEST_F(ObjectTest, CheckAndAllocArrayFromCode) {
       java_lang_dex_file_->GetIndexForStringId(*string_id));
   ASSERT_TRUE(type_id != NULL);
   uint32_t type_idx = java_lang_dex_file_->GetIndexForTypeId(*type_id);
-  Object* array = CheckAndAllocArrayFromCodeInstrumented(type_idx, sort, 3, Thread::Current(), false,
+  Object* array = CheckAndAllocArrayFromCodeInstrumented(type_idx, 3, sort, Thread::Current(), false,
                                                          Runtime::Current()->GetHeap()->GetCurrentAllocator());
   EXPECT_TRUE(array->IsArrayInstance());
   EXPECT_EQ(3, array->AsArray()->GetLength());
@@ -441,6 +424,12 @@ TEST_F(ObjectTest, String) {
   AssertString(1, "\xe1\x88\xb4",   "\x12\x34",                 0x1234);
   AssertString(1, "\xef\xbf\xbf",   "\xff\xff",                 0xffff);
   AssertString(3, "h\xe1\x88\xb4i", "\x00\x68\x12\x34\x00\x69", (31 * ((31 * 0x68) + 0x1234)) + 0x69);
+
+  // Test four-byte characters.
+  AssertString(2, "\xf0\x9f\x8f\xa0",  "\xd8\x3c\xdf\xe0", (31 * 0xd83c) + 0xdfe0);
+  AssertString(2, "\xf0\x9f\x9a\x80",  "\xd8\x3d\xde\x80", (31 * 0xd83d) + 0xde80);
+  AssertString(4, "h\xf0\x9f\x9a\x80i", "\x00\x68\xd8\x3d\xde\x80\x00\x69",
+               (31 * (31 * (31 * 0x68 +  0xd83d) + 0xde80) + 0x69));
 }
 
 TEST_F(ObjectTest, StringEqualsUtf8) {
@@ -540,26 +529,6 @@ TEST_F(ObjectTest, DescriptorCompare) {
   EXPECT_STREQ(m3_2->GetName(), "m3");
   ArtMethod* m4_2 = klass2->GetVirtualMethod(3);
   EXPECT_STREQ(m4_2->GetName(), "m4");
-
-  MutableMethodHelper mh(hs.NewHandle(m1_1));
-  MutableMethodHelper mh2(hs.NewHandle(m1_2));
-  EXPECT_TRUE(mh.HasSameNameAndSignature(&mh2));
-  EXPECT_TRUE(mh2.HasSameNameAndSignature(&mh));
-
-  mh.ChangeMethod(m2_1);
-  mh2.ChangeMethod(m2_2);
-  EXPECT_TRUE(mh.HasSameNameAndSignature(&mh2));
-  EXPECT_TRUE(mh2.HasSameNameAndSignature(&mh));
-
-  mh.ChangeMethod(m3_1);
-  mh2.ChangeMethod(m3_2);
-  EXPECT_TRUE(mh.HasSameNameAndSignature(&mh2));
-  EXPECT_TRUE(mh2.HasSameNameAndSignature(&mh));
-
-  mh.ChangeMethod(m4_1);
-  mh2.ChangeMethod(m4_2);
-  EXPECT_TRUE(mh.HasSameNameAndSignature(&mh2));
-  EXPECT_TRUE(mh2.HasSameNameAndSignature(&mh));
 }
 
 TEST_F(ObjectTest, StringHashCode) {
@@ -766,6 +735,15 @@ TEST_F(ObjectTest, FindStaticField) {
   // TODO: test static fields via superclasses.
   // TODO: test static fields via interfaces.
   // TODO: test that interfaces trump superclasses.
+}
+
+TEST_F(ObjectTest, IdentityHashCode) {
+  // Regression test for b/19046417 which had an infinite loop if the
+  // (seed & LockWord::kHashMask) == 0. seed 0 triggered the infinite loop since we did the check
+  // before the CAS which resulted in the same seed the next loop iteration.
+  mirror::Object::SetHashCodeSeed(0);
+  int32_t hash_code = mirror::Object::GenerateIdentityHashCode();
+  EXPECT_NE(hash_code, 0);
 }
 
 }  // namespace mirror

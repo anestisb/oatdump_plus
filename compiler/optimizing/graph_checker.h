@@ -19,40 +19,63 @@
 
 #include "nodes.h"
 
+#include <ostream>
+
 namespace art {
 
 // A control-flow graph visitor performing various checks.
-class GraphChecker : public HGraphVisitor {
+class GraphChecker : public HGraphDelegateVisitor {
  public:
-  GraphChecker(ArenaAllocator* allocator, HGraph* graph)
-    : HGraphVisitor(graph),
+  GraphChecker(ArenaAllocator* allocator, HGraph* graph,
+               const char* dump_prefix = "art::GraphChecker: ")
+    : HGraphDelegateVisitor(graph),
       allocator_(allocator),
-      errors_(allocator, 0) {}
+      dump_prefix_(dump_prefix),
+      seen_ids_(allocator, graph->GetCurrentInstructionId(), false) {}
+
+  // Check the whole graph (in insertion order).
+  virtual void Run() { VisitInsertionOrder(); }
 
   // Check `block`.
-  virtual void VisitBasicBlock(HBasicBlock* block) OVERRIDE;
+  void VisitBasicBlock(HBasicBlock* block) OVERRIDE;
 
   // Check `instruction`.
-  virtual void VisitInstruction(HInstruction* instruction) OVERRIDE;
+  void VisitInstruction(HInstruction* instruction) OVERRIDE;
 
   // Was the last visit of the graph valid?
   bool IsValid() const {
-    return errors_.IsEmpty();
+    return errors_.empty();
   }
 
   // Get the list of detected errors.
-  const GrowableArray<std::string>& GetErrors() const {
+  const std::vector<std::string>& GetErrors() const {
     return errors_;
   }
 
+  // Print detected errors on output stream `os`.
+  void Dump(std::ostream& os) const {
+    for (size_t i = 0, e = errors_.size(); i < e; ++i) {
+      os << dump_prefix_ << errors_[i] << std::endl;
+    }
+  }
+
  protected:
+  // Report a new error.
+  void AddError(const std::string& error) {
+    errors_.push_back(error);
+  }
+
   ArenaAllocator* const allocator_;
   // The block currently visited.
   HBasicBlock* current_block_ = nullptr;
   // Errors encountered while checking the graph.
-  GrowableArray<std::string> errors_;
+  std::vector<std::string> errors_;
 
  private:
+  // String displayed before dumped errors.
+  const char* const dump_prefix_;
+  ArenaBitVector seen_ids_;
+
   DISALLOW_COPY_AND_ASSIGN(GraphChecker);
 };
 
@@ -63,16 +86,27 @@ class SSAChecker : public GraphChecker {
   typedef GraphChecker super_type;
 
   SSAChecker(ArenaAllocator* allocator, HGraph* graph)
-    : GraphChecker(allocator, graph) {}
+    : GraphChecker(allocator, graph, "art::SSAChecker: ") {}
+
+  // Check the whole graph (in reverse post-order).
+  void Run() OVERRIDE {
+    // VisitReversePostOrder is used instead of VisitInsertionOrder,
+    // as the latter might visit dead blocks removed by the dominator
+    // computation.
+    VisitReversePostOrder();
+  }
 
   // Perform SSA form checks on `block`.
-  virtual void VisitBasicBlock(HBasicBlock* block) OVERRIDE;
+  void VisitBasicBlock(HBasicBlock* block) OVERRIDE;
   // Loop-related checks from block `loop_header`.
   void CheckLoop(HBasicBlock* loop_header);
 
   // Perform SSA form checks on instructions.
-  virtual void VisitInstruction(HInstruction* instruction) OVERRIDE;
-  virtual void VisitPhi(HPhi* phi) OVERRIDE;
+  void VisitInstruction(HInstruction* instruction) OVERRIDE;
+  void VisitPhi(HPhi* phi) OVERRIDE;
+  void VisitBinaryOperation(HBinaryOperation* op) OVERRIDE;
+  void VisitCondition(HCondition* op) OVERRIDE;
+  void VisitIf(HIf* instruction) OVERRIDE;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(SSAChecker);

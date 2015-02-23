@@ -16,6 +16,9 @@
 
 #include "monitor.h"
 
+#define ATRACE_TAG ATRACE_TAG_DALVIK
+
+#include <cutils/trace.h>
 #include <vector>
 
 #include "base/mutex.h"
@@ -35,6 +38,8 @@
 #include "well_known_classes.h"
 
 namespace art {
+
+static constexpr uint64_t kLongWaitMs = 100;
 
 /*
  * Every Object has a monitor associated with it, but not every Object is actually locked.  Even
@@ -242,13 +247,19 @@ void Monitor::Lock(Thread* self) {
     mirror::ArtMethod* owners_method = locking_method_;
     uint32_t owners_dex_pc = locking_dex_pc_;
     // Do this before releasing the lock so that we don't get deflated.
+    size_t num_waiters = num_waiters_;
     ++num_waiters_;
     monitor_lock_.Unlock(self);  // Let go of locks in order.
     self->SetMonitorEnterObject(GetObject());
     {
       ScopedThreadStateChange tsc(self, kBlocked);  // Change to blocked and give up mutator_lock_.
       MutexLock mu2(self, monitor_lock_);  // Reacquire monitor_lock_ without mutator_lock_ for Wait.
-      if (owner_ != NULL) {  // Did the owner_ give the lock up?
+      if (owner_ != nullptr) {  // Did the owner_ give the lock up?
+        if (ATRACE_ENABLED()) {
+          std::string name;
+          owner_->GetThreadName(name);
+          ATRACE_BEGIN(("Contended on monitor with owner " + name).c_str());
+        }
         monitor_contenders_.Wait(self);  // Still contended so wait.
         // Woken from contention.
         if (log_contention) {
@@ -263,9 +274,16 @@ void Monitor::Lock(Thread* self) {
             const char* owners_filename;
             uint32_t owners_line_number;
             TranslateLocation(owners_method, owners_dex_pc, &owners_filename, &owners_line_number);
+            if (wait_ms > kLongWaitMs && owners_method != nullptr) {
+              LOG(WARNING) << "Long monitor contention event with owner method="
+                  << PrettyMethod(owners_method) << " from " << owners_filename << ":"
+                  << owners_line_number << " waiters=" << num_waiters << " for "
+                  << PrettyDuration(MsToNs(wait_ms));
+            }
             LogContentionEvent(self, wait_ms, sample_percent, owners_filename, owners_line_number);
           }
         }
+        ATRACE_END();
       }
     }
     self->SetMonitorEnterObject(nullptr);
@@ -543,7 +561,7 @@ void Monitor::Notify(Thread* self) {
     thread->SetWaitNext(nullptr);
 
     // Check to see if the thread is still waiting.
-    MutexLock mu(self, *thread->GetWaitMutex());
+    MutexLock wait_mu(self, *thread->GetWaitMutex());
     if (thread->GetWaitMonitor() != nullptr) {
       thread->GetWaitConditionVariable()->Signal(self);
       return;
@@ -646,8 +664,6 @@ void Monitor::InflateThinLocked(Thread* self, Handle<mirror::Object> obj, LockWo
     Thread* owner;
     {
       ScopedThreadStateChange tsc(self, kBlocked);
-      // Take suspend thread lock to avoid races with threads trying to suspend this one.
-      MutexLock mu(self, *Locks::thread_list_suspend_thread_lock_);
       owner = thread_list->SuspendThreadByThreadId(owner_thread_id, false, &timed_out);
     }
     if (owner != nullptr) {
@@ -877,7 +893,7 @@ uint32_t Monitor::GetLockOwnerThreadId(mirror::Object* obj) {
     }
     default: {
       LOG(FATAL) << "Unreachable";
-      return ThreadList::kInvalidThreadId;
+      UNREACHABLE();
     }
   }
 }
@@ -917,8 +933,11 @@ void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
                                            PrettyTypeOf(pretty_object).c_str());
       } else {
         // - waiting on <0x6008c468> (a java.lang.Class<java.lang.ref.ReferenceQueue>)
+        // Call PrettyTypeOf before IdentityHashCode since IdentityHashCode can cause thread
+        // suspension and move pretty_object.
+        const std::string pretty_type(PrettyTypeOf(pretty_object));
         os << wait_message << StringPrintf("<0x%08x> (a %s)", pretty_object->IdentityHashCode(),
-                                           PrettyTypeOf(pretty_object).c_str());
+                                           pretty_type.c_str());
       }
     }
     // - waiting to lock <0x613f83d8> (a java.lang.Object) held by thread 5
@@ -985,25 +1004,20 @@ void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::O
   // the locks held in this stack frame.
   std::vector<uint32_t> monitor_enter_dex_pcs;
   verifier::MethodVerifier::FindLocksAtDexPc(m, dex_pc, &monitor_enter_dex_pcs);
-  if (monitor_enter_dex_pcs.empty()) {
-    return;
-  }
-
-  for (size_t i = 0; i < monitor_enter_dex_pcs.size(); ++i) {
+  for (uint32_t monitor_dex_pc : monitor_enter_dex_pcs) {
     // The verifier works in terms of the dex pcs of the monitor-enter instructions.
     // We want the registers used by those instructions (so we can read the values out of them).
-    uint32_t dex_pc = monitor_enter_dex_pcs[i];
-    uint16_t monitor_enter_instruction = code_item->insns_[dex_pc];
+    uint16_t monitor_enter_instruction = code_item->insns_[monitor_dex_pc];
 
     // Quick sanity check.
     if ((monitor_enter_instruction & 0xff) != Instruction::MONITOR_ENTER) {
-      LOG(FATAL) << "expected monitor-enter @" << dex_pc << "; was "
+      LOG(FATAL) << "expected monitor-enter @" << monitor_dex_pc << "; was "
                  << reinterpret_cast<void*>(monitor_enter_instruction);
     }
 
     uint16_t monitor_register = ((monitor_enter_instruction >> 8) & 0xff);
-    mirror::Object* o = reinterpret_cast<mirror::Object*>(stack_visitor->GetVReg(m, monitor_register,
-                                                                                 kReferenceVReg));
+    mirror::Object* o = reinterpret_cast<mirror::Object*>(
+        stack_visitor->GetVReg(m, monitor_register, kReferenceVReg));
     callback(o, callback_context);
   }
 }
@@ -1032,7 +1046,7 @@ bool Monitor::IsValidLockWord(LockWord lock_word) {
       return true;
     default:
       LOG(FATAL) << "Unreachable";
-      return false;
+      UNREACHABLE();
   }
 }
 
@@ -1090,6 +1104,13 @@ void MonitorList::AllowNewMonitors() {
   MutexLock mu(self, monitor_list_lock_);
   allow_new_monitors_ = true;
   monitor_add_condition_.Broadcast(self);
+}
+
+void MonitorList::EnsureNewMonitorsDisallowed() {
+  // Lock and unlock once to ensure that no threads are still in the
+  // middle of adding new monitors.
+  MutexLock mu(Thread::Current(), monitor_list_lock_);
+  CHECK(!allow_new_monitors_);
 }
 
 void MonitorList::Add(Monitor* m) {

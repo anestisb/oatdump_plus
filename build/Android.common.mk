@@ -14,11 +14,26 @@
 # limitations under the License.
 #
 
-ifndef ANDROID_COMMON_MK
-ANDROID_COMMON_MK = true
+ifndef ART_ANDROID_COMMON_MK
+ART_ANDROID_COMMON_MK = true
 
-ART_TARGET_SUPPORTED_ARCH := arm arm64 mips x86 x86_64
+ART_TARGET_SUPPORTED_ARCH := arm arm64 mips mips64 x86 x86_64
 ART_HOST_SUPPORTED_ARCH := x86 x86_64
+
+ART_COVERAGE := false
+
+ifeq ($(ART_COVERAGE),true)
+# https://gcc.gnu.org/onlinedocs/gcc/Cross-profiling.html
+GCOV_PREFIX := /data/local/tmp/gcov
+# GCOV_PREFIX_STRIP is an integer that defines how many levels should be
+# stripped off the beginning of the path. We want the paths in $GCOV_PREFIX to
+# be relative to $ANDROID_BUILD_TOP so we can just adb pull from the top and not
+# have to worry about placing things ourselves.
+GCOV_PREFIX_STRIP := $(shell echo $(ANDROID_BUILD_TOP) | grep -o / | wc -l)
+GCOV_ENV := GCOV_PREFIX=$(GCOV_PREFIX) GCOV_PREFIX_STRIP=$(GCOV_PREFIX_STRIP)
+else
+GCOV_ENV :=
+endif
 
 ifeq (,$(filter $(TARGET_ARCH),$(ART_TARGET_SUPPORTED_ARCH)))
 $(warning unsupported TARGET_ARCH=$(TARGET_ARCH))
@@ -42,10 +57,17 @@ ifdef TARGET_2ND_ARCH
     $(error Do not know what to do with this multi-target configuration!)
   endif
 else
-  ART_PHONY_TEST_TARGET_SUFFIX := 32
-  2ND_ART_PHONY_TEST_TARGET_SUFFIX :=
-  ART_TARGET_ARCH_32 := $(TARGET_ARCH)
-  ART_TARGET_ARCH_64 :=
+  ifneq ($(filter %64,$(TARGET_ARCH)),)
+    ART_PHONY_TEST_TARGET_SUFFIX := 64
+    2ND_ART_PHONY_TEST_TARGET_SUFFIX :=
+    ART_TARGET_ARCH_32 :=
+    ART_TARGET_ARCH_64 := $(TARGET_ARCH)
+  else
+    ART_PHONY_TEST_TARGET_SUFFIX := 32
+    2ND_ART_PHONY_TEST_TARGET_SUFFIX :=
+    ART_TARGET_ARCH_32 := $(TARGET_ARCH)
+    ART_TARGET_ARCH_64 :=
+  endif
 endif
 
 ART_HOST_SHLIB_EXTENSION := $(HOST_SHLIB_SUFFIX)
@@ -74,4 +96,4 @@ else
   2ND_ART_HOST_OUT_SHARED_LIBRARIES := $(2ND_HOST_OUT_SHARED_LIBRARIES)
 endif
 
-endif # ANDROID_COMMON_MK
+endif # ART_ANDROID_COMMON_MK

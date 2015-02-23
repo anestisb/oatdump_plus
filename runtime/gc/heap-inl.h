@@ -25,6 +25,7 @@
 #include "gc/space/bump_pointer_space-inl.h"
 #include "gc/space/dlmalloc_space-inl.h"
 #include "gc/space/large_object_space.h"
+#include "gc/space/region_space-inl.h"
 #include "gc/space/rosalloc_space-inl.h"
 #include "runtime.h"
 #include "handle_scope-inl.h"
@@ -48,20 +49,30 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
   }
   // Need to check that we arent the large object allocator since the large object allocation code
   // path this function. If we didn't check we would have an infinite loop.
-  if (kCheckLargeObject && UNLIKELY(ShouldAllocLargeObject(klass, byte_count))) {
-    return AllocLargeObject<kInstrumented, PreFenceVisitor>(self, klass, byte_count,
-                                                            pre_fence_visitor);
-  }
   mirror::Object* obj;
+  if (kCheckLargeObject && UNLIKELY(ShouldAllocLargeObject(klass, byte_count))) {
+    obj = AllocLargeObject<kInstrumented, PreFenceVisitor>(self, &klass, byte_count,
+                                                           pre_fence_visitor);
+    if (obj != nullptr) {
+      return obj;
+    } else {
+      // There should be an OOM exception, since we are retrying, clear it.
+      self->ClearException();
+    }
+    // If the large object allocation failed, try to use the normal spaces (main space,
+    // non moving space). This can happen if there is significant virtual address space
+    // fragmentation.
+  }
   AllocationTimer alloc_timer(this, &obj);
   size_t bytes_allocated;
   size_t usable_size;
   size_t new_num_bytes_allocated = 0;
-  if (allocator == kAllocatorTypeTLAB) {
+  if (allocator == kAllocatorTypeTLAB || allocator == kAllocatorTypeRegionTLAB) {
     byte_count = RoundUp(byte_count, space::BumpPointerSpace::kAlignment);
   }
   // If we have a thread local allocation we don't need to update bytes allocated.
-  if (allocator == kAllocatorTypeTLAB && byte_count <= self->TlabSize()) {
+  if ((allocator == kAllocatorTypeTLAB || allocator == kAllocatorTypeRegionTLAB) &&
+      byte_count <= self->TlabSize()) {
     obj = self->AllocTlab(byte_count);
     DCHECK(obj != nullptr) << "AllocTlab can't fail";
     obj->SetClass(klass);
@@ -171,10 +182,13 @@ inline void Heap::PushOnAllocationStack(Thread* self, mirror::Object** obj) {
 }
 
 template <bool kInstrumented, typename PreFenceVisitor>
-inline mirror::Object* Heap::AllocLargeObject(Thread* self, mirror::Class* klass,
+inline mirror::Object* Heap::AllocLargeObject(Thread* self, mirror::Class** klass,
                                               size_t byte_count,
                                               const PreFenceVisitor& pre_fence_visitor) {
-  return AllocObjectWithAllocator<kInstrumented, false, PreFenceVisitor>(self, klass, byte_count,
+  // Save and restore the class in case it moves.
+  StackHandleScope<1> hs(self);
+  auto klass_wrapper = hs.NewHandleWrapper(klass);
+  return AllocObjectWithAllocator<kInstrumented, false, PreFenceVisitor>(self, *klass, byte_count,
                                                                          kAllocatorTypeLOS,
                                                                          pre_fence_visitor);
 }
@@ -183,7 +197,7 @@ template <const bool kInstrumented, const bool kGrow>
 inline mirror::Object* Heap::TryToAllocate(Thread* self, AllocatorType allocator_type,
                                            size_t alloc_size, size_t* bytes_allocated,
                                            size_t* usable_size) {
-  if (allocator_type != kAllocatorTypeTLAB &&
+  if (allocator_type != kAllocatorTypeTLAB && allocator_type != kAllocatorTypeRegionTLAB &&
       UNLIKELY(IsOutOfMemoryOnAllocation<kGrow>(allocator_type, alloc_size))) {
     return nullptr;
   }
@@ -244,6 +258,55 @@ inline mirror::Object* Heap::TryToAllocate(Thread* self, AllocatorType allocator
           return nullptr;
         }
         *bytes_allocated = new_tlab_size;
+      } else {
+        *bytes_allocated = 0;
+      }
+      // The allocation can't fail.
+      ret = self->AllocTlab(alloc_size);
+      DCHECK(ret != nullptr);
+      *usable_size = alloc_size;
+      break;
+    }
+    case kAllocatorTypeRegion: {
+      DCHECK(region_space_ != nullptr);
+      alloc_size = RoundUp(alloc_size, space::RegionSpace::kAlignment);
+      ret = region_space_->AllocNonvirtual<false>(alloc_size, bytes_allocated, usable_size);
+      break;
+    }
+    case kAllocatorTypeRegionTLAB: {
+      DCHECK(region_space_ != nullptr);
+      DCHECK_ALIGNED(alloc_size, space::RegionSpace::kAlignment);
+      if (UNLIKELY(self->TlabSize() < alloc_size)) {
+        if (space::RegionSpace::kRegionSize >= alloc_size) {
+          // Non-large. Check OOME for a tlab.
+          if (LIKELY(!IsOutOfMemoryOnAllocation<kGrow>(allocator_type, space::RegionSpace::kRegionSize))) {
+            // Try to allocate a tlab.
+            if (!region_space_->AllocNewTlab(self)) {
+              // Failed to allocate a tlab. Try non-tlab.
+              ret = region_space_->AllocNonvirtual<false>(alloc_size, bytes_allocated, usable_size);
+              return ret;
+            }
+            *bytes_allocated = space::RegionSpace::kRegionSize;
+            // Fall-through.
+          } else {
+            // Check OOME for a non-tlab allocation.
+            if (!IsOutOfMemoryOnAllocation<kGrow>(allocator_type, alloc_size)) {
+              ret = region_space_->AllocNonvirtual<false>(alloc_size, bytes_allocated, usable_size);
+              return ret;
+            } else {
+              // Neither tlab or non-tlab works. Give up.
+              return nullptr;
+            }
+          }
+        } else {
+          // Large. Check OOME.
+          if (LIKELY(!IsOutOfMemoryOnAllocation<kGrow>(allocator_type, alloc_size))) {
+            ret = region_space_->AllocNonvirtual<false>(alloc_size, bytes_allocated, usable_size);
+            return ret;
+          } else {
+            return nullptr;
+          }
+        }
       } else {
         *bytes_allocated = 0;
       }

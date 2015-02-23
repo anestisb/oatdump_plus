@@ -21,14 +21,16 @@
 #include <string>
 #include <vector>
 
+#include "arch/instruction_set.h"
+#include "base/arena_allocator.h"
 #include "base/mutex.h"
 #include "base/timing_logger.h"
 #include "class_reference.h"
 #include "compiled_method.h"
 #include "compiler.h"
 #include "dex_file.h"
+#include "dex/verified_method.h"
 #include "driver/compiler_options.h"
-#include "instruction_set.h"
 #include "invoke_type.h"
 #include "method_reference.h"
 #include "mirror/class.h"  // For mirror::Class::Status.
@@ -37,8 +39,9 @@
 #include "runtime.h"
 #include "safe_map.h"
 #include "thread_pool.h"
-#include "utils/arena_allocator.h"
 #include "utils/dedupe_set.h"
+#include "utils/swap_space.h"
+#include "utils.h"
 
 namespace art {
 
@@ -51,6 +54,7 @@ class CompilerOptions;
 class DexCompilationUnit;
 class DexFileToMethodInlinerMap;
 struct InlineIGetIPutData;
+class InstructionSetFeatures;
 class OatWriter;
 class ParallelCompilationManager;
 class ScopedObjectAccess;
@@ -64,8 +68,6 @@ enum EntryPointCallingConvention {
   kInterpreterAbi,
   // ABI of calls to a method's native code, only used for native methods.
   kJniAbi,
-  // ABI of calls to a method's portable code entry point.
-  kPortableAbi,
   // ABI of calls to a method's quick code entry point.
   kQuickAbi
 };
@@ -75,6 +77,9 @@ enum DexToDexCompilationLevel {
   kRequired,              // Dex-to-dex compilation required for correctness.
   kOptimize               // Perform required transformation and peep-hole optimizations.
 };
+std::ostream& operator<<(std::ostream& os, const DexToDexCompilationLevel& rhs);
+
+static constexpr bool kUseMurmur3Hash = true;
 
 class CompilerDriver {
  public:
@@ -88,10 +93,13 @@ class CompilerDriver {
                           DexFileToMethodInlinerMap* method_inliner_map,
                           Compiler::Kind compiler_kind,
                           InstructionSet instruction_set,
-                          InstructionSetFeatures instruction_set_features,
+                          const InstructionSetFeatures* instruction_set_features,
                           bool image, std::set<std::string>* image_classes,
+                          std::set<std::string>* compiled_classes,
                           size_t thread_count, bool dump_stats, bool dump_passes,
-                          CumulativeLogger* timer, std::string profile_file = "");
+                          const std::string& dump_cfg_file_name,
+                          CumulativeLogger* timer, int swap_fd,
+                          const std::string& profile_file);
 
   ~CompilerDriver();
 
@@ -115,7 +123,7 @@ class CompilerDriver {
     return instruction_set_;
   }
 
-  InstructionSetFeatures GetInstructionSetFeatures() const {
+  const InstructionSetFeatures* GetInstructionSetFeatures() const {
     return instruction_set_features_;
   }
 
@@ -140,20 +148,12 @@ class CompilerDriver {
     return image_classes_.get();
   }
 
-  CompilerTls* GetTls();
-
   // Generate the trampolines that are invoked by unresolved direct methods.
   const std::vector<uint8_t>* CreateInterpreterToInterpreterBridge() const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const std::vector<uint8_t>* CreateInterpreterToCompiledCodeBridge() const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const std::vector<uint8_t>* CreateJniDlsymLookup() const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const std::vector<uint8_t>* CreatePortableImtConflictTrampoline() const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const std::vector<uint8_t>* CreatePortableResolutionTrampoline() const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const std::vector<uint8_t>* CreatePortableToInterpreterBridge() const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const std::vector<uint8_t>* CreateQuickGenericJniTrampoline() const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -233,6 +233,7 @@ class CompilerDriver {
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsFieldVolatile(mirror::ArtField* field) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  MemberOffset GetFieldOffset(mirror::ArtField* field) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Can we fast-path an IGET/IPUT access to an instance field? If yes, compute the field offset.
   std::pair<bool, bool> IsFastInstanceField(
@@ -240,13 +241,20 @@ class CompilerDriver {
       mirror::ArtField* resolved_field, uint16_t field_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Can we fast-path an SGET/SPUT access to a static field? If yes, compute the field offset,
-  // the type index of the declaring class in the referrer's dex file and whether the declaring
-  // class is the referrer's class or at least can be assumed to be initialized.
+  // Can we fast-path an SGET/SPUT access to a static field? If yes, compute the type index
+  // of the declaring class in the referrer's dex file.
   std::pair<bool, bool> IsFastStaticField(
       mirror::DexCache* dex_cache, mirror::Class* referrer_class,
-      mirror::ArtField* resolved_field, uint16_t field_idx, MemberOffset* field_offset,
-      uint32_t* storage_index, bool* is_referrers_class, bool* is_initialized)
+      mirror::ArtField* resolved_field, uint16_t field_idx, uint32_t* storage_index)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Is static field's in referrer's class?
+  bool IsStaticFieldInReferrerClass(mirror::Class* referrer_class, mirror::ArtField* resolved_field)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Is static field's class initialized?
+  bool IsStaticFieldsClassInitialized(mirror::Class* referrer_class,
+                                      mirror::ArtField* resolved_field)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Resolve a method. Returns nullptr on failure, including incompatible class change.
@@ -277,8 +285,10 @@ class CompilerDriver {
       uintptr_t* direct_code, uintptr_t* direct_method)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Does invokation of the resolved method need class initialization?
-  bool NeedsClassInitialization(mirror::Class* referrer_class, mirror::ArtMethod* resolved_method)
+  // Is method's class initialized for an invoke?
+  // For static invokes to determine whether we need to consider potential call to <clinit>().
+  // For non-static invokes, assuming a non-null reference, the class is always initialized.
+  bool IsMethodsClassInitialized(mirror::Class* referrer_class, mirror::ArtMethod* resolved_method)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void ProcessedInstanceField(bool resolved);
@@ -301,7 +311,8 @@ class CompilerDriver {
   // field is within the referrer (which can avoid checking class initialization).
   bool ComputeStaticFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit, bool is_put,
                               MemberOffset* field_offset, uint32_t* storage_index,
-                              bool* is_referrers_class, bool* is_volatile, bool* is_initialized)
+                              bool* is_referrers_class, bool* is_volatile, bool* is_initialized,
+                              Primitive::Type* type)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Can we fastpath a interface, super class or virtual method call? Computes method's vtable
@@ -325,6 +336,12 @@ class CompilerDriver {
 
   ArenaPool* GetArenaPool() {
     return &arena_pool_;
+  }
+  const ArenaPool* GetArenaPool() const {
+    return &arena_pool_;
+  }
+  SwapAllocator<void>& GetSwapSpaceAllocator() {
+    return *swap_space_allocator_.get();
   }
 
   bool WriteElf(const std::string& android_root,
@@ -355,6 +372,10 @@ class CompilerDriver {
     return dump_passes_;
   }
 
+  const std::string& GetDumpCfgFileName() const {
+    return dump_cfg_file_name_;
+  }
+
   CumulativeLogger* GetTimingsLogger() const {
     return timings_logger_;
   }
@@ -362,21 +383,24 @@ class CompilerDriver {
   // Checks if class specified by type_idx is one of the image_classes_
   bool IsImageClass(const char* descriptor) const;
 
+  // Checks if the provided class should be compiled, i.e., is in classes_to_compile_.
+  bool IsClassToCompile(const char* descriptor) const;
+
   void RecordClassStatus(ClassReference ref, mirror::Class::Status status)
       LOCKS_EXCLUDED(compiled_classes_lock_);
 
-  std::vector<uint8_t>* DeduplicateCode(const std::vector<uint8_t>& code);
-  SrcMap* DeduplicateSrcMappingTable(const SrcMap& src_map);
-  std::vector<uint8_t>* DeduplicateMappingTable(const std::vector<uint8_t>& code);
-  std::vector<uint8_t>* DeduplicateVMapTable(const std::vector<uint8_t>& code);
-  std::vector<uint8_t>* DeduplicateGCMap(const std::vector<uint8_t>& code);
-  std::vector<uint8_t>* DeduplicateCFIInfo(const std::vector<uint8_t>* cfi_info);
-
-  ProfileFile profile_file_;
-  bool profile_present_;
+  SwapVector<uint8_t>* DeduplicateCode(const ArrayRef<const uint8_t>& code);
+  SwapSrcMap* DeduplicateSrcMappingTable(const ArrayRef<SrcMapElem>& src_map);
+  SwapVector<uint8_t>* DeduplicateMappingTable(const ArrayRef<const uint8_t>& code);
+  SwapVector<uint8_t>* DeduplicateVMapTable(const ArrayRef<const uint8_t>& code);
+  SwapVector<uint8_t>* DeduplicateGCMap(const ArrayRef<const uint8_t>& code);
+  SwapVector<uint8_t>* DeduplicateCFIInfo(const ArrayRef<const uint8_t>& cfi_info);
 
   // Should the compiler run on this method given profile information?
   bool SkipCompilation(const std::string& method_name);
+
+  // Get memory usage during compilation.
+  std::string GetMemoryUsageString(bool extended) const;
 
  private:
   // These flags are internal to CompilerDriver for collecting INVOKE resolution statistics.
@@ -400,11 +424,12 @@ class CompilerDriver {
 
  public:  // TODO make private or eliminate.
   // Compute constant code and method pointers when possible.
-  void GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType sharp_type,
+  void GetCodeAndMethodForDirectCall(/*out*/InvokeType* type,
+                                     InvokeType sharp_type,
                                      bool no_guarantee_of_dex_cache_entry,
-                                     mirror::Class* referrer_class,
+                                     const mirror::Class* referrer_class,
                                      mirror::ArtMethod* method,
-                                     int* stats_flags,
+                                     /*out*/int* stats_flags,
                                      MethodReference* target_method,
                                      uintptr_t* direct_code, uintptr_t* direct_method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -462,11 +487,20 @@ class CompilerDriver {
   void CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
                      InvokeType invoke_type, uint16_t class_def_idx, uint32_t method_idx,
                      jobject class_loader, const DexFile& dex_file,
-                     DexToDexCompilationLevel dex_to_dex_compilation_level)
+                     DexToDexCompilationLevel dex_to_dex_compilation_level,
+                     bool compilation_enabled)
       LOCKS_EXCLUDED(compiled_methods_lock_);
 
   static void CompileClass(const ParallelCompilationManager* context, size_t class_def_index)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
+
+  // Swap pool and allocator used for native allocations. May be file-backed. Needs to be first
+  // as other fields rely on this.
+  std::unique_ptr<SwapSpace> swap_space_;
+  std::unique_ptr<SwapAllocator<void> > swap_space_allocator_;
+
+  ProfileFile profile_file_;
+  bool profile_present_;
 
   const CompilerOptions* const compiler_options_;
   VerificationResults* const verification_results_;
@@ -475,7 +509,7 @@ class CompilerDriver {
   std::unique_ptr<Compiler> compiler_;
 
   const InstructionSet instruction_set_;
-  const InstructionSetFeatures instruction_set_features_;
+  const InstructionSetFeatures* const instruction_set_features_;
 
   // All class references that require
   mutable ReaderWriterMutex freezing_constructor_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
@@ -501,21 +535,24 @@ class CompilerDriver {
   // included in the image.
   std::unique_ptr<std::set<std::string>> image_classes_;
 
+  // If image_ is true, specifies the classes that will be compiled in
+  // the image. Note if classes_to_compile_ is nullptr, all classes are
+  // included in the image.
+  std::unique_ptr<std::set<std::string>> classes_to_compile_;
+
   size_t thread_count_;
-  uint64_t start_ns_;
 
   class AOTCompilationStats;
   std::unique_ptr<AOTCompilationStats> stats_;
 
   bool dump_stats_;
   const bool dump_passes_;
+  const std::string& dump_cfg_file_name_;
 
   CumulativeLogger* const timings_logger_;
 
   typedef void (*CompilerCallbackFn)(CompilerDriver& driver);
   typedef MutexLock* (*CompilerMutexLockFn)(CompilerDriver& driver);
-
-  void* compiler_library_;
 
   typedef void (*DexToDexCompilerFn)(CompilerDriver& driver,
                                      const DexFile::CodeItem* code_item,
@@ -527,62 +564,98 @@ class CompilerDriver {
 
   void* compiler_context_;
 
-  pthread_key_t tls_key_;
-
   // Arena pool used by the compiler.
   ArenaPool arena_pool_;
-
-  typedef void (*CompilerEnableAutoElfLoadingFn)(CompilerDriver& driver);
-  CompilerEnableAutoElfLoadingFn compiler_enable_auto_elf_loading_;
-
-  typedef const void* (*CompilerGetMethodCodeAddrFn)
-      (const CompilerDriver& driver, const CompiledMethod* cm, const mirror::ArtMethod* method);
-  CompilerGetMethodCodeAddrFn compiler_get_method_code_addr_;
 
   bool support_boot_image_fixup_;
 
   // DeDuplication data structures, these own the corresponding byte arrays.
-  template <typename ByteArray>
+  template <typename ContentType>
   class DedupeHashFunc {
    public:
-    size_t operator()(const ByteArray& array) const {
-      // For small arrays compute a hash using every byte.
-      static const size_t kSmallArrayThreshold = 16;
-      size_t hash = 0x811c9dc5;
-      if (array.size() <= kSmallArrayThreshold) {
-        for (auto b : array) {
-          hash = (hash * 16777619) ^ static_cast<uint8_t>(b);
+    size_t operator()(const ArrayRef<ContentType>& array) const {
+      const uint8_t* data = reinterpret_cast<const uint8_t*>(array.data());
+      static_assert(IsPowerOfTwo(sizeof(ContentType)),
+          "ContentType is not power of two, don't know whether array layout is as assumed");
+      uint32_t len = sizeof(ContentType) * array.size();
+      if (kUseMurmur3Hash) {
+        static constexpr uint32_t c1 = 0xcc9e2d51;
+        static constexpr uint32_t c2 = 0x1b873593;
+        static constexpr uint32_t r1 = 15;
+        static constexpr uint32_t r2 = 13;
+        static constexpr uint32_t m = 5;
+        static constexpr uint32_t n = 0xe6546b64;
+
+        uint32_t hash = 0;
+
+        const int nblocks = len / 4;
+        typedef __attribute__((__aligned__(1))) uint32_t unaligned_uint32_t;
+        const unaligned_uint32_t *blocks = reinterpret_cast<const uint32_t*>(data);
+        int i;
+        for (i = 0; i < nblocks; i++) {
+          uint32_t k = blocks[i];
+          k *= c1;
+          k = (k << r1) | (k >> (32 - r1));
+          k *= c2;
+
+          hash ^= k;
+          hash = ((hash << r2) | (hash >> (32 - r2))) * m + n;
         }
+
+        const uint8_t *tail = reinterpret_cast<const uint8_t*>(data + nblocks * 4);
+        uint32_t k1 = 0;
+
+        switch (len & 3) {
+          case 3:
+            k1 ^= tail[2] << 16;
+            FALLTHROUGH_INTENDED;
+          case 2:
+            k1 ^= tail[1] << 8;
+            FALLTHROUGH_INTENDED;
+          case 1:
+            k1 ^= tail[0];
+
+            k1 *= c1;
+            k1 = (k1 << r1) | (k1 >> (32 - r1));
+            k1 *= c2;
+            hash ^= k1;
+        }
+
+        hash ^= len;
+        hash ^= (hash >> 16);
+        hash *= 0x85ebca6b;
+        hash ^= (hash >> 13);
+        hash *= 0xc2b2ae35;
+        hash ^= (hash >> 16);
+
+        return hash;
       } else {
-        // For larger arrays use the 2 bytes at 6 bytes (the location of a push registers
-        // instruction field for quick generated code on ARM) and then select a number of other
-        // values at random.
-        static const size_t kRandomHashCount = 16;
-        for (size_t i = 0; i < 2; ++i) {
-          uint8_t b = static_cast<uint8_t>(array[i + 6]);
-          hash = (hash * 16777619) ^ b;
+        size_t hash = 0x811c9dc5;
+        for (uint32_t i = 0; i < len; ++i) {
+          hash = (hash * 16777619) ^ data[i];
         }
-        for (size_t i = 2; i < kRandomHashCount; ++i) {
-          size_t r = i * 1103515245 + 12345;
-          uint8_t b = static_cast<uint8_t>(array[r % array.size()]);
-          hash = (hash * 16777619) ^ b;
-        }
+        hash += hash << 13;
+        hash ^= hash >> 7;
+        hash += hash << 3;
+        hash ^= hash >> 17;
+        hash += hash << 5;
+        return hash;
       }
-      hash += hash << 13;
-      hash ^= hash >> 7;
-      hash += hash << 3;
-      hash ^= hash >> 17;
-      hash += hash << 5;
-      return hash;
     }
   };
 
-  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc<std::vector<uint8_t>>, 4> dedupe_code_;
-  DedupeSet<SrcMap, size_t, DedupeHashFunc<SrcMap>, 4> dedupe_src_mapping_table_;
-  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc<std::vector<uint8_t>>, 4> dedupe_mapping_table_;
-  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc<std::vector<uint8_t>>, 4> dedupe_vmap_table_;
-  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc<std::vector<uint8_t>>, 4> dedupe_gc_map_;
-  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc<std::vector<uint8_t>>, 4> dedupe_cfi_info_;
+  DedupeSet<ArrayRef<const uint8_t>,
+            SwapVector<uint8_t>, size_t, DedupeHashFunc<const uint8_t>, 4> dedupe_code_;
+  DedupeSet<ArrayRef<SrcMapElem>,
+            SwapSrcMap, size_t, DedupeHashFunc<SrcMapElem>, 4> dedupe_src_mapping_table_;
+  DedupeSet<ArrayRef<const uint8_t>,
+            SwapVector<uint8_t>, size_t, DedupeHashFunc<const uint8_t>, 4> dedupe_mapping_table_;
+  DedupeSet<ArrayRef<const uint8_t>,
+            SwapVector<uint8_t>, size_t, DedupeHashFunc<const uint8_t>, 4> dedupe_vmap_table_;
+  DedupeSet<ArrayRef<const uint8_t>,
+            SwapVector<uint8_t>, size_t, DedupeHashFunc<const uint8_t>, 4> dedupe_gc_map_;
+  DedupeSet<ArrayRef<const uint8_t>,
+            SwapVector<uint8_t>, size_t, DedupeHashFunc<const uint8_t>, 4> dedupe_cfi_info_;
 
   DISALLOW_COPY_AND_ASSIGN(CompilerDriver);
 };

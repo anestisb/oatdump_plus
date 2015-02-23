@@ -44,10 +44,13 @@
 #include "common_throws.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
+#include "gc_root.h"
 #include "gc/accounting/heap_bitmap.h"
 #include "gc/heap.h"
 #include "gc/space/space.h"
 #include "globals.h"
+#include "jdwp/jdwp.h"
+#include "jdwp/jdwp_priv.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
@@ -61,46 +64,17 @@ namespace art {
 
 namespace hprof {
 
-#define UNIQUE_ERROR -((((uintptr_t)__func__) << 16 | __LINE__) & (0x7fffffff))
+static constexpr bool kDirectStream = true;
 
-#define HPROF_TIME 0
-#define HPROF_NULL_STACK_TRACE   0
-#define HPROF_NULL_THREAD        0
+static constexpr uint32_t kHprofTime = 0;
+static constexpr uint32_t kHprofNullStackTrace = 0;
+static constexpr uint32_t kHprofNullThread = 0;
 
-#define U2_TO_BUF_BE(buf, offset, value) \
-    do { \
-      unsigned char* buf_ = (unsigned char*)(buf); \
-      int offset_ = static_cast<int>(offset); \
-      uint16_t value_ = (uint16_t)(value); \
-      buf_[offset_ + 0] = (unsigned char)(value_ >>  8); \
-      buf_[offset_ + 1] = (unsigned char)(value_      ); \
-    } while (0)
+static constexpr size_t kMaxObjectsPerSegment = 128;
+static constexpr size_t kMaxBytesPerSegment = 4096;
 
-#define U4_TO_BUF_BE(buf, offset, value) \
-    do { \
-      unsigned char* buf_ = (unsigned char*)(buf); \
-      int offset_ = static_cast<int>(offset); \
-      uint32_t value_ = (uint32_t)(value); \
-      buf_[offset_ + 0] = (unsigned char)(value_ >> 24); \
-      buf_[offset_ + 1] = (unsigned char)(value_ >> 16); \
-      buf_[offset_ + 2] = (unsigned char)(value_ >>  8); \
-      buf_[offset_ + 3] = (unsigned char)(value_      ); \
-    } while (0)
-
-#define U8_TO_BUF_BE(buf, offset, value) \
-    do { \
-      unsigned char* buf_ = (unsigned char*)(buf); \
-      int offset_ = static_cast<int>(offset); \
-      uint64_t value_ = (uint64_t)(value); \
-      buf_[offset_ + 0] = (unsigned char)(value_ >> 56); \
-      buf_[offset_ + 1] = (unsigned char)(value_ >> 48); \
-      buf_[offset_ + 2] = (unsigned char)(value_ >> 40); \
-      buf_[offset_ + 3] = (unsigned char)(value_ >> 32); \
-      buf_[offset_ + 4] = (unsigned char)(value_ >> 24); \
-      buf_[offset_ + 5] = (unsigned char)(value_ >> 16); \
-      buf_[offset_ + 6] = (unsigned char)(value_ >>  8); \
-      buf_[offset_ + 7] = (unsigned char)(value_      ); \
-    } while (0)
+// The static field-name for the synthetic object generated to account for class static overhead.
+static constexpr const char* kStaticOverheadName = "$staticOverhead";
 
 enum HprofTag {
   HPROF_TAG_STRING = 0x01,
@@ -170,215 +144,266 @@ enum HprofBasicType {
 typedef uint32_t HprofStringId;
 typedef uint32_t HprofClassObjectId;
 
-// Represents a top-level hprof record, whose serialized format is:
-// U1  TAG: denoting the type of the record
-// U4  TIME: number of microseconds since the time stamp in the header
-// U4  LENGTH: number of bytes that follow this uint32_t field and belong to this record
-// U1* BODY: as many bytes as specified in the above uint32_t field
-class HprofRecord {
+class EndianOutput {
  public:
-  HprofRecord() : alloc_length_(128), fp_(nullptr), tag_(0), time_(0), length_(0), dirty_(false) {
-    body_ = reinterpret_cast<unsigned char*>(malloc(alloc_length_));
+  EndianOutput() : length_(0), sum_length_(0), max_length_(0), started_(false) {}
+  virtual ~EndianOutput() {}
+
+  void StartNewRecord(uint8_t tag, uint32_t time) {
+    if (length_ > 0) {
+      EndRecord();
+    }
+    DCHECK_EQ(length_, 0U);
+    AddU1(tag);
+    AddU4(time);
+    AddU4(0xdeaddead);  // Length, replaced on flush.
+    started_ = true;
   }
 
-  ~HprofRecord() {
-    free(body_);
-  }
-
-  int StartNewRecord(FILE* fp, uint8_t tag, uint32_t time) {
-    int rc = Flush();
-    if (rc != 0) {
-      return rc;
+  void EndRecord() {
+    // Replace length in header.
+    if (started_) {
+      UpdateU4(sizeof(uint8_t) + sizeof(uint32_t),
+               length_ - sizeof(uint8_t) - 2 * sizeof(uint32_t));
     }
 
-    fp_ = fp;
-    tag_ = tag;
-    time_ = time;
+    HandleEndRecord();
+
+    sum_length_ += length_;
+    max_length_ = std::max(max_length_, length_);
     length_ = 0;
-    dirty_ = true;
-    return 0;
+    started_ = false;
   }
 
-  int Flush() {
-    if (dirty_) {
-      unsigned char headBuf[sizeof(uint8_t) + 2 * sizeof(uint32_t)];
-
-      headBuf[0] = tag_;
-      U4_TO_BUF_BE(headBuf, 1, time_);
-      U4_TO_BUF_BE(headBuf, 5, length_);
-
-      int nb = fwrite(headBuf, 1, sizeof(headBuf), fp_);
-      if (nb != sizeof(headBuf)) {
-        return UNIQUE_ERROR;
-      }
-      nb = fwrite(body_, 1, length_, fp_);
-      if (nb != static_cast<int>(length_)) {
-        return UNIQUE_ERROR;
-      }
-
-      dirty_ = false;
-    }
-    // TODO if we used less than half (or whatever) of allocLen, shrink the buffer.
-    return 0;
+  void AddU1(uint8_t value) {
+    AddU1List(&value, 1);
+  }
+  void AddU2(uint16_t value) {
+    AddU2List(&value, 1);
+  }
+  void AddU4(uint32_t value) {
+    AddU4List(&value, 1);
   }
 
-  int AddU1(uint8_t value) {
-    int err = GuaranteeRecordAppend(1);
-    if (UNLIKELY(err != 0)) {
-      return err;
-    }
-
-    body_[length_++] = value;
-    return 0;
+  void AddU8(uint64_t value) {
+    AddU8List(&value, 1);
   }
 
-  int AddU2(uint16_t value) {
-    return AddU2List(&value, 1);
-  }
-
-  int AddU4(uint32_t value) {
-    return AddU4List(&value, 1);
-  }
-
-  int AddU8(uint64_t value) {
-    return AddU8List(&value, 1);
-  }
-
-  int AddObjectId(const mirror::Object* value) {
-    return AddU4(PointerToLowMemUInt32(value));
+  void AddObjectId(const mirror::Object* value) {
+    AddU4(PointerToLowMemUInt32(value));
   }
 
   // The ID for the synthetic object generated to account for class static overhead.
-  int AddClassStaticsId(const mirror::Class* value) {
-    return AddU4(1 | PointerToLowMemUInt32(value));
+  void AddClassStaticsId(const mirror::Class* value) {
+    AddU4(1 | PointerToLowMemUInt32(value));
   }
 
-  int AddJniGlobalRefId(jobject value) {
-    return AddU4(PointerToLowMemUInt32(value));
+  void AddJniGlobalRefId(jobject value) {
+    AddU4(PointerToLowMemUInt32(value));
   }
 
-  int AddClassId(HprofClassObjectId value) {
-    return AddU4(value);
+  void AddClassId(HprofClassObjectId value) {
+    AddU4(value);
   }
 
-  int AddStringId(HprofStringId value) {
-    return AddU4(value);
+  void AddStringId(HprofStringId value) {
+    AddU4(value);
   }
 
-  int AddU1List(const uint8_t* values, size_t numValues) {
-    int err = GuaranteeRecordAppend(numValues);
-    if (UNLIKELY(err != 0)) {
-      return err;
-    }
-
-    memcpy(body_ + length_, values, numValues);
-    length_ += numValues;
-    return 0;
+  void AddU1List(const uint8_t* values, size_t count) {
+    HandleU1List(values, count);
+    length_ += count;
+  }
+  void AddU2List(const uint16_t* values, size_t count) {
+    HandleU2List(values, count);
+    length_ += count * sizeof(uint16_t);
+  }
+  void AddU4List(const uint32_t* values, size_t count) {
+    HandleU4List(values, count);
+    length_ += count * sizeof(uint32_t);
+  }
+  virtual void UpdateU4(size_t offset ATTRIBUTE_UNUSED, uint32_t new_value ATTRIBUTE_UNUSED) {
+    DCHECK_LE(offset, length_ - 4);
+  }
+  void AddU8List(const uint64_t* values, size_t count) {
+    HandleU8List(values, count);
+    length_ += count * sizeof(uint64_t);
   }
 
-  int AddU2List(const uint16_t* values, size_t numValues) {
-    int err = GuaranteeRecordAppend(numValues * 2);
-    if (UNLIKELY(err != 0)) {
-      return err;
-    }
-
-    unsigned char* insert = body_ + length_;
-    for (size_t i = 0; i < numValues; ++i) {
-      U2_TO_BUF_BE(insert, 0, *values++);
-      insert += sizeof(*values);
-    }
-    length_ += numValues * 2;
-    return 0;
-  }
-
-  int AddU4List(const uint32_t* values, size_t numValues) {
-    int err = GuaranteeRecordAppend(numValues * 4);
-    if (UNLIKELY(err != 0)) {
-      return err;
-    }
-
-    unsigned char* insert = body_ + length_;
-    for (size_t i = 0; i < numValues; ++i) {
-      U4_TO_BUF_BE(insert, 0, *values++);
-      insert += sizeof(*values);
-    }
-    length_ += numValues * 4;
-    return 0;
-  }
-
-  void UpdateU4(size_t offset, uint32_t new_value) {
-    U4_TO_BUF_BE(body_, offset, new_value);
-  }
-
-  int AddU8List(const uint64_t* values, size_t numValues) {
-    int err = GuaranteeRecordAppend(numValues * 8);
-    if (err != 0) {
-      return err;
-    }
-
-    unsigned char* insert = body_ + length_;
-    for (size_t i = 0; i < numValues; ++i) {
-      U8_TO_BUF_BE(insert, 0, *values++);
-      insert += sizeof(*values);
-    }
-    length_ += numValues * 8;
-    return 0;
-  }
-
-  int AddIdList(mirror::ObjectArray<mirror::Object>* values)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    int32_t length = values->GetLength();
+  void AddIdList(mirror::ObjectArray<mirror::Object>* values)
+  SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    const int32_t length = values->GetLength();
     for (int32_t i = 0; i < length; ++i) {
-      int err = AddObjectId(values->GetWithoutChecks(i));
-      if (UNLIKELY(err != 0)) {
-        return err;
-      }
+      AddObjectId(values->GetWithoutChecks(i));
     }
-    return 0;
   }
 
-  int AddUtf8String(const char* str) {
+  void AddUtf8String(const char* str) {
     // The terminating NUL character is NOT written.
-    return AddU1List((const uint8_t*)str, strlen(str));
+    AddU1List((const uint8_t*)str, strlen(str));
   }
 
-  size_t Size() const {
+  size_t Length() const {
     return length_;
   }
 
- private:
-  int GuaranteeRecordAppend(size_t nmore) {
-    size_t minSize = length_ + nmore;
-    if (minSize > alloc_length_) {
-      size_t newAllocLen = alloc_length_ * 2;
-      if (newAllocLen < minSize) {
-        newAllocLen = alloc_length_ + nmore + nmore/2;
-      }
-      unsigned char* newBody = (unsigned char*)realloc(body_, newAllocLen);
-      if (newBody != NULL) {
-        body_ = newBody;
-        alloc_length_ = newAllocLen;
-      } else {
-        // TODO: set an error flag so future ops will fail
-        return UNIQUE_ERROR;
-      }
-    }
-
-    CHECK_LE(length_ + nmore, alloc_length_);
-    return 0;
+  size_t SumLength() const {
+    return sum_length_;
   }
 
-  size_t alloc_length_;
-  unsigned char* body_;
+  size_t MaxLength() const {
+    return max_length_;
+  }
 
-  FILE* fp_;
-  uint8_t tag_;
-  uint32_t time_;
-  size_t length_;
-  bool dirty_;
+ protected:
+  virtual void HandleU1List(const uint8_t* values ATTRIBUTE_UNUSED,
+                            size_t count ATTRIBUTE_UNUSED) {
+  }
+  virtual void HandleU2List(const uint16_t* values ATTRIBUTE_UNUSED,
+                            size_t count ATTRIBUTE_UNUSED) {
+  }
+  virtual void HandleU4List(const uint32_t* values ATTRIBUTE_UNUSED,
+                            size_t count ATTRIBUTE_UNUSED) {
+  }
+  virtual void HandleU8List(const uint64_t* values ATTRIBUTE_UNUSED,
+                            size_t count ATTRIBUTE_UNUSED) {
+  }
+  virtual void HandleEndRecord() {
+  }
 
-  DISALLOW_COPY_AND_ASSIGN(HprofRecord);
+  size_t length_;      // Current record size.
+  size_t sum_length_;  // Size of all data.
+  size_t max_length_;  // Maximum seen length.
+  bool started_;       // Was StartRecord called?
 };
+
+// This keeps things buffered until flushed.
+class EndianOutputBuffered : public EndianOutput {
+ public:
+  explicit EndianOutputBuffered(size_t reserve_size) {
+    buffer_.reserve(reserve_size);
+  }
+  virtual ~EndianOutputBuffered() {}
+
+  void UpdateU4(size_t offset, uint32_t new_value) OVERRIDE {
+    DCHECK_LE(offset, length_ - 4);
+    buffer_[offset + 0] = static_cast<uint8_t>((new_value >> 24) & 0xFF);
+    buffer_[offset + 1] = static_cast<uint8_t>((new_value >> 16) & 0xFF);
+    buffer_[offset + 2] = static_cast<uint8_t>((new_value >> 8)  & 0xFF);
+    buffer_[offset + 3] = static_cast<uint8_t>((new_value >> 0)  & 0xFF);
+  }
+
+ protected:
+  void HandleU1List(const uint8_t* values, size_t count) OVERRIDE {
+    DCHECK_EQ(length_, buffer_.size());
+    buffer_.insert(buffer_.end(), values, values + count);
+  }
+
+  void HandleU2List(const uint16_t* values, size_t count) OVERRIDE {
+    DCHECK_EQ(length_, buffer_.size());
+    for (size_t i = 0; i < count; ++i) {
+      uint16_t value = *values;
+      buffer_.push_back(static_cast<uint8_t>((value >> 8) & 0xFF));
+      buffer_.push_back(static_cast<uint8_t>((value >> 0) & 0xFF));
+      values++;
+    }
+  }
+
+  void HandleU4List(const uint32_t* values, size_t count) OVERRIDE {
+    DCHECK_EQ(length_, buffer_.size());
+    for (size_t i = 0; i < count; ++i) {
+      uint32_t value = *values;
+      buffer_.push_back(static_cast<uint8_t>((value >> 24) & 0xFF));
+      buffer_.push_back(static_cast<uint8_t>((value >> 16) & 0xFF));
+      buffer_.push_back(static_cast<uint8_t>((value >> 8)  & 0xFF));
+      buffer_.push_back(static_cast<uint8_t>((value >> 0)  & 0xFF));
+      values++;
+    }
+  }
+
+  void HandleU8List(const uint64_t* values, size_t count) OVERRIDE {
+    DCHECK_EQ(length_, buffer_.size());
+    for (size_t i = 0; i < count; ++i) {
+      uint64_t value = *values;
+      buffer_.push_back(static_cast<uint8_t>((value >> 56) & 0xFF));
+      buffer_.push_back(static_cast<uint8_t>((value >> 48) & 0xFF));
+      buffer_.push_back(static_cast<uint8_t>((value >> 40) & 0xFF));
+      buffer_.push_back(static_cast<uint8_t>((value >> 32) & 0xFF));
+      buffer_.push_back(static_cast<uint8_t>((value >> 24) & 0xFF));
+      buffer_.push_back(static_cast<uint8_t>((value >> 16) & 0xFF));
+      buffer_.push_back(static_cast<uint8_t>((value >> 8)  & 0xFF));
+      buffer_.push_back(static_cast<uint8_t>((value >> 0)  & 0xFF));
+      values++;
+    }
+  }
+
+  void HandleEndRecord() OVERRIDE {
+    DCHECK_EQ(buffer_.size(), length_);
+    if (kIsDebugBuild && started_) {
+      uint32_t stored_length =
+          static_cast<uint32_t>(buffer_[5]) << 24 |
+          static_cast<uint32_t>(buffer_[6]) << 16 |
+          static_cast<uint32_t>(buffer_[7]) << 8 |
+          static_cast<uint32_t>(buffer_[8]);
+      DCHECK_EQ(stored_length, length_ - sizeof(uint8_t) - 2 * sizeof(uint32_t));
+    }
+    HandleFlush(buffer_.data(), length_);
+    buffer_.clear();
+  }
+
+  virtual void HandleFlush(const uint8_t* buffer ATTRIBUTE_UNUSED, size_t length ATTRIBUTE_UNUSED) {
+  }
+
+  std::vector<uint8_t> buffer_;
+};
+
+class FileEndianOutput FINAL : public EndianOutputBuffered {
+ public:
+  FileEndianOutput(File* fp, size_t reserved_size)
+      : EndianOutputBuffered(reserved_size), fp_(fp), errors_(false) {
+    DCHECK(fp != nullptr);
+  }
+  ~FileEndianOutput() {
+  }
+
+  bool Errors() {
+    return errors_;
+  }
+
+ protected:
+  void HandleFlush(const uint8_t* buffer, size_t length) OVERRIDE {
+    if (!errors_) {
+      errors_ = !fp_->WriteFully(buffer, length);
+    }
+  }
+
+ private:
+  File* fp_;
+  bool errors_;
+};
+
+class NetStateEndianOutput FINAL : public EndianOutputBuffered {
+ public:
+  NetStateEndianOutput(JDWP::JdwpNetStateBase* net_state, size_t reserved_size)
+      : EndianOutputBuffered(reserved_size), net_state_(net_state) {
+    DCHECK(net_state != nullptr);
+  }
+  ~NetStateEndianOutput() {}
+
+ protected:
+  void HandleFlush(const uint8_t* buffer, size_t length) OVERRIDE {
+    std::vector<iovec> iov;
+    iov.push_back(iovec());
+    iov[0].iov_base = const_cast<void*>(reinterpret_cast<const void*>(buffer));
+    iov[0].iov_len = length;
+    net_state_->WriteBufferedPacketLocked(iov);
+  }
+
+ private:
+  JDWP::JdwpNetStateBase* net_state_;
+};
+
+#define __ output->
 
 class Hprof {
  public:
@@ -387,221 +412,180 @@ class Hprof {
         fd_(fd),
         direct_to_ddms_(direct_to_ddms),
         start_ns_(NanoTime()),
-        current_record_(),
-        gc_thread_serial_number_(0),
-        gc_scan_state_(0),
         current_heap_(HPROF_HEAP_DEFAULT),
         objects_in_segment_(0),
-        header_fp_(NULL),
-        header_data_ptr_(NULL),
-        header_data_size_(0),
-        body_fp_(NULL),
-        body_data_ptr_(NULL),
-        body_data_size_(0),
         next_string_id_(0x400000) {
     LOG(INFO) << "hprof: heap dump \"" << filename_ << "\" starting...";
-
-    header_fp_ = open_memstream(&header_data_ptr_, &header_data_size_);
-    if (header_fp_ == NULL) {
-      PLOG(FATAL) << "header open_memstream failed";
-    }
-
-    body_fp_ = open_memstream(&body_data_ptr_, &body_data_size_);
-    if (body_fp_ == NULL) {
-      PLOG(FATAL) << "body open_memstream failed";
-    }
-  }
-
-  ~Hprof() {
-    if (header_fp_ != NULL) {
-      fclose(header_fp_);
-    }
-    if (body_fp_ != NULL) {
-      fclose(body_fp_);
-    }
-    free(header_data_ptr_);
-    free(body_data_ptr_);
   }
 
   void Dump()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::heap_bitmap_lock_) {
-    // Walk the roots and the heap.
-    current_record_.StartNewRecord(body_fp_, HPROF_TAG_HEAP_DUMP_SEGMENT, HPROF_TIME);
-    Runtime::Current()->VisitRoots(RootVisitor, this);
-    Thread* self = Thread::Current();
+    // First pass to measure the size of the dump.
+    size_t overall_size;
+    size_t max_length;
     {
-      ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-      Runtime::Current()->GetHeap()->VisitObjects(VisitObjectCallback, this);
+      EndianOutput count_output;
+      ProcessHeap(&count_output, false);
+      overall_size = count_output.SumLength();
+      max_length = count_output.MaxLength();
     }
-    current_record_.StartNewRecord(body_fp_, HPROF_TAG_HEAP_DUMP_END, HPROF_TIME);
-    current_record_.Flush();
-    fflush(body_fp_);
 
-    // Write the header.
-    WriteFixedHeader();
-    // Write the string and class tables, and any stack traces, to the header.
-    // (jhat requires that these appear before any of the data in the body that refers to them.)
-    WriteStringTable();
-    WriteClassTable();
-    WriteStackTraces();
-    current_record_.Flush();
-    fflush(header_fp_);
-
-    bool okay = true;
+    bool okay;
     if (direct_to_ddms_) {
-      // Send the data off to DDMS.
-      iovec iov[2];
-      iov[0].iov_base = header_data_ptr_;
-      iov[0].iov_len = header_data_size_;
-      iov[1].iov_base = body_data_ptr_;
-      iov[1].iov_len = body_data_size_;
-      Dbg::DdmSendChunkV(CHUNK_TYPE("HPDS"), iov, 2);
-    } else {
-      // Where exactly are we writing to?
-      int out_fd;
-      if (fd_ >= 0) {
-        out_fd = dup(fd_);
-        if (out_fd < 0) {
-          ThrowRuntimeException("Couldn't dump heap; dup(%d) failed: %s", fd_, strerror(errno));
-          return;
-        }
+      if (kDirectStream) {
+        okay = DumpToDdmsDirect(overall_size, max_length, CHUNK_TYPE("HPDS"));
       } else {
-        out_fd = open(filename_.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0644);
-        if (out_fd < 0) {
-          ThrowRuntimeException("Couldn't dump heap; open(\"%s\") failed: %s", filename_.c_str(),
-                                strerror(errno));
-          return;
-        }
+        okay = DumpToDdmsBuffered(overall_size, max_length);
       }
-
-      std::unique_ptr<File> file(new File(out_fd, filename_));
-      okay = file->WriteFully(header_data_ptr_, header_data_size_) &&
-          file->WriteFully(body_data_ptr_, body_data_size_);
-      if (!okay) {
-        std::string msg(StringPrintf("Couldn't dump heap; writing \"%s\" failed: %s",
-                                     filename_.c_str(), strerror(errno)));
-        ThrowRuntimeException("%s", msg.c_str());
-        LOG(ERROR) << msg;
-      }
+    } else {
+      okay = DumpToFile(overall_size, max_length);
     }
 
-    // Throw out a log message for the benefit of "runhat".
     if (okay) {
       uint64_t duration = NanoTime() - start_ns_;
       LOG(INFO) << "hprof: heap dump completed ("
-          << PrettySize(header_data_size_ + body_data_size_ + 1023)
+          << PrettySize(RoundUp(overall_size, 1024))
           << ") in " << PrettyDuration(duration);
     }
   }
 
  private:
-  static void RootVisitor(mirror::Object** obj, void* arg, uint32_t thread_id, RootType root_type)
+  struct Env {
+    Hprof* hprof;
+    EndianOutput* output;
+  };
+
+  static void RootVisitor(mirror::Object** obj, void* arg, const RootInfo& root_info)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(arg != nullptr);
     DCHECK(obj != nullptr);
     DCHECK(*obj != nullptr);
-    reinterpret_cast<Hprof*>(arg)->VisitRoot(*obj, thread_id, root_type);
+    Env* env = reinterpret_cast<Env*>(arg);
+    env->hprof->VisitRoot(*obj, root_info, env->output);
   }
 
   static void VisitObjectCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(obj != NULL);
-    DCHECK(arg != NULL);
-    reinterpret_cast<Hprof*>(arg)->DumpHeapObject(obj);
+    DCHECK(obj != nullptr);
+    DCHECK(arg != nullptr);
+    Env* env = reinterpret_cast<Env*>(arg);
+    env->hprof->DumpHeapObject(obj, env->output);
   }
 
-  void VisitRoot(const mirror::Object* obj, uint32_t thread_id, RootType type)
+  void DumpHeapObject(mirror::Object* obj, EndianOutput* output)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  int DumpHeapObject(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void DumpHeapClass(mirror::Class* klass, EndianOutput* output)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void Finish() {
+  void DumpHeapArray(mirror::Array* obj, mirror::Class* klass, EndianOutput* output)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass, EndianOutput* output)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void ProcessHeap(EndianOutput* output, bool header_first)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    // Reset current heap and object count.
+    current_heap_ = HPROF_HEAP_DEFAULT;
+    objects_in_segment_ = 0;
+
+    if (header_first) {
+      ProcessHeader(output);
+      ProcessBody(output);
+    } else {
+      ProcessBody(output);
+      ProcessHeader(output);
+    }
   }
 
-  int WriteClassTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    HprofRecord* rec = &current_record_;
+  void ProcessBody(EndianOutput* output) EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    Runtime* runtime = Runtime::Current();
+    // Walk the roots and the heap.
+    output->StartNewRecord(HPROF_TAG_HEAP_DUMP_SEGMENT, kHprofTime);
+
+    Env env = { this, output };
+    runtime->VisitRoots(RootVisitor, &env);
+    runtime->GetHeap()->VisitObjectsPaused(VisitObjectCallback, &env);
+
+    output->StartNewRecord(HPROF_TAG_HEAP_DUMP_END, kHprofTime);
+    output->EndRecord();
+  }
+
+  void ProcessHeader(EndianOutput* output) EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    // Write the header.
+    WriteFixedHeader(output);
+    // Write the string and class tables, and any stack traces, to the header.
+    // (jhat requires that these appear before any of the data in the body that refers to them.)
+    WriteStringTable(output);
+    WriteClassTable(output);
+    WriteStackTraces(output);
+    output->EndRecord();
+  }
+
+  void WriteClassTable(EndianOutput* output) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uint32_t nextSerialNumber = 1;
 
     for (mirror::Class* c : classes_) {
       CHECK(c != nullptr);
-
-      int err = current_record_.StartNewRecord(header_fp_, HPROF_TAG_LOAD_CLASS, HPROF_TIME);
-      if (UNLIKELY(err != 0)) {
-        return err;
-      }
-
+      output->StartNewRecord(HPROF_TAG_LOAD_CLASS, kHprofTime);
       // LOAD CLASS format:
       // U4: class serial number (always > 0)
       // ID: class object ID. We use the address of the class object structure as its ID.
       // U4: stack trace serial number
       // ID: class name string ID
-      rec->AddU4(nextSerialNumber++);
-      rec->AddObjectId(c);
-      rec->AddU4(HPROF_NULL_STACK_TRACE);
-      rec->AddStringId(LookupClassNameId(c));
+      __ AddU4(nextSerialNumber++);
+      __ AddObjectId(c);
+      __ AddU4(kHprofNullStackTrace);
+      __ AddStringId(LookupClassNameId(c));
     }
-
-    return 0;
   }
 
-  int WriteStringTable() {
-    HprofRecord* rec = &current_record_;
-
-    for (std::pair<std::string, HprofStringId> p : strings_) {
+  void WriteStringTable(EndianOutput* output) {
+    for (const std::pair<std::string, HprofStringId>& p : strings_) {
       const std::string& string = p.first;
-      size_t id = p.second;
+      const size_t id = p.second;
 
-      int err = current_record_.StartNewRecord(header_fp_, HPROF_TAG_STRING, HPROF_TIME);
-      if (err != 0) {
-        return err;
-      }
+      output->StartNewRecord(HPROF_TAG_STRING, kHprofTime);
 
       // STRING format:
       // ID:  ID for this string
       // U1*: UTF8 characters for string (NOT NULL terminated)
       //      (the record format encodes the length)
-      err = rec->AddU4(id);
-      if (err != 0) {
-        return err;
-      }
-      err = rec->AddUtf8String(string.c_str());
-      if (err != 0) {
-        return err;
-      }
+      __ AddU4(id);
+      __ AddUtf8String(string.c_str());
     }
-
-    return 0;
   }
 
-  void StartNewHeapDumpSegment() {
+  void StartNewHeapDumpSegment(EndianOutput* output) {
     // This flushes the old segment and starts a new one.
-    current_record_.StartNewRecord(body_fp_, HPROF_TAG_HEAP_DUMP_SEGMENT, HPROF_TIME);
+    output->StartNewRecord(HPROF_TAG_HEAP_DUMP_SEGMENT, kHprofTime);
     objects_in_segment_ = 0;
-
     // Starting a new HEAP_DUMP resets the heap to default.
     current_heap_ = HPROF_HEAP_DEFAULT;
   }
 
-  int MarkRootObject(const mirror::Object* obj, jobject jniObj);
+  void CheckHeapSegmentConstraints(EndianOutput* output) {
+    if (objects_in_segment_ >= kMaxObjectsPerSegment || output->Length() >= kMaxBytesPerSegment) {
+      StartNewHeapDumpSegment(output);
+    }
+  }
+
+  void VisitRoot(const mirror::Object* obj, const RootInfo& root_info, EndianOutput* output)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void MarkRootObject(const mirror::Object* obj, jobject jni_obj, HprofHeapTag heap_tag,
+                      uint32_t thread_serial, EndianOutput* output);
 
   HprofClassObjectId LookupClassId(mirror::Class* c) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (c == nullptr) {
-      // c is the superclass of java.lang.Object or a primitive.
-      return 0;
-    }
-
-    {
+    if (c != nullptr) {
       auto result = classes_.insert(c);
       const mirror::Class* present = *result.first;
       CHECK_EQ(present, c);
+      // Make sure that we've assigned a string ID for this class' name
+      LookupClassNameId(c);
     }
-
-    // Make sure that we've assigned a string ID for this class' name
-    LookupClassNameId(c);
-
-    HprofClassObjectId result = PointerToLowMemUInt32(c);
-    return result;
+    return PointerToLowMemUInt32(c);
   }
 
   HprofStringId LookupStringId(mirror::String* string) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -626,46 +610,125 @@ class Hprof {
     return LookupStringId(PrettyDescriptor(c));
   }
 
-  void WriteFixedHeader() {
-    char magic[] = "JAVA PROFILE 1.0.3";
-    unsigned char buf[4];
-
+  void WriteFixedHeader(EndianOutput* output) {
     // Write the file header.
     // U1: NUL-terminated magic string.
-    fwrite(magic, 1, sizeof(magic), header_fp_);
+    const char magic[] = "JAVA PROFILE 1.0.3";
+    __ AddU1List(reinterpret_cast<const uint8_t*>(magic), sizeof(magic));
 
     // U4: size of identifiers.  We're using addresses as IDs and our heap references are stored
     // as uint32_t.
     // Note of warning: hprof-conv hard-codes the size of identifiers to 4.
-    COMPILE_ASSERT(sizeof(mirror::HeapReference<mirror::Object>) == sizeof(uint32_t),
-      UnexpectedHeapReferenceSize);
-    U4_TO_BUF_BE(buf, 0, sizeof(uint32_t));
-    fwrite(buf, 1, sizeof(uint32_t), header_fp_);
+    static_assert(sizeof(mirror::HeapReference<mirror::Object>) == sizeof(uint32_t),
+                  "Unexpected HeapReference size");
+    __ AddU4(sizeof(uint32_t));
 
     // The current time, in milliseconds since 0:00 GMT, 1/1/70.
     timeval now;
-    uint64_t nowMs;
-    if (gettimeofday(&now, NULL) < 0) {
-      nowMs = 0;
-    } else {
-      nowMs = (uint64_t)now.tv_sec * 1000 + now.tv_usec / 1000;
-    }
-
+    const uint64_t nowMs = (gettimeofday(&now, nullptr) < 0) ? 0 :
+        (uint64_t)now.tv_sec * 1000 + now.tv_usec / 1000;
+    // TODO: It seems it would be correct to use U8.
     // U4: high word of the 64-bit time.
-    U4_TO_BUF_BE(buf, 0, (uint32_t)(nowMs >> 32));
-    fwrite(buf, 1, sizeof(uint32_t), header_fp_);
-
+    __ AddU4(static_cast<uint32_t>(nowMs >> 32));
     // U4: low word of the 64-bit time.
-    U4_TO_BUF_BE(buf, 0, (uint32_t)(nowMs & 0xffffffffULL));
-    fwrite(buf, 1, sizeof(uint32_t), header_fp_);  // xxx fix the time
+    __ AddU4(static_cast<uint32_t>(nowMs & 0xFFFFFFFF));
   }
 
-  void WriteStackTraces() {
+  void WriteStackTraces(EndianOutput* output) {
     // Write a dummy stack trace record so the analysis tools don't freak out.
-    current_record_.StartNewRecord(header_fp_, HPROF_TAG_STACK_TRACE, HPROF_TIME);
-    current_record_.AddU4(HPROF_NULL_STACK_TRACE);
-    current_record_.AddU4(HPROF_NULL_THREAD);
-    current_record_.AddU4(0);    // no frames
+    output->StartNewRecord(HPROF_TAG_STACK_TRACE, kHprofTime);
+    __ AddU4(kHprofNullStackTrace);
+    __ AddU4(kHprofNullThread);
+    __ AddU4(0);    // no frames
+  }
+
+  bool DumpToDdmsBuffered(size_t overall_size ATTRIBUTE_UNUSED, size_t max_length ATTRIBUTE_UNUSED)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    LOG(FATAL) << "Unimplemented";
+    UNREACHABLE();
+    //        // Send the data off to DDMS.
+    //        iovec iov[2];
+    //        iov[0].iov_base = header_data_ptr_;
+    //        iov[0].iov_len = header_data_size_;
+    //        iov[1].iov_base = body_data_ptr_;
+    //        iov[1].iov_len = body_data_size_;
+    //        Dbg::DdmSendChunkV(CHUNK_TYPE("HPDS"), iov, 2);
+  }
+
+  bool DumpToFile(size_t overall_size, size_t max_length)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    // Where exactly are we writing to?
+    int out_fd;
+    if (fd_ >= 0) {
+      out_fd = dup(fd_);
+      if (out_fd < 0) {
+        ThrowRuntimeException("Couldn't dump heap; dup(%d) failed: %s", fd_, strerror(errno));
+        return false;
+      }
+    } else {
+      out_fd = open(filename_.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0644);
+      if (out_fd < 0) {
+        ThrowRuntimeException("Couldn't dump heap; open(\"%s\") failed: %s", filename_.c_str(),
+                              strerror(errno));
+        return false;
+      }
+    }
+
+    std::unique_ptr<File> file(new File(out_fd, filename_, true));
+    bool okay;
+    {
+      FileEndianOutput file_output(file.get(), max_length);
+      ProcessHeap(&file_output, true);
+      okay = !file_output.Errors();
+
+      if (okay) {
+        // Check for expected size.
+        CHECK_EQ(file_output.SumLength(), overall_size);
+      }
+    }
+
+    if (okay) {
+      okay = file->FlushCloseOrErase() == 0;
+    } else {
+      file->Erase();
+    }
+    if (!okay) {
+      std::string msg(StringPrintf("Couldn't dump heap; writing \"%s\" failed: %s",
+                                   filename_.c_str(), strerror(errno)));
+      ThrowRuntimeException("%s", msg.c_str());
+      LOG(ERROR) << msg;
+    }
+
+    return okay;
+  }
+
+  bool DumpToDdmsDirect(size_t overall_size, size_t max_length, uint32_t chunk_type)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    CHECK(direct_to_ddms_);
+    JDWP::JdwpState* state = Dbg::GetJdwpState();
+    CHECK(state != nullptr);
+    JDWP::JdwpNetStateBase* net_state = state->netState;
+    CHECK(net_state != nullptr);
+
+    // Hold the socket lock for the whole time since we want this to be atomic.
+    MutexLock mu(Thread::Current(), *net_state->GetSocketLock());
+
+    // Prepare the Ddms chunk.
+    constexpr size_t kChunkHeaderSize = kJDWPHeaderLen + 8;
+    uint8_t chunk_header[kChunkHeaderSize] = { 0 };
+    state->SetupChunkHeader(chunk_type, overall_size, kChunkHeaderSize, chunk_header);
+
+    // Prepare the output and send the chunk header.
+    NetStateEndianOutput net_output(net_state, max_length);
+    net_output.AddU1List(chunk_header, kChunkHeaderSize);
+
+    // Write the dump.
+    ProcessHeap(&net_output, true);
+
+    // Check for expected size.
+    CHECK_EQ(net_output.SumLength(), overall_size + kChunkHeaderSize);
+
+    return true;
   }
 
   // If direct_to_ddms_ is set, "filename_" and "fd" will be ignored.
@@ -677,20 +740,8 @@ class Hprof {
 
   uint64_t start_ns_;
 
-  HprofRecord current_record_;
-
-  uint32_t gc_thread_serial_number_;
-  uint8_t gc_scan_state_;
   HprofHeapId current_heap_;  // Which heap we're currently dumping.
   size_t objects_in_segment_;
-
-  FILE* header_fp_;
-  char* header_data_ptr_;
-  size_t header_data_size_;
-
-  FILE* body_fp_;
-  char* body_data_ptr_;
-  size_t body_data_size_;
 
   std::set<mirror::Class*> classes_;
   HprofStringId next_string_id_;
@@ -699,56 +750,56 @@ class Hprof {
   DISALLOW_COPY_AND_ASSIGN(Hprof);
 };
 
-#define OBJECTS_PER_SEGMENT     ((size_t)128)
-#define BYTES_PER_SEGMENT       ((size_t)4096)
-
-// The static field-name for the synthetic object generated to account for class static overhead.
-#define STATIC_OVERHEAD_NAME    "$staticOverhead"
-
-static HprofBasicType SignatureToBasicTypeAndSize(const char* sig, size_t* sizeOut) {
+static HprofBasicType SignatureToBasicTypeAndSize(const char* sig, size_t* size_out) {
   char c = sig[0];
   HprofBasicType ret;
   size_t size;
 
   switch (c) {
-  case '[':
-  case 'L': ret = hprof_basic_object;  size = 4; break;
-  case 'Z': ret = hprof_basic_boolean; size = 1; break;
-  case 'C': ret = hprof_basic_char;    size = 2; break;
-  case 'F': ret = hprof_basic_float;   size = 4; break;
-  case 'D': ret = hprof_basic_double;  size = 8; break;
-  case 'B': ret = hprof_basic_byte;    size = 1; break;
-  case 'S': ret = hprof_basic_short;   size = 2; break;
-  case 'I': ret = hprof_basic_int;     size = 4; break;
-  case 'J': ret = hprof_basic_long;    size = 8; break;
-  default: LOG(FATAL) << "UNREACHABLE"; UNREACHABLE();
+    case '[':
+    case 'L':
+      ret = hprof_basic_object;
+      size = 4;
+      break;
+    case 'Z':
+      ret = hprof_basic_boolean;
+      size = 1;
+      break;
+    case 'C':
+      ret = hprof_basic_char;
+      size = 2;
+      break;
+    case 'F':
+      ret = hprof_basic_float;
+      size = 4;
+      break;
+    case 'D':
+      ret = hprof_basic_double;
+      size = 8;
+      break;
+    case 'B':
+      ret = hprof_basic_byte;
+      size = 1;
+      break;
+    case 'S':
+      ret = hprof_basic_short;
+      size = 2;
+      break;
+    case 'I':
+      ret = hprof_basic_int;
+      size = 4;
+      break;
+    case 'J':
+      ret = hprof_basic_long;
+      size = 8;
+      break;
+    default:
+      LOG(FATAL) << "UNREACHABLE";
+      UNREACHABLE();
   }
 
-  if (sizeOut != NULL) {
-    *sizeOut = size;
-  }
-
-  return ret;
-}
-
-static HprofBasicType PrimitiveToBasicTypeAndSize(Primitive::Type prim, size_t* sizeOut) {
-  HprofBasicType ret;
-  size_t size;
-
-  switch (prim) {
-  case Primitive::kPrimBoolean: ret = hprof_basic_boolean; size = 1; break;
-  case Primitive::kPrimChar:    ret = hprof_basic_char;    size = 2; break;
-  case Primitive::kPrimFloat:   ret = hprof_basic_float;   size = 4; break;
-  case Primitive::kPrimDouble:  ret = hprof_basic_double;  size = 8; break;
-  case Primitive::kPrimByte:    ret = hprof_basic_byte;    size = 1; break;
-  case Primitive::kPrimShort:   ret = hprof_basic_short;   size = 2; break;
-  case Primitive::kPrimInt:     ret = hprof_basic_int;     size = 4; break;
-  case Primitive::kPrimLong:    ret = hprof_basic_long;    size = 8; break;
-  default: LOG(FATAL) << "UNREACHABLE"; UNREACHABLE();
-  }
-
-  if (sizeOut != NULL) {
-    *sizeOut = size;
+  if (size_out != nullptr) {
+    *size_out = size;
   }
 
   return ret;
@@ -758,95 +809,94 @@ static HprofBasicType PrimitiveToBasicTypeAndSize(Primitive::Type prim, size_t* 
 // something when ctx->gc_scan_state_ is non-zero, which is usually
 // only true when marking the root set or unreachable
 // objects.  Used to add rootset references to obj.
-int Hprof::MarkRootObject(const mirror::Object* obj, jobject jniObj) {
-  HprofRecord* rec = &current_record_;
-  HprofHeapTag heapTag = (HprofHeapTag)gc_scan_state_;
-
-  if (heapTag == 0) {
-    return 0;
+void Hprof::MarkRootObject(const mirror::Object* obj, jobject jni_obj, HprofHeapTag heap_tag,
+                           uint32_t thread_serial, EndianOutput* output) {
+  if (heap_tag == 0) {
+    return;
   }
 
-  if (objects_in_segment_ >= OBJECTS_PER_SEGMENT || rec->Size() >= BYTES_PER_SEGMENT) {
-    StartNewHeapDumpSegment();
-  }
+  CheckHeapSegmentConstraints(output);
 
-  switch (heapTag) {
-  // ID: object ID
-  case HPROF_ROOT_UNKNOWN:
-  case HPROF_ROOT_STICKY_CLASS:
-  case HPROF_ROOT_MONITOR_USED:
-  case HPROF_ROOT_INTERNED_STRING:
-  case HPROF_ROOT_DEBUGGER:
-  case HPROF_ROOT_VM_INTERNAL:
-    rec->AddU1(heapTag);
-    rec->AddObjectId(obj);
-    break;
+  switch (heap_tag) {
+    // ID: object ID
+    case HPROF_ROOT_UNKNOWN:
+    case HPROF_ROOT_STICKY_CLASS:
+    case HPROF_ROOT_MONITOR_USED:
+    case HPROF_ROOT_INTERNED_STRING:
+    case HPROF_ROOT_DEBUGGER:
+    case HPROF_ROOT_VM_INTERNAL:
+      __ AddU1(heap_tag);
+      __ AddObjectId(obj);
+      break;
 
-  // ID: object ID
-  // ID: JNI global ref ID
-  case HPROF_ROOT_JNI_GLOBAL:
-    rec->AddU1(heapTag);
-    rec->AddObjectId(obj);
-    rec->AddJniGlobalRefId(jniObj);
-    break;
+      // ID: object ID
+      // ID: JNI global ref ID
+    case HPROF_ROOT_JNI_GLOBAL:
+      __ AddU1(heap_tag);
+      __ AddObjectId(obj);
+      __ AddJniGlobalRefId(jni_obj);
+      break;
 
-  // ID: object ID
-  // U4: thread serial number
-  // U4: frame number in stack trace (-1 for empty)
-  case HPROF_ROOT_JNI_LOCAL:
-  case HPROF_ROOT_JNI_MONITOR:
-  case HPROF_ROOT_JAVA_FRAME:
-    rec->AddU1(heapTag);
-    rec->AddObjectId(obj);
-    rec->AddU4(gc_thread_serial_number_);
-    rec->AddU4((uint32_t)-1);
-    break;
+      // ID: object ID
+      // U4: thread serial number
+      // U4: frame number in stack trace (-1 for empty)
+    case HPROF_ROOT_JNI_LOCAL:
+    case HPROF_ROOT_JNI_MONITOR:
+    case HPROF_ROOT_JAVA_FRAME:
+      __ AddU1(heap_tag);
+      __ AddObjectId(obj);
+      __ AddU4(thread_serial);
+      __ AddU4((uint32_t)-1);
+      break;
 
-  // ID: object ID
-  // U4: thread serial number
-  case HPROF_ROOT_NATIVE_STACK:
-  case HPROF_ROOT_THREAD_BLOCK:
-    rec->AddU1(heapTag);
-    rec->AddObjectId(obj);
-    rec->AddU4(gc_thread_serial_number_);
-    break;
+      // ID: object ID
+      // U4: thread serial number
+    case HPROF_ROOT_NATIVE_STACK:
+    case HPROF_ROOT_THREAD_BLOCK:
+      __ AddU1(heap_tag);
+      __ AddObjectId(obj);
+      __ AddU4(thread_serial);
+      break;
 
-  // ID: thread object ID
-  // U4: thread serial number
-  // U4: stack trace serial number
-  case HPROF_ROOT_THREAD_OBJECT:
-    rec->AddU1(heapTag);
-    rec->AddObjectId(obj);
-    rec->AddU4(gc_thread_serial_number_);
-    rec->AddU4((uint32_t)-1);    // xxx
-    break;
+      // ID: thread object ID
+      // U4: thread serial number
+      // U4: stack trace serial number
+    case HPROF_ROOT_THREAD_OBJECT:
+      __ AddU1(heap_tag);
+      __ AddObjectId(obj);
+      __ AddU4(thread_serial);
+      __ AddU4((uint32_t)-1);    // xxx
+      break;
 
-  case HPROF_CLASS_DUMP:
-  case HPROF_INSTANCE_DUMP:
-  case HPROF_OBJECT_ARRAY_DUMP:
-  case HPROF_PRIMITIVE_ARRAY_DUMP:
-  case HPROF_HEAP_DUMP_INFO:
-  case HPROF_PRIMITIVE_ARRAY_NODATA_DUMP:
-    // Ignored.
-    break;
+    case HPROF_CLASS_DUMP:
+    case HPROF_INSTANCE_DUMP:
+    case HPROF_OBJECT_ARRAY_DUMP:
+    case HPROF_PRIMITIVE_ARRAY_DUMP:
+    case HPROF_HEAP_DUMP_INFO:
+    case HPROF_PRIMITIVE_ARRAY_NODATA_DUMP:
+      // Ignored.
+      break;
 
-  case HPROF_ROOT_FINALIZING:
-  case HPROF_ROOT_REFERENCE_CLEANUP:
-  case HPROF_UNREACHABLE:
-    LOG(FATAL) << "obsolete tag " << static_cast<int>(heapTag);
-    break;
+    case HPROF_ROOT_FINALIZING:
+    case HPROF_ROOT_REFERENCE_CLEANUP:
+    case HPROF_UNREACHABLE:
+      LOG(FATAL) << "obsolete tag " << static_cast<int>(heap_tag);
+      break;
   }
 
   ++objects_in_segment_;
-  return 0;
 }
 
 static int StackTraceSerialNumber(const mirror::Object* /*obj*/) {
-  return HPROF_NULL_STACK_TRACE;
+  return kHprofNullStackTrace;
 }
 
-int Hprof::DumpHeapObject(mirror::Object* obj) {
-  HprofRecord* rec = &current_record_;
+void Hprof::DumpHeapObject(mirror::Object* obj, EndianOutput* output) {
+  // Ignore classes that are retired.
+  if (obj->IsClass() && obj->AsClass()->IsRetired()) {
+    return;
+  }
+
   gc::space::ContinuousSpace* space =
       Runtime::Current()->GetHeap()->FindContinuousSpaceFromObject(obj, true);
   HprofHeapId heap_type = HPROF_HEAP_APP;
@@ -857,17 +907,15 @@ int Hprof::DumpHeapObject(mirror::Object* obj) {
       heap_type = HPROF_HEAP_IMAGE;
     }
   }
-  if (objects_in_segment_ >= OBJECTS_PER_SEGMENT || rec->Size() >= BYTES_PER_SEGMENT) {
-    StartNewHeapDumpSegment();
-  }
+  CheckHeapSegmentConstraints(output);
 
   if (heap_type != current_heap_) {
     HprofStringId nameId;
 
     // This object is in a different heap than the current one.
     // Emit a HEAP_DUMP_INFO tag to change heaps.
-    rec->AddU1(HPROF_HEAP_DUMP_INFO);
-    rec->AddU4(static_cast<uint32_t>(heap_type));   // uint32_t: heap type
+    __ AddU1(HPROF_HEAP_DUMP_INFO);
+    __ AddU4(static_cast<uint32_t>(heap_type));   // uint32_t: heap type
     switch (heap_type) {
     case HPROF_HEAP_APP:
       nameId = LookupStringId("app");
@@ -884,179 +932,194 @@ int Hprof::DumpHeapObject(mirror::Object* obj) {
       nameId = LookupStringId("<ILLEGAL>");
       break;
     }
-    rec->AddStringId(nameId);
+    __ AddStringId(nameId);
     current_heap_ = heap_type;
   }
 
   mirror::Class* c = obj->GetClass();
-  if (c == NULL) {
+  if (c == nullptr) {
     // This object will bother HprofReader, because it has a NULL
     // class, so just don't dump it. It could be
     // gDvm.unlinkedJavaLangClass or it could be an object just
     // allocated which hasn't been initialized yet.
   } else {
     if (obj->IsClass()) {
-      mirror::Class* thisClass = obj->AsClass();
-      // obj is a ClassObject.
-      size_t sFieldCount = thisClass->NumStaticFields();
-      if (sFieldCount != 0) {
-        int byteLength = sFieldCount * sizeof(JValue);  // TODO bogus; fields are packed
-        // Create a byte array to reflect the allocation of the
-        // StaticField array at the end of this class.
-        rec->AddU1(HPROF_PRIMITIVE_ARRAY_DUMP);
-        rec->AddClassStaticsId(thisClass);
-        rec->AddU4(StackTraceSerialNumber(obj));
-        rec->AddU4(byteLength);
-        rec->AddU1(hprof_basic_byte);
-        for (int i = 0; i < byteLength; ++i) {
-          rec->AddU1(0);
-        }
-      }
-
-      rec->AddU1(HPROF_CLASS_DUMP);
-      rec->AddClassId(LookupClassId(thisClass));
-      rec->AddU4(StackTraceSerialNumber(thisClass));
-      rec->AddClassId(LookupClassId(thisClass->GetSuperClass()));
-      rec->AddObjectId(thisClass->GetClassLoader());
-      rec->AddObjectId(nullptr);    // no signer
-      rec->AddObjectId(nullptr);    // no prot domain
-      rec->AddObjectId(nullptr);    // reserved
-      rec->AddObjectId(nullptr);    // reserved
-      if (thisClass->IsClassClass()) {
-        // ClassObjects have their static fields appended, so aren't all the same size.
-        // But they're at least this size.
-        rec->AddU4(sizeof(mirror::Class));  // instance size
-      } else if (thisClass->IsArrayClass() || thisClass->IsPrimitive()) {
-        rec->AddU4(0);
-      } else {
-        rec->AddU4(thisClass->GetObjectSize());  // instance size
-      }
-
-      rec->AddU2(0);  // empty const pool
-
-      // Static fields
-      if (sFieldCount == 0) {
-        rec->AddU2((uint16_t)0);
-      } else {
-        rec->AddU2((uint16_t)(sFieldCount+1));
-        rec->AddStringId(LookupStringId(STATIC_OVERHEAD_NAME));
-        rec->AddU1(hprof_basic_object);
-        rec->AddClassStaticsId(thisClass);
-
-        for (size_t i = 0; i < sFieldCount; ++i) {
-          mirror::ArtField* f = thisClass->GetStaticField(i);
-
-          size_t size;
-          HprofBasicType t = SignatureToBasicTypeAndSize(f->GetTypeDescriptor(), &size);
-          rec->AddStringId(LookupStringId(f->GetName()));
-          rec->AddU1(t);
-          if (size == 1) {
-            rec->AddU1(static_cast<uint8_t>(f->Get32(thisClass)));
-          } else if (size == 2) {
-            rec->AddU2(static_cast<uint16_t>(f->Get32(thisClass)));
-          } else if (size == 4) {
-            rec->AddU4(f->Get32(thisClass));
-          } else if (size == 8) {
-            rec->AddU8(f->Get64(thisClass));
-          } else {
-            CHECK(false);
-          }
-        }
-      }
-
-      // Instance fields for this class (no superclass fields)
-      int iFieldCount = thisClass->IsObjectClass() ? 0 : thisClass->NumInstanceFields();
-      rec->AddU2((uint16_t)iFieldCount);
-      for (int i = 0; i < iFieldCount; ++i) {
-        mirror::ArtField* f = thisClass->GetInstanceField(i);
-        HprofBasicType t = SignatureToBasicTypeAndSize(f->GetTypeDescriptor(), NULL);
-        rec->AddStringId(LookupStringId(f->GetName()));
-        rec->AddU1(t);
-      }
+      DumpHeapClass(obj->AsClass(), output);
     } else if (c->IsArrayClass()) {
-      mirror::Array* aobj = obj->AsArray();
-      uint32_t length = aobj->GetLength();
-
-      if (obj->IsObjectArray()) {
-        // obj is an object array.
-        rec->AddU1(HPROF_OBJECT_ARRAY_DUMP);
-
-        rec->AddObjectId(obj);
-        rec->AddU4(StackTraceSerialNumber(obj));
-        rec->AddU4(length);
-        rec->AddClassId(LookupClassId(c));
-
-        // Dump the elements, which are always objects or NULL.
-        rec->AddIdList(aobj->AsObjectArray<mirror::Object>());
-      } else {
-        size_t size;
-        HprofBasicType t = PrimitiveToBasicTypeAndSize(c->GetComponentType()->GetPrimitiveType(), &size);
-
-        // obj is a primitive array.
-        rec->AddU1(HPROF_PRIMITIVE_ARRAY_DUMP);
-
-        rec->AddObjectId(obj);
-        rec->AddU4(StackTraceSerialNumber(obj));
-        rec->AddU4(length);
-        rec->AddU1(t);
-
-        // Dump the raw, packed element values.
-        if (size == 1) {
-          rec->AddU1List((const uint8_t*)aobj->GetRawData(sizeof(uint8_t), 0), length);
-        } else if (size == 2) {
-          rec->AddU2List((const uint16_t*)aobj->GetRawData(sizeof(uint16_t), 0), length);
-        } else if (size == 4) {
-          rec->AddU4List((const uint32_t*)aobj->GetRawData(sizeof(uint32_t), 0), length);
-        } else if (size == 8) {
-          rec->AddU8List((const uint64_t*)aobj->GetRawData(sizeof(uint64_t), 0), length);
-        }
-      }
+      DumpHeapArray(obj->AsArray(), c, output);
     } else {
-      // obj is an instance object.
-      rec->AddU1(HPROF_INSTANCE_DUMP);
-      rec->AddObjectId(obj);
-      rec->AddU4(StackTraceSerialNumber(obj));
-      rec->AddClassId(LookupClassId(c));
-
-      // Reserve some space for the length of the instance data, which we won't
-      // know until we're done writing it.
-      size_t size_patch_offset = rec->Size();
-      rec->AddU4(0x77777777);
-
-      // Write the instance data;  fields for this class, followed by super class fields,
-      // and so on. Don't write the klass or monitor fields of Object.class.
-      mirror::Class* sclass = c;
-      while (!sclass->IsObjectClass()) {
-        int ifieldCount = sclass->NumInstanceFields();
-        for (int i = 0; i < ifieldCount; ++i) {
-          mirror::ArtField* f = sclass->GetInstanceField(i);
-          size_t size;
-          SignatureToBasicTypeAndSize(f->GetTypeDescriptor(), &size);
-          if (size == 1) {
-            rec->AddU1(f->Get32(obj));
-          } else if (size == 2) {
-            rec->AddU2(f->Get32(obj));
-          } else if (size == 4) {
-            rec->AddU4(f->Get32(obj));
-          } else {
-            CHECK_EQ(size, 8U);
-            rec->AddU8(f->Get64(obj));
-          }
-        }
-
-        sclass = sclass->GetSuperClass();
-      }
-
-      // Patch the instance field length.
-      rec->UpdateU4(size_patch_offset, rec->Size() - (size_patch_offset + 4));
+      DumpHeapInstanceObject(obj, c, output);
     }
   }
 
   ++objects_in_segment_;
-  return 0;
 }
 
-void Hprof::VisitRoot(const mirror::Object* obj, uint32_t thread_id, RootType type) {
+void Hprof::DumpHeapClass(mirror::Class* klass, EndianOutput* output) {
+  size_t sFieldCount = klass->NumStaticFields();
+  if (sFieldCount != 0) {
+    int byteLength = sFieldCount * sizeof(JValue);  // TODO bogus; fields are packed
+    // Create a byte array to reflect the allocation of the
+    // StaticField array at the end of this class.
+    __ AddU1(HPROF_PRIMITIVE_ARRAY_DUMP);
+    __ AddClassStaticsId(klass);
+    __ AddU4(StackTraceSerialNumber(klass));
+    __ AddU4(byteLength);
+    __ AddU1(hprof_basic_byte);
+    for (int i = 0; i < byteLength; ++i) {
+      __ AddU1(0);
+    }
+  }
+
+  __ AddU1(HPROF_CLASS_DUMP);
+  __ AddClassId(LookupClassId(klass));
+  __ AddU4(StackTraceSerialNumber(klass));
+  __ AddClassId(LookupClassId(klass->GetSuperClass()));
+  __ AddObjectId(klass->GetClassLoader());
+  __ AddObjectId(nullptr);    // no signer
+  __ AddObjectId(nullptr);    // no prot domain
+  __ AddObjectId(nullptr);    // reserved
+  __ AddObjectId(nullptr);    // reserved
+  if (klass->IsClassClass()) {
+    // ClassObjects have their static fields appended, so aren't all the same size.
+    // But they're at least this size.
+    __ AddU4(sizeof(mirror::Class));  // instance size
+  } else if (klass->IsArrayClass() || klass->IsPrimitive()) {
+    __ AddU4(0);
+  } else {
+    __ AddU4(klass->GetObjectSize());  // instance size
+  }
+
+  __ AddU2(0);  // empty const pool
+
+  // Static fields
+  if (sFieldCount == 0) {
+    __ AddU2((uint16_t)0);
+  } else {
+    __ AddU2((uint16_t)(sFieldCount+1));
+    __ AddStringId(LookupStringId(kStaticOverheadName));
+    __ AddU1(hprof_basic_object);
+    __ AddClassStaticsId(klass);
+
+    for (size_t i = 0; i < sFieldCount; ++i) {
+      mirror::ArtField* f = klass->GetStaticField(i);
+
+      size_t size;
+      HprofBasicType t = SignatureToBasicTypeAndSize(f->GetTypeDescriptor(), &size);
+      __ AddStringId(LookupStringId(f->GetName()));
+      __ AddU1(t);
+      switch (size) {
+        case 1:
+          __ AddU1(static_cast<uint8_t>(f->Get32(klass)));
+          break;
+        case 2:
+          __ AddU2(static_cast<uint16_t>(f->Get32(klass)));
+          break;
+        case 4:
+          __ AddU4(f->Get32(klass));
+          break;
+        case 8:
+          __ AddU8(f->Get64(klass));
+          break;
+        default:
+          LOG(FATAL) << "Unexpected size " << size;
+          UNREACHABLE();
+      }
+    }
+  }
+
+  // Instance fields for this class (no superclass fields)
+  int iFieldCount = klass->IsObjectClass() ? 0 : klass->NumInstanceFields();
+  __ AddU2((uint16_t)iFieldCount);
+  for (int i = 0; i < iFieldCount; ++i) {
+    mirror::ArtField* f = klass->GetInstanceField(i);
+    __ AddStringId(LookupStringId(f->GetName()));
+    HprofBasicType t = SignatureToBasicTypeAndSize(f->GetTypeDescriptor(), nullptr);
+    __ AddU1(t);
+  }
+}
+
+void Hprof::DumpHeapArray(mirror::Array* obj, mirror::Class* klass, EndianOutput* output) {
+  uint32_t length = obj->GetLength();
+
+  if (obj->IsObjectArray()) {
+    // obj is an object array.
+    __ AddU1(HPROF_OBJECT_ARRAY_DUMP);
+
+    __ AddObjectId(obj);
+    __ AddU4(StackTraceSerialNumber(obj));
+    __ AddU4(length);
+    __ AddClassId(LookupClassId(klass));
+
+    // Dump the elements, which are always objects or NULL.
+    __ AddIdList(obj->AsObjectArray<mirror::Object>());
+  } else {
+    size_t size;
+    HprofBasicType t = SignatureToBasicTypeAndSize(
+        Primitive::Descriptor(klass->GetComponentType()->GetPrimitiveType()), &size);
+
+    // obj is a primitive array.
+    __ AddU1(HPROF_PRIMITIVE_ARRAY_DUMP);
+
+    __ AddObjectId(obj);
+    __ AddU4(StackTraceSerialNumber(obj));
+    __ AddU4(length);
+    __ AddU1(t);
+
+    // Dump the raw, packed element values.
+    if (size == 1) {
+      __ AddU1List(reinterpret_cast<const uint8_t*>(obj->GetRawData(sizeof(uint8_t), 0)), length);
+    } else if (size == 2) {
+      __ AddU2List(reinterpret_cast<const uint16_t*>(obj->GetRawData(sizeof(uint16_t), 0)), length);
+    } else if (size == 4) {
+      __ AddU4List(reinterpret_cast<const uint32_t*>(obj->GetRawData(sizeof(uint32_t), 0)), length);
+    } else if (size == 8) {
+      __ AddU8List(reinterpret_cast<const uint64_t*>(obj->GetRawData(sizeof(uint64_t), 0)), length);
+    }
+  }
+}
+
+void Hprof::DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass,
+                                   EndianOutput* output) {
+  // obj is an instance object.
+  __ AddU1(HPROF_INSTANCE_DUMP);
+  __ AddObjectId(obj);
+  __ AddU4(StackTraceSerialNumber(obj));
+  __ AddClassId(LookupClassId(klass));
+
+  // Reserve some space for the length of the instance data, which we won't
+  // know until we're done writing it.
+  size_t size_patch_offset = output->Length();
+  __ AddU4(0x77777777);
+
+  // Write the instance data;  fields for this class, followed by super class fields,
+  // and so on. Don't write the klass or monitor fields of Object.class.
+  while (!klass->IsObjectClass()) {
+    int ifieldCount = klass->NumInstanceFields();
+    for (int i = 0; i < ifieldCount; ++i) {
+      mirror::ArtField* f = klass->GetInstanceField(i);
+      size_t size;
+      SignatureToBasicTypeAndSize(f->GetTypeDescriptor(), &size);
+      if (size == 1) {
+        __ AddU1(f->Get32(obj));
+      } else if (size == 2) {
+        __ AddU2(f->Get32(obj));
+      } else if (size == 4) {
+        __ AddU4(f->Get32(obj));
+      } else {
+        CHECK_EQ(size, 8U);
+        __ AddU8(f->Get64(obj));
+      }
+    }
+
+    klass = klass->GetSuperClass();
+  }
+
+  // Patch the instance field length.
+  __ UpdateU4(size_patch_offset, output->Length() - (size_patch_offset + 4));
+}
+
+void Hprof::VisitRoot(const mirror::Object* obj, const RootInfo& info, EndianOutput* output) {
   static const HprofHeapTag xlate[] = {
     HPROF_ROOT_UNKNOWN,
     HPROF_ROOT_JNI_GLOBAL,
@@ -1074,15 +1137,11 @@ void Hprof::VisitRoot(const mirror::Object* obj, uint32_t thread_id, RootType ty
     HPROF_ROOT_VM_INTERNAL,
     HPROF_ROOT_JNI_MONITOR,
   };
-  CHECK_LT(type, sizeof(xlate) / sizeof(HprofHeapTag));
-  if (obj == NULL) {
+  CHECK_LT(info.GetType(), sizeof(xlate) / sizeof(HprofHeapTag));
+  if (obj == nullptr) {
     return;
   }
-  gc_scan_state_ = xlate[type];
-  gc_thread_serial_number_ = thread_id;
-  MarkRootObject(obj, 0);
-  gc_scan_state_ = 0;
-  gc_thread_serial_number_ = 0;
+  MarkRootObject(obj, 0, xlate[info.GetType()], info.GetThreadId(), output);
 }
 
 // If "direct_to_ddms" is true, the other arguments are ignored, and data is
@@ -1090,14 +1149,23 @@ void Hprof::VisitRoot(const mirror::Object* obj, uint32_t thread_id, RootType ty
 // If "fd" is >= 0, the output will be written to that file descriptor.
 // Otherwise, "filename" is used to create an output file.
 void DumpHeap(const char* filename, int fd, bool direct_to_ddms) {
-  CHECK(filename != NULL);
+  CHECK(filename != nullptr);
 
+  Thread* self = Thread::Current();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  if (heap->IsGcConcurrentAndMoving()) {
+    // Need to take a heap dump while GC isn't running. See the
+    // comment in Heap::VisitObjects().
+    heap->IncrementDisableMovingGC(self);
+  }
   Runtime::Current()->GetThreadList()->SuspendAll();
   Hprof hprof(filename, fd, direct_to_ddms);
   hprof.Dump();
   Runtime::Current()->GetThreadList()->ResumeAll();
+  if (heap->IsGcConcurrentAndMoving()) {
+    heap->DecrementDisableMovingGC(self);
+  }
 }
 
 }  // namespace hprof
-
 }  // namespace art

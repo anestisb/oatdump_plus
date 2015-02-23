@@ -14,18 +14,19 @@
  * limitations under the License.
  */
 
-#include "jni_internal.h"
+#include "check_jni.h"
 
 #include <sys/mman.h>
 #include <zlib.h>
 
 #include "base/logging.h"
+#include "base/to_str.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
-#include "field_helper.h"
 #include "gc/space/space.h"
 #include "java_vm_ext.h"
+#include "jni_internal.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
@@ -392,7 +393,7 @@ class ScopedCheck {
 
   bool CheckNonHeap(JavaVMExt* vm, bool entry, const char* fmt, JniValueType* args) {
     bool should_trace = (flags_ & kFlag_ForceTrace) != 0;
-    if (!should_trace && vm->IsTracingEnabled()) {
+    if (!should_trace && vm != nullptr && vm->IsTracingEnabled()) {
       // We need to guard some of the invocation interface's calls: a bad caller might
       // use DetachCurrentThread or GetEnv on a thread that's not yet attached.
       Thread* self = Thread::Current();
@@ -511,7 +512,7 @@ class ScopedCheck {
     return true;
   }
 
-  bool CheckReferenceKind(IndirectRefKind expected_kind, JavaVMExt* vm, Thread* self, jobject obj) {
+  bool CheckReferenceKind(IndirectRefKind expected_kind, Thread* self, jobject obj) {
     IndirectRefKind found_kind;
     if (expected_kind == kLocal) {
       found_kind = GetIndirectRefKind(obj);
@@ -1094,6 +1095,8 @@ class ScopedCheck {
     return true;
   }
 
+  // Checks whether |bytes| is valid modified UTF-8. We also accept 4 byte UTF
+  // sequences in place of encoded surrogate pairs.
   static uint8_t CheckUtfBytes(const char* bytes, const char** errorKind) {
     while (*bytes != '\0') {
       uint8_t utf8 = *(bytes++);
@@ -1113,14 +1116,26 @@ class ScopedCheck {
       case 0x09:
       case 0x0a:
       case 0x0b:
-      case 0x0f:
-        /*
-         * Bit pattern 10xx or 1111, which are illegal start bytes.
-         * Note: 1111 is valid for normal UTF-8, but not the
-         * Modified UTF-8 used here.
-         */
+         // Bit patterns 10xx, which are illegal start bytes.
         *errorKind = "start";
         return utf8;
+      case 0x0f:
+        // Bit pattern 1111, which might be the start of a 4 byte sequence.
+        if ((utf8 & 0x08) == 0) {
+          // Bit pattern 1111 0xxx, which is the start of a 4 byte sequence.
+          // We consume one continuation byte here, and fall through to consume two more.
+          utf8 = *(bytes++);
+          if ((utf8 & 0xc0) != 0x80) {
+            *errorKind = "continuation";
+            return utf8;
+          }
+        } else {
+          *errorKind = "start";
+          return utf8;
+        }
+
+        // Fall through to the cases below to consume two more continuation bytes.
+        FALLTHROUGH_INTENDED;
       case 0x0e:
         // Bit pattern 1110, so there are two additional bytes.
         utf8 = *(bytes++);
@@ -1128,7 +1143,9 @@ class ScopedCheck {
           *errorKind = "continuation";
           return utf8;
         }
-        FALLTHROUGH_INTENDED;  // Fall-through to take care of the final byte.
+
+        // Fall through to consume one more continuation byte.
+        FALLTHROUGH_INTENDED;
       case 0x0c:
       case 0x0d:
         // Bit pattern 110x, so there is one additional byte.
@@ -2397,7 +2414,7 @@ class CheckJNI {
       }
       if (sc.Check(soa, false, "L", &result)) {
         DCHECK_EQ(IsSameObject(env, obj, result.L), JNI_TRUE);
-        DCHECK(sc.CheckReferenceKind(kind, soa.Vm(), soa.Self(), result.L));
+        DCHECK(sc.CheckReferenceKind(kind, soa.Self(), result.L));
         return result.L;
       }
     }
@@ -2409,7 +2426,7 @@ class CheckJNI {
     ScopedCheck sc(kFlag_ExcepOkay, function_name);
     JniValueType args[2] = {{.E = env}, {.L = obj}};
     sc.Check(soa, true, "EL", args);
-    if (sc.CheckReferenceKind(kind, soa.Vm(), soa.Self(), obj)) {
+    if (sc.CheckReferenceKind(kind, soa.Self(), obj)) {
       JniValueType result;
       switch (kind) {
         case kGlobal:
@@ -3115,7 +3132,7 @@ class CheckJNI {
   static jarray NewPrimitiveArray(const char* function_name, JNIEnv* env, jsize length,
                                   Primitive::Type type) {
     ScopedObjectAccess soa(env);
-    ScopedCheck sc(kFlag_Default, __FUNCTION__);
+    ScopedCheck sc(kFlag_Default, function_name);
     JniValueType args[2] = {{.E = env}, {.z = length}};
     if (sc.Check(soa, true, "Ez", args)) {
       JniValueType result;
@@ -3613,7 +3630,9 @@ class CheckJII {
     sc.CheckNonHeap(reinterpret_cast<JavaVMExt*>(vm), true, "v", args);
     JniValueType result;
     result.i = BaseVm(vm)->DestroyJavaVM(vm);
-    sc.CheckNonHeap(reinterpret_cast<JavaVMExt*>(vm), false, "i", &result);
+    // Use null to signal that the JavaVM isn't valid anymore. DestroyJavaVM deletes the runtime,
+    // which will delete the JavaVMExt.
+    sc.CheckNonHeap(nullptr, false, "i", &result);
     return result.i;
   }
 

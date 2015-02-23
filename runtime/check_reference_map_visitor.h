@@ -37,7 +37,7 @@ class CheckReferenceMapVisitor : public StackVisitor {
       CHECK_EQ(GetDexPc(), DexFile::kDexNoIndex);
     }
 
-    if (!m || m->IsNative() || m->IsRuntimeMethod() || IsShadowFrame()) {
+    if (m == nullptr || m->IsNative() || m->IsRuntimeMethod() || IsShadowFrame()) {
       return true;
     }
 
@@ -53,7 +53,7 @@ class CheckReferenceMapVisitor : public StackVisitor {
 
   void CheckReferences(int* registers, int number_of_references, uint32_t native_pc_offset)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (GetMethod()->IsOptimized()) {
+    if (GetMethod()->IsOptimized(sizeof(void*))) {
       CheckOptimizedMethod(registers, number_of_references, native_pc_offset);
     } else {
       CheckQuickMethod(registers, number_of_references, native_pc_offset);
@@ -82,10 +82,14 @@ class CheckReferenceMapVisitor : public StackVisitor {
           CHECK(stack_mask.LoadBit(dex_register_map.GetValue(reg) >> 2));
           break;
         case DexRegisterMap::kInRegister:
-          CHECK_NE(register_mask & dex_register_map.GetValue(reg), 0u);
+          CHECK_NE(register_mask & (1 << dex_register_map.GetValue(reg)), 0u);
+          break;
+        case DexRegisterMap::kInFpuRegister:
+          // In Fpu register, should not be a reference.
+          CHECK(false);
           break;
         case DexRegisterMap::kConstant:
-          CHECK_EQ(dex_register_map.GetValue(0), 0);
+          CHECK_EQ(dex_register_map.GetValue(reg), 0);
           break;
       }
     }
@@ -94,7 +98,7 @@ class CheckReferenceMapVisitor : public StackVisitor {
   void CheckQuickMethod(int* registers, int number_of_references, uint32_t native_pc_offset)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::ArtMethod* m = GetMethod();
-    NativePcOffsetToReferenceMap map(m->GetNativeGcMap());
+    NativePcOffsetToReferenceMap map(m->GetNativeGcMap(sizeof(void*)));
     const uint8_t* ref_bitmap = map.FindBitMap(native_pc_offset);
     CHECK(ref_bitmap);
     for (int i = 0; i < number_of_references; ++i) {

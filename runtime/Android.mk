@@ -22,19 +22,18 @@ LIBART_COMMON_SRC_FILES := \
   atomic.cc.arm \
   barrier.cc \
   base/allocator.cc \
+  base/arena_allocator.cc \
   base/bit_vector.cc \
   base/hex_dump.cc \
   base/logging.cc \
   base/mutex.cc \
+  base/scoped_arena_allocator.cc \
   base/scoped_flock.cc \
   base/stringpiece.cc \
   base/stringprintf.cc \
   base/timing_logger.cc \
   base/unix_file/fd_file.cc \
-  base/unix_file/mapped_file.cc \
-  base/unix_file/null_file.cc \
   base/unix_file/random_access_file_utils.cc \
-  base/unix_file/string_file.cc \
   check_jni.cc \
   class_linker.cc \
   common_throws.cc \
@@ -43,7 +42,6 @@ LIBART_COMMON_SRC_FILES := \
   dex_file_verifier.cc \
   dex_instruction.cc \
   elf_file.cc \
-  field_helper.cc \
   gc/allocator/dlmalloc.cc \
   gc/allocator/rosalloc.cc \
   gc/accounting/card_table.cc \
@@ -68,13 +66,14 @@ LIBART_COMMON_SRC_FILES := \
   gc/space/image_space.cc \
   gc/space/large_object_space.cc \
   gc/space/malloc_space.cc \
+  gc/space/region_space.cc \
   gc/space/rosalloc_space.cc \
   gc/space/space.cc \
   gc/space/zygote_space.cc \
+  gc/task_processor.cc \
   hprof/hprof.cc \
   image.cc \
   indirect_reference_table.cc \
-  instruction_set.cc \
   instrumentation.cc \
   intern_table.cc \
   interpreter/interpreter.cc \
@@ -93,7 +92,6 @@ LIBART_COMMON_SRC_FILES := \
   jobject_comparator.cc \
   mem_map.cc \
   memory_region.cc \
-  method_helper.cc \
   mirror/art_field.cc \
   mirror/art_method.cc \
   mirror/array.cc \
@@ -143,6 +141,7 @@ LIBART_COMMON_SRC_FILES := \
   reference_table.cc \
   reflection.cc \
   runtime.cc \
+  runtime_options.cc \
   signal_catcher.cc \
   stack.cc \
   thread.cc \
@@ -166,26 +165,24 @@ LIBART_COMMON_SRC_FILES := \
 
 LIBART_COMMON_SRC_FILES += \
   arch/context.cc \
+  arch/instruction_set.cc \
+  arch/instruction_set_features.cc \
   arch/memcmp16.cc \
+  arch/arm/instruction_set_features_arm.cc \
   arch/arm/registers_arm.cc \
+  arch/arm64/instruction_set_features_arm64.cc \
   arch/arm64/registers_arm64.cc \
-  arch/x86/registers_x86.cc \
+  arch/mips/instruction_set_features_mips.cc \
   arch/mips/registers_mips.cc \
+  arch/mips64/instruction_set_features_mips64.cc \
+  arch/mips64/registers_mips64.cc \
+  arch/x86/instruction_set_features_x86.cc \
+  arch/x86/registers_x86.cc \
+  arch/x86_64/registers_x86_64.cc \
   entrypoints/entrypoint_utils.cc \
   entrypoints/interpreter/interpreter_entrypoints.cc \
   entrypoints/jni/jni_entrypoints.cc \
   entrypoints/math_entrypoints.cc \
-  entrypoints/portable/portable_alloc_entrypoints.cc \
-  entrypoints/portable/portable_cast_entrypoints.cc \
-  entrypoints/portable/portable_dexcache_entrypoints.cc \
-  entrypoints/portable/portable_field_entrypoints.cc \
-  entrypoints/portable/portable_fillarray_entrypoints.cc \
-  entrypoints/portable/portable_invoke_entrypoints.cc \
-  entrypoints/portable/portable_jni_entrypoints.cc \
-  entrypoints/portable/portable_lock_entrypoints.cc \
-  entrypoints/portable/portable_thread_entrypoints.cc \
-  entrypoints/portable/portable_throw_entrypoints.cc \
-  entrypoints/portable/portable_trampoline_entrypoints.cc \
   entrypoints/quick/quick_alloc_entrypoints.cc \
   entrypoints/quick/quick_cast_entrypoints.cc \
   entrypoints/quick/quick_deoptimization_entrypoints.cc \
@@ -209,7 +206,6 @@ LIBART_HOST_LDFLAGS :=
 
 LIBART_TARGET_SRC_FILES := \
   $(LIBART_COMMON_SRC_FILES) \
-  base/logging_android.cc \
   jdwp/jdwp_adb.cc \
   monitor_android.cc \
   runtime_android.cc \
@@ -218,11 +214,11 @@ LIBART_TARGET_SRC_FILES := \
 LIBART_TARGET_SRC_FILES_arm := \
   arch/arm/context_arm.cc.arm \
   arch/arm/entrypoints_init_arm.cc \
+  arch/arm/instruction_set_features_assembly_tests.S \
   arch/arm/jni_entrypoints_arm.S \
   arch/arm/memcmp16_arm.S \
-  arch/arm/portable_entrypoints_arm.S \
   arch/arm/quick_entrypoints_arm.S \
-  arch/arm/arm_sdiv.S \
+  arch/arm/quick_entrypoints_cc_arm.cc \
   arch/arm/thread_arm.cc \
   arch/arm/fault_handler_arm.cc
 
@@ -231,7 +227,6 @@ LIBART_TARGET_SRC_FILES_arm64 := \
   arch/arm64/entrypoints_init_arm64.cc \
   arch/arm64/jni_entrypoints_arm64.S \
   arch/arm64/memcmp16_arm64.S \
-  arch/arm64/portable_entrypoints_arm64.S \
   arch/arm64/quick_entrypoints_arm64.S \
   arch/arm64/thread_arm64.cc \
   monitor_pool.cc \
@@ -242,7 +237,6 @@ LIBART_SRC_FILES_x86 := \
   arch/x86/entrypoints_init_x86.cc \
   arch/x86/jni_entrypoints_x86.S \
   arch/x86/memcmp16_x86.S \
-  arch/x86/portable_entrypoints_x86.S \
   arch/x86/quick_entrypoints_x86.S \
   arch/x86/thread_x86.cc \
   arch/x86/fault_handler_x86.cc
@@ -257,7 +251,6 @@ LIBART_SRC_FILES_x86_64 := \
   arch/x86_64/entrypoints_init_x86_64.cc \
   arch/x86_64/jni_entrypoints_x86_64.S \
   arch/x86_64/memcmp16_x86_64.S \
-  arch/x86_64/portable_entrypoints_x86_64.S \
   arch/x86_64/quick_entrypoints_x86_64.S \
   arch/x86_64/thread_x86_64.cc \
   monitor_pool.cc \
@@ -271,18 +264,22 @@ LIBART_TARGET_SRC_FILES_mips := \
   arch/mips/entrypoints_init_mips.cc \
   arch/mips/jni_entrypoints_mips.S \
   arch/mips/memcmp16_mips.S \
-  arch/mips/portable_entrypoints_mips.S \
   arch/mips/quick_entrypoints_mips.S \
   arch/mips/thread_mips.cc \
   arch/mips/fault_handler_mips.cc
 
-ifeq ($(TARGET_ARCH),mips64)
-$(info TODOMips64: $(LOCAL_PATH)/Android.mk Add mips64 specific runtime files)
-endif # TARGET_ARCH != mips64
+LIBART_TARGET_SRC_FILES_mips64 := \
+  arch/mips64/context_mips64.cc \
+  arch/mips64/entrypoints_init_mips64.cc \
+  arch/mips64/jni_entrypoints_mips64.S \
+  arch/mips64/memcmp16_mips64.S \
+  arch/mips64/quick_entrypoints_mips64.S \
+  arch/mips64/thread_mips64.cc \
+  monitor_pool.cc \
+  arch/mips64/fault_handler_mips64.cc
 
 LIBART_HOST_SRC_FILES := \
   $(LIBART_COMMON_SRC_FILES) \
-  base/logging_linux.cc \
   monitor_linux.cc \
   runtime_linux.cc \
   thread_linux.cc
@@ -294,17 +291,23 @@ LIBART_HOST_SRC_FILES_64 := \
   $(LIBART_SRC_FILES_x86_64)
 
 LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
-  arch/x86_64/registers_x86_64.h \
+  arch/instruction_set.h \
   base/allocator.h \
   base/mutex.h \
+  debugger.h \
+  base/unix_file/fd_file.h \
   dex_file.h \
   dex_instruction.h \
+  gc_root.h \
+  gc/allocator/rosalloc.h \
   gc/collector/gc_type.h \
+  gc/allocator_type.h \
   gc/collector_type.h \
+  gc/space/region_space.h \
   gc/space/space.h \
   gc/heap.h \
+  instrumentation.h \
   indirect_reference_table.h \
-  instruction_set.h \
   invoke_type.h \
   jdwp/jdwp.h \
   jdwp/jdwp_constants.h \
@@ -312,20 +315,43 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
   mirror/class.h \
   oat.h \
   object_callbacks.h \
+  profiler_options.h \
   quick/inline_method_analyser.h \
+  runtime.h \
+  stack.h \
   thread.h \
   thread_state.h \
   verifier/method_verifier.h
 
-LIBART_CFLAGS :=
-ifeq ($(ART_USE_PORTABLE_COMPILER),true)
-  LIBART_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
-endif
+LIBART_CFLAGS := -DBUILDING_LIBART=1
 
 ifeq ($(MALLOC_IMPL),dlmalloc)
   LIBART_CFLAGS += -DUSE_DLMALLOC
 else
   LIBART_CFLAGS += -DUSE_JEMALLOC
+endif
+
+# Default dex2oat instruction set features.
+LIBART_HOST_DEFAULT_INSTRUCTION_SET_FEATURES := default
+LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES := default
+2ND_LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES := default
+ifeq ($(DEX2OAT_TARGET_ARCH),arm)
+  ifneq (,$(filter $(DEX2OAT_TARGET_CPU_VARIANT),cortex-a15 krait denver))
+    LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES := atomic_ldrd_strd,div
+  else
+    ifneq (,$(filter $(DEX2OAT_TARGET_CPU_VARIANT),cortex-a7))
+      LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES := div
+    endif
+  endif
+endif
+ifeq ($(2ND_DEX2OAT_TARGET_ARCH),arm)
+  ifneq (,$(filter $(DEX2OAT_TARGET_CPU_VARIANT),cortex-a15 krait denver))
+    2ND_LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES := atomic_ldrd_strd,div
+  else
+    ifneq (,$(filter $(DEX2OAT_TARGET_CPU_VARIANT),cortex-a7))
+      2ND_LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES := div
+    endif
+  endif
 endif
 
 # $(1): target or host
@@ -346,10 +372,19 @@ define build-libart
   art_ndebug_or_debug := $(2)
 
   include $$(CLEAR_VARS)
+  # Clang assembler has problem with macros in asm_support_x86.S, http://b/17443165,
+  # on linux. Yet sdk on mac needs integrated assembler.
+  ifeq ($$(HOST_OS),darwin)
+    LOCAL_CLANG_ASFLAGS += -integrated-as
+  else
+    LOCAL_CLANG_ASFLAGS += -no-integrated-as
+  endif
   LOCAL_CPP_EXTENSION := $$(ART_CPP_EXTENSION)
   ifeq ($$(art_ndebug_or_debug),ndebug)
     LOCAL_MODULE := libart
-    LOCAL_FDO_SUPPORT := true
+    ifeq ($$(art_target_or_host),target)
+      LOCAL_FDO_SUPPORT := true
+    endif
   else # debug
     LOCAL_MODULE := libartd
   endif
@@ -393,6 +428,9 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   ifeq ($$(art_target_or_host),target)
     $$(eval $$(call set-target-local-clang-vars))
     $$(eval $$(call set-target-local-cflags-vars,$(2)))
+    LOCAL_CFLAGS_$(DEX2OAT_TARGET_ARCH) += -DART_DEFAULT_INSTRUCTION_SET_FEATURES="$(LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES)"
+    LOCAL_CFLAGS_$(2ND_DEX2OAT_TARGET_ARCH) += -DART_DEFAULT_INSTRUCTION_SET_FEATURES="$(2ND_LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES)"
+
     # TODO: Loop with ifeq, ART_TARGET_CLANG
     ifneq ($$(ART_TARGET_CLANG_$$(TARGET_ARCH)),true)
       LOCAL_SRC_FILES_$$(TARGET_ARCH) += $$(LIBART_GCC_ONLY_SRC_FILES)
@@ -401,52 +439,55 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
       LOCAL_SRC_FILES_$$(TARGET_2ND_ARCH) += $$(LIBART_GCC_ONLY_SRC_FILES)
     endif
   else # host
-    LOCAL_CLANG := $$(ART_HOST_CLANG)
-    ifeq ($$(ART_HOST_CLANG),false)
+    ifneq ($$(ART_HOST_CLANG),true)
+      # Add files only built with GCC on the host.
       LOCAL_SRC_FILES += $$(LIBART_GCC_ONLY_SRC_FILES)
     endif
-    LOCAL_CFLAGS += $$(ART_HOST_CFLAGS)
-    ifeq ($$(art_ndebug_or_debug),debug)
-      LOCAL_CFLAGS += $$(ART_HOST_DEBUG_CFLAGS)
-      LOCAL_LDLIBS += $$(ART_HOST_DEBUG_LDLIBS)
-      LOCAL_STATIC_LIBRARIES := libgtest_host
-    else
-      LOCAL_CFLAGS += $$(ART_HOST_NON_DEBUG_CFLAGS)
-    endif
-  endif
-
-  LOCAL_C_INCLUDES += $$(ART_C_INCLUDES)
-  LOCAL_C_INCLUDES += art/sigchainlib
-
-  LOCAL_SHARED_LIBRARIES += liblog libnativehelper libnativebridge
-  include external/libcxx/libcxx.mk
-  LOCAL_SHARED_LIBRARIES += libbacktrace_libc++
-  ifeq ($$(art_target_or_host),target)
-    LOCAL_SHARED_LIBRARIES += libcutils libdl libutils libsigchain
-    LOCAL_STATIC_LIBRARIES := libziparchive libz
-  else # host
-    LOCAL_STATIC_LIBRARIES += libcutils libziparchive-host libz libutils
-    LOCAL_SHARED_LIBRARIES += libsigchain
+    LOCAL_CLANG := $$(ART_HOST_CLANG)
+    LOCAL_LDLIBS := $$(ART_HOST_LDLIBS)
     LOCAL_LDLIBS += -ldl -lpthread
     ifeq ($$(HOST_OS),linux)
       LOCAL_LDLIBS += -lrt
     endif
+    LOCAL_CFLAGS += $$(ART_HOST_CFLAGS)
+    LOCAL_CFLAGS += -DART_DEFAULT_INSTRUCTION_SET_FEATURES="$(LIBART_HOST_DEFAULT_INSTRUCTION_SET_FEATURES)"
+
+    ifeq ($$(art_ndebug_or_debug),debug)
+      LOCAL_CFLAGS += $$(ART_HOST_DEBUG_CFLAGS)
+    else
+      LOCAL_CFLAGS += $$(ART_HOST_NON_DEBUG_CFLAGS)
+    endif
     LOCAL_MULTILIB := both
   endif
-  ifeq ($$(ART_USE_PORTABLE_COMPILER),true)
-    include $$(LLVM_GEN_INTRINSICS_MK)
-    ifeq ($$(art_target_or_host),target)
-      include $$(LLVM_DEVICE_BUILD_MK)
-    else # host
-      include $$(LLVM_HOST_BUILD_MK)
-    endif
+
+  LOCAL_C_INCLUDES += $$(ART_C_INCLUDES)
+  LOCAL_C_INCLUDES += art/cmdline
+  LOCAL_C_INCLUDES += art/sigchainlib
+  LOCAL_C_INCLUDES += art
+
+  LOCAL_SHARED_LIBRARIES := libnativehelper libnativebridge libsigchain
+  LOCAL_SHARED_LIBRARIES += libbacktrace
+  ifeq ($$(art_target_or_host),target)
+    LOCAL_SHARED_LIBRARIES += libdl
+    # ZipArchive support, the order matters here to get all symbols.
+    LOCAL_STATIC_LIBRARIES := libziparchive libz
+    # For android::FileMap used by libziparchive.
+    LOCAL_SHARED_LIBRARIES += libutils
+    # For liblog, atrace, properties, ashmem, set_sched_policy and socket_peer_is_trusted.
+    LOCAL_SHARED_LIBRARIES += libcutils
+  else # host
+    LOCAL_SHARED_LIBRARIES += libziparchive-host
+    # For ashmem_create_region.
+    LOCAL_STATIC_LIBRARIES += libcutils
   endif
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
-#  LOCAL_ADDITIONAL_DEPENDENCIES += $$(LOCAL_PATH)/Android.mk
+  LOCAL_ADDITIONAL_DEPENDENCIES += $$(LOCAL_PATH)/Android.mk
 
   ifeq ($$(art_target_or_host),target)
     LOCAL_MODULE_TARGET_ARCH := $$(ART_TARGET_SUPPORTED_ARCH)
   endif
+
+  LOCAL_NATIVE_COVERAGE := $(ART_COVERAGE)
 
   ifeq ($$(art_target_or_host),target)
     ifneq ($$(art_ndebug_or_debug),debug)
@@ -488,6 +529,9 @@ endif
 LOCAL_PATH :=
 LIBART_COMMON_SRC_FILES :=
 LIBART_GCC_ONLY_SRC_FILES :=
+LIBART_HOST_DEFAULT_INSTRUCTION_SET_FEATURES :=
+LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES :=
+2ND_LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES :=
 LIBART_TARGET_LDFLAGS :=
 LIBART_HOST_LDFLAGS :=
 LIBART_TARGET_SRC_FILES :=
@@ -496,6 +540,7 @@ LIBART_TARGET_SRC_FILES_arm64 :=
 LIBART_TARGET_SRC_FILES_x86 :=
 LIBART_TARGET_SRC_FILES_x86_64 :=
 LIBART_TARGET_SRC_FILES_mips :=
+LIBART_TARGET_SRC_FILES_mips64 :=
 LIBART_HOST_SRC_FILES :=
 LIBART_HOST_SRC_FILES_32 :=
 LIBART_HOST_SRC_FILES_64 :=

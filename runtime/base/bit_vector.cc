@@ -16,6 +16,9 @@
 
 #include "bit_vector.h"
 
+#include <limits>
+#include <sstream>
+
 #include "allocator.h"
 #include "bit_vector-inl.h"
 
@@ -38,8 +41,8 @@ BitVector::BitVector(uint32_t start_bits,
     storage_size_(storage_size),
     allocator_(allocator),
     expandable_(expandable) {
-  COMPILE_ASSERT(sizeof(*storage_) == kWordBytes, check_word_bytes);
-  COMPILE_ASSERT(sizeof(*storage_) * 8u == kWordBits, check_word_bits);
+  static_assert(sizeof(*storage_) == kWordBytes, "word bytes");
+  static_assert(sizeof(*storage_) * 8u == kWordBits, "word bits");
   if (storage_ == nullptr) {
     storage_size_ = BitsToWords(start_bits);
     storage_ = static_cast<uint32_t*>(allocator_->Alloc(storage_size_ * kWordBytes));
@@ -145,10 +148,7 @@ bool BitVector::UnionIfNotIn(const BitVector* union_with, const BitVector* not_i
 
   // Is the storage size smaller than src's?
   if (storage_size_ < union_with_size) {
-    changed = true;
-
-    // Set it to reallocate.
-    SetBit(highest_bit);
+    EnsureSize(highest_bit);
 
     // Paranoid: storage size should be big enough to hold this bit now.
     DCHECK_LT(static_cast<uint32_t> (highest_bit), storage_size_ * kWordBits);
@@ -219,13 +219,13 @@ void BitVector::SetInitialBits(uint32_t num_bits) {
   uint32_t idx;
   // We can set every storage element with -1.
   for (idx = 0; idx < WordIndex(num_bits); idx++) {
-    storage_[idx] = -1;
+    storage_[idx] = std::numeric_limits<uint32_t>::max();
   }
 
   // Handle the potentially last few bits.
   uint32_t rem_num_bits = num_bits & 0x1f;
   if (rem_num_bits != 0) {
-    storage_[idx] = (1 << rem_num_bits) - 1;
+    storage_[idx] = (1U << rem_num_bits) - 1;
     ++idx;
   }
 
@@ -276,6 +276,10 @@ void BitVector::Copy(const BitVector *src) {
   }
 }
 
+#if defined(__clang__) && defined(__ARM_64BIT_STATE)
+// b/19180814 When POPCOUNT is inlined, boot up failed on arm64 devices.
+__attribute__((optnone))
+#endif
 uint32_t BitVector::NumSetBits(const uint32_t* storage, uint32_t end) {
   uint32_t word_end = WordIndex(end);
   uint32_t partial_word_bits = end & 0x1f;
@@ -321,7 +325,12 @@ void BitVector::EnsureSize(uint32_t idx) {
     memcpy(new_storage, storage_, storage_size_ * kWordBytes);
     // Zero out the new storage words.
     memset(&new_storage[storage_size_], 0, (new_size - storage_size_) * kWordBytes);
-    // TOTO: collect stats on space wasted because of resize.
+    // TODO: collect stats on space wasted because of resize.
+
+    // Free old storage.
+    allocator_->Free(storage_);
+
+    // Set fields.
     storage_ = new_storage;
     storage_size_ = new_size;
   }

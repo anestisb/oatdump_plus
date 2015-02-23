@@ -16,9 +16,10 @@
 
 #include "semi_space-inl.h"
 
+#include <climits>
 #include <functional>
 #include <numeric>
-#include <climits>
+#include <sstream>
 #include <vector>
 
 #include "base/logging.h"
@@ -215,7 +216,7 @@ void SemiSpace::MarkingPhase() {
   // Assume the cleared space is already empty.
   BindBitmaps();
   // Process dirty cards and add dirty cards to mod-union tables.
-  heap_->ProcessCards(GetTimings(), kUseRememberedSet && generational_);
+  heap_->ProcessCards(GetTimings(), kUseRememberedSet && generational_, false, true);
   // Clear the whole card table since we can not Get any additional dirty cards during the
   // paused GC. This saves memory but only works for pause the world collectors.
   t.NewTiming("ClearCardTable");
@@ -223,7 +224,7 @@ void SemiSpace::MarkingPhase() {
   // Need to do this before the checkpoint since we don't want any threads to add references to
   // the live stack during the recursive mark.
   if (kUseThreadLocalAllocationStack) {
-    TimingLogger::ScopedTiming t("RevokeAllThreadLocalAllocationStacks", GetTimings());
+    TimingLogger::ScopedTiming t2("RevokeAllThreadLocalAllocationStacks", GetTimings());
     heap_->RevokeAllThreadLocalAllocationStacks(self_);
   }
   heap_->SwapStacks(self_);
@@ -252,8 +253,17 @@ void SemiSpace::MarkingPhase() {
   RecordFree(ObjectBytePair(from_objects - to_objects, from_bytes - to_bytes));
   // Clear and protect the from space.
   from_space_->Clear();
-  VLOG(heap) << "Protecting from_space_: " << *from_space_;
-  from_space_->GetMemMap()->Protect(kProtectFromSpace ? PROT_NONE : PROT_READ);
+  if (kProtectFromSpace && !from_space_->IsRosAllocSpace()) {
+    // Protect with PROT_NONE.
+    VLOG(heap) << "Protecting from_space_ : " << *from_space_;
+    from_space_->GetMemMap()->Protect(PROT_NONE);
+  } else {
+    // If RosAllocSpace, we'll leave it as PROT_READ here so the
+    // rosaloc verification can read the metadata magic number and
+    // protect it with PROT_NONE later in FinishPhase().
+    VLOG(heap) << "Protecting from_space_ with PROT_READ : " << *from_space_;
+    from_space_->GetMemMap()->Protect(PROT_READ);
+  }
   heap_->PreSweepingGcVerification(this);
   if (swap_semi_spaces_) {
     heap_->SwapSemiSpaces();
@@ -367,7 +377,7 @@ void SemiSpace::MarkReachableObjects() {
   CHECK_EQ(is_large_object_space_immune_, collect_from_space_only_);
   space::LargeObjectSpace* los = GetHeap()->GetLargeObjectsSpace();
   if (is_large_object_space_immune_ && los != nullptr) {
-    TimingLogger::ScopedTiming t("VisitLargeObjects", GetTimings());
+    TimingLogger::ScopedTiming t2("VisitLargeObjects", GetTimings());
     DCHECK(collect_from_space_only_);
     // Delay copying the live set to the marked set until here from
     // BindBitmaps() as the large objects on the allocation stack may
@@ -411,11 +421,11 @@ void SemiSpace::ReclaimPhase() {
 }
 
 void SemiSpace::ResizeMarkStack(size_t new_size) {
-  std::vector<Object*> temp(mark_stack_->Begin(), mark_stack_->End());
+  std::vector<StackReference<Object>> temp(mark_stack_->Begin(), mark_stack_->End());
   CHECK_LE(mark_stack_->Size(), new_size);
   mark_stack_->Resize(new_size);
-  for (const auto& obj : temp) {
-    mark_stack_->PushBack(obj);
+  for (auto& obj : temp) {
+    mark_stack_->PushBack(obj.AsMirrorPtr());
   }
 }
 
@@ -590,8 +600,7 @@ void SemiSpace::DelayReferenceReferentCallback(mirror::Class* klass, mirror::Ref
   reinterpret_cast<SemiSpace*>(arg)->DelayReferenceReferent(klass, ref);
 }
 
-void SemiSpace::MarkRootCallback(Object** root, void* arg, uint32_t /*thread_id*/,
-                                 RootType /*root_type*/) {
+void SemiSpace::MarkRootCallback(Object** root, void* arg, const RootInfo& /*root_info*/) {
   auto ref = StackReference<mirror::Object>::FromMirrorPtr(*root);
   reinterpret_cast<SemiSpace*>(arg)->MarkObject(&ref);
   if (*root != ref.AsMirrorPtr()) {
@@ -748,6 +757,10 @@ void SemiSpace::SetFromSpace(space::ContinuousMemMapAllocSpace* from_space) {
 
 void SemiSpace::FinishPhase() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
+  if (kProtectFromSpace && from_space_->IsRosAllocSpace()) {
+    VLOG(heap) << "Protecting from_space_ with PROT_NONE : " << *from_space_;
+    from_space_->GetMemMap()->Protect(PROT_NONE);
+  }
   // Null the "to" and "from" spaces since compacting from one to the other isn't valid until
   // further action is done by the heap.
   to_space_ = nullptr;

@@ -15,9 +15,10 @@
  */
 
 #include "base/bit_vector-inl.h"
-#include "compiler_internals.h"
+#include "base/logging.h"
+#include "base/scoped_arena_containers.h"
+#include "compiler_ir.h"
 #include "dataflow_iterator-inl.h"
-#include "utils/scoped_arena_containers.h"
 
 #define NOTVISITED (-1)
 
@@ -66,8 +67,9 @@ void MIRGraph::MarkPreOrder(BasicBlock* block) {
 }
 
 void MIRGraph::RecordDFSOrders(BasicBlock* block) {
-  DCHECK(temp_scoped_alloc_.get() != nullptr);
-  ScopedArenaVector<BasicBlock*> succ(temp_scoped_alloc_->Adapter());
+  ScopedArenaAllocator allocator(&cu_->arena_stack);
+  ScopedArenaVector<BasicBlock*> succ(allocator.Adapter());
+  succ.reserve(GetNumBlocks());
   MarkPreOrder(block);
   succ.push_back(block);
   while (!succ.empty()) {
@@ -102,15 +104,16 @@ void MIRGraph::ComputeDFSOrders() {
 
   num_reachable_blocks_ = dfs_order_.size();
 
-  if (num_reachable_blocks_ != num_blocks_) {
-    // Hide all unreachable blocks.
+  if (num_reachable_blocks_ != GetNumBlocks()) {
+    // Kill all unreachable blocks.
     AllNodesIterator iter(this);
     for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
       if (!bb->visited) {
-        bb->Hide(cu_);
+        bb->Kill(this);
       }
     }
   }
+  dfs_orders_up_to_date_ = true;
 }
 
 /*
@@ -124,7 +127,7 @@ bool MIRGraph::FillDefBlockMatrix(BasicBlock* bb) {
 
   for (uint32_t idx : bb->data_flow_info->def_v->Indexes()) {
     /* Block bb defines register idx */
-    temp_bit_matrix_[idx]->SetBit(bb->id);
+    temp_.ssa.def_block_matrix[idx]->SetBit(bb->id);
   }
   return true;
 }
@@ -133,16 +136,16 @@ void MIRGraph::ComputeDefBlockMatrix() {
   int num_registers = GetNumOfCodeAndTempVRs();
   /* Allocate num_registers bit vector pointers */
   DCHECK(temp_scoped_alloc_ != nullptr);
-  DCHECK(temp_bit_matrix_ == nullptr);
-  temp_bit_matrix_ = static_cast<ArenaBitVector**>(
-      temp_scoped_alloc_->Alloc(sizeof(ArenaBitVector*) * num_registers, kArenaAllocDFInfo));
+  DCHECK(temp_.ssa.def_block_matrix == nullptr);
+  temp_.ssa.def_block_matrix =
+      temp_scoped_alloc_->AllocArray<ArenaBitVector*>(num_registers, kArenaAllocDFInfo);
   int i;
 
   /* Initialize num_register vectors with num_blocks bits each */
   for (i = 0; i < num_registers; i++) {
-    temp_bit_matrix_[i] = new (temp_scoped_alloc_.get()) ArenaBitVector(arena_, GetNumBlocks(),
-                                                                        false, kBitMapBMatrix);
-    temp_bit_matrix_[i]->ClearAllBits();
+    temp_.ssa.def_block_matrix[i] = new (temp_scoped_alloc_.get()) ArenaBitVector(
+        arena_, GetNumBlocks(), false, kBitMapBMatrix);
+    temp_.ssa.def_block_matrix[i]->ClearAllBits();
   }
 
   AllNodesIterator iter(this);
@@ -161,7 +164,7 @@ void MIRGraph::ComputeDefBlockMatrix() {
   int num_regs = GetNumOfCodeVRs();
   int in_reg = GetFirstInVR();
   for (; in_reg < num_regs; in_reg++) {
-    temp_bit_matrix_[in_reg]->SetBit(GetEntryBlock()->id);
+    temp_.ssa.def_block_matrix[in_reg]->SetBit(GetEntryBlock()->id);
   }
 }
 
@@ -171,9 +174,9 @@ void MIRGraph::ComputeDomPostOrderTraversal(BasicBlock* bb) {
   dom_post_order_traversal_.reserve(num_reachable_blocks_);
 
   ClearAllVisitedFlags();
-  DCHECK(temp_scoped_alloc_.get() != nullptr);
+  ScopedArenaAllocator allocator(&cu_->arena_stack);
   ScopedArenaVector<std::pair<BasicBlock*, ArenaBitVector::IndexIterator>> work_stack(
-      temp_scoped_alloc_->Adapter());
+      allocator.Adapter());
   bb->visited = true;
   work_stack.push_back(std::make_pair(bb, bb->i_dominated->Indexes().begin()));
   while (!work_stack.empty()) {
@@ -195,12 +198,6 @@ void MIRGraph::ComputeDomPostOrderTraversal(BasicBlock* bb) {
         dom_post_order_traversal_.push_back(curr_bb->id);
       }
       work_stack.pop_back();
-
-      /* hacky loop detection */
-      if ((curr_bb->taken != NullBasicBlockId) && curr_bb->dominators->IsBitSet(curr_bb->taken)) {
-        curr_bb->nesting_depth++;
-        attributes_ |= METHOD_HAS_LOOP;
-      }
     }
   }
 }
@@ -366,8 +363,7 @@ void MIRGraph::ComputeDominators() {
 
   /* Initialize & Clear i_dom_list */
   if (max_num_reachable_blocks_ < num_reachable_blocks_) {
-    i_dom_list_ = static_cast<int*>(arena_->Alloc(sizeof(int) * num_reachable_blocks,
-                                                  kArenaAllocDFInfo));
+    i_dom_list_ = arena_->AllocArray<int>(num_reachable_blocks, kArenaAllocDFInfo);
   }
   for (int i = 0; i < num_reachable_blocks; i++) {
     i_dom_list_[i] = NOTVISITED;
@@ -406,6 +402,8 @@ void MIRGraph::ComputeDominators() {
   for (BasicBlock* bb = iter5.Next(); bb != NULL; bb = iter5.Next()) {
     ComputeDominanceFrontier(bb);
   }
+
+  domination_up_to_date_ = true;
 }
 
 /*
@@ -433,55 +431,59 @@ void MIRGraph::ComputeSuccLineIn(ArenaBitVector* dest, const ArenaBitVector* src
  * insert a phi node if the variable is live-in to the block.
  */
 bool MIRGraph::ComputeBlockLiveIns(BasicBlock* bb) {
-  DCHECK_EQ(temp_bit_vector_size_, cu_->mir_graph.get()->GetNumOfCodeAndTempVRs());
-  ArenaBitVector* temp_dalvik_register_v = temp_bit_vector_;
+  DCHECK_EQ(temp_.ssa.num_vregs, cu_->mir_graph.get()->GetNumOfCodeAndTempVRs());
+  ArenaBitVector* temp_live_vregs = temp_.ssa.work_live_vregs;
 
   if (bb->data_flow_info == NULL) {
     return false;
   }
-  temp_dalvik_register_v->Copy(bb->data_flow_info->live_in_v);
+  temp_live_vregs->Copy(bb->data_flow_info->live_in_v);
   BasicBlock* bb_taken = GetBasicBlock(bb->taken);
   BasicBlock* bb_fall_through = GetBasicBlock(bb->fall_through);
   if (bb_taken && bb_taken->data_flow_info)
-    ComputeSuccLineIn(temp_dalvik_register_v, bb_taken->data_flow_info->live_in_v,
+    ComputeSuccLineIn(temp_live_vregs, bb_taken->data_flow_info->live_in_v,
                       bb->data_flow_info->def_v);
   if (bb_fall_through && bb_fall_through->data_flow_info)
-    ComputeSuccLineIn(temp_dalvik_register_v, bb_fall_through->data_flow_info->live_in_v,
+    ComputeSuccLineIn(temp_live_vregs, bb_fall_through->data_flow_info->live_in_v,
                       bb->data_flow_info->def_v);
   if (bb->successor_block_list_type != kNotUsed) {
     for (SuccessorBlockInfo* successor_block_info : bb->successor_blocks) {
       BasicBlock* succ_bb = GetBasicBlock(successor_block_info->block);
       if (succ_bb->data_flow_info) {
-        ComputeSuccLineIn(temp_dalvik_register_v, succ_bb->data_flow_info->live_in_v,
+        ComputeSuccLineIn(temp_live_vregs, succ_bb->data_flow_info->live_in_v,
                           bb->data_flow_info->def_v);
       }
     }
   }
-  if (!temp_dalvik_register_v->Equal(bb->data_flow_info->live_in_v)) {
-    bb->data_flow_info->live_in_v->Copy(temp_dalvik_register_v);
+  if (!temp_live_vregs->Equal(bb->data_flow_info->live_in_v)) {
+    bb->data_flow_info->live_in_v->Copy(temp_live_vregs);
     return true;
   }
   return false;
 }
 
-/* Insert phi nodes to for each variable to the dominance frontiers */
-void MIRGraph::InsertPhiNodes() {
-  int dalvik_reg;
-  ArenaBitVector* phi_blocks = new (temp_scoped_alloc_.get()) ArenaBitVector(
-      temp_scoped_alloc_.get(), GetNumBlocks(), false, kBitMapPhi);
-  ArenaBitVector* input_blocks = new (temp_scoped_alloc_.get()) ArenaBitVector(
-      temp_scoped_alloc_.get(), GetNumBlocks(), false, kBitMapInputBlocks);
-
+/* For each dalvik reg, find blocks that need phi nodes according to the dominance frontiers. */
+void MIRGraph::FindPhiNodeBlocks() {
   RepeatingPostOrderDfsIterator iter(this);
   bool change = false;
   for (BasicBlock* bb = iter.Next(false); bb != NULL; bb = iter.Next(change)) {
     change = ComputeBlockLiveIns(bb);
   }
 
+  ArenaBitVector* phi_blocks = new (temp_scoped_alloc_.get()) ArenaBitVector(
+      temp_scoped_alloc_.get(), GetNumBlocks(), false, kBitMapBMatrix);
+
+  // Reuse the def_block_matrix storage for phi_node_blocks.
+  ArenaBitVector** def_block_matrix = temp_.ssa.def_block_matrix;
+  ArenaBitVector** phi_node_blocks = def_block_matrix;
+  DCHECK(temp_.ssa.phi_node_blocks == nullptr);
+  temp_.ssa.phi_node_blocks = phi_node_blocks;
+  temp_.ssa.def_block_matrix = nullptr;
+
   /* Iterate through each Dalvik register */
-  for (dalvik_reg = GetNumOfCodeAndTempVRs() - 1; dalvik_reg >= 0; dalvik_reg--) {
-    input_blocks->Copy(temp_bit_matrix_[dalvik_reg]);
+  for (int dalvik_reg = GetNumOfCodeAndTempVRs() - 1; dalvik_reg >= 0; dalvik_reg--) {
     phi_blocks->ClearAllBits();
+    ArenaBitVector* input_blocks = def_block_matrix[dalvik_reg];
     do {
       // TUNING: When we repeat this, we could skip indexes from the previous pass.
       for (uint32_t idx : input_blocks->Indexes()) {
@@ -492,23 +494,8 @@ void MIRGraph::InsertPhiNodes() {
       }
     } while (input_blocks->Union(phi_blocks));
 
-    /*
-     * Insert a phi node for dalvik_reg in the phi_blocks if the Dalvik
-     * register is in the live-in set.
-     */
-    for (uint32_t idx : phi_blocks->Indexes()) {
-      BasicBlock* phi_bb = GetBasicBlock(idx);
-      /* Variable will be clobbered before being used - no need for phi */
-      if (!phi_bb->data_flow_info->live_in_v->IsBitSet(dalvik_reg)) {
-        continue;
-      }
-      MIR *phi = NewMIR();
-      phi->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpPhi);
-      phi->dalvikInsn.vA = dalvik_reg;
-      phi->offset = phi_bb->start_offset;
-      phi->m_unit_index = 0;  // Arbitrarily assign all Phi nodes to outermost method.
-      phi_bb->PrependMIR(phi);
-    }
+    def_block_matrix[dalvik_reg] = phi_blocks;
+    phi_blocks = input_blocks;  // Reuse the bit vector in next iteration.
   }
 }
 
@@ -529,16 +516,13 @@ bool MIRGraph::InsertPhiNodeOperands(BasicBlock* bb) {
     size_t num_uses = bb->predecessors.size();
     AllocateSSAUseData(mir, num_uses);
     int* uses = mir->ssa_rep->uses;
-    BasicBlockId* incoming =
-        static_cast<BasicBlockId*>(arena_->Alloc(sizeof(BasicBlockId) * num_uses,
-                                                 kArenaAllocDFInfo));
+    BasicBlockId* incoming = arena_->AllocArray<BasicBlockId>(num_uses, kArenaAllocDFInfo);
     mir->meta.phi_incoming = incoming;
     int idx = 0;
     for (BasicBlockId pred_id : bb->predecessors) {
       BasicBlock* pred_bb = GetBasicBlock(pred_id);
       DCHECK(pred_bb != nullptr);
-      int ssa_reg = pred_bb->data_flow_info->vreg_to_ssa_map_exit[v_reg];
-      uses[idx] = ssa_reg;
+      uses[idx] = pred_bb->data_flow_info->vreg_to_ssa_map_exit[v_reg];
       incoming[idx] = pred_id;
       idx++;
     }
@@ -555,12 +539,12 @@ void MIRGraph::DoDFSPreOrderSSARename(BasicBlock* block) {
 
   /* Process this block */
   DoSSAConversion(block);
-  int map_size = sizeof(int) * GetNumOfCodeAndTempVRs();
 
   /* Save SSA map snapshot */
   ScopedArenaAllocator allocator(&cu_->arena_stack);
-  int* saved_ssa_map =
-      static_cast<int*>(allocator.Alloc(map_size, kArenaAllocDalvikToSSAMap));
+  uint32_t num_vregs = GetNumOfCodeAndTempVRs();
+  int32_t* saved_ssa_map = allocator.AllocArray<int32_t>(num_vregs, kArenaAllocDalvikToSSAMap);
+  size_t map_size = sizeof(saved_ssa_map[0]) * num_vregs;
   memcpy(saved_ssa_map, vreg_to_ssa_map_, map_size);
 
   if (block->fall_through != NullBasicBlockId) {

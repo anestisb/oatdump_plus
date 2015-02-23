@@ -17,10 +17,8 @@
 #include "context_arm.h"
 
 #include "mirror/art_method-inl.h"
-#include "mirror/object-inl.h"
 #include "quick/quick_method_frame_info.h"
-#include "stack.h"
-#include "thread.h"
+#include "utils.h"
 
 namespace art {
 namespace arm {
@@ -69,26 +67,18 @@ void ArmContext::FillCalleeSaves(const StackVisitor& fr) {
   }
 }
 
-bool ArmContext::SetGPR(uint32_t reg, uintptr_t value) {
+void ArmContext::SetGPR(uint32_t reg, uintptr_t value) {
   DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfCoreRegisters));
+  DCHECK(IsAccessibleGPR(reg));
   DCHECK_NE(gprs_[reg], &gZero);  // Can't overwrite this static value since they are never reset.
-  if (gprs_[reg] != nullptr) {
-    *gprs_[reg] = value;
-    return true;
-  } else {
-    return false;
-  }
+  *gprs_[reg] = value;
 }
 
-bool ArmContext::SetFPR(uint32_t reg, uintptr_t value) {
+void ArmContext::SetFPR(uint32_t reg, uintptr_t value) {
   DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfSRegisters));
+  DCHECK(IsAccessibleFPR(reg));
   DCHECK_NE(fprs_[reg], &gZero);  // Can't overwrite this static value since they are never reset.
-  if (fprs_[reg] != nullptr) {
-    *fprs_[reg] = value;
-    return true;
-  } else {
-    return false;
-  }
+  *fprs_[reg] = value;
 }
 
 void ArmContext::SmashCallerSaves() {
@@ -97,6 +87,23 @@ void ArmContext::SmashCallerSaves() {
   gprs_[R1] = const_cast<uint32_t*>(&gZero);
   gprs_[R2] = nullptr;
   gprs_[R3] = nullptr;
+
+  fprs_[S0] = nullptr;
+  fprs_[S1] = nullptr;
+  fprs_[S2] = nullptr;
+  fprs_[S3] = nullptr;
+  fprs_[S4] = nullptr;
+  fprs_[S5] = nullptr;
+  fprs_[S6] = nullptr;
+  fprs_[S7] = nullptr;
+  fprs_[S8] = nullptr;
+  fprs_[S9] = nullptr;
+  fprs_[S10] = nullptr;
+  fprs_[S11] = nullptr;
+  fprs_[S12] = nullptr;
+  fprs_[S13] = nullptr;
+  fprs_[S14] = nullptr;
+  fprs_[S15] = nullptr;
 }
 
 extern "C" void art_quick_do_long_jump(uint32_t*, uint32_t*);

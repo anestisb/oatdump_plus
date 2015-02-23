@@ -30,7 +30,8 @@ namespace art {
 // TODO: remove (only used for debugging purpose).
 static constexpr bool kEnableTransactionStats = false;
 
-Transaction::Transaction() : log_lock_("transaction log lock", kTransactionLogLock) {
+Transaction::Transaction()
+  : log_lock_("transaction log lock", kTransactionLogLock), aborted_(false) {
   CHECK(Runtime::Current()->IsCompiler());
 }
 
@@ -55,6 +56,35 @@ Transaction::~Transaction() {
               << ", array_values_count=" << array_values_count
               << ", string_count=" << string_count;
   }
+}
+
+void Transaction::Abort(const std::string& abort_message) {
+  MutexLock mu(Thread::Current(), log_lock_);
+  // We may abort more than once if the java.lang.InternalError thrown at the
+  // time of the abort has been caught during execution of a class initializer.
+  // We just keep the message of the first abort because it will cause the
+  // transaction to be rolled back anyway.
+  if (!aborted_) {
+    aborted_ = true;
+    abort_message_ = abort_message;
+  }
+}
+
+void Transaction::ThrowInternalError(Thread* self) {
+  DCHECK(IsAborted());
+  std::string abort_msg(GetAbortMessage());
+  self->ThrowNewException(self->GetCurrentLocationForThrow(), "Ljava/lang/InternalError;",
+                          abort_msg.c_str());
+}
+
+bool Transaction::IsAborted() {
+  MutexLock mu(Thread::Current(), log_lock_);
+  return aborted_;
+}
+
+const std::string& Transaction::GetAbortMessage() {
+  MutexLock mu(Thread::Current(), log_lock_);
+  return abort_message_;
 }
 
 void Transaction::RecordWriteFieldBoolean(mirror::Object* obj, MemberOffset field_offset,
@@ -144,13 +174,13 @@ void Transaction::RecordWeakStringRemoval(mirror::String* s) {
   LogInternedString(log);
 }
 
-void Transaction::LogInternedString(InternStringLog& log) {
+void Transaction::LogInternedString(const InternStringLog& log) {
   Locks::intern_table_lock_->AssertExclusiveHeld(Thread::Current());
   MutexLock mu(Thread::Current(), log_lock_);
   intern_string_logs_.push_front(log);
 }
 
-void Transaction::Abort() {
+void Transaction::Rollback() {
   CHECK(!Runtime::Current()->IsActiveTransaction());
   Thread* self = Thread::Current();
   self->AssertNoPendingException();
@@ -206,7 +236,7 @@ void Transaction::VisitObjectLogs(RootCallback* callback, void* arg) {
     it.second.VisitRoots(callback, arg);
     mirror::Object* old_root = it.first;
     mirror::Object* new_root = old_root;
-    callback(&new_root, arg, 0, kRootUnknown);
+    callback(&new_root, arg, RootInfo(kRootUnknown));
     if (new_root != old_root) {
       moving_roots.push_back(std::make_pair(old_root, new_root));
     }
@@ -233,7 +263,7 @@ void Transaction::VisitArrayLogs(RootCallback* callback, void* arg) {
     mirror::Array* old_root = it.first;
     CHECK(!old_root->IsObjectArray());
     mirror::Array* new_root = old_root;
-    callback(reinterpret_cast<mirror::Object**>(&new_root), arg, 0, kRootUnknown);
+    callback(reinterpret_cast<mirror::Object**>(&new_root), arg, RootInfo(kRootUnknown));
     if (new_root != old_root) {
       moving_roots.push_back(std::make_pair(old_root, new_root));
     }
@@ -384,7 +414,7 @@ void Transaction::ObjectLog::UndoFieldWrite(mirror::Object* obj, MemberOffset fi
       }
       break;
     default:
-      LOG(FATAL) << "Unknown value kind " << field_value.kind;
+      LOG(FATAL) << "Unknown value kind " << static_cast<int>(field_value.kind);
       break;
   }
 }
@@ -396,7 +426,7 @@ void Transaction::ObjectLog::VisitRoots(RootCallback* callback, void* arg) {
       mirror::Object* obj =
           reinterpret_cast<mirror::Object*>(static_cast<uintptr_t>(field_value.value));
       if (obj != nullptr) {
-        callback(&obj, arg, 0, kRootUnknown);
+        callback(&obj, arg, RootInfo(kRootUnknown));
         field_value.value = reinterpret_cast<uintptr_t>(obj);
       }
     }
@@ -406,42 +436,42 @@ void Transaction::ObjectLog::VisitRoots(RootCallback* callback, void* arg) {
 void Transaction::InternStringLog::Undo(InternTable* intern_table) {
   DCHECK(intern_table != nullptr);
   switch (string_op_) {
-      case InternStringLog::kInsert: {
-        switch (string_kind_) {
-          case InternStringLog::kStrongString:
-            intern_table->RemoveStrongFromTransaction(str_);
-            break;
-          case InternStringLog::kWeakString:
-            intern_table->RemoveWeakFromTransaction(str_);
-            break;
-          default:
-            LOG(FATAL) << "Unknown interned string kind";
-            break;
-        }
-        break;
+    case InternStringLog::kInsert: {
+      switch (string_kind_) {
+        case InternStringLog::kStrongString:
+          intern_table->RemoveStrongFromTransaction(str_);
+          break;
+        case InternStringLog::kWeakString:
+          intern_table->RemoveWeakFromTransaction(str_);
+          break;
+        default:
+          LOG(FATAL) << "Unknown interned string kind";
+          break;
       }
-      case InternStringLog::kRemove: {
-        switch (string_kind_) {
-          case InternStringLog::kStrongString:
-            intern_table->InsertStrongFromTransaction(str_);
-            break;
-          case InternStringLog::kWeakString:
-            intern_table->InsertWeakFromTransaction(str_);
-            break;
-          default:
-            LOG(FATAL) << "Unknown interned string kind";
-            break;
-        }
-        break;
-      }
-      default:
-        LOG(FATAL) << "Unknown interned string op";
-        break;
+      break;
     }
+    case InternStringLog::kRemove: {
+      switch (string_kind_) {
+        case InternStringLog::kStrongString:
+          intern_table->InsertStrongFromTransaction(str_);
+          break;
+        case InternStringLog::kWeakString:
+          intern_table->InsertWeakFromTransaction(str_);
+          break;
+        default:
+          LOG(FATAL) << "Unknown interned string kind";
+          break;
+      }
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unknown interned string op";
+      break;
+  }
 }
 
 void Transaction::InternStringLog::VisitRoots(RootCallback* callback, void* arg) {
-  callback(reinterpret_cast<mirror::Object**>(&str_), arg, 0, kRootInternedString);
+  callback(reinterpret_cast<mirror::Object**>(&str_), arg, RootInfo(kRootInternedString));
 }
 
 void Transaction::ArrayLog::LogValue(size_t index, uint64_t value) {

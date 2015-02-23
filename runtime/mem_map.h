@@ -107,6 +107,9 @@ class MemMap {
     return size_;
   }
 
+  // Resize the mem-map by unmapping pages at the end. Currently only supports shrinking.
+  void SetSize(size_t new_size);
+
   uint8_t* End() const {
     return Begin() + Size();
   }
@@ -138,6 +141,9 @@ class MemMap {
 
   typedef AllocationTrackingMultiMap<void*, MemMap*, kAllocatorTagMaps> Maps;
 
+  static void Init() LOCKS_EXCLUDED(Locks::mem_maps_lock_);
+  static void Shutdown() LOCKS_EXCLUDED(Locks::mem_maps_lock_);
+
  private:
   MemMap(const std::string& name, uint8_t* begin, size_t size, void* base_begin, size_t base_size,
          int prot, bool reuse) LOCKS_EXCLUDED(Locks::mem_maps_lock_);
@@ -167,11 +173,12 @@ class MemMap {
 #endif
 
   // All the non-empty MemMaps. Use a multimap as we do a reserve-and-divide (eg ElfMap::Load()).
-  static Maps maps_ GUARDED_BY(Locks::mem_maps_lock_);
+  static Maps* maps_ GUARDED_BY(Locks::mem_maps_lock_);
 
   friend class MemMapTest;  // To allow access to base_begin_ and base_size_.
 };
 std::ostream& operator<<(std::ostream& os, const MemMap& mem_map);
+std::ostream& operator<<(std::ostream& os, const MemMap::Maps& mem_maps);
 
 }  // namespace art
 

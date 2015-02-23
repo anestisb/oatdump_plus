@@ -28,6 +28,7 @@ enum RegisterClass {
   kRefReg,
   kAnyReg,
 };
+std::ostream& operator<<(std::ostream& os, const RegisterClass& rhs);
 
 enum BitsUsed {
   kSize32Bits,
@@ -37,6 +38,7 @@ enum BitsUsed {
   kSize512Bits,
   kSize1024Bits,
 };
+std::ostream& operator<<(std::ostream& os, const BitsUsed& rhs);
 
 enum SpecialTargetRegister {
   kSelf,            // Thread pointer.
@@ -60,6 +62,14 @@ enum SpecialTargetRegister {
   kFArg5,
   kFArg6,
   kFArg7,
+  kFArg8,
+  kFArg9,
+  kFArg10,
+  kFArg11,
+  kFArg12,
+  kFArg13,
+  kFArg14,
+  kFArg15,
   kRet0,
   kRet1,
   kInvokeTgt,
@@ -67,6 +77,7 @@ enum SpecialTargetRegister {
   kHiddenFpArg,
   kCount
 };
+std::ostream& operator<<(std::ostream& os, const SpecialTargetRegister& code);
 
 enum RegLocationType {
   kLocDalvikFrame = 0,  // Normal Dalvik register
@@ -74,6 +85,7 @@ enum RegLocationType {
   kLocCompilerTemp,
   kLocInvalid
 };
+std::ostream& operator<<(std::ostream& os, const RegLocationType& rhs);
 
 enum BBType {
   kNullBlock,
@@ -83,6 +95,7 @@ enum BBType {
   kExceptionHandling,
   kDead,
 };
+std::ostream& operator<<(std::ostream& os, const BBType& code);
 
 // Shared pseudo opcodes - must be < 0.
 enum LIRPseudoOpcode {
@@ -103,6 +116,7 @@ enum LIRPseudoOpcode {
   kPseudoEHBlockLabel = -2,
   kPseudoNormalBlockLabel = -1,
 };
+std::ostream& operator<<(std::ostream& os, const LIRPseudoOpcode& rhs);
 
 enum ExtendedMIROpcode {
   kMirOpFirst = kNumPackedOpcodes,
@@ -297,21 +311,51 @@ enum ExtendedMIROpcode {
   // arg[0]: TypeSize (most other vector opcodes have this in vC)
   kMirOpPackedArrayPut,
 
+  // @brief Multiply-add integer.
+  // vA: destination
+  // vB: multiplicand
+  // vC: multiplier
+  // arg[0]: addend
+  kMirOpMaddInt,
+
+  // @brief Multiply-subtract integer.
+  // vA: destination
+  // vB: multiplicand
+  // vC: multiplier
+  // arg[0]: minuend
+  kMirOpMsubInt,
+
+  // @brief Multiply-add long.
+  // vA: destination
+  // vB: multiplicand
+  // vC: multiplier
+  // arg[0]: addend
+  kMirOpMaddLong,
+
+  // @brief Multiply-subtract long.
+  // vA: destination
+  // vB: multiplicand
+  // vC: multiplier
+  // arg[0]: minuend
+  kMirOpMsubLong,
+
   kMirOpLast,
 };
 
 enum MIROptimizationFlagPositions {
   kMIRIgnoreNullCheck = 0,
-  kMIRNullCheckOnly,
   kMIRIgnoreRangeCheck,
-  kMIRRangeCheckOnly,
-  kMIRIgnoreClInitCheck,
+  kMIRStoreNonNullValue,              // Storing non-null value, always mark GC card.
+  kMIRClassIsInitialized,
+  kMIRClassIsInDexCache,
+  kMirIgnoreDivZeroCheck,
   kMIRInlined,                        // Invoke is inlined (ie dead).
   kMIRInlinedPred,                    // Invoke is inlined via prediction.
   kMIRCallee,                         // Instruction is inlined from callee.
   kMIRIgnoreSuspendCheck,
   kMIRDup,
-  kMIRMark,                           // Temporary node mark.
+  kMIRMark,                           // Temporary node mark can be used by
+                                      // opt passes for their private needs.
   kMIRStoreNonTemporal,
   kMIRLastMIRFlag,
 };
@@ -323,11 +367,13 @@ enum BlockListType {
   kPackedSwitch,
   kSparseSwitch,
 };
+std::ostream& operator<<(std::ostream& os, const BlockListType& rhs);
 
 enum AssemblerStatus {
   kSuccess,
   kRetryAll,
 };
+std::ostream& operator<<(std::ostream& os, const AssemblerStatus& rhs);
 
 enum OpSize {
   kWord,            // Natural word size of target (32/64).
@@ -341,7 +387,6 @@ enum OpSize {
   kUnsignedByte,
   kSignedByte,
 };
-
 std::ostream& operator<<(std::ostream& os, const OpSize& kind);
 
 enum OpKind {
@@ -383,6 +428,7 @@ enum OpKind {
   kOpBx,
   kOpInvalid,
 };
+std::ostream& operator<<(std::ostream& os, const OpKind& rhs);
 
 enum MoveType {
   kMov8GP,      // Move 8-bit general purpose register.
@@ -399,8 +445,7 @@ enum MoveType {
   kMovLo128FP,  // Move low 64-bits of 128-bit FP register.
   kMovHi128FP,  // Move high 64-bits of 128-bit FP register.
 };
-
-std::ostream& operator<<(std::ostream& os, const OpKind& kind);
+std::ostream& operator<<(std::ostream& os, const MoveType& kind);
 
 enum ConditionCode {
   kCondEq,  // equal
@@ -422,7 +467,6 @@ enum ConditionCode {
   kCondAl,  // always
   kCondNv,  // never
 };
-
 std::ostream& operator<<(std::ostream& os, const ConditionCode& kind);
 
 // Target specific condition encodings
@@ -444,7 +488,6 @@ enum ArmConditionCode {
   kArmCondAl = 0xe,  // 1110
   kArmCondNv = 0xf,  // 1111
 };
-
 std::ostream& operator<<(std::ostream& os, const ArmConditionCode& kind);
 
 enum X86ConditionCode {
@@ -492,7 +535,6 @@ enum X86ConditionCode {
   kX86CondNle = 0xf,    // not-less-than
   kX86CondG   = kX86CondNle,  // greater
 };
-
 std::ostream& operator<<(std::ostream& os, const X86ConditionCode& kind);
 
 enum DividePattern {
@@ -501,7 +543,6 @@ enum DividePattern {
   Divide5,
   Divide7,
 };
-
 std::ostream& operator<<(std::ostream& os, const DividePattern& pattern);
 
 /**
@@ -514,7 +555,7 @@ std::ostream& operator<<(std::ostream& os, const DividePattern& pattern);
  * The current recipe is as follows:
  * -# Use AnyStore ~= (LoadStore | StoreStore) ~= release barrier before volatile store.
  * -# Use AnyAny barrier after volatile store.  (StoreLoad is as expensive.)
- * -# Use LoadAny barrier ~= (LoadLoad | LoadStore) ~= acquire barrierafter each volatile load.
+ * -# Use LoadAny barrier ~= (LoadLoad | LoadStore) ~= acquire barrier after each volatile load.
  * -# Use StoreStore barrier after all stores but before return from any constructor whose
  *    class has final fields.
  * -# Use NTStoreStore to order non-temporal stores with respect to all later
@@ -527,7 +568,6 @@ enum MemBarrierKind {
   kAnyAny,
   kNTStoreStore,
 };
-
 std::ostream& operator<<(std::ostream& os, const MemBarrierKind& kind);
 
 enum OpFeatureFlags {
@@ -584,6 +624,7 @@ enum OpFeatureFlags {
   kDefHi,
   kDefLo
 };
+std::ostream& operator<<(std::ostream& os, const OpFeatureFlags& rhs);
 
 enum SelectInstructionKind {
   kSelectNone,
@@ -591,36 +632,34 @@ enum SelectInstructionKind {
   kSelectMove,
   kSelectGoto
 };
-
 std::ostream& operator<<(std::ostream& os, const SelectInstructionKind& kind);
 
-// LIR fixup kinds for Arm
+// LIR fixup kinds for Arm and X86.
 enum FixupKind {
   kFixupNone,
-  kFixupLabel,       // For labels we just adjust the offset.
-  kFixupLoad,        // Mostly for immediates.
-  kFixupVLoad,       // FP load which *may* be pc-relative.
-  kFixupCBxZ,        // Cbz, Cbnz.
-  kFixupTBxZ,        // Tbz, Tbnz.
-  kFixupPushPop,     // Not really pc relative, but changes size based on args.
-  kFixupCondBranch,  // Conditional branch
-  kFixupT1Branch,    // Thumb1 Unconditional branch
-  kFixupT2Branch,    // Thumb2 Unconditional branch
-  kFixupBlx1,        // Blx1 (start of Blx1/Blx2 pair).
-  kFixupBl1,         // Bl1 (start of Bl1/Bl2 pair).
-  kFixupAdr,         // Adr.
-  kFixupMovImmLST,   // kThumb2MovImm16LST.
-  kFixupMovImmHST,   // kThumb2MovImm16HST.
-  kFixupAlign4,      // Align to 4-byte boundary.
+  kFixupLabel,             // For labels we just adjust the offset.
+  kFixupLoad,              // Mostly for immediates.
+  kFixupVLoad,             // FP load which *may* be pc-relative.
+  kFixupCBxZ,              // Cbz, Cbnz.
+  kFixupTBxZ,              // Tbz, Tbnz.
+  kFixupCondBranch,        // Conditional branch
+  kFixupT1Branch,          // Thumb1 Unconditional branch
+  kFixupT2Branch,          // Thumb2 Unconditional branch
+  kFixupBlx1,              // Blx1 (start of Blx1/Blx2 pair).
+  kFixupBl1,               // Bl1 (start of Bl1/Bl2 pair).
+  kFixupAdr,               // Adr.
+  kFixupMovImmLST,         // kThumb2MovImm16LST.
+  kFixupMovImmHST,         // kThumb2MovImm16HST.
+  kFixupAlign4,            // Align to 4-byte boundary.
+  kFixupA53Erratum835769,  // Cortex A53 Erratum 835769.
+  kFixupSwitchTable,       // X86_64 packed switch table.
 };
-
 std::ostream& operator<<(std::ostream& os, const FixupKind& kind);
 
 enum VolatileKind {
   kNotVolatile,      // Load/Store is not volatile
   kVolatile          // Load/Store is volatile
 };
-
 std::ostream& operator<<(std::ostream& os, const VolatileKind& kind);
 
 enum WideKind {
@@ -628,7 +667,6 @@ enum WideKind {
   kWide,         // Wide view
   kRef           // Ref width
 };
-
 std::ostream& operator<<(std::ostream& os, const WideKind& kind);
 
 }  // namespace art

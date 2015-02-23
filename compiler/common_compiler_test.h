@@ -42,7 +42,7 @@ class CommonCompilerTest : public CommonRuntimeTest {
   ~CommonCompilerTest();
 
   // Create an OatMethod based on pointers (for unit tests).
-  OatFile::OatMethod CreateOatMethod(const void* code, const uint8_t* gc_map);
+  OatFile::OatMethod CreateOatMethod(const void* code);
 
   void MakeExecutable(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -81,6 +81,8 @@ class CommonCompilerTest : public CommonRuntimeTest {
   std::unique_ptr<CompilerCallbacks> callbacks_;
   std::unique_ptr<CompilerDriver> compiler_driver_;
   std::unique_ptr<CumulativeLogger> timer_;
+  std::unique_ptr<const InstructionSetFeatures> instruction_set_features_;
+
 
  private:
   std::unique_ptr<MemMap> image_reservation_;

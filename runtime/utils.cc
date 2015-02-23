@@ -28,7 +28,6 @@
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "dex_file-inl.h"
-#include "field_helper.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
@@ -40,17 +39,10 @@
 #include "scoped_thread_state_change.h"
 #include "utf-inl.h"
 
-#if !defined(HAVE_POSIX_CLOCKS)
-#include <sys/time.h>
-#endif
-
-#if defined(HAVE_PRCTL)
-#include <sys/prctl.h>
-#endif
-
 #if defined(__APPLE__)
 #include "AvailabilityMacros.h"  // For MAC_OS_X_VERSION_MAX_ALLOWED
 #include <sys/syscall.h>
+#include <sys/time.h>
 #endif
 
 #include <backtrace/Backtrace.h>  // For DumpNativeStack.
@@ -60,6 +52,10 @@
 #endif
 
 namespace art {
+
+#if defined(__linux__)
+static constexpr bool kUseAddr2line = !kIsTargetBuild;
+#endif
 
 pid_t GetTid() {
 #if defined(__APPLE__)
@@ -165,11 +161,11 @@ std::string GetIsoDate() {
 }
 
 uint64_t MilliTime() {
-#if defined(HAVE_POSIX_CLOCKS)
+#if defined(__linux__)
   timespec now;
   clock_gettime(CLOCK_MONOTONIC, &now);
   return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000) + now.tv_nsec / UINT64_C(1000000);
-#else
+#else  // __APPLE__
   timeval now;
   gettimeofday(&now, NULL);
   return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000) + now.tv_usec / UINT64_C(1000);
@@ -177,11 +173,11 @@ uint64_t MilliTime() {
 }
 
 uint64_t MicroTime() {
-#if defined(HAVE_POSIX_CLOCKS)
+#if defined(__linux__)
   timespec now;
   clock_gettime(CLOCK_MONOTONIC, &now);
   return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000000) + now.tv_nsec / UINT64_C(1000);
-#else
+#else  // __APPLE__
   timeval now;
   gettimeofday(&now, NULL);
   return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000000) + now.tv_usec;
@@ -189,11 +185,11 @@ uint64_t MicroTime() {
 }
 
 uint64_t NanoTime() {
-#if defined(HAVE_POSIX_CLOCKS)
+#if defined(__linux__)
   timespec now;
   clock_gettime(CLOCK_MONOTONIC, &now);
   return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000000000) + now.tv_nsec;
-#else
+#else  // __APPLE__
   timeval now;
   gettimeofday(&now, NULL);
   return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000000000) + now.tv_usec * UINT64_C(1000);
@@ -201,11 +197,11 @@ uint64_t NanoTime() {
 }
 
 uint64_t ThreadCpuNanoTime() {
-#if defined(HAVE_POSIX_CLOCKS)
+#if defined(__linux__)
   timespec now;
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now);
   return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000000000) + now.tv_nsec;
-#else
+#else  // __APPLE__
   UNIMPLEMENTED(WARNING);
   return -1;
 #endif
@@ -324,8 +320,8 @@ std::string PrettyField(mirror::ArtField* f, bool with_type) {
     result += PrettyDescriptor(f->GetTypeDescriptor());
     result += ' ';
   }
-  StackHandleScope<1> hs(Thread::Current());
-  result += PrettyDescriptor(FieldHelper(hs.NewHandle(f)).GetDeclaringClassDescriptor());
+  std::string temp;
+  result += PrettyDescriptor(f->GetDeclaringClass()->GetDescriptor(&temp));
   result += '.';
   result += f->GetName();
   return result;
@@ -629,7 +625,7 @@ std::string PrintableString(const char* utf) {
   const char* p = utf;
   size_t char_count = CountModifiedUtf8Chars(p);
   for (size_t i = 0; i < char_count; ++i) {
-    uint16_t ch = GetUtf16FromUtf8(&p);
+    uint32_t ch = GetUtf16FromUtf8(&p);
     if (ch == '\\') {
       result += "\\\\";
     } else if (ch == '\n') {
@@ -638,10 +634,20 @@ std::string PrintableString(const char* utf) {
       result += "\\r";
     } else if (ch == '\t') {
       result += "\\t";
-    } else if (NeedsEscaping(ch)) {
-      StringAppendF(&result, "\\u%04x", ch);
     } else {
-      result += ch;
+      const uint16_t leading = GetLeadingUtf16Char(ch);
+
+      if (NeedsEscaping(leading)) {
+        StringAppendF(&result, "\\u%04x", leading);
+      } else {
+        result += leading;
+      }
+
+      const uint32_t trailing = GetTrailingUtf16Char(ch);
+      if (trailing != 0) {
+        // All high surrogates will need escaping.
+        StringAppendF(&result, "\\u%04x", trailing);
+      }
     }
   }
   result += '"';
@@ -654,7 +660,7 @@ std::string MangleForJni(const std::string& s) {
   size_t char_count = CountModifiedUtf8Chars(s.c_str());
   const char* cp = &s[0];
   for (size_t i = 0; i < char_count; ++i) {
-    uint16_t ch = GetUtf16FromUtf8(&cp);
+    uint32_t ch = GetUtf16FromUtf8(&cp);
     if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) {
       result.push_back(ch);
     } else if (ch == '.' || ch == '/') {
@@ -666,7 +672,13 @@ std::string MangleForJni(const std::string& s) {
     } else if (ch == '[') {
       result += "_3";
     } else {
-      StringAppendF(&result, "_0%04x", ch);
+      const uint16_t leading = GetLeadingUtf16Char(ch);
+      const uint32_t trailing = GetTrailingUtf16Char(ch);
+
+      StringAppendF(&result, "_0%04x", leading);
+      if (trailing != 0) {
+        StringAppendF(&result, "_0%04x", trailing);
+      }
     }
   }
   return result;
@@ -761,41 +773,50 @@ bool IsValidPartOfMemberNameUtf8Slow(const char** pUtf8Ptr) {
    * document.
    */
 
-  uint16_t utf16 = GetUtf16FromUtf8(pUtf8Ptr);
+  const uint32_t pair = GetUtf16FromUtf8(pUtf8Ptr);
 
-  // Perform follow-up tests based on the high 8 bits.
-  switch (utf16 >> 8) {
-  case 0x00:
-    // It's only valid if it's above the ISO-8859-1 high space (0xa0).
-    return (utf16 > 0x00a0);
-  case 0xd8:
-  case 0xd9:
-  case 0xda:
-  case 0xdb:
-    // It's a leading surrogate. Check to see that a trailing
-    // surrogate follows.
-    utf16 = GetUtf16FromUtf8(pUtf8Ptr);
-    return (utf16 >= 0xdc00) && (utf16 <= 0xdfff);
-  case 0xdc:
-  case 0xdd:
-  case 0xde:
-  case 0xdf:
-    // It's a trailing surrogate, which is not valid at this point.
-    return false;
-  case 0x20:
-  case 0xff:
-    // It's in the range that has spaces, controls, and specials.
-    switch (utf16 & 0xfff8) {
-    case 0x2000:
-    case 0x2008:
-    case 0x2028:
-    case 0xfff0:
-    case 0xfff8:
+  const uint16_t leading = GetLeadingUtf16Char(pair);
+  const uint32_t trailing = GetTrailingUtf16Char(pair);
+
+  if (trailing == 0) {
+    // Perform follow-up tests based on the high 8 bits of the
+    // lower surrogate.
+    switch (leading >> 8) {
+    case 0x00:
+      // It's only valid if it's above the ISO-8859-1 high space (0xa0).
+      return (leading > 0x00a0);
+    case 0xd8:
+    case 0xd9:
+    case 0xda:
+    case 0xdb:
+      // It looks like a leading surrogate but we didn't find a trailing
+      // surrogate if we're here.
       return false;
+    case 0xdc:
+    case 0xdd:
+    case 0xde:
+    case 0xdf:
+      // It's a trailing surrogate, which is not valid at this point.
+      return false;
+    case 0x20:
+    case 0xff:
+      // It's in the range that has spaces, controls, and specials.
+      switch (leading & 0xfff8) {
+      case 0x2000:
+      case 0x2008:
+      case 0x2028:
+      case 0xfff0:
+      case 0xfff8:
+        return false;
+      }
+      break;
     }
-    break;
+
+    return true;
   }
-  return true;
+
+  // We have a surrogate pair. Check that trailing surrogate is well formed.
+  return (trailing >= 0xdc00 && trailing <= 0xdfff);
 }
 
 /* Return whether the pointed-at modified-UTF-8 encoded character is
@@ -963,7 +984,7 @@ bool IsValidDescriptor(const char* s) {
   return IsValidClassName<kDescriptor, '/'>(s);
 }
 
-void Split(const std::string& s, char separator, std::vector<std::string>& result) {
+void Split(const std::string& s, char separator, std::vector<std::string>* result) {
   const char* p = s.data();
   const char* end = p + s.size();
   while (p != end) {
@@ -974,12 +995,12 @@ void Split(const std::string& s, char separator, std::vector<std::string>& resul
       while (++p != end && *p != separator) {
         // Skip to the next occurrence of the separator.
       }
-      result.push_back(std::string(start, p - start));
+      result->push_back(std::string(start, p - start));
     }
   }
 }
 
-std::string Trim(std::string s) {
+std::string Trim(const std::string& s) {
   std::string result;
   unsigned int start_index = 0;
   unsigned int end_index = s.size() - 1;
@@ -1009,7 +1030,7 @@ std::string Trim(std::string s) {
 }
 
 template <typename StringT>
-std::string Join(std::vector<StringT>& strings, char separator) {
+std::string Join(const std::vector<StringT>& strings, char separator) {
   if (strings.empty()) {
     return "";
   }
@@ -1023,9 +1044,8 @@ std::string Join(std::vector<StringT>& strings, char separator) {
 }
 
 // Explicit instantiations.
-template std::string Join<std::string>(std::vector<std::string>& strings, char separator);
-template std::string Join<const char*>(std::vector<const char*>& strings, char separator);
-template std::string Join<char*>(std::vector<char*>& strings, char separator);
+template std::string Join<std::string>(const std::vector<std::string>& strings, char separator);
+template std::string Join<const char*>(const std::vector<const char*>& strings, char separator);
 
 bool StartsWith(const std::string& s, const char* prefix) {
   return s.compare(0, strlen(prefix), prefix) == 0;
@@ -1059,21 +1079,17 @@ void SetThreadName(const char* thread_name) {
   } else {
     s = thread_name + len - 15;
   }
-#if defined(__BIONIC__)
+#if defined(__linux__)
   // pthread_setname_np fails rather than truncating long strings.
-  char buf[16];       // MAX_TASK_COMM_LEN=16 is hard-coded into bionic
+  char buf[16];       // MAX_TASK_COMM_LEN=16 is hard-coded in the kernel.
   strncpy(buf, s, sizeof(buf)-1);
   buf[sizeof(buf)-1] = '\0';
   errno = pthread_setname_np(pthread_self(), buf);
   if (errno != 0) {
     PLOG(WARNING) << "Unable to set the name of current thread to '" << buf << "'";
   }
-#elif defined(__APPLE__) && MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+#else  // __APPLE__
   pthread_setname_np(thread_name);
-#elif defined(HAVE_PRCTL)
-  prctl(PR_SET_NAME, (unsigned long) s, 0, 0, 0);  // NOLINT (unsigned long)
-#else
-  UNIMPLEMENTED(WARNING) << thread_name;
 #endif
 }
 
@@ -1087,7 +1103,7 @@ void GetTaskStats(pid_t tid, char* state, int* utime, int* stime, int* task_cpu)
   stats = stats.substr(stats.find(')') + 2);
   // Extract the three fields we care about.
   std::vector<std::string> fields;
-  Split(stats, ' ', fields);
+  Split(stats, ' ', &fields);
   *state = fields[0][0];
   *utime = strtoull(fields[11].c_str(), NULL, 10);
   *stime = strtoull(fields[12].c_str(), NULL, 10);
@@ -1104,14 +1120,14 @@ std::string GetSchedulerGroupName(pid_t tid) {
     return "";
   }
   std::vector<std::string> cgroup_lines;
-  Split(cgroup_file, '\n', cgroup_lines);
+  Split(cgroup_file, '\n', &cgroup_lines);
   for (size_t i = 0; i < cgroup_lines.size(); ++i) {
     std::vector<std::string> cgroup_fields;
-    Split(cgroup_lines[i], ':', cgroup_fields);
+    Split(cgroup_lines[i], ':', &cgroup_fields);
     std::vector<std::string> cgroups;
-    Split(cgroup_fields[1], ',', cgroups);
-    for (size_t i = 0; i < cgroups.size(); ++i) {
-      if (cgroups[i] == "cpu") {
+    Split(cgroup_fields[1], ',', &cgroups);
+    for (size_t j = 0; j < cgroups.size(); ++j) {
+      if (cgroups[j] == "cpu") {
         return cgroup_fields[2].substr(1);  // Skip the leading slash.
       }
     }
@@ -1119,16 +1135,107 @@ std::string GetSchedulerGroupName(pid_t tid) {
   return "";
 }
 
+#if defined(__linux__)
+
+ALWAYS_INLINE
+static inline void WritePrefix(std::ostream* os, const char* prefix, bool odd) {
+  if (prefix != nullptr) {
+    *os << prefix;
+  }
+  *os << "  ";
+  if (!odd) {
+    *os << " ";
+  }
+}
+
+static bool RunCommand(std::string cmd, std::ostream* os, const char* prefix) {
+  FILE* stream = popen(cmd.c_str(), "r");
+  if (stream) {
+    if (os != nullptr) {
+      bool odd_line = true;               // We indent them differently.
+      bool wrote_prefix = false;          // Have we already written a prefix?
+      constexpr size_t kMaxBuffer = 128;  // Relatively small buffer. Should be OK as we're on an
+                                          // alt stack, but just to be sure...
+      char buffer[kMaxBuffer];
+      while (!feof(stream)) {
+        if (fgets(buffer, kMaxBuffer, stream) != nullptr) {
+          // Split on newlines.
+          char* tmp = buffer;
+          for (;;) {
+            char* new_line = strchr(tmp, '\n');
+            if (new_line == nullptr) {
+              // Print the rest.
+              if (*tmp != 0) {
+                if (!wrote_prefix) {
+                  WritePrefix(os, prefix, odd_line);
+                }
+                wrote_prefix = true;
+                *os << tmp;
+              }
+              break;
+            }
+            if (!wrote_prefix) {
+              WritePrefix(os, prefix, odd_line);
+            }
+            char saved = *(new_line + 1);
+            *(new_line + 1) = 0;
+            *os << tmp;
+            *(new_line + 1) = saved;
+            tmp = new_line + 1;
+            odd_line = !odd_line;
+            wrote_prefix = false;
+          }
+        }
+      }
+    }
+    pclose(stream);
+    return true;
+  } else {
+    return false;
+  }
+}
+
+static void Addr2line(const std::string& map_src, uintptr_t offset, std::ostream& os,
+                      const char* prefix) {
+  std::string cmdline(StringPrintf("addr2line --functions --inlines --demangle -e %s %zx",
+                                   map_src.c_str(), offset));
+  RunCommand(cmdline.c_str(), &os, prefix);
+}
+#endif
+
 void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
-    mirror::ArtMethod* current_method) {
-#ifdef __linux__
+    mirror::ArtMethod* current_method, void* ucontext_ptr) {
+#if __linux__
+  // b/18119146
+  if (RUNNING_ON_VALGRIND != 0) {
+    return;
+  }
+
+#if !defined(HAVE_ANDROID_OS)
+  if (GetTid() != tid) {
+    // TODO: dumping of other threads is disabled to avoid crashes during stress testing.
+    //       b/15446488.
+    return;
+  }
+#endif
+
   std::unique_ptr<Backtrace> backtrace(Backtrace::Create(BACKTRACE_CURRENT_PROCESS, tid));
-  if (!backtrace->Unwind(0)) {
+  if (!backtrace->Unwind(0, reinterpret_cast<ucontext*>(ucontext_ptr))) {
     os << prefix << "(backtrace::Unwind failed for thread " << tid << ")\n";
     return;
   } else if (backtrace->NumFrames() == 0) {
     os << prefix << "(no native stack frames for thread " << tid << ")\n";
     return;
+  }
+
+  // Check whether we have and should use addr2line.
+  bool use_addr2line;
+  if (kUseAddr2line) {
+    // Try to run it to see whether we have it. Push an argument so that it doesn't assume a.out
+    // and print to stderr.
+    use_addr2line = (gAborting > 0) && RunCommand("addr2line -h", nullptr, nullptr);
+  } else {
+    use_addr2line = false;
   }
 
   for (Backtrace::const_iterator it = backtrace->begin();
@@ -1142,19 +1249,22 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
     // after the <RELATIVE_ADDR>. There can be any prefix data before the
     // #XX. <RELATIVE_ADDR> has to be a hex number but with no 0x prefix.
     os << prefix << StringPrintf("#%02zu pc ", it->num);
-    if (!it->map) {
+    bool try_addr2line = false;
+    if (!BacktraceMap::IsValid(it->map)) {
       os << StringPrintf("%08" PRIxPTR "  ???", it->pc);
     } else {
-      os << StringPrintf("%08" PRIxPTR "  ", it->pc - it->map->start)
-         << it->map->name << " (";
+      os << StringPrintf("%08" PRIxPTR "  ", it->pc - it->map.start);
+      os << it->map.name;
+      os << " (";
       if (!it->func_name.empty()) {
         os << it->func_name;
         if (it->func_offset != 0) {
           os << "+" << it->func_offset;
         }
+        try_addr2line = true;
       } else if (current_method != nullptr &&
                  Locks::mutator_lock_->IsSharedHeld(Thread::Current()) &&
-                 current_method->IsWithinQuickCode(it->pc)) {
+                 current_method->PcIsWithinQuickCode(it->pc)) {
         const void* start_of_code = current_method->GetEntryPointFromQuickCompiledCode();
         os << JniLongName(current_method) << "+"
            << (it->pc - reinterpret_cast<uintptr_t>(start_of_code));
@@ -1164,7 +1274,12 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
       os << ")";
     }
     os << "\n";
+    if (try_addr2line && use_addr2line) {
+      Addr2line(it->map.name, it->pc - it->map.start, os, prefix);
+    }
   }
+#else
+  UNUSED(os, tid, prefix, current_method, ucontext_ptr);
 #endif
 }
 
@@ -1189,7 +1304,7 @@ void DumpKernelStack(std::ostream& os, pid_t tid, const char* prefix, bool inclu
   }
 
   std::vector<std::string> kernel_stack_frames;
-  Split(kernel_stack, '\n', kernel_stack_frames);
+  Split(kernel_stack, '\n', &kernel_stack_frames);
   // We skip the last stack frame because it's always equivalent to "[<ffffffff>] 0xffffffff",
   // which looking at the source appears to be the kernel's way of saying "that's all, folks!".
   kernel_stack_frames.pop_back();
@@ -1437,13 +1552,6 @@ void EncodeUnsignedLeb128(uint32_t data, std::vector<uint8_t>* dst) {
 
 void EncodeSignedLeb128(int32_t data, std::vector<uint8_t>* dst) {
   Leb128Encoder(dst).PushBackSigned(data);
-}
-
-void PushWord(std::vector<uint8_t>* buf, int data) {
-  buf->push_back(data & 0xff);
-  buf->push_back((data >> 8) & 0xff);
-  buf->push_back((data >> 16) & 0xff);
-  buf->push_back((data >> 24) & 0xff);
 }
 
 std::string PrettyDescriptor(Primitive::Type type) {

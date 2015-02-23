@@ -27,7 +27,7 @@ namespace arm64 {
 //  * [W0, W15]
 //  * [D0, D31]
 //  * [S0, S31]
-// static const int kNumberOfAvailableCoreRegisters = (X15 - X0) + 1;
+// static const int kNumberOfAvailableXRegisters = (X15 - X0) + 1;
 // static const int kNumberOfAvailableWRegisters = (W15 - W0) + 1;
 // static const int kNumberOfAvailableDRegisters = kNumberOfDRegisters;
 // static const int kNumberOfAvailableSRegisters = kNumberOfSRegisters;
@@ -42,22 +42,14 @@ namespace arm64 {
 // 63__________0 D[n]
 bool Arm64ManagedRegister::Overlaps(const Arm64ManagedRegister& other) const {
   if (IsNoRegister() || other.IsNoRegister()) return false;
-  if ((IsGPRegister() && other.IsGPRegister()) ||
-      (IsFPRegister() && other.IsFPRegister())) {
-    return (RegNo() == other.RegNo());
-  }
-  return false;
+  return (IsGPRegister() == other.IsGPRegister()) && (RegNo() == other.RegNo());
 }
 
 int Arm64ManagedRegister::RegNo() const {
   CHECK(!IsNoRegister());
   int no;
-  if (IsCoreRegister()) {
-    if (IsZeroRegister()) {
-      no = static_cast<int>(X31);
-    } else {
-      no = static_cast<int>(AsCoreRegister());
-    }
+  if (IsXRegister()) {
+    no = static_cast<int>(AsXRegister());
   } else if (IsWRegister()) {
     no = static_cast<int>(AsWRegister());
   } else if (IsDRegister()) {
@@ -71,12 +63,12 @@ int Arm64ManagedRegister::RegNo() const {
 }
 
 int Arm64ManagedRegister::RegIdLow() const {
-  CHECK(IsCoreRegister() || IsDRegister());
+  CHECK(IsXRegister() || IsDRegister());
   int low = RegNo();
-  if (IsCoreRegister()) {
-    low += kNumberOfCoreRegIds;
+  if (IsXRegister()) {
+    low += kNumberOfXRegIds;
   } else if (IsDRegister()) {
-    low += kNumberOfCoreRegIds + kNumberOfWRegIds + kNumberOfDRegIds;
+    low += kNumberOfXRegIds + kNumberOfWRegIds + kNumberOfDRegIds;
   }
   return low;
 }
@@ -86,7 +78,7 @@ int Arm64ManagedRegister::RegIdHigh() const {
   CHECK(IsWRegister() || IsSRegister());
   int high = RegNo();
   if (IsSRegister()) {
-    high += kNumberOfCoreRegIds + kNumberOfWRegIds;
+    high += kNumberOfXRegIds + kNumberOfWRegIds;
   }
   return high;
 }
@@ -94,8 +86,8 @@ int Arm64ManagedRegister::RegIdHigh() const {
 void Arm64ManagedRegister::Print(std::ostream& os) const {
   if (!IsValidManagedRegister()) {
     os << "No Register";
-  } else if (IsCoreRegister()) {
-    os << "XCore: " << static_cast<int>(AsCoreRegister());
+  } else if (IsXRegister()) {
+    os << "XCore: " << static_cast<int>(AsXRegister());
   } else if (IsWRegister()) {
     os << "WCore: " << static_cast<int>(AsWRegister());
   } else if (IsDRegister()) {

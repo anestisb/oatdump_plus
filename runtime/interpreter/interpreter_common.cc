@@ -16,7 +16,6 @@
 
 #include "interpreter_common.h"
 
-#include "field_helper.h"
 #include "mirror/array-inl.h"
 
 namespace art {
@@ -80,6 +79,7 @@ bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst
       break;
     default:
       LOG(FATAL) << "Unreachable: " << field_type;
+      UNREACHABLE();
   }
   return true;
 }
@@ -145,6 +145,18 @@ bool DoIGetQuick(ShadowFrame& shadow_frame, const Instruction* inst, uint16_t in
     case Primitive::kPrimInt:
       shadow_frame.SetVReg(vregA, static_cast<int32_t>(obj->GetField32(field_offset)));
       break;
+    case Primitive::kPrimBoolean:
+      shadow_frame.SetVReg(vregA, static_cast<int32_t>(obj->GetFieldBoolean(field_offset)));
+      break;
+    case Primitive::kPrimByte:
+      shadow_frame.SetVReg(vregA, static_cast<int32_t>(obj->GetFieldByte(field_offset)));
+      break;
+    case Primitive::kPrimChar:
+      shadow_frame.SetVReg(vregA, static_cast<int32_t>(obj->GetFieldChar(field_offset)));
+      break;
+    case Primitive::kPrimShort:
+      shadow_frame.SetVReg(vregA, static_cast<int32_t>(obj->GetFieldShort(field_offset)));
+      break;
     case Primitive::kPrimLong:
       shadow_frame.SetVRegLong(vregA, static_cast<int64_t>(obj->GetField64(field_offset)));
       break;
@@ -153,6 +165,7 @@ bool DoIGetQuick(ShadowFrame& shadow_frame, const Instruction* inst, uint16_t in
       break;
     default:
       LOG(FATAL) << "Unreachable: " << field_type;
+      UNREACHABLE();
   }
   return true;
 }
@@ -162,9 +175,13 @@ bool DoIGetQuick(ShadowFrame& shadow_frame, const Instruction* inst, uint16_t in
   template bool DoIGetQuick<_field_type>(ShadowFrame& shadow_frame, const Instruction* inst, \
                                          uint16_t inst_data)
 
-EXPLICIT_DO_IGET_QUICK_TEMPLATE_DECL(Primitive::kPrimInt);    // iget-quick.
-EXPLICIT_DO_IGET_QUICK_TEMPLATE_DECL(Primitive::kPrimLong);   // iget-wide-quick.
-EXPLICIT_DO_IGET_QUICK_TEMPLATE_DECL(Primitive::kPrimNot);    // iget-object-quick.
+EXPLICIT_DO_IGET_QUICK_TEMPLATE_DECL(Primitive::kPrimInt);      // iget-quick.
+EXPLICIT_DO_IGET_QUICK_TEMPLATE_DECL(Primitive::kPrimBoolean);  // iget-boolean-quick.
+EXPLICIT_DO_IGET_QUICK_TEMPLATE_DECL(Primitive::kPrimByte);     // iget-byte-quick.
+EXPLICIT_DO_IGET_QUICK_TEMPLATE_DECL(Primitive::kPrimChar);     // iget-char-quick.
+EXPLICIT_DO_IGET_QUICK_TEMPLATE_DECL(Primitive::kPrimShort);    // iget-short-quick.
+EXPLICIT_DO_IGET_QUICK_TEMPLATE_DECL(Primitive::kPrimLong);     // iget-wide-quick.
+EXPLICIT_DO_IGET_QUICK_TEMPLATE_DECL(Primitive::kPrimNot);      // iget-object-quick.
 #undef EXPLICIT_DO_IGET_QUICK_TEMPLATE_DECL
 
 template<Primitive::Type field_type>
@@ -195,7 +212,7 @@ static JValue GetFieldValue(const ShadowFrame& shadow_frame, uint32_t vreg)
       break;
     default:
       LOG(FATAL) << "Unreachable: " << field_type;
-      break;
+      UNREACHABLE();
   }
   return field_value;
 }
@@ -265,8 +282,7 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
           HandleWrapper<mirror::ArtField> h_f(hs.NewHandleWrapper(&f));
           HandleWrapper<mirror::Object> h_reg(hs.NewHandleWrapper(&reg));
           HandleWrapper<mirror::Object> h_obj(hs.NewHandleWrapper(&obj));
-          FieldHelper fh(h_f);
-          field_class = fh.GetType();
+          field_class = h_f->GetType(true);
         }
         if (!reg->VerifierInstanceOf(field_class)) {
           // This should never happen.
@@ -285,6 +301,7 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
     }
     default:
       LOG(FATAL) << "Unreachable: " << field_type;
+      UNREACHABLE();
   }
   return true;
 }
@@ -369,6 +386,7 @@ bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instruction* inst, uint1
       break;
     default:
       LOG(FATAL) << "Unreachable: " << field_type;
+      UNREACHABLE();
   }
   return true;
 }
@@ -501,14 +519,14 @@ uint32_t FindNextInstructionFollowingException(Thread* self,
   return found_dex_pc;
 }
 
-void UnexpectedOpcode(const Instruction* inst, MethodHelper& mh) {
-  LOG(FATAL) << "Unexpected instruction: " << inst->DumpString(mh.GetMethod()->GetDexFile());
-  exit(0);  // Unreachable, keep GCC happy.
+void UnexpectedOpcode(const Instruction* inst, const ShadowFrame& shadow_frame) {
+  LOG(FATAL) << "Unexpected instruction: "
+             << inst->DumpString(shadow_frame.GetMethod()->GetDexFile());
+  UNREACHABLE();
 }
 
-static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
-                                   const DexFile::CodeItem* code_item, ShadowFrame* shadow_frame,
-                                   JValue* result, size_t arg_offset)
+static void UnstartedRuntimeInvoke(Thread* self, const DexFile::CodeItem* code_item,
+                                   ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Assign register 'src_reg' from shadow_frame to register 'dest_reg' into new_shadow_frame.
@@ -528,38 +546,39 @@ static inline void AssignRegister(ShadowFrame* new_shadow_frame, const ShadowFra
 
 void AbortTransaction(Thread* self, const char* fmt, ...) {
   CHECK(Runtime::Current()->IsActiveTransaction());
-  // Throw an exception so we can abort the transaction and undo every change.
+  // Constructs abort message.
   va_list args;
   va_start(args, fmt);
-  self->ThrowNewExceptionV(self->GetCurrentLocationForThrow(), "Ljava/lang/InternalError;", fmt,
-                           args);
+  std::string abort_msg;
+  StringAppendV(&abort_msg, fmt, args);
+  // Throws an exception so we can abort the transaction and rollback every change.
+  Runtime::Current()->AbortTransactionAndThrowInternalError(self, abort_msg);
   va_end(args);
 }
 
 template<bool is_range, bool do_assignability_check>
-bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
+bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
             const Instruction* inst, uint16_t inst_data, JValue* result) {
   // Compute method information.
-  const DexFile::CodeItem* code_item = method->GetCodeItem();
+  const DexFile::CodeItem* code_item = called_method->GetCodeItem();
   const uint16_t num_ins = (is_range) ? inst->VRegA_3rc(inst_data) : inst->VRegA_35c(inst_data);
   uint16_t num_regs;
   if (LIKELY(code_item != NULL)) {
     num_regs = code_item->registers_size_;
     DCHECK_EQ(num_ins, code_item->ins_size_);
   } else {
-    DCHECK(method->IsNative() || method->IsProxyMethod());
+    DCHECK(called_method->IsNative() || called_method->IsProxyMethod());
     num_regs = num_ins;
   }
 
   // Allocate shadow frame on the stack.
   const char* old_cause = self->StartAssertNoThreadSuspension("DoCall");
   void* memory = alloca(ShadowFrame::ComputeSize(num_regs));
-  ShadowFrame* new_shadow_frame(ShadowFrame::Create(num_regs, &shadow_frame, method, 0, memory));
+  ShadowFrame* new_shadow_frame(ShadowFrame::Create(num_regs, &shadow_frame, called_method, 0,
+                                                    memory));
 
   // Initialize new shadow frame.
   const size_t first_dest_reg = num_regs - num_ins;
-  StackHandleScope<1> hs(self);
-  MethodHelper mh(hs.NewHandle(method));
   if (do_assignability_check) {
     // Slow path.
     // We might need to do class loading, which incurs a thread state change to kNative. So
@@ -569,11 +588,12 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
 
     // We need to do runtime check on reference assignment. We need to load the shorty
     // to get the exact type of each reference argument.
-    const DexFile::TypeList* params = mh.Get()->GetParameterTypeList();
+    const DexFile::TypeList* params = new_shadow_frame->GetMethod()->GetParameterTypeList();
     uint32_t shorty_len = 0;
-    const char* shorty = mh.Get()->GetShorty(&shorty_len);
+    const char* shorty = new_shadow_frame->GetMethod()->GetShorty(&shorty_len);
 
-    // TODO: find a cleaner way to separate non-range and range information without duplicating code.
+    // TODO: find a cleaner way to separate non-range and range information without duplicating
+    //       code.
     uint32_t arg[5];  // only used in invoke-XXX.
     uint32_t vregC;   // only used in invoke-XXX-range.
     if (is_range) {
@@ -585,7 +605,7 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
     // Handle receiver apart since it's not part of the shorty.
     size_t dest_reg = first_dest_reg;
     size_t arg_offset = 0;
-    if (!mh.Get()->IsStatic()) {
+    if (!new_shadow_frame->GetMethod()->IsStatic()) {
       size_t receiver_reg = is_range ? vregC : arg[0];
       new_shadow_frame->SetVRegReference(dest_reg, shadow_frame.GetVRegReference(receiver_reg));
       ++dest_reg;
@@ -598,7 +618,9 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
         case 'L': {
           Object* o = shadow_frame.GetVRegReference(src_reg);
           if (do_assignability_check && o != NULL) {
-            Class* arg_type = mh.GetClassFromTypeIdx(params->GetTypeItem(shorty_pos).type_idx_);
+            Class* arg_type =
+                new_shadow_frame->GetMethod()->GetClassFromTypeIndex(
+                    params->GetTypeItem(shorty_pos).type_idx_, true);
             if (arg_type == NULL) {
               CHECK(self->IsExceptionPending());
               return false;
@@ -609,7 +631,7 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
               self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
                                        "Ljava/lang/VirtualMachineError;",
                                        "Invoking %s with bad arg %d, type '%s' not instance of '%s'",
-                                       mh.Get()->GetName(), shorty_pos,
+                                       new_shadow_frame->GetMethod()->GetName(), shorty_pos,
                                        o->GetClass()->GetDescriptor(&temp1),
                                        arg_type->GetDescriptor(&temp2));
               return false;
@@ -646,7 +668,8 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
       uint16_t regList = inst->Fetch16(2);
       uint16_t count = num_ins;
       if (count == 5) {
-        AssignRegister(new_shadow_frame, shadow_frame, first_dest_reg + 4U, (inst_data >> 8) & 0x0f);
+        AssignRegister(new_shadow_frame, shadow_frame, first_dest_reg + 4U,
+                       (inst_data >> 8) & 0x0f);
         --count;
        }
       for (size_t arg_index = 0; arg_index < count; ++arg_index, regList >>= 4) {
@@ -658,17 +681,24 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
 
   // Do the call now.
   if (LIKELY(Runtime::Current()->IsStarted())) {
-    if (kIsDebugBuild && mh.Get()->GetEntryPointFromInterpreter() == nullptr) {
-      LOG(FATAL) << "Attempt to invoke non-executable method: " << PrettyMethod(mh.Get());
+    if (kIsDebugBuild && new_shadow_frame->GetMethod()->GetEntryPointFromInterpreter() == nullptr) {
+      LOG(FATAL) << "Attempt to invoke non-executable method: "
+          << PrettyMethod(new_shadow_frame->GetMethod());
+      UNREACHABLE();
     }
     if (kIsDebugBuild && Runtime::Current()->GetInstrumentation()->IsForcedInterpretOnly() &&
-        !mh.Get()->IsNative() && !mh.Get()->IsProxyMethod() &&
-        mh.Get()->GetEntryPointFromInterpreter() == artInterpreterToCompiledCodeBridge) {
-      LOG(FATAL) << "Attempt to call compiled code when -Xint: " << PrettyMethod(mh.Get());
+        !new_shadow_frame->GetMethod()->IsNative() &&
+        !new_shadow_frame->GetMethod()->IsProxyMethod() &&
+        new_shadow_frame->GetMethod()->GetEntryPointFromInterpreter()
+            == artInterpreterToCompiledCodeBridge) {
+      LOG(FATAL) << "Attempt to call compiled code when -Xint: "
+          << PrettyMethod(new_shadow_frame->GetMethod());
+      UNREACHABLE();
     }
-    (mh.Get()->GetEntryPointFromInterpreter())(self, mh, code_item, new_shadow_frame, result);
+    (new_shadow_frame->GetMethod()->GetEntryPointFromInterpreter())(self, code_item,
+                                                                    new_shadow_frame, result);
   } else {
-    UnstartedRuntimeInvoke(self, mh, code_item, new_shadow_frame, result, first_dest_reg);
+    UnstartedRuntimeInvoke(self, code_item, new_shadow_frame, result, first_dest_reg);
   }
   return !self->IsExceptionPending();
 }
@@ -809,8 +839,8 @@ static void UnstartedRuntimeFindClass(Thread* self, Handle<mirror::String> class
   result->SetL(found);
 }
 
-static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
-                                   const DexFile::CodeItem* code_item, ShadowFrame* shadow_frame,
+static void UnstartedRuntimeInvoke(Thread* self,  const DexFile::CodeItem* code_item,
+                                   ShadowFrame* shadow_frame,
                                    JValue* result, size_t arg_offset) {
   // In a runtime that's not started we intercept certain methods to avoid complicated dependency
   // problems in core libraries.
@@ -851,12 +881,12 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
     // Special managed code cut-out to allow field lookup in a un-started runtime that'd fail
     // going the reflective Dex way.
     Class* klass = shadow_frame->GetVRegReference(arg_offset)->AsClass();
-    String* name = shadow_frame->GetVRegReference(arg_offset + 1)->AsString();
+    String* name2 = shadow_frame->GetVRegReference(arg_offset + 1)->AsString();
     ArtField* found = NULL;
     ObjectArray<ArtField>* fields = klass->GetIFields();
     for (int32_t i = 0; i < fields->GetLength() && found == NULL; ++i) {
       ArtField* f = fields->Get(i);
-      if (name->Equals(f->GetName())) {
+      if (name2->Equals(f->GetName())) {
         found = f;
       }
     }
@@ -864,14 +894,14 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
       fields = klass->GetSFields();
       for (int32_t i = 0; i < fields->GetLength() && found == NULL; ++i) {
         ArtField* f = fields->Get(i);
-        if (name->Equals(f->GetName())) {
+        if (name2->Equals(f->GetName())) {
           found = f;
         }
       }
     }
     CHECK(found != NULL)
       << "Failed to find field in Class.getDeclaredField in un-started runtime. name="
-      << name->ToModifiedUtf8() << " class=" << PrettyDescriptor(klass);
+      << name2->ToModifiedUtf8() << " class=" << PrettyDescriptor(klass);
     // TODO: getDeclaredField calls GetType once the field is found to ensure a
     //       NoClassDefFoundError is thrown if the field's type cannot be resolved.
     Class* jlr_Field = self->DecodeJObject(WellKnownClasses::java_lang_reflect_Field)->AsClass();
@@ -887,9 +917,8 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
     Object* obj = shadow_frame->GetVRegReference(arg_offset);
     result->SetI(obj->IdentityHashCode());
   } else if (name == "java.lang.String java.lang.reflect.ArtMethod.getMethodName(java.lang.reflect.ArtMethod)") {
-    StackHandleScope<1> hs(self);
-    MethodHelper mh(hs.NewHandle(shadow_frame->GetVRegReference(arg_offset)->AsArtMethod()));
-    result->SetL(mh.GetNameAsString(self));
+    mirror::ArtMethod* method = shadow_frame->GetVRegReference(arg_offset)->AsArtMethod();
+    result->SetL(method->GetNameAsString(self));
   } else if (name == "void java.lang.System.arraycopy(java.lang.Object, int, java.lang.Object, int, int)" ||
              name == "void java.lang.System.arraycopy(char[], int, char[], int, int)") {
     // Special case array copying without initializing System.
@@ -931,7 +960,7 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
     }
   } else {
     // Not special, continue with regular interpreter execution.
-    artInterpreterToInterpreterBridge(self, mh, code_item, shadow_frame, result);
+    artInterpreterToInterpreterBridge(self, code_item, shadow_frame, result);
   }
 }
 

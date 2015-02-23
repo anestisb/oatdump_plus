@@ -25,6 +25,37 @@
 namespace art {
 namespace arm {
 
+bool Arm32Assembler::ShifterOperandCanHoldArm32(uint32_t immediate, ShifterOperand* shifter_op) {
+  // Avoid the more expensive test for frequent small immediate values.
+  if (immediate < (1 << kImmed8Bits)) {
+    shifter_op->type_ = ShifterOperand::kImmediate;
+    shifter_op->is_rotate_ = true;
+    shifter_op->rotate_ = 0;
+    shifter_op->immed_ = immediate;
+    return true;
+  }
+  // Note that immediate must be unsigned for the test to work correctly.
+  for (int rot = 0; rot < 16; rot++) {
+    uint32_t imm8 = (immediate << 2*rot) | (immediate >> (32 - 2*rot));
+    if (imm8 < (1 << kImmed8Bits)) {
+      shifter_op->type_ = ShifterOperand::kImmediate;
+      shifter_op->is_rotate_ = true;
+      shifter_op->rotate_ = rot;
+      shifter_op->immed_ = imm8;
+      return true;
+    }
+  }
+  return false;
+}
+
+bool Arm32Assembler::ShifterOperandCanHold(Register rd ATTRIBUTE_UNUSED,
+                                           Register rn ATTRIBUTE_UNUSED,
+                                           Opcode opcode ATTRIBUTE_UNUSED,
+                                           uint32_t immediate,
+                                           ShifterOperand* shifter_op) {
+  return ShifterOperandCanHoldArm32(immediate, shifter_op);
+}
+
 void Arm32Assembler::and_(Register rd, Register rn, const ShifterOperand& so,
                         Condition cond) {
   EmitType01(cond, so.type(), AND, 0, rn, rd, so);
@@ -204,6 +235,44 @@ void Arm32Assembler::udiv(Register rd, Register rn, Register rm, Condition cond)
       (static_cast<int32_t>(rd) << 16) |
       (static_cast<int32_t>(rm) << 8) |
       B4;
+  Emit(encoding);
+}
+
+
+void Arm32Assembler::sbfx(Register rd, Register rn, uint32_t lsb, uint32_t width, Condition cond) {
+  CHECK_NE(rd, kNoRegister);
+  CHECK_NE(rn, kNoRegister);
+  CHECK_NE(cond, kNoCondition);
+  CHECK_LE(lsb, 31U);
+  CHECK(1U <= width && width <= 32U) << width;
+  uint32_t widthminus1 = width - 1;
+
+  int32_t encoding = (static_cast<int32_t>(cond) << kConditionShift) |
+      B26 | B25 | B24 | B23 | B21 |
+      (widthminus1 << 16) |
+      (static_cast<uint32_t>(rd) << 12) |
+      (lsb << 7) |
+      B6 | B4 |
+      static_cast<uint32_t>(rn);
+  Emit(encoding);
+}
+
+
+void Arm32Assembler::ubfx(Register rd, Register rn, uint32_t lsb, uint32_t width, Condition cond) {
+  CHECK_NE(rd, kNoRegister);
+  CHECK_NE(rn, kNoRegister);
+  CHECK_NE(cond, kNoCondition);
+  CHECK_LE(lsb, 31U);
+  CHECK(1U <= width && width <= 32U) << width;
+  uint32_t widthminus1 = width - 1;
+
+  int32_t encoding = (static_cast<int32_t>(cond) << kConditionShift) |
+      B26 | B25 | B24 | B23 | B22 | B21 |
+      (widthminus1 << 16) |
+      (static_cast<uint32_t>(rd) << 12) |
+      (lsb << 7) |
+      B6 | B4 |
+      static_cast<uint32_t>(rn);
   Emit(encoding);
 }
 
@@ -709,6 +778,7 @@ void Arm32Assembler::EmitMulOp(Condition cond, int32_t opcode,
   Emit(encoding);
 }
 
+
 void Arm32Assembler::ldrex(Register rt, Register rn, Condition cond) {
   CHECK_NE(rn, kNoRegister);
   CHECK_NE(rt, kNoRegister);
@@ -720,6 +790,25 @@ void Arm32Assembler::ldrex(Register rt, Register rn, Condition cond) {
                      (static_cast<int32_t>(rn) << kLdExRnShift) |
                      (static_cast<int32_t>(rt) << kLdExRtShift) |
                      B11 | B10 | B9 | B8 | B7 | B4 | B3 | B2 | B1 | B0;
+  Emit(encoding);
+}
+
+
+void Arm32Assembler::ldrexd(Register rt, Register rt2, Register rn, Condition cond) {
+  CHECK_NE(rn, kNoRegister);
+  CHECK_NE(rt, kNoRegister);
+  CHECK_NE(rt2, kNoRegister);
+  CHECK_NE(rt, R14);
+  CHECK_EQ(0u, static_cast<uint32_t>(rt) % 2);
+  CHECK_EQ(static_cast<uint32_t>(rt) + 1, static_cast<uint32_t>(rt2));
+  CHECK_NE(cond, kNoCondition);
+
+  int32_t encoding =
+      (static_cast<uint32_t>(cond) << kConditionShift) |
+      B24 | B23 | B21 | B20 |
+      static_cast<uint32_t>(rn) << 16 |
+      static_cast<uint32_t>(rt) << 12 |
+      B11 | B10 | B9 | B8 | B7 | B4 | B3 | B2 | B1 | B0;
   Emit(encoding);
 }
 
@@ -739,6 +828,28 @@ void Arm32Assembler::strex(Register rd,
                      (static_cast<int32_t>(rd) << kStrExRdShift) |
                      B11 | B10 | B9 | B8 | B7 | B4 |
                      (static_cast<int32_t>(rt) << kStrExRtShift);
+  Emit(encoding);
+}
+
+void Arm32Assembler::strexd(Register rd, Register rt, Register rt2, Register rn, Condition cond) {
+  CHECK_NE(rd, kNoRegister);
+  CHECK_NE(rn, kNoRegister);
+  CHECK_NE(rt, kNoRegister);
+  CHECK_NE(rt2, kNoRegister);
+  CHECK_NE(rt, R14);
+  CHECK_NE(rd, rt);
+  CHECK_NE(rd, rt2);
+  CHECK_EQ(0u, static_cast<uint32_t>(rt) % 2);
+  CHECK_EQ(static_cast<uint32_t>(rt) + 1, static_cast<uint32_t>(rt2));
+  CHECK_NE(cond, kNoCondition);
+
+  int32_t encoding =
+      (static_cast<uint32_t>(cond) << kConditionShift) |
+      B24 | B23 | B21 |
+      static_cast<uint32_t>(rn) << 16 |
+      static_cast<uint32_t>(rd) << 12 |
+      B11 | B10 | B9 | B8 | B7 | B4 |
+      static_cast<uint32_t>(rt);
   Emit(encoding);
 }
 
@@ -1041,7 +1152,7 @@ void Arm32Assembler::EmitVFPds(Condition cond, int32_t opcode,
 
 void Arm32Assembler::Lsl(Register rd, Register rm, uint32_t shift_imm,
                          bool setcc, Condition cond) {
-  CHECK_NE(shift_imm, 0u);  // Do not use Lsl if no shift is wanted.
+  CHECK_LE(shift_imm, 31u);
   if (setcc) {
     movs(rd, ShifterOperand(rm, LSL, shift_imm), cond);
   } else {
@@ -1052,7 +1163,7 @@ void Arm32Assembler::Lsl(Register rd, Register rm, uint32_t shift_imm,
 
 void Arm32Assembler::Lsr(Register rd, Register rm, uint32_t shift_imm,
                          bool setcc, Condition cond) {
-  CHECK_NE(shift_imm, 0u);  // Do not use Lsr if no shift is wanted.
+  CHECK(1u <= shift_imm && shift_imm <= 32u);
   if (shift_imm == 32) shift_imm = 0;  // Comply to UAL syntax.
   if (setcc) {
     movs(rd, ShifterOperand(rm, LSR, shift_imm), cond);
@@ -1064,7 +1175,7 @@ void Arm32Assembler::Lsr(Register rd, Register rm, uint32_t shift_imm,
 
 void Arm32Assembler::Asr(Register rd, Register rm, uint32_t shift_imm,
                          bool setcc, Condition cond) {
-  CHECK_NE(shift_imm, 0u);  // Do not use Asr if no shift is wanted.
+  CHECK(1u <= shift_imm && shift_imm <= 32u);
   if (shift_imm == 32) shift_imm = 0;  // Comply to UAL syntax.
   if (setcc) {
     movs(rd, ShifterOperand(rm, ASR, shift_imm), cond);
@@ -1076,7 +1187,7 @@ void Arm32Assembler::Asr(Register rd, Register rm, uint32_t shift_imm,
 
 void Arm32Assembler::Ror(Register rd, Register rm, uint32_t shift_imm,
                          bool setcc, Condition cond) {
-  CHECK_NE(shift_imm, 0u);  // Use Rrx instruction.
+  CHECK(1u <= shift_imm && shift_imm <= 31u);
   if (setcc) {
     movs(rd, ShifterOperand(rm, ROR, shift_imm), cond);
   } else {
@@ -1143,7 +1254,7 @@ void Arm32Assembler::vmstat(Condition cond) {  // VMRS APSR_nzcv, FPSCR
 
 
 void Arm32Assembler::svc(uint32_t imm24) {
-  CHECK(IsUint(24, imm24)) << imm24;
+  CHECK(IsUint<24>(imm24)) << imm24;
   int32_t encoding = (AL << kConditionShift) | B27 | B26 | B25 | B24 | imm24;
   Emit(encoding);
 }
@@ -1253,16 +1364,16 @@ void Arm32Assembler::AddConstant(Register rd, Register rn, int32_t value,
   // positive values and sub for negatives ones, which would slightly improve
   // the readability of generated code for some constants.
   ShifterOperand shifter_op;
-  if (ShifterOperand::CanHoldArm(value, &shifter_op)) {
+  if (ShifterOperandCanHoldArm32(value, &shifter_op)) {
     add(rd, rn, shifter_op, cond);
-  } else if (ShifterOperand::CanHoldArm(-value, &shifter_op)) {
+  } else if (ShifterOperandCanHoldArm32(-value, &shifter_op)) {
     sub(rd, rn, shifter_op, cond);
   } else {
     CHECK(rn != IP);
-    if (ShifterOperand::CanHoldArm(~value, &shifter_op)) {
+    if (ShifterOperandCanHoldArm32(~value, &shifter_op)) {
       mvn(IP, shifter_op, cond);
       add(rd, rn, ShifterOperand(IP), cond);
-    } else if (ShifterOperand::CanHoldArm(~(-value), &shifter_op)) {
+    } else if (ShifterOperandCanHoldArm32(~(-value), &shifter_op)) {
       mvn(IP, shifter_op, cond);
       sub(rd, rn, ShifterOperand(IP), cond);
     } else {
@@ -1280,16 +1391,16 @@ void Arm32Assembler::AddConstant(Register rd, Register rn, int32_t value,
 void Arm32Assembler::AddConstantSetFlags(Register rd, Register rn, int32_t value,
                                          Condition cond) {
   ShifterOperand shifter_op;
-  if (ShifterOperand::CanHoldArm(value, &shifter_op)) {
+  if (ShifterOperandCanHoldArm32(value, &shifter_op)) {
     adds(rd, rn, shifter_op, cond);
-  } else if (ShifterOperand::CanHoldArm(-value, &shifter_op)) {
+  } else if (ShifterOperandCanHoldArm32(-value, &shifter_op)) {
     subs(rd, rn, shifter_op, cond);
   } else {
     CHECK(rn != IP);
-    if (ShifterOperand::CanHoldArm(~value, &shifter_op)) {
+    if (ShifterOperandCanHoldArm32(~value, &shifter_op)) {
       mvn(IP, shifter_op, cond);
       adds(rd, rn, ShifterOperand(IP), cond);
-    } else if (ShifterOperand::CanHoldArm(~(-value), &shifter_op)) {
+    } else if (ShifterOperandCanHoldArm32(~(-value), &shifter_op)) {
       mvn(IP, shifter_op, cond);
       subs(rd, rn, ShifterOperand(IP), cond);
     } else {
@@ -1303,12 +1414,11 @@ void Arm32Assembler::AddConstantSetFlags(Register rd, Register rn, int32_t value
   }
 }
 
-
 void Arm32Assembler::LoadImmediate(Register rd, int32_t value, Condition cond) {
   ShifterOperand shifter_op;
-  if (ShifterOperand::CanHoldArm(value, &shifter_op)) {
+  if (ShifterOperandCanHoldArm32(value, &shifter_op)) {
     mov(rd, shifter_op, cond);
-  } else if (ShifterOperand::CanHoldArm(~value, &shifter_op)) {
+  } else if (ShifterOperandCanHoldArm32(~value, &shifter_op)) {
     mvn(rd, shifter_op, cond);
   } else {
     movw(rd, Low16Bits(value), cond);
@@ -1356,6 +1466,7 @@ void Arm32Assembler::LoadFromOffset(LoadOperandType type,
       break;
     default:
       LOG(FATAL) << "UNREACHABLE";
+      UNREACHABLE();
   }
 }
 
@@ -1427,6 +1538,7 @@ void Arm32Assembler::StoreToOffset(StoreOperandType type,
       break;
     default:
       LOG(FATAL) << "UNREACHABLE";
+      UNREACHABLE();
   }
 }
 
@@ -1469,19 +1581,22 @@ void Arm32Assembler::StoreDToOffset(DRegister reg,
 
 void Arm32Assembler::MemoryBarrier(ManagedRegister mscratch) {
   CHECK_EQ(mscratch.AsArm().AsCoreRegister(), R12);
-#if ANDROID_SMP != 0
-  int32_t encoding = 0xf57ff05f;  // dmb
-  Emit(encoding);
-#endif
+  dmb(SY);
 }
 
 
-void Arm32Assembler::cbz(Register rn, Label* target) {
+void Arm32Assembler::dmb(DmbOptions flavor) {
+  int32_t encoding = 0xf57ff05f;  // dmb
+  Emit(encoding | flavor);
+}
+
+
+void Arm32Assembler::cbz(Register rn ATTRIBUTE_UNUSED, Label* target ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "cbz is not supported on ARM32";
 }
 
 
-void Arm32Assembler::cbnz(Register rn, Label* target) {
+void Arm32Assembler::cbnz(Register rn ATTRIBUTE_UNUSED, Label* target ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "cbnz is not supported on ARM32";
 }
 

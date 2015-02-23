@@ -19,6 +19,7 @@
 
 #include "runtime.h"
 
+#include "mirror/art_method.h"
 #include "read_barrier-inl.h"
 
 namespace art {
@@ -57,6 +58,11 @@ inline mirror::ArtMethod* Runtime::GetResolutionMethod() {
 inline mirror::ArtMethod* Runtime::GetImtConflictMethod() {
   CHECK(HasImtConflictMethod());
   return imt_conflict_method_.Read();
+}
+
+inline mirror::ArtMethod* Runtime::GetImtUnimplementedMethod() {
+  CHECK(!imt_unimplemented_method_.IsNull());
+  return imt_unimplemented_method_.Read();
 }
 
 inline mirror::ObjectArray<mirror::ArtMethod>* Runtime::GetDefaultImt()

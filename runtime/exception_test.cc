@@ -19,6 +19,7 @@
 #include "class_linker.h"
 #include "common_runtime_test.h"
 #include "dex_file.h"
+#include "dex_file-inl.h"
 #include "gtest/gtest.h"
 #include "leb128.h"
 #include "mirror/class-inl.h"
@@ -43,7 +44,7 @@ class ExceptionTest : public CommonRuntimeTest {
     Handle<mirror::ClassLoader> class_loader(
         hs.NewHandle(soa.Decode<mirror::ClassLoader*>(LoadDex("ExceptionHandle"))));
     my_klass_ = class_linker_->FindClass(soa.Self(), "LExceptionHandle;", class_loader);
-    ASSERT_TRUE(my_klass_ != NULL);
+    ASSERT_TRUE(my_klass_ != nullptr);
     Handle<mirror::Class> klass(hs.NewHandle(my_klass_));
     class_linker_->EnsureInitialized(soa.Self(), klass, true, true);
     my_klass_ = klass.Get();
@@ -76,7 +77,8 @@ class ExceptionTest : public CommonRuntimeTest {
     const std::vector<uint8_t>& fake_mapping_data = fake_mapping_data_.GetData();
     uint32_t vmap_table_offset = sizeof(OatQuickMethodHeader) + fake_vmap_table_data.size();
     uint32_t mapping_table_offset = vmap_table_offset + fake_mapping_data.size();
-    OatQuickMethodHeader method_header(mapping_table_offset, vmap_table_offset,
+    uint32_t gc_map_offset = mapping_table_offset + fake_gc_map_.size();
+    OatQuickMethodHeader method_header(mapping_table_offset, vmap_table_offset, gc_map_offset,
                                        4 * sizeof(void*), 0u, 0u, code_size);
     fake_header_code_and_maps_.resize(sizeof(method_header));
     memcpy(&fake_header_code_and_maps_[0], &method_header, sizeof(method_header));
@@ -84,23 +86,23 @@ class ExceptionTest : public CommonRuntimeTest {
                                       fake_vmap_table_data.begin(), fake_vmap_table_data.end());
     fake_header_code_and_maps_.insert(fake_header_code_and_maps_.begin(),
                                       fake_mapping_data.begin(), fake_mapping_data.end());
+    fake_header_code_and_maps_.insert(fake_header_code_and_maps_.begin(),
+                                      fake_gc_map_.begin(), fake_gc_map_.end());
     fake_header_code_and_maps_.insert(fake_header_code_and_maps_.end(),
                                       fake_code_.begin(), fake_code_.end());
 
     // NOTE: Don't align the code (it will not be executed) but check that the Thumb2
     // adjustment will be a NOP, see ArtMethod::EntryPointToCodePointer().
     CHECK_EQ(mapping_table_offset & 1u, 0u);
-    const uint8_t* code_ptr = &fake_header_code_and_maps_[mapping_table_offset];
+    const uint8_t* code_ptr = &fake_header_code_and_maps_[gc_map_offset];
 
     method_f_ = my_klass_->FindVirtualMethod("f", "()I");
-    ASSERT_TRUE(method_f_ != NULL);
+    ASSERT_TRUE(method_f_ != nullptr);
     method_f_->SetEntryPointFromQuickCompiledCode(code_ptr);
-    method_f_->SetNativeGcMap(&fake_gc_map_[0]);
 
     method_g_ = my_klass_->FindVirtualMethod("g", "(I)V");
-    ASSERT_TRUE(method_g_ != NULL);
+    ASSERT_TRUE(method_g_ != nullptr);
     method_g_->SetEntryPointFromQuickCompiledCode(code_ptr);
-    method_g_->SetNativeGcMap(&fake_gc_map_[0]);
   }
 
   const DexFile* dex_;
@@ -122,7 +124,7 @@ TEST_F(ExceptionTest, FindCatchHandler) {
   ScopedObjectAccess soa(Thread::Current());
   const DexFile::CodeItem* code_item = dex_->GetCodeItem(method_f_->GetCodeItemOffset());
 
-  ASSERT_TRUE(code_item != NULL);
+  ASSERT_TRUE(code_item != nullptr);
 
   ASSERT_EQ(2u, code_item->tries_size_);
   ASSERT_NE(0u, code_item->insns_size_in_code_units_);
@@ -163,85 +165,77 @@ TEST_F(ExceptionTest, StackTraceElement) {
   ScopedObjectAccess soa(env);
 
   std::vector<uintptr_t> fake_stack;
+  Runtime* r = Runtime::Current();
+  r->SetInstructionSet(kRuntimeISA);
+  mirror::ArtMethod* save_method = r->CreateCalleeSaveMethod();
+  r->SetCalleeSaveMethod(save_method, Runtime::kSaveAll);
+  QuickMethodFrameInfo frame_info = save_method->GetQuickFrameInfo();
+
   ASSERT_EQ(kStackAlignment, 16U);
   // ASSERT_EQ(sizeof(uintptr_t), sizeof(uint32_t));
 
-  if (!kUsePortableCompiler) {
-    // Create two fake stack frames with mapping data created in SetUp. We map offset 3 in the code
-    // to dex pc 3.
-    const uint32_t dex_pc = 3;
 
-    // Create/push fake 16byte stack frame for method g
-    fake_stack.push_back(reinterpret_cast<uintptr_t>(method_g_));
-    fake_stack.push_back(0);
-    fake_stack.push_back(0);
-    fake_stack.push_back(method_f_->ToNativePc(dex_pc));  // return pc
+  // Create three fake stack frames with mapping data created in SetUp. We map offset 3 in the
+  // code to dex pc 3.
+  const uint32_t dex_pc = 3;
 
-    // Create/push fake 16byte stack frame for method f
-    fake_stack.push_back(reinterpret_cast<uintptr_t>(method_f_));
+  // Create the stack frame for the callee save method, expected by the runtime.
+  fake_stack.push_back(reinterpret_cast<uintptr_t>(save_method));
+  for (size_t i = 0; i < frame_info.FrameSizeInBytes() - 2 * sizeof(uintptr_t);
+       i += sizeof(uintptr_t)) {
     fake_stack.push_back(0);
-    fake_stack.push_back(0);
-    fake_stack.push_back(0xEBAD6070);  // return pc
-
-    // Pull Method* of NULL to terminate the trace
-    fake_stack.push_back(0);
-
-    // Push null values which will become null incoming arguments.
-    fake_stack.push_back(0);
-    fake_stack.push_back(0);
-    fake_stack.push_back(0);
-
-    // Set up thread to appear as if we called out of method_g_ at pc dex 3
-    thread->SetTopOfStack(
-        reinterpret_cast<StackReference<mirror::ArtMethod>*>(&fake_stack[0]),
-        method_g_->ToNativePc(dex_pc));  // return pc
-  } else {
-    // Create/push fake 20-byte shadow frame for method g
-    fake_stack.push_back(0);
-    fake_stack.push_back(0);
-    fake_stack.push_back(reinterpret_cast<uintptr_t>(method_g_));
-    fake_stack.push_back(3);
-    fake_stack.push_back(0);
-
-    // Create/push fake 20-byte shadow frame for method f
-    fake_stack.push_back(0);
-    fake_stack.push_back(0);
-    fake_stack.push_back(reinterpret_cast<uintptr_t>(method_f_));
-    fake_stack.push_back(3);
-    fake_stack.push_back(0);
-
-    thread->PushShadowFrame(reinterpret_cast<ShadowFrame*>(&fake_stack[5]));
-    thread->PushShadowFrame(reinterpret_cast<ShadowFrame*>(&fake_stack[0]));
   }
 
+  fake_stack.push_back(method_g_->ToNativeQuickPc(dex_pc));  // return pc
+
+  // Create/push fake 16byte stack frame for method g
+  fake_stack.push_back(reinterpret_cast<uintptr_t>(method_g_));
+  fake_stack.push_back(0);
+  fake_stack.push_back(0);
+  fake_stack.push_back(method_f_->ToNativeQuickPc(dex_pc));  // return pc
+
+  // Create/push fake 16byte stack frame for method f
+  fake_stack.push_back(reinterpret_cast<uintptr_t>(method_f_));
+  fake_stack.push_back(0);
+  fake_stack.push_back(0);
+  fake_stack.push_back(0xEBAD6070);  // return pc
+
+  // Push Method* of NULL to terminate the trace
+  fake_stack.push_back(0);
+
+  // Push null values which will become null incoming arguments.
+  fake_stack.push_back(0);
+  fake_stack.push_back(0);
+  fake_stack.push_back(0);
+
+  // Set up thread to appear as if we called out of method_g_ at pc dex 3
+  thread->SetTopOfStack(reinterpret_cast<StackReference<mirror::ArtMethod>*>(&fake_stack[0]));
+
   jobject internal = thread->CreateInternalStackTrace<false>(soa);
-  ASSERT_TRUE(internal != NULL);
+  ASSERT_TRUE(internal != nullptr);
   jobjectArray ste_array = Thread::InternalStackTraceToStackTraceElementArray(soa, internal);
-  ASSERT_TRUE(ste_array != NULL);
+  ASSERT_TRUE(ste_array != nullptr);
   mirror::ObjectArray<mirror::StackTraceElement>* trace_array =
       soa.Decode<mirror::ObjectArray<mirror::StackTraceElement>*>(ste_array);
 
-  ASSERT_TRUE(trace_array != NULL);
-  ASSERT_TRUE(trace_array->Get(0) != NULL);
+  ASSERT_TRUE(trace_array != nullptr);
+  ASSERT_TRUE(trace_array->Get(0) != nullptr);
   EXPECT_STREQ("ExceptionHandle",
                trace_array->Get(0)->GetDeclaringClass()->ToModifiedUtf8().c_str());
-  EXPECT_STREQ("ExceptionHandle.java", trace_array->Get(0)->GetFileName()->ToModifiedUtf8().c_str());
+  EXPECT_STREQ("ExceptionHandle.java",
+               trace_array->Get(0)->GetFileName()->ToModifiedUtf8().c_str());
   EXPECT_STREQ("g", trace_array->Get(0)->GetMethodName()->ToModifiedUtf8().c_str());
   EXPECT_EQ(37, trace_array->Get(0)->GetLineNumber());
 
-  ASSERT_TRUE(trace_array->Get(1) != NULL);
+  ASSERT_TRUE(trace_array->Get(1) != nullptr);
   EXPECT_STREQ("ExceptionHandle",
                trace_array->Get(1)->GetDeclaringClass()->ToModifiedUtf8().c_str());
-  EXPECT_STREQ("ExceptionHandle.java", trace_array->Get(1)->GetFileName()->ToModifiedUtf8().c_str());
+  EXPECT_STREQ("ExceptionHandle.java",
+               trace_array->Get(1)->GetFileName()->ToModifiedUtf8().c_str());
   EXPECT_STREQ("f", trace_array->Get(1)->GetMethodName()->ToModifiedUtf8().c_str());
   EXPECT_EQ(22, trace_array->Get(1)->GetLineNumber());
 
-#if !defined(ART_USE_PORTABLE_COMPILER)
-  thread->SetTopOfStack(NULL, 0);  // Disarm the assertion that no code is running when we detach.
-#else
-  thread->PopShadowFrame();
-  thread->PopShadowFrame();
-#endif
+  thread->SetTopOfStack(nullptr);  // Disarm the assertion that no code is running when we detach.
 }
 
 }  // namespace art

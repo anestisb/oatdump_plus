@@ -18,54 +18,58 @@
 #define ART_COMPILER_DEX_PASS_ME_H_
 
 #include <string>
+
+#include "base/logging.h"
 #include "pass.h"
+#include "compiler_ir.h"
+#include "safe_map.h"
 
 namespace art {
 
 // Forward declarations.
-struct BasicBlock;
+class BasicBlock;
 struct CompilationUnit;
-class Pass;
 
 /**
  * @brief OptimizationFlag is an enumeration to perform certain tasks for a given pass.
  * @details Each enum should be a power of 2 to be correctly used.
  */
 enum OptimizationFlag {
-  kOptimizationBasicBlockChange = 1,  /**< @brief Has there been a change to a BasicBlock? */
-  kOptimizationDefUsesChange = 2,     /**< @brief Has there been a change to a def-use? */
-  kLoopStructureChange = 4,           /**< @brief Has there been a loop structural change? */
+  kOptimizationBasicBlockChange = 1,  /// @brief Has there been a change to a BasicBlock?
+  kOptimizationDefUsesChange = 2,     /// @brief Has there been a change to a def-use?
+  kLoopStructureChange = 4,           /// @brief Has there been a loop structural change?
 };
+std::ostream& operator<<(std::ostream& os, const OptimizationFlag& rhs);
 
 // Data holder class.
 class PassMEDataHolder: public PassDataHolder {
-  public:
-    CompilationUnit* c_unit;
-    BasicBlock* bb;
-    void* data;               /**< @brief Any data the pass wants to use */
-    bool dirty;               /**< @brief Has the pass rendered the CFG dirty, requiring post-opt? */
+ public:
+  CompilationUnit* c_unit;
+  BasicBlock* bb;
+  void* data;               /**< @brief Any data the pass wants to use */
+  bool dirty;               /**< @brief Has the pass rendered the CFG dirty, requiring post-opt? */
 };
 
 enum DataFlowAnalysisMode {
-  kAllNodes = 0,                           /**< @brief All nodes. */
-  kPreOrderDFSTraversal,                   /**< @brief Depth-First-Search / Pre-Order. */
-  kRepeatingPreOrderDFSTraversal,          /**< @brief Depth-First-Search / Repeating Pre-Order. */
-  kReversePostOrderDFSTraversal,           /**< @brief Depth-First-Search / Reverse Post-Order. */
-  kRepeatingPostOrderDFSTraversal,         /**< @brief Depth-First-Search / Repeating Post-Order. */
-  kRepeatingReversePostOrderDFSTraversal,  /**< @brief Depth-First-Search / Repeating Reverse Post-Order. */
-  kPostOrderDOMTraversal,                  /**< @brief Dominator tree / Post-Order. */
-  kTopologicalSortTraversal,               /**< @brief Topological Order traversal. */
-  kRepeatingTopologicalSortTraversal,      /**< @brief Repeating Topological Order traversal. */
-  kLoopRepeatingTopologicalSortTraversal,  /**< @brief Loop-repeating Topological Order traversal. */
-  kNoNodes,                                /**< @brief Skip BasicBlock traversal. */
+  kAllNodes = 0,                           /// @brief All nodes.
+  kPreOrderDFSTraversal,                   /// @brief Depth-First-Search / Pre-Order.
+  kRepeatingPreOrderDFSTraversal,          /// @brief Depth-First-Search / Repeating Pre-Order.
+  kReversePostOrderDFSTraversal,           /// @brief Depth-First-Search / Reverse Post-Order.
+  kRepeatingPostOrderDFSTraversal,         /// @brief Depth-First-Search / Repeating Post-Order.
+  kRepeatingReversePostOrderDFSTraversal,  /// @brief Depth-First-Search / Repeating Reverse Post-Order.
+  kPostOrderDOMTraversal,                  /// @brief Dominator tree / Post-Order.
+  kTopologicalSortTraversal,               /// @brief Topological Order traversal.
+  kLoopRepeatingTopologicalSortTraversal,  /// @brief Loop-repeating Topological Order traversal.
+  kNoNodes,                                /// @brief Skip BasicBlock traversal.
 };
+std::ostream& operator<<(std::ostream& os, const DataFlowAnalysisMode& rhs);
 
 /**
  * @class Pass
  * @brief Pass is the Pass structure for the optimizations.
  * @details The following structure has the different optimization passes that we are going to do.
  */
-class PassME: public Pass {
+class PassME : public Pass {
  public:
   explicit PassME(const char* name, DataFlowAnalysisMode type = kAllNodes,
           unsigned int flags = 0u, const char* dump = "")
@@ -100,8 +104,8 @@ class PassME: public Pass {
    * @details The printing is done using LOG(INFO).
    */
   void PrintPassDefaultOptions() const {
-    for (auto option_it = default_options_.begin(); option_it != default_options_.end(); option_it++) {
-      LOG(INFO) << "\t" << option_it->first << ":" << std::dec << option_it->second;
+    for (const auto& option : default_options_) {
+      LOG(INFO) << "\t" << option.first << ":" << option.second;
     }
   }
 
@@ -109,23 +113,47 @@ class PassME: public Pass {
    * @brief Prints the pass options along with either default or overridden setting.
    * @param overridden_options The overridden settings for this pass.
    */
-  void PrintPassOptions(SafeMap<const std::string, int>& overridden_options) const {
+  void PrintPassOptions(SafeMap<const std::string, const OptionContent>& overridden_options) const {
     // We walk through the default options only to get the pass names. We use GetPassOption to
     // also consider the overridden ones.
-    for (auto option_it = default_options_.begin(); option_it != default_options_.end(); option_it++) {
-      LOG(INFO) << "\t" << option_it->first << ":" << std::dec << GetPassOption(option_it->first, overridden_options);
+    for (const auto& option : default_options_) {
+      LOG(INFO) << "\t" << option.first << ":"
+                << GetPassOption(option.first, overridden_options);
     }
   }
 
   /**
-   * @brief Used to obtain the option for a pass.
-   * @details Will return the overridden option if it exists or default one.
+   * @brief Used to obtain the option structure for a pass.
+   * @details Will return the overridden option if it exists or default one otherwise.
    * @param option_name The name of option whose setting to look for.
    * @param c_unit The compilation unit currently being handled.
-   * @return Returns the setting for the pass option.
-   */
-  int GetPassOption(const char* option_name, CompilationUnit* c_unit) const {
+   * @return Returns the option structure containing the option value.
+  */
+  const OptionContent& GetPassOption(const char* option_name, CompilationUnit* c_unit) const {
     return GetPassOption(option_name, c_unit->overridden_pass_options);
+  }
+
+  /**
+   * @brief Used to obtain the option for a pass as a string.
+   * @details Will return the overridden option if it exists or default one otherwise.
+   * It will return nullptr if the required option value is not a string.
+   * @param option_name The name of option whose setting to look for.
+   * @param c_unit The compilation unit currently being handled.
+   * @return Returns the overridden option if it exists or the default one otherwise.
+  */
+  const char* GetStringPassOption(const char* option_name, CompilationUnit* c_unit) const {
+    return GetStringPassOption(option_name, c_unit->overridden_pass_options);
+  }
+
+  /**
+    * @brief Used to obtain the pass option value as an integer.
+    * @details Will return the overridden option if it exists or default one otherwise.
+    * It will return 0 if the required option value is not an integer.
+    * @param c_unit The compilation unit currently being handled.
+    * @return Returns the overriden option if it exists or the default one otherwise.
+   */
+  int64_t GetIntegerPassOption(const char* option_name, CompilationUnit* c_unit) const {
+    return GetIntegerPassOption(option_name, c_unit->overridden_pass_options);
   }
 
   const char* GetDumpCFGFolder() const {
@@ -137,29 +165,51 @@ class PassME: public Pass {
   }
 
  protected:
-  int GetPassOption(const char* option_name, const SafeMap<const std::string, int>& overridden_options) const {
+  const OptionContent& GetPassOption(const char* option_name,
+        const SafeMap<const std::string, const OptionContent>& overridden_options) const {
+    DCHECK(option_name != nullptr);
+
     // First check if there are any overridden settings.
     auto overridden_it = overridden_options.find(std::string(option_name));
     if (overridden_it != overridden_options.end()) {
       return overridden_it->second;
+    } else {
+      // Otherwise, there must be a default value for this option name.
+      auto default_it = default_options_.find(option_name);
+      // An invalid option is being requested.
+      if (default_it == default_options_.end()) {
+        LOG(FATAL) << "Fatal: Cannot find an option named \"" << option_name << "\"";
+      }
+
+      return default_it->second;
+    }
+  }
+
+  const char* GetStringPassOption(const char* option_name,
+        const SafeMap<const std::string, const OptionContent>& overridden_options) const {
+    const OptionContent& option_content = GetPassOption(option_name, overridden_options);
+    if (option_content.type != OptionContent::kString) {
+      return nullptr;
     }
 
-    // Next check the default options.
-    auto default_it = default_options_.find(option_name);
+    return option_content.GetString();
+  }
 
-    if (default_it == default_options_.end()) {
-      // An invalid option is being requested.
-      DCHECK(false);
+  int64_t GetIntegerPassOption(const char* option_name,
+          const SafeMap<const std::string, const OptionContent>& overridden_options) const {
+    const OptionContent& option_content = GetPassOption(option_name, overridden_options);
+    if (option_content.type != OptionContent::kInteger) {
       return 0;
     }
 
-    return default_it->second;
+    return option_content.GetInteger();
   }
 
   /** @brief Type of traversal: determines the order to execute the pass on the BasicBlocks. */
   const DataFlowAnalysisMode traversal_type_;
 
-  /** @brief Flags for additional directives: used to determine if a particular post-optimization pass is necessary. */
+  /** @brief Flags for additional directives: used to determine if a particular
+    * post-optimization pass is necessary. */
   const unsigned int flags_;
 
   /** @brief CFG Dump Folder: what sub-folder to use for dumping the CFGs post pass. */
@@ -170,7 +220,7 @@ class PassME: public Pass {
    * @details The constructor of the specific pass instance should fill this
    * with default options.
    * */
-  SafeMap<const char*, int> default_options_;
+  SafeMap<const char*, const OptionContent> default_options_;
 };
 }  // namespace art
 #endif  // ART_COMPILER_DEX_PASS_ME_H_

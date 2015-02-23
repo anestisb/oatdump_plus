@@ -19,6 +19,7 @@
 #include "arch/context.h"
 #include "dex_instruction.h"
 #include "entrypoints/entrypoint_utils.h"
+#include "entrypoints/runtime_asm_entrypoints.h"
 #include "handle_scope-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
@@ -96,7 +97,7 @@ class CatchBlockStackVisitor FINAL : public StackVisitor {
       if (found_dex_pc != DexFile::kDexNoIndex) {
         exception_handler_->SetHandlerMethod(method.Get());
         exception_handler_->SetHandlerDexPc(found_dex_pc);
-        exception_handler_->SetHandlerQuickFramePc(method->ToNativePc(found_dex_pc));
+        exception_handler_->SetHandlerQuickFramePc(method->ToNativeQuickPc(found_dex_pc));
         exception_handler_->SetHandlerQuickFrame(GetCurrentQuickFrame());
         return false;  // End stack walk.
       }
@@ -203,18 +204,18 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
     CHECK(code_item != nullptr);
     uint16_t num_regs = code_item->registers_size_;
     uint32_t dex_pc = GetDexPc();
-    const Instruction* inst = Instruction::At(code_item->insns_ + dex_pc);
-    uint32_t new_dex_pc = dex_pc + inst->SizeInCodeUnits();
-    ShadowFrame* new_frame = ShadowFrame::Create(num_regs, nullptr, m, new_dex_pc);
-    StackHandleScope<3> hs(self_);
+    StackHandleScope<3> hs(self_);  // Dex cache, class loader and method.
     mirror::Class* declaring_class = m->GetDeclaringClass();
     Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
     Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
     Handle<mirror::ArtMethod> h_method(hs.NewHandle(m));
     verifier::MethodVerifier verifier(self_, h_dex_cache->GetDexFile(), h_dex_cache, h_class_loader,
                                       &m->GetClassDef(), code_item, m->GetDexMethodIndex(),
-                                      h_method, m->GetAccessFlags(), false, true, true);
-    verifier.Verify();
+                                      h_method, m->GetAccessFlags(), true, true, true, true);
+    bool verifier_success = verifier.Verify();
+    CHECK(verifier_success) << PrettyMethod(h_method.Get());
+    ShadowFrame* new_frame = ShadowFrame::Create(num_regs, nullptr, h_method.Get(), dex_pc);
+    self_->SetShadowFrameUnderConstruction(new_frame);
     const std::vector<int32_t> kinds(verifier.DescribeVRegs(dex_pc));
     for (uint16_t reg = 0; reg < num_regs; ++reg) {
       VRegKind kind = GetVRegKind(reg, kinds);
@@ -227,40 +228,41 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
           break;
         case kReferenceVReg:
           new_frame->SetVRegReference(reg,
-                                      reinterpret_cast<mirror::Object*>(GetVReg(m, reg, kind)));
+                                      reinterpret_cast<mirror::Object*>(GetVReg(h_method.Get(),
+                                                                                reg, kind)));
           break;
         case kLongLoVReg:
           if (GetVRegKind(reg + 1, kinds) == kLongHiVReg) {
             // Treat it as a "long" register pair.
-            new_frame->SetVRegLong(reg, GetVRegPair(m, reg, kLongLoVReg, kLongHiVReg));
+            new_frame->SetVRegLong(reg, GetVRegPair(h_method.Get(), reg, kLongLoVReg, kLongHiVReg));
           } else {
-            new_frame->SetVReg(reg, GetVReg(m, reg, kind));
+            new_frame->SetVReg(reg, GetVReg(h_method.Get(), reg, kind));
           }
           break;
         case kLongHiVReg:
           if (GetVRegKind(reg - 1, kinds) == kLongLoVReg) {
             // Nothing to do: we treated it as a "long" register pair.
           } else {
-            new_frame->SetVReg(reg, GetVReg(m, reg, kind));
+            new_frame->SetVReg(reg, GetVReg(h_method.Get(), reg, kind));
           }
           break;
         case kDoubleLoVReg:
           if (GetVRegKind(reg + 1, kinds) == kDoubleHiVReg) {
             // Treat it as a "double" register pair.
-            new_frame->SetVRegLong(reg, GetVRegPair(m, reg, kDoubleLoVReg, kDoubleHiVReg));
+            new_frame->SetVRegLong(reg, GetVRegPair(h_method.Get(), reg, kDoubleLoVReg, kDoubleHiVReg));
           } else {
-            new_frame->SetVReg(reg, GetVReg(m, reg, kind));
+            new_frame->SetVReg(reg, GetVReg(h_method.Get(), reg, kind));
           }
           break;
         case kDoubleHiVReg:
           if (GetVRegKind(reg - 1, kinds) == kDoubleLoVReg) {
             // Nothing to do: we treated it as a "double" register pair.
           } else {
-            new_frame->SetVReg(reg, GetVReg(m, reg, kind));
+            new_frame->SetVReg(reg, GetVReg(h_method.Get(), reg, kind));
           }
           break;
         default:
-          new_frame->SetVReg(reg, GetVReg(m, reg, kind));
+          new_frame->SetVReg(reg, GetVReg(h_method.Get(), reg, kind));
           break;
       }
     }
@@ -269,6 +271,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
     } else {
       self_->SetDeoptimizationShadowFrame(new_frame);
     }
+    self_->ClearShadowFrameUnderConstruction();
     prev_shadow_frame_ = new_frame;
     return true;
   }
@@ -296,10 +299,10 @@ void QuickExceptionHandler::DeoptimizeStack() {
 // Unwinds all instrumentation stack frame prior to catch handler or upcall.
 class InstrumentationStackVisitor : public StackVisitor {
  public:
-  InstrumentationStackVisitor(Thread* self, bool is_deoptimization, size_t frame_depth)
+  InstrumentationStackVisitor(Thread* self, size_t frame_depth)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(self, nullptr),
-        self_(self), frame_depth_(frame_depth),
+        frame_depth_(frame_depth),
         instrumentation_frames_to_pop_(0) {
     CHECK_NE(frame_depth_, kInvalidFrameDepth);
   }
@@ -308,7 +311,7 @@ class InstrumentationStackVisitor : public StackVisitor {
     size_t current_frame_depth = GetFrameDepth();
     if (current_frame_depth < frame_depth_) {
       CHECK(GetMethod() != nullptr);
-      if (UNLIKELY(GetQuickInstrumentationExitPc() == GetReturnPc())) {
+      if (UNLIKELY(reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc()) == GetReturnPc())) {
         ++instrumentation_frames_to_pop_;
       }
       return true;
@@ -323,7 +326,6 @@ class InstrumentationStackVisitor : public StackVisitor {
   }
 
  private:
-  Thread* const self_;
   const size_t frame_depth_;
   size_t instrumentation_frames_to_pop_;
 
@@ -332,7 +334,7 @@ class InstrumentationStackVisitor : public StackVisitor {
 
 void QuickExceptionHandler::UpdateInstrumentationStack() {
   if (method_tracing_active_) {
-    InstrumentationStackVisitor visitor(self_, is_deoptimization_, handler_frame_depth_);
+    InstrumentationStackVisitor visitor(self_, handler_frame_depth_);
     visitor.WalkStack(true);
 
     size_t instrumentation_frames_to_pop = visitor.GetInstrumentationFramesToPop();

@@ -20,9 +20,11 @@
 #include <stdint.h>
 #include <string>
 
+#include "arch/instruction_set.h"
 #include "dex_file.h"
-#include "instruction_set.h"
+#include "gc_root.h"
 #include "mirror/object_reference.h"
+#include "read_barrier.h"
 #include "throw_location.h"
 #include "utils.h"
 #include "verify_object.h"
@@ -53,6 +55,7 @@ enum VRegKind {
   kImpreciseConstant,
   kUndefined,
 };
+std::ostream& operator<<(std::ostream& os, const VRegKind& rhs);
 
 // A reference from the shadow stack to a MirrorType object within the Java heap.
 template<class MirrorType>
@@ -71,8 +74,7 @@ class MANAGED StackReference : public mirror::ObjectReference<false, MirrorType>
       : mirror::ObjectReference<false, MirrorType>(p) {}
 };
 
-// ShadowFrame has 3 possible layouts:
-//  - portable - a unified array of VRegs and references. Precise references need GC maps.
+// ShadowFrame has 2 possible layouts:
 //  - interpreter - separate VRegs and reference arrays. References are in the reference array.
 //  - JNI - just VRegs, but where every VReg holds a reference.
 class ShadowFrame {
@@ -99,28 +101,11 @@ class ShadowFrame {
   ~ShadowFrame() {}
 
   bool HasReferenceArray() const {
-#if defined(ART_USE_PORTABLE_COMPILER)
-    return (number_of_vregs_ & kHasReferenceArray) != 0;
-#else
     return true;
-#endif
   }
 
   uint32_t NumberOfVRegs() const {
-#if defined(ART_USE_PORTABLE_COMPILER)
-    return number_of_vregs_ & ~kHasReferenceArray;
-#else
     return number_of_vregs_;
-#endif
-  }
-
-  void SetNumberOfVRegs(uint32_t number_of_vregs) {
-#if defined(ART_USE_PORTABLE_COMPILER)
-    number_of_vregs_ = number_of_vregs | (number_of_vregs_ & kHasReferenceArray);
-#else
-    UNUSED(number_of_vregs);
-    UNIMPLEMENTED(FATAL) << "Should only be called when portable is enabled";
-#endif
   }
 
   uint32_t GetDexPC() const {
@@ -178,6 +163,9 @@ class ShadowFrame {
     } else {
       const uint32_t* vreg_ptr = &vregs_[i];
       ref = reinterpret_cast<const StackReference<mirror::Object>*>(vreg_ptr)->AsMirrorPtr();
+    }
+    if (kUseReadBarrier) {
+      ReadBarrier::AssertToSpaceInvariant(ref);
     }
     if (kVerifyFlags & kVerifyReads) {
       VerifyObject(ref);
@@ -246,6 +234,9 @@ class ShadowFrame {
     if (kVerifyFlags & kVerifyWrites) {
       VerifyObject(val);
     }
+    if (kUseReadBarrier) {
+      ReadBarrier::AssertToSpaceInvariant(val);
+    }
     uint32_t* vreg = &vregs_[i];
     reinterpret_cast<StackReference<mirror::Object>*>(vreg)->Assign(val);
     if (HasReferenceArray()) {
@@ -268,16 +259,6 @@ class ShadowFrame {
   mirror::Object* GetThisObject(uint16_t num_ins) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ThrowLocation GetCurrentLocationForThrow() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  void SetMethod(mirror::ArtMethod* method) {
-#if defined(ART_USE_PORTABLE_COMPILER)
-    DCHECK(method != nullptr);
-    method_ = method;
-#else
-    UNUSED(method);
-    UNIMPLEMENTED(FATAL) << "Should only be called when portable is enabled";
-#endif
-  }
 
   bool Contains(StackReference<mirror::Object>* shadow_frame_entry_obj) const {
     if (HasReferenceArray()) {
@@ -315,10 +296,6 @@ class ShadowFrame {
               uint32_t dex_pc, bool has_reference_array)
       : number_of_vregs_(num_vregs), link_(link), method_(method), dex_pc_(dex_pc) {
     if (has_reference_array) {
-#if defined(ART_USE_PORTABLE_COMPILER)
-      CHECK_LT(num_vregs, static_cast<uint32_t>(kHasReferenceArray));
-      number_of_vregs_ |= kHasReferenceArray;
-#endif
       memset(vregs_, 0, num_vregs * (sizeof(uint32_t) + sizeof(StackReference<mirror::Object>)));
     } else {
       memset(vregs_, 0, num_vregs * sizeof(uint32_t));
@@ -335,15 +312,7 @@ class ShadowFrame {
     return const_cast<StackReference<mirror::Object>*>(const_cast<const ShadowFrame*>(this)->References());
   }
 
-#if defined(ART_USE_PORTABLE_COMPILER)
-  enum ShadowFrameFlag {
-    kHasReferenceArray = 1ul << 31
-  };
-  // TODO: make const in the portable case.
-  uint32_t number_of_vregs_;
-#else
   const uint32_t number_of_vregs_;
-#endif
   // Link to previous shadow frame or NULL.
   ShadowFrame* link_;
   mirror::ArtMethod* method_;
@@ -353,6 +322,19 @@ class ShadowFrame {
   DISALLOW_IMPLICIT_CONSTRUCTORS(ShadowFrame);
 };
 
+class JavaFrameRootInfo : public RootInfo {
+ public:
+  JavaFrameRootInfo(uint32_t thread_id, const StackVisitor* stack_visitor, size_t vreg)
+     : RootInfo(kRootJavaFrame, thread_id), stack_visitor_(stack_visitor), vreg_(vreg) {
+  }
+  virtual void Describe(std::ostream& os) const OVERRIDE
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+ private:
+  const StackVisitor* const stack_visitor_;
+  const size_t vreg_;
+};
+
 // The managed stack is used to record fragments of managed code stacks. Managed code stacks
 // may either be shadow frames or lists of frames using fixed frame sizes. Transition records are
 // necessary for transitions between code using different frame layouts and transitions into native
@@ -360,7 +342,7 @@ class ShadowFrame {
 class PACKED(4) ManagedStack {
  public:
   ManagedStack()
-      : link_(NULL), top_shadow_frame_(NULL), top_quick_frame_(NULL), top_quick_frame_pc_(0) {}
+      : top_quick_frame_(nullptr), link_(nullptr), top_shadow_frame_(nullptr) {}
 
   void PushManagedStackFragment(ManagedStack* fragment) {
     // Copy this top fragment into given fragment.
@@ -386,29 +368,16 @@ class PACKED(4) ManagedStack {
   }
 
   void SetTopQuickFrame(StackReference<mirror::ArtMethod>* top) {
-    DCHECK(top_shadow_frame_ == NULL);
+    DCHECK(top_shadow_frame_ == nullptr);
     top_quick_frame_ = top;
-  }
-
-  uintptr_t GetTopQuickFramePc() const {
-    return top_quick_frame_pc_;
-  }
-
-  void SetTopQuickFramePc(uintptr_t pc) {
-    DCHECK(top_shadow_frame_ == NULL);
-    top_quick_frame_pc_ = pc;
   }
 
   static size_t TopQuickFrameOffset() {
     return OFFSETOF_MEMBER(ManagedStack, top_quick_frame_);
   }
 
-  static size_t TopQuickFramePcOffset() {
-    return OFFSETOF_MEMBER(ManagedStack, top_quick_frame_pc_);
-  }
-
   ShadowFrame* PushShadowFrame(ShadowFrame* new_top_frame) {
-    DCHECK(top_quick_frame_ == NULL);
+    DCHECK(top_quick_frame_ == nullptr);
     ShadowFrame* old_frame = top_shadow_frame_;
     top_shadow_frame_ = new_top_frame;
     new_top_frame->SetLink(old_frame);
@@ -416,8 +385,8 @@ class PACKED(4) ManagedStack {
   }
 
   ShadowFrame* PopShadowFrame() {
-    DCHECK(top_quick_frame_ == NULL);
-    CHECK(top_shadow_frame_ != NULL);
+    DCHECK(top_quick_frame_ == nullptr);
+    CHECK(top_shadow_frame_ != nullptr);
     ShadowFrame* frame = top_shadow_frame_;
     top_shadow_frame_ = frame->GetLink();
     return frame;
@@ -428,7 +397,7 @@ class PACKED(4) ManagedStack {
   }
 
   void SetTopShadowFrame(ShadowFrame* top) {
-    DCHECK(top_quick_frame_ == NULL);
+    DCHECK(top_quick_frame_ == nullptr);
     top_shadow_frame_ = top;
   }
 
@@ -441,10 +410,9 @@ class PACKED(4) ManagedStack {
   bool ShadowFramesContain(StackReference<mirror::Object>* shadow_frame_entry) const;
 
  private:
+  StackReference<mirror::ArtMethod>* top_quick_frame_;
   ManagedStack* link_;
   ShadowFrame* top_shadow_frame_;
-  StackReference<mirror::ArtMethod>* top_quick_frame_;
-  uintptr_t top_quick_frame_pc_;
 };
 
 class StackVisitor {
@@ -647,6 +615,7 @@ class StackVisitor {
   }
 
   static int GetOutVROffset(uint16_t out_num, InstructionSet isa) {
+    UNUSED(isa);
     // According to stack model, the first out is above the Method referernce.
     return sizeof(StackReference<mirror::ArtMethod>) + (out_num * sizeof(uint32_t));
   }
@@ -680,10 +649,29 @@ class StackVisitor {
   StackVisitor(Thread* thread, Context* context, size_t num_frames)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool GetGPR(uint32_t reg, uintptr_t* val) const;
-  bool SetGPR(uint32_t reg, uintptr_t value);
-  bool GetFPR(uint32_t reg, uintptr_t* val) const;
-  bool SetFPR(uint32_t reg, uintptr_t value);
+  bool IsAccessibleRegister(uint32_t reg, bool is_float) const {
+    return is_float ? IsAccessibleFPR(reg) : IsAccessibleGPR(reg);
+  }
+  uintptr_t GetRegister(uint32_t reg, bool is_float) const {
+    DCHECK(IsAccessibleRegister(reg, is_float));
+    return is_float ? GetFPR(reg) : GetGPR(reg);
+  }
+  void SetRegister(uint32_t reg, uintptr_t value, bool is_float) {
+    DCHECK(IsAccessibleRegister(reg, is_float));
+    if (is_float) {
+      SetFPR(reg, value);
+    } else {
+      SetGPR(reg, value);
+    }
+  }
+
+  bool IsAccessibleGPR(uint32_t reg) const;
+  uintptr_t GetGPR(uint32_t reg) const;
+  void SetGPR(uint32_t reg, uintptr_t value);
+
+  bool IsAccessibleFPR(uint32_t reg) const;
+  uintptr_t GetFPR(uint32_t reg) const;
+  void SetFPR(uint32_t reg, uintptr_t value);
 
   void SanityCheckFrame() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

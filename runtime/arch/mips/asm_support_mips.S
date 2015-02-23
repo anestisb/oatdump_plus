@@ -26,15 +26,31 @@
 // Register holding Thread::Current().
 #define rSELF $s1
 
-
-    /* Cache alignment for function entry */
+     // Declare a function called name, sets up $gp.
 .macro ENTRY name
     .type \name, %function
     .global \name
+    // Cache alignment for function entry.
     .balign 16
 \name:
     .cfi_startproc
-     /* Ensure we get a sane starting CFA. */
+     // Ensure we get a sane starting CFA.
+    .cfi_def_cfa $sp,0
+    // Load $gp. We expect that ".set noreorder" is in effect.
+    .cpload $t9
+    // Declare a local convenience label to be branched to when $gp is already set up.
+.L\name\()_gp_set:
+.endm
+
+     // Declare a function called name, doesn't set up $gp.
+.macro ENTRY_NO_GP name
+    .type \name, %function
+    .global \name
+    // Cache alignment for function entry.
+    .balign 16
+\name:
+    .cfi_startproc
+     // Ensure we get a sane starting CFA.
     .cfi_def_cfa $sp,0
 .endm
 
@@ -43,17 +59,61 @@
     .size \name, .-\name
 .endm
 
-    /* Generates $gp for function calls */
-.macro GENERATE_GLOBAL_POINTER
-    .cpload $t9
-.endm
-
 .macro UNIMPLEMENTED name
     ENTRY \name
     break
     break
     END \name
 .endm
+
+#if defined(__mips_isa_rev) && __mips_isa_rev > 2
+  /* mips32r5 & mips32r6 have mthc1 op, and have 64-bit fp regs,
+     and in FPXX abi we avoid referring to odd-numbered fp regs */
+
+/* LDu: Load 64-bit floating-point value to float reg feven,
+   from unaligned (mod-4-aligned) mem location disp(base) */
+.macro LDu feven,fodd,disp,base,temp
+  l.s   \feven, \disp(\base)
+  lw    \temp, \disp+4(\base)
+  mthc1 \temp, \feven
+.endm
+
+/* SDu: Store 64-bit floating-point value from float reg feven,
+   to unaligned (mod-4-aligned) mem location disp(base) */
+.macro SDu feven,fodd,disp,base,temp
+  mfhc1 \temp, \feven
+  s.s   \feven, \disp(\base)
+  sw    \temp, \disp+4(\base)
+.endm
+
+/* MTD: Move double, from general regpair (reven,rodd)
+        to float regpair (feven,fodd) */
+.macro MTD reven,rodd,feven,fodd
+  mtc1  \reven, \feven
+  mthc1 \rodd, \feven
+.endm
+
+#else
+  /* mips32r1 has no mthc1 op;
+     mips32r1 and mips32r2 use 32-bit floating point register mode (FR=0),
+     and always hold doubles as (feven, fodd) fp reg pair */
+
+.macro LDu feven,fodd,disp,base,temp
+  l.s   \feven, \disp(\base)
+  l.s   \fodd,  \disp+4(\base)
+.endm
+
+.macro SDu feven,fodd,disp,base,temp
+  s.s   \feven, \disp(\base)
+  s.s   \fodd,  \disp+4(\base)
+.endm
+
+.macro MTD reven,rodd,feven,fodd
+  mtc1  \reven, \feven
+  mtc1  \rodd, \fodd
+.endm
+
+#endif  /* mips_isa_rev */
 
 
 #endif  // ART_RUNTIME_ARCH_MIPS_ASM_SUPPORT_MIPS_S_

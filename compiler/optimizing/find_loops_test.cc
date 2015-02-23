@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
+#include "base/arena_allocator.h"
 #include "builder.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "nodes.h"
 #include "optimizing_unit_test.h"
 #include "ssa_liveness_analysis.h"
-#include "utils/arena_allocator.h"
 #include "pretty_printer.h"
 
 #include "gtest/gtest.h"
@@ -28,11 +28,12 @@
 namespace art {
 
 static HGraph* TestCode(const uint16_t* data, ArenaAllocator* allocator) {
-  HGraphBuilder builder(allocator);
+  HGraph* graph = new (allocator) HGraph(allocator);
+  HGraphBuilder builder(graph);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
-  HGraph* graph = builder.BuildGraph(*item);
+  builder.BuildGraph(*item);
   graph->BuildDominatorTree();
-  graph->FindNaturalLoops();
+  graph->AnalyzeNaturalLoops();
   return graph;
 }
 

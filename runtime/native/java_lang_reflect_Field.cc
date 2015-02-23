@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
+#include "java_lang_reflect_Field.h"
+
 #include "class_linker.h"
 #include "class_linker-inl.h"
 #include "common_throws.h"
 #include "dex_file-inl.h"
-#include "field_helper.h"
 #include "jni_internal.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
@@ -57,9 +58,8 @@ ALWAYS_INLINE inline static bool VerifyFieldAccess(Thread* self, mirror::ArtFiel
 }
 
 template<bool kAllowReferences>
-ALWAYS_INLINE inline static bool GetFieldValue(
-    const ScopedFastNativeObjectAccess& soa, mirror::Object* o, mirror::ArtField* f,
-    Primitive::Type field_type, JValue* value)
+ALWAYS_INLINE inline static bool GetFieldValue(mirror::Object* o, mirror::ArtField* f,
+                                               Primitive::Type field_type, JValue* value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK_EQ(value->GetJ(), INT64_C(0));
   switch (field_type) {
@@ -148,7 +148,7 @@ static jobject Field_get(JNIEnv* env, jobject javaField, jobject javaObj, jboole
   // Get the field's value, boxing if necessary.
   Primitive::Type field_type = f->GetTypeAsPrimitiveType();
   JValue value;
-  if (!GetFieldValue<true>(soa, o, f, field_type, &value)) {
+  if (!GetFieldValue<true>(o, f, field_type, &value)) {
     DCHECK(soa.Self()->IsExceptionPending());
     return nullptr;
   }
@@ -178,13 +178,13 @@ ALWAYS_INLINE inline static JValue GetPrimitiveField(JNIEnv* env, jobject javaFi
   JValue field_value;
   if (field_type == kPrimitiveType) {
     // This if statement should get optimized out since we only pass in valid primitive types.
-    if (UNLIKELY(!GetFieldValue<false>(soa, o, f, kPrimitiveType, &field_value))) {
+    if (UNLIKELY(!GetFieldValue<false>(o, f, kPrimitiveType, &field_value))) {
       DCHECK(soa.Self()->IsExceptionPending());
       return JValue();
     }
     return field_value;
   }
-  if (!GetFieldValue<false>(soa, o, f, field_type, &field_value)) {
+  if (!GetFieldValue<false>(o, f, field_type, &field_value)) {
     DCHECK(soa.Self()->IsExceptionPending());
     return JValue();
   }
@@ -232,9 +232,8 @@ static jshort Field_getShort(JNIEnv* env, jobject javaField, jobject javaObj, jb
   return GetPrimitiveField<Primitive::kPrimShort>(env, javaField, javaObj, accessible).GetS();
 }
 
-static void SetFieldValue(ScopedFastNativeObjectAccess& soa, mirror::Object* o,
-                          mirror::ArtField* f, Primitive::Type field_type, bool allow_references,
-                          const JValue& new_value)
+static void SetFieldValue(mirror::Object* o, mirror::ArtField* f, Primitive::Type field_type,
+                          bool allow_references, const JValue& new_value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(f->GetDeclaringClass()->IsInitialized());
   switch (field_type) {
@@ -294,9 +293,8 @@ static void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject j
     StackHandleScope<2> hs(soa.Self());
     HandleWrapper<mirror::Object> h_o(hs.NewHandleWrapper(&o));
     HandleWrapper<mirror::ArtField> h_f(hs.NewHandleWrapper(&f));
-    FieldHelper fh(h_f);
     // May cause resolution.
-    field_type = fh.GetType(true);
+    field_type = h_f->GetType(true);
     if (field_type == nullptr) {
       DCHECK(soa.Self()->IsExceptionPending());
       return;
@@ -317,7 +315,7 @@ static void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject j
     DCHECK(soa.Self()->IsExceptionPending());
     return;
   }
-  SetFieldValue(soa, o, f, field_prim_type, true, unboxed_value);
+  SetFieldValue(o, f, field_prim_type, true, unboxed_value);
 }
 
 template<Primitive::Type kPrimitiveType>
@@ -350,7 +348,7 @@ static void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj,
   }
 
   // Write the value.
-  SetFieldValue(soa, o, f, field_type, false, wide_value);
+  SetFieldValue(o, f, field_type, false, wide_value);
 }
 
 static void Field_setBoolean(JNIEnv* env, jobject javaField, jobject javaObj, jboolean z,

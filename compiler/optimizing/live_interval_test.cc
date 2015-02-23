@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
+#include "base/arena_allocator.h"
 #include "optimizing_unit_test.h"
 #include "ssa_liveness_analysis.h"
-#include "utils/arena_allocator.h"
 
 #include "gtest/gtest.h"
 
@@ -275,6 +275,57 @@ TEST(LiveInterval, SplitAt) {
     LiveInterval* split = interval->SplitAt(5);
     ASSERT_TRUE(split == nullptr);
     ASSERT_TRUE(RangesEquals(interval, ranges, arraysize(ranges)));
+  }
+}
+
+TEST(LiveInterval, AddLoopRange) {
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+
+  {
+    // Test when only used in a loop.
+    static constexpr size_t ranges[][2] = {{0, 4}};
+    LiveInterval* interval = BuildInterval(ranges, arraysize(ranges), &allocator);
+    interval->AddLoopRange(0, 8);
+    LiveRange* range = interval->GetFirstRange();
+    ASSERT_TRUE(range->GetNext() == nullptr);
+    ASSERT_EQ(range->GetStart(), 0u);
+    ASSERT_EQ(range->GetEnd(), 8u);
+  }
+
+  {
+    // Test when only used in a loop.
+    static constexpr size_t ranges[][2] = {{2, 4}};
+    LiveInterval* interval = BuildInterval(ranges, arraysize(ranges), &allocator);
+    interval->AddLoopRange(0, 8);
+    LiveRange* range = interval->GetFirstRange();
+    ASSERT_TRUE(range->GetNext() == nullptr);
+    ASSERT_EQ(range->GetStart(), 0u);
+    ASSERT_EQ(range->GetEnd(), 8u);
+  }
+
+  {
+    // Test when used just after the loop.
+    static constexpr size_t ranges[][2] = {{2, 4}, {8, 10}};
+    LiveInterval* interval = BuildInterval(ranges, arraysize(ranges), &allocator);
+    interval->AddLoopRange(0, 8);
+    LiveRange* range = interval->GetFirstRange();
+    ASSERT_TRUE(range->GetNext() == nullptr);
+    ASSERT_EQ(range->GetStart(), 0u);
+    ASSERT_EQ(range->GetEnd(), 10u);
+  }
+
+  {
+    // Test when use after the loop is after a lifetime hole.
+    static constexpr size_t ranges[][2] = {{2, 4}, {10, 12}};
+    LiveInterval* interval = BuildInterval(ranges, arraysize(ranges), &allocator);
+    interval->AddLoopRange(0, 8);
+    LiveRange* range = interval->GetFirstRange();
+    ASSERT_EQ(range->GetStart(), 0u);
+    ASSERT_EQ(range->GetEnd(), 8u);
+    range = range->GetNext();
+    ASSERT_EQ(range->GetStart(), 10u);
+    ASSERT_EQ(range->GetEnd(), 12u);
   }
 }
 

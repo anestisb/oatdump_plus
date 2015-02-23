@@ -18,6 +18,7 @@
 #define ART_COMPILER_OPTIMIZING_SSA_BUILDER_H_
 
 #include "nodes.h"
+#include "optimization.h"
 
 namespace art {
 
@@ -35,14 +36,14 @@ class SsaBuilder : public HGraphVisitor {
 
   void BuildSsa();
 
-  GrowableArray<HInstruction*>* GetLocalsFor(HBasicBlock* block) {
+  HEnvironment* GetLocalsFor(HBasicBlock* block) {
     HEnvironment* env = locals_for_.Get(block->GetBlockId());
     if (env == nullptr) {
       env = new (GetGraph()->GetArena()) HEnvironment(
           GetGraph()->GetArena(), GetGraph()->GetNumberOfVRegs());
       locals_for_.Put(block->GetBlockId(), env);
     }
-    return env->GetVRegs();
+    return env;
   }
 
   HInstruction* ValueOfLocal(HBasicBlock* block, size_t local);
@@ -51,10 +52,17 @@ class SsaBuilder : public HGraphVisitor {
   void VisitLoadLocal(HLoadLocal* load);
   void VisitStoreLocal(HStoreLocal* store);
   void VisitInstruction(HInstruction* instruction);
+  void VisitTemporary(HTemporary* instruction);
+
+  static HInstruction* GetFloatOrDoubleEquivalent(HInstruction* user,
+                                                  HInstruction* instruction,
+                                                  Primitive::Type type);
+
+  static HInstruction* GetReferenceTypeEquivalent(HInstruction* instruction);
 
  private:
   // Locals for the current block being visited.
-  GrowableArray<HInstruction*>* current_locals_;
+  HEnvironment* current_locals_;
 
   // Keep track of loop headers found. The last phase of the analysis iterates
   // over these blocks to set the inputs of their phis.

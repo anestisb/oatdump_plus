@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "dalvik_system_DexFile.h"
+
 #include <algorithm>
 #include <set>
 #include <fcntl.h>
@@ -43,12 +45,16 @@
 #include "profiler.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
-#include "ScopedFd.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
 #include "utils.h"
 #include "well_known_classes.h"
 #include "zip_archive.h"
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
+#include "ScopedFd.h"
+#pragma GCC diagnostic pop
 
 namespace art {
 
@@ -109,7 +115,8 @@ static jlong DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceNa
   }
 
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
-  std::unique_ptr<std::vector<const DexFile*>> dex_files(new std::vector<const DexFile*>());
+  std::unique_ptr<std::vector<std::unique_ptr<const DexFile>>> dex_files(
+      new std::vector<std::unique_ptr<const DexFile>>());
   std::vector<std::string> error_msgs;
 
   bool success = linker->OpenDexFilesFromOat(sourceName.c_str(), outputName.c_str(), &error_msgs,
@@ -137,9 +144,11 @@ static jlong DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceNa
   }
 }
 
-static std::vector<const DexFile*>* toDexFiles(jlong dex_file_address, JNIEnv* env) {
-  std::vector<const DexFile*>* dex_files = reinterpret_cast<std::vector<const DexFile*>*>(
-      static_cast<uintptr_t>(dex_file_address));
+static std::vector<std::unique_ptr<const DexFile>>*
+toDexFiles(jlong dex_file_address, JNIEnv* env) {
+  std::vector<std::unique_ptr<const DexFile>>* dex_files
+    = reinterpret_cast<std::vector<std::unique_ptr<const DexFile>>*>(
+        static_cast<uintptr_t>(dex_file_address));
   if (UNLIKELY(dex_files == nullptr)) {
     ScopedObjectAccess soa(env);
     ThrowNullPointerException(NULL, "dex_file == null");
@@ -148,27 +157,29 @@ static std::vector<const DexFile*>* toDexFiles(jlong dex_file_address, JNIEnv* e
 }
 
 static void DexFile_closeDexFile(JNIEnv* env, jclass, jlong cookie) {
-  std::unique_ptr<std::vector<const DexFile*>> dex_files(toDexFiles(cookie, env));
+  std::unique_ptr<std::vector<std::unique_ptr<const DexFile>>> dex_files(toDexFiles(cookie, env));
   if (dex_files.get() == nullptr) {
     return;
   }
   ScopedObjectAccess soa(env);
 
-  size_t index = 0;
-  for (const DexFile* dex_file : *dex_files) {
+  // The Runtime currently never unloads classes, which means any registered
+  // dex files must be kept around forever in case they are used. We
+  // accomplish this here by explicitly leaking those dex files that are
+  // registered.
+  //
+  // TODO: The Runtime should support unloading of classes and freeing of the
+  // dex files for those unloaded classes rather than leaking dex files here.
+  for (auto& dex_file : *dex_files) {
     if (Runtime::Current()->GetClassLinker()->IsDexFileRegistered(*dex_file)) {
-      (*dex_files)[index] = nullptr;
+      dex_file.release();
     }
-    index++;
   }
-
-  STLDeleteElements(dex_files.get());
-  // Unique_ptr will delete the vector itself.
 }
 
 static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, jobject javaLoader,
                                         jlong cookie) {
-  std::vector<const DexFile*>* dex_files = toDexFiles(cookie, env);
+  std::vector<std::unique_ptr<const DexFile>>* dex_files = toDexFiles(cookie, env);
   if (dex_files == NULL) {
     VLOG(class_linker) << "Failed to find dex_file";
     return NULL;
@@ -179,9 +190,9 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
     return NULL;
   }
   const std::string descriptor(DotToDescriptor(class_name.c_str()));
-
-  for (const DexFile* dex_file : *dex_files) {
-    const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor.c_str());
+  const size_t hash(ComputeModifiedUtf8Hash(descriptor.c_str()));
+  for (auto& dex_file : *dex_files) {
+    const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor.c_str(), hash);
     if (dex_class_def != nullptr) {
       ScopedObjectAccess soa(env);
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -189,15 +200,16 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
       StackHandleScope<1> hs(soa.Self());
       Handle<mirror::ClassLoader> class_loader(
           hs.NewHandle(soa.Decode<mirror::ClassLoader*>(javaLoader)));
-      mirror::Class* result = class_linker->DefineClass(soa.Self(), descriptor.c_str(),
+      mirror::Class* result = class_linker->DefineClass(soa.Self(), descriptor.c_str(), hash,
                                                         class_loader, *dex_file, *dex_class_def);
       if (result != nullptr) {
-        VLOG(class_linker) << "DexFile_defineClassNative returning " << result;
+        VLOG(class_linker) << "DexFile_defineClassNative returning " << result
+                           << " for " << class_name.c_str();
         return soa.AddLocalReference<jclass>(result);
       }
     }
   }
-  VLOG(class_linker) << "Failed to find dex_class_def";
+  VLOG(class_linker) << "Failed to find dex_class_def " << class_name.c_str();
   return nullptr;
 }
 
@@ -211,13 +223,13 @@ struct CharPointerComparator {
 // Note: this can be an expensive call, as we sort out duplicates in MultiDex files.
 static jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jlong cookie) {
   jobjectArray result = nullptr;
-  std::vector<const DexFile*>* dex_files = toDexFiles(cookie, env);
+  std::vector<std::unique_ptr<const DexFile>>* dex_files = toDexFiles(cookie, env);
 
   if (dex_files != nullptr) {
     // Push all class descriptors into a set. Use set instead of unordered_set as we want to
     // retrieve all in the end.
     std::set<const char*, CharPointerComparator> descriptors;
-    for (const DexFile* dex_file : *dex_files) {
+    for (auto& dex_file : *dex_files) {
       for (size_t i = 0; i < dex_file->NumClassDefs(); ++i) {
         const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
         const char* descriptor = dex_file->GetClassDescriptor(class_def);
@@ -287,18 +299,28 @@ static const jbyte kDexoptNeeded = 2;
 
 template <const bool kVerboseLogging, const bool kReasonLogging>
 static jbyte IsDexOptNeededForFile(const std::string& oat_filename, const char* filename,
-                                   InstructionSet target_instruction_set) {
+                                   InstructionSet target_instruction_set,
+                                   bool* oat_is_pic) {
   std::string error_msg;
   std::unique_ptr<const OatFile> oat_file(OatFile::Open(oat_filename, oat_filename, nullptr,
+                                                        nullptr,
                                                         false, &error_msg));
   if (oat_file.get() == nullptr) {
-    if (kReasonLogging) {
+    // Note that even though this is kDexoptNeeded, we use
+    // kVerboseLogging instead of the usual kReasonLogging since it is
+    // the common case on first boot and very spammy.
+    if (kVerboseLogging) {
       LOG(INFO) << "DexFile_isDexOptNeeded failed to open oat file '" << oat_filename
           << "' for file location '" << filename << "': " << error_msg;
     }
     error_msg.clear();
     return kDexoptNeeded;
   }
+
+  // Pass-up the information about if this is PIC.
+  // TODO: Refactor this function to be less complicated.
+  *oat_is_pic = oat_file->IsPic();
+
   bool should_relocate_if_possible = Runtime::Current()->ShouldRelocate();
   uint32_t location_checksum = 0;
   const art::OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(filename, nullptr,
@@ -526,10 +548,16 @@ static jbyte IsDexOptNeededInternal(JNIEnv* env, const char* filename,
   // Lets try the cache first (since we want to load from there since thats where the relocated
   // versions will be).
   if (have_cache_filename && !force_system_only) {
+    bool oat_is_pic;
     // We can use the dalvik-cache if we find a good file.
     dalvik_cache_decision =
         IsDexOptNeededForFile<kVerboseLogging, kReasonLogging>(cache_filename, filename,
-                                                               target_instruction_set);
+                                                               target_instruction_set, &oat_is_pic);
+
+    // Apps that are compiled with --compile-pic never need to be patchoat-d
+    if (oat_is_pic && dalvik_cache_decision == kPatchoatNeeded) {
+      dalvik_cache_decision = kUpToDate;
+    }
     // We will only return DexOptNeeded if both the cache and system return it.
     if (dalvik_cache_decision != kDexoptNeeded && !require_system_version) {
       CHECK(!(dalvik_cache_decision == kPatchoatNeeded && !should_relocate_if_possible))
@@ -539,11 +567,17 @@ static jbyte IsDexOptNeededInternal(JNIEnv* env, const char* filename,
     // We couldn't find one thats easy. We should now try the system.
   }
 
+  bool oat_is_pic;
   jbyte system_decision =
       IsDexOptNeededForFile<kVerboseLogging, kReasonLogging>(odex_filename, filename,
-                                                             target_instruction_set);
+                                                             target_instruction_set, &oat_is_pic);
   CHECK(!(system_decision == kPatchoatNeeded && !should_relocate_if_possible))
       << "May not return PatchoatNeeded when patching is disabled.";
+
+  // Apps that are compiled with --compile-pic never need to be patchoat-d
+  if (oat_is_pic && system_decision == kPatchoatNeeded) {
+    system_decision = kUpToDate;
+  }
 
   if (require_system_version && system_decision == kPatchoatNeeded
                              && dalvik_cache_decision == kUpToDate) {

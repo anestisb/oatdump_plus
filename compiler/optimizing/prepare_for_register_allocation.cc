@@ -23,8 +23,9 @@ void PrepareForRegisterAllocation::Run() {
   for (HReversePostOrderIterator it(*GetGraph()); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
     // No need to visit the phis.
-    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
-      it.Current()->Accept(this);
+    for (HInstructionIterator inst_it(block->GetInstructions()); !inst_it.Done();
+         inst_it.Advance()) {
+      inst_it.Current()->Accept(this);
     }
   }
 }
@@ -33,17 +34,36 @@ void PrepareForRegisterAllocation::VisitNullCheck(HNullCheck* check) {
   check->ReplaceWith(check->InputAt(0));
 }
 
+void PrepareForRegisterAllocation::VisitDivZeroCheck(HDivZeroCheck* check) {
+  check->ReplaceWith(check->InputAt(0));
+}
+
 void PrepareForRegisterAllocation::VisitBoundsCheck(HBoundsCheck* check) {
   check->ReplaceWith(check->InputAt(0));
 }
 
+void PrepareForRegisterAllocation::VisitBoundType(HBoundType* bound_type) {
+  bound_type->ReplaceWith(bound_type->InputAt(0));
+  bound_type->GetBlock()->RemoveInstruction(bound_type);
+}
+
+void PrepareForRegisterAllocation::VisitClinitCheck(HClinitCheck* check) {
+  HLoadClass* cls = check->GetLoadClass();
+  check->ReplaceWith(cls);
+  if (check->GetPrevious() == cls) {
+    // Pass the initialization duty to the `HLoadClass` instruction,
+    // and remove the instruction from the graph.
+    cls->SetMustGenerateClinitCheck();
+    check->GetBlock()->RemoveInstruction(check);
+  }
+}
+
 void PrepareForRegisterAllocation::VisitCondition(HCondition* condition) {
   bool needs_materialization = false;
-  if (!condition->HasOnlyOneUse()) {
+  if (!condition->GetUses().HasOnlyOneUse()) {
     needs_materialization = true;
   } else {
-    HUseListNode<HInstruction>* uses = condition->GetUses();
-    HInstruction* user = uses->GetUser();
+    HInstruction* user = condition->GetUses().GetFirst()->GetUser();
     if (!user->IsIf()) {
       needs_materialization = true;
     } else {

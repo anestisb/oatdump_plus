@@ -19,6 +19,8 @@
 
 #include "base/macros.h"
 #include "base/mutex.h"
+#include "base/value_object.h"
+#include "gc_root.h"
 #include "object_callbacks.h"
 #include "offsets.h"
 #include "primitive.h"
@@ -35,10 +37,18 @@ class String;
 }
 class InternTable;
 
-class Transaction {
+class Transaction FINAL {
  public:
   Transaction();
   ~Transaction();
+
+  void Abort(const std::string& abort_message)
+      LOCKS_EXCLUDED(log_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void ThrowInternalError(Thread* self)
+      LOCKS_EXCLUDED(log_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool IsAborted() LOCKS_EXCLUDED(log_lock_);
 
   // Record object field changes.
   void RecordWriteFieldBoolean(mirror::Object* obj, MemberOffset field_offset, uint8_t value,
@@ -83,7 +93,7 @@ class Transaction {
       LOCKS_EXCLUDED(log_lock_);
 
   // Abort transaction by undoing all recorded changes.
-  void Abort()
+  void Rollback()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(log_lock_);
 
@@ -92,7 +102,7 @@ class Transaction {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
-  class ObjectLog {
+  class ObjectLog : public ValueObject {
    public:
     void LogBooleanValue(MemberOffset offset, uint8_t value, bool is_volatile);
     void LogByteValue(MemberOffset offset, int8_t value, bool is_volatile);
@@ -119,7 +129,7 @@ class Transaction {
       k64Bits,
       kReference
     };
-    struct FieldValue {
+    struct FieldValue : public ValueObject {
       // TODO use JValue instead ?
       uint64_t value;
       FieldValueKind kind;
@@ -134,7 +144,7 @@ class Transaction {
     std::map<uint32_t, FieldValue> field_values_;
   };
 
-  class ArrayLog {
+  class ArrayLog : public ValueObject {
    public:
     void LogValue(size_t index, uint64_t value);
 
@@ -153,7 +163,7 @@ class Transaction {
     std::map<size_t, uint64_t> array_values_;
   };
 
-  class InternStringLog {
+  class InternStringLog : public ValueObject {
    public:
     enum StringKind {
       kStrongString,
@@ -175,11 +185,11 @@ class Transaction {
 
    private:
     mirror::String* str_;
-    StringKind string_kind_;
-    StringOp string_op_;
+    const StringKind string_kind_;
+    const StringOp string_op_;
   };
 
-  void LogInternedString(InternStringLog& log)
+  void LogInternedString(const InternStringLog& log)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_)
       LOCKS_EXCLUDED(log_lock_);
 
@@ -204,10 +214,14 @@ class Transaction {
       EXCLUSIVE_LOCKS_REQUIRED(log_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  const std::string& GetAbortMessage() LOCKS_EXCLUDED(log_lock_);
+
   Mutex log_lock_ ACQUIRED_AFTER(Locks::intern_table_lock_);
   std::map<mirror::Object*, ObjectLog> object_logs_ GUARDED_BY(log_lock_);
   std::map<mirror::Array*, ArrayLog> array_logs_  GUARDED_BY(log_lock_);
   std::list<InternStringLog> intern_string_logs_ GUARDED_BY(log_lock_);
+  bool aborted_ GUARDED_BY(log_lock_);
+  std::string abort_message_ GUARDED_BY(log_lock_);
 
   DISALLOW_COPY_AND_ASSIGN(Transaction);
 };

@@ -15,6 +15,9 @@
  */
 
 #include "codegen_mips.h"
+
+#include "base/logging.h"
+#include "dex/compiler_ir.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "mips_lir.h"
 
@@ -146,12 +149,10 @@ const MipsEncodingMap MipsMir2Lir::EncodingMap[kMipsLast] = {
                  kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF_HI | REG_DEF_LO | REG_USE01,
                  "div", "!0r,!1r", 4),
-#if __mips_isa_rev >= 2
     ENCODING_MAP(kMipsExt, 0x7c000000,
                  kFmtBitBlt, 20, 16, kFmtBitBlt, 25, 21, kFmtBitBlt, 10, 6,
                  kFmtBitBlt, 15, 11, IS_QUAD_OP | REG_DEF0 | REG_USE1,
                  "ext", "!0r,!1r,!2d,!3D", 4),
-#endif
     ENCODING_MAP(kMipsJal, 0x0c000000,
                  kFmtBitBlt, 25, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_DEF_LR,
@@ -240,7 +241,6 @@ const MipsEncodingMap MipsMir2Lir::EncodingMap[kMipsLast] = {
                  kFmtBitBlt, 20, 16, kFmtBitBlt, 15, 0, kFmtBitBlt, 25, 21,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_USE02 | IS_STORE,
                  "sb", "!0r,!1d(!2r)", 4),
-#if __mips_isa_rev >= 2
     ENCODING_MAP(kMipsSeb, 0x7c000420,
                  kFmtBitBlt, 15, 11, kFmtBitBlt, 20, 16, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
@@ -249,7 +249,6 @@ const MipsEncodingMap MipsMir2Lir::EncodingMap[kMipsLast] = {
                  kFmtBitBlt, 15, 11, kFmtBitBlt, 20, 16, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
                  "seh", "!0r,!1r", 4),
-#endif
     ENCODING_MAP(kMipsSh, 0xA4000000,
                  kFmtBitBlt, 20, 16, kFmtBitBlt, 15, 0, kFmtBitBlt, 25, 21,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_USE02 | IS_STORE,
@@ -437,7 +436,7 @@ const MipsEncodingMap MipsMir2Lir::EncodingMap[kMipsLast] = {
  * anchor:
  *      ori  rAT, rAT, ((target-anchor) & 0xffff)
  *      addu rAT, rAT, rRA
- *      jr   rAT
+ *      jalr rZERO, rAT
  * hop:
  *
  * Orig unconditional branch
@@ -451,7 +450,7 @@ const MipsEncodingMap MipsMir2Lir::EncodingMap[kMipsLast] = {
  * anchor:
  *      ori  rAT, rAT, ((target-anchor) & 0xffff)
  *      addu rAT, rAT, rRA
- *      jr   rAT
+ *      jalr rZERO, rAT
  *
  *
  * NOTE: An out-of-range bal isn't supported because it should
@@ -485,7 +484,7 @@ void MipsMir2Lir::ConvertShortToLongBranch(LIR* lir) {
   if (!unconditional) {
     hop_target = RawLIR(dalvik_offset, kPseudoTargetLabel);
     LIR* hop_branch = RawLIR(dalvik_offset, opcode, lir->operands[0],
-                            lir->operands[1], 0, 0, 0, hop_target);
+                             lir->operands[1], 0, 0, 0, hop_target);
     InsertLIRBefore(lir, hop_branch);
   }
   LIR* curr_pc = RawLIR(dalvik_offset, kMipsCurrPC);
@@ -500,8 +499,8 @@ void MipsMir2Lir::ConvertShortToLongBranch(LIR* lir) {
   InsertLIRBefore(lir, delta_lo);
   LIR* addu = RawLIR(dalvik_offset, kMipsAddu, rAT, rAT, rRA);
   InsertLIRBefore(lir, addu);
-  LIR* jr = RawLIR(dalvik_offset, kMipsJr, rAT);
-  InsertLIRBefore(lir, jr);
+  LIR* jalr = RawLIR(dalvik_offset, kMipsJalr, rZERO, rAT);
+  InsertLIRBefore(lir, jalr);
   if (!unconditional) {
     InsertLIRBefore(lir, hop_target);
   }
@@ -700,12 +699,12 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(CodeOffset start_addr) {
     // TUNING: replace with proper delay slot handling
     if (encoder->size == 8) {
       DCHECK(!IsPseudoLirOp(lir->opcode));
-      const MipsEncodingMap *encoder = &EncodingMap[kMipsNop];
-      uint32_t bits = encoder->skeleton;
-      code_buffer_.push_back(bits & 0xff);
-      code_buffer_.push_back((bits >> 8) & 0xff);
-      code_buffer_.push_back((bits >> 16) & 0xff);
-      code_buffer_.push_back((bits >> 24) & 0xff);
+      const MipsEncodingMap *encoder2 = &EncodingMap[kMipsNop];
+      uint32_t bits2 = encoder2->skeleton;
+      code_buffer_.push_back(bits2 & 0xff);
+      code_buffer_.push_back((bits2 >> 8) & 0xff);
+      code_buffer_.push_back((bits2 >> 16) & 0xff);
+      code_buffer_.push_back((bits2 >> 24) & 0xff);
     }
   }
   return res;

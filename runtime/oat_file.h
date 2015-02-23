@@ -49,6 +49,7 @@ class OatFile {
   static OatFile* Open(const std::string& filename,
                        const std::string& location,
                        uint8_t* requested_base,
+                       uint8_t* oat_file_begin,
                        bool executable,
                        std::string* error_msg);
 
@@ -72,6 +73,8 @@ class OatFile {
     return is_executable_;
   }
 
+  bool IsPic() const;
+
   ElfFile* GetElfFile() const {
     CHECK_NE(reinterpret_cast<uintptr_t>(elf_file_.get()), reinterpret_cast<uintptr_t>(nullptr))
         << "Cannot get an elf file from " << GetLocation();
@@ -93,33 +96,9 @@ class OatFile {
     uint32_t GetCodeOffset() const {
       return code_offset_;
     }
-    uint32_t GetNativeGcMapOffset() const {
-      return native_gc_map_offset_;
-    }
-
-    const void* GetPortableCode() const {
-      // TODO: encode whether code is portable/quick in flags within OatMethod.
-      if (kUsePortableCompiler) {
-        return GetOatPointer<const void*>(code_offset_);
-      } else {
-        return nullptr;
-      }
-    }
 
     const void* GetQuickCode() const {
-      if (kUsePortableCompiler) {
-        return nullptr;
-      } else {
-        return GetOatPointer<const void*>(code_offset_);
-      }
-    }
-
-    // Returns 0.
-    uint32_t GetPortableCodeSize() const {
-      // TODO: With Quick, we store the size before the code. With Portable, the code is in a .o
-      // file we don't manage ourselves. ELF symbols do have a concept of size, so we could capture
-      // that and store it somewhere, such as the OatMethod.
-      return 0;
+      return GetOatPointer<const void*>(code_offset_);
     }
 
     // Returns size of quick code.
@@ -130,10 +109,6 @@ class OatFile {
     // use more specific methods such as GetQuickCodeSize.
     const OatQuickMethodHeader* GetOatQuickMethodHeader() const;
     uint32_t GetOatQuickMethodHeaderOffset() const;
-
-    const uint8_t* GetNativeGcMap() const {
-      return GetOatPointer<const uint8_t*>(native_gc_map_offset_);
-    }
 
     size_t GetFrameSizeInBytes() const;
     uint32_t GetCoreSpillMask() const;
@@ -147,18 +122,20 @@ class OatFile {
     uint32_t GetVmapTableOffset() const;
     uint32_t GetVmapTableOffsetOffset() const;
 
+    const uint8_t* GetGcMap() const;
+    uint32_t GetGcMapOffset() const;
+    uint32_t GetGcMapOffsetOffset() const;
+
     // Create an OatMethod with offsets relative to the given base address
-    OatMethod(const uint8_t* base, const uint32_t code_offset, const uint32_t gc_map_offset)
-      : begin_(base),
-        code_offset_(code_offset),
-        native_gc_map_offset_(gc_map_offset) {
+    OatMethod(const uint8_t* base, const uint32_t code_offset)
+        : begin_(base), code_offset_(code_offset) {
     }
     ~OatMethod() {}
 
     // A representation of an invalid OatMethod, used when an OatMethod or OatClass can't be found.
     // See ClassLinker::FindOatMethodFor.
     static const OatMethod Invalid() {
-      return OatMethod(nullptr, -1, -1);
+      return OatMethod(nullptr, -1);
     }
 
    private:
@@ -171,9 +148,7 @@ class OatFile {
     }
 
     const uint8_t* const begin_;
-
     const uint32_t code_offset_;
-    const uint32_t native_gc_map_offset_;
 
     friend class OatClass;
   };
@@ -235,7 +210,7 @@ class OatFile {
   class OatDexFile {
    public:
     // Opens the DexFile referred to by this OatDexFile from within the containing OatFile.
-    const DexFile* OpenDexFile(std::string* error_msg) const;
+    std::unique_ptr<const DexFile> OpenDexFile(std::string* error_msg) const;
 
     const OatFile* GetOatFile() const {
       return oat_file_;
@@ -313,13 +288,16 @@ class OatFile {
   static OatFile* OpenElfFile(File* file,
                               const std::string& location,
                               uint8_t* requested_base,
+                              uint8_t* oat_file_begin,  // Override base if not null
                               bool writable,
                               bool executable,
                               std::string* error_msg);
 
   explicit OatFile(const std::string& filename, bool executable);
   bool Dlopen(const std::string& elf_filename, uint8_t* requested_base, std::string* error_msg);
-  bool ElfFileOpen(File* file, uint8_t* requested_base, bool writable, bool executable,
+  bool ElfFileOpen(File* file, uint8_t* requested_base,
+                   uint8_t* oat_file_begin,  // Override where the file is loaded to if not null
+                   bool writable, bool executable,
                    std::string* error_msg);
   bool Setup(std::string* error_msg);
 

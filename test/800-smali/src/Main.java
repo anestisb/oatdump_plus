@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -47,8 +49,34 @@ public class Main {
     public Main() {
         // Create the test cases.
         testCases = new LinkedList<TestCase>();
+        testCases.add(new TestCase("PackedSwitch", "PackedSwitch", "packedSwitch",
+                new Object[]{123}, null, 123));
 
         testCases.add(new TestCase("b/17790197", "B17790197", "getInt", null, null, 100));
+        testCases.add(new TestCase("b/17978759", "B17978759", "test", null, new VerifyError(),
+                null));
+        testCases.add(new TestCase("FloatBadArgReg", "FloatBadArgReg", "getInt",
+                new Object[]{100}, null, 100));
+        testCases.add(new TestCase("negLong", "negLong", "negLong", null, null, 122142L));
+        testCases.add(new TestCase("sameFieldNames", "sameFieldNames", "getInt", null, null, 7));
+        testCases.add(new TestCase("b/18380491", "B18380491ConcreteClass", "foo",
+                new Object[]{42}, null, 42));
+        testCases.add(new TestCase("invoke-super abstract", "B18380491ConcreteClass", "foo",
+                new Object[]{0}, new AbstractMethodError(), null));
+        testCases.add(new TestCase("BadCaseInOpRegRegReg", "BadCaseInOpRegRegReg", "getInt", null,
+                null, 2));
+        testCases.add(new TestCase("CmpLong", "CmpLong", "run", null, null, 0));
+        testCases.add(new TestCase("FloatIntConstPassing", "FloatIntConstPassing", "run", null,
+                null, 2));
+        testCases.add(new TestCase("b/18718277", "B18718277", "getInt", null, null, 0));
+        testCases.add(new TestCase("b/18800943 (1)", "B18800943_1", "n_a", null, new VerifyError(),
+                0));
+        testCases.add(new TestCase("b/18800943 (2)", "B18800943_2", "n_a", null, new VerifyError(),
+                0));
+        testCases.add(new TestCase("MoveExc", "MoveExc", "run", null, new ArithmeticException(),
+                null));
+        testCases.add(new TestCase("MoveExceptionOnEntry", "MoveExceptionOnEntry",
+            "moveExceptionOnEntry", new Object[]{0}, new VerifyError(), null));
     }
 
     public void runTests() {
@@ -63,47 +91,62 @@ public class Main {
     }
 
     private void runTest(TestCase tc) throws Exception {
-        Class<?> c = Class.forName(tc.testClass);
-
-        Method[] methods = c.getDeclaredMethods();
-
-        // For simplicity we assume that test methods are not overloaded. So searching by name
-        // will give us the method we need to run.
-        Method method = null;
-        for (Method m : methods) {
-            if (m.getName().equals(tc.testMethodName)) {
-                method = m;
-                break;
-            }
-        }
-
-        if (method == null) {
-            throw new IllegalArgumentException("Could not find test method " + tc.testMethodName +
-                    " in class " + tc.testClass + " for test " + tc.testName);
-        }
-
         Exception errorReturn = null;
         try {
-            Object retValue = method.invoke(null, tc.values);
-            if (tc.expectedException != null) {
-                errorReturn = new IllegalStateException("Expected an exception in test " +
-                                                        tc.testName);
+            Class<?> c = Class.forName(tc.testClass);
+
+            Method[] methods = c.getDeclaredMethods();
+
+            // For simplicity we assume that test methods are not overloaded. So searching by name
+            // will give us the method we need to run.
+            Method method = null;
+            for (Method m : methods) {
+                if (m.getName().equals(tc.testMethodName)) {
+                    method = m;
+                    break;
+                }
             }
-            if (tc.expectedReturn == null && retValue != null) {
-                errorReturn = new IllegalStateException("Expected a null result in test " +
-                                                        tc.testName);
-            } else if (tc.expectedReturn != null &&
-                       (retValue == null || !tc.expectedReturn.equals(retValue))) {
-                errorReturn = new IllegalStateException("Expected return " + tc.expectedReturn +
-                                                        ", but got " + retValue);
+
+            if (method == null) {
+                errorReturn = new IllegalArgumentException("Could not find test method " +
+                                                           tc.testMethodName + " in class " +
+                                                           tc.testClass + " for test " +
+                                                           tc.testName);
+            } else {
+                Object retValue;
+                if (Modifier.isStatic(method.getModifiers())) {
+                    retValue = method.invoke(null, tc.values);
+                } else {
+                    retValue = method.invoke(method.getDeclaringClass().newInstance(), tc.values);
+                }
+                if (tc.expectedException != null) {
+                    errorReturn = new IllegalStateException("Expected an exception in test " +
+                                                            tc.testName);
+                }
+                if (tc.expectedReturn == null && retValue != null) {
+                    errorReturn = new IllegalStateException("Expected a null result in test " +
+                                                            tc.testName);
+                } else if (tc.expectedReturn != null &&
+                           (retValue == null || !tc.expectedReturn.equals(retValue))) {
+                    errorReturn = new IllegalStateException("Expected return " +
+                                                            tc.expectedReturn +
+                                                            ", but got " + retValue);
+                } else {
+                    // Expected result, do nothing.
+                }
             }
-        } catch (Exception exc) {
+        } catch (Throwable exc) {
             if (tc.expectedException == null) {
                 errorReturn = new IllegalStateException("Did not expect exception", exc);
+            } else if (exc instanceof InvocationTargetException && exc.getCause() != null &&
+                       exc.getCause().getClass().equals(tc.expectedException.getClass())) {
+                // Expected exception is wrapped in InvocationTargetException.
             } else if (!tc.expectedException.getClass().equals(exc.getClass())) {
                 errorReturn = new IllegalStateException("Expected " +
-                                                tc.expectedException.getClass().getName() +
-                                                ", but got " + exc.getClass(), exc);
+                                                        tc.expectedException.getClass().getName() +
+                                                        ", but got " + exc.getClass(), exc);
+            } else {
+              // Expected exception, do nothing.
             }
         } finally {
             if (errorReturn != null) {

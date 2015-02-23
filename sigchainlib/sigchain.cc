@@ -35,6 +35,8 @@
 
 namespace art {
 
+typedef int (*SigActionFnPtr)(int, const struct sigaction*, struct sigaction*);
+
 class SignalAction {
  public:
   SignalAction() : claimed_(false), uses_old_style_(false) {
@@ -107,21 +109,20 @@ static void CheckSignalValid(int signal) {
   }
 }
 
-
 // Claim a signal chain for a particular signal.
-void ClaimSignalChain(int signal, struct sigaction* oldaction) {
+extern "C" void ClaimSignalChain(int signal, struct sigaction* oldaction) {
   CheckSignalValid(signal);
   user_sigactions[signal].Claim(*oldaction);
 }
 
-void UnclaimSignalChain(int signal) {
+extern "C" void UnclaimSignalChain(int signal) {
   CheckSignalValid(signal);
 
   user_sigactions[signal].Unclaim(signal);
 }
 
 // Invoke the user's signal handler.
-void InvokeUserSignalHandler(int sig, siginfo_t* info, void* context) {
+extern "C" void InvokeUserSignalHandler(int sig, siginfo_t* info, void* context) {
   // Check the arguments.
   CheckSignalValid(sig);
 
@@ -148,20 +149,33 @@ void InvokeUserSignalHandler(int sig, siginfo_t* info, void* context) {
   }
 }
 
-extern "C" {
-// These functions are C linkage since they replace the functions in libc.
+extern "C" void EnsureFrontOfChain(int signal, struct sigaction* expected_action) {
+  CheckSignalValid(signal);
+  // Read the current action without looking at the chain, it should be the expected action.
+  SigActionFnPtr linked_sigaction = reinterpret_cast<SigActionFnPtr>(linked_sigaction_sym);
+  struct sigaction current_action;
+  linked_sigaction(signal, nullptr, &current_action);
+  // If the sigactions don't match then we put the current action on the chain and make ourself as
+  // the main action.
+  if (current_action.sa_sigaction != expected_action->sa_sigaction) {
+    log("Warning: Unexpected sigaction action found %p\n", current_action.sa_sigaction);
+    user_sigactions[signal].Claim(current_action);
+    linked_sigaction(signal, expected_action, nullptr);
+  }
+}
 
-int sigaction(int signal, const struct sigaction* new_action, struct sigaction* old_action) {
+extern "C" int sigaction(int signal, const struct sigaction* new_action, struct sigaction* old_action) {
   // If this signal has been claimed as a signal chain, record the user's
   // action but don't pass it on to the kernel.
   // Note that we check that the signal number is in range here.  An out of range signal
   // number should behave exactly as the libc sigaction.
   if (signal > 0 && signal < _NSIG && user_sigactions[signal].IsClaimed()) {
-    if (old_action != NULL) {
-      *old_action = user_sigactions[signal].GetAction();
-    }
+    struct sigaction saved_action = user_sigactions[signal].GetAction();
     if (new_action != NULL) {
       user_sigactions[signal].SetAction(*new_action, false);
+    }
+    if (old_action != NULL) {
+      *old_action = saved_action;
     }
     return 0;
   }
@@ -181,13 +195,11 @@ int sigaction(int signal, const struct sigaction* new_action, struct sigaction* 
     log("Unable to find next sigaction in signal chain");
     abort();
   }
-
-  typedef int (*SigAction)(int, const struct sigaction*, struct sigaction*);
-  SigAction linked_sigaction = reinterpret_cast<SigAction>(linked_sigaction_sym);
+  SigActionFnPtr linked_sigaction = reinterpret_cast<SigActionFnPtr>(linked_sigaction_sym);
   return linked_sigaction(signal, new_action, old_action);
 }
 
-sighandler_t signal(int signal, sighandler_t handler) {
+extern "C" sighandler_t signal(int signal, sighandler_t handler) {
   struct sigaction sa;
   sigemptyset(&sa.sa_mask);
   sa.sa_handler = handler;
@@ -226,7 +238,7 @@ sighandler_t signal(int signal, sighandler_t handler) {
   return reinterpret_cast<sighandler_t>(sa.sa_handler);
 }
 
-int sigprocmask(int how, const sigset_t* bionic_new_set, sigset_t* bionic_old_set) {
+extern "C" int sigprocmask(int how, const sigset_t* bionic_new_set, sigset_t* bionic_old_set) {
   const sigset_t* new_set_ptr = bionic_new_set;
   sigset_t tmpset;
   if (bionic_new_set != NULL) {
@@ -258,9 +270,8 @@ int sigprocmask(int how, const sigset_t* bionic_new_set, sigset_t* bionic_old_se
   SigProcMask linked_sigprocmask= reinterpret_cast<SigProcMask>(linked_sigprocmask_sym);
   return linked_sigprocmask(how, new_set_ptr, bionic_old_set);
 }
-}   // extern "C"
 
-void InitializeSignalChain() {
+extern "C" void InitializeSignalChain() {
   // Warning.
   // Don't call this from within a signal context as it makes calls to
   // dlsym.  Calling into the dynamic linker will result in locks being
@@ -290,5 +301,6 @@ void InitializeSignalChain() {
   }
   initialized = true;
 }
+
 }   // namespace art
 

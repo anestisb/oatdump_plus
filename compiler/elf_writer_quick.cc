@@ -90,19 +90,19 @@ std::vector<uint8_t>* ConstructCIEFrameX86(bool is_x86_64) {
 
   // Length (will be filled in later in this routine).
   if (is_x86_64) {
-    PushWord(cfi_info, 0xffffffff);  // Indicates 64bit
-    PushWord(cfi_info, 0);
-    PushWord(cfi_info, 0);
+    Push32(cfi_info, 0xffffffff);  // Indicates 64bit
+    Push32(cfi_info, 0);
+    Push32(cfi_info, 0);
   } else {
-    PushWord(cfi_info, 0);
+    Push32(cfi_info, 0);
   }
 
   // CIE id: always 0.
   if (is_x86_64) {
-    PushWord(cfi_info, 0);
-    PushWord(cfi_info, 0);
+    Push32(cfi_info, 0);
+    Push32(cfi_info, 0);
   } else {
-    PushWord(cfi_info, 0);
+    Push32(cfi_info, 0);
   }
 
   // Version: always 1.
@@ -222,9 +222,9 @@ template <typename Elf_Word, typename Elf_Sword, typename Elf_Addr,
           typename Elf_Phdr, typename Elf_Shdr>
 bool ElfWriterQuick<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
   Elf_Sym, Elf_Ehdr, Elf_Phdr, Elf_Shdr>::Write(OatWriter* oat_writer,
-                           const std::vector<const DexFile*>& dex_files_unused,
-                           const std::string& android_root_unused,
-                           bool is_host_unused) {
+                           const std::vector<const DexFile*>& dex_files_unused ATTRIBUTE_UNUSED,
+                           const std::string& android_root_unused ATTRIBUTE_UNUSED,
+                           bool is_host_unused ATTRIBUTE_UNUSED) {
   constexpr bool debug = false;
   const OatHeader& oat_header = oat_writer->GetOatHeader();
   Elf_Word oat_data_size = oat_header.GetExecutableOffset();
@@ -318,7 +318,7 @@ class LineTableGenerator FINAL : public Leb128Encoder {
     PushByte(data_, 0);  // extended opcode:
     PushByte(data_, 1 + 4);  // length: opcode_size + address_size
     PushByte(data_, DW_LNE_set_address);
-    PushWord(data_, addr);
+    Push32(data_, addr);
   }
 
   void SetLine(unsigned line) {
@@ -358,8 +358,8 @@ class LineTableGenerator FINAL : public Leb128Encoder {
 };
 
 // TODO: rewriting it using DexFile::DecodeDebugInfo needs unneeded stuff.
-static void GetLineInfoForJava(const uint8_t* dbgstream, const SrcMap& pc2dex,
-                               SrcMap* result, uint32_t start_pc = 0) {
+static void GetLineInfoForJava(const uint8_t* dbgstream, const SwapSrcMap& pc2dex,
+                               DefaultSrcMap* result, uint32_t start_pc = 0) {
   if (dbgstream == nullptr) {
     return;
   }
@@ -415,7 +415,7 @@ static void GetLineInfoForJava(const uint8_t* dbgstream, const SrcMap& pc2dex,
       dex_offset += adjopcode / DexFile::DBG_LINE_RANGE;
       java_line += DexFile::DBG_LINE_BASE + (adjopcode % DexFile::DBG_LINE_RANGE);
 
-      for (SrcMap::const_iterator found = pc2dex.FindByTo(dex_offset);
+      for (SwapSrcMap::const_iterator found = pc2dex.FindByTo(dex_offset);
           found != pc2dex.end() && found->to_ == static_cast<int32_t>(dex_offset);
           found++) {
         result->push_back({found->from_ + start_pc, static_cast<int32_t>(java_line)});
@@ -507,13 +507,13 @@ static void FillInCFIInformation(OatWriter* oat_writer,
   // Start the debug_info section with the header information
   // 'unit_length' will be filled in later.
   int cunit_length = dbg_info->size();
-  PushWord(dbg_info, 0);
+  Push32(dbg_info, 0);
 
   // 'version' - 3.
   PushHalf(dbg_info, 3);
 
   // Offset into .debug_abbrev section (always 0).
-  PushWord(dbg_info, 0);
+  Push32(dbg_info, 0);
 
   // Address size: 4.
   PushByte(dbg_info, 4);
@@ -523,7 +523,7 @@ static void FillInCFIInformation(OatWriter* oat_writer,
   PushByte(dbg_info, 1);
 
   // The producer is Android dex2oat.
-  PushWord(dbg_info, producer_str_offset);
+  Push32(dbg_info, producer_str_offset);
 
   // The language is Java.
   PushByte(dbg_info, DW_LANG_Java);
@@ -532,8 +532,8 @@ static void FillInCFIInformation(OatWriter* oat_writer,
   uint32_t cunit_low_pc = 0 - 1;
   uint32_t cunit_high_pc = 0;
   int cunit_low_pc_pos = dbg_info->size();
-  PushWord(dbg_info, 0);
-  PushWord(dbg_info, 0);
+  Push32(dbg_info, 0);
+  Push32(dbg_info, 0);
 
   if (dbg_line == nullptr) {
     for (size_t i = 0; i < method_info.size(); ++i) {
@@ -546,9 +546,9 @@ static void FillInCFIInformation(OatWriter* oat_writer,
       PushByte(dbg_info, 2);
 
       // Enter name, low_pc, high_pc.
-      PushWord(dbg_info, PushStr(dbg_str, dbg.method_name_));
-      PushWord(dbg_info, dbg.low_pc_ + text_section_offset);
-      PushWord(dbg_info, dbg.high_pc_ + text_section_offset);
+      Push32(dbg_info, PushStr(dbg_str, dbg.method_name_));
+      Push32(dbg_info, dbg.low_pc_ + text_section_offset);
+      Push32(dbg_info, dbg.high_pc_ + text_section_offset);
     }
   } else {
     // TODO: in gdb info functions <regexp> - reports Java functions, but
@@ -559,15 +559,15 @@ static void FillInCFIInformation(OatWriter* oat_writer,
     // method ranges.
 
     // Line number table offset
-    PushWord(dbg_info, dbg_line->size());
+    Push32(dbg_info, dbg_line->size());
 
     size_t lnt_length = dbg_line->size();
-    PushWord(dbg_line, 0);
+    Push32(dbg_line, 0);
 
     PushHalf(dbg_line, 4);  // LNT Version DWARF v4 => 4
 
     size_t lnt_hdr_length = dbg_line->size();
-    PushWord(dbg_line, 0);  // TODO: 64-bit uses 8-byte here
+    Push32(dbg_line, 0);  // TODO: 64-bit uses 8-byte here
 
     PushByte(dbg_line, 1);  // minimum_instruction_length (ubyte)
     PushByte(dbg_line, 1);  // maximum_operations_per_instruction (ubyte) = always 1
@@ -615,7 +615,7 @@ static void FillInCFIInformation(OatWriter* oat_writer,
     LineTableGenerator line_table_generator(LINE_BASE, LINE_RANGE, OPCODE_BASE,
                                             dbg_line, 0, 1);
 
-    SrcMap pc2java_map;
+    DefaultSrcMap pc2java_map;
     for (size_t i = 0; i < method_info.size(); ++i) {
       const OatWriter::DebugInfo &dbg = method_info[i];
       const char* file_name = (dbg.src_file_name_ == nullptr) ? "null" : dbg.src_file_name_;
@@ -629,9 +629,9 @@ static void FillInCFIInformation(OatWriter* oat_writer,
       PushByte(dbg_info, 2);
 
       // Enter name, low_pc, high_pc.
-      PushWord(dbg_info, PushStr(dbg_str, dbg.method_name_));
-      PushWord(dbg_info, dbg.low_pc_ + text_section_offset);
-      PushWord(dbg_info, dbg.high_pc_ + text_section_offset);
+      Push32(dbg_info, PushStr(dbg_str, dbg.method_name_));
+      Push32(dbg_info, dbg.low_pc_ + text_section_offset);
+      Push32(dbg_info, dbg.high_pc_ + text_section_offset);
 
       GetLineInfoForJava(dbg.dbgstream_, dbg.compiled_method_->GetSrcMappingTable(),
                          &pc2java_map, dbg.low_pc_);
@@ -669,6 +669,8 @@ static void FillInCFIInformation(OatWriter* oat_writer,
 template <typename Elf_Word, typename Elf_Sword, typename Elf_Addr,
           typename Elf_Dyn, typename Elf_Sym, typename Elf_Ehdr,
           typename Elf_Phdr, typename Elf_Shdr>
+// Do not inline to avoid Clang stack frame problems. b/18738594
+NO_INLINE
 static void WriteDebugSymbols(const CompilerDriver* compiler_driver,
                               ElfBuilder<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
                                          Elf_Sym, Elf_Ehdr, Elf_Phdr, Elf_Shdr>* builder,
@@ -686,12 +688,19 @@ static void WriteDebugSymbols(const CompilerDriver* compiler_driver,
     symtab->AddSymbol(it->method_name_, &builder->GetTextBuilder(), it->low_pc_, true,
                       it->high_pc_ - it->low_pc_, STB_GLOBAL, STT_FUNC);
 
+    // Conforming to aaelf, add $t mapping symbol to indicate start of a sequence of thumb2
+    // instructions, so that disassembler tools can correctly disassemble.
+    if (it->compiled_method_->GetInstructionSet() == kThumb2) {
+      symtab->AddSymbol("$t", &builder->GetTextBuilder(), it->low_pc_ & ~1, true,
+                        0, STB_LOCAL, STT_NOTYPE);
+    }
+
     // Include CFI for compiled method, if possible.
     if (cfi_info.get() != nullptr) {
       DCHECK(it->compiled_method_ != nullptr);
 
       // Copy in the FDE, if present
-      const std::vector<uint8_t>* fde = it->compiled_method_->GetCFIInfo();
+      const SwapVector<uint8_t>* fde = it->compiled_method_->GetCFIInfo();
       if (fde != nullptr) {
         // Copy the information into cfi_info and then fix the address in the new copy.
         int cur_offset = cfi_info->size();

@@ -19,10 +19,10 @@
 
 #include <memory>
 
-#include "compiler_internals.h"
+#include "base/arena_object.h"
+#include "base/logging.h"
 #include "global_value_numbering.h"
-#include "utils/scoped_arena_allocator.h"
-#include "utils/scoped_arena_containers.h"
+#include "utils/dex_instruction_utils.h"
 
 namespace art {
 
@@ -31,7 +31,7 @@ class DexFile;
 // Enable/disable tracking values stored in the FILLED_NEW_ARRAY result.
 static constexpr bool kLocalValueNumberingEnableFilledNewArrayTracking = true;
 
-class LocalValueNumbering {
+class LocalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
  private:
   static constexpr uint16_t kNoValue = GlobalValueNumbering::kNoValue;
 
@@ -44,25 +44,30 @@ class LocalValueNumbering {
 
   bool Equals(const LocalValueNumbering& other) const;
 
-  uint16_t GetSRegValueName(uint16_t s_reg) const {
-    return GetOperandValue(s_reg);
-  }
-
-  void SetValueNameNullChecked(uint16_t value_name) {
-    null_checked_.insert(value_name);
-  }
-
   bool IsValueNullChecked(uint16_t value_name) const {
     return null_checked_.find(value_name) != null_checked_.end();
   }
 
-  bool IsSregValue(uint16_t s_reg, uint16_t value_name) const {
-    auto it = sreg_value_map_.find(s_reg);
-    if (it != sreg_value_map_.end()) {
-      return it->second == value_name;
-    } else {
-      return gvn_->HasValue(kNoValue, s_reg, kNoValue, kNoValue, value_name);
-    }
+  bool IsValueDivZeroChecked(uint16_t value_name) const {
+    return div_zero_checked_.find(value_name) != div_zero_checked_.end();
+  }
+
+  uint16_t GetSregValue(uint16_t s_reg) const {
+    return GetSregValueImpl(s_reg, &sreg_value_map_);
+  }
+
+  uint16_t GetSregValueWide(uint16_t s_reg) const {
+    return GetSregValueImpl(s_reg, &sreg_wide_value_map_);
+  }
+
+  // Get the starting value number for a given dalvik register.
+  uint16_t GetStartingVregValueNumber(int v_reg) const {
+    return GetStartingVregValueNumberImpl(v_reg, false);
+  }
+
+  // Get the starting value number for a given wide dalvik register.
+  uint16_t GetStartingVregValueNumberWide(int v_reg) const {
+    return GetStartingVregValueNumberImpl(v_reg, true);
   }
 
   enum MergeType {
@@ -73,34 +78,30 @@ class LocalValueNumbering {
 
   void MergeOne(const LocalValueNumbering& other, MergeType merge_type);
   void Merge(MergeType merge_type);  // Merge gvn_->merge_lvns_.
+  void PrepareEntryBlock();
 
   uint16_t GetValueNumber(MIR* mir);
-
-  // LocalValueNumbering should be allocated on the ArenaStack (or the native stack).
-  static void* operator new(size_t size, ScopedArenaAllocator* allocator) {
-    return allocator->Alloc(sizeof(LocalValueNumbering), kArenaAllocMisc);
-  }
-
-  // Allow delete-expression to destroy a LocalValueNumbering object without deallocation.
-  static void operator delete(void* ptr) { UNUSED(ptr); }
 
  private:
   // A set of value names.
   typedef GlobalValueNumbering::ValueNameSet ValueNameSet;
 
-  // Field types correspond to the ordering of GET/PUT instructions; this order is the same
-  // for IGET, IPUT, SGET, SPUT, AGET and APUT:
-  // op         0
-  // op_WIDE    1
-  // op_OBJECT  2
-  // op_BOOLEAN 3
-  // op_BYTE    4
-  // op_CHAR    5
-  // op_SHORT   6
-  static constexpr size_t kFieldTypeCount = 7;
-
   // Key is s_reg, value is value name.
   typedef ScopedArenaSafeMap<uint16_t, uint16_t> SregValueMap;
+
+  uint16_t GetEndingVregValueNumberImpl(int v_reg, bool wide) const;
+  uint16_t GetStartingVregValueNumberImpl(int v_reg, bool wide) const;
+
+  uint16_t GetSregValueImpl(int s_reg, const SregValueMap* map) const {
+    uint16_t res = kNoValue;
+    auto lb = map->find(s_reg);
+    if (lb != map->end()) {
+      res = lb->second;
+    } else {
+      res = gvn_->FindValue(kNoValue, s_reg, kNoValue, kNoValue);
+    }
+    return res;
+  }
 
   void SetOperandValueImpl(uint16_t s_reg, uint16_t value, SregValueMap* map) {
     DCHECK_EQ(map->count(s_reg), 0u) << PrettyMethod(gvn_->cu_->method_idx, *gvn_->cu_->dex_file)
@@ -121,18 +122,22 @@ class LocalValueNumbering {
   }
 
   void SetOperandValue(uint16_t s_reg, uint16_t value) {
+    DCHECK_EQ(sreg_wide_value_map_.count(s_reg), 0u);
     SetOperandValueImpl(s_reg, value, &sreg_value_map_);
   }
 
   uint16_t GetOperandValue(int s_reg) const {
+    DCHECK_EQ(sreg_wide_value_map_.count(s_reg), 0u);
     return GetOperandValueImpl(s_reg, &sreg_value_map_);
   }
 
   void SetOperandValueWide(uint16_t s_reg, uint16_t value) {
+    DCHECK_EQ(sreg_value_map_.count(s_reg), 0u);
     SetOperandValueImpl(s_reg, value, &sreg_wide_value_map_);
   }
 
   uint16_t GetOperandValueWide(int s_reg) const {
+    DCHECK_EQ(sreg_value_map_.count(s_reg), 0u);
     return GetOperandValueImpl(s_reg, &sreg_wide_value_map_);
   }
 
@@ -298,9 +303,13 @@ class LocalValueNumbering {
   bool IsNonAliasingArray(uint16_t reg, uint16_t type) const;
   void HandleNullCheck(MIR* mir, uint16_t reg);
   void HandleRangeCheck(MIR* mir, uint16_t array, uint16_t index);
+  void HandleDivZeroCheck(MIR* mir, uint16_t reg);
   void HandlePutObject(MIR* mir);
   void HandleEscapingRef(uint16_t base);
+  void HandleInvokeArgs(const MIR* mir, const LocalValueNumbering* mir_lvn);
   uint16_t HandlePhi(MIR* mir);
+  uint16_t HandleConst(MIR* mir, uint32_t value);
+  uint16_t HandleConstWide(MIR* mir, uint64_t value);
   uint16_t HandleAGet(MIR* mir, uint16_t opcode);
   void HandleAPut(MIR* mir, uint16_t opcode);
   uint16_t HandleIGet(MIR* mir, uint16_t opcode);
@@ -348,6 +357,7 @@ class LocalValueNumbering {
   void MergeNonAliasingIFieldValues(const IFieldLocToValueMap::value_type& entry,
                                     IFieldLocToValueMap::iterator hint);
   void MergeNullChecked();
+  void MergeDivZeroChecked();
 
   template <typename Map, Map LocalValueNumbering::*map_ptr, typename Versions>
   void MergeAliasingValues(const typename Map::value_type& entry, typename Map::iterator hint);
@@ -355,7 +365,7 @@ class LocalValueNumbering {
   GlobalValueNumbering* gvn_;
 
   // We're using the block id as a 16-bit operand value for some lookups.
-  COMPILE_ASSERT(sizeof(BasicBlockId) == sizeof(uint16_t), BasicBlockId_must_be_16_bit);
+  static_assert(sizeof(BasicBlockId) == sizeof(uint16_t), "BasicBlockId must be 16 bit");
   BasicBlockId id_;
 
   SregValueMap sreg_value_map_;
@@ -369,8 +379,8 @@ class LocalValueNumbering {
 
   // Data for dealing with memory clobbering and store/load aliasing.
   uint16_t global_memory_version_;
-  uint16_t unresolved_sfield_version_[kFieldTypeCount];
-  uint16_t unresolved_ifield_version_[kFieldTypeCount];
+  uint16_t unresolved_sfield_version_[kDexMemAccessTypeCount];
+  uint16_t unresolved_ifield_version_[kDexMemAccessTypeCount];
   // Value names of references to objects that cannot be reached through a different value name.
   ValueNameSet non_aliasing_refs_;
   // Previously non-aliasing refs that escaped but can still be used for non-aliasing AGET/IGET.
@@ -382,11 +392,12 @@ class LocalValueNumbering {
   // Range check and null check elimination.
   RangeCheckSet range_checked_;
   ValueNameSet null_checked_;
+  ValueNameSet div_zero_checked_;
 
   // Reuse one vector for all merges to avoid leaking too much memory on the ArenaStack.
-  ScopedArenaVector<BasicBlockId> merge_names_;
+  mutable ScopedArenaVector<uint16_t> merge_names_;
   // Map to identify when different locations merge the same values.
-  ScopedArenaSafeMap<ScopedArenaVector<BasicBlockId>, uint16_t> merge_map_;
+  ScopedArenaSafeMap<ScopedArenaVector<uint16_t>, uint16_t> merge_map_;
   // New memory version for merge, kNoValue if all memory versions matched.
   uint16_t merge_new_memory_version_;
 

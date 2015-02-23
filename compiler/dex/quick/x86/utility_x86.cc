@@ -15,12 +15,15 @@
  */
 
 #include "codegen_x86.h"
+
+#include "base/logging.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "dex/dataflow_iterator-inl.h"
-#include "x86_lir.h"
 #include "dex/quick/dex_file_method_inliner.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/reg_storage_eq.h"
+#include "driver/compiler_driver.h"
+#include "x86_lir.h"
 
 namespace art {
 
@@ -54,14 +57,16 @@ LIR* X86Mir2Lir::OpFpRegCopy(RegStorage r_dest, RegStorage r_src) {
 }
 
 bool X86Mir2Lir::InexpensiveConstantInt(int32_t value) {
+  UNUSED(value);
   return true;
 }
 
 bool X86Mir2Lir::InexpensiveConstantFloat(int32_t value) {
-  return false;
+  return value == 0;
 }
 
 bool X86Mir2Lir::InexpensiveConstantLong(int64_t value) {
+  UNUSED(value);
   return true;
 }
 
@@ -228,7 +233,7 @@ LIR* X86Mir2Lir::OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2) 
         // TODO: there are several instances of this check.  A utility function perhaps?
         // TODO: Similar to Arm's reg < 8 check.  Perhaps add attribute checks to RegStorage?
         // Use shifts instead of a byte operand if the source can't be byte accessed.
-        if (r_src2.GetRegNum() >= rs_rX86_SP.GetRegNum()) {
+        if (r_src2.GetRegNum() >= rs_rX86_SP_32.GetRegNum()) {
           NewLIR2(is64Bit ? kX86Mov64RR : kX86Mov32RR, r_dest_src1.GetReg(), r_src2.GetReg());
           NewLIR2(is64Bit ? kX86Sal64RI : kX86Sal32RI, r_dest_src1.GetReg(), is64Bit ? 56 : 24);
           return NewLIR2(is64Bit ? kX86Sar64RI : kX86Sar32RI, r_dest_src1.GetReg(),
@@ -383,7 +388,7 @@ LIR* X86Mir2Lir::OpRegMem(OpKind op, RegStorage r_dest, RegStorage r_base, int o
   }
   LIR *l = NewLIR3(opcode, r_dest.GetReg(), r_base.GetReg(), offset);
   if (mem_ref_type_ == ResourceMask::kDalvikReg) {
-    DCHECK(r_base == rs_rX86_SP);
+    DCHECK_EQ(r_base, cu_->target64 ? rs_rX86_SP_64 : rs_rX86_SP_32);
     AnnotateDalvikRegAccess(l, offset >> 2, true /* is_load */, false /* is_64bit */);
   }
   return l;
@@ -409,7 +414,7 @@ LIR* X86Mir2Lir::OpMemReg(OpKind op, RegLocation rl_dest, int r_value) {
       LOG(FATAL) << "Bad case in OpMemReg " << op;
       break;
   }
-  LIR *l = NewLIR3(opcode, rs_rX86_SP.GetReg(), displacement, r_value);
+  LIR *l = NewLIR3(opcode, rs_rX86_SP_32.GetReg(), displacement, r_value);
   if (mem_ref_type_ == ResourceMask::kDalvikReg) {
     AnnotateDalvikRegAccess(l, displacement >> 2, true /* is_load */, is64Bit /* is_64bit */);
     AnnotateDalvikRegAccess(l, displacement >> 2, false /* is_load */, is64Bit /* is_64bit */);
@@ -435,7 +440,7 @@ LIR* X86Mir2Lir::OpRegMem(OpKind op, RegStorage r_dest, RegLocation rl_value) {
       LOG(FATAL) << "Bad case in OpRegMem " << op;
       break;
   }
-  LIR *l = NewLIR3(opcode, r_dest.GetReg(), rs_rX86_SP.GetReg(), displacement);
+  LIR *l = NewLIR3(opcode, r_dest.GetReg(), rs_rX86_SP_32.GetReg(), displacement);
   if (mem_ref_type_ == ResourceMask::kDalvikReg) {
     AnnotateDalvikRegAccess(l, displacement >> 2, true /* is_load */, is64Bit /* is_64bit */);
   }
@@ -486,6 +491,7 @@ LIR* X86Mir2Lir::OpRegRegReg(OpKind op, RegStorage r_dest, RegStorage r_src1,
       case kOpAdc:
       case kOpAnd:
       case kOpXor:
+      case kOpMul:
         break;
       default:
         LOG(FATAL) << "Bad case in OpRegRegReg " << op;
@@ -506,13 +512,13 @@ LIR* X86Mir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src, int
     }
   }
   if (r_dest != r_src) {
-    if (false && op == kOpLsl && value >= 0 && value <= 3) {  // lea shift special case
+    if ((false) && op == kOpLsl && value >= 0 && value <= 3) {  // lea shift special case
       // TODO: fix bug in LEA encoding when disp == 0
       return NewLIR5(kX86Lea32RA, r_dest.GetReg(),  r5sib_no_base /* base */,
                      r_src.GetReg() /* index */, value /* scale */, 0 /* disp */);
     } else if (op == kOpAdd) {  // lea add special case
       return NewLIR5(r_dest.Is64Bit() ? kX86Lea64RA : kX86Lea32RA, r_dest.GetReg(),
-                     r_src.GetReg() /* base */, rs_rX86_SP.GetReg()/*r4sib_no_index*/ /* index */,
+                     r_src.GetReg() /* base */, rs_rX86_SP_32.GetReg()/*r4sib_no_index*/ /* index */,
                      0 /* scale */, value /* disp */);
     }
     OpRegCopy(r_dest, r_src);
@@ -567,32 +573,36 @@ LIR* X86Mir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
     if (is_fp) {
       DCHECK(r_dest.IsDouble());
       if (value == 0) {
-        return NewLIR2(kX86XorpsRR, low_reg_val, low_reg_val);
-      } else if (base_of_code_ != nullptr) {
+        return NewLIR2(kX86XorpdRR, low_reg_val, low_reg_val);
+      } else if (base_of_code_ != nullptr || cu_->target64) {
         // We will load the value from the literal area.
         LIR* data_target = ScanLiteralPoolWide(literal_list_, val_lo, val_hi);
         if (data_target == NULL) {
           data_target = AddWideData(&literal_list_, val_lo, val_hi);
         }
 
-        // Address the start of the method
-        RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
-        if (rl_method.wide) {
-          rl_method = LoadValueWide(rl_method, kCoreReg);
-        } else {
-          rl_method = LoadValue(rl_method, kCoreReg);
-        }
-
         // Load the proper value from the literal area.
-        // We don't know the proper offset for the value, so pick one that will force
-        // 4 byte offset.  We will fix this up in the assembler later to have the right
-        // value.
+        // We don't know the proper offset for the value, so pick one that
+        // will force 4 byte offset.  We will fix this up in the assembler
+        // later to have the right value.
         ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
-        res = LoadBaseDisp(rl_method.reg, 256 /* bogus */, RegStorage::FloatSolo64(low_reg_val),
-                           kDouble, kNotVolatile);
+        if (cu_->target64) {
+          res = NewLIR3(kX86MovsdRM, low_reg_val, kRIPReg, 256 /* bogus */);
+        } else {
+          // Address the start of the method.
+          RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
+          if (rl_method.wide) {
+            rl_method = LoadValueWide(rl_method, kCoreReg);
+          } else {
+            rl_method = LoadValue(rl_method, kCoreReg);
+          }
+
+          res = LoadBaseDisp(rl_method.reg, 256 /* bogus */, RegStorage::FloatSolo64(low_reg_val),
+                             kDouble, kNotVolatile);
+          store_method_addr_used_ = true;
+        }
         res->target = data_target;
         res->flags.fixup = kFixupLoad;
-        store_method_addr_used_ = true;
       } else {
         if (r_dest.IsPair()) {
           if (val_lo == 0) {
@@ -703,7 +713,7 @@ LIR* X86Mir2Lir::LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int 
       }
     }
     if (mem_ref_type_ == ResourceMask::kDalvikReg) {
-      DCHECK(r_base == rs_rX86_SP);
+      DCHECK_EQ(r_base, cu_->target64 ? rs_rX86_SP_64 : rs_rX86_SP_32);
       AnnotateDalvikRegAccess(load, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
                               true /* is_load */, is64bit);
       if (pair) {
@@ -868,7 +878,7 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int
       store2 = NewLIR3(opcode, r_base.GetReg(), displacement + HIWORD_OFFSET, r_src.GetHighReg());
     }
     if (mem_ref_type_ == ResourceMask::kDalvikReg) {
-      DCHECK(r_base == rs_rX86_SP);
+      DCHECK_EQ(r_base, cu_->target64 ? rs_rX86_SP_64 : rs_rX86_SP_32);
       AnnotateDalvikRegAccess(store, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
                               false /* is_load */, is64bit);
       if (pair) {
@@ -934,13 +944,14 @@ LIR* X86Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r
 
 LIR* X86Mir2Lir::OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg, RegStorage base_reg,
                                    int offset, int check_value, LIR* target, LIR** compare) {
-    LIR* inst = NewLIR3(IS_SIMM8(check_value) ? kX86Cmp32MI8 : kX86Cmp32MI, base_reg.GetReg(),
-            offset, check_value);
-    if (compare != nullptr) {
-        *compare = inst;
-    }
-    LIR* branch = OpCondBranch(cond, target);
-    return branch;
+  UNUSED(temp_reg);  // Comparison performed directly with memory.
+  LIR* inst = NewLIR3(IS_SIMM8(check_value) ? kX86Cmp32MI8 : kX86Cmp32MI, base_reg.GetReg(),
+      offset, check_value);
+  if (compare != nullptr) {
+    *compare = inst;
+  }
+  LIR* branch = OpCondBranch(cond, target);
+  return branch;
 }
 
 void X86Mir2Lir::AnalyzeMIR() {
@@ -956,22 +967,24 @@ void X86Mir2Lir::AnalyzeMIR() {
     curr_bb = iter.Next();
   }
 
-  // Did we need a pointer to the method code?
+  // Did we need a pointer to the method code?  Not in 64 bit mode.
+  base_of_code_ = nullptr;
+
+  // store_method_addr_ must be false for x86_64, since RIP addressing is used.
+  CHECK(!(cu_->target64 && store_method_addr_));
   if (store_method_addr_) {
-    base_of_code_ = mir_graph_->GetNewCompilerTemp(kCompilerTempBackend, cu_->target64 == true);
+    base_of_code_ = mir_graph_->GetNewCompilerTemp(kCompilerTempBackend, false);
     DCHECK(base_of_code_ != nullptr);
-  } else {
-    base_of_code_ = nullptr;
   }
 }
 
-void X86Mir2Lir::AnalyzeBB(BasicBlock * bb) {
+void X86Mir2Lir::AnalyzeBB(BasicBlock* bb) {
   if (bb->block_type == kDead) {
     // Ignore dead blocks
     return;
   }
 
-  for (MIR *mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
+  for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     int opcode = mir->dalvikInsn.opcode;
     if (MIR::DecodedInstruction::IsPseudoMirOp(opcode)) {
       AnalyzeExtendedMIR(opcode, bb, mir);
@@ -982,7 +995,7 @@ void X86Mir2Lir::AnalyzeBB(BasicBlock * bb) {
 }
 
 
-void X86Mir2Lir::AnalyzeExtendedMIR(int opcode, BasicBlock * bb, MIR *mir) {
+void X86Mir2Lir::AnalyzeExtendedMIR(int opcode, BasicBlock* bb, MIR* mir) {
   switch (opcode) {
     // Instructions referencing doubles.
     case kMirOpFusedCmplDouble:
@@ -990,28 +1003,32 @@ void X86Mir2Lir::AnalyzeExtendedMIR(int opcode, BasicBlock * bb, MIR *mir) {
       AnalyzeFPInstruction(opcode, bb, mir);
       break;
     case kMirOpConstVector:
-      store_method_addr_ = true;
+      if (!cu_->target64) {
+        store_method_addr_ = true;
+      }
       break;
     case kMirOpPackedMultiply:
     case kMirOpPackedShiftLeft:
     case kMirOpPackedSignedShiftRight:
-    case kMirOpPackedUnsignedShiftRight: {
-      // Byte emulation requires constants from the literal pool.
-      OpSize opsize = static_cast<OpSize>(mir->dalvikInsn.vC >> 16);
-      if (opsize == kSignedByte || opsize == kUnsignedByte) {
-        store_method_addr_ = true;
+    case kMirOpPackedUnsignedShiftRight:
+      if (!cu_->target64) {
+        // Byte emulation requires constants from the literal pool.
+        OpSize opsize = static_cast<OpSize>(mir->dalvikInsn.vC >> 16);
+        if (opsize == kSignedByte || opsize == kUnsignedByte) {
+          store_method_addr_ = true;
+        }
       }
       break;
-    }
     default:
       // Ignore the rest.
       break;
   }
 }
 
-void X86Mir2Lir::AnalyzeMIR(int opcode, BasicBlock * bb, MIR *mir) {
+void X86Mir2Lir::AnalyzeMIR(int opcode, BasicBlock* bb, MIR* mir) {
   // Looking for
   // - Do we need a pointer to the code (used for packed switches and double lits)?
+  // 64 bit uses RIP addressing instead.
 
   switch (opcode) {
     // Instructions referencing doubles.
@@ -1034,7 +1051,9 @@ void X86Mir2Lir::AnalyzeMIR(int opcode, BasicBlock * bb, MIR *mir) {
     // Packed switches and array fills need a pointer to the base of the method.
     case Instruction::FILL_ARRAY_DATA:
     case Instruction::PACKED_SWITCH:
-      store_method_addr_ = true;
+      if (!cu_->target64) {
+        store_method_addr_ = true;
+      }
       break;
     case Instruction::INVOKE_STATIC:
     case Instruction::INVOKE_STATIC_RANGE:
@@ -1046,7 +1065,8 @@ void X86Mir2Lir::AnalyzeMIR(int opcode, BasicBlock * bb, MIR *mir) {
   }
 }
 
-void X86Mir2Lir::AnalyzeFPInstruction(int opcode, BasicBlock * bb, MIR *mir) {
+void X86Mir2Lir::AnalyzeFPInstruction(int opcode, BasicBlock* bb, MIR* mir) {
+  UNUSED(bb);
   // Look at all the uses, and see if they are double constants.
   uint64_t attrs = MIRGraph::GetDataFlowAttributes(static_cast<Instruction::Code>(opcode));
   int next_sreg = 0;
@@ -1080,7 +1100,7 @@ void X86Mir2Lir::AnalyzeDoubleUse(RegLocation use) {
   }
 }
 
-RegLocation X86Mir2Lir::UpdateLocTyped(RegLocation loc, int reg_class) {
+RegLocation X86Mir2Lir::UpdateLocTyped(RegLocation loc) {
   loc = UpdateLoc(loc);
   if ((loc.location == kLocPhysReg) && (loc.fp != loc.reg.IsFloat())) {
     if (GetRegInfo(loc.reg)->IsTemp()) {
@@ -1094,7 +1114,7 @@ RegLocation X86Mir2Lir::UpdateLocTyped(RegLocation loc, int reg_class) {
   return loc;
 }
 
-RegLocation X86Mir2Lir::UpdateLocWideTyped(RegLocation loc, int reg_class) {
+RegLocation X86Mir2Lir::UpdateLocWideTyped(RegLocation loc) {
   loc = UpdateLocWide(loc);
   if ((loc.location == kLocPhysReg) && (loc.fp != loc.reg.IsFloat())) {
     if (GetRegInfo(loc.reg)->IsTemp()) {
@@ -1108,8 +1128,10 @@ RegLocation X86Mir2Lir::UpdateLocWideTyped(RegLocation loc, int reg_class) {
   return loc;
 }
 
-void X86Mir2Lir::AnalyzeInvokeStatic(int opcode, BasicBlock * bb, MIR *mir) {
-  // For now this is only actual for x86-32.
+void X86Mir2Lir::AnalyzeInvokeStatic(int opcode, BasicBlock* bb, MIR* mir) {
+  UNUSED(opcode, bb);
+
+  // 64 bit RIP addressing doesn't need store_method_addr_ set.
   if (cu_->target64) {
     return;
   }
@@ -1132,6 +1154,7 @@ void X86Mir2Lir::AnalyzeInvokeStatic(int opcode, BasicBlock * bb, MIR *mir) {
 }
 
 LIR* X86Mir2Lir::InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) {
+  UNUSED(r_tgt);  // Call to absolute memory location doesn't need a temporary target register.
   if (cu_->target64) {
     return OpThreadMem(op, GetThreadOffset<8>(trampoline));
   } else {

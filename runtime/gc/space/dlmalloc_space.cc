@@ -33,12 +33,9 @@ namespace space {
 
 static constexpr bool kPrefetchDuringDlMallocFreeList = true;
 
-template class ValgrindMallocSpace<DlMallocSpace, void*>;
-
-DlMallocSpace::DlMallocSpace(const std::string& name, MemMap* mem_map, void* mspace, uint8_t* begin,
-                             uint8_t* end, uint8_t* limit, size_t growth_limit,
-                             bool can_move_objects, size_t starting_size,
-                             size_t initial_size)
+DlMallocSpace::DlMallocSpace(MemMap* mem_map, size_t initial_size, const std::string& name,
+                             void* mspace, uint8_t* begin, uint8_t* end, uint8_t* limit,
+                             size_t growth_limit, bool can_move_objects, size_t starting_size)
     : MallocSpace(name, mem_map, begin, end, limit, growth_limit, true, can_move_objects,
                   starting_size, initial_size),
       mspace_(mspace) {
@@ -65,12 +62,12 @@ DlMallocSpace* DlMallocSpace::CreateFromMemMap(MemMap* mem_map, const std::strin
   // Everything is set so record in immutable structure and leave
   uint8_t* begin = mem_map->Begin();
   if (Runtime::Current()->RunningOnValgrind()) {
-    return new ValgrindMallocSpace<DlMallocSpace, void*>(
-        name, mem_map, mspace, begin, end, begin + capacity, growth_limit, initial_size,
+    return new ValgrindMallocSpace<DlMallocSpace, kDefaultValgrindRedZoneBytes, true, false>(
+        mem_map, initial_size, name, mspace, begin, end, begin + capacity, growth_limit,
         can_move_objects, starting_size);
   } else {
-    return new DlMallocSpace(name, mem_map, mspace, begin, end, begin + capacity, growth_limit,
-                             can_move_objects, starting_size, initial_size);
+    return new DlMallocSpace(mem_map, initial_size, name, mspace, begin, end, begin + capacity,
+                             growth_limit, can_move_objects, starting_size);
   }
 }
 
@@ -148,12 +145,18 @@ mirror::Object* DlMallocSpace::AllocWithGrowth(Thread* self, size_t num_bytes,
   return result;
 }
 
-MallocSpace* DlMallocSpace::CreateInstance(const std::string& name, MemMap* mem_map,
+MallocSpace* DlMallocSpace::CreateInstance(MemMap* mem_map, const std::string& name,
                                            void* allocator, uint8_t* begin, uint8_t* end,
                                            uint8_t* limit, size_t growth_limit,
                                            bool can_move_objects) {
-  return new DlMallocSpace(name, mem_map, allocator, begin, end, limit, growth_limit,
-                           can_move_objects, starting_size_, initial_size_);
+  if (Runtime::Current()->RunningOnValgrind()) {
+    return new ValgrindMallocSpace<DlMallocSpace, kDefaultValgrindRedZoneBytes, true, false>(
+        mem_map, initial_size_, name, allocator, begin, end, limit, growth_limit,
+        can_move_objects, starting_size_);
+  } else {
+    return new DlMallocSpace(mem_map, initial_size_, name, allocator, begin, end, limit,
+                             growth_limit, can_move_objects, starting_size_);
+  }
 }
 
 size_t DlMallocSpace::Free(Thread* self, mirror::Object* ptr) {
@@ -211,27 +214,6 @@ size_t DlMallocSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object** p
     mspace_bulk_free(mspace_, reinterpret_cast<void**>(ptrs), num_ptrs);
     return bytes_freed;
   }
-}
-
-// Callback from dlmalloc when it needs to increase the footprint
-extern "C" void* art_heap_morecore(void* mspace, intptr_t increment) {
-  Heap* heap = Runtime::Current()->GetHeap();
-  DlMallocSpace* dlmalloc_space = heap->GetDlMallocSpace();
-  // Support for multiple DlMalloc provided by a slow path.
-  if (UNLIKELY(dlmalloc_space == nullptr || dlmalloc_space->GetMspace() != mspace)) {
-    dlmalloc_space = nullptr;
-    for (space::ContinuousSpace* space : heap->GetContinuousSpaces()) {
-      if (space->IsDlMallocSpace()) {
-        DlMallocSpace* cur_dlmalloc_space = space->AsDlMallocSpace();
-        if (cur_dlmalloc_space->GetMspace() == mspace) {
-          dlmalloc_space = cur_dlmalloc_space;
-          break;
-        }
-      }
-    }
-    CHECK(dlmalloc_space != nullptr) << "Couldn't find DlmMallocSpace with mspace=" << mspace;
-  }
-  return dlmalloc_space->MoreCore(increment);
 }
 
 size_t DlMallocSpace::Trim() {
@@ -314,6 +296,7 @@ static void MSpaceChunkCallback(void* start, void* end, size_t used_bytes, void*
 }
 
 void DlMallocSpace::LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes) {
+  UNUSED(failed_alloc_bytes);
   Thread* self = Thread::Current();
   size_t max_contiguous_allocation = 0;
   // To allow the Walk/InspectAll() to exclusively-lock the mutator
@@ -329,5 +312,31 @@ void DlMallocSpace::LogFragmentationAllocFailure(std::ostream& os, size_t failed
 }
 
 }  // namespace space
+
+namespace allocator {
+
+// Implement the dlmalloc morecore callback.
+void* ArtDlMallocMoreCore(void* mspace, intptr_t increment) {
+  Heap* heap = Runtime::Current()->GetHeap();
+  ::art::gc::space::DlMallocSpace* dlmalloc_space = heap->GetDlMallocSpace();
+  // Support for multiple DlMalloc provided by a slow path.
+  if (UNLIKELY(dlmalloc_space == nullptr || dlmalloc_space->GetMspace() != mspace)) {
+    dlmalloc_space = nullptr;
+    for (space::ContinuousSpace* space : heap->GetContinuousSpaces()) {
+      if (space->IsDlMallocSpace()) {
+        ::art::gc::space::DlMallocSpace* cur_dlmalloc_space = space->AsDlMallocSpace();
+        if (cur_dlmalloc_space->GetMspace() == mspace) {
+          dlmalloc_space = cur_dlmalloc_space;
+          break;
+        }
+      }
+    }
+    CHECK(dlmalloc_space != nullptr) << "Couldn't find DlmMallocSpace with mspace=" << mspace;
+  }
+  return dlmalloc_space->MoreCore(increment);
+}
+
+}  // namespace allocator
+
 }  // namespace gc
 }  // namespace art

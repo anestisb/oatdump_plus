@@ -17,7 +17,8 @@
 #ifndef ART_COMPILER_DEX_QUICK_X86_X86_LIR_H_
 #define ART_COMPILER_DEX_QUICK_X86_X86_LIR_H_
 
-#include "dex/compiler_internals.h"
+#include "dex/reg_location.h"
+#include "dex/reg_storage.h"
 
 namespace art {
 
@@ -56,15 +57,15 @@ namespace art {
  * x86-64/x32 gs: holds it.
  *
  * For floating point we don't support CPUs without SSE2 support (ie newer than PIII):
- *  Native: x86  | x86-64 / x32 | ART x86                    | ART x86-64
- *  XMM0: caller | caller, arg1 | caller, float return value | caller, arg1, float return value
- *  XMM1: caller | caller, arg2 | caller, scratch            | caller, arg2, scratch
- *  XMM2: caller | caller, arg3 | caller, scratch            | caller, arg3, scratch
- *  XMM3: caller | caller, arg4 | caller, scratch            | caller, arg4, scratch
- *  XMM4: caller | caller, arg5 | caller, scratch            | caller, arg5, scratch
- *  XMM5: caller | caller, arg6 | caller, scratch            | caller, arg6, scratch
- *  XMM6: caller | caller, arg7 | caller, scratch            | caller, arg7, scratch
- *  XMM7: caller | caller, arg8 | caller, scratch            | caller, arg8, scratch
+ *  Native: x86  | x86-64 / x32 | ART x86                          | ART x86-64
+ *  XMM0: caller | caller, arg1 | caller, arg1, float return value | caller, arg1, float return value
+ *  XMM1: caller | caller, arg2 | caller, arg2, scratch            | caller, arg2, scratch
+ *  XMM2: caller | caller, arg3 | caller, arg3, scratch            | caller, arg3, scratch
+ *  XMM3: caller | caller, arg4 | caller, arg4, scratch            | caller, arg4, scratch
+ *  XMM4: caller | caller, arg5 | caller, scratch                  | caller, arg5, scratch
+ *  XMM5: caller | caller, arg6 | caller, scratch                  | caller, arg6, scratch
+ *  XMM6: caller | caller, arg7 | caller, scratch                  | caller, arg7, scratch
+ *  XMM7: caller | caller, arg8 | caller, scratch                  | caller, arg8, scratch
  *  ---  x86-64/x32 registers
  *  XMM8 .. 11: caller save available as scratch registers for ART.
  *  XMM12 .. 15: callee save available as promoted registers for ART.
@@ -217,6 +218,9 @@ enum X86NativeRegisterPool {
   xr14 = RegStorage::k128BitSolo | 14,
   xr15 = RegStorage::k128BitSolo | 15,
 
+  // Special value for RIP 64 bit addressing.
+  kRIPReg = 255,
+
   // TODO: as needed, add 256, 512 and 1024-bit xmm views.
 };
 
@@ -234,7 +238,7 @@ constexpr RegStorage rs_r3q(RegStorage::kValid | r3q);
 constexpr RegStorage rs_rBX = rs_r3;
 constexpr RegStorage rs_rX86_SP_64(RegStorage::kValid | r4sp_64);
 constexpr RegStorage rs_rX86_SP_32(RegStorage::kValid | r4sp_32);
-extern RegStorage rs_rX86_SP;
+static_assert(rs_rX86_SP_64.GetRegNum() == rs_rX86_SP_32.GetRegNum(), "Unexpected mismatch");
 constexpr RegStorage rs_r5(RegStorage::kValid | r5);
 constexpr RegStorage rs_r5q(RegStorage::kValid | r5q);
 constexpr RegStorage rs_rBP = rs_r5;
@@ -313,43 +317,8 @@ constexpr RegStorage rs_xr13(RegStorage::kValid | xr13);
 constexpr RegStorage rs_xr14(RegStorage::kValid | xr14);
 constexpr RegStorage rs_xr15(RegStorage::kValid | xr15);
 
-extern X86NativeRegisterPool rX86_ARG0;
-extern X86NativeRegisterPool rX86_ARG1;
-extern X86NativeRegisterPool rX86_ARG2;
-extern X86NativeRegisterPool rX86_ARG3;
-extern X86NativeRegisterPool rX86_ARG4;
-extern X86NativeRegisterPool rX86_ARG5;
-extern X86NativeRegisterPool rX86_FARG0;
-extern X86NativeRegisterPool rX86_FARG1;
-extern X86NativeRegisterPool rX86_FARG2;
-extern X86NativeRegisterPool rX86_FARG3;
-extern X86NativeRegisterPool rX86_FARG4;
-extern X86NativeRegisterPool rX86_FARG5;
-extern X86NativeRegisterPool rX86_FARG6;
-extern X86NativeRegisterPool rX86_FARG7;
-extern X86NativeRegisterPool rX86_RET0;
-extern X86NativeRegisterPool rX86_RET1;
-extern X86NativeRegisterPool rX86_INVOKE_TGT;
-extern X86NativeRegisterPool rX86_COUNT;
-
-extern RegStorage rs_rX86_ARG0;
-extern RegStorage rs_rX86_ARG1;
-extern RegStorage rs_rX86_ARG2;
-extern RegStorage rs_rX86_ARG3;
-extern RegStorage rs_rX86_ARG4;
-extern RegStorage rs_rX86_ARG5;
-extern RegStorage rs_rX86_FARG0;
-extern RegStorage rs_rX86_FARG1;
-extern RegStorage rs_rX86_FARG2;
-extern RegStorage rs_rX86_FARG3;
-extern RegStorage rs_rX86_FARG4;
-extern RegStorage rs_rX86_FARG5;
-extern RegStorage rs_rX86_FARG6;
-extern RegStorage rs_rX86_FARG7;
-extern RegStorage rs_rX86_RET0;
-extern RegStorage rs_rX86_RET1;
-extern RegStorage rs_rX86_INVOKE_TGT;
-extern RegStorage rs_rX86_COUNT;
+constexpr RegStorage rs_rX86_RET0 = rs_rAX;
+constexpr RegStorage rs_rX86_RET1 = rs_rDX;
 
 // RegisterLocation templates return values (r_V0, or r_V0/r_V1).
 const RegLocation x86_loc_c_return
@@ -674,6 +643,7 @@ enum X86OpCode {
   kX86RepneScasw,       // repne scasw
   kX86Last
 };
+std::ostream& operator<<(std::ostream& os, const X86OpCode& rhs);
 
 /* Instruction assembly field_loc kind */
 enum X86EncodingKind {

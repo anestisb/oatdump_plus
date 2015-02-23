@@ -17,8 +17,8 @@
 #include "graph_visualizer.h"
 
 #include "code_generator.h"
-#include "driver/dex_compilation_unit.h"
 #include "nodes.h"
+#include "optimization.h"
 #include "ssa_liveness_analysis.h"
 
 namespace art {
@@ -31,10 +31,12 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
   HGraphVisualizerPrinter(HGraph* graph,
                           std::ostream& output,
                           const char* pass_name,
+                          bool is_after_pass,
                           const CodeGenerator& codegen)
       : HGraphVisitor(graph),
         output_(output),
         pass_name_(pass_name),
+        is_after_pass_(is_after_pass),
         codegen_(codegen),
         indent_(0) {}
 
@@ -67,7 +69,7 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
 
   void PrintTime(const char* name) {
     AddIndent();
-    output_ << name << " " << time(NULL) << std::endl;
+    output_ << name << " " << time(nullptr) << std::endl;
   }
 
   void PrintInt(const char* name, int value) {
@@ -120,13 +122,11 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
     output_<< std::endl;
   }
 
-  void DumpLocation(Location location, Primitive::Type type) {
+  void DumpLocation(Location location) {
     if (location.IsRegister()) {
-      if (type == Primitive::kPrimDouble || type == Primitive::kPrimFloat) {
-        codegen_.DumpFloatingPointRegister(output_, location.reg());
-      } else {
-        codegen_.DumpCoreRegister(output_, location.reg());
-      }
+      codegen_.DumpCoreRegister(output_, location.reg());
+    } else if (location.IsFpuRegister()) {
+      codegen_.DumpFloatingPointRegister(output_, location.reg());
     } else if (location.IsConstant()) {
       output_ << "constant";
       HConstant* constant = location.GetConstant();
@@ -139,20 +139,27 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
       output_ << "invalid";
     } else if (location.IsStackSlot()) {
       output_ << location.GetStackIndex() << "(sp)";
+    } else if (location.IsFpuRegisterPair()) {
+      codegen_.DumpFloatingPointRegister(output_, location.low());
+      output_ << " and ";
+      codegen_.DumpFloatingPointRegister(output_, location.high());
+    } else if (location.IsRegisterPair()) {
+      codegen_.DumpCoreRegister(output_, location.low());
+      output_ << " and ";
+      codegen_.DumpCoreRegister(output_, location.high());
     } else {
       DCHECK(location.IsDoubleStackSlot());
       output_ << "2x" << location.GetStackIndex() << "(sp)";
     }
   }
 
-  void VisitParallelMove(HParallelMove* instruction) {
-    output_ << instruction->DebugName();
+  void VisitParallelMove(HParallelMove* instruction) OVERRIDE {
     output_ << " (";
     for (size_t i = 0, e = instruction->NumMoves(); i < e; ++i) {
       MoveOperands* move = instruction->MoveOperandsAt(i);
-      DumpLocation(move->GetSource(), Primitive::kPrimInt);
+      DumpLocation(move->GetSource());
       output_ << " -> ";
-      DumpLocation(move->GetDestination(), Primitive::kPrimInt);
+      DumpLocation(move->GetDestination());
       if (i + 1 != e) {
         output_ << ", ";
       }
@@ -161,8 +168,29 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
     output_ << " (liveness: " << instruction->GetLifetimePosition() << ")";
   }
 
-  void VisitInstruction(HInstruction* instruction) {
+  void VisitIntConstant(HIntConstant* instruction) OVERRIDE {
+    output_ << " " << instruction->GetValue();
+  }
+
+  void VisitLongConstant(HLongConstant* instruction) OVERRIDE {
+    output_ << " " << instruction->GetValue();
+  }
+
+  void VisitFloatConstant(HFloatConstant* instruction) OVERRIDE {
+    output_ << " " << instruction->GetValue();
+  }
+
+  void VisitDoubleConstant(HDoubleConstant* instruction) OVERRIDE {
+    output_ << " " << instruction->GetValue();
+  }
+
+  void VisitPhi(HPhi* phi) OVERRIDE {
+    output_ << " " << phi->GetRegNumber();
+  }
+
+  void PrintInstruction(HInstruction* instruction) {
     output_ << instruction->DebugName();
+    instruction->Accept(this);
     if (instruction->InputCount() > 0) {
       output_ << " [ ";
       for (HInputIterator inputs(instruction); !inputs.Done(); inputs.Advance()) {
@@ -170,7 +198,22 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
       }
       output_ << "]";
     }
-    if (pass_name_ == kLivenessPassName && instruction->GetLifetimePosition() != kNoLifetime) {
+    if (instruction->HasEnvironment()) {
+      HEnvironment* env = instruction->GetEnvironment();
+      output_ << " (env: [ ";
+      for (size_t i = 0, e = env->Size(); i < e; ++i) {
+        HInstruction* insn = env->GetInstructionAt(i);
+        if (insn != nullptr) {
+          output_ << GetTypeId(insn->GetType()) << insn->GetId() << " ";
+        } else {
+          output_ << " _ ";
+        }
+      }
+      output_ << "])";
+    }
+    if (pass_name_ == kLivenessPassName
+        && is_after_pass_
+        && instruction->GetLifetimePosition() != kNoLifetime) {
       output_ << " (liveness: " << instruction->GetLifetimePosition();
       if (instruction->HasLiveInterval()) {
         output_ << " ";
@@ -178,21 +221,29 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
         interval.Dump(output_);
       }
       output_ << ")";
-    } else if (pass_name_ == kRegisterAllocatorPassName) {
+    } else if (pass_name_ == kRegisterAllocatorPassName && is_after_pass_) {
       LocationSummary* locations = instruction->GetLocations();
       if (locations != nullptr) {
         output_ << " ( ";
         for (size_t i = 0; i < instruction->InputCount(); ++i) {
-          DumpLocation(locations->InAt(i), instruction->InputAt(i)->GetType());
+          DumpLocation(locations->InAt(i));
           output_ << " ";
         }
         output_ << ")";
         if (locations->Out().IsValid()) {
           output_ << " -> ";
-          DumpLocation(locations->Out(), instruction->GetType());
+          DumpLocation(locations->Out());
         }
       }
       output_ << " (liveness: " << instruction->GetLifetimePosition() << ")";
+    } else if (pass_name_ == kLoopInvariantCodeMotionPassName) {
+      output_ << " ( loop_header:";
+      HLoopInformation* info = instruction->GetBlock()->GetLoopInformation();
+      if (info == nullptr) {
+        output_ << "null )";
+      } else {
+        output_ << "B" << info->GetHeader()->GetBlockId() << " )";
+      }
     }
   }
 
@@ -200,23 +251,30 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
     const char* kEndInstructionMarker = "<|@";
     for (HInstructionIterator it(list); !it.Done(); it.Advance()) {
       HInstruction* instruction = it.Current();
-      AddIndent();
       int bci = 0;
-      output_ << bci << " " << instruction->NumberOfUses()
-              << " " << GetTypeId(instruction->GetType()) << instruction->GetId() << " ";
-      instruction->Accept(this);
+      size_t num_uses = 0;
+      for (HUseIterator<HInstruction*> use_it(instruction->GetUses());
+           !use_it.Done();
+           use_it.Advance()) {
+        ++num_uses;
+      }
+      AddIndent();
+      output_ << bci << " " << num_uses << " "
+              << GetTypeId(instruction->GetType()) << instruction->GetId() << " ";
+      PrintInstruction(instruction);
       output_ << kEndInstructionMarker << std::endl;
     }
   }
 
   void Run() {
     StartTag("cfg");
-    PrintProperty("name", pass_name_);
+    std::string pass_desc = std::string(pass_name_) + (is_after_pass_ ? " (after)" : " (before)");
+    PrintProperty("name", pass_desc.c_str());
     VisitInsertionOrder();
     EndTag("cfg");
   }
 
-  void VisitBasicBlock(HBasicBlock* block) {
+  void VisitBasicBlock(HBasicBlock* block) OVERRIDE {
     StartTag("block");
     PrintProperty("name", "B", block->GetBlockId());
     if (block->GetLifetimeStart() != kNoLifetime) {
@@ -262,6 +320,7 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
  private:
   std::ostream& output_;
   const char* pass_name_;
+  const bool is_after_pass_;
   const CodeGenerator& codegen_;
   size_t indent_;
 
@@ -270,51 +329,27 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
 
 HGraphVisualizer::HGraphVisualizer(std::ostream* output,
                                    HGraph* graph,
-                                   const char* string_filter,
                                    const CodeGenerator& codegen,
-                                   const DexCompilationUnit& cu)
-    : output_(output), graph_(graph), codegen_(codegen), is_enabled_(false) {
-  if (output == nullptr) {
-    return;
-  }
-  std::string pretty_name = PrettyMethod(cu.GetDexMethodIndex(), *cu.GetDexFile());
-  if (pretty_name.find(string_filter) == std::string::npos) {
-    return;
-  }
-
-  is_enabled_ = true;
-  HGraphVisualizerPrinter printer(graph, *output_, "", codegen_);
-  printer.StartTag("compilation");
-  printer.PrintProperty("name", pretty_name.c_str());
-  printer.PrintProperty("method", pretty_name.c_str());
-  printer.PrintTime("date");
-  printer.EndTag("compilation");
-}
-
-HGraphVisualizer::HGraphVisualizer(std::ostream* output,
-                                   HGraph* graph,
-                                   const CodeGenerator& codegen,
-                                   const char* name)
-    : output_(output), graph_(graph), codegen_(codegen), is_enabled_(false) {
+                                   const char* method_name)
+  : output_(output), graph_(graph), codegen_(codegen) {
   if (output == nullptr) {
     return;
   }
 
-  is_enabled_ = true;
-  HGraphVisualizerPrinter printer(graph, *output_, "", codegen_);
+  HGraphVisualizerPrinter printer(graph_, *output_, "", true, codegen_);
   printer.StartTag("compilation");
-  printer.PrintProperty("name", name);
-  printer.PrintProperty("method", name);
+  printer.PrintProperty("name", method_name);
+  printer.PrintProperty("method", method_name);
   printer.PrintTime("date");
   printer.EndTag("compilation");
 }
 
-void HGraphVisualizer::DumpGraph(const char* pass_name) {
-  if (!is_enabled_) {
-    return;
+void HGraphVisualizer::DumpGraph(const char* pass_name, bool is_after_pass) const {
+  DCHECK(output_ != nullptr);
+  if (!graph_->GetBlocks().IsEmpty()) {
+    HGraphVisualizerPrinter printer(graph_, *output_, pass_name, is_after_pass, codegen_);
+    printer.Run();
   }
-  HGraphVisualizerPrinter printer(graph_, *output_, pass_name, codegen_);
-  printer.Run();
 }
 
 }  // namespace art

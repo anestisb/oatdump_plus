@@ -16,15 +16,14 @@
 
 #include "verification_results.h"
 
+#include "base/logging.h"
 #include "base/stl_util.h"
-#include "base/mutex.h"
 #include "base/mutex-inl.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
 #include "thread.h"
 #include "thread-inl.h"
 #include "verified_method.h"
-#include "verifier/method_verifier.h"
 #include "verifier/method_verifier-inl.h"
 
 namespace art {
@@ -57,8 +56,8 @@ bool VerificationResults::ProcessVerifiedMethod(verifier::MethodVerifier* method
 
   const VerifiedMethod* verified_method = VerifiedMethod::Create(method_verifier, compile);
   if (verified_method == nullptr) {
-    DCHECK(method_verifier->HasFailures());
-    return false;
+    // Do not report an error to the verifier. We'll just punt this later.
+    return true;
   }
 
   WriterMutexLock mu(Thread::Current(), verified_methods_lock_);
@@ -84,6 +83,15 @@ const VerifiedMethod* VerificationResults::GetVerifiedMethod(MethodReference ref
   return (it != verified_methods_.end()) ? it->second : nullptr;
 }
 
+void VerificationResults::RemoveVerifiedMethod(MethodReference ref) {
+  WriterMutexLock mu(Thread::Current(), verified_methods_lock_);
+  auto it = verified_methods_.find(ref);
+  if (it != verified_methods_.end()) {
+    delete it->second;
+    verified_methods_.erase(it);
+  }
+}
+
 void VerificationResults::AddRejectedClass(ClassReference ref) {
   {
     WriterMutexLock mu(Thread::Current(), rejected_classes_lock_);
@@ -97,16 +105,8 @@ bool VerificationResults::IsClassRejected(ClassReference ref) {
   return (rejected_classes_.find(ref) != rejected_classes_.end());
 }
 
-bool VerificationResults::IsCandidateForCompilation(MethodReference& method_ref,
+bool VerificationResults::IsCandidateForCompilation(MethodReference&,
                                                     const uint32_t access_flags) {
-#ifdef ART_SEA_IR_MODE
-  bool use_sea = compiler_options_->GetSeaIrMode();
-  use_sea = use_sea && (std::string::npos != PrettyMethod(
-                        method_ref.dex_method_index, *(method_ref.dex_file)).find("fibonacci"));
-  if (use_sea) {
-    return true;
-  }
-#endif
   if (!compiler_options_->IsCompilationEnabled()) {
     return false;
   }

@@ -17,19 +17,50 @@
 #ifndef ART_COMPILER_DEX_GLOBAL_VALUE_NUMBERING_H_
 #define ART_COMPILER_DEX_GLOBAL_VALUE_NUMBERING_H_
 
+#include "base/arena_object.h"
+#include "base/logging.h"
 #include "base/macros.h"
-#include "compiler_internals.h"
-#include "utils/scoped_arena_containers.h"
+#include "mir_graph.h"
+#include "compiler_ir.h"
+#include "dex_flags.h"
 
 namespace art {
 
 class LocalValueNumbering;
 class MirFieldInfo;
 
-class GlobalValueNumbering {
+class GlobalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
  public:
-  GlobalValueNumbering(CompilationUnit* cu, ScopedArenaAllocator* allocator);
+  static constexpr uint16_t kNoValue = 0xffffu;
+  static constexpr uint16_t kNullValue = 1u;
+
+  enum Mode {
+    kModeGvn,
+    kModeGvnPostProcessing,
+    kModeLvn
+  };
+
+  static bool Skip(CompilationUnit* cu) {
+    return (cu->disable_opt & (1u << kGlobalValueNumbering)) != 0u ||
+        cu->mir_graph->GetMaxNestedLoops() > kMaxAllowedNestedLoops;
+  }
+
+  // Instance and static field id map is held by MIRGraph to avoid multiple recalculations
+  // when doing LVN.
+  template <typename Container>  // Container of MirIFieldLoweringInfo or MirSFieldLoweringInfo.
+  static uint16_t* PrepareGvnFieldIds(ScopedArenaAllocator* allocator,
+                                      const Container& field_infos);
+
+  GlobalValueNumbering(CompilationUnit* cu, ScopedArenaAllocator* allocator, Mode mode);
   ~GlobalValueNumbering();
+
+  CompilationUnit* GetCompilationUnit() const {
+    return cu_;
+  }
+
+  MIRGraph* GetMirGraph() const {
+    return mir_graph_;
+  }
 
   // Prepare LVN for the basic block.
   LocalValueNumbering* PrepareBasicBlock(BasicBlock* bb,
@@ -44,34 +75,18 @@ class GlobalValueNumbering {
   }
 
   // Allow modifications.
-  void AllowModifications() {
-    DCHECK(Good());
-    modifications_allowed_ = true;
-  }
+  void StartPostProcessing();
 
   bool CanModify() const {
-    // TODO: DCHECK(Good()), see AllowModifications() and NewValueName().
     return modifications_allowed_ && Good();
   }
 
-  // GlobalValueNumbering should be allocated on the ArenaStack (or the native stack).
-  static void* operator new(size_t size, ScopedArenaAllocator* allocator) {
-    return allocator->Alloc(sizeof(GlobalValueNumbering), kArenaAllocMisc);
-  }
-
-  // Allow delete-expression to destroy a GlobalValueNumbering object without deallocation.
-  static void operator delete(void* ptr) { UNUSED(ptr); }
+  // Retrieve the LVN with GVN results for a given BasicBlock.
+  const LocalValueNumbering* GetLvn(BasicBlockId bb_id) const;
 
  private:
-  static constexpr uint16_t kNoValue = 0xffffu;
-
   // Allocate a new value name.
-  uint16_t NewValueName() {
-    // TODO: No new values should be needed once we allow modifications.
-    // DCHECK(!modifications_allowed_);
-    ++last_value_;
-    return last_value_;
-  }
+  uint16_t NewValueName();
 
   // Key is concatenation of opcode, operand1, operand2 and modifier, value is value name.
   typedef ScopedArenaSafeMap<uint64_t, uint16_t> ValueMap;
@@ -85,7 +100,7 @@ class GlobalValueNumbering {
   uint16_t LookupValue(uint16_t op, uint16_t operand1, uint16_t operand2, uint16_t modifier) {
     uint16_t res;
     uint64_t key = BuildKey(op, operand1, operand2, modifier);
-    ValueMap::iterator lb = global_value_map_.lower_bound(key);
+    auto lb = global_value_map_.lower_bound(key);
     if (lb != global_value_map_.end() && lb->first == key) {
       res = lb->second;
     } else {
@@ -95,46 +110,37 @@ class GlobalValueNumbering {
     return res;
   }
 
-  // Check if the exact value is stored in the global value map.
-  bool HasValue(uint16_t op, uint16_t operand1, uint16_t operand2, uint16_t modifier,
-                uint16_t value) const {
-    DCHECK(value != 0u || !Good());
-    DCHECK_LE(value, last_value_);
-    // This is equivalent to value == LookupValue(op, operand1, operand2, modifier)
-    // except that it doesn't add an entry to the global value map if it's not there.
+  // Look up a value in the global value map, don't add a new entry if there was none before.
+  uint16_t FindValue(uint16_t op, uint16_t operand1, uint16_t operand2, uint16_t modifier) const {
+    uint16_t res;
     uint64_t key = BuildKey(op, operand1, operand2, modifier);
-    ValueMap::const_iterator it = global_value_map_.find(key);
-    return (it != global_value_map_.end() && it->second == value);
+    auto lb = global_value_map_.lower_bound(key);
+    if (lb != global_value_map_.end() && lb->first == key) {
+      res = lb->second;
+    } else {
+      res = kNoValue;
+    }
+    return res;
   }
 
-  // FieldReference represents a unique resolved field.
-  struct FieldReference {
-    const DexFile* dex_file;
-    uint16_t field_idx;
-    uint16_t type;  // See comments for LocalValueNumbering::kFieldTypeCount.
-  };
+  // Get an instance field id.
+  uint16_t GetIFieldId(MIR* mir) {
+    return GetMirGraph()->GetGvnIFieldId(mir);
+  }
 
-  struct FieldReferenceComparator {
-    bool operator()(const FieldReference& lhs, const FieldReference& rhs) const {
-      if (lhs.field_idx != rhs.field_idx) {
-        return lhs.field_idx < rhs.field_idx;
-      }
-      // If the field_idx and dex_file match, the type must also match.
-      DCHECK(lhs.dex_file != rhs.dex_file || lhs.type == rhs.type);
-      return lhs.dex_file < rhs.dex_file;
-    }
-  };
+  // Get a static field id.
+  uint16_t GetSFieldId(MIR* mir) {
+    return GetMirGraph()->GetGvnSFieldId(mir);
+  }
 
-  // Maps field key to field id for resolved fields.
-  typedef ScopedArenaSafeMap<FieldReference, uint32_t, FieldReferenceComparator> FieldIndexMap;
+  // Get an instance field type based on field id.
+  uint16_t GetIFieldType(uint16_t field_id) {
+    return static_cast<uint16_t>(GetMirGraph()->GetIFieldLoweringInfo(field_id).MemAccessType());
+  }
 
-  // Get a field id.
-  uint16_t GetFieldId(const MirFieldInfo& field_info, uint16_t type);
-
-  // Get a field type based on field id.
-  uint16_t GetFieldType(uint16_t field_id) {
-    DCHECK_LT(field_id, field_index_reverse_map_.size());
-    return field_index_reverse_map_[field_id]->first.type;
+  // Get a static field type based on field id.
+  uint16_t GetSFieldType(uint16_t field_id) {
+    return static_cast<uint16_t>(GetMirGraph()->GetSFieldLoweringInfo(field_id).MemAccessType());
   }
 
   struct ArrayLocation {
@@ -192,21 +198,18 @@ class GlobalValueNumbering {
 
   bool NullCheckedInAllPredecessors(const ScopedArenaVector<uint16_t>& merge_names) const;
 
-  CompilationUnit* GetCompilationUnit() const {
-    return cu_;
-  }
-
-  MIRGraph* GetMirGraph() const {
-    return mir_graph_;
-  }
+  bool DivZeroCheckedInAllPredecessors(const ScopedArenaVector<uint16_t>& merge_names) const;
 
   ScopedArenaAllocator* Allocator() const {
     return allocator_;
   }
 
   CompilationUnit* const cu_;
-  MIRGraph* mir_graph_;
+  MIRGraph* const mir_graph_;
   ScopedArenaAllocator* const allocator_;
+
+  // The maximum number of nested loops that we accept for GVN.
+  static constexpr size_t kMaxAllowedNestedLoops = 6u;
 
   // The number of BBs that we need to process grows exponentially with the number
   // of nested loops. Don't allow excessive processing for too many nested loops or
@@ -225,9 +228,10 @@ class GlobalValueNumbering {
   // LVN once for each BasicBlock.
   bool modifications_allowed_;
 
+  // Specifies the mode of operation.
+  Mode mode_;
+
   ValueMap global_value_map_;
-  FieldIndexMap field_index_map_;
-  ScopedArenaVector<const FieldIndexMap::value_type*> field_index_reverse_map_;
   ArrayLocationMap array_location_map_;
   ScopedArenaVector<const ArrayLocationMap::value_type*> array_location_reverse_map_;
   RefSetIdMap ref_set_map_;
@@ -237,9 +241,55 @@ class GlobalValueNumbering {
   ScopedArenaVector<const LocalValueNumbering*> merge_lvns_;  // Not owning.
 
   friend class LocalValueNumbering;
+  friend class GlobalValueNumberingTest;
 
   DISALLOW_COPY_AND_ASSIGN(GlobalValueNumbering);
 };
+std::ostream& operator<<(std::ostream& os, const GlobalValueNumbering::Mode& rhs);
+
+inline const LocalValueNumbering* GlobalValueNumbering::GetLvn(BasicBlockId bb_id) const {
+  DCHECK_EQ(mode_, kModeGvnPostProcessing);
+  DCHECK_LT(bb_id, lvns_.size());
+  DCHECK(lvns_[bb_id] != nullptr);
+  return lvns_[bb_id];
+}
+
+inline void GlobalValueNumbering::StartPostProcessing() {
+  DCHECK(Good());
+  DCHECK_EQ(mode_, kModeGvn);
+  mode_ = kModeGvnPostProcessing;
+}
+
+inline uint16_t GlobalValueNumbering::NewValueName() {
+  DCHECK_NE(mode_, kModeGvnPostProcessing);
+  ++last_value_;
+  return last_value_;
+}
+
+template <typename Container>  // Container of MirIFieldLoweringInfo or MirSFieldLoweringInfo.
+uint16_t* GlobalValueNumbering::PrepareGvnFieldIds(ScopedArenaAllocator* allocator,
+                                                   const Container& field_infos) {
+  size_t size = field_infos.size();
+  uint16_t* field_ids = allocator->AllocArray<uint16_t>(size, kArenaAllocMisc);
+  for (size_t i = 0u; i != size; ++i) {
+    size_t idx = i;
+    const MirFieldInfo& cur_info = field_infos[i];
+    if (cur_info.IsResolved()) {
+      for (size_t j = 0; j != i; ++j) {
+        const MirFieldInfo& prev_info = field_infos[j];
+        if (prev_info.IsResolved() &&
+            prev_info.DeclaringDexFile() == cur_info.DeclaringDexFile() &&
+            prev_info.DeclaringFieldIndex() == cur_info.DeclaringFieldIndex()) {
+          DCHECK_EQ(cur_info.MemAccessType(), prev_info.MemAccessType());
+          idx = j;
+          break;
+        }
+      }
+    }
+    field_ids[i] = idx;
+  }
+  return field_ids;
+}
 
 }  // namespace art
 

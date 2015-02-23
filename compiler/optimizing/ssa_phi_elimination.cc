@@ -19,25 +19,25 @@
 namespace art {
 
 void SsaDeadPhiElimination::Run() {
+  MarkDeadPhis();
+  EliminateDeadPhis();
+}
+
+void SsaDeadPhiElimination::MarkDeadPhis() {
   // Add to the worklist phis referenced by non-phi instructions.
   for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
-    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
-      HPhi* phi = it.Current()->AsPhi();
-      if (phi->HasEnvironmentUses()) {
-        // TODO: Do we want to keep that phi alive?
-        worklist_.Add(phi);
-        phi->SetLive();
-        continue;
-      }
-      for (HUseIterator<HInstruction> it(phi->GetUses()); !it.Done(); it.Advance()) {
-        HUseListNode<HInstruction>* current = it.Current();
+    for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
+      HPhi* phi = inst_it.Current()->AsPhi();
+      // Set dead ahead of running through uses. The phi may have no use.
+      phi->SetDead();
+      for (HUseIterator<HInstruction*> use_it(phi->GetUses()); !use_it.Done(); use_it.Advance()) {
+        HUseListNode<HInstruction*>* current = use_it.Current();
         HInstruction* user = current->GetUser();
         if (!user->IsPhi()) {
           worklist_.Add(phi);
           phi->SetLive();
-        } else {
-          phi->SetDead();
+          break;
         }
       }
     }
@@ -54,7 +54,9 @@ void SsaDeadPhiElimination::Run() {
       }
     }
   }
+}
 
+void SsaDeadPhiElimination::EliminateDeadPhis() {
   // Remove phis that are not live. Visit in post order so that phis
   // that are not inputs of loop phis can be removed when they have
   // no users left (dead phis might use dead phis).
@@ -66,14 +68,24 @@ void SsaDeadPhiElimination::Run() {
       next = current->GetNext();
       if (current->AsPhi()->IsDead()) {
         if (current->HasUses()) {
-          for (HUseIterator<HInstruction> it(current->GetUses()); !it.Done(); it.Advance()) {
-            HUseListNode<HInstruction>* user_node = it.Current();
+          for (HUseIterator<HInstruction*> use_it(current->GetUses()); !use_it.Done();
+               use_it.Advance()) {
+            HUseListNode<HInstruction*>* user_node = use_it.Current();
             HInstruction* user = user_node->GetUser();
-            DCHECK(user->IsLoopHeaderPhi());
-            DCHECK(user->AsPhi()->IsDead());
+            DCHECK(user->IsLoopHeaderPhi()) << user->GetId();
+            DCHECK(user->AsPhi()->IsDead()) << user->GetId();
             // Just put itself as an input. The phi will be removed in this loop anyway.
             user->SetRawInputAt(user_node->GetIndex(), user);
             current->RemoveUser(user, user_node->GetIndex());
+          }
+        }
+        if (current->HasEnvironmentUses()) {
+          for (HUseIterator<HEnvironment*> use_it(current->GetEnvUses()); !use_it.Done();
+               use_it.Advance()) {
+            HUseListNode<HEnvironment*>* user_node = use_it.Current();
+            HEnvironment* user = user_node->GetUser();
+            user->SetRawEnvAt(user_node->GetIndex(), nullptr);
+            current->RemoveEnvironmentUser(user_node);
           }
         }
         block->RemovePhi(current->AsPhi());
@@ -87,8 +99,8 @@ void SsaRedundantPhiElimination::Run() {
   // Add all phis in the worklist.
   for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
-    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
-      worklist_.Add(it.Current()->AsPhi());
+    for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
+      worklist_.Add(inst_it.Current()->AsPhi());
     }
   }
 
@@ -127,8 +139,8 @@ void SsaRedundantPhiElimination::Run() {
       // Because we're updating the users of this phi, we may have new
       // phis candidate for elimination if this phi is in a loop. Add phis that
       // used this phi to the worklist.
-      for (HUseIterator<HInstruction> it(phi->GetUses()); !it.Done(); it.Advance()) {
-        HUseListNode<HInstruction>* current = it.Current();
+      for (HUseIterator<HInstruction*> it(phi->GetUses()); !it.Done(); it.Advance()) {
+        HUseListNode<HInstruction*>* current = it.Current();
         HInstruction* user = current->GetUser();
         if (user->IsPhi()) {
           worklist_.Add(user->AsPhi());

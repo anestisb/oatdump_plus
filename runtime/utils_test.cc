@@ -241,62 +241,62 @@ TEST_F(UtilsTest, Split) {
   expected.clear();
 
   actual.clear();
-  Split("", ':', actual);
+  Split("", ':', &actual);
   EXPECT_EQ(expected, actual);
 
   actual.clear();
-  Split(":", ':', actual);
+  Split(":", ':', &actual);
   EXPECT_EQ(expected, actual);
 
   expected.clear();
   expected.push_back("foo");
 
   actual.clear();
-  Split(":foo", ':', actual);
+  Split(":foo", ':', &actual);
   EXPECT_EQ(expected, actual);
 
   actual.clear();
-  Split("foo:", ':', actual);
+  Split("foo:", ':', &actual);
   EXPECT_EQ(expected, actual);
 
   actual.clear();
-  Split(":foo:", ':', actual);
+  Split(":foo:", ':', &actual);
   EXPECT_EQ(expected, actual);
 
   expected.push_back("bar");
 
   actual.clear();
-  Split("foo:bar", ':', actual);
+  Split("foo:bar", ':', &actual);
   EXPECT_EQ(expected, actual);
 
   actual.clear();
-  Split(":foo:bar", ':', actual);
+  Split(":foo:bar", ':', &actual);
   EXPECT_EQ(expected, actual);
 
   actual.clear();
-  Split("foo:bar:", ':', actual);
+  Split("foo:bar:", ':', &actual);
   EXPECT_EQ(expected, actual);
 
   actual.clear();
-  Split(":foo:bar:", ':', actual);
+  Split(":foo:bar:", ':', &actual);
   EXPECT_EQ(expected, actual);
 
   expected.push_back("baz");
 
   actual.clear();
-  Split("foo:bar:baz", ':', actual);
+  Split("foo:bar:baz", ':', &actual);
   EXPECT_EQ(expected, actual);
 
   actual.clear();
-  Split(":foo:bar:baz", ':', actual);
+  Split(":foo:bar:baz", ':', &actual);
   EXPECT_EQ(expected, actual);
 
   actual.clear();
-  Split("foo:bar:baz:", ':', actual);
+  Split("foo:bar:baz:", ':', &actual);
   EXPECT_EQ(expected, actual);
 
   actual.clear();
-  Split(":foo:bar:baz:", ':', actual);
+  Split(":foo:bar:baz:", ':', &actual);
   EXPECT_EQ(expected, actual);
 }
 
@@ -392,6 +392,9 @@ TEST_F(UtilsTest, ExecSuccess) {
 }
 
 TEST_F(UtilsTest, ExecError) {
+  // This will lead to error messages in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
   std::vector<std::string> command;
   command.push_back("bogus");
   std::string error_msg;
@@ -400,6 +403,38 @@ TEST_F(UtilsTest, ExecError) {
     EXPECT_FALSE(Exec(command, &error_msg));
     EXPECT_NE(0U, error_msg.size());
   }
+}
+
+TEST_F(UtilsTest, RoundUpToPowerOfTwo) {
+  // Tests the constexpr variant since all the parameters are constexpr
+  EXPECT_EQ(0, RoundUpToPowerOfTwo(0));
+  EXPECT_EQ(1, RoundUpToPowerOfTwo(1));
+  EXPECT_EQ(2, RoundUpToPowerOfTwo(2));
+  EXPECT_EQ(4, RoundUpToPowerOfTwo(3));
+  EXPECT_EQ(8, RoundUpToPowerOfTwo(7));
+
+  EXPECT_EQ(0b10000L, RoundUpToPowerOfTwo(0b01101L));
+  EXPECT_EQ(1ULL << 63, RoundUpToPowerOfTwo(1ULL << 62 | 1ULL));
+}
+
+TEST_F(UtilsTest, MostSignificantBit) {
+  EXPECT_EQ(-1, MostSignificantBit(0));
+  EXPECT_EQ(0, MostSignificantBit(1));
+  EXPECT_EQ(31, MostSignificantBit(~static_cast<uint32_t>(0)));
+  EXPECT_EQ(2, MostSignificantBit(0b110));
+  EXPECT_EQ(2, MostSignificantBit(0b100));
+}
+
+TEST_F(UtilsTest, MinimumBitsToStore) {
+  EXPECT_EQ(0u, MinimumBitsToStore(0));
+  EXPECT_EQ(1u, MinimumBitsToStore(1));
+  EXPECT_EQ(2u, MinimumBitsToStore(0b10));
+  EXPECT_EQ(2u, MinimumBitsToStore(0b11));
+  EXPECT_EQ(3u, MinimumBitsToStore(0b100));
+  EXPECT_EQ(3u, MinimumBitsToStore(0b110));
+  EXPECT_EQ(3u, MinimumBitsToStore(0b101));
+  EXPECT_EQ(8u, MinimumBitsToStore(0xFF));
+  EXPECT_EQ(32u, MinimumBitsToStore(~static_cast<uint32_t>(0)));
 }
 
 }  // namespace art

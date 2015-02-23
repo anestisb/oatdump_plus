@@ -30,6 +30,7 @@
 #include "base/stl_util.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
+#include "fault_handler.h"
 #include "gc_root.h"
 #include "gc/accounting/card_table-inl.h"
 #include "indirect_reference_table-inl.h"
@@ -44,6 +45,7 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
 #include "mirror/throwable.h"
+#include "nativebridge/native_bridge.h"
 #include "parsed_options.h"
 #include "reflection.h"
 #include "runtime.h"
@@ -195,8 +197,8 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
     // Failed to find type from the signature of the field.
     DCHECK(soa.Self()->IsExceptionPending());
     ThrowLocation throw_location;
-    StackHandleScope<1> hs(soa.Self());
-    Handle<mirror::Throwable> cause(hs.NewHandle(soa.Self()->GetException(&throw_location)));
+    StackHandleScope<1> hs2(soa.Self());
+    Handle<mirror::Throwable> cause(hs2.NewHandle(soa.Self()->GetException(&throw_location)));
     soa.Self()->ClearException();
     std::string temp;
     soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchFieldError;",
@@ -358,7 +360,7 @@ class JNI {
     ScopedObjectAccess soa(env);
     mirror::ArtMethod* m = soa.DecodeMethod(mid);
     CHECK(!kMovingMethods);
-    jobject art_method = soa.AddLocalReference<jobject>(m);
+    ScopedLocalRef<jobject> art_method(env, soa.AddLocalReference<jobject>(m));
     jobject reflect_method;
     if (m->IsConstructor()) {
       reflect_method = env->AllocObject(WellKnownClasses::java_lang_reflect_Constructor);
@@ -369,7 +371,7 @@ class JNI {
       return nullptr;
     }
     SetObjectField(env, reflect_method,
-                   WellKnownClasses::java_lang_reflect_AbstractMethod_artMethod, art_method);
+                   WellKnownClasses::java_lang_reflect_AbstractMethod_artMethod, art_method.get());
     return reflect_method;
   }
 
@@ -377,13 +379,13 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT(fid);
     ScopedObjectAccess soa(env);
     mirror::ArtField* f = soa.DecodeField(fid);
-    jobject art_field = soa.AddLocalReference<jobject>(f);
+    ScopedLocalRef<jobject> art_field(env, soa.AddLocalReference<jobject>(f));
     jobject reflect_field = env->AllocObject(WellKnownClasses::java_lang_reflect_Field);
     if (env->ExceptionCheck()) {
       return nullptr;
     }
     SetObjectField(env, reflect_field,
-                   WellKnownClasses::java_lang_reflect_Field_artField, art_field);
+                   WellKnownClasses::java_lang_reflect_Field_artField, art_field.get());
     return reflect_field;
   }
 
@@ -564,7 +566,8 @@ class JNI {
     return soa.AddLocalReference<jobject>(decoded_obj);
   }
 
-  static void DeleteLocalRef(JNIEnv* env, jobject obj) {
+  static void DeleteLocalRef(JNIEnv* env, jobject obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (obj == nullptr) {
       return;
     }
@@ -1748,6 +1751,7 @@ class JNI {
   }
 
   static void ReleaseStringCritical(JNIEnv* env, jstring java_string, const jchar* chars) {
+    UNUSED(chars);
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(java_string);
     ScopedObjectAccess soa(env);
     gc::Heap* heap = Runtime::Current()->GetHeap();
@@ -1776,7 +1780,7 @@ class JNI {
     return bytes;
   }
 
-  static void ReleaseStringUTFChars(JNIEnv* env, jstring, const char* chars) {
+  static void ReleaseStringUTFChars(JNIEnv*, jstring, const char* chars) {
     delete[] chars;
   }
 
@@ -2144,7 +2148,7 @@ class JNI {
 
       VLOG(jni) << "[Registering JNI native method " << PrettyMethod(m) << "]";
 
-      m->RegisterNative(soa.Self(), fnPtr, is_fast);
+      m->RegisterNative(fnPtr, is_fast);
     }
     return JNI_OK;
   }
@@ -2160,14 +2164,14 @@ class JNI {
     for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
       mirror::ArtMethod* m = c->GetDirectMethod(i);
       if (m->IsNative()) {
-        m->UnregisterNative(soa.Self());
+        m->UnregisterNative();
         unregistered_count++;
       }
     }
     for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
       mirror::ArtMethod* m = c->GetVirtualMethod(i);
       if (m->IsNative()) {
-        m->UnregisterNative(soa.Self());
+        m->UnregisterNative();
         unregistered_count++;
       }
     }
@@ -2252,8 +2256,10 @@ class JNI {
         java_buffer, WellKnownClasses::java_nio_DirectByteBuffer_capacity));
   }
 
-  static jobjectRefType GetObjectRefType(JNIEnv* env, jobject java_object) {
-    CHECK_NON_NULL_ARGUMENT_RETURN(java_object, JNIInvalidRefType);
+  static jobjectRefType GetObjectRefType(JNIEnv* env ATTRIBUTE_UNUSED, jobject java_object) {
+    if (java_object == nullptr) {
+      return JNIInvalidRefType;
+    }
 
     // Do we definitely know what kind of reference this is?
     IndirectRef ref = reinterpret_cast<IndirectRef>(java_object);
@@ -2270,7 +2276,7 @@ class JNI {
       return JNILocalRefType;
     }
     LOG(FATAL) << "IndirectRefKind[" << kind << "]";
-    return JNIInvalidRefType;
+    UNREACHABLE();
   }
 
  private:
@@ -2704,7 +2710,7 @@ std::ostream& operator<<(std::ostream& os, const jobjectRefType& rhs) {
     os << "JNIWeakGlobalRefType";
     return os;
   default:
-    LOG(FATAL) << "jobjectRefType[" << static_cast<int>(rhs) << "]";
-    return os;
+    LOG(::art::FATAL) << "jobjectRefType[" << static_cast<int>(rhs) << "]";
+    UNREACHABLE();
   }
 }

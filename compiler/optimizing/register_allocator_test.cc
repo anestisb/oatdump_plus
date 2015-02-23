@@ -14,17 +14,18 @@
  * limitations under the License.
  */
 
+#include "base/arena_allocator.h"
 #include "builder.h"
 #include "code_generator.h"
 #include "code_generator_x86.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
+#include "driver/compiler_options.h"
 #include "nodes.h"
 #include "optimizing_unit_test.h"
 #include "register_allocator.h"
 #include "ssa_liveness_analysis.h"
 #include "ssa_phi_elimination.h"
-#include "utils/arena_allocator.h"
 
 #include "gtest/gtest.h"
 
@@ -36,13 +37,12 @@ namespace art {
 static bool Check(const uint16_t* data) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
-  HGraphBuilder builder(&allocator);
+  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HGraphBuilder builder(graph);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
-  HGraph* graph = builder.BuildGraph(*item);
-  graph->BuildDominatorTree();
-  graph->TransformToSSA();
-  graph->FindNaturalLoops();
-  x86::CodeGeneratorX86 codegen(graph);
+  builder.BuildGraph(*item);
+  graph->TryBuildingSsa();
+  x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
   SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
   RegisterAllocator register_allocator(&allocator, &codegen, liveness);
@@ -58,7 +58,7 @@ TEST(RegisterAllocatorTest, ValidateIntervals) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraph* graph = new (&allocator) HGraph(&allocator);
-  x86::CodeGeneratorX86 codegen(graph);
+  x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
   GrowableArray<LiveInterval*> intervals(&allocator, 0);
 
   // Test with two intervals of the same range.
@@ -250,12 +250,11 @@ TEST(RegisterAllocatorTest, Loop2) {
 }
 
 static HGraph* BuildSSAGraph(const uint16_t* data, ArenaAllocator* allocator) {
-  HGraphBuilder builder(allocator);
+  HGraph* graph = new (allocator) HGraph(allocator);
+  HGraphBuilder builder(graph);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
-  HGraph* graph = builder.BuildGraph(*item);
-  graph->BuildDominatorTree();
-  graph->TransformToSSA();
-  graph->FindNaturalLoops();
+  builder.BuildGraph(*item);
+  graph->TryBuildingSsa();
   return graph;
 }
 
@@ -299,7 +298,7 @@ TEST(RegisterAllocatorTest, Loop3) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildSSAGraph(data, &allocator);
-  x86::CodeGeneratorX86 codegen(graph);
+  x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
   SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
   RegisterAllocator register_allocator(&allocator, &codegen, liveness);
@@ -331,7 +330,7 @@ TEST(RegisterAllocatorTest, FirstRegisterUse) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildSSAGraph(data, &allocator);
-  x86::CodeGeneratorX86 codegen(graph);
+  x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
   SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
 
@@ -348,14 +347,14 @@ TEST(RegisterAllocatorTest, FirstRegisterUse) {
   // Split at the next instruction.
   interval = interval->SplitAt(first_add->GetLifetimePosition() + 2);
   // The user of the split is the last add.
-  ASSERT_EQ(interval->FirstRegisterUse(), last_add->GetLifetimePosition() - 1);
+  ASSERT_EQ(interval->FirstRegisterUse(), last_add->GetLifetimePosition());
 
   // Split before the last add.
   LiveInterval* new_interval = interval->SplitAt(last_add->GetLifetimePosition() - 1);
   // Ensure the current interval has no register use...
   ASSERT_EQ(interval->FirstRegisterUse(), kNoLifetime);
   // And the new interval has it for the last add.
-  ASSERT_EQ(new_interval->FirstRegisterUse(), last_add->GetLifetimePosition() - 1);
+  ASSERT_EQ(new_interval->FirstRegisterUse(), last_add->GetLifetimePosition());
 }
 
 TEST(RegisterAllocatorTest, DeadPhi) {
@@ -384,7 +383,7 @@ TEST(RegisterAllocatorTest, DeadPhi) {
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildSSAGraph(data, &allocator);
   SsaDeadPhiElimination(graph).Run();
-  x86::CodeGeneratorX86 codegen(graph);
+  x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
   SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
   RegisterAllocator register_allocator(&allocator, &codegen, liveness);
@@ -406,7 +405,7 @@ TEST(RegisterAllocatorTest, FreeUntil) {
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildSSAGraph(data, &allocator);
   SsaDeadPhiElimination(graph).Run();
-  x86::CodeGeneratorX86 codegen(graph);
+  x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
   SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
   RegisterAllocator register_allocator(&allocator, &codegen, liveness);
@@ -414,21 +413,24 @@ TEST(RegisterAllocatorTest, FreeUntil) {
   // Add an artifical range to cover the temps that will be put in the unhandled list.
   LiveInterval* unhandled = graph->GetEntryBlock()->GetFirstInstruction()->GetLiveInterval();
   unhandled->AddLoopRange(0, 60);
+  // For SSA value intervals, only an interval resulted from a split may intersect
+  // with inactive intervals.
+  unhandled = register_allocator.Split(unhandled, 5);
 
   // Add three temps holding the same register, and starting at different positions.
   // Put the one that should be picked in the middle of the inactive list to ensure
   // we do not depend on an order.
-  LiveInterval* interval = LiveInterval::MakeTempInterval(&allocator, Primitive::kPrimInt);
+  LiveInterval* interval = LiveInterval::MakeInterval(&allocator, Primitive::kPrimInt);
   interval->SetRegister(0);
   interval->AddRange(40, 50);
   register_allocator.inactive_.Add(interval);
 
-  interval = LiveInterval::MakeTempInterval(&allocator, Primitive::kPrimInt);
+  interval = LiveInterval::MakeInterval(&allocator, Primitive::kPrimInt);
   interval->SetRegister(0);
   interval->AddRange(20, 30);
   register_allocator.inactive_.Add(interval);
 
-  interval = LiveInterval::MakeTempInterval(&allocator, Primitive::kPrimInt);
+  interval = LiveInterval::MakeInterval(&allocator, Primitive::kPrimInt);
   interval->SetRegister(0);
   interval->AddRange(60, 70);
   register_allocator.inactive_.Add(interval);
@@ -438,7 +440,7 @@ TEST(RegisterAllocatorTest, FreeUntil) {
   register_allocator.processing_core_registers_ = true;
   register_allocator.unhandled_ = &register_allocator.unhandled_core_intervals_;
 
-  register_allocator.TryAllocateFreeReg(unhandled);
+  ASSERT_TRUE(register_allocator.TryAllocateFreeReg(unhandled));
 
   // Check that we have split the interval.
   ASSERT_EQ(1u, register_allocator.unhandled_->Size());
@@ -463,7 +465,7 @@ static HGraph* BuildIfElseWithPhi(ArenaAllocator* allocator,
   entry->AddSuccessor(block);
 
   HInstruction* test = new (allocator) HInstanceFieldGet(
-      parameter, Primitive::kPrimBoolean, MemberOffset(22));
+      parameter, Primitive::kPrimBoolean, MemberOffset(22), false);
   block->AddInstruction(test);
   block->AddInstruction(new (allocator) HIf(test));
   HBasicBlock* then = new (allocator) HBasicBlock(graph);
@@ -482,8 +484,10 @@ static HGraph* BuildIfElseWithPhi(ArenaAllocator* allocator,
 
   *phi = new (allocator) HPhi(allocator, 0, 0, Primitive::kPrimInt);
   join->AddPhi(*phi);
-  *input1 = new (allocator) HInstanceFieldGet(parameter, Primitive::kPrimInt, MemberOffset(42));
-  *input2 = new (allocator) HInstanceFieldGet(parameter, Primitive::kPrimInt, MemberOffset(42));
+  *input1 = new (allocator) HInstanceFieldGet(parameter, Primitive::kPrimInt,
+                                              MemberOffset(42), false);
+  *input2 = new (allocator) HInstanceFieldGet(parameter, Primitive::kPrimInt,
+                                              MemberOffset(42), false);
   then->AddInstruction(*input1);
   else_->AddInstruction(*input2);
   join->AddInstruction(new (allocator) HExit());
@@ -491,7 +495,7 @@ static HGraph* BuildIfElseWithPhi(ArenaAllocator* allocator,
   (*phi)->AddInput(*input2);
 
   graph->BuildDominatorTree();
-  graph->FindNaturalLoops();
+  graph->AnalyzeNaturalLoops();
   return graph;
 }
 
@@ -503,7 +507,7 @@ TEST(RegisterAllocatorTest, PhiHint) {
 
   {
     HGraph* graph = BuildIfElseWithPhi(&allocator, &phi, &input1, &input2);
-    x86::CodeGeneratorX86 codegen(graph);
+    x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
     SsaLivenessAnalysis liveness(*graph, &codegen);
     liveness.Analyze();
 
@@ -518,13 +522,13 @@ TEST(RegisterAllocatorTest, PhiHint) {
 
   {
     HGraph* graph = BuildIfElseWithPhi(&allocator, &phi, &input1, &input2);
-    x86::CodeGeneratorX86 codegen(graph);
+    x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
     SsaLivenessAnalysis liveness(*graph, &codegen);
     liveness.Analyze();
 
     // Set the phi to a specific register, and check that the inputs get allocated
     // the same register.
-    phi->GetLocations()->SetOut(Location::RegisterLocation(2));
+    phi->GetLocations()->UpdateOut(Location::RegisterLocation(2));
     RegisterAllocator register_allocator(&allocator, &codegen, liveness);
     register_allocator.AllocateRegisters();
 
@@ -535,13 +539,13 @@ TEST(RegisterAllocatorTest, PhiHint) {
 
   {
     HGraph* graph = BuildIfElseWithPhi(&allocator, &phi, &input1, &input2);
-    x86::CodeGeneratorX86 codegen(graph);
+    x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
     SsaLivenessAnalysis liveness(*graph, &codegen);
     liveness.Analyze();
 
     // Set input1 to a specific register, and check that the phi and other input get allocated
     // the same register.
-    input1->GetLocations()->SetOut(Location::RegisterLocation(2));
+    input1->GetLocations()->UpdateOut(Location::RegisterLocation(2));
     RegisterAllocator register_allocator(&allocator, &codegen, liveness);
     register_allocator.AllocateRegisters();
 
@@ -552,13 +556,13 @@ TEST(RegisterAllocatorTest, PhiHint) {
 
   {
     HGraph* graph = BuildIfElseWithPhi(&allocator, &phi, &input1, &input2);
-    x86::CodeGeneratorX86 codegen(graph);
+    x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
     SsaLivenessAnalysis liveness(*graph, &codegen);
     liveness.Analyze();
 
     // Set input2 to a specific register, and check that the phi and other input get allocated
     // the same register.
-    input2->GetLocations()->SetOut(Location::RegisterLocation(2));
+    input2->GetLocations()->UpdateOut(Location::RegisterLocation(2));
     RegisterAllocator register_allocator(&allocator, &codegen, liveness);
     register_allocator.AllocateRegisters();
 
@@ -582,7 +586,8 @@ static HGraph* BuildFieldReturn(ArenaAllocator* allocator,
   graph->AddBlock(block);
   entry->AddSuccessor(block);
 
-  *field = new (allocator) HInstanceFieldGet(parameter, Primitive::kPrimInt, MemberOffset(42));
+  *field = new (allocator) HInstanceFieldGet(parameter, Primitive::kPrimInt,
+                                             MemberOffset(42), false);
   block->AddInstruction(*field);
   *ret = new (allocator) HReturn(*field);
   block->AddInstruction(*ret);
@@ -601,7 +606,7 @@ TEST(RegisterAllocatorTest, ExpectedInRegisterHint) {
 
   {
     HGraph* graph = BuildFieldReturn(&allocator, &field, &ret);
-    x86::CodeGeneratorX86 codegen(graph);
+    x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
     SsaLivenessAnalysis liveness(*graph, &codegen);
     liveness.Analyze();
 
@@ -614,12 +619,13 @@ TEST(RegisterAllocatorTest, ExpectedInRegisterHint) {
 
   {
     HGraph* graph = BuildFieldReturn(&allocator, &field, &ret);
-    x86::CodeGeneratorX86 codegen(graph);
+    x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
     SsaLivenessAnalysis liveness(*graph, &codegen);
     liveness.Analyze();
 
     // Check that the field gets put in the register expected by its use.
-    ret->GetLocations()->SetInAt(0, Location::RegisterLocation(2));
+    // Don't use SetInAt because we are overriding an already allocated location.
+    ret->GetLocations()->inputs_.Put(0, Location::RegisterLocation(2));
 
     RegisterAllocator register_allocator(&allocator, &codegen, liveness);
     register_allocator.AllocateRegisters();
@@ -662,7 +668,7 @@ TEST(RegisterAllocatorTest, SameAsFirstInputHint) {
 
   {
     HGraph* graph = BuildTwoAdds(&allocator, &first_add, &second_add);
-    x86::CodeGeneratorX86 codegen(graph);
+    x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
     SsaLivenessAnalysis liveness(*graph, &codegen);
     liveness.Analyze();
 
@@ -676,12 +682,13 @@ TEST(RegisterAllocatorTest, SameAsFirstInputHint) {
 
   {
     HGraph* graph = BuildTwoAdds(&allocator, &first_add, &second_add);
-    x86::CodeGeneratorX86 codegen(graph);
+    x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
     SsaLivenessAnalysis liveness(*graph, &codegen);
     liveness.Analyze();
 
     // check that both adds get the same register.
-    first_add->InputAt(0)->GetLocations()->SetOut(Location::RegisterLocation(2));
+    // Don't use UpdateOutput because output is already allocated.
+    first_add->InputAt(0)->GetLocations()->output_ = Location::RegisterLocation(2);
     ASSERT_EQ(first_add->GetLocations()->Out().GetPolicy(), Location::kSameAsFirstInput);
     ASSERT_EQ(second_add->GetLocations()->Out().GetPolicy(), Location::kSameAsFirstInput);
 
@@ -691,6 +698,149 @@ TEST(RegisterAllocatorTest, SameAsFirstInputHint) {
     ASSERT_EQ(first_add->GetLiveInterval()->GetRegister(), 2);
     ASSERT_EQ(second_add->GetLiveInterval()->GetRegister(), 2);
   }
+}
+
+static HGraph* BuildDiv(ArenaAllocator* allocator,
+                        HInstruction** div) {
+  HGraph* graph = new (allocator) HGraph(allocator);
+  HBasicBlock* entry = new (allocator) HBasicBlock(graph);
+  graph->AddBlock(entry);
+  graph->SetEntryBlock(entry);
+  HInstruction* first = new (allocator) HParameterValue(0, Primitive::kPrimInt);
+  HInstruction* second = new (allocator) HParameterValue(0, Primitive::kPrimInt);
+  entry->AddInstruction(first);
+  entry->AddInstruction(second);
+
+  HBasicBlock* block = new (allocator) HBasicBlock(graph);
+  graph->AddBlock(block);
+  entry->AddSuccessor(block);
+
+  *div = new (allocator) HDiv(Primitive::kPrimInt, first, second, 0);  // don't care about dex_pc.
+  block->AddInstruction(*div);
+
+  block->AddInstruction(new (allocator) HExit());
+  return graph;
+}
+
+TEST(RegisterAllocatorTest, ExpectedExactInRegisterAndSameOutputHint) {
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+  HInstruction *div;
+
+  {
+    HGraph* graph = BuildDiv(&allocator, &div);
+    x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
+    SsaLivenessAnalysis liveness(*graph, &codegen);
+    liveness.Analyze();
+
+    RegisterAllocator register_allocator(&allocator, &codegen, liveness);
+    register_allocator.AllocateRegisters();
+
+    // div on x86 requires its first input in eax and the output be the same as the first input.
+    ASSERT_EQ(div->GetLiveInterval()->GetRegister(), 0);
+  }
+}
+
+// Test a bug in the register allocator, where allocating a blocked
+// register would lead to spilling an inactive interval at the wrong
+// position.
+TEST(RegisterAllocatorTest, SpillInactive) {
+  ArenaPool pool;
+
+  // Create a synthesized graph to please the register_allocator and
+  // ssa_liveness_analysis code.
+  ArenaAllocator allocator(&pool);
+  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
+  graph->AddBlock(entry);
+  graph->SetEntryBlock(entry);
+  HInstruction* one = new (&allocator) HParameterValue(0, Primitive::kPrimInt);
+  HInstruction* two = new (&allocator) HParameterValue(0, Primitive::kPrimInt);
+  HInstruction* three = new (&allocator) HParameterValue(0, Primitive::kPrimInt);
+  HInstruction* four = new (&allocator) HParameterValue(0, Primitive::kPrimInt);
+  entry->AddInstruction(one);
+  entry->AddInstruction(two);
+  entry->AddInstruction(three);
+  entry->AddInstruction(four);
+
+  HBasicBlock* block = new (&allocator) HBasicBlock(graph);
+  graph->AddBlock(block);
+  entry->AddSuccessor(block);
+  block->AddInstruction(new (&allocator) HExit());
+
+  // We create a synthesized user requesting a register, to avoid just spilling the
+  // intervals.
+  HPhi* user = new (&allocator) HPhi(&allocator, 0, 1, Primitive::kPrimInt);
+  user->AddInput(one);
+  user->SetBlock(block);
+  LocationSummary* locations = new (&allocator) LocationSummary(user, LocationSummary::kNoCall);
+  locations->SetInAt(0, Location::RequiresRegister());
+  static constexpr size_t phi_ranges[][2] = {{20, 30}};
+  BuildInterval(phi_ranges, arraysize(phi_ranges), &allocator, -1, user);
+
+  // Create an interval with lifetime holes.
+  static constexpr size_t ranges1[][2] = {{0, 2}, {4, 6}, {8, 10}};
+  LiveInterval* first = BuildInterval(ranges1, arraysize(ranges1), &allocator, -1, one);
+  first->first_use_ = new(&allocator) UsePosition(user, 0, false, 8, first->first_use_);
+  first->first_use_ = new(&allocator) UsePosition(user, 0, false, 7, first->first_use_);
+  first->first_use_ = new(&allocator) UsePosition(user, 0, false, 6, first->first_use_);
+
+  locations = new (&allocator) LocationSummary(first->GetDefinedBy(), LocationSummary::kNoCall);
+  locations->SetOut(Location::RequiresRegister());
+  first = first->SplitAt(1);
+
+  // Create an interval that conflicts with the next interval, to force the next
+  // interval to call `AllocateBlockedReg`.
+  static constexpr size_t ranges2[][2] = {{2, 4}};
+  LiveInterval* second = BuildInterval(ranges2, arraysize(ranges2), &allocator, -1, two);
+  locations = new (&allocator) LocationSummary(second->GetDefinedBy(), LocationSummary::kNoCall);
+  locations->SetOut(Location::RequiresRegister());
+
+  // Create an interval that will lead to splitting the first interval. The bug occured
+  // by splitting at a wrong position, in this case at the next intersection between
+  // this interval and the first interval. We would have then put the interval with ranges
+  // "[0, 2(, [4, 6(" in the list of handled intervals, even though we haven't processed intervals
+  // before lifetime position 6 yet.
+  static constexpr size_t ranges3[][2] = {{2, 4}, {8, 10}};
+  LiveInterval* third = BuildInterval(ranges3, arraysize(ranges3), &allocator, -1, three);
+  third->first_use_ = new(&allocator) UsePosition(user, 0, false, 8, third->first_use_);
+  third->first_use_ = new(&allocator) UsePosition(user, 0, false, 4, third->first_use_);
+  third->first_use_ = new(&allocator) UsePosition(user, 0, false, 3, third->first_use_);
+  locations = new (&allocator) LocationSummary(third->GetDefinedBy(), LocationSummary::kNoCall);
+  locations->SetOut(Location::RequiresRegister());
+  third = third->SplitAt(3);
+
+  // Because the first part of the split interval was considered handled, this interval
+  // was free to allocate the same register, even though it conflicts with it.
+  static constexpr size_t ranges4[][2] = {{4, 6}};
+  LiveInterval* fourth = BuildInterval(ranges4, arraysize(ranges4), &allocator, -1, four);
+  locations = new (&allocator) LocationSummary(fourth->GetDefinedBy(), LocationSummary::kNoCall);
+  locations->SetOut(Location::RequiresRegister());
+
+  x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
+  SsaLivenessAnalysis liveness(*graph, &codegen);
+
+  RegisterAllocator register_allocator(&allocator, &codegen, liveness);
+  register_allocator.unhandled_core_intervals_.Add(fourth);
+  register_allocator.unhandled_core_intervals_.Add(third);
+  register_allocator.unhandled_core_intervals_.Add(second);
+  register_allocator.unhandled_core_intervals_.Add(first);
+
+  // Set just one register available to make all intervals compete for the same.
+  register_allocator.number_of_registers_ = 1;
+  register_allocator.registers_array_ = allocator.AllocArray<size_t>(1);
+  register_allocator.processing_core_registers_ = true;
+  register_allocator.unhandled_ = &register_allocator.unhandled_core_intervals_;
+  register_allocator.LinearScan();
+
+  // Test that there is no conflicts between intervals.
+  GrowableArray<LiveInterval*> intervals(&allocator, 0);
+  intervals.Add(first);
+  intervals.Add(second);
+  intervals.Add(third);
+  intervals.Add(fourth);
+  ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
+      intervals, 0, 0, codegen, &allocator, true, false));
 }
 
 }  // namespace art

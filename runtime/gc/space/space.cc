@@ -39,33 +39,38 @@ std::ostream& operator<<(std::ostream& os, const Space& space) {
 }
 
 DlMallocSpace* Space::AsDlMallocSpace() {
-  LOG(FATAL) << "Unreachable";
-  return nullptr;
+  UNIMPLEMENTED(FATAL) << "Unreachable";
+  UNREACHABLE();
 }
 
 RosAllocSpace* Space::AsRosAllocSpace() {
-  LOG(FATAL) << "Unreachable";
-  return nullptr;
+  UNIMPLEMENTED(FATAL) << "Unreachable";
+  UNREACHABLE();
 }
 
 ZygoteSpace* Space::AsZygoteSpace() {
-  LOG(FATAL) << "Unreachable";
-  return nullptr;
+  UNIMPLEMENTED(FATAL) << "Unreachable";
+  UNREACHABLE();
 }
 
 BumpPointerSpace* Space::AsBumpPointerSpace() {
+  UNIMPLEMENTED(FATAL) << "Unreachable";
+  UNREACHABLE();
+}
+
+RegionSpace* Space::AsRegionSpace() {
   LOG(FATAL) << "Unreachable";
   return nullptr;
 }
 
 AllocSpace* Space::AsAllocSpace() {
-  LOG(FATAL) << "Unimplemented";
-  return nullptr;
+  UNIMPLEMENTED(FATAL) << "Unreachable";
+  UNREACHABLE();
 }
 
 ContinuousMemMapAllocSpace* Space::AsContinuousMemMapAllocSpace() {
-  LOG(FATAL) << "Unimplemented";
-  return nullptr;
+  UNIMPLEMENTED(FATAL) << "Unreachable";
+  UNREACHABLE();
 }
 
 DiscontinuousSpace::DiscontinuousSpace(const std::string& name,
@@ -133,8 +138,8 @@ void ContinuousMemMapAllocSpace::SwapBitmaps() {
   mark_bitmap_->SetName(temp_name);
 }
 
-AllocSpace::SweepCallbackContext::SweepCallbackContext(bool swap_bitmaps, space::Space* space)
-    : swap_bitmaps(swap_bitmaps), space(space), self(Thread::Current()) {
+AllocSpace::SweepCallbackContext::SweepCallbackContext(bool swap_bitmaps_in, space::Space* space_in)
+    : swap_bitmaps(swap_bitmaps_in), space(space_in), self(Thread::Current()) {
 }
 
 }  // namespace space

@@ -20,6 +20,7 @@
 #include "utils/arm/assembler_arm.h"
 #include "utils/arm64/assembler_arm64.h"
 #include "utils/mips/assembler_mips.h"
+#include "utils/mips64/assembler_mips64.h"
 #include "utils/x86/assembler_x86.h"
 #include "utils/x86_64/assembler_x86_64.h"
 
@@ -40,8 +41,7 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
       __ LoadFromOffset(kLoadWord, IP, R0, JNIEnvExt::SelfOffset().Int32Value());
       __ LoadFromOffset(kLoadWord, PC, IP, offset.Int32Value());
       break;
-    case kPortableAbi:  // R9 holds Thread*.
-    case kQuickAbi:  // Fall-through.
+    case kQuickAbi:  // R9 holds Thread*.
       __ LoadFromOffset(kLoadWord, PC, R9, offset.Int32Value());
   }
   __ bkpt(0);
@@ -62,27 +62,27 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
 
   switch (abi) {
     case kInterpreterAbi:  // Thread* is first argument (X0) in interpreter ABI.
-      __ JumpTo(Arm64ManagedRegister::FromCoreRegister(X0), Offset(offset.Int32Value()),
-          Arm64ManagedRegister::FromCoreRegister(IP1));
+      __ JumpTo(Arm64ManagedRegister::FromXRegister(X0), Offset(offset.Int32Value()),
+          Arm64ManagedRegister::FromXRegister(IP1));
 
       break;
     case kJniAbi:  // Load via Thread* held in JNIEnv* in first argument (X0).
-      __ LoadRawPtr(Arm64ManagedRegister::FromCoreRegister(IP1),
-                      Arm64ManagedRegister::FromCoreRegister(X0),
+      __ LoadRawPtr(Arm64ManagedRegister::FromXRegister(IP1),
+                      Arm64ManagedRegister::FromXRegister(X0),
                       Offset(JNIEnvExt::SelfOffset().Int32Value()));
 
-      __ JumpTo(Arm64ManagedRegister::FromCoreRegister(IP1), Offset(offset.Int32Value()),
-                Arm64ManagedRegister::FromCoreRegister(IP0));
+      __ JumpTo(Arm64ManagedRegister::FromXRegister(IP1), Offset(offset.Int32Value()),
+                Arm64ManagedRegister::FromXRegister(IP0));
 
       break;
-    case kPortableAbi:  // X18 holds Thread*.
-    case kQuickAbi:  // Fall-through.
-      __ JumpTo(Arm64ManagedRegister::FromCoreRegister(TR), Offset(offset.Int32Value()),
-                Arm64ManagedRegister::FromCoreRegister(IP0));
+    case kQuickAbi:  // X18 holds Thread*.
+      __ JumpTo(Arm64ManagedRegister::FromXRegister(TR), Offset(offset.Int32Value()),
+                Arm64ManagedRegister::FromXRegister(IP0));
 
       break;
   }
 
+  assembler->EmitSlowPaths();
   size_t cs = assembler->CodeSize();
   std::unique_ptr<std::vector<uint8_t>> entry_stub(new std::vector<uint8_t>(cs));
   MemoryRegion code(&(*entry_stub)[0], entry_stub->size());
@@ -105,8 +105,7 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
       __ LoadFromOffset(kLoadWord, T9, A0, JNIEnvExt::SelfOffset().Int32Value());
       __ LoadFromOffset(kLoadWord, T9, T9, offset.Int32Value());
       break;
-    case kPortableAbi:  // S1 holds Thread*.
-    case kQuickAbi:  // Fall-through.
+    case kQuickAbi:  // S1 holds Thread*.
       __ LoadFromOffset(kLoadWord, T9, S1, offset.Int32Value());
   }
   __ Jr(T9);
@@ -121,6 +120,35 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
   return entry_stub.release();
 }
 }  // namespace mips
+
+namespace mips64 {
+static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention abi,
+                                                    ThreadOffset<8> offset) {
+  std::unique_ptr<Mips64Assembler> assembler(static_cast<Mips64Assembler*>(Assembler::Create(kMips64)));
+
+  switch (abi) {
+    case kInterpreterAbi:  // Thread* is first argument (A0) in interpreter ABI.
+      __ LoadFromOffset(kLoadDoubleword, T9, A0, offset.Int32Value());
+      break;
+    case kJniAbi:  // Load via Thread* held in JNIEnv* in first argument (A0).
+      __ LoadFromOffset(kLoadDoubleword, T9, A0, JNIEnvExt::SelfOffset().Int32Value());
+      __ LoadFromOffset(kLoadDoubleword, T9, T9, offset.Int32Value());
+      break;
+    case kQuickAbi:  // Fall-through.
+      __ LoadFromOffset(kLoadDoubleword, T9, S1, offset.Int32Value());
+  }
+  __ Jr(T9);
+  __ Nop();
+  __ Break();
+
+  size_t cs = assembler->CodeSize();
+  std::unique_ptr<std::vector<uint8_t>> entry_stub(new std::vector<uint8_t>(cs));
+  MemoryRegion code(&(*entry_stub)[0], entry_stub->size());
+  assembler->FinalizeInstructions(code);
+
+  return entry_stub.release();
+}
+}  // namespace mips64
 
 namespace x86 {
 static const std::vector<uint8_t>* CreateTrampoline(ThreadOffset<4> offset) {
@@ -162,11 +190,13 @@ const std::vector<uint8_t>* CreateTrampoline64(InstructionSet isa, EntryPointCal
   switch (isa) {
     case kArm64:
       return arm64::CreateTrampoline(abi, offset);
+    case kMips64:
+      return mips64::CreateTrampoline(abi, offset);
     case kX86_64:
       return x86_64::CreateTrampoline(offset);
     default:
       LOG(FATAL) << "Unexpected InstructionSet: " << isa;
-      return nullptr;
+      UNREACHABLE();
   }
 }
 
@@ -182,7 +212,7 @@ const std::vector<uint8_t>* CreateTrampoline32(InstructionSet isa, EntryPointCal
       return x86::CreateTrampoline(offset);
     default:
       LOG(FATAL) << "Unexpected InstructionSet: " << isa;
-      return nullptr;
+      UNREACHABLE();
   }
 }
 

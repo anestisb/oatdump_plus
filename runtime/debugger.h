@@ -28,6 +28,7 @@
 #include <string>
 #include <vector>
 
+#include "gc_root.h"
 #include "jdwp/jdwp.h"
 #include "jni.h"
 #include "jvalue.h"
@@ -87,7 +88,7 @@ struct DebugInvokeReq {
   Mutex lock DEFAULT_MUTEX_ACQUIRED_AFTER;
   ConditionVariable cond GUARDED_BY(lock);
 
-  void VisitRoots(RootCallback* callback, void* arg, uint32_t tid, RootType root_type)
+  void VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void Clear();
@@ -97,39 +98,58 @@ struct DebugInvokeReq {
 };
 
 // Thread local data-structure that holds fields for controlling single-stepping.
-struct SingleStepControl {
-  SingleStepControl()
-      : is_active(false), step_size(JDWP::SS_MIN), step_depth(JDWP::SD_INTO),
-        method(nullptr), stack_depth(0) {
+class SingleStepControl {
+ public:
+  SingleStepControl(JDWP::JdwpStepSize step_size, JDWP::JdwpStepDepth step_depth,
+                    int stack_depth, mirror::ArtMethod* method)
+      : step_size_(step_size), step_depth_(step_depth),
+        stack_depth_(stack_depth), method_(method) {
   }
 
-  // Are we single-stepping right now?
-  bool is_active;
+  JDWP::JdwpStepSize GetStepSize() const {
+    return step_size_;
+  }
 
+  JDWP::JdwpStepDepth GetStepDepth() const {
+    return step_depth_;
+  }
+
+  int GetStackDepth() const {
+    return stack_depth_;
+  }
+
+  mirror::ArtMethod* GetMethod() const {
+    return method_;
+  }
+
+  const std::set<uint32_t>& GetDexPcs() const {
+    return dex_pcs_;
+  }
+
+  void VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void AddDexPc(uint32_t dex_pc);
+
+  bool ContainsDexPc(uint32_t dex_pc) const;
+
+ private:
   // See JdwpStepSize and JdwpStepDepth for details.
-  JDWP::JdwpStepSize step_size;
-  JDWP::JdwpStepDepth step_depth;
+  const JDWP::JdwpStepSize step_size_;
+  const JDWP::JdwpStepDepth step_depth_;
+
+  // The stack depth when this single-step was initiated. This is used to support SD_OVER and SD_OUT
+  // single-step depth.
+  const int stack_depth_;
 
   // The location this single-step was initiated from.
   // A single-step is initiated in a suspended thread. We save here the current method and the
   // set of DEX pcs associated to the source line number where the suspension occurred.
   // This is used to support SD_INTO and SD_OVER single-step depths so we detect when a single-step
   // causes the execution of an instruction in a different method or at a different line number.
-  mirror::ArtMethod* method;
-  std::set<uint32_t> dex_pcs;
+  mirror::ArtMethod* method_;
+  std::set<uint32_t> dex_pcs_;
 
-  // The stack depth when this single-step was initiated. This is used to support SD_OVER and SD_OUT
-  // single-step depth.
-  int stack_depth;
-
-  void VisitRoots(RootCallback* callback, void* arg, uint32_t tid, RootType root_type)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  bool ContainsDexPc(uint32_t dex_pc) const;
-
-  void Clear();
-
- private:
   DISALLOW_COPY_AND_ASSIGN(SingleStepControl);
 };
 
@@ -189,6 +209,7 @@ class DeoptimizationRequest {
   // Method for selective deoptimization.
   jmethodID method_;
 };
+std::ostream& operator<<(std::ostream& os, const DeoptimizationRequest::Kind& rhs);
 
 class Dbg {
  public:
@@ -205,7 +226,6 @@ class Dbg {
     std::multimap<int32_t, jobject> objects_;
   };
 
-  static bool ParseJdwpOptions(const std::string& options);
   static void SetJdwpAllowed(bool allowed);
 
   static void StartJdwp();
@@ -234,6 +254,9 @@ class Dbg {
   // just DDMS (or nothing at all).
   static bool IsDebuggerActive();
 
+  // Configures JDWP with parsed command-line options.
+  static void ConfigureJdwp(const JDWP::JdwpOptions& jdwp_options);
+
   // Returns true if we had -Xrunjdwp or -agentlib:jdwp= on the command line.
   static bool IsJdwpConfigured();
 
@@ -246,7 +269,9 @@ class Dbg {
    */
   static int64_t LastDebuggerActivity();
 
-  static void UndoDebuggerSuspensions();
+  static void UndoDebuggerSuspensions()
+    LOCKS_EXCLUDED(Locks::thread_list_lock_,
+                   Locks::thread_suspend_count_lock_);
 
   /*
    * Class, Object, Array
@@ -459,7 +484,9 @@ class Dbg {
   static void SuspendVM()
       LOCKS_EXCLUDED(Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_);
-  static void ResumeVM();
+  static void ResumeVM()
+      LOCKS_EXCLUDED(Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_);
   static JDWP::JdwpError SuspendThread(JDWP::ObjectId thread_id, bool request_suspension = true)
       LOCKS_EXCLUDED(Locks::mutator_lock_,
                      Locks::thread_list_lock_,
@@ -489,7 +516,7 @@ class Dbg {
   /*
    * Debugger notification
    */
-  enum {
+  enum EventFlag {
     kBreakpoint     = 0x01,
     kSingleStep     = 0x02,
     kMethodEntry    = 0x04,
@@ -517,6 +544,9 @@ class Dbg {
                              int event_flags, const JValue* return_value)
       LOCKS_EXCLUDED(Locks::breakpoint_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Indicates whether we need deoptimization for debugging.
+  static bool RequiresDeoptimization();
 
   // Records deoptimization request in the queue.
   static void RequestDeoptimization(const DeoptimizationRequest& req)
@@ -638,6 +668,8 @@ class Dbg {
 
   static void SetJdwpLocation(JDWP::JdwpLocation* location, mirror::ArtMethod* m, uint32_t dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static JDWP::JdwpState* GetJdwpState();
 
  private:
   static JDWP::JdwpError GetLocalValue(const StackVisitor& visitor,
