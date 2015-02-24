@@ -453,7 +453,7 @@ class OatDumper {
     os << oat_file_.Size() << "\n\n";
 
     os << std::flush;
-    
+
     // If set, adjust relative address to be searched
     if (*options_->addr2instr_ != 0) {
       *options_->addr2instr_ = *options_->addr2instr_ + oat_header.GetExecutableOffset();
@@ -470,8 +470,7 @@ class OatDumper {
         if (!ExportDexFile(os, *oat_dex_file)) {
           success = false;
         }
-      }
-      else {
+      } else {
         if (!DumpOatDexFile(os, *oat_dex_file)) {
           success = false;
         }
@@ -603,12 +602,12 @@ class OatDumper {
          class_def_index++) {
       const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
       const char* descriptor = dex_file->GetClassDescriptor(class_def);
-      
+
       // TODO: Support regex
       if (DescriptorToDot(descriptor).find(options_->class_filter_) == std::string::npos) {
         continue;
       }
-      
+
       uint32_t oat_class_offset = oat_dex_file.GetOatClassOffset(class_def_index);
       const OatFile::OatClass oat_class = oat_dex_file.GetOatClass(class_def_index);
       os << StringPrintf("%zd: %s (offset=0x%08x) (type_idx=%d)",
@@ -634,21 +633,21 @@ class OatDumper {
 
   bool ExportDexFile(std::ostream& os, const OatFile::OatDexFile& oat_dex_file) {
     std::string error_msg;
-    std::string dexFileLocation = oat_dex_file.GetDexFileLocation();
-    
+    std::string dex_file_location = oat_dex_file.GetDexFileLocation();
+ 
     std::unique_ptr<const DexFile> dex_file(oat_dex_file.OpenDexFile(&error_msg));
     if (dex_file == nullptr) {
-      os << "Failed to open dex file '" << dexFileLocation << "': " << error_msg;
+      os << "Failed to open dex file '" << dex_file_location << "': " << error_msg;
       return false;
     }
     size_t fsize = oat_dex_file.FileSize();
-    
+
     // Some quick checks just in case
     if(fsize == 0 || fsize < sizeof(DexFile::Header)) {
       os << "Invalid dex file\n";
       return false;
     }
-    
+
     // Verify output directory exists
     if (!OS::DirectoryExists(options_->export_dex_location_)) {
       // TODO: Extend OS::DirectoryExists if symlink support is required
@@ -657,50 +656,56 @@ class OatDumper {
     }
 
     // Beautify path names
-    if (dexFileLocation.size() > PATH_MAX || dexFileLocation.size() <= 0) {
+    if (dex_file_location.size() > PATH_MAX || dex_file_location.size() <= 0) {
       return false;
     }
-    
-    std::string dexOrigName;
-    size_t dexOrigPos = dexFileLocation.rfind('/');
-    if (dexOrigPos == std::string::npos)
-      dexOrigName = dexFileLocation;
+
+    std::string dex_orig_name;
+    size_t dex_orig_pos = dex_file_location.rfind('/');
+    if (dex_orig_pos == std::string::npos)
+      dex_orig_name = dex_file_location;
     else
-      dexOrigName = dexFileLocation.substr(dexOrigPos);
-    
+      dex_orig_name = dex_file_location.substr(dex_orig_pos + 1);
+
     // A more elegant approach to efficiently name user installed apps is welcome
-    if (dexOrigName.size() == 8 && !dexOrigName.compare("base.apk")) {
-      dexFileLocation.erase(dexOrigPos, strlen("base.apk"));
-      size_t apkOrigPos = dexFileLocation.rfind('/');
-      if (apkOrigPos != std::string::npos) {
-        dexOrigName = dexFileLocation.substr(++apkOrigPos);
+    if (dex_orig_name.size() == 8 && !dex_orig_name.compare("base.apk")) {
+      dex_file_location.erase(dex_orig_pos, strlen("base.apk") + 1);
+      size_t apk_orig_pos = dex_file_location.rfind('/');
+      if (apk_orig_pos != std::string::npos) {
+        dex_orig_name = dex_file_location.substr(++apk_orig_pos);
       }
     }
-    
-    char outDexPath[PATH_MAX] = { 0 };
-    snprintf(outDexPath, PATH_MAX, "%s/%s_export.dex", 
-            options_->export_dex_location_, dexOrigName.c_str());
-    
-    std::unique_ptr<File> file(OS::CreateEmptyFile(outDexPath));
-    if (file.get() == nullptr) {
-      os << "Failed to open output dex file " << outDexPath;
+
+    std::string out_dex_path(options_->export_dex_location_);
+    if (out_dex_path.back() != '/') {
+      out_dex_path.append("/");
+    }
+    out_dex_path.append(dex_orig_name);
+    out_dex_path.append("_export.dex");
+    if (out_dex_path.length() > PATH_MAX) {
       return false;
     }
-    
+
+    std::unique_ptr<File> file(OS::CreateEmptyFile(out_dex_path.c_str()));
+    if (file.get() == nullptr) {
+      os << "Failed to open output dex file " << out_dex_path;
+      return false;
+    }
+
     if (!file->WriteFully(dex_file->Begin(), fsize)) {
       os << "Failed to write dex file";
       file->Erase();
       return false;
     }
-    
+
     if (file->FlushCloseOrErase() != 0) {
       os << "Flush and close failed";
       return false;
     }
-    
-    os << StringPrintf("Dex file exported at %s (%zd bytes)\n", outDexPath, fsize);
+
+    os << StringPrintf("Dex file exported at %s (%zd bytes)\n", out_dex_path.c_str(), fsize);
     os << std::flush;
-    
+
     return true;
   }
 
@@ -731,7 +736,7 @@ class OatDumper {
                          it.GetRawMemberAccessFlags(), &addr_found)) {
         success = false;
       }
-      if (addr_found) { 
+      if (addr_found) {
         *stop_analysis = true;
         return success;
       }
@@ -744,7 +749,7 @@ class OatDumper {
                          it.GetRawMemberAccessFlags(), &addr_found)) {
         success = false;
       }
-      if (addr_found) { 
+      if (addr_found) {
         *stop_analysis = true;
         return success;
       }
@@ -779,7 +784,7 @@ class OatDumper {
                        class_method_index, pretty_method.c_str(),
                        dex_method_idx);
     if (options_->list_methods_) return success;
-    
+
     Indenter indent1_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
     std::unique_ptr<std::ostream> indent1_os(new std::ostream(&indent1_filter));
     Indenter indent2_filter(indent1_os->rdbuf(), kIndentChar, kIndentBy1Count);
@@ -791,10 +796,13 @@ class OatDumper {
     uint32_t code_offset = oat_method.GetCodeOffset();
     uint32_t code_size = oat_method.GetQuickCodeSize();
     if (*options_->addr2instr_ != 0) {
-      if (*options_->addr2instr_ > code_offset + code_size) return success;
-      else *addr_found = true; // stop analyzing file at next iteration
+      if (*options_->addr2instr_ > code_offset + code_size) {
+        return success;
+      } else {
+        *addr_found = true; // stop analyzing file at next iteration
+      }
     }
-    
+
     {
       *indent1_os << "DEX CODE:\n";
       DumpDexCode(*indent2_os, dex_file, code_item);
@@ -820,7 +828,7 @@ class OatDumper {
         os << std::flush;
         return false;
       }
-      
+
       *indent2_os << StringPrintf("code_offset: 0x%08x ", code_offset);
       uint32_t aligned_code_begin = AlignCodeOffset(oat_method.GetCodeOffset());
       if (aligned_code_begin > oat_file_.Size()) {
@@ -931,7 +939,7 @@ class OatDumper {
         const void* code = oat_method.GetQuickCode();
         uint32_t aligned_code_begin = AlignCodeOffset(code_offset);
         uint64_t aligned_code_end = aligned_code_begin + code_size;
-        
+
         if (options_->absolute_addresses_) {
           *indent1_os << StringPrintf("%p ", code);
         }
@@ -2271,7 +2279,7 @@ struct OatdumpArgs : public CmdlineArgs {
       list_methods_ = true;
     } else if (option.starts_with("--export-dex-to=")) {
       export_dex_location_ = option.substr(strlen("--export-dex-to=")).data();
-    } else if (option.starts_with("--addr2instr=")) {      
+    } else if (option.starts_with("--addr2instr=")) {
       if (!ParseUint(option.substr(strlen("--addr2instr=")).data(), &addr2instr_)) {
         *error_msg = "Address conversion failed";
         return kParseError;

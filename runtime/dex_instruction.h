@@ -531,6 +531,10 @@ class Instruction {
   // Dump little-endian 16bit code_units worth of this instruction, padding to code_units for shorter instructions
   std::string DumpHexLE(size_t code_units) const;
 
+  // Little-endian dump code_units worth of this instruction, padding to code_units for
+  // shorter instructions
+  std::string DumpHexLE(size_t instr_code_units) const;
+
   uint16_t Fetch16(size_t offset) const {
     const uint16_t* insns = reinterpret_cast<const uint16_t*>(this);
     return insns[offset];
