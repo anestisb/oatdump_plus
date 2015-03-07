@@ -206,7 +206,7 @@ class FlipCallback : public Closure {
     }
     cc->is_marking_ = true;
     if (UNLIKELY(Runtime::Current()->IsActiveTransaction())) {
-      CHECK(Runtime::Current()->IsCompiler());
+      CHECK(Runtime::Current()->IsAotCompiler());
       TimingLogger::ScopedTiming split2("(Paused)VisitTransactionRoots", cc->GetTimings());
       Runtime::Current()->VisitTransactionRoots(ConcurrentCopying::ProcessRootCallback, cc);
     }
@@ -482,14 +482,6 @@ inline mirror::Object* ConcurrentCopying::GetFwdPtr(mirror::Object* from_ref) {
   } else {
     return nullptr;
   }
-}
-
-inline void ConcurrentCopying::SetFwdPtr(mirror::Object* from_ref, mirror::Object* to_ref) {
-  DCHECK(region_space_->IsInFromSpace(from_ref));
-  DCHECK(region_space_->IsInToSpace(to_ref) || heap_->GetNonMovingSpace()->HasAddress(to_ref));
-  LockWord lw = from_ref->GetLockWord(false);
-  DCHECK_NE(lw.GetState(), LockWord::kForwardingAddress);
-  from_ref->SetLockWord(LockWord::FromForwardingAddress(reinterpret_cast<size_t>(to_ref)), false);
 }
 
 // The following visitors are that used to verify that there's no

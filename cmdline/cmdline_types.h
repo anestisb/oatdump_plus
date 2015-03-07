@@ -337,8 +337,8 @@ struct MillisecondsToNanoseconds {
 
   // Default constructors/copy-constructors.
   MillisecondsToNanoseconds() : nanoseconds_(0ul) {}
-  MillisecondsToNanoseconds(const MillisecondsToNanoseconds& rhs) = default;
-  MillisecondsToNanoseconds(MillisecondsToNanoseconds&& rhs) = default;
+  MillisecondsToNanoseconds(const MillisecondsToNanoseconds&) = default;
+  MillisecondsToNanoseconds(MillisecondsToNanoseconds&&) = default;
 
  private:
   uint64_t nanoseconds_;
@@ -421,8 +421,8 @@ struct ParseStringList {
   }
 
   ParseStringList() = default;
-  ParseStringList(const ParseStringList& rhs) = default;
-  ParseStringList(ParseStringList&& rhs) = default;
+  ParseStringList(const ParseStringList&) = default;
+  ParseStringList(ParseStringList&&) = default;
 
  private:
   std::vector<std::string> list_;
@@ -585,6 +585,8 @@ struct CmdlineType<LogVerbosity> : CmdlineTypeParser<LogVerbosity> {
         log_verbosity.heap = true;
       } else if (verbose_options[j] == "jdwp") {
         log_verbosity.jdwp = true;
+      } else if (verbose_options[j] == "jit") {
+        log_verbosity.jit = true;
       } else if (verbose_options[j] == "jni") {
         log_verbosity.jni = true;
       } else if (verbose_options[j] == "monitor") {
@@ -651,8 +653,8 @@ struct TestProfilerOptions {
     max_stack_depth_(0) {
   }
 
-  TestProfilerOptions(const TestProfilerOptions& other) = default;
-  TestProfilerOptions(TestProfilerOptions&& other) = default;
+  TestProfilerOptions(const TestProfilerOptions&) = default;
+  TestProfilerOptions(TestProfilerOptions&&) = default;
 };
 
 static inline std::ostream& operator<<(std::ostream& stream, const TestProfilerOptions& options) {

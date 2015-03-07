@@ -36,6 +36,7 @@
 #include "arch/instruction_set_features.h"
 #include "arch/mips/instruction_set_features_mips.h"
 #include "base/dumpable.h"
+#include "base/macros.h"
 #include "base/stl_util.h"
 #include "base/stringpiece.h"
 #include "base/timing_logger.h"
@@ -97,7 +98,7 @@ static void UsageError(const char* fmt, ...) {
   va_end(ap);
 }
 
-[[noreturn]] static void Usage(const char* fmt, ...) {
+NO_RETURN static void Usage(const char* fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
   UsageErrorV(fmt, ap);
@@ -179,11 +180,7 @@ static void UsageError(const char* fmt, ...) {
                 "|time):");
   UsageError("      select compiler filter.");
   UsageError("      Example: --compiler-filter=everything");
-#if ART_SMALL_MODE
-  UsageError("      Default: interpret-only");
-#else
   UsageError("      Default: speed");
-#endif
   UsageError("");
   UsageError("  --huge-method-max=<method-instruction-count>: the threshold size for a huge");
   UsageError("      method for compiler filter tuning.");
@@ -326,7 +323,7 @@ class WatchDog {
             message.c_str());
   }
 
-  [[noreturn]] static void Fatal(const std::string& message) {
+  NO_RETURN static void Fatal(const std::string& message) {
     Message('F', message);
     exit(1);
   }
@@ -490,10 +487,12 @@ class Dex2Oat FINAL {
     // Profile file to use
     double top_k_profile_threshold = CompilerOptions::kDefaultTopKProfileThreshold;
 
+    bool debuggable = false;
     bool include_patch_information = CompilerOptions::kDefaultIncludePatchInformation;
     bool include_debug_symbols = kIsDebugBuild;
     bool watch_dog_enabled = true;
     bool generate_gdb_information = kIsDebugBuild;
+    bool abort_on_hard_verifier_error = false;
 
     PassManagerOptions pass_manager_options;
 
@@ -678,6 +677,8 @@ class Dex2Oat FINAL {
       } else if (option == "--no-include-debug-symbols" || option == "--strip-symbols") {
         include_debug_symbols = false;
         generate_gdb_information = false;  // Depends on debug symbols, see above.
+      } else if (option == "--debuggable") {
+        debuggable = true;
       } else if (option.starts_with("--profile-file=")) {
         profile_file_ = option.substr(strlen("--profile-file=")).data();
         VLOG(compiler) << "dex2oat: profile file is " << profile_file_;
@@ -732,6 +733,8 @@ class Dex2Oat FINAL {
         if (swap_fd_ < 0) {
           Usage("--swap-fd passed a negative value %d", swap_fd_);
         }
+      } else if (option == "--abort-on-hard-verifier-error") {
+        abort_on_hard_verifier_error = true;
       } else {
         Usage("Unknown argument %s", option.data());
       }
@@ -870,21 +873,11 @@ class Dex2Oat FINAL {
         // For R6, only interpreter mode is working.
         // TODO: fix compiler for Mips32r6.
         compiler_filter_string = "interpret-only";
-      } else if (instruction_set_ == kMips64) {
-        // For Mips64, can only compile in interpreter mode.
-        // TODO: fix compiler for Mips64.
-        compiler_filter_string = "interpret-only";
-      } else if (image_) {
-        compiler_filter_string = "speed";
       } else {
-        // TODO: Migrate SMALL mode to command line option.
-  #if ART_SMALL_MODE
-        compiler_filter_string = "interpret-only";
-  #else
         compiler_filter_string = "speed";
-  #endif
       }
     }
+
     CHECK(compiler_filter_string != nullptr);
     CompilerOptions::CompilerFilter compiler_filter = CompilerOptions::kDefaultCompilerFilter;
     if (strcmp(compiler_filter_string, "verify-none") == 0) {
@@ -925,6 +918,10 @@ class Dex2Oat FINAL {
         break;
     }
 
+    if (debuggable) {
+      // TODO: Consider adding CFI info and symbols here.
+    }
+
     compiler_options_.reset(new CompilerOptions(compiler_filter,
                                                 huge_method_threshold,
                                                 large_method_threshold,
@@ -934,6 +931,7 @@ class Dex2Oat FINAL {
                                                 generate_gdb_information,
                                                 include_patch_information,
                                                 top_k_profile_threshold,
+                                                debuggable,
                                                 include_debug_symbols,
                                                 implicit_null_checks,
                                                 implicit_so_checks,
@@ -943,7 +941,8 @@ class Dex2Oat FINAL {
                                                     nullptr :
                                                     &verbose_methods_,
                                                 new PassManagerOptions(pass_manager_options),
-                                                init_failure_output_.get()));
+                                                init_failure_output_.get(),
+                                                abort_on_hard_verifier_error));
 
     // Done with usage checks, enable watchdog if requested
     if (watch_dog_enabled) {
@@ -1050,6 +1049,13 @@ class Dex2Oat FINAL {
     runtime_options.push_back(std::make_pair("compilercallbacks", callbacks_.get()));
     runtime_options.push_back(
         std::make_pair("imageinstructionset", GetInstructionSetString(instruction_set_)));
+
+    // Only allow no boot image for the runtime if we're compiling one. When we compile an app,
+    // we don't want fallback mode, it will abort as we do not push a boot classpath (it might
+    // have been stripped in preopting, anyways).
+    if (!image_) {
+      runtime_options.push_back(std::make_pair("-Xno-dex-file-fallback", nullptr));
+    }
 
     if (!CreateRuntime(runtime_options)) {
       return false;
@@ -1636,9 +1642,14 @@ class Dex2Oat FINAL {
   }
 
   void LogCompletionTime() {
+    // Note: when creation of a runtime fails, e.g., when trying to compile an app but when there
+    //       is no image, there won't be a Runtime::Current().
+    // Note: driver creation can fail when loading an invalid dex file.
     LOG(INFO) << "dex2oat took " << PrettyDuration(NanoTime() - start_ns_)
               << " (threads: " << thread_count_ << ") "
-              << driver_->GetMemoryUsageString(kIsDebugBuild || VLOG_IS_ON(compiler));
+              << ((Runtime::Current() != nullptr && driver_.get() != nullptr) ?
+                  driver_->GetMemoryUsageString(kIsDebugBuild || VLOG_IS_ON(compiler)) :
+                  "");
   }
 
   std::unique_ptr<CompilerOptions> compiler_options_;

@@ -661,17 +661,21 @@ class Heap {
   // Request asynchronous GC.
   void RequestConcurrentGC(Thread* self) LOCKS_EXCLUDED(pending_task_lock_);
 
+  // Whether or not we may use a garbage collector, used so that we only create collectors we need.
+  bool MayUseCollector(CollectorType type) const;
+
  private:
   class ConcurrentGCTask;
   class CollectorTransitionTask;
   class HeapTrimTask;
 
-  // Compact source space to target space.
-  void Compact(space::ContinuousMemMapAllocSpace* target_space,
-               space::ContinuousMemMapAllocSpace* source_space,
-               GcCause gc_cause)
+  // Compact source space to target space. Returns the collector used.
+  collector::GarbageCollector* Compact(space::ContinuousMemMapAllocSpace* target_space,
+                                       space::ContinuousMemMapAllocSpace* source_space,
+                                       GcCause gc_cause)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  void LogGC(GcCause gc_cause, collector::GarbageCollector* collector);
   void FinishGC(Thread* self, collector::GcType gc_type) LOCKS_EXCLUDED(gc_complete_lock_);
 
   // Create a mem map with a preferred base address.

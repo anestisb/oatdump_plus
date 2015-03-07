@@ -84,6 +84,9 @@ endif
 ifeq ($(ART_TEST_INTERPRETER),true)
   COMPILER_TYPES += interpreter
 endif
+ifeq ($(ART_TEST_JIT),true)
+  COMPILER_TYPES += jit
+endif
 ifeq ($(ART_TEST_OPTIMIZING),true)
   COMPILER_TYPES += optimizing
 endif
@@ -181,7 +184,8 @@ TEST_ART_TIMING_SENSITIVE_RUN_TESTS :=
 # Note 116-nodex2oat is not broken per-se it just doesn't (and isn't meant to) work with --prebuild.
 TEST_ART_BROKEN_PREBUILD_RUN_TESTS := \
   116-nodex2oat \
-  118-noimage-dex2oat
+  118-noimage-dex2oat \
+  134-nodex2oat-nofallback
 
 ifneq (,$(filter prebuild,$(PREBUILD_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),prebuild, \
@@ -300,6 +304,8 @@ TEST_ART_BROKEN_NDEBUG_TESTS := \
   118-noimage-dex2oat \
   119-noimage-patchoat \
   131-structural-change \
+  454-get-vreg \
+  455-set-vreg \
 
 ifneq (,$(filter ndebug,$(RUN_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),ndebug,$(PREBUILD_TYPES), \
@@ -433,7 +439,7 @@ endif
 
 # Create a rule to build and run a tests following the form:
 # test-art-{1: host or target}-run-test-{2: debug ndebug}-{3: prebuild no-prebuild no-dex2oat}-
-#    {4: interpreter default optimizing}-{5: relocate no-relocate relocate-no-patchoat}-
+#    {4: interpreter default optimizing jit}-{5: relocate no-relocate relocate-no-patchoat}-
 #    {6: trace or no-trace}-{7: gcstress gcverify cms}-{8: forcecopy checkjni jni}-
 #    {9: no-image image picimage}-{10: pictest nopictest}-{11: test name}{12: 32 or 64}
 define define-test-art-run-test
@@ -496,7 +502,12 @@ define define-test-art-run-test
         test_groups += ART_RUN_TEST_$$(uc_host_or_target)_DEFAULT_RULES
         run_test_options += --quick
       else
-        $$(error found $(4) expected $(COMPILER_TYPES))
+        ifeq ($(4),jit)
+          test_groups += ART_RUN_TEST_$$(uc_host_or_target)_JIT_RULES
+          run_test_options += --jit
+        else
+          $$(error found $(4) expected $(COMPILER_TYPES))
+        endif
       endif
     endif
   endif
@@ -560,32 +571,38 @@ define define-test-art-run-test
       endif
     endif
   endif
+  ifeq ($(4),jit)
+    # Use interpreter image for JIT.
+    image_suffix := interpreter
+  else
+    image_suffix := $(4)
+  endif
   ifeq ($(9),no-image)
     test_groups += ART_RUN_TEST_$$(uc_host_or_target)_NO_IMAGE_RULES
     run_test_options += --no-image
     # Add the core dependency. This is required for pre-building.
     ifeq ($(1),host)
-      prereq_rule += $(HOST_CORE_IMAGE_$(4)_no-pic_$(12))
+      prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_no-pic_$(12))
     else
-      prereq_rule += $(TARGET_CORE_IMAGE_$(4)_no-pic_$(12))
+      prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_no-pic_$(12))
     endif
   else
     ifeq ($(9),image)
       test_groups += ART_RUN_TEST_$$(uc_host_or_target)_IMAGE_RULES
       # Add the core dependency.
       ifeq ($(1),host)
-        prereq_rule += $(HOST_CORE_IMAGE_$(4)_no-pic_$(12))
+        prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_no-pic_$(12))
       else
-        prereq_rule += $(TARGET_CORE_IMAGE_$(4)_no-pic_$(12))
+        prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_no-pic_$(12))
       endif
     else
       ifeq ($(9),picimage)
         test_groups += ART_RUN_TEST_$$(uc_host_or_target)_PICIMAGE_RULES
         run_test_options += --pic-image
         ifeq ($(1),host)
-          prereq_rule += $(HOST_CORE_IMAGE_$(4)_pic_$(12))
+          prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_pic_$(12))
         else
-          prereq_rule += $(TARGET_CORE_IMAGE_$(4)_pic_$(12))
+          prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_pic_$(12))
         endif
       else
         $$(error found $(9) expected $(IMAGE_TYPES))

@@ -19,6 +19,7 @@
 
 #include <pthread.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #include <iosfwd>
 #include <list>
@@ -28,6 +29,7 @@
 #include "base/allocator.h"
 #include "base/mutex.h"
 #include "gc_root.h"
+#include "lock_word.h"
 #include "object_callbacks.h"
 #include "read_barrier_option.h"
 #include "thread_state.h"
@@ -127,7 +129,19 @@ class Monitor {
                                 uint32_t hash_code) NO_THREAD_SAFETY_ANALYSIS;
 
   static bool Deflate(Thread* self, mirror::Object* obj)
+      // Not exclusive because ImageWriter calls this during a Heap::VisitObjects() that
+      // does not allow a thread suspension in the middle. TODO: maybe make this exclusive.
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+#ifndef __LP64__
+  void* operator new(size_t size) {
+    // Align Monitor* as per the monitor ID field size in the lock word.
+    void* result;
+    int error = posix_memalign(&result, LockWord::kMonitorIdAlignment, size);
+    CHECK_EQ(error, 0) << strerror(error);
+    return result;
+  }
+#endif
 
  private:
   explicit Monitor(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code)
@@ -160,7 +174,8 @@ class Monitor {
                           const char* owner_filename, uint32_t owner_line_number)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static void FailedUnlock(mirror::Object* obj, Thread* expected_owner, Thread* found_owner, Monitor* mon)
+  static void FailedUnlock(mirror::Object* obj, Thread* expected_owner, Thread* found_owner,
+                           Monitor* mon)
       LOCKS_EXCLUDED(Locks::thread_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

@@ -955,24 +955,33 @@ DEFINE_FUNCTION art_quick_lock_object
     jz   .Lslow_lock
 .Lretry_lock:
     movl MIRROR_OBJECT_LOCK_WORD_OFFSET(%edi), %ecx  // ecx := lock word.
-    test LITERAL(0xC0000000), %ecx        // Test the 2 high bits.
+    test LITERAL(LOCK_WORD_STATE_MASK), %ecx         // Test the 2 high bits.
     jne  .Lslow_lock                      // Slow path if either of the two high bits are set.
-    movl %gs:THREAD_ID_OFFSET, %edx       // edx := thread id
+    movl %ecx, %edx                       // save lock word (edx) to keep read barrier bits.
+    andl LITERAL(LOCK_WORD_READ_BARRIER_STATE_MASK_TOGGLED), %ecx  // zero the read barrier bits.
     test %ecx, %ecx
     jnz  .Lalready_thin                   // Lock word contains a thin lock.
-    // unlocked case - %edx holds thread id with count of 0
-    xor  %eax, %eax                       // eax == 0 for comparison with lock word in cmpxchg
+    // unlocked case - edx: original lock word, edi: obj.
+    movl %edx, %eax                       // eax: lock word zero except for read barrier bits.
+    movl %gs:THREAD_ID_OFFSET, %edx       // edx := thread id
+    or   %eax, %edx                       // edx: thread id with count of 0 + read barrier bits.
     lock cmpxchg  %edx, MIRROR_OBJECT_LOCK_WORD_OFFSET(%edi)
     jnz  .Lretry_lock                     // cmpxchg failed retry
     ret
-.Lalready_thin:
+.Lalready_thin:  // edx: lock word (with high 2 bits zero and original rb bits), edi: obj.
+    movl %gs:THREAD_ID_OFFSET, %ecx       // ecx := thread id
     cmpw %cx, %dx                         // do we hold the lock already?
     jne  .Lslow_lock
-    addl LITERAL(65536), %ecx             // increment recursion count
-    test LITERAL(0xC0000000), %ecx        // overflowed if either of top two bits are set
+    movl %edx, %ecx                       // copy the lock word to check count overflow.
+    andl LITERAL(LOCK_WORD_READ_BARRIER_STATE_MASK_TOGGLED), %ecx  // zero the read barrier bits.
+    addl LITERAL(LOCK_WORD_THIN_LOCK_COUNT_ONE), %ecx  // increment recursion count
+    test LITERAL(LOCK_WORD_READ_BARRIER_STATE_MASK), %ecx  // overflowed if either of the upper two bits (28-29) are set
     jne  .Lslow_lock                      // count overflowed so go slow
-    // update lockword, cmpxchg not necessary as we hold lock
-    movl %ecx, MIRROR_OBJECT_LOCK_WORD_OFFSET(%edi)
+    movl %edx, %eax                       // copy the lock word as the old val for cmpxchg.
+    addl LITERAL(LOCK_WORD_THIN_LOCK_COUNT_ONE), %edx   // increment recursion count again for real.
+    // update lockword, cmpxchg necessary for read barrier bits.
+    lock cmpxchg  %edx, MIRROR_OBJECT_LOCK_WORD_OFFSET(%edi)  // eax: old val, edx: new val.
+    jnz  .Lretry_lock                     // cmpxchg failed retry
     ret
 .Lslow_lock:
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
@@ -985,19 +994,37 @@ END_FUNCTION art_quick_lock_object
 DEFINE_FUNCTION art_quick_unlock_object
     testl %edi, %edi                      // null check object/edi
     jz   .Lslow_unlock
+.Lretry_unlock:
     movl MIRROR_OBJECT_LOCK_WORD_OFFSET(%edi), %ecx  // ecx := lock word
     movl %gs:THREAD_ID_OFFSET, %edx       // edx := thread id
-    test LITERAL(0xC0000000), %ecx
+    test LITERAL(LOCK_WORD_STATE_MASK), %ecx
     jnz  .Lslow_unlock                    // lock word contains a monitor
     cmpw %cx, %dx                         // does the thread id match?
     jne  .Lslow_unlock
-    cmpl LITERAL(65536), %ecx
+    movl %ecx, %edx                       // copy the lock word to detect new count of 0.
+    andl LITERAL(LOCK_WORD_READ_BARRIER_STATE_MASK_TOGGLED), %edx  // zero the read barrier bits.
+    cmpl LITERAL(LOCK_WORD_THIN_LOCK_COUNT_ONE), %edx
     jae  .Lrecursive_thin_unlock
-    movl LITERAL(0), MIRROR_OBJECT_LOCK_WORD_OFFSET(%edi)
+    // update lockword, cmpxchg necessary for read barrier bits.
+    movl %ecx, %eax                       // eax: old lock word.
+    andl LITERAL(LOCK_WORD_READ_BARRIER_STATE_MASK), %ecx  // ecx: new lock word zero except original rb bits.
+#ifndef USE_READ_BARRIER
+    movl %ecx, MIRROR_OBJECT_LOCK_WORD_OFFSET(%edi)
+#else
+    lock cmpxchg  %ecx, MIRROR_OBJECT_LOCK_WORD_OFFSET(%edi)  // eax: old val, ecx: new val.
+    jnz  .Lretry_unlock                   // cmpxchg failed retry
+#endif
     ret
-.Lrecursive_thin_unlock:
-    subl LITERAL(65536), %ecx
+.Lrecursive_thin_unlock:  // ecx: original lock word, edi: obj
+    // update lockword, cmpxchg necessary for read barrier bits.
+    movl %ecx, %eax                       // eax: old lock word.
+    subl LITERAL(LOCK_WORD_THIN_LOCK_COUNT_ONE), %ecx
+#ifndef USE_READ_BARRIER
     mov  %ecx, MIRROR_OBJECT_LOCK_WORD_OFFSET(%edi)
+#else
+    lock cmpxchg  %ecx, MIRROR_OBJECT_LOCK_WORD_OFFSET(%edi)  // eax: old val, ecx: new val.
+    jnz  .Lretry_unlock                   // cmpxchg failed retry
+#endif
     ret
 .Lslow_unlock:
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
@@ -1361,7 +1388,7 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
 
     // Check for error = 0.
     test %rax, %rax
-    jz .Lentry_error
+    jz .Lexception_in_native
 
     // Release part of the alloca.
     movq %rdx, %rsp
@@ -1398,15 +1425,15 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     movq %xmm0, %rdx
     call SYMBOL(artQuickGenericJniEndTrampoline)
 
-    // Tear down the alloca.
-    movq %rbp, %rsp
-    CFI_DEF_CFA_REGISTER(rsp)
-
     // Pending exceptions possible.
     // TODO: use cmpq, needs direct encoding because of gas bug
     movq %gs:THREAD_EXCEPTION_OFFSET, %rcx
     test %rcx, %rcx
     jnz .Lexception_in_native
+
+    // Tear down the alloca.
+    movq %rbp, %rsp
+    CFI_DEF_CFA_REGISTER(rsp)
 
     // Tear down the callee-save frame.
     // Load FPRs.
@@ -1440,40 +1467,12 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     // store into fpr, for when it's a fpr return...
     movq %rax, %xmm0
     ret
-.Lentry_error:
-    movq %rbp, %rsp
-    CFI_DEF_CFA_REGISTER(rsp)
 .Lexception_in_native:
-    // TODO: the handle scope contains the this pointer which is used by the debugger for exception
-    //       delivery.
-    movq %xmm0, 16(%rsp)         // doesn't make sense!!!
-    movq 24(%rsp), %xmm1            // neither does this!!!
-    movq 32(%rsp), %xmm2
-    movq 40(%rsp), %xmm3
-    movq 48(%rsp), %xmm4
-    movq 56(%rsp), %xmm5
-    movq 64(%rsp), %xmm6
-    movq 72(%rsp), %xmm7
-    movq 80(%rsp), %xmm12
-    movq 88(%rsp), %xmm13
-    movq 96(%rsp), %xmm14
-    movq 104(%rsp), %xmm15
-    // was 80 + 32 bytes
-    addq LITERAL(80 + 4*8), %rsp
-    CFI_ADJUST_CFA_OFFSET(-80 - 4*8)
-    // Save callee and GPR args, mixed together to agree with core spills bitmap.
-    POP rcx  // Arg.
-    POP rdx  // Arg.
-    POP rbx  // Callee save.
-    POP rbp  // Callee save.
-    POP rsi  // Arg.
-    POP r8   // Arg.
-    POP r9   // Arg.
-    POP r12  // Callee save.
-    POP r13  // Callee save.
-    POP r14  // Callee save.
-    POP r15  // Callee save.
-
+    movq %gs:THREAD_TOP_QUICK_FRAME_OFFSET, %rsp
+    CFI_DEF_CFA_REGISTER(rsp)
+    // Do a call to push a new save-all frame required by the runtime.
+    call .Lexception_call
+.Lexception_call:
     DELIVER_PENDING_EXCEPTION
 END_FUNCTION art_quick_generic_jni_trampoline
 

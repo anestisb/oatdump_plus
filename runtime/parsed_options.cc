@@ -146,6 +146,16 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
       .Define({"-XX:EnableHSpaceCompactForOOM", "-XX:DisableHSpaceCompactForOOM"})
           .WithValues({true, false})
           .IntoKey(M::EnableHSpaceCompactForOOM)
+      .Define("-Xusejit:_")
+          .WithType<bool>()
+          .WithValueMap({{"false", false}, {"true", true}})
+          .IntoKey(M::UseJIT)
+      .Define("-Xjitcodecachesize:_")
+          .WithType<MemoryKiB>()
+          .IntoKey(M::JITCodeCacheCapacity)
+      .Define("-Xjitthreshold:_")
+          .WithType<unsigned int>()
+          .IntoKey(M::JITCompileThreshold)
       .Define("-XX:HspaceCompactForOOMMinIntervalMs=_")  // in ms
           .WithType<MillisecondsToNanoseconds>()  // store as ns
           .IntoKey(M::HSpaceCompactForOOMMinIntervalsMs)
@@ -241,12 +251,14 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
       .Define("-Xzygote-max-failed-boots=_")
           .WithType<unsigned int>()
           .IntoKey(M::ZygoteMaxFailedBoots)
+      .Define("-Xno-dex-file-fallback")
+          .IntoKey(M::NoDexFileFallback)
       .Ignore({
           "-ea", "-da", "-enableassertions", "-disableassertions", "--runtime-arg", "-esa",
           "-dsa", "-enablesystemassertions", "-disablesystemassertions", "-Xrs", "-Xint:_",
           "-Xdexopt:_", "-Xnoquithandler", "-Xjnigreflimit:_", "-Xgenregmap", "-Xnogenregmap",
           "-Xverifyopt:_", "-Xcheckdexsum", "-Xincludeselectedop", "-Xjitop:_",
-          "-Xincludeselectedmethod", "-Xjitthreshold:_", "-Xjitcodecachesize:_",
+          "-Xincludeselectedmethod", "-Xjitthreshold:_",
           "-Xjitblocking", "-Xjitmethod:_", "-Xjitclass:_", "-Xjitoffset:_",
           "-Xjitconfig:_", "-Xjitcheckcg", "-Xjitverbose", "-Xjitprofile",
           "-Xjitdisableopt", "-Xjitsuspendpoll", "-XX:mainThreadStackSize=_"})
@@ -351,19 +363,20 @@ bool ParsedOptions::ProcessSpecialOptions(const RuntimeOptions& options,
 
 bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognized,
                           RuntimeArgumentMap* runtime_options) {
-//  gLogVerbosity.class_linker = true;  // TODO: don't check this in!
-//  gLogVerbosity.compiler = true;  // TODO: don't check this in!
-//  gLogVerbosity.gc = true;  // TODO: don't check this in!
-//  gLogVerbosity.heap = true;  // TODO: don't check this in!
-//  gLogVerbosity.jdwp = true;  // TODO: don't check this in!
-//  gLogVerbosity.jni = true;  // TODO: don't check this in!
-//  gLogVerbosity.monitor = true;  // TODO: don't check this in!
-//  gLogVerbosity.profiler = true;  // TODO: don't check this in!
-//  gLogVerbosity.signals = true;  // TODO: don't check this in!
-//  gLogVerbosity.startup = true;  // TODO: don't check this in!
-//  gLogVerbosity.third_party_jni = true;  // TODO: don't check this in!
-//  gLogVerbosity.threads = true;  // TODO: don't check this in!
-//  gLogVerbosity.verifier = true;  // TODO: don't check this in!
+  //  gLogVerbosity.class_linker = true;  // TODO: don't check this in!
+  //  gLogVerbosity.compiler = true;  // TODO: don't check this in!
+  //  gLogVerbosity.gc = true;  // TODO: don't check this in!
+  //  gLogVerbosity.heap = true;  // TODO: don't check this in!
+  //  gLogVerbosity.jdwp = true;  // TODO: don't check this in!
+  //  gLogVerbosity.jit = true;  // TODO: don't check this in!
+  //  gLogVerbosity.jni = true;  // TODO: don't check this in!
+  //  gLogVerbosity.monitor = true;  // TODO: don't check this in!
+  //  gLogVerbosity.profiler = true;  // TODO: don't check this in!
+  //  gLogVerbosity.signals = true;  // TODO: don't check this in!
+  //  gLogVerbosity.startup = true;  // TODO: don't check this in!
+  //  gLogVerbosity.third_party_jni = true;  // TODO: don't check this in!
+  //  gLogVerbosity.threads = true;  // TODO: don't check this in!
+  //  gLogVerbosity.verifier = true;  // TODO: don't check this in!
 
   for (size_t i = 0; i < options.size(); ++i) {
     if (true && options[0].first == "-Xzygote") {
@@ -558,7 +571,7 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "The following standard options are supported:\n");
   UsageMessage(stream, "  -classpath classpath (-cp classpath)\n");
   UsageMessage(stream, "  -Dproperty=value\n");
-  UsageMessage(stream, "  -verbose:tag ('gc', 'jni', or 'class')\n");
+  UsageMessage(stream, "  -verbose:tag ('gc', 'jit', 'jni', or 'class')\n");
   UsageMessage(stream, "  -showversion\n");
   UsageMessage(stream, "  -help\n");
   UsageMessage(stream, "  -agentlib:jdwp=options\n");
@@ -588,6 +601,8 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -XX:ForegroundHeapGrowthMultiplier=doublevalue\n");
   UsageMessage(stream, "  -XX:LowMemoryMode\n");
   UsageMessage(stream, "  -Xprofile:{threadcpuclock,wallclock,dualclock}\n");
+  UsageMessage(stream, "  -Xjitcodecachesize:N\n");
+  UsageMessage(stream, "  -Xjitthreshold:integervalue\n");
   UsageMessage(stream, "\n");
 
   UsageMessage(stream, "The following unique to ART options are supported:\n");
@@ -628,9 +643,12 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -Xcompiler-option dex2oat-option\n");
   UsageMessage(stream, "  -Ximage-compiler-option dex2oat-option\n");
   UsageMessage(stream, "  -Xpatchoat:filename\n");
+  UsageMessage(stream, "  -Xusejit:booleanvalue\n");
   UsageMessage(stream, "  -X[no]relocate\n");
   UsageMessage(stream, "  -X[no]dex2oat (Whether to invoke dex2oat on the application)\n");
   UsageMessage(stream, "  -X[no]image-dex2oat (Whether to create and use a boot image)\n");
+  UsageMessage(stream, "  -Xno-dex-file-fallback "
+                       "(Don't fall back to dex files without oat files)\n");
   UsageMessage(stream, "\n");
 
   UsageMessage(stream, "The following previously supported Dalvik options are ignored:\n");
@@ -655,8 +673,6 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -Xincludeselectedop\n");
   UsageMessage(stream, "  -Xjitop:hexopvalue[-endvalue][,hexopvalue[-endvalue]]*\n");
   UsageMessage(stream, "  -Xincludeselectedmethod\n");
-  UsageMessage(stream, "  -Xjitthreshold:integervalue\n");
-  UsageMessage(stream, "  -Xjitcodecachesize:decimalvalueofkbytes\n");
   UsageMessage(stream, "  -Xjitblocking\n");
   UsageMessage(stream, "  -Xjitmethod:signature[,signature]* (eg Ljava/lang/String\\;replace)\n");
   UsageMessage(stream, "  -Xjitclass:classname[,classname]*\n");

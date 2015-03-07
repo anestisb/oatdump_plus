@@ -65,6 +65,8 @@
 #include "image.h"
 #include "instrumentation.h"
 #include "intern_table.h"
+#include "interpreter/interpreter.h"
+#include "jit/jit.h"
 #include "jni_internal.h"
 #include "mirror/array.h"
 #include "mirror/art_field-inl.h"
@@ -169,6 +171,7 @@ Runtime::Runtime()
       dump_gc_performance_on_shutdown_(false),
       preinitialization_transaction_(nullptr),
       verify_(false),
+      allow_dex_file_fallback_(true),
       target_sdk_version_(0),
       implicit_null_checks_(false),
       implicit_so_checks_(false),
@@ -190,7 +193,8 @@ Runtime::~Runtime() {
   }
 
   Thread* self = Thread::Current();
-  if (self == nullptr) {
+  const bool attach_shutdown_thread = self == nullptr;
+  if (attach_shutdown_thread) {
     CHECK(AttachCurrentThread("Shutdown thread", false, nullptr, false));
     self = Thread::Current();
   } else {
@@ -212,8 +216,10 @@ Runtime::~Runtime() {
     self->GetJniEnv()->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons,
                                             WellKnownClasses::java_lang_Daemons_stop);
   }
-  DetachCurrentThread();
-  self = nullptr;
+  if (attach_shutdown_thread) {
+    DetachCurrentThread();
+    self = nullptr;
+  }
 
   // Shut down background profiler before the runtime exits.
   if (profiler_started_) {
@@ -225,6 +231,12 @@ Runtime::~Runtime() {
   // Make sure to let the GC complete if it is running.
   heap_->WaitForGcToComplete(gc::kGcCauseBackground, self);
   heap_->DeleteThreadPool();
+  if (jit_.get() != nullptr) {
+    VLOG(jit) << "Deleting jit thread pool";
+    // Delete thread pool before the thread list since we don't want to wait forever on the
+    // JIT compiler threads.
+    jit_->DeleteThreadPool();
+  }
 
   // Make sure our internal threads are dead before we start tearing down things they're using.
   Dbg::StopJdwp();
@@ -232,6 +244,13 @@ Runtime::~Runtime() {
 
   // Make sure all other non-daemon threads have terminated, and all daemon threads are suspended.
   delete thread_list_;
+
+  // Delete the JIT after thread list to ensure that there is no remaining threads which could be
+  // accessing the instrumentation when we delete it.
+  if (jit_.get() != nullptr) {
+    VLOG(jit) << "Deleting jit";
+    jit_.reset(nullptr);
+  }
 
   // Shutdown the fault manager if it was initialized.
   fault_manager.Shutdown();
@@ -380,7 +399,9 @@ bool Runtime::Create(const RuntimeOptions& options, bool ignore_unrecognized) {
   InitLogging(NULL);  // Calls Locks::Init() as a side effect.
   instance_ = new Runtime;
   if (!instance_->Init(options, ignore_unrecognized)) {
-    delete instance_;
+    // TODO: Currently deleting the instance will abort the runtime on destruction. Now This will
+    // leak memory, instead. Fix the destructor. b/19100793.
+    // delete instance_;
     instance_ = NULL;
     return false;
   }
@@ -455,17 +476,24 @@ bool Runtime::Start() {
 
   started_ = true;
 
-  // Use !IsCompiler so that we get test coverage, tests are never the zygote.
-  if (!IsCompiler()) {
+  // Use !IsAotCompiler so that we get test coverage, tests are never the zygote.
+  if (!IsAotCompiler()) {
     ScopedObjectAccess soa(self);
     gc::space::ImageSpace* image_space = heap_->GetImageSpace();
     if (image_space != nullptr) {
-      Runtime::Current()->GetInternTable()->AddImageStringsToTable(image_space);
-      Runtime::Current()->GetClassLinker()->MoveImageClassesToClassTable();
+      GetInternTable()->AddImageStringsToTable(image_space);
+      GetClassLinker()->MoveImageClassesToClassTable();
     }
   }
 
-  if (!IsImageDex2OatEnabled() || !Runtime::Current()->GetHeap()->HasImageSpace()) {
+  // If we are the zygote then we need to wait until after forking to create the code cache due to
+  // SELinux restrictions on r/w/x memory regions.
+  if (!IsZygote() && jit_.get() != nullptr) {
+    jit_->CreateInstrumentationCache(jit_options_->GetCompileThreshold());
+    jit_->CreateThreadPool();
+  }
+
+  if (!IsImageDex2OatEnabled() || !GetHeap()->HasImageSpace()) {
     ScopedObjectAccess soa(self);
     StackHandleScope<1> hs(soa.Self());
     auto klass(hs.NewHandle<mirror::Class>(mirror::Class::GetJavaLangClass()));
@@ -584,8 +612,14 @@ void Runtime::DidForkFromZygote(JNIEnv* env, NativeBridgeAction action, const ch
     }
   }
 
-  // Create the thread pool.
+  // Create the thread pools.
   heap_->CreateThreadPool();
+  if (jit_options_.get() != nullptr && jit_.get() == nullptr) {
+    // Create the JIT if the flag is set and we haven't already create it (happens for run-tests).
+    CreateJit();
+    jit_->CreateInstrumentationCache(jit_options_->GetCompileThreshold());
+    jit_->CreateThreadPool();
+  }
 
   StartSignalCatcher();
 
@@ -762,6 +796,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   intern_table_ = new InternTable;
 
   verify_ = runtime_options.GetOrDefault(Opt::Verify);
+  allow_dex_file_fallback_ = !runtime_options.Exists(Opt::NoDexFileFallback);
 
   if (runtime_options.GetOrDefault(Opt::Interpret)) {
     GetInstrumentation()->ForceInterpretOnly();
@@ -800,10 +835,26 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
                        runtime_options.GetOrDefault(Opt::EnableHSpaceCompactForOOM),
                        runtime_options.GetOrDefault(Opt::HSpaceCompactForOOMMinIntervalsMs));
 
+  if (heap_->GetImageSpace() == nullptr && !allow_dex_file_fallback_) {
+    LOG(ERROR) << "Dex file fallback disabled, cannot continue without image.";
+    return false;
+  }
+
   dump_gc_performance_on_shutdown_ = runtime_options.Exists(Opt::DumpGCPerformanceOnShutdown);
 
   if (runtime_options.Exists(Opt::JdwpOptions)) {
     Dbg::ConfigureJdwp(runtime_options.GetOrDefault(Opt::JdwpOptions));
+  }
+
+  if (!IsAotCompiler()) {
+    // If we are already the compiler at this point, we must be dex2oat. Don't create the jit in
+    // this case.
+    // If runtime_options doesn't have UseJIT set to true then CreateFromRuntimeArguments returns
+    // nullptr and we don't create the jit.
+    jit_options_.reset(jit::JitOptions::CreateFromRuntimeArguments(runtime_options));
+  }
+  if (!IsZygote() && jit_options_.get() != nullptr) {
+    CreateJit();
   }
 
   BlockSignals();
@@ -1054,26 +1105,26 @@ void Runtime::InitThreadGroups(Thread* self) {
       env->NewGlobalRef(env->GetStaticObjectField(
           WellKnownClasses::java_lang_ThreadGroup,
           WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup));
-  CHECK(main_thread_group_ != NULL || IsCompiler());
+  CHECK(main_thread_group_ != NULL || IsAotCompiler());
   system_thread_group_ =
       env->NewGlobalRef(env->GetStaticObjectField(
           WellKnownClasses::java_lang_ThreadGroup,
           WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup));
-  CHECK(system_thread_group_ != NULL || IsCompiler());
+  CHECK(system_thread_group_ != NULL || IsAotCompiler());
 }
 
 jobject Runtime::GetMainThreadGroup() const {
-  CHECK(main_thread_group_ != NULL || IsCompiler());
+  CHECK(main_thread_group_ != NULL || IsAotCompiler());
   return main_thread_group_;
 }
 
 jobject Runtime::GetSystemThreadGroup() const {
-  CHECK(system_thread_group_ != NULL || IsCompiler());
+  CHECK(system_thread_group_ != NULL || IsAotCompiler());
   return system_thread_group_;
 }
 
 jobject Runtime::GetSystemClassLoader() const {
-  CHECK(system_class_loader_ != NULL || IsCompiler());
+  CHECK(system_class_loader_ != NULL || IsAotCompiler());
   return system_class_loader_;
 }
 
@@ -1329,13 +1380,17 @@ mirror::ArtMethod* Runtime::CreateImtConflictMethod() {
   // TODO: use a special method for imt conflict method saves.
   method->SetDexMethodIndex(DexFile::kDexNoIndex);
   // When compiling, the code pointer will get set later when the image is loaded.
-  if (runtime->IsCompiler()) {
+  if (runtime->IsAotCompiler()) {
     size_t pointer_size = GetInstructionSetPointerSize(instruction_set_);
     method->SetEntryPointFromQuickCompiledCodePtrSize(nullptr, pointer_size);
   } else {
     method->SetEntryPointFromQuickCompiledCode(GetQuickImtConflictStub());
   }
   return method.Get();
+}
+
+void Runtime::SetImtConflictMethod(mirror::ArtMethod* method) {
+  imt_conflict_method_ = GcRoot<mirror::ArtMethod>(method);
 }
 
 mirror::ArtMethod* Runtime::CreateResolutionMethod() {
@@ -1348,7 +1403,7 @@ mirror::ArtMethod* Runtime::CreateResolutionMethod() {
   // TODO: use a special method for resolution method saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex);
   // When compiling, the code pointer will get set later when the image is loaded.
-  if (runtime->IsCompiler()) {
+  if (runtime->IsAotCompiler()) {
     size_t pointer_size = GetInstructionSetPointerSize(instruction_set_);
     method->SetEntryPointFromQuickCompiledCodePtrSize(nullptr, pointer_size);
   } else {
@@ -1479,14 +1534,14 @@ void Runtime::StartProfiler(const char* profile_output_filename) {
 
 // Transaction support.
 void Runtime::EnterTransactionMode(Transaction* transaction) {
-  DCHECK(IsCompiler());
+  DCHECK(IsAotCompiler());
   DCHECK(transaction != nullptr);
   DCHECK(!IsActiveTransaction());
   preinitialization_transaction_ = transaction;
 }
 
 void Runtime::ExitTransactionMode() {
-  DCHECK(IsCompiler());
+  DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_ = nullptr;
 }
@@ -1496,101 +1551,103 @@ bool Runtime::IsTransactionAborted() const {
   if (!IsActiveTransaction()) {
     return false;
   } else {
-    DCHECK(IsCompiler());
+    DCHECK(IsAotCompiler());
     return preinitialization_transaction_->IsAborted();
   }
 }
 
 void Runtime::AbortTransactionAndThrowInternalError(Thread* self,
                                                     const std::string& abort_message) {
-  DCHECK(IsCompiler());
+  DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
+  // Throwing an exception may cause its class initialization. If we mark the transaction
+  // aborted before that, we may warn with a false alarm. Throwing the exception before
+  // marking the transaction aborted avoids that.
+  preinitialization_transaction_->ThrowInternalError(self, false);
   preinitialization_transaction_->Abort(abort_message);
-  ThrowInternalErrorForAbortedTransaction(self);
 }
 
 void Runtime::ThrowInternalErrorForAbortedTransaction(Thread* self) {
-  DCHECK(IsCompiler());
+  DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
-  DCHECK(IsTransactionAborted());
-  preinitialization_transaction_->ThrowInternalError(self);
+  preinitialization_transaction_->ThrowInternalError(self, true);
 }
 
 void Runtime::RecordWriteFieldBoolean(mirror::Object* obj, MemberOffset field_offset,
                                       uint8_t value, bool is_volatile) const {
-  DCHECK(IsCompiler());
+  DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordWriteFieldBoolean(obj, field_offset, value, is_volatile);
 }
 
 void Runtime::RecordWriteFieldByte(mirror::Object* obj, MemberOffset field_offset,
                                    int8_t value, bool is_volatile) const {
-  DCHECK(IsCompiler());
+  DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordWriteFieldByte(obj, field_offset, value, is_volatile);
 }
 
 void Runtime::RecordWriteFieldChar(mirror::Object* obj, MemberOffset field_offset,
                                    uint16_t value, bool is_volatile) const {
-  DCHECK(IsCompiler());
+  DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordWriteFieldChar(obj, field_offset, value, is_volatile);
 }
 
 void Runtime::RecordWriteFieldShort(mirror::Object* obj, MemberOffset field_offset,
                                     int16_t value, bool is_volatile) const {
-  DCHECK(IsCompiler());
+  DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordWriteFieldShort(obj, field_offset, value, is_volatile);
 }
 
 void Runtime::RecordWriteField32(mirror::Object* obj, MemberOffset field_offset,
                                  uint32_t value, bool is_volatile) const {
-  DCHECK(IsCompiler());
+  DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordWriteField32(obj, field_offset, value, is_volatile);
 }
 
 void Runtime::RecordWriteField64(mirror::Object* obj, MemberOffset field_offset,
                                  uint64_t value, bool is_volatile) const {
-  DCHECK(IsCompiler());
+  DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordWriteField64(obj, field_offset, value, is_volatile);
 }
 
 void Runtime::RecordWriteFieldReference(mirror::Object* obj, MemberOffset field_offset,
                                         mirror::Object* value, bool is_volatile) const {
-  DCHECK(IsCompiler());
+  DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordWriteFieldReference(obj, field_offset, value, is_volatile);
 }
 
 void Runtime::RecordWriteArray(mirror::Array* array, size_t index, uint64_t value) const {
-  DCHECK(IsCompiler());
+  DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordWriteArray(array, index, value);
 }
 
 void Runtime::RecordStrongStringInsertion(mirror::String* s) const {
-  DCHECK(IsCompiler());
+  DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordStrongStringInsertion(s);
 }
 
 void Runtime::RecordWeakStringInsertion(mirror::String* s) const {
-  DCHECK(IsCompiler());
+  DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordWeakStringInsertion(s);
 }
 
 void Runtime::RecordStrongStringRemoval(mirror::String* s) const {
-  DCHECK(IsCompiler());
+  DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordStrongStringRemoval(s);
 }
 
 void Runtime::RecordWeakStringRemoval(mirror::String* s) const {
-  DCHECK(IsCompiler());
+  DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordWeakStringRemoval(s);
 }
@@ -1602,7 +1659,7 @@ void Runtime::SetFaultMessage(const std::string& message) {
 
 void Runtime::AddCurrentRuntimeFeaturesAsDex2OatArguments(std::vector<std::string>* argv)
     const {
-  if (GetInstrumentation()->InterpretOnly()) {
+  if (GetInstrumentation()->InterpretOnly() || UseJit()) {
     argv->push_back("--compiler-filter=interpret-only");
   }
 
@@ -1617,9 +1674,25 @@ void Runtime::AddCurrentRuntimeFeaturesAsDex2OatArguments(std::vector<std::strin
   std::string feature_string("--instruction-set-features=");
   feature_string += features->GetFeatureString();
   argv->push_back(feature_string);
+
+  if (Dbg::IsJdwpConfigured()) {
+    argv->push_back("--debuggable");
+  }
 }
 
 void Runtime::UpdateProfilerState(int state) {
   VLOG(profiler) << "Profiler state updated to " << state;
 }
+
+void Runtime::CreateJit() {
+  CHECK(jit_options_.get() != nullptr);
+  std::string error_msg;
+  jit_.reset(jit::Jit::Create(jit_options_.get(), &error_msg));
+  if (jit_.get() != nullptr) {
+    compiler_callbacks_ = jit_->GetCompilerCallbacks();
+  } else {
+    LOG(WARNING) << "Failed to create JIT " << error_msg;
+  }
+}
+
 }  // namespace art

@@ -16,6 +16,8 @@
 
 #include "interpreter_common.h"
 
+#include <cmath>
+
 #include "mirror/array-inl.h"
 
 namespace art {
@@ -489,12 +491,12 @@ uint32_t FindNextInstructionFollowingException(Thread* self,
   ThrowLocation throw_location;
   StackHandleScope<3> hs(self);
   Handle<mirror::Throwable> exception(hs.NewHandle(self->GetException(&throw_location)));
-  if (!self->IsExceptionReportedToInstrumentation() && instrumentation->HasExceptionCaughtListeners()) {
+  if (instrumentation->HasExceptionCaughtListeners()
+      && self->IsExceptionThrownByCurrentMethod(exception.Get())) {
     CatchLocationFinder clf(self, &exception);
     clf.WalkStack(false);
     instrumentation->ExceptionCaughtEvent(self, throw_location, clf.GetCatchMethod(),
                                           clf.GetCatchDexPc(), exception.Get());
-    self->SetExceptionReportedToInstrumentation(true);
   }
   bool clear_exception = false;
   uint32_t found_dex_pc;
@@ -505,13 +507,12 @@ uint32_t FindNextInstructionFollowingException(Thread* self,
                                                      &clear_exception);
   }
   if (found_dex_pc == DexFile::kDexNoIndex) {
+    // Exception is not caught by the current method. We will unwind to the
+    // caller. Notify any instrumentation listener.
     instrumentation->MethodUnwindEvent(self, shadow_frame.GetThisObject(),
                                        shadow_frame.GetMethod(), dex_pc);
   } else {
-    if (self->IsExceptionReportedToInstrumentation()) {
-      instrumentation->MethodUnwindEvent(self, shadow_frame.GetThisObject(),
-                                         shadow_frame.GetMethod(), dex_pc);
-    }
+    // Exception is caught in the current method. We will jump to the found_dex_pc.
     if (clear_exception) {
       self->ClearException();
     }
@@ -839,6 +840,23 @@ static void UnstartedRuntimeFindClass(Thread* self, Handle<mirror::String> class
   result->SetL(found);
 }
 
+// Common helper for class-loading cutouts in an unstarted runtime. We call Runtime methods that
+// rely on Java code to wrap errors in the correct exception class (i.e., NoClassDefFoundError into
+// ClassNotFoundException), so need to do the same. The only exception is if the exception is
+// actually InternalError. This must not be wrapped, as it signals an initialization abort.
+static void CheckExceptionGenerateClassNotFound(Thread* self)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  if (self->IsExceptionPending()) {
+    // If it is not an InternalError, wrap it.
+    std::string type(PrettyTypeOf(self->GetException(nullptr)));
+    if (type != "java.lang.InternalError") {
+      self->ThrowNewWrappedException(self->GetCurrentLocationForThrow(),
+                                     "Ljava/lang/ClassNotFoundException;",
+                                     "ClassNotFoundException");
+    }
+  }
+}
+
 static void UnstartedRuntimeInvoke(Thread* self,  const DexFile::CodeItem* code_item,
                                    ShadowFrame* shadow_frame,
                                    JValue* result, size_t arg_offset) {
@@ -846,18 +864,34 @@ static void UnstartedRuntimeInvoke(Thread* self,  const DexFile::CodeItem* code_
   // problems in core libraries.
   std::string name(PrettyMethod(shadow_frame->GetMethod()));
   if (name == "java.lang.Class java.lang.Class.forName(java.lang.String)") {
-    // TODO: Support for the other variants that take more arguments should also be added.
     mirror::String* class_name = shadow_frame->GetVRegReference(arg_offset)->AsString();
     StackHandleScope<1> hs(self);
     Handle<mirror::String> h_class_name(hs.NewHandle(class_name));
     UnstartedRuntimeFindClass(self, h_class_name, NullHandle<mirror::ClassLoader>(), result, name,
-                              true, true);
-  } else if (name == "java.lang.Class java.lang.VMClassLoader.loadClass(java.lang.String, boolean)") {
+                              true, false);
+    CheckExceptionGenerateClassNotFound(self);
+  } else if (name == "java.lang.Class java.lang.Class.forName(java.lang.String, boolean, java.lang.ClassLoader)") {
     mirror::String* class_name = shadow_frame->GetVRegReference(arg_offset)->AsString();
-    StackHandleScope<1> hs(self);
+    bool initialize_class = shadow_frame->GetVReg(arg_offset + 1) != 0;
+    mirror::ClassLoader* class_loader =
+        down_cast<mirror::ClassLoader*>(shadow_frame->GetVRegReference(arg_offset + 2));
+    StackHandleScope<2> hs(self);
     Handle<mirror::String> h_class_name(hs.NewHandle(class_name));
-    UnstartedRuntimeFindClass(self, h_class_name, NullHandle<mirror::ClassLoader>(), result, name,
-                              false, true);
+    Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(class_loader));
+    UnstartedRuntimeFindClass(self, h_class_name, h_class_loader, result, name, initialize_class,
+                              false);
+    CheckExceptionGenerateClassNotFound(self);
+  } else if (name == "java.lang.Class java.lang.Class.classForName(java.lang.String, boolean, java.lang.ClassLoader)") {
+    mirror::String* class_name = shadow_frame->GetVRegReference(arg_offset)->AsString();
+    bool initialize_class = shadow_frame->GetVReg(arg_offset + 1) != 0;
+    mirror::ClassLoader* class_loader =
+        down_cast<mirror::ClassLoader*>(shadow_frame->GetVRegReference(arg_offset + 2));
+    StackHandleScope<2> hs(self);
+    Handle<mirror::String> h_class_name(hs.NewHandle(class_name));
+    Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(class_loader));
+    UnstartedRuntimeFindClass(self, h_class_name, h_class_loader, result, name, initialize_class,
+                              false);
+    CheckExceptionGenerateClassNotFound(self);
   } else if (name == "java.lang.Class java.lang.VMClassLoader.findLoadedClass(java.lang.ClassLoader, java.lang.String)") {
     mirror::String* class_name = shadow_frame->GetVRegReference(arg_offset + 1)->AsString();
     mirror::ClassLoader* class_loader =
@@ -866,17 +900,49 @@ static void UnstartedRuntimeInvoke(Thread* self,  const DexFile::CodeItem* code_
     Handle<mirror::String> h_class_name(hs.NewHandle(class_name));
     Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(class_loader));
     UnstartedRuntimeFindClass(self, h_class_name, h_class_loader, result, name, false, false);
+    // This might have an error pending. But semantics are to just return null.
+    if (self->IsExceptionPending()) {
+      // If it is an InternalError, keep it. See CheckExceptionGenerateClassNotFound.
+      std::string type(PrettyTypeOf(self->GetException(nullptr)));
+      if (type != "java.lang.InternalError") {
+        self->ClearException();
+      }
+    }
   } else if (name == "java.lang.Class java.lang.Void.lookupType()") {
     result->SetL(Runtime::Current()->GetClassLinker()->FindPrimitiveClass('V'));
   } else if (name == "java.lang.Object java.lang.Class.newInstance()") {
+    StackHandleScope<3> hs(self);  // Class, constructor, object.
     Class* klass = shadow_frame->GetVRegReference(arg_offset)->AsClass();
-    ArtMethod* c = klass->FindDeclaredDirectMethod("<init>", "()V");
-    CHECK(c != NULL);
-    StackHandleScope<1> hs(self);
-    Handle<Object> obj(hs.NewHandle(klass->AllocObject(self)));
-    CHECK(obj.Get() != NULL);
-    EnterInterpreterFromInvoke(self, c, obj.Get(), NULL, NULL);
-    result->SetL(obj.Get());
+    Handle<Class> h_klass(hs.NewHandle(klass));
+    // There are two situations in which we'll abort this run.
+    //  1) If the class isn't yet initialized and initialization fails.
+    //  2) If we can't find the default constructor. We'll postpone the exception to runtime.
+    // Note that 2) could likely be handled here, but for safety abort the transaction.
+    bool ok = false;
+    if (Runtime::Current()->GetClassLinker()->EnsureInitialized(self, h_klass, true, true)) {
+      Handle<ArtMethod> h_cons(hs.NewHandle(h_klass->FindDeclaredDirectMethod("<init>", "()V")));
+      if (h_cons.Get() != nullptr) {
+        Handle<Object> h_obj(hs.NewHandle(klass->AllocObject(self)));
+        CHECK(h_obj.Get() != nullptr);  // We don't expect OOM at compile-time.
+        EnterInterpreterFromInvoke(self, h_cons.Get(), h_obj.Get(), nullptr, nullptr);
+        if (!self->IsExceptionPending()) {
+          result->SetL(h_obj.Get());
+          ok = true;
+        }
+      } else {
+        self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(), "Ljava/lang/InternalError;",
+                                 "Could not find default constructor for '%s'",
+                                 PrettyClass(h_klass.Get()).c_str());
+      }
+    }
+    if (!ok) {
+      std::string error_msg = StringPrintf("Failed in Class.newInstance for '%s' with %s",
+                                           PrettyClass(h_klass.Get()).c_str(),
+                                           PrettyTypeOf(self->GetException(nullptr)).c_str());
+      self->ThrowNewWrappedException(self->GetCurrentLocationForThrow(),
+                                     "Ljava/lang/InternalError;",
+                                     error_msg.c_str());
+    }
   } else if (name == "java.lang.reflect.Field java.lang.Class.getDeclaredField(java.lang.String)") {
     // Special managed code cut-out to allow field lookup in a un-started runtime that'd fail
     // going the reflective Dex way.
@@ -900,8 +966,8 @@ static void UnstartedRuntimeInvoke(Thread* self,  const DexFile::CodeItem* code_
       }
     }
     CHECK(found != NULL)
-      << "Failed to find field in Class.getDeclaredField in un-started runtime. name="
-      << name2->ToModifiedUtf8() << " class=" << PrettyDescriptor(klass);
+        << "Failed to find field in Class.getDeclaredField in un-started runtime. name="
+        << name2->ToModifiedUtf8() << " class=" << PrettyDescriptor(klass);
     // TODO: getDeclaredField calls GetType once the field is found to ensure a
     //       NoClassDefFoundError is thrown if the field's type cannot be resolved.
     Class* jlr_Field = self->DecodeJObject(WellKnownClasses::java_lang_reflect_Field)->AsClass();
@@ -920,7 +986,8 @@ static void UnstartedRuntimeInvoke(Thread* self,  const DexFile::CodeItem* code_
     mirror::ArtMethod* method = shadow_frame->GetVRegReference(arg_offset)->AsArtMethod();
     result->SetL(method->GetNameAsString(self));
   } else if (name == "void java.lang.System.arraycopy(java.lang.Object, int, java.lang.Object, int, int)" ||
-             name == "void java.lang.System.arraycopy(char[], int, char[], int, int)") {
+             name == "void java.lang.System.arraycopy(char[], int, char[], int, int)" ||
+             name == "void java.lang.System.arraycopy(int[], int, int[], int, int)") {
     // Special case array copying without initializing System.
     Class* ctype = shadow_frame->GetVRegReference(arg_offset)->GetClass()->GetComponentType();
     jint srcPos = shadow_frame->GetVReg(arg_offset + 1);
@@ -949,12 +1016,69 @@ static void UnstartedRuntimeInvoke(Thread* self,  const DexFile::CodeItem* code_
                                "Unimplemented System.arraycopy for type '%s'",
                                PrettyDescriptor(ctype).c_str());
     }
-  } else  if (name == "java.lang.Object java.lang.ThreadLocal.get()") {
+  } else if (name == "long java.lang.Double.doubleToRawLongBits(double)") {
+    double in = shadow_frame->GetVRegDouble(arg_offset);
+    result->SetJ(bit_cast<int64_t>(in));
+  } else if (name == "double java.lang.Math.ceil(double)") {
+    double in = shadow_frame->GetVRegDouble(arg_offset);
+    double out;
+    // Special cases:
+    // 1) NaN, infinity, +0, -0 -> out := in. All are guaranteed by cmath.
+    // -1 < in < 0 -> out := -0.
+    if (-1.0 < in && in < 0) {
+      out = -0.0;
+    } else {
+      out = ceil(in);
+    }
+    result->SetD(out);
+  } else if (name == "java.lang.Object java.lang.ThreadLocal.get()") {
     std::string caller(PrettyMethod(shadow_frame->GetLink()->GetMethod()));
+    bool ok = false;
     if (caller == "java.lang.String java.lang.IntegralToString.convertInt(java.lang.AbstractStringBuilder, int)") {
       // Allocate non-threadlocal buffer.
       result->SetL(mirror::CharArray::Alloc(self, 11));
-    } else {
+      ok = true;
+    } else if (caller == "java.lang.RealToString java.lang.RealToString.getInstance()") {
+      // Note: RealToString is implemented and used in a different fashion than IntegralToString.
+      // Conversion is done over an actual object of RealToString (the conversion method is an
+      // instance method). This means it is not as clear whether it is correct to return a new
+      // object each time. The caller needs to be inspected by hand to see whether it (incorrectly)
+      // stores the object for later use.
+      // See also b/19548084 for a possible rewrite and bringing it in line with IntegralToString.
+      if (shadow_frame->GetLink()->GetLink() != nullptr) {
+        std::string caller2(PrettyMethod(shadow_frame->GetLink()->GetLink()->GetMethod()));
+        if (caller2 == "java.lang.String java.lang.Double.toString(double)") {
+          // Allocate new object.
+          StackHandleScope<2> hs(self);
+          Handle<Class> h_real_to_string_class(hs.NewHandle(
+              shadow_frame->GetLink()->GetMethod()->GetDeclaringClass()));
+          Handle<Object> h_real_to_string_obj(hs.NewHandle(
+              h_real_to_string_class->AllocObject(self)));
+          if (h_real_to_string_obj.Get() != nullptr) {
+            mirror::ArtMethod* init_method =
+                h_real_to_string_class->FindDirectMethod("<init>", "()V");
+            if (init_method == nullptr) {
+              h_real_to_string_class->DumpClass(LOG(FATAL), mirror::Class::kDumpClassFullDetail);
+            } else {
+              JValue invoke_result;
+              EnterInterpreterFromInvoke(self, init_method, h_real_to_string_obj.Get(), nullptr,
+                                         nullptr);
+              if (!self->IsExceptionPending()) {
+                result->SetL(h_real_to_string_obj.Get());
+                ok = true;
+              }
+            }
+          }
+
+          if (!ok) {
+            // We'll abort, so clear exception.
+            self->ClearException();
+          }
+        }
+      }
+    }
+
+    if (!ok) {
       self->ThrowNewException(self->GetCurrentLocationForThrow(), "Ljava/lang/InternalError;",
                               "Unimplemented ThreadLocal.get");
     }

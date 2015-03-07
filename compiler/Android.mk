@@ -48,6 +48,12 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/quick/mips/int_mips.cc \
 	dex/quick/mips/target_mips.cc \
 	dex/quick/mips/utility_mips.cc \
+	dex/quick/mips64/assemble_mips64.cc \
+	dex/quick/mips64/call_mips64.cc \
+	dex/quick/mips64/fp_mips64.cc \
+	dex/quick/mips64/int_mips64.cc \
+	dex/quick/mips64/target_mips64.cc \
+	dex/quick/mips64/utility_mips64.cc \
 	dex/quick/mir_to_lir.cc \
 	dex/quick/quick_compiler.cc \
 	dex/quick/ralloc_util.cc \
@@ -79,9 +85,11 @@ LIBART_COMPILER_SRC_FILES := \
 	driver/compiler_driver.cc \
 	driver/compiler_options.cc \
 	driver/dex_compilation_unit.cc \
+	jit/jit_compiler.cc \
 	jni/quick/arm/calling_convention_arm.cc \
 	jni/quick/arm64/calling_convention_arm64.cc \
 	jni/quick/mips/calling_convention_mips.cc \
+	jni/quick/mips64/calling_convention_mips64.cc \
 	jni/quick/x86/calling_convention_x86.cc \
 	jni/quick/x86_64/calling_convention_x86_64.cc \
 	jni/quick/calling_convention.cc \
@@ -153,6 +161,7 @@ LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES := \
   dex/quick/arm/arm_lir.h \
   dex/quick/arm64/arm64_lir.h \
   dex/quick/mips/mips_lir.h \
+  dex/quick/mips64/mips64_lir.h \
   dex/quick/resource_mask.h \
   dex/compiler_enums.h \
   dex/global_value_numbering.h \
@@ -161,8 +170,7 @@ LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES := \
   driver/compiler_options.h \
   image_writer.h \
   optimizing/locations.h \
-  utils/arm/constants_arm.h \
-  utils/dex_instruction_utils.h
+  utils/arm/constants_arm.h
 
 # $(1): target or host
 # $(2): ndebug or debug

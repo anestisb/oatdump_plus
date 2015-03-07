@@ -34,13 +34,15 @@ class ReferenceTypePropagation : public HOptimization {
                            const DexFile& dex_file,
                            const DexCompilationUnit& dex_compilation_unit,
                            StackHandleScopeCollection* handles)
-    : HOptimization(graph, true, "reference_type_propagation"),
+    : HOptimization(graph, true, kReferenceTypePropagationPassName),
       dex_file_(dex_file),
       dex_compilation_unit_(dex_compilation_unit),
       handles_(handles),
       worklist_(graph->GetArena(), kDefaultWorklistSize) {}
 
   void Run() OVERRIDE;
+
+  static constexpr const char* kReferenceTypePropagationPassName = "reference_type_propagation";
 
  private:
   void VisitNewInstance(HNewInstance* new_instance);
@@ -51,6 +53,7 @@ class ReferenceTypePropagation : public HOptimization {
   void UpdateBoundType(HBoundType* bound_type) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void UpdatePhi(HPhi* phi) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  void BoundTypeForIfNotNull(HBasicBlock* block);
   void BoundTypeForIfInstanceOf(HBasicBlock* block);
 
   void ProcessWorklist();

@@ -202,6 +202,7 @@ TEST_F(CmdlineParserTest, TestSimpleSuccesses) {
   EXPECT_SINGLE_PARSE_VALUE(false, "-XX:DisableHSpaceCompactForOOM", M::EnableHSpaceCompactForOOM);
   EXPECT_SINGLE_PARSE_VALUE(0.5, "-XX:HeapTargetUtilization=0.5", M::HeapTargetUtilization);
   EXPECT_SINGLE_PARSE_VALUE(5u, "-XX:ParallelGCThreads=5", M::ParallelGCThreads);
+  EXPECT_SINGLE_PARSE_EXISTS("-Xno-dex-file-fallback", M::NoDexFileFallback);
 }  // TEST_F
 
 TEST_F(CmdlineParserTest, TestSimpleFailures) {
@@ -410,6 +411,26 @@ TEST_F(CmdlineParserTest, TestCompilerOption) {
 }  // TEST_F
 
 /*
+* -Xjit, -Xnojit, -Xjitcodecachesize, Xjitcompilethreshold
+*/
+TEST_F(CmdlineParserTest, TestJitOptions) {
+ /*
+  * Test successes
+  */
+  {
+    EXPECT_SINGLE_PARSE_VALUE(true, "-Xusejit:true", M::UseJIT);
+    EXPECT_SINGLE_PARSE_VALUE(false, "-Xusejit:false", M::UseJIT);
+  }
+  {
+    EXPECT_SINGLE_PARSE_VALUE(MemoryKiB(16 * KB), "-Xjitcodecachesize:16K", M::JITCodeCacheCapacity);
+    EXPECT_SINGLE_PARSE_VALUE(MemoryKiB(16 * MB), "-Xjitcodecachesize:16M", M::JITCodeCacheCapacity);
+  }
+  {
+    EXPECT_SINGLE_PARSE_VALUE(12345u, "-Xjitthreshold:12345", M::JITCompileThreshold);
+  }
+}  // TEST_F
+
+/*
 * -X-profile-*
 */
 TEST_F(CmdlineParserTest, TestProfilerOptions) {
@@ -494,9 +515,8 @@ TEST_F(CmdlineParserTest, TestIgnoredArguments) {
       "-dsa", "-enablesystemassertions", "-disablesystemassertions", "-Xrs", "-Xint:abdef",
       "-Xdexopt:foobar", "-Xnoquithandler", "-Xjnigreflimit:ixnay", "-Xgenregmap", "-Xnogenregmap",
       "-Xverifyopt:never", "-Xcheckdexsum", "-Xincludeselectedop", "-Xjitop:noop",
-      "-Xincludeselectedmethod", "-Xjitthreshold:123", "-Xjitcodecachesize:12345",
-      "-Xjitblocking", "-Xjitmethod:_", "-Xjitclass:nosuchluck", "-Xjitoffset:none",
-      "-Xjitconfig:yes", "-Xjitcheckcg", "-Xjitverbose", "-Xjitprofile",
+      "-Xincludeselectedmethod", "-Xjitblocking", "-Xjitmethod:_", "-Xjitclass:nosuchluck",
+      "-Xjitoffset:none", "-Xjitconfig:yes", "-Xjitcheckcg", "-Xjitverbose", "-Xjitprofile",
       "-Xjitdisableopt", "-Xjitsuspendpoll", "-XX:mainThreadStackSize=1337"
   };
 

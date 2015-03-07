@@ -284,7 +284,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
     // address.
     non_moving_space_mem_map.reset(
         MemMap::MapAnonymous(space_name, requested_alloc_space_begin,
-                             non_moving_space_capacity, PROT_READ | PROT_WRITE, true, &error_str));
+                             non_moving_space_capacity, PROT_READ | PROT_WRITE, true, false,
+                             &error_str));
     CHECK(non_moving_space_mem_map != nullptr) << error_str;
     // Try to reserve virtual memory at a lower address if we have a separate non moving space.
     request_begin = reinterpret_cast<uint8_t*>(300 * MB);
@@ -398,14 +399,14 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
     rb_table_.reset(new accounting::ReadBarrierTable());
     DCHECK(rb_table_->IsAllCleared());
   }
-
-  // Card cache for now since it makes it easier for us to update the references to the copying
-  // spaces.
-  accounting::ModUnionTable* mod_union_table =
-      new accounting::ModUnionTableToZygoteAllocspace("Image mod-union table", this,
-                                                      GetImageSpace());
-  CHECK(mod_union_table != nullptr) << "Failed to create image mod-union table";
-  AddModUnionTable(mod_union_table);
+  if (GetImageSpace() != nullptr) {
+    // Don't add the image mod union table if we are running without an image, this can crash if
+    // we use the CardCache implementation.
+    accounting::ModUnionTable* mod_union_table = new accounting::ModUnionTableToZygoteAllocspace(
+        "Image mod-union table", this, GetImageSpace());
+    CHECK(mod_union_table != nullptr) << "Failed to create image mod-union table";
+    AddModUnionTable(mod_union_table);
+  }
   if (collector::SemiSpace::kUseRememberedSet && non_moving_space_ != main_space_) {
     accounting::RememberedSet* non_moving_space_rem_set =
         new accounting::RememberedSet("Non-moving space remembered set", this, non_moving_space_);
@@ -437,20 +438,31 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   // Create our garbage collectors.
   for (size_t i = 0; i < 2; ++i) {
     const bool concurrent = i != 0;
-    garbage_collectors_.push_back(new collector::MarkSweep(this, concurrent));
-    garbage_collectors_.push_back(new collector::PartialMarkSweep(this, concurrent));
-    garbage_collectors_.push_back(new collector::StickyMarkSweep(this, concurrent));
+    if ((MayUseCollector(kCollectorTypeCMS) && concurrent) ||
+        (MayUseCollector(kCollectorTypeMS) && !concurrent)) {
+      garbage_collectors_.push_back(new collector::MarkSweep(this, concurrent));
+      garbage_collectors_.push_back(new collector::PartialMarkSweep(this, concurrent));
+      garbage_collectors_.push_back(new collector::StickyMarkSweep(this, concurrent));
+    }
   }
   if (kMovingCollector) {
-    // TODO: Clean this up.
-    const bool generational = foreground_collector_type_ == kCollectorTypeGSS;
-    semi_space_collector_ = new collector::SemiSpace(this, generational,
-                                                     generational ? "generational" : "");
-    garbage_collectors_.push_back(semi_space_collector_);
-    concurrent_copying_collector_ = new collector::ConcurrentCopying(this);
-    garbage_collectors_.push_back(concurrent_copying_collector_);
-    mark_compact_collector_ = new collector::MarkCompact(this);
-    garbage_collectors_.push_back(mark_compact_collector_);
+    if (MayUseCollector(kCollectorTypeSS) || MayUseCollector(kCollectorTypeGSS) ||
+        MayUseCollector(kCollectorTypeHomogeneousSpaceCompact) ||
+        use_homogeneous_space_compaction_for_oom_) {
+      // TODO: Clean this up.
+      const bool generational = foreground_collector_type_ == kCollectorTypeGSS;
+      semi_space_collector_ = new collector::SemiSpace(this, generational,
+                                                       generational ? "generational" : "");
+      garbage_collectors_.push_back(semi_space_collector_);
+    }
+    if (MayUseCollector(kCollectorTypeCC)) {
+      concurrent_copying_collector_ = new collector::ConcurrentCopying(this);
+      garbage_collectors_.push_back(concurrent_copying_collector_);
+    }
+    if (MayUseCollector(kCollectorTypeMC)) {
+      mark_compact_collector_ = new collector::MarkCompact(this);
+      garbage_collectors_.push_back(mark_compact_collector_);
+    }
   }
   if (GetImageSpace() != nullptr && non_moving_space_ != nullptr &&
       (is_zygote || separate_non_moving_space || foreground_collector_type_ == kCollectorTypeGSS)) {
@@ -476,7 +488,7 @@ MemMap* Heap::MapAnonymousPreferredAddress(const char* name, uint8_t* request_be
                                            size_t capacity, std::string* out_error_str) {
   while (true) {
     MemMap* map = MemMap::MapAnonymous(name, request_begin, capacity,
-                                       PROT_READ | PROT_WRITE, true, out_error_str);
+                                       PROT_READ | PROT_WRITE, true, false, out_error_str);
     if (map != nullptr || request_begin == nullptr) {
       return map;
     }
@@ -484,6 +496,10 @@ MemMap* Heap::MapAnonymousPreferredAddress(const char* name, uint8_t* request_be
     request_begin = nullptr;
   }
   return nullptr;
+}
+
+bool Heap::MayUseCollector(CollectorType type) const {
+  return foreground_collector_type_ == type || background_collector_type_ == type;
 }
 
 space::MallocSpace* Heap::CreateMallocSpaceFromMemMap(MemMap* mem_map, size_t initial_size,
@@ -655,7 +671,7 @@ void Heap::DumpObject(std::ostream& stream, mirror::Object* obj) {
 }
 
 bool Heap::IsCompilingBoot() const {
-  if (!Runtime::Current()->IsCompiler()) {
+  if (!Runtime::Current()->IsAotCompiler()) {
     return false;
   }
   for (const auto& space : continuous_spaces_) {
@@ -1675,7 +1691,8 @@ HomogeneousSpaceCompactResult Heap::PerformHomogeneousSpaceCompact() {
   AddSpace(to_space);
   // Make sure that we will have enough room to copy.
   CHECK_GE(to_space->GetFootprintLimit(), from_space->GetFootprintLimit());
-  Compact(to_space, from_space, kGcCauseHomogeneousSpaceCompact);
+  collector::GarbageCollector* collector = Compact(to_space, from_space,
+                                                   kGcCauseHomogeneousSpaceCompact);
   const uint64_t space_size_after_compaction = to_space->Size();
   main_space_ = to_space;
   main_space_backup_.reset(from_space);
@@ -1694,6 +1711,7 @@ HomogeneousSpaceCompactResult Heap::PerformHomogeneousSpaceCompact() {
   // Finish GC.
   reference_processor_.EnqueueClearedReferences(self);
   GrowForUtilization(semi_space_collector_);
+  LogGC(kGcCauseHomogeneousSpaceCompact, collector);
   FinishGC(self, collector::kGcTypeFull);
   return HomogeneousSpaceCompactResult::kSuccess;
 }
@@ -1744,6 +1762,7 @@ void Heap::TransitionCollector(CollectorType collector_type) {
     FinishGC(self, collector::kGcTypeNone);
     return;
   }
+  collector::GarbageCollector* collector = nullptr;
   tl->SuspendAll();
   switch (collector_type) {
     case kCollectorTypeSS: {
@@ -1758,7 +1777,7 @@ void Heap::TransitionCollector(CollectorType collector_type) {
         bump_pointer_space_ = space::BumpPointerSpace::CreateFromMemMap("Bump pointer space",
                                                                         mem_map.release());
         AddSpace(bump_pointer_space_);
-        Compact(bump_pointer_space_, main_space_, kGcCauseCollectorTransition);
+        collector = Compact(bump_pointer_space_, main_space_, kGcCauseCollectorTransition);
         // Use the now empty main space mem map for the bump pointer temp space.
         mem_map.reset(main_space_->ReleaseMemMap());
         // Unset the pointers just in case.
@@ -1795,7 +1814,7 @@ void Heap::TransitionCollector(CollectorType collector_type) {
         mem_map.release();
         // Compact to the main space from the bump pointer space, don't need to swap semispaces.
         AddSpace(main_space_);
-        Compact(main_space_, bump_pointer_space_, kGcCauseCollectorTransition);
+        collector = Compact(main_space_, bump_pointer_space_, kGcCauseCollectorTransition);
         mem_map.reset(bump_pointer_space_->ReleaseMemMap());
         RemoveSpace(bump_pointer_space_);
         bump_pointer_space_ = nullptr;
@@ -1826,6 +1845,8 @@ void Heap::TransitionCollector(CollectorType collector_type) {
   reference_processor_.EnqueueClearedReferences(self);
   uint64_t duration = NanoTime() - start_time;
   GrowForUtilization(semi_space_collector_);
+  DCHECK(collector != nullptr);
+  LogGC(kGcCauseCollectorTransition, collector);
   FinishGC(self, collector::kGcTypeFull);
   int32_t after_allocated = num_bytes_allocated_.LoadSequentiallyConsistent();
   int32_t delta_allocated = before_allocated - after_allocated;
@@ -2166,9 +2187,9 @@ void Heap::SwapSemiSpaces() {
   std::swap(bump_pointer_space_, temp_space_);
 }
 
-void Heap::Compact(space::ContinuousMemMapAllocSpace* target_space,
-                   space::ContinuousMemMapAllocSpace* source_space,
-                   GcCause gc_cause) {
+collector::GarbageCollector* Heap::Compact(space::ContinuousMemMapAllocSpace* target_space,
+                                           space::ContinuousMemMapAllocSpace* source_space,
+                                           GcCause gc_cause) {
   CHECK(kMovingCollector);
   if (target_space != source_space) {
     // Don't swap spaces since this isn't a typical semi space collection.
@@ -2176,11 +2197,13 @@ void Heap::Compact(space::ContinuousMemMapAllocSpace* target_space,
     semi_space_collector_->SetFromSpace(source_space);
     semi_space_collector_->SetToSpace(target_space);
     semi_space_collector_->Run(gc_cause, false);
+    return semi_space_collector_;
   } else {
     CHECK(target_space->IsBumpPointerSpace())
         << "In-place compaction is only supported for bump pointer spaces";
     mark_compact_collector_->SetSpace(target_space->AsBumpPointerSpace());
     mark_compact_collector_->Run(kGcCauseCollectorTransition, false);
+    return mark_compact_collector_;
   }
 }
 
@@ -2291,6 +2314,14 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   reference_processor_.EnqueueClearedReferences(self);
   // Grow the heap so that we know when to perform the next GC.
   GrowForUtilization(collector, bytes_allocated_before_gc);
+  LogGC(gc_cause, collector);
+  FinishGC(self, gc_type);
+  // Inform DDMS that a GC completed.
+  Dbg::GcDidFinish();
+  return gc_type;
+}
+
+void Heap::LogGC(GcCause gc_cause, collector::GarbageCollector* collector) {
   const size_t duration = GetCurrentGcIteration()->GetDurationNs();
   const std::vector<uint64_t>& pause_times = GetCurrentGcIteration()->GetPauseTimes();
   // Print the GC if it is an explicit GC (e.g. Runtime.gc()) or a slow GC
@@ -2310,8 +2341,8 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
     const size_t total_memory = GetTotalMemory();
     std::ostringstream pause_string;
     for (size_t i = 0; i < pause_times.size(); ++i) {
-        pause_string << PrettyDuration((pause_times[i] / 1000) * 1000)
-                     << ((i != pause_times.size() - 1) ? "," : "");
+      pause_string << PrettyDuration((pause_times[i] / 1000) * 1000)
+                   << ((i != pause_times.size() - 1) ? "," : "");
     }
     LOG(INFO) << gc_cause << " " << collector->GetName()
               << " GC freed "  << current_gc_iteration_.GetFreedObjects() << "("
@@ -2323,10 +2354,6 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
               << " total " << PrettyDuration((duration / 1000) * 1000);
     VLOG(heap) << Dumpable<TimingLogger>(*current_gc_iteration_.GetTimings());
   }
-  FinishGC(self, gc_type);
-  // Inform DDMS that a GC completed.
-  Dbg::GcDidFinish();
-  return gc_type;
 }
 
 void Heap::FinishGC(Thread* self, collector::GcType gc_type) {

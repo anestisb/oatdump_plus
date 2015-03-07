@@ -541,6 +541,7 @@ void Mir2Lir::InstallSwitchTables() {
         break;
       case kArm64:
       case kMips:
+      case kMips64:
         bx_offset = tab_rec->anchor->offset;
         break;
       default: LOG(FATAL) << "Unexpected instruction set: " << cu_->instruction_set;
@@ -1067,7 +1068,10 @@ CompiledMethod* Mir2Lir::GetCompiledMethod() {
     return lhs.LiteralOffset() < rhs.LiteralOffset();
   });
 
-  std::unique_ptr<std::vector<uint8_t>> cfi_info(ReturnFrameDescriptionEntry());
+  std::unique_ptr<std::vector<uint8_t>> cfi_info(
+      cu_->compiler_driver->GetCompilerOptions().GetGenerateGDBInformation() ?
+          ReturnFrameDescriptionEntry() :
+          nullptr);
   ArrayRef<const uint8_t> cfi_ref;
   if (cfi_info.get() != nullptr) {
     cfi_ref = ArrayRef<const uint8_t>(*cfi_info);
@@ -1200,6 +1204,7 @@ void Mir2Lir::LoadCodeAddress(const MethodReference& target_method, InvokeType t
   LIR* load_pc_rel = OpPcRelLoad(TargetPtrReg(symbolic_reg), data_target);
   AppendLIR(load_pc_rel);
   DCHECK_NE(cu_->instruction_set, kMips) << reinterpret_cast<void*>(data_target);
+  DCHECK_NE(cu_->instruction_set, kMips64) << reinterpret_cast<void*>(data_target);
 }
 
 void Mir2Lir::LoadMethodAddress(const MethodReference& target_method, InvokeType type,
@@ -1217,6 +1222,7 @@ void Mir2Lir::LoadMethodAddress(const MethodReference& target_method, InvokeType
   LIR* load_pc_rel = OpPcRelLoad(TargetReg(symbolic_reg, kRef), data_target);
   AppendLIR(load_pc_rel);
   DCHECK_NE(cu_->instruction_set, kMips) << reinterpret_cast<void*>(data_target);
+  DCHECK_NE(cu_->instruction_set, kMips64) << reinterpret_cast<void*>(data_target);
 }
 
 void Mir2Lir::LoadClassType(const DexFile& dex_file, uint32_t type_idx,

@@ -222,7 +222,8 @@ void Mir2Lir::CallRuntimeHelperRegLocationRegLocation(QuickEntrypointEnum trampo
                                                       RegLocation arg0, RegLocation arg1,
                                                       bool safepoint_pc) {
   RegStorage r_tgt = CallHelperSetup(trampoline);
-  if (cu_->instruction_set == kArm64 || cu_->instruction_set == kX86_64) {
+  if (cu_->instruction_set == kArm64 || cu_->instruction_set == kMips64 ||
+      cu_->instruction_set == kX86_64) {
     RegStorage arg0_reg = TargetReg((arg0.fp) ? kFArg0 : kArg0, arg0);
 
     RegStorage arg1_reg;
@@ -248,14 +249,16 @@ void Mir2Lir::CallRuntimeHelperRegLocationRegLocation(QuickEntrypointEnum trampo
     if (arg0.wide == 0) {
       LoadValueDirectFixed(arg0, TargetReg(arg0.fp ? kFArg0 : kArg0, kNotWide));
       if (arg1.wide == 0) {
+        // For Mips, when the 1st arg is integral, then remaining arg are passed in core reg.
         if (cu_->instruction_set == kMips) {
-          LoadValueDirectFixed(arg1, TargetReg(arg1.fp ? kFArg2 : kArg1, kNotWide));
+          LoadValueDirectFixed(arg1, TargetReg((arg1.fp && arg0.fp) ? kFArg2 : kArg1, kNotWide));
         } else {
           LoadValueDirectFixed(arg1, TargetReg(arg1.fp ? kFArg1 : kArg1, kNotWide));
         }
       } else {
+        // For Mips, when the 1st arg is integral, then remaining arg are passed in core reg.
         if (cu_->instruction_set == kMips) {
-          LoadValueDirectWideFixed(arg1, TargetReg(arg1.fp ? kFArg2 : kArg2, kWide));
+          LoadValueDirectWideFixed(arg1, TargetReg((arg1.fp && arg0.fp) ? kFArg2 : kArg2, kWide));
         } else {
           LoadValueDirectWideFixed(arg1, TargetReg(arg1.fp ? kFArg1 : kArg1, kWide));
         }
@@ -263,9 +266,19 @@ void Mir2Lir::CallRuntimeHelperRegLocationRegLocation(QuickEntrypointEnum trampo
     } else {
       LoadValueDirectWideFixed(arg0, TargetReg(arg0.fp ? kFArg0 : kArg0, kWide));
       if (arg1.wide == 0) {
-        LoadValueDirectFixed(arg1, TargetReg(arg1.fp ? kFArg2 : kArg2, kNotWide));
+        // For Mips, when the 1st arg is integral, then remaining arg are passed in core reg.
+        if (cu_->instruction_set == kMips) {
+          LoadValueDirectFixed(arg1, TargetReg((arg1.fp && arg0.fp) ? kFArg2 : kArg2, kNotWide));
+        } else {
+          LoadValueDirectFixed(arg1, TargetReg(arg1.fp ? kFArg2 : kArg2, kNotWide));
+        }
       } else {
-        LoadValueDirectWideFixed(arg1, TargetReg(arg1.fp ? kFArg2 : kArg2, kWide));
+        // For Mips, when the 1st arg is integral, then remaining arg are passed in core reg.
+        if (cu_->instruction_set == kMips) {
+          LoadValueDirectWideFixed(arg1, TargetReg((arg1.fp && arg0.fp) ? kFArg2 : kArg2, kWide));
+        } else {
+          LoadValueDirectWideFixed(arg1, TargetReg(arg1.fp ? kFArg2 : kArg2, kWide));
+        }
       }
     }
   }
@@ -863,11 +876,12 @@ RegLocation Mir2Lir::InlineTarget(CallInfo* info) {
   RegLocation res;
   if (info->result.location == kLocInvalid) {
     // If result is unused, return a sink target based on type of invoke target.
-    res = GetReturn(ShortyToRegClass(mir_graph_->GetShortyFromTargetIdx(info->index)[0]));
+    res = GetReturn(
+        ShortyToRegClass(mir_graph_->GetShortyFromMethodReference(info->method_ref)[0]));
   } else {
     res = info->result;
     DCHECK_EQ(LocToRegClass(res),
-              ShortyToRegClass(mir_graph_->GetShortyFromTargetIdx(info->index)[0]));
+              ShortyToRegClass(mir_graph_->GetShortyFromMethodReference(info->method_ref)[0]));
   }
   return res;
 }
@@ -876,18 +890,19 @@ RegLocation Mir2Lir::InlineTargetWide(CallInfo* info) {
   RegLocation res;
   if (info->result.location == kLocInvalid) {
     // If result is unused, return a sink target based on type of invoke target.
-    res = GetReturnWide(ShortyToRegClass(mir_graph_->GetShortyFromTargetIdx(info->index)[0]));
+    res = GetReturnWide(ShortyToRegClass(
+        mir_graph_->GetShortyFromMethodReference(info->method_ref)[0]));
   } else {
     res = info->result;
     DCHECK_EQ(LocToRegClass(res),
-              ShortyToRegClass(mir_graph_->GetShortyFromTargetIdx(info->index)[0]));
+              ShortyToRegClass(mir_graph_->GetShortyFromMethodReference(info->method_ref)[0]));
   }
   return res;
 }
 
 bool Mir2Lir::GenInlinedReferenceGetReferent(CallInfo* info) {
-  if (cu_->instruction_set == kMips) {
-    // TODO - add Mips implementation
+  if (cu_->instruction_set == kMips || cu_->instruction_set == kMips64) {
+    // TODO: add Mips and Mips64 implementations.
     return false;
   }
 
@@ -1014,8 +1029,8 @@ bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
 
 // Generates an inlined String.is_empty or String.length.
 bool Mir2Lir::GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty) {
-  if (cu_->instruction_set == kMips) {
-    // TODO - add Mips implementation
+  if (cu_->instruction_set == kMips || cu_->instruction_set == kMips64) {
+    // TODO: add Mips and Mips64 implementations.
     return false;
   }
   // dst = src.length();
@@ -1046,8 +1061,8 @@ bool Mir2Lir::GenInlinedStringIsEmptyOrLength(CallInfo* info, bool is_empty) {
 }
 
 bool Mir2Lir::GenInlinedReverseBytes(CallInfo* info, OpSize size) {
-  if (cu_->instruction_set == kMips) {
-    // TODO - add Mips implementation.
+  if (cu_->instruction_set == kMips || cu_->instruction_set == kMips64) {
+    // TODO: add Mips and Mips64 implementations.
     return false;
   }
   RegLocation rl_dest = IsWide(size) ? InlineTargetWide(info) : InlineTarget(info);  // result reg
@@ -1181,8 +1196,8 @@ bool Mir2Lir::GenInlinedRound(CallInfo* info, bool is_double) {
 }
 
 bool Mir2Lir::GenInlinedFloatCvt(CallInfo* info) {
-  if (cu_->instruction_set == kMips) {
-    // TODO - add Mips implementation
+  if (cu_->instruction_set == kMips || cu_->instruction_set == kMips64) {
+    // TODO: add Mips and Mips64 implementations.
     return false;
   }
   RegLocation rl_dest = InlineTarget(info);
@@ -1196,8 +1211,8 @@ bool Mir2Lir::GenInlinedFloatCvt(CallInfo* info) {
 }
 
 bool Mir2Lir::GenInlinedDoubleCvt(CallInfo* info) {
-  if (cu_->instruction_set == kMips) {
-    // TODO - add Mips implementation
+  if (cu_->instruction_set == kMips || cu_->instruction_set == kMips64) {
+    // TODO: add Mips and Mips64 implementations.
     return false;
   }
   RegLocation rl_dest = InlineTargetWide(info);
@@ -1267,8 +1282,8 @@ bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
 
 /* Fast string.compareTo(Ljava/lang/string;)I. */
 bool Mir2Lir::GenInlinedStringCompareTo(CallInfo* info) {
-  if (cu_->instruction_set == kMips) {
-    // TODO - add Mips implementation
+  if (cu_->instruction_set == kMips || cu_->instruction_set == kMips64) {
+    // TODO: add Mips and Mips64 implementations.
     return false;
   }
   ClobberCallerSave();
@@ -1322,8 +1337,8 @@ bool Mir2Lir::GenInlinedCurrentThread(CallInfo* info) {
 
 bool Mir2Lir::GenInlinedUnsafeGet(CallInfo* info,
                                   bool is_long, bool is_volatile) {
-  if (cu_->instruction_set == kMips) {
-    // TODO - add Mips implementation
+  if (cu_->instruction_set == kMips || cu_->instruction_set == kMips64) {
+    // TODO: add Mips and Mips64 implementations.
     return false;
   }
   // Unused - RegLocation rl_src_unsafe = info->args[0];
@@ -1367,8 +1382,8 @@ bool Mir2Lir::GenInlinedUnsafeGet(CallInfo* info,
 
 bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
                                   bool is_object, bool is_volatile, bool is_ordered) {
-  if (cu_->instruction_set == kMips) {
-    // TODO - add Mips implementation
+  if (cu_->instruction_set == kMips || cu_->instruction_set == kMips64) {
+    // TODO: add Mips and Mips64 implementations.
     return false;
   }
   // Unused - RegLocation rl_src_unsafe = info->args[0];
@@ -1418,7 +1433,8 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
 
 void Mir2Lir::GenInvoke(CallInfo* info) {
   DCHECK(cu_->compiler_driver->GetMethodInlinerMap() != nullptr);
-  if (cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(cu_->dex_file)
+  const DexFile* dex_file = info->method_ref.dex_file;
+  if (cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(dex_file)
       ->GenIntrinsic(this, info)) {
     return;
   }
@@ -1428,7 +1444,7 @@ void Mir2Lir::GenInvoke(CallInfo* info) {
 void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
   int call_state = 0;
   LIR* null_ck;
-  LIR** p_null_ck = NULL;
+  LIR** p_null_ck = nullptr;
   NextCallInsn next_call_insn;
   FlushAllRegs();  /* Everything to home location */
   // Explicit register usage
@@ -1440,6 +1456,7 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
   info->type = method_info.GetSharpType();
   bool fast_path = method_info.FastPath();
   bool skip_this;
+
   if (info->type == kInterface) {
     next_call_insn = fast_path ? NextInterfaceCallInsn : NextInterfaceCallInsnWithAccessCheck;
     skip_this = fast_path;
@@ -1469,7 +1486,8 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
   // Finish up any of the call sequence not interleaved in arg loading
   while (call_state >= 0) {
     call_state = next_call_insn(cu_, info, call_state, target_method, method_info.VTableIndex(),
-                                method_info.DirectCode(), method_info.DirectMethod(), original_type);
+                                method_info.DirectCode(), method_info.DirectMethod(),
+                                original_type);
   }
   LIR* call_insn = GenCallInsn(method_info);
   MarkSafepointPC(call_insn);

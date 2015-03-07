@@ -270,7 +270,7 @@ void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
     set = new (allocator_) ValueSet(allocator_);
   } else {
     HBasicBlock* dominator = block->GetDominator();
-    set = sets_.Get(dominator->GetBlockId())->Copy();
+    set = sets_.Get(dominator->GetBlockId());
     if (dominator->GetSuccessors().Size() != 1 || dominator->GetSuccessors().Get(0) != block) {
       // We have to copy if the dominator has other successors, or `block` is not a successor
       // of the dominator.
@@ -299,8 +299,17 @@ void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
     // Save the next instruction in case `current` is removed from the graph.
     HInstruction* next = current->GetNext();
     if (current->CanBeMoved()) {
+      if (current->IsBinaryOperation() && current->AsBinaryOperation()->IsCommutative()) {
+        // For commutative ops, (x op y) will be treated the same as (y op x)
+        // after fixed ordering.
+        current->AsBinaryOperation()->OrderInputs();
+      }
       HInstruction* existing = set->Lookup(current);
       if (existing != nullptr) {
+        // This replacement doesn't make more OrderInputs() necessary since
+        // current is either used by an instruction that it dominates,
+        // which hasn't been visited yet due to the order we visit instructions.
+        // Or current is used by a phi, and we don't do OrderInputs() on a phi anyway.
         current->ReplaceWith(existing);
         current->GetBlock()->RemoveInstruction(current);
       } else {

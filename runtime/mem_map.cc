@@ -143,9 +143,10 @@ uintptr_t MemMap::next_mem_pos_ = GenerateNextMemPos();
 #endif
 
 // Return true if the address range is contained in a single /proc/self/map entry.
-static bool ContainedWithinExistingMap(uintptr_t begin,
-                                       uintptr_t end,
+static bool ContainedWithinExistingMap(uint8_t* ptr, size_t size,
                                        std::string* error_msg) {
+  uintptr_t begin = reinterpret_cast<uintptr_t>(ptr);
+  uintptr_t end = begin + size;
   std::unique_ptr<BacktraceMap> map(BacktraceMap::Create(getpid(), true));
   if (map.get() == nullptr) {
     *error_msg = StringPrintf("Failed to build process map");
@@ -157,11 +158,9 @@ static bool ContainedWithinExistingMap(uintptr_t begin,
       return true;
     }
   }
-  std::string maps;
-  ReadFileToString("/proc/self/maps", &maps);
+  PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
   *error_msg = StringPrintf("Requested region 0x%08" PRIxPTR "-0x%08" PRIxPTR " does not overlap "
-                            "any existing map:\n%s\n",
-                            begin, end, maps.c_str());
+                            "any existing map. See process maps in the log.", begin, end);
   return false;
 }
 
@@ -247,7 +246,7 @@ static bool CheckMapRequest(uint8_t* expected_ptr, void* actual_ptr, size_t byte
 }
 
 MemMap* MemMap::MapAnonymous(const char* name, uint8_t* expected_ptr, size_t byte_count, int prot,
-                             bool low_4gb, std::string* error_msg) {
+                             bool low_4gb, bool reuse, std::string* error_msg) {
 #ifndef __LP64__
   UNUSED(low_4gb);
 #endif
@@ -257,6 +256,15 @@ MemMap* MemMap::MapAnonymous(const char* name, uint8_t* expected_ptr, size_t byt
   size_t page_aligned_byte_count = RoundUp(byte_count, kPageSize);
 
   int flags = MAP_PRIVATE | MAP_ANONYMOUS;
+  if (reuse) {
+    // reuse means it is okay that it overlaps an existing page mapping.
+    // Only use this if you actually made the page reservation yourself.
+    CHECK(expected_ptr != nullptr);
+
+    DCHECK(ContainedWithinExistingMap(expected_ptr, byte_count, error_msg)) << error_msg;
+    flags |= MAP_FIXED;
+  }
+
   ScopedFd fd(-1);
 
 #ifdef USE_ASHMEM
@@ -280,7 +288,7 @@ MemMap* MemMap::MapAnonymous(const char* name, uint8_t* expected_ptr, size_t byt
       *error_msg = StringPrintf("ashmem_create_region failed for '%s': %s", name, strerror(errno));
       return nullptr;
     }
-    flags = MAP_PRIVATE;
+    flags &= ~MAP_ANONYMOUS;
   }
 #endif
 
@@ -380,12 +388,11 @@ MemMap* MemMap::MapAnonymous(const char* name, uint8_t* expected_ptr, size_t byt
 #endif
 
   if (actual == MAP_FAILED) {
-    std::string maps;
-    ReadFileToString("/proc/self/maps", &maps);
+    PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
 
-    *error_msg = StringPrintf("Failed anonymous mmap(%p, %zd, 0x%x, 0x%x, %d, 0): %s\n%s",
-                              expected_ptr, page_aligned_byte_count, prot, flags, fd.get(),
-                              strerror(saved_errno), maps.c_str());
+    *error_msg = StringPrintf("Failed anonymous mmap(%p, %zd, 0x%x, 0x%x, %d, 0): %s. See process "
+                              "maps in the log.", expected_ptr, page_aligned_byte_count, prot,
+                              flags, fd.get(), strerror(saved_errno));
     return nullptr;
   }
   std::ostringstream check_map_request_error_msg;
@@ -401,8 +408,6 @@ MemMap* MemMap::MapFileAtAddress(uint8_t* expected_ptr, size_t byte_count, int p
                                  std::string* error_msg) {
   CHECK_NE(0, prot);
   CHECK_NE(0, flags & (MAP_SHARED | MAP_PRIVATE));
-  uintptr_t expected = reinterpret_cast<uintptr_t>(expected_ptr);
-  uintptr_t limit = expected + byte_count;
 
   // Note that we do not allow MAP_FIXED unless reuse == true, i.e we
   // expect his mapping to be contained within an existing map.
@@ -411,7 +416,7 @@ MemMap* MemMap::MapFileAtAddress(uint8_t* expected_ptr, size_t byte_count, int p
     // Only use this if you actually made the page reservation yourself.
     CHECK(expected_ptr != nullptr);
 
-    DCHECK(ContainedWithinExistingMap(expected, limit, error_msg));
+    DCHECK(ContainedWithinExistingMap(expected_ptr, byte_count, error_msg)) << error_msg;
     flags |= MAP_FIXED;
   } else {
     CHECK_EQ(0, flags & MAP_FIXED);
@@ -440,14 +445,13 @@ MemMap* MemMap::MapFileAtAddress(uint8_t* expected_ptr, size_t byte_count, int p
   if (actual == MAP_FAILED) {
     auto saved_errno = errno;
 
-    std::string maps;
-    ReadFileToString("/proc/self/maps", &maps);
+    PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
 
     *error_msg = StringPrintf("mmap(%p, %zd, 0x%x, 0x%x, %d, %" PRId64
-                              ") of file '%s' failed: %s\n%s",
+                              ") of file '%s' failed: %s. See process maps in the log.",
                               page_aligned_expected, page_aligned_byte_count, prot, flags, fd,
                               static_cast<int64_t>(page_aligned_offset), filename,
-                              strerror(saved_errno), maps.c_str());
+                              strerror(saved_errno));
     return nullptr;
   }
   std::ostringstream check_map_request_error_msg;
@@ -549,11 +553,9 @@ MemMap* MemMap::RemapAtEnd(uint8_t* new_end, const char* tail_name, int tail_pro
   // Unmap/map the tail region.
   int result = munmap(tail_base_begin, tail_base_size);
   if (result == -1) {
-    std::string maps;
-    ReadFileToString("/proc/self/maps", &maps);
-    *error_msg = StringPrintf("munmap(%p, %zd) failed for '%s'\n%s",
-                              tail_base_begin, tail_base_size, name_.c_str(),
-                              maps.c_str());
+    PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
+    *error_msg = StringPrintf("munmap(%p, %zd) failed for '%s'. See process maps in the log.",
+                              tail_base_begin, tail_base_size, name_.c_str());
     return nullptr;
   }
   // Don't cause memory allocation between the munmap and the mmap
@@ -563,11 +565,10 @@ MemMap* MemMap::RemapAtEnd(uint8_t* new_end, const char* tail_name, int tail_pro
   uint8_t* actual = reinterpret_cast<uint8_t*>(mmap(tail_base_begin, tail_base_size, tail_prot,
                                               flags, fd.get(), 0));
   if (actual == MAP_FAILED) {
-    std::string maps;
-    ReadFileToString("/proc/self/maps", &maps);
-    *error_msg = StringPrintf("anonymous mmap(%p, %zd, 0x%x, 0x%x, %d, 0) failed\n%s",
-                              tail_base_begin, tail_base_size, tail_prot, flags, fd.get(),
-                              maps.c_str());
+    PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
+    *error_msg = StringPrintf("anonymous mmap(%p, %zd, 0x%x, 0x%x, %d, 0) failed. See process "
+                              "maps in the log.", tail_base_begin, tail_base_size, tail_prot, flags,
+                              fd.get());
     return nullptr;
   }
   return new MemMap(tail_name, actual, tail_size, actual, tail_base_size, tail_prot, false);

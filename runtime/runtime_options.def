@@ -63,6 +63,9 @@ RUNTIME_OPTIONS_KEY (Unit,                IgnoreMaxFootprint)
 RUNTIME_OPTIONS_KEY (Unit,                LowMemoryMode)
 RUNTIME_OPTIONS_KEY (bool,                UseTLAB,                        false)
 RUNTIME_OPTIONS_KEY (bool,                EnableHSpaceCompactForOOM,      true)
+RUNTIME_OPTIONS_KEY (bool,                UseJIT,      false)
+RUNTIME_OPTIONS_KEY (unsigned int,        JITCompileThreshold, jit::Jit::kDefaultCompileThreshold)
+RUNTIME_OPTIONS_KEY (MemoryKiB,           JITCodeCacheCapacity, jit::JitCodeCache::kDefaultCapacity)
 RUNTIME_OPTIONS_KEY (MillisecondsToNanoseconds, \
                                           HSpaceCompactForOOMMinIntervalsMs,\
                                                                           MsToNs(100 * 1000))  // 100s
@@ -115,6 +118,6 @@ RUNTIME_OPTIONS_KEY (void (*)(int32_t status), \
                                                                           // Runtime::Abort.
 RUNTIME_OPTIONS_KEY (void (*)(),          HookAbort,                      nullptr)
 RUNTIME_OPTIONS_KEY (unsigned int,        ZygoteMaxFailedBoots,           1)
-
+RUNTIME_OPTIONS_KEY (Unit,                NoDexFileFallback)
 
 #undef RUNTIME_OPTIONS_KEY

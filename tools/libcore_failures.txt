@@ -34,10 +34,47 @@
   modes: [device],
   names: ["libcore.java.util.TimeZoneTest#testDisplayNames",
           "libcore.java.util.TimeZoneTest#test_useDaylightTime_Taiwan",
+          "libcore.java.util.TimeZoneTest#testAllDisplayNames",
+          "libcore.io.OsTest#testUnixDomainSockets_in_file_system",
+          "org.apache.harmony.luni.tests.java.net.URLConnectionTest#test_setReadTimeoutI",
           "org.apache.harmony.tests.java.util.DateTest#test_Constructor",
           "org.apache.harmony.tests.java.util.ScannerTest#test_Constructor_LReadableByteChannel",
           "org.apache.harmony.tests.java.util.TimeZoneTest#test_hasSameRules_Ljava_util_TimeZone",
-          "libcore.java.util.TimeZoneTest#testAllDisplayNames"]
+          "org.apache.harmony.tests.java.text.ChoiceFormatTest#testEscapedPatternWithConsecutiveQuotes",
+          "org.apache.harmony.tests.java.text.ChoiceFormatTest#testToPatternWithInfinities",
+          "org.apache.harmony.tests.java.text.MessageFormatTest#test19011159"]
+},
+{
+  description: "Failing due to a locale problem on hammerhead.",
+  result: EXEC_FAILED,
+  modes: [device],
+  names: ["libcore.icu.DateIntervalFormatTest#test10089890",
+          "libcore.icu.DateIntervalFormatTest#test10209343_when_not_this_year",
+          "libcore.icu.DateIntervalFormatTest#test10560853_for_single_day_events",
+          "libcore.icu.DateIntervalFormatTest#test10560853_when_time_not_displayed",
+          "libcore.icu.RelativeDateTimeFormatterTest#test_getRelativeDateTimeString",
+          "libcore.icu.RelativeDateTimeFormatterTest#test_getRelativeTimeSpanString",
+          "libcore.icu.RelativeDateTimeFormatterTest#test_getRelativeTimeSpanStringAbbrev",
+          "libcore.java.text.OldDateFormatTest#test_parseLString",
+          "libcore.java.text.SimpleDateFormatTest#testDstZoneNameWithNonDstTimestamp",
+          "libcore.java.text.SimpleDateFormatTest#testDstZoneWithNonDstTimestampForNonHourDstZone",
+          "libcore.java.text.SimpleDateFormatTest#testNonDstZoneNameWithDstTimestamp",
+          "libcore.java.text.SimpleDateFormatTest#testNonDstZoneWithDstTimestampForNonHourDstZone",
+          "org.apache.harmony.tests.java.text.SimpleDateFormatTest#test_parseLjava_lang_StringLjava_text_ParsePosition"]
+},
+{
+  description: "Failing due to missing localhost on volantis.",
+  result: EXEC_FAILED,
+  modes: [device],
+  names: ["org.apache.harmony.luni.tests.internal.net.www.protocol.http.HttpURLConnectionTest",
+          "org.apache.harmony.luni.tests.internal.net.www.protocol.https.HttpsURLConnectionTest",
+          "org.apache.harmony.luni.tests.java.net.URLConnectionTest"]
+},
+{
+  description: "Failing due to missing localhost on hammerhead and volantis.",
+  result: EXEC_FAILED,
+  modes: [device],
+  names: ["libcore.javax.crypto.CipherTest#testCipherInitWithCertificate"]
 },
 {
   description: "Test timeouts",
@@ -50,5 +87,24 @@
   result: EXEC_FAILED,
   modes: [device],
   names: ["org.apache.harmony.tests.java.lang.ProcessTest#test_getErrorStream"]
+},
+{
+  description: "Short date format flag ignored for es_US locale.",
+  result: EXEC_FAILED,
+  name: "libcore.icu.DateIntervalFormatTest#test_formatDateInterval",
+  bug: 18619426
+},
+{
+  description: "Error decoding digital signature bytes.",
+  result: EXEC_FAILED,
+  name: "org.apache.harmony.security.tests.java.security.Signature2Test#test_verify$BII",
+  bug: 18869265
+},
+{
+  description: "Test sometimes timeouts on volantis",
+  result: EXEC_TIMEOUT,
+  modes_variants: [[device,X64]],
+  names: ["libcore.java.lang.SystemTest#testArrayCopyConcurrentModification"],
+  bug: 19165288
 }
 ]

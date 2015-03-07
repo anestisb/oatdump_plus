@@ -66,11 +66,16 @@ bool VerificationResults::ProcessVerifiedMethod(verifier::MethodVerifier* method
     // TODO: Investigate why are we doing the work again for this method and try to avoid it.
     LOG(WARNING) << "Method processed more than once: "
         << PrettyMethod(ref.dex_method_index, *ref.dex_file);
-    DCHECK_EQ(it->second->GetDevirtMap().size(), verified_method->GetDevirtMap().size());
-    DCHECK_EQ(it->second->GetSafeCastSet().size(), verified_method->GetSafeCastSet().size());
+    if (!Runtime::Current()->UseJit()) {
+      DCHECK_EQ(it->second->GetDevirtMap().size(), verified_method->GetDevirtMap().size());
+      DCHECK_EQ(it->second->GetSafeCastSet().size(), verified_method->GetSafeCastSet().size());
+    }
     DCHECK_EQ(it->second->GetDexGcMap().size(), verified_method->GetDexGcMap().size());
-    delete it->second;
-    verified_methods_.erase(it);
+    // Delete the new verified method since there was already an existing one registered. It
+    // is unsafe to replace the existing one since the JIT may be using it to generate a
+    // native GC map.
+    delete verified_method;
+    return true;
   }
   verified_methods_.Put(ref, verified_method);
   DCHECK(verified_methods_.find(ref) != verified_methods_.end());

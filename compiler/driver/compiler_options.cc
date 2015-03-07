@@ -30,6 +30,7 @@ CompilerOptions::CompilerOptions()
       generate_gdb_information_(false),
       include_patch_information_(kDefaultIncludePatchInformation),
       top_k_profile_threshold_(kDefaultTopKProfileThreshold),
+      debuggable_(false),
       include_debug_symbols_(kDefaultIncludeDebugSymbols),
       implicit_null_checks_(true),
       implicit_so_checks_(true),
@@ -37,6 +38,7 @@ CompilerOptions::CompilerOptions()
       compile_pic_(false),
       verbose_methods_(nullptr),
       pass_manager_options_(new PassManagerOptions),
+      abort_on_hard_verifier_failure_(false),
       init_failure_output_(nullptr) {
 }
 
@@ -49,6 +51,7 @@ CompilerOptions::CompilerOptions(CompilerFilter compiler_filter,
                                  bool generate_gdb_information,
                                  bool include_patch_information,
                                  double top_k_profile_threshold,
+                                 bool debuggable,
                                  bool include_debug_symbols,
                                  bool implicit_null_checks,
                                  bool implicit_so_checks,
@@ -56,7 +59,8 @@ CompilerOptions::CompilerOptions(CompilerFilter compiler_filter,
                                  bool compile_pic,
                                  const std::vector<std::string>* verbose_methods,
                                  PassManagerOptions* pass_manager_options,
-                                 std::ostream* init_failure_output
+                                 std::ostream* init_failure_output,
+                                 bool abort_on_hard_verifier_failure
                                  ) :  // NOLINT(whitespace/parens)
     compiler_filter_(compiler_filter),
     huge_method_threshold_(huge_method_threshold),
@@ -67,6 +71,7 @@ CompilerOptions::CompilerOptions(CompilerFilter compiler_filter,
     generate_gdb_information_(generate_gdb_information),
     include_patch_information_(include_patch_information),
     top_k_profile_threshold_(top_k_profile_threshold),
+    debuggable_(debuggable),
     include_debug_symbols_(include_debug_symbols),
     implicit_null_checks_(implicit_null_checks),
     implicit_so_checks_(implicit_so_checks),
@@ -74,6 +79,7 @@ CompilerOptions::CompilerOptions(CompilerFilter compiler_filter,
     compile_pic_(compile_pic),
     verbose_methods_(verbose_methods),
     pass_manager_options_(pass_manager_options),
+    abort_on_hard_verifier_failure_(abort_on_hard_verifier_failure),
     init_failure_output_(init_failure_output) {
 }
 

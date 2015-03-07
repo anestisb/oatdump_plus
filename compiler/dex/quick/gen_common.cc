@@ -482,6 +482,7 @@ void Mir2Lir::GenFilledNewArray(CallInfo* info) {
         r_val = AllocTemp();
         break;
       case kMips:
+      case kMips64:
         r_val = AllocTemp();
         break;
       default: LOG(FATAL) << "Unexpected instruction set: " << cu_->instruction_set;
@@ -865,7 +866,12 @@ void Mir2Lir::HandleSlowPaths() {
 void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size, Primitive::Type type,
                       RegLocation rl_dest, RegLocation rl_obj) {
   const MirIFieldLoweringInfo& field_info = mir_graph_->GetIFieldLoweringInfo(mir);
-  DCHECK_EQ(IGetMemAccessType(mir->dalvikInsn.opcode), field_info.MemAccessType());
+  if (kIsDebugBuild) {
+    auto mem_access_type = IsInstructionIGetQuickOrIPutQuick(mir->dalvikInsn.opcode) ?
+        IGetQuickOrIPutQuickMemAccessType(mir->dalvikInsn.opcode) :
+        IGetMemAccessType(mir->dalvikInsn.opcode);
+    DCHECK_EQ(mem_access_type, field_info.MemAccessType()) << mir->dalvikInsn.opcode;
+  }
   cu_->compiler_driver->ProcessedInstanceField(field_info.FastGet());
   if (!ForceSlowFieldPath(cu_) && field_info.FastGet()) {
     RegisterClass reg_class = RegClassForFieldLoadStore(size, field_info.IsVolatile());
@@ -939,7 +945,12 @@ void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size, Primitive::Type type
 void Mir2Lir::GenIPut(MIR* mir, int opt_flags, OpSize size,
                       RegLocation rl_src, RegLocation rl_obj) {
   const MirIFieldLoweringInfo& field_info = mir_graph_->GetIFieldLoweringInfo(mir);
-  DCHECK_EQ(IPutMemAccessType(mir->dalvikInsn.opcode), field_info.MemAccessType());
+  if (kIsDebugBuild) {
+    auto mem_access_type = IsInstructionIGetQuickOrIPutQuick(mir->dalvikInsn.opcode) ?
+        IGetQuickOrIPutQuickMemAccessType(mir->dalvikInsn.opcode) :
+        IPutMemAccessType(mir->dalvikInsn.opcode);
+    DCHECK_EQ(mem_access_type, field_info.MemAccessType());
+  }
   cu_->compiler_driver->ProcessedInstanceField(field_info.FastPut());
   if (!ForceSlowFieldPath(cu_) && field_info.FastPut()) {
     RegisterClass reg_class = RegClassForFieldLoadStore(size, field_info.IsVolatile());
@@ -1685,7 +1696,8 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
     StoreValue(rl_dest, rl_result);
   } else {
     bool done = false;      // Set to true if we happen to find a way to use a real instruction.
-    if (cu_->instruction_set == kMips || cu_->instruction_set == kArm64) {
+    if (cu_->instruction_set == kMips || cu_->instruction_set == kMips64 ||
+        cu_->instruction_set == kArm64) {
       rl_src1 = LoadValue(rl_src1, kCoreReg);
       rl_src2 = LoadValue(rl_src2, kCoreReg);
       if (check_zero && (flags & MIR_IGNORE_DIV_ZERO_CHECK) == 0) {
@@ -1980,7 +1992,8 @@ void Mir2Lir::GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest, Re
       }
 
       bool done = false;
-      if (cu_->instruction_set == kMips || cu_->instruction_set == kArm64) {
+      if (cu_->instruction_set == kMips || cu_->instruction_set == kMips64 ||
+          cu_->instruction_set == kArm64) {
         rl_src = LoadValue(rl_src, kCoreReg);
         rl_result = GenDivRemLit(rl_dest, rl_src.reg, lit, is_div);
         done = true;

@@ -28,14 +28,32 @@ if [ ! -f $test_jar ]; then
 fi
 
 # Packages that currently work correctly with the expectation files.
-working_packages=("libcore.java.lang"
+working_packages=("libcore.icu"
+                  "libcore.io"
+                  "libcore.java.lang"
                   "libcore.java.math"
+                  "libcore.java.text"
                   "libcore.java.util"
+                  "libcore.javax.crypto"
+                  "libcore.javax.security"
+                  "libcore.javax.sql"
+                  "libcore.javax.xml"
+                  "libcore.net"
+                  "libcore.reflect"
+                  "libcore.util"
                   "org.apache.harmony.annotation"
+                  "org.apache.harmony.crypto"
+                  "org.apache.harmony.luni"
+                  "org.apache.harmony.nio"
                   "org.apache.harmony.regex"
+                  "org.apache.harmony.security"
+                  "org.apache.harmony.testframework"
+                  "org.apache.harmony.tests.java.io"
                   "org.apache.harmony.tests.java.lang"
                   "org.apache.harmony.tests.java.math"
                   "org.apache.harmony.tests.java.util"
+                  "org.apache.harmony.tests.java.text"
+                  "org.apache.harmony.tests.javax.security"
                   "tests.java.lang.String")
 
 # Run the tests using vogar.

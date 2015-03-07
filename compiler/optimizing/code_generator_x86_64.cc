@@ -68,7 +68,7 @@ class NullCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
  public:
   explicit NullCheckSlowPathX86_64(HNullCheck* instruction) : instruction_(instruction) {}
 
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     __ Bind(GetEntryLabel());
     __ gs()->call(
         Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pThrowNullPointer), true));
@@ -84,7 +84,7 @@ class DivZeroCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
  public:
   explicit DivZeroCheckSlowPathX86_64(HDivZeroCheck* instruction) : instruction_(instruction) {}
 
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     __ Bind(GetEntryLabel());
     __ gs()->call(
         Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pThrowDivZero), true));
@@ -101,7 +101,7 @@ class DivRemMinusOneSlowPathX86_64 : public SlowPathCodeX86_64 {
   explicit DivRemMinusOneSlowPathX86_64(Register reg, Primitive::Type type, bool is_div)
       : cpu_reg_(CpuRegister(reg)), type_(type), is_div_(is_div) {}
 
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     __ Bind(GetEntryLabel());
     if (type_ == Primitive::kPrimInt) {
       if (is_div_) {
@@ -133,7 +133,7 @@ class SuspendCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
   explicit SuspendCheckSlowPathX86_64(HSuspendCheck* instruction, HBasicBlock* successor)
       : instruction_(instruction), successor_(successor) {}
 
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorX86_64* x64_codegen = down_cast<CodeGeneratorX86_64*>(codegen);
     __ Bind(GetEntryLabel());
     codegen->SaveLiveRegisters(instruction_->GetLocations());
@@ -169,7 +169,7 @@ class BoundsCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
         index_location_(index_location),
         length_location_(length_location) {}
 
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     __ Bind(GetEntryLabel());
     // We're moving two locations to locations that could overlap, so we need a parallel
     // move resolver.
@@ -202,7 +202,7 @@ class LoadClassSlowPathX86_64 : public SlowPathCodeX86_64 {
     DCHECK(at->IsLoadClass() || at->IsClinitCheck());
   }
 
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = at_->GetLocations();
     CodeGeneratorX86_64* x64_codegen = down_cast<CodeGeneratorX86_64*>(codegen);
     __ Bind(GetEntryLabel());
@@ -249,7 +249,7 @@ class LoadStringSlowPathX86_64 : public SlowPathCodeX86_64 {
  public:
   explicit LoadStringSlowPathX86_64(HLoadString* instruction) : instruction_(instruction) {}
 
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
     DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
 
@@ -286,7 +286,7 @@ class TypeCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
         object_class_(object_class),
         dex_pc_(dex_pc) {}
 
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
     DCHECK(instruction_->IsCheckCast()
            || !locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
@@ -894,7 +894,7 @@ void InstructionCodeGeneratorX86_64::VisitCondition(HCondition* comp) {
     if (rhs.IsRegister()) {
       __ cmpl(lhs.AsRegister<CpuRegister>(), rhs.AsRegister<CpuRegister>());
     } else if (rhs.IsConstant()) {
-      int32_t constant = rhs.GetConstant()->AsIntConstant()->GetValue();
+      int32_t constant = CodeGenerator::GetInt32ValueOf(rhs.GetConstant());
       if (constant == 0) {
         __ testl(lhs.AsRegister<CpuRegister>(), lhs.AsRegister<CpuRegister>());
       } else {
@@ -1868,8 +1868,19 @@ void LocationsBuilderX86_64::VisitAdd(HAdd* add) {
 
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, Location::RequiresRegister());
-      locations->SetOut(Location::SameAsFirstInput());
+      // We can use a leaq or addq if the constant can fit in an immediate.
+      HInstruction* rhs = add->InputAt(1);
+      bool is_int32_constant = false;
+      if (rhs->IsLongConstant()) {
+        int64_t value = rhs->AsLongConstant()->GetValue();
+        if (static_cast<int32_t>(value) == value) {
+          is_int32_constant = true;
+        }
+      }
+      locations->SetInAt(1,
+          is_int32_constant ? Location::RegisterOrConstant(rhs) :
+                              Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       break;
     }
 
@@ -1917,7 +1928,25 @@ void InstructionCodeGeneratorX86_64::VisitAdd(HAdd* add) {
     }
 
     case Primitive::kPrimLong: {
-      __ addq(first.AsRegister<CpuRegister>(), second.AsRegister<CpuRegister>());
+      if (second.IsRegister()) {
+        if (out.AsRegister<Register>() == first.AsRegister<Register>()) {
+          __ addq(out.AsRegister<CpuRegister>(), second.AsRegister<CpuRegister>());
+        } else {
+          __ leaq(out.AsRegister<CpuRegister>(), Address(
+              first.AsRegister<CpuRegister>(), second.AsRegister<CpuRegister>(), TIMES_1, 0));
+        }
+      } else {
+        DCHECK(second.IsConstant());
+        int64_t value = second.GetConstant()->AsLongConstant()->GetValue();
+        int32_t int32_value = Low32Bits(value);
+        DCHECK_EQ(int32_value, value);
+        if (out.AsRegister<Register>() == first.AsRegister<Register>()) {
+          __ addq(out.AsRegister<CpuRegister>(), Immediate(int32_value));
+        } else {
+          __ leaq(out.AsRegister<CpuRegister>(), Address(
+              first.AsRegister<CpuRegister>(), int32_value));
+        }
+      }
       break;
     }
 
@@ -2514,7 +2543,7 @@ void InstructionCodeGeneratorX86_64::VisitNot(HNot* not_) {
   DCHECK_EQ(locations->InAt(0).AsRegister<CpuRegister>().AsRegister(),
             locations->Out().AsRegister<CpuRegister>().AsRegister());
   Location out = locations->Out();
-  switch (not_->InputAt(0)->GetType()) {
+  switch (not_->GetResultType()) {
     case Primitive::kPrimInt:
       __ notl(out.AsRegister<CpuRegister>());
       break;
@@ -3135,7 +3164,7 @@ void InstructionCodeGeneratorX86_64::VisitArrayLength(HArrayLength* instruction)
 void LocationsBuilderX86_64::VisitBoundsCheck(HBoundsCheck* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(0, Location::RegisterOrConstant(instruction->InputAt(0)));
   locations->SetInAt(1, Location::RequiresRegister());
   if (instruction->HasUses()) {
     locations->SetOut(Location::SameAsFirstInput());
@@ -3144,15 +3173,20 @@ void LocationsBuilderX86_64::VisitBoundsCheck(HBoundsCheck* instruction) {
 
 void InstructionCodeGeneratorX86_64::VisitBoundsCheck(HBoundsCheck* instruction) {
   LocationSummary* locations = instruction->GetLocations();
-  SlowPathCodeX86_64* slow_path = new (GetGraph()->GetArena()) BoundsCheckSlowPathX86_64(
-      instruction, locations->InAt(0), locations->InAt(1));
+  Location index_loc = locations->InAt(0);
+  Location length_loc = locations->InAt(1);
+  SlowPathCodeX86_64* slow_path =
+    new (GetGraph()->GetArena()) BoundsCheckSlowPathX86_64(instruction, index_loc, length_loc);
   codegen_->AddSlowPath(slow_path);
 
-  CpuRegister index = locations->InAt(0).AsRegister<CpuRegister>();
-  CpuRegister length = locations->InAt(1).AsRegister<CpuRegister>();
-
-  __ cmpl(index, length);
-  __ j(kAboveEqual, slow_path->GetEntryLabel());
+  CpuRegister length = length_loc.AsRegister<CpuRegister>();
+  if (index_loc.IsConstant()) {
+    int32_t value = CodeGenerator::GetInt32ValueOf(index_loc.GetConstant());
+    __ cmpl(length, Immediate(value));
+  } else {
+    __ cmpl(length, index_loc.AsRegister<CpuRegister>());
+  }
+  __ j(kBelowEqual, slow_path->GetEntryLabel());
 }
 
 void CodeGeneratorX86_64::MarkGCCard(CpuRegister temp,

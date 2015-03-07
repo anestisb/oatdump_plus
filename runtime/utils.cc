@@ -133,14 +133,14 @@ void GetThreadStack(pthread_t thread, void** stack_base, size_t* stack_size, siz
 }
 
 bool ReadFileToString(const std::string& file_name, std::string* result) {
-  std::unique_ptr<File> file(new File);
-  if (!file->Open(file_name, O_RDONLY)) {
+  File file;
+  if (!file.Open(file_name, O_RDONLY)) {
     return false;
   }
 
   std::vector<char> buf(8 * KB);
   while (true) {
-    int64_t n = TEMP_FAILURE_RETRY(read(file->Fd(), &buf[0], buf.size()));
+    int64_t n = TEMP_FAILURE_RETRY(read(file.Fd(), &buf[0], buf.size()));
     if (n == -1) {
       return false;
     }
@@ -148,6 +148,59 @@ bool ReadFileToString(const std::string& file_name, std::string* result) {
       return true;
     }
     result->append(&buf[0], n);
+  }
+}
+
+bool PrintFileToLog(const std::string& file_name, LogSeverity level) {
+  File file;
+  if (!file.Open(file_name, O_RDONLY)) {
+    return false;
+  }
+
+  constexpr size_t kBufSize = 256;  // Small buffer. Avoid stack overflow and stack size warnings.
+  char buf[kBufSize + 1];           // +1 for terminator.
+  size_t filled_to = 0;
+  while (true) {
+    DCHECK_LT(filled_to, kBufSize);
+    int64_t n = TEMP_FAILURE_RETRY(read(file.Fd(), &buf[filled_to], kBufSize - filled_to));
+    if (n <= 0) {
+      // Print the rest of the buffer, if it exists.
+      if (filled_to > 0) {
+        buf[filled_to] = 0;
+        LOG(level) << buf;
+      }
+      return n == 0;
+    }
+    // Scan for '\n'.
+    size_t i = filled_to;
+    bool found_newline = false;
+    for (; i < filled_to + n; ++i) {
+      if (buf[i] == '\n') {
+        // Found a line break, that's something to print now.
+        buf[i] = 0;
+        LOG(level) << buf;
+        // Copy the rest to the front.
+        if (i + 1 < filled_to + n) {
+          memmove(&buf[0], &buf[i + 1], filled_to + n - i - 1);
+          filled_to = filled_to + n - i - 1;
+        } else {
+          filled_to = 0;
+        }
+        found_newline = true;
+        break;
+      }
+    }
+    if (found_newline) {
+      continue;
+    } else {
+      filled_to += n;
+      // Check if we must flush now.
+      if (filled_to == kBufSize) {
+        buf[kBufSize] = 0;
+        LOG(level) << buf;
+        filled_to = 0;
+      }
+    }
   }
 }
 
@@ -1211,14 +1264,6 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
     return;
   }
 
-#if !defined(HAVE_ANDROID_OS)
-  if (GetTid() != tid) {
-    // TODO: dumping of other threads is disabled to avoid crashes during stress testing.
-    //       b/15446488.
-    return;
-  }
-#endif
-
   std::unique_ptr<Backtrace> backtrace(Backtrace::Create(BACKTRACE_CURRENT_PROCESS, tid));
   if (!backtrace->Unwind(0, reinterpret_cast<ucontext*>(ucontext_ptr))) {
     os << prefix << "(backtrace::Unwind failed for thread " << tid << ")\n";
@@ -1262,9 +1307,9 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
           os << "+" << it->func_offset;
         }
         try_addr2line = true;
-      } else if (current_method != nullptr &&
-                 Locks::mutator_lock_->IsSharedHeld(Thread::Current()) &&
-                 current_method->PcIsWithinQuickCode(it->pc)) {
+      } else if (
+          current_method != nullptr && Locks::mutator_lock_->IsSharedHeld(Thread::Current()) &&
+          current_method->PcIsWithinQuickCode(it->pc)) {
         const void* start_of_code = current_method->GetEntryPointFromQuickCompiledCode();
         os << JniLongName(current_method) << "+"
            << (it->pc - reinterpret_cast<uintptr_t>(start_of_code));
@@ -1466,14 +1511,16 @@ std::string GetSystemImageFilename(const char* location, const InstructionSet is
 std::string DexFilenameToOdexFilename(const std::string& location, const InstructionSet isa) {
   // location = /foo/bar/baz.jar
   // odex_location = /foo/bar/<isa>/baz.odex
-
-  CHECK_GE(location.size(), 4U) << location;  // must be at least .123
   std::string odex_location(location);
   InsertIsaDirectory(isa, &odex_location);
-  size_t dot_index = odex_location.size() - 3 - 1;  // 3=dex or zip or apk
-  CHECK_EQ('.', odex_location[dot_index]) << location;
+  size_t dot_index = odex_location.rfind('.');
+
+  // The location must have an extension, otherwise it's not clear what we
+  // should return.
+  CHECK_NE(dot_index, std::string::npos) << odex_location;
+  CHECK_EQ(std::string::npos, odex_location.find('/', dot_index)) << odex_location;
+
   odex_location.resize(dot_index + 1);
-  CHECK_EQ('.', odex_location[odex_location.size()-1]) << location << " " << odex_location;
   odex_location += "odex";
   return odex_location;
 }

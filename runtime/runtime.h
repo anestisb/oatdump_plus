@@ -28,6 +28,7 @@
 
 #include "arch/instruction_set.h"
 #include "base/allocator.h"
+#include "base/macros.h"
 #include "compiler_callbacks.h"
 #include "gc_root.h"
 #include "instrumentation.h"
@@ -47,6 +48,12 @@ namespace gc {
     class GarbageCollector;
   }  // namespace collector
 }  // namespace gc
+
+namespace jit {
+  class Jit;
+  class JitOptions;
+}  // namespace jit
+
 namespace mirror {
   class ArtMethod;
   class ClassLoader;
@@ -94,12 +101,18 @@ class Runtime {
   static bool Create(const RuntimeOptions& options, bool ignore_unrecognized)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_);
 
+  // IsAotCompiler for compilers that don't have a running runtime. Only dex2oat currently.
+  bool IsAotCompiler() const {
+    return !UseJit() && IsCompiler();
+  }
+
+  // IsCompiler is any runtime which has a running compiler, either dex2oat or JIT.
   bool IsCompiler() const {
     return compiler_callbacks_ != nullptr;
   }
 
   bool CanRelocate() const {
-    return !IsCompiler() || compiler_callbacks_->IsRelocationPossible();
+    return !IsAotCompiler() || compiler_callbacks_->IsRelocationPossible();
   }
 
   bool ShouldRelocate() const {
@@ -185,7 +198,7 @@ class Runtime {
 
   // Aborts semi-cleanly. Used in the implementation of LOG(FATAL), which most
   // callers should prefer.
-  [[noreturn]] static void Abort() LOCKS_EXCLUDED(Locks::abort_lock_);
+  NO_RETURN static void Abort() LOCKS_EXCLUDED(Locks::abort_lock_);
 
   // Returns the "main" ThreadGroup, used when attaching user threads.
   jobject GetMainThreadGroup() const;
@@ -338,9 +351,7 @@ class Runtime {
     return !imt_conflict_method_.IsNull();
   }
 
-  void SetImtConflictMethod(mirror::ArtMethod* method) {
-    imt_conflict_method_ = GcRoot<mirror::ArtMethod>(method);
-  }
+  void SetImtConflictMethod(mirror::ArtMethod* method);
   void SetImtUnimplementedMethod(mirror::ArtMethod* method) {
     imt_unimplemented_method_ = GcRoot<mirror::ArtMethod>(method);
   }
@@ -420,6 +431,14 @@ class Runtime {
     kUnload,
     kInitialize
   };
+
+  jit::Jit* GetJit() {
+    return jit_.get();
+  }
+  bool UseJit() const {
+    return jit_.get() != nullptr;
+  }
+
   void PreZygoteFork();
   bool InitZygote();
   void DidForkFromZygote(JNIEnv* env, NativeBridgeAction action, const char* isa);
@@ -504,6 +523,10 @@ class Runtime {
     return verify_;
   }
 
+  bool IsDexFileFallbackEnabled() const {
+    return allow_dex_file_fallback_;
+  }
+
   bool RunningOnValgrind() const {
     return running_on_valgrind_;
   }
@@ -519,6 +542,8 @@ class Runtime {
   uint32_t GetZygoteMaxFailedBoots() const {
     return zygote_max_failed_boots_;
   }
+
+  void CreateJit();
 
  private:
   static void InitPlatformSignalHandlers();
@@ -599,6 +624,9 @@ class Runtime {
 
   JavaVMExt* java_vm_;
 
+  std::unique_ptr<jit::Jit> jit_;
+  std::unique_ptr<jit::JitOptions> jit_options_;
+
   // Fault message, printed when we get a SIGSEGV.
   Mutex fault_message_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::string fault_message_ GUARDED_BY(fault_message_lock_);
@@ -666,6 +694,10 @@ class Runtime {
 
   // If false, verification is disabled. True by default.
   bool verify_;
+
+  // If true, the runtime may use dex files directly with the interpreter if an oat file is not
+  // available/usable.
+  bool allow_dex_file_fallback_;
 
   // Specifies target SDK version to allow workarounds for certain API levels.
   int32_t target_sdk_version_;

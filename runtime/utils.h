@@ -410,6 +410,7 @@ std::string JniLongName(mirror::ArtMethod* m)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 bool ReadFileToString(const std::string& file_name, std::string* result);
+bool PrintFileToLog(const std::string& file_name, LogSeverity level);
 
 // Returns the current date in ISO yyyy-mm-dd hh:mm:ss format.
 std::string GetIsoDate();
@@ -515,8 +516,9 @@ std::string GetDalvikCacheFilenameOrDie(const char* file_location,
 // Returns the system location for an image
 std::string GetSystemImageFilename(const char* location, InstructionSet isa);
 
-// Returns an .odex file name next adjacent to the dex location.
+// Returns an .odex file name adjacent to the dex location.
 // For example, for "/foo/bar/baz.jar", return "/foo/bar/<isa>/baz.odex".
+// The dex location must include a directory component and have an extension.
 // Note: does not support multidex location strings.
 std::string DexFilenameToOdexFilename(const std::string& location, InstructionSet isa);
 

@@ -541,7 +541,7 @@ bool Thread::InitStackHwm() {
   // Set stack_end_ to the bottom of the stack saving space of stack overflows
 
   Runtime* runtime = Runtime::Current();
-  bool implicit_stack_check = !runtime->ExplicitStackOverflowChecks() && !runtime->IsCompiler();
+  bool implicit_stack_check = !runtime->ExplicitStackOverflowChecks() && !runtime->IsAotCompiler();
   ResetDefaultStackEnd();
 
   // Install the protected region if we are doing implicit overflow checks.
@@ -1626,6 +1626,12 @@ template jobject Thread::CreateInternalStackTrace<false>(
 template jobject Thread::CreateInternalStackTrace<true>(
     const ScopedObjectAccessAlreadyRunnable& soa) const;
 
+bool Thread::IsExceptionThrownByCurrentMethod(mirror::Throwable* exception) const {
+  CountStackDepthVisitor count_visitor(const_cast<Thread*>(this));
+  count_visitor.WalkStack();
+  return count_visitor.GetDepth() == exception->GetStackDepth();
+}
+
 jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
     const ScopedObjectAccessAlreadyRunnable& soa, jobject internal, jobjectArray output_array,
     int* stack_depth) {
@@ -1745,7 +1751,6 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
   Handle<mirror::ArtMethod> saved_throw_method(hs.NewHandle(throw_location.GetMethod()));
   // Ignore the cause throw location. TODO: should we report this as a re-throw?
   ScopedLocalRef<jobject> cause(GetJniEnv(), soa.AddLocalReference<jobject>(GetException(nullptr)));
-  bool is_exception_reported = IsExceptionReportedToInstrumentation();
   ClearException();
   Runtime* runtime = Runtime::Current();
 
@@ -1777,7 +1782,6 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
     ThrowLocation gc_safe_throw_location(saved_throw_this.Get(), saved_throw_method.Get(),
                                          throw_location.GetDexPc());
     SetException(gc_safe_throw_location, Runtime::Current()->GetPreAllocatedOutOfMemoryError());
-    SetExceptionReportedToInstrumentation(is_exception_reported);
     return;
   }
 
@@ -1830,7 +1834,6 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
     ThrowLocation gc_safe_throw_location(saved_throw_this.Get(), saved_throw_method.Get(),
                                          throw_location.GetDexPc());
     SetException(gc_safe_throw_location, exception.Get());
-    SetExceptionReportedToInstrumentation(is_exception_reported);
   } else {
     jvalue jv_args[2];
     size_t i = 0;
@@ -1848,7 +1851,6 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
       ThrowLocation gc_safe_throw_location(saved_throw_this.Get(), saved_throw_method.Get(),
                                            throw_location.GetDexPc());
       SetException(gc_safe_throw_location, exception.Get());
-      SetExceptionReportedToInstrumentation(is_exception_reported);
     }
   }
 }
@@ -2033,19 +2035,16 @@ void Thread::QuickDeliverException() {
   CHECK(exception != nullptr);
   // Don't leave exception visible while we try to find the handler, which may cause class
   // resolution.
-  bool is_exception_reported = IsExceptionReportedToInstrumentation();
   ClearException();
   bool is_deoptimization = (exception == GetDeoptimizationException());
   QuickExceptionHandler exception_handler(this, is_deoptimization);
   if (is_deoptimization) {
     exception_handler.DeoptimizeStack();
   } else {
-    exception_handler.FindCatch(throw_location, exception, is_exception_reported);
+    exception_handler.FindCatch(throw_location, exception);
   }
   exception_handler.UpdateInstrumentationStack();
   exception_handler.DoLongJump();
-  LOG(FATAL) << "UNREACHABLE";
-  UNREACHABLE();
 }
 
 Context* Thread::GetLongJumpContext() {

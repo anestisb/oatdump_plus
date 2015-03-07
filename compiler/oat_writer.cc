@@ -403,6 +403,7 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
     image_writer_(image_writer),
     dex_files_(&dex_files),
     size_(0u),
+    bss_size_(0u),
     oat_data_offset_(0u),
     image_file_location_oat_checksum_(image_file_location_oat_checksum),
     image_file_location_oat_begin_(image_file_location_oat_begin),
@@ -549,7 +550,7 @@ struct OatWriter::MappingTableDataAccess {
 
 struct OatWriter::VmapTableDataAccess {
   static const SwapVector<uint8_t>* GetData(const CompiledMethod* compiled_method) ALWAYS_INLINE {
-    return &compiled_method->GetVmapTable();
+    return compiled_method->GetVmapTable();
   }
 
   static uint32_t GetOffset(OatClass* oat_class, size_t method_offsets_index) ALWAYS_INLINE {

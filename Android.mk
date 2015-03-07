@@ -202,6 +202,11 @@ test-art-host-optimizing: test-art-host-run-test-optimizing
 test-art-host-interpreter: test-art-host-run-test-interpreter
 	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
 
+# All host tests that run solely on the jit.
+.PHONY: test-art-host-jit
+test-art-host-jit: test-art-host-run-test-jit
+	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
+
 # Primary host architecture variants:
 .PHONY: test-art-host$(ART_PHONY_TEST_HOST_SUFFIX)
 test-art-host$(ART_PHONY_TEST_HOST_SUFFIX): test-art-host-gtest$(ART_PHONY_TEST_HOST_SUFFIX) \
@@ -218,6 +223,10 @@ test-art-host-optimizing$(ART_PHONY_TEST_HOST_SUFFIX): test-art-host-run-test-op
 
 .PHONY: test-art-host-interpreter$(ART_PHONY_TEST_HOST_SUFFIX)
 test-art-host-interpreter$(ART_PHONY_TEST_HOST_SUFFIX): test-art-host-run-test-interpreter$(ART_PHONY_TEST_HOST_SUFFIX)
+	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
+
+.PHONY: test-art-host-jit$(ART_PHONY_TEST_HOST_SUFFIX)
+test-art-host-jit$(ART_PHONY_TEST_HOST_SUFFIX): test-art-host-run-test-jit$(ART_PHONY_TEST_HOST_SUFFIX)
 	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
 
 # Secondary host architecture variants:
@@ -237,6 +246,10 @@ test-art-host-optimizing$(2ND_ART_PHONY_TEST_HOST_SUFFIX): test-art-host-run-tes
 
 .PHONY: test-art-host-interpreter$(2ND_ART_PHONY_TEST_HOST_SUFFIX)
 test-art-host-interpreter$(2ND_ART_PHONY_TEST_HOST_SUFFIX): test-art-host-run-test-interpreter$(2ND_ART_PHONY_TEST_HOST_SUFFIX)
+	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
+
+.PHONY: test-art-host-jit$(2ND_ART_PHONY_TEST_HOST_SUFFIX)
+test-art-host-jit$(2ND_ART_PHONY_TEST_HOST_SUFFIX): test-art-host-run-test-jit$(2ND_ART_PHONY_TEST_HOST_SUFFIX)
 	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
 endif
 
@@ -268,6 +281,11 @@ test-art-target-optimizing: test-art-target-run-test-optimizing
 test-art-target-interpreter: test-art-target-run-test-interpreter
 	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
 
+# All target tests that run solely on the jit.
+.PHONY: test-art-target-jit
+test-art-target-jit: test-art-target-run-test-jit
+	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
+
 # Primary target architecture variants:
 .PHONY: test-art-target$(ART_PHONY_TEST_TARGET_SUFFIX)
 test-art-target$(ART_PHONY_TEST_TARGET_SUFFIX): test-art-target-gtest$(ART_PHONY_TEST_TARGET_SUFFIX) \
@@ -284,6 +302,10 @@ test-art-target-optimizing$(ART_PHONY_TEST_TARGET_SUFFIX): test-art-target-run-t
 
 .PHONY: test-art-target-interpreter$(ART_PHONY_TEST_TARGET_SUFFIX)
 test-art-target-interpreter$(ART_PHONY_TEST_TARGET_SUFFIX): test-art-target-run-test-interpreter$(ART_PHONY_TEST_TARGET_SUFFIX)
+	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
+
+.PHONY: test-art-target-jit$(ART_PHONY_TEST_TARGET_SUFFIX)
+test-art-target-jit$(ART_PHONY_TEST_TARGET_SUFFIX): test-art-target-run-test-jit$(ART_PHONY_TEST_TARGET_SUFFIX)
 	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
 
 # Secondary target architecture variants:
@@ -303,6 +325,10 @@ test-art-target-optimizing$(2ND_ART_PHONY_TEST_TARGET_SUFFIX): test-art-target-r
 
 .PHONY: test-art-target-interpreter$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)
 test-art-target-interpreter$(2ND_ART_PHONY_TEST_TARGET_SUFFIX): test-art-target-run-test-interpreter$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)
+	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
+
+.PHONY: test-art-target-jit$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)
+test-art-target-jit$(2ND_ART_PHONY_TEST_TARGET_SUFFIX): test-art-target-run-test-jit$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)
 	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
 endif
 

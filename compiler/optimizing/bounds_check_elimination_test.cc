@@ -43,6 +43,7 @@ TEST(BoundsCheckEliminationTest, NarrowingRangeArrayBoundsElimination) {
   ArenaAllocator allocator(&pool);
 
   HGraph* graph = new (&allocator) HGraph(&allocator);
+  graph->SetHasArrayAccesses(true);
 
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
@@ -148,6 +149,7 @@ TEST(BoundsCheckEliminationTest, OverflowArrayBoundsElimination) {
   ArenaAllocator allocator(&pool);
 
   HGraph* graph = new (&allocator) HGraph(&allocator);
+  graph->SetHasArrayAccesses(true);
 
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
@@ -221,6 +223,7 @@ TEST(BoundsCheckEliminationTest, UnderflowArrayBoundsElimination) {
   ArenaAllocator allocator(&pool);
 
   HGraph* graph = new (&allocator) HGraph(&allocator);
+  graph->SetHasArrayAccesses(true);
 
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
@@ -294,6 +297,7 @@ TEST(BoundsCheckEliminationTest, ConstantArrayBoundsElimination) {
   ArenaAllocator allocator(&pool);
 
   HGraph* graph = new (&allocator) HGraph(&allocator);
+  graph->SetHasArrayAccesses(true);
 
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
@@ -369,6 +373,7 @@ static HGraph* BuildSSAGraph1(ArenaAllocator* allocator,
                               int increment,
                               IfCondition cond = kCondGE) {
   HGraph* graph = new (allocator) HGraph(allocator);
+  graph->SetHasArrayAccesses(true);
 
   HBasicBlock* entry = new (allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
@@ -400,7 +405,6 @@ static HGraph* BuildSSAGraph1(ArenaAllocator* allocator,
   loop_body->AddSuccessor(loop_header);
 
   HPhi* phi = new (allocator) HPhi(allocator, 0, 0, Primitive::kPrimInt);
-  phi->AddInput(constant_initial);
   HInstruction* null_check = new (allocator) HNullCheck(parameter, 0);
   HInstruction* array_length = new (allocator) HArrayLength(null_check);
   HInstruction* cmp = nullptr;
@@ -416,6 +420,7 @@ static HGraph* BuildSSAGraph1(ArenaAllocator* allocator,
   loop_header->AddInstruction(array_length);
   loop_header->AddInstruction(cmp);
   loop_header->AddInstruction(if_inst);
+  phi->AddInput(constant_initial);
 
   null_check = new (allocator) HNullCheck(parameter, 0);
   array_length = new (allocator) HArrayLength(null_check);
@@ -507,6 +512,7 @@ static HGraph* BuildSSAGraph2(ArenaAllocator* allocator,
                               int increment = -1,
                               IfCondition cond = kCondLE) {
   HGraph* graph = new (allocator) HGraph(allocator);
+  graph->SetHasArrayAccesses(true);
 
   HBasicBlock* entry = new (allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
@@ -544,7 +550,6 @@ static HGraph* BuildSSAGraph2(ArenaAllocator* allocator,
   loop_body->AddSuccessor(loop_header);
 
   HPhi* phi = new (allocator) HPhi(allocator, 0, 0, Primitive::kPrimInt);
-  phi->AddInput(array_length);
   HInstruction* cmp = nullptr;
   if (cond == kCondLE) {
     cmp = new (allocator) HLessThanOrEqual(phi, constant_initial);
@@ -556,6 +561,7 @@ static HGraph* BuildSSAGraph2(ArenaAllocator* allocator,
   loop_header->AddPhi(phi);
   loop_header->AddInstruction(cmp);
   loop_header->AddInstruction(if_inst);
+  phi->AddInput(array_length);
 
   HInstruction* add = new (allocator) HAdd(Primitive::kPrimInt, phi, constant_minus_1);
   null_check = new (allocator) HNullCheck(parameter, 0);
@@ -632,7 +638,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination2) {
   ASSERT_TRUE(IsRemoved(bounds_check));
 }
 
-// int[] array = new array[10];
+// int[] array = new int[10];
 // for (int i=0; i<10; i+=increment) { array[i] = 10; }
 static HGraph* BuildSSAGraph3(ArenaAllocator* allocator,
                               HInstruction** bounds_check,
@@ -640,6 +646,7 @@ static HGraph* BuildSSAGraph3(ArenaAllocator* allocator,
                               int increment,
                               IfCondition cond) {
   HGraph* graph = new (allocator) HGraph(allocator);
+  graph->SetHasArrayAccesses(true);
 
   HBasicBlock* entry = new (allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
@@ -672,7 +679,6 @@ static HGraph* BuildSSAGraph3(ArenaAllocator* allocator,
   loop_body->AddSuccessor(loop_header);
 
   HPhi* phi = new (allocator) HPhi(allocator, 0, 0, Primitive::kPrimInt);
-  phi->AddInput(constant_initial);
   HInstruction* cmp = nullptr;
   if (cond == kCondGE) {
     cmp = new (allocator) HGreaterThanOrEqual(phi, constant_10);
@@ -684,6 +690,7 @@ static HGraph* BuildSSAGraph3(ArenaAllocator* allocator,
   loop_header->AddPhi(phi);
   loop_header->AddInstruction(cmp);
   loop_header->AddInstruction(if_inst);
+  phi->AddInput(constant_initial);
 
   HNullCheck* null_check = new (allocator) HNullCheck(new_array, 0);
   HArrayLength* array_length = new (allocator) HArrayLength(null_check);
@@ -708,7 +715,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination3) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
 
-  // int[] array = new array[10];
+  // int[] array = new int[10];
   // for (int i=0; i<10; i++) { array[i] = 10; // Can eliminate. }
   HInstruction* bounds_check = nullptr;
   HGraph* graph = BuildSSAGraph3(&allocator, &bounds_check, 0, 1, kCondGE);
@@ -718,7 +725,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination3) {
   bounds_check_elimination_after_gvn.Run();
   ASSERT_TRUE(IsRemoved(bounds_check));
 
-  // int[] array = new array[10];
+  // int[] array = new int[10];
   // for (int i=1; i<10; i++) { array[i] = 10; // Can eliminate. }
   graph = BuildSSAGraph3(&allocator, &bounds_check, 1, 1, kCondGE);
   graph->BuildDominatorTree();
@@ -727,7 +734,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination3) {
   bounds_check_elimination_with_initial_1.Run();
   ASSERT_TRUE(IsRemoved(bounds_check));
 
-  // int[] array = new array[10];
+  // int[] array = new int[10];
   // for (int i=0; i<=10; i++) { array[i] = 10; // Can't eliminate. }
   graph = BuildSSAGraph3(&allocator, &bounds_check, 0, 1, kCondGT);
   graph->BuildDominatorTree();
@@ -736,7 +743,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination3) {
   bounds_check_elimination_with_greater_than.Run();
   ASSERT_FALSE(IsRemoved(bounds_check));
 
-  // int[] array = new array[10];
+  // int[] array = new int[10];
   // for (int i=1; i<10; i+=8) { array[i] = 10; // Can eliminate. }
   graph = BuildSSAGraph3(&allocator, &bounds_check, 1, 8, kCondGE);
   graph->BuildDominatorTree();
@@ -752,6 +759,7 @@ static HGraph* BuildSSAGraph4(ArenaAllocator* allocator,
                               int initial,
                               IfCondition cond = kCondGE) {
   HGraph* graph = new (allocator) HGraph(allocator);
+  graph->SetHasArrayAccesses(true);
 
   HBasicBlock* entry = new (allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
@@ -785,7 +793,6 @@ static HGraph* BuildSSAGraph4(ArenaAllocator* allocator,
   loop_body->AddSuccessor(loop_header);
 
   HPhi* phi = new (allocator) HPhi(allocator, 0, 0, Primitive::kPrimInt);
-  phi->AddInput(constant_initial);
   HInstruction* null_check = new (allocator) HNullCheck(parameter, 0);
   HInstruction* array_length = new (allocator) HArrayLength(null_check);
   HInstruction* cmp = nullptr;
@@ -800,6 +807,7 @@ static HGraph* BuildSSAGraph4(ArenaAllocator* allocator,
   loop_header->AddInstruction(array_length);
   loop_header->AddInstruction(cmp);
   loop_header->AddInstruction(if_inst);
+  phi->AddInput(constant_initial);
 
   null_check = new (allocator) HNullCheck(parameter, 0);
   array_length = new (allocator) HArrayLength(null_check);
@@ -879,6 +887,7 @@ TEST(BoundsCheckEliminationTest, BubbleSortArrayBoundsElimination) {
   ArenaAllocator allocator(&pool);
 
   HGraph* graph = new (&allocator) HGraph(&allocator);
+  graph->SetHasArrayAccesses(true);
 
   HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
@@ -904,7 +913,6 @@ TEST(BoundsCheckEliminationTest, BubbleSortArrayBoundsElimination) {
   HBasicBlock* outer_header = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(outer_header);
   HPhi* phi_i = new (&allocator) HPhi(&allocator, 0, 0, Primitive::kPrimInt);
-  phi_i->AddInput(constant_0);
   HNullCheck* null_check = new (&allocator) HNullCheck(parameter, 0);
   HArrayLength* array_length = new (&allocator) HArrayLength(null_check);
   HAdd* add = new (&allocator) HAdd(Primitive::kPrimInt, array_length, constant_minus_1);
@@ -916,11 +924,11 @@ TEST(BoundsCheckEliminationTest, BubbleSortArrayBoundsElimination) {
   outer_header->AddInstruction(add);
   outer_header->AddInstruction(cmp);
   outer_header->AddInstruction(if_inst);
+  phi_i->AddInput(constant_0);
 
   HBasicBlock* inner_header = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(inner_header);
   HPhi* phi_j = new (&allocator) HPhi(&allocator, 0, 0, Primitive::kPrimInt);
-  phi_j->AddInput(constant_0);
   null_check = new (&allocator) HNullCheck(parameter, 0);
   array_length = new (&allocator) HArrayLength(null_check);
   HSub* sub = new (&allocator) HSub(Primitive::kPrimInt, array_length, phi_i);
@@ -934,6 +942,7 @@ TEST(BoundsCheckEliminationTest, BubbleSortArrayBoundsElimination) {
   inner_header->AddInstruction(add);
   inner_header->AddInstruction(cmp);
   inner_header->AddInstruction(if_inst);
+  phi_j->AddInput(constant_0);
 
   HBasicBlock* inner_body_compare = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(inner_body_compare);
