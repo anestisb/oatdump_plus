@@ -1,7 +1,7 @@
 oatdump++
 =========
 
-Enhanced version of the original oatdump system utility from new Android ART runtime.
+Enhanced version of the original oatdump system utility from new Android ART runtime. oatdump++ major features are merged with AOSP upstream. This repo is used mainly for new features development and testing.
 
 ## New Features
 
