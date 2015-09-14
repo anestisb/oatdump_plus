@@ -243,7 +243,38 @@ std::string DisassemblerX86::DumpAddress(uint8_t mod, uint8_t rm, uint8_t rex64,
   return address.str();
 }
 
+size_t DisassemblerX86::DumpNops(std::ostream& os, const uint8_t* instr) {
+static constexpr uint8_t kNops[][10] = {
+      { },
+      { 0x90 },
+      { 0x66, 0x90 },
+      { 0x0f, 0x1f, 0x00 },
+      { 0x0f, 0x1f, 0x40, 0x00 },
+      { 0x0f, 0x1f, 0x44, 0x00, 0x00 },
+      { 0x66, 0x0f, 0x1f, 0x44, 0x00, 0x00 },
+      { 0x0f, 0x1f, 0x80, 0x00, 0x00, 0x00, 0x00 },
+      { 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00 },
+      { 0x66, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00 },
+      { 0x66, 0x2e, 0x0f, 0x1f, 0x84, 0x00, 0x00, 0x00, 0x00, 0x00 }
+  };
+
+  for (size_t i = 1; i < arraysize(kNops); ++i) {
+    if (memcmp(instr, kNops[i], i) == 0) {
+      os << FormatInstructionPointer(instr)
+         << StringPrintf(": %22s    \t       nop \n", DumpCodeHex(instr, instr + i).c_str());
+      return i;
+    }
+  }
+
+  return 0;
+}
+
 size_t DisassemblerX86::DumpInstruction(std::ostream& os, const uint8_t* instr) {
+  size_t nop_size = DumpNops(os, instr);
+  if (nop_size != 0u) {
+    return nop_size;
+  }
+
   const uint8_t* begin_instr = instr;
   bool have_prefixes = true;
   uint8_t prefix[4] = {0, 0, 0, 0};
@@ -400,6 +431,7 @@ DISASSEMBLER_ENTRY(cmp,
   case 0x89: opcode1 = "mov"; store = true; has_modrm = true; break;
   case 0x8A: opcode1 = "mov"; load = true; has_modrm = true; byte_operand = true; break;
   case 0x8B: opcode1 = "mov"; load = true; has_modrm = true; break;
+  case 0x9D: opcode1 = "popf"; break;
 
   case 0x0F:  // 2 byte extended opcode
     instr++;

@@ -33,6 +33,7 @@ class DisassemblerX86 FINAL : public Disassembler {
   void Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end) OVERRIDE;
 
  private:
+  size_t DumpNops(std::ostream& os, const uint8_t* instr);
   size_t DumpInstruction(std::ostream& os, const uint8_t* instr);
 
   std::string DumpAddress(uint8_t mod, uint8_t rm, uint8_t rex64, uint8_t rex_w, bool no_ops,
