@@ -101,7 +101,7 @@ class Main {
       assertEqual(StaticInternString.getIntent(), getIntent.invoke(staticInternString),
           "Dynamically loaded app image's literal strings not interned properly.");
     } catch (Exception e) {
-      e.printStackTrace();
+      e.printStackTrace(System.out);
     }
 
   }

@@ -43,29 +43,29 @@ public class WrappedThrow {
         InterfaceW2 if2 = (InterfaceW2) proxy;
         try {
             if1.throwFunky();
-            System.err.println("No exception thrown");
+            System.out.println("No exception thrown");
         } catch (UndeclaredThrowableException ute) {
             System.out.println("Got expected UTE");
         } catch (Throwable t) {
-            System.err.println("Got unexpected exception: " + t);
+            System.out.println("Got unexpected exception: " + t);
         }
 
         try {
             if1.throwFunky2();
-            System.err.println("No exception thrown");
+            System.out.println("No exception thrown");
         } catch (IOException ioe) {
             System.out.println("Got expected IOE");
         } catch (Throwable t) {
-            System.err.println("Got unexpected exception: " + t);
+            System.out.println("Got unexpected exception: " + t);
         }
 
         try {
             if2.throwFunky2();
-            System.err.println("No exception thrown");
+            System.out.println("No exception thrown");
         } catch (IOException ioe) {
             System.out.println("Got expected IOE");
         } catch (Throwable t) {
-            System.err.println("Got unexpected exception: " + t);
+            System.out.println("Got unexpected exception: " + t);
         }
 
         /*
@@ -73,38 +73,38 @@ public class WrappedThrow {
          */
         try {
             if1.throwException();
-            System.err.println("No exception thrown");
+            System.out.println("No exception thrown");
         } catch (UndeclaredThrowableException ute) {
             System.out.println("Got expected UTE");
         } catch (Throwable t) {
-            System.err.println("Got unexpected exception: " + t);
+            System.out.println("Got unexpected exception: " + t);
         }
 
         try {
             if1.throwBase();
-            System.err.println("No exception thrown");
+            System.out.println("No exception thrown");
         } catch (UndeclaredThrowableException ute) {
             System.out.println("Got expected UTE");
         } catch (Throwable t) {
-            System.err.println("Got unexpected exception: " + t);
+            System.out.println("Got unexpected exception: " + t);
         }
 
         try {
             if2.throwSub();
-            System.err.println("No exception thrown");
+            System.out.println("No exception thrown");
         } catch (SubException se) {
             System.out.println("Got expected exception");
         } catch (Throwable t) {
-            System.err.println("Got unexpected exception: " + t);
+            System.out.println("Got unexpected exception: " + t);
         }
 
         try {
             if2.throwSubSub();
-            System.err.println("No exception thrown");
+            System.out.println("No exception thrown");
         } catch (SubException se) {
             System.out.println("Got expected exception");
         } catch (Throwable t) {
-            System.err.println("Got unexpected exception: " + t);
+            System.out.println("Got unexpected exception: " + t);
         }
 
         /*
@@ -113,11 +113,11 @@ public class WrappedThrow {
          */
         try {
             if1.bothThrowBase();
-            System.err.println("No exception thrown");
+            System.out.println("No exception thrown");
         } catch (BaseException se) {
             System.out.println("Got expected exception");
         } catch (Throwable t) {
-            System.err.println("Got unexpected exception: " + t);
+            System.out.println("Got unexpected exception: " + t);
         }
     }
 }

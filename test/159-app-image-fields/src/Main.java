@@ -57,7 +57,7 @@ public class Main {
                 System.out.println("another_value: " + another_value);
             }
         } catch (Throwable t) {
-            t.printStackTrace();
+            t.printStackTrace(System.out);
         }
     }
 

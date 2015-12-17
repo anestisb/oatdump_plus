@@ -46,7 +46,7 @@ public class Main {
             try {
                 Thread.sleep(500);
             } catch (InterruptedException ie) {
-                System.err.println(ie);
+                System.out.println(ie);
             }
         }
 
@@ -54,7 +54,7 @@ public class Main {
         try {
             Thread.sleep(750);
         } catch (InterruptedException ie) {
-            System.err.println(ie);
+            System.out.println(ie);
         }
 
         System.out.println("done");

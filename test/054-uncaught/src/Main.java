@@ -33,7 +33,7 @@ public class Main {
         try {
             t.join();
         } catch (InterruptedException ex) {
-            ex.printStackTrace();
+            ex.printStackTrace(System.out);
         }
     }
 
@@ -41,7 +41,7 @@ public class Main {
         ThreadDeathHandler defHandler = new ThreadDeathHandler("DEFAULT");
         ThreadDeathHandler threadHandler = new ThreadDeathHandler("THREAD");
 
-        System.err.println("Test " + which);
+        System.out.println("Test " + which);
         switch (which) {
             case 1: {
                 Thread.setDefaultUncaughtExceptionHandler(defHandler);

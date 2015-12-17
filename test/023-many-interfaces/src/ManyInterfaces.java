@@ -355,7 +355,7 @@ public class ManyInterfaces
 
     static void testInstance001(Object obj, int count) {
         if (!(obj instanceof Interface001))
-            System.err.println("BAD");
+            System.out.println("BAD");
         while (count-- != 0) {
             boolean is;
             is = obj instanceof Interface001;
@@ -379,7 +379,7 @@ public class ManyInterfaces
 
     static void testInstance049(Object obj, int count) {
         if (!(obj instanceof Interface049))
-            System.err.println("BAD");
+            System.out.println("BAD");
         while (count-- != 0) {
             boolean is;
             is = obj instanceof Interface049;
@@ -403,7 +403,7 @@ public class ManyInterfaces
 
     static void testInstance099(Object obj, int count) {
         if (!(obj instanceof Interface099))
-            System.err.println("BAD");
+            System.out.println("BAD");
         while (count-- != 0) {
             boolean is;
             is = obj instanceof Interface099;

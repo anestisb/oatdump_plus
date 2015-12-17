@@ -82,7 +82,7 @@ public class Main implements Runnable {
             // Any exception or error getting here is bad.
             try {
                 // May need allocations...
-                t.printStackTrace(System.err);
+                t.printStackTrace(System.out);
             } catch (Throwable tInner) {
             }
             System.exit(1);

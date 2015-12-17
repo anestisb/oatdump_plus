@@ -26,7 +26,7 @@ public class Main {
             ConcreteSub2 blah = new ConcreteSub2();
             // other VMs fail here (AbstractMethodError)
             blah.doStuff();
-            System.err.println("Succeeded unexpectedly");
+            System.out.println("Succeeded unexpectedly");
         } catch (VerifyError ve) {
             System.out.println("Got expected failure");
         } catch (AbstractMethodError ame) {

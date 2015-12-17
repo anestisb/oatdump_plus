@@ -39,7 +39,7 @@ public class Main {
             // to be resolved and found through simple lookup.
             timpl.newInstance();
         } catch (Throwable t) {
-            t.printStackTrace();
+            t.printStackTrace(System.out);
         }
     }
 

@@ -16,7 +16,7 @@
 
 public class Main {
   public static void main(String args[]) throws Exception {
-    System.err.println(new C().m());
+    System.out.println(new C().m());
   }
 }
 

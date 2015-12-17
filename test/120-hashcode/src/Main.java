@@ -30,7 +30,7 @@ public class Main {
         // Make sure that all the hashes agree.
         if (hashOrig != hashInflated || hashOrig != hashSystemOrig ||
             hashSystemOrig != hashSystemInflated) {
-            System.err.println("hash codes dont match: " + hashOrig + " " + hashInflated + " " +
+            System.out.println("hash codes dont match: " + hashOrig + " " + hashInflated + " " +
             hashSystemOrig + " " + hashSystemInflated);
         }
         System.out.println("Done.");

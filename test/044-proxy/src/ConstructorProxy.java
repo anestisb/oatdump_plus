@@ -28,7 +28,7 @@ class ConstructorProxy implements InvocationHandler {
       new ConstructorProxy().runTest();
     } catch (Exception e) {
       System.out.println("Unexpected failure occured");
-      e.printStackTrace();
+      e.printStackTrace(System.out);
     }
   }
 

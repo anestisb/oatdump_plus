@@ -28,7 +28,7 @@ public class Main {
 
     try {
       GetNonexistent.main(null);
-      System.err.println("Not expected to succeed");
+      System.out.println("Not expected to succeed");
     } catch (VerifyError fe) {
       // dalvik
       System.out.println("Got expected failure");
@@ -101,22 +101,22 @@ public class Main {
 
       /* success; expected? */
       if (expectedException != null) {
-        System.err.println("ERROR: call succeeded for field " + field +
+        System.out.println("ERROR: call succeeded for field " + field +
             " with a read of type '" + type +
             "', was expecting " + expectedException);
         Thread.dumpStack();
       }
     } catch (Exception ex) {
       if (expectedException == null) {
-        System.err.println("ERROR: call failed unexpectedly: "
+        System.out.println("ERROR: call failed unexpectedly: "
             + ex.getClass());
-        ex.printStackTrace();
+        ex.printStackTrace(System.out);
       } else {
         if (!expectedException.equals(ex.getClass())) {
-          System.err.println("ERROR: incorrect exception: wanted "
+          System.out.println("ERROR: incorrect exception: wanted "
               + expectedException.getName() + ", got "
               + ex.getClass());
-          ex.printStackTrace();
+          ex.printStackTrace(System.out);
         }
       }
     }
@@ -675,22 +675,22 @@ class SubClass extends PublicClass {
 
       /* success; expected? */
       if (expectedException != null) {
-        System.err.println("ERROR: call succeeded for field " + field +
+        System.out.println("ERROR: call succeeded for field " + field +
             " with a read of type '" + type +
             "', was expecting " + expectedException);
         Thread.dumpStack();
       }
     } catch (Exception ex) {
       if (expectedException == null) {
-        System.err.println("ERROR: call failed unexpectedly: "
+        System.out.println("ERROR: call failed unexpectedly: "
             + ex.getClass());
-        ex.printStackTrace();
+        ex.printStackTrace(System.out);
       } else {
         if (!expectedException.equals(ex.getClass())) {
-          System.err.println("ERROR: incorrect exception: wanted "
+          System.out.println("ERROR: incorrect exception: wanted "
               + expectedException.getName() + ", got "
               + ex.getClass());
-          ex.printStackTrace();
+          ex.printStackTrace(System.out);
         }
       }
     }
@@ -704,19 +704,19 @@ class SubClass extends PublicClass {
       result = method.invoke(obj);
       /* success; expected? */
       if (expectedException != null) {
-        System.err.println("ERROR: call succeeded for method " + method + "', was expecting " +
+        System.out.println("ERROR: call succeeded for method " + method + "', was expecting " +
                            expectedException);
         Thread.dumpStack();
       }
     } catch (Exception ex) {
       if (expectedException == null) {
-        System.err.println("ERROR: call failed unexpectedly: " + ex.getClass());
-        ex.printStackTrace();
+        System.out.println("ERROR: call failed unexpectedly: " + ex.getClass());
+        ex.printStackTrace(System.out);
       } else {
         if (!expectedException.equals(ex.getClass())) {
-          System.err.println("ERROR: incorrect exception: wanted " + expectedException.getName() +
+          System.out.println("ERROR: incorrect exception: wanted " + expectedException.getName() +
                              ", got " + ex.getClass());
-          ex.printStackTrace();
+          ex.printStackTrace(System.out);
         }
       }
     }

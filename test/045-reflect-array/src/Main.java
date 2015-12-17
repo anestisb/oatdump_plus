@@ -102,7 +102,7 @@ public class Main {
                 throw new RuntimeException("load should have worked");
             }
         } catch (IllegalArgumentException iae) {
-            iae.printStackTrace();
+            iae.printStackTrace(System.out);
         }
         try {
             Array.getByte(charArray, 2);
@@ -116,7 +116,7 @@ public class Main {
                     + Array.getInt(charArray, 3));
             }
         } catch (IllegalArgumentException iae) {
-            iae.printStackTrace();
+            iae.printStackTrace(System.out);
         }
 
         System.out.println("ReflectArrayTest.testSingleChar passed");

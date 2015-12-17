@@ -20,7 +20,7 @@ public class Main {
     try {
       doTopCall();
     } catch (Error e) {
-      e.printStackTrace();
+      e.printStackTrace(System.out);
     }
   }
 

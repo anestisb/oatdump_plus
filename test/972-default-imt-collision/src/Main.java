@@ -24,7 +24,7 @@ public class Main {
       Method test = c.getMethod("testMe", iface);
       test.invoke(null, o);
     } catch (Exception e) {
-      e.printStackTrace();
+      e.printStackTrace(System.out);
       System.out.println("FAILED: could not run testMe!");
     }
   }

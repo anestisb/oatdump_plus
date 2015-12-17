@@ -23,7 +23,7 @@ public class Main {
       Method m = c.getMethod("callMethod");
       System.out.println(m.invoke(c.newInstance(), new Object[0]));
     } catch (Exception e) {
-      e.printStackTrace();
+      e.printStackTrace(System.out);
       System.out.println("FAILED: Could not call method");
       return;
     }

@@ -76,7 +76,7 @@ public class Test947 {
       Redefinition.doCommonClassRedefinition(Transform.class, CLASS_BYTES, DEX_BYTES);
       say_hi_method.invoke(t);
     } catch (Exception e) {
-      e.printStackTrace();
+      e.printStackTrace(System.out);
     }
   }
 }

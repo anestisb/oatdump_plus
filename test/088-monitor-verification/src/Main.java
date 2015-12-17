@@ -41,7 +41,7 @@ public class Main {
         m.nestedMayThrow(false);
         try {
             m.nestedMayThrow(true);
-            System.err.println("nestedThrow(true) did not throw");
+            System.out.println("nestedThrow(true) did not throw");
         } catch (MyException me) {}
         System.out.println("nestedMayThrow ok");
 

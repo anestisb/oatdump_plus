@@ -149,14 +149,14 @@ public class Main {
 
             loader = new BrokenDexLoader(ClassLoader.getSystemClassLoader());
             loader.findBrokenClass();
-            System.err.println("ERROR: Inaccessible was accessible");
+            System.out.println("ERROR: Inaccessible was accessible");
         } catch (InvocationTargetException ite) {
             Throwable cause = ite.getCause();
             if (cause instanceof NullPointerException) {
-                System.err.println("Got expected ITE/NPE");
+                System.out.println("Got expected ITE/NPE");
             } else {
-                System.err.println("Got unexpected ITE");
-                ite.printStackTrace();
+                System.out.println("Got unexpected ITE");
+                ite.printStackTrace(System.out);
             }
         }
     }

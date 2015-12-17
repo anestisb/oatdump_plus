@@ -53,7 +53,7 @@ public class Main {
         } catch (VerifyError expected) {
             System.out.println("b/21646347");
         } catch (Throwable t) {
-            t.printStackTrace();
+            t.printStackTrace(System.out);
         }
         System.out.println("Finishing");
     }

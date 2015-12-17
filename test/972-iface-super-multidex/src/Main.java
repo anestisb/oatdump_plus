@@ -22,7 +22,7 @@ public class Main {
       c = Class.forName("ConcreteClass");
     } catch (Exception e) {
       System.out.println("Could not load class");
-      e.printStackTrace();
+      e.printStackTrace(System.out);
       return;
     }
     try {
@@ -30,7 +30,7 @@ public class Main {
       System.out.println((String)m.invoke(c.newInstance(), new Object[0]));
     } catch (Exception e) {
       System.out.println("Unknown exception occurred");
-      e.printStackTrace();
+      e.printStackTrace(System.out);
     }
     try {
       Method m = c.getMethod("runConflict");
@@ -41,15 +41,15 @@ public class Main {
       }
     } catch (AbstractMethodError e) {
       System.out.println("Unexpected AME caught");
-      e.printStackTrace();
+      e.printStackTrace(System.out);
     } catch (NoSuchMethodError e) {
       System.out.println("Unexpected NSME caught");
-      e.printStackTrace();
+      e.printStackTrace(System.out);
     } catch (IncompatibleClassChangeError e) {
       System.out.println("Expected ICCE caught");
     } catch (Throwable e) {
       System.out.println("Unknown exception caught!");
-      e.printStackTrace();
+      e.printStackTrace(System.out);
     }
   }
 }

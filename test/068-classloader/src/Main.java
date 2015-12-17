@@ -129,7 +129,7 @@ public class Main {
                 throw new RuntimeException("target 2 has unexpected value " + value);
             }
         } catch (Exception ex) {
-            ex.printStackTrace();
+            ex.printStackTrace(System.out);
         }
     }
 
@@ -153,8 +153,8 @@ public class Main {
         try {
             altClass = loader.loadClass("Inaccessible1");
         } catch (ClassNotFoundException cnfe) {
-            System.err.println("loadClass failed");
-            cnfe.printStackTrace();
+            System.out.println("loadClass failed");
+            cnfe.printStackTrace(System.out);
             return;
         }
 
@@ -162,9 +162,9 @@ public class Main {
         Object obj;
         try {
             obj = altClass.newInstance();
-            System.err.println("ERROR: Inaccessible1 was accessible");
+            System.out.println("ERROR: Inaccessible1 was accessible");
         } catch (InstantiationException ie) {
-            System.err.println("newInstance failed: " + ie);
+            System.out.println("newInstance failed: " + ie);
             return;
         } catch (IllegalAccessException iae) {
             System.out.println("Got expected access exception #1");
@@ -182,14 +182,14 @@ public class Main {
 
         try {
             altClass = loader.loadClass("Inaccessible2");
-            System.err.println("ERROR: Inaccessible2 was accessible: " + altClass);
+            System.out.println("ERROR: Inaccessible2 was accessible: " + altClass);
         } catch (ClassNotFoundException cnfe) {
             Throwable cause = cnfe.getCause();
             if (cause instanceof IllegalAccessError) {
                 System.out.println("Got expected CNFE/IAE #2");
             } else {
-                System.err.println("Got unexpected CNFE/IAE #2");
-                cnfe.printStackTrace();
+                System.out.println("Got unexpected CNFE/IAE #2");
+                cnfe.printStackTrace(System.out);
             }
         }
     }
@@ -202,14 +202,14 @@ public class Main {
 
         try {
             altClass = loader.loadClass("Inaccessible3");
-            System.err.println("ERROR: Inaccessible3 was accessible: " + altClass);
+            System.out.println("ERROR: Inaccessible3 was accessible: " + altClass);
         } catch (ClassNotFoundException cnfe) {
             Throwable cause = cnfe.getCause();
             if (cause instanceof IllegalAccessError) {
                 System.out.println("Got expected CNFE/IAE #3");
             } else {
-                System.err.println("Got unexpected CNFE/IAE #3");
-                cnfe.printStackTrace();
+                System.out.println("Got unexpected CNFE/IAE #3");
+                cnfe.printStackTrace(System.out);
             }
         }
     }
@@ -227,7 +227,7 @@ public class Main {
             //System.out.println("+++ DoubledExtend is " + doubledExtendClass
             //    + " in " + doubledExtendClass.getClassLoader());
         } catch (ClassNotFoundException cnfe) {
-            System.err.println("loadClass failed: " + cnfe);
+            System.out.println("loadClass failed: " + cnfe);
             return;
         }
 
@@ -235,10 +235,10 @@ public class Main {
         try {
             obj = doubledExtendClass.newInstance();
         } catch (InstantiationException ie) {
-            System.err.println("newInstance failed: " + ie);
+            System.out.println("newInstance failed: " + ie);
             return;
         } catch (IllegalAccessException iae) {
-            System.err.println("newInstance failed: " + iae);
+            System.out.println("newInstance failed: " + iae);
             return;
         } catch (LinkageError le) {
             System.out.println("Got expected LinkageError on DE");
@@ -254,8 +254,8 @@ public class Main {
             String result;
 
             result = Base.doStuff(de);
-            System.err.println("ERROR: did not get LinkageError on DE");
-            System.err.println("(result=" + result + ")");
+            System.out.println("ERROR: did not get LinkageError on DE");
+            System.out.println("(result=" + result + ")");
         } catch (LinkageError le) {
             System.out.println("Got expected LinkageError on DE");
             return;
@@ -274,7 +274,7 @@ public class Main {
         try {
             doubledExtendOkayClass = loader.loadClass("DoubledExtendOkay");
         } catch (ClassNotFoundException cnfe) {
-            System.err.println("loadClass failed: " + cnfe);
+            System.out.println("loadClass failed: " + cnfe);
             return;
         }
 
@@ -282,14 +282,14 @@ public class Main {
         try {
             obj = doubledExtendOkayClass.newInstance();
         } catch (InstantiationException ie) {
-            System.err.println("newInstance failed: " + ie);
+            System.out.println("newInstance failed: " + ie);
             return;
         } catch (IllegalAccessException iae) {
-            System.err.println("newInstance failed: " + iae);
+            System.out.println("newInstance failed: " + iae);
             return;
         } catch (LinkageError le) {
-            System.err.println("Got unexpected LinkageError on DEO");
-            le.printStackTrace();
+            System.out.println("Got unexpected LinkageError on DEO");
+            le.printStackTrace(System.out);
             return;
         }
 
@@ -304,8 +304,8 @@ public class Main {
             result = BaseOkay.doStuff(de);
             System.out.println("Got DEO result " + result);
         } catch (LinkageError le) {
-            System.err.println("Got unexpected LinkageError on DEO");
-            le.printStackTrace();
+            System.out.println("Got unexpected LinkageError on DEO");
+            le.printStackTrace(System.out);
             return;
         }
     }
@@ -322,7 +322,7 @@ public class Main {
         try {
             getDoubledClass = loader.loadClass("GetDoubled");
         } catch (ClassNotFoundException cnfe) {
-            System.err.println("loadClass failed: " + cnfe);
+            System.out.println("loadClass failed: " + cnfe);
             return;
         }
 
@@ -330,10 +330,10 @@ public class Main {
         try {
             obj = getDoubledClass.newInstance();
         } catch (InstantiationException ie) {
-            System.err.println("newInstance failed: " + ie);
+            System.out.println("newInstance failed: " + ie);
             return;
         } catch (IllegalAccessException iae) {
-            System.err.println("newInstance failed: " + iae);
+            System.out.println("newInstance failed: " + iae);
             return;
         } catch (LinkageError le) {
             // Dalvik bails here
@@ -354,7 +354,7 @@ public class Main {
             System.out.println("Got LinkageError on GD");
             return;
         }
-        System.err.println("Should have failed by now on GetDoubled");
+        System.out.println("Should have failed by now on GetDoubled");
     }
 
     /**
@@ -368,7 +368,7 @@ public class Main {
         try {
             abstractGetClass = loader.loadClass("AbstractGet");
         } catch (ClassNotFoundException cnfe) {
-            System.err.println("loadClass ta failed: " + cnfe);
+            System.out.println("loadClass ta failed: " + cnfe);
             return;
         }
 
@@ -376,10 +376,10 @@ public class Main {
         try {
             obj = abstractGetClass.newInstance();
         } catch (InstantiationException ie) {
-            System.err.println("newInstance failed: " + ie);
+            System.out.println("newInstance failed: " + ie);
             return;
         } catch (IllegalAccessException iae) {
-            System.err.println("newInstance failed: " + iae);
+            System.out.println("newInstance failed: " + iae);
             return;
         } catch (LinkageError le) {
             System.out.println("Got LinkageError on TA");
@@ -399,7 +399,7 @@ public class Main {
             System.out.println("Got LinkageError on TA");
             return;
         }
-        System.err.println("Should have failed by now in testAbstract");
+        System.out.println("Should have failed by now in testAbstract");
     }
 
     /**
@@ -415,7 +415,7 @@ public class Main {
         try {
             doubledImplementClass = loader.loadClass("DoubledImplement");
         } catch (ClassNotFoundException cnfe) {
-            System.err.println("loadClass failed: " + cnfe);
+            System.out.println("loadClass failed: " + cnfe);
             return;
         }
 
@@ -423,10 +423,10 @@ public class Main {
         try {
             obj = doubledImplementClass.newInstance();
         } catch (InstantiationException ie) {
-            System.err.println("newInstance failed: " + ie);
+            System.out.println("newInstance failed: " + ie);
             return;
         } catch (IllegalAccessException iae) {
-            System.err.println("newInstance failed: " + iae);
+            System.out.println("newInstance failed: " + iae);
             return;
         } catch (LinkageError le) {
             System.out.println("Got LinkageError on DI (early)");
@@ -447,7 +447,7 @@ public class Main {
         try {
             di.one();
             if (!isOne) {
-                System.err.println("ERROR: did not get LinkageError on DI");
+                System.out.println("ERROR: did not get LinkageError on DI");
             }
         } catch (LinkageError le) {
             if (!isOne) {
@@ -476,7 +476,7 @@ public class Main {
             ifaceImplClass = loader.loadClass("IfaceImpl");
             ifaceImplClass = loader.loadClass("DoubledImplement2");
         } catch (ClassNotFoundException cnfe) {
-            System.err.println("loadClass failed: " + cnfe);
+            System.out.println("loadClass failed: " + cnfe);
             return;
         }
 
@@ -484,10 +484,10 @@ public class Main {
         try {
             obj = ifaceImplClass.newInstance();
         } catch (InstantiationException ie) {
-            System.err.println("newInstance failed: " + ie);
+            System.out.println("newInstance failed: " + ie);
             return;
         } catch (IllegalAccessException iae) {
-            System.err.println("newInstance failed: " + iae);
+            System.out.println("newInstance failed: " + iae);
             return;
         } catch (LinkageError le) {
             System.out.println("Got LinkageError on IDI (early)");

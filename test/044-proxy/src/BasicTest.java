@@ -34,9 +34,9 @@ public class BasicTest {
         Object proxy = createProxy(proxyMe);
 
         if (!Proxy.isProxyClass(proxy.getClass()))
-            System.err.println("not a proxy class?");
+            System.out.println("not a proxy class?");
         if (Proxy.getInvocationHandler(proxy) == null)
-            System.err.println("ERROR: Proxy.getInvocationHandler is null");
+            System.out.println("ERROR: Proxy.getInvocationHandler is null");
 
         /* take it for a spin; verifies instanceof constraint */
         Shapes shapes = (Shapes) proxy;
@@ -110,13 +110,13 @@ public class BasicTest {
             //System.out.println("Constructor is " + cons);
             proxy = cons.newInstance(handler);
         } catch (NoSuchMethodException nsme) {
-            System.err.println("failed: " + nsme);
+            System.out.println("failed: " + nsme);
         } catch (InstantiationException ie) {
-            System.err.println("failed: " + ie);
+            System.out.println("failed: " + ie);
         } catch (IllegalAccessException ie) {
-            System.err.println("failed: " + ie);
+            System.out.println("failed: " + ie);
         } catch (InvocationTargetException ite) {
-            System.err.println("failed: " + ite);
+            System.out.println("failed: " + ite);
         }
 
         return proxy;

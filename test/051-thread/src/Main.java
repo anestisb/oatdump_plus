@@ -79,7 +79,7 @@ public class Main {
         try {
             t.join();
         } catch (InterruptedException ex) {
-            ex.printStackTrace();
+            ex.printStackTrace(System.out);
         }
 
         System.out.print("testThreadDaemons finished\n");

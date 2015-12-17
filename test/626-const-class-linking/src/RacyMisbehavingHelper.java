@@ -26,7 +26,7 @@ public class RacyMisbehavingHelper {
             Method reportAfterLoading = loader.getClass().getDeclaredMethod("reportAfterLoading");
             reportAfterLoading.invoke(loader);
         } catch (Throwable t) {
-            t.printStackTrace();
+            t.printStackTrace(System.out);
         }
         return new ClassPair(helper1_class, test_class);
     }

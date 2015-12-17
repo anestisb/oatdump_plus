@@ -50,7 +50,7 @@ public class DeoptimizationController {
         throw new IllegalStateException("Not tracing.");
       }
     } catch (Exception exc) {
-      exc.printStackTrace(System.err);
+      exc.printStackTrace(System.out);
     } finally {
       if (tempFile != null) {
         tempFile.delete();
@@ -65,7 +65,7 @@ public class DeoptimizationController {
         throw new IllegalStateException("Still tracing.");
       }
     } catch (Exception exc) {
-      exc.printStackTrace(System.err);
+      exc.printStackTrace(System.out);
     }
   }
 

@@ -19,12 +19,12 @@ public class Main {
     try {
       doThrow(new Error());
     } catch (Error e) {
-      e.printStackTrace();
+      e.printStackTrace(System.out);
     }
     try {
       doThrow(null);
     } catch (Throwable t) {
-      t.printStackTrace();
+      t.printStackTrace(System.out);
     }
   }
 
