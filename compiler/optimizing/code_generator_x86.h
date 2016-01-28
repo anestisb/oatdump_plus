@@ -538,7 +538,7 @@ class CodeGeneratorX86 : public CodeGenerator {
   // touch (but not change) the top of the stack.
   // The 'non_temporal' parameter should be used to ensure ordering of non-temporal stores.
   void MemoryFence(bool non_temporal = false) {
-    if (!non_temporal && isa_features_.PrefersLockedAddSynchronization()) {
+    if (!non_temporal) {
       assembler_.lock()->addl(Address(ESP, 0), Immediate(0));
     } else {
       assembler_.mfence();
