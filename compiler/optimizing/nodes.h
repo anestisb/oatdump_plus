@@ -3652,14 +3652,14 @@ class HNewInstance : public HExpression<2> {
                uint32_t dex_pc,
                uint16_t type_index,
                const DexFile& dex_file,
-               bool can_throw,
+               bool needs_access_check,
                bool finalizable,
                QuickEntrypointEnum entrypoint)
       : HExpression(Primitive::kPrimNot, SideEffects::CanTriggerGC(), dex_pc),
         type_index_(type_index),
         dex_file_(dex_file),
         entrypoint_(entrypoint) {
-    SetPackedFlag<kFlagCanThrow>(can_throw);
+    SetPackedFlag<kFlagNeedsAccessCheck>(needs_access_check);
     SetPackedFlag<kFlagFinalizable>(finalizable);
     SetRawInputAt(0, cls);
     SetRawInputAt(1, current_method);
@@ -3671,10 +3671,11 @@ class HNewInstance : public HExpression<2> {
   // Calls runtime so needs an environment.
   bool NeedsEnvironment() const OVERRIDE { return true; }
 
-  // It may throw when called on type that's not instantiable/accessible.
-  // It can throw OOME.
-  // TODO: distinguish between the two cases so we can for example allow allocation elimination.
-  bool CanThrow() const OVERRIDE { return GetPackedFlag<kFlagCanThrow>() || true; }
+  // Can throw errors when out-of-memory or if it's not instantiable/accessible.
+  bool CanThrow() const OVERRIDE { return true; }
+
+  // Needs to call into runtime to make sure it's instantiable/accessible.
+  bool NeedsAccessCheck() const { return GetPackedFlag<kFlagNeedsAccessCheck>(); }
 
   bool IsFinalizable() const { return GetPackedFlag<kFlagFinalizable>(); }
 
@@ -3691,8 +3692,8 @@ class HNewInstance : public HExpression<2> {
   DECLARE_INSTRUCTION(NewInstance);
 
  private:
-  static constexpr size_t kFlagCanThrow = kNumberOfExpressionPackedBits;
-  static constexpr size_t kFlagFinalizable = kFlagCanThrow + 1;
+  static constexpr size_t kFlagNeedsAccessCheck = kNumberOfExpressionPackedBits;
+  static constexpr size_t kFlagFinalizable = kFlagNeedsAccessCheck + 1;
   static constexpr size_t kNumberOfNewInstancePackedBits = kFlagFinalizable + 1;
   static_assert(kNumberOfNewInstancePackedBits <= kMaxNumberOfPackedBits,
                 "Too many packed fields.");

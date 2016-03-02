@@ -897,12 +897,12 @@ bool HInstructionBuilder::BuildNewInstance(uint16_t type_index, uint32_t dex_pc)
   Handle<mirror::DexCache> outer_dex_cache = outer_compilation_unit_->GetDexCache();
 
   bool finalizable;
-  bool can_throw = NeedsAccessCheck(type_index, dex_cache, &finalizable);
+  bool needs_access_check = NeedsAccessCheck(type_index, dex_cache, &finalizable);
 
   // Only the non-resolved entrypoint handles the finalizable class case. If we
   // need access checks, then we haven't resolved the method and the class may
   // again be finalizable.
-  QuickEntrypointEnum entrypoint = (finalizable || can_throw)
+  QuickEntrypointEnum entrypoint = (finalizable || needs_access_check)
       ? kQuickAllocObject
       : kQuickAllocObjectInitialized;
 
@@ -917,7 +917,7 @@ bool HInstructionBuilder::BuildNewInstance(uint16_t type_index, uint32_t dex_pc)
       outer_dex_file,
       IsOutermostCompilingClass(type_index),
       dex_pc,
-      /*needs_access_check*/ can_throw,
+      needs_access_check,
       compiler_driver_->CanAssumeTypeIsPresentInDexCache(outer_dex_cache, type_index));
 
   AppendInstruction(load_class);
@@ -933,7 +933,7 @@ bool HInstructionBuilder::BuildNewInstance(uint16_t type_index, uint32_t dex_pc)
       dex_pc,
       type_index,
       *dex_compilation_unit_->GetDexFile(),
-      can_throw,
+      needs_access_check,
       finalizable,
       entrypoint));
   return true;
