@@ -68,6 +68,7 @@ class CheckReferenceMapVisitor : public StackVisitor {
     DexRegisterMap dex_register_map =
         code_info.GetDexRegisterMapOf(stack_map, encoding, number_of_dex_registers);
     uint32_t register_mask = stack_map.GetRegisterMask(encoding.stack_map_encoding);
+    BitMemoryRegion stack_mask = code_info.GetStackMaskOf(encoding, stack_map);
     for (int i = 0; i < number_of_references; ++i) {
       int reg = registers[i];
       CHECK(reg < m->GetCodeItem()->registers_size_);
@@ -80,8 +81,7 @@ class CheckReferenceMapVisitor : public StackVisitor {
           break;
         case DexRegisterLocation::Kind::kInStack:
           DCHECK_EQ(location.GetValue() % kFrameSlotSize, 0);
-          CHECK(stack_map.GetStackMaskBit(encoding.stack_map_encoding,
-                                          location.GetValue() / kFrameSlotSize));
+          CHECK(stack_mask.LoadBit(location.GetValue() / kFrameSlotSize));
           break;
         case DexRegisterLocation::Kind::kInRegister:
         case DexRegisterLocation::Kind::kInRegisterHigh:

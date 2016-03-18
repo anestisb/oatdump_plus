@@ -35,6 +35,12 @@ namespace art {
 // of the region.
 class MemoryRegion FINAL : public ValueObject {
  public:
+  struct ContentEquals {
+    constexpr bool operator()(const MemoryRegion& lhs, const MemoryRegion& rhs) const {
+      return lhs.size() == rhs.size() && memcmp(lhs.begin(), rhs.begin(), lhs.size()) == 0;
+    }
+  };
+
   MemoryRegion() : pointer_(nullptr), size_(0) {}
   MemoryRegion(void* pointer_in, uintptr_t size_in) : pointer_(pointer_in), size_(size_in) {}
 
@@ -46,8 +52,8 @@ class MemoryRegion FINAL : public ValueObject {
     return OFFSETOF_MEMBER(MemoryRegion, pointer_);
   }
 
-  uint8_t* start() const { return reinterpret_cast<uint8_t*>(pointer_); }
-  uint8_t* end() const { return start() + size_; }
+  uint8_t* begin() const { return reinterpret_cast<uint8_t*>(pointer_); }
+  uint8_t* end() const { return begin() + size_; }
 
   // Load value of type `T` at `offset`.  The memory address corresponding
   // to `offset` should be word-aligned (on ARM, this is a requirement).
@@ -131,7 +137,7 @@ class MemoryRegion FINAL : public ValueObject {
       // Do not touch any memory if the range is empty.
       return 0;
     }
-    const uint8_t* address = start() + bit_offset / kBitsPerByte;
+    const uint8_t* address = begin() + bit_offset / kBitsPerByte;
     const uint32_t shift = bit_offset & (kBitsPerByte - 1);
     // Load the value (reading only the strictly needed bytes).
     const uint32_t load_bit_count = shift + length;
@@ -165,11 +171,18 @@ class MemoryRegion FINAL : public ValueObject {
 
   void CopyFrom(size_t offset, const MemoryRegion& from) const;
 
+  template<class Vector>
+  void CopyFromVector(size_t offset, Vector& vector) const {
+    if (!vector.empty()) {
+      CopyFrom(offset, MemoryRegion(vector.data(), vector.size()));
+    }
+  }
+
   // Compute a sub memory region based on an existing one.
   ALWAYS_INLINE MemoryRegion Subregion(uintptr_t offset, uintptr_t size_in) const {
     CHECK_GE(this->size(), size_in);
     CHECK_LE(offset,  this->size() - size_in);
-    return MemoryRegion(reinterpret_cast<void*>(start() + offset), size_in);
+    return MemoryRegion(reinterpret_cast<void*>(begin() + offset), size_in);
   }
 
   // Compute an extended memory region based on an existing one.
@@ -183,7 +196,7 @@ class MemoryRegion FINAL : public ValueObject {
   ALWAYS_INLINE T* ComputeInternalPointer(size_t offset) const {
     CHECK_GE(size(), sizeof(T));
     CHECK_LE(offset, size() - sizeof(T));
-    return reinterpret_cast<T*>(start() + offset);
+    return reinterpret_cast<T*>(begin() + offset);
   }
 
   // Locate the bit with the given offset. Returns a pointer to the byte
