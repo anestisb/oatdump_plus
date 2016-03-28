@@ -31,6 +31,9 @@ class DexFile;
 static constexpr uint32_t kPositiveInfinityFloat = 0x7f800000U;
 static constexpr uint64_t kPositiveInfinityDouble = UINT64_C(0x7ff0000000000000);
 
+static constexpr uint32_t kNanFloat = 0x7fc00000U;
+static constexpr uint64_t kNanDouble = 0x7ff8000000000000;
+
 // Recognize intrinsics from HInvoke nodes.
 class IntrinsicsRecognizer : public HOptimization {
  public:

@@ -146,6 +146,12 @@ inline vixl::aarch32::Register InputRegister(HInstruction* instr) {
   return InputRegisterAt(instr, 0);
 }
 
+inline vixl::aarch32::DRegister DRegisterFromS(vixl::aarch32::SRegister s) {
+  vixl::aarch32::DRegister d = vixl::aarch32::DRegister(s.GetCode() / 2);
+  DCHECK(s.Is(d.GetLane(0)) || s.Is(d.GetLane(1)));
+  return d;
+}
+
 inline int32_t Int32ConstantFrom(HInstruction* instr) {
   if (instr->IsIntConstant()) {
     return instr->AsIntConstant()->GetValue();
