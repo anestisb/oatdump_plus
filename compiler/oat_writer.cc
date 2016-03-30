@@ -1066,6 +1066,14 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
                                                                      target_offset);
                 break;
               }
+              case LinkerPatch::Type::kTypeRelative: {
+                uint32_t target_offset = GetTargetObjectOffset(GetTargetType(patch));
+                writer_->relative_patcher_->PatchPcRelativeReference(&patched_code_,
+                                                                     patch,
+                                                                     offset_ + literal_offset,
+                                                                     target_offset);
+                break;
+              }
               case LinkerPatch::Type::kCall: {
                 uint32_t target_offset = GetTargetOffset(patch);
                 PatchCodeAddress(&patched_code_, literal_offset, target_offset);

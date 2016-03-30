@@ -3016,6 +3016,13 @@ HLoadString::LoadKind CodeGeneratorMIPS64::GetSupportedLoadStringKind(
   return HLoadString::LoadKind::kDexCacheViaMethod;
 }
 
+HLoadClass::LoadKind CodeGeneratorMIPS64::GetSupportedLoadClassKind(
+    HLoadClass::LoadKind desired_class_load_kind) {
+  DCHECK_NE(desired_class_load_kind, HLoadClass::LoadKind::kReferrersClass);
+  // TODO: Implement other kinds.
+  return HLoadClass::LoadKind::kDexCacheViaMethod;
+}
+
 HInvokeStaticOrDirect::DispatchInfo CodeGeneratorMIPS64::GetSupportedInvokeStaticOrDirectDispatch(
       const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
       MethodReference target_method ATTRIBUTE_UNUSED) {

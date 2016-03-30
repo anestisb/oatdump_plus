@@ -26,7 +26,7 @@ namespace art {
 
 class DexFile;
 
-// A string is uniquely located by its DexFile and the string_ids_ table index into that DexFile.
+// A string is located by its DexFile and the string_ids_ table index into that DexFile.
 struct StringReference {
   StringReference(const DexFile* file, uint32_t index) : dex_file(file), string_index(index) { }
 

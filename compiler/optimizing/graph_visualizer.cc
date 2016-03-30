@@ -372,6 +372,10 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
   }
 
   void VisitLoadClass(HLoadClass* load_class) OVERRIDE {
+    StartAttributeStream("load_kind") << load_class->GetLoadKind();
+    const char* descriptor = load_class->GetDexFile().GetTypeDescriptor(
+        load_class->GetDexFile().GetTypeId(load_class->GetTypeIndex()));
+    StartAttributeStream("class_name") << PrettyDescriptor(descriptor);
     StartAttributeStream("gen_clinit_check") << std::boolalpha
         << load_class->MustGenerateClinitCheck() << std::noboolalpha;
     StartAttributeStream("needs_access_check") << std::boolalpha
