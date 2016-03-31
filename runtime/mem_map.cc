@@ -302,8 +302,9 @@ MemMap* MemMap::MapAnonymous(const char* name,
 
   if (use_ashmem) {
     if (!kIsTargetBuild) {
-      // When not on Android ashmem is faked using files in /tmp. Ensure that such files won't
-      // fail due to ulimit restrictions. If they will then use a regular mmap.
+      // When not on Android (either host or assuming a linux target) ashmem is faked using
+      // files in /tmp. Ensure that such files won't fail due to ulimit restrictions. If they
+      // will then use a regular mmap.
       struct rlimit rlimit_fsize;
       CHECK_EQ(getrlimit(RLIMIT_FSIZE, &rlimit_fsize), 0);
       use_ashmem = (rlimit_fsize.rlim_cur == RLIM_INFINITY) ||

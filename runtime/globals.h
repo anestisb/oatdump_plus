@@ -51,11 +51,31 @@ static constexpr bool kIsDebugBuild = false;
 static constexpr bool kIsDebugBuild = true;
 #endif
 
-// Whether or not this is a target (vs host) build. Useful in conditionals where ART_TARGET isn't.
+// ART_TARGET - Defined for target builds of ART.
+// ART_TARGET_LINUX - Defined for target Linux builds of ART.
+// ART_TARGET_ANDROID - Defined for target Android builds of ART.
+// Note: Either ART_TARGET_LINUX or ART_TARGET_ANDROID need to be set when ART_TARGET is set.
+// Note: When ART_TARGET_LINUX is defined mem_map.h will not be using Ashmem for memory mappings
+// (usually only available on Android kernels).
 #if defined(ART_TARGET)
+// Useful in conditionals where ART_TARGET isn't.
 static constexpr bool kIsTargetBuild = true;
+#if defined(ART_TARGET_LINUX)
+static constexpr bool kIsTargetLinux = true;
+#elif defined(ART_TARGET_ANDROID)
+static constexpr bool kIsTargetLinux = false;
+#else
+#error "Either ART_TARGET_LINUX or ART_TARGET_ANDROID needs to be defined for target builds."
+#endif
 #else
 static constexpr bool kIsTargetBuild = false;
+#if defined(ART_TARGET_LINUX)
+#error "ART_TARGET_LINUX defined for host build."
+#elif defined(ART_TARGET_ANDROID)
+#error "ART_TARGET_ANDROID defined for host build."
+#else
+static constexpr bool kIsTargetLinux = false;
+#endif
 #endif
 
 // Garbage collector constants.
