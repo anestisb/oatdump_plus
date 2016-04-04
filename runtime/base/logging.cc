@@ -26,7 +26,7 @@
 #include "utils.h"
 
 // Headers for LogMessage::LogLine.
-#ifdef __ANDROID__
+#ifdef ART_TARGET_ANDROID
 #include "cutils/log.h"
 #else
 #include <sys/types.h>
@@ -47,7 +47,7 @@ static std::unique_ptr<std::string> gProgramInvocationShortName;
 // Print INTERNAL_FATAL messages directly instead of at destruction time. This only works on the
 // host right now: for the device, a stream buf collating output into lines and calling LogLine or
 // lower-level logging is necessary.
-#ifdef __ANDROID__
+#ifdef ART_TARGET_ANDROID
 static constexpr bool kPrintInternalFatalDirectly = false;
 #else
 static constexpr bool kPrintInternalFatalDirectly = !kIsTargetBuild;
@@ -235,7 +235,7 @@ std::ostream& LogMessage::stream() {
   return data_->GetBuffer();
 }
 
-#ifdef __ANDROID__
+#ifdef ART_TARGET_ANDROID
 static const android_LogPriority kLogSeverityToAndroidLogPriority[] = {
   ANDROID_LOG_VERBOSE,  // NONE, use verbose as stand-in, will never be printed.
   ANDROID_LOG_VERBOSE, ANDROID_LOG_DEBUG, ANDROID_LOG_INFO, ANDROID_LOG_WARN,
@@ -251,7 +251,7 @@ void LogMessage::LogLine(const char* file, unsigned int line, LogSeverity log_se
     return;
   }
 
-#ifdef __ANDROID__
+#ifdef ART_TARGET_ANDROID
   const char* tag = ProgramInvocationShortName();
   int priority = kLogSeverityToAndroidLogPriority[static_cast<size_t>(log_severity)];
   if (priority == ANDROID_LOG_FATAL) {
@@ -274,7 +274,7 @@ void LogMessage::LogLineLowStack(const char* file, unsigned int line, LogSeverit
     return;
   }
 
-#ifdef __ANDROID__
+#ifdef ART_TARGET_ANDROID
   // Use android_writeLog() to avoid stack-based buffers used by android_printLog().
   const char* tag = ProgramInvocationShortName();
   int priority = kLogSeverityToAndroidLogPriority[static_cast<size_t>(log_severity)];
@@ -311,7 +311,7 @@ void LogMessage::LogLineLowStack(const char* file, unsigned int line, LogSeverit
   TEMP_FAILURE_RETRY(write(STDERR_FILENO, "] ", 2));
   TEMP_FAILURE_RETRY(write(STDERR_FILENO, message, strlen(message)));
   TEMP_FAILURE_RETRY(write(STDERR_FILENO, "\n", 1));
-#endif
+#endif  // ART_TARGET_ANDROID
 }
 
 ScopedLogSeverity::ScopedLogSeverity(LogSeverity level) {
