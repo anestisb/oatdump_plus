@@ -2283,10 +2283,10 @@ static void GenIsInfinite(LocationSummary* locations,
     // If one, or more, of the exponent bits is zero, then the number can't be infinite.
     if (type == Primitive::kPrimDouble) {
       __ MoveFromFpuHigh(TMP, in);
-      __ LoadConst32(AT, 0x7FF00000);
+      __ LoadConst32(AT, High32Bits(kPositiveInfinityDouble));
     } else {
       __ Mfc1(TMP, in);
-      __ LoadConst32(AT, 0x7F800000);
+      __ LoadConst32(AT, kPositiveInfinityFloat);
     }
     __ Xor(TMP, TMP, AT);
 

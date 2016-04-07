@@ -30,6 +30,10 @@ class DexFile;
 // Temporary measure until we have caught up with the Java 7 definition of Math.round. b/26327751
 static constexpr bool kRoundIsPlusPointFive = false;
 
+// Positive floating-point infinities.
+static constexpr uint32_t kPositiveInfinityFloat = 0x7f800000U;
+static constexpr uint64_t kPositiveInfinityDouble = UINT64_C(0x7ff0000000000000);
+
 // Recognize intrinsics from HInvoke nodes.
 class IntrinsicsRecognizer : public HOptimization {
  public:

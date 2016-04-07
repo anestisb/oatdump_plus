@@ -1985,6 +1985,56 @@ void IntrinsicCodeGeneratorARM::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   __ Bind(&done);
 }
 
+void IntrinsicLocationsBuilderARM::VisitFloatIsInfinite(HInvoke* invoke) {
+  CreateFPToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM::VisitFloatIsInfinite(HInvoke* invoke) {
+  ArmAssembler* const assembler = GetAssembler();
+  LocationSummary* const locations = invoke->GetLocations();
+  const Register out = locations->Out().AsRegister<Register>();
+  // Shifting left by 1 bit makes the value encodable as an immediate operand;
+  // we don't care about the sign bit anyway.
+  constexpr uint32_t infinity = kPositiveInfinityFloat << 1U;
+
+  __ vmovrs(out, locations->InAt(0).AsFpuRegister<SRegister>());
+  // We don't care about the sign bit, so shift left.
+  __ Lsl(out, out, 1);
+  __ eor(out, out, ShifterOperand(infinity));
+  // If the result is 0, then it has 32 leading zeros, and less than that otherwise.
+  __ clz(out, out);
+  // Any number less than 32 logically shifted right by 5 bits results in 0;
+  // the same operation on 32 yields 1.
+  __ Lsr(out, out, 5);
+}
+
+void IntrinsicLocationsBuilderARM::VisitDoubleIsInfinite(HInvoke* invoke) {
+  CreateFPToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM::VisitDoubleIsInfinite(HInvoke* invoke) {
+  ArmAssembler* const assembler = GetAssembler();
+  LocationSummary* const locations = invoke->GetLocations();
+  const Register out = locations->Out().AsRegister<Register>();
+  // The highest 32 bits of double precision positive infinity separated into
+  // two constants encodable as immediate operands.
+  constexpr uint32_t infinity_high  = 0x7f000000U;
+  constexpr uint32_t infinity_high2 = 0x00f00000U;
+
+  static_assert((infinity_high | infinity_high2) == static_cast<uint32_t>(kPositiveInfinityDouble >> 32U),
+                "The constants do not add up to the high 32 bits of double precision positive infinity.");
+  __ vmovrrd(IP, out, FromLowSToD(locations->InAt(0).AsFpuRegisterPairLow<SRegister>()));
+  __ eor(out, out, ShifterOperand(infinity_high));
+  __ eor(out, out, ShifterOperand(infinity_high2));
+  // We don't care about the sign bit, so shift left.
+  __ orr(out, IP, ShifterOperand(out, LSL, 1));
+  // If the result is 0, then it has 32 leading zeros, and less than that otherwise.
+  __ clz(out, out);
+  // Any number less than 32 logically shifted right by 5 bits results in 0;
+  // the same operation on 32 yields 1.
+  __ Lsr(out, out, 5);
+}
+
 UNIMPLEMENTED_INTRINSIC(ARM, IntegerBitCount)
 UNIMPLEMENTED_INTRINSIC(ARM, LongBitCount)
 UNIMPLEMENTED_INTRINSIC(ARM, MathMinDoubleDouble)
@@ -2001,8 +2051,6 @@ UNIMPLEMENTED_INTRINSIC(ARM, MathRoundFloat)    // Could be done by changing rou
 UNIMPLEMENTED_INTRINSIC(ARM, UnsafeCASLong)     // High register pressure.
 UNIMPLEMENTED_INTRINSIC(ARM, SystemArrayCopyChar)
 UNIMPLEMENTED_INTRINSIC(ARM, ReferenceGetReferent)
-UNIMPLEMENTED_INTRINSIC(ARM, FloatIsInfinite)
-UNIMPLEMENTED_INTRINSIC(ARM, DoubleIsInfinite)
 UNIMPLEMENTED_INTRINSIC(ARM, IntegerHighestOneBit)
 UNIMPLEMENTED_INTRINSIC(ARM, LongHighestOneBit)
 UNIMPLEMENTED_INTRINSIC(ARM, IntegerLowestOneBit)
