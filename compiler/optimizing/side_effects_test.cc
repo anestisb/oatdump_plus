@@ -148,19 +148,19 @@ TEST(SideEffectsTest, VolatileDependences) {
   EXPECT_FALSE(any_write.MayDependOn(volatile_read));
 }
 
-TEST(SideEffectsTest, SameWidthTypes) {
+TEST(SideEffectsTest, SameWidthTypesNoAlias) {
   // Type I/F.
-  testWriteAndReadDependence(
+  testNoWriteAndReadDependence(
       SideEffects::FieldWriteOfType(Primitive::kPrimInt, /* is_volatile */ false),
       SideEffects::FieldReadOfType(Primitive::kPrimFloat, /* is_volatile */ false));
-  testWriteAndReadDependence(
+  testNoWriteAndReadDependence(
       SideEffects::ArrayWriteOfType(Primitive::kPrimInt),
       SideEffects::ArrayReadOfType(Primitive::kPrimFloat));
   // Type L/D.
-  testWriteAndReadDependence(
+  testNoWriteAndReadDependence(
       SideEffects::FieldWriteOfType(Primitive::kPrimLong, /* is_volatile */ false),
       SideEffects::FieldReadOfType(Primitive::kPrimDouble, /* is_volatile */ false));
-  testWriteAndReadDependence(
+  testNoWriteAndReadDependence(
       SideEffects::ArrayWriteOfType(Primitive::kPrimLong),
       SideEffects::ArrayReadOfType(Primitive::kPrimDouble));
 }
@@ -216,14 +216,32 @@ TEST(SideEffectsTest, BitStrings) {
       "||||||L|",
       SideEffects::FieldWriteOfType(Primitive::kPrimNot, false).ToString().c_str());
   EXPECT_STREQ(
+      "||DFJISCBZL|DFJISCBZL||DFJISCBZL|DFJISCBZL|",
+      SideEffects::FieldWriteOfType(Primitive::kPrimNot, true).ToString().c_str());
+  EXPECT_STREQ(
       "|||||Z||",
       SideEffects::ArrayWriteOfType(Primitive::kPrimBoolean).ToString().c_str());
+  EXPECT_STREQ(
+      "|||||C||",
+      SideEffects::ArrayWriteOfType(Primitive::kPrimChar).ToString().c_str());
+  EXPECT_STREQ(
+      "|||||S||",
+      SideEffects::ArrayWriteOfType(Primitive::kPrimShort).ToString().c_str());
   EXPECT_STREQ(
       "|||B||||",
       SideEffects::FieldReadOfType(Primitive::kPrimByte, false).ToString().c_str());
   EXPECT_STREQ(
-      "||DJ|||||",  // note: DJ alias
+      "||D|||||",
       SideEffects::ArrayReadOfType(Primitive::kPrimDouble).ToString().c_str());
+  EXPECT_STREQ(
+      "||J|||||",
+      SideEffects::ArrayReadOfType(Primitive::kPrimLong).ToString().c_str());
+  EXPECT_STREQ(
+      "||F|||||",
+      SideEffects::ArrayReadOfType(Primitive::kPrimFloat).ToString().c_str());
+  EXPECT_STREQ(
+      "||I|||||",
+      SideEffects::ArrayReadOfType(Primitive::kPrimInt).ToString().c_str());
   SideEffects s = SideEffects::None();
   s = s.Union(SideEffects::FieldWriteOfType(Primitive::kPrimChar, /* is_volatile */ false));
   s = s.Union(SideEffects::FieldWriteOfType(Primitive::kPrimLong, /* is_volatile */ false));
@@ -231,9 +249,7 @@ TEST(SideEffectsTest, BitStrings) {
   s = s.Union(SideEffects::FieldReadOfType(Primitive::kPrimInt, /* is_volatile */ false));
   s = s.Union(SideEffects::ArrayReadOfType(Primitive::kPrimFloat));
   s = s.Union(SideEffects::ArrayReadOfType(Primitive::kPrimDouble));
-  EXPECT_STREQ(
-      "||DFJI|FI||S|DJC|",   // note: DJ/FI alias.
-      s.ToString().c_str());
+  EXPECT_STREQ("||DF|I||S|JC|", s.ToString().c_str());
 }
 
 }  // namespace art
