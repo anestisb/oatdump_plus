@@ -1551,21 +1551,21 @@ class SideEffects : public ValueObject {
   static SideEffects FieldWriteOfType(Primitive::Type type, bool is_volatile) {
     return is_volatile
         ? AllWritesAndReads()
-        : SideEffects(TypeFlag(type, kFieldWriteOffset));
+        : SideEffects(TypeFlagWithAlias(type, kFieldWriteOffset));
   }
 
   static SideEffects ArrayWriteOfType(Primitive::Type type) {
-    return SideEffects(TypeFlag(type, kArrayWriteOffset));
+    return SideEffects(TypeFlagWithAlias(type, kArrayWriteOffset));
   }
 
   static SideEffects FieldReadOfType(Primitive::Type type, bool is_volatile) {
     return is_volatile
         ? AllWritesAndReads()
-        : SideEffects(TypeFlag(type, kFieldReadOffset));
+        : SideEffects(TypeFlagWithAlias(type, kFieldReadOffset));
   }
 
   static SideEffects ArrayReadOfType(Primitive::Type type) {
-    return SideEffects(TypeFlag(type, kArrayReadOffset));
+    return SideEffects(TypeFlagWithAlias(type, kArrayReadOffset));
   }
 
   static SideEffects CanTriggerGC() {
@@ -1691,6 +1691,23 @@ class SideEffects : public ValueObject {
       ((1ULL << (kLastBitForWrites + 1 - kFieldWriteOffset)) - 1) << kFieldWriteOffset;
   static constexpr uint64_t kAllReads =
       ((1ULL << (kLastBitForReads + 1 - kFieldReadOffset)) - 1) << kFieldReadOffset;
+
+  // Work around the fact that HIR aliases I/F and J/D.
+  // TODO: remove this interceptor once HIR types are clean
+  static uint64_t TypeFlagWithAlias(Primitive::Type type, int offset) {
+    switch (type) {
+      case Primitive::kPrimInt:
+      case Primitive::kPrimFloat:
+        return TypeFlag(Primitive::kPrimInt, offset) |
+               TypeFlag(Primitive::kPrimFloat, offset);
+      case Primitive::kPrimLong:
+      case Primitive::kPrimDouble:
+        return TypeFlag(Primitive::kPrimLong, offset) |
+               TypeFlag(Primitive::kPrimDouble, offset);
+      default:
+        return TypeFlag(type, offset);
+    }
+  }
 
   // Translates type to bit flag.
   static uint64_t TypeFlag(Primitive::Type type, int offset) {
@@ -5179,8 +5196,10 @@ class HArraySet : public HTemplateInstruction<3> {
             uint32_t dex_pc,
             SideEffects additional_side_effects = SideEffects::None())
       : HTemplateInstruction(
-          SideEffectsForArchRuntimeCalls(value->GetType()).Union(additional_side_effects),
-          dex_pc) {
+            SideEffects::ArrayWriteOfType(expected_component_type).Union(
+                SideEffectsForArchRuntimeCalls(value->GetType())).Union(
+                    additional_side_effects),
+            dex_pc) {
     SetPackedField<ExpectedComponentTypeField>(expected_component_type);
     SetPackedFlag<kFlagNeedsTypeCheck>(value->GetType() == Primitive::kPrimNot);
     SetPackedFlag<kFlagValueCanBeNull>(true);
@@ -5188,8 +5207,6 @@ class HArraySet : public HTemplateInstruction<3> {
     SetRawInputAt(0, array);
     SetRawInputAt(1, index);
     SetRawInputAt(2, value);
-    // We can now call component type logic to set correct type-based side effects.
-    AddSideEffects(SideEffects::ArrayWriteOfType(GetComponentType()));
   }
 
   bool NeedsEnvironment() const OVERRIDE {
