@@ -1551,21 +1551,21 @@ class SideEffects : public ValueObject {
   static SideEffects FieldWriteOfType(Primitive::Type type, bool is_volatile) {
     return is_volatile
         ? AllWritesAndReads()
-        : SideEffects(TypeFlagWithAlias(type, kFieldWriteOffset));
+        : SideEffects(TypeFlag(type, kFieldWriteOffset));
   }
 
   static SideEffects ArrayWriteOfType(Primitive::Type type) {
-    return SideEffects(TypeFlagWithAlias(type, kArrayWriteOffset));
+    return SideEffects(TypeFlag(type, kArrayWriteOffset));
   }
 
   static SideEffects FieldReadOfType(Primitive::Type type, bool is_volatile) {
     return is_volatile
         ? AllWritesAndReads()
-        : SideEffects(TypeFlagWithAlias(type, kFieldReadOffset));
+        : SideEffects(TypeFlag(type, kFieldReadOffset));
   }
 
   static SideEffects ArrayReadOfType(Primitive::Type type) {
-    return SideEffects(TypeFlagWithAlias(type, kArrayReadOffset));
+    return SideEffects(TypeFlag(type, kArrayReadOffset));
   }
 
   static SideEffects CanTriggerGC() {
@@ -1691,23 +1691,6 @@ class SideEffects : public ValueObject {
       ((1ULL << (kLastBitForWrites + 1 - kFieldWriteOffset)) - 1) << kFieldWriteOffset;
   static constexpr uint64_t kAllReads =
       ((1ULL << (kLastBitForReads + 1 - kFieldReadOffset)) - 1) << kFieldReadOffset;
-
-  // Work around the fact that HIR aliases I/F and J/D.
-  // TODO: remove this interceptor once HIR types are clean
-  static uint64_t TypeFlagWithAlias(Primitive::Type type, int offset) {
-    switch (type) {
-      case Primitive::kPrimInt:
-      case Primitive::kPrimFloat:
-        return TypeFlag(Primitive::kPrimInt, offset) |
-               TypeFlag(Primitive::kPrimFloat, offset);
-      case Primitive::kPrimLong:
-      case Primitive::kPrimDouble:
-        return TypeFlag(Primitive::kPrimLong, offset) |
-               TypeFlag(Primitive::kPrimDouble, offset);
-      default:
-        return TypeFlag(type, offset);
-    }
-  }
 
   // Translates type to bit flag.
   static uint64_t TypeFlag(Primitive::Type type, int offset) {
@@ -5137,14 +5120,8 @@ class HInstanceFieldSet : public HTemplateInstruction<2> {
 
 class HArrayGet : public HExpression<2> {
  public:
-  HArrayGet(HInstruction* array,
-            HInstruction* index,
-            Primitive::Type type,
-            uint32_t dex_pc,
-            SideEffects additional_side_effects = SideEffects::None())
-      : HExpression(type,
-                    SideEffects::ArrayReadOfType(type).Union(additional_side_effects),
-                    dex_pc) {
+  HArrayGet(HInstruction* array, HInstruction* index, Primitive::Type type, uint32_t dex_pc)
+      : HExpression(type, SideEffects::ArrayReadOfType(type), dex_pc) {
     SetRawInputAt(0, array);
     SetRawInputAt(1, index);
   }
@@ -5193,13 +5170,8 @@ class HArraySet : public HTemplateInstruction<3> {
             HInstruction* index,
             HInstruction* value,
             Primitive::Type expected_component_type,
-            uint32_t dex_pc,
-            SideEffects additional_side_effects = SideEffects::None())
-      : HTemplateInstruction(
-            SideEffects::ArrayWriteOfType(expected_component_type).Union(
-                SideEffectsForArchRuntimeCalls(value->GetType())).Union(
-                    additional_side_effects),
-            dex_pc) {
+            uint32_t dex_pc)
+      : HTemplateInstruction(SideEffects::None(), dex_pc) {
     SetPackedField<ExpectedComponentTypeField>(expected_component_type);
     SetPackedFlag<kFlagNeedsTypeCheck>(value->GetType() == Primitive::kPrimNot);
     SetPackedFlag<kFlagValueCanBeNull>(true);
@@ -5207,6 +5179,8 @@ class HArraySet : public HTemplateInstruction<3> {
     SetRawInputAt(0, array);
     SetRawInputAt(1, index);
     SetRawInputAt(2, value);
+    // Make a best guess now, may be refined during SSA building.
+    ComputeSideEffects();
   }
 
   bool NeedsEnvironment() const OVERRIDE {
@@ -5257,6 +5231,12 @@ class HArraySet : public HTemplateInstruction<3> {
 
   Primitive::Type GetRawExpectedComponentType() const {
     return GetPackedField<ExpectedComponentTypeField>();
+  }
+
+  void ComputeSideEffects() {
+    Primitive::Type type = GetComponentType();
+    SetSideEffects(SideEffects::ArrayWriteOfType(type).Union(
+        SideEffectsForArchRuntimeCalls(type)));
   }
 
   static SideEffects SideEffectsForArchRuntimeCalls(Primitive::Type value_type) {

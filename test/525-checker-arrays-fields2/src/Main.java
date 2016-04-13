@@ -15,40 +15,12 @@
  */
 
 //
-// Test on (in)variant static and instance field and array references in loops.
+// Test on (in)variant instance field and array references in loops.
 //
 public class Main {
 
   private static Object anObject = new Object();
   private static Object anotherObject = new Object();
-
-  //
-  // Static fields.
-  //
-
-  private static boolean sZ;
-  private static byte sB;
-  private static char sC;
-  private static short sS;
-  private static int sI;
-  private static long sJ;
-  private static float sF;
-  private static double sD;
-  private static Object sL;
-
-  //
-  // Static arrays.
-  //
-
-  private static boolean[] sArrZ;
-  private static byte[] sArrB;
-  private static char[] sArrC;
-  private static short[] sArrS;
-  private static int[] sArrI;
-  private static long[] sArrJ;
-  private static float[] sArrF;
-  private static double[] sArrD;
-  private static Object[] sArrL;
 
   //
   // Instance fields.
@@ -77,346 +49,6 @@ public class Main {
   private float[] mArrF;
   private double[] mArrD;
   private Object[] mArrL;
-
-  //
-  // Loops on static arrays with invariant static field references.
-  // The checker is used to ensure hoisting occurred.
-  //
-
-  /// CHECK-START: void Main.SInvLoopZ() licm (before)
-  /// CHECK-DAG: StaticFieldGet loop:{{B\d+}}
-  /// CHECK-DAG: StaticFieldGet loop:{{B\d+}}
-
-  /// CHECK-START: void Main.SInvLoopZ() licm (after)
-  /// CHECK-DAG: StaticFieldGet loop:none
-  /// CHECK-DAG: StaticFieldGet loop:none
-
-  private static void SInvLoopZ() {
-    for (int i = 0; i < sArrZ.length; i++) {
-      sArrZ[i] = sZ;
-    }
-  }
-
-  /// CHECK-START: void Main.SInvLoopB() licm (before)
-  /// CHECK-DAG: StaticFieldGet loop:{{B\d+}}
-  /// CHECK-DAG: StaticFieldGet loop:{{B\d+}}
-
-  /// CHECK-START: void Main.SInvLoopB() licm (after)
-  /// CHECK-DAG: StaticFieldGet loop:none
-  /// CHECK-DAG: StaticFieldGet loop:none
-
-  private static void SInvLoopB() {
-    for (int i = 0; i < sArrB.length; i++) {
-      sArrB[i] = sB;
-    }
-  }
-
-  /// CHECK-START: void Main.SInvLoopC() licm (before)
-  /// CHECK-DAG: StaticFieldGet loop:{{B\d+}}
-  /// CHECK-DAG: StaticFieldGet loop:{{B\d+}}
-
-  /// CHECK-START: void Main.SInvLoopC() licm (after)
-  /// CHECK-DAG: StaticFieldGet loop:none
-  /// CHECK-DAG: StaticFieldGet loop:none
-
-  private static void SInvLoopC() {
-    for (int i = 0; i < sArrC.length; i++) {
-      sArrC[i] = sC;
-    }
-  }
-
-  /// CHECK-START: void Main.SInvLoopS() licm (before)
-  /// CHECK-DAG: StaticFieldGet loop:{{B\d+}}
-  /// CHECK-DAG: StaticFieldGet loop:{{B\d+}}
-
-  /// CHECK-START: void Main.SInvLoopS() licm (after)
-  /// CHECK-DAG: StaticFieldGet loop:none
-  /// CHECK-DAG: StaticFieldGet loop:none
-
-  private static void SInvLoopS() {
-    for (int i = 0; i < sArrS.length; i++) {
-      sArrS[i] = sS;
-    }
-  }
-
-  /// CHECK-START: void Main.SInvLoopI() licm (before)
-  /// CHECK-DAG: StaticFieldGet loop:{{B\d+}}
-  /// CHECK-DAG: StaticFieldGet loop:{{B\d+}}
-
-  /// CHECK-START: void Main.SInvLoopI() licm (after)
-  /// CHECK-DAG: StaticFieldGet loop:none
-  /// CHECK-DAG: StaticFieldGet loop:none
-
-  private static void SInvLoopI() {
-    for (int i = 0; i < sArrI.length; i++) {
-      sArrI[i] = sI;
-    }
-  }
-
-  /// CHECK-START: void Main.SInvLoopJ() licm (before)
-  /// CHECK-DAG: StaticFieldGet loop:{{B\d+}}
-  /// CHECK-DAG: StaticFieldGet loop:{{B\d+}}
-
-  /// CHECK-START: void Main.SInvLoopJ() licm (after)
-  /// CHECK-DAG: StaticFieldGet loop:none
-  /// CHECK-DAG: StaticFieldGet loop:none
-
-  private static void SInvLoopJ() {
-    for (int i = 0; i < sArrJ.length; i++) {
-      sArrJ[i] = sJ;
-    }
-  }
-
-  /// CHECK-START: void Main.SInvLoopF() licm (before)
-  /// CHECK-DAG: StaticFieldGet loop:{{B\d+}}
-  /// CHECK-DAG: StaticFieldGet loop:{{B\d+}}
-
-  /// CHECK-START: void Main.SInvLoopF() licm (after)
-  /// CHECK-DAG: StaticFieldGet loop:none
-  /// CHECK-DAG: StaticFieldGet loop:none
-
-  private static void SInvLoopF() {
-    for (int i = 0; i < sArrF.length; i++) {
-      sArrF[i] = sF;
-    }
-  }
-
-  /// CHECK-START: void Main.SInvLoopD() licm (before)
-  /// CHECK-DAG: StaticFieldGet loop:{{B\d+}}
-  /// CHECK-DAG: StaticFieldGet loop:{{B\d+}}
-
-  /// CHECK-START: void Main.SInvLoopD() licm (after)
-  /// CHECK-DAG: StaticFieldGet loop:none
-  /// CHECK-DAG: StaticFieldGet loop:none
-
-  private static void SInvLoopD() {
-    for (int i = 0; i < sArrD.length; i++) {
-      sArrD[i] = sD;
-    }
-  }
-
-  /// CHECK-START: void Main.SInvLoopL() licm (before)
-  /// CHECK-DAG: StaticFieldGet loop:{{B\d+}}
-  /// CHECK-DAG: StaticFieldGet loop:{{B\d+}}
-
-  /// CHECK-START: void Main.SInvLoopL() licm (after)
-  /// CHECK-DAG: StaticFieldGet loop:none
-  /// CHECK-DAG: StaticFieldGet loop:none
-
-  private static void SInvLoopL() {
-    for (int i = 0; i < sArrL.length; i++) {
-      sArrL[i] = sL;
-    }
-  }
-
-  //
-  // Loops on static arrays with variant static field references.
-  // Incorrect hoisting is detected by incorrect outcome.
-  //
-
-  private static void SVarLoopZ() {
-    for (int i = 0; i < sArrZ.length; i++) {
-      sArrZ[i] = sZ;
-      if (i == 10)
-        sZ = !sZ;
-    }
-  }
-
-  private static void SVarLoopB() {
-    for (int i = 0; i < sArrB.length; i++) {
-      sArrB[i] = sB;
-      if (i == 10)
-        sB++;
-    }
-  }
-
-  private static void SVarLoopC() {
-    for (int i = 0; i < sArrC.length; i++) {
-      sArrC[i] = sC;
-      if (i == 10)
-        sC++;
-    }
-  }
-
-  private static void SVarLoopS() {
-    for (int i = 0; i < sArrS.length; i++) {
-      sArrS[i] = sS;
-      if (i == 10)
-        sS++;
-    }
-  }
-
-  private static void SVarLoopI() {
-    for (int i = 0; i < sArrI.length; i++) {
-      sArrI[i] = sI;
-      if (i == 10)
-        sI++;
-    }
-  }
-
-  private static void SVarLoopJ() {
-    for (int i = 0; i < sArrJ.length; i++) {
-      sArrJ[i] = sJ;
-      if (i == 10)
-        sJ++;
-    }
-  }
-
-  private static void SVarLoopF() {
-    for (int i = 0; i < sArrF.length; i++) {
-      sArrF[i] = sF;
-      if (i == 10)
-        sF++;
-    }
-  }
-
-  private static void SVarLoopD() {
-    for (int i = 0; i < sArrD.length; i++) {
-      sArrD[i] = sD;
-      if (i == 10)
-        sD++;
-    }
-  }
-
-  private static void SVarLoopL() {
-    for (int i = 0; i < sArrL.length; i++) {
-      sArrL[i] = sL;
-      if (i == 10)
-        sL = anotherObject;
-    }
-  }
-
-  //
-  // Loops on static arrays with a cross-over reference.
-  // Incorrect hoisting is detected by incorrect outcome.
-  // In addition, the checker is used to detect no hoisting.
-  //
-
-  /// CHECK-START: void Main.SCrossOverLoopZ() licm (before)
-  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
-  /// CHECK-DAG: ArraySet loop:{{B\d+}}
-
-  /// CHECK-START: void Main.SCrossOverLoopZ() licm (after)
-  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
-  /// CHECK-DAG: ArraySet loop:{{B\d+}}
-
-  private static void SCrossOverLoopZ() {
-    for (int i = 0; i < sArrZ.length; i++) {
-      sArrZ[i] = !sArrZ[20];
-    }
-  }
-
-  /// CHECK-START: void Main.SCrossOverLoopB() licm (before)
-  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
-  /// CHECK-DAG: ArraySet loop:{{B\d+}}
-
-  /// CHECK-START: void Main.SCrossOverLoopB() licm (after)
-  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
-  /// CHECK-DAG: ArraySet loop:{{B\d+}}
-
-  private static void SCrossOverLoopB() {
-    for (int i = 0; i < sArrB.length; i++) {
-      sArrB[i] = (byte)(sArrB[20] + 2);
-    }
-  }
-
-  /// CHECK-START: void Main.SCrossOverLoopC() licm (before)
-  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
-  /// CHECK-DAG: ArraySet loop:{{B\d+}}
-
-  /// CHECK-START: void Main.SCrossOverLoopC() licm (after)
-  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
-  /// CHECK-DAG: ArraySet loop:{{B\d+}}
-
-  private static void SCrossOverLoopC() {
-    for (int i = 0; i < sArrC.length; i++) {
-      sArrC[i] = (char)(sArrC[20] + 2);
-    }
-  }
-
-  /// CHECK-START: void Main.SCrossOverLoopS() licm (before)
-  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
-  /// CHECK-DAG: ArraySet loop:{{B\d+}}
-
-  /// CHECK-START: void Main.SCrossOverLoopS() licm (after)
-  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
-  /// CHECK-DAG: ArraySet loop:{{B\d+}}
-
-  private static void SCrossOverLoopS() {
-    for (int i = 0; i < sArrS.length; i++) {
-      sArrS[i] = (short)(sArrS[20] + 2);
-    }
-  }
-
-  /// CHECK-START: void Main.SCrossOverLoopI() licm (before)
-  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
-  /// CHECK-DAG: ArraySet loop:{{B\d+}}
-
-  /// CHECK-START: void Main.SCrossOverLoopI() licm (after)
-  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
-  /// CHECK-DAG: ArraySet loop:{{B\d+}}
-
-  private static void SCrossOverLoopI() {
-    for (int i = 0; i < sArrI.length; i++) {
-      sArrI[i] = sArrI[20] + 2;
-    }
-  }
-
-  /// CHECK-START: void Main.SCrossOverLoopJ() licm (before)
-  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
-  /// CHECK-DAG: ArraySet loop:{{B\d+}}
-
-  /// CHECK-START: void Main.SCrossOverLoopJ() licm (after)
-  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
-  /// CHECK-DAG: ArraySet loop:{{B\d+}}
-
-  private static void SCrossOverLoopJ() {
-    for (int i = 0; i < sArrJ.length; i++) {
-      sArrJ[i] = sArrJ[20] + 2;
-    }
-  }
-
-  /// CHECK-START: void Main.SCrossOverLoopF() licm (before)
-  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
-  /// CHECK-DAG: ArraySet loop:{{B\d+}}
-
-  /// CHECK-START: void Main.SCrossOverLoopF() licm (after)
-  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
-  /// CHECK-DAG: ArraySet loop:{{B\d+}}
-
-  private static void SCrossOverLoopF() {
-    for (int i = 0; i < sArrF.length; i++) {
-      sArrF[i] = sArrF[20] + 2;
-    }
-  }
-
-  /// CHECK-START: void Main.SCrossOverLoopD() licm (before)
-  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
-  /// CHECK-DAG: ArraySet loop:{{B\d+}}
-
-  /// CHECK-START: void Main.SCrossOverLoopD() licm (after)
-  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
-  /// CHECK-DAG: ArraySet loop:{{B\d+}}
-
-  private static void SCrossOverLoopD() {
-    for (int i = 0; i < sArrD.length; i++) {
-      sArrD[i] = sArrD[20] + 2;
-    }
-  }
-
-  /// CHECK-START: void Main.SCrossOverLoopL() licm (before)
-  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
-  /// CHECK-DAG: ArraySet loop:{{B\d+}}
-
-  /// CHECK-START: void Main.SCrossOverLoopL() licm (after)
-  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
-  /// CHECK-DAG: ArraySet loop:{{B\d+}}
-
-  private static void SCrossOverLoopL() {
-    for (int i = 0; i < sArrL.length; i++) {
-      sArrL[i] = (sArrL[20] == anObject) ? anotherObject : anObject;
-    }
-  }
 
   //
   // Loops on instance arrays with invariant instance field references.
@@ -633,276 +265,239 @@ public class Main {
   //
 
   /// CHECK-START: void Main.CrossOverLoopZ() licm (before)
+  /// CHECK-DAG: ArraySet loop:none
   /// CHECK-DAG: ArrayGet loop:{{B\d+}}
   /// CHECK-DAG: ArraySet loop:{{B\d+}}
 
   /// CHECK-START: void Main.CrossOverLoopZ() licm (after)
+  /// CHECK-DAG: ArraySet loop:none
   /// CHECK-DAG: ArrayGet loop:{{B\d+}}
   /// CHECK-DAG: ArraySet loop:{{B\d+}}
 
   private void CrossOverLoopZ() {
+    mArrZ[20] = false;
     for (int i = 0; i < mArrZ.length; i++) {
       mArrZ[i] = !mArrZ[20];
     }
   }
 
   /// CHECK-START: void Main.CrossOverLoopB() licm (before)
+  /// CHECK-DAG: ArraySet loop:none
   /// CHECK-DAG: ArrayGet loop:{{B\d+}}
   /// CHECK-DAG: ArraySet loop:{{B\d+}}
 
   /// CHECK-START: void Main.CrossOverLoopB() licm (after)
+  /// CHECK-DAG: ArraySet loop:none
   /// CHECK-DAG: ArrayGet loop:{{B\d+}}
   /// CHECK-DAG: ArraySet loop:{{B\d+}}
 
   private void CrossOverLoopB() {
+    mArrB[20] = 111;
     for (int i = 0; i < mArrB.length; i++) {
       mArrB[i] = (byte)(mArrB[20] + 2);
     }
   }
 
   /// CHECK-START: void Main.CrossOverLoopC() licm (before)
+  /// CHECK-DAG: ArraySet loop:none
   /// CHECK-DAG: ArrayGet loop:{{B\d+}}
   /// CHECK-DAG: ArraySet loop:{{B\d+}}
 
   /// CHECK-START: void Main.CrossOverLoopC() licm (after)
+  /// CHECK-DAG: ArraySet loop:none
   /// CHECK-DAG: ArrayGet loop:{{B\d+}}
   /// CHECK-DAG: ArraySet loop:{{B\d+}}
 
   private void CrossOverLoopC() {
+    mArrC[20] = 111;
     for (int i = 0; i < mArrC.length; i++) {
       mArrC[i] = (char)(mArrC[20] + 2);
     }
   }
 
   /// CHECK-START: void Main.CrossOverLoopS() licm (before)
+  /// CHECK-DAG: ArraySet loop:none
   /// CHECK-DAG: ArrayGet loop:{{B\d+}}
   /// CHECK-DAG: ArraySet loop:{{B\d+}}
 
   /// CHECK-START: void Main.CrossOverLoopS() licm (after)
+  /// CHECK-DAG: ArraySet loop:none
   /// CHECK-DAG: ArrayGet loop:{{B\d+}}
   /// CHECK-DAG: ArraySet loop:{{B\d+}}
 
   private void CrossOverLoopS() {
+    mArrS[20] = 111;
     for (int i = 0; i < mArrS.length; i++) {
       mArrS[i] = (short)(mArrS[20] + 2);
     }
   }
 
   /// CHECK-START: void Main.CrossOverLoopI() licm (before)
+  /// CHECK-DAG: ArraySet loop:none
   /// CHECK-DAG: ArrayGet loop:{{B\d+}}
   /// CHECK-DAG: ArraySet loop:{{B\d+}}
 
   /// CHECK-START: void Main.CrossOverLoopI() licm (after)
+  /// CHECK-DAG: ArraySet loop:none
   /// CHECK-DAG: ArrayGet loop:{{B\d+}}
   /// CHECK-DAG: ArraySet loop:{{B\d+}}
 
   private void CrossOverLoopI() {
+    mArrI[20] = 111;
     for (int i = 0; i < mArrI.length; i++) {
       mArrI[i] = mArrI[20] + 2;
     }
   }
 
   /// CHECK-START: void Main.CrossOverLoopJ() licm (before)
+  /// CHECK-DAG: ArraySet loop:none
   /// CHECK-DAG: ArrayGet loop:{{B\d+}}
   /// CHECK-DAG: ArraySet loop:{{B\d+}}
 
   /// CHECK-START: void Main.CrossOverLoopJ() licm (after)
+  /// CHECK-DAG: ArraySet loop:none
   /// CHECK-DAG: ArrayGet loop:{{B\d+}}
   /// CHECK-DAG: ArraySet loop:{{B\d+}}
 
   private void CrossOverLoopJ() {
+    mArrJ[20] = 111;
     for (int i = 0; i < mArrJ.length; i++) {
       mArrJ[i] = mArrJ[20] + 2;
     }
   }
 
   /// CHECK-START: void Main.CrossOverLoopF() licm (before)
+  /// CHECK-DAG: ArraySet loop:none
   /// CHECK-DAG: ArrayGet loop:{{B\d+}}
   /// CHECK-DAG: ArraySet loop:{{B\d+}}
 
   /// CHECK-START: void Main.CrossOverLoopF() licm (after)
+  /// CHECK-DAG: ArraySet loop:none
   /// CHECK-DAG: ArrayGet loop:{{B\d+}}
   /// CHECK-DAG: ArraySet loop:{{B\d+}}
 
   private void CrossOverLoopF() {
+    mArrF[20] = 111;
     for (int i = 0; i < mArrF.length; i++) {
       mArrF[i] = mArrF[20] + 2;
     }
   }
 
   /// CHECK-START: void Main.CrossOverLoopD() licm (before)
+  /// CHECK-DAG: ArraySet loop:none
   /// CHECK-DAG: ArrayGet loop:{{B\d+}}
   /// CHECK-DAG: ArraySet loop:{{B\d+}}
 
   /// CHECK-START: void Main.CrossOverLoopD() licm (after)
+  /// CHECK-DAG: ArraySet loop:none
   /// CHECK-DAG: ArrayGet loop:{{B\d+}}
   /// CHECK-DAG: ArraySet loop:{{B\d+}}
 
   private void CrossOverLoopD() {
+    mArrD[20] = 111;
     for (int i = 0; i < mArrD.length; i++) {
       mArrD[i] = mArrD[20] + 2;
     }
   }
 
   /// CHECK-START: void Main.CrossOverLoopL() licm (before)
+  /// CHECK-DAG: ArraySet loop:none
   /// CHECK-DAG: ArrayGet loop:{{B\d+}}
   /// CHECK-DAG: ArraySet loop:{{B\d+}}
 
   /// CHECK-START: void Main.CrossOverLoopL() licm (after)
+  /// CHECK-DAG: ArraySet loop:none
   /// CHECK-DAG: ArrayGet loop:{{B\d+}}
   /// CHECK-DAG: ArraySet loop:{{B\d+}}
 
   private void CrossOverLoopL() {
+    mArrL[20] = anotherObject;
     for (int i = 0; i < mArrL.length; i++) {
       mArrL[i] = (mArrL[20] == anObject) ? anotherObject : anObject;
     }
   }
 
   //
-  // Driver and testers.
+  // False cross-over loops on instance arrays with data types (I/F and J/D) that used
+  // to be aliased in an older version of the compiler. This alias has been removed,
+  // however, which enables hoisting the invariant array reference.
+  //
+
+  /// CHECK-START: void Main.FalseCrossOverLoop1() licm (before)
+  /// CHECK-DAG: ArraySet loop:none
+  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
+  /// CHECK-DAG: ArraySet loop:{{B\d+}}
+
+  /// CHECK-START: void Main.FalseCrossOverLoop1() licm (after)
+  /// CHECK-DAG: ArraySet loop:none
+  /// CHECK-DAG: ArrayGet loop:none
+  /// CHECK-DAG: ArraySet loop:{{B\d+}}
+
+  private void FalseCrossOverLoop1() {
+    mArrF[20] = -1;
+    for (int i = 0; i < mArrI.length; i++) {
+      mArrI[i] = (int) mArrF[20] - 2;
+    }
+  }
+
+  /// CHECK-START: void Main.FalseCrossOverLoop2() licm (before)
+  /// CHECK-DAG: ArraySet loop:none
+  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
+  /// CHECK-DAG: ArraySet loop:{{B\d+}}
+
+  /// CHECK-START: void Main.FalseCrossOverLoop2() licm (after)
+  /// CHECK-DAG: ArraySet loop:none
+  /// CHECK-DAG: ArrayGet loop:none
+  /// CHECK-DAG: ArraySet loop:{{B\d+}}
+
+  private void FalseCrossOverLoop2() {
+    mArrI[20] = -2;
+    for (int i = 0; i < mArrF.length; i++) {
+      mArrF[i] = mArrI[20] - 2;
+    }
+  }
+
+  /// CHECK-START: void Main.FalseCrossOverLoop3() licm (before)
+  /// CHECK-DAG: ArraySet loop:none
+  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
+  /// CHECK-DAG: ArraySet loop:{{B\d+}}
+
+  /// CHECK-START: void Main.FalseCrossOverLoop3() licm (after)
+  /// CHECK-DAG: ArraySet loop:none
+  /// CHECK-DAG: ArrayGet loop:none
+  /// CHECK-DAG: ArraySet loop:{{B\d+}}
+
+  private void FalseCrossOverLoop3() {
+    mArrD[20] = -3;
+    for (int i = 0; i < mArrJ.length; i++) {
+      mArrJ[i] = (long) mArrD[20] - 2;
+    }
+  }
+
+  /// CHECK-START: void Main.FalseCrossOverLoop4() licm (before)
+  /// CHECK-DAG: ArraySet loop:none
+  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
+  /// CHECK-DAG: ArraySet loop:{{B\d+}}
+
+  /// CHECK-START: void Main.FalseCrossOverLoop4() licm (after)
+  /// CHECK-DAG: ArraySet loop:none
+  /// CHECK-DAG: ArrayGet loop:none
+  /// CHECK-DAG: ArraySet loop:{{B\d+}}
+
+  private void FalseCrossOverLoop4() {
+    mArrJ[20] = -4;
+    for (int i = 0; i < mArrD.length; i++) {
+      mArrD[i] = mArrJ[20] - 2;
+    }
+  }
+
+  //
+  // Main driver and testers.
   //
 
   public static void main(String[] args) {
-    DoStaticTests();
     new Main().DoInstanceTests();
-  }
-
-  private static void DoStaticTests() {
-    // Type Z.
-    sZ = true;
-    sArrZ = new boolean[100];
-    SInvLoopZ();
-    for (int i = 0; i < sArrZ.length; i++) {
-      expectEquals(true, sArrZ[i]);
-    }
-    SVarLoopZ();
-    for (int i = 0; i < sArrZ.length; i++) {
-      expectEquals(i <= 10, sArrZ[i]);
-    }
-    SCrossOverLoopZ();
-    for (int i = 0; i < sArrZ.length; i++) {
-      expectEquals(i <= 20, sArrZ[i]);
-    }
-    // Type B.
-    sB = 1;
-    sArrB = new byte[100];
-    SInvLoopB();
-    for (int i = 0; i < sArrB.length; i++) {
-      expectEquals(1, sArrB[i]);
-    }
-    SVarLoopB();
-    for (int i = 0; i < sArrB.length; i++) {
-      expectEquals(i <= 10 ? 1 : 2, sArrB[i]);
-    }
-    SCrossOverLoopB();
-    for (int i = 0; i < sArrB.length; i++) {
-      expectEquals(i <= 20 ? 4 : 6, sArrB[i]);
-    }
-    // Type C.
-    sC = 2;
-    sArrC = new char[100];
-    SInvLoopC();
-    for (int i = 0; i < sArrC.length; i++) {
-      expectEquals(2, sArrC[i]);
-    }
-    SVarLoopC();
-    for (int i = 0; i < sArrC.length; i++) {
-      expectEquals(i <= 10 ? 2 : 3, sArrC[i]);
-    }
-    SCrossOverLoopC();
-    for (int i = 0; i < sArrC.length; i++) {
-      expectEquals(i <= 20 ? 5 : 7, sArrC[i]);
-    }
-    // Type S.
-    sS = 3;
-    sArrS = new short[100];
-    SInvLoopS();
-    for (int i = 0; i < sArrS.length; i++) {
-      expectEquals(3, sArrS[i]);
-    }
-    SVarLoopS();
-    for (int i = 0; i < sArrS.length; i++) {
-      expectEquals(i <= 10 ? 3 : 4, sArrS[i]);
-    }
-    SCrossOverLoopS();
-    for (int i = 0; i < sArrS.length; i++) {
-      expectEquals(i <= 20 ? 6 : 8, sArrS[i]);
-    }
-    // Type I.
-    sI = 4;
-    sArrI = new int[100];
-    SInvLoopI();
-    for (int i = 0; i < sArrI.length; i++) {
-      expectEquals(4, sArrI[i]);
-    }
-    SVarLoopI();
-    for (int i = 0; i < sArrI.length; i++) {
-      expectEquals(i <= 10 ? 4 : 5, sArrI[i]);
-    }
-    SCrossOverLoopI();
-    for (int i = 0; i < sArrI.length; i++) {
-      expectEquals(i <= 20 ? 7 : 9, sArrI[i]);
-    }
-    // Type J.
-    sJ = 5;
-    sArrJ = new long[100];
-    SInvLoopJ();
-    for (int i = 0; i < sArrJ.length; i++) {
-      expectEquals(5, sArrJ[i]);
-    }
-    SVarLoopJ();
-    for (int i = 0; i < sArrJ.length; i++) {
-      expectEquals(i <= 10 ? 5 : 6, sArrJ[i]);
-    }
-    SCrossOverLoopJ();
-    for (int i = 0; i < sArrJ.length; i++) {
-      expectEquals(i <= 20 ? 8 : 10, sArrJ[i]);
-    }
-    // Type F.
-    sF = 6.0f;
-    sArrF = new float[100];
-    SInvLoopF();
-    for (int i = 0; i < sArrF.length; i++) {
-      expectEquals(6, sArrF[i]);
-    }
-    SVarLoopF();
-    for (int i = 0; i < sArrF.length; i++) {
-      expectEquals(i <= 10 ? 6 : 7, sArrF[i]);
-    }
-    SCrossOverLoopF();
-    for (int i = 0; i < sArrF.length; i++) {
-      expectEquals(i <= 20 ? 9 : 11, sArrF[i]);
-    }
-    // Type D.
-    sD = 7.0;
-    sArrD = new double[100];
-    SInvLoopD();
-    for (int i = 0; i < sArrD.length; i++) {
-      expectEquals(7.0, sArrD[i]);
-    }
-    SVarLoopD();
-    for (int i = 0; i < sArrD.length; i++) {
-      expectEquals(i <= 10 ? 7 : 8, sArrD[i]);
-    }
-    SCrossOverLoopD();
-    for (int i = 0; i < sArrD.length; i++) {
-      expectEquals(i <= 20 ? 10 : 12, sArrD[i]);
-    }
-    // Type L.
-    sL = anObject;
-    sArrL = new Object[100];
-    SInvLoopL();
-    for (int i = 0; i < sArrL.length; i++) {
-      expectEquals(anObject, sArrL[i]);
-    }
-    SVarLoopL();
-    for (int i = 0; i < sArrL.length; i++) {
-      expectEquals(i <= 10 ? anObject : anotherObject, sArrL[i]);
-    }
-    SCrossOverLoopL();
-    for (int i = 0; i < sArrL.length; i++) {
-      expectEquals(i <= 20 ? anObject : anotherObject, sArrL[i]);
-    }
+    System.out.println("passed");
   }
 
   private void DoInstanceTests() {
@@ -934,7 +529,7 @@ public class Main {
     }
     CrossOverLoopB();
     for (int i = 0; i < mArrB.length; i++) {
-      expectEquals(i <= 20 ? 4 : 6, mArrB[i]);
+      expectEquals(i <= 20 ? 113 : 115, mArrB[i]);
     }
     // Type C.
     mC = 2;
@@ -949,7 +544,7 @@ public class Main {
     }
     CrossOverLoopC();
     for (int i = 0; i < mArrC.length; i++) {
-      expectEquals(i <= 20 ? 5 : 7, mArrC[i]);
+      expectEquals(i <= 20 ? 113 : 115, mArrC[i]);
     }
     // Type S.
     mS = 3;
@@ -964,7 +559,7 @@ public class Main {
     }
     CrossOverLoopS();
     for (int i = 0; i < mArrS.length; i++) {
-      expectEquals(i <= 20 ? 6 : 8, mArrS[i]);
+      expectEquals(i <= 20 ? 113 : 115, mArrS[i]);
     }
     // Type I.
     mI = 4;
@@ -979,7 +574,7 @@ public class Main {
     }
     CrossOverLoopI();
     for (int i = 0; i < mArrI.length; i++) {
-      expectEquals(i <= 20 ? 7 : 9, mArrI[i]);
+      expectEquals(i <= 20 ? 113 : 115, mArrI[i]);
     }
     // Type J.
     mJ = 5;
@@ -994,7 +589,7 @@ public class Main {
     }
     CrossOverLoopJ();
     for (int i = 0; i < mArrJ.length; i++) {
-      expectEquals(i <= 20 ? 8 : 10, mArrJ[i]);
+      expectEquals(i <= 20 ? 113 : 115, mArrJ[i]);
     }
     // Type F.
     mF = 6.0f;
@@ -1009,7 +604,7 @@ public class Main {
     }
     CrossOverLoopF();
     for (int i = 0; i < mArrF.length; i++) {
-      expectEquals(i <= 20 ? 9 : 11, mArrF[i]);
+      expectEquals(i <= 20 ? 113 : 115, mArrF[i]);
     }
     // Type D.
     mD = 7.0;
@@ -1024,7 +619,7 @@ public class Main {
     }
     CrossOverLoopD();
     for (int i = 0; i < mArrD.length; i++) {
-      expectEquals(i <= 20 ? 10 : 12, mArrD[i]);
+      expectEquals(i <= 20 ? 113 : 115, mArrD[i]);
     }
     // Type L.
     mL = anObject;
@@ -1040,6 +635,23 @@ public class Main {
     CrossOverLoopL();
     for (int i = 0; i < mArrL.length; i++) {
       expectEquals(i <= 20 ? anObject : anotherObject, mArrL[i]);
+    }
+    // False cross-over.
+    FalseCrossOverLoop1();
+    for (int i = 0; i < mArrI.length; i++) {
+      expectEquals(-3, mArrI[i]);
+    }
+    FalseCrossOverLoop2();
+    for (int i = 0; i < mArrF.length; i++) {
+      expectEquals(-4, mArrF[i]);
+    }
+    FalseCrossOverLoop3();
+    for (int i = 0; i < mArrJ.length; i++) {
+      expectEquals(-5, mArrJ[i]);
+    }
+    FalseCrossOverLoop4();
+    for (int i = 0; i < mArrD.length; i++) {
+      expectEquals(-6, mArrD[i]);
     }
   }
 
