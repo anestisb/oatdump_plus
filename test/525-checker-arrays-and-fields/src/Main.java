@@ -759,12 +759,87 @@ public class Main {
   }
 
   //
+  // Misc. tests on false cross-over loops with data types (I/F and J/D) that used
+  // to be aliased in an older version of the compiler. This alias has been removed,
+  // however, which enables hoisting the invariant array reference.
+  //
+
+  /// CHECK-START: void Main.FalseCrossOverLoop1() licm (before)
+  /// CHECK-DAG: ArraySet loop:none
+  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
+  /// CHECK-DAG: ArraySet loop:{{B\d+}}
+
+  /// CHECK-START: void Main.FalseCrossOverLoop1() licm (after)
+  /// CHECK-DAG: ArraySet loop:none
+  /// CHECK-DAG: ArrayGet loop:none
+  /// CHECK-DAG: ArraySet loop:{{B\d+}}
+
+  private static void FalseCrossOverLoop1() {
+    sArrF[20] = -1;
+    for (int i = 0; i < sArrI.length; i++) {
+      sArrI[i] = (int) sArrF[20] - 2;
+    }
+  }
+
+  /// CHECK-START: void Main.FalseCrossOverLoop2() licm (before)
+  /// CHECK-DAG: ArraySet loop:none
+  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
+  /// CHECK-DAG: ArraySet loop:{{B\d+}}
+
+  /// CHECK-START: void Main.FalseCrossOverLoop2() licm (after)
+  /// CHECK-DAG: ArraySet loop:none
+  /// CHECK-DAG: ArrayGet loop:none
+  /// CHECK-DAG: ArraySet loop:{{B\d+}}
+
+  private static void FalseCrossOverLoop2() {
+    sArrI[20] = -2;
+    for (int i = 0; i < sArrF.length; i++) {
+      sArrF[i] = sArrI[20] - 2;
+    }
+  }
+
+  /// CHECK-START: void Main.FalseCrossOverLoop3() licm (before)
+  /// CHECK-DAG: ArraySet loop:none
+  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
+  /// CHECK-DAG: ArraySet loop:{{B\d+}}
+
+  /// CHECK-START: void Main.FalseCrossOverLoop3() licm (after)
+  /// CHECK-DAG: ArraySet loop:none
+  /// CHECK-DAG: ArrayGet loop:none
+  /// CHECK-DAG: ArraySet loop:{{B\d+}}
+
+  private static void FalseCrossOverLoop3() {
+    sArrD[20] = -3;
+    for (int i = 0; i < sArrJ.length; i++) {
+      sArrJ[i] = (long) sArrD[20] - 2;
+    }
+  }
+
+  /// CHECK-START: void Main.FalseCrossOverLoop4() licm (before)
+  /// CHECK-DAG: ArraySet loop:none
+  /// CHECK-DAG: ArrayGet loop:{{B\d+}}
+  /// CHECK-DAG: ArraySet loop:{{B\d+}}
+
+  /// CHECK-START: void Main.FalseCrossOverLoop4() licm (after)
+  /// CHECK-DAG: ArraySet loop:none
+  /// CHECK-DAG: ArrayGet loop:none
+  /// CHECK-DAG: ArraySet loop:{{B\d+}}
+
+  private static void FalseCrossOverLoop4() {
+    sArrJ[20] = -4;
+    for (int i = 0; i < sArrD.length; i++) {
+      sArrD[i] = sArrJ[20] - 2;
+    }
+  }
+
+  //
   // Driver and testers.
   //
 
   public static void main(String[] args) {
     DoStaticTests();
     new Main().DoInstanceTests();
+    System.out.println("passed");
   }
 
   private static void DoStaticTests() {
@@ -902,6 +977,23 @@ public class Main {
     SCrossOverLoopL();
     for (int i = 0; i < sArrL.length; i++) {
       expectEquals(i <= 20 ? anObject : anotherObject, sArrL[i]);
+    }
+    // Misc. tests.
+    FalseCrossOverLoop1();
+    for (int i = 0; i < sArrI.length; i++) {
+      expectEquals(-3, sArrI[i]);
+    }
+    FalseCrossOverLoop2();
+    for (int i = 0; i < sArrF.length; i++) {
+      expectEquals(-4, sArrF[i]);
+    }
+    FalseCrossOverLoop3();
+    for (int i = 0; i < sArrJ.length; i++) {
+      expectEquals(-5, sArrJ[i]);
+    }
+    FalseCrossOverLoop4();
+    for (int i = 0; i < sArrD.length; i++) {
+      expectEquals(-6, sArrD[i]);
     }
   }
 
