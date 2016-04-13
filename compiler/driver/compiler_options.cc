@@ -21,7 +21,7 @@
 namespace art {
 
 CompilerOptions::CompilerOptions()
-    : compiler_filter_(kDefaultCompilerFilter),
+    : compiler_filter_(CompilerFilter::kDefaultCompilerFilter),
       huge_method_threshold_(kDefaultHugeMethodThreshold),
       large_method_threshold_(kDefaultLargeMethodThreshold),
       small_method_threshold_(kDefaultSmallMethodThreshold),
