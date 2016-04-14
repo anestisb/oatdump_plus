@@ -1832,7 +1832,7 @@ ENTRY art_quick_fmodf
     add   sp, #4
     .cfi_adjust_cfa_offset -4
     pop   {pc}
-END art_quick_fmod
+END art_quick_fmodf
 
     /* int64_t art_d2l(double d) */
     .extern art_d2l
