@@ -3016,7 +3016,6 @@ size_t Thread::NumberOfHeldMutexes() const {
   return count;
 }
 
-
 void Thread::DeoptimizeWithDeoptimizationException(JValue* result) {
   DCHECK_EQ(GetException(), Thread::GetDeoptimizationException());
   ClearException();
@@ -3035,6 +3034,13 @@ void Thread::DeoptimizeWithDeoptimizationException(JValue* result) {
     SetException(pending_exception);
   }
   interpreter::EnterInterpreterFromDeoptimize(this, shadow_frame, from_code, result);
+}
+
+void Thread::SetException(mirror::Throwable* new_exception) {
+  CHECK(new_exception != nullptr);
+  // TODO: DCHECK(!IsExceptionPending());
+  tlsPtr_.exception = new_exception;
+  // LOG(ERROR) << new_exception->Dump();
 }
 
 }  // namespace art
