@@ -1879,6 +1879,84 @@ void IntrinsicCodeGeneratorMIPS64::VisitDoubleIsInfinite(HInvoke* invoke) {
   GenIsInfinite(invoke->GetLocations(), /* is64bit */ true, GetAssembler());
 }
 
+static void GenHighestOneBit(LocationSummary* locations,
+                             Primitive::Type type,
+                             Mips64Assembler* assembler) {
+  DCHECK(type == Primitive::kPrimInt || type == Primitive::kPrimLong) << PrettyDescriptor(type);
+
+  GpuRegister in = locations->InAt(0).AsRegister<GpuRegister>();
+  GpuRegister out = locations->Out().AsRegister<GpuRegister>();
+
+  if (type == Primitive::kPrimLong) {
+    __ Dclz(TMP, in);
+    __ LoadConst64(AT, INT64_C(0x8000000000000000));
+    __ Dsrlv(out, AT, TMP);
+  } else {
+    __ Clz(TMP, in);
+    __ LoadConst32(AT, 0x80000000);
+    __ Srlv(out, AT, TMP);
+  }
+  // For either value of "type", when "in" is zero, "out" should also
+  // be zero. Without this extra "and" operation, when "in" is zero,
+  // "out" would be either Integer.MIN_VALUE, or Long.MIN_VALUE because
+  // the MIPS logical shift operations "dsrlv", and "srlv" don't use
+  // the shift amount (TMP) directly; they use either (TMP % 64) or
+  // (TMP % 32), respectively.
+  __ And(out, out, in);
+}
+
+// int java.lang.Integer.highestOneBit(int)
+void IntrinsicLocationsBuilderMIPS64::VisitIntegerHighestOneBit(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitIntegerHighestOneBit(HInvoke* invoke) {
+  GenHighestOneBit(invoke->GetLocations(), Primitive::kPrimInt, GetAssembler());
+}
+
+// long java.lang.Long.highestOneBit(long)
+void IntrinsicLocationsBuilderMIPS64::VisitLongHighestOneBit(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitLongHighestOneBit(HInvoke* invoke) {
+  GenHighestOneBit(invoke->GetLocations(), Primitive::kPrimLong, GetAssembler());
+}
+
+static void GenLowestOneBit(LocationSummary* locations,
+                            Primitive::Type type,
+                            Mips64Assembler* assembler) {
+  DCHECK(type == Primitive::kPrimInt || type == Primitive::kPrimLong) << PrettyDescriptor(type);
+
+  GpuRegister in = locations->InAt(0).AsRegister<GpuRegister>();
+  GpuRegister out = locations->Out().AsRegister<GpuRegister>();
+
+  if (type == Primitive::kPrimLong) {
+    __ Dsubu(TMP, ZERO, in);
+  } else {
+    __ Subu(TMP, ZERO, in);
+  }
+  __ And(out, TMP, in);
+}
+
+// int java.lang.Integer.lowestOneBit(int)
+void IntrinsicLocationsBuilderMIPS64::VisitIntegerLowestOneBit(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitIntegerLowestOneBit(HInvoke* invoke) {
+  GenLowestOneBit(invoke->GetLocations(), Primitive::kPrimInt, GetAssembler());
+}
+
+// long java.lang.Long.lowestOneBit(long)
+void IntrinsicLocationsBuilderMIPS64::VisitLongLowestOneBit(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitLongLowestOneBit(HInvoke* invoke) {
+  GenLowestOneBit(invoke->GetLocations(), Primitive::kPrimLong, GetAssembler());
+}
+
 UNIMPLEMENTED_INTRINSIC(MIPS64, ReferenceGetReferent)
 UNIMPLEMENTED_INTRINSIC(MIPS64, StringGetCharsNoCheck)
 UNIMPLEMENTED_INTRINSIC(MIPS64, SystemArrayCopyChar)
@@ -1901,11 +1979,6 @@ UNIMPLEMENTED_INTRINSIC(MIPS64, MathNextAfter)
 UNIMPLEMENTED_INTRINSIC(MIPS64, MathSinh)
 UNIMPLEMENTED_INTRINSIC(MIPS64, MathTan)
 UNIMPLEMENTED_INTRINSIC(MIPS64, MathTanh)
-
-UNIMPLEMENTED_INTRINSIC(MIPS64, IntegerHighestOneBit)
-UNIMPLEMENTED_INTRINSIC(MIPS64, LongHighestOneBit)
-UNIMPLEMENTED_INTRINSIC(MIPS64, IntegerLowestOneBit)
-UNIMPLEMENTED_INTRINSIC(MIPS64, LongLowestOneBit)
 
 // 1.8.
 UNIMPLEMENTED_INTRINSIC(MIPS64, UnsafeGetAndAddInt)
