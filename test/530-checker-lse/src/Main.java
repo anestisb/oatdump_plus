@@ -70,6 +70,10 @@ class Finalizable {
   }
 }
 
+interface Filter {
+  public boolean isValid(int i);
+}
+
 public class Main {
 
   /// CHECK-START: double Main.calcCircleArea(double) load_store_elimination (before)
@@ -78,7 +82,7 @@ public class Main {
   /// CHECK: InstanceFieldGet
 
   /// CHECK-START: double Main.calcCircleArea(double) load_store_elimination (after)
-  /// CHECK: NewInstance
+  /// CHECK-NOT: NewInstance
   /// CHECK-NOT: InstanceFieldSet
   /// CHECK-NOT: InstanceFieldGet
 
@@ -124,7 +128,6 @@ public class Main {
   }
 
   /// CHECK-START: int Main.test3(TestClass) load_store_elimination (before)
-  /// CHECK: NewInstance
   /// CHECK: StaticFieldGet
   /// CHECK: NewInstance
   /// CHECK: InstanceFieldSet
@@ -137,7 +140,6 @@ public class Main {
   /// CHECK: InstanceFieldGet
 
   /// CHECK-START: int Main.test3(TestClass) load_store_elimination (after)
-  /// CHECK: NewInstance
   /// CHECK: StaticFieldGet
   /// CHECK: NewInstance
   /// CHECK: InstanceFieldSet
@@ -149,9 +151,6 @@ public class Main {
 
   // A new allocation (even non-singleton) shouldn't alias with pre-existing values.
   static int test3(TestClass obj) {
-    // Do an allocation here to avoid the HLoadClass and HClinitCheck
-    // at the second allocation.
-    new TestClass();
     TestClass obj1 = TestClass.sTestClassObj;
     TestClass obj2 = new TestClass();  // Cannot alias with obj or obj1 which pre-exist.
     obj.next = obj2;  // Make obj2 a non-singleton.
@@ -256,7 +255,7 @@ public class Main {
   /// CHECK: InstanceFieldGet
 
   /// CHECK-START: int Main.test8() load_store_elimination (after)
-  /// CHECK: NewInstance
+  /// CHECK-NOT: NewInstance
   /// CHECK-NOT: InstanceFieldSet
   /// CHECK: InvokeVirtual
   /// CHECK-NOT: NullCheck
@@ -414,7 +413,7 @@ public class Main {
   /// CHECK: InstanceFieldGet
 
   /// CHECK-START: int Main.test16() load_store_elimination (after)
-  /// CHECK: NewInstance
+  /// CHECK-NOT: NewInstance
   /// CHECK-NOT: InstanceFieldSet
   /// CHECK-NOT: InstanceFieldGet
 
@@ -431,7 +430,7 @@ public class Main {
 
   /// CHECK-START: int Main.test17() load_store_elimination (after)
   /// CHECK: <<Const0:i\d+>> IntConstant 0
-  /// CHECK: NewInstance
+  /// CHECK-NOT: NewInstance
   /// CHECK-NOT: InstanceFieldSet
   /// CHECK-NOT: InstanceFieldGet
   /// CHECK: Return [<<Const0>>]
@@ -527,12 +526,12 @@ public class Main {
   /// CHECK: InstanceFieldGet
 
   /// CHECK-START: int Main.test22() load_store_elimination (after)
-  /// CHECK: NewInstance
+  /// CHECK-NOT: NewInstance
   /// CHECK-NOT: InstanceFieldSet
-  /// CHECK: NewInstance
+  /// CHECK-NOT: NewInstance
   /// CHECK-NOT: InstanceFieldSet
   /// CHECK-NOT: InstanceFieldGet
-  /// CHECK: NewInstance
+  /// CHECK-NOT: NewInstance
   /// CHECK-NOT: InstanceFieldSet
   /// CHECK-NOT: InstanceFieldGet
   /// CHECK-NOT: InstanceFieldGet
@@ -673,7 +672,7 @@ public class Main {
   /// CHECK: Select
 
   // Test that HSelect creates alias.
-  public static int $noinline$testHSelect(boolean b) {
+  static int $noinline$testHSelect(boolean b) {
     if (sFlag) {
       throw new Error();
     }
@@ -686,19 +685,51 @@ public class Main {
     return obj2.i;
   }
 
-  public static void assertIntEquals(int result, int expected) {
+  static int sumWithFilter(int[] array, Filter f) {
+    int sum = 0;
+    for (int i = 0; i < array.length; i++) {
+      if (f.isValid(array[i])) {
+        sum += array[i];
+      }
+    }
+    return sum;
+  }
+
+  /// CHECK-START: int Main.sumWithinRange(int[], int, int) load_store_elimination (before)
+  /// CHECK: NewInstance
+  /// CHECK: InstanceFieldSet
+  /// CHECK: InstanceFieldSet
+  /// CHECK: InstanceFieldGet
+  /// CHECK: InstanceFieldGet
+
+  /// CHECK-START: int Main.sumWithinRange(int[], int, int) load_store_elimination (after)
+  /// CHECK-NOT: NewInstance
+  /// CHECK-NOT: InstanceFieldSet
+  /// CHECK-NOT: InstanceFieldGet
+
+  // A lambda-style allocation can be eliminated after inlining.
+  static int sumWithinRange(int[] array, final int low, final int high) {
+    Filter filter = new Filter() {
+      public boolean isValid(int i) {
+        return (i >= low) && (i <= high);
+      }
+    };
+    return sumWithFilter(array, filter);
+  }
+
+  static void assertIntEquals(int result, int expected) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
     }
   }
 
-  public static void assertFloatEquals(float result, float expected) {
+  static void assertFloatEquals(float result, float expected) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
     }
   }
 
-  public static void assertDoubleEquals(double result, double expected) {
+  static void assertDoubleEquals(double result, double expected) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
     }
@@ -746,6 +777,8 @@ public class Main {
     assertFloatEquals(test24(), 8.0f);
     testFinalizableByForcingGc();
     assertIntEquals($noinline$testHSelect(true), 0xdead);
+    int[] array = {2, 5, 9, -1, -3, 10, 8, 4};
+    assertIntEquals(sumWithinRange(array, 1, 5), 11);
   }
 
   static boolean sFlag;
