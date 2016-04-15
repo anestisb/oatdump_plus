@@ -480,7 +480,7 @@ class HeapLocationCollector : public HGraphVisitor {
                             // alias analysis and won't be as effective.
   bool has_volatile_;       // If there are volatile field accesses.
   bool has_monitor_operations_;    // If there are monitor operations.
-  bool may_deoptimize_;
+  bool may_deoptimize_;     // Only true for HDeoptimize with single-frame deoptimization.
 
   DISALLOW_COPY_AND_ASSIGN(HeapLocationCollector);
 };
@@ -551,19 +551,20 @@ class LSEVisitor : public HGraphVisitor {
     }
 
     // At this point, stores in possibly_removed_stores_ can be safely removed.
-    size = possibly_removed_stores_.size();
-    for (size_t i = 0; i < size; i++) {
+    for (size_t i = 0, e = possibly_removed_stores_.size(); i < e; i++) {
       HInstruction* store = possibly_removed_stores_[i];
       DCHECK(store->IsInstanceFieldSet() || store->IsStaticFieldSet() || store->IsArraySet());
       store->GetBlock()->RemoveInstruction(store);
     }
 
-    // TODO: remove unnecessary allocations.
-    // Eliminate instructions in singleton_new_instances_ that:
-    // - don't have uses,
-    // - don't have finalizers,
-    // - are instantiable and accessible,
-    // - have no/separate clinit check.
+    // Eliminate allocations that are not used.
+    for (size_t i = 0, e = singleton_new_instances_.size(); i < e; i++) {
+      HInstruction* new_instance = singleton_new_instances_[i];
+      if (!new_instance->HasNonEnvironmentUses()) {
+        new_instance->RemoveEnvironmentUsers();
+        new_instance->GetBlock()->RemoveInstruction(new_instance);
+      }
+    }
   }
 
  private:
@@ -969,8 +970,8 @@ class LSEVisitor : public HGraphVisitor {
     if (!heap_location_collector_.MayDeoptimize() &&
         ref_info->IsSingletonAndNotReturned() &&
         !new_instance->IsFinalizable() &&
-        !new_instance->CanThrow()) {
-      // TODO: add new_instance to singleton_new_instances_ and enable allocation elimination.
+        !new_instance->NeedsAccessCheck()) {
+      singleton_new_instances_.push_back(new_instance);
     }
     ArenaVector<HInstruction*>& heap_values =
         heap_values_for_[new_instance->GetBlock()->GetBlockId()];
