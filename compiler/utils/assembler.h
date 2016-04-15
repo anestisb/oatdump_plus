@@ -306,8 +306,10 @@ class DebugFrameOpCodeWriterForAssembler FINAL
   // Override the last delayed PC. The new PC can be out of order.
   void OverrideDelayedPC(size_t pc) {
     DCHECK(delay_emitting_advance_pc_);
-    DCHECK(!delayed_advance_pcs_.empty());
-    delayed_advance_pcs_.back().pc = pc;
+    if (enabled_) {
+      DCHECK(!delayed_advance_pcs_.empty());
+      delayed_advance_pcs_.back().pc = pc;
+    }
   }
 
   // Return the number of delayed advance PC entries.
