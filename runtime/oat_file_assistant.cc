@@ -64,17 +64,15 @@ std::ostream& operator << (std::ostream& stream, const OatFileAssistant::OatStat
 
 OatFileAssistant::OatFileAssistant(const char* dex_location,
                                    const InstructionSet isa,
-                                   bool profile_changed,
                                    bool load_executable)
-    : OatFileAssistant(dex_location, nullptr, isa, profile_changed, load_executable)
+    : OatFileAssistant(dex_location, nullptr, isa, load_executable)
 { }
 
 OatFileAssistant::OatFileAssistant(const char* dex_location,
                                    const char* oat_location,
                                    const InstructionSet isa,
-                                   bool profile_changed,
                                    bool load_executable)
-    : isa_(isa), profile_changed_(profile_changed), load_executable_(load_executable) {
+    : isa_(isa), load_executable_(load_executable) {
   CHECK(dex_location != nullptr) << "OatFileAssistant: null dex location";
   dex_location_.assign(dex_location);
 
@@ -134,29 +132,43 @@ bool OatFileAssistant::Lock(std::string* error_msg) {
   return true;
 }
 
-bool OatFileAssistant::OatFileCompilerFilterIsOkay(CompilerFilter::Filter target) {
+static bool GivenOatFileCompilerFilterIsOkay(const OatFile& oat_file,
+                                             CompilerFilter::Filter target,
+                                             bool profile_changed) {
+  CompilerFilter::Filter current = oat_file.GetCompilerFilter();
+
+  if (profile_changed && CompilerFilter::DependsOnProfile(current)) {
+    VLOG(oat) << "Compiler filter not okay because Profile changed";
+    return false;
+  }
+  return CompilerFilter::IsAsGoodAs(current, target);
+}
+
+bool OatFileAssistant::OatFileCompilerFilterIsOkay(CompilerFilter::Filter target,
+                                                   bool profile_changed) {
   const OatFile* oat_file = GetOatFile();
   if (oat_file != nullptr) {
-    CompilerFilter::Filter current = oat_file->GetCompilerFilter();
-    return CompilerFilter::IsAsGoodAs(current, target);
+    return GivenOatFileCompilerFilterIsOkay(*oat_file, target, profile_changed);
   }
   return false;
 }
 
-bool OatFileAssistant::OdexFileCompilerFilterIsOkay(CompilerFilter::Filter target) {
+bool OatFileAssistant::OdexFileCompilerFilterIsOkay(CompilerFilter::Filter target,
+                                                    bool profile_changed) {
   const OatFile* odex_file = GetOdexFile();
   if (odex_file != nullptr) {
-    CompilerFilter::Filter current = odex_file->GetCompilerFilter();
-    return CompilerFilter::IsAsGoodAs(current, target);
+    return GivenOatFileCompilerFilterIsOkay(*odex_file, target, profile_changed);
   }
   return false;
 }
 
-OatFileAssistant::DexOptNeeded OatFileAssistant::GetDexOptNeeded(CompilerFilter::Filter target) {
+OatFileAssistant::DexOptNeeded
+OatFileAssistant::GetDexOptNeeded(CompilerFilter::Filter target,
+                                  bool profile_changed) {
   bool compilation_desired = CompilerFilter::IsBytecodeCompilationEnabled(target);
 
   // See if the oat file is in good shape as is.
-  bool oat_okay = OatFileCompilerFilterIsOkay(target);
+  bool oat_okay = OatFileCompilerFilterIsOkay(target, profile_changed);
   if (oat_okay) {
     if (compilation_desired) {
       if (OatFileIsUpToDate()) {
@@ -170,7 +182,7 @@ OatFileAssistant::DexOptNeeded OatFileAssistant::GetDexOptNeeded(CompilerFilter:
   }
 
   // See if the odex file is in good shape as is.
-  bool odex_okay = OdexFileCompilerFilterIsOkay(target);
+  bool odex_okay = OdexFileCompilerFilterIsOkay(target, profile_changed);
   if (odex_okay) {
     if (compilation_desired) {
       if (OdexFileIsUpToDate()) {
@@ -225,13 +237,13 @@ bool OatFileAssistant::IsUpToDate() {
 }
 
 OatFileAssistant::ResultOfAttemptToUpdate
-OatFileAssistant::MakeUpToDate(std::string* error_msg) {
+OatFileAssistant::MakeUpToDate(bool profile_changed, std::string* error_msg) {
   CompilerFilter::Filter target;
   if (!GetRuntimeCompilerFilterOption(&target, error_msg)) {
     return kUpdateNotAttempted;
   }
 
-  switch (GetDexOptNeeded(target)) {
+  switch (GetDexOptNeeded(target, profile_changed)) {
     case kNoDexOptNeeded: return kUpdateSucceeded;
     case kDex2OatNeeded: return GenerateOatFile(error_msg);
     case kPatchOatNeeded: return RelocateOatFile(OdexFileName(), error_msg);
@@ -576,18 +588,6 @@ bool OatFileAssistant::GivenOatFileIsOutOfDate(const OatFile& file) {
     }
   } else {
     VLOG(oat) << "Image checksum test skipped for compiler filter " << current_compiler_filter;
-  }
-
-  // Verify the profile hasn't changed recently.
-  // TODO: Move this check to OatFileCompilerFilterIsOkay? Nothing bad should
-  // happen if we use an oat file compiled with an out-of-date profile.
-  if (CompilerFilter::DependsOnProfile(current_compiler_filter)) {
-    if (profile_changed_) {
-      VLOG(oat) << "The profile has changed recently.";
-      return true;
-    }
-  } else {
-    VLOG(oat) << "Profile check skipped for compiler filter " << current_compiler_filter;
   }
 
   // Everything looks good; the dex file is not out of date.
