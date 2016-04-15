@@ -169,7 +169,7 @@ class ReferenceTypeInfo : ValueObject {
     return handle.GetReference() != nullptr;
   }
 
-  bool IsValid() const {
+  bool IsValid() const SHARED_REQUIRES(Locks::mutator_lock_) {
     return IsValidHandle(type_handle_);
   }
 
@@ -1933,7 +1933,7 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
   ReferenceTypeInfo GetReferenceTypeInfo() const {
     DCHECK_EQ(GetType(), Primitive::kPrimNot);
     return ReferenceTypeInfo::CreateUnchecked(reference_type_handle_,
-                                              GetPackedFlag<kFlagReferenceTypeIsExact>());
+                                              GetPackedFlag<kFlagReferenceTypeIsExact>());;
   }
 
   void AddUseAt(HInstruction* user, size_t index) {
