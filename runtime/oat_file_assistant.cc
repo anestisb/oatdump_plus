@@ -406,7 +406,8 @@ CompilerFilter::Filter OatFileAssistant::OdexFileCompilerFilter() {
 
   return odex_file->GetCompilerFilter();
 }
-std::string OatFileAssistant::ArtFileName(const OatFile* oat_file) const {
+
+static std::string ArtFileName(const OatFile* oat_file) {
   const std::string oat_file_location = oat_file->GetLocation();
   // Replace extension with .art
   const size_t last_ext = oat_file_location.find_last_of('.');
