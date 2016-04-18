@@ -185,9 +185,12 @@ class Monitor {
                           const char* owner_filename, int32_t owner_line_number)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  static void FailedUnlock(mirror::Object* obj, Thread* expected_owner, Thread* found_owner,
+  static void FailedUnlock(mirror::Object* obj,
+                           uint32_t expected_owner_thread_id,
+                           uint32_t found_owner_thread_id,
                            Monitor* mon)
-      REQUIRES(!Locks::thread_list_lock_)
+      REQUIRES(!Locks::thread_list_lock_,
+               !monitor_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   void Lock(Thread* self)
@@ -208,6 +211,11 @@ class Monitor {
       REQUIRES(!monitor_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  static std::string PrettyContentionInfo(Thread* owner,
+                                          ArtMethod* owners_method,
+                                          uint32_t owners_dex_pc,
+                                          size_t num_waiters)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Wait on a monitor until timeout, interrupt, or notification.  Used for Object.wait() and
   // (somewhat indirectly) Thread.sleep() and Thread.join().
@@ -233,8 +241,9 @@ class Monitor {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Translates the provided method and pc into its declaring class' source file and line number.
-  void TranslateLocation(ArtMethod* method, uint32_t pc,
-                         const char** source_file, int32_t* line_number) const
+  static void TranslateLocation(ArtMethod* method, uint32_t pc,
+                                const char** source_file,
+                                int32_t* line_number)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   uint32_t GetOwnerThreadId() REQUIRES(!monitor_lock_);
