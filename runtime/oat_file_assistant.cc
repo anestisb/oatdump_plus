@@ -373,26 +373,20 @@ bool OatFileAssistant::OdexFileExists() {
 }
 
 OatFileAssistant::OatStatus OatFileAssistant::OdexFileStatus() {
-  if (OdexFileIsOutOfDate()) {
-    return kOatOutOfDate;
+  if (!odex_file_status_attempted_) {
+    odex_file_status_attempted_ = true;
+    const OatFile* odex_file = GetOdexFile();
+    if (odex_file == nullptr) {
+      cached_odex_file_status_ = kOatOutOfDate;
+    } else {
+      cached_odex_file_status_ = GivenOatFileStatus(*odex_file);
+    }
   }
-  if (OdexFileIsUpToDate()) {
-    return kOatUpToDate;
-  }
-  return kOatNeedsRelocation;
+  return cached_odex_file_status_;
 }
 
 bool OatFileAssistant::OdexFileIsOutOfDate() {
-  if (!odex_file_is_out_of_date_attempted_) {
-    odex_file_is_out_of_date_attempted_ = true;
-    const OatFile* odex_file = GetOdexFile();
-    if (odex_file == nullptr) {
-      cached_odex_file_is_out_of_date_ = true;
-    } else {
-      cached_odex_file_is_out_of_date_ = GivenOatFileIsOutOfDate(*odex_file);
-    }
-  }
-  return cached_odex_file_is_out_of_date_;
+  return OdexFileStatus() == kOatOutOfDate;
 }
 
 bool OatFileAssistant::OdexFileNeedsRelocation() {
@@ -400,16 +394,7 @@ bool OatFileAssistant::OdexFileNeedsRelocation() {
 }
 
 bool OatFileAssistant::OdexFileIsUpToDate() {
-  if (!odex_file_is_up_to_date_attempted_) {
-    odex_file_is_up_to_date_attempted_ = true;
-    const OatFile* odex_file = GetOdexFile();
-    if (odex_file == nullptr) {
-      cached_odex_file_is_up_to_date_ = false;
-    } else {
-      cached_odex_file_is_up_to_date_ = GivenOatFileIsUpToDate(*odex_file);
-    }
-  }
-  return cached_odex_file_is_up_to_date_;
+  return OdexFileStatus() == kOatUpToDate;
 }
 
 CompilerFilter::Filter OatFileAssistant::OdexFileCompilerFilter() {
@@ -458,26 +443,20 @@ bool OatFileAssistant::OatFileExists() {
 }
 
 OatFileAssistant::OatStatus OatFileAssistant::OatFileStatus() {
-  if (OatFileIsOutOfDate()) {
-    return kOatOutOfDate;
+  if (!oat_file_status_attempted_) {
+    oat_file_status_attempted_ = true;
+    const OatFile* oat_file = GetOatFile();
+    if (oat_file == nullptr) {
+      cached_oat_file_status_ = kOatOutOfDate;
+    } else {
+      cached_oat_file_status_ = GivenOatFileStatus(*oat_file);
+    }
   }
-  if (OatFileIsUpToDate()) {
-    return kOatUpToDate;
-  }
-  return kOatNeedsRelocation;
+  return cached_oat_file_status_;
 }
 
 bool OatFileAssistant::OatFileIsOutOfDate() {
-  if (!oat_file_is_out_of_date_attempted_) {
-    oat_file_is_out_of_date_attempted_ = true;
-    const OatFile* oat_file = GetOatFile();
-    if (oat_file == nullptr) {
-      cached_oat_file_is_out_of_date_ = true;
-    } else {
-      cached_oat_file_is_out_of_date_ = GivenOatFileIsOutOfDate(*oat_file);
-    }
-  }
-  return cached_oat_file_is_out_of_date_;
+  return OatFileStatus() == kOatOutOfDate;
 }
 
 bool OatFileAssistant::OatFileNeedsRelocation() {
@@ -485,16 +464,7 @@ bool OatFileAssistant::OatFileNeedsRelocation() {
 }
 
 bool OatFileAssistant::OatFileIsUpToDate() {
-  if (!oat_file_is_up_to_date_attempted_) {
-    oat_file_is_up_to_date_attempted_ = true;
-    const OatFile* oat_file = GetOatFile();
-    if (oat_file == nullptr) {
-      cached_oat_file_is_up_to_date_ = false;
-    } else {
-      cached_oat_file_is_up_to_date_ = GivenOatFileIsUpToDate(*oat_file);
-    }
-  }
-  return cached_oat_file_is_up_to_date_;
+  return OatFileStatus() == kOatUpToDate;
 }
 
 CompilerFilter::Filter OatFileAssistant::OatFileCompilerFilter() {
@@ -505,19 +475,6 @@ CompilerFilter::Filter OatFileAssistant::OatFileCompilerFilter() {
 }
 
 OatFileAssistant::OatStatus OatFileAssistant::GivenOatFileStatus(const OatFile& file) {
-  // TODO: This could cause GivenOatFileIsOutOfDate to be called twice, which
-  // is more work than we need to do. If performance becomes a concern, and
-  // this method is actually called, this should be fixed.
-  if (GivenOatFileIsOutOfDate(file)) {
-    return kOatOutOfDate;
-  }
-  if (GivenOatFileIsUpToDate(file)) {
-    return kOatUpToDate;
-  }
-  return kOatNeedsRelocation;
-}
-
-bool OatFileAssistant::GivenOatFileIsOutOfDate(const OatFile& file) {
   // Verify the dex checksum.
   // Note: GetOatDexFile will return null if the dex checksum doesn't match
   // what we provide, which verifies the primary dex checksum for us.
@@ -525,7 +482,7 @@ bool OatFileAssistant::GivenOatFileIsOutOfDate(const OatFile& file) {
   const OatFile::OatDexFile* oat_dex_file = file.GetOatDexFile(
       dex_location_.c_str(), dex_checksum_pointer, false);
   if (oat_dex_file == nullptr) {
-    return true;
+    return kOatOutOfDate;
   }
 
   // Verify the dex checksums for any secondary multidex files
@@ -550,7 +507,7 @@ bool OatFileAssistant::GivenOatFileIsOutOfDate(const OatFile& file) {
           << secondary_dex_location
           << ". Expected: " << expected_secondary_checksum
           << ", Actual: " << actual_secondary_checksum;
-        return true;
+        return kOatOutOfDate;
       }
     } else {
       // If we can't get the checksum for the secondary location, we assume
@@ -570,7 +527,7 @@ bool OatFileAssistant::GivenOatFileIsOutOfDate(const OatFile& file) {
       VLOG(oat) << "No image for oat image checksum to match against.";
 
       if (HasOriginalDexFiles()) {
-        return true;
+        return kOatOutOfDate;
       }
 
       // If there is no original dex file to fall back to, grudgingly accept
@@ -584,33 +541,18 @@ bool OatFileAssistant::GivenOatFileIsOutOfDate(const OatFile& file) {
     } else if (file.GetOatHeader().GetImageFileLocationOatChecksum()
         != GetCombinedImageChecksum()) {
       VLOG(oat) << "Oat image checksum does not match image checksum.";
-      return true;
+      return kOatOutOfDate;
     }
   } else {
     VLOG(oat) << "Image checksum test skipped for compiler filter " << current_compiler_filter;
   }
-
-  // Everything looks good; the dex file is not out of date.
-  return false;
-}
-
-bool OatFileAssistant::GivenOatFileNeedsRelocation(const OatFile& file) {
-  return GivenOatFileStatus(file) == kOatNeedsRelocation;
-}
-
-bool OatFileAssistant::GivenOatFileIsUpToDate(const OatFile& file) {
-  if (GivenOatFileIsOutOfDate(file)) {
-    return false;
-  }
-
-  CompilerFilter::Filter current_compiler_filter = file.GetCompilerFilter();
 
   if (CompilerFilter::IsBytecodeCompilationEnabled(current_compiler_filter)) {
     if (!file.IsPic()) {
       const ImageInfo* image_info = GetImageInfo();
       if (image_info == nullptr) {
         VLOG(oat) << "No image to check oat relocation against.";
-        return false;
+        return kOatNeedsRelocation;
       }
 
       // Verify the oat_data_begin recorded for the image in the oat file matches
@@ -622,7 +564,7 @@ bool OatFileAssistant::GivenOatFileIsUpToDate(const OatFile& file) {
           ": Oat file image oat_data_begin (" << oat_data_begin << ")"
           << " does not match actual image oat_data_begin ("
           << image_info->oat_data_begin << ")";
-        return false;
+        return kOatNeedsRelocation;
       }
 
       // Verify the oat_patch_delta recorded for the image in the oat file matches
@@ -633,7 +575,7 @@ bool OatFileAssistant::GivenOatFileIsUpToDate(const OatFile& file) {
           ": Oat file image patch delta (" << oat_patch_delta << ")"
           << " does not match actual image patch delta ("
           << image_info->patch_delta << ")";
-        return false;
+        return kOatNeedsRelocation;
       }
     } else {
       // Oat files compiled in PIC mode do not require relocation.
@@ -642,7 +584,7 @@ bool OatFileAssistant::GivenOatFileIsUpToDate(const OatFile& file) {
   } else {
     VLOG(oat) << "Oat relocation test skipped for compiler filter " << current_compiler_filter;
   }
-  return true;
+  return kOatUpToDate;
 }
 
 OatFileAssistant::ResultOfAttemptToUpdate
@@ -947,8 +889,7 @@ bool OatFileAssistant::OdexFileHasPatchInfo() {
 void OatFileAssistant::ClearOdexFileCache() {
   odex_file_load_attempted_ = false;
   cached_odex_file_.reset();
-  odex_file_is_out_of_date_attempted_ = false;
-  odex_file_is_up_to_date_attempted_ = false;
+  odex_file_status_attempted_ = false;
 }
 
 const OatFile* OatFileAssistant::GetOatFile() {
@@ -988,8 +929,7 @@ bool OatFileAssistant::OatFileHasPatchInfo() {
 void OatFileAssistant::ClearOatFileCache() {
   oat_file_load_attempted_ = false;
   cached_oat_file_.reset();
-  oat_file_is_out_of_date_attempted_ = false;
-  oat_file_is_up_to_date_attempted_ = false;
+  oat_file_status_attempted_ = false;
 }
 
 const OatFileAssistant::ImageInfo* OatFileAssistant::GetImageInfo() {
