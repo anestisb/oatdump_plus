@@ -81,11 +81,18 @@ OatFileAssistant::OatFileAssistant(const char* dex_location,
     load_executable_ = false;
   }
 
-  // If the user gave a target oat location, save that as the cached oat
-  // location now so we won't try to construct the default location later.
+  std::string error_msg;
+  if (!DexLocationToOdexFilename(dex_location_, isa_, &odex_file_name_, &error_msg)) {
+    LOG(WARNING) << "Failed to determine odex file name: " << error_msg;
+  }
+
   if (oat_location != nullptr) {
-    cached_oat_file_name_ = std::string(oat_location);
-    cached_oat_file_name_attempted_ = true;
+    oat_file_name_ = std::string(oat_location);
+  } else {
+    if (!DexLocationToOatFilename(dex_location_, isa_, &oat_file_name_, &error_msg)) {
+      LOG(WARNING) << "Failed to determine oat file name for dex location "
+        << dex_location_ << ": " << error_msg;
+    }
   }
 }
 
@@ -351,17 +358,7 @@ bool OatFileAssistant::HasOriginalDexFiles() {
 }
 
 const std::string* OatFileAssistant::OdexFileName() {
-  if (!cached_odex_file_name_attempted_) {
-    cached_odex_file_name_attempted_ = true;
-
-    std::string error_msg;
-    if (!DexLocationToOdexFilename(dex_location_, isa_, &cached_odex_file_name_, &error_msg)) {
-      // If we can't figure out the odex file, we treat it as if the odex
-      // file was inaccessible.
-      LOG(WARNING) << "Failed to determine odex file name: " << error_msg;
-    }
-  }
-  return cached_odex_file_name_.empty() ? nullptr : &cached_odex_file_name_;
+  return odex_file_name_.empty() ? nullptr : &odex_file_name_;
 }
 
 bool OatFileAssistant::OdexFileExists() {
@@ -412,18 +409,7 @@ static std::string ArtFileName(const OatFile* oat_file) {
 }
 
 const std::string* OatFileAssistant::OatFileName() {
-  if (!cached_oat_file_name_attempted_) {
-    cached_oat_file_name_attempted_ = true;
-
-    std::string error_msg;
-    if (!DexLocationToOatFilename(dex_location_, isa_, &cached_oat_file_name_, &error_msg)) {
-      // If we can't determine the oat file name, we treat the oat file as
-      // inaccessible.
-      LOG(WARNING) << "Failed to determine oat file name for dex location "
-        << dex_location_ << ": " << error_msg;
-    }
-  }
-  return cached_oat_file_name_.empty() ? nullptr : &cached_oat_file_name_;
+  return oat_file_name_.empty() ? nullptr : &oat_file_name_;
 }
 
 bool OatFileAssistant::OatFileExists() {

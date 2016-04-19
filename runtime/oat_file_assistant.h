@@ -391,12 +391,9 @@ class OatFileAssistant {
   bool required_dex_checksum_found_;
   bool has_original_dex_files_;
 
-  // Cached value of the odex file name.
-  // This should be accessed only by the OdexFileName() method.
   // The sentinel value "" is used if the odex file name could not be
   // determined.
-  bool cached_odex_file_name_attempted_ = false;
-  std::string cached_odex_file_name_;
+  std::string odex_file_name_;
 
   // Cached value of the loaded odex file.
   // Use the GetOdexFile method rather than accessing this directly, unless you
@@ -408,12 +405,9 @@ class OatFileAssistant {
   bool odex_file_status_attempted_ = false;
   OatStatus cached_odex_file_status_;
 
-  // Cached value of the oat file name.
-  // This should be accessed only by the OatFileName() method.
   // The sentinel value "" is used if the oat file name could not be
   // determined.
-  bool cached_oat_file_name_attempted_ = false;
-  std::string cached_oat_file_name_;
+  std::string oat_file_name_;
 
   // Cached value of the loaded oat file.
   // Use the GetOatFile method rather than accessing this directly, unless you
