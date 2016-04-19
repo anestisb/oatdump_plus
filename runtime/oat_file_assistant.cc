@@ -16,18 +16,7 @@
 
 #include "oat_file_assistant.h"
 
-#include <fcntl.h>
-#ifdef __linux__
-#include <sys/sendfile.h>
-#else
-#include <sys/socket.h>
-#endif
-#include <sys/types.h>
 #include <sys/stat.h>
-#include <unistd.h>
-
-#include <set>
-
 #include "base/logging.h"
 #include "base/stringprintf.h"
 #include "compiler_filter.h"
@@ -71,7 +60,7 @@ OatFileAssistant::OatFileAssistant(const char* dex_location,
                                    const char* oat_location,
                                    const InstructionSet isa,
                                    bool load_executable)
-    : isa_(isa), load_executable_(load_executable) {
+    : isa_(isa), load_executable_(load_executable), odex_(this), oat_(this) {
   CHECK(dex_location != nullptr) << "OatFileAssistant: null dex location";
   dex_location_.assign(dex_location);
 
@@ -81,15 +70,23 @@ OatFileAssistant::OatFileAssistant(const char* dex_location,
     load_executable_ = false;
   }
 
+  // Get the odex filename.
   std::string error_msg;
-  if (!DexLocationToOdexFilename(dex_location_, isa_, &odex_file_name_, &error_msg)) {
+  std::string odex_file_name;
+  if (DexLocationToOdexFilename(dex_location_, isa_, &odex_file_name, &error_msg)) {
+    odex_.Reset(odex_file_name);
+  } else {
     LOG(WARNING) << "Failed to determine odex file name: " << error_msg;
   }
 
+  // Get the oat filename.
   if (oat_location != nullptr) {
-    oat_file_name_ = std::string(oat_location);
+    oat_.Reset(oat_location);
   } else {
-    if (!DexLocationToOatFilename(dex_location_, isa_, &oat_file_name_, &error_msg)) {
+    std::string oat_file_name;
+    if (DexLocationToOatFilename(dex_location_, isa_, &oat_file_name, &error_msg)) {
+      oat_.Reset(oat_file_name);
+    } else {
       LOG(WARNING) << "Failed to determine oat file name for dex location "
         << dex_location_ << ": " << error_msg;
     }
@@ -124,11 +121,12 @@ bool OatFileAssistant::Lock(std::string* error_msg) {
   CHECK(error_msg != nullptr);
   CHECK(!flock_.HasFile()) << "OatFileAssistant::Lock already acquired";
 
-  if (OatFileName() == nullptr) {
+  const std::string* oat_file_name = oat_.Filename();
+  if (oat_file_name == nullptr) {
     *error_msg = "Failed to determine lock file";
     return false;
   }
-  std::string lock_file_name = *OatFileName() + ".flock";
+  std::string lock_file_name = *oat_file_name + ".flock";
 
   if (!flock_.Init(lock_file_name.c_str(), error_msg)) {
     unlink(lock_file_name.c_str());
@@ -137,64 +135,33 @@ bool OatFileAssistant::Lock(std::string* error_msg) {
   return true;
 }
 
-static bool GivenOatFileCompilerFilterIsOkay(const OatFile& oat_file,
-                                             CompilerFilter::Filter target,
-                                             bool profile_changed) {
-  CompilerFilter::Filter current = oat_file.GetCompilerFilter();
-
-  if (profile_changed && CompilerFilter::DependsOnProfile(current)) {
-    VLOG(oat) << "Compiler filter not okay because Profile changed";
-    return false;
-  }
-  return CompilerFilter::IsAsGoodAs(current, target);
-}
-
-bool OatFileAssistant::OatFileCompilerFilterIsOkay(CompilerFilter::Filter target,
-                                                   bool profile_changed) {
-  const OatFile* oat_file = GetOatFile();
-  if (oat_file != nullptr) {
-    return GivenOatFileCompilerFilterIsOkay(*oat_file, target, profile_changed);
-  }
-  return false;
-}
-
-bool OatFileAssistant::OdexFileCompilerFilterIsOkay(CompilerFilter::Filter target,
-                                                    bool profile_changed) {
-  const OatFile* odex_file = GetOdexFile();
-  if (odex_file != nullptr) {
-    return GivenOatFileCompilerFilterIsOkay(*odex_file, target, profile_changed);
-  }
-  return false;
-}
-
 OatFileAssistant::DexOptNeeded
-OatFileAssistant::GetDexOptNeeded(CompilerFilter::Filter target,
-                                  bool profile_changed) {
+OatFileAssistant::GetDexOptNeeded(CompilerFilter::Filter target, bool profile_changed) {
   bool compilation_desired = CompilerFilter::IsBytecodeCompilationEnabled(target);
 
   // See if the oat file is in good shape as is.
-  bool oat_okay = OatFileCompilerFilterIsOkay(target, profile_changed);
+  bool oat_okay = oat_.CompilerFilterIsOkay(target, profile_changed);
   if (oat_okay) {
     if (compilation_desired) {
-      if (OatFileIsUpToDate()) {
+      if (oat_.IsUpToDate()) {
         return kNoDexOptNeeded;
       }
     } else {
-      if (!OatFileIsOutOfDate()) {
+      if (!oat_.IsOutOfDate()) {
         return kNoDexOptNeeded;
       }
     }
   }
 
   // See if the odex file is in good shape as is.
-  bool odex_okay = OdexFileCompilerFilterIsOkay(target, profile_changed);
+  bool odex_okay = odex_.CompilerFilterIsOkay(target, profile_changed);
   if (odex_okay) {
     if (compilation_desired) {
-      if (OdexFileIsUpToDate()) {
+      if (odex_.IsUpToDate()) {
         return kNoDexOptNeeded;
       }
     } else {
-      if (!OdexFileIsOutOfDate()) {
+      if (!odex_.IsOutOfDate()) {
         return kNoDexOptNeeded;
       }
     }
@@ -202,11 +169,11 @@ OatFileAssistant::GetDexOptNeeded(CompilerFilter::Filter target,
 
   // See if we can get an up-to-date file by running patchoat.
   if (compilation_desired) {
-    if (odex_okay && OdexFileNeedsRelocation() && OdexFileHasPatchInfo()) {
+    if (odex_okay && odex_.NeedsRelocation() && odex_.HasPatchInfo()) {
       return kPatchOatNeeded;
     }
 
-    if (oat_okay && OatFileNeedsRelocation() && OatFileHasPatchInfo()) {
+    if (oat_okay && oat_.NeedsRelocation() && oat_.HasPatchInfo()) {
       return kSelfPatchOatNeeded;
     }
   }
@@ -251,8 +218,8 @@ OatFileAssistant::MakeUpToDate(bool profile_changed, std::string* error_msg) {
   switch (GetDexOptNeeded(target, profile_changed)) {
     case kNoDexOptNeeded: return kUpdateSucceeded;
     case kDex2OatNeeded: return GenerateOatFile(error_msg);
-    case kPatchOatNeeded: return RelocateOatFile(OdexFileName(), error_msg);
-    case kSelfPatchOatNeeded: return RelocateOatFile(OatFileName(), error_msg);
+    case kPatchOatNeeded: return RelocateOatFile(odex_.Filename(), error_msg);
+    case kSelfPatchOatNeeded: return RelocateOatFile(oat_.Filename(), error_msg);
   }
   UNREACHABLE();
 }
@@ -263,46 +230,40 @@ std::unique_ptr<OatFile> OatFileAssistant::GetBestOatFile() {
   // 2. Not out-of-date files that are already opened non-executable.
   // 3. Not out-of-date files that we must reopen non-executable.
 
-  if (OatFileIsUpToDate()) {
-    oat_file_released_ = true;
-    return std::move(cached_oat_file_);
+  if (oat_.IsUpToDate()) {
+    return oat_.ReleaseFile();
   }
 
-  if (OdexFileIsUpToDate()) {
-    oat_file_released_ = true;
-    return std::move(cached_odex_file_);
+  if (odex_.IsUpToDate()) {
+    return odex_.ReleaseFile();
   }
 
   VLOG(oat) << "Oat File Assistant: No relocated oat file found,"
     << " attempting to fall back to interpreting oat file instead.";
 
-  if (!OatFileIsOutOfDate() && !OatFileIsExecutable()) {
-    oat_file_released_ = true;
-    return std::move(cached_oat_file_);
+  if (!oat_.IsOutOfDate() && !oat_.IsExecutable()) {
+    return oat_.ReleaseFile();
   }
 
-  if (!OdexFileIsOutOfDate() && !OdexFileIsExecutable()) {
-    oat_file_released_ = true;
-    return std::move(cached_odex_file_);
+  if (!odex_.IsOutOfDate() && !odex_.IsExecutable()) {
+    return odex_.ReleaseFile();
   }
 
-  if (!OatFileIsOutOfDate()) {
+  if (!oat_.IsOutOfDate()) {
     load_executable_ = false;
-    ClearOatFileCache();
-    if (!OatFileIsOutOfDate()) {
-      CHECK(!OatFileIsExecutable());
-      oat_file_released_ = true;
-      return std::move(cached_oat_file_);
+    oat_.Reset();
+    if (!oat_.IsOutOfDate()) {
+      CHECK(!oat_.IsExecutable());
+      return oat_.ReleaseFile();
     }
   }
 
-  if (!OdexFileIsOutOfDate()) {
+  if (!odex_.IsOutOfDate()) {
     load_executable_ = false;
-    ClearOdexFileCache();
-    if (!OdexFileIsOutOfDate()) {
-      CHECK(!OdexFileIsExecutable());
-      oat_file_released_ = true;
-      return std::move(cached_odex_file_);
+    odex_.Reset();
+    if (!odex_.IsOutOfDate()) {
+      CHECK(!odex_.IsExecutable());
+      return odex_.ReleaseFile();
     }
   }
 
@@ -358,43 +319,31 @@ bool OatFileAssistant::HasOriginalDexFiles() {
 }
 
 const std::string* OatFileAssistant::OdexFileName() {
-  return odex_file_name_.empty() ? nullptr : &odex_file_name_;
+  return odex_.Filename();
 }
 
 bool OatFileAssistant::OdexFileExists() {
-  return GetOdexFile() != nullptr;
+  return odex_.Exists();
 }
 
 OatFileAssistant::OatStatus OatFileAssistant::OdexFileStatus() {
-  if (!odex_file_status_attempted_) {
-    odex_file_status_attempted_ = true;
-    const OatFile* odex_file = GetOdexFile();
-    if (odex_file == nullptr) {
-      cached_odex_file_status_ = kOatOutOfDate;
-    } else {
-      cached_odex_file_status_ = GivenOatFileStatus(*odex_file);
-    }
-  }
-  return cached_odex_file_status_;
+  return odex_.Status();
 }
 
 bool OatFileAssistant::OdexFileIsOutOfDate() {
-  return OdexFileStatus() == kOatOutOfDate;
+  return odex_.IsOutOfDate();
 }
 
 bool OatFileAssistant::OdexFileNeedsRelocation() {
-  return OdexFileStatus() == kOatNeedsRelocation;
+  return odex_.NeedsRelocation();
 }
 
 bool OatFileAssistant::OdexFileIsUpToDate() {
-  return OdexFileStatus() == kOatUpToDate;
+  return odex_.IsUpToDate();
 }
 
 CompilerFilter::Filter OatFileAssistant::OdexFileCompilerFilter() {
-  const OatFile* odex_file = GetOdexFile();
-  CHECK(odex_file != nullptr);
-
-  return odex_file->GetCompilerFilter();
+  return odex_.CompilerFilter();
 }
 
 static std::string ArtFileName(const OatFile* oat_file) {
@@ -409,43 +358,31 @@ static std::string ArtFileName(const OatFile* oat_file) {
 }
 
 const std::string* OatFileAssistant::OatFileName() {
-  return oat_file_name_.empty() ? nullptr : &oat_file_name_;
+  return oat_.Filename();
 }
 
 bool OatFileAssistant::OatFileExists() {
-  return GetOatFile() != nullptr;
+  return oat_.Exists();
 }
 
 OatFileAssistant::OatStatus OatFileAssistant::OatFileStatus() {
-  if (!oat_file_status_attempted_) {
-    oat_file_status_attempted_ = true;
-    const OatFile* oat_file = GetOatFile();
-    if (oat_file == nullptr) {
-      cached_oat_file_status_ = kOatOutOfDate;
-    } else {
-      cached_oat_file_status_ = GivenOatFileStatus(*oat_file);
-    }
-  }
-  return cached_oat_file_status_;
+  return oat_.Status();
 }
 
 bool OatFileAssistant::OatFileIsOutOfDate() {
-  return OatFileStatus() == kOatOutOfDate;
+  return oat_.IsOutOfDate();
 }
 
 bool OatFileAssistant::OatFileNeedsRelocation() {
-  return OatFileStatus() == kOatNeedsRelocation;
+  return oat_.NeedsRelocation();
 }
 
 bool OatFileAssistant::OatFileIsUpToDate() {
-  return OatFileStatus() == kOatUpToDate;
+  return oat_.IsUpToDate();
 }
 
 CompilerFilter::Filter OatFileAssistant::OatFileCompilerFilter() {
-  const OatFile* oat_file = GetOatFile();
-  CHECK(oat_file != nullptr);
-
-  return oat_file->GetCompilerFilter();
+  return oat_.CompilerFilter();
 }
 
 OatFileAssistant::OatStatus OatFileAssistant::GivenOatFileStatus(const OatFile& file) {
@@ -572,12 +509,12 @@ OatFileAssistant::RelocateOatFile(const std::string* input_file, std::string* er
   }
   const std::string& input_file_name = *input_file;
 
-  if (OatFileName() == nullptr) {
+  if (oat_.Filename() == nullptr) {
     *error_msg = "Patching of oat file for dex location " + dex_location_
       + " not attempted because the oat file name could not be determined.";
     return kUpdateNotAttempted;
   }
-  const std::string& oat_file_name = *OatFileName();
+  const std::string& oat_file_name = *oat_.Filename();
 
   const ImageInfo* image_info = GetImageInfo();
   Runtime* runtime = Runtime::Current();
@@ -609,7 +546,7 @@ OatFileAssistant::RelocateOatFile(const std::string* input_file, std::string* er
   }
 
   // Mark that the oat file has changed and we should try to reload.
-  ClearOatFileCache();
+  oat_.Reset();
   return kUpdateSucceeded;
 }
 
@@ -624,12 +561,12 @@ OatFileAssistant::GenerateOatFile(std::string* error_msg) {
     return kUpdateNotAttempted;
   }
 
-  if (OatFileName() == nullptr) {
+  if (oat_.Filename() == nullptr) {
     *error_msg = "Generation of oat file for dex location " + dex_location_
       + " not attempted because the oat file name could not be determined.";
     return kUpdateNotAttempted;
   }
-  const std::string& oat_file_name = *OatFileName();
+  const std::string& oat_file_name = *oat_.Filename();
 
   // dex2oat ignores missing dex files and doesn't report an error.
   // Check explicitly here so we can detect the error properly.
@@ -674,7 +611,7 @@ OatFileAssistant::GenerateOatFile(std::string* error_msg) {
   }
 
   // Mark that the oat file has changed and we should try to reload.
-  ClearOatFileCache();
+  oat_.Reset();
   return kUpdateSucceeded;
 }
 
@@ -821,7 +758,7 @@ const uint32_t* OatFileAssistant::GetRequiredDexChecksum() {
       has_original_dex_files_ = false;
 
       // Get the checksum from the odex if we can.
-      const OatFile* odex_file = GetOdexFile();
+      const OatFile* odex_file = odex_.GetFile();
       if (odex_file != nullptr) {
         const OatFile::OatDexFile* odex_dex_file = odex_file->GetOatDexFile(
             dex_location_.c_str(), nullptr, false);
@@ -833,86 +770,6 @@ const uint32_t* OatFileAssistant::GetRequiredDexChecksum() {
     }
   }
   return required_dex_checksum_found_ ? &cached_required_dex_checksum_ : nullptr;
-}
-
-const OatFile* OatFileAssistant::GetOdexFile() {
-  CHECK(!oat_file_released_) << "OdexFile called after oat file released.";
-  if (!odex_file_load_attempted_) {
-    odex_file_load_attempted_ = true;
-    if (OdexFileName() != nullptr) {
-      const std::string& odex_file_name = *OdexFileName();
-      std::string error_msg;
-      cached_odex_file_.reset(OatFile::Open(odex_file_name.c_str(),
-                                            odex_file_name.c_str(),
-                                            nullptr,
-                                            nullptr,
-                                            load_executable_,
-                                            /*low_4gb*/false,
-                                            dex_location_.c_str(),
-                                            &error_msg));
-      if (cached_odex_file_.get() == nullptr) {
-        VLOG(oat) << "OatFileAssistant test for existing pre-compiled oat file "
-          << odex_file_name << ": " << error_msg;
-      }
-    }
-  }
-  return cached_odex_file_.get();
-}
-
-bool OatFileAssistant::OdexFileIsExecutable() {
-  const OatFile* odex_file = GetOdexFile();
-  return (odex_file != nullptr && odex_file->IsExecutable());
-}
-
-bool OatFileAssistant::OdexFileHasPatchInfo() {
-  const OatFile* odex_file = GetOdexFile();
-  return (odex_file != nullptr && odex_file->HasPatchInfo());
-}
-
-void OatFileAssistant::ClearOdexFileCache() {
-  odex_file_load_attempted_ = false;
-  cached_odex_file_.reset();
-  odex_file_status_attempted_ = false;
-}
-
-const OatFile* OatFileAssistant::GetOatFile() {
-  CHECK(!oat_file_released_) << "OatFile called after oat file released.";
-  if (!oat_file_load_attempted_) {
-    oat_file_load_attempted_ = true;
-    if (OatFileName() != nullptr) {
-      const std::string& oat_file_name = *OatFileName();
-      std::string error_msg;
-      cached_oat_file_.reset(OatFile::Open(oat_file_name.c_str(),
-                                           oat_file_name.c_str(),
-                                           nullptr,
-                                           nullptr,
-                                           load_executable_,
-                                           /*low_4gb*/false,
-                                           dex_location_.c_str(),
-                                           &error_msg));
-      if (cached_oat_file_.get() == nullptr) {
-        VLOG(oat) << "OatFileAssistant test for existing oat file "
-          << oat_file_name << ": " << error_msg;
-      }
-    }
-  }
-  return cached_oat_file_.get();
-}
-
-bool OatFileAssistant::OatFileIsExecutable() {
-  const OatFile* oat_file = GetOatFile();
-  return (oat_file != nullptr && oat_file->IsExecutable());
-}
-
-bool OatFileAssistant::OatFileHasPatchInfo() {
-  const OatFile* oat_file = GetOatFile();
-  return (oat_file != nullptr && oat_file->HasPatchInfo());
-}
-
-void OatFileAssistant::ClearOatFileCache() {
-  oat_file_load_attempted_ = false;
-  cached_oat_file_.reset();
-  oat_file_status_attempted_ = false;
 }
 
 const OatFileAssistant::ImageInfo* OatFileAssistant::GetImageInfo() {
@@ -988,6 +845,114 @@ gc::space::ImageSpace* OatFileAssistant::OpenImageSpace(const OatFile* oat_file)
     LOG(INFO) << "Failed to open app image " << art_file.c_str() << " " << error_msg;
   }
   return ret;
+}
+
+OatFileAssistant::OatFileInfo::OatFileInfo(OatFileAssistant* oat_file_assistant)
+  : oat_file_assistant_(oat_file_assistant)
+{}
+
+const std::string* OatFileAssistant::OatFileInfo::Filename() {
+  return filename_provided_ ? &filename_ : nullptr;
+}
+
+bool OatFileAssistant::OatFileInfo::Exists() {
+  return GetFile() != nullptr;
+}
+
+OatFileAssistant::OatStatus OatFileAssistant::OatFileInfo::Status() {
+  if (!status_attempted_) {
+    status_attempted_ = true;
+    const OatFile* file = GetFile();
+    if (file == nullptr) {
+      status_ = kOatOutOfDate;
+    } else {
+      status_ = oat_file_assistant_->GivenOatFileStatus(*file);
+    }
+  }
+  return status_;
+}
+
+bool OatFileAssistant::OatFileInfo::IsOutOfDate() {
+  return Status() == kOatOutOfDate;
+}
+
+bool OatFileAssistant::OatFileInfo::NeedsRelocation() {
+  return Status() == kOatNeedsRelocation;
+}
+
+bool OatFileAssistant::OatFileInfo::IsUpToDate() {
+  return Status() == kOatUpToDate;
+}
+
+CompilerFilter::Filter OatFileAssistant::OatFileInfo::CompilerFilter() {
+  const OatFile* file = GetFile();
+  CHECK(file != nullptr);
+  return file->GetCompilerFilter();
+}
+
+const OatFile* OatFileAssistant::OatFileInfo::GetFile() {
+  CHECK(!file_released_) << "GetFile called after oat file released.";
+  if (!load_attempted_) {
+    load_attempted_ = true;
+    if (filename_provided_) {
+      std::string error_msg;
+      file_.reset(OatFile::Open(filename_.c_str(),
+                                filename_.c_str(),
+                                nullptr,
+                                nullptr,
+                                oat_file_assistant_->load_executable_,
+                                /*low_4gb*/false,
+                                oat_file_assistant_->dex_location_.c_str(),
+                                &error_msg));
+      if (file_.get() == nullptr) {
+        VLOG(oat) << "OatFileAssistant test for existing oat file "
+          << filename_ << ": " << error_msg;
+      }
+    }
+  }
+  return file_.get();
+}
+
+bool OatFileAssistant::OatFileInfo::CompilerFilterIsOkay(
+    CompilerFilter::Filter target, bool profile_changed) {
+  const OatFile* file = GetFile();
+  if (file == nullptr) {
+    return false;
+  }
+
+  CompilerFilter::Filter current = file->GetCompilerFilter();
+  if (profile_changed && CompilerFilter::DependsOnProfile(current)) {
+    VLOG(oat) << "Compiler filter not okay because Profile changed";
+    return false;
+  }
+  return CompilerFilter::IsAsGoodAs(current, target);
+}
+
+bool OatFileAssistant::OatFileInfo::IsExecutable() {
+  const OatFile* file = GetFile();
+  return (file != nullptr && file->IsExecutable());
+}
+
+bool OatFileAssistant::OatFileInfo::HasPatchInfo() {
+  const OatFile* file = GetFile();
+  return (file != nullptr && file->HasPatchInfo());
+}
+
+void OatFileAssistant::OatFileInfo::Reset() {
+  load_attempted_ = false;
+  file_.reset();
+  status_attempted_ = false;
+}
+
+void OatFileAssistant::OatFileInfo::Reset(const std::string& filename) {
+  filename_provided_ = true;
+  filename_ = filename;
+  Reset();
+}
+
+std::unique_ptr<OatFile> OatFileAssistant::OatFileInfo::ReleaseFile() {
+  file_released_ = true;
+  return std::move(file_);
 }
 
 }  // namespace art
