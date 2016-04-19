@@ -2362,6 +2362,10 @@ JDWP::ObjectId Dbg::GetThreadId(Thread* thread) {
 }
 
 void Dbg::SuspendVM() {
+  // Avoid a deadlock between GC and debugger where GC gets suspended during GC. b/25800335.
+  gc::ScopedGCCriticalSection gcs(Thread::Current(),
+                                  gc::kGcCauseDebugger,
+                                  gc::kCollectorTypeDebugger);
   Runtime::Current()->GetThreadList()->SuspendAllForDebugger();
 }
 
@@ -4101,6 +4105,8 @@ void Dbg::ExecuteMethodWithoutPendingException(ScopedObjectAccess& soa, DebugInv
   // Suspend other threads if the invoke is not single-threaded.
   if ((pReq->options & JDWP::INVOKE_SINGLE_THREADED) == 0) {
     ScopedThreadSuspension sts(soa.Self(), kWaitingForDebuggerSuspension);
+    // Avoid a deadlock between GC and debugger where GC gets suspended during GC. b/25800335.
+    gc::ScopedGCCriticalSection gcs(soa.Self(), gc::kGcCauseDebugger, gc::kCollectorTypeDebugger);
     VLOG(jdwp) << "      Suspending all threads";
     Runtime::Current()->GetThreadList()->SuspendAllForDebugger();
   }
