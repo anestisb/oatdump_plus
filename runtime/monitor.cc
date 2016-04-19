@@ -221,7 +221,7 @@ std::string Monitor::PrettyContentionInfo(Thread* owner,
                                           size_t num_waiters) {
   DCHECK(owner != nullptr);
   const char* owners_filename;
-  int32_t owners_line_number;
+  int32_t owners_line_number = 0;
   std::string name;
   owner->GetThreadName(name);
   if (owners_method != nullptr) {
