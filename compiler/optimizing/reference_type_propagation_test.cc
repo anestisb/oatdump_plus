@@ -61,16 +61,6 @@ class ReferenceTypePropagationTest : public CommonCompilerTest {
     return ReferenceTypeInfo::Create(propagation_->handle_cache_.GetStringClassHandle(), is_exact);
   }
 
-  // Helper method to construct the Throwable type.
-  ReferenceTypeInfo ThrowableType(bool is_exact = true) SHARED_REQUIRES(Locks::mutator_lock_) {
-    return ReferenceTypeInfo::Create(propagation_->handle_cache_.GetThrowableClassHandle(), is_exact);
-  }
-
-  // Helper method to provide access to Throwable handle.
-  Handle<mirror::Class> GetThrowableHandle() {
-    return propagation_->handle_cache_.GetThrowableClassHandle();
-  }
-
   // General building fields.
   ArenaPool pool_;
   ArenaAllocator allocator_;
@@ -122,26 +112,6 @@ TEST_F(ReferenceTypePropagationTest, MergeInvalidTypes) {
   EXPECT_TRUE(t5.IsValid());
   EXPECT_TRUE(t5.IsExact());
   EXPECT_TRUE(t5.IsEqual(StringType()));
-}
-
-TEST_F(ReferenceTypePropagationTest, CreateErroneousType) {
-  ScopedObjectAccess soa(Thread::Current());
-  StackHandleScopeCollection handles(soa.Self());
-  SetupPropagation(&handles);
-
-  // Some trickery to make the runtime think something went wrong with loading
-  // the throwable class, making this an erroneous type from here on.
-  soa.Self()->SetException(Thread::GetDeoptimizationException());
-  Handle<mirror::Class> klass = GetThrowableHandle();
-  ObjectLock<mirror::Class> lock(soa.Self(), klass);
-  mirror::Class::SetStatus(klass, mirror::Class::kStatusError, soa.Self());
-  soa.Self()->ClearException();
-  ASSERT_TRUE(klass->IsErroneous());
-
-  // Trying to get an erroneous type crashes (debug mode only).
-  if (kIsDebugBuild) {
-    EXPECT_DEATH(ThrowableType(), "Check failed: !type_handle->IsErroneous()");
-  }
 }
 
 TEST_F(ReferenceTypePropagationTest, MergeValidTypes) {
