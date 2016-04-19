@@ -280,8 +280,21 @@ class OatFileAssistant {
   // Returns false on error, in which case error_msg describes the error and
   // odex_filename is not changed.
   // Neither odex_filename nor error_msg may be null.
-  static bool DexFilenameToOdexFilename(const std::string& location,
-      InstructionSet isa, std::string* odex_filename, std::string* error_msg);
+  static bool DexLocationToOdexFilename(const std::string& location,
+                                        InstructionSet isa,
+                                        std::string* odex_filename,
+                                        std::string* error_msg);
+
+  // Constructs the oat file name for the given dex location.
+  // Returns true on success, in which case oat_filename is set to the oat
+  // file name.
+  // Returns false on error, in which case error_msg describes the error and
+  // oat_filename is not changed.
+  // Neither oat_filename nor error_msg may be null.
+  static bool DexLocationToOatFilename(const std::string& location,
+                                       InstructionSet isa,
+                                       std::string* oat_filename,
+                                       std::string* error_msg);
 
   static uint32_t CalculateCombinedImageChecksum(InstructionSet isa = kRuntimeISA);
 
@@ -293,11 +306,6 @@ class OatFileAssistant {
     std::string location;
   };
 
-  // Returns the path to the dalvik cache directory.
-  // Does not check existence of the cache or try to create it.
-  // Includes the trailing slash.
-  // Returns an empty string if we can't get the dalvik cache directory path.
-  std::string DalvikCacheDirectory();
 
   // Returns the current image location.
   // Returns an empty string if the image location could not be retrieved.

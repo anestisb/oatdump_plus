@@ -355,7 +355,7 @@ const std::string* OatFileAssistant::OdexFileName() {
     cached_odex_file_name_attempted_ = true;
 
     std::string error_msg;
-    if (!DexFilenameToOdexFilename(dex_location_, isa_, &cached_odex_file_name_, &error_msg)) {
+    if (!DexLocationToOdexFilename(dex_location_, isa_, &cached_odex_file_name_, &error_msg)) {
       // If we can't figure out the odex file, we treat it as if the odex
       // file was inaccessible.
       LOG(WARNING) << "Failed to determine odex file name: " << error_msg;
@@ -415,15 +415,8 @@ const std::string* OatFileAssistant::OatFileName() {
   if (!cached_oat_file_name_attempted_) {
     cached_oat_file_name_attempted_ = true;
 
-    // Compute the oat file name from the dex location.
-    // TODO: The oat file assistant should be the definitive place for
-    // determining the oat file name from the dex location, not
-    // GetDalvikCacheFilename.
-    std::string cache_dir = StringPrintf("%s%s",
-        DalvikCacheDirectory().c_str(), GetInstructionSetString(isa_));
     std::string error_msg;
-    if (!GetDalvikCacheFilename(dex_location_.c_str(),
-        cache_dir.c_str(), &cached_oat_file_name_, &error_msg)) {
+    if (!DexLocationToOatFilename(dex_location_, isa_, &cached_oat_file_name_, &error_msg)) {
       // If we can't determine the oat file name, we treat the oat file as
       // inaccessible.
       LOG(WARNING) << "Failed to determine oat file name for dex location "
@@ -750,8 +743,10 @@ bool OatFileAssistant::Dex2Oat(const std::vector<std::string>& args,
   return Exec(argv, error_msg);
 }
 
-bool OatFileAssistant::DexFilenameToOdexFilename(const std::string& location,
-    InstructionSet isa, std::string* odex_filename, std::string* error_msg) {
+bool OatFileAssistant::DexLocationToOdexFilename(const std::string& location,
+                                                 InstructionSet isa,
+                                                 std::string* odex_filename,
+                                                 std::string* error_msg) {
   CHECK(odex_filename != nullptr);
   CHECK(error_msg != nullptr);
 
@@ -790,9 +785,12 @@ bool OatFileAssistant::DexFilenameToOdexFilename(const std::string& location,
   return true;
 }
 
-std::string OatFileAssistant::DalvikCacheDirectory() {
-  // Note: We don't cache this, because it will only be called once by
-  // OatFileName.
+bool OatFileAssistant::DexLocationToOatFilename(const std::string& location,
+                                                InstructionSet isa,
+                                                std::string* oat_filename,
+                                                std::string* error_msg) {
+  CHECK(oat_filename != nullptr);
+  CHECK(error_msg != nullptr);
 
   // TODO: The work done in GetDalvikCache is overkill for what we need.
   // Ideally a new API for getting the DalvikCacheDirectory the way we want
@@ -800,12 +798,16 @@ std::string OatFileAssistant::DalvikCacheDirectory() {
   // of the GetDalvikCache family of functions. Until such an API is in place,
   // we use GetDalvikCache to avoid duplicating the logic for determining the
   // dalvik cache directory.
-  std::string result;
-  bool have_android_data;
-  bool dalvik_cache_exists;
-  bool is_global_cache;
-  GetDalvikCache("", false, &result, &have_android_data, &dalvik_cache_exists, &is_global_cache);
-  return result;
+  std::string dalvik_cache_dir;
+  bool ignored;
+  GetDalvikCache("", false, &dalvik_cache_dir, &ignored, &ignored, &ignored);
+
+  // TODO: The oat file assistant should be the definitive place for
+  // determining the oat file name from the dex location, not
+  // GetDalvikCacheFilename.
+  std::string cache_dir = StringPrintf("%s%s",
+      dalvik_cache_dir.c_str(), GetInstructionSetString(isa));
+  return GetDalvikCacheFilename(location.c_str(), cache_dir.c_str(), oat_filename, error_msg);
 }
 
 std::string OatFileAssistant::ImageLocation() {
