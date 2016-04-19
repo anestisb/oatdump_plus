@@ -87,7 +87,6 @@ OatFileAssistant::OatFileAssistant(const char* dex_location,
   if (oat_location != nullptr) {
     cached_oat_file_name_ = std::string(oat_location);
     cached_oat_file_name_attempted_ = true;
-    cached_oat_file_name_found_ = true;
   }
 }
 
@@ -357,15 +356,13 @@ const std::string* OatFileAssistant::OdexFileName() {
     cached_odex_file_name_attempted_ = true;
 
     std::string error_msg;
-    cached_odex_file_name_found_ = DexFilenameToOdexFilename(
-        dex_location_, isa_, &cached_odex_file_name_, &error_msg);
-    if (!cached_odex_file_name_found_) {
+    if (!DexFilenameToOdexFilename(dex_location_, isa_, &cached_odex_file_name_, &error_msg)) {
       // If we can't figure out the odex file, we treat it as if the odex
       // file was inaccessible.
       LOG(WARNING) << "Failed to determine odex file name: " << error_msg;
     }
   }
-  return cached_odex_file_name_found_ ? &cached_odex_file_name_ : nullptr;
+  return cached_odex_file_name_.empty() ? nullptr : &cached_odex_file_name_;
 }
 
 bool OatFileAssistant::OdexFileExists() {
@@ -426,16 +423,15 @@ const std::string* OatFileAssistant::OatFileName() {
     std::string cache_dir = StringPrintf("%s%s",
         DalvikCacheDirectory().c_str(), GetInstructionSetString(isa_));
     std::string error_msg;
-    cached_oat_file_name_found_ = GetDalvikCacheFilename(dex_location_.c_str(),
-        cache_dir.c_str(), &cached_oat_file_name_, &error_msg);
-    if (!cached_oat_file_name_found_) {
+    if (!GetDalvikCacheFilename(dex_location_.c_str(),
+        cache_dir.c_str(), &cached_oat_file_name_, &error_msg)) {
       // If we can't determine the oat file name, we treat the oat file as
       // inaccessible.
       LOG(WARNING) << "Failed to determine oat file name for dex location "
         << dex_location_ << ": " << error_msg;
     }
   }
-  return cached_oat_file_name_found_ ? &cached_oat_file_name_ : nullptr;
+  return cached_oat_file_name_.empty() ? nullptr : &cached_oat_file_name_;
 }
 
 bool OatFileAssistant::OatFileExists() {

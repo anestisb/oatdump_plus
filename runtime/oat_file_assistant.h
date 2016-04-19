@@ -277,7 +277,8 @@ class OatFileAssistant {
   // Constructs the odex file name for the given dex location.
   // Returns true on success, in which case odex_filename is set to the odex
   // file name.
-  // Returns false on error, in which case error_msg describes the error.
+  // Returns false on error, in which case error_msg describes the error and
+  // odex_filename is not changed.
   // Neither odex_filename nor error_msg may be null.
   static bool DexFilenameToOdexFilename(const std::string& location,
       InstructionSet isa, std::string* odex_filename, std::string* error_msg);
@@ -384,8 +385,9 @@ class OatFileAssistant {
 
   // Cached value of the odex file name.
   // This should be accessed only by the OdexFileName() method.
+  // The sentinel value "" is used if the odex file name could not be
+  // determined.
   bool cached_odex_file_name_attempted_ = false;
-  bool cached_odex_file_name_found_;
   std::string cached_odex_file_name_;
 
   // Cached value of the loaded odex file.
@@ -400,8 +402,9 @@ class OatFileAssistant {
 
   // Cached value of the oat file name.
   // This should be accessed only by the OatFileName() method.
+  // The sentinel value "" is used if the oat file name could not be
+  // determined.
   bool cached_oat_file_name_attempted_ = false;
-  bool cached_oat_file_name_found_;
   std::string cached_oat_file_name_;
 
   // Cached value of the loaded oat file.
