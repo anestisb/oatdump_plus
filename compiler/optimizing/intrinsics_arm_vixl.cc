@@ -514,6 +514,18 @@ void IntrinsicCodeGeneratorARMVIXL::VisitMathSqrt(HInvoke* invoke) {
   __ Vsqrt(OutputDRegister(invoke), InputDRegisterAt(invoke, 0));
 }
 
+void IntrinsicLocationsBuilderARMVIXL::VisitMathRint(HInvoke* invoke) {
+  if (features_.HasARMv8AInstructions()) {
+    CreateFPToFPLocations(arena_, invoke);
+  }
+}
+
+void IntrinsicCodeGeneratorARMVIXL::VisitMathRint(HInvoke* invoke) {
+  DCHECK(codegen_->GetInstructionSetFeatures().HasARMv8AInstructions());
+  ArmVIXLAssembler* assembler = GetAssembler();
+  __ Vrintn(F64, F64, OutputDRegister(invoke), InputDRegisterAt(invoke, 0));
+}
+
 void IntrinsicLocationsBuilderARMVIXL::VisitMemoryPeekByte(HInvoke* invoke) {
   CreateIntToIntLocations(arena_, invoke);
 }
@@ -2772,7 +2784,6 @@ UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathMaxDoubleDouble)
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathMaxFloatFloat)
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathMinLongLong)
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathMaxLongLong)
-UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathRint)
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathRoundDouble)   // Could be done by changing rounding mode, maybe?
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, MathRoundFloat)    // Could be done by changing rounding mode, maybe?
 UNIMPLEMENTED_INTRINSIC(ARMVIXL, UnsafeCASLong)     // High register pressure.

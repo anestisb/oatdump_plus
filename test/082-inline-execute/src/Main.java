@@ -730,16 +730,19 @@ public class Main {
     Math.rint(+2.1);
     Assert.assertEquals(Math.rint(+0.0), +0.0d, 0.0);
     Assert.assertEquals(Math.rint(-0.0), -0.0d, 0.0);
+    Assert.assertEquals(Math.rint(+0.5), +0.0d, 0.0);  // expects tie-to-even
     Assert.assertEquals(Math.rint(+2.0), +2.0d, 0.0);
     Assert.assertEquals(Math.rint(+2.1), +2.0d, 0.0);
-    Assert.assertEquals(Math.rint(+2.5), +2.0d, 0.0);
+    Assert.assertEquals(Math.rint(+2.5), +2.0d, 0.0);  // expects tie-to-even
     Assert.assertEquals(Math.rint(+2.9), +3.0d, 0.0);
     Assert.assertEquals(Math.rint(+3.0), +3.0d, 0.0);
+    Assert.assertEquals(Math.rint(+3.5), +4.0d, 0.0);  // expects tie-to-even
     Assert.assertEquals(Math.rint(-2.0), -2.0d, 0.0);
     Assert.assertEquals(Math.rint(-2.1), -2.0d, 0.0);
-    Assert.assertEquals(Math.rint(-2.5), -2.0d, 0.0);
+    Assert.assertEquals(Math.rint(-2.5), -2.0d, 0.0);  // expects tie-to-even
     Assert.assertEquals(Math.rint(-2.9), -3.0d, 0.0);
     Assert.assertEquals(Math.rint(-3.0), -3.0d, 0.0);
+    Assert.assertEquals(Math.rint(-3.5), -4.0d, 0.0);  // expects tie-to-even
     // 2^52 - 1.5
     Assert.assertEquals(Math.rint(Double.longBitsToDouble(0x432FFFFFFFFFFFFDl)),
                         Double.longBitsToDouble(0x432FFFFFFFFFFFFCl), 0.0);
