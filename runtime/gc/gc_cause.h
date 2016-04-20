@@ -43,6 +43,8 @@ enum GcCause {
   kGcCauseInstrumentation,
   // Not a real GC cause, used to add or remove app image spaces.
   kGcCauseAddRemoveAppImageSpace,
+  // Not a real GC cause, used to implement exclusion between GC and debugger.
+  kGcCauseDebugger,
   // GC triggered for background transition when both foreground and background collector are CMS.
   kGcCauseHomogeneousSpaceCompact,
 };
