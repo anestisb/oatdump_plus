@@ -83,7 +83,8 @@ class ReferenceTypePropagation::RTPVisitor : public HGraphDelegateVisitor {
   void VisitNewArray(HNewArray* instr) OVERRIDE;
   void VisitParameterValue(HParameterValue* instr) OVERRIDE;
   void UpdateFieldAccessTypeInfo(HInstruction* instr, const FieldInfo& info);
-  void SetClassAsTypeInfo(HInstruction* instr, mirror::Class* klass, bool is_exact);
+  void SetClassAsTypeInfo(HInstruction* instr, mirror::Class* klass, bool is_exact)
+      SHARED_REQUIRES(Locks::mutator_lock_);
   void VisitInstanceFieldGet(HInstanceFieldGet* instr) OVERRIDE;
   void VisitStaticFieldGet(HStaticFieldGet* instr) OVERRIDE;
   void VisitUnresolvedInstanceFieldGet(HUnresolvedInstanceFieldGet* instr) OVERRIDE;
@@ -432,10 +433,10 @@ void ReferenceTypePropagation::RTPVisitor::SetClassAsTypeInfo(HInstruction* inst
     if (kIsDebugBuild) {
       HInvoke* invoke = instr->AsInvoke();
       ClassLinker* cl = Runtime::Current()->GetClassLinker();
-      ScopedObjectAccess soa(Thread::Current());
-      StackHandleScope<2> hs(soa.Self());
+      Thread* self = Thread::Current();
+      StackHandleScope<2> hs(self);
       Handle<mirror::DexCache> dex_cache(
-          hs.NewHandle(FindDexCacheWithHint(soa.Self(), invoke->GetDexFile(), hint_dex_cache_)));
+          hs.NewHandle(FindDexCacheWithHint(self, invoke->GetDexFile(), hint_dex_cache_)));
       // Use a null loader. We should probably use the compiling method's class loader,
       // but then we would need to pass it to RTPVisitor just for this debug check. Since
       // the method is from the String class, the null loader is good enough.
@@ -453,7 +454,6 @@ void ReferenceTypePropagation::RTPVisitor::SetClassAsTypeInfo(HInstruction* inst
     instr->SetReferenceTypeInfo(
         ReferenceTypeInfo::Create(handle_cache_->GetStringClassHandle(), /* is_exact */ true));
   } else if (klass != nullptr) {
-    ScopedObjectAccess soa(Thread::Current());
     if (klass->IsErroneous()) {
       // Set inexact object type for erroneous types.
       instr->SetReferenceTypeInfo(instr->GetBlock()->GetGraph()->GetInexactObjectRti());
@@ -515,11 +515,11 @@ void ReferenceTypePropagation::RTPVisitor::UpdateFieldAccessTypeInfo(HInstructio
     return;
   }
 
+  ScopedObjectAccess soa(Thread::Current());
   mirror::Class* klass = nullptr;
 
   // The field index is unknown only during tests.
   if (info.GetFieldIndex() != kUnknownFieldIndex) {
-    ScopedObjectAccess soa(Thread::Current());
     ClassLinker* cl = Runtime::Current()->GetClassLinker();
     ArtField* field = cl->GetResolvedField(info.GetFieldIndex(), info.GetDexCache().Get());
     // TODO: There are certain cases where we can't resolve the field.
