@@ -60,8 +60,6 @@ class X86InstructionSetFeatures : public InstructionSetFeatures {
 
   bool HasSSE4_1() const { return has_SSE4_1_; }
 
-  bool PrefersLockedAddSynchronization() const { return prefers_locked_add_; }
-
   bool HasPopCnt() const { return has_POPCNT_; }
 
  protected:
@@ -77,16 +75,13 @@ class X86InstructionSetFeatures : public InstructionSetFeatures {
                                  bool x86_64, std::string* error_msg) const;
 
   X86InstructionSetFeatures(bool smp, bool has_SSSE3, bool has_SSE4_1, bool has_SSE4_2,
-                            bool has_AVX, bool has_AVX2,
-                            bool prefers_locked_add,
-                            bool has_POPCNT)
+                            bool has_AVX, bool has_AVX2, bool has_POPCNT)
       : InstructionSetFeatures(smp),
         has_SSSE3_(has_SSSE3),
         has_SSE4_1_(has_SSE4_1),
         has_SSE4_2_(has_SSE4_2),
         has_AVX_(has_AVX),
         has_AVX2_(has_AVX2),
-        prefers_locked_add_(prefers_locked_add),
         has_POPCNT_(has_POPCNT) {
   }
 
@@ -99,8 +94,7 @@ class X86InstructionSetFeatures : public InstructionSetFeatures {
     kSse4_2Bitfield = 8,
     kAvxBitfield = 16,
     kAvx2Bitfield = 32,
-    kPrefersLockedAdd = 64,
-    kPopCntBitfield = 128,
+    kPopCntBitfield = 64,
   };
 
   const bool has_SSSE3_;   // x86 128bit SIMD - Supplemental SSE.
@@ -108,7 +102,6 @@ class X86InstructionSetFeatures : public InstructionSetFeatures {
   const bool has_SSE4_2_;  // x86 128bit SIMD SSE4.2.
   const bool has_AVX_;     // x86 256bit SIMD AVX.
   const bool has_AVX2_;    // x86 256bit SIMD AVX 2.0.
-  const bool prefers_locked_add_;  // x86 use locked add for memory synchronization.
   const bool has_POPCNT_;  // x86 population count
 
   DISALLOW_COPY_AND_ASSIGN(X86InstructionSetFeatures);
