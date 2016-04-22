@@ -37,6 +37,9 @@ void Thumb2Assembler::Fixup::PrepareDependents(Thumb2Assembler* assembler) {
   const FixupId end_id = assembler->fixups_.size();
   Fixup* fixups = assembler->fixups_.data();
   for (FixupId fixup_id = 0u; fixup_id != end_id; ++fixup_id) {
+    if (!fixups[fixup_id].CanExpand()) {
+      continue;
+    }
     uint32_t target = fixups[fixup_id].target_;
     if (target > fixups[fixup_id].location_) {
       for (FixupId id = fixup_id + 1u; id != end_id && fixups[id].location_ < target; ++id) {
@@ -62,6 +65,9 @@ void Thumb2Assembler::Fixup::PrepareDependents(Thumb2Assembler* assembler) {
   assembler->fixup_dependents_.resize(number_of_dependents);
   FixupId* dependents = assembler->fixup_dependents_.data();
   for (FixupId fixup_id = 0u; fixup_id != end_id; ++fixup_id) {
+    if (!fixups[fixup_id].CanExpand()) {
+      continue;
+    }
     uint32_t target = fixups[fixup_id].target_;
     if (target > fixups[fixup_id].location_) {
       for (FixupId id = fixup_id + 1u; id != end_id && fixups[id].location_ < target; ++id) {
@@ -115,6 +121,7 @@ void Thumb2Assembler::AdjustFixupIfNeeded(Fixup* fixup, uint32_t* current_code_s
                                           std::deque<FixupId>* fixups_to_recalculate) {
   uint32_t adjustment = fixup->AdjustSizeIfNeeded(*current_code_size);
   if (adjustment != 0u) {
+    DCHECK(fixup->CanExpand());
     *current_code_size += adjustment;
     for (FixupId dependent_id : fixup->Dependents(*this)) {
       Fixup* dependent = GetFixup(dependent_id);
@@ -2546,9 +2553,19 @@ void Thumb2Assembler::EmitBranch(Condition cond, Label* label, bool link, bool x
       }
     } else {
       branch_type = Fixup::kUnconditional;             // B.
+      // The T2 encoding offset is `SignExtend(imm11:'0', 32)` and there is a PC adjustment of 4.
+      static constexpr size_t kMaxT2BackwardDistance = (1u << 11) - 4u;
+      if (!use32bit && label->IsBound() && pc - label->Position() > kMaxT2BackwardDistance) {
+        use32bit = true;
+      }
     }
   } else {
     branch_type = Fixup::kConditional;                 // B<cond>.
+    // The T1 encoding offset is `SignExtend(imm8:'0', 32)` and there is a PC adjustment of 4.
+    static constexpr size_t kMaxT1BackwardDistance = (1u << 8) - 4u;
+    if (!use32bit && label->IsBound() && pc - label->Position() > kMaxT1BackwardDistance) {
+      use32bit = true;
+    }
   }
 
   Fixup::Size size = use32bit ? Fixup::kBranch32Bit : Fixup::kBranch16Bit;
