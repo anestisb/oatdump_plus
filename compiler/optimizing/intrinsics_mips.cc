@@ -2432,13 +2432,128 @@ void IntrinsicCodeGeneratorMIPS::VisitLongLowestOneBit(HInvoke* invoke) {
   GenLowestOneBit(invoke->GetLocations(), Primitive::kPrimLong, IsR6(), GetAssembler());
 }
 
+// int java.lang.Math.round(float)
+void IntrinsicLocationsBuilderMIPS::VisitMathRoundFloat(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::RequiresFpuRegister());
+  locations->AddTemp(Location::RequiresFpuRegister());
+  locations->SetOut(Location::RequiresRegister());
+}
+
+void IntrinsicCodeGeneratorMIPS::VisitMathRoundFloat(HInvoke* invoke) {
+  LocationSummary* locations = invoke->GetLocations();
+  MipsAssembler* assembler = GetAssembler();
+  FRegister in = locations->InAt(0).AsFpuRegister<FRegister>();
+  FRegister half = locations->GetTemp(0).AsFpuRegister<FRegister>();
+  Register out = locations->Out().AsRegister<Register>();
+
+  MipsLabel done;
+  MipsLabel finite;
+  MipsLabel add;
+
+  // if (in.isNaN) {
+  //   return 0;
+  // }
+  //
+  // out = floor.w.s(in);
+  //
+  // /*
+  //  * This "if" statement is only needed for the pre-R6 version of floor.w.s
+  //  * which outputs Integer.MAX_VALUE for negative numbers with magnitudes
+  //  * too large to fit in a 32-bit integer.
+  //  *
+  //  * Starting with MIPSR6, which always sets FCSR.NAN2008=1, negative
+  //  * numbers which are too large to be represented in a 32-bit signed
+  //  * integer will be processed by floor.w.s to output Integer.MIN_VALUE,
+  //  * and will no longer be processed by this "if" statement.
+  //  */
+  // if (out == Integer.MAX_VALUE) {
+  //   TMP = (in < 0.0f) ? 1 : 0;
+  //   /*
+  //    * If TMP is 1, then adding it to out will wrap its value from
+  //    * Integer.MAX_VALUE to Integer.MIN_VALUE.
+  //    */
+  //   return out += TMP;
+  // }
+  //
+  // /*
+  //  * For negative values not handled by the previous "if" statement the
+  //  * test here will correctly set the value of TMP.
+  //  */
+  // TMP = ((in - out) >= 0.5f) ? 1 : 0;
+  // return out += TMP;
+
+  // Test for NaN.
+  if (IsR6()) {
+    __ CmpUnS(FTMP, in, in);
+  } else {
+    __ CunS(in, in);
+  }
+
+  // Return zero for NaN.
+  __ Move(out, ZERO);
+  if (IsR6()) {
+    __ Bc1nez(FTMP, &done);
+  } else {
+    __ Bc1t(&done);
+  }
+
+  // out = floor(in);
+  __ FloorWS(FTMP, in);
+  __ Mfc1(out, FTMP);
+
+  __ LoadConst32(TMP, 1);
+
+  // TMP = (out = java.lang.Integer.MAX_VALUE) ? 1 : 0;
+  __ LoadConst32(AT, std::numeric_limits<int32_t>::max());
+  __ Bne(AT, out, &finite);
+
+  __ Mtc1(ZERO, FTMP);
+  if (IsR6()) {
+    __ CmpLtS(FTMP, in, FTMP);
+    __ Mfc1(AT, FTMP);
+  } else {
+    __ ColtS(in, FTMP);
+  }
+
+  __ B(&add);
+
+  __ Bind(&finite);
+
+  // TMP = (0.5f <= (in - out)) ? 1 : 0;
+  __ Cvtsw(FTMP, FTMP);  // Convert output of floor.w.s back to "float".
+  __ LoadConst32(AT, bit_cast<int32_t, float>(0.5f));
+  __ SubS(FTMP, in, FTMP);
+  __ Mtc1(AT, half);
+  if (IsR6()) {
+    __ CmpLeS(FTMP, half, FTMP);
+    __ Mfc1(AT, FTMP);
+  } else {
+    __ ColeS(half, FTMP);
+  }
+
+  __ Bind(&add);
+
+  if (IsR6()) {
+    __ Selnez(TMP, TMP, AT);
+  } else {
+    __ Movf(TMP, ZERO);
+  }
+
+  // Return out += TMP.
+  __ Addu(out, out, TMP);
+
+  __ Bind(&done);
+}
+
 // Unimplemented intrinsics.
 
 UNIMPLEMENTED_INTRINSIC(MIPS, MathCeil)
 UNIMPLEMENTED_INTRINSIC(MIPS, MathFloor)
 UNIMPLEMENTED_INTRINSIC(MIPS, MathRint)
 UNIMPLEMENTED_INTRINSIC(MIPS, MathRoundDouble)
-UNIMPLEMENTED_INTRINSIC(MIPS, MathRoundFloat)
 UNIMPLEMENTED_INTRINSIC(MIPS, UnsafeCASLong)
 
 UNIMPLEMENTED_INTRINSIC(MIPS, ReferenceGetReferent)
