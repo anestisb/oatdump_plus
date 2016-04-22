@@ -539,6 +539,16 @@ static jstring DexFile_getNonProfileGuidedCompilerFilter(JNIEnv* env,
   return env->NewStringUTF(new_filter_str.c_str());
 }
 
+static jboolean DexFile_isBackedByOatFile(JNIEnv* env, jclass, jobject cookie) {
+  const OatFile* oat_file = nullptr;
+  std::vector<const DexFile*> dex_files;
+  if (!ConvertJavaArrayToDexFiles(env, cookie, /*out */ dex_files, /* out */ oat_file)) {
+    DCHECK(env->ExceptionCheck());
+    return false;
+  }
+  return oat_file != nullptr;
+}
+
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(DexFile, closeDexFile, "(Ljava/lang/Object;)Z"),
   NATIVE_METHOD(DexFile,
@@ -564,6 +574,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(DexFile,
                 getNonProfileGuidedCompilerFilter,
                 "(Ljava/lang/String;)Ljava/lang/String;"),
+  NATIVE_METHOD(DexFile, isBackedByOatFile, "(Ljava/lang/Object;)Z"),
   NATIVE_METHOD(DexFile, getDexFileStatus,
                 "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;")
 };
