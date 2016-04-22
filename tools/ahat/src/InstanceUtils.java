@@ -244,8 +244,8 @@ class InstanceUtils {
 
     if (inst instanceof ArrayInstance) {
       ArrayInstance array = (ArrayInstance)inst;
-      if (array.getArrayType() == Type.BYTE && inst.getHardReferences().size() == 1) {
-        Instance ref = inst.getHardReferences().get(0);
+      if (array.getArrayType() == Type.BYTE && inst.getHardReverseReferences().size() == 1) {
+        Instance ref = inst.getHardReverseReferences().get(0);
         ClassObj clsref = ref.getClassObj();
         if (clsref != null && "android.graphics.Bitmap".equals(clsref.getClassName())) {
           return ref;
@@ -344,7 +344,7 @@ class InstanceUtils {
     }
 
     Instance referent = null;
-    for (Instance ref : inst.getHardReferences()) {
+    for (Instance ref : inst.getHardReverseReferences()) {
       if (isInstanceOfClass(ref, "sun.misc.Cleaner")) {
         referent = InstanceUtils.getReferent(ref);
         if (referent != null) {

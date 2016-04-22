@@ -160,11 +160,11 @@ class ObjectHandler implements AhatHandler {
   private static void printReferences(
       Doc doc, Query query, AhatSnapshot snapshot, Instance inst) {
     doc.section("Objects with References to this Object");
-    if (inst.getHardReferences().isEmpty()) {
+    if (inst.getHardReverseReferences().isEmpty()) {
       doc.println(DocString.text("(none)"));
     } else {
       doc.table(new Column("Object"));
-      List<Instance> references = inst.getHardReferences();
+      List<Instance> references = inst.getHardReverseReferences();
       SubsetSelector<Instance> selector = new SubsetSelector(query, HARD_REFS_ID, references);
       for (Instance ref : selector.selected()) {
         doc.row(Value.render(snapshot, ref));
@@ -173,10 +173,10 @@ class ObjectHandler implements AhatHandler {
       selector.render(doc);
     }
 
-    if (inst.getSoftReferences() != null) {
+    if (inst.getSoftReverseReferences() != null) {
       doc.section("Objects with Soft References to this Object");
       doc.table(new Column("Object"));
-      List<Instance> references = inst.getSoftReferences();
+      List<Instance> references = inst.getSoftReverseReferences();
       SubsetSelector<Instance> selector = new SubsetSelector(query, SOFT_REFS_ID, references);
       for (Instance ref : selector.selected()) {
         doc.row(Value.render(snapshot, ref));
