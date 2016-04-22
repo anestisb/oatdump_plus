@@ -77,7 +77,12 @@ Things to move to perflib:
  * Instance.isRoot and Instance.getRootTypes.
 
 Release History:
- 0.4 Pending
+ 0.6 Pending
+
+ 0.5 Apr 19, 2016
+   Update perflib to perflib-25.0.0 to improve processing performance.
+
+ 0.4 Feb 23, 2016
    Annotate char[] objects with their string values.
    Show registered native allocations for heap dumps that support it.
 

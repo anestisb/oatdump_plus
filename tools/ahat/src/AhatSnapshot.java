@@ -25,8 +25,8 @@ import com.android.tools.perflib.heap.Snapshot;
 import com.android.tools.perflib.heap.StackFrame;
 import com.android.tools.perflib.heap.StackTrace;
 import com.android.tools.perflib.captures.MemoryMappedFileBuffer;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import gnu.trove.TObjectProcedure;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -85,49 +85,59 @@ class AhatSnapshot {
 
     ClassObj javaLangClass = mSnapshot.findClass("java.lang.Class");
     for (Heap heap : mHeaps) {
-      long total = 0;
-      for (Instance inst : Iterables.concat(heap.getClasses(), heap.getInstances())) {
-        Instance dominator = inst.getImmediateDominator();
-        if (dominator != null) {
-          total += inst.getSize();
+      // Use a single element array for the total to act as a reference to a
+      // long.
+      final long[] total = new long[]{0};
+      TObjectProcedure<Instance> processInstance = new TObjectProcedure<Instance>() {
+        @Override
+        public boolean execute(Instance inst) {
+          Instance dominator = inst.getImmediateDominator();
+          if (dominator != null) {
+            total[0] += inst.getSize();
 
-          if (dominator == Snapshot.SENTINEL_ROOT) {
-            mRooted.add(inst);
-          }
+            if (dominator == Snapshot.SENTINEL_ROOT) {
+              mRooted.add(inst);
+            }
 
-          // Properly label the class of a class object.
-          if (inst instanceof ClassObj && javaLangClass != null && inst.getClassObj() == null) {
-              inst.setClassId(javaLangClass.getId());
-          }
+            // Properly label the class of a class object.
+            if (inst instanceof ClassObj && javaLangClass != null && inst.getClassObj() == null) {
+                inst.setClassId(javaLangClass.getId());
+            }
 
-          // Update dominated instances.
-          List<Instance> instances = mDominated.get(dominator);
-          if (instances == null) {
-            instances = new ArrayList<Instance>();
-            mDominated.put(dominator, instances);
-          }
-          instances.add(inst);
+            // Update dominated instances.
+            List<Instance> instances = mDominated.get(dominator);
+            if (instances == null) {
+              instances = new ArrayList<Instance>();
+              mDominated.put(dominator, instances);
+            }
+            instances.add(inst);
 
-          // Update sites.
-          List<StackFrame> path = Collections.emptyList();
-          StackTrace stack = getStack(inst);
-          int stackId = getStackTraceSerialNumber(stack);
-          if (stack != null) {
-            StackFrame[] frames = getStackFrames(stack);
-            if (frames != null && frames.length > 0) {
-              path = Lists.reverse(Arrays.asList(frames));
+            // Update sites.
+            List<StackFrame> path = Collections.emptyList();
+            StackTrace stack = getStack(inst);
+            int stackId = getStackTraceSerialNumber(stack);
+            if (stack != null) {
+              StackFrame[] frames = getStackFrames(stack);
+              if (frames != null && frames.length > 0) {
+                path = Lists.reverse(Arrays.asList(frames));
+              }
+            }
+            mRootSite.add(stackId, 0, path.iterator(), inst);
+
+            // Update native allocations.
+            InstanceUtils.NativeAllocation alloc = InstanceUtils.getNativeAllocation(inst);
+            if (alloc != null) {
+              mNativeAllocations.add(alloc);
             }
           }
-          mRootSite.add(stackId, 0, path.iterator(), inst);
-
-          // Update native allocations.
-          InstanceUtils.NativeAllocation alloc = InstanceUtils.getNativeAllocation(inst);
-          if (alloc != null) {
-            mNativeAllocations.add(alloc);
-          }
+          return true;
         }
+      };
+      for (Instance instance : heap.getClasses()) {
+        processInstance.execute(instance);
       }
-      mHeapSizes.put(heap, total);
+      heap.forEachInstance(processInstance);
+      mHeapSizes.put(heap, total[0]);
     }
 
     // Record the roots and their types.
