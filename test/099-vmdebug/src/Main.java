@@ -133,7 +133,7 @@ public class Main {
             System.out.println("Got null string");
             return;
         }
-        long n = Long.valueOf(s);
+        long n = Long.parseLong(s);
         if (n < 0) {
             System.out.println("Got negative number " + n);
         }
@@ -157,8 +157,8 @@ public class Main {
                 System.out.println("Got bad bucket " + bucket);
                 continue;
             }
-            long key = Long.valueOf(kv[0]);
-            long value = Long.valueOf(kv[1]);
+            long key = Long.parseLong(kv[0]);
+            long value = Long.parseLong(kv[1]);
             if (key < 0 || value < 0) {
                 System.out.println("Got negative key or value " + bucket);
                 continue;
