@@ -385,6 +385,92 @@ static void CreateFPToFPLocations(ArenaAllocator* arena, HInvoke* invoke) {
   locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
 }
 
+static void GenBitCount(LocationSummary* locations,
+                        const Primitive::Type type,
+                        Mips64Assembler* assembler) {
+  GpuRegister out = locations->Out().AsRegister<GpuRegister>();
+  GpuRegister in = locations->InAt(0).AsRegister<GpuRegister>();
+
+  DCHECK(type == Primitive::kPrimInt || type == Primitive::kPrimLong);
+
+  // https://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetParallel
+  //
+  // A generalization of the best bit counting method to integers of
+  // bit-widths up to 128 (parameterized by type T) is this:
+  //
+  // v = v - ((v >> 1) & (T)~(T)0/3);                           // temp
+  // v = (v & (T)~(T)0/15*3) + ((v >> 2) & (T)~(T)0/15*3);      // temp
+  // v = (v + (v >> 4)) & (T)~(T)0/255*15;                      // temp
+  // c = (T)(v * ((T)~(T)0/255)) >> (sizeof(T) - 1) * BITS_PER_BYTE; // count
+  //
+  // For comparison, for 32-bit quantities, this algorithm can be executed
+  // using 20 MIPS instructions (the calls to LoadConst32() generate two
+  // machine instructions each for the values being used in this algorithm).
+  // A(n unrolled) loop-based algorithm requires 25 instructions.
+  //
+  // For a 64-bit operand this can be performed in 24 instructions compared
+  // to a(n unrolled) loop based algorithm which requires 38 instructions.
+  //
+  // There are algorithms which are faster in the cases where very few
+  // bits are set but the algorithm here attempts to minimize the total
+  // number of instructions executed even when a large number of bits
+  // are set.
+
+  if (type == Primitive::kPrimInt) {
+    __ Srl(TMP, in, 1);
+    __ LoadConst32(AT, 0x55555555);
+    __ And(TMP, TMP, AT);
+    __ Subu(TMP, in, TMP);
+    __ LoadConst32(AT, 0x33333333);
+    __ And(out, TMP, AT);
+    __ Srl(TMP, TMP, 2);
+    __ And(TMP, TMP, AT);
+    __ Addu(TMP, out, TMP);
+    __ Srl(out, TMP, 4);
+    __ Addu(out, out, TMP);
+    __ LoadConst32(AT, 0x0F0F0F0F);
+    __ And(out, out, AT);
+    __ LoadConst32(TMP, 0x01010101);
+    __ MulR6(out, out, TMP);
+    __ Srl(out, out, 24);
+  } else if (type == Primitive::kPrimLong) {
+    __ Dsrl(TMP, in, 1);
+    __ LoadConst64(AT, 0x5555555555555555L);
+    __ And(TMP, TMP, AT);
+    __ Dsubu(TMP, in, TMP);
+    __ LoadConst64(AT, 0x3333333333333333L);
+    __ And(out, TMP, AT);
+    __ Dsrl(TMP, TMP, 2);
+    __ And(TMP, TMP, AT);
+    __ Daddu(TMP, out, TMP);
+    __ Dsrl(out, TMP, 4);
+    __ Daddu(out, out, TMP);
+    __ LoadConst64(AT, 0x0F0F0F0F0F0F0F0FL);
+    __ And(out, out, AT);
+    __ LoadConst64(TMP, 0x0101010101010101L);
+    __ Dmul(out, out, TMP);
+    __ Dsrl32(out, out, 24);
+  }
+}
+
+// int java.lang.Integer.bitCount(int)
+void IntrinsicLocationsBuilderMIPS64::VisitIntegerBitCount(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitIntegerBitCount(HInvoke* invoke) {
+  GenBitCount(invoke->GetLocations(), Primitive::kPrimInt, GetAssembler());
+}
+
+// int java.lang.Long.bitCount(long)
+void IntrinsicLocationsBuilderMIPS64::VisitLongBitCount(HInvoke* invoke) {
+  CreateIntToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitLongBitCount(HInvoke* invoke) {
+  GenBitCount(invoke->GetLocations(), Primitive::kPrimLong, GetAssembler());
+}
+
 static void MathAbsFP(LocationSummary* locations, bool is64bit, Mips64Assembler* assembler) {
   FpuRegister in = locations->InAt(0).AsFpuRegister<FpuRegister>();
   FpuRegister out = locations->Out().AsFpuRegister<FpuRegister>();
@@ -1692,9 +1778,6 @@ void IntrinsicLocationsBuilderMIPS64::VisitDoubleIsInfinite(HInvoke* invoke) {
 void IntrinsicCodeGeneratorMIPS64::VisitDoubleIsInfinite(HInvoke* invoke) {
   GenIsInfinite(invoke->GetLocations(), /* is64bit */ true, GetAssembler());
 }
-
-UNIMPLEMENTED_INTRINSIC(MIPS64, IntegerBitCount)
-UNIMPLEMENTED_INTRINSIC(MIPS64, LongBitCount)
 
 UNIMPLEMENTED_INTRINSIC(MIPS64, MathRoundDouble)
 UNIMPLEMENTED_INTRINSIC(MIPS64, MathRoundFloat)
