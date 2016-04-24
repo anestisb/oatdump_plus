@@ -538,20 +538,6 @@ class Thumb2Assembler FINAL : public ArmAssembler {
       return GetType() >= kLoadLiteralNarrow;
     }
 
-    // Returns whether the Fixup can expand from the original size.
-    bool CanExpand() const {
-      switch (GetOriginalSize()) {
-        case kBranch32Bit:
-        case kCbxz48Bit:
-        case kLiteralFar:
-        case kLiteralAddrFar:
-        case kLongOrFPLiteralFar:
-          return false;
-        default:
-          return true;
-      }
-    }
-
     Size GetOriginalSize() const {
       return original_size_;
     }
