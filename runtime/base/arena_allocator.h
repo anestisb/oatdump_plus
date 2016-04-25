@@ -364,7 +364,7 @@ class ArenaAllocator
 
  private:
   void* AllocWithMemoryTool(size_t bytes, ArenaAllocKind kind);
-  void* AllocFromNewArena(size_t bytes);
+  uint8_t* AllocFromNewArena(size_t bytes);
 
   static constexpr size_t kAlignment = 8;
 
