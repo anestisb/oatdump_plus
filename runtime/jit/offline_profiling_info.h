@@ -28,9 +28,6 @@
 
 namespace art {
 
-class ArtMethod;
-class DexCacheProfileData;
-
 // TODO: rename file.
 /**
  * Profile information in a format suitable to be queried by the compiler and
@@ -41,21 +38,29 @@ class DexCacheProfileData;
  */
 class ProfileCompilationInfo {
  public:
-  // Saves profile information about the given methods in the given file.
-  // Note that the saving proceeds only if the file can be locked for exclusive access.
-  // If not (the locking is not blocking), the function does not save and returns false.
-  static bool SaveProfilingInfo(const std::string& filename,
-                                const std::vector<ArtMethod*>& methods,
-                                const std::set<DexCacheResolvedClasses>& resolved_classes);
+  static const uint8_t kProfileMagic[];
+  static const uint8_t kProfileVersion[];
 
+  // Add the given methods and classes to the current profile object.
+  bool AddMethodsAndClasses(const std::vector<MethodReference>& methods,
+                            const std::set<DexCacheResolvedClasses>& resolved_classes);
   // Loads profile information from the given file descriptor.
   bool Load(int fd);
-  // Loads the data from another ProfileCompilationInfo object.
-  bool Load(const ProfileCompilationInfo& info);
+  // Merge the data from another ProfileCompilationInfo into the current object.
+  bool MergeWith(const ProfileCompilationInfo& info);
   // Saves the profile data to the given file descriptor.
   bool Save(int fd);
+  // Loads and merges profile information from the given file into the current
+  // object and tries to save it back to disk.
+  // If `force` is true then the save will go through even if the given file
+  // has bad data or its version does not match. In this cases the profile content
+  // is ignored.
+  bool MergeAndSave(const std::string& filename, uint64_t* bytes_written, bool force);
+
   // Returns the number of methods that were profiled.
   uint32_t GetNumberOfMethods() const;
+  // Returns the number of resolved classes that were profiled.
+  uint32_t GetNumberOfResolvedClasses() const;
 
   // Returns true if the method reference is present in the profiling info.
   bool ContainsMethod(const MethodReference& method_ref) const;
@@ -70,8 +75,8 @@ class ProfileCompilationInfo {
   std::string DumpInfo(const std::vector<const DexFile*>* dex_files,
                        bool print_full_dex_location = true) const;
 
-  // For testing purposes.
   bool Equals(const ProfileCompilationInfo& other);
+
   static std::string GetProfileDexFileKey(const std::string& dex_location);
 
   // Returns the class descriptors for all of the classes in the profiles' class sets.
@@ -79,7 +84,17 @@ class ProfileCompilationInfo {
   // profile info stuff to generate a map back to the dex location.
   std::set<DexCacheResolvedClasses> GetResolvedClasses() const;
 
+  // Clears the resolved classes from the current object.
+  void ClearResolvedClasses();
+
  private:
+  enum ProfileLoadSatus {
+    kProfileLoadIOError,
+    kProfileLoadVersionMismatch,
+    kProfileLoadBadData,
+    kProfileLoadSuccess
+  };
+
   struct DexFileData {
     explicit DexFileData(uint32_t location_checksum) : checksum(location_checksum) {}
     uint32_t checksum;
@@ -96,9 +111,65 @@ class ProfileCompilationInfo {
   DexFileData* GetOrAddDexFileData(const std::string& dex_location, uint32_t checksum);
   bool AddMethodIndex(const std::string& dex_location, uint32_t checksum, uint16_t method_idx);
   bool AddClassIndex(const std::string& dex_location, uint32_t checksum, uint16_t class_idx);
-  bool AddResolvedClasses(const DexCacheResolvedClasses& classes)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-  bool ProcessLine(const std::string& line);
+  bool AddResolvedClasses(const DexCacheResolvedClasses& classes);
+
+  // Parsing functionality.
+
+  struct ProfileLineHeader {
+    std::string dex_location;
+    uint16_t method_set_size;
+    uint16_t class_set_size;
+    uint32_t checksum;
+  };
+
+  // A helper structure to make sure we don't read past our buffers in the loops.
+  struct SafeBuffer {
+   public:
+    explicit SafeBuffer(size_t size) : storage_(new uint8_t[size]) {
+      ptr_current_ = storage_.get();
+      ptr_end_ = ptr_current_ + size;
+    }
+
+    // Reads the content of the descriptor at the current position.
+    ProfileLoadSatus FillFromFd(int fd,
+                                const std::string& source,
+                                /*out*/std::string* error);
+
+    // Reads an uint value (high bits to low bits) and advances the current pointer
+    // with the number of bits read.
+    template <typename T> T ReadUintAndAdvance();
+
+    // Compares the given data with the content current pointer. If the contents are
+    // equal it advances the current pointer by data_size.
+    bool CompareAndAdvance(const uint8_t* data, size_t data_size);
+
+    // Get the underlying raw buffer.
+    uint8_t* Get() { return storage_.get(); }
+
+   private:
+    std::unique_ptr<uint8_t> storage_;
+    uint8_t* ptr_current_;
+    uint8_t* ptr_end_;
+  };
+
+  ProfileLoadSatus LoadInternal(int fd, std::string* error);
+
+  ProfileLoadSatus ReadProfileHeader(int fd,
+                                     /*out*/uint16_t* number_of_lines,
+                                     /*out*/std::string* error);
+
+  ProfileLoadSatus ReadProfileLineHeader(int fd,
+                                         /*out*/ProfileLineHeader* line_header,
+                                         /*out*/std::string* error);
+  ProfileLoadSatus ReadProfileLine(int fd,
+                                   const ProfileLineHeader& line_header,
+                                   /*out*/std::string* error);
+
+  bool ProcessLine(SafeBuffer& line_buffer,
+                   uint16_t method_set_size,
+                   uint16_t class_set_size,
+                   uint32_t checksum,
+                   const std::string& dex_location);
 
   friend class ProfileCompilationInfoTest;
   friend class CompilerDriverProfileTest;
