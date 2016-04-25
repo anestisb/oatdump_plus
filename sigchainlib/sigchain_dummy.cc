@@ -17,7 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#ifdef __ANDROID__
+#ifdef ART_TARGET_ANDROID
 #include <android/log.h>
 #else
 #include <stdarg.h>
@@ -38,7 +38,7 @@ static void log(const char* format, ...) {
   va_list ap;
   va_start(ap, format);
   vsnprintf(buf, sizeof(buf), format, ap);
-#ifdef __ANDROID__
+#ifdef ART_TARGET_ANDROID
   __android_log_write(ANDROID_LOG_ERROR, "libsigchain", buf);
 #else
   std::cout << buf << "\n";
