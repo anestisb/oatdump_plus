@@ -406,7 +406,8 @@ ProfileCompilationInfo::ProfileLoadSatus ProfileCompilationInfo::ReadProfileLine
   line_header->checksum = header_buffer.ReadUintAndAdvance<uint32_t>();
 
   if (dex_location_size == 0 || dex_location_size > kMaxDexFileKeyLength) {
-    *error = "DexFileKey has an invalid size: " + std::to_string(dex_location_size);
+    *error = "DexFileKey has an invalid size: " +
+        std::to_string(static_cast<uint32_t>(dex_location_size));
     return kProfileLoadBadData;
   }
 
