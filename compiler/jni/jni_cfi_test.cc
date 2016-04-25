@@ -29,7 +29,7 @@
 namespace art {
 
 // Run the tests only on host.
-#ifndef __ANDROID__
+#ifndef ART_TARGET_ANDROID
 
 class JNICFITest : public CFITest {
  public:
@@ -94,6 +94,6 @@ TEST_ISA(kX86_64)
 TEST_ISA(kMips)
 TEST_ISA(kMips64)
 
-#endif  // __ANDROID__
+#endif  // ART_TARGET_ANDROID
 
 }  // namespace art

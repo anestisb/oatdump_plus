@@ -61,7 +61,7 @@ ThreadPoolWorker::~ThreadPoolWorker() {
 void ThreadPoolWorker::SetPthreadPriority(int priority) {
   CHECK_GE(priority, PRIO_MIN);
   CHECK_LE(priority, PRIO_MAX);
-#if defined(__ANDROID__)
+#if defined(ART_TARGET_ANDROID)
   int result = setpriority(PRIO_PROCESS, pthread_gettid_np(pthread_), priority);
   if (result != 0) {
     PLOG(ERROR) << "Failed to setpriority to :" << priority;
