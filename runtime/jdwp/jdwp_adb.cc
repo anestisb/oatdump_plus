@@ -24,7 +24,7 @@
 #include "base/stringprintf.h"
 #include "jdwp/jdwp_priv.h"
 
-#ifdef __ANDROID__
+#ifdef ART_TARGET_ANDROID
 #include "cutils/sockets.h"
 #endif
 
@@ -224,7 +224,7 @@ bool JdwpAdbState::Accept() {
        */
       int  ret = connect(control_sock_, &control_addr_.controlAddrPlain, control_addr_len_);
       if (!ret) {
-#ifdef __ANDROID__
+#ifdef ART_TARGET_ANDROID
         if (!socket_peer_is_trusted(control_sock_)) {
           if (shutdown(control_sock_, SHUT_RDWR)) {
             PLOG(ERROR) << "trouble shutting down socket";
