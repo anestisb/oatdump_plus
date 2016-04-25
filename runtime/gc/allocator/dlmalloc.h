@@ -35,7 +35,7 @@
 #include "../../external/dlmalloc/malloc.h"
 #pragma GCC diagnostic pop
 
-#ifdef __ANDROID__
+#ifdef ART_TARGET_ANDROID
 // Define dlmalloc routines from bionic that cannot be included directly because of redefining
 // symbols from the include above.
 extern "C" void dlmalloc_inspect_all(void(*handler)(void*, void *, size_t, void*), void* arg);

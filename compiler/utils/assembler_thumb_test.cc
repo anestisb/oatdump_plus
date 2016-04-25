@@ -32,7 +32,7 @@ namespace arm {
 // Include results file (generated manually)
 #include "assembler_thumb_test_expected.cc.inc"
 
-#ifndef __ANDROID__
+#ifndef ART_TARGET_ANDROID
 // This controls whether the results are printed to the
 // screen or compared against the expected output.
 // To generate new expected output, set this to true and
@@ -72,7 +72,7 @@ void InitResults() {
 }
 
 std::string GetToolsDir() {
-#ifndef __ANDROID__
+#ifndef ART_TARGET_ANDROID
   // This will only work on the host.  There is no as, objcopy or objdump on the device.
   static std::string toolsdir;
 
@@ -89,7 +89,7 @@ std::string GetToolsDir() {
 }
 
 void DumpAndCheck(std::vector<uint8_t>& code, const char* testname, const char* const* results) {
-#ifndef __ANDROID__
+#ifndef ART_TARGET_ANDROID
   static std::string toolsdir = GetToolsDir();
 
   ScratchFile file;
@@ -169,7 +169,7 @@ void DumpAndCheck(std::vector<uint8_t>& code, const char* testname, const char* 
 
   snprintf(buf, sizeof(buf), "%s.oo", filename);
   unlink(buf);
-#endif
+#endif  // ART_TARGET_ANDROID
 }
 
 #define __ assembler->

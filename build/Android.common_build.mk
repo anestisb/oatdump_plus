@@ -363,7 +363,12 @@ ART_HOST_ASFLAGS += $(art_asflags)
 ifndef LIBART_IMG_TARGET_BASE_ADDRESS
   $(error LIBART_IMG_TARGET_BASE_ADDRESS unset)
 endif
-ART_TARGET_CFLAGS += $(art_cflags) -DART_TARGET -DART_BASE_ADDRESS=$(LIBART_IMG_TARGET_BASE_ADDRESS)
+# The ART_TARGET_ANDROID macro is passed to target builds, which check
+# against it instead of against __ANDROID__ (which is provided by target
+# toolchains).
+ART_TARGET_CFLAGS += $(art_cflags) -DART_TARGET -DART_TARGET_ANDROID \
+                     -DART_BASE_ADDRESS=$(LIBART_IMG_TARGET_BASE_ADDRESS) \
+
 ART_TARGET_CFLAGS += $(art_target_cflags)
 ART_TARGET_ASFLAGS += $(art_asflags)
 

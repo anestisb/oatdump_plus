@@ -32,7 +32,7 @@
 namespace art {
 
 // Run the tests only on host.
-#ifndef __ANDROID__
+#ifndef ART_TARGET_ANDROID
 
 class OptimizingCFITest : public CFITest {
  public:
@@ -241,6 +241,6 @@ TEST_F(OptimizingCFITest, kMips64Adjust) {
   Check(kMips64, "kMips64_adjust", expected_asm, expected_cfi);
 }
 
-#endif  // __ANDROID__
+#endif  // ART_TARGET_ANDROID
 
 }  // namespace art
