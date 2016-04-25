@@ -321,24 +321,26 @@ void* ArenaAllocator::AllocWithMemoryTool(size_t bytes, ArenaAllocKind kind) {
   // and padding between allocations marked as inaccessible.
   size_t rounded_bytes = RoundUp(bytes + kMemoryToolRedZoneBytes, 8);
   ArenaAllocatorStats::RecordAlloc(rounded_bytes, kind);
+  uint8_t* ret;
   if (UNLIKELY(rounded_bytes > static_cast<size_t>(end_ - ptr_))) {
-    void* ret = AllocFromNewArena(rounded_bytes);
+    ret = AllocFromNewArena(rounded_bytes);
+    uint8_t* noaccess_begin = ret + bytes;
+    uint8_t* noaccess_end;
     if (ret == arena_head_->Begin()) {
       DCHECK(ptr_ - rounded_bytes == ret);
-      uint8_t* noaccess_begin = ptr_ - rounded_bytes + bytes;
-      MEMORY_TOOL_MAKE_NOACCESS(noaccess_begin, end_ - noaccess_begin);
+      noaccess_end = end_;
     } else {
       // We're still using the old arena but `ret` comes from a new one just after it.
       DCHECK(arena_head_->next_ != nullptr);
       DCHECK(ret == arena_head_->next_->Begin());
       DCHECK_EQ(rounded_bytes, arena_head_->next_->GetBytesAllocated());
-      uint8_t* noaccess_begin = arena_head_->next_->Begin() + bytes;
-      MEMORY_TOOL_MAKE_NOACCESS(noaccess_begin, arena_head_->next_->End() - noaccess_begin);
+      noaccess_end = arena_head_->next_->End();
     }
-    return ret;
+    MEMORY_TOOL_MAKE_NOACCESS(noaccess_begin, noaccess_end - noaccess_begin);
+  } else {
+    ret = ptr_;
+    ptr_ += rounded_bytes;
   }
-  uint8_t* ret = ptr_;
-  ptr_ += rounded_bytes;
   MEMORY_TOOL_MAKE_DEFINED(ret, bytes);
   // Check that the memory is already zeroed out.
   DCHECK(std::all_of(ret, ret + bytes, [](uint8_t val) { return val == 0u; }));
@@ -351,7 +353,7 @@ ArenaAllocator::~ArenaAllocator() {
   pool_->FreeArenaChain(arena_head_);
 }
 
-void* ArenaAllocator::AllocFromNewArena(size_t bytes) {
+uint8_t* ArenaAllocator::AllocFromNewArena(size_t bytes) {
   Arena* new_arena = pool_->AllocArena(std::max(Arena::kDefaultSize, bytes));
   DCHECK(new_arena != nullptr);
   DCHECK_LE(bytes, new_arena->Size());
