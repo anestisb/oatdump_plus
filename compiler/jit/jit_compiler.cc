@@ -171,7 +171,7 @@ JitCompiler::JitCompiler() {
 
   size_t thread_count = compiler_driver_->GetThreadCount();
   if (compiler_options_->GetGenerateDebugInfo()) {
-#ifdef __ANDROID__
+#ifdef ART_TARGET_ANDROID
     const char* prefix = "/data/misc/trace";
 #else
     const char* prefix = "/tmp";

@@ -704,7 +704,7 @@ bool Thread::Init(ThreadList* thread_list, JavaVMExt* java_vm, JNIEnvExt* jni_en
   InitTid();
   interpreter::InitInterpreterTls(this);
 
-#ifdef __ANDROID__
+#ifdef ART_TARGET_ANDROID
   __get_tls()[TLS_SLOT_ART_THREAD_SELF] = this;
 #else
   CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, this), "attach self");
@@ -1542,7 +1542,7 @@ void Thread::ThreadExitCallback(void* arg) {
     LOG(WARNING) << "Native thread exiting without having called DetachCurrentThread (maybe it's "
         "going to use a pthread_key_create destructor?): " << *self;
     CHECK(is_started_);
-#ifdef __ANDROID__
+#ifdef ART_TARGET_ANDROID
     __get_tls()[TLS_SLOT_ART_THREAD_SELF] = self;
 #else
     CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, self), "reattach self");
@@ -2392,7 +2392,7 @@ void Thread::DumpFromGdb() const {
   std::string str(ss.str());
   // log to stderr for debugging command line processes
   std::cerr << str;
-#ifdef __ANDROID__
+#ifdef ART_TARGET_ANDROID
   // log to logcat for debugging frameworks processes
   LOG(INFO) << str;
 #endif

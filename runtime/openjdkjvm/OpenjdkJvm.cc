@@ -58,10 +58,10 @@
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 
-#ifdef __ANDROID__
+#ifdef ART_TARGET_ANDROID
 // This function is provided by android linker.
 extern "C" void android_update_LD_LIBRARY_PATH(const char* ld_library_path);
-#endif  // __ANDROID__
+#endif  // ART_TARGET_ANDROID
 
 #undef LOG_TAG
 #define LOG_TAG "artopenjdk"
@@ -325,7 +325,7 @@ JNIEXPORT __attribute__((noreturn)) void JVM_Exit(jint status) {
 }
 
 static void SetLdLibraryPath(JNIEnv* env, jstring javaLdLibraryPath) {
-#ifdef __ANDROID__
+#ifdef ART_TARGET_ANDROID
   if (javaLdLibraryPath != nullptr) {
     ScopedUtfChars ldLibraryPath(env, javaLdLibraryPath);
     if (ldLibraryPath.c_str() != nullptr) {
