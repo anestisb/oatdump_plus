@@ -1348,7 +1348,10 @@ class Dex2Oat FINAL {
       // Open dex files for class path.
       const std::vector<std::string> class_path_locations =
           GetClassPathLocations(runtime_->GetClassPathString());
-      OpenClassPathFiles(class_path_locations, &class_path_files_, runtime_->GetInstructionSet());
+      OpenClassPathFiles(class_path_locations,
+                         &class_path_files_,
+                         &opened_oat_files_,
+                         runtime_->GetInstructionSet());
 
       // Store the classpath we have right now.
       std::vector<const DexFile*> class_path_files = MakeNonOwningPointerVector(class_path_files_);
@@ -1970,11 +1973,14 @@ class Dex2Oat FINAL {
     return parsed;
   }
 
-  // Opens requested class path files and appends them to opened_dex_files.
+  // Opens requested class path files and appends them to opened_dex_files. If the dex files have
+  // been stripped, this opens them from their oat files and appends them to opened_oat_files.
   static void OpenClassPathFiles(const std::vector<std::string>& class_path_locations,
                                  std::vector<std::unique_ptr<const DexFile>>* opened_dex_files,
+                                 std::vector<std::unique_ptr<OatFile>>* opened_oat_files,
                                  InstructionSet isa) {
-    DCHECK(opened_dex_files != nullptr) << "OpenClassPathFiles out-param is nullptr";
+    DCHECK(opened_dex_files != nullptr) << "OpenClassPathFiles dex out-param is nullptr";
+    DCHECK(opened_oat_files != nullptr) << "OpenClassPathFiles oat out-param is nullptr";
     for (const std::string& location : class_path_locations) {
       // Stop early if we detect the special shared library, which may be passed as the classpath
       // for dex2oat when we want to skip the shared libraries check.
@@ -1993,6 +1999,7 @@ class Dex2Oat FINAL {
         } else {
           std::vector<std::unique_ptr<const DexFile>> oat_dex_files =
               oat_file_assistant.LoadDexFiles(*oat_file, location.c_str());
+          opened_oat_files->push_back(std::move(oat_file));
           opened_dex_files->insert(opened_dex_files->end(),
                                    std::make_move_iterator(oat_dex_files.begin()),
                                    std::make_move_iterator(oat_dex_files.end()));
@@ -2466,6 +2473,7 @@ class Dex2Oat FINAL {
   std::unique_ptr<CompilerDriver> driver_;
 
   std::vector<std::unique_ptr<MemMap>> opened_dex_files_maps_;
+  std::vector<std::unique_ptr<OatFile>> opened_oat_files_;
   std::vector<std::unique_ptr<const DexFile>> opened_dex_files_;
 
   std::vector<const DexFile*> no_inline_from_dex_files_;
