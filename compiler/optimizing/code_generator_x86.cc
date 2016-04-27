@@ -3303,17 +3303,6 @@ void InstructionCodeGeneratorX86::GenerateDivRemWithAnyConstant(HBinaryOperation
   int shift;
   CalculateMagicAndShiftForDivRem(imm, false /* is_long */, &magic, &shift);
 
-  NearLabel ndiv;
-  NearLabel end;
-  // If numerator is 0, the result is 0, no computation needed.
-  __ testl(eax, eax);
-  __ j(kNotEqual, &ndiv);
-
-  __ xorl(out, out);
-  __ jmp(&end);
-
-  __ Bind(&ndiv);
-
   // Save the numerator.
   __ movl(num, eax);
 
@@ -3348,7 +3337,6 @@ void InstructionCodeGeneratorX86::GenerateDivRemWithAnyConstant(HBinaryOperation
   } else {
     __ movl(eax, edx);
   }
-  __ Bind(&end);
 }
 
 void InstructionCodeGeneratorX86::GenerateDivRemIntegral(HBinaryOperation* instruction) {
