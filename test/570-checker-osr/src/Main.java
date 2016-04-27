@@ -192,7 +192,7 @@ public class Main {
     // If we are running in non-JIT mode, or were unlucky enough to get this method
     // already JITted, just return the expected value.
     if (!isInInterpreter("$noinline$inlineCache3")) {
-      return SubMain.class;
+      return null;
     }
 
     ensureHasProfilingInfo("$noinline$inlineCache3");
