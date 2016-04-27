@@ -3390,16 +3390,6 @@ void InstructionCodeGeneratorX86_64::GenerateDivRemWithAnyConstant(HBinaryOperat
 
     __ movl(numerator, eax);
 
-    NearLabel no_div;
-    NearLabel end;
-    __ testl(eax, eax);
-    __ j(kNotEqual, &no_div);
-
-    __ xorl(out, out);
-    __ jmp(&end);
-
-    __ Bind(&no_div);
-
     __ movl(eax, Immediate(magic));
     __ imull(numerator);
 
@@ -3425,7 +3415,6 @@ void InstructionCodeGeneratorX86_64::GenerateDivRemWithAnyConstant(HBinaryOperat
     } else {
       __ movl(eax, edx);
     }
-    __ Bind(&end);
   } else {
     int64_t imm = second.GetConstant()->AsLongConstant()->GetValue();
 
