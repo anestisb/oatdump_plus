@@ -2118,9 +2118,9 @@ void LocationsBuilderARM64::VisitArrayLength(HArrayLength* instruction) {
 }
 
 void InstructionCodeGeneratorARM64::VisitArrayLength(HArrayLength* instruction) {
+  uint32_t offset = CodeGenerator::GetArrayLengthOffset(instruction);
   BlockPoolsScope block_pools(GetVIXLAssembler());
-  __ Ldr(OutputRegister(instruction),
-         HeapOperand(InputRegisterAt(instruction, 0), mirror::Array::LengthOffset()));
+  __ Ldr(OutputRegister(instruction), HeapOperand(InputRegisterAt(instruction, 0), offset));
   codegen_->MaybeRecordImplicitNullCheck(instruction);
 }
 
