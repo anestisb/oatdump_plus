@@ -237,8 +237,11 @@ class BoundsCheckSlowPathARM64 : public SlowPathCodeARM64 {
     codegen->EmitParallelMoves(
         locations->InAt(0), LocationFrom(calling_convention.GetRegisterAt(0)), Primitive::kPrimInt,
         locations->InAt(1), LocationFrom(calling_convention.GetRegisterAt(1)), Primitive::kPrimInt);
-    arm64_codegen->InvokeRuntime(
-        QUICK_ENTRY_POINT(pThrowArrayBounds), instruction_, instruction_->GetDexPc(), this);
+    uint32_t entry_point_offset = instruction_->AsBoundsCheck()->IsStringCharAt()
+        ? QUICK_ENTRY_POINT(pThrowStringBounds)
+        : QUICK_ENTRY_POINT(pThrowArrayBounds);
+    arm64_codegen->InvokeRuntime(entry_point_offset, instruction_, instruction_->GetDexPc(), this);
+    CheckEntrypointTypes<kQuickThrowStringBounds, void, int32_t, int32_t>();
     CheckEntrypointTypes<kQuickThrowArrayBounds, void, int32_t, int32_t>();
   }
 
@@ -2051,8 +2054,8 @@ void InstructionCodeGeneratorARM64::VisitArrayGet(HArrayGet* instruction) {
   Register obj = InputRegisterAt(instruction, 0);
   LocationSummary* locations = instruction->GetLocations();
   Location index = locations->InAt(1);
-  uint32_t offset = mirror::Array::DataOffset(Primitive::ComponentSize(type)).Uint32Value();
   Location out = locations->Out();
+  uint32_t offset = CodeGenerator::GetArrayDataOffset(instruction);
 
   MacroAssembler* masm = GetVIXLAssembler();
   UseScratchRegisterScope temps(masm);

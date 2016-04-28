@@ -1030,48 +1030,6 @@ void IntrinsicCodeGeneratorX86::VisitMathNextAfter(HInvoke* invoke) {
   GenFPToFPCall(invoke, codegen_, kQuickNextAfter);
 }
 
-void IntrinsicLocationsBuilderX86::VisitStringCharAt(HInvoke* invoke) {
-  // The inputs plus one temp.
-  LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                            LocationSummary::kCallOnSlowPath,
-                                                            kIntrinsified);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
-  locations->SetOut(Location::SameAsFirstInput());
-}
-
-void IntrinsicCodeGeneratorX86::VisitStringCharAt(HInvoke* invoke) {
-  LocationSummary* locations = invoke->GetLocations();
-
-  // Location of reference to data array.
-  const int32_t value_offset = mirror::String::ValueOffset().Int32Value();
-  // Location of count.
-  const int32_t count_offset = mirror::String::CountOffset().Int32Value();
-
-  Register obj = locations->InAt(0).AsRegister<Register>();
-  Register idx = locations->InAt(1).AsRegister<Register>();
-  Register out = locations->Out().AsRegister<Register>();
-
-  // TODO: Maybe we can support range check elimination. Overall, though, I think it's not worth
-  //       the cost.
-  // TODO: For simplicity, the index parameter is requested in a register, so different from Quick
-  //       we will not optimize the code for constants (which would save a register).
-
-  SlowPathCode* slow_path = new (GetAllocator()) IntrinsicSlowPathX86(invoke);
-  codegen_->AddSlowPath(slow_path);
-
-  X86Assembler* assembler = GetAssembler();
-
-  __ cmpl(idx, Address(obj, count_offset));
-  codegen_->MaybeRecordImplicitNullCheck(invoke);
-  __ j(kAboveEqual, slow_path->GetEntryLabel());
-
-  // out = out[2*idx].
-  __ movzxw(out, Address(out, idx, ScaleFactor::TIMES_2, value_offset));
-
-  __ Bind(slow_path->GetExitLabel());
-}
-
 void IntrinsicLocationsBuilderX86::VisitSystemArrayCopyChar(HInvoke* invoke) {
   // We need at least two of the positions or length to be an integer constant,
   // or else we won't have enough free registers.

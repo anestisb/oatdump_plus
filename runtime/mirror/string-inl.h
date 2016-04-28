@@ -20,6 +20,7 @@
 #include "array.h"
 #include "base/bit_utils.h"
 #include "class.h"
+#include "common_throws.h"
 #include "gc/heap-inl.h"
 #include "globals.h"
 #include "intern_table.h"
@@ -134,9 +135,7 @@ inline String* String::Intern() {
 inline uint16_t String::CharAt(int32_t index) {
   int32_t count = GetField32(OFFSET_OF_OBJECT_MEMBER(String, count_));
   if (UNLIKELY((index < 0) || (index >= count))) {
-    Thread* self = Thread::Current();
-    self->ThrowNewExceptionF("Ljava/lang/StringIndexOutOfBoundsException;",
-                             "length=%i; index=%i", count, index);
+    ThrowStringIndexOutOfBoundsException(index, count);
     return 0;
   }
   return GetValue()[index];

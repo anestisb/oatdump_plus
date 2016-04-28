@@ -26,6 +26,7 @@
 #include "base/arena_object.h"
 #include "base/stl_util.h"
 #include "dex/compiler_enums.h"
+#include "dex_file.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "handle.h"
 #include "handle_scope.h"
@@ -1917,6 +1918,14 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
   void SetRawEnvironment(HEnvironment* environment) {
     DCHECK(environment_ == nullptr);
     DCHECK_EQ(environment->GetHolder(), this);
+    environment_ = environment;
+  }
+
+  void InsertRawEnvironment(HEnvironment* environment) {
+    DCHECK(environment_ != nullptr);
+    DCHECK_EQ(environment->GetHolder(), this);
+    DCHECK(environment->GetParent() == nullptr);
+    environment->parent_ = environment_;
     environment_ = environment;
   }
 
@@ -5079,8 +5088,13 @@ class HInstanceFieldSet FINAL : public HTemplateInstruction<2> {
 
 class HArrayGet FINAL : public HExpression<2> {
  public:
-  HArrayGet(HInstruction* array, HInstruction* index, Primitive::Type type, uint32_t dex_pc)
+  HArrayGet(HInstruction* array,
+            HInstruction* index,
+            Primitive::Type type,
+            uint32_t dex_pc,
+            bool is_string_char_at = false)
       : HExpression(type, SideEffects::ArrayReadOfType(type), dex_pc) {
+    SetPackedFlag<kFlagIsStringCharAt>(is_string_char_at);
     SetRawInputAt(0, array);
     SetRawInputAt(1, index);
   }
@@ -5114,12 +5128,24 @@ class HArrayGet FINAL : public HExpression<2> {
     return result;
   }
 
+  bool IsStringCharAt() const { return GetPackedFlag<kFlagIsStringCharAt>(); }
+
   HInstruction* GetArray() const { return InputAt(0); }
   HInstruction* GetIndex() const { return InputAt(1); }
 
   DECLARE_INSTRUCTION(ArrayGet);
 
  private:
+  // We treat a String as an array, creating the HArrayGet from String.charAt()
+  // intrinsic in the instruction simplifier. We can always determine whether
+  // a particular HArrayGet is actually a String.charAt() by looking at the type
+  // of the input but that requires holding the mutator lock, so we prefer to use
+  // a flag, so that code generators don't need to do the locking.
+  static constexpr size_t kFlagIsStringCharAt = kNumberOfExpressionPackedBits;
+  static constexpr size_t kNumberOfArrayGetPackedBits = kFlagIsStringCharAt + 1;
+  static_assert(kNumberOfArrayGetPackedBits <= HInstruction::kMaxNumberOfPackedBits,
+                "Too many packed fields.");
+
   DISALLOW_COPY_AND_ASSIGN(HArrayGet);
 };
 
@@ -5225,8 +5251,9 @@ class HArraySet FINAL : public HTemplateInstruction<3> {
 
 class HArrayLength FINAL : public HExpression<1> {
  public:
-  HArrayLength(HInstruction* array, uint32_t dex_pc)
+  HArrayLength(HInstruction* array, uint32_t dex_pc, bool is_string_length = false)
       : HExpression(Primitive::kPrimInt, SideEffects::None(), dex_pc) {
+    SetPackedFlag<kFlagIsStringLength>(is_string_length);
     // Note that arrays do not change length, so the instruction does not
     // depend on any write.
     SetRawInputAt(0, array);
@@ -5240,7 +5267,6 @@ class HArrayLength FINAL : public HExpression<1> {
     return obj == InputAt(0);
   }
 
-  void MarkAsStringLength() { SetPackedFlag<kFlagIsStringLength>(); }
   bool IsStringLength() const { return GetPackedFlag<kFlagIsStringLength>(); }
 
   DECLARE_INSTRUCTION(ArrayLength);
@@ -5263,8 +5289,12 @@ class HBoundsCheck FINAL : public HExpression<2> {
  public:
   // `HBoundsCheck` can trigger GC, as it may call the `IndexOutOfBoundsException`
   // constructor.
-  HBoundsCheck(HInstruction* index, HInstruction* length, uint32_t dex_pc)
-      : HExpression(index->GetType(), SideEffects::CanTriggerGC(), dex_pc) {
+  HBoundsCheck(HInstruction* index,
+               HInstruction* length,
+               uint32_t dex_pc,
+               uint32_t string_char_at_method_index = DexFile::kDexNoIndex)
+      : HExpression(index->GetType(), SideEffects::CanTriggerGC(), dex_pc),
+        string_char_at_method_index_(string_char_at_method_index) {
     DCHECK_EQ(Primitive::kPrimInt, Primitive::PrimitiveKind(index->GetType()));
     SetRawInputAt(0, index);
     SetRawInputAt(1, length);
@@ -5279,11 +5309,23 @@ class HBoundsCheck FINAL : public HExpression<2> {
 
   bool CanThrow() const OVERRIDE { return true; }
 
+  bool IsStringCharAt() const { return GetStringCharAtMethodIndex() != DexFile::kDexNoIndex; }
+  uint32_t GetStringCharAtMethodIndex() const { return string_char_at_method_index_; }
+
   HInstruction* GetIndex() const { return InputAt(0); }
 
   DECLARE_INSTRUCTION(BoundsCheck);
 
  private:
+  // We treat a String as an array, creating the HBoundsCheck from String.charAt()
+  // intrinsic in the instruction simplifier. We want to include the String.charAt()
+  // in the stack trace if we actually throw the StringIndexOutOfBoundsException,
+  // so we need to create an HEnvironment which will be translated to an InlineInfo
+  // indicating the extra stack frame. Since we add this HEnvironment quite late,
+  // in the PrepareForRegisterAllocation pass, we need to remember the method index
+  // from the invoke as we don't want to look again at the dex bytecode.
+  uint32_t string_char_at_method_index_;  // DexFile::kDexNoIndex if regular array.
+
   DISALLOW_COPY_AND_ASSIGN(HBoundsCheck);
 };
 

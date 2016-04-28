@@ -211,6 +211,11 @@ void ThrowRuntimeException(const char* fmt, ...)
 
 void ThrowStackOverflowError(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_) COLD_ATTR;
 
+// StringIndexOutOfBoundsException
+
+void ThrowStringIndexOutOfBoundsException(int index, int length)
+    SHARED_REQUIRES(Locks::mutator_lock_) COLD_ATTR;
+
 // VerifyError
 
 void ThrowVerifyError(mirror::Class* referrer, const char* fmt, ...)

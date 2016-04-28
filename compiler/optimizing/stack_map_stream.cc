@@ -228,7 +228,7 @@ size_t StackMapStream::ComputeDexRegisterMapsSize() const {
 
 void StackMapStream::ComputeInlineInfoEncoding() {
   uint32_t method_index_max = 0;
-  uint32_t dex_pc_max = 0;
+  uint32_t dex_pc_max = DexFile::kDexNoIndex;
   uint32_t invoke_type_max = 0;
 
   uint32_t inline_info_index = 0;
@@ -236,7 +236,10 @@ void StackMapStream::ComputeInlineInfoEncoding() {
     for (size_t j = 0; j < entry.inlining_depth; ++j) {
       InlineInfoEntry inline_entry = inline_infos_[inline_info_index++];
       method_index_max = std::max(method_index_max, inline_entry.method_index);
-      dex_pc_max = std::max(dex_pc_max, inline_entry.dex_pc);
+      if (inline_entry.dex_pc != DexFile::kDexNoIndex &&
+          (dex_pc_max == DexFile::kDexNoIndex || dex_pc_max < inline_entry.dex_pc)) {
+        dex_pc_max = inline_entry.dex_pc;
+      }
       invoke_type_max = std::max(invoke_type_max, static_cast<uint32_t>(inline_entry.invoke_type));
     }
   }

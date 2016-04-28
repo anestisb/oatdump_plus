@@ -310,6 +310,12 @@ ONE_ARG_RUNTIME_EXCEPTION art_quick_throw_no_such_method, artThrowNoSuchMethodFr
 TWO_ARG_RUNTIME_EXCEPTION art_quick_throw_array_bounds, artThrowArrayBoundsFromCode
 
     /*
+     * Called by managed code to create and deliver a StringIndexOutOfBoundsException
+     * as if thrown from a call to String.charAt(). Arg1 holds index, arg2 holds limit.
+     */
+TWO_ARG_RUNTIME_EXCEPTION art_quick_throw_string_bounds, artThrowStringBoundsFromCode
+
+    /*
      * All generated callsites for interface invokes and invocation slow paths will load arguments
      * as usual - except instead of loading arg0/r0 with the target Method*, arg0/r0 will contain
      * the method_idx.  This wrapper will save arg1-arg3 and call the appropriate C helper.

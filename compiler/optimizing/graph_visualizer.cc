@@ -399,6 +399,16 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
         << array_length->IsStringLength() << std::noboolalpha;
   }
 
+  void VisitBoundsCheck(HBoundsCheck* bounds_check) OVERRIDE {
+    StartAttributeStream("is_string_char_at") << std::boolalpha
+        << bounds_check->IsStringCharAt() << std::noboolalpha;
+  }
+
+  void VisitArrayGet(HArrayGet* array_get) OVERRIDE {
+    StartAttributeStream("is_string_char_at") << std::boolalpha
+        << array_get->IsStringCharAt() << std::noboolalpha;
+  }
+
   void VisitArraySet(HArraySet* array_set) OVERRIDE {
     StartAttributeStream("value_can_be_null") << std::boolalpha
         << array_set->GetValueCanBeNull() << std::noboolalpha;

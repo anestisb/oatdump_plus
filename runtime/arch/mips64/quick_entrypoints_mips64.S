@@ -617,6 +617,19 @@ ENTRY art_quick_throw_array_bounds
 END art_quick_throw_array_bounds
 
     /*
+     * Called by managed code to create and deliver a StringIndexOutOfBoundsException
+     * as if thrown from a call to String.charAt().
+     */
+    .extern artThrowStringBoundsFromCode
+ENTRY art_quick_throw_string_bounds
+.Lart_quick_throw_string_bounds_gp_set:
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
+    dla  $t9, artThrowStringBoundsFromCode
+    jalr $zero, $t9                 # artThrowStringBoundsFromCode(index, limit, Thread*)
+    move $a2, rSELF                 # pass Thread::Current
+END art_quick_throw_string_bounds
+
+    /*
      * Called by managed code to create and deliver a StackOverflowError.
      */
     .extern artThrowStackOverflowFromCode

@@ -417,6 +417,12 @@ NO_ARG_RUNTIME_EXCEPTION art_quick_throw_div_zero, artThrowDivZeroFromCode
 TWO_ARG_RUNTIME_EXCEPTION art_quick_throw_array_bounds, artThrowArrayBoundsFromCode
 
     /*
+     * Called by managed code to create and deliver a StringIndexOutOfBoundsException
+     * as if thrown from a call to String.charAt(). Arg1 holds index, arg2 holds limit.
+     */
+TWO_ARG_RUNTIME_EXCEPTION art_quick_throw_string_bounds, artThrowStringBoundsFromCode
+
+    /*
      * Called by managed code to create and deliver a StackOverflowError.
      */
 NO_ARG_RUNTIME_EXCEPTION art_quick_throw_stack_overflow, artThrowStackOverflowFromCode
