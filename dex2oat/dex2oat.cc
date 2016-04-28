@@ -1526,6 +1526,7 @@ class Dex2Oat FINAL {
                                      instruction_set_,
                                      instruction_set_features_.get(),
                                      IsBootImage(),
+                                     IsAppImage(),
                                      image_classes_.release(),
                                      compiled_classes_.release(),
                                      /* compiled_methods */ nullptr,

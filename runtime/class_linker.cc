@@ -6026,7 +6026,8 @@ void ClassLinker::SetIMTRef(ArtMethod* unimplemented_method,
 }
 
 void ClassLinker::FillIMTAndConflictTables(mirror::Class* klass) {
-  DCHECK(klass->ShouldHaveEmbeddedImtAndVTable());
+  DCHECK(klass->ShouldHaveEmbeddedImtAndVTable()) << PrettyClass(klass);
+  DCHECK(!klass->IsTemp()) << PrettyClass(klass);
   ArtMethod* imt[mirror::Class::kImtSize];
   Runtime* const runtime = Runtime::Current();
   ArtMethod* const unimplemented_method = runtime->GetImtUnimplementedMethod();
@@ -6158,7 +6159,7 @@ void ClassLinker::FillIMTFromIfTable(mirror::IfTable* if_table,
         if (!imt[imt_index]->IsRuntimeMethod() ||
             imt[imt_index] == unimplemented_method ||
             imt[imt_index] == imt_conflict_method) {
-          continue;  // Only care about the conflicts.
+          continue;
         }
         ImtConflictTable* table = imt[imt_index]->GetImtConflictTable(image_pointer_size_);
         const size_t num_entries = table->NumEntries(image_pointer_size_);
