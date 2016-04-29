@@ -880,7 +880,7 @@ class FixupObjectVisitor : public FixupVisitor {
 
 class ForwardObjectAdapter {
  public:
-  ALWAYS_INLINE ForwardObjectAdapter(const FixupVisitor* visitor) : visitor_(visitor) {}
+  ALWAYS_INLINE explicit ForwardObjectAdapter(const FixupVisitor* visitor) : visitor_(visitor) {}
 
   template <typename T>
   ALWAYS_INLINE T* operator()(T* src) const {
@@ -893,7 +893,7 @@ class ForwardObjectAdapter {
 
 class ForwardCodeAdapter {
  public:
-  ALWAYS_INLINE ForwardCodeAdapter(const FixupVisitor* visitor)
+  ALWAYS_INLINE explicit ForwardCodeAdapter(const FixupVisitor* visitor)
       : visitor_(visitor) {}
 
   template <typename T>
