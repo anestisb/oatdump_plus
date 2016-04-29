@@ -1947,13 +1947,12 @@ void Runtime::SetImtUnimplementedMethod(ArtMethod* method) {
 void Runtime::FixupConflictTables() {
   // We can only do this after the class linker is created.
   const size_t pointer_size = GetClassLinker()->GetImagePointerSize();
-  // Ones in image wont have correct tables. TODO: Fix.
-  if (imt_unimplemented_method_->GetImtConflictTable(pointer_size) == nullptr || (true)) {
+  if (imt_unimplemented_method_->GetImtConflictTable(pointer_size) == nullptr) {
     imt_unimplemented_method_->SetImtConflictTable(
         ClassLinker::CreateImtConflictTable(/*count*/0u, GetLinearAlloc(), pointer_size),
         pointer_size);
   }
-  if (imt_conflict_method_->GetImtConflictTable(pointer_size) == nullptr || (true)) {
+  if (imt_conflict_method_->GetImtConflictTable(pointer_size) == nullptr) {
     imt_conflict_method_->SetImtConflictTable(
           ClassLinker::CreateImtConflictTable(/*count*/0u, GetLinearAlloc(), pointer_size),
           pointer_size);
