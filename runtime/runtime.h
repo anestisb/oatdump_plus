@@ -127,7 +127,7 @@ class Runtime {
 
   // IsAotCompiler for compilers that don't have a running runtime. Only dex2oat currently.
   bool IsAotCompiler() const {
-    return !UseJit() && IsCompiler();
+    return !UseJitCompilation() && IsCompiler();
   }
 
   // IsCompiler is any runtime which has a running compiler, either dex2oat or JIT.
@@ -452,9 +452,11 @@ class Runtime {
   jit::Jit* GetJit() {
     return jit_.get();
   }
-  bool UseJit() const {
-    return jit_.get() != nullptr;
-  }
+
+  // Returns true if JIT compilations are enabled. GetJit() will be not null in this case.
+  bool UseJitCompilation() const;
+  // Returns true if profile saving is enabled. GetJit() will be not null in this case.
+  bool SaveProfileInfo() const;
 
   void PreZygoteFork();
   bool InitZygote();
@@ -635,6 +637,8 @@ class Runtime {
   bool InJankPerceptibleProcessState() const {
     return process_state_ == kProcessStateJankPerceptible;
   }
+
+  void RegisterSensitiveThread() const;
 
   void SetZygoteNoThreadSection(bool val) {
     zygote_no_threads_ = val;

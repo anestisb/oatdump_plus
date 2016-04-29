@@ -153,7 +153,7 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
       .Define("-Xusejit:_")
           .WithType<bool>()
           .WithValueMap({{"false", false}, {"true", true}})
-          .IntoKey(M::UseJIT)
+          .IntoKey(M::UseJitCompilation)
       .Define("-Xjitinitialsize:_")
           .WithType<MemoryKiB>()
           .IntoKey(M::JITCodeCacheInitialCapacity)
@@ -172,6 +172,9 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
       .Define("-Xjitprithreadweight:_")
           .WithType<unsigned int>()
           .IntoKey(M::JITPriorityThreadWeight)
+      .Define("-Xjittransitionweight:_")
+          .WithType<unsigned int>()
+          .IntoKey(M::JITInvokeTransitionWeight)
       .Define("-Xjitsaveprofilinginfo")
           .WithValue(true)
           .IntoKey(M::JITSaveProfilingInfo)
@@ -469,6 +472,11 @@ bool ParsedOptions::DoParse(const RuntimeOptions& options,
     Exit(0);
   } else if (args.Exists(M::BootClassPath)) {
     LOG(INFO) << "setting boot class path to " << *args.Get(M::BootClassPath);
+  }
+
+  if (args.GetOrDefault(M::UseJitCompilation) && args.GetOrDefault(M::Interpret)) {
+    Usage("-Xusejit:true and -Xint cannot be specified together");
+    Exit(0);
   }
 
   // Set a default boot class path if we didn't get an explicit one via command line.

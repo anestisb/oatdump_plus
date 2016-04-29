@@ -44,7 +44,7 @@ class Jit {
   static constexpr bool kStressMode = kIsDebugBuild;
   static constexpr size_t kDefaultCompileThreshold = kStressMode ? 2 : 10000;
   static constexpr size_t kDefaultPriorityThreadWeightRatio = 1000;
-  static constexpr size_t kDefaultTransitionRatio = 100;
+  static constexpr size_t kDefaultInvokeTransitionWeightRatio = 100;
 
   virtual ~Jit();
   static Jit* Create(JitOptions* options, std::string* error_msg);
@@ -87,6 +87,15 @@ class Jit {
     return priority_thread_weight_;
   }
 
+  // Returns false if we only need to save profile information and not compile methods.
+  bool UseJitCompilation() const {
+    return use_jit_compilation_;
+  }
+
+  bool SaveProfilingInfo() const {
+    return save_profiling_info_;
+  }
+
   // Wait until there is no more pending compilation tasks.
   void WaitForCompilationToFinish(Thread* self);
 
@@ -106,12 +115,12 @@ class Jit {
 
   void NotifyInterpreterToCompiledCodeTransition(Thread* self, ArtMethod* caller)
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    AddSamples(self, caller, transition_weight_, false);
+    AddSamples(self, caller, invoke_transition_weight_, false);
   }
 
   void NotifyCompiledCodeToInterpreterTransition(Thread* self, ArtMethod* callee)
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    AddSamples(self, callee, transition_weight_, false);
+    AddSamples(self, callee, invoke_transition_weight_, false);
   }
 
   // Starts the profile saver if the config options allow profile recording.
@@ -179,13 +188,14 @@ class Jit {
 
   std::unique_ptr<jit::JitCodeCache> code_cache_;
 
+  bool use_jit_compilation_;
   bool save_profiling_info_;
   static bool generate_debug_info_;
   uint16_t hot_method_threshold_;
   uint16_t warm_method_threshold_;
   uint16_t osr_method_threshold_;
   uint16_t priority_thread_weight_;
-  uint16_t transition_weight_;
+  uint16_t invoke_transition_weight_;
   std::unique_ptr<ThreadPool> thread_pool_;
 
   DISALLOW_COPY_AND_ASSIGN(Jit);
@@ -206,6 +216,9 @@ class JitOptions {
   uint16_t GetPriorityThreadWeight() const {
     return priority_thread_weight_;
   }
+  size_t GetInvokeTransitionWeight() const {
+    return invoke_transition_weight_;
+  }
   size_t GetCodeCacheInitialCapacity() const {
     return code_cache_initial_capacity_;
   }
@@ -218,33 +231,34 @@ class JitOptions {
   bool GetSaveProfilingInfo() const {
     return save_profiling_info_;
   }
-  bool UseJIT() const {
-    return use_jit_;
+  bool UseJitCompilation() const {
+    return use_jit_compilation_;
   }
-  void SetUseJIT(bool b) {
-    use_jit_ = b;
+  void SetUseJitCompilation(bool b) {
+    use_jit_compilation_ = b;
   }
   void SetSaveProfilingInfo(bool b) {
     save_profiling_info_ = b;
   }
   void SetJitAtFirstUse() {
-    use_jit_ = true;
+    use_jit_compilation_ = true;
     compile_threshold_ = 0;
   }
 
  private:
-  bool use_jit_;
+  bool use_jit_compilation_;
   size_t code_cache_initial_capacity_;
   size_t code_cache_max_capacity_;
   size_t compile_threshold_;
   size_t warmup_threshold_;
   size_t osr_threshold_;
   uint16_t priority_thread_weight_;
+  size_t invoke_transition_weight_;
   bool dump_info_on_shutdown_;
   bool save_profiling_info_;
 
   JitOptions()
-      : use_jit_(false),
+      : use_jit_compilation_(false),
         code_cache_initial_capacity_(0),
         code_cache_max_capacity_(0),
         compile_threshold_(0),
