@@ -947,7 +947,7 @@ bool CompilerDriver::ShouldVerifyClassBasedOnProfile(const DexFile& dex_file,
 
 class ResolveCatchBlockExceptionsClassVisitor : public ClassVisitor {
  public:
-  ResolveCatchBlockExceptionsClassVisitor(
+  explicit ResolveCatchBlockExceptionsClassVisitor(
       std::set<std::pair<uint16_t, const DexFile*>>& exceptions_to_resolve)
      : exceptions_to_resolve_(exceptions_to_resolve) {}
 

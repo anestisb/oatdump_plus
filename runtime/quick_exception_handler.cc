@@ -611,7 +611,7 @@ void QuickExceptionHandler::DoLongJump(bool smash_caller_saves) {
 // Prints out methods with their type of frame.
 class DumpFramesWithTypeStackVisitor FINAL : public StackVisitor {
  public:
-  DumpFramesWithTypeStackVisitor(Thread* self, bool show_details = false)
+  explicit DumpFramesWithTypeStackVisitor(Thread* self, bool show_details = false)
       SHARED_REQUIRES(Locks::mutator_lock_)
       : StackVisitor(self, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         show_details_(show_details) {}
