@@ -370,6 +370,10 @@ class OatDexFile FINAL {
     return lookup_table_data_;
   }
 
+  const uint8_t* GetDexFilePointer() const {
+    return dex_file_pointer_;
+  }
+
   ~OatDexFile();
 
  private:
