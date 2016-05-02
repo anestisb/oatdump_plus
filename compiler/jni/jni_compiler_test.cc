@@ -31,6 +31,7 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/stack_trace_element.h"
+#include "nativeloader/native_loader.h"
 #include "runtime.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
@@ -51,6 +52,11 @@ class JniCompilerTest : public CommonCompilerTest {
   void SetUp() OVERRIDE {
     CommonCompilerTest::SetUp();
     check_generic_jni_ = false;
+  }
+
+  void TearDown() OVERRIDE {
+    android::ResetNativeLoader();
+    CommonCompilerTest::TearDown();
   }
 
   void SetCheckGenericJni(bool generic) {
@@ -93,10 +99,12 @@ class JniCompilerTest : public CommonCompilerTest {
       // Start runtime.
       Thread::Current()->TransitionFromSuspendedToRunnable();
       bool started = runtime_->Start();
+      android::InitializeNativeLoader();
       CHECK(started);
     }
     // JNI operations after runtime start.
     env_ = Thread::Current()->GetJniEnv();
+    library_search_path_ = env_->NewStringUTF("");
     jklass_ = env_->FindClass("MyClassNatives");
     ASSERT_TRUE(jklass_ != nullptr) << method_name << " " << method_sig;
 
@@ -168,6 +176,7 @@ class JniCompilerTest : public CommonCompilerTest {
   void StackArgsSignExtendedMips64Impl();
 
   JNIEnv* env_;
+  jstring library_search_path_;
   jmethodID jmethod_;
   bool check_generic_jni_;
 };
@@ -220,15 +229,14 @@ void JniCompilerTest::CompileAndRunIntMethodThroughStubImpl() {
 
   std::string reason;
   ASSERT_TRUE(Runtime::Current()->GetJavaVM()->
-                  LoadNativeLibrary(env_, "", class_loader_, nullptr, &reason))
+                  LoadNativeLibrary(env_, "", class_loader_, library_search_path_, &reason))
       << reason;
 
   jint result = env_->CallNonvirtualIntMethod(jobj_, jklass_, jmethod_, 24);
   EXPECT_EQ(25, result);
 }
 
-// Disabled due to NativeLoader b/28449304.
-// JNI_TEST(CompileAndRunIntMethodThroughStub)
+JNI_TEST(CompileAndRunIntMethodThroughStub)
 
 void JniCompilerTest::CompileAndRunStaticIntMethodThroughStubImpl() {
   SetUpForTest(true, "sbar", "(I)I", nullptr);
@@ -236,15 +244,14 @@ void JniCompilerTest::CompileAndRunStaticIntMethodThroughStubImpl() {
 
   std::string reason;
   ASSERT_TRUE(Runtime::Current()->GetJavaVM()->
-                  LoadNativeLibrary(env_, "", class_loader_, nullptr, &reason))
+                  LoadNativeLibrary(env_, "", class_loader_, library_search_path_, &reason))
       << reason;
 
   jint result = env_->CallStaticIntMethod(jklass_, jmethod_, 42);
   EXPECT_EQ(43, result);
 }
 
-// Disabled due to NativeLoader b/28449304.
-// JNI_TEST(CompileAndRunStaticIntMethodThroughStub)
+JNI_TEST(CompileAndRunStaticIntMethodThroughStub)
 
 int gJava_MyClassNatives_fooI_calls = 0;
 jint Java_MyClassNatives_fooI(JNIEnv* env, jobject thisObj, jint x) {
