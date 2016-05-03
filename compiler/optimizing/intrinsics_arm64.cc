@@ -2201,9 +2201,46 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
   __ Bind(slow_path->GetExitLabel());
 }
 
+static void GenIsInfinite(LocationSummary* locations,
+                          bool is64bit,
+                          vixl::MacroAssembler* masm) {
+  Operand infinity;
+  Register out;
+
+  if (is64bit) {
+    infinity = kPositiveInfinityDouble;
+    out = XRegisterFrom(locations->Out());
+  } else {
+    infinity = kPositiveInfinityFloat;
+    out = WRegisterFrom(locations->Out());
+  }
+
+  const Register zero = vixl::Assembler::AppropriateZeroRegFor(out);
+
+  MoveFPToInt(locations, is64bit, masm);
+  __ Eor(out, out, infinity);
+  // We don't care about the sign bit, so shift left.
+  __ Cmp(zero, Operand(out, LSL, 1));
+  __ Cset(out, eq);
+}
+
+void IntrinsicLocationsBuilderARM64::VisitFloatIsInfinite(HInvoke* invoke) {
+  CreateFPToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM64::VisitFloatIsInfinite(HInvoke* invoke) {
+  GenIsInfinite(invoke->GetLocations(), /* is64bit */ false, GetVIXLAssembler());
+}
+
+void IntrinsicLocationsBuilderARM64::VisitDoubleIsInfinite(HInvoke* invoke) {
+  CreateFPToIntLocations(arena_, invoke);
+}
+
+void IntrinsicCodeGeneratorARM64::VisitDoubleIsInfinite(HInvoke* invoke) {
+  GenIsInfinite(invoke->GetLocations(), /* is64bit */ true, GetVIXLAssembler());
+}
+
 UNIMPLEMENTED_INTRINSIC(ARM64, ReferenceGetReferent)
-UNIMPLEMENTED_INTRINSIC(ARM64, FloatIsInfinite)
-UNIMPLEMENTED_INTRINSIC(ARM64, DoubleIsInfinite)
 UNIMPLEMENTED_INTRINSIC(ARM64, IntegerHighestOneBit)
 UNIMPLEMENTED_INTRINSIC(ARM64, LongHighestOneBit)
 UNIMPLEMENTED_INTRINSIC(ARM64, IntegerLowestOneBit)
