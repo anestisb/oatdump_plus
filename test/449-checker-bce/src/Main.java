@@ -927,6 +927,32 @@ public class Main {
     }
   }
 
+  /// CHECK-START: void Main.nonzeroLength(int[]) BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: void Main.nonzeroLength(int[]) BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
+  public static void nonzeroLength(int[] a) {
+    if (a.length != 0) {
+      a[0] = 112;
+    }
+  }
+
+  /// CHECK-START: void Main.knownLength(int[]) BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: void Main.knownLength(int[]) BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
+  public static void knownLength(int[] a) {
+    if (a.length == 2) {
+      a[0] = -1;
+      a[1] = -2;
+    }
+  }
+
   static int[][] mA;
 
   /// CHECK-START: void Main.dynamicBCEAndIntrinsic(int) BCE (before)
@@ -1585,6 +1611,26 @@ public class Main {
         System.out.println("bubble sort failed!");
       }
     }
+
+    nonzeroLength(array);
+    if (array[0] != 112) {
+      System.out.println("nonzero length failed!");
+    }
+
+    knownLength(array);
+    if (array[0] != 112 || array[1] != 1) {
+      System.out.println("nonzero length failed!");
+    }
+    array = new int[2];
+    knownLength(array);
+    if (array[0] != -1 || array[1] != -2) {
+      System.out.println("nonzero length failed!");
+    }
+
+    // Zero length array does not break.
+    array = new int[0];
+    nonzeroLength(array);
+    knownLength(array);
 
     mA = new int[4][4];
     for (int i = 0; i < 4; i++) {
