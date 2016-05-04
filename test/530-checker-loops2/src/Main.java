@@ -710,8 +710,8 @@ public class Main {
         // making them a candidate for deoptimization based on constant indices.
         // Compiler should ensure the array loads are not subsequently hoisted
         // "above" the deoptimization "barrier" on the bounds.
-        a[0][i] = 1;
-        a[1][i] = 2;
+        a[1][i] = 1;
+        a[2][i] = 2;
         a[99][i] = 3;
       }
     }
@@ -1042,11 +1042,11 @@ public class Main {
     a = new int[100][10];
     expectEquals(55, dynamicBCEAndConstantIndices(x, a, 0, 10));
     for (int i = 0; i < 10; i++) {
-      expectEquals((i % 10) != 0 ? 1 : 0, a[0][i]);
-      expectEquals((i % 10) != 0 ? 2 : 0, a[1][i]);
+      expectEquals((i % 10) != 0 ? 1 : 0, a[1][i]);
+      expectEquals((i % 10) != 0 ? 2 : 0, a[2][i]);
       expectEquals((i % 10) != 0 ? 3 : 0, a[99][i]);
     }
-    a = new int[2][10];
+    a = new int[3][10];
     sResult = 0;
     try {
       expectEquals(55, dynamicBCEAndConstantIndices(x, a, 0, 10));
@@ -1054,8 +1054,8 @@ public class Main {
       sResult = 1;
     }
     expectEquals(1, sResult);
-    expectEquals(a[0][1], 1);
-    expectEquals(a[1][1], 2);
+    expectEquals(a[1][1], 1);
+    expectEquals(a[2][1], 2);
 
     // Dynamic BCE combined with constant indices of all types.
     boolean[] x1 = { true };

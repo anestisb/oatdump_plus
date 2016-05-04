@@ -800,6 +800,27 @@ class BCEVisitor : public HGraphVisitor {
             ValueRange(GetGraph()->GetArena(), ValueBound::Min(), new_upper);
         ApplyRangeFromComparison(left, block, false_successor, new_range);
       }
+    } else if (cond == kCondNE || cond == kCondEQ) {
+      if (left->IsArrayLength() && lower.IsConstant() && upper.IsConstant()) {
+        // Special case:
+        //   length == [c,d] yields [c, d] along true
+        //   length != [c,d] yields [c, d] along false
+        if (!lower.Equals(ValueBound::Min()) || !upper.Equals(ValueBound::Max())) {
+          ValueRange* new_range = new (GetGraph()->GetArena())
+              ValueRange(GetGraph()->GetArena(), lower, upper);
+          ApplyRangeFromComparison(
+              left, block, cond == kCondEQ ? true_successor : false_successor, new_range);
+        }
+        // In addition:
+        //   length == 0 yields [1, max] along false
+        //   length != 0 yields [1, max] along true
+        if (lower.GetConstant() == 0 && upper.GetConstant() == 0) {
+          ValueRange* new_range = new (GetGraph()->GetArena())
+              ValueRange(GetGraph()->GetArena(), ValueBound(nullptr, 1), ValueBound::Max());
+          ApplyRangeFromComparison(
+              left, block, cond == kCondEQ ? false_successor : true_successor, new_range);
+        }
+      }
     }
   }
 
@@ -955,13 +976,7 @@ class BCEVisitor : public HGraphVisitor {
   void VisitIf(HIf* instruction) OVERRIDE {
     if (instruction->InputAt(0)->IsCondition()) {
       HCondition* cond = instruction->InputAt(0)->AsCondition();
-      IfCondition cmp = cond->GetCondition();
-      if (cmp == kCondGT || cmp == kCondGE ||
-          cmp == kCondLT || cmp == kCondLE) {
-        HInstruction* left = cond->GetLeft();
-        HInstruction* right = cond->GetRight();
-        HandleIf(instruction, left, right, cmp);
-      }
+      HandleIf(instruction, cond->GetLeft(), cond->GetRight(), cond->GetCondition());
     }
   }
 
