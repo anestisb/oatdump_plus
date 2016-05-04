@@ -6497,7 +6497,9 @@ bool ClassLinker::LinkInterfaceMethods(
             // If the super-classes method is override-able by a default method we need to keep
             // track of it since though it is override-able it is not guaranteed to be 'overridden'.
             // If it turns out not to be overridden and we did not keep track of it we might add it
-            // to the vtable twice, causing corruption in this class and possibly any subclasses.
+            // to the vtable twice, causing corruption (vtable entries having inconsistent and
+            // illegal states, incorrect vtable size, and incorrect or inconsistent iftable entries)
+            // in this class and any subclasses.
             DCHECK(vtable_impl == nullptr || vtable_impl == supers_method)
                 << "vtable_impl was " << PrettyMethod(vtable_impl) << " and not 'nullptr' or "
                 << PrettyMethod(supers_method) << " as expected. IFTable appears to be corrupt!";
