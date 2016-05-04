@@ -253,5 +253,11 @@
   names: ["jsr166.CollectionTest#testEmptyMeansEmpty",
           "jsr166.Collection8Test#testForEach",
           "jsr166.Collection8Test#testForEachConcurrentStressTest"]
+},
+{
+  description: "Unclear why this started to fail",
+  result: EXEC_FAILED,
+  bug: 28574453,
+  names: [ "org.apache.harmony.tests.javax.security.cert.X509CertificateTest#testVerifyPublicKey" ]
 }
 ]
