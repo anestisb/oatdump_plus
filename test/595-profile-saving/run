@@ -16,13 +16,12 @@
 
 # Use
 # --compiler-filter=interpret-only to make sure that the test is not compiled AOT
-# -XOatFileManagerCompilerFilter:interpret-only  to make sure the test is not compiled
-#   when loaded (by PathClassLoader)
+# and to make sure the test is not compiled  when loaded (by PathClassLoader)
 # -Xjitsaveprofilinginfo to enable profile saving
 # -Xusejit:false to disable jit and only test profiles.
 exec ${RUN} \
   -Xcompiler-option --compiler-filter=interpret-only \
-  --runtime-option -XOatFileManagerCompilerFilter:interpret-only \
+  --runtime-option '-Xcompiler-option --compiler-filter=interpret-only' \
   --runtime-option -Xjitsaveprofilinginfo \
   --runtime-option -Xusejit:false \
   "${@}"
