@@ -68,7 +68,7 @@ class MemMap {
                               bool low_4gb,
                               bool reuse,
                               std::string* error_msg,
-                              bool use_ashmem = true);
+                              bool use_ashmem = !kIsTargetLinux);
 
   // Create placeholder for a region allocated by direct call to mmap.
   // This is useful when we do not have control over the code calling mmap,
@@ -172,7 +172,7 @@ class MemMap {
                      const char* tail_name,
                      int tail_prot,
                      std::string* error_msg,
-                     bool use_ashmem = true);
+                     bool use_ashmem = !kIsTargetLinux);
 
   static bool CheckNoGaps(MemMap* begin_map, MemMap* end_map)
       REQUIRES(!Locks::mem_maps_lock_);
