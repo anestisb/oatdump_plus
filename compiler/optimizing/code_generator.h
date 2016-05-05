@@ -464,6 +464,9 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
 
   virtual void GenerateNop() = 0;
 
+  uint32_t GetReferenceSlowFlagOffset() const;
+  uint32_t GetReferenceDisableFlagOffset() const;
+
  protected:
   // Method patch info used for recording locations of required linker patches and
   // target methods. The target method can be used for various purposes, whether for
