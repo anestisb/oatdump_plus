@@ -453,8 +453,7 @@ TEST_F(OatFileAssistantTest, NoDexNoOat) {
 
   // Trying to make the oat file up to date should not fail or crash.
   std::string error_msg;
-  EXPECT_EQ(OatFileAssistant::kUpdateSucceeded,
-      oat_file_assistant.MakeUpToDate(CompilerFilter::kSpeed, &error_msg));
+  EXPECT_EQ(OatFileAssistant::kUpdateSucceeded, oat_file_assistant.MakeUpToDate(&error_msg));
 
   // Trying to get the best oat file should fail, but not crash.
   std::unique_ptr<OatFile> oat_file = oat_file_assistant.GetBestOatFile();
@@ -705,8 +704,9 @@ TEST_F(OatFileAssistantTest, StrippedDexOdexNoOat) {
 
   // Make the oat file up to date.
   std::string error_msg;
+  Runtime::Current()->AddCompilerOption("--compiler-filter=speed");
   ASSERT_EQ(OatFileAssistant::kUpdateSucceeded,
-      oat_file_assistant.MakeUpToDate(CompilerFilter::kSpeed, &error_msg)) << error_msg;
+      oat_file_assistant.MakeUpToDate(&error_msg)) << error_msg;
 
   EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
@@ -768,8 +768,9 @@ TEST_F(OatFileAssistantTest, StrippedDexOdexOat) {
 
   // Make the oat file up to date.
   std::string error_msg;
+  Runtime::Current()->AddCompilerOption("--compiler-filter=speed");
   ASSERT_EQ(OatFileAssistant::kUpdateSucceeded,
-      oat_file_assistant.MakeUpToDate(CompilerFilter::kSpeed, &error_msg)) << error_msg;
+      oat_file_assistant.MakeUpToDate(&error_msg)) << error_msg;
 
   EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
@@ -825,8 +826,9 @@ TEST_F(OatFileAssistantTest, ResourceOnlyDex) {
 
   // Make the oat file up to date. This should have no effect.
   std::string error_msg;
+  Runtime::Current()->AddCompilerOption("--compiler-filter=speed");
   EXPECT_EQ(OatFileAssistant::kUpdateSucceeded,
-      oat_file_assistant.MakeUpToDate(CompilerFilter::kSpeed, &error_msg)) << error_msg;
+      oat_file_assistant.MakeUpToDate(&error_msg)) << error_msg;
 
   EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
@@ -876,8 +878,9 @@ TEST_F(OatFileAssistantTest, SelfRelocation) {
 
   // Make the oat file up to date.
   std::string error_msg;
+  Runtime::Current()->AddCompilerOption("--compiler-filter=speed");
   ASSERT_EQ(OatFileAssistant::kUpdateSucceeded,
-      oat_file_assistant.MakeUpToDate(CompilerFilter::kSpeed, &error_msg)) << error_msg;
+      oat_file_assistant.MakeUpToDate(&error_msg)) << error_msg;
 
   EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
@@ -920,8 +923,9 @@ TEST_F(OatFileAssistantTest, NoSelfRelocation) {
 
   // Make the oat file up to date.
   std::string error_msg;
+  Runtime::Current()->AddCompilerOption("--compiler-filter=speed");
   ASSERT_EQ(OatFileAssistant::kUpdateSucceeded,
-      oat_file_assistant.MakeUpToDate(CompilerFilter::kSpeed, &error_msg)) << error_msg;
+      oat_file_assistant.MakeUpToDate(&error_msg)) << error_msg;
   EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
       oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
 
@@ -1100,8 +1104,9 @@ TEST_F(OatFileAssistantTest, LoadDexNoAlternateOat) {
   OatFileAssistant oat_file_assistant(
       dex_location.c_str(), oat_location.c_str(), kRuntimeISA, false, true);
   std::string error_msg;
+  Runtime::Current()->AddCompilerOption("--compiler-filter=speed");
   ASSERT_EQ(OatFileAssistant::kUpdateSucceeded,
-      oat_file_assistant.MakeUpToDate(CompilerFilter::kSpeed, &error_msg)) << error_msg;
+      oat_file_assistant.MakeUpToDate(&error_msg)) << error_msg;
 
   std::unique_ptr<OatFile> oat_file = oat_file_assistant.GetBestOatFile();
   ASSERT_TRUE(oat_file.get() != nullptr);
@@ -1131,8 +1136,9 @@ TEST_F(OatFileAssistantTest, LoadDexUnwriteableAlternateOat) {
   OatFileAssistant oat_file_assistant(
       dex_location.c_str(), oat_location.c_str(), kRuntimeISA, false, true);
   std::string error_msg;
+  Runtime::Current()->AddCompilerOption("--compiler-filter=speed");
   ASSERT_EQ(OatFileAssistant::kUpdateNotAttempted,
-      oat_file_assistant.MakeUpToDate(CompilerFilter::kSpeed, &error_msg));
+      oat_file_assistant.MakeUpToDate(&error_msg));
 
   std::unique_ptr<OatFile> oat_file = oat_file_assistant.GetBestOatFile();
   ASSERT_TRUE(oat_file.get() == nullptr);
@@ -1147,8 +1153,9 @@ TEST_F(OatFileAssistantTest, GenNoDex) {
   OatFileAssistant oat_file_assistant(
       dex_location.c_str(), oat_location.c_str(), kRuntimeISA, false, true);
   std::string error_msg;
+  Runtime::Current()->AddCompilerOption("--compiler-filter=speed");
   EXPECT_EQ(OatFileAssistant::kUpdateNotAttempted,
-      oat_file_assistant.GenerateOatFile(CompilerFilter::kSpeed, &error_msg));
+      oat_file_assistant.GenerateOatFile(&error_msg));
 }
 
 // Turn an absolute path into a path relative to the current working
@@ -1227,8 +1234,9 @@ TEST_F(OatFileAssistantTest, ShortDexLocation) {
 
   // Trying to make it up to date should have no effect.
   std::string error_msg;
+  Runtime::Current()->AddCompilerOption("--compiler-filter=speed");
   EXPECT_EQ(OatFileAssistant::kUpdateSucceeded,
-      oat_file_assistant.MakeUpToDate(CompilerFilter::kSpeed, &error_msg));
+      oat_file_assistant.MakeUpToDate(&error_msg));
   EXPECT_TRUE(error_msg.empty());
 }
 
@@ -1365,6 +1373,34 @@ TEST_F(OatFileAssistantNoDex2OatTest, LoadMultiDexOdexNoOat) {
   std::vector<std::unique_ptr<const DexFile>> dex_files;
   dex_files = oat_file_assistant.LoadDexFiles(*oat_file, dex_location.c_str());
   EXPECT_EQ(2u, dex_files.size());
+}
+
+TEST_F(OatFileAssistantTest, RuntimeCompilerFilterOptionUsed) {
+  std::string dex_location = GetScratchDir() + "/RuntimeCompilerFilterOptionUsed.jar";
+  Copy(GetDexSrc1(), dex_location);
+
+  OatFileAssistant oat_file_assistant(dex_location.c_str(), kRuntimeISA, false, false);
+
+  std::string error_msg;
+  Runtime::Current()->AddCompilerOption("--compiler-filter=interpret-only");
+  EXPECT_EQ(OatFileAssistant::kUpdateSucceeded,
+      oat_file_assistant.MakeUpToDate(&error_msg)) << error_msg;
+  EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
+      oat_file_assistant.GetDexOptNeeded(CompilerFilter::kInterpretOnly));
+  EXPECT_EQ(OatFileAssistant::kDex2OatNeeded,
+      oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
+
+  Runtime::Current()->AddCompilerOption("--compiler-filter=speed");
+  EXPECT_EQ(OatFileAssistant::kUpdateSucceeded,
+      oat_file_assistant.MakeUpToDate(&error_msg)) << error_msg;
+  EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
+      oat_file_assistant.GetDexOptNeeded(CompilerFilter::kInterpretOnly));
+  EXPECT_EQ(OatFileAssistant::kNoDexOptNeeded,
+      oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
+
+  Runtime::Current()->AddCompilerOption("--compiler-filter=bogus");
+  EXPECT_EQ(OatFileAssistant::kUpdateNotAttempted,
+      oat_file_assistant.MakeUpToDate(&error_msg));
 }
 
 TEST(OatFileAssistantUtilsTest, DexFilenameToOdexFilename) {
