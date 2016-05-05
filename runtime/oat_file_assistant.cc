@@ -179,11 +179,38 @@ OatFileAssistant::DexOptNeeded OatFileAssistant::GetDexOptNeeded(CompilerFilter:
   return HasOriginalDexFiles() ? kDex2OatNeeded : kNoDexOptNeeded;
 }
 
+// Figure out the currently specified compile filter option in the runtime.
+// Returns true on success, false if the compiler filter is invalid, in which
+// case error_msg describes the problem.
+static bool GetRuntimeCompilerFilterOption(CompilerFilter::Filter* filter,
+                                           std::string* error_msg) {
+  CHECK(filter != nullptr);
+  CHECK(error_msg != nullptr);
+
+  *filter = CompilerFilter::kDefaultCompilerFilter;
+  for (StringPiece option : Runtime::Current()->GetCompilerOptions()) {
+    if (option.starts_with("--compiler-filter=")) {
+      const char* compiler_filter_string = option.substr(strlen("--compiler-filter=")).data();
+      if (!CompilerFilter::ParseCompilerFilter(compiler_filter_string, filter)) {
+        *error_msg = std::string("Unknown --compiler-filter value: ")
+                   + std::string(compiler_filter_string);
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 OatFileAssistant::ResultOfAttemptToUpdate
-OatFileAssistant::MakeUpToDate(CompilerFilter::Filter target, std::string* error_msg) {
+OatFileAssistant::MakeUpToDate(std::string* error_msg) {
+  CompilerFilter::Filter target;
+  if (!GetRuntimeCompilerFilterOption(&target, error_msg)) {
+    return kUpdateNotAttempted;
+  }
+
   switch (GetDexOptNeeded(target)) {
     case kNoDexOptNeeded: return kUpdateSucceeded;
-    case kDex2OatNeeded: return GenerateOatFile(target, error_msg);
+    case kDex2OatNeeded: return GenerateOatFile(error_msg);
     case kPatchOatNeeded: return RelocateOatFile(OdexFileName(), error_msg);
     case kSelfPatchOatNeeded: return RelocateOatFile(OatFileName(), error_msg);
   }
@@ -634,7 +661,7 @@ OatFileAssistant::RelocateOatFile(const std::string* input_file, std::string* er
 }
 
 OatFileAssistant::ResultOfAttemptToUpdate
-OatFileAssistant::GenerateOatFile(CompilerFilter::Filter target, std::string* error_msg) {
+OatFileAssistant::GenerateOatFile(std::string* error_msg) {
   CHECK(error_msg != nullptr);
 
   Runtime* runtime = Runtime::Current();
@@ -678,7 +705,6 @@ OatFileAssistant::GenerateOatFile(CompilerFilter::Filter target, std::string* er
   args.push_back("--dex-file=" + dex_location_);
   args.push_back("--oat-fd=" + std::to_string(oat_file->Fd()));
   args.push_back("--oat-location=" + oat_file_name);
-  args.push_back("--compiler-filter=" + CompilerFilter::NameOfFilter(target));
 
   if (!Dex2Oat(args, error_msg)) {
     // Manually delete the file. This ensures there is no garbage left over if

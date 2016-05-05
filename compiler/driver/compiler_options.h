@@ -31,7 +31,6 @@ namespace art {
 class CompilerOptions FINAL {
  public:
   // Guide heuristics to determine whether to compile method if profile data not available.
-  static const CompilerFilter::Filter kDefaultCompilerFilter = CompilerFilter::kSpeed;
   static const size_t kDefaultHugeMethodThreshold = 10000;
   static const size_t kDefaultLargeMethodThreshold = 600;
   static const size_t kDefaultSmallMethodThreshold = 60;

@@ -88,7 +88,7 @@ NO_RETURN static void Usage(const char* fmt, ...) {
 
 JitCompiler::JitCompiler() {
   compiler_options_.reset(new CompilerOptions(
-      CompilerOptions::kDefaultCompilerFilter,
+      CompilerFilter::kDefaultCompilerFilter,
       CompilerOptions::kDefaultHugeMethodThreshold,
       CompilerOptions::kDefaultLargeMethodThreshold,
       CompilerOptions::kDefaultSmallMethodThreshold,

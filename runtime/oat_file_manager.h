@@ -25,7 +25,6 @@
 
 #include "base/macros.h"
 #include "base/mutex.h"
-#include "compiler_filter.h"
 #include "jni.h"
 
 namespace art {
@@ -116,10 +115,6 @@ class OatFileManager {
 
   void DumpForSigQuit(std::ostream& os);
 
-  static void SetCompilerFilter(CompilerFilter::Filter filter) {
-    filter_ = filter;
-  }
-
  private:
   // Check for duplicate class definitions of the given oat file against all open oat files.
   // Return true if there are any class definition collisions in the oat_file.
@@ -132,9 +127,6 @@ class OatFileManager {
   std::set<std::unique_ptr<const OatFile>> oat_files_ GUARDED_BY(Locks::oat_file_manager_lock_);
   std::unordered_map<std::string, size_t> oat_file_count_ GUARDED_BY(Locks::oat_file_count_lock_);
   bool have_non_pic_oat_file_;
-
-  // The compiler filter used for oat files loaded by the oat file manager.
-  static CompilerFilter::Filter filter_;
 
   DISALLOW_COPY_AND_ASSIGN(OatFileManager);
 };
