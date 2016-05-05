@@ -44,6 +44,8 @@ class CompilerFilter FINAL {
     kEverything,          // Compile everything capable of being compiled.
   };
 
+  static const Filter kDefaultCompilerFilter = kSpeed;
+
   // Returns true if an oat file with this compiler filter contains
   // compiled executable code.
   static bool IsCompilationEnabled(Filter filter);

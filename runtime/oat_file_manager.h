@@ -25,7 +25,6 @@
 
 #include "base/macros.h"
 #include "base/mutex.h"
-#include "compiler_filter.h"
 #include "jni.h"
 
 namespace art {
@@ -116,10 +115,6 @@ class OatFileManager {
 
   void DumpForSigQuit(std::ostream& os);
 
-  static void SetCompilerFilter(CompilerFilter::Filter filter) {
-    filter_ = filter;
-  }
-
  private:
   // Check that the shared libraries in the given oat file match those in the given class loader and
   // dex elements. If the class loader is null or we do not support one of the class loaders in the
@@ -139,9 +134,6 @@ class OatFileManager {
   std::set<std::unique_ptr<const OatFile>> oat_files_ GUARDED_BY(Locks::oat_file_manager_lock_);
   std::unordered_map<std::string, size_t> oat_file_count_ GUARDED_BY(Locks::oat_file_count_lock_);
   bool have_non_pic_oat_file_;
-
-  // The compiler filter used for oat files loaded by the oat file manager.
-  static CompilerFilter::Filter filter_;
 
   DISALLOW_COPY_AND_ASSIGN(OatFileManager);
 };
