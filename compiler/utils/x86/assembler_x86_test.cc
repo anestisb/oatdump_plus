@@ -389,4 +389,10 @@ TEST_F(AssemblerX86Test, NearLabel) {
   DriverStr(expected, "near_label");
 }
 
+TEST_F(AssemblerX86Test, Cmpb) {
+  GetAssembler()->cmpb(x86::Address(x86::EDI, 128), x86::Immediate(0));
+  const char* expected = "cmpb $0, 128(%EDI)\n";
+  DriverStr(expected, "cmpb");
+}
+
 }  // namespace art
