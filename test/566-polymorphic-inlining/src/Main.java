@@ -98,6 +98,7 @@ public class Main implements Itf {
   public static native void ensureJittedAndPolymorphicInline();
 
   public void increment() {
+    field.getClass(); // null check to ensure we get an inlined frame in the CodeInfo
     counter++;
   }
   public static int counter = 0;
