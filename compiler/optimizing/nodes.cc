@@ -2448,6 +2448,7 @@ void HLoadString::SetLoadKindInternal(LoadKind load_kind) {
   }
   if (!NeedsEnvironment()) {
     RemoveEnvironment();
+    SetSideEffects(SideEffects::None());
   }
 }
 
