@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <assert.h>
 #include <iostream>
 #include <pthread.h>
 #include <stdio.h>
