@@ -1115,15 +1115,15 @@ static void GenerateVisitStringIndexOf(HInvoke* invoke,
                                        ArenaAllocator* allocator,
                                        bool start_at_zero) {
   LocationSummary* locations = invoke->GetLocations();
-  Register tmp_reg = locations->GetTemp(0).AsRegister<Register>();
 
   // Note that the null check must have been done earlier.
   DCHECK(!invoke->CanDoImplicitNullCheckOn(invoke->InputAt(0)));
 
   // Check for code points > 0xFFFF. Either a slow-path check when we don't know statically,
-  // or directly dispatch if we have a constant.
+  // or directly dispatch for a large constant, or omit slow-path for a small constant or a char.
   SlowPathCode* slow_path = nullptr;
-  if (invoke->InputAt(1)->IsIntConstant()) {
+  HInstruction* code_point = invoke->InputAt(1);
+  if (code_point->IsIntConstant()) {
     if (static_cast<uint32_t>(invoke->InputAt(1)->AsIntConstant()->GetValue()) >
         std::numeric_limits<uint16_t>::max()) {
       // Always needs the slow-path. We could directly dispatch to it, but this case should be
@@ -1134,16 +1134,18 @@ static void GenerateVisitStringIndexOf(HInvoke* invoke,
       __ Bind(slow_path->GetExitLabel());
       return;
     }
-  } else {
+  } else if (code_point->GetType() != Primitive::kPrimChar) {
     Register char_reg = locations->InAt(1).AsRegister<Register>();
-    __ LoadImmediate(tmp_reg, std::numeric_limits<uint16_t>::max());
-    __ cmp(char_reg, ShifterOperand(tmp_reg));
+    // 0xffff is not modified immediate but 0x10000 is, so use `>= 0x10000` instead of `> 0xffff`.
+    __ cmp(char_reg,
+           ShifterOperand(static_cast<uint32_t>(std::numeric_limits<uint16_t>::max()) + 1));
     slow_path = new (allocator) IntrinsicSlowPathARM(invoke);
     codegen->AddSlowPath(slow_path);
-    __ b(slow_path->GetEntryLabel(), HI);
+    __ b(slow_path->GetEntryLabel(), HS);
   }
 
   if (start_at_zero) {
+    Register tmp_reg = locations->GetTemp(0).AsRegister<Register>();
     DCHECK_EQ(tmp_reg, R2);
     // Start-index = 0.
     __ LoadImmediate(tmp_reg, 0);
@@ -1170,7 +1172,7 @@ void IntrinsicLocationsBuilderARM::VisitStringIndexOf(HInvoke* invoke) {
   locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
   locations->SetOut(Location::RegisterLocation(R0));
 
-  // Need a temp for slow-path codepoint compare, and need to send start-index=0.
+  // Need to send start-index=0.
   locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
 }
 
@@ -1190,9 +1192,6 @@ void IntrinsicLocationsBuilderARM::VisitStringIndexOfAfter(HInvoke* invoke) {
   locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
   locations->SetInAt(2, Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
   locations->SetOut(Location::RegisterLocation(R0));
-
-  // Need a temp for slow-path codepoint compare.
-  locations->AddTemp(Location::RequiresRegister());
 }
 
 void IntrinsicCodeGeneratorARM::VisitStringIndexOfAfter(HInvoke* invoke) {
