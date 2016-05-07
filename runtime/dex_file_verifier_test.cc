@@ -57,6 +57,13 @@ static const uint8_t kBase64Map[256] = {
   255, 255, 255, 255
 };
 
+// Make the Dex file version 37.
+static void MakeDexVersion37(DexFile* dex_file) {
+  size_t offset = OFFSETOF_MEMBER(DexFile::Header, magic_) + 6;
+  CHECK_EQ(*(dex_file->Begin() + offset), '5');
+  *(const_cast<uint8_t*>(dex_file->Begin()) + offset) = '7';
+}
+
 static inline std::unique_ptr<uint8_t[]> DecodeBase64(const char* src, size_t* dst_size) {
   std::vector<uint8_t> tmp;
   uint32_t t = 0, y = 0;
@@ -438,6 +445,7 @@ TEST_F(DexFileVerifierTest, MethodAccessFlagsConstructors) {
         kMethodFlagsTestDex,
         "method_flags_constructor_native_nocode",
         [&](DexFile* dex_file) {
+          MakeDexVersion37(dex_file);
           ApplyMaskToMethodFlags(dex_file, "foo", ~kAccDeclaredSynchronized);
           ApplyMaskToMethodFlags(dex_file, "bar", ~kAccDeclaredSynchronized);
 
@@ -450,6 +458,7 @@ TEST_F(DexFileVerifierTest, MethodAccessFlagsConstructors) {
         kMethodFlagsTestDex,
         "method_flags_constructor_abstract_nocode",
         [&](DexFile* dex_file) {
+          MakeDexVersion37(dex_file);
           ApplyMaskToMethodFlags(dex_file, "foo", ~kAccDeclaredSynchronized);
           ApplyMaskToMethodFlags(dex_file, "bar", ~kAccDeclaredSynchronized);
 
@@ -510,6 +519,7 @@ TEST_F(DexFileVerifierTest, MethodAccessFlagsConstructors) {
       kMethodFlagsTestDex,
       "init_not_allowed_flags",
       [&](DexFile* dex_file) {
+        MakeDexVersion37(dex_file);
         ApplyMaskToMethodFlags(dex_file, "foo", ~kAccDeclaredSynchronized);
         ApplyMaskToMethodFlags(dex_file, "bar", ~kAccDeclaredSynchronized);
 
@@ -728,13 +738,6 @@ static uint32_t ApplyMaskShifted(uint32_t src_value, uint32_t mask) {
     mask_index++;
   }
   return result;
-}
-
-// Make the Dex file version 37.
-static void MakeDexVersion37(DexFile* dex_file) {
-  size_t offset = OFFSETOF_MEMBER(DexFile::Header, magic_) + 6;
-  CHECK_EQ(*(dex_file->Begin() + offset), '5');
-  *(const_cast<uint8_t*>(dex_file->Begin()) + offset) = '7';
 }
 
 TEST_F(DexFileVerifierTest, MethodAccessFlagsInterfaces) {
