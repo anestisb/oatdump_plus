@@ -1418,9 +1418,10 @@ static void GenerateStringIndexOf(HInvoke* invoke,
   DCHECK_EQ(out, EDI);
 
   // Check for code points > 0xFFFF. Either a slow-path check when we don't know statically,
-  // or directly dispatch if we have a constant.
+  // or directly dispatch for a large constant, or omit slow-path for a small constant or a char.
   SlowPathCode* slow_path = nullptr;
-  if (invoke->InputAt(1)->IsIntConstant()) {
+  HInstruction* code_point = invoke->InputAt(1);
+  if (code_point->IsIntConstant()) {
     if (static_cast<uint32_t>(invoke->InputAt(1)->AsIntConstant()->GetValue()) >
     std::numeric_limits<uint16_t>::max()) {
       // Always needs the slow-path. We could directly dispatch to it, but this case should be
@@ -1431,7 +1432,7 @@ static void GenerateStringIndexOf(HInvoke* invoke,
       __ Bind(slow_path->GetExitLabel());
       return;
     }
-  } else {
+  } else if (code_point->GetType() != Primitive::kPrimChar) {
     __ cmpl(search_value, Immediate(std::numeric_limits<uint16_t>::max()));
     slow_path = new (allocator) IntrinsicSlowPathX86(invoke);
     codegen->AddSlowPath(slow_path);
