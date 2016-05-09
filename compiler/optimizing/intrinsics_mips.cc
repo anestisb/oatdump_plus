@@ -2067,10 +2067,11 @@ static void GenerateStringIndexOf(HInvoke* invoke,
   // Note that the null check must have been done earlier.
   DCHECK(!invoke->CanDoImplicitNullCheckOn(invoke->InputAt(0)));
 
-  // Check for code points > 0xFFFF. Either a slow-path check when we
-  // don't know statically, or directly dispatch if we have a constant.
+  // Check for code points > 0xFFFF. Either a slow-path check when we don't know statically,
+  // or directly dispatch for a large constant, or omit slow-path for a small constant or a char.
   SlowPathCodeMIPS* slow_path = nullptr;
-  if (invoke->InputAt(1)->IsIntConstant()) {
+  HInstruction* code_point = invoke->InputAt(1);
+  if (code_point->IsIntConstant()) {
     if (!IsUint<16>(invoke->InputAt(1)->AsIntConstant()->GetValue())) {
       // Always needs the slow-path. We could directly dispatch to it,
       // but this case should be rare, so for simplicity just put the
@@ -2081,7 +2082,7 @@ static void GenerateStringIndexOf(HInvoke* invoke,
       __ Bind(slow_path->GetExitLabel());
       return;
     }
-  } else {
+  } else if (code_point->GetType() != Primitive::kPrimChar) {
     Register char_reg = locations->InAt(1).AsRegister<Register>();
     // The "bltu" conditional branch tests to see if the character value
     // fits in a valid 16-bit (MIPS halfword) value. If it doesn't then
