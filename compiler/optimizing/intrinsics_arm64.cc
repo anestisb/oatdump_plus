@@ -1390,15 +1390,15 @@ static void GenerateVisitStringIndexOf(HInvoke* invoke,
                                        ArenaAllocator* allocator,
                                        bool start_at_zero) {
   LocationSummary* locations = invoke->GetLocations();
-  Register tmp_reg = WRegisterFrom(locations->GetTemp(0));
 
   // Note that the null check must have been done earlier.
   DCHECK(!invoke->CanDoImplicitNullCheckOn(invoke->InputAt(0)));
 
   // Check for code points > 0xFFFF. Either a slow-path check when we don't know statically,
-  // or directly dispatch if we have a constant.
+  // or directly dispatch for a large constant, or omit slow-path for a small constant or a char.
   SlowPathCodeARM64* slow_path = nullptr;
-  if (invoke->InputAt(1)->IsIntConstant()) {
+  HInstruction* code_point = invoke->InputAt(1);
+  if (code_point->IsIntConstant()) {
     if (static_cast<uint32_t>(invoke->InputAt(1)->AsIntConstant()->GetValue()) > 0xFFFFU) {
       // Always needs the slow-path. We could directly dispatch to it, but this case should be
       // rare, so for simplicity just put the full slow-path down and branch unconditionally.
@@ -1408,17 +1408,17 @@ static void GenerateVisitStringIndexOf(HInvoke* invoke,
       __ Bind(slow_path->GetExitLabel());
       return;
     }
-  } else {
+  } else if (code_point->GetType() != Primitive::kPrimChar) {
     Register char_reg = WRegisterFrom(locations->InAt(1));
-    __ Mov(tmp_reg, 0xFFFF);
-    __ Cmp(char_reg, Operand(tmp_reg));
+    __ Tst(char_reg, 0xFFFF0000);
     slow_path = new (allocator) IntrinsicSlowPathARM64(invoke);
     codegen->AddSlowPath(slow_path);
-    __ B(hi, slow_path->GetEntryLabel());
+    __ B(ne, slow_path->GetEntryLabel());
   }
 
   if (start_at_zero) {
     // Start-index = 0.
+    Register tmp_reg = WRegisterFrom(locations->GetTemp(0));
     __ Mov(tmp_reg, 0);
   }
 
@@ -1442,7 +1442,7 @@ void IntrinsicLocationsBuilderARM64::VisitStringIndexOf(HInvoke* invoke) {
   locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(1)));
   locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimInt));
 
-  // Need a temp for slow-path codepoint compare, and need to send start_index=0.
+  // Need to send start_index=0.
   locations->AddTemp(LocationFrom(calling_convention.GetRegisterAt(2)));
 }
 
@@ -1462,9 +1462,6 @@ void IntrinsicLocationsBuilderARM64::VisitStringIndexOfAfter(HInvoke* invoke) {
   locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(1)));
   locations->SetInAt(2, LocationFrom(calling_convention.GetRegisterAt(2)));
   locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimInt));
-
-  // Need a temp for slow-path codepoint compare.
-  locations->AddTemp(Location::RequiresRegister());
 }
 
 void IntrinsicCodeGeneratorARM64::VisitStringIndexOfAfter(HInvoke* invoke) {
