@@ -394,7 +394,7 @@ CompilerDriver::CompilerDriver(
       dump_passes_(dump_passes),
       timings_logger_(timer),
       compiler_context_(nullptr),
-      support_boot_image_fixup_(instruction_set != kMips && instruction_set != kMips64),
+      support_boot_image_fixup_(instruction_set != kMips64),
       dex_files_for_oat_file_(nullptr),
       compiled_method_storage_(swap_fd),
       profile_compilation_info_(profile_compilation_info),

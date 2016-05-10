@@ -48,8 +48,30 @@ class AssemblerMIPS32r6Test : public AssemblerTest<mips::MipsAssembler,
     return "mips";
   }
 
+  std::string GetAssemblerCmdName() OVERRIDE {
+    // We assemble and link for MIPS32R6. See GetAssemblerParameters() for details.
+    return "gcc";
+  }
+
   std::string GetAssemblerParameters() OVERRIDE {
-    return " --no-warn -32 -march=mips32r6";
+    // We assemble and link for MIPS32R6. The reason is that object files produced for MIPS32R6
+    // (and MIPS64R6) with the GNU assembler don't have correct final offsets in PC-relative
+    // branches in the .text section and so they require a relocation pass (there's a relocation
+    // section, .rela.text, that has the needed info to fix up the branches).
+    // We use "-modd-spreg" so we can use odd-numbered single precision FPU registers.
+    // We put the code at address 0x1000000 (instead of 0) to avoid overlapping with the
+    // .MIPS.abiflags section (there doesn't seem to be a way to suppress its generation easily).
+    return " -march=mips32r6 -modd-spreg -Wa,--no-warn"
+        " -Wl,-Ttext=0x1000000 -Wl,-e0x1000000 -nostdlib";
+  }
+
+  void Pad(std::vector<uint8_t>& data) OVERRIDE {
+    // The GNU linker unconditionally pads the code segment with NOPs to a size that is a multiple
+    // of 16 and there doesn't appear to be a way to suppress this padding. Our assembler doesn't
+    // pad, so, in order for two assembler outputs to match, we need to match the padding as well.
+    // NOP is encoded as four zero bytes on MIPS.
+    size_t pad_size = RoundUp(data.size(), 16u) - data.size();
+    data.insert(data.end(), pad_size, 0);
   }
 
   std::string GetDisassembleParameters() OVERRIDE {
@@ -270,6 +292,21 @@ TEST_F(AssemblerMIPS32r6Test, ModuR6) {
 
 TEST_F(AssemblerMIPS32r6Test, Aui) {
   DriverStr(RepeatRRIb(&mips::MipsAssembler::Aui, 16, "aui ${reg1}, ${reg2}, {imm}"), "Aui");
+}
+
+TEST_F(AssemblerMIPS32r6Test, Auipc) {
+  DriverStr(RepeatRIb(&mips::MipsAssembler::Auipc, 16, "auipc ${reg}, {imm}"), "Auipc");
+}
+
+TEST_F(AssemblerMIPS32r6Test, Lwpc) {
+  // Lwpc() takes an unsigned 19-bit immediate, while the GNU assembler needs a signed offset,
+  // hence the sign extension from bit 18 with `imm - ((imm & 0x40000) << 1)`.
+  // The GNU assembler also wants the offset to be a multiple of 4, which it will shift right
+  // by 2 positions when encoding, hence `<< 2` to compensate for that shift.
+  // We capture the value of the immediate with `.set imm, {imm}` because the value is needed
+  // twice for the sign extension, but `{imm}` is substituted only once.
+  const char* code = ".set imm, {imm}\nlw ${reg}, ((imm - ((imm & 0x40000) << 1)) << 2)($pc)";
+  DriverStr(RepeatRIb(&mips::MipsAssembler::Lwpc, 19, code), "Lwpc");
 }
 
 TEST_F(AssemblerMIPS32r6Test, Bitswap) {
@@ -598,12 +635,45 @@ TEST_F(AssemblerMIPS32r6Test, StoreDToOffset) {
   DriverStr(expected, "StoreDToOffset");
 }
 
+TEST_F(AssemblerMIPS32r6Test, LoadFarthestNearLiteral) {
+  mips::Literal* literal = __ NewLiteral<uint32_t>(0x12345678);
+  __ LoadLiteral(mips::V0, mips::ZERO, literal);
+  constexpr size_t kAdduCount = 0x3FFDE;
+  for (size_t i = 0; i != kAdduCount; ++i) {
+    __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
+  }
+
+  std::string expected =
+      "lwpc $v0, 1f\n" +
+      RepeatInsn(kAdduCount, "addu $zero, $zero, $zero\n") +
+      "1:\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadFarthestNearLiteral");
+}
+
+TEST_F(AssemblerMIPS32r6Test, LoadNearestFarLiteral) {
+  mips::Literal* literal = __ NewLiteral<uint32_t>(0x12345678);
+  __ LoadLiteral(mips::V0, mips::ZERO, literal);
+  constexpr size_t kAdduCount = 0x3FFDF;
+  for (size_t i = 0; i != kAdduCount; ++i) {
+    __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
+  }
+
+  std::string expected =
+      "1:\n"
+      "auipc $at, %hi(2f - 1b)\n"
+      "lw $v0, %lo(2f - 1b)($at)\n" +
+      RepeatInsn(kAdduCount, "addu $zero, $zero, $zero\n") +
+      "2:\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadNearestFarLiteral");
+}
+
 //////////////
 // BRANCHES //
 //////////////
 
-// TODO: MipsAssembler::Auipc
-//       MipsAssembler::Addiupc
+// TODO: MipsAssembler::Addiupc
 //       MipsAssembler::Bc
 //       MipsAssembler::Jic
 //       MipsAssembler::Jialc

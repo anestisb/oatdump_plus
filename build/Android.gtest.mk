@@ -318,6 +318,8 @@ COMPILER_GTEST_COMMON_SRC_FILES_arm64 := \
   compiler/utils/arm64/managed_register_arm64_test.cc \
 
 COMPILER_GTEST_COMMON_SRC_FILES_mips := \
+  compiler/linker/mips/relative_patcher_mips_test.cc \
+  compiler/linker/mips/relative_patcher_mips32r6_test.cc \
 
 COMPILER_GTEST_COMMON_SRC_FILES_mips64 := \
 
