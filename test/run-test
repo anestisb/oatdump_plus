@@ -126,9 +126,6 @@ image_suffix=""
 pic_image_suffix=""
 multi_image_suffix=""
 android_root="/system"
-# By default we will use optimizing.
-image_args="-Xcompiler-option --compiler-backend=Optimizing"
-image_suffix="-optimizing"
 
 while true; do
     if [ "x$1" = "x--host" ]; then
@@ -247,22 +244,22 @@ while true; do
         run_args="${run_args} --zygote"
         shift
     elif [ "x$1" = "x--interpreter" ]; then
-        image_args="--interpreter"
+        run_args="${run_args} --interpreter"
         image_suffix="-interpreter"
         shift
     elif [ "x$1" = "x--jit" ]; then
-        image_args="--jit"
+        run_args="${run_args} --jit"
         image_suffix="-jit"
         shift
     elif [ "x$1" = "x--optimizing" ]; then
-        image_args="-Xcompiler-option --compiler-backend=Optimizing"
+        run_args="${run_args} -Xcompiler-option --compiler-backend=Optimizing"
         image_suffix="-optimizing"
         shift
     elif [ "x$1" = "x--no-verify" ]; then
         run_args="${run_args} --no-verify"
         shift
     elif [ "x$1" = "x--verify-soft-fail" ]; then
-        image_args="${run_args} --verify-soft-fail"
+        run_args="${run_args} --verify-soft-fail"
         image_suffix="-interp-ac"
         shift
     elif [ "x$1" = "x--no-optimize" ]; then
@@ -351,7 +348,6 @@ while true; do
     fi
 done
 
-run_args="${run_args} ${image_args}"
 # Allocate file descriptor real_stderr and redirect it to the shell's error
 # output (fd 2).
 if [ ${BASH_VERSINFO[1]} -ge 4 ] && [ ${BASH_VERSINFO[2]} -ge 1 ]; then
