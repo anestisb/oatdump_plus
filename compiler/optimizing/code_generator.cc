@@ -50,6 +50,7 @@
 #include "mirror/array-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object_reference.h"
+#include "mirror/string.h"
 #include "parallel_move_resolver.h"
 #include "ssa_liveness_analysis.h"
 #include "utils/assembler.h"
@@ -137,6 +138,12 @@ size_t CodeGenerator::GetCacheOffset(uint32_t index) {
 size_t CodeGenerator::GetCachePointerOffset(uint32_t index) {
   auto pointer_size = InstructionSetPointerSize(GetInstructionSet());
   return pointer_size * index;
+}
+
+uint32_t CodeGenerator::GetArrayLengthOffset(HArrayLength* array_length) {
+  return array_length->IsStringLength()
+      ? mirror::String::CountOffset().Uint32Value()
+      : mirror::Array::LengthOffset().Uint32Value();
 }
 
 bool CodeGenerator::GoesToNextBlock(HBasicBlock* current, HBasicBlock* next) const {

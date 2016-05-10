@@ -16,9 +16,69 @@
 
 
 public class Main {
+  public static boolean doThrow = false;
+
+  public static void assertIntEquals(int expected, int result) {
+    if (expected != result) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
+  public static void assertBooleanEquals(boolean expected, boolean result) {
+    if (expected != result) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
   public static void main(String[] args) {
     stringEqualsSame();
     stringArgumentNotNull("Foo");
+
+    assertIntEquals(0, $opt$noinline$getStringLength(""));
+    assertIntEquals(3, $opt$noinline$getStringLength("abc"));
+    assertIntEquals(10, $opt$noinline$getStringLength("0123456789"));
+
+    assertBooleanEquals(true, $opt$noinline$isStringEmpty(""));
+    assertBooleanEquals(false, $opt$noinline$isStringEmpty("abc"));
+    assertBooleanEquals(false, $opt$noinline$isStringEmpty("0123456789"));
+  }
+
+  /// CHECK-START: int Main.$opt$noinline$getStringLength(java.lang.String) instruction_simplifier (before)
+  /// CHECK-DAG:  <<Length:i\d+>>   InvokeVirtual intrinsic:StringLength
+  /// CHECK-DAG:                    Return [<<Length>>]
+
+  /// CHECK-START: int Main.$opt$noinline$getStringLength(java.lang.String) instruction_simplifier (after)
+  /// CHECK-DAG:  <<String:l\d+>>   ParameterValue
+  /// CHECK-DAG:  <<NullCk:l\d+>>   NullCheck [<<String>>]
+  /// CHECK-DAG:  <<Length:i\d+>>   ArrayLength [<<NullCk>>] is_string_length:true
+  /// CHECK-DAG:                    Return [<<Length>>]
+
+  /// CHECK-START: int Main.$opt$noinline$getStringLength(java.lang.String) instruction_simplifier (after)
+  /// CHECK-NOT:                    InvokeVirtual intrinsic:StringLength
+
+  static public int $opt$noinline$getStringLength(String s) {
+    if (doThrow) { throw new Error(); }
+    return s.length();
+  }
+
+  /// CHECK-START: boolean Main.$opt$noinline$isStringEmpty(java.lang.String) instruction_simplifier (before)
+  /// CHECK-DAG:  <<IsEmpty:z\d+>>  InvokeVirtual intrinsic:StringIsEmpty
+  /// CHECK-DAG:                    Return [<<IsEmpty>>]
+
+  /// CHECK-START: boolean Main.$opt$noinline$isStringEmpty(java.lang.String) instruction_simplifier (after)
+  /// CHECK-DAG:  <<String:l\d+>>   ParameterValue
+  /// CHECK-DAG:  <<Const0:i\d+>>   IntConstant 0
+  /// CHECK-DAG:  <<NullCk:l\d+>>   NullCheck [<<String>>]
+  /// CHECK-DAG:  <<Length:i\d+>>   ArrayLength [<<NullCk>>] is_string_length:true
+  /// CHECK-DAG:  <<IsEmpty:z\d+>>  Equal [<<Length>>,<<Const0>>]
+  /// CHECK-DAG:                    Return [<<IsEmpty>>]
+
+  /// CHECK-START: boolean Main.$opt$noinline$isStringEmpty(java.lang.String) instruction_simplifier (after)
+  /// CHECK-NOT:                    InvokeVirtual intrinsic:StringIsEmpty
+
+  static public boolean $opt$noinline$isStringEmpty(String s) {
+    if (doThrow) { throw new Error(); }
+    return s.isEmpty();
   }
 
   /// CHECK-START: boolean Main.stringEqualsSame() instruction_simplifier (before)
