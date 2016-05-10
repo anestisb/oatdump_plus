@@ -151,6 +151,7 @@ while true; do
     elif [ "x$1" = "x--jvm" ]; then
         target_mode="no"
         runtime="jvm"
+        image_args=""
         prebuild_mode="no"
         NEED_DEX="false"
         USE_JACK="false"
