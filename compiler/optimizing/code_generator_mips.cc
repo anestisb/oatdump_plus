@@ -1803,7 +1803,7 @@ void LocationsBuilderMIPS::VisitArrayLength(HArrayLength* instruction) {
 
 void InstructionCodeGeneratorMIPS::VisitArrayLength(HArrayLength* instruction) {
   LocationSummary* locations = instruction->GetLocations();
-  uint32_t offset = mirror::Array::LengthOffset().Uint32Value();
+  uint32_t offset = CodeGenerator::GetArrayLengthOffset(instruction);
   Register obj = locations->InAt(0).AsRegister<Register>();
   Register out = locations->Out().AsRegister<Register>();
   __ LoadFromOffset(kLoadWord, out, obj, offset);

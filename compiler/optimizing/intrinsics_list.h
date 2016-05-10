@@ -107,6 +107,8 @@
   V(StringGetCharsNoCheck, kDirect, kNeedsEnvironmentOrCache, kReadSideEffects, kCanThrow) \
   V(StringIndexOf, kDirect, kNeedsEnvironmentOrCache, kReadSideEffects, kCanThrow) \
   V(StringIndexOfAfter, kDirect, kNeedsEnvironmentOrCache, kReadSideEffects, kCanThrow) \
+  V(StringIsEmpty, kDirect, kNeedsEnvironmentOrCache, kReadSideEffects, kNoThrow) \
+  V(StringLength, kDirect, kNeedsEnvironmentOrCache, kReadSideEffects, kNoThrow) \
   V(StringNewStringFromBytes, kStatic, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
   V(StringNewStringFromChars, kStatic, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
   V(StringNewStringFromString, kStatic, kNeedsEnvironmentOrCache, kAllSideEffects, kCanThrow) \
