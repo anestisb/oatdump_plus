@@ -101,6 +101,7 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   void SimplifyCompare(HInvoke* invoke, bool is_signum, Primitive::Type type);
   void SimplifyIsNaN(HInvoke* invoke);
   void SimplifyFP2Int(HInvoke* invoke);
+  void SimplifyStringIsEmptyOrLength(HInvoke* invoke);
   void SimplifyMemBarrier(HInvoke* invoke, MemBarrierKind barrier_kind);
 
   OptimizingCompilerStats* stats_;
@@ -1673,6 +1674,27 @@ void InstructionSimplifierVisitor::SimplifyFP2Int(HInvoke* invoke) {
   invoke->ReplaceWithExceptInReplacementAtIndex(select, 0);  // false at index 0
 }
 
+void InstructionSimplifierVisitor::SimplifyStringIsEmptyOrLength(HInvoke* invoke) {
+  HInstruction* str = invoke->InputAt(0);
+  uint32_t dex_pc = invoke->GetDexPc();
+  // We treat String as an array to allow DCE and BCE to seamlessly work on strings,
+  // so create the HArrayLength.
+  HArrayLength* length = new (GetGraph()->GetArena()) HArrayLength(str, dex_pc);
+  length->MarkAsStringLength();
+  HInstruction* replacement;
+  if (invoke->GetIntrinsic() == Intrinsics::kStringIsEmpty) {
+    // For String.isEmpty(), create the `HEqual` representing the `length == 0`.
+    invoke->GetBlock()->InsertInstructionBefore(length, invoke);
+    HIntConstant* zero = GetGraph()->GetIntConstant(0);
+    HEqual* equal = new (GetGraph()->GetArena()) HEqual(length, zero, dex_pc);
+    replacement = equal;
+  } else {
+    DCHECK_EQ(invoke->GetIntrinsic(), Intrinsics::kStringLength);
+    replacement = length;
+  }
+  invoke->GetBlock()->ReplaceAndRemoveInstructionWith(invoke, replacement);
+}
+
 void InstructionSimplifierVisitor::SimplifyMemBarrier(HInvoke* invoke, MemBarrierKind barrier_kind) {
   uint32_t dex_pc = invoke->GetDexPc();
   HMemoryBarrier* mem_barrier = new (GetGraph()->GetArena()) HMemoryBarrier(barrier_kind, dex_pc);
@@ -1718,6 +1740,10 @@ void InstructionSimplifierVisitor::VisitInvoke(HInvoke* instruction) {
     case Intrinsics::kFloatFloatToIntBits:
     case Intrinsics::kDoubleDoubleToLongBits:
       SimplifyFP2Int(instruction);
+      break;
+    case Intrinsics::kStringIsEmpty:
+    case Intrinsics::kStringLength:
+      SimplifyStringIsEmptyOrLength(instruction);
       break;
     case Intrinsics::kUnsafeLoadFence:
       SimplifyMemBarrier(instruction, MemBarrierKind::kLoadAny);
