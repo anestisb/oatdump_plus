@@ -5228,9 +5228,22 @@ class HArrayLength : public HExpression<1> {
     return obj == InputAt(0);
   }
 
+  void MarkAsStringLength() { SetPackedFlag<kFlagIsStringLength>(); }
+  bool IsStringLength() const { return GetPackedFlag<kFlagIsStringLength>(); }
+
   DECLARE_INSTRUCTION(ArrayLength);
 
  private:
+  // We treat a String as an array, creating the HArrayLength from String.length()
+  // or String.isEmpty() intrinsic in the instruction simplifier. We can always
+  // determine whether a particular HArrayLength is actually a String.length() by
+  // looking at the type of the input but that requires holding the mutator lock, so
+  // we prefer to use a flag, so that code generators don't need to do the locking.
+  static constexpr size_t kFlagIsStringLength = kNumberOfExpressionPackedBits;
+  static constexpr size_t kNumberOfArrayLengthPackedBits = kFlagIsStringLength + 1;
+  static_assert(kNumberOfArrayLengthPackedBits <= HInstruction::kMaxNumberOfPackedBits,
+                "Too many packed fields.");
+
   DISALLOW_COPY_AND_ASSIGN(HArrayLength);
 };
 

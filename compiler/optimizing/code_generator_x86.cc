@@ -5480,7 +5480,7 @@ void LocationsBuilderX86::VisitArrayLength(HArrayLength* instruction) {
 
 void InstructionCodeGeneratorX86::VisitArrayLength(HArrayLength* instruction) {
   LocationSummary* locations = instruction->GetLocations();
-  uint32_t offset = mirror::Array::LengthOffset().Uint32Value();
+  uint32_t offset = CodeGenerator::GetArrayLengthOffset(instruction);
   Register obj = locations->InAt(0).AsRegister<Register>();
   Register out = locations->Out().AsRegister<Register>();
   __ movl(out, Address(obj, offset));

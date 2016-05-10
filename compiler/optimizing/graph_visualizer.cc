@@ -389,6 +389,11 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
         << instance_of->MustDoNullCheck() << std::noboolalpha;
   }
 
+  void VisitArrayLength(HArrayLength* array_length) OVERRIDE {
+    StartAttributeStream("is_string_length") << std::boolalpha
+        << array_length->IsStringLength() << std::noboolalpha;
+  }
+
   void VisitArraySet(HArraySet* array_set) OVERRIDE {
     StartAttributeStream("value_can_be_null") << std::boolalpha
         << array_set->GetValueCanBeNull() << std::noboolalpha;
