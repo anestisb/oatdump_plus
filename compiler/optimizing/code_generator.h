@@ -340,6 +340,11 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
   // Pointer variant for ArtMethod and ArtField arrays.
   size_t GetCachePointerOffset(uint32_t index);
 
+  // Helper that returns the offset of the array's length field.
+  // Note: Besides the normal arrays, we also use the HArrayLength for
+  // accessing the String's `count` field in String intrinsics.
+  static uint32_t GetArrayLengthOffset(HArrayLength* array_length);
+
   void EmitParallelMoves(Location from1,
                          Location to1,
                          Primitive::Type type1,
