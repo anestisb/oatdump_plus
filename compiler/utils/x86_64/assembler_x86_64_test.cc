@@ -1637,4 +1637,11 @@ TEST_F(AssemblerX86_64Test, Repecmpsq) {
   DriverStr(expected, "Repecmpsq");
 }
 
+TEST_F(AssemblerX86_64Test, Cmpb) {
+  GetAssembler()->cmpb(x86_64::Address(x86_64::CpuRegister(x86_64::RDI), 128),
+                       x86_64::Immediate(0));
+  const char* expected = "cmpb $0, 128(%RDI)\n";
+  DriverStr(expected, "cmpb");
+}
+
 }  // namespace art

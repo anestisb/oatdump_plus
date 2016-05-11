@@ -1224,6 +1224,16 @@ void X86_64Assembler::xchgl(CpuRegister reg, const Address& address) {
 }
 
 
+void X86_64Assembler::cmpb(const Address& address, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  CHECK(imm.is_int32());
+  EmitOptionalRex32(address);
+  EmitUint8(0x80);
+  EmitOperand(7, address);
+  EmitUint8(imm.value() & 0xFF);
+}
+
+
 void X86_64Assembler::cmpw(const Address& address, const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   CHECK(imm.is_int32());
