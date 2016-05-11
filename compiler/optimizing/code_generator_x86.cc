@@ -47,7 +47,8 @@ static constexpr int kC2ConditionMask = 0x400;
 
 static constexpr int kFakeReturnRegister = Register(8);
 
-#define __ down_cast<X86Assembler*>(codegen->GetAssembler())->
+// NOLINT on __ macro to suppress wrong warning/fix from clang-tidy.
+#define __ down_cast<X86Assembler*>(codegen->GetAssembler())-> // NOLINT
 #define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kX86WordSize, x).Int32Value()
 
 class NullCheckSlowPathX86 : public SlowPathCode {
@@ -691,7 +692,8 @@ class ReadBarrierForRootSlowPathX86 : public SlowPathCode {
 };
 
 #undef __
-#define __ down_cast<X86Assembler*>(GetAssembler())->
+// NOLINT on __ macro to suppress wrong warning/fix from clang-tidy.
+#define __ down_cast<X86Assembler*>(GetAssembler())-> /* NOLINT */
 
 inline Condition X86Condition(IfCondition cond) {
   switch (cond) {

@@ -606,13 +606,13 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
     INTRINSIC(SunMiscUnsafe, Get ## type, ObjectJ_ ## code, kIntrinsicUnsafeGet, \
               type_flags), \
     INTRINSIC(SunMiscUnsafe, Get ## type ## Volatile, ObjectJ_ ## code, kIntrinsicUnsafeGet, \
-              type_flags | kIntrinsicFlagIsVolatile), \
+              (type_flags) | kIntrinsicFlagIsVolatile), \
     INTRINSIC(SunMiscUnsafe, Put ## type, ObjectJ ## code ## _V, kIntrinsicUnsafePut, \
               type_flags), \
     INTRINSIC(SunMiscUnsafe, Put ## type ## Volatile, ObjectJ ## code ## _V, kIntrinsicUnsafePut, \
-              type_flags | kIntrinsicFlagIsVolatile), \
+              (type_flags) | kIntrinsicFlagIsVolatile), \
     INTRINSIC(SunMiscUnsafe, PutOrdered ## type, ObjectJ ## code ## _V, kIntrinsicUnsafePut, \
-              type_flags | kIntrinsicFlagIsOrdered)
+              (type_flags) | kIntrinsicFlagIsOrdered)
 
     UNSAFE_GET_PUT(Int, I, kIntrinsicFlagNone),
     UNSAFE_GET_PUT(Long, J, kIntrinsicFlagIsLong),

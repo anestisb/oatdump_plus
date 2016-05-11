@@ -2406,8 +2406,8 @@ template void Thread::DumpThreadOffset<8>(std::ostream& os, uint32_t offset);
 template<size_t ptr_size>
 void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset) {
 #define DO_THREAD_OFFSET(x, y) \
-    if (offset == x.Uint32Value()) { \
-      os << y; \
+    if (offset == (x).Uint32Value()) { \
+      os << (y); \
       return; \
     }
   DO_THREAD_OFFSET(ThreadFlagsOffset<ptr_size>(), "state_and_flags")

@@ -51,7 +51,8 @@ static constexpr FloatRegister kFpuCalleeSaves[] = { XMM12, XMM13, XMM14, XMM15 
 
 static constexpr int kC2ConditionMask = 0x400;
 
-#define __ down_cast<X86_64Assembler*>(codegen->GetAssembler())->
+// NOLINT on __ macro to suppress wrong warning/fix from clang-tidy.
+#define __ down_cast<X86_64Assembler*>(codegen->GetAssembler())-> // NOLINT
 #define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, x).Int32Value()
 
 class NullCheckSlowPathX86_64 : public SlowPathCode {
@@ -710,7 +711,8 @@ class ReadBarrierForRootSlowPathX86_64 : public SlowPathCode {
 };
 
 #undef __
-#define __ down_cast<X86_64Assembler*>(GetAssembler())->
+// NOLINT on __ macro to suppress wrong warning/fix from clang-tidy.
+#define __ down_cast<X86_64Assembler*>(GetAssembler())-> // NOLINT
 
 inline Condition X86_64IntegerCondition(IfCondition cond) {
   switch (cond) {

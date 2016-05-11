@@ -2427,19 +2427,20 @@ class CheckJNI {
                                                      Primitive::kPrimDouble));
   }
 
+// NOLINT added to avoid wrong warning/fix from clang-tidy.
 #define PRIMITIVE_ARRAY_FUNCTIONS(ctype, name, ptype) \
-  static ctype* Get##name##ArrayElements(JNIEnv* env, ctype##Array array, jboolean* is_copy) { \
-    return reinterpret_cast<ctype*>( \
+  static ctype* Get##name##ArrayElements(JNIEnv* env, ctype##Array array, jboolean* is_copy) { /* NOLINT */ \
+    return reinterpret_cast<ctype*>( /* NOLINT */ \
         GetPrimitiveArrayElements(__FUNCTION__, ptype, env, array, is_copy)); \
   } \
   \
-  static void Release##name##ArrayElements(JNIEnv* env, ctype##Array array, ctype* elems, \
+  static void Release##name##ArrayElements(JNIEnv* env, ctype##Array array, ctype* elems, /* NOLINT */ \
                                            jint mode) { \
     ReleasePrimitiveArrayElements(__FUNCTION__, ptype, env, array, elems, mode); \
   } \
   \
   static void Get##name##ArrayRegion(JNIEnv* env, ctype##Array array, jsize start, jsize len, \
-                                     ctype* buf) { \
+                                     ctype* buf) { /* NOLINT */ \
     GetPrimitiveArrayRegion(__FUNCTION__, ptype, env, array, start, len, buf); \
   } \
   \

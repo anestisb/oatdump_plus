@@ -101,31 +101,31 @@ const DexFile::MethodId* DexFileVerifier::CheckLoadMethodId(uint32_t idx, const 
 }
 
 // Helper macro to load string and return false on error.
-#define LOAD_STRING(var, idx, error)                  \
-  const char* var = CheckLoadStringByIdx(idx, error); \
-  if (UNLIKELY(var == nullptr)) {                     \
-    return false;                                     \
+#define LOAD_STRING(var, idx, error)                    \
+  const char* (var) = CheckLoadStringByIdx(idx, error); \
+  if (UNLIKELY((var) == nullptr)) {                     \
+    return false;                                       \
   }
 
 // Helper macro to load string by type idx and return false on error.
-#define LOAD_STRING_BY_TYPE(var, type_idx, error)              \
-  const char* var = CheckLoadStringByTypeIdx(type_idx, error); \
-  if (UNLIKELY(var == nullptr)) {                              \
-    return false;                                              \
+#define LOAD_STRING_BY_TYPE(var, type_idx, error)                \
+  const char* (var) = CheckLoadStringByTypeIdx(type_idx, error); \
+  if (UNLIKELY((var) == nullptr)) {                              \
+    return false;                                                \
   }
 
 // Helper macro to load method id. Return last parameter on error.
-#define LOAD_METHOD(var, idx, error_string, error_stmt)                 \
-  const DexFile::MethodId* var  = CheckLoadMethodId(idx, error_string); \
-  if (UNLIKELY(var == nullptr)) {                                       \
-    error_stmt;                                                         \
+#define LOAD_METHOD(var, idx, error_string, error_stmt)                   \
+  const DexFile::MethodId* (var)  = CheckLoadMethodId(idx, error_string); \
+  if (UNLIKELY((var) == nullptr)) {                                       \
+    error_stmt;                                                           \
   }
 
 // Helper macro to load method id. Return last parameter on error.
-#define LOAD_FIELD(var, idx, fmt, error_stmt)               \
-  const DexFile::FieldId* var = CheckLoadFieldId(idx, fmt); \
-  if (UNLIKELY(var == nullptr)) {                           \
-    error_stmt;                                             \
+#define LOAD_FIELD(var, idx, fmt, error_stmt)                 \
+  const DexFile::FieldId* (var) = CheckLoadFieldId(idx, fmt); \
+  if (UNLIKELY((var) == nullptr)) {                           \
+    error_stmt;                                               \
   }
 
 bool DexFileVerifier::Verify(const DexFile* dex_file, const uint8_t* begin, size_t size,
