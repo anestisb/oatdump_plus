@@ -2631,8 +2631,65 @@ void IntrinsicCodeGeneratorX86::VisitLongNumberOfTrailingZeros(HInvoke* invoke) 
   GenTrailingZeros(GetAssembler(), codegen_, invoke, /* is_long */ true);
 }
 
+void IntrinsicLocationsBuilderX86::VisitReferenceGetReferent(HInvoke* invoke) {
+  if (kEmitCompilerReadBarrier) {
+    // Do not intrinsify this call with the read barrier configuration.
+    return;
+  }
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCallOnSlowPath,
+                                                            kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::SameAsFirstInput());
+  locations->AddTemp(Location::RequiresRegister());
+}
+
+void IntrinsicCodeGeneratorX86::VisitReferenceGetReferent(HInvoke* invoke) {
+  DCHECK(!kEmitCompilerReadBarrier);
+  LocationSummary* locations = invoke->GetLocations();
+  X86Assembler* assembler = GetAssembler();
+
+  Register obj = locations->InAt(0).AsRegister<Register>();
+  Register out = locations->Out().AsRegister<Register>();
+
+  SlowPathCode* slow_path = new (GetAllocator()) IntrinsicSlowPathX86(invoke);
+  codegen_->AddSlowPath(slow_path);
+
+  // Load ArtMethod first.
+  HInvokeStaticOrDirect* invoke_direct = invoke->AsInvokeStaticOrDirect();
+  DCHECK(invoke_direct != nullptr);
+  Location temp_loc = codegen_->GenerateCalleeMethodStaticOrDirectCall(
+      invoke_direct, locations->GetTemp(0));
+  DCHECK(temp_loc.Equals(locations->GetTemp(0)));
+  Register temp = temp_loc.AsRegister<Register>();
+
+  // Now get declaring class.
+  __ movl(temp, Address(temp, ArtMethod::DeclaringClassOffset().Int32Value()));
+
+  uint32_t slow_path_flag_offset = codegen_->GetReferenceSlowFlagOffset();
+  uint32_t disable_flag_offset = codegen_->GetReferenceDisableFlagOffset();
+  DCHECK_NE(slow_path_flag_offset, 0u);
+  DCHECK_NE(disable_flag_offset, 0u);
+  DCHECK_NE(slow_path_flag_offset, disable_flag_offset);
+
+  // Check static flags preventing us for using intrinsic.
+  if (slow_path_flag_offset == disable_flag_offset + 1) {
+    __ cmpw(Address(temp, disable_flag_offset), Immediate(0));
+    __ j(kNotEqual, slow_path->GetEntryLabel());
+  } else {
+    __ cmpb(Address(temp, disable_flag_offset), Immediate(0));
+    __ j(kNotEqual, slow_path->GetEntryLabel());
+    __ cmpb(Address(temp, slow_path_flag_offset), Immediate(0));
+    __ j(kNotEqual, slow_path->GetEntryLabel());
+  }
+
+  // Fast path.
+  __ movl(out, Address(obj, mirror::Reference::ReferentOffset().Int32Value()));
+  codegen_->MaybeRecordImplicitNullCheck(invoke);
+  __ Bind(slow_path->GetExitLabel());
+}
+
 UNIMPLEMENTED_INTRINSIC(X86, MathRoundDouble)
-UNIMPLEMENTED_INTRINSIC(X86, ReferenceGetReferent)
 UNIMPLEMENTED_INTRINSIC(X86, SystemArrayCopy)
 UNIMPLEMENTED_INTRINSIC(X86, FloatIsInfinite)
 UNIMPLEMENTED_INTRINSIC(X86, DoubleIsInfinite)
