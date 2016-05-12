@@ -1305,4 +1305,18 @@ void CodeGenerator::CreateSystemArrayCopyLocationSummary(HInvoke* invoke) {
   locations->AddTemp(Location::RequiresRegister());
 }
 
+uint32_t CodeGenerator::GetReferenceSlowFlagOffset() const {
+  ScopedObjectAccess soa(Thread::Current());
+  mirror::Class* klass = mirror::Reference::GetJavaLangRefReference();
+  DCHECK(klass->IsInitialized());
+  return klass->GetSlowPathFlagOffset().Uint32Value();
+}
+
+uint32_t CodeGenerator::GetReferenceDisableFlagOffset() const {
+  ScopedObjectAccess soa(Thread::Current());
+  mirror::Class* klass = mirror::Reference::GetJavaLangRefReference();
+  DCHECK(klass->IsInitialized());
+  return klass->GetDisableIntrinsicFlagOffset().Uint32Value();
+}
+
 }  // namespace art
