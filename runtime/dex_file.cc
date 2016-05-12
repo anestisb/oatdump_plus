@@ -518,7 +518,7 @@ const DexFile::ClassDef* DexFile::FindClassDef(const char* descriptor, size_t ha
     return (class_def_idx != DexFile::kDexNoIndex) ? &GetClassDef(class_def_idx) : nullptr;
   }
 
-  // Fast path for rate no class defs case.
+  // Fast path for rare no class defs case.
   const uint32_t num_class_defs = NumClassDefs();
   if (num_class_defs == 0) {
     return nullptr;
@@ -548,8 +548,8 @@ const DexFile::ClassDef* DexFile::FindClassDef(uint16_t type_idx) const {
 }
 
 const DexFile::FieldId* DexFile::FindFieldId(const DexFile::TypeId& declaring_klass,
-                                              const DexFile::StringId& name,
-                                              const DexFile::TypeId& type) const {
+                                             const DexFile::StringId& name,
+                                             const DexFile::TypeId& type) const {
   // Binary search MethodIds knowing that they are sorted by class_idx, name_idx then proto_idx
   const uint16_t class_idx = GetIndexForTypeId(declaring_klass);
   const uint32_t name_idx = GetIndexForStringId(name);
