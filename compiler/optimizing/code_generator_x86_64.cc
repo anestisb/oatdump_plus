@@ -762,9 +762,10 @@ HInvokeStaticOrDirect::DispatchInfo CodeGeneratorX86_64::GetSupportedInvokeStati
   }
 }
 
-Location CodeGeneratorX86_64::GenerateCalleeMethodStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
-                                                                     Location temp) {
+void CodeGeneratorX86_64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
+                                                     Location temp) {
   // All registers are assumed to be correctly set up.
+
   Location callee_method = temp;  // For all kinds except kRecursive, callee will be in temp.
   switch (invoke->GetMethodLoadKind()) {
     case HInvokeStaticOrDirect::MethodLoadKind::kStringInit:
@@ -814,13 +815,6 @@ Location CodeGeneratorX86_64::GenerateCalleeMethodStaticOrDirectCall(HInvokeStat
       break;
     }
   }
-  return callee_method;
-}
-
-void CodeGeneratorX86_64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
-                                                     Location temp) {
-  // All registers are assumed to be correctly set up.
-  Location callee_method = GenerateCalleeMethodStaticOrDirectCall(invoke, temp);
 
   switch (invoke->GetCodePtrLocation()) {
     case HInvokeStaticOrDirect::CodePtrLocation::kCallSelf:
