@@ -1176,14 +1176,16 @@ class ScopedCheck {
       return false;
     }
 
-    // Get the *correct* JNIEnv by going through our TLS pointer.
+    // Get the current thread's JNIEnv by going through our TLS pointer.
     JNIEnvExt* threadEnv = self->GetJniEnv();
 
     // Verify that the current thread is (a) attached and (b) associated with
     // this particular instance of JNIEnv.
     if (env != threadEnv) {
+      // Get the thread owning the JNIEnv that's being used.
+      Thread* envThread = reinterpret_cast<JNIEnvExt*>(env)->self;
       AbortF("thread %s using JNIEnv* from thread %s",
-             ToStr<Thread>(*self).c_str(), ToStr<Thread>(*self).c_str());
+             ToStr<Thread>(*self).c_str(), ToStr<Thread>(*envThread).c_str());
       return false;
     }
 
