@@ -129,8 +129,10 @@ RUNTIME_OPTIONS_KEY (CompilerCallbacks*,  CompilerCallbacksPtr)  // TDOO: make u
 RUNTIME_OPTIONS_KEY (bool (*)(),          HookIsSensitiveThread)
 RUNTIME_OPTIONS_KEY (int32_t (*)(FILE* stream, const char* format, va_list ap), \
                                           HookVfprintf,                   vfprintf)
+// Use _exit instead of exit so that we won't get DCHECK failures in global data
+// destructors. b/28106055.
 RUNTIME_OPTIONS_KEY (void (*)(int32_t status), \
-                                          HookExit,                       exit)
+                                          HookExit,                       _exit)
                                                                           // We don't call abort(3) by default; see
                                                                           // Runtime::Abort.
 RUNTIME_OPTIONS_KEY (void (*)(),          HookAbort,                      nullptr)
