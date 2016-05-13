@@ -394,7 +394,6 @@ class CodeGeneratorX86_64 : public CodeGenerator {
       const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
       MethodReference target_method) OVERRIDE;
 
-  Location GenerateCalleeMethodStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp);
   void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) OVERRIDE;
   void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp) OVERRIDE;
 
