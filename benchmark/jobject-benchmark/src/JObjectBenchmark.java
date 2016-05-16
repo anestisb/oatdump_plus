@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-import com.google.caliper.SimpleBenchmark;
-
-public class JObjectBenchmark extends SimpleBenchmark {
+public class JObjectBenchmark {
   public JObjectBenchmark() {
     // Make sure to link methods before benchmark starts.
     System.loadLibrary("artbenchmark");
