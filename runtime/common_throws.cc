@@ -143,7 +143,8 @@ void ThrowClassFormatError(mirror::Class* referrer, const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
   ThrowException("Ljava/lang/ClassFormatError;", referrer, fmt, &args);
-  va_end(args);}
+  va_end(args);
+}
 
 // IllegalAccessError
 

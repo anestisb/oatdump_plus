@@ -9,4 +9,3 @@
    iget v0, p0, Ljava/lang/System;->in:Ljava/io/InputStream;
    return-void
 .end method
-
