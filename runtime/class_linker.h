@@ -613,6 +613,7 @@ class ClassLinker {
 
   static bool IsBootClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
                                 mirror::ClassLoader* class_loader)
+      SHARED_REQUIRES(Locks::mutator_lock_);
 
   ArtMethod* AddMethodToConflictTable(mirror::Class* klass,
                                       ArtMethod* conflict_method,
