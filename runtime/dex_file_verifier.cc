@@ -1987,12 +1987,37 @@ bool DexFileVerifier::CheckInterClassDefItem() {
     }
   }
 
+  // Check interfaces.
   const DexFile::TypeList* interfaces = dex_file_->GetInterfacesList(*item);
   if (interfaces != nullptr) {
     uint32_t size = interfaces->Size();
-
-    // Ensure that all interfaces refer to classes (not arrays or primitives).
     for (uint32_t i = 0; i < size; i++) {
+      // Check that a class does not implement itself directly (by having the
+      // same type idx as one of its immediate implemented interfaces).
+      if (UNLIKELY(interfaces->GetTypeItem(i).type_idx_ == item->class_idx_)) {
+        ErrorStringPrintf("Class with same type idx as implemented interface: '%d'",
+                          item->class_idx_);
+        return false;
+      }
+
+      // Check that a class is defined after the interfaces it implements
+      // (if they are defined in the same Dex file).
+      const DexFile::ClassDef* interface_def =
+          dex_file_->FindClassDef(interfaces->GetTypeItem(i).type_idx_);
+      if (interface_def != nullptr) {
+        // The interface is defined in this Dex file.
+        if (interface_def > item) {
+          // ClassDef item for interface appearing after the class' ClassDef item.
+          ErrorStringPrintf("Invalid class definition ordering:"
+                            " class with type idx: '%d' defined before"
+                            " implemented interface with type idx: '%d'",
+                            item->class_idx_,
+                            interfaces->GetTypeItem(i).type_idx_);
+          return false;
+        }
+      }
+
+      // Ensure that the interface refers to a class (not an array nor a primitive type).
       LOAD_STRING_BY_TYPE(inf_descriptor, interfaces->GetTypeItem(i).type_idx_,
                           "inter_class_def_item interface type_idx")
       if (UNLIKELY(!IsValidDescriptor(inf_descriptor) || inf_descriptor[0] != 'L')) {
