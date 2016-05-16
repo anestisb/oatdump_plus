@@ -254,7 +254,7 @@ class ClassLinker {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Resolve a Type with the given index from the DexFile, storing the
-  // result in the DexCache. The referrer is used to identity the
+  // result in the DexCache. The referrer is used to identify the
   // target DexCache and ClassLoader to use for resolution.
   mirror::Class* ResolveType(const DexFile& dex_file, uint16_t type_idx, mirror::Class* referrer)
       SHARED_REQUIRES(Locks::mutator_lock_)
