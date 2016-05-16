@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-import com.google.caliper.SimpleBenchmark; 
-
-public class ScopedPrimitiveArrayBenchmark extends SimpleBenchmark {
+public class ScopedPrimitiveArrayBenchmark {
   // Measure adds the first and last element of the array by using ScopedPrimitiveArray.
   static native long measureByteArray(int reps, byte[] arr);
   static native long measureShortArray(int reps, short[] arr);
