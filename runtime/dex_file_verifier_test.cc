@@ -1607,4 +1607,93 @@ TEST_F(DexFileVerifierTest, CircularClassInheritance) {
       " superclass with type idx: '0'");
 }
 
+// Generated from:
+//
+//   .class public abstract interface LInterfaceImplementsItself;
+//   .super Ljava/lang/Object;
+//   .implements LInterfaceImplementsItself;
+
+static const char kInterfaceImplementsItselfTestDex[] =
+    "ZGV4CjAzNQBgK8ZUyZHMR7lmXBQ6uJSrndrDOAoPughEAQAAcAAAAHhWNBIAAAAAAAAAAOAAAAAC"
+    "AAAAcAAAAAIAAAB4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAIAAAACkAAAAoAAAAKAA"
+    "AAC9AAAAAAAAAAEAAAAAAAAAAQYAAAEAAADUAAAA/////wAAAAAAAAAAAAAAABtMSW50ZXJmYWNl"
+    "SW1wbGVtZW50c0l0c2VsZjsAEkxqYXZhL2xhbmcvT2JqZWN0OwAAAAABAAAAAAAAAAAAAAAIAAAA"
+    "AAAAAAEAAAAAAAAAAQAAAAIAAABwAAAAAgAAAAIAAAB4AAAABgAAAAEAAACAAAAAAiAAAAIAAACg"
+    "AAAAARAAAAEAAADUAAAAAxAAAAEAAADcAAAAABAAAAEAAADgAAAA";
+
+TEST_F(DexFileVerifierTest, InterfaceImplementsItself) {
+  VerifyModification(
+      kInterfaceImplementsItselfTestDex,
+      "interface_implements_itself",
+      [](DexFile* dex_file ATTRIBUTE_UNUSED) { /* empty */ },
+      "Class with same type idx as implemented interface: '0'");
+}
+
+// Generated from:
+//
+//   .class public abstract interface LPing;
+//   .super Ljava/lang/Object;
+//   .implements LPong;
+//
+// and:
+//
+//   .class public abstract interface LPong;
+//   .super Ljava/lang/Object;
+//   .implements LPing;
+
+static const char kInterfacesImplementOneAnotherTestDex[] =
+    "ZGV4CjAzNQC9LFtYXO2Se9koyKbznW5m5+lH2CaauJdkAQAAcAAAAHhWNBIAAAAAAAAAAAABAAAD"
+    "AAAAcAAAAAMAAAB8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAIgAAACcAAAAyAAAAMgA"
+    "AADQAAAA2AAAAAAAAAABAAAAAgAAAAEAAAABBgAAAgAAAOwAAAD/////AAAAAAAAAAAAAAAAAAAA"
+    "AAEGAAACAAAA9AAAAP////8AAAAAAAAAAAAAAAAGTFBpbmc7AAZMUG9uZzsAEkxqYXZhL2xhbmcv"
+    "T2JqZWN0OwABAAAAAAAAAAEAAAABAAAAAAAAAAgAAAAAAAAAAQAAAAAAAAABAAAAAwAAAHAAAAAC"
+    "AAAAAwAAAHwAAAAGAAAAAgAAAIgAAAACIAAAAwAAAMgAAAABEAAAAgAAAOwAAAADEAAAAQAAAPwA"
+    "AAAAEAAAAQAAAAABAAA=";
+
+TEST_F(DexFileVerifierTest, InterfacesImplementOneAnother) {
+  VerifyModification(
+      kInterfacesImplementOneAnotherTestDex,
+      "interfaces_implement_one_another",
+      [](DexFile* dex_file ATTRIBUTE_UNUSED) { /* empty */ },
+      "Invalid class definition ordering: class with type idx: '1' defined before"
+      " implemented interface with type idx: '0'");
+}
+
+// Generated from:
+//
+//   .class public abstract interface LA;
+//   .super Ljava/lang/Object;
+//   .implements LB;
+//
+// and:
+//
+//   .class public abstract interface LB;
+//   .super Ljava/lang/Object;
+//   .implements LC;
+//
+// and:
+//
+//   .class public abstract interface LC;
+//   .super Ljava/lang/Object;
+//   .implements LA;
+
+static const char kCircularInterfaceImplementationTestDex[] =
+    "ZGV4CjAzNQBqK5JDNvKFhgQE2DfycoggFIPHXp5VfdOUAQAAcAAAAHhWNBIAAAAAAAAAADABAAAE"
+    "AAAAcAAAAAQAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwAAAJAAAACkAAAA8AAAAPAA"
+    "AAD1AAAA+gAAAP8AAAAAAAAAAQAAAAIAAAADAAAAAgAAAAEGAAADAAAAHAEAAP////8AAAAAAAAA"
+    "AAAAAAABAAAAAQYAAAMAAAAUAQAA/////wAAAAAAAAAAAAAAAAAAAAABBgAAAwAAACQBAAD/////"
+    "AAAAAAAAAAAAAAAAA0xBOwADTEI7AANMQzsAEkxqYXZhL2xhbmcvT2JqZWN0OwAAAQAAAAIAAAAB"
+    "AAAAAAAAAAEAAAABAAAAAAAAAAgAAAAAAAAAAQAAAAAAAAABAAAABAAAAHAAAAACAAAABAAAAIAA"
+    "AAAGAAAAAwAAAJAAAAACIAAABAAAAPAAAAABEAAAAwAAABQBAAADEAAAAQAAACwBAAAAEAAAAQAA"
+    "ADABAAA=";
+
+TEST_F(DexFileVerifierTest, CircularInterfaceImplementation) {
+  VerifyModification(
+      kCircularInterfaceImplementationTestDex,
+      "circular_interface_implementation",
+      [](DexFile* dex_file ATTRIBUTE_UNUSED) { /* empty */ },
+      "Invalid class definition ordering: class with type idx: '2' defined before"
+      " implemented interface with type idx: '0'");
+}
+
 }  // namespace art
