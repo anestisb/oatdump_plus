@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-import com.google.caliper.SimpleBenchmark;
-
-public class JniPerfBenchmark extends SimpleBenchmark {
+public class JniPerfBenchmark {
   private static final String MSG = "ABCDE";
 
   native void perfJniEmptyCall();
