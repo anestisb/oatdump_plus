@@ -38,7 +38,7 @@ class HMultiplyAccumulate FINAL : public HExpression<3> {
   static constexpr int kInputMulRightIndex = 2;
 
   bool CanBeMoved() const OVERRIDE { return true; }
-  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
     return op_kind_ == other->AsMultiplyAccumulate()->op_kind_;
   }
 

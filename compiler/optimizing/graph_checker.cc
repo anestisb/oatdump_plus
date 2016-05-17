@@ -335,9 +335,7 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
   }
 
   // Ensure the inputs of `instruction` are defined in a block of the graph.
-  for (HInputIterator input_it(instruction); !input_it.Done();
-       input_it.Advance()) {
-    HInstruction* input = input_it.Current();
+  for (HInstruction* input : instruction->GetInputs()) {
     const HInstructionList& list = input->IsPhi()
         ? input->GetBlock()->GetPhis()
         : input->GetBlock()->GetInstructions();
@@ -364,7 +362,8 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
                             instruction->GetId()));
     }
     size_t use_index = use.GetIndex();
-    if ((use_index >= user->InputCount()) || (user->InputAt(use_index) != instruction)) {
+    auto&& user_inputs = user->GetInputs();
+    if ((use_index >= user_inputs.size()) || (user_inputs[use_index] != instruction)) {
       AddError(StringPrintf("User %s:%d of instruction %s:%d has a wrong "
                             "UseListNode index.",
                             user->DebugName(),
@@ -387,8 +386,9 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
   }
 
   // Ensure 'instruction' has pointers to its inputs' use entries.
-  for (size_t i = 0, e = instruction->InputCount(); i < e; ++i) {
-    HUserRecord<HInstruction*> input_record = instruction->InputRecordAt(i);
+  auto&& input_records = instruction->GetInputRecords();
+  for (size_t i = 0; i < input_records.size(); ++i) {
+    const HUserRecord<HInstruction*>& input_record = input_records[i];
     HInstruction* input = input_record.GetInstruction();
     if ((input_record.GetBeforeUseNode() == input->GetUses().end()) ||
         (input_record.GetUseNode() == input->GetUses().end()) ||
@@ -490,8 +490,7 @@ void GraphChecker::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
   VisitInstruction(invoke);
 
   if (invoke->IsStaticWithExplicitClinitCheck()) {
-    size_t last_input_index = invoke->InputCount() - 1;
-    HInstruction* last_input = invoke->InputAt(last_input_index);
+    HInstruction* last_input = invoke->GetInputs().back();
     if (last_input == nullptr) {
       AddError(StringPrintf("Static invoke %s:%d marked as having an explicit clinit check "
                             "has a null pointer as last input.",
@@ -673,16 +672,21 @@ static bool IsSameSizeConstant(HInstruction* insn1, HInstruction* insn2) {
 
 static bool IsConstantEquivalent(HInstruction* insn1, HInstruction* insn2, BitVector* visited) {
   if (insn1->IsPhi() &&
-      insn1->AsPhi()->IsVRegEquivalentOf(insn2) &&
-      insn1->InputCount() == insn2->InputCount()) {
+      insn1->AsPhi()->IsVRegEquivalentOf(insn2)) {
+    auto&& insn1_inputs = insn1->GetInputs();
+    auto&& insn2_inputs = insn2->GetInputs();
+    if (insn1_inputs.size() != insn2_inputs.size()) {
+      return false;
+    }
+
     // Testing only one of the two inputs for recursion is sufficient.
     if (visited->IsBitSet(insn1->GetId())) {
       return true;
     }
     visited->SetBit(insn1->GetId());
 
-    for (size_t i = 0, e = insn1->InputCount(); i < e; ++i) {
-      if (!IsConstantEquivalent(insn1->InputAt(i), insn2->InputAt(i), visited)) {
+    for (size_t i = 0; i < insn1_inputs.size(); ++i) {
+      if (!IsConstantEquivalent(insn1_inputs[i], insn2_inputs[i], visited)) {
         return false;
       }
     }
@@ -698,15 +702,16 @@ void GraphChecker::VisitPhi(HPhi* phi) {
   VisitInstruction(phi);
 
   // Ensure the first input of a phi is not itself.
-  if (phi->InputAt(0) == phi) {
+  ArrayRef<HUserRecord<HInstruction*>> input_records = phi->GetInputRecords();
+  if (input_records[0].GetInstruction() == phi) {
     AddError(StringPrintf("Loop phi %d in block %d is its own first input.",
                           phi->GetId(),
                           phi->GetBlock()->GetBlockId()));
   }
 
   // Ensure that the inputs have the same primitive kind as the phi.
-  for (size_t i = 0, e = phi->InputCount(); i < e; ++i) {
-    HInstruction* input = phi->InputAt(i);
+  for (size_t i = 0; i < input_records.size(); ++i) {
+    HInstruction* input = input_records[i].GetInstruction();
     if (Primitive::PrimitiveKind(input->GetType()) != Primitive::PrimitiveKind(phi->GetType())) {
         AddError(StringPrintf(
             "Input %d at index %zu of phi %d from block %d does not have the "
@@ -729,8 +734,7 @@ void GraphChecker::VisitPhi(HPhi* phi) {
     // because we do not remove the corresponding inputs when we prove that an
     // instruction cannot throw. Instead, we at least test that all phis have the
     // same, non-zero number of inputs (b/24054676).
-    size_t input_count_this = phi->InputCount();
-    if (input_count_this == 0u) {
+    if (input_records.empty()) {
       AddError(StringPrintf("Phi %d in catch block %d has zero inputs.",
                             phi->GetId(),
                             phi->GetBlock()->GetBlockId()));
@@ -738,12 +742,12 @@ void GraphChecker::VisitPhi(HPhi* phi) {
       HInstruction* next_phi = phi->GetNext();
       if (next_phi != nullptr) {
         size_t input_count_next = next_phi->InputCount();
-        if (input_count_this != input_count_next) {
+        if (input_records.size() != input_count_next) {
           AddError(StringPrintf("Phi %d in catch block %d has %zu inputs, "
                                 "but phi %d has %zu inputs.",
                                 phi->GetId(),
                                 phi->GetBlock()->GetBlockId(),
-                                input_count_this,
+                                input_records.size(),
                                 next_phi->GetId(),
                                 input_count_next));
         }
@@ -753,17 +757,17 @@ void GraphChecker::VisitPhi(HPhi* phi) {
     // Ensure the number of inputs of a non-catch phi is the same as the number
     // of its predecessors.
     const ArenaVector<HBasicBlock*>& predecessors = phi->GetBlock()->GetPredecessors();
-    if (phi->InputCount() != predecessors.size()) {
+    if (input_records.size() != predecessors.size()) {
       AddError(StringPrintf(
           "Phi %d in block %d has %zu inputs, "
           "but block %d has %zu predecessors.",
-          phi->GetId(), phi->GetBlock()->GetBlockId(), phi->InputCount(),
+          phi->GetId(), phi->GetBlock()->GetBlockId(), input_records.size(),
           phi->GetBlock()->GetBlockId(), predecessors.size()));
     } else {
       // Ensure phi input at index I either comes from the Ith
       // predecessor or from a block that dominates this predecessor.
-      for (size_t i = 0, e = phi->InputCount(); i < e; ++i) {
-        HInstruction* input = phi->InputAt(i);
+      for (size_t i = 0; i < input_records.size(); ++i) {
+        HInstruction* input = input_records[i].GetInstruction();
         HBasicBlock* predecessor = predecessors[i];
         if (!(input->GetBlock() == predecessor
               || input->GetBlock()->Dominates(predecessor))) {
