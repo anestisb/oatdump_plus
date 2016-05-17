@@ -687,6 +687,9 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
     self->AssertNoPendingException();
   }
 
+  // Create conflict tables that depend on the class linker.
+  runtime->FixupConflictTables();
+
   FinishInit(self);
 
   VLOG(startup) << "ClassLinker::InitFromCompiler exiting";
@@ -773,9 +776,13 @@ static void SanityCheckArtMethod(ArtMethod* m,
     bool contains = false;
     for (gc::space::ImageSpace* space : spaces) {
       auto& header = space->GetImageHeader();
-      auto& methods = header.GetMethodsSection();
-      auto offset = reinterpret_cast<uint8_t*>(m) - space->Begin();
-      contains |= methods.Contains(offset);
+      size_t offset = reinterpret_cast<uint8_t*>(m) - space->Begin();
+
+      const ImageSection& methods = header.GetMethodsSection();
+      contains = contains || methods.Contains(offset);
+
+      const ImageSection& runtime_methods = header.GetRuntimeMethodsSection();
+      contains = contains || runtime_methods.Contains(offset);
     }
     CHECK(contains) << m << " not found";
   }
@@ -1437,29 +1444,14 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
   if (*out_forward_dex_cache_array) {
     ScopedTrace timing("Fixup ArtMethod dex cache arrays");
     FixupArtMethodArrayVisitor visitor(header);
-    header.GetImageSection(ImageHeader::kSectionArtMethods).VisitPackedArtMethods(
-        &visitor,
-        space->Begin(),
-        sizeof(void*));
+    header.VisitPackedArtMethods(&visitor, space->Begin(), sizeof(void*));
     Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader.Get());
   }
   if (kVerifyArtMethodDeclaringClasses) {
     ScopedTrace timing("Verify declaring classes");
     ReaderMutexLock rmu(self, *Locks::heap_bitmap_lock_);
     VerifyDeclaringClassVisitor visitor;
-    header.GetImageSection(ImageHeader::kSectionArtMethods).VisitPackedArtMethods(
-        &visitor,
-        space->Begin(),
-        sizeof(void*));
-  }
-  if (kVerifyArtMethodDeclaringClasses) {
-    ScopedTrace timing("Verify declaring classes");
-    ReaderMutexLock rmu(self, *Locks::heap_bitmap_lock_);
-    VerifyDeclaringClassVisitor visitor;
-    header.GetImageSection(ImageHeader::kSectionArtMethods).VisitPackedArtMethods(
-        &visitor,
-        space->Begin(),
-        sizeof(void*));
+    header.VisitPackedArtMethods(&visitor, space->Begin(), sizeof(void*));
   }
   return true;
 }
@@ -1737,9 +1729,8 @@ bool ClassLinker::AddImageSpace(
 
   // Set entry point to interpreter if in InterpretOnly mode.
   if (!runtime->IsAotCompiler() && runtime->GetInstrumentation()->InterpretOnly()) {
-    const ImageSection& methods = header.GetMethodsSection();
     SetInterpreterEntrypointArtMethodVisitor visitor(image_pointer_size_);
-    methods.VisitPackedArtMethods(&visitor, space->Begin(), image_pointer_size_);
+    header.VisitPackedArtMethods(&visitor, space->Begin(), image_pointer_size_);
   }
 
   ClassTable* class_table = nullptr;
@@ -1808,10 +1799,7 @@ bool ClassLinker::AddImageSpace(
     // This verification needs to happen after the classes have been added to the class loader.
     // Since it ensures classes are in the class table.
     VerifyClassInTableArtMethodVisitor visitor2(class_table);
-    header.GetImageSection(ImageHeader::kSectionArtMethods).VisitPackedArtMethods(
-        &visitor2,
-        space->Begin(),
-        sizeof(void*));
+    header.VisitPackedArtMethods(&visitor2, space->Begin(), sizeof(void*));
   }
   VLOG(class_linker) << "Adding image space took " << PrettyDuration(NanoTime() - start_time);
   return true;
@@ -5971,16 +5959,49 @@ ClassLinker::DefaultMethodSearchResult ClassLinker::FindDefaultMethodImplementat
   }
 }
 
-// Sets imt_ref appropriately for LinkInterfaceMethods.
-// If there is no method in the imt location of imt_ref it will store the given method there.
-// Otherwise it will set the conflict method which will figure out which method to use during
-// runtime.
-static void SetIMTRef(ArtMethod* unimplemented_method,
-                      ArtMethod* imt_conflict_method,
-                      size_t image_pointer_size,
-                      ArtMethod* current_method,
-                      /*out*/ArtMethod** imt_ref)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+ArtMethod* ClassLinker::AddMethodToConflictTable(mirror::Class* klass,
+                                                 ArtMethod* conflict_method,
+                                                 ArtMethod* interface_method,
+                                                 ArtMethod* method,
+                                                 bool force_new_conflict_method) {
+  ImtConflictTable* current_table = conflict_method->GetImtConflictTable(sizeof(void*));
+  Runtime* const runtime = Runtime::Current();
+  LinearAlloc* linear_alloc = GetAllocatorForClassLoader(klass->GetClassLoader());
+  bool new_entry = conflict_method == runtime->GetImtConflictMethod() || force_new_conflict_method;
+
+  // Create a new entry if the existing one is the shared conflict method.
+  ArtMethod* new_conflict_method = new_entry
+      ? runtime->CreateImtConflictMethod(linear_alloc)
+      : conflict_method;
+
+  // Allocate a new table. Note that we will leak this table at the next conflict,
+  // but that's a tradeoff compared to making the table fixed size.
+  void* data = linear_alloc->Alloc(
+      Thread::Current(), ImtConflictTable::ComputeSizeWithOneMoreEntry(current_table,
+                                                                       image_pointer_size_));
+  if (data == nullptr) {
+    LOG(ERROR) << "Failed to allocate conflict table";
+    return conflict_method;
+  }
+  ImtConflictTable* new_table = new (data) ImtConflictTable(current_table,
+                                                            interface_method,
+                                                            method,
+                                                            image_pointer_size_);
+
+  // Do a fence to ensure threads see the data in the table before it is assigned
+  // to the conflict method.
+  // Note that there is a race in the presence of multiple threads and we may leak
+  // memory from the LinearAlloc, but that's a tradeoff compared to using
+  // atomic operations.
+  QuasiAtomic::ThreadFenceRelease();
+  new_conflict_method->SetImtConflictTable(new_table, image_pointer_size_);
+  return new_conflict_method;
+}
+
+void ClassLinker::SetIMTRef(ArtMethod* unimplemented_method,
+                            ArtMethod* imt_conflict_method,
+                            ArtMethod* current_method,
+                            /*out*/ArtMethod** imt_ref) {
   // Place method in imt if entry is empty, place conflict otherwise.
   if (*imt_ref == unimplemented_method) {
     *imt_ref = current_method;
@@ -5990,9 +6011,9 @@ static void SetIMTRef(ArtMethod* unimplemented_method,
     // Note that we have checked IsRuntimeMethod, as there may be multiple different
     // conflict methods.
     MethodNameAndSignatureComparator imt_comparator(
-        (*imt_ref)->GetInterfaceMethodIfProxy(image_pointer_size));
+        (*imt_ref)->GetInterfaceMethodIfProxy(image_pointer_size_));
     if (imt_comparator.HasSameNameAndSignature(
-          current_method->GetInterfaceMethodIfProxy(image_pointer_size))) {
+          current_method->GetInterfaceMethodIfProxy(image_pointer_size_))) {
       *imt_ref = current_method;
     } else {
       *imt_ref = imt_conflict_method;
@@ -6002,6 +6023,151 @@ static void SetIMTRef(ArtMethod* unimplemented_method,
     // method in the IMT, but it could be one tailored to the super class, with a
     // specific ImtConflictTable.
     *imt_ref = imt_conflict_method;
+  }
+}
+
+void ClassLinker::FillIMTAndConflictTables(mirror::Class* klass) {
+  DCHECK(klass->ShouldHaveEmbeddedImtAndVTable()) << PrettyClass(klass);
+  DCHECK(!klass->IsTemp()) << PrettyClass(klass);
+  ArtMethod* imt[mirror::Class::kImtSize];
+  Runtime* const runtime = Runtime::Current();
+  ArtMethod* const unimplemented_method = runtime->GetImtUnimplementedMethod();
+  ArtMethod* const conflict_method = runtime->GetImtConflictMethod();
+  std::fill_n(imt, arraysize(imt), unimplemented_method);
+  if (klass->GetIfTable() != nullptr) {
+    FillIMTFromIfTable(klass->GetIfTable(),
+                       unimplemented_method,
+                       conflict_method,
+                       klass,
+                       true,
+                       false,
+                       &imt[0]);
+  }
+  for (size_t i = 0; i < mirror::Class::kImtSize; ++i) {
+    klass->SetEmbeddedImTableEntry(i, imt[i], image_pointer_size_);
+  }
+}
+
+static inline uint32_t GetIMTIndex(ArtMethod* interface_method)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  return interface_method->GetDexMethodIndex() % mirror::Class::kImtSize;
+}
+
+ImtConflictTable* ClassLinker::CreateImtConflictTable(size_t count,
+                                                      LinearAlloc* linear_alloc,
+                                                      size_t image_pointer_size) {
+  void* data = linear_alloc->Alloc(Thread::Current(),
+                                   ImtConflictTable::ComputeSize(count,
+                                                                 image_pointer_size));
+  return (data != nullptr) ? new (data) ImtConflictTable(count, image_pointer_size) : nullptr;
+}
+
+ImtConflictTable* ClassLinker::CreateImtConflictTable(size_t count, LinearAlloc* linear_alloc) {
+  return CreateImtConflictTable(count, linear_alloc, image_pointer_size_);
+}
+
+void ClassLinker::FillIMTFromIfTable(mirror::IfTable* if_table,
+                                     ArtMethod* unimplemented_method,
+                                     ArtMethod* imt_conflict_method,
+                                     mirror::Class* klass,
+                                     bool create_conflict_tables,
+                                     bool ignore_copied_methods,
+                                     ArtMethod** imt) {
+  uint32_t conflict_counts[mirror::Class::kImtSize] = {};
+  for (size_t i = 0, length = if_table->Count(); i < length; ++i) {
+    mirror::Class* interface = if_table->GetInterface(i);
+    const size_t num_virtuals = interface->NumVirtualMethods();
+    const size_t method_array_count = if_table->GetMethodArrayCount(i);
+    // Virtual methods can be larger than the if table methods if there are default methods.
+    DCHECK_GE(num_virtuals, method_array_count);
+    if (kIsDebugBuild) {
+      if (klass->IsInterface()) {
+        DCHECK_EQ(method_array_count, 0u);
+      } else {
+        DCHECK_EQ(interface->NumDeclaredVirtualMethods(), method_array_count);
+      }
+    }
+    if (method_array_count == 0) {
+      continue;
+    }
+    auto* method_array = if_table->GetMethodArray(i);
+    for (size_t j = 0; j < method_array_count; ++j) {
+      ArtMethod* implementation_method =
+          method_array->GetElementPtrSize<ArtMethod*>(j, image_pointer_size_);
+      if (ignore_copied_methods && implementation_method->IsCopied()) {
+        continue;
+      }
+      DCHECK(implementation_method != nullptr);
+      // Miranda methods cannot be used to implement an interface method, but they are safe to put
+      // in the IMT since their entrypoint is the interface trampoline. If we put any copied methods
+      // or interface methods in the IMT here they will not create extra conflicts since we compare
+      // names and signatures in SetIMTRef.
+      ArtMethod* interface_method = interface->GetVirtualMethod(j, image_pointer_size_);
+      const uint32_t imt_index = GetIMTIndex(interface_method);
+
+      // There is only any conflicts if all of the interface methods for an IMT slot don't have
+      // the same implementation method, keep track of this to avoid creating a conflict table in
+      // this case.
+
+      // Conflict table size for each IMT slot.
+      ++conflict_counts[imt_index];
+
+      SetIMTRef(unimplemented_method,
+                imt_conflict_method,
+                implementation_method,
+                /*out*/&imt[imt_index]);
+    }
+  }
+
+  if (create_conflict_tables) {
+    // Create the conflict tables.
+    LinearAlloc* linear_alloc = GetAllocatorForClassLoader(klass->GetClassLoader());
+    for (size_t i = 0; i < mirror::Class::kImtSize; ++i) {
+      size_t conflicts = conflict_counts[i];
+      if (imt[i] == imt_conflict_method) {
+        ImtConflictTable* new_table = CreateImtConflictTable(conflicts, linear_alloc);
+        if (new_table != nullptr) {
+          ArtMethod* new_conflict_method =
+              Runtime::Current()->CreateImtConflictMethod(linear_alloc);
+          new_conflict_method->SetImtConflictTable(new_table, image_pointer_size_);
+          imt[i] = new_conflict_method;
+        } else {
+          LOG(ERROR) << "Failed to allocate conflict table";
+          imt[i] = imt_conflict_method;
+        }
+      } else {
+        DCHECK_NE(imt[i], imt_conflict_method);
+      }
+    }
+
+    for (size_t i = 0, length = if_table->Count(); i < length; ++i) {
+      mirror::Class* interface = if_table->GetInterface(i);
+      const size_t method_array_count = if_table->GetMethodArrayCount(i);
+      // Virtual methods can be larger than the if table methods if there are default methods.
+      if (method_array_count == 0) {
+        continue;
+      }
+      auto* method_array = if_table->GetMethodArray(i);
+      for (size_t j = 0; j < method_array_count; ++j) {
+        ArtMethod* implementation_method =
+            method_array->GetElementPtrSize<ArtMethod*>(j, image_pointer_size_);
+        if (ignore_copied_methods && implementation_method->IsCopied()) {
+          continue;
+        }
+        DCHECK(implementation_method != nullptr);
+        ArtMethod* interface_method = interface->GetVirtualMethod(j, image_pointer_size_);
+        const uint32_t imt_index = GetIMTIndex(interface_method);
+        if (!imt[imt_index]->IsRuntimeMethod() ||
+            imt[imt_index] == unimplemented_method ||
+            imt[imt_index] == imt_conflict_method) {
+          continue;
+        }
+        ImtConflictTable* table = imt[imt_index]->GetImtConflictTable(image_pointer_size_);
+        const size_t num_entries = table->NumEntries(image_pointer_size_);
+        table->SetInterfaceMethod(num_entries, image_pointer_size_, interface_method);
+        table->SetImplementationMethod(num_entries, image_pointer_size_, implementation_method);
+      }
+    }
   }
 }
 
@@ -6240,48 +6406,28 @@ static void SanityCheckVTable(Handle<mirror::Class> klass, uint32_t pointer_size
   }
 }
 
-static void FillImtFromSuperClass(Handle<mirror::Class> klass,
-                                  Handle<mirror::IfTable> iftable,
-                                  ArtMethod* unimplemented_method,
-                                  ArtMethod* imt_conflict_method,
-                                  ArtMethod** out_imt,
-                                  size_t pointer_size) SHARED_REQUIRES(Locks::mutator_lock_) {
+void ClassLinker::FillImtFromSuperClass(Handle<mirror::Class> klass,
+                                        ArtMethod* unimplemented_method,
+                                        ArtMethod* imt_conflict_method,
+                                        ArtMethod** imt) {
   DCHECK(klass->HasSuperClass());
   mirror::Class* super_class = klass->GetSuperClass();
   if (super_class->ShouldHaveEmbeddedImtAndVTable()) {
     for (size_t i = 0; i < mirror::Class::kImtSize; ++i) {
-      out_imt[i] = super_class->GetEmbeddedImTableEntry(i, pointer_size);
+      imt[i] = super_class->GetEmbeddedImTableEntry(i, image_pointer_size_);
     }
   } else {
     // No imt in the super class, need to reconstruct from the iftable.
     mirror::IfTable* if_table = super_class->GetIfTable();
-    const size_t length = super_class->GetIfTableCount();
-    for (size_t i = 0; i < length; ++i) {
-      mirror::Class* interface = iftable->GetInterface(i);
-      const size_t num_virtuals = interface->NumDeclaredVirtualMethods();
-      const size_t method_array_count = if_table->GetMethodArrayCount(i);
-      DCHECK_EQ(num_virtuals, method_array_count);
-      if (method_array_count == 0) {
-        continue;
-      }
-      auto* method_array = if_table->GetMethodArray(i);
-      for (size_t j = 0; j < num_virtuals; ++j) {
-        auto method = method_array->GetElementPtrSize<ArtMethod*>(j, pointer_size);
-        DCHECK(method != nullptr) << PrettyClass(super_class);
-        // Miranda methods cannot be used to implement an interface method and defaults should be
-        // skipped in case we override it.
-        if (method->IsDefault() || method->IsMiranda()) {
-          continue;
-        }
-        ArtMethod* interface_method = interface->GetVirtualMethod(j, pointer_size);
-        uint32_t imt_index = interface_method->GetDexMethodIndex() % mirror::Class::kImtSize;
-        auto** imt_ref = &out_imt[imt_index];
-        if (*imt_ref == unimplemented_method) {
-          *imt_ref = method;
-        } else if (*imt_ref != imt_conflict_method) {
-          *imt_ref = imt_conflict_method;
-        }
-      }
+    if (if_table != nullptr) {
+      // Ignore copied methods since we will handle these in LinkInterfaceMethods.
+      FillIMTFromIfTable(if_table,
+                         unimplemented_method,
+                         imt_conflict_method,
+                         klass.Get(),
+                         /*create_conflict_table*/false,
+                         /*ignore_copied_methods*/true,
+                         /*out*/imt);
     }
   }
 }
@@ -6324,13 +6470,10 @@ bool ClassLinker::LinkInterfaceMethods(
   const bool extend_super_iftable = has_superclass;
   if (has_superclass && fill_tables) {
     FillImtFromSuperClass(klass,
-                          iftable,
                           unimplemented_method,
                           imt_conflict_method,
-                          out_imt,
-                          image_pointer_size_);
+                          out_imt);
   }
-
   // Allocate method arrays before since we don't want miss visiting miranda method roots due to
   // thread suspension.
   if (fill_tables) {
@@ -6414,7 +6557,7 @@ bool ClassLinker::LinkInterfaceMethods(
         auto* interface_method = iftable->GetInterface(i)->GetVirtualMethod(j, image_pointer_size_);
         MethodNameAndSignatureComparator interface_name_comparator(
             interface_method->GetInterfaceMethodIfProxy(image_pointer_size_));
-        uint32_t imt_index = interface_method->GetDexMethodIndex() % mirror::Class::kImtSize;
+        uint32_t imt_index = GetIMTIndex(interface_method);
         ArtMethod** imt_ptr = &out_imt[imt_index];
         // For each method listed in the interface's method list, find the
         // matching method in our class's method list.  We want to favor the
@@ -6459,7 +6602,6 @@ bool ClassLinker::LinkInterfaceMethods(
                 // Place method in imt if entry is empty, place conflict otherwise.
                 SetIMTRef(unimplemented_method,
                           imt_conflict_method,
-                          image_pointer_size_,
                           vtable_method,
                           /*out*/imt_ptr);
               }
@@ -6602,7 +6744,6 @@ bool ClassLinker::LinkInterfaceMethods(
             method_array->SetElementPtrSize(j, current_method, image_pointer_size_);
             SetIMTRef(unimplemented_method,
                       imt_conflict_method,
-                      image_pointer_size_,
                       current_method,
                       /*out*/imt_ptr);
           }
