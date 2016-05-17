@@ -1568,7 +1568,7 @@ static void GenerateStringIndexOf(HInvoke* invoke,
   SlowPathCodeMIPS64* slow_path = nullptr;
   HInstruction* code_point = invoke->InputAt(1);
   if (code_point->IsIntConstant()) {
-    if (!IsUint<16>(invoke->InputAt(1)->AsIntConstant()->GetValue())) {
+    if (!IsUint<16>(code_point->AsIntConstant()->GetValue())) {
       // Always needs the slow-path. We could directly dispatch to it,
       // but this case should be rare, so for simplicity just put the
       // full slow-path down and branch unconditionally.
