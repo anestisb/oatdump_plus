@@ -2290,7 +2290,7 @@ class HExpression : public HTemplateInstruction<N> {
 
 // Represents dex's RETURN_VOID opcode. A HReturnVoid is a control flow
 // instruction that branches to the exit block.
-class HReturnVoid : public HTemplateInstruction<0> {
+class HReturnVoid FINAL : public HTemplateInstruction<0> {
  public:
   explicit HReturnVoid(uint32_t dex_pc = kNoDexPc)
       : HTemplateInstruction(SideEffects::None(), dex_pc) {}
@@ -2305,7 +2305,7 @@ class HReturnVoid : public HTemplateInstruction<0> {
 
 // Represents dex's RETURN opcodes. A HReturn is a control flow
 // instruction that branches to the exit block.
-class HReturn : public HTemplateInstruction<1> {
+class HReturn FINAL : public HTemplateInstruction<1> {
  public:
   explicit HReturn(HInstruction* value, uint32_t dex_pc = kNoDexPc)
       : HTemplateInstruction(SideEffects::None(), dex_pc) {
@@ -2320,7 +2320,7 @@ class HReturn : public HTemplateInstruction<1> {
   DISALLOW_COPY_AND_ASSIGN(HReturn);
 };
 
-class HPhi : public HInstruction {
+class HPhi FINAL : public HInstruction {
  public:
   HPhi(ArenaAllocator* arena,
        uint32_t reg_number,
@@ -2424,7 +2424,7 @@ class HPhi : public HInstruction {
 // The exit instruction is the only instruction of the exit block.
 // Instructions aborting the method (HThrow and HReturn) must branch to the
 // exit block.
-class HExit : public HTemplateInstruction<0> {
+class HExit FINAL : public HTemplateInstruction<0> {
  public:
   explicit HExit(uint32_t dex_pc = kNoDexPc) : HTemplateInstruction(SideEffects::None(), dex_pc) {}
 
@@ -2437,7 +2437,7 @@ class HExit : public HTemplateInstruction<0> {
 };
 
 // Jumps from one block to another.
-class HGoto : public HTemplateInstruction<0> {
+class HGoto FINAL : public HTemplateInstruction<0> {
  public:
   explicit HGoto(uint32_t dex_pc = kNoDexPc) : HTemplateInstruction(SideEffects::None(), dex_pc) {}
 
@@ -2477,7 +2477,7 @@ class HConstant : public HExpression<0> {
   DISALLOW_COPY_AND_ASSIGN(HConstant);
 };
 
-class HNullConstant : public HConstant {
+class HNullConstant FINAL : public HConstant {
  public:
   bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
     return true;
@@ -2501,7 +2501,7 @@ class HNullConstant : public HConstant {
 
 // Constants of the type int. Those can be from Dex instructions, or
 // synthesized (for example with the if-eqz instruction).
-class HIntConstant : public HConstant {
+class HIntConstant FINAL : public HConstant {
  public:
   int32_t GetValue() const { return value_; }
 
@@ -2542,7 +2542,7 @@ class HIntConstant : public HConstant {
   DISALLOW_COPY_AND_ASSIGN(HIntConstant);
 };
 
-class HLongConstant : public HConstant {
+class HLongConstant FINAL : public HConstant {
  public:
   int64_t GetValue() const { return value_; }
 
@@ -2572,7 +2572,7 @@ class HLongConstant : public HConstant {
   DISALLOW_COPY_AND_ASSIGN(HLongConstant);
 };
 
-class HFloatConstant : public HConstant {
+class HFloatConstant FINAL : public HConstant {
  public:
   float GetValue() const { return value_; }
 
@@ -2625,7 +2625,7 @@ class HFloatConstant : public HConstant {
   DISALLOW_COPY_AND_ASSIGN(HFloatConstant);
 };
 
-class HDoubleConstant : public HConstant {
+class HDoubleConstant FINAL : public HConstant {
  public:
   double GetValue() const { return value_; }
 
@@ -2678,7 +2678,7 @@ class HDoubleConstant : public HConstant {
 
 // Conditional branch. A block ending with an HIf instruction must have
 // two successors.
-class HIf : public HTemplateInstruction<1> {
+class HIf FINAL : public HTemplateInstruction<1> {
  public:
   explicit HIf(HInstruction* input, uint32_t dex_pc = kNoDexPc)
       : HTemplateInstruction(SideEffects::None(), dex_pc) {
@@ -2707,7 +2707,7 @@ class HIf : public HTemplateInstruction<1> {
 // non-exceptional control flow.
 // Normal-flow successor is stored at index zero, exception handlers under
 // higher indices in no particular order.
-class HTryBoundary : public HTemplateInstruction<0> {
+class HTryBoundary FINAL : public HTemplateInstruction<0> {
  public:
   enum class BoundaryKind {
     kEntry,
@@ -2765,7 +2765,7 @@ class HTryBoundary : public HTemplateInstruction<0> {
 };
 
 // Deoptimize to interpreter, upon checking a condition.
-class HDeoptimize : public HTemplateInstruction<1> {
+class HDeoptimize FINAL : public HTemplateInstruction<1> {
  public:
   // We set CanTriggerGC to prevent any intermediate address to be live
   // at the point of the `HDeoptimize`.
@@ -2790,7 +2790,7 @@ class HDeoptimize : public HTemplateInstruction<1> {
 // Represents the ArtMethod that was passed as a first argument to
 // the method. It is used by instructions that depend on it, like
 // instructions that work with the dex cache.
-class HCurrentMethod : public HExpression<0> {
+class HCurrentMethod FINAL : public HExpression<0> {
  public:
   explicit HCurrentMethod(Primitive::Type type, uint32_t dex_pc = kNoDexPc)
       : HExpression(type, SideEffects::None(), dex_pc) {}
@@ -2803,7 +2803,7 @@ class HCurrentMethod : public HExpression<0> {
 
 // Fetches an ArtMethod from the virtual table or the interface method table
 // of a class.
-class HClassTableGet : public HExpression<1> {
+class HClassTableGet FINAL : public HExpression<1> {
  public:
   enum class TableKind {
     kVTable,
@@ -2850,7 +2850,7 @@ class HClassTableGet : public HExpression<1> {
 // PackedSwitch (jump table). A block ending with a PackedSwitch instruction will
 // have one successor for each entry in the switch table, and the final successor
 // will be the block containing the next Dex opcode.
-class HPackedSwitch : public HTemplateInstruction<1> {
+class HPackedSwitch FINAL : public HTemplateInstruction<1> {
  public:
   HPackedSwitch(int32_t start_value,
                 uint32_t num_entries,
@@ -3095,7 +3095,7 @@ class HCondition : public HBinaryOperation {
 };
 
 // Instruction to check if two inputs are equal to each other.
-class HEqual : public HCondition {
+class HEqual FINAL : public HCondition {
  public:
   HEqual(HInstruction* first, HInstruction* second, uint32_t dex_pc = kNoDexPc)
       : HCondition(first, second, dex_pc) {}
@@ -3139,7 +3139,7 @@ class HEqual : public HCondition {
   DISALLOW_COPY_AND_ASSIGN(HEqual);
 };
 
-class HNotEqual : public HCondition {
+class HNotEqual FINAL : public HCondition {
  public:
   HNotEqual(HInstruction* first, HInstruction* second, uint32_t dex_pc = kNoDexPc)
       : HCondition(first, second, dex_pc) {}
@@ -3182,7 +3182,7 @@ class HNotEqual : public HCondition {
   DISALLOW_COPY_AND_ASSIGN(HNotEqual);
 };
 
-class HLessThan : public HCondition {
+class HLessThan FINAL : public HCondition {
  public:
   HLessThan(HInstruction* first, HInstruction* second, uint32_t dex_pc = kNoDexPc)
       : HCondition(first, second, dex_pc) {}
@@ -3219,7 +3219,7 @@ class HLessThan : public HCondition {
   DISALLOW_COPY_AND_ASSIGN(HLessThan);
 };
 
-class HLessThanOrEqual : public HCondition {
+class HLessThanOrEqual FINAL : public HCondition {
  public:
   HLessThanOrEqual(HInstruction* first, HInstruction* second, uint32_t dex_pc = kNoDexPc)
       : HCondition(first, second, dex_pc) {}
@@ -3256,7 +3256,7 @@ class HLessThanOrEqual : public HCondition {
   DISALLOW_COPY_AND_ASSIGN(HLessThanOrEqual);
 };
 
-class HGreaterThan : public HCondition {
+class HGreaterThan FINAL : public HCondition {
  public:
   HGreaterThan(HInstruction* first, HInstruction* second, uint32_t dex_pc = kNoDexPc)
       : HCondition(first, second, dex_pc) {}
@@ -3293,7 +3293,7 @@ class HGreaterThan : public HCondition {
   DISALLOW_COPY_AND_ASSIGN(HGreaterThan);
 };
 
-class HGreaterThanOrEqual : public HCondition {
+class HGreaterThanOrEqual FINAL : public HCondition {
  public:
   HGreaterThanOrEqual(HInstruction* first, HInstruction* second, uint32_t dex_pc = kNoDexPc)
       : HCondition(first, second, dex_pc) {}
@@ -3330,7 +3330,7 @@ class HGreaterThanOrEqual : public HCondition {
   DISALLOW_COPY_AND_ASSIGN(HGreaterThanOrEqual);
 };
 
-class HBelow : public HCondition {
+class HBelow FINAL : public HCondition {
  public:
   HBelow(HInstruction* first, HInstruction* second, uint32_t dex_pc = kNoDexPc)
       : HCondition(first, second, dex_pc) {}
@@ -3370,7 +3370,7 @@ class HBelow : public HCondition {
   DISALLOW_COPY_AND_ASSIGN(HBelow);
 };
 
-class HBelowOrEqual : public HCondition {
+class HBelowOrEqual FINAL : public HCondition {
  public:
   HBelowOrEqual(HInstruction* first, HInstruction* second, uint32_t dex_pc = kNoDexPc)
       : HCondition(first, second, dex_pc) {}
@@ -3410,7 +3410,7 @@ class HBelowOrEqual : public HCondition {
   DISALLOW_COPY_AND_ASSIGN(HBelowOrEqual);
 };
 
-class HAbove : public HCondition {
+class HAbove FINAL : public HCondition {
  public:
   HAbove(HInstruction* first, HInstruction* second, uint32_t dex_pc = kNoDexPc)
       : HCondition(first, second, dex_pc) {}
@@ -3450,7 +3450,7 @@ class HAbove : public HCondition {
   DISALLOW_COPY_AND_ASSIGN(HAbove);
 };
 
-class HAboveOrEqual : public HCondition {
+class HAboveOrEqual FINAL : public HCondition {
  public:
   HAboveOrEqual(HInstruction* first, HInstruction* second, uint32_t dex_pc = kNoDexPc)
       : HCondition(first, second, dex_pc) {}
@@ -3492,7 +3492,7 @@ class HAboveOrEqual : public HCondition {
 
 // Instruction to check how two inputs compare to each other.
 // Result is 0 if input0 == input1, 1 if input0 > input1, or -1 if input0 < input1.
-class HCompare : public HBinaryOperation {
+class HCompare FINAL : public HBinaryOperation {
  public:
   // Note that `comparison_type` is the type of comparison performed
   // between the comparison's inputs, not the type of the instantiated
@@ -3581,7 +3581,7 @@ class HCompare : public HBinaryOperation {
   DISALLOW_COPY_AND_ASSIGN(HCompare);
 };
 
-class HNewInstance : public HExpression<2> {
+class HNewInstance FINAL : public HExpression<2> {
  public:
   HNewInstance(HInstruction* cls,
                HCurrentMethod* current_method,
@@ -3784,7 +3784,7 @@ class HInvoke : public HInstruction {
   DISALLOW_COPY_AND_ASSIGN(HInvoke);
 };
 
-class HInvokeUnresolved : public HInvoke {
+class HInvokeUnresolved FINAL : public HInvoke {
  public:
   HInvokeUnresolved(ArenaAllocator* arena,
                     uint32_t number_of_arguments,
@@ -3807,7 +3807,7 @@ class HInvokeUnresolved : public HInvoke {
   DISALLOW_COPY_AND_ASSIGN(HInvokeUnresolved);
 };
 
-class HInvokeStaticOrDirect : public HInvoke {
+class HInvokeStaticOrDirect FINAL : public HInvoke {
  public:
   // Requirements of this method call regarding the class
   // initialization (clinit) check of its declaring class.
@@ -4096,7 +4096,7 @@ class HInvokeStaticOrDirect : public HInvoke {
 std::ostream& operator<<(std::ostream& os, HInvokeStaticOrDirect::MethodLoadKind rhs);
 std::ostream& operator<<(std::ostream& os, HInvokeStaticOrDirect::ClinitCheckRequirement rhs);
 
-class HInvokeVirtual : public HInvoke {
+class HInvokeVirtual FINAL : public HInvoke {
  public:
   HInvokeVirtual(ArenaAllocator* arena,
                  uint32_t number_of_arguments,
@@ -4122,7 +4122,7 @@ class HInvokeVirtual : public HInvoke {
   DISALLOW_COPY_AND_ASSIGN(HInvokeVirtual);
 };
 
-class HInvokeInterface : public HInvoke {
+class HInvokeInterface FINAL : public HInvoke {
  public:
   HInvokeInterface(ArenaAllocator* arena,
                    uint32_t number_of_arguments,
@@ -4149,7 +4149,7 @@ class HInvokeInterface : public HInvoke {
   DISALLOW_COPY_AND_ASSIGN(HInvokeInterface);
 };
 
-class HNeg : public HUnaryOperation {
+class HNeg FINAL : public HUnaryOperation {
  public:
   HNeg(Primitive::Type result_type, HInstruction* input, uint32_t dex_pc = kNoDexPc)
       : HUnaryOperation(result_type, input, dex_pc) {
@@ -4177,7 +4177,7 @@ class HNeg : public HUnaryOperation {
   DISALLOW_COPY_AND_ASSIGN(HNeg);
 };
 
-class HNewArray : public HExpression<2> {
+class HNewArray FINAL : public HExpression<2> {
  public:
   HNewArray(HInstruction* length,
             HCurrentMethod* current_method,
@@ -4216,7 +4216,7 @@ class HNewArray : public HExpression<2> {
   DISALLOW_COPY_AND_ASSIGN(HNewArray);
 };
 
-class HAdd : public HBinaryOperation {
+class HAdd FINAL : public HBinaryOperation {
  public:
   HAdd(Primitive::Type result_type,
        HInstruction* left,
@@ -4251,7 +4251,7 @@ class HAdd : public HBinaryOperation {
   DISALLOW_COPY_AND_ASSIGN(HAdd);
 };
 
-class HSub : public HBinaryOperation {
+class HSub FINAL : public HBinaryOperation {
  public:
   HSub(Primitive::Type result_type,
        HInstruction* left,
@@ -4284,7 +4284,7 @@ class HSub : public HBinaryOperation {
   DISALLOW_COPY_AND_ASSIGN(HSub);
 };
 
-class HMul : public HBinaryOperation {
+class HMul FINAL : public HBinaryOperation {
  public:
   HMul(Primitive::Type result_type,
        HInstruction* left,
@@ -4319,7 +4319,7 @@ class HMul : public HBinaryOperation {
   DISALLOW_COPY_AND_ASSIGN(HMul);
 };
 
-class HDiv : public HBinaryOperation {
+class HDiv FINAL : public HBinaryOperation {
  public:
   HDiv(Primitive::Type result_type,
        HInstruction* left,
@@ -4371,7 +4371,7 @@ class HDiv : public HBinaryOperation {
   DISALLOW_COPY_AND_ASSIGN(HDiv);
 };
 
-class HRem : public HBinaryOperation {
+class HRem FINAL : public HBinaryOperation {
  public:
   HRem(Primitive::Type result_type,
        HInstruction* left,
@@ -4422,7 +4422,7 @@ class HRem : public HBinaryOperation {
   DISALLOW_COPY_AND_ASSIGN(HRem);
 };
 
-class HDivZeroCheck : public HExpression<1> {
+class HDivZeroCheck FINAL : public HExpression<1> {
  public:
   // `HDivZeroCheck` can trigger GC, as it may call the `ArithmeticException`
   // constructor.
@@ -4448,7 +4448,7 @@ class HDivZeroCheck : public HExpression<1> {
   DISALLOW_COPY_AND_ASSIGN(HDivZeroCheck);
 };
 
-class HShl : public HBinaryOperation {
+class HShl FINAL : public HBinaryOperation {
  public:
   HShl(Primitive::Type result_type,
        HInstruction* value,
@@ -4494,7 +4494,7 @@ class HShl : public HBinaryOperation {
   DISALLOW_COPY_AND_ASSIGN(HShl);
 };
 
-class HShr : public HBinaryOperation {
+class HShr FINAL : public HBinaryOperation {
  public:
   HShr(Primitive::Type result_type,
        HInstruction* value,
@@ -4540,7 +4540,7 @@ class HShr : public HBinaryOperation {
   DISALLOW_COPY_AND_ASSIGN(HShr);
 };
 
-class HUShr : public HBinaryOperation {
+class HUShr FINAL : public HBinaryOperation {
  public:
   HUShr(Primitive::Type result_type,
         HInstruction* value,
@@ -4588,7 +4588,7 @@ class HUShr : public HBinaryOperation {
   DISALLOW_COPY_AND_ASSIGN(HUShr);
 };
 
-class HAnd : public HBinaryOperation {
+class HAnd FINAL : public HBinaryOperation {
  public:
   HAnd(Primitive::Type result_type,
        HInstruction* left,
@@ -4625,7 +4625,7 @@ class HAnd : public HBinaryOperation {
   DISALLOW_COPY_AND_ASSIGN(HAnd);
 };
 
-class HOr : public HBinaryOperation {
+class HOr FINAL : public HBinaryOperation {
  public:
   HOr(Primitive::Type result_type,
       HInstruction* left,
@@ -4662,7 +4662,7 @@ class HOr : public HBinaryOperation {
   DISALLOW_COPY_AND_ASSIGN(HOr);
 };
 
-class HXor : public HBinaryOperation {
+class HXor FINAL : public HBinaryOperation {
  public:
   HXor(Primitive::Type result_type,
        HInstruction* left,
@@ -4699,7 +4699,7 @@ class HXor : public HBinaryOperation {
   DISALLOW_COPY_AND_ASSIGN(HXor);
 };
 
-class HRor : public HBinaryOperation {
+class HRor FINAL : public HBinaryOperation {
  public:
   HRor(Primitive::Type result_type, HInstruction* value, HInstruction* distance)
     : HBinaryOperation(result_type, value, distance) {
@@ -4752,7 +4752,7 @@ class HRor : public HBinaryOperation {
 
 // The value of a parameter in this method. Its location depends on
 // the calling convention.
-class HParameterValue : public HExpression<0> {
+class HParameterValue FINAL : public HExpression<0> {
  public:
   HParameterValue(const DexFile& dex_file,
                   uint16_t type_index,
@@ -4794,7 +4794,7 @@ class HParameterValue : public HExpression<0> {
   DISALLOW_COPY_AND_ASSIGN(HParameterValue);
 };
 
-class HNot : public HUnaryOperation {
+class HNot FINAL : public HUnaryOperation {
  public:
   HNot(Primitive::Type result_type, HInstruction* input, uint32_t dex_pc = kNoDexPc)
       : HUnaryOperation(result_type, input, dex_pc) {}
@@ -4827,7 +4827,7 @@ class HNot : public HUnaryOperation {
   DISALLOW_COPY_AND_ASSIGN(HNot);
 };
 
-class HBooleanNot : public HUnaryOperation {
+class HBooleanNot FINAL : public HUnaryOperation {
  public:
   explicit HBooleanNot(HInstruction* input, uint32_t dex_pc = kNoDexPc)
       : HUnaryOperation(Primitive::Type::kPrimBoolean, input, dex_pc) {}
@@ -4864,7 +4864,7 @@ class HBooleanNot : public HUnaryOperation {
   DISALLOW_COPY_AND_ASSIGN(HBooleanNot);
 };
 
-class HTypeConversion : public HExpression<1> {
+class HTypeConversion FINAL : public HExpression<1> {
  public:
   // Instantiate a type conversion of `input` to `result_type`.
   HTypeConversion(Primitive::Type result_type, HInstruction* input, uint32_t dex_pc)
@@ -4907,7 +4907,7 @@ class HTypeConversion : public HExpression<1> {
 
 static constexpr uint32_t kNoRegNumber = -1;
 
-class HNullCheck : public HExpression<1> {
+class HNullCheck FINAL : public HExpression<1> {
  public:
   // `HNullCheck` can trigger GC, as it may call the `NullPointerException`
   // constructor.
@@ -4969,7 +4969,7 @@ class FieldInfo : public ValueObject {
   const Handle<mirror::DexCache> dex_cache_;
 };
 
-class HInstanceFieldGet : public HExpression<1> {
+class HInstanceFieldGet FINAL : public HExpression<1> {
  public:
   HInstanceFieldGet(HInstruction* value,
                     Primitive::Type field_type,
@@ -5021,7 +5021,7 @@ class HInstanceFieldGet : public HExpression<1> {
   DISALLOW_COPY_AND_ASSIGN(HInstanceFieldGet);
 };
 
-class HInstanceFieldSet : public HTemplateInstruction<2> {
+class HInstanceFieldSet FINAL : public HTemplateInstruction<2> {
  public:
   HInstanceFieldSet(HInstruction* object,
                     HInstruction* value,
@@ -5072,7 +5072,7 @@ class HInstanceFieldSet : public HTemplateInstruction<2> {
   DISALLOW_COPY_AND_ASSIGN(HInstanceFieldSet);
 };
 
-class HArrayGet : public HExpression<2> {
+class HArrayGet FINAL : public HExpression<2> {
  public:
   HArrayGet(HInstruction* array, HInstruction* index, Primitive::Type type, uint32_t dex_pc)
       : HExpression(type, SideEffects::ArrayReadOfType(type), dex_pc) {
@@ -5118,7 +5118,7 @@ class HArrayGet : public HExpression<2> {
   DISALLOW_COPY_AND_ASSIGN(HArrayGet);
 };
 
-class HArraySet : public HTemplateInstruction<3> {
+class HArraySet FINAL : public HTemplateInstruction<3> {
  public:
   HArraySet(HInstruction* array,
             HInstruction* index,
@@ -5218,7 +5218,7 @@ class HArraySet : public HTemplateInstruction<3> {
   DISALLOW_COPY_AND_ASSIGN(HArraySet);
 };
 
-class HArrayLength : public HExpression<1> {
+class HArrayLength FINAL : public HExpression<1> {
  public:
   HArrayLength(HInstruction* array, uint32_t dex_pc)
       : HExpression(Primitive::kPrimInt, SideEffects::None(), dex_pc) {
@@ -5254,7 +5254,7 @@ class HArrayLength : public HExpression<1> {
   DISALLOW_COPY_AND_ASSIGN(HArrayLength);
 };
 
-class HBoundsCheck : public HExpression<2> {
+class HBoundsCheck FINAL : public HExpression<2> {
  public:
   // `HBoundsCheck` can trigger GC, as it may call the `IndexOutOfBoundsException`
   // constructor.
@@ -5282,7 +5282,7 @@ class HBoundsCheck : public HExpression<2> {
   DISALLOW_COPY_AND_ASSIGN(HBoundsCheck);
 };
 
-class HSuspendCheck : public HTemplateInstruction<0> {
+class HSuspendCheck FINAL : public HTemplateInstruction<0> {
  public:
   explicit HSuspendCheck(uint32_t dex_pc = kNoDexPc)
       : HTemplateInstruction(SideEffects::CanTriggerGC(), dex_pc), slow_path_(nullptr) {}
@@ -5324,7 +5324,7 @@ class HNativeDebugInfo : public HTemplateInstruction<0> {
 /**
  * Instruction to load a Class object.
  */
-class HLoadClass : public HExpression<1> {
+class HLoadClass FINAL : public HExpression<1> {
  public:
   HLoadClass(HCurrentMethod* current_method,
              uint16_t type_index,
@@ -5428,7 +5428,7 @@ class HLoadClass : public HExpression<1> {
   DISALLOW_COPY_AND_ASSIGN(HLoadClass);
 };
 
-class HLoadString : public HExpression<1> {
+class HLoadString FINAL : public HExpression<1> {
  public:
   // Determines how to load the String.
   enum class LoadKind {
@@ -5630,7 +5630,7 @@ inline void HLoadString::AddSpecialInput(HInstruction* special_input) {
 /**
  * Performs an initialization check on its Class object input.
  */
-class HClinitCheck : public HExpression<1> {
+class HClinitCheck FINAL : public HExpression<1> {
  public:
   HClinitCheck(HLoadClass* constant, uint32_t dex_pc)
       : HExpression(
@@ -5660,7 +5660,7 @@ class HClinitCheck : public HExpression<1> {
   DISALLOW_COPY_AND_ASSIGN(HClinitCheck);
 };
 
-class HStaticFieldGet : public HExpression<1> {
+class HStaticFieldGet FINAL : public HExpression<1> {
  public:
   HStaticFieldGet(HInstruction* cls,
                   Primitive::Type field_type,
@@ -5709,7 +5709,7 @@ class HStaticFieldGet : public HExpression<1> {
   DISALLOW_COPY_AND_ASSIGN(HStaticFieldGet);
 };
 
-class HStaticFieldSet : public HTemplateInstruction<2> {
+class HStaticFieldSet FINAL : public HTemplateInstruction<2> {
  public:
   HStaticFieldSet(HInstruction* cls,
                   HInstruction* value,
@@ -5757,7 +5757,7 @@ class HStaticFieldSet : public HTemplateInstruction<2> {
   DISALLOW_COPY_AND_ASSIGN(HStaticFieldSet);
 };
 
-class HUnresolvedInstanceFieldGet : public HExpression<1> {
+class HUnresolvedInstanceFieldGet FINAL : public HExpression<1> {
  public:
   HUnresolvedInstanceFieldGet(HInstruction* obj,
                               Primitive::Type field_type,
@@ -5782,7 +5782,7 @@ class HUnresolvedInstanceFieldGet : public HExpression<1> {
   DISALLOW_COPY_AND_ASSIGN(HUnresolvedInstanceFieldGet);
 };
 
-class HUnresolvedInstanceFieldSet : public HTemplateInstruction<2> {
+class HUnresolvedInstanceFieldSet FINAL : public HTemplateInstruction<2> {
  public:
   HUnresolvedInstanceFieldSet(HInstruction* obj,
                               HInstruction* value,
@@ -5820,7 +5820,7 @@ class HUnresolvedInstanceFieldSet : public HTemplateInstruction<2> {
   DISALLOW_COPY_AND_ASSIGN(HUnresolvedInstanceFieldSet);
 };
 
-class HUnresolvedStaticFieldGet : public HExpression<0> {
+class HUnresolvedStaticFieldGet FINAL : public HExpression<0> {
  public:
   HUnresolvedStaticFieldGet(Primitive::Type field_type,
                             uint32_t field_index,
@@ -5843,7 +5843,7 @@ class HUnresolvedStaticFieldGet : public HExpression<0> {
   DISALLOW_COPY_AND_ASSIGN(HUnresolvedStaticFieldGet);
 };
 
-class HUnresolvedStaticFieldSet : public HTemplateInstruction<1> {
+class HUnresolvedStaticFieldSet FINAL : public HTemplateInstruction<1> {
  public:
   HUnresolvedStaticFieldSet(HInstruction* value,
                             Primitive::Type field_type,
@@ -5880,7 +5880,7 @@ class HUnresolvedStaticFieldSet : public HTemplateInstruction<1> {
 };
 
 // Implement the move-exception DEX instruction.
-class HLoadException : public HExpression<0> {
+class HLoadException FINAL : public HExpression<0> {
  public:
   explicit HLoadException(uint32_t dex_pc = kNoDexPc)
       : HExpression(Primitive::kPrimNot, SideEffects::None(), dex_pc) {}
@@ -5895,7 +5895,7 @@ class HLoadException : public HExpression<0> {
 
 // Implicit part of move-exception which clears thread-local exception storage.
 // Must not be removed because the runtime expects the TLS to get cleared.
-class HClearException : public HTemplateInstruction<0> {
+class HClearException FINAL : public HTemplateInstruction<0> {
  public:
   explicit HClearException(uint32_t dex_pc = kNoDexPc)
       : HTemplateInstruction(SideEffects::AllWrites(), dex_pc) {}
@@ -5906,7 +5906,7 @@ class HClearException : public HTemplateInstruction<0> {
   DISALLOW_COPY_AND_ASSIGN(HClearException);
 };
 
-class HThrow : public HTemplateInstruction<1> {
+class HThrow FINAL : public HTemplateInstruction<1> {
  public:
   HThrow(HInstruction* exception, uint32_t dex_pc)
       : HTemplateInstruction(SideEffects::CanTriggerGC(), dex_pc) {
@@ -5943,7 +5943,7 @@ enum class TypeCheckKind {
 
 std::ostream& operator<<(std::ostream& os, TypeCheckKind rhs);
 
-class HInstanceOf : public HExpression<2> {
+class HInstanceOf FINAL : public HExpression<2> {
  public:
   HInstanceOf(HInstruction* object,
               HLoadClass* constant,
@@ -5997,7 +5997,7 @@ class HInstanceOf : public HExpression<2> {
   DISALLOW_COPY_AND_ASSIGN(HInstanceOf);
 };
 
-class HBoundType : public HExpression<1> {
+class HBoundType FINAL : public HExpression<1> {
  public:
   HBoundType(HInstruction* input, uint32_t dex_pc = kNoDexPc)
       : HExpression(Primitive::kPrimNot, SideEffects::None(), dex_pc),
@@ -6041,7 +6041,7 @@ class HBoundType : public HExpression<1> {
   DISALLOW_COPY_AND_ASSIGN(HBoundType);
 };
 
-class HCheckCast : public HTemplateInstruction<2> {
+class HCheckCast FINAL : public HTemplateInstruction<2> {
  public:
   HCheckCast(HInstruction* object,
              HLoadClass* constant,
@@ -6086,7 +6086,7 @@ class HCheckCast : public HTemplateInstruction<2> {
   DISALLOW_COPY_AND_ASSIGN(HCheckCast);
 };
 
-class HMemoryBarrier : public HTemplateInstruction<0> {
+class HMemoryBarrier FINAL : public HTemplateInstruction<0> {
  public:
   explicit HMemoryBarrier(MemBarrierKind barrier_kind, uint32_t dex_pc = kNoDexPc)
       : HTemplateInstruction(
@@ -6111,7 +6111,7 @@ class HMemoryBarrier : public HTemplateInstruction<0> {
   DISALLOW_COPY_AND_ASSIGN(HMemoryBarrier);
 };
 
-class HMonitorOperation : public HTemplateInstruction<1> {
+class HMonitorOperation FINAL : public HTemplateInstruction<1> {
  public:
   enum class OperationKind {
     kEnter,
@@ -6156,7 +6156,7 @@ class HMonitorOperation : public HTemplateInstruction<1> {
   DISALLOW_COPY_AND_ASSIGN(HMonitorOperation);
 };
 
-class HSelect : public HExpression<3> {
+class HSelect FINAL : public HExpression<3> {
  public:
   HSelect(HInstruction* condition,
           HInstruction* true_value,
@@ -6269,7 +6269,7 @@ std::ostream& operator<<(std::ostream& os, const MoveOperands& rhs);
 
 static constexpr size_t kDefaultNumberOfMoves = 4;
 
-class HParallelMove : public HTemplateInstruction<0> {
+class HParallelMove FINAL : public HTemplateInstruction<0> {
  public:
   explicit HParallelMove(ArenaAllocator* arena, uint32_t dex_pc = kNoDexPc)
       : HTemplateInstruction(SideEffects::None(), dex_pc),
