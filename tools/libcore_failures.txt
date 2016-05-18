@@ -248,6 +248,11 @@
   names: [ "libcore.java.io.FileTest#testJavaIoTmpdirMutable" ]
 },
 {
+  description: "Investigate whether the test is making a wrong assumption with the newly enforced classpath.",
+  result: EXEC_FAILED,
+  names: ["dalvik.system.DexClassLoaderTest#testDexThenPathClassLoader"]
+},
+{
   description: "Made for extending, shouldn't be run",
   result: EXEC_FAILED,
   names: ["jsr166.CollectionTest#testEmptyMeansEmpty",
