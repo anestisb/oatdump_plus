@@ -19,7 +19,7 @@
 
 namespace art {
 
-class HArmDexCacheArraysBase : public HExpression<0> {
+class HArmDexCacheArraysBase FINAL : public HExpression<0> {
  public:
   explicit HArmDexCacheArraysBase(const DexFile& dex_file)
       : HExpression(Primitive::kPrimInt, SideEffects::None(), kNoDexPc),
