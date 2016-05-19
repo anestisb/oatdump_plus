@@ -39,22 +39,22 @@ const int kNumberOfAllocIds = kNumberOfGpuAllocIds + kNumberOfFpuAllocIds;
 // There is a one-to-one mapping between ManagedRegister and register id.
 class Mips64ManagedRegister : public ManagedRegister {
  public:
-  GpuRegister AsGpuRegister() const {
+  constexpr GpuRegister AsGpuRegister() const {
     CHECK(IsGpuRegister());
     return static_cast<GpuRegister>(id_);
   }
 
-  FpuRegister AsFpuRegister() const {
+  constexpr FpuRegister AsFpuRegister() const {
     CHECK(IsFpuRegister());
     return static_cast<FpuRegister>(id_ - kNumberOfGpuRegIds);
   }
 
-  bool IsGpuRegister() const {
+  constexpr bool IsGpuRegister() const {
     CHECK(IsValidManagedRegister());
     return (0 <= id_) && (id_ < kNumberOfGpuRegIds);
   }
 
-  bool IsFpuRegister() const {
+  constexpr bool IsFpuRegister() const {
     CHECK(IsValidManagedRegister());
     const int test = id_ - kNumberOfGpuRegIds;
     return (0 <= test) && (test < kNumberOfFpuRegIds);
@@ -67,22 +67,22 @@ class Mips64ManagedRegister : public ManagedRegister {
   // then false is returned.
   bool Overlaps(const Mips64ManagedRegister& other) const;
 
-  static Mips64ManagedRegister FromGpuRegister(GpuRegister r) {
+  static constexpr Mips64ManagedRegister FromGpuRegister(GpuRegister r) {
     CHECK_NE(r, kNoGpuRegister);
     return FromRegId(r);
   }
 
-  static Mips64ManagedRegister FromFpuRegister(FpuRegister r) {
+  static constexpr Mips64ManagedRegister FromFpuRegister(FpuRegister r) {
     CHECK_NE(r, kNoFpuRegister);
     return FromRegId(r + kNumberOfGpuRegIds);
   }
 
  private:
-  bool IsValidManagedRegister() const {
+  constexpr bool IsValidManagedRegister() const {
     return (0 <= id_) && (id_ < kNumberOfRegIds);
   }
 
-  int RegId() const {
+  constexpr int RegId() const {
     CHECK(!IsNoRegister());
     return id_;
   }
@@ -98,9 +98,9 @@ class Mips64ManagedRegister : public ManagedRegister {
 
   friend class ManagedRegister;
 
-  explicit Mips64ManagedRegister(int reg_id) : ManagedRegister(reg_id) {}
+  explicit constexpr Mips64ManagedRegister(int reg_id) : ManagedRegister(reg_id) {}
 
-  static Mips64ManagedRegister FromRegId(int reg_id) {
+  static constexpr Mips64ManagedRegister FromRegId(int reg_id) {
     Mips64ManagedRegister reg(reg_id);
     CHECK(reg.IsValidManagedRegister());
     return reg;
@@ -111,7 +111,7 @@ std::ostream& operator<<(std::ostream& os, const Mips64ManagedRegister& reg);
 
 }  // namespace mips64
 
-inline mips64::Mips64ManagedRegister ManagedRegister::AsMips64() const {
+constexpr inline mips64::Mips64ManagedRegister ManagedRegister::AsMips64() const {
   mips64::Mips64ManagedRegister reg(id_);
   CHECK(reg.IsNoRegister() || reg.IsValidManagedRegister());
   return reg;

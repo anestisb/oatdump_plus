@@ -31,6 +31,33 @@ static const FpuRegister kFpuArgumentRegisters[] = {
   F12, F13, F14, F15, F16, F17, F18, F19
 };
 
+static constexpr ManagedRegister kCalleeSaveRegisters[] = {
+    // Core registers.
+    Mips64ManagedRegister::FromGpuRegister(S2),
+    Mips64ManagedRegister::FromGpuRegister(S3),
+    Mips64ManagedRegister::FromGpuRegister(S4),
+    Mips64ManagedRegister::FromGpuRegister(S5),
+    Mips64ManagedRegister::FromGpuRegister(S6),
+    Mips64ManagedRegister::FromGpuRegister(S7),
+    Mips64ManagedRegister::FromGpuRegister(GP),
+    Mips64ManagedRegister::FromGpuRegister(S8),
+    // No hard float callee saves.
+};
+
+static constexpr uint32_t CalculateCoreCalleeSpillMask() {
+  // RA is a special callee save which is not reported by CalleeSaveRegisters().
+  uint32_t result = 1 << RA;
+  for (auto&& r : kCalleeSaveRegisters) {
+    if (r.AsMips64().IsGpuRegister()) {
+      result |= (1 << r.AsMips64().AsGpuRegister());
+    }
+  }
+  return result;
+}
+
+static constexpr uint32_t kCoreCalleeSpillMask = CalculateCoreCalleeSpillMask();
+static constexpr uint32_t kFpCalleeSpillMask = 0u;
+
 // Calling convention
 ManagedRegister Mips64ManagedRuntimeCallingConvention::InterproceduralScratchRegister() {
   return Mips64ManagedRegister::FromGpuRegister(T9);
@@ -126,22 +153,14 @@ const ManagedRegisterEntrySpills& Mips64ManagedRuntimeCallingConvention::EntrySp
 Mips64JniCallingConvention::Mips64JniCallingConvention(bool is_static, bool is_synchronized,
                                                        const char* shorty)
     : JniCallingConvention(is_static, is_synchronized, shorty, kFramePointerSize) {
-  callee_save_regs_.push_back(Mips64ManagedRegister::FromGpuRegister(S2));
-  callee_save_regs_.push_back(Mips64ManagedRegister::FromGpuRegister(S3));
-  callee_save_regs_.push_back(Mips64ManagedRegister::FromGpuRegister(S4));
-  callee_save_regs_.push_back(Mips64ManagedRegister::FromGpuRegister(S5));
-  callee_save_regs_.push_back(Mips64ManagedRegister::FromGpuRegister(S6));
-  callee_save_regs_.push_back(Mips64ManagedRegister::FromGpuRegister(S7));
-  callee_save_regs_.push_back(Mips64ManagedRegister::FromGpuRegister(GP));
-  callee_save_regs_.push_back(Mips64ManagedRegister::FromGpuRegister(S8));
 }
 
 uint32_t Mips64JniCallingConvention::CoreSpillMask() const {
-  // Compute spill mask to agree with callee saves initialized in the constructor
-  uint32_t result = 0;
-  result = 1 << S2 | 1 << S3 | 1 << S4 | 1 << S5 | 1 << S6 | 1 << S7 | 1 << GP | 1 << S8 | 1 << RA;
-  DCHECK_EQ(static_cast<size_t>(POPCOUNT(result)), callee_save_regs_.size() + 1);
-  return result;
+  return kCoreCalleeSpillMask;
+}
+
+uint32_t Mips64JniCallingConvention::FpSpillMask() const {
+  return kFpCalleeSpillMask;
 }
 
 ManagedRegister Mips64JniCallingConvention::ReturnScratchRegister() const {
@@ -160,6 +179,10 @@ size_t Mips64JniCallingConvention::FrameSize() {
 
 size_t Mips64JniCallingConvention::OutArgSize() {
   return RoundUp(NumberOfOutgoingStackArgs() * kFramePointerSize, kStackAlignment);
+}
+
+ArrayRef<const ManagedRegister> Mips64JniCallingConvention::CalleeSaveRegisters() const {
+  return ArrayRef<const ManagedRegister>(kCalleeSaveRegisters);
 }
 
 bool Mips64JniCallingConvention::IsCurrentParamInRegister() {

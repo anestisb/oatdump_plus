@@ -85,34 +85,34 @@ const int kNumberOfAllocIds =
 // There is a one-to-one mapping between ManagedRegister and register id.
 class ArmManagedRegister : public ManagedRegister {
  public:
-  Register AsCoreRegister() const {
+  constexpr Register AsCoreRegister() const {
     CHECK(IsCoreRegister());
     return static_cast<Register>(id_);
   }
 
-  SRegister AsSRegister() const {
+  constexpr SRegister AsSRegister() const {
     CHECK(IsSRegister());
     return static_cast<SRegister>(id_ - kNumberOfCoreRegIds);
   }
 
-  DRegister AsDRegister() const {
+  constexpr DRegister AsDRegister() const {
     CHECK(IsDRegister());
     return static_cast<DRegister>(id_ - kNumberOfCoreRegIds - kNumberOfSRegIds);
   }
 
-  SRegister AsOverlappingDRegisterLow() const {
+  constexpr SRegister AsOverlappingDRegisterLow() const {
     CHECK(IsOverlappingDRegister());
     DRegister d_reg = AsDRegister();
     return static_cast<SRegister>(d_reg * 2);
   }
 
-  SRegister AsOverlappingDRegisterHigh() const {
+  constexpr SRegister AsOverlappingDRegisterHigh() const {
     CHECK(IsOverlappingDRegister());
     DRegister d_reg = AsDRegister();
     return static_cast<SRegister>(d_reg * 2 + 1);
   }
 
-  RegisterPair AsRegisterPair() const {
+  constexpr RegisterPair AsRegisterPair() const {
     CHECK(IsRegisterPair());
     Register reg_low = AsRegisterPairLow();
     if (reg_low == R1) {
@@ -122,50 +122,50 @@ class ArmManagedRegister : public ManagedRegister {
     }
   }
 
-  Register AsRegisterPairLow() const {
+  constexpr Register AsRegisterPairLow() const {
     CHECK(IsRegisterPair());
     // Appropriate mapping of register ids allows to use AllocIdLow().
     return FromRegId(AllocIdLow()).AsCoreRegister();
   }
 
-  Register AsRegisterPairHigh() const {
+  constexpr Register AsRegisterPairHigh() const {
     CHECK(IsRegisterPair());
     // Appropriate mapping of register ids allows to use AllocIdHigh().
     return FromRegId(AllocIdHigh()).AsCoreRegister();
   }
 
-  bool IsCoreRegister() const {
+  constexpr bool IsCoreRegister() const {
     CHECK(IsValidManagedRegister());
     return (0 <= id_) && (id_ < kNumberOfCoreRegIds);
   }
 
-  bool IsSRegister() const {
+  constexpr bool IsSRegister() const {
     CHECK(IsValidManagedRegister());
     const int test = id_ - kNumberOfCoreRegIds;
     return (0 <= test) && (test < kNumberOfSRegIds);
   }
 
-  bool IsDRegister() const {
+  constexpr bool IsDRegister() const {
     CHECK(IsValidManagedRegister());
     const int test = id_ - (kNumberOfCoreRegIds + kNumberOfSRegIds);
     return (0 <= test) && (test < kNumberOfDRegIds);
   }
 
   // Returns true if this DRegister overlaps SRegisters.
-  bool IsOverlappingDRegister() const {
+  constexpr bool IsOverlappingDRegister() const {
     CHECK(IsValidManagedRegister());
     const int test = id_ - (kNumberOfCoreRegIds + kNumberOfSRegIds);
     return (0 <= test) && (test < kNumberOfOverlappingDRegIds);
   }
 
-  bool IsRegisterPair() const {
+  constexpr bool IsRegisterPair() const {
     CHECK(IsValidManagedRegister());
     const int test =
         id_ - (kNumberOfCoreRegIds + kNumberOfSRegIds + kNumberOfDRegIds);
     return (0 <= test) && (test < kNumberOfPairRegIds);
   }
 
-  bool IsSameType(ArmManagedRegister test) const {
+  constexpr bool IsSameType(ArmManagedRegister test) const {
     CHECK(IsValidManagedRegister() && test.IsValidManagedRegister());
     return
       (IsCoreRegister() && test.IsCoreRegister()) ||
@@ -182,29 +182,29 @@ class ArmManagedRegister : public ManagedRegister {
 
   void Print(std::ostream& os) const;
 
-  static ArmManagedRegister FromCoreRegister(Register r) {
+  static constexpr ArmManagedRegister FromCoreRegister(Register r) {
     CHECK_NE(r, kNoRegister);
     return FromRegId(r);
   }
 
-  static ArmManagedRegister FromSRegister(SRegister r) {
+  static constexpr ArmManagedRegister FromSRegister(SRegister r) {
     CHECK_NE(r, kNoSRegister);
     return FromRegId(r + kNumberOfCoreRegIds);
   }
 
-  static ArmManagedRegister FromDRegister(DRegister r) {
+  static constexpr ArmManagedRegister FromDRegister(DRegister r) {
     CHECK_NE(r, kNoDRegister);
     return FromRegId(r + (kNumberOfCoreRegIds + kNumberOfSRegIds));
   }
 
-  static ArmManagedRegister FromRegisterPair(RegisterPair r) {
+  static constexpr ArmManagedRegister FromRegisterPair(RegisterPair r) {
     CHECK_NE(r, kNoRegisterPair);
     return FromRegId(r + (kNumberOfCoreRegIds +
                           kNumberOfSRegIds + kNumberOfDRegIds));
   }
 
   // Return a RegisterPair consisting of Register r_low and r_low + 1.
-  static ArmManagedRegister FromCoreRegisterPair(Register r_low) {
+  static constexpr ArmManagedRegister FromCoreRegisterPair(Register r_low) {
     if (r_low != R1) {  // not the dalvik special case
       CHECK_NE(r_low, kNoRegister);
       CHECK_EQ(0, (r_low % 2));
@@ -217,7 +217,7 @@ class ArmManagedRegister : public ManagedRegister {
   }
 
   // Return a DRegister overlapping SRegister r_low and r_low + 1.
-  static ArmManagedRegister FromSRegisterPair(SRegister r_low) {
+  static constexpr ArmManagedRegister FromSRegisterPair(SRegister r_low) {
     CHECK_NE(r_low, kNoSRegister);
     CHECK_EQ(0, (r_low % 2));
     const int r = r_low / 2;
@@ -226,7 +226,7 @@ class ArmManagedRegister : public ManagedRegister {
   }
 
  private:
-  bool IsValidManagedRegister() const {
+  constexpr bool IsValidManagedRegister() const {
     return (0 <= id_) && (id_ < kNumberOfRegIds);
   }
 
@@ -251,9 +251,9 @@ class ArmManagedRegister : public ManagedRegister {
 
   friend class ManagedRegister;
 
-  explicit ArmManagedRegister(int reg_id) : ManagedRegister(reg_id) {}
+  explicit constexpr ArmManagedRegister(int reg_id) : ManagedRegister(reg_id) {}
 
-  static ArmManagedRegister FromRegId(int reg_id) {
+  static constexpr ArmManagedRegister FromRegId(int reg_id) {
     ArmManagedRegister reg(reg_id);
     CHECK(reg.IsValidManagedRegister());
     return reg;
@@ -264,7 +264,7 @@ std::ostream& operator<<(std::ostream& os, const ArmManagedRegister& reg);
 
 }  // namespace arm
 
-inline arm::ArmManagedRegister ManagedRegister::AsArm() const {
+constexpr inline arm::ArmManagedRegister ManagedRegister::AsArm() const {
   arm::ArmManagedRegister reg(id_);
   CHECK(reg.IsNoRegister() || reg.IsValidManagedRegister());
   return reg;

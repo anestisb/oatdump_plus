@@ -112,7 +112,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
 
   // 1. Build the frame saving all callee saves
   const size_t frame_size(main_jni_conv->FrameSize());
-  const std::vector<ManagedRegister>& callee_save_regs = main_jni_conv->CalleeSaveRegisters();
+  ArrayRef<const ManagedRegister> callee_save_regs = main_jni_conv->CalleeSaveRegisters();
   __ BuildFrame(frame_size, mr_conv->MethodRegister(), callee_save_regs, mr_conv->EntrySpills());
   DCHECK_EQ(jni_asm->cfi().GetCurrentCFAOffset(), static_cast<int>(frame_size));
 

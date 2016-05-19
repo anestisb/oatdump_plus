@@ -24,6 +24,45 @@
 namespace art {
 namespace x86_64 {
 
+static constexpr ManagedRegister kCalleeSaveRegisters[] = {
+    // Core registers.
+    X86_64ManagedRegister::FromCpuRegister(RBX),
+    X86_64ManagedRegister::FromCpuRegister(RBP),
+    X86_64ManagedRegister::FromCpuRegister(R12),
+    X86_64ManagedRegister::FromCpuRegister(R13),
+    X86_64ManagedRegister::FromCpuRegister(R14),
+    X86_64ManagedRegister::FromCpuRegister(R15),
+    // Hard float registers.
+    X86_64ManagedRegister::FromXmmRegister(XMM12),
+    X86_64ManagedRegister::FromXmmRegister(XMM13),
+    X86_64ManagedRegister::FromXmmRegister(XMM14),
+    X86_64ManagedRegister::FromXmmRegister(XMM15),
+};
+
+static constexpr uint32_t CalculateCoreCalleeSpillMask() {
+  // The spilled PC gets a special marker.
+  uint32_t result = 1 << kNumberOfCpuRegisters;
+  for (auto&& r : kCalleeSaveRegisters) {
+    if (r.AsX86_64().IsCpuRegister()) {
+      result |= (1 << r.AsX86_64().AsCpuRegister().AsRegister());
+    }
+  }
+  return result;
+}
+
+static constexpr uint32_t CalculateFpCalleeSpillMask() {
+  uint32_t result = 0;
+  for (auto&& r : kCalleeSaveRegisters) {
+    if (r.AsX86_64().IsXmmRegister()) {
+      result |= (1 << r.AsX86_64().AsXmmRegister().AsFloatRegister());
+    }
+  }
+  return result;
+}
+
+static constexpr uint32_t kCoreCalleeSpillMask = CalculateCoreCalleeSpillMask();
+static constexpr uint32_t kFpCalleeSpillMask = CalculateFpCalleeSpillMask();
+
 // Calling convention
 
 ManagedRegister X86_64ManagedRuntimeCallingConvention::InterproceduralScratchRegister() {
@@ -125,25 +164,14 @@ const ManagedRegisterEntrySpills& X86_64ManagedRuntimeCallingConvention::EntrySp
 X86_64JniCallingConvention::X86_64JniCallingConvention(bool is_static, bool is_synchronized,
                                                        const char* shorty)
     : JniCallingConvention(is_static, is_synchronized, shorty, kFramePointerSize) {
-  callee_save_regs_.push_back(X86_64ManagedRegister::FromCpuRegister(RBX));
-  callee_save_regs_.push_back(X86_64ManagedRegister::FromCpuRegister(RBP));
-  callee_save_regs_.push_back(X86_64ManagedRegister::FromCpuRegister(R12));
-  callee_save_regs_.push_back(X86_64ManagedRegister::FromCpuRegister(R13));
-  callee_save_regs_.push_back(X86_64ManagedRegister::FromCpuRegister(R14));
-  callee_save_regs_.push_back(X86_64ManagedRegister::FromCpuRegister(R15));
-  callee_save_regs_.push_back(X86_64ManagedRegister::FromXmmRegister(XMM12));
-  callee_save_regs_.push_back(X86_64ManagedRegister::FromXmmRegister(XMM13));
-  callee_save_regs_.push_back(X86_64ManagedRegister::FromXmmRegister(XMM14));
-  callee_save_regs_.push_back(X86_64ManagedRegister::FromXmmRegister(XMM15));
 }
 
 uint32_t X86_64JniCallingConvention::CoreSpillMask() const {
-  return 1 << RBX | 1 << RBP | 1 << R12 | 1 << R13 | 1 << R14 | 1 << R15 |
-      1 << kNumberOfCpuRegisters;
+  return kCoreCalleeSpillMask;
 }
 
 uint32_t X86_64JniCallingConvention::FpSpillMask() const {
-  return 1 << XMM12 | 1 << XMM13 | 1 << XMM14 | 1 << XMM15;
+  return kFpCalleeSpillMask;
 }
 
 size_t X86_64JniCallingConvention::FrameSize() {
@@ -158,6 +186,10 @@ size_t X86_64JniCallingConvention::FrameSize() {
 
 size_t X86_64JniCallingConvention::OutArgSize() {
   return RoundUp(NumberOfOutgoingStackArgs() * kFramePointerSize, kStackAlignment);
+}
+
+ArrayRef<const ManagedRegister> X86_64JniCallingConvention::CalleeSaveRegisters() const {
+  return ArrayRef<const ManagedRegister>(kCalleeSaveRegisters);
 }
 
 bool X86_64JniCallingConvention::IsCurrentParamInRegister() {
