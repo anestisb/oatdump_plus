@@ -29,15 +29,15 @@ namespace x86_64 {
 
 class CpuRegister {
  public:
-  explicit CpuRegister(Register r) : reg_(r) {}
-  explicit CpuRegister(int r) : reg_(Register(r)) {}
-  Register AsRegister() const {
+  explicit constexpr CpuRegister(Register r) : reg_(r) {}
+  explicit constexpr CpuRegister(int r) : reg_(Register(r)) {}
+  constexpr Register AsRegister() const {
     return reg_;
   }
-  uint8_t LowBits() const {
+  constexpr uint8_t LowBits() const {
     return reg_ & 7;
   }
-  bool NeedsRex() const {
+  constexpr bool NeedsRex() const {
     return reg_ > 7;
   }
  private:
@@ -47,15 +47,15 @@ std::ostream& operator<<(std::ostream& os, const CpuRegister& reg);
 
 class XmmRegister {
  public:
-  explicit XmmRegister(FloatRegister r) : reg_(r) {}
-  explicit XmmRegister(int r) : reg_(FloatRegister(r)) {}
-  FloatRegister AsFloatRegister() const {
+  explicit constexpr XmmRegister(FloatRegister r) : reg_(r) {}
+  explicit constexpr XmmRegister(int r) : reg_(FloatRegister(r)) {}
+  constexpr FloatRegister AsFloatRegister() const {
     return reg_;
   }
-  uint8_t LowBits() const {
+  constexpr uint8_t LowBits() const {
     return reg_ & 7;
   }
-  bool NeedsRex() const {
+  constexpr bool NeedsRex() const {
     return reg_ > 7;
   }
  private:

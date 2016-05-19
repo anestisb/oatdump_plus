@@ -59,14 +59,10 @@ class X86JniCallingConvention FINAL : public JniCallingConvention {
   // JNI calling convention
   size_t FrameSize() OVERRIDE;
   size_t OutArgSize() OVERRIDE;
-  const std::vector<ManagedRegister>& CalleeSaveRegisters() const OVERRIDE {
-    return callee_save_regs_;
-  }
+  ArrayRef<const ManagedRegister> CalleeSaveRegisters() const OVERRIDE;
   ManagedRegister ReturnScratchRegister() const OVERRIDE;
   uint32_t CoreSpillMask() const OVERRIDE;
-  uint32_t FpSpillMask() const OVERRIDE {
-    return 0;
-  }
+  uint32_t FpSpillMask() const OVERRIDE;
   bool IsCurrentParamInRegister() OVERRIDE;
   bool IsCurrentParamOnStack() OVERRIDE;
   ManagedRegister CurrentParamRegister() OVERRIDE;
@@ -81,9 +77,6 @@ class X86JniCallingConvention FINAL : public JniCallingConvention {
   size_t NumberOfOutgoingStackArgs() OVERRIDE;
 
  private:
-  // TODO: these values aren't unique and can be shared amongst instances
-  std::vector<ManagedRegister> callee_save_regs_;
-
   DISALLOW_COPY_AND_ASSIGN(X86JniCallingConvention);
 };
 

@@ -38,9 +38,64 @@ static const SRegister kSArgumentRegisters[] = {
   S0, S1, S2, S3, S4, S5, S6, S7
 };
 
-static const DRegister kDCalleeSaveRegisters[] = {
-  D8, D9, D10, D11, D12, D13, D14, D15
+static constexpr ManagedRegister kCalleeSaveRegisters[] = {
+    // Core registers.
+    // Note: The native jni function may call to some VM runtime functions which may suspend
+    // or trigger GC. And the jni method frame will become top quick frame in those cases.
+    // So we need to satisfy GC to save LR and callee-save registers which is similar to
+    // CalleeSaveMethod(RefOnly) frame.
+    // Jni function is the native function which the java code wants to call.
+    // Jni method is the method that is compiled by jni compiler.
+    // Call chain: managed code(java) --> jni method --> jni function.
+    // Thread register(X19) is saved on stack.
+    Arm64ManagedRegister::FromXRegister(X19),
+    Arm64ManagedRegister::FromXRegister(X20),
+    Arm64ManagedRegister::FromXRegister(X21),
+    Arm64ManagedRegister::FromXRegister(X22),
+    Arm64ManagedRegister::FromXRegister(X23),
+    Arm64ManagedRegister::FromXRegister(X24),
+    Arm64ManagedRegister::FromXRegister(X25),
+    Arm64ManagedRegister::FromXRegister(X26),
+    Arm64ManagedRegister::FromXRegister(X27),
+    Arm64ManagedRegister::FromXRegister(X28),
+    Arm64ManagedRegister::FromXRegister(X29),
+    Arm64ManagedRegister::FromXRegister(LR),
+    // Hard float registers.
+    // Considering the case, java_method_1 --> jni method --> jni function --> java_method_2,
+    // we may break on java_method_2 and we still need to find out the values of DEX registers
+    // in java_method_1. So all callee-saves(in managed code) need to be saved.
+    Arm64ManagedRegister::FromDRegister(D8),
+    Arm64ManagedRegister::FromDRegister(D9),
+    Arm64ManagedRegister::FromDRegister(D10),
+    Arm64ManagedRegister::FromDRegister(D11),
+    Arm64ManagedRegister::FromDRegister(D12),
+    Arm64ManagedRegister::FromDRegister(D13),
+    Arm64ManagedRegister::FromDRegister(D14),
+    Arm64ManagedRegister::FromDRegister(D15),
 };
+
+static constexpr uint32_t CalculateCoreCalleeSpillMask() {
+  uint32_t result = 0u;
+  for (auto&& r : kCalleeSaveRegisters) {
+    if (r.AsArm64().IsXRegister()) {
+      result |= (1 << r.AsArm64().AsXRegister());
+    }
+  }
+  return result;
+}
+
+static constexpr uint32_t CalculateFpCalleeSpillMask() {
+  uint32_t result = 0;
+  for (auto&& r : kCalleeSaveRegisters) {
+    if (r.AsArm64().IsDRegister()) {
+      result |= (1 << r.AsArm64().AsDRegister());
+    }
+  }
+  return result;
+}
+
+static constexpr uint32_t kCoreCalleeSpillMask = CalculateCoreCalleeSpillMask();
+static constexpr uint32_t kFpCalleeSpillMask = CalculateFpCalleeSpillMask();
 
 // Calling convention
 ManagedRegister Arm64ManagedRuntimeCallingConvention::InterproceduralScratchRegister() {
@@ -157,47 +212,14 @@ const ManagedRegisterEntrySpills& Arm64ManagedRuntimeCallingConvention::EntrySpi
 Arm64JniCallingConvention::Arm64JniCallingConvention(bool is_static, bool is_synchronized,
                                                      const char* shorty)
     : JniCallingConvention(is_static, is_synchronized, shorty, kFramePointerSize) {
-  uint32_t core_spill_mask = CoreSpillMask();
-  DCHECK_EQ(XZR, kNumberOfXRegisters - 1);  // Exclude XZR from the loop (avoid 1 << 32).
-  for (int x_reg = 0; x_reg < kNumberOfXRegisters - 1; ++x_reg) {
-    if (((1 << x_reg) & core_spill_mask) != 0) {
-      callee_save_regs_.push_back(
-          Arm64ManagedRegister::FromXRegister(static_cast<XRegister>(x_reg)));
-    }
-  }
-
-  uint32_t fp_spill_mask = FpSpillMask();
-  for (int d_reg = 0; d_reg < kNumberOfDRegisters; ++d_reg) {
-    if (((1 << d_reg) & fp_spill_mask) != 0) {
-      callee_save_regs_.push_back(
-          Arm64ManagedRegister::FromDRegister(static_cast<DRegister>(d_reg)));
-    }
-  }
 }
 
 uint32_t Arm64JniCallingConvention::CoreSpillMask() const {
-  // Compute spill mask to agree with callee saves initialized in the constructor.
-  // Note: The native jni function may call to some VM runtime functions which may suspend
-  // or trigger GC. And the jni method frame will become top quick frame in those cases.
-  // So we need to satisfy GC to save LR and callee-save registers which is similar to
-  // CalleeSaveMethod(RefOnly) frame.
-  // Jni function is the native function which the java code wants to call.
-  // Jni method is the method that compiled by jni compiler.
-  // Call chain: managed code(java) --> jni method --> jni function.
-  // Thread register(X19) is saved on stack.
-  return 1 << X19 | 1 << X20 | 1 << X21 | 1 << X22 | 1 << X23 | 1 << X24 |
-         1 << X25 | 1 << X26 | 1 << X27 | 1 << X28 | 1 << X29 | 1 << LR;
+  return kCoreCalleeSpillMask;
 }
 
 uint32_t Arm64JniCallingConvention::FpSpillMask() const {
-  // Considering the case, java_method_1 --> jni method --> jni function --> java_method_2, we may
-  // break on java_method_2 and we still need to find out the values of DEX registers in
-  // java_method_1. So all callee-saves(in managed code) need to be saved.
-  uint32_t result = 0;
-  for (size_t i = 0; i < arraysize(kDCalleeSaveRegisters); ++i) {
-    result |= (1 << kDCalleeSaveRegisters[i]);
-  }
-  return result;
+  return kFpCalleeSpillMask;
 }
 
 ManagedRegister Arm64JniCallingConvention::ReturnScratchRegister() const {
@@ -216,6 +238,10 @@ size_t Arm64JniCallingConvention::FrameSize() {
 
 size_t Arm64JniCallingConvention::OutArgSize() {
   return RoundUp(NumberOfOutgoingStackArgs() * kFramePointerSize, kStackAlignment);
+}
+
+ArrayRef<const ManagedRegister> Arm64JniCallingConvention::CalleeSaveRegisters() const {
+  return ArrayRef<const ManagedRegister>(kCalleeSaveRegisters);
 }
 
 bool Arm64JniCallingConvention::IsCurrentParamInRegister() {
