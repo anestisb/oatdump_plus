@@ -31,16 +31,63 @@ static const SRegister kHFSArgumentRegisters[] = {
   S0, S1, S2, S3, S4, S5, S6, S7, S8, S9, S10, S11, S12, S13, S14, S15
 };
 
-static const SRegister kHFSCalleeSaveRegisters[] = {
-  S16, S17, S18, S19, S20, S21, S22, S23, S24, S25, S26, S27, S28, S29, S30, S31
-};
-
 static const DRegister kHFDArgumentRegisters[] = {
   D0, D1, D2, D3, D4, D5, D6, D7
 };
 
 static_assert(arraysize(kHFDArgumentRegisters) * 2 == arraysize(kHFSArgumentRegisters),
     "ks d argument registers mismatch");
+
+static constexpr ManagedRegister kCalleeSaveRegisters[] = {
+    // Core registers.
+    ArmManagedRegister::FromCoreRegister(R5),
+    ArmManagedRegister::FromCoreRegister(R6),
+    ArmManagedRegister::FromCoreRegister(R7),
+    ArmManagedRegister::FromCoreRegister(R8),
+    ArmManagedRegister::FromCoreRegister(R10),
+    ArmManagedRegister::FromCoreRegister(R11),
+    // Hard float registers.
+    ArmManagedRegister::FromSRegister(S16),
+    ArmManagedRegister::FromSRegister(S17),
+    ArmManagedRegister::FromSRegister(S18),
+    ArmManagedRegister::FromSRegister(S19),
+    ArmManagedRegister::FromSRegister(S20),
+    ArmManagedRegister::FromSRegister(S21),
+    ArmManagedRegister::FromSRegister(S22),
+    ArmManagedRegister::FromSRegister(S23),
+    ArmManagedRegister::FromSRegister(S24),
+    ArmManagedRegister::FromSRegister(S25),
+    ArmManagedRegister::FromSRegister(S26),
+    ArmManagedRegister::FromSRegister(S27),
+    ArmManagedRegister::FromSRegister(S28),
+    ArmManagedRegister::FromSRegister(S29),
+    ArmManagedRegister::FromSRegister(S30),
+    ArmManagedRegister::FromSRegister(S31)
+};
+
+static constexpr uint32_t CalculateCoreCalleeSpillMask() {
+  // LR is a special callee save which is not reported by CalleeSaveRegisters().
+  uint32_t result = 1 << LR;
+  for (auto&& r : kCalleeSaveRegisters) {
+    if (r.AsArm().IsCoreRegister()) {
+      result |= (1 << r.AsArm().AsCoreRegister());
+    }
+  }
+  return result;
+}
+
+static constexpr uint32_t CalculateFpCalleeSpillMask() {
+  uint32_t result = 0;
+  for (auto&& r : kCalleeSaveRegisters) {
+    if (r.AsArm().IsSRegister()) {
+      result |= (1 << r.AsArm().AsSRegister());
+    }
+  }
+  return result;
+}
+
+static constexpr uint32_t kCoreCalleeSpillMask = CalculateCoreCalleeSpillMask();
+static constexpr uint32_t kFpCalleeSpillMask = CalculateFpCalleeSpillMask();
 
 // Calling convention
 
@@ -223,32 +270,15 @@ ArmJniCallingConvention::ArmJniCallingConvention(bool is_static, bool is_synchro
     cur_reg++;  // bump the iterator for every argument
   }
   padding_ = padding;
-
-  callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(R5));
-  callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(R6));
-  callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(R7));
-  callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(R8));
-  callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(R10));
-  callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(R11));
-
-  for (size_t i = 0; i < arraysize(kHFSCalleeSaveRegisters); ++i) {
-    callee_save_regs_.push_back(ArmManagedRegister::FromSRegister(kHFSCalleeSaveRegisters[i]));
-  }
 }
 
 uint32_t ArmJniCallingConvention::CoreSpillMask() const {
   // Compute spill mask to agree with callee saves initialized in the constructor
-  uint32_t result = 0;
-  result = 1 << R5 | 1 << R6 | 1 << R7 | 1 << R8 | 1 << R10 | 1 << R11 | 1 << LR;
-  return result;
+  return kCoreCalleeSpillMask;
 }
 
 uint32_t ArmJniCallingConvention::FpSpillMask() const {
-  uint32_t result = 0;
-  for (size_t i = 0; i < arraysize(kHFSCalleeSaveRegisters); ++i) {
-    result |= (1 << kHFSCalleeSaveRegisters[i]);
-  }
-  return result;
+  return kFpCalleeSpillMask;
 }
 
 ManagedRegister ArmJniCallingConvention::ReturnScratchRegister() const {
@@ -267,6 +297,10 @@ size_t ArmJniCallingConvention::FrameSize() {
 size_t ArmJniCallingConvention::OutArgSize() {
   return RoundUp(NumberOfOutgoingStackArgs() * kFramePointerSize + padding_,
                  kStackAlignment);
+}
+
+ArrayRef<const ManagedRegister> ArmJniCallingConvention::CalleeSaveRegisters() const {
+  return ArrayRef<const ManagedRegister>(kCalleeSaveRegisters);
 }
 
 // JniCallingConvention ABI follows AAPCS where longs and doubles must occur

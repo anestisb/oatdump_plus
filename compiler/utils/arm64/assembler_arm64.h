@@ -109,12 +109,13 @@ class Arm64Assembler FINAL : public Assembler {
   void UnspillRegisters(vixl::CPURegList registers, int offset);
 
   // Emit code that will create an activation on the stack.
-  void BuildFrame(size_t frame_size, ManagedRegister method_reg,
-                  const std::vector<ManagedRegister>& callee_save_regs,
+  void BuildFrame(size_t frame_size,
+                  ManagedRegister method_reg,
+                  ArrayRef<const ManagedRegister> callee_save_regs,
                   const ManagedRegisterEntrySpills& entry_spills) OVERRIDE;
 
   // Emit code that will remove an activation from the stack.
-  void RemoveFrame(size_t frame_size, const std::vector<ManagedRegister>& callee_save_regs)
+  void RemoveFrame(size_t frame_size, ArrayRef<const ManagedRegister> callee_save_regs)
       OVERRIDE;
 
   void IncreaseFrameSize(size_t adjust) OVERRIDE;

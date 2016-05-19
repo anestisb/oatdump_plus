@@ -2438,8 +2438,9 @@ static dwarf::Reg DWARFReg(Register reg) {
 
 constexpr size_t kFramePointerSize = 4;
 
-void MipsAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
-                               const std::vector<ManagedRegister>& callee_save_regs,
+void MipsAssembler::BuildFrame(size_t frame_size,
+                               ManagedRegister method_reg,
+                               ArrayRef<const ManagedRegister> callee_save_regs,
                                const ManagedRegisterEntrySpills& entry_spills) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
   DCHECK(!overwriting_);
@@ -2453,7 +2454,7 @@ void MipsAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   cfi_.RelOffset(DWARFReg(RA), stack_offset);
   for (int i = callee_save_regs.size() - 1; i >= 0; --i) {
     stack_offset -= kFramePointerSize;
-    Register reg = callee_save_regs.at(i).AsMips().AsCoreRegister();
+    Register reg = callee_save_regs[i].AsMips().AsCoreRegister();
     StoreToOffset(kStoreWord, reg, SP, stack_offset);
     cfi_.RelOffset(DWARFReg(reg), stack_offset);
   }
@@ -2482,7 +2483,7 @@ void MipsAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
 }
 
 void MipsAssembler::RemoveFrame(size_t frame_size,
-                                const std::vector<ManagedRegister>& callee_save_regs) {
+                                ArrayRef<const ManagedRegister> callee_save_regs) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
   DCHECK(!overwriting_);
   cfi_.RememberState();
@@ -2490,7 +2491,7 @@ void MipsAssembler::RemoveFrame(size_t frame_size,
   // Pop callee saves and return address.
   int stack_offset = frame_size - (callee_save_regs.size() * kFramePointerSize) - kFramePointerSize;
   for (size_t i = 0; i < callee_save_regs.size(); ++i) {
-    Register reg = callee_save_regs.at(i).AsMips().AsCoreRegister();
+    Register reg = callee_save_regs[i].AsMips().AsCoreRegister();
     LoadFromOffset(kLoadWord, reg, SP, stack_offset);
     cfi_.Restore(DWARFReg(reg));
     stack_offset += kFramePointerSize;
