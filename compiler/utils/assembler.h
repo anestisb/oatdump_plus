@@ -32,6 +32,7 @@
 #include "memory_region.h"
 #include "mips/constants_mips.h"
 #include "offsets.h"
+#include "utils/array_ref.h"
 #include "x86/constants_x86.h"
 #include "x86_64/constants_x86_64.h"
 
@@ -375,13 +376,14 @@ class Assembler : public DeletableArenaObject<kArenaAllocAssembler> {
   virtual void Comment(const char* format ATTRIBUTE_UNUSED, ...) {}
 
   // Emit code that will create an activation on the stack
-  virtual void BuildFrame(size_t frame_size, ManagedRegister method_reg,
-                          const std::vector<ManagedRegister>& callee_save_regs,
+  virtual void BuildFrame(size_t frame_size,
+                          ManagedRegister method_reg,
+                          ArrayRef<const ManagedRegister> callee_save_regs,
                           const ManagedRegisterEntrySpills& entry_spills) = 0;
 
   // Emit code that will remove an activation from the stack
   virtual void RemoveFrame(size_t frame_size,
-                           const std::vector<ManagedRegister>& callee_save_regs) = 0;
+                           ArrayRef<const ManagedRegister> callee_save_regs) = 0;
 
   virtual void IncreaseFrameSize(size_t adjust) = 0;
   virtual void DecreaseFrameSize(size_t adjust) = 0;

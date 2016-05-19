@@ -58,9 +58,7 @@ class ArmJniCallingConvention FINAL : public JniCallingConvention {
   void Next() OVERRIDE;  // Override default behavior for AAPCS
   size_t FrameSize() OVERRIDE;
   size_t OutArgSize() OVERRIDE;
-  const std::vector<ManagedRegister>& CalleeSaveRegisters() const OVERRIDE {
-    return callee_save_regs_;
-  }
+  ArrayRef<const ManagedRegister> CalleeSaveRegisters() const OVERRIDE;
   ManagedRegister ReturnScratchRegister() const OVERRIDE;
   uint32_t CoreSpillMask() const OVERRIDE;
   uint32_t FpSpillMask() const OVERRIDE;
@@ -78,9 +76,6 @@ class ArmJniCallingConvention FINAL : public JniCallingConvention {
   size_t NumberOfOutgoingStackArgs() OVERRIDE;
 
  private:
-  // TODO: these values aren't unique and can be shared amongst instances
-  std::vector<ManagedRegister> callee_save_regs_;
-
   // Padding to ensure longs and doubles are not split in AAPCS
   size_t padding_;
 

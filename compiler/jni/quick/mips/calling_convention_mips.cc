@@ -27,6 +27,32 @@ static const Register kCoreArgumentRegisters[] = { A0, A1, A2, A3 };
 static const FRegister kFArgumentRegisters[] = { F12, F14 };
 static const DRegister kDArgumentRegisters[] = { D6, D7 };
 
+static constexpr ManagedRegister kCalleeSaveRegisters[] = {
+    // Core registers.
+    MipsManagedRegister::FromCoreRegister(S2),
+    MipsManagedRegister::FromCoreRegister(S3),
+    MipsManagedRegister::FromCoreRegister(S4),
+    MipsManagedRegister::FromCoreRegister(S5),
+    MipsManagedRegister::FromCoreRegister(S6),
+    MipsManagedRegister::FromCoreRegister(S7),
+    MipsManagedRegister::FromCoreRegister(FP),
+    // No hard float callee saves.
+};
+
+static constexpr uint32_t CalculateCoreCalleeSpillMask() {
+  // RA is a special callee save which is not reported by CalleeSaveRegisters().
+  uint32_t result = 1 << RA;
+  for (auto&& r : kCalleeSaveRegisters) {
+    if (r.AsMips().IsCoreRegister()) {
+      result |= (1 << r.AsMips().AsCoreRegister());
+    }
+  }
+  return result;
+}
+
+static constexpr uint32_t kCoreCalleeSpillMask = CalculateCoreCalleeSpillMask();
+static constexpr uint32_t kFpCalleeSpillMask = 0u;
+
 // Calling convention
 ManagedRegister MipsManagedRuntimeCallingConvention::InterproceduralScratchRegister() {
   return MipsManagedRegister::FromCoreRegister(T9);
@@ -161,21 +187,14 @@ MipsJniCallingConvention::MipsJniCallingConvention(bool is_static, bool is_synch
     cur_reg++;  // bump the iterator for every argument
   }
   padding_ = padding;
-
-  callee_save_regs_.push_back(MipsManagedRegister::FromCoreRegister(S2));
-  callee_save_regs_.push_back(MipsManagedRegister::FromCoreRegister(S3));
-  callee_save_regs_.push_back(MipsManagedRegister::FromCoreRegister(S4));
-  callee_save_regs_.push_back(MipsManagedRegister::FromCoreRegister(S5));
-  callee_save_regs_.push_back(MipsManagedRegister::FromCoreRegister(S6));
-  callee_save_regs_.push_back(MipsManagedRegister::FromCoreRegister(S7));
-  callee_save_regs_.push_back(MipsManagedRegister::FromCoreRegister(FP));
 }
 
 uint32_t MipsJniCallingConvention::CoreSpillMask() const {
-  // Compute spill mask to agree with callee saves initialized in the constructor
-  uint32_t result = 0;
-  result = 1 << S2 | 1 << S3 | 1 << S4 | 1 << S5 | 1 << S6 | 1 << S7 | 1 << FP | 1 << RA;
-  return result;
+  return kCoreCalleeSpillMask;
+}
+
+uint32_t MipsJniCallingConvention::FpSpillMask() const {
+  return kFpCalleeSpillMask;
 }
 
 ManagedRegister MipsJniCallingConvention::ReturnScratchRegister() const {
@@ -194,6 +213,10 @@ size_t MipsJniCallingConvention::FrameSize() {
 
 size_t MipsJniCallingConvention::OutArgSize() {
   return RoundUp(NumberOfOutgoingStackArgs() * kFramePointerSize + padding_, kStackAlignment);
+}
+
+ArrayRef<const ManagedRegister> MipsJniCallingConvention::CalleeSaveRegisters() const {
+  return ArrayRef<const ManagedRegister>(kCalleeSaveRegisters);
 }
 
 // JniCallingConvention ABI follows AAPCS where longs and doubles must occur
