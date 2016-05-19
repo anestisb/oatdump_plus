@@ -44,6 +44,8 @@ vm_args=""
 # By default, we run the whole JDWP test suite.
 test="org.apache.harmony.jpda.tests.share.AllTests"
 host="no"
+# Use JIT compiling by default.
+use_jit=true
 
 while true; do
   if [[ "$1" == "--mode=host" ]]; then
@@ -61,6 +63,11 @@ while true; do
     shift
   elif [[ $1 == -Ximage:* ]]; then
     image="$1"
+    shift
+  elif [[ "$1" == "--no-jit" ]]; then
+    use_jit=false
+    # Remove the --no-jit from the arguments.
+    args=${args/$1}
     shift
   elif [[ $1 == "--debug" ]]; then
     debug="yes"
@@ -90,8 +97,12 @@ done
 if [[ "$image" != "" ]]; then
   vm_args="--vm-arg $image"
 fi
-vm_args="$vm_args --vm-arg -Xusejit:true"
-debuggee_args="$debuggee_args -Xusejit:true"
+if $use_jit; then
+  vm_args="$vm_args --vm-arg -Xcompiler-option --vm-arg --compiler-filter=interpret-only"
+  debuggee_args="$debuggee_args -Xcompiler-option --compiler-filter=interpret-only"
+fi
+vm_args="$vm_args --vm-arg -Xusejit:$use_jit"
+debuggee_args="$debuggee_args -Xusejit:$use_jit"
 if [[ $debug == "yes" ]]; then
   art="$art -d"
   art_debugee="$art_debugee -d"
