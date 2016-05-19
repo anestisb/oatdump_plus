@@ -43,6 +43,9 @@ if [ "$ANDROID_SERIAL" = "emulator-5554" ]; then
   emulator="yes"
 fi
 
+# Use JIT compiling by default.
+use_jit=true
+
 # Packages that currently work correctly with the expectation files.
 working_packages=("dalvik.system"
                   "libcore.icu"
@@ -91,6 +94,11 @@ while true; do
     # classpath/resources differences when compiling the boot image.
     vogar_args="$vogar_args --vm-arg -Ximage:/non/existent/vogar.art"
     shift
+  elif [[ "$1" == "--no-jit" ]]; then
+    # Remove the --no-jit from the arguments.
+    vogar_args=${vogar_args/$1}
+    use_jit=false
+    shift
   elif [[ "$1" == "--debug" ]]; then
     # Remove the --debug from the arguments.
     vogar_args=${vogar_args/$1}
@@ -111,7 +119,13 @@ vogar_args="$vogar_args --timeout 480"
 # Use Jack with "1.8" configuration.
 vogar_args="$vogar_args --toolchain jack --language JN"
 
+# JIT settings.
+if $use_jit; then
+  vogar_args="$vogar_args --vm-arg -Xcompiler-option --vm-arg --compiler-filter=interpret-only"
+fi
+vogar_args="$vogar_args --vm-arg -Xusejit:$use_jit"
+
 # Run the tests using vogar.
 echo "Running tests for the following test packages:"
 echo ${working_packages[@]} | tr " " "\n"
-vogar $vogar_args --vm-arg -Xusejit:true $expectations --classpath $jsr166_test_jack --classpath $test_jack ${working_packages[@]}
+vogar $vogar_args $expectations --classpath $jsr166_test_jack --classpath $test_jack ${working_packages[@]}
