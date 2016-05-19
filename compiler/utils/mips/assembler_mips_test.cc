@@ -561,6 +561,14 @@ TEST_F(AssemblerMIPSTest, NegD) {
   DriverStr(RepeatFF(&mips::MipsAssembler::NegD, "neg.d ${reg1}, ${reg2}"), "NegD");
 }
 
+TEST_F(AssemblerMIPSTest, FloorWS) {
+  DriverStr(RepeatFF(&mips::MipsAssembler::FloorWS, "floor.w.s ${reg1}, ${reg2}"), "floor.w.s");
+}
+
+TEST_F(AssemblerMIPSTest, FloorWD) {
+  DriverStr(RepeatFF(&mips::MipsAssembler::FloorWD, "floor.w.d ${reg1}, ${reg2}"), "floor.w.d");
+}
+
 TEST_F(AssemblerMIPSTest, CunS) {
   DriverStr(RepeatIbFF(&mips::MipsAssembler::CunS, 3, "c.un.s $fcc{imm}, ${reg1}, ${reg2}"),
             "CunS");
