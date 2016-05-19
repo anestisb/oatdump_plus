@@ -23,6 +23,28 @@
 namespace art {
 namespace x86 {
 
+static constexpr ManagedRegister kCalleeSaveRegisters[] = {
+    // Core registers.
+    X86ManagedRegister::FromCpuRegister(EBP),
+    X86ManagedRegister::FromCpuRegister(ESI),
+    X86ManagedRegister::FromCpuRegister(EDI),
+    // No hard float callee saves.
+};
+
+static constexpr uint32_t CalculateCoreCalleeSpillMask() {
+  // The spilled PC gets a special marker.
+  uint32_t result = 1 << kNumberOfCpuRegisters;
+  for (auto&& r : kCalleeSaveRegisters) {
+    if (r.AsX86().IsCpuRegister()) {
+      result |= (1 << r.AsX86().AsCpuRegister());
+    }
+  }
+  return result;
+}
+
+static constexpr uint32_t kCoreCalleeSpillMask = CalculateCoreCalleeSpillMask();
+static constexpr uint32_t kFpCalleeSpillMask = 0u;
+
 // Calling convention
 
 ManagedRegister X86ManagedRuntimeCallingConvention::InterproceduralScratchRegister() {
@@ -169,13 +191,14 @@ const ManagedRegisterEntrySpills& X86ManagedRuntimeCallingConvention::EntrySpill
 X86JniCallingConvention::X86JniCallingConvention(bool is_static, bool is_synchronized,
                                                  const char* shorty)
     : JniCallingConvention(is_static, is_synchronized, shorty, kFramePointerSize) {
-  callee_save_regs_.push_back(X86ManagedRegister::FromCpuRegister(EBP));
-  callee_save_regs_.push_back(X86ManagedRegister::FromCpuRegister(ESI));
-  callee_save_regs_.push_back(X86ManagedRegister::FromCpuRegister(EDI));
 }
 
 uint32_t X86JniCallingConvention::CoreSpillMask() const {
-  return 1 << EBP | 1 << ESI | 1 << EDI | 1 << kNumberOfCpuRegisters;
+  return kCoreCalleeSpillMask;
+}
+
+uint32_t X86JniCallingConvention::FpSpillMask() const {
+  return kFpCalleeSpillMask;
 }
 
 size_t X86JniCallingConvention::FrameSize() {
@@ -190,6 +213,10 @@ size_t X86JniCallingConvention::FrameSize() {
 
 size_t X86JniCallingConvention::OutArgSize() {
   return RoundUp(NumberOfOutgoingStackArgs() * kFramePointerSize, kStackAlignment);
+}
+
+ArrayRef<const ManagedRegister> X86JniCallingConvention::CalleeSaveRegisters() const {
+  return ArrayRef<const ManagedRegister>(kCalleeSaveRegisters);
 }
 
 bool X86JniCallingConvention::IsCurrentParamInRegister() {

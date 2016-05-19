@@ -17,12 +17,11 @@
 #ifndef ART_COMPILER_JNI_QUICK_CALLING_CONVENTION_H_
 #define ART_COMPILER_JNI_QUICK_CALLING_CONVENTION_H_
 
-#include <vector>
-
 #include "base/arena_object.h"
 #include "handle_scope.h"
 #include "primitive.h"
 #include "thread.h"
+#include "utils/array_ref.h"
 #include "utils/managed_register.h"
 
 namespace art {
@@ -301,7 +300,7 @@ class JniCallingConvention : public CallingConvention {
   virtual bool RequiresSmallResultTypeExtension() const = 0;
 
   // Callee save registers to spill prior to native code (which may clobber)
-  virtual const std::vector<ManagedRegister>& CalleeSaveRegisters() const = 0;
+  virtual ArrayRef<const ManagedRegister> CalleeSaveRegisters() const = 0;
 
   // Spill mask values
   virtual uint32_t CoreSpillMask() const = 0;

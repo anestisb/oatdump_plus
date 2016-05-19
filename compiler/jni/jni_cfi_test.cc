@@ -52,7 +52,7 @@ class JNICFITest : public CFITest {
     std::unique_ptr<ManagedRuntimeCallingConvention> mr_conv(
         ManagedRuntimeCallingConvention::Create(&arena, is_static, is_synchronized, shorty, isa));
     const int frame_size(jni_conv->FrameSize());
-    const std::vector<ManagedRegister>& callee_save_regs = jni_conv->CalleeSaveRegisters();
+    ArrayRef<const ManagedRegister> callee_save_regs = jni_conv->CalleeSaveRegisters();
 
     // Assemble the method.
     std::unique_ptr<Assembler> jni_asm(Assembler::Create(&arena, isa));
