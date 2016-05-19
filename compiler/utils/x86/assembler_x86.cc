@@ -1932,15 +1932,16 @@ static dwarf::Reg DWARFReg(Register reg) {
 
 constexpr size_t kFramePointerSize = 4;
 
-void X86Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
-                              const std::vector<ManagedRegister>& spill_regs,
+void X86Assembler::BuildFrame(size_t frame_size,
+                              ManagedRegister method_reg,
+                              ArrayRef<const ManagedRegister> spill_regs,
                               const ManagedRegisterEntrySpills& entry_spills) {
   DCHECK_EQ(buffer_.Size(), 0U);  // Nothing emitted yet.
   cfi_.SetCurrentCFAOffset(4);  // Return address on stack.
   CHECK_ALIGNED(frame_size, kStackAlignment);
   int gpr_count = 0;
   for (int i = spill_regs.size() - 1; i >= 0; --i) {
-    Register spill = spill_regs.at(i).AsX86().AsCpuRegister();
+    Register spill = spill_regs[i].AsX86().AsCpuRegister();
     pushl(spill);
     gpr_count++;
     cfi_.AdjustCFAOffset(kFramePointerSize);
@@ -1974,7 +1975,7 @@ void X86Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   }
 }
 
-void X86Assembler::RemoveFrame(size_t frame_size, const std::vector<ManagedRegister>& spill_regs) {
+void X86Assembler::RemoveFrame(size_t frame_size, ArrayRef<const ManagedRegister> spill_regs) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
   cfi_.RememberState();
   // -kFramePointerSize for ArtMethod*.
@@ -1982,7 +1983,7 @@ void X86Assembler::RemoveFrame(size_t frame_size, const std::vector<ManagedRegis
   addl(ESP, Immediate(adjust));
   cfi_.AdjustCFAOffset(-adjust);
   for (size_t i = 0; i < spill_regs.size(); ++i) {
-    Register spill = spill_regs.at(i).AsX86().AsCpuRegister();
+    Register spill = spill_regs[i].AsX86().AsCpuRegister();
     popl(spill);
     cfi_.AdjustCFAOffset(-static_cast<int>(kFramePointerSize));
     cfi_.Restore(DWARFReg(spill));

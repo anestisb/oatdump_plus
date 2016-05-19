@@ -1977,8 +1977,9 @@ static dwarf::Reg DWARFReg(GpuRegister reg) {
 
 constexpr size_t kFramePointerSize = 8;
 
-void Mips64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
-                                 const std::vector<ManagedRegister>& callee_save_regs,
+void Mips64Assembler::BuildFrame(size_t frame_size,
+                                 ManagedRegister method_reg,
+                                 ArrayRef<const ManagedRegister> callee_save_regs,
                                  const ManagedRegisterEntrySpills& entry_spills) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
   DCHECK(!overwriting_);
@@ -1992,7 +1993,7 @@ void Mips64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   cfi_.RelOffset(DWARFReg(RA), stack_offset);
   for (int i = callee_save_regs.size() - 1; i >= 0; --i) {
     stack_offset -= kFramePointerSize;
-    GpuRegister reg = callee_save_regs.at(i).AsMips64().AsGpuRegister();
+    GpuRegister reg = callee_save_regs[i].AsMips64().AsGpuRegister();
     StoreToOffset(kStoreDoubleword, reg, SP, stack_offset);
     cfi_.RelOffset(DWARFReg(reg), stack_offset);
   }
@@ -2003,7 +2004,7 @@ void Mips64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   // Write out entry spills.
   int32_t offset = frame_size + kFramePointerSize;
   for (size_t i = 0; i < entry_spills.size(); ++i) {
-    Mips64ManagedRegister reg = entry_spills.at(i).AsMips64();
+    Mips64ManagedRegister reg = entry_spills[i].AsMips64();
     ManagedRegisterSpill spill = entry_spills.at(i);
     int32_t size = spill.getSize();
     if (reg.IsNoRegister()) {
@@ -2022,7 +2023,7 @@ void Mips64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
 }
 
 void Mips64Assembler::RemoveFrame(size_t frame_size,
-                                  const std::vector<ManagedRegister>& callee_save_regs) {
+                                  ArrayRef<const ManagedRegister> callee_save_regs) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
   DCHECK(!overwriting_);
   cfi_.RememberState();
@@ -2030,7 +2031,7 @@ void Mips64Assembler::RemoveFrame(size_t frame_size,
   // Pop callee saves and return address
   int stack_offset = frame_size - (callee_save_regs.size() * kFramePointerSize) - kFramePointerSize;
   for (size_t i = 0; i < callee_save_regs.size(); ++i) {
-    GpuRegister reg = callee_save_regs.at(i).AsMips64().AsGpuRegister();
+    GpuRegister reg = callee_save_regs[i].AsMips64().AsGpuRegister();
     LoadFromOffset(kLoadDoubleword, reg, SP, stack_offset);
     cfi_.Restore(DWARFReg(reg));
     stack_offset += kFramePointerSize;

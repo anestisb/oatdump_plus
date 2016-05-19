@@ -683,8 +683,9 @@ void Arm64Assembler::UnspillRegisters(vixl::CPURegList registers, int offset) {
   DCHECK(registers.IsEmpty());
 }
 
-void Arm64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
-                                const std::vector<ManagedRegister>& callee_save_regs,
+void Arm64Assembler::BuildFrame(size_t frame_size,
+                                ManagedRegister method_reg,
+                                ArrayRef<const ManagedRegister> callee_save_regs,
                                 const ManagedRegisterEntrySpills& entry_spills) {
   // Setup VIXL CPURegList for callee-saves.
   CPURegList core_reg_list(CPURegister::kRegister, kXRegSize, 0);
@@ -741,7 +742,7 @@ void Arm64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
 }
 
 void Arm64Assembler::RemoveFrame(size_t frame_size,
-                                 const std::vector<ManagedRegister>& callee_save_regs) {
+                                 ArrayRef<const ManagedRegister> callee_save_regs) {
   // Setup VIXL CPURegList for callee-saves.
   CPURegList core_reg_list(CPURegister::kRegister, kXRegSize, 0);
   CPURegList fp_reg_list(CPURegister::kFPRegister, kDRegSize, 0);

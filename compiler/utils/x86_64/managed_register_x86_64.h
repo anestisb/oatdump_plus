@@ -88,52 +88,52 @@ const int kNumberOfAllocIds = kNumberOfCpuAllocIds + kNumberOfXmmAllocIds +
 // There is a one-to-one mapping between ManagedRegister and register id.
 class X86_64ManagedRegister : public ManagedRegister {
  public:
-  CpuRegister AsCpuRegister() const {
+  constexpr CpuRegister AsCpuRegister() const {
     CHECK(IsCpuRegister());
     return CpuRegister(static_cast<Register>(id_));
   }
 
-  XmmRegister AsXmmRegister() const {
+  constexpr XmmRegister AsXmmRegister() const {
     CHECK(IsXmmRegister());
     return XmmRegister(static_cast<FloatRegister>(id_ - kNumberOfCpuRegIds));
   }
 
-  X87Register AsX87Register() const {
+  constexpr X87Register AsX87Register() const {
     CHECK(IsX87Register());
     return static_cast<X87Register>(id_ -
                                     (kNumberOfCpuRegIds + kNumberOfXmmRegIds));
   }
 
-  CpuRegister AsRegisterPairLow() const {
+  constexpr CpuRegister AsRegisterPairLow() const {
     CHECK(IsRegisterPair());
     // Appropriate mapping of register ids allows to use AllocIdLow().
     return FromRegId(AllocIdLow()).AsCpuRegister();
   }
 
-  CpuRegister AsRegisterPairHigh() const {
+  constexpr CpuRegister AsRegisterPairHigh() const {
     CHECK(IsRegisterPair());
     // Appropriate mapping of register ids allows to use AllocIdHigh().
     return FromRegId(AllocIdHigh()).AsCpuRegister();
   }
 
-  bool IsCpuRegister() const {
+  constexpr bool IsCpuRegister() const {
     CHECK(IsValidManagedRegister());
     return (0 <= id_) && (id_ < kNumberOfCpuRegIds);
   }
 
-  bool IsXmmRegister() const {
+  constexpr bool IsXmmRegister() const {
     CHECK(IsValidManagedRegister());
     const int test = id_ - kNumberOfCpuRegIds;
     return (0 <= test) && (test < kNumberOfXmmRegIds);
   }
 
-  bool IsX87Register() const {
+  constexpr bool IsX87Register() const {
     CHECK(IsValidManagedRegister());
     const int test = id_ - (kNumberOfCpuRegIds + kNumberOfXmmRegIds);
     return (0 <= test) && (test < kNumberOfX87RegIds);
   }
 
-  bool IsRegisterPair() const {
+  constexpr bool IsRegisterPair() const {
     CHECK(IsValidManagedRegister());
     const int test = id_ -
         (kNumberOfCpuRegIds + kNumberOfXmmRegIds + kNumberOfX87RegIds);
@@ -147,32 +147,32 @@ class X86_64ManagedRegister : public ManagedRegister {
   // then false is returned.
   bool Overlaps(const X86_64ManagedRegister& other) const;
 
-  static X86_64ManagedRegister FromCpuRegister(Register r) {
+  static constexpr X86_64ManagedRegister FromCpuRegister(Register r) {
     CHECK_NE(r, kNoRegister);
     return FromRegId(r);
   }
 
-  static X86_64ManagedRegister FromXmmRegister(FloatRegister r) {
+  static constexpr X86_64ManagedRegister FromXmmRegister(FloatRegister r) {
     return FromRegId(r + kNumberOfCpuRegIds);
   }
 
-  static X86_64ManagedRegister FromX87Register(X87Register r) {
+  static constexpr X86_64ManagedRegister FromX87Register(X87Register r) {
     CHECK_NE(r, kNoX87Register);
     return FromRegId(r + kNumberOfCpuRegIds + kNumberOfXmmRegIds);
   }
 
-  static X86_64ManagedRegister FromRegisterPair(RegisterPair r) {
+  static constexpr X86_64ManagedRegister FromRegisterPair(RegisterPair r) {
     CHECK_NE(r, kNoRegisterPair);
     return FromRegId(r + (kNumberOfCpuRegIds + kNumberOfXmmRegIds +
                           kNumberOfX87RegIds));
   }
 
  private:
-  bool IsValidManagedRegister() const {
+  constexpr bool IsValidManagedRegister() const {
     return (0 <= id_) && (id_ < kNumberOfRegIds);
   }
 
-  int RegId() const {
+  constexpr int RegId() const {
     CHECK(!IsNoRegister());
     return id_;
   }
@@ -188,9 +188,9 @@ class X86_64ManagedRegister : public ManagedRegister {
 
   friend class ManagedRegister;
 
-  explicit X86_64ManagedRegister(int reg_id) : ManagedRegister(reg_id) {}
+  explicit constexpr X86_64ManagedRegister(int reg_id) : ManagedRegister(reg_id) {}
 
-  static X86_64ManagedRegister FromRegId(int reg_id) {
+  static constexpr X86_64ManagedRegister FromRegId(int reg_id) {
     X86_64ManagedRegister reg(reg_id);
     CHECK(reg.IsValidManagedRegister());
     return reg;
@@ -201,7 +201,7 @@ std::ostream& operator<<(std::ostream& os, const X86_64ManagedRegister& reg);
 
 }  // namespace x86_64
 
-inline x86_64::X86_64ManagedRegister ManagedRegister::AsX86_64() const {
+constexpr inline x86_64::X86_64ManagedRegister ManagedRegister::AsX86_64() const {
   x86_64::X86_64ManagedRegister reg(id_);
   CHECK(reg.IsNoRegister() || reg.IsValidManagedRegister());
   return reg;

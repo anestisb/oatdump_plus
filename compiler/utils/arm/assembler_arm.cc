@@ -386,8 +386,9 @@ static dwarf::Reg DWARFReg(SRegister reg) {
 
 constexpr size_t kFramePointerSize = kArmPointerSize;
 
-void ArmAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
-                              const std::vector<ManagedRegister>& callee_save_regs,
+void ArmAssembler::BuildFrame(size_t frame_size,
+                              ManagedRegister method_reg,
+                              ArrayRef<const ManagedRegister> callee_save_regs,
                               const ManagedRegisterEntrySpills& entry_spills) {
   CHECK_EQ(buffer_.Size(), 0U);  // Nothing emitted yet
   CHECK_ALIGNED(frame_size, kStackAlignment);
@@ -442,7 +443,7 @@ void ArmAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
 }
 
 void ArmAssembler::RemoveFrame(size_t frame_size,
-                              const std::vector<ManagedRegister>& callee_save_regs) {
+                               ArrayRef<const ManagedRegister> callee_save_regs) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
   cfi_.RememberState();
 
