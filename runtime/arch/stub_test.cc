@@ -1205,9 +1205,9 @@ TEST_F(StubTest, AllocObjectArray) {
 
 
 TEST_F(StubTest, StringCompareTo) {
-  // There is no StringCompareTo runtime entrypoint for __aarch64__.
-#if defined(__i386__) || defined(__arm__) || \
-    defined(__mips__) || (defined(__x86_64__) && !defined(__APPLE__))
+  // There is no StringCompareTo runtime entrypoint for __arm__ or __aarch64__.
+#if defined(__i386__) || defined(__mips__) || \
+    (defined(__x86_64__) && !defined(__APPLE__))
   // TODO: Check the "Unresolved" allocation stubs
 
   Thread* self = Thread::Current();
