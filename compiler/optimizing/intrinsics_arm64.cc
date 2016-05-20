@@ -1270,12 +1270,12 @@ void IntrinsicCodeGeneratorARM64::VisitStringCompareTo(HInvoke* invoke) {
   __ Eor(temp1, temp0, temp4);
   __ Rbit(temp1, temp1);
   __ Clz(temp1, temp1);
-  __ Bic(temp1, temp1, 0xf);
   // If the number of 16-bit chars remaining <= the index where the difference occurs (0-3), then
   // the difference occurs outside the remaining string data, so just return length diff (out).
   __ Cmp(temp2, Operand(temp1, LSR, 4));
   __ B(le, &end);
   // Extract the characters and calculate the difference.
+  __ Bic(temp1, temp1, 0xf);
   __ Lsr(temp0, temp0, temp1);
   __ Lsr(temp4, temp4, temp1);
   __ And(temp4, temp4, 0xffff);
