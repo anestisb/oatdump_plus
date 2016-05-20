@@ -987,31 +987,126 @@ void IntrinsicCodeGeneratorARM::VisitStringCharAt(HInvoke* invoke) {
 void IntrinsicLocationsBuilderARM::VisitStringCompareTo(HInvoke* invoke) {
   // The inputs plus one temp.
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                            LocationSummary::kCall,
+                                                            invoke->InputAt(1)->CanBeNull()
+                                                                ? LocationSummary::kCallOnSlowPath
+                                                                : LocationSummary::kNoCall,
                                                             kIntrinsified);
-  InvokeRuntimeCallingConvention calling_convention;
-  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
-  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
-  locations->SetOut(Location::RegisterLocation(R0));
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
 }
 
 void IntrinsicCodeGeneratorARM::VisitStringCompareTo(HInvoke* invoke) {
   ArmAssembler* assembler = GetAssembler();
   LocationSummary* locations = invoke->GetLocations();
 
+  Register str = locations->InAt(0).AsRegister<Register>();
+  Register arg = locations->InAt(1).AsRegister<Register>();
+  Register out = locations->Out().AsRegister<Register>();
+
+  Register temp0 = locations->GetTemp(0).AsRegister<Register>();
+  Register temp1 = locations->GetTemp(1).AsRegister<Register>();
+  Register temp2 = locations->GetTemp(2).AsRegister<Register>();
+
+  Label loop;
+  Label find_char_diff;
+  Label end;
+
+  // Get offsets of count and value fields within a string object.
+  const int32_t count_offset = mirror::String::CountOffset().Int32Value();
+  const int32_t value_offset = mirror::String::ValueOffset().Int32Value();
+
   // Note that the null check must have been done earlier.
   DCHECK(!invoke->CanDoImplicitNullCheckOn(invoke->InputAt(0)));
 
-  Register argument = locations->InAt(1).AsRegister<Register>();
-  __ cmp(argument, ShifterOperand(0));
-  SlowPathCode* slow_path = new (GetAllocator()) IntrinsicSlowPathARM(invoke);
-  codegen_->AddSlowPath(slow_path);
-  __ b(slow_path->GetEntryLabel(), EQ);
+  // Take slow path and throw if input can be and is null.
+  SlowPathCode* slow_path = nullptr;
+  const bool can_slow_path = invoke->InputAt(1)->CanBeNull();
+  if (can_slow_path) {
+    slow_path = new (GetAllocator()) IntrinsicSlowPathARM(invoke);
+    codegen_->AddSlowPath(slow_path);
+    __ CompareAndBranchIfZero(arg, slow_path->GetEntryLabel());
+  }
 
-  __ LoadFromOffset(
-      kLoadWord, LR, TR, QUICK_ENTRYPOINT_OFFSET(kArmWordSize, pStringCompareTo).Int32Value());
-  __ blx(LR);
-  __ Bind(slow_path->GetExitLabel());
+  // Reference equality check, return 0 if same reference.
+  __ subs(out, str, ShifterOperand(arg));
+  __ b(&end, EQ);
+  // Load lengths of this and argument strings.
+  __ ldr(temp2, Address(str, count_offset));
+  __ ldr(temp1, Address(arg, count_offset));
+  // out = length diff.
+  __ subs(out, temp2, ShifterOperand(temp1));
+  // temp0 = min(len(str), len(arg)).
+  __ it(Condition::LT, kItElse);
+  __ mov(temp0, ShifterOperand(temp2), Condition::LT);
+  __ mov(temp0, ShifterOperand(temp1), Condition::GE);
+  // Shorter string is empty?
+  __ CompareAndBranchIfZero(temp0, &end);
+
+  // Store offset of string value in preparation for comparison loop.
+  __ mov(temp1, ShifterOperand(value_offset));
+
+  // Assertions that must hold in order to compare multiple characters at a time.
+  CHECK_ALIGNED(value_offset, 8);
+  static_assert(IsAligned<8>(kObjectAlignment),
+                "String data must be 8-byte aligned for unrolled CompareTo loop.");
+
+  const size_t char_size = Primitive::ComponentSize(Primitive::kPrimChar);
+  DCHECK_EQ(char_size, 2u);
+
+  // Unrolled loop comparing 4x16-bit chars per iteration (ok because of string data alignment).
+  __ Bind(&loop);
+  __ ldr(IP, Address(str, temp1));
+  __ ldr(temp2, Address(arg, temp1));
+  __ cmp(IP, ShifterOperand(temp2));
+  __ b(&find_char_diff, NE);
+  __ add(temp1, temp1, ShifterOperand(char_size * 2));
+  __ sub(temp0, temp0, ShifterOperand(2));
+
+  __ ldr(IP, Address(str, temp1));
+  __ ldr(temp2, Address(arg, temp1));
+  __ cmp(IP, ShifterOperand(temp2));
+  __ b(&find_char_diff, NE);
+  __ add(temp1, temp1, ShifterOperand(char_size * 2));
+  __ subs(temp0, temp0, ShifterOperand(2));
+
+  __ b(&loop, GT);
+  __ b(&end);
+
+  // Find the single 16-bit character difference.
+  __ Bind(&find_char_diff);
+  // Get the bit position of the first character that differs.
+  __ eor(temp1, temp2, ShifterOperand(IP));
+  __ rbit(temp1, temp1);
+  __ clz(temp1, temp1);
+
+  // temp0 = number of 16-bit characters remaining to compare.
+  // (it could be < 1 if a difference is found after the first SUB in the comparison loop, and
+  // after the end of the shorter string data).
+
+  // (temp1 >> 4) = character where difference occurs between the last two words compared, on the
+  // interval [0,1] (0 for low half-word different, 1 for high half-word different).
+
+  // If temp0 <= (temp1 >> 4), the difference occurs outside the remaining string data, so just
+  // return length diff (out).
+  __ cmp(temp0, ShifterOperand(temp1, LSR, 4));
+  __ b(&end, LE);
+  // Extract the characters and calculate the difference.
+  __ bic(temp1, temp1, ShifterOperand(0xf));
+  __ Lsr(temp2, temp2, temp1);
+  __ Lsr(IP, IP, temp1);
+  __ movt(temp2, 0);
+  __ movt(IP, 0);
+  __ sub(out, IP, ShifterOperand(temp2));
+
+  __ Bind(&end);
+
+  if (can_slow_path) {
+    __ Bind(slow_path->GetExitLabel());
+  }
 }
 
 void IntrinsicLocationsBuilderARM::VisitStringEquals(HInvoke* invoke) {
@@ -1082,7 +1177,7 @@ void IntrinsicCodeGeneratorARM::VisitStringEquals(HInvoke* invoke) {
 
   // Assertions that must hold in order to compare strings 2 characters at a time.
   DCHECK_ALIGNED(value_offset, 4);
-  static_assert(IsAligned<4>(kObjectAlignment), "String of odd length is not zero padded");
+  static_assert(IsAligned<4>(kObjectAlignment), "String data must be aligned for fast compare.");
 
   __ LoadImmediate(temp1, value_offset);
 
