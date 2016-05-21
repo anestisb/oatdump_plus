@@ -36,6 +36,7 @@ const char* PrettyCause(GcCause cause) {
     case kGcCauseInstrumentation: return "Instrumentation";
     case kGcCauseAddRemoveAppImageSpace: return "AddRemoveAppImageSpace";
     case kGcCauseDebugger: return "Debugger";
+    case kGcCauseClassLinker: return "ClassLinker";
     default:
       LOG(FATAL) << "Unreachable";
       UNREACHABLE();
