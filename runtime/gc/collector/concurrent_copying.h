@@ -160,8 +160,6 @@ class ConcurrentCopying : public GarbageCollector {
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_, !mark_stack_lock_);
   void SweepLargeObjects(bool swap_bitmaps)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_);
-  void ClearBlackPtrs()
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_);
   void FillWithDummyObject(mirror::Object* dummy_obj, size_t byte_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
   mirror::Object* AllocateInSkippedBlock(size_t alloc_size)
@@ -185,10 +183,19 @@ class ConcurrentCopying : public GarbageCollector {
   void ExpandGcMarkStack() SHARED_REQUIRES(Locks::mutator_lock_);
   mirror::Object* MarkNonMoving(mirror::Object* from_ref) SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_);
+  ALWAYS_INLINE mirror::Object* MarkUnevacFromSpaceRegionOrImmuneSpace(mirror::Object* from_ref,
+      accounting::SpaceBitmap<kObjectAlignment>* bitmap)
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_);
+  void PushOntoFalseGrayStack(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!mark_stack_lock_);
+  void ProcessFalseGrayStack() SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!mark_stack_lock_);
 
   space::RegionSpace* region_space_;      // The underlying region space.
   std::unique_ptr<Barrier> gc_barrier_;
   std::unique_ptr<accounting::ObjectStack> gc_mark_stack_;
+  std::vector<mirror::Object*> false_gray_stack_ GUARDED_BY(mark_stack_lock_);
   Mutex mark_stack_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::vector<accounting::ObjectStack*> revoked_mark_stacks_
       GUARDED_BY(mark_stack_lock_);

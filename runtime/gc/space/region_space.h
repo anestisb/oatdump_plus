@@ -215,7 +215,16 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
     reg->AddLiveBytes(alloc_size);
   }
 
-  void AssertAllRegionLiveBytesZeroOrCleared() REQUIRES(!region_lock_);
+  void AssertAllRegionLiveBytesZeroOrCleared() REQUIRES(!region_lock_) {
+    if (kIsDebugBuild) {
+      MutexLock mu(Thread::Current(), region_lock_);
+      for (size_t i = 0; i < num_regions_; ++i) {
+        Region* r = &regions_[i];
+        size_t live_bytes = r->LiveBytes();
+        CHECK(live_bytes == 0U || live_bytes == static_cast<size_t>(-1)) << live_bytes;
+      }
+    }
+  }
 
   void RecordAlloc(mirror::Object* ref) REQUIRES(!region_lock_);
   bool AllocNewTlab(Thread* self) REQUIRES(!region_lock_);

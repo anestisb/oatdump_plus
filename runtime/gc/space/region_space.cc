@@ -216,17 +216,6 @@ void RegionSpace::ClearFromSpace() {
   evac_region_ = nullptr;
 }
 
-void RegionSpace::AssertAllRegionLiveBytesZeroOrCleared() {
-  if (kIsDebugBuild) {
-    MutexLock mu(Thread::Current(), region_lock_);
-    for (size_t i = 0; i < num_regions_; ++i) {
-      Region* r = &regions_[i];
-      size_t live_bytes = r->LiveBytes();
-      CHECK(live_bytes == 0U || live_bytes == static_cast<size_t>(-1)) << live_bytes;
-    }
-  }
-}
-
 void RegionSpace::LogFragmentationAllocFailure(std::ostream& os,
                                                size_t /* failed_alloc_bytes */) {
   size_t max_contiguous_allocation = 0;
