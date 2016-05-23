@@ -2013,7 +2013,7 @@ bool OatWriter::WriteDexFile(OutputStream* rodata,
   DCHECK(ValidateDexFileHeader(dex_file, oat_dex_file->GetLocation()));
   const UnalignedDexFileHeader* header = AsUnalignedDexFileHeader(dex_file);
 
-  if (!rodata->WriteFully(dex_file, header->file_size_)) {
+  if (!WriteData(rodata, dex_file, header->file_size_)) {
     PLOG(ERROR) << "Failed to write dex file " << oat_dex_file->GetLocation()
                 << " to " << rodata->GetLocation();
     return false;
@@ -2193,7 +2193,7 @@ bool OatWriter::WriteCodeAlignment(OutputStream* out, uint32_t aligned_code_delt
       0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u, 0u
   };
   DCHECK_LE(aligned_code_delta, sizeof(kPadding));
-  if (UNLIKELY(!out->WriteFully(kPadding, aligned_code_delta))) {
+  if (UNLIKELY(!WriteData(out, kPadding, aligned_code_delta))) {
     return false;
   }
   size_code_alignment_ += aligned_code_delta;
