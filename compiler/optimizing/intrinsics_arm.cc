@@ -1055,17 +1055,22 @@ void IntrinsicCodeGeneratorARM::VisitStringEquals(HInvoke* invoke) {
   // Note that the null check must have been done earlier.
   DCHECK(!invoke->CanDoImplicitNullCheckOn(invoke->InputAt(0)));
 
-  // Check if input is null, return false if it is.
-  __ CompareAndBranchIfZero(arg, &return_false);
+  StringEqualsOptimizations optimizations(invoke);
+  if (!optimizations.GetArgumentNotNull()) {
+    // Check if input is null, return false if it is.
+    __ CompareAndBranchIfZero(arg, &return_false);
+  }
 
-  // Instanceof check for the argument by comparing class fields.
-  // All string objects must have the same type since String cannot be subclassed.
-  // Receiver must be a string object, so its class field is equal to all strings' class fields.
-  // If the argument is a string object, its class field must be equal to receiver's class field.
-  __ ldr(temp, Address(str, class_offset));
-  __ ldr(temp1, Address(arg, class_offset));
-  __ cmp(temp, ShifterOperand(temp1));
-  __ b(&return_false, NE);
+  if (!optimizations.GetArgumentIsString()) {
+    // Instanceof check for the argument by comparing class fields.
+    // All string objects must have the same type since String cannot be subclassed.
+    // Receiver must be a string object, so its class field is equal to all strings' class fields.
+    // If the argument is a string object, its class field must be equal to receiver's class field.
+    __ ldr(temp, Address(str, class_offset));
+    __ ldr(temp1, Address(arg, class_offset));
+    __ cmp(temp, ShifterOperand(temp1));
+    __ b(&return_false, NE);
+  }
 
   // Load lengths of this and argument strings.
   __ ldr(temp, Address(str, count_offset));
