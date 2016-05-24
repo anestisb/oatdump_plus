@@ -165,7 +165,7 @@ public:                                                               \
 void Set##name() { SetBit(k##name); }                                 \
 bool Get##name() const { return IsBitSet(k##name); }                  \
 private:                                                              \
-static constexpr size_t k##name = bit + kNumberOfGenericOptimizations
+static constexpr size_t k##name = (bit) + kNumberOfGenericOptimizations
 
 class StringEqualsOptimizations : public IntrinsicOptimizations {
  public:
