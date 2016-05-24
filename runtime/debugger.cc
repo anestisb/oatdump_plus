@@ -644,8 +644,7 @@ void Dbg::Disconnected() {
 
   LOG(INFO) << "Debugger is no longer active";
 
-  // Suspend all threads and exclusively acquire the mutator lock. Set the state of the thread
-  // to kRunnable to avoid scoped object access transitions. Remove the debugger as a listener
+  // Suspend all threads and exclusively acquire the mutator lock. Remove the debugger as a listener
   // and clear the object registry.
   Runtime* runtime = Runtime::Current();
   Thread* self = Thread::Current();
@@ -655,7 +654,6 @@ void Dbg::Disconnected() {
                                     gc::kGcCauseInstrumentation,
                                     gc::kCollectorTypeInstrumentation);
     ScopedSuspendAll ssa(__FUNCTION__);
-    ThreadState old_state = self->SetStateUnsafe(kRunnable);
     // Debugger may not be active at this point.
     if (IsDebuggerActive()) {
       {
@@ -676,7 +674,6 @@ void Dbg::Disconnected() {
       }
       gDebuggerActive = false;
     }
-    CHECK_EQ(self->SetStateUnsafe(old_state), kRunnable);
   }
 
   {
