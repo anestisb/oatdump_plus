@@ -380,14 +380,14 @@ if [ "$HOST" = "n" ]; then
 fi
 
 dex2oat_cmdline="true"
-mkdir_cmdline="mkdir -p ${DEX_LOCATION}/dalvik-cache/$ISA"
+mkdir_locations="${DEX_LOCATION}/dalvik-cache/$ISA"
 strip_cmdline="true"
 
 # Pick a base that will force the app image to get relocated.
 app_image="--base=0x4000 --app-image-file=$DEX_LOCATION/oat/$ISA/$TEST_NAME.art"
 
 if [ "$PREBUILD" = "y" ]; then
-  mkdir_cmdline="${mkdir_cmdline} && mkdir -p ${DEX_LOCATION}/oat/$ISA"
+  mkdir_locations="${mkdir_locations} ${DEX_LOCATION}/oat/$ISA"
   dex2oat_cmdline="$INVOKE_WITH $ANDROID_ROOT/bin/dex2oatd \
                       $COMPILE_FLAGS \
                       --boot-image=${BOOT_IMAGE} \
@@ -483,7 +483,7 @@ if [ "$HOST" = "n" ]; then
              export ANDROID_ADDITIONAL_PUBLIC_LIBRARIES=$PUBLIC_LIBS && \
              export DEX_LOCATION=$DEX_LOCATION && \
              export ANDROID_ROOT=$ANDROID_ROOT && \
-             $mkdir_cmdline && \
+             mkdir -p ${mkdir_locations} && \
              export LD_LIBRARY_PATH=$LD_LIBRARY_PATH && \
              export PATH=$ANDROID_ROOT/bin:$PATH && \
              $dex2oat_cmdline && \
@@ -558,13 +558,13 @@ else
     fi
 
     if [ "$DEV_MODE" = "y" ]; then
-      echo "$mkdir_cmdline && $dex2oat_cmdline && $strip_cmdline && $cmdline"
+      echo "mkdir -p ${mkdir_locations} && $dex2oat_cmdline && $strip_cmdline && $cmdline"
     fi
 
     cd $ANDROID_BUILD_TOP
 
     rm -rf ${DEX_LOCATION}/dalvik-cache/
-    $mkdir_cmdline || exit 1
+    mkdir -p ${mkdir_locations} || exit 1
     $dex2oat_cmdline || { echo "Dex2oat failed." >&2 ; exit 2; }
     $strip_cmdline || { echo "Strip failed." >&2 ; exit 3; }
 
