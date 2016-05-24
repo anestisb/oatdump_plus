@@ -73,7 +73,7 @@ struct TestProfilerOptions;
     using Key = RuntimeArgumentMapKey<TValue>;
 
     // List of key declarations, shorthand for 'static const Key<T> Name'
-#define RUNTIME_OPTIONS_KEY(Type, Name, ...) static const Key<Type> Name;
+#define RUNTIME_OPTIONS_KEY(Type, Name, ...) static const Key<Type> (Name);
 #include "runtime_options.def"
   };
 

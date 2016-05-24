@@ -122,21 +122,21 @@ inline void ArtField::SetObj(mirror::Object* object, mirror::Object* new_value) 
 
 #define FIELD_GET(object, type) \
   DCHECK_EQ(Primitive::kPrim ## type, GetTypeAsPrimitiveType()) << PrettyField(this); \
-  DCHECK(object != nullptr) << PrettyField(this); \
-  DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted()); \
+  DCHECK((object) != nullptr) << PrettyField(this); \
+  DCHECK(!IsStatic() || ((object) == GetDeclaringClass()) || !Runtime::Current()->IsStarted()); \
   if (UNLIKELY(IsVolatile())) { \
-    return object->GetField ## type ## Volatile(GetOffset()); \
+    return (object)->GetField ## type ## Volatile(GetOffset()); \
   } \
-  return object->GetField ## type(GetOffset());
+  return (object)->GetField ## type(GetOffset());
 
 #define FIELD_SET(object, type, value) \
   DCHECK_EQ(Primitive::kPrim ## type, GetTypeAsPrimitiveType()) << PrettyField(this); \
-  DCHECK(object != nullptr) << PrettyField(this); \
-  DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted()); \
+  DCHECK((object) != nullptr) << PrettyField(this); \
+  DCHECK(!IsStatic() || ((object) == GetDeclaringClass()) || !Runtime::Current()->IsStarted()); \
   if (UNLIKELY(IsVolatile())) { \
-    object->SetField ## type ## Volatile<kTransactionActive>(GetOffset(), value); \
+    (object)->SetField ## type ## Volatile<kTransactionActive>(GetOffset(), value); \
   } else { \
-    object->SetField ## type<kTransactionActive>(GetOffset(), value); \
+    (object)->SetField ## type<kTransactionActive>(GetOffset(), value); \
   }
 
 inline uint8_t ArtField::GetBoolean(mirror::Object* object) {

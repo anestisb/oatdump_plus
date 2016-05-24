@@ -39,7 +39,7 @@ class ZygoteSpace;
     int rc = call args; \
     if (UNLIKELY(rc != 0)) { \
       errno = rc; \
-      PLOG(FATAL) << # call << " failed for " << what; \
+      PLOG(FATAL) << # call << " failed for " << (what); \
     } \
   } while (false)
 

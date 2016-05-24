@@ -80,7 +80,7 @@ class Instruction {
   };
 
   enum Code {  // private marker to avoid generate-operator-out.py from processing.
-#define INSTRUCTION_ENUM(opcode, cname, p, f, r, i, a, v) cname = opcode,
+#define INSTRUCTION_ENUM(opcode, cname, p, f, r, i, a, v) cname = (opcode),
 #include "dex_instruction_list.h"
     DEX_INSTRUCTION_LIST(INSTRUCTION_ENUM)
 #undef DEX_INSTRUCTION_LIST
