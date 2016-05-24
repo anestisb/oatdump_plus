@@ -64,16 +64,6 @@ class OatFileManager {
   const OatFile* FindOpenedOatFileFromDexLocation(const std::string& dex_base_location) const
       REQUIRES(!Locks::oat_file_manager_lock_);
 
-  // Attempt to reserve a location, returns false if it is already reserved or already in used by
-  // an oat file.
-  bool RegisterOatFileLocation(const std::string& oat_location)
-      REQUIRES(!Locks::oat_file_count_lock_);
-
-  // Unreserve oat file location, should only be used for error cases since RegisterOatFile will
-  // remove the reserved location.
-  void UnRegisterOatFileLocation(const std::string& oat_location)
-      REQUIRES(!Locks::oat_file_count_lock_);
-
   // Returns true if we have a non pic oat file.
   bool HaveNonPicOatFile() const {
     return have_non_pic_oat_file_;
@@ -132,7 +122,6 @@ class OatFileManager {
       REQUIRES(Locks::oat_file_manager_lock_);
 
   std::set<std::unique_ptr<const OatFile>> oat_files_ GUARDED_BY(Locks::oat_file_manager_lock_);
-  std::unordered_map<std::string, size_t> oat_file_count_ GUARDED_BY(Locks::oat_file_count_lock_);
   bool have_non_pic_oat_file_;
 
   DISALLOW_COPY_AND_ASSIGN(OatFileManager);
