@@ -396,10 +396,10 @@ ADD_TEST_EQ(THREAD_SUSPEND_REQUEST, static_cast<int32_t>(art::kSuspendRequest))
 #define THREAD_CHECKPOINT_REQUEST 2
 ADD_TEST_EQ(THREAD_CHECKPOINT_REQUEST, static_cast<int32_t>(art::kCheckpointRequest))
 
-#define JIT_CHECK_OSR -1
+#define JIT_CHECK_OSR (-1)
 ADD_TEST_EQ(JIT_CHECK_OSR, static_cast<int32_t>(art::jit::kJitCheckForOSR))
 
-#define JIT_HOTNESS_DISABLE -2
+#define JIT_HOTNESS_DISABLE (-2)
 ADD_TEST_EQ(JIT_HOTNESS_DISABLE, static_cast<int32_t>(art::jit::kJitHotnessDisabled))
 
 #if defined(__cplusplus)

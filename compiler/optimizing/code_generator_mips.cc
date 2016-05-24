@@ -141,7 +141,8 @@ Location InvokeRuntimeCallingConvention::GetReturnLocation(Primitive::Type type)
   return MipsReturnLocation(type);
 }
 
-#define __ down_cast<CodeGeneratorMIPS*>(codegen)->GetAssembler()->
+// NOLINT on __ macro to suppress wrong warning/fix from clang-tidy.
+#define __ down_cast<CodeGeneratorMIPS*>(codegen)->GetAssembler()-> // NOLINT
 #define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kMipsWordSize, x).Int32Value()
 
 class BoundsCheckSlowPathMIPS : public SlowPathCodeMIPS {
@@ -478,7 +479,8 @@ CodeGeneratorMIPS::CodeGeneratorMIPS(HGraph* graph,
 }
 
 #undef __
-#define __ down_cast<MipsAssembler*>(GetAssembler())->
+// NOLINT on __ macro to suppress wrong warning/fix from clang-tidy.
+#define __ down_cast<MipsAssembler*>(GetAssembler())-> // NOLINT
 #define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kMipsWordSize, x).Int32Value()
 
 void CodeGeneratorMIPS::Finalize(CodeAllocator* allocator) {
