@@ -42,9 +42,9 @@ SECONDARY_DEX=""
 TIME_OUT="gdb"  # "n" (disabled), "timeout" (use timeout), "gdb" (use gdb)
 # Value in seconds
 if [ "$ART_USE_READ_BARRIER" = "true" ]; then
-  TIME_OUT_VALUE=900  # 15 minutes.
+  TIME_OUT_VALUE=1800  # 30 minutes.
 else
-  TIME_OUT_VALUE=600  # 10 minutes.
+  TIME_OUT_VALUE=1200  # 20 minutes.
 fi
 USE_GDB="n"
 USE_JVM="n"
@@ -198,6 +198,10 @@ while true; do
     elif [ "x$1" = "x--instruction-set-features" ]; then
         shift
         INSTRUCTION_SET_FEATURES="$1"
+        shift
+    elif [ "x$1" = "x--timeout" ]; then
+        shift
+        TIME_OUT_VALUE="$1"
         shift
     elif [ "x$1" = "x--" ]; then
         shift
