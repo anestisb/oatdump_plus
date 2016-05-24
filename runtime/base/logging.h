@@ -140,11 +140,11 @@ extern const char* ProgramInvocationShortName();
 
 // Helper for CHECK_STRxx(s1,s2) macros.
 #define CHECK_STROP(s1, s2, sense) \
-  if (UNLIKELY((strcmp(s1, s2) == 0) != sense)) \
+  if (UNLIKELY((strcmp(s1, s2) == 0) != (sense))) \
     LOG(::art::FATAL) << "Check failed: " \
-        << "\"" << s1 << "\"" \
-        << (sense ? " == " : " != ") \
-        << "\"" << s2 << "\""
+        << "\"" << (s1) << "\"" \
+        << ((sense) ? " == " : " != ") \
+        << "\"" << (s2) << "\""
 
 // Check for string (const char*) equality between s1 and s2, LOG(FATAL) if not.
 #define CHECK_STREQ(s1, s2) CHECK_STROP(s1, s2, true)
@@ -156,7 +156,7 @@ extern const char* ProgramInvocationShortName();
     int rc = call args; \
     if (rc != 0) { \
       errno = rc; \
-      PLOG(::art::FATAL) << # call << " failed for " << what; \
+      PLOG(::art::FATAL) << # call << " failed for " << (what); \
     } \
   } while (false)
 
