@@ -971,7 +971,7 @@ void Locks::Init() {
     instrument_entrypoints_lock_ = new Mutex("instrument entrypoint lock", current_lock_level);
 
     #define UPDATE_CURRENT_LOCK_LEVEL(new_level) \
-      if (new_level >= current_lock_level) { \
+      if ((new_level) >= current_lock_level) { \
         /* Do not use CHECKs or FATAL here, abort_lock_ is not setup yet. */ \
         fprintf(stderr, "New local level %d is not less than current level %d\n", \
                 new_level, current_lock_level); \

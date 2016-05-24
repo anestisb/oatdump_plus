@@ -132,7 +132,8 @@ Location InvokeRuntimeCallingConvention::GetReturnLocation(Primitive::Type retur
   return ARM64ReturnLocation(return_type);
 }
 
-#define __ down_cast<CodeGeneratorARM64*>(codegen)->GetVIXLAssembler()->
+// NOLINT on __ macro to suppress wrong warning/fix from clang-tidy.
+#define __ down_cast<CodeGeneratorARM64*>(codegen)->GetVIXLAssembler()-> // NOLINT
 #define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kArm64WordSize, x).Int32Value()
 
 // Calculate memory accessing operand for save/restore live registers.

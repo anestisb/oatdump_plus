@@ -1413,8 +1413,8 @@ size_t OatWriter::InitOatCode(size_t offset) {
       offset = CompiledCode::AlignCode(offset, instruction_set); \
       adjusted_offset = offset + CompiledCode::CodeDelta(instruction_set); \
       oat_header_->Set ## fn_name ## Offset(adjusted_offset); \
-      field = compiler_driver_->Create ## fn_name(); \
-      offset += field->size();
+      (field) = compiler_driver_->Create ## fn_name(); \
+      offset += (field)->size();
 
     DO_TRAMPOLINE(jni_dlsym_lookup_, JniDlsymLookup);
     DO_TRAMPOLINE(quick_generic_jni_trampoline_, QuickGenericJniTrampoline);
@@ -1526,8 +1526,8 @@ bool OatWriter::WriteCode(OutputStream* out) {
   if (kIsDebugBuild) {
     uint32_t size_total = 0;
     #define DO_STAT(x) \
-      VLOG(compiler) << #x "=" << PrettySize(x) << " (" << x << "B)"; \
-      size_total += x;
+      VLOG(compiler) << #x "=" << PrettySize(x) << " (" << (x) << "B)"; \
+      size_total += (x);
 
     DO_STAT(size_dex_file_alignment_);
     DO_STAT(size_executable_offset_alignment_);
@@ -1683,12 +1683,12 @@ size_t OatWriter::WriteCode(OutputStream* out, const size_t file_offset, size_t 
         uint32_t alignment_padding = aligned_offset - relative_offset; \
         out->Seek(alignment_padding, kSeekCurrent); \
         size_trampoline_alignment_ += alignment_padding; \
-        if (!WriteData(out, field->data(), field->size())) { \
+        if (!WriteData(out, (field)->data(), (field)->size())) { \
           PLOG(ERROR) << "Failed to write " # field " to " << out->GetLocation(); \
           return false; \
         } \
-        size_ ## field += field->size(); \
-        relative_offset += alignment_padding + field->size(); \
+        size_ ## field += (field)->size(); \
+        relative_offset += alignment_padding + (field)->size(); \
         DCHECK_OFFSET(); \
       } while (false)
 
