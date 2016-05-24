@@ -68,7 +68,13 @@ public class Device {
     return envVars.get(key);
   }
 
-  private String getHostCoreImagePath() {
+  private String getHostCoreImagePathWithArch() {
+    // TODO: Using host currently implies x86 (see Options.java), change this when generalized.
+    assert(Options.useArchX86);
+    return androidHostOut + "/framework/x86/core.art";
+  }
+
+  private String getHostCoreImagePathNoArch() {
     return androidHostOut + "/framework/core.art";
   }
 
@@ -80,7 +86,7 @@ public class Device {
     androidHostOut = checkForEnvVar(envVars, "ANDROID_HOST_OUT");
 
     if (Options.executeOnHost) {
-      File coreImage = new File(getHostCoreImagePath());
+      File coreImage = new File(getHostCoreImagePathWithArch());
       if (!coreImage.exists()) {
         Log.errorAndQuit("Host core image not found at " + coreImage.getPath()
             + ". Did you forget to build it?");
@@ -156,7 +162,7 @@ public class Device {
    * Get any extra flags required to execute ART on the host.
    */
   public String getHostExecutionFlags() {
-    return String.format("-Xnorelocate -Ximage:%s", getHostCoreImagePath());
+    return String.format("-Xnorelocate -Ximage:%s", getHostCoreImagePathNoArch());
   }
 
   public String getAndroidHostOut() {
