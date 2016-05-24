@@ -391,7 +391,7 @@ struct ShortyFieldTypeTraits {
 
  private:
 #define IS_VALID_TYPE_SPECIALIZATION(type, name) \
-  static inline constexpr bool Is ## name ## TypeImpl(type* const  = 0) { \
+  static inline constexpr bool Is ## name ## TypeImpl(type* const  = 0) { /*NOLINT*/ \
     return true; \
   } \
   \
