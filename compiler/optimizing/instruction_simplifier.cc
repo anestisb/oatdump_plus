@@ -250,6 +250,7 @@ void InstructionSimplifierVisitor::VisitShift(HBinaryOperation* instruction) {
       //    src
       instruction->ReplaceWith(input_other);
       instruction->GetBlock()->RemoveInstruction(instruction);
+      RecordSimplification();
     }
   }
 }
@@ -278,6 +279,7 @@ bool InstructionSimplifierVisitor::ReplaceRotateWithRor(HBinaryOperation* op,
   if (!shl->GetRight()->HasUses()) {
     shl->GetRight()->GetBlock()->RemoveInstruction(shl->GetRight());
   }
+  RecordSimplification();
   return true;
 }
 
@@ -907,6 +909,7 @@ void InstructionSimplifierVisitor::VisitAdd(HAdd* instruction) {
     if (Primitive::IsIntegralType(instruction->GetType())) {
       instruction->ReplaceWith(input_other);
       instruction->GetBlock()->RemoveInstruction(instruction);
+      RecordSimplification();
       return;
     }
   }
@@ -999,6 +1002,7 @@ void InstructionSimplifierVisitor::VisitAnd(HAnd* instruction) {
     //    src
     instruction->ReplaceWith(instruction->GetLeft());
     instruction->GetBlock()->RemoveInstruction(instruction);
+    RecordSimplification();
     return;
   }
 
@@ -1116,6 +1120,7 @@ void InstructionSimplifierVisitor::VisitDiv(HDiv* instruction) {
     //    src
     instruction->ReplaceWith(input_other);
     instruction->GetBlock()->RemoveInstruction(instruction);
+    RecordSimplification();
     return;
   }
 
@@ -1176,6 +1181,7 @@ void InstructionSimplifierVisitor::VisitMul(HMul* instruction) {
     //    src
     instruction->ReplaceWith(input_other);
     instruction->GetBlock()->RemoveInstruction(instruction);
+    RecordSimplification();
     return;
   }
 
@@ -1216,6 +1222,7 @@ void InstructionSimplifierVisitor::VisitMul(HMul* instruction) {
       //    0
       instruction->ReplaceWith(input_cst);
       instruction->GetBlock()->RemoveInstruction(instruction);
+      RecordSimplification();
     } else if (IsPowerOfTwo(factor)) {
       // Replace code looking like
       //    MUL dst, src, pow_of_2
@@ -1334,6 +1341,7 @@ void InstructionSimplifierVisitor::VisitOr(HOr* instruction) {
     //    src
     instruction->ReplaceWith(input_other);
     instruction->GetBlock()->RemoveInstruction(instruction);
+    RecordSimplification();
     return;
   }
 
@@ -1347,6 +1355,7 @@ void InstructionSimplifierVisitor::VisitOr(HOr* instruction) {
     //    src
     instruction->ReplaceWith(instruction->GetLeft());
     instruction->GetBlock()->RemoveInstruction(instruction);
+    RecordSimplification();
     return;
   }
 
@@ -1382,6 +1391,7 @@ void InstructionSimplifierVisitor::VisitSub(HSub* instruction) {
     // yields `-0.0`.
     instruction->ReplaceWith(input_other);
     instruction->GetBlock()->RemoveInstruction(instruction);
+    RecordSimplification();
     return;
   }
 
@@ -1460,6 +1470,7 @@ void InstructionSimplifierVisitor::VisitXor(HXor* instruction) {
     //    src
     instruction->ReplaceWith(input_other);
     instruction->GetBlock()->RemoveInstruction(instruction);
+    RecordSimplification();
     return;
   }
 
