@@ -107,8 +107,28 @@ public class Main {
   }
 
   /// CHECK-START-X86: boolean Main.stringArgumentNotNull(java.lang.Object) disassembly (after)
-  /// CHECK:          InvokeVirtual {{.*\.equals.*}}
+  /// CHECK:          InvokeVirtual {{.*\.equals.*}} intrinsic:StringEquals
   /// CHECK-NOT:      test
+
+  /// CHECK-START-X86_64: boolean Main.stringArgumentNotNull(java.lang.Object) disassembly (after)
+  /// CHECK:          InvokeVirtual {{.*\.equals.*}} intrinsic:StringEquals
+  /// CHECK-NOT:      test
+
+  /// CHECK-START-ARM: boolean Main.stringArgumentNotNull(java.lang.Object) disassembly (after)
+  /// CHECK:          InvokeVirtual {{.*\.equals.*}} intrinsic:StringEquals
+  // CompareAndBranchIfZero() may emit either CBZ or CMP+BEQ.
+  /// CHECK-NOT:      cbz
+  /// CHECK-NOT:      cmp {{r\d+}}, #0
+  // Terminate the scope for the CHECK-NOT search at the reference or length comparison,
+  // whichever comes first.
+  /// CHECK:          cmp {{r\d+}}, {{r\d+}}
+
+  /// CHECK-START-ARM64: boolean Main.stringArgumentNotNull(java.lang.Object) disassembly (after)
+  /// CHECK:          InvokeVirtual {{.*\.equals.*}} intrinsic:StringEquals
+  /// CHECK-NOT:      cbz
+  // Terminate the scope for the CHECK-NOT search at the reference or length comparison,
+  // whichever comes first.
+  /// CHECK:          cmp {{w.*,}} {{w.*}}
   public static boolean stringArgumentNotNull(Object obj) {
     obj.getClass();
     return "foo".equals(obj);
@@ -116,12 +136,53 @@ public class Main {
 
   // Test is very brittle as it depends on the order we emit instructions.
   /// CHECK-START-X86: boolean Main.stringArgumentIsString() disassembly (after)
-  /// CHECK:      InvokeVirtual
-  /// CHECK:      test
-  /// CHECK:      jz/eq
+  /// CHECK:          InvokeVirtual intrinsic:StringEquals
+  /// CHECK:          test
+  /// CHECK:          jz/eq
   // Check that we don't try to compare the classes.
-  /// CHECK-NOT:  mov
-  /// CHECK:      cmp
+  /// CHECK-NOT:      mov
+  /// CHECK:          cmp
+
+  // Test is very brittle as it depends on the order we emit instructions.
+  /// CHECK-START-X86_64: boolean Main.stringArgumentIsString() disassembly (after)
+  /// CHECK:          InvokeVirtual intrinsic:StringEquals
+  /// CHECK:          test
+  /// CHECK:          jz/eq
+  // Check that we don't try to compare the classes.
+  /// CHECK-NOT:      mov
+  /// CHECK:          cmp
+
+  // Test is brittle as it depends on the class offset being 0.
+  /// CHECK-START-ARM: boolean Main.stringArgumentIsString() disassembly (after)
+  /// CHECK:          InvokeVirtual intrinsic:StringEquals
+  /// CHECK:          {{cbz|cmp}}
+  // Check that we don't try to compare the classes.
+  // The dissassembler currently explicitly emits the offset 0 but don't rely on it.
+  // We want to terminate the CHECK-NOT search after two CMPs, one for reference
+  // equality and one for length comparison but these may be emitted in different order,
+  // so repeat the check twice.
+  /// CHECK-NOT:      ldr{{(|.w)}} {{r\d+}}, [{{r\d+}}]
+  /// CHECK-NOT:      ldr{{(|.w)}} {{r\d+}}, [{{r\d+}}, #0]
+  /// CHECK:          cmp {{r\d+}}, {{r\d+}}
+  /// CHECK-NOT:      ldr{{(|.w)}} {{r\d+}}, [{{r\d+}}]
+  /// CHECK-NOT:      ldr{{(|.w)}} {{r\d+}}, [{{r\d+}}, #0]
+  /// CHECK:          cmp {{r\d+}}, {{r\d+}}
+
+  // Test is brittle as it depends on the class offset being 0.
+  /// CHECK-START-ARM64: boolean Main.stringArgumentIsString() disassembly (after)
+  /// CHECK:          InvokeVirtual intrinsic:StringEquals
+  /// CHECK:          cbz
+  // Check that we don't try to compare the classes.
+  // The dissassembler currently does not explicitly emits the offset 0 but don't rely on it.
+  // We want to terminate the CHECK-NOT search after two CMPs, one for reference
+  // equality and one for length comparison but these may be emitted in different order,
+  // so repeat the check twice.
+  /// CHECK-NOT:      ldr {{w\d+}}, [{{x\d+}}]
+  /// CHECK-NOT:      ldr {{w\d+}}, [{{x\d+}}, #0]
+  /// CHECK:          cmp {{w\d+}}, {{w\d+}}
+  /// CHECK-NOT:      ldr {{w\d+}}, [{{x\d+}}]
+  /// CHECK-NOT:      ldr {{w\d+}}, [{{x\d+}}, #0]
+  /// CHECK:          cmp {{w\d+}}, {{w\d+}}
   public static boolean stringArgumentIsString() {
     return "foo".equals(myString);
   }
