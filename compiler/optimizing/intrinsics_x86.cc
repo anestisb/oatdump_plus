@@ -1319,11 +1319,11 @@ void IntrinsicCodeGeneratorX86::VisitStringEquals(HInvoke* invoke) {
     __ j(kEqual, &return_false);
   }
 
-  // Instanceof check for the argument by comparing class fields.
-  // All string objects must have the same type since String cannot be subclassed.
-  // Receiver must be a string object, so its class field is equal to all strings' class fields.
-  // If the argument is a string object, its class field must be equal to receiver's class field.
   if (!optimizations.GetArgumentIsString()) {
+    // Instanceof check for the argument by comparing class fields.
+    // All string objects must have the same type since String cannot be subclassed.
+    // Receiver must be a string object, so its class field is equal to all strings' class fields.
+    // If the argument is a string object, its class field must be equal to receiver's class field.
     __ movl(ecx, Address(str, class_offset));
     __ cmpl(ecx, Address(arg, class_offset));
     __ j(kNotEqual, &return_false);
