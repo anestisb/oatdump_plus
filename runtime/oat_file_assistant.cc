@@ -220,6 +220,10 @@ static bool GetRuntimeCompilerFilterOption(CompilerFilter::Filter* filter,
   return true;
 }
 
+bool OatFileAssistant::IsUpToDate() {
+  return OatFileIsUpToDate() || OdexFileIsUpToDate();
+}
+
 OatFileAssistant::ResultOfAttemptToUpdate
 OatFileAssistant::MakeUpToDate(std::string* error_msg) {
   CompilerFilter::Filter target;
