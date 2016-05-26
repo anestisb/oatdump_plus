@@ -1119,7 +1119,7 @@ class Thread {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Avoid use, callers should use SetState. Used only by SignalCatcher::HandleSigQuit, ~Thread and
-  // Dbg::Disconnected.
+  // Dbg::ManageDeoptimization.
   ThreadState SetStateUnsafe(ThreadState new_state) {
     ThreadState old_state = GetState();
     if (old_state == kRunnable && new_state != kRunnable) {
