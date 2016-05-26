@@ -1722,7 +1722,7 @@ size_t OatWriter::WriteCode(OutputStream* out, const size_t file_offset, size_t 
         uint32_t alignment_padding = aligned_offset - relative_offset; \
         out->Seek(alignment_padding, kSeekCurrent); \
         size_trampoline_alignment_ += alignment_padding; \
-        if (!out->WriteFully(field->data(), field->size())) { \
+        if (!out->WriteFully((field)->data(), (field)->size())) { \
           PLOG(ERROR) << "Failed to write " # field " to " << out->GetLocation(); \
           return false; \
         } \
