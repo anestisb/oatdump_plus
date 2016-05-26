@@ -74,11 +74,15 @@ using art::FATAL;
 /* posix open() with extensions; used by e.g. ZipFile */
 JNIEXPORT jint JVM_Open(const char* fname, jint flags, jint mode) {
     /*
-     * The call is expected to handle JVM_O_DELETE, which causes the file
-     * to be removed after it is opened.  Also, some code seems to
-     * want the special return value JVM_EEXIST if the file open fails
-     * due to O_EXCL.
+     * Some code seems to want the special return value JVM_EEXIST if the
+     * file open fails due to O_EXCL.
      */
+    // Don't use JVM_O_DELETE, it's problematic with FUSE, see b/28901232.
+    if (flags & JVM_O_DELETE) {
+        LOG(FATAL) << "JVM_O_DELETE option is not supported (while opening: '"
+                   << fname << "')";
+    }
+
     int fd = TEMP_FAILURE_RETRY(open(fname, flags & ~JVM_O_DELETE, mode));
     if (fd < 0) {
         int err = errno;
@@ -86,12 +90,6 @@ JNIEXPORT jint JVM_Open(const char* fname, jint flags, jint mode) {
             return JVM_EEXIST;
         } else {
             return -1;
-        }
-    }
-
-    if (flags & JVM_O_DELETE) {
-        if (unlink(fname) != 0) {
-            LOG(WARNING) << "Post-open deletion of '" << fname << "' failed: " << strerror(errno);
         }
     }
 
