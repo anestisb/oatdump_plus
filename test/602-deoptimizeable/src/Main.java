@@ -50,6 +50,9 @@ public class Main {
     public static native void assertIsManaged();
     public static native void assertCallerIsInterpreted();
     public static native void assertCallerIsManaged();
+    public static native void disableStackFrameAsserts();
+    public static native boolean hasOatFile();
+    public static native boolean isInterpreted();
 
     public static void execute(Runnable runnable) throws Exception {
       Thread t = new Thread(runnable);
@@ -59,6 +62,10 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
         System.loadLibrary(args[0]);
+        // Only test stack frames in compiled mode.
+        if (!hasOatFile() || isInterpreted()) {
+          disableStackFrameAsserts();
+        }
         final HashMap<DummyObject, Long> map = new HashMap<DummyObject, Long>();
 
         // Single-frame deoptimization that covers partial fragment.
