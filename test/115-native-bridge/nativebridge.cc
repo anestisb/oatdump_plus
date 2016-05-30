@@ -370,7 +370,7 @@ extern "C" const struct android::NativeBridgeRuntimeValues* native_bridge_getApp
 
 // v2 parts.
 
-extern "C" bool nb_is_compatible(uint32_t bridge_version ATTRIBUTE_UNUSED) {
+extern "C" bool native_bridge_isCompatibleWith(uint32_t bridge_version ATTRIBUTE_UNUSED) {
   return true;
 }
 
@@ -453,7 +453,7 @@ static bool nb_signalhandler(int sig, siginfo_t* info ATTRIBUTE_UNUSED, void* co
   return true;
 }
 
-static ::android::NativeBridgeSignalHandlerFn native_bridge_get_signal_handler(int signal) {
+static ::android::NativeBridgeSignalHandlerFn native_bridge_getSignalHandler(int signal) {
   // Test segv for already claimed signal, and sigill for not claimed signal
   if ((signal == SIGSEGV) || (signal == SIGILL)) {
     return &nb_signalhandler;
@@ -461,16 +461,63 @@ static ::android::NativeBridgeSignalHandlerFn native_bridge_get_signal_handler(i
   return nullptr;
 }
 
+extern "C" int native_bridge_unloadLibrary(void* handle ATTRIBUTE_UNUSED) {
+  printf("dlclose() in native bridge.\n");
+  return 0;
+}
+
+extern "C" char* native_bridge_getError() {
+  printf("dlerror() in native bridge.\n");
+  return nullptr;
+}
+
+extern "C" bool native_bridge_isPathSupported(const char* library_path ATTRIBUTE_UNUSED) {
+  printf("Checking for path support in native bridge.\n");
+  return false;
+}
+
+extern "C" bool native_bridge_initNamespace(const char*  public_ns_sonames ATTRIBUTE_UNUSED,
+                                            const char*  anon_ns_library_path ATTRIBUTE_UNUSED) {
+  printf("Initializing namespaces in native bridge.\n");
+  return false;
+}
+
+extern "C" android::native_bridge_namespace_t*
+native_bridge_createNamespace(const char* name ATTRIBUTE_UNUSED,
+                              const char* ld_library_path ATTRIBUTE_UNUSED,
+                              const char* default_library_path ATTRIBUTE_UNUSED,
+                              uint64_t type ATTRIBUTE_UNUSED,
+                              const char* permitted_when_isolated_path ATTRIBUTE_UNUSED,
+                              android::native_bridge_namespace_t* parent_ns ATTRIBUTE_UNUSED) {
+  printf("Creating namespace in native bridge.\n");
+  return nullptr;
+}
+
+extern "C" void* native_bridge_loadLibraryExt(const char* libpath ATTRIBUTE_UNUSED,
+                                               int flag ATTRIBUTE_UNUSED,
+                                               android::native_bridge_namespace_t* ns ATTRIBUTE_UNUSED) {
+    printf("Loading library with Extension in native bridge.\n");
+    return nullptr;
+}
 
 // "NativeBridgeItf" is effectively an API (it is the name of the symbol that will be loaded
 // by the native bridge library).
 android::NativeBridgeCallbacks NativeBridgeItf {
-  .version = 2,
+  // v1
+  .version = 3,
   .initialize = &native_bridge_initialize,
   .loadLibrary = &native_bridge_loadLibrary,
   .getTrampoline = &native_bridge_getTrampoline,
   .isSupported = &native_bridge_isSupported,
   .getAppEnv = &native_bridge_getAppEnv,
-  .isCompatibleWith = &nb_is_compatible,
-  .getSignalHandler = &native_bridge_get_signal_handler
+  // v2
+  .isCompatibleWith = &native_bridge_isCompatibleWith,
+  .getSignalHandler = &native_bridge_getSignalHandler,
+  // v3
+  .unloadLibrary = &native_bridge_unloadLibrary,
+  .getError = &native_bridge_getError,
+  .isPathSupported = &native_bridge_isPathSupported,
+  .initNamespace = &native_bridge_initNamespace,
+  .createNamespace = &native_bridge_createNamespace,
+  .loadLibraryExt = &native_bridge_loadLibraryExt
 };

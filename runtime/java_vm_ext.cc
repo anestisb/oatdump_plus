@@ -54,10 +54,10 @@ bool JavaVMExt::IsBadJniVersion(int version) {
 class SharedLibrary {
  public:
   SharedLibrary(JNIEnv* env, Thread* self, const std::string& path, void* handle,
-                jobject class_loader, void* class_loader_allocator)
+                bool needs_native_bridge, jobject class_loader, void* class_loader_allocator)
       : path_(path),
         handle_(handle),
-        needs_native_bridge_(false),
+        needs_native_bridge_(needs_native_bridge),
         class_loader_(env->NewWeakGlobalRef(class_loader)),
         class_loader_allocator_(class_loader_allocator),
         jni_on_load_lock_("JNI_OnLoad lock"),
@@ -73,9 +73,7 @@ class SharedLibrary {
       self->GetJniEnv()->DeleteWeakGlobalRef(class_loader_);
     }
 
-    if (!needs_native_bridge_) {
-      android::CloseNativeLibrary(handle_);
-    }
+    android::CloseNativeLibrary(handle_, needs_native_bridge_);
   }
 
   jweak GetClassLoader() const {
@@ -131,8 +129,8 @@ class SharedLibrary {
     jni_on_load_cond_.Broadcast(self);
   }
 
-  void SetNeedsNativeBridge() {
-    needs_native_bridge_ = true;
+  void SetNeedsNativeBridge(bool needs) {
+    needs_native_bridge_ = needs;
   }
 
   bool NeedsNativeBridge() const {
@@ -814,24 +812,18 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env,
 
   Locks::mutator_lock_->AssertNotHeld(self);
   const char* path_str = path.empty() ? nullptr : path.c_str();
+  bool needs_native_bridge = false;
   void* handle = android::OpenNativeLibrary(env,
                                             runtime_->GetTargetSdkVersion(),
                                             path_str,
                                             class_loader,
-                                            library_path);
-
-  bool needs_native_bridge = false;
-  if (handle == nullptr) {
-    if (android::NativeBridgeIsSupported(path_str)) {
-      handle = android::NativeBridgeLoadLibrary(path_str, RTLD_NOW);
-      needs_native_bridge = true;
-    }
-  }
+                                            library_path,
+                                            &needs_native_bridge,
+                                            error_msg);
 
   VLOG(jni) << "[Call to dlopen(\"" << path << "\", RTLD_NOW) returned " << handle << "]";
 
   if (handle == nullptr) {
-    *error_msg = dlerror();
     VLOG(jni) << "dlopen(\"" << path << "\", RTLD_NOW) failed: " << *error_msg;
     return false;
   }
@@ -847,7 +839,14 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env,
   {
     // Create SharedLibrary ahead of taking the libraries lock to maintain lock ordering.
     std::unique_ptr<SharedLibrary> new_library(
-        new SharedLibrary(env, self, path, handle, class_loader, class_loader_allocator));
+        new SharedLibrary(env,
+                          self,
+                          path,
+                          handle,
+                          needs_native_bridge,
+                          class_loader,
+                          class_loader_allocator));
+
     MutexLock mu(self, *Locks::jni_libraries_lock_);
     library = libraries_->Get(path);
     if (library == nullptr) {  // We won race to get libraries_lock.
@@ -864,11 +863,7 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env,
   VLOG(jni) << "[Added shared library \"" << path << "\" for ClassLoader " << class_loader << "]";
 
   bool was_successful = false;
-  void* sym;
-  if (needs_native_bridge) {
-    library->SetNeedsNativeBridge();
-  }
-  sym = library->FindSymbol("JNI_OnLoad", nullptr);
+  void* sym = library->FindSymbol("JNI_OnLoad", nullptr);
   if (sym == nullptr) {
     VLOG(jni) << "[No JNI_OnLoad found in \"" << path << "\"]";
     was_successful = true;
