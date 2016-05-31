@@ -908,4 +908,8 @@ fi
 
 ) 2>&${real_stderr} 1>&2
 
-exit 1
+if [ "$never_clean" = "yes" ] && [ "$good" = "yes" ]; then
+  exit 0
+else
+  exit 1
+fi
