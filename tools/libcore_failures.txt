@@ -253,11 +253,5 @@
   names: ["jsr166.CollectionTest#testEmptyMeansEmpty",
           "jsr166.Collection8Test#testForEach",
           "jsr166.Collection8Test#testForEachConcurrentStressTest"]
-},
-{
-  description: "Test uses a path that does not exist on host",
-  result: EXEC_FAILED,
-  modes: [host],
-  name: "libcore.java.util.zip.ZipFileTest#testOpenDeleteOnExternalStorage"
 }
 ]
