@@ -4928,6 +4928,9 @@ bool MethodVerifier::UpdateRegisters(uint32_t next_insn, RegisterLine* merge_lin
       // Initialize them as conflicts so they don't add to GC and deoptimization information.
       const Instruction* ret_inst = Instruction::At(code_item_->insns_ + next_insn);
       AdjustReturnLine(this, ret_inst, target_line);
+      if (have_pending_hard_failure_) {
+        return false;
+      }
     }
   } else {
     RegisterLineArenaUniquePtr copy;

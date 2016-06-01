@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-import java.lang.reflect.Method;
-
 public class Main {
 
   public static final String staticField = null;
@@ -24,7 +22,12 @@ public class Main {
     try {
       Class<?> a = Class.forName("A");
     } catch (java.lang.VerifyError e) {
-      System.out.println("passed");
+      System.out.println("passed A");
+    }
+    try {
+      Class<?> a = Class.forName("B");
+    } catch (java.lang.VerifyError e) {
+      System.out.println("passed B");
     }
   }
 }
