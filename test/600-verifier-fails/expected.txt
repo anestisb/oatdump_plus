@@ -1,1 +1,2 @@
-passed
+passed A
+passed B
