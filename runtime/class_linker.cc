@@ -2092,7 +2092,8 @@ mirror::DexCache* ClassLinker::AllocDexCache(Thread* self,
       reinterpret_cast<ArtMethod**>(raw_arrays + layout.MethodsOffset());
   ArtField** fields = (dex_file.NumFieldIds() == 0u) ? nullptr :
       reinterpret_cast<ArtField**>(raw_arrays + layout.FieldsOffset());
-  if (kIsDebugBuild) {
+  // Temporarily disabled since the JIT may hit this case. b/29083330
+  if (kIsDebugBuild && (false)) {
     // Sanity check to make sure all the dex cache arrays are empty. b/28992179
     for (size_t i = 0; i < dex_file.NumStringIds(); ++i) {
       CHECK(strings[i].Read<kWithoutReadBarrier>() == nullptr);
