@@ -497,12 +497,13 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
 
   void PrintInstruction(HInstruction* instruction) {
     output_ << instruction->DebugName();
-    if (instruction->InputCount() > 0) {
-      StringList inputs;
-      for (HInputIterator it(instruction); !it.Done(); it.Advance()) {
-        inputs.NewEntryStream() << GetTypeId(it.Current()->GetType()) << it.Current()->GetId();
+    auto&& inputs = instruction->GetInputs();
+    if (!inputs.empty()) {
+      StringList input_list;
+      for (const HInstruction* input : inputs) {
+        input_list.NewEntryStream() << GetTypeId(input->GetType()) << input->GetId();
       }
-      StartAttributeStream() << inputs;
+      StartAttributeStream() << input_list;
     }
     instruction->Accept(this);
     if (instruction->HasEnvironment()) {
@@ -544,12 +545,12 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
       StartAttributeStream("liveness") << instruction->GetLifetimePosition();
       LocationSummary* locations = instruction->GetLocations();
       if (locations != nullptr) {
-        StringList inputs;
-        for (size_t i = 0; i < instruction->InputCount(); ++i) {
-          DumpLocation(inputs.NewEntryStream(), locations->InAt(i));
+        StringList input_list;
+        for (size_t i = 0, e = locations->GetInputCount(); i < e; ++i) {
+          DumpLocation(input_list.NewEntryStream(), locations->InAt(i));
         }
         std::ostream& attr = StartAttributeStream("locations");
-        attr << inputs << "->";
+        attr << input_list << "->";
         DumpLocation(attr, locations->Out());
       }
     }
@@ -739,8 +740,8 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
       HInstruction* instruction = it.Current();
       output_ << instruction->GetId() << " " << GetTypeId(instruction->GetType())
               << instruction->GetId() << "[ ";
-      for (HInputIterator inputs(instruction); !inputs.Done(); inputs.Advance()) {
-        output_ << inputs.Current()->GetId() << " ";
+      for (const HInstruction* input : instruction->GetInputs()) {
+        output_ << input->GetId() << " ";
       }
       output_ << "]\n";
     }

@@ -305,7 +305,7 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
     BlockRegisters(position, position + 1, /* caller_save_only */ true);
   }
 
-  for (size_t i = 0; i < instruction->InputCount(); ++i) {
+  for (size_t i = 0; i < locations->GetInputCount(); ++i) {
     Location input = locations->InAt(i);
     if (input.IsRegister() || input.IsFpuRegister()) {
       BlockRegister(input, position, position + 1);
@@ -753,10 +753,11 @@ bool RegisterAllocator::TryAllocateFreeReg(LiveInterval* current) {
   if (defined_by != nullptr && !current->IsSplit()) {
     LocationSummary* locations = defined_by->GetLocations();
     if (!locations->OutputCanOverlapWithInputs() && locations->Out().IsUnallocated()) {
-      for (size_t i = 0, e = defined_by->InputCount(); i < e; ++i) {
+      auto&& inputs = defined_by->GetInputs();
+      for (size_t i = 0; i < inputs.size(); ++i) {
         // Take the last interval of the input. It is the location of that interval
         // that will be used at `defined_by`.
-        LiveInterval* interval = defined_by->InputAt(i)->GetLiveInterval()->GetLastSibling();
+        LiveInterval* interval = inputs[i]->GetLiveInterval()->GetLastSibling();
         // Note that interval may have not been processed yet.
         // TODO: Handle non-split intervals last in the work list.
         if (locations->InAt(i).IsValid()

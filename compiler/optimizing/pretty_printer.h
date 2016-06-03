@@ -39,16 +39,17 @@ class HPrettyPrinter : public HGraphVisitor {
   }
 
   void PrintPostInstruction(HInstruction* instruction) {
-    if (instruction->InputCount() != 0) {
+    auto&& inputs = instruction->GetInputs();
+    if (!inputs.empty()) {
       PrintString("(");
       bool first = true;
-      for (HInputIterator it(instruction); !it.Done(); it.Advance()) {
+      for (const HInstruction* input : inputs) {
         if (first) {
           first = false;
         } else {
           PrintString(", ");
         }
-        PrintInt(it.Current()->GetId());
+        PrintInt(input->GetId());
       }
       PrintString(")");
     }

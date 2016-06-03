@@ -3697,7 +3697,7 @@ void InstructionCodeGeneratorARM::VisitCompare(HCompare* compare) {
 void LocationsBuilderARM::VisitPhi(HPhi* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  for (size_t i = 0, e = instruction->InputCount(); i < e; ++i) {
+  for (size_t i = 0, e = locations->GetInputCount(); i < e; ++i) {
     locations->SetInAt(i, Location::Any());
   }
   locations->SetOut(Location::Any());
