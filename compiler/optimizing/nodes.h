@@ -37,6 +37,7 @@
 #include "primitive.h"
 #include "utils/array_ref.h"
 #include "utils/intrusive_forward_list.h"
+#include "utils/transform_array_ref.h"
 
 namespace art {
 
@@ -1331,12 +1332,12 @@ class HLoopInformationOutwardIterator : public ValueObject {
 FOR_EACH_INSTRUCTION(FORWARD_DECLARATION)
 #undef FORWARD_DECLARATION
 
-#define DECLARE_INSTRUCTION(type)                                       \
-  InstructionKind GetKindInternal() const OVERRIDE { return k##type; }  \
-  const char* DebugName() const OVERRIDE { return #type; }              \
-  bool InstructionTypeEquals(HInstruction* other) const OVERRIDE {      \
-    return other->Is##type();                                           \
-  }                                                                     \
+#define DECLARE_INSTRUCTION(type)                                         \
+  InstructionKind GetKindInternal() const OVERRIDE { return k##type; }    \
+  const char* DebugName() const OVERRIDE { return #type; }                \
+  bool InstructionTypeEquals(const HInstruction* other) const OVERRIDE {  \
+    return other->Is##type();                                             \
+  }                                                                       \
   void Accept(HGraphVisitor* visitor) OVERRIDE
 
 #define DECLARE_ABSTRACT_INSTRUCTION(type)                              \
@@ -1779,16 +1780,41 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
     return IsLoopHeaderPhi() && GetBlock()->GetLoopInformation()->IsIrreducible();
   }
 
-  virtual size_t InputCount() const = 0;
+  virtual ArrayRef<HUserRecord<HInstruction*>> GetInputRecords() = 0;
+
+  ArrayRef<const HUserRecord<HInstruction*>> GetInputRecords() const {
+    // One virtual method is enough, just const_cast<> and then re-add the const.
+    return ArrayRef<const HUserRecord<HInstruction*>>(
+        const_cast<HInstruction*>(this)->GetInputRecords());
+  }
+
+  auto GetInputs() {
+    return MakeTransformArrayRef(
+        GetInputRecords(),
+        [](HUserRecord<HInstruction*>& record) -> HInstruction* {
+            return record.GetInstruction();
+        });
+  }
+
+  auto GetInputs() const {
+    return MakeTransformArrayRef(
+        GetInputRecords(),
+        [](const HUserRecord<HInstruction*>& record) -> const HInstruction* {
+            return record.GetInstruction();
+        });
+  }
+
+  size_t InputCount() const { return GetInputRecords().size(); }
   HInstruction* InputAt(size_t i) const { return InputRecordAt(i).GetInstruction(); }
+
+  void SetRawInputAt(size_t index, HInstruction* input) {
+    SetRawInputRecordAt(index, HUserRecord<HInstruction*>(input));
+  }
 
   virtual void Accept(HGraphVisitor* visitor) = 0;
   virtual const char* DebugName() const = 0;
 
   virtual Primitive::Type GetType() const { return Primitive::kPrimVoid; }
-  void SetRawInputAt(size_t index, HInstruction* input) {
-    SetRawInputRecordAt(index, HUserRecord<HInstruction*>(input));
-  }
 
   virtual bool NeedsEnvironment() const { return false; }
 
@@ -1851,6 +1877,14 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
     HUseList<HInstruction*>::iterator before_use_node = input_use.GetBeforeUseNode();
     input_use.GetInstruction()->uses_.erase_after(before_use_node);
     input_use.GetInstruction()->FixUpUserRecordsAfterUseRemoval(before_use_node);
+  }
+
+  void RemoveAsUserOfAllInputs() {
+    for (const HUserRecord<HInstruction*>& input_use : GetInputRecords()) {
+      HUseList<HInstruction*>::iterator before_use_node = input_use.GetBeforeUseNode();
+      input_use.GetInstruction()->uses_.erase_after(before_use_node);
+      input_use.GetInstruction()->FixUpUserRecordsAfterUseRemoval(before_use_node);
+    }
   }
 
   const HUseList<HInstruction*>& GetUses() const { return uses_; }
@@ -1957,21 +1991,21 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
   virtual bool CanBeMoved() const { return false; }
 
   // Returns whether the two instructions are of the same kind.
-  virtual bool InstructionTypeEquals(HInstruction* other ATTRIBUTE_UNUSED) const {
+  virtual bool InstructionTypeEquals(const HInstruction* other ATTRIBUTE_UNUSED) const {
     return false;
   }
 
   // Returns whether any data encoded in the two instructions is equal.
   // This method does not look at the inputs. Both instructions must be
   // of the same type, otherwise the method has undefined behavior.
-  virtual bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const {
+  virtual bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const {
     return false;
   }
 
   // Returns whether two instructions are equal, that is:
   // 1) They have the same type and contain the same data (InstructionDataEquals).
   // 2) Their inputs are identical.
-  bool Equals(HInstruction* other) const;
+  bool Equals(const HInstruction* other) const;
 
   // TODO: Remove this indirection when the [[pure]] attribute proposal (n3744)
   // is adopted and implemented by our C++ compiler(s). Fow now, we need to hide
@@ -1982,8 +2016,8 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
 
   virtual size_t ComputeHashCode() const {
     size_t result = GetKind();
-    for (size_t i = 0, e = InputCount(); i < e; ++i) {
-      result = (result * 31) + InputAt(i)->GetId();
+    for (const HInstruction* input : GetInputs()) {
+      result = (result * 31) + input->GetId();
     }
     return result;
   }
@@ -2033,8 +2067,14 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
   static constexpr size_t kNumberOfGenericPackedBits = kFlagReferenceTypeIsExact + 1;
   static constexpr size_t kMaxNumberOfPackedBits = sizeof(uint32_t) * kBitsPerByte;
 
-  virtual const HUserRecord<HInstruction*> InputRecordAt(size_t i) const = 0;
-  virtual void SetRawInputRecordAt(size_t index, const HUserRecord<HInstruction*>& input) = 0;
+  const HUserRecord<HInstruction*> InputRecordAt(size_t i) const {
+    return GetInputRecords()[i];
+  }
+
+  void SetRawInputRecordAt(size_t index, const HUserRecord<HInstruction*>& input) {
+    ArrayRef<HUserRecord<HInstruction*>> input_records = GetInputRecords();
+    input_records[index] = input;
+  }
 
   uint32_t GetPackedFields() const {
     return packed_fields_;
@@ -2155,21 +2195,6 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
 };
 std::ostream& operator<<(std::ostream& os, const HInstruction::InstructionKind& rhs);
 
-class HInputIterator : public ValueObject {
- public:
-  explicit HInputIterator(HInstruction* instruction) : instruction_(instruction), index_(0) {}
-
-  bool Done() const { return index_ == instruction_->InputCount(); }
-  HInstruction* Current() const { return instruction_->InputAt(index_); }
-  void Advance() { index_++; }
-
- private:
-  HInstruction* instruction_;
-  size_t index_;
-
-  DISALLOW_COPY_AND_ASSIGN(HInputIterator);
-};
-
 class HInstructionIterator : public ValueObject {
  public:
   explicit HInstructionIterator(const HInstructionList& instructions)
@@ -2219,17 +2244,9 @@ class HTemplateInstruction: public HInstruction {
       : HInstruction(side_effects, dex_pc), inputs_() {}
   virtual ~HTemplateInstruction() {}
 
-  size_t InputCount() const OVERRIDE { return N; }
-
- protected:
-  const HUserRecord<HInstruction*> InputRecordAt(size_t i) const OVERRIDE {
-    DCHECK_LT(i, N);
-    return inputs_[i];
-  }
-
-  void SetRawInputRecordAt(size_t i, const HUserRecord<HInstruction*>& input) OVERRIDE {
-    DCHECK_LT(i, N);
-    inputs_[i] = input;
+  using HInstruction::GetInputRecords;  // Keep the const version visible.
+  ArrayRef<HUserRecord<HInstruction*>> GetInputRecords() OVERRIDE FINAL {
+    return ArrayRef<HUserRecord<HInstruction*>>(inputs_);
   }
 
  private:
@@ -2247,18 +2264,9 @@ class HTemplateInstruction<0>: public HInstruction {
 
   virtual ~HTemplateInstruction() {}
 
-  size_t InputCount() const OVERRIDE { return 0; }
-
- protected:
-  const HUserRecord<HInstruction*> InputRecordAt(size_t i ATTRIBUTE_UNUSED) const OVERRIDE {
-    LOG(FATAL) << "Unreachable";
-    UNREACHABLE();
-  }
-
-  void SetRawInputRecordAt(size_t i ATTRIBUTE_UNUSED,
-                           const HUserRecord<HInstruction*>& input ATTRIBUTE_UNUSED) OVERRIDE {
-    LOG(FATAL) << "Unreachable";
-    UNREACHABLE();
+  using HInstruction::GetInputRecords;  // Keep the const version visible.
+  ArrayRef<HUserRecord<HInstruction*>> GetInputRecords() OVERRIDE FINAL {
+    return ArrayRef<HUserRecord<HInstruction*>>();
   }
 
  private:
@@ -2346,7 +2354,10 @@ class HPhi FINAL : public HInstruction {
 
   bool IsCatchPhi() const { return GetBlock()->IsCatchBlock(); }
 
-  size_t InputCount() const OVERRIDE { return inputs_.size(); }
+  using HInstruction::GetInputRecords;  // Keep the const version visible.
+  ArrayRef<HUserRecord<HInstruction*>> GetInputRecords() OVERRIDE FINAL {
+    return ArrayRef<HUserRecord<HInstruction*>>(inputs_);
+  }
 
   void AddInput(HInstruction* input);
   void RemoveInputAt(size_t index);
@@ -2396,15 +2407,6 @@ class HPhi FINAL : public HInstruction {
 
   DECLARE_INSTRUCTION(Phi);
 
- protected:
-  const HUserRecord<HInstruction*> InputRecordAt(size_t index) const OVERRIDE {
-    return inputs_[index];
-  }
-
-  void SetRawInputRecordAt(size_t index, const HUserRecord<HInstruction*>& input) OVERRIDE {
-    inputs_[index] = input;
-  }
-
  private:
   static constexpr size_t kFieldType = HInstruction::kNumberOfGenericPackedBits;
   static constexpr size_t kFieldTypeSize =
@@ -2415,7 +2417,7 @@ class HPhi FINAL : public HInstruction {
   static_assert(kNumberOfPhiPackedBits <= kMaxNumberOfPackedBits, "Too many packed fields.");
   using TypeField = BitField<Primitive::Type, kFieldType, kFieldTypeSize>;
 
-  ArenaVector<HUserRecord<HInstruction*> > inputs_;
+  ArenaVector<HUserRecord<HInstruction*>> inputs_;
   const uint32_t reg_number_;
 
   DISALLOW_COPY_AND_ASSIGN(HPhi);
@@ -2479,7 +2481,7 @@ class HConstant : public HExpression<0> {
 
 class HNullConstant FINAL : public HConstant {
  public:
-  bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
+  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
     return true;
   }
 
@@ -2509,7 +2511,7 @@ class HIntConstant FINAL : public HConstant {
     return static_cast<uint64_t>(static_cast<uint32_t>(value_));
   }
 
-  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
     DCHECK(other->IsIntConstant()) << other->DebugName();
     return other->AsIntConstant()->value_ == value_;
   }
@@ -2548,7 +2550,7 @@ class HLongConstant FINAL : public HConstant {
 
   uint64_t GetValueAsUint64() const OVERRIDE { return value_; }
 
-  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
     DCHECK(other->IsLongConstant()) << other->DebugName();
     return other->AsLongConstant()->value_ == value_;
   }
@@ -2580,7 +2582,7 @@ class HFloatConstant FINAL : public HConstant {
     return static_cast<uint64_t>(bit_cast<uint32_t, float>(value_));
   }
 
-  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
     DCHECK(other->IsFloatConstant()) << other->DebugName();
     return other->AsFloatConstant()->GetValueAsUint64() == GetValueAsUint64();
   }
@@ -2631,7 +2633,7 @@ class HDoubleConstant FINAL : public HConstant {
 
   uint64_t GetValueAsUint64() const OVERRIDE { return bit_cast<uint64_t, double>(value_); }
 
-  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
     DCHECK(other->IsDoubleConstant()) << other->DebugName();
     return other->AsDoubleConstant()->GetValueAsUint64() == GetValueAsUint64();
   }
@@ -2775,7 +2777,7 @@ class HDeoptimize FINAL : public HTemplateInstruction<1> {
   }
 
   bool CanBeMoved() const OVERRIDE { return true; }
-  bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
+  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
     return true;
   }
   bool NeedsEnvironment() const OVERRIDE { return true; }
@@ -2822,7 +2824,7 @@ class HClassTableGet FINAL : public HExpression<1> {
   }
 
   bool CanBeMoved() const OVERRIDE { return true; }
-  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
     return other->AsClassTableGet()->GetIndex() == index_ &&
         other->AsClassTableGet()->GetPackedFields() == GetPackedFields();
   }
@@ -2892,7 +2894,7 @@ class HUnaryOperation : public HExpression<1> {
   Primitive::Type GetResultType() const { return GetType(); }
 
   bool CanBeMoved() const OVERRIDE { return true; }
-  bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
+  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
     return true;
   }
 
@@ -2964,7 +2966,7 @@ class HBinaryOperation : public HExpression<2> {
   }
 
   bool CanBeMoved() const OVERRIDE { return true; }
-  bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
+  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
     return true;
   }
 
@@ -3037,7 +3039,7 @@ class HCondition : public HBinaryOperation {
   ComparisonBias GetBias() const { return GetPackedField<ComparisonBiasField>(); }
   void SetBias(ComparisonBias bias) { SetPackedField<ComparisonBiasField>(bias); }
 
-  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
     return GetPackedFields() == other->AsCondition()->GetPackedFields();
   }
 
@@ -3541,7 +3543,7 @@ class HCompare FINAL : public HBinaryOperation {
     return MakeConstantComparison(ComputeFP(x->GetValue(), y->GetValue()), GetDexPc());
   }
 
-  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
     return GetPackedFields() == other->AsCompare()->GetPackedFields();
   }
 
@@ -3671,9 +3673,12 @@ enum IntrinsicExceptions {
 
 class HInvoke : public HInstruction {
  public:
-  size_t InputCount() const OVERRIDE { return inputs_.size(); }
-
   bool NeedsEnvironment() const OVERRIDE;
+
+  using HInstruction::GetInputRecords;  // Keep the const version visible.
+  ArrayRef<HUserRecord<HInstruction*>> GetInputRecords() OVERRIDE {
+    return ArrayRef<HUserRecord<HInstruction*>>(inputs_);
+  }
 
   void SetArgumentAt(size_t index, HInstruction* argument) {
     SetRawInputAt(index, argument);
@@ -3711,7 +3716,7 @@ class HInvoke : public HInstruction {
 
   bool CanBeMoved() const OVERRIDE { return IsIntrinsic(); }
 
-  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
     return intrinsic_ != Intrinsics::kNone && intrinsic_ == other->AsInvoke()->intrinsic_;
   }
 
@@ -3760,14 +3765,6 @@ class HInvoke : public HInstruction {
     SetPackedField<ReturnTypeField>(return_type);
     SetPackedField<OriginalInvokeTypeField>(original_invoke_type);
     SetPackedFlag<kFlagCanThrow>(true);
-  }
-
-  const HUserRecord<HInstruction*> InputRecordAt(size_t index) const OVERRIDE {
-    return inputs_[index];
-  }
-
-  void SetRawInputRecordAt(size_t index, const HUserRecord<HInstruction*>& input) OVERRIDE {
-    inputs_[index] = input;
   }
 
   void SetCanThrow(bool can_throw) { SetPackedFlag<kFlagCanThrow>(can_throw); }
@@ -3936,6 +3933,25 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
     InsertInputAt(GetSpecialInputIndex(), input);
   }
 
+  using HInstruction::GetInputRecords;  // Keep the const version visible.
+  ArrayRef<HUserRecord<HInstruction*>> GetInputRecords() OVERRIDE {
+    ArrayRef<HUserRecord<HInstruction*>> input_records = HInvoke::GetInputRecords();
+    if (kIsDebugBuild && IsStaticWithExplicitClinitCheck()) {
+      DCHECK(!input_records.empty());
+      DCHECK_GT(input_records.size(), GetNumberOfArguments());
+      HInstruction* last_input = input_records.back().GetInstruction();
+      // Note: `last_input` may be null during arguments setup.
+      if (last_input != nullptr) {
+        // `last_input` is the last input of a static invoke marked as having
+        // an explicit clinit check. It must either be:
+        // - an art::HClinitCheck instruction, set by art::HGraphBuilder; or
+        // - an art::HLoadClass instruction, set by art::PrepareForRegisterAllocation.
+        DCHECK(last_input->IsClinitCheck() || last_input->IsLoadClass()) << last_input->DebugName();
+      }
+    }
+    return input_records;
+  }
+
   bool CanDoImplicitNullCheckOn(HInstruction* obj ATTRIBUTE_UNUSED) const OVERRIDE {
     // We access the method via the dex cache so we can't do an implicit null check.
     // TODO: for intrinsics we can generate implicit null checks.
@@ -4020,8 +4036,8 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
   // instruction; only relevant for static calls with explicit clinit check.
   void RemoveExplicitClinitCheck(ClinitCheckRequirement new_requirement) {
     DCHECK(IsStaticWithExplicitClinitCheck());
-    size_t last_input_index = InputCount() - 1;
-    HInstruction* last_input = InputAt(last_input_index);
+    size_t last_input_index = inputs_.size() - 1u;
+    HInstruction* last_input = inputs_.back().GetInstruction();
     DCHECK(last_input != nullptr);
     DCHECK(last_input->IsLoadClass() || last_input->IsClinitCheck()) << last_input->DebugName();
     RemoveAsUserOfInput(last_input_index);
@@ -4050,20 +4066,6 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
   DECLARE_INSTRUCTION(InvokeStaticOrDirect);
 
  protected:
-  const HUserRecord<HInstruction*> InputRecordAt(size_t i) const OVERRIDE {
-    const HUserRecord<HInstruction*> input_record = HInvoke::InputRecordAt(i);
-    if (kIsDebugBuild && IsStaticWithExplicitClinitCheck() && (i == InputCount() - 1)) {
-      HInstruction* input = input_record.GetInstruction();
-      // `input` is the last input of a static invoke marked as having
-      // an explicit clinit check. It must either be:
-      // - an art::HClinitCheck instruction, set by art::HGraphBuilder; or
-      // - an art::HLoadClass instruction, set by art::PrepareForRegisterAllocation.
-      DCHECK(input != nullptr);
-      DCHECK(input->IsClinitCheck() || input->IsLoadClass()) << input->DebugName();
-    }
-    return input_record;
-  }
-
   void InsertInputAt(size_t index, HInstruction* input);
   void RemoveInputAt(size_t index);
 
@@ -4435,7 +4437,7 @@ class HDivZeroCheck FINAL : public HExpression<1> {
 
   bool CanBeMoved() const OVERRIDE { return true; }
 
-  bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
+  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
     return true;
   }
 
@@ -4800,7 +4802,7 @@ class HNot FINAL : public HUnaryOperation {
       : HUnaryOperation(result_type, input, dex_pc) {}
 
   bool CanBeMoved() const OVERRIDE { return true; }
-  bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
+  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
     return true;
   }
 
@@ -4833,7 +4835,7 @@ class HBooleanNot FINAL : public HUnaryOperation {
       : HUnaryOperation(Primitive::Type::kPrimBoolean, input, dex_pc) {}
 
   bool CanBeMoved() const OVERRIDE { return true; }
-  bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
+  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
     return true;
   }
 
@@ -4881,7 +4883,9 @@ class HTypeConversion FINAL : public HExpression<1> {
   Primitive::Type GetResultType() const { return GetType(); }
 
   bool CanBeMoved() const OVERRIDE { return true; }
-  bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE { return true; }
+  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
+    return true;
+  }
 
   // Try to statically evaluate the conversion and return a HConstant
   // containing the result.  If the input cannot be converted, return nullptr.
@@ -4917,7 +4921,7 @@ class HNullCheck FINAL : public HExpression<1> {
   }
 
   bool CanBeMoved() const OVERRIDE { return true; }
-  bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
+  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
     return true;
   }
 
@@ -4995,8 +4999,8 @@ class HInstanceFieldGet FINAL : public HExpression<1> {
 
   bool CanBeMoved() const OVERRIDE { return !IsVolatile(); }
 
-  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
-    HInstanceFieldGet* other_get = other->AsInstanceFieldGet();
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
+    const HInstanceFieldGet* other_get = other->AsInstanceFieldGet();
     return GetFieldOffset().SizeValue() == other_get->GetFieldOffset().SizeValue();
   }
 
@@ -5081,7 +5085,7 @@ class HArrayGet FINAL : public HExpression<2> {
   }
 
   bool CanBeMoved() const OVERRIDE { return true; }
-  bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
+  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
     return true;
   }
   bool CanDoImplicitNullCheckOn(HInstruction* obj ATTRIBUTE_UNUSED) const OVERRIDE {
@@ -5228,7 +5232,7 @@ class HArrayLength FINAL : public HExpression<1> {
   }
 
   bool CanBeMoved() const OVERRIDE { return true; }
-  bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
+  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
     return true;
   }
   bool CanDoImplicitNullCheckOn(HInstruction* obj) const OVERRIDE {
@@ -5266,7 +5270,7 @@ class HBoundsCheck FINAL : public HExpression<2> {
   }
 
   bool CanBeMoved() const OVERRIDE { return true; }
-  bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
+  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
     return true;
   }
 
@@ -5350,7 +5354,7 @@ class HLoadClass FINAL : public HExpression<1> {
 
   bool CanBeMoved() const OVERRIDE { return true; }
 
-  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
     // Note that we don't need to test for generate_clinit_check_.
     // Whether or not we need to generate the clinit check is processed in
     // prepare_for_register_allocator based on existing HInvokes and HClinitChecks.
@@ -5428,7 +5432,7 @@ class HLoadClass FINAL : public HExpression<1> {
   DISALLOW_COPY_AND_ASSIGN(HLoadClass);
 };
 
-class HLoadString FINAL : public HExpression<1> {
+class HLoadString FINAL : public HInstruction {
  public:
   // Determines how to load the String.
   enum class LoadKind {
@@ -5467,12 +5471,12 @@ class HLoadString FINAL : public HExpression<1> {
               uint32_t string_index,
               const DexFile& dex_file,
               uint32_t dex_pc)
-      : HExpression(Primitive::kPrimNot, SideEffectsForArchRuntimeCalls(), dex_pc),
+      : HInstruction(SideEffectsForArchRuntimeCalls(), dex_pc),
+        special_input_(HUserRecord<HInstruction*>(current_method)),
         string_index_(string_index) {
     SetPackedFlag<kFlagIsInDexCache>(false);
     SetPackedField<LoadKindField>(LoadKind::kDexCacheViaMethod);
     load_data_.ref.dex_file = &dex_file;
-    SetRawInputAt(0, current_method);
   }
 
   void SetLoadKindWithAddress(LoadKind load_kind, uint64_t address) {
@@ -5519,7 +5523,7 @@ class HLoadString FINAL : public HExpression<1> {
 
   bool CanBeMoved() const OVERRIDE { return true; }
 
-  bool InstructionDataEquals(HInstruction* other) const OVERRIDE;
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE;
 
   size_t ComputeHashCode() const OVERRIDE { return string_index_; }
 
@@ -5555,16 +5559,22 @@ class HLoadString FINAL : public HExpression<1> {
     SetSideEffects(SideEffects::None());
   }
 
-  size_t InputCount() const OVERRIDE {
-    return (InputAt(0) != nullptr) ? 1u : 0u;
+  void AddSpecialInput(HInstruction* special_input);
+
+  using HInstruction::GetInputRecords;  // Keep the const version visible.
+  ArrayRef<HUserRecord<HInstruction*>> GetInputRecords() OVERRIDE FINAL {
+    return ArrayRef<HUserRecord<HInstruction*>>(
+        &special_input_, (special_input_.GetInstruction() != nullptr) ? 1u : 0u);
   }
 
-  void AddSpecialInput(HInstruction* special_input);
+  Primitive::Type GetType() const OVERRIDE {
+    return Primitive::kPrimNot;
+  }
 
   DECLARE_INSTRUCTION(LoadString);
 
  private:
-  static constexpr size_t kFlagIsInDexCache = kNumberOfExpressionPackedBits;
+  static constexpr size_t kFlagIsInDexCache = kNumberOfGenericPackedBits;
   static constexpr size_t kFieldLoadKind = kFlagIsInDexCache + 1;
   static constexpr size_t kFieldLoadKindSize =
       MinimumBitsToStore(static_cast<size_t>(LoadKind::kLast));
@@ -5587,6 +5597,8 @@ class HLoadString FINAL : public HExpression<1> {
   }
 
   void SetLoadKindInternal(LoadKind load_kind);
+
+  HUserRecord<HInstruction*> special_input_;
 
   // String index serves also as the hash code and it's also needed for slow-paths,
   // so it must not be overwritten with other load data.
@@ -5622,8 +5634,10 @@ inline void HLoadString::AddSpecialInput(HInstruction* special_input) {
   // The special input is used for PC-relative loads on some architectures.
   DCHECK(GetLoadKind() == LoadKind::kBootImageLinkTimePcRelative ||
          GetLoadKind() == LoadKind::kDexCachePcRelative) << GetLoadKind();
-  DCHECK(InputAt(0) == nullptr);
-  SetRawInputAt(0u, special_input);
+  // HLoadString::GetInputRecords() returns an empty array at this point,
+  // so use the GetInputRecords() from the base class to set the input record.
+  DCHECK(special_input_.GetInstruction() == nullptr);
+  special_input_ = HUserRecord<HInstruction*>(special_input);
   special_input->AddUseAt(this, 0);
 }
 
@@ -5641,7 +5655,7 @@ class HClinitCheck FINAL : public HExpression<1> {
   }
 
   bool CanBeMoved() const OVERRIDE { return true; }
-  bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
+  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
     return true;
   }
 
@@ -5687,8 +5701,8 @@ class HStaticFieldGet FINAL : public HExpression<1> {
 
   bool CanBeMoved() const OVERRIDE { return !IsVolatile(); }
 
-  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
-    HStaticFieldGet* other_get = other->AsStaticFieldGet();
+  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
+    const HStaticFieldGet* other_get = other->AsStaticFieldGet();
     return GetFieldOffset().SizeValue() == other_get->GetFieldOffset().SizeValue();
   }
 
@@ -5960,7 +5974,7 @@ class HInstanceOf FINAL : public HExpression<2> {
 
   bool CanBeMoved() const OVERRIDE { return true; }
 
-  bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
+  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
     return true;
   }
 
@@ -6056,7 +6070,7 @@ class HCheckCast FINAL : public HTemplateInstruction<2> {
 
   bool CanBeMoved() const OVERRIDE { return true; }
 
-  bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
+  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
     return true;
   }
 
@@ -6179,7 +6193,9 @@ class HSelect FINAL : public HExpression<3> {
   HInstruction* GetCondition() const { return InputAt(2); }
 
   bool CanBeMoved() const OVERRIDE { return true; }
-  bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE { return true; }
+  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
+    return true;
+  }
 
   bool CanBeNull() const OVERRIDE {
     return GetTrueValue()->CanBeNull() || GetFalseValue()->CanBeNull();
