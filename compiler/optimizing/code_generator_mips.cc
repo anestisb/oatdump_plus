@@ -4439,7 +4439,7 @@ void InstructionCodeGeneratorMIPS::VisitCurrentMethod(HCurrentMethod* instructio
 
 void LocationsBuilderMIPS::VisitPhi(HPhi* instruction) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
-  for (size_t i = 0, e = instruction->InputCount(); i < e; ++i) {
+  for (size_t i = 0, e = locations->GetInputCount(); i < e; ++i) {
     locations->SetInAt(i, Location::Any());
   }
   locations->SetOut(Location::Any());

@@ -797,8 +797,8 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
   bool IsUsingInputRegister() const {
     CHECK(kIsDebugBuild) << "Function should be used only for DCHECKs";
     if (defined_by_ != nullptr && !IsSplit()) {
-      for (HInputIterator it(defined_by_); !it.Done(); it.Advance()) {
-        LiveInterval* interval = it.Current()->GetLiveInterval();
+      for (const HInstruction* input : defined_by_->GetInputs()) {
+        LiveInterval* interval = input->GetLiveInterval();
 
         // Find the interval that covers `defined_by`_. Calls to this function
         // are made outside the linear scan, hence we need to use CoversSlow.
@@ -828,8 +828,8 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
       if (locations->OutputCanOverlapWithInputs()) {
         return false;
       }
-      for (HInputIterator it(defined_by_); !it.Done(); it.Advance()) {
-        LiveInterval* interval = it.Current()->GetLiveInterval();
+      for (const HInstruction* input : defined_by_->GetInputs()) {
+        LiveInterval* interval = input->GetLiveInterval();
 
         // Find the interval that covers `defined_by`_. Calls to this function
         // are made outside the linear scan, hence we need to use CoversSlow.
