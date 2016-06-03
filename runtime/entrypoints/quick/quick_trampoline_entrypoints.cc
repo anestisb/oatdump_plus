@@ -755,7 +755,10 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
   // Request a stack deoptimization if needed
   ArtMethod* caller = QuickArgumentVisitor::GetCallingMethod(sp);
   uintptr_t caller_pc = QuickArgumentVisitor::GetCallingPc(sp);
-  if (UNLIKELY(Dbg::IsForcedInterpreterNeededForUpcall(self, caller) &&
+  // If caller_pc is the instrumentation exit stub, the stub will check to see if deoptimization
+  // should be done and it knows the real return pc.
+  if (UNLIKELY(caller_pc != reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc()) &&
+               Dbg::IsForcedInterpreterNeededForUpcall(self, caller) &&
                Runtime::Current()->IsDeoptimizeable(caller_pc))) {
     // Push the context of the deoptimization stack so we can restore the return value and the
     // exception before executing the deoptimized frames.
