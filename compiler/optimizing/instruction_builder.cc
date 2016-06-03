@@ -1204,7 +1204,12 @@ bool HInstructionBuilder::BuildInstanceFieldAccess(const Instruction& instructio
       compiler_driver_->ComputeInstanceFieldInfo(field_index, dex_compilation_unit_, is_put, soa);
 
 
-  HInstruction* object = LoadNullCheckedLocal(obj_reg, dex_pc);
+  // Generate an explicit null check on the reference, unless the field access
+  // is unresolved. In that case, we rely on the runtime to perform various
+  // checks first, followed by a null check.
+  HInstruction* object = (resolved_field == nullptr)
+      ? LoadLocal(obj_reg, Primitive::kPrimNot)
+      : LoadNullCheckedLocal(obj_reg, dex_pc);
 
   Primitive::Type field_type = (resolved_field == nullptr)
       ? GetFieldAccessType(*dex_file_, field_index)

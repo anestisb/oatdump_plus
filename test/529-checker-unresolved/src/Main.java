@@ -114,6 +114,21 @@ public class Main extends UnresolvedSuperClass {
     expectEquals(o, c.instanceObject);
   }
 
+  static public void callUnresolvedNull(UnresolvedClass c) {
+    int x = 0;
+    try {
+      x = c.instanceInt;
+      throw new Error("Expected NPE");
+    } catch (NullPointerException e) {
+    }
+    expectEquals(0, x);
+    try {
+      c.instanceInt = -1;
+      throw new Error("Expected NPE");
+    } catch (NullPointerException e) {
+    }
+  }
+
   static public void testInstanceOf(Object o) {
     if (o instanceof UnresolvedSuperClass) {
       System.out.println("instanceof ok");
@@ -136,6 +151,7 @@ public class Main extends UnresolvedSuperClass {
     callInvokeUnresolvedSuper(m);
     callUnresolvedStaticFieldAccess();
     callUnresolvedInstanceFieldAccess(c);
+    callUnresolvedNull(null);
     testInstanceOf(m);
     testCheckCast(m);
     testLicm(2);
@@ -185,7 +201,7 @@ public class Main extends UnresolvedSuperClass {
     }
   }
 
-    public static void expectEquals(float expected, float result) {
+  public static void expectEquals(float expected, float result) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
     }
