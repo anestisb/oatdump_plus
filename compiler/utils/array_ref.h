@@ -39,9 +39,6 @@ namespace art {
  */
 template <typename T>
 class ArrayRef {
- private:
-  struct tag { };
-
  public:
   typedef T value_type;
   typedef T& reference;
@@ -63,14 +60,14 @@ class ArrayRef {
 
   template <size_t size>
   explicit constexpr ArrayRef(T (&array)[size])
-    : array_(array), size_(size) {
+      : array_(array), size_(size) {
   }
 
-  template <typename U, size_t size>
-  explicit constexpr ArrayRef(U (&array)[size],
-                              typename std::enable_if<std::is_same<T, const U>::value, tag>::type
-                                  t ATTRIBUTE_UNUSED = tag())
-    : array_(array), size_(size) {
+  template <typename U,
+            size_t size,
+            typename = typename std::enable_if<std::is_same<T, const U>::value>::type>
+  explicit constexpr ArrayRef(U (&array)[size])
+      : array_(array), size_(size) {
   }
 
   constexpr ArrayRef(T* array_in, size_t size_in)
@@ -165,13 +162,21 @@ class ArrayRef {
   value_type* data() { return array_; }
   const value_type* data() const { return array_; }
 
-  ArrayRef SubArray(size_type pos) const {
-    return SubArray(pos, size_ - pos);
+  ArrayRef SubArray(size_type pos) {
+    return SubArray(pos, size() - pos);
   }
-  ArrayRef SubArray(size_type pos, size_type length) const {
+  ArrayRef<const T> SubArray(size_type pos) const {
+    return SubArray(pos, size() - pos);
+  }
+  ArrayRef SubArray(size_type pos, size_type length) {
     DCHECK_LE(pos, size());
     DCHECK_LE(length, size() - pos);
-    return ArrayRef(array_ + pos, length);
+    return ArrayRef(data() + pos, length);
+  }
+  ArrayRef<const T> SubArray(size_type pos, size_type length) const {
+    DCHECK_LE(pos, size());
+    DCHECK_LE(length, size() - pos);
+    return ArrayRef<const T>(data() + pos, length);
   }
 
  private:
