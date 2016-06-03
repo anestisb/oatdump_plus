@@ -111,10 +111,10 @@ static bool CheckTypeConsistency(HInstruction* instruction) {
         << " " << locations->Out();
   }
 
-  for (size_t i = 0, e = instruction->InputCount(); i < e; ++i) {
-    DCHECK(CheckType(instruction->InputAt(i)->GetType(), locations->InAt(i)))
-      << instruction->InputAt(i)->GetType()
-      << " " << locations->InAt(i);
+  auto&& inputs = instruction->GetInputs();
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    DCHECK(CheckType(inputs[i]->GetType(), locations->InAt(i)))
+      << inputs[i]->GetType() << " " << locations->InAt(i);
   }
 
   HEnvironment* environment = instruction->GetEnvironment();

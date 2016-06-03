@@ -101,10 +101,7 @@ static void RemoveEnvironmentUses(HInstruction* instruction) {
 }
 
 static void RemoveAsUser(HInstruction* instruction) {
-  for (size_t i = 0; i < instruction->InputCount(); i++) {
-    instruction->RemoveAsUserOfInput(i);
-  }
-
+  instruction->RemoveAsUserOfAllInputs();
   RemoveEnvironmentUses(instruction);
 }
 
@@ -748,8 +745,9 @@ bool HBasicBlock::Dominates(HBasicBlock* other) const {
 }
 
 static void UpdateInputsUsers(HInstruction* instruction) {
-  for (size_t i = 0, e = instruction->InputCount(); i < e; ++i) {
-    instruction->InputAt(i)->AddUseAt(instruction, i);
+  auto&& inputs = instruction->GetInputs();
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    inputs[i]->AddUseAt(instruction, i);
   }
   // Environment should be created later.
   DCHECK(!instruction->HasEnvironment());
@@ -1117,9 +1115,10 @@ void HPhi::AddInput(HInstruction* input) {
 void HPhi::RemoveInputAt(size_t index) {
   RemoveAsUserOfInput(index);
   inputs_.erase(inputs_.begin() + index);
-  for (size_t i = index, e = InputCount(); i < e; ++i) {
-    DCHECK_EQ(InputRecordAt(i).GetUseNode()->GetIndex(), i + 1u);
-    InputRecordAt(i).GetUseNode()->SetIndex(i);
+  // Update indexes in use nodes of inputs that have been pulled forward by the erase().
+  for (size_t i = index, e = inputs_.size(); i < e; ++i) {
+    DCHECK_EQ(inputs_[i].GetUseNode()->GetIndex(), i + 1u);
+    inputs_[i].GetUseNode()->SetIndex(i);
   }
 }
 
@@ -1315,16 +1314,18 @@ bool HCondition::IsBeforeWhenDisregardMoves(HInstruction* instruction) const {
   return this == instruction->GetPreviousDisregardingMoves();
 }
 
-bool HInstruction::Equals(HInstruction* other) const {
+bool HInstruction::Equals(const HInstruction* other) const {
   if (!InstructionTypeEquals(other)) return false;
   DCHECK_EQ(GetKind(), other->GetKind());
   if (!InstructionDataEquals(other)) return false;
   if (GetType() != other->GetType()) return false;
-  if (InputCount() != other->InputCount()) return false;
-
-  for (size_t i = 0, e = InputCount(); i < e; ++i) {
-    if (InputAt(i) != other->InputAt(i)) return false;
+  auto&& inputs = GetInputs();
+  auto&& other_inputs = other->GetInputs();
+  if (inputs.size() != other_inputs.size()) return false;
+  for (size_t i = 0; i != inputs.size(); ++i) {
+    if (inputs[i] != other_inputs[i]) return false;
   }
+
   DCHECK_EQ(ComputeHashCode(), other->ComputeHashCode());
   return true;
 }
@@ -2383,9 +2384,9 @@ void HInvokeStaticOrDirect::InsertInputAt(size_t index, HInstruction* input) {
   inputs_.insert(inputs_.begin() + index, HUserRecord<HInstruction*>(input));
   input->AddUseAt(this, index);
   // Update indexes in use nodes of inputs that have been pushed further back by the insert().
-  for (size_t i = index + 1u, size = inputs_.size(); i != size; ++i) {
-    DCHECK_EQ(InputRecordAt(i).GetUseNode()->GetIndex(), i - 1u);
-    InputRecordAt(i).GetUseNode()->SetIndex(i);
+  for (size_t i = index + 1u, e = inputs_.size(); i < e; ++i) {
+    DCHECK_EQ(inputs_[i].GetUseNode()->GetIndex(), i - 1u);
+    inputs_[i].GetUseNode()->SetIndex(i);
   }
 }
 
@@ -2393,9 +2394,9 @@ void HInvokeStaticOrDirect::RemoveInputAt(size_t index) {
   RemoveAsUserOfInput(index);
   inputs_.erase(inputs_.begin() + index);
   // Update indexes in use nodes of inputs that have been pulled forward by the erase().
-  for (size_t i = index, e = InputCount(); i < e; ++i) {
-    DCHECK_EQ(InputRecordAt(i).GetUseNode()->GetIndex(), i + 1u);
-    InputRecordAt(i).GetUseNode()->SetIndex(i);
+  for (size_t i = index, e = inputs_.size(); i < e; ++i) {
+    DCHECK_EQ(inputs_[i].GetUseNode()->GetIndex(), i + 1u);
+    inputs_[i].GetUseNode()->SetIndex(i);
   }
 }
 
@@ -2433,8 +2434,8 @@ std::ostream& operator<<(std::ostream& os, HInvokeStaticOrDirect::ClinitCheckReq
   }
 }
 
-bool HLoadString::InstructionDataEquals(HInstruction* other) const {
-  HLoadString* other_load_string = other->AsLoadString();
+bool HLoadString::InstructionDataEquals(const HInstruction* other) const {
+  const HLoadString* other_load_string = other->AsLoadString();
   if (string_index_ != other_load_string->string_index_ ||
       GetPackedFields() != other_load_string->GetPackedFields()) {
     return false;

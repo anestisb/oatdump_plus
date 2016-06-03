@@ -1550,7 +1550,7 @@ void InstructionSimplifierVisitor::SimplifyRotate(HInvoke* invoke,
   HRor* ror = new (GetGraph()->GetArena()) HRor(type, value, distance);
   invoke->GetBlock()->ReplaceAndRemoveInstructionWith(invoke, ror);
   // Remove ClinitCheck and LoadClass, if possible.
-  HInstruction* clinit = invoke->InputAt(invoke->InputCount() - 1);
+  HInstruction* clinit = invoke->GetInputs().back();
   if (clinit->IsClinitCheck() && !clinit->HasUses()) {
     clinit->GetBlock()->RemoveInstruction(clinit);
     HInstruction* ldclass = clinit->InputAt(0);
