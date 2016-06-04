@@ -262,6 +262,7 @@ class CodeGeneratorMIPS : public CodeGenerator {
                     OptimizingCompilerStats* stats = nullptr);
   virtual ~CodeGeneratorMIPS() {}
 
+  void ComputeSpillMask() OVERRIDE;
   void GenerateFrameEntry() OVERRIDE;
   void GenerateFrameExit() OVERRIDE;
 

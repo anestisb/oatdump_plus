@@ -663,6 +663,18 @@ void ParallelMoveResolverMIPS::Exchange(int index1, int index2, bool double_slot
   }
 }
 
+void CodeGeneratorMIPS::ComputeSpillMask() {
+  core_spill_mask_ = allocated_registers_.GetCoreRegisters() & core_callee_save_mask_;
+  fpu_spill_mask_ = allocated_registers_.GetFloatingPointRegisters() & fpu_callee_save_mask_;
+  DCHECK_NE(core_spill_mask_, 0u) << "At least the return address register must be saved";
+  // If there're FPU callee-saved registers and there's an odd number of GPR callee-saved
+  // registers, include the ZERO register to force alignment of FPU callee-saved registers
+  // within the stack frame.
+  if ((fpu_spill_mask_ != 0) && (POPCOUNT(core_spill_mask_) % 2 != 0)) {
+    core_spill_mask_ |= (1 << ZERO);
+  }
+}
+
 static dwarf::Reg DWARFReg(Register reg) {
   return dwarf::Reg::MipsCore(static_cast<int>(reg));
 }
@@ -692,105 +704,61 @@ void CodeGeneratorMIPS::GenerateFrameEntry() {
   }
 
   // Spill callee-saved registers.
-  // Note that their cumulative size is small and they can be indexed using
-  // 16-bit offsets.
 
-  // TODO: increment/decrement SP in one step instead of two or remove this comment.
-
-  uint32_t ofs = FrameEntrySpillSize();
-  bool unaligned_float = ofs & 0x7;
-  bool fpu_32bit = isa_features_.Is32BitFloatingPoint();
+  uint32_t ofs = GetFrameSize();
   __ IncreaseFrameSize(ofs);
 
-  for (int i = arraysize(kCoreCalleeSaves) - 1; i >= 0; --i) {
-    Register reg = kCoreCalleeSaves[i];
-    if (allocated_registers_.ContainsCoreRegister(reg)) {
-      ofs -= kMipsWordSize;
-      __ Sw(reg, SP, ofs);
+  for (uint32_t mask = core_spill_mask_; mask != 0; ) {
+    Register reg = static_cast<Register>(MostSignificantBit(mask));
+    mask ^= 1u << reg;
+    ofs -= kMipsWordSize;
+    // The ZERO register is only included for alignment.
+    if (reg != ZERO) {
+      __ StoreToOffset(kStoreWord, reg, SP, ofs);
       __ cfi().RelOffset(DWARFReg(reg), ofs);
     }
   }
 
-  for (int i = arraysize(kFpuCalleeSaves) - 1; i >= 0; --i) {
-    FRegister reg = kFpuCalleeSaves[i];
-    if (allocated_registers_.ContainsFloatingPointRegister(reg)) {
-      ofs -= kMipsDoublewordSize;
-      // TODO: Change the frame to avoid unaligned accesses for fpu registers.
-      if (unaligned_float) {
-        if (fpu_32bit) {
-          __ Swc1(reg, SP, ofs);
-          __ Swc1(static_cast<FRegister>(reg + 1), SP, ofs + 4);
-        } else {
-          __ Mfhc1(TMP, reg);
-          __ Swc1(reg, SP, ofs);
-          __ Sw(TMP, SP, ofs + 4);
-        }
-      } else {
-        __ Sdc1(reg, SP, ofs);
-      }
-      // TODO: __ cfi().RelOffset(DWARFReg(reg), ofs);
-    }
+  for (uint32_t mask = fpu_spill_mask_; mask != 0; ) {
+    FRegister reg = static_cast<FRegister>(MostSignificantBit(mask));
+    mask ^= 1u << reg;
+    ofs -= kMipsDoublewordSize;
+    __ StoreDToOffset(reg, SP, ofs);
+    // TODO: __ cfi().RelOffset(DWARFReg(reg), ofs);
   }
 
-  // Allocate the rest of the frame and store the current method pointer
-  // at its end.
-
-  __ IncreaseFrameSize(GetFrameSize() - FrameEntrySpillSize());
-
-  static_assert(IsInt<16>(kCurrentMethodStackOffset),
-                "kCurrentMethodStackOffset must fit into int16_t");
-  __ Sw(kMethodRegisterArgument, SP, kCurrentMethodStackOffset);
+  // Store the current method pointer.
+  __ StoreToOffset(kStoreWord, kMethodRegisterArgument, SP, kCurrentMethodStackOffset);
 }
 
 void CodeGeneratorMIPS::GenerateFrameExit() {
   __ cfi().RememberState();
 
   if (!HasEmptyFrame()) {
-    // Deallocate the rest of the frame.
-
-    __ DecreaseFrameSize(GetFrameSize() - FrameEntrySpillSize());
-
     // Restore callee-saved registers.
-    // Note that their cumulative size is small and they can be indexed using
-    // 16-bit offsets.
 
-    // TODO: increment/decrement SP in one step instead of two or remove this comment.
-
-    uint32_t ofs = 0;
-    bool unaligned_float = FrameEntrySpillSize() & 0x7;
-    bool fpu_32bit = isa_features_.Is32BitFloatingPoint();
-
-    for (size_t i = 0; i < arraysize(kFpuCalleeSaves); ++i) {
-      FRegister reg = kFpuCalleeSaves[i];
-      if (allocated_registers_.ContainsFloatingPointRegister(reg)) {
-        if (unaligned_float) {
-          if (fpu_32bit) {
-            __ Lwc1(reg, SP, ofs);
-            __ Lwc1(static_cast<FRegister>(reg + 1), SP, ofs + 4);
-          } else {
-            __ Lwc1(reg, SP, ofs);
-            __ Lw(TMP, SP, ofs + 4);
-            __ Mthc1(TMP, reg);
-          }
-        } else {
-          __ Ldc1(reg, SP, ofs);
-        }
-        ofs += kMipsDoublewordSize;
-        // TODO: __ cfi().Restore(DWARFReg(reg));
-      }
-    }
-
-    for (size_t i = 0; i < arraysize(kCoreCalleeSaves); ++i) {
-      Register reg = kCoreCalleeSaves[i];
-      if (allocated_registers_.ContainsCoreRegister(reg)) {
-        __ Lw(reg, SP, ofs);
-        ofs += kMipsWordSize;
+    // For better instruction scheduling restore RA before other registers.
+    uint32_t ofs = GetFrameSize();
+    for (uint32_t mask = core_spill_mask_; mask != 0; ) {
+      Register reg = static_cast<Register>(MostSignificantBit(mask));
+      mask ^= 1u << reg;
+      ofs -= kMipsWordSize;
+      // The ZERO register is only included for alignment.
+      if (reg != ZERO) {
+        __ LoadFromOffset(kLoadWord, reg, SP, ofs);
         __ cfi().Restore(DWARFReg(reg));
       }
     }
 
-    DCHECK_EQ(ofs, FrameEntrySpillSize());
-    __ DecreaseFrameSize(ofs);
+    for (uint32_t mask = fpu_spill_mask_; mask != 0; ) {
+      FRegister reg = static_cast<FRegister>(MostSignificantBit(mask));
+      mask ^= 1u << reg;
+      ofs -= kMipsDoublewordSize;
+      __ LoadDFromOffset(reg, SP, ofs);
+      // TODO: __ cfi().Restore(DWARFReg(reg));
+    }
+
+    __ DecreaseFrameSize(GetFrameSize());
   }
 
   __ Jr(RA);
