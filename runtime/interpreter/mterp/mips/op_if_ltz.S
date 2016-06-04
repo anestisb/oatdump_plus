@@ -1,1 +1,1 @@
-%include "mips/zcmp.S" { "revcmp":"ge" }
+%include "mips/zcmp.S" { "condition":"lt" }

@@ -19,18 +19,4 @@
     dlsa    a0, a0, rPC, 1              # a0 <- PC + BBBBbbbb*2
     jal     $func                       # v0 <- code-unit branch offset
     move    rINST, v0
-#if MTERP_PROFILE_BRANCHES
-    EXPORT_PC
-    move    a0, rSELF
-    daddu   a1, rFP, OFF_FP_SHADOWFRAME
-    move    a2, rINST
-    jal     MterpProfileBranch          # (self, shadow_frame, offset)
-    bnezc   v0, MterpOnStackReplacement # Note: offset must be in rINST
-#endif
-    dlsa    rPC, rINST, rPC, 1          # rPC <- rPC + offset * 2
-    lw      ra, THREAD_FLAGS_OFFSET(rSELF)  # Preload flags for MterpCheckSuspendAndContinue
-    move    a0, rINST                   # a0 <- offset
-    FETCH_INST                          # load rINST
-    blez    a0, MterpCheckSuspendAndContinue  # suspend check if backwards branch
-    GET_INST_OPCODE v0                  # extract opcode from rINST
-    GOTO_OPCODE v0                      # jump to next instruction
+    b       MterpCommonTakenBranchNoFlags
