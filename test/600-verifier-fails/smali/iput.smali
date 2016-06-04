@@ -13,11 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-.class public LA;
+.class public LC;
 .super Ljava/lang/Object;
 
-.method public foo(I)V
-.registers 2
-    sput v1, LMain;->staticFinalField:Ljava/lang/String;
+.method public constructor <init>()V
+    .registers 2
+    invoke-direct {v1}, Ljava/lang/Object;-><init>()V
+    const v0, 0
+    iput-object v0, v0, LMain;->staticPrivateField:Ljava/lang/String;
     return-void
 .end method
