@@ -57,6 +57,8 @@ ExecuteMterpImpl:
     .cfi_rel_offset 20, STACK_OFFSET_S4
     sd      s5, STACK_OFFSET_S5(sp)
     .cfi_rel_offset 21, STACK_OFFSET_S5
+    sd      s6, STACK_OFFSET_S6(sp)
+    .cfi_rel_offset 22, STACK_OFFSET_S6
 
     /* Remember the return register */
     sd      a3, SHADOWFRAME_RESULT_REGISTER_OFFSET(a2)
@@ -76,6 +78,12 @@ ExecuteMterpImpl:
 
     /* Starting ibase */
     REFRESH_IBASE
+
+    /* Set up for backwards branches & osr profiling */
+    ld      a0, OFF_FP_METHOD(rFP)
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    jal     MterpSetUpHotnessCountdown
+    move    rPROFILE, v0                # Starting hotness countdown to rPROFILE
 
     /* start executing the instruction at rPC */
     FETCH_INST
