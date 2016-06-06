@@ -51,7 +51,11 @@
    s2   rSELF     self (Thread) pointer
    s3   rIBASE    interpreted instruction base pointer, used for computed goto
    s4   rINST     first 16-bit code unit of current instruction
+   s5   rOBJ      object pointer
    s6   rREFS     base of object references in shadow frame (ideally, we'll get rid of this later).
+   s7   rTEMP     used as temp storage that can survive a function call
+   s8   rPROFILE  branch profiling countdown
+
 */
 
 /* single-purpose registers, given names for clarity */
@@ -63,6 +67,7 @@
 #define rOBJ s5
 #define rREFS s6
 #define rTEMP s7
+#define rPROFILE s8
 
 #define rARG0 a0
 #define rARG1 a1
@@ -160,7 +165,7 @@
 #define OFF_FP_RESULT_REGISTER OFF_FP(SHADOWFRAME_RESULT_REGISTER_OFFSET)
 #define OFF_FP_DEX_PC_PTR OFF_FP(SHADOWFRAME_DEX_PC_PTR_OFFSET)
 #define OFF_FP_CODE_ITEM OFF_FP(SHADOWFRAME_CODE_ITEM_OFFSET)
-#define OFF_FP_SHADOWFRAME (-SHADOWFRAME_VREGS_OFFSET)
+#define OFF_FP_SHADOWFRAME OFF_FP(0)
 
 #define MTERP_PROFILE_BRANCHES 1
 #define MTERP_LOGGING 0
@@ -482,3 +487,6 @@
     STACK_LOAD(s8, 120); \
     STACK_LOAD(ra, 124); \
     DELETE_STACK(STACK_SIZE)
+
+#define REFRESH_IBASE() \
+    lw        rIBASE, THREAD_CURRENT_IBASE_OFFSET(rSELF)

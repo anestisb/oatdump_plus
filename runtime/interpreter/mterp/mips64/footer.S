@@ -71,23 +71,110 @@ MterpException:
     /* NOTE: no fallthrough */
 
 /*
- * Check for suspend check request.  Assumes rINST already loaded, rPC advanced and
- * still needs to get the opcode and branch to it, and flags are in ra.
+ * Common handling for branches with support for Jit profiling.
+ * On entry:
+ *    rINST          <= signed offset
+ *    rPROFILE       <= signed hotness countdown (expanded to 64 bits)
+ *
+ * We have quite a few different cases for branch profiling, OSR detection and
+ * suspend check support here.
+ *
+ * Taken backward branches:
+ *    If profiling active, do hotness countdown and report if we hit zero.
+ *    If in osr check mode, see if our target is a compiled loop header entry and do OSR if so.
+ *    Is there a pending suspend request?  If so, suspend.
+ *
+ * Taken forward branches and not-taken backward branches:
+ *    If in osr check mode, see if our target is a compiled loop header entry and do OSR if so.
+ *
+ * Our most common case is expected to be a taken backward branch with active jit profiling,
+ * but no full OSR check and no pending suspend request.
+ * Next most common case is not-taken branch with no full OSR check.
+ *
  */
-    .extern MterpSuspendCheck
-MterpCheckSuspendAndContinue:
+MterpCommonTakenBranchNoFlags:
+    bgtzc   rINST, .L_forward_branch    # don't add forward branches to hotness
+/*
+ * We need to subtract 1 from positive values and we should not see 0 here,
+ * so we may use the result of the comparison with -1.
+ */
+    li      v0, JIT_CHECK_OSR
+    beqc    rPROFILE, v0, .L_osr_check
+    bltc    rPROFILE, v0, .L_resume_backward_branch
+    dsubu   rPROFILE, 1
+    beqzc   rPROFILE, .L_add_batch      # counted down to zero - report
+.L_resume_backward_branch:
+    lw      ra, THREAD_FLAGS_OFFSET(rSELF)
     REFRESH_IBASE
-    and     ra, ra, (THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
-    bnez    ra, check1
-    GET_INST_OPCODE v0                              # extract opcode from rINST
-    GOTO_OPCODE v0                                  # jump to next instruction
-check1:
+    daddu   a2, rINST, rINST            # a2<- byte offset
+    FETCH_ADVANCE_INST_RB a2            # update rPC, load rINST
+    and     ra, (THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    bnezc   ra, .L_suspend_request_pending
+    GET_INST_OPCODE v0                  # extract opcode from rINST
+    GOTO_OPCODE v0                      # jump to next instruction
+
+.L_suspend_request_pending:
     EXPORT_PC
     move    a0, rSELF
-    jal     MterpSuspendCheck                       # (self)
-    bnezc   v0, MterpFallback                       # Something in the environment changed, switch interpreters
-    GET_INST_OPCODE v0                              # extract opcode from rINST
-    GOTO_OPCODE v0                                  # jump to next instruction
+    jal     MterpSuspendCheck           # (self)
+    bnezc   v0, MterpFallback
+    REFRESH_IBASE                       # might have changed during suspend
+    GET_INST_OPCODE v0                  # extract opcode from rINST
+    GOTO_OPCODE v0                      # jump to next instruction
+
+.L_no_count_backwards:
+    li      v0, JIT_CHECK_OSR           # check for possible OSR re-entry
+    bnec    rPROFILE, v0, .L_resume_backward_branch
+.L_osr_check:
+    move    a0, rSELF
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    move    a2, rINST
+    EXPORT_PC
+    jal MterpMaybeDoOnStackReplacement  # (self, shadow_frame, offset)
+    bnezc   v0, MterpOnStackReplacement
+    b       .L_resume_backward_branch
+
+.L_forward_branch:
+    li      v0, JIT_CHECK_OSR           # check for possible OSR re-entry
+    beqc    rPROFILE, v0, .L_check_osr_forward
+.L_resume_forward_branch:
+    daddu   a2, rINST, rINST            # a2<- byte offset
+    FETCH_ADVANCE_INST_RB a2            # update rPC, load rINST
+    GET_INST_OPCODE v0                  # extract opcode from rINST
+    GOTO_OPCODE v0                      # jump to next instruction
+
+.L_check_osr_forward:
+    move    a0, rSELF
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    move    a2, rINST
+    EXPORT_PC
+    jal     MterpMaybeDoOnStackReplacement # (self, shadow_frame, offset)
+    bnezc   v0, MterpOnStackReplacement
+    b       .L_resume_forward_branch
+
+.L_add_batch:
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    sh      rPROFILE, SHADOWFRAME_HOTNESS_COUNTDOWN_OFFSET(a1)
+    ld      a0, OFF_FP_METHOD(rFP)
+    move    a2, rSELF
+    jal     MterpAddHotnessBatch        # (method, shadow_frame, self)
+    move    rPROFILE, v0                # restore new hotness countdown to rPROFILE
+    b       .L_no_count_backwards
+
+/*
+ * Entered from the conditional branch handlers when OSR check request active on
+ * not-taken path.  All Dalvik not-taken conditional branch offsets are 2.
+ */
+.L_check_not_taken_osr:
+    move    a0, rSELF
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    li      a2, 2
+    EXPORT_PC
+    jal     MterpMaybeDoOnStackReplacement # (self, shadow_frame, offset)
+    bnezc   v0, MterpOnStackReplacement
+    FETCH_ADVANCE_INST 2 
+    GET_INST_OPCODE v0                  # extract opcode from rINST
+    GOTO_OPCODE v0                      # jump to next instruction
 
 /*
  * On-stack replacement has happened, and now we've returned from the compiled method.
@@ -143,6 +230,28 @@ MterpReturn:
 check2:
     li      v0, 1                                   # signal return to caller.
 MterpDone:
+/*
+ * At this point, we expect rPROFILE to be non-zero.  If negative, hotness is disabled or we're
+ * checking for OSR.  If greater than zero, we might have unreported hotness to register
+ * (the difference between the ending rPROFILE and the cached hotness counter).  rPROFILE
+ * should only reach zero immediately after a hotness decrement, and is then reset to either
+ * a negative special state or the new non-zero countdown value.
+ */
+    blez    rPROFILE, .L_pop_and_return # if > 0, we may have some counts to report.
+
+MterpProfileActive:
+    move    rINST, v0                   # stash return value
+    /* Report cached hotness counts */
+    ld      a0, OFF_FP_METHOD(rFP)
+    daddu   a1, rFP, OFF_FP_SHADOWFRAME
+    move    a2, rSELF
+    sh      rPROFILE, SHADOWFRAME_HOTNESS_COUNTDOWN_OFFSET(a1)
+    jal     MterpAddHotnessBatch        # (method, shadow_frame, self)
+    move    v0, rINST                   # restore return value
+
+.L_pop_and_return:
+    ld      s6, STACK_OFFSET_S6(sp)
+    .cfi_restore 22
     ld      s5, STACK_OFFSET_S5(sp)
     .cfi_restore 21
     ld      s4, STACK_OFFSET_S4(sp)
@@ -169,4 +278,5 @@ MterpDone:
     .cfi_adjust_cfa_offset -STACK_SIZE
 
     .cfi_endproc
+    .set    reorder
     .size ExecuteMterpImpl, .-ExecuteMterpImpl
