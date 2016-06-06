@@ -381,10 +381,11 @@ HInstruction* HInstructionBuilder::LoadLocal(uint32_t reg_number, Primitive::Typ
   // If the operation requests a specific type, we make sure its input is of that type.
   if (type != value->GetType()) {
     if (Primitive::IsFloatingPointType(type)) {
-      return ssa_builder_->GetFloatOrDoubleEquivalent(value, type);
+      value = ssa_builder_->GetFloatOrDoubleEquivalent(value, type);
     } else if (type == Primitive::kPrimNot) {
-      return ssa_builder_->GetReferenceTypeEquivalent(value);
+      value = ssa_builder_->GetReferenceTypeEquivalent(value);
     }
+    DCHECK(value != nullptr);
   }
 
   return value;
