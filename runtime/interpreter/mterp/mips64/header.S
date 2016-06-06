@@ -51,16 +51,18 @@ The following registers have fixed assignments:
   s3  rINST     first 16-bit code unit of current instruction
   s4  rIBASE    interpreted instruction base pointer, used for computed goto
   s5  rREFS     base of object references in shadow frame  (ideally, we'll get rid of this later).
+  s6  rPROFILE  jit profile hotness countdown
 */
 
 /* During bringup, we'll use the shadow frame model instead of rFP */
 /* single-purpose registers, given names for clarity */
-#define rPC     s0
-#define rFP     s1
-#define rSELF   s2
-#define rINST   s3
-#define rIBASE  s4
-#define rREFS   s5
+#define rPC      s0
+#define rFP      s1
+#define rSELF    s2
+#define rINST    s3
+#define rIBASE   s4
+#define rREFS    s5
+#define rPROFILE s6
 
 /*
  * This is a #include, not a %include, because we want the C pre-processor
@@ -80,7 +82,7 @@ The following registers have fixed assignments:
 #define OFF_FP_RESULT_REGISTER OFF_FP(SHADOWFRAME_RESULT_REGISTER_OFFSET)
 #define OFF_FP_DEX_PC_PTR OFF_FP(SHADOWFRAME_DEX_PC_PTR_OFFSET)
 #define OFF_FP_CODE_ITEM OFF_FP(SHADOWFRAME_CODE_ITEM_OFFSET)
-#define OFF_FP_SHADOWFRAME (-SHADOWFRAME_VREGS_OFFSET)
+#define OFF_FP_SHADOWFRAME OFF_FP(0)
 
 #define MTERP_PROFILE_BRANCHES 1
 #define MTERP_LOGGING 0
@@ -118,6 +120,17 @@ The following registers have fixed assignments:
 /* Advance rPC by some number of code units. */
 .macro ADVANCE count
     daddu   rPC, rPC, (\count) * 2
+.endm
+
+/*
+ * Fetch the next instruction from an offset specified by _reg and advance xPC.
+ * xPC to point to the next instruction.  "_reg" must specify the distance
+ * in bytes, *not* 16-bit code units, and may be a signed value.  Must not set flags.
+ *
+ */
+.macro FETCH_ADVANCE_INST_RB reg
+    daddu   rPC, rPC, \reg
+    FETCH_INST
 .endm
 
 /*
@@ -267,7 +280,8 @@ The following registers have fixed assignments:
 #define STACK_OFFSET_S3 40
 #define STACK_OFFSET_S4 48
 #define STACK_OFFSET_S5 56
-#define STACK_SIZE      64
+#define STACK_OFFSET_S6 64
+#define STACK_SIZE      80    /* needs 16 byte alignment */
 
 /* Constants for float/double_to_int/long conversions */
 #define INT_MIN             0x80000000

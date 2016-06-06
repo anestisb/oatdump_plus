@@ -60,6 +60,12 @@ ExecuteMterpImpl:
     /* Starting ibase */
     lw      rIBASE, THREAD_CURRENT_IBASE_OFFSET(rSELF)
 
+    /* Set up for backwards branches & osr profiling */
+    lw      a0, OFF_FP_METHOD(rFP)
+    addu    a1, rFP, OFF_FP_SHADOWFRAME
+    JAL(MterpSetUpHotnessCountdown)        # (method, shadow_frame)
+    move    rPROFILE, v0                   # Starting hotness countdown to rPROFILE
+
     /* start executing the instruction at rPC */
     FETCH_INST()                           # load rINST from rPC
     GET_INST_OPCODE(t0)                    # extract opcode from rINST
