@@ -321,7 +321,6 @@ class OptimizingCompiler FINAL : public Compiler {
                             jobject class_loader,
                             const DexFile& dex_file,
                             Handle<mirror::DexCache> dex_cache,
-                            ArtMethod* method,
                             bool osr) const;
 
   std::unique_ptr<OptimizingCompilerStats> compilation_stats_;
@@ -615,7 +614,6 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
                                               jobject class_loader,
                                               const DexFile& dex_file,
                                               Handle<mirror::DexCache> dex_cache,
-                                              ArtMethod* method,
                                               bool osr) const {
   MaybeRecordStat(MethodCompilationStat::kAttemptCompilation);
   CompilerDriver* compiler_driver = GetCompilerDriver();
@@ -681,21 +679,18 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
       osr);
 
   const uint8_t* interpreter_metadata = nullptr;
-  if (method == nullptr) {
+  {
     ScopedObjectAccess soa(Thread::Current());
     StackHandleScope<1> hs(soa.Self());
     Handle<mirror::ClassLoader> loader(hs.NewHandle(
         soa.Decode<mirror::ClassLoader*>(class_loader)));
-    method = compiler_driver->ResolveMethod(
+    ArtMethod* art_method = compiler_driver->ResolveMethod(
         soa, dex_cache, loader, &dex_compilation_unit, method_idx, invoke_type);
-  }
-  // For AOT compilation, we may not get a method, for example if its class is erroneous.
-  // JIT should always have a method.
-  DCHECK(Runtime::Current()->IsAotCompiler() || method != nullptr);
-  if (method != nullptr) {
-    graph->SetArtMethod(method);
-    ScopedObjectAccess soa(Thread::Current());
-    interpreter_metadata = method->GetQuickenedInfo();
+    // We may not get a method, for example if its class is erroneous.
+    if (art_method != nullptr) {
+      graph->SetArtMethod(art_method);
+      interpreter_metadata = art_method->GetQuickenedInfo();
+    }
   }
 
   std::unique_ptr<CodeGenerator> codegen(
@@ -803,7 +798,6 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
                    jclass_loader,
                    dex_file,
                    dex_cache,
-                   nullptr,
                    /* osr */ false));
     if (codegen.get() != nullptr) {
       MaybeRecordStat(MethodCompilationStat::kCompiled);
@@ -890,7 +884,6 @@ bool OptimizingCompiler::JitCompile(Thread* self,
                    jclass_loader,
                    *dex_file,
                    dex_cache,
-                   method,
                    osr));
     if (codegen.get() == nullptr) {
       return false;
