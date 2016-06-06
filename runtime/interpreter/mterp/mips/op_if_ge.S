@@ -1,1 +1,1 @@
-%include "mips/bincmp.S" { "revcmp":"lt" }
+%include "mips/bincmp.S" { "condition":"ge" }
