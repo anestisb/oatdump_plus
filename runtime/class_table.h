@@ -153,6 +153,11 @@ class ClassTable {
       REQUIRES(!lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // Clear strong roots (other than classes themselves).
+  void ClearStrongRoots()
+      REQUIRES(!lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   ReaderWriterMutex& GetLock() {
     return lock_;
   }

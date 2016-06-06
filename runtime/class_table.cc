@@ -189,4 +189,8 @@ void ClassTable::AddClassSet(ClassSet&& set) {
   classes_.insert(classes_.begin(), std::move(set));
 }
 
+void ClassTable::ClearStrongRoots() {
+  WriterMutexLock mu(Thread::Current(), lock_);
+  strong_roots_.clear();
+}
 }  // namespace art
