@@ -833,7 +833,8 @@ bool HInstructionBuilder::BuildInvoke(const Instruction& instruction,
                         register_index,
                         is_range,
                         descriptor,
-                        nullptr /* clinit_check */);
+                        nullptr, /* clinit_check */
+                        true /* is_unresolved */);
   }
 
   // Potential class initialization check, in the case of a static method call.
@@ -898,7 +899,8 @@ bool HInstructionBuilder::BuildInvoke(const Instruction& instruction,
                       register_index,
                       is_range,
                       descriptor,
-                      clinit_check);
+                      clinit_check,
+                      false /* is_unresolved */);
 }
 
 bool HInstructionBuilder::BuildNewInstance(uint16_t type_index, uint32_t dex_pc) {
@@ -1091,14 +1093,17 @@ bool HInstructionBuilder::HandleInvoke(HInvoke* invoke,
                                        uint32_t register_index,
                                        bool is_range,
                                        const char* descriptor,
-                                       HClinitCheck* clinit_check) {
+                                       HClinitCheck* clinit_check,
+                                       bool is_unresolved) {
   DCHECK(!invoke->IsInvokeStaticOrDirect() || !invoke->AsInvokeStaticOrDirect()->IsStringInit());
 
   size_t start_index = 0;
   size_t argument_index = 0;
   if (invoke->GetOriginalInvokeType() != InvokeType::kStatic) {  // Instance call.
-    HInstruction* arg = LoadNullCheckedLocal(is_range ? register_index : args[0],
-                                             invoke->GetDexPc());
+    uint32_t obj_reg = is_range ? register_index : args[0];
+    HInstruction* arg = is_unresolved
+        ? LoadLocal(obj_reg, Primitive::kPrimNot)
+        : LoadNullCheckedLocal(obj_reg, invoke->GetDexPc());
     invoke->SetArgumentAt(0, arg);
     start_index = 1;
     argument_index = 1;

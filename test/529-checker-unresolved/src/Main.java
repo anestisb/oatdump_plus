@@ -114,19 +114,31 @@ public class Main extends UnresolvedSuperClass {
     expectEquals(o, c.instanceObject);
   }
 
+  /// CHECK-START: void Main.callUnresolvedNull(UnresolvedClass) register (before)
+  /// CHECK-NOT: NullCheck
   static public void callUnresolvedNull(UnresolvedClass c) {
     int x = 0;
     try {
       x = c.instanceInt;
       throw new Error("Expected NPE");
     } catch (NullPointerException e) {
+      x -= 1;
     }
-    expectEquals(0, x);
+    expectEquals(-1, x);
     try {
       c.instanceInt = -1;
       throw new Error("Expected NPE");
     } catch (NullPointerException e) {
+      x -= 1;
     }
+    expectEquals(-2, x);
+    try {
+      c.virtualMethod();
+      throw new Error("Expected NPE");
+    } catch (NullPointerException e) {
+      x -= 1;
+    }
+    expectEquals(-3, x);
   }
 
   static public void testInstanceOf(Object o) {
