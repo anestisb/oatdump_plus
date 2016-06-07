@@ -4528,7 +4528,7 @@ ArtField* MethodVerifier::GetStaticField(int field_idx) {
 
 ArtField* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_idx) {
   const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
-  // Check access to class
+  // Check access to class.
   const RegType& klass_type = ResolveClassAndCheckAccess(field_id.class_idx_);
   if (klass_type.IsConflict()) {
     AppendToLastFailMessage(StringPrintf(" in attempt to access instance field %d (%s) in %s",
@@ -4549,20 +4549,11 @@ ArtField* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_id
     DCHECK(self_->IsExceptionPending());
     self_->ClearException();
     return nullptr;
-  } else if (!GetDeclaringClass().CanAccessMember(field->GetDeclaringClass(),
-                                                  field->GetAccessFlags())) {
-    Fail(VERIFY_ERROR_ACCESS_FIELD) << "cannot access instance field " << PrettyField(field)
-                                    << " from " << GetDeclaringClass();
-    return nullptr;
-  } else if (field->IsStatic()) {
-    Fail(VERIFY_ERROR_CLASS_CHANGE) << "expected field " << PrettyField(field)
-                                    << " to not be static";
-    return nullptr;
   } else if (obj_type.IsZero()) {
-    // Cannot infer and check type, however, access will cause null pointer exception
-    return field;
+    // Cannot infer and check type, however, access will cause null pointer exception.
+    // Fall through into a few last soft failure checks below.
   } else if (!obj_type.IsReferenceTypes()) {
-    // Trying to read a field from something that isn't a reference
+    // Trying to read a field from something that isn't a reference.
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "instance field access on object that has "
                                       << "non-reference type " << obj_type;
     return nullptr;
@@ -4584,7 +4575,6 @@ ArtField* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_id
                                           << " of " << PrettyMethod(dex_method_idx_, *dex_file_);
         return nullptr;
       }
-      return field;
     } else if (!field_klass.IsAssignableFrom(obj_type)) {
       // Trying to access C1.field1 using reference of type C2, which is neither C1 or a sub-class
       // of C1. For resolution to occur the declared class of the field must be compatible with
@@ -4602,10 +4592,22 @@ ArtField* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_id
       Fail(type) << "cannot access instance field " << PrettyField(field)
                  << " from object of type " << obj_type;
       return nullptr;
-    } else {
-      return field;
     }
   }
+
+  // Few last soft failure checks.
+  if (!GetDeclaringClass().CanAccessMember(field->GetDeclaringClass(),
+                                           field->GetAccessFlags())) {
+    Fail(VERIFY_ERROR_ACCESS_FIELD) << "cannot access instance field " << PrettyField(field)
+                                    << " from " << GetDeclaringClass();
+    return nullptr;
+  } else if (field->IsStatic()) {
+    Fail(VERIFY_ERROR_CLASS_CHANGE) << "expected field " << PrettyField(field)
+                                    << " to not be static";
+    return nullptr;
+  }
+
+  return field;
 }
 
 template <MethodVerifier::FieldAccessType kAccType>
@@ -4928,6 +4930,7 @@ bool MethodVerifier::UpdateRegisters(uint32_t next_insn, RegisterLine* merge_lin
       // Initialize them as conflicts so they don't add to GC and deoptimization information.
       const Instruction* ret_inst = Instruction::At(code_item_->insns_ + next_insn);
       AdjustReturnLine(this, ret_inst, target_line);
+      // Directly bail if a hard failure was found.
       if (have_pending_hard_failure_) {
         return false;
       }
