@@ -20,6 +20,8 @@ public class Main {
 
   private static String staticPrivateField = null;
 
+  private int privateField = 0;
+
   private static void test(String name) throws Exception {
     try {
       Class<?> a = Class.forName(name);
@@ -33,5 +35,6 @@ public class Main {
     test("A");
     test("B");
     test("C");
+    test("D");
   }
 }

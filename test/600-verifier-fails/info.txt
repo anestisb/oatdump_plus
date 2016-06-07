@@ -1,14 +1,18 @@
 The situations in these tests were discovered by running the mutating
 dexfuzz on the DEX files of fuzzingly random generated Java test.
 
-(1) b/28908555:
-    soft verification fail (on the final field modification) should
-    not hide the hard verification fail (on the type mismatch) to
+(A) b/28908555:
+    soft verification failure (on the final field modification) should
+    not hide the hard verification failure (on the type mismatch) to
     avoid compiler crash later on
-(2) b/29070461:
-    hard failure (not calling super in constructor) should bail
-    immediately and not allow soft fails to pile up behind it to
-    avoid fatal message later on
-(3) b/29068831:
+(B) b/29070461:
+    hard verification failure (not calling super in constructor) should
+    bail immediately and not allow soft verification failures to pile up
+    behind it to avoid fatal message later on
+(C) b/29068831:
     access validation should occur prior to null reference check
+(D) b/29126870:
+    soft verification failure (cannot access) should not hide the hard
+    verification failure (non-reference type) to avoid a compiler crash
+    later on
 
