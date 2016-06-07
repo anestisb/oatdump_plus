@@ -26,6 +26,8 @@ class HX86ComputeBaseMethodAddress FINAL : public HExpression<0> {
   HX86ComputeBaseMethodAddress()
       : HExpression(Primitive::kPrimInt, SideEffects::None(), kNoDexPc) {}
 
+  bool CanBeMoved() const OVERRIDE { return true; }
+
   DECLARE_INSTRUCTION(X86ComputeBaseMethodAddress);
 
  private:

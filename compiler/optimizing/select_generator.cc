@@ -96,10 +96,10 @@ void HSelectGenerator::Run() {
     // TODO(dbrazdil): This puts an instruction between If and its condition.
     //                 Implement moving of conditions to first users if possible.
     if (!true_block->IsSingleGoto()) {
-      true_block->MoveInstructionBefore(true_block->GetFirstInstruction(), if_instruction);
+      true_block->GetFirstInstruction()->MoveBefore(if_instruction);
     }
     if (!false_block->IsSingleGoto()) {
-      false_block->MoveInstructionBefore(false_block->GetFirstInstruction(), if_instruction);
+      false_block->GetFirstInstruction()->MoveBefore(if_instruction);
     }
     DCHECK(true_block->IsSingleGoto());
     DCHECK(false_block->IsSingleGoto());
