@@ -4977,6 +4977,7 @@ bool ClassLinker::EnsureInitialized(Thread* self, Handle<mirror::Class> c, bool 
   DCHECK(c.Get() != nullptr);
   if (c->IsInitialized()) {
     EnsureSkipAccessChecksMethods(c);
+    self->AssertNoPendingException();
     return true;
   }
   const bool success = InitializeClass(self, c, can_init_fields, can_init_parents);
