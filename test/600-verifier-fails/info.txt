@@ -10,9 +10,11 @@ dexfuzz on the DEX files of fuzzingly random generated Java test.
     bail immediately and not allow soft verification failures to pile up
     behind it to avoid fatal message later on
 (C) b/29068831:
-    access validation should occur prior to null reference check
+    access validation on field should occur prior to null reference check
 (D) b/29126870:
     soft verification failure (cannot access) should not hide the hard
     verification failure (non-reference type) to avoid a compiler crash
     later on
+(E) b/29068831:
+    access validation on method should occur prior to null reference check
 

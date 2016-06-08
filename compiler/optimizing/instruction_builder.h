@@ -237,7 +237,8 @@ class HInstructionBuilder : public ValueObject {
                     uint32_t register_index,
                     bool is_range,
                     const char* descriptor,
-                    HClinitCheck* clinit_check);
+                    HClinitCheck* clinit_check,
+                    bool is_unresolved);
 
   bool HandleStringInit(HInvoke* invoke,
                         uint32_t number_of_vreg_arguments,
