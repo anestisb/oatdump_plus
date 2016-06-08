@@ -27,8 +27,20 @@ namespace art {
 namespace {
 
 static volatile std::atomic<bool> vm_was_shutdown(false);
+static const int kThreadCount = 4;
+
+static std::atomic<int> barrier_count(kThreadCount + 1);
+
+static void JniThreadBarrierWait() {
+  barrier_count--;
+  while (barrier_count.load() != 0) {
+    usleep(1000);
+  }
+}
 
 extern "C" JNIEXPORT void JNICALL Java_Main_waitAndCallIntoJniEnv(JNIEnv* env, jclass) {
+  // Wait for all threads to enter JNI together.
+  JniThreadBarrierWait();
   // Wait until the runtime is shutdown.
   while (!vm_was_shutdown.load()) {
     usleep(1000);
@@ -40,6 +52,8 @@ extern "C" JNIEXPORT void JNICALL Java_Main_waitAndCallIntoJniEnv(JNIEnv* env, j
 
 // NO_RETURN does not work with extern "C" for target builds.
 extern "C" JNIEXPORT void JNICALL Java_Main_destroyJavaVMAndExit(JNIEnv* env, jclass) {
+  // Wait for all threads to enter JNI together.
+  JniThreadBarrierWait();
   // Fake up the managed stack so we can detach.
   Thread* const self = Thread::Current();
   self->SetTopOfStack(nullptr);
