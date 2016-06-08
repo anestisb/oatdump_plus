@@ -48,8 +48,8 @@ extern "C" JNIEXPORT void JNICALL Java_Main_waitUntilJitted(JNIEnv* env,
     if (code_cache->ContainsPc(header->GetCode())) {
       break;
     } else {
-      // yield to scheduler to give time to the JIT compiler.
-      sched_yield();
+      // Sleep to yield to the compiler thread.
+      sleep(0);
       // Will either ensure it's compiled or do the compilation itself.
       jit->CompileMethod(method, Thread::Current(), /* osr */ false);
     }
