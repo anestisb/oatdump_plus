@@ -183,6 +183,7 @@ class MipsAssembler FINAL : public Assembler {
   void Lbu(Register rt, Register rs, uint16_t imm16);
   void Lhu(Register rt, Register rs, uint16_t imm16);
   void Lui(Register rt, uint16_t imm16);
+  void Aui(Register rt, Register rs, uint16_t imm16);  // R6
   void Sync(uint32_t stype);
   void Mfhi(Register rd);  // R2
   void Mflo(Register rd);  // R2
@@ -385,6 +386,10 @@ class MipsAssembler FINAL : public Assembler {
   void Bc1nez(FRegister ft, MipsLabel* label);  // R6
 
   void EmitLoad(ManagedRegister m_dst, Register src_register, int32_t src_offset, size_t size);
+  void AdjustBaseAndOffset(Register& base,
+                           int32_t& offset,
+                           bool is_doubleword,
+                           bool is_float = false);
   void LoadFromOffset(LoadOperandType type, Register reg, Register base, int32_t offset);
   void LoadSFromOffset(FRegister reg, Register base, int32_t offset);
   void LoadDFromOffset(FRegister reg, Register base, int32_t offset);
