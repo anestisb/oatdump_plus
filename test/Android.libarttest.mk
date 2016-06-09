@@ -35,6 +35,7 @@ LIBARTTEST_COMMON_SRC_FILES := \
   139-register-natives/regnative.cc \
   141-class-unload/jni_unload.cc \
   148-multithread-gc-annotations/gc_coverage.cc \
+  149-suspend-all-stress/suspend_all.cc \
   454-get-vreg/get_vreg_jni.cc \
   457-regs/regs_jni.cc \
   461-get-reference-vreg/get_reference_vreg_jni.cc \
