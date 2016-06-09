@@ -49,7 +49,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_waitUntilJitted(JNIEnv* env,
       break;
     } else {
       // Sleep to yield to the compiler thread.
-      sleep(0);
+      usleep(1000);
       // Will either ensure it's compiled or do the compilation itself.
       jit->CompileMethod(method, Thread::Current(), /* osr */ false);
     }
