@@ -126,15 +126,20 @@ inline bool RegionSpace::Region::ShouldBeEvacuated() {
   } else {
     bool is_live_percent_valid = live_bytes_ != static_cast<size_t>(-1);
     if (is_live_percent_valid) {
-      uint live_percent = GetLivePercent();
+      DCHECK(IsInToSpace());
+      DCHECK(!IsLargeTail());
+      DCHECK_NE(live_bytes_, static_cast<size_t>(-1));
+      DCHECK_LE(live_bytes_, BytesAllocated());
+      const size_t bytes_allocated = RoundUp(BytesAllocated(), kRegionSize);
+      DCHECK_LE(live_bytes_, bytes_allocated);
       if (IsAllocated()) {
         // Side node: live_percent == 0 does not necessarily mean
         // there's no live objects due to rounding (there may be a
         // few).
-        result = live_percent < kEvaculateLivePercentThreshold;
+        result = live_bytes_ * 100U < kEvaculateLivePercentThreshold * bytes_allocated;
       } else {
         DCHECK(IsLarge());
-        result = live_percent == 0U;
+        result = live_bytes_ == 0U;
       }
     } else {
       result = false;
