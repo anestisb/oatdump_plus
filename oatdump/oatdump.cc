@@ -1978,7 +1978,7 @@ class ImageDumper {
       size_t sum_of_expansion = 0;
       size_t sum_of_expansion_squared = 0;
       size_t n = method_outlier_size.size();
-      if (n == 0) {
+      if (n <= 1) {
         return;
       }
       for (size_t i = 0; i < n; i++) {
