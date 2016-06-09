@@ -136,7 +136,7 @@ class OsrCheckVisitor : public StackVisitor {
     if (m_name.compare(method_name_) == 0) {
       while (jit->GetCodeCache()->LookupOsrMethodHeader(m) == nullptr) {
         // Sleep to yield to the compiler thread.
-        sleep(0);
+        usleep(1000);
         // Will either ensure it's compiled or do the compilation itself.
         jit->CompileMethod(m, Thread::Current(), /* osr */ true);
       }
