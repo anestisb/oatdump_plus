@@ -37,6 +37,8 @@ public class Main {
         } else {
           throw e;
         }
+      } catch (OutOfMemoryError e) {
+        // Ignore, this is a stress test.
       }
     }
   }
