@@ -17,6 +17,7 @@
 #include "art_method.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
+#include "jit/profiling_info.h"
 #include "oat_quick_method_header.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedUtfChars.h"
@@ -43,6 +44,8 @@ extern "C" JNIEXPORT void JNICALL Java_Main_waitUntilJitted(JNIEnv* env,
 
   jit::JitCodeCache* code_cache = jit->GetCodeCache();
   OatQuickMethodHeader* header = nullptr;
+  // Make sure there is a profiling info, required by the compiler.
+  ProfilingInfo::Create(soa.Self(), method, /* retry_allocation */ true);
   while (true) {
     header = OatQuickMethodHeader::FromEntryPoint(method->GetEntryPointFromQuickCompiledCode());
     if (code_cache->ContainsPc(header->GetCode())) {
@@ -51,7 +54,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_waitUntilJitted(JNIEnv* env,
       // Sleep to yield to the compiler thread.
       usleep(1000);
       // Will either ensure it's compiled or do the compilation itself.
-      jit->CompileMethod(method, Thread::Current(), /* osr */ false);
+      jit->CompileMethod(method, soa.Self(), /* osr */ false);
     }
   }
 }
