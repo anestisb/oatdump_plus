@@ -515,6 +515,8 @@ bool OatFileManager::HasCollisions(const OatFile* oat_file,
     return false;
   }
 
+  ScopedTrace st("Collision check");
+
   // Add dex files from the oat file to check.
   AddDexFilesFromOat(oat_file, /*already_loaded*/false, &queue);
 
