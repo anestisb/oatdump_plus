@@ -428,12 +428,37 @@ ART_TEST_HOST_VALGRIND_GTEST_RULES :=
 ART_TEST_TARGET_GTEST$(ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
 ART_TEST_TARGET_GTEST$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
 ART_TEST_TARGET_GTEST_RULES :=
+ART_TEST_TARGET_VALGRIND_GTEST$(ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
+ART_TEST_TARGET_VALGRIND_GTEST$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
+ART_TEST_TARGET_VALGRIND_GTEST_RULES :=
 ART_TEST_HOST_GTEST_DEPENDENCIES :=
 
 ART_GTEST_TARGET_ANDROID_ROOT := '/system'
 ifneq ($(ART_TEST_ANDROID_ROOT),)
   ART_GTEST_TARGET_ANDROID_ROOT := $(ART_TEST_ANDROID_ROOT)
 endif
+
+ART_VALGRIND_TARGET_DEPENDENCIES := \
+  $(TARGET_OUT_EXECUTABLES)/valgrind \
+  $(TARGET_OUT_SHARED_LIBRARIES)/valgrind/memcheck-$(TARGET_ARCH)-linux \
+  $(TARGET_OUT_SHARED_LIBRARIES)/valgrind/vgpreload_core-$(TARGET_ARCH)-linux.so \
+  $(TARGET_OUT_SHARED_LIBRARIES)/valgrind/vgpreload_memcheck-$(TARGET_ARCH)-linux.so \
+  $(TARGET_OUT_SHARED_LIBRARIES)/valgrind/default.supp
+
+ifdef TARGET_2ND_ARCH
+ART_VALGRIND_TARGET_DEPENDENCIES += \
+  $(TARGET_OUT_SHARED_LIBRARIES)/valgrind/memcheck-$(TARGET_2ND_ARCH)-linux \
+  $(TARGET_OUT_SHARED_LIBRARIES)/valgrind/vgpreload_core-$(TARGET_2ND_ARCH)-linux.so \
+  $(TARGET_OUT_SHARED_LIBRARIES)/valgrind/vgpreload_memcheck-$(TARGET_2ND_ARCH)-linux.so
+endif
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := valgrind-target-suppressions.txt
+LOCAL_MODULE_CLASS := ETC
+LOCAL_MODULE_TAGS := optional
+LOCAL_SRC_FILES := test/valgrind-target-suppressions.txt
+LOCAL_MODULE_PATH := $(ART_TARGET_TEST_OUT)
+include $(BUILD_PREBUILT)
 
 # Define a make rule for a target device gtest.
 # $(1): gtest name - the name of the test we're building such as leb128_test.
@@ -451,7 +476,8 @@ define define-art-gtest-rule-target
     $$($(2)TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so \
     $$($(2)TARGET_OUT_SHARED_LIBRARIES)/libopenjdkd.so \
     $$(TARGET_OUT_JAVA_LIBRARIES)/core-libart-testdex.jar \
-    $$(TARGET_OUT_JAVA_LIBRARIES)/core-oj-testdex.jar
+    $$(TARGET_OUT_JAVA_LIBRARIES)/core-oj-testdex.jar \
+    $$(ART_TARGET_TEST_OUT)/valgrind-target-suppressions.txt
 
 .PHONY: $$(gtest_rule)
 $$(gtest_rule): test-art-target-sync
@@ -470,7 +496,27 @@ $$(gtest_rule): test-art-target-sync
   ART_TEST_TARGET_GTEST_RULES += $$(gtest_rule)
   ART_TEST_TARGET_GTEST_$(1)_RULES += $$(gtest_rule)
 
+.PHONY: valgrind-$$(gtest_rule)
+valgrind-$$(gtest_rule): $(ART_VALGRIND_TARGET_DEPENDENCIES) test-art-target-sync
+	$(hide) adb shell touch $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$$$$PPID
+	$(hide) adb shell rm $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$$$$PPID
+	$(hide) adb shell chmod 755 $(ART_TARGET_NATIVETEST_DIR)/$(TARGET_$(2)ARCH)/$(1)
+	$(hide) $$(call ART_TEST_SKIP,$$@) && \
+	  (adb shell "$(GCOV_ENV) LD_LIBRARY_PATH=$(3) ANDROID_ROOT=$(ART_GTEST_TARGET_ANDROID_ROOT) \
+	    valgrind --leak-check=full --error-exitcode=1 --workaround-gcc296-bugs=yes \
+	    --suppressions=$(ART_TARGET_TEST_DIR)/valgrind-target-suppressions.txt \
+	    $(ART_TARGET_NATIVETEST_DIR)/$(TARGET_$(2)ARCH)/$(1) && touch $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$$$$PPID" \
+	  && (adb pull $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$$$$PPID /tmp/ \
+	      && $$(call ART_TEST_PASSED,$$@)) \
+	  || $$(call ART_TEST_FAILED,$$@))
+	$(hide) rm -f /tmp/$$@-$$$$PPID
+
+  ART_TEST_TARGET_VALGRIND_GTEST$$($(2)ART_PHONY_TEST_TARGET_SUFFIX)_RULES += valgrind-$$(gtest_rule)
+  ART_TEST_TARGET_VALGRIND_GTEST_RULES += valgrind-$$(gtest_rule)
+  ART_TEST_TARGET_VALGRIND_GTEST_$(1)_RULES += valgrind-$$(gtest_rule)
+
   # Clear locally defined variables.
+  valgrind_gtest_rule :=
   gtest_rule :=
 endef  # define-art-gtest-rule-target
 
@@ -593,6 +639,7 @@ define define-art-gtest
     endif
 
     ART_TEST_TARGET_GTEST_$$(art_gtest_name)_RULES :=
+    ART_TEST_TARGET_VALGRIND_GTEST_$$(art_gtest_name)_RULES :=
     ifdef TARGET_2ND_ARCH
       $$(eval $$(call define-art-gtest-rule-target,$$(art_gtest_name),2ND_,$$(2nd_library_path)))
     endif
@@ -603,8 +650,13 @@ define define-art-gtest
 test-art-target-gtest-$$(art_gtest_name): $$(ART_TEST_TARGET_GTEST_$$(art_gtest_name)_RULES)
 	$$(hide) $$(call ART_TEST_PREREQ_FINISHED,$$@)
 
+.PHONY: valgrind-test-art-target-gtest-$$(art_gtest_name)
+valgrind-test-art-target-gtest-$$(art_gtest_name): $$(ART_TEST_TARGET_VALGRIND_GTEST_$$(art_gtest_name)_RULES)
+	$$(hide) $$(call ART_TEST_PREREQ_FINISHED,$$@)
+
     # Clear locally defined variables.
     ART_TEST_TARGET_GTEST_$$(art_gtest_name)_RULES :=
+    ART_TEST_TARGET_VALGRIND_GTEST_$$(art_gtest_name)_RULES :=
   else # host
     LOCAL_CLANG := $$(ART_HOST_CLANG)
     LOCAL_CFLAGS += $$(ART_HOST_CFLAGS) $$(ART_HOST_DEBUG_CFLAGS)
@@ -687,9 +739,6 @@ define define-test-art-gtest-combination
 
   rule_name := $(3)test-art-$(1)-gtest$(4)
   ifeq ($(3),valgrind-)
-    ifneq ($(1),host)
-      $$(error valgrind tests only wired up for the host)
-    endif
     dependencies := $$(ART_TEST_$(2)_VALGRIND_GTEST$(4)_RULES)
   else
     dependencies := $$(ART_TEST_$(2)_GTEST$(4)_RULES)
@@ -705,9 +754,12 @@ $$(rule_name): $$(dependencies)
 endef  # define-test-art-gtest-combination
 
 $(eval $(call define-test-art-gtest-combination,target,TARGET,,))
+$(eval $(call define-test-art-gtest-combination,target,TARGET,valgrind-,))
 $(eval $(call define-test-art-gtest-combination,target,TARGET,,$(ART_PHONY_TEST_TARGET_SUFFIX)))
+$(eval $(call define-test-art-gtest-combination,target,TARGET,valgrind-,$(ART_PHONY_TEST_TARGET_SUFFIX)))
 ifdef TARGET_2ND_ARCH
 $(eval $(call define-test-art-gtest-combination,target,TARGET,,$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)))
+$(eval $(call define-test-art-gtest-combination,target,TARGET,valgrind-,$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)))
 endif
 $(eval $(call define-test-art-gtest-combination,host,HOST,,))
 $(eval $(call define-test-art-gtest-combination,host,HOST,valgrind-,))
@@ -739,6 +791,9 @@ ART_TEST_HOST_VALGRIND_GTEST_RULES :=
 ART_TEST_TARGET_GTEST$(ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
 ART_TEST_TARGET_GTEST$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
 ART_TEST_TARGET_GTEST_RULES :=
+ART_TEST_TARGET_VALGRIND_GTEST$(ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
+ART_TEST_TARGET_VALGRIND_GTEST$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
+ART_TEST_TARGET_VALGRIND_GTEST_RULES :=
 ART_GTEST_TARGET_ANDROID_ROOT :=
 ART_GTEST_class_linker_test_DEX_DEPS :=
 ART_GTEST_compiler_driver_test_DEX_DEPS :=
@@ -757,6 +812,7 @@ ART_GTEST_reflection_test_DEX_DEPS :=
 ART_GTEST_stub_test_DEX_DEPS :=
 ART_GTEST_transaction_test_DEX_DEPS :=
 ART_VALGRIND_DEPENDENCIES :=
+ART_VALGRIND_TARGET_DEPENDENCIES :=
 $(foreach dir,$(GTEST_DEX_DIRECTORIES), $(eval ART_TEST_TARGET_GTEST_$(dir)_DEX :=))
 $(foreach dir,$(GTEST_DEX_DIRECTORIES), $(eval ART_TEST_HOST_GTEST_$(dir)_DEX :=))
 ART_TEST_HOST_GTEST_MainStripped_DEX :=
