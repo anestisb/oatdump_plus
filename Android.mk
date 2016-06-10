@@ -360,6 +360,19 @@ endif
 
 endif  # art_test_bother
 
+# Valgrind.
+.PHONY: valgrind-test-art-target
+valgrind-test-art-target: valgrind-test-art-target-gtest
+	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
+
+.PHONY: valgrind-test-art-target32
+valgrind-test-art-target32: valgrind-test-art-target-gtest32
+	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
+
+.PHONY: valgrind-test-art-target64
+valgrind-test-art-target64: valgrind-test-art-target-gtest64
+	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
+
 ########################################################################
 # oat-target and oat-target-sync rules
 
