@@ -442,7 +442,7 @@ Heap::Heap(size_t initial_size,
   }
   // Create other spaces based on whether or not we have a moving GC.
   if (foreground_collector_type_ == kCollectorTypeCC) {
-    region_space_ = space::RegionSpace::Create("Region space", capacity_ * 2, request_begin);
+    region_space_ = space::RegionSpace::Create("main space (region space)", capacity_ * 2, request_begin);
     AddSpace(region_space_);
   } else if (IsMovingGc(foreground_collector_type_) &&
       foreground_collector_type_ != kCollectorTypeGSS) {
