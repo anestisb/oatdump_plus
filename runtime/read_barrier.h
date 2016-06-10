@@ -37,11 +37,10 @@ class ArtMethod;
 
 class ReadBarrier {
  public:
-  // TODO: disable thse flags for production use.
   // Enable the to-space invariant checks.
-  static constexpr bool kEnableToSpaceInvariantChecks = true;
+  static constexpr bool kEnableToSpaceInvariantChecks = kIsDebugBuild;
   // Enable the read barrier checks.
-  static constexpr bool kEnableReadBarrierInvariantChecks = true;
+  static constexpr bool kEnableReadBarrierInvariantChecks = kIsDebugBuild;
 
   // It's up to the implementation whether the given field gets updated whereas the return value
   // must be an updated reference unless kAlwaysUpdateField is true.
