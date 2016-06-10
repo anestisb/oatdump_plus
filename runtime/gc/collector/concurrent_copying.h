@@ -51,11 +51,10 @@ namespace collector {
 
 class ConcurrentCopying : public GarbageCollector {
  public:
-  // TODO: disable thse flags for production use.
   // Enable the no-from-space-refs verification at the pause.
-  static constexpr bool kEnableNoFromSpaceRefsVerification = true;
+  static constexpr bool kEnableNoFromSpaceRefsVerification = kIsDebugBuild;
   // Enable the from-space bytes/objects check.
-  static constexpr bool kEnableFromSpaceAccountingCheck = true;
+  static constexpr bool kEnableFromSpaceAccountingCheck = kIsDebugBuild;
   // Enable verbose mode.
   static constexpr bool kVerboseMode = false;
 
