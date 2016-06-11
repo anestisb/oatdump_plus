@@ -33,9 +33,10 @@
 
 namespace art {
 
+template<ReadBarrierOption kReadBarrierOption>
 inline mirror::Class* ArtField::GetDeclaringClass() {
   GcRootSource gc_root_source(this);
-  mirror::Class* result = declaring_class_.Read(&gc_root_source);
+  mirror::Class* result = declaring_class_.Read<kReadBarrierOption>(&gc_root_source);
   DCHECK(result != nullptr);
   DCHECK(result->IsLoaded() || result->IsErroneous()) << result->GetStatus();
   return result;

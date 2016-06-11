@@ -4248,33 +4248,6 @@ std::string ClassLinker::GetDescriptorForProxy(mirror::Class* proxy_class) {
   return DotToDescriptor(name->ToModifiedUtf8().c_str());
 }
 
-ArtMethod* ClassLinker::FindMethodForProxy(mirror::Class* proxy_class, ArtMethod* proxy_method) {
-  DCHECK(proxy_class->IsProxyClass());
-  DCHECK(proxy_method->IsProxyMethod());
-  {
-    Thread* const self = Thread::Current();
-    ReaderMutexLock mu(self, dex_lock_);
-    // Locate the dex cache of the original interface/Object
-    for (const DexCacheData& data : dex_caches_) {
-      if (!self->IsJWeakCleared(data.weak_root) &&
-          proxy_method->HasSameDexCacheResolvedTypes(data.resolved_types,
-                                                     image_pointer_size_)) {
-        mirror::DexCache* dex_cache = down_cast<mirror::DexCache*>(
-            self->DecodeJObject(data.weak_root));
-        if (dex_cache != nullptr) {
-          ArtMethod* resolved_method = dex_cache->GetResolvedMethod(
-              proxy_method->GetDexMethodIndex(), image_pointer_size_);
-          CHECK(resolved_method != nullptr);
-          return resolved_method;
-        }
-      }
-    }
-  }
-  LOG(FATAL) << "Didn't find dex cache for " << PrettyClass(proxy_class) << " "
-      << PrettyMethod(proxy_method);
-  UNREACHABLE();
-}
-
 void ClassLinker::CreateProxyConstructor(Handle<mirror::Class> klass, ArtMethod* out) {
   // Create constructor for Proxy that must initialize the method.
   CHECK_EQ(GetClassRoot(kJavaLangReflectProxy)->NumDirectMethods(), 18u);

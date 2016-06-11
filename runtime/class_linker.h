@@ -482,6 +482,7 @@ class ClassLinker {
       SHARED_REQUIRES(Locks::mutator_lock_);
   std::string GetDescriptorForProxy(mirror::Class* proxy_class)
       SHARED_REQUIRES(Locks::mutator_lock_);
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ArtMethod* FindMethodForProxy(mirror::Class* proxy_class, ArtMethod* proxy_method)
       REQUIRES(!dex_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);

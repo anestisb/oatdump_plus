@@ -534,7 +534,7 @@ template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline MemberOffset Class::GetFirstReferenceInstanceFieldOffset() {
   Class* super_class = GetSuperClass<kVerifyFlags, kReadBarrierOption>();
   return (super_class != nullptr)
-      ? MemberOffset(RoundUp(super_class->GetObjectSize(),
+      ? MemberOffset(RoundUp(super_class->GetObjectSize<kVerifyFlags, kReadBarrierOption>(),
                              sizeof(mirror::HeapReference<mirror::Object>)))
       : ClassOffset();
 }
@@ -780,7 +780,8 @@ inline void Class::VisitReferences(mirror::Class* klass, const Visitor& visitor)
   }
   if (kVisitNativeRoots) {
     // Since this class is reachable, we must also visit the associated roots when we scan it.
-    VisitNativeRoots(visitor, Runtime::Current()->GetClassLinker()->GetImagePointerSize());
+    VisitNativeRoots<kReadBarrierOption>(
+        visitor, Runtime::Current()->GetClassLinker()->GetImagePointerSize());
   }
 }
 
@@ -919,24 +920,24 @@ inline GcRoot<String>* Class::GetDexCacheStrings() {
   return GetFieldPtr<GcRoot<String>*>(DexCacheStringsOffset());
 }
 
-template<class Visitor>
+template<ReadBarrierOption kReadBarrierOption, class Visitor>
 void mirror::Class::VisitNativeRoots(Visitor& visitor, size_t pointer_size) {
   for (ArtField& field : GetSFieldsUnchecked()) {
     // Visit roots first in case the declaring class gets moved.
     field.VisitRoots(visitor);
     if (kIsDebugBuild && IsResolved()) {
-      CHECK_EQ(field.GetDeclaringClass(), this) << GetStatus();
+      CHECK_EQ(field.GetDeclaringClass<kReadBarrierOption>(), this) << GetStatus();
     }
   }
   for (ArtField& field : GetIFieldsUnchecked()) {
     // Visit roots first in case the declaring class gets moved.
     field.VisitRoots(visitor);
     if (kIsDebugBuild && IsResolved()) {
-      CHECK_EQ(field.GetDeclaringClass(), this) << GetStatus();
+      CHECK_EQ(field.GetDeclaringClass<kReadBarrierOption>(), this) << GetStatus();
     }
   }
   for (ArtMethod& method : GetMethods(pointer_size)) {
-    method.VisitRoots(visitor, pointer_size);
+    method.VisitRoots<kReadBarrierOption>(visitor, pointer_size);
   }
 }
 
