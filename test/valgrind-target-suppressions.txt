@@ -29,3 +29,14 @@
    fun:_ZN7android12SharedBuffer5allocE?
    fun:_ZN7android10VectorImpl5_growE??
 }
+
+# Clang/LLVM uses memcpy for *x = *y, even though x == y (which is undefined behavior). Ignore.
+# b/29279679, https://llvm.org/bugs/show_bug.cgi?id=11763
+{
+   MemCpySelfAssign
+   Memcheck:Overlap
+   fun:memcpy
+   fun:je_tsd_set
+   fun:je_tsd_fetch
+   fun:je_malloc_tsd_boot0
+}
