@@ -21,11 +21,37 @@
 namespace art {
 
 extern "C" JNIEXPORT void JNICALL Java_Main_suspendAndResume(JNIEnv*, jclass) {
-  usleep(100 * 1000);  // Leave some time for threads to get in here before we start suspending.
-  for (size_t i = 0; i < 500; ++i) {
-    Runtime::Current()->GetThreadList()->SuspendAll(__FUNCTION__);
-    usleep(500);
-    Runtime::Current()->GetThreadList()->ResumeAll();
+  static constexpr size_t kInitialSleepUS = 100 * 1000;  // 100ms.
+  static constexpr size_t kIterations = 500;
+  usleep(kInitialSleepUS);  // Leave some time for threads to get in here before we start suspending.
+  enum Operation {
+    kOPSuspendAll,
+    kOPDumpStack,
+    kOPSuspendAllDumpStack,
+    // Total number of operations.
+    kOPNumber,
+  };
+  for (size_t i = 0; i < kIterations; ++i) {
+    switch (static_cast<Operation>(i % kOPNumber)) {
+      case kOPSuspendAll: {
+        ScopedSuspendAll ssa(__FUNCTION__);
+        usleep(500);
+        break;
+      }
+      case kOPDumpStack: {
+        Runtime::Current()->GetThreadList()->Dump(LOG(INFO));
+        usleep(500);
+        break;
+      }
+      case kOPSuspendAllDumpStack: {
+        // Not yet supported.
+        // ScopedSuspendAll ssa(__FUNCTION__);
+        // Runtime::Current()->GetThreadList()->Dump(LOG(INFO));
+        break;
+      }
+      case kOPNumber:
+        break;
+    }
   }
 }
 
