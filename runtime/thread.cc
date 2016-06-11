@@ -940,10 +940,7 @@ bool Thread::InitStackHwm() {
   }
 
   // Sanity check.
-  if (RUNNING_ON_MEMORY_TOOL == 0) {
-    // Sanitizers may be using a split stack. Ignore the check.
-    CHECK_GT(FindStackTop(), reinterpret_cast<void*>(tlsPtr_.stack_end));
-  }
+  CHECK_GT(FindStackTop(), reinterpret_cast<void*>(tlsPtr_.stack_end));
 
   return true;
 }
