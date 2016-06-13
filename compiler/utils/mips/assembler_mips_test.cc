@@ -731,212 +731,538 @@ TEST_F(AssemblerMIPSTest, Not) {
   DriverStr(RepeatRR(&mips::MipsAssembler::Not, "nor ${reg1}, ${reg2}, $zero"), "Not");
 }
 
-TEST_F(AssemblerMIPSTest, LoadFromOffset) {
-  __ LoadFromOffset(mips::kLoadSignedByte, mips::A0, mips::A0, 0);
-  __ LoadFromOffset(mips::kLoadSignedByte, mips::A0, mips::A1, 0);
-  __ LoadFromOffset(mips::kLoadSignedByte, mips::A0, mips::A1, 256);
-  __ LoadFromOffset(mips::kLoadSignedByte, mips::A0, mips::A1, 1000);
-  __ LoadFromOffset(mips::kLoadSignedByte, mips::A0, mips::A1, 0x8000);
-  __ LoadFromOffset(mips::kLoadSignedByte, mips::A0, mips::A1, 0x10000);
-  __ LoadFromOffset(mips::kLoadSignedByte, mips::A0, mips::A1, 0x12345678);
-  __ LoadFromOffset(mips::kLoadSignedByte, mips::A0, mips::A1, -256);
-  __ LoadFromOffset(mips::kLoadSignedByte, mips::A0, mips::A1, 0xFFFF8000);
-  __ LoadFromOffset(mips::kLoadSignedByte, mips::A0, mips::A1, 0xABCDEF00);
-
-  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A0, mips::A0, 0);
-  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A0, mips::A1, 0);
-  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A0, mips::A1, 256);
-  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A0, mips::A1, 1000);
-  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A0, mips::A1, 0x8000);
-  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A0, mips::A1, 0x10000);
-  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A0, mips::A1, 0x12345678);
-  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A0, mips::A1, -256);
-  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A0, mips::A1, 0xFFFF8000);
-  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A0, mips::A1, 0xABCDEF00);
-
-  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A0, mips::A0, 0);
-  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A0, mips::A1, 0);
-  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A0, mips::A1, 256);
-  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A0, mips::A1, 1000);
-  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A0, mips::A1, 0x8000);
-  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A0, mips::A1, 0x10000);
-  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A0, mips::A1, 0x12345678);
-  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A0, mips::A1, -256);
-  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A0, mips::A1, 0xFFFF8000);
-  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A0, mips::A1, 0xABCDEF00);
-
-  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A0, mips::A0, 0);
-  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A0, mips::A1, 0);
-  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A0, mips::A1, 256);
-  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A0, mips::A1, 1000);
-  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A0, mips::A1, 0x8000);
-  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A0, mips::A1, 0x10000);
-  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A0, mips::A1, 0x12345678);
-  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A0, mips::A1, -256);
-  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A0, mips::A1, 0xFFFF8000);
-  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A0, mips::A1, 0xABCDEF00);
-
-  __ LoadFromOffset(mips::kLoadWord, mips::A0, mips::A0, 0);
-  __ LoadFromOffset(mips::kLoadWord, mips::A0, mips::A1, 0);
-  __ LoadFromOffset(mips::kLoadWord, mips::A0, mips::A1, 256);
-  __ LoadFromOffset(mips::kLoadWord, mips::A0, mips::A1, 1000);
-  __ LoadFromOffset(mips::kLoadWord, mips::A0, mips::A1, 0x8000);
-  __ LoadFromOffset(mips::kLoadWord, mips::A0, mips::A1, 0x10000);
-  __ LoadFromOffset(mips::kLoadWord, mips::A0, mips::A1, 0x12345678);
-  __ LoadFromOffset(mips::kLoadWord, mips::A0, mips::A1, -256);
-  __ LoadFromOffset(mips::kLoadWord, mips::A0, mips::A1, 0xFFFF8000);
-  __ LoadFromOffset(mips::kLoadWord, mips::A0, mips::A1, 0xABCDEF00);
-
-  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A0, 0);
-  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A1, 0);
-  __ LoadFromOffset(mips::kLoadDoubleword, mips::A1, mips::A0, 0);
-  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, 0);
-  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, 256);
-  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, 1000);
-  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, 0x8000);
-  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, 0x10000);
-  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, 0x12345678);
-  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, -256);
-  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, 0xFFFF8000);
-  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, 0xABCDEF00);
+TEST_F(AssemblerMIPSTest, Addiu32) {
+  __ Addiu32(mips::A1, mips::A2, -0x8000);
+  __ Addiu32(mips::A1, mips::A2, +0);
+  __ Addiu32(mips::A1, mips::A2, +0x7FFF);
+  __ Addiu32(mips::A1, mips::A2, -0x10000);
+  __ Addiu32(mips::A1, mips::A2, -0x8001);
+  __ Addiu32(mips::A1, mips::A2, +0x8000);
+  __ Addiu32(mips::A1, mips::A2, +0xFFFE);
+  __ Addiu32(mips::A1, mips::A2, -0x10001);
+  __ Addiu32(mips::A1, mips::A2, +0xFFFF);
+  __ Addiu32(mips::A1, mips::A2, +0x10000);
+  __ Addiu32(mips::A1, mips::A2, +0x10001);
+  __ Addiu32(mips::A1, mips::A2, +0x12345678);
 
   const char* expected =
-      "lb $a0, 0($a0)\n"
-      "lb $a0, 0($a1)\n"
-      "lb $a0, 256($a1)\n"
-      "lb $a0, 1000($a1)\n"
-      "ori $at, $zero, 0x8000\n"
-      "addu $at, $at, $a1\n"
-      "lb $a0, 0($at)\n"
+      "addiu $a1, $a2, -0x8000\n"
+      "addiu $a1, $a2, 0\n"
+      "addiu $a1, $a2, 0x7FFF\n"
+      "addiu $at, $a2, -0x8000\n"
+      "addiu $a1, $at, -0x8000\n"
+      "addiu $at, $a2, -0x8000\n"
+      "addiu $a1, $at, -1\n"
+      "addiu $at, $a2, 0x7FFF\n"
+      "addiu $a1, $at, 1\n"
+      "addiu $at, $a2, 0x7FFF\n"
+      "addiu $a1, $at, 0x7FFF\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0xFFFF\n"
+      "addu $a1, $a2, $at\n"
+      "ori $at, $zero, 0xFFFF\n"
+      "addu $a1, $a2, $at\n"
       "lui $at, 1\n"
-      "addu $at, $at, $a1\n"
-      "lb $a0, 0($at)\n"
-      "lui $at, 0x1234\n"
-      "ori $at, 0x5678\n"
-      "addu $at, $at, $a1\n"
-      "lb $a0, 0($at)\n"
-      "lb $a0, -256($a1)\n"
-      "lb $a0, 0xFFFF8000($a1)\n"
-      "lui $at, 0xABCD\n"
-      "ori $at, 0xEF00\n"
-      "addu $at, $at, $a1\n"
-      "lb $a0, 0($at)\n"
-
-      "lbu $a0, 0($a0)\n"
-      "lbu $a0, 0($a1)\n"
-      "lbu $a0, 256($a1)\n"
-      "lbu $a0, 1000($a1)\n"
-      "ori $at, $zero, 0x8000\n"
-      "addu $at, $at, $a1\n"
-      "lbu $a0, 0($at)\n"
+      "addu $a1, $a2, $at\n"
       "lui $at, 1\n"
-      "addu $at, $at, $a1\n"
-      "lbu $a0, 0($at)\n"
+      "ori $at, $at, 1\n"
+      "addu $a1, $a2, $at\n"
       "lui $at, 0x1234\n"
-      "ori $at, 0x5678\n"
-      "addu $at, $at, $a1\n"
-      "lbu $a0, 0($at)\n"
-      "lbu $a0, -256($a1)\n"
-      "lbu $a0, 0xFFFF8000($a1)\n"
-      "lui $at, 0xABCD\n"
-      "ori $at, 0xEF00\n"
-      "addu $at, $at, $a1\n"
-      "lbu $a0, 0($at)\n"
+      "ori $at, $at, 0x5678\n"
+      "addu $a1, $a2, $at\n";
+  DriverStr(expected, "Addiu32");
+}
 
-      "lh $a0, 0($a0)\n"
-      "lh $a0, 0($a1)\n"
-      "lh $a0, 256($a1)\n"
-      "lh $a0, 1000($a1)\n"
-      "ori $at, $zero, 0x8000\n"
+TEST_F(AssemblerMIPSTest, LoadFromOffset) {
+  __ LoadFromOffset(mips::kLoadSignedByte, mips::A3, mips::A1, -0x8000);
+  __ LoadFromOffset(mips::kLoadSignedByte, mips::A3, mips::A1, +0);
+  __ LoadFromOffset(mips::kLoadSignedByte, mips::A3, mips::A1, +0x7FF8);
+  __ LoadFromOffset(mips::kLoadSignedByte, mips::A3, mips::A1, +0x7FFB);
+  __ LoadFromOffset(mips::kLoadSignedByte, mips::A3, mips::A1, +0x7FFC);
+  __ LoadFromOffset(mips::kLoadSignedByte, mips::A3, mips::A1, +0x7FFF);
+  __ LoadFromOffset(mips::kLoadSignedByte, mips::A3, mips::A1, -0xFFF0);
+  __ LoadFromOffset(mips::kLoadSignedByte, mips::A3, mips::A1, -0x8008);
+  __ LoadFromOffset(mips::kLoadSignedByte, mips::A3, mips::A1, -0x8001);
+  __ LoadFromOffset(mips::kLoadSignedByte, mips::A3, mips::A1, +0x8000);
+  __ LoadFromOffset(mips::kLoadSignedByte, mips::A3, mips::A1, +0xFFF0);
+  __ LoadFromOffset(mips::kLoadSignedByte, mips::A3, mips::A1, -0x17FE8);
+  __ LoadFromOffset(mips::kLoadSignedByte, mips::A3, mips::A1, -0x0FFF8);
+  __ LoadFromOffset(mips::kLoadSignedByte, mips::A3, mips::A1, -0x0FFF1);
+  __ LoadFromOffset(mips::kLoadSignedByte, mips::A3, mips::A1, +0x0FFF1);
+  __ LoadFromOffset(mips::kLoadSignedByte, mips::A3, mips::A1, +0x0FFF8);
+  __ LoadFromOffset(mips::kLoadSignedByte, mips::A3, mips::A1, +0x17FE8);
+  __ LoadFromOffset(mips::kLoadSignedByte, mips::A3, mips::A1, -0x17FF0);
+  __ LoadFromOffset(mips::kLoadSignedByte, mips::A3, mips::A1, -0x17FE9);
+  __ LoadFromOffset(mips::kLoadSignedByte, mips::A3, mips::A1, +0x17FE9);
+  __ LoadFromOffset(mips::kLoadSignedByte, mips::A3, mips::A1, +0x17FF0);
+  __ LoadFromOffset(mips::kLoadSignedByte, mips::A3, mips::A1, +0x12345678);
+
+  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A3, mips::A1, -0x8000);
+  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A3, mips::A1, +0);
+  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A3, mips::A1, +0x7FF8);
+  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A3, mips::A1, +0x7FFB);
+  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A3, mips::A1, +0x7FFC);
+  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A3, mips::A1, +0x7FFF);
+  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A3, mips::A1, -0xFFF0);
+  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A3, mips::A1, -0x8008);
+  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A3, mips::A1, -0x8001);
+  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A3, mips::A1, +0x8000);
+  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A3, mips::A1, +0xFFF0);
+  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A3, mips::A1, -0x17FE8);
+  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A3, mips::A1, -0x0FFF8);
+  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A3, mips::A1, -0x0FFF1);
+  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A3, mips::A1, +0x0FFF1);
+  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A3, mips::A1, +0x0FFF8);
+  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A3, mips::A1, +0x17FE8);
+  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A3, mips::A1, -0x17FF0);
+  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A3, mips::A1, -0x17FE9);
+  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A3, mips::A1, +0x17FE9);
+  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A3, mips::A1, +0x17FF0);
+  __ LoadFromOffset(mips::kLoadUnsignedByte, mips::A3, mips::A1, +0x12345678);
+
+  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A3, mips::A1, -0x8000);
+  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A3, mips::A1, +0);
+  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A3, mips::A1, +0x7FF8);
+  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A3, mips::A1, +0x7FFB);
+  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A3, mips::A1, +0x7FFC);
+  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A3, mips::A1, +0x7FFF);
+  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A3, mips::A1, -0xFFF0);
+  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A3, mips::A1, -0x8008);
+  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A3, mips::A1, -0x8001);
+  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A3, mips::A1, +0x8000);
+  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A3, mips::A1, +0xFFF0);
+  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A3, mips::A1, -0x17FE8);
+  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A3, mips::A1, -0x0FFF8);
+  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A3, mips::A1, -0x0FFF1);
+  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A3, mips::A1, +0x0FFF1);
+  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A3, mips::A1, +0x0FFF8);
+  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A3, mips::A1, +0x17FE8);
+  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A3, mips::A1, -0x17FF0);
+  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A3, mips::A1, -0x17FE9);
+  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A3, mips::A1, +0x17FE9);
+  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A3, mips::A1, +0x17FF0);
+  __ LoadFromOffset(mips::kLoadSignedHalfword, mips::A3, mips::A1, +0x12345678);
+
+  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A3, mips::A1, -0x8000);
+  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A3, mips::A1, +0);
+  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A3, mips::A1, +0x7FF8);
+  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A3, mips::A1, +0x7FFB);
+  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A3, mips::A1, +0x7FFC);
+  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A3, mips::A1, +0x7FFF);
+  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A3, mips::A1, -0xFFF0);
+  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A3, mips::A1, -0x8008);
+  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A3, mips::A1, -0x8001);
+  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A3, mips::A1, +0x8000);
+  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A3, mips::A1, +0xFFF0);
+  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A3, mips::A1, -0x17FE8);
+  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A3, mips::A1, -0x0FFF8);
+  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A3, mips::A1, -0x0FFF1);
+  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A3, mips::A1, +0x0FFF1);
+  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A3, mips::A1, +0x0FFF8);
+  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A3, mips::A1, +0x17FE8);
+  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A3, mips::A1, -0x17FF0);
+  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A3, mips::A1, -0x17FE9);
+  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A3, mips::A1, +0x17FE9);
+  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A3, mips::A1, +0x17FF0);
+  __ LoadFromOffset(mips::kLoadUnsignedHalfword, mips::A3, mips::A1, +0x12345678);
+
+  __ LoadFromOffset(mips::kLoadWord, mips::A3, mips::A1, -0x8000);
+  __ LoadFromOffset(mips::kLoadWord, mips::A3, mips::A1, +0);
+  __ LoadFromOffset(mips::kLoadWord, mips::A3, mips::A1, +0x7FF8);
+  __ LoadFromOffset(mips::kLoadWord, mips::A3, mips::A1, +0x7FFB);
+  __ LoadFromOffset(mips::kLoadWord, mips::A3, mips::A1, +0x7FFC);
+  __ LoadFromOffset(mips::kLoadWord, mips::A3, mips::A1, +0x7FFF);
+  __ LoadFromOffset(mips::kLoadWord, mips::A3, mips::A1, -0xFFF0);
+  __ LoadFromOffset(mips::kLoadWord, mips::A3, mips::A1, -0x8008);
+  __ LoadFromOffset(mips::kLoadWord, mips::A3, mips::A1, -0x8001);
+  __ LoadFromOffset(mips::kLoadWord, mips::A3, mips::A1, +0x8000);
+  __ LoadFromOffset(mips::kLoadWord, mips::A3, mips::A1, +0xFFF0);
+  __ LoadFromOffset(mips::kLoadWord, mips::A3, mips::A1, -0x17FE8);
+  __ LoadFromOffset(mips::kLoadWord, mips::A3, mips::A1, -0x0FFF8);
+  __ LoadFromOffset(mips::kLoadWord, mips::A3, mips::A1, -0x0FFF1);
+  __ LoadFromOffset(mips::kLoadWord, mips::A3, mips::A1, +0x0FFF1);
+  __ LoadFromOffset(mips::kLoadWord, mips::A3, mips::A1, +0x0FFF8);
+  __ LoadFromOffset(mips::kLoadWord, mips::A3, mips::A1, +0x17FE8);
+  __ LoadFromOffset(mips::kLoadWord, mips::A3, mips::A1, -0x17FF0);
+  __ LoadFromOffset(mips::kLoadWord, mips::A3, mips::A1, -0x17FE9);
+  __ LoadFromOffset(mips::kLoadWord, mips::A3, mips::A1, +0x17FE9);
+  __ LoadFromOffset(mips::kLoadWord, mips::A3, mips::A1, +0x17FF0);
+  __ LoadFromOffset(mips::kLoadWord, mips::A3, mips::A1, +0x12345678);
+
+  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, -0x8000);
+  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, +0);
+  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, +0x7FF8);
+  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, +0x7FFB);
+  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, +0x7FFC);
+  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, +0x7FFF);
+  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, -0xFFF0);
+  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, -0x8008);
+  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, -0x8001);
+  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, +0x8000);
+  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, +0xFFF0);
+  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, -0x17FE8);
+  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, -0x0FFF8);
+  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, -0x0FFF1);
+  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, +0x0FFF1);
+  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, +0x0FFF8);
+  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, +0x17FE8);
+  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, -0x17FF0);
+  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, -0x17FE9);
+  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, +0x17FE9);
+  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, +0x17FF0);
+  __ LoadFromOffset(mips::kLoadDoubleword, mips::A0, mips::A2, +0x12345678);
+
+  const char* expected =
+      "lb $a3, -0x8000($a1)\n"
+      "lb $a3, 0($a1)\n"
+      "lb $a3, 0x7FF8($a1)\n"
+      "lb $a3, 0x7FFB($a1)\n"
+      "lb $a3, 0x7FFC($a1)\n"
+      "lb $a3, 0x7FFF($a1)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "lb $a3, -0x7FF8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "lb $a3, -0x10($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "lb $a3, -9($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "lb $a3, 8($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "lb $a3, 0x7FF8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "lb $a3, -0x7FF8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "lb $a3, -8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "lb $a3, -1($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "lb $a3, 1($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "lb $a3, 8($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "lb $a3, 0x7FF8($at)\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
       "addu $at, $at, $a1\n"
-      "lh $a0, 0($at)\n"
-      "lui $at, 1\n"
+      "lb $a3, 0($at)\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
       "addu $at, $at, $a1\n"
-      "lh $a0, 0($at)\n"
+      "lb $a3, 7($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FE8\n"
+      "addu $at, $at, $a1\n"
+      "lb $a3, 1($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FF0\n"
+      "addu $at, $at, $a1\n"
+      "lb $a3, 0($at)\n"
       "lui $at, 0x1234\n"
-      "ori $at, 0x5678\n"
+      "ori $at, $at, 0x5678\n"
       "addu $at, $at, $a1\n"
-      "lh $a0, 0($at)\n"
-      "lh $a0, -256($a1)\n"
-      "lh $a0, 0xFFFF8000($a1)\n"
-      "lui $at, 0xABCD\n"
-      "ori $at, 0xEF00\n"
-      "addu $at, $at, $a1\n"
-      "lh $a0, 0($at)\n"
+      "lb $a3, 0($at)\n"
 
-      "lhu $a0, 0($a0)\n"
-      "lhu $a0, 0($a1)\n"
-      "lhu $a0, 256($a1)\n"
-      "lhu $a0, 1000($a1)\n"
-      "ori $at, $zero, 0x8000\n"
+      "lbu $a3, -0x8000($a1)\n"
+      "lbu $a3, 0($a1)\n"
+      "lbu $a3, 0x7FF8($a1)\n"
+      "lbu $a3, 0x7FFB($a1)\n"
+      "lbu $a3, 0x7FFC($a1)\n"
+      "lbu $a3, 0x7FFF($a1)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "lbu $a3, -0x7FF8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "lbu $a3, -0x10($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "lbu $a3, -9($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "lbu $a3, 8($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "lbu $a3, 0x7FF8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "lbu $a3, -0x7FF8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "lbu $a3, -8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "lbu $a3, -1($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "lbu $a3, 1($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "lbu $a3, 8($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "lbu $a3, 0x7FF8($at)\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
       "addu $at, $at, $a1\n"
-      "lhu $a0, 0($at)\n"
-      "lui $at, 1\n"
+      "lbu $a3, 0($at)\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
       "addu $at, $at, $a1\n"
-      "lhu $a0, 0($at)\n"
+      "lbu $a3, 7($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FE8\n"
+      "addu $at, $at, $a1\n"
+      "lbu $a3, 1($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FF0\n"
+      "addu $at, $at, $a1\n"
+      "lbu $a3, 0($at)\n"
       "lui $at, 0x1234\n"
-      "ori $at, 0x5678\n"
+      "ori $at, $at, 0x5678\n"
       "addu $at, $at, $a1\n"
-      "lhu $a0, 0($at)\n"
-      "lhu $a0, -256($a1)\n"
-      "lhu $a0, 0xFFFF8000($a1)\n"
-      "lui $at, 0xABCD\n"
-      "ori $at, 0xEF00\n"
-      "addu $at, $at, $a1\n"
-      "lhu $a0, 0($at)\n"
+      "lbu $a3, 0($at)\n"
 
-      "lw $a0, 0($a0)\n"
-      "lw $a0, 0($a1)\n"
-      "lw $a0, 256($a1)\n"
-      "lw $a0, 1000($a1)\n"
-      "ori $at, $zero, 0x8000\n"
+      "lh $a3, -0x8000($a1)\n"
+      "lh $a3, 0($a1)\n"
+      "lh $a3, 0x7FF8($a1)\n"
+      "lh $a3, 0x7FFB($a1)\n"
+      "lh $a3, 0x7FFC($a1)\n"
+      "lh $a3, 0x7FFF($a1)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "lh $a3, -0x7FF8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "lh $a3, -0x10($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "lh $a3, -9($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "lh $a3, 8($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "lh $a3, 0x7FF8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "lh $a3, -0x7FF8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "lh $a3, -8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "lh $a3, -1($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "lh $a3, 1($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "lh $a3, 8($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "lh $a3, 0x7FF8($at)\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
       "addu $at, $at, $a1\n"
-      "lw $a0, 0($at)\n"
-      "lui $at, 1\n"
+      "lh $a3, 0($at)\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
       "addu $at, $at, $a1\n"
-      "lw $a0, 0($at)\n"
+      "lh $a3, 7($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FE8\n"
+      "addu $at, $at, $a1\n"
+      "lh $a3, 1($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FF0\n"
+      "addu $at, $at, $a1\n"
+      "lh $a3, 0($at)\n"
       "lui $at, 0x1234\n"
-      "ori $at, 0x5678\n"
+      "ori $at, $at, 0x5678\n"
       "addu $at, $at, $a1\n"
-      "lw $a0, 0($at)\n"
-      "lw $a0, -256($a1)\n"
-      "lw $a0, 0xFFFF8000($a1)\n"
-      "lui $at, 0xABCD\n"
-      "ori $at, 0xEF00\n"
-      "addu $at, $at, $a1\n"
-      "lw $a0, 0($at)\n"
+      "lh $a3, 0($at)\n"
 
-      "lw $a1, 4($a0)\n"
-      "lw $a0, 0($a0)\n"
-      "lw $a0, 0($a1)\n"
-      "lw $a1, 4($a1)\n"
-      "lw $a1, 0($a0)\n"
-      "lw $a2, 4($a0)\n"
+      "lhu $a3, -0x8000($a1)\n"
+      "lhu $a3, 0($a1)\n"
+      "lhu $a3, 0x7FF8($a1)\n"
+      "lhu $a3, 0x7FFB($a1)\n"
+      "lhu $a3, 0x7FFC($a1)\n"
+      "lhu $a3, 0x7FFF($a1)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "lhu $a3, -0x7FF8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "lhu $a3, -0x10($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "lhu $a3, -9($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "lhu $a3, 8($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "lhu $a3, 0x7FF8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "lhu $a3, -0x7FF8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "lhu $a3, -8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "lhu $a3, -1($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "lhu $a3, 1($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "lhu $a3, 8($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "lhu $a3, 0x7FF8($at)\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
+      "addu $at, $at, $a1\n"
+      "lhu $a3, 0($at)\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
+      "addu $at, $at, $a1\n"
+      "lhu $a3, 7($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FE8\n"
+      "addu $at, $at, $a1\n"
+      "lhu $a3, 1($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FF0\n"
+      "addu $at, $at, $a1\n"
+      "lhu $a3, 0($at)\n"
+      "lui $at, 0x1234\n"
+      "ori $at, $at, 0x5678\n"
+      "addu $at, $at, $a1\n"
+      "lhu $a3, 0($at)\n"
+
+      "lw $a3, -0x8000($a1)\n"
+      "lw $a3, 0($a1)\n"
+      "lw $a3, 0x7FF8($a1)\n"
+      "lw $a3, 0x7FFB($a1)\n"
+      "lw $a3, 0x7FFC($a1)\n"
+      "lw $a3, 0x7FFF($a1)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "lw $a3, -0x7FF8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "lw $a3, -0x10($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "lw $a3, -9($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "lw $a3, 8($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "lw $a3, 0x7FF8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "lw $a3, -0x7FF8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "lw $a3, -8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "lw $a3, -1($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "lw $a3, 1($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "lw $a3, 8($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "lw $a3, 0x7FF8($at)\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
+      "addu $at, $at, $a1\n"
+      "lw $a3, 0($at)\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
+      "addu $at, $at, $a1\n"
+      "lw $a3, 7($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FE8\n"
+      "addu $at, $at, $a1\n"
+      "lw $a3, 1($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FF0\n"
+      "addu $at, $at, $a1\n"
+      "lw $a3, 0($at)\n"
+      "lui $at, 0x1234\n"
+      "ori $at, $at, 0x5678\n"
+      "addu $at, $at, $a1\n"
+      "lw $a3, 0($at)\n"
+
+      "lw $a0, -0x8000($a2)\n"
+      "lw $a1, -0x7FFC($a2)\n"
       "lw $a0, 0($a2)\n"
       "lw $a1, 4($a2)\n"
-      "lw $a0, 256($a2)\n"
-      "lw $a1, 260($a2)\n"
-      "lw $a0, 1000($a2)\n"
-      "lw $a1, 1004($a2)\n"
-      "ori $at, $zero, 0x8000\n"
+      "lw $a0, 0x7FF8($a2)\n"
+      "lw $a1, 0x7FFC($a2)\n"
+      "lw $a0, 0x7FFB($a2)\n"
+      "lw $a1, 0x7FFF($a2)\n"
+      "addiu $at, $a2, 0x7FF8\n"
+      "lw $a0, 4($at)\n"
+      "lw $a1, 8($at)\n"
+      "addiu $at, $a2, 0x7FF8\n"
+      "lw $a0, 7($at)\n"
+      "lw $a1, 11($at)\n"
+      "addiu $at, $a2, -0x7FF8\n"
+      "lw $a0, -0x7FF8($at)\n"
+      "lw $a1, -0x7FF4($at)\n"
+      "addiu $at, $a2, -0x7FF8\n"
+      "lw $a0, -0x10($at)\n"
+      "lw $a1, -0xC($at)\n"
+      "addiu $at, $a2, -0x7FF8\n"
+      "lw $a0, -9($at)\n"
+      "lw $a1, -5($at)\n"
+      "addiu $at, $a2, 0x7FF8\n"
+      "lw $a0, 8($at)\n"
+      "lw $a1, 12($at)\n"
+      "addiu $at, $a2, 0x7FF8\n"
+      "lw $a0, 0x7FF8($at)\n"
+      "lw $a1, 0x7FFC($at)\n"
+      "addiu $at, $a2, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "lw $a0, -0x7FF8($at)\n"
+      "lw $a1, -0x7FF4($at)\n"
+      "addiu $at, $a2, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "lw $a0, -8($at)\n"
+      "lw $a1, -4($at)\n"
+      "addiu $at, $a2, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "lw $a0, -1($at)\n"
+      "lw $a1, 3($at)\n"
+      "addiu $at, $a2, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "lw $a0, 1($at)\n"
+      "lw $a1, 5($at)\n"
+      "addiu $at, $a2, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "lw $a0, 8($at)\n"
+      "lw $a1, 12($at)\n"
+      "addiu $at, $a2, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "lw $a0, 0x7FF8($at)\n"
+      "lw $a1, 0x7FFC($at)\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
       "addu $at, $at, $a2\n"
       "lw $a0, 0($at)\n"
       "lw $a1, 4($at)\n"
-      "lui $at, 1\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
+      "addu $at, $at, $a2\n"
+      "lw $a0, 7($at)\n"
+      "lw $a1, 11($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FE8\n"
+      "addu $at, $at, $a2\n"
+      "lw $a0, 1($at)\n"
+      "lw $a1, 5($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FF0\n"
       "addu $at, $at, $a2\n"
       "lw $a0, 0($at)\n"
       "lw $a1, 4($at)\n"
       "lui $at, 0x1234\n"
-      "ori $at, 0x5678\n"
-      "addu $at, $at, $a2\n"
-      "lw $a0, 0($at)\n"
-      "lw $a1, 4($at)\n"
-      "lw $a0, -256($a2)\n"
-      "lw $a1, -252($a2)\n"
-      "lw $a0, 0xFFFF8000($a2)\n"
-      "lw $a1, 0xFFFF8004($a2)\n"
-      "lui $at, 0xABCD\n"
-      "ori $at, 0xEF00\n"
+      "ori $at, $at, 0x5678\n"
       "addu $at, $at, $a2\n"
       "lw $a0, 0($at)\n"
       "lw $a1, 4($at)\n";
@@ -944,208 +1270,513 @@ TEST_F(AssemblerMIPSTest, LoadFromOffset) {
 }
 
 TEST_F(AssemblerMIPSTest, LoadSFromOffset) {
-  __ LoadSFromOffset(mips::F0, mips::A0, 0);
-  __ LoadSFromOffset(mips::F0, mips::A0, 4);
-  __ LoadSFromOffset(mips::F0, mips::A0, 256);
-  __ LoadSFromOffset(mips::F0, mips::A0, 0x8000);
-  __ LoadSFromOffset(mips::F0, mips::A0, 0x10000);
-  __ LoadSFromOffset(mips::F0, mips::A0, 0x12345678);
-  __ LoadSFromOffset(mips::F0, mips::A0, -256);
-  __ LoadSFromOffset(mips::F0, mips::A0, 0xFFFF8000);
-  __ LoadSFromOffset(mips::F0, mips::A0, 0xABCDEF00);
+  __ LoadSFromOffset(mips::F2, mips::A0, -0x8000);
+  __ LoadSFromOffset(mips::F2, mips::A0, +0);
+  __ LoadSFromOffset(mips::F2, mips::A0, +0x7FF8);
+  __ LoadSFromOffset(mips::F2, mips::A0, +0x7FFB);
+  __ LoadSFromOffset(mips::F2, mips::A0, +0x7FFC);
+  __ LoadSFromOffset(mips::F2, mips::A0, +0x7FFF);
+  __ LoadSFromOffset(mips::F2, mips::A0, -0xFFF0);
+  __ LoadSFromOffset(mips::F2, mips::A0, -0x8008);
+  __ LoadSFromOffset(mips::F2, mips::A0, -0x8001);
+  __ LoadSFromOffset(mips::F2, mips::A0, +0x8000);
+  __ LoadSFromOffset(mips::F2, mips::A0, +0xFFF0);
+  __ LoadSFromOffset(mips::F2, mips::A0, -0x17FE8);
+  __ LoadSFromOffset(mips::F2, mips::A0, -0x0FFF8);
+  __ LoadSFromOffset(mips::F2, mips::A0, -0x0FFF1);
+  __ LoadSFromOffset(mips::F2, mips::A0, +0x0FFF1);
+  __ LoadSFromOffset(mips::F2, mips::A0, +0x0FFF8);
+  __ LoadSFromOffset(mips::F2, mips::A0, +0x17FE8);
+  __ LoadSFromOffset(mips::F2, mips::A0, -0x17FF0);
+  __ LoadSFromOffset(mips::F2, mips::A0, -0x17FE9);
+  __ LoadSFromOffset(mips::F2, mips::A0, +0x17FE9);
+  __ LoadSFromOffset(mips::F2, mips::A0, +0x17FF0);
+  __ LoadSFromOffset(mips::F2, mips::A0, +0x12345678);
 
   const char* expected =
-      "lwc1 $f0, 0($a0)\n"
-      "lwc1 $f0, 4($a0)\n"
-      "lwc1 $f0, 256($a0)\n"
-      "ori $at, $zero, 0x8000\n"
+      "lwc1 $f2, -0x8000($a0)\n"
+      "lwc1 $f2, 0($a0)\n"
+      "lwc1 $f2, 0x7FF8($a0)\n"
+      "lwc1 $f2, 0x7FFB($a0)\n"
+      "lwc1 $f2, 0x7FFC($a0)\n"
+      "lwc1 $f2, 0x7FFF($a0)\n"
+      "addiu $at, $a0, -0x7FF8\n"
+      "lwc1 $f2, -0x7FF8($at)\n"
+      "addiu $at, $a0, -0x7FF8\n"
+      "lwc1 $f2, -0x10($at)\n"
+      "addiu $at, $a0, -0x7FF8\n"
+      "lwc1 $f2, -9($at)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "lwc1 $f2, 8($at)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "lwc1 $f2, 0x7FF8($at)\n"
+      "addiu $at, $a0, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "lwc1 $f2, -0x7FF8($at)\n"
+      "addiu $at, $a0, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "lwc1 $f2, -8($at)\n"
+      "addiu $at, $a0, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "lwc1 $f2, -1($at)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "lwc1 $f2, 1($at)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "lwc1 $f2, 8($at)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "lwc1 $f2, 0x7FF8($at)\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
       "addu $at, $at, $a0\n"
-      "lwc1 $f0, 0($at)\n"
-      "lui $at, 1\n"
+      "lwc1 $f2, 0($at)\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
       "addu $at, $at, $a0\n"
-      "lwc1 $f0, 0($at)\n"
+      "lwc1 $f2, 7($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FE8\n"
+      "addu $at, $at, $a0\n"
+      "lwc1 $f2, 1($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FF0\n"
+      "addu $at, $at, $a0\n"
+      "lwc1 $f2, 0($at)\n"
       "lui $at, 0x1234\n"
-      "ori $at, 0x5678\n"
+      "ori $at, $at, 0x5678\n"
       "addu $at, $at, $a0\n"
-      "lwc1 $f0, 0($at)\n"
-      "lwc1 $f0, -256($a0)\n"
-      "lwc1 $f0, 0xFFFF8000($a0)\n"
-      "lui $at, 0xABCD\n"
-      "ori $at, 0xEF00\n"
-      "addu $at, $at, $a0\n"
-      "lwc1 $f0, 0($at)\n";
+      "lwc1 $f2, 0($at)\n";
   DriverStr(expected, "LoadSFromOffset");
 }
 
-
 TEST_F(AssemblerMIPSTest, LoadDFromOffset) {
-  __ LoadDFromOffset(mips::F0, mips::A0, 0);
-  __ LoadDFromOffset(mips::F0, mips::A0, 4);
-  __ LoadDFromOffset(mips::F0, mips::A0, 256);
-  __ LoadDFromOffset(mips::F0, mips::A0, 0x8000);
-  __ LoadDFromOffset(mips::F0, mips::A0, 0x10000);
-  __ LoadDFromOffset(mips::F0, mips::A0, 0x12345678);
-  __ LoadDFromOffset(mips::F0, mips::A0, -256);
-  __ LoadDFromOffset(mips::F0, mips::A0, 0xFFFF8000);
-  __ LoadDFromOffset(mips::F0, mips::A0, 0xABCDEF00);
+  __ LoadDFromOffset(mips::F0, mips::A0, -0x8000);
+  __ LoadDFromOffset(mips::F0, mips::A0, +0);
+  __ LoadDFromOffset(mips::F0, mips::A0, +0x7FF8);
+  __ LoadDFromOffset(mips::F0, mips::A0, +0x7FFB);
+  __ LoadDFromOffset(mips::F0, mips::A0, +0x7FFC);
+  __ LoadDFromOffset(mips::F0, mips::A0, +0x7FFF);
+  __ LoadDFromOffset(mips::F0, mips::A0, -0xFFF0);
+  __ LoadDFromOffset(mips::F0, mips::A0, -0x8008);
+  __ LoadDFromOffset(mips::F0, mips::A0, -0x8001);
+  __ LoadDFromOffset(mips::F0, mips::A0, +0x8000);
+  __ LoadDFromOffset(mips::F0, mips::A0, +0xFFF0);
+  __ LoadDFromOffset(mips::F0, mips::A0, -0x17FE8);
+  __ LoadDFromOffset(mips::F0, mips::A0, -0x0FFF8);
+  __ LoadDFromOffset(mips::F0, mips::A0, -0x0FFF1);
+  __ LoadDFromOffset(mips::F0, mips::A0, +0x0FFF1);
+  __ LoadDFromOffset(mips::F0, mips::A0, +0x0FFF8);
+  __ LoadDFromOffset(mips::F0, mips::A0, +0x17FE8);
+  __ LoadDFromOffset(mips::F0, mips::A0, -0x17FF0);
+  __ LoadDFromOffset(mips::F0, mips::A0, -0x17FE9);
+  __ LoadDFromOffset(mips::F0, mips::A0, +0x17FE9);
+  __ LoadDFromOffset(mips::F0, mips::A0, +0x17FF0);
+  __ LoadDFromOffset(mips::F0, mips::A0, +0x12345678);
 
   const char* expected =
+      "ldc1 $f0, -0x8000($a0)\n"
       "ldc1 $f0, 0($a0)\n"
-      "lwc1 $f0, 4($a0)\n"
-      "lwc1 $f1, 8($a0)\n"
-      "ldc1 $f0, 256($a0)\n"
-      "ori $at, $zero, 0x8000\n"
+      "ldc1 $f0, 0x7FF8($a0)\n"
+      "lwc1 $f0, 0x7FFB($a0)\n"
+      "lwc1 $f1, 0x7FFF($a0)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "lwc1 $f0, 4($at)\n"
+      "lwc1 $f1, 8($at)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "lwc1 $f0, 7($at)\n"
+      "lwc1 $f1, 11($at)\n"
+      "addiu $at, $a0, -0x7FF8\n"
+      "ldc1 $f0, -0x7FF8($at)\n"
+      "addiu $at, $a0, -0x7FF8\n"
+      "ldc1 $f0, -0x10($at)\n"
+      "addiu $at, $a0, -0x7FF8\n"
+      "lwc1 $f0, -9($at)\n"
+      "lwc1 $f1, -5($at)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "ldc1 $f0, 8($at)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "ldc1 $f0, 0x7FF8($at)\n"
+      "addiu $at, $a0, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "ldc1 $f0, -0x7FF8($at)\n"
+      "addiu $at, $a0, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "ldc1 $f0, -8($at)\n"
+      "addiu $at, $a0, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "lwc1 $f0, -1($at)\n"
+      "lwc1 $f1, 3($at)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "lwc1 $f0, 1($at)\n"
+      "lwc1 $f1, 5($at)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "ldc1 $f0, 8($at)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "ldc1 $f0, 0x7FF8($at)\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
       "addu $at, $at, $a0\n"
       "ldc1 $f0, 0($at)\n"
-      "lui $at, 1\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
+      "addu $at, $at, $a0\n"
+      "lwc1 $f0, 7($at)\n"
+      "lwc1 $f1, 11($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FE8\n"
+      "addu $at, $at, $a0\n"
+      "lwc1 $f0, 1($at)\n"
+      "lwc1 $f1, 5($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FF0\n"
       "addu $at, $at, $a0\n"
       "ldc1 $f0, 0($at)\n"
       "lui $at, 0x1234\n"
-      "ori $at, 0x5678\n"
-      "addu $at, $at, $a0\n"
-      "ldc1 $f0, 0($at)\n"
-      "ldc1 $f0, -256($a0)\n"
-      "ldc1 $f0, 0xFFFF8000($a0)\n"
-      "lui $at, 0xABCD\n"
-      "ori $at, 0xEF00\n"
+      "ori $at, $at, 0x5678\n"
       "addu $at, $at, $a0\n"
       "ldc1 $f0, 0($at)\n";
   DriverStr(expected, "LoadDFromOffset");
 }
 
 TEST_F(AssemblerMIPSTest, StoreToOffset) {
-  __ StoreToOffset(mips::kStoreByte, mips::A0, mips::A0, 0);
-  __ StoreToOffset(mips::kStoreByte, mips::A0, mips::A1, 0);
-  __ StoreToOffset(mips::kStoreByte, mips::A0, mips::A1, 256);
-  __ StoreToOffset(mips::kStoreByte, mips::A0, mips::A1, 1000);
-  __ StoreToOffset(mips::kStoreByte, mips::A0, mips::A1, 0x8000);
-  __ StoreToOffset(mips::kStoreByte, mips::A0, mips::A1, 0x10000);
-  __ StoreToOffset(mips::kStoreByte, mips::A0, mips::A1, 0x12345678);
-  __ StoreToOffset(mips::kStoreByte, mips::A0, mips::A1, -256);
-  __ StoreToOffset(mips::kStoreByte, mips::A0, mips::A1, 0xFFFF8000);
-  __ StoreToOffset(mips::kStoreByte, mips::A0, mips::A1, 0xABCDEF00);
+  __ StoreToOffset(mips::kStoreByte, mips::A3, mips::A1, -0x8000);
+  __ StoreToOffset(mips::kStoreByte, mips::A3, mips::A1, +0);
+  __ StoreToOffset(mips::kStoreByte, mips::A3, mips::A1, +0x7FF8);
+  __ StoreToOffset(mips::kStoreByte, mips::A3, mips::A1, +0x7FFB);
+  __ StoreToOffset(mips::kStoreByte, mips::A3, mips::A1, +0x7FFC);
+  __ StoreToOffset(mips::kStoreByte, mips::A3, mips::A1, +0x7FFF);
+  __ StoreToOffset(mips::kStoreByte, mips::A3, mips::A1, -0xFFF0);
+  __ StoreToOffset(mips::kStoreByte, mips::A3, mips::A1, -0x8008);
+  __ StoreToOffset(mips::kStoreByte, mips::A3, mips::A1, -0x8001);
+  __ StoreToOffset(mips::kStoreByte, mips::A3, mips::A1, +0x8000);
+  __ StoreToOffset(mips::kStoreByte, mips::A3, mips::A1, +0xFFF0);
+  __ StoreToOffset(mips::kStoreByte, mips::A3, mips::A1, -0x17FE8);
+  __ StoreToOffset(mips::kStoreByte, mips::A3, mips::A1, -0x0FFF8);
+  __ StoreToOffset(mips::kStoreByte, mips::A3, mips::A1, -0x0FFF1);
+  __ StoreToOffset(mips::kStoreByte, mips::A3, mips::A1, +0x0FFF1);
+  __ StoreToOffset(mips::kStoreByte, mips::A3, mips::A1, +0x0FFF8);
+  __ StoreToOffset(mips::kStoreByte, mips::A3, mips::A1, +0x17FE8);
+  __ StoreToOffset(mips::kStoreByte, mips::A3, mips::A1, -0x17FF0);
+  __ StoreToOffset(mips::kStoreByte, mips::A3, mips::A1, -0x17FE9);
+  __ StoreToOffset(mips::kStoreByte, mips::A3, mips::A1, +0x17FE9);
+  __ StoreToOffset(mips::kStoreByte, mips::A3, mips::A1, +0x17FF0);
+  __ StoreToOffset(mips::kStoreByte, mips::A3, mips::A1, +0x12345678);
 
-  __ StoreToOffset(mips::kStoreHalfword, mips::A0, mips::A0, 0);
-  __ StoreToOffset(mips::kStoreHalfword, mips::A0, mips::A1, 0);
-  __ StoreToOffset(mips::kStoreHalfword, mips::A0, mips::A1, 256);
-  __ StoreToOffset(mips::kStoreHalfword, mips::A0, mips::A1, 1000);
-  __ StoreToOffset(mips::kStoreHalfword, mips::A0, mips::A1, 0x8000);
-  __ StoreToOffset(mips::kStoreHalfword, mips::A0, mips::A1, 0x10000);
-  __ StoreToOffset(mips::kStoreHalfword, mips::A0, mips::A1, 0x12345678);
-  __ StoreToOffset(mips::kStoreHalfword, mips::A0, mips::A1, -256);
-  __ StoreToOffset(mips::kStoreHalfword, mips::A0, mips::A1, 0xFFFF8000);
-  __ StoreToOffset(mips::kStoreHalfword, mips::A0, mips::A1, 0xABCDEF00);
+  __ StoreToOffset(mips::kStoreHalfword, mips::A3, mips::A1, -0x8000);
+  __ StoreToOffset(mips::kStoreHalfword, mips::A3, mips::A1, +0);
+  __ StoreToOffset(mips::kStoreHalfword, mips::A3, mips::A1, +0x7FF8);
+  __ StoreToOffset(mips::kStoreHalfword, mips::A3, mips::A1, +0x7FFB);
+  __ StoreToOffset(mips::kStoreHalfword, mips::A3, mips::A1, +0x7FFC);
+  __ StoreToOffset(mips::kStoreHalfword, mips::A3, mips::A1, +0x7FFF);
+  __ StoreToOffset(mips::kStoreHalfword, mips::A3, mips::A1, -0xFFF0);
+  __ StoreToOffset(mips::kStoreHalfword, mips::A3, mips::A1, -0x8008);
+  __ StoreToOffset(mips::kStoreHalfword, mips::A3, mips::A1, -0x8001);
+  __ StoreToOffset(mips::kStoreHalfword, mips::A3, mips::A1, +0x8000);
+  __ StoreToOffset(mips::kStoreHalfword, mips::A3, mips::A1, +0xFFF0);
+  __ StoreToOffset(mips::kStoreHalfword, mips::A3, mips::A1, -0x17FE8);
+  __ StoreToOffset(mips::kStoreHalfword, mips::A3, mips::A1, -0x0FFF8);
+  __ StoreToOffset(mips::kStoreHalfword, mips::A3, mips::A1, -0x0FFF1);
+  __ StoreToOffset(mips::kStoreHalfword, mips::A3, mips::A1, +0x0FFF1);
+  __ StoreToOffset(mips::kStoreHalfword, mips::A3, mips::A1, +0x0FFF8);
+  __ StoreToOffset(mips::kStoreHalfword, mips::A3, mips::A1, +0x17FE8);
+  __ StoreToOffset(mips::kStoreHalfword, mips::A3, mips::A1, -0x17FF0);
+  __ StoreToOffset(mips::kStoreHalfword, mips::A3, mips::A1, -0x17FE9);
+  __ StoreToOffset(mips::kStoreHalfword, mips::A3, mips::A1, +0x17FE9);
+  __ StoreToOffset(mips::kStoreHalfword, mips::A3, mips::A1, +0x17FF0);
+  __ StoreToOffset(mips::kStoreHalfword, mips::A3, mips::A1, +0x12345678);
 
-  __ StoreToOffset(mips::kStoreWord, mips::A0, mips::A0, 0);
-  __ StoreToOffset(mips::kStoreWord, mips::A0, mips::A1, 0);
-  __ StoreToOffset(mips::kStoreWord, mips::A0, mips::A1, 256);
-  __ StoreToOffset(mips::kStoreWord, mips::A0, mips::A1, 1000);
-  __ StoreToOffset(mips::kStoreWord, mips::A0, mips::A1, 0x8000);
-  __ StoreToOffset(mips::kStoreWord, mips::A0, mips::A1, 0x10000);
-  __ StoreToOffset(mips::kStoreWord, mips::A0, mips::A1, 0x12345678);
-  __ StoreToOffset(mips::kStoreWord, mips::A0, mips::A1, -256);
-  __ StoreToOffset(mips::kStoreWord, mips::A0, mips::A1, 0xFFFF8000);
-  __ StoreToOffset(mips::kStoreWord, mips::A0, mips::A1, 0xABCDEF00);
+  __ StoreToOffset(mips::kStoreWord, mips::A3, mips::A1, -0x8000);
+  __ StoreToOffset(mips::kStoreWord, mips::A3, mips::A1, +0);
+  __ StoreToOffset(mips::kStoreWord, mips::A3, mips::A1, +0x7FF8);
+  __ StoreToOffset(mips::kStoreWord, mips::A3, mips::A1, +0x7FFB);
+  __ StoreToOffset(mips::kStoreWord, mips::A3, mips::A1, +0x7FFC);
+  __ StoreToOffset(mips::kStoreWord, mips::A3, mips::A1, +0x7FFF);
+  __ StoreToOffset(mips::kStoreWord, mips::A3, mips::A1, -0xFFF0);
+  __ StoreToOffset(mips::kStoreWord, mips::A3, mips::A1, -0x8008);
+  __ StoreToOffset(mips::kStoreWord, mips::A3, mips::A1, -0x8001);
+  __ StoreToOffset(mips::kStoreWord, mips::A3, mips::A1, +0x8000);
+  __ StoreToOffset(mips::kStoreWord, mips::A3, mips::A1, +0xFFF0);
+  __ StoreToOffset(mips::kStoreWord, mips::A3, mips::A1, -0x17FE8);
+  __ StoreToOffset(mips::kStoreWord, mips::A3, mips::A1, -0x0FFF8);
+  __ StoreToOffset(mips::kStoreWord, mips::A3, mips::A1, -0x0FFF1);
+  __ StoreToOffset(mips::kStoreWord, mips::A3, mips::A1, +0x0FFF1);
+  __ StoreToOffset(mips::kStoreWord, mips::A3, mips::A1, +0x0FFF8);
+  __ StoreToOffset(mips::kStoreWord, mips::A3, mips::A1, +0x17FE8);
+  __ StoreToOffset(mips::kStoreWord, mips::A3, mips::A1, -0x17FF0);
+  __ StoreToOffset(mips::kStoreWord, mips::A3, mips::A1, -0x17FE9);
+  __ StoreToOffset(mips::kStoreWord, mips::A3, mips::A1, +0x17FE9);
+  __ StoreToOffset(mips::kStoreWord, mips::A3, mips::A1, +0x17FF0);
+  __ StoreToOffset(mips::kStoreWord, mips::A3, mips::A1, +0x12345678);
 
-  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, 0);
-  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, 256);
-  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, 1000);
-  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, 0x8000);
-  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, 0x10000);
-  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, 0x12345678);
-  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, -256);
-  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, 0xFFFF8000);
-  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, 0xABCDEF00);
+  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, -0x8000);
+  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, +0);
+  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, +0x7FF8);
+  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, +0x7FFB);
+  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, +0x7FFC);
+  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, +0x7FFF);
+  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, -0xFFF0);
+  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, -0x8008);
+  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, -0x8001);
+  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, +0x8000);
+  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, +0xFFF0);
+  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, -0x17FE8);
+  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, -0x0FFF8);
+  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, -0x0FFF1);
+  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, +0x0FFF1);
+  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, +0x0FFF8);
+  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, +0x17FE8);
+  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, -0x17FF0);
+  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, -0x17FE9);
+  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, +0x17FE9);
+  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, +0x17FF0);
+  __ StoreToOffset(mips::kStoreDoubleword, mips::A0, mips::A2, +0x12345678);
 
   const char* expected =
-      "sb $a0, 0($a0)\n"
-      "sb $a0, 0($a1)\n"
-      "sb $a0, 256($a1)\n"
-      "sb $a0, 1000($a1)\n"
-      "ori $at, $zero, 0x8000\n"
+      "sb $a3, -0x8000($a1)\n"
+      "sb $a3, 0($a1)\n"
+      "sb $a3, 0x7FF8($a1)\n"
+      "sb $a3, 0x7FFB($a1)\n"
+      "sb $a3, 0x7FFC($a1)\n"
+      "sb $a3, 0x7FFF($a1)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "sb $a3, -0x7FF8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "sb $a3, -0x10($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "sb $a3, -9($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "sb $a3, 8($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "sb $a3, 0x7FF8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "sb $a3, -0x7FF8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "sb $a3, -8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "sb $a3, -1($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "sb $a3, 1($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "sb $a3, 8($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "sb $a3, 0x7FF8($at)\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
       "addu $at, $at, $a1\n"
-      "sb $a0, 0($at)\n"
-      "lui $at, 1\n"
+      "sb $a3, 0($at)\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
       "addu $at, $at, $a1\n"
-      "sb $a0, 0($at)\n"
+      "sb $a3, 7($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FE8\n"
+      "addu $at, $at, $a1\n"
+      "sb $a3, 1($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FF0\n"
+      "addu $at, $at, $a1\n"
+      "sb $a3, 0($at)\n"
       "lui $at, 0x1234\n"
-      "ori $at, 0x5678\n"
+      "ori $at, $at, 0x5678\n"
       "addu $at, $at, $a1\n"
-      "sb $a0, 0($at)\n"
-      "sb $a0, -256($a1)\n"
-      "sb $a0, 0xFFFF8000($a1)\n"
-      "lui $at, 0xABCD\n"
-      "ori $at, 0xEF00\n"
-      "addu $at, $at, $a1\n"
-      "sb $a0, 0($at)\n"
+      "sb $a3, 0($at)\n"
 
-      "sh $a0, 0($a0)\n"
-      "sh $a0, 0($a1)\n"
-      "sh $a0, 256($a1)\n"
-      "sh $a0, 1000($a1)\n"
-      "ori $at, $zero, 0x8000\n"
+      "sh $a3, -0x8000($a1)\n"
+      "sh $a3, 0($a1)\n"
+      "sh $a3, 0x7FF8($a1)\n"
+      "sh $a3, 0x7FFB($a1)\n"
+      "sh $a3, 0x7FFC($a1)\n"
+      "sh $a3, 0x7FFF($a1)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "sh $a3, -0x7FF8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "sh $a3, -0x10($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "sh $a3, -9($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "sh $a3, 8($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "sh $a3, 0x7FF8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "sh $a3, -0x7FF8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "sh $a3, -8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "sh $a3, -1($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "sh $a3, 1($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "sh $a3, 8($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "sh $a3, 0x7FF8($at)\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
       "addu $at, $at, $a1\n"
-      "sh $a0, 0($at)\n"
-      "lui $at, 1\n"
+      "sh $a3, 0($at)\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
       "addu $at, $at, $a1\n"
-      "sh $a0, 0($at)\n"
+      "sh $a3, 7($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FE8\n"
+      "addu $at, $at, $a1\n"
+      "sh $a3, 1($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FF0\n"
+      "addu $at, $at, $a1\n"
+      "sh $a3, 0($at)\n"
       "lui $at, 0x1234\n"
-      "ori $at, 0x5678\n"
+      "ori $at, $at, 0x5678\n"
       "addu $at, $at, $a1\n"
-      "sh $a0, 0($at)\n"
-      "sh $a0, -256($a1)\n"
-      "sh $a0, 0xFFFF8000($a1)\n"
-      "lui $at, 0xABCD\n"
-      "ori $at, 0xEF00\n"
-      "addu $at, $at, $a1\n"
-      "sh $a0, 0($at)\n"
+      "sh $a3, 0($at)\n"
 
-      "sw $a0, 0($a0)\n"
-      "sw $a0, 0($a1)\n"
-      "sw $a0, 256($a1)\n"
-      "sw $a0, 1000($a1)\n"
-      "ori $at, $zero, 0x8000\n"
+      "sw $a3, -0x8000($a1)\n"
+      "sw $a3, 0($a1)\n"
+      "sw $a3, 0x7FF8($a1)\n"
+      "sw $a3, 0x7FFB($a1)\n"
+      "sw $a3, 0x7FFC($a1)\n"
+      "sw $a3, 0x7FFF($a1)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "sw $a3, -0x7FF8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "sw $a3, -0x10($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "sw $a3, -9($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "sw $a3, 8($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "sw $a3, 0x7FF8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "sw $a3, -0x7FF8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "sw $a3, -8($at)\n"
+      "addiu $at, $a1, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "sw $a3, -1($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "sw $a3, 1($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "sw $a3, 8($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "sw $a3, 0x7FF8($at)\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
       "addu $at, $at, $a1\n"
-      "sw $a0, 0($at)\n"
-      "lui $at, 1\n"
+      "sw $a3, 0($at)\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
       "addu $at, $at, $a1\n"
-      "sw $a0, 0($at)\n"
+      "sw $a3, 7($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FE8\n"
+      "addu $at, $at, $a1\n"
+      "sw $a3, 1($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FF0\n"
+      "addu $at, $at, $a1\n"
+      "sw $a3, 0($at)\n"
       "lui $at, 0x1234\n"
-      "ori $at, 0x5678\n"
+      "ori $at, $at, 0x5678\n"
       "addu $at, $at, $a1\n"
-      "sw $a0, 0($at)\n"
-      "sw $a0, -256($a1)\n"
-      "sw $a0, 0xFFFF8000($a1)\n"
-      "lui $at, 0xABCD\n"
-      "ori $at, 0xEF00\n"
-      "addu $at, $at, $a1\n"
-      "sw $a0, 0($at)\n"
+      "sw $a3, 0($at)\n"
 
+      "sw $a0, -0x8000($a2)\n"
+      "sw $a1, -0x7FFC($a2)\n"
       "sw $a0, 0($a2)\n"
       "sw $a1, 4($a2)\n"
-      "sw $a0, 256($a2)\n"
-      "sw $a1, 260($a2)\n"
-      "sw $a0, 1000($a2)\n"
-      "sw $a1, 1004($a2)\n"
-      "ori $at, $zero, 0x8000\n"
+      "sw $a0, 0x7FF8($a2)\n"
+      "sw $a1, 0x7FFC($a2)\n"
+      "sw $a0, 0x7FFB($a2)\n"
+      "sw $a1, 0x7FFF($a2)\n"
+      "addiu $at, $a2, 0x7FF8\n"
+      "sw $a0, 4($at)\n"
+      "sw $a1, 8($at)\n"
+      "addiu $at, $a2, 0x7FF8\n"
+      "sw $a0, 7($at)\n"
+      "sw $a1, 11($at)\n"
+      "addiu $at, $a2, -0x7FF8\n"
+      "sw $a0, -0x7FF8($at)\n"
+      "sw $a1, -0x7FF4($at)\n"
+      "addiu $at, $a2, -0x7FF8\n"
+      "sw $a0, -0x10($at)\n"
+      "sw $a1, -0xC($at)\n"
+      "addiu $at, $a2, -0x7FF8\n"
+      "sw $a0, -9($at)\n"
+      "sw $a1, -5($at)\n"
+      "addiu $at, $a2, 0x7FF8\n"
+      "sw $a0, 8($at)\n"
+      "sw $a1, 12($at)\n"
+      "addiu $at, $a2, 0x7FF8\n"
+      "sw $a0, 0x7FF8($at)\n"
+      "sw $a1, 0x7FFC($at)\n"
+      "addiu $at, $a2, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "sw $a0, -0x7FF8($at)\n"
+      "sw $a1, -0x7FF4($at)\n"
+      "addiu $at, $a2, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "sw $a0, -8($at)\n"
+      "sw $a1, -4($at)\n"
+      "addiu $at, $a2, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "sw $a0, -1($at)\n"
+      "sw $a1, 3($at)\n"
+      "addiu $at, $a2, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "sw $a0, 1($at)\n"
+      "sw $a1, 5($at)\n"
+      "addiu $at, $a2, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "sw $a0, 8($at)\n"
+      "sw $a1, 12($at)\n"
+      "addiu $at, $a2, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "sw $a0, 0x7FF8($at)\n"
+      "sw $a1, 0x7FFC($at)\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
       "addu $at, $at, $a2\n"
       "sw $a0, 0($at)\n"
       "sw $a1, 4($at)\n"
-      "lui $at, 1\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
+      "addu $at, $at, $a2\n"
+      "sw $a0, 7($at)\n"
+      "sw $a1, 11($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FE8\n"
+      "addu $at, $at, $a2\n"
+      "sw $a0, 1($at)\n"
+      "sw $a1, 5($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FF0\n"
       "addu $at, $at, $a2\n"
       "sw $a0, 0($at)\n"
       "sw $a1, 4($at)\n"
       "lui $at, 0x1234\n"
-      "ori $at, 0x5678\n"
-      "addu $at, $at, $a2\n"
-      "sw $a0, 0($at)\n"
-      "sw $a1, 4($at)\n"
-      "sw $a0, -256($a2)\n"
-      "sw $a1, -252($a2)\n"
-      "sw $a0, 0xFFFF8000($a2)\n"
-      "sw $a1, 0xFFFF8004($a2)\n"
-      "lui $at, 0xABCD\n"
-      "ori $at, 0xEF00\n"
+      "ori $at, $at, 0x5678\n"
       "addu $at, $at, $a2\n"
       "sw $a0, 0($at)\n"
       "sw $a1, 4($at)\n";
@@ -1153,69 +1784,174 @@ TEST_F(AssemblerMIPSTest, StoreToOffset) {
 }
 
 TEST_F(AssemblerMIPSTest, StoreSToOffset) {
-  __ StoreSToOffset(mips::F0, mips::A0, 0);
-  __ StoreSToOffset(mips::F0, mips::A0, 4);
-  __ StoreSToOffset(mips::F0, mips::A0, 256);
-  __ StoreSToOffset(mips::F0, mips::A0, 0x8000);
-  __ StoreSToOffset(mips::F0, mips::A0, 0x10000);
-  __ StoreSToOffset(mips::F0, mips::A0, 0x12345678);
-  __ StoreSToOffset(mips::F0, mips::A0, -256);
-  __ StoreSToOffset(mips::F0, mips::A0, 0xFFFF8000);
-  __ StoreSToOffset(mips::F0, mips::A0, 0xABCDEF00);
+  __ StoreSToOffset(mips::F2, mips::A0, -0x8000);
+  __ StoreSToOffset(mips::F2, mips::A0, +0);
+  __ StoreSToOffset(mips::F2, mips::A0, +0x7FF8);
+  __ StoreSToOffset(mips::F2, mips::A0, +0x7FFB);
+  __ StoreSToOffset(mips::F2, mips::A0, +0x7FFC);
+  __ StoreSToOffset(mips::F2, mips::A0, +0x7FFF);
+  __ StoreSToOffset(mips::F2, mips::A0, -0xFFF0);
+  __ StoreSToOffset(mips::F2, mips::A0, -0x8008);
+  __ StoreSToOffset(mips::F2, mips::A0, -0x8001);
+  __ StoreSToOffset(mips::F2, mips::A0, +0x8000);
+  __ StoreSToOffset(mips::F2, mips::A0, +0xFFF0);
+  __ StoreSToOffset(mips::F2, mips::A0, -0x17FE8);
+  __ StoreSToOffset(mips::F2, mips::A0, -0x0FFF8);
+  __ StoreSToOffset(mips::F2, mips::A0, -0x0FFF1);
+  __ StoreSToOffset(mips::F2, mips::A0, +0x0FFF1);
+  __ StoreSToOffset(mips::F2, mips::A0, +0x0FFF8);
+  __ StoreSToOffset(mips::F2, mips::A0, +0x17FE8);
+  __ StoreSToOffset(mips::F2, mips::A0, -0x17FF0);
+  __ StoreSToOffset(mips::F2, mips::A0, -0x17FE9);
+  __ StoreSToOffset(mips::F2, mips::A0, +0x17FE9);
+  __ StoreSToOffset(mips::F2, mips::A0, +0x17FF0);
+  __ StoreSToOffset(mips::F2, mips::A0, +0x12345678);
 
   const char* expected =
-      "swc1 $f0, 0($a0)\n"
-      "swc1 $f0, 4($a0)\n"
-      "swc1 $f0, 256($a0)\n"
-      "ori $at, $zero, 0x8000\n"
+      "swc1 $f2, -0x8000($a0)\n"
+      "swc1 $f2, 0($a0)\n"
+      "swc1 $f2, 0x7FF8($a0)\n"
+      "swc1 $f2, 0x7FFB($a0)\n"
+      "swc1 $f2, 0x7FFC($a0)\n"
+      "swc1 $f2, 0x7FFF($a0)\n"
+      "addiu $at, $a0, -0x7FF8\n"
+      "swc1 $f2, -0x7FF8($at)\n"
+      "addiu $at, $a0, -0x7FF8\n"
+      "swc1 $f2, -0x10($at)\n"
+      "addiu $at, $a0, -0x7FF8\n"
+      "swc1 $f2, -9($at)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "swc1 $f2, 8($at)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "swc1 $f2, 0x7FF8($at)\n"
+      "addiu $at, $a0, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "swc1 $f2, -0x7FF8($at)\n"
+      "addiu $at, $a0, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "swc1 $f2, -8($at)\n"
+      "addiu $at, $a0, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "swc1 $f2, -1($at)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "swc1 $f2, 1($at)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "swc1 $f2, 8($at)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "swc1 $f2, 0x7FF8($at)\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
       "addu $at, $at, $a0\n"
-      "swc1 $f0, 0($at)\n"
-      "lui $at, 1\n"
+      "swc1 $f2, 0($at)\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
       "addu $at, $at, $a0\n"
-      "swc1 $f0, 0($at)\n"
+      "swc1 $f2, 7($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FE8\n"
+      "addu $at, $at, $a0\n"
+      "swc1 $f2, 1($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FF0\n"
+      "addu $at, $at, $a0\n"
+      "swc1 $f2, 0($at)\n"
       "lui $at, 0x1234\n"
-      "ori $at, 0x5678\n"
+      "ori $at, $at, 0x5678\n"
       "addu $at, $at, $a0\n"
-      "swc1 $f0, 0($at)\n"
-      "swc1 $f0, -256($a0)\n"
-      "swc1 $f0, 0xFFFF8000($a0)\n"
-      "lui $at, 0xABCD\n"
-      "ori $at, 0xEF00\n"
-      "addu $at, $at, $a0\n"
-      "swc1 $f0, 0($at)\n";
+      "swc1 $f2, 0($at)\n";
   DriverStr(expected, "StoreSToOffset");
 }
 
 TEST_F(AssemblerMIPSTest, StoreDToOffset) {
-  __ StoreDToOffset(mips::F0, mips::A0, 0);
-  __ StoreDToOffset(mips::F0, mips::A0, 4);
-  __ StoreDToOffset(mips::F0, mips::A0, 256);
-  __ StoreDToOffset(mips::F0, mips::A0, 0x8000);
-  __ StoreDToOffset(mips::F0, mips::A0, 0x10000);
-  __ StoreDToOffset(mips::F0, mips::A0, 0x12345678);
-  __ StoreDToOffset(mips::F0, mips::A0, -256);
-  __ StoreDToOffset(mips::F0, mips::A0, 0xFFFF8000);
-  __ StoreDToOffset(mips::F0, mips::A0, 0xABCDEF00);
+  __ StoreDToOffset(mips::F0, mips::A0, -0x8000);
+  __ StoreDToOffset(mips::F0, mips::A0, +0);
+  __ StoreDToOffset(mips::F0, mips::A0, +0x7FF8);
+  __ StoreDToOffset(mips::F0, mips::A0, +0x7FFB);
+  __ StoreDToOffset(mips::F0, mips::A0, +0x7FFC);
+  __ StoreDToOffset(mips::F0, mips::A0, +0x7FFF);
+  __ StoreDToOffset(mips::F0, mips::A0, -0xFFF0);
+  __ StoreDToOffset(mips::F0, mips::A0, -0x8008);
+  __ StoreDToOffset(mips::F0, mips::A0, -0x8001);
+  __ StoreDToOffset(mips::F0, mips::A0, +0x8000);
+  __ StoreDToOffset(mips::F0, mips::A0, +0xFFF0);
+  __ StoreDToOffset(mips::F0, mips::A0, -0x17FE8);
+  __ StoreDToOffset(mips::F0, mips::A0, -0x0FFF8);
+  __ StoreDToOffset(mips::F0, mips::A0, -0x0FFF1);
+  __ StoreDToOffset(mips::F0, mips::A0, +0x0FFF1);
+  __ StoreDToOffset(mips::F0, mips::A0, +0x0FFF8);
+  __ StoreDToOffset(mips::F0, mips::A0, +0x17FE8);
+  __ StoreDToOffset(mips::F0, mips::A0, -0x17FF0);
+  __ StoreDToOffset(mips::F0, mips::A0, -0x17FE9);
+  __ StoreDToOffset(mips::F0, mips::A0, +0x17FE9);
+  __ StoreDToOffset(mips::F0, mips::A0, +0x17FF0);
+  __ StoreDToOffset(mips::F0, mips::A0, +0x12345678);
 
   const char* expected =
+      "sdc1 $f0, -0x8000($a0)\n"
       "sdc1 $f0, 0($a0)\n"
-      "swc1 $f0, 4($a0)\n"
-      "swc1 $f1, 8($a0)\n"
-      "sdc1 $f0, 256($a0)\n"
-      "ori $at, $zero, 0x8000\n"
+      "sdc1 $f0, 0x7FF8($a0)\n"
+      "swc1 $f0, 0x7FFB($a0)\n"
+      "swc1 $f1, 0x7FFF($a0)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "swc1 $f0, 4($at)\n"
+      "swc1 $f1, 8($at)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "swc1 $f0, 7($at)\n"
+      "swc1 $f1, 11($at)\n"
+      "addiu $at, $a0, -0x7FF8\n"
+      "sdc1 $f0, -0x7FF8($at)\n"
+      "addiu $at, $a0, -0x7FF8\n"
+      "sdc1 $f0, -0x10($at)\n"
+      "addiu $at, $a0, -0x7FF8\n"
+      "swc1 $f0, -9($at)\n"
+      "swc1 $f1, -5($at)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "sdc1 $f0, 8($at)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "sdc1 $f0, 0x7FF8($at)\n"
+      "addiu $at, $a0, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "sdc1 $f0, -0x7FF8($at)\n"
+      "addiu $at, $a0, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "sdc1 $f0, -8($at)\n"
+      "addiu $at, $a0, -0x7FF8\n"
+      "addiu $at, $at, -0x7FF8\n"
+      "swc1 $f0, -1($at)\n"
+      "swc1 $f1, 3($at)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "swc1 $f0, 1($at)\n"
+      "swc1 $f1, 5($at)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "sdc1 $f0, 8($at)\n"
+      "addiu $at, $a0, 0x7FF8\n"
+      "addiu $at, $at, 0x7FF8\n"
+      "sdc1 $f0, 0x7FF8($at)\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
       "addu $at, $at, $a0\n"
       "sdc1 $f0, 0($at)\n"
-      "lui $at, 1\n"
+      "lui $at, 0xFFFE\n"
+      "ori $at, $at, 0x8010\n"
+      "addu $at, $at, $a0\n"
+      "swc1 $f0, 7($at)\n"
+      "swc1 $f1, 11($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FE8\n"
+      "addu $at, $at, $a0\n"
+      "swc1 $f0, 1($at)\n"
+      "swc1 $f1, 5($at)\n"
+      "lui $at, 0x1\n"
+      "ori $at, $at, 0x7FF0\n"
       "addu $at, $at, $a0\n"
       "sdc1 $f0, 0($at)\n"
       "lui $at, 0x1234\n"
-      "ori $at, 0x5678\n"
-      "addu $at, $at, $a0\n"
-      "sdc1 $f0, 0($at)\n"
-      "sdc1 $f0, -256($a0)\n"
-      "sdc1 $f0, 0xFFFF8000($a0)\n"
-      "lui $at, 0xABCD\n"
-      "ori $at, 0xEF00\n"
+      "ori $at, $at, 0x5678\n"
       "addu $at, $at, $a0\n"
       "sdc1 $f0, 0($at)\n";
   DriverStr(expected, "StoreDToOffset");
