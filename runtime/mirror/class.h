@@ -1156,7 +1156,7 @@ class MANAGED Class FINAL : public Object {
 
   // Visit native roots visits roots which are keyed off the native pointers such as ArtFields and
   // ArtMethods.
-  template<class Visitor>
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier, class Visitor>
   void VisitNativeRoots(Visitor& visitor, size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
