@@ -340,6 +340,7 @@ class ArtMethod FINAL {
     return (GetAccessFlags() & kAccSynthetic) != 0;
   }
 
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool IsProxyMethod() SHARED_REQUIRES(Locks::mutator_lock_);
 
   bool SkipAccessChecks() {
@@ -564,7 +565,7 @@ class ArtMethod FINAL {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // NO_THREAD_SAFETY_ANALYSIS since we don't know what the callback requires.
-  template<typename RootVisitorType>
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier, typename RootVisitorType>
   void VisitRoots(RootVisitorType& visitor, size_t pointer_size) NO_THREAD_SAFETY_ANALYSIS;
 
   const DexFile* GetDexFile() SHARED_REQUIRES(Locks::mutator_lock_);
