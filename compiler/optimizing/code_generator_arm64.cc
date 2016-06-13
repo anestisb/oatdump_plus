@@ -2951,75 +2951,48 @@ void InstructionCodeGeneratorARM64::VisitDeoptimize(HDeoptimize* deoptimize) {
                         /* false_target */ nullptr);
 }
 
-enum SelectVariant {
-  kCsel,
-  kCselFalseConst,
-  kCselTrueConst,
-  kFcsel,
-};
-
 static inline bool IsConditionOnFloatingPointValues(HInstruction* condition) {
   return condition->IsCondition() &&
          Primitive::IsFloatingPointType(condition->InputAt(0)->GetType());
 }
 
-static inline bool IsRecognizedCselConstant(HInstruction* constant) {
-  if (constant->IsConstant()) {
-    int64_t value = Int64FromConstant(constant->AsConstant());
-    if ((value == -1) || (value == 0) || (value == 1)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-static inline SelectVariant GetSelectVariant(HSelect* select) {
-  if (Primitive::IsFloatingPointType(select->GetType())) {
-    return kFcsel;
-  } else if (IsRecognizedCselConstant(select->GetFalseValue())) {
-    return kCselFalseConst;
-  } else if (IsRecognizedCselConstant(select->GetTrueValue())) {
-    return kCselTrueConst;
-  } else {
-    return kCsel;
-  }
-}
-
-static inline bool HasSwappedInputs(SelectVariant variant) {
-  return variant == kCselTrueConst;
-}
-
-static inline Condition GetConditionForSelect(HCondition* condition, SelectVariant variant) {
-  IfCondition cond = HasSwappedInputs(variant) ? condition->GetOppositeCondition()
-                                               : condition->GetCondition();
+static inline Condition GetConditionForSelect(HCondition* condition) {
+  IfCondition cond = condition->AsCondition()->GetCondition();
   return IsConditionOnFloatingPointValues(condition) ? ARM64FPCondition(cond, condition->IsGtBias())
                                                      : ARM64Condition(cond);
 }
 
 void LocationsBuilderARM64::VisitSelect(HSelect* select) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(select);
-  switch (GetSelectVariant(select)) {
-    case kCsel:
-      locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, Location::RequiresRegister());
-      locations->SetOut(Location::RequiresRegister());
-      break;
-    case kCselFalseConst:
-      locations->SetInAt(0, Location::ConstantLocation(select->InputAt(0)->AsConstant()));
-      locations->SetInAt(1, Location::RequiresRegister());
-      locations->SetOut(Location::RequiresRegister());
-      break;
-    case kCselTrueConst:
-      locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, Location::ConstantLocation(select->InputAt(1)->AsConstant()));
-      locations->SetOut(Location::RequiresRegister());
-      break;
-    case kFcsel:
-      locations->SetInAt(0, Location::RequiresFpuRegister());
-      locations->SetInAt(1, Location::RequiresFpuRegister());
-      locations->SetOut(Location::RequiresFpuRegister());
-      break;
+  if (Primitive::IsFloatingPointType(select->GetType())) {
+    locations->SetInAt(0, Location::RequiresFpuRegister());
+    locations->SetInAt(1, Location::RequiresFpuRegister());
+    locations->SetOut(Location::RequiresFpuRegister());
+  } else {
+    HConstant* cst_true_value = select->GetTrueValue()->AsConstant();
+    HConstant* cst_false_value = select->GetFalseValue()->AsConstant();
+    bool is_true_value_constant = cst_true_value != nullptr;
+    bool is_false_value_constant = cst_false_value != nullptr;
+    // Ask VIXL whether we should synthesize constants in registers.
+    // We give an arbitrary register to VIXL when dealing with non-constant inputs.
+    Operand true_op = is_true_value_constant ?
+        Operand(Int64FromConstant(cst_true_value)) : Operand(x1);
+    Operand false_op = is_false_value_constant ?
+        Operand(Int64FromConstant(cst_false_value)) : Operand(x2);
+    bool true_value_in_register = false;
+    bool false_value_in_register = false;
+    MacroAssembler::GetCselSynthesisInformation(
+        x0, true_op, false_op, &true_value_in_register, &false_value_in_register);
+    true_value_in_register |= !is_true_value_constant;
+    false_value_in_register |= !is_false_value_constant;
+
+    locations->SetInAt(1, true_value_in_register ? Location::RequiresRegister()
+                                                 : Location::ConstantLocation(cst_true_value));
+    locations->SetInAt(0, false_value_in_register ? Location::RequiresRegister()
+                                                  : Location::ConstantLocation(cst_false_value));
+    locations->SetOut(Location::RequiresRegister());
   }
+
   if (IsBooleanValueOrMaterializedCondition(select->GetCondition())) {
     locations->SetInAt(2, Location::RequiresRegister());
   }
@@ -3027,45 +3000,34 @@ void LocationsBuilderARM64::VisitSelect(HSelect* select) {
 
 void InstructionCodeGeneratorARM64::VisitSelect(HSelect* select) {
   HInstruction* cond = select->GetCondition();
-  SelectVariant variant = GetSelectVariant(select);
   Condition csel_cond;
 
   if (IsBooleanValueOrMaterializedCondition(cond)) {
     if (cond->IsCondition() && cond->GetNext() == select) {
-      // Condition codes set from previous instruction.
-      csel_cond = GetConditionForSelect(cond->AsCondition(), variant);
+      // Use the condition flags set by the previous instruction.
+      csel_cond = GetConditionForSelect(cond->AsCondition());
     } else {
       __ Cmp(InputRegisterAt(select, 2), 0);
-      csel_cond = HasSwappedInputs(variant) ? eq : ne;
+      csel_cond = ne;
     }
   } else if (IsConditionOnFloatingPointValues(cond)) {
     GenerateFcmp(cond);
-    csel_cond = GetConditionForSelect(cond->AsCondition(), variant);
+    csel_cond = GetConditionForSelect(cond->AsCondition());
   } else {
     __ Cmp(InputRegisterAt(cond, 0), InputOperandAt(cond, 1));
-    csel_cond = GetConditionForSelect(cond->AsCondition(), variant);
+    csel_cond = GetConditionForSelect(cond->AsCondition());
   }
 
-  switch (variant) {
-    case kCsel:
-    case kCselFalseConst:
-      __ Csel(OutputRegister(select),
-              InputRegisterAt(select, 1),
-              InputOperandAt(select, 0),
-              csel_cond);
-      break;
-    case kCselTrueConst:
-      __ Csel(OutputRegister(select),
-              InputRegisterAt(select, 0),
-              InputOperandAt(select, 1),
-              csel_cond);
-      break;
-    case kFcsel:
-      __ Fcsel(OutputFPRegister(select),
-               InputFPRegisterAt(select, 1),
-               InputFPRegisterAt(select, 0),
-               csel_cond);
-      break;
+  if (Primitive::IsFloatingPointType(select->GetType())) {
+    __ Fcsel(OutputFPRegister(select),
+             InputFPRegisterAt(select, 1),
+             InputFPRegisterAt(select, 0),
+             csel_cond);
+  } else {
+    __ Csel(OutputRegister(select),
+            InputOperandAt(select, 1),
+            InputOperandAt(select, 0),
+            csel_cond);
   }
 }
 
