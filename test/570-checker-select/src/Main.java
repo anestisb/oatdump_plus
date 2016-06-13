@@ -16,6 +16,8 @@
 
 public class Main {
 
+  static boolean doThrow = false;
+
   /// CHECK-START: int Main.BoolCond_IntVarVar(boolean, int, int) register (after)
   /// CHECK:               Select [{{i\d+}},{{i\d+}},{{z\d+}}]
 
@@ -35,6 +37,10 @@ public class Main {
   /// CHECK:                          cmovnz/ne
 
   public static int BoolCond_IntVarVar(boolean cond, int x, int y) {
+    if (doThrow) {
+      // Try defeating inlining.
+      throw new Error();
+    }
     return cond ? x : y;
   }
 
@@ -57,6 +63,10 @@ public class Main {
   /// CHECK:                          cmovnz/ne
 
   public static int BoolCond_IntVarCst(boolean cond, int x) {
+    if (doThrow) {
+      // Try defeating inlining.
+      throw new Error();
+    }
     return cond ? x : 1;
   }
 
@@ -79,6 +89,10 @@ public class Main {
   /// CHECK:                          cmovnz/ne
 
   public static int BoolCond_IntCstVar(boolean cond, int y) {
+    if (doThrow) {
+      // Try defeating inlining.
+      throw new Error();
+    }
     return cond ? 1 : y;
   }
 
@@ -102,6 +116,10 @@ public class Main {
   /// CHECK-NEXT:                     cmovnz/ne
 
   public static long BoolCond_LongVarVar(boolean cond, long x, long y) {
+    if (doThrow) {
+      // Try defeating inlining.
+      throw new Error();
+    }
     return cond ? x : y;
   }
 
@@ -125,6 +143,10 @@ public class Main {
   /// CHECK-NEXT:                     cmovnz/ne
 
   public static long BoolCond_LongVarCst(boolean cond, long x) {
+    if (doThrow) {
+      // Try defeating inlining.
+      throw new Error();
+    }
     return cond ? x : 1L;
   }
 
@@ -148,6 +170,10 @@ public class Main {
   /// CHECK-NEXT:                     cmovnz/ne
 
   public static long BoolCond_LongCstVar(boolean cond, long y) {
+    if (doThrow) {
+      // Try defeating inlining.
+      throw new Error();
+    }
     return cond ? 1L : y;
   }
 
@@ -160,6 +186,10 @@ public class Main {
   /// CHECK-NEXT:            fcsel ne
 
   public static float BoolCond_FloatVarVar(boolean cond, float x, float y) {
+    if (doThrow) {
+      // Try defeating inlining.
+      throw new Error();
+    }
     return cond ? x : y;
   }
 
@@ -172,6 +202,10 @@ public class Main {
   /// CHECK-NEXT:            fcsel ne
 
   public static float BoolCond_FloatVarCst(boolean cond, float x) {
+    if (doThrow) {
+      // Try defeating inlining.
+      throw new Error();
+    }
     return cond ? x : 1.0f;
   }
 
@@ -184,6 +218,10 @@ public class Main {
   /// CHECK-NEXT:            fcsel ne
 
   public static float BoolCond_FloatCstVar(boolean cond, float y) {
+    if (doThrow) {
+      // Try defeating inlining.
+      throw new Error();
+    }
     return cond ? 1.0f : y;
   }
 
@@ -207,6 +245,10 @@ public class Main {
   /// CHECK:                          cmovle/ng
 
   public static int IntNonmatCond_IntVarVar(int a, int b, int x, int y) {
+    if (doThrow) {
+      // Try defeating inlining.
+      throw new Error();
+    }
     return a > b ? x : y;
   }
 
@@ -233,6 +275,10 @@ public class Main {
   /// CHECK:                          cmovle/ng
 
   public static int IntMatCond_IntVarVar(int a, int b, int x, int y) {
+    if (doThrow) {
+      // Try defeating inlining.
+      throw new Error();
+    }
     int result = (a > b ? x : y);
     return result + (a > b ? 0 : 1);
   }
@@ -258,6 +304,10 @@ public class Main {
   /// CHECK-NEXT:                     cmovle/ng
 
   public static long IntNonmatCond_LongVarVar(int a, int b, long x, long y) {
+    if (doThrow) {
+      // Try defeating inlining.
+      throw new Error();
+    }
     return a > b ? x : y;
   }
 
@@ -291,6 +341,10 @@ public class Main {
   /// CHECK-NEXT:                     cmovnz/ne
 
   public static long IntMatCond_LongVarVar(int a, int b, long x, long y) {
+    if (doThrow) {
+      // Try defeating inlining.
+      throw new Error();
+    }
     long result = (a > b ? x : y);
     return result + (a > b ? 0L : 1L);
   }
@@ -310,6 +364,10 @@ public class Main {
   /// CHECK:                          cmovle/ngq
 
   public static long LongNonmatCond_LongVarVar(long a, long b, long x, long y) {
+    if (doThrow) {
+      // Try defeating inlining.
+      throw new Error();
+    }
     return a > b ? x : y;
   }
 
@@ -334,6 +392,10 @@ public class Main {
   /// CHECK:                          cmovnz/neq
 
   public static long LongMatCond_LongVarVar(long a, long b, long x, long y) {
+    if (doThrow) {
+      // Try defeating inlining.
+      throw new Error();
+    }
     long result = (a > b ? x : y);
     return result + (a > b ? 0L : 1L);
   }
@@ -349,6 +411,10 @@ public class Main {
   /// CHECK-NEXT:            csel le
 
   public static int FloatLtNonmatCond_IntVarVar(float a, float b, int x, int y) {
+    if (doThrow) {
+      // Try defeating inlining.
+      throw new Error();
+    }
     return a > b ? x : y;
   }
 
@@ -363,6 +429,10 @@ public class Main {
   /// CHECK-NEXT:            csel hs
 
   public static int FloatGtNonmatCond_IntVarVar(float a, float b, int x, int y) {
+    if (doThrow) {
+      // Try defeating inlining.
+      throw new Error();
+    }
     return a < b ? x : y;
   }
 
@@ -377,6 +447,10 @@ public class Main {
   /// CHECK-NEXT:            fcsel hs
 
   public static float FloatGtNonmatCond_FloatVarVar(float a, float b, float x, float y) {
+    if (doThrow) {
+      // Try defeating inlining.
+      throw new Error();
+    }
     return a < b ? x : y;
   }
 
@@ -393,6 +467,10 @@ public class Main {
   /// CHECK-NEXT:            csel le
 
   public static int FloatLtMatCond_IntVarVar(float a, float b, int x, int y) {
+    if (doThrow) {
+      // Try defeating inlining.
+      throw new Error();
+    }
     int result = (a > b ? x : y);
     return result + (a > b ? 0 : 1);
   }
@@ -410,6 +488,10 @@ public class Main {
   /// CHECK-NEXT:            csel hs
 
   public static int FloatGtMatCond_IntVarVar(float a, float b, int x, int y) {
+    if (doThrow) {
+      // Try defeating inlining.
+      throw new Error();
+    }
     int result = (a < b ? x : y);
     return result + (a < b ? 0 : 1);
   }
@@ -427,8 +509,68 @@ public class Main {
   /// CHECK-NEXT:            fcsel hs
 
   public static float FloatGtMatCond_FloatVarVar(float a, float b, float x, float y) {
+    if (doThrow) {
+      // Try defeating inlining.
+      throw new Error();
+    }
     float result = (a < b ? x : y);
     return result + (a < b ? 0 : 1);
+  }
+
+  /// CHECK-START: int Main.BoolCond_0_m1(boolean) register (after)
+  /// CHECK:            <<Cond:z\d+>> ParameterValue
+  /// CHECK:                          Select [{{i\d+}},{{i\d+}},<<Cond>>]
+
+  /// CHECK-START-ARM64: int Main.BoolCond_0_m1(boolean) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> ParameterValue
+  /// CHECK:                          Select [{{i\d+}},{{i\d+}},<<Cond>>]
+  /// CHECK-NEXT:                     cmp {{w\d+}}, #0x0 (0)
+  /// CHECK-NEXT:                     csetm {{w\d+}}, eq
+
+  /// CHECK-START-X86_64: int Main.BoolCond_0_m1(boolean) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> ParameterValue
+  /// CHECK:                          Select [{{i\d+}},{{i\d+}},<<Cond>>]
+  /// CHECK:                          cmovnz/ne
+
+  /// CHECK-START-X86: int Main.BoolCond_0_m1(boolean) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> ParameterValue
+  /// CHECK:                          Select [{{i\d+}},{{i\d+}},<<Cond>>]
+  /// CHECK:                          cmovnz/ne
+
+  public static int BoolCond_0_m1(boolean cond) {
+    if (doThrow) {
+      // Try defeating inlining.
+      throw new Error();
+    }
+    return cond ? 0 : -1;
+  }
+
+  /// CHECK-START: int Main.BoolCond_m1_0(boolean) register (after)
+  /// CHECK:            <<Cond:z\d+>> ParameterValue
+  /// CHECK:                          Select [{{i\d+}},{{i\d+}},<<Cond>>]
+
+  /// CHECK-START-ARM64: int Main.BoolCond_m1_0(boolean) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> ParameterValue
+  /// CHECK:                          Select [{{i\d+}},{{i\d+}},<<Cond>>]
+  /// CHECK-NEXT:                     cmp {{w\d+}}, #0x0 (0)
+  /// CHECK-NEXT:                     csetm {{w\d+}}, ne
+
+  /// CHECK-START-X86_64: int Main.BoolCond_m1_0(boolean) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> ParameterValue
+  /// CHECK:                          Select [{{i\d+}},{{i\d+}},<<Cond>>]
+  /// CHECK:                          cmovnz/ne
+
+  /// CHECK-START-X86: int Main.BoolCond_m1_0(boolean) disassembly (after)
+  /// CHECK:            <<Cond:z\d+>> ParameterValue
+  /// CHECK:                          Select [{{i\d+}},{{i\d+}},<<Cond>>]
+  /// CHECK:                          cmovnz/ne
+
+  public static int BoolCond_m1_0(boolean cond) {
+    if (doThrow) {
+      // Try defeating inlining.
+      throw new Error();
+    }
+    return cond ? -1 : 0;
   }
 
   public static void assertEqual(int expected, int actual) {
@@ -499,5 +641,10 @@ public class Main {
     assertEqual(8, FloatGtMatCond_FloatVarVar(3, 2, 5, 7));
     assertEqual(8, FloatGtMatCond_FloatVarVar(Float.NaN, 2, 5, 7));
     assertEqual(8, FloatGtMatCond_FloatVarVar(2, Float.NaN, 5, 7));
+
+    assertEqual(0, BoolCond_0_m1(true));
+    assertEqual(-1, BoolCond_0_m1(false));
+    assertEqual(-1, BoolCond_m1_0(true));
+    assertEqual(0, BoolCond_m1_0(false));
   }
 }
