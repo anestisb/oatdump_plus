@@ -671,6 +671,9 @@ class ArmAssembler : public Assembler {
   virtual void vcmpdz(DRegister dd, Condition cond = AL) = 0;
   virtual void vmstat(Condition cond = AL) = 0;  // VMRS APSR_nzcv, FPSCR
 
+  virtual void vcntd(DRegister dd, DRegister dm) = 0;
+  virtual void vpaddld(DRegister dd, DRegister dm, int32_t size, bool is_unsigned) = 0;
+
   virtual void vpushs(SRegister reg, int nregs, Condition cond = AL) = 0;
   virtual void vpushd(DRegister reg, int nregs, Condition cond = AL) = 0;
   virtual void vpops(SRegister reg, int nregs, Condition cond = AL) = 0;

@@ -3117,6 +3117,30 @@ void Thumb2Assembler::vmstat(Condition cond) {  // VMRS APSR_nzcv, FPSCR.
   Emit32(encoding);
 }
 
+void Thumb2Assembler::vcntd(DRegister dd, DRegister dm) {
+  uint32_t encoding = (B31 | B30 | B29 | B28 | B27 | B26 | B25 | B24 | B23 | B21 | B20) |
+    ((static_cast<int32_t>(dd) >> 4) * B22) |
+    ((static_cast<uint32_t>(dd) & 0xf) * B12) |
+    (B10 | B8) |
+    ((static_cast<int32_t>(dm) >> 4) * B5) |
+    (static_cast<uint32_t>(dm) & 0xf);
+
+  Emit32(encoding);
+}
+
+void Thumb2Assembler::vpaddld(DRegister dd, DRegister dm, int32_t size, bool is_unsigned) {
+  CHECK(size == 8 || size == 16 || size == 32) << size;
+  uint32_t encoding = (B31 | B30 | B29 | B28 | B27 | B26 | B25 | B24 | B23 | B21 | B20) |
+    ((static_cast<uint32_t>(size >> 4) & 0x3) * B18) |
+    ((static_cast<int32_t>(dd) >> 4) * B22) |
+    ((static_cast<uint32_t>(dd) & 0xf) * B12) |
+    (B9) |
+    (is_unsigned ? B7 : 0) |
+    ((static_cast<int32_t>(dm) >> 4) * B5) |
+    (static_cast<uint32_t>(dm) & 0xf);
+
+  Emit32(encoding);
+}
 
 void Thumb2Assembler::svc(uint32_t imm8) {
   CHECK(IsUint<8>(imm8)) << imm8;
