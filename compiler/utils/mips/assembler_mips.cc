@@ -448,6 +448,11 @@ void MipsAssembler::Lui(Register rt, uint16_t imm16) {
   EmitI(0xf, static_cast<Register>(0), rt, imm16);
 }
 
+void MipsAssembler::Aui(Register rt, Register rs, uint16_t imm16) {
+  CHECK(IsR6());
+  EmitI(0xf, rs, rt, imm16);
+}
+
 void MipsAssembler::Sync(uint32_t stype) {
   EmitR(0, static_cast<Register>(0), static_cast<Register>(0), static_cast<Register>(0),
         stype & 0x1f, 0xf);
@@ -1385,13 +1390,8 @@ void MipsAssembler::StoreConst32ToOffset(int32_t value,
                                          Register base,
                                          int32_t offset,
                                          Register temp) {
-  if (!IsInt<16>(offset)) {
-    CHECK_NE(temp, AT);  //  Must not use AT as temp, as not to overwrite the loaded value.
-    LoadConst32(AT, offset);
-    Addu(AT, AT, base);
-    base = AT;
-    offset = 0;
-  }
+  CHECK_NE(temp, AT);  // Must not use AT as temp, so as not to overwrite the adjusted base.
+  AdjustBaseAndOffset(base, offset, /* is_doubleword */ false);
   if (value == 0) {
     temp = ZERO;
   } else {
@@ -1404,14 +1404,8 @@ void MipsAssembler::StoreConst64ToOffset(int64_t value,
                                          Register base,
                                          int32_t offset,
                                          Register temp) {
-  // IsInt<16> must be passed a signed value.
-  if (!IsInt<16>(offset) || !IsInt<16>(static_cast<int32_t>(offset + kMipsWordSize))) {
-    CHECK_NE(temp, AT);  //  Must not use AT as temp, as not to overwrite the loaded value.
-    LoadConst32(AT, offset);
-    Addu(AT, AT, base);
-    base = AT;
-    offset = 0;
-  }
+  CHECK_NE(temp, AT);  // Must not use AT as temp, so as not to overwrite the adjusted base.
+  AdjustBaseAndOffset(base, offset, /* is_doubleword */ true);
   uint32_t low = Low32Bits(value);
   uint32_t high = High32Bits(value);
   if (low == 0) {
@@ -1457,11 +1451,35 @@ void MipsAssembler::LoadDConst64(FRegister rd, int64_t value, Register temp) {
 }
 
 void MipsAssembler::Addiu32(Register rt, Register rs, int32_t value, Register temp) {
+  CHECK_NE(rs, temp);  // Must not overwrite the register `rs` while loading `value`.
   if (IsInt<16>(value)) {
     Addiu(rt, rs, value);
+  } else if (IsR6()) {
+    int16_t high = High16Bits(value);
+    int16_t low = Low16Bits(value);
+    high += (low < 0) ? 1 : 0;  // Account for sign extension in addiu.
+    if (low != 0) {
+      Aui(temp, rs, high);
+      Addiu(rt, temp, low);
+    } else {
+      Aui(rt, rs, high);
+    }
   } else {
-    LoadConst32(temp, value);
-    Addu(rt, rs, temp);
+    // Do not load the whole 32-bit `value` if it can be represented as
+    // a sum of two 16-bit signed values. This can save an instruction.
+    constexpr int32_t kMinValueForSimpleAdjustment = std::numeric_limits<int16_t>::min() * 2;
+    constexpr int32_t kMaxValueForSimpleAdjustment = std::numeric_limits<int16_t>::max() * 2;
+    if (0 <= value && value <= kMaxValueForSimpleAdjustment) {
+      Addiu(temp, rs, kMaxValueForSimpleAdjustment / 2);
+      Addiu(rt, temp, value - kMaxValueForSimpleAdjustment / 2);
+    } else if (kMinValueForSimpleAdjustment <= value && value < 0) {
+      Addiu(temp, rs, kMinValueForSimpleAdjustment / 2);
+      Addiu(rt, temp, value - kMinValueForSimpleAdjustment / 2);
+    } else {
+      // Now that all shorter options have been exhausted, load the full 32-bit value.
+      LoadConst32(temp, value);
+      Addu(rt, rs, temp);
+    }
   }
 }
 
@@ -2262,17 +2280,103 @@ void MipsAssembler::Bc1nez(FRegister ft, MipsLabel* label) {
   Bcond(label, kCondT, static_cast<Register>(ft), ZERO);
 }
 
-void MipsAssembler::LoadFromOffset(LoadOperandType type, Register reg, Register base,
-                                   int32_t offset) {
-  // IsInt<16> must be passed a signed value.
-  if (!IsInt<16>(offset) ||
-      (type == kLoadDoubleword && !IsInt<16>(static_cast<int32_t>(offset + kMipsWordSize)))) {
-    LoadConst32(AT, offset);
-    Addu(AT, AT, base);
-    base = AT;
-    offset = 0;
+void MipsAssembler::AdjustBaseAndOffset(Register& base,
+                                        int32_t& offset,
+                                        bool is_doubleword,
+                                        bool is_float) {
+  // This method is used to adjust the base register and offset pair
+  // for a load/store when the offset doesn't fit into int16_t.
+  // It is assumed that `base + offset` is sufficiently aligned for memory
+  // operands that are machine word in size or smaller. For doubleword-sized
+  // operands it's assumed that `base` is a multiple of 8, while `offset`
+  // may be a multiple of 4 (e.g. 4-byte-aligned long and double arguments
+  // and spilled variables on the stack accessed relative to the stack
+  // pointer register).
+  // We preserve the "alignment" of `offset` by adjusting it by a multiple of 8.
+  CHECK_NE(base, AT);  // Must not overwrite the register `base` while loading `offset`.
+
+  bool doubleword_aligned = IsAligned<kMipsDoublewordSize>(offset);
+  bool two_accesses = is_doubleword && (!is_float || !doubleword_aligned);
+
+  // IsInt<16> must be passed a signed value, hence the static cast below.
+  if (IsInt<16>(offset) &&
+      (!two_accesses || IsInt<16>(static_cast<int32_t>(offset + kMipsWordSize)))) {
+    // Nothing to do: `offset` (and, if needed, `offset + 4`) fits into int16_t.
+    return;
   }
 
+  // Remember the "(mis)alignment" of `offset`, it will be checked at the end.
+  uint32_t misalignment = offset & (kMipsDoublewordSize - 1);
+
+  // Do not load the whole 32-bit `offset` if it can be represented as
+  // a sum of two 16-bit signed offsets. This can save an instruction or two.
+  // To simplify matters, only do this for a symmetric range of offsets from
+  // about -64KB to about +64KB, allowing further addition of 4 when accessing
+  // 64-bit variables with two 32-bit accesses.
+  constexpr int32_t kMinOffsetForSimpleAdjustment = 0x7ff8;  // Max int16_t that's a multiple of 8.
+  constexpr int32_t kMaxOffsetForSimpleAdjustment = 2 * kMinOffsetForSimpleAdjustment;
+  if (0 <= offset && offset <= kMaxOffsetForSimpleAdjustment) {
+    Addiu(AT, base, kMinOffsetForSimpleAdjustment);
+    offset -= kMinOffsetForSimpleAdjustment;
+  } else if (-kMaxOffsetForSimpleAdjustment <= offset && offset < 0) {
+    Addiu(AT, base, -kMinOffsetForSimpleAdjustment);
+    offset += kMinOffsetForSimpleAdjustment;
+  } else if (IsR6()) {
+    // On R6 take advantage of the aui instruction, e.g.:
+    //   aui   AT, base, offset_high
+    //   lw    reg_lo, offset_low(AT)
+    //   lw    reg_hi, (offset_low+4)(AT)
+    // or when offset_low+4 overflows int16_t:
+    //   aui   AT, base, offset_high
+    //   addiu AT, AT, 8
+    //   lw    reg_lo, (offset_low-8)(AT)
+    //   lw    reg_hi, (offset_low-4)(AT)
+    int16_t offset_high = High16Bits(offset);
+    int16_t offset_low = Low16Bits(offset);
+    offset_high += (offset_low < 0) ? 1 : 0;  // Account for offset sign extension in load/store.
+    Aui(AT, base, offset_high);
+    if (two_accesses && !IsInt<16>(static_cast<int32_t>(offset_low + kMipsWordSize))) {
+      // Avoid overflow in the 16-bit offset of the load/store instruction when adding 4.
+      Addiu(AT, AT, kMipsDoublewordSize);
+      offset_low -= kMipsDoublewordSize;
+    }
+    offset = offset_low;
+  } else {
+    // Do not load the whole 32-bit `offset` if it can be represented as
+    // a sum of three 16-bit signed offsets. This can save an instruction.
+    // To simplify matters, only do this for a symmetric range of offsets from
+    // about -96KB to about +96KB, allowing further addition of 4 when accessing
+    // 64-bit variables with two 32-bit accesses.
+    constexpr int32_t kMinOffsetForMediumAdjustment = 2 * kMinOffsetForSimpleAdjustment;
+    constexpr int32_t kMaxOffsetForMediumAdjustment = 3 * kMinOffsetForSimpleAdjustment;
+    if (0 <= offset && offset <= kMaxOffsetForMediumAdjustment) {
+      Addiu(AT, base, kMinOffsetForMediumAdjustment / 2);
+      Addiu(AT, AT, kMinOffsetForMediumAdjustment / 2);
+      offset -= kMinOffsetForMediumAdjustment;
+    } else if (-kMaxOffsetForMediumAdjustment <= offset && offset < 0) {
+      Addiu(AT, base, -kMinOffsetForMediumAdjustment / 2);
+      Addiu(AT, AT, -kMinOffsetForMediumAdjustment / 2);
+      offset += kMinOffsetForMediumAdjustment;
+    } else {
+      // Now that all shorter options have been exhausted, load the full 32-bit offset.
+      int32_t loaded_offset = RoundDown(offset, kMipsDoublewordSize);
+      LoadConst32(AT, loaded_offset);
+      Addu(AT, AT, base);
+      offset -= loaded_offset;
+    }
+  }
+  base = AT;
+
+  CHECK(IsInt<16>(offset));
+  if (two_accesses) {
+    CHECK(IsInt<16>(static_cast<int32_t>(offset + kMipsWordSize)));
+  }
+  CHECK_EQ(misalignment, offset & (kMipsDoublewordSize - 1));
+}
+
+void MipsAssembler::LoadFromOffset(LoadOperandType type, Register reg, Register base,
+                                   int32_t offset) {
+  AdjustBaseAndOffset(base, offset, /* is_doubleword */ (type == kLoadDoubleword));
   switch (type) {
     case kLoadSignedByte:
       Lb(reg, base, offset);
@@ -2306,27 +2410,12 @@ void MipsAssembler::LoadFromOffset(LoadOperandType type, Register reg, Register 
 }
 
 void MipsAssembler::LoadSFromOffset(FRegister reg, Register base, int32_t offset) {
-  if (!IsInt<16>(offset)) {
-    LoadConst32(AT, offset);
-    Addu(AT, AT, base);
-    base = AT;
-    offset = 0;
-  }
-
+  AdjustBaseAndOffset(base, offset, /* is_doubleword */ false, /* is_float */ true);
   Lwc1(reg, base, offset);
 }
 
 void MipsAssembler::LoadDFromOffset(FRegister reg, Register base, int32_t offset) {
-  // IsInt<16> must be passed a signed value.
-  if (!IsInt<16>(offset) ||
-      (!IsAligned<kMipsDoublewordSize>(offset) &&
-       !IsInt<16>(static_cast<int32_t>(offset + kMipsWordSize)))) {
-    LoadConst32(AT, offset);
-    Addu(AT, AT, base);
-    base = AT;
-    offset = 0;
-  }
-
+  AdjustBaseAndOffset(base, offset, /* is_doubleword */ true, /* is_float */ true);
   if (offset & 0x7) {
     if (Is32BitFPU()) {
       Lwc1(reg, base, offset);
@@ -2365,15 +2454,10 @@ void MipsAssembler::EmitLoad(ManagedRegister m_dst, Register src_register, int32
 
 void MipsAssembler::StoreToOffset(StoreOperandType type, Register reg, Register base,
                                   int32_t offset) {
-  // IsInt<16> must be passed a signed value.
-  if (!IsInt<16>(offset) ||
-      (type == kStoreDoubleword && !IsInt<16>(static_cast<int32_t>(offset + kMipsWordSize)))) {
-    LoadConst32(AT, offset);
-    Addu(AT, AT, base);
-    base = AT;
-    offset = 0;
-  }
-
+  // Must not use AT as `reg`, so as not to overwrite the value being stored
+  // with the adjusted `base`.
+  CHECK_NE(reg, AT);
+  AdjustBaseAndOffset(base, offset, /* is_doubleword */ (type == kStoreDoubleword));
   switch (type) {
     case kStoreByte:
       Sb(reg, base, offset);
@@ -2396,27 +2480,12 @@ void MipsAssembler::StoreToOffset(StoreOperandType type, Register reg, Register 
 }
 
 void MipsAssembler::StoreSToOffset(FRegister reg, Register base, int32_t offset) {
-  if (!IsInt<16>(offset)) {
-    LoadConst32(AT, offset);
-    Addu(AT, AT, base);
-    base = AT;
-    offset = 0;
-  }
-
+  AdjustBaseAndOffset(base, offset, /* is_doubleword */ false, /* is_float */ true);
   Swc1(reg, base, offset);
 }
 
 void MipsAssembler::StoreDToOffset(FRegister reg, Register base, int32_t offset) {
-  // IsInt<16> must be passed a signed value.
-  if (!IsInt<16>(offset) ||
-      (!IsAligned<kMipsDoublewordSize>(offset) &&
-       !IsInt<16>(static_cast<int32_t>(offset + kMipsWordSize)))) {
-    LoadConst32(AT, offset);
-    Addu(AT, AT, base);
-    base = AT;
-    offset = 0;
-  }
-
+  AdjustBaseAndOffset(base, offset, /* is_doubleword */ true, /* is_float */ true);
   if (offset & 0x7) {
     if (Is32BitFPU()) {
       Swc1(reg, base, offset);
