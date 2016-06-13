@@ -395,8 +395,9 @@ inline mirror::DexCache* ArtMethod::GetDexCache() {
   return GetDeclaringClass()->GetDexCache();
 }
 
+template<ReadBarrierOption kReadBarrierOption>
 inline bool ArtMethod::IsProxyMethod() {
-  return GetDeclaringClass()->IsProxyClass();
+  return GetDeclaringClass<kReadBarrierOption>()->IsProxyClass();
 }
 
 inline ArtMethod* ArtMethod::GetInterfaceMethodIfProxy(size_t pointer_size) {
@@ -438,24 +439,24 @@ inline mirror::Class* ArtMethod::GetReturnType(bool resolve, size_t ptr_size) {
   return type;
 }
 
-template<typename RootVisitorType>
+template<ReadBarrierOption kReadBarrierOption, typename RootVisitorType>
 void ArtMethod::VisitRoots(RootVisitorType& visitor, size_t pointer_size) {
-  ArtMethod* interface_method = nullptr;
-  mirror::Class* klass = declaring_class_.Read();
-  if (LIKELY(klass != nullptr)) {
+  if (LIKELY(!declaring_class_.IsNull())) {
+    visitor.VisitRoot(declaring_class_.AddressWithoutBarrier());
+    mirror::Class* klass = declaring_class_.Read<kReadBarrierOption>();
     if (UNLIKELY(klass->IsProxyClass())) {
       // For normal methods, dex cache shortcuts will be visited through the declaring class.
       // However, for proxies we need to keep the interface method alive, so we visit its roots.
-      interface_method = mirror::DexCache::GetElementPtrSize(
+      ArtMethod* interface_method = mirror::DexCache::GetElementPtrSize(
           GetDexCacheResolvedMethods(pointer_size),
           GetDexMethodIndex(),
           pointer_size);
       DCHECK(interface_method != nullptr);
       DCHECK_EQ(interface_method,
-                Runtime::Current()->GetClassLinker()->FindMethodForProxy(klass, this));
+                Runtime::Current()->GetClassLinker()->FindMethodForProxy<kReadBarrierOption>(
+                    klass, this));
       interface_method->VisitRoots(visitor, pointer_size);
     }
-    visitor.VisitRoot(declaring_class_.AddressWithoutBarrier());
     // We know we don't have profiling information if the class hasn't been verified. Note
     // that this check also ensures the IsNative call can be made, as IsNative expects a fully
     // created class (and not a retired one).
@@ -463,7 +464,7 @@ void ArtMethod::VisitRoots(RootVisitorType& visitor, size_t pointer_size) {
       // Runtime methods and native methods use the same field as the profiling info for
       // storing their own data (jni entrypoint for native methods, and ImtConflictTable for
       // some runtime methods).
-      if (!IsNative() && !IsRuntimeMethod()) {
+      if (!IsNative<kReadBarrierOption>() && !IsRuntimeMethod()) {
         ProfilingInfo* profiling_info = GetProfilingInfo(pointer_size);
         if (profiling_info != nullptr) {
           profiling_info->VisitRoots(visitor);
