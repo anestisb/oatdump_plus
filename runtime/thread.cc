@@ -1122,32 +1122,36 @@ void Thread::ClearSuspendBarrier(AtomicInteger* target) {
 }
 
 void Thread::RunCheckpointFunction() {
-  Closure *checkpoints[kMaxCheckpoints];
-
-  // Grab the suspend_count lock and copy the current set of
-  // checkpoints.  Then clear the list and the flag.  The RequestCheckpoint
-  // function will also grab this lock so we prevent a race between setting
-  // the kCheckpointRequest flag and clearing it.
-  {
-    MutexLock mu(this, *Locks::thread_suspend_count_lock_);
-    for (uint32_t i = 0; i < kMaxCheckpoints; ++i) {
-      checkpoints[i] = tlsPtr_.checkpoint_functions[i];
-      tlsPtr_.checkpoint_functions[i] = nullptr;
+  bool done = false;
+  do {
+    // Grab the suspend_count lock and copy the checkpoints one by one. When the last checkpoint is
+    // copied, clear the list and the flag. The RequestCheckpoint function will also grab this lock
+    // to prevent a race between setting the kCheckpointRequest flag and clearing it.
+    Closure* checkpoint = nullptr;
+    {
+      MutexLock mu(this, *Locks::thread_suspend_count_lock_);
+      if (tlsPtr_.checkpoint_function != nullptr) {
+        checkpoint = tlsPtr_.checkpoint_function;
+        if (!checkpoint_overflow_.empty()) {
+          // Overflow list not empty, copy the first one out and continue.
+          tlsPtr_.checkpoint_function = checkpoint_overflow_.front();
+          checkpoint_overflow_.pop_front();
+        } else {
+          // No overflow checkpoints, this means that we are on the last pending checkpoint.
+          tlsPtr_.checkpoint_function = nullptr;
+          AtomicClearFlag(kCheckpointRequest);
+          done = true;
+        }
+      } else {
+        LOG(FATAL) << "Checkpoint flag set without pending checkpoint";
+      }
     }
-    AtomicClearFlag(kCheckpointRequest);
-  }
 
-  // Outside the lock, run all the checkpoint functions that
-  // we collected.
-  bool found_checkpoint = false;
-  for (uint32_t i = 0; i < kMaxCheckpoints; ++i) {
-    if (checkpoints[i] != nullptr) {
-      ScopedTrace trace("Run checkpoint function");
-      checkpoints[i]->Run(this);
-      found_checkpoint = true;
-    }
-  }
-  CHECK(found_checkpoint);
+    // Outside the lock, run the checkpoint functions that we collected.
+    ScopedTrace trace("Run checkpoint function");
+    DCHECK(checkpoint != nullptr);
+    checkpoint->Run(this);
+  } while (!done);
 }
 
 bool Thread::RequestCheckpoint(Closure* function) {
@@ -1157,20 +1161,6 @@ bool Thread::RequestCheckpoint(Closure* function) {
     return false;  // Fail, thread is suspended and so can't run a checkpoint.
   }
 
-  uint32_t available_checkpoint = kMaxCheckpoints;
-  for (uint32_t i = 0 ; i < kMaxCheckpoints; ++i) {
-    if (tlsPtr_.checkpoint_functions[i] == nullptr) {
-      available_checkpoint = i;
-      break;
-    }
-  }
-  if (available_checkpoint == kMaxCheckpoints) {
-    // No checkpoint functions available, we can't run a checkpoint
-    return false;
-  }
-  tlsPtr_.checkpoint_functions[available_checkpoint] = function;
-
-  // Checkpoint function installed now install flag bit.
   // We must be runnable to request a checkpoint.
   DCHECK_EQ(old_state_and_flags.as_struct.state, kRunnable);
   union StateAndFlags new_state_and_flags;
@@ -1178,11 +1168,13 @@ bool Thread::RequestCheckpoint(Closure* function) {
   new_state_and_flags.as_struct.flags |= kCheckpointRequest;
   bool success = tls32_.state_and_flags.as_atomic_int.CompareExchangeStrongSequentiallyConsistent(
       old_state_and_flags.as_int, new_state_and_flags.as_int);
-  if (UNLIKELY(!success)) {
-    // The thread changed state before the checkpoint was installed.
-    CHECK_EQ(tlsPtr_.checkpoint_functions[available_checkpoint], function);
-    tlsPtr_.checkpoint_functions[available_checkpoint] = nullptr;
-  } else {
+  if (success) {
+    // Succeeded setting checkpoint flag, now insert the actual checkpoint.
+    if (tlsPtr_.checkpoint_function == nullptr) {
+      tlsPtr_.checkpoint_function = function;
+    } else {
+      checkpoint_overflow_.push_back(function);
+    }
     CHECK_EQ(ReadFlag(kCheckpointRequest), true);
     TriggerSuspend();
   }
@@ -1624,9 +1616,7 @@ Thread::Thread(bool daemon) : tls32_(daemon), wait_monitor_(nullptr), interrupte
   std::fill(tlsPtr_.rosalloc_runs,
             tlsPtr_.rosalloc_runs + kNumRosAllocThreadLocalSizeBracketsInThread,
             gc::allocator::RosAlloc::GetDedicatedFullRun());
-  for (uint32_t i = 0; i < kMaxCheckpoints; ++i) {
-    tlsPtr_.checkpoint_functions[i] = nullptr;
-  }
+  tlsPtr_.checkpoint_function = nullptr;
   for (uint32_t i = 0; i < kMaxSuspendBarriers; ++i) {
     tlsPtr_.active_suspend_barriers[i] = nullptr;
   }
@@ -1767,9 +1757,8 @@ Thread::~Thread() {
   }
   CHECK_NE(GetState(), kRunnable);
   CHECK_NE(ReadFlag(kCheckpointRequest), true);
-  CHECK(tlsPtr_.checkpoint_functions[0] == nullptr);
-  CHECK(tlsPtr_.checkpoint_functions[1] == nullptr);
-  CHECK(tlsPtr_.checkpoint_functions[2] == nullptr);
+  CHECK(tlsPtr_.checkpoint_function == nullptr);
+  CHECK_EQ(checkpoint_overflow_.size(), 0u);
   CHECK(tlsPtr_.flip_function == nullptr);
   CHECK_EQ(tls32_.suspended_at_suspend_check, false);
 
