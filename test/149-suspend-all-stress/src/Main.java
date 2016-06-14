@@ -17,7 +17,7 @@
 import java.util.Map;
 
 public class Main implements Runnable {
-    static final int numberOfThreads = 4;
+    static final int numberOfThreads = 8;
 
     public static void main(String[] args) throws Exception {
         System.loadLibrary(args[0]);
