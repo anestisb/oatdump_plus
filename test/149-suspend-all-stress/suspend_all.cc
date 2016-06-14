@@ -22,7 +22,7 @@ namespace art {
 
 extern "C" JNIEXPORT void JNICALL Java_Main_suspendAndResume(JNIEnv*, jclass) {
   static constexpr size_t kInitialSleepUS = 100 * 1000;  // 100ms.
-  static constexpr size_t kIterations = 500;
+  static constexpr size_t kIterations = 250;
   usleep(kInitialSleepUS);  // Leave some time for threads to get in here before we start suspending.
   enum Operation {
     kOPSuspendAll,
