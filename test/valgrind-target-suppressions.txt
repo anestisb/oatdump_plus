@@ -40,3 +40,13 @@
    fun:je_tsd_fetch
    fun:je_malloc_tsd_boot0
 }
+
+# Setenv is known-leaking when overwriting mappings. This is triggered by re-initializing
+# ANDROID_DATA. Ignore all setenv leaks.
+{
+   SetenvAndroidDataReinit
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   fun:setenv
+}
