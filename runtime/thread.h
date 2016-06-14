@@ -1220,9 +1220,6 @@ class Thread {
 
   static void ThreadExitCallback(void* arg);
 
-  // Maximum number of checkpoint functions.
-  static constexpr uint32_t kMaxCheckpoints = 3;
-
   // Maximum number of suspend barriers.
   static constexpr uint32_t kMaxSuspendBarriers = 3;
 
@@ -1452,9 +1449,9 @@ class Thread {
     // If no_thread_suspension_ is > 0, what is causing that assertion.
     const char* last_no_thread_suspension_cause;
 
-    // Pending checkpoint function or null if non-pending. Installation guarding by
-    // Locks::thread_suspend_count_lock_.
-    Closure* checkpoint_functions[kMaxCheckpoints];
+    // Pending checkpoint function or null if non-pending. If this checkpoint is set and someone\
+    // requests another checkpoint, it goes to the checkpoint overflow list.
+    Closure* checkpoint_function GUARDED_BY(Locks::thread_suspend_count_lock_);
 
     // Pending barriers that require passing or NULL if non-pending. Installation guarding by
     // Locks::thread_suspend_count_lock_.
@@ -1516,6 +1513,9 @@ class Thread {
 
   // Debug disable read barrier count, only is checked for debug builds and only in the runtime.
   uint8_t debug_disallow_read_barrier_ = 0;
+
+  // Pending extra checkpoints if checkpoint_function_ is already used.
+  std::list<Closure*> checkpoint_overflow_ GUARDED_BY(Locks::thread_suspend_count_lock_);
 
   friend class Dbg;  // For SetStateUnsafe.
   friend class gc::collector::SemiSpace;  // For getting stack traces.
