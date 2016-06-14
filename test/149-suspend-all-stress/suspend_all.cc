@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "base/time_utils.h"
 #include "jni.h"
 #include "runtime.h"
 #include "thread_list.h"
@@ -22,7 +23,6 @@ namespace art {
 
 extern "C" JNIEXPORT void JNICALL Java_Main_suspendAndResume(JNIEnv*, jclass) {
   static constexpr size_t kInitialSleepUS = 100 * 1000;  // 100ms.
-  static constexpr size_t kIterations = 250;
   usleep(kInitialSleepUS);  // Leave some time for threads to get in here before we start suspending.
   enum Operation {
     kOPSuspendAll,
@@ -31,8 +31,11 @@ extern "C" JNIEXPORT void JNICALL Java_Main_suspendAndResume(JNIEnv*, jclass) {
     // Total number of operations.
     kOPNumber,
   };
-  for (size_t i = 0; i < kIterations; ++i) {
-    switch (static_cast<Operation>(i % kOPNumber)) {
+  const uint64_t start_time = NanoTime();
+  size_t iterations = 0;
+  // Run for a fixed period of 10 seconds.
+  while (NanoTime() - start_time < MsToNs(10 * 1000)) {
+    switch (static_cast<Operation>(iterations % kOPNumber)) {
       case kOPSuspendAll: {
         ScopedSuspendAll ssa(__FUNCTION__);
         usleep(500);
@@ -52,7 +55,9 @@ extern "C" JNIEXPORT void JNICALL Java_Main_suspendAndResume(JNIEnv*, jclass) {
       case kOPNumber:
         break;
     }
+    ++iterations;
   }
+  LOG(INFO) << "Did " << iterations << " iterations";
 }
 
 }  // namespace art
