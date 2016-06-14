@@ -1745,6 +1745,7 @@ void IntrinsicLocationsBuilderARM64::VisitStringGetCharsNoCheck(HInvoke* invoke)
 
   locations->AddTemp(Location::RequiresRegister());
   locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
 }
 
 void IntrinsicCodeGeneratorARM64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
@@ -1770,29 +1771,57 @@ void IntrinsicCodeGeneratorARM64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   Register dstBegin = XRegisterFrom(locations->InAt(4));
 
   Register src_ptr = XRegisterFrom(locations->GetTemp(0));
-  Register src_ptr_end = XRegisterFrom(locations->GetTemp(1));
+  Register num_chr = XRegisterFrom(locations->GetTemp(1));
+  Register tmp1 = XRegisterFrom(locations->GetTemp(2));
 
   UseScratchRegisterScope temps(masm);
   Register dst_ptr = temps.AcquireX();
-  Register tmp = temps.AcquireW();
+  Register tmp2 = temps.AcquireX();
 
-  // src range to copy.
+  // src address to copy from.
   __ Add(src_ptr, srcObj, Operand(value_offset));
-  __ Add(src_ptr_end, src_ptr, Operand(srcEnd, LSL, 1));
   __ Add(src_ptr, src_ptr, Operand(srcBegin, LSL, 1));
 
-  // dst to be copied.
+  // dst address start to copy to.
   __ Add(dst_ptr, dstObj, Operand(data_offset));
   __ Add(dst_ptr, dst_ptr, Operand(dstBegin, LSL, 1));
 
+  __ Sub(num_chr, srcEnd, srcBegin);
+
   // Do the copy.
-  vixl::Label loop, done;
+  vixl::Label loop;
+  vixl::Label done;
+  vixl::Label remainder;
+
+  // Early out for valid zero-length retrievals.
+  __ Cbz(num_chr, &done);
+
+  // Save repairing the value of num_chr on the < 8 character path.
+  __ Subs(tmp1, num_chr, 8);
+  __ B(lt, &remainder);
+
+  // Keep the result of the earlier subs, we are going to fetch at least 8 characters.
+  __ Mov(num_chr, tmp1);
+
+  // Main loop used for longer fetches loads and stores 8x16-bit characters at a time.
+  // (Unaligned addresses are acceptable here and not worth inlining extra code to rectify.)
   __ Bind(&loop);
-  __ Cmp(src_ptr, src_ptr_end);
-  __ B(&done, eq);
-  __ Ldrh(tmp, MemOperand(src_ptr, char_size, vixl::PostIndex));
-  __ Strh(tmp, MemOperand(dst_ptr, char_size, vixl::PostIndex));
-  __ B(&loop);
+  __ Ldp(tmp1, tmp2, MemOperand(src_ptr, char_size * 8, vixl::PostIndex));
+  __ Subs(num_chr, num_chr, 8);
+  __ Stp(tmp1, tmp2, MemOperand(dst_ptr, char_size * 8, vixl::PostIndex));
+  __ B(ge, &loop);
+
+  __ Adds(num_chr, num_chr, 8);
+  __ B(eq, &done);
+
+  // Main loop for < 8 character case and remainder handling. Loads and stores one
+  // 16-bit Java character at a time.
+  __ Bind(&remainder);
+  __ Ldrh(tmp1, MemOperand(src_ptr, char_size, vixl::PostIndex));
+  __ Subs(num_chr, num_chr, 1);
+  __ Strh(tmp1, MemOperand(dst_ptr, char_size, vixl::PostIndex));
+  __ B(gt, &remainder);
+
   __ Bind(&done);
 }
 
