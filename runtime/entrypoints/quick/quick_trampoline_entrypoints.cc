@@ -2169,13 +2169,13 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t deadbeef ATTRIBUT
       dex_method_idx, sizeof(void*));
   DCHECK(interface_method != nullptr) << dex_method_idx << " " << PrettyMethod(caller_method);
   ArtMethod* method = nullptr;
+  ImTable* imt = cls->GetImt(sizeof(void*));
 
   if (LIKELY(interface_method->GetDexMethodIndex() != DexFile::kDexNoIndex)) {
     // If the dex cache already resolved the interface method, look whether we have
     // a match in the ImtConflictTable.
     uint32_t imt_index = interface_method->GetDexMethodIndex();
-    ArtMethod* conflict_method = cls->GetEmbeddedImTableEntry(
-        imt_index % mirror::Class::kImtSize, sizeof(void*));
+    ArtMethod* conflict_method = imt->Get(imt_index % ImTable::kSize, sizeof(void*));
     if (LIKELY(conflict_method->IsRuntimeMethod())) {
       ImtConflictTable* current_table = conflict_method->GetImtConflictTable(sizeof(void*));
       DCHECK(current_table != nullptr);
@@ -2227,8 +2227,7 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t deadbeef ATTRIBUT
   // We arrive here if we have found an implementation, and it is not in the ImtConflictTable.
   // We create a new table with the new pair { interface_method, method }.
   uint32_t imt_index = interface_method->GetDexMethodIndex();
-  ArtMethod* conflict_method = cls->GetEmbeddedImTableEntry(
-      imt_index % mirror::Class::kImtSize, sizeof(void*));
+  ArtMethod* conflict_method = imt->Get(imt_index % ImTable::kSize, sizeof(void*));
   if (conflict_method->IsRuntimeMethod()) {
     ArtMethod* new_conflict_method = Runtime::Current()->GetClassLinker()->AddMethodToConflictTable(
         cls.Get(),
@@ -2239,9 +2238,9 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t deadbeef ATTRIBUT
     if (new_conflict_method != conflict_method) {
       // Update the IMT if we create a new conflict method. No fence needed here, as the
       // data is consistent.
-      cls->SetEmbeddedImTableEntry(imt_index % mirror::Class::kImtSize,
-                                  new_conflict_method,
-                                  sizeof(void*));
+      imt->Set(imt_index % ImTable::kSize,
+               new_conflict_method,
+               sizeof(void*));
     }
   }
 
