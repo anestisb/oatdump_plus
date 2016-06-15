@@ -206,6 +206,7 @@ const ArmInstructionSetFeatures* ArmInstructionSetFeatures::FromAssembly() {
   struct sigaction sa, osa;
   sa.sa_flags = SA_ONSTACK | SA_RESTART | SA_SIGINFO;
   sa.sa_sigaction = bad_divide_inst_handle;
+  sigemptyset(&sa.sa_mask);
   sigaction(SIGILL, &sa, &osa);
 
   bool has_div = false;
