@@ -1178,8 +1178,9 @@ ImageSpace* ImageSpace::Init(const char* image_filename,
       return nullptr;
     }
   }
-  ImageHeader temp_image_header;
-  ImageHeader* image_header = &temp_image_header;
+  // unique_ptr to reduce frame size.
+  std::unique_ptr<ImageHeader> temp_image_header(new ImageHeader);
+  ImageHeader* image_header = temp_image_header.get();
   {
     TimingLogger::ScopedTiming timing("ReadImageHeader", &logger);
     bool success = file->ReadFully(image_header, sizeof(*image_header));
