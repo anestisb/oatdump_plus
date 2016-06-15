@@ -51,7 +51,7 @@ if [[ $mode == "host" ]]; then
   make_command+=" ${out_dir}/host/linux-x86/lib64/libjavacoretests.so"
 elif [[ $mode == "target" ]]; then
   make_command="make $j_arg $showcommands build-art-target-tests $common_targets"
-  make_command+=" libjavacrypto libjavacoretests linker toybox toolbox sh"
+  make_command+=" libjavacrypto libjavacoretests libnetd_client linker toybox toolbox sh"
   make_command+=" ${out_dir}/host/linux-x86/bin/adb libstdc++ "
   make_command+=" ${out_dir}/target/product/${TARGET_PRODUCT}/system/etc/public.libraries.txt"
 fi
