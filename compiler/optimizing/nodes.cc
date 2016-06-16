@@ -754,7 +754,7 @@ bool HBasicBlock::Dominates(HBasicBlock* other) const {
 }
 
 static void UpdateInputsUsers(HInstruction* instruction) {
-  auto&& inputs = instruction->GetInputs();
+  HInputsRef inputs = instruction->GetInputs();
   for (size_t i = 0; i < inputs.size(); ++i) {
     inputs[i]->AddUseAt(instruction, i);
   }
@@ -1312,8 +1312,8 @@ bool HInstruction::Equals(const HInstruction* other) const {
   DCHECK_EQ(GetKind(), other->GetKind());
   if (!InstructionDataEquals(other)) return false;
   if (GetType() != other->GetType()) return false;
-  auto&& inputs = GetInputs();
-  auto&& other_inputs = other->GetInputs();
+  HConstInputsRef inputs = GetInputs();
+  HConstInputsRef other_inputs = other->GetInputs();
   if (inputs.size() != other_inputs.size()) return false;
   for (size_t i = 0; i != inputs.size(); ++i) {
     if (inputs[i] != other_inputs[i]) return false;
