@@ -365,6 +365,7 @@ COMPILER_GTEST_HOST_SRC_FILES_arm64 := \
 COMPILER_GTEST_HOST_SRC_FILES_mips := \
   $(COMPILER_GTEST_COMMON_SRC_FILES_mips) \
   compiler/utils/mips/assembler_mips_test.cc \
+  compiler/utils/mips/assembler_mips32r6_test.cc \
 
 COMPILER_GTEST_HOST_SRC_FILES_mips64 := \
   $(COMPILER_GTEST_COMMON_SRC_FILES_mips64) \
