@@ -17,6 +17,7 @@
 #include "art_method.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
+#include "jit/profiling_info.h"
 #include "oat_quick_method_header.h"
 #include "scoped_thread_state_change.h"
 #include "stack_map.h"
@@ -37,8 +38,10 @@ static void do_checks(jclass cls, const char* method_name) {
     if (code_cache->ContainsPc(header->GetCode())) {
       break;
     } else {
-      // sleep one second to give time to the JIT compiler.
-      sleep(1);
+      // Sleep to yield to the compiler thread.
+      usleep(1000);
+      // Will either ensure it's compiled or do the compilation itself.
+      jit->CompileMethod(method, soa.Self(), /* osr */ false);
     }
   }
 
@@ -47,7 +50,25 @@ static void do_checks(jclass cls, const char* method_name) {
   CHECK(info.HasInlineInfo(encoding));
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_ensureJittedAndPolymorphicInline(JNIEnv*, jclass cls) {
+static void allocate_profiling_info(jclass cls, const char* method_name) {
+  ScopedObjectAccess soa(Thread::Current());
+  mirror::Class* klass = soa.Decode<mirror::Class*>(cls);
+  ArtMethod* method = klass->FindDeclaredDirectMethodByName(method_name, sizeof(void*));
+  ProfilingInfo::Create(soa.Self(), method, /* retry_allocation */ true);
+}
+
+extern "C" JNIEXPORT void JNICALL Java_Main_ensureProfilingInfo566(JNIEnv*, jclass cls) {
+  jit::Jit* jit = Runtime::Current()->GetJit();
+  if (jit == nullptr) {
+    return;
+  }
+
+  allocate_profiling_info(cls, "testInvokeVirtual");
+  allocate_profiling_info(cls, "testInvokeInterface");
+  allocate_profiling_info(cls, "$noinline$testInlineToSameTarget");
+}
+
+extern "C" JNIEXPORT void JNICALL Java_Main_ensureJittedAndPolymorphicInline566(JNIEnv*, jclass cls) {
   jit::Jit* jit = Runtime::Current()->GetJit();
   if (jit == nullptr) {
     return;
