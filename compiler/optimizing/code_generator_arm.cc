@@ -1901,7 +1901,7 @@ void InstructionCodeGeneratorARM::VisitInvokeInterface(HInvokeInterface* invoke)
   __ LoadFromOffset(kLoadWord, temp, temp,
         mirror::Class::ImtPtrOffset(kArmPointerSize).Uint32Value());
   uint32_t method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
-      invoke->GetImtIndex() % ImTable::kSize, kArmPointerSize));
+      invoke->GetImtIndex(), kArmPointerSize));
   // temp = temp->GetImtEntryAt(method_offset);
   __ LoadFromOffset(kLoadWord, temp, temp, method_offset);
   uint32_t entry_point =
@@ -6783,7 +6783,7 @@ void InstructionCodeGeneratorARM::VisitClassTableGet(HClassTableGet* instruction
         locations->InAt(0).AsRegister<Register>(),
         mirror::Class::ImtPtrOffset(kArmPointerSize).Uint32Value());
     method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
-        instruction->GetIndex() % ImTable::kSize, kArmPointerSize));
+        instruction->GetIndex(), kArmPointerSize));
   }
   __ LoadFromOffset(kLoadWord,
                     locations->Out().AsRegister<Register>(),
