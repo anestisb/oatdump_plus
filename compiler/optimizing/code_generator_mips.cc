@@ -3720,7 +3720,7 @@ void InstructionCodeGeneratorMIPS::VisitInvokeInterface(HInvokeInterface* invoke
   __ LoadFromOffset(kLoadWord, temp, temp,
       mirror::Class::ImtPtrOffset(kMipsPointerSize).Uint32Value());
   uint32_t method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
-      invoke->GetImtIndex() % ImTable::kSize, kMipsPointerSize));
+      invoke->GetImtIndex(), kMipsPointerSize));
   // temp = temp->GetImtEntryAt(method_offset);
   __ LoadFromOffset(kLoadWord, temp, temp, method_offset);
   // T9 = temp->GetEntryPoint();
@@ -5169,7 +5169,7 @@ void InstructionCodeGeneratorMIPS::VisitClassTableGet(HClassTableGet* instructio
                       locations->InAt(0).AsRegister<Register>(),
                       mirror::Class::ImtPtrOffset(kMipsPointerSize).Uint32Value());
     method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
-        instruction->GetIndex() % ImTable::kSize, kMipsPointerSize));
+        instruction->GetIndex(), kMipsPointerSize));
   }
   __ LoadFromOffset(kLoadWord,
                     locations->Out().AsRegister<Register>(),
