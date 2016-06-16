@@ -2228,6 +2228,51 @@ TEST_F(AssemblerMIPSTest, Bc1t) {
   DriverStr(expected, "Bc1t");
 }
 
+///////////////////////
+// Loading Constants //
+///////////////////////
+
+TEST_F(AssemblerMIPSTest, LoadConst32) {
+  // IsUint<16>(value)
+  __ LoadConst32(mips::V0, 0);
+  __ LoadConst32(mips::V0, 65535);
+  // IsInt<16>(value)
+  __ LoadConst32(mips::V0, -1);
+  __ LoadConst32(mips::V0, -32768);
+  // Everything else
+  __ LoadConst32(mips::V0, 65536);
+  __ LoadConst32(mips::V0, 65537);
+  __ LoadConst32(mips::V0, 2147483647);
+  __ LoadConst32(mips::V0, -32769);
+  __ LoadConst32(mips::V0, -65536);
+  __ LoadConst32(mips::V0, -65537);
+  __ LoadConst32(mips::V0, -2147483647);
+  __ LoadConst32(mips::V0, -2147483648);
+
+  const char* expected =
+      // IsUint<16>(value)
+      "ori $v0, $zero, 0\n"         // __ LoadConst32(mips::V0, 0);
+      "ori $v0, $zero, 65535\n"     // __ LoadConst32(mips::V0, 65535);
+      // IsInt<16>(value)
+      "addiu $v0, $zero, -1\n"      // __ LoadConst32(mips::V0, -1);
+      "addiu $v0, $zero, -32768\n"  // __ LoadConst32(mips::V0, -32768);
+      // Everything else
+      "lui $v0, 1\n"                // __ LoadConst32(mips::V0, 65536);
+      "lui $v0, 1\n"                // __ LoadConst32(mips::V0, 65537);
+      "ori $v0, 1\n"                //                 "
+      "lui $v0, 32767\n"            // __ LoadConst32(mips::V0, 2147483647);
+      "ori $v0, 65535\n"            //                 "
+      "lui $v0, 65535\n"            // __ LoadConst32(mips::V0, -32769);
+      "ori $v0, 32767\n"            //                 "
+      "lui $v0, 65535\n"            // __ LoadConst32(mips::V0, -65536);
+      "lui $v0, 65534\n"            // __ LoadConst32(mips::V0, -65537);
+      "ori $v0, 65535\n"            //                 "
+      "lui $v0, 32768\n"            // __ LoadConst32(mips::V0, -2147483647);
+      "ori $v0, 1\n"                //                 "
+      "lui $v0, 32768\n";           // __ LoadConst32(mips::V0, -2147483648);
+  DriverStr(expected, "LoadConst32");
+}
+
 #undef __
 
 }  // namespace art
