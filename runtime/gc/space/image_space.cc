@@ -1158,6 +1158,80 @@ static bool RelocateInPlace(ImageHeader& image_header,
   return true;
 }
 
+static MemMap* LoadImageFile(const char* image_filename,
+                             const char* image_location,
+                             const ImageHeader& image_header,
+                             uint8_t* address,
+                             int fd,
+                             TimingLogger& logger,
+                             std::string* error_msg) {
+  TimingLogger::ScopedTiming timing("MapImageFile", &logger);
+  const ImageHeader::StorageMode storage_mode = image_header.GetStorageMode();
+  if (storage_mode == ImageHeader::kStorageModeUncompressed) {
+    return MemMap::MapFileAtAddress(address,
+                                    image_header.GetImageSize(),
+                                    PROT_READ | PROT_WRITE,
+                                    MAP_PRIVATE,
+                                    fd,
+                                    0,
+                                    /*low_4gb*/true,
+                                    /*reuse*/false,
+                                    image_filename,
+                                    error_msg);
+  }
+
+  if (storage_mode != ImageHeader::kStorageModeLZ4 &&
+      storage_mode != ImageHeader::kStorageModeLZ4HC) {
+    *error_msg = StringPrintf("Invalid storage mode in image header %d",
+                              static_cast<int>(storage_mode));
+    return nullptr;
+  }
+
+  // Reserve output and decompress into it.
+  std::unique_ptr<MemMap> map(MemMap::MapAnonymous(image_location,
+                                                   address,
+                                                   image_header.GetImageSize(),
+                                                   PROT_READ | PROT_WRITE,
+                                                   /*low_4gb*/true,
+                                                   /*reuse*/false,
+                                                   error_msg));
+  if (map != nullptr) {
+    const size_t stored_size = image_header.GetDataSize();
+    const size_t decompress_offset = sizeof(ImageHeader);  // Skip the header.
+    std::unique_ptr<MemMap> temp_map(MemMap::MapFile(sizeof(ImageHeader) + stored_size,
+                                                     PROT_READ,
+                                                     MAP_PRIVATE,
+                                                     fd,
+                                                     /*offset*/0,
+                                                     /*low_4gb*/false,
+                                                     image_filename,
+                                                     error_msg));
+    if (temp_map == nullptr) {
+      DCHECK(!error_msg->empty());
+      return nullptr;
+    }
+    memcpy(map->Begin(), &image_header, sizeof(ImageHeader));
+    const uint64_t start = NanoTime();
+    // LZ4HC and LZ4 have same internal format, both use LZ4_decompress.
+    TimingLogger::ScopedTiming timing2("LZ4 decompress image", &logger);
+    const size_t decompressed_size = LZ4_decompress_safe(
+        reinterpret_cast<char*>(temp_map->Begin()) + sizeof(ImageHeader),
+        reinterpret_cast<char*>(map->Begin()) + decompress_offset,
+        stored_size,
+        map->Size() - decompress_offset);
+    VLOG(image) << "Decompressing image took " << PrettyDuration(NanoTime() - start);
+    if (decompressed_size + sizeof(ImageHeader) != image_header.GetImageSize()) {
+      *error_msg = StringPrintf(
+          "Decompressed size does not match expected image size %zu vs %zu",
+          decompressed_size + sizeof(ImageHeader),
+          image_header.GetImageSize());
+      return nullptr;
+    }
+  }
+
+  return map.release();
+}
+
 ImageSpace* ImageSpace::Init(const char* image_filename,
                              const char* image_location,
                              bool validate_oat_file,
@@ -1235,91 +1309,30 @@ ImageSpace* ImageSpace::Init(const char* image_filename,
     return nullptr;
   }
 
-  // The preferred address to map the image, null specifies any address. If we manage to map the
-  // image at the image begin, the amount of fixup work required is minimized.
-  std::vector<uint8_t*> addresses(1, image_header->GetImageBegin());
-  if (image_header->IsPic()) {
-    // Can also map at a random low_4gb address since we can relocate in-place.
-    addresses.push_back(nullptr);
-  }
-
-  // Note: The image header is part of the image due to mmap page alignment required of offset.
   std::unique_ptr<MemMap> map;
-  std::string temp_error_msg;
-  for (uint8_t* address : addresses) {
-    TimingLogger::ScopedTiming timing("MapImageFile", &logger);
-    // Only care about the error message for the last address in addresses. We want to avoid the
-    // overhead of printing the process maps if we can relocate.
-    std::string* out_error_msg = (address == addresses.back()) ? &temp_error_msg : nullptr;
-    const ImageHeader::StorageMode storage_mode = image_header->GetStorageMode();
-    if (storage_mode == ImageHeader::kStorageModeUncompressed) {
-      map.reset(MemMap::MapFileAtAddress(address,
-                                         image_header->GetImageSize(),
-                                         PROT_READ | PROT_WRITE,
-                                         MAP_PRIVATE,
-                                         file->Fd(),
-                                         0,
-                                         /*low_4gb*/true,
-                                         /*reuse*/false,
-                                         image_filename,
-                                         /*out*/out_error_msg));
-    } else {
-      if (storage_mode != ImageHeader::kStorageModeLZ4 &&
-          storage_mode != ImageHeader::kStorageModeLZ4HC) {
-        *error_msg = StringPrintf("Invalid storage mode in image header %d",
-                                  static_cast<int>(storage_mode));
-        return nullptr;
-      }
-      // Reserve output and decompress into it.
-      map.reset(MemMap::MapAnonymous(image_location,
-                                     address,
-                                     image_header->GetImageSize(),
-                                     PROT_READ | PROT_WRITE,
-                                     /*low_4gb*/true,
-                                     /*reuse*/false,
-                                     /*out*/out_error_msg));
-      if (map != nullptr) {
-        const size_t stored_size = image_header->GetDataSize();
-        const size_t decompress_offset = sizeof(ImageHeader);  // Skip the header.
-        std::unique_ptr<MemMap> temp_map(MemMap::MapFile(sizeof(ImageHeader) + stored_size,
-                                                         PROT_READ,
-                                                         MAP_PRIVATE,
-                                                         file->Fd(),
-                                                         /*offset*/0,
-                                                         /*low_4gb*/false,
-                                                         image_filename,
-                                                         out_error_msg));
-        if (temp_map == nullptr) {
-          DCHECK(!out_error_msg->empty());
-          return nullptr;
-        }
-        memcpy(map->Begin(), image_header, sizeof(ImageHeader));
-        const uint64_t start = NanoTime();
-        // LZ4HC and LZ4 have same internal format, both use LZ4_decompress.
-        TimingLogger::ScopedTiming timing2("LZ4 decompress image", &logger);
-        const size_t decompressed_size = LZ4_decompress_safe(
-            reinterpret_cast<char*>(temp_map->Begin()) + sizeof(ImageHeader),
-            reinterpret_cast<char*>(map->Begin()) + decompress_offset,
-            stored_size,
-            map->Size() - decompress_offset);
-        VLOG(image) << "Decompressing image took " << PrettyDuration(NanoTime() - start);
-        if (decompressed_size + sizeof(ImageHeader) != image_header->GetImageSize()) {
-          *error_msg = StringPrintf(
-              "Decompressed size does not match expected image size %zu vs %zu",
-              decompressed_size + sizeof(ImageHeader),
-              image_header->GetImageSize());
-          return nullptr;
-        }
-      }
-    }
-    if (map != nullptr) {
-      break;
-    }
+  // GetImageBegin is the preferred address to map the image. If we manage to map the
+  // image at the image begin, the amount of fixup work required is minimized.
+  map.reset(LoadImageFile(image_filename,
+                          image_location,
+                          *image_header,
+                          image_header->GetImageBegin(),
+                          file->Fd(),
+                          logger,
+                          error_msg));
+  // If the header specifies PIC mode, we can also map at a random low_4gb address since we can
+  // relocate in-place.
+  if (map == nullptr && image_header->IsPic()) {
+    map.reset(LoadImageFile(image_filename,
+                            image_location,
+                            *image_header,
+                            /* address */ nullptr,
+                            file->Fd(),
+                            logger,
+                            error_msg));
   }
-
+  // Were we able to load something and continue?
   if (map == nullptr) {
-    DCHECK(!temp_error_msg.empty());
-    *error_msg = temp_error_msg;
+    DCHECK(!error_msg->empty());
     return nullptr;
   }
   DCHECK_EQ(0, memcmp(image_header, map->Begin(), sizeof(ImageHeader)));
