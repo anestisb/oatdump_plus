@@ -2031,7 +2031,7 @@ void IntrinsicLocationsBuilderARM::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   locations->SetInAt(3, Location::RequiresRegister());
   locations->SetInAt(4, Location::RequiresRegister());
 
-  locations->AddTemp(Location::RequiresRegister());
+  // Temporary registers to store lengths of strings and for calculations.
   locations->AddTemp(Location::RequiresRegister());
   locations->AddTemp(Location::RequiresRegister());
   locations->AddTemp(Location::RequiresRegister());
@@ -2059,28 +2059,55 @@ void IntrinsicCodeGeneratorARM::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   Register dstObj = locations->InAt(3).AsRegister<Register>();
   Register dstBegin = locations->InAt(4).AsRegister<Register>();
 
-  Register src_ptr = locations->GetTemp(0).AsRegister<Register>();
-  Register src_ptr_end = locations->GetTemp(1).AsRegister<Register>();
+  Register num_chr = locations->GetTemp(0).AsRegister<Register>();
+  Register src_ptr = locations->GetTemp(1).AsRegister<Register>();
   Register dst_ptr = locations->GetTemp(2).AsRegister<Register>();
-  Register tmp = locations->GetTemp(3).AsRegister<Register>();
 
   // src range to copy.
   __ add(src_ptr, srcObj, ShifterOperand(value_offset));
-  __ add(src_ptr_end, src_ptr, ShifterOperand(srcEnd, LSL, 1));
   __ add(src_ptr, src_ptr, ShifterOperand(srcBegin, LSL, 1));
 
   // dst to be copied.
   __ add(dst_ptr, dstObj, ShifterOperand(data_offset));
   __ add(dst_ptr, dst_ptr, ShifterOperand(dstBegin, LSL, 1));
 
+  __ subs(num_chr, srcEnd, ShifterOperand(srcBegin));
+
   // Do the copy.
-  Label loop, done;
-  __ Bind(&loop);
-  __ cmp(src_ptr, ShifterOperand(src_ptr_end));
+  Label loop, remainder, done;
+
+  // Early out for valid zero-length retrievals.
   __ b(&done, EQ);
-  __ ldrh(tmp, Address(src_ptr, char_size, Address::PostIndex));
-  __ strh(tmp, Address(dst_ptr, char_size, Address::PostIndex));
-  __ b(&loop);
+
+  // Save repairing the value of num_chr on the < 4 character path.
+  __ subs(IP, num_chr, ShifterOperand(4));
+  __ b(&remainder, LT);
+
+  // Keep the result of the earlier subs, we are going to fetch at least 4 characters.
+  __ mov(num_chr, ShifterOperand(IP));
+
+  // Main loop used for longer fetches loads and stores 4x16-bit characters at a time.
+  // (LDRD/STRD fault on unaligned addresses and it's not worth inlining extra code
+  // to rectify these everywhere this intrinsic applies.)
+  __ Bind(&loop);
+  __ ldr(IP, Address(src_ptr, char_size * 2));
+  __ subs(num_chr, num_chr, ShifterOperand(4));
+  __ str(IP, Address(dst_ptr, char_size * 2));
+  __ ldr(IP, Address(src_ptr, char_size * 4, Address::PostIndex));
+  __ str(IP, Address(dst_ptr, char_size * 4, Address::PostIndex));
+  __ b(&loop, GE);
+
+  __ adds(num_chr, num_chr, ShifterOperand(4));
+  __ b(&done, EQ);
+
+  // Main loop for < 4 character case and remainder handling. Loads and stores one
+  // 16-bit Java character at a time.
+  __ Bind(&remainder);
+  __ ldrh(IP, Address(src_ptr, char_size, Address::PostIndex));
+  __ subs(num_chr, num_chr, ShifterOperand(1));
+  __ strh(IP, Address(dst_ptr, char_size, Address::PostIndex));
+  __ b(&remainder, GT);
+
   __ Bind(&done);
 }
 
