@@ -36,7 +36,8 @@ public class Main {
         thread1.start();
         thread2.start();
 
-        try { barrier.await(); } catch (Exception e) { }
+        // Not expecting any exceptions, so print them out if we get them.
+        try { barrier.await(); } catch (Exception e) { System.out.println(e); }
         try { Thread.sleep(6000); } catch (InterruptedException ie) { }
 
         System.out.println("Deadlock test interrupting threads.");
@@ -51,7 +52,8 @@ public class Main {
 
 class A {
     static {
-        try { Main.barrier.await(); } catch (Exception e) { }
+        // Not expecting any exceptions, so print them out if we get them.
+        try { Main.barrier.await(); } catch (Exception e) { System.out.println(e); }
         new B();
         System.out.println("A initialized");
         Main.aInitialized = true;
@@ -60,7 +62,8 @@ class A {
 
 class B {
     static {
-        try { Main.barrier.await(); } catch (Exception e) { }
+        // Not expecting any exceptions, so print them out if we get them.
+        try { Main.barrier.await(); } catch (Exception e) { System.out.println(e); }
         new A();
         System.out.println("B initialized");
         Main.bInitialized = true;
