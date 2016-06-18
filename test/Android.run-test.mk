@@ -209,10 +209,9 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),
         $(IMAGE_TYPES), $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), $(ART_TEST_RUN_TEST_SKIP), $(ALL_ADDRESS_SIZES))
 
 
-# Disable 149-suspend-all-stress, its output is flaky (b/28988206).
+# Disable 137-cfi (b/27391690).
 # Disable 577-profile-foreign-dex (b/27454772).
 TEST_ART_BROKEN_ALL_TARGET_TESTS := \
-  149-suspend-all-stress \
   577-profile-foreign-dex \
 
 ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
