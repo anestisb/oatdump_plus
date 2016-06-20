@@ -17,8 +17,8 @@
  *
  * This is a re-implementation of the original dexdump utility that was
  * based on Dalvik functions in libdex into a new dexdump that is now
- * based on Art functions in libart instead. The output is identical to
- * the original for correct DEX files. Error messages may differ, however.
+ * based on Art functions in libart instead. The output is very similar to
+ * to the original for correct DEX files. Error messages may differ, however.
  * Also, ODEX files are no longer supported.
  *
  * The dexdump tool is intended to mimic objdump.  When possible, use
@@ -65,6 +65,8 @@ typedef uint8_t  u1;
 typedef uint16_t u2;
 typedef uint32_t u4;
 typedef uint64_t u8;
+typedef int8_t   s1;
+typedef int16_t  s2;
 typedef int32_t  s4;
 typedef int64_t  s8;
 
@@ -184,6 +186,13 @@ static char* descriptorClassToDot(const char* str) {
     }
   }  // for
   return newStr;
+}
+
+/*
+ * Returns string representing the boolean value.
+ */
+static const char* strBool(bool val) {
+  return val ? "true" : "false";
 }
 
 /*
@@ -346,10 +355,197 @@ static void asciify(char* out, const unsigned char* data, size_t len) {
 }
 
 /*
+ * Dumps a string value with some escape characters.
+ */
+static void dumpEscapedString(const char* p) {
+  fputs("\"", gOutFile);
+  for (; *p; p++) {
+    switch (*p) {
+      case '\\':
+        fputs("\\\\", gOutFile);
+        break;
+      case '\"':
+        fputs("\\\"", gOutFile);
+        break;
+      case '\t':
+        fputs("\\t", gOutFile);
+        break;
+      case '\n':
+        fputs("\\n", gOutFile);
+        break;
+      case '\r':
+        fputs("\\r", gOutFile);
+        break;
+      default:
+        putc(*p, gOutFile);
+    }  // switch
+  }  // for
+  fputs("\"", gOutFile);
+}
+
+/*
+ * Dumps a string as an XML attribute value.
+ */
+static void dumpXmlAttribute(const char* p) {
+  for (; *p; p++) {
+    switch (*p) {
+      case '&':
+        fputs("&amp;", gOutFile);
+        break;
+      case '<':
+        fputs("&lt;", gOutFile);
+        break;
+      case '>':
+        fputs("&gt;", gOutFile);
+        break;
+      case '"':
+        fputs("&quot;", gOutFile);
+        break;
+      case '\t':
+        fputs("&#x9;", gOutFile);
+        break;
+      case '\n':
+        fputs("&#xA;", gOutFile);
+        break;
+      case '\r':
+        fputs("&#xD;", gOutFile);
+        break;
+      default:
+        putc(*p, gOutFile);
+    }  // switch
+  }  // for
+}
+
+/*
+ * Reads variable width value, possibly sign extended at the last defined byte.
+ */
+static u8 readVarWidth(const u1** data, u1 arg, bool sign_extend) {
+  u8 value = 0;
+  for (u4 i = 0; i <= arg; i++) {
+    value |= static_cast<u8>(*(*data)++) << (i * 8);
+  }
+  if (sign_extend) {
+    int shift = (7 - arg) * 8;
+    return (static_cast<s8>(value) << shift) >> shift;
+  }
+  return value;
+}
+
+/*
+ * Dumps encoded value.
+ */
+static void dumpEncodedValue(const DexFile* pDexFile, const u1** data);  // forward
+static void dumpEncodedValue(const DexFile* pDexFile, const u1** data, u1 type, u1 arg) {
+  switch (type) {
+    case DexFile::kDexAnnotationByte:
+      fprintf(gOutFile, "%" PRId8, static_cast<s1>(readVarWidth(data, arg, false)));
+      break;
+    case DexFile::kDexAnnotationShort:
+      fprintf(gOutFile, "%" PRId16, static_cast<s2>(readVarWidth(data, arg, true)));
+      break;
+    case DexFile::kDexAnnotationChar:
+      fprintf(gOutFile, "%" PRIu16, static_cast<u2>(readVarWidth(data, arg, false)));
+      break;
+    case DexFile::kDexAnnotationInt:
+      fprintf(gOutFile, "%" PRId32, static_cast<s4>(readVarWidth(data, arg, true)));
+      break;
+    case DexFile::kDexAnnotationLong:
+      fprintf(gOutFile, "%" PRId64, static_cast<s8>(readVarWidth(data, arg, true)));
+      break;
+    case DexFile::kDexAnnotationFloat: {
+      // Fill on right.
+      union {
+        float f;
+        u4 data;
+      } conv;
+      conv.data = static_cast<u4>(readVarWidth(data, arg, false)) << (3 - arg) * 8;
+      fprintf(gOutFile, "%g", conv.f);
+      break;
+    }
+    case DexFile::kDexAnnotationDouble: {
+      // Fill on right.
+      union {
+        double d;
+        u8 data;
+      } conv;
+      conv.data = readVarWidth(data, arg, false) << (7 - arg) * 8;
+      fprintf(gOutFile, "%g", conv.d);
+      break;
+    }
+    case DexFile::kDexAnnotationString: {
+      const u4 idx = static_cast<u4>(readVarWidth(data, arg, false));
+      if (gOptions.outputFormat == OUTPUT_PLAIN) {
+        dumpEscapedString(pDexFile->StringDataByIdx(idx));
+      } else {
+        dumpXmlAttribute(pDexFile->StringDataByIdx(idx));
+      }
+      break;
+    }
+    case DexFile::kDexAnnotationType: {
+      const u4 str_idx = static_cast<u4>(readVarWidth(data, arg, false));
+      fputs(pDexFile->StringByTypeIdx(str_idx), gOutFile);
+      break;
+    }
+    case DexFile::kDexAnnotationField:
+    case DexFile::kDexAnnotationEnum: {
+      const u4 field_idx = static_cast<u4>(readVarWidth(data, arg, false));
+      const DexFile::FieldId& pFieldId = pDexFile->GetFieldId(field_idx);
+      fputs(pDexFile->StringDataByIdx(pFieldId.name_idx_), gOutFile);
+      break;
+    }
+    case DexFile::kDexAnnotationMethod: {
+      const u4 method_idx = static_cast<u4>(readVarWidth(data, arg, false));
+      const DexFile::MethodId& pMethodId = pDexFile->GetMethodId(method_idx);
+      fputs(pDexFile->StringDataByIdx(pMethodId.name_idx_), gOutFile);
+      break;
+    }
+    case DexFile::kDexAnnotationArray: {
+      fputc('{', gOutFile);
+      // Decode and display all elements.
+      const u4 size = DecodeUnsignedLeb128(data);
+      for (u4 i = 0; i < size; i++) {
+        fputc(' ', gOutFile);
+        dumpEncodedValue(pDexFile, data);
+      }
+      fputs(" }", gOutFile);
+      break;
+    }
+    case DexFile::kDexAnnotationAnnotation: {
+      const u4 type_idx = DecodeUnsignedLeb128(data);
+      fputs(pDexFile->StringByTypeIdx(type_idx), gOutFile);
+      // Decode and display all name=value pairs.
+      const u4 size = DecodeUnsignedLeb128(data);
+      for (u4 i = 0; i < size; i++) {
+        const u4 name_idx = DecodeUnsignedLeb128(data);
+        fputc(' ', gOutFile);
+        fputs(pDexFile->StringDataByIdx(name_idx), gOutFile);
+        fputc('=', gOutFile);
+        dumpEncodedValue(pDexFile, data);
+      }
+      break;
+    }
+    case DexFile::kDexAnnotationNull:
+      fputs("null", gOutFile);
+      break;
+    case DexFile::kDexAnnotationBoolean:
+      fputs(strBool(arg), gOutFile);
+      break;
+    default:
+      fputs("????", gOutFile);
+      break;
+  }  // switch
+}
+
+/*
+ * Dumps encoded value with prefix.
+ */
+static void dumpEncodedValue(const DexFile* pDexFile, const u1** data) {
+  const u1 enc = *(*data)++;
+  dumpEncodedValue(pDexFile, data, enc & 0x1f, enc >> 5);
+}
+
+/*
  * Dumps the file header.
- *
- * Note that some of the : are misaligned on purpose to preserve
- * the exact output of the original Dalvik dexdump.
  */
 static void dumpFileHeader(const DexFile* pDexFile) {
   const DexFile::Header& pHeader = pDexFile->GetHeader();
@@ -373,8 +569,8 @@ static void dumpFileHeader(const DexFile* pDexFile) {
   fprintf(gOutFile, "type_ids_size       : %d\n", pHeader.type_ids_size_);
   fprintf(gOutFile, "type_ids_off        : %d (0x%06x)\n",
           pHeader.type_ids_off_, pHeader.type_ids_off_);
-  fprintf(gOutFile, "proto_ids_size       : %d\n", pHeader.proto_ids_size_);
-  fprintf(gOutFile, "proto_ids_off        : %d (0x%06x)\n",
+  fprintf(gOutFile, "proto_ids_size      : %d\n", pHeader.proto_ids_size_);
+  fprintf(gOutFile, "proto_ids_off       : %d (0x%06x)\n",
           pHeader.proto_ids_off_, pHeader.proto_ids_off_);
   fprintf(gOutFile, "field_ids_size      : %d\n", pHeader.field_ids_size_);
   fprintf(gOutFile, "field_ids_off       : %d (0x%06x)\n",
@@ -424,6 +620,99 @@ static void dumpClassDef(const DexFile* pDexFile, int idx) {
     fprintf(gOutFile, "virtual_methods_size: 0\n");
   }
   fprintf(gOutFile, "\n");
+}
+
+/**
+ * Dumps an annotation set item.
+ */
+static void dumpAnnotationSetItem(const DexFile* pDexFile, const DexFile::AnnotationSetItem* set_item) {
+  if (set_item == nullptr || set_item->size_ == 0) {
+    fputs("  empty-annotation-set\n", gOutFile);
+    return;
+  }
+  for (u4 i = 0; i < set_item->size_; i++) {
+    const DexFile::AnnotationItem* annotation = pDexFile->GetAnnotationItem(set_item, i);
+    if (annotation == nullptr) {
+      continue;
+    }
+    fputs("  ", gOutFile);
+    switch (annotation->visibility_) {
+      case DexFile::kDexVisibilityBuild:   fputs("VISIBILITY_BUILD ",   gOutFile); break;
+      case DexFile::kDexVisibilityRuntime: fputs("VISIBILITY_RUNTIME ", gOutFile); break;
+      case DexFile::kDexVisibilitySystem:  fputs("VISIBILITY_SYSTEM ",  gOutFile); break;
+      default:                             fputs("VISIBILITY_UNKNOWN ", gOutFile); break;
+    }  // switch
+    // Decode raw bytes in annotation.
+    const u1* rData = annotation->annotation_;
+    dumpEncodedValue(pDexFile, &rData, DexFile::kDexAnnotationAnnotation, 0);
+    fputc('\n', gOutFile);
+  }
+}
+
+/*
+ * Dumps class annotations.
+ */
+static void dumpClassAnnotations(const DexFile* pDexFile, int idx) {
+  const DexFile::ClassDef& pClassDef = pDexFile->GetClassDef(idx);
+  const DexFile::AnnotationsDirectoryItem* dir = pDexFile->GetAnnotationsDirectory(pClassDef);
+  if (dir == nullptr) {
+    return;  // none
+  }
+
+  fprintf(gOutFile, "Class #%d annotations:\n", idx);
+
+  const DexFile::AnnotationSetItem* class_set_item = pDexFile->GetClassAnnotationSet(dir);
+  const DexFile::FieldAnnotationsItem* fields = pDexFile->GetFieldAnnotations(dir);
+  const DexFile::MethodAnnotationsItem* methods = pDexFile->GetMethodAnnotations(dir);
+  const DexFile::ParameterAnnotationsItem* pars = pDexFile->GetParameterAnnotations(dir);
+
+  // Annotations on the class itself.
+  if (class_set_item != nullptr) {
+    fprintf(gOutFile, "Annotations on class\n");
+    dumpAnnotationSetItem(pDexFile, class_set_item);
+  }
+
+  // Annotations on fields.
+  if (fields != nullptr) {
+    for (u4 i = 0; i < dir->fields_size_; i++) {
+      const u4 field_idx = fields[i].field_idx_;
+      const DexFile::FieldId& pFieldId = pDexFile->GetFieldId(field_idx);
+      const char* field_name = pDexFile->StringDataByIdx(pFieldId.name_idx_);
+      fprintf(gOutFile, "Annotations on field #%u '%s'\n", field_idx, field_name);
+      dumpAnnotationSetItem(pDexFile, pDexFile->GetFieldAnnotationSetItem(fields[i]));
+    }
+  }
+
+  // Annotations on methods.
+  if (methods != nullptr) {
+    for (u4 i = 0; i < dir->methods_size_; i++) {
+      const u4 method_idx = methods[i].method_idx_;
+      const DexFile::MethodId& pMethodId = pDexFile->GetMethodId(method_idx);
+      const char* method_name = pDexFile->StringDataByIdx(pMethodId.name_idx_);
+      fprintf(gOutFile, "Annotations on method #%u '%s'\n", method_idx, method_name);
+      dumpAnnotationSetItem(pDexFile, pDexFile->GetMethodAnnotationSetItem(methods[i]));
+    }
+  }
+
+  // Annotations on method parameters.
+  if (pars != nullptr) {
+    for (u4 i = 0; i < dir->parameters_size_; i++) {
+      const u4 method_idx = pars[i].method_idx_;
+      const DexFile::MethodId& pMethodId = pDexFile->GetMethodId(method_idx);
+      const char* method_name = pDexFile->StringDataByIdx(pMethodId.name_idx_);
+      fprintf(gOutFile, "Annotations on method #%u '%s' parameters\n", method_idx, method_name);
+      const DexFile::AnnotationSetRefList*
+          list = pDexFile->GetParameterAnnotationSetRefList(&pars[i]);
+      if (list != nullptr) {
+        for (u4 j = 0; j < list->size_; j++) {
+          fprintf(gOutFile, "#%u\n", j);
+          dumpAnnotationSetItem(pDexFile, pDexFile->GetSetRefItemItem(&list->list_[j]));
+        }
+      }
+    }
+  }
+
+  fputc('\n', gOutFile);
 }
 
 /*
@@ -677,27 +966,25 @@ static void dumpInstruction(const DexFile* pDexFile,
       fprintf(gOutFile, " v%d", pDecInsn->VRegA());
       break;
     case Instruction::k10t:        // op +AA
-    case Instruction::k20t:        // op +AAAA
-      {
-        const s4 targ = (s4) pDecInsn->VRegA();
-        fprintf(gOutFile, " %04x // %c%04x",
-                insnIdx + targ,
-                (targ < 0) ? '-' : '+',
-                (targ < 0) ? -targ : targ);
-      }
+    case Instruction::k20t: {      // op +AAAA
+      const s4 targ = (s4) pDecInsn->VRegA();
+      fprintf(gOutFile, " %04x // %c%04x",
+              insnIdx + targ,
+              (targ < 0) ? '-' : '+',
+              (targ < 0) ? -targ : targ);
       break;
+    }
     case Instruction::k22x:        // op vAA, vBBBB
       fprintf(gOutFile, " v%d, v%d", pDecInsn->VRegA(), pDecInsn->VRegB());
       break;
-    case Instruction::k21t:        // op vAA, +BBBB
-      {
-        const s4 targ = (s4) pDecInsn->VRegB();
-        fprintf(gOutFile, " v%d, %04x // %c%04x", pDecInsn->VRegA(),
-                insnIdx + targ,
-                (targ < 0) ? '-' : '+',
-                (targ < 0) ? -targ : targ);
-      }
+    case Instruction::k21t: {     // op vAA, +BBBB
+      const s4 targ = (s4) pDecInsn->VRegB();
+      fprintf(gOutFile, " v%d, %04x // %c%04x", pDecInsn->VRegA(),
+              insnIdx + targ,
+              (targ < 0) ? '-' : '+',
+              (targ < 0) ? -targ : targ);
       break;
+    }
     case Instruction::k21s:        // op vAA, #+BBBB
       fprintf(gOutFile, " v%d, #int %d // #%x",
               pDecInsn->VRegA(), (s4) pDecInsn->VRegB(), (u2)pDecInsn->VRegB());
@@ -727,16 +1014,15 @@ static void dumpInstruction(const DexFile* pDexFile,
               pDecInsn->VRegA(), pDecInsn->VRegB(),
               (s4) pDecInsn->VRegC(), (u1) pDecInsn->VRegC());
       break;
-    case Instruction::k22t:        // op vA, vB, +CCCC
-      {
-        const s4 targ = (s4) pDecInsn->VRegC();
-        fprintf(gOutFile, " v%d, v%d, %04x // %c%04x",
-                pDecInsn->VRegA(), pDecInsn->VRegB(),
-                insnIdx + targ,
-                (targ < 0) ? '-' : '+',
-                (targ < 0) ? -targ : targ);
-      }
+    case Instruction::k22t: {      // op vA, vB, +CCCC
+      const s4 targ = (s4) pDecInsn->VRegC();
+      fprintf(gOutFile, " v%d, v%d, %04x // %c%04x",
+              pDecInsn->VRegA(), pDecInsn->VRegB(),
+              insnIdx + targ,
+              (targ < 0) ? '-' : '+',
+              (targ < 0) ? -targ : targ);
       break;
+    }
     case Instruction::k22s:        // op vA, vB, #+CCCC
       fprintf(gOutFile, " v%d, v%d, #int %d // #%04x",
               pDecInsn->VRegA(), pDecInsn->VRegB(),
@@ -751,18 +1037,17 @@ static void dumpInstruction(const DexFile* pDexFile,
     case Instruction::k30t:
       fprintf(gOutFile, " #%08x", pDecInsn->VRegA());
       break;
-    case Instruction::k31i:        // op vAA, #+BBBBBBBB
-      {
-        // This is often, but not always, a float.
-        union {
-          float f;
-          u4 i;
-        } conv;
-        conv.i = pDecInsn->VRegB();
-        fprintf(gOutFile, " v%d, #float %f // #%08x",
-                pDecInsn->VRegA(), conv.f, pDecInsn->VRegB());
-      }
+    case Instruction::k31i: {     // op vAA, #+BBBBBBBB
+      // This is often, but not always, a float.
+      union {
+        float f;
+        u4 i;
+      } conv;
+      conv.i = pDecInsn->VRegB();
+      fprintf(gOutFile, " v%d, #float %g // #%08x",
+              pDecInsn->VRegA(), conv.f, pDecInsn->VRegB());
       break;
+    }
     case Instruction::k31t:       // op vAA, offset +BBBBBBBB
       fprintf(gOutFile, " v%d, %08x // +%08x",
               pDecInsn->VRegA(), insnIdx + pDecInsn->VRegB(), pDecInsn->VRegB());
@@ -770,39 +1055,37 @@ static void dumpInstruction(const DexFile* pDexFile,
     case Instruction::k32x:        // op vAAAA, vBBBB
       fprintf(gOutFile, " v%d, v%d", pDecInsn->VRegA(), pDecInsn->VRegB());
       break;
-    case Instruction::k35c:        // op {vC, vD, vE, vF, vG}, thing@BBBB
+    case Instruction::k35c: {      // op {vC, vD, vE, vF, vG}, thing@BBBB
     // NOT SUPPORTED:
     // case Instruction::k35ms:       // [opt] invoke-virtual+super
     // case Instruction::k35mi:       // [opt] inline invoke
-      {
-        u4 arg[Instruction::kMaxVarArgRegs];
-        pDecInsn->GetVarArgs(arg);
-        fputs(" {", gOutFile);
-        for (int i = 0, n = pDecInsn->VRegA(); i < n; i++) {
-          if (i == 0) {
-            fprintf(gOutFile, "v%d", arg[i]);
-          } else {
-            fprintf(gOutFile, ", v%d", arg[i]);
-          }
-        }  // for
-        fprintf(gOutFile, "}, %s", indexBuf);
-      }
+      u4 arg[Instruction::kMaxVarArgRegs];
+      pDecInsn->GetVarArgs(arg);
+      fputs(" {", gOutFile);
+      for (int i = 0, n = pDecInsn->VRegA(); i < n; i++) {
+        if (i == 0) {
+          fprintf(gOutFile, "v%d", arg[i]);
+        } else {
+          fprintf(gOutFile, ", v%d", arg[i]);
+        }
+      }  // for
+      fprintf(gOutFile, "}, %s", indexBuf);
       break;
-    case Instruction::k25x:        // op vC, {vD, vE, vF, vG} (B: count)
-      {
-        u4 arg[Instruction::kMaxVarArgRegs25x];
-        pDecInsn->GetAllArgs25x(arg);
-        fprintf(gOutFile, " v%d, {", arg[0]);
-        for (int i = 0, n = pDecInsn->VRegB(); i < n; i++) {
-          if (i == 0) {
-            fprintf(gOutFile, "v%d", arg[Instruction::kLambdaVirtualRegisterWidth + i]);
-          } else {
-            fprintf(gOutFile, ", v%d", arg[Instruction::kLambdaVirtualRegisterWidth + i]);
-          }
-        }  // for
-        fputc('}', gOutFile);
-      }
+    }
+    case Instruction::k25x: {      // op vC, {vD, vE, vF, vG} (B: count)
+      u4 arg[Instruction::kMaxVarArgRegs25x];
+      pDecInsn->GetAllArgs25x(arg);
+      fprintf(gOutFile, " v%d, {", arg[0]);
+      for (int i = 0, n = pDecInsn->VRegB(); i < n; i++) {
+        if (i == 0) {
+          fprintf(gOutFile, "v%d", arg[Instruction::kLambdaVirtualRegisterWidth + i]);
+        } else {
+          fprintf(gOutFile, ", v%d", arg[Instruction::kLambdaVirtualRegisterWidth + i]);
+        }
+      }  // for
+      fputc('}', gOutFile);
       break;
+    }
     case Instruction::k3rc:        // op {vCCCC .. v(CCCC+AA-1)}, thing@BBBB
     // NOT SUPPORTED:
     // case Instruction::k3rms:       // [opt] invoke-virtual+super/range
@@ -821,18 +1104,17 @@ static void dumpInstruction(const DexFile* pDexFile,
         fprintf(gOutFile, "}, %s", indexBuf);
       }
       break;
-    case Instruction::k51l:        // op vAA, #+BBBBBBBBBBBBBBBB
-      {
-        // This is often, but not always, a double.
-        union {
-          double d;
-          u8 j;
-        } conv;
-        conv.j = pDecInsn->WideVRegB();
-        fprintf(gOutFile, " v%d, #double %f // #%016" PRIx64,
-                pDecInsn->VRegA(), conv.d, pDecInsn->WideVRegB());
-      }
+    case Instruction::k51l: {      // op vAA, #+BBBBBBBBBBBBBBBB
+      // This is often, but not always, a double.
+      union {
+        double d;
+        u8 j;
+      } conv;
+      conv.j = pDecInsn->WideVRegB();
+      fprintf(gOutFile, " v%d, #double %g // #%016" PRIx64,
+              pDecInsn->VRegA(), conv.d, pDecInsn->WideVRegB());
       break;
+    }
     // NOT SUPPORTED:
     // case Instruction::k00x:        // unknown op or breakpoint
     //    break;
@@ -1017,126 +1299,9 @@ static void dumpMethod(const DexFile* pDexFile, u4 idx, u4 flags,
 }
 
 /*
- * Dumps a string value with some escape characters.
- */
-static void dumpEscapedString(const char* p) {
-  for (; *p; p++) {
-    switch (*p) {
-      case '\\':
-        fputs("\\\\", gOutFile);
-        break;
-      case '\"':
-        fputs("\\\"", gOutFile);
-        break;
-      case '\t':
-        fputs("\\t", gOutFile);
-        break;
-      case '\n':
-        fputs("\\n", gOutFile);
-        break;
-      case '\r':
-        fputs("\\r", gOutFile);
-        break;
-      default:
-        putc(*p, gOutFile);
-    }
-  }
-}
-
-/*
- * Dumps an XML attribute value between double-quotes.
- */
-static void dumpXmlAttribute(const char* p) {
-  for (; *p; p++) {
-    switch (*p) {
-      case '&':
-        fputs("&amp;", gOutFile);
-        break;
-      case '<':
-        fputs("&lt;", gOutFile);
-        break;
-      case '"':
-        fputs("&quot;", gOutFile);
-        break;
-      case '\t':
-        fputs("&#x9;", gOutFile);
-        break;
-      case '\n':
-        fputs("&#xA;", gOutFile);
-        break;
-      case '\r':
-        fputs("&#xD;", gOutFile);
-        break;
-      default:
-        putc(*p, gOutFile);
-    }
-  }
-}
-
-/*
- * Dumps a value of static (class) field.
- */
-static void dumpSFieldValue(const DexFile* pDexFile,
-                            EncodedStaticFieldValueIterator::ValueType valueType,
-                            const jvalue* pValue) {
-  switch (valueType) {
-    case EncodedStaticFieldValueIterator::kByte:
-      fprintf(gOutFile, "%" PRIu8, pValue->b);
-      break;
-    case EncodedStaticFieldValueIterator::kShort:
-      fprintf(gOutFile, "%" PRId16, pValue->s);
-      break;
-    case EncodedStaticFieldValueIterator::kChar:
-      fprintf(gOutFile, "%" PRIu16, pValue->c);
-      break;
-    case EncodedStaticFieldValueIterator::kInt:
-      fprintf(gOutFile, "%" PRId32, pValue->i);
-      break;
-    case EncodedStaticFieldValueIterator::kLong:
-      fprintf(gOutFile, "%" PRId64, pValue->j);
-      break;
-    case EncodedStaticFieldValueIterator::kFloat:
-      fprintf(gOutFile, "%f", pValue->f);
-      break;
-    case EncodedStaticFieldValueIterator::kDouble:
-      fprintf(gOutFile, "%f", pValue->d);
-      break;
-    case EncodedStaticFieldValueIterator::kString: {
-      const char* str =
-          pDexFile->GetStringData(pDexFile->GetStringId(pValue->i));
-      if (gOptions.outputFormat == OUTPUT_PLAIN) {
-        fputs("\"", gOutFile);
-        dumpEscapedString(str);
-        fputs("\"", gOutFile);
-      } else {
-        dumpXmlAttribute(str);
-      }
-      break;
-    }
-    case EncodedStaticFieldValueIterator::kNull:
-      fputs("null", gOutFile);
-      break;
-    case EncodedStaticFieldValueIterator::kBoolean:
-      fputs(pValue->z ? "true" : "false", gOutFile);
-      break;
-
-    case EncodedStaticFieldValueIterator::kAnnotation:
-    case EncodedStaticFieldValueIterator::kArray:
-    case EncodedStaticFieldValueIterator::kEnum:
-    case EncodedStaticFieldValueIterator::kField:
-    case EncodedStaticFieldValueIterator::kMethod:
-    case EncodedStaticFieldValueIterator::kType:
-    default:
-      fprintf(gOutFile, "Unexpected static field type: %d", valueType);
-  }
-}
-
-/*
  * Dumps a static (class) field.
  */
-static void dumpSField(const DexFile* pDexFile, u4 idx, u4 flags, int i,
-                       EncodedStaticFieldValueIterator::ValueType valueType,
-                       const jvalue* pValue) {
+static void dumpSField(const DexFile* pDexFile, u4 idx, u4 flags, int i, const u1** data) {
   // Bail for anything private if export only requested.
   if (gOptions.exportsOnly && (flags & (kAccPublic | kAccProtected)) == 0) {
     return;
@@ -1153,9 +1318,9 @@ static void dumpSField(const DexFile* pDexFile, u4 idx, u4 flags, int i,
     fprintf(gOutFile, "      name          : '%s'\n", name);
     fprintf(gOutFile, "      type          : '%s'\n", typeDescriptor);
     fprintf(gOutFile, "      access        : 0x%04x (%s)\n", flags, accessStr);
-    if (pValue != nullptr) {
+    if (data != nullptr) {
       fputs("      value         : ", gOutFile);
-      dumpSFieldValue(pDexFile, valueType, pValue);
+      dumpEncodedValue(pDexFile, data);
       fputs("\n", gOutFile);
     }
   } else if (gOptions.outputFormat == OUTPUT_XML) {
@@ -1170,9 +1335,9 @@ static void dumpSField(const DexFile* pDexFile, u4 idx, u4 flags, int i,
     fprintf(gOutFile, " final=%s\n", quotedBool((flags & kAccFinal) != 0));
     // The "deprecated=" is not knowable w/o parsing annotations.
     fprintf(gOutFile, " visibility=%s\n", quotedVisibility(flags));
-    if (pValue != nullptr) {
+    if (data != nullptr) {
       fputs(" value=\"", gOutFile);
-      dumpSFieldValue(pDexFile, valueType, pValue);
+      dumpEncodedValue(pDexFile, data);
       fputs("\"\n", gOutFile);
     }
     fputs(">\n</field>\n", gOutFile);
@@ -1185,8 +1350,7 @@ static void dumpSField(const DexFile* pDexFile, u4 idx, u4 flags, int i,
  * Dumps an instance field.
  */
 static void dumpIField(const DexFile* pDexFile, u4 idx, u4 flags, int i) {
-  dumpSField(pDexFile, idx, flags, i,
-             EncodedStaticFieldValueIterator::kByte, nullptr);
+  dumpSField(pDexFile, idx, flags, i, nullptr);
 }
 
 /*
@@ -1196,7 +1360,7 @@ static void dumpIField(const DexFile* pDexFile, u4 idx, u4 flags, int i) {
  */
 
 static void dumpCfg(const DexFile* dex_file,
-                    uint32_t dex_method_idx,
+                    u4 dex_method_idx,
                     const DexFile::CodeItem* code_item) {
   if (code_item != nullptr) {
     std::ostringstream oss;
@@ -1207,7 +1371,7 @@ static void dumpCfg(const DexFile* dex_file,
 
 static void dumpCfg(const DexFile* dex_file, int idx) {
   const DexFile::ClassDef& class_def = dex_file->GetClassDef(idx);
-  const uint8_t* class_data = dex_file->GetClassData(class_def);
+  const u1* class_data = dex_file->GetClassData(class_def);
   if (class_data == nullptr) {  // empty class such as a marker interface?
     return;
   }
@@ -1248,7 +1412,15 @@ static void dumpClass(const DexFile* pDexFile, int idx, char** pLastPackage) {
     return;
   }
 
-  if (gOptions.cfg) {
+  if (gOptions.showSectionHeaders) {
+    dumpClassDef(pDexFile, idx);
+  }
+
+  if (gOptions.showAnnotations) {
+    dumpClassAnnotations(pDexFile, idx);
+  }
+
+  if (gOptions.showCfg) {
     dumpCfg(pDexFile, idx);
     return;
   }
@@ -1347,33 +1519,35 @@ static void dumpClass(const DexFile* pDexFile, int idx, char** pLastPackage) {
     }
   } else {
     ClassDataItemIterator pClassData(*pDexFile, pEncodedData);
+
+    // Prepare data for static fields.
+    const u1* sData = pDexFile->GetEncodedStaticFieldValuesArray(pClassDef);
+    const u4 sSize = sData != nullptr ? DecodeUnsignedLeb128(&sData) : 0;
+
+    // Static fields.
     if (gOptions.outputFormat == OUTPUT_PLAIN) {
       fprintf(gOutFile, "  Static fields     -\n");
     }
-    EncodedStaticFieldValueIterator staticFieldValues(*pDexFile, pClassDef);
-    for (int i = 0; pClassData.HasNextStaticField(); i++, pClassData.Next()) {
-      EncodedStaticFieldValueIterator::ValueType valueType =
-          EncodedStaticFieldValueIterator::kByte;
-      const jvalue* pValue = nullptr;
-      if (staticFieldValues.HasNext()) {
-        valueType = staticFieldValues.GetValueType();
-        pValue = &staticFieldValues.GetJavaValue();
-      }
-      dumpSField(pDexFile, pClassData.GetMemberIndex(),
-                           pClassData.GetRawMemberAccessFlags(), i,
-                 valueType, pValue);
-      if (staticFieldValues.HasNext()) {
-        staticFieldValues.Next();
-      }
+    for (u4 i = 0; pClassData.HasNextStaticField(); i++, pClassData.Next()) {
+      dumpSField(pDexFile,
+                 pClassData.GetMemberIndex(),
+                 pClassData.GetRawMemberAccessFlags(),
+                 i,
+                 i < sSize ? &sData : nullptr);
     }  // for
-    DCHECK(!staticFieldValues.HasNext());
+
+    // Instance fields.
     if (gOptions.outputFormat == OUTPUT_PLAIN) {
       fprintf(gOutFile, "  Instance fields   -\n");
     }
-    for (int i = 0; pClassData.HasNextInstanceField(); i++, pClassData.Next()) {
-      dumpIField(pDexFile, pClassData.GetMemberIndex(),
-                          pClassData.GetRawMemberAccessFlags(), i);
+    for (u4 i = 0; pClassData.HasNextInstanceField(); i++, pClassData.Next()) {
+      dumpIField(pDexFile,
+                 pClassData.GetMemberIndex(),
+                 pClassData.GetRawMemberAccessFlags(),
+                 i);
     }  // for
+
+    // Direct methods.
     if (gOptions.outputFormat == OUTPUT_PLAIN) {
       fprintf(gOutFile, "  Direct methods    -\n");
     }
@@ -1383,6 +1557,8 @@ static void dumpClass(const DexFile* pDexFile, int idx, char** pLastPackage) {
                            pClassData.GetMethodCodeItem(),
                            pClassData.GetMethodCodeItemOffset(), i);
     }  // for
+
+    // Virtual methods.
     if (gOptions.outputFormat == OUTPUT_PLAIN) {
       fprintf(gOutFile, "  Virtual methods   -\n");
     }
@@ -1434,9 +1610,6 @@ static void processDexFile(const char* fileName, const DexFile* pDexFile) {
   char* package = nullptr;
   const u4 classDefsSize = pDexFile->GetHeader().class_defs_size_;
   for (u4 i = 0; i < classDefsSize; i++) {
-    if (gOptions.showSectionHeaders) {
-      dumpClassDef(pDexFile, i);
-    }
     dumpClass(pDexFile, i, &package);
   }  // for
 
@@ -1461,14 +1634,9 @@ int processFile(const char* fileName) {
   }
 
   // If the file is not a .dex file, the function tries .zip/.jar/.apk files,
-  // all of which are Zip archives with "classes.dex" inside. The compressed
-  // data needs to be extracted to a temp file, the location of which varies.
+  // all of which are Zip archives with "classes.dex" inside.
   //
-  // TODO(ajcbik): fix following issues
-  //
-  // (1) gOptions.tempFileName is not accounted for
-  // (2) gOptions.ignoreBadChecksum is not accounted for
-  //
+  // TODO(ajcbik): implement gOptions.ignoreBadChecksum
   std::string error_msg;
   std::vector<std::unique_ptr<const DexFile>> dex_files;
   if (!DexFile::Open(fileName, fileName, &error_msg, &dex_files)) {

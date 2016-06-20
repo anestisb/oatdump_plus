@@ -42,13 +42,13 @@ struct Options {
   bool disassemble;
   bool exportsOnly;
   bool ignoreBadChecksum;
+  bool showAnnotations;
+  bool showCfg;
   bool showFileHeaders;
   bool showSectionHeaders;
   bool verbose;
-  bool cfg;
   OutputFormat outputFormat;
   const char* outputFileName;
-  const char* tempFileName;
 };
 
 /* Prototypes. */
