@@ -35,7 +35,7 @@
 #include "debug/elf_debug_writer.h"
 #include "debug/method_debug_info.h"
 #include "dex_file-inl.h"
-#include "dex_instruction.h"
+#include "dex_instruction-inl.h"
 #include "disassembler.h"
 #include "elf_builder.h"
 #include "gc/space/image_space.h"
@@ -578,6 +578,7 @@ class OatDumper {
     // Print embedded dex file data range.
     const uint8_t* const oat_file_begin = oat_dex_file.GetOatFile()->Begin();
     const uint8_t* const dex_file_pointer = oat_dex_file.GetDexFilePointer();
+    std::set<uint32_t> string_ids;
     uint32_t dex_offset = dchecked_integral_cast<uint32_t>(dex_file_pointer - oat_file_begin);
     os << StringPrintf("dex-file: 0x%08x..0x%08x\n",
                        dex_offset,
@@ -623,7 +624,7 @@ class OatDumper {
          << " (" << oat_class.GetType() << ")\n";
       // TODO: include bitmap here if type is kOatClassSomeCompiled?
       if (options_.list_classes_) continue;
-      if (!DumpOatClass(&vios, oat_class, *dex_file, class_def, &stop_analysis)) {
+      if (!DumpOatClass(&vios, oat_class, *dex_file, class_def, &stop_analysis, string_ids)) {
         success = false;
       }
       if (stop_analysis) {
@@ -631,7 +632,7 @@ class OatDumper {
         return success;
       }
     }
-
+    os << "Number of unique strings loaded from dex code: " << string_ids.size() << "\n";
     os << std::flush;
     return success;
   }
@@ -725,7 +726,8 @@ class OatDumper {
 
   bool DumpOatClass(VariableIndentationOutputStream* vios,
                     const OatFile::OatClass& oat_class, const DexFile& dex_file,
-                    const DexFile::ClassDef& class_def, bool* stop_analysis) {
+                    const DexFile::ClassDef& class_def, bool* stop_analysis,
+                    std::set<uint32_t>& string_ids) {
     bool success = true;
     bool addr_found = false;
     const uint8_t* class_data = dex_file.GetClassData(class_def);
@@ -739,7 +741,7 @@ class OatDumper {
     while (it.HasNextDirectMethod()) {
       if (!DumpOatMethod(vios, class_def, class_method_index, oat_class, dex_file,
                          it.GetMemberIndex(), it.GetMethodCodeItem(),
-                         it.GetRawMemberAccessFlags(), &addr_found)) {
+                         it.GetRawMemberAccessFlags(), &addr_found, string_ids)) {
         success = false;
       }
       if (addr_found) {
@@ -752,7 +754,7 @@ class OatDumper {
     while (it.HasNextVirtualMethod()) {
       if (!DumpOatMethod(vios, class_def, class_method_index, oat_class, dex_file,
                          it.GetMemberIndex(), it.GetMethodCodeItem(),
-                         it.GetRawMemberAccessFlags(), &addr_found)) {
+                         it.GetRawMemberAccessFlags(), &addr_found, string_ids)) {
         success = false;
       }
       if (addr_found) {
@@ -777,9 +779,35 @@ class OatDumper {
                      uint32_t class_method_index,
                      const OatFile::OatClass& oat_class, const DexFile& dex_file,
                      uint32_t dex_method_idx, const DexFile::CodeItem* code_item,
-                     uint32_t method_access_flags, bool* addr_found) {
+                     uint32_t method_access_flags, bool* addr_found,
+                     std::set<uint32_t>& string_ids) {
     bool success = true;
 
+    if (code_item != nullptr) {
+      const uint16_t* code_ptr = code_item->insns_;
+      const uint16_t* code_end = code_item->insns_ + code_item->insns_size_in_code_units_;
+
+      while (code_ptr < code_end) {
+        const Instruction* inst = Instruction::At(code_ptr);
+        switch (inst->Opcode()) {
+          case Instruction::CONST_STRING: {
+            uint32_t string_index = inst->VRegB_21c();
+            string_ids.insert(string_index);
+            break;
+          }
+          case Instruction::CONST_STRING_JUMBO: {
+            uint32_t string_index = inst->VRegB_31c();
+            string_ids.insert(string_index);
+            break;
+          }
+
+          default:
+            break;
+        }
+
+        code_ptr += inst->SizeInCodeUnits();
+      }
+    }
     // TODO: Support regex
     std::string method_name = dex_file.GetMethodName(dex_file.GetMethodId(dex_method_idx));
     if (method_name.find(options_.method_filter_) == std::string::npos) {
