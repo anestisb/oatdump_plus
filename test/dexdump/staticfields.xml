@@ -66,7 +66,7 @@
  static="true"
  final="true"
  visibility="public"
- value="46.470001"
+ value="46.47"
 >
 </field>
 <field name="test06_public_static_final_double_48_49"
@@ -76,7 +76,7 @@
  static="true"
  final="true"
  visibility="public"
- value="48.490000"
+ value="48.49"
 >
 </field>
 <field name="test07_public_static_final_string"
@@ -86,7 +86,7 @@
  static="true"
  final="true"
  visibility="public"
- value="abc \>&lt;&quot;'&amp;&#x9;&#xD;&#xA;"
+ value="abc \&gt;&lt;&quot;'&amp;&#x9;&#xD;&#xA;"
 >
 </field>
 <field name="test08_public_static_final_object_null"

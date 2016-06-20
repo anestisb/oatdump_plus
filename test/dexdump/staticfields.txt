@@ -12,8 +12,8 @@ string_ids_size     : 28
 string_ids_off      : 112 (0x000070)
 type_ids_size       : 12
 type_ids_off        : 224 (0x0000e0)
-proto_ids_size       : 1
-proto_ids_off        : 272 (0x000110)
+proto_ids_size      : 1
+proto_ids_off       : 272 (0x000110)
 field_ids_size      : 12
 field_ids_off       : 284 (0x00011c)
 method_ids_size     : 2
@@ -71,12 +71,12 @@ Class #0            -
       name          : 'test05_public_static_final_float_46_47'
       type          : 'F'
       access        : 0x0019 (PUBLIC STATIC FINAL)
-      value         : 46.470001
+      value         : 46.47
     #6              : (in LStaticFields;)
       name          : 'test06_public_static_final_double_48_49'
       type          : 'D'
       access        : 0x0019 (PUBLIC STATIC FINAL)
-      value         : 48.490000
+      value         : 48.49
     #7              : (in LStaticFields;)
       name          : 'test07_public_static_final_string'
       type          : 'Ljava/lang/String;'

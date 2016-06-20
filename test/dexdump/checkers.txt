@@ -12,8 +12,8 @@ string_ids_size     : 323
 string_ids_off      : 112 (0x000070)
 type_ids_size       : 58
 type_ids_off        : 1404 (0x00057c)
-proto_ids_size       : 88
-proto_ids_off        : 1636 (0x000664)
+proto_ids_size      : 88
+proto_ids_off       : 1636 (0x000664)
 field_ids_size      : 108
 field_ids_off       : 2692 (0x000a84)
 method_ids_size     : 177
@@ -836,7 +836,7 @@ Class #1            -
 001c8a: 1300 5829                              |0147: const/16 v0, #int 10584 // #2958
 001c8e: 2300 3600                              |0149: new-array v0, v0, [B // type@0036
 001c92: 6900 6800                              |014b: sput-object v0, Lcom/google/android/checkers/g;.p:[B // field@0068
-001c96: 1400 00c1 0300                         |014d: const v0, #float 0.000000 // #0003c100
+001c96: 1400 00c1 0300                         |014d: const v0, #float 3.44742e-40 // #0003c100
 001c9c: 2300 3600                              |0150: new-array v0, v0, [B // type@0036
 001ca0: 6900 6900                              |0152: sput-object v0, Lcom/google/android/checkers/g;.q:[B // field@0069
 001ca4: 6e10 1100 0a00                         |0154: invoke-virtual {v10}, Landroid/content/Context;.getResources:()Landroid/content/res/Resources; // method@0011
@@ -2044,7 +2044,7 @@ goto options to rotate board" // string@00c2
 002bd0: 5433 3b00                              |004c: iget-object v3, v3, Lcom/google/android/checkers/a;.b:[I // field@003b
 002bd4: 4403 0309                              |004e: aget v3, v3, v9
 002bd8: 5983 2a00                              |0050: iput v3, v8, Lcom/google/android/checkers/CheckersView;.x:I // field@002a
-002bdc: 1403 6666 663f                         |0052: const v3, #float 0.900000 // #3f666666
+002bdc: 1403 6666 663f                         |0052: const v3, #float 0.9 // #3f666666
 002be2: 5983 1e00                              |0055: iput v3, v8, Lcom/google/android/checkers/CheckersView;.l:F // field@001e
 002be6: 3800 4500                              |0057: if-eqz v0, 009c // +0045
 002bea: 5483 2200                              |0059: iget-object v3, v8, Lcom/google/android/checkers/CheckersView;.p:Lcom/google/android/checkers/a; // field@0022
@@ -2943,7 +2943,7 @@ goto options to rotate board" // string@00c2
 0036f2: 0800 1c00                              |0197: move-object/from16 v0, v28
 0036f6: 5202 1e00                              |0199: iget v2, v0, Lcom/google/android/checkers/CheckersView;.l:F // field@001e
 0036fa: 8922                                   |019b: float-to-double v2, v2
-0036fc: 1804 9a99 9999 9999 a93f               |019c: const-wide v4, #double 0.050000 // #3fa999999999999a
+0036fc: 1804 9a99 9999 9999 a93f               |019c: const-wide v4, #double 0.05 // #3fa999999999999a
 003706: cc42                                   |01a1: sub-double/2addr v2, v4
 003708: 8c22                                   |01a2: double-to-float v2, v2
 00370a: 0800 1c00                              |01a3: move-object/from16 v0, v28
@@ -3568,7 +3568,7 @@ goto options to rotate board" // string@00c2
 003f38: 28e9                                   |001e: goto 0007 // -0017
 003f3a: 1300 3075                              |001f: const/16 v0, #int 30000 // #7530
 003f3e: 28e6                                   |0021: goto 0007 // -001a
-003f40: 1400 60ea 0000                         |0022: const v0, #float 0.000000 // #0000ea60
+003f40: 1400 60ea 0000                         |0022: const v0, #float 8.40779e-41 // #0000ea60
 003f46: 28e2                                   |0025: goto 0007 // -001e
 003f48: 0d00                                   |0026: move-exception v0
 003f4a: 1e02                                   |0027: monitor-exit v2
@@ -3811,7 +3811,7 @@ Class #2            -
 004024: 1302 0040                              |0046: const/16 v2, #int 16384 // #4000
 004028: 4b02 0001                              |0048: aput v2, v0, v1
 00402c: 1301 1300                              |004a: const/16 v1, #int 19 // #13
-004030: 1402 0080 0000                         |004c: const v2, #float 0.000000 // #00008000
+004030: 1402 0080 0000                         |004c: const v2, #float 4.59177e-41 // #00008000
 004036: 4b02 0001                              |004f: aput v2, v0, v1
 00403a: 1501 0100                              |0051: const/high16 v1, #int 65536 // #1
 00403e: 4b01 0006                              |0053: aput v1, v0, v6
@@ -3931,7 +3931,7 @@ Class #2            -
 0041f6: 1302 0040                              |012f: const/16 v2, #int 16384 // #4000
 0041fa: 4b02 0001                              |0131: aput v2, v0, v1
 0041fe: 1301 1200                              |0133: const/16 v1, #int 18 // #12
-004202: 1402 0080 0000                         |0135: const v2, #float 0.000000 // #00008000
+004202: 1402 0080 0000                         |0135: const v2, #float 4.59177e-41 // #00008000
 004208: 4b02 0001                              |0138: aput v2, v0, v1
 00420c: 1301 1400                              |013a: const/16 v1, #int 20 // #14
 004210: 1502 0100                              |013c: const/high16 v2, #int 65536 // #1
@@ -3996,7 +3996,7 @@ Class #2            -
 0042fa: 1301 0040                              |01b1: const/16 v1, #int 16384 // #4000
 0042fe: 4b01 0006                              |01b3: aput v1, v0, v6
 004302: 1301 1600                              |01b5: const/16 v1, #int 22 // #16
-004306: 1402 0080 0000                         |01b7: const v2, #float 0.000000 // #00008000
+004306: 1402 0080 0000                         |01b7: const v2, #float 4.59177e-41 // #00008000
 00430c: 4b02 0001                              |01ba: aput v2, v0, v1
 004310: 1301 1800                              |01bc: const/16 v1, #int 24 // #18
 004314: 1502 0200                              |01be: const/high16 v2, #int 131072 // #2
@@ -4045,7 +4045,7 @@ Class #2            -
 0043b4: 1301 0040                              |020e: const/16 v1, #int 16384 // #4000
 0043b8: 4b01 0004                              |0210: aput v1, v0, v4
 0043bc: 1301 0b00                              |0212: const/16 v1, #int 11 // #b
-0043c0: 1402 0080 0000                         |0214: const v2, #float 0.000000 // #00008000
+0043c0: 1402 0080 0000                         |0214: const v2, #float 4.59177e-41 // #00008000
 0043c6: 4b02 0001                              |0217: aput v2, v0, v1
 0043ca: 1301 0d00                              |0219: const/16 v1, #int 13 // #d
 0043ce: 1502 0100                              |021b: const/high16 v2, #int 65536 // #1
@@ -4167,7 +4167,7 @@ Class #2            -
 004588: 1301 0900                              |02f8: const/16 v1, #int 9 // #9
 00458c: 1302 0040                              |02fa: const/16 v2, #int 16384 // #4000
 004590: 4b02 0001                              |02fc: aput v2, v0, v1
-004594: 1401 0080 0000                         |02fe: const v1, #float 0.000000 // #00008000
+004594: 1401 0080 0000                         |02fe: const v1, #float 4.59177e-41 // #00008000
 00459a: 4b01 0004                              |0301: aput v1, v0, v4
 00459e: 1301 0c00                              |0303: const/16 v1, #int 12 // #c
 0045a2: 1502 0100                              |0305: const/high16 v2, #int 65536 // #1
@@ -4226,7 +4226,7 @@ Class #2            -
 00466e: 1302 0040                              |036b: const/16 v2, #int 16384 // #4000
 004672: 4b02 0001                              |036d: aput v2, v0, v1
 004676: 1261                                   |036f: const/4 v1, #int 6 // #6
-004678: 1402 0080 0000                         |0370: const v2, #float 0.000000 // #00008000
+004678: 1402 0080 0000                         |0370: const v2, #float 4.59177e-41 // #00008000
 00467e: 4b02 0001                              |0373: aput v2, v0, v1
 004682: 1301 0800                              |0375: const/16 v1, #int 8 // #8
 004686: 1502 0200                              |0377: const/high16 v2, #int 131072 // #2
@@ -4496,7 +4496,7 @@ Class #2            -
 004c16: 3803 3400                              |0047: if-eqz v3, 007b // +0034
 004c1a: 0800 1800                              |0049: move-object/from16 v0, v24
 004c1e: 5203 5100                              |004b: iget v3, v0, Lcom/google/android/checkers/a;.x:I // field@0051
-004c22: 1404 ffff 0f00                         |004d: const v4, #float 0.000000 // #000fffff
+004c22: 1404 ffff 0f00                         |004d: const v4, #float 1.46937e-39 // #000fffff
 004c28: b534                                   |0050: and-int/2addr v4, v3
 004c2a: 0800 1800                              |0051: move-object/from16 v0, v24
 004c2e: 5405 5200                              |0053: iget-object v5, v0, Lcom/google/android/checkers/a;.y:[I // field@0052
@@ -4516,7 +4516,7 @@ Class #2            -
 004c66: 5405 5300                              |006f: iget-object v5, v0, Lcom/google/android/checkers/a;.z:[S // field@0053
 004c6a: 4a04 0504                              |0071: aget-short v4, v5, v4
 004c6e: 2c03 8104 0000                         |0073: sparse-switch v3, 000004f4 // +00000481
-004c74: 1403 3f42 0f00                         |0076: const v3, #float 0.000000 // #000f423f
+004c74: 1403 3f42 0f00                         |0076: const v3, #float 1.4013e-39 // #000f423f
 004c7a: 3334 a1ff                              |0079: if-ne v4, v3, 001a // -005f
 004c7e: 0800 1800                              |007b: move-object/from16 v0, v24
 004c82: 0201 1b00                              |007d: move/from16 v1, v27
@@ -4897,7 +4897,7 @@ Class #2            -
 0051da: 28c4                                   |0329: goto 02ed // -003c
 0051dc: 0200 1900                              |032a: move/from16 v0, v25
 0051e0: 3704 4afd                              |032c: if-le v4, v0, 0076 // -02b6
-0051e4: 1404 3f42 0f00                         |032e: const v4, #float 0.000000 // #000f423f
+0051e4: 1404 3f42 0f00                         |032e: const v4, #float 1.4013e-39 // #000f423f
 0051ea: 2900 45fd                              |0331: goto/16 0076 // -02bb
 0051ee: 0200 1a00                              |0333: move/from16 v0, v26
 0051f2: 3404 f9ff                              |0335: if-lt v4, v0, 032e // -0007
@@ -5020,7 +5020,7 @@ Class #2            -
 0053a2: 3545 bd00                              |040d: if-ge v5, v4, 04ca // +00bd
 0053a6: 0800 1800                              |040f: move-object/from16 v0, v24
 0053aa: 5204 3e00                              |0411: iget v4, v0, Lcom/google/android/checkers/a;.e:I // field@003e
-0053ae: 1405 1100 0088                         |0413: const v5, #float -0.000000 // #88000011
+0053ae: 1405 1100 0088                         |0413: const v5, #float -3.85187e-34 // #88000011
 0053b4: b554                                   |0416: and-int/2addr v4, v5
 0053b6: 3804 0900                              |0417: if-eqz v4, 0420 // +0009
 0053ba: 7110 9e00 0400                         |0419: invoke-static {v4}, Ljava/lang/Integer;.bitCount:(I)I // method@009e
@@ -5052,11 +5052,11 @@ Class #2            -
 005418: 1507 00a0                              |0448: const/high16 v7, #int -1610612736 // #a000
 00541c: 3376 0400                              |044a: if-ne v6, v7, 044e // +0004
 005420: d803 03f4                              |044c: add-int/lit8 v3, v3, #int -12 // #f4
-005424: 1406 0066 6600                         |044e: const v6, #float 0.000000 // #00666600
+005424: 1406 0066 6600                         |044e: const v6, #float 9.40381e-39 // #00666600
 00542a: b564                                   |0451: and-int/2addr v4, v6
 00542c: 7110 9e00 0400                         |0452: invoke-static {v4}, Ljava/lang/Integer;.bitCount:(I)I // method@009e
 005432: 0a04                                   |0455: move-result v4
-005434: 1406 0066 6600                         |0456: const v6, #float 0.000000 // #00666600
+005434: 1406 0066 6600                         |0456: const v6, #float 9.40381e-39 // #00666600
 00543a: b565                                   |0459: and-int/2addr v5, v6
 00543c: 7110 9e00 0500                         |045a: invoke-static {v5}, Ljava/lang/Integer;.bitCount:(I)I // method@009e
 005442: 0a05                                   |045d: move-result v5
@@ -5064,13 +5064,13 @@ Class #2            -
 005446: b043                                   |045f: add-int/2addr v3, v4
 005448: 0800 1800                              |0460: move-object/from16 v0, v24
 00544c: 5204 3d00                              |0462: iget v4, v0, Lcom/google/android/checkers/a;.d:I // field@003d
-005450: 1405 1818 1818                         |0464: const v5, #float 0.000000 // #18181818
+005450: 1405 1818 1818                         |0464: const v5, #float 1.96577e-24 // #18181818
 005456: b554                                   |0467: and-int/2addr v4, v5
 005458: 7110 9e00 0400                         |0468: invoke-static {v4}, Ljava/lang/Integer;.bitCount:(I)I // method@009e
 00545e: 0a04                                   |046b: move-result v4
 005460: 0800 1800                              |046c: move-object/from16 v0, v24
 005464: 5205 3f00                              |046e: iget v5, v0, Lcom/google/android/checkers/a;.f:I // field@003f
-005468: 1406 1818 1818                         |0470: const v6, #float 0.000000 // #18181818
+005468: 1406 1818 1818                         |0470: const v6, #float 1.96577e-24 // #18181818
 00546e: b565                                   |0473: and-int/2addr v5, v6
 005470: 7110 9e00 0500                         |0474: invoke-static {v5}, Ljava/lang/Integer;.bitCount:(I)I // method@009e
 005476: 0a05                                   |0477: move-result v5
@@ -5078,7 +5078,7 @@ Class #2            -
 00547a: b143                                   |0479: sub-int/2addr v3, v4
 00547c: 0800 1800                              |047a: move-object/from16 v0, v24
 005480: 5204 3e00                              |047c: iget v4, v0, Lcom/google/android/checkers/a;.e:I // field@003e
-005484: 1405 0800 0010                         |047e: const v5, #float 0.000000 // #10000008
+005484: 1405 0800 0010                         |047e: const v5, #float 2.52436e-29 // #10000008
 00548a: b554                                   |0481: and-int/2addr v4, v5
 00548c: 3804 0900                              |0482: if-eqz v4, 048b // +0009
 005490: 7110 9e00 0400                         |0484: invoke-static {v4}, Ljava/lang/Integer;.bitCount:(I)I // method@009e
@@ -5087,7 +5087,7 @@ Class #2            -
 00549c: b143                                   |048a: sub-int/2addr v3, v4
 00549e: 0800 1800                              |048b: move-object/from16 v0, v24
 0054a2: 5204 4000                              |048d: iget v4, v0, Lcom/google/android/checkers/a;.g:I // field@0040
-0054a6: 1405 0800 0010                         |048f: const v5, #float 0.000000 // #10000008
+0054a6: 1405 0800 0010                         |048f: const v5, #float 2.52436e-29 // #10000008
 0054ac: b554                                   |0492: and-int/2addr v4, v5
 0054ae: 3804 4c00                              |0493: if-eqz v4, 04df // +004c
 0054b2: 7110 9e00 0400                         |0495: invoke-static {v4}, Ljava/lang/Integer;.bitCount:(I)I // method@009e
@@ -5124,7 +5124,7 @@ Class #2            -
 00551c: 3745 56ff                              |04ca: if-le v5, v4, 0420 // -00aa
 005520: 0800 1800                              |04cc: move-object/from16 v0, v24
 005524: 5204 4000                              |04ce: iget v4, v0, Lcom/google/android/checkers/a;.g:I // field@0040
-005528: 1405 1100 0088                         |04d0: const v5, #float -0.000000 // #88000011
+005528: 1405 1100 0088                         |04d0: const v5, #float -3.85187e-34 // #88000011
 00552e: b554                                   |04d3: and-int/2addr v4, v5
 005530: 3804 4cff                              |04d4: if-eqz v4, 0420 // -00b4
 005534: 7110 9e00 0400                         |04d6: invoke-static {v4}, Ljava/lang/Integer;.bitCount:(I)I // method@009e
@@ -5407,7 +5407,7 @@ Class #2            -
 005868: 0126                                   |0010: move v6, v2
 00586a: 0135                                   |0011: move v5, v3
 00586c: 5240 5100                              |0012: iget v0, v4, Lcom/google/android/checkers/a;.x:I // field@0051
-005870: 1401 ffff 0f00                         |0014: const v1, #float 0.000000 // #000fffff
+005870: 1401 ffff 0f00                         |0014: const v1, #float 1.46937e-39 // #000fffff
 005876: b501                                   |0017: and-int/2addr v1, v0
 005878: 5442 5200                              |0018: iget-object v2, v4, Lcom/google/android/checkers/a;.y:[I // field@0052
 00587c: 4b00 0201                              |001a: aput v0, v2, v1
@@ -5568,19 +5568,19 @@ Class #2            -
 005a54: e203 1404                              |0016: ushr-int/lit8 v3, v20, #int 4 // #04
 005a58: b543                                   |0018: and-int/2addr v3, v4
 005a5a: 3803 1200                              |0019: if-eqz v3, 002b // +0012
-005a5e: 1401 e0e0 e0e0                         |001b: const v1, #float -129633581999069331456.000000 // #e0e0e0e0
+005a5e: 1401 e0e0 e0e0                         |001b: const v1, #float -1.29634e+20 // #e0e0e0e0
 005a64: b531                                   |001e: and-int/2addr v1, v3
 005a66: e201 0105                              |001f: ushr-int/lit8 v1, v1, #int 5 // #05
-005a6a: 1405 0007 0707                         |0021: const v5, #float 0.000000 // #07070700
+005a6a: 1405 0007 0707                         |0021: const v5, #float 1.01583e-34 // #07070700
 005a70: b553                                   |0024: and-int/2addr v3, v5
 005a72: e203 0303                              |0025: ushr-int/lit8 v3, v3, #int 3 // #03
 005a76: b631                                   |0027: or-int/2addr v1, v3
 005a78: b521                                   |0028: and-int/2addr v1, v2
 005a7a: de01 0100                              |0029: or-int/lit8 v1, v1, #int 0 // #00
-005a7e: 1403 e0e0 e0e0                         |002b: const v3, #float -129633581999069331456.000000 // #e0e0e0e0
+005a7e: 1403 e0e0 e0e0                         |002b: const v3, #float -1.29634e+20 // #e0e0e0e0
 005a84: 9503 0314                              |002e: and-int v3, v3, v20
 005a88: e203 0305                              |0030: ushr-int/lit8 v3, v3, #int 5 // #05
-005a8c: 1405 0007 0707                         |0032: const v5, #float 0.000000 // #07070700
+005a8c: 1405 0007 0707                         |0032: const v5, #float 1.01583e-34 // #07070700
 005a92: 9505 0514                              |0035: and-int v5, v5, v20
 005a96: e205 0503                              |0037: ushr-int/lit8 v5, v5, #int 3 // #03
 005a9a: b653                                   |0039: or-int/2addr v3, v5
@@ -5597,19 +5597,19 @@ Class #2            -
 005abc: 3802 1500                              |004a: if-eqz v2, 005f // +0015
 005ac0: 0800 1100                              |004c: move-object/from16 v0, v17
 005ac4: 5203 3e00                              |004e: iget v3, v0, Lcom/google/android/checkers/a;.e:I // field@003e
-005ac8: 1405 0707 0707                         |0050: const v5, #float 0.000000 // #07070707
+005ac8: 1405 0707 0707                         |0050: const v5, #float 1.01583e-34 // #07070707
 005ace: b525                                   |0053: and-int/2addr v5, v2
 005ad0: e005 0505                              |0054: shl-int/lit8 v5, v5, #int 5 // #05
-005ad4: 1406 e0e0 e000                         |0056: const v6, #float 0.000000 // #00e0e0e0
+005ad4: 1406 e0e0 e000                         |0056: const v6, #float 2.06518e-38 // #00e0e0e0
 005ada: b562                                   |0059: and-int/2addr v2, v6
 005adc: e002 0203                              |005a: shl-int/lit8 v2, v2, #int 3 // #03
 005ae0: b652                                   |005c: or-int/2addr v2, v5
 005ae2: b532                                   |005d: and-int/2addr v2, v3
 005ae4: b621                                   |005e: or-int/2addr v1, v2
-005ae6: 1402 0707 0707                         |005f: const v2, #float 0.000000 // #07070707
+005ae6: 1402 0707 0707                         |005f: const v2, #float 1.01583e-34 // #07070707
 005aec: 9502 0214                              |0062: and-int v2, v2, v20
 005af0: e002 0205                              |0064: shl-int/lit8 v2, v2, #int 5 // #05
-005af4: 1403 e0e0 e000                         |0066: const v3, #float 0.000000 // #00e0e0e0
+005af4: 1403 e0e0 e000                         |0066: const v3, #float 2.06518e-38 // #00e0e0e0
 005afa: 9503 0314                              |0069: and-int v3, v3, v20
 005afe: e003 0303                              |006b: shl-int/lit8 v3, v3, #int 3 // #03
 005b02: b632                                   |006d: or-int/2addr v2, v3
@@ -5802,19 +5802,19 @@ Class #2            -
 005dd4: 3803 1600                              |01d6: if-eqz v3, 01ec // +0016
 005dd8: 0800 1100                              |01d8: move-object/from16 v0, v17
 005ddc: 5201 4000                              |01da: iget v1, v0, Lcom/google/android/checkers/a;.g:I // field@0040
-005de0: 1405 e0e0 e0e0                         |01dc: const v5, #float -129633581999069331456.000000 // #e0e0e0e0
+005de0: 1405 e0e0 e0e0                         |01dc: const v5, #float -1.29634e+20 // #e0e0e0e0
 005de6: b535                                   |01df: and-int/2addr v5, v3
 005de8: e205 0505                              |01e0: ushr-int/lit8 v5, v5, #int 5 // #05
-005dec: 1406 0007 0707                         |01e2: const v6, #float 0.000000 // #07070700
+005dec: 1406 0007 0707                         |01e2: const v6, #float 1.01583e-34 // #07070700
 005df2: b563                                   |01e5: and-int/2addr v3, v6
 005df4: e203 0303                              |01e6: ushr-int/lit8 v3, v3, #int 3 // #03
 005df8: b653                                   |01e8: or-int/2addr v3, v5
 005dfa: b531                                   |01e9: and-int/2addr v1, v3
 005dfc: de01 0100                              |01ea: or-int/lit8 v1, v1, #int 0 // #00
-005e00: 1403 e0e0 e0e0                         |01ec: const v3, #float -129633581999069331456.000000 // #e0e0e0e0
+005e00: 1403 e0e0 e0e0                         |01ec: const v3, #float -1.29634e+20 // #e0e0e0e0
 005e06: 9503 0314                              |01ef: and-int v3, v3, v20
 005e0a: e203 0305                              |01f1: ushr-int/lit8 v3, v3, #int 5 // #05
-005e0e: 1405 0007 0707                         |01f3: const v5, #float 0.000000 // #07070700
+005e0e: 1405 0007 0707                         |01f3: const v5, #float 1.01583e-34 // #07070700
 005e14: 9505 0514                              |01f6: and-int v5, v5, v20
 005e18: e205 0503                              |01f8: ushr-int/lit8 v5, v5, #int 3 // #03
 005e1c: b653                                   |01fa: or-int/2addr v3, v5
@@ -5828,19 +5828,19 @@ Class #2            -
 005e34: e003 1404                              |0206: shl-int/lit8 v3, v20, #int 4 // #04
 005e38: b543                                   |0208: and-int/2addr v3, v4
 005e3a: 3803 1100                              |0209: if-eqz v3, 021a // +0011
-005e3e: 1405 0707 0707                         |020b: const v5, #float 0.000000 // #07070707
+005e3e: 1405 0707 0707                         |020b: const v5, #float 1.01583e-34 // #07070707
 005e44: b535                                   |020e: and-int/2addr v5, v3
 005e46: e005 0505                              |020f: shl-int/lit8 v5, v5, #int 5 // #05
-005e4a: 1406 e0e0 e000                         |0211: const v6, #float 0.000000 // #00e0e0e0
+005e4a: 1406 e0e0 e000                         |0211: const v6, #float 2.06518e-38 // #00e0e0e0
 005e50: b563                                   |0214: and-int/2addr v3, v6
 005e52: e003 0303                              |0215: shl-int/lit8 v3, v3, #int 3 // #03
 005e56: b653                                   |0217: or-int/2addr v3, v5
 005e58: b523                                   |0218: and-int/2addr v3, v2
 005e5a: b631                                   |0219: or-int/2addr v1, v3
-005e5c: 1403 0707 0707                         |021a: const v3, #float 0.000000 // #07070707
+005e5c: 1403 0707 0707                         |021a: const v3, #float 1.01583e-34 // #07070707
 005e62: 9503 0314                              |021d: and-int v3, v3, v20
 005e66: e003 0305                              |021f: shl-int/lit8 v3, v3, #int 5 // #05
-005e6a: 1405 e0e0 e000                         |0221: const v5, #float 0.000000 // #00e0e0e0
+005e6a: 1405 e0e0 e000                         |0221: const v5, #float 2.06518e-38 // #00e0e0e0
 005e70: 9505 0514                              |0224: and-int v5, v5, v20
 005e74: e005 0503                              |0226: shl-int/lit8 v5, v5, #int 3 // #03
 005e78: b653                                   |0228: or-int/2addr v3, v5
@@ -6423,9 +6423,9 @@ Class #2            -
       outs          : 6
       insns size    : 461 16-bit code units
 006604:                                        |[006604] com.google.android.checkers.a.b:(IZI)Z
-006614: 1404 e0e0 e000                         |0000: const v4, #float 0.000000 // #00e0e0e0
+006614: 1404 e0e0 e000                         |0000: const v4, #float 2.06518e-38 // #00e0e0e0
 00661a: 1216                                   |0003: const/4 v6, #int 1 // #1
-00661c: 1403 e0e0 e0e0                         |0004: const v3, #float -129633581999069331456.000000 // #e0e0e0e0
+00661c: 1403 e0e0 e0e0                         |0004: const v3, #float -1.29634e+20 // #e0e0e0e0
 006622: 130a 0008                              |0007: const/16 v10, #int 2048 // #800
 006626: 1309 0002                              |0009: const/16 v9, #int 512 // #200
 00662a: 380d e400                              |000b: if-eqz v13, 00ef // +00e4
@@ -6436,7 +6436,7 @@ Class #2            -
 00663e: 9502 0e03                              |0015: and-int v2, v14, v3
 006642: e202 0205                              |0017: ushr-int/lit8 v2, v2, #int 5 // #05
 006646: b621                                   |0019: or-int/2addr v1, v2
-006648: 1402 0007 0707                         |001a: const v2, #float 0.000000 // #07070700
+006648: 1402 0007 0707                         |001a: const v2, #float 1.01583e-34 // #07070700
 00664e: b5e2                                   |001d: and-int/2addr v2, v14
 006650: e202 0203                              |001e: ushr-int/lit8 v2, v2, #int 3 // #03
 006654: b621                                   |0020: or-int/2addr v1, v2
@@ -6453,14 +6453,14 @@ Class #2            -
 006676: 9502 0e03                              |0031: and-int v2, v14, v3
 00667a: e202 0205                              |0033: ushr-int/lit8 v2, v2, #int 5 // #05
 00667e: b621                                   |0035: or-int/2addr v1, v2
-006680: 1402 0007 0707                         |0036: const v2, #float 0.000000 // #07070700
+006680: 1402 0007 0707                         |0036: const v2, #float 1.01583e-34 // #07070700
 006686: b5e2                                   |0039: and-int/2addr v2, v14
 006688: e202 0203                              |003a: ushr-int/lit8 v2, v2, #int 3 // #03
 00668c: b621                                   |003c: or-int/2addr v1, v2
 00668e: b510                                   |003d: and-int/2addr v0, v1
 006690: 52b1 3e00                              |003e: iget v1, v11, Lcom/google/android/checkers/a;.e:I // field@003e
 006694: e002 0e04                              |0040: shl-int/lit8 v2, v14, #int 4 // #04
-006698: 1403 0707 0707                         |0042: const v3, #float 0.000000 // #07070707
+006698: 1403 0707 0707                         |0042: const v3, #float 1.01583e-34 // #07070707
 00669e: b5e3                                   |0045: and-int/2addr v3, v14
 0066a0: e003 0305                              |0046: shl-int/lit8 v3, v3, #int 5 // #05
 0066a4: b632                                   |0048: or-int/2addr v2, v3
@@ -6563,7 +6563,7 @@ Class #2            -
 0067f6: 3900 5400                              |00f1: if-nez v0, 0145 // +0054
 0067fa: 52b0 3f00                              |00f3: iget v0, v11, Lcom/google/android/checkers/a;.f:I // field@003f
 0067fe: e001 0e04                              |00f5: shl-int/lit8 v1, v14, #int 4 // #04
-006802: 1402 0707 0707                         |00f7: const v2, #float 0.000000 // #07070707
+006802: 1402 0707 0707                         |00f7: const v2, #float 1.01583e-34 // #07070707
 006808: b5e2                                   |00fa: and-int/2addr v2, v14
 00680a: e002 0205                              |00fb: shl-int/lit8 v2, v2, #int 5 // #05
 00680e: b621                                   |00fd: or-int/2addr v1, v2
@@ -6611,7 +6611,7 @@ Class #2            -
 0068a2: 52b1 3f00                              |0147: iget v1, v11, Lcom/google/android/checkers/a;.f:I // field@003f
 0068a6: b610                                   |0149: or-int/2addr v0, v1
 0068a8: e001 0e04                              |014a: shl-int/lit8 v1, v14, #int 4 // #04
-0068ac: 1402 0707 0707                         |014c: const v2, #float 0.000000 // #07070707
+0068ac: 1402 0707 0707                         |014c: const v2, #float 1.01583e-34 // #07070707
 0068b2: b5e2                                   |014f: and-int/2addr v2, v14
 0068b4: e002 0205                              |0150: shl-int/lit8 v2, v2, #int 5 // #05
 0068b8: b621                                   |0152: or-int/2addr v1, v2
@@ -6624,7 +6624,7 @@ Class #2            -
 0068ce: b5e3                                   |015d: and-int/2addr v3, v14
 0068d0: e203 0305                              |015e: ushr-int/lit8 v3, v3, #int 5 // #05
 0068d4: b632                                   |0160: or-int/2addr v2, v3
-0068d6: 1403 0007 0707                         |0161: const v3, #float 0.000000 // #07070700
+0068d6: 1403 0007 0707                         |0161: const v3, #float 1.01583e-34 // #07070700
 0068dc: b5e3                                   |0164: and-int/2addr v3, v14
 0068de: e203 0303                              |0165: ushr-int/lit8 v3, v3, #int 3 // #03
 0068e2: b632                                   |0167: or-int/2addr v2, v3
