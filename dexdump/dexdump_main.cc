@@ -40,19 +40,18 @@ static const char* gProgName = "dexdump";
  */
 static void usage(void) {
   fprintf(stderr, "Copyright (C) 2007 The Android Open Source Project\n\n");
-  fprintf(stderr, "%s: [-c] [-d] [-e] [-f] [-h] [-i] [-l layout] [-o outfile]"
-                  " [-t tempfile] dexfile...\n", gProgName);
-  fprintf(stderr, "\n");
+  fprintf(stderr, "%s: [-a] [-c] [-d] [-e] [-f] [-h] [-i] [-l layout] [-o outfile]"
+                  " dexfile...\n\n", gProgName);
+  fprintf(stderr, " -a : display annotations\n");
   fprintf(stderr, " -c : verify checksum and exit\n");
   fprintf(stderr, " -d : disassemble code sections\n");
   fprintf(stderr, " -e : display exported items only\n");
   fprintf(stderr, " -f : display summary information from file header\n");
-  fprintf(stderr, " -g : dump CFG for dex\n");
+  fprintf(stderr, " -g : display CFG for dex\n");
   fprintf(stderr, " -h : display file header details\n");
   fprintf(stderr, " -i : ignore checksum failures\n");
   fprintf(stderr, " -l : output layout, either 'plain' or 'xml'\n");
   fprintf(stderr, " -o : output file name (defaults to stdout)\n");
-  fprintf(stderr, " -t : temp file name (defaults to /sdcard/dex-temp-*)\n");
 }
 
 /*
@@ -70,11 +69,14 @@ int dexdumpDriver(int argc, char** argv) {
 
   // Parse all arguments.
   while (1) {
-    const int ic = getopt(argc, argv, "cdefghil:t:o:");
+    const int ic = getopt(argc, argv, "acdefghil:o:");
     if (ic < 0) {
       break;  // done
     }
     switch (ic) {
+      case 'a':  // display annotations
+        gOptions.showAnnotations = true;
+        break;
       case 'c':  // verify the checksum then exit
         gOptions.checksumOnly = true;
         break;
@@ -84,13 +86,13 @@ int dexdumpDriver(int argc, char** argv) {
       case 'e':  // exported items only
         gOptions.exportsOnly = true;
         break;
-      case 'f':  // dump outer file header
+      case 'f':  // display outer file header
         gOptions.showFileHeaders = true;
         break;
-      case 'g':  // dump cfg
-        gOptions.cfg = true;
+      case 'g':  // display cfg
+        gOptions.showCfg = true;
         break;
-      case 'h':  // dump section headers, i.e. all meta-data
+      case 'h':  // display section headers, i.e. all meta-data
         gOptions.showSectionHeaders = true;
         break;
       case 'i':  // continue even if checksum is bad
@@ -105,9 +107,6 @@ int dexdumpDriver(int argc, char** argv) {
         } else {
           wantUsage = true;
         }
-        break;
-      case 't':  // temp file, used when opening compressed Jar
-        gOptions.tempFileName = optarg;
         break;
       case 'o':  // output file
         gOptions.outputFileName = optarg;
