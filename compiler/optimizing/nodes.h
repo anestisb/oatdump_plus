@@ -161,6 +161,10 @@ class ReferenceTypeInfo : ValueObject {
 
   static ReferenceTypeInfo Create(TypeHandle type_handle, bool is_exact);
 
+  static ReferenceTypeInfo Create(TypeHandle type_handle) SHARED_REQUIRES(Locks::mutator_lock_) {
+    return Create(type_handle, type_handle->CannotBeAssignedFromOtherTypes());
+  }
+
   static ReferenceTypeInfo CreateUnchecked(TypeHandle type_handle, bool is_exact) {
     return ReferenceTypeInfo(type_handle, is_exact);
   }
