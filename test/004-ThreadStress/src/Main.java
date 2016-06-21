@@ -107,6 +107,7 @@ public class Main implements Runnable {
         public boolean perform() {
             try {
                 kill.invoke(null, pid, sigquit);
+            } catch (OutOfMemoryError e) {
             } catch (Exception e) {
                 if (!e.getClass().getName().equals("ErrnoException")) {
                     e.printStackTrace(System.out);
@@ -154,7 +155,10 @@ public class Main implements Runnable {
     private final static class StackTrace extends Operation {
         @Override
         public boolean perform() {
-            Thread.currentThread().getStackTrace();
+            try {
+                Thread.currentThread().getStackTrace();
+            } catch (OutOfMemoryError e) {
+            }
             return true;
         }
     }
