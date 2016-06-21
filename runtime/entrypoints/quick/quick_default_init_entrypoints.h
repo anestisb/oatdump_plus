@@ -114,6 +114,7 @@ void DefaultInitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) 
   qpoints->pThrowNoSuchMethod = art_quick_throw_no_such_method;
   qpoints->pThrowNullPointer = art_quick_throw_null_pointer_exception;
   qpoints->pThrowStackOverflow = art_quick_throw_stack_overflow;
+  qpoints->pThrowStringBounds = art_quick_throw_string_bounds;
 
   // Deoptimize
   qpoints->pDeoptimize = art_quick_deoptimize_from_compiled_code;

@@ -1872,54 +1872,6 @@ void IntrinsicCodeGeneratorMIPS::VisitUnsafeCASObject(HInvoke* invoke) {
   GenCas(invoke->GetLocations(), Primitive::kPrimNot, codegen_);
 }
 
-// char java.lang.String.charAt(int index)
-void IntrinsicLocationsBuilderMIPS::VisitStringCharAt(HInvoke* invoke) {
-  LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                            LocationSummary::kCallOnSlowPath,
-                                                            kIntrinsified);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
-  // The inputs will be considered live at the last instruction and restored. This would overwrite
-  // the output with kNoOutputOverlap.
-  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
-}
-
-void IntrinsicCodeGeneratorMIPS::VisitStringCharAt(HInvoke* invoke) {
-  LocationSummary* locations = invoke->GetLocations();
-  MipsAssembler* assembler = GetAssembler();
-
-  // Location of reference to data array
-  const int32_t value_offset = mirror::String::ValueOffset().Int32Value();
-  // Location of count
-  const int32_t count_offset = mirror::String::CountOffset().Int32Value();
-
-  Register obj = locations->InAt(0).AsRegister<Register>();
-  Register idx = locations->InAt(1).AsRegister<Register>();
-  Register out = locations->Out().AsRegister<Register>();
-
-  // TODO: Maybe we can support range check elimination. Overall,
-  //       though, I think it's not worth the cost.
-  // TODO: For simplicity, the index parameter is requested in a
-  //       register, so different from Quick we will not optimize the
-  //       code for constants (which would save a register).
-
-  SlowPathCodeMIPS* slow_path = new (GetAllocator()) IntrinsicSlowPathMIPS(invoke);
-  codegen_->AddSlowPath(slow_path);
-
-  // Load the string size
-  __ Lw(TMP, obj, count_offset);
-  codegen_->MaybeRecordImplicitNullCheck(invoke);
-  // Revert to slow path if idx is too large, or negative
-  __ Bgeu(idx, TMP, slow_path->GetEntryLabel());
-
-  // out = obj[2*idx].
-  __ Sll(TMP, idx, 1);                  // idx * 2
-  __ Addu(TMP, TMP, obj);               // Address of char at location idx
-  __ Lhu(out, TMP, value_offset);       // Load char at location idx
-
-  __ Bind(slow_path->GetExitLabel());
-}
-
 // int java.lang.String.compareTo(String anotherString)
 void IntrinsicLocationsBuilderMIPS::VisitStringCompareTo(HInvoke* invoke) {
   LocationSummary* locations = new (arena_) LocationSummary(invoke,

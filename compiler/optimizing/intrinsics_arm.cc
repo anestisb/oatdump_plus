@@ -935,55 +935,6 @@ void IntrinsicCodeGeneratorARM::VisitUnsafeCASObject(HInvoke* invoke) {
   GenCas(invoke->GetLocations(), Primitive::kPrimNot, codegen_);
 }
 
-void IntrinsicLocationsBuilderARM::VisitStringCharAt(HInvoke* invoke) {
-  LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                            LocationSummary::kCallOnSlowPath,
-                                                            kIntrinsified);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
-  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
-
-  locations->AddTemp(Location::RequiresRegister());
-  locations->AddTemp(Location::RequiresRegister());
-}
-
-void IntrinsicCodeGeneratorARM::VisitStringCharAt(HInvoke* invoke) {
-  ArmAssembler* assembler = GetAssembler();
-  LocationSummary* locations = invoke->GetLocations();
-
-  // Location of reference to data array
-  const MemberOffset value_offset = mirror::String::ValueOffset();
-  // Location of count
-  const MemberOffset count_offset = mirror::String::CountOffset();
-
-  Register obj = locations->InAt(0).AsRegister<Register>();  // String object pointer.
-  Register idx = locations->InAt(1).AsRegister<Register>();  // Index of character.
-  Register out = locations->Out().AsRegister<Register>();    // Result character.
-
-  Register temp = locations->GetTemp(0).AsRegister<Register>();
-  Register array_temp = locations->GetTemp(1).AsRegister<Register>();
-
-  // TODO: Maybe we can support range check elimination. Overall, though, I think it's not worth
-  //       the cost.
-  // TODO: For simplicity, the index parameter is requested in a register, so different from Quick
-  //       we will not optimize the code for constants (which would save a register).
-
-  SlowPathCode* slow_path = new (GetAllocator()) IntrinsicSlowPathARM(invoke);
-  codegen_->AddSlowPath(slow_path);
-
-  __ ldr(temp, Address(obj, count_offset.Int32Value()));          // temp = str.length.
-  codegen_->MaybeRecordImplicitNullCheck(invoke);
-  __ cmp(idx, ShifterOperand(temp));
-  __ b(slow_path->GetEntryLabel(), CS);
-
-  __ add(array_temp, obj, ShifterOperand(value_offset.Int32Value()));  // array_temp := str.value.
-
-  // Load the value.
-  __ ldrh(out, Address(array_temp, idx, LSL, 1));                 // out := array_temp[idx].
-
-  __ Bind(slow_path->GetExitLabel());
-}
-
 void IntrinsicLocationsBuilderARM::VisitStringCompareTo(HInvoke* invoke) {
   // The inputs plus one temp.
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
