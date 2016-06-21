@@ -38,8 +38,8 @@ class SignalSet {
   }
 
   void Block() {
-    if (sigprocmask(SIG_BLOCK, &set_, nullptr) == -1) {
-      PLOG(FATAL) << "sigprocmask failed";
+    if (pthread_sigmask(SIG_BLOCK, &set_, nullptr) != 0) {
+      PLOG(FATAL) << "pthread_sigmask failed";
     }
   }
 
