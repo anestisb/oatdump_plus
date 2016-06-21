@@ -28,6 +28,12 @@ public class Main {
     }
   }
 
+  public static void assertClassEquals(Class<?> expected, Class<?> result) {
+    if (expected != result) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
   public static boolean doThrow = false;
 
   private static int $noinline$foo(int x) {
@@ -251,6 +257,66 @@ public class Main {
     return "non-boot-image-string";
   }
 
+  /// CHECK-START: java.lang.Class Main.$noinline$getStringClass() sharpening (before)
+  /// CHECK:                LoadClass load_kind:DexCacheViaMethod class_name:java.lang.String
+
+  /// CHECK-START-X86: java.lang.Class Main.$noinline$getStringClass() sharpening (after)
+  // Note: load kind depends on PIC/non-PIC
+  // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
+  /// CHECK:                LoadClass load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}} class_name:java.lang.String
+
+  /// CHECK-START-X86_64: java.lang.Class Main.$noinline$getStringClass() sharpening (after)
+  // Note: load kind depends on PIC/non-PIC
+  // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
+  /// CHECK:                LoadClass load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}} class_name:java.lang.String
+
+  /// CHECK-START-ARM: java.lang.Class Main.$noinline$getStringClass() sharpening (after)
+  // Note: load kind depends on PIC/non-PIC
+  // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
+  /// CHECK:                LoadClass load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}} class_name:java.lang.String
+
+  /// CHECK-START-ARM64: java.lang.Class Main.$noinline$getStringClass() sharpening (after)
+  // Note: load kind depends on PIC/non-PIC
+  // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
+  /// CHECK:                LoadClass load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}} class_name:java.lang.String
+
+  public static Class<?> $noinline$getStringClass() {
+    // Prevent inlining to avoid the string comparison being optimized away.
+    if (doThrow) { throw new Error(); }
+    // String class is known to be in the boot image.
+    return String.class;
+  }
+
+  /// CHECK-START: java.lang.Class Main.$noinline$getOtherClass() sharpening (before)
+  /// CHECK:                LoadClass load_kind:DexCacheViaMethod class_name:Other
+
+  /// CHECK-START-X86: java.lang.Class Main.$noinline$getOtherClass() sharpening (after)
+  /// CHECK:                LoadClass load_kind:DexCachePcRelative class_name:Other
+
+  /// CHECK-START-X86: java.lang.Class Main.$noinline$getOtherClass() pc_relative_fixups_x86 (after)
+  /// CHECK-DAG:            X86ComputeBaseMethodAddress
+  /// CHECK-DAG:            LoadClass load_kind:DexCachePcRelative class_name:Other
+
+  /// CHECK-START-X86_64: java.lang.Class Main.$noinline$getOtherClass() sharpening (after)
+  /// CHECK:                LoadClass load_kind:DexCachePcRelative class_name:Other
+
+  /// CHECK-START-ARM: java.lang.Class Main.$noinline$getOtherClass() sharpening (after)
+  /// CHECK:                LoadClass load_kind:DexCachePcRelative class_name:Other
+
+  /// CHECK-START-ARM: java.lang.Class Main.$noinline$getOtherClass() dex_cache_array_fixups_arm (after)
+  /// CHECK-DAG:            ArmDexCacheArraysBase
+  /// CHECK-DAG:            LoadClass load_kind:DexCachePcRelative class_name:Other
+
+  /// CHECK-START-ARM64: java.lang.Class Main.$noinline$getOtherClass() sharpening (after)
+  /// CHECK:                LoadClass load_kind:DexCachePcRelative class_name:Other
+
+  public static Class<?> $noinline$getOtherClass() {
+    // Prevent inlining to avoid the string comparison being optimized away.
+    if (doThrow) { throw new Error(); }
+    // Other class is not in the boot image.
+    return Other.class;
+  }
+
   public static void main(String[] args) {
     assertIntEquals(1, testSimple(1));
     assertIntEquals(1, testDiamond(false, 1));
@@ -262,5 +328,10 @@ public class Main {
     assertIntEquals(-6, testLoopWithDiamond(new int[]{ 3, 4 }, true, 1));
     assertStringEquals("", $noinline$getBootImageString());
     assertStringEquals("non-boot-image-string", $noinline$getNonBootImageString());
+    assertClassEquals(String.class, $noinline$getStringClass());
+    assertClassEquals(Other.class, $noinline$getOtherClass());
   }
+}
+
+class Other {
 }

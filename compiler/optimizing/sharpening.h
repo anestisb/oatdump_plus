@@ -47,6 +47,7 @@ class HSharpening : public HOptimization {
 
  private:
   void ProcessInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke);
+  void ProcessLoadClass(HLoadClass* load_class);
   void ProcessLoadString(HLoadString* load_string);
 
   CodeGenerator* codegen_;
