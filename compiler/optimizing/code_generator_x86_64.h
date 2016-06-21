@@ -388,6 +388,11 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   HLoadString::LoadKind GetSupportedLoadStringKind(
       HLoadString::LoadKind desired_string_load_kind) OVERRIDE;
 
+  // Check if the desired_class_load_kind is supported. If it is, return it,
+  // otherwise return a fall-back kind that should be used instead.
+  HLoadClass::LoadKind GetSupportedLoadClassKind(
+      HLoadClass::LoadKind desired_class_load_kind) OVERRIDE;
+
   // Check if the desired_dispatch_info is supported. If it is, return it,
   // otherwise return a fall-back info that should be used instead.
   HInvokeStaticOrDirect::DispatchInfo GetSupportedInvokeStaticOrDirectDispatch(
@@ -400,6 +405,7 @@ class CodeGeneratorX86_64 : public CodeGenerator {
 
   void RecordSimplePatch();
   void RecordStringPatch(HLoadString* load_string);
+  void RecordTypePatch(HLoadClass* load_class);
   Label* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file, uint32_t element_offset);
 
   void MoveFromReturnRegister(Location trg, Primitive::Type type) OVERRIDE;
@@ -569,6 +575,8 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   ArenaDeque<Label> simple_patches_;
   // String patch locations.
   ArenaDeque<StringPatchInfo<Label>> string_patches_;
+  // Type patch locations.
+  ArenaDeque<TypePatchInfo<Label>> type_patches_;
 
   // Fixups for jump tables need to be handled specially.
   ArenaVector<JumpTableRIPFixup*> fixups_to_jump_tables_;

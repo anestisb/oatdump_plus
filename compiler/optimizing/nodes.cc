@@ -2430,8 +2430,69 @@ std::ostream& operator<<(std::ostream& os, HInvokeStaticOrDirect::ClinitCheckReq
   }
 }
 
+bool HLoadClass::InstructionDataEquals(const HInstruction* other) const {
+  const HLoadClass* other_load_class = other->AsLoadClass();
+  // TODO: To allow GVN for HLoadClass from different dex files, we should compare the type
+  // names rather than type indexes. However, we shall also have to re-think the hash code.
+  if (type_index_ != other_load_class->type_index_ ||
+      GetPackedFields() != other_load_class->GetPackedFields()) {
+    return false;
+  }
+  LoadKind load_kind = GetLoadKind();
+  if (HasAddress(load_kind)) {
+    return GetAddress() == other_load_class->GetAddress();
+  } else if (HasTypeReference(load_kind)) {
+    return IsSameDexFile(GetDexFile(), other_load_class->GetDexFile());
+  } else {
+    DCHECK(HasDexCacheReference(load_kind)) << load_kind;
+    // If the type indexes and dex files are the same, dex cache element offsets
+    // must also be the same, so we don't need to compare them.
+    return IsSameDexFile(GetDexFile(), other_load_class->GetDexFile());
+  }
+}
+
+void HLoadClass::SetLoadKindInternal(LoadKind load_kind) {
+  // Once sharpened, the load kind should not be changed again.
+  // Also, kReferrersClass should never be overwritten.
+  DCHECK_EQ(GetLoadKind(), LoadKind::kDexCacheViaMethod);
+  SetPackedField<LoadKindField>(load_kind);
+
+  if (load_kind != LoadKind::kDexCacheViaMethod) {
+    RemoveAsUserOfInput(0u);
+    SetRawInputAt(0u, nullptr);
+  }
+  if (!NeedsEnvironment()) {
+    RemoveEnvironment();
+    SetSideEffects(SideEffects::None());
+  }
+}
+
+std::ostream& operator<<(std::ostream& os, HLoadClass::LoadKind rhs) {
+  switch (rhs) {
+    case HLoadClass::LoadKind::kReferrersClass:
+      return os << "ReferrersClass";
+    case HLoadClass::LoadKind::kBootImageLinkTimeAddress:
+      return os << "BootImageLinkTimeAddress";
+    case HLoadClass::LoadKind::kBootImageLinkTimePcRelative:
+      return os << "BootImageLinkTimePcRelative";
+    case HLoadClass::LoadKind::kBootImageAddress:
+      return os << "BootImageAddress";
+    case HLoadClass::LoadKind::kDexCacheAddress:
+      return os << "DexCacheAddress";
+    case HLoadClass::LoadKind::kDexCachePcRelative:
+      return os << "DexCachePcRelative";
+    case HLoadClass::LoadKind::kDexCacheViaMethod:
+      return os << "DexCacheViaMethod";
+    default:
+      LOG(FATAL) << "Unknown HLoadClass::LoadKind: " << static_cast<int>(rhs);
+      UNREACHABLE();
+  }
+}
+
 bool HLoadString::InstructionDataEquals(const HInstruction* other) const {
   const HLoadString* other_load_string = other->AsLoadString();
+  // TODO: To allow GVN for HLoadString from different dex files, we should compare the strings
+  // rather than their indexes. However, we shall also have to re-think the hash code.
   if (string_index_ != other_load_string->string_index_ ||
       GetPackedFields() != other_load_string->GetPackedFields()) {
     return false;

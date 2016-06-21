@@ -85,6 +85,16 @@ static constexpr InvokeType kInvalidInvokeType = static_cast<InvokeType>(-1);
 
 static constexpr uint32_t kNoDexPc = -1;
 
+inline bool IsSameDexFile(const DexFile& lhs, const DexFile& rhs) {
+  // For the purposes of the compiler, the dex files must actually be the same object
+  // if we want to safely treat them as the same. This is especially important for JIT
+  // as custom class loaders can open the same underlying file (or memory) multiple
+  // times and provide different class resolution but no two class loaders should ever
+  // use the same DexFile object - doing so is an unsupported hack that can lead to
+  // all sorts of weird failures.
+  return &lhs == &rhs;
+}
+
 enum IfCondition {
   // All types.
   kCondEQ,  // ==
@@ -5329,8 +5339,44 @@ class HNativeDebugInfo : public HTemplateInstruction<0> {
 /**
  * Instruction to load a Class object.
  */
-class HLoadClass FINAL : public HExpression<1> {
+class HLoadClass FINAL : public HInstruction {
  public:
+  // Determines how to load the Class.
+  enum class LoadKind {
+    // Use the Class* from the method's own ArtMethod*.
+    kReferrersClass,
+
+    // Use boot image Class* address that will be known at link time.
+    // Used for boot image classes referenced by boot image code in non-PIC mode.
+    kBootImageLinkTimeAddress,
+
+    // Use PC-relative boot image Class* address that will be known at link time.
+    // Used for boot image classes referenced by boot image code in PIC mode.
+    kBootImageLinkTimePcRelative,
+
+    // Use a known boot image Class* address, embedded in the code by the codegen.
+    // Used for boot image classes referenced by apps in AOT- and JIT-compiled code.
+    // Note: codegen needs to emit a linker patch if indicated by compiler options'
+    // GetIncludePatchInformation().
+    kBootImageAddress,
+
+    // Load from the resolved types array at an absolute address.
+    // Used for classes outside the boot image referenced by JIT-compiled code.
+    kDexCacheAddress,
+
+    // Load from resolved types array in the dex cache using a PC-relative load.
+    // Used for classes outside boot image when we know that we can access
+    // the dex cache arrays using a PC-relative load.
+    kDexCachePcRelative,
+
+    // Load from resolved types array accessed through the class loaded from
+    // the compiled method's own ArtMethod*. This is the default access type when
+    // all other types are unavailable.
+    kDexCacheViaMethod,
+
+    kLast = kDexCacheViaMethod
+  };
+
   HLoadClass(HCurrentMethod* current_method,
              uint16_t type_index,
              const DexFile& dex_file,
@@ -5338,7 +5384,8 @@ class HLoadClass FINAL : public HExpression<1> {
              uint32_t dex_pc,
              bool needs_access_check,
              bool is_in_dex_cache)
-      : HExpression(Primitive::kPrimNot, SideEffectsForArchRuntimeCalls(), dex_pc),
+      : HInstruction(SideEffectsForArchRuntimeCalls(), dex_pc),
+        special_input_(HUserRecord<HInstruction*>(current_method)),
         type_index_(type_index),
         dex_file_(dex_file),
         loaded_class_rti_(ReferenceTypeInfo::CreateInvalid()) {
@@ -5346,26 +5393,47 @@ class HLoadClass FINAL : public HExpression<1> {
     // methods so we can't possibly end up in this situation.
     DCHECK(!is_referrers_class || !needs_access_check);
 
-    SetPackedFlag<kFlagIsReferrersClass>(is_referrers_class);
+    SetPackedField<LoadKindField>(
+        is_referrers_class ? LoadKind::kReferrersClass : LoadKind::kDexCacheViaMethod);
     SetPackedFlag<kFlagNeedsAccessCheck>(needs_access_check);
     SetPackedFlag<kFlagIsInDexCache>(is_in_dex_cache);
     SetPackedFlag<kFlagGenerateClInitCheck>(false);
-    SetRawInputAt(0, current_method);
+  }
+
+  void SetLoadKindWithAddress(LoadKind load_kind, uint64_t address) {
+    DCHECK(HasAddress(load_kind));
+    load_data_.address = address;
+    SetLoadKindInternal(load_kind);
+  }
+
+  void SetLoadKindWithTypeReference(LoadKind load_kind,
+                                    const DexFile& dex_file,
+                                    uint32_t type_index) {
+    DCHECK(HasTypeReference(load_kind));
+    DCHECK(IsSameDexFile(dex_file_, dex_file));
+    DCHECK_EQ(type_index_, type_index);
+    SetLoadKindInternal(load_kind);
+  }
+
+  void SetLoadKindWithDexCacheReference(LoadKind load_kind,
+                                        const DexFile& dex_file,
+                                        uint32_t element_index) {
+    DCHECK(HasDexCacheReference(load_kind));
+    DCHECK(IsSameDexFile(dex_file_, dex_file));
+    load_data_.dex_cache_element_index = element_index;
+    SetLoadKindInternal(load_kind);
+  }
+
+  LoadKind GetLoadKind() const {
+    return GetPackedField<LoadKindField>();
   }
 
   bool CanBeMoved() const OVERRIDE { return true; }
 
-  bool InstructionDataEquals(const HInstruction* other) const OVERRIDE {
-    // Note that we don't need to test for generate_clinit_check_.
-    // Whether or not we need to generate the clinit check is processed in
-    // prepare_for_register_allocator based on existing HInvokes and HClinitChecks.
-    return other->AsLoadClass()->type_index_ == type_index_ &&
-        other->AsLoadClass()->GetPackedFields() == GetPackedFields();
-  }
+  bool InstructionDataEquals(const HInstruction* other) const;
 
   size_t ComputeHashCode() const OVERRIDE { return type_index_; }
 
-  uint16_t GetTypeIndex() const { return type_index_; }
   bool CanBeNull() const OVERRIDE { return false; }
 
   bool NeedsEnvironment() const OVERRIDE {
@@ -5400,7 +5468,15 @@ class HLoadClass FINAL : public HExpression<1> {
     loaded_class_rti_ = rti;
   }
 
-  const DexFile& GetDexFile() { return dex_file_; }
+  uint32_t GetTypeIndex() const { return type_index_; }
+  const DexFile& GetDexFile() const { return dex_file_; }
+
+  uint32_t GetDexCacheElementOffset() const;
+
+  uint64_t GetAddress() const {
+    DCHECK(HasAddress(GetLoadKind()));
+    return load_data_.address;
+  }
 
   bool NeedsDexCacheOfDeclaringClass() const OVERRIDE { return !IsReferrersClass(); }
 
@@ -5408,30 +5484,96 @@ class HLoadClass FINAL : public HExpression<1> {
     return SideEffects::CanTriggerGC();
   }
 
-  bool IsReferrersClass() const { return GetPackedFlag<kFlagIsReferrersClass>(); }
+  bool IsReferrersClass() const { return GetLoadKind() == LoadKind::kReferrersClass; }
   bool NeedsAccessCheck() const { return GetPackedFlag<kFlagNeedsAccessCheck>(); }
   bool IsInDexCache() const { return GetPackedFlag<kFlagIsInDexCache>(); }
   bool MustGenerateClinitCheck() const { return GetPackedFlag<kFlagGenerateClInitCheck>(); }
 
+  void MarkInDexCache() {
+    SetPackedFlag<kFlagIsInDexCache>(true);
+    DCHECK(!NeedsEnvironment());
+    RemoveEnvironment();
+    SetSideEffects(SideEffects::None());
+  }
+
+  void AddSpecialInput(HInstruction* special_input);
+
+  using HInstruction::GetInputRecords;  // Keep the const version visible.
+  ArrayRef<HUserRecord<HInstruction*>> GetInputRecords() OVERRIDE FINAL {
+    return ArrayRef<HUserRecord<HInstruction*>>(
+        &special_input_, (special_input_.GetInstruction() != nullptr) ? 1u : 0u);
+  }
+
+  Primitive::Type GetType() const OVERRIDE {
+    return Primitive::kPrimNot;
+  }
+
   DECLARE_INSTRUCTION(LoadClass);
 
  private:
-  static constexpr size_t kFlagIsReferrersClass    = kNumberOfExpressionPackedBits;
-  static constexpr size_t kFlagNeedsAccessCheck    = kFlagIsReferrersClass + 1;
+  static constexpr size_t kFlagNeedsAccessCheck    = kNumberOfGenericPackedBits;
   static constexpr size_t kFlagIsInDexCache        = kFlagNeedsAccessCheck + 1;
   // Whether this instruction must generate the initialization check.
   // Used for code generation.
   static constexpr size_t kFlagGenerateClInitCheck = kFlagIsInDexCache + 1;
-  static constexpr size_t kNumberOfLoadClassPackedBits = kFlagGenerateClInitCheck + 1;
+  static constexpr size_t kFieldLoadKind           = kFlagGenerateClInitCheck + 1;
+  static constexpr size_t kFieldLoadKindSize =
+      MinimumBitsToStore(static_cast<size_t>(LoadKind::kLast));
+  static constexpr size_t kNumberOfLoadClassPackedBits = kFieldLoadKind + kFieldLoadKindSize;
   static_assert(kNumberOfLoadClassPackedBits < kMaxNumberOfPackedBits, "Too many packed fields.");
+  using LoadKindField = BitField<LoadKind, kFieldLoadKind, kFieldLoadKindSize>;
+
+  static bool HasTypeReference(LoadKind load_kind) {
+    return load_kind == LoadKind::kBootImageLinkTimeAddress ||
+        load_kind == LoadKind::kBootImageLinkTimePcRelative ||
+        load_kind == LoadKind::kDexCacheViaMethod ||
+        load_kind == LoadKind::kReferrersClass;
+  }
+
+  static bool HasAddress(LoadKind load_kind) {
+    return load_kind == LoadKind::kBootImageAddress || load_kind == LoadKind::kDexCacheAddress;
+  }
+
+  static bool HasDexCacheReference(LoadKind load_kind) {
+    return load_kind == LoadKind::kDexCachePcRelative;
+  }
+
+  void SetLoadKindInternal(LoadKind load_kind);
+
+  // The special input is the HCurrentMethod for kDexCacheViaMethod or kReferrersClass.
+  // For other load kinds it's empty or possibly some architecture-specific instruction
+  // for PC-relative loads, i.e. kDexCachePcRelative or kBootImageLinkTimePcRelative.
+  HUserRecord<HInstruction*> special_input_;
 
   const uint16_t type_index_;
   const DexFile& dex_file_;
+
+  union {
+    uint32_t dex_cache_element_index;   // Only for dex cache reference.
+    uint64_t address;  // Up to 64-bit, needed for kDexCacheAddress on 64-bit targets.
+  } load_data_;
 
   ReferenceTypeInfo loaded_class_rti_;
 
   DISALLOW_COPY_AND_ASSIGN(HLoadClass);
 };
+std::ostream& operator<<(std::ostream& os, HLoadClass::LoadKind rhs);
+
+// Note: defined outside class to see operator<<(., HLoadClass::LoadKind).
+inline uint32_t HLoadClass::GetDexCacheElementOffset() const {
+  DCHECK(HasDexCacheReference(GetLoadKind())) << GetLoadKind();
+  return load_data_.dex_cache_element_index;
+}
+
+// Note: defined outside class to see operator<<(., HLoadClass::LoadKind).
+inline void HLoadClass::AddSpecialInput(HInstruction* special_input) {
+  // The special input is used for PC-relative loads on some architectures.
+  DCHECK(GetLoadKind() == LoadKind::kBootImageLinkTimePcRelative ||
+         GetLoadKind() == LoadKind::kDexCachePcRelative) << GetLoadKind();
+  DCHECK(special_input_.GetInstruction() == nullptr);
+  special_input_ = HUserRecord<HInstruction*>(special_input);
+  special_input->AddUseAt(this, 0);
+}
 
 class HLoadString FINAL : public HInstruction {
  public:
@@ -5599,6 +5741,9 @@ class HLoadString FINAL : public HInstruction {
 
   void SetLoadKindInternal(LoadKind load_kind);
 
+  // The special input is the HCurrentMethod for kDexCacheViaMethod.
+  // For other load kinds it's empty or possibly some architecture-specific instruction
+  // for PC-relative loads, i.e. kDexCachePcRelative or kBootImageLinkTimePcRelative.
   HUserRecord<HInstruction*> special_input_;
 
   // String index serves also as the hash code and it's also needed for slow-paths,
@@ -6570,16 +6715,6 @@ inline int64_t Int64FromConstant(HConstant* constant) {
     DCHECK(constant->IsNullConstant()) << constant->DebugName();
     return 0;
   }
-}
-
-inline bool IsSameDexFile(const DexFile& lhs, const DexFile& rhs) {
-  // For the purposes of the compiler, the dex files must actually be the same object
-  // if we want to safely treat them as the same. This is especially important for JIT
-  // as custom class loaders can open the same underlying file (or memory) multiple
-  // times and provide different class resolution but no two class loaders should ever
-  // use the same DexFile object - doing so is an unsupported hack that can lead to
-  // all sorts of weird failures.
-  return &lhs == &rhs;
 }
 
 #define INSTRUCTION_TYPE_CHECK(type, super)                                    \

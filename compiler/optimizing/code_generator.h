@@ -449,9 +449,14 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
                              SlowPathCode* slow_path) = 0;
 
   // Check if the desired_string_load_kind is supported. If it is, return it,
-  // otherwise return a fall-back info that should be used instead.
+  // otherwise return a fall-back kind that should be used instead.
   virtual HLoadString::LoadKind GetSupportedLoadStringKind(
       HLoadString::LoadKind desired_string_load_kind) = 0;
+
+  // Check if the desired_class_load_kind is supported. If it is, return it,
+  // otherwise return a fall-back kind that should be used instead.
+  virtual HLoadClass::LoadKind GetSupportedLoadClassKind(
+      HLoadClass::LoadKind desired_class_load_kind) = 0;
 
   // Check if the desired_dispatch_info is supported. If it is, return it,
   // otherwise return a fall-back info that should be used instead.
@@ -493,6 +498,20 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
 
     const DexFile& dex_file;
     uint32_t string_index;
+    LabelType label;
+  };
+
+  // Type patch info used for recording locations of required linker patches and
+  // target types. The actual type address can be absolute or PC-relative.
+  // TODO: Consider merging with MethodPatchInfo and StringPatchInfo - all these
+  // classes contain the dex file, some index and the label.
+  template <typename LabelType>
+  struct TypePatchInfo {
+    TypePatchInfo(const DexFile& df, uint32_t index)
+        : dex_file(df), type_index(index), label() { }
+
+    const DexFile& dex_file;
+    uint32_t type_index;
     LabelType label;
   };
 
