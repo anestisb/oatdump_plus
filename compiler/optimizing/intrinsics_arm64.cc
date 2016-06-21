@@ -1122,56 +1122,6 @@ void IntrinsicCodeGeneratorARM64::VisitUnsafeCASObject(HInvoke* invoke) {
   GenCas(invoke->GetLocations(), Primitive::kPrimNot, codegen_);
 }
 
-void IntrinsicLocationsBuilderARM64::VisitStringCharAt(HInvoke* invoke) {
-  LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                            LocationSummary::kCallOnSlowPath,
-                                                            kIntrinsified);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
-  // In case we need to go in the slow path, we can't have the output be the same
-  // as the input: the current liveness analysis considers the input to be live
-  // at the point of the call.
-  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
-}
-
-void IntrinsicCodeGeneratorARM64::VisitStringCharAt(HInvoke* invoke) {
-  vixl::MacroAssembler* masm = GetVIXLAssembler();
-  LocationSummary* locations = invoke->GetLocations();
-
-  // Location of reference to data array
-  const MemberOffset value_offset = mirror::String::ValueOffset();
-  // Location of count
-  const MemberOffset count_offset = mirror::String::CountOffset();
-
-  Register obj = WRegisterFrom(locations->InAt(0));  // String object pointer.
-  Register idx = WRegisterFrom(locations->InAt(1));  // Index of character.
-  Register out = WRegisterFrom(locations->Out());    // Result character.
-
-  UseScratchRegisterScope temps(masm);
-  Register temp = temps.AcquireW();
-  Register array_temp = temps.AcquireW();            // We can trade this for worse scheduling.
-
-  // TODO: Maybe we can support range check elimination. Overall, though, I think it's not worth
-  //       the cost.
-  // TODO: For simplicity, the index parameter is requested in a register, so different from Quick
-  //       we will not optimize the code for constants (which would save a register).
-
-  SlowPathCodeARM64* slow_path = new (GetAllocator()) IntrinsicSlowPathARM64(invoke);
-  codegen_->AddSlowPath(slow_path);
-
-  __ Ldr(temp, HeapOperand(obj, count_offset));          // temp = str.length.
-  codegen_->MaybeRecordImplicitNullCheck(invoke);
-  __ Cmp(idx, temp);
-  __ B(hs, slow_path->GetEntryLabel());
-
-  __ Add(array_temp, obj, Operand(value_offset.Int32Value()));  // array_temp := str.value.
-
-  // Load the value.
-  __ Ldrh(out, MemOperand(array_temp.X(), idx, UXTW, 1));  // out := array_temp[idx].
-
-  __ Bind(slow_path->GetExitLabel());
-}
-
 void IntrinsicLocationsBuilderARM64::VisitStringCompareTo(HInvoke* invoke) {
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
                                                             invoke->InputAt(1)->CanBeNull()

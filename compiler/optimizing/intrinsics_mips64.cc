@@ -1371,52 +1371,6 @@ void IntrinsicCodeGeneratorMIPS64::VisitUnsafeCASObject(HInvoke* invoke) {
   GenCas(invoke->GetLocations(), Primitive::kPrimNot, codegen_);
 }
 
-// char java.lang.String.charAt(int index)
-void IntrinsicLocationsBuilderMIPS64::VisitStringCharAt(HInvoke* invoke) {
-  LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                            LocationSummary::kCallOnSlowPath,
-                                                            kIntrinsified);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
-  locations->SetOut(Location::SameAsFirstInput());
-}
-
-void IntrinsicCodeGeneratorMIPS64::VisitStringCharAt(HInvoke* invoke) {
-  LocationSummary* locations = invoke->GetLocations();
-  Mips64Assembler* assembler = GetAssembler();
-
-  // Location of reference to data array
-  const int32_t value_offset = mirror::String::ValueOffset().Int32Value();
-  // Location of count
-  const int32_t count_offset = mirror::String::CountOffset().Int32Value();
-
-  GpuRegister obj = locations->InAt(0).AsRegister<GpuRegister>();
-  GpuRegister idx = locations->InAt(1).AsRegister<GpuRegister>();
-  GpuRegister out = locations->Out().AsRegister<GpuRegister>();
-
-  // TODO: Maybe we can support range check elimination. Overall,
-  //       though, I think it's not worth the cost.
-  // TODO: For simplicity, the index parameter is requested in a
-  //       register, so different from Quick we will not optimize the
-  //       code for constants (which would save a register).
-
-  SlowPathCodeMIPS64* slow_path = new (GetAllocator()) IntrinsicSlowPathMIPS64(invoke);
-  codegen_->AddSlowPath(slow_path);
-
-  // Load the string size
-  __ Lw(TMP, obj, count_offset);
-  codegen_->MaybeRecordImplicitNullCheck(invoke);
-  // Revert to slow path if idx is too large, or negative
-  __ Bgeuc(idx, TMP, slow_path->GetEntryLabel());
-
-  // out = obj[2*idx].
-  __ Sll(TMP, idx, 1);                  // idx * 2
-  __ Daddu(TMP, TMP, obj);              // Address of char at location idx
-  __ Lhu(out, TMP, value_offset);       // Load char at location idx
-
-  __ Bind(slow_path->GetExitLabel());
-}
-
 // int java.lang.String.compareTo(String anotherString)
 void IntrinsicLocationsBuilderMIPS64::VisitStringCompareTo(HInvoke* invoke) {
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
