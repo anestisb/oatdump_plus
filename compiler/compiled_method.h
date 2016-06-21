@@ -174,6 +174,7 @@ class LinkerPatch {
     kCall,
     kCallRelative,     // NOTE: Actual patching is instruction_set-dependent.
     kType,
+    kTypeRelative,     // NOTE: Actual patching is instruction_set-dependent.
     kString,
     kStringRelative,   // NOTE: Actual patching is instruction_set-dependent.
     kDexCacheArray,    // NOTE: Actual patching is instruction_set-dependent.
@@ -212,6 +213,16 @@ class LinkerPatch {
                                uint32_t target_type_idx) {
     LinkerPatch patch(literal_offset, Type::kType, target_dex_file);
     patch.type_idx_ = target_type_idx;
+    return patch;
+  }
+
+  static LinkerPatch RelativeTypePatch(size_t literal_offset,
+                                       const DexFile* target_dex_file,
+                                       uint32_t pc_insn_offset,
+                                       uint32_t target_type_idx) {
+    LinkerPatch patch(literal_offset, Type::kTypeRelative, target_dex_file);
+    patch.type_idx_ = target_type_idx;
+    patch.pc_insn_offset_ = pc_insn_offset;
     return patch;
   }
 
@@ -258,6 +269,7 @@ class LinkerPatch {
   bool IsPcRelative() const {
     switch (GetType()) {
       case Type::kCallRelative:
+      case Type::kTypeRelative:
       case Type::kStringRelative:
       case Type::kDexCacheArray:
         return true;
@@ -274,12 +286,12 @@ class LinkerPatch {
   }
 
   const DexFile* TargetTypeDexFile() const {
-    DCHECK(patch_type_ == Type::kType);
+    DCHECK(patch_type_ == Type::kType || patch_type_ == Type::kTypeRelative);
     return target_dex_file_;
   }
 
   uint32_t TargetTypeIndex() const {
-    DCHECK(patch_type_ == Type::kType);
+    DCHECK(patch_type_ == Type::kType || patch_type_ == Type::kTypeRelative);
     return type_idx_;
   }
 
@@ -304,7 +316,9 @@ class LinkerPatch {
   }
 
   uint32_t PcInsnOffset() const {
-    DCHECK(patch_type_ == Type::kStringRelative || patch_type_ == Type::kDexCacheArray);
+    DCHECK(patch_type_ == Type::kTypeRelative ||
+           patch_type_ == Type::kStringRelative ||
+           patch_type_ == Type::kDexCacheArray);
     return pc_insn_offset_;
   }
 

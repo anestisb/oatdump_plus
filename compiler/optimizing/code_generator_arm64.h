@@ -26,6 +26,7 @@
 #include "parallel_move_resolver.h"
 #include "utils/arm64/assembler_arm64.h"
 #include "utils/string_reference.h"
+#include "utils/type_reference.h"
 #include "vixl/a64/disasm-a64.h"
 #include "vixl/a64/macro-assembler-a64.h"
 
@@ -460,6 +461,11 @@ class CodeGeneratorARM64 : public CodeGenerator {
   HLoadString::LoadKind GetSupportedLoadStringKind(
       HLoadString::LoadKind desired_string_load_kind) OVERRIDE;
 
+  // Check if the desired_class_load_kind is supported. If it is, return it,
+  // otherwise return a fall-back kind that should be used instead.
+  HLoadClass::LoadKind GetSupportedLoadClassKind(
+      HLoadClass::LoadKind desired_class_load_kind) OVERRIDE;
+
   // Check if the desired_dispatch_info is supported. If it is, return it,
   // otherwise return a fall-back info that should be used instead.
   HInvokeStaticOrDirect::DispatchInfo GetSupportedInvokeStaticOrDirectDispatch(
@@ -482,6 +488,14 @@ class CodeGeneratorARM64 : public CodeGenerator {
                                         uint32_t string_index,
                                         vixl::Label* adrp_label = nullptr);
 
+  // Add a new PC-relative type patch for an instruction and return the label
+  // to be bound before the instruction. The instruction will be either the
+  // ADRP (pass `adrp_label = null`) or the ADD (pass `adrp_label` pointing
+  // to the associated ADRP patch label).
+  vixl::Label* NewPcRelativeTypePatch(const DexFile& dex_file,
+                                      uint32_t type_index,
+                                      vixl::Label* adrp_label = nullptr);
+
   // Add a new PC-relative dex cache array patch for an instruction and return
   // the label to be bound before the instruction. The instruction will be
   // either the ADRP (pass `adrp_label = null`) or the LDR (pass `adrp_label`
@@ -492,6 +506,8 @@ class CodeGeneratorARM64 : public CodeGenerator {
 
   vixl::Literal<uint32_t>* DeduplicateBootImageStringLiteral(const DexFile& dex_file,
                                                              uint32_t string_index);
+  vixl::Literal<uint32_t>* DeduplicateBootImageTypeLiteral(const DexFile& dex_file,
+                                                           uint32_t type_index);
   vixl::Literal<uint32_t>* DeduplicateBootImageAddressLiteral(uint64_t address);
   vixl::Literal<uint64_t>* DeduplicateDexCacheAddressLiteral(uint64_t address);
 
@@ -589,6 +605,9 @@ class CodeGeneratorARM64 : public CodeGenerator {
   using BootStringToLiteralMap = ArenaSafeMap<StringReference,
                                               vixl::Literal<uint32_t>*,
                                               StringReferenceValueComparator>;
+  using BootTypeToLiteralMap = ArenaSafeMap<TypeReference,
+                                            vixl::Literal<uint32_t>*,
+                                            TypeReferenceValueComparator>;
 
   vixl::Literal<uint32_t>* DeduplicateUint32Literal(uint32_t value, Uint32ToLiteralMap* map);
   vixl::Literal<uint64_t>* DeduplicateUint64Literal(uint64_t value);
@@ -598,13 +617,14 @@ class CodeGeneratorARM64 : public CodeGenerator {
   vixl::Literal<uint64_t>* DeduplicateMethodCodeLiteral(MethodReference target_method);
 
   // The PcRelativePatchInfo is used for PC-relative addressing of dex cache arrays
-  // and boot image strings. The only difference is the interpretation of the offset_or_index.
+  // and boot image strings/types. The only difference is the interpretation of the
+  // offset_or_index.
   struct PcRelativePatchInfo {
     PcRelativePatchInfo(const DexFile& dex_file, uint32_t off_or_idx)
         : target_dex_file(dex_file), offset_or_index(off_or_idx), label(), pc_insn_label() { }
 
     const DexFile& target_dex_file;
-    // Either the dex cache array element offset or the string index.
+    // Either the dex cache array element offset or the string/type index.
     uint32_t offset_or_index;
     vixl::Label label;
     vixl::Label* pc_insn_label;
@@ -646,6 +666,10 @@ class CodeGeneratorARM64 : public CodeGenerator {
   BootStringToLiteralMap boot_image_string_patches_;
   // PC-relative String patch info.
   ArenaDeque<PcRelativePatchInfo> pc_relative_string_patches_;
+  // Deduplication map for boot type literals for kBootImageLinkTimeAddress.
+  BootTypeToLiteralMap boot_image_type_patches_;
+  // PC-relative type patch info.
+  ArenaDeque<PcRelativePatchInfo> pc_relative_type_patches_;
   // Deduplication map for patchable boot image addresses.
   Uint32ToLiteralMap boot_image_address_patches_;
 

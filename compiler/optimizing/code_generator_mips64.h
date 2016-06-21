@@ -340,6 +340,11 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
   HLoadString::LoadKind GetSupportedLoadStringKind(
       HLoadString::LoadKind desired_string_load_kind) OVERRIDE;
 
+  // Check if the desired_class_load_kind is supported. If it is, return it,
+  // otherwise return a fall-back kind that should be used instead.
+  HLoadClass::LoadKind GetSupportedLoadClassKind(
+      HLoadClass::LoadKind desired_class_load_kind) OVERRIDE;
+
   // Check if the desired_dispatch_info is supported. If it is, return it,
   // otherwise return a fall-back info that should be used instead.
   HInvokeStaticOrDirect::DispatchInfo GetSupportedInvokeStaticOrDirectDispatch(
