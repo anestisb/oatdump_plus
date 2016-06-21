@@ -934,7 +934,7 @@ bool HInstructionBuilder::BuildNewInstance(uint16_t type_index, uint32_t dex_pc)
       IsOutermostCompilingClass(type_index),
       dex_pc,
       needs_access_check,
-      compiler_driver_->CanAssumeTypeIsPresentInDexCache(outer_dex_cache, type_index));
+      /* is_in_dex_cache */ false);
 
   AppendInstruction(load_class);
   HInstruction* cls = load_class;
@@ -1025,7 +1025,7 @@ HClinitCheck* HInstructionBuilder::ProcessClinitCheckForInvoke(
         is_outer_class,
         dex_pc,
         /*needs_access_check*/ false,
-        compiler_driver_->CanAssumeTypeIsPresentInDexCache(outer_dex_cache, storage_index));
+        /* is_in_dex_cache */ false);
     AppendInstruction(load_class);
     clinit_check = new (arena_) HClinitCheck(load_class, dex_pc);
     AppendInstruction(clinit_check);
@@ -1377,15 +1377,13 @@ bool HInstructionBuilder::BuildStaticFieldAccess(const Instruction& instruction,
     }
   }
 
-  bool is_in_cache =
-      compiler_driver_->CanAssumeTypeIsPresentInDexCache(outer_dex_cache, storage_index);
   HLoadClass* constant = new (arena_) HLoadClass(graph_->GetCurrentMethod(),
                                                  storage_index,
                                                  outer_dex_file,
                                                  is_outer_class,
                                                  dex_pc,
                                                  /*needs_access_check*/ false,
-                                                 is_in_cache);
+                                                 /* is_in_dex_cache */ false);
   AppendInstruction(constant);
 
   HInstruction* cls = constant;
@@ -1654,7 +1652,7 @@ void HInstructionBuilder::BuildTypeCheck(const Instruction& instruction,
       IsOutermostCompilingClass(type_index),
       dex_pc,
       !can_access,
-      compiler_driver_->CanAssumeTypeIsPresentInDexCache(dex_cache, type_index));
+      /* is_in_dex_cache */ false);
   AppendInstruction(cls);
 
   TypeCheckKind check_kind = ComputeTypeCheckKind(resolved_class);
@@ -2622,8 +2620,6 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
       Handle<mirror::DexCache> dex_cache = dex_compilation_unit_->GetDexCache();
       bool can_access = compiler_driver_->CanAccessTypeWithoutChecks(
           dex_compilation_unit_->GetDexMethodIndex(), dex_cache, type_index);
-      bool is_in_dex_cache =
-          compiler_driver_->CanAssumeTypeIsPresentInDexCache(dex_cache, type_index);
       AppendInstruction(new (arena_) HLoadClass(
           graph_->GetCurrentMethod(),
           type_index,
@@ -2631,7 +2627,7 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
           IsOutermostCompilingClass(type_index),
           dex_pc,
           !can_access,
-          is_in_dex_cache));
+          /* is_in_dex_cache */ false));
       UpdateLocal(instruction.VRegA_21c(), current_block_->GetLastInstruction());
       break;
     }
