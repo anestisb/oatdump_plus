@@ -82,7 +82,7 @@ MACRO2(SETUP_REFS_ONLY_CALLEE_SAVE_FRAME_PRESERVE_GOT_REG, got_reg, temp_reg)
     PUSH edi  // Save callee saves (ebx is saved/restored by the upcall)
     PUSH esi
     PUSH ebp
-    pushl REG_VAR(got_reg)  // Save got_reg
+    PUSH RAW_VAR(got_reg)  // Save got_reg
     subl MACRO_LITERAL(8), %esp  // Grow stack by 2 words.
     CFI_ADJUST_CFA_OFFSET(8)
 
@@ -97,6 +97,7 @@ MACRO2(SETUP_REFS_ONLY_CALLEE_SAVE_FRAME_PRESERVE_GOT_REG, got_reg, temp_reg)
     movl %esp, %fs:THREAD_TOP_QUICK_FRAME_OFFSET
     // Restore got_reg.
     movl 12(%esp), REG_VAR(got_reg)
+    CFI_RESTORE(RAW_VAR(got_reg))
 
     // Ugly compile-time check, but we only have the preprocessor.
     // Last +4: implicit return address pushed on stack when caller made call.
