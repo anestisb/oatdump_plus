@@ -211,11 +211,13 @@ void Arm64RelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
     if ((insn & 0xfffffc00) == 0x91000000) {
       // ADD immediate, 64-bit with imm12 == 0 (unset).
       if (!kEmitCompilerReadBarrier) {
-        DCHECK(patch.GetType() == LinkerPatch::Type::kStringRelative) << patch.GetType();
+        DCHECK(patch.GetType() == LinkerPatch::Type::kStringRelative ||
+               patch.GetType() == LinkerPatch::Type::kTypeRelative) << patch.GetType();
       } else {
         // With the read barrier (non-baker) enabled, it could be kDexCacheArray in the
         // HLoadString::LoadKind::kDexCachePcRelative case of VisitLoadString().
         DCHECK(patch.GetType() == LinkerPatch::Type::kStringRelative ||
+               patch.GetType() == LinkerPatch::Type::kTypeRelative ||
                patch.GetType() == LinkerPatch::Type::kDexCacheArray) << patch.GetType();
       }
       shift = 0u;  // No shift for ADD.
