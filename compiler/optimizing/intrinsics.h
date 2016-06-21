@@ -239,6 +239,7 @@ UNREACHABLE_INTRINSIC(Arch, IntegerCompare)         \
 UNREACHABLE_INTRINSIC(Arch, LongCompare)            \
 UNREACHABLE_INTRINSIC(Arch, IntegerSignum)          \
 UNREACHABLE_INTRINSIC(Arch, LongSignum)             \
+UNREACHABLE_INTRINSIC(Arch, StringCharAt)           \
 UNREACHABLE_INTRINSIC(Arch, StringIsEmpty)          \
 UNREACHABLE_INTRINSIC(Arch, StringLength)           \
 UNREACHABLE_INTRINSIC(Arch, UnsafeLoadFence)        \

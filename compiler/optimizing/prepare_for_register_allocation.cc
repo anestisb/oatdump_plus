@@ -40,6 +40,22 @@ void PrepareForRegisterAllocation::VisitDivZeroCheck(HDivZeroCheck* check) {
 
 void PrepareForRegisterAllocation::VisitBoundsCheck(HBoundsCheck* check) {
   check->ReplaceWith(check->InputAt(0));
+  if (check->IsStringCharAt()) {
+    // Add a fake environment for String.charAt() inline info as we want
+    // the exception to appear as being thrown from there.
+    const DexFile& dex_file = check->GetEnvironment()->GetDexFile();
+    DCHECK_STREQ(PrettyMethod(check->GetStringCharAtMethodIndex(), dex_file).c_str(),
+                 "char java.lang.String.charAt(int)");
+    ArenaAllocator* arena = GetGraph()->GetArena();
+    HEnvironment* environment = new (arena) HEnvironment(arena,
+                                                         /* number_of_vregs */ 0u,
+                                                         dex_file,
+                                                         check->GetStringCharAtMethodIndex(),
+                                                         /* dex_pc */ DexFile::kDexNoIndex,
+                                                         kVirtual,
+                                                         check);
+    check->InsertRawEnvironment(environment);
+  }
 }
 
 void PrepareForRegisterAllocation::VisitBoundType(HBoundType* bound_type) {

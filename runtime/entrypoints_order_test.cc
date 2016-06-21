@@ -121,10 +121,10 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
 
     // Skip across the entrypoints structures.
 
-    EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, thread_local_objects, thread_local_start, sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, thread_local_start, thread_local_pos, sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, thread_local_pos, thread_local_end, sizeof(void*));
-    EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, thread_local_end, mterp_current_ibase, sizeof(void*));
+    EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, thread_local_end, thread_local_objects, sizeof(void*));
+    EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, thread_local_objects, mterp_current_ibase, sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, mterp_current_ibase, mterp_default_ibase, sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, mterp_default_ibase, mterp_alt_ibase, sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, mterp_alt_ibase, rosalloc_runs, sizeof(void*));
@@ -287,7 +287,8 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pThrowDivZero, pThrowNoSuchMethod, sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pThrowNoSuchMethod, pThrowNullPointer, sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pThrowNullPointer, pThrowStackOverflow, sizeof(void*));
-    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pThrowStackOverflow, pDeoptimize, sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pThrowStackOverflow, pThrowStringBounds, sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pThrowStringBounds, pDeoptimize, sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pDeoptimize, pA64Load, sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pA64Load, pA64Store, sizeof(void*));
 

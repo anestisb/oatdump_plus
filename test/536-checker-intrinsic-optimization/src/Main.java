@@ -30,6 +30,18 @@ public class Main {
     }
   }
 
+  public static void assertCharEquals(char expected, char result) {
+    if (expected != result) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
+  public static void assertStringContains(String searchTerm, String result) {
+    if (result == null || !result.contains(searchTerm)) {
+      throw new Error("Search term: " + searchTerm + ", not found in: " + result);
+    }
+  }
+
   public static void main(String[] args) {
     stringEqualsSame();
     stringArgumentNotNull("Foo");
@@ -41,6 +53,57 @@ public class Main {
     assertBooleanEquals(true, $opt$noinline$isStringEmpty(""));
     assertBooleanEquals(false, $opt$noinline$isStringEmpty("abc"));
     assertBooleanEquals(false, $opt$noinline$isStringEmpty("0123456789"));
+
+    assertCharEquals('a', $opt$noinline$stringCharAt("a", 0));
+    assertCharEquals('a', $opt$noinline$stringCharAt("abc", 0));
+    assertCharEquals('b', $opt$noinline$stringCharAt("abc", 1));
+    assertCharEquals('c', $opt$noinline$stringCharAt("abc", 2));
+    assertCharEquals('7', $opt$noinline$stringCharAt("0123456789", 7));
+
+    try {
+      $opt$noinline$stringCharAt("abc", -1);
+      throw new Error("Should throw SIOOB.");
+    } catch (StringIndexOutOfBoundsException sioob) {
+      assertStringContains("java.lang.String.charAt", sioob.getStackTrace()[0].toString());
+      assertStringContains("Main.$opt$noinline$stringCharAt", sioob.getStackTrace()[1].toString());
+    }
+    try {
+      $opt$noinline$stringCharAt("abc", 3);
+      throw new Error("Should throw SIOOB.");
+    } catch (StringIndexOutOfBoundsException sioob) {
+      assertStringContains("java.lang.String.charAt", sioob.getStackTrace()[0].toString());
+      assertStringContains("Main.$opt$noinline$stringCharAt", sioob.getStackTrace()[1].toString());
+    }
+    try {
+      $opt$noinline$stringCharAt("abc", Integer.MAX_VALUE);
+      throw new Error("Should throw SIOOB.");
+    } catch (StringIndexOutOfBoundsException sioob) {
+      assertStringContains("java.lang.String.charAt", sioob.getStackTrace()[0].toString());
+      assertStringContains("Main.$opt$noinline$stringCharAt", sioob.getStackTrace()[1].toString());
+    }
+
+    assertCharEquals('7', $opt$noinline$stringCharAtCatch("0123456789", 7));
+    assertCharEquals('\0', $opt$noinline$stringCharAtCatch("0123456789", 10));
+
+    assertIntEquals('a' + 'b' + 'c', $opt$noinline$stringSumChars("abc"));
+    assertIntEquals('a' + 'b' + 'c', $opt$noinline$stringSumLeadingChars("abcdef", 3));
+    try {
+      $opt$noinline$stringSumLeadingChars("abcdef", 7);
+      throw new Error("Should throw SIOOB.");
+    } catch (StringIndexOutOfBoundsException sioob) {
+      assertStringContains("java.lang.String.charAt", sioob.getStackTrace()[0].toString());
+      assertStringContains("Main.$opt$noinline$stringSumLeadingChars",
+                           sioob.getStackTrace()[1].toString());
+    }
+    assertIntEquals('a' + 'b' + 'c' + 'd', $opt$noinline$stringSum4LeadingChars("abcdef"));
+    try {
+      $opt$noinline$stringSum4LeadingChars("abc");
+      throw new Error("Should throw SIOOB.");
+    } catch (StringIndexOutOfBoundsException sioob) {
+      assertStringContains("java.lang.String.charAt", sioob.getStackTrace()[0].toString());
+      assertStringContains("Main.$opt$noinline$stringSum4LeadingChars",
+                           sioob.getStackTrace()[1].toString());
+    }
   }
 
   /// CHECK-START: int Main.$opt$noinline$getStringLength(java.lang.String) instruction_simplifier (before)
@@ -79,6 +142,144 @@ public class Main {
   static public boolean $opt$noinline$isStringEmpty(String s) {
     if (doThrow) { throw new Error(); }
     return s.isEmpty();
+  }
+
+  /// CHECK-START: char Main.$opt$noinline$stringCharAt(java.lang.String, int) instruction_simplifier (before)
+  /// CHECK-DAG:  <<Char:c\d+>>     InvokeVirtual intrinsic:StringCharAt
+  /// CHECK-DAG:                    Return [<<Char>>]
+
+  /// CHECK-START: char Main.$opt$noinline$stringCharAt(java.lang.String, int) instruction_simplifier (after)
+  /// CHECK-DAG:  <<String:l\d+>>   ParameterValue
+  /// CHECK-DAG:  <<Pos:i\d+>>      ParameterValue
+  /// CHECK-DAG:  <<NullCk:l\d+>>   NullCheck [<<String>>]
+  /// CHECK-DAG:  <<Length:i\d+>>   ArrayLength [<<NullCk>>] is_string_length:true
+  /// CHECK-DAG:                    BoundsCheck [<<Pos>>,<<Length>>] is_string_char_at:true
+  /// CHECK-DAG:  <<Char:c\d+>>     ArrayGet [<<NullCk>>,<<Pos>>] is_string_char_at:true
+  /// CHECK-DAG:                    Return [<<Char>>]
+
+  /// CHECK-START: char Main.$opt$noinline$stringCharAt(java.lang.String, int) instruction_simplifier (after)
+  /// CHECK-NOT:                    InvokeVirtual intrinsic:StringCharAt
+
+  static public char $opt$noinline$stringCharAt(String s, int pos) {
+    if (doThrow) { throw new Error(); }
+    return s.charAt(pos);
+  }
+
+  /// CHECK-START: char Main.$opt$noinline$stringCharAtCatch(java.lang.String, int) instruction_simplifier (before)
+  /// CHECK-DAG:  <<Char:c\d+>>     InvokeVirtual intrinsic:StringCharAt
+  /// CHECK-DAG:                    Return [<<Char>>]
+
+  /// CHECK-START: char Main.$opt$noinline$stringCharAtCatch(java.lang.String, int) instruction_simplifier (after)
+  /// CHECK-DAG:  <<String:l\d+>>   ParameterValue
+  /// CHECK-DAG:  <<Pos:i\d+>>      ParameterValue
+  /// CHECK-DAG:  <<NullCk:l\d+>>   NullCheck [<<String>>]
+  /// CHECK-DAG:  <<Length:i\d+>>   ArrayLength [<<NullCk>>] is_string_length:true
+  /// CHECK-DAG:                    BoundsCheck [<<Pos>>,<<Length>>] is_string_char_at:true
+  /// CHECK-DAG:  <<Char:c\d+>>     ArrayGet [<<NullCk>>,<<Pos>>] is_string_char_at:true
+  /// CHECK-DAG:                    Return [<<Char>>]
+
+  /// CHECK-START: char Main.$opt$noinline$stringCharAtCatch(java.lang.String, int) instruction_simplifier (after)
+  /// CHECK-NOT:                    InvokeVirtual intrinsic:StringCharAt
+
+  static public char $opt$noinline$stringCharAtCatch(String s, int pos) {
+    if (doThrow) { throw new Error(); }
+    try {
+      return s.charAt(pos);
+    } catch (StringIndexOutOfBoundsException ignored) {
+      return '\0';
+    }
+  }
+
+  /// CHECK-START: int Main.$opt$noinline$stringSumChars(java.lang.String) instruction_simplifier (before)
+  /// CHECK-DAG:                    InvokeVirtual intrinsic:StringLength
+  /// CHECK-DAG:                    InvokeVirtual intrinsic:StringCharAt
+
+  /// CHECK-START: int Main.$opt$noinline$stringSumChars(java.lang.String) instruction_simplifier (after)
+  /// CHECK-DAG:                    ArrayLength is_string_length:true
+  /// CHECK-DAG:                    ArrayLength is_string_length:true
+  /// CHECK-DAG:                    BoundsCheck is_string_char_at:true
+  /// CHECK-DAG:                    ArrayGet is_string_char_at:true
+
+  /// CHECK-START: int Main.$opt$noinline$stringSumChars(java.lang.String) instruction_simplifier (after)
+  /// CHECK-NOT:                    InvokeVirtual intrinsic:StringLength
+  /// CHECK-NOT:                    InvokeVirtual intrinsic:StringCharAt
+
+  /// CHECK-START: int Main.$opt$noinline$stringSumChars(java.lang.String) GVN (after)
+  /// CHECK-DAG:                    ArrayLength is_string_length:true
+  /// CHECK-NOT:                    ArrayLength is_string_length:true
+
+  /// CHECK-START: int Main.$opt$noinline$stringSumChars(java.lang.String) BCE (after)
+  /// CHECK-NOT:                    BoundsCheck
+
+  static public int $opt$noinline$stringSumChars(String s) {
+    if (doThrow) { throw new Error(); }
+    int sum = 0;
+    int len = s.length();
+    for (int i = 0; i < len; ++i) {
+      sum += s.charAt(i);
+    }
+    return sum;
+  }
+
+  /// CHECK-START: int Main.$opt$noinline$stringSumLeadingChars(java.lang.String, int) instruction_simplifier (before)
+  /// CHECK-DAG:                    InvokeVirtual intrinsic:StringCharAt
+
+  /// CHECK-START: int Main.$opt$noinline$stringSumLeadingChars(java.lang.String, int) instruction_simplifier (after)
+  /// CHECK-DAG:                    ArrayLength is_string_length:true
+  /// CHECK-DAG:                    BoundsCheck is_string_char_at:true
+  /// CHECK-DAG:                    ArrayGet is_string_char_at:true
+
+  /// CHECK-START: int Main.$opt$noinline$stringSumLeadingChars(java.lang.String, int) instruction_simplifier (after)
+  /// CHECK-NOT:                    InvokeVirtual intrinsic:StringCharAt
+
+  /// CHECK-START: int Main.$opt$noinline$stringSumLeadingChars(java.lang.String, int) BCE (after)
+  /// CHECK-DAG:                    Deoptimize env:[[{{[^\]]*}}]]
+
+  /// CHECK-START: int Main.$opt$noinline$stringSumLeadingChars(java.lang.String, int) BCE (after)
+  /// CHECK-NOT:                    BoundsCheck is_string_char_at:true
+
+  static public int $opt$noinline$stringSumLeadingChars(String s, int n) {
+    if (doThrow) { throw new Error(); }
+    int sum = 0;
+    for (int i = 0; i < n; ++i) {
+      sum += s.charAt(i);
+    }
+    return sum;
+  }
+
+  /// CHECK-START: int Main.$opt$noinline$stringSum4LeadingChars(java.lang.String) instruction_simplifier (before)
+  /// CHECK-DAG:                    InvokeVirtual intrinsic:StringCharAt
+  /// CHECK-DAG:                    InvokeVirtual intrinsic:StringCharAt
+  /// CHECK-DAG:                    InvokeVirtual intrinsic:StringCharAt
+  /// CHECK-DAG:                    InvokeVirtual intrinsic:StringCharAt
+
+  /// CHECK-START: int Main.$opt$noinline$stringSum4LeadingChars(java.lang.String) instruction_simplifier (after)
+  /// CHECK-DAG:                    ArrayLength is_string_length:true
+  /// CHECK-DAG:                    BoundsCheck is_string_char_at:true
+  /// CHECK-DAG:                    ArrayGet is_string_char_at:true
+  /// CHECK-DAG:                    ArrayLength is_string_length:true
+  /// CHECK-DAG:                    BoundsCheck is_string_char_at:true
+  /// CHECK-DAG:                    ArrayGet is_string_char_at:true
+  /// CHECK-DAG:                    ArrayLength is_string_length:true
+  /// CHECK-DAG:                    BoundsCheck is_string_char_at:true
+  /// CHECK-DAG:                    ArrayGet is_string_char_at:true
+  /// CHECK-DAG:                    ArrayLength is_string_length:true
+  /// CHECK-DAG:                    BoundsCheck is_string_char_at:true
+  /// CHECK-DAG:                    ArrayGet is_string_char_at:true
+
+  /// CHECK-START: int Main.$opt$noinline$stringSum4LeadingChars(java.lang.String) instruction_simplifier (after)
+  /// CHECK-NOT:                    InvokeVirtual intrinsic:StringCharAt
+
+  /// CHECK-START: int Main.$opt$noinline$stringSum4LeadingChars(java.lang.String) BCE (after)
+  /// CHECK-DAG:                    Deoptimize env:[[{{[^\]]*}}]]
+
+  /// CHECK-START: int Main.$opt$noinline$stringSum4LeadingChars(java.lang.String) BCE (after)
+  /// CHECK-NOT:                    BoundsCheck is_string_char_at:true
+
+  static public int $opt$noinline$stringSum4LeadingChars(String s) {
+    if (doThrow) { throw new Error(); }
+    int sum = s.charAt(0) + s.charAt(1) + s.charAt(2) + s.charAt(3);
+    return sum;
   }
 
   /// CHECK-START: boolean Main.stringEqualsSame() instruction_simplifier (before)

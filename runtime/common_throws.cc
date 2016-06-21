@@ -654,6 +654,13 @@ void ThrowStackOverflowError(Thread* self) {
   }
 }
 
+// StringIndexOutOfBoundsException
+
+void ThrowStringIndexOutOfBoundsException(int index, int length) {
+  ThrowException("Ljava/lang/StringIndexOutOfBoundsException;", nullptr,
+                 StringPrintf("length=%d; index=%d", length, index).c_str());
+}
+
 // VerifyError
 
 void ThrowVerifyError(mirror::Class* referrer, const char* fmt, ...) {

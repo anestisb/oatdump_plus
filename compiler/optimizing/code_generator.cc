@@ -146,6 +146,13 @@ uint32_t CodeGenerator::GetArrayLengthOffset(HArrayLength* array_length) {
       : mirror::Array::LengthOffset().Uint32Value();
 }
 
+uint32_t CodeGenerator::GetArrayDataOffset(HArrayGet* array_get) {
+  DCHECK(array_get->GetType() == Primitive::kPrimChar || !array_get->IsStringCharAt());
+  return array_get->IsStringCharAt()
+      ? mirror::String::ValueOffset().Uint32Value()
+      : mirror::Array::DataOffset(Primitive::ComponentSize(array_get->GetType())).Uint32Value();
+}
+
 bool CodeGenerator::GoesToNextBlock(HBasicBlock* current, HBasicBlock* next) const {
   DCHECK_EQ((*block_order_)[current_block_index_], current);
   return GetNextBlockToEmit() == FirstNonEmptyBlock(next);

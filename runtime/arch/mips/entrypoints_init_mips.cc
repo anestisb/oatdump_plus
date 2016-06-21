@@ -268,6 +268,8 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   static_assert(!IsDirectEntrypoint(kQuickThrowNullPointer), "Non-direct C stub marked direct.");
   qpoints->pThrowStackOverflow = art_quick_throw_stack_overflow;
   static_assert(!IsDirectEntrypoint(kQuickThrowStackOverflow), "Non-direct C stub marked direct.");
+  qpoints->pThrowStringBounds = art_quick_throw_string_bounds;
+  static_assert(!IsDirectEntrypoint(kQuickThrowStringBounds), "Non-direct C stub marked direct.");
 
   // Deoptimization from compiled code.
   qpoints->pDeoptimize = art_quick_deoptimize_from_compiled_code;
