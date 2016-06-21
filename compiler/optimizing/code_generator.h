@@ -345,6 +345,11 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
   // accessing the String's `count` field in String intrinsics.
   static uint32_t GetArrayLengthOffset(HArrayLength* array_length);
 
+  // Helper that returns the offset of the array's data.
+  // Note: Besides the normal arrays, we also use the HArrayGet for
+  // accessing the String's `value` field in String intrinsics.
+  static uint32_t GetArrayDataOffset(HArrayGet* array_get);
+
   void EmitParallelMoves(Location from1,
                          Location to1,
                          Primitive::Type type1,

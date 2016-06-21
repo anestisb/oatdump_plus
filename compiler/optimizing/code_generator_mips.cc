@@ -166,11 +166,15 @@ class BoundsCheckSlowPathMIPS : public SlowPathCodeMIPS {
                                locations->InAt(1),
                                Location::RegisterLocation(calling_convention.GetRegisterAt(1)),
                                Primitive::kPrimInt);
-    mips_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pThrowArrayBounds),
+    uint32_t entry_point_offset = instruction_->AsBoundsCheck()->IsStringCharAt()
+        ? QUICK_ENTRY_POINT(pThrowStringBounds)
+        : QUICK_ENTRY_POINT(pThrowArrayBounds);
+    mips_codegen->InvokeRuntime(entry_point_offset,
                                 instruction_,
                                 instruction_->GetDexPc(),
                                 this,
                                 IsDirectEntrypoint(kQuickThrowArrayBounds));
+    CheckEntrypointTypes<kQuickThrowStringBounds, void, int32_t, int32_t>();
     CheckEntrypointTypes<kQuickThrowArrayBounds, void, int32_t, int32_t>();
   }
 
@@ -1635,11 +1639,11 @@ void InstructionCodeGeneratorMIPS::VisitArrayGet(HArrayGet* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   Register obj = locations->InAt(0).AsRegister<Register>();
   Location index = locations->InAt(1);
-  Primitive::Type type = instruction->GetType();
+  uint32_t data_offset = CodeGenerator::GetArrayDataOffset(instruction);
 
+  Primitive::Type type = instruction->GetType();
   switch (type) {
     case Primitive::kPrimBoolean: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(uint8_t)).Uint32Value();
       Register out = locations->Out().AsRegister<Register>();
       if (index.IsConstant()) {
         size_t offset =
@@ -1653,7 +1657,6 @@ void InstructionCodeGeneratorMIPS::VisitArrayGet(HArrayGet* instruction) {
     }
 
     case Primitive::kPrimByte: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(int8_t)).Uint32Value();
       Register out = locations->Out().AsRegister<Register>();
       if (index.IsConstant()) {
         size_t offset =
@@ -1667,7 +1670,6 @@ void InstructionCodeGeneratorMIPS::VisitArrayGet(HArrayGet* instruction) {
     }
 
     case Primitive::kPrimShort: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(int16_t)).Uint32Value();
       Register out = locations->Out().AsRegister<Register>();
       if (index.IsConstant()) {
         size_t offset =
@@ -1682,7 +1684,6 @@ void InstructionCodeGeneratorMIPS::VisitArrayGet(HArrayGet* instruction) {
     }
 
     case Primitive::kPrimChar: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(uint16_t)).Uint32Value();
       Register out = locations->Out().AsRegister<Register>();
       if (index.IsConstant()) {
         size_t offset =
@@ -1699,7 +1700,6 @@ void InstructionCodeGeneratorMIPS::VisitArrayGet(HArrayGet* instruction) {
     case Primitive::kPrimInt:
     case Primitive::kPrimNot: {
       DCHECK_EQ(sizeof(mirror::HeapReference<mirror::Object>), sizeof(int32_t));
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
       Register out = locations->Out().AsRegister<Register>();
       if (index.IsConstant()) {
         size_t offset =
@@ -1714,7 +1714,6 @@ void InstructionCodeGeneratorMIPS::VisitArrayGet(HArrayGet* instruction) {
     }
 
     case Primitive::kPrimLong: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(int64_t)).Uint32Value();
       Register out = locations->Out().AsRegisterPairLow<Register>();
       if (index.IsConstant()) {
         size_t offset =
@@ -1729,7 +1728,6 @@ void InstructionCodeGeneratorMIPS::VisitArrayGet(HArrayGet* instruction) {
     }
 
     case Primitive::kPrimFloat: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(float)).Uint32Value();
       FRegister out = locations->Out().AsFpuRegister<FRegister>();
       if (index.IsConstant()) {
         size_t offset =
@@ -1744,7 +1742,6 @@ void InstructionCodeGeneratorMIPS::VisitArrayGet(HArrayGet* instruction) {
     }
 
     case Primitive::kPrimDouble: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(double)).Uint32Value();
       FRegister out = locations->Out().AsFpuRegister<FRegister>();
       if (index.IsConstant()) {
         size_t offset =

@@ -19,6 +19,7 @@
 #include "common_arm64.h"
 #include "instruction_simplifier_shared.h"
 #include "mirror/array-inl.h"
+#include "mirror/string.h"
 
 namespace art {
 namespace arm64 {
@@ -30,7 +31,7 @@ using helpers::ShifterOperandSupportsExtension;
 void InstructionSimplifierArm64Visitor::TryExtractArrayAccessAddress(HInstruction* access,
                                                                      HInstruction* array,
                                                                      HInstruction* index,
-                                                                     int access_size) {
+                                                                     size_t data_offset) {
   if (kEmitCompilerReadBarrier) {
     // The read barrier instrumentation does not support the
     // HArm64IntermediateAddress instruction yet.
@@ -55,8 +56,7 @@ void InstructionSimplifierArm64Visitor::TryExtractArrayAccessAddress(HInstructio
   // Proceed to extract the base address computation.
   ArenaAllocator* arena = GetGraph()->GetArena();
 
-  HIntConstant* offset =
-      GetGraph()->GetIntConstant(mirror::Array::DataOffset(access_size).Uint32Value());
+  HIntConstant* offset = GetGraph()->GetIntConstant(data_offset);
   HArm64IntermediateAddress* address =
       new (arena) HArm64IntermediateAddress(array, offset, kNoDexPc);
   address->SetReferenceTypeInfo(array->GetReferenceTypeInfo());
@@ -189,17 +189,20 @@ void InstructionSimplifierArm64Visitor::VisitAnd(HAnd* instruction) {
 }
 
 void InstructionSimplifierArm64Visitor::VisitArrayGet(HArrayGet* instruction) {
+  size_t data_offset = CodeGenerator::GetArrayDataOffset(instruction);
   TryExtractArrayAccessAddress(instruction,
                                instruction->GetArray(),
                                instruction->GetIndex(),
-                               Primitive::ComponentSize(instruction->GetType()));
+                               data_offset);
 }
 
 void InstructionSimplifierArm64Visitor::VisitArraySet(HArraySet* instruction) {
+  size_t access_size = Primitive::ComponentSize(instruction->GetComponentType());
+  size_t data_offset = mirror::Array::DataOffset(access_size).Uint32Value();
   TryExtractArrayAccessAddress(instruction,
                                instruction->GetArray(),
                                instruction->GetIndex(),
-                               Primitive::ComponentSize(instruction->GetComponentType()));
+                               data_offset);
 }
 
 void InstructionSimplifierArm64Visitor::VisitMul(HMul* instruction) {

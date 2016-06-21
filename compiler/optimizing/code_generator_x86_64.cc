@@ -204,10 +204,14 @@ class BoundsCheckSlowPathX86_64 : public SlowPathCode {
         locations->InAt(1),
         Location::RegisterLocation(calling_convention.GetRegisterAt(1)),
         Primitive::kPrimInt);
-    x86_64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pThrowArrayBounds),
+    uint32_t entry_point_offset = instruction_->AsBoundsCheck()->IsStringCharAt()
+        ? QUICK_ENTRY_POINT(pThrowStringBounds)
+        : QUICK_ENTRY_POINT(pThrowArrayBounds);
+    x86_64_codegen->InvokeRuntime(entry_point_offset,
                                   instruction_,
                                   instruction_->GetDexPc(),
                                   this);
+    CheckEntrypointTypes<kQuickThrowStringBounds, void, int32_t, int32_t>();
     CheckEntrypointTypes<kQuickThrowArrayBounds, void, int32_t, int32_t>();
   }
 
@@ -4555,11 +4559,11 @@ void InstructionCodeGeneratorX86_64::VisitArrayGet(HArrayGet* instruction) {
   CpuRegister obj = obj_loc.AsRegister<CpuRegister>();
   Location index = locations->InAt(1);
   Location out_loc = locations->Out();
+  uint32_t data_offset = CodeGenerator::GetArrayDataOffset(instruction);
 
   Primitive::Type type = instruction->GetType();
   switch (type) {
     case Primitive::kPrimBoolean: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(uint8_t)).Uint32Value();
       CpuRegister out = out_loc.AsRegister<CpuRegister>();
       if (index.IsConstant()) {
         __ movzxb(out, Address(obj,
@@ -4571,7 +4575,6 @@ void InstructionCodeGeneratorX86_64::VisitArrayGet(HArrayGet* instruction) {
     }
 
     case Primitive::kPrimByte: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(int8_t)).Uint32Value();
       CpuRegister out = out_loc.AsRegister<CpuRegister>();
       if (index.IsConstant()) {
         __ movsxb(out, Address(obj,
@@ -4583,7 +4586,6 @@ void InstructionCodeGeneratorX86_64::VisitArrayGet(HArrayGet* instruction) {
     }
 
     case Primitive::kPrimShort: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(int16_t)).Uint32Value();
       CpuRegister out = out_loc.AsRegister<CpuRegister>();
       if (index.IsConstant()) {
         __ movsxw(out, Address(obj,
@@ -4595,7 +4597,6 @@ void InstructionCodeGeneratorX86_64::VisitArrayGet(HArrayGet* instruction) {
     }
 
     case Primitive::kPrimChar: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(uint16_t)).Uint32Value();
       CpuRegister out = out_loc.AsRegister<CpuRegister>();
       if (index.IsConstant()) {
         __ movzxw(out, Address(obj,
@@ -4607,7 +4608,6 @@ void InstructionCodeGeneratorX86_64::VisitArrayGet(HArrayGet* instruction) {
     }
 
     case Primitive::kPrimInt: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
       CpuRegister out = out_loc.AsRegister<CpuRegister>();
       if (index.IsConstant()) {
         __ movl(out, Address(obj,
@@ -4622,7 +4622,6 @@ void InstructionCodeGeneratorX86_64::VisitArrayGet(HArrayGet* instruction) {
       static_assert(
           sizeof(mirror::HeapReference<mirror::Object>) == sizeof(int32_t),
           "art::mirror::HeapReference<art::mirror::Object> and int32_t have different sizes.");
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
       // /* HeapReference<Object> */ out =
       //     *(obj + data_offset + index * sizeof(HeapReference<Object>))
       if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
@@ -4656,7 +4655,6 @@ void InstructionCodeGeneratorX86_64::VisitArrayGet(HArrayGet* instruction) {
     }
 
     case Primitive::kPrimLong: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(int64_t)).Uint32Value();
       CpuRegister out = out_loc.AsRegister<CpuRegister>();
       if (index.IsConstant()) {
         __ movq(out, Address(obj,
@@ -4668,7 +4666,6 @@ void InstructionCodeGeneratorX86_64::VisitArrayGet(HArrayGet* instruction) {
     }
 
     case Primitive::kPrimFloat: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(float)).Uint32Value();
       XmmRegister out = out_loc.AsFpuRegister<XmmRegister>();
       if (index.IsConstant()) {
         __ movss(out, Address(obj,
@@ -4680,7 +4677,6 @@ void InstructionCodeGeneratorX86_64::VisitArrayGet(HArrayGet* instruction) {
     }
 
     case Primitive::kPrimDouble: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(double)).Uint32Value();
       XmmRegister out = out_loc.AsFpuRegister<XmmRegister>();
       if (index.IsConstant()) {
         __ movsd(out, Address(obj,
