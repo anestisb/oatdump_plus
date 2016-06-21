@@ -29,7 +29,7 @@ extern "C" NO_RETURN void artDeliverPendingExceptionFromCode(Thread* self)
   self->QuickDeliverException();
 }
 
-// Called by generated call to throw an exception.
+// Called by generated code to throw an exception.
 extern "C" NO_RETURN void artDeliverExceptionFromCode(mirror::Throwable* exception, Thread* self)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   /*
@@ -48,7 +48,7 @@ extern "C" NO_RETURN void artDeliverExceptionFromCode(mirror::Throwable* excepti
   self->QuickDeliverException();
 }
 
-// Called by generated call to throw a NPE exception.
+// Called by generated code to throw a NPE exception.
 extern "C" NO_RETURN void artThrowNullPointerExceptionFromCode(Thread* self)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
@@ -58,7 +58,7 @@ extern "C" NO_RETURN void artThrowNullPointerExceptionFromCode(Thread* self)
   self->QuickDeliverException();
 }
 
-// Called by generated call to throw an arithmetic divide by zero exception.
+// Called by generated code to throw an arithmetic divide by zero exception.
 extern "C" NO_RETURN void artThrowDivZeroFromCode(Thread* self)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
@@ -66,11 +66,19 @@ extern "C" NO_RETURN void artThrowDivZeroFromCode(Thread* self)
   self->QuickDeliverException();
 }
 
-// Called by generated call to throw an array index out of bounds exception.
+// Called by generated code to throw an array index out of bounds exception.
 extern "C" NO_RETURN void artThrowArrayBoundsFromCode(int index, int length, Thread* self)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
   ThrowArrayIndexOutOfBoundsException(index, length);
+  self->QuickDeliverException();
+}
+
+// Called by generated code to throw a string index out of bounds exception.
+extern "C" NO_RETURN void artThrowStringBoundsFromCode(int index, int length, Thread* self)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  ScopedQuickEntrypointChecks sqec(self);
+  ThrowStringIndexOutOfBoundsException(index, length);
   self->QuickDeliverException();
 }
 

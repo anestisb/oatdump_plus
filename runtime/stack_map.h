@@ -19,6 +19,7 @@
 
 #include "base/bit_vector.h"
 #include "base/bit_utils.h"
+#include "dex_file.h"
 #include "memory_region.h"
 #include "leb128.h"
 
@@ -892,7 +893,11 @@ class InlineInfoEncoding {
     total_bit_size_ += MinimumBitsToStore(method_index_max);
 
     dex_pc_bit_offset_ = dchecked_integral_cast<uint8_t>(total_bit_size_);
-    total_bit_size_ += MinimumBitsToStore(1 /* kNoDexPc */ + dex_pc_max);
+    // Note: We're not encoding the dex pc if there is none. That's the case
+    // for an intrinsified native method, such as String.charAt().
+    if (dex_pc_max != DexFile::kDexNoIndex) {
+      total_bit_size_ += MinimumBitsToStore(1 /* kNoDexPc */ + dex_pc_max);
+    }
 
     invoke_type_bit_offset_ = dchecked_integral_cast<uint8_t>(total_bit_size_);
     total_bit_size_ += MinimumBitsToStore(invoke_type_max);
