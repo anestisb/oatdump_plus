@@ -918,13 +918,13 @@ void CodeGeneratorMIPS64::SetupBlockedRegisters() const {
 
   // TODO: review; anything else?
 
-  // TODO: remove once all the issues with register saving/restoring are sorted out.
-  for (size_t i = 0; i < arraysize(kCoreCalleeSaves); ++i) {
-    blocked_core_registers_[kCoreCalleeSaves[i]] = true;
-  }
-
-  for (size_t i = 0; i < arraysize(kFpuCalleeSaves); ++i) {
-    blocked_fpu_registers_[kFpuCalleeSaves[i]] = true;
+  if (GetGraph()->IsDebuggable()) {
+    // Stubs do not save callee-save floating point registers. If the graph
+    // is debuggable, we need to deal with these registers differently. For
+    // now, just block them.
+    for (size_t i = 0; i < arraysize(kFpuCalleeSaves); ++i) {
+      blocked_fpu_registers_[kFpuCalleeSaves[i]] = true;
+    }
   }
 }
 
