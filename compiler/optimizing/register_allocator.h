@@ -40,7 +40,8 @@ class SsaLivenessAnalysis;
 class RegisterAllocator : public ArenaObject<kArenaAllocRegisterAllocator> {
  public:
   enum Strategy {
-    kRegisterAllocatorLinearScan
+    kRegisterAllocatorLinearScan,
+    kRegisterAllocatorGraphColor
   };
 
   static constexpr Strategy kRegisterAllocatorDefault = kRegisterAllocatorLinearScan;
