@@ -154,9 +154,10 @@ static std::unique_ptr<const DexFile> OpenDexFileBase64(const char* base64,
 
   // read dex file
   ScopedObjectAccess soa(Thread::Current());
+  static constexpr bool kVerifyChecksum = true;
   std::string error_msg;
   std::vector<std::unique_ptr<const DexFile>> tmp;
-  bool success = DexFile::Open(location, location, &error_msg, &tmp);
+  bool success = DexFile::Open(location, location, kVerifyChecksum, &error_msg, &tmp);
   CHECK(success) << error_msg;
   EXPECT_EQ(1U, tmp.size());
   std::unique_ptr<const DexFile> dex_file = std::move(tmp[0]);

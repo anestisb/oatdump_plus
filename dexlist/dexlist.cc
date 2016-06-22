@@ -180,9 +180,10 @@ void dumpClass(const DexFile* pDexFile, u4 idx) {
 static int processFile(const char* fileName) {
   // If the file is not a .dex file, the function tries .zip/.jar/.apk files,
   // all of which are Zip archives with "classes.dex" inside.
+  static constexpr bool kVerifyChecksum = true;
   std::string error_msg;
   std::vector<std::unique_ptr<const DexFile>> dex_files;
-  if (!DexFile::Open(fileName, fileName, &error_msg, &dex_files)) {
+  if (!DexFile::Open(fileName, fileName, kVerifyChecksum, &error_msg, &dex_files)) {
     fputs(error_msg.c_str(), stderr);
     fputc('\n', stderr);
     return -1;

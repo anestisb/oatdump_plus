@@ -1985,8 +1985,10 @@ class Dex2Oat FINAL {
       if (location == OatFile::kSpecialSharedLibrary) {
         break;
       }
+      static constexpr bool kVerifyChecksum = true;
       std::string error_msg;
-      if (!DexFile::Open(location.c_str(), location.c_str(), &error_msg, opened_dex_files)) {
+      if (!DexFile::Open(
+          location.c_str(), location.c_str(), kVerifyChecksum, &error_msg, opened_dex_files)) {
         // If we fail to open the dex file because it's been stripped, try to open the dex file
         // from its corresponding oat file.
         OatFileAssistant oat_file_assistant(location.c_str(), isa, false, false);
