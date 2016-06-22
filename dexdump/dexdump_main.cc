@@ -17,8 +17,8 @@
  *
  * This is a re-implementation of the original dexdump utility that was
  * based on Dalvik functions in libdex into a new dexdump that is now
- * based on Art functions in libart instead. The output is identical to
- * the original for correct DEX files. Error messages may differ, however.
+ * based on Art functions in libart instead. The output is very similar to
+ * to the original for correct DEX files. Error messages may differ, however.
  * Also, ODEX files are no longer supported.
  */
 
