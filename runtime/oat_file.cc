@@ -1167,12 +1167,15 @@ size_t OatFile::OatDexFile::FileSize() const {
 
 std::unique_ptr<const DexFile> OatFile::OatDexFile::OpenDexFile(std::string* error_msg) const {
   ScopedTrace trace(__PRETTY_FUNCTION__);
+  static constexpr bool kVerify = false;
+  static constexpr bool kVerifyChecksum = false;
   return DexFile::Open(dex_file_pointer_,
                        FileSize(),
                        dex_file_location_,
                        dex_file_location_checksum_,
                        this,
-                       false /* verify */,
+                       kVerify,
+                       kVerifyChecksum,
                        error_msg);
 }
 

@@ -26,17 +26,31 @@ namespace art {
 
 class DexFileVerifier {
  public:
-  static bool Verify(const DexFile* dex_file, const uint8_t* begin, size_t size,
-                     const char* location, std::string* error_msg);
+  static bool Verify(const DexFile* dex_file,
+                     const uint8_t* begin,
+                     size_t size,
+                     const char* location,
+                     bool verify_checksum,
+                     std::string* error_msg);
 
   const std::string& FailureReason() const {
     return failure_reason_;
   }
 
  private:
-  DexFileVerifier(const DexFile* dex_file, const uint8_t* begin, size_t size, const char* location)
-      : dex_file_(dex_file), begin_(begin), size_(size), location_(location),
-        header_(&dex_file->GetHeader()), ptr_(nullptr), previous_item_(nullptr)  {
+  DexFileVerifier(const DexFile* dex_file,
+                  const uint8_t* begin,
+                  size_t size,
+                  const char* location,
+                  bool verify_checksum)
+      : dex_file_(dex_file),
+        begin_(begin),
+        size_(size),
+        location_(location),
+        verify_checksum_(verify_checksum),
+        header_(&dex_file->GetHeader()),
+        ptr_(nullptr),
+        previous_item_(nullptr)  {
   }
 
   bool Verify();
@@ -176,6 +190,7 @@ class DexFileVerifier {
   const uint8_t* const begin_;
   const size_t size_;
   const char* const location_;
+  const bool verify_checksum_;
   const DexFile::Header* const header_;
 
   struct OffsetTypeMapEmptyFn {
