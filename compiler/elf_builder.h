@@ -780,9 +780,9 @@ class ElfBuilder FINAL {
                               EF_MIPS_PIC       |
                               EF_MIPS_CPIC      |
                               EF_MIPS_ABI_O32   |
-                              features->AsMipsInstructionSetFeatures()->IsR6()
-                                  ? EF_MIPS_ARCH_32R6
-                                  : EF_MIPS_ARCH_32R2);
+                              (features->AsMipsInstructionSetFeatures()->IsR6()
+                                   ? EF_MIPS_ARCH_32R6
+                                   : EF_MIPS_ARCH_32R2));
         break;
       }
       case kMips64: {
