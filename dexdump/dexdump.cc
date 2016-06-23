@@ -1635,11 +1635,10 @@ int processFile(const char* fileName) {
 
   // If the file is not a .dex file, the function tries .zip/.jar/.apk files,
   // all of which are Zip archives with "classes.dex" inside.
-  //
-  // TODO(ajcbik): implement gOptions.ignoreBadChecksum
+  const bool kVerifyChecksum = !gOptions.ignoreBadChecksum;
   std::string error_msg;
   std::vector<std::unique_ptr<const DexFile>> dex_files;
-  if (!DexFile::Open(fileName, fileName, &error_msg, &dex_files)) {
+  if (!DexFile::Open(fileName, fileName, kVerifyChecksum, &error_msg, &dex_files)) {
     // Display returned error message to user. Note that this error behavior
     // differs from the error messages shown by the original Dalvik dexdump.
     fputs(error_msg.c_str(), stderr);

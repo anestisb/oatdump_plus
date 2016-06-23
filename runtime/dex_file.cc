@@ -109,7 +109,7 @@ bool DexFile::GetChecksum(const char* filename, uint32_t* checksum, std::string*
   }
   if (IsDexMagic(magic)) {
     std::unique_ptr<const DexFile> dex_file(
-        DexFile::OpenFile(fd.release(), filename, false, error_msg));
+        DexFile::OpenFile(fd.release(), filename, false, false, error_msg));
     if (dex_file.get() == nullptr) {
       return false;
     }
@@ -120,7 +120,10 @@ bool DexFile::GetChecksum(const char* filename, uint32_t* checksum, std::string*
   return false;
 }
 
-bool DexFile::Open(const char* filename, const char* location, std::string* error_msg,
+bool DexFile::Open(const char* filename,
+                   const char* location,
+                   bool verify_checksum,
+                   std::string* error_msg,
                    std::vector<std::unique_ptr<const DexFile>>* dex_files) {
   ScopedTrace trace(std::string("Open dex file ") + location);
   DCHECK(dex_files != nullptr) << "DexFile::Open: out-param is nullptr";
@@ -131,10 +134,13 @@ bool DexFile::Open(const char* filename, const char* location, std::string* erro
     return false;
   }
   if (IsZipMagic(magic)) {
-    return DexFile::OpenZip(fd.release(), location, error_msg, dex_files);
+    return DexFile::OpenZip(fd.release(), location, verify_checksum, error_msg, dex_files);
   }
   if (IsDexMagic(magic)) {
-    std::unique_ptr<const DexFile> dex_file(DexFile::OpenFile(fd.release(), location, true,
+    std::unique_ptr<const DexFile> dex_file(DexFile::OpenFile(fd.release(),
+                                                              location,
+                                                              /* verify */ true,
+                                                              verify_checksum,
                                                               error_msg));
     if (dex_file.get() != nullptr) {
       dex_files->push_back(std::move(dex_file));
@@ -207,6 +213,7 @@ std::unique_ptr<const DexFile> DexFile::Open(const uint8_t* base, size_t size,
                                              uint32_t location_checksum,
                                              const OatDexFile* oat_dex_file,
                                              bool verify,
+                                             bool verify_checksum,
                                              std::string* error_msg) {
   ScopedTrace trace(std::string("Open dex file from RAM ") + location);
   std::unique_ptr<const DexFile> dex_file = OpenMemory(base,
@@ -220,6 +227,7 @@ std::unique_ptr<const DexFile> DexFile::Open(const uint8_t* base, size_t size,
                                          dex_file->Begin(),
                                          dex_file->Size(),
                                          location.c_str(),
+                                         verify_checksum,
                                          error_msg)) {
     return nullptr;
   }
@@ -227,7 +235,10 @@ std::unique_ptr<const DexFile> DexFile::Open(const uint8_t* base, size_t size,
   return dex_file;
 }
 
-std::unique_ptr<const DexFile> DexFile::OpenFile(int fd, const char* location, bool verify,
+std::unique_ptr<const DexFile> DexFile::OpenFile(int fd,
+                                                 const char* location,
+                                                 bool verify,
+                                                 bool verify_checksum,
                                                  std::string* error_msg) {
   ScopedTrace trace(std::string("Open dex file ") + location);
   CHECK(location != nullptr);
@@ -276,7 +287,9 @@ std::unique_ptr<const DexFile> DexFile::OpenFile(int fd, const char* location, b
   }
 
   if (verify && !DexFileVerifier::Verify(dex_file.get(), dex_file->Begin(), dex_file->Size(),
-                                         location, error_msg)) {
+                                         location,
+                                         verify_checksum,
+                                         error_msg)) {
     return nullptr;
   }
 
@@ -285,7 +298,10 @@ std::unique_ptr<const DexFile> DexFile::OpenFile(int fd, const char* location, b
 
 const char* DexFile::kClassesDex = "classes.dex";
 
-bool DexFile::OpenZip(int fd, const std::string& location, std::string* error_msg,
+bool DexFile::OpenZip(int fd,
+                      const std::string& location,
+                      bool verify_checksum,
+                      std::string* error_msg,
                       std::vector<std::unique_ptr<const DexFile>>* dex_files) {
   ScopedTrace trace("Dex file open Zip " + std::string(location));
   DCHECK(dex_files != nullptr) << "DexFile::OpenZip: out-param is nullptr";
@@ -294,7 +310,7 @@ bool DexFile::OpenZip(int fd, const std::string& location, std::string* error_ms
     DCHECK(!error_msg->empty());
     return false;
   }
-  return DexFile::OpenFromZip(*zip_archive, location, error_msg, dex_files);
+  return DexFile::OpenFromZip(*zip_archive, location, verify_checksum, error_msg, dex_files);
 }
 
 std::unique_ptr<const DexFile> DexFile::OpenMemory(const std::string& location,
@@ -310,8 +326,11 @@ std::unique_ptr<const DexFile> DexFile::OpenMemory(const std::string& location,
                     error_msg);
 }
 
-std::unique_ptr<const DexFile> DexFile::Open(const ZipArchive& zip_archive, const char* entry_name,
-                                             const std::string& location, std::string* error_msg,
+std::unique_ptr<const DexFile> DexFile::Open(const ZipArchive& zip_archive,
+                                             const char* entry_name,
+                                             const std::string& location,
+                                             bool verify_checksum,
+                                             std::string* error_msg,
                                              ZipOpenErrorCode* error_code) {
   ScopedTrace trace("Dex file open from Zip Archive " + std::string(location));
   CHECK(!location.empty());
@@ -342,7 +361,9 @@ std::unique_ptr<const DexFile> DexFile::Open(const ZipArchive& zip_archive, cons
   }
   CHECK(dex_file->IsReadOnly()) << location;
   if (!DexFileVerifier::Verify(dex_file.get(), dex_file->Begin(), dex_file->Size(),
-                               location.c_str(), error_msg)) {
+                               location.c_str(),
+                               verify_checksum,
+                               error_msg)) {
     *error_code = ZipOpenErrorCode::kVerifyError;
     return nullptr;
   }
@@ -356,14 +377,16 @@ std::unique_ptr<const DexFile> DexFile::Open(const ZipArchive& zip_archive, cons
 // seems an excessive number.
 static constexpr size_t kWarnOnManyDexFilesThreshold = 100;
 
-bool DexFile::OpenFromZip(const ZipArchive& zip_archive, const std::string& location,
+bool DexFile::OpenFromZip(const ZipArchive& zip_archive,
+                          const std::string& location,
+                          bool verify_checksum,
                           std::string* error_msg,
                           std::vector<std::unique_ptr<const DexFile>>* dex_files) {
   ScopedTrace trace("Dex file open from Zip " + std::string(location));
   DCHECK(dex_files != nullptr) << "DexFile::OpenFromZip: out-param is nullptr";
   ZipOpenErrorCode error_code;
-  std::unique_ptr<const DexFile> dex_file(Open(zip_archive, kClassesDex, location, error_msg,
-                                               &error_code));
+  std::unique_ptr<const DexFile> dex_file(
+      Open(zip_archive, kClassesDex, location, verify_checksum, error_msg, &error_code));
   if (dex_file.get() == nullptr) {
     return false;
   } else {
@@ -378,8 +401,8 @@ bool DexFile::OpenFromZip(const ZipArchive& zip_archive, const std::string& loca
     for (size_t i = 1; ; ++i) {
       std::string name = GetMultiDexClassesDexName(i);
       std::string fake_location = GetMultiDexLocation(i, location.c_str());
-      std::unique_ptr<const DexFile> next_dex_file(Open(zip_archive, name.c_str(), fake_location,
-                                                        error_msg, &error_code));
+      std::unique_ptr<const DexFile> next_dex_file(
+          Open(zip_archive, name.c_str(), fake_location, verify_checksum, error_msg, &error_code));
       if (next_dex_file.get() == nullptr) {
         if (error_code != ZipOpenErrorCode::kEntryNotFound) {
           LOG(WARNING) << error_msg;

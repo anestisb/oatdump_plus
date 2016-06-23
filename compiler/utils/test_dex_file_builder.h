@@ -227,9 +227,18 @@ class TestDexFileBuilder {
     // Write the complete header again, just simpler that way.
     std::memcpy(&dex_file_data_[0], header_data.data, sizeof(DexFile::Header));
 
+    static constexpr bool kVerify = false;
+    static constexpr bool kVerifyChecksum = false;
     std::string error_msg;
     std::unique_ptr<const DexFile> dex_file(DexFile::Open(
-        &dex_file_data_[0], dex_file_data_.size(), dex_location, 0u, nullptr, false, &error_msg));
+        &dex_file_data_[0],
+        dex_file_data_.size(),
+        dex_location,
+        0u,
+        nullptr,
+        kVerify,
+        kVerifyChecksum,
+        &error_msg));
     CHECK(dex_file != nullptr) << error_msg;
     return dex_file;
   }
