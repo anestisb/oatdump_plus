@@ -47,7 +47,6 @@
 #include "driver/compiler_options.h"
 #include "jni_internal.h"
 #include "object_lock.h"
-#include "profiler.h"
 #include "runtime.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/heap_bitmap.h"

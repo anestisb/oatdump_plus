@@ -28,7 +28,6 @@
 #include "compiler_filter.h"
 #include "oat_file.h"
 #include "os.h"
-#include "profiler.h"
 
 namespace art {
 
