@@ -791,8 +791,15 @@ static void GenUnsafeGet(HInvoke* invoke,
     // UnsafeGetObject/UnsafeGetObjectVolatile with Baker's read barrier case.
     UseScratchRegisterScope temps(masm);
     Register temp = temps.AcquireW();
-    codegen->GenerateArrayLoadWithBakerReadBarrier(
-        invoke, trg_loc, base, 0U, offset_loc, temp, /* needs_null_check */ false);
+    codegen->GenerateReferenceLoadWithBakerReadBarrier(invoke,
+                                                       trg_loc,
+                                                       base,
+                                                       /* offset */ 0U,
+                                                       /* index */ offset_loc,
+                                                       /* scale_factor */ 0U,
+                                                       temp,
+                                                       /* needs_null_check */ false,
+                                                       is_volatile);
   } else {
     // Other cases.
     MemOperand mem_op(base.X(), offset);
@@ -821,7 +828,8 @@ static void CreateIntIntIntToIntLocations(ArenaAllocator* arena, HInvoke* invoke
   locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
   locations->SetInAt(1, Location::RequiresRegister());
   locations->SetInAt(2, Location::RequiresRegister());
-  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+  locations->SetOut(Location::RequiresRegister(),
+                    can_call ? Location::kOutputOverlap : Location::kNoOutputOverlap);
 }
 
 void IntrinsicLocationsBuilderARM64::VisitUnsafeGet(HInvoke* invoke) {

@@ -515,6 +515,17 @@ class CodeGeneratorARM64 : public CodeGenerator {
                                              Location index,
                                              vixl::Register temp,
                                              bool needs_null_check);
+  // Factored implementation used by GenerateFieldLoadWithBakerReadBarrier
+  // and GenerateArrayLoadWithBakerReadBarrier.
+  void GenerateReferenceLoadWithBakerReadBarrier(HInstruction* instruction,
+                                                 Location ref,
+                                                 vixl::Register obj,
+                                                 uint32_t offset,
+                                                 Location index,
+                                                 size_t scale_factor,
+                                                 vixl::Register temp,
+                                                 bool needs_null_check,
+                                                 bool use_load_acquire);
 
   // Generate a read barrier for a heap reference within `instruction`
   // using a slow path.
@@ -570,17 +581,6 @@ class CodeGeneratorARM64 : public CodeGenerator {
   void GenerateExplicitNullCheck(HNullCheck* instruction);
 
  private:
-  // Factored implementation of GenerateFieldLoadWithBakerReadBarrier
-  // and GenerateArrayLoadWithBakerReadBarrier.
-  void GenerateReferenceLoadWithBakerReadBarrier(HInstruction* instruction,
-                                                 Location ref,
-                                                 vixl::Register obj,
-                                                 uint32_t offset,
-                                                 Location index,
-                                                 vixl::Register temp,
-                                                 bool needs_null_check,
-                                                 bool use_load_acquire);
-
   using Uint64ToLiteralMap = ArenaSafeMap<uint64_t, vixl::Literal<uint64_t>*>;
   using Uint32ToLiteralMap = ArenaSafeMap<uint32_t, vixl::Literal<uint32_t>*>;
   using MethodToLiteralMap = ArenaSafeMap<MethodReference,

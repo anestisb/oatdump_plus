@@ -6085,8 +6085,9 @@ void CodeGeneratorARM::GenerateFieldLoadWithBakerReadBarrier(HInstruction* instr
 
   // /* HeapReference<Object> */ ref = *(obj + offset)
   Location no_index = Location::NoLocation();
+  ScaleFactor no_scale_factor = TIMES_1;
   GenerateReferenceLoadWithBakerReadBarrier(
-      instruction, ref, obj, offset, no_index, temp, needs_null_check);
+      instruction, ref, obj, offset, no_index, no_scale_factor, temp, needs_null_check);
 }
 
 void CodeGeneratorARM::GenerateArrayLoadWithBakerReadBarrier(HInstruction* instruction,
@@ -6099,10 +6100,14 @@ void CodeGeneratorARM::GenerateArrayLoadWithBakerReadBarrier(HInstruction* instr
   DCHECK(kEmitCompilerReadBarrier);
   DCHECK(kUseBakerReadBarrier);
 
+  static_assert(
+      sizeof(mirror::HeapReference<mirror::Object>) == sizeof(int32_t),
+      "art::mirror::HeapReference<art::mirror::Object> and int32_t have different sizes.");
   // /* HeapReference<Object> */ ref =
   //     *(obj + data_offset + index * sizeof(HeapReference<Object>))
+  ScaleFactor scale_factor = TIMES_4;
   GenerateReferenceLoadWithBakerReadBarrier(
-      instruction, ref, obj, data_offset, index, temp, needs_null_check);
+      instruction, ref, obj, data_offset, index, scale_factor, temp, needs_null_check);
 }
 
 void CodeGeneratorARM::GenerateReferenceLoadWithBakerReadBarrier(HInstruction* instruction,
@@ -6110,6 +6115,7 @@ void CodeGeneratorARM::GenerateReferenceLoadWithBakerReadBarrier(HInstruction* i
                                                                  Register obj,
                                                                  uint32_t offset,
                                                                  Location index,
+                                                                 ScaleFactor scale_factor,
                                                                  Location temp,
                                                                  bool needs_null_check) {
   DCHECK(kEmitCompilerReadBarrier);
@@ -6164,17 +6170,22 @@ void CodeGeneratorARM::GenerateReferenceLoadWithBakerReadBarrier(HInstruction* i
 
   // The actual reference load.
   if (index.IsValid()) {
-    static_assert(
-        sizeof(mirror::HeapReference<mirror::Object>) == sizeof(int32_t),
-        "art::mirror::HeapReference<art::mirror::Object> and int32_t have different sizes.");
-    // /* HeapReference<Object> */ ref =
-    //     *(obj + offset + index * sizeof(HeapReference<Object>))
+    // Load types involving an "index": ArrayGet and
+    // UnsafeGetObject/UnsafeGetObjectVolatile intrinsics.
+    // /* HeapReference<Object> */ ref = *(obj + offset + (index << scale_factor))
     if (index.IsConstant()) {
       size_t computed_offset =
-          (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + offset;
+          (index.GetConstant()->AsIntConstant()->GetValue() << scale_factor) + offset;
       __ LoadFromOffset(kLoadWord, ref_reg, obj, computed_offset);
     } else {
-      __ add(IP, obj, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_4));
+      // Handle the special case of the
+      // UnsafeGetObject/UnsafeGetObjectVolatile intrinsics, which use
+      // a register pair as index ("long offset"), of which only the low
+      // part contains data.
+      Register index_reg = index.IsRegisterPair()
+          ? index.AsRegisterPairLow<Register>()
+          : index.AsRegister<Register>();
+      __ add(IP, obj, ShifterOperand(index_reg, LSL, scale_factor));
       __ LoadFromOffset(kLoadWord, ref_reg, IP, offset);
     }
   } else {

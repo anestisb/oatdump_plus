@@ -464,6 +464,16 @@ class CodeGeneratorARM : public CodeGenerator {
                                              Location index,
                                              Location temp,
                                              bool needs_null_check);
+  // Factored implementation used by GenerateFieldLoadWithBakerReadBarrier
+  // and GenerateArrayLoadWithBakerReadBarrier.
+  void GenerateReferenceLoadWithBakerReadBarrier(HInstruction* instruction,
+                                                 Location ref,
+                                                 Register obj,
+                                                 uint32_t offset,
+                                                 Location index,
+                                                 ScaleFactor scale_factor,
+                                                 Location temp,
+                                                 bool needs_null_check);
 
   // Generate a read barrier for a heap reference within `instruction`
   // using a slow path.
@@ -519,16 +529,6 @@ class CodeGeneratorARM : public CodeGenerator {
   void GenerateExplicitNullCheck(HNullCheck* instruction);
 
  private:
-  // Factored implementation of GenerateFieldLoadWithBakerReadBarrier
-  // and GenerateArrayLoadWithBakerReadBarrier.
-  void GenerateReferenceLoadWithBakerReadBarrier(HInstruction* instruction,
-                                                 Location ref,
-                                                 Register obj,
-                                                 uint32_t offset,
-                                                 Location index,
-                                                 Location temp,
-                                                 bool needs_null_check);
-
   Register GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOrDirect* invoke, Register temp);
 
   using Uint32ToLiteralMap = ArenaSafeMap<uint32_t, Literal*>;
