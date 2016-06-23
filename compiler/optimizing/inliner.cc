@@ -756,7 +756,15 @@ bool HInliner::TryInlineAndReplace(HInvoke* invoke_instruction, ArtMethod* metho
     invoke_instruction->ReplaceWith(return_replacement);
   }
   invoke_instruction->GetBlock()->RemoveInstruction(invoke_instruction);
-  FixUpReturnReferenceType(invoke_instruction, method, return_replacement, do_rtp);
+  FixUpReturnReferenceType(method, return_replacement);
+  if (do_rtp && ReturnTypeMoreSpecific(invoke_instruction, return_replacement)) {
+    // Actual return value has a more specific type than the method's declared
+    // return type. Run RTP again on the outer graph to propagate it.
+    ReferenceTypePropagation(graph_,
+                             outer_compilation_unit_.GetDexCache(),
+                             handles_,
+                             /* is_first_run */ false).Run();
+  }
   return true;
 }
 
@@ -1159,6 +1167,15 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
     }
   }
 
+  // We have replaced formal arguments with actual arguments. If actual types
+  // are more specific than the declared ones, run RTP again on the inner graph.
+  if (ArgumentTypesMoreSpecific(invoke_instruction, resolved_method)) {
+    ReferenceTypePropagation(callee_graph,
+                             dex_compilation_unit.GetDexCache(),
+                             handles_,
+                             /* is_first_run */ false).Run();
+  }
+
   size_t number_of_instructions_budget = kMaximumNumberOfHInstructions;
   size_t number_of_inlined_instructions =
       RunOptimizations(callee_graph, code_item, dex_compilation_unit);
@@ -1332,11 +1349,85 @@ size_t HInliner::RunOptimizations(HGraph* callee_graph,
   return number_of_inlined_instructions;
 }
 
-void HInliner::FixUpReturnReferenceType(HInvoke* invoke_instruction,
-                                        ArtMethod* resolved_method,
-                                        HInstruction* return_replacement,
-                                        bool do_rtp) {
+static bool IsReferenceTypeRefinement(ReferenceTypeInfo declared_rti,
+                                      bool declared_can_be_null,
+                                      HInstruction* actual_obj)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  if (declared_can_be_null && !actual_obj->CanBeNull()) {
+    return true;
+  }
+
+  ReferenceTypeInfo actual_rti = actual_obj->GetReferenceTypeInfo();
+  return (actual_rti.IsExact() && !declared_rti.IsExact()) ||
+         declared_rti.IsStrictSupertypeOf(actual_rti);
+}
+
+ReferenceTypeInfo HInliner::GetClassRTI(mirror::Class* klass) {
+  return ReferenceTypePropagation::IsAdmissible(klass)
+      ? ReferenceTypeInfo::Create(handles_->NewHandle(klass))
+      : graph_->GetInexactObjectRti();
+}
+
+bool HInliner::ArgumentTypesMoreSpecific(HInvoke* invoke_instruction, ArtMethod* resolved_method) {
+  // If this is an instance call, test whether the type of the `this` argument
+  // is more specific than the class which declares the method.
+  if (!resolved_method->IsStatic()) {
+    if (IsReferenceTypeRefinement(GetClassRTI(resolved_method->GetDeclaringClass()),
+                                  /* declared_can_be_null */ false,
+                                  invoke_instruction->InputAt(0u))) {
+      return true;
+    }
+  }
+
+  size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+
+  // Iterate over the list of parameter types and test whether any of the
+  // actual inputs has a more specific reference type than the type declared in
+  // the signature.
+  const DexFile::TypeList* param_list = resolved_method->GetParameterTypeList();
+  for (size_t param_idx = 0,
+              input_idx = resolved_method->IsStatic() ? 0 : 1,
+              e = (param_list == nullptr ? 0 : param_list->Size());
+       param_idx < e;
+       ++param_idx, ++input_idx) {
+    HInstruction* input = invoke_instruction->InputAt(input_idx);
+    if (input->GetType() == Primitive::kPrimNot) {
+      mirror::Class* param_cls = resolved_method->GetDexCacheResolvedType(
+          param_list->GetTypeItem(param_idx).type_idx_,
+          pointer_size);
+      if (IsReferenceTypeRefinement(GetClassRTI(param_cls),
+                                    /* declared_can_be_null */ true,
+                                    input)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+bool HInliner::ReturnTypeMoreSpecific(HInvoke* invoke_instruction,
+                                      HInstruction* return_replacement) {
   // Check the integrity of reference types and run another type propagation if needed.
+  if (return_replacement != nullptr) {
+    if (return_replacement->GetType() == Primitive::kPrimNot) {
+      // Test if the return type is a refinement of the declared return type.
+      if (IsReferenceTypeRefinement(invoke_instruction->GetReferenceTypeInfo(),
+                                    /* declared_can_be_null */ true,
+                                    return_replacement)) {
+        return true;
+      }
+    } else if (return_replacement->IsInstanceOf()) {
+      // Inlining InstanceOf into an If may put a tighter bound on reference types.
+      return true;
+    }
+  }
+
+  return false;
+}
+
+void HInliner::FixUpReturnReferenceType(ArtMethod* resolved_method,
+                                        HInstruction* return_replacement) {
   if (return_replacement != nullptr) {
     if (return_replacement->GetType() == Primitive::kPrimNot) {
       if (!return_replacement->GetReferenceTypeInfo().IsValid()) {
@@ -1347,36 +1438,7 @@ void HInliner::FixUpReturnReferenceType(HInvoke* invoke_instruction,
         DCHECK(return_replacement->IsPhi());
         size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
         mirror::Class* cls = resolved_method->GetReturnType(false /* resolve */, pointer_size);
-        if (cls != nullptr && !cls->IsErroneous()) {
-          ReferenceTypeInfo::TypeHandle return_handle = handles_->NewHandle(cls);
-          return_replacement->SetReferenceTypeInfo(ReferenceTypeInfo::Create(
-              return_handle, return_handle->CannotBeAssignedFromOtherTypes() /* is_exact */));
-        } else {
-          // Return inexact object type on failures.
-          return_replacement->SetReferenceTypeInfo(graph_->GetInexactObjectRti());
-        }
-      }
-
-      if (do_rtp) {
-        // If the return type is a refinement of the declared type run the type propagation again.
-        ReferenceTypeInfo return_rti = return_replacement->GetReferenceTypeInfo();
-        ReferenceTypeInfo invoke_rti = invoke_instruction->GetReferenceTypeInfo();
-        if (invoke_rti.IsStrictSupertypeOf(return_rti)
-            || (return_rti.IsExact() && !invoke_rti.IsExact())
-            || !return_replacement->CanBeNull()) {
-          ReferenceTypePropagation(graph_,
-                                   outer_compilation_unit_.GetDexCache(),
-                                   handles_,
-                                   /* is_first_run */ false).Run();
-        }
-      }
-    } else if (return_replacement->IsInstanceOf()) {
-      if (do_rtp) {
-        // Inlining InstanceOf into an If may put a tighter bound on reference types.
-        ReferenceTypePropagation(graph_,
-                                 outer_compilation_unit_.GetDexCache(),
-                                 handles_,
-                                 /* is_first_run */ false).Run();
+        return_replacement->SetReferenceTypeInfo(GetClassRTI(cls));
       }
     }
   }
