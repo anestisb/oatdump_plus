@@ -670,7 +670,7 @@ void HInductionVarAnalysis::VisitTripCount(HLoopInformation* loop,
   //     an unsigned entity, for example, as in the following loop that uses the full range:
   //     for (int i = INT_MIN; i < INT_MAX; i++) // TC = UINT_MAX
   // (2) The TC is only valid if the loop is taken, otherwise TC = 0, as in:
-  //     for (int i = 12; i < U; i++) // TC = 0 when U < 12
+  //     for (int i = 12; i < U; i++) // TC = 0 when U <= 12
   //     If this cannot be determined at compile-time, the TC is only valid within the
   //     loop-body proper, not the loop-header unless enforced with an explicit taken-test.
   // (3) The TC is only valid if the loop is finite, otherwise TC has no value, as in:
