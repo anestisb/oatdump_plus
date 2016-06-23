@@ -122,6 +122,10 @@ static void FixUpChecksum(uint8_t* dex_file) {
 
 class DexFileVerifierTest : public CommonRuntimeTest {
  protected:
+  DexFile* GetDexFile(const uint8_t* dex_bytes, size_t length) {
+    return new DexFile(dex_bytes, length, "tmp", 0, nullptr, nullptr);
+  }
+
   void VerifyModification(const char* dex_file_base64_content,
                           const char* location,
                           std::function<void(DexFile*)> f,
@@ -130,16 +134,17 @@ class DexFileVerifierTest : public CommonRuntimeTest {
     std::unique_ptr<uint8_t[]> dex_bytes = DecodeBase64(dex_file_base64_content, &length);
     CHECK(dex_bytes != nullptr);
     // Note: `dex_file` will be destroyed before `dex_bytes`.
-    std::unique_ptr<DexFile> dex_file(
-        new DexFile(dex_bytes.get(), length, "tmp", 0, nullptr, nullptr));
+    std::unique_ptr<DexFile> dex_file(GetDexFile(dex_bytes.get(), length));
     f(dex_file.get());
     FixUpChecksum(const_cast<uint8_t*>(dex_file->Begin()));
 
+    static constexpr bool kVerifyChecksum = true;
     std::string error_msg;
     bool success = DexFileVerifier::Verify(dex_file.get(),
                                            dex_file->Begin(),
                                            dex_file->Size(),
                                            location,
+                                           kVerifyChecksum,
                                            &error_msg);
     if (expected_error == nullptr) {
       EXPECT_TRUE(success) << error_msg;
@@ -175,7 +180,7 @@ static std::unique_ptr<const DexFile> OpenDexFileBase64(const char* base64,
   // read dex file
   ScopedObjectAccess soa(Thread::Current());
   std::vector<std::unique_ptr<const DexFile>> tmp;
-  bool success = DexFile::Open(location, location, error_msg, &tmp);
+  bool success = DexFile::Open(location, location, true, error_msg, &tmp);
   CHECK(success) << error_msg;
   EXPECT_EQ(1U, tmp.size());
   std::unique_ptr<const DexFile> dex_file = std::move(tmp[0]);
@@ -1695,6 +1700,47 @@ TEST_F(DexFileVerifierTest, CircularInterfaceImplementation) {
       [](DexFile* dex_file ATTRIBUTE_UNUSED) { /* empty */ },
       "Invalid class definition ordering: class with type idx: '2' defined before"
       " implemented interface with type idx: '0'");
+}
+
+TEST_F(DexFileVerifierTest, Checksum) {
+  size_t length;
+  std::unique_ptr<uint8_t[]> dex_bytes = DecodeBase64(kGoodTestDex, &length);
+  CHECK(dex_bytes != nullptr);
+  // Note: `dex_file` will be destroyed before `dex_bytes`.
+  std::unique_ptr<DexFile> dex_file(GetDexFile(dex_bytes.get(), length));
+  std::string error_msg;
+
+  // Good checksum: all pass.
+  EXPECT_TRUE(DexFileVerifier::Verify(dex_file.get(),
+                                      dex_file->Begin(),
+                                      dex_file->Size(),
+                                       "good checksum, no verify",
+                                      /*verify_checksum*/ false,
+                                      &error_msg));
+  EXPECT_TRUE(DexFileVerifier::Verify(dex_file.get(),
+                                      dex_file->Begin(),
+                                      dex_file->Size(),
+                                      "good checksum, verify",
+                                      /*verify_checksum*/ true,
+                                      &error_msg));
+
+  // Bad checksum: !verify_checksum passes verify_checksum fails.
+  DexFile::Header* header = reinterpret_cast<DexFile::Header*>(
+      const_cast<uint8_t*>(dex_file->Begin()));
+  header->checksum_ = 0;
+  EXPECT_TRUE(DexFileVerifier::Verify(dex_file.get(),
+                                      dex_file->Begin(),
+                                      dex_file->Size(),
+                                      "bad checksum, no verify",
+                                      /*verify_checksum*/ false,
+                                      &error_msg));
+  EXPECT_FALSE(DexFileVerifier::Verify(dex_file.get(),
+                                       dex_file->Begin(),
+                                       dex_file->Size(),
+                                       "bad checksum, verify",
+                                       /*verify_checksum*/ true,
+                                       &error_msg));
+  EXPECT_NE(error_msg.find("Bad checksum"), std::string::npos) << error_msg;
 }
 
 }  // namespace art

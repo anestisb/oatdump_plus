@@ -2195,6 +2195,7 @@ bool OatWriter::OpenDexFiles(
                                          oat_dex_file.dex_file_location_checksum_,
                                          /* oat_dex_file */ nullptr,
                                          verify,
+                                         verify,
                                          &error_msg));
     if (dex_files.back() == nullptr) {
       LOG(ERROR) << "Failed to open dex file from oat file. File: " << oat_dex_file.GetLocation()

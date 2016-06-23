@@ -128,9 +128,14 @@ const DexFile::MethodId* DexFileVerifier::CheckLoadMethodId(uint32_t idx, const 
     error_stmt;                                               \
   }
 
-bool DexFileVerifier::Verify(const DexFile* dex_file, const uint8_t* begin, size_t size,
-                             const char* location, std::string* error_msg) {
-  std::unique_ptr<DexFileVerifier> verifier(new DexFileVerifier(dex_file, begin, size, location));
+bool DexFileVerifier::Verify(const DexFile* dex_file,
+                             const uint8_t* begin,
+                             size_t size,
+                             const char* location,
+                             bool verify_checksum,
+                             std::string* error_msg) {
+  std::unique_ptr<DexFileVerifier> verifier(
+      new DexFileVerifier(dex_file, begin, size, location, verify_checksum));
   if (!verifier->Verify()) {
     *error_msg = verifier->FailureReason();
     return false;
@@ -273,8 +278,13 @@ bool DexFileVerifier::CheckHeader() {
   const uint8_t* non_sum_ptr = reinterpret_cast<const uint8_t*>(header_) + non_sum;
   adler_checksum = adler32(adler_checksum, non_sum_ptr, expected_size - non_sum);
   if (adler_checksum != header_->checksum_) {
-    ErrorStringPrintf("Bad checksum (%08x, expected %08x)", adler_checksum, header_->checksum_);
-    return false;
+    if (verify_checksum_) {
+      ErrorStringPrintf("Bad checksum (%08x, expected %08x)", adler_checksum, header_->checksum_);
+      return false;
+    } else {
+      LOG(WARNING) << StringPrintf(
+          "Ignoring bad checksum (%08x, expected %08x)", adler_checksum, header_->checksum_);
+    }
   }
 
   // Check the contents of the header.

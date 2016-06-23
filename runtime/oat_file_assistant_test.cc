@@ -73,14 +73,15 @@ class OatFileAssistantTest : public CommonRuntimeTest {
 
     // GetMultiDexSrc2 should have the same primary dex checksum as
     // GetMultiDexSrc1, but a different secondary dex checksum.
+    static constexpr bool kVerifyChecksum = true;
     std::vector<std::unique_ptr<const DexFile>> multi1;
     ASSERT_TRUE(DexFile::Open(GetMultiDexSrc1().c_str(),
-          GetMultiDexSrc1().c_str(), &error_msg, &multi1)) << error_msg;
+          GetMultiDexSrc1().c_str(), kVerifyChecksum, &error_msg, &multi1)) << error_msg;
     ASSERT_GT(multi1.size(), 1u);
 
     std::vector<std::unique_ptr<const DexFile>> multi2;
     ASSERT_TRUE(DexFile::Open(GetMultiDexSrc2().c_str(),
-          GetMultiDexSrc2().c_str(), &error_msg, &multi2)) << error_msg;
+          GetMultiDexSrc2().c_str(), kVerifyChecksum, &error_msg, &multi2)) << error_msg;
     ASSERT_GT(multi2.size(), 1u);
 
     ASSERT_EQ(multi1[0]->GetLocationChecksum(), multi2[0]->GetLocationChecksum());
