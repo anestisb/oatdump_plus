@@ -47,19 +47,6 @@ bool IntrinsicLocationsBuilderARM::TryDispatch(HInvoke* invoke) {
   if (res == nullptr) {
     return false;
   }
-  if (kEmitCompilerReadBarrier && res->CanCall()) {
-    // Generating an intrinsic for this HInvoke may produce an
-    // IntrinsicSlowPathARM slow path.  Currently this approach
-    // does not work when using read barriers, as the emitted
-    // calling sequence will make use of another slow path
-    // (ReadBarrierForRootSlowPathARM for HInvokeStaticOrDirect,
-    // ReadBarrierSlowPathARM for HInvokeVirtual).  So we bail
-    // out in this case.
-    //
-    // TODO: Find a way to have intrinsics work with read barriers.
-    invoke->SetLocations(nullptr);
-    return false;
-  }
   return res->Intrinsified();
 }
 
@@ -920,9 +907,10 @@ void IntrinsicLocationsBuilderARM::VisitUnsafeCASObject(HInvoke* invoke) {
   // The UnsafeCASObject intrinsic is missing a read barrier, and
   // therefore sometimes does not work as expected (b/25883050).
   // Turn it off temporarily as a quick fix, until the read barrier is
-  // implemented (see TODO in GenCAS below).
+  // implemented (see TODO in GenCAS).
   //
-  // TODO(rpl): Fix this issue and re-enable this intrinsic with read barriers.
+  // TODO(rpl): Implement read barrier support in GenCAS and re-enable
+  // this intrinsic.
   if (kEmitCompilerReadBarrier) {
     return;
   }
@@ -933,6 +921,15 @@ void IntrinsicCodeGeneratorARM::VisitUnsafeCASInt(HInvoke* invoke) {
   GenCas(invoke->GetLocations(), Primitive::kPrimInt, codegen_);
 }
 void IntrinsicCodeGeneratorARM::VisitUnsafeCASObject(HInvoke* invoke) {
+  // The UnsafeCASObject intrinsic is missing a read barrier, and
+  // therefore sometimes does not work as expected (b/25883050).
+  // Turn it off temporarily as a quick fix, until the read barrier is
+  // implemented (see TODO in GenCAS).
+  //
+  // TODO(rpl): Implement read barrier support in GenCAS and re-enable
+  // this intrinsic.
+  DCHECK(!kEmitCompilerReadBarrier);
+
   GenCas(invoke->GetLocations(), Primitive::kPrimNot, codegen_);
 }
 
@@ -1385,6 +1382,12 @@ void IntrinsicCodeGeneratorARM::VisitStringNewStringFromString(HInvoke* invoke) 
 }
 
 void IntrinsicLocationsBuilderARM::VisitSystemArrayCopy(HInvoke* invoke) {
+  // TODO(rpl): Implement read barriers in the SystemArrayCopy
+  // intrinsic and re-enable it (b/29516905).
+  if (kEmitCompilerReadBarrier) {
+    return;
+  }
+
   CodeGenerator::CreateSystemArrayCopyLocationSummary(invoke);
   LocationSummary* locations = invoke->GetLocations();
   if (locations == nullptr) {
@@ -1469,11 +1472,11 @@ static void CheckPosition(ArmAssembler* assembler,
   }
 }
 
-// TODO: Implement read barriers in the SystemArrayCopy intrinsic.
-// Note that this code path is not used (yet) because we do not
-// intrinsify methods that can go into the IntrinsicSlowPathARM
-// slow path.
 void IntrinsicCodeGeneratorARM::VisitSystemArrayCopy(HInvoke* invoke) {
+  // TODO(rpl): Implement read barriers in the SystemArrayCopy
+  // intrinsic and re-enable it (b/29516905).
+  DCHECK(!kEmitCompilerReadBarrier);
+
   ArmAssembler* assembler = GetAssembler();
   LocationSummary* locations = invoke->GetLocations();
 

@@ -60,19 +60,6 @@ bool IntrinsicLocationsBuilderX86::TryDispatch(HInvoke* invoke) {
   if (res == nullptr) {
     return false;
   }
-  if (kEmitCompilerReadBarrier && res->CanCall()) {
-    // Generating an intrinsic for this HInvoke may produce an
-    // IntrinsicSlowPathX86 slow path.  Currently this approach
-    // does not work when using read barriers, as the emitted
-    // calling sequence will make use of another slow path
-    // (ReadBarrierForRootSlowPathX86 for HInvokeStaticOrDirect,
-    // ReadBarrierSlowPathX86 for HInvokeVirtual).  So we bail
-    // out in this case.
-    //
-    // TODO: Find a way to have intrinsics work with read barriers.
-    invoke->SetLocations(nullptr);
-    return false;
-  }
   return res->Intrinsified();
 }
 
@@ -1921,12 +1908,13 @@ static void CreateIntIntIntToIntLocations(ArenaAllocator* arena,
     if (is_volatile) {
       // Need to use XMM to read volatile.
       locations->AddTemp(Location::RequiresFpuRegister());
-      locations->SetOut(Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
     } else {
       locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
     }
   } else {
-    locations->SetOut(Location::RequiresRegister());
+    locations->SetOut(Location::RequiresRegister(),
+                      can_call ? Location::kOutputOverlap : Location::kNoOutputOverlap);
   }
   if (type == Primitive::kPrimNot && kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
     // We need a temporary register for the read barrier marking slow
@@ -2152,9 +2140,9 @@ void IntrinsicLocationsBuilderX86::VisitUnsafeCASObject(HInvoke* invoke) {
   // The UnsafeCASObject intrinsic is missing a read barrier, and
   // therefore sometimes does not work as expected (b/25883050).
   // Turn it off temporarily as a quick fix, until the read barrier is
-  // implemented.
+  // implemented (see TODO in GenCAS).
   //
-  // TODO(rpl): Implement a read barrier in GenCAS below and re-enable
+  // TODO(rpl): Implement read barrier support in GenCAS and re-enable
   // this intrinsic.
   if (kEmitCompilerReadBarrier) {
     return;
@@ -2279,6 +2267,15 @@ void IntrinsicCodeGeneratorX86::VisitUnsafeCASLong(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86::VisitUnsafeCASObject(HInvoke* invoke) {
+  // The UnsafeCASObject intrinsic is missing a read barrier, and
+  // therefore sometimes does not work as expected (b/25883050).
+  // Turn it off temporarily as a quick fix, until the read barrier is
+  // implemented (see TODO in GenCAS).
+  //
+  // TODO(rpl): Implement read barrier support in GenCAS and re-enable
+  // this intrinsic.
+  DCHECK(!kEmitCompilerReadBarrier);
+
   GenCAS(Primitive::kPrimNot, invoke, codegen_);
 }
 
