@@ -448,7 +448,9 @@ class ReadBarrierMarkSlowPathX86 : public SlowPathCode {
            instruction_->IsLoadClass() ||
            instruction_->IsLoadString() ||
            instruction_->IsInstanceOf() ||
-           instruction_->IsCheckCast())
+           instruction_->IsCheckCast() ||
+           ((instruction_->IsInvokeStaticOrDirect() || instruction_->IsInvokeVirtual()) &&
+            instruction_->GetLocations()->Intrinsified()))
         << "Unexpected instruction in read barrier marking slow path: "
         << instruction_->DebugName();
 
@@ -511,8 +513,12 @@ class ReadBarrierForHeapReferenceSlowPathX86 : public SlowPathCode {
     Register reg_out = out_.AsRegister<Register>();
     DCHECK(locations->CanCall());
     DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(reg_out));
-    DCHECK(!instruction_->IsInvoke() ||
-           (instruction_->IsInvokeStaticOrDirect() &&
+    DCHECK(instruction_->IsInstanceFieldGet() ||
+           instruction_->IsStaticFieldGet() ||
+           instruction_->IsArrayGet() ||
+           instruction_->IsInstanceOf() ||
+           instruction_->IsCheckCast() ||
+           ((instruction_->IsInvokeStaticOrDirect() || instruction_->IsInvokeVirtual()) &&
             instruction_->GetLocations()->Intrinsified()))
         << "Unexpected instruction in read barrier for heap reference slow path: "
         << instruction_->DebugName();
@@ -525,7 +531,7 @@ class ReadBarrierForHeapReferenceSlowPathX86 : public SlowPathCode {
     // introduce a copy of it, `index`.
     Location index = index_;
     if (index_.IsValid()) {
-      // Handle `index_` for HArrayGet and intrinsic UnsafeGetObject.
+      // Handle `index_` for HArrayGet and UnsafeGetObject/UnsafeGetObjectVolatile intrinsics.
       if (instruction_->IsArrayGet()) {
         // Compute the actual memory offset and store it in `index`.
         Register index_reg = index_.AsRegister<Register>();
@@ -573,7 +579,11 @@ class ReadBarrierForHeapReferenceSlowPathX86 : public SlowPathCode {
             "art::mirror::HeapReference<art::mirror::Object> and int32_t have different sizes.");
         __ AddImmediate(index_reg, Immediate(offset_));
       } else {
-        DCHECK(instruction_->IsInvoke());
+        // In the case of the UnsafeGetObject/UnsafeGetObjectVolatile
+        // intrinsics, `index_` is not shifted by a scale factor of 2
+        // (as in the case of ArrayGet), as it is actually an offset
+        // to an object field within an object.
+        DCHECK(instruction_->IsInvoke()) << instruction_->DebugName();
         DCHECK(instruction_->GetLocations()->Intrinsified());
         DCHECK((instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kUnsafeGetObject) ||
                (instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kUnsafeGetObjectVolatile))
@@ -6977,6 +6987,9 @@ void CodeGeneratorX86::GenerateArrayLoadWithBakerReadBarrier(HInstruction* instr
   DCHECK(kEmitCompilerReadBarrier);
   DCHECK(kUseBakerReadBarrier);
 
+  static_assert(
+      sizeof(mirror::HeapReference<mirror::Object>) == sizeof(int32_t),
+      "art::mirror::HeapReference<art::mirror::Object> and int32_t have different sizes.");
   // /* HeapReference<Object> */ ref =
   //     *(obj + data_offset + index * sizeof(HeapReference<Object>))
   Address src = index.IsConstant() ?

@@ -598,7 +598,9 @@ class ReadBarrierMarkSlowPathARM64 : public SlowPathCodeARM64 {
            instruction_->IsLoadClass() ||
            instruction_->IsLoadString() ||
            instruction_->IsInstanceOf() ||
-           instruction_->IsCheckCast())
+           instruction_->IsCheckCast() ||
+           ((instruction_->IsInvokeStaticOrDirect() || instruction_->IsInvokeVirtual()) &&
+            instruction_->GetLocations()->Intrinsified()))
         << "Unexpected instruction in read barrier marking slow path: "
         << instruction_->DebugName();
 
@@ -661,8 +663,12 @@ class ReadBarrierForHeapReferenceSlowPathARM64 : public SlowPathCodeARM64 {
     Primitive::Type type = Primitive::kPrimNot;
     DCHECK(locations->CanCall());
     DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(out_.reg()));
-    DCHECK(!instruction_->IsInvoke() ||
-           (instruction_->IsInvokeStaticOrDirect() &&
+    DCHECK(instruction_->IsInstanceFieldGet() ||
+           instruction_->IsStaticFieldGet() ||
+           instruction_->IsArrayGet() ||
+           instruction_->IsInstanceOf() ||
+           instruction_->IsCheckCast() ||
+           ((instruction_->IsInvokeStaticOrDirect() || instruction_->IsInvokeVirtual()) &&
             instruction_->GetLocations()->Intrinsified()))
         << "Unexpected instruction in read barrier for heap reference slow path: "
         << instruction_->DebugName();
@@ -680,7 +686,7 @@ class ReadBarrierForHeapReferenceSlowPathARM64 : public SlowPathCodeARM64 {
     // introduce a copy of it, `index`.
     Location index = index_;
     if (index_.IsValid()) {
-      // Handle `index_` for HArrayGet and intrinsic UnsafeGetObject.
+      // Handle `index_` for HArrayGet and UnsafeGetObject/UnsafeGetObjectVolatile intrinsics.
       if (instruction_->IsArrayGet()) {
         // Compute the actual memory offset and store it in `index`.
         Register index_reg = RegisterFrom(index_, Primitive::kPrimInt);
@@ -728,7 +734,11 @@ class ReadBarrierForHeapReferenceSlowPathARM64 : public SlowPathCodeARM64 {
             "art::mirror::HeapReference<art::mirror::Object> and int32_t have different sizes.");
         __ Add(index_reg, index_reg, Operand(offset_));
       } else {
-        DCHECK(instruction_->IsInvoke());
+        // In the case of the UnsafeGetObject/UnsafeGetObjectVolatile
+        // intrinsics, `index_` is not shifted by a scale factor of 2
+        // (as in the case of ArrayGet), as it is actually an offset
+        // to an object field within an object.
+        DCHECK(instruction_->IsInvoke()) << instruction_->DebugName();
         DCHECK(instruction_->GetLocations()->Intrinsified());
         DCHECK((instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kUnsafeGetObject) ||
                (instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kUnsafeGetObjectVolatile))
@@ -5102,8 +5112,16 @@ void CodeGeneratorARM64::GenerateFieldLoadWithBakerReadBarrier(HInstruction* ins
 
   // /* HeapReference<Object> */ ref = *(obj + offset)
   Location no_index = Location::NoLocation();
-  GenerateReferenceLoadWithBakerReadBarrier(
-      instruction, ref, obj, offset, no_index, temp, needs_null_check, use_load_acquire);
+  size_t no_scale_factor = 0U;
+  GenerateReferenceLoadWithBakerReadBarrier(instruction,
+                                            ref,
+                                            obj,
+                                            offset,
+                                            no_index,
+                                            no_scale_factor,
+                                            temp,
+                                            needs_null_check,
+                                            use_load_acquire);
 }
 
 void CodeGeneratorARM64::GenerateArrayLoadWithBakerReadBarrier(HInstruction* instruction,
@@ -5120,10 +5138,21 @@ void CodeGeneratorARM64::GenerateArrayLoadWithBakerReadBarrier(HInstruction* ins
   // never use Load-Acquire instructions on ARM64.
   const bool use_load_acquire = false;
 
+  static_assert(
+      sizeof(mirror::HeapReference<mirror::Object>) == sizeof(int32_t),
+      "art::mirror::HeapReference<art::mirror::Object> and int32_t have different sizes.");
   // /* HeapReference<Object> */ ref =
   //     *(obj + data_offset + index * sizeof(HeapReference<Object>))
-  GenerateReferenceLoadWithBakerReadBarrier(
-      instruction, ref, obj, data_offset, index, temp, needs_null_check, use_load_acquire);
+  size_t scale_factor = Primitive::ComponentSizeShift(Primitive::kPrimNot);
+  GenerateReferenceLoadWithBakerReadBarrier(instruction,
+                                            ref,
+                                            obj,
+                                            data_offset,
+                                            index,
+                                            scale_factor,
+                                            temp,
+                                            needs_null_check,
+                                            use_load_acquire);
 }
 
 void CodeGeneratorARM64::GenerateReferenceLoadWithBakerReadBarrier(HInstruction* instruction,
@@ -5131,15 +5160,16 @@ void CodeGeneratorARM64::GenerateReferenceLoadWithBakerReadBarrier(HInstruction*
                                                                    vixl::Register obj,
                                                                    uint32_t offset,
                                                                    Location index,
+                                                                   size_t scale_factor,
                                                                    Register temp,
                                                                    bool needs_null_check,
                                                                    bool use_load_acquire) {
   DCHECK(kEmitCompilerReadBarrier);
   DCHECK(kUseBakerReadBarrier);
-  // If `index` is a valid location, then we are emitting an array
-  // load, so we shouldn't be using a Load Acquire instruction.
-  // In other words: `index.IsValid()` => `!use_load_acquire`.
-  DCHECK(!index.IsValid() || !use_load_acquire);
+  // If we are emitting an array load, we should not be using a
+  // Load Acquire instruction.  In other words:
+  // `instruction->IsArrayGet()` => `!use_load_acquire`.
+  DCHECK(!instruction->IsArrayGet() || !use_load_acquire);
 
   MacroAssembler* masm = GetVIXLAssembler();
   UseScratchRegisterScope temps(masm);
@@ -5196,20 +5226,33 @@ void CodeGeneratorARM64::GenerateReferenceLoadWithBakerReadBarrier(HInstruction*
 
   // The actual reference load.
   if (index.IsValid()) {
-    static_assert(
-        sizeof(mirror::HeapReference<mirror::Object>) == sizeof(int32_t),
-        "art::mirror::HeapReference<art::mirror::Object> and int32_t have different sizes.");
-    // /* HeapReference<Object> */ ref =
-    //     *(obj + offset + index * sizeof(HeapReference<Object>))
-    const size_t shift_amount = Primitive::ComponentSizeShift(type);
-    if (index.IsConstant()) {
-      uint32_t computed_offset = offset + (Int64ConstantFrom(index) << shift_amount);
-      Load(type, ref_reg, HeapOperand(obj, computed_offset));
+    // Load types involving an "index".
+    if (use_load_acquire) {
+      // UnsafeGetObjectVolatile intrinsic case.
+      // Register `index` is not an index in an object array, but an
+      // offset to an object reference field within object `obj`.
+      DCHECK(instruction->IsInvoke()) << instruction->DebugName();
+      DCHECK(instruction->GetLocations()->Intrinsified());
+      DCHECK(instruction->AsInvoke()->GetIntrinsic() == Intrinsics::kUnsafeGetObjectVolatile)
+          << instruction->AsInvoke()->GetIntrinsic();
+      DCHECK_EQ(offset, 0U);
+      DCHECK_EQ(scale_factor, 0U);
+      DCHECK_EQ(needs_null_check, 0U);
+      // /* HeapReference<Object> */ ref = *(obj + index)
+      MemOperand field = HeapOperand(obj, XRegisterFrom(index));
+      LoadAcquire(instruction, ref_reg, field, /* needs_null_check */ false);
     } else {
-      temp2 = temps.AcquireW();
-      __ Add(temp2, obj, offset);
-      Load(type, ref_reg, HeapOperand(temp2, XRegisterFrom(index), LSL, shift_amount));
-      temps.Release(temp2);
+      // ArrayGet and UnsafeGetObject intrinsics cases.
+      // /* HeapReference<Object> */ ref = *(obj + offset + (index << scale_factor))
+      if (index.IsConstant()) {
+        uint32_t computed_offset = offset + (Int64ConstantFrom(index) << scale_factor);
+        Load(type, ref_reg, HeapOperand(obj, computed_offset));
+      } else {
+        temp2 = temps.AcquireW();
+        __ Add(temp2, obj, offset);
+        Load(type, ref_reg, HeapOperand(temp2, XRegisterFrom(index), LSL, scale_factor));
+        temps.Release(temp2);
+      }
     }
   } else {
     // /* HeapReference<Object> */ ref = *(obj + offset)
