@@ -19,10 +19,11 @@
 
 #include "memory"
 #include "simulator/code_simulator.h"
+
 // TODO: make vixl clean wrt -Wshadow.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wshadow"
-#include "vixl/a64/simulator-a64.h"
+#include "a64/simulator-a64.h"
 #pragma GCC diagnostic pop
 
 namespace art {
@@ -42,10 +43,10 @@ class CodeSimulatorArm64 : public CodeSimulator {
  private:
   CodeSimulatorArm64();
 
-  vixl::Decoder* decoder_;
-  vixl::Simulator* simulator_;
+  vixl::aarch64::Decoder* decoder_;
+  vixl::aarch64::Simulator* simulator_;
 
-  // TODO: Enable CodeSimulatorArm64 for more host ISAs once vixl::Simulator supports them.
+  // TODO: Enable CodeSimulatorArm64 for more host ISAs once Simulator supports them.
   static constexpr bool kCanSimulate = (kRuntimeISA == kX86_64);
 
   DISALLOW_COPY_AND_ASSIGN(CodeSimulatorArm64);

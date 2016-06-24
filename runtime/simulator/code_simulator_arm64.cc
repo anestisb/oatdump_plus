@@ -16,13 +16,15 @@
 
 #include "simulator/code_simulator_arm64.h"
 
+using namespace vixl::aarch64;  // NOLINT(build/namespaces)
+
 namespace art {
 namespace arm64 {
 
-// VIXL has not been tested on 32bit architectures, so vixl::Simulator is not always
+// VIXL has not been tested on 32bit architectures, so Simulator is not always
 // available. To avoid linker error on these architectures, we check if we can simulate
 // in the beginning of following methods, with compile time constant `kCanSimulate`.
-// TODO: when vixl::Simulator is always available, remove the these checks.
+// TODO: when Simulator is always available, remove the these checks.
 
 CodeSimulatorArm64* CodeSimulatorArm64::CreateCodeSimulatorArm64() {
   if (kCanSimulate) {
@@ -35,8 +37,8 @@ CodeSimulatorArm64* CodeSimulatorArm64::CreateCodeSimulatorArm64() {
 CodeSimulatorArm64::CodeSimulatorArm64()
     : CodeSimulator(), decoder_(nullptr), simulator_(nullptr) {
   DCHECK(kCanSimulate);
-  decoder_ = new vixl::Decoder();
-  simulator_ = new vixl::Simulator(decoder_);
+  decoder_ = new Decoder();
+  simulator_ = new Simulator(decoder_);
 }
 
 CodeSimulatorArm64::~CodeSimulatorArm64() {
@@ -47,22 +49,22 @@ CodeSimulatorArm64::~CodeSimulatorArm64() {
 
 void CodeSimulatorArm64::RunFrom(intptr_t code_buffer) {
   DCHECK(kCanSimulate);
-  simulator_->RunFrom(reinterpret_cast<const vixl::Instruction*>(code_buffer));
+  simulator_->RunFrom(reinterpret_cast<const Instruction*>(code_buffer));
 }
 
 bool CodeSimulatorArm64::GetCReturnBool() const {
   DCHECK(kCanSimulate);
-  return simulator_->wreg(0);
+  return simulator_->ReadWRegister(0);
 }
 
 int32_t CodeSimulatorArm64::GetCReturnInt32() const {
   DCHECK(kCanSimulate);
-  return simulator_->wreg(0);
+  return simulator_->ReadWRegister(0);
 }
 
 int64_t CodeSimulatorArm64::GetCReturnInt64() const {
   DCHECK(kCanSimulate);
-  return simulator_->xreg(0);
+  return simulator_->ReadXRegister(0);
 }
 
 }  // namespace arm64
