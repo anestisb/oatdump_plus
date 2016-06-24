@@ -339,22 +339,59 @@ bool FdFile::Copy(FdFile* input_file, int64_t offset, int64_t size) {
   return true;
 }
 
-void FdFile::Erase() {
+bool FdFile::Unlink() {
+  if (file_path_.empty()) {
+    return false;
+  }
+
+  // Try to figure out whether this file is still referring to the one on disk.
+  bool is_current = false;
+  {
+    struct stat this_stat, current_stat;
+    int cur_fd = TEMP_FAILURE_RETRY(open(file_path_.c_str(), O_RDONLY));
+    if (cur_fd > 0) {
+      // File still exists.
+      if (fstat(fd_, &this_stat) == 0 && fstat(cur_fd, &current_stat) == 0) {
+        is_current = (this_stat.st_dev == current_stat.st_dev) &&
+                     (this_stat.st_ino == current_stat.st_ino);
+      }
+      close(cur_fd);
+    }
+  }
+
+  if (is_current) {
+    unlink(file_path_.c_str());
+  }
+
+  return is_current;
+}
+
+bool FdFile::Erase(bool unlink) {
   DCHECK(!read_only_mode_);
-  TEMP_FAILURE_RETRY(SetLength(0));
-  TEMP_FAILURE_RETRY(Flush());
-  TEMP_FAILURE_RETRY(Close());
+
+  bool ret_result = true;
+  if (unlink) {
+    ret_result = Unlink();
+  }
+
+  int result;
+  result = SetLength(0);
+  result = Flush();
+  result = Close();
+  // Ignore the errors.
+
+  return ret_result;
 }
 
 int FdFile::FlushCloseOrErase() {
   DCHECK(!read_only_mode_);
-  int flush_result = TEMP_FAILURE_RETRY(Flush());
+  int flush_result = Flush();
   if (flush_result != 0) {
     LOG(ERROR) << "CloseOrErase failed while flushing a file.";
     Erase();
     return flush_result;
   }
-  int close_result = TEMP_FAILURE_RETRY(Close());
+  int close_result = Close();
   if (close_result != 0) {
     LOG(ERROR) << "CloseOrErase failed while closing a file.";
     Erase();
@@ -365,11 +402,11 @@ int FdFile::FlushCloseOrErase() {
 
 int FdFile::FlushClose() {
   DCHECK(!read_only_mode_);
-  int flush_result = TEMP_FAILURE_RETRY(Flush());
+  int flush_result = Flush();
   if (flush_result != 0) {
     LOG(ERROR) << "FlushClose failed while flushing a file.";
   }
-  int close_result = TEMP_FAILURE_RETRY(Close());
+  int close_result = Close();
   if (close_result != 0) {
     LOG(ERROR) << "FlushClose failed while closing a file.";
   }
