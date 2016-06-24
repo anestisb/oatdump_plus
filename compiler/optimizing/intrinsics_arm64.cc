@@ -149,19 +149,6 @@ bool IntrinsicLocationsBuilderARM64::TryDispatch(HInvoke* invoke) {
   if (res == nullptr) {
     return false;
   }
-  if (kEmitCompilerReadBarrier && res->CanCall()) {
-    // Generating an intrinsic for this HInvoke may produce an
-    // IntrinsicSlowPathARM64 slow path.  Currently this approach
-    // does not work when using read barriers, as the emitted
-    // calling sequence will make use of another slow path
-    // (ReadBarrierForRootSlowPathARM64 for HInvokeStaticOrDirect,
-    // ReadBarrierSlowPathARM64 for HInvokeVirtual).  So we bail
-    // out in this case.
-    //
-    // TODO: Find a way to have intrinsics work with read barriers.
-    invoke->SetLocations(nullptr);
-    return false;
-  }
   return res->Intrinsified();
 }
 
@@ -791,8 +778,15 @@ static void GenUnsafeGet(HInvoke* invoke,
     // UnsafeGetObject/UnsafeGetObjectVolatile with Baker's read barrier case.
     UseScratchRegisterScope temps(masm);
     Register temp = temps.AcquireW();
-    codegen->GenerateArrayLoadWithBakerReadBarrier(
-        invoke, trg_loc, base, 0U, offset_loc, temp, /* needs_null_check */ false);
+    codegen->GenerateReferenceLoadWithBakerReadBarrier(invoke,
+                                                       trg_loc,
+                                                       base,
+                                                       /* offset */ 0U,
+                                                       /* index */ offset_loc,
+                                                       /* scale_factor */ 0U,
+                                                       temp,
+                                                       /* needs_null_check */ false,
+                                                       is_volatile);
   } else {
     // Other cases.
     MemOperand mem_op(base.X(), offset);
@@ -821,7 +815,8 @@ static void CreateIntIntIntToIntLocations(ArenaAllocator* arena, HInvoke* invoke
   locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
   locations->SetInAt(1, Location::RequiresRegister());
   locations->SetInAt(2, Location::RequiresRegister());
-  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+  locations->SetOut(Location::RequiresRegister(),
+                    can_call ? Location::kOutputOverlap : Location::kNoOutputOverlap);
 }
 
 void IntrinsicLocationsBuilderARM64::VisitUnsafeGet(HInvoke* invoke) {
@@ -1102,9 +1097,10 @@ void IntrinsicLocationsBuilderARM64::VisitUnsafeCASObject(HInvoke* invoke) {
   // The UnsafeCASObject intrinsic is missing a read barrier, and
   // therefore sometimes does not work as expected (b/25883050).
   // Turn it off temporarily as a quick fix, until the read barrier is
-  // implemented (see TODO in GenCAS below).
+  // implemented (see TODO in GenCAS).
   //
-  // TODO(rpl): Fix this issue and re-enable this intrinsic with read barriers.
+  // TODO(rpl): Implement read barrier support in GenCAS and re-enable
+  // this intrinsic.
   if (kEmitCompilerReadBarrier) {
     return;
   }
@@ -1119,6 +1115,15 @@ void IntrinsicCodeGeneratorARM64::VisitUnsafeCASLong(HInvoke* invoke) {
   GenCas(invoke->GetLocations(), Primitive::kPrimLong, codegen_);
 }
 void IntrinsicCodeGeneratorARM64::VisitUnsafeCASObject(HInvoke* invoke) {
+  // The UnsafeCASObject intrinsic is missing a read barrier, and
+  // therefore sometimes does not work as expected (b/25883050).
+  // Turn it off temporarily as a quick fix, until the read barrier is
+  // implemented (see TODO in GenCAS).
+  //
+  // TODO(rpl): Implement read barrier support in GenCAS and re-enable
+  // this intrinsic.
+  DCHECK(!kEmitCompilerReadBarrier);
+
   GenCas(invoke->GetLocations(), Primitive::kPrimNot, codegen_);
 }
 
@@ -2012,6 +2017,12 @@ static constexpr int32_t kSystemArrayCopyThreshold = 128;
 // We want to use two temporary registers in order to reduce the register pressure in arm64.
 // So we don't use the CodeGenerator::CreateSystemArrayCopyLocationSummary.
 void IntrinsicLocationsBuilderARM64::VisitSystemArrayCopy(HInvoke* invoke) {
+  // TODO(rpl): Implement read barriers in the SystemArrayCopy
+  // intrinsic and re-enable it (b/29516905).
+  if (kEmitCompilerReadBarrier) {
+    return;
+  }
+
   // Check to see if we have known failures that will cause us to have to bail out
   // to the runtime, and just generate the runtime call directly.
   HIntConstant* src_pos = invoke->InputAt(1)->AsIntConstant();
@@ -2064,6 +2075,10 @@ void IntrinsicLocationsBuilderARM64::VisitSystemArrayCopy(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
+  // TODO(rpl): Implement read barriers in the SystemArrayCopy
+  // intrinsic and re-enable it (b/29516905).
+  DCHECK(!kEmitCompilerReadBarrier);
+
   vixl::MacroAssembler* masm = GetVIXLAssembler();
   LocationSummary* locations = invoke->GetLocations();
 
