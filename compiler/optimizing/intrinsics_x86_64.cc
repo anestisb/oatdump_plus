@@ -2445,7 +2445,7 @@ static void GenOneBit(X86_64Assembler* assembler,
                       : CTZ(static_cast<uint32_t>(value));
     }
     if (is_long) {
-      codegen->Load64BitValue(out, 1L << value);
+      codegen->Load64BitValue(out, 1ULL << value);
     } else {
       codegen->Load32BitValue(out, 1 << value);
     }
