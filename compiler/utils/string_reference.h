@@ -20,11 +20,10 @@
 #include <stdint.h>
 
 #include "base/logging.h"
+#include "dex_file-inl.h"
 #include "utf-inl.h"
 
 namespace art {
-
-class DexFile;
 
 // A string is located by its DexFile and the string_ids_ table index into that DexFile.
 struct StringReference {
@@ -48,13 +47,13 @@ struct StringReferenceValueComparator {
           sr1.string_index < sr2.string_index,
           CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(
               sr1.dex_file->GetStringData(sr1.dex_file->GetStringId(sr1.string_index)),
-              sr1.dex_file->GetStringData(sr2.dex_file->GetStringId(sr2.string_index))) < 0);
+              sr2.dex_file->GetStringData(sr2.dex_file->GetStringId(sr2.string_index))) < 0);
       return sr1.string_index < sr2.string_index;
     } else {
       // Cannot compare indexes, so do the string comparison.
       return CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(
           sr1.dex_file->GetStringData(sr1.dex_file->GetStringId(sr1.string_index)),
-          sr1.dex_file->GetStringData(sr2.dex_file->GetStringId(sr2.string_index))) < 0;
+          sr2.dex_file->GetStringData(sr2.dex_file->GetStringId(sr2.string_index))) < 0;
     }
   }
 };
