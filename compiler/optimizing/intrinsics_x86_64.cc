@@ -54,19 +54,6 @@ bool IntrinsicLocationsBuilderX86_64::TryDispatch(HInvoke* invoke) {
   if (res == nullptr) {
     return false;
   }
-  if (kEmitCompilerReadBarrier && res->CanCall()) {
-    // Generating an intrinsic for this HInvoke may produce an
-    // IntrinsicSlowPathX86_64 slow path.  Currently this approach
-    // does not work when using read barriers, as the emitted
-    // calling sequence will make use of another slow path
-    // (ReadBarrierForRootSlowPathX86_64 for HInvokeStaticOrDirect,
-    // ReadBarrierSlowPathX86_64 for HInvokeVirtual).  So we bail
-    // out in this case.
-    //
-    // TODO: Find a way to have intrinsics work with read barriers.
-    invoke->SetLocations(nullptr);
-    return false;
-  }
   return res->Intrinsified();
 }
 
@@ -1079,14 +1066,20 @@ void IntrinsicCodeGeneratorX86_64::VisitSystemArrayCopyChar(HInvoke* invoke) {
 
 
 void IntrinsicLocationsBuilderX86_64::VisitSystemArrayCopy(HInvoke* invoke) {
+  // TODO(rpl): Implement read barriers in the SystemArrayCopy
+  // intrinsic and re-enable it (b/29516905).
+  if (kEmitCompilerReadBarrier) {
+    return;
+  }
+
   CodeGenerator::CreateSystemArrayCopyLocationSummary(invoke);
 }
 
-// TODO: Implement read barriers in the SystemArrayCopy intrinsic.
-// Note that this code path is not used (yet) because we do not
-// intrinsify methods that can go into the IntrinsicSlowPathX86_64
-// slow path.
 void IntrinsicCodeGeneratorX86_64::VisitSystemArrayCopy(HInvoke* invoke) {
+  // TODO(rpl): Implement read barriers in the SystemArrayCopy
+  // intrinsic and re-enable it (b/29516905).
+  DCHECK(!kEmitCompilerReadBarrier);
+
   X86_64Assembler* assembler = GetAssembler();
   LocationSummary* locations = invoke->GetLocations();
 
@@ -1910,8 +1903,9 @@ static void GenUnsafeGet(HInvoke* invoke,
       if (kEmitCompilerReadBarrier) {
         if (kUseBakerReadBarrier) {
           Location temp = locations->GetTemp(0);
-          codegen->GenerateArrayLoadWithBakerReadBarrier(
-              invoke, output_loc, base, 0U, offset_loc, temp, /* needs_null_check */ false);
+          Address src(base, offset, ScaleFactor::TIMES_1, 0);
+          codegen->GenerateReferenceLoadWithBakerReadBarrier(
+              invoke, output_loc, base, src, temp, /* needs_null_check */ false);
         } else {
           __ movl(output, Address(base, offset, ScaleFactor::TIMES_1, 0));
           codegen->GenerateReadBarrierSlow(
@@ -1948,10 +1942,11 @@ static void CreateIntIntIntToIntLocations(ArenaAllocator* arena,
   locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
   locations->SetInAt(1, Location::RequiresRegister());
   locations->SetInAt(2, Location::RequiresRegister());
-  locations->SetOut(Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(),
+                    can_call ? Location::kOutputOverlap : Location::kNoOutputOverlap);
   if (type == Primitive::kPrimNot && kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
     // We need a temporary register for the read barrier marking slow
-    // path in InstructionCodeGeneratorX86_64::GenerateArrayLoadWithBakerReadBarrier.
+    // path in InstructionCodeGeneratorX86_64::GenerateReferenceLoadWithBakerReadBarrier.
     locations->AddTemp(Location::RequiresRegister());
   }
 }
@@ -2135,9 +2130,9 @@ void IntrinsicLocationsBuilderX86_64::VisitUnsafeCASObject(HInvoke* invoke) {
   // The UnsafeCASObject intrinsic is missing a read barrier, and
   // therefore sometimes does not work as expected (b/25883050).
   // Turn it off temporarily as a quick fix, until the read barrier is
-  // implemented.
+  // implemented (see TODO in GenCAS).
   //
-  // TODO(rpl): Implement a read barrier in GenCAS below and re-enable
+  // TODO(rpl): Implement read barrier support in GenCAS and re-enable
   // this intrinsic.
   if (kEmitCompilerReadBarrier) {
     return;
@@ -2253,6 +2248,15 @@ void IntrinsicCodeGeneratorX86_64::VisitUnsafeCASLong(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitUnsafeCASObject(HInvoke* invoke) {
+  // The UnsafeCASObject intrinsic is missing a read barrier, and
+  // therefore sometimes does not work as expected (b/25883050).
+  // Turn it off temporarily as a quick fix, until the read barrier is
+  // implemented (see TODO in GenCAS).
+  //
+  // TODO(rpl): Implement read barrier support in GenCAS and re-enable
+  // this intrinsic.
+  DCHECK(!kEmitCompilerReadBarrier);
+
   GenCAS(Primitive::kPrimNot, invoke, codegen_);
 }
 

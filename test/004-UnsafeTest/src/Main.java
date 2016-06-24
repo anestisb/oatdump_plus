@@ -39,16 +39,24 @@ public class Main {
     }
   }
 
-  private static Unsafe getUnsafe() throws Exception {
+  private static Unsafe getUnsafe() throws NoSuchFieldException, IllegalAccessException {
     Class<?> unsafeClass = Unsafe.class;
     Field f = unsafeClass.getDeclaredField("theUnsafe");
     f.setAccessible(true);
     return (Unsafe) f.get(null);
   }
 
-  public static void main(String[] args) throws Exception {
+  public static void main(String[] args) throws NoSuchFieldException, IllegalAccessException {
     System.loadLibrary(args[0]);
     Unsafe unsafe = getUnsafe();
+
+    testArrayBaseOffset(unsafe);
+    testArrayIndexScale(unsafe);
+    testGetAndPutAndCAS(unsafe);
+    testGetAndPutVolatile(unsafe);
+  }
+
+  private static void testArrayBaseOffset(Unsafe unsafe) {
     check(unsafe.arrayBaseOffset(boolean[].class), vmArrayBaseOffset(boolean[].class),
         "Unsafe.arrayBaseOffset(boolean[])");
     check(unsafe.arrayBaseOffset(byte[].class), vmArrayBaseOffset(byte[].class),
@@ -65,7 +73,9 @@ public class Main {
         "Unsafe.arrayBaseOffset(long[])");
     check(unsafe.arrayBaseOffset(Object[].class), vmArrayBaseOffset(Object[].class),
         "Unsafe.arrayBaseOffset(Object[])");
+  }
 
+  private static void testArrayIndexScale(Unsafe unsafe) {
     check(unsafe.arrayIndexScale(boolean[].class), vmArrayIndexScale(boolean[].class),
         "Unsafe.arrayIndexScale(boolean[])");
     check(unsafe.arrayIndexScale(byte[].class), vmArrayIndexScale(byte[].class),
@@ -82,7 +92,9 @@ public class Main {
         "Unsafe.arrayIndexScale(long[])");
     check(unsafe.arrayIndexScale(Object[].class), vmArrayIndexScale(Object[].class),
         "Unsafe.arrayIndexScale(Object[])");
+  }
 
+  private static void testGetAndPutAndCAS(Unsafe unsafe) throws NoSuchFieldException {
     TestClass t = new TestClass();
 
     int intValue = 12345678;
@@ -185,10 +197,56 @@ public class Main {
     }
   }
 
+  private static void testGetAndPutVolatile(Unsafe unsafe) throws NoSuchFieldException {
+    TestVolatileClass tv = new TestVolatileClass();
+
+    int intValue = 12345678;
+    Field volatileIntField = TestVolatileClass.class.getDeclaredField("volatileIntVar");
+    long volatileIntOffset = unsafe.objectFieldOffset(volatileIntField);
+    check(unsafe.getIntVolatile(tv, volatileIntOffset),
+          0,
+          "Unsafe.getIntVolatile(Object, long) - initial");
+    unsafe.putIntVolatile(tv, volatileIntOffset, intValue);
+    check(tv.volatileIntVar, intValue, "Unsafe.putIntVolatile(Object, long, int)");
+    check(unsafe.getIntVolatile(tv, volatileIntOffset),
+          intValue,
+          "Unsafe.getIntVolatile(Object, long)");
+
+    long longValue = 1234567887654321L;
+    Field volatileLongField = TestVolatileClass.class.getDeclaredField("volatileLongVar");
+    long volatileLongOffset = unsafe.objectFieldOffset(volatileLongField);
+    check(unsafe.getLongVolatile(tv, volatileLongOffset),
+          0,
+          "Unsafe.getLongVolatile(Object, long) - initial");
+    unsafe.putLongVolatile(tv, volatileLongOffset, longValue);
+    check(tv.volatileLongVar, longValue, "Unsafe.putLongVolatile(Object, long, long)");
+    check(unsafe.getLongVolatile(tv, volatileLongOffset),
+          longValue,
+          "Unsafe.getLongVolatile(Object, long)");
+
+    Object objectValue = new Object();
+    Field volatileObjectField = TestVolatileClass.class.getDeclaredField("volatileObjectVar");
+    long volatileObjectOffset = unsafe.objectFieldOffset(volatileObjectField);
+    check(unsafe.getObjectVolatile(tv, volatileObjectOffset),
+          null,
+          "Unsafe.getObjectVolatile(Object, long) - initial");
+    unsafe.putObjectVolatile(tv, volatileObjectOffset, objectValue);
+    check(tv.volatileObjectVar, objectValue, "Unsafe.putObjectVolatile(Object, long, Object)");
+    check(unsafe.getObjectVolatile(tv, volatileObjectOffset),
+          objectValue,
+          "Unsafe.getObjectVolatile(Object, long)");
+  }
+
   private static class TestClass {
     public int intVar = 0;
     public long longVar = 0;
     public Object objectVar = null;
+  }
+
+  private static class TestVolatileClass {
+    public volatile int volatileIntVar = 0;
+    public volatile long volatileLongVar = 0;
+    public volatile Object volatileObjectVar = null;
   }
 
   private static native int vmArrayBaseOffset(Class clazz);

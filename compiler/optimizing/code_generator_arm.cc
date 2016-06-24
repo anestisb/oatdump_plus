@@ -430,7 +430,9 @@ class ReadBarrierMarkSlowPathARM : public SlowPathCode {
            instruction_->IsLoadClass() ||
            instruction_->IsLoadString() ||
            instruction_->IsInstanceOf() ||
-           instruction_->IsCheckCast())
+           instruction_->IsCheckCast() ||
+           ((instruction_->IsInvokeStaticOrDirect() || instruction_->IsInvokeVirtual()) &&
+            instruction_->GetLocations()->Intrinsified()))
         << "Unexpected instruction in read barrier marking slow path: "
         << instruction_->DebugName();
 
@@ -493,8 +495,12 @@ class ReadBarrierForHeapReferenceSlowPathARM : public SlowPathCode {
     Register reg_out = out_.AsRegister<Register>();
     DCHECK(locations->CanCall());
     DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(reg_out));
-    DCHECK(!instruction_->IsInvoke() ||
-           (instruction_->IsInvokeStaticOrDirect() &&
+    DCHECK(instruction_->IsInstanceFieldGet() ||
+           instruction_->IsStaticFieldGet() ||
+           instruction_->IsArrayGet() ||
+           instruction_->IsInstanceOf() ||
+           instruction_->IsCheckCast() ||
+           ((instruction_->IsInvokeStaticOrDirect() || instruction_->IsInvokeVirtual()) &&
             instruction_->GetLocations()->Intrinsified()))
         << "Unexpected instruction in read barrier for heap reference slow path: "
         << instruction_->DebugName();
@@ -507,7 +513,7 @@ class ReadBarrierForHeapReferenceSlowPathARM : public SlowPathCode {
     // introduce a copy of it, `index`.
     Location index = index_;
     if (index_.IsValid()) {
-      // Handle `index_` for HArrayGet and intrinsic UnsafeGetObject.
+      // Handle `index_` for HArrayGet and UnsafeGetObject/UnsafeGetObjectVolatile intrinsics.
       if (instruction_->IsArrayGet()) {
         // Compute the actual memory offset and store it in `index`.
         Register index_reg = index_.AsRegister<Register>();
@@ -555,7 +561,11 @@ class ReadBarrierForHeapReferenceSlowPathARM : public SlowPathCode {
             "art::mirror::HeapReference<art::mirror::Object> and int32_t have different sizes.");
         __ AddConstant(index_reg, index_reg, offset_);
       } else {
-        DCHECK(instruction_->IsInvoke());
+        // In the case of the UnsafeGetObject/UnsafeGetObjectVolatile
+        // intrinsics, `index_` is not shifted by a scale factor of 2
+        // (as in the case of ArrayGet), as it is actually an offset
+        // to an object field within an object.
+        DCHECK(instruction_->IsInvoke()) << instruction_->DebugName();
         DCHECK(instruction_->GetLocations()->Intrinsified());
         DCHECK((instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kUnsafeGetObject) ||
                (instruction_->AsInvoke()->GetIntrinsic() == Intrinsics::kUnsafeGetObjectVolatile))
@@ -6203,8 +6213,9 @@ void CodeGeneratorARM::GenerateFieldLoadWithBakerReadBarrier(HInstruction* instr
 
   // /* HeapReference<Object> */ ref = *(obj + offset)
   Location no_index = Location::NoLocation();
+  ScaleFactor no_scale_factor = TIMES_1;
   GenerateReferenceLoadWithBakerReadBarrier(
-      instruction, ref, obj, offset, no_index, temp, needs_null_check);
+      instruction, ref, obj, offset, no_index, no_scale_factor, temp, needs_null_check);
 }
 
 void CodeGeneratorARM::GenerateArrayLoadWithBakerReadBarrier(HInstruction* instruction,
@@ -6217,10 +6228,14 @@ void CodeGeneratorARM::GenerateArrayLoadWithBakerReadBarrier(HInstruction* instr
   DCHECK(kEmitCompilerReadBarrier);
   DCHECK(kUseBakerReadBarrier);
 
+  static_assert(
+      sizeof(mirror::HeapReference<mirror::Object>) == sizeof(int32_t),
+      "art::mirror::HeapReference<art::mirror::Object> and int32_t have different sizes.");
   // /* HeapReference<Object> */ ref =
   //     *(obj + data_offset + index * sizeof(HeapReference<Object>))
+  ScaleFactor scale_factor = TIMES_4;
   GenerateReferenceLoadWithBakerReadBarrier(
-      instruction, ref, obj, data_offset, index, temp, needs_null_check);
+      instruction, ref, obj, data_offset, index, scale_factor, temp, needs_null_check);
 }
 
 void CodeGeneratorARM::GenerateReferenceLoadWithBakerReadBarrier(HInstruction* instruction,
@@ -6228,6 +6243,7 @@ void CodeGeneratorARM::GenerateReferenceLoadWithBakerReadBarrier(HInstruction* i
                                                                  Register obj,
                                                                  uint32_t offset,
                                                                  Location index,
+                                                                 ScaleFactor scale_factor,
                                                                  Location temp,
                                                                  bool needs_null_check) {
   DCHECK(kEmitCompilerReadBarrier);
@@ -6282,17 +6298,22 @@ void CodeGeneratorARM::GenerateReferenceLoadWithBakerReadBarrier(HInstruction* i
 
   // The actual reference load.
   if (index.IsValid()) {
-    static_assert(
-        sizeof(mirror::HeapReference<mirror::Object>) == sizeof(int32_t),
-        "art::mirror::HeapReference<art::mirror::Object> and int32_t have different sizes.");
-    // /* HeapReference<Object> */ ref =
-    //     *(obj + offset + index * sizeof(HeapReference<Object>))
+    // Load types involving an "index": ArrayGet and
+    // UnsafeGetObject/UnsafeGetObjectVolatile intrinsics.
+    // /* HeapReference<Object> */ ref = *(obj + offset + (index << scale_factor))
     if (index.IsConstant()) {
       size_t computed_offset =
-          (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + offset;
+          (index.GetConstant()->AsIntConstant()->GetValue() << scale_factor) + offset;
       __ LoadFromOffset(kLoadWord, ref_reg, obj, computed_offset);
     } else {
-      __ add(IP, obj, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_4));
+      // Handle the special case of the
+      // UnsafeGetObject/UnsafeGetObjectVolatile intrinsics, which use
+      // a register pair as index ("long offset"), of which only the low
+      // part contains data.
+      Register index_reg = index.IsRegisterPair()
+          ? index.AsRegisterPairLow<Register>()
+          : index.AsRegister<Register>();
+      __ add(IP, obj, ShifterOperand(index_reg, LSL, scale_factor));
       __ LoadFromOffset(kLoadWord, ref_reg, IP, offset);
     }
   } else {
