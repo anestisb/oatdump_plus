@@ -29,6 +29,10 @@ namespace art {
 struct StringReference {
   StringReference(const DexFile* file, uint32_t index) : dex_file(file), string_index(index) { }
 
+  const char* GetStringData() const {
+    return dex_file->GetStringData(dex_file->GetStringId(string_index));
+  }
+
   const DexFile* dex_file;
   uint32_t string_index;
 };
@@ -45,15 +49,13 @@ struct StringReferenceValueComparator {
       // Use the string order enforced by the dex file verifier.
       DCHECK_EQ(
           sr1.string_index < sr2.string_index,
-          CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(
-              sr1.dex_file->GetStringData(sr1.dex_file->GetStringId(sr1.string_index)),
-              sr2.dex_file->GetStringData(sr2.dex_file->GetStringId(sr2.string_index))) < 0);
+          CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(sr1.GetStringData(),
+                                                                  sr2.GetStringData()) < 0);
       return sr1.string_index < sr2.string_index;
     } else {
       // Cannot compare indexes, so do the string comparison.
-      return CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(
-          sr1.dex_file->GetStringData(sr1.dex_file->GetStringId(sr1.string_index)),
-          sr2.dex_file->GetStringData(sr2.dex_file->GetStringId(sr2.string_index))) < 0;
+      return CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(sr1.GetStringData(),
+                                                                     sr2.GetStringData()) < 0;
     }
   }
 };
