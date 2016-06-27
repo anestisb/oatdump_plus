@@ -344,6 +344,17 @@ class AssemblerTest : public testing::Test {
   }
 
   template <typename ImmType>
+  std::string RepeatFFIb(void (Ass::*f)(FPReg, FPReg, ImmType), int imm_bits, std::string fmt) {
+    return RepeatTemplatedRegistersImmBits<FPReg, FPReg, ImmType>(f,
+                                                                  imm_bits,
+                                                                  GetFPRegisters(),
+                                                                  GetFPRegisters(),
+                                                                  &AssemblerTest::GetFPRegName,
+                                                                  &AssemblerTest::GetFPRegName,
+                                                                  fmt);
+  }
+
+  template <typename ImmType>
   std::string RepeatIbFF(void (Ass::*f)(ImmType, FPReg, FPReg), int imm_bits, std::string fmt) {
     return RepeatTemplatedImmBitsRegisters<ImmType, FPReg, FPReg>(f,
                                                                   GetFPRegisters(),
