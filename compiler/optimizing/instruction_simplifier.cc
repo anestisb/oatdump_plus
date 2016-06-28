@@ -236,21 +236,39 @@ bool InstructionSimplifierVisitor::TryDeMorganNegationFactoring(HBinaryOperation
 
 void InstructionSimplifierVisitor::VisitShift(HBinaryOperation* instruction) {
   DCHECK(instruction->IsShl() || instruction->IsShr() || instruction->IsUShr());
-  HConstant* input_cst = instruction->GetConstantRight();
-  HInstruction* input_other = instruction->GetLeastConstantLeft();
+  HInstruction* shift_amount = instruction->GetRight();
+  HInstruction* value = instruction->GetLeft();
 
-  if (input_cst != nullptr) {
-    int64_t cst = Int64FromConstant(input_cst);
-    int64_t mask = (input_other->GetType() == Primitive::kPrimLong)
-        ? kMaxLongShiftDistance
-        : kMaxIntShiftDistance;
-    if ((cst & mask) == 0) {
+  int64_t implicit_mask = (value->GetType() == Primitive::kPrimLong)
+      ? kMaxLongShiftDistance
+      : kMaxIntShiftDistance;
+
+  if (shift_amount->IsConstant()) {
+    int64_t cst = Int64FromConstant(shift_amount->AsConstant());
+    if ((cst & implicit_mask) == 0) {
       // Replace code looking like
-      //    SHL dst, src, 0
+      //    SHL dst, value, 0
       // with
-      //    src
-      instruction->ReplaceWith(input_other);
+      //    value
+      instruction->ReplaceWith(value);
       instruction->GetBlock()->RemoveInstruction(instruction);
+      RecordSimplification();
+      return;
+    }
+  }
+
+  // Shift operations implicitly mask the shift amount according to the type width. Get rid of
+  // unnecessary explicit masking operations on the shift amount.
+  // Replace code looking like
+  //    AND masked_shift, shift, <superset of implicit mask>
+  //    SHL dst, value, masked_shift
+  // with
+  //    SHL dst, value, shift
+  if (shift_amount->IsAnd()) {
+    HAnd* and_insn = shift_amount->AsAnd();
+    HConstant* mask = and_insn->GetConstantRight();
+    if ((mask != nullptr) && ((Int64FromConstant(mask) & implicit_mask) == implicit_mask)) {
+      instruction->ReplaceInput(and_insn->GetLeastConstantLeft(), 1);
       RecordSimplification();
     }
   }
