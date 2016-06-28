@@ -25,6 +25,7 @@ LIBARTTEST_COMMON_SRC_FILES := \
   004-SignalTest/signaltest.cc \
   004-ReferenceMap/stack_walk_refmap_jni.cc \
   004-StackWalk/stack_walk_jni.cc \
+  004-ThreadStress/thread_stress.cc \
   004-UnsafeTest/unsafe_test.cc \
   044-proxy/native_proxy.cc \
   051-thread/thread_test.cc \
