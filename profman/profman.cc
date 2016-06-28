@@ -100,6 +100,14 @@ NO_RETURN static void Usage(const char *fmt, ...) {
   UsageError("  --reference-profile-file-fd=<number>: same as --reference-profile-file but");
   UsageError("      accepts a file descriptor. Cannot be used together with");
   UsageError("      --reference-profile-file.");
+  UsageError("  --generate-test-profile=<filename>: generates a random profile file for testing.");
+  UsageError("  --generate-test-profile-num-dex=<number>: number of dex files that should be");
+  UsageError("      included in the generated profile. Defaults to 20.");
+  UsageError("  --generate-test-profile-method-ratio=<number>: the percentage from the maximum");
+  UsageError("      number of methods that should be generated. Defaults to 5.");
+  UsageError("  --generate-test-profile-class-ratio=<number>: the percentage from the maximum");
+  UsageError("      number of classes that should be generated. Defaults to 5.");
+  UsageError("");
   UsageError("");
   UsageError("  --dex-location=<string>: location string to use with corresponding");
   UsageError("      apk-fd to find dex files");
@@ -111,12 +119,20 @@ NO_RETURN static void Usage(const char *fmt, ...) {
   exit(EXIT_FAILURE);
 }
 
+// Note: make sure you update the Usage if you change these values.
+static constexpr uint16_t kDefaultTestProfileNumDex = 20;
+static constexpr uint16_t kDefaultTestProfileMethodRatio = 5;
+static constexpr uint16_t kDefaultTestProfileClassRatio = 5;
+
 class ProfMan FINAL {
  public:
   ProfMan() :
       reference_profile_file_fd_(kInvalidFd),
       dump_only_(false),
       dump_output_to_fd_(kInvalidFd),
+      test_profile_num_dex_(kDefaultTestProfileNumDex),
+      test_profile_method_ratio_(kDefaultTestProfileMethodRatio),
+      test_profile_class_ratio_(kDefaultTestProfileClassRatio),
       start_ns_(NanoTime()) {}
 
   ~ProfMan() {
@@ -159,6 +175,23 @@ class ProfMan FINAL {
         dex_locations_.push_back(option.substr(strlen("--dex-location=")).ToString());
       } else if (option.starts_with("--apk-fd=")) {
         ParseFdForCollection(option, "--apk-fd", &apks_fd_);
+      } else if (option.starts_with("--generate-test-profile=")) {
+        test_profile_ = option.substr(strlen("--generate-test-profile=")).ToString();
+      } else if (option.starts_with("--generate-test-profile-num-dex=")) {
+        ParseUintOption(option,
+                        "--generate-test-profile-num-dex",
+                        &test_profile_num_dex_,
+                        Usage);
+      } else if (option.starts_with("--generate-test-profile-method-ratio")) {
+        ParseUintOption(option,
+                        "--generate-test-profile-method-ratio",
+                        &test_profile_method_ratio_,
+                        Usage);
+      } else if (option.starts_with("--generate-test-profile-class-ratio")) {
+        ParseUintOption(option,
+                        "--generate-test-profile-class-ratio",
+                        &test_profile_class_ratio_,
+                        Usage);
       } else {
         Usage("Unknown argument '%s'", option.data());
       }
@@ -168,6 +201,15 @@ class ProfMan FINAL {
     bool has_reference_profile = !reference_profile_file_.empty() ||
         FdIsValid(reference_profile_file_fd_);
 
+    if (!test_profile_.empty()) {
+      if (test_profile_method_ratio_ > 100) {
+        Usage("Invalid ratio for --generate-test-profile-method-ratio");
+      }
+      if (test_profile_class_ratio_ > 100) {
+        Usage("Invalid ratio for --generate-test-profile-class-ratio");
+      }
+      return;
+    }
     // --dump-only may be specified with only --reference-profiles present.
     if (!dump_only_ && !has_profiles) {
       Usage("No profile files specified.");
@@ -317,6 +359,25 @@ class ProfMan FINAL {
     return dump_only_;
   }
 
+  int GenerateTestProfile() {
+    int profile_test_fd = open(test_profile_.c_str(), O_CREAT | O_TRUNC | O_WRONLY);
+    if (profile_test_fd < 0) {
+      std::cerr << "Cannot open " << test_profile_ << strerror(errno);
+      return -1;
+    }
+
+    bool result = ProfileCompilationInfo::GenerateTestProfile(profile_test_fd,
+                                                             test_profile_num_dex_,
+                                                             test_profile_method_ratio_,
+                                                             test_profile_class_ratio_);
+    close(profile_test_fd);  // ignore close result.
+    return result ? 0 : -1;
+  }
+
+  bool ShouldGenerateTestProfile() {
+    return !test_profile_.empty();
+  }
+
  private:
   static void ParseFdForCollection(const StringPiece& option,
                                    const char* arg_name,
@@ -350,6 +411,10 @@ class ProfMan FINAL {
   int reference_profile_file_fd_;
   bool dump_only_;
   int dump_output_to_fd_;
+  std::string test_profile_;
+  uint16_t test_profile_num_dex_;
+  uint16_t test_profile_method_ratio_;
+  uint16_t test_profile_class_ratio_;
   uint64_t start_ns_;
 };
 
@@ -360,6 +425,9 @@ static int profman(int argc, char** argv) {
   // Parse arguments. Argument mistakes will lead to exit(EXIT_FAILURE) in UsageError.
   profman.ParseArgs(argc, argv);
 
+  if (profman.ShouldGenerateTestProfile()) {
+    return profman.GenerateTestProfile();
+  }
   if (profman.ShouldOnlyDumpProfile()) {
     return profman.DumpProfileInfo();
   }

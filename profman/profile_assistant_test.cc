@@ -61,22 +61,35 @@ class ProfileAssistantTest : public CommonRuntimeTest {
     ASSERT_TRUE(file_info.Equals(info));
   }
 
-    // Runs test with given arguments.
-  int ProcessProfiles(const std::vector<int>& profiles_fd, int reference_profile_fd) {
+  std::string GetProfmanCmd() {
     std::string file_path = GetTestAndroidRoot();
     file_path += "/bin/profman";
     if (kIsDebugBuild) {
       file_path += "d";
     }
-
-    EXPECT_TRUE(OS::FileExists(file_path.c_str())) << file_path << " should be a valid file path";
+    EXPECT_TRUE(OS::FileExists(file_path.c_str()))
+        << file_path << " should be a valid file path";
+    return file_path;
+  }
+  // Runs test with given arguments.
+  int ProcessProfiles(const std::vector<int>& profiles_fd, int reference_profile_fd) {
+    std::string profman_cmd = GetProfmanCmd();
     std::vector<std::string> argv_str;
-    argv_str.push_back(file_path);
+    argv_str.push_back(profman_cmd);
     for (size_t k = 0; k < profiles_fd.size(); k++) {
       argv_str.push_back("--profile-file-fd=" + std::to_string(profiles_fd[k]));
     }
     argv_str.push_back("--reference-profile-file-fd=" + std::to_string(reference_profile_fd));
 
+    std::string error;
+    return ExecAndReturnCode(argv_str, &error);
+  }
+
+  bool GenerateTestProfile(const std::string& filename) {
+    std::string profman_cmd = GetProfmanCmd();
+    std::vector<std::string> argv_str;
+    argv_str.push_back(profman_cmd);
+    argv_str.push_back("--generate-test-profile=" + filename);
     std::string error;
     return ExecAndReturnCode(argv_str, &error);
   }
@@ -280,6 +293,17 @@ TEST_F(ProfileAssistantTest, FailProcessingBecauseOfReferenceProfiles) {
 
   // The information from profiles must remain the same.
   CheckProfileInfo(profile1, info1);
+}
+
+TEST_F(ProfileAssistantTest, TestProfileGeneration) {
+  ScratchFile profile;
+  // Generate a test profile.
+  GenerateTestProfile(profile.GetFilename());
+
+  // Verify that the generated profile is valid and can be loaded.
+  ASSERT_TRUE(profile.GetFile()->ResetOffset());
+  ProfileCompilationInfo info;
+  ASSERT_TRUE(info.Load(GetFd(profile)));
 }
 
 }  // namespace art
