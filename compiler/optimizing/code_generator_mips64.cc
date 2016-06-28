@@ -2983,19 +2983,6 @@ void LocationsBuilderMIPS64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* in
   }
 
   HandleInvoke(invoke);
-
-  // While SetupBlockedRegisters() blocks registers S2-S8 due to their
-  // clobbering somewhere else, reduce further register pressure by avoiding
-  // allocation of a register for the current method pointer like on x86 baseline.
-  // TODO: remove this once all the issues with register saving/restoring are
-  // sorted out.
-  if (invoke->HasCurrentMethodInput()) {
-    LocationSummary* locations = invoke->GetLocations();
-    Location location = locations->InAt(invoke->GetSpecialInputIndex());
-    if (location.IsUnallocated() && location.GetPolicy() == Location::kRequiresRegister) {
-      locations->SetInAt(invoke->GetSpecialInputIndex(), Location::NoLocation());
-    }
-  }
 }
 
 static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorMIPS64* codegen) {
