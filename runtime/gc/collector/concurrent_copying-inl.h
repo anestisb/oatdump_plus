@@ -28,7 +28,7 @@ namespace art {
 namespace gc {
 namespace collector {
 
-inline mirror::Object* ConcurrentCopying::MarkUnevacFromSpaceRegion(
+inline mirror::Object* ConcurrentCopying::MarkUnevacFromSpaceRegionOrImmuneSpace(
     mirror::Object* ref, accounting::ContinuousSpaceBitmap* bitmap) {
   // For the Baker-style RB, in a rare case, we could incorrectly change the object from white
   // to gray even though the object has already been marked through. This happens if a mutator
@@ -69,37 +69,6 @@ inline mirror::Object* ConcurrentCopying::MarkUnevacFromSpaceRegion(
   return ref;
 }
 
-template<bool kGrayImmuneObject>
-inline mirror::Object* ConcurrentCopying::MarkImmuneSpace(mirror::Object* ref) {
-  if (kUseBakerReadBarrier) {
-    // The GC-running thread doesn't (need to) gray immune objects except when updating thread roots
-    // in the thread flip on behalf of suspended threads (when gc_grays_immune_objects_ is
-    // true). Also, a mutator doesn't (need to) gray an immune object after GC has updated all
-    // immune space objects (when updated_all_immune_objects_ is true).
-    if (kIsDebugBuild) {
-      if (Thread::Current() == thread_running_gc_) {
-        DCHECK(!kGrayImmuneObject ||
-               updated_all_immune_objects_.LoadRelaxed() ||
-               gc_grays_immune_objects_);
-      } else {
-        DCHECK(kGrayImmuneObject);
-      }
-    }
-    if (!kGrayImmuneObject || updated_all_immune_objects_.LoadRelaxed()) {
-      return ref;
-    }
-    // This may or may not succeed, which is ok because the object may already be gray.
-    bool success = ref->AtomicSetReadBarrierPointer(ReadBarrier::WhitePtr(),
-                                                    ReadBarrier::GrayPtr());
-    if (success) {
-      MutexLock mu(Thread::Current(), immune_gray_stack_lock_);
-      immune_gray_stack_.push_back(ref);
-    }
-  }
-  return ref;
-}
-
-template<bool kGrayImmuneObject>
 inline mirror::Object* ConcurrentCopying::Mark(mirror::Object* from_ref) {
   if (from_ref == nullptr) {
     return nullptr;
@@ -140,14 +109,10 @@ inline mirror::Object* ConcurrentCopying::Mark(mirror::Object* from_ref) {
       return to_ref;
     }
     case space::RegionSpace::RegionType::kRegionTypeUnevacFromSpace: {
-      return MarkUnevacFromSpaceRegion(from_ref, region_space_bitmap_);
+      return MarkUnevacFromSpaceRegionOrImmuneSpace(from_ref, region_space_bitmap_);
     }
     case space::RegionSpace::RegionType::kRegionTypeNone:
-      if (immune_spaces_.ContainsObject(from_ref)) {
-        return MarkImmuneSpace<kGrayImmuneObject>(from_ref);
-      } else {
-        return MarkNonMoving(from_ref);
-      }
+      return MarkNonMoving(from_ref);
     default:
       UNREACHABLE();
   }
