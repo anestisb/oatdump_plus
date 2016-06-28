@@ -38,8 +38,86 @@ inline const char* DexFile::GetStringDataAndUtf16Length(const StringId& string_i
   return reinterpret_cast<const char*>(ptr);
 }
 
+inline const char* DexFile::GetStringData(const StringId& string_id) const {
+  uint32_t ignored;
+  return GetStringDataAndUtf16Length(string_id, &ignored);
+}
+
+inline const char* DexFile::StringDataAndUtf16LengthByIdx(uint32_t idx,
+                                                          uint32_t* utf16_length) const {
+  if (idx == kDexNoIndex) {
+    *utf16_length = 0;
+    return nullptr;
+  }
+  const StringId& string_id = GetStringId(idx);
+  return GetStringDataAndUtf16Length(string_id, utf16_length);
+}
+
+inline const char* DexFile::StringDataByIdx(uint32_t idx) const {
+  uint32_t unicode_length;
+  return StringDataAndUtf16LengthByIdx(idx, &unicode_length);
+}
+
+inline const char* DexFile::StringByTypeIdx(uint32_t idx, uint32_t* unicode_length) const {
+  const TypeId& type_id = GetTypeId(idx);
+  return StringDataAndUtf16LengthByIdx(type_id.descriptor_idx_, unicode_length);
+}
+
+inline const char* DexFile::StringByTypeIdx(uint32_t idx) const {
+  const TypeId& type_id = GetTypeId(idx);
+  return StringDataByIdx(type_id.descriptor_idx_);
+}
+
+inline const char* DexFile::GetTypeDescriptor(const TypeId& type_id) const {
+  return StringDataByIdx(type_id.descriptor_idx_);
+}
+
+inline const char* DexFile::GetFieldTypeDescriptor(const FieldId& field_id) const {
+  const DexFile::TypeId& type_id = GetTypeId(field_id.type_idx_);
+  return GetTypeDescriptor(type_id);
+}
+
+inline const char* DexFile::GetFieldName(const FieldId& field_id) const {
+  return StringDataByIdx(field_id.name_idx_);
+}
+
+inline const char* DexFile::GetMethodDeclaringClassDescriptor(const MethodId& method_id) const {
+  const DexFile::TypeId& type_id = GetTypeId(method_id.class_idx_);
+  return GetTypeDescriptor(type_id);
+}
+
 inline const Signature DexFile::GetMethodSignature(const MethodId& method_id) const {
   return Signature(this, GetProtoId(method_id.proto_idx_));
+}
+
+inline const char* DexFile::GetMethodName(const MethodId& method_id) const {
+  return StringDataByIdx(method_id.name_idx_);
+}
+
+inline const char* DexFile::GetMethodShorty(uint32_t idx) const {
+  return StringDataByIdx(GetProtoId(GetMethodId(idx).proto_idx_).shorty_idx_);
+}
+
+inline const char* DexFile::GetMethodShorty(const MethodId& method_id) const {
+  return StringDataByIdx(GetProtoId(method_id.proto_idx_).shorty_idx_);
+}
+
+inline const char* DexFile::GetMethodShorty(const MethodId& method_id, uint32_t* length) const {
+  // Using the UTF16 length is safe here as shorties are guaranteed to be ASCII characters.
+  return StringDataAndUtf16LengthByIdx(GetProtoId(method_id.proto_idx_).shorty_idx_, length);
+}
+
+inline const char* DexFile::GetClassDescriptor(const ClassDef& class_def) const {
+  return StringByTypeIdx(class_def.class_idx_);
+}
+
+inline const char* DexFile::GetReturnTypeDescriptor(const ProtoId& proto_id) const {
+  return StringByTypeIdx(proto_id.return_type_idx_);
+}
+
+inline const char* DexFile::GetShorty(uint32_t proto_idx) const {
+  const ProtoId& proto_id = GetProtoId(proto_idx);
+  return StringDataByIdx(proto_id.shorty_idx_);
 }
 
 inline const DexFile::TryItem* DexFile::GetTryItems(const CodeItem& code_item, uint32_t offset) {
