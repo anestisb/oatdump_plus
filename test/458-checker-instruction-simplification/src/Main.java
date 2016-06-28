@@ -1757,6 +1757,108 @@ public class Main {
     }
   }
 
+  /// CHECK-START: int Main.$noinline$intUnnecessaryShiftMasking(int, int) instruction_simplifier (before)
+  /// CHECK:          <<Value:i\d+>>    ParameterValue
+  /// CHECK:          <<Shift:i\d+>>    ParameterValue
+  /// CHECK-DAG:      <<Const31:i\d+>>  IntConstant 31
+  /// CHECK-DAG:      <<And:i\d+>>      And [<<Shift>>,<<Const31>>]
+  /// CHECK-DAG:      <<Shl:i\d+>>      Shl [<<Value>>,<<And>>]
+  /// CHECK-DAG:                        Return [<<Shl>>]
+
+  /// CHECK-START: int Main.$noinline$intUnnecessaryShiftMasking(int, int) instruction_simplifier (after)
+  /// CHECK:          <<Value:i\d+>>    ParameterValue
+  /// CHECK:          <<Shift:i\d+>>    ParameterValue
+  /// CHECK-DAG:      <<Shl:i\d+>>      Shl [<<Value>>,<<Shift>>]
+  /// CHECK-DAG:                        Return [<<Shl>>]
+
+  public static int $noinline$intUnnecessaryShiftMasking(int value, int shift) {
+    if (doThrow) { throw new Error(); }
+    return value << (shift & 31);
+  }
+
+  /// CHECK-START: long Main.$noinline$longUnnecessaryShiftMasking(long, int) instruction_simplifier (before)
+  /// CHECK:          <<Value:j\d+>>    ParameterValue
+  /// CHECK:          <<Shift:i\d+>>    ParameterValue
+  /// CHECK-DAG:      <<Const63:i\d+>>  IntConstant 63
+  /// CHECK-DAG:      <<And:i\d+>>      And [<<Shift>>,<<Const63>>]
+  /// CHECK-DAG:      <<Shr:j\d+>>      Shr [<<Value>>,<<And>>]
+  /// CHECK-DAG:                        Return [<<Shr>>]
+
+  /// CHECK-START: long Main.$noinline$longUnnecessaryShiftMasking(long, int) instruction_simplifier (after)
+  /// CHECK:          <<Value:j\d+>>    ParameterValue
+  /// CHECK:          <<Shift:i\d+>>    ParameterValue
+  /// CHECK-DAG:      <<Shr:j\d+>>      Shr [<<Value>>,<<Shift>>]
+  /// CHECK-DAG:                        Return [<<Shr>>]
+
+  public static long $noinline$longUnnecessaryShiftMasking(long value, int shift) {
+    if (doThrow) { throw new Error(); }
+    return value >> (shift & 63);
+  }
+
+  /// CHECK-START: int Main.$noinline$intUnnecessaryWiderShiftMasking(int, int) instruction_simplifier (before)
+  /// CHECK:          <<Value:i\d+>>    ParameterValue
+  /// CHECK:          <<Shift:i\d+>>    ParameterValue
+  /// CHECK-DAG:      <<Const255:i\d+>> IntConstant 255
+  /// CHECK-DAG:      <<And:i\d+>>      And [<<Shift>>,<<Const255>>]
+  /// CHECK-DAG:      <<UShr:i\d+>>     UShr [<<Value>>,<<And>>]
+  /// CHECK-DAG:                        Return [<<UShr>>]
+
+  /// CHECK-START: int Main.$noinline$intUnnecessaryWiderShiftMasking(int, int) instruction_simplifier (after)
+  /// CHECK:          <<Value:i\d+>>    ParameterValue
+  /// CHECK:          <<Shift:i\d+>>    ParameterValue
+  /// CHECK-DAG:      <<UShr:i\d+>>     UShr [<<Value>>,<<Shift>>]
+  /// CHECK-DAG:                        Return [<<UShr>>]
+
+  public static int $noinline$intUnnecessaryWiderShiftMasking(int value, int shift) {
+    if (doThrow) { throw new Error(); }
+    return value >>> (shift & 0xff);
+  }
+
+  /// CHECK-START: long Main.$noinline$longSmallerShiftMasking(long, int) instruction_simplifier (before)
+  /// CHECK:          <<Value:j\d+>>    ParameterValue
+  /// CHECK:          <<Shift:i\d+>>    ParameterValue
+  /// CHECK-DAG:      <<Const3:i\d+>>   IntConstant 3
+  /// CHECK-DAG:      <<And:i\d+>>      And [<<Shift>>,<<Const3>>]
+  /// CHECK-DAG:      <<Shl:j\d+>>      Shl [<<Value>>,<<And>>]
+  /// CHECK-DAG:                        Return [<<Shl>>]
+
+  /// CHECK-START: long Main.$noinline$longSmallerShiftMasking(long, int) instruction_simplifier (after)
+  /// CHECK:          <<Value:j\d+>>    ParameterValue
+  /// CHECK:          <<Shift:i\d+>>    ParameterValue
+  /// CHECK-DAG:      <<Const3:i\d+>>   IntConstant 3
+  /// CHECK-DAG:      <<And:i\d+>>      And [<<Shift>>,<<Const3>>]
+  /// CHECK-DAG:      <<Shl:j\d+>>      Shl [<<Value>>,<<And>>]
+  /// CHECK-DAG:                        Return [<<Shl>>]
+
+  public static long $noinline$longSmallerShiftMasking(long value, int shift) {
+    if (doThrow) { throw new Error(); }
+    return value << (shift & 3);
+  }
+
+  /// CHECK-START: int Main.$noinline$otherUseOfUnnecessaryShiftMasking(int, int) instruction_simplifier (before)
+  /// CHECK:          <<Value:i\d+>>    ParameterValue
+  /// CHECK:          <<Shift:i\d+>>    ParameterValue
+  /// CHECK-DAG:      <<Const31:i\d+>>  IntConstant 31
+  /// CHECK-DAG:      <<And:i\d+>>      And [<<Shift>>,<<Const31>>]
+  /// CHECK-DAG:      <<Shr:i\d+>>      Shr [<<Value>>,<<And>>]
+  /// CHECK-DAG:      <<Add:i\d+>>      Add [<<Shr>>,<<And>>]
+  /// CHECK-DAG:                        Return [<<Add>>]
+
+  /// CHECK-START: int Main.$noinline$otherUseOfUnnecessaryShiftMasking(int, int) instruction_simplifier (after)
+  /// CHECK:          <<Value:i\d+>>    ParameterValue
+  /// CHECK:          <<Shift:i\d+>>    ParameterValue
+  /// CHECK-DAG:      <<Const31:i\d+>>  IntConstant 31
+  /// CHECK-DAG:      <<And:i\d+>>      And [<<Shift>>,<<Const31>>]
+  /// CHECK-DAG:      <<Shr:i\d+>>      Shr [<<Value>>,<<Shift>>]
+  /// CHECK-DAG:      <<Add:i\d+>>      Add [<<Shr>>,<<And>>]
+  /// CHECK-DAG:                        Return [<<Add>>]
+
+  public static int $noinline$otherUseOfUnnecessaryShiftMasking(int value, int shift) {
+    if (doThrow) { throw new Error(); }
+    int temp = shift & 31;
+    return (value >> temp) + temp;
+  }
+
 public static void main(String[] args) {
     int arg = 123456;
 
@@ -1908,6 +2010,17 @@ public static void main(String[] args) {
         }
       }
     }
+
+    assertIntEquals(0x5e6f7808, $noinline$intUnnecessaryShiftMasking(0xabcdef01, 3));
+    assertIntEquals(0x5e6f7808, $noinline$intUnnecessaryShiftMasking(0xabcdef01, 3 + 32));
+    assertLongEquals(0xffffffffffffeaf3L, $noinline$longUnnecessaryShiftMasking(0xabcdef0123456789L, 50));
+    assertLongEquals(0xffffffffffffeaf3L, $noinline$longUnnecessaryShiftMasking(0xabcdef0123456789L, 50 + 64));
+    assertIntEquals(0x2af37b, $noinline$intUnnecessaryWiderShiftMasking(0xabcdef01, 10));
+    assertIntEquals(0x2af37b, $noinline$intUnnecessaryWiderShiftMasking(0xabcdef01, 10 + 128));
+    assertLongEquals(0xaf37bc048d159e24L, $noinline$longSmallerShiftMasking(0xabcdef0123456789L, 2));
+    assertLongEquals(0xaf37bc048d159e24L, $noinline$longSmallerShiftMasking(0xabcdef0123456789L, 2 + 256));
+    assertIntEquals(0xfffd5e7c, $noinline$otherUseOfUnnecessaryShiftMasking(0xabcdef01, 13));
+    assertIntEquals(0xfffd5e7c, $noinline$otherUseOfUnnecessaryShiftMasking(0xabcdef01, 13 + 512));
   }
 
   private static boolean $inline$true() { return true; }
