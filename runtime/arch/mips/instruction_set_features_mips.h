@@ -81,8 +81,19 @@ class MipsInstructionSetFeatures FINAL : public InstructionSetFeatures {
 
  private:
   MipsInstructionSetFeatures(bool smp, bool fpu_32bit, bool mips_isa_gte2, bool r6)
-      : InstructionSetFeatures(smp), fpu_32bit_(fpu_32bit),  mips_isa_gte2_(mips_isa_gte2), r6_(r6)
-  {}
+      : InstructionSetFeatures(smp),
+        fpu_32bit_(fpu_32bit),
+        mips_isa_gte2_(mips_isa_gte2),
+        r6_(r6) {
+    // Sanity checks.
+    if (r6) {
+      CHECK(mips_isa_gte2);
+      CHECK(!fpu_32bit);
+    }
+    if (!mips_isa_gte2) {
+      CHECK(fpu_32bit);
+    }
+  }
 
   // Bitmap positions for encoding features as a bitmap.
   enum {

@@ -76,21 +76,22 @@ const MipsInstructionSetFeatures* MipsInstructionSetFeatures::FromVariant(
   GetFlagsFromCppDefined(&mips_isa_gte2, &r6, &fpu_32bit);
 
   // Override defaults based on variant string.
-  // Only care if it is R1, R2 or R6 and we assume all CPUs will have a FP unit.
+  // Only care if it is R1, R2, R5 or R6 and we assume all CPUs will have a FP unit.
   constexpr const char* kMips32Prefix = "mips32r";
   const size_t kPrefixLength = strlen(kMips32Prefix);
   if (variant.compare(0, kPrefixLength, kMips32Prefix, kPrefixLength) == 0 &&
       variant.size() > kPrefixLength) {
-    if (variant[kPrefixLength] >= '6') {
-      fpu_32bit = false;
-      r6 = true;
-    }
-    if (variant[kPrefixLength] >= '2') {
-      mips_isa_gte2 = true;
-    }
+    r6 = (variant[kPrefixLength] >= '6');
+    fpu_32bit = (variant[kPrefixLength] < '5');
+    mips_isa_gte2 = (variant[kPrefixLength] >= '2');
   } else if (variant == "default") {
-    // Default variant is: smp = true, has fpu, is gte2, is not r6. This is the traditional
-    // setting.
+    // Default variant is: smp = true, has FPU, is gte2. This is the traditional setting.
+    //
+    // Note, we get FPU bitness and R6-ness from the build (using cpp defines, see above)
+    // and don't override them because many things depend on the "default" variant being
+    // sufficient for most purposes. That is, "default" should work for both R2 and R6.
+    // Use "mips32r#" to get a specific configuration, possibly not matching the runtime
+    // ISA (e.g. for ISA-specific testing of dex2oat internals).
     mips_isa_gte2 = true;
   } else {
     LOG(WARNING) << "Unexpected CPU variant for Mips32 using defaults: " << variant;
