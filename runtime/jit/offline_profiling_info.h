@@ -87,6 +87,11 @@ class ProfileCompilationInfo {
   // Clears the resolved classes from the current object.
   void ClearResolvedClasses();
 
+  static bool GenerateTestProfile(int fd,
+                                  uint16_t number_of_dex_files,
+                                  uint16_t method_ratio,
+                                  uint16_t class_ratio);
+
  private:
   enum ProfileLoadSatus {
     kProfileLoadIOError,
