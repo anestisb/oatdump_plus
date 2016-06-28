@@ -4730,7 +4730,6 @@ void InstructionCodeGeneratorMIPS::VisitTypeConversion(HTypeConversion* conversi
   Primitive::Type input_type = conversion->GetInputType();
   bool has_sign_extension = codegen_->GetInstructionSetFeatures().IsMipsIsaRevGreaterThanEqual2();
   bool isR6 = codegen_->GetInstructionSetFeatures().IsR6();
-  bool fpu_32bit = codegen_->GetInstructionSetFeatures().Is32BitFloatingPoint();
 
   DCHECK_NE(input_type, result_type);
 
@@ -4739,7 +4738,9 @@ void InstructionCodeGeneratorMIPS::VisitTypeConversion(HTypeConversion* conversi
     Register dst_low = locations->Out().AsRegisterPairLow<Register>();
     Register src = locations->InAt(0).AsRegister<Register>();
 
-    __ Move(dst_low, src);
+    if (dst_low != src) {
+      __ Move(dst_low, src);
+    }
     __ Sra(dst_high, src, 31);
   } else if (Primitive::IsIntegralType(result_type) && Primitive::IsIntegralType(input_type)) {
     Register dst = locations->Out().AsRegister<Register>();
@@ -4768,7 +4769,9 @@ void InstructionCodeGeneratorMIPS::VisitTypeConversion(HTypeConversion* conversi
         }
         break;
       case Primitive::kPrimInt:
-        __ Move(dst, src);
+        if (dst != src) {
+          __ Move(dst, src);
+        }
         break;
 
       default:
@@ -4925,11 +4928,7 @@ void InstructionCodeGeneratorMIPS::VisitTypeConversion(HTypeConversion* conversi
         uint64_t min_val = bit_cast<uint64_t, double>(std::numeric_limits<int32_t>::min());
         __ LoadConst32(TMP, High32Bits(min_val));
         __ Mtc1(ZERO, FTMP);
-        if (fpu_32bit) {
-          __ Mtc1(TMP, static_cast<FRegister>(FTMP + 1));
-        } else {
-          __ Mthc1(TMP, FTMP);
-        }
+        __ MoveToFpuHigh(TMP, FTMP);
       }
 
       if (isR6) {
