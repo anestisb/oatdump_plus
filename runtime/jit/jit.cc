@@ -59,8 +59,8 @@ JitOptions* JitOptions::CreateFromRuntimeArguments(const RuntimeArgumentMap& opt
       options.GetOrDefault(RuntimeArgumentMap::JITCodeCacheMaxCapacity);
   jit_options->dump_info_on_shutdown_ =
       options.Exists(RuntimeArgumentMap::DumpJITInfoOnShutdown);
-  jit_options->save_profiling_info_ =
-      options.GetOrDefault(RuntimeArgumentMap::JITSaveProfilingInfo);
+  jit_options->profile_saver_options_ =
+      options.GetOrDefault(RuntimeArgumentMap::ProfileSaverOpts);
 
   jit_options->compile_threshold_ = options.GetOrDefault(RuntimeArgumentMap::JITCompileThreshold);
   if (jit_options->compile_threshold_ > std::numeric_limits<uint16_t>::max()) {
@@ -144,11 +144,10 @@ Jit::Jit() : dump_info_on_shutdown_(false),
              cumulative_timings_("JIT timings"),
              memory_use_("Memory used for compilation", 16),
              lock_("JIT memory use lock"),
-             use_jit_compilation_(true),
-             save_profiling_info_(false) {}
+             use_jit_compilation_(true) {}
 
 Jit* Jit::Create(JitOptions* options, std::string* error_msg) {
-  DCHECK(options->UseJitCompilation() || options->GetSaveProfilingInfo());
+  DCHECK(options->UseJitCompilation() || options->GetProfileSaverOptions().IsEnabled());
   std::unique_ptr<Jit> jit(new Jit);
   jit->dump_info_on_shutdown_ = options->DumpJitInfoOnShutdown();
   if (jit_compiler_handle_ == nullptr && !LoadCompiler(error_msg)) {
@@ -163,12 +162,12 @@ Jit* Jit::Create(JitOptions* options, std::string* error_msg) {
     return nullptr;
   }
   jit->use_jit_compilation_ = options->UseJitCompilation();
-  jit->save_profiling_info_ = options->GetSaveProfilingInfo();
+  jit->profile_saver_options_ = options->GetProfileSaverOptions();
   VLOG(jit) << "JIT created with initial_capacity="
       << PrettySize(options->GetCodeCacheInitialCapacity())
       << ", max_capacity=" << PrettySize(options->GetCodeCacheMaxCapacity())
       << ", compile_threshold=" << options->GetCompileThreshold()
-      << ", save_profiling_info=" << options->GetSaveProfilingInfo();
+      << ", profile_saver_options=" << options->GetProfileSaverOptions();
 
 
   jit->hot_method_threshold_ = options->GetCompileThreshold();
@@ -310,13 +309,18 @@ void Jit::StartProfileSaver(const std::string& filename,
                             const std::vector<std::string>& code_paths,
                             const std::string& foreign_dex_profile_path,
                             const std::string& app_dir) {
-  if (save_profiling_info_) {
-    ProfileSaver::Start(filename, code_cache_.get(), code_paths, foreign_dex_profile_path, app_dir);
+  if (profile_saver_options_.IsEnabled()) {
+    ProfileSaver::Start(profile_saver_options_,
+                        filename,
+                        code_cache_.get(),
+                        code_paths,
+                        foreign_dex_profile_path,
+                        app_dir);
   }
 }
 
 void Jit::StopProfileSaver() {
-  if (save_profiling_info_ && ProfileSaver::IsStarted()) {
+  if (profile_saver_options_.IsEnabled() && ProfileSaver::IsStarted()) {
     ProfileSaver::Stop(dump_info_on_shutdown_);
   }
 }
@@ -330,7 +334,7 @@ bool Jit::CanInvokeCompiledCode(ArtMethod* method) {
 }
 
 Jit::~Jit() {
-  DCHECK(!save_profiling_info_ || !ProfileSaver::IsStarted());
+  DCHECK(!profile_saver_options_.IsEnabled() || !ProfileSaver::IsStarted());
   if (dump_info_on_shutdown_) {
     DumpInfo(LOG(INFO));
   }

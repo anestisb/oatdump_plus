@@ -176,8 +176,13 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
           .WithType<unsigned int>()
           .IntoKey(M::JITInvokeTransitionWeight)
       .Define("-Xjitsaveprofilinginfo")
-          .WithValue(true)
-          .IntoKey(M::JITSaveProfilingInfo)
+          .WithType<ProfileSaverOptions>()
+          .AppendValues()
+          .IntoKey(M::ProfileSaverOpts)
+      .Define("-Xps-_")  // profile saver options -Xps-<key>:<value>
+          .WithType<ProfileSaverOptions>()
+          .AppendValues()
+          .IntoKey(M::ProfileSaverOpts)  // NOTE: Appends into same key as -Xjitsaveprofilinginfo
       .Define("-XX:HspaceCompactForOOMMinIntervalMs=_")  // in ms
           .WithType<MillisecondsToNanoseconds>()  // store as ns
           .IntoKey(M::HSpaceCompactForOOMMinIntervalsMs)
@@ -244,14 +249,6 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
                          {"wallclock",      TraceClockSource::kWall},
                          {"dualclock",      TraceClockSource::kDual}})
           .IntoKey(M::ProfileClock)
-      .Define("-Xenable-profiler")
-          .WithType<TestProfilerOptions>()
-          .AppendValues()
-          .IntoKey(M::ProfilerOpts)  // NOTE: Appends into same key as -Xprofile-*
-      .Define("-Xprofile-_")  // -Xprofile-<key>:<value>
-          .WithType<TestProfilerOptions>()
-          .AppendValues()
-          .IntoKey(M::ProfilerOpts)  // NOTE: Appends into same key as -Xenable-profiler
       .Define("-Xcompiler:_")
           .WithType<std::string>()
           .IntoKey(M::Compiler)
@@ -690,17 +687,13 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -Xmethod-trace\n");
   UsageMessage(stream, "  -Xmethod-trace-file:filename");
   UsageMessage(stream, "  -Xmethod-trace-file-size:integervalue\n");
-  UsageMessage(stream, "  -Xenable-profiler\n");
-  UsageMessage(stream, "  -Xprofile-filename:filename\n");
-  UsageMessage(stream, "  -Xprofile-period:integervalue\n");
-  UsageMessage(stream, "  -Xprofile-duration:integervalue\n");
-  UsageMessage(stream, "  -Xprofile-interval:integervalue\n");
-  UsageMessage(stream, "  -Xprofile-backoff:doublevalue\n");
-  UsageMessage(stream, "  -Xprofile-start-immediately\n");
-  UsageMessage(stream, "  -Xprofile-top-k-threshold:doublevalue\n");
-  UsageMessage(stream, "  -Xprofile-top-k-change-threshold:doublevalue\n");
-  UsageMessage(stream, "  -Xprofile-type:{method,stack}\n");
-  UsageMessage(stream, "  -Xprofile-max-stack-depth:integervalue\n");
+  UsageMessage(stream, "  -Xps-min-save-period-ms:integervalue\n");
+  UsageMessage(stream, "  -Xps-save-resolved-classes-delay-ms:integervalue\n");
+  UsageMessage(stream, "  -Xps-startup-method-samples:integervalue\n");
+  UsageMessage(stream, "  -Xps-min-methods-to-save:integervalue\n");
+  UsageMessage(stream, "  -Xps-min-classes-to-save:integervalue\n");
+  UsageMessage(stream, "  -Xps-min-notification-before-wake:integervalue\n");
+  UsageMessage(stream, "  -Xps-max-notification-before-wake:integervalue\n");
   UsageMessage(stream, "  -Xcompiler:filename\n");
   UsageMessage(stream, "  -Xcompiler-option dex2oat-option\n");
   UsageMessage(stream, "  -Ximage-compiler-option dex2oat-option\n");
