@@ -1380,4 +1380,43 @@ TEST_F(AssemblerThumb2Test, revsh) {
   DriverStr(expected, "revsh");
 }
 
+TEST_F(AssemblerThumb2Test, vcnt) {
+  // Different D register numbers are used here, to test register encoding.
+  // Source register number is encoded as M:Vm, destination register number is encoded as D:Vd,
+  // For source and destination registers which use D0..D15, the M bit and D bit should be 0.
+  // For source and destination registers which use D16..D32, the M bit and D bit should be 1.
+  __ vcntd(arm::D0, arm::D1);
+  __ vcntd(arm::D19, arm::D20);
+  __ vcntd(arm::D0, arm::D9);
+  __ vcntd(arm::D16, arm::D20);
+
+  std::string expected =
+      "vcnt.8 d0, d1\n"
+      "vcnt.8 d19, d20\n"
+      "vcnt.8 d0, d9\n"
+      "vcnt.8 d16, d20\n";
+
+  DriverStr(expected, "vcnt");
+}
+
+TEST_F(AssemblerThumb2Test, vpaddl) {
+  // Different D register numbers are used here, to test register encoding.
+  // Source register number is encoded as M:Vm, destination register number is encoded as D:Vd,
+  // For source and destination registers which use D0..D15, the M bit and D bit should be 0.
+  // For source and destination registers which use D16..D32, the M bit and D bit should be 1.
+  // Different data types (signed and unsigned) are also tested.
+  __ vpaddld(arm::D0, arm::D0, 8, true);
+  __ vpaddld(arm::D20, arm::D20, 8, false);
+  __ vpaddld(arm::D0, arm::D20, 16, false);
+  __ vpaddld(arm::D20, arm::D0, 32, true);
+
+  std::string expected =
+      "vpaddl.u8 d0, d0\n"
+      "vpaddl.s8 d20, d20\n"
+      "vpaddl.s16 d0, d20\n"
+      "vpaddl.u32 d20, d0\n";
+
+  DriverStr(expected, "vpaddl");
+}
+
 }  // namespace art
