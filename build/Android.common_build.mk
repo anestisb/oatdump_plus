@@ -158,6 +158,10 @@ art_clang_cflags += -Wdeprecated
 # Enable warning for unreachable break & return.
 art_clang_cflags += -Wunreachable-code-break -Wunreachable-code-return
 
+# Bug: http://b/29823425  Disable -Wconstant-conversion and
+# -Wundefined-var-template for Clang update to r271374
+art_clang_cflags += -Wno-constant-conversion -Wno-undefined-var-template
+
 # Enable missing-noreturn only on non-Mac. As lots of things are not implemented for Apple, it's
 # a pain.
 ifneq ($(HOST_OS),darwin)
