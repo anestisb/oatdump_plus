@@ -40,6 +40,11 @@ const uint8_t ProfileCompilationInfo::kProfileVersion[] = { '0', '0', '1', '\0' 
 
 static constexpr uint16_t kMaxDexFileKeyLength = PATH_MAX;
 
+// Debug flag to ignore checksums when testing if a method or a class is present in the profile.
+// Use to make facilitate testing profile guided compilation across a large number of apps
+// using the same test profile.
+static constexpr bool kDebugIgnoreChecksum = false;
+
 // Transform the actual dex location into relative paths.
 // Note: this is OK because we don't store profiles of different apps into the same file.
 // Apps with split apks don't cause trouble because each split has a different name and will not
@@ -547,10 +552,14 @@ bool ProfileCompilationInfo::MergeWith(const ProfileCompilationInfo& other) {
   return true;
 }
 
+static bool ChecksumMatch(const DexFile& dex_file, uint32_t checksum) {
+  return kDebugIgnoreChecksum || dex_file.GetLocationChecksum() == checksum;
+}
+
 bool ProfileCompilationInfo::ContainsMethod(const MethodReference& method_ref) const {
   auto info_it = info_.find(GetProfileDexFileKey(method_ref.dex_file->GetLocation()));
   if (info_it != info_.end()) {
-    if (method_ref.dex_file->GetLocationChecksum() != info_it->second.checksum) {
+    if (!ChecksumMatch(*method_ref.dex_file, info_it->second.checksum)) {
       return false;
     }
     const std::set<uint16_t>& methods = info_it->second.method_set;
@@ -562,7 +571,7 @@ bool ProfileCompilationInfo::ContainsMethod(const MethodReference& method_ref) c
 bool ProfileCompilationInfo::ContainsClass(const DexFile& dex_file, uint16_t class_def_idx) const {
   auto info_it = info_.find(GetProfileDexFileKey(dex_file.GetLocation()));
   if (info_it != info_.end()) {
-    if (dex_file.GetLocationChecksum() != info_it->second.checksum) {
+    if (!ChecksumMatch(dex_file, info_it->second.checksum)) {
       return false;
     }
     const std::set<uint16_t>& classes = info_it->second.class_set;
