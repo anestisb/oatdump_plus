@@ -402,12 +402,124 @@ void ThrowNullPointerExceptionForMethodAccess(ArtMethod* method,
                                                dex_file, type);
 }
 
-void ThrowNullPointerExceptionFromDexPC() {
+static bool IsValidImplicitCheck(uintptr_t addr, ArtMethod* method, const Instruction& instr)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  if (!CanDoImplicitNullCheckOn(addr)) {
+    return false;
+  }
+
+  switch (instr.Opcode()) {
+    case Instruction::INVOKE_DIRECT:
+    case Instruction::INVOKE_DIRECT_RANGE:
+    case Instruction::INVOKE_VIRTUAL:
+    case Instruction::INVOKE_VIRTUAL_RANGE:
+    case Instruction::INVOKE_INTERFACE:
+    case Instruction::INVOKE_INTERFACE_RANGE:
+    case Instruction::INVOKE_VIRTUAL_QUICK:
+    case Instruction::INVOKE_VIRTUAL_RANGE_QUICK: {
+      // Without inlining, we could just check that the offset is the class offset.
+      // However, when inlining, the compiler can (validly) merge the null check with a field access
+      // on the same object. Note that the stack map at the NPE will reflect the invoke's location,
+      // which is the caller.
+      return true;
+    }
+
+    case Instruction::IGET:
+    case Instruction::IGET_WIDE:
+    case Instruction::IGET_OBJECT:
+    case Instruction::IGET_BOOLEAN:
+    case Instruction::IGET_BYTE:
+    case Instruction::IGET_CHAR:
+    case Instruction::IGET_SHORT:
+    case Instruction::IPUT:
+    case Instruction::IPUT_WIDE:
+    case Instruction::IPUT_OBJECT:
+    case Instruction::IPUT_BOOLEAN:
+    case Instruction::IPUT_BYTE:
+    case Instruction::IPUT_CHAR:
+    case Instruction::IPUT_SHORT: {
+      // Check that the fault address is at the offset of the field or null. The compiler
+      // can generate both.
+      ArtField* field =
+          Runtime::Current()->GetClassLinker()->ResolveField(instr.VRegC_22c(), method, false);
+      return (addr == 0) || (addr == field->GetOffset().Uint32Value());
+    }
+
+    case Instruction::IGET_QUICK:
+    case Instruction::IGET_BOOLEAN_QUICK:
+    case Instruction::IGET_BYTE_QUICK:
+    case Instruction::IGET_CHAR_QUICK:
+    case Instruction::IGET_SHORT_QUICK:
+    case Instruction::IGET_WIDE_QUICK:
+    case Instruction::IGET_OBJECT_QUICK:
+    case Instruction::IPUT_QUICK:
+    case Instruction::IPUT_BOOLEAN_QUICK:
+    case Instruction::IPUT_BYTE_QUICK:
+    case Instruction::IPUT_CHAR_QUICK:
+    case Instruction::IPUT_SHORT_QUICK:
+    case Instruction::IPUT_WIDE_QUICK:
+    case Instruction::IPUT_OBJECT_QUICK: {
+      // Check that the fault address is at the offset in the quickened instruction or null.
+      // The compiler can generate both.
+      return (addr == 0u) || (addr == instr.VRegC_22c());
+    }
+
+    case Instruction::AGET:
+    case Instruction::AGET_WIDE:
+    case Instruction::AGET_OBJECT:
+    case Instruction::AGET_BOOLEAN:
+    case Instruction::AGET_BYTE:
+    case Instruction::AGET_CHAR:
+    case Instruction::AGET_SHORT:
+    case Instruction::APUT:
+    case Instruction::APUT_WIDE:
+    case Instruction::APUT_OBJECT:
+    case Instruction::APUT_BOOLEAN:
+    case Instruction::APUT_BYTE:
+    case Instruction::APUT_CHAR:
+    case Instruction::APUT_SHORT: {
+      // The length access should crash. We currently do not do implicit checks on
+      // the array access itself.
+      return (addr == 0u) || (addr == mirror::Array::LengthOffset().Uint32Value());
+    }
+
+    case Instruction::FILL_ARRAY_DATA: {
+      // The length access should crash. We currently do not do implicit checks on
+      // the array access itself.
+      return (addr == 0u) || (addr == mirror::Array::LengthOffset().Uint32Value());
+    }
+
+    case Instruction::ARRAY_LENGTH: {
+      // The length access should crash.
+      return (addr == 0u) || (addr == mirror::Array::LengthOffset().Uint32Value());
+    }
+
+    default: {
+      // We have covered all the cases where an NPE could occur.
+      // Note that this must be kept in sync with the compiler, and adding
+      // any new way to do implicit checks in the compiler should also update
+      // this code.
+      return false;
+    }
+  }
+}
+
+void ThrowNullPointerExceptionFromDexPC(bool check_address, uintptr_t addr) {
   uint32_t throw_dex_pc;
   ArtMethod* method = Thread::Current()->GetCurrentMethod(&throw_dex_pc);
   const DexFile::CodeItem* code = method->GetCodeItem();
   CHECK_LT(throw_dex_pc, code->insns_size_in_code_units_);
   const Instruction* instr = Instruction::At(&code->insns_[throw_dex_pc]);
+  if (check_address && !IsValidImplicitCheck(addr, method, *instr)) {
+    const DexFile* dex_file = method->GetDeclaringClass()->GetDexCache()->GetDexFile();
+    LOG(FATAL) << "Invalid address for an implicit NullPointerException check: "
+               << "0x" << std::hex << addr << std::dec
+               << ", at "
+               << instr->DumpString(dex_file)
+               << " in "
+               << PrettyMethod(method);
+  }
+
   switch (instr->Opcode()) {
     case Instruction::INVOKE_DIRECT:
       ThrowNullPointerExceptionForMethodAccess(instr->VRegB_35c(), kDirect);
@@ -530,14 +642,26 @@ void ThrowNullPointerExceptionFromDexPC() {
       ThrowException("Ljava/lang/NullPointerException;", nullptr,
                      "Attempt to get length of null array");
       break;
+    case Instruction::FILL_ARRAY_DATA: {
+      ThrowException("Ljava/lang/NullPointerException;", nullptr,
+                     "Attempt to write to null array");
+      break;
+    }
+    case Instruction::INVOKE_LAMBDA:
+    case Instruction::BOX_LAMBDA:
+    case Instruction::UNBOX_LAMBDA:
+    case Instruction::LIBERATE_VARIABLE: {
+      ThrowException("Ljava/lang/NullPointerException;", nullptr,
+                     "Using a null lambda");
+      break;
+    }
     default: {
-      // TODO: We should have covered all the cases where we expect a NPE above, this
-      //       message/logging is so we can improve any cases we've missed in the future.
       const DexFile* dex_file =
           method->GetDeclaringClass()->GetDexCache()->GetDexFile();
-      ThrowException("Ljava/lang/NullPointerException;", nullptr,
-                     StringPrintf("Null pointer exception during instruction '%s'",
-                                  instr->DumpString(dex_file).c_str()).c_str());
+      LOG(FATAL) << "NullPointerException at an unexpected instruction: "
+                 << instr->DumpString(dex_file)
+                 << " in "
+                 << PrettyMethod(method);
       break;
     }
   }

@@ -5025,7 +5025,7 @@ class HInstanceFieldGet FINAL : public HExpression<1> {
   }
 
   bool CanDoImplicitNullCheckOn(HInstruction* obj) const OVERRIDE {
-    return (obj == InputAt(0)) && GetFieldOffset().Uint32Value() < kPageSize;
+    return (obj == InputAt(0)) && art::CanDoImplicitNullCheckOn(GetFieldOffset().Uint32Value());
   }
 
   size_t ComputeHashCode() const OVERRIDE {
@@ -5072,7 +5072,7 @@ class HInstanceFieldSet FINAL : public HTemplateInstruction<2> {
   }
 
   bool CanDoImplicitNullCheckOn(HInstruction* obj) const OVERRIDE {
-    return (obj == InputAt(0)) && GetFieldOffset().Uint32Value() < kPageSize;
+    return (obj == InputAt(0)) && art::CanDoImplicitNullCheckOn(GetFieldOffset().Uint32Value());
   }
 
   const FieldInfo& GetFieldInfo() const { return field_info_; }

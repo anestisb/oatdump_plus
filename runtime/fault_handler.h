@@ -96,6 +96,14 @@ class NullPointerHandler FINAL : public FaultHandler {
 
   bool Action(int sig, siginfo_t* siginfo, void* context) OVERRIDE;
 
+  static bool IsValidImplicitCheck(siginfo_t* siginfo) {
+    // Our implicit NPE checks always limit the range to a page.
+    // Note that the runtime will do more exhaustive checks (that we cannot
+    // reasonably do in signal processing code) based on the dex instruction
+    // faulting.
+    return CanDoImplicitNullCheckOn(reinterpret_cast<uintptr_t>(siginfo->si_addr));
+  }
+
  private:
   DISALLOW_COPY_AND_ASSIGN(NullPointerHandler);
 };

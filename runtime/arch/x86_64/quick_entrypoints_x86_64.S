@@ -309,6 +309,11 @@ END_MACRO
 NO_ARG_RUNTIME_EXCEPTION art_quick_throw_null_pointer_exception, artThrowNullPointerExceptionFromCode
 
     /*
+     * Call installed by a signal handler to create and deliver a NullPointerException.
+     */
+ONE_ARG_RUNTIME_EXCEPTION art_quick_throw_null_pointer_exception_from_signal, artThrowNullPointerExceptionFromSignal
+
+    /*
      * Called by managed code to create and deliver an ArithmeticException.
      */
 NO_ARG_RUNTIME_EXCEPTION art_quick_throw_div_zero, artThrowDivZeroFromCode
