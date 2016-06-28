@@ -1497,6 +1497,25 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
           }
           break;
         }
+        case 0x7B: case 0x7F: {
+          FpRegister d(instr, 12, 22);
+          FpRegister m(instr, 0, 5);
+          uint32_t sz = (instr >> 18) & 0x3;  // Decode size bits.
+          uint32_t size = (sz == 0) ? 8 : sz << 4;
+          uint32_t opc2 = (instr >> 7) & 0xF;
+          uint32_t Q = (instr >> 6) & 1;
+          if (Q == 0 && opc2 == 0xA && size == 8) {  // 1010, VCNT
+            opcode << "vcnt." << size;
+            args << d << ", " << m;
+          } else if (Q == 0 && (opc2 == 0x4 || opc2 == 0x5) && size <= 32) {  // 010x, VPADDL
+            bool op = HasBitSet(instr, 7);
+            opcode << "vpaddl." << (op ? "u" : "s") << size;
+            args << d << ", " << m;
+          } else {
+            opcode << "UNKNOWN " << op2;
+          }
+          break;
+        }
       default:      // more formats
         if ((op2 >> 4) == 2) {      // 010xxxx
           // data processing (register)
