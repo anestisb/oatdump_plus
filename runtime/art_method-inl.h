@@ -120,10 +120,6 @@ inline uint32_t ArtMethod::GetDexMethodIndex() {
   return dex_method_index_;
 }
 
-inline uint32_t ArtMethod::GetImtIndex() {
-  return GetDexMethodIndex() % ImTable::kSize;
-}
-
 inline ArtMethod** ArtMethod::GetDexCacheResolvedMethods(size_t pointer_size) {
   return GetNativePointer<ArtMethod**>(DexCacheResolvedMethodsOffset(pointer_size),
                                        pointer_size);
