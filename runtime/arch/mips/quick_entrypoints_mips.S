@@ -506,6 +506,18 @@ ENTRY art_quick_throw_null_pointer_exception
     move $a0, rSELF                 # pass Thread::Current
 END art_quick_throw_null_pointer_exception
 
+
+    /*
+     * Call installed by a signal handler to create and deliver a NullPointerException.
+     */
+    .extern artThrowNullPointerExceptionFromSignal
+ENTRY art_quick_throw_null_pointer_exception_from_signal
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
+    la   $t9, artThrowNullPointerExceptionFromSignal
+    jalr $zero, $t9                 # artThrowNullPointerExceptionFromSignal(uintptr_t, Thread*)
+    move $a1, rSELF                 # pass Thread::Current
+END art_quick_throw_null_pointer_exception_from_signal
+
     /*
      * Called by managed code to create and deliver an ArithmeticException
      */

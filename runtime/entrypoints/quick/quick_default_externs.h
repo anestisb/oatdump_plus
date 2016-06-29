@@ -120,6 +120,7 @@ extern "C" void art_quick_throw_array_bounds(int32_t index, int32_t limit);
 extern "C" void art_quick_throw_div_zero();
 extern "C" void art_quick_throw_no_such_method(int32_t method_idx);
 extern "C" void art_quick_throw_null_pointer_exception();
+extern "C" void art_quick_throw_null_pointer_exception_from_signal(uintptr_t address);
 extern "C" void art_quick_throw_stack_overflow(void*);
 extern "C" void art_quick_throw_string_bounds(int32_t index, int32_t limit);
 
