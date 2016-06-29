@@ -648,6 +648,15 @@ static inline dwarf::Reg DWARFReg(CPURegister reg) {
 void Arm64Assembler::SpillRegisters(vixl::CPURegList registers, int offset) {
   int size = registers.RegisterSizeInBytes();
   const Register sp = vixl_masm_->StackPointer();
+  // Since we are operating on register pairs, we would like to align on
+  // double the standard size; on the other hand, we don't want to insert
+  // an extra store, which will happen if the number of registers is even.
+  if (!IsAlignedParam(offset, 2 * size) && registers.Count() % 2 != 0) {
+    const CPURegister& dst0 = registers.PopLowestIndex();
+    ___ Str(dst0, MemOperand(sp, offset));
+    cfi_.RelOffset(DWARFReg(dst0), offset);
+    offset += size;
+  }
   while (registers.Count() >= 2) {
     const CPURegister& dst0 = registers.PopLowestIndex();
     const CPURegister& dst1 = registers.PopLowestIndex();
@@ -667,6 +676,13 @@ void Arm64Assembler::SpillRegisters(vixl::CPURegList registers, int offset) {
 void Arm64Assembler::UnspillRegisters(vixl::CPURegList registers, int offset) {
   int size = registers.RegisterSizeInBytes();
   const Register sp = vixl_masm_->StackPointer();
+  // Be consistent with the logic for spilling registers.
+  if (!IsAlignedParam(offset, 2 * size) && registers.Count() % 2 != 0) {
+    const CPURegister& dst0 = registers.PopLowestIndex();
+    ___ Ldr(dst0, MemOperand(sp, offset));
+    cfi_.Restore(DWARFReg(dst0));
+    offset += size;
+  }
   while (registers.Count() >= 2) {
     const CPURegister& dst0 = registers.PopLowestIndex();
     const CPURegister& dst1 = registers.PopLowestIndex();
