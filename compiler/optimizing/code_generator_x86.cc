@@ -2058,7 +2058,7 @@ void InstructionCodeGeneratorX86::VisitInvokeInterface(HInvokeInterface* invoke)
       Address(temp, mirror::Class::ImtPtrOffset(kX86PointerSize).Uint32Value()));
   // temp = temp->GetImtEntryAt(method_offset);
   uint32_t method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
-      invoke->GetImtIndex(), kX86PointerSize));
+      invoke->GetImtIndex() % ImTable::kSize, kX86PointerSize));
   __ movl(temp, Address(temp, method_offset));
   // call temp->GetEntryPoint();
   __ call(Address(temp,
@@ -4083,7 +4083,7 @@ void InstructionCodeGeneratorX86::VisitClassTableGet(HClassTableGet* instruction
         mirror::Class::ImtPtrOffset(kX86PointerSize).Uint32Value()));
     // temp = temp->GetImtEntryAt(method_offset);
     method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
-        instruction->GetIndex(), kX86PointerSize));
+        instruction->GetIndex() % ImTable::kSize, kX86PointerSize));
   }
   __ movl(locations->Out().AsRegister<Register>(),
           Address(locations->InAt(0).AsRegister<Register>(), method_offset));
