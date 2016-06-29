@@ -20,6 +20,7 @@
 #include "base/mutex.h"
 #include "jit_code_cache.h"
 #include "offline_profiling_info.h"
+#include "profile_saver_options.h"
 #include "safe_map.h"
 
 namespace art {
@@ -28,7 +29,8 @@ class ProfileSaver {
  public:
   // Starts the profile saver thread if not already started.
   // If the saver is already running it adds (output_filename, code_paths) to its tracked locations.
-  static void Start(const std::string& output_filename,
+  static void Start(const ProfileSaverOptions& options,
+                    const std::string& output_filename,
                     jit::JitCodeCache* jit_code_cache,
                     const std::vector<std::string>& code_paths,
                     const std::string& foreign_dex_profile_path,
@@ -61,7 +63,8 @@ class ProfileSaver {
                             uint16_t method_idx);
 
  private:
-  ProfileSaver(const std::string& output_filename,
+  ProfileSaver(const ProfileSaverOptions& options,
+               const std::string& output_filename,
                jit::JitCodeCache* jit_code_cache,
                const std::vector<std::string>& code_paths,
                const std::string& foreign_dex_profile_path,
@@ -155,6 +158,7 @@ class ProfileSaver {
   uint64_t total_number_of_hot_spikes_;
   uint64_t total_number_of_wake_ups_;
 
+  const ProfileSaverOptions options_;
   DISALLOW_COPY_AND_ASSIGN(ProfileSaver);
 };
 

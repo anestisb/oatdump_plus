@@ -29,8 +29,8 @@
 #include "jit/jit_code_cache.h"
 #include "gc/collector_type.h"
 #include "gc/space/large_object_space.h"
-#include "profiler_options.h"
 #include "arch/instruction_set.h"
+#include "jit/profile_saver_options.h"
 #include "verifier/verify_mode.h"
 #include <stdio.h>
 #include <stdarg.h>
@@ -41,7 +41,6 @@ class CompilerCallbacks;
 class DexFile;
 struct XGcOption;
 struct BackgroundGcOption;
-struct TestProfilerOptions;
 
 #define DECLARE_KEY(Type, Name) static const Key<Type> Name
 

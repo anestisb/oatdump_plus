@@ -30,25 +30,11 @@
 
 namespace art {
 
-// TODO: read the constants from ProfileOptions,
-// Add a random delay each time we go to sleep so that we don't hammer the CPU
-// with all profile savers running at the same time.
-static constexpr const uint64_t kMinSavePeriodNs = MsToNs(20 * 1000);  // 20 seconds
-static constexpr const uint64_t kSaveResolvedClassesDelayMs = 2 * 1000;  // 2 seconds
-// Minimum number of JIT samples during launch to include a method into the profile.
-static constexpr const size_t kStartupMethodSamples = 1;
-
-static constexpr const uint32_t kMinimumNumberOfMethodsToSave = 10;
-static constexpr const uint32_t kMinimumNumberOfClassesToSave = 10;
-static constexpr const uint32_t kMinimumNumberOfNotificationBeforeWake =
-    kMinimumNumberOfMethodsToSave;
-static constexpr const uint32_t kMaximumNumberOfNotificationBeforeWake = 50;
-
-
 ProfileSaver* ProfileSaver::instance_ = nullptr;
 pthread_t ProfileSaver::profiler_pthread_ = 0U;
 
-ProfileSaver::ProfileSaver(const std::string& output_filename,
+ProfileSaver::ProfileSaver(const ProfileSaverOptions& options,
+                           const std::string& output_filename,
                            jit::JitCodeCache* jit_code_cache,
                            const std::vector<std::string>& code_paths,
                            const std::string& foreign_dex_profile_path,
@@ -72,7 +58,9 @@ ProfileSaver::ProfileSaver(const std::string& output_filename,
       total_number_of_foreign_dex_marks_(0),
       max_number_of_profile_entries_cached_(0),
       total_number_of_hot_spikes_(0),
-      total_number_of_wake_ups_(0) {
+      total_number_of_wake_ups_(0),
+      options_(options) {
+  DCHECK(options_.IsEnabled());
   AddTrackedLocations(output_filename, app_data_dir, code_paths);
 }
 
@@ -80,14 +68,13 @@ void ProfileSaver::Run() {
   Thread* self = Thread::Current();
 
   // Fetch the resolved classes for the app images after sleeping for
-  // kSaveResolvedClassesDelayMs.
+  // options_.GetSaveResolvedClassesDelayMs().
   // TODO(calin) This only considers the case of the primary profile file.
   // Anything that gets loaded in the same VM will not have their resolved
   // classes save (unless they started before the initial saving was done).
   {
     MutexLock mu(self, wait_lock_);
-    constexpr uint64_t kSleepTime = kSaveResolvedClassesDelayMs;
-    const uint64_t end_time = NanoTime() + MsToNs(kSleepTime);
+    const uint64_t end_time = NanoTime() + MsToNs(options_.GetSaveResolvedClassesDelayMs());
     while (true) {
       const uint64_t current_time = NanoTime();
       if (current_time >= end_time) {
@@ -95,7 +82,7 @@ void ProfileSaver::Run() {
       }
       period_condition_.TimedWait(self, NsToMs(end_time - current_time), 0);
     }
-    total_ms_of_sleep_ += kSaveResolvedClassesDelayMs;
+    total_ms_of_sleep_ += options_.GetSaveResolvedClassesDelayMs();
   }
   FetchAndCacheResolvedClassesAndMethods();
 
@@ -117,10 +104,11 @@ void ProfileSaver::Run() {
       // We might have been woken up by a huge number of notifications to guarantee saving.
       // If we didn't meet the minimum saving period go back to sleep (only if missed by
       // a reasonable margin).
-      while (kMinSavePeriodNs * 0.9 > sleep_time) {
+      uint64_t min_save_period_ns = MsToNs(options_.GetMinSavePeriodMs());
+      while (min_save_period_ns * 0.9 > sleep_time) {
         {
           MutexLock mu(self, wait_lock_);
-          period_condition_.TimedWait(self, NsToMs(kMinSavePeriodNs - sleep_time), 0);
+          period_condition_.TimedWait(self, NsToMs(min_save_period_ns - sleep_time), 0);
           sleep_time = NanoTime() - sleep_start;
         }
         // Check if the thread was woken up for shutdown.
@@ -170,12 +158,12 @@ void ProfileSaver::NotifyJitActivityInternal() {
   jit_activity_notifications_++;
   // Note that we are not as precise as we could be here but we don't want to wake the saver
   // every time we see a hot method.
-  if (jit_activity_notifications_ > kMinimumNumberOfNotificationBeforeWake) {
+  if (jit_activity_notifications_ > options_.GetMinNotificationBeforeWake()) {
     MutexLock wait_mutex(Thread::Current(), wait_lock_);
-    if ((NanoTime() - last_time_ns_saver_woke_up_) > kMinSavePeriodNs) {
+    if ((NanoTime() - last_time_ns_saver_woke_up_) > MsToNs(options_.GetMinSavePeriodMs())) {
       WakeUpSaver();
     }
-  } else if (jit_activity_notifications_ > kMaximumNumberOfNotificationBeforeWake) {
+  } else if (jit_activity_notifications_ > options_.GetMaxNotificationBeforeWake()) {
     // Make sure to wake up the saver if we see a spike in the number of notifications.
     // This is a precaution to avoid "loosing" a big number of methods in case
     // this is a spike with no jit after.
@@ -197,7 +185,9 @@ ProfileCompilationInfo* ProfileSaver::GetCachedProfiledInfo(const std::string& f
 // Excludes native methods and classes in the boot image.
 class GetMethodsVisitor : public ClassVisitor {
  public:
-  explicit GetMethodsVisitor(std::vector<MethodReference>* methods) : methods_(methods) {}
+  GetMethodsVisitor(std::vector<MethodReference>* methods, uint32_t startup_method_samples)
+    : methods_(methods),
+      startup_method_samples_(startup_method_samples) {}
 
   virtual bool operator()(mirror::Class* klass) SHARED_REQUIRES(Locks::mutator_lock_) {
     if (Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(klass)) {
@@ -205,7 +195,7 @@ class GetMethodsVisitor : public ClassVisitor {
     }
     for (ArtMethod& method : klass->GetMethods(sizeof(void*))) {
       if (!method.IsNative()) {
-        if (method.GetCounter() >= kStartupMethodSamples ||
+        if (method.GetCounter() >= startup_method_samples_ ||
             method.GetProfilingInfo(sizeof(void*)) != nullptr) {
           // Have samples, add to profile.
           const DexFile* dex_file = method.GetInterfaceMethodIfProxy(sizeof(void*))->GetDexFile();
@@ -218,6 +208,7 @@ class GetMethodsVisitor : public ClassVisitor {
 
  private:
   std::vector<MethodReference>* const methods_;
+  uint32_t startup_method_samples_;
 };
 
 void ProfileSaver::FetchAndCacheResolvedClassesAndMethods() {
@@ -229,11 +220,11 @@ void ProfileSaver::FetchAndCacheResolvedClassesAndMethods() {
   std::vector<MethodReference> methods;
   {
     ScopedTrace trace2("Get hot methods");
-    GetMethodsVisitor visitor(&methods);
+    GetMethodsVisitor visitor(&methods, options_.GetStartupMethodSamples());
     ScopedObjectAccess soa(Thread::Current());
     class_linker->VisitClasses(&visitor);
     VLOG(profiler) << "Methods with samples greater than "
-                   << kStartupMethodSamples << " = " << methods.size();
+                   << options_.GetStartupMethodSamples() << " = " << methods.size();
   }
   MutexLock mu(Thread::Current(), *Locks::profiler_lock_);
   uint64_t total_number_of_profile_entries_cached = 0;
@@ -302,11 +293,11 @@ bool ProfileSaver::ProcessProfilingInfo(uint16_t* new_methods) {
         cached_info->GetNumberOfResolvedClasses() -
         static_cast<int64_t>(last_save_number_of_classes_);
 
-    if (delta_number_of_methods < kMinimumNumberOfMethodsToSave &&
-        delta_number_of_classes < kMinimumNumberOfClassesToSave) {
+    if (delta_number_of_methods < options_.GetMinMethodsToSave() &&
+        delta_number_of_classes < options_.GetMinClassesToSave()) {
       VLOG(profiler) << "Not enough information to save to: " << filename
-          << " Nr of methods: " << delta_number_of_methods
-          << " Nr of classes: " << delta_number_of_classes;
+          << " Number of methods: " << delta_number_of_methods
+          << " Number of classes: " << delta_number_of_classes;
       total_number_of_skipped_writes_++;
       continue;
     }
@@ -385,12 +376,14 @@ static bool ShouldProfileLocation(const std::string& location) {
   return true;
 }
 
-void ProfileSaver::Start(const std::string& output_filename,
+void ProfileSaver::Start(const ProfileSaverOptions& options,
+                         const std::string& output_filename,
                          jit::JitCodeCache* jit_code_cache,
                          const std::vector<std::string>& code_paths,
                          const std::string& foreign_dex_profile_path,
                          const std::string& app_data_dir) {
-  DCHECK(Runtime::Current()->SaveProfileInfo());
+  DCHECK(options.IsEnabled());
+  DCHECK(Runtime::Current()->GetJit() != nullptr);
   DCHECK(!output_filename.empty());
   DCHECK(jit_code_cache != nullptr);
 
@@ -420,7 +413,8 @@ void ProfileSaver::Start(const std::string& output_filename,
   VLOG(profiler) << "Starting profile saver using output file: " << output_filename
       << ". Tracking: " << Join(code_paths_to_profile, ':');
 
-  instance_ = new ProfileSaver(output_filename,
+  instance_ = new ProfileSaver(options,
+                               output_filename,
                                jit_code_cache,
                                code_paths_to_profile,
                                foreign_dex_profile_path,
