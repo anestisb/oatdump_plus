@@ -71,12 +71,12 @@ namespace art {
 
 #if defined(__APPLE__) && defined(__x86_64__)
 // mac symbols have a prefix of _ on x86_64
-extern "C" void _art_quick_throw_null_pointer_exception();
+extern "C" void _art_quick_throw_null_pointer_exception_from_signal();
 extern "C" void _art_quick_throw_stack_overflow();
 extern "C" void _art_quick_test_suspend();
 #define EXT_SYM(sym) _ ## sym
 #else
-extern "C" void art_quick_throw_null_pointer_exception();
+extern "C" void art_quick_throw_null_pointer_exception_from_signal();
 extern "C" void art_quick_throw_stack_overflow();
 extern "C" void art_quick_test_suspend();
 #define EXT_SYM(sym) sym
@@ -292,7 +292,10 @@ void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo, void* context,
   *out_return_pc = reinterpret_cast<uintptr_t>(pc + instr_size);
 }
 
-bool NullPointerHandler::Action(int, siginfo_t*, void* context) {
+bool NullPointerHandler::Action(int, siginfo_t* sig, void* context) {
+  if (!IsValidImplicitCheck(sig)) {
+    return false;
+  }
   struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
   uint8_t* pc = reinterpret_cast<uint8_t*>(uc->CTX_EIP);
   uint8_t* sp = reinterpret_cast<uint8_t*>(uc->CTX_ESP);
@@ -314,7 +317,15 @@ bool NullPointerHandler::Action(int, siginfo_t*, void* context) {
   *next_sp = retaddr;
   uc->CTX_ESP = reinterpret_cast<uintptr_t>(next_sp);
 
-  uc->CTX_EIP = reinterpret_cast<uintptr_t>(EXT_SYM(art_quick_throw_null_pointer_exception));
+  uc->CTX_EIP = reinterpret_cast<uintptr_t>(
+      EXT_SYM(art_quick_throw_null_pointer_exception_from_signal));
+  // Pass the faulting address as the first argument of
+  // art_quick_throw_null_pointer_exception_from_signal.
+#if defined(__x86_64__)
+  uc->CTX_RDI = reinterpret_cast<uintptr_t>(sig->si_addr);
+#else
+  uc->CTX_EAX = reinterpret_cast<uintptr_t>(sig->si_addr);
+#endif
   VLOG(signals) << "Generating null pointer exception";
   return true;
 }

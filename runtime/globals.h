@@ -40,6 +40,12 @@ static constexpr size_t kStackAlignment = 16;
 // compile-time constant so the compiler can generate better code.
 static constexpr int kPageSize = 4096;
 
+// Returns whether the given memory offset can be used for generating
+// an implicit null check.
+static inline bool CanDoImplicitNullCheckOn(uintptr_t offset) {
+  return offset < kPageSize;
+}
+
 // Required object alignment
 static constexpr size_t kObjectAlignment = 8;
 static constexpr size_t kLargeObjectAlignment = kPageSize;

@@ -1060,6 +1060,8 @@ class Thread {
     return tlsPtr_.mterp_alt_ibase;
   }
 
+  // Notify that a signal is being handled. This is to protect us from doing recursive
+  // NPE handling after a SIGSEGV.
   void NoteSignalBeingHandled() {
     if (tls32_.handling_signal_) {
       LOG(FATAL) << "Detected signal while processing a signal";

@@ -195,7 +195,7 @@ void ThrowNullPointerExceptionForMethodAccess(ArtMethod* method,
                                               InvokeType type)
     SHARED_REQUIRES(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowNullPointerExceptionFromDexPC()
+void ThrowNullPointerExceptionFromDexPC(bool check_address = false, uintptr_t addr = 0)
     SHARED_REQUIRES(Locks::mutator_lock_) COLD_ATTR;
 
 void ThrowNullPointerException(const char* msg)

@@ -34,7 +34,7 @@
 
 namespace art {
 
-extern "C" void art_quick_throw_null_pointer_exception();
+extern "C" void art_quick_throw_null_pointer_exception_from_signal();
 extern "C" void art_quick_throw_stack_overflow();
 extern "C" void art_quick_implicit_suspend();
 
@@ -107,8 +107,10 @@ void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo ATTRIBUTE_UNUSED
   *out_return_pc = (sc->arm_pc + instr_size) | 1;
 }
 
-bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
-                                void* context) {
+bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info, void* context) {
+  if (!IsValidImplicitCheck(info)) {
+    return false;
+  }
   // The code that looks for the catch location needs to know the value of the
   // ARM PC at the point of call.  For Null checks we insert a GC map that is immediately after
   // the load/store instruction that might cause the fault.  However the mapping table has
@@ -122,7 +124,10 @@ bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIB
 
   uint32_t instr_size = GetInstructionSize(ptr);
   sc->arm_lr = (sc->arm_pc + instr_size) | 1;      // LR needs to point to gc map location
-  sc->arm_pc = reinterpret_cast<uintptr_t>(art_quick_throw_null_pointer_exception);
+  sc->arm_pc = reinterpret_cast<uintptr_t>(art_quick_throw_null_pointer_exception_from_signal);
+  // Pass the faulting address as the first argument of
+  // art_quick_throw_null_pointer_exception_from_signal.
+  sc->arm_r0 = reinterpret_cast<uintptr_t>(info->si_addr);
   VLOG(signals) << "Generating null pointer exception";
   return true;
 }
