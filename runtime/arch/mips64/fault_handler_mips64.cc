@@ -27,7 +27,7 @@
 #include "thread-inl.h"
 
 extern "C" void art_quick_throw_stack_overflow();
-extern "C" void art_quick_throw_null_pointer_exception();
+extern "C" void art_quick_throw_null_pointer_exception_from_signal();
 
 //
 // Mips64 specific fault handler functions.
@@ -71,8 +71,11 @@ void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo, void* context,
   *out_return_pc = sc->sc_pc + 4;
 }
 
-bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
-                                void* context) {
+bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info, void* context) {
+  if (!IsValidImplicitCheck(info)) {
+    return false;
+  }
+
   // The code that looks for the catch location needs to know the value of the
   // PC at the point of call.  For Null checks we insert a GC map that is immediately after
   // the load/store instruction that might cause the fault.
@@ -81,8 +84,11 @@ bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIB
   struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
 
   sc->sc_regs[31] = sc->sc_pc + 4;      // RA needs to point to gc map location
-  sc->sc_pc = reinterpret_cast<uintptr_t>(art_quick_throw_null_pointer_exception);
+  sc->sc_pc = reinterpret_cast<uintptr_t>(art_quick_throw_null_pointer_exception_from_signal);
   sc->sc_regs[25] = sc->sc_pc;          // make sure T9 points to the function
+  // Pass the faulting address as the first argument of
+  // art_quick_throw_null_pointer_exception_from_signal.
+  sc->sc_regs[0] = reinterpret_cast<uintptr_t>(info->si_addr);
   VLOG(signals) << "Generating null pointer exception";
   return true;
 }
