@@ -31,7 +31,7 @@
 #include "experimental_flags.h"
 #include "gc/collector_type.h"
 #include "gc/space/large_object_space.h"
-#include "profiler_options.h"
+#include "jit/profile_saver_options.h"
 
 namespace art {
 
@@ -633,84 +633,17 @@ struct CmdlineType<LogVerbosity> : CmdlineTypeParser<LogVerbosity> {
   static const char* Name() { return "LogVerbosity"; }
 };
 
-// TODO: Replace with art::ProfilerOptions for the real thing.
-struct TestProfilerOptions {
-  // Whether or not the applications should be profiled.
-  bool enabled_;
-  // Destination file name where the profiling data will be saved into.
-  std::string output_file_name_;
-  // Generate profile every n seconds.
-  uint32_t period_s_;
-  // Run profile for n seconds.
-  uint32_t duration_s_;
-  // Microseconds between samples.
-  uint32_t interval_us_;
-  // Coefficient to exponential backoff.
-  double backoff_coefficient_;
-  // Whether the profile should start upon app startup or be delayed by some random offset.
-  bool start_immediately_;
-  // Top K% of samples that are considered relevant when deciding if the app should be recompiled.
-  double top_k_threshold_;
-  // How much the top K% samples needs to change in order for the app to be recompiled.
-  double top_k_change_threshold_;
-  // The type of profile data dumped to the disk.
-  ProfileDataType profile_type_;
-  // The max depth of the stack collected by the profiler
-  uint32_t max_stack_depth_;
-
-  TestProfilerOptions() :
-    enabled_(false),
-    output_file_name_(),
-    period_s_(0),
-    duration_s_(0),
-    interval_us_(0),
-    backoff_coefficient_(0),
-    start_immediately_(0),
-    top_k_threshold_(0),
-    top_k_change_threshold_(0),
-    profile_type_(ProfileDataType::kProfilerMethod),
-    max_stack_depth_(0) {
-  }
-
-  TestProfilerOptions(const TestProfilerOptions&) = default;
-  TestProfilerOptions(TestProfilerOptions&&) = default;
-};
-
-static inline std::ostream& operator<<(std::ostream& stream, const TestProfilerOptions& options) {
-  stream << "TestProfilerOptions {" << std::endl;
-
-#define PRINT_TO_STREAM(field) \
-  stream << #field << ": '" << options.field << "'" << std::endl;
-
-  PRINT_TO_STREAM(enabled_);
-  PRINT_TO_STREAM(output_file_name_);
-  PRINT_TO_STREAM(period_s_);
-  PRINT_TO_STREAM(duration_s_);
-  PRINT_TO_STREAM(interval_us_);
-  PRINT_TO_STREAM(backoff_coefficient_);
-  PRINT_TO_STREAM(start_immediately_);
-  PRINT_TO_STREAM(top_k_threshold_);
-  PRINT_TO_STREAM(top_k_change_threshold_);
-  PRINT_TO_STREAM(profile_type_);
-  PRINT_TO_STREAM(max_stack_depth_);
-
-  stream << "}";
-
-  return stream;
-#undef PRINT_TO_STREAM
-}
-
 template <>
-struct CmdlineType<TestProfilerOptions> : CmdlineTypeParser<TestProfilerOptions> {
-  using Result = CmdlineParseResult<TestProfilerOptions>;
+struct CmdlineType<ProfileSaverOptions> : CmdlineTypeParser<ProfileSaverOptions> {
+  using Result = CmdlineParseResult<ProfileSaverOptions>;
 
  private:
   using StringResult = CmdlineParseResult<std::string>;
   using DoubleResult = CmdlineParseResult<double>;
 
   template <typename T>
-  static Result ParseInto(TestProfilerOptions& options,
-                          T TestProfilerOptions::*pField,
+  static Result ParseInto(ProfileSaverOptions& options,
+                          T ProfileSaverOptions::*pField,
                           CmdlineParseResult<T>&& result) {
     assert(pField != nullptr);
 
@@ -720,36 +653,6 @@ struct CmdlineType<TestProfilerOptions> : CmdlineTypeParser<TestProfilerOptions>
     }
 
     return Result::CastError(result);
-  }
-
-  template <typename T>
-  static Result ParseIntoRangeCheck(TestProfilerOptions& options,
-                                    T TestProfilerOptions::*pField,
-                                    CmdlineParseResult<T>&& result,
-                                    T min,
-                                    T max) {
-    if (result.IsSuccess()) {
-      const T& value = result.GetValue();
-
-      if (value < min || value > max) {
-        CmdlineParseResult<T> out_of_range = CmdlineParseResult<T>::OutOfRange(value, min, max);
-        return Result::CastError(out_of_range);
-      }
-    }
-
-    return ParseInto(options, pField, std::forward<CmdlineParseResult<T>>(result));
-  }
-
-  static StringResult ParseStringAfterChar(const std::string& s, char c) {
-    std::string parsed_value;
-
-    std::string::size_type colon = s.find(c);
-    if (colon == std::string::npos) {
-      return StringResult::Usage(std::string() + "Missing char " + c + " in option " + s);
-    }
-    // Add one to remove the char we were trimming until.
-    parsed_value = s.substr(colon + 1);
-    return StringResult::Success(parsed_value);
   }
 
   static std::string RemovePrefix(const std::string& source) {
@@ -763,87 +666,64 @@ struct CmdlineType<TestProfilerOptions> : CmdlineTypeParser<TestProfilerOptions>
   }
 
  public:
-  Result ParseAndAppend(const std::string& option, TestProfilerOptions& existing) {
+  Result ParseAndAppend(const std::string& option, ProfileSaverOptions& existing) {
     // Special case which doesn't include a wildcard argument definition.
     // We pass-it through as-is.
-    if (option == "-Xenable-profiler") {
+    if (option == "-Xjitsaveprofilinginfo") {
       existing.enabled_ = true;
       return Result::SuccessNoValue();
     }
 
-    // The rest of these options are always the wildcard from '-Xprofile-*'
+    // The rest of these options are always the wildcard from '-Xps-*'
     std::string suffix = RemovePrefix(option);
 
-    if (StartsWith(option, "filename:")) {
-      CmdlineType<std::string> type_parser;
-
-      return ParseInto(existing,
-                       &TestProfilerOptions::output_file_name_,
-                       type_parser.Parse(suffix));
-    } else if (StartsWith(option, "period:")) {
+    if (StartsWith(option, "min-save-period-ms:")) {
       CmdlineType<unsigned int> type_parser;
-
       return ParseInto(existing,
-                       &TestProfilerOptions::period_s_,
-                       type_parser.Parse(suffix));
-    } else if (StartsWith(option, "duration:")) {
+             &ProfileSaverOptions::min_save_period_ms_,
+             type_parser.Parse(suffix));
+    }
+    if (StartsWith(option, "save-resolved-classes-delay-ms:")) {
       CmdlineType<unsigned int> type_parser;
-
       return ParseInto(existing,
-                       &TestProfilerOptions::duration_s_,
-                       type_parser.Parse(suffix));
-    } else if (StartsWith(option, "interval:")) {
+             &ProfileSaverOptions::save_resolved_classes_delay_ms_,
+             type_parser.Parse(suffix));
+    }
+    if (StartsWith(option, "startup-method-samples:")) {
       CmdlineType<unsigned int> type_parser;
-
       return ParseInto(existing,
-                       &TestProfilerOptions::interval_us_,
-                       type_parser.Parse(suffix));
-    } else if (StartsWith(option, "backoff:")) {
-      CmdlineType<double> type_parser;
-
-      return ParseIntoRangeCheck(existing,
-                                 &TestProfilerOptions::backoff_coefficient_,
-                                 type_parser.Parse(suffix),
-                                 1.0,
-                                 10.0);
-
-    } else if (option == "start-immediately") {
-      existing.start_immediately_ = true;
-      return Result::SuccessNoValue();
-    } else if (StartsWith(option, "top-k-threshold:")) {
-      CmdlineType<double> type_parser;
-
-      return ParseIntoRangeCheck(existing,
-                                 &TestProfilerOptions::top_k_threshold_,
-                                 type_parser.Parse(suffix),
-                                 0.0,
-                                 100.0);
-    } else if (StartsWith(option, "top-k-change-threshold:")) {
-      CmdlineType<double> type_parser;
-
-      return ParseIntoRangeCheck(existing,
-                                 &TestProfilerOptions::top_k_change_threshold_,
-                                 type_parser.Parse(suffix),
-                                 0.0,
-                                 100.0);
-    } else if (option == "type:method") {
-      existing.profile_type_ = kProfilerMethod;
-      return Result::SuccessNoValue();
-    } else if (option == "type:stack") {
-      existing.profile_type_ = kProfilerBoundedStack;
-      return Result::SuccessNoValue();
-    } else if (StartsWith(option, "max-stack-depth:")) {
+             &ProfileSaverOptions::startup_method_samples_,
+             type_parser.Parse(suffix));
+    }
+    if (StartsWith(option, "min-methods-to-save:")) {
       CmdlineType<unsigned int> type_parser;
-
       return ParseInto(existing,
-                       &TestProfilerOptions::max_stack_depth_,
-                       type_parser.Parse(suffix));
+             &ProfileSaverOptions::min_methods_to_save_,
+             type_parser.Parse(suffix));
+    }
+    if (StartsWith(option, "min-classes-to-save:")) {
+      CmdlineType<unsigned int> type_parser;
+      return ParseInto(existing,
+             &ProfileSaverOptions::min_classes_to_save_,
+             type_parser.Parse(suffix));
+    }
+    if (StartsWith(option, "min-notification-before-wake:")) {
+      CmdlineType<unsigned int> type_parser;
+      return ParseInto(existing,
+             &ProfileSaverOptions::min_notification_before_wake_,
+             type_parser.Parse(suffix));
+    }
+    if (StartsWith(option, "max-notification-before-wake:")) {
+      CmdlineType<unsigned int> type_parser;
+      return ParseInto(existing,
+             &ProfileSaverOptions::max_notification_before_wake_,
+             type_parser.Parse(suffix));
     } else {
       return Result::Failure(std::string("Invalid suboption '") + option + "'");
     }
   }
 
-  static const char* Name() { return "TestProfilerOptions"; }
+  static const char* Name() { return "ProfileSaverOptions"; }
   static constexpr bool kCanParseBlankless = true;
 };
 

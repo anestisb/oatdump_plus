@@ -24,6 +24,7 @@
 #include "base/timing_logger.h"
 #include "object_callbacks.h"
 #include "offline_profiling_info.h"
+#include "jit/profile_saver_options.h"
 #include "thread_pool.h"
 
 namespace art {
@@ -92,8 +93,8 @@ class Jit {
     return use_jit_compilation_;
   }
 
-  bool SaveProfilingInfo() const {
-    return save_profiling_info_;
+  bool GetSaveProfilingInfo() const {
+    return profile_saver_options_.IsEnabled();
   }
 
   // Wait until there is no more pending compilation tasks.
@@ -189,7 +190,7 @@ class Jit {
   std::unique_ptr<jit::JitCodeCache> code_cache_;
 
   bool use_jit_compilation_;
-  bool save_profiling_info_;
+  ProfileSaverOptions profile_saver_options_;
   static bool generate_debug_info_;
   uint16_t hot_method_threshold_;
   uint16_t warm_method_threshold_;
@@ -228,8 +229,11 @@ class JitOptions {
   bool DumpJitInfoOnShutdown() const {
     return dump_info_on_shutdown_;
   }
+  const ProfileSaverOptions& GetProfileSaverOptions() const {
+    return profile_saver_options_;
+  }
   bool GetSaveProfilingInfo() const {
-    return save_profiling_info_;
+    return profile_saver_options_.IsEnabled();
   }
   bool UseJitCompilation() const {
     return use_jit_compilation_;
@@ -237,8 +241,8 @@ class JitOptions {
   void SetUseJitCompilation(bool b) {
     use_jit_compilation_ = b;
   }
-  void SetSaveProfilingInfo(bool b) {
-    save_profiling_info_ = b;
+  void SetSaveProfilingInfo(bool save_profiling_info) {
+    profile_saver_options_.SetEnabled(save_profiling_info);
   }
   void SetJitAtFirstUse() {
     use_jit_compilation_ = true;
@@ -255,15 +259,14 @@ class JitOptions {
   uint16_t priority_thread_weight_;
   size_t invoke_transition_weight_;
   bool dump_info_on_shutdown_;
-  bool save_profiling_info_;
+  ProfileSaverOptions profile_saver_options_;
 
   JitOptions()
       : use_jit_compilation_(false),
         code_cache_initial_capacity_(0),
         code_cache_max_capacity_(0),
         compile_threshold_(0),
-        dump_info_on_shutdown_(false),
-        save_profiling_info_(false) { }
+        dump_info_on_shutdown_(false) {}
 
   DISALLOW_COPY_AND_ASSIGN(JitOptions);
 };

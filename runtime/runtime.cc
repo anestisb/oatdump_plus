@@ -627,17 +627,6 @@ bool Runtime::Start() {
   VLOG(startup) << "Runtime::Start exiting";
   finished_starting_ = true;
 
-  if (profiler_options_.IsEnabled() && !profile_output_filename_.empty()) {
-    // User has asked for a profile using -Xenable-profiler.
-    // Create the profile file if it doesn't exist.
-    int fd = open(profile_output_filename_.c_str(), O_RDWR|O_CREAT|O_EXCL, 0660);
-    if (fd >= 0) {
-      close(fd);
-    } else if (errno != EEXIST) {
-      LOG(WARNING) << "Failed to access the profile file. Profiler disabled.";
-    }
-  }
-
   if (trace_config_.get() != nullptr && trace_config_->trace_file != "") {
     ScopedThreadStateChange tsc(self, kWaitingForMethodTracingStart);
     Trace::Start(trace_config_->trace_file.c_str(),
@@ -1196,26 +1185,6 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
         Trace::TraceOutputMode::kFile;
   }
 
-  {
-    auto&& profiler_options = runtime_options.ReleaseOrDefault(Opt::ProfilerOpts);
-    profile_output_filename_ = profiler_options.output_file_name_;
-
-    // TODO: Don't do this, just change ProfilerOptions to include the output file name?
-    ProfilerOptions other_options(
-        profiler_options.enabled_,
-        profiler_options.period_s_,
-        profiler_options.duration_s_,
-        profiler_options.interval_us_,
-        profiler_options.backoff_coefficient_,
-        profiler_options.start_immediately_,
-        profiler_options.top_k_threshold_,
-        profiler_options.top_k_change_threshold_,
-        profiler_options.profile_type_,
-        profiler_options.max_stack_depth_);
-
-    profiler_options_ = other_options;
-  }
-
   // TODO: move this to just be an Trace::Start argument
   Trace::SetDefaultClockSource(runtime_options.GetOrDefault(Opt::ProfileClock));
 
@@ -1753,7 +1722,6 @@ void Runtime::RegisterAppInfo(const std::vector<std::string>& code_paths,
     return;
   }
 
-  profile_output_filename_ = profile_output_filename;
   jit_->StartProfileSaver(profile_output_filename,
                           code_paths,
                           foreign_dex_profile_path,
@@ -2002,11 +1970,6 @@ void Runtime::RegisterSensitiveThread() const {
 // Returns true if JIT compilations are enabled. GetJit() will be not null in this case.
 bool Runtime::UseJitCompilation() const {
   return (jit_ != nullptr) && jit_->UseJitCompilation();
-}
-
-// Returns true if profile saving is enabled. GetJit() will be not null in this case.
-bool Runtime::SaveProfileInfo() const {
-  return (jit_ != nullptr) && jit_->SaveProfilingInfo();
 }
 
 }  // namespace art
