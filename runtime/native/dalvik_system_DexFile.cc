@@ -33,7 +33,6 @@
 #include "oat_file_assistant.h"
 #include "oat_file_manager.h"
 #include "os.h"
-#include "profiler.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
