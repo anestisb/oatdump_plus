@@ -169,7 +169,6 @@ LIBART_COMMON_SRC_FILES := \
   os_linux.cc \
   parsed_options.cc \
   primitive.cc \
-  profiler.cc \
   quick_exception_handler.cc \
   quick/inline_method_analyser.cc \
   reference_table.cc \
