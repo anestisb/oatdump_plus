@@ -52,8 +52,18 @@ extern "C" NO_RETURN void artDeliverExceptionFromCode(mirror::Throwable* excepti
 extern "C" NO_RETURN void artThrowNullPointerExceptionFromCode(Thread* self)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
+  // We come from an explicit check in the generated code. This path is triggered
+  // only if the object is indeed null.
+  ThrowNullPointerExceptionFromDexPC(/* check_address */ false, 0U);
+  self->QuickDeliverException();
+}
+
+// Installed by a signal handler to throw a NPE exception.
+extern "C" NO_RETURN void artThrowNullPointerExceptionFromSignal(uintptr_t addr, Thread* self)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  ScopedQuickEntrypointChecks sqec(self);
   self->NoteSignalBeingHandled();
-  ThrowNullPointerExceptionFromDexPC();
+  ThrowNullPointerExceptionFromDexPC(/* check_address */ true, addr);
   self->NoteSignalHandlerDone();
   self->QuickDeliverException();
 }
