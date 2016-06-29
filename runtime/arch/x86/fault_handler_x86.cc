@@ -36,6 +36,7 @@
 #define CTX_EIP uc_mcontext->__ss.__rip
 #define CTX_EAX uc_mcontext->__ss.__rax
 #define CTX_METHOD uc_mcontext->__ss.__rdi
+#define CTX_RDI uc_mcontext->__ss.__rdi
 #define CTX_JMP_BUF uc_mcontext->__ss.__rdi
 #else
 // 32 bit mac build.
