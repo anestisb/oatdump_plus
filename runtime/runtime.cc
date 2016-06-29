@@ -118,7 +118,6 @@
 #include "oat_file_manager.h"
 #include "os.h"
 #include "parsed_options.h"
-#include "profiler.h"
 #include "jit/profile_saver.h"
 #include "quick/quick_method_frame_info.h"
 #include "reflection.h"
