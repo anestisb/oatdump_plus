@@ -2954,7 +2954,7 @@ void InstructionCodeGeneratorMIPS64::VisitInvokeInterface(HInvokeInterface* invo
   __ LoadFromOffset(kLoadDoubleword, temp, temp,
       mirror::Class::ImtPtrOffset(kMips64PointerSize).Uint32Value());
   uint32_t method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
-      invoke->GetImtIndex(), kMips64PointerSize));
+      invoke->GetImtIndex() % ImTable::kSize, kMips64PointerSize));
   // temp = temp->GetImtEntryAt(method_offset);
   __ LoadFromOffset(kLoadDoubleword, temp, temp, method_offset);
   // T9 = temp->GetEntryPoint();

@@ -418,8 +418,6 @@ class ArtMethod FINAL {
 
   ALWAYS_INLINE uint32_t GetDexMethodIndex() SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ALWAYS_INLINE uint32_t GetImtIndex() SHARED_REQUIRES(Locks::mutator_lock_);
-
   void SetDexMethodIndex(uint32_t new_idx) {
     // Not called within a transaction.
     dex_method_index_ = new_idx;
