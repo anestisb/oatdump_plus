@@ -30,18 +30,15 @@ namespace art {
   bool UsuallyEquals(double expected, double actual);
 
   // This has a gtest dependency, which is why it's in the gtest only.
-  bool operator==(const TestProfilerOptions& lhs, const TestProfilerOptions& rhs) {
+  bool operator==(const ProfileSaverOptions& lhs, const ProfileSaverOptions& rhs) {
     return lhs.enabled_ == rhs.enabled_ &&
-        lhs.output_file_name_ == rhs.output_file_name_ &&
-        lhs.period_s_ == rhs.period_s_ &&
-        lhs.duration_s_ == rhs.duration_s_ &&
-        lhs.interval_us_ == rhs.interval_us_ &&
-        UsuallyEquals(lhs.backoff_coefficient_, rhs.backoff_coefficient_) &&
-        UsuallyEquals(lhs.start_immediately_, rhs.start_immediately_) &&
-        UsuallyEquals(lhs.top_k_threshold_, rhs.top_k_threshold_) &&
-        UsuallyEquals(lhs.top_k_change_threshold_, rhs.top_k_change_threshold_) &&
-        lhs.profile_type_ == rhs.profile_type_ &&
-        lhs.max_stack_depth_ == rhs.max_stack_depth_;
+        lhs.min_save_period_ms_ == rhs.min_save_period_ms_ &&
+        lhs.save_resolved_classes_delay_ms_ == rhs.save_resolved_classes_delay_ms_ &&
+        lhs.startup_method_samples_ == rhs.startup_method_samples_ &&
+        lhs.min_methods_to_save_ == rhs.min_methods_to_save_ &&
+        lhs.min_classes_to_save_ == rhs.min_classes_to_save_ &&
+        lhs.min_notification_before_wake_ == rhs.min_notification_before_wake_ &&
+        lhs.max_notification_before_wake_ == rhs.max_notification_before_wake_;
   }
 
   bool UsuallyEquals(double expected, double actual) {
@@ -476,68 +473,21 @@ TEST_F(CmdlineParserTest, TestJitOptions) {
 }  // TEST_F
 
 /*
-* -X-profile-*
+* -Xps-*
 */
-TEST_F(CmdlineParserTest, TestProfilerOptions) {
- /*
-  * Test successes
-  */
+TEST_F(CmdlineParserTest, ProfileSaverOptions) {
+  ProfileSaverOptions opt = ProfileSaverOptions(true, 1, 2, 3, 4, 5, 6, 7);
 
-  {
-    TestProfilerOptions opt;
-    opt.enabled_ = true;
-
-    EXPECT_SINGLE_PARSE_VALUE(opt,
-                              "-Xenable-profiler",
-                              M::ProfilerOpts);
-  }
-
-  {
-    TestProfilerOptions opt;
-    // also need to test 'enabled'
-    opt.output_file_name_ = "hello_world.txt";
-
-    EXPECT_SINGLE_PARSE_VALUE(opt,
-                              "-Xprofile-filename:hello_world.txt ",
-                              M::ProfilerOpts);
-  }
-
-  {
-    TestProfilerOptions opt = TestProfilerOptions();
-    // also need to test 'enabled'
-    opt.output_file_name_ = "output.txt";
-    opt.period_s_ = 123u;
-    opt.duration_s_ = 456u;
-    opt.interval_us_ = 789u;
-    opt.backoff_coefficient_ = 2.0;
-    opt.start_immediately_ = true;
-    opt.top_k_threshold_ = 50.0;
-    opt.top_k_change_threshold_ = 60.0;
-    opt.profile_type_ = kProfilerMethod;
-    opt.max_stack_depth_ = 1337u;
-
-    EXPECT_SINGLE_PARSE_VALUE(opt,
-                              "-Xprofile-filename:output.txt "
-                              "-Xprofile-period:123 "
-                              "-Xprofile-duration:456 "
-                              "-Xprofile-interval:789 "
-                              "-Xprofile-backoff:2.0 "
-                              "-Xprofile-start-immediately "
-                              "-Xprofile-top-k-threshold:50.0 "
-                              "-Xprofile-top-k-change-threshold:60.0 "
-                              "-Xprofile-type:method "
-                              "-Xprofile-max-stack-depth:1337",
-                              M::ProfilerOpts);
-  }
-
-  {
-    TestProfilerOptions opt = TestProfilerOptions();
-    opt.profile_type_ = kProfilerBoundedStack;
-
-    EXPECT_SINGLE_PARSE_VALUE(opt,
-                              "-Xprofile-type:stack",
-                              M::ProfilerOpts);
-  }
+  EXPECT_SINGLE_PARSE_VALUE(opt,
+                            "-Xjitsaveprofilinginfo "
+                            "-Xps-min-save-period-ms:1 "
+                            "-Xps-save-resolved-classes-delay-ms:2 "
+                            "-Xps-startup-method-samples:3 "
+                            "-Xps-min-methods-to-save:4 "
+                            "-Xps-min-classes-to-save:5 "
+                            "-Xps-min-notification-before-wake:6 "
+                            "-Xps-max-notification-before-wake:7",
+                            M::ProfileSaverOpts);
 }  // TEST_F
 
 /* -Xexperimental:_ */

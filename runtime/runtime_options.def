@@ -75,7 +75,6 @@ RUNTIME_OPTIONS_KEY (unsigned int,        JITPriorityThreadWeight)
 RUNTIME_OPTIONS_KEY (unsigned int,        JITInvokeTransitionWeight)
 RUNTIME_OPTIONS_KEY (MemoryKiB,           JITCodeCacheInitialCapacity,    jit::JitCodeCache::kInitialCapacity)
 RUNTIME_OPTIONS_KEY (MemoryKiB,           JITCodeCacheMaxCapacity,        jit::JitCodeCache::kMaxCapacity)
-RUNTIME_OPTIONS_KEY (bool,                JITSaveProfilingInfo,           false)
 RUNTIME_OPTIONS_KEY (MillisecondsToNanoseconds, \
                                           HSpaceCompactForOOMMinIntervalsMs,\
                                                                           MsToNs(100 * 1000))  // 100s
@@ -105,7 +104,7 @@ RUNTIME_OPTIONS_KEY (std::string,         MethodTraceFile,                "/data
 RUNTIME_OPTIONS_KEY (unsigned int,        MethodTraceFileSize,            10 * MB)
 RUNTIME_OPTIONS_KEY (Unit,                MethodTraceStreaming)
 RUNTIME_OPTIONS_KEY (TraceClockSource,    ProfileClock,                   kDefaultTraceClockSource)  // -Xprofile:
-RUNTIME_OPTIONS_KEY (TestProfilerOptions, ProfilerOpts)  // -Xenable-profiler, -Xprofile-*
+RUNTIME_OPTIONS_KEY (ProfileSaverOptions, ProfileSaverOpts)  // -Xjitsaveprofilinginfo, -Xps-*
 RUNTIME_OPTIONS_KEY (std::string,         Compiler)
 RUNTIME_OPTIONS_KEY (std::vector<std::string>, \
                                           CompilerOptions)  // -Xcompiler-option ...
