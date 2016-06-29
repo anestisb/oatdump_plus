@@ -831,8 +831,7 @@ class MANAGED Class FINAL : public Object {
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool ShouldHaveImt() SHARED_REQUIRES(Locks::mutator_lock_) {
     return ShouldHaveEmbeddedVTable<kVerifyFlags, kReadBarrierOption>() &&
-        GetIfTable<kVerifyFlags, kReadBarrierOption>() != nullptr &&
-        !IsArrayClass<kVerifyFlags, kReadBarrierOption>();
+        GetIfTable() != nullptr && !IsArrayClass();
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
