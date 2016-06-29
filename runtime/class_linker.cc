@@ -6141,6 +6141,11 @@ void ClassLinker::FillIMTAndConflictTables(mirror::Class* klass) {
   }
 }
 
+static inline uint32_t GetIMTIndex(ArtMethod* interface_method)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  return interface_method->GetDexMethodIndex() % ImTable::kSize;
+}
+
 ImtConflictTable* ClassLinker::CreateImtConflictTable(size_t count,
                                                       LinearAlloc* linear_alloc,
                                                       size_t image_pointer_size) {
@@ -6192,7 +6197,7 @@ void ClassLinker::FillIMTFromIfTable(mirror::IfTable* if_table,
       // or interface methods in the IMT here they will not create extra conflicts since we compare
       // names and signatures in SetIMTRef.
       ArtMethod* interface_method = interface->GetVirtualMethod(j, image_pointer_size_);
-      const uint32_t imt_index = interface_method->GetImtIndex();
+      const uint32_t imt_index = GetIMTIndex(interface_method);
 
       // There is only any conflicts if all of the interface methods for an IMT slot don't have
       // the same implementation method, keep track of this to avoid creating a conflict table in
@@ -6246,7 +6251,7 @@ void ClassLinker::FillIMTFromIfTable(mirror::IfTable* if_table,
         }
         DCHECK(implementation_method != nullptr);
         ArtMethod* interface_method = interface->GetVirtualMethod(j, image_pointer_size_);
-        const uint32_t imt_index = interface_method->GetImtIndex();
+        const uint32_t imt_index = GetIMTIndex(interface_method);
         if (!imt[imt_index]->IsRuntimeMethod() ||
             imt[imt_index] == unimplemented_method ||
             imt[imt_index] == imt_conflict_method) {
@@ -6652,7 +6657,7 @@ bool ClassLinker::LinkInterfaceMethods(
         auto* interface_method = iftable->GetInterface(i)->GetVirtualMethod(j, image_pointer_size_);
         MethodNameAndSignatureComparator interface_name_comparator(
             interface_method->GetInterfaceMethodIfProxy(image_pointer_size_));
-        uint32_t imt_index = interface_method->GetImtIndex();
+        uint32_t imt_index = GetIMTIndex(interface_method);
         ArtMethod** imt_ptr = &out_imt[imt_index];
         // For each method listed in the interface's method list, find the
         // matching method in our class's method list.  We want to favor the
