@@ -655,6 +655,12 @@ void ThrowNullPointerExceptionFromDexPC(bool check_address, uintptr_t addr) {
                      "Using a null lambda");
       break;
     }
+    case Instruction::MONITOR_ENTER:
+    case Instruction::MONITOR_EXIT: {
+      ThrowException("Ljava/lang/NullPointerException;", nullptr,
+                     "Attempt to do a synchronize operation on a null object");
+      break;
+    }
     default: {
       const DexFile* dex_file =
           method->GetDeclaringClass()->GetDexCache()->GetDexFile();
