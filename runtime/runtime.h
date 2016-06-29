@@ -36,7 +36,6 @@
 #include "object_callbacks.h"
 #include "offsets.h"
 #include "process_state.h"
-#include "profiler_options.h"
 #include "quick/quick_method_frame_info.h"
 #include "runtime_stats.h"
 #include "safe_map.h"
@@ -190,10 +189,6 @@ class Runtime {
 
   const std::string& GetImageLocation() const {
     return image_location_;
-  }
-
-  const ProfilerOptions& GetProfilerOptions() const {
-    return profiler_options_;
   }
 
   // Starts a runtime, which may cause threads to be started and code to run.
@@ -455,8 +450,6 @@ class Runtime {
 
   // Returns true if JIT compilations are enabled. GetJit() will be not null in this case.
   bool UseJitCompilation() const;
-  // Returns true if profile saving is enabled. GetJit() will be not null in this case.
-  bool SaveProfileInfo() const;
 
   void PreZygoteFork();
   bool InitZygote();
@@ -781,9 +774,6 @@ class Runtime {
   RuntimeStats stats_;
 
   const bool is_running_on_memory_tool_;
-
-  std::string profile_output_filename_;
-  ProfilerOptions profiler_options_;
 
   std::unique_ptr<TraceConfig> trace_config_;
 
