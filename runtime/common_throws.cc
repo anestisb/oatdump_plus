@@ -438,11 +438,11 @@ static bool IsValidImplicitCheck(uintptr_t addr, ArtMethod* method, const Instru
     case Instruction::IPUT_BYTE:
     case Instruction::IPUT_CHAR:
     case Instruction::IPUT_SHORT: {
-      // Check that the fault address is at the offset of the field or null. The compiler
-      // can generate both.
       ArtField* field =
           Runtime::Current()->GetClassLinker()->ResolveField(instr.VRegC_22c(), method, false);
-      return (addr == 0) || (addr == field->GetOffset().Uint32Value());
+      return (addr == 0) ||
+          (addr == field->GetOffset().Uint32Value()) ||
+          (kEmitCompilerReadBarrier && (addr == mirror::Object::MonitorOffset().Uint32Value()));
     }
 
     case Instruction::IGET_QUICK:
@@ -459,9 +459,9 @@ static bool IsValidImplicitCheck(uintptr_t addr, ArtMethod* method, const Instru
     case Instruction::IPUT_SHORT_QUICK:
     case Instruction::IPUT_WIDE_QUICK:
     case Instruction::IPUT_OBJECT_QUICK: {
-      // Check that the fault address is at the offset in the quickened instruction or null.
-      // The compiler can generate both.
-      return (addr == 0u) || (addr == instr.VRegC_22c());
+      return (addr == 0u) ||
+          (addr == instr.VRegC_22c()) ||
+          (kEmitCompilerReadBarrier && (addr == mirror::Object::MonitorOffset().Uint32Value()));
     }
 
     case Instruction::AGET:
@@ -477,21 +477,14 @@ static bool IsValidImplicitCheck(uintptr_t addr, ArtMethod* method, const Instru
     case Instruction::APUT_BOOLEAN:
     case Instruction::APUT_BYTE:
     case Instruction::APUT_CHAR:
-    case Instruction::APUT_SHORT: {
-      // The length access should crash. We currently do not do implicit checks on
-      // the array access itself.
-      return (addr == 0u) || (addr == mirror::Array::LengthOffset().Uint32Value());
-    }
-
-    case Instruction::FILL_ARRAY_DATA: {
-      // The length access should crash. We currently do not do implicit checks on
-      // the array access itself.
-      return (addr == 0u) || (addr == mirror::Array::LengthOffset().Uint32Value());
-    }
-
+    case Instruction::APUT_SHORT:
+    case Instruction::FILL_ARRAY_DATA:
     case Instruction::ARRAY_LENGTH: {
-      // The length access should crash.
-      return (addr == 0u) || (addr == mirror::Array::LengthOffset().Uint32Value());
+      // The length access should crash. We currently do not do implicit checks on
+      // the array access itself.
+      return (addr == 0u) ||
+          (addr == mirror::Array::LengthOffset().Uint32Value()) ||
+          (kEmitCompilerReadBarrier && (addr == mirror::Object::MonitorOffset().Uint32Value()));
     }
 
     default: {
