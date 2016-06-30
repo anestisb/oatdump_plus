@@ -201,12 +201,22 @@ inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
                  << " state=" << old_state_and_flags.as_struct.state;
     } else if ((old_state_and_flags.as_struct.flags & kSuspendRequest) != 0) {
       // Wait while our suspend count is non-zero.
-      MutexLock mu(this, *Locks::thread_suspend_count_lock_);
+
+      // We pass null to the MutexLock as we may be in a situation where the
+      // runtime is shutting down. Guarding ourselves from that situation
+      // requires to take the shutdown lock, which is undesirable here.
+      Thread* thread_to_pass = nullptr;
+      if (kIsDebugBuild && !IsDaemon()) {
+        // We know we can make our debug locking checks on non-daemon threads,
+        // so re-enable them on debug builds.
+        thread_to_pass = this;
+      }
+      MutexLock mu(thread_to_pass, *Locks::thread_suspend_count_lock_);
       old_state_and_flags.as_int = tls32_.state_and_flags.as_int;
       DCHECK_EQ(old_state_and_flags.as_struct.state, old_state);
       while ((old_state_and_flags.as_struct.flags & kSuspendRequest) != 0) {
         // Re-check when Thread::resume_cond_ is notified.
-        Thread::resume_cond_->Wait(this);
+        Thread::resume_cond_->Wait(thread_to_pass);
         old_state_and_flags.as_int = tls32_.state_and_flags.as_int;
         DCHECK_EQ(old_state_and_flags.as_struct.state, old_state);
       }
