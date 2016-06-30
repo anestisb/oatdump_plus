@@ -16,6 +16,7 @@
 
 package com.android.ahat;
 
+import com.android.tools.perflib.captures.MemoryMappedFileBuffer;
 import com.android.tools.perflib.heap.ClassObj;
 import com.android.tools.perflib.heap.Heap;
 import com.android.tools.perflib.heap.Instance;
@@ -24,9 +25,11 @@ import com.android.tools.perflib.heap.RootType;
 import com.android.tools.perflib.heap.Snapshot;
 import com.android.tools.perflib.heap.StackFrame;
 import com.android.tools.perflib.heap.StackTrace;
-import com.android.tools.perflib.captures.MemoryMappedFileBuffer;
+
 import com.google.common.collect.Lists;
+
 import gnu.trove.TObjectProcedure;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
