@@ -384,6 +384,8 @@ static const MipsInstruction gMipsInstructions[] = {
   { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 13, "trunc.w", "fad" },
   { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 14, "ceil.w", "fad" },
   { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 15, "floor.w", "fad" },
+  { kFpMask | (0x201 << 16), kCop1 | (0x200 << 16) | 17, "movf", "fadc" },
+  { kFpMask | (0x201 << 16), kCop1 | (0x201 << 16) | 17, "movt", "fadc" },
   { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 26, "rint", "fad" },
   { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 27, "class", "fad" },
   { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 32, "cvt.s", "fad" },
