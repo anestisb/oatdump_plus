@@ -38,7 +38,6 @@ public class Main {
     test("B");
     test("C");
     test("D");
-    // TODO: enable again
-    // test("E");
+    test("E");
   }
 }
