@@ -562,7 +562,7 @@ public class Main {
   //
   /// CHECK-START: void Main.linearTriangularOnTwoArrayLengths(int) BCE (after)
   /// CHECK-NOT: BoundsCheck
-  //  TODO: also CHECK-NOT: Deoptimize, see b/27151190
+  /// CHECK-NOT: Deoptimize
   private static void linearTriangularOnTwoArrayLengths(int n) {
     int[] a = new int[n];
     for (int i = 0; i < a.length; i++) {
@@ -604,7 +604,7 @@ public class Main {
   //
   /// CHECK-START: void Main.linearTriangularOnParameter(int) BCE (after)
   /// CHECK-NOT: BoundsCheck
-  //  TODO: also CHECK-NOT: Deoptimize, see b/27151190
+  /// CHECK-NOT: Deoptimize
   private static void linearTriangularOnParameter(int n) {
     int[] a = new int[n];
     for (int i = 0; i < n; i++) {
@@ -619,56 +619,56 @@ public class Main {
     }
   }
 
-  /// CHECK-START: void Main.linearTriangularVariationsInnerStrict(int) BCE (before)
+  /// CHECK-START: void Main.linearTriangularStrictLower(int) BCE (before)
   /// CHECK-DAG: BoundsCheck
   /// CHECK-DAG: BoundsCheck
   /// CHECK-DAG: BoundsCheck
   /// CHECK-DAG: BoundsCheck
   //
-  /// CHECK-START: void Main.linearTriangularVariationsInnerStrict(int) BCE (after)
+  /// CHECK-START: void Main.linearTriangularStrictLower(int) BCE (after)
   /// CHECK-NOT: BoundsCheck
-  //  TODO: also CHECK-NOT: Deoptimize, see b/27151190
-  private static void linearTriangularVariationsInnerStrict(int n) {
+  /// CHECK-NOT: Deoptimize
+  private static void linearTriangularStrictLower(int n) {
     int[] a = new int[n];
     for (int i = 0; i < n; i++) {
       for (int j = 0; j < i; j++) {
         a[j] += 1;
       }
-      for (int j = i - 1; j > -1; j--) {
+      for (int j = i - 1; j >= 0; j--) {
         a[j] += 1;
       }
       for (int j = i; j < n; j++) {
         a[j] += 1;
       }
-      for (int j = n - 1; j > i - 1; j--) {
+      for (int j = n - 1; j >= i; j--) {
         a[j] += 1;
       }
     }
     verifyTriangular(a);
   }
 
-  /// CHECK-START: void Main.linearTriangularVariationsInnerNonStrict(int) BCE (before)
+  /// CHECK-START: void Main.linearTriangularStrictUpper(int) BCE (before)
   /// CHECK-DAG: BoundsCheck
   /// CHECK-DAG: BoundsCheck
   /// CHECK-DAG: BoundsCheck
   /// CHECK-DAG: BoundsCheck
   //
-  /// CHECK-START: void Main.linearTriangularVariationsInnerNonStrict(int) BCE (after)
+  /// CHECK-START: void Main.linearTriangularStrictUpper(int) BCE (after)
   /// CHECK-NOT: BoundsCheck
-  //  TODO: also CHECK-NOT: Deoptimize, see b/27151190
-  private static void linearTriangularVariationsInnerNonStrict(int n) {
+  /// CHECK-NOT: Deoptimize
+  private static void linearTriangularStrictUpper(int n) {
     int[] a = new int[n];
     for (int i = 0; i < n; i++) {
-      for (int j = 0; j <= i - 1; j++) {
+      for (int j = 0; j <= i; j++) {
         a[j] += 1;
       }
-      for (int j = i - 1; j >= 0; j--) {
+      for (int j = i; j >= 0; j--) {
         a[j] += 1;
       }
-      for (int j = i; j <= n - 1; j++) {
+      for (int j = i + 1; j < n; j++) {
         a[j] += 1;
       }
-      for (int j = n - 1; j >= i; j--) {
+      for (int j = n - 1; j >= i + 1; j--) {
         a[j] += 1;
       }
     }
@@ -802,8 +802,8 @@ public class Main {
     linearTriangularOnTwoArrayLengths(10);
     linearTriangularOnOneArrayLength(10);
     linearTriangularOnParameter(10);
-    linearTriangularVariationsInnerStrict(10);
-    linearTriangularVariationsInnerNonStrict(10);
+    linearTriangularStrictLower(10);
+    linearTriangularStrictUpper(10);
     {
       int[] t = linearTriangularOOB();
       for (int i = 0; i < 200; i++) {

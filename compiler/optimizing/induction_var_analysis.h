@@ -132,7 +132,7 @@ class HInductionVarAnalysis : public HOptimization {
                                  InductionInfo* a,
                                  InductionInfo* b,
                                  Primitive::Type type) {
-    DCHECK(a != nullptr);
+    DCHECK(a != nullptr && b != nullptr);
     return new (graph_->GetArena()) InductionInfo(kInvariant, op, a, b, nullptr, type);
   }
 
