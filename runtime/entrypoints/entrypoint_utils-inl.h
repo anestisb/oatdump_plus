@@ -448,23 +448,10 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object** this_
                      : ClassLinker::kNoICCECheckForCache;
     resolved_method = class_linker->ResolveMethod<resolve_mode>(self, method_idx, referrer, type);
   }
+  // Resolution and access check.
   if (UNLIKELY(resolved_method == nullptr)) {
     DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
     return nullptr;  // Failure.
-  } else if (UNLIKELY(*this_object == nullptr && type != kStatic)) {
-    if (UNLIKELY(resolved_method->GetDeclaringClass()->IsStringClass() &&
-                 resolved_method->IsConstructor())) {
-      // Hack for String init:
-      //
-      // We assume that the input of String.<init> in verified code is always
-      // an unitialized reference. If it is a null constant, it must have been
-      // optimized out by the compiler. Do not throw NullPointerException.
-    } else {
-      // Maintain interpreter-like semantics where NullPointerException is thrown
-      // after potential NoSuchMethodError from class linker.
-      ThrowNullPointerExceptionForMethodAccess(method_idx, type);
-      return nullptr;  // Failure.
-    }
   } else if (access_check) {
     mirror::Class* methods_class = resolved_method->GetDeclaringClass();
     bool can_access_resolved_method =
@@ -479,6 +466,22 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object** this_
     if (UNLIKELY(resolved_method->CheckIncompatibleClassChange(type))) {
       ThrowIncompatibleClassChangeError(type, resolved_method->GetInvokeType(), resolved_method,
                                         referrer);
+      return nullptr;  // Failure.
+    }
+  }
+  // Next, null pointer check.
+  if (UNLIKELY(*this_object == nullptr && type != kStatic)) {
+    if (UNLIKELY(resolved_method->GetDeclaringClass()->IsStringClass() &&
+                 resolved_method->IsConstructor())) {
+      // Hack for String init:
+      //
+      // We assume that the input of String.<init> in verified code is always
+      // an unitialized reference. If it is a null constant, it must have been
+      // optimized out by the compiler. Do not throw NullPointerException.
+    } else {
+      // Maintain interpreter-like semantics where NullPointerException is thrown
+      // after potential NoSuchMethodError from class linker.
+      ThrowNullPointerExceptionForMethodAccess(method_idx, type);
       return nullptr;  // Failure.
     }
   }
