@@ -19,9 +19,10 @@ package com.android.ahat;
 import com.android.tools.perflib.heap.ArrayInstance;
 import com.android.tools.perflib.heap.ClassInstance;
 import com.android.tools.perflib.heap.ClassObj;
-import com.android.tools.perflib.heap.Instance;
 import com.android.tools.perflib.heap.Heap;
+import com.android.tools.perflib.heap.Instance;
 import com.android.tools.perflib.heap.Type;
+
 import java.awt.image.BufferedImage;
 
 /**
@@ -42,11 +43,11 @@ class InstanceUtils {
    * Returns null if the instance is not a byte array.
    */
   private static byte[] asByteArray(Instance inst) {
-    if (! (inst instanceof ArrayInstance)) {
+    if (!(inst instanceof ArrayInstance)) {
       return null;
     }
 
-    ArrayInstance array = (ArrayInstance)inst;
+    ArrayInstance array = (ArrayInstance) inst;
     if (array.getArrayType() != Type.BYTE) {
       return null;
     }
@@ -54,7 +55,7 @@ class InstanceUtils {
     Object[] objs = array.getValues();
     byte[] bytes = new byte[objs.length];
     for (int i = 0; i < objs.length; i++) {
-      Byte b = (Byte)objs[i];
+      Byte b = (Byte) objs[i];
       bytes[i] = b.byteValue();
     }
     return bytes;
@@ -143,10 +144,10 @@ class InstanceUtils {
     int[] abgr = new int[height * width];
     for (int i = 0; i < abgr.length; i++) {
       abgr[i] = (
-          (((int)buffer[i * 4 + 3] & 0xFF) << 24) +
-          (((int)buffer[i * 4 + 0] & 0xFF) << 16) +
-          (((int)buffer[i * 4 + 1] & 0xFF) << 8) +
-          ((int)buffer[i * 4 + 2] & 0xFF));
+          (((int) buffer[i * 4 + 3] & 0xFF) << 24)
+          + (((int) buffer[i * 4 + 0] & 0xFF) << 16)
+          + (((int) buffer[i * 4 + 1] & 0xFF) << 8)
+          + ((int) buffer[i * 4 + 2] & 0xFF));
     }
 
     BufferedImage bitmap = new BufferedImage(
@@ -185,7 +186,7 @@ class InstanceUtils {
     if (!(value instanceof Instance)) {
       return null;
     }
-    return (Instance)value;
+    return (Instance) value;
   }
 
   /**
@@ -199,7 +200,7 @@ class InstanceUtils {
     if (!(value instanceof Integer)) {
       return def;
     }
-    return (Integer)value;
+    return (Integer) value;
   }
 
   /**
@@ -213,7 +214,7 @@ class InstanceUtils {
     if (!(value instanceof Long)) {
       return def;
     }
-    return (Long)value;
+    return (Long) value;
   }
 
   /**
@@ -226,7 +227,7 @@ class InstanceUtils {
     if (!(value instanceof Instance)) {
       return null;
     }
-    return asByteArray((Instance)value);
+    return asByteArray((Instance) value);
   }
 
   // Return the bitmap instance associated with this object, or null if there
@@ -243,7 +244,7 @@ class InstanceUtils {
     }
 
     if (inst instanceof ArrayInstance) {
-      ArrayInstance array = (ArrayInstance)inst;
+      ArrayInstance array = (ArrayInstance) inst;
       if (array.getArrayType() == Type.BYTE && inst.getHardReverseReferences().size() == 1) {
         Instance ref = inst.getHardReverseReferences().get(0);
         ClassObj clsref = ref.getClassObj();
@@ -323,10 +324,10 @@ class InstanceUtils {
     // Note: We know inst as an instance of ClassInstance because we already
     // read the nativePtr field from it.
     Instance registry = null;
-    for (ClassInstance.FieldValue field : ((ClassInstance)inst).getValues()) {
+    for (ClassInstance.FieldValue field : ((ClassInstance) inst).getValues()) {
       Object fieldValue = field.getValue();
       if (fieldValue instanceof Instance) {
-        Instance fieldInst = (Instance)fieldValue;
+        Instance fieldInst = (Instance) fieldValue;
         if (isInstanceOfClass(fieldInst, "libcore.util.NativeAllocationRegistry")) {
           registry = fieldInst;
           break;

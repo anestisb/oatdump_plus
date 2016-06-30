@@ -16,13 +16,14 @@
 
 package com.android.ahat;
 
-import com.android.tools.perflib.heap.Instance;
 import com.android.tools.perflib.heap.Heap;
+import com.android.tools.perflib.heap.Instance;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Iterator;
+import java.util.List;
 
 /**
  * Provides Comparators and helper functions for sorting Instances, Sites, and
