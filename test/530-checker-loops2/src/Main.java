@@ -31,7 +31,7 @@ public class Main {
   //
   /// CHECK-START: void Main.bubble(int[]) BCE (after)
   /// CHECK-NOT: BoundsCheck
-  //  TODO: also CHECK-NOT: Deoptimize, see b/27151190
+  /// CHECK-NOT: Deoptimize
   private static void bubble(int[] a) {
     for (int i = a.length; --i >= 0;) {
       for (int j = 0; j < i; j++) {
@@ -301,6 +301,53 @@ public class Main {
     } while (-1 <= i);
   }
 
+  /// CHECK-START: void Main.justRightTriangular1() BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: void Main.justRightTriangular1() BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
+  private static void justRightTriangular1() {
+    int[] a = { 1 } ;
+    for (int i = Integer.MIN_VALUE + 5; i <= Integer.MIN_VALUE + 10; i++) {
+      for (int j = Integer.MIN_VALUE + 4; j < i - 5; j++) {
+        sResult += a[j - (Integer.MIN_VALUE + 4)];
+      }
+    }
+  }
+
+  /// CHECK-START: void Main.justRightTriangular2() BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: void Main.justRightTriangular2() BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
+  private static void justRightTriangular2() {
+    int[] a = { 1 } ;
+    for (int i = Integer.MIN_VALUE + 5; i <= 10; i++) {
+      for (int j = 4; j < i - 5; j++) {
+        sResult += a[j - 4];
+      }
+    }
+  }
+
+  /// CHECK-START: void Main.justOOBTriangular() BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: void Main.justOOBTriangular() BCE (after)
+  /// CHECK-DAG: Deoptimize
+  //
+  /// CHECK-START: void Main.justOOBTriangular() BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  private static void justOOBTriangular() {
+    int[] a = { 1 } ;
+    for (int i = Integer.MIN_VALUE + 4; i <= 10; i++) {
+      for (int j = 4; j < i - 5; j++) {
+        sResult += a[j - 4];
+      }
+    }
+  }
+
   /// CHECK-START: void Main.hiddenOOB1(int) BCE (before)
   /// CHECK-DAG: BoundsCheck
   //
@@ -315,7 +362,6 @@ public class Main {
       // Dangerous loop where careless static range analysis would yield strict upper bound
       // on index j of 5. When, for instance, lo and thus i = -2147483648, the upper bound
       // becomes really positive due to arithmetic wrap-around, causing OOB.
-      // Dynamic BCE is feasible though, since it checks the range.
       for (int j = 4; j < i - 5; j++) {
         sResult += a[j - 4];
       }
@@ -336,9 +382,28 @@ public class Main {
       // Dangerous loop where careless static range analysis would yield strict lower bound
       // on index j of 5. When, for instance, hi and thus i = 2147483647, the upper bound
       // becomes really negative due to arithmetic wrap-around, causing OOB.
-      // Dynamic BCE is feasible though, since it checks the range.
       for (int j = 6; j > i + 5; j--) {
         sResult += a[j - 6];
+      }
+    }
+  }
+
+  /// CHECK-START: void Main.hiddenOOB3(int) BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: void Main.hiddenOOB3(int) BCE (after)
+  /// CHECK-DAG: Deoptimize
+  //
+  /// CHECK-START: void Main.hiddenOOB3(int) BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  private static void hiddenOOB3(int hi) {
+    int[] a = { 11 } ;
+    for (int i = -1; i <= hi; i++) {
+      // Dangerous loop where careless static range analysis would yield strict lower bound
+      // on index j of 0. For large i, the initial value of j becomes really negative due
+      // to arithmetic wrap-around, causing OOB.
+      for (int j = i + 1; j < 1; j++) {
+        sResult += a[j];
       }
     }
   }
@@ -376,7 +441,6 @@ public class Main {
     for (int i = -1; i <= 0; i++) {
       // Dangerous loop similar as above where the loop is now finite, but the
       // loop still goes out of bounds for i = -1 due to the large upper bound.
-      // Dynamic BCE is feasible though, since it checks the range.
       for (int j = -4; j < 2147483646 * i - 3; j++) {
         sResult += a[j + 4];
       }
@@ -431,6 +495,25 @@ public class Main {
       i = (byte) (i + 1);
     }
   }
+
+  /// CHECK-START: int Main.doNotHoist(int[]) BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: int Main.doNotHoist(int[]) BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  public static int doNotHoist(int[] a) {
+     int n = a.length;
+     int x = 0;
+     // BCE applies, but hoisting would crash the loop.
+     for (int i = -10000; i < 10000; i++) {
+       for (int j = 0; j <= 1; j++) {
+         if (0 <= i && i < n)
+           x += a[i];
+       }
+    }
+    return x;
+  }
+
 
   /// CHECK-START: int[] Main.add() BCE (before)
   /// CHECK-DAG: BoundsCheck
@@ -687,7 +770,7 @@ public class Main {
   /// CHECK-START: int Main.dynamicBCEAndConstantIndices(int[], int[][], int, int) BCE (after)
   //  Order matters:
   /// CHECK:              Deoptimize loop:<<Loop:B\d+>>
-  //  CHECK-NOT:          Goto       loop:<<Loop>>
+  /// CHECK-NOT:          Goto       loop:<<Loop>>
   /// CHECK-DAG: {{l\d+}} ArrayGet   loop:<<Loop>>
   /// CHECK-DAG: {{l\d+}} ArrayGet   loop:<<Loop>>
   /// CHECK-DAG: {{l\d+}} ArrayGet   loop:<<Loop>>
@@ -839,6 +922,8 @@ public class Main {
     expectEquals(55, justRightDown1());
     expectEquals(55, justRightDown2());
     expectEquals(55, justRightDown3());
+
+    // Large bounds OOB.
     sResult = 0;
     try {
       justOOBUp();
@@ -890,6 +975,23 @@ public class Main {
     }
     expectEquals(1055, sResult);
 
+    // Triangular.
+    sResult = 0;
+    justRightTriangular1();
+    expectEquals(1, sResult);
+    if (HEAVY) {
+      sResult = 0;
+      justRightTriangular2();
+      expectEquals(1, sResult);
+    }
+    sResult = 0;
+    try {
+      justOOBTriangular();
+    } catch (ArrayIndexOutOfBoundsException e) {
+      sResult += 1000;
+    }
+    expectEquals(1001, sResult);
+
     // Hidden OOB.
     sResult = 0;
     try {
@@ -912,6 +1014,15 @@ public class Main {
       sResult += 1000;
     }
     expectEquals(1, sResult);
+    sResult = 0;
+    try {
+      hiddenOOB3(-1);  // no OOB
+    } catch (ArrayIndexOutOfBoundsException e) {
+      sResult += 1000;
+    }
+    expectEquals(11, sResult);
+
+    // Expensive hidden OOB test.
     if (HEAVY) {
       sResult = 0;
       try {
@@ -920,7 +1031,16 @@ public class Main {
         sResult += 1000;
       }
       expectEquals(1002, sResult);
+      sResult = 0;
+      try {
+        hiddenOOB3(2147483647);  // OOB
+      } catch (ArrayIndexOutOfBoundsException e) {
+        sResult += 1000;
+      }
+      expectEquals(1011, sResult);
     }
+
+    // More hidden OOB.
     sResult = 0;
     try {
       hiddenInfiniteOOB();
@@ -965,6 +1085,9 @@ public class Main {
     for (int i = 0; i < 200; i++) {
       expectEquals(i < 128 ? i : 0, a200[i]);
     }
+
+    // No hoisting after BCE.
+    expectEquals(110, doNotHoist(x));
 
     // Addition.
     {
