@@ -7599,7 +7599,7 @@ ArtField* ClassLinker::ResolveField(const DexFile& dex_file,
   }
 
   if (is_static) {
-    resolved = mirror::Class::FindStaticField(self, klass, dex_cache.Get(), field_idx);
+    resolved = mirror::Class::FindStaticField(self, klass.Get(), dex_cache.Get(), field_idx);
   } else {
     resolved = klass->FindInstanceField(dex_cache.Get(), field_idx);
   }

@@ -1096,7 +1096,9 @@ class MANAGED Class FINAL : public Object {
 
   // Finds the given static field in this class or superclass, only searches classes that
   // have the same dex cache.
-  static ArtField* FindStaticField(Thread* self, Handle<Class> klass, const DexCache* dex_cache,
+  static ArtField* FindStaticField(Thread* self,
+                                   Class* klass,
+                                   const DexCache* dex_cache,
                                    uint32_t dex_field_idx)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
