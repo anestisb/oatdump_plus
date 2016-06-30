@@ -1976,50 +1976,6 @@ void IntrinsicCodeGeneratorARM::VisitShortReverseBytes(HInvoke* invoke) {
   __ revsh(out, in);
 }
 
-static void GenBitCount(HInvoke* instr, bool is64bit, ArmAssembler* assembler) {
-  DCHECK(instr->GetType() == Primitive::kPrimInt);
-  DCHECK((is64bit && instr->InputAt(0)->GetType() == Primitive::kPrimLong) ||
-         (!is64bit && instr->InputAt(0)->GetType() == Primitive::kPrimInt));
-
-  LocationSummary* locations = instr->GetLocations();
-  Location     in = locations->InAt(0);
-  Register  src_0 = is64bit ? in.AsRegisterPairLow<Register>() : in.AsRegister<Register>();
-  Register  src_1 = is64bit ? in.AsRegisterPairHigh<Register>() : src_0;
-  SRegister tmp_s = locations->GetTemp(0).AsFpuRegisterPairLow<SRegister>();
-  DRegister tmp_d = FromLowSToD(tmp_s);
-  Register  out_r = locations->Out().AsRegister<Register>();
-
-  // Move data from core register(s) to temp D-reg for bit count calculation, then move back.
-  // According to Cortex A57 and A72 optimization guides, compared to transferring to full D-reg,
-  // transferring data from core reg to upper or lower half of vfp D-reg requires extra latency,
-  // That's why for integer bit count, we use 'vmov d0, r0, r0' instead of 'vmov d0[0], r0'.
-  __ vmovdrr(tmp_d, src_1, src_0);                         // Temp DReg |--src_1|--src_0|
-  __ vcntd(tmp_d, tmp_d);                                  // Temp DReg |c|c|c|c|c|c|c|c|
-  __ vpaddld(tmp_d, tmp_d, 8, /* is_unsigned */ true);     // Temp DReg |--c|--c|--c|--c|
-  __ vpaddld(tmp_d, tmp_d, 16, /* is_unsigned */ true);    // Temp DReg |------c|------c|
-  if (is64bit) {
-    __ vpaddld(tmp_d, tmp_d, 32, /* is_unsigned */ true);  // Temp DReg |--------------c|
-  }
-  __ vmovrs(out_r, tmp_s);
-}
-
-void IntrinsicLocationsBuilderARM::VisitIntegerBitCount(HInvoke* invoke) {
-  CreateIntToIntLocations(arena_, invoke);
-  invoke->GetLocations()->AddTemp(Location::RequiresFpuRegister());
-}
-
-void IntrinsicCodeGeneratorARM::VisitIntegerBitCount(HInvoke* invoke) {
-  GenBitCount(invoke, /* is64bit */ false, GetAssembler());
-}
-
-void IntrinsicLocationsBuilderARM::VisitLongBitCount(HInvoke* invoke) {
-  VisitIntegerBitCount(invoke);
-}
-
-void IntrinsicCodeGeneratorARM::VisitLongBitCount(HInvoke* invoke) {
-  GenBitCount(invoke, /* is64bit */ true, GetAssembler());
-}
-
 void IntrinsicLocationsBuilderARM::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
                                                             LocationSummary::kNoCall,
@@ -2160,6 +2116,8 @@ void IntrinsicCodeGeneratorARM::VisitDoubleIsInfinite(HInvoke* invoke) {
   __ Lsr(out, out, 5);
 }
 
+UNIMPLEMENTED_INTRINSIC(ARM, IntegerBitCount)
+UNIMPLEMENTED_INTRINSIC(ARM, LongBitCount)
 UNIMPLEMENTED_INTRINSIC(ARM, MathMinDoubleDouble)
 UNIMPLEMENTED_INTRINSIC(ARM, MathMinFloatFloat)
 UNIMPLEMENTED_INTRINSIC(ARM, MathMaxDoubleDouble)
