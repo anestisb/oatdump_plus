@@ -44,7 +44,7 @@ void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo, void* context,
                                              uintptr_t* out_return_pc, uintptr_t* out_sp) {
   struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
   struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
-  *out_sp = static_cast<uintptr_t>(sc->sc_regs[29]);   // SP register
+  *out_sp = static_cast<uintptr_t>(sc->sc_regs[mips::SP]);
   VLOG(signals) << "sp: " << *out_sp;
   if (*out_sp == 0) {
     return;
@@ -56,7 +56,7 @@ void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo, void* context,
   uintptr_t* overflow_addr = reinterpret_cast<uintptr_t*>(
       reinterpret_cast<uint8_t*>(*out_sp) - GetStackOverflowReservedBytes(kMips));
   if (overflow_addr == fault_addr) {
-    *out_method = reinterpret_cast<ArtMethod*>(sc->sc_regs[4]);  // A0 register
+    *out_method = reinterpret_cast<ArtMethod*>(sc->sc_regs[mips::A0]);
   } else {
     // The method is at the top of the stack.
     *out_method = *reinterpret_cast<ArtMethod**>(*out_sp);
@@ -82,12 +82,12 @@ bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info, void*
   struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
   struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
 
-  sc->sc_regs[31] = sc->sc_pc + 4;      // RA needs to point to gc map location
+  sc->sc_regs[mips::RA] = sc->sc_pc + 4;      // RA needs to point to gc map location
   sc->sc_pc = reinterpret_cast<uintptr_t>(art_quick_throw_null_pointer_exception_from_signal);
-  sc->sc_regs[25] = sc->sc_pc;          // make sure T9 points to the function
+  sc->sc_regs[mips::T9] = sc->sc_pc;          // make sure T9 points to the function
   // Pass the faulting address as the first argument of
   // art_quick_throw_null_pointer_exception_from_signal.
-  sc->sc_regs[0] = reinterpret_cast<uintptr_t>(info->si_addr);
+  sc->sc_regs[mips::A0] = reinterpret_cast<uintptr_t>(info->si_addr);
   VLOG(signals) << "Generating null pointer exception";
   return true;
 }
@@ -116,7 +116,7 @@ bool StackOverflowHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info, voi
   VLOG(signals) << "stack overflow handler with sp at " << std::hex << &uc;
   VLOG(signals) << "sigcontext: " << std::hex << sc;
 
-  uintptr_t sp = sc->sc_regs[29];  // SP register
+  uintptr_t sp = sc->sc_regs[mips::SP];
   VLOG(signals) << "sp: " << std::hex << sp;
 
   uintptr_t fault_addr = reinterpret_cast<uintptr_t>(info->si_addr);  // BVA addr
@@ -139,7 +139,7 @@ bool StackOverflowHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info, voi
   // caused this fault.  This will be inserted into a callee save frame by
   // the function to which this handler returns (art_quick_throw_stack_overflow).
   sc->sc_pc = reinterpret_cast<uintptr_t>(art_quick_throw_stack_overflow);
-  sc->sc_regs[25] = sc->sc_pc;          // make sure T9 points to the function
+  sc->sc_regs[mips::T9] = sc->sc_pc;          // make sure T9 points to the function
 
   // The kernel will now return to the address in sc->arm_pc.
   return true;
