@@ -847,7 +847,7 @@ class BCEVisitor : public HGraphVisitor {
       }
       // Try index range obtained by induction variable analysis.
       // Disables dynamic bce if OOB is certain.
-      if (InductionRangeFitsIn(&array_range, bounds_check, index, &try_dynamic_bce)) {
+      if (InductionRangeFitsIn(&array_range, bounds_check, &try_dynamic_bce)) {
         ReplaceInstruction(bounds_check, index);
         return;
       }
@@ -1299,33 +1299,30 @@ class BCEVisitor : public HGraphVisitor {
    * parameter try_dynamic_bce is set to false if OOB is certain.
    */
   bool InductionRangeFitsIn(ValueRange* array_range,
-                            HInstruction* context,
-                            HInstruction* index,
+                            HBoundsCheck* context,
                             bool* try_dynamic_bce) {
     InductionVarRange::Value v1;
     InductionVarRange::Value v2;
     bool needs_finite_test = false;
-    if (induction_range_.GetInductionRange(context, index, &v1, &v2, &needs_finite_test)) {
-      do {
-        if (v1.is_known && (v1.a_constant == 0 || v1.a_constant == 1) &&
-            v2.is_known && (v2.a_constant == 0 || v2.a_constant == 1)) {
-          DCHECK(v1.a_constant == 1 || v1.instruction == nullptr);
-          DCHECK(v2.a_constant == 1 || v2.instruction == nullptr);
-          ValueRange index_range(GetGraph()->GetArena(),
-                                 ValueBound(v1.instruction, v1.b_constant),
-                                 ValueBound(v2.instruction, v2.b_constant));
-          // If analysis reveals a certain OOB, disable dynamic BCE.
-          if (index_range.GetLower().LessThan(array_range->GetLower()) ||
-              index_range.GetUpper().GreaterThan(array_range->GetUpper())) {
-            *try_dynamic_bce = false;
-            return false;
-          }
-          // Use analysis for static bce only if loop is finite.
-          if (!needs_finite_test && index_range.FitsIn(array_range)) {
-            return true;
-          }
+    HInstruction* index = context->InputAt(0);
+    HInstruction* hint = ValueBound::HuntForDeclaration(context->InputAt(1));
+    if (induction_range_.GetInductionRange(context, index, hint, &v1, &v2, &needs_finite_test)) {
+      if (v1.is_known && (v1.a_constant == 0 || v1.a_constant == 1) &&
+          v2.is_known && (v2.a_constant == 0 || v2.a_constant == 1)) {
+        DCHECK(v1.a_constant == 1 || v1.instruction == nullptr);
+        DCHECK(v2.a_constant == 1 || v2.instruction == nullptr);
+        ValueRange index_range(GetGraph()->GetArena(),
+                               ValueBound(v1.instruction, v1.b_constant),
+                               ValueBound(v2.instruction, v2.b_constant));
+        // If analysis reveals a certain OOB, disable dynamic BCE. Otherwise,
+        // use analysis for static bce only if loop is finite.
+        if (index_range.GetLower().LessThan(array_range->GetLower()) ||
+            index_range.GetUpper().GreaterThan(array_range->GetUpper())) {
+          *try_dynamic_bce = false;
+        } else if (!needs_finite_test && index_range.FitsIn(array_range)) {
+          return true;
         }
-      } while (induction_range_.RefineOuter(&v1, &v2));
+      }
     }
     return false;
   }
