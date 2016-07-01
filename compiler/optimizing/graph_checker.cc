@@ -362,7 +362,7 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
                             instruction->GetId()));
     }
     size_t use_index = use.GetIndex();
-    auto&& user_inputs = user->GetInputs();
+    HConstInputsRef user_inputs = user->GetInputs();
     if ((use_index >= user_inputs.size()) || (user_inputs[use_index] != instruction)) {
       AddError(StringPrintf("User %s:%d of instruction %s:%d has a wrong "
                             "UseListNode index.",
@@ -490,7 +490,7 @@ void GraphChecker::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
   VisitInstruction(invoke);
 
   if (invoke->IsStaticWithExplicitClinitCheck()) {
-    HInstruction* last_input = invoke->GetInputs().back();
+    const HInstruction* last_input = invoke->GetInputs().back();
     if (last_input == nullptr) {
       AddError(StringPrintf("Static invoke %s:%d marked as having an explicit clinit check "
                             "has a null pointer as last input.",
@@ -664,17 +664,19 @@ void GraphChecker::HandleLoop(HBasicBlock* loop_header) {
   }
 }
 
-static bool IsSameSizeConstant(HInstruction* insn1, HInstruction* insn2) {
+static bool IsSameSizeConstant(const HInstruction* insn1, const HInstruction* insn2) {
   return insn1->IsConstant()
       && insn2->IsConstant()
       && Primitive::Is64BitType(insn1->GetType()) == Primitive::Is64BitType(insn2->GetType());
 }
 
-static bool IsConstantEquivalent(HInstruction* insn1, HInstruction* insn2, BitVector* visited) {
+static bool IsConstantEquivalent(const HInstruction* insn1,
+                                 const HInstruction* insn2,
+                                 BitVector* visited) {
   if (insn1->IsPhi() &&
       insn1->AsPhi()->IsVRegEquivalentOf(insn2)) {
-    auto&& insn1_inputs = insn1->GetInputs();
-    auto&& insn2_inputs = insn2->GetInputs();
+    HConstInputsRef insn1_inputs = insn1->GetInputs();
+    HConstInputsRef insn2_inputs = insn2->GetInputs();
     if (insn1_inputs.size() != insn2_inputs.size()) {
       return false;
     }
