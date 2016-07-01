@@ -70,6 +70,11 @@ class TransformArrayRef {
   TransformArrayRef(const ArrayRef<OtherBT>& base, Function fn)
       : data_(base, fn) { }
 
+  template <typename OtherBT,
+            typename = typename std::enable_if<std::is_same<BaseType, const OtherBT>::value>::type>
+  TransformArrayRef(const TransformArrayRef<OtherBT, Function>& other)
+      : TransformArrayRef(other.base(), other.GetFunction()) { }
+
   // Assignment operators.
 
   TransformArrayRef& operator=(const TransformArrayRef& other) = default;
@@ -149,6 +154,9 @@ class TransformArrayRef {
   }
 
   Data data_;
+
+  template <typename OtherBT, typename OtherFunction>
+  friend class TransformArrayRef;
 };
 
 template <typename BaseType, typename Function>

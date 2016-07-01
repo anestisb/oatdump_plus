@@ -341,7 +341,7 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferPhi(HLoopIn
                                                                          HInstruction* phi,
                                                                          size_t input_index) {
   // Match all phi inputs from input_index onwards exactly.
-  auto&& inputs = phi->GetInputs();
+  HInputsRef inputs = phi->GetInputs();
   DCHECK_LT(input_index, inputs.size());
   InductionInfo* a = LookupInfo(loop, inputs[input_index]);
   for (size_t i = input_index + 1; i < inputs.size(); i++) {
@@ -464,7 +464,7 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::TransferCnv(Inducti
 HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolvePhi(HInstruction* phi,
                                                                       size_t input_index) {
   // Match all phi inputs from input_index onwards exactly.
-  auto&& inputs = phi->GetInputs();
+  HInputsRef inputs = phi->GetInputs();
   DCHECK_LT(input_index, inputs.size());
   auto ita = cycle_.find(inputs[input_index]);
   if (ita != cycle_.end()) {

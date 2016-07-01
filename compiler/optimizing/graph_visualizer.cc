@@ -511,7 +511,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
 
   void PrintInstruction(HInstruction* instruction) {
     output_ << instruction->DebugName();
-    auto&& inputs = instruction->GetInputs();
+    HConstInputsRef inputs = instruction->GetInputs();
     if (!inputs.empty()) {
       StringList input_list;
       for (const HInstruction* input : inputs) {

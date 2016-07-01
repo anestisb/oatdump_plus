@@ -111,7 +111,7 @@ static bool CheckTypeConsistency(HInstruction* instruction) {
         << " " << locations->Out();
   }
 
-  auto&& inputs = instruction->GetInputs();
+  HConstInputsRef inputs = instruction->GetInputs();
   for (size_t i = 0; i < inputs.size(); ++i) {
     DCHECK(CheckType(inputs[i]->GetType(), locations->InAt(i)))
       << inputs[i]->GetType() << " " << locations->InAt(i);
