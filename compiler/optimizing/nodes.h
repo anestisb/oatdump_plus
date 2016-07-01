@@ -3160,7 +3160,7 @@ class HEqual FINAL : public HCondition {
   }
 
  private:
-  template <typename T> bool Compute(T x, T y) const { return x == y; }
+  template <typename T> static bool Compute(T x, T y) { return x == y; }
 
   DISALLOW_COPY_AND_ASSIGN(HEqual);
 };
@@ -3203,7 +3203,7 @@ class HNotEqual FINAL : public HCondition {
   }
 
  private:
-  template <typename T> bool Compute(T x, T y) const { return x != y; }
+  template <typename T> static bool Compute(T x, T y) { return x != y; }
 
   DISALLOW_COPY_AND_ASSIGN(HNotEqual);
 };
@@ -3240,7 +3240,7 @@ class HLessThan FINAL : public HCondition {
   }
 
  private:
-  template <typename T> bool Compute(T x, T y) const { return x < y; }
+  template <typename T> static bool Compute(T x, T y) { return x < y; }
 
   DISALLOW_COPY_AND_ASSIGN(HLessThan);
 };
@@ -3277,7 +3277,7 @@ class HLessThanOrEqual FINAL : public HCondition {
   }
 
  private:
-  template <typename T> bool Compute(T x, T y) const { return x <= y; }
+  template <typename T> static bool Compute(T x, T y) { return x <= y; }
 
   DISALLOW_COPY_AND_ASSIGN(HLessThanOrEqual);
 };
@@ -3314,7 +3314,7 @@ class HGreaterThan FINAL : public HCondition {
   }
 
  private:
-  template <typename T> bool Compute(T x, T y) const { return x > y; }
+  template <typename T> static bool Compute(T x, T y) { return x > y; }
 
   DISALLOW_COPY_AND_ASSIGN(HGreaterThan);
 };
@@ -3351,7 +3351,7 @@ class HGreaterThanOrEqual FINAL : public HCondition {
   }
 
  private:
-  template <typename T> bool Compute(T x, T y) const { return x >= y; }
+  template <typename T> static bool Compute(T x, T y) { return x >= y; }
 
   DISALLOW_COPY_AND_ASSIGN(HGreaterThanOrEqual);
 };
@@ -3389,7 +3389,7 @@ class HBelow FINAL : public HCondition {
   }
 
  private:
-  template <typename T> bool Compute(T x, T y) const {
+  template <typename T> static bool Compute(T x, T y) {
     return MakeUnsigned(x) < MakeUnsigned(y);
   }
 
@@ -3429,7 +3429,7 @@ class HBelowOrEqual FINAL : public HCondition {
   }
 
  private:
-  template <typename T> bool Compute(T x, T y) const {
+  template <typename T> static bool Compute(T x, T y) {
     return MakeUnsigned(x) <= MakeUnsigned(y);
   }
 
@@ -3469,7 +3469,7 @@ class HAbove FINAL : public HCondition {
   }
 
  private:
-  template <typename T> bool Compute(T x, T y) const {
+  template <typename T> static bool Compute(T x, T y) {
     return MakeUnsigned(x) > MakeUnsigned(y);
   }
 
@@ -3509,7 +3509,7 @@ class HAboveOrEqual FINAL : public HCondition {
   }
 
  private:
-  template <typename T> bool Compute(T x, T y) const {
+  template <typename T> static bool Compute(T x, T y) {
     return MakeUnsigned(x) >= MakeUnsigned(y);
   }
 
@@ -4182,7 +4182,7 @@ class HNeg FINAL : public HUnaryOperation {
     DCHECK_EQ(result_type, Primitive::PrimitiveKind(input->GetType()));
   }
 
-  template <typename T> T Compute(T x) const { return -x; }
+  template <typename T> static T Compute(T x) { return -x; }
 
   HConstant* Evaluate(HIntConstant* x) const OVERRIDE {
     return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue()), GetDexPc());
@@ -4252,7 +4252,7 @@ class HAdd FINAL : public HBinaryOperation {
 
   bool IsCommutative() const OVERRIDE { return true; }
 
-  template <typename T> T Compute(T x, T y) const { return x + y; }
+  template <typename T> static T Compute(T x, T y) { return x + y; }
 
   HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
     return GetBlock()->GetGraph()->GetIntConstant(
@@ -4285,7 +4285,7 @@ class HSub FINAL : public HBinaryOperation {
        uint32_t dex_pc = kNoDexPc)
       : HBinaryOperation(result_type, left, right, SideEffects::None(), dex_pc) {}
 
-  template <typename T> T Compute(T x, T y) const { return x - y; }
+  template <typename T> static T Compute(T x, T y) { return x - y; }
 
   HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
     return GetBlock()->GetGraph()->GetIntConstant(
@@ -4320,7 +4320,7 @@ class HMul FINAL : public HBinaryOperation {
 
   bool IsCommutative() const OVERRIDE { return true; }
 
-  template <typename T> T Compute(T x, T y) const { return x * y; }
+  template <typename T> static T Compute(T x, T y) { return x * y; }
 
   HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
     return GetBlock()->GetGraph()->GetIntConstant(
@@ -4486,7 +4486,7 @@ class HShl FINAL : public HBinaryOperation {
   }
 
   template <typename T>
-  T Compute(T value, int32_t distance, int32_t max_shift_distance) const {
+  static T Compute(T value, int32_t distance, int32_t max_shift_distance) {
     return value << (distance & max_shift_distance);
   }
 
@@ -4532,7 +4532,7 @@ class HShr FINAL : public HBinaryOperation {
   }
 
   template <typename T>
-  T Compute(T value, int32_t distance, int32_t max_shift_distance) const {
+  static T Compute(T value, int32_t distance, int32_t max_shift_distance) {
     return value >> (distance & max_shift_distance);
   }
 
@@ -4578,7 +4578,7 @@ class HUShr FINAL : public HBinaryOperation {
   }
 
   template <typename T>
-  T Compute(T value, int32_t distance, int32_t max_shift_distance) const {
+  static T Compute(T value, int32_t distance, int32_t max_shift_distance) {
     typedef typename std::make_unsigned<T>::type V;
     V ux = static_cast<V>(value);
     return static_cast<T>(ux >> (distance & max_shift_distance));
@@ -4624,7 +4624,7 @@ class HAnd FINAL : public HBinaryOperation {
 
   bool IsCommutative() const OVERRIDE { return true; }
 
-  template <typename T> T Compute(T x, T y) const { return x & y; }
+  template <typename T> static T Compute(T x, T y) { return x & y; }
 
   HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
     return GetBlock()->GetGraph()->GetIntConstant(
@@ -4661,7 +4661,7 @@ class HOr FINAL : public HBinaryOperation {
 
   bool IsCommutative() const OVERRIDE { return true; }
 
-  template <typename T> T Compute(T x, T y) const { return x | y; }
+  template <typename T> static T Compute(T x, T y) { return x | y; }
 
   HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
     return GetBlock()->GetGraph()->GetIntConstant(
@@ -4698,7 +4698,7 @@ class HXor FINAL : public HBinaryOperation {
 
   bool IsCommutative() const OVERRIDE { return true; }
 
-  template <typename T> T Compute(T x, T y) const { return x ^ y; }
+  template <typename T> static T Compute(T x, T y) { return x ^ y; }
 
   HConstant* Evaluate(HIntConstant* x, HIntConstant* y) const OVERRIDE {
     return GetBlock()->GetGraph()->GetIntConstant(
@@ -4734,7 +4734,7 @@ class HRor FINAL : public HBinaryOperation {
   }
 
   template <typename T>
-  T Compute(T value, int32_t distance, int32_t max_shift_value) const {
+  static T Compute(T value, int32_t distance, int32_t max_shift_value) {
     typedef typename std::make_unsigned<T>::type V;
     V ux = static_cast<V>(value);
     if ((distance & max_shift_value) == 0) {
@@ -4830,7 +4830,7 @@ class HNot FINAL : public HUnaryOperation {
     return true;
   }
 
-  template <typename T> T Compute(T x) const { return ~x; }
+  template <typename T> static T Compute(T x) { return ~x; }
 
   HConstant* Evaluate(HIntConstant* x) const OVERRIDE {
     return GetBlock()->GetGraph()->GetIntConstant(Compute(x->GetValue()), GetDexPc());
@@ -4863,7 +4863,7 @@ class HBooleanNot FINAL : public HUnaryOperation {
     return true;
   }
 
-  template <typename T> bool Compute(T x) const {
+  template <typename T> static bool Compute(T x) {
     DCHECK(IsUint<1>(x)) << x;
     return !x;
   }
