@@ -160,6 +160,48 @@ TEST(TransformArrayRef, ConstAndNonConstRef) {
     taref[i] = transform_input[i];
   }
   ASSERT_EQ(std::vector<ValueHolder>({ 24, 37, 11, 71 }), transformed);
+
+  const std::vector<ValueHolder>& cinput = input;
+
+  auto ctaref = MakeTransformArrayRef(cinput, ref);
+  static_assert(std::is_same<int, decltype(ctaref)::value_type>::value, "value_type");
+  static_assert(std::is_same<const int*, decltype(ctaref)::pointer>::value, "pointer");
+  static_assert(std::is_same<const int&, decltype(ctaref)::reference>::value, "reference");
+  static_assert(std::is_same<const int*, decltype(ctaref)::const_pointer>::value, "const_pointer");
+  static_assert(std::is_same<const int&, decltype(ctaref)::const_reference>::value,
+                "const_reference");
+
+  std::copy(ctaref.begin(), ctaref.end(), std::back_inserter(output));
+  ASSERT_EQ(std::vector<int>({ 1, 0, 1, 0, 3, 1 }), output);
+  output.clear();
+
+  std::copy(ctaref.cbegin(), ctaref.cend(), std::back_inserter(output));
+  ASSERT_EQ(std::vector<int>({ 1, 0, 1, 0, 3, 1 }), output);
+  output.clear();
+
+  std::copy(ctaref.rbegin(), ctaref.rend(), std::back_inserter(output));
+  ASSERT_EQ(std::vector<int>({ 1, 3, 0, 1, 0, 1 }), output);
+  output.clear();
+
+  std::copy(ctaref.crbegin(), ctaref.crend(), std::back_inserter(output));
+  ASSERT_EQ(std::vector<int>({ 1, 3, 0, 1, 0, 1 }), output);
+  output.clear();
+
+  ASSERT_EQ(cinput.size(), ctaref.size());
+  ASSERT_EQ(cinput.empty(), ctaref.empty());
+  ASSERT_EQ(cinput.front().value, ctaref.front());
+  ASSERT_EQ(cinput.back().value, ctaref.back());
+
+  for (size_t i = 0; i != cinput.size(); ++i) {
+    ASSERT_EQ(cinput[i].value, ctaref[i]);
+  }
+
+  // Test conversion adding const.
+  decltype(ctaref) ctaref2 = taref;
+  ASSERT_EQ(taref.size(), ctaref2.size());
+  for (size_t i = 0; i != taref.size(); ++i) {
+    ASSERT_EQ(taref[i], ctaref2[i]);
+  }
 }
 
 }  // namespace art

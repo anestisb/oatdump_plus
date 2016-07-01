@@ -20,8 +20,6 @@
 #include <type_traits>
 #include <vector>
 
-#include <array>
-
 #include "gtest/gtest.h"
 
 #include "utils/transform_iterator.h"

@@ -816,10 +816,10 @@ void ReferenceTypePropagation::UpdateBoundType(HBoundType* instr) {
 void ReferenceTypePropagation::UpdatePhi(HPhi* instr) {
   DCHECK(instr->IsLive());
 
-  auto&& inputs = instr->GetInputs();
+  HInputsRef inputs = instr->GetInputs();
   size_t first_input_index_not_null = 0;
   while (first_input_index_not_null < inputs.size() &&
-      inputs[first_input_index_not_null]->IsNullConstant()) {
+         inputs[first_input_index_not_null]->IsNullConstant()) {
     first_input_index_not_null++;
   }
   if (first_input_index_not_null == inputs.size()) {

@@ -753,7 +753,7 @@ bool RegisterAllocator::TryAllocateFreeReg(LiveInterval* current) {
   if (defined_by != nullptr && !current->IsSplit()) {
     LocationSummary* locations = defined_by->GetLocations();
     if (!locations->OutputCanOverlapWithInputs() && locations->Out().IsUnallocated()) {
-      auto&& inputs = defined_by->GetInputs();
+      HInputsRef inputs = defined_by->GetInputs();
       for (size_t i = 0; i < inputs.size(); ++i) {
         // Take the last interval of the input. It is the location of that interval
         // that will be used at `defined_by`.
