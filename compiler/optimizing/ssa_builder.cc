@@ -181,7 +181,7 @@ bool SsaBuilder::TypeInputsOfPhi(HPhi* phi, ArenaVector<HPhi*>* worklist) {
     return true;
   } else {
     DCHECK(common_type == Primitive::kPrimNot || Primitive::IsFloatingPointType(common_type));
-    auto&& inputs = phi->GetInputs();
+    HInputsRef inputs = phi->GetInputs();
     for (size_t i = 0; i < inputs.size(); ++i) {
       HInstruction* input = inputs[i];
       if (input->GetType() != common_type) {
@@ -617,7 +617,7 @@ HPhi* SsaBuilder::GetFloatDoubleOrReferenceEquivalentOfPhi(HPhi* phi, Primitive:
       || (next->AsPhi()->GetRegNumber() != phi->GetRegNumber())
       || (next->GetType() != type)) {
     ArenaAllocator* allocator = graph_->GetArena();
-    auto&& inputs = phi->GetInputs();
+    HInputsRef inputs = phi->GetInputs();
     HPhi* new_phi =
         new (allocator) HPhi(allocator, phi->GetRegNumber(), inputs.size(), type);
     // Copy the inputs. Note that the graph may not be correctly typed

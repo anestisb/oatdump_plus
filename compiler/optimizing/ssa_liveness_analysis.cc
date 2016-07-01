@@ -177,7 +177,7 @@ void SsaLivenessAnalysis::ComputeLiveness() {
 static void RecursivelyProcessInputs(HInstruction* current,
                                      HInstruction* actual_user,
                                      BitVector* live_in) {
-  auto&& inputs = current->GetInputs();
+  HInputsRef inputs = current->GetInputs();
   for (size_t i = 0; i < inputs.size(); ++i) {
     HInstruction* input = inputs[i];
     bool has_in_location = current->GetLocations()->InAt(i).IsValid();
@@ -431,7 +431,7 @@ int LiveInterval::FindFirstRegisterHint(size_t* free_until,
         // If the instruction dies at the phi assignment, we can try having the
         // same register.
         if (end == user->GetBlock()->GetPredecessors()[input_index]->GetLifetimeEnd()) {
-          auto&& inputs = user->GetInputs();
+          HInputsRef inputs = user->GetInputs();
           for (size_t i = 0; i < inputs.size(); ++i) {
             if (i == input_index) {
               continue;
@@ -472,7 +472,7 @@ int LiveInterval::FindHintAtDefinition() const {
   if (defined_by_->IsPhi()) {
     // Try to use the same register as one of the inputs.
     const ArenaVector<HBasicBlock*>& predecessors = defined_by_->GetBlock()->GetPredecessors();
-    auto&& inputs = defined_by_->GetInputs();
+    HInputsRef inputs = defined_by_->GetInputs();
     for (size_t i = 0; i < inputs.size(); ++i) {
       size_t end = predecessors[i]->GetLifetimeEnd();
       LiveInterval* input_interval = inputs[i]->GetLiveInterval()->GetSiblingAt(end - 1);
