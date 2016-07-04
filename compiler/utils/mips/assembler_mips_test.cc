@@ -2293,6 +2293,44 @@ TEST_F(AssemblerMIPSTest, LoadConst32) {
   DriverStr(expected, "LoadConst32");
 }
 
+TEST_F(AssemblerMIPSTest, LoadFarthestNearLiteral) {
+  mips::Literal* literal = __ NewLiteral<uint32_t>(0x12345678);
+  __ BindPcRelBaseLabel();
+  __ LoadLiteral(mips::V0, mips::V1, literal);
+  constexpr size_t kAddiuCount = 0x1FDE;
+  for (size_t i = 0; i != kAddiuCount; ++i) {
+    __ Addiu(mips::A0, mips::A1, 0);
+  }
+
+  std::string expected =
+      "1:\n"
+      "lw $v0, %lo(2f - 1b)($v1)\n" +
+      RepeatInsn(kAddiuCount, "addiu $a0, $a1, %hi(2f - 1b)\n") +
+      "2:\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadFarthestNearLiteral");
+}
+
+TEST_F(AssemblerMIPSTest, LoadNearestFarLiteral) {
+  mips::Literal* literal = __ NewLiteral<uint32_t>(0x12345678);
+  __ BindPcRelBaseLabel();
+  __ LoadLiteral(mips::V0, mips::V1, literal);
+  constexpr size_t kAdduCount = 0x1FDF;
+  for (size_t i = 0; i != kAdduCount; ++i) {
+    __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
+  }
+
+  std::string expected =
+      "1:\n"
+      "lui $at, %hi(2f - 1b)\n"
+      "addu $at, $at, $v1\n"
+      "lw $v0, %lo(2f - 1b)($at)\n" +
+      RepeatInsn(kAdduCount, "addu $zero, $zero, $zero\n") +
+      "2:\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadNearestFarLiteral");
+}
+
 #undef __
 
 }  // namespace art
