@@ -39,6 +39,10 @@ namespace mips {
 static constexpr int kCurrentMethodStackOffset = 0;
 static constexpr Register kMethodRegisterArgument = A0;
 
+// We'll maximize the range of a single load instruction for dex cache array accesses
+// by aligning offset -32768 with the offset of the first used element.
+static constexpr uint32_t kDexCacheArrayLwOffset = 0x8000;
+
 Location MipsReturnLocation(Primitive::Type return_type) {
   switch (return_type) {
     case Primitive::kPrimBoolean:
@@ -477,7 +481,12 @@ CodeGeneratorMIPS::CodeGeneratorMIPS(HGraph* graph,
       instruction_visitor_(graph, this),
       move_resolver_(graph->GetArena(), this),
       assembler_(graph->GetArena(), &isa_features),
-      isa_features_(isa_features) {
+      isa_features_(isa_features),
+      method_patches_(MethodReferenceComparator(),
+                      graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      call_patches_(MethodReferenceComparator(),
+                    graph->GetArena()->Adapter(kArenaAllocCodeGenerator)),
+      pc_relative_dex_cache_patches_(graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {
   // Save RA (containing the return address) to mimic Quick.
   AddAllocatedRegister(Location::RegisterLocation(RA));
 }
@@ -946,6 +955,71 @@ void CodeGeneratorMIPS::AddLocationAsTemp(Location location, LocationSummary* lo
   } else {
     UNIMPLEMENTED(FATAL) << "AddLocationAsTemp not implemented for location " << location;
   }
+}
+
+void CodeGeneratorMIPS::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) {
+  DCHECK(linker_patches->empty());
+  size_t size =
+      method_patches_.size() +
+      call_patches_.size() +
+      pc_relative_dex_cache_patches_.size();
+  linker_patches->reserve(size);
+  for (const auto& entry : method_patches_) {
+    const MethodReference& target_method = entry.first;
+    Literal* literal = entry.second;
+    DCHECK(literal->GetLabel()->IsBound());
+    uint32_t literal_offset = __ GetLabelLocation(literal->GetLabel());
+    linker_patches->push_back(LinkerPatch::MethodPatch(literal_offset,
+                                                       target_method.dex_file,
+                                                       target_method.dex_method_index));
+  }
+  for (const auto& entry : call_patches_) {
+    const MethodReference& target_method = entry.first;
+    Literal* literal = entry.second;
+    DCHECK(literal->GetLabel()->IsBound());
+    uint32_t literal_offset = __ GetLabelLocation(literal->GetLabel());
+    linker_patches->push_back(LinkerPatch::CodePatch(literal_offset,
+                                                     target_method.dex_file,
+                                                     target_method.dex_method_index));
+  }
+  for (const PcRelativePatchInfo& info : pc_relative_dex_cache_patches_) {
+    const DexFile& dex_file = info.target_dex_file;
+    size_t base_element_offset = info.offset_or_index;
+    DCHECK(info.high_label.IsBound());
+    uint32_t high_offset = __ GetLabelLocation(&info.high_label);
+    DCHECK(info.pc_rel_label.IsBound());
+    uint32_t pc_rel_offset = __ GetLabelLocation(&info.pc_rel_label);
+    linker_patches->push_back(LinkerPatch::DexCacheArrayPatch(high_offset,
+                                                              &dex_file,
+                                                              pc_rel_offset,
+                                                              base_element_offset));
+  }
+}
+
+CodeGeneratorMIPS::PcRelativePatchInfo* CodeGeneratorMIPS::NewPcRelativeDexCacheArrayPatch(
+    const DexFile& dex_file, uint32_t element_offset) {
+  return NewPcRelativePatch(dex_file, element_offset, &pc_relative_dex_cache_patches_);
+}
+
+CodeGeneratorMIPS::PcRelativePatchInfo* CodeGeneratorMIPS::NewPcRelativePatch(
+    const DexFile& dex_file, uint32_t offset_or_index, ArenaDeque<PcRelativePatchInfo>* patches) {
+  patches->emplace_back(dex_file, offset_or_index);
+  return &patches->back();
+}
+
+Literal* CodeGeneratorMIPS::DeduplicateMethodLiteral(MethodReference target_method,
+                                                     MethodToLiteralMap* map) {
+  return map->GetOrCreate(
+      target_method,
+      [this]() { return __ NewLiteral<uint32_t>(/* placeholder */ 0u); });
+}
+
+Literal* CodeGeneratorMIPS::DeduplicateMethodAddressLiteral(MethodReference target_method) {
+  return DeduplicateMethodLiteral(target_method, &method_patches_);
+}
+
+Literal* CodeGeneratorMIPS::DeduplicateMethodCodeLiteral(MethodReference target_method) {
+  return DeduplicateMethodLiteral(target_method, &call_patches_);
 }
 
 void CodeGeneratorMIPS::MarkGCCard(Register object, Register value) {
@@ -3741,12 +3815,38 @@ void LocationsBuilderMIPS::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invo
   // art::PrepareForRegisterAllocation.
   DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
 
+  HInvokeStaticOrDirect::MethodLoadKind method_load_kind = invoke->GetMethodLoadKind();
+  HInvokeStaticOrDirect::CodePtrLocation code_ptr_location = invoke->GetCodePtrLocation();
+  bool isR6 = codegen_->GetInstructionSetFeatures().IsR6();
+
+  // kDirectAddressWithFixup and kCallDirectWithFixup need no extra input on R6 because
+  // R6 has PC-relative addressing.
+  bool has_extra_input = !isR6 &&
+      ((method_load_kind == HInvokeStaticOrDirect::MethodLoadKind::kDirectAddressWithFixup) ||
+       (code_ptr_location == HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup));
+
+  if (invoke->HasPcRelativeDexCache()) {
+    // kDexCachePcRelative is mutually exclusive with
+    // kDirectAddressWithFixup/kCallDirectWithFixup.
+    CHECK(!has_extra_input);
+    has_extra_input = true;
+  }
+
   IntrinsicLocationsBuilderMIPS intrinsic(codegen_);
   if (intrinsic.TryDispatch(invoke)) {
+    if (invoke->GetLocations()->CanCall() && has_extra_input) {
+      invoke->GetLocations()->SetInAt(invoke->GetSpecialInputIndex(), Location::Any());
+    }
     return;
   }
 
   HandleInvoke(invoke);
+
+  // Add the extra input register if either the dex cache array base register
+  // or the PC-relative base register for accessing literals is needed.
+  if (has_extra_input) {
+    invoke->GetLocations()->SetInAt(invoke->GetSpecialInputIndex(), Location::RequiresRegister());
+  }
 }
 
 static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorMIPS* codegen) {
@@ -3771,42 +3871,103 @@ HLoadClass::LoadKind CodeGeneratorMIPS::GetSupportedLoadClassKind(
   return HLoadClass::LoadKind::kDexCacheViaMethod;
 }
 
+Register CodeGeneratorMIPS::GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOrDirect* invoke,
+                                                                  Register temp) {
+  CHECK_EQ(invoke->InputCount(), invoke->GetNumberOfArguments() + 1u);
+  Location location = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
+  if (!invoke->GetLocations()->Intrinsified()) {
+    return location.AsRegister<Register>();
+  }
+  // For intrinsics we allow any location, so it may be on the stack.
+  if (!location.IsRegister()) {
+    __ LoadFromOffset(kLoadWord, temp, SP, location.GetStackIndex());
+    return temp;
+  }
+  // For register locations, check if the register was saved. If so, get it from the stack.
+  // Note: There is a chance that the register was saved but not overwritten, so we could
+  // save one load. However, since this is just an intrinsic slow path we prefer this
+  // simple and more robust approach rather that trying to determine if that's the case.
+  SlowPathCode* slow_path = GetCurrentSlowPath();
+  DCHECK(slow_path != nullptr);  // For intrinsified invokes the call is emitted on the slow path.
+  if (slow_path->IsCoreRegisterSaved(location.AsRegister<Register>())) {
+    int stack_offset = slow_path->GetStackOffsetOfCoreRegister(location.AsRegister<Register>());
+    __ LoadFromOffset(kLoadWord, temp, SP, stack_offset);
+    return temp;
+  }
+  return location.AsRegister<Register>();
+}
+
 HInvokeStaticOrDirect::DispatchInfo CodeGeneratorMIPS::GetSupportedInvokeStaticOrDirectDispatch(
       const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
       MethodReference target_method ATTRIBUTE_UNUSED) {
-  switch (desired_dispatch_info.method_load_kind) {
+  HInvokeStaticOrDirect::DispatchInfo dispatch_info = desired_dispatch_info;
+  // We disable PC-relative load when there is an irreducible loop, as the optimization
+  // is incompatible with it.
+  bool has_irreducible_loops = GetGraph()->HasIrreducibleLoops();
+  bool fallback_load = true;
+  bool fallback_call = true;
+  switch (dispatch_info.method_load_kind) {
     case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddressWithFixup:
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative:
-      // TODO: Implement these types. For the moment, we fall back to kDexCacheViaMethod.
-      return HInvokeStaticOrDirect::DispatchInfo {
-        HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod,
-        HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod,
-        0u,
-        0u
-      };
+      fallback_load = has_irreducible_loops;
+      break;
     default:
+      fallback_load = false;
       break;
   }
-  switch (desired_dispatch_info.code_ptr_location) {
+  switch (dispatch_info.code_ptr_location) {
     case HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup:
+      fallback_call = has_irreducible_loops;
+      break;
     case HInvokeStaticOrDirect::CodePtrLocation::kCallPCRelative:
-      // TODO: Implement these types. For the moment, we fall back to kCallArtMethod.
-      return HInvokeStaticOrDirect::DispatchInfo {
-        desired_dispatch_info.method_load_kind,
-        HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod,
-        desired_dispatch_info.method_load_data,
-        0u
-      };
+      // TODO: Implement this type.
+      break;
     default:
-      return desired_dispatch_info;
+      fallback_call = false;
+      break;
   }
+  if (fallback_load) {
+    dispatch_info.method_load_kind = HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod;
+    dispatch_info.method_load_data = 0;
+  }
+  if (fallback_call) {
+    dispatch_info.code_ptr_location = HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod;
+    dispatch_info.direct_code_ptr = 0;
+  }
+  return dispatch_info;
 }
 
 void CodeGeneratorMIPS::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Location temp) {
   // All registers are assumed to be correctly set up per the calling convention.
-
   Location callee_method = temp;  // For all kinds except kRecursive, callee will be in temp.
-  switch (invoke->GetMethodLoadKind()) {
+  HInvokeStaticOrDirect::MethodLoadKind method_load_kind = invoke->GetMethodLoadKind();
+  HInvokeStaticOrDirect::CodePtrLocation code_ptr_location = invoke->GetCodePtrLocation();
+  bool isR6 = isa_features_.IsR6();
+  // kDirectAddressWithFixup and kCallDirectWithFixup have no extra input on R6 because
+  // R6 has PC-relative addressing.
+  bool has_extra_input = invoke->HasPcRelativeDexCache() ||
+      (!isR6 &&
+       ((method_load_kind == HInvokeStaticOrDirect::MethodLoadKind::kDirectAddressWithFixup) ||
+        (code_ptr_location == HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup)));
+  Register base_reg = has_extra_input
+      ? GetInvokeStaticOrDirectExtraParameter(invoke, temp.AsRegister<Register>())
+      : ZERO;
+
+  // For better instruction scheduling we load the direct code pointer before the method pointer.
+  switch (code_ptr_location) {
+    case HInvokeStaticOrDirect::CodePtrLocation::kCallDirect:
+      // T9 = invoke->GetDirectCodePtr();
+      __ LoadConst32(T9, invoke->GetDirectCodePtr());
+      break;
+    case HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup:
+      // T9 = code address from literal pool with link-time patch.
+      __ LoadLiteral(T9, base_reg, DeduplicateMethodCodeLiteral(invoke->GetTargetMethod()));
+      break;
+    default:
+      break;
+  }
+
+  switch (method_load_kind) {
     case HInvokeStaticOrDirect::MethodLoadKind::kStringInit:
       // temp = thread->string_init_entrypoint
       __ LoadFromOffset(kLoadWord,
@@ -3821,11 +3982,18 @@ void CodeGeneratorMIPS::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke
       __ LoadConst32(temp.AsRegister<Register>(), invoke->GetMethodAddress());
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddressWithFixup:
-    case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative:
-      // TODO: Implement these types.
-      // Currently filtered out by GetSupportedInvokeStaticOrDirectDispatch().
-      LOG(FATAL) << "Unsupported";
-      UNREACHABLE();
+      __ LoadLiteral(temp.AsRegister<Register>(),
+                     base_reg,
+                     DeduplicateMethodAddressLiteral(invoke->GetTargetMethod()));
+      break;
+    case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative: {
+      HMipsDexCacheArraysBase* base =
+          invoke->InputAt(invoke->GetSpecialInputIndex())->AsMipsDexCacheArraysBase();
+      int32_t offset =
+          invoke->GetDexCacheArrayOffset() - base->GetElementOffset() - kDexCacheArrayLwOffset;
+      __ LoadFromOffset(kLoadWord, temp.AsRegister<Register>(), base_reg, offset);
+      break;
+    }
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
       Location current_method = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
       Register reg = temp.AsRegister<Register>();
@@ -3856,20 +4024,19 @@ void CodeGeneratorMIPS::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke
     }
   }
 
-  switch (invoke->GetCodePtrLocation()) {
+  switch (code_ptr_location) {
     case HInvokeStaticOrDirect::CodePtrLocation::kCallSelf:
-      __ Jalr(&frame_entry_label_, T9);
+      __ Bal(&frame_entry_label_);
       break;
     case HInvokeStaticOrDirect::CodePtrLocation::kCallDirect:
-      // LR = invoke->GetDirectCodePtr();
-      __ LoadConst32(T9, invoke->GetDirectCodePtr());
-      // LR()
+    case HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup:
+      // T9 prepared above for better instruction scheduling.
+      // T9()
       __ Jalr(T9);
       __ Nop();
       break;
-    case HInvokeStaticOrDirect::CodePtrLocation::kCallDirectWithFixup:
     case HInvokeStaticOrDirect::CodePtrLocation::kCallPCRelative:
-      // TODO: Implement these types.
+      // TODO: Implement this type.
       // Currently filtered out by GetSupportedInvokeStaticOrDirectDispatch().
       LOG(FATAL) << "Unsupported";
       UNREACHABLE();
@@ -5137,6 +5304,57 @@ void InstructionCodeGeneratorMIPS::VisitPackedSwitch(HPackedSwitch* switch_instr
   // And the default for any other value.
   if (!codegen_->GoesToNextBlock(switch_instr->GetBlock(), default_block)) {
     __ B(codegen_->GetLabelOf(default_block));
+  }
+}
+
+void LocationsBuilderMIPS::VisitMipsComputeBaseMethodAddress(
+    HMipsComputeBaseMethodAddress* insn) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(insn, LocationSummary::kNoCall);
+  locations->SetOut(Location::RequiresRegister());
+}
+
+void InstructionCodeGeneratorMIPS::VisitMipsComputeBaseMethodAddress(
+    HMipsComputeBaseMethodAddress* insn) {
+  LocationSummary* locations = insn->GetLocations();
+  Register reg = locations->Out().AsRegister<Register>();
+
+  CHECK(!codegen_->GetInstructionSetFeatures().IsR6());
+
+  // Generate a dummy PC-relative call to obtain PC.
+  __ Nal();
+  // Grab the return address off RA.
+  __ Move(reg, RA);
+
+  // Remember this offset (the obtained PC value) for later use with constant area.
+  __ BindPcRelBaseLabel();
+}
+
+void LocationsBuilderMIPS::VisitMipsDexCacheArraysBase(HMipsDexCacheArraysBase* base) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(base);
+  locations->SetOut(Location::RequiresRegister());
+}
+
+void InstructionCodeGeneratorMIPS::VisitMipsDexCacheArraysBase(HMipsDexCacheArraysBase* base) {
+  Register reg = base->GetLocations()->Out().AsRegister<Register>();
+  CodeGeneratorMIPS::PcRelativePatchInfo* info =
+      codegen_->NewPcRelativeDexCacheArrayPatch(base->GetDexFile(), base->GetElementOffset());
+
+  if (codegen_->GetInstructionSetFeatures().IsR6()) {
+    __ Bind(&info->high_label);
+    __ Bind(&info->pc_rel_label);
+    // Add a 32-bit offset to PC.
+    __ Auipc(reg, /* placeholder */ 0x1234);
+    __ Addiu(reg, reg, /* placeholder */ 0x5678);
+  } else {
+    // Generate a dummy PC-relative call to obtain PC.
+    __ Nal();
+    __ Bind(&info->high_label);
+    __ Lui(reg, /* placeholder */ 0x1234);
+    __ Bind(&info->pc_rel_label);
+    __ Ori(reg, reg, /* placeholder */ 0x5678);
+    // Add a 32-bit offset to PC.
+    __ Addu(reg, reg, RA);
   }
 }
 
