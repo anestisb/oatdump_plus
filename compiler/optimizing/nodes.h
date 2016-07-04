@@ -1307,7 +1307,13 @@ class HLoopInformationOutwardIterator : public ValueObject {
   M(Arm64IntermediateAddress, Instruction)
 #endif
 
+#ifndef ART_ENABLE_CODEGEN_mips
 #define FOR_EACH_CONCRETE_INSTRUCTION_MIPS(M)
+#else
+#define FOR_EACH_CONCRETE_INSTRUCTION_MIPS(M)                           \
+  M(MipsComputeBaseMethodAddress, Instruction)                          \
+  M(MipsDexCacheArraysBase, Instruction)
+#endif
 
 #define FOR_EACH_CONCRETE_INSTRUCTION_MIPS64(M)
 
@@ -6550,6 +6556,9 @@ class HParallelMove FINAL : public HTemplateInstruction<0> {
 #endif
 #ifdef ART_ENABLE_CODEGEN_arm64
 #include "nodes_arm64.h"
+#endif
+#ifdef ART_ENABLE_CODEGEN_mips
+#include "nodes_mips.h"
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86
 #include "nodes_x86.h"

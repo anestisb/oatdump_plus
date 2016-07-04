@@ -17,10 +17,12 @@
 #ifndef ART_COMPILER_UTILS_MIPS_ASSEMBLER_MIPS_H_
 #define ART_COMPILER_UTILS_MIPS_ASSEMBLER_MIPS_H_
 
+#include <deque>
 #include <utility>
 #include <vector>
 
 #include "arch/mips/instruction_set_features_mips.h"
+#include "base/arena_containers.h"
 #include "base/macros.h"
 #include "constants_mips.h"
 #include "globals.h"
@@ -79,6 +81,49 @@ class MipsLabel : public Label {
   DISALLOW_COPY_AND_ASSIGN(MipsLabel);
 };
 
+// Assembler literal is a value embedded in code, retrieved using a PC-relative load.
+class Literal {
+ public:
+  static constexpr size_t kMaxSize = 8;
+
+  Literal(uint32_t size, const uint8_t* data)
+      : label_(), size_(size) {
+    DCHECK_LE(size, Literal::kMaxSize);
+    memcpy(data_, data, size);
+  }
+
+  template <typename T>
+  T GetValue() const {
+    DCHECK_EQ(size_, sizeof(T));
+    T value;
+    memcpy(&value, data_, sizeof(T));
+    return value;
+  }
+
+  uint32_t GetSize() const {
+    return size_;
+  }
+
+  const uint8_t* GetData() const {
+    return data_;
+  }
+
+  MipsLabel* GetLabel() {
+    return &label_;
+  }
+
+  const MipsLabel* GetLabel() const {
+    return &label_;
+  }
+
+ private:
+  MipsLabel label_;
+  const uint32_t size_;
+  uint8_t data_[kMaxSize];
+
+  DISALLOW_COPY_AND_ASSIGN(Literal);
+};
+
 // Slowpath entered when Thread::Current()->_exception is non-null.
 class MipsExceptionSlowPath {
  public:
@@ -107,6 +152,7 @@ class MipsAssembler FINAL : public Assembler {
       : Assembler(arena),
         overwriting_(false),
         overwrite_location_(0),
+        literals_(arena->Adapter(kArenaAllocAssembler)),
         last_position_adjustment_(0),
         last_old_position_(0),
         last_branch_id_(0),
@@ -182,6 +228,7 @@ class MipsAssembler FINAL : public Assembler {
   void Lwr(Register rt, Register rs, uint16_t imm16);
   void Lbu(Register rt, Register rs, uint16_t imm16);
   void Lhu(Register rt, Register rs, uint16_t imm16);
+  void Lwpc(Register rs, uint32_t imm19);  // R6
   void Lui(Register rt, uint16_t imm16);
   void Aui(Register rt, Register rs, uint16_t imm16);  // R6
   void Sync(uint32_t stype);
@@ -205,6 +252,7 @@ class MipsAssembler FINAL : public Assembler {
   void Sltiu(Register rt, Register rs, uint16_t imm16);
 
   void B(uint16_t imm16);
+  void Bal(uint16_t imm16);
   void Beq(Register rs, Register rt, uint16_t imm16);
   void Bne(Register rs, Register rt, uint16_t imm16);
   void Beqz(Register rt, uint16_t imm16);
@@ -226,6 +274,7 @@ class MipsAssembler FINAL : public Assembler {
   void Auipc(Register rs, uint16_t imm16);  // R6
   void Addiupc(Register rs, uint32_t imm19);  // R6
   void Bc(uint32_t imm26);  // R6
+  void Balc(uint32_t imm26);  // R6
   void Jic(Register rt, uint16_t imm16);  // R6
   void Jialc(Register rt, uint16_t imm16);  // R6
   void Bltc(Register rs, Register rt, uint16_t imm16);  // R6
@@ -365,7 +414,7 @@ class MipsAssembler FINAL : public Assembler {
   // These will generate R2 branches or R6 branches as appropriate.
   void Bind(MipsLabel* label);
   void B(MipsLabel* label);
-  void Jalr(MipsLabel* label, Register indirect_reg);
+  void Bal(MipsLabel* label);
   void Beq(Register rs, Register rt, MipsLabel* label);
   void Bne(Register rs, Register rt, MipsLabel* label);
   void Beqz(Register rt, MipsLabel* label);
@@ -411,6 +460,21 @@ class MipsAssembler FINAL : public Assembler {
   void Jump(Label* label ATTRIBUTE_UNUSED) OVERRIDE {
     UNIMPLEMENTED(FATAL) << "Do not use Jump for MIPS";
   }
+
+  // Create a new literal with a given value.
+  // NOTE: Force the template parameter to be explicitly specified.
+  template <typename T>
+  Literal* NewLiteral(typename Identity<T>::type value) {
+    static_assert(std::is_integral<T>::value, "T must be an integral type.");
+    return NewLiteral(sizeof(value), reinterpret_cast<const uint8_t*>(&value));
+  }
+
+  // Create a new literal with the given data.
+  Literal* NewLiteral(size_t size, const uint8_t* data);
+
+  // Load literal using the base register (for R2 only) or using PC-relative loads
+  // (for R6 only; base_reg must be ZERO).
+  void LoadLiteral(Register dest_reg, Register base_reg, Literal* literal);
 
   //
   // Overridden common assembler high-level functionality.
@@ -569,12 +633,22 @@ class MipsAssembler FINAL : public Assembler {
 
   // Returns the (always-)current location of a label (can be used in class CodeGeneratorMIPS,
   // must be used instead of MipsLabel::GetPosition()).
-  uint32_t GetLabelLocation(MipsLabel* label) const;
+  uint32_t GetLabelLocation(const MipsLabel* label) const;
 
   // Get the final position of a label after local fixup based on the old position
   // recorded before FinalizeCode().
   uint32_t GetAdjustedPosition(uint32_t old_position);
 
+  // R2 doesn't have PC-relative addressing, which we need to access literals. We simulate it by
+  // reading the PC value into a general-purpose register with the NAL instruction and then loading
+  // literals through this base register. The code generator calls this method (at most once per
+  // method being compiled) to bind a label to the location for which the PC value is acquired.
+  // The assembler then computes literal offsets relative to this label.
+  void BindPcRelBaseLabel();
+
+  // Note that PC-relative literal loads are handled as pseudo branches because they need very
+  // similar relocation and may similarly expand in size to accomodate for larger offsets relative
+  // to PC.
   enum BranchCondition {
     kCondLT,
     kCondGE,
@@ -604,18 +678,26 @@ class MipsAssembler FINAL : public Assembler {
       kUncondBranch,
       kCondBranch,
       kCall,
+      // R2 near literal.
+      kLiteral,
       // R2 long branches.
       kLongUncondBranch,
       kLongCondBranch,
       kLongCall,
+      // R2 far literal.
+      kFarLiteral,
       // R6 short branches.
       kR6UncondBranch,
       kR6CondBranch,
       kR6Call,
+      // R6 near literal.
+      kR6Literal,
       // R6 long branches.
       kR6LongUncondBranch,
       kR6LongCondBranch,
       kR6LongCall,
+      // R6 far literal.
+      kR6FarLiteral,
     };
     // Bit sizes of offsets defined as enums to minimize chance of typos.
     enum OffsetBits {
@@ -650,17 +732,17 @@ class MipsAssembler FINAL : public Assembler {
     };
     static const BranchInfo branch_info_[/* Type */];
 
-    // Unconditional branch.
-    Branch(bool is_r6, uint32_t location, uint32_t target);
+    // Unconditional branch or call.
+    Branch(bool is_r6, uint32_t location, uint32_t target, bool is_call);
     // Conditional branch.
     Branch(bool is_r6,
            uint32_t location,
            uint32_t target,
            BranchCondition condition,
            Register lhs_reg,
-           Register rhs_reg = ZERO);
-    // Call (branch and link) that stores the target address in a given register (i.e. T9).
-    Branch(bool is_r6, uint32_t location, uint32_t target, Register indirect_reg);
+           Register rhs_reg);
+    // Literal.
+    Branch(bool is_r6, uint32_t location, Register dest_reg, Register base_reg);
 
     // Some conditional branches with lhs = rhs are effectively NOPs, while some
     // others are effectively unconditional. MIPSR6 conditional branches require lhs != rhs.
@@ -736,17 +818,18 @@ class MipsAssembler FINAL : public Assembler {
     // that is allowed for short branches. This is for debugging/testing purposes.
     // max_short_distance = 0 forces all short branches to become long.
     // Use the implicit default argument when not debugging/testing.
-    uint32_t PromoteIfNeeded(uint32_t max_short_distance = std::numeric_limits<uint32_t>::max());
+    uint32_t PromoteIfNeeded(uint32_t location,
+                             uint32_t max_short_distance = std::numeric_limits<uint32_t>::max());
 
     // Returns the location of the instruction(s) containing the offset.
     uint32_t GetOffsetLocation() const;
 
     // Calculates and returns the offset ready for encoding in the branch instruction(s).
-    uint32_t GetOffset() const;
+    uint32_t GetOffset(uint32_t location) const;
 
    private:
     // Completes branch construction by determining and recording its type.
-    void InitializeType(bool is_call, bool is_r6);
+    void InitializeType(bool is_call, bool is_literal, bool is_r6);
     // Helper for the above.
     void InitShortOrLong(OffsetBits ofs_size, Type short_type, Type long_type);
 
@@ -776,12 +859,15 @@ class MipsAssembler FINAL : public Assembler {
 
   void Buncond(MipsLabel* label);
   void Bcond(MipsLabel* label, BranchCondition condition, Register lhs, Register rhs = ZERO);
-  void Call(MipsLabel* label, Register indirect_reg);
+  void Call(MipsLabel* label);
   void FinalizeLabeledBranch(MipsLabel* label);
 
   Branch* GetBranch(uint32_t branch_id);
   const Branch* GetBranch(uint32_t branch_id) const;
+  uint32_t GetBranchLocationOrPcRelBase(const MipsAssembler::Branch* branch) const;
+  uint32_t GetBranchOrPcRelBaseForEncoding(const MipsAssembler::Branch* branch) const;
 
+  void EmitLiterals();
   void PromoteBranches();
   void EmitBranch(Branch* branch);
   void EmitBranches();
@@ -815,6 +901,15 @@ class MipsAssembler FINAL : public Assembler {
   bool overwriting_;
   // The current overwrite location.
   uint32_t overwrite_location_;
+
+  // Use std::deque<> for literal labels to allow insertions at the end
+  // without invalidating pointers and references to existing elements.
+  ArenaDeque<Literal> literals_;
+
+  // There's no PC-relative addressing on MIPS32R2. So, in order to access literals relative to PC
+  // we get PC using the NAL instruction. This label marks the position within the assembler buffer
+  // that PC (from NAL) points to.
+  MipsLabel pc_rel_base_label_;
 
   // Data for AdjustedPosition(), see the description there.
   uint32_t last_position_adjustment_;

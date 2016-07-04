@@ -28,6 +28,11 @@
 #include "instruction_simplifier_arm64.h"
 #endif
 
+#ifdef ART_ENABLE_CODEGEN_mips
+#include "dex_cache_array_fixups_mips.h"
+#include "pc_relative_fixups_mips.h"
+#endif
+
 #ifdef ART_ENABLE_CODEGEN_x86
 #include "pc_relative_fixups_x86.h"
 #endif
@@ -459,6 +464,20 @@ static void RunArchOptimizations(InstructionSet instruction_set,
         gvn
       };
       RunOptimizations(arm64_optimizations, arraysize(arm64_optimizations), pass_observer);
+      break;
+    }
+#endif
+#ifdef ART_ENABLE_CODEGEN_mips
+    case kMips: {
+      mips::PcRelativeFixups* pc_relative_fixups =
+          new (arena) mips::PcRelativeFixups(graph, codegen, stats);
+      mips::DexCacheArrayFixups* dex_cache_array_fixups =
+          new (arena) mips::DexCacheArrayFixups(graph, stats);
+      HOptimization* mips_optimizations[] = {
+          pc_relative_fixups,
+          dex_cache_array_fixups
+      };
+      RunOptimizations(mips_optimizations, arraysize(mips_optimizations), pass_observer);
       break;
     }
 #endif
