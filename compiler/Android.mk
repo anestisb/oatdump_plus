@@ -113,8 +113,11 @@ LIBART_COMPILER_SRC_FILES_arm64 := \
 
 LIBART_COMPILER_SRC_FILES_mips := \
 	jni/quick/mips/calling_convention_mips.cc \
+	linker/mips/relative_patcher_mips.cc \
 	optimizing/code_generator_mips.cc \
+	optimizing/dex_cache_array_fixups_mips.cc \
 	optimizing/intrinsics_mips.cc \
+	optimizing/pc_relative_fixups_mips.cc \
 	utils/mips/assembler_mips.cc \
 	utils/mips/managed_register_mips.cc \
 

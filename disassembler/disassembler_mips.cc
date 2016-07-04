@@ -330,8 +330,10 @@ static const MipsInstruction gMipsInstructions[] = {
   { kITypeMask, 55u << kOpcodeShift, "ld", "TO", },
   { kITypeMask, 56u << kOpcodeShift, "sc", "TO", },
   { kITypeMask, 57u << kOpcodeShift, "swc1", "tO", },
+  { kJTypeMask, 58u << kOpcodeShift, "balc", "P" },
   { kITypeMask | (0x1f << 16), (59u << kOpcodeShift) | (30 << 16), "auipc", "Si" },
   { kITypeMask | (0x3 << 19), (59u << kOpcodeShift) | (0 << 19), "addiupc", "Sp" },
+  { kITypeMask | (0x3 << 19), (59u << kOpcodeShift) | (1 << 19), "lwpc", "So" },
   { kITypeMask, 61u << kOpcodeShift, "sdc1", "tO", },
   { kITypeMask | (0x1f << 21), 62u << kOpcodeShift, "jialc", "Ti" },
   { kITypeMask | (1 << 21), (62u << kOpcodeShift) | (1 << 21), "bnezc", "Sb" },  // TODO: de-dup?
@@ -509,7 +511,15 @@ size_t DisassemblerMips::Dump(std::ostream& os, const uint8_t* instr_ptr) {
               }
             }
             break;
-          case 'P':  // 26-bit offset in bc.
+          case 'o':  // 19-bit offset in lwpc.
+            {
+              int32_t offset = (instruction & 0x7ffff) - ((instruction & 0x40000) << 1);
+              offset <<= 2;
+              args << FormatInstructionPointer(instr_ptr + offset);
+              args << StringPrintf("  ; %+d", offset);
+            }
+            break;
+          case 'P':  // 26-bit offset in bc and balc.
             {
               int32_t offset = (instruction & 0x3ffffff) - ((instruction & 0x2000000) << 1);
               offset <<= 2;
@@ -540,6 +550,7 @@ size_t DisassemblerMips::Dump(std::ostream& os, const uint8_t* instr_ptr) {
     }
   }
 
+  // TODO: Simplify this once these sequences are simplified in the compiler.
   // Special cases for sequences of:
   //   pc-relative +/- 2GB branch:
   //     auipc  reg, imm

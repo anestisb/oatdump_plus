@@ -39,6 +39,7 @@ void MipsAssembler::FinalizeCode() {
   for (auto& exception_block : exception_blocks_) {
     EmitExceptionPoll(&exception_block);
   }
+  EmitLiterals();
   PromoteBranches();
 }
 
@@ -444,6 +445,12 @@ void MipsAssembler::Lhu(Register rt, Register rs, uint16_t imm16) {
   EmitI(0x25, rs, rt, imm16);
 }
 
+void MipsAssembler::Lwpc(Register rs, uint32_t imm19) {
+  CHECK(IsR6());
+  CHECK(IsUint<19>(imm19)) << imm19;
+  EmitI21(0x3B, rs, (0x01 << 19) | imm19);
+}
+
 void MipsAssembler::Lui(Register rt, uint16_t imm16) {
   EmitI(0xf, static_cast<Register>(0), rt, imm16);
 }
@@ -530,6 +537,10 @@ void MipsAssembler::Sltiu(Register rt, Register rs, uint16_t imm16) {
 
 void MipsAssembler::B(uint16_t imm16) {
   EmitI(0x4, static_cast<Register>(0), static_cast<Register>(0), imm16);
+}
+
+void MipsAssembler::Bal(uint16_t imm16) {
+  EmitI(0x1, static_cast<Register>(0), static_cast<Register>(0x11), imm16);
 }
 
 void MipsAssembler::Beq(Register rs, Register rt, uint16_t imm16) {
@@ -622,6 +633,11 @@ void MipsAssembler::Addiupc(Register rs, uint32_t imm19) {
 void MipsAssembler::Bc(uint32_t imm26) {
   CHECK(IsR6());
   EmitI26(0x32, imm26);
+}
+
+void MipsAssembler::Balc(uint32_t imm26) {
+  CHECK(IsR6());
+  EmitI26(0x3A, imm26);
 }
 
 void MipsAssembler::Jic(Register rt, uint16_t imm16) {
@@ -1489,30 +1505,47 @@ void MipsAssembler::Branch::InitShortOrLong(MipsAssembler::Branch::OffsetBits of
   type_ = (offset_size <= branch_info_[short_type].offset_size) ? short_type : long_type;
 }
 
-void MipsAssembler::Branch::InitializeType(bool is_call, bool is_r6) {
+void MipsAssembler::Branch::InitializeType(bool is_call, bool is_literal, bool is_r6) {
+  CHECK_EQ(is_call && is_literal, false);
   OffsetBits offset_size = GetOffsetSizeNeeded(location_, target_);
   if (is_r6) {
     // R6
-    if (is_call) {
+    if (is_literal) {
+      CHECK(!IsResolved());
+      type_ = kR6Literal;
+    } else if (is_call) {
       InitShortOrLong(offset_size, kR6Call, kR6LongCall);
-    } else if (condition_ == kUncond) {
-      InitShortOrLong(offset_size, kR6UncondBranch, kR6LongUncondBranch);
     } else {
-      if (condition_ == kCondEQZ || condition_ == kCondNEZ) {
-        // Special case for beqzc/bnezc with longer offset than in other b<cond>c instructions.
-        type_ = (offset_size <= kOffset23) ? kR6CondBranch : kR6LongCondBranch;
-      } else {
-        InitShortOrLong(offset_size, kR6CondBranch, kR6LongCondBranch);
+      switch (condition_) {
+        case kUncond:
+          InitShortOrLong(offset_size, kR6UncondBranch, kR6LongUncondBranch);
+          break;
+        case kCondEQZ:
+        case kCondNEZ:
+          // Special case for beqzc/bnezc with longer offset than in other b<cond>c instructions.
+          type_ = (offset_size <= kOffset23) ? kR6CondBranch : kR6LongCondBranch;
+          break;
+        default:
+          InitShortOrLong(offset_size, kR6CondBranch, kR6LongCondBranch);
+          break;
       }
     }
   } else {
     // R2
-    if (is_call) {
+    if (is_literal) {
+      CHECK(!IsResolved());
+      type_ = kLiteral;
+    } else if (is_call) {
       InitShortOrLong(offset_size, kCall, kLongCall);
-    } else if (condition_ == kUncond) {
-      InitShortOrLong(offset_size, kUncondBranch, kLongUncondBranch);
     } else {
-      InitShortOrLong(offset_size, kCondBranch, kLongCondBranch);
+      switch (condition_) {
+        case kUncond:
+          InitShortOrLong(offset_size, kUncondBranch, kLongUncondBranch);
+          break;
+        default:
+          InitShortOrLong(offset_size, kCondBranch, kLongCondBranch);
+          break;
+      }
     }
   }
   old_type_ = type_;
@@ -1544,14 +1577,14 @@ bool MipsAssembler::Branch::IsUncond(BranchCondition condition, Register lhs, Re
   }
 }
 
-MipsAssembler::Branch::Branch(bool is_r6, uint32_t location, uint32_t target)
+MipsAssembler::Branch::Branch(bool is_r6, uint32_t location, uint32_t target, bool is_call)
     : old_location_(location),
       location_(location),
       target_(target),
       lhs_reg_(0),
       rhs_reg_(0),
       condition_(kUncond) {
-  InitializeType(false, is_r6);
+  InitializeType(is_call, /* is_literal */ false, is_r6);
 }
 
 MipsAssembler::Branch::Branch(bool is_r6,
@@ -1608,19 +1641,23 @@ MipsAssembler::Branch::Branch(bool is_r6,
     // Branch condition is always true, make the branch unconditional.
     condition_ = kUncond;
   }
-  InitializeType(false, is_r6);
+  InitializeType(/* is_call */ false, /* is_literal */ false, is_r6);
 }
 
-MipsAssembler::Branch::Branch(bool is_r6, uint32_t location, uint32_t target, Register indirect_reg)
+MipsAssembler::Branch::Branch(bool is_r6, uint32_t location, Register dest_reg, Register base_reg)
     : old_location_(location),
       location_(location),
-      target_(target),
-      lhs_reg_(indirect_reg),
-      rhs_reg_(0),
+      target_(kUnresolved),
+      lhs_reg_(dest_reg),
+      rhs_reg_(base_reg),
       condition_(kUncond) {
-  CHECK_NE(indirect_reg, ZERO);
-  CHECK_NE(indirect_reg, AT);
-  InitializeType(true, is_r6);
+  CHECK_NE(dest_reg, ZERO);
+  if (is_r6) {
+    CHECK_EQ(base_reg, ZERO);
+  } else {
+    CHECK_NE(base_reg, ZERO);
+  }
+  InitializeType(/* is_call */ false, /* is_literal */ true, is_r6);
 }
 
 MipsAssembler::BranchCondition MipsAssembler::Branch::OppositeCondition(
@@ -1722,19 +1759,27 @@ bool MipsAssembler::Branch::IsLong() const {
     case kUncondBranch:
     case kCondBranch:
     case kCall:
+    // R2 near literal.
+    case kLiteral:
     // R6 short branches.
     case kR6UncondBranch:
     case kR6CondBranch:
     case kR6Call:
+    // R6 near literal.
+    case kR6Literal:
       return false;
     // R2 long branches.
     case kLongUncondBranch:
     case kLongCondBranch:
     case kLongCall:
+    // R2 far literal.
+    case kFarLiteral:
     // R6 long branches.
     case kR6LongUncondBranch:
     case kR6LongCondBranch:
     case kR6LongCall:
+    // R6 far literal.
+    case kR6FarLiteral:
       return true;
   }
   UNREACHABLE();
@@ -1803,6 +1848,10 @@ void MipsAssembler::Branch::PromoteToLong() {
     case kCall:
       type_ = kLongCall;
       break;
+    // R2 near literal.
+    case kLiteral:
+      type_ = kFarLiteral;
+      break;
     // R6 short branches.
     case kR6UncondBranch:
       type_ = kR6LongUncondBranch;
@@ -1813,6 +1862,10 @@ void MipsAssembler::Branch::PromoteToLong() {
     case kR6Call:
       type_ = kR6LongCall;
       break;
+    // R6 near literal.
+    case kR6Literal:
+      type_ = kR6FarLiteral;
+      break;
     default:
       // Note: 'type_' is already long.
       break;
@@ -1820,14 +1873,26 @@ void MipsAssembler::Branch::PromoteToLong() {
   CHECK(IsLong());
 }
 
-uint32_t MipsAssembler::Branch::PromoteIfNeeded(uint32_t max_short_distance) {
+uint32_t MipsAssembler::GetBranchLocationOrPcRelBase(const MipsAssembler::Branch* branch) const {
+  switch (branch->GetType()) {
+    case Branch::kLiteral:
+    case Branch::kFarLiteral:
+      return GetLabelLocation(&pc_rel_base_label_);
+    default:
+      return branch->GetLocation();
+  }
+}
+
+uint32_t MipsAssembler::Branch::PromoteIfNeeded(uint32_t location, uint32_t max_short_distance) {
+  // `location` is either `GetLabelLocation(&pc_rel_base_label_)` for R2 literals or
+  // `this->GetLocation()` for everything else.
   // If the branch is still unresolved or already long, nothing to do.
   if (IsLong() || !IsResolved()) {
     return 0;
   }
   // Promote the short branch to long if the offset size is too small
-  // to hold the distance between location_ and target_.
-  if (GetOffsetSizeNeeded(location_, target_) > GetOffsetSize()) {
+  // to hold the distance between location and target_.
+  if (GetOffsetSizeNeeded(location, target_) > GetOffsetSize()) {
     PromoteToLong();
     uint32_t old_size = GetOldSize();
     uint32_t new_size = GetSize();
@@ -1837,7 +1902,7 @@ uint32_t MipsAssembler::Branch::PromoteIfNeeded(uint32_t max_short_distance) {
   // The following logic is for debugging/testing purposes.
   // Promote some short branches to long when it's not really required.
   if (UNLIKELY(max_short_distance != std::numeric_limits<uint32_t>::max())) {
-    int64_t distance = static_cast<int64_t>(target_) - location_;
+    int64_t distance = static_cast<int64_t>(target_) - location;
     distance = (distance >= 0) ? distance : -distance;
     if (distance >= max_short_distance) {
       PromoteToLong();
@@ -1854,12 +1919,26 @@ uint32_t MipsAssembler::Branch::GetOffsetLocation() const {
   return location_ + branch_info_[type_].instr_offset * sizeof(uint32_t);
 }
 
-uint32_t MipsAssembler::Branch::GetOffset() const {
+uint32_t MipsAssembler::GetBranchOrPcRelBaseForEncoding(const MipsAssembler::Branch* branch) const {
+  switch (branch->GetType()) {
+    case Branch::kLiteral:
+    case Branch::kFarLiteral:
+      return GetLabelLocation(&pc_rel_base_label_);
+    default:
+      return branch->GetOffsetLocation() +
+          Branch::branch_info_[branch->GetType()].pc_org * sizeof(uint32_t);
+  }
+}
+
+uint32_t MipsAssembler::Branch::GetOffset(uint32_t location) const {
+  // `location` is either `GetLabelLocation(&pc_rel_base_label_)` for R2 literals or
+  // `this->GetOffsetLocation() + branch_info_[this->GetType()].pc_org * sizeof(uint32_t)`
+  // for everything else.
   CHECK(IsResolved());
   uint32_t ofs_mask = 0xFFFFFFFF >> (32 - GetOffsetSize());
   // Calculate the byte distance between instructions and also account for
   // different PC-relative origins.
-  uint32_t offset = target_ - GetOffsetLocation() - branch_info_[type_].pc_org * sizeof(uint32_t);
+  uint32_t offset = target_ - location;
   // Prepare the offset for encoding into the instruction(s).
   offset = (offset & ofs_mask) >> branch_info_[type_].offset_shift;
   return offset;
@@ -1906,7 +1985,7 @@ void MipsAssembler::Bind(MipsLabel* label) {
   label->BindTo(bound_pc);
 }
 
-uint32_t MipsAssembler::GetLabelLocation(MipsLabel* label) const {
+uint32_t MipsAssembler::GetLabelLocation(const MipsLabel* label) const {
   CHECK(label->IsBound());
   uint32_t target = label->Position();
   if (label->prev_branch_id_plus_one_) {
@@ -1941,6 +2020,10 @@ uint32_t MipsAssembler::GetAdjustedPosition(uint32_t old_position) {
   return old_position + last_position_adjustment_;
 }
 
+void MipsAssembler::BindPcRelBaseLabel() {
+  Bind(&pc_rel_base_label_);
+}
+
 void MipsAssembler::FinalizeLabeledBranch(MipsLabel* label) {
   uint32_t length = branches_.back().GetLength();
   if (!label->IsBound()) {
@@ -1962,7 +2045,7 @@ void MipsAssembler::FinalizeLabeledBranch(MipsLabel* label) {
 
 void MipsAssembler::Buncond(MipsLabel* label) {
   uint32_t target = label->IsBound() ? GetLabelLocation(label) : Branch::kUnresolved;
-  branches_.emplace_back(IsR6(), buffer_.Size(), target);
+  branches_.emplace_back(IsR6(), buffer_.Size(), target, /* is_call */ false);
   FinalizeLabeledBranch(label);
 }
 
@@ -1976,10 +2059,44 @@ void MipsAssembler::Bcond(MipsLabel* label, BranchCondition condition, Register 
   FinalizeLabeledBranch(label);
 }
 
-void MipsAssembler::Call(MipsLabel* label, Register indirect_reg) {
+void MipsAssembler::Call(MipsLabel* label) {
   uint32_t target = label->IsBound() ? GetLabelLocation(label) : Branch::kUnresolved;
-  branches_.emplace_back(IsR6(), buffer_.Size(), target, indirect_reg);
+  branches_.emplace_back(IsR6(), buffer_.Size(), target, /* is_call */ true);
   FinalizeLabeledBranch(label);
+}
+
+Literal* MipsAssembler::NewLiteral(size_t size, const uint8_t* data) {
+  DCHECK(size == 4u || size == 8u) << size;
+  literals_.emplace_back(size, data);
+  return &literals_.back();
+}
+
+void MipsAssembler::LoadLiteral(Register dest_reg, Register base_reg, Literal* literal) {
+  // Literal loads are treated as pseudo branches since they require very similar handling.
+  DCHECK_EQ(literal->GetSize(), 4u);
+  MipsLabel* label = literal->GetLabel();
+  DCHECK(!label->IsBound());
+  branches_.emplace_back(IsR6(),
+                         buffer_.Size(),
+                         dest_reg,
+                         base_reg);
+  FinalizeLabeledBranch(label);
+}
+
+void MipsAssembler::EmitLiterals() {
+  if (!literals_.empty()) {
+    // We don't support byte and half-word literals.
+    // TODO: proper alignment for 64-bit literals when they're implemented.
+    for (Literal& literal : literals_) {
+      MipsLabel* label = literal.GetLabel();
+      Bind(label);
+      AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+      DCHECK(literal.GetSize() == 4u || literal.GetSize() == 8u);
+      for (size_t i = 0, size = literal.GetSize(); i != size; ++i) {
+        buffer_.Emit<uint8_t>(literal.GetData()[i]);
+      }
+    }
+  }
 }
 
 void MipsAssembler::PromoteBranches() {
@@ -1989,7 +2106,8 @@ void MipsAssembler::PromoteBranches() {
     changed = false;
     for (auto& branch : branches_) {
       CHECK(branch.IsResolved());
-      uint32_t delta = branch.PromoteIfNeeded();
+      uint32_t base = GetBranchLocationOrPcRelBase(&branch);
+      uint32_t delta = branch.PromoteIfNeeded(base);
       // If this branch has been promoted and needs to expand in size,
       // relocate all branches by the expansion size.
       if (delta) {
@@ -2027,27 +2145,35 @@ const MipsAssembler::Branch::BranchInfo MipsAssembler::Branch::branch_info_[] = 
   // R2 short branches.
   {  2, 0, 1, MipsAssembler::Branch::kOffset18, 2 },  // kUncondBranch
   {  2, 0, 1, MipsAssembler::Branch::kOffset18, 2 },  // kCondBranch
-  {  5, 2, 0, MipsAssembler::Branch::kOffset16, 0 },  // kCall
+  {  2, 0, 1, MipsAssembler::Branch::kOffset18, 2 },  // kCall
+  // R2 near literal.
+  {  1, 0, 0, MipsAssembler::Branch::kOffset16, 0 },  // kLiteral
   // R2 long branches.
   {  9, 3, 1, MipsAssembler::Branch::kOffset32, 0 },  // kLongUncondBranch
   { 10, 4, 1, MipsAssembler::Branch::kOffset32, 0 },  // kLongCondBranch
   {  6, 1, 1, MipsAssembler::Branch::kOffset32, 0 },  // kLongCall
+  // R2 far literal.
+  {  3, 0, 0, MipsAssembler::Branch::kOffset32, 0 },  // kFarLiteral
   // R6 short branches.
   {  1, 0, 1, MipsAssembler::Branch::kOffset28, 2 },  // kR6UncondBranch
   {  2, 0, 1, MipsAssembler::Branch::kOffset18, 2 },  // kR6CondBranch
                                                       // Exception: kOffset23 for beqzc/bnezc.
-  {  2, 0, 0, MipsAssembler::Branch::kOffset21, 2 },  // kR6Call
+  {  1, 0, 1, MipsAssembler::Branch::kOffset28, 2 },  // kR6Call
+  // R6 near literal.
+  {  1, 0, 0, MipsAssembler::Branch::kOffset21, 2 },  // kR6Literal
   // R6 long branches.
   {  2, 0, 0, MipsAssembler::Branch::kOffset32, 0 },  // kR6LongUncondBranch
   {  3, 1, 0, MipsAssembler::Branch::kOffset32, 0 },  // kR6LongCondBranch
-  {  3, 0, 0, MipsAssembler::Branch::kOffset32, 0 },  // kR6LongCall
+  {  2, 0, 0, MipsAssembler::Branch::kOffset32, 0 },  // kR6LongCall
+  // R6 far literal.
+  {  2, 0, 0, MipsAssembler::Branch::kOffset32, 0 },  // kR6FarLiteral
 };
 
-// Note: make sure branch_info_[] and mitBranch() are kept synchronized.
+// Note: make sure branch_info_[] and EmitBranch() are kept synchronized.
 void MipsAssembler::EmitBranch(MipsAssembler::Branch* branch) {
   CHECK_EQ(overwriting_, true);
   overwrite_location_ = branch->GetLocation();
-  uint32_t offset = branch->GetOffset();
+  uint32_t offset = branch->GetOffset(GetBranchOrPcRelBaseForEncoding(branch));
   BranchCondition condition = branch->GetCondition();
   Register lhs = branch->GetLeftRegister();
   Register rhs = branch->GetRightRegister();
@@ -2064,12 +2190,15 @@ void MipsAssembler::EmitBranch(MipsAssembler::Branch* branch) {
       Nop();  // TODO: improve by filling the delay slot.
       break;
     case Branch::kCall:
-      Nal();
-      Nop();  // TODO: is this NOP really needed here?
       CHECK_EQ(overwrite_location_, branch->GetOffsetLocation());
-      Addiu(lhs, RA, offset);
-      Jalr(lhs);
-      Nop();
+      Bal(offset);
+      Nop();  // TODO: improve by filling the delay slot.
+      break;
+
+    // R2 near literal.
+    case Branch::kLiteral:
+      CHECK_EQ(overwrite_location_, branch->GetOffsetLocation());
+      Lw(lhs, rhs, offset);
       break;
 
     // R2 long branches.
@@ -2123,9 +2252,18 @@ void MipsAssembler::EmitBranch(MipsAssembler::Branch* branch) {
       CHECK_EQ(overwrite_location_, branch->GetOffsetLocation());
       Lui(AT, High16Bits(offset));
       Ori(AT, AT, Low16Bits(offset));
-      Addu(lhs, AT, RA);
-      Jalr(lhs);
+      Addu(AT, AT, RA);
+      Jalr(AT);
       Nop();
+      break;
+
+    // R2 far literal.
+    case Branch::kFarLiteral:
+      offset += (offset & 0x8000) << 1;  // Account for sign extension in lw.
+      CHECK_EQ(overwrite_location_, branch->GetOffsetLocation());
+      Lui(AT, High16Bits(offset));
+      Addu(AT, AT, rhs);
+      Lw(lhs, AT, Low16Bits(offset));
       break;
 
     // R6 short branches.
@@ -2140,8 +2278,13 @@ void MipsAssembler::EmitBranch(MipsAssembler::Branch* branch) {
       break;
     case Branch::kR6Call:
       CHECK_EQ(overwrite_location_, branch->GetOffsetLocation());
-      Addiupc(lhs, offset);
-      Jialc(lhs, 0);
+      Balc(offset);
+      break;
+
+    // R6 near literal.
+    case Branch::kR6Literal:
+      CHECK_EQ(overwrite_location_, branch->GetOffsetLocation());
+      Lwpc(lhs, offset);
       break;
 
     // R6 long branches.
@@ -2159,11 +2302,18 @@ void MipsAssembler::EmitBranch(MipsAssembler::Branch* branch) {
       Jic(AT, Low16Bits(offset));
       break;
     case Branch::kR6LongCall:
-      offset += (offset & 0x8000) << 1;  // Account for sign extension in addiu.
+      offset += (offset & 0x8000) << 1;  // Account for sign extension in jialc.
       CHECK_EQ(overwrite_location_, branch->GetOffsetLocation());
-      Auipc(lhs, High16Bits(offset));
-      Addiu(lhs, lhs, Low16Bits(offset));
-      Jialc(lhs, 0);
+      Auipc(AT, High16Bits(offset));
+      Jialc(AT, Low16Bits(offset));
+      break;
+
+    // R6 far literal.
+    case Branch::kR6FarLiteral:
+      offset += (offset & 0x8000) << 1;  // Account for sign extension in lw.
+      CHECK_EQ(overwrite_location_, branch->GetOffsetLocation());
+      Auipc(AT, High16Bits(offset));
+      Lw(lhs, AT, Low16Bits(offset));
       break;
   }
   CHECK_EQ(overwrite_location_, branch->GetEndLocation());
@@ -2174,8 +2324,8 @@ void MipsAssembler::B(MipsLabel* label) {
   Buncond(label);
 }
 
-void MipsAssembler::Jalr(MipsLabel* label, Register indirect_reg) {
-  Call(label, indirect_reg);
+void MipsAssembler::Bal(MipsLabel* label) {
+  Call(label);
 }
 
 void MipsAssembler::Beq(Register rs, Register rt, MipsLabel* label) {
