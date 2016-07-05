@@ -2536,6 +2536,10 @@ mirror::Class* ClassLinker::DefineClass(Thread* self,
   CHECK(h_new_class.Get() != nullptr) << descriptor;
   CHECK(h_new_class->IsResolved()) << descriptor;
 
+  // Update the dex cache of where the class is defined. Inlining depends on having
+  // this filled.
+  h_new_class->GetDexCache()->SetResolvedType(h_new_class->GetDexTypeIndex(), h_new_class.Get());
+
   // Instrumentation may have updated entrypoints for all methods of all
   // classes. However it could not update methods of this class while we
   // were loading it. Now the class is resolved, we can update entrypoints
