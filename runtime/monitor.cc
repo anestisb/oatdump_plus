@@ -220,7 +220,7 @@ void Monitor::SetObject(mirror::Object* object) {
 struct NthCallerWithDexPcVisitor FINAL : public StackVisitor {
   explicit NthCallerWithDexPcVisitor(Thread* thread, size_t frame)
       SHARED_REQUIRES(Locks::mutator_lock_)
-      : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFramesNoResolve),
+      : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         method_(nullptr),
         dex_pc_(0),
         current_frame_number_(0),

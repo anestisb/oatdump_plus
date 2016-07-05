@@ -187,7 +187,7 @@ class AllocRecordStackVisitor : public StackVisitor {
  public:
   AllocRecordStackVisitor(Thread* thread, size_t max_depth, AllocRecordStackTrace* trace_out)
       SHARED_REQUIRES(Locks::mutator_lock_)
-      : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFramesNoResolve),
+      : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         max_depth_(max_depth),
         trace_(trace_out) {}
 
