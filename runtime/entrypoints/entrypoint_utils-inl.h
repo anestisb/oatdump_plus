@@ -39,45 +39,83 @@
 
 namespace art {
 
-template <bool kResolve = true>
 inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
                                     const InlineInfo& inline_info,
                                     const InlineInfoEncoding& encoding,
                                     uint8_t inlining_depth)
-  SHARED_REQUIRES(Locks::mutator_lock_) {
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  // This method is being used by artQuickResolutionTrampoline, before it sets up
+  // the passed parameters in a GC friendly way. Therefore we must never be
+  // suspended while executing it.
+  ScopedAssertNoThreadSuspension sants(Thread::Current(), __FUNCTION__);
+
   uint32_t method_index = inline_info.GetMethodIndexAtDepth(encoding, inlining_depth);
   InvokeType invoke_type = static_cast<InvokeType>(
         inline_info.GetInvokeTypeAtDepth(encoding, inlining_depth));
-  ArtMethod* caller = outer_method->GetDexCacheResolvedMethod(method_index, sizeof(void*));
-  if (!caller->IsRuntimeMethod()) {
-    return caller;
-  }
-  if (!kResolve) {
-    return nullptr;
+  ArtMethod* inlined_method = outer_method->GetDexCacheResolvedMethod(method_index, sizeof(void*));
+  if (!inlined_method->IsRuntimeMethod()) {
+    return inlined_method;
   }
 
-  // The method in the dex cache can be the runtime method responsible for invoking
+  // The method in the dex cache is the runtime method responsible for invoking
   // the stub that will then update the dex cache. Therefore, we need to do the
   // resolution ourselves.
 
-  // We first find the class loader of our caller. If it is the outer method, we can directly
-  // use its class loader. Otherwise, we also need to resolve our caller.
-  StackHandleScope<2> hs(Thread::Current());
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  MutableHandle<mirror::ClassLoader> class_loader(hs.NewHandle<mirror::Class>(nullptr));
-  Handle<mirror::DexCache> dex_cache(hs.NewHandle(outer_method->GetDexCache()));
-  if (inlining_depth == 0) {
-    class_loader.Assign(outer_method->GetClassLoader());
+  // We first find the dex cache of our caller. If it is the outer method, we can directly
+  // use its dex cache. Otherwise, we also need to resolve our caller.
+  ArtMethod* caller = outer_method;
+  if (inlining_depth != 0) {
+    caller = GetResolvedMethod(outer_method,
+                               inline_info,
+                               encoding,
+                               inlining_depth - 1);
+  }
+  DCHECK_EQ(caller->GetDexCache(), outer_method->GetDexCache())
+      << "Compiler only supports inlining calls within the same dex cache";
+  const DexFile* dex_file = outer_method->GetDexFile();
+  const DexFile::MethodId& method_id = dex_file->GetMethodId(method_index);
+
+  if (inline_info.GetDexPcAtDepth(encoding, inlining_depth) == static_cast<uint32_t>(-1)) {
+    // "charAt" special case. It is the only non-leaf method we inline across dex files.
+    if (kIsDebugBuild) {
+      const char* name = dex_file->StringDataByIdx(method_id.name_idx_);
+      DCHECK_EQ(std::string(name), "charAt");
+      DCHECK_EQ(std::string(dex_file->GetMethodShorty(method_id)), "CI")
+          << std::string(dex_file->GetMethodShorty(method_id));
+      DCHECK_EQ(std::string(dex_file->StringByTypeIdx(method_id.class_idx_)), "Ljava/lang/String;")
+          << std::string(dex_file->StringByTypeIdx(method_id.class_idx_));
+    }
+    mirror::Class* cls =
+        Runtime::Current()->GetClassLinker()->GetClassRoot(ClassLinker::kJavaLangString);
+    // Update the dex cache for future lookups.
+    caller->GetDexCache()->SetResolvedType(method_id.class_idx_, cls);
+    inlined_method = cls->FindVirtualMethod("charAt", "(I)C", sizeof(void*));
   } else {
-    caller = GetResolvedMethod<kResolve>(outer_method,
-                                         inline_info,
-                                         encoding,
-                                         inlining_depth - 1);
-    class_loader.Assign(caller->GetClassLoader());
+    mirror::Class* klass = caller->GetDexCache()->GetResolvedType(method_id.class_idx_);
+    DCHECK_EQ(klass->GetDexCache(), caller->GetDexCache())
+        << "Compiler only supports inlining calls within the same dex cache";
+    switch (invoke_type) {
+      case kDirect:
+      case kStatic:
+        inlined_method =
+            klass->FindDirectMethod(klass->GetDexCache(), method_index, sizeof(void*));
+        break;
+      case kSuper:
+      case kVirtual:
+        inlined_method =
+            klass->FindVirtualMethod(klass->GetDexCache(), method_index, sizeof(void*));
+        break;
+      default:
+        LOG(FATAL) << "Unimplemented inlined invocation type: " << invoke_type;
+        UNREACHABLE();
+    }
   }
 
-  return class_linker->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
-      *outer_method->GetDexFile(), method_index, dex_cache, class_loader, nullptr, invoke_type);
+  // Update the dex cache for future lookups. Note that for static methods, this is safe
+  // when the class is being initialized, as the entrypoint for the ArtMethod is at
+  // this point still the resolution trampoline.
+  outer_method->SetDexCacheResolvedMethod(method_index, inlined_method, sizeof(void*));
+  return inlined_method;
 }
 
 inline ArtMethod* GetCalleeSaveMethodCaller(Thread* self, Runtime::CalleeSaveType type)

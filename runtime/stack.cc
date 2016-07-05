@@ -131,16 +131,10 @@ ArtMethod* StackVisitor::GetMethod() const {
       const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
       CodeInfoEncoding encoding = method_header->GetOptimizedCodeInfo().ExtractEncoding();
       DCHECK(walk_kind_ != StackWalkKind::kSkipInlinedFrames);
-      bool allow_resolve = walk_kind_ != StackWalkKind::kIncludeInlinedFramesNoResolve;
-      return allow_resolve
-          ? GetResolvedMethod<true>(*GetCurrentQuickFrame(),
-                                    inline_info,
-                                    encoding.inline_info_encoding,
-                                    depth_in_stack_map)
-          : GetResolvedMethod<false>(*GetCurrentQuickFrame(),
-                                     inline_info,
-                                     encoding.inline_info_encoding,
-                                     depth_in_stack_map);
+      return GetResolvedMethod(*GetCurrentQuickFrame(),
+                               inline_info,
+                               encoding.inline_info_encoding,
+                               depth_in_stack_map);
     } else {
       return *cur_quick_frame_;
     }
@@ -791,8 +785,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
         cur_oat_quick_method_header_ = method->GetOatQuickMethodHeader(cur_quick_frame_pc_);
         SanityCheckFrame();
 
-        if ((walk_kind_ == StackWalkKind::kIncludeInlinedFrames ||
-             walk_kind_ == StackWalkKind::kIncludeInlinedFramesNoResolve)
+        if ((walk_kind_ == StackWalkKind::kIncludeInlinedFrames)
             && (cur_oat_quick_method_header_ != nullptr)
             && cur_oat_quick_method_header_->IsOptimized()) {
           CodeInfo code_info = cur_oat_quick_method_header_->GetOptimizedCodeInfo();
