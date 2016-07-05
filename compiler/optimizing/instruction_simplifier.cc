@@ -54,6 +54,9 @@ class InstructionSimplifierVisitor : public HGraphDelegateVisitor {
   // De Morgan's laws:
   // ~a & ~b = ~(a | b)  and  ~a | ~b = ~(a & b)
   bool TryDeMorganNegationFactoring(HBinaryOperation* op);
+  bool TryHandleAssociativeAndCommutativeOperation(HBinaryOperation* instruction);
+  bool TrySubtractionChainSimplification(HBinaryOperation* instruction);
+
   void VisitShift(HBinaryOperation* shift);
 
   void VisitEqual(HEqual* equal) OVERRIDE;
@@ -963,7 +966,18 @@ void InstructionSimplifierVisitor::VisitAdd(HAdd* instruction) {
     return;
   }
 
-  TryReplaceWithRotate(instruction);
+  if (TryReplaceWithRotate(instruction)) {
+    return;
+  }
+
+  // TryHandleAssociativeAndCommutativeOperation() does not remove its input,
+  // so no need to return.
+  TryHandleAssociativeAndCommutativeOperation(instruction);
+
+  if ((instruction->GetLeft()->IsSub() || instruction->GetRight()->IsSub()) &&
+      TrySubtractionChainSimplification(instruction)) {
+    return;
+  }
 }
 
 void InstructionSimplifierVisitor::VisitAnd(HAnd* instruction) {
@@ -1025,7 +1039,13 @@ void InstructionSimplifierVisitor::VisitAnd(HAnd* instruction) {
     return;
   }
 
-  TryDeMorganNegationFactoring(instruction);
+  if (TryDeMorganNegationFactoring(instruction)) {
+    return;
+  }
+
+  // TryHandleAssociativeAndCommutativeOperation() does not remove its input,
+  // so no need to return.
+  TryHandleAssociativeAndCommutativeOperation(instruction);
 }
 
 void InstructionSimplifierVisitor::VisitGreaterThan(HGreaterThan* condition) {
@@ -1242,6 +1262,7 @@ void InstructionSimplifierVisitor::VisitMul(HMul* instruction) {
       instruction->ReplaceWith(input_cst);
       instruction->GetBlock()->RemoveInstruction(instruction);
       RecordSimplification();
+      return;
     } else if (IsPowerOfTwo(factor)) {
       // Replace code looking like
       //    MUL dst, src, pow_of_2
@@ -1251,6 +1272,7 @@ void InstructionSimplifierVisitor::VisitMul(HMul* instruction) {
       HShl* shl = new (allocator) HShl(type, input_other, shift);
       block->ReplaceAndRemoveInstructionWith(instruction, shl);
       RecordSimplification();
+      return;
     } else if (IsPowerOfTwo(factor - 1)) {
       // Transform code looking like
       //    MUL dst, src, (2^n + 1)
@@ -1265,6 +1287,7 @@ void InstructionSimplifierVisitor::VisitMul(HMul* instruction) {
       block->InsertInstructionBefore(shl, instruction);
       block->ReplaceAndRemoveInstructionWith(instruction, add);
       RecordSimplification();
+      return;
     } else if (IsPowerOfTwo(factor + 1)) {
       // Transform code looking like
       //    MUL dst, src, (2^n - 1)
@@ -1279,8 +1302,13 @@ void InstructionSimplifierVisitor::VisitMul(HMul* instruction) {
       block->InsertInstructionBefore(shl, instruction);
       block->ReplaceAndRemoveInstructionWith(instruction, sub);
       RecordSimplification();
+      return;
     }
   }
+
+  // TryHandleAssociativeAndCommutativeOperation() does not remove its input,
+  // so no need to return.
+  TryHandleAssociativeAndCommutativeOperation(instruction);
 }
 
 void InstructionSimplifierVisitor::VisitNeg(HNeg* instruction) {
@@ -1380,7 +1408,13 @@ void InstructionSimplifierVisitor::VisitOr(HOr* instruction) {
 
   if (TryDeMorganNegationFactoring(instruction)) return;
 
-  TryReplaceWithRotate(instruction);
+  if (TryReplaceWithRotate(instruction)) {
+    return;
+  }
+
+  // TryHandleAssociativeAndCommutativeOperation() does not remove its input,
+  // so no need to return.
+  TryHandleAssociativeAndCommutativeOperation(instruction);
 }
 
 void InstructionSimplifierVisitor::VisitShl(HShl* instruction) {
@@ -1471,6 +1505,11 @@ void InstructionSimplifierVisitor::VisitSub(HSub* instruction) {
     instruction->GetBlock()->RemoveInstruction(instruction);
     RecordSimplification();
     left->GetBlock()->RemoveInstruction(left);
+    return;
+  }
+
+  if (TrySubtractionChainSimplification(instruction)) {
+    return;
   }
 }
 
@@ -1524,7 +1563,13 @@ void InstructionSimplifierVisitor::VisitXor(HXor* instruction) {
     return;
   }
 
-  TryReplaceWithRotate(instruction);
+  if (TryReplaceWithRotate(instruction)) {
+    return;
+  }
+
+  // TryHandleAssociativeAndCommutativeOperation() does not remove its input,
+  // so no need to return.
+  TryHandleAssociativeAndCommutativeOperation(instruction);
 }
 
 void InstructionSimplifierVisitor::SimplifyStringEquals(HInvoke* instruction) {
@@ -1821,6 +1866,152 @@ void InstructionSimplifierVisitor::VisitDeoptimize(HDeoptimize* deoptimize) {
       // Always deopt.
     }
   }
+}
+
+// Replace code looking like
+//    OP y, x, const1
+//    OP z, y, const2
+// with
+//    OP z, x, const3
+// where OP is both an associative and a commutative operation.
+bool InstructionSimplifierVisitor::TryHandleAssociativeAndCommutativeOperation(
+    HBinaryOperation* instruction) {
+  DCHECK(instruction->IsCommutative());
+
+  if (!Primitive::IsIntegralType(instruction->GetType())) {
+    return false;
+  }
+
+  HInstruction* left = instruction->GetLeft();
+  HInstruction* right = instruction->GetRight();
+  // Variable names as described above.
+  HConstant* const2;
+  HBinaryOperation* y;
+
+  if (instruction->InstructionTypeEquals(left) && right->IsConstant()) {
+    const2 = right->AsConstant();
+    y = left->AsBinaryOperation();
+  } else if (left->IsConstant() && instruction->InstructionTypeEquals(right)) {
+    const2 = left->AsConstant();
+    y = right->AsBinaryOperation();
+  } else {
+    // The node does not match the pattern.
+    return false;
+  }
+
+  // If `y` has more than one use, we do not perform the optimization
+  // because it might increase code size (e.g. if the new constant is
+  // no longer encodable as an immediate operand in the target ISA).
+  if (!y->HasOnlyOneNonEnvironmentUse()) {
+    return false;
+  }
+
+  // GetConstantRight() can return both left and right constants
+  // for commutative operations.
+  HConstant* const1 = y->GetConstantRight();
+  if (const1 == nullptr) {
+    return false;
+  }
+
+  instruction->ReplaceInput(const1, 0);
+  instruction->ReplaceInput(const2, 1);
+  HConstant* const3 = instruction->TryStaticEvaluation();
+  DCHECK(const3 != nullptr);
+  instruction->ReplaceInput(y->GetLeastConstantLeft(), 0);
+  instruction->ReplaceInput(const3, 1);
+  RecordSimplification();
+  return true;
+}
+
+static HBinaryOperation* AsAddOrSub(HInstruction* binop) {
+  return (binop->IsAdd() || binop->IsSub()) ? binop->AsBinaryOperation() : nullptr;
+}
+
+// Helper function that performs addition statically, considering the result type.
+static int64_t ComputeAddition(Primitive::Type type, int64_t x, int64_t y) {
+  // Use the Compute() method for consistency with TryStaticEvaluation().
+  if (type == Primitive::kPrimInt) {
+    return HAdd::Compute<int32_t>(x, y);
+  } else {
+    DCHECK_EQ(type, Primitive::kPrimLong);
+    return HAdd::Compute<int64_t>(x, y);
+  }
+}
+
+// Helper function that handles the child classes of HConstant
+// and returns an integer with the appropriate sign.
+static int64_t GetValue(HConstant* constant, bool is_negated) {
+  int64_t ret = Int64FromConstant(constant);
+  return is_negated ? -ret : ret;
+}
+
+// Replace code looking like
+//    OP1 y, x, const1
+//    OP2 z, y, const2
+// with
+//    OP3 z, x, const3
+// where OPx is either ADD or SUB, and at least one of OP{1,2} is SUB.
+bool InstructionSimplifierVisitor::TrySubtractionChainSimplification(
+    HBinaryOperation* instruction) {
+  DCHECK(instruction->IsAdd() || instruction->IsSub()) << instruction->DebugName();
+
+  Primitive::Type type = instruction->GetType();
+  if (!Primitive::IsIntegralType(type)) {
+    return false;
+  }
+
+  HInstruction* left = instruction->GetLeft();
+  HInstruction* right = instruction->GetRight();
+  // Variable names as described above.
+  HConstant* const2 = right->IsConstant() ? right->AsConstant() : left->AsConstant();
+  if (const2 == nullptr) {
+    return false;
+  }
+
+  HBinaryOperation* y = (AsAddOrSub(left) != nullptr)
+      ? left->AsBinaryOperation()
+      : AsAddOrSub(right);
+  // If y has more than one use, we do not perform the optimization because
+  // it might increase code size (e.g. if the new constant is no longer
+  // encodable as an immediate operand in the target ISA).
+  if ((y == nullptr) || !y->HasOnlyOneNonEnvironmentUse()) {
+    return false;
+  }
+
+  left = y->GetLeft();
+  HConstant* const1 = left->IsConstant() ? left->AsConstant() : y->GetRight()->AsConstant();
+  if (const1 == nullptr) {
+    return false;
+  }
+
+  HInstruction* x = (const1 == left) ? y->GetRight() : left;
+  // If both inputs are constants, let the constant folding pass deal with it.
+  if (x->IsConstant()) {
+    return false;
+  }
+
+  bool is_const2_negated = (const2 == right) && instruction->IsSub();
+  int64_t const2_val = GetValue(const2, is_const2_negated);
+  bool is_y_negated = (y == right) && instruction->IsSub();
+  right = y->GetRight();
+  bool is_const1_negated = is_y_negated ^ ((const1 == right) && y->IsSub());
+  int64_t const1_val = GetValue(const1, is_const1_negated);
+  bool is_x_negated = is_y_negated ^ ((x == right) && y->IsSub());
+  int64_t const3_val = ComputeAddition(type, const1_val, const2_val);
+  HBasicBlock* block = instruction->GetBlock();
+  HConstant* const3 = block->GetGraph()->GetConstant(type, const3_val);
+  ArenaAllocator* arena = instruction->GetArena();
+  HInstruction* z;
+
+  if (is_x_negated) {
+    z = new (arena) HSub(type, const3, x, instruction->GetDexPc());
+  } else {
+    z = new (arena) HAdd(type, x, const3, instruction->GetDexPc());
+  }
+
+  block->ReplaceAndRemoveInstructionWith(instruction, z);
+  RecordSimplification();
+  return true;
 }
 
 }  // namespace art

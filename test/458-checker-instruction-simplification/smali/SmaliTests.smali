@@ -191,3 +191,139 @@
 
 .end method
 
+## CHECK-START: int SmaliTests.AddSubConst(int) instruction_simplifier (before)
+## CHECK-DAG:     <<ArgValue:i\d+>>  ParameterValue
+## CHECK-DAG:     <<Const7:i\d+>>    IntConstant 7
+## CHECK-DAG:     <<Const8:i\d+>>    IntConstant 8
+## CHECK-DAG:     <<Add:i\d+>>       Add [<<ArgValue>>,<<Const7>>]
+## CHECK-DAG:     <<Sub:i\d+>>       Sub [<<Add>>,<<Const8>>]
+## CHECK-DAG:                        Return [<<Sub>>]
+
+## CHECK-START: int SmaliTests.AddSubConst(int) instruction_simplifier (after)
+## CHECK-DAG:     <<ArgValue:i\d+>>  ParameterValue
+## CHECK-DAG:     <<ConstM1:i\d+>>   IntConstant -1
+## CHECK-DAG:     <<Add:i\d+>>       Add [<<ArgValue>>,<<ConstM1>>]
+## CHECK-DAG:                        Return [<<Add>>]
+
+.method public static AddSubConst(I)I
+    .registers 3
+
+    .prologue
+    add-int/lit8 v0, p0, 7
+
+    const/16 v1, 8
+
+    sub-int v0, v0, v1
+
+    return v0
+.end method
+
+## CHECK-START: int SmaliTests.SubAddConst(int) instruction_simplifier (before)
+## CHECK-DAG:     <<ArgValue:i\d+>>  ParameterValue
+## CHECK-DAG:     <<Const3:i\d+>>    IntConstant 3
+## CHECK-DAG:     <<Const4:i\d+>>    IntConstant 4
+## CHECK-DAG:     <<Sub:i\d+>>       Sub [<<ArgValue>>,<<Const3>>]
+## CHECK-DAG:     <<Add:i\d+>>       Add [<<Sub>>,<<Const4>>]
+## CHECK-DAG:                        Return [<<Add>>]
+
+## CHECK-START: int SmaliTests.SubAddConst(int) instruction_simplifier (after)
+## CHECK-DAG:     <<ArgValue:i\d+>>  ParameterValue
+## CHECK-DAG:     <<Const1:i\d+>>    IntConstant 1
+## CHECK-DAG:     <<Add:i\d+>>       Add [<<ArgValue>>,<<Const1>>]
+## CHECK-DAG:                        Return [<<Add>>]
+
+.method public static SubAddConst(I)I
+    .registers 2
+
+    .prologue
+    const/4 v0, 3
+
+    sub-int v0, p0, v0
+
+    add-int/lit8 v0, v0, 4
+
+    return v0
+.end method
+
+## CHECK-START: int SmaliTests.SubSubConst1(int) instruction_simplifier (before)
+## CHECK-DAG:     <<ArgValue:i\d+>>  ParameterValue
+## CHECK-DAG:     <<Const9:i\d+>>    IntConstant 9
+## CHECK-DAG:     <<Const10:i\d+>>   IntConstant 10
+## CHECK-DAG:     <<Sub1:i\d+>>      Sub [<<ArgValue>>,<<Const9>>]
+## CHECK-DAG:     <<Sub2:i\d+>>      Sub [<<Sub1>>,<<Const10>>]
+## CHECK-DAG:                        Return [<<Sub2>>]
+
+## CHECK-START: int SmaliTests.SubSubConst1(int) instruction_simplifier (after)
+## CHECK-DAG:     <<ArgValue:i\d+>>  ParameterValue
+## CHECK-DAG:     <<ConstM19:i\d+>>  IntConstant -19
+## CHECK-DAG:     <<Add:i\d+>>       Add [<<ArgValue>>,<<ConstM19>>]
+## CHECK-DAG:                        Return [<<Add>>]
+
+.method public static SubSubConst1(I)I
+    .registers 3
+
+    .prologue
+    const/16 v1, 9
+
+    sub-int v0, p0, v1
+
+    const/16 v1, 10
+
+    sub-int v0, v0, v1
+
+    return v0
+.end method
+
+## CHECK-START: int SmaliTests.SubSubConst2(int) instruction_simplifier (before)
+## CHECK-DAG:     <<ArgValue:i\d+>>  ParameterValue
+## CHECK-DAG:     <<Const11:i\d+>>   IntConstant 11
+## CHECK-DAG:     <<Const12:i\d+>>   IntConstant 12
+## CHECK-DAG:     <<Sub1:i\d+>>      Sub [<<Const11>>,<<ArgValue>>]
+## CHECK-DAG:     <<Sub2:i\d+>>      Sub [<<Sub1>>,<<Const12>>]
+## CHECK-DAG:                        Return [<<Sub2>>]
+
+## CHECK-START: int SmaliTests.SubSubConst2(int) instruction_simplifier (after)
+## CHECK-DAG:     <<ArgValue:i\d+>>  ParameterValue
+## CHECK-DAG:     <<ConstM1:i\d+>>   IntConstant -1
+## CHECK-DAG:     <<Sub:i\d+>>       Sub [<<ConstM1>>,<<ArgValue>>]
+## CHECK-DAG:                        Return [<<Sub>>]
+
+.method public static SubSubConst2(I)I
+    .registers 3
+
+    .prologue
+    rsub-int/lit8 v0, p0, 11
+
+    const/16 v1, 12
+
+    sub-int v0, v0, v1
+
+    return v0
+.end method
+
+## CHECK-START: int SmaliTests.SubSubConst3(int) instruction_simplifier (before)
+## CHECK-DAG:     <<ArgValue:i\d+>>  ParameterValue
+## CHECK-DAG:     <<Const15:i\d+>>   IntConstant 15
+## CHECK-DAG:     <<Const16:i\d+>>   IntConstant 16
+## CHECK-DAG:     <<Sub1:i\d+>>      Sub [<<ArgValue>>,<<Const16>>]
+## CHECK-DAG:     <<Sub2:i\d+>>      Sub [<<Const15>>,<<Sub1>>]
+## CHECK-DAG:                        Return [<<Sub2>>]
+
+## CHECK-START: int SmaliTests.SubSubConst3(int) instruction_simplifier (after)
+## CHECK-DAG:     <<ArgValue:i\d+>>  ParameterValue
+## CHECK-DAG:     <<Const31:i\d+>>   IntConstant 31
+## CHECK-DAG:     <<Sub:i\d+>>       Sub [<<Const31>>,<<ArgValue>>]
+## CHECK-DAG:                        Return [<<Sub>>]
+
+.method public static SubSubConst3(I)I
+    .registers 2
+
+    .prologue
+    const/16 v0, 16
+
+    sub-int v0, p0, v0
+
+    rsub-int/lit8 v0, v0, 15
+
+    return v0
+.end method
