@@ -1751,7 +1751,7 @@ class ImageDumper {
         const auto& method_section = state->image_header_.GetMethodsSection();
         size_t num_methods = dex_cache->NumResolvedMethods();
         if (num_methods != 0u) {
-          os << "Methods (size=" << num_methods << "):";
+          os << "Methods (size=" << num_methods << "):\n";
           ScopedIndentation indent2(&state->vios_);
           auto* resolved_methods = dex_cache->GetResolvedMethods();
           for (size_t i = 0, length = dex_cache->NumResolvedMethods(); i < length; ++i) {
@@ -1760,10 +1760,12 @@ class ImageDumper {
                                                              image_pointer_size);
             size_t run = 0;
             for (size_t j = i + 1;
-                j != length && elem == mirror::DexCache::GetElementPtrSize(resolved_methods,
-                                                                           j,
-                                                                           image_pointer_size);
-                ++j, ++run) {}
+                 j != length && elem == mirror::DexCache::GetElementPtrSize(resolved_methods,
+                                                                            j,
+                                                                            image_pointer_size);
+                 ++j) {
+              ++run;
+            }
             if (run == 0) {
               os << StringPrintf("%zd: ", i);
             } else {
@@ -1784,17 +1786,20 @@ class ImageDumper {
         }
         size_t num_fields = dex_cache->NumResolvedFields();
         if (num_fields != 0u) {
-          os << "Fields (size=" << num_fields << "):";
+          os << "Fields (size=" << num_fields << "):\n";
           ScopedIndentation indent2(&state->vios_);
           auto* resolved_fields = dex_cache->GetResolvedFields();
           for (size_t i = 0, length = dex_cache->NumResolvedFields(); i < length; ++i) {
-            auto* elem = mirror::DexCache::GetElementPtrSize(resolved_fields, i, image_pointer_size);
+            auto* elem = mirror::DexCache::GetElementPtrSize(
+                resolved_fields, i, image_pointer_size);
             size_t run = 0;
             for (size_t j = i + 1;
-                j != length && elem == mirror::DexCache::GetElementPtrSize(resolved_fields,
-                                                                           j,
-                                                                           image_pointer_size);
-                ++j, ++run) {}
+                 j != length && elem == mirror::DexCache::GetElementPtrSize(resolved_fields,
+                                                                            j,
+                                                                            image_pointer_size);
+                 ++j) {
+              ++run;
+            }
             if (run == 0) {
               os << StringPrintf("%zd: ", i);
             } else {
@@ -1809,6 +1814,32 @@ class ImageDumper {
               msg = PrettyField(reinterpret_cast<ArtField*>(elem));
             } else {
               msg = "<not in field section>";
+            }
+            os << StringPrintf("%p   %s\n", elem, msg.c_str());
+          }
+        }
+        size_t num_types = dex_cache->NumResolvedTypes();
+        if (num_types != 0u) {
+          os << "Types (size=" << num_types << "):\n";
+          ScopedIndentation indent2(&state->vios_);
+          auto* resolved_types = dex_cache->GetResolvedTypes();
+          for (size_t i = 0; i < num_types; ++i) {
+            auto* elem = resolved_types[i].Read();
+            size_t run = 0;
+            for (size_t j = i + 1; j != num_types && elem == resolved_types[j].Read(); ++j) {
+              ++run;
+            }
+            if (run == 0) {
+              os << StringPrintf("%zd: ", i);
+            } else {
+              os << StringPrintf("%zd to %zd: ", i, i + run);
+              i = i + run;
+            }
+            std::string msg;
+            if (elem == nullptr) {
+              msg = "null";
+            } else {
+              msg = PrettyClass(elem);
             }
             os << StringPrintf("%p   %s\n", elem, msg.c_str());
           }
