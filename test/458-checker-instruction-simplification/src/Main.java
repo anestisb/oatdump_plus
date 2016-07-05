@@ -78,6 +78,29 @@ public class Main {
     return 0 + arg;
   }
 
+  /// CHECK-START: int Main.$noinline$AddAddSubAddConst(int) instruction_simplifier (before)
+  /// CHECK-DAG:     <<ArgValue:i\d+>>  ParameterValue
+  /// CHECK-DAG:     <<Const1:i\d+>>    IntConstant 1
+  /// CHECK-DAG:     <<Const2:i\d+>>    IntConstant 2
+  /// CHECK-DAG:     <<ConstM3:i\d+>>   IntConstant -3
+  /// CHECK-DAG:     <<Const4:i\d+>>    IntConstant 4
+  /// CHECK-DAG:     <<Add1:i\d+>>      Add [<<ArgValue>>,<<Const1>>]
+  /// CHECK-DAG:     <<Add2:i\d+>>      Add [<<Add1>>,<<Const2>>]
+  /// CHECK-DAG:     <<Add3:i\d+>>      Add [<<Add2>>,<<ConstM3>>]
+  /// CHECK-DAG:     <<Add4:i\d+>>      Add [<<Add3>>,<<Const4>>]
+  /// CHECK-DAG:                        Return [<<Add4>>]
+
+  /// CHECK-START: int Main.$noinline$AddAddSubAddConst(int) instruction_simplifier (after)
+  /// CHECK-DAG:     <<ArgValue:i\d+>>  ParameterValue
+  /// CHECK-DAG:     <<Const4:i\d+>>    IntConstant 4
+  /// CHECK-DAG:     <<Add:i\d+>>       Add [<<ArgValue>>,<<Const4>>]
+  /// CHECK-DAG:                        Return [<<Add>>]
+
+  public static int $noinline$AddAddSubAddConst(int arg) {
+    if (doThrow) { throw new Error(); }
+    return arg + 1 + 2 - 3 + 4;
+  }
+
   /// CHECK-START: int Main.$noinline$AndAllOnes(int) instruction_simplifier (before)
   /// CHECK-DAG:     <<Arg:i\d+>>     ParameterValue
   /// CHECK-DAG:     <<ConstF:i\d+>>  IntConstant -1
@@ -364,6 +387,27 @@ public class Main {
     return arg * 128;
   }
 
+  /// CHECK-START: long Main.$noinline$MulMulMulConst(long) instruction_simplifier (before)
+  /// CHECK-DAG:     <<ArgValue:j\d+>>  ParameterValue
+  /// CHECK-DAG:     <<Const10:j\d+>>   LongConstant 10
+  /// CHECK-DAG:     <<Const11:j\d+>>   LongConstant 11
+  /// CHECK-DAG:     <<Const12:j\d+>>   LongConstant 12
+  /// CHECK-DAG:     <<Mul1:j\d+>>      Mul [<<Const10>>,<<ArgValue>>]
+  /// CHECK-DAG:     <<Mul2:j\d+>>      Mul [<<Mul1>>,<<Const11>>]
+  /// CHECK-DAG:     <<Mul3:j\d+>>      Mul [<<Mul2>>,<<Const12>>]
+  /// CHECK-DAG:                        Return [<<Mul3>>]
+
+  /// CHECK-START: long Main.$noinline$MulMulMulConst(long) instruction_simplifier (after)
+  /// CHECK-DAG:     <<ArgValue:j\d+>>   ParameterValue
+  /// CHECK-DAG:     <<Const1320:j\d+>>  LongConstant 1320
+  /// CHECK-DAG:     <<Mul:j\d+>>        Mul [<<ArgValue>>,<<Const1320>>]
+  /// CHECK-DAG:                         Return [<<Mul>>]
+
+  public static long $noinline$MulMulMulConst(long arg) {
+    if (doThrow) { throw new Error(); }
+    return 10 * arg * 11 * 12;
+  }
+
   /// CHECK-START: int Main.$noinline$Or0(int) instruction_simplifier (before)
   /// CHECK-DAG:     <<Arg:i\d+>>      ParameterValue
   /// CHECK-DAG:     <<Const0:i\d+>>   IntConstant 0
@@ -488,6 +532,63 @@ public class Main {
   public static int $noinline$SubAliasNeg(int arg) {
     if (doThrow) { throw new Error(); }
     return 0 - arg;
+  }
+
+  /// CHECK-START: int Main.$noinline$SubAddConst1(int) instruction_simplifier (before)
+  /// CHECK-DAG:     <<ArgValue:i\d+>>  ParameterValue
+  /// CHECK-DAG:     <<Const5:i\d+>>    IntConstant 5
+  /// CHECK-DAG:     <<Const6:i\d+>>    IntConstant 6
+  /// CHECK-DAG:     <<Sub:i\d+>>       Sub [<<Const5>>,<<ArgValue>>]
+  /// CHECK-DAG:     <<Add:i\d+>>       Add [<<Sub>>,<<Const6>>]
+  /// CHECK-DAG:                        Return [<<Add>>]
+
+  /// CHECK-START: int Main.$noinline$SubAddConst1(int) instruction_simplifier (after)
+  /// CHECK-DAG:     <<ArgValue:i\d+>>  ParameterValue
+  /// CHECK-DAG:     <<Const11:i\d+>>   IntConstant 11
+  /// CHECK-DAG:     <<Sub:i\d+>>       Sub [<<Const11>>,<<ArgValue>>]
+  /// CHECK-DAG:                        Return [<<Sub>>]
+
+  public static int $noinline$SubAddConst1(int arg) {
+    if (doThrow) { throw new Error(); }
+    return 5 - arg + 6;
+  }
+
+  /// CHECK-START: int Main.$noinline$SubAddConst2(int) instruction_simplifier (before)
+  /// CHECK-DAG:     <<ArgValue:i\d+>>  ParameterValue
+  /// CHECK-DAG:     <<Const14:i\d+>>   IntConstant 14
+  /// CHECK-DAG:     <<Const13:i\d+>>   IntConstant 13
+  /// CHECK-DAG:     <<Add:i\d+>>       Add [<<ArgValue>>,<<Const13>>]
+  /// CHECK-DAG:     <<Sub:i\d+>>       Sub [<<Const14>>,<<Add>>]
+  /// CHECK-DAG:                        Return [<<Sub>>]
+
+  /// CHECK-START: int Main.$noinline$SubAddConst2(int) instruction_simplifier (after)
+  /// CHECK-DAG:     <<ArgValue:i\d+>>  ParameterValue
+  /// CHECK-DAG:     <<Const1:i\d+>>    IntConstant 1
+  /// CHECK-DAG:     <<Sub:i\d+>>       Sub [<<Const1>>,<<ArgValue>>]
+  /// CHECK-DAG:                        Return [<<Sub>>]
+
+  public static int $noinline$SubAddConst2(int arg) {
+    if (doThrow) { throw new Error(); }
+    return 14 - (arg + 13);
+  }
+
+  /// CHECK-START: long Main.$noinline$SubSubConst(long) instruction_simplifier (before)
+  /// CHECK-DAG:     <<ArgValue:j\d+>>  ParameterValue
+  /// CHECK-DAG:     <<Const17:j\d+>>   LongConstant 17
+  /// CHECK-DAG:     <<Const18:j\d+>>   LongConstant 18
+  /// CHECK-DAG:     <<Sub1:j\d+>>      Sub [<<Const18>>,<<ArgValue>>]
+  /// CHECK-DAG:     <<Sub2:j\d+>>      Sub [<<Const17>>,<<Sub1>>]
+  /// CHECK-DAG:                        Return [<<Sub2>>]
+
+  /// CHECK-START: long Main.$noinline$SubSubConst(long) instruction_simplifier (after)
+  /// CHECK-DAG:     <<ArgValue:j\d+>>  ParameterValue
+  /// CHECK-DAG:     <<ConstM1:j\d+>>   LongConstant -1
+  /// CHECK-DAG:     <<Add:j\d+>>       Add [<<ArgValue>>,<<ConstM1>>]
+  /// CHECK-DAG:                        Return [<<Add>>]
+
+  public static long $noinline$SubSubConst(long arg) {
+    if (doThrow) { throw new Error(); }
+    return 17 - (18 - arg);
   }
 
   /// CHECK-START: long Main.$noinline$UShr0(long) instruction_simplifier (before)
@@ -1757,6 +1858,17 @@ public class Main {
     }
   }
 
+  public static int $noinline$runSmaliTestConst(String name, int arg) {
+    if (doThrow) { throw new Error(); }
+    try {
+      Class<?> c = Class.forName("SmaliTests");
+      Method m = c.getMethod(name, int.class);
+      return (Integer) m.invoke(null, arg);
+    } catch (Exception ex) {
+      throw new Error(ex);
+    }
+  }
+
   /// CHECK-START: int Main.$noinline$intUnnecessaryShiftMasking(int, int) instruction_simplifier (before)
   /// CHECK:          <<Value:i\d+>>    ParameterValue
   /// CHECK:          <<Shift:i\d+>>    ParameterValue
@@ -1863,12 +1975,14 @@ public static void main(String[] args) {
     int arg = 123456;
 
     assertLongEquals(arg, $noinline$Add0(arg));
+    assertIntEquals(5, $noinline$AddAddSubAddConst(1));
     assertIntEquals(arg, $noinline$AndAllOnes(arg));
     assertLongEquals(arg, $noinline$Div1(arg));
     assertIntEquals(-arg, $noinline$DivN1(arg));
     assertLongEquals(arg, $noinline$Mul1(arg));
     assertIntEquals(-arg, $noinline$MulN1(arg));
     assertLongEquals((128 * arg), $noinline$MulPowerOfTwo128(arg));
+    assertLongEquals(2640, $noinline$MulMulMulConst(2));
     assertIntEquals(arg, $noinline$Or0(arg));
     assertLongEquals(arg, $noinline$OrSame(arg));
     assertIntEquals(arg, $noinline$Shl0(arg));
@@ -1876,6 +1990,9 @@ public static void main(String[] args) {
     assertLongEquals(arg, $noinline$Shr64(arg));
     assertLongEquals(arg, $noinline$Sub0(arg));
     assertIntEquals(-arg, $noinline$SubAliasNeg(arg));
+    assertIntEquals(9, $noinline$SubAddConst1(2));
+    assertIntEquals(-2, $noinline$SubAddConst2(3));
+    assertLongEquals(3, $noinline$SubSubConst(4));
     assertLongEquals(arg, $noinline$UShr0(arg));
     assertIntEquals(arg, $noinline$Xor0(arg));
     assertIntEquals(~arg, $noinline$XorAllOnes(arg));
@@ -2011,6 +2128,11 @@ public static void main(String[] args) {
       }
     }
 
+    assertIntEquals(0, $noinline$runSmaliTestConst("AddSubConst", 1));
+    assertIntEquals(3, $noinline$runSmaliTestConst("SubAddConst", 2));
+    assertIntEquals(-16, $noinline$runSmaliTestConst("SubSubConst1", 3));
+    assertIntEquals(-5, $noinline$runSmaliTestConst("SubSubConst2", 4));
+    assertIntEquals(26, $noinline$runSmaliTestConst("SubSubConst3", 5));
     assertIntEquals(0x5e6f7808, $noinline$intUnnecessaryShiftMasking(0xabcdef01, 3));
     assertIntEquals(0x5e6f7808, $noinline$intUnnecessaryShiftMasking(0xabcdef01, 3 + 32));
     assertLongEquals(0xffffffffffffeaf3L, $noinline$longUnnecessaryShiftMasking(0xabcdef0123456789L, 50));
