@@ -228,7 +228,7 @@ END_MACRO
 MACRO0(DELIVER_PENDING_EXCEPTION)
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME ebx, ebx  // save callee saves for throw
     // Outgoing argument set up
-    subl MACRO_LITERAL(12), %esp              // Alignment padding
+    subl MACRO_LITERAL(12), %esp               // alignment padding
     CFI_ADJUST_CFA_OFFSET(12)
     pushl %fs:THREAD_SELF_OFFSET               // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
@@ -254,7 +254,7 @@ MACRO2(ONE_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME ebx, ebx  // save all registers as basis for long jump context
     mov %esp, %ecx
     // Outgoing argument set up
-    subl MACRO_LITERAL(8), %esp               // alignment padding
+    subl MACRO_LITERAL(8), %esp                // alignment padding
     CFI_ADJUST_CFA_OFFSET(8)
     pushl %fs:THREAD_SELF_OFFSET               // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
@@ -1909,10 +1909,12 @@ DEFINE_FUNCTION art_nested_signal_return
 END_FUNCTION art_nested_signal_return
 
 DEFINE_FUNCTION art_quick_read_barrier_mark
+    subl LITERAL(8), %esp            // alignment padding
+    CFI_ADJUST_CFA_OFFSET(8)
     PUSH eax                         // pass arg1 - obj
     call SYMBOL(artReadBarrierMark)  // artReadBarrierMark(obj)
-    addl LITERAL(4), %esp            // pop argument
-    CFI_ADJUST_CFA_OFFSET(-4)
+    addl LITERAL(12), %esp           // pop argument and remove padding
+    CFI_ADJUST_CFA_OFFSET(-12)
     ret
 END_FUNCTION art_quick_read_barrier_mark
 
@@ -1927,10 +1929,12 @@ DEFINE_FUNCTION art_quick_read_barrier_slow
 END_FUNCTION art_quick_read_barrier_slow
 
 DEFINE_FUNCTION art_quick_read_barrier_for_root_slow
+    subl LITERAL(8), %esp                   // alignment padding
+    CFI_ADJUST_CFA_OFFSET(8)
     PUSH eax                                // pass arg1 - root
     call SYMBOL(artReadBarrierForRootSlow)  // artReadBarrierForRootSlow(root)
-    addl LITERAL(4), %esp                   // pop argument
-    CFI_ADJUST_CFA_OFFSET(-4)
+    addl LITERAL(12), %esp                  // pop argument and remove padding
+    CFI_ADJUST_CFA_OFFSET(-12)
     ret
 END_FUNCTION art_quick_read_barrier_for_root_slow
 
