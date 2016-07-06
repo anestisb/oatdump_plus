@@ -9,9 +9,9 @@
  * return.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     REFRESH_IBASE
     movq    rSELF, OUT_ARG0
     leaq    OFF_FP_SHADOWFRAME(rFP), OUT_ARG1
-    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame)
+    movq    rPC, OUT_ARG2
+    call    SYMBOL(MterpCheckBefore)        # (self, shadow_frame, dex_pc_ptr)
     jmp     .L_op_nop+(${opnum}*${handler_size_bytes})
