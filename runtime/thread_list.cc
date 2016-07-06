@@ -614,11 +614,7 @@ void ThreadList::SuspendAllInternal(Thread* self,
             PLOG(FATAL) << "futex wait failed for SuspendAllInternal()";
           }
         }
-      } else {
-        cur_val = pending_threads.LoadRelaxed();
-        CHECK_EQ(cur_val, 0);
-        break;
-      }
+      }  // else re-check pending_threads in the next iteration (this may be a spurious wake-up).
 #else
       // Spin wait. This is likely to be slow, but on most architecture ART_USE_FUTEXES is set.
 #endif
