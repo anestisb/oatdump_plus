@@ -690,10 +690,9 @@ class ReadBarrierForHeapReferenceSlowPathARM64 : public SlowPathCodeARM64 {
             instruction_->GetLocations()->Intrinsified()))
         << "Unexpected instruction in read barrier for heap reference slow path: "
         << instruction_->DebugName();
-    // The read barrier instrumentation does not support the
-    // HArm64IntermediateAddress instruction yet.
+    // The read barrier instrumentation does not support the HIntermediateAddress instruction yet.
     DCHECK(!(instruction_->IsArrayGet() &&
-             instruction_->AsArrayGet()->GetArray()->IsArm64IntermediateAddress()));
+             instruction_->AsArrayGet()->GetArray()->IsIntermediateAddress()));
 
     __ Bind(GetEntryLabel());
 
@@ -1983,9 +1982,8 @@ void InstructionCodeGeneratorARM64::VisitArm64DataProcWithShifterOp(
   }
 }
 
-void LocationsBuilderARM64::VisitArm64IntermediateAddress(HArm64IntermediateAddress* instruction) {
-  // The read barrier instrumentation does not support the
-  // HArm64IntermediateAddress instruction yet.
+void LocationsBuilderARM64::VisitIntermediateAddress(HIntermediateAddress* instruction) {
+  // The read barrier instrumentation does not support the HIntermediateAddress instruction yet.
   DCHECK(!kEmitCompilerReadBarrier);
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
@@ -1994,10 +1992,9 @@ void LocationsBuilderARM64::VisitArm64IntermediateAddress(HArm64IntermediateAddr
   locations->SetOut(Location::RequiresRegister());
 }
 
-void InstructionCodeGeneratorARM64::VisitArm64IntermediateAddress(
-    HArm64IntermediateAddress* instruction) {
-  // The read barrier instrumentation does not support the
-  // HArm64IntermediateAddress instruction yet.
+void InstructionCodeGeneratorARM64::VisitIntermediateAddress(
+    HIntermediateAddress* instruction) {
+  // The read barrier instrumentation does not support the HIntermediateAddress instruction yet.
   DCHECK(!kEmitCompilerReadBarrier);
   __ Add(OutputRegister(instruction),
          InputRegisterAt(instruction, 0),
@@ -2097,9 +2094,8 @@ void InstructionCodeGeneratorARM64::VisitArrayGet(HArrayGet* instruction) {
   if (type == Primitive::kPrimNot && kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
     // Object ArrayGet with Baker's read barrier case.
     Register temp = temps.AcquireW();
-    // The read barrier instrumentation does not support the
-    // HArm64IntermediateAddress instruction yet.
-    DCHECK(!instruction->GetArray()->IsArm64IntermediateAddress());
+    // The read barrier instrumentation does not support the HIntermediateAddress instruction yet.
+    DCHECK(!instruction->GetArray()->IsIntermediateAddress());
     // Note that a potential implicit null check is handled in the
     // CodeGeneratorARM64::GenerateArrayLoadWithBakerReadBarrier call.
     codegen_->GenerateArrayLoadWithBakerReadBarrier(
@@ -2112,15 +2108,15 @@ void InstructionCodeGeneratorARM64::VisitArrayGet(HArrayGet* instruction) {
       source = HeapOperand(obj, offset);
     } else {
       Register temp = temps.AcquireSameSizeAs(obj);
-      if (instruction->GetArray()->IsArm64IntermediateAddress()) {
+      if (instruction->GetArray()->IsIntermediateAddress()) {
         // The read barrier instrumentation does not support the
-        // HArm64IntermediateAddress instruction yet.
+        // HIntermediateAddress instruction yet.
         DCHECK(!kEmitCompilerReadBarrier);
         // We do not need to compute the intermediate address from the array: the
         // input instruction has done it already. See the comment in
-        // `InstructionSimplifierArm64::TryExtractArrayAccessAddress()`.
+        // `TryExtractArrayAccessAddress()`.
         if (kIsDebugBuild) {
-          HArm64IntermediateAddress* tmp = instruction->GetArray()->AsArm64IntermediateAddress();
+          HIntermediateAddress* tmp = instruction->GetArray()->AsIntermediateAddress();
           DCHECK_EQ(tmp->GetOffset()->AsIntConstant()->GetValueAsUint64(), offset);
         }
         temp = obj;
@@ -2204,15 +2200,15 @@ void InstructionCodeGeneratorARM64::VisitArraySet(HArraySet* instruction) {
     } else {
       UseScratchRegisterScope temps(masm);
       Register temp = temps.AcquireSameSizeAs(array);
-      if (instruction->GetArray()->IsArm64IntermediateAddress()) {
+      if (instruction->GetArray()->IsIntermediateAddress()) {
         // The read barrier instrumentation does not support the
-        // HArm64IntermediateAddress instruction yet.
+        // HIntermediateAddress instruction yet.
         DCHECK(!kEmitCompilerReadBarrier);
         // We do not need to compute the intermediate address from the array: the
         // input instruction has done it already. See the comment in
-        // `InstructionSimplifierArm64::TryExtractArrayAccessAddress()`.
+        // `TryExtractArrayAccessAddress()`.
         if (kIsDebugBuild) {
-          HArm64IntermediateAddress* tmp = instruction->GetArray()->AsArm64IntermediateAddress();
+          HIntermediateAddress* tmp = instruction->GetArray()->AsIntermediateAddress();
           DCHECK(tmp->GetOffset()->AsIntConstant()->GetValueAsUint64() == offset);
         }
         temp = array;
@@ -2228,7 +2224,7 @@ void InstructionCodeGeneratorARM64::VisitArraySet(HArraySet* instruction) {
     codegen_->MaybeRecordImplicitNullCheck(instruction);
   } else {
     DCHECK(needs_write_barrier);
-    DCHECK(!instruction->GetArray()->IsArm64IntermediateAddress());
+    DCHECK(!instruction->GetArray()->IsIntermediateAddress());
     vixl::aarch64::Label done;
     SlowPathCodeARM64* slow_path = nullptr;
     {

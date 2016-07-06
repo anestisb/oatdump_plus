@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
+#include "code_generator.h"
 #include "instruction_simplifier_arm.h"
 #include "instruction_simplifier_shared.h"
+#include "mirror/array-inl.h"
 
 namespace art {
 namespace arm {
@@ -38,6 +40,46 @@ void InstructionSimplifierArmVisitor::VisitAnd(HAnd* instruction) {
   }
 }
 
+void InstructionSimplifierArmVisitor::VisitArrayGet(HArrayGet* instruction) {
+  size_t data_offset = CodeGenerator::GetArrayDataOffset(instruction);
+  Primitive::Type type = instruction->GetType();
+
+  if (type == Primitive::kPrimLong
+      || type == Primitive::kPrimFloat
+      || type == Primitive::kPrimDouble) {
+    // T32 doesn't support ShiftedRegOffset mem address mode for these types
+    // to enable optimization.
+    return;
+  }
+
+  if (TryExtractArrayAccessAddress(instruction,
+                                   instruction->GetArray(),
+                                   instruction->GetIndex(),
+                                   data_offset)) {
+    RecordSimplification();
+  }
+}
+
+void InstructionSimplifierArmVisitor::VisitArraySet(HArraySet* instruction) {
+  size_t access_size = Primitive::ComponentSize(instruction->GetComponentType());
+  size_t data_offset = mirror::Array::DataOffset(access_size).Uint32Value();
+  Primitive::Type type = instruction->GetComponentType();
+
+  if (type == Primitive::kPrimLong
+      || type == Primitive::kPrimFloat
+      || type == Primitive::kPrimDouble) {
+    // T32 doesn't support ShiftedRegOffset mem address mode for these types
+    // to enable optimization.
+    return;
+  }
+
+  if (TryExtractArrayAccessAddress(instruction,
+                                   instruction->GetArray(),
+                                   instruction->GetIndex(),
+                                   data_offset)) {
+    RecordSimplification();
+  }
+}
 
 }  // namespace arm
 }  // namespace art

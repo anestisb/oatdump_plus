@@ -35,10 +35,6 @@ class InstructionSimplifierArm64Visitor : public HGraphVisitor {
     }
   }
 
-  void TryExtractArrayAccessAddress(HInstruction* access,
-                                    HInstruction* array,
-                                    HInstruction* index,
-                                    size_t data_offset);
   bool TryMergeIntoUsersShifterOperand(HInstruction* instruction);
   bool TryMergeIntoShifterOperand(HInstruction* use,
                                   HInstruction* bitfield_op,
