@@ -88,12 +88,6 @@
 #endif
 .endm
 
-    // Ugly compile-time check, but we only have the preprocessor.
-#if (FRAME_SIZE_REFS_ONLY_CALLEE_SAVE != 28 + 4)
-#error "REFS_ONLY_CALLEE_SAVE_FRAME(ARM) size not as expected."
-#endif
-.endm
-
 .macro RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
     add sp, #4               @ bottom word holds Method*
     .cfi_adjust_cfa_offset -4
