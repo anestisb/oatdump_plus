@@ -750,7 +750,35 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(HInvoke* invoke_instruction,
 bool HInliner::TryInlineAndReplace(HInvoke* invoke_instruction, ArtMethod* method, bool do_rtp) {
   HInstruction* return_replacement = nullptr;
   if (!TryBuildAndInline(invoke_instruction, method, &return_replacement)) {
-    return false;
+    if (invoke_instruction->IsInvokeInterface()) {
+      // Turn an invoke-interface into an invoke-virtual. An invoke-virtual is always
+      // better than an invoke-interface because:
+      // 1) In the best case, the interface call has one more indirection (to fetch the IMT).
+      // 2) We will not go to the conflict trampoline with an invoke-virtual.
+      // TODO: Consider sharpening once it is not dependent on the compiler driver.
+      HInvokeVirtual* new_invoke = new (graph_->GetArena()) HInvokeVirtual(
+          graph_->GetArena(),
+          invoke_instruction->GetNumberOfArguments(),
+          invoke_instruction->GetType(),
+          invoke_instruction->GetDexPc(),
+          invoke_instruction->GetDexMethodIndex(),
+          method->GetMethodIndex());
+      HInputsRef inputs = invoke_instruction->GetInputs();
+      size_t index = 0;
+      for (HInstruction* instr : inputs) {
+        new_invoke->SetArgumentAt(index++, instr);
+      }
+      invoke_instruction->GetBlock()->InsertInstructionBefore(new_invoke, invoke_instruction);
+      new_invoke->CopyEnvironmentFrom(invoke_instruction->GetEnvironment());
+      if (invoke_instruction->GetType() == Primitive::kPrimNot) {
+        new_invoke->SetReferenceTypeInfo(invoke_instruction->GetReferenceTypeInfo());
+      }
+      return_replacement = new_invoke;
+    } else {
+      // TODO: Consider sharpening an invoke virtual once it is not dependent on the
+      // compiler driver.
+      return false;
+    }
   }
   if (return_replacement != nullptr) {
     invoke_instruction->ReplaceWith(return_replacement);
@@ -1236,14 +1264,6 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
         VLOG(compiler) << "Method " << PrettyMethod(method_index, callee_dex_file)
                        << " is not inlined because its caller has reached"
                        << " its environment budget limit.";
-        return false;
-      }
-
-      if (current->IsInvokeInterface()) {
-        // Disable inlining of interface calls. The cost in case of entering the
-        // resolution conflict is currently too high.
-        VLOG(compiler) << "Method " << PrettyMethod(method_index, callee_dex_file)
-                       << " could not be inlined because it has an interface call.";
         return false;
       }
 
