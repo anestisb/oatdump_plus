@@ -16,19 +16,17 @@
 
 public class Main {
 
-  static boolean doThrow = false;
-
   private void inlinedForNull(Iterable it) {
     if (it != null) {
-      // We're not inlining throw at the moment.
-      if (doThrow) { throw new Error(""); }
+      // We're not inlining invoke-interface at the moment.
+      it.iterator();
     }
   }
 
   private void inlinedForFalse(boolean value, Iterable it) {
     if (value) {
-      // We're not inlining throw at the moment.
-      if (doThrow) { throw new Error(""); }
+      // We're not inlining invoke-interface at the moment.
+      it.iterator();
     }
   }
 
