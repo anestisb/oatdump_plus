@@ -46,7 +46,7 @@ void CheckMterpAsmConstants() {
 void InitMterpTls(Thread* self) {
   self->SetMterpDefaultIBase(artMterpAsmInstructionStart);
   self->SetMterpAltIBase(artMterpAsmAltInstructionStart);
-  self->SetMterpCurrentIBase((kTraceExecutionEnabled || kTestExportPC) ?
+  self->SetMterpCurrentIBase(TraceExecutionEnabled() ?
                              artMterpAsmAltInstructionStart :
                              artMterpAsmInstructionStart);
 }
@@ -430,23 +430,16 @@ extern "C" bool MterpHandleException(Thread* self, ShadowFrame* shadow_frame)
   return true;
 }
 
-extern "C" void MterpCheckBefore(Thread* self, ShadowFrame* shadow_frame, uint16_t* dex_pc_ptr)
+extern "C" void MterpCheckBefore(Thread* self, ShadowFrame* shadow_frame)
     SHARED_REQUIRES(Locks::mutator_lock_) {
-  const Instruction* inst = Instruction::At(dex_pc_ptr);
+  const Instruction* inst = Instruction::At(shadow_frame->GetDexPCPtr());
   uint16_t inst_data = inst->Fetch16(0);
   if (inst->Opcode(inst_data) == Instruction::MOVE_EXCEPTION) {
     self->AssertPendingException();
   } else {
     self->AssertNoPendingException();
   }
-  if (kTraceExecutionEnabled) {
-    uint32_t dex_pc = dex_pc_ptr - shadow_frame->GetCodeItem()->insns_;
-    TraceExecution(*shadow_frame, inst, dex_pc);
-  }
-  if (kTestExportPC) {
-    // Save invalid dex pc to force segfault if improperly used.
-    shadow_frame->SetDexPCPtr(reinterpret_cast<uint16_t*>(kExportPCPoison));
-  }
+  TraceExecution(*shadow_frame, inst, shadow_frame->GetDexPC());
 }
 
 extern "C" void MterpLogDivideByZeroException(Thread* self, ShadowFrame* shadow_frame)
