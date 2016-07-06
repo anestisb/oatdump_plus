@@ -2141,7 +2141,11 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t deadbeef ATTRIBUT
   StackHandleScope<1> hs(self);
   Handle<mirror::Class> cls(hs.NewHandle(this_object->GetClass()));
 
-  ArtMethod* caller_method = QuickArgumentVisitor::GetCallingMethod(sp);
+  // The optimizing compiler currently does not inline methods that have an interface
+  // invocation. We use the outer method directly to avoid fetching a stack map, which is
+  // more expensive.
+  ArtMethod* caller_method = QuickArgumentVisitor::GetOuterMethod(sp);
+  DCHECK_EQ(caller_method, QuickArgumentVisitor::GetCallingMethod(sp));
 
   // Fetch the dex_method_idx of the target interface method from the caller.
   uint32_t dex_pc = QuickArgumentVisitor::GetCallingDexPc(sp);
