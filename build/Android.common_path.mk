@@ -99,4 +99,18 @@ HOST_JACK_CLASSPATH                := $(abspath $(call intermediates-dir-for,JAV
 TARGET_JACK_CLASSPATH_DEPENDENCIES := $(call intermediates-dir-for,JAVA_LIBRARIES,core-oj, ,COMMON)/classes.jack $(call intermediates-dir-for,JAVA_LIBRARIES,core-libart, ,COMMON)/classes.jack
 TARGET_JACK_CLASSPATH              := $(abspath $(call intermediates-dir-for,JAVA_LIBRARIES,core-oj, ,COMMON)/classes.jack):$(abspath $(call intermediates-dir-for,JAVA_LIBRARIES,core-libart, ,COMMON)/classes.jack)
 
+ART_HOST_DEX_DEPENDENCIES := $(foreach jar,$(HOST_CORE_JARS),$(HOST_OUT_JAVA_LIBRARIES)/$(jar).jar)
+ART_TARGET_DEX_DEPENDENCIES := $(foreach jar,$(TARGET_CORE_JARS),$(TARGET_OUT_JAVA_LIBRARIES)/$(jar).jar)
+
+ART_CORE_SHARED_LIBRARIES := libjavacore libopenjdk libopenjdkjvm
+ART_HOST_SHARED_LIBRARY_DEPENDENCIES := $(foreach lib,$(ART_CORE_SHARED_LIBRARIES), $(ART_HOST_OUT_SHARED_LIBRARIES)/$(lib)$(ART_HOST_SHLIB_EXTENSION))
+ifdef HOST_2ND_ARCH
+ART_HOST_SHARED_LIBRARY_DEPENDENCIES += $(foreach lib,$(ART_CORE_SHARED_LIBRARIES), $(2ND_HOST_OUT_SHARED_LIBRARIES)/$(lib).so)
+endif
+
+ART_TARGET_SHARED_LIBRARY_DEPENDENCIES := $(foreach lib,$(ART_CORE_SHARED_LIBRARIES), $(TARGET_OUT_SHARED_LIBRARIES)/$(lib).so)
+ifdef TARGET_2ND_ARCH
+ART_TARGET_SHARED_LIBRARY_DEPENDENCIES += $(foreach lib,$(ART_CORE_SHARED_LIBRARIES), $(2ND_TARGET_OUT_SHARED_LIBRARIES)/$(lib).so)
+endif
+
 endif # ART_ANDROID_COMMON_PATH_MK
