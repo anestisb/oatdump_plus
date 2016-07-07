@@ -7441,12 +7441,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (0 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7458,12 +7458,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (1 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7475,12 +7475,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (2 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7492,12 +7492,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (3 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7509,12 +7509,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (4 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7526,12 +7526,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (5 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7543,12 +7543,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (6 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7560,12 +7560,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (7 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7577,12 +7577,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (8 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7594,12 +7594,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (9 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7611,12 +7611,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (10 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7628,12 +7628,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (11 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7645,12 +7645,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (12 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7662,12 +7662,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (13 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7679,12 +7679,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (14 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7696,12 +7696,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (15 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7713,12 +7713,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (16 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7730,12 +7730,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (17 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7747,12 +7747,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (18 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7764,12 +7764,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (19 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7781,12 +7781,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (20 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7798,12 +7798,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (21 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7815,12 +7815,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (22 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7832,12 +7832,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (23 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7849,12 +7849,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (24 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7866,12 +7866,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (25 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7883,12 +7883,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (26 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7900,12 +7900,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (27 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7917,12 +7917,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (28 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7934,12 +7934,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (29 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7951,12 +7951,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (30 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7968,12 +7968,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (31 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -7985,12 +7985,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (32 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8002,12 +8002,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (33 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8019,12 +8019,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (34 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8036,12 +8036,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (35 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8053,12 +8053,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (36 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8070,12 +8070,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (37 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8087,12 +8087,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (38 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8104,12 +8104,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (39 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8121,12 +8121,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (40 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8138,12 +8138,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (41 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8155,12 +8155,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (42 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8172,12 +8172,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (43 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8189,12 +8189,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (44 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8206,12 +8206,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (45 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8223,12 +8223,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (46 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8240,12 +8240,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (47 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8257,12 +8257,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (48 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8274,12 +8274,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (49 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8291,12 +8291,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (50 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8308,12 +8308,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (51 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8325,12 +8325,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (52 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8342,12 +8342,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (53 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8359,12 +8359,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (54 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8376,12 +8376,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (55 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8393,12 +8393,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (56 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8410,12 +8410,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (57 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8427,12 +8427,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (58 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8444,12 +8444,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (59 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8461,12 +8461,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (60 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8478,12 +8478,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (61 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8495,12 +8495,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (62 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8512,12 +8512,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (63 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8529,12 +8529,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (64 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8546,12 +8546,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (65 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8563,12 +8563,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (66 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8580,12 +8580,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (67 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8597,12 +8597,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (68 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8614,12 +8614,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (69 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8631,12 +8631,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (70 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8648,12 +8648,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (71 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8665,12 +8665,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (72 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8682,12 +8682,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (73 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8699,12 +8699,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (74 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8716,12 +8716,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (75 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8733,12 +8733,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (76 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8750,12 +8750,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (77 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8767,12 +8767,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (78 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8784,12 +8784,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (79 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8801,12 +8801,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (80 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8818,12 +8818,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (81 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8835,12 +8835,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (82 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8852,12 +8852,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (83 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8869,12 +8869,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (84 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8886,12 +8886,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (85 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8903,12 +8903,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (86 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8920,12 +8920,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (87 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8937,12 +8937,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (88 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8954,12 +8954,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (89 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8971,12 +8971,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (90 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -8988,12 +8988,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (91 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9005,12 +9005,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (92 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9022,12 +9022,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (93 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9039,12 +9039,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (94 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9056,12 +9056,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (95 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9073,12 +9073,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (96 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9090,12 +9090,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (97 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9107,12 +9107,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (98 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9124,12 +9124,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (99 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9141,12 +9141,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (100 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9158,12 +9158,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (101 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9175,12 +9175,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (102 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9192,12 +9192,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (103 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9209,12 +9209,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (104 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9226,12 +9226,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (105 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9243,12 +9243,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (106 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9260,12 +9260,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (107 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9277,12 +9277,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (108 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9294,12 +9294,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (109 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9311,12 +9311,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (110 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9328,12 +9328,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (111 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9345,12 +9345,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (112 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9362,12 +9362,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (113 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9379,12 +9379,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (114 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9396,12 +9396,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (115 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9413,12 +9413,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (116 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9430,12 +9430,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (117 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9447,12 +9447,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (118 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9464,12 +9464,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (119 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9481,12 +9481,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (120 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9498,12 +9498,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (121 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9515,12 +9515,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (122 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9532,12 +9532,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (123 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9549,12 +9549,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (124 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9566,12 +9566,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (125 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9583,12 +9583,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (126 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9600,12 +9600,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (127 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9617,12 +9617,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (128 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9634,12 +9634,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (129 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9651,12 +9651,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (130 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9668,12 +9668,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (131 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9685,12 +9685,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (132 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9702,12 +9702,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (133 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9719,12 +9719,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (134 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9736,12 +9736,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (135 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9753,12 +9753,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (136 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9770,12 +9770,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (137 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9787,12 +9787,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (138 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9804,12 +9804,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (139 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9821,12 +9821,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (140 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9838,12 +9838,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (141 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9855,12 +9855,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (142 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9872,12 +9872,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (143 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9889,12 +9889,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (144 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9906,12 +9906,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (145 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9923,12 +9923,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (146 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9940,12 +9940,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (147 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9957,12 +9957,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (148 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9974,12 +9974,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (149 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -9991,12 +9991,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (150 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10008,12 +10008,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (151 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10025,12 +10025,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (152 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10042,12 +10042,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (153 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10059,12 +10059,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (154 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10076,12 +10076,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (155 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10093,12 +10093,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (156 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10110,12 +10110,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (157 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10127,12 +10127,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (158 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10144,12 +10144,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (159 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10161,12 +10161,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (160 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10178,12 +10178,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (161 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10195,12 +10195,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (162 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10212,12 +10212,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (163 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10229,12 +10229,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (164 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10246,12 +10246,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (165 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10263,12 +10263,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (166 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10280,12 +10280,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (167 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10297,12 +10297,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (168 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10314,12 +10314,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (169 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10331,12 +10331,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (170 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10348,12 +10348,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (171 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10365,12 +10365,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (172 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10382,12 +10382,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (173 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10399,12 +10399,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (174 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10416,12 +10416,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (175 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10433,12 +10433,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (176 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10450,12 +10450,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (177 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10467,12 +10467,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (178 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10484,12 +10484,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (179 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10501,12 +10501,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (180 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10518,12 +10518,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (181 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10535,12 +10535,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (182 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10552,12 +10552,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (183 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10569,12 +10569,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (184 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10586,12 +10586,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (185 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10603,12 +10603,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (186 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10620,12 +10620,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (187 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10637,12 +10637,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (188 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10654,12 +10654,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (189 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10671,12 +10671,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (190 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10688,12 +10688,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (191 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10705,12 +10705,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (192 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10722,12 +10722,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (193 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10739,12 +10739,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (194 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10756,12 +10756,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (195 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10773,12 +10773,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (196 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10790,12 +10790,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (197 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10807,12 +10807,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (198 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10824,12 +10824,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (199 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10841,12 +10841,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (200 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10858,12 +10858,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (201 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10875,12 +10875,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (202 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10892,12 +10892,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (203 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10909,12 +10909,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (204 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10926,12 +10926,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (205 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10943,12 +10943,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (206 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10960,12 +10960,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (207 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10977,12 +10977,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (208 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -10994,12 +10994,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (209 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11011,12 +11011,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (210 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11028,12 +11028,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (211 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11045,12 +11045,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (212 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11062,12 +11062,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (213 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11079,12 +11079,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (214 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11096,12 +11096,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (215 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11113,12 +11113,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (216 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11130,12 +11130,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (217 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11147,12 +11147,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (218 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11164,12 +11164,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (219 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11181,12 +11181,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (220 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11198,12 +11198,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (221 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11215,12 +11215,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (222 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11232,12 +11232,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (223 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11249,12 +11249,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (224 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11266,12 +11266,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (225 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11283,12 +11283,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (226 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11300,12 +11300,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (227 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11317,12 +11317,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (228 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11334,12 +11334,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (229 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11351,12 +11351,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (230 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11368,12 +11368,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (231 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11385,12 +11385,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (232 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11402,12 +11402,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (233 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11419,12 +11419,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (234 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11436,12 +11436,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (235 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11453,12 +11453,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (236 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11470,12 +11470,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (237 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11487,12 +11487,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (238 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11504,12 +11504,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (239 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11521,12 +11521,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (240 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11538,12 +11538,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (241 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11555,12 +11555,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (242 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11572,12 +11572,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (243 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11589,12 +11589,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (244 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11606,12 +11606,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (245 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11623,12 +11623,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (246 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11640,12 +11640,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (247 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11657,12 +11657,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (248 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11674,12 +11674,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (249 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11691,12 +11691,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (250 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11708,12 +11708,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (251 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11725,12 +11725,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (252 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11742,12 +11742,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (253 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11759,12 +11759,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (254 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
 /* ------------------------------ */
     .balign 128
@@ -11776,12 +11776,12 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (255 * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
 
     .balign 128
     .size   artMterpAsmAltInstructionStart, .-artMterpAsmAltInstructionStart
