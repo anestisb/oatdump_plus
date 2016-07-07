@@ -210,6 +210,10 @@ class ShadowFrame {
     code_item_ = code_item;
   }
 
+  const DexFile::CodeItem* GetCodeItem() const {
+    return code_item_;
+  }
+
   float GetVRegFloat(size_t i) const {
     DCHECK_LT(i, NumberOfVRegs());
     // NOTE: Strict-aliasing?
@@ -405,6 +409,10 @@ class ShadowFrame {
 
   const uint16_t* GetDexPCPtr() {
     return dex_pc_ptr_;
+  }
+
+  void SetDexPCPtr(uint16_t* dex_pc_ptr) {
+    dex_pc_ptr_ = dex_pc_ptr;
   }
 
   JValue* GetResultRegister() {
