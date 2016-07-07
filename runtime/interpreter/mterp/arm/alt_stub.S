@@ -4,9 +4,9 @@
  * handler.  Note that the call to MterpCheckBefore is done as a tail call.
  */
     .extern MterpCheckBefore
-    EXPORT_PC
     ldr    rIBASE, [rSELF, #THREAD_CURRENT_IBASE_OFFSET]            @ refresh IBASE.
     adrl   lr, artMterpAsmInstructionStart + (${opnum} * 128)       @ Addr of primary handler.
     mov    r0, rSELF
     add    r1, rFP, #OFF_FP_SHADOWFRAME
-    b      MterpCheckBefore     @ (self, shadow_frame)              @ Tail call.
+    mov    r2, rPC
+    b      MterpCheckBefore     @ (self, shadow_frame, dex_pc_ptr)  @ Tail call.
