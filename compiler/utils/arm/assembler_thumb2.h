@@ -43,6 +43,7 @@ class Thumb2Assembler FINAL : public ArmAssembler {
         fixups_(arena->Adapter(kArenaAllocAssembler)),
         fixup_dependents_(arena->Adapter(kArenaAllocAssembler)),
         literals_(arena->Adapter(kArenaAllocAssembler)),
+        literal64_dedupe_map_(std::less<uint64_t>(), arena->Adapter(kArenaAllocAssembler)),
         jump_tables_(arena->Adapter(kArenaAllocAssembler)),
         last_position_adjustment_(0u),
         last_old_position_(0u),
@@ -319,6 +320,7 @@ class Thumb2Assembler FINAL : public ArmAssembler {
 
   // Load and Store. May clobber IP.
   void LoadImmediate(Register rd, int32_t value, Condition cond = AL) OVERRIDE;
+  void LoadDImmediate(DRegister dd, double value, Condition cond = AL) OVERRIDE;
   void MarkExceptionHandler(Label* label) OVERRIDE;
   void LoadFromOffset(LoadOperandType type,
                       Register reg,
@@ -464,8 +466,8 @@ class Thumb2Assembler FINAL : public ArmAssembler {
       // Load long or FP literal variants.
       // VLDR s/dX, label; 32-bit insn, up to 1KiB offset; 4 bytes.
       kLongOrFPLiteral1KiB,
-      // MOV ip, modimm + ADD ip, pc + VLDR s/dX, [IP, #imm8*4]; up to 256KiB offset; 10 bytes.
-      kLongOrFPLiteral256KiB,
+      // MOV ip, imm16 + ADD ip, pc + VLDR s/dX, [IP, #0]; up to 64KiB offset; 10 bytes.
+      kLongOrFPLiteral64KiB,
       // MOV ip, imm16 + MOVT ip, imm16 + ADD ip, pc + VLDR s/dX, [IP]; any offset; 14 bytes.
       kLongOrFPLiteralFar,
     };
@@ -500,7 +502,7 @@ class Thumb2Assembler FINAL : public ArmAssembler {
     // Load wide literal.
     static Fixup LoadWideLiteral(uint32_t location, Register rt, Register rt2,
                                  Size size = kLongOrFPLiteral1KiB) {
-      DCHECK(size == kLongOrFPLiteral1KiB || size == kLongOrFPLiteral256KiB ||
+      DCHECK(size == kLongOrFPLiteral1KiB || size == kLongOrFPLiteral64KiB ||
              size == kLongOrFPLiteralFar);
       DCHECK(!IsHighRegister(rt) || (size != kLiteral1KiB && size != kLiteral64KiB));
       return Fixup(rt, rt2, kNoSRegister, kNoDRegister,
@@ -510,7 +512,7 @@ class Thumb2Assembler FINAL : public ArmAssembler {
     // Load FP single literal.
     static Fixup LoadSingleLiteral(uint32_t location, SRegister sd,
                                    Size size = kLongOrFPLiteral1KiB) {
-      DCHECK(size == kLongOrFPLiteral1KiB || size == kLongOrFPLiteral256KiB ||
+      DCHECK(size == kLongOrFPLiteral1KiB || size == kLongOrFPLiteral64KiB ||
              size == kLongOrFPLiteralFar);
       return Fixup(kNoRegister, kNoRegister, sd, kNoDRegister,
                    AL, kLoadFPLiteralSingle, size, location);
@@ -519,7 +521,7 @@ class Thumb2Assembler FINAL : public ArmAssembler {
     // Load FP double literal.
     static Fixup LoadDoubleLiteral(uint32_t location, DRegister dd,
                                    Size size = kLongOrFPLiteral1KiB) {
-      DCHECK(size == kLongOrFPLiteral1KiB || size == kLongOrFPLiteral256KiB ||
+      DCHECK(size == kLongOrFPLiteral1KiB || size == kLongOrFPLiteral64KiB ||
              size == kLongOrFPLiteralFar);
       return Fixup(kNoRegister, kNoRegister, kNoSRegister, dd,
                    AL, kLoadFPLiteralDouble, size, location);
@@ -869,6 +871,9 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   // Use std::deque<> for literal labels to allow insertions at the end
   // without invalidating pointers and references to existing elements.
   ArenaDeque<Literal> literals_;
+
+  // Deduplication map for 64-bit literals, used for LoadDImmediate().
+  ArenaSafeMap<uint64_t, Literal*> literal64_dedupe_map_;
 
   // Jump table list.
   ArenaDeque<JumpTable> jump_tables_;
