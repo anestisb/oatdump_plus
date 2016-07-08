@@ -94,17 +94,17 @@ ART_GTEST_elf_writer_test_TARGET_DEPS := $(TARGET_CORE_IMAGE_default_no-pic_64) 
 
 ART_GTEST_dex2oat_environment_tests_HOST_DEPS := \
   $(HOST_CORE_IMAGE_default_no-pic_64) \
-  $(HOST_CORE_IMAGE_default_no-pic_32)
+  $(HOST_CORE_IMAGE_default_no-pic_32) \
+  $(HOST_OUT_EXECUTABLES)/patchoatd
 ART_GTEST_dex2oat_environment_tests_TARGET_DEPS := \
   $(TARGET_CORE_IMAGE_default_no-pic_64) \
-  $(TARGET_CORE_IMAGE_default_no-pic_32)
+  $(TARGET_CORE_IMAGE_default_no-pic_32) \
+  $(TARGET_OUT_EXECUTABLES)/patchoatd
 
 ART_GTEST_oat_file_assistant_test_HOST_DEPS := \
-   $(ART_GTEST_dex2oat_environment_tests_HOST_DEPS) \
-   $(HOST_OUT_EXECUTABLES)/patchoatd
+  $(ART_GTEST_dex2oat_environment_tests_HOST_DEPS)
 ART_GTEST_oat_file_assistant_test_TARGET_DEPS := \
-   $(ART_GTEST_dex2oat_environment_tests_TARGET_DEPS) \
-   $(TARGET_OUT_EXECUTABLES)/patchoatd
+  $(ART_GTEST_dex2oat_environment_tests_TARGET_DEPS)
 
 
 ART_GTEST_dex2oat_test_HOST_DEPS := \
