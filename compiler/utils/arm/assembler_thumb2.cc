@@ -1917,7 +1917,7 @@ inline size_t Thumb2Assembler::Fixup::SizeInBytes(Size size) {
 
     case kLongOrFPLiteral1KiB:
       return 4u;
-    case kLongOrFPLiteral256KiB:
+    case kLongOrFPLiteral64KiB:
       return 10u;
     case kLongOrFPLiteralFar:
       return 14u;
@@ -1989,7 +1989,7 @@ inline int32_t Thumb2Assembler::Fixup::GetOffset(uint32_t current_code_size) con
       break;
     case kLiteral1MiB:
     case kLiteral64KiB:
-    case kLongOrFPLiteral256KiB:
+    case kLongOrFPLiteral64KiB:
     case kLiteralAddr64KiB:
       DCHECK_GE(diff, 4);  // The target must be at least 4 bytes after the ADD rX, PC.
       diff -= 4;        // One extra 32-bit MOV.
@@ -2105,10 +2105,10 @@ uint32_t Thumb2Assembler::Fixup::AdjustSizeIfNeeded(uint32_t current_code_size) 
       if (IsUint<10>(GetOffset(current_code_size))) {
         break;
       }
-      current_code_size += IncreaseSize(kLongOrFPLiteral256KiB);
+      current_code_size += IncreaseSize(kLongOrFPLiteral64KiB);
       FALLTHROUGH_INTENDED;
-    case kLongOrFPLiteral256KiB:
-      if (IsUint<18>(GetOffset(current_code_size))) {
+    case kLongOrFPLiteral64KiB:
+      if (IsUint<16>(GetOffset(current_code_size))) {
         break;
       }
       current_code_size += IncreaseSize(kLongOrFPLiteralFar);
@@ -2269,11 +2269,10 @@ void Thumb2Assembler::Fixup::Emit(AssemblerBuffer* buffer, uint32_t code_size) c
       buffer->Store<int16_t>(location_ + 2u, static_cast<int16_t>(encoding & 0xffff));
       break;
     }
-    case kLongOrFPLiteral256KiB: {
-      int32_t offset = GetOffset(code_size);
-      int32_t mov_encoding = MovModImmEncoding32(IP, offset & ~0x3ff);
+    case kLongOrFPLiteral64KiB: {
+      int32_t mov_encoding = MovwEncoding32(IP, GetOffset(code_size));
       int16_t add_pc_encoding = AddRdnRmEncoding16(IP, PC);
-      int32_t ldr_encoding = LoadWideOrFpEncoding(IP, offset & 0x3ff);    // DCHECKs type_.
+      int32_t ldr_encoding = LoadWideOrFpEncoding(IP, 0u);    // DCHECKs type_.
       buffer->Store<int16_t>(location_, mov_encoding >> 16);
       buffer->Store<int16_t>(location_ + 2u, static_cast<int16_t>(mov_encoding & 0xffff));
       buffer->Store<int16_t>(location_ + 4u, add_pc_encoding);
@@ -3594,6 +3593,24 @@ void Thumb2Assembler::LoadImmediate(Register rd, int32_t value, Condition cond) 
     uint16_t value_high = High16Bits(value);
     if (value_high != 0) {
       movt(rd, value_high, cond);
+    }
+  }
+}
+
+void Thumb2Assembler::LoadDImmediate(DRegister dd, double value, Condition cond) {
+  if (!vmovd(dd, value, cond)) {
+    uint64_t int_value = bit_cast<uint64_t, double>(value);
+    if (int_value == bit_cast<uint64_t, double>(0.0)) {
+      // 0.0 is quite common, so we special case it by loading
+      // 2.0 in `dd` and then subtracting it.
+      bool success = vmovd(dd, 2.0, cond);
+      CHECK(success);
+      vsubd(dd, dd, dd, cond);
+    } else {
+      Literal* literal = literal64_dedupe_map_.GetOrCreate(
+          int_value,
+          [this, int_value]() { return NewLiteral<uint64_t>(int_value); });
+      LoadLiteral(dd, literal);
     }
   }
 }

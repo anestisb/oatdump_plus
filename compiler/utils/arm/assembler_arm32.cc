@@ -1486,6 +1486,34 @@ void Arm32Assembler::LoadImmediate(Register rd, int32_t value, Condition cond) {
   }
 }
 
+void Arm32Assembler::LoadDImmediate(DRegister dd, double value, Condition cond) {
+  if (!vmovd(dd, value, cond)) {
+    uint64_t int_value = bit_cast<uint64_t, double>(value);
+    if (int_value == bit_cast<uint64_t, double>(0.0)) {
+      // 0.0 is quite common, so we special case it by loading
+      // 2.0 in `dd` and then subtracting it.
+      bool success = vmovd(dd, 2.0, cond);
+      CHECK(success);
+      vsubd(dd, dd, dd, cond);
+    } else {
+      if (dd < 16) {
+        // Note: Depending on the particular CPU, this may cause register
+        // forwarding hazard, negatively impacting the performance.
+        SRegister low = static_cast<SRegister>(dd << 1);
+        SRegister high = static_cast<SRegister>(low + 1);
+        LoadSImmediate(low, bit_cast<float, uint32_t>(Low32Bits(int_value)), cond);
+        if (High32Bits(int_value) == Low32Bits(int_value)) {
+          vmovs(high, low);
+        } else {
+          LoadSImmediate(high, bit_cast<float, uint32_t>(High32Bits(int_value)), cond);
+        }
+      } else {
+        LOG(FATAL) << "Unimplemented loading of double into a D register "
+                   << "that cannot be split into two S registers";
+      }
+    }
+  }
+}
 
 // Implementation note: this method must emit at most one instruction when
 // Address::CanHoldLoadOffsetArm.

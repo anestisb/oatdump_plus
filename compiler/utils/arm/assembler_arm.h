@@ -754,32 +754,7 @@ class ArmAssembler : public Assembler {
     }
   }
 
-  void LoadDImmediate(DRegister sd, double value, Condition cond = AL) {
-    if (!vmovd(sd, value, cond)) {
-      uint64_t int_value = bit_cast<uint64_t, double>(value);
-      if (int_value == bit_cast<uint64_t, double>(0.0)) {
-        // 0.0 is quite common, so we special case it by loading
-        // 2.0 in `sd` and then substracting it.
-        bool success = vmovd(sd, 2.0, cond);
-        CHECK(success);
-        vsubd(sd, sd, sd, cond);
-      } else {
-        if (sd < 16) {
-          SRegister low = static_cast<SRegister>(sd << 1);
-          SRegister high = static_cast<SRegister>(low + 1);
-          LoadSImmediate(low, bit_cast<float, uint32_t>(Low32Bits(int_value)), cond);
-          if (High32Bits(int_value) == Low32Bits(int_value)) {
-            vmovs(high, low);
-          } else {
-            LoadSImmediate(high, bit_cast<float, uint32_t>(High32Bits(int_value)), cond);
-          }
-        } else {
-          LOG(FATAL) << "Unimplemented loading of double into a D register "
-                     << "that cannot be split into two S registers";
-        }
-      }
-    }
-  }
+  virtual void LoadDImmediate(DRegister dd, double value, Condition cond = AL) = 0;
 
   virtual void MarkExceptionHandler(Label* label) = 0;
   virtual void LoadFromOffset(LoadOperandType type,

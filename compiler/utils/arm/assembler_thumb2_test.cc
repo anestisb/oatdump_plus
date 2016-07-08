@@ -869,10 +869,11 @@ TEST_F(AssemblerThumb2Test, LoadLiteralWideBeyondMax1KiB) {
   }
 
   std::string expected =
-      "mov.w ip, #((2f - 1f - 4) & ~0x3ff)\n"
+      // "as" does not consider ((2f - 1f - 4) & 0xffff) a constant expression for movw.
+      "movw ip, #(0x408 - 0x4 - 4)\n"
       "1:\n"
       "add ip, pc\n"
-      "ldrd r1, r3, [ip, #((2f - 1b - 4) & 0x3ff)]\n" +
+      "ldrd r1, r3, [ip, #0]\n" +
       RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
       ".align 2, 0\n"
       "2:\n"
@@ -884,48 +885,78 @@ TEST_F(AssemblerThumb2Test, LoadLiteralWideBeyondMax1KiB) {
             __ GetAdjustedPosition(label.Position()));
 }
 
-TEST_F(AssemblerThumb2Test, LoadLiteralSingleMax256KiB) {
+TEST_F(AssemblerThumb2Test, LoadLiteralSingleMax64KiB) {
   // The literal size must match but the type doesn't, so use an int32_t rather than float.
   arm::Literal* literal = __ NewLiteral<int32_t>(0x12345678);
   __ LoadLiteral(arm::S3, literal);
   Label label;
   __ Bind(&label);
-  constexpr size_t kLdrR0R0Count = (1 << 17) - 3u;
-  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
-    __ ldr(arm::R0, arm::Address(arm::R0));
-  }
-
-  std::string expected =
-      "mov.w ip, #((2f - 1f - 4) & ~0x3ff)\n"
-      "1:\n"
-      "add ip, pc\n"
-      "vldr s3, [ip, #((2f - 1b - 4) & 0x3ff)]\n" +
-      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
-      ".align 2, 0\n"
-      "2:\n"
-      ".word 0x12345678\n";
-  DriverStr(expected, "LoadLiteralSingleMax256KiB");
-
-  EXPECT_EQ(static_cast<uint32_t>(label.Position()) + 6u,
-            __ GetAdjustedPosition(label.Position()));
-}
-
-TEST_F(AssemblerThumb2Test, LoadLiteralDoubleBeyondMax256KiB) {
-  // The literal size must match but the type doesn't, so use an int64_t rather than double.
-  arm::Literal* literal = __ NewLiteral<int64_t>(INT64_C(0x1234567887654321));
-  __ LoadLiteral(arm::D3, literal);
-  Label label;
-  __ Bind(&label);
-  constexpr size_t kLdrR0R0Count = (1 << 17) - 2u;
+  constexpr size_t kLdrR0R0Count = (1 << 15) - 3u;
   for (size_t i = 0; i != kLdrR0R0Count; ++i) {
     __ ldr(arm::R0, arm::Address(arm::R0));
   }
 
   std::string expected =
       // "as" does not consider ((2f - 1f - 4) & 0xffff) a constant expression for movw.
-      "movw ip, #(0x40000 & 0xffff)\n"
+      "movw ip, #(0x10004 - 0x4 - 4)\n"
+      "1:\n"
+      "add ip, pc\n"
+      "vldr s3, [ip, #0]\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".align 2, 0\n"
+      "2:\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadLiteralSingleMax64KiB");
+
+  EXPECT_EQ(static_cast<uint32_t>(label.Position()) + 6u,
+            __ GetAdjustedPosition(label.Position()));
+}
+
+TEST_F(AssemblerThumb2Test, LoadLiteralSingleMax64KiB_UnalignedPC) {
+  // The literal size must match but the type doesn't, so use an int32_t rather than float.
+  arm::Literal* literal = __ NewLiteral<int32_t>(0x12345678);
+  __ ldr(arm::R0, arm::Address(arm::R0));
+  __ LoadLiteral(arm::S3, literal);
+  Label label;
+  __ Bind(&label);
+  constexpr size_t kLdrR0R0Count = (1 << 15) - 4u;
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+
+  std::string expected =
+      "ldr r0, [r0]\n"
+      // "as" does not consider ((2f - 1f - 4) & 0xffff) a constant expression for movw.
+      "movw ip, #(0x10004 - 0x6 - 4)\n"
+      "1:\n"
+      "add ip, pc\n"
+      "vldr s3, [ip, #0]\n" +
+      RepeatInsn(kLdrR0R0Count, "ldr r0, [r0]\n") +
+      ".align 2, 0\n"
+      "2:\n"
+      ".word 0x12345678\n";
+  DriverStr(expected, "LoadLiteralSingleMax64KiB_UnalignedPC");
+
+  EXPECT_EQ(static_cast<uint32_t>(label.Position()) + 6u,
+            __ GetAdjustedPosition(label.Position()));
+}
+
+TEST_F(AssemblerThumb2Test, LoadLiteralDoubleBeyondMax64KiB) {
+  // The literal size must match but the type doesn't, so use an int64_t rather than double.
+  arm::Literal* literal = __ NewLiteral<int64_t>(INT64_C(0x1234567887654321));
+  __ LoadLiteral(arm::D3, literal);
+  Label label;
+  __ Bind(&label);
+  constexpr size_t kLdrR0R0Count = (1 << 15) - 2u;
+  for (size_t i = 0; i != kLdrR0R0Count; ++i) {
+    __ ldr(arm::R0, arm::Address(arm::R0));
+  }
+
+  std::string expected =
+      // "as" does not consider ((2f - 1f - 4) & 0xffff) a constant expression for movw.
+      "movw ip, #((0x1000c - 0x8 - 4) & 0xffff)\n"
       // "as" does not consider ((2f - 1f - 4) >> 16) a constant expression for movt.
-      "movt ip, #(0x40000 >> 16)\n"
+      "movt ip, #((0x1000c - 0x8 - 4) >> 16)\n"
       "1:\n"
       "add ip, pc\n"
       "vldr d3, [ip, #0]\n" +
@@ -934,7 +965,7 @@ TEST_F(AssemblerThumb2Test, LoadLiteralDoubleBeyondMax256KiB) {
       "2:\n"
       ".word 0x87654321\n"
       ".word 0x12345678\n";
-  DriverStr(expected, "LoadLiteralDoubleBeyondMax256KiB");
+  DriverStr(expected, "LoadLiteralDoubleBeyondMax64KiB");
 
   EXPECT_EQ(static_cast<uint32_t>(label.Position()) + 10u,
             __ GetAdjustedPosition(label.Position()));
@@ -946,16 +977,16 @@ TEST_F(AssemblerThumb2Test, LoadLiteralDoubleFar) {
   __ LoadLiteral(arm::D3, literal);
   Label label;
   __ Bind(&label);
-  constexpr size_t kLdrR0R0Count = (1 << 17) - 2u + 0x1234;
+  constexpr size_t kLdrR0R0Count = (1 << 15) - 2u + 0x1234;
   for (size_t i = 0; i != kLdrR0R0Count; ++i) {
     __ ldr(arm::R0, arm::Address(arm::R0));
   }
 
   std::string expected =
       // "as" does not consider ((2f - 1f - 4) & 0xffff) a constant expression for movw.
-      "movw ip, #((0x40000 + 2 * 0x1234) & 0xffff)\n"
+      "movw ip, #((0x1000c + 2 * 0x1234 - 0x8 - 4) & 0xffff)\n"
       // "as" does not consider ((2f - 1f - 4) >> 16) a constant expression for movt.
-      "movt ip, #((0x40000 + 2 * 0x1234) >> 16)\n"
+      "movt ip, #((0x1000c + 2 * 0x1234 - 0x8 - 4) >> 16)\n"
       "1:\n"
       "add ip, pc\n"
       "vldr d3, [ip, #0]\n" +
