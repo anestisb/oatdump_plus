@@ -270,6 +270,7 @@ class Arm32Assembler FINAL : public ArmAssembler {
 
   // Load and Store. May clobber IP.
   void LoadImmediate(Register rd, int32_t value, Condition cond = AL) OVERRIDE;
+  void LoadDImmediate(DRegister dd, double value, Condition cond = AL) OVERRIDE;
   void MarkExceptionHandler(Label* label) OVERRIDE;
   void LoadFromOffset(LoadOperandType type,
                       Register reg,
