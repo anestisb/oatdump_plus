@@ -2290,8 +2290,7 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
         case Primitive::kPrimFloat: {
           // Processing a Dex `float-to-int' instruction.
           SRegister temp = locations->GetTemp(0).AsFpuRegisterPairLow<SRegister>();
-          __ vmovs(temp, in.AsFpuRegister<SRegister>());
-          __ vcvtis(temp, temp);
+          __ vcvtis(temp, in.AsFpuRegister<SRegister>());
           __ vmovrs(out.AsRegister<Register>(), temp);
           break;
         }
@@ -2299,9 +2298,7 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
         case Primitive::kPrimDouble: {
           // Processing a Dex `double-to-int' instruction.
           SRegister temp_s = locations->GetTemp(0).AsFpuRegisterPairLow<SRegister>();
-          DRegister temp_d = FromLowSToD(temp_s);
-          __ vmovd(temp_d, FromLowSToD(in.AsFpuRegisterPairLow<SRegister>()));
-          __ vcvtid(temp_s, temp_d);
+          __ vcvtid(temp_s, FromLowSToD(in.AsFpuRegisterPairLow<SRegister>()));
           __ vmovrs(out.AsRegister<Register>(), temp_s);
           break;
         }
