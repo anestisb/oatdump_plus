@@ -876,6 +876,151 @@ void IntrinsicCodeGeneratorMIPS64::VisitMathCeil(HInvoke* invoke) {
   GenRoundingMode(invoke->GetLocations(), kCeil, GetAssembler());
 }
 
+static void GenRound(LocationSummary* locations, Mips64Assembler* assembler, Primitive::Type type) {
+  FpuRegister in = locations->InAt(0).AsFpuRegister<FpuRegister>();
+  FpuRegister half = locations->GetTemp(0).AsFpuRegister<FpuRegister>();
+  GpuRegister out = locations->Out().AsRegister<GpuRegister>();
+
+  DCHECK(type == Primitive::kPrimFloat || type == Primitive::kPrimDouble);
+
+  Mips64Label done;
+  Mips64Label finite;
+  Mips64Label add;
+
+  // if (in.isNaN) {
+  //   return 0;
+  // }
+  //
+  // out = floor(in);
+  //
+  // /*
+  //  * TODO: Amend this code when emulator FCSR.NAN2008=1 bug is fixed.
+  //  *
+  //  * Starting with MIPSR6, which always sets FCSR.NAN2008=1, negative
+  //  * numbers which are too large to be represented in a 32-/64-bit
+  //  * signed integer will be processed by floor.X.Y to output
+  //  * Integer.MIN_VALUE/Long.MIN_VALUE, and will no longer be
+  //  * processed by this "if" statement.
+  //  *
+  //  * However, this bug in the 64-bit MIPS emulator causes the
+  //  * behavior of floor.X.Y to be the same as pre-R6 implementations
+  //  * of MIPS64.  When that bug is fixed this logic should be amended.
+  //  */
+  // if (out == MAX_VALUE) {
+  //   TMP = (in < 0.0) ? 1 : 0;
+  //   /*
+  //    * If TMP is 1, then adding it to out will wrap its value from
+  //    * MAX_VALUE to MIN_VALUE.
+  //    */
+  //   return out += TMP;
+  // }
+  //
+  // /*
+  //  * For negative values not handled by the previous "if" statement the
+  //  * test here will correctly set the value of TMP.
+  //  */
+  // TMP = ((in - out) >= 0.5) ? 1 : 0;
+  // return out += TMP;
+
+  // Test for NaN.
+  if (type == Primitive::kPrimDouble) {
+    __ CmpUnD(FTMP, in, in);
+  } else {
+    __ CmpUnS(FTMP, in, in);
+  }
+
+  // Return zero for NaN.
+  __ Move(out, ZERO);
+  __ Bc1nez(FTMP, &done);
+
+  // out = floor(in);
+  if (type == Primitive::kPrimDouble) {
+    __ FloorLD(FTMP, in);
+    __ Dmfc1(out, FTMP);
+  } else {
+    __ FloorWS(FTMP, in);
+    __ Mfc1(out, FTMP);
+  }
+
+  // TMP = (out = java.lang.Integer.MAX_VALUE) ? 1 : 0;
+  if (type == Primitive::kPrimDouble) {
+    __ LoadConst64(AT, std::numeric_limits<int64_t>::max());
+  } else {
+    __ LoadConst32(AT, std::numeric_limits<int32_t>::max());
+  }
+  __ Bnec(AT, out, &finite);
+
+  if (type == Primitive::kPrimDouble) {
+    __ Dmtc1(ZERO, FTMP);
+    __ CmpLtD(FTMP, in, FTMP);
+    __ Dmfc1(AT, FTMP);
+  } else {
+    __ Mtc1(ZERO, FTMP);
+    __ CmpLtS(FTMP, in, FTMP);
+    __ Mfc1(AT, FTMP);
+  }
+
+  __ Bc(&add);
+
+  __ Bind(&finite);
+
+  // TMP = (0.5 <= (in - out)) ? -1 : 0;
+  if (type == Primitive::kPrimDouble) {
+    __ Cvtdl(FTMP, FTMP);  // Convert output of floor.l.d back to "double".
+    __ LoadConst64(AT, bit_cast<int64_t, double>(0.5));
+    __ SubD(FTMP, in, FTMP);
+    __ Dmtc1(AT, half);
+    __ CmpLeD(FTMP, half, FTMP);
+    __ Dmfc1(AT, FTMP);
+  } else {
+    __ Cvtsw(FTMP, FTMP);  // Convert output of floor.w.s back to "float".
+    __ LoadConst32(AT, bit_cast<int32_t, float>(0.5f));
+    __ SubS(FTMP, in, FTMP);
+    __ Mtc1(AT, half);
+    __ CmpLeS(FTMP, half, FTMP);
+    __ Mfc1(AT, FTMP);
+  }
+
+  __ Bind(&add);
+
+  // Return out -= TMP.
+  if (type == Primitive::kPrimDouble) {
+    __ Dsubu(out, out, AT);
+  } else {
+    __ Subu(out, out, AT);
+  }
+
+  __ Bind(&done);
+}
+
+// int java.lang.Math.round(float)
+void IntrinsicLocationsBuilderMIPS64::VisitMathRoundFloat(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::RequiresFpuRegister());
+  locations->AddTemp(Location::RequiresFpuRegister());
+  locations->SetOut(Location::RequiresRegister());
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitMathRoundFloat(HInvoke* invoke) {
+  GenRound(invoke->GetLocations(), GetAssembler(), Primitive::kPrimFloat);
+}
+
+// long java.lang.Math.round(double)
+void IntrinsicLocationsBuilderMIPS64::VisitMathRoundDouble(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::RequiresFpuRegister());
+  locations->AddTemp(Location::RequiresFpuRegister());
+  locations->SetOut(Location::RequiresRegister());
+}
+
+void IntrinsicCodeGeneratorMIPS64::VisitMathRoundDouble(HInvoke* invoke) {
+  GenRound(invoke->GetLocations(), GetAssembler(), Primitive::kPrimDouble);
+}
+
 // byte libcore.io.Memory.peekByte(long address)
 void IntrinsicLocationsBuilderMIPS64::VisitMemoryPeekByte(HInvoke* invoke) {
   CreateIntToIntLocations(arena_, invoke);
@@ -1733,9 +1878,6 @@ void IntrinsicLocationsBuilderMIPS64::VisitDoubleIsInfinite(HInvoke* invoke) {
 void IntrinsicCodeGeneratorMIPS64::VisitDoubleIsInfinite(HInvoke* invoke) {
   GenIsInfinite(invoke->GetLocations(), /* is64bit */ true, GetAssembler());
 }
-
-UNIMPLEMENTED_INTRINSIC(MIPS64, MathRoundDouble)
-UNIMPLEMENTED_INTRINSIC(MIPS64, MathRoundFloat)
 
 UNIMPLEMENTED_INTRINSIC(MIPS64, ReferenceGetReferent)
 UNIMPLEMENTED_INTRINSIC(MIPS64, StringGetCharsNoCheck)
