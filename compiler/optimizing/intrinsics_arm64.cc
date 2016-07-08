@@ -1840,7 +1840,6 @@ static void CheckSystemArrayCopyPosition(vixl::MacroAssembler* masm,
                                          const Register& input,
                                          const Location& length,
                                          SlowPathCodeARM64* slow_path,
-                                         const Register& input_len,
                                          const Register& temp,
                                          bool length_is_input_length = false) {
   const int32_t length_offset = mirror::Array::LengthOffset().Int32Value();
@@ -1855,8 +1854,8 @@ static void CheckSystemArrayCopyPosition(vixl::MacroAssembler* masm,
       }
     } else {
       // Check that length(input) >= pos.
-      __ Ldr(input_len, MemOperand(input, length_offset));
-      __ Subs(temp, input_len, pos_const);
+      __ Ldr(temp, MemOperand(input, length_offset));
+      __ Subs(temp, temp, pos_const);
       __ B(slow_path->GetEntryLabel(), lt);
 
       // Check that (length(input) - pos) >= length.
@@ -1967,7 +1966,6 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopyChar(HInvoke* invoke) {
                                length,
                                slow_path,
                                src_curr_addr,
-                               dst_curr_addr,
                                false);
 
   CheckSystemArrayCopyPosition(masm,
@@ -1976,7 +1974,6 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopyChar(HInvoke* invoke) {
                                length,
                                slow_path,
                                src_curr_addr,
-                               dst_curr_addr,
                                false);
 
   src_curr_addr = src_curr_addr.X();
@@ -2164,7 +2161,6 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
                                length,
                                slow_path,
                                temp1,
-                               temp2,
                                optimizations.GetCountIsSourceLength());
 
   // Validity checks: dest.
@@ -2174,7 +2170,6 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
                                length,
                                slow_path,
                                temp1,
-                               temp2,
                                optimizations.GetCountIsDestinationLength());
   {
     // We use a block to end the scratch scope before the write barrier, thus
@@ -2270,8 +2265,7 @@ void IntrinsicCodeGeneratorARM64::VisitSystemArrayCopy(HInvoke* invoke) {
                                 src_stop_addr);
 
     // Iterate over the arrays and do a raw copy of the objects. We don't need to
-    // poison/unpoison, nor do any read barrier as the next uses of the destination
-    // array will do it.
+    // poison/unpoison.
     vixl::Label loop, done;
     const int32_t element_size = Primitive::ComponentSize(Primitive::kPrimNot);
     __ Bind(&loop);

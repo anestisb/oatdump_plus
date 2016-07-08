@@ -922,7 +922,6 @@ static void CheckPosition(X86_64Assembler* assembler,
                           CpuRegister input,
                           Location length,
                           SlowPathCode* slow_path,
-                          CpuRegister input_len,
                           CpuRegister temp,
                           bool length_is_input_length = false) {
   // Where is the length in the Array?
@@ -943,12 +942,11 @@ static void CheckPosition(X86_64Assembler* assembler,
       }
     } else {
       // Check that length(input) >= pos.
-      __ movl(input_len, Address(input, length_offset));
-      __ cmpl(input_len, Immediate(pos_const));
+      __ movl(temp, Address(input, length_offset));
+      __ subl(temp, Immediate(pos_const));
       __ j(kLess, slow_path->GetEntryLabel());
 
       // Check that (length(input) - pos) >= length.
-      __ leal(temp, Address(input_len, -pos_const));
       if (length.IsConstant()) {
         __ cmpl(temp, Immediate(length.GetConstant()->AsIntConstant()->GetValue()));
       } else {
@@ -1023,11 +1021,11 @@ void IntrinsicCodeGeneratorX86_64::VisitSystemArrayCopyChar(HInvoke* invoke) {
     __ j(kLess, slow_path->GetEntryLabel());
   }
 
-  // Validity checks: source.
-  CheckPosition(assembler, src_pos, src, length, slow_path, src_base, dest_base);
+  // Validity checks: source. Use src_base as a temporary register.
+  CheckPosition(assembler, src_pos, src, length, slow_path, src_base);
 
-  // Validity checks: dest.
-  CheckPosition(assembler, dest_pos, dest, length, slow_path, src_base, dest_base);
+  // Validity checks: dest. Use src_base as a temporary register.
+  CheckPosition(assembler, dest_pos, dest, length, slow_path, src_base);
 
   // We need the count in RCX.
   if (length.IsConstant()) {
@@ -1169,7 +1167,6 @@ void IntrinsicCodeGeneratorX86_64::VisitSystemArrayCopy(HInvoke* invoke) {
                 length,
                 slow_path,
                 temp1,
-                temp2,
                 optimizations.GetCountIsSourceLength());
 
   // Validity checks: dest.
@@ -1179,7 +1176,6 @@ void IntrinsicCodeGeneratorX86_64::VisitSystemArrayCopy(HInvoke* invoke) {
                 length,
                 slow_path,
                 temp1,
-                temp2,
                 optimizations.GetCountIsDestinationLength());
 
   if (!optimizations.GetDoesNotNeedTypeCheck()) {
@@ -1258,7 +1254,7 @@ void IntrinsicCodeGeneratorX86_64::VisitSystemArrayCopy(HInvoke* invoke) {
 
   // Compute base source address, base destination address, and end source address.
 
-  uint32_t element_size = sizeof(int32_t);
+  int32_t element_size = Primitive::ComponentSize(Primitive::kPrimNot);
   uint32_t offset = mirror::Array::DataOffset(element_size).Uint32Value();
   if (src_pos.IsConstant()) {
     int32_t constant = src_pos.GetConstant()->AsIntConstant()->GetValue();
@@ -1282,8 +1278,7 @@ void IntrinsicCodeGeneratorX86_64::VisitSystemArrayCopy(HInvoke* invoke) {
   }
 
   // Iterate over the arrays and do a raw copy of the objects. We don't need to
-  // poison/unpoison, nor do any read barrier as the next uses of the destination
-  // array will do it.
+  // poison/unpoison.
   NearLabel loop, done;
   __ cmpl(temp1, temp3);
   __ j(kEqual, &done);
