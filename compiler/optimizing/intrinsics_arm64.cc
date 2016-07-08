@@ -608,54 +608,66 @@ void IntrinsicCodeGeneratorARM64::VisitMathRint(HInvoke* invoke) {
   __ Frintn(DRegisterFrom(locations->Out()), DRegisterFrom(locations->InAt(0)));
 }
 
-static void CreateFPToIntPlusTempLocations(ArenaAllocator* arena, HInvoke* invoke) {
+static void CreateFPToIntPlusFPTempLocations(ArenaAllocator* arena, HInvoke* invoke) {
   LocationSummary* locations = new (arena) LocationSummary(invoke,
                                                            LocationSummary::kNoCall,
                                                            kIntrinsified);
   locations->SetInAt(0, Location::RequiresFpuRegister());
   locations->SetOut(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresFpuRegister());
 }
 
-static void GenMathRound(LocationSummary* locations,
-                         bool is_double,
-                         vixl::MacroAssembler* masm) {
-  FPRegister in_reg = is_double ?
-      DRegisterFrom(locations->InAt(0)) : SRegisterFrom(locations->InAt(0));
-  Register out_reg = is_double ?
-      XRegisterFrom(locations->Out()) : WRegisterFrom(locations->Out());
-  UseScratchRegisterScope temps(masm);
-  FPRegister temp1_reg = temps.AcquireSameSizeAs(in_reg);
+static void GenMathRound(HInvoke* invoke, bool is_double, vixl::MacroAssembler* masm) {
+  // Java 8 API definition for Math.round():
+  // Return the closest long or int to the argument, with ties rounding to positive infinity.
+  //
+  // There is no single instruction in ARMv8 that can support the above definition.
+  // We choose to use FCVTAS here, because it has closest semantic.
+  // FCVTAS performs rounding to nearest integer, ties away from zero.
+  // For most inputs (positive values, zero or NaN), this instruction is enough.
+  // We only need a few handling code after FCVTAS if the input is negative half value.
+  //
+  // The reason why we didn't choose FCVTPS instruction here is that
+  // although it performs rounding toward positive infinity, it doesn't perform rounding to nearest.
+  // For example, FCVTPS(-1.9) = -1 and FCVTPS(1.1) = 2.
+  // If we were using this instruction, for most inputs, more handling code would be needed.
+  LocationSummary* l = invoke->GetLocations();
+  FPRegister in_reg = is_double ? DRegisterFrom(l->InAt(0)) : SRegisterFrom(l->InAt(0));
+  FPRegister tmp_fp = is_double ? DRegisterFrom(l->GetTemp(0)) : SRegisterFrom(l->GetTemp(0));
+  Register out_reg = is_double ? XRegisterFrom(l->Out()) : WRegisterFrom(l->Out());
+  vixl::Label done;
 
-  // 0.5 can be encoded as an immediate, so use fmov.
-  if (is_double) {
-    __ Fmov(temp1_reg, static_cast<double>(0.5));
-  } else {
-    __ Fmov(temp1_reg, static_cast<float>(0.5));
-  }
-  __ Fadd(temp1_reg, in_reg, temp1_reg);
-  __ Fcvtms(out_reg, temp1_reg);
+  // Round to nearest integer, ties away from zero.
+  __ Fcvtas(out_reg, in_reg);
+
+  // For positive values, zero or NaN inputs, rounding is done.
+  __ Tbz(out_reg, out_reg.size() - 1, &done);
+
+  // Handle input < 0 cases.
+  // If input is negative but not a tie, previous result (round to nearest) is valid.
+  // If input is a negative tie, out_reg += 1.
+  __ Frinta(tmp_fp, in_reg);
+  __ Fsub(tmp_fp, in_reg, tmp_fp);
+  __ Fcmp(tmp_fp, 0.5);
+  __ Cinc(out_reg, out_reg, eq);
+
+  __ Bind(&done);
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMathRoundDouble(HInvoke* invoke) {
-  // See intrinsics.h.
-  if (kRoundIsPlusPointFive) {
-    CreateFPToIntPlusTempLocations(arena_, invoke);
-  }
+  CreateFPToIntPlusFPTempLocations(arena_, invoke);
 }
 
 void IntrinsicCodeGeneratorARM64::VisitMathRoundDouble(HInvoke* invoke) {
-  GenMathRound(invoke->GetLocations(), /* is_double */ true, GetVIXLAssembler());
+  GenMathRound(invoke, /* is_double */ true, GetVIXLAssembler());
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMathRoundFloat(HInvoke* invoke) {
-  // See intrinsics.h.
-  if (kRoundIsPlusPointFive) {
-    CreateFPToIntPlusTempLocations(arena_, invoke);
-  }
+  CreateFPToIntPlusFPTempLocations(arena_, invoke);
 }
 
 void IntrinsicCodeGeneratorARM64::VisitMathRoundFloat(HInvoke* invoke) {
-  GenMathRound(invoke->GetLocations(), /* is_double */ false, GetVIXLAssembler());
+  GenMathRound(invoke, /* is_double */ false, GetVIXLAssembler());
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMemoryPeekByte(HInvoke* invoke) {
