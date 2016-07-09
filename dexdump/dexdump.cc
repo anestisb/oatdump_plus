@@ -777,15 +777,13 @@ static void dumpLocalsCb(void* /*context*/, const DexFile::LocalInfo& entry) {
 
 /*
  * Helper for dumpInstruction(), which builds the string
- * representation for the index in the given instruction. This will
- * first try to use the given buffer, but if the result won't fit,
- * then this will allocate a new buffer to hold the result. A pointer
- * to the buffer which holds the full result is always returned, and
- * this can be compared with the one passed in, to see if the result
- * needs to be free()d.
+ * representation for the index in the given instruction.
+ * Returns a pointer to a buffer of sufficient size.
  */
-static char* indexString(const DexFile* pDexFile,
-                         const Instruction* pDecInsn, char* buf, size_t bufSize) {
+static std::unique_ptr<char[]> indexString(const DexFile* pDexFile,
+                                           const Instruction* pDecInsn,
+                                           size_t bufSize) {
+  std::unique_ptr<char[]> buf(new char[bufSize]);
   // Determine index and width of the string.
   u4 index = 0;
   u4 width = 4;
@@ -821,27 +819,27 @@ static char* indexString(const DexFile* pDexFile,
     case Instruction::kIndexUnknown:
       // This function should never get called for this type, but do
       // something sensible here, just to help with debugging.
-      outSize = snprintf(buf, bufSize, "<unknown-index>");
+      outSize = snprintf(buf.get(), bufSize, "<unknown-index>");
       break;
     case Instruction::kIndexNone:
       // This function should never get called for this type, but do
       // something sensible here, just to help with debugging.
-      outSize = snprintf(buf, bufSize, "<no-index>");
+      outSize = snprintf(buf.get(), bufSize, "<no-index>");
       break;
     case Instruction::kIndexTypeRef:
       if (index < pDexFile->GetHeader().type_ids_size_) {
         const char* tp = pDexFile->StringByTypeIdx(index);
-        outSize = snprintf(buf, bufSize, "%s // type@%0*x", tp, width, index);
+        outSize = snprintf(buf.get(), bufSize, "%s // type@%0*x", tp, width, index);
       } else {
-        outSize = snprintf(buf, bufSize, "<type?> // type@%0*x", width, index);
+        outSize = snprintf(buf.get(), bufSize, "<type?> // type@%0*x", width, index);
       }
       break;
     case Instruction::kIndexStringRef:
       if (index < pDexFile->GetHeader().string_ids_size_) {
         const char* st = pDexFile->StringDataByIdx(index);
-        outSize = snprintf(buf, bufSize, "\"%s\" // string@%0*x", st, width, index);
+        outSize = snprintf(buf.get(), bufSize, "\"%s\" // string@%0*x", st, width, index);
       } else {
-        outSize = snprintf(buf, bufSize, "<string?> // string@%0*x", width, index);
+        outSize = snprintf(buf.get(), bufSize, "<string?> // string@%0*x", width, index);
       }
       break;
     case Instruction::kIndexMethodRef:
@@ -850,10 +848,10 @@ static char* indexString(const DexFile* pDexFile,
         const char* name = pDexFile->StringDataByIdx(pMethodId.name_idx_);
         const Signature signature = pDexFile->GetMethodSignature(pMethodId);
         const char* backDescriptor = pDexFile->StringByTypeIdx(pMethodId.class_idx_);
-        outSize = snprintf(buf, bufSize, "%s.%s:%s // method@%0*x",
+        outSize = snprintf(buf.get(), bufSize, "%s.%s:%s // method@%0*x",
                            backDescriptor, name, signature.ToString().c_str(), width, index);
       } else {
-        outSize = snprintf(buf, bufSize, "<method?> // method@%0*x", width, index);
+        outSize = snprintf(buf.get(), bufSize, "<method?> // method@%0*x", width, index);
       }
       break;
     case Instruction::kIndexFieldRef:
@@ -862,38 +860,33 @@ static char* indexString(const DexFile* pDexFile,
         const char* name = pDexFile->StringDataByIdx(pFieldId.name_idx_);
         const char* typeDescriptor = pDexFile->StringByTypeIdx(pFieldId.type_idx_);
         const char* backDescriptor = pDexFile->StringByTypeIdx(pFieldId.class_idx_);
-        outSize = snprintf(buf, bufSize, "%s.%s:%s // field@%0*x",
+        outSize = snprintf(buf.get(), bufSize, "%s.%s:%s // field@%0*x",
                            backDescriptor, name, typeDescriptor, width, index);
       } else {
-        outSize = snprintf(buf, bufSize, "<field?> // field@%0*x", width, index);
+        outSize = snprintf(buf.get(), bufSize, "<field?> // field@%0*x", width, index);
       }
       break;
     case Instruction::kIndexVtableOffset:
-      outSize = snprintf(buf, bufSize, "[%0*x] // vtable #%0*x",
+      outSize = snprintf(buf.get(), bufSize, "[%0*x] // vtable #%0*x",
                          width, index, width, index);
       break;
     case Instruction::kIndexFieldOffset:
-      outSize = snprintf(buf, bufSize, "[obj+%0*x]", width, index);
+      outSize = snprintf(buf.get(), bufSize, "[obj+%0*x]", width, index);
       break;
     // SOME NOT SUPPORTED:
     // case Instruction::kIndexVaries:
     // case Instruction::kIndexInlineMethod:
     default:
-      outSize = snprintf(buf, bufSize, "<?>");
+      outSize = snprintf(buf.get(), bufSize, "<?>");
       break;
   }  // switch
 
   // Determine success of string construction.
   if (outSize >= bufSize) {
-    // The buffer wasn't big enough; allocate and retry. Note:
-    // snprintf() doesn't count the '\0' as part of its returned
-    // size, so we add explicit space for it here.
-    outSize++;
-    buf = reinterpret_cast<char*>(malloc(outSize));
-    if (buf == nullptr) {
-      return nullptr;
-    }
-    return indexString(pDexFile, pDecInsn, buf, outSize);
+    // The buffer wasn't big enough; retry with computed size. Note: snprintf()
+    // doesn't count/ the '\0' as part of its returned size, so we add explicit
+    // space for it here.
+    return indexString(pDexFile, pDecInsn, outSize + 1);
   }
   return buf;
 }
@@ -941,11 +934,9 @@ static void dumpInstruction(const DexFile* pDexFile,
   }
 
   // Set up additional argument.
-  char indexBufChars[200];
-  char *indexBuf = indexBufChars;
+  std::unique_ptr<char[]> indexBuf;
   if (Instruction::IndexTypeOf(pDecInsn->Opcode()) != Instruction::kIndexNone) {
-    indexBuf = indexString(pDexFile, pDecInsn,
-                           indexBufChars, sizeof(indexBufChars));
+    indexBuf = indexString(pDexFile, pDecInsn, 200);
   }
 
   // Dump the instruction.
@@ -1003,7 +994,7 @@ static void dumpInstruction(const DexFile* pDexFile,
       break;
     case Instruction::k21c:        // op vAA, thing@BBBB
     case Instruction::k31c:        // op vAA, thing@BBBBBBBB
-      fprintf(gOutFile, " v%d, %s", pDecInsn->VRegA(), indexBuf);
+      fprintf(gOutFile, " v%d, %s", pDecInsn->VRegA(), indexBuf.get());
       break;
     case Instruction::k23x:        // op vAA, vBB, vCC
       fprintf(gOutFile, " v%d, v%d, v%d",
@@ -1032,7 +1023,7 @@ static void dumpInstruction(const DexFile* pDexFile,
     // NOT SUPPORTED:
     // case Instruction::k22cs:    // [opt] op vA, vB, field offset CCCC
       fprintf(gOutFile, " v%d, v%d, %s",
-              pDecInsn->VRegA(), pDecInsn->VRegB(), indexBuf);
+              pDecInsn->VRegA(), pDecInsn->VRegB(), indexBuf.get());
       break;
     case Instruction::k30t:
       fprintf(gOutFile, " #%08x", pDecInsn->VRegA());
@@ -1069,7 +1060,7 @@ static void dumpInstruction(const DexFile* pDexFile,
           fprintf(gOutFile, ", v%d", arg[i]);
         }
       }  // for
-      fprintf(gOutFile, "}, %s", indexBuf);
+      fprintf(gOutFile, "}, %s", indexBuf.get());
       break;
     }
     case Instruction::k25x: {      // op vC, {vD, vE, vF, vG} (B: count)
@@ -1101,7 +1092,7 @@ static void dumpInstruction(const DexFile* pDexFile,
             fprintf(gOutFile, ", v%d", pDecInsn->VRegC() + i);
           }
         }  // for
-        fprintf(gOutFile, "}, %s", indexBuf);
+        fprintf(gOutFile, "}, %s", indexBuf.get());
       }
       break;
     case Instruction::k51l: {      // op vAA, #+BBBBBBBBBBBBBBBB
@@ -1124,10 +1115,6 @@ static void dumpInstruction(const DexFile* pDexFile,
   }  // switch
 
   fputc('\n', gOutFile);
-
-  if (indexBuf != indexBufChars) {
-    free(indexBuf);
-  }
 }
 
 /*
@@ -1274,7 +1261,7 @@ static void dumpMethod(const DexFile* pDexFile, u4 idx, u4 flags,
         // Primitive char, copy it.
         if (strchr("ZBCSIFJD", *base) == NULL) {
           fprintf(stderr, "ERROR: bad method signature '%s'\n", base);
-          goto bail;
+          break;  // while
         }
         *cp++ = *base++;
       }
