@@ -37,8 +37,6 @@ public class Main {
         try {
             testUnloadClass(constructor);
             testUnloadLoader(constructor);
-            // Test that we don't unload if we have a Method keeping the class live.
-            testNoUnloadInvoke(constructor);
             // Test that we don't unload if we have an instance.
             testNoUnloadInstance(constructor);
             // Test JNI_OnLoad and JNI_OnUnload.
@@ -79,10 +77,10 @@ public class Main {
     }
 
     private static void testUnloadClass(Constructor constructor) throws Exception {
-        WeakReference<Class> klass = setUpUnloadClass(constructor);
+        WeakReference<Class> klass = setUpUnloadClassWeak(constructor);
         // No strong references to class loader, should get unloaded.
         Runtime.getRuntime().gc();
-        WeakReference<Class> klass2 = setUpUnloadClass(constructor);
+        WeakReference<Class> klass2 = setUpUnloadClassWeak(constructor);
         Runtime.getRuntime().gc();
         // If the weak reference is cleared, then it was unloaded.
         System.out.println(klass.get());
@@ -99,12 +97,14 @@ public class Main {
     }
 
     private static void testStackTrace(Constructor constructor) throws Exception {
-        WeakReference<Class> klass = setUpUnloadClass(constructor);
-        Method stackTraceMethod = klass.get().getDeclaredMethod("generateStackTrace");
-        Throwable throwable = (Throwable) stackTraceMethod.invoke(klass.get());
+        Class klass = setUpUnloadClass(constructor);
+        WeakReference<Class> weak_klass = new WeakReference(klass);
+        Method stackTraceMethod = klass.getDeclaredMethod("generateStackTrace");
+        Throwable throwable = (Throwable) stackTraceMethod.invoke(klass);
         stackTraceMethod = null;
+        klass = null;
         Runtime.getRuntime().gc();
-        boolean isNull = klass.get() == null;
+        boolean isNull = weak_klass.get() == null;
         System.out.println("class null " + isNull + " " + throwable.getMessage());
     }
 
@@ -116,28 +116,37 @@ public class Main {
         System.out.println(loader.get());
     }
 
-    private static void testNoUnloadInvoke(Constructor constructor) throws Exception {
-        WeakReference<ClassLoader> loader =
-            new WeakReference((ClassLoader) constructor.newInstance(
-                DEX_FILE, LIBRARY_SEARCH_PATH, ClassLoader.getSystemClassLoader()));
-        WeakReference<Class> intHolder = new WeakReference(loader.get().loadClass("IntHolder"));
-        intHolder.get().getDeclaredMethod("runGC").invoke(intHolder.get());
-        boolean isNull = loader.get() == null;
-        System.out.println("loader null " + isNull);
+    private static Object testNoUnloadHelper(ClassLoader loader) throws Exception {
+        Class intHolder = loader.loadClass("IntHolder");
+        return intHolder.newInstance();
+    }
+
+    static class Pair {
+      public Pair(Object o, ClassLoader l) {
+        object = o;
+        classLoader = new WeakReference<ClassLoader>(l);
+      }
+
+      public Object object;
+      public WeakReference<ClassLoader> classLoader;
+    }
+
+    private static Pair testNoUnloadInstanceHelper(Constructor constructor) throws Exception {
+        ClassLoader loader = (ClassLoader) constructor.newInstance(
+            DEX_FILE, LIBRARY_SEARCH_PATH, ClassLoader.getSystemClassLoader());
+        Object o = testNoUnloadHelper(loader);
+        return new Pair(o, loader);
     }
 
     private static void testNoUnloadInstance(Constructor constructor) throws Exception {
-        WeakReference<ClassLoader> loader =
-            new WeakReference((ClassLoader) constructor.newInstance(
-                DEX_FILE, LIBRARY_SEARCH_PATH, ClassLoader.getSystemClassLoader()));
-        WeakReference<Class> intHolder = new WeakReference(loader.get().loadClass("IntHolder"));
-        Object o = intHolder.get().newInstance();
+        Pair p = testNoUnloadInstanceHelper(constructor);
         Runtime.getRuntime().gc();
-        boolean isNull = loader.get() == null;
+        // If the class loader was unloded too early due to races, just pass the test.
+        boolean isNull = p.classLoader.get() == null;
         System.out.println("loader null " + isNull);
     }
 
-    private static WeakReference<Class> setUpUnloadClass(Constructor constructor) throws Exception {
+    private static Class setUpUnloadClass(Constructor constructor) throws Exception {
         ClassLoader loader = (ClassLoader) constructor.newInstance(
             DEX_FILE, LIBRARY_SEARCH_PATH, ClassLoader.getSystemClassLoader());
         Class intHolder = loader.loadClass("IntHolder");
@@ -149,7 +158,12 @@ public class Main {
         setValue.invoke(intHolder, 2);
         System.out.println((int) getValue.invoke(intHolder));
         waitForCompilation(intHolder);
-        return new WeakReference(intHolder);
+        return intHolder;
+    }
+
+    private static WeakReference<Class> setUpUnloadClassWeak(Constructor constructor)
+            throws Exception {
+        return new WeakReference<Class>(setUpUnloadClass(constructor));
     }
 
     private static WeakReference<ClassLoader> setUpUnloadLoader(Constructor constructor,
