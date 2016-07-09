@@ -12,7 +12,6 @@ JNI_OnLoad called
 JNI_OnUnload called
 null
 loader null false
-loader null false
 JNI_OnLoad called
 JNI_OnUnload called
 null
