@@ -5206,23 +5206,12 @@ void CodeGeneratorARM64::GenerateReferenceLoadWithBakerReadBarrier(HInstruction*
   // /* LockWord */ lock_word = LockWord(monitor)
   static_assert(sizeof(LockWord) == sizeof(int32_t),
                 "art::LockWord and int32_t have different sizes.");
-  // /* uint32_t */ rb_state = lock_word.ReadBarrierState()
-  __ Lsr(temp, temp, LockWord::kReadBarrierStateShift);
-  __ And(temp, temp, Operand(LockWord::kReadBarrierStateMask));
-  static_assert(
-      LockWord::kReadBarrierStateMask == ReadBarrier::rb_ptr_mask_,
-      "art::LockWord::kReadBarrierStateMask is not equal to art::ReadBarrier::rb_ptr_mask_.");
 
-  // Introduce a dependency on the high bits of rb_state, which shall
-  // be all zeroes, to prevent load-load reordering, and without using
+  // Introduce a dependency on the lock_word including rb_state,
+  // to prevent load-load reordering, and without using
   // a memory barrier (which would be more expensive).
-  // temp2 = rb_state & ~LockWord::kReadBarrierStateMask = 0
-  Register temp2 = temps.AcquireW();
-  __ Bic(temp2, temp, Operand(LockWord::kReadBarrierStateMask));
-  // obj is unchanged by this operation, but its value now depends on
-  // temp2, which depends on temp.
-  __ Add(obj, obj, Operand(temp2));
-  temps.Release(temp2);
+  // obj is unchanged by this operation, but its value now depends on temp.
+  __ Add(obj.X(), obj.X(), Operand(temp.X(), LSR, 32));
 
   // The actual reference load.
   if (index.IsValid()) {
@@ -5248,7 +5237,7 @@ void CodeGeneratorARM64::GenerateReferenceLoadWithBakerReadBarrier(HInstruction*
         uint32_t computed_offset = offset + (Int64ConstantFrom(index) << scale_factor);
         Load(type, ref_reg, HeapOperand(obj, computed_offset));
       } else {
-        temp2 = temps.AcquireW();
+        Register temp2 = temps.AcquireW();
         __ Add(temp2, obj, offset);
         Load(type, ref_reg, HeapOperand(temp2, XRegisterFrom(index), LSL, scale_factor));
         temps.Release(temp2);
@@ -5274,8 +5263,11 @@ void CodeGeneratorARM64::GenerateReferenceLoadWithBakerReadBarrier(HInstruction*
 
   // if (rb_state == ReadBarrier::gray_ptr_)
   //   ref = ReadBarrier::Mark(ref);
-  __ Cmp(temp, ReadBarrier::gray_ptr_);
-  __ B(eq, slow_path->GetEntryLabel());
+  // Given the numeric representation, it's enough to check the low bit of the rb_state.
+  static_assert(ReadBarrier::white_ptr_ == 0, "Expecting white to have value 0");
+  static_assert(ReadBarrier::gray_ptr_ == 1, "Expecting gray to have value 1");
+  static_assert(ReadBarrier::black_ptr_ == 2, "Expecting black to have value 2");
+  __ Tbnz(temp, LockWord::kReadBarrierStateShift, slow_path->GetEntryLabel());
   __ Bind(slow_path->GetExitLabel());
 }
 
