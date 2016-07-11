@@ -65,8 +65,10 @@ define build-libart-simulator
     LOCAL_ASFLAGS += $(ART_HOST_ASFLAGS)
     ifeq ($$(art_ndebug_or_debug),debug)
       LOCAL_CFLAGS += $(ART_HOST_DEBUG_CFLAGS)
+      LOCAL_ASFLAGS += $(ART_HOST_DEBUG_ASFLAGS)
     else
       LOCAL_CFLAGS += $(ART_HOST_NON_DEBUG_CFLAGS)
+      LOCAL_ASFLAGS += $(ART_HOST_NON_DEBUG_ASFLAGS)
     endif
   endif
 
