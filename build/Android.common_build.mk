@@ -34,7 +34,7 @@ ART_BUILD_TARGET_DEBUG ?= true
 ART_BUILD_HOST_NDEBUG ?= true
 ART_BUILD_HOST_DEBUG ?= true
 
-# Set this to change what opt level Art is built at.
+# Set this to change what opt level ART is built at.
 ART_DEBUG_OPT_FLAG ?= -O2
 ART_NDEBUG_OPT_FLAG ?= -O3
 
@@ -336,6 +336,12 @@ art_debug_cflags := \
   -DDYNAMIC_ANNOTATIONS_ENABLED=1 \
   -UNDEBUG
 
+# Assembler flags for non-debug ART and ART tools.
+art_non_debug_asflags :=
+
+# Assembler flags for debug ART and ART tools.
+art_debug_asflags := -UNDEBUG
+
 art_host_non_debug_cflags := $(art_non_debug_cflags)
 art_target_non_debug_cflags := $(art_non_debug_cflags)
 
@@ -386,6 +392,11 @@ ART_TARGET_NON_DEBUG_CFLAGS := $(art_target_non_debug_cflags)
 ART_HOST_DEBUG_CFLAGS := $(art_debug_cflags)
 ART_TARGET_DEBUG_CFLAGS := $(art_debug_cflags)
 
+ART_HOST_NON_DEBUG_ASFLAGS := $(art_non_debug_asflags)
+ART_TARGET_NON_DEBUG_ASFLAGS := $(art_non_debug_asflags)
+ART_HOST_DEBUG_ASFLAGS := $(art_debug_asflags)
+ART_TARGET_DEBUG_ASFLAGS := $(art_debug_asflags)
+
 ifndef LIBART_IMG_HOST_MIN_BASE_ADDRESS_DELTA
   LIBART_IMG_HOST_MIN_BASE_ADDRESS_DELTA=-0x1000000
 endif
@@ -414,6 +425,8 @@ art_host_cflags :=
 art_target_cflags :=
 art_debug_cflags :=
 art_non_debug_cflags :=
+art_debug_asflags :=
+art_non_debug_asflags :=
 art_host_non_debug_cflags :=
 art_target_non_debug_cflags :=
 art_default_gc_type_cflags :=
@@ -435,8 +448,10 @@ define set-target-local-cflags-vars
   art_target_cflags_ndebug_or_debug := $(1)
   ifeq ($$(art_target_cflags_ndebug_or_debug),debug)
     LOCAL_CFLAGS += $(ART_TARGET_DEBUG_CFLAGS)
+    LOCAL_ASFLAGS += $(ART_TARGET_DEBUG_ASFLAGS)
   else
     LOCAL_CFLAGS += $(ART_TARGET_NON_DEBUG_CFLAGS)
+    LOCAL_ASFLAGS += $(ART_TARGET_NON_DEBUG_ASFLAGS)
   endif
 
   LOCAL_CLANG_CFLAGS := $(ART_TARGET_CLANG_CFLAGS)
