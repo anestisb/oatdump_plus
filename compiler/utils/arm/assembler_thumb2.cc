@@ -2456,6 +2456,9 @@ void Thumb2Assembler::EmitLoadStore(Condition cond,
         } else if (!byte) {
           encoding |= B22;
         }
+        if (load && is_signed && (byte || half)) {
+          encoding |= B24;
+        }
         Emit32(encoding);
       } else {
         // 16 bit register offset.
