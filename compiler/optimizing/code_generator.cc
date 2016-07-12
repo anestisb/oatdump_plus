@@ -314,7 +314,8 @@ void CodeGenerator::InitializeCodeGeneration(size_t number_of_spill_slots,
 void CodeGenerator::CreateCommonInvokeLocationSummary(
     HInvoke* invoke, InvokeDexCallingConventionVisitor* visitor) {
   ArenaAllocator* allocator = invoke->GetBlock()->GetGraph()->GetArena();
-  LocationSummary* locations = new (allocator) LocationSummary(invoke, LocationSummary::kCall);
+  LocationSummary* locations = new (allocator) LocationSummary(invoke,
+                                                               LocationSummary::kCallOnMainOnly);
 
   for (size_t i = 0; i < invoke->GetNumberOfArguments(); i++) {
     HInstruction* input = invoke->InputAt(i);
@@ -378,7 +379,7 @@ void CodeGenerator::CreateUnresolvedFieldLocationSummary(
 
   ArenaAllocator* allocator = field_access->GetBlock()->GetGraph()->GetArena();
   LocationSummary* locations =
-      new (allocator) LocationSummary(field_access, LocationSummary::kCall);
+      new (allocator) LocationSummary(field_access, LocationSummary::kCallOnMainOnly);
 
   locations->AddTemp(calling_convention.GetFieldIndexLocation());
 
@@ -499,7 +500,7 @@ void CodeGenerator::CreateLoadClassLocationSummary(HLoadClass* cls,
                                                    bool code_generator_supports_read_barrier) {
   ArenaAllocator* allocator = cls->GetBlock()->GetGraph()->GetArena();
   LocationSummary::CallKind call_kind = cls->NeedsAccessCheck()
-      ? LocationSummary::kCall
+      ? LocationSummary::kCallOnMainOnly
       : (((code_generator_supports_read_barrier && kEmitCompilerReadBarrier) ||
           cls->CanCallRuntime())
             ? LocationSummary::kCallOnSlowPath
