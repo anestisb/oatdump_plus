@@ -558,7 +558,6 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
   OatFileAssistant oat_file_assistant(dex_location,
                                       oat_location,
                                       kRuntimeISA,
-                                      /*profile_changed*/false,
                                       !runtime->IsAotCompiler());
 
   // Lock the target oat location to avoid races generating and loading the
@@ -576,7 +575,7 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
     // Update the oat file on disk if we can, based on the --compiler-filter
     // option derived from the current runtime options.
     // This may fail, but that's okay. Best effort is all that matters here.
-    switch (oat_file_assistant.MakeUpToDate(/*out*/ &error_msg)) {
+    switch (oat_file_assistant.MakeUpToDate(/*profile_changed*/false, /*out*/ &error_msg)) {
       case OatFileAssistant::kUpdateFailed:
         LOG(WARNING) << error_msg;
         break;

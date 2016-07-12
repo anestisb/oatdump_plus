@@ -2038,7 +2038,7 @@ class Dex2Oat FINAL {
           location.c_str(), location.c_str(), kVerifyChecksum, &error_msg, opened_dex_files)) {
         // If we fail to open the dex file because it's been stripped, try to open the dex file
         // from its corresponding oat file.
-        OatFileAssistant oat_file_assistant(location.c_str(), isa, false, false);
+        OatFileAssistant oat_file_assistant(location.c_str(), isa, false);
         std::unique_ptr<OatFile> oat_file(oat_file_assistant.GetBestOatFile());
         if (oat_file == nullptr) {
           LOG(WARNING) << "Failed to open dex file and associated oat file for '" << location
