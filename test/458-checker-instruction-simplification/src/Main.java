@@ -1971,8 +1971,165 @@ public class Main {
     return (value >> temp) + temp;
   }
 
-public static void main(String[] args) {
+  /// CHECK-START: int Main.$noinline$intAddSubSimplifyArg1(int, int) instruction_simplifier (before)
+  /// CHECK:          <<X:i\d+>>        ParameterValue
+  /// CHECK:          <<Y:i\d+>>        ParameterValue
+  /// CHECK-DAG:      <<Sum:i\d+>>      Add [<<X>>,<<Y>>]
+  /// CHECK-DAG:      <<Res:i\d+>>      Sub [<<Sum>>,<<X>>]
+  /// CHECK-DAG:                        Return [<<Res>>]
+
+  /// CHECK-START: int Main.$noinline$intAddSubSimplifyArg1(int, int) instruction_simplifier (after)
+  /// CHECK:          <<X:i\d+>>        ParameterValue
+  /// CHECK:          <<Y:i\d+>>        ParameterValue
+  /// CHECK-DAG:      <<Sum:i\d+>>      Add [<<X>>,<<Y>>]
+  /// CHECK-DAG:                        Return [<<Y>>]
+
+  public static int $noinline$intAddSubSimplifyArg1(int x, int y) {
+    if (doThrow) { throw new Error(); }
+    int sum = x + y;
+    return sum - x;
+  }
+
+  /// CHECK-START: int Main.$noinline$intAddSubSimplifyArg2(int, int) instruction_simplifier (before)
+  /// CHECK:          <<X:i\d+>>        ParameterValue
+  /// CHECK:          <<Y:i\d+>>        ParameterValue
+  /// CHECK-DAG:      <<Sum:i\d+>>      Add [<<X>>,<<Y>>]
+  /// CHECK-DAG:      <<Res:i\d+>>      Sub [<<Sum>>,<<Y>>]
+  /// CHECK-DAG:                        Return [<<Res>>]
+
+  /// CHECK-START: int Main.$noinline$intAddSubSimplifyArg2(int, int) instruction_simplifier (after)
+  /// CHECK:          <<X:i\d+>>        ParameterValue
+  /// CHECK:          <<Y:i\d+>>        ParameterValue
+  /// CHECK-DAG:      <<Sum:i\d+>>      Add [<<X>>,<<Y>>]
+  /// CHECK-DAG:                        Return [<<X>>]
+
+  public static int $noinline$intAddSubSimplifyArg2(int x, int y) {
+    if (doThrow) { throw new Error(); }
+    int sum = x + y;
+    return sum - y;
+  }
+
+  /// CHECK-START: int Main.$noinline$intSubAddSimplifyLeft(int, int) instruction_simplifier (before)
+  /// CHECK:          <<X:i\d+>>        ParameterValue
+  /// CHECK:          <<Y:i\d+>>        ParameterValue
+  /// CHECK-DAG:      <<Sub:i\d+>>      Sub [<<X>>,<<Y>>]
+  /// CHECK-DAG:      <<Res:i\d+>>      Add [<<Sub>>,<<Y>>]
+  /// CHECK-DAG:                        Return [<<Res>>]
+
+  /// CHECK-START: int Main.$noinline$intSubAddSimplifyLeft(int, int) instruction_simplifier (after)
+  /// CHECK:          <<X:i\d+>>        ParameterValue
+  /// CHECK:          <<Y:i\d+>>        ParameterValue
+  /// CHECK-DAG:      <<Sub:i\d+>>      Sub [<<X>>,<<Y>>]
+  /// CHECK-DAG:                        Return [<<X>>]
+
+  public static int $noinline$intSubAddSimplifyLeft(int x, int y) {
+    if (doThrow) { throw new Error(); }
+    int sub = x - y;
+    return sub + y;
+  }
+
+  /// CHECK-START: int Main.$noinline$intSubAddSimplifyRight(int, int) instruction_simplifier (before)
+  /// CHECK:          <<X:i\d+>>        ParameterValue
+  /// CHECK:          <<Y:i\d+>>        ParameterValue
+  /// CHECK-DAG:      <<Sub:i\d+>>      Sub [<<X>>,<<Y>>]
+  /// CHECK-DAG:      <<Res:i\d+>>      Add [<<Y>>,<<Sub>>]
+  /// CHECK-DAG:                        Return [<<Res>>]
+
+  /// CHECK-START: int Main.$noinline$intSubAddSimplifyRight(int, int) instruction_simplifier (after)
+  /// CHECK:          <<X:i\d+>>        ParameterValue
+  /// CHECK:          <<Y:i\d+>>        ParameterValue
+  /// CHECK-DAG:      <<Sub:i\d+>>      Sub [<<X>>,<<Y>>]
+  /// CHECK-DAG:                        Return [<<X>>]
+
+  public static int $noinline$intSubAddSimplifyRight(int x, int y) {
+    if (doThrow) { throw new Error(); }
+    int sub = x - y;
+    return y + sub;
+  }
+
+  /// CHECK-START: float Main.$noinline$floatAddSubSimplifyArg1(float, float) instruction_simplifier (before)
+  /// CHECK:          <<X:f\d+>>        ParameterValue
+  /// CHECK:          <<Y:f\d+>>        ParameterValue
+  /// CHECK-DAG:      <<Sum:f\d+>>      Add [<<X>>,<<Y>>]
+  /// CHECK-DAG:      <<Res:f\d+>>      Sub [<<Sum>>,<<X>>]
+  /// CHECK-DAG:                        Return [<<Res>>]
+
+  /// CHECK-START: float Main.$noinline$floatAddSubSimplifyArg1(float, float) instruction_simplifier (after)
+  /// CHECK:          <<X:f\d+>>        ParameterValue
+  /// CHECK:          <<Y:f\d+>>        ParameterValue
+  /// CHECK-DAG:      <<Sum:f\d+>>      Add [<<X>>,<<Y>>]
+  /// CHECK-DAG:      <<Res:f\d+>>      Sub [<<Sum>>,<<X>>]
+  /// CHECK-DAG:                        Return [<<Res>>]
+
+  public static float $noinline$floatAddSubSimplifyArg1(float x, float y) {
+    if (doThrow) { throw new Error(); }
+    float sum = x + y;
+    return sum - x;
+  }
+
+  /// CHECK-START: float Main.$noinline$floatAddSubSimplifyArg2(float, float) instruction_simplifier (before)
+  /// CHECK:          <<X:f\d+>>        ParameterValue
+  /// CHECK:          <<Y:f\d+>>        ParameterValue
+  /// CHECK-DAG:      <<Sum:f\d+>>      Add [<<X>>,<<Y>>]
+  /// CHECK-DAG:      <<Res:f\d+>>      Sub [<<Sum>>,<<Y>>]
+  /// CHECK-DAG:                        Return [<<Res>>]
+
+  /// CHECK-START: float Main.$noinline$floatAddSubSimplifyArg2(float, float) instruction_simplifier (after)
+  /// CHECK:          <<X:f\d+>>        ParameterValue
+  /// CHECK:          <<Y:f\d+>>        ParameterValue
+  /// CHECK-DAG:      <<Sum:f\d+>>      Add [<<X>>,<<Y>>]
+  /// CHECK-DAG:      <<Res:f\d+>>      Sub [<<Sum>>,<<Y>>]
+  /// CHECK-DAG:                        Return [<<Res>>]
+
+  public static float $noinline$floatAddSubSimplifyArg2(float x, float y) {
+    if (doThrow) { throw new Error(); }
+    float sum = x + y;
+    return sum - y;
+  }
+
+  /// CHECK-START: float Main.$noinline$floatSubAddSimplifyLeft(float, float) instruction_simplifier (before)
+  /// CHECK:          <<X:f\d+>>        ParameterValue
+  /// CHECK:          <<Y:f\d+>>        ParameterValue
+  /// CHECK-DAG:      <<Sub:f\d+>>      Sub [<<X>>,<<Y>>]
+  /// CHECK-DAG:      <<Res:f\d+>>      Add [<<Sub>>,<<Y>>]
+  /// CHECK-DAG:                        Return [<<Res>>]
+
+  /// CHECK-START: float Main.$noinline$floatSubAddSimplifyLeft(float, float) instruction_simplifier (after)
+  /// CHECK:          <<X:f\d+>>        ParameterValue
+  /// CHECK:          <<Y:f\d+>>        ParameterValue
+  /// CHECK-DAG:      <<Sub:f\d+>>      Sub [<<X>>,<<Y>>]
+  /// CHECK-DAG:      <<Res:f\d+>>      Add [<<Sub>>,<<Y>>]
+  /// CHECK-DAG:                        Return [<<Res>>]
+
+  public static float $noinline$floatSubAddSimplifyLeft(float x, float y) {
+    if (doThrow) { throw new Error(); }
+    float sub = x - y;
+    return sub + y;
+  }
+
+  /// CHECK-START: float Main.$noinline$floatSubAddSimplifyRight(float, float) instruction_simplifier (before)
+  /// CHECK:          <<X:f\d+>>        ParameterValue
+  /// CHECK:          <<Y:f\d+>>        ParameterValue
+  /// CHECK-DAG:      <<Sub:f\d+>>      Sub [<<X>>,<<Y>>]
+  /// CHECK-DAG:      <<Res:f\d+>>      Add [<<Y>>,<<Sub>>]
+  /// CHECK-DAG:                        Return [<<Res>>]
+
+  /// CHECK-START: float Main.$noinline$floatSubAddSimplifyRight(float, float) instruction_simplifier (after)
+  /// CHECK:          <<X:f\d+>>        ParameterValue
+  /// CHECK:          <<Y:f\d+>>        ParameterValue
+  /// CHECK-DAG:      <<Sub:f\d+>>      Sub [<<X>>,<<Y>>]
+  /// CHECK-DAG:      <<Res:f\d+>>      Add [<<Y>>,<<Sub>>]
+  /// CHECK-DAG:                        Return [<<Res>>]
+
+  public static float $noinline$floatSubAddSimplifyRight(float x, float y) {
+    if (doThrow) { throw new Error(); }
+    float sub = x - y;
+    return y + sub;
+  }
+
+ public static void main(String[] args) {
     int arg = 123456;
+    float floatArg = 123456.125f;
 
     assertLongEquals(arg, $noinline$Add0(arg));
     assertIntEquals(5, $noinline$AddAddSubAddConst(1));
@@ -2143,6 +2300,15 @@ public static void main(String[] args) {
     assertLongEquals(0xaf37bc048d159e24L, $noinline$longSmallerShiftMasking(0xabcdef0123456789L, 2 + 256));
     assertIntEquals(0xfffd5e7c, $noinline$otherUseOfUnnecessaryShiftMasking(0xabcdef01, 13));
     assertIntEquals(0xfffd5e7c, $noinline$otherUseOfUnnecessaryShiftMasking(0xabcdef01, 13 + 512));
+
+    assertIntEquals(654321, $noinline$intAddSubSimplifyArg1(arg, 654321));
+    assertIntEquals(arg, $noinline$intAddSubSimplifyArg2(arg, 654321));
+    assertIntEquals(arg, $noinline$intSubAddSimplifyLeft(arg, 654321));
+    assertIntEquals(arg, $noinline$intSubAddSimplifyRight(arg, 654321));
+    assertFloatEquals(654321.125f, $noinline$floatAddSubSimplifyArg1(floatArg, 654321.125f));
+    assertFloatEquals(floatArg, $noinline$floatAddSubSimplifyArg2(floatArg, 654321.125f));
+    assertFloatEquals(floatArg, $noinline$floatSubAddSimplifyLeft(floatArg, 654321.125f));
+    assertFloatEquals(floatArg, $noinline$floatSubAddSimplifyRight(floatArg, 654321.125f));
   }
 
   private static boolean $inline$true() { return true; }
