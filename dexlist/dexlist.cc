@@ -60,18 +60,17 @@ typedef uint64_t u8;
  * final ";" (if any) have been removed and all occurrences of '/'
  * have been changed to '.'.
  */
-static char* descriptorToDot(const char* str) {
-  size_t at = strlen(str);
+static std::unique_ptr<char[]> descriptorToDot(const char* str) {
+  size_t len = strlen(str);
   if (str[0] == 'L') {
-    at -= 2;  // Two fewer chars to copy.
-    str++;
+    len -= 2;  // Two fewer chars to copy (trims L and ;).
+    str++;     // Start past 'L'.
   }
-  char* newStr = reinterpret_cast<char*>(malloc(at + 1));
-  newStr[at] = '\0';
-  while (at > 0) {
-    at--;
-    newStr[at] = (str[at] == '/') ? '.' : str[at];
+  std::unique_ptr<char[]> newStr(new char[len + 1]);
+  for (size_t i = 0; i < len; i++) {
+    newStr[i] = (str[i] == '/') ? '.' : str[i];
   }
+  newStr[len] = '\0';
   return newStr;
 }
 
@@ -103,14 +102,13 @@ static void dumpMethod(const DexFile* pDexFile,
   const DexFile::MethodId& pMethodId = pDexFile->GetMethodId(idx);
   const char* methodName = pDexFile->StringDataByIdx(pMethodId.name_idx_);
   const char* classDescriptor = pDexFile->StringByTypeIdx(pMethodId.class_idx_);
-  char* className = descriptorToDot(classDescriptor);
+  std::unique_ptr<char[]> className(descriptorToDot(classDescriptor));
   const u4 insnsOff = codeOffset + 0x10;
 
   // Don't list methods that do not match a particular query.
   if (gOptions.methodToFind != nullptr &&
-      (strcmp(gOptions.classToFind, className) != 0 ||
+      (strcmp(gOptions.classToFind, className.get()) != 0 ||
        strcmp(gOptions.methodToFind, methodName) != 0)) {
-    free(className);
     return;
   }
 
@@ -130,10 +128,9 @@ static void dumpMethod(const DexFile* pDexFile,
   // Dump actual method information.
   fprintf(gOutFile, "0x%08x %d %s %s %s %s %d\n",
           insnsOff, pCode->insns_size_in_code_units_ * 2,
-          className, methodName, typeDesc, fileName, firstLine);
+          className.get(), methodName, typeDesc, fileName, firstLine);
 
   free(typeDesc);
-  free(className);
 }
 
 /*
