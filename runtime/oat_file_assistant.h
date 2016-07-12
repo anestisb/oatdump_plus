@@ -101,14 +101,10 @@ class OatFileAssistant {
   // device. For example, on an arm device, use arm or arm64. An oat file can
   // be loaded executable only if the ISA matches the current runtime.
   //
-  // profile_changed should be true if the profile has recently changed
-  // for this dex location.
-  //
   // load_executable should be true if the caller intends to try and load
   // executable code for this dex location.
   OatFileAssistant(const char* dex_location,
                    const InstructionSet isa,
-                   bool profile_changed,
                    bool load_executable);
 
   // Constructs an OatFileAssistant, providing an explicit target oat_location
@@ -116,7 +112,6 @@ class OatFileAssistant {
   OatFileAssistant(const char* dex_location,
                    const char* oat_location,
                    const InstructionSet isa,
-                   bool profile_changed,
                    bool load_executable);
 
   ~OatFileAssistant();
@@ -145,8 +140,10 @@ class OatFileAssistant {
 
   // Return what action needs to be taken to produce up-to-date code for this
   // dex location that is at least as good as an oat file generated with the
-  // given compiler filter.
-  DexOptNeeded GetDexOptNeeded(CompilerFilter::Filter target_compiler_filter);
+  // given compiler filter. profile_changed should be true to indicate the
+  // profile has recently changed for this dex location.
+  DexOptNeeded GetDexOptNeeded(CompilerFilter::Filter target_compiler_filter,
+                               bool profile_changed = false);
 
   // Returns true if there is up-to-date code for this dex location,
   // irrespective of the compiler filter of the up-to-date code.
@@ -164,11 +161,15 @@ class OatFileAssistant {
 
   // Attempts to generate or relocate the oat file as needed to make it up to
   // date based on the current runtime and compiler options.
+  // profile_changed should be true to indicate the profile has recently
+  // changed for this dex location.
+  //
+  // Returns the result of attempting to update the code.
   //
   // If the result is not kUpdateSucceeded, the value of error_msg will be set
   // to a string describing why there was a failure or the update was not
   // attempted. error_msg must not be null.
-  ResultOfAttemptToUpdate MakeUpToDate(std::string* error_msg);
+  ResultOfAttemptToUpdate MakeUpToDate(bool profile_changed, std::string* error_msg);
 
   // Returns an oat file that can be used for loading dex files.
   // Returns null if no suitable oat file was found.
@@ -179,7 +180,7 @@ class OatFileAssistant {
   std::unique_ptr<OatFile> GetBestOatFile();
 
   // Open and returns an image space associated with the oat file.
-  gc::space::ImageSpace* OpenImageSpace(const OatFile* oat_file);
+  static gc::space::ImageSpace* OpenImageSpace(const OatFile* oat_file);
 
   // Loads the dex files in the given oat file for the given dex location.
   // The oat file should be up to date for the given dex location.
@@ -237,9 +238,6 @@ class OatFileAssistant {
   // Must only be called if the associated oat file exists, i.e, if
   // |OatFileExists() == true|.
   CompilerFilter::Filter OatFileCompilerFilter();
-
-  // Return image file name. Does not cache since it relies on the oat file.
-  std::string ArtFileName(const OatFile* oat_file) const;
 
   // These methods return the status for a given opened oat file with respect
   // to the dex location.
@@ -324,8 +322,9 @@ class OatFileAssistant {
   const OatFile* GetOdexFile();
 
   // Returns true if the compiler filter used to generate the odex file is at
-  // least as good as the given target filter.
-  bool OdexFileCompilerFilterIsOkay(CompilerFilter::Filter target);
+  // least as good as the given target filter. profile_changed should be true
+  // to indicate the profile has recently changed for this dex location.
+  bool OdexFileCompilerFilterIsOkay(CompilerFilter::Filter target, bool profile_changed);
 
   // Returns true if the odex file is opened executable.
   bool OdexFileIsExecutable();
@@ -343,8 +342,9 @@ class OatFileAssistant {
   const OatFile* GetOatFile();
 
   // Returns true if the compiler filter used to generate the oat file is at
-  // least as good as the given target filter.
-  bool OatFileCompilerFilterIsOkay(CompilerFilter::Filter target);
+  // least as good as the given target filter. profile_changed should be true
+  // to indicate the profile has recently changed for this dex location.
+  bool OatFileCompilerFilterIsOkay(CompilerFilter::Filter target, bool profile_changed);
 
   // Returns true if the oat file is opened executable.
   bool OatFileIsExecutable();
@@ -374,9 +374,6 @@ class OatFileAssistant {
   // In a properly constructed OatFileAssistant object, isa_ should be either
   // the 32 or 64 bit variant for the current device.
   const InstructionSet isa_ = kNone;
-
-  // Whether the profile has recently changed.
-  bool profile_changed_ = false;
 
   // Whether we will attempt to load oat files executable.
   bool load_executable_ = false;
