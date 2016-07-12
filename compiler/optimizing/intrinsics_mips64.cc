@@ -1519,7 +1519,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitUnsafeCASObject(HInvoke* invoke) {
 // int java.lang.String.compareTo(String anotherString)
 void IntrinsicLocationsBuilderMIPS64::VisitStringCompareTo(HInvoke* invoke) {
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                            LocationSummary::kCall,
+                                                            LocationSummary::kCallOnMainOnly,
                                                             kIntrinsified);
   InvokeRuntimeCallingConvention calling_convention;
   locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
@@ -1707,7 +1707,7 @@ static void GenerateStringIndexOf(HInvoke* invoke,
 // int java.lang.String.indexOf(int ch)
 void IntrinsicLocationsBuilderMIPS64::VisitStringIndexOf(HInvoke* invoke) {
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                            LocationSummary::kCall,
+                                                            LocationSummary::kCallOnMainOnly,
                                                             kIntrinsified);
   // We have a hand-crafted assembly stub that follows the runtime
   // calling convention. So it's best to align the inputs accordingly.
@@ -1728,7 +1728,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringIndexOf(HInvoke* invoke) {
 // int java.lang.String.indexOf(int ch, int fromIndex)
 void IntrinsicLocationsBuilderMIPS64::VisitStringIndexOfAfter(HInvoke* invoke) {
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                            LocationSummary::kCall,
+                                                            LocationSummary::kCallOnMainOnly,
                                                             kIntrinsified);
   // We have a hand-crafted assembly stub that follows the runtime
   // calling convention. So it's best to align the inputs accordingly.
@@ -1748,7 +1748,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringIndexOfAfter(HInvoke* invoke) {
 // java.lang.StringFactory.newStringFromBytes(byte[] data, int high, int offset, int byteCount)
 void IntrinsicLocationsBuilderMIPS64::VisitStringNewStringFromBytes(HInvoke* invoke) {
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                            LocationSummary::kCall,
+                                                            LocationSummary::kCallOnMainOnly,
                                                             kIntrinsified);
   InvokeRuntimeCallingConvention calling_convention;
   locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
@@ -1783,7 +1783,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringNewStringFromBytes(HInvoke* invoke
 // java.lang.StringFactory.newStringFromChars(int offset, int charCount, char[] data)
 void IntrinsicLocationsBuilderMIPS64::VisitStringNewStringFromChars(HInvoke* invoke) {
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                            LocationSummary::kCall,
+                                                            LocationSummary::kCallOnMainOnly,
                                                             kIntrinsified);
   InvokeRuntimeCallingConvention calling_convention;
   locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
@@ -1816,7 +1816,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringNewStringFromChars(HInvoke* invoke
 // java.lang.StringFactory.newStringFromString(String toCopy)
 void IntrinsicLocationsBuilderMIPS64::VisitStringNewStringFromString(HInvoke* invoke) {
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                            LocationSummary::kCall,
+                                                            LocationSummary::kCallOnMainOnly,
                                                             kIntrinsified);
   InvokeRuntimeCallingConvention calling_convention;
   locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));

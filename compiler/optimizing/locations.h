@@ -481,7 +481,7 @@ class LocationSummary : public ArenaObject<kArenaAllocLocationSummary> {
   enum CallKind {
     kNoCall,
     kCallOnSlowPath,
-    kCall
+    kCallOnMainOnly
   };
 
   LocationSummary(HInstruction* instruction,
@@ -541,7 +541,7 @@ class LocationSummary : public ArenaObject<kArenaAllocLocationSummary> {
   Location Out() const { return output_; }
 
   bool CanCall() const { return call_kind_ != kNoCall; }
-  bool WillCall() const { return call_kind_ == kCall; }
+  bool WillCall() const { return call_kind_ == kCallOnMainOnly; }
   bool OnlyCallsOnSlowPath() const { return call_kind_ == kCallOnSlowPath; }
   bool NeedsSafepoint() const { return CanCall(); }
 
