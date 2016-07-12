@@ -378,13 +378,13 @@ static jint GetDexOptNeeded(JNIEnv* env,
   // TODO: Verify the dex location is well formed, and throw an IOException if
   // not?
 
-  OatFileAssistant oat_file_assistant(filename, target_instruction_set, profile_changed, false);
+  OatFileAssistant oat_file_assistant(filename, target_instruction_set, false);
 
   // Always treat elements of the bootclasspath as up-to-date.
   if (oat_file_assistant.IsInBootClassPath()) {
     return OatFileAssistant::kNoDexOptNeeded;
   }
-  return oat_file_assistant.GetDexOptNeeded(filter);
+  return oat_file_assistant.GetDexOptNeeded(filter, profile_changed);
 }
 
 static jstring DexFile_getDexFileStatus(JNIEnv* env,
@@ -411,7 +411,6 @@ static jstring DexFile_getDexFileStatus(JNIEnv* env,
   }
 
   OatFileAssistant oat_file_assistant(filename.c_str(), target_instruction_set,
-                                      false /* profile_changed */,
                                       false /* load_executable */);
 
   std::ostringstream status;
@@ -486,7 +485,7 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
     return JNI_FALSE;
   }
 
-  OatFileAssistant oat_file_assistant(filename, kRuntimeISA, false, false);
+  OatFileAssistant oat_file_assistant(filename, kRuntimeISA, false);
   return oat_file_assistant.IsUpToDate() ? JNI_FALSE : JNI_TRUE;
 }
 
