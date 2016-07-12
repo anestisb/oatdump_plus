@@ -2185,7 +2185,7 @@ void LocationsBuilderX86::VisitTypeConversion(HTypeConversion* conversion) {
   LocationSummary::CallKind call_kind =
       ((input_type == Primitive::kPrimFloat || input_type == Primitive::kPrimDouble)
        && result_type == Primitive::kPrimLong)
-      ? LocationSummary::kCall
+      ? LocationSummary::kCallOnMainOnly
       : LocationSummary::kNoCall;
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(conversion, call_kind);
@@ -3440,7 +3440,7 @@ void InstructionCodeGeneratorX86::GenerateDivRemIntegral(HBinaryOperation* instr
 
 void LocationsBuilderX86::VisitDiv(HDiv* div) {
   LocationSummary::CallKind call_kind = (div->GetResultType() == Primitive::kPrimLong)
-      ? LocationSummary::kCall
+      ? LocationSummary::kCallOnMainOnly
       : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(div, call_kind);
 
@@ -3543,7 +3543,7 @@ void LocationsBuilderX86::VisitRem(HRem* rem) {
   Primitive::Type type = rem->GetResultType();
 
   LocationSummary::CallKind call_kind = (rem->GetResultType() == Primitive::kPrimLong)
-      ? LocationSummary::kCall
+      ? LocationSummary::kCallOnMainOnly
       : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(rem, call_kind);
 
@@ -3985,7 +3985,7 @@ void InstructionCodeGeneratorX86::VisitUShr(HUShr* ushr) {
 
 void LocationsBuilderX86::VisitNewInstance(HNewInstance* instruction) {
   LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCallOnMainOnly);
   locations->SetOut(Location::RegisterLocation(EAX));
   if (instruction->IsStringAlloc()) {
     locations->AddTemp(Location::RegisterLocation(kMethodRegisterArgument));
@@ -4018,7 +4018,7 @@ void InstructionCodeGeneratorX86::VisitNewInstance(HNewInstance* instruction) {
 
 void LocationsBuilderX86::VisitNewArray(HNewArray* instruction) {
   LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCallOnMainOnly);
   locations->SetOut(Location::RegisterLocation(EAX));
   InvokeRuntimeCallingConvention calling_convention;
   locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
@@ -6242,7 +6242,7 @@ void InstructionCodeGeneratorX86::VisitClearException(HClearException* clear ATT
 
 void LocationsBuilderX86::VisitThrow(HThrow* instruction) {
   LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCallOnMainOnly);
   InvokeRuntimeCallingConvention calling_convention;
   locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
 }
@@ -6694,7 +6694,7 @@ void InstructionCodeGeneratorX86::VisitCheckCast(HCheckCast* instruction) {
 
 void LocationsBuilderX86::VisitMonitorOperation(HMonitorOperation* instruction) {
   LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCallOnMainOnly);
   InvokeRuntimeCallingConvention calling_convention;
   locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
 }
