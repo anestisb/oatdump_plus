@@ -6277,21 +6277,12 @@ void CodeGeneratorARM::GenerateReferenceLoadWithBakerReadBarrier(HInstruction* i
   // /* LockWord */ lock_word = LockWord(monitor)
   static_assert(sizeof(LockWord) == sizeof(int32_t),
                 "art::LockWord and int32_t have different sizes.");
-  // /* uint32_t */ rb_state = lock_word.ReadBarrierState()
-  __ Lsr(temp_reg, temp_reg, LockWord::kReadBarrierStateShift);
-  __ and_(temp_reg, temp_reg, ShifterOperand(LockWord::kReadBarrierStateMask));
-  static_assert(
-      LockWord::kReadBarrierStateMask == ReadBarrier::rb_ptr_mask_,
-      "art::LockWord::kReadBarrierStateMask is not equal to art::ReadBarrier::rb_ptr_mask_.");
 
-  // Introduce a dependency on the high bits of rb_state, which shall
-  // be all zeroes, to prevent load-load reordering, and without using
+  // Introduce a dependency on the lock_word including the rb_state,
+  // which shall prevent load-load reordering without using
   // a memory barrier (which would be more expensive).
-  // IP = rb_state & ~LockWord::kReadBarrierStateMask = 0
-  __ bic(IP, temp_reg, ShifterOperand(LockWord::kReadBarrierStateMask));
-  // obj is unchanged by this operation, but its value now depends on
-  // IP, which depends on temp_reg.
-  __ add(obj, obj, ShifterOperand(IP));
+  // obj is unchanged by this operation, but its value now depends on temp_reg.
+  __ add(obj, obj, ShifterOperand(temp_reg, LSR, 32));
 
   // The actual reference load.
   if (index.IsValid()) {
@@ -6328,8 +6319,14 @@ void CodeGeneratorARM::GenerateReferenceLoadWithBakerReadBarrier(HInstruction* i
 
   // if (rb_state == ReadBarrier::gray_ptr_)
   //   ref = ReadBarrier::Mark(ref);
-  __ cmp(temp_reg, ShifterOperand(ReadBarrier::gray_ptr_));
-  __ b(slow_path->GetEntryLabel(), EQ);
+  // Given the numeric representation, it's enough to check the low bit of the
+  // rb_state. We do that by shifting the bit out of the lock word with LSRS
+  // which can be a 16-bit instruction unlike the TST immediate.
+  static_assert(ReadBarrier::white_ptr_ == 0, "Expecting white to have value 0");
+  static_assert(ReadBarrier::gray_ptr_ == 1, "Expecting gray to have value 1");
+  static_assert(ReadBarrier::black_ptr_ == 2, "Expecting black to have value 2");
+  __ Lsrs(temp_reg, temp_reg, LockWord::kReadBarrierStateShift + 1);
+  __ b(slow_path->GetEntryLabel(), CS);  // Carry flag is the last bit shifted out by LSRS.
   __ Bind(slow_path->GetExitLabel());
 }
 
