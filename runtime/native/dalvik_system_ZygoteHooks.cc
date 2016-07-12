@@ -168,12 +168,17 @@ static void ZygoteHooks_nativePostForkChild(JNIEnv* env,
     // Only restart if it was streaming mode.
     // TODO: Expose buffer size, so we can also do file mode.
     if (output_mode == Trace::TraceOutputMode::kStreaming) {
-      const char* proc_name_cutils = get_process_name();
+      static constexpr size_t kMaxProcessNameLength = 100;
+      char name_buf[kMaxProcessNameLength] = {};
+      int rc = pthread_getname_np(pthread_self(), name_buf, kMaxProcessNameLength);
       std::string proc_name;
-      if (proc_name_cutils != nullptr) {
-        proc_name = proc_name_cutils;
+
+      if (rc == 0) {
+          // On success use the pthread name.
+          proc_name = name_buf;
       }
-      if (proc_name_cutils == nullptr || proc_name == "zygote" || proc_name == "zygote64") {
+
+      if (proc_name.empty() || proc_name == "zygote" || proc_name == "zygote64") {
         // Either no process name, or the name hasn't been changed, yet. Just use pid.
         pid_t pid = getpid();
         proc_name = StringPrintf("%u", static_cast<uint32_t>(pid));
