@@ -920,6 +920,7 @@ void InstructionSimplifierVisitor::VisitTypeConversion(HTypeConversion* instruct
 void InstructionSimplifierVisitor::VisitAdd(HAdd* instruction) {
   HConstant* input_cst = instruction->GetConstantRight();
   HInstruction* input_other = instruction->GetLeastConstantLeft();
+  bool integral_type = Primitive::IsIntegralType(instruction->GetType());
   if ((input_cst != nullptr) && input_cst->IsArithmeticZero()) {
     // Replace code looking like
     //    ADD dst, src, 0
@@ -928,7 +929,7 @@ void InstructionSimplifierVisitor::VisitAdd(HAdd* instruction) {
     // Note that we cannot optimize `x + 0.0` to `x` for floating-point. When
     // `x` is `-0.0`, the former expression yields `0.0`, while the later
     // yields `-0.0`.
-    if (Primitive::IsIntegralType(instruction->GetType())) {
+    if (integral_type) {
       instruction->ReplaceWith(input_other);
       instruction->GetBlock()->RemoveInstruction(instruction);
       RecordSimplification();
@@ -974,9 +975,30 @@ void InstructionSimplifierVisitor::VisitAdd(HAdd* instruction) {
   // so no need to return.
   TryHandleAssociativeAndCommutativeOperation(instruction);
 
-  if ((instruction->GetLeft()->IsSub() || instruction->GetRight()->IsSub()) &&
+  if ((left->IsSub() || right->IsSub()) &&
       TrySubtractionChainSimplification(instruction)) {
     return;
+  }
+
+  if (integral_type) {
+    // Replace code patterns looking like
+    //    SUB dst1, x, y        SUB dst1, x, y
+    //    ADD dst2, dst1, y     ADD dst2, y, dst1
+    // with
+    //    SUB dst1, x, y
+    // ADD instruction is not needed in this case, we may use
+    // one of inputs of SUB instead.
+    if (left->IsSub() && left->InputAt(1) == right) {
+      instruction->ReplaceWith(left->InputAt(0));
+      RecordSimplification();
+      instruction->GetBlock()->RemoveInstruction(instruction);
+      return;
+    } else if (right->IsSub() && right->InputAt(1) == left) {
+      instruction->ReplaceWith(right->InputAt(0));
+      RecordSimplification();
+      instruction->GetBlock()->RemoveInstruction(instruction);
+      return;
+    }
   }
 }
 
@@ -1510,6 +1532,29 @@ void InstructionSimplifierVisitor::VisitSub(HSub* instruction) {
 
   if (TrySubtractionChainSimplification(instruction)) {
     return;
+  }
+
+  if (left->IsAdd()) {
+    // Replace code patterns looking like
+    //    ADD dst1, x, y        ADD dst1, x, y
+    //    SUB dst2, dst1, y     SUB dst2, dst1, x
+    // with
+    //    ADD dst1, x, y
+    // SUB instruction is not needed in this case, we may use
+    // one of inputs of ADD instead.
+    // It is applicable to integral types only.
+    DCHECK(Primitive::IsIntegralType(type));
+    if (left->InputAt(1) == right) {
+      instruction->ReplaceWith(left->InputAt(0));
+      RecordSimplification();
+      instruction->GetBlock()->RemoveInstruction(instruction);
+      return;
+    } else if (left->InputAt(0) == right) {
+      instruction->ReplaceWith(left->InputAt(1));
+      RecordSimplification();
+      instruction->GetBlock()->RemoveInstruction(instruction);
+      return;
+    }
   }
 }
 
