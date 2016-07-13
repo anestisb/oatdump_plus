@@ -118,7 +118,7 @@ static const char* primitiveTypeLabel(char typeChar) {
  * "[I" becomes "int[]".  Also converts '$' to '.', which means this
  * form can't be converted back to a descriptor.
  */
-static char* descriptorToDot(const char* str) {
+static std::unique_ptr<char[]> descriptorToDot(const char* str) {
   int targetLen = strlen(str);
   int offset = 0;
 
@@ -145,8 +145,7 @@ static char* descriptorToDot(const char* str) {
   }
 
   // Copy class name over.
-  char* newStr = reinterpret_cast<char*>(
-      malloc(targetLen + arrayDepth * 2 + 1));
+  std::unique_ptr<char[]> newStr(new char[targetLen + arrayDepth * 2 + 1]);
   int i = 0;
   for (; i < targetLen; i++) {
     const char ch = str[offset + i];
@@ -165,12 +164,10 @@ static char* descriptorToDot(const char* str) {
 
 /*
  * Converts the class name portion of a type descriptor to human-readable
- * "dotted" form.
- *
- * Returns a newly-allocated string.
+ * "dotted" form. For example, "Ljava/lang/String;" becomes "String".
  */
-static char* descriptorClassToDot(const char* str) {
-  // Reduce to just the class name, trimming trailing ';'.
+static std::unique_ptr<char[]> descriptorClassToDot(const char* str) {
+  // Reduce to just the class name prefix.
   const char* lastSlash = strrchr(str, '/');
   if (lastSlash == nullptr) {
     lastSlash = str + 1;  // start past 'L'
@@ -178,13 +175,14 @@ static char* descriptorClassToDot(const char* str) {
     lastSlash++;          // start past '/'
   }
 
-  char* newStr = strdup(lastSlash);
-  newStr[strlen(lastSlash) - 1] = '\0';
-  for (char* cp = newStr; *cp != '\0'; cp++) {
-    if (*cp == '$') {
-      *cp = '.';
-    }
+  // Copy class name over, trimming trailing ';'.
+  const int targetLen = strlen(lastSlash);
+  std::unique_ptr<char[]> newStr(new char[targetLen]);
+  for (int i = 0; i < targetLen - 1; i++) {
+    const char ch = lastSlash[i];
+    newStr[i] = ch == '$' ? '.' : ch;
   }  // for
+  newStr[targetLen - 1] = '\0';
   return newStr;
 }
 
@@ -723,9 +721,8 @@ static void dumpInterface(const DexFile* pDexFile, const DexFile::TypeItem& pTyp
   if (gOptions.outputFormat == OUTPUT_PLAIN) {
     fprintf(gOutFile, "    #%d              : '%s'\n", i, interfaceName);
   } else {
-    char* dotted = descriptorToDot(interfaceName);
-    fprintf(gOutFile, "<implements name=\"%s\">\n</implements>\n", dotted);
-    free(dotted);
+    std::unique_ptr<char[]> dot(descriptorToDot(interfaceName));
+    fprintf(gOutFile, "<implements name=\"%s\">\n</implements>\n", dot.get());
   }
 }
 
@@ -1128,11 +1125,9 @@ static void dumpBytecodes(const DexFile* pDexFile, u4 idx,
   const char* backDescriptor = pDexFile->StringByTypeIdx(pMethodId.class_idx_);
 
   // Generate header.
-  char* tmp = descriptorToDot(backDescriptor);
-  fprintf(gOutFile, "%06x:                                        "
-          "|[%06x] %s.%s:%s\n",
-          codeOffset, codeOffset, tmp, name, signature.ToString().c_str());
-  free(tmp);
+  std::unique_ptr<char[]> dot(descriptorToDot(backDescriptor));
+  fprintf(gOutFile, "%06x:                                        |[%06x] %s.%s:%s\n",
+          codeOffset, codeOffset, dot.get(), name, signature.ToString().c_str());
 
   // Iterate over all instructions.
   const u2* insns = pCode->insns_;
@@ -1211,12 +1206,10 @@ static void dumpMethod(const DexFile* pDexFile, u4 idx, u4 flags,
 
     // Method name and prototype.
     if (constructor) {
-      char* tmp = descriptorClassToDot(backDescriptor);
-      fprintf(gOutFile, "<constructor name=\"%s\"\n", tmp);
-      free(tmp);
-      tmp = descriptorToDot(backDescriptor);
-      fprintf(gOutFile, " type=\"%s\"\n", tmp);
-      free(tmp);
+      std::unique_ptr<char[]> dot(descriptorClassToDot(backDescriptor));
+      fprintf(gOutFile, "<constructor name=\"%s\"\n", dot.get());
+      dot = descriptorToDot(backDescriptor);
+      fprintf(gOutFile, " type=\"%s\"\n", dot.get());
     } else {
       fprintf(gOutFile, "<method name=\"%s\"\n", name);
       const char* returnType = strrchr(typeDescriptor, ')');
@@ -1224,9 +1217,8 @@ static void dumpMethod(const DexFile* pDexFile, u4 idx, u4 flags,
         fprintf(stderr, "bad method type descriptor '%s'\n", typeDescriptor);
         goto bail;
       }
-      char* tmp = descriptorToDot(returnType+1);
-      fprintf(gOutFile, " return=\"%s\"\n", tmp);
-      free(tmp);
+      std::unique_ptr<char[]> dot(descriptorToDot(returnType + 1));
+      fprintf(gOutFile, " return=\"%s\"\n", dot.get());
       fprintf(gOutFile, " abstract=%s\n", quotedBool((flags & kAccAbstract) != 0));
       fprintf(gOutFile, " native=%s\n", quotedBool((flags & kAccNative) != 0));
       fprintf(gOutFile, " synchronized=%s\n", quotedBool(
@@ -1259,7 +1251,7 @@ static void dumpMethod(const DexFile* pDexFile, u4 idx, u4 flags,
         } while (*cp++ != ';');
       } else {
         // Primitive char, copy it.
-        if (strchr("ZBCSIFJD", *base) == NULL) {
+        if (strchr("ZBCSIFJD", *base) == nullptr) {
           fprintf(stderr, "ERROR: bad method signature '%s'\n", base);
           break;  // while
         }
@@ -1267,10 +1259,9 @@ static void dumpMethod(const DexFile* pDexFile, u4 idx, u4 flags,
       }
       // Null terminate and display.
       *cp++ = '\0';
-      char* tmp = descriptorToDot(tmpBuf);
+      std::unique_ptr<char[]> dot(descriptorToDot(tmpBuf));
       fprintf(gOutFile, "<parameter name=\"arg%d\" type=\"%s\">\n"
-                        "</parameter>\n", argNum++, tmp);
-      free(tmp);
+                        "</parameter>\n", argNum++, dot.get());
     }  // while
     free(tmpBuf);
     if (constructor) {
@@ -1312,9 +1303,8 @@ static void dumpSField(const DexFile* pDexFile, u4 idx, u4 flags, int i, const u
     }
   } else if (gOptions.outputFormat == OUTPUT_XML) {
     fprintf(gOutFile, "<field name=\"%s\"\n", name);
-    char *tmp = descriptorToDot(typeDescriptor);
-    fprintf(gOutFile, " type=\"%s\"\n", tmp);
-    free(tmp);
+    std::unique_ptr<char[]> dot(descriptorToDot(typeDescriptor));
+    fprintf(gOutFile, " type=\"%s\"\n", dot.get());
     fprintf(gOutFile, " transient=%s\n", quotedBool((flags & kAccTransient) != 0));
     fprintf(gOutFile, " volatile=%s\n", quotedBool((flags & kAccVolatile) != 0));
     // The "value=" is not knowable w/o parsing annotations.
@@ -1469,13 +1459,11 @@ static void dumpClass(const DexFile* pDexFile, int idx, char** pLastPackage) {
     }
     fprintf(gOutFile, "  Interfaces        -\n");
   } else {
-    char* tmp = descriptorClassToDot(classDescriptor);
-    fprintf(gOutFile, "<class name=\"%s\"\n", tmp);
-    free(tmp);
+    std::unique_ptr<char[]> dot(descriptorClassToDot(classDescriptor));
+    fprintf(gOutFile, "<class name=\"%s\"\n", dot.get());
     if (superclassDescriptor != nullptr) {
-      tmp = descriptorToDot(superclassDescriptor);
-      fprintf(gOutFile, " extends=\"%s\"\n", tmp);
-      free(tmp);
+      dot = descriptorToDot(superclassDescriptor);
+      fprintf(gOutFile, " extends=\"%s\"\n", dot.get());
     }
     fprintf(gOutFile, " interface=%s\n",
             quotedBool((pClassDef.access_flags_ & kAccInterface) != 0));
