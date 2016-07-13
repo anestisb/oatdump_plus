@@ -401,6 +401,9 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
   void VisitArrayLength(HArrayLength* array_length) OVERRIDE {
     StartAttributeStream("is_string_length") << std::boolalpha
         << array_length->IsStringLength() << std::noboolalpha;
+    if (array_length->IsEmittedAtUseSite()) {
+      StartAttributeStream("emitted_at_use") << "true";
+    }
   }
 
   void VisitBoundsCheck(HBoundsCheck* bounds_check) OVERRIDE {

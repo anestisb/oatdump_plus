@@ -140,12 +140,29 @@ class BoundsCheckSlowPathX86 : public SlowPathCode {
       // Live registers will be restored in the catch block if caught.
       SaveLiveRegisters(codegen, instruction_->GetLocations());
     }
+
+    // Are we using an array length from memory?
+    HInstruction* array_length = instruction_->InputAt(1);
+    Location length_loc = locations->InAt(1);
     InvokeRuntimeCallingConvention calling_convention;
+    if (array_length->IsArrayLength() && array_length->IsEmittedAtUseSite()) {
+      // Load the array length into our temporary.
+      uint32_t len_offset = CodeGenerator::GetArrayLengthOffset(array_length->AsArrayLength());
+      Location array_loc = array_length->GetLocations()->InAt(0);
+      Address array_len(array_loc.AsRegister<Register>(), len_offset);
+      length_loc = Location::RegisterLocation(calling_convention.GetRegisterAt(1));
+      // Check for conflicts with index.
+      if (length_loc.Equals(locations->InAt(0))) {
+        // We know we aren't using parameter 2.
+        length_loc = Location::RegisterLocation(calling_convention.GetRegisterAt(2));
+      }
+      __ movl(length_loc.AsRegister<Register>(), array_len);
+    }
     x86_codegen->EmitParallelMoves(
         locations->InAt(0),
         Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
         Primitive::kPrimInt,
-        locations->InAt(1),
+        length_loc,
         Location::RegisterLocation(calling_convention.GetRegisterAt(1)),
         Primitive::kPrimInt);
     uint32_t entry_point_offset = instruction_->AsBoundsCheck()->IsStringCharAt()
@@ -5517,10 +5534,16 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
 void LocationsBuilderX86::VisitArrayLength(HArrayLength* instruction) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
   locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+  if (!instruction->IsEmittedAtUseSite()) {
+    locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+  }
 }
 
 void InstructionCodeGeneratorX86::VisitArrayLength(HArrayLength* instruction) {
+  if (instruction->IsEmittedAtUseSite()) {
+    return;
+  }
+
   LocationSummary* locations = instruction->GetLocations();
   uint32_t offset = CodeGenerator::GetArrayLengthOffset(instruction);
   Register obj = locations->InAt(0).AsRegister<Register>();
@@ -5535,7 +5558,10 @@ void LocationsBuilderX86::VisitBoundsCheck(HBoundsCheck* instruction) {
       : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
   locations->SetInAt(0, Location::RegisterOrConstant(instruction->InputAt(0)));
-  locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
+  HInstruction* length = instruction->InputAt(1);
+  if (!length->IsEmittedAtUseSite()) {
+    locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
+  }
   if (instruction->HasUses()) {
     locations->SetOut(Location::SameAsFirstInput());
   }
@@ -5569,12 +5595,28 @@ void InstructionCodeGeneratorX86::VisitBoundsCheck(HBoundsCheck* instruction) {
     codegen_->AddSlowPath(slow_path);
     __ j(kAboveEqual, slow_path->GetEntryLabel());
   } else {
-    Register length = length_loc.AsRegister<Register>();
-    if (index_loc.IsConstant()) {
-      int32_t value = CodeGenerator::GetInt32ValueOf(index_loc.GetConstant());
-      __ cmpl(length, Immediate(value));
+    HInstruction* array_length = instruction->InputAt(1);
+    if (array_length->IsEmittedAtUseSite()) {
+      // Address the length field in the array.
+      DCHECK(array_length->IsArrayLength());
+      uint32_t len_offset = CodeGenerator::GetArrayLengthOffset(array_length->AsArrayLength());
+      Location array_loc = array_length->GetLocations()->InAt(0);
+      Address array_len(array_loc.AsRegister<Register>(), len_offset);
+      if (index_loc.IsConstant()) {
+        int32_t value = CodeGenerator::GetInt32ValueOf(index_loc.GetConstant());
+        __ cmpl(array_len, Immediate(value));
+      } else {
+        __ cmpl(array_len, index_loc.AsRegister<Register>());
+      }
+      codegen_->MaybeRecordImplicitNullCheck(array_length);
     } else {
-      __ cmpl(length, index_loc.AsRegister<Register>());
+      Register length = length_loc.AsRegister<Register>();
+      if (index_loc.IsConstant()) {
+        int32_t value = CodeGenerator::GetInt32ValueOf(index_loc.GetConstant());
+        __ cmpl(length, Immediate(value));
+      } else {
+        __ cmpl(length, index_loc.AsRegister<Register>());
+      }
     }
     codegen_->AddSlowPath(slow_path);
     __ j(kBelowEqual, slow_path->GetEntryLabel());
