@@ -253,5 +253,12 @@
   names: ["jsr166.CollectionTest#testEmptyMeansEmpty",
           "jsr166.Collection8Test#testForEach",
           "jsr166.Collection8Test#testForEachConcurrentStressTest"]
+},
+{
+  description: "Flaky test",
+  result: EXEC_FAILED,
+  bug: 30107038,
+  modes: [device],
+  names: ["org.apache.harmony.tests.java.lang.ProcessTest#test_destroyForcibly"]
 }
 ]
