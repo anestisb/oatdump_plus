@@ -451,8 +451,8 @@ class ArraySetSlowPathX86_64 : public SlowPathCode {
 // Slow path marking an object during a read barrier.
 class ReadBarrierMarkSlowPathX86_64 : public SlowPathCode {
  public:
-  ReadBarrierMarkSlowPathX86_64(HInstruction* instruction, Location out, Location obj)
-      : SlowPathCode(instruction), out_(out), obj_(obj) {
+  ReadBarrierMarkSlowPathX86_64(HInstruction* instruction, Location obj)
+      : SlowPathCode(instruction), obj_(obj) {
     DCHECK(kEmitCompilerReadBarrier);
   }
 
@@ -460,9 +460,9 @@ class ReadBarrierMarkSlowPathX86_64 : public SlowPathCode {
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
-    Register reg_out = out_.AsRegister<Register>();
+    Register reg = obj_.AsRegister<Register>();
     DCHECK(locations->CanCall());
-    DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(reg_out));
+    DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(reg));
     DCHECK(instruction_->IsInstanceFieldGet() ||
            instruction_->IsStaticFieldGet() ||
            instruction_->IsArrayGet() ||
@@ -476,24 +476,42 @@ class ReadBarrierMarkSlowPathX86_64 : public SlowPathCode {
         << instruction_->DebugName();
 
     __ Bind(GetEntryLabel());
+    // Save live registers before the runtime call, and in particular
+    // RDI and/or RAX (if they are live), as they are clobbered by
+    // functions art_quick_read_barrier_mark_regX.
     SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
     CodeGeneratorX86_64* x86_64_codegen = down_cast<CodeGeneratorX86_64*>(codegen);
-    x86_64_codegen->Move(Location::RegisterLocation(calling_convention.GetRegisterAt(0)), obj_);
-    x86_64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pReadBarrierMark),
-                               instruction_,
-                               instruction_->GetDexPc(),
-                               this);
-    CheckEntrypointTypes<kQuickReadBarrierMark, mirror::Object*, mirror::Object*>();
-    x86_64_codegen->Move(out_, Location::RegisterLocation(RAX));
+    DCHECK_NE(reg, RSP);
+    DCHECK(0 <= reg && reg < kNumberOfCpuRegisters) << reg;
+    // "Compact" slow path, saving two moves.
+    //
+    // Instead of using the standard runtime calling convention (input
+    // and output in R0):
+    //
+    //   RDI <- obj
+    //   RAX <- ReadBarrierMark(RDI)
+    //   obj <- RAX
+    //
+    // we just use rX (the register holding `obj`) as input and output
+    // of a dedicated entrypoint:
+    //
+    //   rX <- ReadBarrierMarkRegX(rX)
+    //
+    int32_t entry_point_offset =
+        CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kX86_64WordSize>(reg);
+    // TODO: Do not emit a stack map for this runtime call.
+    x86_64_codegen->InvokeRuntime(entry_point_offset,
+                                  instruction_,
+                                  instruction_->GetDexPc(),
+                                  this);
 
     RestoreLiveRegisters(codegen, locations);
     __ jmp(GetExitLabel());
   }
 
  private:
-  const Location out_;
   const Location obj_;
 
   DISALLOW_COPY_AND_ASSIGN(ReadBarrierMarkSlowPathX86_64);
@@ -6378,7 +6396,7 @@ void InstructionCodeGeneratorX86_64::GenerateGcRootFieldLoad(HInstruction* instr
 
       // Slow path used to mark the GC root `root`.
       SlowPathCode* slow_path =
-          new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathX86_64(instruction, root, root);
+          new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathX86_64(instruction, root);
       codegen_->AddSlowPath(slow_path);
 
       __ gs()->cmpl(Address::Absolute(Thread::IsGcMarkingOffset<kX86_64WordSize>().Int32Value(),
@@ -6509,7 +6527,7 @@ void CodeGeneratorX86_64::GenerateReferenceLoadWithBakerReadBarrier(HInstruction
 
   // Slow path used to mark the object `ref` when it is gray.
   SlowPathCode* slow_path =
-      new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathX86_64(instruction, ref, ref);
+      new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathX86_64(instruction, ref);
   AddSlowPath(slow_path);
 
   // if (rb_state == ReadBarrier::gray_ptr_)

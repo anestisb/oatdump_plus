@@ -164,7 +164,38 @@
   V(NewStringFromStringBuilder, void) \
 \
   V(ReadBarrierJni, void, mirror::CompressedReference<mirror::Object>*, Thread*) \
-  V(ReadBarrierMark, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg00, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg01, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg02, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg03, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg04, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg05, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg06, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg07, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg08, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg09, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg10, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg11, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg12, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg13, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg14, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg15, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg16, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg17, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg18, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg19, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg20, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg21, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg22, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg23, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg24, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg25, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg26, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg27, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg28, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg29, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg30, mirror::Object*, mirror::Object*) \
+  V(ReadBarrierMarkReg31, mirror::Object*, mirror::Object*) \
   V(ReadBarrierSlow, mirror::Object*, mirror::Object*, mirror::Object*, uint32_t) \
   V(ReadBarrierForRootSlow, mirror::Object*, GcRoot<mirror::Object>*)
 

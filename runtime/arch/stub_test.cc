@@ -2153,6 +2153,8 @@ TEST_F(StubTest, StringIndexOf) {
 #endif
 }
 
+// TODO: Exercise the ReadBarrierMarkRegX entry points.
+
 TEST_F(StubTest, ReadBarrier) {
 #if defined(ART_USE_READ_BARRIER) && (defined(__i386__) || defined(__arm__) || \
       defined(__aarch64__) || defined(__mips__) || (defined(__x86_64__) && !defined(__APPLE__)))

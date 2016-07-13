@@ -580,8 +580,8 @@ void JumpTableARM64::EmitTable(CodeGeneratorARM64* codegen) {
 // Slow path marking an object during a read barrier.
 class ReadBarrierMarkSlowPathARM64 : public SlowPathCodeARM64 {
  public:
-  ReadBarrierMarkSlowPathARM64(HInstruction* instruction, Location out, Location obj)
-      : SlowPathCodeARM64(instruction), out_(out), obj_(obj) {
+  ReadBarrierMarkSlowPathARM64(HInstruction* instruction, Location obj)
+      : SlowPathCodeARM64(instruction), obj_(obj) {
     DCHECK(kEmitCompilerReadBarrier);
   }
 
@@ -589,9 +589,8 @@ class ReadBarrierMarkSlowPathARM64 : public SlowPathCodeARM64 {
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
-    Primitive::Type type = Primitive::kPrimNot;
     DCHECK(locations->CanCall());
-    DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(out_.reg()));
+    DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(obj_.reg()));
     DCHECK(instruction_->IsInstanceFieldGet() ||
            instruction_->IsStaticFieldGet() ||
            instruction_->IsArrayGet() ||
@@ -605,24 +604,44 @@ class ReadBarrierMarkSlowPathARM64 : public SlowPathCodeARM64 {
         << instruction_->DebugName();
 
     __ Bind(GetEntryLabel());
+    // Save live registers before the runtime call, and in particular
+    // W0 (if it is live), as it is clobbered by functions
+    // art_quick_read_barrier_mark_regX.
     SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
     CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
-    arm64_codegen->MoveLocation(LocationFrom(calling_convention.GetRegisterAt(0)), obj_, type);
-    arm64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pReadBarrierMark),
+    DCHECK_NE(obj_.reg(), LR);
+    DCHECK_NE(obj_.reg(), WSP);
+    DCHECK_NE(obj_.reg(), WZR);
+    DCHECK(0 <= obj_.reg() && obj_.reg() < kNumberOfWRegisters) << obj_.reg();
+    // "Compact" slow path, saving two moves.
+    //
+    // Instead of using the standard runtime calling convention (input
+    // and output in W0):
+    //
+    //   W0 <- obj
+    //   W0 <- ReadBarrierMark(W0)
+    //   obj <- W0
+    //
+    // we just use rX (the register holding `obj`) as input and output
+    // of a dedicated entrypoint:
+    //
+    //   rX <- ReadBarrierMarkRegX(rX)
+    //
+    int32_t entry_point_offset =
+        CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kArm64WordSize>(obj_.reg());
+    // TODO: Do not emit a stack map for this runtime call.
+    arm64_codegen->InvokeRuntime(entry_point_offset,
                                  instruction_,
                                  instruction_->GetDexPc(),
                                  this);
-    CheckEntrypointTypes<kQuickReadBarrierMark, mirror::Object*, mirror::Object*>();
-    arm64_codegen->MoveLocation(out_, calling_convention.GetReturnLocation(type), type);
 
     RestoreLiveRegisters(codegen, locations);
     __ B(GetExitLabel());
   }
 
  private:
-  const Location out_;
   const Location obj_;
 
   DISALLOW_COPY_AND_ASSIGN(ReadBarrierMarkSlowPathARM64);
@@ -5059,7 +5078,7 @@ void InstructionCodeGeneratorARM64::GenerateGcRootFieldLoad(HInstruction* instru
 
       // Slow path used to mark the GC root `root`.
       SlowPathCodeARM64* slow_path =
-          new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathARM64(instruction, root, root);
+          new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathARM64(instruction, root);
       codegen_->AddSlowPath(slow_path);
 
       MacroAssembler* masm = GetVIXLAssembler();
@@ -5267,7 +5286,7 @@ void CodeGeneratorARM64::GenerateReferenceLoadWithBakerReadBarrier(HInstruction*
 
   // Slow path used to mark the object `ref` when it is gray.
   SlowPathCodeARM64* slow_path =
-      new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathARM64(instruction, ref, ref);
+      new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathARM64(instruction, ref);
   AddSlowPath(slow_path);
 
   // if (rb_state == ReadBarrier::gray_ptr_)
