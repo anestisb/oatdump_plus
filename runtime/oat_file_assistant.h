@@ -239,12 +239,9 @@ class OatFileAssistant {
   // |OatFileExists() == true|.
   CompilerFilter::Filter OatFileCompilerFilter();
 
-  // These methods return the status for a given opened oat file with respect
-  // to the dex location.
+  // Return the status for a given opened oat file with respect to the dex
+  // location.
   OatStatus GivenOatFileStatus(const OatFile& file);
-  bool GivenOatFileIsOutOfDate(const OatFile& file);
-  bool GivenOatFileNeedsRelocation(const OatFile& file);
-  bool GivenOatFileIsUpToDate(const OatFile& file);
 
   // Generates the oat file by relocation from the named input file.
   // This does not check the current status before attempting to relocate the
@@ -280,7 +277,8 @@ class OatFileAssistant {
   // Constructs the odex file name for the given dex location.
   // Returns true on success, in which case odex_filename is set to the odex
   // file name.
-  // Returns false on error, in which case error_msg describes the error.
+  // Returns false on error, in which case error_msg describes the error and
+  // odex_filename is not changed.
   // Neither odex_filename nor error_msg may be null.
   static bool DexFilenameToOdexFilename(const std::string& location,
       InstructionSet isa, std::string* odex_filename, std::string* error_msg);
@@ -387,8 +385,9 @@ class OatFileAssistant {
 
   // Cached value of the odex file name.
   // This should be accessed only by the OdexFileName() method.
+  // The sentinel value "" is used if the odex file name could not be
+  // determined.
   bool cached_odex_file_name_attempted_ = false;
-  bool cached_odex_file_name_found_;
   std::string cached_odex_file_name_;
 
   // Cached value of the loaded odex file.
@@ -397,18 +396,15 @@ class OatFileAssistant {
   bool odex_file_load_attempted_ = false;
   std::unique_ptr<OatFile> cached_odex_file_;
 
-  // Cached results for OdexFileIsOutOfDate
-  bool odex_file_is_out_of_date_attempted_ = false;
-  bool cached_odex_file_is_out_of_date_;
-
-  // Cached results for OdexFileIsUpToDate
-  bool odex_file_is_up_to_date_attempted_ = false;
-  bool cached_odex_file_is_up_to_date_;
+  // Cached results for OdexFileStatus
+  bool odex_file_status_attempted_ = false;
+  OatStatus cached_odex_file_status_;
 
   // Cached value of the oat file name.
   // This should be accessed only by the OatFileName() method.
+  // The sentinel value "" is used if the oat file name could not be
+  // determined.
   bool cached_oat_file_name_attempted_ = false;
-  bool cached_oat_file_name_found_;
   std::string cached_oat_file_name_;
 
   // Cached value of the loaded oat file.
@@ -417,13 +413,9 @@ class OatFileAssistant {
   bool oat_file_load_attempted_ = false;
   std::unique_ptr<OatFile> cached_oat_file_;
 
-  // Cached results for OatFileIsOutOfDate
-  bool oat_file_is_out_of_date_attempted_ = false;
-  bool cached_oat_file_is_out_of_date_;
-
-  // Cached results for OatFileIsUpToDate
-  bool oat_file_is_up_to_date_attempted_ = false;
-  bool cached_oat_file_is_up_to_date_;
+  // Cached results for OatFileStatus
+  bool oat_file_status_attempted_ = false;
+  OatStatus cached_oat_file_status_;
 
   // Cached value of the image info.
   // Use the GetImageInfo method rather than accessing these directly.
