@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_UTILS_STRING_REFERENCE_H_
-#define ART_COMPILER_UTILS_STRING_REFERENCE_H_
+#ifndef ART_RUNTIME_STRING_REFERENCE_H_
+#define ART_RUNTIME_STRING_REFERENCE_H_
 
 #include <stdint.h>
 
@@ -35,6 +35,16 @@ struct StringReference {
 
   const DexFile* dex_file;
   uint32_t string_index;
+};
+
+// Compare only the reference and not the string contents.
+struct StringReferenceComparator {
+  bool operator()(const StringReference& a, const StringReference& b) {
+    if (a.dex_file != b.dex_file) {
+      return a.dex_file < b.dex_file;
+    }
+    return a.string_index < b.string_index;
+  }
 };
 
 // Compare the actual referenced string values. Used for string reference deduplication.
@@ -62,4 +72,4 @@ struct StringReferenceValueComparator {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_UTILS_STRING_REFERENCE_H_
+#endif  // ART_RUNTIME_STRING_REFERENCE_H_
