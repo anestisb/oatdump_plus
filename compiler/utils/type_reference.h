@@ -20,7 +20,7 @@
 #include <stdint.h>
 
 #include "base/logging.h"
-#include "utils/string_reference.h"
+#include "string_reference.h"
 
 namespace art {
 
