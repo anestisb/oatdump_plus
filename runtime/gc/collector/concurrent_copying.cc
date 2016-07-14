@@ -17,7 +17,9 @@
 #include "concurrent_copying.h"
 
 #include "art_field-inl.h"
+#include "base/histogram-inl.h"
 #include "base/stl_util.h"
+#include "base/systrace.h"
 #include "debugger.h"
 #include "gc/accounting/heap_bitmap-inl.h"
 #include "gc/accounting/space_bitmap-inl.h"
@@ -39,7 +41,9 @@ namespace collector {
 
 static constexpr size_t kDefaultGcMarkStackSize = 2 * MB;
 
-ConcurrentCopying::ConcurrentCopying(Heap* heap, const std::string& name_prefix)
+ConcurrentCopying::ConcurrentCopying(Heap* heap,
+                                     const std::string& name_prefix,
+                                     bool measure_read_barrier_slow_path)
     : GarbageCollector(heap,
                        name_prefix + (name_prefix.empty() ? "" : " ") +
                        "concurrent copying + mark sweep"),
@@ -54,6 +58,14 @@ ConcurrentCopying::ConcurrentCopying(Heap* heap, const std::string& name_prefix)
       heap_mark_bitmap_(nullptr), live_stack_freeze_size_(0), mark_stack_mode_(kMarkStackModeOff),
       weak_ref_access_enabled_(true),
       skipped_blocks_lock_("concurrent copying bytes blocks lock", kMarkSweepMarkStackLock),
+      measure_read_barrier_slow_path_(measure_read_barrier_slow_path),
+      rb_slow_path_ns_(0),
+      rb_slow_path_count_(0),
+      rb_slow_path_count_gc_(0),
+      rb_slow_path_histogram_lock_("Read barrier histogram lock"),
+      rb_slow_path_time_histogram_("Mutator time in read barrier slow path", 500, 32),
+      rb_slow_path_count_total_(0),
+      rb_slow_path_count_gc_total_(0),
       rb_table_(heap_->GetReadBarrierTable()),
       force_evacuate_all_(false),
       immune_gray_stack_lock_("concurrent copying immune gray stack lock",
@@ -162,6 +174,14 @@ void ConcurrentCopying::InitializePhase() {
     MutexLock mu(Thread::Current(), mark_stack_lock_);
     CHECK(false_gray_stack_.empty());
   }
+
+  mark_from_read_barrier_measurements_ = measure_read_barrier_slow_path_;
+  if (measure_read_barrier_slow_path_) {
+    rb_slow_path_ns_.StoreRelaxed(0);
+    rb_slow_path_count_.StoreRelaxed(0);
+    rb_slow_path_count_gc_.StoreRelaxed(0);
+  }
+
   immune_spaces_.Reset();
   bytes_moved_.StoreRelaxed(0);
   objects_moved_.StoreRelaxed(0);
@@ -1996,9 +2016,17 @@ void ConcurrentCopying::FinishPhase() {
     MutexLock mu(Thread::Current(), skipped_blocks_lock_);
     skipped_blocks_map_.clear();
   }
-  ReaderMutexLock mu(self, *Locks::mutator_lock_);
-  WriterMutexLock mu2(self, *Locks::heap_bitmap_lock_);
-  heap_->ClearMarkedObjects();
+  {
+    ReaderMutexLock mu(self, *Locks::mutator_lock_);
+    WriterMutexLock mu2(self, *Locks::heap_bitmap_lock_);
+    heap_->ClearMarkedObjects();
+  }
+  if (measure_read_barrier_slow_path_) {
+    MutexLock mu(self, rb_slow_path_histogram_lock_);
+    rb_slow_path_time_histogram_.AdjustAndAddValue(rb_slow_path_ns_.LoadRelaxed());
+    rb_slow_path_count_total_ += rb_slow_path_count_.LoadRelaxed();
+    rb_slow_path_count_gc_total_ += rb_slow_path_count_gc_.LoadRelaxed();
+  }
 }
 
 bool ConcurrentCopying::IsMarkedHeapReference(mirror::HeapReference<mirror::Object>* field) {
@@ -2034,6 +2062,37 @@ void ConcurrentCopying::ProcessReferences(Thread* self) {
 void ConcurrentCopying::RevokeAllThreadLocalBuffers() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   region_space_->RevokeAllThreadLocalBuffers();
+}
+
+mirror::Object* ConcurrentCopying::MarkFromReadBarrierWithMeasurements(mirror::Object* from_ref) {
+  if (Thread::Current() != thread_running_gc_) {
+    rb_slow_path_count_.FetchAndAddRelaxed(1u);
+  } else {
+    rb_slow_path_count_gc_.FetchAndAddRelaxed(1u);
+  }
+  ScopedTrace tr(__FUNCTION__);
+  const uint64_t start_time = measure_read_barrier_slow_path_ ? NanoTime() : 0u;
+  mirror::Object* ret = Mark(from_ref);
+  if (measure_read_barrier_slow_path_) {
+    rb_slow_path_ns_.FetchAndAddRelaxed(NanoTime() - start_time);
+  }
+  return ret;
+}
+
+void ConcurrentCopying::DumpPerformanceInfo(std::ostream& os) {
+  GarbageCollector::DumpPerformanceInfo(os);
+  MutexLock mu(Thread::Current(), rb_slow_path_histogram_lock_);
+  if (rb_slow_path_time_histogram_.SampleSize() > 0) {
+    Histogram<uint64_t>::CumulativeData cumulative_data;
+    rb_slow_path_time_histogram_.CreateHistogram(&cumulative_data);
+    rb_slow_path_time_histogram_.PrintConfidenceIntervals(os, 0.99, cumulative_data);
+  }
+  if (rb_slow_path_count_total_ > 0) {
+    os << "Slow path count " << rb_slow_path_count_total_ << "\n";
+  }
+  if (rb_slow_path_count_gc_total_ > 0) {
+    os << "GC slow path count " << rb_slow_path_count_gc_total_ << "\n";
+  }
 }
 
 }  // namespace collector
