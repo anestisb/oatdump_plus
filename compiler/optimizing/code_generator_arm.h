@@ -21,9 +21,9 @@
 #include "dex/compiler_enums.h"
 #include "driver/compiler_options.h"
 #include "nodes.h"
+#include "string_reference.h"
 #include "parallel_move_resolver.h"
 #include "utils/arm/assembler_thumb2.h"
-#include "utils/string_reference.h"
 #include "utils/type_reference.h"
 
 namespace art {
