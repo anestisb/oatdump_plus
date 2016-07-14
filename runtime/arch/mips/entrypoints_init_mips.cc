@@ -284,8 +284,104 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   // Read barrier.
   qpoints->pReadBarrierJni = ReadBarrierJni;
   static_assert(IsDirectEntrypoint(kQuickReadBarrierJni), "Direct C stub not marked direct.");
-  qpoints->pReadBarrierMark = artReadBarrierMark;
-  static_assert(IsDirectEntrypoint(kQuickReadBarrierMark), "Direct C stub not marked direct.");
+  // Read barriers (and these entry points in particular) are not
+  // supported in the compiler on MIPS32.
+  qpoints->pReadBarrierMarkReg00 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg00),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg01 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg01),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg02 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg02),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg03 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg03),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg04 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg04),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg05 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg05),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg06 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg06),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg07 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg07),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg08 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg08),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg09 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg09),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg10 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg10),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg11 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg11),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg12 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg12),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg13 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg13),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg14 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg14),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg15 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg15),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg16 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg16),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg17 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg17),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg18 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg18),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg19 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg19),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg20 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg20),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg21 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg21),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg22 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg22),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg23 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg23),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg24 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg24),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg25 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg25),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg26 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg26),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg27 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg27),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg28 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg28),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg29 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg29),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg30 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg30),
+                "Non-direct C stub marked direct.");
+  qpoints->pReadBarrierMarkReg31 = nullptr;
+  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg31),
+                "Non-direct C stub marked direct.");
   qpoints->pReadBarrierSlow = artReadBarrierSlow;
   static_assert(IsDirectEntrypoint(kQuickReadBarrierSlow), "Direct C stub not marked direct.");
   qpoints->pReadBarrierForRootSlow = artReadBarrierForRootSlow;

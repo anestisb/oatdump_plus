@@ -97,7 +97,40 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
 
   // Read barrier.
   qpoints->pReadBarrierJni = ReadBarrierJni;
-  qpoints->pReadBarrierMark = artReadBarrierMark;
+  // Read barriers (and these entry points in particular) are not
+  // supported in the compiler on MIPS64.
+  qpoints->pReadBarrierMarkReg00 = nullptr;
+  qpoints->pReadBarrierMarkReg01 = nullptr;
+  qpoints->pReadBarrierMarkReg02 = nullptr;
+  qpoints->pReadBarrierMarkReg03 = nullptr;
+  qpoints->pReadBarrierMarkReg04 = nullptr;
+  qpoints->pReadBarrierMarkReg05 = nullptr;
+  qpoints->pReadBarrierMarkReg06 = nullptr;
+  qpoints->pReadBarrierMarkReg07 = nullptr;
+  qpoints->pReadBarrierMarkReg08 = nullptr;
+  qpoints->pReadBarrierMarkReg09 = nullptr;
+  qpoints->pReadBarrierMarkReg10 = nullptr;
+  qpoints->pReadBarrierMarkReg11 = nullptr;
+  qpoints->pReadBarrierMarkReg12 = nullptr;
+  qpoints->pReadBarrierMarkReg13 = nullptr;
+  qpoints->pReadBarrierMarkReg14 = nullptr;
+  qpoints->pReadBarrierMarkReg15 = nullptr;
+  qpoints->pReadBarrierMarkReg16 = nullptr;
+  qpoints->pReadBarrierMarkReg17 = nullptr;
+  qpoints->pReadBarrierMarkReg18 = nullptr;
+  qpoints->pReadBarrierMarkReg19 = nullptr;
+  qpoints->pReadBarrierMarkReg20 = nullptr;
+  qpoints->pReadBarrierMarkReg21 = nullptr;
+  qpoints->pReadBarrierMarkReg22 = nullptr;
+  qpoints->pReadBarrierMarkReg23 = nullptr;
+  qpoints->pReadBarrierMarkReg24 = nullptr;
+  qpoints->pReadBarrierMarkReg25 = nullptr;
+  qpoints->pReadBarrierMarkReg26 = nullptr;
+  qpoints->pReadBarrierMarkReg27 = nullptr;
+  qpoints->pReadBarrierMarkReg28 = nullptr;
+  qpoints->pReadBarrierMarkReg29 = nullptr;
+  qpoints->pReadBarrierMarkReg30 = nullptr;
+  qpoints->pReadBarrierMarkReg31 = nullptr;
   qpoints->pReadBarrierSlow = artReadBarrierSlow;
   qpoints->pReadBarrierForRootSlow = artReadBarrierForRootSlow;
 };
