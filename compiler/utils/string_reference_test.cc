@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "string_reference.h"
+#include "utils/string_reference.h"
 
 #include <memory>
 
