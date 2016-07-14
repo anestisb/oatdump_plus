@@ -219,7 +219,7 @@ static void RunCode(CodeGenerator* codegen,
 
   PrepareForRegisterAllocation(graph).Run();
   liveness.Analyze();
-  RegisterAllocator(graph->GetArena(), codegen, liveness).AllocateRegisters();
+  RegisterAllocator::Create(graph->GetArena(), codegen, liveness)->AllocateRegisters();
   hook_before_codegen(graph);
 
   InternalCodeAllocator allocator;
