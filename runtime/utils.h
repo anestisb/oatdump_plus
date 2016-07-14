@@ -382,17 +382,11 @@ using RNG = std::random_device;
 #endif
 
 template <typename T>
-static T GetRandomNumber(T min, T max) {
+T GetRandomNumber(T min, T max) {
   CHECK_LT(min, max);
   std::uniform_int_distribution<T> dist(min, max);
   RNG rng;
   return dist(rng);
-}
-
-// All of the elements from one container to another.
-template <typename Dest, typename Src>
-static void AddAll(Dest& dest, const Src& src) {
-  dest.insert(src.begin(), src.end());
 }
 
 // Return the file size in bytes or -1 if the file does not exists.

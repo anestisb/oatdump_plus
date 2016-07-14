@@ -56,9 +56,8 @@
 #include "os.h"
 #include "safe_map.h"
 #include "scoped_thread_state_change.h"
-#include "ScopedLocalRef.h"
 #include "stack_map.h"
-#include "string_reference.h"
+#include "ScopedLocalRef.h"
 #include "thread_list.h"
 #include "type_lookup_table.h"
 #include "verifier/method_verifier.h"
@@ -448,28 +447,6 @@ class OatDumper {
       os << StringPrintf("0x%08x\n\n", resolved_addr2instr_);
     }
 
-    // Dumping the dex file overview is compact enough to do even if header only.
-    DexFileData cumulative;
-    for (size_t i = 0; i < oat_dex_files_.size(); i++) {
-      const OatFile::OatDexFile* oat_dex_file = oat_dex_files_[i];
-      CHECK(oat_dex_file != nullptr);
-      std::string error_msg;
-      const DexFile* const dex_file = OpenDexFile(oat_dex_file, &error_msg);
-      if (dex_file == nullptr) {
-        os << "Failed to open dex file '" << oat_dex_file->GetDexFileLocation() << "': "
-           << error_msg;
-        continue;
-      }
-      DexFileData data(*dex_file);
-      os << "Dex file data for " << dex_file->GetLocation() << "\n";
-      data.Dump(os);
-      os << "\n";
-      cumulative.Add(data);
-    }
-    os << "Cumulative dex file data\n";
-    cumulative.Dump(os);
-    os << "\n";
-
     if (!options_.dump_header_only_) {
       for (size_t i = 0; i < oat_dex_files_.size(); i++) {
         const OatFile::OatDexFile* oat_dex_file = oat_dex_files_[i];
@@ -591,122 +568,6 @@ class OatDumper {
     offsets_.insert(oat_method.GetVmapTableOffset());
   }
 
-  // Dex file data, may be for multiple different dex files.
-  class DexFileData {
-   public:
-    DexFileData() {}
-
-    explicit DexFileData(const DexFile& dex_file)
-        : num_string_ids_(dex_file.NumStringIds()),
-          num_method_ids_(dex_file.NumMethodIds()),
-          num_field_ids_(dex_file.NumFieldIds()),
-          num_type_ids_(dex_file.NumTypeIds()),
-          num_class_defs_(dex_file.NumClassDefs()) {
-      for (size_t class_def_index = 0; class_def_index < num_class_defs_; ++class_def_index) {
-        const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
-        WalkClass(dex_file, class_def);
-      }
-    }
-
-    void Add(const DexFileData& other) {
-      AddAll(unique_string_ids_from_code_, other.unique_string_ids_from_code_);
-      num_string_ids_from_code_ += other.num_string_ids_from_code_;
-      AddAll(dex_code_item_ptrs_, other.dex_code_item_ptrs_);
-      dex_code_bytes_ += other.dex_code_bytes_;
-      num_string_ids_ += other.num_string_ids_;
-      num_method_ids_ += other.num_method_ids_;
-      num_field_ids_ += other.num_field_ids_;
-      num_type_ids_ += other.num_type_ids_;
-      num_class_defs_ += other.num_class_defs_;
-    }
-
-    void Dump(std::ostream& os) {
-      os << "Num string ids: " << num_string_ids_ << "\n";
-      os << "Num method ids: " << num_method_ids_ << "\n";
-      os << "Num field ids: " << num_field_ids_ << "\n";
-      os << "Num type ids: " << num_type_ids_ << "\n";
-      os << "Num class defs: " << num_class_defs_ << "\n";
-      os << "Unique strings loaded from dex code: " << unique_string_ids_from_code_.size() << "\n";
-      os << "Total strings loaded from dex code: " << num_string_ids_from_code_ << "\n";
-      os << "Number of unique dex code items: " << dex_code_item_ptrs_.size() << "\n";
-      os << "Total number of dex code bytes: " << dex_code_bytes_ << "\n";
-    }
-
-  private:
-    void WalkClass(const DexFile& dex_file, const DexFile::ClassDef& class_def) {
-      const uint8_t* class_data = dex_file.GetClassData(class_def);
-      if (class_data == nullptr) {  // empty class such as a marker interface?
-        return;
-      }
-      ClassDataItemIterator it(dex_file, class_data);
-      SkipAllFields(it);
-      while (it.HasNextDirectMethod()) {
-        WalkCodeItem(dex_file, it.GetMethodCodeItem());
-        it.Next();
-      }
-      while (it.HasNextVirtualMethod()) {
-        WalkCodeItem(dex_file, it.GetMethodCodeItem());
-        it.Next();
-      }
-      DCHECK(!it.HasNext());
-    }
-
-    void WalkCodeItem(const DexFile& dex_file, const DexFile::CodeItem* code_item) {
-      if (code_item == nullptr) {
-        return;
-      }
-      const size_t code_item_size = code_item->insns_size_in_code_units_;
-      const uint16_t* code_ptr = code_item->insns_;
-      const uint16_t* code_end = code_item->insns_ + code_item_size;
-
-      // If we inserted a new dex code item pointer, add to total code bytes.
-      if (dex_code_item_ptrs_.insert(code_ptr).second) {
-        dex_code_bytes_ += code_item_size * sizeof(code_ptr[0]);
-      }
-
-      while (code_ptr < code_end) {
-        const Instruction* inst = Instruction::At(code_ptr);
-        switch (inst->Opcode()) {
-          case Instruction::CONST_STRING: {
-            const uint32_t string_index = inst->VRegB_21c();
-            unique_string_ids_from_code_.insert(StringReference(&dex_file, string_index));
-            ++num_string_ids_from_code_;
-            break;
-          }
-          case Instruction::CONST_STRING_JUMBO: {
-            const uint32_t string_index = inst->VRegB_31c();
-            unique_string_ids_from_code_.insert(StringReference(&dex_file, string_index));
-            ++num_string_ids_from_code_;
-            break;
-          }
-          default:
-            break;
-        }
-
-        code_ptr += inst->SizeInCodeUnits();
-      }
-    }
-
-    // Unique string ids loaded from dex code.
-    std::set<StringReference, StringReferenceComparator> unique_string_ids_from_code_;
-
-    // Total string ids loaded from dex code.
-    size_t num_string_ids_from_code_ = 0;
-
-    // Unique code pointers.
-    std::set<const void*> dex_code_item_ptrs_;
-
-    // Total "unique" dex code bytes.
-    size_t dex_code_bytes_ = 0;
-
-    // Other dex ids.
-    size_t num_string_ids_ = 0;
-    size_t num_method_ids_ = 0;
-    size_t num_field_ids_ = 0;
-    size_t num_type_ids_ = 0;
-    size_t num_class_defs_ = 0;
-  };
-
   bool DumpOatDexFile(std::ostream& os, const OatFile::OatDexFile& oat_dex_file) {
     bool success = true;
     bool stop_analysis = false;
@@ -717,6 +578,7 @@ class OatDumper {
     // Print embedded dex file data range.
     const uint8_t* const oat_file_begin = oat_dex_file.GetOatFile()->Begin();
     const uint8_t* const dex_file_pointer = oat_dex_file.GetDexFilePointer();
+    std::set<uint32_t> string_ids;
     uint32_t dex_offset = dchecked_integral_cast<uint32_t>(dex_file_pointer - oat_file_begin);
     os << StringPrintf("dex-file: 0x%08x..0x%08x\n",
                        dex_offset,
@@ -761,10 +623,8 @@ class OatDumper {
          << " (" << oat_class.GetStatus() << ")"
          << " (" << oat_class.GetType() << ")\n";
       // TODO: include bitmap here if type is kOatClassSomeCompiled?
-      if (options_.list_classes_) {
-        continue;
-      }
-      if (!DumpOatClass(&vios, oat_class, *dex_file, class_def, &stop_analysis)) {
+      if (options_.list_classes_) continue;
+      if (!DumpOatClass(&vios, oat_class, *dex_file, class_def, &stop_analysis, string_ids)) {
         success = false;
       }
       if (stop_analysis) {
@@ -772,7 +632,7 @@ class OatDumper {
         return success;
       }
     }
-    os << "\n";
+    os << "Number of unique strings loaded from dex code: " << string_ids.size() << "\n";
     os << std::flush;
     return success;
   }
@@ -866,7 +726,8 @@ class OatDumper {
 
   bool DumpOatClass(VariableIndentationOutputStream* vios,
                     const OatFile::OatClass& oat_class, const DexFile& dex_file,
-                    const DexFile::ClassDef& class_def, bool* stop_analysis) {
+                    const DexFile::ClassDef& class_def, bool* stop_analysis,
+                    std::set<uint32_t>& string_ids) {
     bool success = true;
     bool addr_found = false;
     const uint8_t* class_data = dex_file.GetClassData(class_def);
@@ -880,7 +741,7 @@ class OatDumper {
     while (it.HasNextDirectMethod()) {
       if (!DumpOatMethod(vios, class_def, class_method_index, oat_class, dex_file,
                          it.GetMemberIndex(), it.GetMethodCodeItem(),
-                         it.GetRawMemberAccessFlags(), &addr_found)) {
+                         it.GetRawMemberAccessFlags(), &addr_found, string_ids)) {
         success = false;
       }
       if (addr_found) {
@@ -893,7 +754,7 @@ class OatDumper {
     while (it.HasNextVirtualMethod()) {
       if (!DumpOatMethod(vios, class_def, class_method_index, oat_class, dex_file,
                          it.GetMemberIndex(), it.GetMethodCodeItem(),
-                         it.GetRawMemberAccessFlags(), &addr_found)) {
+                         it.GetRawMemberAccessFlags(), &addr_found, string_ids)) {
         success = false;
       }
       if (addr_found) {
@@ -918,9 +779,35 @@ class OatDumper {
                      uint32_t class_method_index,
                      const OatFile::OatClass& oat_class, const DexFile& dex_file,
                      uint32_t dex_method_idx, const DexFile::CodeItem* code_item,
-                     uint32_t method_access_flags, bool* addr_found) {
+                     uint32_t method_access_flags, bool* addr_found,
+                     std::set<uint32_t>& string_ids) {
     bool success = true;
 
+    if (code_item != nullptr) {
+      const uint16_t* code_ptr = code_item->insns_;
+      const uint16_t* code_end = code_item->insns_ + code_item->insns_size_in_code_units_;
+
+      while (code_ptr < code_end) {
+        const Instruction* inst = Instruction::At(code_ptr);
+        switch (inst->Opcode()) {
+          case Instruction::CONST_STRING: {
+            uint32_t string_index = inst->VRegB_21c();
+            string_ids.insert(string_index);
+            break;
+          }
+          case Instruction::CONST_STRING_JUMBO: {
+            uint32_t string_index = inst->VRegB_31c();
+            string_ids.insert(string_index);
+            break;
+          }
+
+          default:
+            break;
+        }
+
+        code_ptr += inst->SizeInCodeUnits();
+      }
+    }
     // TODO: Support regex
     std::string method_name = dex_file.GetMethodName(dex_file.GetMethodId(dex_method_idx));
     if (method_name.find(options_.method_filter_) == std::string::npos) {
