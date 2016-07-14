@@ -715,8 +715,8 @@ void Trace::FinishTracing() {
   std::string header(os.str());
 
   if (trace_output_mode_ == TraceOutputMode::kStreaming) {
-    File file;
-    if (!file.Open(streaming_file_name_ + ".sec", O_CREAT | O_WRONLY)) {
+    File file(streaming_file_name_ + ".sec", O_CREAT | O_WRONLY, true);
+    if (!file.IsOpened()) {
       LOG(WARNING) << "Could not open secondary trace file!";
       return;
     }
