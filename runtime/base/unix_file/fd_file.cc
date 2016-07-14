@@ -53,7 +53,15 @@ FdFile::FdFile(int fd, const std::string& path, bool check_usage, bool read_only
       fd_(fd), file_path_(path), auto_close_(true), read_only_mode_(read_only_mode) {
 }
 
-FdFile::~FdFile() {
+FdFile::FdFile(const std::string& path, int flags, mode_t mode, bool check_usage)
+    : fd_(-1), auto_close_(true) {
+  Open(path, flags, mode);
+  if (!check_usage || !IsOpened()) {
+    guard_state_ = GuardState::kNoCheck;
+  }
+}
+
+void FdFile::Destroy() {
   if (kCheckSafeUsage && (guard_state_ < GuardState::kNoCheck)) {
     if (guard_state_ < GuardState::kFlushed) {
       LOG(::art::ERROR) << "File " << file_path_ << " wasn't explicitly flushed before destruction.";
@@ -68,6 +76,28 @@ FdFile::~FdFile() {
       PLOG(::art::WARNING) << "Failed to close file " << file_path_;
     }
   }
+}
+
+FdFile& FdFile::operator=(FdFile&& other) {
+  if (this == &other) {
+    return *this;
+  }
+
+  if (this->fd_ != other.fd_) {
+    Destroy();  // Free old state.
+  }
+
+  guard_state_ = other.guard_state_;
+  fd_ = other.fd_;
+  file_path_ = std::move(other.file_path_);
+  auto_close_ = other.auto_close_;
+  other.Release();  // Release other.
+
+  return *this;
+}
+
+FdFile::~FdFile() {
+  Destroy();
 }
 
 void FdFile::moveTo(GuardState target, GuardState warn_threshold, const char* warning) {
