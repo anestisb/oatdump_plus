@@ -31,7 +31,7 @@
 #include "nodes.h"
 #include "optimization.h"
 #include "reference_type_propagation.h"
-#include "register_allocator.h"
+#include "register_allocator_linear_scan.h"
 #include "ssa_liveness_analysis.h"
 #include "utils/assembler.h"
 
