@@ -350,6 +350,16 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
   // accessing the String's `value` field in String intrinsics.
   static uint32_t GetArrayDataOffset(HArrayGet* array_get);
 
+  // Return the entry point offset for ReadBarrierMarkRegX, where X is `reg`.
+  template <size_t pointer_size>
+  static int32_t GetReadBarrierMarkEntryPointsOffset(size_t reg) {
+    DCHECK_LT(reg, 32u);
+    // The ReadBarrierMarkRegX entry points are ordered by increasing
+    // register number in Thread::tls_Ptr_.quick_entrypoints.
+    return QUICK_ENTRYPOINT_OFFSET(pointer_size, pReadBarrierMarkReg00).Int32Value()
+        + pointer_size * reg;
+  }
+
   void EmitParallelMoves(Location from1,
                          Location to1,
                          Primitive::Type type1,

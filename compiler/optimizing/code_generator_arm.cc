@@ -412,8 +412,8 @@ class ArraySetSlowPathARM : public SlowPathCode {
 // Slow path marking an object during a read barrier.
 class ReadBarrierMarkSlowPathARM : public SlowPathCode {
  public:
-  ReadBarrierMarkSlowPathARM(HInstruction* instruction, Location out, Location obj)
-      : SlowPathCode(instruction), out_(out), obj_(obj) {
+  ReadBarrierMarkSlowPathARM(HInstruction* instruction, Location obj)
+      : SlowPathCode(instruction), obj_(obj) {
     DCHECK(kEmitCompilerReadBarrier);
   }
 
@@ -421,9 +421,9 @@ class ReadBarrierMarkSlowPathARM : public SlowPathCode {
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
-    Register reg_out = out_.AsRegister<Register>();
+    Register reg = obj_.AsRegister<Register>();
     DCHECK(locations->CanCall());
-    DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(reg_out));
+    DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(reg));
     DCHECK(instruction_->IsInstanceFieldGet() ||
            instruction_->IsStaticFieldGet() ||
            instruction_->IsArrayGet() ||
@@ -437,24 +437,44 @@ class ReadBarrierMarkSlowPathARM : public SlowPathCode {
         << instruction_->DebugName();
 
     __ Bind(GetEntryLabel());
+    // Save live registers before the runtime call, and in particular
+    // R0 (if it is live), as it is clobbered by functions
+    // art_quick_read_barrier_mark_regX.
     SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
-    arm_codegen->Move32(Location::RegisterLocation(calling_convention.GetRegisterAt(0)), obj_);
-    arm_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pReadBarrierMark),
+    DCHECK_NE(reg, SP);
+    DCHECK_NE(reg, LR);
+    DCHECK_NE(reg, PC);
+    DCHECK(0 <= reg && reg < kNumberOfCoreRegisters) << reg;
+    // "Compact" slow path, saving two moves.
+    //
+    // Instead of using the standard runtime calling convention (input
+    // and output in R0):
+    //
+    //   R0 <- obj
+    //   R0 <- ReadBarrierMark(R0)
+    //   obj <- R0
+    //
+    // we just use rX (the register holding `obj`) as input and output
+    // of a dedicated entrypoint:
+    //
+    //   rX <- ReadBarrierMarkRegX(rX)
+    //
+    int32_t entry_point_offset =
+        CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kArmWordSize>(reg);
+    // TODO: Do not emit a stack map for this runtime call.
+    arm_codegen->InvokeRuntime(entry_point_offset,
                                instruction_,
                                instruction_->GetDexPc(),
                                this);
-    CheckEntrypointTypes<kQuickReadBarrierMark, mirror::Object*, mirror::Object*>();
-    arm_codegen->Move32(out_, Location::RegisterLocation(R0));
 
     RestoreLiveRegisters(codegen, locations);
     __ b(GetExitLabel());
   }
 
  private:
-  const Location out_;
   const Location obj_;
 
   DISALLOW_COPY_AND_ASSIGN(ReadBarrierMarkSlowPathARM);
@@ -6174,7 +6194,7 @@ void InstructionCodeGeneratorARM::GenerateGcRootFieldLoad(HInstruction* instruct
 
       // Slow path used to mark the GC root `root`.
       SlowPathCode* slow_path =
-          new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathARM(instruction, root, root);
+          new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathARM(instruction, root);
       codegen_->AddSlowPath(slow_path);
 
       // IP = Thread::Current()->GetIsGcMarking()
@@ -6314,7 +6334,7 @@ void CodeGeneratorARM::GenerateReferenceLoadWithBakerReadBarrier(HInstruction* i
 
   // Slow path used to mark the object `ref` when it is gray.
   SlowPathCode* slow_path =
-      new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathARM(instruction, ref, ref);
+      new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathARM(instruction, ref);
   AddSlowPath(slow_path);
 
   // if (rb_state == ReadBarrier::gray_ptr_)
