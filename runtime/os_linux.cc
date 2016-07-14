@@ -53,8 +53,9 @@ File* OS::CreateEmptyFileWriteOnly(const char* name) {
 
 File* OS::OpenFileWithFlags(const char* name, int flags) {
   CHECK(name != nullptr);
-  std::unique_ptr<File> file(new File);
-  if (!file->Open(name, flags, 0666)) {
+  bool read_only = (flags == O_RDONLY);
+  std::unique_ptr<File> file(new File(name, flags, 0666, !read_only));
+  if (!file->IsOpened()) {
     return nullptr;
   }
   return file.release();

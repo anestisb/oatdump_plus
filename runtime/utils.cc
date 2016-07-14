@@ -136,8 +136,8 @@ void GetThreadStack(pthread_t thread, void** stack_base, size_t* stack_size, siz
 }
 
 bool ReadFileToString(const std::string& file_name, std::string* result) {
-  File file;
-  if (!file.Open(file_name, O_RDONLY)) {
+  File file(file_name, O_RDONLY, false);
+  if (!file.IsOpened()) {
     return false;
   }
 
@@ -155,8 +155,8 @@ bool ReadFileToString(const std::string& file_name, std::string* result) {
 }
 
 bool PrintFileToLog(const std::string& file_name, LogSeverity level) {
-  File file;
-  if (!file.Open(file_name, O_RDONLY)) {
+  File file(file_name, O_RDONLY, false);
+  if (!file.IsOpened()) {
     return false;
   }
 
