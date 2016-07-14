@@ -2214,3 +2214,59 @@ ENTRY art_quick_indexof
     asr   x0, x0, #1
     ret
 END art_quick_indexof
+
+    /*
+     * Create a function `name` calling the ReadBarrier::Mark routine,
+     * getting its argument and returning its result through register
+     * `reg`, thus following a non-standard runtime calling convention:
+     * - `reg` is used to pass the (sole) argument of this function
+     *   (instead of W0);
+     * - `reg` is used to return the result of this function (instead of W0);
+     * - W0 is treated like a normal (non-argument) caller-save register;
+     * - everything else is the same as in the standard runtime calling
+     *   convention (e.g. same callee-save registers).
+     */
+.macro READ_BARRIER_MARK_REG name, reg
+ENTRY \name
+    str   xLR, [sp, #-16]!              // Save return address and add padding (16B align stack).
+    .cfi_adjust_cfa_offset 16
+    .cfi_rel_offset x30, 0
+    mov   w0, \reg                      // Pass arg1 - obj from `reg`
+    bl    artReadBarrierMark            // artReadBarrierMark(obj)
+    mov   \reg, w0                      // Return result into `reg`
+    ldr   xLR, [sp], #16                // Restore return address and remove padding.
+    .cfi_restore x30
+    .cfi_adjust_cfa_offset -16
+    ret
+END \name
+.endm
+
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg01, w1
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg02, w2
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg03, w3
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg04, w4
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg05, w5
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg06, w6
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg07, w7
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg08, w8
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg09, w9
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg10, w10
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg11, w11
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg12, w12
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg13, w13
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg14, w14
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg15, w15
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg16, w16
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg17, w17
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg18, w18
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg19, w19
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg20, w20
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg21, w21
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg22, w22
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg23, w23
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg24, w24
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg25, w25
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg26, w26
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg27, w27
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg28, w28
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg29, w29

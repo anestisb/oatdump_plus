@@ -46,7 +46,6 @@ static constexpr bool IsDirectEntrypoint(QuickEntrypointEnum entrypoint) {
       entrypoint == kQuickCmplDouble ||
       entrypoint == kQuickCmplFloat ||
       entrypoint == kQuickReadBarrierJni ||
-      entrypoint == kQuickReadBarrierMark ||
       entrypoint == kQuickReadBarrierSlow ||
       entrypoint == kQuickReadBarrierForRootSlow;
 }

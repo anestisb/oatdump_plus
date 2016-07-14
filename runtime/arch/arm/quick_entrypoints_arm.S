@@ -1743,3 +1743,43 @@ ENTRY art_quick_l2f
     .cfi_adjust_cfa_offset -4
     pop   {pc}
 END art_quick_l2f
+
+    /*
+     * Create a function `name` calling the ReadBarrier::Mark routine,
+     * getting its argument and returning its result through register
+     * `reg`, thus following a non-standard runtime calling convention:
+     * - `reg` is used to pass the (sole) argument of this function
+     *   (instead of R0);
+     * - `reg` is used to return the result of this function (instead of R0);
+     * - R0 is treated like a normal (non-argument) caller-save register;
+     * - everything else is the same as in the standard runtime calling
+     *   convention (e.g. same callee-save registers).
+     */
+.macro READ_BARRIER_MARK_REG name, reg
+ENTRY \name
+    push  {lr}                          @ save return address
+    .cfi_adjust_cfa_offset 4
+    .cfi_rel_offset lr, 0
+    sub   sp, #4                        @ push padding (native calling convention 8-byte alignment)
+    .cfi_adjust_cfa_offset 4
+    mov   r0, \reg                      @ pass arg1 - obj from `reg`
+    bl    artReadBarrierMark            @ artReadBarrierMark(obj)
+    mov   \reg, r0                      @ return result into `reg`
+    add   sp, #4                        @ pop padding
+    .cfi_adjust_cfa_offset -4
+    pop   {pc}                          @ return
+END \name
+.endm
+
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg01, r1
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg02, r2
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg03, r3
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg04, r4
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg05, r5
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg06, r6
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg07, r7
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg08, r8
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg09, r9
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg10, r10
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg11, r11
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg12, r12
