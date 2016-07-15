@@ -577,7 +577,6 @@ static jstring DexFile_getDexFileOutputPath(JNIEnv* env,
 
   OatFileAssistant oat_file_assistant(filename.c_str(),
                                       target_instruction_set,
-                                      false /* profile_changed */,
                                       false /* load_executable */);
 
   std::unique_ptr<OatFile> best_oat_file = oat_file_assistant.GetBestOatFile();
