@@ -57,7 +57,6 @@ class CompiledClass;
 class CompiledMethod;
 class CompilerOptions;
 class DexCompilationUnit;
-class DexFileToMethodInlinerMap;
 struct InlineIGetIPutData;
 class InstructionSetFeatures;
 class ParallelCompilationManager;
@@ -88,7 +87,6 @@ class CompilerDriver {
   // classes.
   CompilerDriver(const CompilerOptions* compiler_options,
                  VerificationResults* verification_results,
-                 DexFileToMethodInlinerMap* method_inliner_map,
                  Compiler::Kind compiler_kind,
                  InstructionSet instruction_set,
                  const InstructionSetFeatures* instruction_set_features,
@@ -131,10 +129,6 @@ class CompilerDriver {
   VerificationResults* GetVerificationResults() const {
     DCHECK(Runtime::Current()->IsAotCompiler());
     return verification_results_;
-  }
-
-  DexFileToMethodInlinerMap* GetMethodInlinerMap() const {
-    return method_inliner_map_;
   }
 
   InstructionSet GetInstructionSet() const {
@@ -603,7 +597,6 @@ class CompilerDriver {
 
   const CompilerOptions* const compiler_options_;
   VerificationResults* const verification_results_;
-  DexFileToMethodInlinerMap* const method_inliner_map_;
 
   std::unique_ptr<Compiler> compiler_;
   Compiler::Kind compiler_kind_;

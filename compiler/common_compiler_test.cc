@@ -23,7 +23,6 @@
 #include "class_linker.h"
 #include "compiled_method.h"
 #include "dex/quick_compiler_callbacks.h"
-#include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/verification_results.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
@@ -177,7 +176,6 @@ void CommonCompilerTest::CreateCompilerDriver(Compiler::Kind kind,
                                               size_t number_of_threads) {
   compiler_driver_.reset(new CompilerDriver(compiler_options_.get(),
                                             verification_results_.get(),
-                                            method_inliner_map_.get(),
                                             kind,
                                             isa,
                                             instruction_set_features_.get(),
@@ -201,9 +199,7 @@ void CommonCompilerTest::SetUpRuntimeOptions(RuntimeOptions* options) {
 
   compiler_options_.reset(new CompilerOptions);
   verification_results_.reset(new VerificationResults(compiler_options_.get()));
-  method_inliner_map_.reset(new DexFileToMethodInlinerMap);
   callbacks_.reset(new QuickCompilerCallbacks(verification_results_.get(),
-                                              method_inliner_map_.get(),
                                               CompilerCallbacks::CallbackMode::kCompileApp));
 }
 
@@ -224,7 +220,6 @@ void CommonCompilerTest::TearDown() {
   timer_.reset();
   compiler_driver_.reset();
   callbacks_.reset();
-  method_inliner_map_.reset();
   verification_results_.reset();
   compiler_options_.reset();
   image_reservation_.reset();

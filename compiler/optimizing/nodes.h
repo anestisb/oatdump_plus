@@ -32,6 +32,7 @@
 #include "handle.h"
 #include "handle_scope.h"
 #include "invoke_type.h"
+#include "intrinsics_enum.h"
 #include "locations.h"
 #include "method_reference.h"
 #include "mirror/class.h"
@@ -3689,17 +3690,6 @@ class HNewInstance FINAL : public HExpression<2> {
 
   DISALLOW_COPY_AND_ASSIGN(HNewInstance);
 };
-
-enum class Intrinsics {
-#define OPTIMIZING_INTRINSICS(Name, IsStatic, NeedsEnvironmentOrCache, SideEffects, Exceptions) \
-  k ## Name,
-#include "intrinsics_list.h"
-  kNone,
-  INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
-#undef INTRINSICS_LIST
-#undef OPTIMIZING_INTRINSICS
-};
-std::ostream& operator<<(std::ostream& os, const Intrinsics& intrinsic);
 
 enum IntrinsicNeedsEnvironmentOrCache {
   kNoEnvironmentOrCache,        // Intrinsic does not require an environment or dex cache.

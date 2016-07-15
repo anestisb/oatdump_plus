@@ -49,7 +49,6 @@
 #include "compiler_callbacks.h"
 #include "debug/elf_debug_writer.h"
 #include "debug/method_debug_info.h"
-#include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/quick_compiler_callbacks.h"
 #include "dex/verification_results.h"
 #include "dex_file-inl.h"
@@ -509,7 +508,6 @@ class Dex2Oat FINAL {
       image_patch_delta_(0),
       key_value_store_(nullptr),
       verification_results_(nullptr),
-      method_inliner_map_(),
       runtime_(nullptr),
       thread_count_(sysconf(_SC_NPROCESSORS_CONF)),
       start_ns_(NanoTime()),
@@ -1372,7 +1370,6 @@ class Dex2Oat FINAL {
     verification_results_.reset(new VerificationResults(compiler_options_.get()));
     callbacks_.reset(new QuickCompilerCallbacks(
         verification_results_.get(),
-        &method_inliner_map_,
         IsBootImage() ?
             CompilerCallbacks::CallbackMode::kCompileBootImage :
             CompilerCallbacks::CallbackMode::kCompileApp));
@@ -1632,7 +1629,6 @@ class Dex2Oat FINAL {
 
     driver_.reset(new CompilerDriver(compiler_options_.get(),
                                      verification_results_.get(),
-                                     &method_inliner_map_,
                                      compiler_kind_,
                                      instruction_set_,
                                      instruction_set_features_.get(),
@@ -2540,7 +2536,6 @@ class Dex2Oat FINAL {
 
   std::unique_ptr<VerificationResults> verification_results_;
 
-  DexFileToMethodInlinerMap method_inliner_map_;
   std::unique_ptr<QuickCompilerCallbacks> callbacks_;
 
   std::unique_ptr<Runtime> runtime_;
