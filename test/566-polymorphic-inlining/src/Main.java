@@ -101,16 +101,6 @@ public class Main implements Itf {
     return Itf.class;
   }
 
-  public Class sameInvokeInterface2() {
-    field.getClass(); // null check to ensure we get an inlined frame in the CodeInfo.
-    return Itf.class;
-  }
-
-  public Class sameInvokeInterface3() {
-    field.getClass(); // null check to ensure we get an inlined frame in the CodeInfo.
-    return Itf.class;
-  }
-
   public static Class testInvokeInterface(Itf i) {
     return i.sameInvokeInterface();
   }
