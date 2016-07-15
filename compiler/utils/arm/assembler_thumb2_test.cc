@@ -1611,4 +1611,46 @@ TEST_F(AssemblerThumb2Test, LoadFromShiftedRegOffset) {
   DriverStr(expected, "LoadFromShiftedRegOffset");
 }
 
+TEST_F(AssemblerThumb2Test, VStmLdmPushPop) {
+  // Different D register numbers are used here, to test register encoding.
+  // Source register number is encoded as M:Vm, destination register number is encoded as D:Vd,
+  // For source and destination registers which use D0..D15, the M bit and D bit should be 0.
+  // For source and destination registers which use D16..D32, the M bit and D bit should be 1.
+  // Different data types (signed and unsigned) are also tested.
+  __ vstmiad(arm::R0, arm::D0, 4);
+  __ vldmiad(arm::R1, arm::D9, 5);
+  __ vpopd(arm::D0, 4);
+  __ vpushd(arm::D9, 5);
+  __ vpops(arm::S0, 4);
+  __ vpushs(arm::S9, 5);
+  __ vpushs(arm::S16, 5);
+  __ vpushd(arm::D0, 16);
+  __ vpushd(arm::D1, 15);
+  __ vpushd(arm::D8, 16);
+  __ vpushd(arm::D31, 1);
+  __ vpushs(arm::S0, 32);
+  __ vpushs(arm::S1, 31);
+  __ vpushs(arm::S16, 16);
+  __ vpushs(arm::S31, 1);
+
+  std::string expected =
+      "vstmia r0, {d0 - d3}\n"
+      "vldmia r1, {d9 - d13}\n"
+      "vpop {d0 - d3}\n"
+      "vpush {d9 - d13}\n"
+      "vpop {s0 - s3}\n"
+      "vpush {s9 - s13}\n"
+      "vpush {s16 - s20}\n"
+      "vpush {d0 - d15}\n"
+      "vpush {d1 - d15}\n"
+      "vpush {d8 - d23}\n"
+      "vpush {d31}\n"
+      "vpush {s0 - s31}\n"
+      "vpush {s1 - s31}\n"
+      "vpush {s16 - s31}\n"
+      "vpush {s31}\n";
+
+  DriverStr(expected, "VStmLdmPushPop");
+}
+
 }  // namespace art

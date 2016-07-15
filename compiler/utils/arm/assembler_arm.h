@@ -680,6 +680,8 @@ class ArmAssembler : public Assembler {
   virtual void vpushd(DRegister reg, int nregs, Condition cond = AL) = 0;
   virtual void vpops(SRegister reg, int nregs, Condition cond = AL) = 0;
   virtual void vpopd(DRegister reg, int nregs, Condition cond = AL) = 0;
+  virtual void vldmiad(Register base_reg, DRegister reg, int nregs, Condition cond = AL) = 0;
+  virtual void vstmiad(Register base_reg, DRegister reg, int nregs, Condition cond = AL) = 0;
 
   // Branch instructions.
   virtual void b(Label* label, Condition cond = AL) = 0;

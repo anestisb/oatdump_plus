@@ -3020,8 +3020,48 @@ void Thumb2Assembler::vpopd(DRegister reg, int nregs, Condition cond) {
 }
 
 
+void Thumb2Assembler::vldmiad(Register base_reg, DRegister reg, int nregs, Condition cond) {
+  int32_t rest = B23;
+  EmitVLdmOrStm(rest,
+                static_cast<uint32_t>(reg),
+                nregs,
+                base_reg,
+                /*is_load*/ true,
+                /*dbl*/ true,
+                cond);
+}
+
+
+void Thumb2Assembler::vstmiad(Register base_reg, DRegister reg, int nregs, Condition cond) {
+  int32_t rest = B23;
+  EmitVLdmOrStm(rest,
+                static_cast<uint32_t>(reg),
+                nregs,
+                base_reg,
+                /*is_load*/ false,
+                /*dbl*/ true,
+                cond);
+}
+
+
 void Thumb2Assembler::EmitVPushPop(uint32_t reg, int nregs, bool push, bool dbl, Condition cond) {
+  int32_t rest = B21 | (push ? B24 : B23);
+  EmitVLdmOrStm(rest, reg, nregs, SP, /*is_load*/ !push, dbl, cond);
+}
+
+
+void Thumb2Assembler::EmitVLdmOrStm(int32_t rest,
+                                    uint32_t reg,
+                                    int nregs,
+                                    Register rn,
+                                    bool is_load,
+                                    bool dbl,
+                                    Condition cond) {
   CheckCondition(cond);
+
+  DCHECK_GT(nregs, 0);
+  DCHECK_LE(reg + nregs, 32u);
+  DCHECK(!dbl || (nregs <= 16));
 
   uint32_t D;
   uint32_t Vd;
@@ -3034,14 +3074,17 @@ void Thumb2Assembler::EmitVPushPop(uint32_t reg, int nregs, bool push, bool dbl,
     D = reg & 1;
     Vd = (reg >> 1) & 15U /* 0b1111 */;
   }
-  int32_t encoding = B27 | B26 | B21 | B19 | B18 | B16 |
-                    B11 | B9 |
-        (dbl ? B8 : 0) |
-        (push ? B24 : (B23 | B20)) |
-        14U /* 0b1110 */ << 28 |
-        nregs << (dbl ? 1 : 0) |
-        D << 22 |
-        Vd << 12;
+
+  int32_t encoding = rest |
+                     14U /* 0b1110 */ << 28 |
+                     B27 | B26 | B11 | B9 |
+                     (is_load ? B20 : 0) |
+                     static_cast<int16_t>(rn) << 16 |
+                     D << 22 |
+                     Vd << 12 |
+                     (dbl ? B8 : 0) |
+                     nregs << (dbl ? 1 : 0);
+
   Emit32(encoding);
 }
 
