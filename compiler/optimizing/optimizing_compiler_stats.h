@@ -65,6 +65,7 @@ enum MethodCompilationStat {
   kInlinedInvokeVirtualOrInterface,
   kImplicitNullCheckGenerated,
   kExplicitNullCheckGenerated,
+  kSimplifyIf,
   kLastStat
 };
 
@@ -143,6 +144,7 @@ class OptimizingCompilerStats {
       case kInlinedInvokeVirtualOrInterface: name = "InlinedInvokeVirtualOrInterface"; break;
       case kImplicitNullCheckGenerated: name = "ImplicitNullCheckGenerated"; break;
       case kExplicitNullCheckGenerated: name = "ExplicitNullCheckGenerated"; break;
+      case kSimplifyIf: name = "SimplifyIf"; break;
 
       case kLastStat:
         LOG(FATAL) << "invalid stat "
