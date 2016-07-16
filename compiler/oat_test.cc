@@ -158,7 +158,7 @@ class OatTest : public CommonCompilerTest {
   }
 
   bool WriteElf(File* file,
-                ScopedFd&& zip_fd,
+                File&& zip_fd,
                 const char* location,
                 SafeMap<std::string, std::string>& key_value_store,
                 bool verify) {
@@ -708,8 +708,8 @@ void OatTest::TestZipFileInput(bool verify) {
 
   {
     // Test using the AddZipDexFileSource() interface with the zip file handle.
-    ScopedFd zip_fd(dup(zip_file.GetFd()));
-    ASSERT_NE(-1, zip_fd.get());
+    File zip_fd(dup(zip_file.GetFd()), /* check_usage */ false);
+    ASSERT_NE(-1, zip_fd.Fd());
 
     ScratchFile oat_file;
     success = WriteElf(oat_file.GetFile(),
