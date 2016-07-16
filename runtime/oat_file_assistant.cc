@@ -39,7 +39,6 @@
 #include "os.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
-#include "ScopedFd.h"
 #include "utils.h"
 
 namespace art {

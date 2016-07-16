@@ -2145,7 +2145,8 @@ class Dex2Oat FINAL {
     TimingLogger::ScopedTiming t2("AddDexFileSources", timings_);
     if (zip_fd_ != -1) {
       DCHECK_EQ(oat_writers_.size(), 1u);
-      if (!oat_writers_[0]->AddZippedDexFilesSource(ScopedFd(zip_fd_), zip_location_.c_str())) {
+      if (!oat_writers_[0]->AddZippedDexFilesSource(File(zip_fd_, /* check_usage */ false),
+                                                    zip_location_.c_str())) {
         return false;
       }
     } else if (oat_writers_.size() > 1u) {
