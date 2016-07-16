@@ -20,12 +20,12 @@
 #include <stdint.h>
 #include <string>
 
-#include "ScopedFd.h"
+#include "os.h"
 
 namespace art {
 
 // Open file and read magic number
-ScopedFd OpenAndReadMagic(const char* filename, uint32_t* magic, std::string* error_msg);
+File OpenAndReadMagic(const char* filename, uint32_t* magic, std::string* error_msg);
 
 // Check whether the given magic matches a known file type.
 bool IsZipMagic(uint32_t magic);

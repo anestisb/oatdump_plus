@@ -21,27 +21,28 @@
 #include <sys/types.h>
 
 #include "base/logging.h"
+#include "base/unix_file/fd_file.h"
 #include "dex_file.h"
 #include "stringprintf.h"
 
 namespace art {
 
-ScopedFd OpenAndReadMagic(const char* filename, uint32_t* magic, std::string* error_msg) {
+File OpenAndReadMagic(const char* filename, uint32_t* magic, std::string* error_msg) {
   CHECK(magic != nullptr);
-  ScopedFd fd(open(filename, O_RDONLY, 0));
-  if (fd.get() == -1) {
+  File fd(filename, O_RDONLY, /* check_usage */ false);
+  if (fd.Fd() == -1) {
     *error_msg = StringPrintf("Unable to open '%s' : %s", filename, strerror(errno));
-    return ScopedFd();
+    return File();
   }
-  int n = TEMP_FAILURE_RETRY(read(fd.get(), magic, sizeof(*magic)));
+  int n = TEMP_FAILURE_RETRY(read(fd.Fd(), magic, sizeof(*magic)));
   if (n != sizeof(*magic)) {
     *error_msg = StringPrintf("Failed to find magic in '%s'", filename);
-    return ScopedFd();
+    return File();
   }
-  if (lseek(fd.get(), 0, SEEK_SET) != 0) {
+  if (lseek(fd.Fd(), 0, SEEK_SET) != 0) {
     *error_msg = StringPrintf("Failed to seek to beginning of file '%s' : %s", filename,
                               strerror(errno));
-    return ScopedFd();
+    return File();
   }
   return fd;
 }

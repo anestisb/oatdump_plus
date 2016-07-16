@@ -25,12 +25,8 @@
 #include <sstream>
 
 #include "base/stringprintf.h"
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wshadow"
-#include "ScopedFd.h"
-#pragma GCC diagnostic pop
-
+#include "base/unix_file/fd_file.h"
+#include "os.h"
 #include "thread-inl.h"
 #include "utils.h"
 
@@ -301,7 +297,7 @@ MemMap* MemMap::MapAnonymous(const char* name,
     flags |= MAP_FIXED;
   }
 
-  ScopedFd fd(-1);
+  File fd;
 
   if (use_ashmem) {
     if (!kIsTargetBuild) {
@@ -320,8 +316,9 @@ MemMap* MemMap::MapAnonymous(const char* name,
     // prefixed "dalvik-".
     std::string debug_friendly_name("dalvik-");
     debug_friendly_name += name;
-    fd.reset(ashmem_create_region(debug_friendly_name.c_str(), page_aligned_byte_count));
-    if (fd.get() == -1) {
+    fd.Reset(ashmem_create_region(debug_friendly_name.c_str(), page_aligned_byte_count),
+             /* check_usage */ false);
+    if (fd.Fd() == -1) {
       *error_msg = StringPrintf("ashmem_create_region failed for '%s': %s", name, strerror(errno));
       return nullptr;
     }
@@ -335,7 +332,7 @@ MemMap* MemMap::MapAnonymous(const char* name,
                              page_aligned_byte_count,
                              prot,
                              flags,
-                             fd.get(),
+                             fd.Fd(),
                              0,
                              low_4gb);
   saved_errno = errno;
@@ -352,7 +349,7 @@ MemMap* MemMap::MapAnonymous(const char* name,
                                 page_aligned_byte_count,
                                 prot,
                                 flags,
-                                fd.get(),
+                                fd.Fd(),
                                 strerror(saved_errno));
     }
     return nullptr;
@@ -558,7 +555,7 @@ MemMap* MemMap::RemapAtEnd(uint8_t* new_end, const char* tail_name, int tail_pro
       return nullptr;
     }
   }
-  ScopedFd fd(int_fd);
+  File fd(int_fd, /* check_usage */ false);
 
   MEMORY_TOOL_MAKE_UNDEFINED(tail_base_begin, tail_base_size);
   // Unmap/map the tail region.
@@ -574,12 +571,12 @@ MemMap* MemMap::RemapAtEnd(uint8_t* new_end, const char* tail_name, int tail_pro
   // region. Note this isn't perfect as there's no way to prevent
   // other threads to try to take this memory region here.
   uint8_t* actual = reinterpret_cast<uint8_t*>(mmap(tail_base_begin, tail_base_size, tail_prot,
-                                              flags, fd.get(), 0));
+                                              flags, fd.Fd(), 0));
   if (actual == MAP_FAILED) {
     PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
     *error_msg = StringPrintf("anonymous mmap(%p, %zd, 0x%x, 0x%x, %d, 0) failed. See process "
                               "maps in the log.", tail_base_begin, tail_base_size, tail_prot, flags,
-                              fd.get());
+                              fd.Fd());
     return nullptr;
   }
   return new MemMap(tail_name, actual, tail_size, actual, tail_base_size, tail_prot, false);

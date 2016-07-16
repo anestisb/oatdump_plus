@@ -29,7 +29,6 @@
 #include "oat.h"
 #include "os.h"
 #include "safe_map.h"
-#include "ScopedFd.h"
 #include "utils/array_ref.h"
 
 namespace art {
@@ -132,7 +131,7 @@ class OatWriter {
       CreateTypeLookupTable create_type_lookup_table = CreateTypeLookupTable::kDefault);
   // Add dex file source(s) from a zip file specified by a file handle.
   bool AddZippedDexFilesSource(
-      ScopedFd&& zip_fd,
+      File&& zip_fd,
       const char* location,
       CreateTypeLookupTable create_type_lookup_table = CreateTypeLookupTable::kDefault);
   // Add dex file source from raw memory.
