@@ -323,14 +323,14 @@ bool OatWriter::AddDexFileSource(const char* filename,
   DCHECK(write_state_ == WriteState::kAddingDexFileSources);
   uint32_t magic;
   std::string error_msg;
-  ScopedFd fd(OpenAndReadMagic(filename, &magic, &error_msg));
-  if (fd.get() == -1) {
+  File fd = OpenAndReadMagic(filename, &magic, &error_msg);
+  if (fd.Fd() == -1) {
     PLOG(ERROR) << "Failed to read magic number from dex file: '" << filename << "'";
     return false;
   } else if (IsDexMagic(magic)) {
     // The file is open for reading, not writing, so it's OK to let the File destructor
     // close it without checking for explicit Close(), so pass checkUsage = false.
-    raw_dex_files_.emplace_back(new File(fd.release(), location, /* checkUsage */ false));
+    raw_dex_files_.emplace_back(new File(fd.Release(), location, /* checkUsage */ false));
     oat_dex_files_.emplace_back(location,
                                 DexFileSource(raw_dex_files_.back().get()),
                                 create_type_lookup_table);
@@ -346,12 +346,12 @@ bool OatWriter::AddDexFileSource(const char* filename,
 }
 
 // Add dex file source(s) from a zip file specified by a file handle.
-bool OatWriter::AddZippedDexFilesSource(ScopedFd&& zip_fd,
+bool OatWriter::AddZippedDexFilesSource(File&& zip_fd,
                                         const char* location,
                                         CreateTypeLookupTable create_type_lookup_table) {
   DCHECK(write_state_ == WriteState::kAddingDexFileSources);
   std::string error_msg;
-  zip_archives_.emplace_back(ZipArchive::OpenFromFd(zip_fd.release(), location, &error_msg));
+  zip_archives_.emplace_back(ZipArchive::OpenFromFd(zip_fd.Release(), location, &error_msg));
   ZipArchive* zip_archive = zip_archives_.back().get();
   if (zip_archive == nullptr) {
     LOG(ERROR) << "Failed to open zip from file descriptor for '" << location << "': "

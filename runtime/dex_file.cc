@@ -35,6 +35,7 @@
 #include "base/stl_util.h"
 #include "base/stringprintf.h"
 #include "base/systrace.h"
+#include "base/unix_file/fd_file.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
 #include "dex_file_verifier.h"
@@ -53,11 +54,6 @@
 #include "utils.h"
 #include "well_known_classes.h"
 #include "zip_archive.h"
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wshadow"
-#include "ScopedFd.h"
-#pragma GCC diagnostic pop
 
 namespace art {
 
@@ -85,14 +81,14 @@ bool DexFile::GetChecksum(const char* filename, uint32_t* checksum, std::string*
     DCHECK_EQ(zip_entry_name[-1], kMultiDexSeparator);
   }
 
-  ScopedFd fd(OpenAndReadMagic(file_part, &magic, error_msg));
-  if (fd.get() == -1) {
+  File fd = OpenAndReadMagic(file_part, &magic, error_msg);
+  if (fd.Fd() == -1) {
     DCHECK(!error_msg->empty());
     return false;
   }
   if (IsZipMagic(magic)) {
     std::unique_ptr<ZipArchive> zip_archive(
-        ZipArchive::OpenFromFd(fd.release(), filename, error_msg));
+        ZipArchive::OpenFromFd(fd.Release(), filename, error_msg));
     if (zip_archive.get() == nullptr) {
       *error_msg = StringPrintf("Failed to open zip archive '%s' (error msg: %s)", file_part,
                                 error_msg->c_str());
@@ -109,7 +105,7 @@ bool DexFile::GetChecksum(const char* filename, uint32_t* checksum, std::string*
   }
   if (IsDexMagic(magic)) {
     std::unique_ptr<const DexFile> dex_file(
-        DexFile::OpenFile(fd.release(), filename, false, false, error_msg));
+        DexFile::OpenFile(fd.Release(), filename, false, false, error_msg));
     if (dex_file.get() == nullptr) {
       return false;
     }
@@ -128,16 +124,16 @@ bool DexFile::Open(const char* filename,
   ScopedTrace trace(std::string("Open dex file ") + location);
   DCHECK(dex_files != nullptr) << "DexFile::Open: out-param is nullptr";
   uint32_t magic;
-  ScopedFd fd(OpenAndReadMagic(filename, &magic, error_msg));
-  if (fd.get() == -1) {
+  File fd = OpenAndReadMagic(filename, &magic, error_msg);
+  if (fd.Fd() == -1) {
     DCHECK(!error_msg->empty());
     return false;
   }
   if (IsZipMagic(magic)) {
-    return DexFile::OpenZip(fd.release(), location, verify_checksum, error_msg, dex_files);
+    return DexFile::OpenZip(fd.Release(), location, verify_checksum, error_msg, dex_files);
   }
   if (IsDexMagic(magic)) {
-    std::unique_ptr<const DexFile> dex_file(DexFile::OpenFile(fd.release(),
+    std::unique_ptr<const DexFile> dex_file(DexFile::OpenFile(fd.Release(),
                                                               location,
                                                               /* verify */ true,
                                                               verify_checksum,
@@ -166,12 +162,12 @@ static bool ContainsClassesDex(int fd, const char* filename) {
 bool DexFile::MaybeDex(const char* filename) {
   uint32_t magic;
   std::string error_msg;
-  ScopedFd fd(OpenAndReadMagic(filename, &magic, &error_msg));
-  if (fd.get() == -1) {
+  File fd = OpenAndReadMagic(filename, &magic, &error_msg);
+  if (fd.Fd() == -1) {
     return false;
   }
   if (IsZipMagic(magic)) {
-    return ContainsClassesDex(fd.release(), filename);
+    return ContainsClassesDex(fd.Release(), filename);
   } else if (IsDexMagic(magic)) {
     return true;
   }
@@ -244,7 +240,7 @@ std::unique_ptr<const DexFile> DexFile::OpenFile(int fd,
   CHECK(location != nullptr);
   std::unique_ptr<MemMap> map;
   {
-    ScopedFd delayed_close(fd);
+    File delayed_close(fd, /* check_usage */ false);
     struct stat sbuf;
     memset(&sbuf, 0, sizeof(sbuf));
     if (fstat(fd, &sbuf) == -1) {
