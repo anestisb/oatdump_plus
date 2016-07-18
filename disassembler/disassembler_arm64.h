@@ -21,34 +21,35 @@
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wshadow"
-#include "vixl/a64/decoder-a64.h"
-#include "vixl/a64/disasm-a64.h"
+#include "a64/decoder-a64.h"
+#include "a64/disasm-a64.h"
 #pragma GCC diagnostic pop
 
 namespace art {
 namespace arm64 {
 
-class CustomDisassembler FINAL : public vixl::Disassembler {
+class CustomDisassembler FINAL : public vixl::aarch64::Disassembler {
  public:
   explicit CustomDisassembler(DisassemblerOptions* options)
-      : vixl::Disassembler(),
+      : vixl::aarch64::Disassembler(),
         read_literals_(options->can_read_literals_),
         base_address_(options->base_address_),
         end_address_(options->end_address_) {
     if (!options->absolute_addresses_) {
-      MapCodeAddress(0, reinterpret_cast<const vixl::Instruction*>(options->base_address_));
+      MapCodeAddress(0,
+                     reinterpret_cast<const vixl::aarch64::Instruction*>(options->base_address_));
     }
   }
 
   // Use register aliases in the disassembly.
-  void AppendRegisterNameToOutput(const vixl::Instruction* instr,
-                                  const vixl::CPURegister& reg) OVERRIDE;
+  void AppendRegisterNameToOutput(const vixl::aarch64::Instruction* instr,
+                                  const vixl::aarch64::CPURegister& reg) OVERRIDE;
 
   // Improve the disassembly of literal load instructions.
-  void VisitLoadLiteral(const vixl::Instruction* instr) OVERRIDE;
+  void VisitLoadLiteral(const vixl::aarch64::Instruction* instr) OVERRIDE;
 
   // Improve the disassembly of thread offset.
-  void VisitLoadStoreUnsignedOffset(const vixl::Instruction* instr) OVERRIDE;
+  void VisitLoadStoreUnsignedOffset(const vixl::aarch64::Instruction* instr) OVERRIDE;
 
  private:
   // Indicate if the disassembler should read data loaded from literal pools.
@@ -75,7 +76,7 @@ class DisassemblerArm64 FINAL : public Disassembler {
   void Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end) OVERRIDE;
 
  private:
-  vixl::Decoder decoder;
+  vixl::aarch64::Decoder decoder;
   CustomDisassembler disasm;
 
   DISALLOW_COPY_AND_ASSIGN(DisassemblerArm64);

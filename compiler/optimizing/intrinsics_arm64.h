@@ -20,10 +20,11 @@
 #include "intrinsics.h"
 
 namespace vixl {
+namespace aarch64 {
 
 class MacroAssembler;
 
-}  // namespace vixl
+}}  // namespace vixl::aarch64
 
 namespace art {
 
@@ -73,7 +74,7 @@ INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 #undef OPTIMIZING_INTRINSICS
 
  private:
-  vixl::MacroAssembler* GetVIXLAssembler();
+  vixl::aarch64::MacroAssembler* GetVIXLAssembler();
 
   ArenaAllocator* GetAllocator();
 
