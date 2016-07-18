@@ -24,6 +24,8 @@
 #include "base/stringprintf.h"
 #include "thread.h"
 
+using namespace vixl::aarch64;  // NOLINT(build/namespaces)
+
 namespace art {
 namespace arm64 {
 
@@ -38,15 +40,14 @@ enum {
   LR  = 30
 };
 
-void CustomDisassembler::AppendRegisterNameToOutput(
-    const vixl::Instruction* instr,
-    const vixl::CPURegister& reg) {
+void CustomDisassembler::AppendRegisterNameToOutput(const Instruction* instr,
+                                                    const CPURegister& reg) {
   USE(instr);
   if (reg.IsRegister() && reg.Is64Bits()) {
-    if (reg.code() == TR) {
+    if (reg.GetCode() == TR) {
       AppendToOutput("tr");
       return;
-    } else if (reg.code() == LR) {
+    } else if (reg.GetCode() == LR) {
       AppendToOutput("lr");
       return;
     }
@@ -56,7 +57,7 @@ void CustomDisassembler::AppendRegisterNameToOutput(
   Disassembler::AppendRegisterNameToOutput(instr, reg);
 }
 
-void CustomDisassembler::VisitLoadLiteral(const vixl::Instruction* instr) {
+void CustomDisassembler::VisitLoadLiteral(const Instruction* instr) {
   Disassembler::VisitLoadLiteral(instr);
 
   if (!read_literals_) {
@@ -66,27 +67,27 @@ void CustomDisassembler::VisitLoadLiteral(const vixl::Instruction* instr) {
   // Get address of literal. Bail if not within expected buffer range to
   // avoid trying to fetch invalid literals (we can encounter this when
   // interpreting raw data as instructions).
-  void* data_address = instr->LiteralAddress<void*>();
+  void* data_address = instr->GetLiteralAddress<void*>();
   if (data_address < base_address_ || data_address >= end_address_) {
     AppendToOutput(" (?)");
     return;
   }
 
   // Output information on literal.
-  vixl::Instr op = instr->Mask(vixl::LoadLiteralMask);
+  Instr op = instr->Mask(LoadLiteralMask);
   switch (op) {
-    case vixl::LDR_w_lit:
-    case vixl::LDR_x_lit:
-    case vixl::LDRSW_x_lit: {
-      int64_t data = op == vixl::LDR_x_lit ? *reinterpret_cast<int64_t*>(data_address)
-                                           : *reinterpret_cast<int32_t*>(data_address);
+    case LDR_w_lit:
+    case LDR_x_lit:
+    case LDRSW_x_lit: {
+      int64_t data = op == LDR_x_lit ? *reinterpret_cast<int64_t*>(data_address)
+                                     : *reinterpret_cast<int32_t*>(data_address);
       AppendToOutput(" (0x%" PRIx64 " / %" PRId64 ")", data, data);
       break;
     }
-    case vixl::LDR_s_lit:
-    case vixl::LDR_d_lit: {
-      double data = (op == vixl::LDR_s_lit) ? *reinterpret_cast<float*>(data_address)
-                                            : *reinterpret_cast<double*>(data_address);
+    case LDR_s_lit:
+    case LDR_d_lit: {
+      double data = (op == LDR_s_lit) ? *reinterpret_cast<float*>(data_address)
+                                      : *reinterpret_cast<double*>(data_address);
       AppendToOutput(" (%g)", data);
       break;
     }
@@ -95,11 +96,11 @@ void CustomDisassembler::VisitLoadLiteral(const vixl::Instruction* instr) {
   }
 }
 
-void CustomDisassembler::VisitLoadStoreUnsignedOffset(const vixl::Instruction* instr) {
+void CustomDisassembler::VisitLoadStoreUnsignedOffset(const Instruction* instr) {
   Disassembler::VisitLoadStoreUnsignedOffset(instr);
 
-  if (instr->Rn() == TR) {
-    int64_t offset = instr->ImmLSUnsigned() << instr->SizeLS();
+  if (instr->GetRn() == TR) {
+    int64_t offset = instr->GetImmLSUnsigned() << instr->GetSizeLS();
     std::ostringstream tmp_stream;
     Thread::DumpThreadOffset<8>(tmp_stream, static_cast<uint32_t>(offset));
     AppendToOutput(" ; %s", tmp_stream.str().c_str());
@@ -107,15 +108,15 @@ void CustomDisassembler::VisitLoadStoreUnsignedOffset(const vixl::Instruction* i
 }
 
 size_t DisassemblerArm64::Dump(std::ostream& os, const uint8_t* begin) {
-  const vixl::Instruction* instr = reinterpret_cast<const vixl::Instruction*>(begin);
+  const Instruction* instr = reinterpret_cast<const Instruction*>(begin);
   decoder.Decode(instr);
     os << FormatInstructionPointer(begin)
-     << StringPrintf(": %08x\t%s\n", instr->InstructionBits(), disasm.GetOutput());
-  return vixl::kInstructionSize;
+     << StringPrintf(": %08x\t%s\n", instr->GetInstructionBits(), disasm.GetOutput());
+  return kInstructionSize;
 }
 
 void DisassemblerArm64::Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end) {
-  for (const uint8_t* cur = begin; cur < end; cur += vixl::kInstructionSize) {
+  for (const uint8_t* cur = begin; cur < end; cur += kInstructionSize) {
     Dump(os, cur);
   }
 }
