@@ -20,7 +20,7 @@
 #include "offsets.h"
 #include "thread.h"
 
-using namespace vixl;  // NOLINT(build/namespaces)
+using namespace vixl::aarch64;  // NOLINT(build/namespaces)
 
 namespace art {
 namespace arm64 {
@@ -39,7 +39,7 @@ void Arm64Assembler::FinalizeCode() {
 }
 
 size_t Arm64Assembler::CodeSize() const {
-  return vixl_masm_->BufferCapacity() - vixl_masm_->RemainingBufferSpace();
+  return vixl_masm_->GetBufferCapacity() - vixl_masm_->GetRemainingBufferSpace();
 }
 
 const uint8_t* Arm64Assembler::CodeBufferBaseAddress() const {
@@ -86,9 +86,9 @@ void Arm64Assembler::AddConstant(XRegister rd, XRegister rn, int32_t value,
   } else {
     // temp = rd + value
     // rd = cond ? temp : rn
-    vixl::UseScratchRegisterScope temps(vixl_masm_);
+    UseScratchRegisterScope temps(vixl_masm_);
     temps.Exclude(reg_x(rd), reg_x(rn));
-    vixl::Register temp = temps.AcquireX();
+    Register temp = temps.AcquireX();
     ___ Add(temp, reg_x(rn), value);
     ___ Csel(reg_x(rd), temp, reg_x(rd), cond);
   }
@@ -182,8 +182,8 @@ void Arm64Assembler::StoreStackOffsetToThread64(ThreadOffset<8> tr_offs,
 }
 
 void Arm64Assembler::StoreStackPointerToThread64(ThreadOffset<8> tr_offs) {
-  vixl::UseScratchRegisterScope temps(vixl_masm_);
-  vixl::Register temp = temps.AcquireX();
+  UseScratchRegisterScope temps(vixl_masm_);
+  Register temp = temps.AcquireX();
   ___ Mov(temp, reg_x(SP));
   ___ Str(temp, MEM_OP(reg_x(TR), tr_offs.Int32Value()));
 }
@@ -206,9 +206,9 @@ void Arm64Assembler::LoadImmediate(XRegister dest, int32_t value,
     // temp = value
     // rd = cond ? temp : rd
     if (value != 0) {
-      vixl::UseScratchRegisterScope temps(vixl_masm_);
+      UseScratchRegisterScope temps(vixl_masm_);
       temps.Exclude(reg_x(dest));
-      vixl::Register temp = temps.AcquireX();
+      Register temp = temps.AcquireX();
       ___ Mov(temp, value);
       ___ Csel(reg_x(dest), temp, reg_x(dest), cond);
     } else {
@@ -313,7 +313,7 @@ void Arm64Assembler::LoadRawPtr(ManagedRegister m_dst, ManagedRegister m_base, O
   Arm64ManagedRegister base = m_base.AsArm64();
   CHECK(dst.IsXRegister() && base.IsXRegister());
   // Remove dst and base form the temp list - higher level API uses IP1, IP0.
-  vixl::UseScratchRegisterScope temps(vixl_masm_);
+  UseScratchRegisterScope temps(vixl_masm_);
   temps.Exclude(reg_x(dst.AsXRegister()), reg_x(base.AsXRegister()));
   ___ Ldr(reg_x(dst.AsXRegister()), MEM_OP(reg_x(base.AsXRegister()), offs.Int32Value()));
 }
@@ -479,7 +479,7 @@ void Arm64Assembler::Copy(FrameOffset /*dst*/, Offset /*dest_offset*/,
 
 void Arm64Assembler::MemoryBarrier(ManagedRegister m_scratch ATTRIBUTE_UNUSED) {
   // TODO: Should we check that m_scratch is IP? - see arm.
-  ___ Dmb(vixl::InnerShareable, vixl::BarrierAll);
+  ___ Dmb(InnerShareable, BarrierAll);
 }
 
 void Arm64Assembler::SignExtend(ManagedRegister mreg, size_t size) {
@@ -527,7 +527,7 @@ void Arm64Assembler::JumpTo(ManagedRegister m_base, Offset offs, ManagedRegister
   CHECK(base.IsXRegister()) << base;
   CHECK(scratch.IsXRegister()) << scratch;
   // Remove base and scratch form the temp list - higher level API uses IP1, IP0.
-  vixl::UseScratchRegisterScope temps(vixl_masm_);
+  UseScratchRegisterScope temps(vixl_masm_);
   temps.Exclude(reg_x(base.AsXRegister()), reg_x(scratch.AsXRegister()));
   ___ Ldr(reg_x(scratch.AsXRegister()), MEM_OP(reg_x(base.AsXRegister()), offs.Int32Value()));
   ___ Br(reg_x(scratch.AsXRegister()));
@@ -598,7 +598,7 @@ void Arm64Assembler::LoadReferenceFromHandleScope(ManagedRegister m_out_reg,
   Arm64ManagedRegister in_reg = m_in_reg.AsArm64();
   CHECK(out_reg.IsXRegister()) << out_reg;
   CHECK(in_reg.IsXRegister()) << in_reg;
-  vixl::Label exit;
+  vixl::aarch64::Label exit;
   if (!out_reg.Equals(in_reg)) {
     // FIXME: Who sets the flags here?
     LoadImmediate(out_reg.AsXRegister(), 0, eq);
@@ -617,9 +617,9 @@ void Arm64Assembler::ExceptionPoll(ManagedRegister m_scratch, size_t stack_adjus
 }
 
 void Arm64Assembler::EmitExceptionPoll(Arm64Exception *exception) {
-  vixl::UseScratchRegisterScope temps(vixl_masm_);
+  UseScratchRegisterScope temps(vixl_masm_);
   temps.Exclude(reg_x(exception->scratch_.AsXRegister()));
-  vixl::Register temp = temps.AcquireX();
+  Register temp = temps.AcquireX();
 
   // Bind exception poll entry.
   ___ Bind(exception->Entry());
@@ -638,26 +638,26 @@ void Arm64Assembler::EmitExceptionPoll(Arm64Exception *exception) {
 
 static inline dwarf::Reg DWARFReg(CPURegister reg) {
   if (reg.IsFPRegister()) {
-    return dwarf::Reg::Arm64Fp(reg.code());
+    return dwarf::Reg::Arm64Fp(reg.GetCode());
   } else {
-    DCHECK_LT(reg.code(), 31u);  // X0 - X30.
-    return dwarf::Reg::Arm64Core(reg.code());
+    DCHECK_LT(reg.GetCode(), 31u);  // X0 - X30.
+    return dwarf::Reg::Arm64Core(reg.GetCode());
   }
 }
 
-void Arm64Assembler::SpillRegisters(vixl::CPURegList registers, int offset) {
-  int size = registers.RegisterSizeInBytes();
+void Arm64Assembler::SpillRegisters(CPURegList registers, int offset) {
+  int size = registers.GetRegisterSizeInBytes();
   const Register sp = vixl_masm_->StackPointer();
   // Since we are operating on register pairs, we would like to align on
   // double the standard size; on the other hand, we don't want to insert
   // an extra store, which will happen if the number of registers is even.
-  if (!IsAlignedParam(offset, 2 * size) && registers.Count() % 2 != 0) {
+  if (!IsAlignedParam(offset, 2 * size) && registers.GetCount() % 2 != 0) {
     const CPURegister& dst0 = registers.PopLowestIndex();
     ___ Str(dst0, MemOperand(sp, offset));
     cfi_.RelOffset(DWARFReg(dst0), offset);
     offset += size;
   }
-  while (registers.Count() >= 2) {
+  while (registers.GetCount() >= 2) {
     const CPURegister& dst0 = registers.PopLowestIndex();
     const CPURegister& dst1 = registers.PopLowestIndex();
     ___ Stp(dst0, dst1, MemOperand(sp, offset));
@@ -673,17 +673,17 @@ void Arm64Assembler::SpillRegisters(vixl::CPURegList registers, int offset) {
   DCHECK(registers.IsEmpty());
 }
 
-void Arm64Assembler::UnspillRegisters(vixl::CPURegList registers, int offset) {
-  int size = registers.RegisterSizeInBytes();
+void Arm64Assembler::UnspillRegisters(CPURegList registers, int offset) {
+  int size = registers.GetRegisterSizeInBytes();
   const Register sp = vixl_masm_->StackPointer();
   // Be consistent with the logic for spilling registers.
-  if (!IsAlignedParam(offset, 2 * size) && registers.Count() % 2 != 0) {
+  if (!IsAlignedParam(offset, 2 * size) && registers.GetCount() % 2 != 0) {
     const CPURegister& dst0 = registers.PopLowestIndex();
     ___ Ldr(dst0, MemOperand(sp, offset));
     cfi_.Restore(DWARFReg(dst0));
     offset += size;
   }
-  while (registers.Count() >= 2) {
+  while (registers.GetCount() >= 2) {
     const CPURegister& dst0 = registers.PopLowestIndex();
     const CPURegister& dst1 = registers.PopLowestIndex();
     ___ Ldp(dst0, dst1, MemOperand(sp, offset));
@@ -709,14 +709,14 @@ void Arm64Assembler::BuildFrame(size_t frame_size,
   for (auto r : callee_save_regs) {
     Arm64ManagedRegister reg = r.AsArm64();
     if (reg.IsXRegister()) {
-      core_reg_list.Combine(reg_x(reg.AsXRegister()).code());
+      core_reg_list.Combine(reg_x(reg.AsXRegister()).GetCode());
     } else {
       DCHECK(reg.IsDRegister());
-      fp_reg_list.Combine(reg_d(reg.AsDRegister()).code());
+      fp_reg_list.Combine(reg_d(reg.AsDRegister()).GetCode());
     }
   }
-  size_t core_reg_size = core_reg_list.TotalSizeInBytes();
-  size_t fp_reg_size = fp_reg_list.TotalSizeInBytes();
+  size_t core_reg_size = core_reg_list.GetTotalSizeInBytes();
+  size_t fp_reg_size = fp_reg_list.GetTotalSizeInBytes();
 
   // Increase frame to required size.
   DCHECK_ALIGNED(frame_size, kStackAlignment);
@@ -765,14 +765,14 @@ void Arm64Assembler::RemoveFrame(size_t frame_size,
   for (auto r : callee_save_regs) {
     Arm64ManagedRegister reg = r.AsArm64();
     if (reg.IsXRegister()) {
-      core_reg_list.Combine(reg_x(reg.AsXRegister()).code());
+      core_reg_list.Combine(reg_x(reg.AsXRegister()).GetCode());
     } else {
       DCHECK(reg.IsDRegister());
-      fp_reg_list.Combine(reg_d(reg.AsDRegister()).code());
+      fp_reg_list.Combine(reg_d(reg.AsDRegister()).GetCode());
     }
   }
-  size_t core_reg_size = core_reg_list.TotalSizeInBytes();
-  size_t fp_reg_size = fp_reg_list.TotalSizeInBytes();
+  size_t core_reg_size = core_reg_list.GetTotalSizeInBytes();
+  size_t fp_reg_size = fp_reg_list.GetTotalSizeInBytes();
 
   // For now we only check that the size of the frame is large enough to hold spills and method
   // reference.
@@ -798,19 +798,19 @@ void Arm64Assembler::RemoveFrame(size_t frame_size,
   cfi_.DefCFAOffset(frame_size);
 }
 
-void Arm64Assembler::PoisonHeapReference(vixl::Register reg) {
+void Arm64Assembler::PoisonHeapReference(Register reg) {
   DCHECK(reg.IsW());
   // reg = -reg.
-  ___ Neg(reg, vixl::Operand(reg));
+  ___ Neg(reg, Operand(reg));
 }
 
-void Arm64Assembler::UnpoisonHeapReference(vixl::Register reg) {
+void Arm64Assembler::UnpoisonHeapReference(Register reg) {
   DCHECK(reg.IsW());
   // reg = -reg.
-  ___ Neg(reg, vixl::Operand(reg));
+  ___ Neg(reg, Operand(reg));
 }
 
-void Arm64Assembler::MaybeUnpoisonHeapReference(vixl::Register reg) {
+void Arm64Assembler::MaybeUnpoisonHeapReference(Register reg) {
   if (kPoisonHeapReferences) {
     UnpoisonHeapReference(reg);
   }
