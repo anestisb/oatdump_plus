@@ -136,7 +136,7 @@ public class Main {
         private static final Method getRecentAllocationsMethod;
         static {
             try {
-                Class c = Class.forName("org.apache.harmony.dalvik.ddmc.DdmVmInternal");
+                Class<?> c = Class.forName("org.apache.harmony.dalvik.ddmc.DdmVmInternal");
                 enableRecentAllocationsMethod = c.getDeclaredMethod("enableRecentAllocations",
                                                                     Boolean.TYPE);
                 getRecentAllocationStatusMethod = c.getDeclaredMethod("getRecentAllocationStatus");

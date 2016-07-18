@@ -42,7 +42,7 @@ public class TestAnnotations {
         }
     }
 
-    static void printAnnotations(Class clazz) {
+    static void printAnnotations(Class<?> clazz) {
         Annotation[] annos;
         Annotation[][] parAnnos;
 
@@ -52,7 +52,7 @@ public class TestAnnotations {
         printAnnotationArray("", annos);
         System.out.println();
 
-        for (Constructor c: clazz.getDeclaredConstructors()) {
+        for (Constructor<?> c: clazz.getDeclaredConstructors()) {
             annos = c.getDeclaredAnnotations();
             System.out.println("  annotations on CTOR " + c + ":");
             printAnnotationArray("  ", annos);
@@ -139,8 +139,7 @@ public class TestAnnotations {
         final IntToString[] mapping;
 
         try {
-            meth = TestAnnotations.class.getMethod("getFocusType",
-                    (Class[])null);
+            meth = TestAnnotations.class.getMethod("getFocusType");
         } catch (NoSuchMethodException nsme) {
             throw new RuntimeException(nsme);
         }
@@ -255,7 +254,7 @@ public class TestAnnotations {
     }
 
     private static class VMRuntime {
-        private static Class vmRuntimeClass;
+        private static Class<?> vmRuntimeClass;
         private static Method getRuntimeMethod;
         private static Method getTargetSdkVersionMethod;
         private static Method setTargetSdkVersionMethod;

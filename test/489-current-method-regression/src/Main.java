@@ -23,7 +23,7 @@ public class Main {
     if (a == 42) {
       // The class loading will be seen as dead code by
       // the optimizer.
-      Class c = Main.class;
+      Class<?> c = Main.class;
     }
     return new Main().bar();
   }

@@ -37,15 +37,15 @@ public class Main {
 
     private static Object allocInDifferentLoader() throws Exception {
         final String DEX_FILE = System.getenv("DEX_LOCATION") + "/130-hprof-ex.jar";
-        Class pathClassLoader = Class.forName("dalvik.system.PathClassLoader");
+        Class<?> pathClassLoader = Class.forName("dalvik.system.PathClassLoader");
         if (pathClassLoader == null) {
             throw new AssertionError("Couldn't find path class loader class");
         }
-        Constructor constructor =
+        Constructor<?> constructor =
             pathClassLoader.getDeclaredConstructor(String.class, ClassLoader.class);
         ClassLoader loader = (ClassLoader)constructor.newInstance(
                 DEX_FILE, ClassLoader.getSystemClassLoader());
-        Class allocator = loader.loadClass("Allocator");
+        Class<?> allocator = loader.loadClass("Allocator");
         return allocator.getDeclaredMethod("allocObject", null).invoke(null);
     }
 
@@ -105,7 +105,7 @@ public class Main {
         System.out.println("Generated data.");
 
         createDumpAndConv();
-        Class klass = Class.forName("org.apache.harmony.dalvik.ddmc.DdmVmInternal");
+        Class<?> klass = Class.forName("org.apache.harmony.dalvik.ddmc.DdmVmInternal");
         if (klass == null) {
             throw new AssertionError("Couldn't find path class loader class");
         }
@@ -153,7 +153,7 @@ public class Main {
      */
     private static Method getDumpHprofDataMethod() {
         ClassLoader myLoader = Main.class.getClassLoader();
-        Class vmdClass;
+        Class<?> vmdClass;
         try {
             vmdClass = myLoader.loadClass("dalvik.system.VMDebug");
         } catch (ClassNotFoundException cnfe) {
@@ -162,8 +162,7 @@ public class Main {
 
         Method meth;
         try {
-            meth = vmdClass.getMethod("dumpHprofData",
-                    new Class[] { String.class });
+            meth = vmdClass.getMethod("dumpHprofData", String.class);
         } catch (NoSuchMethodException nsme) {
             System.err.println("Found VMDebug but not dumpHprofData method");
             return null;

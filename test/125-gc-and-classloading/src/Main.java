@@ -57,7 +57,7 @@ public class Main {
         public void run() {
             try {
                 cdl.await();
-                Class c0 = Class.forName("Main$BigClass");
+                Class<?> c0 = Class.forName("Main$BigClass");
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

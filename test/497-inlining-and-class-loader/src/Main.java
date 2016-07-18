@@ -66,7 +66,7 @@ class MyClassLoader extends ClassLoader {
             "loadClassBinaryName", String.class, ClassLoader.class, List.class);
 
         if (dex != null) {
-          Class clazz = (Class)method.invoke(dex, className, this, null);
+          Class<?> clazz = (Class<?>)method.invoke(dex, className, this, null);
           if (clazz != null) {
             return clazz;
           }
@@ -92,7 +92,7 @@ class Main {
 
     MyClassLoader o = new MyClassLoader();
     MyClassLoader.level1ClassLoader = new MyClassLoader();
-    Class foo = o.loadClass("LoadedByMyClassLoader");
+    Class<?> foo = o.loadClass("LoadedByMyClassLoader");
     Method m = foo.getDeclaredMethod("bar");
     try {
       m.invoke(null);

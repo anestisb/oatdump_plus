@@ -247,7 +247,7 @@ public class Main {
    * Helper for testCastOperatorWithArrays. It's important that
    * the return type is Object.
    */
-  private static Object makeArray(Class c) {
+  private static Object makeArray(Class<?> c) {
     return Array.newInstance(c, 1);
   }
 

@@ -31,7 +31,7 @@ public class Main implements Runnable {
     }
 
     public static void main(String[] args) throws Exception {
-      Class klass = Class.forName("org.apache.harmony.dalvik.ddmc.DdmVmInternal");
+      Class<?> klass = Class.forName("org.apache.harmony.dalvik.ddmc.DdmVmInternal");
       if (klass == null) {
           throw new AssertionError("Couldn't find DdmVmInternal class");
       }

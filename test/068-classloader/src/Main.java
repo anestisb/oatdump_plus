@@ -74,11 +74,10 @@ public class Main {
             /* this is the "alternate" DEX/Jar file */
             String DEX_FILE = System.getenv("DEX_LOCATION") + "/068-classloader-ex.jar";
             /* on Dalvik, this is a DexFile; otherwise, it's null */
-            Class mDexClass = Class.forName("dalvik.system.DexFile");
-            Constructor ctor = mDexClass.getConstructor(new Class[] {String.class});
+            Class<?> mDexClass = Class.forName("dalvik.system.DexFile");
+            Constructor<?> ctor = mDexClass.getConstructor(String.class);
             Object mDexFile = ctor.newInstance(DEX_FILE);
-            Method meth = mDexClass.getMethod("loadClass",
-                    new Class[] { String.class, ClassLoader.class });
+            Method meth = mDexClass.getMethod("loadClass", String.class, ClassLoader.class);
             Object klass = meth.invoke(mDexFile, "Mutator", null);
             if (klass == null) {
                 throw new AssertionError("loadClass with nullclass loader failed");
@@ -94,15 +93,15 @@ public class Main {
         FancyLoader loader2 = new FancyLoader(ClassLoader.getSystemClassLoader());
 
         try {
-            Class target1 = loader1.loadClass("MutationTarget");
-            Class target2 = loader2.loadClass("MutationTarget");
+            Class<?> target1 = loader1.loadClass("MutationTarget");
+            Class<?> target2 = loader2.loadClass("MutationTarget");
 
             if (target1 == target2) {
                 throw new RuntimeException("target1 should not be equal to target2");
             }
 
-            Class mutator1 = loader1.loadClass("Mutator");
-            Class mutator2 = loader2.loadClass("Mutator");
+            Class<?> mutator1 = loader1.loadClass("Mutator");
+            Class<?> mutator2 = loader2.loadClass("Mutator");
 
             if (mutator1 == mutator2) {
                 throw new RuntimeException("mutator1 should not be equal to mutator2");
@@ -134,12 +133,12 @@ public class Main {
         }
     }
 
-    private static void runMutator(Class c, int v) throws Exception {
+    private static void runMutator(Class<?> c, int v) throws Exception {
         java.lang.reflect.Method m = c.getDeclaredMethod("mutate", int.class);
         m.invoke(null, v);
     }
 
-    private static int getMutationTargetValue(Class c) throws Exception {
+    private static int getMutationTargetValue(Class<?> c) throws Exception {
         java.lang.reflect.Field f = c.getDeclaredField("value");
         return f.getInt(null);
     }
@@ -149,7 +148,7 @@ public class Main {
      * able to load it but not instantiate it.
      */
     static void testAccess1(ClassLoader loader) {
-        Class altClass;
+        Class<?> altClass;
 
         try {
             altClass = loader.loadClass("Inaccessible1");
@@ -179,7 +178,7 @@ public class Main {
      * (though the base *is* accessible to us).
      */
     static void testAccess2(ClassLoader loader) {
-        Class altClass;
+        Class<?> altClass;
 
         try {
             altClass = loader.loadClass("Inaccessible2");
@@ -199,7 +198,7 @@ public class Main {
      * See if we can load a class with an inaccessible interface.
      */
     static void testAccess3(ClassLoader loader) {
-        Class altClass;
+        Class<?> altClass;
 
         try {
             altClass = loader.loadClass("Inaccessible3");
@@ -219,7 +218,7 @@ public class Main {
      * Test a doubled class that extends the base class.
      */
     static void testExtend(ClassLoader loader) {
-        Class doubledExtendClass;
+        Class<?> doubledExtendClass;
         Object obj;
 
         /* get the "alternate" version of DoubledExtend */
@@ -268,7 +267,7 @@ public class Main {
      * it doesn't override the base class method.
      */
     static void testExtendOkay(ClassLoader loader) {
-        Class doubledExtendOkayClass;
+        Class<?> doubledExtendOkayClass;
         Object obj;
 
         /* get the "alternate" version of DoubledExtendOkay */
@@ -316,7 +315,7 @@ public class Main {
      * an interface declared in a different class.
      */
     static void testInterface(ClassLoader loader) {
-        Class getDoubledClass;
+        Class<?> getDoubledClass;
         Object obj;
 
         /* get GetDoubled from the "alternate" class loader */
@@ -362,7 +361,7 @@ public class Main {
      * Throw an abstract class into the middle and see what happens.
      */
     static void testAbstract(ClassLoader loader) {
-        Class abstractGetClass;
+        Class<?> abstractGetClass;
         Object obj;
 
         /* get AbstractGet from the "alternate" loader */
@@ -407,7 +406,7 @@ public class Main {
      * Test a doubled class that implements a common interface.
      */
     static void testImplement(ClassLoader loader) {
-        Class doubledImplementClass;
+        Class<?> doubledImplementClass;
         Object obj;
 
         useImplement(new DoubledImplement(), true);
@@ -465,7 +464,7 @@ public class Main {
      * that refers to a doubled class.
      */
     static void testIfaceImplement(ClassLoader loader) {
-        Class ifaceImplClass;
+        Class<?> ifaceImplClass;
         Object obj;
 
         /*

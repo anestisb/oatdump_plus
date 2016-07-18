@@ -104,7 +104,7 @@ class Main extends IntMathBase {
     }
 
     static int constClassTest(int x) {
-        Class c = String.class;
+        Class<?> c = String.class;
         if (c != null) {
            return x * 2;
         } else {

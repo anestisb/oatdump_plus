@@ -47,7 +47,7 @@ public class Main {
     }
   }
 
-  private native static int registerNatives(Class c);
+  private native static int registerNatives(Class<?> c);
 
   private static void expectThrows(Base b) {
     try {
