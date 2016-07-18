@@ -291,7 +291,8 @@ void CodeGenerator::InitializeCodeGeneration(size_t number_of_spill_slots,
   DCHECK(!block_order.empty());
   DCHECK(block_order[0] == GetGraph()->GetEntryBlock());
   ComputeSpillMask();
-  first_register_slot_in_slow_path_ = (number_of_out_slots + number_of_spill_slots) * kVRegSize;
+  first_register_slot_in_slow_path_ = RoundUp(
+      (number_of_out_slots + number_of_spill_slots) * kVRegSize, GetPreferredSlotsAlignment());
 
   if (number_of_spill_slots == 0
       && !HasAllocatedCalleeSaveRegisters()
@@ -302,8 +303,7 @@ void CodeGenerator::InitializeCodeGeneration(size_t number_of_spill_slots,
     SetFrameSize(CallPushesPC() ? GetWordSize() : 0);
   } else {
     SetFrameSize(RoundUp(
-        number_of_spill_slots * kVRegSize
-        + number_of_out_slots * kVRegSize
+        first_register_slot_in_slow_path_
         + maximum_number_of_live_core_registers * GetWordSize()
         + maximum_number_of_live_fpu_registers * GetFloatingPointSpillSlotSize()
         + FrameEntrySpillSize(),
