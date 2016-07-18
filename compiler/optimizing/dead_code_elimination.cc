@@ -88,13 +88,207 @@ void HDeadCodeElimination::MaybeRecordDeadBlock(HBasicBlock* block) {
   }
 }
 
-void HDeadCodeElimination::RemoveDeadBlocks() {
-  if (graph_->HasIrreducibleLoops()) {
-    // Do not eliminate dead blocks if the graph has irreducible loops. We could
-    // support it, but that would require changes in our loop representation to handle
-    // multiple entry points. We decided it was not worth the complexity.
-    return;
+void HDeadCodeElimination::MaybeRecordSimplifyIf() {
+  if (stats_ != nullptr) {
+    stats_->RecordStat(MethodCompilationStat::kSimplifyIf);
   }
+}
+
+static bool HasInput(HCondition* instruction, HInstruction* input) {
+  return (instruction->InputAt(0) == input) ||
+         (instruction->InputAt(1) == input);
+}
+
+static bool HasEquality(IfCondition condition) {
+  switch (condition) {
+    case kCondEQ:
+    case kCondLE:
+    case kCondGE:
+    case kCondBE:
+    case kCondAE:
+      return true;
+    case kCondNE:
+    case kCondLT:
+    case kCondGT:
+    case kCondB:
+    case kCondA:
+      return false;
+  }
+}
+
+static HConstant* Evaluate(HCondition* condition, HInstruction* left, HInstruction* right) {
+  if (left == right && !Primitive::IsFloatingPointType(left->GetType())) {
+    return condition->GetBlock()->GetGraph()->GetIntConstant(
+        HasEquality(condition->GetCondition()) ? 1 : 0);
+  }
+
+  if (!left->IsConstant() || !right->IsConstant()) {
+    return nullptr;
+  }
+
+  if (left->IsIntConstant()) {
+    return condition->Evaluate(left->AsIntConstant(), right->AsIntConstant());
+  } else if (left->IsNullConstant()) {
+    return condition->Evaluate(left->AsNullConstant(), right->AsNullConstant());
+  } else if (left->IsLongConstant()) {
+    return condition->Evaluate(left->AsLongConstant(), right->AsLongConstant());
+  } else if (left->IsFloatConstant()) {
+    return condition->Evaluate(left->AsFloatConstant(), right->AsFloatConstant());
+  } else {
+    DCHECK(left->IsDoubleConstant());
+    return condition->Evaluate(left->AsDoubleConstant(), right->AsDoubleConstant());
+  }
+}
+
+// Simplify the pattern:
+//
+//        B1    B2    ...
+//       goto  goto  goto
+//         \    |    /
+//          \   |   /
+//             B3
+//     i1 = phi(input, input)
+//     (i2 = condition on i1)
+//        if i1 (or i2)
+//          /     \
+//         /       \
+//        B4       B5
+//
+// Into:
+//
+//       B1      B2    ...
+//        |      |      |
+//       B4      B5    B?
+//
+// This simplification cannot be applied for loop headers, as they
+// contain a suspend check.
+//
+// Note that we rely on the dead code elimination to get rid of B3.
+bool HDeadCodeElimination::SimplifyIfs() {
+  bool simplified_one_or_more_ifs = false;
+  bool rerun_dominance_and_loop_analysis = false;
+
+  for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
+    HBasicBlock* block = it.Current();
+    HInstruction* last = block->GetLastInstruction();
+    HInstruction* first = block->GetFirstInstruction();
+    if (last->IsIf() &&
+        block->HasSinglePhi() &&
+        block->GetFirstPhi()->HasOnlyOneNonEnvironmentUse()) {
+      bool has_only_phi_and_if = (last == first) && (last->InputAt(0) == block->GetFirstPhi());
+      bool has_only_phi_condition_and_if =
+          !has_only_phi_and_if &&
+          first->IsCondition() &&
+          HasInput(first->AsCondition(), block->GetFirstPhi()) &&
+          (first->GetNext() == last) &&
+          (last->InputAt(0) == first) &&
+          first->HasOnlyOneNonEnvironmentUse();
+
+      if (has_only_phi_and_if || has_only_phi_condition_and_if) {
+        DCHECK(!block->IsLoopHeader());
+        HPhi* phi = block->GetFirstPhi()->AsPhi();
+        bool phi_input_is_left = (first->InputAt(0) == phi);
+
+        // Walk over all inputs of the phis and update the control flow of
+        // predecessors feeding constants to the phi.
+        // Note that phi->InputCount() may change inside the loop.
+        for (size_t i = 0; i < phi->InputCount();) {
+          HInstruction* input = phi->InputAt(i);
+          HInstruction* value_to_check = nullptr;
+          if (has_only_phi_and_if) {
+            if (input->IsIntConstant()) {
+              value_to_check = input;
+            }
+          } else {
+            DCHECK(has_only_phi_condition_and_if);
+            if (phi_input_is_left) {
+              value_to_check = Evaluate(first->AsCondition(), input, first->InputAt(1));
+            } else {
+              value_to_check = Evaluate(first->AsCondition(), first->InputAt(0), input);
+            }
+          }
+          if (value_to_check == nullptr) {
+            // Could not evaluate to a constant, continue iterating over the inputs.
+            ++i;
+          } else {
+            HBasicBlock* predecessor_to_update = block->GetPredecessors()[i];
+            HBasicBlock* successor_to_update = nullptr;
+            if (value_to_check->AsIntConstant()->IsTrue()) {
+              successor_to_update = last->AsIf()->IfTrueSuccessor();
+            } else {
+              DCHECK(value_to_check->AsIntConstant()->IsFalse())
+                  << value_to_check->AsIntConstant()->GetValue();
+              successor_to_update = last->AsIf()->IfFalseSuccessor();
+            }
+            predecessor_to_update->ReplaceSuccessor(block, successor_to_update);
+            phi->RemoveInputAt(i);
+            simplified_one_or_more_ifs = true;
+            if (block->IsInLoop()) {
+              rerun_dominance_and_loop_analysis = true;
+            }
+            // For simplicity, don't create a dead block, let the dead code elimination
+            // pass deal with it.
+            if (phi->InputCount() == 1) {
+              break;
+            }
+          }
+        }
+        if (block->GetPredecessors().size() == 1) {
+          phi->ReplaceWith(phi->InputAt(0));
+          block->RemovePhi(phi);
+          if (has_only_phi_condition_and_if) {
+            // Evaluate here (and not wait for a constant folding pass) to open
+            // more opportunities for DCE.
+            HInstruction* result = first->AsCondition()->TryStaticEvaluation();
+            if (result != nullptr) {
+              first->ReplaceWith(result);
+              block->RemoveInstruction(first);
+            }
+          }
+        }
+        if (simplified_one_or_more_ifs) {
+          MaybeRecordSimplifyIf();
+        }
+      }
+    }
+  }
+  // We need to re-analyze the graph in order to run DCE afterwards.
+  if (simplified_one_or_more_ifs) {
+    if (rerun_dominance_and_loop_analysis) {
+      graph_->ClearLoopInformation();
+      graph_->ClearDominanceInformation();
+      graph_->BuildDominatorTree();
+    } else {
+      graph_->ClearDominanceInformation();
+      // We have introduced critical edges, remove them.
+      graph_->SimplifyCFG();
+      graph_->ComputeDominanceInformation();
+      graph_->ComputeTryBlockInformation();
+    }
+  }
+
+  return simplified_one_or_more_ifs;
+}
+
+void HDeadCodeElimination::ConnectSuccessiveBlocks() {
+  // Order does not matter.
+  for (HReversePostOrderIterator it(*graph_); !it.Done();) {
+    HBasicBlock* block  = it.Current();
+    if (block->IsEntryBlock() || !block->GetLastInstruction()->IsGoto()) {
+      it.Advance();
+      continue;
+    }
+    HBasicBlock* successor = block->GetSingleSuccessor();
+    if (successor->IsExitBlock() || successor->GetPredecessors().size() != 1u) {
+      it.Advance();
+      continue;
+    }
+    block->MergeWith(successor);
+    // Reiterate on this block in case it can be merged with its new successor.
+  }
+}
+
+bool HDeadCodeElimination::RemoveDeadBlocks() {
   // Classify blocks as reachable/unreachable.
   ArenaAllocator* allocator = graph_->GetArena();
   ArenaBitVector live_blocks(allocator, graph_->GetBlocks().size(), false, kArenaAllocDCE);
@@ -132,23 +326,7 @@ void HDeadCodeElimination::RemoveDeadBlocks() {
       graph_->ComputeTryBlockInformation();
     }
   }
-
-  // Connect successive blocks created by dead branches. Order does not matter.
-  for (HReversePostOrderIterator it(*graph_); !it.Done();) {
-    HBasicBlock* block  = it.Current();
-    if (block->IsEntryBlock() || !block->GetLastInstruction()->IsGoto()) {
-      it.Advance();
-      continue;
-    }
-    HBasicBlock* successor = block->GetSingleSuccessor();
-    if (successor->IsExitBlock() || successor->GetPredecessors().size() != 1u) {
-      it.Advance();
-      continue;
-    }
-    block->MergeWith(successor);
-
-    // Reiterate on this block in case it can be merged with its new successor.
-  }
+  return removed_one_or_more_blocks;
 }
 
 void HDeadCodeElimination::RemoveDeadInstructions() {
@@ -181,7 +359,20 @@ void HDeadCodeElimination::RemoveDeadInstructions() {
 }
 
 void HDeadCodeElimination::Run() {
-  RemoveDeadBlocks();
+  // Do not eliminate dead blocks if the graph has irreducible loops. We could
+  // support it, but that would require changes in our loop representation to handle
+  // multiple entry points. We decided it was not worth the complexity.
+  if (!graph_->HasIrreducibleLoops()) {
+    // Simplify graph to generate more dead block patterns.
+    ConnectSuccessiveBlocks();
+    bool did_any_simplification = false;
+    did_any_simplification |= SimplifyIfs();
+    did_any_simplification |= RemoveDeadBlocks();
+    if (did_any_simplification) {
+      // Connect successive blocks created by dead branches.
+      ConnectSuccessiveBlocks();
+    }
+  }
   SsaRedundantPhiElimination(graph_).Run();
   RemoveDeadInstructions();
 }
