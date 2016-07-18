@@ -44,7 +44,7 @@
 #include "nodes.h"
 #include "optimizing_unit_test.h"
 #include "prepare_for_register_allocation.h"
-#include "register_allocator.h"
+#include "register_allocator_linear_scan.h"
 #include "ssa_liveness_analysis.h"
 #include "utils.h"
 #include "utils/arm/managed_register_arm.h"
