@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "register_allocator.h"
+#include "register_allocator_linear_scan.h"
 
 #include <iostream>
 #include <sstream>

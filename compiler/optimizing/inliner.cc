@@ -35,7 +35,7 @@
 #include "nodes.h"
 #include "optimizing_compiler.h"
 #include "reference_type_propagation.h"
-#include "register_allocator.h"
+#include "register_allocator_linear_scan.h"
 #include "quick/inline_method_analyser.h"
 #include "sharpening.h"
 #include "ssa_builder.h"
