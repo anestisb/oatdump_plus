@@ -1142,7 +1142,13 @@ public class Main {
 
   public static boolean $noinline$EqualBoolVsIntConst(boolean arg) {
     if (doThrow) { throw new Error(); }
-    return (arg ? 0 : 1) != 2;
+    // Make calls that will be inlined to make sure the instruction simplifier
+    // sees the simplification (dead code elimination will also try to simplify it).
+    return (arg ? $inline$ReturnArg(0) : $inline$ReturnArg(1)) != 2;
+  }
+
+  public static int $inline$ReturnArg(int arg) {
+    return arg;
   }
 
   /// CHECK-START: boolean Main.$noinline$NotEqualBoolVsIntConst(boolean) instruction_simplifier_after_bce (before)
@@ -1161,7 +1167,9 @@ public class Main {
 
   public static boolean $noinline$NotEqualBoolVsIntConst(boolean arg) {
     if (doThrow) { throw new Error(); }
-    return (arg ? 0 : 1) == 2;
+    // Make calls that will be inlined to make sure the instruction simplifier
+    // sees the simplification (dead code elimination will also try to simplify it).
+    return (arg ? $inline$ReturnArg(0) : $inline$ReturnArg(1)) == 2;
   }
 
   /*
