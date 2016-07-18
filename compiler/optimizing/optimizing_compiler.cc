@@ -81,7 +81,7 @@
 #include "oat_quick_method_header.h"
 #include "prepare_for_register_allocation.h"
 #include "reference_type_propagation.h"
-#include "register_allocator.h"
+#include "register_allocator_linear_scan.h"
 #include "select_generator.h"
 #include "sharpening.h"
 #include "side_effects_analysis.h"

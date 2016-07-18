@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_OPTIMIZING_REGISTER_ALLOCATOR_H_
-#define ART_COMPILER_OPTIMIZING_REGISTER_ALLOCATOR_H_
+#ifndef ART_COMPILER_OPTIMIZING_REGISTER_ALLOCATOR_LINEAR_SCAN_H_
+#define ART_COMPILER_OPTIMIZING_REGISTER_ALLOCATOR_LINEAR_SCAN_H_
 
 #include "arch/instruction_set.h"
 #include "base/arena_containers.h"
@@ -243,4 +243,4 @@ class RegisterAllocator {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_OPTIMIZING_REGISTER_ALLOCATOR_H_
+#endif  // ART_COMPILER_OPTIMIZING_REGISTER_ALLOCATOR_LINEAR_SCAN_H_
