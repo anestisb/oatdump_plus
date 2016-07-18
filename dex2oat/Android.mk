@@ -62,7 +62,7 @@ DEX2OAT_STATIC_DEPENDENCIES := \
   libnativebridge \
   libnativeloader \
   libsigchain_dummy \
-  libvixl \
+  libvixl-arm64 \
   liblog \
   libz \
   libbacktrace \

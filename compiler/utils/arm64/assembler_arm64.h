@@ -28,19 +28,19 @@
 #include "utils/assembler.h"
 #include "offsets.h"
 
-// TODO: make vixl clean wrt -Wshadow.
+// TODO: make vixl clean wrt -Wshadow, -Wunknown-pragmas, -Wmissing-noreturn
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunknown-pragmas"
 #pragma GCC diagnostic ignored "-Wshadow"
 #pragma GCC diagnostic ignored "-Wmissing-noreturn"
-#include "vixl/a64/macro-assembler-a64.h"
-#include "vixl/a64/disasm-a64.h"
+#include "a64/disasm-a64.h"
+#include "a64/macro-assembler-a64.h"
 #pragma GCC diagnostic pop
 
 namespace art {
 namespace arm64 {
 
-#define MEM_OP(...)      vixl::MemOperand(__VA_ARGS__)
+#define MEM_OP(...)      vixl::aarch64::MemOperand(__VA_ARGS__)
 
 enum LoadOperandType {
   kLoadSignedByte,
@@ -68,7 +68,7 @@ class Arm64Exception {
       : scratch_(scratch), stack_adjust_(stack_adjust) {
     }
 
-  vixl::Label* Entry() { return &exception_entry_; }
+  vixl::aarch64::Label* Entry() { return &exception_entry_; }
 
   // Register used for passing Thread::Current()->exception_ .
   const Arm64ManagedRegister scratch_;
@@ -76,7 +76,7 @@ class Arm64Exception {
   // Stack adjust for ExceptionPool.
   const size_t stack_adjust_;
 
-  vixl::Label exception_entry_;
+  vixl::aarch64::Label exception_entry_;
 
   friend class Arm64Assembler;
   DISALLOW_COPY_AND_ASSIGN(Arm64Exception);
@@ -89,7 +89,7 @@ class Arm64Assembler FINAL : public Assembler {
   explicit Arm64Assembler(ArenaAllocator* arena)
       : Assembler(arena),
         exception_blocks_(arena->Adapter(kArenaAllocAssembler)),
-        vixl_masm_(new vixl::MacroAssembler(kArm64BaseBufferSize)) {}
+        vixl_masm_(new vixl::aarch64::MacroAssembler(kArm64BaseBufferSize)) {}
 
   virtual ~Arm64Assembler() {
     delete vixl_masm_;
@@ -105,8 +105,8 @@ class Arm64Assembler FINAL : public Assembler {
   // Copy instructions out of assembly buffer into the given region of memory.
   void FinalizeInstructions(const MemoryRegion& region);
 
-  void SpillRegisters(vixl::CPURegList registers, int offset);
-  void UnspillRegisters(vixl::CPURegList registers, int offset);
+  void SpillRegisters(vixl::aarch64::CPURegList registers, int offset);
+  void UnspillRegisters(vixl::aarch64::CPURegList registers, int offset);
 
   // Emit code that will create an activation on the stack.
   void BuildFrame(size_t frame_size,
@@ -177,13 +177,17 @@ class Arm64Assembler FINAL : public Assembler {
   // value is null and null_allowed. in_reg holds a possibly stale reference
   // that can be used to avoid loading the handle scope entry to see if the value is
   // null.
-  void CreateHandleScopeEntry(ManagedRegister out_reg, FrameOffset handlescope_offset,
-                       ManagedRegister in_reg, bool null_allowed) OVERRIDE;
+  void CreateHandleScopeEntry(ManagedRegister out_reg,
+                              FrameOffset handlescope_offset,
+                              ManagedRegister in_reg,
+                              bool null_allowed) OVERRIDE;
 
   // Set up out_off to hold a Object** into the handle scope, or to be null if the
   // value is null and null_allowed.
-  void CreateHandleScopeEntry(FrameOffset out_off, FrameOffset handlescope_offset,
-                       ManagedRegister scratch, bool null_allowed) OVERRIDE;
+  void CreateHandleScopeEntry(FrameOffset out_off,
+                              FrameOffset handlescope_offset,
+                              ManagedRegister scratch,
+                              bool null_allowed) OVERRIDE;
 
   // src holds a handle scope entry (Object**) load this into dst.
   void LoadReferenceFromHandleScope(ManagedRegister dst, ManagedRegister src) OVERRIDE;
@@ -210,11 +214,11 @@ class Arm64Assembler FINAL : public Assembler {
   //
 
   // Poison a heap reference contained in `reg`.
-  void PoisonHeapReference(vixl::Register reg);
+  void PoisonHeapReference(vixl::aarch64::Register reg);
   // Unpoison a heap reference contained in `reg`.
-  void UnpoisonHeapReference(vixl::Register reg);
+  void UnpoisonHeapReference(vixl::aarch64::Register reg);
   // Unpoison a heap reference contained in `reg` if heap poisoning is enabled.
-  void MaybeUnpoisonHeapReference(vixl::Register reg);
+  void MaybeUnpoisonHeapReference(vixl::aarch64::Register reg);
 
   void Bind(Label* label ATTRIBUTE_UNUSED) OVERRIDE {
     UNIMPLEMENTED(FATAL) << "Do not use Bind for ARM64";
@@ -224,32 +228,32 @@ class Arm64Assembler FINAL : public Assembler {
   }
 
  private:
-  static vixl::Register reg_x(int code) {
+  static vixl::aarch64::Register reg_x(int code) {
     CHECK(code < kNumberOfXRegisters) << code;
     if (code == SP) {
-      return vixl::sp;
+      return vixl::aarch64::sp;
     } else if (code == XZR) {
-      return vixl::xzr;
+      return vixl::aarch64::xzr;
     }
-    return vixl::Register::XRegFromCode(code);
+    return vixl::aarch64::Register::GetXRegFromCode(code);
   }
 
-  static vixl::Register reg_w(int code) {
+  static vixl::aarch64::Register reg_w(int code) {
     CHECK(code < kNumberOfWRegisters) << code;
     if (code == WSP) {
-      return vixl::wsp;
+      return vixl::aarch64::wsp;
     } else if (code == WZR) {
-      return vixl::wzr;
+      return vixl::aarch64::wzr;
     }
-    return vixl::Register::WRegFromCode(code);
+    return vixl::aarch64::Register::GetWRegFromCode(code);
   }
 
-  static vixl::FPRegister reg_d(int code) {
-    return vixl::FPRegister::DRegFromCode(code);
+  static vixl::aarch64::FPRegister reg_d(int code) {
+    return vixl::aarch64::FPRegister::GetDRegFromCode(code);
   }
 
-  static vixl::FPRegister reg_s(int code) {
-    return vixl::FPRegister::SRegFromCode(code);
+  static vixl::aarch64::FPRegister reg_s(int code) {
+    return vixl::aarch64::FPRegister::GetSRegFromCode(code);
   }
 
   // Emits Exception block.
@@ -261,22 +265,31 @@ class Arm64Assembler FINAL : public Assembler {
   void StoreSToOffset(SRegister source, XRegister base, int32_t offset);
   void StoreDToOffset(DRegister source, XRegister base, int32_t offset);
 
-  void LoadImmediate(XRegister dest, int32_t value, vixl::Condition cond = vixl::al);
+  void LoadImmediate(XRegister dest,
+                     int32_t value,
+                     vixl::aarch64::Condition cond = vixl::aarch64::al);
   void Load(Arm64ManagedRegister dst, XRegister src, int32_t src_offset, size_t size);
-  void LoadWFromOffset(LoadOperandType type, WRegister dest,
-                      XRegister base, int32_t offset);
+  void LoadWFromOffset(LoadOperandType type,
+                       WRegister dest,
+                       XRegister base,
+                       int32_t offset);
   void LoadFromOffset(XRegister dest, XRegister base, int32_t offset);
   void LoadSFromOffset(SRegister dest, XRegister base, int32_t offset);
   void LoadDFromOffset(DRegister dest, XRegister base, int32_t offset);
-  void AddConstant(XRegister rd, int32_t value, vixl::Condition cond = vixl::al);
-  void AddConstant(XRegister rd, XRegister rn, int32_t value, vixl::Condition cond = vixl::al);
+  void AddConstant(XRegister rd,
+                   int32_t value,
+                   vixl::aarch64::Condition cond = vixl::aarch64::al);
+  void AddConstant(XRegister rd,
+                   XRegister rn,
+                   int32_t value,
+                   vixl::aarch64::Condition cond = vixl::aarch64::al);
 
   // List of exception blocks to generate at the end of the code cache.
   ArenaVector<std::unique_ptr<Arm64Exception>> exception_blocks_;
 
  public:
   // Vixl assembler.
-  vixl::MacroAssembler* const vixl_masm_;
+  vixl::aarch64::MacroAssembler* const vixl_masm_;
 
   // Used for testing.
   friend class Arm64ManagedRegister_VixlRegisters_Test;
