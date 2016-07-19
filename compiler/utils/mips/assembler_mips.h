@@ -646,6 +646,9 @@ class MipsAssembler FINAL : public Assembler {
   // The assembler then computes literal offsets relative to this label.
   void BindPcRelBaseLabel();
 
+  // Returns the location of the label bound with BindPcRelBaseLabel().
+  uint32_t GetPcRelBaseLabelLocation() const;
+
   // Note that PC-relative literal loads are handled as pseudo branches because they need very
   // similar relocation and may similarly expand in size to accomodate for larger offsets relative
   // to PC.
