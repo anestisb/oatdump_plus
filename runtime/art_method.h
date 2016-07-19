@@ -506,9 +506,13 @@ class ArtMethod FINAL {
         PtrSizedFields, dex_cache_resolved_types_) / sizeof(void*) * pointer_size);
   }
 
-  static MemberOffset EntryPointFromJniOffset(size_t pointer_size) {
+  static MemberOffset DataOffset(size_t pointer_size) {
     return MemberOffset(PtrSizedFieldsOffset(pointer_size) + OFFSETOF_MEMBER(
-        PtrSizedFields, entry_point_from_jni_) / sizeof(void*) * pointer_size);
+        PtrSizedFields, data_) / sizeof(void*) * pointer_size);
+  }
+
+  static MemberOffset EntryPointFromJniOffset(size_t pointer_size) {
+    return DataOffset(pointer_size);
   }
 
   static MemberOffset EntryPointFromQuickCompiledCodeOffset(size_t pointer_size) {
@@ -516,37 +520,40 @@ class ArtMethod FINAL {
         PtrSizedFields, entry_point_from_quick_compiled_code_) / sizeof(void*) * pointer_size);
   }
 
-  ProfilingInfo* GetProfilingInfo(size_t pointer_size) {
-    return reinterpret_cast<ProfilingInfo*>(GetEntryPointFromJniPtrSize(pointer_size));
-  }
-
   ImtConflictTable* GetImtConflictTable(size_t pointer_size) {
     DCHECK(IsRuntimeMethod());
-    return reinterpret_cast<ImtConflictTable*>(GetEntryPointFromJniPtrSize(pointer_size));
+    return reinterpret_cast<ImtConflictTable*>(GetDataPtrSize(pointer_size));
   }
 
   ALWAYS_INLINE void SetImtConflictTable(ImtConflictTable* table, size_t pointer_size) {
-    SetEntryPointFromJniPtrSize(table, pointer_size);
+    DCHECK(IsRuntimeMethod());
+    SetDataPtrSize(table, pointer_size);
+  }
+
+  ProfilingInfo* GetProfilingInfo(size_t pointer_size) {
+    return reinterpret_cast<ProfilingInfo*>(GetDataPtrSize(pointer_size));
   }
 
   ALWAYS_INLINE void SetProfilingInfo(ProfilingInfo* info) {
-    SetEntryPointFromJniPtrSize(info, sizeof(void*));
+    SetDataPtrSize(info, sizeof(void*));
   }
 
   ALWAYS_INLINE void SetProfilingInfoPtrSize(ProfilingInfo* info, size_t pointer_size) {
-    SetEntryPointFromJniPtrSize(info, pointer_size);
+    SetDataPtrSize(info, pointer_size);
   }
 
   static MemberOffset ProfilingInfoOffset() {
-    return EntryPointFromJniOffset(sizeof(void*));
+    DCHECK(IsImagePointerSize(sizeof(void*)));
+    return DataOffset(sizeof(void*));
   }
 
   void* GetEntryPointFromJni() {
+    DCHECK(IsNative());
     return GetEntryPointFromJniPtrSize(sizeof(void*));
   }
 
   ALWAYS_INLINE void* GetEntryPointFromJniPtrSize(size_t pointer_size) {
-    return GetNativePointer<void*>(EntryPointFromJniOffset(pointer_size), pointer_size);
+    return GetDataPtrSize(pointer_size);
   }
 
   void SetEntryPointFromJni(const void* entrypoint) {
@@ -555,7 +562,17 @@ class ArtMethod FINAL {
   }
 
   ALWAYS_INLINE void SetEntryPointFromJniPtrSize(const void* entrypoint, size_t pointer_size) {
-    SetNativePointer(EntryPointFromJniOffset(pointer_size), entrypoint, pointer_size);
+    SetDataPtrSize(entrypoint, pointer_size);
+  }
+
+  ALWAYS_INLINE void* GetDataPtrSize(size_t pointer_size) {
+    DCHECK(IsImagePointerSize(pointer_size));
+    return GetNativePointer<void*>(DataOffset(pointer_size), pointer_size);
+  }
+
+  ALWAYS_INLINE void SetDataPtrSize(const void* data, size_t pointer_size) {
+    DCHECK(IsImagePointerSize(pointer_size));
+    SetNativePointer(DataOffset(pointer_size), data, pointer_size);
   }
 
   // Is this a CalleSaveMethod or ResolutionMethod and therefore doesn't adhere to normal
@@ -738,7 +755,7 @@ class ArtMethod FINAL {
 
     // Pointer to JNI function registered to this method, or a function to resolve the JNI function,
     // or the profiling data for non-native methods, or an ImtConflictTable.
-    void* entry_point_from_jni_;
+    void* data_;
 
     // Method dispatch from quick compiled code invokes this pointer which may cause bridging into
     // the interpreter.
@@ -750,6 +767,9 @@ class ArtMethod FINAL {
     // Round up to pointer size for padding field.
     return RoundUp(OFFSETOF_MEMBER(ArtMethod, ptr_sized_fields_), pointer_size);
   }
+
+  // Compare given pointer size to the image pointer size.
+  static bool IsImagePointerSize(size_t pointer_size);
 
   template<typename T>
   ALWAYS_INLINE T GetNativePointer(MemberOffset offset, size_t pointer_size) const {

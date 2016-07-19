@@ -497,4 +497,12 @@ void ArtMethod::CopyFrom(ArtMethod* src, size_t image_pointer_size) {
   hotness_count_ = 0;
 }
 
+bool ArtMethod::IsImagePointerSize(size_t pointer_size) {
+  Runtime* runtime = Runtime::Current();
+  if (runtime == nullptr) {
+    return true;
+  }
+  return runtime->GetClassLinker()->GetImagePointerSize() == pointer_size;
+}
+
 }  // namespace art
