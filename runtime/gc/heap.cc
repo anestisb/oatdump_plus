@@ -121,6 +121,10 @@ static constexpr bool kDumpRosAllocStatsOnSigQuit = false;
 
 static constexpr size_t kNativeAllocationHistogramBuckets = 16;
 
+// Extra added to the heap growth multiplier. Used to adjust the GC ergonomics for the read barrier
+// config.
+static constexpr double kExtraHeapGrowthMultiplier = kUseReadBarrier ? 1.0 : 0.0;
+
 static inline bool CareAboutPauseTimes() {
   return Runtime::Current()->InJankPerceptibleProcessState();
 }
@@ -220,7 +224,8 @@ Heap::Heap(size_t initial_size,
       min_free_(min_free),
       max_free_(max_free),
       target_utilization_(target_utilization),
-      foreground_heap_growth_multiplier_(foreground_heap_growth_multiplier),
+      foreground_heap_growth_multiplier_(
+          foreground_heap_growth_multiplier + kExtraHeapGrowthMultiplier),
       total_wait_time_(0),
       verify_object_mode_(kVerifyObjectModeDisabled),
       disable_moving_gc_count_(0),
