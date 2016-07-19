@@ -1450,4 +1450,23 @@ TEST_F(AssemblerThumb2Test, vpaddl) {
   DriverStr(expected, "vpaddl");
 }
 
+TEST_F(AssemblerThumb2Test, LoadFromShiftedRegOffset) {
+  arm::Address mem_address(arm::R0, arm::R1, arm::Shift::LSL, 2);
+
+  __ ldrsb(arm::R2, mem_address);
+  __ ldrb(arm::R2, mem_address);
+  __ ldrsh(arm::R2, mem_address);
+  __ ldrh(arm::R2, mem_address);
+  __ ldr(arm::R2, mem_address);
+
+  std::string expected =
+      "ldrsb r2, [r0, r1, LSL #2]\n"
+      "ldrb r2, [r0, r1, LSL #2]\n"
+      "ldrsh r2, [r0, r1, LSL #2]\n"
+      "ldrh r2, [r0, r1, LSL #2]\n"
+      "ldr r2, [r0, r1, LSL #2]\n";
+
+  DriverStr(expected, "LoadFromShiftedRegOffset");
+}
+
 }  // namespace art
