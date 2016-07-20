@@ -415,7 +415,7 @@ class TypeCheckSlowPathMIPS : public SlowPathCodeMIPS {
                                   this,
                                   IsDirectEntrypoint(kQuickInstanceofNonTrivial));
       CheckEntrypointTypes<
-          kQuickInstanceofNonTrivial, uint32_t, const mirror::Class*, const mirror::Class*>();
+          kQuickInstanceofNonTrivial, size_t, const mirror::Class*, const mirror::Class*>();
       Primitive::Type ret_type = instruction_->GetType();
       Location ret_loc = calling_convention.GetReturnLocation(ret_type);
       mips_codegen->MoveLocation(locations->Out(), ret_loc, ret_type);
