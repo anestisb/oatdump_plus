@@ -747,10 +747,9 @@ artMterpAsmInstructionStart = .L_op_nop
 .L_op_const_wide_16: /* 0x16 */
 /* File: arm64/op_const_wide_16.S */
     /* const-wide/16 vAA, #+BBBB */
-    FETCH_S w0, 1                       // w0<- ssssBBBB (sign-extended
+    FETCH_S x0, 1                       // x0<- ssssssssssssBBBB (sign-extended)
     lsr     w3, wINST, #8               // w3<- AA
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
-    sbfm    x0, x0, 0, 31
     GET_INST_OPCODE ip                  // extract opcode from rINST
     SET_VREG_WIDE x0, w3
     GOTO_OPCODE ip                      // jump to next instruction
@@ -760,13 +759,12 @@ artMterpAsmInstructionStart = .L_op_nop
 .L_op_const_wide_32: /* 0x17 */
 /* File: arm64/op_const_wide_32.S */
     /* const-wide/32 vAA, #+BBBBbbbb */
-    FETCH w0, 1                         // w0<- 0000bbbb (low)
+    FETCH   w0, 1                       // x0<- 000000000000bbbb (low)
     lsr     w3, wINST, #8               // w3<- AA
-    FETCH_S w2, 2                       // w2<- ssssBBBB (high)
+    FETCH_S x2, 2                       // x2<- ssssssssssssBBBB (high)
     FETCH_ADVANCE_INST 3                // advance rPC, load wINST
     GET_INST_OPCODE ip                  // extract opcode from wINST
-    orr     w0, w0, w2, lsl #16         // w0<- BBBBbbbb
-    sbfm    x0, x0, 0, 31
+    orr     x0, x0, x2, lsl #16         // x0<- ssssssssBBBBbbbb
     SET_VREG_WIDE x0, w3
     GOTO_OPCODE ip                      // jump to next instruction
 
@@ -934,8 +932,7 @@ artMterpAsmInstructionStart = .L_op_nop
     mov       x3, xSELF                 // w3<- self
     bl        MterpInstanceOf           // (index, &obj, method, self)
     ldr       x1, [xSELF, #THREAD_EXCEPTION_OFFSET]
-    lsr       w2, wINST, #8             // w2<- A+
-    and       w2, w2, #15               // w2<- A
+    ubfx      w2, wINST, #8, #4         // w2<- A
     PREFETCH_INST 2
     cbnz      x1, MterpException
     ADVANCE 2                           // advance rPC
@@ -1150,7 +1147,7 @@ artMterpAsmInstructionStart = .L_op_nop
     GET_VREG w1, w3                     // w1<- vAA
     add     x0, xPC, x0, lsl #1         // x0<- PC + BBBBbbbb*2
     bl      MterpDoPackedSwitch                       // w0<- code-unit branch offset
-    sbfm    xINST, x0, 0, 31
+    sxtw    xINST, w0
     b       MterpCommonTakenBranchNoFlags
 
 /* ------------------------------ */
@@ -1175,7 +1172,7 @@ artMterpAsmInstructionStart = .L_op_nop
     GET_VREG w1, w3                     // w1<- vAA
     add     x0, xPC, x0, lsl #1         // x0<- PC + BBBBbbbb*2
     bl      MterpDoSparseSwitch                       // w0<- code-unit branch offset
-    sbfm    xINST, x0, 0, 31
+    sxtw    xINST, w0
     b       MterpCommonTakenBranchNoFlags
 
 
@@ -3345,11 +3342,10 @@ artMterpAsmInstructionStart = .L_op_nop
      */
     /* unop vA, vB */
     lsr     w3, wINST, #12              // w3<- B
-    lsr     w4, wINST, #8               // w4<- A+
+    ubfx    w4, wINST, #8, #4           // w4<- A
     GET_VREG w0, w3
     FETCH_ADVANCE_INST 1                // advance rPC, load wINST
-    and     w4, w4, #15                 // w4<- A
-    sbfm x0, x0, 0, 31                              // d0<- op
+    sxtw x0, w0                              // d0<- op
     GET_INST_OPCODE ip                  // extract opcode from wINST
     SET_VREG_WIDE x0, w4           // vA<- d0
     GOTO_OPCODE ip                      // jump to next instruction
@@ -3369,10 +3365,9 @@ artMterpAsmInstructionStart = .L_op_nop
      */
     /* unop vA, vB */
     lsr     w3, wINST, #12              // w3<- B
-    lsr     w4, wINST, #8               // w4<- A+
+    ubfx    w4, wINST, #8, #4           // w4<- A
     GET_VREG w0, w3
     FETCH_ADVANCE_INST 1                // advance rPC, load wINST
-    and     w4, w4, #15                 // w4<- A
     scvtf s0, w0                              // d0<- op
     GET_INST_OPCODE ip                  // extract opcode from wINST
     SET_VREG s0, w4                // vA<- d0
@@ -3392,10 +3387,9 @@ artMterpAsmInstructionStart = .L_op_nop
      */
     /* unop vA, vB */
     lsr     w3, wINST, #12              // w3<- B
-    lsr     w4, wINST, #8               // w4<- A+
+    ubfx    w4, wINST, #8, #4           // w4<- A
     GET_VREG w0, w3
     FETCH_ADVANCE_INST 1                // advance rPC, load wINST
-    and     w4, w4, #15                 // w4<- A
     scvtf d0, w0                              // d0<- op
     GET_INST_OPCODE ip                  // extract opcode from wINST
     SET_VREG_WIDE d0, w4           // vA<- d0
@@ -3415,10 +3409,9 @@ artMterpAsmInstructionStart = .L_op_nop
      */
     /* unop vA, vB */
     lsr     w3, wINST, #12              // w3<- B
-    lsr     w4, wINST, #8               // w4<- A+
+    ubfx    w4, wINST, #8, #4           // w4<- A
     GET_VREG_WIDE x0, w3
     FETCH_ADVANCE_INST 1                // advance rPC, load wINST
-    and     w4, w4, #15                 // w4<- A
                                   // d0<- op
     GET_INST_OPCODE ip                  // extract opcode from wINST
     SET_VREG w0, w4                // vA<- d0
@@ -3438,10 +3431,9 @@ artMterpAsmInstructionStart = .L_op_nop
      */
     /* unop vA, vB */
     lsr     w3, wINST, #12              // w3<- B
-    lsr     w4, wINST, #8               // w4<- A+
+    ubfx    w4, wINST, #8, #4           // w4<- A
     GET_VREG_WIDE x0, w3
     FETCH_ADVANCE_INST 1                // advance rPC, load wINST
-    and     w4, w4, #15                 // w4<- A
     scvtf s0, x0                              // d0<- op
     GET_INST_OPCODE ip                  // extract opcode from wINST
     SET_VREG s0, w4                // vA<- d0
@@ -3461,10 +3453,9 @@ artMterpAsmInstructionStart = .L_op_nop
      */
     /* unop vA, vB */
     lsr     w3, wINST, #12              // w3<- B
-    lsr     w4, wINST, #8               // w4<- A+
+    ubfx    w4, wINST, #8, #4           // w4<- A
     GET_VREG_WIDE x0, w3
     FETCH_ADVANCE_INST 1                // advance rPC, load wINST
-    and     w4, w4, #15                 // w4<- A
     scvtf d0, x0                              // d0<- op
     GET_INST_OPCODE ip                  // extract opcode from wINST
     SET_VREG_WIDE d0, w4           // vA<- d0
@@ -3485,10 +3476,9 @@ artMterpAsmInstructionStart = .L_op_nop
      */
     /* unop vA, vB */
     lsr     w3, wINST, #12              // w3<- B
-    lsr     w4, wINST, #8               // w4<- A+
+    ubfx    w4, wINST, #8, #4           // w4<- A
     GET_VREG s0, w3
     FETCH_ADVANCE_INST 1                // advance rPC, load wINST
-    and     w4, w4, #15                 // w4<- A
     fcvtzs w0, s0                              // d0<- op
     GET_INST_OPCODE ip                  // extract opcode from wINST
     SET_VREG w0, w4                // vA<- d0
@@ -3508,10 +3498,9 @@ artMterpAsmInstructionStart = .L_op_nop
      */
     /* unop vA, vB */
     lsr     w3, wINST, #12              // w3<- B
-    lsr     w4, wINST, #8               // w4<- A+
+    ubfx    w4, wINST, #8, #4           // w4<- A
     GET_VREG s0, w3
     FETCH_ADVANCE_INST 1                // advance rPC, load wINST
-    and     w4, w4, #15                 // w4<- A
     fcvtzs x0, s0                              // d0<- op
     GET_INST_OPCODE ip                  // extract opcode from wINST
     SET_VREG_WIDE x0, w4           // vA<- d0
@@ -3531,10 +3520,9 @@ artMterpAsmInstructionStart = .L_op_nop
      */
     /* unop vA, vB */
     lsr     w3, wINST, #12              // w3<- B
-    lsr     w4, wINST, #8               // w4<- A+
+    ubfx    w4, wINST, #8, #4           // w4<- A
     GET_VREG s0, w3
     FETCH_ADVANCE_INST 1                // advance rPC, load wINST
-    and     w4, w4, #15                 // w4<- A
     fcvt  d0, s0                              // d0<- op
     GET_INST_OPCODE ip                  // extract opcode from wINST
     SET_VREG_WIDE d0, w4           // vA<- d0
@@ -3554,10 +3542,9 @@ artMterpAsmInstructionStart = .L_op_nop
      */
     /* unop vA, vB */
     lsr     w3, wINST, #12              // w3<- B
-    lsr     w4, wINST, #8               // w4<- A+
+    ubfx    w4, wINST, #8, #4           // w4<- A
     GET_VREG_WIDE d0, w3
     FETCH_ADVANCE_INST 1                // advance rPC, load wINST
-    and     w4, w4, #15                 // w4<- A
     fcvtzs w0, d0                              // d0<- op
     GET_INST_OPCODE ip                  // extract opcode from wINST
     SET_VREG w0, w4                // vA<- d0
@@ -3577,10 +3564,9 @@ artMterpAsmInstructionStart = .L_op_nop
      */
     /* unop vA, vB */
     lsr     w3, wINST, #12              // w3<- B
-    lsr     w4, wINST, #8               // w4<- A+
+    ubfx    w4, wINST, #8, #4           // w4<- A
     GET_VREG_WIDE d0, w3
     FETCH_ADVANCE_INST 1                // advance rPC, load wINST
-    and     w4, w4, #15                 // w4<- A
     fcvtzs x0, d0                              // d0<- op
     GET_INST_OPCODE ip                  // extract opcode from wINST
     SET_VREG_WIDE x0, w4           // vA<- d0
@@ -3600,10 +3586,9 @@ artMterpAsmInstructionStart = .L_op_nop
      */
     /* unop vA, vB */
     lsr     w3, wINST, #12              // w3<- B
-    lsr     w4, wINST, #8               // w4<- A+
+    ubfx    w4, wINST, #8, #4           // w4<- A
     GET_VREG_WIDE d0, w3
     FETCH_ADVANCE_INST 1                // advance rPC, load wINST
-    and     w4, w4, #15                 // w4<- A
     fcvt s0, d0                              // d0<- op
     GET_INST_OPCODE ip                  // extract opcode from wINST
     SET_VREG s0, w4                // vA<- d0
@@ -4032,7 +4017,7 @@ artMterpAsmInstructionStart = .L_op_nop
     cbz     w1, common_errDivideByZero  // is second operand zero?
     .endif
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
-    and     w1, w1, #31                           // optional op; may set condition codes
+                               // optional op; may set condition codes
     lsl     w0, w0, w1                              // w0<- op, w0-w3 changed
     GET_INST_OPCODE ip                  // extract opcode from rINST
     SET_VREG w0, w9                // vAA<- w0
@@ -4071,7 +4056,7 @@ artMterpAsmInstructionStart = .L_op_nop
     cbz     w1, common_errDivideByZero  // is second operand zero?
     .endif
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
-    and     w1, w1, #31                           // optional op; may set condition codes
+                               // optional op; may set condition codes
     asr     w0, w0, w1                              // w0<- op, w0-w3 changed
     GET_INST_OPCODE ip                  // extract opcode from rINST
     SET_VREG w0, w9                // vAA<- w0
@@ -4110,7 +4095,7 @@ artMterpAsmInstructionStart = .L_op_nop
     cbz     w1, common_errDivideByZero  // is second operand zero?
     .endif
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
-    and     w1, w1, #31                           // optional op; may set condition codes
+                               // optional op; may set condition codes
     lsr     w0, w0, w1                              // w0<- op, w0-w3 changed
     GET_INST_OPCODE ip                  // extract opcode from rINST
     SET_VREG w0, w9                // vAA<- w0
@@ -4424,8 +4409,7 @@ artMterpAsmInstructionStart = .L_op_nop
     and      w1, w0, #255                // w1<- BB
     GET_VREG_WIDE x1, w1                // x1<- vBB
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
-    and      x2, x2, #63                 // Mask low 6
-    lsl  x0, x1, x2                 // Do the shift.
+    lsl  x0, x1, x2                 // Do the shift. Only low 6 bits of x2 are used.
     GET_INST_OPCODE ip                  // extract opcode from rINST
     SET_VREG_WIDE x0, w3                // vAA<- x0
     GOTO_OPCODE ip                      // jump to next instruction
@@ -4450,8 +4434,7 @@ artMterpAsmInstructionStart = .L_op_nop
     and      w1, w0, #255                // w1<- BB
     GET_VREG_WIDE x1, w1                // x1<- vBB
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
-    and      x2, x2, #63                 // Mask low 6
-    asr  x0, x1, x2                 // Do the shift.
+    asr  x0, x1, x2                 // Do the shift. Only low 6 bits of x2 are used.
     GET_INST_OPCODE ip                  // extract opcode from rINST
     SET_VREG_WIDE x0, w3                // vAA<- x0
     GOTO_OPCODE ip                      // jump to next instruction
@@ -4476,8 +4459,7 @@ artMterpAsmInstructionStart = .L_op_nop
     and      w1, w0, #255                // w1<- BB
     GET_VREG_WIDE x1, w1                // x1<- vBB
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
-    and      x2, x2, #63                 // Mask low 6
-    lsr  x0, x1, x2                 // Do the shift.
+    lsr  x0, x1, x2                 // Do the shift. Only low 6 bits of x2 are used.
     GET_INST_OPCODE ip                  // extract opcode from rINST
     SET_VREG_WIDE x0, w3                // vAA<- x0
     GOTO_OPCODE ip                      // jump to next instruction
@@ -5089,7 +5071,7 @@ artMterpAsmInstructionStart = .L_op_nop
     cbz     w1, common_errDivideByZero
     .endif
     FETCH_ADVANCE_INST 1                // advance rPC, load rINST
-    and     w1, w1, #31                           // optional op; may set condition codes
+                               // optional op; may set condition codes
     lsl     w0, w0, w1                              // w0<- op, w0-w3 changed
     GET_INST_OPCODE ip                  // extract opcode from rINST
     SET_VREG w0, w9                // vAA<- w0
@@ -5125,7 +5107,7 @@ artMterpAsmInstructionStart = .L_op_nop
     cbz     w1, common_errDivideByZero
     .endif
     FETCH_ADVANCE_INST 1                // advance rPC, load rINST
-    and     w1, w1, #31                           // optional op; may set condition codes
+                               // optional op; may set condition codes
     asr     w0, w0, w1                              // w0<- op, w0-w3 changed
     GET_INST_OPCODE ip                  // extract opcode from rINST
     SET_VREG w0, w9                // vAA<- w0
@@ -5161,7 +5143,7 @@ artMterpAsmInstructionStart = .L_op_nop
     cbz     w1, common_errDivideByZero
     .endif
     FETCH_ADVANCE_INST 1                // advance rPC, load rINST
-    and     w1, w1, #31                           // optional op; may set condition codes
+                               // optional op; may set condition codes
     lsr     w0, w0, w1                              // w0<- op, w0-w3 changed
     GET_INST_OPCODE ip                  // extract opcode from rINST
     SET_VREG w0, w9                // vAA<- w0
@@ -5463,8 +5445,7 @@ artMterpAsmInstructionStart = .L_op_nop
     GET_VREG w1, w1                     // x1<- vB
     GET_VREG_WIDE x0, w2                // x0<- vA
     FETCH_ADVANCE_INST 1                // advance rPC, load rINST
-    and     x1, x1, #63                 // Mask low 6 bits.
-    lsl x0, x0, x1
+    lsl x0, x0, x1                  // Do the shift. Only low 6 bits of x1 are used.
     GET_INST_OPCODE ip                  // extract opcode from rINST
     SET_VREG_WIDE x0, w2               // vAA<- result
     GOTO_OPCODE ip                      // jump to next instruction
@@ -5485,8 +5466,7 @@ artMterpAsmInstructionStart = .L_op_nop
     GET_VREG w1, w1                     // x1<- vB
     GET_VREG_WIDE x0, w2                // x0<- vA
     FETCH_ADVANCE_INST 1                // advance rPC, load rINST
-    and     x1, x1, #63                 // Mask low 6 bits.
-    asr x0, x0, x1
+    asr x0, x0, x1                  // Do the shift. Only low 6 bits of x1 are used.
     GET_INST_OPCODE ip                  // extract opcode from rINST
     SET_VREG_WIDE x0, w2               // vAA<- result
     GOTO_OPCODE ip                      // jump to next instruction
@@ -5507,8 +5487,7 @@ artMterpAsmInstructionStart = .L_op_nop
     GET_VREG w1, w1                     // x1<- vB
     GET_VREG_WIDE x0, w2                // x0<- vA
     FETCH_ADVANCE_INST 1                // advance rPC, load rINST
-    and     x1, x1, #63                 // Mask low 6 bits.
-    lsr x0, x0, x1
+    lsr x0, x0, x1                  // Do the shift. Only low 6 bits of x1 are used.
     GET_INST_OPCODE ip                  // extract opcode from rINST
     SET_VREG_WIDE x0, w2               // vAA<- result
     GOTO_OPCODE ip                      // jump to next instruction
@@ -5529,8 +5508,7 @@ artMterpAsmInstructionStart = .L_op_nop
      */
     /* binop/2addr vA, vB */
     lsr     w3, wINST, #12              // w3<- B
-    lsr     w9, wINST, #8               // w9<- A+
-    and     w9, w9, #15                 // w9<- A
+    ubfx    w9, wINST, #8, #4           // w9<- A
     GET_VREG s1, w3
     GET_VREG s0, w9
     fadd   s2, s0, s1                              // s2<- op
@@ -5554,8 +5532,7 @@ artMterpAsmInstructionStart = .L_op_nop
      */
     /* binop/2addr vA, vB */
     lsr     w3, wINST, #12              // w3<- B
-    lsr     w9, wINST, #8               // w9<- A+
-    and     w9, w9, #15                 // w9<- A
+    ubfx    w9, wINST, #8, #4           // w9<- A
     GET_VREG s1, w3
     GET_VREG s0, w9
     fsub   s2, s0, s1                              // s2<- op
@@ -5579,8 +5556,7 @@ artMterpAsmInstructionStart = .L_op_nop
      */
     /* binop/2addr vA, vB */
     lsr     w3, wINST, #12              // w3<- B
-    lsr     w9, wINST, #8               // w9<- A+
-    and     w9, w9, #15                 // w9<- A
+    ubfx    w9, wINST, #8, #4           // w9<- A
     GET_VREG s1, w3
     GET_VREG s0, w9
     fmul   s2, s0, s1                              // s2<- op
@@ -5604,8 +5580,7 @@ artMterpAsmInstructionStart = .L_op_nop
      */
     /* binop/2addr vA, vB */
     lsr     w3, wINST, #12              // w3<- B
-    lsr     w9, wINST, #8               // w9<- A+
-    and     w9, w9, #15                 // w9<- A
+    ubfx    w9, wINST, #8, #4           // w9<- A
     GET_VREG s1, w3
     GET_VREG s0, w9
     fdiv   s2, s0, s1                              // s2<- op
@@ -5621,13 +5596,11 @@ artMterpAsmInstructionStart = .L_op_nop
 /* File: arm64/op_rem_float_2addr.S */
     /* rem vA, vB */
     lsr     w3, wINST, #12              // w3<- B
-    lsr     w9, wINST, #8               // w9<- A+
-    and     w9, w9, #15                 // w9<- A
+    ubfx    w9, wINST, #8, #4           // w9<- A
     GET_VREG s1, w3
     GET_VREG s0, w9
     bl  fmodf
-    lsr     w9, wINST, #8               // w9<- A+
-    and     w9, w9, #15                 // w9<- A
+    ubfx    w9, wINST, #8, #4           // w9<- A
     FETCH_ADVANCE_INST 1                // advance rPC, load rINST
     GET_INST_OPCODE ip                  // extract opcode from rINST
     SET_VREG s0, w9
@@ -6381,7 +6354,7 @@ artMterpAsmInstructionStart = .L_op_nop
     cbz     w1, common_errDivideByZero
     .endif
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
-    and     w1, w1, #31                           // optional op; may set condition codes
+                               // optional op; may set condition codes
     lsl     w0, w0, w1                              // w0<- op, w0-w3 changed
     GET_INST_OPCODE ip                  // extract opcode from rINST
     SET_VREG w0, w9                // vAA<- w0
@@ -6417,7 +6390,7 @@ artMterpAsmInstructionStart = .L_op_nop
     cbz     w1, common_errDivideByZero
     .endif
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
-    and     w1, w1, #31                           // optional op; may set condition codes
+                               // optional op; may set condition codes
     asr     w0, w0, w1                              // w0<- op, w0-w3 changed
     GET_INST_OPCODE ip                  // extract opcode from rINST
     SET_VREG w0, w9                // vAA<- w0
@@ -6453,7 +6426,7 @@ artMterpAsmInstructionStart = .L_op_nop
     cbz     w1, common_errDivideByZero
     .endif
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
-    and     w1, w1, #31                           // optional op; may set condition codes
+                               // optional op; may set condition codes
     lsr     w0, w0, w1                              // w0<- op, w0-w3 changed
     GET_INST_OPCODE ip                  // extract opcode from rINST
     SET_VREG w0, w9                // vAA<- w0
@@ -6471,8 +6444,7 @@ artMterpAsmInstructionStart = .L_op_nop
     FETCH w1, 1                         // w1<- field byte offset
     GET_VREG w3, w2                     // w3<- object we're operating on
     ubfx    w2, wINST, #8, #4           // w2<- A
-    cmp     x3, #0                      // check object for null
-    beq     common_errNullObject        // object was null
+    cbz     w3, common_errNullObject    // object was null
     ldr   w0, [x3, x1]                // w0<- obj.field
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
     
@@ -6489,7 +6461,7 @@ artMterpAsmInstructionStart = .L_op_nop
     FETCH w4, 1                         // w4<- field byte offset
     GET_VREG w3, w2                     // w3<- object we're operating on
     ubfx    w2, wINST, #8, #4           // w2<- A
-    cbz     w3, common_errNullObject        // object was null
+    cbz     w3, common_errNullObject    // object was null
     add     x4, x3, x4                  // create direct pointer
     ldr     x0, [x4]
     FETCH_ADVANCE_INST 2                // advance rPC, load wINST
@@ -6544,8 +6516,7 @@ artMterpAsmInstructionStart = .L_op_nop
     FETCH w3, 1                         // w3<- field byte offset
     GET_VREG w2, w2                     // w2<- fp[B], the object pointer
     ubfx    w0, wINST, #8, #4           // w0<- A
-    cmp     w2, #0                      // check object for null
-    beq     common_errNullObject        // object was null
+    cbz     w2, common_errNullObject    // object was null
     GET_VREG_WIDE x0, w0                // x0-< fp[A]
     FETCH_ADVANCE_INST 2                // advance rPC, load wINST
     add     x1, x2, x3                  // create a direct pointer
@@ -6710,8 +6681,7 @@ artMterpAsmInstructionStart = .L_op_nop
     FETCH w1, 1                         // w1<- field byte offset
     GET_VREG w3, w2                     // w3<- object we're operating on
     ubfx    w2, wINST, #8, #4           // w2<- A
-    cmp     x3, #0                      // check object for null
-    beq     common_errNullObject        // object was null
+    cbz     w3, common_errNullObject    // object was null
     ldrb   w0, [x3, x1]                // w0<- obj.field
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
     
@@ -6731,8 +6701,7 @@ artMterpAsmInstructionStart = .L_op_nop
     FETCH w1, 1                         // w1<- field byte offset
     GET_VREG w3, w2                     // w3<- object we're operating on
     ubfx    w2, wINST, #8, #4           // w2<- A
-    cmp     x3, #0                      // check object for null
-    beq     common_errNullObject        // object was null
+    cbz     w3, common_errNullObject    // object was null
     ldrsb   w0, [x3, x1]                // w0<- obj.field
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
     
@@ -6752,8 +6721,7 @@ artMterpAsmInstructionStart = .L_op_nop
     FETCH w1, 1                         // w1<- field byte offset
     GET_VREG w3, w2                     // w3<- object we're operating on
     ubfx    w2, wINST, #8, #4           // w2<- A
-    cmp     x3, #0                      // check object for null
-    beq     common_errNullObject        // object was null
+    cbz     w3, common_errNullObject    // object was null
     ldrh   w0, [x3, x1]                // w0<- obj.field
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
     
@@ -6773,8 +6741,7 @@ artMterpAsmInstructionStart = .L_op_nop
     FETCH w1, 1                         // w1<- field byte offset
     GET_VREG w3, w2                     // w3<- object we're operating on
     ubfx    w2, wINST, #8, #4           // w2<- A
-    cmp     x3, #0                      // check object for null
-    beq     common_errNullObject        // object was null
+    cbz     w3, common_errNullObject    // object was null
     ldrsh   w0, [x3, x1]                // w0<- obj.field
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
     
@@ -11521,7 +11488,7 @@ MterpOnStackReplacement:
 #if MTERP_LOGGING
     mov  x0, xSELF
     add  x1, xFP, #OFF_FP_SHADOWFRAME
-    sbfm x2, xINST, 0, 31
+    sxtw x2, wINST
     bl MterpLogOSR
 #endif
     mov  x0, #1                         // Signal normal return

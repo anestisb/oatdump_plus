@@ -16,5 +16,5 @@
     GET_VREG w1, w3                     // w1<- vAA
     add     x0, xPC, x0, lsl #1         // x0<- PC + BBBBbbbb*2
     bl      $func                       // w0<- code-unit branch offset
-    sbfm    xINST, x0, 0, 31
+    sxtw    xINST, w0
     b       MterpCommonTakenBranchNoFlags

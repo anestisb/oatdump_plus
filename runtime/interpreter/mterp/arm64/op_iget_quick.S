@@ -5,8 +5,7 @@
     FETCH w1, 1                         // w1<- field byte offset
     GET_VREG w3, w2                     // w3<- object we're operating on
     ubfx    w2, wINST, #8, #4           // w2<- A
-    cmp     x3, #0                      // check object for null
-    beq     common_errNullObject        // object was null
+    cbz     w3, common_errNullObject    // object was null
     $load   w0, [x3, x1]                // w0<- obj.field
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
     $extend
