@@ -9,12 +9,12 @@
      * for: packed-switch, sparse-switch
      */
     /* op vAA, +BBBB */
-    FETCH w0, 1                         // w0<- bbbb (lo)
-    FETCH w1, 2                         // w1<- BBBB (hi)
+    FETCH   w0, 1                       // x0<- 000000000000bbbb (lo)
+    FETCH_S x1, 2                       // x1<- ssssssssssssBBBB (hi)
     lsr     w3, wINST, #8               // w3<- AA
-    orr     w0, w0, w1, lsl #16         // w0<- BBBBbbbb
+    orr     x0, x0, x1, lsl #16         // x0<- ssssssssBBBBbbbb
     GET_VREG w1, w3                     // w1<- vAA
-    add     x0, xPC, w0, lsl #1         // w0<- PC + BBBBbbbb*2
+    add     x0, xPC, x0, lsl #1         // x0<- PC + BBBBbbbb*2
     bl      $func                       // w0<- code-unit branch offset
     sbfm    xINST, x0, 0, 31
     b       MterpCommonTakenBranchNoFlags
