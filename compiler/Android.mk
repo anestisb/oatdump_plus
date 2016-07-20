@@ -67,6 +67,7 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/parallel_move_resolver.cc \
 	optimizing/prepare_for_register_allocation.cc \
 	optimizing/reference_type_propagation.cc \
+	optimizing/register_allocation_resolver.cc \
 	optimizing/register_allocator_linear_scan.cc \
 	optimizing/select_generator.cc \
 	optimizing/sharpening.cc \
