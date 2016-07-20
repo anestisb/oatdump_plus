@@ -41,7 +41,9 @@ class DexFile;
 class Thread;
 
 using DexIndexBitSet = std::bitset<65536>;
-using ThreadIDBitSet = std::bitset<65536>;
+
+constexpr size_t kMaxThreadIdNumber = kIsTargetBuild ? 65536U : 1048576U;
+using ThreadIDBitSet = std::bitset<kMaxThreadIdNumber>;
 
 enum TracingMode {
   kTracingInactive,
