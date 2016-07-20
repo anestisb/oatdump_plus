@@ -42,7 +42,7 @@ class DelegateLastPathClassLoader extends PathClassLoader {
 public class Main {
 
    private static Class classFromDifferentLoader() throws Exception {
-     final String DEX_FILE = System.getenv("DEX_LOCATION") + "/612-classloader-wonkery-ex.jar";
+     final String DEX_FILE = System.getenv("DEX_LOCATION") + "/612-jit-dex-cache-ex.jar";
      ClassLoader loader = new DelegateLastPathClassLoader(DEX_FILE, Main.class.getClassLoader());
      return loader.loadClass("LoadedByAppClassLoader");
   }
