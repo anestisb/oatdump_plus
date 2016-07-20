@@ -531,7 +531,7 @@ static void AllocateRegisters(HGraph* graph,
   }
   {
     PassScope scope(RegisterAllocator::kRegisterAllocatorPassName, pass_observer);
-    RegisterAllocator(graph->GetArena(), codegen, liveness).AllocateRegisters();
+    RegisterAllocator::Create(graph->GetArena(), codegen, liveness)->AllocateRegisters();
   }
 }
 
