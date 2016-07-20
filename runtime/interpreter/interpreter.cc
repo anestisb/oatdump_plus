@@ -324,7 +324,7 @@ static inline JValue Execute(
       } else {
         while (true) {
           // Mterp does not support all instrumentation/debugging.
-          if (MterpShouldSwitchInterpreters()) {
+          if (MterpShouldSwitchInterpreters() != 0) {
             return ExecuteSwitchImpl<false, false>(self, code_item, shadow_frame, result_register,
                                                    false);
           }

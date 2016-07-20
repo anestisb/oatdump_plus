@@ -369,7 +369,7 @@ class TypeCheckSlowPathX86_64 : public SlowPathCode {
                                     dex_pc,
                                     this);
       CheckEntrypointTypes<
-          kQuickInstanceofNonTrivial, uint32_t, const mirror::Class*, const mirror::Class*>();
+          kQuickInstanceofNonTrivial, size_t, const mirror::Class*, const mirror::Class*>();
     } else {
       DCHECK(instruction_->IsCheckCast());
       x86_64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pCheckCast),

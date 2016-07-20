@@ -28,8 +28,8 @@
 namespace art {
 
 // Cast entrypoints.
-extern "C" uint32_t artIsAssignableFromCode(const mirror::Class* klass,
-                                            const mirror::Class* ref_class);
+extern "C" size_t artIsAssignableFromCode(const mirror::Class* klass,
+                                          const mirror::Class* ref_class);
 
 // Math entrypoints.
 extern int32_t CmpgDouble(double a, double b);

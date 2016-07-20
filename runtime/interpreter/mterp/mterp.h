@@ -30,7 +30,12 @@ namespace interpreter {
 
 void InitMterpTls(Thread* self);
 void CheckMterpAsmConstants();
-extern "C" bool MterpShouldSwitchInterpreters();
+
+// The return type should be 'bool' but our assembly stubs expect 'bool'
+// to be zero-extended to the whole register and that's broken on x86-64
+// as a 'bool' is returned in 'al' and the rest of 'rax' is garbage.
+// TODO: Fix mterp and stubs and revert this workaround. http://b/30232671
+extern "C" size_t MterpShouldSwitchInterpreters();
 
 // Poison value for TestExportPC.  If we segfault with this value, it means that a mterp
 // handler for a recent opcode failed to export the Dalvik PC prior to a possible exit from
