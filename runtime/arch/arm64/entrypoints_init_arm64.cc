@@ -33,7 +33,9 @@ extern "C" uint32_t artIsAssignableFromCode(const mirror::Class* klass,
 // Read barrier entrypoints.
 // art_quick_read_barrier_mark_regX uses an non-standard calling
 // convention: it expects its input in register X and returns its
-// result in that same register.
+// result in that same register, and saves and restores all
+// caller-save registers.
+extern "C" mirror::Object* art_quick_read_barrier_mark_reg00(mirror::Object*);
 extern "C" mirror::Object* art_quick_read_barrier_mark_reg01(mirror::Object*);
 extern "C" mirror::Object* art_quick_read_barrier_mark_reg02(mirror::Object*);
 extern "C" mirror::Object* art_quick_read_barrier_mark_reg03(mirror::Object*);
@@ -122,7 +124,7 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
 
   // Read barrier.
   qpoints->pReadBarrierJni = ReadBarrierJni;
-  qpoints->pReadBarrierMarkReg00 = artReadBarrierMark;
+  qpoints->pReadBarrierMarkReg00 = art_quick_read_barrier_mark_reg00;
   qpoints->pReadBarrierMarkReg01 = art_quick_read_barrier_mark_reg01;
   qpoints->pReadBarrierMarkReg02 = art_quick_read_barrier_mark_reg02;
   qpoints->pReadBarrierMarkReg03 = art_quick_read_barrier_mark_reg03;
