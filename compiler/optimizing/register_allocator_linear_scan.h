@@ -84,7 +84,6 @@ class RegisterAllocator {
   void LinearScan();
   bool TryAllocateFreeReg(LiveInterval* interval);
   bool AllocateBlockedReg(LiveInterval* interval);
-  void Resolve();
 
   // Add `interval` in the given sorted list.
   static void AddSorted(ArenaVector<LiveInterval*>* array, LiveInterval* interval);
@@ -111,37 +110,6 @@ class RegisterAllocator {
   // for phis which share the same vreg. Must be called in reverse linear order
   // of lifetime positions and ascending vreg numbers for correctness.
   void AllocateSpillSlotForCatchPhi(HPhi* phi);
-
-  // Connect adjacent siblings within blocks.
-  void ConnectSiblings(LiveInterval* interval);
-
-  // Connect siblings between block entries and exits.
-  void ConnectSplitSiblings(LiveInterval* interval, HBasicBlock* from, HBasicBlock* to) const;
-
-  // Helper methods to insert parallel moves in the graph.
-  void InsertParallelMoveAtExitOf(HBasicBlock* block,
-                                  HInstruction* instruction,
-                                  Location source,
-                                  Location destination) const;
-  void InsertParallelMoveAtEntryOf(HBasicBlock* block,
-                                   HInstruction* instruction,
-                                   Location source,
-                                   Location destination) const;
-  void InsertMoveAfter(HInstruction* instruction, Location source, Location destination) const;
-  void AddInputMoveFor(HInstruction* input,
-                       HInstruction* user,
-                       Location source,
-                       Location destination) const;
-  void InsertParallelMoveAt(size_t position,
-                            HInstruction* instruction,
-                            Location source,
-                            Location destination) const;
-
-  void AddMove(HParallelMove* move,
-               Location source,
-               Location destination,
-               HInstruction* instruction,
-               Primitive::Type type) const;
 
   // Helper methods.
   void AllocateRegistersInternal();
