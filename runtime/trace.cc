@@ -869,7 +869,7 @@ bool Trace::RegisterMethod(ArtMethod* method) {
 bool Trace::RegisterThread(Thread* thread) {
   pid_t tid = thread->GetTid();
   CHECK_LT(0U, static_cast<uint32_t>(tid));
-  CHECK_LT(static_cast<uint32_t>(tid), 65536U);
+  CHECK_LT(static_cast<uint32_t>(tid), kMaxThreadIdNumber);
 
   if (!(*seen_threads_)[tid]) {
     seen_threads_->set(tid);
