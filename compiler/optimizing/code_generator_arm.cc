@@ -4286,6 +4286,122 @@ void InstructionCodeGeneratorARM::VisitNullCheck(HNullCheck* instruction) {
   codegen_->GenerateNullCheck(instruction);
 }
 
+static LoadOperandType GetLoadOperandType(Primitive::Type type) {
+  switch (type) {
+    case Primitive::kPrimNot:
+      return kLoadWord;
+    case Primitive::kPrimBoolean:
+      return kLoadUnsignedByte;
+    case Primitive::kPrimByte:
+      return kLoadSignedByte;
+    case Primitive::kPrimChar:
+      return kLoadUnsignedHalfword;
+    case Primitive::kPrimShort:
+      return kLoadSignedHalfword;
+    case Primitive::kPrimInt:
+      return kLoadWord;
+    case Primitive::kPrimLong:
+      return kLoadWordPair;
+    case Primitive::kPrimFloat:
+      return kLoadSWord;
+    case Primitive::kPrimDouble:
+      return kLoadDWord;
+    default:
+      LOG(FATAL) << "Unreachable type " << type;
+      UNREACHABLE();
+  }
+}
+
+static StoreOperandType GetStoreOperandType(Primitive::Type type) {
+  switch (type) {
+    case Primitive::kPrimNot:
+      return kStoreWord;
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+      return kStoreByte;
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+      return kStoreHalfword;
+    case Primitive::kPrimInt:
+      return kStoreWord;
+    case Primitive::kPrimLong:
+      return kStoreWordPair;
+    case Primitive::kPrimFloat:
+      return kStoreSWord;
+    case Primitive::kPrimDouble:
+      return kStoreDWord;
+    default:
+      LOG(FATAL) << "Unreachable type " << type;
+      UNREACHABLE();
+  }
+}
+
+void CodeGeneratorARM::LoadFromShiftedRegOffset(Primitive::Type type,
+                                                Location out_loc,
+                                                Register base,
+                                                Register reg_offset,
+                                                Condition cond) {
+  uint32_t shift_count = Primitive::ComponentSizeShift(type);
+  Address mem_address(base, reg_offset, Shift::LSL, shift_count);
+
+  switch (type) {
+    case Primitive::kPrimByte:
+      __ ldrsb(out_loc.AsRegister<Register>(), mem_address, cond);
+      break;
+    case Primitive::kPrimBoolean:
+      __ ldrb(out_loc.AsRegister<Register>(), mem_address, cond);
+      break;
+    case Primitive::kPrimShort:
+      __ ldrsh(out_loc.AsRegister<Register>(), mem_address, cond);
+      break;
+    case Primitive::kPrimChar:
+      __ ldrh(out_loc.AsRegister<Register>(), mem_address, cond);
+      break;
+    case Primitive::kPrimNot:
+    case Primitive::kPrimInt:
+      __ ldr(out_loc.AsRegister<Register>(), mem_address, cond);
+      break;
+    // T32 doesn't support LoadFromShiftedRegOffset mem address mode for these types.
+    case Primitive::kPrimLong:
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+    default:
+      LOG(FATAL) << "Unreachable type " << type;
+      UNREACHABLE();
+  }
+}
+
+void CodeGeneratorARM::StoreToShiftedRegOffset(Primitive::Type type,
+                                               Location loc,
+                                               Register base,
+                                               Register reg_offset,
+                                               Condition cond) {
+  uint32_t shift_count = Primitive::ComponentSizeShift(type);
+  Address mem_address(base, reg_offset, Shift::LSL, shift_count);
+
+  switch (type) {
+    case Primitive::kPrimByte:
+    case Primitive::kPrimBoolean:
+      __ strb(loc.AsRegister<Register>(), mem_address, cond);
+      break;
+    case Primitive::kPrimShort:
+    case Primitive::kPrimChar:
+      __ strh(loc.AsRegister<Register>(), mem_address, cond);
+      break;
+    case Primitive::kPrimNot:
+    case Primitive::kPrimInt:
+      __ str(loc.AsRegister<Register>(), mem_address, cond);
+      break;
+    // T32 doesn't support StoreToShiftedRegOffset mem address mode for these types.
+    case Primitive::kPrimLong:
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+    default:
+      LOG(FATAL) << "Unreachable type " << type;
+      UNREACHABLE();
+  }
+}
+
 void LocationsBuilderARM::VisitArrayGet(HArrayGet* instruction) {
   bool object_array_get_with_read_barrier =
       kEmitCompilerReadBarrier && (instruction->GetType() == Primitive::kPrimNot);
@@ -4320,70 +4436,23 @@ void InstructionCodeGeneratorARM::VisitArrayGet(HArrayGet* instruction) {
   Location index = locations->InAt(1);
   Location out_loc = locations->Out();
   uint32_t data_offset = CodeGenerator::GetArrayDataOffset(instruction);
-
   Primitive::Type type = instruction->GetType();
+
   switch (type) {
-    case Primitive::kPrimBoolean: {
-      Register out = out_loc.AsRegister<Register>();
-      if (index.IsConstant()) {
-        size_t offset =
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_1) + data_offset;
-        __ LoadFromOffset(kLoadUnsignedByte, out, obj, offset);
-      } else {
-        __ add(IP, obj, ShifterOperand(index.AsRegister<Register>()));
-        __ LoadFromOffset(kLoadUnsignedByte, out, IP, data_offset);
-      }
-      break;
-    }
-
-    case Primitive::kPrimByte: {
-      Register out = out_loc.AsRegister<Register>();
-      if (index.IsConstant()) {
-        size_t offset =
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_1) + data_offset;
-        __ LoadFromOffset(kLoadSignedByte, out, obj, offset);
-      } else {
-        __ add(IP, obj, ShifterOperand(index.AsRegister<Register>()));
-        __ LoadFromOffset(kLoadSignedByte, out, IP, data_offset);
-      }
-      break;
-    }
-
-    case Primitive::kPrimShort: {
-      Register out = out_loc.AsRegister<Register>();
-      if (index.IsConstant()) {
-        size_t offset =
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_2) + data_offset;
-        __ LoadFromOffset(kLoadSignedHalfword, out, obj, offset);
-      } else {
-        __ add(IP, obj, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_2));
-        __ LoadFromOffset(kLoadSignedHalfword, out, IP, data_offset);
-      }
-      break;
-    }
-
-    case Primitive::kPrimChar: {
-      Register out = out_loc.AsRegister<Register>();
-      if (index.IsConstant()) {
-        size_t offset =
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_2) + data_offset;
-        __ LoadFromOffset(kLoadUnsignedHalfword, out, obj, offset);
-      } else {
-        __ add(IP, obj, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_2));
-        __ LoadFromOffset(kLoadUnsignedHalfword, out, IP, data_offset);
-      }
-      break;
-    }
-
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimChar:
     case Primitive::kPrimInt: {
-      Register out = out_loc.AsRegister<Register>();
       if (index.IsConstant()) {
-        size_t offset =
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
-        __ LoadFromOffset(kLoadWord, out, obj, offset);
+        int32_t const_index = index.GetConstant()->AsIntConstant()->GetValue();
+        uint32_t full_offset = data_offset + (const_index << Primitive::ComponentSizeShift(type));
+
+        LoadOperandType load_type = GetLoadOperandType(type);
+        __ LoadFromOffset(load_type, out_loc.AsRegister<Register>(), obj, full_offset);
       } else {
-        __ add(IP, obj, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_4));
-        __ LoadFromOffset(kLoadWord, out, IP, data_offset);
+        __ add(IP, obj, ShifterOperand(data_offset));
+        codegen_->LoadFromShiftedRegOffset(type, out_loc, IP, index.AsRegister<Register>());
       }
       break;
     }
@@ -4412,8 +4481,9 @@ void InstructionCodeGeneratorARM::VisitArrayGet(HArrayGet* instruction) {
           // reference, if heap poisoning is enabled).
           codegen_->MaybeGenerateReadBarrierSlow(instruction, out_loc, out_loc, obj_loc, offset);
         } else {
-          __ add(IP, obj, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_4));
-          __ LoadFromOffset(kLoadWord, out, IP, data_offset);
+          __ add(IP, obj, ShifterOperand(data_offset));
+          codegen_->LoadFromShiftedRegOffset(type, out_loc, IP, index.AsRegister<Register>());
+
           codegen_->MaybeRecordImplicitNullCheck(instruction);
           // If read barriers are enabled, emit read barriers other than
           // Baker's using a slow path (and also unpoison the loaded
@@ -4512,54 +4582,48 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
   bool may_need_runtime_call_for_type_check = instruction->NeedsTypeCheck();
   bool needs_write_barrier =
       CodeGenerator::StoreNeedsWriteBarrier(value_type, instruction->GetValue());
+  uint32_t data_offset =
+      mirror::Array::DataOffset(Primitive::ComponentSize(value_type)).Uint32Value();
+  Location value_loc = locations->InAt(2);
 
   switch (value_type) {
     case Primitive::kPrimBoolean:
-    case Primitive::kPrimByte: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(uint8_t)).Uint32Value();
-      Register value = locations->InAt(2).AsRegister<Register>();
-      if (index.IsConstant()) {
-        size_t offset =
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_1) + data_offset;
-        __ StoreToOffset(kStoreByte, value, array, offset);
-      } else {
-        __ add(IP, array, ShifterOperand(index.AsRegister<Register>()));
-        __ StoreToOffset(kStoreByte, value, IP, data_offset);
-      }
-      break;
-    }
-
+    case Primitive::kPrimByte:
     case Primitive::kPrimShort:
-    case Primitive::kPrimChar: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(uint16_t)).Uint32Value();
-      Register value = locations->InAt(2).AsRegister<Register>();
+    case Primitive::kPrimChar:
+    case Primitive::kPrimInt: {
       if (index.IsConstant()) {
-        size_t offset =
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_2) + data_offset;
-        __ StoreToOffset(kStoreHalfword, value, array, offset);
+        int32_t const_index = index.GetConstant()->AsIntConstant()->GetValue();
+        uint32_t full_offset =
+            data_offset + (const_index << Primitive::ComponentSizeShift(value_type));
+        StoreOperandType store_type = GetStoreOperandType(value_type);
+        __ StoreToOffset(store_type, value_loc.AsRegister<Register>(), array, full_offset);
       } else {
-        __ add(IP, array, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_2));
-        __ StoreToOffset(kStoreHalfword, value, IP, data_offset);
+        __ add(IP, array, ShifterOperand(data_offset));
+        codegen_->StoreToShiftedRegOffset(value_type,
+                                          value_loc,
+                                          IP,
+                                          index.AsRegister<Register>());
       }
       break;
     }
 
     case Primitive::kPrimNot: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
-      Location value_loc = locations->InAt(2);
       Register value = value_loc.AsRegister<Register>();
-      Register source = value;
 
       if (instruction->InputAt(2)->IsNullConstant()) {
         // Just setting null.
         if (index.IsConstant()) {
           size_t offset =
               (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
-          __ StoreToOffset(kStoreWord, source, array, offset);
+          __ StoreToOffset(kStoreWord, value, array, offset);
         } else {
           DCHECK(index.IsRegister()) << index;
-          __ add(IP, array, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_4));
-          __ StoreToOffset(kStoreWord, source, IP, data_offset);
+          __ add(IP, array, ShifterOperand(data_offset));
+          codegen_->StoreToShiftedRegOffset(value_type,
+                                            value_loc,
+                                            IP,
+                                            index.AsRegister<Register>());
         }
         codegen_->MaybeRecordImplicitNullCheck(instruction);
         DCHECK(!needs_write_barrier);
@@ -4588,8 +4652,11 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
             __ StoreToOffset(kStoreWord, value, array, offset);
           } else {
             DCHECK(index.IsRegister()) << index;
-            __ add(IP, array, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_4));
-            __ StoreToOffset(kStoreWord, value, IP, data_offset);
+            __ add(IP, array, ShifterOperand(data_offset));
+            codegen_->StoreToShiftedRegOffset(value_type,
+                                              value_loc,
+                                              IP,
+                                              index.AsRegister<Register>());
           }
           codegen_->MaybeRecordImplicitNullCheck(instruction);
           __ b(&done);
@@ -4656,6 +4723,7 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
         }
       }
 
+      Register source = value;
       if (kPoisonHeapReferences) {
         // Note that in the case where `value` is a null reference,
         // we do not enter this block, as a null reference does not
@@ -4672,8 +4740,12 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
         __ StoreToOffset(kStoreWord, source, array, offset);
       } else {
         DCHECK(index.IsRegister()) << index;
-        __ add(IP, array, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_4));
-        __ StoreToOffset(kStoreWord, source, IP, data_offset);
+
+        __ add(IP, array, ShifterOperand(data_offset));
+        codegen_->StoreToShiftedRegOffset(value_type,
+                                          Location::RegisterLocation(source),
+                                          IP,
+                                          index.AsRegister<Register>());
       }
 
       if (!may_need_runtime_call_for_type_check) {
@@ -4693,23 +4765,7 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
       break;
     }
 
-    case Primitive::kPrimInt: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
-      Register value = locations->InAt(2).AsRegister<Register>();
-      if (index.IsConstant()) {
-        size_t offset =
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
-        __ StoreToOffset(kStoreWord, value, array, offset);
-      } else {
-        DCHECK(index.IsRegister()) << index;
-        __ add(IP, array, ShifterOperand(index.AsRegister<Register>(), LSL, TIMES_4));
-        __ StoreToOffset(kStoreWord, value, IP, data_offset);
-      }
-      break;
-    }
-
     case Primitive::kPrimLong: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(int64_t)).Uint32Value();
       Location value = locations->InAt(2);
       if (index.IsConstant()) {
         size_t offset =
@@ -4723,7 +4779,6 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
     }
 
     case Primitive::kPrimFloat: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(float)).Uint32Value();
       Location value = locations->InAt(2);
       DCHECK(value.IsFpuRegister());
       if (index.IsConstant()) {
@@ -4737,7 +4792,6 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
     }
 
     case Primitive::kPrimDouble: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(double)).Uint32Value();
       Location value = locations->InAt(2);
       DCHECK(value.IsFpuRegisterPair());
       if (index.IsConstant()) {

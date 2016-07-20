@@ -365,6 +365,24 @@ class CodeGeneratorARM : public CodeGenerator {
   // Helper method to move a 64bits value between two locations.
   void Move64(Location destination, Location source);
 
+  void LoadOrStoreToOffset(Primitive::Type type,
+                           Location loc,
+                           Register base,
+                           int32_t offset,
+                           bool is_load,
+                           Condition cond = AL);
+
+  void LoadFromShiftedRegOffset(Primitive::Type type,
+                                Location out_loc,
+                                Register base,
+                                Register reg_offset,
+                                Condition cond = AL);
+  void StoreToShiftedRegOffset(Primitive::Type type,
+                               Location out_loc,
+                               Register base,
+                               Register reg_offset,
+                               Condition cond = AL);
+
   // Generate code to invoke a runtime entry point.
   void InvokeRuntime(QuickEntrypointEnum entrypoint,
                      HInstruction* instruction,
