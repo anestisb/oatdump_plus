@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_ART_METHOD_H_
 #define ART_RUNTIME_ART_METHOD_H_
 
+#include <cstddef>
+
 #include "base/bit_utils.h"
 #include "base/casts.h"
 #include "dex_file.h"
@@ -219,7 +221,7 @@ class ImtConflictTable {
 class ArtMethod FINAL {
  public:
   ArtMethod() : access_flags_(0), dex_code_item_offset_(0), dex_method_index_(0),
-      method_index_(0) { }
+      method_index_(0), hotness_count_(0) { }
 
   ArtMethod(ArtMethod* src, size_t image_pointer_size) {
     CopyFrom(src, image_pointer_size);
@@ -657,7 +659,7 @@ class ArtMethod FINAL {
 
   // Size of an instance of this native class.
   static size_t Size(size_t pointer_size) {
-    return RoundUp(OFFSETOF_MEMBER(ArtMethod, ptr_sized_fields_), pointer_size) +
+    return PtrSizedFieldsOffset(pointer_size) +
         (sizeof(PtrSizedFields) / sizeof(void*)) * pointer_size;
   }
 
@@ -744,9 +746,7 @@ class ArtMethod FINAL {
   // Fake padding field gets inserted here.
 
   // Must be the last fields in the method.
-  // PACKED(4) is necessary for the correctness of
-  // RoundUp(OFFSETOF_MEMBER(ArtMethod, ptr_sized_fields_), pointer_size).
-  struct PACKED(4) PtrSizedFields {
+  struct PtrSizedFields {
     // Short cuts to declaring_class_->dex_cache_ member for fast compiled code access.
     ArtMethod** dex_cache_resolved_methods_;
 
@@ -763,9 +763,9 @@ class ArtMethod FINAL {
   } ptr_sized_fields_;
 
  private:
-  static size_t PtrSizedFieldsOffset(size_t pointer_size) {
-    // Round up to pointer size for padding field.
-    return RoundUp(OFFSETOF_MEMBER(ArtMethod, ptr_sized_fields_), pointer_size);
+  static constexpr size_t PtrSizedFieldsOffset(size_t pointer_size) {
+    // Round up to pointer size for padding field. Tested in art_method.cc.
+    return RoundUp(offsetof(ArtMethod, hotness_count_) + sizeof(hotness_count_), pointer_size);
   }
 
   // Compare given pointer size to the image pointer size.
