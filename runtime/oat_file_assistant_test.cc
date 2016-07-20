@@ -213,22 +213,22 @@ class OatFileAssistantNoDex2OatTest : public OatFileAssistantTest {
 // generation of oat files.
 static void GenerateOatForTest(const char* dex_location, CompilerFilter::Filter filter) {
   // Use an oat file assistant to find the proper oat location.
-  OatFileAssistant ofa(dex_location, kRuntimeISA, false);
-  const std::string* oat_location = ofa.OatFileName();
-  ASSERT_TRUE(oat_location != nullptr);
+  std::string oat_location;
+  std::string error_msg;
+  ASSERT_TRUE(OatFileAssistant::DexLocationToOatFilename(
+        dex_location, kRuntimeISA, &oat_location, &error_msg)) << error_msg;
 
   std::vector<std::string> args;
   args.push_back("--dex-file=" + std::string(dex_location));
-  args.push_back("--oat-file=" + *oat_location);
+  args.push_back("--oat-file=" + oat_location);
   args.push_back("--compiler-filter=" + CompilerFilter::NameOfFilter(filter));
   args.push_back("--runtime-arg");
   args.push_back("-Xnorelocate");
-  std::string error_msg;
   ASSERT_TRUE(OatFileAssistant::Dex2Oat(args, &error_msg)) << error_msg;
 
   // Verify the oat file was generated as expected.
-  std::unique_ptr<OatFile> oat_file(OatFile::Open(oat_location->c_str(),
-                                                  oat_location->c_str(),
+  std::unique_ptr<OatFile> oat_file(OatFile::Open(oat_location.c_str(),
+                                                  oat_location.c_str(),
                                                   nullptr,
                                                   nullptr,
                                                   false,
@@ -1212,21 +1212,21 @@ TEST_F(OatFileAssistantTest, RuntimeCompilerFilterOptionUsed) {
       oat_file_assistant.MakeUpToDate(false, &error_msg));
 }
 
-TEST(OatFileAssistantUtilsTest, DexFilenameToOdexFilename) {
+TEST(OatFileAssistantUtilsTest, DexLocationToOdexFilename) {
   std::string error_msg;
   std::string odex_file;
 
-  EXPECT_TRUE(OatFileAssistant::DexFilenameToOdexFilename(
+  EXPECT_TRUE(OatFileAssistant::DexLocationToOdexFilename(
         "/foo/bar/baz.jar", kArm, &odex_file, &error_msg)) << error_msg;
   EXPECT_EQ("/foo/bar/oat/arm/baz.odex", odex_file);
 
-  EXPECT_TRUE(OatFileAssistant::DexFilenameToOdexFilename(
+  EXPECT_TRUE(OatFileAssistant::DexLocationToOdexFilename(
         "/foo/bar/baz.funnyext", kArm, &odex_file, &error_msg)) << error_msg;
   EXPECT_EQ("/foo/bar/oat/arm/baz.odex", odex_file);
 
-  EXPECT_FALSE(OatFileAssistant::DexFilenameToOdexFilename(
+  EXPECT_FALSE(OatFileAssistant::DexLocationToOdexFilename(
         "nopath.jar", kArm, &odex_file, &error_msg));
-  EXPECT_FALSE(OatFileAssistant::DexFilenameToOdexFilename(
+  EXPECT_FALSE(OatFileAssistant::DexLocationToOdexFilename(
         "/foo/bar/baz_noext", kArm, &odex_file, &error_msg));
 }
 
