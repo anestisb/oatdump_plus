@@ -36,7 +36,7 @@ void RegisterAllocationResolver::Resolve(size_t max_safepoint_live_core_regs,
                                          size_t float_spill_slots,
                                          size_t double_spill_slots,
                                          size_t catch_phi_spill_slots,
-                                         const ArenaVector<LiveInterval*> temp_intervals) {
+                                         const ArenaVector<LiveInterval*>& temp_intervals) {
   size_t spill_slots = int_spill_slots
                      + long_spill_slots
                      + float_spill_slots
