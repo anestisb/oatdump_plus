@@ -316,7 +316,7 @@ class TypeCheckSlowPathARM : public SlowPathCode {
                                  instruction_->GetDexPc(),
                                  this);
       CheckEntrypointTypes<
-          kQuickInstanceofNonTrivial, uint32_t, const mirror::Class*, const mirror::Class*>();
+          kQuickInstanceofNonTrivial, size_t, const mirror::Class*, const mirror::Class*>();
       arm_codegen->Move32(locations->Out(), Location::RegisterLocation(R0));
     } else {
       DCHECK(instruction_->IsCheckCast());

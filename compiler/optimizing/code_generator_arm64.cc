@@ -462,7 +462,7 @@ class TypeCheckSlowPathARM64 : public SlowPathCodeARM64 {
     if (instruction_->IsInstanceOf()) {
       arm64_codegen->InvokeRuntime(
           QUICK_ENTRY_POINT(pInstanceofNonTrivial), instruction_, dex_pc, this);
-      CheckEntrypointTypes<kQuickInstanceofNonTrivial, uint32_t,
+      CheckEntrypointTypes<kQuickInstanceofNonTrivial, size_t,
                            const mirror::Class*, const mirror::Class*>();
       Primitive::Type ret_type = instruction_->GetType();
       Location ret_loc = calling_convention.GetReturnLocation(ret_type);
