@@ -33,7 +33,7 @@
   V(AllocStringFromChars, void*, int32_t, int32_t, void*) \
   V(AllocStringFromString, void*, void*) \
 \
-  V(InstanceofNonTrivial, uint32_t, const mirror::Class*, const mirror::Class*) \
+  V(InstanceofNonTrivial, size_t, const mirror::Class*, const mirror::Class*) \
   V(CheckCast, void, const mirror::Class*, const mirror::Class*) \
 \
   V(InitializeStaticStorage, void*, uint32_t) \
@@ -51,16 +51,16 @@
   V(Set64Static, int, uint32_t, int64_t) \
   V(SetObjInstance, int, uint32_t, void*, void*) \
   V(SetObjStatic, int, uint32_t, void*) \
-  V(GetByteInstance, int8_t, uint32_t, void*) \
-  V(GetBooleanInstance, uint8_t, uint32_t, void*) \
-  V(GetByteStatic, int8_t, uint32_t) \
-  V(GetBooleanStatic, uint8_t, uint32_t) \
-  V(GetShortInstance, int16_t, uint32_t, void*) \
-  V(GetCharInstance, uint16_t, uint32_t, void*) \
-  V(GetShortStatic, int16_t, uint32_t) \
-  V(GetCharStatic, uint16_t, uint32_t) \
-  V(Get32Instance, int32_t, uint32_t, void*) \
-  V(Get32Static, int32_t, uint32_t) \
+  V(GetByteInstance, ssize_t, uint32_t, void*) \
+  V(GetBooleanInstance, size_t, uint32_t, void*) \
+  V(GetByteStatic, ssize_t, uint32_t) \
+  V(GetBooleanStatic, size_t, uint32_t) \
+  V(GetShortInstance, ssize_t, uint32_t, void*) \
+  V(GetCharInstance, size_t, uint32_t, void*) \
+  V(GetShortStatic, ssize_t, uint32_t) \
+  V(GetCharStatic, size_t, uint32_t) \
+  V(Get32Instance, ssize_t, uint32_t, void*) \
+  V(Get32Static, ssize_t, uint32_t) \
   V(Get64Instance, int64_t, uint32_t, void*) \
   V(Get64Static, int64_t, uint32_t) \
   V(GetObjInstance, void*, uint32_t, void*) \

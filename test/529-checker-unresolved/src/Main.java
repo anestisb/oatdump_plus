@@ -77,6 +77,16 @@ public class Main extends UnresolvedSuperClass {
     expectEquals(123456789123456789f, UnresolvedClass.staticFloat);
     expectEquals(123456789123456789d, UnresolvedClass.staticDouble);
     expectEquals(o, UnresolvedClass.staticObject);
+
+    // Check "large" values.
+
+    UnresolvedClass.staticByte = (byte)-1;
+    UnresolvedClass.staticChar = (char)32768;
+    UnresolvedClass.staticInt = -1;
+
+    expectEquals((byte)-1, UnresolvedClass.staticByte);
+    expectEquals((char)32768, UnresolvedClass.staticChar);
+    expectEquals(-1, UnresolvedClass.staticInt);
   }
 
   /// CHECK-START: void Main.callUnresolvedInstanceFieldAccess(UnresolvedClass) register (before)
