@@ -462,7 +462,7 @@ static gc::CollectorType ParseCollectorType(const std::string& option) {
 struct XGcOption {
   // These defaults are used when the command line arguments for -Xgc:
   // are either omitted completely or partially.
-  gc::CollectorType collector_type_ =  kUseReadBarrier ?
+  gc::CollectorType collector_type_ = kUseReadBarrier ?
                                            // If RB is enabled (currently a build-time decision),
                                            // use CC as the default GC.
                                            gc::kCollectorTypeCC :
@@ -473,6 +473,7 @@ struct XGcOption {
   bool verify_pre_gc_rosalloc_ = kIsDebugBuild;
   bool verify_pre_sweeping_rosalloc_ = false;
   bool verify_post_gc_rosalloc_ = false;
+  bool measure_ = kIsDebugBuild;
   bool gcstress_ = false;
 };
 
@@ -515,6 +516,8 @@ struct CmdlineType<XGcOption> : CmdlineTypeParser<XGcOption> {
         xgc.gcstress_ = true;
       } else if (gc_option == "nogcstress") {
         xgc.gcstress_ = false;
+      } else if (gc_option == "measure") {
+        xgc.measure_ = true;
       } else if ((gc_option == "precise") ||
                  (gc_option == "noprecise") ||
                  (gc_option == "verifycardtable") ||

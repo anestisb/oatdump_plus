@@ -58,17 +58,24 @@ class ConcurrentCopying : public GarbageCollector {
   // Enable verbose mode.
   static constexpr bool kVerboseMode = false;
 
-  ConcurrentCopying(Heap* heap, const std::string& name_prefix = "");
+  ConcurrentCopying(Heap* heap,
+                    const std::string& name_prefix = "",
+                    bool measure_read_barrier_slow_path = false);
   ~ConcurrentCopying();
 
   virtual void RunPhases() OVERRIDE
-      REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_, !immune_gray_stack_lock_);
+      REQUIRES(!immune_gray_stack_lock_,
+               !mark_stack_lock_,
+               !rb_slow_path_histogram_lock_,
+               !skipped_blocks_lock_);
   void InitializePhase() SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_, !immune_gray_stack_lock_);
   void MarkingPhase() SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_, !immune_gray_stack_lock_);
   void ReclaimPhase() SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!mark_stack_lock_);
-  void FinishPhase() REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_);
+  void FinishPhase() REQUIRES(!mark_stack_lock_,
+                              !rb_slow_path_histogram_lock_,
+                              !skipped_blocks_lock_);
 
   void BindBitmaps() SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!Locks::heap_bitmap_lock_);
@@ -95,7 +102,11 @@ class ConcurrentCopying : public GarbageCollector {
     return IsMarked(ref) == ref;
   }
   template<bool kGrayImmuneObject = true>
-  ALWAYS_INLINE mirror::Object* Mark(mirror::Object* from_ref) SHARED_REQUIRES(Locks::mutator_lock_)
+  ALWAYS_INLINE mirror::Object* Mark(mirror::Object* from_ref)
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_, !immune_gray_stack_lock_);
+  ALWAYS_INLINE mirror::Object* MarkFromReadBarrier(mirror::Object* from_ref)
+      SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_, !immune_gray_stack_lock_);
   bool IsMarking() const {
     return is_marking_;
@@ -203,6 +214,10 @@ class ConcurrentCopying : public GarbageCollector {
       REQUIRES(!mark_stack_lock_);
   void ScanImmuneObject(mirror::Object* obj)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!mark_stack_lock_);
+  mirror::Object* MarkFromReadBarrierWithMeasurements(mirror::Object* from_ref)
+      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_, !immune_gray_stack_lock_);
+  void DumpPerformanceInfo(std::ostream& os) OVERRIDE REQUIRES(!rb_slow_path_histogram_lock_);
 
   space::RegionSpace* region_space_;      // The underlying region space.
   std::unique_ptr<Barrier> gc_barrier_;
@@ -250,6 +265,20 @@ class ConcurrentCopying : public GarbageCollector {
   std::multimap<size_t, uint8_t*> skipped_blocks_map_ GUARDED_BY(skipped_blocks_lock_);
   Atomic<size_t> to_space_bytes_skipped_;
   Atomic<size_t> to_space_objects_skipped_;
+
+  // If measure_read_barrier_slow_path_ is true, we count how long is spent in MarkFromReadBarrier
+  // and also log.
+  bool measure_read_barrier_slow_path_;
+  // mark_from_read_barrier_measurements_ is true if systrace is enabled or
+  // measure_read_barrier_time_ is true.
+  bool mark_from_read_barrier_measurements_;
+  Atomic<uint64_t> rb_slow_path_ns_;
+  Atomic<uint64_t> rb_slow_path_count_;
+  Atomic<uint64_t> rb_slow_path_count_gc_;
+  mutable Mutex rb_slow_path_histogram_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  Histogram<uint64_t> rb_slow_path_time_histogram_ GUARDED_BY(rb_slow_path_histogram_lock_);
+  uint64_t rb_slow_path_count_total_ GUARDED_BY(rb_slow_path_histogram_lock_);
+  uint64_t rb_slow_path_count_gc_total_ GUARDED_BY(rb_slow_path_histogram_lock_);
 
   accounting::ReadBarrierTable* rb_table_;
   bool force_evacuate_all_;  // True if all regions are evacuated.
