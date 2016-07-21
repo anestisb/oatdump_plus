@@ -29,5 +29,10 @@ public class Main {
     if (result != 5) {
       throw new Error("Expected 5, got " + result);
     }
+    m = c.getMethod("PackedSwitchAfterData", new Class[] { int.class });
+    result = (Integer) m.invoke(null, new Integer(0));
+    if (result != 1) {
+      throw new Error("Expected 1, got " + result);
+    }
   }
 }
