@@ -493,11 +493,9 @@ class ReadBarrierMarkSlowPathX86_64 : public SlowPathCode {
         << instruction_->DebugName();
 
     __ Bind(GetEntryLabel());
-    // Save live registers before the runtime call, and in particular
-    // RDI and/or RAX (if they are live), as they are clobbered by
-    // functions art_quick_read_barrier_mark_regX.
-    SaveLiveRegisters(codegen, locations);
-
+    // No need to save live registers; it's taken care of by the
+    // entrypoint. Also, there is no need to update the stack mask,
+    // as this runtime call will not trigger a garbage collection.
     InvokeRuntimeCallingConvention calling_convention;
     CodeGeneratorX86_64* x86_64_codegen = down_cast<CodeGeneratorX86_64*>(codegen);
     DCHECK_NE(reg, RSP);
@@ -523,8 +521,6 @@ class ReadBarrierMarkSlowPathX86_64 : public SlowPathCode {
                                   instruction_,
                                   instruction_->GetDexPc(),
                                   this);
-
-    RestoreLiveRegisters(codegen, locations);
     __ jmp(GetExitLabel());
   }
 
