@@ -3561,7 +3561,7 @@ void InstructionCodeGeneratorARM64::VisitInvokeInterface(HInvokeInterface* invok
   __ Ldr(temp,
       MemOperand(temp, mirror::Class::ImtPtrOffset(kArm64PointerSize).Uint32Value()));
   uint32_t method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
-      invoke->GetImtIndex() % ImTable::kSize, kArm64PointerSize));
+      invoke->GetImtIndex(), kArm64PointerSize));
   // temp = temp->GetImtEntryAt(method_offset);
   __ Ldr(temp, MemOperand(temp, method_offset));
   // lr = temp->GetEntryPoint();
@@ -5382,7 +5382,7 @@ void InstructionCodeGeneratorARM64::VisitClassTableGet(HClassTableGet* instructi
            MemOperand(XRegisterFrom(locations->InAt(0)), method_offset));
   } else {
     uint32_t method_offset = static_cast<uint32_t>(ImTable::OffsetOfElement(
-        instruction->GetIndex() % ImTable::kSize, kArm64PointerSize));
+        instruction->GetIndex(), kArm64PointerSize));
     __ Ldr(XRegisterFrom(locations->Out()), MemOperand(XRegisterFrom(locations->InAt(0)),
         mirror::Class::ImtPtrOffset(kArm64PointerSize).Uint32Value()));
     __ Ldr(XRegisterFrom(locations->Out()),
