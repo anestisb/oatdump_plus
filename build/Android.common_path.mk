@@ -38,7 +38,7 @@ ART_TARGET_TEST_OUT := $(TARGET_OUT_DATA)/art-test
 ifneq ($(TMPDIR),)
 ART_HOST_TEST_DIR := $(TMPDIR)/test-art-$(shell echo $$PPID)
 else
-ART_HOST_TEST_DIR := /tmp/test-art-$(shell echo $$PPID)
+ART_HOST_TEST_DIR := /tmp/$(USER)/test-art-$(shell echo $$PPID)
 endif
 
 # core.oat location on the device.
