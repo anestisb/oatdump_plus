@@ -94,32 +94,6 @@ class HArm64DataProcWithShifterOp FINAL : public HExpression<2> {
 
 std::ostream& operator<<(std::ostream& os, const HArm64DataProcWithShifterOp::OpKind op);
 
-// This instruction computes an intermediate address pointing in the 'middle' of an object. The
-// result pointer cannot be handled by GC, so extra care is taken to make sure that this value is
-// never used across anything that can trigger GC.
-class HArm64IntermediateAddress FINAL : public HExpression<2> {
- public:
-  HArm64IntermediateAddress(HInstruction* base_address, HInstruction* offset, uint32_t dex_pc)
-      : HExpression(Primitive::kPrimNot, SideEffects::DependsOnGC(), dex_pc) {
-    SetRawInputAt(0, base_address);
-    SetRawInputAt(1, offset);
-  }
-
-  bool CanBeMoved() const OVERRIDE { return true; }
-  bool InstructionDataEquals(const HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
-    return true;
-  }
-  bool IsActualObject() const OVERRIDE { return false; }
-
-  HInstruction* GetBaseAddress() const { return InputAt(0); }
-  HInstruction* GetOffset() const { return InputAt(1); }
-
-  DECLARE_INSTRUCTION(Arm64IntermediateAddress);
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(HArm64IntermediateAddress);
-};
-
 }  // namespace art
 
 #endif  // ART_COMPILER_OPTIMIZING_NODES_ARM64_H_
