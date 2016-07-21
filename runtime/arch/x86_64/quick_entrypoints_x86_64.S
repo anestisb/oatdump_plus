@@ -1815,73 +1815,93 @@ DEFINE_FUNCTION art_nested_signal_return
     UNREACHABLE
 END_FUNCTION art_nested_signal_return
 
-// Call the ReadBarrier::Mark routine, getting argument and returning
-// result through RAX (register 0), thus following a non-standard
-// runtime calling convention:
-// - RAX is used to pass the (sole) argument of this function (instead
-//   of RDI);
-// - RDI is treated like a normal (non-argument) caller-save register;
-// - everything else is the same as in the standard runtime calling
-//   convention; in particular, RAX is still used to return the result
-//   of this function.
-DEFINE_FUNCTION art_quick_read_barrier_mark_reg00
-    SETUP_FP_CALLEE_SAVE_FRAME
-    subq LITERAL(8), %rsp           // Alignment padding.
-    CFI_ADJUST_CFA_OFFSET(8)
-    movq %rax, %rdi                 // Pass arg1 - obj from RAX.
-    call SYMBOL(artReadBarrierMark) // artReadBarrierMark(obj)
-    addq LITERAL(8), %rsp           // Remove padding.
-    CFI_ADJUST_CFA_OFFSET(-8)
-    RESTORE_FP_CALLEE_SAVE_FRAME
-    ret
-END_FUNCTION art_quick_read_barrier_mark_reg00
-
-// Call the ReadBarrier::Mark routine, getting argument and returning
-// result through RDI (register 7), thus following a non-standard
-// runtime calling convention:
-// - RDI is used to return the result of this function (instead of RAX);
-// - RAX is treated like a normal (non-result) caller-save register;
-// - everything else is the same as in the standard runtime calling
-//   convention; in particular, RDI is still used to pass the (sole)
-//   argument of this function.
-DEFINE_FUNCTION art_quick_read_barrier_mark_reg07
-    SETUP_FP_CALLEE_SAVE_FRAME
-    subq LITERAL(8), %rsp           // Alignment padding.
-    CFI_ADJUST_CFA_OFFSET(8)
-    call SYMBOL(artReadBarrierMark) // artReadBarrierMark(obj)
-    movq %rax, %rdi                 // Return result into RDI.
-    addq LITERAL(8), %rsp           // Remove padding.
-    CFI_ADJUST_CFA_OFFSET(-8)
-    RESTORE_FP_CALLEE_SAVE_FRAME
-    ret
-END_FUNCTION art_quick_read_barrier_mark_reg07
-
 // Create a function `name` calling the ReadBarrier::Mark routine,
 // getting its argument and returning its result through register
-// `reg`, thus following a non-standard runtime calling convention:
-// - `reg` is used to pass the (sole) argument of this function (instead
-//   of RDI);
-// - `reg` is used to return the result of this function (instead of RAX);
-// - RDI is treated like a normal (non-argument) caller-save register;
-// - RAX is treated like a normal (non-result) caller-save register;
+// `reg`, saving and restoring all caller-save registers.
+//
+// The generated function follows a non-standard runtime calling
+// convention:
+// - register `reg` (which may be different from RDI) is used to pass
+//   the (sole) argument of this function;
+// - register `reg` (which may be different from RAX) is used to return
+//   the result of this function (instead of RAX);
+// - if `reg` is different from `rdi`, RDI is treated like a normal
+//   (non-argument) caller-save register;
+// - if `reg` is different from `rax`, RAX is treated like a normal
+//   (non-result) caller-save register;
 // - everything else is the same as in the standard runtime calling
-//   convention (e.g. same callee-save registers).
+//   convention (e.g. standard callee-save registers are preserved).
 MACRO2(READ_BARRIER_MARK_REG, name, reg)
     DEFINE_FUNCTION VAR(name)
+    // Save all potentially live caller-save core registers.
+    PUSH rax
+    PUSH rcx
+    PUSH rdx
+    PUSH rsi
+    PUSH rdi
+    PUSH r8
+    PUSH r9
+    PUSH r10
+    PUSH r11
+    // Create space for caller-save floating-point registers.
+    subq MACRO_LITERAL(12 * 8), %rsp
+    CFI_ADJUST_CFA_OFFSET(12 * 8)
+    // Save all potentially live caller-save floating-point registers.
+    movq %xmm0, 0(%rsp)
+    movq %xmm1, 8(%rsp)
+    movq %xmm2, 16(%rsp)
+    movq %xmm3, 24(%rsp)
+    movq %xmm4, 32(%rsp)
+    movq %xmm5, 40(%rsp)
+    movq %xmm6, 48(%rsp)
+    movq %xmm7, 56(%rsp)
+    movq %xmm8, 64(%rsp)
+    movq %xmm9, 72(%rsp)
+    movq %xmm10, 80(%rsp)
+    movq %xmm11, 88(%rsp)
     SETUP_FP_CALLEE_SAVE_FRAME
-    subq LITERAL(8), %rsp           // Alignment padding.
-    CFI_ADJUST_CFA_OFFSET(8)
-    movq REG_VAR(reg), %rdi         // Pass arg1 - obj from `reg`.
+
+    .ifnc RAW_VAR(reg), rdi
+      movq REG_VAR(reg), %rdi       // Pass arg1 - obj from `reg`.
+    .endif
     call SYMBOL(artReadBarrierMark) // artReadBarrierMark(obj)
-    movq %rax, REG_VAR(reg)         // Return result into `reg`.
-    addq LITERAL(8), %rsp           // Remove padding.
-    CFI_ADJUST_CFA_OFFSET(-8)
+    .ifnc RAW_VAR(reg), rax
+      movq %rax, REG_VAR(reg)       // Return result into `reg`.
+    .endif
+
     RESTORE_FP_CALLEE_SAVE_FRAME
+    // Restore floating-point registers.
+    movq 0(%rsp), %xmm0
+    movq 8(%rsp), %xmm1
+    movq 16(%rsp), %xmm2
+    movq 24(%rsp), %xmm3
+    movq 32(%rsp), %xmm4
+    movq 40(%rsp), %xmm5
+    movq 48(%rsp), %xmm6
+    movq 56(%rsp), %xmm7
+    movq 64(%rsp), %xmm8
+    movq 72(%rsp), %xmm9
+    movq 80(%rsp), %xmm10
+    movq 88(%rsp), %xmm11
+    // Remove floating-point registers.
+    addq MACRO_LITERAL(12 * 8), %rsp
+    CFI_ADJUST_CFA_OFFSET(-(12 * 8))
+    // Restore core regs, except `reg`, as it is used to return the
+    // result of this function (simply remove it from the stack instead).
+    POP_REG_NE r11, RAW_VAR(reg)
+    POP_REG_NE r10, RAW_VAR(reg)
+    POP_REG_NE r9, RAW_VAR(reg)
+    POP_REG_NE r8, RAW_VAR(reg)
+    POP_REG_NE rdi, RAW_VAR(reg)
+    POP_REG_NE rsi, RAW_VAR(reg)
+    POP_REG_NE rdx, RAW_VAR(reg)
+    POP_REG_NE rcx, RAW_VAR(reg)
+    POP_REG_NE rax, RAW_VAR(reg)
     ret
     END_FUNCTION VAR(name)
 END_MACRO
 
-// Note: art_quick_read_barrier_mark_reg00 is implemented above.
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg00, rax
 READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg01, rcx
 READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg02, rdx
 READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg03, rbx
@@ -1889,7 +1909,7 @@ READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg03, rbx
 // cannot be used to pass arguments.
 READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg05, rbp
 READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg06, rsi
-// Note: art_quick_read_barrier_mark_reg07 is implemented above.
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg07, rdi
 READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg08, r8
 READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg09, r9
 READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg10, r10

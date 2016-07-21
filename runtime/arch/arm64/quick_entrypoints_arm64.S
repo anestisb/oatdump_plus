@@ -1253,6 +1253,22 @@ END art_quick_check_cast
     .endif
 .endm
 
+// Restore xReg1's value from [sp, #offset] if xReg1 is not the same as xExclude.
+// Restore xReg2's value from [sp, #(offset + 8)] if xReg2 is not the same as xExclude.
+.macro POP_REGS_NE xReg1, xReg2, offset, xExclude
+    .ifc \xReg1, \xExclude
+        ldr \xReg2, [sp, #(\offset + 8)]        // restore xReg2
+    .else
+        .ifc \xReg2, \xExclude
+            ldr \xReg1, [sp, #\offset]          // restore xReg1
+        .else
+            ldp \xReg1, \xReg2, [sp, #\offset]  // restore xReg1 and xReg2
+        .endif
+    .endif
+    .cfi_restore \xReg1
+    .cfi_restore \xReg2
+.endm
+
     /*
      * Macro to insert read barrier, only used in art_quick_aput_obj.
      * xDest, wDest and xObj are registers, offset is a defined literal such as
@@ -2222,56 +2238,148 @@ END art_quick_indexof
 
     /*
      * Create a function `name` calling the ReadBarrier::Mark routine,
-     * getting its argument and returning its result through register
-     * `reg`, thus following a non-standard runtime calling convention:
-     * - `reg` is used to pass the (sole) argument of this function
+     * getting its argument and returning its result through W register
+     * `wreg` (corresponding to X register `xreg`), saving and restoring
+     * all caller-save registers.
+     *
+     * If `wreg` is different from `w0`, the generated function follows a
+     * non-standard runtime calling convention:
+     * - register `wreg` is used to pass the (sole) argument of this
+     *   function (instead of W0);
+     * - register `wreg` is used to return the result of this function
      *   (instead of W0);
-     * - `reg` is used to return the result of this function (instead of W0);
      * - W0 is treated like a normal (non-argument) caller-save register;
      * - everything else is the same as in the standard runtime calling
-     *   convention (e.g. same callee-save registers).
+     *   convention (e.g. standard callee-save registers are preserved).
      */
-.macro READ_BARRIER_MARK_REG name, reg
+.macro READ_BARRIER_MARK_REG name, wreg, xreg
 ENTRY \name
-    str   xLR, [sp, #-16]!              // Save return address and add padding (16B align stack).
-    .cfi_adjust_cfa_offset 16
-    .cfi_rel_offset x30, 0
-    mov   w0, \reg                      // Pass arg1 - obj from `reg`
+    /*
+     * Allocate 46 stack slots * 8 = 368 bytes:
+     * - 20 slots for core registers X0-X19
+     * - 24 slots for floating-point registers D0-D7 and D16-D31
+     * -  1 slot for return address register XLR
+     * -  1 padding slot for 16-byte stack alignment
+     */
+    // Save all potentially live caller-save core registers.
+    stp   x0, x1,   [sp, #-368]!
+    .cfi_adjust_cfa_offset 368
+    .cfi_rel_offset x0, 0
+    .cfi_rel_offset x1, 8
+    stp   x2, x3,   [sp, #16]
+    .cfi_rel_offset x2, 16
+    .cfi_rel_offset x3, 24
+    stp   x4, x5,   [sp, #32]
+    .cfi_rel_offset x4, 32
+    .cfi_rel_offset x5, 40
+    stp   x6, x7,   [sp, #48]
+    .cfi_rel_offset x6, 48
+    .cfi_rel_offset x7, 56
+    stp   x8, x9,   [sp, #64]
+    .cfi_rel_offset x8, 64
+    .cfi_rel_offset x9, 72
+    stp   x10, x11, [sp, #80]
+    .cfi_rel_offset x10, 80
+    .cfi_rel_offset x11, 88
+    stp   x12, x13, [sp, #96]
+    .cfi_rel_offset x12, 96
+    .cfi_rel_offset x13, 104
+    stp   x14, x15, [sp, #112]
+    .cfi_rel_offset x14, 112
+    .cfi_rel_offset x15, 120
+    stp   x16, x17, [sp, #128]
+    .cfi_rel_offset x16, 128
+    .cfi_rel_offset x17, 136
+    stp   x18, x19, [sp, #144]
+    .cfi_rel_offset x18, 144
+    .cfi_rel_offset x19, 152
+    // Save all potentially live caller-save floating-point registers.
+    stp   d0, d1,   [sp, #160]
+    stp   d2, d3,   [sp, #176]
+    stp   d4, d5,   [sp, #192]
+    stp   d6, d7,   [sp, #208]
+    stp   d16, d17, [sp, #224]
+    stp   d18, d19, [sp, #240]
+    stp   d20, d21, [sp, #256]
+    stp   d22, d23, [sp, #272]
+    stp   d24, d25, [sp, #288]
+    stp   d26, d27, [sp, #304]
+    stp   d28, d29, [sp, #320]
+    stp   d30, d31, [sp, #336]
+    // Save return address.
+    str   xLR,      [sp, #352]
+    .cfi_rel_offset x30, 352
+    // (sp + #360 is a padding slot)
+
+    .ifnc \wreg, w0
+      mov   w0, \wreg                   // Pass arg1 - obj from `wreg`
+    .endif
     bl    artReadBarrierMark            // artReadBarrierMark(obj)
-    mov   \reg, w0                      // Return result into `reg`
-    ldr   xLR, [sp], #16                // Restore return address and remove padding.
+    .ifnc \wreg, w0
+      mov   \wreg, w0                   // Return result into `wreg`
+    .endif
+
+    // Restore core regs, except `xreg`, as `wreg` is used to return the
+    // result of this function (simply remove it from the stack instead).
+    POP_REGS_NE x0, x1,   0,   \xreg
+    POP_REGS_NE x2, x3,   16,  \xreg
+    POP_REGS_NE x4, x5,   32,  \xreg
+    POP_REGS_NE x6, x7,   48,  \xreg
+    POP_REGS_NE x8, x9,   64,  \xreg
+    POP_REGS_NE x10, x11, 80,  \xreg
+    POP_REGS_NE x12, x13, 96,  \xreg
+    POP_REGS_NE x14, x15, 112, \xreg
+    POP_REGS_NE x16, x17, 128, \xreg
+    POP_REGS_NE x18, x19, 144, \xreg
+    // Restore floating-point registers.
+    ldp   d0, d1,   [sp, #160]
+    ldp   d2, d3,   [sp, #176]
+    ldp   d4, d5,   [sp, #192]
+    ldp   d6, d7,   [sp, #208]
+    ldp   d16, d17, [sp, #224]
+    ldp   d18, d19, [sp, #240]
+    ldp   d20, d21, [sp, #256]
+    ldp   d22, d23, [sp, #272]
+    ldp   d24, d25, [sp, #288]
+    ldp   d26, d27, [sp, #304]
+    ldp   d28, d29, [sp, #320]
+    ldp   d30, d31, [sp, #336]
+    // Restore return address and remove padding.
+    ldr   xLR,      [sp, #352]
     .cfi_restore x30
-    .cfi_adjust_cfa_offset -16
+    add sp, sp, #368
+    .cfi_adjust_cfa_offset -368
     ret
 END \name
 .endm
 
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg01, w1
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg02, w2
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg03, w3
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg04, w4
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg05, w5
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg06, w6
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg07, w7
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg08, w8
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg09, w9
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg10, w10
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg11, w11
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg12, w12
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg13, w13
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg14, w14
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg15, w15
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg16, w16
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg17, w17
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg18, w18
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg19, w19
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg20, w20
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg21, w21
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg22, w22
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg23, w23
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg24, w24
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg25, w25
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg26, w26
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg27, w27
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg28, w28
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg29, w29
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg00, w0,  x0
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg01, w1,  x1
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg02, w2,  x2
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg03, w3,  x3
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg04, w4,  x4
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg05, w5,  x5
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg06, w6,  x6
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg07, w7,  x7
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg08, w8,  x8
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg09, w9,  x9
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg10, w10, x10
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg11, w11, x11
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg12, w12, x12
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg13, w13, x13
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg14, w14, x14
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg15, w15, x15
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg16, w16, x16
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg17, w17, x17
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg18, w18, x18
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg19, w19, x19
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg20, w20, x20
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg21, w21, x21
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg22, w22, x22
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg23, w23, x23
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg24, w24, x24
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg25, w25, x25
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg26, w26, x26
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg27, w27, x27
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg28, w28, x28
+READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg29, w29, x29

@@ -80,7 +80,11 @@ class SlowPathCode : public DeletableArenaObject<kArenaAllocSlowPaths> {
 
   virtual void EmitNativeCode(CodeGenerator* codegen) = 0;
 
+  // Save live core and floating-point caller-save registers and
+  // update the stack mask in `locations` for registers holding object
+  // references.
   virtual void SaveLiveRegisters(CodeGenerator* codegen, LocationSummary* locations);
+  // Restore live core and floating-point caller-save registers.
   virtual void RestoreLiveRegisters(CodeGenerator* codegen, LocationSummary* locations);
 
   bool IsCoreRegisterSaved(int reg) const {
