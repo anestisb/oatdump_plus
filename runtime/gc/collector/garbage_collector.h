@@ -181,7 +181,7 @@ class GarbageCollector : public RootVisitor, public IsMarkedVisitor, public Mark
   void RecordFree(const ObjectBytePair& freed);
   // Record a free of large objects.
   void RecordFreeLOS(const ObjectBytePair& freed);
-  void DumpPerformanceInfo(std::ostream& os) REQUIRES(!pause_histogram_lock_);
+  virtual void DumpPerformanceInfo(std::ostream& os) REQUIRES(!pause_histogram_lock_);
 
   // Helper functions for querying if objects are marked. These are used for processing references,
   // and will be used for reading system weaks while the GC is running.

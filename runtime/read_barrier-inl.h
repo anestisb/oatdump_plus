@@ -220,7 +220,7 @@ inline void ReadBarrier::AssertToSpaceInvariant(GcRootSource* gc_root_source,
 }
 
 inline mirror::Object* ReadBarrier::Mark(mirror::Object* obj) {
-  return Runtime::Current()->GetHeap()->ConcurrentCopyingCollector()->Mark(obj);
+  return Runtime::Current()->GetHeap()->ConcurrentCopyingCollector()->MarkFromReadBarrier(obj);
 }
 
 inline bool ReadBarrier::HasGrayReadBarrierPointer(mirror::Object* obj,
