@@ -26,6 +26,11 @@ bool TryCombineMultiplyAccumulate(HMul* mul, InstructionSet isa);
 // a negated bitwise instruction.
 bool TryMergeNegatedInput(HBinaryOperation* op);
 
+bool TryExtractArrayAccessAddress(HInstruction* access,
+                                  HInstruction* array,
+                                  HInstruction* index,
+                                  size_t data_offset);
+
 }  // namespace art
 
 #endif  // ART_COMPILER_OPTIMIZING_INSTRUCTION_SIMPLIFIER_SHARED_H_
