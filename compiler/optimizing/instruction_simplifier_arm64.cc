@@ -28,56 +28,6 @@ using helpers::CanFitInShifterOperand;
 using helpers::HasShifterOperand;
 using helpers::ShifterOperandSupportsExtension;
 
-void InstructionSimplifierArm64Visitor::TryExtractArrayAccessAddress(HInstruction* access,
-                                                                     HInstruction* array,
-                                                                     HInstruction* index,
-                                                                     size_t data_offset) {
-  if (kEmitCompilerReadBarrier) {
-    // The read barrier instrumentation does not support the
-    // HArm64IntermediateAddress instruction yet.
-    //
-    // TODO: Handle this case properly in the ARM64 code generator and
-    // re-enable this optimization; otherwise, remove this TODO.
-    // b/26601270
-    return;
-  }
-  if (index->IsConstant() ||
-      (index->IsBoundsCheck() && index->AsBoundsCheck()->GetIndex()->IsConstant())) {
-    // When the index is a constant all the addressing can be fitted in the
-    // memory access instruction, so do not split the access.
-    return;
-  }
-  if (access->IsArraySet() &&
-      access->AsArraySet()->GetValue()->GetType() == Primitive::kPrimNot) {
-    // The access may require a runtime call or the original array pointer.
-    return;
-  }
-
-  // Proceed to extract the base address computation.
-  ArenaAllocator* arena = GetGraph()->GetArena();
-
-  HIntConstant* offset = GetGraph()->GetIntConstant(data_offset);
-  HArm64IntermediateAddress* address =
-      new (arena) HArm64IntermediateAddress(array, offset, kNoDexPc);
-  address->SetReferenceTypeInfo(array->GetReferenceTypeInfo());
-  access->GetBlock()->InsertInstructionBefore(address, access);
-  access->ReplaceInput(address, 0);
-  // Both instructions must depend on GC to prevent any instruction that can
-  // trigger GC to be inserted between the two.
-  access->AddSideEffects(SideEffects::DependsOnGC());
-  DCHECK(address->GetSideEffects().Includes(SideEffects::DependsOnGC()));
-  DCHECK(access->GetSideEffects().Includes(SideEffects::DependsOnGC()));
-  // TODO: Code generation for HArrayGet and HArraySet will check whether the input address
-  // is an HArm64IntermediateAddress and generate appropriate code.
-  // We would like to replace the `HArrayGet` and `HArraySet` with custom instructions (maybe
-  // `HArm64Load` and `HArm64Store`). We defer these changes because these new instructions would
-  // not bring any advantages yet.
-  // Also see the comments in
-  // `InstructionCodeGeneratorARM64::VisitArrayGet()` and
-  // `InstructionCodeGeneratorARM64::VisitArraySet()`.
-  RecordSimplification();
-}
-
 bool InstructionSimplifierArm64Visitor::TryMergeIntoShifterOperand(HInstruction* use,
                                                                    HInstruction* bitfield_op,
                                                                    bool do_merge) {
@@ -190,19 +140,23 @@ void InstructionSimplifierArm64Visitor::VisitAnd(HAnd* instruction) {
 
 void InstructionSimplifierArm64Visitor::VisitArrayGet(HArrayGet* instruction) {
   size_t data_offset = CodeGenerator::GetArrayDataOffset(instruction);
-  TryExtractArrayAccessAddress(instruction,
-                               instruction->GetArray(),
-                               instruction->GetIndex(),
-                               data_offset);
+  if (TryExtractArrayAccessAddress(instruction,
+                                   instruction->GetArray(),
+                                   instruction->GetIndex(),
+                                   data_offset)) {
+    RecordSimplification();
+  }
 }
 
 void InstructionSimplifierArm64Visitor::VisitArraySet(HArraySet* instruction) {
   size_t access_size = Primitive::ComponentSize(instruction->GetComponentType());
   size_t data_offset = mirror::Array::DataOffset(access_size).Uint32Value();
-  TryExtractArrayAccessAddress(instruction,
-                               instruction->GetArray(),
-                               instruction->GetIndex(),
-                               data_offset);
+  if (TryExtractArrayAccessAddress(instruction,
+                                   instruction->GetArray(),
+                                   instruction->GetIndex(),
+                                   data_offset)) {
+    RecordSimplification();
+  }
 }
 
 void InstructionSimplifierArm64Visitor::VisitMul(HMul* instruction) {

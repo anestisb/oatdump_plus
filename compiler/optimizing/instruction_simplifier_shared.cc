@@ -226,4 +226,59 @@ bool TryMergeNegatedInput(HBinaryOperation* op) {
   return false;
 }
 
+
+bool TryExtractArrayAccessAddress(HInstruction* access,
+                                  HInstruction* array,
+                                  HInstruction* index,
+                                  size_t data_offset) {
+  if (kEmitCompilerReadBarrier) {
+    // The read barrier instrumentation does not support the
+    // HIntermediateAddress instruction yet.
+    //
+    // TODO: Handle this case properly in the ARM64 and ARM code generator and
+    // re-enable this optimization; otherwise, remove this TODO.
+    // b/26601270
+    return false;
+  }
+  if (index->IsConstant() ||
+      (index->IsBoundsCheck() && index->AsBoundsCheck()->GetIndex()->IsConstant())) {
+    // When the index is a constant all the addressing can be fitted in the
+    // memory access instruction, so do not split the access.
+    return false;
+  }
+  if (access->IsArraySet() &&
+      access->AsArraySet()->GetValue()->GetType() == Primitive::kPrimNot) {
+    // The access may require a runtime call or the original array pointer.
+    return false;
+  }
+
+  // Proceed to extract the base address computation.
+  HGraph* graph = access->GetBlock()->GetGraph();
+  ArenaAllocator* arena = graph->GetArena();
+
+  HIntConstant* offset = graph->GetIntConstant(data_offset);
+  HIntermediateAddress* address =
+      new (arena) HIntermediateAddress(array, offset, kNoDexPc);
+  address->SetReferenceTypeInfo(array->GetReferenceTypeInfo());
+  access->GetBlock()->InsertInstructionBefore(address, access);
+  access->ReplaceInput(address, 0);
+  // Both instructions must depend on GC to prevent any instruction that can
+  // trigger GC to be inserted between the two.
+  access->AddSideEffects(SideEffects::DependsOnGC());
+  DCHECK(address->GetSideEffects().Includes(SideEffects::DependsOnGC()));
+  DCHECK(access->GetSideEffects().Includes(SideEffects::DependsOnGC()));
+  // TODO: Code generation for HArrayGet and HArraySet will check whether the input address
+  // is an HIntermediateAddress and generate appropriate code.
+  // We would like to replace the `HArrayGet` and `HArraySet` with custom instructions (maybe
+  // `HArm64Load` and `HArm64Store`,`HArmLoad` and `HArmStore`). We defer these changes
+  // because these new instructions would not bring any advantages yet.
+  // Also see the comments in
+  // `InstructionCodeGeneratorARM::VisitArrayGet()`
+  // `InstructionCodeGeneratorARM::VisitArraySet()`
+  // `InstructionCodeGeneratorARM64::VisitArrayGet()`
+  // `InstructionCodeGeneratorARM64::VisitArraySet()`.
+  return true;
+}
+
+
 }  // namespace art
