@@ -748,21 +748,24 @@ ArtField* Class::FindStaticField(Thread* self, Handle<Class> klass, const String
   return nullptr;
 }
 
-ArtField* Class::FindStaticField(Thread* self, Handle<Class> klass, const DexCache* dex_cache,
+ArtField* Class::FindStaticField(Thread* self,
+                                 Class* klass,
+                                 const DexCache* dex_cache,
                                  uint32_t dex_field_idx) {
-  for (Class* k = klass.Get(); k != nullptr; k = k->GetSuperClass()) {
+  for (Class* k = klass; k != nullptr; k = k->GetSuperClass()) {
     // Is the field in this class?
     ArtField* f = k->FindDeclaredStaticField(dex_cache, dex_field_idx);
     if (f != nullptr) {
       return f;
     }
-    // Wrap k incase it moves during GetDirectInterface.
+    // Though GetDirectInterface() should not cause thread suspension when called
+    // from here, it takes a Handle as an argument, so we need to wrap `k`.
+    ScopedAssertNoThreadSuspension ants(self, __FUNCTION__);
     StackHandleScope<1> hs(self);
-    HandleWrapper<mirror::Class> h_k(hs.NewHandleWrapper(&k));
+    Handle<mirror::Class> h_k(hs.NewHandle(k));
     // Is this field in any of this class' interfaces?
     for (uint32_t i = 0; i < h_k->NumDirectInterfaces(); ++i) {
-      StackHandleScope<1> hs2(self);
-      Handle<mirror::Class> interface(hs2.NewHandle(GetDirectInterface(self, h_k, i)));
+      mirror::Class* interface = GetDirectInterface(self, h_k, i);
       f = FindStaticField(self, interface, dex_cache, dex_field_idx);
       if (f != nullptr) {
         return f;
