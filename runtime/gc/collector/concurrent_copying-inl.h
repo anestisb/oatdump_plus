@@ -153,6 +153,14 @@ inline mirror::Object* ConcurrentCopying::Mark(mirror::Object* from_ref) {
   }
 }
 
+inline mirror::Object* ConcurrentCopying::MarkFromReadBarrier(mirror::Object* from_ref) {
+  // TODO: Consider removing this check when we are done investigating slow paths. b/30162165
+  if (UNLIKELY(mark_from_read_barrier_measurements_)) {
+    return MarkFromReadBarrierWithMeasurements(from_ref);
+  }
+  return Mark(from_ref);
+}
+
 inline mirror::Object* ConcurrentCopying::GetFwdPtr(mirror::Object* from_ref) {
   DCHECK(region_space_->IsInFromSpace(from_ref));
   LockWord lw = from_ref->GetLockWord(false);

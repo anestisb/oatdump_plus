@@ -157,6 +157,7 @@ Heap::Heap(size_t initial_size,
            bool verify_pre_sweeping_rosalloc,
            bool verify_post_gc_rosalloc,
            bool gc_stress_mode,
+           bool measure_gc_performance,
            bool use_homogeneous_space_compaction_for_oom,
            uint64_t min_interval_homogeneous_space_compaction_by_oom)
     : non_moving_space_(nullptr),
@@ -599,7 +600,9 @@ Heap::Heap(size_t initial_size,
       garbage_collectors_.push_back(semi_space_collector_);
     }
     if (MayUseCollector(kCollectorTypeCC)) {
-      concurrent_copying_collector_ = new collector::ConcurrentCopying(this);
+      concurrent_copying_collector_ = new collector::ConcurrentCopying(this,
+                                                                       "",
+                                                                       measure_gc_performance);
       garbage_collectors_.push_back(concurrent_copying_collector_);
     }
     if (MayUseCollector(kCollectorTypeMC)) {
