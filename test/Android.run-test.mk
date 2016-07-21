@@ -527,7 +527,7 @@ TEST_ART_BROKEN_INTERPRETER_READ_BARRIER_RUN_TESTS :=
 # Tests that should fail in the read barrier configuration with the Optimizing compiler (AOT).
 # 484: Baker's fast path based read barrier compiler instrumentation generates code containing
 #      more parallel moves on x86, thus some Checker assertions may fail.
-# 527: On ARM64, the read barrier instrumentation does not support the HArm64IntermediateAddress
+# 527: On ARM64 and ARM, the read barrier instrumentation does not support the HIntermediateAddress
 #      instruction yet (b/26601270).
 # 537: Expects an array copy to be intrinsified on x86-64, but calling-on-slowpath intrinsics are
 #      not yet handled in the read barrier configuration.
