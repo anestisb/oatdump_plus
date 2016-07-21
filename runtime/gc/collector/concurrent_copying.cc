@@ -214,7 +214,7 @@ void ConcurrentCopying::InitializePhase() {
 }
 
 // Used to switch the thread roots of a thread from from-space refs to to-space refs.
-class ConcurrentCopying::ThreadFlipVisitor : public Closure {
+class ConcurrentCopying::ThreadFlipVisitor : public Closure, public RootVisitor {
  public:
   ThreadFlipVisitor(ConcurrentCopying* concurrent_copying, bool use_tlab)
       : concurrent_copying_(concurrent_copying), use_tlab_(use_tlab) {
@@ -241,8 +241,42 @@ class ConcurrentCopying::ThreadFlipVisitor : public Closure {
       thread->RevokeThreadLocalAllocationStack();
     }
     ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-    thread->VisitRoots(concurrent_copying_);
+    // We can use the non-CAS VisitRoots functions below because we update thread-local GC roots
+    // only.
+    thread->VisitRoots(this);
     concurrent_copying_->GetBarrier().Pass(self);
+  }
+
+  void VisitRoots(mirror::Object*** roots,
+                  size_t count,
+                  const RootInfo& info ATTRIBUTE_UNUSED)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    for (size_t i = 0; i < count; ++i) {
+      mirror::Object** root = roots[i];
+      mirror::Object* ref = *root;
+      if (ref != nullptr) {
+        mirror::Object* to_ref = concurrent_copying_->Mark(ref);
+        if (to_ref != ref) {
+          *root = to_ref;
+        }
+      }
+    }
+  }
+
+  void VisitRoots(mirror::CompressedReference<mirror::Object>** roots,
+                  size_t count,
+                  const RootInfo& info ATTRIBUTE_UNUSED)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    for (size_t i = 0; i < count; ++i) {
+      mirror::CompressedReference<mirror::Object>* const root = roots[i];
+      if (!root->IsNull()) {
+        mirror::Object* ref = root->AsMirrorPtr();
+        mirror::Object* to_ref = concurrent_copying_->Mark(ref);
+        if (to_ref != ref) {
+          root->Assign(to_ref);
+        }
+      }
+    }
   }
 
  private:
