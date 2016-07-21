@@ -342,7 +342,7 @@ static void PreloadDexCachesResolveField(Handle<mirror::DexCache> dex_cache, uin
     return;
   }
   if (is_static) {
-    field = mirror::Class::FindStaticField(self, klass, dex_cache.Get(), field_idx);
+    field = mirror::Class::FindStaticField(self, klass.Get(), dex_cache.Get(), field_idx);
   } else {
     field = klass->FindInstanceField(dex_cache.Get(), field_idx);
   }
