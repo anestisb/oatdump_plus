@@ -13,8 +13,7 @@
     mov       x3, xSELF                 // w3<- self
     bl        MterpInstanceOf           // (index, &obj, method, self)
     ldr       x1, [xSELF, #THREAD_EXCEPTION_OFFSET]
-    lsr       w2, wINST, #8             // w2<- A+
-    and       w2, w2, #15               // w2<- A
+    ubfx      w2, wINST, #8, #4         // w2<- A
     PREFETCH_INST 2
     cbnz      x1, MterpException
     ADVANCE 2                           // advance rPC

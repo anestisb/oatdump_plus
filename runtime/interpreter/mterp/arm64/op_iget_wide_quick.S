@@ -3,7 +3,7 @@
     FETCH w4, 1                         // w4<- field byte offset
     GET_VREG w3, w2                     // w3<- object we're operating on
     ubfx    w2, wINST, #8, #4           // w2<- A
-    cbz     w3, common_errNullObject        // object was null
+    cbz     w3, common_errNullObject    // object was null
     add     x4, x3, x4                  // create direct pointer
     ldr     x0, [x4]
     FETCH_ADVANCE_INST 2                // advance rPC, load wINST
