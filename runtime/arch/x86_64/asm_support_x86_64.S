@@ -52,7 +52,7 @@
 
 #define LITERAL(value) $value
 #if defined(__APPLE__)
-    #define MACRO_LITERAL(value) $$(value)
+    #define MACRO_LITERAL(value) $(value)
 #else
     #define MACRO_LITERAL(value) $value
 #endif
