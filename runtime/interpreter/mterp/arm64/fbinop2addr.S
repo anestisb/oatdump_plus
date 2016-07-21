@@ -7,8 +7,7 @@
      */
     /* binop/2addr vA, vB */
     lsr     w3, wINST, #12              // w3<- B
-    lsr     w9, wINST, #8               // w9<- A+
-    and     w9, w9, #15                 // w9<- A
+    ubfx    w9, wINST, #8, #4           // w9<- A
     GET_VREG s1, w3
     GET_VREG s0, w9
     $instr                              // s2<- op

@@ -234,7 +234,7 @@ MterpOnStackReplacement:
 #if MTERP_LOGGING
     mov  x0, xSELF
     add  x1, xFP, #OFF_FP_SHADOWFRAME
-    sbfm x2, xINST, 0, 31
+    sxtw x2, wINST
     bl MterpLogOSR
 #endif
     mov  x0, #1                         // Signal normal return

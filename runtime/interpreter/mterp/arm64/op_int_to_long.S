@@ -1,1 +1,1 @@
-%include "arm64/funopWider.S" {"instr":"sbfm x0, x0, 0, 31", "srcreg":"w0", "tgtreg":"x0"}
+%include "arm64/funopWider.S" {"instr":"sxtw x0, w0", "srcreg":"w0", "tgtreg":"x0"}
