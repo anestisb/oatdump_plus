@@ -27,3 +27,28 @@
   .packed-switch 0x0
   .end packed-switch
 .end method
+
+.method public static PackedSwitchAfterData(I)I
+  .registers 1
+  goto :pswitch_instr
+
+  :case0
+  const/4 v0, 0x1
+  return v0
+
+  :pswitch_data
+  .packed-switch 0x0
+    :case0
+    :case1
+  .end packed-switch
+
+  :pswitch_instr
+  packed-switch v0, :pswitch_data
+  const/4 v0, 0x7
+  return v0
+
+  :case1
+  const/4 v0, 0x4
+  return v0
+
+.end method
