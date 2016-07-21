@@ -661,7 +661,7 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(HInvoke* invoke_instruction,
     ArtMethod* new_method = nullptr;
     if (invoke_instruction->IsInvokeInterface()) {
       new_method = ic.GetTypeAt(i)->GetImt(pointer_size)->Get(
-          method_index % ImTable::kSize, pointer_size);
+          method_index, pointer_size);
       if (new_method->IsRuntimeMethod()) {
         // Bail out as soon as we see a conflict trampoline in one of the target's
         // interface table.
