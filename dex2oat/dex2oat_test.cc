@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
+#include <regex>
+#include <sstream>
 #include <string>
 #include <vector>
-#include <sstream>
 
 #include "common_runtime_test.h"
 
@@ -207,7 +208,7 @@ class Dex2oatSwapTest : public Dex2oatTest {
     std::string dex_location = GetScratchDir() + "/Dex2OatSwapTest.jar";
     std::string odex_location = GetOdexDir() + "/Dex2OatSwapTest.odex";
 
-    Copy(GetDexSrc1(), dex_location);
+    Copy(GetTestDexFileName(), dex_location);
 
     std::vector<std::string> copy(extra_args);
 
@@ -226,7 +227,11 @@ class Dex2oatSwapTest : public Dex2oatTest {
     CheckResult(expect_use);
   }
 
-  void CheckResult(bool expect_use) {
+  virtual std::string GetTestDexFileName() {
+    return GetDexSrc1();
+  }
+
+  virtual void CheckResult(bool expect_use) {
     if (kIsTargetBuild) {
       CheckTargetResult(expect_use);
     } else {
@@ -234,13 +239,13 @@ class Dex2oatSwapTest : public Dex2oatTest {
     }
   }
 
-  void CheckTargetResult(bool expect_use ATTRIBUTE_UNUSED) {
+  virtual void CheckTargetResult(bool expect_use ATTRIBUTE_UNUSED) {
     // TODO: Ignore for now, as we won't capture any output (it goes to the logcat). We may do
     //       something for variants with file descriptor where we can control the lifetime of
     //       the swap file and thus take a look at it.
   }
 
-  void CheckHostResult(bool expect_use) {
+  virtual void CheckHostResult(bool expect_use) {
     if (!kIsTargetBuild) {
       if (expect_use) {
         EXPECT_NE(output_.find("Large app, accepted running with swap."), std::string::npos)
@@ -253,7 +258,7 @@ class Dex2oatSwapTest : public Dex2oatTest {
   }
 
   // Check whether the dex2oat run was really successful.
-  void CheckValidity() {
+  virtual void CheckValidity() {
     if (kIsTargetBuild) {
       CheckTargetValidity();
     } else {
@@ -261,14 +266,14 @@ class Dex2oatSwapTest : public Dex2oatTest {
     }
   }
 
-  void CheckTargetValidity() {
+  virtual void CheckTargetValidity() {
     // TODO: Ignore for now, as we won't capture any output (it goes to the logcat). We may do
     //       something for variants with file descriptor where we can control the lifetime of
     //       the swap file and thus take a look at it.
   }
 
   // On the host, we can get the dex2oat output. Here, look for "dex2oat took."
-  void CheckHostValidity() {
+  virtual void CheckHostValidity() {
     EXPECT_NE(output_.find("dex2oat took"), std::string::npos) << output_;
   }
 };
@@ -295,6 +300,96 @@ TEST_F(Dex2oatSwapTest, DoUseSwapSingleSmall) {
   RunTest(true /* use_fd */,
           true /* expect_use */,
           { "--swap-dex-size-threshold=0", "--swap-dex-count-threshold=0" });
+}
+
+class Dex2oatSwapUseTest : public Dex2oatSwapTest {
+ protected:
+  void CheckHostResult(bool expect_use) OVERRIDE {
+    if (!kIsTargetBuild) {
+      if (expect_use) {
+        EXPECT_NE(output_.find("Large app, accepted running with swap."), std::string::npos)
+            << output_;
+      } else {
+        EXPECT_EQ(output_.find("Large app, accepted running with swap."), std::string::npos)
+            << output_;
+      }
+    }
+  }
+
+  std::string GetTestDexFileName() OVERRIDE {
+    // Use Statics as it has a handful of functions.
+    return CommonRuntimeTest::GetTestDexFileName("Statics");
+  }
+
+  size_t ParseNativeAlloc() {
+    std::regex native_alloc_regex("dex2oat took.*native alloc=[^ ]+ \\(([0-9]+)B\\)");
+    std::smatch native_alloc_match;
+    bool found = std::regex_search(output_, native_alloc_match, native_alloc_regex);
+    if (!found) {
+      EXPECT_TRUE(found);
+      return 0;
+    }
+    if (native_alloc_match.size() != 2U) {
+      EXPECT_EQ(native_alloc_match.size(), 2U);
+      return 0;
+    }
+
+    std::istringstream stream(native_alloc_match[1].str());
+    size_t value;
+    stream >> value;
+
+    return value;
+  }
+
+  size_t ParseSwap(bool expected) {
+    std::regex swap_regex("dex2oat took[^\\n]+swap=[^ ]+ \\(([0-9]+)B\\)");
+    std::smatch swap_match;
+    bool found = std::regex_search(output_, swap_match, swap_regex);
+    if (found != expected) {
+      EXPECT_EQ(expected, found);
+      return 0;
+    }
+
+    if (!found) {
+      return 0;
+    }
+
+    if (swap_match.size() != 2U) {
+      EXPECT_EQ(swap_match.size(), 2U);
+      return 0;
+    }
+
+    std::istringstream stream(swap_match[1].str());
+    size_t value;
+    stream >> value;
+
+    return value;
+  }
+};
+
+TEST_F(Dex2oatSwapUseTest, CheckSwapUsage) {
+  RunTest(false /* use_fd */,
+          false /* expect_use */);
+  size_t native_without = ParseNativeAlloc();
+  size_t swap_without = ParseSwap(false /* expected */);
+  std::string output_without = output_;
+
+  output_ = "";
+
+  RunTest(false /* use_fd */,
+          true /* expect_use */,
+          { "--swap-dex-size-threshold=0", "--swap-dex-count-threshold=0" });
+  size_t native_with = ParseNativeAlloc();
+  size_t swap_with = ParseSwap(true /* expected */);
+  std::string output_with = output_;
+
+  if (native_with >= native_without || swap_without >= swap_with) {
+    EXPECT_LT(native_with, native_without);
+    EXPECT_LT(swap_without, swap_with);
+
+    LOG(ERROR) << output_without;
+    LOG(ERROR) << output_with;
+  }
 }
 
 class Dex2oatVeryLargeTest : public Dex2oatTest {
