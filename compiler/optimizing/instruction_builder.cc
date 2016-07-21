@@ -16,6 +16,7 @@
 
 #include "instruction_builder.h"
 
+#include "art_method-inl.h"
 #include "bytecode_utils.h"
 #include "class_linker.h"
 #include "driver/compiler_options.h"
@@ -890,7 +891,7 @@ bool HInstructionBuilder::BuildInvoke(const Instruction& instruction,
                                            return_type,
                                            dex_pc,
                                            method_idx,
-                                           resolved_method->GetDexMethodIndex());
+                                           resolved_method->GetImtIndex());
   }
 
   return HandleInvoke(invoke,
