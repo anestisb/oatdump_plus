@@ -9,8 +9,8 @@
  * for: packed-switch, sparse-switch
  */
     /* op vAA, +BBBB */
-    movslq  2(rPC), OUT_ARG0                # rcx <- BBBBbbbb
-    leaq    (rPC,OUT_ARG0,2), OUT_ARG0      # rcx <- PC + BBBBbbbb*2
+    movslq  2(rPC), OUT_ARG0                # rcx <- ssssssssBBBBbbbb
+    leaq    (rPC,OUT_ARG0,2), OUT_ARG0      # rcx <- PC + ssssssssBBBBbbbb*2
     GET_VREG OUT_32_ARG1, rINSTq            # eax <- vAA
     call    SYMBOL($func)
     testl   %eax, %eax
