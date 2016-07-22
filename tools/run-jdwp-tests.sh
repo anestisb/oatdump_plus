@@ -19,8 +19,12 @@ if [ ! -d libcore ]; then
   exit 1
 fi
 
+if [ -z "$ANDROID_HOST_OUT" ] ; then
+  ANDROID_HOST_OUT=${OUT_DIR-$ANDROID_BUILD_TOP/out}/host/linux-x86
+fi
+
 # Jar containing all the tests.
-test_jack=${OUT_DIR-out}/host/common/obj/JAVA_LIBRARIES/apache-harmony-jdwp-tests-hostdex_intermediates/classes.jack
+test_jack=${ANDROID_HOST_OUT}/../common/obj/JAVA_LIBRARIES/apache-harmony-jdwp-tests-hostdex_intermediates/classes.jack
 
 if [ ! -f $test_jack ]; then
   echo "Before running, you must build jdwp tests and vogar:" \
