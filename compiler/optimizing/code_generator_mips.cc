@@ -1067,6 +1067,15 @@ void CodeGeneratorMIPS::SetupBlockedRegisters() const {
     blocked_fpu_registers_[i] = true;
   }
 
+  if (GetGraph()->IsDebuggable()) {
+    // Stubs do not save callee-save floating point registers. If the graph
+    // is debuggable, we need to deal with these registers differently. For
+    // now, just block them.
+    for (size_t i = 0; i < arraysize(kFpuCalleeSaves); ++i) {
+      blocked_fpu_registers_[kFpuCalleeSaves[i]] = true;
+    }
+  }
+
   UpdateBlockedPairRegisters();
 }
 
@@ -3440,7 +3449,8 @@ void LocationsBuilderMIPS::HandleFieldGet(HInstruction* instruction, const Field
     if (field_type == Primitive::kPrimLong) {
       locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimLong));
     } else {
-      locations->SetOut(Location::RequiresFpuRegister());
+      // Use Location::Any() to prevent situations when running out of available fp registers.
+      locations->SetOut(Location::Any());
       // Need some temp core regs since FP results are returned in core registers
       Location reg = calling_convention.GetReturnLocation(Primitive::kPrimLong);
       locations->AddTemp(Location::RegisterLocation(reg.AsRegisterPairLow<Register>()));
@@ -3505,11 +3515,23 @@ void InstructionCodeGeneratorMIPS::HandleFieldGet(HInstruction* instruction,
                             IsDirectEntrypoint(kQuickA64Load));
     CheckEntrypointTypes<kQuickA64Load, int64_t, volatile const int64_t*>();
     if (type == Primitive::kPrimDouble) {
-      // Need to move to FP regs since FP results are returned in core registers.
-      __ Mtc1(locations->GetTemp(1).AsRegister<Register>(),
-              locations->Out().AsFpuRegister<FRegister>());
-      __ MoveToFpuHigh(locations->GetTemp(2).AsRegister<Register>(),
-                       locations->Out().AsFpuRegister<FRegister>());
+      // FP results are returned in core registers. Need to move them.
+      Location out = locations->Out();
+      if (out.IsFpuRegister()) {
+        __ Mtc1(locations->GetTemp(1).AsRegister<Register>(), out.AsFpuRegister<FRegister>());
+        __ MoveToFpuHigh(locations->GetTemp(2).AsRegister<Register>(),
+                         out.AsFpuRegister<FRegister>());
+      } else {
+        DCHECK(out.IsDoubleStackSlot());
+        __ StoreToOffset(kStoreWord,
+                         locations->GetTemp(1).AsRegister<Register>(),
+                         SP,
+                         out.GetStackIndex());
+        __ StoreToOffset(kStoreWord,
+                         locations->GetTemp(2).AsRegister<Register>(),
+                         SP,
+                         out.GetStackIndex() + 4);
+      }
     }
   } else {
     if (!Primitive::IsFloatingPointType(type)) {
@@ -3568,7 +3590,8 @@ void LocationsBuilderMIPS::HandleFieldSet(HInstruction* instruction, const Field
       locations->SetInAt(1, Location::RegisterPairLocation(
           calling_convention.GetRegisterAt(2), calling_convention.GetRegisterAt(3)));
     } else {
-      locations->SetInAt(1, Location::RequiresFpuRegister());
+      // Use Location::Any() to prevent situations when running out of available fp registers.
+      locations->SetInAt(1, Location::Any());
       // Pass FP parameters in core registers.
       locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
       locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(3)));
@@ -3627,10 +3650,28 @@ void InstructionCodeGeneratorMIPS::HandleFieldSet(HInstruction* instruction,
     codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
     if (type == Primitive::kPrimDouble) {
       // Pass FP parameters in core registers.
-      __ Mfc1(locations->GetTemp(1).AsRegister<Register>(),
-              locations->InAt(1).AsFpuRegister<FRegister>());
-      __ MoveFromFpuHigh(locations->GetTemp(2).AsRegister<Register>(),
-                         locations->InAt(1).AsFpuRegister<FRegister>());
+      Location in = locations->InAt(1);
+      if (in.IsFpuRegister()) {
+        __ Mfc1(locations->GetTemp(1).AsRegister<Register>(), in.AsFpuRegister<FRegister>());
+        __ MoveFromFpuHigh(locations->GetTemp(2).AsRegister<Register>(),
+                           in.AsFpuRegister<FRegister>());
+      } else if (in.IsDoubleStackSlot()) {
+        __ LoadFromOffset(kLoadWord,
+                          locations->GetTemp(1).AsRegister<Register>(),
+                          SP,
+                          in.GetStackIndex());
+        __ LoadFromOffset(kLoadWord,
+                          locations->GetTemp(2).AsRegister<Register>(),
+                          SP,
+                          in.GetStackIndex() + 4);
+      } else {
+        DCHECK(in.IsConstant());
+        DCHECK(in.GetConstant()->IsDoubleConstant());
+        int64_t value = bit_cast<int64_t, double>(in.GetConstant()->AsDoubleConstant()->GetValue());
+        __ LoadConst64(locations->GetTemp(2).AsRegister<Register>(),
+                       locations->GetTemp(1).AsRegister<Register>(),
+                       value);
+      }
     }
     codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pA64Store),
                             instruction,
