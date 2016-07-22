@@ -1,4 +1,4 @@
-%default {"wide":"", "r1":"s1", "r2":"s2", "default_val":"-1","cond":"le"}
+%default {"wide":"", "r1":"s1", "r2":"s2", "cond":"lt"}
     /*
      * Compare two floating-point values.  Puts 0, 1, or -1 into the
      * destination register based on the results of the comparison.
@@ -10,10 +10,9 @@
     lsr     w3, w0, #8                  // w3<- CC
     GET_VREG$wide $r1, w2
     GET_VREG$wide $r2, w3
-    mov     w0, #$default_val
     fcmp $r1, $r2
-    csneg w0, w0, w0, $cond
-    csel w0, wzr, w0, eq
+    cset w0, ne
+    cneg w0, w0, $cond
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
     GET_INST_OPCODE ip                  // extract opcode from rINST
     SET_VREG w0, w4                     // vAA<- w0
