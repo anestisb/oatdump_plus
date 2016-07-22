@@ -5,8 +5,8 @@
     GET_VREG_WIDE x1, w2
     GET_VREG_WIDE x2, w3
     cmp     x1, x2
-    csinc   w0, wzr, wzr, eq
-    csneg   w0, w0, w0, ge
+    cset    w0, ne
+    cneg    w0, w0, lt
     FETCH_ADVANCE_INST 2                // advance rPC, load wINST
     SET_VREG w0, w4
     GET_INST_OPCODE ip                  // extract opcode from wINST
