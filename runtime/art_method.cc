@@ -16,6 +16,8 @@
 
 #include "art_method.h"
 
+#include <cstddef>
+
 #include "arch/context.h"
 #include "art_field-inl.h"
 #include "art_method-inl.h"
@@ -495,6 +497,26 @@ void ArtMethod::CopyFrom(ArtMethod* src, size_t image_pointer_size) {
   }
   // Clear hotness to let the JIT properly decide when to compile this method.
   hotness_count_ = 0;
+}
+
+bool ArtMethod::IsImagePointerSize(size_t pointer_size) {
+  // Hijack this function to get access to PtrSizedFieldsOffset.
+  //
+  // Ensure that PrtSizedFieldsOffset is correct. We rely here on usually having both 32-bit and
+  // 64-bit builds.
+  static_assert(std::is_standard_layout<ArtMethod>::value, "ArtMethod is not standard layout.");
+  static_assert((sizeof(void*) != 4) ||
+                    (offsetof(ArtMethod, ptr_sized_fields_) == PtrSizedFieldsOffset(4)),
+                "Unexpected 32-bit class layout.");
+  static_assert((sizeof(void*) != 8) ||
+                    (offsetof(ArtMethod, ptr_sized_fields_) == PtrSizedFieldsOffset(8)),
+                "Unexpected 64-bit class layout.");
+
+  Runtime* runtime = Runtime::Current();
+  if (runtime == nullptr) {
+    return true;
+  }
+  return runtime->GetClassLinker()->GetImagePointerSize() == pointer_size;
 }
 
 }  // namespace art

@@ -507,7 +507,7 @@ inline void ArtMethod::UpdateEntrypoints(const Visitor& visitor, size_t pointer_
       SetEntryPointFromJniPtrSize(new_native_code, pointer_size);
     }
   } else {
-    DCHECK(GetEntryPointFromJniPtrSize(pointer_size) == nullptr);
+    DCHECK(GetDataPtrSize(pointer_size) == nullptr);
   }
   const void* old_code = GetEntryPointFromQuickCompiledCodePtrSize(pointer_size);
   const void* new_code = visitor(old_code);

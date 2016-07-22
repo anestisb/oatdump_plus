@@ -748,8 +748,8 @@ void PatchOat::FixupMethod(ArtMethod* object, ArtMethod* copy) {
   copy->SetEntryPointFromQuickCompiledCodePtrSize(RelocatedAddressOfPointer(
       object->GetEntryPointFromQuickCompiledCodePtrSize(pointer_size)), pointer_size);
   // No special handling for IMT conflict table since all pointers are moved by the same offset.
-  copy->SetEntryPointFromJniPtrSize(RelocatedAddressOfPointer(
-      object->GetEntryPointFromJniPtrSize(pointer_size)), pointer_size);
+  copy->SetDataPtrSize(RelocatedAddressOfPointer(
+      object->GetDataPtrSize(pointer_size)), pointer_size);
 }
 
 bool PatchOat::Patch(File* input_oat, off_t delta, File* output_oat, TimingLogger* timings,
