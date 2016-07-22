@@ -1817,22 +1817,12 @@ void Thread::HandleUncaughtExceptions(ScopedObjectAccess& soa) {
   ScopedLocalRef<jthrowable> exception(tlsPtr_.jni_env, tlsPtr_.jni_env->ExceptionOccurred());
   tlsPtr_.jni_env->ExceptionClear();
 
-  // If the thread has its own handler, use that.
-  ScopedLocalRef<jobject> handler(tlsPtr_.jni_env,
-                                  tlsPtr_.jni_env->GetObjectField(peer.get(),
-                                      WellKnownClasses::java_lang_Thread_uncaughtHandler));
-  if (handler.get() == nullptr) {
-    // Otherwise use the thread group's default handler.
-    handler.reset(tlsPtr_.jni_env->GetObjectField(peer.get(),
-                                                  WellKnownClasses::java_lang_Thread_group));
-  }
+  // Call the Thread instance's dispatchUncaughtException(Throwable)
+  tlsPtr_.jni_env->CallVoidMethod(peer.get(),
+      WellKnownClasses::java_lang_Thread_dispatchUncaughtException,
+      exception.get());
 
-  // Call the handler.
-  tlsPtr_.jni_env->CallVoidMethod(handler.get(),
-      WellKnownClasses::java_lang_Thread__UncaughtExceptionHandler_uncaughtException,
-      peer.get(), exception.get());
-
-  // If the handler threw, clear that exception too.
+  // If the dispatchUncaughtException threw, clear that exception too.
   tlsPtr_.jni_env->ExceptionClear();
 }
 
