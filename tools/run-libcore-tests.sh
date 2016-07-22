@@ -19,12 +19,17 @@ if [ ! -d libcore ]; then
   exit 1
 fi
 
+if [ -z "$ANDROID_PRODUCT_OUT" ] ; then
+  JAVA_LIBRARIES=out/target/common/obj/JAVA_LIBRARIES
+else
+  JAVA_LIBRARIES=${ANDROID_PRODUCT_OUT}/../../common/obj/JAVA_LIBRARIES
+fi
+
 # Jar containing jsr166 tests.
-jsr166_test_jack=${OUT_DIR-out}/target/common/obj/JAVA_LIBRARIES/jsr166-tests_intermediates/classes.jack
+jsr166_test_jack=${JAVA_LIBRARIES}/jsr166-tests_intermediates/classes.jack
 
 # Jar containing all the other tests.
-test_jack=${OUT_DIR-out}/target/common/obj/JAVA_LIBRARIES/core-tests_intermediates/classes.jack
-
+test_jack=${JAVA_LIBRARIES}/core-tests_intermediates/classes.jack
 
 if [ ! -f $test_jack ]; then
   echo "Before running, you must build core-tests, jsr166-tests and vogar: \
