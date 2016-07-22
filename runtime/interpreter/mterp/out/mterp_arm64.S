@@ -1192,10 +1192,9 @@ artMterpAsmInstructionStart = .L_op_nop
     lsr     w3, w0, #8                  // w3<- CC
     GET_VREG s1, w2
     GET_VREG s2, w3
-    mov     w0, #-1
     fcmp s1, s2
-    csneg w0, w0, w0, le
-    csel w0, wzr, w0, eq
+    cset w0, ne
+    cneg w0, w0, lt
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
     GET_INST_OPCODE ip                  // extract opcode from rINST
     SET_VREG w0, w4                     // vAA<- w0
@@ -1218,10 +1217,9 @@ artMterpAsmInstructionStart = .L_op_nop
     lsr     w3, w0, #8                  // w3<- CC
     GET_VREG s1, w2
     GET_VREG s2, w3
-    mov     w0, #1
     fcmp s1, s2
-    csneg w0, w0, w0, pl
-    csel w0, wzr, w0, eq
+    cset w0, ne
+    cneg w0, w0, cc
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
     GET_INST_OPCODE ip                  // extract opcode from rINST
     SET_VREG w0, w4                     // vAA<- w0
@@ -1244,10 +1242,9 @@ artMterpAsmInstructionStart = .L_op_nop
     lsr     w3, w0, #8                  // w3<- CC
     GET_VREG_WIDE d1, w2
     GET_VREG_WIDE d2, w3
-    mov     w0, #-1
     fcmp d1, d2
-    csneg w0, w0, w0, le
-    csel w0, wzr, w0, eq
+    cset w0, ne
+    cneg w0, w0, lt
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
     GET_INST_OPCODE ip                  // extract opcode from rINST
     SET_VREG w0, w4                     // vAA<- w0
@@ -1270,10 +1267,9 @@ artMterpAsmInstructionStart = .L_op_nop
     lsr     w3, w0, #8                  // w3<- CC
     GET_VREG_WIDE d1, w2
     GET_VREG_WIDE d2, w3
-    mov     w0, #1
     fcmp d1, d2
-    csneg w0, w0, w0, pl
-    csel w0, wzr, w0, eq
+    cset w0, ne
+    cneg w0, w0, cc
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
     GET_INST_OPCODE ip                  // extract opcode from rINST
     SET_VREG w0, w4                     // vAA<- w0
@@ -1291,8 +1287,8 @@ artMterpAsmInstructionStart = .L_op_nop
     GET_VREG_WIDE x1, w2
     GET_VREG_WIDE x2, w3
     cmp     x1, x2
-    csinc   w0, wzr, wzr, eq
-    csneg   w0, w0, w0, ge
+    cset    w0, ne
+    cneg    w0, w0, lt
     FETCH_ADVANCE_INST 2                // advance rPC, load wINST
     SET_VREG w0, w4
     GET_INST_OPCODE ip                  // extract opcode from wINST
