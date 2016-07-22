@@ -305,6 +305,18 @@ class OptimizingCompiler FINAL : public Compiler {
       OVERRIDE
       SHARED_REQUIRES(Locks::mutator_lock_);
 
+ protected:
+  virtual void RunOptimizations(HGraph* graph,
+                                CodeGenerator* codegen,
+                                CompilerDriver* driver,
+                                const DexCompilationUnit& dex_compilation_unit,
+                                PassObserver* pass_observer,
+                                StackHandleScopeCollection* handles) const;
+
+  virtual void RunOptimizations(HOptimization* optimizations[],
+                                size_t length,
+                                PassObserver* pass_observer) const;
+
  private:
   // Create a 'CompiledMethod' for an optimized graph.
   CompiledMethod* Emit(ArenaAllocator* arena,
@@ -332,6 +344,18 @@ class OptimizingCompiler FINAL : public Compiler {
                             Handle<mirror::DexCache> dex_cache,
                             ArtMethod* method,
                             bool osr) const;
+
+  void MaybeRunInliner(HGraph* graph,
+                       CodeGenerator* codegen,
+                       CompilerDriver* driver,
+                       const DexCompilationUnit& dex_compilation_unit,
+                       PassObserver* pass_observer,
+                       StackHandleScopeCollection* handles) const;
+
+  void RunArchOptimizations(InstructionSet instruction_set,
+                            HGraph* graph,
+                            CodeGenerator* codegen,
+                            PassObserver* pass_observer) const;
 
   std::unique_ptr<OptimizingCompilerStats> compilation_stats_;
 
@@ -396,22 +420,22 @@ static bool InstructionSetSupportsReadBarrier(InstructionSet instruction_set) {
       || instruction_set == kX86_64;
 }
 
-static void RunOptimizations(HOptimization* optimizations[],
-                             size_t length,
-                             PassObserver* pass_observer) {
+void OptimizingCompiler::RunOptimizations(HOptimization* optimizations[],
+                                          size_t length,
+                                          PassObserver* pass_observer) const {
   for (size_t i = 0; i < length; ++i) {
     PassScope scope(optimizations[i]->GetPassName(), pass_observer);
     optimizations[i]->Run();
   }
 }
 
-static void MaybeRunInliner(HGraph* graph,
-                            CodeGenerator* codegen,
-                            CompilerDriver* driver,
-                            OptimizingCompilerStats* stats,
-                            const DexCompilationUnit& dex_compilation_unit,
-                            PassObserver* pass_observer,
-                            StackHandleScopeCollection* handles) {
+void OptimizingCompiler::MaybeRunInliner(HGraph* graph,
+                                         CodeGenerator* codegen,
+                                         CompilerDriver* driver,
+                                         const DexCompilationUnit& dex_compilation_unit,
+                                         PassObserver* pass_observer,
+                                         StackHandleScopeCollection* handles) const {
+  OptimizingCompilerStats* stats = compilation_stats_.get();
   const CompilerOptions& compiler_options = driver->GetCompilerOptions();
   bool should_inline = (compiler_options.GetInlineDepthLimit() > 0)
       && (compiler_options.GetInlineMaxCodeUnits() > 0);
@@ -435,11 +459,11 @@ static void MaybeRunInliner(HGraph* graph,
   RunOptimizations(optimizations, arraysize(optimizations), pass_observer);
 }
 
-static void RunArchOptimizations(InstructionSet instruction_set,
-                                 HGraph* graph,
-                                 CodeGenerator* codegen,
-                                 OptimizingCompilerStats* stats,
-                                 PassObserver* pass_observer) {
+void OptimizingCompiler::RunArchOptimizations(InstructionSet instruction_set,
+                                              HGraph* graph,
+                                              CodeGenerator* codegen,
+                                              PassObserver* pass_observer) const {
+  OptimizingCompilerStats* stats = compilation_stats_.get();
   ArenaAllocator* arena = graph->GetArena();
   switch (instruction_set) {
 #ifdef ART_ENABLE_CODEGEN_arm
@@ -535,13 +559,13 @@ static void AllocateRegisters(HGraph* graph,
   }
 }
 
-static void RunOptimizations(HGraph* graph,
-                             CodeGenerator* codegen,
-                             CompilerDriver* driver,
-                             OptimizingCompilerStats* stats,
-                             const DexCompilationUnit& dex_compilation_unit,
-                             PassObserver* pass_observer,
-                             StackHandleScopeCollection* handles) {
+void OptimizingCompiler::RunOptimizations(HGraph* graph,
+                                          CodeGenerator* codegen,
+                                          CompilerDriver* driver,
+                                          const DexCompilationUnit& dex_compilation_unit,
+                                          PassObserver* pass_observer,
+                                          StackHandleScopeCollection* handles) const {
+  OptimizingCompilerStats* stats = compilation_stats_.get();
   ArenaAllocator* arena = graph->GetArena();
   HDeadCodeElimination* dce1 = new (arena) HDeadCodeElimination(
       graph, stats, HDeadCodeElimination::kInitialDeadCodeEliminationPassName);
@@ -574,7 +598,7 @@ static void RunOptimizations(HGraph* graph,
   };
   RunOptimizations(optimizations1, arraysize(optimizations1), pass_observer);
 
-  MaybeRunInliner(graph, codegen, driver, stats, dex_compilation_unit, pass_observer, handles);
+  MaybeRunInliner(graph, codegen, driver, dex_compilation_unit, pass_observer, handles);
 
   HOptimization* optimizations2[] = {
     // SelectGenerator depends on the InstructionSimplifier removing
@@ -597,7 +621,7 @@ static void RunOptimizations(HGraph* graph,
   };
   RunOptimizations(optimizations2, arraysize(optimizations2), pass_observer);
 
-  RunArchOptimizations(driver->GetInstructionSet(), graph, codegen, stats, pass_observer);
+  RunArchOptimizations(driver->GetInstructionSet(), graph, codegen, pass_observer);
   AllocateRegisters(graph, codegen, pass_observer);
 }
 
@@ -809,7 +833,6 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
     RunOptimizations(graph,
                      codegen.get(),
                      compiler_driver,
-                     compilation_stats_.get(),
                      dex_compilation_unit,
                      &pass_observer,
                      &handles);
