@@ -15,6 +15,21 @@
 
 .end method
 
+.method public static intArrayFillInstructionAfterData([I)V
+   .registers 1
+   goto :FillInstruction
+
+:ArrayData
+    .array-data 4
+        1 2 3 4 5
+    .end array-data
+
+:FillInstruction
+   fill-array-data v0, :ArrayData
+   return-void
+
+.end method
+
 .method public static shortArray([S)V
    .registers 1
 

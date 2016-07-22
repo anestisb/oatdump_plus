@@ -965,8 +965,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
 /* File: x86_64/op_fill_array_data.S */
     /* fill-array-data vAA, +BBBBBBBB */
     EXPORT_PC
-    movl    2(rPC), %ecx                    # ecx <- BBBBbbbb
-    leaq    (rPC,%rcx,2), OUT_ARG1          # OUT_ARG1 <- PC + BBBBbbbb*2
+    movslq  2(rPC), %rcx                    # rcx <- ssssssssBBBBbbbb
+    leaq    (rPC,%rcx,2), OUT_ARG1          # OUT_ARG1 <- PC + ssssssssBBBBbbbb*2
     GET_VREG OUT_32_ARG0, rINSTq            # OUT_ARG0 <- vAA (array object)
     call    SYMBOL(MterpFillArrayData)      # (obj, payload)
     testb   %al, %al                        # 0 means an exception is thrown
@@ -1051,8 +1051,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
  * for: packed-switch, sparse-switch
  */
     /* op vAA, +BBBB */
-    movslq  2(rPC), OUT_ARG0                # rcx <- BBBBbbbb
-    leaq    (rPC,OUT_ARG0,2), OUT_ARG0      # rcx <- PC + BBBBbbbb*2
+    movslq  2(rPC), OUT_ARG0                # rcx <- ssssssssBBBBbbbb
+    leaq    (rPC,OUT_ARG0,2), OUT_ARG0      # rcx <- PC + ssssssssBBBBbbbb*2
     GET_VREG OUT_32_ARG1, rINSTq            # eax <- vAA
     call    SYMBOL(MterpDoPackedSwitch)
     testl   %eax, %eax
@@ -1074,8 +1074,8 @@ SYMBOL(artMterpAsmInstructionStart) = .L_op_nop
  * for: packed-switch, sparse-switch
  */
     /* op vAA, +BBBB */
-    movslq  2(rPC), OUT_ARG0                # rcx <- BBBBbbbb
-    leaq    (rPC,OUT_ARG0,2), OUT_ARG0      # rcx <- PC + BBBBbbbb*2
+    movslq  2(rPC), OUT_ARG0                # rcx <- ssssssssBBBBbbbb
+    leaq    (rPC,OUT_ARG0,2), OUT_ARG0      # rcx <- PC + ssssssssBBBBbbbb*2
     GET_VREG OUT_32_ARG1, rINSTq            # eax <- vAA
     call    SYMBOL(MterpDoSparseSwitch)
     testl   %eax, %eax
