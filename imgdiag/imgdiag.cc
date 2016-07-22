@@ -729,7 +729,7 @@ class ImgDiagDumper {
           os << "        " << reinterpret_cast<void*>(obj) << " ";
           os << "  entryPointFromJni: "
              << reinterpret_cast<const void*>(
-                    art_method->GetEntryPointFromJniPtrSize(pointer_size)) << ", ";
+                    art_method->GetDataPtrSize(pointer_size)) << ", ";
           os << "  entryPointFromQuickCompiledCode: "
              << reinterpret_cast<const void*>(
                     art_method->GetEntryPointFromQuickCompiledCodePtrSize(pointer_size))
@@ -810,7 +810,7 @@ class ImgDiagDumper {
           os << "        " << reinterpret_cast<void*>(obj) << " ";
           os << "  entryPointFromJni: "
              << reinterpret_cast<const void*>(
-                    art_method->GetEntryPointFromJniPtrSize(pointer_size)) << ", ";
+                    art_method->GetDataPtrSize(pointer_size)) << ", ";
           os << "  entryPointFromQuickCompiledCode: "
              << reinterpret_cast<const void*>(
                     art_method->GetEntryPointFromQuickCompiledCodePtrSize(pointer_size))
