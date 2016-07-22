@@ -259,6 +259,45 @@ public class Main extends TestCase {
     }
 
     {
+      Method m = c.getMethod("intArrayFillInstructionAfterData", int[].class);
+      int[] array = new int[7];
+      Object[] args = { array };
+      m.invoke(null, args);
+      assertEquals(7, array.length);
+      assertEquals(1, array[0]);
+      assertEquals(2, array[1]);
+      assertEquals(3, array[2]);
+      assertEquals(4, array[3]);
+      assertEquals(5, array[4]);
+      assertEquals(0, array[5]);
+      assertEquals(0, array[6]);
+
+      array = new int[2];
+      args[0] = array;
+      Throwable exception  = null;
+      try {
+        m.invoke(null, args);
+      } catch (InvocationTargetException e) {
+        exception = e.getCause();
+        assertTrue(exception instanceof IndexOutOfBoundsException);
+      }
+      assertNotNull(exception);
+      exception = null;
+      // Test that nothing has been written to the array.
+      assertEquals(0, array[0]);
+      assertEquals(0, array[1]);
+
+      args[0] = null;
+      try {
+        m.invoke(null, args);
+      } catch (InvocationTargetException e) {
+        exception = e.getCause();
+        assertTrue(exception instanceof NullPointerException);
+      }
+      assertNotNull(exception);
+    }
+
+    {
       Method m = c.getMethod("shortArray", short[].class);
       short[] array = new short[7];
       Object[] args = { array };
