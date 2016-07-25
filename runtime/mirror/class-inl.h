@@ -457,6 +457,7 @@ inline ArtMethod* Class::FindVirtualMethodForInterface(ArtMethod* method, size_t
   Class* declaring_class = method->GetDeclaringClass();
   DCHECK(declaring_class != nullptr) << PrettyClass(this);
   DCHECK(declaring_class->IsInterface()) << PrettyMethod(method);
+  DCHECK(!method->IsCopied());
   // TODO cache to improve lookup speed
   const int32_t iftable_count = GetIfTableCount();
   IfTable* iftable = GetIfTable();
