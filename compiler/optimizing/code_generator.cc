@@ -1178,19 +1178,19 @@ void CodeGenerator::ValidateInvokeRuntime(HInstruction* instruction, SlowPathCod
         << "instruction->DebugName()=" << instruction->DebugName()
         << " slow_path->GetDescription()=" << slow_path->GetDescription();
     DCHECK(instruction->GetSideEffects().Includes(SideEffects::CanTriggerGC()) ||
-           // When read barriers are enabled, some instructions use a
-           // slow path to emit a read barrier, which does not trigger
-           // GC, is not fatal, nor is emitted by HDeoptimize
-           // instructions.
+           // When (non-Baker) read barriers are enabled, some instructions
+           // use a slow path to emit a read barrier, which does not trigger
+           // GC.
            (kEmitCompilerReadBarrier &&
+            !kUseBakerReadBarrier &&
             (instruction->IsInstanceFieldGet() ||
              instruction->IsStaticFieldGet() ||
-             instruction->IsArraySet() ||
              instruction->IsArrayGet() ||
              instruction->IsLoadClass() ||
              instruction->IsLoadString() ||
              instruction->IsInstanceOf() ||
-             instruction->IsCheckCast())))
+             instruction->IsCheckCast() ||
+             (instruction->IsInvokeVirtual() && instruction->GetLocations()->Intrinsified()))))
         << "instruction->DebugName()=" << instruction->DebugName()
         << " instruction->GetSideEffects().ToString()=" << instruction->GetSideEffects().ToString()
         << " slow_path->GetDescription()=" << slow_path->GetDescription();
@@ -1202,6 +1202,27 @@ void CodeGenerator::ValidateInvokeRuntime(HInstruction* instruction, SlowPathCod
          || instruction->GetLocations()->CanCall()
          || !IsLeafMethod())
       << instruction->DebugName() << ((slow_path != nullptr) ? slow_path->GetDescription() : "");
+}
+
+void CodeGenerator::ValidateInvokeRuntimeWithoutRecordingPcInfo(HInstruction* instruction,
+                                                                SlowPathCode* slow_path) {
+  DCHECK(instruction->GetLocations()->OnlyCallsOnSlowPath())
+      << "instruction->DebugName()=" << instruction->DebugName()
+      << " slow_path->GetDescription()=" << slow_path->GetDescription();
+  // Only the Baker read barrier marking slow path used by certains
+  // instructions is expected to invoke the runtime without recording
+  // PC-related information.
+  DCHECK(kUseBakerReadBarrier);
+  DCHECK(instruction->IsInstanceFieldGet() ||
+         instruction->IsStaticFieldGet() ||
+         instruction->IsArrayGet() ||
+         instruction->IsLoadClass() ||
+         instruction->IsLoadString() ||
+         instruction->IsInstanceOf() ||
+         instruction->IsCheckCast() ||
+         (instruction->IsInvokeVirtual() && instruction->GetLocations()->Intrinsified()))
+      << "instruction->DebugName()=" << instruction->DebugName()
+      << " slow_path->GetDescription()=" << slow_path->GetDescription();
 }
 
 void SlowPathCode::SaveLiveRegisters(CodeGenerator* codegen, LocationSummary* locations) {
