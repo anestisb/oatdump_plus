@@ -34,7 +34,7 @@ namespace mirror {
 class MANAGED AbstractMethod : public AccessibleObject {
  public:
   // Called from Constructor::CreateFromArtMethod, Method::CreateFromArtMethod.
-  template <bool kTransactionActive = false>
+  template <size_t kPointerSize, bool kTransactionActive>
   bool CreateFromArtMethod(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 

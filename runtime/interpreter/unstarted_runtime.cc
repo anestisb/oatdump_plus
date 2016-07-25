@@ -300,11 +300,25 @@ void UnstartedRuntime::UnstartedClassGetDeclaredField(
                            PrettyDescriptor(klass).c_str());
     return;
   }
-  if (Runtime::Current()->IsActiveTransaction()) {
-    result->SetL(mirror::Field::CreateFromArtField<true>(self, found, true));
+  Runtime* runtime = Runtime::Current();
+  size_t pointer_size = runtime->GetClassLinker()->GetImagePointerSize();
+  mirror::Field* field;
+  if (runtime->IsActiveTransaction()) {
+    if (pointer_size == 8) {
+      field = mirror::Field::CreateFromArtField<8U, true>(self, found, true);
+    } else {
+      DCHECK_EQ(pointer_size, 4U);
+      field = mirror::Field::CreateFromArtField<4U, true>(self, found, true);
+    }
   } else {
-    result->SetL(mirror::Field::CreateFromArtField<false>(self, found, true));
+    if (pointer_size == 8) {
+      field = mirror::Field::CreateFromArtField<8U, false>(self, found, true);
+    } else {
+      DCHECK_EQ(pointer_size, 4U);
+      field = mirror::Field::CreateFromArtField<4U, false>(self, found, true);
+    }
   }
+  result->SetL(field);
 }
 
 // This is required for Enum(Set) code, as that uses reflection to inspect enum classes.
@@ -319,11 +333,26 @@ void UnstartedRuntime::UnstartedClassGetDeclaredMethod(
   mirror::String* name = shadow_frame->GetVRegReference(arg_offset + 1)->AsString();
   mirror::ObjectArray<mirror::Class>* args =
       shadow_frame->GetVRegReference(arg_offset + 2)->AsObjectArray<mirror::Class>();
-  if (Runtime::Current()->IsActiveTransaction()) {
-    result->SetL(mirror::Class::GetDeclaredMethodInternal<true>(self, klass, name, args));
+  Runtime* runtime = Runtime::Current();
+  bool transaction = runtime->IsActiveTransaction();
+  size_t pointer_size = runtime->GetClassLinker()->GetImagePointerSize();
+  mirror::Method* method;
+  if (transaction) {
+    if (pointer_size == 8U) {
+      method = mirror::Class::GetDeclaredMethodInternal<8U, true>(self, klass, name, args);
+    } else {
+      DCHECK_EQ(pointer_size, 4U);
+      method = mirror::Class::GetDeclaredMethodInternal<4U, true>(self, klass, name, args);
+    }
   } else {
-    result->SetL(mirror::Class::GetDeclaredMethodInternal<false>(self, klass, name, args));
+    if (pointer_size == 8U) {
+      method = mirror::Class::GetDeclaredMethodInternal<8U, false>(self, klass, name, args);
+    } else {
+      DCHECK_EQ(pointer_size, 4U);
+      method = mirror::Class::GetDeclaredMethodInternal<4U, false>(self, klass, name, args);
+    }
   }
+  result->SetL(method);
 }
 
 // Special managed code cut-out to allow constructor lookup in a un-started runtime.
@@ -336,11 +365,26 @@ void UnstartedRuntime::UnstartedClassGetDeclaredConstructor(
   }
   mirror::ObjectArray<mirror::Class>* args =
       shadow_frame->GetVRegReference(arg_offset + 1)->AsObjectArray<mirror::Class>();
-  if (Runtime::Current()->IsActiveTransaction()) {
-    result->SetL(mirror::Class::GetDeclaredConstructorInternal<true>(self, klass, args));
+  Runtime* runtime = Runtime::Current();
+  bool transaction = runtime->IsActiveTransaction();
+  size_t pointer_size = runtime->GetClassLinker()->GetImagePointerSize();
+  mirror::Constructor* constructor;
+  if (transaction) {
+    if (pointer_size == 8U) {
+      constructor = mirror::Class::GetDeclaredConstructorInternal<8U, true>(self, klass, args);
+    } else {
+      DCHECK_EQ(pointer_size, 4U);
+      constructor = mirror::Class::GetDeclaredConstructorInternal<4U, true>(self, klass, args);
+    }
   } else {
-    result->SetL(mirror::Class::GetDeclaredConstructorInternal<false>(self, klass, args));
+    if (pointer_size == 8U) {
+      constructor = mirror::Class::GetDeclaredConstructorInternal<8U, false>(self, klass, args);
+    } else {
+      DCHECK_EQ(pointer_size, 4U);
+      constructor = mirror::Class::GetDeclaredConstructorInternal<4U, false>(self, klass, args);
+    }
   }
+  result->SetL(constructor);
 }
 
 void UnstartedRuntime::UnstartedClassGetEnclosingClass(
