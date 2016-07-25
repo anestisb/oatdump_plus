@@ -67,12 +67,14 @@ public class Main {
       return;
     }
 
-    System.out.println("Processing hprof file...");
-    AhatSnapshot ahat = AhatSnapshot.fromHprof(hprof);
-
+    // Launch the server before parsing the hprof file so we get
+    // BindExceptions quickly.
     InetAddress loopback = InetAddress.getLoopbackAddress();
     InetSocketAddress addr = new InetSocketAddress(loopback, port);
     HttpServer server = HttpServer.create(addr, 0);
+
+    System.out.println("Processing hprof file...");
+    AhatSnapshot ahat = AhatSnapshot.fromHprof(hprof);
     server.createContext("/", new AhatHttpHandler(new OverviewHandler(ahat, hprof)));
     server.createContext("/rooted", new AhatHttpHandler(new RootedHandler(ahat)));
     server.createContext("/object", new AhatHttpHandler(new ObjectHandler(ahat)));
