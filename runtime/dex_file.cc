@@ -1638,8 +1638,15 @@ mirror::Object* DexFile::CreateAnnotationMember(Handle<mirror::Class> klass,
   mirror::Class* annotation_member_class =
       WellKnownClasses::ToClass(WellKnownClasses::libcore_reflect_AnnotationMember);
   Handle<mirror::Object> new_member(hs.NewHandle(annotation_member_class->AllocObject(self)));
-  Handle<mirror::Method> method_object(
-      hs.NewHandle(mirror::Method::CreateFromArtMethod(self, annotation_method)));
+  mirror::Method* method_obj_ptr;
+  DCHECK(!Runtime::Current()->IsActiveTransaction());
+  if (pointer_size == 8U) {
+    method_obj_ptr = mirror::Method::CreateFromArtMethod<8U, false>(self, annotation_method);
+  } else {
+    DCHECK_EQ(pointer_size, 4U);
+    method_obj_ptr = mirror::Method::CreateFromArtMethod<4U, false>(self, annotation_method);
+  }
+  Handle<mirror::Method> method_object(hs.NewHandle(method_obj_ptr));
 
   if (new_member.Get() == nullptr || string_name.Get() == nullptr ||
       method_object.Get() == nullptr || method_return.Get() == nullptr) {
@@ -1947,16 +1954,29 @@ bool DexFile::ProcessAnnotationValue(Handle<mirror::Class> klass, const uint8_t*
         StackHandleScope<2> hs(self);
         Handle<mirror::DexCache> dex_cache(hs.NewHandle(klass->GetDexCache()));
         Handle<mirror::ClassLoader> class_loader(hs.NewHandle(klass->GetClassLoader()));
-        ArtMethod* method = Runtime::Current()->GetClassLinker()->ResolveMethodWithoutInvokeType(
+        ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+        ArtMethod* method = class_linker->ResolveMethodWithoutInvokeType(
             klass->GetDexFile(), index, dex_cache, class_loader);
         if (method == nullptr) {
           return false;
         }
+        size_t pointer_size = class_linker->GetImagePointerSize();
         set_object = true;
+        DCHECK(!Runtime::Current()->IsActiveTransaction());
         if (method->IsConstructor()) {
-          element_object = mirror::Constructor::CreateFromArtMethod(self, method);
+          if (pointer_size == 8U) {
+            element_object = mirror::Constructor::CreateFromArtMethod<8U, false>(self, method);
+          } else {
+            DCHECK_EQ(pointer_size, 4U);
+            element_object = mirror::Constructor::CreateFromArtMethod<4U, false>(self, method);
+          }
         } else {
-          element_object = mirror::Method::CreateFromArtMethod(self, method);
+          if (pointer_size == 8U) {
+            element_object = mirror::Method::CreateFromArtMethod<8U, false>(self, method);
+          } else {
+            DCHECK_EQ(pointer_size, 4U);
+            element_object = mirror::Method::CreateFromArtMethod<4U, false>(self, method);
+          }
         }
         if (element_object == nullptr) {
           return false;
@@ -1978,7 +1998,13 @@ bool DexFile::ProcessAnnotationValue(Handle<mirror::Class> klass, const uint8_t*
           return false;
         }
         set_object = true;
-        element_object = mirror::Field::CreateFromArtField(self, field, true);
+        size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+        if (pointer_size == 8) {
+          element_object = mirror::Field::CreateFromArtField<8U>(self, field, true);
+        } else {
+          DCHECK_EQ(pointer_size, 4U);
+          element_object = mirror::Field::CreateFromArtField<4U>(self, field, true);
+        }
         if (element_object == nullptr) {
           return false;
         }

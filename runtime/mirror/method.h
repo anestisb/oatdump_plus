@@ -28,7 +28,7 @@ class Class;
 // C++ mirror of java.lang.reflect.Method.
 class MANAGED Method : public AbstractMethod {
  public:
-  template <bool kTransactionActive = false>
+  template <size_t kPointerSize, bool kTransactionActive>
   static Method* CreateFromArtMethod(Thread* self, ArtMethod* method)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
@@ -60,7 +60,7 @@ class MANAGED Method : public AbstractMethod {
 // C++ mirror of java.lang.reflect.Constructor.
 class MANAGED Constructor: public AbstractMethod {
  public:
-  template <bool kTransactionActive = false>
+  template <size_t kPointerSize, bool kTransactionActive>
   static Constructor* CreateFromArtMethod(Thread* self, ArtMethod* method)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
