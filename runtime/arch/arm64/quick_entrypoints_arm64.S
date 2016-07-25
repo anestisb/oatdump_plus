@@ -1276,8 +1276,18 @@ END art_quick_check_cast
      * name mismatch between instructions. This macro uses the lower 32b of register when possible.
      * TODO: When read barrier has a fast path, add heap unpoisoning support for the fast path.
      */
-.macro READ_BARRIER xDest, wDest, xObj, offset
+.macro READ_BARRIER xDest, wDest, xObj, xTemp, wTemp, offset, number
 #ifdef USE_READ_BARRIER
+#ifdef USE_BAKER_READ_BARRIER
+    ldr \wTemp, [\xObj, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    tbnz \wTemp, #LOCK_WORD_READ_BARRIER_STATE_SHIFT, .Lrb_slowpath\number
+    // False dependency to avoid needing load/load fence.
+    add \xObj, \xObj, \xTemp, lsr #32
+    ldr \wDest, [\xObj, #\offset]   // Heap reference = 32b. This also zero-extends to \xDest.
+    UNPOISON_HEAP_REF \wDest
+    b .Lrb_exit\number
+#endif
+.Lrb_slowpath\number:
     // Store registers used in art_quick_aput_obj (x0-x4, LR), stack is 16B aligned.
     stp x0, x1, [sp, #-48]!
     .cfi_adjust_cfa_offset 48
@@ -1311,6 +1321,7 @@ END art_quick_check_cast
     .cfi_restore x30
     add sp, sp, #48
     .cfi_adjust_cfa_offset -48
+.Lrb_exit\number:
 #else
     ldr \wDest, [\xObj, #\offset]   // Heap reference = 32b. This also zero-extends to \xDest.
     UNPOISON_HEAP_REF \wDest
@@ -1349,12 +1360,12 @@ END art_quick_aput_obj_with_bound_check
 #endif
 ENTRY art_quick_aput_obj
     cbz x2, .Ldo_aput_null
-    READ_BARRIER x3, w3, x0, MIRROR_OBJECT_CLASS_OFFSET     // Heap reference = 32b
-                                                         // This also zero-extends to x3
-    READ_BARRIER x4, w4, x2, MIRROR_OBJECT_CLASS_OFFSET     // Heap reference = 32b
-                                                         // This also zero-extends to x4
-    READ_BARRIER x3, w3, x3, MIRROR_CLASS_COMPONENT_TYPE_OFFSET // Heap reference = 32b
-                                                         // This also zero-extends to x3
+    READ_BARRIER x3, w3, x0, x3, w3, MIRROR_OBJECT_CLASS_OFFSET, 0  // Heap reference = 32b
+                                                                    // This also zero-extends to x3
+    READ_BARRIER x3, w3, x3, x4, w4, MIRROR_CLASS_COMPONENT_TYPE_OFFSET, 1 // Heap reference = 32b
+    // This also zero-extends to x3
+    READ_BARRIER x4, w4, x2, x4, w4, MIRROR_OBJECT_CLASS_OFFSET, 2  // Heap reference = 32b
+                                                                    // This also zero-extends to x4
     cmp w3, w4  // value's type == array's component type - trivial assignability
     bne .Lcheck_assignability
 .Ldo_aput:
