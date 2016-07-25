@@ -499,6 +499,12 @@ class CodeGeneratorARM64 : public CodeGenerator {
                      uint32_t dex_pc,
                      SlowPathCode* slow_path);
 
+  // Generate code to invoke a runtime entry point, but do not record
+  // PC-related information in a stack map.
+  void InvokeRuntimeWithoutRecordingPcInfo(int32_t entry_point_offset,
+                                           HInstruction* instruction,
+                                           SlowPathCode* slow_path);
+
   ParallelMoveResolverARM64* GetMoveResolver() OVERRIDE { return &move_resolver_; }
 
   bool NeedsTwoRegisters(Primitive::Type type ATTRIBUTE_UNUSED) const OVERRIDE {
