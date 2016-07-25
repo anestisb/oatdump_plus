@@ -754,13 +754,13 @@ class MANAGED Class FINAL : public Object {
         size_t pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  template <bool kTransactionActive = false>
+  template <size_t kPointerSize, bool kTransactionActive>
   static Method* GetDeclaredMethodInternal(Thread* self,
                                            mirror::Class* klass,
                                            mirror::String* name,
                                            mirror::ObjectArray<mirror::Class>* args)
       SHARED_REQUIRES(Locks::mutator_lock_);
-  template <bool kTransactionActive = false>
+  template <size_t kPointerSize, bool kTransactionActive>
   static Constructor* GetDeclaredConstructorInternal(Thread* self,
                                                      mirror::Class* klass,
                                                      mirror::ObjectArray<mirror::Class>* args)

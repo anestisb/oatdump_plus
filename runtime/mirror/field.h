@@ -92,7 +92,7 @@ class MANAGED Field : public AccessibleObject {
   // Slow, try to use only for PrettyField and such.
   ArtField* GetArtField() SHARED_REQUIRES(Locks::mutator_lock_);
 
-  template <bool kTransactionActive = false>
+  template <size_t kPointerSize, bool kTransactionActive = false>
   static mirror::Field* CreateFromArtField(Thread* self, ArtField* field,
                                            bool force_resolve)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);

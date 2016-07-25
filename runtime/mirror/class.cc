@@ -1053,7 +1053,7 @@ uint32_t Class::FindTypeIndexInOtherDexFile(const DexFile& dex_file) {
   return (type_id == nullptr) ? DexFile::kDexNoIndex : dex_file.GetIndexForTypeId(*type_id);
 }
 
-template <bool kTransactionActive>
+template <size_t kPointerSize, bool kTransactionActive>
 mirror::Method* Class::GetDeclaredMethodInternal(Thread* self,
                                                  mirror::Class* klass,
                                                  mirror::String* name,
@@ -1074,11 +1074,8 @@ mirror::Method* Class::GetDeclaredMethodInternal(Thread* self,
   auto h_args = hs.NewHandle(args);
   Handle<mirror::Class> h_klass = hs.NewHandle(klass);
   ArtMethod* result = nullptr;
-  const size_t pointer_size = kTransactionActive
-                                  ? Runtime::Current()->GetClassLinker()->GetImagePointerSize()
-                                  : sizeof(void*);
-  for (auto& m : h_klass->GetDeclaredVirtualMethods(pointer_size)) {
-    auto* np_method = m.GetInterfaceMethodIfProxy(pointer_size);
+  for (auto& m : h_klass->GetDeclaredVirtualMethods(kPointerSize)) {
+    auto* np_method = m.GetInterfaceMethodIfProxy(kPointerSize);
     // May cause thread suspension.
     mirror::String* np_name = np_method->GetNameAsString(self);
     if (!np_name->Equals(h_method_name.Get()) || !np_method->EqualParameters(h_args)) {
@@ -1089,19 +1086,19 @@ mirror::Method* Class::GetDeclaredMethodInternal(Thread* self,
     }
     auto modifiers = m.GetAccessFlags();
     if ((modifiers & kSkipModifiers) == 0) {
-      return mirror::Method::CreateFromArtMethod<kTransactionActive>(self, &m);
+      return mirror::Method::CreateFromArtMethod<kPointerSize, kTransactionActive>(self, &m);
     }
     if ((modifiers & kAccMiranda) == 0) {
       result = &m;  // Remember as potential result if it's not a miranda method.
     }
   }
   if (result == nullptr) {
-    for (auto& m : h_klass->GetDirectMethods(pointer_size)) {
+    for (auto& m : h_klass->GetDirectMethods(kPointerSize)) {
       auto modifiers = m.GetAccessFlags();
       if ((modifiers & kAccConstructor) != 0) {
         continue;
       }
-      auto* np_method = m.GetInterfaceMethodIfProxy(pointer_size);
+      auto* np_method = m.GetInterfaceMethodIfProxy(kPointerSize);
       // May cause thread suspension.
       mirror::String* np_name = np_method->GetNameAsString(self);
       if (np_name == nullptr) {
@@ -1115,50 +1112,69 @@ mirror::Method* Class::GetDeclaredMethodInternal(Thread* self,
         continue;
       }
       if ((modifiers & kSkipModifiers) == 0) {
-        return mirror::Method::CreateFromArtMethod<kTransactionActive>(self, &m);
+        return mirror::Method::CreateFromArtMethod<kPointerSize, kTransactionActive>(self, &m);
       }
       // Direct methods cannot be miranda methods, so this potential result must be synthetic.
       result = &m;
     }
   }
   return result != nullptr
-      ? mirror::Method::CreateFromArtMethod<kTransactionActive>(self, result)
+      ? mirror::Method::CreateFromArtMethod<kPointerSize, kTransactionActive>(self, result)
       : nullptr;
 }
 
 template
-mirror::Method* Class::GetDeclaredMethodInternal<false>(Thread* self,
-                                                        mirror::Class* klass,
-                                                        mirror::String* name,
-                                                        mirror::ObjectArray<mirror::Class>* args);
+mirror::Method* Class::GetDeclaredMethodInternal<4U, false>(
+    Thread* self,
+    mirror::Class* klass,
+    mirror::String* name,
+    mirror::ObjectArray<mirror::Class>* args);
 template
-mirror::Method* Class::GetDeclaredMethodInternal<true>(Thread* self,
-                                                       mirror::Class* klass,
-                                                       mirror::String* name,
-                                                       mirror::ObjectArray<mirror::Class>* args);
+mirror::Method* Class::GetDeclaredMethodInternal<4U, true>(
+    Thread* self,
+    mirror::Class* klass,
+    mirror::String* name,
+    mirror::ObjectArray<mirror::Class>* args);
+template
+mirror::Method* Class::GetDeclaredMethodInternal<8U, false>(
+    Thread* self,
+    mirror::Class* klass,
+    mirror::String* name,
+    mirror::ObjectArray<mirror::Class>* args);
+template
+mirror::Method* Class::GetDeclaredMethodInternal<8U, true>(
+    Thread* self,
+    mirror::Class* klass,
+    mirror::String* name,
+    mirror::ObjectArray<mirror::Class>* args);
 
-template <bool kTransactionActive>
+template <size_t kPointerSize, bool kTransactionActive>
 mirror::Constructor* Class::GetDeclaredConstructorInternal(
     Thread* self,
     mirror::Class* klass,
     mirror::ObjectArray<mirror::Class>* args) {
   StackHandleScope<1> hs(self);
-  const size_t pointer_size = kTransactionActive
-                                  ? Runtime::Current()->GetClassLinker()->GetImagePointerSize()
-                                  : sizeof(void*);
-  ArtMethod* result = klass->GetDeclaredConstructor(self, hs.NewHandle(args), pointer_size);
+  ArtMethod* result = klass->GetDeclaredConstructor(self, hs.NewHandle(args), kPointerSize);
   return result != nullptr
-      ? mirror::Constructor::CreateFromArtMethod<kTransactionActive>(self, result)
+      ? mirror::Constructor::CreateFromArtMethod<kPointerSize, kTransactionActive>(self, result)
       : nullptr;
 }
 
 // mirror::Constructor::CreateFromArtMethod<kTransactionActive>(self, result)
 
-template mirror::Constructor* Class::GetDeclaredConstructorInternal<false>(
+template mirror::Constructor* Class::GetDeclaredConstructorInternal<4U, false>(
     Thread* self,
     mirror::Class* klass,
     mirror::ObjectArray<mirror::Class>* args);
-template mirror::Constructor* Class::GetDeclaredConstructorInternal<true>(
+template mirror::Constructor* Class::GetDeclaredConstructorInternal<4U, true>(
+    Thread* self,
+    mirror::Class* klass,
+    mirror::ObjectArray<mirror::Class>* args);
+template mirror::Constructor* Class::GetDeclaredConstructorInternal<8U, false>(
+    Thread* self,
+    mirror::Class* klass,
+    mirror::ObjectArray<mirror::Class>* args);
+template mirror::Constructor* Class::GetDeclaredConstructorInternal<8U, true>(
     Thread* self,
     mirror::Class* klass,
     mirror::ObjectArray<mirror::Class>* args);

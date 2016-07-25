@@ -375,10 +375,12 @@ class JNI {
     ScopedObjectAccess soa(env);
     ArtMethod* m = soa.DecodeMethod(mid);
     mirror::AbstractMethod* method;
+    DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), sizeof(void*));
+    DCHECK(!Runtime::Current()->IsActiveTransaction());
     if (m->IsConstructor()) {
-      method = mirror::Constructor::CreateFromArtMethod(soa.Self(), m);
+      method = mirror::Constructor::CreateFromArtMethod<sizeof(void*), false>(soa.Self(), m);
     } else {
-      method = mirror::Method::CreateFromArtMethod(soa.Self(), m);
+      method = mirror::Method::CreateFromArtMethod<sizeof(void*), false>(soa.Self(), m);
     }
     return soa.AddLocalReference<jobject>(method);
   }
@@ -387,7 +389,8 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT(fid);
     ScopedObjectAccess soa(env);
     ArtField* f = soa.DecodeField(fid);
-    return soa.AddLocalReference<jobject>(mirror::Field::CreateFromArtField(soa.Self(), f, true));
+    return soa.AddLocalReference<jobject>(
+        mirror::Field::CreateFromArtField<sizeof(void*)>(soa.Self(), f, true));
   }
 
   static jclass GetObjectClass(JNIEnv* env, jobject java_object) {
