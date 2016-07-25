@@ -394,6 +394,12 @@ class CodeGeneratorARM : public CodeGenerator {
                      uint32_t dex_pc,
                      SlowPathCode* slow_path);
 
+  // Generate code to invoke a runtime entry point, but do not record
+  // PC-related information in a stack map.
+  void InvokeRuntimeWithoutRecordingPcInfo(int32_t entry_point_offset,
+                                           HInstruction* instruction,
+                                           SlowPathCode* slow_path);
+
   // Emit a write barrier.
   void MarkGCCard(Register temp, Register card, Register object, Register value, bool can_be_null);
 
