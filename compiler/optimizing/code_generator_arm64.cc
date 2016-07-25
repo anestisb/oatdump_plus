@@ -597,8 +597,7 @@ class ReadBarrierMarkSlowPathARM64 : public SlowPathCodeARM64 {
            instruction_->IsLoadString() ||
            instruction_->IsInstanceOf() ||
            instruction_->IsCheckCast() ||
-           ((instruction_->IsInvokeStaticOrDirect() || instruction_->IsInvokeVirtual()) &&
-            instruction_->GetLocations()->Intrinsified()))
+           (instruction_->IsInvokeVirtual()) && instruction_->GetLocations()->Intrinsified())
         << "Unexpected instruction in read barrier marking slow path: "
         << instruction_->DebugName();
 
@@ -606,7 +605,6 @@ class ReadBarrierMarkSlowPathARM64 : public SlowPathCodeARM64 {
     // No need to save live registers; it's taken care of by the
     // entrypoint. Also, there is no need to update the stack mask,
     // as this runtime call will not trigger a garbage collection.
-    InvokeRuntimeCallingConvention calling_convention;
     CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
     DCHECK_NE(obj_.reg(), LR);
     DCHECK_NE(obj_.reg(), WSP);
@@ -628,11 +626,8 @@ class ReadBarrierMarkSlowPathARM64 : public SlowPathCodeARM64 {
     //
     int32_t entry_point_offset =
         CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kArm64WordSize>(obj_.reg());
-    // TODO: Do not emit a stack map for this runtime call.
-    arm64_codegen->InvokeRuntime(entry_point_offset,
-                                 instruction_,
-                                 instruction_->GetDexPc(),
-                                 this);
+    // This runtime call does not require a stack map.
+    arm64_codegen->InvokeRuntimeWithoutRecordingPcInfo(entry_point_offset, instruction_, this);
     __ B(GetExitLabel());
   }
 
@@ -682,8 +677,7 @@ class ReadBarrierForHeapReferenceSlowPathARM64 : public SlowPathCodeARM64 {
            instruction_->IsArrayGet() ||
            instruction_->IsInstanceOf() ||
            instruction_->IsCheckCast() ||
-           ((instruction_->IsInvokeStaticOrDirect() || instruction_->IsInvokeVirtual()) &&
-            instruction_->GetLocations()->Intrinsified()))
+           (instruction_->IsInvokeVirtual()) && instruction_->GetLocations()->Intrinsified())
         << "Unexpected instruction in read barrier for heap reference slow path: "
         << instruction_->DebugName();
     // The read barrier instrumentation does not support the HIntermediateAddress instruction yet.
@@ -1500,6 +1494,15 @@ void CodeGeneratorARM64::InvokeRuntime(int32_t entry_point_offset,
   __ Ldr(lr, MemOperand(tr, entry_point_offset));
   __ Blr(lr);
   RecordPcInfo(instruction, dex_pc, slow_path);
+}
+
+void CodeGeneratorARM64::InvokeRuntimeWithoutRecordingPcInfo(int32_t entry_point_offset,
+                                                             HInstruction* instruction,
+                                                             SlowPathCode* slow_path) {
+  ValidateInvokeRuntimeWithoutRecordingPcInfo(instruction, slow_path);
+  BlockPoolsScope block_pools(GetVIXLAssembler());
+  __ Ldr(lr, MemOperand(tr, entry_point_offset));
+  __ Blr(lr);
 }
 
 void InstructionCodeGeneratorARM64::GenerateClassInitializationCheck(SlowPathCodeARM64* slow_path,
