@@ -136,7 +136,9 @@ static mirror::ObjectArray<mirror::Field>* GetDeclaredFields(
   }
   for (ArtField& field : ifields) {
     if (!public_only || field.IsPublic()) {
-      auto* reflect_field = mirror::Field::CreateFromArtField(self, &field, force_resolve);
+      auto* reflect_field = mirror::Field::CreateFromArtField<sizeof(void*)>(self,
+                                                                             &field,
+                                                                             force_resolve);
       if (reflect_field == nullptr) {
         if (kIsDebugBuild) {
           self->AssertPendingException();
@@ -149,7 +151,9 @@ static mirror::ObjectArray<mirror::Field>* GetDeclaredFields(
   }
   for (ArtField& field : sfields) {
     if (!public_only || field.IsPublic()) {
-      auto* reflect_field = mirror::Field::CreateFromArtField(self, &field, force_resolve);
+      auto* reflect_field = mirror::Field::CreateFromArtField<sizeof(void*)>(self,
+                                                                             &field,
+                                                                             force_resolve);
       if (reflect_field == nullptr) {
         if (kIsDebugBuild) {
           self->AssertPendingException();
@@ -222,11 +226,15 @@ ALWAYS_INLINE static inline mirror::Field* GetDeclaredField(
     SHARED_REQUIRES(Locks::mutator_lock_) {
   ArtField* art_field = FindFieldByName(self, name, c->GetIFieldsPtr());
   if (art_field != nullptr) {
-    return mirror::Field::CreateFromArtField(self, art_field, true);
+    return mirror::Field::CreateFromArtField<sizeof(void*)>(self,
+                                                            art_field,
+                                                            true);
   }
   art_field = FindFieldByName(self, name, c->GetSFieldsPtr());
   if (art_field != nullptr) {
-    return mirror::Field::CreateFromArtField(self, art_field, true);
+    return mirror::Field::CreateFromArtField<sizeof(void*)>(self,
+                                                            art_field,
+                                                            true);
   }
   return nullptr;
 }
@@ -323,7 +331,9 @@ static jobject Class_getDeclaredField(JNIEnv* env, jobject javaThis, jstring nam
 static jobject Class_getDeclaredConstructorInternal(
     JNIEnv* env, jobject javaThis, jobjectArray args) {
   ScopedFastNativeObjectAccess soa(env);
-  mirror::Constructor* result = mirror::Class::GetDeclaredConstructorInternal(
+  DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), sizeof(void*));
+  DCHECK(!Runtime::Current()->IsActiveTransaction());
+  mirror::Constructor* result = mirror::Class::GetDeclaredConstructorInternal<sizeof(void*), false>(
       soa.Self(),
       DecodeClass(soa, javaThis),
       soa.Decode<mirror::ObjectArray<mirror::Class>*>(args));
@@ -355,7 +365,10 @@ static jobjectArray Class_getDeclaredConstructorsInternal(
   constructor_count = 0;
   for (auto& m : h_klass->GetDirectMethods(sizeof(void*))) {
     if (MethodMatchesConstructor(&m, publicOnly != JNI_FALSE)) {
-      auto* constructor = mirror::Constructor::CreateFromArtMethod(soa.Self(), &m);
+      DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), sizeof(void*));
+      DCHECK(!Runtime::Current()->IsActiveTransaction());
+      auto* constructor = mirror::Constructor::CreateFromArtMethod<sizeof(void*), false>(
+          soa.Self(), &m);
       if (UNLIKELY(constructor == nullptr)) {
         soa.Self()->AssertPendingOOMException();
         return nullptr;
@@ -369,7 +382,9 @@ static jobjectArray Class_getDeclaredConstructorsInternal(
 static jobject Class_getDeclaredMethodInternal(JNIEnv* env, jobject javaThis,
                                                jobject name, jobjectArray args) {
   ScopedFastNativeObjectAccess soa(env);
-  mirror::Method* result = mirror::Class::GetDeclaredMethodInternal(
+  DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), sizeof(void*));
+  DCHECK(!Runtime::Current()->IsActiveTransaction());
+  mirror::Method* result = mirror::Class::GetDeclaredMethodInternal<sizeof(void*), false>(
       soa.Self(),
       DecodeClass(soa, javaThis),
       soa.Decode<mirror::String*>(name),
@@ -398,7 +413,9 @@ static jobjectArray Class_getDeclaredMethodsUnchecked(JNIEnv* env, jobject javaT
     auto modifiers = m.GetAccessFlags();
     if ((publicOnly == JNI_FALSE || (modifiers & kAccPublic) != 0) &&
         (modifiers & kAccConstructor) == 0) {
-      auto* method = mirror::Method::CreateFromArtMethod(soa.Self(), &m);
+      DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), sizeof(void*));
+      DCHECK(!Runtime::Current()->IsActiveTransaction());
+      auto* method = mirror::Method::CreateFromArtMethod<sizeof(void*), false>(soa.Self(), &m);
       if (method == nullptr) {
         soa.Self()->AssertPendingException();
         return nullptr;

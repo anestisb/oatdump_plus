@@ -876,8 +876,10 @@ extern "C" uint64_t artQuickProxyInvokeHandler(
   DCHECK(interface_method != nullptr) << PrettyMethod(proxy_method);
   DCHECK(!interface_method->IsProxyMethod()) << PrettyMethod(interface_method);
   self->EndAssertNoThreadSuspension(old_cause);
+  DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), sizeof(void*));
+  DCHECK(!Runtime::Current()->IsActiveTransaction());
   jobject interface_method_jobj = soa.AddLocalReference<jobject>(
-      mirror::Method::CreateFromArtMethod(soa.Self(), interface_method));
+      mirror::Method::CreateFromArtMethod<sizeof(void*), false>(soa.Self(), interface_method));
 
   // All naked Object*s should now be in jobjects, so its safe to go into the main invoke code
   // that performs allocations.

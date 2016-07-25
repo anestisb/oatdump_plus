@@ -60,29 +60,31 @@ class ProxyTest : public CommonCompilerTest {
 
     jsize array_index = 0;
     // Fill the method array
+    DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), sizeof(void*));
     ArtMethod* method = javaLangObject->FindDeclaredVirtualMethod(
         "equals", "(Ljava/lang/Object;)Z", sizeof(void*));
     CHECK(method != nullptr);
+    DCHECK(!Runtime::Current()->IsActiveTransaction());
     soa.Env()->SetObjectArrayElement(
         proxyClassMethods, array_index++, soa.AddLocalReference<jobject>(
-            mirror::Method::CreateFromArtMethod(soa.Self(), method)));
+            mirror::Method::CreateFromArtMethod<sizeof(void*), false>(soa.Self(), method)));
     method = javaLangObject->FindDeclaredVirtualMethod("hashCode", "()I", sizeof(void*));
     CHECK(method != nullptr);
     soa.Env()->SetObjectArrayElement(
         proxyClassMethods, array_index++, soa.AddLocalReference<jobject>(
-            mirror::Method::CreateFromArtMethod(soa.Self(), method)));
+            mirror::Method::CreateFromArtMethod<sizeof(void*), false>(soa.Self(), method)));
     method = javaLangObject->FindDeclaredVirtualMethod(
         "toString", "()Ljava/lang/String;", sizeof(void*));
     CHECK(method != nullptr);
     soa.Env()->SetObjectArrayElement(
         proxyClassMethods, array_index++, soa.AddLocalReference<jobject>(
-            mirror::Method::CreateFromArtMethod(soa.Self(), method)));
+            mirror::Method::CreateFromArtMethod<sizeof(void*), false>(soa.Self(), method)));
     // Now adds all interfaces virtual methods.
     for (mirror::Class* interface : interfaces) {
       for (auto& m : interface->GetDeclaredVirtualMethods(sizeof(void*))) {
         soa.Env()->SetObjectArrayElement(
             proxyClassMethods, array_index++, soa.AddLocalReference<jobject>(
-                mirror::Method::CreateFromArtMethod(soa.Self(), &m)));
+                mirror::Method::CreateFromArtMethod<sizeof(void*), false>(soa.Self(), &m)));
       }
     }
     CHECK_EQ(array_index, methods_count);
@@ -226,14 +228,20 @@ TEST_F(ProxyTest, CheckArtMirrorFieldsOfProxyStaticFields) {
   EXPECT_EQ(static_fields1->At(0).GetDeclaringClass(), proxyClass1.Get());
   EXPECT_EQ(static_fields1->At(1).GetDeclaringClass(), proxyClass1.Get());
 
+  ASSERT_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), sizeof(void*));
+  ASSERT_FALSE(Runtime::Current()->IsActiveTransaction());
   Handle<mirror::Field> field00 =
-      hs.NewHandle(mirror::Field::CreateFromArtField(soa.Self(), &static_fields0->At(0), true));
+      hs.NewHandle(mirror::Field::CreateFromArtField<sizeof(void*), false>(
+          soa.Self(), &static_fields0->At(0), true));
   Handle<mirror::Field> field01 =
-      hs.NewHandle(mirror::Field::CreateFromArtField(soa.Self(), &static_fields0->At(1), true));
+      hs.NewHandle(mirror::Field::CreateFromArtField<sizeof(void*), false>(
+          soa.Self(), &static_fields0->At(1), true));
   Handle<mirror::Field> field10 =
-      hs.NewHandle(mirror::Field::CreateFromArtField(soa.Self(), &static_fields1->At(0), true));
+      hs.NewHandle(mirror::Field::CreateFromArtField<sizeof(void*), false>(
+          soa.Self(), &static_fields1->At(0), true));
   Handle<mirror::Field> field11 =
-      hs.NewHandle(mirror::Field::CreateFromArtField(soa.Self(), &static_fields1->At(1), true));
+      hs.NewHandle(mirror::Field::CreateFromArtField<sizeof(void*), false>(
+          soa.Self(), &static_fields1->At(1), true));
   EXPECT_EQ(field00->GetArtField(), &static_fields0->At(0));
   EXPECT_EQ(field01->GetArtField(), &static_fields0->At(1));
   EXPECT_EQ(field10->GetArtField(), &static_fields1->At(0));
