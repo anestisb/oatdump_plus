@@ -64,6 +64,9 @@ DX_FLAGS=""
 SKIP_DX_MERGER="false"
 EXPERIMENTAL=""
 
+# The key for default arguments if no experimental things are enabled.
+DEFAULT_EXPERIMENT="no-experiment"
+
 # Setup experimental flag mappings in a bash associative array.
 declare -A JACK_EXPERIMENTAL_ARGS
 JACK_EXPERIMENTAL_ARGS["default-methods"]="-D jack.java.source.version=1.8 -D jack.android.min-api-level=24"
@@ -71,6 +74,11 @@ JACK_EXPERIMENTAL_ARGS["lambdas"]="-D jack.java.source.version=1.8 -D jack.andro
 
 declare -A SMALI_EXPERIMENTAL_ARGS
 SMALI_EXPERIMENTAL_ARGS["default-methods"]="--api-level 24"
+
+declare -A JAVAC_EXPERIMENTAL_ARGS
+JAVAC_EXPERIMENTAL_ARGS["default-methods"]="-source 1.8 -target 1.8"
+JAVAC_EXPERIMENTAL_ARGS["lambdas"]="-source 1.8 -target 1.8"
+JAVAC_EXPERIMENTAL_ARGS[${DEFAULT_EXPERIMENT}]="-source 1.7 -target 1.7"
 
 while true; do
   if [ "x$1" = "x--dx-option" ]; then
@@ -100,6 +108,8 @@ while true; do
     shift
   elif [ "x$1" = "x--experimental" ]; then
     shift
+    # We have a specific experimental configuration so don't use the default.
+    DEFAULT_EXPERIMENT=""
     EXPERIMENTAL="${EXPERIMENTAL} $1"
     shift
   elif expr "x$1" : "x--" >/dev/null 2>&1; then
@@ -110,10 +120,14 @@ while true; do
   fi
 done
 
+# Be sure to get any default arguments if not doing any experiments.
+EXPERIMENTAL="${EXPERIMENTAL} ${DEFAULT_EXPERIMENT}"
+
 # Add args from the experimental mappings.
 for experiment in ${EXPERIMENTAL}; do
   JACK_ARGS="${JACK_ARGS} ${JACK_EXPERIMENTAL_ARGS[${experiment}]}"
   SMALI_ARGS="${SMALI_ARGS} ${SMALI_EXPERIMENTAL_ARGS[${experiment}]}"
+  JAVAC_ARGS="${JAVAC_ARGS} ${JAVAC_EXPERIMENTAL_ARGS[${experiment}]}"
 done
 
 if [ -e classes.dex ]; then
