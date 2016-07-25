@@ -1,0 +1,39 @@
+/*
+ * Copyright (C) 2016 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Offsets within ShadowFrame.
+
+#if defined(DEFINE_INCLUDE_DEPENDENCIES)
+#include "runtime.h"         // art::Runtime
+#endif
+
+#include "common.def"        // DEFINE_OFFSET_EXPR
+
+// Note: these callee save methods loads require read barriers.
+
+#define DEFINE_RUNTIME_CALLEE_SAVE_OFFSET(field_name, constant_name) \
+  DEFINE_OFFSET_EXPR(Runtime, field_name ## _CALLEE_SAVE_FRAME, size_t, art::Runtime::GetCalleeSaveMethodOffset(art::Runtime:: constant_name))
+
+                    //     Macro substring       Constant name
+// Offset of field Runtime::callee_save_methods_[kSaveAll]
+DEFINE_RUNTIME_CALLEE_SAVE_OFFSET(SAVE_ALL,      kSaveAll)
+// Offset of field Runtime::callee_save_methods_[kRefsOnly]
+DEFINE_RUNTIME_CALLEE_SAVE_OFFSET(REFS_ONLY,     kRefsOnly)
+// Offset of field Runtime::callee_save_methods_[kRefsAndArgs]
+DEFINE_RUNTIME_CALLEE_SAVE_OFFSET(REFS_AND_ARGS, kRefsAndArgs)
+
+#undef DEFINE_RUNTIME_CALLEE_SAVE_OFFSET
+#include "common_undef.def"  // undef DEFINE_OFFSET_EXPR
