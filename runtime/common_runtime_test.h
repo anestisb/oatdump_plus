@@ -141,11 +141,13 @@ class CommonRuntimeTestImpl {
 
   std::unique_ptr<CompilerCallbacks> callbacks_;
 
-  void SetUp();
+  virtual void SetUp();
 
-  void TearDown();
+  virtual void TearDown();
 
-  void FinalizeSetup();
+  // Called to finish up runtime creation and filling test fields. By default runs root
+  // initializers, initialize well-known classes, and creates the heap thread pool.
+  virtual void FinalizeSetup();
 
  private:
   static std::string GetCoreFileLocation(const char* suffix);
@@ -160,18 +162,12 @@ class CommonRuntimeTestBase : public TestType, public CommonRuntimeTestImpl {
   virtual ~CommonRuntimeTestBase() {}
 
  protected:
-  virtual void SetUp() {
+  virtual void SetUp() OVERRIDE {
     CommonRuntimeTestImpl::SetUp();
   }
 
-  virtual void TearDown() {
+  virtual void TearDown() OVERRIDE {
     CommonRuntimeTestImpl::TearDown();
-  }
-
-  // Called to finish up runtime creation and filling test fields. By default runs root
-  // initializers, initialize well-known classes, and creates the heap thread pool.
-  virtual void FinalizeSetup() {
-    CommonRuntimeTestImpl::FinalizeSetup();
   }
 };
 
