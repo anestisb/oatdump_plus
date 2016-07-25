@@ -379,7 +379,13 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
     return type == Primitive::kPrimNot && !value->IsNullConstant();
   }
 
+
+  // Perfoms checks pertaining to an InvokeRuntime call.
   void ValidateInvokeRuntime(HInstruction* instruction, SlowPathCode* slow_path);
+
+  // Perfoms checks pertaining to an InvokeRuntimeWithoutRecordingPcInfo call.
+  static void ValidateInvokeRuntimeWithoutRecordingPcInfo(HInstruction* instruction,
+                                                          SlowPathCode* slow_path);
 
   void AddAllocatedRegister(Location location) {
     allocated_registers_.Add(location);
