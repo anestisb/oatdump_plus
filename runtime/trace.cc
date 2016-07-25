@@ -645,31 +645,11 @@ void Trace::DumpBuf(uint8_t* buf, size_t buf_size, TraceClockSource clock_source
   }
 }
 
-static void GetVisitedMethodsFromBitSets(
-    const std::map<const DexFile*, DexIndexBitSet*>& seen_methods,
-    std::set<ArtMethod*>* visited_methods) SHARED_REQUIRES(Locks::mutator_lock_) {
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Thread* const self = Thread::Current();
-  for (auto& e : seen_methods) {
-    DexIndexBitSet* bit_set = e.second;
-    // TODO: Visit trace methods as roots.
-    mirror::DexCache* dex_cache = class_linker->FindDexCache(self, *e.first, false);
-    for (uint32_t i = 0; i < bit_set->size(); ++i) {
-      if ((*bit_set)[i]) {
-        visited_methods->insert(dex_cache->GetResolvedMethod(i, sizeof(void*)));
-      }
-    }
-  }
-}
-
 void Trace::FinishTracing() {
   size_t final_offset = 0;
 
   std::set<ArtMethod*> visited_methods;
   if (trace_output_mode_ == TraceOutputMode::kStreaming) {
-    // Write the secondary file with all the method names.
-    GetVisitedMethodsFromBitSets(seen_methods_, &visited_methods);
-
     // Clean up.
     STLDeleteValues(&seen_methods_);
   } else {
@@ -850,11 +830,6 @@ void Trace::ReadClocks(Thread* thread, uint32_t* thread_clock_diff, uint32_t* wa
 bool Trace::RegisterMethod(ArtMethod* method) {
   mirror::DexCache* dex_cache = method->GetDexCache();
   const DexFile* dex_file = dex_cache->GetDexFile();
-  auto* resolved_method = dex_cache->GetResolvedMethod(method->GetDexMethodIndex(), sizeof(void*));
-  if (resolved_method != method) {
-    DCHECK(resolved_method == nullptr);
-    dex_cache->SetResolvedMethod(method->GetDexMethodIndex(), method, sizeof(void*));
-  }
   if (seen_methods_.find(dex_file) == seen_methods_.end()) {
     seen_methods_.insert(std::make_pair(dex_file, new DexIndexBitSet()));
   }
@@ -880,8 +855,7 @@ bool Trace::RegisterThread(Thread* thread) {
 
 std::string Trace::GetMethodLine(ArtMethod* method) {
   method = method->GetInterfaceMethodIfProxy(sizeof(void*));
-  return StringPrintf("%p\t%s\t%s\t%s\t%s\n",
-                      reinterpret_cast<void*>((EncodeTraceMethod(method) << TraceActionBits)),
+  return StringPrintf("%#x\t%s\t%s\t%s\t%s\n", (EncodeTraceMethod(method) << TraceActionBits),
       PrettyDescriptor(method->GetDeclaringClassDescriptor()).c_str(), method->GetName(),
       method->GetSignature().ToString().c_str(), method->GetDeclaringClassSourceFile());
 }
