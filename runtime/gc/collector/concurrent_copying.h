@@ -152,6 +152,12 @@ class ConcurrentCopying : public GarbageCollector {
   bool ProcessMarkStackOnce() SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!mark_stack_lock_);
   void ProcessMarkStackRef(mirror::Object* to_ref) SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_);
+  void GrayAllDirtyImmuneObjects()
+      REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!mark_stack_lock_);
+  void VerifyGrayImmuneObjects()
+      REQUIRES(Locks::mutator_lock_)
+      REQUIRES(!mark_stack_lock_);
   size_t ProcessThreadLocalMarkStacks(bool disable_weak_ref_access)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!mark_stack_lock_);
   void RevokeThreadLocalMarkStacks(bool disable_weak_ref_access)
@@ -294,12 +300,14 @@ class ConcurrentCopying : public GarbageCollector {
   class ComputeUnevacFromSpaceLiveRatioVisitor;
   class DisableMarkingCheckpoint;
   class FlipCallback;
+  class GrayImmuneObjectVisitor;
   class ImmuneSpaceScanObjVisitor;
   class LostCopyVisitor;
   class RefFieldsVisitor;
   class RevokeThreadLocalMarkStackCheckpoint;
   class ScopedGcGraysImmuneObjects;
   class ThreadFlipVisitor;
+  class VerifyGrayImmuneObjectsVisitor;
   class VerifyNoFromSpaceRefsFieldVisitor;
   class VerifyNoFromSpaceRefsObjectVisitor;
   class VerifyNoFromSpaceRefsVisitor;
