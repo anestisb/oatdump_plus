@@ -272,6 +272,14 @@ codes.
 .endm
 
 /*
+ * Get the 32-bit value from a Dalvik register and sign-extend to 64-bit.
+ * Used to avoid an extra instruction in int-to-long.
+ */
+.macro GET_VREG_S reg, vreg
+    ldrsw   \reg, [xFP, \vreg, uxtw #2]
+.endm
+
+/*
  * Convert a virtual register index into an address.
  */
 .macro VREG_INDEX_TO_ADDR reg, vreg

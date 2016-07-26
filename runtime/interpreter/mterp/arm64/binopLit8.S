@@ -13,7 +13,7 @@
      *      shl-int/lit8, shr-int/lit8, ushr-int/lit8
      */
     /* binop/lit8 vAA, vBB, #+CC */
-    FETCH_S w3, 1                       // w3<- ssssCCBB (sign-extended for CC
+    FETCH_S w3, 1                       // w3<- ssssCCBB (sign-extended for CC)
     lsr     w9, wINST, #8               // w9<- AA
     and     w2, w3, #255                // w2<- BB
     GET_VREG w0, w2                     // w0<- vBB
