@@ -17,6 +17,7 @@
 #include "inliner.h"
 
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "builder.h"
 #include "class_linker.h"
 #include "constant_folding.h"
@@ -151,7 +152,7 @@ static ArtMethod* FindVirtualOrInterfaceTarget(HInvoke* invoke, ArtMethod* resol
   }
 
   ClassLinker* cl = Runtime::Current()->GetClassLinker();
-  size_t pointer_size = cl->GetImagePointerSize();
+  PointerSize pointer_size = cl->GetImagePointerSize();
   if (invoke->IsInvokeInterface()) {
     resolved_method = info.GetTypeHandle()->FindVirtualMethodForInterface(
         resolved_method, pointer_size);
@@ -243,7 +244,7 @@ class ScopedProfilingInfoInlineUse {
 
   ~ScopedProfilingInfoInlineUse() {
     if (profiling_info_ != nullptr) {
-      size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+      PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
       DCHECK_EQ(profiling_info_, method_->GetProfilingInfo(pointer_size));
       Runtime::Current()->GetJit()->GetCodeCache()->DoneCompilerUse(method_, self_);
     }
@@ -390,7 +391,7 @@ bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
   }
 
   ClassLinker* class_linker = caller_compilation_unit_.GetClassLinker();
-  size_t pointer_size = class_linker->GetImagePointerSize();
+  PointerSize pointer_size = class_linker->GetImagePointerSize();
   if (invoke_instruction->IsInvokeInterface()) {
     resolved_method = ic.GetMonomorphicType()->FindVirtualMethodForInterface(
         resolved_method, pointer_size);
@@ -482,7 +483,7 @@ bool HInliner::TryInlinePolymorphicCall(HInvoke* invoke_instruction,
   }
 
   ClassLinker* class_linker = caller_compilation_unit_.GetClassLinker();
-  size_t pointer_size = class_linker->GetImagePointerSize();
+  PointerSize pointer_size = class_linker->GetImagePointerSize();
   const DexFile& caller_dex_file = *caller_compilation_unit_.GetDexFile();
 
   bool all_targets_inlined = true;
@@ -644,7 +645,7 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(HInvoke* invoke_instruction,
     return false;
   }
   ClassLinker* class_linker = caller_compilation_unit_.GetClassLinker();
-  size_t pointer_size = class_linker->GetImagePointerSize();
+  PointerSize pointer_size = class_linker->GetImagePointerSize();
 
   DCHECK(resolved_method != nullptr);
   ArtMethod* actual_method = nullptr;
@@ -1004,7 +1005,7 @@ bool HInliner::TryPatternSubstitution(HInvoke* invoke_instruction,
           invoke_instruction->GetBlock()->InsertInstructionBefore(iput, invoke_instruction);
 
           // Check whether the field is final. If it is, we need to add a barrier.
-          size_t pointer_size = InstructionSetPointerSize(codegen_->GetInstructionSet());
+          PointerSize pointer_size = InstructionSetPointerSize(codegen_->GetInstructionSet());
           ArtField* resolved_field = dex_cache->GetResolvedField(field_index, pointer_size);
           DCHECK(resolved_field != nullptr);
           if (resolved_field->IsFinal()) {
@@ -1030,7 +1031,7 @@ HInstanceFieldGet* HInliner::CreateInstanceFieldGet(Handle<mirror::DexCache> dex
                                                     uint32_t field_index,
                                                     HInstruction* obj)
     SHARED_REQUIRES(Locks::mutator_lock_) {
-  size_t pointer_size = InstructionSetPointerSize(codegen_->GetInstructionSet());
+  PointerSize pointer_size = InstructionSetPointerSize(codegen_->GetInstructionSet());
   ArtField* resolved_field = dex_cache->GetResolvedField(field_index, pointer_size);
   DCHECK(resolved_field != nullptr);
   HInstanceFieldGet* iget = new (graph_->GetArena()) HInstanceFieldGet(
@@ -1058,7 +1059,7 @@ HInstanceFieldSet* HInliner::CreateInstanceFieldSet(Handle<mirror::DexCache> dex
                                                     HInstruction* obj,
                                                     HInstruction* value)
     SHARED_REQUIRES(Locks::mutator_lock_) {
-  size_t pointer_size = InstructionSetPointerSize(codegen_->GetInstructionSet());
+  PointerSize pointer_size = InstructionSetPointerSize(codegen_->GetInstructionSet());
   ArtField* resolved_field = dex_cache->GetResolvedField(field_index, pointer_size);
   DCHECK(resolved_field != nullptr);
   HInstanceFieldSet* iput = new (graph_->GetArena()) HInstanceFieldSet(
@@ -1397,7 +1398,7 @@ bool HInliner::ArgumentTypesMoreSpecific(HInvoke* invoke_instruction, ArtMethod*
     }
   }
 
-  size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+  PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
 
   // Iterate over the list of parameter types and test whether any of the
   // actual inputs has a more specific reference type than the type declared in
@@ -1454,7 +1455,7 @@ void HInliner::FixUpReturnReferenceType(ArtMethod* resolved_method,
         // TODO: we could be more precise by merging the phi inputs but that requires
         // some functionality from the reference type propagation.
         DCHECK(return_replacement->IsPhi());
-        size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+        PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
         mirror::Class* cls = resolved_method->GetReturnType(false /* resolve */, pointer_size);
         return_replacement->SetReferenceTypeInfo(GetClassRTI(cls));
       }

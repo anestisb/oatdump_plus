@@ -23,6 +23,7 @@
 #include "art_method-inl.h"
 #include "base/allocator.h"
 #include "base/bit_vector.h"
+#include "base/enums.h"
 #include "base/file_magic.h"
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
@@ -506,7 +507,7 @@ void OatWriter::PrepareLayout(const CompilerDriver* compiler,
   if (!HasBootImage()) {
     // Allocate space for app dex cache arrays in the .bss section.
     size_t bss_start = RoundUp(size_, kPageSize);
-    size_t pointer_size = GetInstructionSetPointerSize(instruction_set);
+    PointerSize pointer_size = GetInstructionSetPointerSize(instruction_set);
     bss_size_ = 0u;
     for (const DexFile* dex_file : *dex_files_) {
       dex_cache_arrays_offsets_.Put(dex_file, bss_start + bss_size_);
@@ -941,7 +942,7 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
   }
 
  protected:
-  const size_t pointer_size_;
+  const PointerSize pointer_size_;
 };
 
 class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
@@ -1149,7 +1150,8 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
     if (UNLIKELY(target_offset == 0)) {
       ArtMethod* target = GetTargetMethod(patch);
       DCHECK(target != nullptr);
-      size_t size = GetInstructionSetPointerSize(writer_->compiler_driver_->GetInstructionSet());
+      PointerSize size =
+          GetInstructionSetPointerSize(writer_->compiler_driver_->GetInstructionSet());
       const void* oat_code_offset = target->GetEntryPointFromQuickCompiledCodePtrSize(size);
       if (oat_code_offset != 0) {
         DCHECK(!writer_->HasBootImage());

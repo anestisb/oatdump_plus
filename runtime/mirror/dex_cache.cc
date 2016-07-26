@@ -41,7 +41,7 @@ void DexCache::Init(const DexFile* dex_file,
                     uint32_t num_resolved_methods,
                     ArtField** resolved_fields,
                     uint32_t num_resolved_fields,
-                    size_t pointer_size) {
+                    PointerSize pointer_size) {
   CHECK(dex_file != nullptr);
   CHECK(location != nullptr);
   CHECK_EQ(num_strings != 0u, strings != nullptr);
@@ -67,7 +67,7 @@ void DexCache::Init(const DexFile* dex_file,
   }
 }
 
-void DexCache::Fixup(ArtMethod* trampoline, size_t pointer_size) {
+void DexCache::Fixup(ArtMethod* trampoline, PointerSize pointer_size) {
   // Fixup the resolve methods array to contain trampoline for resolution.
   CHECK(trampoline != nullptr);
   CHECK(trampoline->IsRuntimeMethod());

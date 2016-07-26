@@ -18,6 +18,7 @@
 #define ART_COMPILER_JNI_QUICK_CALLING_CONVENTION_H_
 
 #include "base/arena_object.h"
+#include "base/enums.h"
 #include "handle_scope.h"
 #include "primitive.h"
 #include "thread.h"
@@ -70,8 +71,10 @@ class CallingConvention : public DeletableArenaObject<kArenaAllocCallingConventi
   virtual ~CallingConvention() {}
 
  protected:
-  CallingConvention(bool is_static, bool is_synchronized, const char* shorty,
-                    size_t frame_pointer_size)
+  CallingConvention(bool is_static,
+                    bool is_synchronized,
+                    const char* shorty,
+                    PointerSize frame_pointer_size)
       : itr_slots_(0), itr_refs_(0), itr_args_(0), itr_longs_and_doubles_(0),
         itr_float_and_doubles_(0), displacement_(0),
         frame_pointer_size_(frame_pointer_size),
@@ -198,7 +201,7 @@ class CallingConvention : public DeletableArenaObject<kArenaAllocCallingConventi
   // Space for frames below this on the stack.
   FrameOffset displacement_;
   // The size of a pointer.
-  const size_t frame_pointer_size_;
+  const PointerSize frame_pointer_size_;
   // The size of a reference entry within the handle scope.
   const size_t handle_scope_pointer_size_;
 
@@ -255,7 +258,7 @@ class ManagedRuntimeCallingConvention : public CallingConvention {
   ManagedRuntimeCallingConvention(bool is_static,
                                   bool is_synchronized,
                                   const char* shorty,
-                                  size_t frame_pointer_size)
+                                  PointerSize frame_pointer_size)
       : CallingConvention(is_static, is_synchronized, shorty, frame_pointer_size) {}
 };
 
@@ -328,7 +331,7 @@ class JniCallingConvention : public CallingConvention {
 
   // Position of handle scope and interior fields
   FrameOffset HandleScopeOffset() const {
-    return FrameOffset(this->displacement_.Int32Value() + frame_pointer_size_);
+    return FrameOffset(this->displacement_.Int32Value() + static_cast<size_t>(frame_pointer_size_));
     // above Method reference
   }
 
@@ -356,8 +359,10 @@ class JniCallingConvention : public CallingConvention {
     kObjectOrClass = 1
   };
 
-  JniCallingConvention(bool is_static, bool is_synchronized, const char* shorty,
-                       size_t frame_pointer_size)
+  JniCallingConvention(bool is_static,
+                       bool is_synchronized,
+                       const char* shorty,
+                       PointerSize frame_pointer_size)
       : CallingConvention(is_static, is_synchronized, shorty, frame_pointer_size) {}
 
   // Number of stack slots for outgoing arguments, above which the handle scope is

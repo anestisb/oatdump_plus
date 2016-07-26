@@ -258,7 +258,7 @@ class Address : public Operand {
   }
 
   // If no_rip is true then the Absolute address isn't RIP relative.
-  static Address Absolute(ThreadOffset<8> addr, bool no_rip = false) {
+  static Address Absolute(ThreadOffset64 addr, bool no_rip = false) {
     return Absolute(addr.Int32Value(), no_rip);
   }
 
@@ -723,13 +723,13 @@ class X86_64Assembler FINAL : public Assembler {
 
   void StoreImmediateToFrame(FrameOffset dest, uint32_t imm, ManagedRegister scratch) OVERRIDE;
 
-  void StoreImmediateToThread64(ThreadOffset<8> dest, uint32_t imm, ManagedRegister scratch)
+  void StoreImmediateToThread64(ThreadOffset64 dest, uint32_t imm, ManagedRegister scratch)
       OVERRIDE;
 
-  void StoreStackOffsetToThread64(ThreadOffset<8> thr_offs, FrameOffset fr_offs,
+  void StoreStackOffsetToThread64(ThreadOffset64 thr_offs, FrameOffset fr_offs,
                                   ManagedRegister scratch) OVERRIDE;
 
-  void StoreStackPointerToThread64(ThreadOffset<8> thr_offs) OVERRIDE;
+  void StoreStackPointerToThread64(ThreadOffset64 thr_offs) OVERRIDE;
 
   void StoreSpanning(FrameOffset dest, ManagedRegister src, FrameOffset in_off,
                      ManagedRegister scratch) OVERRIDE;
@@ -737,7 +737,7 @@ class X86_64Assembler FINAL : public Assembler {
   // Load routines
   void Load(ManagedRegister dest, FrameOffset src, size_t size) OVERRIDE;
 
-  void LoadFromThread64(ManagedRegister dest, ThreadOffset<8> src, size_t size) OVERRIDE;
+  void LoadFromThread64(ManagedRegister dest, ThreadOffset64 src, size_t size) OVERRIDE;
 
   void LoadRef(ManagedRegister dest, FrameOffset  src) OVERRIDE;
 
@@ -746,15 +746,15 @@ class X86_64Assembler FINAL : public Assembler {
 
   void LoadRawPtr(ManagedRegister dest, ManagedRegister base, Offset offs) OVERRIDE;
 
-  void LoadRawPtrFromThread64(ManagedRegister dest, ThreadOffset<8> offs) OVERRIDE;
+  void LoadRawPtrFromThread64(ManagedRegister dest, ThreadOffset64 offs) OVERRIDE;
 
   // Copying routines
   void Move(ManagedRegister dest, ManagedRegister src, size_t size);
 
-  void CopyRawPtrFromThread64(FrameOffset fr_offs, ThreadOffset<8> thr_offs,
+  void CopyRawPtrFromThread64(FrameOffset fr_offs, ThreadOffset64 thr_offs,
                               ManagedRegister scratch) OVERRIDE;
 
-  void CopyRawPtrToThread64(ThreadOffset<8> thr_offs, FrameOffset fr_offs, ManagedRegister scratch)
+  void CopyRawPtrToThread64(ThreadOffset64 thr_offs, FrameOffset fr_offs, ManagedRegister scratch)
       OVERRIDE;
 
   void CopyRef(FrameOffset dest, FrameOffset src, ManagedRegister scratch) OVERRIDE;
@@ -812,7 +812,7 @@ class X86_64Assembler FINAL : public Assembler {
   // Call to address held at [base+offset]
   void Call(ManagedRegister base, Offset offset, ManagedRegister scratch) OVERRIDE;
   void Call(FrameOffset base, Offset offset, ManagedRegister scratch) OVERRIDE;
-  void CallFromThread64(ThreadOffset<8> offset, ManagedRegister scratch) OVERRIDE;
+  void CallFromThread64(ThreadOffset64 offset, ManagedRegister scratch) OVERRIDE;
 
   // Generate code to check if Thread::Current()->exception_ is non-null
   // and branch to a ExceptionSlowPath if it is.

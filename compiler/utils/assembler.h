@@ -24,6 +24,7 @@
 #include "arm/constants_arm.h"
 #include "base/arena_allocator.h"
 #include "base/arena_object.h"
+#include "base/enums.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "debug/dwarf/debug_frame_opcode_writer.h"
@@ -382,8 +383,7 @@ class Assembler : public DeletableArenaObject<kArenaAllocAssembler> {
                           const ManagedRegisterEntrySpills& entry_spills) = 0;
 
   // Emit code that will remove an activation from the stack
-  virtual void RemoveFrame(size_t frame_size,
-                           ArrayRef<const ManagedRegister> callee_save_regs) = 0;
+  virtual void RemoveFrame(size_t frame_size, ArrayRef<const ManagedRegister> callee_save_regs) = 0;
 
   virtual void IncreaseFrameSize(size_t adjust) = 0;
   virtual void DecreaseFrameSize(size_t adjust) = 0;
@@ -393,23 +393,24 @@ class Assembler : public DeletableArenaObject<kArenaAllocAssembler> {
   virtual void StoreRef(FrameOffset dest, ManagedRegister src) = 0;
   virtual void StoreRawPtr(FrameOffset dest, ManagedRegister src) = 0;
 
-  virtual void StoreImmediateToFrame(FrameOffset dest, uint32_t imm,
-                                     ManagedRegister scratch) = 0;
+  virtual void StoreImmediateToFrame(FrameOffset dest, uint32_t imm, ManagedRegister scratch) = 0;
 
-  virtual void StoreImmediateToThread32(ThreadOffset<4> dest, uint32_t imm,
+  virtual void StoreImmediateToThread32(ThreadOffset32 dest,
+                                        uint32_t imm,
                                         ManagedRegister scratch);
-  virtual void StoreImmediateToThread64(ThreadOffset<8> dest, uint32_t imm,
+  virtual void StoreImmediateToThread64(ThreadOffset64 dest,
+                                        uint32_t imm,
                                         ManagedRegister scratch);
 
-  virtual void StoreStackOffsetToThread32(ThreadOffset<4> thr_offs,
+  virtual void StoreStackOffsetToThread32(ThreadOffset32 thr_offs,
                                           FrameOffset fr_offs,
                                           ManagedRegister scratch);
-  virtual void StoreStackOffsetToThread64(ThreadOffset<8> thr_offs,
+  virtual void StoreStackOffsetToThread64(ThreadOffset64 thr_offs,
                                           FrameOffset fr_offs,
                                           ManagedRegister scratch);
 
-  virtual void StoreStackPointerToThread32(ThreadOffset<4> thr_offs);
-  virtual void StoreStackPointerToThread64(ThreadOffset<8> thr_offs);
+  virtual void StoreStackPointerToThread32(ThreadOffset32 thr_offs);
+  virtual void StoreStackPointerToThread64(ThreadOffset64 thr_offs);
 
   virtual void StoreSpanning(FrameOffset dest, ManagedRegister src,
                              FrameOffset in_off, ManagedRegister scratch) = 0;
@@ -417,8 +418,8 @@ class Assembler : public DeletableArenaObject<kArenaAllocAssembler> {
   // Load routines
   virtual void Load(ManagedRegister dest, FrameOffset src, size_t size) = 0;
 
-  virtual void LoadFromThread32(ManagedRegister dest, ThreadOffset<4> src, size_t size);
-  virtual void LoadFromThread64(ManagedRegister dest, ThreadOffset<8> src, size_t size);
+  virtual void LoadFromThread32(ManagedRegister dest, ThreadOffset32 src, size_t size);
+  virtual void LoadFromThread64(ManagedRegister dest, ThreadOffset64 src, size_t size);
 
   virtual void LoadRef(ManagedRegister dest, FrameOffset src) = 0;
   // If unpoison_reference is true and kPoisonReference is true, then we negate the read reference.
@@ -427,24 +428,27 @@ class Assembler : public DeletableArenaObject<kArenaAllocAssembler> {
 
   virtual void LoadRawPtr(ManagedRegister dest, ManagedRegister base, Offset offs) = 0;
 
-  virtual void LoadRawPtrFromThread32(ManagedRegister dest, ThreadOffset<4> offs);
-  virtual void LoadRawPtrFromThread64(ManagedRegister dest, ThreadOffset<8> offs);
+  virtual void LoadRawPtrFromThread32(ManagedRegister dest, ThreadOffset32 offs);
+  virtual void LoadRawPtrFromThread64(ManagedRegister dest, ThreadOffset64 offs);
 
   // Copying routines
   virtual void Move(ManagedRegister dest, ManagedRegister src, size_t size) = 0;
 
-  virtual void CopyRawPtrFromThread32(FrameOffset fr_offs, ThreadOffset<4> thr_offs,
+  virtual void CopyRawPtrFromThread32(FrameOffset fr_offs,
+                                      ThreadOffset32 thr_offs,
                                       ManagedRegister scratch);
-  virtual void CopyRawPtrFromThread64(FrameOffset fr_offs, ThreadOffset<8> thr_offs,
+  virtual void CopyRawPtrFromThread64(FrameOffset fr_offs,
+                                      ThreadOffset64 thr_offs,
                                       ManagedRegister scratch);
 
-  virtual void CopyRawPtrToThread32(ThreadOffset<4> thr_offs, FrameOffset fr_offs,
+  virtual void CopyRawPtrToThread32(ThreadOffset32 thr_offs,
+                                    FrameOffset fr_offs,
                                     ManagedRegister scratch);
-  virtual void CopyRawPtrToThread64(ThreadOffset<8> thr_offs, FrameOffset fr_offs,
+  virtual void CopyRawPtrToThread64(ThreadOffset64 thr_offs,
+                                    FrameOffset fr_offs,
                                     ManagedRegister scratch);
 
-  virtual void CopyRef(FrameOffset dest, FrameOffset src,
-                       ManagedRegister scratch) = 0;
+  virtual void CopyRef(FrameOffset dest, FrameOffset src, ManagedRegister scratch) = 0;
 
   virtual void Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch, size_t size) = 0;
 
@@ -474,24 +478,26 @@ class Assembler : public DeletableArenaObject<kArenaAllocAssembler> {
 
   // Exploit fast access in managed code to Thread::Current()
   virtual void GetCurrentThread(ManagedRegister tr) = 0;
-  virtual void GetCurrentThread(FrameOffset dest_offset,
-                                ManagedRegister scratch) = 0;
+  virtual void GetCurrentThread(FrameOffset dest_offset, ManagedRegister scratch) = 0;
 
   // Set up out_reg to hold a Object** into the handle scope, or to be null if the
   // value is null and null_allowed. in_reg holds a possibly stale reference
   // that can be used to avoid loading the handle scope entry to see if the value is
   // null.
-  virtual void CreateHandleScopeEntry(ManagedRegister out_reg, FrameOffset handlescope_offset,
-                               ManagedRegister in_reg, bool null_allowed) = 0;
+  virtual void CreateHandleScopeEntry(ManagedRegister out_reg,
+                                      FrameOffset handlescope_offset,
+                                      ManagedRegister in_reg,
+                                      bool null_allowed) = 0;
 
   // Set up out_off to hold a Object** into the handle scope, or to be null if the
   // value is null and null_allowed.
-  virtual void CreateHandleScopeEntry(FrameOffset out_off, FrameOffset handlescope_offset,
-                               ManagedRegister scratch, bool null_allowed) = 0;
+  virtual void CreateHandleScopeEntry(FrameOffset out_off,
+                                      FrameOffset handlescope_offset,
+                                      ManagedRegister scratch,
+                                      bool null_allowed) = 0;
 
   // src holds a handle scope entry (Object**) load this into dst
-  virtual void LoadReferenceFromHandleScope(ManagedRegister dst,
-                                     ManagedRegister src) = 0;
+  virtual void LoadReferenceFromHandleScope(ManagedRegister dst, ManagedRegister src) = 0;
 
   // Heap::VerifyObject on src. In some cases (such as a reference to this) we
   // know that src may not be null.
@@ -499,12 +505,10 @@ class Assembler : public DeletableArenaObject<kArenaAllocAssembler> {
   virtual void VerifyObject(FrameOffset src, bool could_be_null) = 0;
 
   // Call to address held at [base+offset]
-  virtual void Call(ManagedRegister base, Offset offset,
-                    ManagedRegister scratch) = 0;
-  virtual void Call(FrameOffset base, Offset offset,
-                    ManagedRegister scratch) = 0;
-  virtual void CallFromThread32(ThreadOffset<4> offset, ManagedRegister scratch);
-  virtual void CallFromThread64(ThreadOffset<8> offset, ManagedRegister scratch);
+  virtual void Call(ManagedRegister base, Offset offset, ManagedRegister scratch) = 0;
+  virtual void Call(FrameOffset base, Offset offset, ManagedRegister scratch) = 0;
+  virtual void CallFromThread32(ThreadOffset32 offset, ManagedRegister scratch);
+  virtual void CallFromThread64(ThreadOffset64 offset, ManagedRegister scratch);
 
   // Generate code to check if Thread::Current()->exception_ is non-null
   // and branch to a ExceptionSlowPath if it is.

@@ -147,7 +147,7 @@ Location InvokeRuntimeCallingConvention::GetReturnLocation(Primitive::Type type)
 
 // NOLINT on __ macro to suppress wrong warning/fix from clang-tidy.
 #define __ down_cast<CodeGeneratorMIPS*>(codegen)->GetAssembler()-> // NOLINT
-#define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kMipsWordSize, x).Int32Value()
+#define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kMipsPointerSize, x).Int32Value()
 
 class BoundsCheckSlowPathMIPS : public SlowPathCodeMIPS {
  public:
@@ -505,7 +505,7 @@ CodeGeneratorMIPS::CodeGeneratorMIPS(HGraph* graph,
 #undef __
 // NOLINT on __ macro to suppress wrong warning/fix from clang-tidy.
 #define __ down_cast<MipsAssembler*>(GetAssembler())-> // NOLINT
-#define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kMipsWordSize, x).Int32Value()
+#define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kMipsPointerSize, x).Int32Value()
 
 void CodeGeneratorMIPS::Finalize(CodeAllocator* allocator) {
   // Ensure that we fix up branches.
@@ -1147,7 +1147,7 @@ void CodeGeneratorMIPS::MarkGCCard(Register object, Register value) {
   __ LoadFromOffset(kLoadWord,
                     card,
                     TR,
-                    Thread::CardTableOffset<kMipsWordSize>().Int32Value());
+                    Thread::CardTableOffset<kMipsPointerSize>().Int32Value());
   __ Srl(temp, object, gc::accounting::CardTable::kCardShift);
   __ Addu(temp, card, temp);
   __ Sb(card, temp, 0);
@@ -1239,7 +1239,7 @@ void CodeGeneratorMIPS::InvokeRuntime(QuickEntrypointEnum entrypoint,
                                       HInstruction* instruction,
                                       uint32_t dex_pc,
                                       SlowPathCode* slow_path) {
-  InvokeRuntime(GetThreadOffset<kMipsWordSize>(entrypoint).Int32Value(),
+  InvokeRuntime(GetThreadOffset<kMipsPointerSize>(entrypoint).Int32Value(),
                 instruction,
                 dex_pc,
                 slow_path,
@@ -1290,7 +1290,7 @@ void InstructionCodeGeneratorMIPS::GenerateSuspendCheck(HSuspendCheck* instructi
   __ LoadFromOffset(kLoadUnsignedHalfword,
                     TMP,
                     TR,
-                    Thread::ThreadFlagsOffset<kMipsWordSize>().Int32Value());
+                    Thread::ThreadFlagsOffset<kMipsPointerSize>().Int32Value());
   if (successor == nullptr) {
     __ Bnez(TMP, slow_path->GetEntryLabel());
     __ Bind(slow_path->GetReturnLabel());
@@ -3949,7 +3949,7 @@ void InstructionCodeGeneratorMIPS::VisitInvokeInterface(HInvokeInterface* invoke
   Register temp = invoke->GetLocations()->GetTemp(0).AsRegister<Register>();
   Location receiver = invoke->GetLocations()->InAt(0);
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
-  Offset entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kMipsWordSize);
+  Offset entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kMipsPointerSize);
 
   // Set the hidden argument.
   __ LoadConst32(invoke->GetLocations()->GetTemp(1).AsRegister<Register>(),
@@ -4287,7 +4287,7 @@ void CodeGeneratorMIPS::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke
                         T9,
                         callee_method.AsRegister<Register>(),
                         ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-                            kMipsWordSize).Int32Value());
+                            kMipsPointerSize).Int32Value());
       // T9()
       __ Jalr(T9);
       __ Nop();
@@ -4320,7 +4320,7 @@ void CodeGeneratorMIPS::GenerateVirtualCall(HInvokeVirtual* invoke, Location tem
   size_t method_offset = mirror::Class::EmbeddedVTableEntryOffset(
       invoke->GetVTableIndex(), kMipsPointerSize).SizeValue();
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
-  Offset entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kMipsWordSize);
+  Offset entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kMipsPointerSize);
 
   // temp = object->GetClass();
   DCHECK(receiver.IsRegister());
@@ -4520,7 +4520,7 @@ void InstructionCodeGeneratorMIPS::VisitLoadClass(HLoadClass* cls) {
 }
 
 static int32_t GetExceptionTlsOffset() {
-  return Thread::ExceptionOffset<kMipsWordSize>().Int32Value();
+  return Thread::ExceptionOffset<kMipsPointerSize>().Int32Value();
 }
 
 void LocationsBuilderMIPS::VisitLoadException(HLoadException* load) {
@@ -4883,7 +4883,7 @@ void InstructionCodeGeneratorMIPS::VisitNewArray(HNewArray* instruction) {
   // Move an uint16_t value to a register.
   __ LoadConst32(calling_convention.GetRegisterAt(0), instruction->GetTypeIndex());
   codegen_->InvokeRuntime(
-      GetThreadOffset<kMipsWordSize>(instruction->GetEntrypoint()).Int32Value(),
+      GetThreadOffset<kMipsPointerSize>(instruction->GetEntrypoint()).Int32Value(),
       instruction,
       instruction->GetDexPc(),
       nullptr,
@@ -4909,7 +4909,7 @@ void InstructionCodeGeneratorMIPS::VisitNewInstance(HNewInstance* instruction) {
   if (instruction->IsStringAlloc()) {
     // String is allocated through StringFactory. Call NewEmptyString entry point.
     Register temp = instruction->GetLocations()->GetTemp(0).AsRegister<Register>();
-    MemberOffset code_offset = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kMipsWordSize);
+    MemberOffset code_offset = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kMipsPointerSize);
     __ LoadFromOffset(kLoadWord, temp, TR, QUICK_ENTRY_POINT(pNewEmptyString));
     __ LoadFromOffset(kLoadWord, T9, temp, code_offset.Int32Value());
     __ Jalr(T9);
@@ -4917,7 +4917,7 @@ void InstructionCodeGeneratorMIPS::VisitNewInstance(HNewInstance* instruction) {
     codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
   } else {
     codegen_->InvokeRuntime(
-        GetThreadOffset<kMipsWordSize>(instruction->GetEntrypoint()).Int32Value(),
+        GetThreadOffset<kMipsPointerSize>(instruction->GetEntrypoint()).Int32Value(),
         instruction,
         instruction->GetDexPc(),
         nullptr,

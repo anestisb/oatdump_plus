@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_MIRROR_ARRAY_H_
 #define ART_RUNTIME_MIRROR_ARRAY_H_
 
+#include "base/enums.h"
 #include "gc_root.h"
 #include "gc/allocator_type.h"
 #include "object.h"
@@ -31,7 +32,7 @@ namespace mirror {
 class MANAGED Array : public Object {
  public:
   // The size of a java.lang.Class representing an array.
-  static uint32_t ClassSize(size_t pointer_size);
+  static uint32_t ClassSize(PointerSize pointer_size);
 
   // Allocates an array with the given properties, if kFillUsable is true the array will be of at
   // least component_count size, however, if there's usable space at the end of the allocation the
@@ -186,14 +187,14 @@ class PointerArray : public Array {
   template<typename T,
            VerifyObjectFlags kVerifyFlags = kVerifyNone,
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  T GetElementPtrSize(uint32_t idx, size_t ptr_size)
+  T GetElementPtrSize(uint32_t idx, PointerSize ptr_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   template<bool kTransactionActive = false, bool kUnchecked = false>
-  void SetElementPtrSize(uint32_t idx, uint64_t element, size_t ptr_size)
+  void SetElementPtrSize(uint32_t idx, uint64_t element, PointerSize ptr_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
   template<bool kTransactionActive = false, bool kUnchecked = false, typename T>
-  void SetElementPtrSize(uint32_t idx, T* element, size_t ptr_size)
+  void SetElementPtrSize(uint32_t idx, T* element, PointerSize ptr_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Fixup the pointers in the dest arrays by passing our pointers through the visitor. Only copies
@@ -201,7 +202,7 @@ class PointerArray : public Array {
   template <VerifyObjectFlags kVerifyFlags = kVerifyNone,
             ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
             typename Visitor>
-  void Fixup(mirror::PointerArray* dest, size_t pointer_size, const Visitor& visitor)
+  void Fixup(mirror::PointerArray* dest, PointerSize pointer_size, const Visitor& visitor)
       SHARED_REQUIRES(Locks::mutator_lock_);
 };
 

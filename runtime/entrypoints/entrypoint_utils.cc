@@ -18,6 +18,7 @@
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "base/mutex.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
@@ -48,7 +49,7 @@ static inline mirror::Class* CheckFilledNewArrayAlloc(uint32_t type_idx,
     return nullptr;  // Failure
   }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  size_t pointer_size = class_linker->GetImagePointerSize();
+  PointerSize pointer_size = class_linker->GetImagePointerSize();
   mirror::Class* klass = referrer->GetDexCacheResolvedType<false>(type_idx, pointer_size);
   if (UNLIKELY(klass == nullptr)) {  // Not in dex cache so try to resolve
     klass = class_linker->ResolveType(type_idx, referrer);
@@ -125,7 +126,7 @@ void CheckReferenceResult(mirror::Object* o, Thread* self) {
   }
   // Make sure that the result is an instance of the type this method was expected to return.
   mirror::Class* return_type = self->GetCurrentMethod(nullptr)->GetReturnType(true /* resolve */,
-                                                                              sizeof(void*));
+                                                                              kRuntimePointerSize);
 
   if (!o->InstanceOf(return_type)) {
     Runtime::Current()->GetJavaVM()->JniAbortF(nullptr,
@@ -188,7 +189,7 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
       StackHandleScope<1> hs(soa.Self());
       auto h_interface_method(hs.NewHandle(soa.Decode<mirror::Method*>(interface_method_jobj)));
       // This can cause thread suspension.
-      size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+      PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
       mirror::Class* result_type =
           h_interface_method->GetArtMethod()->GetReturnType(true /* resolve */, pointer_size);
       mirror::Object* result_ref = soa.Decode<mirror::Object*>(result);
@@ -208,10 +209,10 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
       mirror::Class* proxy_class = rcvr->GetClass();
       mirror::Method* interface_method = soa.Decode<mirror::Method*>(interface_method_jobj);
       ArtMethod* proxy_method = rcvr->GetClass()->FindVirtualMethodForInterface(
-          interface_method->GetArtMethod(), sizeof(void*));
-      auto virtual_methods = proxy_class->GetVirtualMethodsSlice(sizeof(void*));
+          interface_method->GetArtMethod(), kRuntimePointerSize);
+      auto virtual_methods = proxy_class->GetVirtualMethodsSlice(kRuntimePointerSize);
       size_t num_virtuals = proxy_class->NumVirtualMethods();
-      size_t method_size = ArtMethod::Size(sizeof(void*));
+      size_t method_size = ArtMethod::Size(kRuntimePointerSize);
       // Rely on the fact that the methods are contiguous to determine the index of the method in
       // the slice.
       int throws_index = (reinterpret_cast<uintptr_t>(proxy_method) -

@@ -20,6 +20,7 @@
 #include <sys/ucontext.h>
 
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "base/macros.h"
 #include "base/hex_dump.h"
 #include "globals.h"
@@ -144,7 +145,8 @@ bool SuspensionHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBU
                                void* context) {
   // These are the instructions to check for.  The first one is the ldr r0,[r9,#xxx]
   // where xxx is the offset of the suspend trigger.
-  uint32_t checkinst1 = 0xf8d90000 + Thread::ThreadSuspendTriggerOffset<4>().Int32Value();
+  uint32_t checkinst1 = 0xf8d90000
+      + Thread::ThreadSuspendTriggerOffset<PointerSize::k32>().Int32Value();
   uint16_t checkinst2 = 0x6800;
 
   struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);

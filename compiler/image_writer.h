@@ -28,6 +28,7 @@
 
 #include "base/bit_utils.h"
 #include "base/dchecked_vector.h"
+#include "base/enums.h"
 #include "base/length_prefixed_array.h"
 #include "base/macros.h"
 #include "driver/compiler_driver.h"
@@ -524,7 +525,7 @@ class ImageWriter FINAL {
   const bool compile_app_image_;
 
   // Size of pointers on the target architecture.
-  size_t target_ptr_size_;
+  PointerSize target_ptr_size_;
 
   // Image data indexed by the oat file index.
   dchecked_vector<ImageInfo> image_infos_;

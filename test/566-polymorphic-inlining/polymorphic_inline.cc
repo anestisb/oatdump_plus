@@ -15,6 +15,7 @@
  */
 
 #include "art_method.h"
+#include "base/enums.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
 #include "jit/profiling_info.h"
@@ -29,7 +30,7 @@ static void do_checks(jclass cls, const char* method_name) {
   mirror::Class* klass = soa.Decode<mirror::Class*>(cls);
   jit::Jit* jit = Runtime::Current()->GetJit();
   jit::JitCodeCache* code_cache = jit->GetCodeCache();
-  ArtMethod* method = klass->FindDeclaredDirectMethodByName(method_name, sizeof(void*));
+  ArtMethod* method = klass->FindDeclaredDirectMethodByName(method_name, kRuntimePointerSize);
 
   OatQuickMethodHeader* header = nullptr;
   // Infinite loop... Test harness will have its own timeout.
@@ -53,7 +54,7 @@ static void do_checks(jclass cls, const char* method_name) {
 static void allocate_profiling_info(jclass cls, const char* method_name) {
   ScopedObjectAccess soa(Thread::Current());
   mirror::Class* klass = soa.Decode<mirror::Class*>(cls);
-  ArtMethod* method = klass->FindDeclaredDirectMethodByName(method_name, sizeof(void*));
+  ArtMethod* method = klass->FindDeclaredDirectMethodByName(method_name, kRuntimePointerSize);
   ProfilingInfo::Create(soa.Self(), method, /* retry_allocation */ true);
 }
 

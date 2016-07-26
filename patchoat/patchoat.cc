@@ -489,13 +489,13 @@ class PatchOatArtMethodVisitor : public ArtMethodVisitor {
 };
 
 void PatchOat::PatchArtMethods(const ImageHeader* image_header) {
-  const size_t pointer_size = InstructionSetPointerSize(isa_);
+  const PointerSize pointer_size = InstructionSetPointerSize(isa_);
   PatchOatArtMethodVisitor visitor(this);
   image_header->VisitPackedArtMethods(&visitor, heap_->Begin(), pointer_size);
 }
 
 void PatchOat::PatchImTables(const ImageHeader* image_header) {
-  const size_t pointer_size = InstructionSetPointerSize(isa_);
+  const PointerSize pointer_size = InstructionSetPointerSize(isa_);
   // We can safely walk target image since the conflict tables are independent.
   image_header->VisitPackedImTables(
       [this](ArtMethod* method) {
@@ -506,7 +506,7 @@ void PatchOat::PatchImTables(const ImageHeader* image_header) {
 }
 
 void PatchOat::PatchImtConflictTables(const ImageHeader* image_header) {
-  const size_t pointer_size = InstructionSetPointerSize(isa_);
+  const PointerSize pointer_size = InstructionSetPointerSize(isa_);
   // We can safely walk target image since the conflict tables are independent.
   image_header->VisitPackedImtConflictTables(
       [this](ArtMethod* method) {
@@ -584,7 +584,7 @@ class RelocatedPointerVisitor {
 void PatchOat::PatchDexFileArrays(mirror::ObjectArray<mirror::Object>* img_roots) {
   auto* dex_caches = down_cast<mirror::ObjectArray<mirror::DexCache>*>(
       img_roots->Get(ImageHeader::kDexCaches));
-  const size_t pointer_size = InstructionSetPointerSize(isa_);
+  const PointerSize pointer_size = InstructionSetPointerSize(isa_);
   for (size_t i = 0, count = dex_caches->GetLength(); i < count; ++i) {
     auto* orig_dex_cache = dex_caches->GetWithoutChecks(i);
     auto* copy_dex_cache = RelocatedCopyOf(orig_dex_cache);
@@ -705,7 +705,7 @@ void PatchOat::VisitObject(mirror::Object* object) {
   PatchOat::PatchVisitor visitor(this, copy);
   object->VisitReferences<kVerifyNone>(visitor, visitor);
   if (object->IsClass<kVerifyNone>()) {
-    const size_t pointer_size = InstructionSetPointerSize(isa_);
+    const PointerSize pointer_size = InstructionSetPointerSize(isa_);
     mirror::Class* klass = object->AsClass();
     mirror::Class* copy_klass = down_cast<mirror::Class*>(copy);
     RelocatedPointerVisitor native_visitor(this);
@@ -736,7 +736,7 @@ void PatchOat::VisitObject(mirror::Object* object) {
 }
 
 void PatchOat::FixupMethod(ArtMethod* object, ArtMethod* copy) {
-  const size_t pointer_size = InstructionSetPointerSize(isa_);
+  const PointerSize pointer_size = InstructionSetPointerSize(isa_);
   copy->CopyFrom(object, pointer_size);
   // Just update the entry points if it looks like we should.
   // TODO: sanity check all the pointers' values

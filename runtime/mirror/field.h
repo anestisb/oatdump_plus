@@ -18,6 +18,7 @@
 #define ART_RUNTIME_MIRROR_FIELD_H_
 
 #include "accessible_object.h"
+#include "base/enums.h"
 #include "gc_root.h"
 #include "object.h"
 #include "object_callbacks.h"
@@ -92,7 +93,7 @@ class MANAGED Field : public AccessibleObject {
   // Slow, try to use only for PrettyField and such.
   ArtField* GetArtField() SHARED_REQUIRES(Locks::mutator_lock_);
 
-  template <size_t kPointerSize, bool kTransactionActive = false>
+  template <PointerSize kPointerSize, bool kTransactionActive = false>
   static mirror::Field* CreateFromArtField(Thread* self, ArtField* field,
                                            bool force_resolve)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);

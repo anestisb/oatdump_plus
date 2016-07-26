@@ -16,6 +16,7 @@
 
 #include "utils.h"
 
+#include "base/enums.h"
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "mirror/array.h"
@@ -187,17 +188,17 @@ TEST_F(UtilsTest, JniShortName_JniLongName) {
   ASSERT_TRUE(c != nullptr);
   ArtMethod* m;
 
-  m = c->FindVirtualMethod("charAt", "(I)C", sizeof(void*));
+  m = c->FindVirtualMethod("charAt", "(I)C", kRuntimePointerSize);
   ASSERT_TRUE(m != nullptr);
   EXPECT_EQ("Java_java_lang_String_charAt", JniShortName(m));
   EXPECT_EQ("Java_java_lang_String_charAt__I", JniLongName(m));
 
-  m = c->FindVirtualMethod("indexOf", "(Ljava/lang/String;I)I", sizeof(void*));
+  m = c->FindVirtualMethod("indexOf", "(Ljava/lang/String;I)I", kRuntimePointerSize);
   ASSERT_TRUE(m != nullptr);
   EXPECT_EQ("Java_java_lang_String_indexOf", JniShortName(m));
   EXPECT_EQ("Java_java_lang_String_indexOf__Ljava_lang_String_2I", JniLongName(m));
 
-  m = c->FindDirectMethod("copyValueOf", "([CII)Ljava/lang/String;", sizeof(void*));
+  m = c->FindDirectMethod("copyValueOf", "([CII)Ljava/lang/String;", kRuntimePointerSize);
   ASSERT_TRUE(m != nullptr);
   EXPECT_EQ("Java_java_lang_String_copyValueOf", JniShortName(m));
   EXPECT_EQ("Java_java_lang_String_copyValueOf___3CII", JniLongName(m));

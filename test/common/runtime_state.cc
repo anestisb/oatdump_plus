@@ -16,6 +16,7 @@
 
 #include "jni.h"
 
+#include "base/enums.h"
 #include "base/logging.h"
 #include "dex_file-inl.h"
 #include "jit/jit.h"
@@ -135,7 +136,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_ensureJitCompiled(JNIEnv* env,
   CHECK(chars.c_str() != nullptr);
 
   mirror::Class* klass = soa.Decode<mirror::Class*>(cls);
-  ArtMethod* method = klass->FindDeclaredDirectMethodByName(chars.c_str(), sizeof(void*));
+  ArtMethod* method = klass->FindDeclaredDirectMethodByName(chars.c_str(), kRuntimePointerSize);
 
   jit::JitCodeCache* code_cache = jit->GetCodeCache();
   OatQuickMethodHeader* header = nullptr;

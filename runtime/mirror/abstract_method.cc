@@ -21,7 +21,7 @@
 namespace art {
 namespace mirror {
 
-template <size_t kPointerSize, bool kTransactionActive>
+template <PointerSize kPointerSize, bool kTransactionActive>
 bool AbstractMethod::CreateFromArtMethod(ArtMethod* method) {
   auto* interface_method = method->GetInterfaceMethodIfProxy(kPointerSize);
   SetArtMethod<kTransactionActive>(method);
@@ -33,10 +33,14 @@ bool AbstractMethod::CreateFromArtMethod(ArtMethod* method) {
   return true;
 }
 
-template bool AbstractMethod::CreateFromArtMethod<4U, false>(ArtMethod* method);
-template bool AbstractMethod::CreateFromArtMethod<4U, true>(ArtMethod* method);
-template bool AbstractMethod::CreateFromArtMethod<8U, false>(ArtMethod* method);
-template bool AbstractMethod::CreateFromArtMethod<8U, true>(ArtMethod* method);
+template bool AbstractMethod::CreateFromArtMethod<PointerSize::k32, false>(
+    ArtMethod* method);
+template bool AbstractMethod::CreateFromArtMethod<PointerSize::k32, true>(
+    ArtMethod* method);
+template bool AbstractMethod::CreateFromArtMethod<PointerSize::k64, false>(
+    ArtMethod* method);
+template bool AbstractMethod::CreateFromArtMethod<PointerSize::k64, true>(
+    ArtMethod* method);
 
 ArtMethod* AbstractMethod::GetArtMethod() {
   return reinterpret_cast<ArtMethod*>(GetField64(ArtMethodOffset()));

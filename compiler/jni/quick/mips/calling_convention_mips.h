@@ -17,17 +17,23 @@
 #ifndef ART_COMPILER_JNI_QUICK_MIPS_CALLING_CONVENTION_MIPS_H_
 #define ART_COMPILER_JNI_QUICK_MIPS_CALLING_CONVENTION_MIPS_H_
 
+#include "base/enums.h"
 #include "jni/quick/calling_convention.h"
 
 namespace art {
 namespace mips {
 
 constexpr size_t kFramePointerSize = 4;
+static_assert(kFramePointerSize == static_cast<size_t>(PointerSize::k32),
+              "Invalid frame pointer size");
 
 class MipsManagedRuntimeCallingConvention FINAL : public ManagedRuntimeCallingConvention {
  public:
   MipsManagedRuntimeCallingConvention(bool is_static, bool is_synchronized, const char* shorty)
-      : ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty, kFramePointerSize) {}
+      : ManagedRuntimeCallingConvention(is_static,
+                                        is_synchronized,
+                                        shorty,
+                                        PointerSize::k32) {}
   ~MipsManagedRuntimeCallingConvention() OVERRIDE {}
   // Calling convention
   ManagedRegister ReturnRegister() OVERRIDE;

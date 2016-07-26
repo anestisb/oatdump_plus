@@ -133,7 +133,7 @@ Location InvokeRuntimeCallingConvention::GetReturnLocation(Primitive::Type retur
 
 // NOLINT on __ macro to suppress wrong warning/fix from clang-tidy.
 #define __ down_cast<CodeGeneratorARM64*>(codegen)->GetVIXLAssembler()-> // NOLINT
-#define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kArm64WordSize, x).Int32Value()
+#define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kArm64PointerSize, x).Int32Value()
 
 // Calculate memory accessing operand for save/restore live registers.
 static void SaveRestoreLiveRegistersHelper(CodeGenerator* codegen,
@@ -625,7 +625,7 @@ class ReadBarrierMarkSlowPathARM64 : public SlowPathCodeARM64 {
     //   rX <- ReadBarrierMarkRegX(rX)
     //
     int32_t entry_point_offset =
-        CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kArm64WordSize>(obj_.reg());
+        CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kArm64PointerSize>(obj_.reg());
     // This runtime call does not require a stack map.
     arm64_codegen->InvokeRuntimeWithoutRecordingPcInfo(entry_point_offset, instruction_, this);
     __ B(GetExitLabel());
@@ -1105,7 +1105,7 @@ void CodeGeneratorARM64::MarkGCCard(Register object, Register value, bool value_
   if (value_can_be_null) {
     __ Cbz(value, &done);
   }
-  __ Ldr(card, MemOperand(tr, Thread::CardTableOffset<kArm64WordSize>().Int32Value()));
+  __ Ldr(card, MemOperand(tr, Thread::CardTableOffset<kArm64PointerSize>().Int32Value()));
   __ Lsr(temp, object, gc::accounting::CardTable::kCardShift);
   __ Strb(card, MemOperand(card, temp.X()));
   if (value_can_be_null) {
@@ -1479,7 +1479,7 @@ void CodeGeneratorARM64::InvokeRuntime(QuickEntrypointEnum entrypoint,
                                        HInstruction* instruction,
                                        uint32_t dex_pc,
                                        SlowPathCode* slow_path) {
-  InvokeRuntime(GetThreadOffset<kArm64WordSize>(entrypoint).Int32Value(),
+  InvokeRuntime(GetThreadOffset<kArm64PointerSize>(entrypoint).Int32Value(),
                 instruction,
                 dex_pc,
                 slow_path);
@@ -1562,7 +1562,7 @@ void InstructionCodeGeneratorARM64::GenerateSuspendCheck(HSuspendCheck* instruct
   UseScratchRegisterScope temps(codegen_->GetVIXLAssembler());
   Register temp = temps.AcquireW();
 
-  __ Ldrh(temp, MemOperand(tr, Thread::ThreadFlagsOffset<kArm64WordSize>().SizeValue()));
+  __ Ldrh(temp, MemOperand(tr, Thread::ThreadFlagsOffset<kArm64PointerSize>().SizeValue()));
   if (successor == nullptr) {
     __ Cbnz(temp, slow_path->GetEntryLabel());
     __ Bind(slow_path->GetReturnLabel());
@@ -3526,7 +3526,7 @@ void InstructionCodeGeneratorARM64::VisitInvokeInterface(HInvokeInterface* invok
   Register temp = XRegisterFrom(locations->GetTemp(0));
   Location receiver = locations->InAt(0);
   Offset class_offset = mirror::Object::ClassOffset();
-  Offset entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64WordSize);
+  Offset entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64PointerSize);
 
   // The register ip1 is required to be used for the hidden argument in
   // art_quick_imt_conflict_trampoline, so prevent VIXL from using it.
@@ -3678,7 +3678,7 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
       // /* ArtMethod*[] */ temp = temp.ptr_sized_fields_->dex_cache_resolved_methods_;
       __ Ldr(reg.X(),
              MemOperand(method_reg.X(),
-                        ArtMethod::DexCacheResolvedMethodsOffset(kArm64WordSize).Int32Value()));
+                        ArtMethod::DexCacheResolvedMethodsOffset(kArm64PointerSize).Int32Value()));
       // temp = temp[index_in_cache];
       // Note: Don't use invoke->GetTargetMethod() as it may point to a different dex file.
       uint32_t index_in_cache = invoke->GetDexMethodIndex();
@@ -3710,7 +3710,7 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
       // LR = callee_method->entry_point_from_quick_compiled_code_;
       __ Ldr(lr, MemOperand(
           XRegisterFrom(callee_method),
-          ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64WordSize).Int32Value()));
+          ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64PointerSize).Int32Value()));
       // lr()
       __ Blr(lr);
       break;
@@ -3730,7 +3730,7 @@ void CodeGeneratorARM64::GenerateVirtualCall(HInvokeVirtual* invoke, Location te
   size_t method_offset = mirror::Class::EmbeddedVTableEntryOffset(
       invoke->GetVTableIndex(), kArm64PointerSize).SizeValue();
   Offset class_offset = mirror::Object::ClassOffset();
-  Offset entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64WordSize);
+  Offset entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64PointerSize);
 
   BlockPoolsScope block_pools(GetVIXLAssembler());
 
@@ -4127,7 +4127,7 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
 }
 
 static MemOperand GetExceptionTlsAddress() {
-  return MemOperand(tr, Thread::ExceptionOffset<kArm64WordSize>().Int32Value());
+  return MemOperand(tr, Thread::ExceptionOffset<kArm64PointerSize>().Int32Value());
 }
 
 void LocationsBuilderARM64::VisitLoadException(HLoadException* load) {
@@ -4440,7 +4440,7 @@ void InstructionCodeGeneratorARM64::VisitNewInstance(HNewInstance* instruction) 
   if (instruction->IsStringAlloc()) {
     // String is allocated through StringFactory. Call NewEmptyString entry point.
     Location temp = instruction->GetLocations()->GetTemp(0);
-    MemberOffset code_offset = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64WordSize);
+    MemberOffset code_offset = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64PointerSize);
     __ Ldr(XRegisterFrom(temp), MemOperand(tr, QUICK_ENTRY_POINT(pNewEmptyString)));
     __ Ldr(lr, MemOperand(XRegisterFrom(temp), code_offset.Int32Value()));
     __ Blr(lr);
@@ -5096,7 +5096,7 @@ void InstructionCodeGeneratorARM64::GenerateGcRootFieldLoad(HInstruction* instru
       UseScratchRegisterScope temps(masm);
       Register temp = temps.AcquireW();
       // temp = Thread::Current()->GetIsGcMarking()
-      __ Ldr(temp, MemOperand(tr, Thread::IsGcMarkingOffset<kArm64WordSize>().Int32Value()));
+      __ Ldr(temp, MemOperand(tr, Thread::IsGcMarkingOffset<kArm64PointerSize>().Int32Value()));
       __ Cbnz(temp, slow_path->GetEntryLabel());
       __ Bind(slow_path->GetExitLabel());
     } else {

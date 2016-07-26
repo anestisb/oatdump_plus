@@ -20,6 +20,7 @@
 #include "entrypoint_utils.h"
 
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "class_linker-inl.h"
 #include "common_throws.h"
 #include "dex_file.h"
@@ -52,7 +53,8 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
   uint32_t method_index = inline_info.GetMethodIndexAtDepth(encoding, inlining_depth);
   InvokeType invoke_type = static_cast<InvokeType>(
         inline_info.GetInvokeTypeAtDepth(encoding, inlining_depth));
-  ArtMethod* inlined_method = outer_method->GetDexCacheResolvedMethod(method_index, sizeof(void*));
+  ArtMethod* inlined_method = outer_method->GetDexCacheResolvedMethod(method_index,
+                                                                      kRuntimePointerSize);
   if (!inlined_method->IsRuntimeMethod()) {
     return inlined_method;
   }
@@ -89,7 +91,7 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
         Runtime::Current()->GetClassLinker()->GetClassRoot(ClassLinker::kJavaLangString);
     // Update the dex cache for future lookups.
     caller->GetDexCache()->SetResolvedType(method_id.class_idx_, cls);
-    inlined_method = cls->FindVirtualMethod("charAt", "(I)C", sizeof(void*));
+    inlined_method = cls->FindVirtualMethod("charAt", "(I)C", kRuntimePointerSize);
   } else {
     mirror::Class* klass = caller->GetDexCache()->GetResolvedType(method_id.class_idx_);
     DCHECK_EQ(klass->GetDexCache(), caller->GetDexCache())
@@ -98,12 +100,12 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
       case kDirect:
       case kStatic:
         inlined_method =
-            klass->FindDirectMethod(klass->GetDexCache(), method_index, sizeof(void*));
+            klass->FindDirectMethod(klass->GetDexCache(), method_index, kRuntimePointerSize);
         break;
       case kSuper:
       case kVirtual:
         inlined_method =
-            klass->FindVirtualMethod(klass->GetDexCache(), method_index, sizeof(void*));
+            klass->FindVirtualMethod(klass->GetDexCache(), method_index, kRuntimePointerSize);
         break;
       default:
         LOG(FATAL) << "Unimplemented inlined invocation type: " << invoke_type;
@@ -114,7 +116,7 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
   // Update the dex cache for future lookups. Note that for static methods, this is safe
   // when the class is being initialized, as the entrypoint for the ArtMethod is at
   // this point still the resolution trampoline.
-  outer_method->SetDexCacheResolvedMethod(method_index, inlined_method, sizeof(void*));
+  outer_method->SetDexCacheResolvedMethod(method_index, inlined_method, kRuntimePointerSize);
   return inlined_method;
 }
 
@@ -130,7 +132,7 @@ inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
                                        ArtMethod* method,
                                        Thread* self, bool* slow_path) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  size_t pointer_size = class_linker->GetImagePointerSize();
+  PointerSize pointer_size = class_linker->GetImagePointerSize();
   mirror::Class* klass = method->GetDexCacheResolvedType<false>(type_idx, pointer_size);
   if (UNLIKELY(klass == nullptr)) {
     klass = class_linker->ResolveType(type_idx, method);
@@ -275,7 +277,7 @@ inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
     return nullptr;  // Failure
   }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  size_t pointer_size = class_linker->GetImagePointerSize();
+  PointerSize pointer_size = class_linker->GetImagePointerSize();
   mirror::Class* klass = method->GetDexCacheResolvedType<false>(type_idx, pointer_size);
   if (UNLIKELY(klass == nullptr)) {  // Not in dex cache so try to resolve
     klass = class_linker->ResolveType(type_idx, method);
@@ -381,7 +383,7 @@ inline ArtField* FindFieldFromCode(uint32_t field_idx,
     //
     // In particular, don't assume the dex instruction already correctly knows if the
     // real field is static or not. The resolution must not be aware of this.
-    ArtMethod* method = referrer->GetInterfaceMethodIfProxy(sizeof(void*));
+    ArtMethod* method = referrer->GetInterfaceMethodIfProxy(kRuntimePointerSize);
 
     StackHandleScope<2> hs(self);
     Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(method->GetDexCache()));
@@ -601,7 +603,7 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object** this_
     }
     case kInterface: {
       uint32_t imt_index = resolved_method->GetImtIndex();
-      size_t pointer_size = class_linker->GetImagePointerSize();
+      PointerSize pointer_size = class_linker->GetImagePointerSize();
       ArtMethod* imt_method = (*this_object)->GetClass()->GetImt(pointer_size)->
           Get(imt_index, pointer_size);
       if (!imt_method->IsRuntimeMethod()) {
@@ -655,7 +657,8 @@ EXPLICIT_FIND_METHOD_FROM_CODE_TYPED_TEMPLATE_DECL(kInterface);
 inline ArtField* FindFieldFast(uint32_t field_idx, ArtMethod* referrer, FindFieldType type,
                                size_t expected_size) {
   ArtField* resolved_field =
-      referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx, sizeof(void*));
+      referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx,
+                                                                     kRuntimePointerSize);
   if (UNLIKELY(resolved_field == nullptr)) {
     return nullptr;
   }
@@ -710,7 +713,7 @@ inline ArtMethod* FindMethodFast(uint32_t method_idx, mirror::Object* this_objec
   }
   mirror::Class* referring_class = referrer->GetDeclaringClass();
   ArtMethod* resolved_method =
-      referring_class->GetDexCache()->GetResolvedMethod(method_idx, sizeof(void*));
+      referring_class->GetDexCache()->GetResolvedMethod(method_idx, kRuntimePointerSize);
   if (UNLIKELY(resolved_method == nullptr)) {
     return nullptr;
   }
@@ -729,7 +732,8 @@ inline ArtMethod* FindMethodFast(uint32_t method_idx, mirror::Object* this_objec
     }
   }
   if (type == kInterface) {  // Most common form of slow path dispatch.
-    return this_object->GetClass()->FindVirtualMethodForInterface(resolved_method, sizeof(void*));
+    return this_object->GetClass()->FindVirtualMethodForInterface(resolved_method,
+                                                                  kRuntimePointerSize);
   } else if (type == kStatic || type == kDirect) {
     return resolved_method;
   } else if (type == kSuper) {
@@ -752,15 +756,15 @@ inline ArtMethod* FindMethodFast(uint32_t method_idx, mirror::Object* this_objec
         // The super class does not have the method.
         return nullptr;
       }
-      return super_class->GetVTableEntry(resolved_method->GetMethodIndex(), sizeof(void*));
+      return super_class->GetVTableEntry(resolved_method->GetMethodIndex(), kRuntimePointerSize);
     } else {
       return method_reference_class->FindVirtualMethodForInterfaceSuper(
-          resolved_method, sizeof(void*));
+          resolved_method, kRuntimePointerSize);
     }
   } else {
     DCHECK(type == kVirtual);
     return this_object->GetClass()->GetVTableEntry(
-        resolved_method->GetMethodIndex(), sizeof(void*));
+        resolved_method->GetMethodIndex(), kRuntimePointerSize);
   }
 }
 

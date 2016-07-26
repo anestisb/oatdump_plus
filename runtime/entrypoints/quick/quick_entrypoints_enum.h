@@ -36,7 +36,7 @@ enum QuickEntrypointEnum
 std::ostream& operator<<(std::ostream& os, const QuickEntrypointEnum& kind);
 
 // Translate a QuickEntrypointEnum value to the corresponding ThreadOffset.
-template <size_t pointer_size>
+template <PointerSize pointer_size>
 static ThreadOffset<pointer_size> GetThreadOffset(QuickEntrypointEnum trampoline) {
   switch (trampoline)
   {  // NOLINT(whitespace/braces)

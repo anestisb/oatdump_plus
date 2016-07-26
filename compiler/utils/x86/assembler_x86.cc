@@ -2051,21 +2051,20 @@ void X86Assembler::StoreImmediateToFrame(FrameOffset dest, uint32_t imm,
   movl(Address(ESP, dest), Immediate(imm));
 }
 
-void X86Assembler::StoreImmediateToThread32(ThreadOffset<4> dest, uint32_t imm,
-                                          ManagedRegister) {
+void X86Assembler::StoreImmediateToThread32(ThreadOffset32 dest, uint32_t imm, ManagedRegister) {
   fs()->movl(Address::Absolute(dest), Immediate(imm));
 }
 
-void X86Assembler::StoreStackOffsetToThread32(ThreadOffset<4> thr_offs,
-                                            FrameOffset fr_offs,
-                                            ManagedRegister mscratch) {
+void X86Assembler::StoreStackOffsetToThread32(ThreadOffset32 thr_offs,
+                                              FrameOffset fr_offs,
+                                              ManagedRegister mscratch) {
   X86ManagedRegister scratch = mscratch.AsX86();
   CHECK(scratch.IsCpuRegister());
   leal(scratch.AsCpuRegister(), Address(ESP, fr_offs));
   fs()->movl(Address::Absolute(thr_offs), scratch.AsCpuRegister());
 }
 
-void X86Assembler::StoreStackPointerToThread32(ThreadOffset<4> thr_offs) {
+void X86Assembler::StoreStackPointerToThread32(ThreadOffset32 thr_offs) {
   fs()->movl(Address::Absolute(thr_offs), ESP);
 }
 
@@ -2101,7 +2100,7 @@ void X86Assembler::Load(ManagedRegister mdest, FrameOffset src, size_t size) {
   }
 }
 
-void X86Assembler::LoadFromThread32(ManagedRegister mdest, ThreadOffset<4> src, size_t size) {
+void X86Assembler::LoadFromThread32(ManagedRegister mdest, ThreadOffset32 src, size_t size) {
   X86ManagedRegister dest = mdest.AsX86();
   if (dest.IsNoRegister()) {
     CHECK_EQ(0u, size);
@@ -2111,7 +2110,7 @@ void X86Assembler::LoadFromThread32(ManagedRegister mdest, ThreadOffset<4> src, 
   } else if (dest.IsRegisterPair()) {
     CHECK_EQ(8u, size);
     fs()->movl(dest.AsRegisterPairLow(), Address::Absolute(src));
-    fs()->movl(dest.AsRegisterPairHigh(), Address::Absolute(ThreadOffset<4>(src.Int32Value()+4)));
+    fs()->movl(dest.AsRegisterPairHigh(), Address::Absolute(ThreadOffset32(src.Int32Value()+4)));
   } else if (dest.IsX87Register()) {
     if (size == 4) {
       fs()->flds(Address::Absolute(src));
@@ -2152,7 +2151,7 @@ void X86Assembler::LoadRawPtr(ManagedRegister mdest, ManagedRegister base,
 }
 
 void X86Assembler::LoadRawPtrFromThread32(ManagedRegister mdest,
-                                        ThreadOffset<4> offs) {
+                                          ThreadOffset32 offs) {
   X86ManagedRegister dest = mdest.AsX86();
   CHECK(dest.IsCpuRegister());
   fs()->movl(dest.AsCpuRegister(), Address::Absolute(offs));
@@ -2215,17 +2214,17 @@ void X86Assembler::CopyRef(FrameOffset dest, FrameOffset src,
 }
 
 void X86Assembler::CopyRawPtrFromThread32(FrameOffset fr_offs,
-                                        ThreadOffset<4> thr_offs,
-                                        ManagedRegister mscratch) {
+                                          ThreadOffset32 thr_offs,
+                                          ManagedRegister mscratch) {
   X86ManagedRegister scratch = mscratch.AsX86();
   CHECK(scratch.IsCpuRegister());
   fs()->movl(scratch.AsCpuRegister(), Address::Absolute(thr_offs));
   Store(fr_offs, scratch, 4);
 }
 
-void X86Assembler::CopyRawPtrToThread32(ThreadOffset<4> thr_offs,
-                                      FrameOffset fr_offs,
-                                      ManagedRegister mscratch) {
+void X86Assembler::CopyRawPtrToThread32(ThreadOffset32 thr_offs,
+                                        FrameOffset fr_offs,
+                                        ManagedRegister mscratch) {
   X86ManagedRegister scratch = mscratch.AsX86();
   CHECK(scratch.IsCpuRegister());
   Load(scratch, fr_offs, 4);
@@ -2371,26 +2370,26 @@ void X86Assembler::Call(FrameOffset base, Offset offset, ManagedRegister mscratc
   call(Address(scratch, offset));
 }
 
-void X86Assembler::CallFromThread32(ThreadOffset<4> offset, ManagedRegister /*mscratch*/) {
+void X86Assembler::CallFromThread32(ThreadOffset32 offset, ManagedRegister /*mscratch*/) {
   fs()->call(Address::Absolute(offset));
 }
 
 void X86Assembler::GetCurrentThread(ManagedRegister tr) {
   fs()->movl(tr.AsX86().AsCpuRegister(),
-             Address::Absolute(Thread::SelfOffset<4>()));
+             Address::Absolute(Thread::SelfOffset<kX86PointerSize>()));
 }
 
 void X86Assembler::GetCurrentThread(FrameOffset offset,
                                     ManagedRegister mscratch) {
   X86ManagedRegister scratch = mscratch.AsX86();
-  fs()->movl(scratch.AsCpuRegister(), Address::Absolute(Thread::SelfOffset<4>()));
+  fs()->movl(scratch.AsCpuRegister(), Address::Absolute(Thread::SelfOffset<kX86PointerSize>()));
   movl(Address(ESP, offset), scratch.AsCpuRegister());
 }
 
 void X86Assembler::ExceptionPoll(ManagedRegister /*scratch*/, size_t stack_adjust) {
   X86ExceptionSlowPath* slow = new (GetArena()) X86ExceptionSlowPath(stack_adjust);
   buffer_.EnqueueSlowPath(slow);
-  fs()->cmpl(Address::Absolute(Thread::ExceptionOffset<4>()), Immediate(0));
+  fs()->cmpl(Address::Absolute(Thread::ExceptionOffset<kX86PointerSize>()), Immediate(0));
   j(kNotEqual, slow->Entry());
 }
 
@@ -2403,8 +2402,8 @@ void X86ExceptionSlowPath::Emit(Assembler *sasm) {
     __ DecreaseFrameSize(stack_adjust_);
   }
   // Pass exception as argument in EAX
-  __ fs()->movl(EAX, Address::Absolute(Thread::ExceptionOffset<4>()));
-  __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(4, pDeliverException)));
+  __ fs()->movl(EAX, Address::Absolute(Thread::ExceptionOffset<kX86PointerSize>()));
+  __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86PointerSize, pDeliverException)));
   // this call should never return
   __ int3();
 #undef __

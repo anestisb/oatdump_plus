@@ -19,6 +19,7 @@
 #include <sstream>
 
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "base/stl_util.h"
 #include "base/systrace.h"
 #include "base/time_utils.h"
@@ -738,13 +739,14 @@ void JitCodeCache::DoCollection(Thread* self, bool collect_profiling_info) {
         // a method has compiled code but no ProfilingInfo.
         // We make sure compiled methods have a ProfilingInfo object. It is needed for
         // code cache collection.
-        if (ContainsPc(ptr) && info->GetMethod()->GetProfilingInfo(sizeof(void*)) == nullptr) {
+        if (ContainsPc(ptr) &&
+            info->GetMethod()->GetProfilingInfo(kRuntimePointerSize) == nullptr) {
           // We clear the inline caches as classes in it might be stalled.
           info->ClearGcRootsInInlineCaches();
           // Do a fence to make sure the clearing is seen before attaching to the method.
           QuasiAtomic::ThreadFenceRelease();
           info->GetMethod()->SetProfilingInfo(info);
-        } else if (info->GetMethod()->GetProfilingInfo(sizeof(void*)) != info) {
+        } else if (info->GetMethod()->GetProfilingInfo(kRuntimePointerSize) != info) {
           // No need for this ProfilingInfo object anymore.
           FreeData(reinterpret_cast<uint8_t*>(info));
           return true;
@@ -762,7 +764,7 @@ bool JitCodeCache::CheckLiveCompiledCodeHasProfilingInfo() {
   // have memory leaks of compiled code otherwise.
   for (const auto& it : method_code_map_) {
     ArtMethod* method = it.second;
-    if (method->GetProfilingInfo(sizeof(void*)) == nullptr) {
+    if (method->GetProfilingInfo(kRuntimePointerSize) == nullptr) {
       const void* code_ptr = it.first;
       const OatQuickMethodHeader* method_header = OatQuickMethodHeader::FromCodePointer(code_ptr);
       if (method_header->GetEntryPoint() == method->GetEntryPointFromQuickCompiledCode()) {
@@ -851,7 +853,7 @@ ProfilingInfo* JitCodeCache::AddProfilingInfoInternal(Thread* self ATTRIBUTE_UNU
       sizeof(void*));
 
   // Check whether some other thread has concurrently created it.
-  ProfilingInfo* info = method->GetProfilingInfo(sizeof(void*));
+  ProfilingInfo* info = method->GetProfilingInfo(kRuntimePointerSize);
   if (info != nullptr) {
     return info;
   }
@@ -919,7 +921,7 @@ bool JitCodeCache::NotifyCompilationOf(ArtMethod* method, Thread* self, bool osr
     return false;
   }
 
-  ProfilingInfo* info = method->GetProfilingInfo(sizeof(void*));
+  ProfilingInfo* info = method->GetProfilingInfo(kRuntimePointerSize);
   if (info == nullptr) {
     VLOG(jit) << PrettyMethod(method) << " needs a ProfilingInfo to be compiled";
     // Because the counter is not atomic, there are some rare cases where we may not
@@ -939,7 +941,7 @@ bool JitCodeCache::NotifyCompilationOf(ArtMethod* method, Thread* self, bool osr
 
 ProfilingInfo* JitCodeCache::NotifyCompilerUse(ArtMethod* method, Thread* self) {
   MutexLock mu(self, lock_);
-  ProfilingInfo* info = method->GetProfilingInfo(sizeof(void*));
+  ProfilingInfo* info = method->GetProfilingInfo(kRuntimePointerSize);
   if (info != nullptr) {
     info->IncrementInlineUse();
   }
@@ -948,13 +950,13 @@ ProfilingInfo* JitCodeCache::NotifyCompilerUse(ArtMethod* method, Thread* self) 
 
 void JitCodeCache::DoneCompilerUse(ArtMethod* method, Thread* self) {
   MutexLock mu(self, lock_);
-  ProfilingInfo* info = method->GetProfilingInfo(sizeof(void*));
+  ProfilingInfo* info = method->GetProfilingInfo(kRuntimePointerSize);
   DCHECK(info != nullptr);
   info->DecrementInlineUse();
 }
 
 void JitCodeCache::DoneCompiling(ArtMethod* method, Thread* self ATTRIBUTE_UNUSED, bool osr) {
-  ProfilingInfo* info = method->GetProfilingInfo(sizeof(void*));
+  ProfilingInfo* info = method->GetProfilingInfo(kRuntimePointerSize);
   DCHECK(info->IsMethodBeingCompiled(osr));
   info->SetIsMethodBeingCompiled(false, osr);
 }
@@ -966,7 +968,7 @@ size_t JitCodeCache::GetMemorySizeOfCodePointer(const void* ptr) {
 
 void JitCodeCache::InvalidateCompiledCodeFor(ArtMethod* method,
                                              const OatQuickMethodHeader* header) {
-  ProfilingInfo* profiling_info = method->GetProfilingInfo(sizeof(void*));
+  ProfilingInfo* profiling_info = method->GetProfilingInfo(kRuntimePointerSize);
   if ((profiling_info != nullptr) &&
       (profiling_info->GetSavedEntryPoint() == header->GetEntryPoint())) {
     // Prevent future uses of the compiled code.

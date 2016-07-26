@@ -29,6 +29,7 @@
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "base/file_magic.h"
 #include "base/hash_map.h"
 #include "base/logging.h"
@@ -1328,7 +1329,7 @@ mirror::Object* DexFile::GetAnnotationDefaultValue(ArtMethod* method) const {
   AnnotationValue annotation_value;
   StackHandleScope<2> hs(Thread::Current());
   Handle<mirror::Class> h_klass(hs.NewHandle(klass));
-  size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+  PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
   Handle<mirror::Class> return_type(hs.NewHandle(
       method->GetReturnType(true /* resolve */, pointer_size)));
   if (!ProcessAnnotationValue(h_klass, &annotation, &annotation_value, return_type, kAllObjects)) {
@@ -1620,12 +1621,12 @@ mirror::Object* DexFile::CreateAnnotationMember(Handle<mirror::Class> klass,
   Handle<mirror::String> string_name(
       hs.NewHandle(mirror::String::AllocFromModifiedUtf8(self, name)));
 
+  PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
   ArtMethod* annotation_method =
-      annotation_class->FindDeclaredVirtualMethodByName(name, sizeof(void*));
+      annotation_class->FindDeclaredVirtualMethodByName(name, pointer_size);
   if (annotation_method == nullptr) {
     return nullptr;
   }
-  size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
   Handle<mirror::Class> method_return(hs.NewHandle(
       annotation_method->GetReturnType(true /* resolve */, pointer_size)));
 
@@ -1640,11 +1641,12 @@ mirror::Object* DexFile::CreateAnnotationMember(Handle<mirror::Class> klass,
   Handle<mirror::Object> new_member(hs.NewHandle(annotation_member_class->AllocObject(self)));
   mirror::Method* method_obj_ptr;
   DCHECK(!Runtime::Current()->IsActiveTransaction());
-  if (pointer_size == 8U) {
-    method_obj_ptr = mirror::Method::CreateFromArtMethod<8U, false>(self, annotation_method);
+  if (pointer_size == PointerSize::k64) {
+    method_obj_ptr = mirror::Method::CreateFromArtMethod<PointerSize::k64, false>(
+        self, annotation_method);
   } else {
-    DCHECK_EQ(pointer_size, 4U);
-    method_obj_ptr = mirror::Method::CreateFromArtMethod<4U, false>(self, annotation_method);
+    method_obj_ptr = mirror::Method::CreateFromArtMethod<PointerSize::k32, false>(
+        self, annotation_method);
   }
   Handle<mirror::Method> method_object(hs.NewHandle(method_obj_ptr));
 
@@ -1960,22 +1962,24 @@ bool DexFile::ProcessAnnotationValue(Handle<mirror::Class> klass, const uint8_t*
         if (method == nullptr) {
           return false;
         }
-        size_t pointer_size = class_linker->GetImagePointerSize();
+        PointerSize pointer_size = class_linker->GetImagePointerSize();
         set_object = true;
         DCHECK(!Runtime::Current()->IsActiveTransaction());
         if (method->IsConstructor()) {
-          if (pointer_size == 8U) {
-            element_object = mirror::Constructor::CreateFromArtMethod<8U, false>(self, method);
+          if (pointer_size == PointerSize::k64) {
+            element_object = mirror::Constructor::CreateFromArtMethod<PointerSize::k64,
+                                                                      false>(self, method);
           } else {
-            DCHECK_EQ(pointer_size, 4U);
-            element_object = mirror::Constructor::CreateFromArtMethod<4U, false>(self, method);
+            element_object = mirror::Constructor::CreateFromArtMethod<PointerSize::k32,
+                                                                      false>(self, method);
           }
         } else {
-          if (pointer_size == 8U) {
-            element_object = mirror::Method::CreateFromArtMethod<8U, false>(self, method);
+          if (pointer_size == PointerSize::k64) {
+            element_object = mirror::Method::CreateFromArtMethod<PointerSize::k64,
+                                                                 false>(self, method);
           } else {
-            DCHECK_EQ(pointer_size, 4U);
-            element_object = mirror::Method::CreateFromArtMethod<4U, false>(self, method);
+            element_object = mirror::Method::CreateFromArtMethod<PointerSize::k32,
+                                                                 false>(self, method);
           }
         }
         if (element_object == nullptr) {
@@ -1998,12 +2002,11 @@ bool DexFile::ProcessAnnotationValue(Handle<mirror::Class> klass, const uint8_t*
           return false;
         }
         set_object = true;
-        size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
-        if (pointer_size == 8) {
-          element_object = mirror::Field::CreateFromArtField<8U>(self, field, true);
+        PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+        if (pointer_size == PointerSize::k64) {
+          element_object = mirror::Field::CreateFromArtField<PointerSize::k64>(self, field, true);
         } else {
-          DCHECK_EQ(pointer_size, 4U);
-          element_object = mirror::Field::CreateFromArtField<4U>(self, field, true);
+          element_object = mirror::Field::CreateFromArtField<PointerSize::k32>(self, field, true);
         }
         if (element_object == nullptr) {
           return false;

@@ -49,7 +49,7 @@ static constexpr int kFakeReturnRegister = Register(8);
 
 // NOLINT on __ macro to suppress wrong warning/fix from clang-tidy.
 #define __ down_cast<X86Assembler*>(codegen->GetAssembler())-> // NOLINT
-#define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kX86WordSize, x).Int32Value()
+#define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kX86PointerSize, x).Int32Value()
 
 class NullCheckSlowPathX86 : public SlowPathCode {
  public:
@@ -492,7 +492,7 @@ class ReadBarrierMarkSlowPathX86 : public SlowPathCode {
     //   rX <- ReadBarrierMarkRegX(rX)
     //
     int32_t entry_point_offset =
-        CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kX86WordSize>(reg);
+        CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kX86PointerSize>(reg);
     // This runtime call does not require a stack map.
     x86_codegen->InvokeRuntimeWithoutRecordingPcInfo(entry_point_offset, instruction_, this);
     __ jmp(GetExitLabel());
@@ -803,7 +803,7 @@ void CodeGeneratorX86::InvokeRuntime(QuickEntrypointEnum entrypoint,
                                      HInstruction* instruction,
                                      uint32_t dex_pc,
                                      SlowPathCode* slow_path) {
-  InvokeRuntime(GetThreadOffset<kX86WordSize>(entrypoint).Int32Value(),
+  InvokeRuntime(GetThreadOffset<kX86PointerSize>(entrypoint).Int32Value(),
                 instruction,
                 dex_pc,
                 slow_path);
@@ -2094,7 +2094,7 @@ void InstructionCodeGeneratorX86::VisitInvokeInterface(HInvokeInterface* invoke)
   __ movl(temp, Address(temp, method_offset));
   // call temp->GetEntryPoint();
   __ call(Address(temp,
-                  ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86WordSize).Int32Value()));
+                  ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86PointerSize).Int32Value()));
 
   DCHECK(!codegen_->IsLeafMethod());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
@@ -4034,7 +4034,7 @@ void InstructionCodeGeneratorX86::VisitNewInstance(HNewInstance* instruction) {
   if (instruction->IsStringAlloc()) {
     // String is allocated through StringFactory. Call NewEmptyString entry point.
     Register temp = instruction->GetLocations()->GetTemp(0).AsRegister<Register>();
-    MemberOffset code_offset = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86WordSize);
+    MemberOffset code_offset = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86PointerSize);
     __ fs()->movl(temp, Address::Absolute(QUICK_ENTRY_POINT(pNewEmptyString)));
     __ call(Address(temp, code_offset.Int32Value()));
     codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
@@ -4451,7 +4451,7 @@ void CodeGeneratorX86::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
       // (callee_method + offset_of_quick_compiled_code)()
       __ call(Address(callee_method.AsRegister<Register>(),
                       ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-                          kX86WordSize).Int32Value()));
+                          kX86PointerSize).Int32Value()));
       break;
   }
 
@@ -4485,7 +4485,7 @@ void CodeGeneratorX86::GenerateVirtualCall(HInvokeVirtual* invoke, Location temp
   __ movl(temp, Address(temp, method_offset));
   // call temp->GetEntryPoint();
   __ call(Address(
-      temp, ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86WordSize).Int32Value()));
+      temp, ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86PointerSize).Int32Value()));
 }
 
 void CodeGeneratorX86::RecordSimplePatch() {
@@ -4589,7 +4589,7 @@ void CodeGeneratorX86::MarkGCCard(Register temp,
     __ testl(value, value);
     __ j(kEqual, &is_null);
   }
-  __ fs()->movl(card, Address::Absolute(Thread::CardTableOffset<kX86WordSize>().Int32Value()));
+  __ fs()->movl(card, Address::Absolute(Thread::CardTableOffset<kX86PointerSize>().Int32Value()));
   __ movl(temp, object);
   __ shrl(temp, Immediate(gc::accounting::CardTable::kCardShift));
   __ movb(Address(temp, card, TIMES_1, 0),
@@ -5681,7 +5681,7 @@ void InstructionCodeGeneratorX86::GenerateSuspendCheck(HSuspendCheck* instructio
     DCHECK_EQ(slow_path->GetSuccessor(), successor);
   }
 
-  __ fs()->cmpw(Address::Absolute(Thread::ThreadFlagsOffset<kX86WordSize>().Int32Value()),
+  __ fs()->cmpw(Address::Absolute(Thread::ThreadFlagsOffset<kX86PointerSize>().Int32Value()),
                 Immediate(0));
   if (successor == nullptr) {
     __ j(kNotEqual, slow_path->GetEntryLabel());
@@ -6277,7 +6277,7 @@ void InstructionCodeGeneratorX86::VisitLoadString(HLoadString* load) {
 }
 
 static Address GetExceptionTlsAddress() {
-  return Address::Absolute(Thread::ExceptionOffset<kX86WordSize>().Int32Value());
+  return Address::Absolute(Thread::ExceptionOffset<kX86PointerSize>().Int32Value());
 }
 
 void LocationsBuilderX86::VisitLoadException(HLoadException* load) {
@@ -6994,7 +6994,7 @@ void InstructionCodeGeneratorX86::GenerateGcRootFieldLoad(HInstruction* instruct
           new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathX86(instruction, root);
       codegen_->AddSlowPath(slow_path);
 
-      __ fs()->cmpl(Address::Absolute(Thread::IsGcMarkingOffset<kX86WordSize>().Int32Value()),
+      __ fs()->cmpl(Address::Absolute(Thread::IsGcMarkingOffset<kX86PointerSize>().Int32Value()),
                     Immediate(0));
       __ j(kNotEqual, slow_path->GetEntryLabel());
       __ Bind(slow_path->GetExitLabel());

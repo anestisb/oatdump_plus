@@ -18,6 +18,7 @@
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "class_linker.h"
 #include "common_throws.h"
 #include "dex_file-inl.h"
@@ -222,7 +223,7 @@ class ArgArray {
     for (size_t i = 1, args_offset = 0; i < shorty_len_; ++i, ++args_offset) {
       mirror::Object* arg = args->Get(args_offset);
       if (((shorty_[i] == 'L') && (arg != nullptr)) || ((arg == nullptr && shorty_[i] != 'L'))) {
-        size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+        PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
         mirror::Class* dst_class =
             m->GetClassFromTypeIndex(classes->GetTypeItem(args_offset).type_idx_,
                                      true /* resolve */,
@@ -358,7 +359,7 @@ static void CheckMethodArguments(JavaVMExt* vm, ArtMethod* m, uint32_t* args)
   }
   // TODO: If args contain object references, it may cause problems.
   Thread* const self = Thread::Current();
-  size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+  PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
   for (uint32_t i = 0; i < num_params; i++) {
     uint16_t type_idx = params->GetTypeItem(i).type_idx_;
     mirror::Class* param_type = m->GetClassFromTypeIndex(type_idx,
@@ -424,7 +425,7 @@ static void CheckMethodArguments(JavaVMExt* vm, ArtMethod* m, uint32_t* args)
 
 static ArtMethod* FindVirtualMethod(mirror::Object* receiver, ArtMethod* method)
     SHARED_REQUIRES(Locks::mutator_lock_) {
-  return receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(method, sizeof(void*));
+  return receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(method, kRuntimePointerSize);
 }
 
 
@@ -434,7 +435,7 @@ static void InvokeWithArgArray(const ScopedObjectAccessAlreadyRunnable& soa,
     SHARED_REQUIRES(Locks::mutator_lock_) {
   uint32_t* args = arg_array->GetArray();
   if (UNLIKELY(soa.Env()->check_jni)) {
-    CheckMethodArguments(soa.Vm(), method->GetInterfaceMethodIfProxy(sizeof(void*)), args);
+    CheckMethodArguments(soa.Vm(), method->GetInterfaceMethodIfProxy(kRuntimePointerSize), args);
   }
   method->Invoke(soa.Self(), args, arg_array->GetNumBytes(), result, shorty);
 }
@@ -458,7 +459,8 @@ JValue InvokeWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa, jobject o
   }
   mirror::Object* receiver = method->IsStatic() ? nullptr : soa.Decode<mirror::Object*>(obj);
   uint32_t shorty_len = 0;
-  const char* shorty = method->GetInterfaceMethodIfProxy(sizeof(void*))->GetShorty(&shorty_len);
+  const char* shorty =
+      method->GetInterfaceMethodIfProxy(kRuntimePointerSize)->GetShorty(&shorty_len);
   JValue result;
   ArgArray arg_array(shorty, shorty_len);
   arg_array.BuildArgArrayFromVarArgs(soa, receiver, args);
@@ -488,7 +490,8 @@ JValue InvokeWithJValues(const ScopedObjectAccessAlreadyRunnable& soa, jobject o
   }
   mirror::Object* receiver = method->IsStatic() ? nullptr : soa.Decode<mirror::Object*>(obj);
   uint32_t shorty_len = 0;
-  const char* shorty = method->GetInterfaceMethodIfProxy(sizeof(void*))->GetShorty(&shorty_len);
+  const char* shorty =
+      method->GetInterfaceMethodIfProxy(kRuntimePointerSize)->GetShorty(&shorty_len);
   JValue result;
   ArgArray arg_array(shorty, shorty_len);
   arg_array.BuildArgArrayFromJValues(soa, receiver, args);
@@ -519,7 +522,8 @@ JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccessAlreadyRunnab
     receiver = nullptr;
   }
   uint32_t shorty_len = 0;
-  const char* shorty = method->GetInterfaceMethodIfProxy(sizeof(void*))->GetShorty(&shorty_len);
+  const char* shorty =
+      method->GetInterfaceMethodIfProxy(kRuntimePointerSize)->GetShorty(&shorty_len);
   JValue result;
   ArgArray arg_array(shorty, shorty_len);
   arg_array.BuildArgArrayFromJValues(soa, receiver, args);
@@ -550,7 +554,8 @@ JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccessAlreadyRunnab
     receiver = nullptr;
   }
   uint32_t shorty_len = 0;
-  const char* shorty = method->GetInterfaceMethodIfProxy(sizeof(void*))->GetShorty(&shorty_len);
+  const char* shorty =
+      method->GetInterfaceMethodIfProxy(kRuntimePointerSize)->GetShorty(&shorty_len);
   JValue result;
   ArgArray arg_array(shorty, shorty_len);
   arg_array.BuildArgArrayFromVarArgs(soa, receiver, args);
@@ -602,13 +607,13 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
       }
 
       // Find the actual implementation of the virtual method.
-      m = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(m, sizeof(void*));
+      m = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(m, kRuntimePointerSize);
     }
   }
 
   // Get our arrays of arguments and their types, and check they're the same size.
   auto* objects = soa.Decode<mirror::ObjectArray<mirror::Object>*>(javaArgs);
-  auto* np_method = m->GetInterfaceMethodIfProxy(sizeof(void*));
+  auto* np_method = m->GetInterfaceMethodIfProxy(kRuntimePointerSize);
   const DexFile::TypeList* classes = np_method->GetParameterTypeList();
   uint32_t classes_size = (classes == nullptr) ? 0 : classes->Size();
   uint32_t arg_count = (objects != nullptr) ? objects->GetLength() : 0;
@@ -775,8 +780,9 @@ static bool UnboxPrimitive(mirror::Object* o,
                                                  UnboxingFailureKind(f).c_str(),
                                                  PrettyDescriptor(dst_class).c_str()).c_str());
     } else {
-      ThrowNullPointerException(StringPrintf("Expected to unbox a '%s' primitive type but was returned null",
-                                             PrettyDescriptor(dst_class).c_str()).c_str());
+      ThrowNullPointerException(
+          StringPrintf("Expected to unbox a '%s' primitive type but was returned null",
+                       PrettyDescriptor(dst_class).c_str()).c_str());
     }
     return false;
   }

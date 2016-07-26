@@ -342,6 +342,7 @@ LIBART_HOST_SRC_FILES_64 := \
 LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
   arch/instruction_set.h \
   base/allocator.h \
+  base/enums.h \
   base/mutex.h \
   debugger.h \
   base/unix_file/fd_file.h \

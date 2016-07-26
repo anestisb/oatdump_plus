@@ -27,9 +27,8 @@ namespace art {
 
 namespace mirror {
 
-template <size_t kPointerSize, bool kTransactionActive>
-inline mirror::Field* Field::CreateFromArtField(Thread* self, ArtField* field,
-                                                bool force_resolve) {
+template <PointerSize kPointerSize, bool kTransactionActive>
+inline mirror::Field* Field::CreateFromArtField(Thread* self, ArtField* field, bool force_resolve) {
   StackHandleScope<2> hs(self);
   // Try to resolve type before allocating since this is a thread suspension point.
   Handle<mirror::Class> type = hs.NewHandle(field->GetType<true>());

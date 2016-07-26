@@ -23,6 +23,8 @@
 namespace art {
 namespace x86 {
 
+static_assert(kX86PointerSize == PointerSize::k32, "Unexpected x86 pointer size");
+
 static constexpr ManagedRegister kCalleeSaveRegisters[] = {
     // Core registers.
     X86ManagedRegister::FromCpuRegister(EBP),
@@ -190,7 +192,7 @@ const ManagedRegisterEntrySpills& X86ManagedRuntimeCallingConvention::EntrySpill
 
 X86JniCallingConvention::X86JniCallingConvention(bool is_static, bool is_synchronized,
                                                  const char* shorty)
-    : JniCallingConvention(is_static, is_synchronized, shorty, kFramePointerSize) {
+    : JniCallingConvention(is_static, is_synchronized, shorty, kX86PointerSize) {
 }
 
 uint32_t X86JniCallingConvention::CoreSpillMask() const {
@@ -203,10 +205,10 @@ uint32_t X86JniCallingConvention::FpSpillMask() const {
 
 size_t X86JniCallingConvention::FrameSize() {
   // Method*, return address and callee save area size, local reference segment state
-  size_t frame_data_size = kX86PointerSize +
+  size_t frame_data_size = static_cast<size_t>(kX86PointerSize) +
       (2 + CalleeSaveRegisters().size()) * kFramePointerSize;
   // References plus 2 words for HandleScope header
-  size_t handle_scope_size = HandleScope::SizeOf(kFramePointerSize, ReferenceCount());
+  size_t handle_scope_size = HandleScope::SizeOf(kX86PointerSize, ReferenceCount());
   // Plus return value spill area size
   return RoundUp(frame_data_size + handle_scope_size + SizeOfReturnValue(), kStackAlignment);
 }

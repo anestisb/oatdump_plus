@@ -18,6 +18,7 @@
 
 #include "arch/context.h"
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "base/hex_dump.h"
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
@@ -167,7 +168,7 @@ extern "C" mirror::Object* artQuickGetProxyThisObject(ArtMethod** sp)
     SHARED_REQUIRES(Locks::mutator_lock_);
 
 mirror::Object* StackVisitor::GetThisObject() const {
-  DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), sizeof(void*));
+  DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), kRuntimePointerSize);
   ArtMethod* m = GetMethod();
   if (m->IsStatic()) {
     return nullptr;
@@ -748,7 +749,8 @@ QuickMethodFrameInfo StackVisitor::GetCurrentQuickFrameInfo() const {
   // The only remaining case is if the method is native and uses the generic JNI stub.
   DCHECK(method->IsNative());
   ClassLinker* class_linker = runtime->GetClassLinker();
-  const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(method, sizeof(void*));
+  const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(method,
+                                                                           kRuntimePointerSize);
   DCHECK(class_linker->IsQuickGenericJniStub(entry_point)) << PrettyMethod(method);
   // Generic JNI frame.
   uint32_t handle_refs = GetNumberOfReferenceArgsWithoutReceiver(method) + 1;
@@ -908,7 +910,7 @@ void JavaFrameRootInfo::Describe(std::ostream& os) const {
 int StackVisitor::GetVRegOffsetFromQuickCode(const DexFile::CodeItem* code_item,
                                              uint32_t core_spills, uint32_t fp_spills,
                                              size_t frame_size, int reg, InstructionSet isa) {
-  size_t pointer_size = InstructionSetPointerSize(isa);
+  PointerSize pointer_size = InstructionSetPointerSize(isa);
   if (kIsDebugBuild) {
     auto* runtime = Runtime::Current();
     if (runtime != nullptr) {
@@ -931,7 +933,8 @@ int StackVisitor::GetVRegOffsetFromQuickCode(const DexFile::CodeItem* code_item,
      * Special temporaries may have custom locations and the logic above deals with that.
      * However, non-special temporaries are placed relative to the outs.
      */
-    int temps_start = code_item->outs_size_ * sizeof(uint32_t) + pointer_size /* art method */;
+    int temps_start = code_item->outs_size_ * sizeof(uint32_t)
+        + static_cast<size_t>(pointer_size) /* art method */;
     int relative_offset = (reg - (temp_threshold + max_num_special_temps)) * sizeof(uint32_t);
     return temps_start + relative_offset;
   }  else if (reg < num_regs) {
@@ -939,7 +942,8 @@ int StackVisitor::GetVRegOffsetFromQuickCode(const DexFile::CodeItem* code_item,
     return locals_start + (reg * sizeof(uint32_t));
   } else {
     // Handle ins.
-    return frame_size + ((reg - num_regs) * sizeof(uint32_t)) + pointer_size /* art method */;
+    return frame_size + ((reg - num_regs) * sizeof(uint32_t))
+        + static_cast<size_t>(pointer_size) /* art method */;
   }
 }
 

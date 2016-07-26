@@ -104,7 +104,7 @@ Location InvokeRuntimeCallingConvention::GetReturnLocation(Primitive::Type type)
 
 // NOLINT on __ macro to suppress wrong warning/fix from clang-tidy.
 #define __ down_cast<CodeGeneratorMIPS64*>(codegen)->GetAssembler()-> // NOLINT
-#define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kMips64DoublewordSize, x).Int32Value()
+#define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kMips64PointerSize, x).Int32Value()
 
 class BoundsCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
  public:
@@ -431,7 +431,7 @@ CodeGeneratorMIPS64::CodeGeneratorMIPS64(HGraph* graph,
 #undef __
 // NOLINT on __ macro to suppress wrong warning/fix from clang-tidy.
 #define __ down_cast<Mips64Assembler*>(GetAssembler())-> // NOLINT
-#define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kMips64DoublewordSize, x).Int32Value()
+#define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kMips64PointerSize, x).Int32Value()
 
 void CodeGeneratorMIPS64::Finalize(CodeAllocator* allocator) {
   // Ensure that we fix up branches.
@@ -888,7 +888,7 @@ void CodeGeneratorMIPS64::MarkGCCard(GpuRegister object,
   __ LoadFromOffset(kLoadDoubleword,
                     card,
                     TR,
-                    Thread::CardTableOffset<kMips64DoublewordSize>().Int32Value());
+                    Thread::CardTableOffset<kMips64PointerSize>().Int32Value());
   __ Dsrl(temp, object, gc::accounting::CardTable::kCardShift);
   __ Daddu(temp, card, temp);
   __ Sb(card, temp, 0);
@@ -964,7 +964,7 @@ void CodeGeneratorMIPS64::InvokeRuntime(QuickEntrypointEnum entrypoint,
                                      HInstruction* instruction,
                                      uint32_t dex_pc,
                                      SlowPathCode* slow_path) {
-  InvokeRuntime(GetThreadOffset<kMips64DoublewordSize>(entrypoint).Int32Value(),
+  InvokeRuntime(GetThreadOffset<kMips64PointerSize>(entrypoint).Int32Value(),
                 instruction,
                 dex_pc,
                 slow_path);
@@ -1004,7 +1004,7 @@ void InstructionCodeGeneratorMIPS64::GenerateSuspendCheck(HSuspendCheck* instruc
   __ LoadFromOffset(kLoadUnsignedHalfword,
                     TMP,
                     TR,
-                    Thread::ThreadFlagsOffset<kMips64DoublewordSize>().Int32Value());
+                    Thread::ThreadFlagsOffset<kMips64PointerSize>().Int32Value());
   if (successor == nullptr) {
     __ Bnezc(TMP, slow_path->GetEntryLabel());
     __ Bind(slow_path->GetReturnLabel());
@@ -2934,7 +2934,7 @@ void InstructionCodeGeneratorMIPS64::VisitInvokeInterface(HInvokeInterface* invo
   GpuRegister temp = invoke->GetLocations()->GetTemp(0).AsRegister<GpuRegister>();
   Location receiver = invoke->GetLocations()->InAt(0);
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
-  Offset entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kMips64DoublewordSize);
+  Offset entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kMips64PointerSize);
 
   // Set the hidden argument.
   __ LoadConst32(invoke->GetLocations()->GetTemp(1).AsRegister<GpuRegister>(),
@@ -3115,7 +3115,7 @@ void CodeGeneratorMIPS64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
                         T9,
                         callee_method.AsRegister<GpuRegister>(),
                         ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-                            kMips64DoublewordSize).Int32Value());
+                            kMips64PointerSize).Int32Value());
       // T9()
       __ Jalr(T9);
       __ Nop();
@@ -3153,7 +3153,7 @@ void CodeGeneratorMIPS64::GenerateVirtualCall(HInvokeVirtual* invoke, Location t
   size_t method_offset = mirror::Class::EmbeddedVTableEntryOffset(
       invoke->GetVTableIndex(), kMips64PointerSize).SizeValue();
   uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
-  Offset entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kMips64DoublewordSize);
+  Offset entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kMips64PointerSize);
 
   // temp = object->GetClass();
   __ LoadFromOffset(kLoadUnsignedWord, temp, receiver, class_offset);
@@ -3231,7 +3231,7 @@ void InstructionCodeGeneratorMIPS64::VisitLoadClass(HLoadClass* cls) {
 }
 
 static int32_t GetExceptionTlsOffset() {
-  return Thread::ExceptionOffset<kMips64DoublewordSize>().Int32Value();
+  return Thread::ExceptionOffset<kMips64PointerSize>().Int32Value();
 }
 
 void LocationsBuilderMIPS64::VisitLoadException(HLoadException* load) {
@@ -3456,7 +3456,7 @@ void InstructionCodeGeneratorMIPS64::VisitNewInstance(HNewInstance* instruction)
     // String is allocated through StringFactory. Call NewEmptyString entry point.
     GpuRegister temp = instruction->GetLocations()->GetTemp(0).AsRegister<GpuRegister>();
     MemberOffset code_offset =
-        ArtMethod::EntryPointFromQuickCompiledCodeOffset(kMips64DoublewordSize);
+        ArtMethod::EntryPointFromQuickCompiledCodeOffset(kMips64PointerSize);
     __ LoadFromOffset(kLoadDoubleword, temp, TR, QUICK_ENTRY_POINT(pNewEmptyString));
     __ LoadFromOffset(kLoadDoubleword, T9, temp, code_offset.Int32Value());
     __ Jalr(T9);

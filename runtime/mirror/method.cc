@@ -51,7 +51,7 @@ void Method::ResetArrayClass() {
   array_class_ = GcRoot<Class>(nullptr);
 }
 
-template <size_t kPointerSize, bool kTransactionActive>
+template <PointerSize kPointerSize, bool kTransactionActive>
 Method* Method::CreateFromArtMethod(Thread* self, ArtMethod* method) {
   DCHECK(!method->IsConstructor()) << PrettyMethod(method);
   auto* ret = down_cast<Method*>(StaticClass()->AllocObject(self));
@@ -62,10 +62,14 @@ Method* Method::CreateFromArtMethod(Thread* self, ArtMethod* method) {
   return ret;
 }
 
-template Method* Method::CreateFromArtMethod<4U, false>(Thread* self, ArtMethod* method);
-template Method* Method::CreateFromArtMethod<4U, true>(Thread* self, ArtMethod* method);
-template Method* Method::CreateFromArtMethod<8U, false>(Thread* self, ArtMethod* method);
-template Method* Method::CreateFromArtMethod<8U, true>(Thread* self, ArtMethod* method);
+template Method* Method::CreateFromArtMethod<PointerSize::k32, false>(Thread* self,
+                                                                      ArtMethod* method);
+template Method* Method::CreateFromArtMethod<PointerSize::k32, true>(Thread* self,
+                                                                     ArtMethod* method);
+template Method* Method::CreateFromArtMethod<PointerSize::k64, false>(Thread* self,
+                                                                      ArtMethod* method);
+template Method* Method::CreateFromArtMethod<PointerSize::k64, true>(Thread* self,
+                                                                     ArtMethod* method);
 
 void Method::VisitRoots(RootVisitor* visitor) {
   static_class_.VisitRootIfNonNull(visitor, RootInfo(kRootStickyClass));
@@ -99,7 +103,7 @@ void Constructor::VisitRoots(RootVisitor* visitor) {
   array_class_.VisitRootIfNonNull(visitor, RootInfo(kRootStickyClass));
 }
 
-template <size_t kPointerSize, bool kTransactionActive>
+template <PointerSize kPointerSize, bool kTransactionActive>
 Constructor* Constructor::CreateFromArtMethod(Thread* self, ArtMethod* method) {
   DCHECK(method->IsConstructor()) << PrettyMethod(method);
   auto* ret = down_cast<Constructor*>(StaticClass()->AllocObject(self));
@@ -110,10 +114,14 @@ Constructor* Constructor::CreateFromArtMethod(Thread* self, ArtMethod* method) {
   return ret;
 }
 
-template Constructor* Constructor::CreateFromArtMethod<4U, false>(Thread* self, ArtMethod* method);
-template Constructor* Constructor::CreateFromArtMethod<4U, true>(Thread* self, ArtMethod* method);
-template Constructor* Constructor::CreateFromArtMethod<8U, false>(Thread* self, ArtMethod* method);
-template Constructor* Constructor::CreateFromArtMethod<8U, true>(Thread* self, ArtMethod* method);
+template Constructor* Constructor::CreateFromArtMethod<PointerSize::k32, false>(
+    Thread* self, ArtMethod* method);
+template Constructor* Constructor::CreateFromArtMethod<PointerSize::k32, true>(
+    Thread* self, ArtMethod* method);
+template Constructor* Constructor::CreateFromArtMethod<PointerSize::k64, false>(
+    Thread* self, ArtMethod* method);
+template Constructor* Constructor::CreateFromArtMethod<PointerSize::k64, true>(
+    Thread* self, ArtMethod* method);
 
 }  // namespace mirror
 }  // namespace art
