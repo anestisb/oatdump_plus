@@ -90,10 +90,12 @@ inline uint32_t ArtMethod::GetAccessFlags() {
   if (kIsDebugBuild) {
     Thread* self = Thread::Current();
     if (!Locks::mutator_lock_->IsSharedHeld(self)) {
-      ScopedObjectAccess soa(self);
-      CHECK(IsRuntimeMethod() ||
-            GetDeclaringClass<kReadBarrierOption>()->IsIdxLoaded() ||
-            GetDeclaringClass<kReadBarrierOption>()->IsErroneous());
+      if (self->IsThreadSuspensionAllowable()) {
+        ScopedObjectAccess soa(self);
+        CHECK(IsRuntimeMethod() ||
+              GetDeclaringClass<kReadBarrierOption>()->IsIdxLoaded() ||
+              GetDeclaringClass<kReadBarrierOption>()->IsErroneous());
+      }
     } else {
       // We cannot use SOA in this case. We might be holding the lock, but may not be in the
       // runnable state (e.g., during GC).
