@@ -2546,6 +2546,9 @@ void Heap::PreZygoteFork() {
   // Set all the cards in the mod-union table since we don't know which objects contain references
   // to large objects.
   mod_union_table->SetCards();
+  // Filter out cards that do not to be dirty. This is mostly for CC collector so that it does
+  // not gray the objects on all the cards in the zygote space.
+  mod_union_table->FilterCards();
   AddModUnionTable(mod_union_table);
   large_object_space_->SetAllLargeObjectsAsZygoteObjects(self);
   if (collector::SemiSpace::kUseRememberedSet) {
