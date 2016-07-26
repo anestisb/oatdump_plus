@@ -93,6 +93,18 @@ inline ThreadState Thread::SetState(ThreadState new_state) {
   return static_cast<ThreadState>(old_state_and_flags.as_struct.state);
 }
 
+inline bool Thread::IsThreadSuspensionAllowable() const {
+  if (tls32_.no_thread_suspension != 0) {
+    return false;
+  }
+  for (int i = kLockLevelCount - 1; i >= 0; --i) {
+    if (i != kMutatorLock && GetHeldMutex(static_cast<LockLevel>(i)) != nullptr) {
+      return false;
+    }
+  }
+  return true;
+}
+
 inline void Thread::AssertThreadSuspensionIsAllowable(bool check_locks) const {
   if (kIsDebugBuild) {
     if (gAborting == 0) {
