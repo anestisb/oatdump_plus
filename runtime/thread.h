@@ -287,6 +287,9 @@ class Thread {
 
   void AssertThreadSuspensionIsAllowable(bool check_locks = true) const;
 
+  // Return true if thread suspension is allowable.
+  bool IsThreadSuspensionAllowable() const;
+
   bool IsDaemon() const {
     return tls32_.daemon;
   }
