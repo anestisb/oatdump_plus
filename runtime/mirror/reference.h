@@ -76,8 +76,9 @@ class MANAGED Reference : public Object {
     SetFieldObjectVolatile<kTransactionActive>(ReferentOffset(), nullptr);
   }
 
+  template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   Reference* GetPendingNext() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return GetFieldObject<Reference>(PendingNextOffset());
+    return GetFieldObject<Reference, kDefaultVerifyFlags, kReadBarrierOption>(PendingNextOffset());
   }
 
   void SetPendingNext(Reference* pending_next)
@@ -102,7 +103,7 @@ class MANAGED Reference : public Object {
   // removed from the list after having determined the reference is not ready
   // to be enqueued on a java ReferenceQueue.
   bool IsUnprocessed() SHARED_REQUIRES(Locks::mutator_lock_) {
-    return GetPendingNext() == nullptr;
+    return GetPendingNext<kWithoutReadBarrier>() == nullptr;
   }
 
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
