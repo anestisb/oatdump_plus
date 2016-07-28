@@ -25,7 +25,6 @@
 #include "base/arena_containers.h"
 #include "base/arena_object.h"
 #include "base/stl_util.h"
-#include "dex/compiler_enums.h"
 #include "dex_file.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "handle.h"
@@ -6304,6 +6303,32 @@ class HCheckCast FINAL : public HTemplateInstruction<2> {
 
   DISALLOW_COPY_AND_ASSIGN(HCheckCast);
 };
+
+/**
+ * @brief Memory barrier types (see "The JSR-133 Cookbook for Compiler Writers").
+ * @details We define the combined barrier types that are actually required
+ * by the Java Memory Model, rather than using exactly the terminology from
+ * the JSR-133 cookbook.  These should, in many cases, be replaced by acquire/release
+ * primitives.  Note that the JSR-133 cookbook generally does not deal with
+ * store atomicity issues, and the recipes there are not always entirely sufficient.
+ * The current recipe is as follows:
+ * -# Use AnyStore ~= (LoadStore | StoreStore) ~= release barrier before volatile store.
+ * -# Use AnyAny barrier after volatile store.  (StoreLoad is as expensive.)
+ * -# Use LoadAny barrier ~= (LoadLoad | LoadStore) ~= acquire barrier after each volatile load.
+ * -# Use StoreStore barrier after all stores but before return from any constructor whose
+ *    class has final fields.
+ * -# Use NTStoreStore to order non-temporal stores with respect to all later
+ *    store-to-memory instructions.  Only generated together with non-temporal stores.
+ */
+enum MemBarrierKind {
+  kAnyStore,
+  kLoadAny,
+  kStoreStore,
+  kAnyAny,
+  kNTStoreStore,
+  kLastBarrierKind = kNTStoreStore
+};
+std::ostream& operator<<(std::ostream& os, const MemBarrierKind& kind);
 
 class HMemoryBarrier FINAL : public HTemplateInstruction<0> {
  public:

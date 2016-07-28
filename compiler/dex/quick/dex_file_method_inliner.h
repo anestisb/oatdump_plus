@@ -21,7 +21,6 @@
 #include "base/mutex.h"
 #include "base/macros.h"
 #include "safe_map.h"
-#include "dex/compiler_enums.h"
 #include "dex_file.h"
 #include "quick/inline_method_analyser.h"
 
@@ -30,6 +29,13 @@ namespace art {
 namespace verifier {
 class MethodVerifier;
 }  // namespace verifier
+
+enum OpSize {
+  k32,
+  k64,
+  kSignedHalf,
+  kSignedByte,
+};
 
 /**
  * Handles inlining of methods from a particular DexFile.
