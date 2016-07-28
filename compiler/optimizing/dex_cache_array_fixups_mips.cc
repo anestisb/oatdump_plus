@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "code_generator_mips.h"
 #include "dex_cache_array_fixups_mips.h"
 
 #include "base/arena_containers.h"
@@ -27,8 +28,9 @@ namespace mips {
  */
 class DexCacheArrayFixupsVisitor : public HGraphVisitor {
  public:
-  explicit DexCacheArrayFixupsVisitor(HGraph* graph)
+  explicit DexCacheArrayFixupsVisitor(HGraph* graph, CodeGenerator* codegen)
       : HGraphVisitor(graph),
+        codegen_(down_cast<CodeGeneratorMIPS*>(codegen)),
         dex_cache_array_bases_(std::less<const DexFile*>(),
                                // Attribute memory use to code generator.
                                graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {}
@@ -41,9 +43,45 @@ class DexCacheArrayFixupsVisitor : public HGraphVisitor {
       HMipsDexCacheArraysBase* base = entry.second;
       base->MoveBeforeFirstUserAndOutOfLoops();
     }
+    // Computing the dex cache base for PC-relative accesses will clobber RA with
+    // the NAL instruction on R2. Take a note of this before generating the method
+    // entry.
+    if (!dex_cache_array_bases_.empty() && !codegen_->GetInstructionSetFeatures().IsR6()) {
+      codegen_->ClobberRA();
+    }
   }
 
  private:
+  void VisitLoadClass(HLoadClass* load_class) OVERRIDE {
+    // If this is a load with PC-relative access to the dex cache types array,
+    // we need to add the dex cache arrays base as the special input.
+    if (load_class->GetLoadKind() == HLoadClass::LoadKind::kDexCachePcRelative) {
+      // Initialize base for target dex file if needed.
+      const DexFile& dex_file = load_class->GetDexFile();
+      HMipsDexCacheArraysBase* base = GetOrCreateDexCacheArrayBase(dex_file);
+      // Update the element offset in base.
+      DexCacheArraysLayout layout(kMipsPointerSize, &dex_file);
+      base->UpdateElementOffset(layout.TypeOffset(load_class->GetTypeIndex()));
+      // Add the special argument base to the load.
+      load_class->AddSpecialInput(base);
+    }
+  }
+
+  void VisitLoadString(HLoadString* load_string) OVERRIDE {
+    // If this is a load with PC-relative access to the dex cache strings array,
+    // we need to add the dex cache arrays base as the special input.
+    if (load_string->GetLoadKind() == HLoadString::LoadKind::kDexCachePcRelative) {
+      // Initialize base for target dex file if needed.
+      const DexFile& dex_file = load_string->GetDexFile();
+      HMipsDexCacheArraysBase* base = GetOrCreateDexCacheArrayBase(dex_file);
+      // Update the element offset in base.
+      DexCacheArraysLayout layout(kMipsPointerSize, &dex_file);
+      base->UpdateElementOffset(layout.StringOffset(load_string->GetStringIndex()));
+      // Add the special argument base to the load.
+      load_string->AddSpecialInput(base);
+    }
+  }
+
   void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE {
     // If this is an invoke with PC-relative access to the dex cache methods array,
     // we need to add the dex cache arrays base as the special input.
@@ -74,6 +112,8 @@ class DexCacheArrayFixupsVisitor : public HGraphVisitor {
         });
   }
 
+  CodeGeneratorMIPS* codegen_;
+
   using DexCacheArraysBaseMap =
       ArenaSafeMap<const DexFile*, HMipsDexCacheArraysBase*, std::less<const DexFile*>>;
   DexCacheArraysBaseMap dex_cache_array_bases_;
@@ -85,7 +125,7 @@ void DexCacheArrayFixups::Run() {
     // that can be live-in at the irreducible loop header.
     return;
   }
-  DexCacheArrayFixupsVisitor visitor(graph_);
+  DexCacheArrayFixupsVisitor visitor(graph_, codegen_);
   visitor.VisitInsertionOrder();
   visitor.MoveBasesIfNeeded();
 }
