@@ -5625,9 +5625,12 @@ inline uint32_t HLoadClass::GetDexCacheElementOffset() const {
 
 // Note: defined outside class to see operator<<(., HLoadClass::LoadKind).
 inline void HLoadClass::AddSpecialInput(HInstruction* special_input) {
-  // The special input is used for PC-relative loads on some architectures.
+  // The special input is used for PC-relative loads on some architectures,
+  // including literal pool loads, which are PC-relative too.
   DCHECK(GetLoadKind() == LoadKind::kBootImageLinkTimePcRelative ||
-         GetLoadKind() == LoadKind::kDexCachePcRelative) << GetLoadKind();
+         GetLoadKind() == LoadKind::kDexCachePcRelative ||
+         GetLoadKind() == LoadKind::kBootImageLinkTimeAddress ||
+         GetLoadKind() == LoadKind::kBootImageAddress) << GetLoadKind();
   DCHECK(special_input_.GetInstruction() == nullptr);
   special_input_ = HUserRecord<HInstruction*>(special_input);
   special_input->AddUseAt(this, 0);
@@ -5835,9 +5838,12 @@ inline uint32_t HLoadString::GetDexCacheElementOffset() const {
 
 // Note: defined outside class to see operator<<(., HLoadString::LoadKind).
 inline void HLoadString::AddSpecialInput(HInstruction* special_input) {
-  // The special input is used for PC-relative loads on some architectures.
+  // The special input is used for PC-relative loads on some architectures,
+  // including literal pool loads, which are PC-relative too.
   DCHECK(GetLoadKind() == LoadKind::kBootImageLinkTimePcRelative ||
-         GetLoadKind() == LoadKind::kDexCachePcRelative) << GetLoadKind();
+         GetLoadKind() == LoadKind::kDexCachePcRelative ||
+         GetLoadKind() == LoadKind::kBootImageLinkTimeAddress ||
+         GetLoadKind() == LoadKind::kBootImageAddress) << GetLoadKind();
   // HLoadString::GetInputRecords() returns an empty array at this point,
   // so use the GetInputRecords() from the base class to set the input record.
   DCHECK(special_input_.GetInstruction() == nullptr);
