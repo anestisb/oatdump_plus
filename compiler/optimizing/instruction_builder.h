@@ -30,6 +30,8 @@
 
 namespace art {
 
+class Instruction;
+
 class HInstructionBuilder : public ValueObject {
  public:
   HInstructionBuilder(HGraph* graph,
