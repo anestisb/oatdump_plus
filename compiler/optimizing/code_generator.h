@@ -359,7 +359,8 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
   // Return the entry point offset for ReadBarrierMarkRegX, where X is `reg`.
   template <size_t pointer_size>
   static int32_t GetReadBarrierMarkEntryPointsOffset(size_t reg) {
-    DCHECK_LT(reg, 32u);
+    // The entry point list defines 30 ReadBarrierMarkRegX entry points.
+    DCHECK_LT(reg, 30u);
     // The ReadBarrierMarkRegX entry points are ordered by increasing
     // register number in Thread::tls_Ptr_.quick_entrypoints.
     return QUICK_ENTRYPOINT_OFFSET(pointer_size, pReadBarrierMarkReg00).Int32Value()

@@ -376,12 +376,6 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   qpoints->pReadBarrierMarkReg29 = nullptr;
   static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg29),
                 "Non-direct C stub marked direct.");
-  qpoints->pReadBarrierMarkReg30 = nullptr;
-  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg30),
-                "Non-direct C stub marked direct.");
-  qpoints->pReadBarrierMarkReg31 = nullptr;
-  static_assert(!IsDirectEntrypoint(kQuickReadBarrierMarkReg31),
-                "Non-direct C stub marked direct.");
   qpoints->pReadBarrierSlow = artReadBarrierSlow;
   static_assert(IsDirectEntrypoint(kQuickReadBarrierSlow), "Direct C stub not marked direct.");
   qpoints->pReadBarrierForRootSlow = artReadBarrierForRootSlow;

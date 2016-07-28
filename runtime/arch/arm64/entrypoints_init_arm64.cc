@@ -124,6 +124,15 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
 
   // Read barrier.
   qpoints->pReadBarrierJni = ReadBarrierJni;
+  // ARM64 is the architecture with the largest number of core
+  // registers (32) that supports the read barrier configuration.
+  // Because registers 30 (LR) and 31 (SP/XZR) cannot be used to pass
+  // arguments, only define ReadBarrierMarkRegX entrypoints for the
+  // first 30 registers.  This limitation is not a problem on other
+  // supported architectures (ARM, x86 and x86-64) either, as they
+  // have less core registers (resp. 16, 8 and 16).  (We may have to
+  // revise that design choice if read barrier support is added for
+  // MIPS and/or MIPS64.)
   qpoints->pReadBarrierMarkReg00 = art_quick_read_barrier_mark_reg00;
   qpoints->pReadBarrierMarkReg01 = art_quick_read_barrier_mark_reg01;
   qpoints->pReadBarrierMarkReg02 = art_quick_read_barrier_mark_reg02;
@@ -154,8 +163,6 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   qpoints->pReadBarrierMarkReg27 = art_quick_read_barrier_mark_reg27;
   qpoints->pReadBarrierMarkReg28 = art_quick_read_barrier_mark_reg28;
   qpoints->pReadBarrierMarkReg29 = art_quick_read_barrier_mark_reg29;
-  qpoints->pReadBarrierMarkReg30 = nullptr;  // Cannot use register 30 (LR) to pass arguments.
-  qpoints->pReadBarrierMarkReg31 = nullptr;  // Cannot use register 31 (SP/XZR) to pass arguments.
   qpoints->pReadBarrierSlow = artReadBarrierSlow;
   qpoints->pReadBarrierForRootSlow = artReadBarrierForRootSlow;
 };
