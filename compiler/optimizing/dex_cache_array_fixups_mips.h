@@ -21,14 +21,21 @@
 #include "optimization.h"
 
 namespace art {
+
+class CodeGenerator;
+
 namespace mips {
 
 class DexCacheArrayFixups : public HOptimization {
  public:
-  DexCacheArrayFixups(HGraph* graph, OptimizingCompilerStats* stats)
-      : HOptimization(graph, "dex_cache_array_fixups_mips", stats) {}
+  DexCacheArrayFixups(HGraph* graph, CodeGenerator* codegen, OptimizingCompilerStats* stats)
+      : HOptimization(graph, "dex_cache_array_fixups_mips", stats),
+        codegen_(codegen) {}
 
   void Run() OVERRIDE;
+
+ private:
+  CodeGenerator* codegen_;
 };
 
 }  // namespace mips
