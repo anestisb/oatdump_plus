@@ -396,6 +396,11 @@ class Dex2oatSwapUseTest : public Dex2oatSwapTest {
 };
 
 TEST_F(Dex2oatSwapUseTest, CheckSwapUsage) {
+  // The `native_alloc_2_ >= native_alloc_1_` assertion below may not
+  // hold true on some x86 systems when read barriers are enabled;
+  // disable this test while we investigate (b/29259363).
+  TEST_DISABLED_FOR_READ_BARRIER_ON_X86();
+
   RunTest(false /* use_fd */,
           false /* expect_use */);
   GrabResult1();
