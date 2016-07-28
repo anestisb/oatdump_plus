@@ -162,9 +162,10 @@ class MANAGED PrimitiveArray : public Array {
     array_class_ = GcRoot<Class>(array_class);
   }
 
+  template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   static Class* GetArrayClass() SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK(!array_class_.IsNull());
-    return array_class_.Read();
+    return array_class_.Read<kReadBarrierOption>();
   }
 
   static void ResetArrayClass() {
