@@ -115,13 +115,6 @@ class CommonCompilerTest : public CommonRuntimeTest {
   std::list<std::vector<uint8_t>> header_code_and_maps_chunks_;
 };
 
-// TODO: When read barrier works with all tests, get rid of this.
-#define TEST_DISABLED_FOR_READ_BARRIER() \
-  if (kUseReadBarrier) { \
-    printf("WARNING: TEST DISABLED FOR READ BARRIER\n"); \
-    return; \
-  }
-
 // TODO: When read barrier works with all Optimizing back ends, get rid of this.
 #define TEST_DISABLED_FOR_READ_BARRIER_WITH_OPTIMIZING_FOR_UNSUPPORTED_INSTRUCTION_SETS() \
   if (kUseReadBarrier && GetCompilerKind() == Compiler::kOptimizing) {                    \
