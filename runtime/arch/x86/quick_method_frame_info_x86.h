@@ -36,21 +36,33 @@ enum XMM {
   XMM7 = 7,
 };
 
+static constexpr uint32_t kX86CalleeSaveAlwaysSpills =
+    (1 << art::x86::kNumberOfCpuRegisters);  // Fake return address callee save.
 static constexpr uint32_t kX86CalleeSaveRefSpills =
     (1 << art::x86::EBP) | (1 << art::x86::ESI) | (1 << art::x86::EDI);
 static constexpr uint32_t kX86CalleeSaveArgSpills =
     (1 << art::x86::ECX) | (1 << art::x86::EDX) | (1 << art::x86::EBX);
+static constexpr uint32_t kX86CalleeSaveEverythingSpills =
+    (1 << art::x86::EAX) | (1 << art::x86::ECX) | (1 << art::x86::EDX) | (1 << art::x86::EBX);
+
 static constexpr uint32_t kX86CalleeSaveFpArgSpills =
     (1 << art::x86::XMM0) | (1 << art::x86::XMM1) |
     (1 << art::x86::XMM2) | (1 << art::x86::XMM3);
+static constexpr uint32_t kX86CalleeSaveFpEverythingSpills =
+    (1 << art::x86::XMM0) | (1 << art::x86::XMM1) |
+    (1 << art::x86::XMM2) | (1 << art::x86::XMM3) |
+    (1 << art::x86::XMM4) | (1 << art::x86::XMM5) |
+    (1 << art::x86::XMM6) | (1 << art::x86::XMM7);
 
 constexpr uint32_t X86CalleeSaveCoreSpills(Runtime::CalleeSaveType type) {
-  return kX86CalleeSaveRefSpills | (type == Runtime::kRefsAndArgs ? kX86CalleeSaveArgSpills : 0) |
-      (1 << art::x86::kNumberOfCpuRegisters);  // fake return address callee save
+  return kX86CalleeSaveAlwaysSpills | kX86CalleeSaveRefSpills |
+      (type == Runtime::kRefsAndArgs ? kX86CalleeSaveArgSpills : 0) |
+      (type == Runtime::kSaveEverything ? kX86CalleeSaveEverythingSpills : 0);
 }
 
 constexpr uint32_t X86CalleeSaveFpSpills(Runtime::CalleeSaveType type) {
-    return type == Runtime::kRefsAndArgs ? kX86CalleeSaveFpArgSpills : 0;
+    return (type == Runtime::kRefsAndArgs ? kX86CalleeSaveFpArgSpills : 0) |
+        (type == Runtime::kSaveEverything ? kX86CalleeSaveFpEverythingSpills : 0);
 }
 
 constexpr uint32_t X86CalleeSaveFrameSize(Runtime::CalleeSaveType type) {

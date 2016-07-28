@@ -33,6 +33,8 @@ DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET), 
 DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET), (static_cast<size_t>(art::Runtime::GetCalleeSaveMethodOffset(art::Runtime:: kRefsOnly))))
 #define RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET 0x10
 DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET), (static_cast<size_t>(art::Runtime::GetCalleeSaveMethodOffset(art::Runtime:: kRefsAndArgs))))
+#define RUNTIME_SAVE_EVERYTHING_CALLEE_SAVE_FRAME_OFFSET 0x18
+DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_SAVE_EVERYTHING_CALLEE_SAVE_FRAME_OFFSET), (static_cast<size_t>(art::Runtime::GetCalleeSaveMethodOffset(art::Runtime:: kSaveEverything))))
 #define THREAD_FLAGS_OFFSET 0
 DEFINE_CHECK_EQ(static_cast<int32_t>(THREAD_FLAGS_OFFSET), (static_cast<int32_t>(art::Thread:: ThreadFlagsOffset<sizeof(void*)>().Int32Value())))
 #define THREAD_ID_OFFSET 12

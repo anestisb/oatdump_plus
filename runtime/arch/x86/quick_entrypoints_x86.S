@@ -222,6 +222,74 @@ MACRO0(RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME_AND_JUMP)
 END_MACRO
 
     /*
+     * Macro that sets up the callee save frame to conform with
+     * Runtime::CreateCalleeSaveMethod(kSaveEverything)
+     */
+MACRO2(SETUP_SAVE_EVERYTHING_CALLEE_SAVE_FRAME, got_reg, temp_reg)
+    // Save core registers.
+    PUSH edi
+    PUSH esi
+    PUSH ebp
+    PUSH ebx
+    PUSH edx
+    PUSH ecx
+    PUSH eax
+    // Create space for FPR registers and stack alignment padding.
+    subl MACRO_LITERAL(12 + 8 * 8), %esp
+    CFI_ADJUST_CFA_OFFSET(12 + 8 * 8)
+    // Save FPRs.
+    movsd %xmm0, 12(%esp)
+    movsd %xmm1, 20(%esp)
+    movsd %xmm2, 28(%esp)
+    movsd %xmm3, 36(%esp)
+    movsd %xmm4, 44(%esp)
+    movsd %xmm5, 52(%esp)
+    movsd %xmm6, 60(%esp)
+    movsd %xmm7, 68(%esp)
+
+    SETUP_GOT_NOSAVE RAW_VAR(got_reg)
+    // Load Runtime::instance_ from GOT.
+    movl SYMBOL(_ZN3art7Runtime9instance_E)@GOT(REG_VAR(got_reg)), REG_VAR(temp_reg)
+    movl (REG_VAR(temp_reg)), REG_VAR(temp_reg)
+    // Push save everything callee-save method.
+    pushl RUNTIME_SAVE_EVERYTHING_CALLEE_SAVE_FRAME_OFFSET(REG_VAR(temp_reg))
+    CFI_ADJUST_CFA_OFFSET(4)
+    // Store esp as the stop quick frame.
+    movl %esp, %fs:THREAD_TOP_QUICK_FRAME_OFFSET
+
+    // Ugly compile-time check, but we only have the preprocessor.
+    // Last +4: implicit return address pushed on stack when caller made call.
+#if (FRAME_SIZE_SAVE_EVERYTHING_CALLEE_SAVE != 7*4 + 8*8 + 12 + 4 + 4)
+#error "SAVE_EVERYTHING_CALLEE_SAVE_FRAME(X86) size not as expected."
+#endif
+END_MACRO
+
+MACRO0(RESTORE_SAVE_EVERYTHING_CALLEE_SAVE_FRAME)
+    // Restore FPRs. Method and padding is still on the stack.
+    movsd 16(%esp), %xmm0
+    movsd 24(%esp), %xmm1
+    movsd 32(%esp), %xmm2
+    movsd 40(%esp), %xmm3
+    movsd 48(%esp), %xmm4
+    movsd 56(%esp), %xmm5
+    movsd 64(%esp), %xmm6
+    movsd 72(%esp), %xmm7
+
+    // Remove save everything callee save method, stack alignment padding and FPRs.
+    addl MACRO_LITERAL(16 + 8 * 8), %esp
+    CFI_ADJUST_CFA_OFFSET(-(16 + 8 * 8))
+
+    // Restore core registers.
+    POP eax
+    POP ecx
+    POP edx
+    POP ebx
+    POP ebp
+    POP esi
+    POP edi
+END_MACRO
+
+    /*
      * Macro that set calls through to artDeliverPendingExceptionFromCode, where the pending
      * exception is Thread::Current()->exception_.
      */
@@ -660,22 +728,6 @@ DEFINE_FUNCTION art_quick_invoke_static_stub
     movss %xmm0, (%ecx)           // store the floating point result
     ret
 END_FUNCTION art_quick_invoke_static_stub
-
-MACRO3(NO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION VAR(c_name)
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME ebx, ebx  // save ref containing registers for GC
-    // Outgoing argument set up
-    subl MACRO_LITERAL(12), %esp                // push padding
-    CFI_ADJUST_CFA_OFFSET(12)
-    pushl %fs:THREAD_SELF_OFFSET                // pass Thread::Current()
-    CFI_ADJUST_CFA_OFFSET(4)
-    call CALLVAR(cxx_name)                      // cxx_name(Thread*)
-    addl MACRO_LITERAL(16), %esp                // pop arguments
-    CFI_ADJUST_CFA_OFFSET(-16)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME         // restore frame up to return address
-    CALL_MACRO(return_macro)                    // return or deliver exception
-    END_FUNCTION VAR(c_name)
-END_MACRO
 
 MACRO3(ONE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name)
@@ -1397,7 +1449,19 @@ DEFINE_FUNCTION art_quick_memcpy
     ret
 END_FUNCTION art_quick_memcpy
 
-NO_ARG_DOWNCALL art_quick_test_suspend, artTestSuspendFromCode, ret
+DEFINE_FUNCTION art_quick_test_suspend
+    SETUP_SAVE_EVERYTHING_CALLEE_SAVE_FRAME ebx, ebx  // save everything for GC
+    // Outgoing argument set up
+    subl MACRO_LITERAL(12), %esp                      // push padding
+    CFI_ADJUST_CFA_OFFSET(12)
+    pushl %fs:THREAD_SELF_OFFSET                      // pass Thread::Current()
+    CFI_ADJUST_CFA_OFFSET(4)
+    call artTestSuspendFromCode                       // artTestSuspendFromCode(Thread*)
+    addl MACRO_LITERAL(16), %esp                      // pop arguments
+    CFI_ADJUST_CFA_OFFSET(-16)
+    RESTORE_SAVE_EVERYTHING_CALLEE_SAVE_FRAME         // restore frame up to return address
+    ret                                               // return
+END_FUNCTION art_quick_test_suspend
 
 DEFINE_FUNCTION art_quick_d2l
     subl LITERAL(12), %esp        // alignment padding, room for argument

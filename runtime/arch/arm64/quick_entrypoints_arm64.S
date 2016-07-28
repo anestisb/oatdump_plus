@@ -316,6 +316,204 @@
     .cfi_adjust_cfa_offset -224
 .endm
 
+    /*
+     * Macro that sets up the callee save frame to conform with
+     * Runtime::CreateCalleeSaveMethod(kSaveEverything)
+     */
+.macro SETUP_SAVE_EVERYTHING_CALLEE_SAVE_FRAME
+    sub sp, sp, #512
+    .cfi_adjust_cfa_offset 512
+
+    // Ugly compile-time check, but we only have the preprocessor.
+#if (FRAME_SIZE_SAVE_EVERYTHING_CALLEE_SAVE != 512)
+#error "SAVE_EVERYTHING_CALLEE_SAVE_FRAME(ARM64) size not as expected."
+#endif
+
+    // Save FP registers.
+    stp d0, d1,   [sp, #8]
+    stp d2, d3,   [sp, #24]
+    stp d4, d5,   [sp, #40]
+    stp d6, d7,   [sp, #56]
+    stp d8, d9,   [sp, #72]
+    stp d10, d11, [sp, #88]
+    stp d12, d13, [sp, #104]
+    stp d14, d15, [sp, #120]
+    stp d16, d17, [sp, #136]
+    stp d18, d19, [sp, #152]
+    stp d20, d21, [sp, #168]
+    stp d22, d23, [sp, #184]
+    stp d24, d25, [sp, #200]
+    stp d26, d27, [sp, #216]
+    stp d28, d29, [sp, #232]
+    stp d30, d31, [sp, #248]
+
+    // Save core registers.
+    str x0,       [sp, #264]
+    .cfi_rel_offset x0, 264
+
+    stp x1, x2,   [sp, #272]
+    .cfi_rel_offset x1, 272
+    .cfi_rel_offset x2, 280
+
+    stp x3, x4,   [sp, #288]
+    .cfi_rel_offset x3, 288
+    .cfi_rel_offset x4, 296
+
+    stp x5, x6,   [sp, #304]
+    .cfi_rel_offset x5, 304
+    .cfi_rel_offset x6, 312
+
+    stp x7, x8,   [sp, #320]
+    .cfi_rel_offset x7, 320
+    .cfi_rel_offset x8, 328
+
+    stp x9, x10,  [sp, #336]
+    .cfi_rel_offset x9, 336
+    .cfi_rel_offset x10, 344
+
+    stp x11, x12, [sp, #352]
+    .cfi_rel_offset x11, 352
+    .cfi_rel_offset x12, 360
+
+    stp x13, x14, [sp, #368]
+    .cfi_rel_offset x13, 368
+    .cfi_rel_offset x14, 376
+
+    stp x15, x16, [sp, #384]
+    .cfi_rel_offset x15, 384
+    .cfi_rel_offset x16, 392
+
+    stp x17, x18, [sp, #400]
+    .cfi_rel_offset x17, 400
+    .cfi_rel_offset x18, 408
+
+    stp x19, x20, [sp, #416]
+    .cfi_rel_offset x19, 416
+    .cfi_rel_offset x20, 424
+
+    stp x21, x22, [sp, #432]
+    .cfi_rel_offset x21, 432
+    .cfi_rel_offset x22, 440
+
+    stp x23, x24, [sp, #448]
+    .cfi_rel_offset x23, 448
+    .cfi_rel_offset x24, 456
+
+    stp x25, x26, [sp, #464]
+    .cfi_rel_offset x25, 464
+    .cfi_rel_offset x26, 472
+
+    stp x27, x28, [sp, #480]
+    .cfi_rel_offset x27, 480
+    .cfi_rel_offset x28, 488
+
+    stp x29, xLR, [sp, #496]
+    .cfi_rel_offset x29, 496
+    .cfi_rel_offset x30, 504
+
+    adrp xIP0, :got:_ZN3art7Runtime9instance_E
+    ldr xIP0, [xIP0, #:got_lo12:_ZN3art7Runtime9instance_E]
+
+    ldr xIP0, [xIP0]  // xIP0 = & (art::Runtime * art::Runtime.instance_) .
+
+    // xIP0 = (ArtMethod*) Runtime.instance_.callee_save_methods[kSaveEverything]  .
+    // Loads appropriate callee-save-method.
+    ldr xIP0, [xIP0, RUNTIME_SAVE_EVERYTHING_CALLEE_SAVE_FRAME_OFFSET ]
+
+    // Store ArtMethod* Runtime::callee_save_methods_[kSaveEverything].
+    str xIP0, [sp]
+    // Place sp in Thread::Current()->top_quick_frame.
+    mov xIP0, sp
+    str xIP0, [xSELF, # THREAD_TOP_QUICK_FRAME_OFFSET]
+.endm
+
+.macro RESTORE_SAVE_EVERYTHING_CALLEE_SAVE_FRAME
+    // Restore FP registers.
+    ldp d0, d1,   [sp, #8]
+    ldp d2, d3,   [sp, #24]
+    ldp d4, d5,   [sp, #40]
+    ldp d6, d7,   [sp, #56]
+    ldp d8, d9,   [sp, #72]
+    ldp d10, d11, [sp, #88]
+    ldp d12, d13, [sp, #104]
+    ldp d14, d15, [sp, #120]
+    ldp d16, d17, [sp, #136]
+    ldp d18, d19, [sp, #152]
+    ldp d20, d21, [sp, #168]
+    ldp d22, d23, [sp, #184]
+    ldp d24, d25, [sp, #200]
+    ldp d26, d27, [sp, #216]
+    ldp d28, d29, [sp, #232]
+    ldp d30, d31, [sp, #248]
+
+    // Restore core registers.
+    ldr x0,       [sp, #264]
+    .cfi_restore x0
+
+    ldp x1, x2,   [sp, #272]
+    .cfi_restore x1
+    .cfi_restore x2
+
+    ldp x3, x4,   [sp, #288]
+    .cfi_restore x3
+    .cfi_restore x4
+
+    ldp x5, x6,   [sp, #304]
+    .cfi_restore x5
+    .cfi_restore x6
+
+    ldp x7, x8,   [sp, #320]
+    .cfi_restore x7
+    .cfi_restore x8
+
+    ldp x9, x10,  [sp, #336]
+    .cfi_restore x9
+    .cfi_restore x10
+
+    ldp x11, x12, [sp, #352]
+    .cfi_restore x11
+    .cfi_restore x12
+
+    ldp x13, x14, [sp, #368]
+    .cfi_restore x13
+    .cfi_restore x14
+
+    ldp x15, x16, [sp, #384]
+    .cfi_restore x15
+    .cfi_restore x16
+
+    ldp x17, x18, [sp, #400]
+    .cfi_restore x17
+    .cfi_restore x18
+
+    ldp x19, x20, [sp, #416]
+    .cfi_restore x19
+    .cfi_restore x20
+
+    ldp x21, x22, [sp, #432]
+    .cfi_restore x21
+    .cfi_restore x22
+
+    ldp x23, x24, [sp, #448]
+    .cfi_restore x23
+    .cfi_restore x24
+
+    ldp x25, x26, [sp, #464]
+    .cfi_restore x25
+    .cfi_restore x26
+
+    ldp x27, x28, [sp, #480]
+    .cfi_restore x27
+    .cfi_restore x28
+
+    ldp x29, xLR, [sp, #496]
+    .cfi_restore x29
+    .cfi_restore x30
+
+    add sp, sp, #512
+    .cfi_adjust_cfa_offset -512
+.endm
+
 .macro RETURN_IF_RESULT_IS_ZERO
     cbnz x0, 1f                // result non-zero branch over
     ret                        // return
@@ -1821,14 +2019,11 @@ END art_quick_alloc_object_region_tlab
      */
     .extern artTestSuspendFromCode
 ENTRY art_quick_test_suspend
-    ldrh   w0, [xSELF, #THREAD_FLAGS_OFFSET]  // get xSELF->state_and_flags.as_struct.flags
-    cbnz   w0, .Lneed_suspend                 // check flags == 0
-    ret                                       // return if flags == 0
-.Lneed_suspend:
+    SETUP_SAVE_EVERYTHING_CALLEE_SAVE_FRAME   // save callee saves for stack crawl
     mov    x0, xSELF
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME          // save callee saves for stack crawl
     bl     artTestSuspendFromCode             // (Thread*)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
+    RESTORE_SAVE_EVERYTHING_CALLEE_SAVE_FRAME
+    ret
 END art_quick_test_suspend
 
 ENTRY art_quick_implicit_suspend

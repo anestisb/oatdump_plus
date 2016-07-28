@@ -34,6 +34,9 @@ static constexpr uint32_t kArmCalleeSaveArgSpills =
     (1 << art::arm::R1) | (1 << art::arm::R2) | (1 << art::arm::R3);
 static constexpr uint32_t kArmCalleeSaveAllSpills =
     (1 << art::arm::R4) | (1 << art::arm::R9);
+static constexpr uint32_t kArmCalleeSaveEverythingSpills =
+    (1 << art::arm::R0) | (1 << art::arm::R1) | (1 << art::arm::R2) | (1 << art::arm::R3) |
+    (1 << art::arm::R4) | (1 << art::arm::R9) | (1 << art::arm::R12);
 
 static constexpr uint32_t kArmCalleeSaveFpAlwaysSpills = 0;
 static constexpr uint32_t kArmCalleeSaveFpRefSpills = 0;
@@ -47,17 +50,21 @@ static constexpr uint32_t kArmCalleeSaveFpAllSpills =
     (1 << art::arm::S20) | (1 << art::arm::S21) | (1 << art::arm::S22) | (1 << art::arm::S23) |
     (1 << art::arm::S24) | (1 << art::arm::S25) | (1 << art::arm::S26) | (1 << art::arm::S27) |
     (1 << art::arm::S28) | (1 << art::arm::S29) | (1 << art::arm::S30) | (1 << art::arm::S31);
+static constexpr uint32_t kArmCalleeSaveFpEverythingSpills =
+    kArmCalleeSaveFpArgSpills | kArmCalleeSaveFpAllSpills;
 
 constexpr uint32_t ArmCalleeSaveCoreSpills(Runtime::CalleeSaveType type) {
   return kArmCalleeSaveAlwaysSpills | kArmCalleeSaveRefSpills |
       (type == Runtime::kRefsAndArgs ? kArmCalleeSaveArgSpills : 0) |
-      (type == Runtime::kSaveAll ? kArmCalleeSaveAllSpills : 0);
+      (type == Runtime::kSaveAll ? kArmCalleeSaveAllSpills : 0) |
+      (type == Runtime::kSaveEverything ? kArmCalleeSaveEverythingSpills : 0);
 }
 
 constexpr uint32_t ArmCalleeSaveFpSpills(Runtime::CalleeSaveType type) {
   return kArmCalleeSaveFpAlwaysSpills | kArmCalleeSaveFpRefSpills |
       (type == Runtime::kRefsAndArgs ? kArmCalleeSaveFpArgSpills: 0) |
-      (type == Runtime::kSaveAll ? kArmCalleeSaveFpAllSpills : 0);
+      (type == Runtime::kSaveAll ? kArmCalleeSaveFpAllSpills : 0) |
+      (type == Runtime::kSaveEverything ? kArmCalleeSaveFpEverythingSpills : 0);
 }
 
 constexpr uint32_t ArmCalleeSaveFrameSize(Runtime::CalleeSaveType type) {

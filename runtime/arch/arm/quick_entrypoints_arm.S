@@ -168,6 +168,65 @@
     .cfi_adjust_cfa_offset -40
 .endm
 
+    /*
+     * Macro that sets up the callee save frame to conform with
+     * Runtime::CreateCalleeSaveMethod(kSaveEverything)
+     */
+.macro SETUP_SAVE_EVERYTHING_CALLEE_SAVE_FRAME rTemp
+    push {r0-r12, lr}                   @ 14 words of callee saves and args.
+    .cfi_adjust_cfa_offset 56
+    .cfi_rel_offset r0, 0
+    .cfi_rel_offset r1, 4
+    .cfi_rel_offset r2, 8
+    .cfi_rel_offset r3, 12
+    .cfi_rel_offset r4, 16
+    .cfi_rel_offset r5, 20
+    .cfi_rel_offset r6, 24
+    .cfi_rel_offset r7, 28
+    .cfi_rel_offset r8, 32
+    .cfi_rel_offset r9, 36
+    .cfi_rel_offset r10, 40
+    .cfi_rel_offset r11, 44
+    .cfi_rel_offset ip, 48
+    .cfi_rel_offset lr, 52
+    vpush {s0-s31}                      @ 32 words of float args.
+    .cfi_adjust_cfa_offset 128
+    sub sp, #8                          @ 2 words of space, alignment padding and Method*
+    .cfi_adjust_cfa_offset 8
+    RUNTIME_CURRENT1 \rTemp             @ Load Runtime::Current into rTemp.
+    @ Load kSaveEverything Method* to rTemp.
+    ldr \rTemp, [\rTemp, #RUNTIME_SAVE_EVERYTHING_CALLEE_SAVE_FRAME_OFFSET]
+    str \rTemp, [sp, #0]                @ Store kSaveEverything Method* to the bottom of the stack.
+    str sp, [r9, #THREAD_TOP_QUICK_FRAME_OFFSET]  @ Place sp in Thread::Current()->top_quick_frame.
+
+    // Ugly compile-time check, but we only have the preprocessor.
+#if (FRAME_SIZE_SAVE_EVERYTHING_CALLEE_SAVE != 56 + 128 + 8)
+#error "SAVE_EVERYTHING_CALLEE_SAVE_FRAME(ARM) size not as expected."
+#endif
+.endm
+
+.macro RESTORE_SAVE_EVERYTHING_CALLEE_SAVE_FRAME
+    add  sp, #8                         @ rewind sp
+    .cfi_adjust_cfa_offset -8
+    vpop {s0-s31}
+    .cfi_adjust_cfa_offset -128
+    pop {r0-r12, lr}                    @ 14 words of callee saves
+    .cfi_restore r0
+    .cfi_restore r1
+    .cfi_restore r2
+    .cfi_restore r3
+    .cfi_restore r5
+    .cfi_restore r6
+    .cfi_restore r7
+    .cfi_restore r8
+    .cfi_restore r9
+    .cfi_restore r10
+    .cfi_restore r11
+    .cfi_restore r12
+    .cfi_restore lr
+    .cfi_adjust_cfa_offset -56
+.endm
+
 .macro RETURN_IF_RESULT_IS_ZERO
     cbnz   r0, 1f              @ result non-zero branch over
     bx     lr                  @ return
@@ -1212,17 +1271,18 @@ END art_quick_alloc_object_region_tlab
     .extern artTestSuspendFromCode
 ENTRY art_quick_test_suspend
 #ifdef ARM_R4_SUSPEND_FLAG
-    ldrh   r0, [rSELF, #THREAD_FLAGS_OFFSET]
-    mov    rSUSPEND, #SUSPEND_CHECK_INTERVAL  @ reset rSUSPEND to SUSPEND_CHECK_INTERVAL
-    cbnz   r0, 1f                             @ check Thread::Current()->suspend_count_ == 0
-    bx     lr                                 @ return if suspend_count_ == 0
+    ldrh   rSUSPEND, [rSELF, #THREAD_FLAGS_OFFSET]
+    cbnz   rSUSPEND, 1f                         @ check Thread::Current()->suspend_count_ == 0
+    mov    rSUSPEND, #SUSPEND_CHECK_INTERVAL    @ reset rSUSPEND to SUSPEND_CHECK_INTERVAL
+    bx     lr                                   @ return if suspend_count_ == 0
 1:
+    mov    rSUSPEND, #SUSPEND_CHECK_INTERVAL    @ reset rSUSPEND to SUSPEND_CHECK_INTERVAL
 #endif
+    SETUP_SAVE_EVERYTHING_CALLEE_SAVE_FRAME r0  @ save everything for GC stack crawl
     mov    r0, rSELF
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME r1      @ save callee saves for GC stack crawl
-    @ TODO: save FPRs to enable access in the debugger?
-    bl     artTestSuspendFromCode             @ (Thread*)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
+    bl     artTestSuspendFromCode               @ (Thread*)
+    RESTORE_SAVE_EVERYTHING_CALLEE_SAVE_FRAME
+    bx     lr
 END art_quick_test_suspend
 
 ENTRY art_quick_implicit_suspend
