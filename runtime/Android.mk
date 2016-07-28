@@ -177,6 +177,7 @@ LIBART_COMMON_SRC_FILES := \
   thread.cc \
   thread_list.cc \
   thread_pool.cc \
+  ti/agent.cc \
   trace.cc \
   transaction.cc \
   type_lookup_table.cc \
@@ -370,6 +371,7 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
   stack.h \
   thread.h \
   thread_state.h \
+  ti/agent.h \
   verifier/method_verifier.h
 
 LIBOPENJDKJVM_SRC_FILES := openjdkjvm/OpenjdkJvm.cc
@@ -419,7 +421,7 @@ define build-runtime-library
   endif
   ifneq ($(4),libart)
     ifneq ($(4),libopenjdkjvm)
-      $$(error expected libart of libopenjdkjvm for argument 4, received $(4))
+      $$(error expected libart or libopenjdkjvm for argument 4, received $(4))
     endif
   endif
 

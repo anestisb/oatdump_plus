@@ -24,14 +24,15 @@
 
 // Includes for the types that are being specialized
 #include <string>
-#include "unit.h"
-#include "jdwp/jdwp.h"
 #include "base/logging.h"
 #include "base/time_utils.h"
 #include "experimental_flags.h"
 #include "gc/collector_type.h"
 #include "gc/space/large_object_space.h"
+#include "jdwp/jdwp.h"
 #include "jit/profile_saver_options.h"
+#include "ti/agent.h"
+#include "unit.h"
 
 namespace art {
 
@@ -381,6 +382,22 @@ struct CmdlineType<std::string> : CmdlineTypeParser<std::string> {
 };
 
 template <>
+struct CmdlineType<std::vector<ti::Agent>> : CmdlineTypeParser<std::vector<ti::Agent>> {
+  Result Parse(const std::string& args) {
+    assert(false && "Use AppendValues() for an Agent vector type");
+    return Result::Failure("Unconditional failure: Agent vector must be appended: " + args);
+  }
+
+  Result ParseAndAppend(const std::string& args,
+                        std::vector<ti::Agent>& existing_value) {
+    existing_value.push_back(ti::Agent::Create(args));
+    return Result::SuccessNoValue();
+  }
+
+  static const char* Name() { return "std::vector<ti::Agent>"; }
+};
+
+template <>
 struct CmdlineType<std::vector<std::string>> : CmdlineTypeParser<std::vector<std::string>> {
   Result Parse(const std::string& args) {
     assert(false && "Use AppendValues() for a string vector type");
@@ -625,6 +642,8 @@ struct CmdlineType<LogVerbosity> : CmdlineTypeParser<LogVerbosity> {
         log_verbosity.image = true;
       } else if (verbose_options[j] == "systrace-locks") {
         log_verbosity.systrace_lock_logging = true;
+      } else if (verbose_options[j] == "agents") {
+        log_verbosity.agents = true;
       } else {
         return Result::Usage(std::string("Unknown -verbose option ") + verbose_options[j]);
       }
@@ -735,6 +754,8 @@ struct CmdlineType<ExperimentalFlags> : CmdlineTypeParser<ExperimentalFlags> {
   Result ParseAndAppend(const std::string& option, ExperimentalFlags& existing) {
     if (option == "none") {
       existing = ExperimentalFlags::kNone;
+    } else if (option == "agents") {
+      existing = existing | ExperimentalFlags::kAgents;
     } else {
       return Result::Failure(std::string("Unknown option '") + option + "'");
     }

@@ -117,7 +117,9 @@ RUNTIME_OPTIONS_KEY (unsigned int,        ZygoteMaxFailedBoots,           10)
 RUNTIME_OPTIONS_KEY (Unit,                NoDexFileFallback)
 RUNTIME_OPTIONS_KEY (std::string,         CpuAbiList)
 RUNTIME_OPTIONS_KEY (std::string,         Fingerprint)
-RUNTIME_OPTIONS_KEY (ExperimentalFlags,   Experimental,     ExperimentalFlags::kNone) // -Xexperimental:{none}
+RUNTIME_OPTIONS_KEY (ExperimentalFlags,   Experimental,     ExperimentalFlags::kNone) // -Xexperimental:{none, agents}
+RUNTIME_OPTIONS_KEY (std::vector<ti::Agent>,         AgentLib)  // -agentlib:<libname>=<options>, Requires -Xexperimental:agents
+RUNTIME_OPTIONS_KEY (std::vector<ti::Agent>,         AgentPath)  // -agentpath:<libname>=<options>, Requires -Xexperimental:agents
 
 // Not parse-able from command line, but can be provided explicitly.
 // (Do not add anything here that is defined in ParsedOptions::MakeParser)

@@ -21,6 +21,7 @@ DEX2OAT=""
 EXPERIMENTAL=""
 FALSE_BIN="/system/bin/false"
 FLAGS=""
+ANDROID_FLAGS=""
 GDB=""
 GDB_ARGS=""
 GDB_SERVER="gdbserver"
@@ -92,6 +93,11 @@ while true; do
         option="$1"
         FLAGS="${FLAGS} -Xcompiler-option $option"
         COMPILE_FLAGS="${COMPILE_FLAGS} $option"
+        shift
+    elif [ "x$1" = "x--android-runtime-option" ]; then
+        shift
+        option="$1"
+        ANDROID_FLAGS="${ANDROID_FLAGS} $option"
         shift
     elif [ "x$1" = "x--runtime-option" ]; then
         shift
@@ -233,6 +239,7 @@ while true; do
 done
 
 if [ "$USE_JVM" = "n" ]; then
+    FLAGS="${FLAGS} ${ANDROID_FLAGS}"
     for feature in ${EXPERIMENTAL}; do
         FLAGS="${FLAGS} -Xexperimental:${feature} -Xcompiler-option --runtime-arg -Xcompiler-option -Xexperimental:${feature}"
         COMPILE_FLAGS="${COMPILE_FLAGS} --runtime-arg -Xexperimental:${feature}"
@@ -469,12 +476,12 @@ if [ "$HOST" = "n" ]; then
       adb push $TEST_NAME-ex.jar $DEX_LOCATION >/dev/null 2>&1
     fi
 
-    LD_LIBRARY_PATH=
+    LD_LIBRARY_PATH=/data/art-test/$ISA
     if [ "$ANDROID_ROOT" != "/system" ]; then
       # Current default installation is dalvikvm 64bits and dex2oat 32bits,
       # so we can only use LD_LIBRARY_PATH when testing on a local
       # installation.
-      LD_LIBRARY_PATH=$ANDROID_ROOT/$LIBRARY_DIRECTORY
+      LD_LIBRARY_PATH=$ANDROID_ROOT/$LIBRARY_DIRECTORY:$LD_LIBRARY_PATH
     fi
 
     PUBLIC_LIBS=libart.so:libartd.so

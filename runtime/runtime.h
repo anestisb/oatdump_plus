@@ -63,6 +63,9 @@ namespace mirror {
   class String;
   class Throwable;
 }  // namespace mirror
+namespace ti {
+  class Agent;
+}  // namespace ti
 namespace verifier {
   class MethodVerifier;
   enum class VerifyMode : int8_t;
@@ -697,6 +700,8 @@ class Runtime {
   std::string boot_class_path_string_;
   std::string class_path_string_;
   std::vector<std::string> properties_;
+
+  std::vector<ti::Agent> agents_;
 
   // The default stack size for managed threads created by the runtime.
   size_t default_stack_size_;

@@ -23,6 +23,7 @@
 #include "gc/heap.h"
 #include "monitor.h"
 #include "runtime.h"
+#include "ti/agent.h"
 #include "trace.h"
 #include "utils.h"
 
@@ -90,6 +91,13 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
       .Define({"-Xrunjdwp:_", "-agentlib:jdwp=_"})
           .WithType<JDWP::JdwpOptions>()
           .IntoKey(M::JdwpOptions)
+      // TODO Re-enable -agentlib: once I have a good way to transform the values.
+      // .Define("-agentlib:_")
+      //     .WithType<std::vector<ti::Agent>>().AppendValues()
+      //     .IntoKey(M::AgentLib)
+      .Define("-agentpath:_")
+          .WithType<std::vector<ti::Agent>>().AppendValues()
+          .IntoKey(M::AgentPath)
       .Define("-Xms_")
           .WithType<MemoryKiB>()
           .IntoKey(M::MemoryInitialSize)
@@ -583,6 +591,30 @@ bool ParsedOptions::DoParse(const RuntimeOptions& options,
     args.Set(M::HeapGrowthLimit, args.GetOrDefault(M::MemoryMaximumSize));
   }
 
+  if (args.GetOrDefault(M::Experimental) & ExperimentalFlags::kAgents) {
+    LOG(WARNING) << "Experimental runtime agent support has been enabled. No guarantees are made "
+                 << "the completeness, accuracy, reliability, or stability of the agent "
+                 << "implementation. Use at your own risk. Do not attempt to write shipping code "
+                 << "that relies on the implementation of any part of this api.";
+  } else if (!args.GetOrDefault(M::AgentLib).empty() || !args.GetOrDefault(M::AgentPath).empty()) {
+    LOG(WARNING) << "agent support has not been enabled. Enable experimental agent "
+                 << " support with '-XExperimental:agent'. Ignored options are:";
+    for (auto op : args.GetOrDefault(M::AgentLib)) {
+      if (op.HasArgs()) {
+        LOG(WARNING) << "    -agentlib:" << op.GetName() << "=" << op.GetArgs();
+      } else {
+        LOG(WARNING) << "    -agentlib:" << op.GetName();
+      }
+    }
+    for (auto op : args.GetOrDefault(M::AgentPath)) {
+      if (op.HasArgs()) {
+        LOG(WARNING) << "    -agentpath:" << op.GetName() << "=" << op.GetArgs();
+      } else {
+        LOG(WARNING) << "    -agentpath:" << op.GetName();
+      }
+    }
+  }
+
   *runtime_options = std::move(args);
   return true;
 }
@@ -627,6 +659,11 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -showversion\n");
   UsageMessage(stream, "  -help\n");
   UsageMessage(stream, "  -agentlib:jdwp=options\n");
+  // TODO add back in once -agentlib actually does something.
+  // UsageMessage(stream, "  -agentlib:library=options (Experimental feature, "
+  //                      "requires -Xexperimental:agent, some features might not be supported)\n");
+  UsageMessage(stream, "  -agentpath:library_path=options (Experimental feature, "
+                       "requires -Xexperimental:agent, some features might not be supported)\n");
   UsageMessage(stream, "\n");
 
   UsageMessage(stream, "The following extended options are supported:\n");
@@ -703,6 +740,8 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -X[no]image-dex2oat (Whether to create and use a boot image)\n");
   UsageMessage(stream, "  -Xno-dex-file-fallback "
                        "(Don't fall back to dex files without oat files)\n");
+  UsageMessage(stream, "  -Xexperimental:agents"
+                       "(Enable new and experimental agent support)\n");
   UsageMessage(stream, "\n");
 
   UsageMessage(stream, "The following previously supported Dalvik options are ignored:\n");
