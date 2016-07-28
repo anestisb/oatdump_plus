@@ -205,6 +205,12 @@ class CheckJniAbortCatcher {
     return; \
   }
 
+#define TEST_DISABLED_FOR_READ_BARRIER_ON_X86() \
+  if (kUseReadBarrier && kRuntimeISA == kX86) { \
+    printf("WARNING: TEST DISABLED FOR READ BARRIER ON X86\n"); \
+    return; \
+  }
+
 }  // namespace art
 
 namespace std {
