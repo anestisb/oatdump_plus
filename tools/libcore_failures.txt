@@ -260,5 +260,12 @@
   bug: 30107038,
   modes: [device],
   names: ["org.apache.harmony.tests.java.lang.ProcessTest#test_destroyForcibly"]
+},
+{
+  description: "Flaky failure, possibly caused by a kernel bug accessing /proc/",
+  result: EXEC_FAILED,
+  bug: 27464570,
+  modes: [device],
+  names: ["libcore.java.lang.ProcessBuilderTest#testRedirectInherit"]
 }
 ]
