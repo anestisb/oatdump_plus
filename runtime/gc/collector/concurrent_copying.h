@@ -127,7 +127,7 @@ class ConcurrentCopying : public GarbageCollector {
   void PushOntoMarkStack(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_);
   mirror::Object* Copy(mirror::Object* from_ref) SHARED_REQUIRES(Locks::mutator_lock_)
-      REQUIRES(!skipped_blocks_lock_, !mark_stack_lock_);
+      REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_, !immune_gray_stack_lock_);
   void Scan(mirror::Object* to_ref) SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_);
   void Process(mirror::Object* obj, MemberOffset offset)
@@ -185,9 +185,11 @@ class ConcurrentCopying : public GarbageCollector {
   void SweepLargeObjects(bool swap_bitmaps)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_);
   void FillWithDummyObject(mirror::Object* dummy_obj, size_t byte_size)
+      REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_, !immune_gray_stack_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);
   mirror::Object* AllocateInSkippedBlock(size_t alloc_size)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!skipped_blocks_lock_);
+      REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_, !immune_gray_stack_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_);
   void CheckEmptyMarkStack() SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!mark_stack_lock_);
   void IssueEmptyCheckpoint() SHARED_REQUIRES(Locks::mutator_lock_);
   bool IsOnAllocStack(mirror::Object* ref) SHARED_REQUIRES(Locks::mutator_lock_);
