@@ -47,6 +47,10 @@ static constexpr bool kGrayDirtyImmuneObjects = true;
 // If kFilterModUnionCards then we attempt to filter cards that don't need to be dirty in the mod
 // union table. Disabled since it does not seem to help the pause much.
 static constexpr bool kFilterModUnionCards = kIsDebugBuild;
+// If kDisallowReadBarrierDuringScan is true then the GC aborts if there are any that occur during
+// ConcurrentCopying::Scan. May be used to diagnose possibly unnecessary read barriers.
+// Only enabled for kIsDebugBuild to avoid performance hit.
+static constexpr bool kDisallowReadBarrierDuringScan = kIsDebugBuild;
 
 ConcurrentCopying::ConcurrentCopying(Heap* heap,
                                      const std::string& name_prefix,
@@ -1723,7 +1727,7 @@ class ConcurrentCopying::RefFieldsVisitor {
 
 // Scan ref fields of an object.
 inline void ConcurrentCopying::Scan(mirror::Object* to_ref) {
-  if (kIsDebugBuild) {
+  if (kDisallowReadBarrierDuringScan) {
     // Avoid all read barriers during visit references to help performance.
     Thread::Current()->ModifyDebugDisallowReadBarrier(1);
   }
@@ -1733,7 +1737,7 @@ inline void ConcurrentCopying::Scan(mirror::Object* to_ref) {
   // Disable the read barrier for a performance reason.
   to_ref->VisitReferences</*kVisitNativeRoots*/true, kDefaultVerifyFlags, kWithoutReadBarrier>(
       visitor, visitor);
-  if (kIsDebugBuild) {
+  if (kDisallowReadBarrierDuringScan) {
     Thread::Current()->ModifyDebugDisallowReadBarrier(-1);
   }
 }
@@ -1849,7 +1853,10 @@ void ConcurrentCopying::FillWithDummyObject(mirror::Object* dummy_obj, size_t by
   ScopedGcGraysImmuneObjects scoped_gc_gray_immune_objects(this);
   CHECK_ALIGNED(byte_size, kObjectAlignment);
   memset(dummy_obj, 0, byte_size);
-  mirror::Class* int_array_class = mirror::IntArray::GetArrayClass();
+  // Avoid going through read barrier for since kDisallowReadBarrierDuringScan may be enabled.
+  // Explicitly mark to make sure to get an object in the to-space.
+  mirror::Class* int_array_class = down_cast<mirror::Class*>(
+      Mark(mirror::IntArray::GetArrayClass<kWithoutReadBarrier>()));
   CHECK(int_array_class != nullptr);
   AssertToSpaceInvariant(nullptr, MemberOffset(0), int_array_class);
   size_t component_size = int_array_class->GetComponentSize<kWithoutReadBarrier>();
@@ -1859,9 +1866,9 @@ void ConcurrentCopying::FillWithDummyObject(mirror::Object* dummy_obj, size_t by
     // An int array is too big. Use java.lang.Object.
     mirror::Class* java_lang_Object = WellKnownClasses::ToClass(WellKnownClasses::java_lang_Object);
     AssertToSpaceInvariant(nullptr, MemberOffset(0), java_lang_Object);
-    CHECK_EQ(byte_size, java_lang_Object->GetObjectSize());
+    CHECK_EQ(byte_size, (java_lang_Object->GetObjectSize<kVerifyNone, kWithoutReadBarrier>()));
     dummy_obj->SetClass(java_lang_Object);
-    CHECK_EQ(byte_size, dummy_obj->SizeOf());
+    CHECK_EQ(byte_size, (dummy_obj->SizeOf<kVerifyNone, kWithoutReadBarrier>()));
   } else {
     // Use an int array.
     dummy_obj->SetClass(int_array_class);
@@ -1884,14 +1891,16 @@ mirror::Object* ConcurrentCopying::AllocateInSkippedBlock(size_t alloc_size) {
   CHECK_ALIGNED(alloc_size, space::RegionSpace::kAlignment);
   Thread* self = Thread::Current();
   size_t min_object_size = RoundUp(sizeof(mirror::Object), space::RegionSpace::kAlignment);
-  MutexLock mu(self, skipped_blocks_lock_);
-  auto it = skipped_blocks_map_.lower_bound(alloc_size);
-  if (it == skipped_blocks_map_.end()) {
-    // Not found.
-    return nullptr;
-  }
+  size_t byte_size;
+  uint8_t* addr;
   {
-    size_t byte_size = it->first;
+    MutexLock mu(self, skipped_blocks_lock_);
+    auto it = skipped_blocks_map_.lower_bound(alloc_size);
+    if (it == skipped_blocks_map_.end()) {
+      // Not found.
+      return nullptr;
+    }
+    byte_size = it->first;
     CHECK_GE(byte_size, alloc_size);
     if (byte_size > alloc_size && byte_size - alloc_size < min_object_size) {
       // If remainder would be too small for a dummy object, retry with a larger request size.
@@ -1904,27 +1913,33 @@ mirror::Object* ConcurrentCopying::AllocateInSkippedBlock(size_t alloc_size) {
       CHECK_GE(it->first - alloc_size, min_object_size)
           << "byte_size=" << byte_size << " it->first=" << it->first << " alloc_size=" << alloc_size;
     }
+    // Found a block.
+    CHECK(it != skipped_blocks_map_.end());
+    byte_size = it->first;
+    addr = it->second;
+    CHECK_GE(byte_size, alloc_size);
+    CHECK(region_space_->IsInToSpace(reinterpret_cast<mirror::Object*>(addr)));
+    CHECK_ALIGNED(byte_size, space::RegionSpace::kAlignment);
+    if (kVerboseMode) {
+      LOG(INFO) << "Reusing skipped bytes : " << reinterpret_cast<void*>(addr) << ", " << byte_size;
+    }
+    skipped_blocks_map_.erase(it);
   }
-  // Found a block.
-  CHECK(it != skipped_blocks_map_.end());
-  size_t byte_size = it->first;
-  uint8_t* addr = it->second;
-  CHECK_GE(byte_size, alloc_size);
-  CHECK(region_space_->IsInToSpace(reinterpret_cast<mirror::Object*>(addr)));
-  CHECK_ALIGNED(byte_size, space::RegionSpace::kAlignment);
-  if (kVerboseMode) {
-    LOG(INFO) << "Reusing skipped bytes : " << reinterpret_cast<void*>(addr) << ", " << byte_size;
-  }
-  skipped_blocks_map_.erase(it);
   memset(addr, 0, byte_size);
   if (byte_size > alloc_size) {
     // Return the remainder to the map.
     CHECK_ALIGNED(byte_size - alloc_size, space::RegionSpace::kAlignment);
     CHECK_GE(byte_size - alloc_size, min_object_size);
+    // FillWithDummyObject may mark an object, avoid holding skipped_blocks_lock_ to prevent lock
+    // violation and possible deadlock. The deadlock case is a recursive case:
+    // FillWithDummyObject -> IntArray::GetArrayClass -> Mark -> Copy -> AllocateInSkippedBlock.
     FillWithDummyObject(reinterpret_cast<mirror::Object*>(addr + alloc_size),
                         byte_size - alloc_size);
     CHECK(region_space_->IsInToSpace(reinterpret_cast<mirror::Object*>(addr + alloc_size)));
-    skipped_blocks_map_.insert(std::make_pair(byte_size - alloc_size, addr + alloc_size));
+    {
+      MutexLock mu(self, skipped_blocks_lock_);
+      skipped_blocks_map_.insert(std::make_pair(byte_size - alloc_size, addr + alloc_size));
+    }
   }
   return reinterpret_cast<mirror::Object*>(addr);
 }
