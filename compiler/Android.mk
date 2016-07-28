@@ -157,7 +157,6 @@ LIBART_COMPILER_CFLAGS :=
 
 LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES := \
   compiled_method.h \
-  dex/compiler_enums.h \
   dex/dex_to_dex_compiler.h \
   driver/compiler_driver.h \
   driver/compiler_options.h \

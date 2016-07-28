@@ -19,6 +19,7 @@
 #include "art_method-inl.h"
 #include "bytecode_utils.h"
 #include "class_linker.h"
+#include "dex_instruction-inl.h"
 #include "driver/compiler_options.h"
 #include "scoped_thread_state_change.h"
 

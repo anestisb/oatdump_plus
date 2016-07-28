@@ -18,7 +18,6 @@
 #define ART_COMPILER_OPTIMIZING_CODE_GENERATOR_ARM_H_
 
 #include "code_generator.h"
-#include "dex/compiler_enums.h"
 #include "driver/compiler_options.h"
 #include "nodes.h"
 #include "string_reference.h"
