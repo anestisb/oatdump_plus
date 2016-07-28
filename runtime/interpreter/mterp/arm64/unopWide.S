@@ -1,4 +1,4 @@
-%default {"instr":"sub x0, xzr, x0", "preinstr":""}
+%default {"instr":"sub x0, xzr, x0"}
     /*
      * Generic 64-bit unary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = op x0".
@@ -10,7 +10,6 @@
     ubfx    w4, wINST, #8, #4           // w4<- A
     GET_VREG_WIDE x0, w3
     FETCH_ADVANCE_INST 1                // advance rPC, load wINST
-    $preinstr
     $instr
     GET_INST_OPCODE ip                  // extract opcode from wINST
     SET_VREG_WIDE x0, w4

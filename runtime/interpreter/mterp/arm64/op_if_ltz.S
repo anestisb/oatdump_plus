@@ -1,1 +1,1 @@
-%include "arm64/zcmp.S" { "condition":"lt" }
+%include "arm64/zcmp.S" { "compare":"0", "branch":"tbnz    w2, #31," }
