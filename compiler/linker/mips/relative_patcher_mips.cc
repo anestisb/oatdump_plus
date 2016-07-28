@@ -49,6 +49,7 @@ void MipsRelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
                                                    uint32_t target_offset) {
   uint32_t anchor_literal_offset = patch.PcInsnOffset();
   uint32_t literal_offset = patch.LiteralOffset();
+  bool dex_cache_array = (patch.GetType() == LinkerPatch::Type::kDexCacheArray);
 
   // Basic sanity checks.
   if (is_r6) {
@@ -68,12 +69,16 @@ void MipsRelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
     DCHECK_GE(code->size(), 16u);
     DCHECK_LE(literal_offset, code->size() - 12u);
     DCHECK_GE(literal_offset, 4u);
-    DCHECK_EQ(literal_offset + 4u, anchor_literal_offset);
-    // NAL
-    DCHECK_EQ((*code)[literal_offset - 4], 0x00);
-    DCHECK_EQ((*code)[literal_offset - 3], 0x00);
-    DCHECK_EQ((*code)[literal_offset - 2], 0x10);
-    DCHECK_EQ((*code)[literal_offset - 1], 0x04);
+    // The NAL instruction may not precede immediately as the PC+0 value may
+    // come from HMipsComputeBaseMethodAddress.
+    if (dex_cache_array) {
+      DCHECK_EQ(literal_offset + 4u, anchor_literal_offset);
+      // NAL
+      DCHECK_EQ((*code)[literal_offset - 4], 0x00);
+      DCHECK_EQ((*code)[literal_offset - 3], 0x00);
+      DCHECK_EQ((*code)[literal_offset - 2], 0x10);
+      DCHECK_EQ((*code)[literal_offset - 1], 0x04);
+    }
     // LUI reg, offset_high
     DCHECK_EQ((*code)[literal_offset + 0], 0x34);
     DCHECK_EQ((*code)[literal_offset + 1], 0x12);
@@ -83,16 +88,22 @@ void MipsRelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
     DCHECK_EQ((*code)[literal_offset + 4], 0x78);
     DCHECK_EQ((*code)[literal_offset + 5], 0x56);
     DCHECK_EQ(((*code)[literal_offset + 7] & 0xFC), 0x34);
-    // ADDU reg, reg, RA
+    // ADDU reg, reg, reg2
     DCHECK_EQ((*code)[literal_offset + 8], 0x21);
     DCHECK_EQ(((*code)[literal_offset + 9] & 0x07), 0x00);
-    DCHECK_EQ(((*code)[literal_offset + 10] & 0x1F), 0x1F);
+    if (dex_cache_array) {
+      // reg2 is either RA or from HMipsComputeBaseMethodAddress.
+      DCHECK_EQ(((*code)[literal_offset + 10] & 0x1F), 0x1F);
+    }
     DCHECK_EQ(((*code)[literal_offset + 11] & 0xFC), 0x00);
   }
 
   // Apply patch.
   uint32_t anchor_offset = patch_offset - literal_offset + anchor_literal_offset;
-  uint32_t diff = target_offset - anchor_offset + kDexCacheArrayLwOffset;
+  uint32_t diff = target_offset - anchor_offset;
+  if (dex_cache_array) {
+    diff += kDexCacheArrayLwOffset;
+  }
   if (is_r6) {
     diff += (diff & 0x8000) << 1;  // Account for sign extension in ADDIU.
   }

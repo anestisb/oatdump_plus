@@ -107,7 +107,8 @@ class LoadedByMyClassLoader {
                 /* Load and initialize FirstSeenByMyClassLoader */
   /// CHECK:      LoadClass gen_clinit_check:true
                 /* Load and initialize System */
-  /// CHECK-NEXT: LoadClass gen_clinit_check:true
+  // There may be MipsComputeBaseMethodAddress here.
+  /// CHECK:      LoadClass gen_clinit_check:true
   /// CHECK-NEXT: StaticFieldGet
   // There may be HArmDexCacheArraysBase or HX86ComputeBaseMethodAddress here.
   /// CHECK:      LoadString

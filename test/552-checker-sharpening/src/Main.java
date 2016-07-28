@@ -51,6 +51,10 @@ public class Main {
   /// CHECK-START-ARM64: int Main.testSimple(int) sharpening (after)
   /// CHECK:                InvokeStaticOrDirect method_load_kind:dex_cache_pc_relative
 
+  /// CHECK-START-MIPS: int Main.testSimple(int) sharpening (after)
+  /// CHECK-NOT:            MipsDexCacheArraysBase
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:dex_cache_pc_relative
+
   /// CHECK-START-X86: int Main.testSimple(int) sharpening (after)
   /// CHECK-NOT:            X86ComputeBaseMethodAddress
   /// CHECK:                InvokeStaticOrDirect method_load_kind:dex_cache_pc_relative
@@ -61,6 +65,10 @@ public class Main {
   /// CHECK-START-ARM: int Main.testSimple(int) dex_cache_array_fixups_arm (after)
   /// CHECK:                ArmDexCacheArraysBase
   /// CHECK-NOT:            ArmDexCacheArraysBase
+
+  /// CHECK-START-MIPS: int Main.testSimple(int) dex_cache_array_fixups_mips (after)
+  /// CHECK:                MipsDexCacheArraysBase
+  /// CHECK-NOT:            MipsDexCacheArraysBase
 
   /// CHECK-START-X86: int Main.testSimple(int) pc_relative_fixups_x86 (after)
   /// CHECK:                X86ComputeBaseMethodAddress
@@ -83,6 +91,11 @@ public class Main {
   /// CHECK:                InvokeStaticOrDirect method_load_kind:dex_cache_pc_relative
   /// CHECK:                InvokeStaticOrDirect method_load_kind:dex_cache_pc_relative
 
+  /// CHECK-START-MIPS: int Main.testDiamond(boolean, int) sharpening (after)
+  /// CHECK-NOT:            MipsDexCacheArraysBase
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:dex_cache_pc_relative
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:dex_cache_pc_relative
+
   /// CHECK-START-X86: int Main.testDiamond(boolean, int) sharpening (after)
   /// CHECK-NOT:            X86ComputeBaseMethodAddress
   /// CHECK:                InvokeStaticOrDirect method_load_kind:dex_cache_pc_relative
@@ -100,6 +113,14 @@ public class Main {
   /// CHECK:                ArmDexCacheArraysBase
   /// CHECK-NEXT:           If
 
+  /// CHECK-START-MIPS: int Main.testDiamond(boolean, int) dex_cache_array_fixups_mips (after)
+  /// CHECK:                MipsDexCacheArraysBase
+  /// CHECK-NOT:            MipsDexCacheArraysBase
+
+  /// CHECK-START-MIPS: int Main.testDiamond(boolean, int) dex_cache_array_fixups_mips (after)
+  /// CHECK:                MipsDexCacheArraysBase
+  /// CHECK-NEXT:           If
+
   /// CHECK-START-X86: int Main.testDiamond(boolean, int) pc_relative_fixups_x86 (after)
   /// CHECK:                X86ComputeBaseMethodAddress
   /// CHECK-NOT:            X86ComputeBaseMethodAddress
@@ -110,7 +131,7 @@ public class Main {
 
   public static int testDiamond(boolean negate, int x) {
     // These calls should use PC-relative dex cache array loads to retrieve the target method.
-    // PC-relative bases used by X86 and ARM should be pulled before the If.
+    // PC-relative bases used by ARM, MIPS and X86 should be pulled before the If.
     if (negate) {
       return $noinline$foo(-x);
     } else {
@@ -154,8 +175,26 @@ public class Main {
   /// CHECK:                begin_block
   /// CHECK:                InvokeStaticOrDirect method_load_kind:dex_cache_pc_relative
 
+  /// CHECK-START-MIPS: int Main.testLoop(int[], int) dex_cache_array_fixups_mips (before)
+  /// CHECK-NOT:            MipsDexCacheArraysBase
+
+  /// CHECK-START-MIPS: int Main.testLoop(int[], int) dex_cache_array_fixups_mips (after)
+  /// CHECK:                MipsDexCacheArraysBase
+  /// CHECK-NOT:            MipsDexCacheArraysBase
+
+  /// CHECK-START-MIPS: int Main.testLoop(int[], int) dex_cache_array_fixups_mips (after)
+  /// CHECK:                InvokeStaticOrDirect
+  /// CHECK-NOT:            InvokeStaticOrDirect
+
+  /// CHECK-START-MIPS: int Main.testLoop(int[], int) dex_cache_array_fixups_mips (after)
+  /// CHECK:                ArrayLength
+  /// CHECK-NEXT:           MipsDexCacheArraysBase
+  /// CHECK-NEXT:           Goto
+  /// CHECK:                begin_block
+  /// CHECK:                InvokeStaticOrDirect method_load_kind:dex_cache_pc_relative
+
   public static int testLoop(int[] array, int x) {
-    // PC-relative bases used by X86 and ARM should be pulled before the loop.
+    // PC-relative bases used by ARM, MIPS and X86 should be pulled before the loop.
     for (int i : array) {
       x += $noinline$foo(i);
     }
@@ -182,8 +221,18 @@ public class Main {
   /// CHECK-NEXT:           ArmDexCacheArraysBase
   /// CHECK-NEXT:           Goto
 
+  /// CHECK-START-MIPS: int Main.testLoopWithDiamond(int[], boolean, int) dex_cache_array_fixups_mips (before)
+  /// CHECK-NOT:            MipsDexCacheArraysBase
+
+  /// CHECK-START-MIPS: int Main.testLoopWithDiamond(int[], boolean, int) dex_cache_array_fixups_mips (after)
+  /// CHECK:                If
+  /// CHECK:                begin_block
+  /// CHECK:                ArrayLength
+  /// CHECK-NEXT:           MipsDexCacheArraysBase
+  /// CHECK-NEXT:           Goto
+
   public static int testLoopWithDiamond(int[] array, boolean negate, int x) {
-    // PC-relative bases used by X86 and ARM should be pulled before the loop
+    // PC-relative bases used by ARM, MIPS and X86 should be pulled before the loop
     // but not outside the if.
     if (array != null) {
       for (int i : array) {
@@ -220,6 +269,11 @@ public class Main {
   // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
   /// CHECK:                LoadString load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}}
 
+  /// CHECK-START-MIPS: java.lang.String Main.$noinline$getBootImageString() sharpening (after)
+  // Note: load kind depends on PIC/non-PIC
+  // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
+  /// CHECK:                LoadString load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}}
+
   public static String $noinline$getBootImageString() {
     // Prevent inlining to avoid the string comparison being optimized away.
     if (doThrow) { throw new Error(); }
@@ -250,6 +304,13 @@ public class Main {
   /// CHECK-START-ARM64: java.lang.String Main.$noinline$getNonBootImageString() sharpening (after)
   /// CHECK:                LoadString load_kind:DexCachePcRelative
 
+  /// CHECK-START-MIPS: java.lang.String Main.$noinline$getNonBootImageString() sharpening (after)
+  /// CHECK:                LoadString load_kind:DexCachePcRelative
+
+  /// CHECK-START-MIPS: java.lang.String Main.$noinline$getNonBootImageString() dex_cache_array_fixups_mips (after)
+  /// CHECK-DAG:            MipsDexCacheArraysBase
+  /// CHECK-DAG:            LoadString load_kind:DexCachePcRelative
+
   public static String $noinline$getNonBootImageString() {
     // Prevent inlining to avoid the string comparison being optimized away.
     if (doThrow) { throw new Error(); }
@@ -276,6 +337,11 @@ public class Main {
   /// CHECK:                LoadClass load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}} class_name:java.lang.String
 
   /// CHECK-START-ARM64: java.lang.Class Main.$noinline$getStringClass() sharpening (after)
+  // Note: load kind depends on PIC/non-PIC
+  // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
+  /// CHECK:                LoadClass load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}} class_name:java.lang.String
+
+  /// CHECK-START-MIPS: java.lang.Class Main.$noinline$getStringClass() sharpening (after)
   // Note: load kind depends on PIC/non-PIC
   // TODO: Remove DexCacheViaMethod when read barrier config supports BootImageAddress.
   /// CHECK:                LoadClass load_kind:{{BootImageAddress|DexCachePcRelative|DexCacheViaMethod}} class_name:java.lang.String
@@ -309,6 +375,13 @@ public class Main {
 
   /// CHECK-START-ARM64: java.lang.Class Main.$noinline$getOtherClass() sharpening (after)
   /// CHECK:                LoadClass load_kind:DexCachePcRelative class_name:Other
+
+  /// CHECK-START-MIPS: java.lang.Class Main.$noinline$getOtherClass() sharpening (after)
+  /// CHECK:                LoadClass load_kind:DexCachePcRelative class_name:Other
+
+  /// CHECK-START-MIPS: java.lang.Class Main.$noinline$getOtherClass() dex_cache_array_fixups_mips (after)
+  /// CHECK-DAG:            MipsDexCacheArraysBase
+  /// CHECK-DAG:            LoadClass load_kind:DexCachePcRelative class_name:Other
 
   public static Class<?> $noinline$getOtherClass() {
     // Prevent inlining to avoid the string comparison being optimized away.
