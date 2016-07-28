@@ -19,7 +19,6 @@
 
 #include "arch/x86/instruction_set_features_x86.h"
 #include "code_generator.h"
-#include "dex/compiler_enums.h"
 #include "driver/compiler_options.h"
 #include "nodes.h"
 #include "parallel_move_resolver.h"
