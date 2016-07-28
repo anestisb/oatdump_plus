@@ -1,4 +1,3 @@
-%default {"preinstr":""}
     /*
      * Generic 32-bit unary operation.  Provide an "instr" line that
      * specifies an instruction that performs "result = op w0".
@@ -11,7 +10,6 @@
     lsr     w3, wINST, #12              // w3<- B
     GET_VREG w0, w3                     // w0<- vB
     ubfx    w9, wINST, #8, #4           // w9<- A
-    $preinstr                           // optional op; may set condition codes
     FETCH_ADVANCE_INST 1                // advance rPC, load rINST
     $instr                              // w0<- op, w0-w3 changed
     GET_INST_OPCODE ip                  // extract opcode from rINST

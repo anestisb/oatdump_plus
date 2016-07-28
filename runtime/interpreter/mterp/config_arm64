@@ -20,9 +20,6 @@
 handler-style computed-goto
 handler-size 128
 
-# source for alternate entry stub
-asm-alt-stub arm64/alt_stub.S
-
 # file header and basic definitions
 import arm64/header.S
 
@@ -295,5 +292,12 @@ op-start arm64
     # op op_unused_ff FALLBACK
 op-end
 
-# common subroutines for asm
+# common subroutines for asm; we emit the footer before alternate
+# entry stubs, so that TBZ/TBNZ from ops can reach targets in footer
 import arm64/footer.S
+
+# source for alternate entry stub
+asm-alt-stub arm64/alt_stub.S
+
+# emit alternate entry stubs
+alt-ops

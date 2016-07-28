@@ -279,6 +279,14 @@ codes.
 .endm
 
 /*
+ * Get the 32-bit value from a Dalvik register and sign-extend to 64-bit.
+ * Used to avoid an extra instruction in int-to-long.
+ */
+.macro GET_VREG_S reg, vreg
+    ldrsw   \reg, [xFP, \vreg, uxtw #2]
+.endm
+
+/*
  * Convert a virtual register index into an address.
  */
 .macro VREG_INDEX_TO_ADDR reg, vreg
@@ -695,10 +703,9 @@ artMterpAsmInstructionStart = .L_op_nop
 .L_op_const_4: /* 0x12 */
 /* File: arm64/op_const_4.S */
     /* const/4 vA, #+B */
-    lsl     w1, wINST, #16              // w1<- Bxxx0000
+    sbfx    w1, wINST, #12, #4          // w1<- sssssssB
     ubfx    w0, wINST, #8, #4           // w0<- A
     FETCH_ADVANCE_INST 1                // advance xPC, load wINST
-    asr     w1, w1, #28                 // w1<- sssssssB (sign-extended)
     GET_INST_OPCODE ip                  // ip<- opcode from xINST
     SET_VREG w1, w0                     // fp[A]<- w1
     GOTO_OPCODE ip                      // execute next instruction
@@ -708,7 +715,7 @@ artMterpAsmInstructionStart = .L_op_nop
 .L_op_const_16: /* 0x13 */
 /* File: arm64/op_const_16.S */
     /* const/16 vAA, #+BBBB */
-    FETCH_S w0, 1                       // w0<- ssssBBBB (sign-extended
+    FETCH_S w0, 1                       // w0<- ssssBBBB (sign-extended)
     lsr     w3, wINST, #8               // w3<- AA
     FETCH_ADVANCE_INST 2                // advance xPC, load wINST
     SET_VREG w0, w3                     // vAA<- w0
@@ -734,7 +741,7 @@ artMterpAsmInstructionStart = .L_op_nop
 .L_op_const_high16: /* 0x15 */
 /* File: arm64/op_const_high16.S */
     /* const/high16 vAA, #+BBBB0000 */
-    FETCH   w0, 1                       // r0<- 0000BBBB (zero-extended
+    FETCH   w0, 1                       // r0<- 0000BBBB (zero-extended)
     lsr     w3, wINST, #8               // r3<- AA
     lsl     w0, w0, #16                 // r0<- BBBB0000
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
@@ -1465,8 +1472,10 @@ artMterpAsmInstructionStart = .L_op_nop
     lsr     w0, wINST, #8               // w0<- AA
     GET_VREG w2, w0                     // w2<- vAA
     FETCH_S wINST, 1                    // w1<- branch offset, in code units
+    .if 0
     cmp     w2, #0                      // compare (vA, 0)
-    b.eq MterpCommonTakenBranchNoFlags
+    .endif
+    cbz     w2, MterpCommonTakenBranchNoFlags
     cmp     wPROFILE, #JIT_CHECK_OSR    // possible OSR re-entry?
     b.eq    .L_check_not_taken_osr
     FETCH_ADVANCE_INST 2
@@ -1489,8 +1498,10 @@ artMterpAsmInstructionStart = .L_op_nop
     lsr     w0, wINST, #8               // w0<- AA
     GET_VREG w2, w0                     // w2<- vAA
     FETCH_S wINST, 1                    // w1<- branch offset, in code units
+    .if 0
     cmp     w2, #0                      // compare (vA, 0)
-    b.ne MterpCommonTakenBranchNoFlags
+    .endif
+    cbnz    w2, MterpCommonTakenBranchNoFlags
     cmp     wPROFILE, #JIT_CHECK_OSR    // possible OSR re-entry?
     b.eq    .L_check_not_taken_osr
     FETCH_ADVANCE_INST 2
@@ -1513,8 +1524,10 @@ artMterpAsmInstructionStart = .L_op_nop
     lsr     w0, wINST, #8               // w0<- AA
     GET_VREG w2, w0                     // w2<- vAA
     FETCH_S wINST, 1                    // w1<- branch offset, in code units
+    .if 0
     cmp     w2, #0                      // compare (vA, 0)
-    b.lt MterpCommonTakenBranchNoFlags
+    .endif
+    tbnz    w2, #31, MterpCommonTakenBranchNoFlags
     cmp     wPROFILE, #JIT_CHECK_OSR    // possible OSR re-entry?
     b.eq    .L_check_not_taken_osr
     FETCH_ADVANCE_INST 2
@@ -1537,8 +1550,10 @@ artMterpAsmInstructionStart = .L_op_nop
     lsr     w0, wINST, #8               // w0<- AA
     GET_VREG w2, w0                     // w2<- vAA
     FETCH_S wINST, 1                    // w1<- branch offset, in code units
+    .if 0
     cmp     w2, #0                      // compare (vA, 0)
-    b.ge MterpCommonTakenBranchNoFlags
+    .endif
+    tbz     w2, #31, MterpCommonTakenBranchNoFlags
     cmp     wPROFILE, #JIT_CHECK_OSR    // possible OSR re-entry?
     b.eq    .L_check_not_taken_osr
     FETCH_ADVANCE_INST 2
@@ -1561,7 +1576,9 @@ artMterpAsmInstructionStart = .L_op_nop
     lsr     w0, wINST, #8               // w0<- AA
     GET_VREG w2, w0                     // w2<- vAA
     FETCH_S wINST, 1                    // w1<- branch offset, in code units
+    .if 1
     cmp     w2, #0                      // compare (vA, 0)
+    .endif
     b.gt MterpCommonTakenBranchNoFlags
     cmp     wPROFILE, #JIT_CHECK_OSR    // possible OSR re-entry?
     b.eq    .L_check_not_taken_osr
@@ -1585,7 +1602,9 @@ artMterpAsmInstructionStart = .L_op_nop
     lsr     w0, wINST, #8               // w0<- AA
     GET_VREG w2, w0                     // w2<- vAA
     FETCH_S wINST, 1                    // w1<- branch offset, in code units
+    .if 1
     cmp     w2, #0                      // compare (vA, 0)
+    .endif
     b.le MterpCommonTakenBranchNoFlags
     cmp     wPROFILE, #JIT_CHECK_OSR    // possible OSR re-entry?
     b.eq    .L_check_not_taken_osr
@@ -3192,7 +3211,6 @@ artMterpAsmInstructionStart = .L_op_nop
     lsr     w3, wINST, #12              // w3<- B
     GET_VREG w0, w3                     // w0<- vB
     ubfx    w9, wINST, #8, #4           // w9<- A
-                               // optional op; may set condition codes
     FETCH_ADVANCE_INST 1                // advance rPC, load rINST
     sub     w0, wzr, w0                              // w0<- op, w0-w3 changed
     GET_INST_OPCODE ip                  // extract opcode from rINST
@@ -3218,7 +3236,6 @@ artMterpAsmInstructionStart = .L_op_nop
     lsr     w3, wINST, #12              // w3<- B
     GET_VREG w0, w3                     // w0<- vB
     ubfx    w9, wINST, #8, #4           // w9<- A
-                               // optional op; may set condition codes
     FETCH_ADVANCE_INST 1                // advance rPC, load rINST
     mvn     w0, w0                              // w0<- op, w0-w3 changed
     GET_INST_OPCODE ip                  // extract opcode from rINST
@@ -3243,7 +3260,6 @@ artMterpAsmInstructionStart = .L_op_nop
     ubfx    w4, wINST, #8, #4           // w4<- A
     GET_VREG_WIDE x0, w3
     FETCH_ADVANCE_INST 1                // advance rPC, load wINST
-    
     sub x0, xzr, x0
     GET_INST_OPCODE ip                  // extract opcode from wINST
     SET_VREG_WIDE x0, w4
@@ -3267,7 +3283,6 @@ artMterpAsmInstructionStart = .L_op_nop
     ubfx    w4, wINST, #8, #4           // w4<- A
     GET_VREG_WIDE x0, w3
     FETCH_ADVANCE_INST 1                // advance rPC, load wINST
-    
     mvn     x0, x0
     GET_INST_OPCODE ip                  // extract opcode from wINST
     SET_VREG_WIDE x0, w4
@@ -3292,9 +3307,8 @@ artMterpAsmInstructionStart = .L_op_nop
     lsr     w3, wINST, #12              // w3<- B
     GET_VREG w0, w3                     // w0<- vB
     ubfx    w9, wINST, #8, #4           // w9<- A
-    mov w4, #0x80000000                           // optional op; may set condition codes
     FETCH_ADVANCE_INST 1                // advance rPC, load rINST
-    add     w0, w0, w4                              // w0<- op, w0-w3 changed
+    eor     w0, w0, #0x80000000                              // w0<- op, w0-w3 changed
     GET_INST_OPCODE ip                  // extract opcode from rINST
     SET_VREG w0, w9                     // vAA<- w0
     GOTO_OPCODE ip                      // jump to next instruction
@@ -3317,8 +3331,7 @@ artMterpAsmInstructionStart = .L_op_nop
     ubfx    w4, wINST, #8, #4           // w4<- A
     GET_VREG_WIDE x0, w3
     FETCH_ADVANCE_INST 1                // advance rPC, load wINST
-    mov x1, #0x8000000000000000
-    add     x0, x0, x1
+    eor     x0, x0, #0x8000000000000000
     GET_INST_OPCODE ip                  // extract opcode from wINST
     SET_VREG_WIDE x0, w4
     GOTO_OPCODE ip                      // jump to next instruction
@@ -3329,23 +3342,13 @@ artMterpAsmInstructionStart = .L_op_nop
     .balign 128
 .L_op_int_to_long: /* 0x81 */
 /* File: arm64/op_int_to_long.S */
-/* File: arm64/funopWider.S */
-    /*
-     * Generic 32bit-to-64bit floating point unary operation.  Provide an
-     * "instr" line that specifies an instruction that performs "x0 = op w0".
-     *
-     * For: int-to-double, float-to-double, float-to-long
-     */
-    /* unop vA, vB */
     lsr     w3, wINST, #12              // w3<- B
     ubfx    w4, wINST, #8, #4           // w4<- A
-    GET_VREG w0, w3
+    GET_VREG_S x0, w3                   // x0<- sign_extend(fp[B])
     FETCH_ADVANCE_INST 1                // advance rPC, load wINST
-    sxtw x0, w0                              // d0<- op
     GET_INST_OPCODE ip                  // extract opcode from wINST
-    SET_VREG_WIDE x0, w4           // vA<- d0
+    SET_VREG_WIDE x0, w4                // fp[A]<- x0
     GOTO_OPCODE ip                      // jump to next instruction
-
 
 /* ------------------------------ */
     .balign 128
@@ -3396,22 +3399,21 @@ artMterpAsmInstructionStart = .L_op_nop
     .balign 128
 .L_op_long_to_int: /* 0x84 */
 /* File: arm64/op_long_to_int.S */
-/* File: arm64/funopNarrower.S */
-    /*
-     * Generic 64bit-to-32bit floating point unary operation.  Provide an
-     * "instr" line that specifies an instruction that performs "w0 = op x0".
-     *
-     * For: int-to-double, float-to-double, float-to-long
-     */
-    /* unop vA, vB */
-    lsr     w3, wINST, #12              // w3<- B
-    ubfx    w4, wINST, #8, #4           // w4<- A
-    GET_VREG_WIDE x0, w3
+/* we ignore the high word, making this equivalent to a 32-bit reg move */
+/* File: arm64/op_move.S */
+    /* for move, move-object, long-to-int */
+    /* op vA, vB */
+    lsr     w1, wINST, #12              // x1<- B from 15:12
+    ubfx    w0, wINST, #8, #4           // x0<- A from 11:8
     FETCH_ADVANCE_INST 1                // advance rPC, load wINST
-                                  // d0<- op
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    SET_VREG w0, w4                // vA<- d0
-    GOTO_OPCODE ip                      // jump to next instruction
+    GET_VREG w2, w1                     // x2<- fp[B]
+    GET_INST_OPCODE ip                  // ip<- opcode from wINST
+    .if 0
+    SET_VREG_OBJECT w2, w0              // fp[A]<- x2
+    .else
+    SET_VREG w2, w0                     // fp[A]<- x2
+    .endif
+    GOTO_OPCODE ip                      // execute next instruction
 
 
 /* ------------------------------ */
@@ -3608,7 +3610,6 @@ artMterpAsmInstructionStart = .L_op_nop
     lsr     w3, wINST, #12              // w3<- B
     GET_VREG w0, w3                     // w0<- vB
     ubfx    w9, wINST, #8, #4           // w9<- A
-                               // optional op; may set condition codes
     FETCH_ADVANCE_INST 1                // advance rPC, load rINST
     sxtb    w0, w0                              // w0<- op, w0-w3 changed
     GET_INST_OPCODE ip                  // extract opcode from rINST
@@ -3634,7 +3635,6 @@ artMterpAsmInstructionStart = .L_op_nop
     lsr     w3, wINST, #12              // w3<- B
     GET_VREG w0, w3                     // w0<- vB
     ubfx    w9, wINST, #8, #4           // w9<- A
-                               // optional op; may set condition codes
     FETCH_ADVANCE_INST 1                // advance rPC, load rINST
     uxth    w0, w0                              // w0<- op, w0-w3 changed
     GET_INST_OPCODE ip                  // extract opcode from rINST
@@ -3660,7 +3660,6 @@ artMterpAsmInstructionStart = .L_op_nop
     lsr     w3, wINST, #12              // w3<- B
     GET_VREG w0, w3                     // w0<- vB
     ubfx    w9, wINST, #8, #4           // w9<- A
-                               // optional op; may set condition codes
     FETCH_ADVANCE_INST 1                // advance rPC, load rINST
     sxth    w0, w0                              // w0<- op, w0-w3 changed
     GET_INST_OPCODE ip                  // extract opcode from rINST
@@ -6052,7 +6051,7 @@ artMterpAsmInstructionStart = .L_op_nop
      *      shl-int/lit8, shr-int/lit8, ushr-int/lit8
      */
     /* binop/lit8 vAA, vBB, #+CC */
-    FETCH_S w3, 1                       // w3<- ssssCCBB (sign-extended for CC
+    FETCH_S w3, 1                       // w3<- ssssCCBB (sign-extended for CC)
     lsr     w9, wINST, #8               // w9<- AA
     and     w2, w3, #255                // w2<- BB
     GET_VREG w0, w2                     // w0<- vBB
@@ -6088,7 +6087,7 @@ artMterpAsmInstructionStart = .L_op_nop
      *      shl-int/lit8, shr-int/lit8, ushr-int/lit8
      */
     /* binop/lit8 vAA, vBB, #+CC */
-    FETCH_S w3, 1                       // w3<- ssssCCBB (sign-extended for CC
+    FETCH_S w3, 1                       // w3<- ssssCCBB (sign-extended for CC)
     lsr     w9, wINST, #8               // w9<- AA
     and     w2, w3, #255                // w2<- BB
     GET_VREG w0, w2                     // w0<- vBB
@@ -6125,7 +6124,7 @@ artMterpAsmInstructionStart = .L_op_nop
      *      shl-int/lit8, shr-int/lit8, ushr-int/lit8
      */
     /* binop/lit8 vAA, vBB, #+CC */
-    FETCH_S w3, 1                       // w3<- ssssCCBB (sign-extended for CC
+    FETCH_S w3, 1                       // w3<- ssssCCBB (sign-extended for CC)
     lsr     w9, wINST, #8               // w9<- AA
     and     w2, w3, #255                // w2<- BB
     GET_VREG w0, w2                     // w0<- vBB
@@ -6161,7 +6160,7 @@ artMterpAsmInstructionStart = .L_op_nop
      *      shl-int/lit8, shr-int/lit8, ushr-int/lit8
      */
     /* binop/lit8 vAA, vBB, #+CC */
-    FETCH_S w3, 1                       // w3<- ssssCCBB (sign-extended for CC
+    FETCH_S w3, 1                       // w3<- ssssCCBB (sign-extended for CC)
     lsr     w9, wINST, #8               // w9<- AA
     and     w2, w3, #255                // w2<- BB
     GET_VREG w0, w2                     // w0<- vBB
@@ -6197,7 +6196,7 @@ artMterpAsmInstructionStart = .L_op_nop
      *      shl-int/lit8, shr-int/lit8, ushr-int/lit8
      */
     /* binop/lit8 vAA, vBB, #+CC */
-    FETCH_S w3, 1                       // w3<- ssssCCBB (sign-extended for CC
+    FETCH_S w3, 1                       // w3<- ssssCCBB (sign-extended for CC)
     lsr     w9, wINST, #8               // w9<- AA
     and     w2, w3, #255                // w2<- BB
     GET_VREG w0, w2                     // w0<- vBB
@@ -6233,7 +6232,7 @@ artMterpAsmInstructionStart = .L_op_nop
      *      shl-int/lit8, shr-int/lit8, ushr-int/lit8
      */
     /* binop/lit8 vAA, vBB, #+CC */
-    FETCH_S w3, 1                       // w3<- ssssCCBB (sign-extended for CC
+    FETCH_S w3, 1                       // w3<- ssssCCBB (sign-extended for CC)
     lsr     w9, wINST, #8               // w9<- AA
     and     w2, w3, #255                // w2<- BB
     GET_VREG w0, w2                     // w0<- vBB
@@ -6269,7 +6268,7 @@ artMterpAsmInstructionStart = .L_op_nop
      *      shl-int/lit8, shr-int/lit8, ushr-int/lit8
      */
     /* binop/lit8 vAA, vBB, #+CC */
-    FETCH_S w3, 1                       // w3<- ssssCCBB (sign-extended for CC
+    FETCH_S w3, 1                       // w3<- ssssCCBB (sign-extended for CC)
     lsr     w9, wINST, #8               // w9<- AA
     and     w2, w3, #255                // w2<- BB
     GET_VREG w0, w2                     // w0<- vBB
@@ -6305,7 +6304,7 @@ artMterpAsmInstructionStart = .L_op_nop
      *      shl-int/lit8, shr-int/lit8, ushr-int/lit8
      */
     /* binop/lit8 vAA, vBB, #+CC */
-    FETCH_S w3, 1                       // w3<- ssssCCBB (sign-extended for CC
+    FETCH_S w3, 1                       // w3<- ssssCCBB (sign-extended for CC)
     lsr     w9, wINST, #8               // w9<- AA
     and     w2, w3, #255                // w2<- BB
     GET_VREG w0, w2                     // w0<- vBB
@@ -6341,7 +6340,7 @@ artMterpAsmInstructionStart = .L_op_nop
      *      shl-int/lit8, shr-int/lit8, ushr-int/lit8
      */
     /* binop/lit8 vAA, vBB, #+CC */
-    FETCH_S w3, 1                       // w3<- ssssCCBB (sign-extended for CC
+    FETCH_S w3, 1                       // w3<- ssssCCBB (sign-extended for CC)
     lsr     w9, wINST, #8               // w9<- AA
     and     w2, w3, #255                // w2<- BB
     GET_VREG w0, w2                     // w0<- vBB
@@ -6377,7 +6376,7 @@ artMterpAsmInstructionStart = .L_op_nop
      *      shl-int/lit8, shr-int/lit8, ushr-int/lit8
      */
     /* binop/lit8 vAA, vBB, #+CC */
-    FETCH_S w3, 1                       // w3<- ssssCCBB (sign-extended for CC
+    FETCH_S w3, 1                       // w3<- ssssCCBB (sign-extended for CC)
     lsr     w9, wINST, #8               // w9<- AA
     and     w2, w3, #255                // w2<- BB
     GET_VREG w0, w2                     // w0<- vBB
@@ -6413,7 +6412,7 @@ artMterpAsmInstructionStart = .L_op_nop
      *      shl-int/lit8, shr-int/lit8, ushr-int/lit8
      */
     /* binop/lit8 vAA, vBB, #+CC */
-    FETCH_S w3, 1                       // w3<- ssssCCBB (sign-extended for CC
+    FETCH_S w3, 1                       // w3<- ssssCCBB (sign-extended for CC)
     lsr     w9, wINST, #8               // w9<- AA
     and     w2, w3, #255                // w2<- BB
     GET_VREG w0, w2                     // w0<- vBB
@@ -6458,8 +6457,7 @@ artMterpAsmInstructionStart = .L_op_nop
     GET_VREG w3, w2                     // w3<- object we're operating on
     ubfx    w2, wINST, #8, #4           // w2<- A
     cbz     w3, common_errNullObject    // object was null
-    add     x4, x3, x4                  // create direct pointer
-    ldr     x0, [x4]
+    ldr     x0, [x3, x4]                // x0<- obj.field
     FETCH_ADVANCE_INST 2                // advance rPC, load wINST
     SET_VREG_WIDE x0, w2
     GET_INST_OPCODE ip                  // extract opcode from wINST
@@ -6495,7 +6493,6 @@ artMterpAsmInstructionStart = .L_op_nop
     FETCH w1, 1                         // w1<- field byte offset
     GET_VREG w3, w2                     // w3<- fp[B], the object pointer
     ubfx    w2, wINST, #8, #4           // w2<- A
-    cmp     w3, #0                      // check object for null
     cbz     w3, common_errNullObject    // object was null
     GET_VREG w0, w2                     // w0<- fp[A]
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
@@ -6515,8 +6512,7 @@ artMterpAsmInstructionStart = .L_op_nop
     cbz     w2, common_errNullObject    // object was null
     GET_VREG_WIDE x0, w0                // x0-< fp[A]
     FETCH_ADVANCE_INST 2                // advance rPC, load wINST
-    add     x1, x2, x3                  // create a direct pointer
-    str     x0, [x1]
+    str     x0, [x2, x3]                // obj.field<- x0
     GET_INST_OPCODE ip                  // extract opcode from wINST
     GOTO_OPCODE ip                      // jump to next instruction
 
@@ -6597,7 +6593,6 @@ artMterpAsmInstructionStart = .L_op_nop
     FETCH w1, 1                         // w1<- field byte offset
     GET_VREG w3, w2                     // w3<- fp[B], the object pointer
     ubfx    w2, wINST, #8, #4           // w2<- A
-    cmp     w3, #0                      // check object for null
     cbz     w3, common_errNullObject    // object was null
     GET_VREG w0, w2                     // w0<- fp[A]
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
@@ -6617,7 +6612,6 @@ artMterpAsmInstructionStart = .L_op_nop
     FETCH w1, 1                         // w1<- field byte offset
     GET_VREG w3, w2                     // w3<- fp[B], the object pointer
     ubfx    w2, wINST, #8, #4           // w2<- A
-    cmp     w3, #0                      // check object for null
     cbz     w3, common_errNullObject    // object was null
     GET_VREG w0, w2                     // w0<- fp[A]
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
@@ -6637,7 +6631,6 @@ artMterpAsmInstructionStart = .L_op_nop
     FETCH w1, 1                         // w1<- field byte offset
     GET_VREG w3, w2                     // w3<- fp[B], the object pointer
     ubfx    w2, wINST, #8, #4           // w2<- A
-    cmp     w3, #0                      // check object for null
     cbz     w3, common_errNullObject    // object was null
     GET_VREG w0, w2                     // w0<- fp[A]
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
@@ -6657,7 +6650,6 @@ artMterpAsmInstructionStart = .L_op_nop
     FETCH w1, 1                         // w1<- field byte offset
     GET_VREG w3, w2                     // w3<- fp[B], the object pointer
     ubfx    w2, wINST, #8, #4           // w2<- A
-    cmp     w3, #0                      // check object for null
     cbz     w3, common_errNullObject    // object was null
     GET_VREG w0, w2                     // w0<- fp[A]
     FETCH_ADVANCE_INST 2                // advance rPC, load rINST
@@ -6884,6 +6876,321 @@ artMterpAsmSisterStart:
     .size   artMterpAsmSisterStart, .-artMterpAsmSisterStart
     .global artMterpAsmSisterEnd
 artMterpAsmSisterEnd:
+
+/* File: arm64/footer.S */
+/*
+ * ===========================================================================
+ *  Common subroutines and data
+ * ===========================================================================
+ */
+
+
+/*
+ * We've detected a condition that will result in an exception, but the exception
+ * has not yet been thrown.  Just bail out to the reference interpreter to deal with it.
+ * TUNING: for consistency, we may want to just go ahead and handle these here.
+ */
+common_errDivideByZero:
+    EXPORT_PC
+#if MTERP_LOGGING
+    mov  x0, xSELF
+    add  x1, xFP, #OFF_FP_SHADOWFRAME
+    bl MterpLogDivideByZeroException
+#endif
+    b MterpCommonFallback
+
+common_errArrayIndex:
+    EXPORT_PC
+#if MTERP_LOGGING
+    mov  x0, xSELF
+    add  x1, xFP, #OFF_FP_SHADOWFRAME
+    bl MterpLogArrayIndexException
+#endif
+    b MterpCommonFallback
+
+common_errNegativeArraySize:
+    EXPORT_PC
+#if MTERP_LOGGING
+    mov  x0, xSELF
+    add  x1, xFP, #OFF_FP_SHADOWFRAME
+    bl MterpLogNegativeArraySizeException
+#endif
+    b MterpCommonFallback
+
+common_errNoSuchMethod:
+    EXPORT_PC
+#if MTERP_LOGGING
+    mov  x0, xSELF
+    add  x1, xFP, #OFF_FP_SHADOWFRAME
+    bl MterpLogNoSuchMethodException
+#endif
+    b MterpCommonFallback
+
+common_errNullObject:
+    EXPORT_PC
+#if MTERP_LOGGING
+    mov  x0, xSELF
+    add  x1, xFP, #OFF_FP_SHADOWFRAME
+    bl MterpLogNullObjectException
+#endif
+    b MterpCommonFallback
+
+common_exceptionThrown:
+    EXPORT_PC
+#if MTERP_LOGGING
+    mov  x0, xSELF
+    add  x1, xFP, #OFF_FP_SHADOWFRAME
+    bl MterpLogExceptionThrownException
+#endif
+    b MterpCommonFallback
+
+MterpSuspendFallback:
+    EXPORT_PC
+#if MTERP_LOGGING
+    mov  x0, xSELF
+    add  x1, xFP, #OFF_FP_SHADOWFRAME
+    ldr  x2, [xSELF, #THREAD_FLAGS_OFFSET]
+    bl MterpLogSuspendFallback
+#endif
+    b MterpCommonFallback
+
+/*
+ * If we're here, something is out of the ordinary.  If there is a pending
+ * exception, handle it.  Otherwise, roll back and retry with the reference
+ * interpreter.
+ */
+MterpPossibleException:
+    ldr     x0, [xSELF, #THREAD_EXCEPTION_OFFSET]
+    cbz     x0, MterpFallback                       // If not, fall back to reference interpreter.
+    /* intentional fallthrough - handle pending exception. */
+/*
+ * On return from a runtime helper routine, we've found a pending exception.
+ * Can we handle it here - or need to bail out to caller?
+ *
+ */
+MterpException:
+    mov     x0, xSELF
+    add     x1, xFP, #OFF_FP_SHADOWFRAME
+    bl      MterpHandleException                    // (self, shadow_frame)
+    cbz     w0, MterpExceptionReturn                // no local catch, back to caller.
+    ldr     x0, [xFP, #OFF_FP_CODE_ITEM]
+    ldr     w1, [xFP, #OFF_FP_DEX_PC]
+    ldr     xIBASE, [xSELF, #THREAD_CURRENT_IBASE_OFFSET]
+    add     xPC, x0, #CODEITEM_INSNS_OFFSET
+    add     xPC, xPC, x1, lsl #1                    // generate new dex_pc_ptr
+    /* Do we need to switch interpreters? */
+    bl      MterpShouldSwitchInterpreters
+    cbnz    w0, MterpFallback
+    /* resume execution at catch block */
+    EXPORT_PC
+    FETCH_INST
+    GET_INST_OPCODE ip
+    GOTO_OPCODE ip
+    /* NOTE: no fallthrough */
+/*
+ * Common handling for branches with support for Jit profiling.
+ * On entry:
+ *    wINST          <= signed offset
+ *    wPROFILE       <= signed hotness countdown (expanded to 32 bits)
+ *    condition bits <= set to establish sign of offset (use "NoFlags" entry if not)
+ *
+ * We have quite a few different cases for branch profiling, OSR detection and
+ * suspend check support here.
+ *
+ * Taken backward branches:
+ *    If profiling active, do hotness countdown and report if we hit zero.
+ *    If in osr check mode, see if our target is a compiled loop header entry and do OSR if so.
+ *    Is there a pending suspend request?  If so, suspend.
+ *
+ * Taken forward branches and not-taken backward branches:
+ *    If in osr check mode, see if our target is a compiled loop header entry and do OSR if so.
+ *
+ * Our most common case is expected to be a taken backward branch with active jit profiling,
+ * but no full OSR check and no pending suspend request.
+ * Next most common case is not-taken branch with no full OSR check.
+ *
+ */
+MterpCommonTakenBranchNoFlags:
+    cmp     wINST, #0
+    b.gt    .L_forward_branch           // don't add forward branches to hotness
+    tbnz    wPROFILE, #31, .L_no_count_backwards  // go if negative
+    subs    wPROFILE, wPROFILE, #1      // countdown
+    b.eq    .L_add_batch                // counted down to zero - report
+.L_resume_backward_branch:
+    ldr     lr, [xSELF, #THREAD_FLAGS_OFFSET]
+    add     w2, wINST, wINST            // w2<- byte offset
+    FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
+    REFRESH_IBASE
+    ands    lr, lr, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    b.ne    .L_suspend_request_pending
+    GET_INST_OPCODE ip                  // extract opcode from wINST
+    GOTO_OPCODE ip                      // jump to next instruction
+
+.L_suspend_request_pending:
+    EXPORT_PC
+    mov     x0, xSELF
+    bl      MterpSuspendCheck           // (self)
+    cbnz    x0, MterpFallback
+    REFRESH_IBASE                       // might have changed during suspend
+    GET_INST_OPCODE ip                  // extract opcode from wINST
+    GOTO_OPCODE ip                      // jump to next instruction
+
+.L_no_count_backwards:
+    cmp     wPROFILE, #JIT_CHECK_OSR    // possible OSR re-entry?
+    b.ne    .L_resume_backward_branch
+    mov     x0, xSELF
+    add     x1, xFP, #OFF_FP_SHADOWFRAME
+    mov     x2, xINST
+    EXPORT_PC
+    bl      MterpMaybeDoOnStackReplacement  // (self, shadow_frame, offset)
+    cbnz    x0, MterpOnStackReplacement
+    b       .L_resume_backward_branch
+
+.L_forward_branch:
+    cmp     wPROFILE, #JIT_CHECK_OSR    // possible OSR re-entry?
+    b.eq    .L_check_osr_forward
+.L_resume_forward_branch:
+    add     w2, wINST, wINST            // w2<- byte offset
+    FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
+    GET_INST_OPCODE ip                  // extract opcode from wINST
+    GOTO_OPCODE ip                      // jump to next instruction
+
+.L_check_osr_forward:
+    mov     x0, xSELF
+    add     x1, xFP, #OFF_FP_SHADOWFRAME
+    mov     x2, xINST
+    EXPORT_PC
+    bl      MterpMaybeDoOnStackReplacement  // (self, shadow_frame, offset)
+    cbnz    x0, MterpOnStackReplacement
+    b       .L_resume_forward_branch
+
+.L_add_batch:
+    add     x1, xFP, #OFF_FP_SHADOWFRAME
+    strh    wPROFILE, [x1, #SHADOWFRAME_HOTNESS_COUNTDOWN_OFFSET]
+    ldr     x0, [xFP, #OFF_FP_METHOD]
+    mov     x2, xSELF
+    bl      MterpAddHotnessBatch        // (method, shadow_frame, self)
+    mov     wPROFILE, w0                // restore new hotness countdown to wPROFILE
+    b       .L_no_count_backwards
+
+/*
+ * Entered from the conditional branch handlers when OSR check request active on
+ * not-taken path.  All Dalvik not-taken conditional branch offsets are 2.
+ */
+.L_check_not_taken_osr:
+    mov     x0, xSELF
+    add     x1, xFP, #OFF_FP_SHADOWFRAME
+    mov     x2, #2
+    EXPORT_PC
+    bl      MterpMaybeDoOnStackReplacement  // (self, shadow_frame, offset)
+    cbnz    x0, MterpOnStackReplacement
+    FETCH_ADVANCE_INST 2
+    GET_INST_OPCODE ip                  // extract opcode from wINST
+    GOTO_OPCODE ip                      // jump to next instruction
+
+
+/*
+ * Check for suspend check request.  Assumes wINST already loaded, xPC advanced and
+ * still needs to get the opcode and branch to it, and flags are in lr.
+ */
+MterpCheckSuspendAndContinue:
+    ldr     xIBASE, [xSELF, #THREAD_CURRENT_IBASE_OFFSET]  // refresh xIBASE
+    ands    w7, w7, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    b.ne    check1
+    GET_INST_OPCODE ip                  // extract opcode from wINST
+    GOTO_OPCODE ip                      // jump to next instruction
+check1:
+    EXPORT_PC
+    mov     x0, xSELF
+    bl      MterpSuspendCheck           // (self)
+    cbnz    x0, MterpFallback           // Something in the environment changed, switch interpreters
+    GET_INST_OPCODE ip                  // extract opcode from wINST
+    GOTO_OPCODE ip                      // jump to next instruction
+
+/*
+ * On-stack replacement has happened, and now we've returned from the compiled method.
+ */
+MterpOnStackReplacement:
+#if MTERP_LOGGING
+    mov  x0, xSELF
+    add  x1, xFP, #OFF_FP_SHADOWFRAME
+    sxtw x2, wINST
+    bl MterpLogOSR
+#endif
+    mov  x0, #1                         // Signal normal return
+    b    MterpDone
+
+/*
+ * Bail out to reference interpreter.
+ */
+MterpFallback:
+    EXPORT_PC
+#if MTERP_LOGGING
+    mov  x0, xSELF
+    add  x1, xFP, #OFF_FP_SHADOWFRAME
+    bl MterpLogFallback
+#endif
+MterpCommonFallback:
+    mov     x0, #0                                  // signal retry with reference interpreter.
+    b       MterpDone
+
+/*
+ * We pushed some registers on the stack in ExecuteMterpImpl, then saved
+ * SP and LR.  Here we restore SP, restore the registers, and then restore
+ * LR to PC.
+ *
+ * On entry:
+ *  uint32_t* xFP  (should still be live, pointer to base of vregs)
+ */
+MterpExceptionReturn:
+    mov     x0, #1                                  // signal return to caller.
+    b MterpDone
+MterpReturn:
+    ldr     x2, [xFP, #OFF_FP_RESULT_REGISTER]
+    ldr     lr, [xSELF, #THREAD_FLAGS_OFFSET]
+    str     x0, [x2]
+    mov     x0, xSELF
+    ands    lr, lr, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
+    b.eq    check2
+    bl      MterpSuspendCheck                       // (self)
+check2:
+    mov     x0, #1                                  // signal return to caller.
+MterpDone:
+/*
+ * At this point, we expect wPROFILE to be non-zero.  If negative, hotness is disabled or we're
+ * checking for OSR.  If greater than zero, we might have unreported hotness to register
+ * (the difference between the ending wPROFILE and the cached hotness counter).  wPROFILE
+ * should only reach zero immediately after a hotness decrement, and is then reset to either
+ * a negative special state or the new non-zero countdown value.
+ */
+    cmp     wPROFILE, #0
+    bgt     MterpProfileActive                      // if > 0, we may have some counts to report.
+    ldp     fp, lr, [sp, #64]
+    ldp     xPC, xFP, [sp, #48]
+    ldp     xSELF, xINST, [sp, #32]
+    ldp     xIBASE, xREFS, [sp, #16]
+    ldp     xPROFILE, x27, [sp], #80
+    ret
+
+MterpProfileActive:
+    mov     xINST, x0                               // stash return value
+    /* Report cached hotness counts */
+    ldr     x0, [xFP, #OFF_FP_METHOD]
+    add     x1, xFP, #OFF_FP_SHADOWFRAME
+    mov     x2, xSELF
+    strh    wPROFILE, [x1, #SHADOWFRAME_HOTNESS_COUNTDOWN_OFFSET]
+    bl      MterpAddHotnessBatch                    // (method, shadow_frame, self)
+    mov     x0, xINST                               // restore return value
+    ldp     fp, lr, [sp, #64]
+    ldp     xPC, xFP, [sp, #48]
+    ldp     xSELF, xINST, [sp, #32]
+    ldp     xIBASE, xREFS, [sp, #16]
+    ldp     xPROFILE, x27, [sp], #80
+    ret
+
+    .cfi_endproc
+    .size   ExecuteMterpImpl, .-ExecuteMterpImpl
+
 
 
     .global artMterpAsmAltInstructionStart
@@ -11247,318 +11554,3 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
     .size   artMterpAsmAltInstructionStart, .-artMterpAsmAltInstructionStart
     .global artMterpAsmAltInstructionEnd
 artMterpAsmAltInstructionEnd:
-/* File: arm64/footer.S */
-/*
- * ===========================================================================
- *  Common subroutines and data
- * ===========================================================================
- */
-
-
-/*
- * We've detected a condition that will result in an exception, but the exception
- * has not yet been thrown.  Just bail out to the reference interpreter to deal with it.
- * TUNING: for consistency, we may want to just go ahead and handle these here.
- */
-common_errDivideByZero:
-    EXPORT_PC
-#if MTERP_LOGGING
-    mov  x0, xSELF
-    add  x1, xFP, #OFF_FP_SHADOWFRAME
-    bl MterpLogDivideByZeroException
-#endif
-    b MterpCommonFallback
-
-common_errArrayIndex:
-    EXPORT_PC
-#if MTERP_LOGGING
-    mov  x0, xSELF
-    add  x1, xFP, #OFF_FP_SHADOWFRAME
-    bl MterpLogArrayIndexException
-#endif
-    b MterpCommonFallback
-
-common_errNegativeArraySize:
-    EXPORT_PC
-#if MTERP_LOGGING
-    mov  x0, xSELF
-    add  x1, xFP, #OFF_FP_SHADOWFRAME
-    bl MterpLogNegativeArraySizeException
-#endif
-    b MterpCommonFallback
-
-common_errNoSuchMethod:
-    EXPORT_PC
-#if MTERP_LOGGING
-    mov  x0, xSELF
-    add  x1, xFP, #OFF_FP_SHADOWFRAME
-    bl MterpLogNoSuchMethodException
-#endif
-    b MterpCommonFallback
-
-common_errNullObject:
-    EXPORT_PC
-#if MTERP_LOGGING
-    mov  x0, xSELF
-    add  x1, xFP, #OFF_FP_SHADOWFRAME
-    bl MterpLogNullObjectException
-#endif
-    b MterpCommonFallback
-
-common_exceptionThrown:
-    EXPORT_PC
-#if MTERP_LOGGING
-    mov  x0, xSELF
-    add  x1, xFP, #OFF_FP_SHADOWFRAME
-    bl MterpLogExceptionThrownException
-#endif
-    b MterpCommonFallback
-
-MterpSuspendFallback:
-    EXPORT_PC
-#if MTERP_LOGGING
-    mov  x0, xSELF
-    add  x1, xFP, #OFF_FP_SHADOWFRAME
-    ldr  x2, [xSELF, #THREAD_FLAGS_OFFSET]
-    bl MterpLogSuspendFallback
-#endif
-    b MterpCommonFallback
-
-/*
- * If we're here, something is out of the ordinary.  If there is a pending
- * exception, handle it.  Otherwise, roll back and retry with the reference
- * interpreter.
- */
-MterpPossibleException:
-    ldr     x0, [xSELF, #THREAD_EXCEPTION_OFFSET]
-    cbz     x0, MterpFallback                       // If not, fall back to reference interpreter.
-    /* intentional fallthrough - handle pending exception. */
-/*
- * On return from a runtime helper routine, we've found a pending exception.
- * Can we handle it here - or need to bail out to caller?
- *
- */
-MterpException:
-    mov     x0, xSELF
-    add     x1, xFP, #OFF_FP_SHADOWFRAME
-    bl      MterpHandleException                    // (self, shadow_frame)
-    cbz     w0, MterpExceptionReturn                // no local catch, back to caller.
-    ldr     x0, [xFP, #OFF_FP_CODE_ITEM]
-    ldr     w1, [xFP, #OFF_FP_DEX_PC]
-    ldr     xIBASE, [xSELF, #THREAD_CURRENT_IBASE_OFFSET]
-    add     xPC, x0, #CODEITEM_INSNS_OFFSET
-    add     xPC, xPC, x1, lsl #1                    // generate new dex_pc_ptr
-    /* Do we need to switch interpreters? */
-    bl      MterpShouldSwitchInterpreters
-    cbnz    w0, MterpFallback
-    /* resume execution at catch block */
-    EXPORT_PC
-    FETCH_INST
-    GET_INST_OPCODE ip
-    GOTO_OPCODE ip
-    /* NOTE: no fallthrough */
-/*
- * Common handling for branches with support for Jit profiling.
- * On entry:
- *    wINST          <= signed offset
- *    wPROFILE       <= signed hotness countdown (expanded to 32 bits)
- *    condition bits <= set to establish sign of offset (use "NoFlags" entry if not)
- *
- * We have quite a few different cases for branch profiling, OSR detection and
- * suspend check support here.
- *
- * Taken backward branches:
- *    If profiling active, do hotness countdown and report if we hit zero.
- *    If in osr check mode, see if our target is a compiled loop header entry and do OSR if so.
- *    Is there a pending suspend request?  If so, suspend.
- *
- * Taken forward branches and not-taken backward branches:
- *    If in osr check mode, see if our target is a compiled loop header entry and do OSR if so.
- *
- * Our most common case is expected to be a taken backward branch with active jit profiling,
- * but no full OSR check and no pending suspend request.
- * Next most common case is not-taken branch with no full OSR check.
- *
- */
-MterpCommonTakenBranchNoFlags:
-    cmp     wINST, #0
-    b.gt    .L_forward_branch           // don't add forward branches to hotness
-    tbnz    wPROFILE, #31, .L_no_count_backwards  // go if negative
-    subs    wPROFILE, wPROFILE, #1      // countdown
-    b.eq    .L_add_batch                // counted down to zero - report
-.L_resume_backward_branch:
-    ldr     lr, [xSELF, #THREAD_FLAGS_OFFSET]
-    add     w2, wINST, wINST            // w2<- byte offset
-    FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
-    REFRESH_IBASE
-    ands    lr, lr, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
-    b.ne    .L_suspend_request_pending
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-
-.L_suspend_request_pending:
-    EXPORT_PC
-    mov     x0, xSELF
-    bl      MterpSuspendCheck           // (self)
-    cbnz    x0, MterpFallback
-    REFRESH_IBASE                       // might have changed during suspend
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-
-.L_no_count_backwards:
-    cmp     wPROFILE, #JIT_CHECK_OSR    // possible OSR re-entry?
-    b.ne    .L_resume_backward_branch
-    mov     x0, xSELF
-    add     x1, xFP, #OFF_FP_SHADOWFRAME
-    mov     x2, xINST
-    EXPORT_PC
-    bl      MterpMaybeDoOnStackReplacement  // (self, shadow_frame, offset)
-    cbnz    x0, MterpOnStackReplacement
-    b       .L_resume_backward_branch
-
-.L_forward_branch:
-    cmp     wPROFILE, #JIT_CHECK_OSR    // possible OSR re-entry?
-    b.eq    .L_check_osr_forward
-.L_resume_forward_branch:
-    add     w2, wINST, wINST            // w2<- byte offset
-    FETCH_ADVANCE_INST_RB w2            // update rPC, load wINST
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-
-.L_check_osr_forward:
-    mov     x0, xSELF
-    add     x1, xFP, #OFF_FP_SHADOWFRAME
-    mov     x2, xINST
-    EXPORT_PC
-    bl      MterpMaybeDoOnStackReplacement  // (self, shadow_frame, offset)
-    cbnz    x0, MterpOnStackReplacement
-    b       .L_resume_forward_branch
-
-.L_add_batch:
-    add     x1, xFP, #OFF_FP_SHADOWFRAME
-    strh    wPROFILE, [x1, #SHADOWFRAME_HOTNESS_COUNTDOWN_OFFSET]
-    ldr     x0, [xFP, #OFF_FP_METHOD]
-    mov     x2, xSELF
-    bl      MterpAddHotnessBatch        // (method, shadow_frame, self)
-    mov     wPROFILE, w0                // restore new hotness countdown to wPROFILE
-    b       .L_no_count_backwards
-
-/*
- * Entered from the conditional branch handlers when OSR check request active on
- * not-taken path.  All Dalvik not-taken conditional branch offsets are 2.
- */
-.L_check_not_taken_osr:
-    mov     x0, xSELF
-    add     x1, xFP, #OFF_FP_SHADOWFRAME
-    mov     x2, #2
-    EXPORT_PC
-    bl      MterpMaybeDoOnStackReplacement  // (self, shadow_frame, offset)
-    cbnz    x0, MterpOnStackReplacement
-    FETCH_ADVANCE_INST 2
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-
-
-/*
- * Check for suspend check request.  Assumes wINST already loaded, xPC advanced and
- * still needs to get the opcode and branch to it, and flags are in lr.
- */
-MterpCheckSuspendAndContinue:
-    ldr     xIBASE, [xSELF, #THREAD_CURRENT_IBASE_OFFSET]  // refresh xIBASE
-    ands    w7, w7, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
-    b.ne    check1
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-check1:
-    EXPORT_PC
-    mov     x0, xSELF
-    bl      MterpSuspendCheck           // (self)
-    cbnz    x0, MterpFallback           // Something in the environment changed, switch interpreters
-    GET_INST_OPCODE ip                  // extract opcode from wINST
-    GOTO_OPCODE ip                      // jump to next instruction
-
-/*
- * On-stack replacement has happened, and now we've returned from the compiled method.
- */
-MterpOnStackReplacement:
-#if MTERP_LOGGING
-    mov  x0, xSELF
-    add  x1, xFP, #OFF_FP_SHADOWFRAME
-    sxtw x2, wINST
-    bl MterpLogOSR
-#endif
-    mov  x0, #1                         // Signal normal return
-    b    MterpDone
-
-/*
- * Bail out to reference interpreter.
- */
-MterpFallback:
-    EXPORT_PC
-#if MTERP_LOGGING
-    mov  x0, xSELF
-    add  x1, xFP, #OFF_FP_SHADOWFRAME
-    bl MterpLogFallback
-#endif
-MterpCommonFallback:
-    mov     x0, #0                                  // signal retry with reference interpreter.
-    b       MterpDone
-
-/*
- * We pushed some registers on the stack in ExecuteMterpImpl, then saved
- * SP and LR.  Here we restore SP, restore the registers, and then restore
- * LR to PC.
- *
- * On entry:
- *  uint32_t* xFP  (should still be live, pointer to base of vregs)
- */
-MterpExceptionReturn:
-    mov     x0, #1                                  // signal return to caller.
-    b MterpDone
-MterpReturn:
-    ldr     x2, [xFP, #OFF_FP_RESULT_REGISTER]
-    ldr     lr, [xSELF, #THREAD_FLAGS_OFFSET]
-    str     x0, [x2]
-    mov     x0, xSELF
-    ands    lr, lr, #(THREAD_SUSPEND_REQUEST | THREAD_CHECKPOINT_REQUEST)
-    b.eq    check2
-    bl      MterpSuspendCheck                       // (self)
-check2:
-    mov     x0, #1                                  // signal return to caller.
-MterpDone:
-/*
- * At this point, we expect wPROFILE to be non-zero.  If negative, hotness is disabled or we're
- * checking for OSR.  If greater than zero, we might have unreported hotness to register
- * (the difference between the ending wPROFILE and the cached hotness counter).  wPROFILE
- * should only reach zero immediately after a hotness decrement, and is then reset to either
- * a negative special state or the new non-zero countdown value.
- */
-    cmp     wPROFILE, #0
-    bgt     MterpProfileActive                      // if > 0, we may have some counts to report.
-    ldp     fp, lr, [sp, #64]
-    ldp     xPC, xFP, [sp, #48]
-    ldp     xSELF, xINST, [sp, #32]
-    ldp     xIBASE, xREFS, [sp, #16]
-    ldp     xPROFILE, x27, [sp], #80
-    ret
-
-MterpProfileActive:
-    mov     xINST, x0                               // stash return value
-    /* Report cached hotness counts */
-    ldr     x0, [xFP, #OFF_FP_METHOD]
-    add     x1, xFP, #OFF_FP_SHADOWFRAME
-    mov     x2, xSELF
-    strh    wPROFILE, [x1, #SHADOWFRAME_HOTNESS_COUNTDOWN_OFFSET]
-    bl      MterpAddHotnessBatch                    // (method, shadow_frame, self)
-    mov     x0, xINST                               // restore return value
-    ldp     fp, lr, [sp, #64]
-    ldp     xPC, xFP, [sp, #48]
-    ldp     xSELF, xINST, [sp, #32]
-    ldp     xIBASE, xREFS, [sp, #16]
-    ldp     xPROFILE, x27, [sp], #80
-    ret
-
-    .cfi_endproc
-    .size   ExecuteMterpImpl, .-ExecuteMterpImpl
-
-
