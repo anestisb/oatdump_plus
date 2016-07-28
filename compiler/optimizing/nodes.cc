@@ -2635,15 +2635,15 @@ std::ostream& operator<<(std::ostream& os, TypeCheckKind rhs) {
 std::ostream& operator<<(std::ostream& os, const MemBarrierKind& kind) {
   switch (kind) {
     case MemBarrierKind::kAnyStore:
-      return os << "any-store";
+      return os << "AnyStore";
     case MemBarrierKind::kLoadAny:
-      return os << "load-any";
+      return os << "LoadAny";
     case MemBarrierKind::kStoreStore:
-      return os << "store-store";
+      return os << "StoreStore";
     case MemBarrierKind::kAnyAny:
-      return os << "any-any";
+      return os << "AnyAny";
     case MemBarrierKind::kNTStoreStore:
-      return os << "store-store(nt)";
+      return os << "NTStoreStore";
 
     default:
       LOG(FATAL) << "Unknown MemBarrierKind: " << static_cast<int>(kind);
