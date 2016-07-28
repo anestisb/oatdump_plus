@@ -6,7 +6,6 @@
     cbz     w2, common_errNullObject    // object was null
     GET_VREG_WIDE x0, w0                // x0-< fp[A]
     FETCH_ADVANCE_INST 2                // advance rPC, load wINST
-    add     x1, x2, x3                  // create a direct pointer
-    str     x0, [x1]
+    str     x0, [x2, x3]                // obj.field<- x0
     GET_INST_OPCODE ip                  // extract opcode from wINST
     GOTO_OPCODE ip                      // jump to next instruction
