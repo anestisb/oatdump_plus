@@ -1,3 +1,4 @@
+    /* int-to-long vA, vB */
     lsr     w3, wINST, #12              // w3<- B
     ubfx    w4, wINST, #8, #4           // w4<- A
     GET_VREG_S x0, w3                   // x0<- sign_extend(fp[B])
