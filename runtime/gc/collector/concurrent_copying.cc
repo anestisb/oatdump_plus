@@ -1714,12 +1714,19 @@ class ConcurrentCopying::RefFieldsVisitor {
 
 // Scan ref fields of an object.
 inline void ConcurrentCopying::Scan(mirror::Object* to_ref) {
+  if (kIsDebugBuild) {
+    // Avoid all read barriers during visit references to help performance.
+    Thread::Current()->ModifyDebugDisallowReadBarrier(1);
+  }
   DCHECK(!region_space_->IsInFromSpace(to_ref));
   DCHECK_EQ(Thread::Current(), thread_running_gc_);
   RefFieldsVisitor visitor(this);
   // Disable the read barrier for a performance reason.
   to_ref->VisitReferences</*kVisitNativeRoots*/true, kDefaultVerifyFlags, kWithoutReadBarrier>(
       visitor, visitor);
+  if (kIsDebugBuild) {
+    Thread::Current()->ModifyDebugDisallowReadBarrier(-1);
+  }
 }
 
 // Process a field.
@@ -1836,7 +1843,7 @@ void ConcurrentCopying::FillWithDummyObject(mirror::Object* dummy_obj, size_t by
   mirror::Class* int_array_class = mirror::IntArray::GetArrayClass();
   CHECK(int_array_class != nullptr);
   AssertToSpaceInvariant(nullptr, MemberOffset(0), int_array_class);
-  size_t component_size = int_array_class->GetComponentSize();
+  size_t component_size = int_array_class->GetComponentSize<kWithoutReadBarrier>();
   CHECK_EQ(component_size, sizeof(int32_t));
   size_t data_offset = mirror::Array::DataOffset(component_size).SizeValue();
   if (data_offset > byte_size) {
@@ -1849,13 +1856,14 @@ void ConcurrentCopying::FillWithDummyObject(mirror::Object* dummy_obj, size_t by
   } else {
     // Use an int array.
     dummy_obj->SetClass(int_array_class);
-    CHECK(dummy_obj->IsArrayInstance());
+    CHECK((dummy_obj->IsArrayInstance<kVerifyNone, kWithoutReadBarrier>()));
     int32_t length = (byte_size - data_offset) / component_size;
-    dummy_obj->AsArray()->SetLength(length);
-    CHECK_EQ(dummy_obj->AsArray()->GetLength(), length)
+    mirror::Array* dummy_arr = dummy_obj->AsArray<kVerifyNone, kWithoutReadBarrier>();
+    dummy_arr->SetLength(length);
+    CHECK_EQ(dummy_arr->GetLength(), length)
         << "byte_size=" << byte_size << " length=" << length
         << " component_size=" << component_size << " data_offset=" << data_offset;
-    CHECK_EQ(byte_size, dummy_obj->SizeOf())
+    CHECK_EQ(byte_size, (dummy_obj->SizeOf<kVerifyNone, kWithoutReadBarrier>()))
         << "byte_size=" << byte_size << " length=" << length
         << " component_size=" << component_size << " data_offset=" << data_offset;
   }
