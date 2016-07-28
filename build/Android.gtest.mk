@@ -414,9 +414,9 @@ LOCAL_SHARED_LIBRARIES := libartd libartd-compiler libdl
 LOCAL_STATIC_LIBRARIES += libgtest
 LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
 LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.gtest.mk
-$(eval $(call set-target-local-clang-vars))
+$(eval LOCAL_CLANG := $(ART_TARGET_CLANG))
 $(eval $(call set-target-local-cflags-vars,debug))
-LOCAL_CLANG_CFLAGS += -Wno-used-but-marked-unused -Wno-deprecated -Wno-missing-noreturn # gtest issue
+LOCAL_CFLAGS += -Wno-used-but-marked-unused -Wno-deprecated -Wno-missing-noreturn # gtest issue
 include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
@@ -432,7 +432,7 @@ LOCAL_STATIC_LIBRARIES := libgtest_host
 LOCAL_LDLIBS += -ldl -lpthread
 LOCAL_MULTILIB := both
 LOCAL_CLANG := $(ART_HOST_CLANG)
-LOCAL_CLANG_CFLAGS += -Wno-used-but-marked-unused -Wno-deprecated -Wno-missing-noreturn  # gtest issue
+LOCAL_CFLAGS += -Wno-used-but-marked-unused -Wno-deprecated -Wno-missing-noreturn  # gtest issue
 LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
 LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.gtest.mk
 include $(BUILD_HOST_SHARED_LIBRARY)
@@ -634,13 +634,13 @@ define define-art-gtest
 
   LOCAL_CFLAGS := $$(ART_TEST_CFLAGS)
   ifeq ($$(art_target_or_host),target)
-    $$(eval $$(call set-target-local-clang-vars))
+    $$(eval LOCAL_CLANG := $$(ART_TARGET_CLANG))
     $$(eval $$(call set-target-local-cflags-vars,debug))
     LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libz libcutils libvixl-arm64
     LOCAL_MODULE_PATH_32 := $$(ART_TARGET_NATIVETEST_OUT)/$$(ART_TARGET_ARCH_32)
     LOCAL_MODULE_PATH_64 := $$(ART_TARGET_NATIVETEST_OUT)/$$(ART_TARGET_ARCH_64)
     LOCAL_MULTILIB := both
-    LOCAL_CLANG_CFLAGS += -Wno-used-but-marked-unused -Wno-deprecated -Wno-missing-noreturn  # gtest issue
+    LOCAL_CFLAGS += -Wno-used-but-marked-unused -Wno-deprecated -Wno-missing-noreturn  # gtest issue
     include $$(BUILD_EXECUTABLE)
     library_path :=
     2nd_library_path :=
@@ -681,12 +681,12 @@ valgrind-test-art-target-gtest-$$(art_gtest_name): $$(ART_TEST_TARGET_VALGRIND_G
     LOCAL_CFLAGS += $$(ART_HOST_CFLAGS) $$(ART_HOST_DEBUG_CFLAGS)
     LOCAL_ASFLAGS += $$(ART_HOST_ASFLAGS) $$(ART_HOST_DEBUG_ASFLAGS)
     LOCAL_SHARED_LIBRARIES += libicuuc-host libicui18n-host libnativehelper libziparchive-host libz-host libvixl-arm64
-    LOCAL_LDLIBS := $(ART_HOST_LDLIBS) -lpthread -ldl
+    LOCAL_LDLIBS := -lpthread -ldl
     LOCAL_IS_HOST_MODULE := true
     LOCAL_MULTILIB := both
     LOCAL_MODULE_STEM_32 := $$(art_gtest_name)32
     LOCAL_MODULE_STEM_64 := $$(art_gtest_name)64
-    LOCAL_CLANG_CFLAGS += -Wno-used-but-marked-unused -Wno-deprecated -Wno-missing-noreturn  # gtest issue
+    LOCAL_CFLAGS += -Wno-used-but-marked-unused -Wno-deprecated -Wno-missing-noreturn  # gtest issue
     include $$(BUILD_HOST_EXECUTABLE)
 
     ART_TEST_HOST_GTEST_$$(art_gtest_name)_RULES :=
