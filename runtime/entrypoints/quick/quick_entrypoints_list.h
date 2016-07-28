@@ -194,8 +194,6 @@
   V(ReadBarrierMarkReg27, mirror::Object*, mirror::Object*) \
   V(ReadBarrierMarkReg28, mirror::Object*, mirror::Object*) \
   V(ReadBarrierMarkReg29, mirror::Object*, mirror::Object*) \
-  V(ReadBarrierMarkReg30, mirror::Object*, mirror::Object*) \
-  V(ReadBarrierMarkReg31, mirror::Object*, mirror::Object*) \
   V(ReadBarrierSlow, mirror::Object*, mirror::Object*, mirror::Object*, uint32_t) \
   V(ReadBarrierForRootSlow, mirror::Object*, GcRoot<mirror::Object>*)
 
