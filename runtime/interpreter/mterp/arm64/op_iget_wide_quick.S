@@ -4,8 +4,7 @@
     GET_VREG w3, w2                     // w3<- object we're operating on
     ubfx    w2, wINST, #8, #4           // w2<- A
     cbz     w3, common_errNullObject    // object was null
-    add     x4, x3, x4                  // create direct pointer
-    ldr     x0, [x4]
+    ldr     x0, [x3, x4]                // x0<- obj.field
     FETCH_ADVANCE_INST 2                // advance rPC, load wINST
     SET_VREG_WIDE x0, w2
     GET_INST_OPCODE ip                  // extract opcode from wINST
