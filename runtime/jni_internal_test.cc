@@ -880,8 +880,15 @@ TEST_F(JniInternalTest, FromReflectedField_ToReflectedField) {
   ASSERT_NE(fid2, nullptr);
   // Make sure we can actually use it.
   jstring s = env_->NewStringUTF("poop");
-  ASSERT_EQ(4, env_->GetIntField(s, fid2));
-
+  if (mirror::kUseStringCompression) {
+    // Negative because s is compressed (first bit is 1)
+    ASSERT_EQ(-2147483644, env_->GetIntField(s, fid2));
+    // Create incompressible string
+    jstring s_16 = env_->NewStringUTF("\u0444\u0444");
+    ASSERT_EQ(2, env_->GetIntField(s_16, fid2));
+  } else {
+    ASSERT_EQ(4, env_->GetIntField(s, fid2));
+  }
   // Bad arguments.
   GetFromReflectedField_ToReflectedFieldBadArgumentTest(false);
   GetFromReflectedField_ToReflectedFieldBadArgumentTest(true);
@@ -1632,13 +1639,28 @@ TEST_F(JniInternalTest, GetStringCritical_ReleaseStringCritical) {
 
   jboolean is_copy = JNI_TRUE;
   chars = env_->GetStringCritical(s, &is_copy);
-  EXPECT_EQ(JNI_FALSE, is_copy);
+  if (mirror::kUseStringCompression) {
+    // is_copy has to be JNI_TRUE because "hello" is all-ASCII
+    EXPECT_EQ(JNI_TRUE, is_copy);
+  } else {
+    EXPECT_EQ(JNI_FALSE, is_copy);
+  }
   EXPECT_EQ(expected[0], chars[0]);
   EXPECT_EQ(expected[1], chars[1]);
   EXPECT_EQ(expected[2], chars[2]);
   EXPECT_EQ(expected[3], chars[3]);
   EXPECT_EQ(expected[4], chars[4]);
   env_->ReleaseStringCritical(s, chars);
+
+  if (mirror::kUseStringCompression) {
+    // is_copy has to be JNI_FALSE because "\xed\xa0\x81\xed\xb0\x80" is incompressible
+    jboolean is_copy_16 = JNI_TRUE;
+    jstring s_16 = env_->NewStringUTF("\xed\xa0\x81\xed\xb0\x80");
+    chars = env_->GetStringCritical(s_16, &is_copy_16);
+    EXPECT_EQ(2, env_->GetStringLength(s_16));
+    EXPECT_EQ(4, env_->GetStringUTFLength(s_16));
+    env_->ReleaseStringCritical(s_16, chars);
+  }
 }
 
 TEST_F(JniInternalTest, GetObjectArrayElement_SetObjectArrayElement) {
