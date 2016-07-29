@@ -93,6 +93,7 @@ class MANAGED LOCKABLE Object {
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   void SetClass(Class* new_klass) SHARED_REQUIRES(Locks::mutator_lock_);
 
+  // TODO: Clean this up and change to return int32_t
   Object* GetReadBarrierPointer() SHARED_REQUIRES(Locks::mutator_lock_);
 
 #ifndef USE_BAKER_OR_BROOKS_READ_BARRIER
@@ -103,6 +104,12 @@ class MANAGED LOCKABLE Object {
   template<bool kCasRelease = false>
   ALWAYS_INLINE bool AtomicSetReadBarrierPointer(Object* expected_rb_ptr, Object* rb_ptr)
       SHARED_REQUIRES(Locks::mutator_lock_);
+
+  ALWAYS_INLINE uint32_t GetMarkBit() SHARED_REQUIRES(Locks::mutator_lock_);
+
+  ALWAYS_INLINE bool AtomicSetMarkBit(uint32_t expected_mark_bit, uint32_t mark_bit)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+
   void AssertReadBarrierPointer() const SHARED_REQUIRES(Locks::mutator_lock_);
 
   // The verifier treats all interfaces as java.lang.Object and relies on runtime checks in

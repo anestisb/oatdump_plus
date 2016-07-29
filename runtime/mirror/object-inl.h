@@ -147,10 +147,21 @@ inline Object* Object::GetReadBarrierPointer() {
 #endif
 }
 
+inline uint32_t Object::GetMarkBit() {
+#ifdef USE_READ_BARRIER
+  DCHECK(kUseBakerReadBarrier);
+  return GetLockWord(false).MarkBitState();
+#else
+  LOG(FATAL) << "Unreachable";
+  UNREACHABLE();
+#endif
+}
+
 inline void Object::SetReadBarrierPointer(Object* rb_ptr) {
 #ifdef USE_BAKER_READ_BARRIER
   DCHECK(kUseBakerReadBarrier);
   DCHECK_EQ(reinterpret_cast<uint64_t>(rb_ptr) >> 32, 0U);
+  DCHECK_NE(rb_ptr, ReadBarrier::BlackPtr()) << "Setting to black is not supported";
   LockWord lw = GetLockWord(false);
   lw.SetReadBarrierState(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(rb_ptr)));
   SetLockWord(lw, false);
@@ -173,6 +184,8 @@ inline bool Object::AtomicSetReadBarrierPointer(Object* expected_rb_ptr, Object*
   DCHECK(kUseBakerReadBarrier);
   DCHECK_EQ(reinterpret_cast<uint64_t>(expected_rb_ptr) >> 32, 0U);
   DCHECK_EQ(reinterpret_cast<uint64_t>(rb_ptr) >> 32, 0U);
+  DCHECK_NE(expected_rb_ptr, ReadBarrier::BlackPtr()) << "Setting to black is not supported";
+  DCHECK_NE(rb_ptr, ReadBarrier::BlackPtr()) << "Setting to black is not supported";
   LockWord expected_lw;
   LockWord new_lw;
   do {
@@ -215,6 +228,24 @@ inline bool Object::AtomicSetReadBarrierPointer(Object* expected_rb_ptr, Object*
   UNREACHABLE();
 #endif
 }
+
+inline bool Object::AtomicSetMarkBit(uint32_t expected_mark_bit, uint32_t mark_bit) {
+  LockWord expected_lw;
+  LockWord new_lw;
+  do {
+    LockWord lw = GetLockWord(false);
+    if (UNLIKELY(lw.MarkBitState() != expected_mark_bit)) {
+      // Lost the race.
+      return false;
+    }
+    expected_lw = lw;
+    new_lw = lw;
+    new_lw.SetMarkBitState(mark_bit);
+    // Since this is only set from the mutator, we can use the non release Cas.
+  } while (!CasLockWordWeakRelaxed(expected_lw, new_lw));
+  return true;
+}
+
 
 inline void Object::AssertReadBarrierPointer() const {
   if (kUseBakerReadBarrier) {
