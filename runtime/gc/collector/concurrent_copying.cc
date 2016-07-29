@@ -520,7 +520,7 @@ class ConcurrentCopying::ImmuneSpaceScanObjVisitor {
   explicit ImmuneSpaceScanObjVisitor(ConcurrentCopying* cc)
       : collector_(cc) {}
 
-  ALWAYS_INLINE void operator()(mirror::Object* obj) const SHARED_REQUIRES(Locks::mutator_lock_) {
+  void operator()(mirror::Object* obj) const SHARED_REQUIRES(Locks::mutator_lock_) {
     if (kUseBakerReadBarrier && kGrayDirtyImmuneObjects) {
       if (obj->GetReadBarrierPointer() == ReadBarrier::GrayPtr()) {
         collector_->ScanImmuneObject(obj);
@@ -532,10 +532,6 @@ class ConcurrentCopying::ImmuneSpaceScanObjVisitor {
     } else {
       collector_->ScanImmuneObject(obj);
     }
-  }
-
-  static void Callback(mirror::Object* obj, void* arg) SHARED_REQUIRES(Locks::mutator_lock_) {
-    reinterpret_cast<ImmuneSpaceScanObjVisitor*>(arg)->operator()(obj);
   }
 
  private:
@@ -562,15 +558,10 @@ void ConcurrentCopying::MarkingPhase() {
     for (auto& space : immune_spaces_.GetSpaces()) {
       DCHECK(space->IsImageSpace() || space->IsZygoteSpace());
       accounting::ContinuousSpaceBitmap* live_bitmap = space->GetLiveBitmap();
-      accounting::ModUnionTable* table = heap_->FindModUnionTableFromSpace(space);
       ImmuneSpaceScanObjVisitor visitor(this);
-      if (table != nullptr) {
-        table->VisitObjects(ImmuneSpaceScanObjVisitor::Callback, &visitor);
-      } else {
-        live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(space->Begin()),
-                                      reinterpret_cast<uintptr_t>(space->Limit()),
-                                      visitor);
-      }
+      live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(space->Begin()),
+                                    reinterpret_cast<uintptr_t>(space->Limit()),
+                                    visitor);
     }
   }
   if (kUseBakerReadBarrier) {
