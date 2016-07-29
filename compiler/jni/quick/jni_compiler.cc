@@ -17,6 +17,7 @@
 #include "jni_compiler.h"
 
 #include <algorithm>
+#include <ios>
 #include <memory>
 #include <vector>
 #include <fstream>
@@ -44,11 +45,14 @@
 #include "utils/mips/managed_register_mips.h"
 #include "utils/mips64/managed_register_mips64.h"
 #include "utils/x86/managed_register_x86.h"
+#include "utils.h"
 #include "thread.h"
 
 #define __ jni_asm->
 
 namespace art {
+
+using JniOptimizationFlags = Compiler::JniOptimizationFlags;
 
 template <PointerSize kPointerSize>
 static void CopyParameter(JNIMacroAssembler<kPointerSize>* jni_asm,
@@ -75,7 +79,8 @@ template <PointerSize kPointerSize>
 static CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
                                                    uint32_t access_flags,
                                                    uint32_t method_idx,
-                                                   const DexFile& dex_file) {
+                                                   const DexFile& dex_file,
+                                                   JniOptimizationFlags optimization_flags) {
   const bool is_native = (access_flags & kAccNative) != 0;
   CHECK(is_native);
   const bool is_static = (access_flags & kAccStatic) != 0;
@@ -83,6 +88,19 @@ static CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));
   InstructionSet instruction_set = driver->GetInstructionSet();
   const InstructionSetFeatures* instruction_set_features = driver->GetInstructionSetFeatures();
+
+  // i.e. if the method was annotated with @FastNative
+  const bool is_fast_native =
+      (static_cast<uint32_t>(optimization_flags) & Compiler::kFastNative) != 0;
+
+  VLOG(jni) << "JniCompile: Method :: "
+              << art::PrettyMethod(method_idx, dex_file, /* with signature */ true)
+              << " :: access_flags = " << std::hex << access_flags << std::dec;
+
+  if (UNLIKELY(is_fast_native)) {
+    VLOG(jni) << "JniCompile: Fast native method detected :: "
+              << art::PrettyMethod(method_idx, dex_file, /* with signature */ true);
+  }
 
   ArenaPool pool;
   ArenaAllocator arena(&pool);
@@ -240,7 +258,10 @@ static CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   ThreadOffset<kPointerSize> jni_start =
       is_synchronized
           ? QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodStartSynchronized)
-          : QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodStart);
+          : (is_fast_native
+                 ? QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodFastStart)
+                 : QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodStart));
+
   main_jni_conv->ResetIterator(FrameOffset(main_out_arg_size));
   FrameOffset locked_object_handle_scope_offset(0);
   if (is_synchronized) {
@@ -385,6 +406,7 @@ static CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   }
   //     thread.
   end_jni_conv->ResetIterator(FrameOffset(end_out_arg_size));
+
   ThreadOffset<kPointerSize> jni_end(-1);
   if (reference_return) {
     // Pass result.
@@ -396,7 +418,9 @@ static CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   } else {
     jni_end = is_synchronized
                   ? QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodEndSynchronized)
-                  : QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodEnd);
+                  : (is_fast_native
+                         ? QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodFastEnd)
+                         : QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodEnd));
   }
   // Pass saved local reference state.
   if (end_jni_conv->IsCurrentParamOnStack()) {
@@ -573,14 +597,17 @@ static void SetNativeParameter(JNIMacroAssembler<kPointerSize>* jni_asm,
   }
 }
 
-CompiledMethod* ArtQuickJniCompileMethod(CompilerDriver* compiler, uint32_t access_flags,
-                                         uint32_t method_idx, const DexFile& dex_file) {
+CompiledMethod* ArtQuickJniCompileMethod(CompilerDriver* compiler,
+                                         uint32_t access_flags,
+                                         uint32_t method_idx,
+                                         const DexFile& dex_file,
+                                         Compiler::JniOptimizationFlags optimization_flags) {
   if (Is64BitInstructionSet(compiler->GetInstructionSet())) {
     return ArtJniCompileMethodInternal<PointerSize::k64>(
-        compiler, access_flags, method_idx, dex_file);
+        compiler, access_flags, method_idx, dex_file, optimization_flags);
   } else {
     return ArtJniCompileMethodInternal<PointerSize::k32>(
-        compiler, access_flags, method_idx, dex_file);
+        compiler, access_flags, method_idx, dex_file, optimization_flags);
   }
 }
 

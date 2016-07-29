@@ -27,11 +27,18 @@ namespace art {
 
 static JavaVM* jvm = nullptr;
 
+static jint Java_Main_intFastNativeMethod(JNIEnv*, jclass, jint a, jint b, jint c);
+
+static JNINativeMethod sMainMethods[] = {
+  {"intFastNativeMethod", "(III)I", reinterpret_cast<void*>(Java_Main_intFastNativeMethod) }
+};
+
 extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void*) {
   CHECK(vm != nullptr);
   CHECK(jvm == nullptr);
   jvm = vm;
   std::cout << "JNI_OnLoad called" << std::endl;
+
   return JNI_VERSION_1_6;
 }
 
@@ -738,6 +745,25 @@ extern "C" JNIEXPORT void JNICALL Java_Main_testInvokeLambdaDefaultMethod(
 
 extern "C" JNIEXPORT void JNICALL Java_Main_testInvokeLambdaMethod(JNIEnv* e, jclass, jobject l) {
   InvokeSpecificMethod(e, l, "sayHi");
+}
+
+// Register on-demand because many tests share this JNI library and
+// we can't unconditionally register them.
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_registerNativesJniTest(JNIEnv* e, jclass kls) {
+  const size_t numMethods = sizeof(sMainMethods)/sizeof(JNINativeMethod);
+
+  if (e->RegisterNatives(kls, sMainMethods, numMethods) < 0) {
+      std::cerr << "RegisterNatives failed for 'Main'" << std::endl;
+      return JNI_FALSE;
+  }
+
+  return JNI_TRUE;
+}
+
+// Annotated with @FastNative in Java code. Doesn't need to be explicitly registered with "!".
+// NOTE: Has to be registered explicitly to avoid mutator lock check failures.
+static jint Java_Main_intFastNativeMethod(JNIEnv*, jclass, jint a, jint b, jint c) {
+  return a + b + c;
 }
 
 }  // namespace art

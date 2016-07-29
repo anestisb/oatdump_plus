@@ -960,7 +960,9 @@ class DexFile {
       SHARED_REQUIRES(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::String>* GetSignatureAnnotationForMethod(ArtMethod* method) const
       SHARED_REQUIRES(Locks::mutator_lock_);
-  bool IsMethodAnnotationPresent(ArtMethod* method, Handle<mirror::Class> annotation_class) const
+  bool IsMethodAnnotationPresent(ArtMethod* method,
+                                 Handle<mirror::Class> annotation_class,
+                                 uint32_t visibility = kDexVisibilityRuntime) const
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   const AnnotationSetItem* FindAnnotationSetForClass(Handle<mirror::Class> klass) const

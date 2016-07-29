@@ -175,6 +175,9 @@ class JniCompilerTest : public CommonCompilerTest {
   void StackArgsMixedImpl();
   void StackArgsSignExtendedMips64Impl();
 
+  void NormalNativeImpl();
+  void FastNativeImpl();
+
   JNIEnv* env_;
   jstring library_search_path_;
   jmethodID jmethod_;
@@ -1771,5 +1774,45 @@ void JniCompilerTest::StackArgsSignExtendedMips64Impl() {
 }
 
 JNI_TEST(StackArgsSignExtendedMips64)
+
+void Java_MyClassNatives_normalNative(JNIEnv*, jclass) {
+  // Intentionally left empty.
+}
+
+// Methods not annotated with anything are not considered "fast native"
+// -- Check that the annotation lookup does not find it.
+void JniCompilerTest::NormalNativeImpl() {
+  SetUpForTest(/* direct */ true,
+               "normalNative",
+               "()V",
+               reinterpret_cast<void*>(&Java_MyClassNatives_normalNative));
+
+  ScopedObjectAccess soa(Thread::Current());
+  ArtMethod* method = soa.DecodeMethod(jmethod_);
+  ASSERT_TRUE(method != nullptr);
+
+  EXPECT_FALSE(method->IsAnnotatedWithFastNative());
+}
+JNI_TEST(NormalNative)
+
+// Methods annotated with @FastNative are considered "fast native"
+// -- Check that the annotation lookup succeeds.
+void Java_MyClassNatives_fastNative(JNIEnv*, jclass) {
+  // Intentionally left empty.
+}
+
+void JniCompilerTest::FastNativeImpl() {
+  SetUpForTest(/* direct */ true,
+               "fastNative",
+               "()V",
+               reinterpret_cast<void*>(&Java_MyClassNatives_fastNative));
+
+  ScopedObjectAccess soa(Thread::Current());
+  ArtMethod* method = soa.DecodeMethod(jmethod_);
+  ASSERT_TRUE(method != nullptr);
+
+  EXPECT_TRUE(method->IsAnnotatedWithFastNative());
+}
+JNI_TEST(FastNative)
 
 }  // namespace art
