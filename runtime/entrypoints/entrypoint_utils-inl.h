@@ -148,6 +148,11 @@ inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
       *slow_path = true;
       return nullptr;  // Failure
     }
+    if (UNLIKELY(klass->IsClassClass())) {
+      ThrowIllegalAccessError(nullptr, "Class %s is inaccessible", PrettyDescriptor(klass).c_str());
+      *slow_path = true;
+      return nullptr;  // Failure
+    }
     mirror::Class* referrer = method->GetDeclaringClass();
     if (UNLIKELY(!referrer->CanAccess(klass))) {
       ThrowIllegalAccessErrorClass(referrer, klass);
