@@ -17,4 +17,7 @@ dexfuzz on the DEX files of fuzzingly random generated Java test.
     later on
 (E) b/29068831:
     access validation on method should occur prior to null reference check
+(F) b/29758098:
+    new-instance of java.lang.Class should throw an IllegalAccessError to
+    avoid interpreter crash on zero size object later
 

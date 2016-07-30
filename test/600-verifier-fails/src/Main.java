@@ -39,5 +39,6 @@ public class Main {
     test("C");
     test("D");
     test("E");
+    test("F");
   }
 }
