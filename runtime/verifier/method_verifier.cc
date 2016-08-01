@@ -4562,10 +4562,10 @@ ArtField* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_id
                                       << "non-reference type " << obj_type;
     return nullptr;
   } else {
+    std::string temp;
     mirror::Class* klass = field->GetDeclaringClass();
     const RegType& field_klass =
-        FromClass(dex_file_->GetFieldDeclaringClassDescriptor(field_id),
-                  klass, klass->CannotBeAssignedFromOtherTypes());
+        FromClass(klass->GetDescriptor(&temp), klass, klass->CannotBeAssignedFromOtherTypes());
     if (obj_type.IsUninitializedTypes()) {
       // Field accesses through uninitialized references are only allowable for constructors where
       // the field is declared in this class.
