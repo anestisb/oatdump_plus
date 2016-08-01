@@ -1,0 +1,15 @@
+{
+global:
+  ClaimSignalChain;
+  UnclaimSignalChain;
+  InvokeUserSignalHandler;
+  InitializeSignalChain;
+  EnsureFrontOfChain;
+  SetSpecialSignalHandlerFn;
+  bsd_signal;
+  sigaction;
+  signal;
+  sigprocmask;
+local:
+  *;
+};
