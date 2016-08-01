@@ -322,10 +322,22 @@ TEST_F(AssemblerX86Test, RollImm) {
   DriverStr(RepeatRI(&x86::X86Assembler::roll, 1U, "roll ${imm}, %{reg}"), "rolli");
 }
 
+TEST_F(AssemblerX86Test, ComissAddr) {
+  GetAssembler()->comiss(x86::XmmRegister(x86::XMM0), x86::Address(x86::EAX, 0));
+  const char* expected = "comiss 0(%EAX), %xmm0\n";
+  DriverStr(expected, "comiss");
+}
+
 TEST_F(AssemblerX86Test, UComissAddr) {
   GetAssembler()->ucomiss(x86::XmmRegister(x86::XMM0), x86::Address(x86::EAX, 0));
   const char* expected = "ucomiss 0(%EAX), %xmm0\n";
   DriverStr(expected, "ucomiss");
+}
+
+TEST_F(AssemblerX86Test, ComisdAddr) {
+  GetAssembler()->comisd(x86::XmmRegister(x86::XMM0), x86::Address(x86::EAX, 0));
+  const char* expected = "comisd 0(%EAX), %xmm0\n";
+  DriverStr(expected, "comisd");
 }
 
 TEST_F(AssemblerX86Test, UComisdAddr) {
