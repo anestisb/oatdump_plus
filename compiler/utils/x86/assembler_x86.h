@@ -423,7 +423,9 @@ class X86Assembler FINAL : public Assembler {
   void cvtdq2pd(XmmRegister dst, XmmRegister src);
 
   void comiss(XmmRegister a, XmmRegister b);
+  void comiss(XmmRegister a, const Address& b);
   void comisd(XmmRegister a, XmmRegister b);
+  void comisd(XmmRegister a, const Address& b);
   void ucomiss(XmmRegister a, XmmRegister b);
   void ucomiss(XmmRegister a, const Address& b);
   void ucomisd(XmmRegister a, XmmRegister b);
