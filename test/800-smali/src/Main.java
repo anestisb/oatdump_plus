@@ -180,6 +180,7 @@ public class Main {
                 new IncompatibleClassChangeError(), null));
         testCases.add(new TestCase("b/29778499 (2)", "B29778499_2", "run", null,
                 new IncompatibleClassChangeError(), null));
+        testCases.add(new TestCase("b/30458218", "B30458218", "run", null, null, null));
     }
 
     public void runTests() {
