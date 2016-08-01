@@ -45,7 +45,7 @@ define build-libartbenchmark
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
   ifeq ($$(art_target_or_host),target)
-    $(call set-target-local-clang-vars)
+    LOCAL_CLANG := $(ART_TARGET_CLANG)
     $(call set-target-local-cflags-vars,debug)
     LOCAL_SHARED_LIBRARIES += libdl
     LOCAL_MULTILIB := both
@@ -57,7 +57,7 @@ define build-libartbenchmark
     LOCAL_CLANG := $(ART_HOST_CLANG)
     LOCAL_CFLAGS := $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
     LOCAL_ASFLAGS := $(ART_HOST_ASFLAGS) $(ART_HOST_DEBUG_ASFLAGS)
-    LOCAL_LDLIBS := $(ART_HOST_LDLIBS) -ldl -lpthread
+    LOCAL_LDLIBS := -ldl -lpthread
     LOCAL_IS_HOST_MODULE := true
     LOCAL_MULTILIB := both
     include $(BUILD_HOST_SHARED_LIBRARY)

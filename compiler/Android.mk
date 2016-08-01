@@ -252,13 +252,12 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
 
   LOCAL_CFLAGS := $$(LIBART_COMPILER_CFLAGS)
   ifeq ($$(art_target_or_host),target)
-    $(call set-target-local-clang-vars)
+    LOCAL_CLANG := $(ART_TARGET_CLANG)
     $(call set-target-local-cflags-vars,$(2))
   else # host
     LOCAL_CLANG := $(ART_HOST_CLANG)
     LOCAL_CFLAGS += $(ART_HOST_CFLAGS)
     LOCAL_ASFLAGS += $(ART_HOST_ASFLAGS)
-    LOCAL_LDLIBS := $(ART_HOST_LDLIBS)
     ifeq ($$(art_static_or_shared),static)
       LOCAL_LDFLAGS += -static
     endif

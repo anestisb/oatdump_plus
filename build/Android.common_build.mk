@@ -81,115 +81,8 @@ endif
 ART_DEFAULT_GC_TYPE ?= CMS
 art_default_gc_type_cflags := -DART_DEFAULT_GC_TYPE_IS_$(ART_DEFAULT_GC_TYPE)
 
-ART_HOST_CFLAGS :=
-ART_TARGET_CFLAGS :=
-
-ART_HOST_ASFLAGS :=
-ART_TARGET_ASFLAGS :=
-
-# Clang build support.
-
-# Host.
-ART_HOST_CLANG := false
-ifneq ($(WITHOUT_HOST_CLANG),true)
-  # By default, host builds use clang for better warnings.
-  ART_HOST_CLANG := true
-endif
-
-# Clang on the target. Target builds use GCC by default.
-ifneq ($(USE_CLANG_PLATFORM_BUILD),)
-ART_TARGET_CLANG := $(USE_CLANG_PLATFORM_BUILD)
-else
-ART_TARGET_CLANG := false
-endif
-ART_TARGET_CLANG_arm :=
-ART_TARGET_CLANG_arm64 :=
-ART_TARGET_CLANG_mips :=
-ART_TARGET_CLANG_mips64 :=
-ART_TARGET_CLANG_x86 :=
-ART_TARGET_CLANG_x86_64 :=
-
-define set-target-local-clang-vars
-    LOCAL_CLANG := $(ART_TARGET_CLANG)
-    $(foreach arch,$(ART_TARGET_SUPPORTED_ARCH),
-      ifneq ($$(ART_TARGET_CLANG_$(arch)),)
-        LOCAL_CLANG_$(arch) := $$(ART_TARGET_CLANG_$(arch))
-      endif)
-endef
-
-ART_TARGET_CLANG_CFLAGS :=
-ART_TARGET_CLANG_CFLAGS_arm :=
-ART_TARGET_CLANG_CFLAGS_arm64 :=
-ART_TARGET_CLANG_CFLAGS_mips :=
-ART_TARGET_CLANG_CFLAGS_mips64 :=
-ART_TARGET_CLANG_CFLAGS_x86 :=
-ART_TARGET_CLANG_CFLAGS_x86_64 :=
-
-# Warn about thread safety violations with clang.
-art_clang_cflags := -Wthread-safety -Wthread-safety-negative
-
-# Warn if switch fallthroughs aren't annotated.
-art_clang_cflags += -Wimplicit-fallthrough
-
-# Enable float equality warnings.
-art_clang_cflags += -Wfloat-equal
-
-# Enable warning of converting ints to void*.
-art_clang_cflags += -Wint-to-void-pointer-cast
-
-# Enable warning of wrong unused annotations.
-art_clang_cflags += -Wused-but-marked-unused
-
-# Enable warning for deprecated language features.
-art_clang_cflags += -Wdeprecated
-
-# Enable warning for unreachable break & return.
-art_clang_cflags += -Wunreachable-code-break -Wunreachable-code-return
-
-# Bug: http://b/29823425  Disable -Wconstant-conversion and
-# -Wundefined-var-template for Clang update to r271374
-art_clang_cflags += -Wno-constant-conversion -Wno-undefined-var-template
-
-# Enable missing-noreturn only on non-Mac. As lots of things are not implemented for Apple, it's
-# a pain.
-ifneq ($(HOST_OS),darwin)
-  art_clang_cflags += -Wmissing-noreturn
-endif
-
-
-# GCC-only warnings.
-art_gcc_cflags := -Wunused-but-set-parameter
-# Suggest const: too many false positives, but good for a trial run.
-#                  -Wsuggest-attribute=const
-# Useless casts: too many, as we need to be 32/64 agnostic, but the compiler knows.
-#                  -Wuseless-cast
-# Zero-as-null: Have to convert all NULL and "diagnostic ignore" all includes like libnativehelper
-# that are still stuck pre-C++11.
-#                  -Wzero-as-null-pointer-constant \
-# Suggest final: Have to move to a more recent GCC.
-#                  -Wsuggest-final-types
-
-ART_TARGET_CLANG_CFLAGS := $(art_clang_cflags)
-ifeq ($(ART_HOST_CLANG),true)
-  # Bug: 15446488. We don't omit the frame pointer to work around
-  # clang/libunwind bugs that cause SEGVs in run-test-004-ThreadStress.
-  ART_HOST_CFLAGS += $(art_clang_cflags) -fno-omit-frame-pointer
-else
-  ART_HOST_CFLAGS += $(art_gcc_cflags)
-endif
-ifneq ($(ART_TARGET_CLANG),true)
-  ART_TARGET_CFLAGS += $(art_gcc_cflags)
-else
-  # TODO: if we ever want to support GCC/Clang mix for multi-target products, this needs to be
-  #       split up.
-  ifeq ($(ART_TARGET_CLANG_$(TARGET_ARCH)),false)
-    ART_TARGET_CFLAGS += $(art_gcc_cflags)
-  endif
-endif
-
-# Clear local variables now their use has ended.
-art_clang_cflags :=
-art_gcc_cflags :=
+ART_HOST_CLANG := true
+ART_TARGET_CLANG := true
 
 ART_CPP_EXTENSION := .cc
 
@@ -207,8 +100,41 @@ ART_C_INCLUDES := \
 # Note: technically we only need this on device, but this avoids the duplication of the includes.
 ART_C_INCLUDES += bionic/libc/private
 
+art_cflags :=
+
+# Warn about thread safety violations with clang.
+art_cflags += -Wthread-safety -Wthread-safety-negative
+
+# Warn if switch fallthroughs aren't annotated.
+art_cflags += -Wimplicit-fallthrough
+
+# Enable float equality warnings.
+art_cflags += -Wfloat-equal
+
+# Enable warning of converting ints to void*.
+art_cflags += -Wint-to-void-pointer-cast
+
+# Enable warning of wrong unused annotations.
+art_cflags += -Wused-but-marked-unused
+
+# Enable warning for deprecated language features.
+art_cflags += -Wdeprecated
+
+# Enable warning for unreachable break & return.
+art_cflags += -Wunreachable-code-break -Wunreachable-code-return
+
+# Bug: http://b/29823425  Disable -Wconstant-conversion and
+# -Wundefined-var-template for Clang update to r271374
+art_cflags += -Wno-constant-conversion -Wno-undefined-var-template
+
+# Enable missing-noreturn only on non-Mac. As lots of things are not implemented for Apple, it's
+# a pain.
+ifneq ($(HOST_OS),darwin)
+  art_cflags += -Wmissing-noreturn
+endif
+
 # Base set of cflags used by all things ART.
-art_cflags := \
+art_cflags += \
   -fno-rtti \
   -std=gnu++11 \
   -ggdb3 \
@@ -351,18 +277,27 @@ ifeq ($(HOST_OS),linux)
   endif
 endif
 
+ART_HOST_CFLAGS := $(art_cflags)
+ART_TARGET_CFLAGS := $(art_cflags)
+
+ART_HOST_ASFLAGS := $(art_asflags)
+ART_TARGET_ASFLAGS := $(art_asflags)
+
+# Bug: 15446488. We don't omit the frame pointer to work around
+# clang/libunwind bugs that cause SEGVs in run-test-004-ThreadStress.
+ART_HOST_CFLAGS += -fno-omit-frame-pointer
+
 ifndef LIBART_IMG_HOST_BASE_ADDRESS
   $(error LIBART_IMG_HOST_BASE_ADDRESS unset)
 endif
-ART_HOST_CFLAGS += $(art_cflags) -DART_BASE_ADDRESS=$(LIBART_IMG_HOST_BASE_ADDRESS)
+ART_HOST_CFLAGS += -DART_BASE_ADDRESS=$(LIBART_IMG_HOST_BASE_ADDRESS)
 ART_HOST_CFLAGS += -DART_DEFAULT_INSTRUCTION_SET_FEATURES=default $(art_host_cflags)
-ART_HOST_ASFLAGS += $(art_asflags)
 
 ifndef LIBART_IMG_TARGET_BASE_ADDRESS
   $(error LIBART_IMG_TARGET_BASE_ADDRESS unset)
 endif
 
-ART_TARGET_CFLAGS += $(art_cflags) -DART_TARGET \
+ART_TARGET_CFLAGS += -DART_TARGET \
                      -DART_BASE_ADDRESS=$(LIBART_IMG_TARGET_BASE_ADDRESS) \
 
 ifeq ($(ART_TARGET_LINUX),true)
@@ -377,7 +312,6 @@ ART_TARGET_CFLAGS += -DART_TARGET_ANDROID
 endif
 
 ART_TARGET_CFLAGS += $(art_target_cflags)
-ART_TARGET_ASFLAGS += $(art_asflags)
 
 ART_HOST_NON_DEBUG_CFLAGS := $(art_host_non_debug_cflags)
 ART_TARGET_NON_DEBUG_CFLAGS := $(art_target_non_debug_cflags)
@@ -423,18 +357,11 @@ art_host_non_debug_cflags :=
 art_target_non_debug_cflags :=
 art_default_gc_type_cflags :=
 
-ART_HOST_LDLIBS :=
-ifneq ($(ART_HOST_CLANG),true)
-  # GCC lacks libc++ assumed atomic operations, grab via libatomic.
-  ART_HOST_LDLIBS += -latomic
-endif
-
 ART_TARGET_LDFLAGS :=
 
 # $(1): ndebug_or_debug
 define set-target-local-cflags-vars
   LOCAL_CFLAGS += $(ART_TARGET_CFLAGS)
-  LOCAL_CFLAGS_x86 += $(ART_TARGET_CFLAGS_x86)
   LOCAL_ASFLAGS += $(ART_TARGET_ASFLAGS)
   LOCAL_LDFLAGS += $(ART_TARGET_LDFLAGS)
   art_target_cflags_ndebug_or_debug := $(1)
@@ -445,10 +372,6 @@ define set-target-local-cflags-vars
     LOCAL_CFLAGS += $(ART_TARGET_NON_DEBUG_CFLAGS)
     LOCAL_ASFLAGS += $(ART_TARGET_NON_DEBUG_ASFLAGS)
   endif
-
-  LOCAL_CLANG_CFLAGS := $(ART_TARGET_CLANG_CFLAGS)
-  $(foreach arch,$(ART_TARGET_SUPPORTED_ARCH),
-    LOCAL_CLANG_CFLAGS_$(arch) += $$(ART_TARGET_CLANG_CFLAGS_$(arch)))
 
   # Clear locally used variables.
   art_target_cflags_ndebug_or_debug :=
