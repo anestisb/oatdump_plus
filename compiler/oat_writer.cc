@@ -86,6 +86,13 @@ class ChecksumUpdatingOutputStream : public OutputStream {
   OatHeader* const oat_header_;
 };
 
+inline uint32_t CodeAlignmentSize(uint32_t header_offset, const CompiledMethod& compiled_method) {
+  // We want to align the code rather than the preheader.
+  uint32_t unaligned_code_offset = header_offset + sizeof(OatQuickMethodHeader);
+  uint32_t aligned_code_offset =  compiled_method.AlignCode(unaligned_code_offset);
+  return aligned_code_offset - unaligned_code_offset;
+}
+
 }  // anonymous namespace
 
 // Defines the location of the raw dex file to write.
@@ -816,8 +823,8 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
                               uint32_t thumb_offset) {
     offset_ = writer_->relative_patcher_->ReserveSpace(
         offset_, compiled_method, MethodReference(dex_file_, it.GetMemberIndex()));
-    offset_ = compiled_method->AlignCode(offset_);
-    DCHECK_ALIGNED_PARAM(offset_,
+    offset_ += CodeAlignmentSize(offset_, *compiled_method);
+    DCHECK_ALIGNED_PARAM(offset_ + sizeof(OatQuickMethodHeader),
                          GetInstructionSetAlignment(compiled_method->GetInstructionSet()));
     return offset_ + sizeof(OatQuickMethodHeader) + thumb_offset;
   }
@@ -1010,17 +1017,16 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
           ReportWriteFailure("relative call thunk", it);
           return false;
         }
-        uint32_t aligned_offset = compiled_method->AlignCode(offset_);
-        uint32_t aligned_code_delta = aligned_offset - offset_;
-        if (aligned_code_delta != 0) {
-          if (!writer_->WriteCodeAlignment(out, aligned_code_delta)) {
+        uint32_t alignment_size = CodeAlignmentSize(offset_, *compiled_method);
+        if (alignment_size != 0) {
+          if (!writer_->WriteCodeAlignment(out, alignment_size)) {
             ReportWriteFailure("code alignment padding", it);
             return false;
           }
-          offset_ += aligned_code_delta;
+          offset_ += alignment_size;
           DCHECK_OFFSET_();
         }
-        DCHECK_ALIGNED_PARAM(offset_,
+        DCHECK_ALIGNED_PARAM(offset_ + sizeof(OatQuickMethodHeader),
                              GetInstructionSetAlignment(compiled_method->GetInstructionSet()));
         DCHECK_EQ(method_offsets.code_offset_,
                   offset_ + sizeof(OatQuickMethodHeader) + compiled_method->CodeDelta())
