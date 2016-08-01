@@ -1289,6 +1289,44 @@ void LocationsBuilderARM::VisitExit(HExit* exit) {
 void InstructionCodeGeneratorARM::VisitExit(HExit* exit ATTRIBUTE_UNUSED) {
 }
 
+void InstructionCodeGeneratorARM::GenerateVcmp(HInstruction* instruction) {
+  Primitive::Type type = instruction->InputAt(0)->GetType();
+  Location lhs_loc = instruction->GetLocations()->InAt(0);
+  Location rhs_loc = instruction->GetLocations()->InAt(1);
+  if (rhs_loc.IsConstant()) {
+    // 0.0 is the only immediate that can be encoded directly in
+    // a VCMP instruction.
+    //
+    // Both the JLS (section 15.20.1) and the JVMS (section 6.5)
+    // specify that in a floating-point comparison, positive zero
+    // and negative zero are considered equal, so we can use the
+    // literal 0.0 for both cases here.
+    //
+    // Note however that some methods (Float.equal, Float.compare,
+    // Float.compareTo, Double.equal, Double.compare,
+    // Double.compareTo, Math.max, Math.min, StrictMath.max,
+    // StrictMath.min) consider 0.0 to be (strictly) greater than
+    // -0.0. So if we ever translate calls to these methods into a
+    // HCompare instruction, we must handle the -0.0 case with
+    // care here.
+    DCHECK(rhs_loc.GetConstant()->IsArithmeticZero());
+    if (type == Primitive::kPrimFloat) {
+      __ vcmpsz(lhs_loc.AsFpuRegister<SRegister>());
+    } else {
+      DCHECK_EQ(type, Primitive::kPrimDouble);
+      __ vcmpdz(FromLowSToD(lhs_loc.AsFpuRegisterPairLow<SRegister>()));
+    }
+  } else {
+    if (type == Primitive::kPrimFloat) {
+      __ vcmps(lhs_loc.AsFpuRegister<SRegister>(), rhs_loc.AsFpuRegister<SRegister>());
+    } else {
+      DCHECK_EQ(type, Primitive::kPrimDouble);
+      __ vcmpd(FromLowSToD(lhs_loc.AsFpuRegisterPairLow<SRegister>()),
+               FromLowSToD(rhs_loc.AsFpuRegisterPairLow<SRegister>()));
+    }
+  }
+}
+
 void InstructionCodeGeneratorARM::GenerateFPJumps(HCondition* cond,
                                                   Label* true_label,
                                                   Label* false_label ATTRIBUTE_UNUSED) {
@@ -1389,22 +1427,14 @@ void InstructionCodeGeneratorARM::GenerateCompareTestAndBranch(HCondition* condi
   Label* true_target = true_target_in == nullptr ? &fallthrough_target : true_target_in;
   Label* false_target = false_target_in == nullptr ? &fallthrough_target : false_target_in;
 
-  LocationSummary* locations = condition->GetLocations();
-  Location left = locations->InAt(0);
-  Location right = locations->InAt(1);
-
   Primitive::Type type = condition->InputAt(0)->GetType();
   switch (type) {
     case Primitive::kPrimLong:
       GenerateLongComparesAndJumps(condition, true_target, false_target);
       break;
     case Primitive::kPrimFloat:
-      __ vcmps(left.AsFpuRegister<SRegister>(), right.AsFpuRegister<SRegister>());
-      GenerateFPJumps(condition, true_target, false_target);
-      break;
     case Primitive::kPrimDouble:
-      __ vcmpd(FromLowSToD(left.AsFpuRegisterPairLow<SRegister>()),
-               FromLowSToD(right.AsFpuRegisterPairLow<SRegister>()));
+      GenerateVcmp(condition);
       GenerateFPJumps(condition, true_target, false_target);
       break;
     default:
@@ -1585,7 +1615,7 @@ void LocationsBuilderARM::HandleCondition(HCondition* cond) {
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
       locations->SetInAt(0, Location::RequiresFpuRegister());
-      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetInAt(1, ArithmeticZeroOrFpuRegister(cond->InputAt(1)));
       if (!cond->IsEmittedAtUseSite()) {
         locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       }
@@ -1632,12 +1662,8 @@ void InstructionCodeGeneratorARM::HandleCondition(HCondition* cond) {
       GenerateLongComparesAndJumps(cond, &true_label, &false_label);
       break;
     case Primitive::kPrimFloat:
-      __ vcmps(left.AsFpuRegister<SRegister>(), right.AsFpuRegister<SRegister>());
-      GenerateFPJumps(cond, &true_label, &false_label);
-      break;
     case Primitive::kPrimDouble:
-      __ vcmpd(FromLowSToD(left.AsFpuRegisterPairLow<SRegister>()),
-               FromLowSToD(right.AsFpuRegisterPairLow<SRegister>()));
+      GenerateVcmp(cond);
       GenerateFPJumps(cond, &true_label, &false_label);
       break;
   }
@@ -3654,7 +3680,7 @@ void LocationsBuilderARM::VisitCompare(HCompare* compare) {
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
       locations->SetInAt(0, Location::RequiresFpuRegister());
-      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetInAt(1, ArithmeticZeroOrFpuRegister(compare->InputAt(1)));
       locations->SetOut(Location::RequiresRegister());
       break;
     }
@@ -3699,12 +3725,7 @@ void InstructionCodeGeneratorARM::VisitCompare(HCompare* compare) {
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
       __ LoadImmediate(out, 0);
-      if (type == Primitive::kPrimFloat) {
-        __ vcmps(left.AsFpuRegister<SRegister>(), right.AsFpuRegister<SRegister>());
-      } else {
-        __ vcmpd(FromLowSToD(left.AsFpuRegisterPairLow<SRegister>()),
-                 FromLowSToD(right.AsFpuRegisterPairLow<SRegister>()));
-      }
+      GenerateVcmp(compare);
       __ vmstat();  // transfer FP status register to ARM APSR.
       less_cond = ARMFPCondition(kCondLT, compare->IsGtBias());
       break;
@@ -3995,6 +4016,17 @@ void LocationsBuilderARM::HandleFieldGet(HInstruction* instruction, const FieldI
     // We need a temporary register for the read barrier marking slow
     // path in CodeGeneratorARM::GenerateFieldLoadWithBakerReadBarrier.
     locations->AddTemp(Location::RequiresRegister());
+  }
+}
+
+Location LocationsBuilderARM::ArithmeticZeroOrFpuRegister(HInstruction* input) {
+  DCHECK(input->GetType() == Primitive::kPrimDouble || input->GetType() == Primitive::kPrimFloat)
+      << input->GetType();
+  if ((input->IsFloatConstant() && (input->AsFloatConstant()->IsArithmeticZero())) ||
+      (input->IsDoubleConstant() && (input->AsDoubleConstant()->IsArithmeticZero()))) {
+    return Location::ConstantLocation(input->AsConstant());
+  } else {
+    return Location::RequiresFpuRegister();
   }
 }
 
