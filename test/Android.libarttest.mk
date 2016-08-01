@@ -86,7 +86,7 @@ define build-libarttest
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.libarttest.mk
   ifeq ($$(art_target_or_host),target)
-    $(call set-target-local-clang-vars)
+    LOCAL_CLANG := $(ART_TARGET_CLANG)
     ifeq ($$(suffix),d)
       $(call set-target-local-cflags-vars,debug)
     else
@@ -109,7 +109,7 @@ define build-libarttest
       LOCAL_CFLAGS += $(ART_HOST_NON_DEBUG_CFLAGS)
       LOCAL_ASFLAGS += $(ART_HOST_NON_DEBUG_ASFLAGS)
     endif
-    LOCAL_LDLIBS := $(ART_HOST_LDLIBS) -ldl -lpthread
+    LOCAL_LDLIBS := -ldl -lpthread
     LOCAL_IS_HOST_MODULE := true
     LOCAL_MULTILIB := both
     include $(BUILD_HOST_SHARED_LIBRARY)
