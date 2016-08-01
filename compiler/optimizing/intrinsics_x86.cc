@@ -752,20 +752,20 @@ void IntrinsicCodeGeneratorX86::VisitMathRint(HInvoke* invoke) {
   GenSSE41FPToFPIntrinsic(codegen_, invoke, GetAssembler(), 0);
 }
 
-// Note that 32 bit x86 doesn't have the capability to inline MathRoundDouble,
-// as it needs 64 bit instructions.
 void IntrinsicLocationsBuilderX86::VisitMathRoundFloat(HInvoke* invoke) {
-  // See intrinsics.h.
-  if (!kRoundIsPlusPointFive) {
-    return;
-  }
-
   // Do we have instruction support?
   if (codegen_->GetInstructionSetFeatures().HasSSE4_1()) {
+    HInvokeStaticOrDirect* static_or_direct = invoke->AsInvokeStaticOrDirect();
+    DCHECK(static_or_direct != nullptr);
     LocationSummary* locations = new (arena_) LocationSummary(invoke,
                                                               LocationSummary::kNoCall,
                                                               kIntrinsified);
     locations->SetInAt(0, Location::RequiresFpuRegister());
+    if (static_or_direct->HasSpecialInput() &&
+        invoke->InputAt(
+            static_or_direct->GetSpecialInputIndex())->IsX86ComputeBaseMethodAddress()) {
+      locations->SetInAt(1, Location::RequiresRegister());
+    }
     locations->SetOut(Location::RequiresRegister());
     locations->AddTemp(Location::RequiresFpuRegister());
     locations->AddTemp(Location::RequiresFpuRegister());
@@ -774,7 +774,7 @@ void IntrinsicLocationsBuilderX86::VisitMathRoundFloat(HInvoke* invoke) {
 
   // We have to fall back to a call to the intrinsic.
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                           LocationSummary::kCallOnMainOnly);
+                                                            LocationSummary::kCallOnMainOnly);
   InvokeRuntimeCallingConvention calling_convention;
   locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetFpuRegisterAt(0)));
   locations->SetOut(Location::RegisterLocation(EAX));
@@ -784,47 +784,42 @@ void IntrinsicLocationsBuilderX86::VisitMathRoundFloat(HInvoke* invoke) {
 
 void IntrinsicCodeGeneratorX86::VisitMathRoundFloat(HInvoke* invoke) {
   LocationSummary* locations = invoke->GetLocations();
-  if (locations->WillCall()) {
+  if (locations->WillCall()) {  // TODO: can we reach this?
     InvokeOutOfLineIntrinsic(codegen_, invoke);
     return;
   }
 
-  // Implement RoundFloat as t1 = floor(input + 0.5f);  convert to int.
   XmmRegister in = locations->InAt(0).AsFpuRegister<XmmRegister>();
+  Register constant_area = locations->InAt(1).AsRegister<Register>();
+  XmmRegister t1 = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
+  XmmRegister t2 = locations->GetTemp(1).AsFpuRegister<XmmRegister>();
   Register out = locations->Out().AsRegister<Register>();
-  XmmRegister maxInt = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
-  XmmRegister inPlusPointFive = locations->GetTemp(1).AsFpuRegister<XmmRegister>();
-  NearLabel done, nan;
+  NearLabel skip_incr, done;
   X86Assembler* assembler = GetAssembler();
 
-  // Generate 0.5 into inPlusPointFive.
-  __ movl(out, Immediate(bit_cast<int32_t, float>(0.5f)));
-  __ movd(inPlusPointFive, out);
+  // Since no direct x86 rounding instruction matches the required semantics,
+  // this intrinsic is implemented as follows:
+  //  result = floor(in);
+  //  if (in - result >= 0.5f)
+  //    result = result + 1.0f;
+  __ movss(t2, in);
+  __ roundss(t1, in, Immediate(1));
+  __ subss(t2, t1);
+  __ comiss(t2, codegen_->LiteralInt32Address(bit_cast<int32_t, float>(0.5f), constant_area));
+  __ j(kBelow, &skip_incr);
+  __ addss(t1, codegen_->LiteralInt32Address(bit_cast<int32_t, float>(1.0f), constant_area));
+  __ Bind(&skip_incr);
 
-  // Add in the input.
-  __ addss(inPlusPointFive, in);
-
-  // And truncate to an integer.
-  __ roundss(inPlusPointFive, inPlusPointFive, Immediate(1));
-
+  // Final conversion to an integer. Unfortunately this also does not have a
+  // direct x86 instruction, since NaN should map to 0 and large positive
+  // values need to be clipped to the extreme value.
   __ movl(out, Immediate(kPrimIntMax));
-  // maxInt = int-to-float(out)
-  __ cvtsi2ss(maxInt, out);
-
-  // if inPlusPointFive >= maxInt goto done
-  __ comiss(inPlusPointFive, maxInt);
-  __ j(kAboveEqual, &done);
-
-  // if input == NaN goto nan
-  __ j(kUnordered, &nan);
-
-  // output = float-to-int-truncate(input)
-  __ cvttss2si(out, inPlusPointFive);
-  __ jmp(&done);
-  __ Bind(&nan);
-
-  //  output = 0
-  __ xorl(out, out);
+  __ cvtsi2ss(t2, out);
+  __ comiss(t1, t2);
+  __ j(kAboveEqual, &done);  // clipped to max (already in out), does not jump on unordered
+  __ movl(out, Immediate(0));  // does not change flags
+  __ j(kUnordered, &done);  // NaN mapped to 0 (just moved in out)
+  __ cvttss2si(out, t1);
   __ Bind(&done);
 }
 
