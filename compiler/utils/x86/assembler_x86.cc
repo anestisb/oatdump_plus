@@ -727,12 +727,29 @@ void X86Assembler::comiss(XmmRegister a, XmmRegister b) {
 }
 
 
+void X86Assembler::comiss(XmmRegister a, const Address& b) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x0F);
+  EmitUint8(0x2F);
+  EmitOperand(a, b);
+}
+
+
 void X86Assembler::comisd(XmmRegister a, XmmRegister b) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x66);
   EmitUint8(0x0F);
   EmitUint8(0x2F);
   EmitXmmRegisterOperand(a, b);
+}
+
+
+void X86Assembler::comisd(XmmRegister a, const Address& b) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0x2F);
+  EmitOperand(a, b);
 }
 
 
