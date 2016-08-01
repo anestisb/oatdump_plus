@@ -80,12 +80,11 @@ define build-art-executable
   endif
 
   ifeq ($$(art_target_or_host),target)
-    $(call set-target-local-clang-vars)
+    LOCAL_CLANG := $(ART_TARGET_CLANG)
     $(call set-target-local-cflags-vars,$(6))
     LOCAL_SHARED_LIBRARIES += libdl
   else # host
     LOCAL_CLANG := $(ART_HOST_CLANG)
-    LOCAL_LDLIBS := $(ART_HOST_LDLIBS)
     LOCAL_CFLAGS += $(ART_HOST_CFLAGS)
     LOCAL_ASFLAGS += $(ART_HOST_ASFLAGS)
     ifeq ($$(art_ndebug_or_debug),debug)
