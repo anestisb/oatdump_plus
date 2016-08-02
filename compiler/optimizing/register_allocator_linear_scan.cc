@@ -20,6 +20,7 @@
 #include <sstream>
 
 #include "base/bit_vector-inl.h"
+#include "base/enums.h"
 #include "code_generator.h"
 #include "register_allocation_resolver.h"
 #include "ssa_liveness_analysis.h"
@@ -77,8 +78,8 @@ RegisterAllocatorLinearScan::RegisterAllocatorLinearScan(ArenaAllocator* allocat
   // Always reserve for the current method and the graph's max out registers.
   // TODO: compute it instead.
   // ArtMethod* takes 2 vregs for 64 bits.
-  reserved_out_slots_ = InstructionSetPointerSize(codegen->GetInstructionSet()) / kVRegSize +
-      codegen->GetGraph()->GetMaximumNumberOfOutVRegs();
+  size_t ptr_size = static_cast<size_t>(InstructionSetPointerSize(codegen->GetInstructionSet()));
+  reserved_out_slots_ = ptr_size / kVRegSize + codegen->GetGraph()->GetMaximumNumberOfOutVRegs();
 }
 
 static bool ShouldProcess(bool processing_core_registers, LiveInterval* interval) {

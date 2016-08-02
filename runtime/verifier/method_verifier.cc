@@ -20,6 +20,7 @@
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "base/logging.h"
 #include "base/mutex-inl.h"
 #include "base/stl_util.h"
@@ -2843,7 +2844,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       ArtMethod* called_method = VerifyInvocationArgs(inst, type, is_range);
       const RegType* return_type = nullptr;
       if (called_method != nullptr) {
-        size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+        PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
         mirror::Class* return_type_class = called_method->GetReturnType(can_load_classes_,
                                                                         pointer_size);
         if (return_type_class != nullptr) {
@@ -2886,7 +2887,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       } else {
         is_constructor = called_method->IsConstructor();
         return_type_descriptor = called_method->GetReturnTypeDescriptor();
-        size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+        PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
         mirror::Class* return_type_class = called_method->GetReturnType(can_load_classes_,
                                                                         pointer_size);
         if (return_type_class != nullptr) {
@@ -4973,7 +4974,7 @@ InstructionFlags* MethodVerifier::CurrentInsnFlags() {
 const RegType& MethodVerifier::GetMethodReturnType() {
   if (return_type_ == nullptr) {
     if (mirror_method_ != nullptr) {
-      size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+      PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
       mirror::Class* return_type_class = mirror_method_->GetReturnType(can_load_classes_,
                                                                        pointer_size);
       if (return_type_class != nullptr) {

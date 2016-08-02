@@ -17,6 +17,7 @@
 #include "throwable.h"
 
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "class-inl.h"
 #include "dex_file-inl.h"
 #include "gc/accounting/card_table-inl.h"
@@ -106,7 +107,7 @@ std::string Throwable::Dump() {
     if (depth == 0) {
       result += "(Throwable with empty stack trace)";
     } else {
-      const size_t ptr_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+      const PointerSize ptr_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
       for (int32_t i = 0; i < depth; ++i) {
         ArtMethod* method = method_trace->GetElementPtrSize<ArtMethod*>(i, ptr_size);
         uintptr_t dex_pc = method_trace->GetElementPtrSize<uintptr_t>(i + depth, ptr_size);

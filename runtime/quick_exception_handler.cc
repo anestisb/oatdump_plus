@@ -18,6 +18,7 @@
 
 #include "arch/context.h"
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "dex_instruction.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
@@ -509,11 +510,7 @@ void QuickExceptionHandler::PrepareForLongJumpToInvokeStubOrInterpreterBridge() 
   } else {
     // PC needs to be of the quick-to-interpreter bridge.
     int32_t offset;
-    #ifdef __LP64__
-        offset = GetThreadOffset<8>(kQuickQuickToInterpreterBridge).Int32Value();
-    #else
-        offset = GetThreadOffset<4>(kQuickQuickToInterpreterBridge).Int32Value();
-    #endif
+    offset = GetThreadOffset<kRuntimePointerSize>(kQuickQuickToInterpreterBridge).Int32Value();
     handler_quick_frame_pc_ = *reinterpret_cast<uintptr_t*>(
         reinterpret_cast<uint8_t*>(self_) + offset);
   }

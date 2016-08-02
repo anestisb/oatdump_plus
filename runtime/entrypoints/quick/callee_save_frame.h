@@ -18,6 +18,7 @@
 #define ART_RUNTIME_ENTRYPOINTS_QUICK_CALLEE_SAVE_FRAME_H_
 
 #include "arch/instruction_set.h"
+#include "base/enums.h"
 #include "base/mutex.h"
 #include "runtime.h"
 #include "thread-inl.h"
@@ -86,7 +87,7 @@ static constexpr size_t GetCalleeSaveFrameSize(InstructionSet isa, Runtime::Call
 }
 
 // Note: this specialized statement is sanity-checked in the quick-trampoline gtest.
-static constexpr size_t GetConstExprPointerSize(InstructionSet isa) {
+static constexpr PointerSize GetConstExprPointerSize(InstructionSet isa) {
   // constexpr must be a return statement.
   return (isa == kArm || isa == kThumb2) ? kArmPointerSize :
          isa == kArm64 ? kArm64PointerSize :
@@ -94,14 +95,14 @@ static constexpr size_t GetConstExprPointerSize(InstructionSet isa) {
          isa == kMips64 ? kMips64PointerSize :
          isa == kX86 ? kX86PointerSize :
          isa == kX86_64 ? kX86_64PointerSize :
-         isa == kNone ? (LOG(FATAL) << "kNone has no pointer size", 0) :
-         (LOG(FATAL) << "Unknown instruction set" << isa, 0);
+         isa == kNone ? (LOG(FATAL) << "kNone has no pointer size", PointerSize::k32) :
+         (LOG(FATAL) << "Unknown instruction set" << isa, PointerSize::k32);
 }
 
 // Note: this specialized statement is sanity-checked in the quick-trampoline gtest.
 static constexpr size_t GetCalleeSaveReturnPcOffset(InstructionSet isa,
                                                     Runtime::CalleeSaveType type) {
-  return GetCalleeSaveFrameSize(isa, type) - GetConstExprPointerSize(isa);
+  return GetCalleeSaveFrameSize(isa, type) - static_cast<size_t>(GetConstExprPointerSize(isa));
 }
 
 }  // namespace art

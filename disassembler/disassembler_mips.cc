@@ -504,9 +504,9 @@ size_t DisassemblerMips::Dump(std::ostream& os, const uint8_t* instr_ptr) {
               if (rs == 17) {
                 args << "  ; ";
                 if (is64bit_) {
-                  Thread::DumpThreadOffset<8>(args, offset);
+                  Thread::DumpThreadOffset<kMips64PointerSize>(args, offset);
                 } else {
-                  Thread::DumpThreadOffset<4>(args, offset);
+                  Thread::DumpThreadOffset<kMipsPointerSize>(args, offset);
                 }
               }
             }

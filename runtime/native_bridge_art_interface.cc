@@ -21,6 +21,7 @@
 #include "nativebridge/native_bridge.h"
 
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "dex_file-inl.h"
@@ -45,7 +46,7 @@ static uint32_t GetNativeMethodCount(JNIEnv* env, jclass clazz) {
   mirror::Class* c = soa.Decode<mirror::Class*>(clazz);
 
   uint32_t native_method_count = 0;
-  for (auto& m : c->GetMethods(sizeof(void*))) {
+  for (auto& m : c->GetMethods(kRuntimePointerSize)) {
     native_method_count += m.IsNative() ? 1u : 0u;
   }
   return native_method_count;
@@ -60,7 +61,7 @@ static uint32_t GetNativeMethods(JNIEnv* env, jclass clazz, JNINativeMethod* met
   mirror::Class* c = soa.Decode<mirror::Class*>(clazz);
 
   uint32_t count = 0;
-  for (auto& m : c->GetMethods(sizeof(void*))) {
+  for (auto& m : c->GetMethods(kRuntimePointerSize)) {
     if (m.IsNative()) {
       if (count < method_count) {
         methods[count].name = m.GetName();

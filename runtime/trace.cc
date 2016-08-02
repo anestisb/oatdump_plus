@@ -21,6 +21,7 @@
 
 #include "art_method-inl.h"
 #include "base/casts.h"
+#include "base/enums.h"
 #include "base/stl_util.h"
 #include "base/systrace.h"
 #include "base/time_utils.h"
@@ -854,7 +855,7 @@ bool Trace::RegisterThread(Thread* thread) {
 }
 
 std::string Trace::GetMethodLine(ArtMethod* method) {
-  method = method->GetInterfaceMethodIfProxy(sizeof(void*));
+  method = method->GetInterfaceMethodIfProxy(kRuntimePointerSize);
   return StringPrintf("%#x\t%s\t%s\t%s\t%s\n", (EncodeTraceMethod(method) << TraceActionBits),
       PrettyDescriptor(method->GetDeclaringClassDescriptor()).c_str(), method->GetName(),
       method->GetSignature().ToString().c_str(), method->GetDeclaringClassSourceFile());

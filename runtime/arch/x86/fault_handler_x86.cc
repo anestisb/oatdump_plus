@@ -20,6 +20,7 @@
 #include <sys/ucontext.h>
 
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "base/macros.h"
 #include "globals.h"
 #include "base/logging.h"
@@ -347,11 +348,7 @@ bool NullPointerHandler::Action(int, siginfo_t* sig, void* context) {
 bool SuspensionHandler::Action(int, siginfo_t*, void* context) {
   // These are the instructions to check for.  The first one is the mov eax, fs:[xxx]
   // where xxx is the offset of the suspend trigger.
-#if defined(__x86_64__)
-  uint32_t trigger = Thread::ThreadSuspendTriggerOffset<8>().Int32Value();
-#else
-  uint32_t trigger = Thread::ThreadSuspendTriggerOffset<4>().Int32Value();
-#endif
+  uint32_t trigger = Thread::ThreadSuspendTriggerOffset<kRuntimePointerSize>().Int32Value();
 
   VLOG(signals) << "Checking for suspension point";
 #if defined(__x86_64__)

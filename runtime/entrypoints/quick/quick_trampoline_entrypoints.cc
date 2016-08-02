@@ -15,6 +15,7 @@
  */
 
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "callee_save_frame.h"
 #include "common_throws.h"
 #include "dex_file-inl.h"
@@ -366,7 +367,7 @@ class QuickArgumentVisitor {
     // next register is even.
     static_assert(!kQuickDoubleRegAlignedFloatBackFilled || kNumQuickFprArgs % 2 == 0,
                   "Number of Quick FPR arguments not even");
-    DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), sizeof(void*));
+    DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), kRuntimePointerSize);
   }
 
   virtual ~QuickArgumentVisitor() {}
@@ -659,7 +660,7 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
 
   DCHECK(!method->IsNative()) << PrettyMethod(method);
   uint32_t shorty_len = 0;
-  ArtMethod* non_proxy_method = method->GetInterfaceMethodIfProxy(sizeof(void*));
+  ArtMethod* non_proxy_method = method->GetInterfaceMethodIfProxy(kRuntimePointerSize);
   const DexFile::CodeItem* code_item = non_proxy_method->GetCodeItem();
   DCHECK(code_item != nullptr) << PrettyMethod(method);
   const char* shorty = non_proxy_method->GetShorty(&shorty_len);
@@ -859,7 +860,7 @@ extern "C" uint64_t artQuickProxyInvokeHandler(
   jobject rcvr_jobj = soa.AddLocalReference<jobject>(receiver);
 
   // Placing arguments into args vector and remove the receiver.
-  ArtMethod* non_proxy_method = proxy_method->GetInterfaceMethodIfProxy(sizeof(void*));
+  ArtMethod* non_proxy_method = proxy_method->GetInterfaceMethodIfProxy(kRuntimePointerSize);
   CHECK(!non_proxy_method->IsStatic()) << PrettyMethod(proxy_method) << " "
                                        << PrettyMethod(non_proxy_method);
   std::vector<jvalue> args;
@@ -872,14 +873,15 @@ extern "C" uint64_t artQuickProxyInvokeHandler(
   args.erase(args.begin());
 
   // Convert proxy method into expected interface method.
-  ArtMethod* interface_method = proxy_method->FindOverriddenMethod(sizeof(void*));
+  ArtMethod* interface_method = proxy_method->FindOverriddenMethod(kRuntimePointerSize);
   DCHECK(interface_method != nullptr) << PrettyMethod(proxy_method);
   DCHECK(!interface_method->IsProxyMethod()) << PrettyMethod(interface_method);
   self->EndAssertNoThreadSuspension(old_cause);
-  DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), sizeof(void*));
+  DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), kRuntimePointerSize);
   DCHECK(!Runtime::Current()->IsActiveTransaction());
   jobject interface_method_jobj = soa.AddLocalReference<jobject>(
-      mirror::Method::CreateFromArtMethod<sizeof(void*), false>(soa.Self(), interface_method));
+      mirror::Method::CreateFromArtMethod<kRuntimePointerSize, false>(soa.Self(),
+                                                                      interface_method));
 
   // All naked Object*s should now be in jobjects, so its safe to go into the main invoke code
   // that performs allocations.
@@ -1037,10 +1039,10 @@ extern "C" const void* artQuickResolutionTrampoline(
       ArtMethod* orig_called = called;
       if (invoke_type == kVirtual) {
         CHECK(receiver != nullptr) << invoke_type;
-        called = receiver->GetClass()->FindVirtualMethodForVirtual(called, sizeof(void*));
+        called = receiver->GetClass()->FindVirtualMethodForVirtual(called, kRuntimePointerSize);
       } else if (invoke_type == kInterface) {
         CHECK(receiver != nullptr) << invoke_type;
-        called = receiver->GetClass()->FindVirtualMethodForInterface(called, sizeof(void*));
+        called = receiver->GetClass()->FindVirtualMethodForInterface(called, kRuntimePointerSize);
       } else {
         DCHECK_EQ(invoke_type, kSuper);
         CHECK(caller != nullptr) << invoke_type;
@@ -1053,10 +1055,10 @@ extern "C" const void* artQuickResolutionTrampoline(
         mirror::Class* ref_class = linker->ResolveReferencedClassOfMethod(
             called_method.dex_method_index, dex_cache, class_loader);
         if (ref_class->IsInterface()) {
-          called = ref_class->FindVirtualMethodForInterfaceSuper(called, sizeof(void*));
+          called = ref_class->FindVirtualMethodForInterfaceSuper(called, kRuntimePointerSize);
         } else {
           called = caller->GetDeclaringClass()->GetSuperClass()->GetVTableEntry(
-              called->GetMethodIndex(), sizeof(void*));
+              called->GetMethodIndex(), kRuntimePointerSize);
         }
       }
 
@@ -1070,7 +1072,7 @@ extern "C" const void* artQuickResolutionTrampoline(
       // FindVirtualMethodFor... This is ok for FindDexMethodIndexInOtherDexFile that only cares
       // about the name and signature.
       uint32_t update_dex_cache_method_index = called->GetDexMethodIndex();
-      if (!called->HasSameDexCacheResolvedMethods(caller, sizeof(void*))) {
+      if (!called->HasSameDexCacheResolvedMethods(caller, kRuntimePointerSize)) {
         // Calling from one dex file to another, need to compute the method index appropriate to
         // the caller's dex file. Since we get here only if the original called was a runtime
         // method, we've got the correct dex_file and a dex_method_idx from above.
@@ -1084,8 +1086,10 @@ extern "C" const void* artQuickResolutionTrampoline(
       }
       if ((update_dex_cache_method_index != DexFile::kDexNoIndex) &&
           (caller->GetDexCacheResolvedMethod(
-              update_dex_cache_method_index, sizeof(void*)) != called)) {
-        caller->SetDexCacheResolvedMethod(update_dex_cache_method_index, called, sizeof(void*));
+              update_dex_cache_method_index, kRuntimePointerSize) != called)) {
+        caller->SetDexCacheResolvedMethod(update_dex_cache_method_index,
+                                          called,
+                                          kRuntimePointerSize);
       }
     } else if (invoke_type == kStatic) {
       const auto called_dex_method_idx = called->GetDexMethodIndex();
@@ -1095,7 +1099,9 @@ extern "C" const void* artQuickResolutionTrampoline(
       // b/19175856
       if (called->GetDexFile() == called_method.dex_file &&
           called_method.dex_method_index != called_dex_method_idx) {
-        called->GetDexCache()->SetResolvedMethod(called_dex_method_idx, called, sizeof(void*));
+        called->GetDexCache()->SetResolvedMethod(called_dex_method_idx,
+                                                 called,
+                                                 kRuntimePointerSize);
       }
     }
 
@@ -1629,7 +1635,7 @@ class ComputeGenericJniFrameSize FINAL : public ComputeNativeCallFrameSize {
       SHARED_REQUIRES(Locks::mutator_lock_) {
     ArtMethod* method = **m;
 
-    DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), sizeof(void*));
+    DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), kRuntimePointerSize);
 
     uint8_t* sp8 = reinterpret_cast<uint8_t*>(sp);
 
@@ -2164,22 +2170,22 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t deadbeef ATTRIBUT
   }
 
   ArtMethod* interface_method = caller_method->GetDexCacheResolvedMethod(
-      dex_method_idx, sizeof(void*));
+      dex_method_idx, kRuntimePointerSize);
   DCHECK(interface_method != nullptr) << dex_method_idx << " " << PrettyMethod(caller_method);
   ArtMethod* method = nullptr;
-  ImTable* imt = cls->GetImt(sizeof(void*));
+  ImTable* imt = cls->GetImt(kRuntimePointerSize);
 
   if (LIKELY(interface_method->GetDexMethodIndex() != DexFile::kDexNoIndex)) {
     // If the dex cache already resolved the interface method, look whether we have
     // a match in the ImtConflictTable.
-    ArtMethod* conflict_method = imt->Get(interface_method->GetImtIndex(), sizeof(void*));
+    ArtMethod* conflict_method = imt->Get(interface_method->GetImtIndex(), kRuntimePointerSize);
     if (LIKELY(conflict_method->IsRuntimeMethod())) {
-      ImtConflictTable* current_table = conflict_method->GetImtConflictTable(sizeof(void*));
+      ImtConflictTable* current_table = conflict_method->GetImtConflictTable(kRuntimePointerSize);
       DCHECK(current_table != nullptr);
-      method = current_table->Lookup(interface_method, sizeof(void*));
+      method = current_table->Lookup(interface_method, kRuntimePointerSize);
     } else {
       // It seems we aren't really a conflict method!
-      method = cls->FindVirtualMethodForInterface(interface_method, sizeof(void*));
+      method = cls->FindVirtualMethodForInterface(interface_method, kRuntimePointerSize);
     }
     if (method != nullptr) {
       return GetTwoWordSuccessValue(
@@ -2188,7 +2194,7 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t deadbeef ATTRIBUT
     }
 
     // No match, use the IfTable.
-    method = cls->FindVirtualMethodForInterface(interface_method, sizeof(void*));
+    method = cls->FindVirtualMethodForInterface(interface_method, kRuntimePointerSize);
     if (UNLIKELY(method == nullptr)) {
       ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(
           interface_method, this_object, caller_method);
@@ -2217,14 +2223,15 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t deadbeef ATTRIBUT
       CHECK(self->IsExceptionPending());
       return GetTwoWordFailureValue();  // Failure.
     }
-    interface_method = caller_method->GetDexCacheResolvedMethod(dex_method_idx, sizeof(void*));
+    interface_method =
+        caller_method->GetDexCacheResolvedMethod(dex_method_idx, kRuntimePointerSize);
     DCHECK(!interface_method->IsRuntimeMethod());
   }
 
   // We arrive here if we have found an implementation, and it is not in the ImtConflictTable.
   // We create a new table with the new pair { interface_method, method }.
   uint32_t imt_index = interface_method->GetImtIndex();
-  ArtMethod* conflict_method = imt->Get(imt_index, sizeof(void*));
+  ArtMethod* conflict_method = imt->Get(imt_index, kRuntimePointerSize);
   if (conflict_method->IsRuntimeMethod()) {
     ArtMethod* new_conflict_method = Runtime::Current()->GetClassLinker()->AddMethodToConflictTable(
         cls.Get(),
@@ -2237,7 +2244,7 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t deadbeef ATTRIBUT
       // data is consistent.
       imt->Set(imt_index,
                new_conflict_method,
-               sizeof(void*));
+               kRuntimePointerSize);
     }
   }
 

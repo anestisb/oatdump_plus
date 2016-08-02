@@ -18,6 +18,7 @@
 #define ART_COMPILER_OPTIMIZING_CODE_GENERATOR_X86_H_
 
 #include "arch/x86/instruction_set_features_x86.h"
+#include "base/enums.h"
 #include "code_generator.h"
 #include "driver/compiler_options.h"
 #include "nodes.h"
@@ -28,7 +29,7 @@ namespace art {
 namespace x86 {
 
 // Use a local definition to prevent copying mistakes.
-static constexpr size_t kX86WordSize = kX86PointerSize;
+static constexpr size_t kX86WordSize = static_cast<size_t>(kX86PointerSize);
 
 class CodeGeneratorX86;
 

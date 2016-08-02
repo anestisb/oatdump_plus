@@ -2683,7 +2683,8 @@ void X86_64Assembler::BuildFrame(size_t frame_size,
     }
   }
 
-  DCHECK_EQ(kX86_64PointerSize, kFramePointerSize);
+  static_assert(static_cast<size_t>(kX86_64PointerSize) == kFramePointerSize,
+                "Unexpected frame pointer size.");
 
   movq(Address(CpuRegister(RSP), 0), method_reg.AsX86_64().AsCpuRegister());
 
@@ -2803,12 +2804,11 @@ void X86_64Assembler::StoreImmediateToFrame(FrameOffset dest, uint32_t imm,
   movl(Address(CpuRegister(RSP), dest), Immediate(imm));  // TODO(64) movq?
 }
 
-void X86_64Assembler::StoreImmediateToThread64(ThreadOffset<8> dest, uint32_t imm,
-                                               ManagedRegister) {
+void X86_64Assembler::StoreImmediateToThread64(ThreadOffset64 dest, uint32_t imm, ManagedRegister) {
   gs()->movl(Address::Absolute(dest, true), Immediate(imm));  // TODO(64) movq?
 }
 
-void X86_64Assembler::StoreStackOffsetToThread64(ThreadOffset<8> thr_offs,
+void X86_64Assembler::StoreStackOffsetToThread64(ThreadOffset64 thr_offs,
                                                  FrameOffset fr_offs,
                                                  ManagedRegister mscratch) {
   X86_64ManagedRegister scratch = mscratch.AsX86_64();
@@ -2817,7 +2817,7 @@ void X86_64Assembler::StoreStackOffsetToThread64(ThreadOffset<8> thr_offs,
   gs()->movq(Address::Absolute(thr_offs, true), scratch.AsCpuRegister());
 }
 
-void X86_64Assembler::StoreStackPointerToThread64(ThreadOffset<8> thr_offs) {
+void X86_64Assembler::StoreStackPointerToThread64(ThreadOffset64 thr_offs) {
   gs()->movq(Address::Absolute(thr_offs, true), CpuRegister(RSP));
 }
 
@@ -2858,7 +2858,7 @@ void X86_64Assembler::Load(ManagedRegister mdest, FrameOffset src, size_t size) 
   }
 }
 
-void X86_64Assembler::LoadFromThread64(ManagedRegister mdest, ThreadOffset<8> src, size_t size) {
+void X86_64Assembler::LoadFromThread64(ManagedRegister mdest, ThreadOffset64 src, size_t size) {
   X86_64ManagedRegister dest = mdest.AsX86_64();
   if (dest.IsNoRegister()) {
     CHECK_EQ(0u, size);
@@ -2907,7 +2907,7 @@ void X86_64Assembler::LoadRawPtr(ManagedRegister mdest, ManagedRegister base,
   movq(dest.AsCpuRegister(), Address(base.AsX86_64().AsCpuRegister(), offs));
 }
 
-void X86_64Assembler::LoadRawPtrFromThread64(ManagedRegister mdest, ThreadOffset<8> offs) {
+void X86_64Assembler::LoadRawPtrFromThread64(ManagedRegister mdest, ThreadOffset64 offs) {
   X86_64ManagedRegister dest = mdest.AsX86_64();
   CHECK(dest.IsCpuRegister());
   gs()->movq(dest.AsCpuRegister(), Address::Absolute(offs, true));
@@ -2969,7 +2969,7 @@ void X86_64Assembler::CopyRef(FrameOffset dest, FrameOffset src, ManagedRegister
 }
 
 void X86_64Assembler::CopyRawPtrFromThread64(FrameOffset fr_offs,
-                                             ThreadOffset<8> thr_offs,
+                                             ThreadOffset64 thr_offs,
                                              ManagedRegister mscratch) {
   X86_64ManagedRegister scratch = mscratch.AsX86_64();
   CHECK(scratch.IsCpuRegister());
@@ -2977,7 +2977,7 @@ void X86_64Assembler::CopyRawPtrFromThread64(FrameOffset fr_offs,
   Store(fr_offs, scratch, 8);
 }
 
-void X86_64Assembler::CopyRawPtrToThread64(ThreadOffset<8> thr_offs,
+void X86_64Assembler::CopyRawPtrToThread64(ThreadOffset64 thr_offs,
                                            FrameOffset fr_offs,
                                            ManagedRegister mscratch) {
   X86_64ManagedRegister scratch = mscratch.AsX86_64();
@@ -3130,17 +3130,19 @@ void X86_64Assembler::Call(FrameOffset base, Offset offset, ManagedRegister mscr
   call(Address(scratch, offset));
 }
 
-void X86_64Assembler::CallFromThread64(ThreadOffset<8> offset, ManagedRegister /*mscratch*/) {
+void X86_64Assembler::CallFromThread64(ThreadOffset64 offset, ManagedRegister /*mscratch*/) {
   gs()->call(Address::Absolute(offset, true));
 }
 
 void X86_64Assembler::GetCurrentThread(ManagedRegister tr) {
-  gs()->movq(tr.AsX86_64().AsCpuRegister(), Address::Absolute(Thread::SelfOffset<8>(), true));
+  gs()->movq(tr.AsX86_64().AsCpuRegister(),
+             Address::Absolute(Thread::SelfOffset<kX86_64PointerSize>(), true));
 }
 
 void X86_64Assembler::GetCurrentThread(FrameOffset offset, ManagedRegister mscratch) {
   X86_64ManagedRegister scratch = mscratch.AsX86_64();
-  gs()->movq(scratch.AsCpuRegister(), Address::Absolute(Thread::SelfOffset<8>(), true));
+  gs()->movq(scratch.AsCpuRegister(),
+             Address::Absolute(Thread::SelfOffset<kX86_64PointerSize>(), true));
   movq(Address(CpuRegister(RSP), offset), scratch.AsCpuRegister());
 }
 
@@ -3156,7 +3158,7 @@ class X86_64ExceptionSlowPath FINAL : public SlowPath {
 void X86_64Assembler::ExceptionPoll(ManagedRegister /*scratch*/, size_t stack_adjust) {
   X86_64ExceptionSlowPath* slow = new (GetArena()) X86_64ExceptionSlowPath(stack_adjust);
   buffer_.EnqueueSlowPath(slow);
-  gs()->cmpl(Address::Absolute(Thread::ExceptionOffset<8>(), true), Immediate(0));
+  gs()->cmpl(Address::Absolute(Thread::ExceptionOffset<kX86_64PointerSize>(), true), Immediate(0));
   j(kNotEqual, slow->Entry());
 }
 
@@ -3169,8 +3171,10 @@ void X86_64ExceptionSlowPath::Emit(Assembler *sasm) {
     __ DecreaseFrameSize(stack_adjust_);
   }
   // Pass exception as argument in RDI
-  __ gs()->movq(CpuRegister(RDI), Address::Absolute(Thread::ExceptionOffset<8>(), true));
-  __ gs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(8, pDeliverException), true));
+  __ gs()->movq(CpuRegister(RDI),
+                Address::Absolute(Thread::ExceptionOffset<kX86_64PointerSize>(), true));
+  __ gs()->call(
+      Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64PointerSize, pDeliverException), true));
   // this call should never return
   __ int3();
 #undef __

@@ -50,7 +50,7 @@ namespace art {
 #ifdef ART_ENABLE_CODEGEN_arm
 namespace arm {
 static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(
-    ArenaAllocator* arena, EntryPointCallingConvention abi, ThreadOffset<4> offset) {
+    ArenaAllocator* arena, EntryPointCallingConvention abi, ThreadOffset32 offset) {
   Thumb2Assembler assembler(arena);
 
   switch (abi) {
@@ -80,7 +80,7 @@ static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(
 #ifdef ART_ENABLE_CODEGEN_arm64
 namespace arm64 {
 static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(
-    ArenaAllocator* arena, EntryPointCallingConvention abi, ThreadOffset<8> offset) {
+    ArenaAllocator* arena, EntryPointCallingConvention abi, ThreadOffset64 offset) {
   Arm64Assembler assembler(arena);
 
   switch (abi) {
@@ -119,7 +119,7 @@ static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(
 #ifdef ART_ENABLE_CODEGEN_mips
 namespace mips {
 static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(
-    ArenaAllocator* arena, EntryPointCallingConvention abi, ThreadOffset<4> offset) {
+    ArenaAllocator* arena, EntryPointCallingConvention abi, ThreadOffset32 offset) {
   MipsAssembler assembler(arena);
 
   switch (abi) {
@@ -151,7 +151,7 @@ static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(
 #ifdef ART_ENABLE_CODEGEN_mips64
 namespace mips64 {
 static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(
-    ArenaAllocator* arena, EntryPointCallingConvention abi, ThreadOffset<8> offset) {
+    ArenaAllocator* arena, EntryPointCallingConvention abi, ThreadOffset64 offset) {
   Mips64Assembler assembler(arena);
 
   switch (abi) {
@@ -183,7 +183,7 @@ static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(
 #ifdef ART_ENABLE_CODEGEN_x86
 namespace x86 {
 static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(ArenaAllocator* arena,
-                                                                    ThreadOffset<4> offset) {
+                                                                    ThreadOffset32 offset) {
   X86Assembler assembler(arena);
 
   // All x86 trampolines call via the Thread* held in fs.
@@ -204,7 +204,7 @@ static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(ArenaAllocat
 #ifdef ART_ENABLE_CODEGEN_x86_64
 namespace x86_64 {
 static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(ArenaAllocator* arena,
-                                                                    ThreadOffset<8> offset) {
+                                                                    ThreadOffset64 offset) {
   x86_64::X86_64Assembler assembler(arena);
 
   // All x86 trampolines call via the Thread* held in gs.
@@ -224,7 +224,7 @@ static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(ArenaAllocat
 
 std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline64(InstructionSet isa,
                                                                EntryPointCallingConvention abi,
-                                                               ThreadOffset<8> offset) {
+                                                               ThreadOffset64 offset) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
   switch (isa) {
@@ -250,7 +250,7 @@ std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline64(InstructionSet is
 
 std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline32(InstructionSet isa,
                                                                EntryPointCallingConvention abi,
-                                                               ThreadOffset<4> offset) {
+                                                               ThreadOffset32 offset) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
   switch (isa) {

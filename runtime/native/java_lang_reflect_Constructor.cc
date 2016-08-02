@@ -17,6 +17,7 @@
 #include "java_lang_reflect_Constructor.h"
 
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
 #include "jni_internal.h"
@@ -65,7 +66,7 @@ static jobjectArray Constructor_getDeclaredAnnotations(JNIEnv* env, jobject java
 static jobjectArray Constructor_getExceptionTypes(JNIEnv* env, jobject javaMethod) {
   ScopedFastNativeObjectAccess soa(env);
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod)
-      ->GetInterfaceMethodIfProxy(sizeof(void*));
+      ->GetInterfaceMethodIfProxy(kRuntimePointerSize);
   mirror::ObjectArray<mirror::Class>* result_array =
       method->GetDexFile()->GetExceptionTypesForMethod(method);
   if (result_array == nullptr) {

@@ -55,6 +55,7 @@
 #include "atomic.h"
 #include "base/arena_allocator.h"
 #include "base/dumpable.h"
+#include "base/enums.h"
 #include "base/stl_util.h"
 #include "base/systrace.h"
 #include "base/unix_file/fd_file.h"
@@ -1508,7 +1509,7 @@ void Runtime::VisitConstantRoots(RootVisitor* visitor) {
   // Visiting the roots of these ArtMethods is not currently required since all the GcRoots are
   // null.
   BufferedRootVisitor<16> buffered_visitor(visitor, RootInfo(kRootVMInternal));
-  const size_t pointer_size = GetClassLinker()->GetImagePointerSize();
+  const PointerSize pointer_size = GetClassLinker()->GetImagePointerSize();
   if (HasResolutionMethod()) {
     resolution_method_->VisitRoots(buffered_visitor, pointer_size);
   }
@@ -1592,7 +1593,7 @@ ArtMethod* Runtime::CreateImtConflictMethod(LinearAlloc* linear_alloc) {
   ClassLinker* const class_linker = GetClassLinker();
   ArtMethod* method = class_linker->CreateRuntimeMethod(linear_alloc);
   // When compiling, the code pointer will get set later when the image is loaded.
-  const size_t pointer_size = GetInstructionSetPointerSize(instruction_set_);
+  const PointerSize pointer_size = GetInstructionSetPointerSize(instruction_set_);
   if (IsAotCompiler()) {
     method->SetEntryPointFromQuickCompiledCodePtrSize(nullptr, pointer_size);
   } else {
@@ -1614,7 +1615,7 @@ ArtMethod* Runtime::CreateResolutionMethod() {
   auto* method = GetClassLinker()->CreateRuntimeMethod(GetLinearAlloc());
   // When compiling, the code pointer will get set later when the image is loaded.
   if (IsAotCompiler()) {
-    size_t pointer_size = GetInstructionSetPointerSize(instruction_set_);
+    PointerSize pointer_size = GetInstructionSetPointerSize(instruction_set_);
     method->SetEntryPointFromQuickCompiledCodePtrSize(nullptr, pointer_size);
   } else {
     method->SetEntryPointFromQuickCompiledCode(GetQuickResolutionStub());
@@ -1624,7 +1625,7 @@ ArtMethod* Runtime::CreateResolutionMethod() {
 
 ArtMethod* Runtime::CreateCalleeSaveMethod() {
   auto* method = GetClassLinker()->CreateRuntimeMethod(GetLinearAlloc());
-  size_t pointer_size = GetInstructionSetPointerSize(instruction_set_);
+  PointerSize pointer_size = GetInstructionSetPointerSize(instruction_set_);
   method->SetEntryPointFromQuickCompiledCodePtrSize(nullptr, pointer_size);
   DCHECK_NE(instruction_set_, kNone);
   DCHECK(method->IsRuntimeMethod());
@@ -1919,7 +1920,7 @@ void Runtime::SetImtUnimplementedMethod(ArtMethod* method) {
 
 void Runtime::FixupConflictTables() {
   // We can only do this after the class linker is created.
-  const size_t pointer_size = GetClassLinker()->GetImagePointerSize();
+  const PointerSize pointer_size = GetClassLinker()->GetImagePointerSize();
   if (imt_unimplemented_method_->GetImtConflictTable(pointer_size) == nullptr) {
     imt_unimplemented_method_->SetImtConflictTable(
         ClassLinker::CreateImtConflictTable(/*count*/0u, GetLinearAlloc(), pointer_size),

@@ -94,7 +94,7 @@ void Instrumentation::InstallStubsForClass(mirror::Class* klass) {
     // We need the class to be resolved to install/uninstall stubs. Otherwise its methods
     // could not be initialized or linked with regards to class inheritance.
   } else {
-    for (ArtMethod& method : klass->GetMethods(sizeof(void*))) {
+    for (ArtMethod& method : klass->GetMethods(kRuntimePointerSize)) {
       InstallStubsForMethod(&method);
     }
   }
@@ -886,7 +886,7 @@ void Instrumentation::DisableMethodTracing(const char* key) {
   ConfigureStubs(key, InstrumentationLevel::kInstrumentNothing);
 }
 
-const void* Instrumentation::GetQuickCodeFor(ArtMethod* method, size_t pointer_size) const {
+const void* Instrumentation::GetQuickCodeFor(ArtMethod* method, PointerSize pointer_size) const {
   Runtime* runtime = Runtime::Current();
   if (LIKELY(!instrumentation_stubs_installed_)) {
     const void* code = method->GetEntryPointFromQuickCompiledCodePtrSize(pointer_size);
@@ -1063,7 +1063,7 @@ TwoWordReturn Instrumentation::PopInstrumentationStackFrame(Thread* self, uintpt
 
   ArtMethod* method = instrumentation_frame.method_;
   uint32_t length;
-  const size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+  const PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
   char return_shorty = method->GetInterfaceMethodIfProxy(pointer_size)->GetShorty(&length)[0];
   JValue return_value;
   if (return_shorty == 'V') {

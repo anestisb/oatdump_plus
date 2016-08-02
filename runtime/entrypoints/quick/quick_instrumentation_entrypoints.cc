@@ -15,6 +15,7 @@
  */
 
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "callee_save_frame.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "instrumentation.h"
@@ -37,7 +38,7 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(ArtMethod* method,
   if (instrumentation->IsDeoptimized(method)) {
     result = GetQuickToInterpreterBridge();
   } else {
-    result = instrumentation->GetQuickCodeFor(method, sizeof(void*));
+    result = instrumentation->GetQuickCodeFor(method, kRuntimePointerSize);
     DCHECK(!Runtime::Current()->GetClassLinker()->IsQuickToInterpreterBridge(result));
   }
   bool interpreter_entry = (result == GetQuickToInterpreterBridge());

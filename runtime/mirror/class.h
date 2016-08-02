@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_MIRROR_CLASS_H_
 #define ART_RUNTIME_MIRROR_CLASS_H_
 
+#include "base/enums.h"
 #include "base/iteration_range.h"
 #include "dex_file.h"
 #include "class_flags.h"
@@ -556,17 +557,17 @@ class MANAGED Class FINAL : public Object {
                                    uint32_t num_32bit_static_fields,
                                    uint32_t num_64bit_static_fields,
                                    uint32_t num_ref_static_fields,
-                                   size_t pointer_size);
+                                   PointerSize pointer_size);
 
   // The size of java.lang.Class.class.
-  static uint32_t ClassClassSize(size_t pointer_size) {
+  static uint32_t ClassClassSize(PointerSize pointer_size) {
     // The number of vtable entries in java.lang.Class.
     uint32_t vtable_entries = Object::kVTableLength + 72;
     return ComputeClassSize(true, vtable_entries, 0, 0, 4, 1, 0, pointer_size);
   }
 
   // The size of a java.lang.Class representing a primitive such as int.class.
-  static uint32_t PrimitiveClassSize(size_t pointer_size) {
+  static uint32_t PrimitiveClassSize(PointerSize pointer_size) {
     return ComputeClassSize(false, 0, 0, 0, 0, 0, 0, pointer_size);
   }
 
@@ -703,7 +704,7 @@ class MANAGED Class FINAL : public Object {
   // Also updates the dex_cache_strings_ variable from new_dex_cache.
   void SetDexCache(DexCache* new_dex_cache) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetDirectMethods(size_t pointer_size)
+  ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetDirectMethods(PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ALWAYS_INLINE LengthPrefixedArray<ArtMethod>* GetMethodsPtr()
@@ -713,7 +714,7 @@ class MANAGED Class FINAL : public Object {
     return MemberOffset(OFFSETOF_MEMBER(Class, methods_));
   }
 
-  ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetMethods(size_t pointer_size)
+  ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetMethods(PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   void SetMethodsPtr(LengthPrefixedArray<ArtMethod>* new_methods,
@@ -727,65 +728,66 @@ class MANAGED Class FINAL : public Object {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetDirectMethodsSlice(size_t pointer_size)
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetDirectMethodsSlice(PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ALWAYS_INLINE ArtMethod* GetDirectMethod(size_t i, size_t pointer_size)
+  ALWAYS_INLINE ArtMethod* GetDirectMethod(size_t i, PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Use only when we are allocating populating the method arrays.
-  ALWAYS_INLINE ArtMethod* GetDirectMethodUnchecked(size_t i, size_t pointer_size)
+  ALWAYS_INLINE ArtMethod* GetDirectMethodUnchecked(size_t i, PointerSize pointer_size)
         SHARED_REQUIRES(Locks::mutator_lock_);
-  ALWAYS_INLINE ArtMethod* GetVirtualMethodUnchecked(size_t i, size_t pointer_size)
+  ALWAYS_INLINE ArtMethod* GetVirtualMethodUnchecked(size_t i, PointerSize pointer_size)
         SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Returns the number of static, private, and constructor methods.
   ALWAYS_INLINE uint32_t NumDirectMethods() SHARED_REQUIRES(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetMethodsSlice(size_t pointer_size)
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetMethodsSlice(PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredMethodsSlice(size_t pointer_size)
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredMethodsSlice(PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetDeclaredMethods(
-        size_t pointer_size)
+        PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  template <size_t kPointerSize, bool kTransactionActive>
+  template <PointerSize kPointerSize, bool kTransactionActive>
   static Method* GetDeclaredMethodInternal(Thread* self,
                                            mirror::Class* klass,
                                            mirror::String* name,
                                            mirror::ObjectArray<mirror::Class>* args)
       SHARED_REQUIRES(Locks::mutator_lock_);
-  template <size_t kPointerSize, bool kTransactionActive>
+  template <PointerSize kPointerSize, bool kTransactionActive>
   static Constructor* GetDeclaredConstructorInternal(Thread* self,
                                                      mirror::Class* klass,
                                                      mirror::ObjectArray<mirror::Class>* args)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredVirtualMethodsSlice(size_t pointer_size)
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredVirtualMethodsSlice(PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetDeclaredVirtualMethods(
-        size_t pointer_size)
+        PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetCopiedMethodsSlice(size_t pointer_size)
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetCopiedMethodsSlice(PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetCopiedMethods(size_t pointer_size)
+  ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetCopiedMethods(PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetVirtualMethodsSlice(size_t pointer_size)
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetVirtualMethodsSlice(PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetVirtualMethods(size_t pointer_size)
+  ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetVirtualMethods(
+      PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Returns the number of non-inherited virtual methods (sum of declared and copied methods).
@@ -800,10 +802,10 @@ class MANAGED Class FINAL : public Object {
   ALWAYS_INLINE uint32_t NumMethods() SHARED_REQUIRES(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ArtMethod* GetVirtualMethod(size_t i, size_t pointer_size)
+  ArtMethod* GetVirtualMethod(size_t i, PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ArtMethod* GetVirtualMethodDuringLinking(size_t i, size_t pointer_size)
+  ArtMethod* GetVirtualMethodDuringLinking(size_t i, PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
@@ -822,9 +824,10 @@ class MANAGED Class FINAL : public Object {
     return MemberOffset(sizeof(Class));
   }
 
-  static MemberOffset ImtPtrOffset(size_t pointer_size) {
+  static MemberOffset ImtPtrOffset(PointerSize pointer_size) {
     return MemberOffset(
-        RoundUp(EmbeddedVTableLengthOffset().Uint32Value() + sizeof(uint32_t), pointer_size));
+        RoundUp(EmbeddedVTableLengthOffset().Uint32Value() + sizeof(uint32_t),
+                static_cast<size_t>(pointer_size)));
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
@@ -841,124 +844,126 @@ class MANAGED Class FINAL : public Object {
 
   bool HasVTable() SHARED_REQUIRES(Locks::mutator_lock_);
 
-  static MemberOffset EmbeddedVTableEntryOffset(uint32_t i, size_t pointer_size);
+  static MemberOffset EmbeddedVTableEntryOffset(uint32_t i, PointerSize pointer_size);
 
   int32_t GetVTableLength() SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ArtMethod* GetVTableEntry(uint32_t i, size_t pointer_size)
+  ArtMethod* GetVTableEntry(uint32_t i, PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   int32_t GetEmbeddedVTableLength() SHARED_REQUIRES(Locks::mutator_lock_);
 
   void SetEmbeddedVTableLength(int32_t len) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ImTable* GetImt(size_t pointer_size) SHARED_REQUIRES(Locks::mutator_lock_);
+  ImTable* GetImt(PointerSize pointer_size) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void SetImt(ImTable* imt, size_t pointer_size) SHARED_REQUIRES(Locks::mutator_lock_);
+  void SetImt(ImTable* imt, PointerSize pointer_size) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ArtMethod* GetEmbeddedVTableEntry(uint32_t i, size_t pointer_size)
+  ArtMethod* GetEmbeddedVTableEntry(uint32_t i, PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void SetEmbeddedVTableEntry(uint32_t i, ArtMethod* method, size_t pointer_size)
+  void SetEmbeddedVTableEntry(uint32_t i, ArtMethod* method, PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  inline void SetEmbeddedVTableEntryUnchecked(uint32_t i, ArtMethod* method, size_t pointer_size)
+  inline void SetEmbeddedVTableEntryUnchecked(uint32_t i,
+                                              ArtMethod* method,
+                                              PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void PopulateEmbeddedVTable(size_t pointer_size)
+  void PopulateEmbeddedVTable(PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Given a method implemented by this class but potentially from a super class, return the
   // specific implementation method for this class.
-  ArtMethod* FindVirtualMethodForVirtual(ArtMethod* method, size_t pointer_size)
+  ArtMethod* FindVirtualMethodForVirtual(ArtMethod* method, PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Given a method implemented by this class' super class, return the specific implementation
   // method for this class.
-  ArtMethod* FindVirtualMethodForSuper(ArtMethod* method, size_t pointer_size)
+  ArtMethod* FindVirtualMethodForSuper(ArtMethod* method, PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Given a method from some implementor of this interface, return the specific implementation
   // method for this class.
-  ArtMethod* FindVirtualMethodForInterfaceSuper(ArtMethod* method, size_t pointer_size)
+  ArtMethod* FindVirtualMethodForInterfaceSuper(ArtMethod* method, PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Given a method implemented by this class, but potentially from a
   // super class or interface, return the specific implementation
   // method for this class.
-  ArtMethod* FindVirtualMethodForInterface(ArtMethod* method, size_t pointer_size)
+  ArtMethod* FindVirtualMethodForInterface(ArtMethod* method, PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_) ALWAYS_INLINE;
 
-  ArtMethod* FindVirtualMethodForVirtualOrInterface(ArtMethod* method, size_t pointer_size)
+  ArtMethod* FindVirtualMethodForVirtualOrInterface(ArtMethod* method, PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ArtMethod* FindInterfaceMethod(const StringPiece& name, const StringPiece& signature,
-                                 size_t pointer_size)
+                                 PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ArtMethod* FindInterfaceMethod(const StringPiece& name, const Signature& signature,
-                                 size_t pointer_size)
+                                 PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ArtMethod* FindInterfaceMethod(const DexCache* dex_cache, uint32_t dex_method_idx,
-                                 size_t pointer_size)
+                                 PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ArtMethod* FindDeclaredDirectMethod(const StringPiece& name, const StringPiece& signature,
-                                      size_t pointer_size)
+                                      PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ArtMethod* FindDeclaredDirectMethod(const StringPiece& name, const Signature& signature,
-                                      size_t pointer_size)
+                                      PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ArtMethod* FindDeclaredDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx,
-                                      size_t pointer_size)
+                                      PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ArtMethod* FindDirectMethod(const StringPiece& name, const StringPiece& signature,
-                              size_t pointer_size)
+                              PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ArtMethod* FindDirectMethod(const StringPiece& name, const Signature& signature,
-                              size_t pointer_size)
+                              PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ArtMethod* FindDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx,
-                              size_t pointer_size)
+                              PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ArtMethod* FindDeclaredVirtualMethod(const StringPiece& name, const StringPiece& signature,
-                                       size_t pointer_size)
+                                       PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ArtMethod* FindDeclaredVirtualMethod(const StringPiece& name, const Signature& signature,
-                                       size_t pointer_size)
+                                       PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ArtMethod* FindDeclaredVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx,
-                                       size_t pointer_size)
+                                       PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ArtMethod* FindDeclaredVirtualMethodByName(const StringPiece& name, size_t pointer_size)
+  ArtMethod* FindDeclaredVirtualMethodByName(const StringPiece& name, PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ArtMethod* FindDeclaredDirectMethodByName(const StringPiece& name, size_t pointer_size)
+  ArtMethod* FindDeclaredDirectMethodByName(const StringPiece& name, PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ArtMethod* FindVirtualMethod(const StringPiece& name, const StringPiece& signature,
-                               size_t pointer_size)
+                               PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ArtMethod* FindVirtualMethod(const StringPiece& name, const Signature& signature,
-                               size_t pointer_size)
+                               PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   ArtMethod* FindVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx,
-                               size_t pointer_size)
+                               PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ArtMethod* FindClassInitializer(size_t pointer_size) SHARED_REQUIRES(Locks::mutator_lock_);
+  ArtMethod* FindClassInitializer(PointerSize pointer_size) SHARED_REQUIRES(Locks::mutator_lock_);
 
   bool HasDefaultMethods() SHARED_REQUIRES(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccHasDefaultMethod) != 0;
@@ -1040,11 +1045,11 @@ class MANAGED Class FINAL : public Object {
   // Get the offset of the first reference static field. Other reference static fields follow.
   template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
             ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  MemberOffset GetFirstReferenceStaticFieldOffset(size_t pointer_size)
+  MemberOffset GetFirstReferenceStaticFieldOffset(PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Get the offset of the first reference static field. Other reference static fields follow.
-  MemberOffset GetFirstReferenceStaticFieldOffsetDuringLinking(size_t pointer_size)
+  MemberOffset GetFirstReferenceStaticFieldOffsetDuringLinking(PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Gets the static fields of the class.
@@ -1154,11 +1159,11 @@ class MANAGED Class FINAL : public Object {
   // Visit native roots visits roots which are keyed off the native pointers such as ArtFields and
   // ArtMethods.
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier, class Visitor>
-  void VisitNativeRoots(Visitor& visitor, size_t pointer_size)
+  void VisitNativeRoots(Visitor& visitor, PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // When class is verified, set the kAccSkipAccessChecks flag on each method.
-  void SetSkipAccessChecksFlagOnAllMethods(size_t pointer_size)
+  void SetSkipAccessChecksFlagOnAllMethods(PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Get the descriptor of the class. In a few cases a std::string is required, rather than
@@ -1193,7 +1198,7 @@ class MANAGED Class FINAL : public Object {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   Class* CopyOf(Thread* self, int32_t new_length, ImTable* imt,
-                size_t pointer_size)
+                PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   // For proxy class only.
@@ -1217,7 +1222,7 @@ class MANAGED Class FINAL : public Object {
 
   // May cause thread suspension due to EqualParameters.
   ArtMethod* GetDeclaredConstructor(
-      Thread* self, Handle<mirror::ObjectArray<mirror::Class>> args, size_t pointer_size)
+      Thread* self, Handle<mirror::ObjectArray<mirror::Class>> args, PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   static int32_t GetInnerClassFlags(Handle<Class> h_this, int32_t default_value)
@@ -1244,27 +1249,28 @@ class MANAGED Class FINAL : public Object {
     return GetClassLoader() == nullptr;
   }
 
-  static size_t ImTableEntrySize(size_t pointer_size) {
-    return pointer_size;
+  static size_t ImTableEntrySize(PointerSize pointer_size) {
+    return static_cast<size_t>(pointer_size);
   }
 
-  static size_t VTableEntrySize(size_t pointer_size) {
-    return pointer_size;
+  static size_t VTableEntrySize(PointerSize pointer_size) {
+    return static_cast<size_t>(pointer_size);
   }
 
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetDirectMethodsSliceUnchecked(size_t pointer_size)
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetDirectMethodsSliceUnchecked(PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetVirtualMethodsSliceUnchecked(size_t pointer_size)
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetVirtualMethodsSliceUnchecked(PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredMethodsSliceUnchecked(size_t pointer_size)
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredMethodsSliceUnchecked(PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredVirtualMethodsSliceUnchecked(size_t pointer_size)
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetDeclaredVirtualMethodsSliceUnchecked(
+      PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ALWAYS_INLINE ArraySlice<ArtMethod> GetCopiedMethodsSliceUnchecked(size_t pointer_size)
+  ALWAYS_INLINE ArraySlice<ArtMethod> GetCopiedMethodsSliceUnchecked(PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Fix up all of the native pointers in the class by running them through the visitor. Only sets
@@ -1274,7 +1280,7 @@ class MANAGED Class FINAL : public Object {
   template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
             ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
             typename Visitor>
-  void FixupNativePointers(mirror::Class* dest, size_t pointer_size, const Visitor& visitor)
+  void FixupNativePointers(mirror::Class* dest, PointerSize pointer_size, const Visitor& visitor)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
@@ -1318,8 +1324,9 @@ class MANAGED Class FINAL : public Object {
   bool ProxyDescriptorEquals(const char* match) SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Check that the pointer size matches the one in the class linker.
-  ALWAYS_INLINE static void CheckPointerSize(size_t pointer_size);
-  static MemberOffset EmbeddedVTableOffset(size_t pointer_size);
+  ALWAYS_INLINE static void CheckPointerSize(PointerSize pointer_size);
+
+  static MemberOffset EmbeddedVTableOffset(PointerSize pointer_size);
   template <bool kVisitNativeRoots,
             VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
             ReadBarrierOption kReadBarrierOption = kWithReadBarrier,

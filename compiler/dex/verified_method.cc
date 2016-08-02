@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "base/logging.h"
 #include "base/stl_util.h"
 #include "dex_file.h"
@@ -169,7 +170,7 @@ void VerifiedMethod::GenerateDevirtMap(verifier::MethodVerifier* method_verifier
       continue;
     }
     auto* cl = Runtime::Current()->GetClassLinker();
-    size_t pointer_size = cl->GetImagePointerSize();
+    PointerSize pointer_size = cl->GetImagePointerSize();
     ArtMethod* abstract_method = method_verifier->GetDexCache()->GetResolvedMethod(
         is_range ? inst->VRegB_3rc() : inst->VRegB_35c(), pointer_size);
     if (abstract_method == nullptr) {

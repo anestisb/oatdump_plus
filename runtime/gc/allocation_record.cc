@@ -17,6 +17,7 @@
 #include "allocation_record.h"
 
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "base/stl_util.h"
 #include "stack.h"
 
@@ -112,7 +113,7 @@ void AllocRecordObjectMap::VisitRoots(RootVisitor* visitor) {
     for (size_t i = 0, depth = record.GetDepth(); i < depth; ++i) {
       const AllocRecordStackTraceElement& element = record.StackElement(i);
       DCHECK(element.GetMethod() != nullptr);
-      element.GetMethod()->VisitRoots(buffered_visitor, sizeof(void*));
+      element.GetMethod()->VisitRoots(buffered_visitor, kRuntimePointerSize);
     }
   }
 }
@@ -200,7 +201,7 @@ class AllocRecordStackVisitor : public StackVisitor {
     ArtMethod* m = GetMethod();
     // m may be null if we have inlined methods of unresolved classes. b/27858645
     if (m != nullptr && !m->IsRuntimeMethod()) {
-      m = m->GetInterfaceMethodIfProxy(sizeof(void*));
+      m = m->GetInterfaceMethodIfProxy(kRuntimePointerSize);
       trace_->AddStackElement(AllocRecordStackTraceElement(m, GetDexPc()));
     }
     return true;

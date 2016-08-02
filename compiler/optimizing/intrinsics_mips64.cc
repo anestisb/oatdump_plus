@@ -1543,7 +1543,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringCompareTo(HInvoke* invoke) {
   __ LoadFromOffset(kLoadDoubleword,
                     T9,
                     TR,
-                    QUICK_ENTRYPOINT_OFFSET(kMips64DoublewordSize, pStringCompareTo).Int32Value());
+                    QUICK_ENTRYPOINT_OFFSET(kMips64PointerSize, pStringCompareTo).Int32Value());
   __ Jalr(T9);
   __ Nop();
   __ Bind(slow_path->GetExitLabel());
@@ -1694,7 +1694,7 @@ static void GenerateStringIndexOf(HInvoke* invoke,
   __ LoadFromOffset(kLoadDoubleword,
                     T9,
                     TR,
-                    QUICK_ENTRYPOINT_OFFSET(kMips64DoublewordSize, pIndexOf).Int32Value());
+                    QUICK_ENTRYPOINT_OFFSET(kMips64PointerSize, pIndexOf).Int32Value());
   CheckEntrypointTypes<kQuickIndexOf, int32_t, void*, uint32_t, uint32_t>();
   __ Jalr(T9);
   __ Nop();
@@ -1771,7 +1771,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringNewStringFromBytes(HInvoke* invoke
   __ LoadFromOffset(kLoadDoubleword,
                     T9,
                     TR,
-                    QUICK_ENTRYPOINT_OFFSET(kMips64DoublewordSize,
+                    QUICK_ENTRYPOINT_OFFSET(kMips64PointerSize,
                                             pAllocStringFromBytes).Int32Value());
   CheckEntrypointTypes<kQuickAllocStringFromBytes, void*, void*, int32_t, int32_t, int32_t>();
   __ Jalr(T9);
@@ -1805,7 +1805,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringNewStringFromChars(HInvoke* invoke
   __ LoadFromOffset(kLoadDoubleword,
                     T9,
                     TR,
-                    QUICK_ENTRYPOINT_OFFSET(kMips64DoublewordSize,
+                    QUICK_ENTRYPOINT_OFFSET(kMips64PointerSize,
                                             pAllocStringFromChars).Int32Value());
   CheckEntrypointTypes<kQuickAllocStringFromChars, void*, int32_t, int32_t, void*>();
   __ Jalr(T9);
@@ -1836,7 +1836,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringNewStringFromString(HInvoke* invok
   __ LoadFromOffset(kLoadDoubleword,
                     T9,
                     TR,
-                    QUICK_ENTRYPOINT_OFFSET(kMips64DoublewordSize,
+                    QUICK_ENTRYPOINT_OFFSET(kMips64PointerSize,
                                             pAllocStringFromString).Int32Value());
   CheckEntrypointTypes<kQuickAllocStringFromString, void*, void*>();
   __ Jalr(T9);

@@ -137,7 +137,7 @@ size_t CodeGenerator::GetCacheOffset(uint32_t index) {
 
 size_t CodeGenerator::GetCachePointerOffset(uint32_t index) {
   auto pointer_size = InstructionSetPointerSize(GetInstructionSet());
-  return pointer_size * index;
+  return static_cast<size_t>(pointer_size) * index;
 }
 
 uint32_t CodeGenerator::GetArrayLengthOffset(HArrayLength* array_length) {

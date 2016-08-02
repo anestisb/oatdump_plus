@@ -299,7 +299,7 @@ FrameOffset JniCallingConvention::CurrentParamHandleScopeEntryOffset() {
 
 size_t JniCallingConvention::CurrentParamSize() {
   if (itr_args_ <= kObjectOrClass) {
-    return frame_pointer_size_;  // JNIEnv or jobject/jclass
+    return static_cast<size_t>(frame_pointer_size_);  // JNIEnv or jobject/jclass
   } else {
     int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni();
     return ParamSize(arg_pos);

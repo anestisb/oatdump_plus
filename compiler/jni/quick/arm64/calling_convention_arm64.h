@@ -17,17 +17,21 @@
 #ifndef ART_COMPILER_JNI_QUICK_ARM64_CALLING_CONVENTION_ARM64_H_
 #define ART_COMPILER_JNI_QUICK_ARM64_CALLING_CONVENTION_ARM64_H_
 
+#include "base/enums.h"
 #include "jni/quick/calling_convention.h"
 
 namespace art {
 namespace arm64 {
 
-constexpr size_t kFramePointerSize = 8;
+constexpr size_t kFramePointerSize = static_cast<size_t>(PointerSize::k64);
 
 class Arm64ManagedRuntimeCallingConvention FINAL : public ManagedRuntimeCallingConvention {
  public:
   Arm64ManagedRuntimeCallingConvention(bool is_static, bool is_synchronized, const char* shorty)
-      : ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty, kFramePointerSize) {}
+      : ManagedRuntimeCallingConvention(is_static,
+                                        is_synchronized,
+                                        shorty,
+                                        PointerSize::k64) {}
   ~Arm64ManagedRuntimeCallingConvention() OVERRIDE {}
   // Calling convention
   ManagedRegister ReturnRegister() OVERRIDE;
