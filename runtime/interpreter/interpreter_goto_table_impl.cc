@@ -163,14 +163,14 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   static const void* const handlersTable[instrumentation::kNumHandlerTables][kNumPackedOpcodes] = {
     {
     // Main handler table.
-#define INSTRUCTION_HANDLER(o, code, n, f, r, i, a, v) &&op_##code,
+#define INSTRUCTION_HANDLER(o, code, n, f, i, a, v) &&op_##code,
 #include "dex_instruction_list.h"
       DEX_INSTRUCTION_LIST(INSTRUCTION_HANDLER)
 #undef DEX_INSTRUCTION_LIST
 #undef INSTRUCTION_HANDLER
     }, {
     // Alternative handler table.
-#define INSTRUCTION_HANDLER(o, code, n, f, r, i, a, v) &&alt_op_##code,
+#define INSTRUCTION_HANDLER(o, code, n, f, i, a, v) &&alt_op_##code,
 #include "dex_instruction_list.h"
       DEX_INSTRUCTION_LIST(INSTRUCTION_HANDLER)
 #undef DEX_INSTRUCTION_LIST
@@ -2597,7 +2597,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 // Note: we do not use the kReturn instruction flag here (to test the instruction is a return). The
 // compiler seems to not evaluate "(Instruction::FlagsOf(Instruction::code) & kReturn) != 0" to
 // a constant condition that would remove the "if" statement so the test is free.
-#define INSTRUMENTATION_INSTRUCTION_HANDLER(o, code, n, f, r, i, a, v)                        \
+#define INSTRUMENTATION_INSTRUCTION_HANDLER(o, code, n, f, i, a, v)                        \
   alt_op_##code: {                                                                            \
     if (UNLIKELY(instrumentation->HasDexPcListeners())) {                                     \
       Object* this_object = shadow_frame.GetThisObject(code_item->ins_size_);                 \
