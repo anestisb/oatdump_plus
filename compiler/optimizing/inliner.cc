@@ -292,6 +292,21 @@ static bool IsPolymorphic(Handle<mirror::ObjectArray<mirror::Class>> classes)
       classes->Get(InlineCache::kIndividualCacheSize - 1) == nullptr;
 }
 
+ArtMethod* HInliner::TryCHADevirtualization(ArtMethod* resolved_method) {
+  if (!resolved_method->HasSingleImplementation()) {
+    return nullptr;
+  }
+  if (Runtime::Current()->IsAotCompiler()) {
+    // No CHA-based devirtulization for AOT compiler (yet).
+    return nullptr;
+  }
+  if (outermost_graph_->IsCompilingOsr()) {
+    // We do not support HDeoptimize in OSR methods.
+    return nullptr;
+  }
+  return resolved_method->GetSingleImplementation();
+}
+
 bool HInliner::TryInline(HInvoke* invoke_instruction) {
   if (invoke_instruction->IsInvokeUnresolved()) {
     return false;  // Don't bother to move further if we know the method is unresolved.
@@ -317,10 +332,29 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
     actual_method = FindVirtualOrInterfaceTarget(invoke_instruction, resolved_method);
   }
 
+  bool cha_devirtualize = false;
+  if (actual_method == nullptr) {
+    ArtMethod* method = TryCHADevirtualization(resolved_method);
+    if (method != nullptr) {
+      cha_devirtualize = true;
+      actual_method = method;
+    }
+  }
+
   if (actual_method != nullptr) {
-    bool result = TryInlineAndReplace(invoke_instruction, actual_method, /* do_rtp */ true);
+    bool result = TryInlineAndReplace(invoke_instruction,
+                                      actual_method,
+                                      /* do_rtp */ true,
+                                      cha_devirtualize);
     if (result && !invoke_instruction->IsInvokeStaticOrDirect()) {
-      MaybeRecordStat(kInlinedInvokeVirtualOrInterface);
+      if (cha_devirtualize) {
+        // Add dependency due to devirtulization. We've assumed resolved_method
+        // has single implementation.
+        outermost_graph_->AddCHASingleImplementationDependency(resolved_method);
+        MaybeRecordStat(kCHAInline);
+      } else {
+        MaybeRecordStat(kInlinedInvokeVirtualOrInterface);
+      }
     }
     return result;
   }
@@ -438,7 +472,10 @@ bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
   HInstruction* cursor = invoke_instruction->GetPrevious();
   HBasicBlock* bb_cursor = invoke_instruction->GetBlock();
 
-  if (!TryInlineAndReplace(invoke_instruction, resolved_method, /* do_rtp */ false)) {
+  if (!TryInlineAndReplace(invoke_instruction,
+                           resolved_method,
+                           /* do_rtp */ false,
+                           /* cha_devirtualize */ false)) {
     return false;
   }
 
@@ -463,6 +500,25 @@ bool HInliner::TryInlineMonomorphicCall(HInvoke* invoke_instruction,
 
   MaybeRecordStat(kInlinedMonomorphicCall);
   return true;
+}
+
+void HInliner::AddCHAGuard(HInstruction* invoke_instruction,
+                           uint32_t dex_pc,
+                           HInstruction* cursor,
+                           HBasicBlock* bb_cursor) {
+  HInstruction* deopt_flag = new (graph_->GetArena()) HShouldDeoptimizeFlag(dex_pc);
+  HInstruction* should_deopt = new (graph_->GetArena()) HNotEqual(
+      deopt_flag, graph_->GetIntConstant(0, dex_pc));
+  HInstruction* deopt = new (graph_->GetArena()) HDeoptimize(should_deopt, dex_pc);
+
+  if (cursor != nullptr) {
+    bb_cursor->InsertInstructionAfter(deopt_flag, cursor);
+  } else {
+    bb_cursor->InsertInstructionBefore(deopt_flag, bb_cursor->GetFirstInstruction());
+  }
+  bb_cursor->InsertInstructionAfter(should_deopt, deopt_flag);
+  bb_cursor->InsertInstructionAfter(deopt, should_deopt);
+  deopt->CopyEnvironmentFrom(invoke_instruction->GetEnvironment());
 }
 
 HInstruction* HInliner::AddTypeGuard(HInstruction* receiver,
@@ -787,8 +843,14 @@ bool HInliner::TryInlinePolymorphicCallToSameTarget(
   return true;
 }
 
-bool HInliner::TryInlineAndReplace(HInvoke* invoke_instruction, ArtMethod* method, bool do_rtp) {
+bool HInliner::TryInlineAndReplace(HInvoke* invoke_instruction,
+                                   ArtMethod* method,
+                                   bool do_rtp,
+                                   bool cha_devirtualize) {
   HInstruction* return_replacement = nullptr;
+  uint32_t dex_pc = invoke_instruction->GetDexPc();
+  HInstruction* cursor = invoke_instruction->GetPrevious();
+  HBasicBlock* bb_cursor = invoke_instruction->GetBlock();
   if (!TryBuildAndInline(invoke_instruction, method, &return_replacement)) {
     if (invoke_instruction->IsInvokeInterface()) {
       // Turn an invoke-interface into an invoke-virtual. An invoke-virtual is always
@@ -825,6 +887,9 @@ bool HInliner::TryInlineAndReplace(HInvoke* invoke_instruction, ArtMethod* metho
       // compiler driver.
       return false;
     }
+  }
+  if (cha_devirtualize) {
+    AddCHAGuard(invoke_instruction, dex_pc, cursor, bb_cursor);
   }
   if (return_replacement != nullptr) {
     invoke_instruction->ReplaceWith(return_replacement);

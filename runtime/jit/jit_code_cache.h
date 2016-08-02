@@ -20,6 +20,7 @@
 #include "instrumentation.h"
 
 #include "atomic.h"
+#include "base/arena_containers.h"
 #include "base/histogram-inl.h"
 #include "base/macros.h"
 #include "base/mutex.h"
@@ -91,6 +92,11 @@ class JitCodeCache {
       REQUIRES(!lock_);
 
   // Allocate and write code and its metadata to the code cache.
+  // `cha_single_implementation_list` needs to be registered via CHA (if it's
+  // still valid), since the compiled code still needs to be invalidated if the
+  // single-implementation assumptions are violated later. This needs to be done
+  // even if `has_should_deoptimize_flag` is false, which can happen due to CHA
+  // guard elimination.
   uint8_t* CommitCode(Thread* self,
                       ArtMethod* method,
                       uint8_t* stack_map,
@@ -101,7 +107,9 @@ class JitCodeCache {
                       const uint8_t* code,
                       size_t code_size,
                       bool osr,
-                      Handle<mirror::ObjectArray<mirror::Object>> roots)
+                      Handle<mirror::ObjectArray<mirror::Object>> roots,
+                      bool has_should_deoptimize_flag,
+                      const ArenaSet<ArtMethod*>& cha_single_implementation_list)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!lock_);
 
@@ -230,7 +238,9 @@ class JitCodeCache {
                               const uint8_t* code,
                               size_t code_size,
                               bool osr,
-                              Handle<mirror::ObjectArray<mirror::Object>> roots)
+                              Handle<mirror::ObjectArray<mirror::Object>> roots,
+                              bool has_should_deoptimize_flag,
+                              const ArenaSet<ArtMethod*>& cha_single_implementation_list)
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -245,8 +255,13 @@ class JitCodeCache {
   bool WaitForPotentialCollectionToComplete(Thread* self)
       REQUIRES(lock_) REQUIRES(!Locks::mutator_lock_);
 
-  // Free in the mspace allocations taken by 'method'.
-  void FreeCode(const void* code_ptr, ArtMethod* method) REQUIRES(lock_);
+  // Remove CHA dependents and underlying allocations for entries in `method_headers`.
+  void FreeAllMethodHeaders(const std::unordered_set<OatQuickMethodHeader*>& method_headers)
+      REQUIRES(!lock_)
+      REQUIRES(!Locks::cha_lock_);
+
+  // Free in the mspace allocations for `code_ptr`.
+  void FreeCode(const void* code_ptr) REQUIRES(lock_);
 
   // Number of bytes allocated in the code cache.
   size_t CodeCacheSizeLocked() REQUIRES(lock_);

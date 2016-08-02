@@ -66,6 +66,11 @@ std::ostream& operator<<(std::ostream& os, const VRegKind& rhs);
 struct ShadowFrameDeleter;
 using ShadowFrameAllocaUniquePtr = std::unique_ptr<ShadowFrame, ShadowFrameDeleter>;
 
+// Size in bytes of the should_deoptimize flag on stack.
+// We just need 4 bytes for our purpose regardless of the architecture. Frame size
+// calculation will automatically do alignment for the final frame size.
+static constexpr size_t kShouldDeoptimizeFlagSize = 4;
+
 // Counting locks by storing object pointers into a vector. Duplicate entries mark recursive locks.
 // The vector will be visited with the ShadowFrame during GC (so all the locked-on objects are
 // thread roots).

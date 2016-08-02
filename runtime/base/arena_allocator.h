@@ -94,6 +94,7 @@ enum ArenaAllocKind {
   kArenaAllocGraphChecker,
   kArenaAllocVerifier,
   kArenaAllocCallingConvention,
+  kArenaAllocCHA,
   kNumArenaAllocKinds
 };
 

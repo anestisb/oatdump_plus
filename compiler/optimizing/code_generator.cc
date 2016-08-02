@@ -304,6 +304,7 @@ void CodeGenerator::InitializeCodeGeneration(size_t number_of_spill_slots,
     SetFrameSize(RoundUp(
         first_register_slot_in_slow_path_
         + maximum_safepoint_spill_size
+        + (GetGraph()->HasShouldDeoptimizeFlag() ? kShouldDeoptimizeFlagSize : 0)
         + FrameEntrySpillSize(),
         kStackAlignment));
   }

@@ -238,7 +238,7 @@ inline ArtMethod* Class::GetVirtualMethodUnchecked(size_t i, PointerSize pointer
 template<VerifyObjectFlags kVerifyFlags,
          ReadBarrierOption kReadBarrierOption>
 inline PointerArray* Class::GetVTable() {
-  DCHECK(IsResolved<kVerifyFlags>() || IsErroneous<kVerifyFlags>());
+  DCHECK(IsLoaded<kVerifyFlags>() || IsErroneous<kVerifyFlags>());
   return GetFieldObject<PointerArray, kVerifyFlags, kReadBarrierOption>(
       OFFSET_OF_OBJECT_MEMBER(Class, vtable_));
 }

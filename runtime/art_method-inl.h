@@ -105,7 +105,7 @@ inline uint32_t ArtMethod::GetAccessFlags() {
       DoGetAccessFlagsHelper<kReadBarrierOption>(this);
     }
   }
-  return access_flags_;
+  return access_flags_.load(std::memory_order_relaxed);
 }
 
 inline uint16_t ArtMethod::GetMethodIndex() {
@@ -450,6 +450,53 @@ inline mirror::Class* ArtMethod::GetReturnType(bool resolve, PointerSize pointer
     CHECK(type != nullptr || Thread::Current()->IsExceptionPending());
   }
   return type;
+}
+
+inline bool ArtMethod::HasSingleImplementation() {
+  if (IsFinal() || GetDeclaringClass()->IsFinal()) {
+    // We don't set kAccSingleImplementation for these cases since intrinsic
+    // can use the flag also.
+    return true;
+  }
+  return (GetAccessFlags() & kAccSingleImplementation) != 0;
+}
+
+inline void ArtMethod::SetIntrinsic(uint32_t intrinsic) {
+  DCHECK(IsUint<8>(intrinsic));
+  // Currently we only do intrinsics for static/final methods or methods of final
+  // classes. We don't set kHasSingleImplementation for those methods.
+  DCHECK(IsStatic() || IsFinal() || GetDeclaringClass()->IsFinal()) <<
+      "Potential conflict with kAccSingleImplementation";
+  uint32_t new_value = (GetAccessFlags() & kAccFlagsNotUsedByIntrinsic) |
+      kAccIntrinsic |
+      (intrinsic << POPCOUNT(kAccFlagsNotUsedByIntrinsic));
+  if (kIsDebugBuild) {
+    uint32_t java_flags = (GetAccessFlags() & kAccJavaFlagsMask);
+    bool is_constructor = IsConstructor();
+    bool is_synchronized = IsSynchronized();
+    bool skip_access_checks = SkipAccessChecks();
+    bool is_fast_native = IsFastNative();
+    bool is_copied = IsCopied();
+    bool is_miranda = IsMiranda();
+    bool is_default = IsDefault();
+    bool is_default_conflict = IsDefaultConflicting();
+    bool is_compilable = IsCompilable();
+    bool must_count_locks = MustCountLocks();
+    SetAccessFlags(new_value);
+    DCHECK_EQ(java_flags, (GetAccessFlags() & kAccJavaFlagsMask));
+    DCHECK_EQ(is_constructor, IsConstructor());
+    DCHECK_EQ(is_synchronized, IsSynchronized());
+    DCHECK_EQ(skip_access_checks, SkipAccessChecks());
+    DCHECK_EQ(is_fast_native, IsFastNative());
+    DCHECK_EQ(is_copied, IsCopied());
+    DCHECK_EQ(is_miranda, IsMiranda());
+    DCHECK_EQ(is_default, IsDefault());
+    DCHECK_EQ(is_default_conflict, IsDefaultConflicting());
+    DCHECK_EQ(is_compilable, IsCompilable());
+    DCHECK_EQ(must_count_locks, MustCountLocks());
+  } else {
+    SetAccessFlags(new_value);
+  }
 }
 
 template<ReadBarrierOption kReadBarrierOption, typename RootVisitorType>
