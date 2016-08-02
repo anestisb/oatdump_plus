@@ -180,6 +180,7 @@ class LocationsBuilderARM : public HGraphVisitor {
   void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
 
+  Location ArithmeticZeroOrFpuRegister(HInstruction* input);
   Location ArmEncodableConstantOrRegister(HInstruction* constant, Opcode opcode);
   bool CanEncodeConstantAsImmediate(HConstant* input_cst, Opcode opcode);
   bool CanEncodeConstantAsImmediate(uint32_t value, Opcode opcode);
@@ -281,6 +282,7 @@ class InstructionCodeGeneratorARM : public InstructionCodeGenerator {
   void GenerateCompareTestAndBranch(HCondition* condition,
                                     Label* true_target,
                                     Label* false_target);
+  void GenerateVcmp(HInstruction* instruction);
   void GenerateFPJumps(HCondition* cond, Label* true_label, Label* false_label);
   void GenerateLongComparesAndJumps(HCondition* cond, Label* true_label, Label* false_label);
   void DivRemOneOrMinusOne(HBinaryOperation* instruction);
