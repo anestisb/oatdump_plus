@@ -90,7 +90,6 @@ include $(art_path)/profman/Android.mk
 include $(art_path)/dalvikvm/Android.mk
 include $(art_path)/tools/Android.mk
 include $(art_path)/tools/ahat/Android.mk
-include $(art_path)/tools/cpp-define-generator/Android.mk
 include $(art_path)/tools/dexfuzz/Android.mk
 include $(art_path)/tools/dmtracedump/Android.mk
 include $(art_path)/sigchainlib/Android.mk
