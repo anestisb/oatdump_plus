@@ -298,6 +298,12 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
         stream << constant->AsIntConstant()->GetValue();
       } else if (constant->IsLongConstant()) {
         stream << constant->AsLongConstant()->GetValue();
+      } else if (constant->IsFloatConstant()) {
+        stream << constant->AsFloatConstant()->GetValue();
+      } else if (constant->IsDoubleConstant()) {
+        stream << constant->AsDoubleConstant()->GetValue();
+      } else if (constant->IsNullConstant()) {
+        stream << "null";
       }
     } else if (location.IsInvalid()) {
       stream << "invalid";
