@@ -18,6 +18,7 @@
 
 #include <cmath>
 
+#include "base/enums.h"
 #include "debugger.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "jit/jit.h"
@@ -537,7 +538,7 @@ void ArtInterpreterToCompiledCodeBridge(Thread* self,
   }
   method->Invoke(self, shadow_frame->GetVRegArgs(arg_offset),
                  (shadow_frame->NumberOfVRegs() - arg_offset) * sizeof(uint32_t),
-                 result, method->GetInterfaceMethodIfProxy(sizeof(void*))->GetShorty());
+                 result, method->GetInterfaceMethodIfProxy(kRuntimePointerSize)->GetShorty());
 }
 
 void SetStringInitValueToAllAliases(ShadowFrame* shadow_frame,
@@ -656,7 +657,8 @@ static inline bool DoCallCommon(ArtMethod* called_method,
     // As a special case for proxy methods, which are not dex-backed,
     // we have to retrieve type information from the proxy's method
     // interface method instead (which is dex backed since proxies are never interfaces).
-    ArtMethod* method = new_shadow_frame->GetMethod()->GetInterfaceMethodIfProxy(sizeof(void*));
+    ArtMethod* method =
+        new_shadow_frame->GetMethod()->GetInterfaceMethodIfProxy(kRuntimePointerSize);
 
     // We need to do runtime check on reference assignment. We need to load the shorty
     // to get the exact type of each reference argument.
@@ -686,7 +688,7 @@ static inline bool DoCallCommon(ArtMethod* called_method,
         case 'L': {
           Object* o = shadow_frame.GetVRegReference(src_reg);
           if (do_assignability_check && o != nullptr) {
-            size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+            PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
             Class* arg_type =
                 method->GetClassFromTypeIndex(
                     params->GetTypeItem(shorty_pos).type_idx_, true /* resolve */, pointer_size);

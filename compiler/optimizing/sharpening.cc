@@ -17,6 +17,7 @@
 #include "sharpening.h"
 
 #include "base/casts.h"
+#include "base/enums.h"
 #include "class_linker.h"
 #include "code_generator.h"
 #include "driver/dex_compilation_unit.h"
@@ -259,7 +260,7 @@ void HSharpening::ProcessLoadClass(HLoadClass* load_class) {
       load_class->SetLoadKindWithAddress(load_kind, address);
       break;
     case HLoadClass::LoadKind::kDexCachePcRelative: {
-      size_t pointer_size = InstructionSetPointerSize(codegen_->GetInstructionSet());
+      PointerSize pointer_size = InstructionSetPointerSize(codegen_->GetInstructionSet());
       DexCacheArraysLayout layout(pointer_size, &dex_file);
       size_t element_index = layout.TypeOffset(type_index);
       load_class->SetLoadKindWithDexCacheReference(load_kind, dex_file, element_index);
@@ -358,7 +359,7 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
       load_string->SetLoadKindWithAddress(load_kind, address);
       break;
     case HLoadString::LoadKind::kDexCachePcRelative: {
-      size_t pointer_size = InstructionSetPointerSize(codegen_->GetInstructionSet());
+      PointerSize pointer_size = InstructionSetPointerSize(codegen_->GetInstructionSet());
       DexCacheArraysLayout layout(pointer_size, &dex_file);
       size_t element_index = layout.StringOffset(string_index);
       load_string->SetLoadKindWithDexCacheReference(load_kind, dex_file, element_index);

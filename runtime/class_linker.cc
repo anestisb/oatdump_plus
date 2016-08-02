@@ -323,7 +323,7 @@ ClassLinker::ClassLinker(InternTable* intern_table)
       quick_imt_conflict_trampoline_(nullptr),
       quick_generic_jni_trampoline_(nullptr),
       quick_to_interpreter_bridge_trampoline_(nullptr),
-      image_pointer_size_(sizeof(void*)) {
+      image_pointer_size_(kRuntimePointerSize) {
   CHECK(intern_table_ != nullptr);
   static_assert(kFindArrayCacheSize == arraysize(find_array_class_cache_),
                 "Array cache size wrong.");
@@ -361,10 +361,6 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
 
   // Use the pointer size from the runtime since we are probably creating the image.
   image_pointer_size_ = InstructionSetPointerSize(runtime->GetInstructionSet());
-  if (!ValidPointerSize(image_pointer_size_)) {
-    *error_msg = StringPrintf("Invalid image pointer size: %zu", image_pointer_size_);
-    return false;
-  }
 
   // java_lang_Class comes first, it's needed for AllocClass
   // The GC can't handle an object with a null class since we can't get the size of this object.
@@ -791,7 +787,7 @@ static void SanityCheckArtMethod(ArtMethod* m,
 
 static void SanityCheckArtMethodPointerArray(mirror::PointerArray* arr,
                                              mirror::Class* expected_class,
-                                             size_t pointer_size,
+                                             PointerSize pointer_size,
                                              const std::vector<gc::space::ImageSpace*>& spaces)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   CHECK(arr != nullptr);
@@ -809,7 +805,7 @@ static void SanityCheckArtMethodPointerArray(mirror::PointerArray* arr,
 
 static void SanityCheckArtMethodPointerArray(ArtMethod** arr,
                                              size_t size,
-                                             size_t pointer_size,
+                                             PointerSize pointer_size,
                                              const std::vector<gc::space::ImageSpace*>& spaces)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   CHECK_EQ(arr != nullptr, size != 0u);
@@ -883,7 +879,7 @@ static void SanityCheckObjectsCallback(mirror::Object* obj, void* arg ATTRIBUTE_
 // Set image methods' entry point to interpreter.
 class SetInterpreterEntrypointArtMethodVisitor : public ArtMethodVisitor {
  public:
-  explicit SetInterpreterEntrypointArtMethodVisitor(size_t image_pointer_size)
+  explicit SetInterpreterEntrypointArtMethodVisitor(PointerSize image_pointer_size)
     : image_pointer_size_(image_pointer_size) {}
 
   void Visit(ArtMethod* method) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
@@ -897,7 +893,7 @@ class SetInterpreterEntrypointArtMethodVisitor : public ArtMethodVisitor {
   }
 
  private:
-  const size_t image_pointer_size_;
+  const PointerSize image_pointer_size_;
 
   DISALLOW_COPY_AND_ASSIGN(SetInterpreterEntrypointArtMethodVisitor);
 };
@@ -907,7 +903,7 @@ struct TrampolineCheckData {
   const void* quick_imt_conflict_trampoline;
   const void* quick_generic_jni_trampoline;
   const void* quick_to_interpreter_bridge_trampoline;
-  size_t pointer_size;
+  PointerSize pointer_size;
   ArtMethod* m;
   bool error;
 };
@@ -939,18 +935,19 @@ bool ClassLinker::InitFromBootImage(std::string* error_msg) {
   gc::Heap* const heap = runtime->GetHeap();
   std::vector<gc::space::ImageSpace*> spaces = heap->GetBootImageSpaces();
   CHECK(!spaces.empty());
-  image_pointer_size_ = spaces[0]->GetImageHeader().GetPointerSize();
-  if (!ValidPointerSize(image_pointer_size_)) {
-    *error_msg = StringPrintf("Invalid image pointer size: %zu", image_pointer_size_);
+  uint32_t pointer_size_unchecked = spaces[0]->GetImageHeader().GetPointerSizeUnchecked();
+  if (!ValidPointerSize(pointer_size_unchecked)) {
+    *error_msg = StringPrintf("Invalid image pointer size: %u", pointer_size_unchecked);
     return false;
   }
+  image_pointer_size_ = spaces[0]->GetImageHeader().GetPointerSize();
   if (!runtime->IsAotCompiler()) {
     // Only the Aot compiler supports having an image with a different pointer size than the
     // runtime. This happens on the host for compiling 32 bit tests since we use a 64 bit libart
     // compiler. We may also use 32 bit dex2oat on a system with 64 bit apps.
-    if (image_pointer_size_ != sizeof(void*)) {
+    if (image_pointer_size_ != kRuntimePointerSize) {
       *error_msg = StringPrintf("Runtime must use current image pointer size: %zu vs %zu",
-                                image_pointer_size_,
+                                static_cast<size_t>(image_pointer_size_),
                                 sizeof(void*));
       return false;
     }
@@ -1150,7 +1147,7 @@ class FixupArtMethodArrayVisitor : public ArtMethodVisitor {
   explicit FixupArtMethodArrayVisitor(const ImageHeader& header) : header_(header) {}
 
   virtual void Visit(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_) {
-    GcRoot<mirror::Class>* resolved_types = method->GetDexCacheResolvedTypes(sizeof(void*));
+    GcRoot<mirror::Class>* resolved_types = method->GetDexCacheResolvedTypes(kRuntimePointerSize);
     const bool is_copied = method->IsCopied();
     if (resolved_types != nullptr) {
       bool in_image_space = false;
@@ -1165,10 +1162,10 @@ class FixupArtMethodArrayVisitor : public ArtMethodVisitor {
       if (!is_copied || in_image_space) {
         // Go through the array so that we don't need to do a slow map lookup.
         method->SetDexCacheResolvedTypes(*reinterpret_cast<GcRoot<mirror::Class>**>(resolved_types),
-                                         sizeof(void*));
+                                         kRuntimePointerSize);
       }
     }
-    ArtMethod** resolved_methods = method->GetDexCacheResolvedMethods(sizeof(void*));
+    ArtMethod** resolved_methods = method->GetDexCacheResolvedMethods(kRuntimePointerSize);
     if (resolved_methods != nullptr) {
       bool in_image_space = false;
       if (kIsDebugBuild || is_copied) {
@@ -1182,7 +1179,7 @@ class FixupArtMethodArrayVisitor : public ArtMethodVisitor {
       if (!is_copied || in_image_space) {
         // Go through the array so that we don't need to do a slow map lookup.
         method->SetDexCacheResolvedMethods(*reinterpret_cast<ArtMethod***>(resolved_methods),
-                                           sizeof(void*));
+                                           kRuntimePointerSize);
       }
     }
   }
@@ -1382,11 +1379,11 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
                 VLOG(image) << "From " << klass->GetDexCache()->GetDexFile()->GetBaseLocation();
               }
               VLOG(image) << "Direct methods";
-              for (ArtMethod& m : klass->GetDirectMethods(sizeof(void*))) {
+              for (ArtMethod& m : klass->GetDirectMethods(kRuntimePointerSize)) {
                 VLOG(image) << PrettyMethod(&m);
               }
               VLOG(image) << "Virtual methods";
-              for (ArtMethod& m : klass->GetVirtualMethods(sizeof(void*))) {
+              for (ArtMethod& m : klass->GetVirtualMethods(kRuntimePointerSize)) {
                 VLOG(image) << PrettyMethod(&m);
               }
             }
@@ -1422,7 +1419,7 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
               }
             }
             if (kIsDebugBuild) {
-              for (ArtMethod& m : klass->GetDirectMethods(sizeof(void*))) {
+              for (ArtMethod& m : klass->GetDirectMethods(kRuntimePointerSize)) {
                 const void* code = m.GetEntryPointFromQuickCompiledCode();
                 const void* oat_code = m.IsInvokable() ? GetQuickOatCodeFor(&m) : code;
                 if (!IsQuickResolutionStub(code) &&
@@ -1432,7 +1429,7 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
                   DCHECK_EQ(code, oat_code) << PrettyMethod(&m);
                 }
               }
-              for (ArtMethod& m : klass->GetVirtualMethods(sizeof(void*))) {
+              for (ArtMethod& m : klass->GetVirtualMethods(kRuntimePointerSize)) {
                 const void* code = m.GetEntryPointFromQuickCompiledCode();
                 const void* oat_code = m.IsInvokable() ? GetQuickOatCodeFor(&m) : code;
                 if (!IsQuickResolutionStub(code) &&
@@ -1451,14 +1448,14 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
   if (*out_forward_dex_cache_array) {
     ScopedTrace timing("Fixup ArtMethod dex cache arrays");
     FixupArtMethodArrayVisitor visitor(header);
-    header.VisitPackedArtMethods(&visitor, space->Begin(), sizeof(void*));
+    header.VisitPackedArtMethods(&visitor, space->Begin(), kRuntimePointerSize);
     Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader.Get());
   }
   if (kVerifyArtMethodDeclaringClasses) {
     ScopedTrace timing("Verify declaring classes");
     ReaderMutexLock rmu(self, *Locks::heap_bitmap_lock_);
     VerifyDeclaringClassVisitor visitor;
-    header.VisitPackedArtMethods(&visitor, space->Begin(), sizeof(void*));
+    header.VisitPackedArtMethods(&visitor, space->Begin(), kRuntimePointerSize);
   }
   return true;
 }
@@ -1810,7 +1807,7 @@ bool ClassLinker::AddImageSpace(
     // This verification needs to happen after the classes have been added to the class loader.
     // Since it ensures classes are in the class table.
     VerifyClassInTableArtMethodVisitor visitor2(class_table);
-    header.VisitPackedArtMethods(&visitor2, space->Begin(), sizeof(void*));
+    header.VisitPackedArtMethods(&visitor2, space->Begin(), kRuntimePointerSize);
   }
   VLOG(class_linker) << "Adding image space took " << PrettyDuration(NanoTime() - start_time);
   return true;
@@ -2054,9 +2051,10 @@ void ClassLinker::DeleteClassLoader(Thread* self, const ClassLoaderData& data) {
 }
 
 mirror::PointerArray* ClassLinker::AllocPointerArray(Thread* self, size_t length) {
-  return down_cast<mirror::PointerArray*>(image_pointer_size_ == 8u ?
-      static_cast<mirror::Array*>(mirror::LongArray::Alloc(self, length)) :
-      static_cast<mirror::Array*>(mirror::IntArray::Alloc(self, length)));
+  return down_cast<mirror::PointerArray*>(
+      image_pointer_size_ == PointerSize::k64
+          ? static_cast<mirror::Array*>(mirror::LongArray::Alloc(self, length))
+          : static_cast<mirror::Array*>(mirror::IntArray::Alloc(self, length)));
 }
 
 mirror::DexCache* ClassLinker::AllocDexCache(Thread* self,
@@ -2081,8 +2079,6 @@ mirror::DexCache* ClassLinker::AllocDexCache(Thread* self,
     raw_arrays = dex_file.GetOatDexFile()->GetDexCacheArrays();
   } else if (dex_file.NumStringIds() != 0u || dex_file.NumTypeIds() != 0u ||
       dex_file.NumMethodIds() != 0u || dex_file.NumFieldIds() != 0u) {
-    // NOTE: We "leak" the raw_arrays because we never destroy the dex cache.
-    DCHECK(image_pointer_size_ == 4u || image_pointer_size_ == 8u);
     // Zero-initialized.
     raw_arrays = reinterpret_cast<uint8_t*>(linear_alloc->Alloc(self, layout.Size()));
   }
@@ -4831,7 +4827,7 @@ static void ThrowSignatureMismatch(Handle<mirror::Class> klass,
 }
 
 static bool HasSameSignatureWithDifferentClassLoaders(Thread* self,
-                                                      size_t pointer_size,
+                                                      PointerSize pointer_size,
                                                       Handle<mirror::Class> klass,
                                                       Handle<mirror::Class> super_klass,
                                                       ArtMethod* method1,
@@ -5047,7 +5043,7 @@ ClassTable* ClassLinker::ClassTableForClassLoader(mirror::ClassLoader* class_loa
   return class_loader == nullptr ? &boot_class_table_ : class_loader->GetClassTable();
 }
 
-static ImTable* FindSuperImt(mirror::Class* klass, size_t pointer_size)
+static ImTable* FindSuperImt(mirror::Class* klass, PointerSize pointer_size)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   while (klass->HasSuperClass()) {
     klass = klass->GetSuperClass();
@@ -5585,7 +5581,7 @@ class LinkVirtualHashTable {
   LinkVirtualHashTable(Handle<mirror::Class> klass,
                        size_t hash_size,
                        uint32_t* hash_table,
-                       size_t image_pointer_size)
+                       PointerSize image_pointer_size)
      : klass_(klass),
        hash_size_(hash_size),
        hash_table_(hash_table),
@@ -5647,13 +5643,20 @@ class LinkVirtualHashTable {
   Handle<mirror::Class> klass_;
   const size_t hash_size_;
   uint32_t* const hash_table_;
-  const size_t image_pointer_size_;
+  const PointerSize image_pointer_size_;
 };
 
 const uint32_t LinkVirtualHashTable::invalid_index_ = std::numeric_limits<uint32_t>::max();
 const uint32_t LinkVirtualHashTable::removed_index_ = std::numeric_limits<uint32_t>::max() - 1;
 
-bool ClassLinker::LinkVirtualMethods(
+// b/30419309
+#if defined(__i386__)
+#define X86_OPTNONE __attribute__((optnone))
+#else
+#define X86_OPTNONE
+#endif
+
+X86_OPTNONE bool ClassLinker::LinkVirtualMethods(
     Thread* self,
     Handle<mirror::Class> klass,
     /*out*/std::unordered_map<size_t, ClassLinker::MethodTranslation>* default_translations) {
@@ -5901,7 +5904,7 @@ static bool ContainsOverridingMethodOf(Thread* self,
                                        Handle<mirror::IfTable> iftable,
                                        size_t ifstart,
                                        Handle<mirror::Class> iface,
-                                       size_t image_pointer_size)
+                                       PointerSize image_pointer_size)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   DCHECK(self != nullptr);
   DCHECK(iface.Get() != nullptr);
@@ -6050,7 +6053,7 @@ ArtMethod* ClassLinker::AddMethodToConflictTable(mirror::Class* klass,
                                                  ArtMethod* interface_method,
                                                  ArtMethod* method,
                                                  bool force_new_conflict_method) {
-  ImtConflictTable* current_table = conflict_method->GetImtConflictTable(sizeof(void*));
+  ImtConflictTable* current_table = conflict_method->GetImtConflictTable(kRuntimePointerSize);
   Runtime* const runtime = Runtime::Current();
   LinearAlloc* linear_alloc = GetAllocatorForClassLoader(klass->GetClassLoader());
   bool new_entry = conflict_method == runtime->GetImtConflictMethod() || force_new_conflict_method;
@@ -6179,7 +6182,7 @@ void ClassLinker::FillIMTAndConflictTables(mirror::Class* klass) {
 
 ImtConflictTable* ClassLinker::CreateImtConflictTable(size_t count,
                                                       LinearAlloc* linear_alloc,
-                                                      size_t image_pointer_size) {
+                                                      PointerSize image_pointer_size) {
   void* data = linear_alloc->Alloc(Thread::Current(),
                                    ImtConflictTable::ComputeSize(count,
                                                                  image_pointer_size));
@@ -6512,7 +6515,7 @@ static ArtMethod* FindSameNameAndSignature(MethodNameAndSignatureComparator& cmp
   return nullptr;
 }
 
-static void SanityCheckVTable(Handle<mirror::Class> klass, uint32_t pointer_size)
+static void SanityCheckVTable(Handle<mirror::Class> klass, PointerSize pointer_size)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   mirror::PointerArray* check_vtable = klass->GetVTableDuringLinking();
   mirror::Class* superclass = (klass->HasSuperClass()) ? klass->GetSuperClass() : nullptr;

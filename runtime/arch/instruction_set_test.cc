@@ -18,6 +18,7 @@
 
 #include <gtest/gtest.h>
 
+#include "base/enums.h"
 #include "base/stringprintf.h"
 
 namespace art {
@@ -49,7 +50,7 @@ TEST(InstructionSetTest, TestRoundTrip) {
 }
 
 TEST(InstructionSetTest, PointerSize) {
-  EXPECT_EQ(sizeof(void*), GetInstructionSetPointerSize(kRuntimeISA));
+  EXPECT_EQ(kRuntimePointerSize, GetInstructionSetPointerSize(kRuntimeISA));
 }
 
 }  // namespace art

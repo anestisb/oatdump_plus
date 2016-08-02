@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "base/enums.h"
 #include "base/stl_util.h"  // MakeUnique
 #include "experimental_flags.h"
 #include "interpreter_common.h"
@@ -283,7 +284,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         const size_t ref_idx = inst->VRegA_11x(inst_data);
         Object* obj_result = shadow_frame.GetVRegReference(ref_idx);
         if (do_assignability_check && obj_result != nullptr) {
-          size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+          PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
           Class* return_type = shadow_frame.GetMethod()->GetReturnType(true /* resolve */,
                                                                        pointer_size);
           // Re-load since it might have moved.

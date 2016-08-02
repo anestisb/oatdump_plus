@@ -28,6 +28,7 @@
 #include "arch/context.h"
 #include "arch/instruction_set.h"
 #include "atomic.h"
+#include "base/enums.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "entrypoints/jni/jni_entrypoints.h"
@@ -179,7 +180,7 @@ class Thread {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Translates 172 to pAllocArrayFromCode and so on.
-  template<size_t size_of_pointers>
+  template<PointerSize size_of_pointers>
   static void DumpThreadOffset(std::ostream& os, uint32_t offset);
 
   // Dumps a one-line summary of thread state (used for operator<<).
@@ -532,21 +533,21 @@ class Thread {
   // Offsets of various members of native Thread class, used by compiled code.
   //
 
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> ThinLockIdOffset() {
     return ThreadOffset<pointer_size>(
         OFFSETOF_MEMBER(Thread, tls32_) +
         OFFSETOF_MEMBER(tls_32bit_sized_values, thin_lock_thread_id));
   }
 
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> ThreadFlagsOffset() {
     return ThreadOffset<pointer_size>(
         OFFSETOF_MEMBER(Thread, tls32_) +
         OFFSETOF_MEMBER(tls_32bit_sized_values, state_and_flags));
   }
 
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> IsGcMarkingOffset() {
     return ThreadOffset<pointer_size>(
         OFFSETOF_MEMBER(Thread, tls32_) +
@@ -557,121 +558,125 @@ class Thread {
   void DeoptimizeWithDeoptimizationException(JValue* result) SHARED_REQUIRES(Locks::mutator_lock_);
 
  private:
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> ThreadOffsetFromTlsPtr(size_t tls_ptr_offset) {
     size_t base = OFFSETOF_MEMBER(Thread, tlsPtr_);
     size_t scale;
     size_t shrink;
-    if (pointer_size == sizeof(void*)) {
+    if (pointer_size == kRuntimePointerSize) {
       scale = 1;
       shrink = 1;
-    } else if (pointer_size > sizeof(void*)) {
-      scale = pointer_size / sizeof(void*);
+    } else if (pointer_size > kRuntimePointerSize) {
+      scale = static_cast<size_t>(pointer_size) / static_cast<size_t>(kRuntimePointerSize);
       shrink = 1;
     } else {
-      DCHECK_GT(sizeof(void*), pointer_size);
+      DCHECK_GT(kRuntimePointerSize, pointer_size);
       scale = 1;
-      shrink = sizeof(void*) / pointer_size;
+      shrink = static_cast<size_t>(kRuntimePointerSize) / static_cast<size_t>(pointer_size);
     }
     return ThreadOffset<pointer_size>(base + ((tls_ptr_offset * scale) / shrink));
   }
 
  public:
   static uint32_t QuickEntryPointOffsetWithSize(size_t quick_entrypoint_offset,
-                                                size_t pointer_size) {
-    DCHECK(pointer_size == 4 || pointer_size == 8) << pointer_size;
-    if (pointer_size == 4) {
-      return QuickEntryPointOffset<4>(quick_entrypoint_offset).Uint32Value();
+                                                PointerSize pointer_size) {
+    if (pointer_size == PointerSize::k32) {
+      return QuickEntryPointOffset<PointerSize::k32>(quick_entrypoint_offset).
+          Uint32Value();
     } else {
-      return QuickEntryPointOffset<8>(quick_entrypoint_offset).Uint32Value();
+      return QuickEntryPointOffset<PointerSize::k64>(quick_entrypoint_offset).
+          Uint32Value();
     }
   }
 
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> QuickEntryPointOffset(size_t quick_entrypoint_offset) {
     return ThreadOffsetFromTlsPtr<pointer_size>(
         OFFSETOF_MEMBER(tls_ptr_sized_values, quick_entrypoints) + quick_entrypoint_offset);
   }
 
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> JniEntryPointOffset(size_t jni_entrypoint_offset) {
     return ThreadOffsetFromTlsPtr<pointer_size>(
         OFFSETOF_MEMBER(tls_ptr_sized_values, jni_entrypoints) + jni_entrypoint_offset);
   }
 
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> SelfOffset() {
     return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values, self));
   }
 
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> MterpCurrentIBaseOffset() {
     return ThreadOffsetFromTlsPtr<pointer_size>(
         OFFSETOF_MEMBER(tls_ptr_sized_values, mterp_current_ibase));
   }
 
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> MterpDefaultIBaseOffset() {
     return ThreadOffsetFromTlsPtr<pointer_size>(
         OFFSETOF_MEMBER(tls_ptr_sized_values, mterp_default_ibase));
   }
 
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> MterpAltIBaseOffset() {
     return ThreadOffsetFromTlsPtr<pointer_size>(
         OFFSETOF_MEMBER(tls_ptr_sized_values, mterp_alt_ibase));
   }
 
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> ExceptionOffset() {
     return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values, exception));
   }
 
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> PeerOffset() {
     return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values, opeer));
   }
 
 
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> CardTableOffset() {
     return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values, card_table));
   }
 
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> ThreadSuspendTriggerOffset() {
     return ThreadOffsetFromTlsPtr<pointer_size>(
         OFFSETOF_MEMBER(tls_ptr_sized_values, suspend_trigger));
   }
 
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> ThreadLocalPosOffset() {
-    return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values, thread_local_pos));
+    return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values,
+                                                                thread_local_pos));
   }
 
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> ThreadLocalEndOffset() {
-    return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values, thread_local_end));
+    return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values,
+                                                                thread_local_end));
   }
 
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> ThreadLocalObjectsOffset() {
-    return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values, thread_local_objects));
+    return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values,
+                                                                thread_local_objects));
   }
 
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> RosAllocRunsOffset() {
     return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values,
                                                                 rosalloc_runs));
   }
 
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> ThreadLocalAllocStackTopOffset() {
     return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values,
                                                                 thread_local_alloc_stack_top));
   }
 
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> ThreadLocalAllocStackEndOffset() {
     return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values,
                                                                 thread_local_alloc_stack_end));
@@ -713,19 +718,19 @@ class Thread {
     return tlsPtr_.stack_end == tlsPtr_.stack_begin;
   }
 
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> StackEndOffset() {
     return ThreadOffsetFromTlsPtr<pointer_size>(
         OFFSETOF_MEMBER(tls_ptr_sized_values, stack_end));
   }
 
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> JniEnvOffset() {
     return ThreadOffsetFromTlsPtr<pointer_size>(
         OFFSETOF_MEMBER(tls_ptr_sized_values, jni_env));
   }
 
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> TopOfManagedStackOffset() {
     return ThreadOffsetFromTlsPtr<pointer_size>(
         OFFSETOF_MEMBER(tls_ptr_sized_values, managed_stack) +
@@ -752,7 +757,7 @@ class Thread {
     return tlsPtr_.managed_stack.PopShadowFrame();
   }
 
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> TopShadowFrameOffset() {
     return ThreadOffsetFromTlsPtr<pointer_size>(
         OFFSETOF_MEMBER(tls_ptr_sized_values, managed_stack) +
@@ -794,7 +799,7 @@ class Thread {
     return handle_scope;
   }
 
-  template<size_t pointer_size>
+  template<PointerSize pointer_size>
   static ThreadOffset<pointer_size> TopHandleScopeOffset() {
     return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values,
                                                                 top_handle_scope));

@@ -48,7 +48,7 @@ inline mirror::ObjectArray<mirror::Object>* ImageHeader::GetImageRoots() const {
 template <typename Visitor>
 inline void ImageHeader::VisitPackedImTables(const Visitor& visitor,
                                              uint8_t* base,
-                                             size_t pointer_size) const {
+                                             PointerSize pointer_size) const {
   const ImageSection& section = GetImageSection(kSectionImTables);
   for (size_t pos = 0; pos < section.Size();) {
     ImTable* imt = reinterpret_cast<ImTable*>(base + section.Offset() + pos);
@@ -66,7 +66,7 @@ inline void ImageHeader::VisitPackedImTables(const Visitor& visitor,
 template <typename Visitor>
 inline void ImageHeader::VisitPackedImtConflictTables(const Visitor& visitor,
                                                       uint8_t* base,
-                                                      size_t pointer_size) const {
+                                                      PointerSize pointer_size) const {
   const ImageSection& section = GetImageSection(kSectionIMTConflictTables);
   for (size_t pos = 0; pos < section.Size(); ) {
     auto* table = reinterpret_cast<ImtConflictTable*>(base + section.Offset() + pos);

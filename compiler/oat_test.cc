@@ -16,6 +16,7 @@
 
 #include "arch/instruction_set_features.h"
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "common_compiler_test.h"
@@ -444,7 +445,8 @@ TEST_F(OatTest, OatHeaderSizeCheck) {
   EXPECT_EQ(72U, sizeof(OatHeader));
   EXPECT_EQ(4U, sizeof(OatMethodOffsets));
   EXPECT_EQ(20U, sizeof(OatQuickMethodHeader));
-  EXPECT_EQ(162 * GetInstructionSetPointerSize(kRuntimeISA), sizeof(QuickEntryPoints));
+  EXPECT_EQ(162 * static_cast<size_t>(GetInstructionSetPointerSize(kRuntimeISA)),
+            sizeof(QuickEntryPoints));
 }
 
 TEST_F(OatTest, OatHeaderIsValid) {

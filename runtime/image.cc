@@ -160,7 +160,7 @@ void ImageHeader::VisitPackedArtFields(ArtFieldVisitor* visitor, uint8_t* base) 
 
 void ImageHeader::VisitPackedArtMethods(ArtMethodVisitor* visitor,
                                         uint8_t* base,
-                                        size_t pointer_size) const {
+                                        PointerSize pointer_size) const {
   const size_t method_alignment = ArtMethod::Alignment(pointer_size);
   const size_t method_size = ArtMethod::Size(pointer_size);
   const ImageSection& methods = GetMethodsSection();

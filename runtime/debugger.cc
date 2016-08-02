@@ -23,6 +23,7 @@
 #include "arch/context.h"
 #include "art_field-inl.h"
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "base/time_utils.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
@@ -79,7 +80,7 @@ static ArtMethod* GetCanonicalMethod(ArtMethod* m)
     mirror::Class* declaring_class = m->GetDeclaringClass();
     return declaring_class->FindDeclaredVirtualMethod(declaring_class->GetDexCache(),
                                                       m->GetDexMethodIndex(),
-                                                      sizeof(void*));
+                                                      kRuntimePointerSize);
   }
 }
 
@@ -1406,7 +1407,7 @@ std::string Dbg::GetMethodName(JDWP::MethodId method_id) {
   if (m == nullptr) {
     return "null";
   }
-  return m->GetInterfaceMethodIfProxy(sizeof(void*))->GetName();
+  return m->GetInterfaceMethodIfProxy(kRuntimePointerSize)->GetName();
 }
 
 std::string Dbg::GetFieldName(JDWP::FieldId field_id) {
@@ -1526,9 +1527,9 @@ JDWP::JdwpError Dbg::OutputDeclaredMethods(JDWP::RefTypeId class_id, bool with_g
   auto ptr_size = cl->GetImagePointerSize();
   for (ArtMethod& m : c->GetMethods(ptr_size)) {
     expandBufAddMethodId(pReply, ToMethodId(&m));
-    expandBufAddUtf8String(pReply, m.GetInterfaceMethodIfProxy(sizeof(void*))->GetName());
-    expandBufAddUtf8String(pReply,
-                           m.GetInterfaceMethodIfProxy(sizeof(void*))->GetSignature().ToString());
+    expandBufAddUtf8String(pReply, m.GetInterfaceMethodIfProxy(kRuntimePointerSize)->GetName());
+    expandBufAddUtf8String(
+        pReply, m.GetInterfaceMethodIfProxy(kRuntimePointerSize)->GetSignature().ToString());
     if (with_generic) {
       const char* generic_signature = "";
       expandBufAddUtf8String(pReply, generic_signature);
@@ -3934,7 +3935,7 @@ JDWP::JdwpError Dbg::PrepareInvokeMethod(uint32_t request_id, JDWP::ObjectId thr
           mirror::Class* parameter_type =
               m->GetClassFromTypeIndex(types->GetTypeItem(i).type_idx_,
                                        true /* resolve */,
-                                       sizeof(void*));
+                                       kRuntimePointerSize);
           mirror::Object* argument = gRegistry->Get<mirror::Object*>(arg_values[i], &error);
           if (error != JDWP::ERR_NONE) {
             return JDWP::ERR_INVALID_OBJECT;
@@ -4025,7 +4026,7 @@ void Dbg::ExecuteMethodWithoutPendingException(ScopedObjectAccess& soa, DebugInv
 
   // Translate the method through the vtable, unless the debugger wants to suppress it.
   ArtMethod* m = pReq->method;
-  size_t image_pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+  PointerSize image_pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
   if ((pReq->options & JDWP::INVOKE_NONVIRTUAL) == 0 && pReq->receiver.Read() != nullptr) {
     ArtMethod* actual_method =
         pReq->klass.Read()->FindVirtualMethodForVirtualOrInterface(m, image_pointer_size);
@@ -5068,7 +5069,7 @@ void Dbg::VisitRoots(RootVisitor* visitor) {
   ReaderMutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
   BufferedRootVisitor<128> root_visitor(visitor, RootInfo(kRootVMInternal));
   for (Breakpoint& breakpoint : gBreakpoints) {
-    breakpoint.Method()->VisitRoots(root_visitor, sizeof(void*));
+    breakpoint.Method()->VisitRoots(root_visitor, kRuntimePointerSize);
   }
 }
 

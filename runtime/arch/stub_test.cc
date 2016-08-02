@@ -18,6 +18,7 @@
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
@@ -529,11 +530,7 @@ class StubTest : public CommonRuntimeTest {
 
   static uintptr_t GetEntrypoint(Thread* self, QuickEntrypointEnum entrypoint) {
     int32_t offset;
-#ifdef __LP64__
-    offset = GetThreadOffset<8>(entrypoint).Int32Value();
-#else
-    offset = GetThreadOffset<4>(entrypoint).Int32Value();
-#endif
+    offset = GetThreadOffset<kRuntimePointerSize>(entrypoint).Int32Value();
     return *reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(self) + offset);
   }
 
@@ -1016,7 +1013,7 @@ TEST_F(StubTest, AllocObject) {
     // Use an arbitrary method from c to use as referrer
     size_t result = Invoke3(static_cast<size_t>(c->GetDexTypeIndex()),    // type_idx
                             // arbitrary
-                            reinterpret_cast<size_t>(c->GetVirtualMethod(0, sizeof(void*))),
+                            reinterpret_cast<size_t>(c->GetVirtualMethod(0, kRuntimePointerSize)),
                             0U,
                             StubTest::GetEntrypoint(self, kQuickAllocObject),
                             self);
@@ -1147,12 +1144,13 @@ TEST_F(StubTest, AllocObjectArray) {
 
   if ((false)) {
     // Use an arbitrary method from c to use as referrer
-    size_t result = Invoke3(static_cast<size_t>(c->GetDexTypeIndex()),    // type_idx
-                            10U,
-                            // arbitrary
-                            reinterpret_cast<size_t>(c_obj->GetVirtualMethod(0, sizeof(void*))),
-                            StubTest::GetEntrypoint(self, kQuickAllocArray),
-                            self);
+    size_t result = Invoke3(
+        static_cast<size_t>(c->GetDexTypeIndex()),    // type_idx
+        10U,
+        // arbitrary
+        reinterpret_cast<size_t>(c_obj->GetVirtualMethod(0, kRuntimePointerSize)),
+        StubTest::GetEntrypoint(self, kQuickAllocArray),
+        self);
 
     EXPECT_FALSE(self->IsExceptionPending());
     EXPECT_NE(reinterpret_cast<size_t>(nullptr), result);
@@ -1799,7 +1797,7 @@ static void TestFields(Thread* self, StubTest* test, Primitive::Type test_type) 
   Handle<mirror::Object> obj(hs.NewHandle(soa.Decode<mirror::Object*>(o)));
   Handle<mirror::Class> c(hs.NewHandle(obj->GetClass()));
   // Need a method as a referrer
-  ArtMethod* m = c->GetDirectMethod(0, sizeof(void*));
+  ArtMethod* m = c->GetDirectMethod(0, kRuntimePointerSize);
 
   // Play with it...
 
@@ -2015,10 +2013,10 @@ TEST_F(StubTest, DISABLED_IMT) {
       Runtime::Current()->GetClassLinker()->CreateImtConflictTable(/*count*/0u, linear_alloc);
   void* data = linear_alloc->Alloc(
       self,
-      ImtConflictTable::ComputeSizeWithOneMoreEntry(empty_conflict_table, sizeof(void*)));
+      ImtConflictTable::ComputeSizeWithOneMoreEntry(empty_conflict_table, kRuntimePointerSize));
   ImtConflictTable* new_table = new (data) ImtConflictTable(
-      empty_conflict_table, inf_contains, contains_amethod, sizeof(void*));
-  conflict_method->SetImtConflictTable(new_table, sizeof(void*));
+      empty_conflict_table, inf_contains, contains_amethod, kRuntimePointerSize);
+  conflict_method->SetImtConflictTable(new_table, kRuntimePointerSize);
 
   size_t result =
       Invoke3WithReferrerAndHidden(reinterpret_cast<size_t>(conflict_method),

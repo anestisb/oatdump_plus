@@ -500,15 +500,15 @@ class MipsAssembler FINAL : public Assembler {
 
   void StoreImmediateToFrame(FrameOffset dest, uint32_t imm, ManagedRegister mscratch) OVERRIDE;
 
-  void StoreImmediateToThread32(ThreadOffset<kMipsWordSize> dest,
+  void StoreImmediateToThread32(ThreadOffset32 dest,
                                 uint32_t imm,
                                 ManagedRegister mscratch) OVERRIDE;
 
-  void StoreStackOffsetToThread32(ThreadOffset<kMipsWordSize> thr_offs,
+  void StoreStackOffsetToThread32(ThreadOffset32 thr_offs,
                                   FrameOffset fr_offs,
                                   ManagedRegister mscratch) OVERRIDE;
 
-  void StoreStackPointerToThread32(ThreadOffset<kMipsWordSize> thr_offs) OVERRIDE;
+  void StoreStackPointerToThread32(ThreadOffset32 thr_offs) OVERRIDE;
 
   void StoreSpanning(FrameOffset dest,
                      ManagedRegister msrc,
@@ -518,9 +518,7 @@ class MipsAssembler FINAL : public Assembler {
   // Load routines.
   void Load(ManagedRegister mdest, FrameOffset src, size_t size) OVERRIDE;
 
-  void LoadFromThread32(ManagedRegister mdest,
-                        ThreadOffset<kMipsWordSize> src,
-                        size_t size) OVERRIDE;
+  void LoadFromThread32(ManagedRegister mdest, ThreadOffset32 src, size_t size) OVERRIDE;
 
   void LoadRef(ManagedRegister dest, FrameOffset src) OVERRIDE;
 
@@ -531,16 +529,16 @@ class MipsAssembler FINAL : public Assembler {
 
   void LoadRawPtr(ManagedRegister mdest, ManagedRegister base, Offset offs) OVERRIDE;
 
-  void LoadRawPtrFromThread32(ManagedRegister mdest, ThreadOffset<kMipsWordSize> offs) OVERRIDE;
+  void LoadRawPtrFromThread32(ManagedRegister mdest, ThreadOffset32 offs) OVERRIDE;
 
   // Copying routines.
   void Move(ManagedRegister mdest, ManagedRegister msrc, size_t size) OVERRIDE;
 
   void CopyRawPtrFromThread32(FrameOffset fr_offs,
-                              ThreadOffset<kMipsWordSize> thr_offs,
+                              ThreadOffset32 thr_offs,
                               ManagedRegister mscratch) OVERRIDE;
 
-  void CopyRawPtrToThread32(ThreadOffset<kMipsWordSize> thr_offs,
+  void CopyRawPtrToThread32(ThreadOffset32 thr_offs,
                             FrameOffset fr_offs,
                             ManagedRegister mscratch) OVERRIDE;
 
@@ -619,7 +617,7 @@ class MipsAssembler FINAL : public Assembler {
   // Call to address held at [base+offset].
   void Call(ManagedRegister base, Offset offset, ManagedRegister mscratch) OVERRIDE;
   void Call(FrameOffset base, Offset offset, ManagedRegister mscratch) OVERRIDE;
-  void CallFromThread32(ThreadOffset<kMipsWordSize> offset, ManagedRegister mscratch) OVERRIDE;
+  void CallFromThread32(ThreadOffset32 offset, ManagedRegister mscratch) OVERRIDE;
 
   // Generate code to check if Thread::Current()->exception_ is non-null
   // and branch to a ExceptionSlowPath if it is.

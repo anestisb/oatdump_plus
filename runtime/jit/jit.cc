@@ -19,6 +19,7 @@
 #include <dlfcn.h>
 
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "debugger.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "interpreter/interpreter.h"
@@ -258,7 +259,7 @@ bool Jit::CompileMethod(ArtMethod* method, Thread* self, bool osr) {
 
   // If we get a request to compile a proxy method, we pass the actual Java method
   // of that proxy method, as the compiler does not expect a proxy method.
-  ArtMethod* method_to_compile = method->GetInterfaceMethodIfProxy(sizeof(void*));
+  ArtMethod* method_to_compile = method->GetInterfaceMethodIfProxy(kRuntimePointerSize);
   if (!code_cache_->NotifyCompilationOf(method_to_compile, self, osr)) {
     return false;
   }
@@ -410,7 +411,7 @@ bool Jit::MaybeDoOnStackReplacement(Thread* thread,
 
   // Get the actual Java method if this method is from a proxy class. The compiler
   // and the JIT code cache do not expect methods from proxy classes.
-  method = method->GetInterfaceMethodIfProxy(sizeof(void*));
+  method = method->GetInterfaceMethodIfProxy(kRuntimePointerSize);
 
   // Cheap check if the method has been compiled already. That's an indicator that we should
   // osr into it.
@@ -616,7 +617,7 @@ void Jit::AddSamples(Thread* self, ArtMethod* method, uint16_t count, bool with_
   int32_t new_count = starting_count + count;   // int32 here to avoid wrap-around;
   if (starting_count < warm_method_threshold_) {
     if ((new_count >= warm_method_threshold_) &&
-        (method->GetProfilingInfo(sizeof(void*)) == nullptr)) {
+        (method->GetProfilingInfo(kRuntimePointerSize) == nullptr)) {
       bool success = ProfilingInfo::Create(self, method, /* retry_allocation */ false);
       if (success) {
         VLOG(jit) << "Start profiling " << PrettyMethod(method);
@@ -671,7 +672,7 @@ void Jit::MethodEntered(Thread* thread, ArtMethod* method) {
     return;
   }
 
-  ProfilingInfo* profiling_info = method->GetProfilingInfo(sizeof(void*));
+  ProfilingInfo* profiling_info = method->GetProfilingInfo(kRuntimePointerSize);
   // Update the entrypoint if the ProfilingInfo has one. The interpreter will call it
   // instead of interpreting the method.
   if ((profiling_info != nullptr) && (profiling_info->GetSavedEntryPoint() != nullptr)) {
@@ -689,7 +690,7 @@ void Jit::InvokeVirtualOrInterface(Thread* thread,
                                    ArtMethod* callee ATTRIBUTE_UNUSED) {
   ScopedAssertNoThreadSuspension ants(thread, __FUNCTION__);
   DCHECK(this_object != nullptr);
-  ProfilingInfo* info = caller->GetProfilingInfo(sizeof(void*));
+  ProfilingInfo* info = caller->GetProfilingInfo(kRuntimePointerSize);
   if (info != nullptr) {
     // Since the instrumentation is marked from the declaring class we need to mark the card so
     // that mod-union tables and card rescanning know about the update.

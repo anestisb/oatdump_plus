@@ -18,6 +18,7 @@
 #define ART_RUNTIME_MIRROR_OBJECT_H_
 
 #include "base/casts.h"
+#include "base/enums.h"
 #include "globals.h"
 #include "object_reference.h"
 #include "offsets.h"
@@ -74,7 +75,7 @@ class MANAGED LOCKABLE Object {
   static constexpr size_t kVTableLength = 11;
 
   // The size of the java.lang.Class representing a java.lang.Object.
-  static uint32_t ClassSize(size_t pointer_size);
+  static uint32_t ClassSize(PointerSize pointer_size);
 
   // Size of an instance of java.lang.Object.
   static constexpr uint32_t InstanceSize() {
@@ -473,7 +474,7 @@ class MANAGED LOCKABLE Object {
   void SetFieldPtr(MemberOffset field_offset, T new_value)
       SHARED_REQUIRES(Locks::mutator_lock_) {
     SetFieldPtrWithSize<kTransactionActive, kCheckTransaction, kVerifyFlags>(
-        field_offset, new_value, sizeof(void*));
+        field_offset, new_value, kRuntimePointerSize);
   }
   template<bool kTransactionActive, bool kCheckTransaction = true,
       VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, typename T>
@@ -485,11 +486,11 @@ class MANAGED LOCKABLE Object {
 
   template<bool kTransactionActive, bool kCheckTransaction = true,
       VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, typename T>
-  ALWAYS_INLINE void SetFieldPtrWithSize(MemberOffset field_offset, T new_value,
-                                         size_t pointer_size)
+  ALWAYS_INLINE void SetFieldPtrWithSize(MemberOffset field_offset,
+                                         T new_value,
+                                         PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    DCHECK(pointer_size == 4 || pointer_size == 8) << pointer_size;
-    if (pointer_size == 4) {
+    if (pointer_size == PointerSize::k32) {
       intptr_t ptr  = reinterpret_cast<intptr_t>(new_value);
       DCHECK_EQ(static_cast<int32_t>(ptr), ptr);  // Check that we dont lose any non 0 bits.
       SetField32<kTransactionActive, kCheckTransaction, kVerifyFlags>(
@@ -521,19 +522,19 @@ class MANAGED LOCKABLE Object {
   template<class T, VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kIsVolatile = false>
   T GetFieldPtr(MemberOffset field_offset)
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    return GetFieldPtrWithSize<T, kVerifyFlags, kIsVolatile>(field_offset, sizeof(void*));
+    return GetFieldPtrWithSize<T, kVerifyFlags, kIsVolatile>(field_offset, kRuntimePointerSize);
   }
   template<class T, VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kIsVolatile = false>
   T GetFieldPtr64(MemberOffset field_offset)
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    return GetFieldPtrWithSize<T, kVerifyFlags, kIsVolatile>(field_offset, 8u);
+    return GetFieldPtrWithSize<T, kVerifyFlags, kIsVolatile>(field_offset,
+                                                             PointerSize::k64);
   }
 
   template<class T, VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kIsVolatile = false>
-  ALWAYS_INLINE T GetFieldPtrWithSize(MemberOffset field_offset, size_t pointer_size)
+  ALWAYS_INLINE T GetFieldPtrWithSize(MemberOffset field_offset, PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_) {
-    DCHECK(pointer_size == 4 || pointer_size == 8) << pointer_size;
-    if (pointer_size == 4) {
+    if (pointer_size == PointerSize::k32) {
       return reinterpret_cast<T>(GetField32<kVerifyFlags, kIsVolatile>(field_offset));
     } else {
       int64_t v = GetField64<kVerifyFlags, kIsVolatile>(field_offset);

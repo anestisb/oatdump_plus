@@ -18,11 +18,12 @@
 
 #if defined(DEFINE_INCLUDE_DEPENDENCIES)
 #include "art_method.h"         // art::ArtMethod
+#include "base/enums.h"         // PointerSize
 #endif
 
 #define DEFINE_ART_METHOD_OFFSET(field_name, method_name) \
-  DEFINE_EXPR(ART_METHOD_ ## field_name ## _OFFSET_32, int32_t, art::ArtMethod::method_name##Offset(4).Int32Value()) \
-  DEFINE_EXPR(ART_METHOD_ ## field_name ## _OFFSET_64, int32_t, art::ArtMethod::method_name##Offset(8).Int32Value())
+  DEFINE_EXPR(ART_METHOD_ ## field_name ## _OFFSET_32, int32_t, art::ArtMethod::method_name##Offset(art::PointerSize::k32).Int32Value()) \
+  DEFINE_EXPR(ART_METHOD_ ## field_name ## _OFFSET_64, int32_t, art::ArtMethod::method_name##Offset(art::PointerSize::k64).Int32Value())
 
 //                         New macro suffix          Method Name (of the Offset method)
 DEFINE_ART_METHOD_OFFSET(DEX_CACHE_METHODS,          DexCacheResolvedMethods)

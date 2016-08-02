@@ -34,6 +34,7 @@
 
 #include "art_method-inl.h"
 #include "base/bit_vector.h"
+#include "base/enums.h"
 #include "base/stl_util.h"
 #include "base/systrace.h"
 #include "base/unix_file/fd_file.h"
@@ -260,7 +261,7 @@ bool OatFileBase::Setup(const char* abs_dex_location, std::string* error_msg) {
     return false;
   }
 
-  size_t pointer_size = GetInstructionSetPointerSize(GetOatHeader().GetInstructionSet());
+  PointerSize pointer_size = GetInstructionSetPointerSize(GetOatHeader().GetInstructionSet());
   uint8_t* dex_cache_arrays = bss_begin_;
   uint32_t dex_file_count = GetOatHeader().GetDexFileCount();
   oat_dex_files_storage_.reserve(dex_file_count);

@@ -28,7 +28,7 @@ namespace art {
 namespace x86_64 {
 
 // Use a local definition to prevent copying mistakes.
-static constexpr size_t kX86_64WordSize = kX86_64PointerSize;
+static constexpr size_t kX86_64WordSize = static_cast<size_t>(kX86_64PointerSize);
 
 // Some x86_64 instructions require a register to be available as temp.
 static constexpr Register TMP = R11;

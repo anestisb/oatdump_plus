@@ -21,6 +21,7 @@
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "dex_file.h"
@@ -147,7 +148,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_EQ(0U, JavaLangObject->NumStaticFields());
     EXPECT_EQ(0U, JavaLangObject->NumDirectInterfaces());
 
-    size_t pointer_size = class_linker_->GetImagePointerSize();
+    PointerSize pointer_size = class_linker_->GetImagePointerSize();
     ArtMethod* unimplemented = runtime_->GetImtUnimplementedMethod();
     ImTable* imt = JavaLangObject->GetImt(pointer_size);
     ASSERT_NE(nullptr, imt);
@@ -216,7 +217,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     mirror::Class* array_ptr = array->GetComponentType();
     EXPECT_EQ(class_linker_->FindArrayClass(self, &array_ptr), array.Get());
 
-    size_t pointer_size = class_linker_->GetImagePointerSize();
+    PointerSize pointer_size = class_linker_->GetImagePointerSize();
     mirror::Class* JavaLangObject =
         class_linker_->FindSystemClass(self, "Ljava/lang/Object;");
     ImTable* JavaLangObject_imt = JavaLangObject->GetImt(pointer_size);
@@ -230,14 +231,14 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_TRUE(method->GetName() != nullptr);
     EXPECT_TRUE(method->GetSignature() != Signature::NoSignature());
 
-    EXPECT_TRUE(method->HasDexCacheResolvedMethods(sizeof(void*)));
-    EXPECT_TRUE(method->HasDexCacheResolvedTypes(sizeof(void*)));
+    EXPECT_TRUE(method->HasDexCacheResolvedMethods(kRuntimePointerSize));
+    EXPECT_TRUE(method->HasDexCacheResolvedTypes(kRuntimePointerSize));
     EXPECT_TRUE(method->HasSameDexCacheResolvedMethods(
         method->GetDeclaringClass()->GetDexCache()->GetResolvedMethods(),
-        sizeof(void*)));
+        kRuntimePointerSize));
     EXPECT_TRUE(method->HasSameDexCacheResolvedTypes(
         method->GetDeclaringClass()->GetDexCache()->GetResolvedTypes(),
-        sizeof(void*)));
+        kRuntimePointerSize));
   }
 
   void AssertField(mirror::Class* klass, ArtField* field)
@@ -275,7 +276,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     if (klass->IsInterface()) {
       EXPECT_TRUE(klass->IsAbstract());
       // Check that all direct methods are static (either <clinit> or a regular static method).
-      for (ArtMethod& m : klass->GetDirectMethods(sizeof(void*))) {
+      for (ArtMethod& m : klass->GetDirectMethods(kRuntimePointerSize)) {
         EXPECT_TRUE(m.IsStatic());
         EXPECT_TRUE(m.IsDirect());
       }
@@ -312,19 +313,19 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_FALSE(klass->IsPrimitive());
     EXPECT_TRUE(klass->CanAccess(klass.Get()));
 
-    for (ArtMethod& method : klass->GetDirectMethods(sizeof(void*))) {
+    for (ArtMethod& method : klass->GetDirectMethods(kRuntimePointerSize)) {
       AssertMethod(&method);
       EXPECT_TRUE(method.IsDirect());
       EXPECT_EQ(klass.Get(), method.GetDeclaringClass());
     }
 
-    for (ArtMethod& method : klass->GetDeclaredVirtualMethods(sizeof(void*))) {
+    for (ArtMethod& method : klass->GetDeclaredVirtualMethods(kRuntimePointerSize)) {
       AssertMethod(&method);
       EXPECT_FALSE(method.IsDirect());
       EXPECT_EQ(klass.Get(), method.GetDeclaringClass());
     }
 
-    for (ArtMethod& method : klass->GetCopiedMethods(sizeof(void*))) {
+    for (ArtMethod& method : klass->GetCopiedMethods(kRuntimePointerSize)) {
       AssertMethod(&method);
       EXPECT_FALSE(method.IsDirect());
       EXPECT_TRUE(method.IsCopied());
@@ -435,7 +436,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     auto* resolved_methods = dex_cache->GetResolvedMethods();
     for (size_t i = 0, num_methods = dex_cache->NumResolvedMethods(); i != num_methods; ++i) {
       EXPECT_TRUE(
-          mirror::DexCache::GetElementPtrSize(resolved_methods, i, sizeof(void*)) != nullptr)
+          mirror::DexCache::GetElementPtrSize(resolved_methods, i, kRuntimePointerSize) != nullptr)
           << dex.GetLocation() << " i=" << i;
     }
   }
@@ -929,7 +930,7 @@ TEST_F(ClassLinkerTest, StaticFields) {
   // Static final primitives that are initialized by a compile-time constant
   // expression resolve to a copy of a constant value from the constant pool.
   // So <clinit> should be null.
-  ArtMethod* clinit = statics->FindDirectMethod("<clinit>", "()V", sizeof(void*));
+  ArtMethod* clinit = statics->FindDirectMethod("<clinit>", "()V", kRuntimePointerSize);
   EXPECT_TRUE(clinit == nullptr);
 
   EXPECT_EQ(9U, statics->NumStaticFields());
@@ -1016,15 +1017,15 @@ TEST_F(ClassLinkerTest, Interfaces) {
   EXPECT_TRUE(J->IsAssignableFrom(B.Get()));
 
   const Signature void_sig = I->GetDexCache()->GetDexFile()->CreateSignature("()V");
-  ArtMethod* Ii = I->FindVirtualMethod("i", void_sig, sizeof(void*));
-  ArtMethod* Jj1 = J->FindVirtualMethod("j1", void_sig, sizeof(void*));
-  ArtMethod* Jj2 = J->FindVirtualMethod("j2", void_sig, sizeof(void*));
-  ArtMethod* Kj1 = K->FindInterfaceMethod("j1", void_sig, sizeof(void*));
-  ArtMethod* Kj2 = K->FindInterfaceMethod("j2", void_sig, sizeof(void*));
-  ArtMethod* Kk = K->FindInterfaceMethod("k", void_sig, sizeof(void*));
-  ArtMethod* Ai = A->FindVirtualMethod("i", void_sig, sizeof(void*));
-  ArtMethod* Aj1 = A->FindVirtualMethod("j1", void_sig, sizeof(void*));
-  ArtMethod* Aj2 = A->FindVirtualMethod("j2", void_sig, sizeof(void*));
+  ArtMethod* Ii = I->FindVirtualMethod("i", void_sig, kRuntimePointerSize);
+  ArtMethod* Jj1 = J->FindVirtualMethod("j1", void_sig, kRuntimePointerSize);
+  ArtMethod* Jj2 = J->FindVirtualMethod("j2", void_sig, kRuntimePointerSize);
+  ArtMethod* Kj1 = K->FindInterfaceMethod("j1", void_sig, kRuntimePointerSize);
+  ArtMethod* Kj2 = K->FindInterfaceMethod("j2", void_sig, kRuntimePointerSize);
+  ArtMethod* Kk = K->FindInterfaceMethod("k", void_sig, kRuntimePointerSize);
+  ArtMethod* Ai = A->FindVirtualMethod("i", void_sig, kRuntimePointerSize);
+  ArtMethod* Aj1 = A->FindVirtualMethod("j1", void_sig, kRuntimePointerSize);
+  ArtMethod* Aj2 = A->FindVirtualMethod("j2", void_sig, kRuntimePointerSize);
   ASSERT_TRUE(Ii != nullptr);
   ASSERT_TRUE(Jj1 != nullptr);
   ASSERT_TRUE(Jj2 != nullptr);
@@ -1039,12 +1040,12 @@ TEST_F(ClassLinkerTest, Interfaces) {
   EXPECT_NE(Jj2, Aj2);
   EXPECT_EQ(Kj1, Jj1);
   EXPECT_EQ(Kj2, Jj2);
-  EXPECT_EQ(Ai, A->FindVirtualMethodForInterface(Ii, sizeof(void*)));
-  EXPECT_EQ(Aj1, A->FindVirtualMethodForInterface(Jj1, sizeof(void*)));
-  EXPECT_EQ(Aj2, A->FindVirtualMethodForInterface(Jj2, sizeof(void*)));
-  EXPECT_EQ(Ai, A->FindVirtualMethodForVirtualOrInterface(Ii, sizeof(void*)));
-  EXPECT_EQ(Aj1, A->FindVirtualMethodForVirtualOrInterface(Jj1, sizeof(void*)));
-  EXPECT_EQ(Aj2, A->FindVirtualMethodForVirtualOrInterface(Jj2, sizeof(void*)));
+  EXPECT_EQ(Ai, A->FindVirtualMethodForInterface(Ii, kRuntimePointerSize));
+  EXPECT_EQ(Aj1, A->FindVirtualMethodForInterface(Jj1, kRuntimePointerSize));
+  EXPECT_EQ(Aj2, A->FindVirtualMethodForInterface(Jj2, kRuntimePointerSize));
+  EXPECT_EQ(Ai, A->FindVirtualMethodForVirtualOrInterface(Ii, kRuntimePointerSize));
+  EXPECT_EQ(Aj1, A->FindVirtualMethodForVirtualOrInterface(Jj1, kRuntimePointerSize));
+  EXPECT_EQ(Aj2, A->FindVirtualMethodForVirtualOrInterface(Jj2, kRuntimePointerSize));
 
   ArtField* Afoo = mirror::Class::FindStaticField(soa.Self(), A, "foo", "Ljava/lang/String;");
   ArtField* Bfoo = mirror::Class::FindStaticField(soa.Self(), B, "foo", "Ljava/lang/String;");
@@ -1069,8 +1070,8 @@ TEST_F(ClassLinkerTest, ResolveVerifyAndClinit) {
   Handle<mirror::ClassLoader> class_loader(
       hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
   mirror::Class* klass = class_linker_->FindClass(soa.Self(), "LStaticsFromCode;", class_loader);
-  ArtMethod* clinit = klass->FindClassInitializer(sizeof(void*));
-  ArtMethod* getS0 = klass->FindDirectMethod("getS0", "()Ljava/lang/Object;", sizeof(void*));
+  ArtMethod* clinit = klass->FindClassInitializer(kRuntimePointerSize);
+  ArtMethod* getS0 = klass->FindDirectMethod("getS0", "()Ljava/lang/Object;", kRuntimePointerSize);
   const DexFile::TypeId* type_id = dex_file->FindTypeId("LStaticsFromCode;");
   ASSERT_TRUE(type_id != nullptr);
   uint32_t type_idx = dex_file->GetIndexForTypeId(*type_id);
@@ -1134,19 +1135,19 @@ TEST_F(ClassLinkerTest, ValidatePredefinedClassSizes) {
 
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Class;", class_loader);
   ASSERT_TRUE(c != nullptr);
-  EXPECT_EQ(c->GetClassSize(), mirror::Class::ClassClassSize(sizeof(void*)));
+  EXPECT_EQ(c->GetClassSize(), mirror::Class::ClassClassSize(kRuntimePointerSize));
 
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/Object;", class_loader);
   ASSERT_TRUE(c != nullptr);
-  EXPECT_EQ(c->GetClassSize(), mirror::Object::ClassSize(sizeof(void*)));
+  EXPECT_EQ(c->GetClassSize(), mirror::Object::ClassSize(kRuntimePointerSize));
 
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/String;", class_loader);
   ASSERT_TRUE(c != nullptr);
-  EXPECT_EQ(c->GetClassSize(), mirror::String::ClassSize(sizeof(void*)));
+  EXPECT_EQ(c->GetClassSize(), mirror::String::ClassSize(kRuntimePointerSize));
 
   c = class_linker_->FindClass(soa.Self(), "Ljava/lang/DexCache;", class_loader);
   ASSERT_TRUE(c != nullptr);
-  EXPECT_EQ(c->GetClassSize(), mirror::DexCache::ClassSize(sizeof(void*)));
+  EXPECT_EQ(c->GetClassSize(), mirror::DexCache::ClassSize(kRuntimePointerSize));
 }
 
 static void CheckMethod(ArtMethod* method, bool verified)
@@ -1161,7 +1162,7 @@ static void CheckVerificationAttempted(mirror::Class* c, bool preverified)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   EXPECT_EQ((c->GetAccessFlags() & kAccVerificationAttempted) != 0U, preverified)
       << "Class " << PrettyClass(c) << " not as expected";
-  for (auto& m : c->GetMethods(sizeof(void*))) {
+  for (auto& m : c->GetMethods(kRuntimePointerSize)) {
     CheckMethod(&m, preverified);
   }
 }

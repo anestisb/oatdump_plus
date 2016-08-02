@@ -152,7 +152,7 @@ const ManagedRegisterEntrySpills& Mips64ManagedRuntimeCallingConvention::EntrySp
 
 Mips64JniCallingConvention::Mips64JniCallingConvention(bool is_static, bool is_synchronized,
                                                        const char* shorty)
-    : JniCallingConvention(is_static, is_synchronized, shorty, kFramePointerSize) {
+    : JniCallingConvention(is_static, is_synchronized, shorty, kMips64PointerSize) {
 }
 
 uint32_t Mips64JniCallingConvention::CoreSpillMask() const {
@@ -172,7 +172,7 @@ size_t Mips64JniCallingConvention::FrameSize() {
   size_t frame_data_size = kFramePointerSize +
       (CalleeSaveRegisters().size() + 1) * kFramePointerSize + sizeof(uint32_t);
   // References plus 2 words for HandleScope header
-  size_t handle_scope_size = HandleScope::SizeOf(kFramePointerSize, ReferenceCount());
+  size_t handle_scope_size = HandleScope::SizeOf(kMips64PointerSize, ReferenceCount());
   // Plus return value spill area size
   return RoundUp(frame_data_size + handle_scope_size + SizeOfReturnValue(), kStackAlignment);
 }

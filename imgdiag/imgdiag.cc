@@ -285,7 +285,7 @@ class ImgDiagDumper {
                         const backtrace_map_t& boot_map)
     SHARED_REQUIRES(Locks::mutator_lock_) {
     std::ostream& os = *os_;
-    const size_t pointer_size = InstructionSetPointerSize(
+    const PointerSize pointer_size = InstructionSetPointerSize(
         Runtime::Current()->GetInstructionSet());
 
     std::string file_name =
