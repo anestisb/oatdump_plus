@@ -23,7 +23,6 @@
 
 #include "base/arena_containers.h"
 #include "base/logging.h"
-#include "constants_arm64.h"
 #include "utils/arm64/managed_register_arm64.h"
 #include "utils/assembler.h"
 #include "offsets.h"
@@ -84,16 +83,13 @@ class Arm64Exception {
 
 class Arm64Assembler FINAL : public Assembler {
  public:
-  // We indicate the size of the initial code generation buffer to the VIXL
-  // assembler. From there we it will automatically manage the buffer.
   explicit Arm64Assembler(ArenaAllocator* arena)
       : Assembler(arena),
-        exception_blocks_(arena->Adapter(kArenaAllocAssembler)),
-        vixl_masm_(new vixl::aarch64::MacroAssembler(kArm64BaseBufferSize)) {}
+        exception_blocks_(arena->Adapter(kArenaAllocAssembler)) {}
 
-  virtual ~Arm64Assembler() {
-    delete vixl_masm_;
-  }
+  virtual ~Arm64Assembler() {}
+
+  vixl::aarch64::MacroAssembler* GetVIXLAssembler() { return &vixl_masm_; }
 
   // Finalize the code.
   void FinalizeCode() OVERRIDE;
@@ -287,9 +283,8 @@ class Arm64Assembler FINAL : public Assembler {
   // List of exception blocks to generate at the end of the code cache.
   ArenaVector<std::unique_ptr<Arm64Exception>> exception_blocks_;
 
- public:
-  // Vixl assembler.
-  vixl::aarch64::MacroAssembler* const vixl_masm_;
+  // VIXL assembler.
+  vixl::aarch64::MacroAssembler vixl_masm_;
 
   // Used for testing.
   friend class Arm64ManagedRegister_VixlRegisters_Test;
