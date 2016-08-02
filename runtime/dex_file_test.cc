@@ -166,6 +166,12 @@ static const char kRawDex39[] =
   "uAAAAAYAAAABAAAA0AAAAAEgAAACAAAA8AAAAAEQAAABAAAAHAEAAAIgAAAIAAAAIgEAAAMgAAAC"
   "AAAAcwEAAAAgAAABAAAAfgEAAAAQAAABAAAAjAEAAA==";
 
+static const char kRawDexZeroLength[] =
+  "UEsDBAoAAAAAAOhxAkkAAAAAAAAAAAAAAAALABwAY2xhc3Nlcy5kZXhVVAkAA2QNoVdnDaFXdXgL"
+  "AAEE5AMBAASIEwAAUEsBAh4DCgAAAAAA6HECSQAAAAAAAAAAAAAAAAsAGAAAAAAAAAAAAKCBAAAA"
+  "AGNsYXNzZXMuZGV4VVQFAANkDaFXdXgLAAEE5AMBAASIEwAAUEsFBgAAAAABAAEAUQAAAEUAAAAA"
+  "AA==";
+
 static void DecodeAndWriteDexFile(const char* base64, const char* location) {
   // decode base64
   CHECK(base64 != nullptr);
@@ -246,6 +252,18 @@ TEST_F(DexFileTest, Version39Rejected) {
   ScratchFile tmp;
   const char* location = tmp.GetFilename().c_str();
   DecodeAndWriteDexFile(kRawDex39, location);
+
+  ScopedObjectAccess soa(Thread::Current());
+  static constexpr bool kVerifyChecksum = true;
+  std::string error_msg;
+  std::vector<std::unique_ptr<const DexFile>> dex_files;
+  ASSERT_FALSE(DexFile::Open(location, location, kVerifyChecksum, &error_msg, &dex_files));
+}
+
+TEST_F(DexFileTest, ZeroLengthDexRejected) {
+  ScratchFile tmp;
+  const char* location = tmp.GetFilename().c_str();
+  DecodeAndWriteDexFile(kRawDexZeroLength, location);
 
   ScopedObjectAccess soa(Thread::Current());
   static constexpr bool kVerifyChecksum = true;
