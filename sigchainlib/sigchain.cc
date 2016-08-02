@@ -233,7 +233,7 @@ extern "C" int sigaction(int signal, const struct sigaction* new_action, struct 
   return linked_sigaction(signal, new_action, old_action);
 }
 
-extern "C" sighandler_t signal(int signal, sighandler_t handler) {
+static sighandler_t signal_impl(int signal, sighandler_t handler) {
   struct sigaction sa;
   sigemptyset(&sa.sa_mask);
   sa.sa_handler = handler;
@@ -271,6 +271,16 @@ extern "C" sighandler_t signal(int signal, sighandler_t handler) {
 
   return reinterpret_cast<sighandler_t>(sa.sa_handler);
 }
+
+extern "C" sighandler_t signal(int signal, sighandler_t handler) {
+  return signal_impl(signal, handler);
+}
+
+#if !defined(__LP64__)
+extern "C" sighandler_t bsd_signal(int signal, sighandler_t handler) {
+  return signal_impl(signal, handler);
+}
+#endif
 
 extern "C" int sigprocmask(int how, const sigset_t* bionic_new_set, sigset_t* bionic_old_set) {
   const sigset_t* new_set_ptr = bionic_new_set;
