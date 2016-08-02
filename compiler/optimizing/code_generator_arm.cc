@@ -61,7 +61,7 @@ static constexpr uint32_t kPackedSwitchCompareJumpThreshold = 7;
 
 // NOLINT on __ macro to suppress wrong warning/fix from clang-tidy.
 #define __ down_cast<ArmAssembler*>(codegen->GetAssembler())-> // NOLINT
-#define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kArmWordSize, x).Int32Value()
+#define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kArmPointerSize, x).Int32Value()
 
 class NullCheckSlowPathARM : public SlowPathCode {
  public:
@@ -459,7 +459,7 @@ class ReadBarrierMarkSlowPathARM : public SlowPathCode {
     //   rX <- ReadBarrierMarkRegX(rX)
     //
     int32_t entry_point_offset =
-        CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kArmWordSize>(reg);
+        CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kArmPointerSize>(reg);
     // This runtime call does not require a stack map.
     arm_codegen->InvokeRuntimeWithoutRecordingPcInfo(entry_point_offset, instruction_, this);
     __ b(GetExitLabel());
@@ -966,7 +966,7 @@ void CodeGeneratorARM::GenerateFrameExit() {
   if (fpu_spill_mask_ != 0) {
     SRegister start_register = SRegister(LeastSignificantBit(fpu_spill_mask_));
     __ vpops(start_register, POPCOUNT(fpu_spill_mask_));
-    __ cfi().AdjustCFAOffset(-kArmPointerSize * POPCOUNT(fpu_spill_mask_));
+    __ cfi().AdjustCFAOffset(-static_cast<int>(kArmPointerSize) * POPCOUNT(fpu_spill_mask_));
     __ cfi().RestoreMany(DWARFReg(SRegister(0)), fpu_spill_mask_);
   }
   // Pop LR into PC to return.
@@ -1218,7 +1218,7 @@ void CodeGeneratorARM::InvokeRuntime(QuickEntrypointEnum entrypoint,
                                      HInstruction* instruction,
                                      uint32_t dex_pc,
                                      SlowPathCode* slow_path) {
-  InvokeRuntime(GetThreadOffset<kArmWordSize>(entrypoint).Int32Value(),
+  InvokeRuntime(GetThreadOffset<kArmPointerSize>(entrypoint).Int32Value(),
                 instruction,
                 dex_pc,
                 slow_path);
@@ -1939,7 +1939,7 @@ void InstructionCodeGeneratorARM::VisitInvokeInterface(HInvokeInterface* invoke)
   // temp = temp->GetImtEntryAt(method_offset);
   __ LoadFromOffset(kLoadWord, temp, temp, method_offset);
   uint32_t entry_point =
-      ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArmWordSize).Int32Value();
+      ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArmPointerSize).Int32Value();
   // LR = temp->GetEntryPoint();
   __ LoadFromOffset(kLoadWord, LR, temp, entry_point);
   // LR();
@@ -3530,7 +3530,7 @@ void InstructionCodeGeneratorARM::VisitNewInstance(HNewInstance* instruction) {
   if (instruction->IsStringAlloc()) {
     // String is allocated through StringFactory. Call NewEmptyString entry point.
     Register temp = instruction->GetLocations()->GetTemp(0).AsRegister<Register>();
-    MemberOffset code_offset = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArmWordSize);
+    MemberOffset code_offset = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArmPointerSize);
     __ LoadFromOffset(kLoadWord, temp, TR, QUICK_ENTRY_POINT(pNewEmptyString));
     __ LoadFromOffset(kLoadWord, LR, temp, code_offset.Int32Value());
     __ blx(LR);
@@ -4945,7 +4945,7 @@ void CodeGeneratorARM::MarkGCCard(Register temp,
   if (can_be_null) {
     __ CompareAndBranchIfZero(value, &is_null);
   }
-  __ LoadFromOffset(kLoadWord, card, TR, Thread::CardTableOffset<kArmWordSize>().Int32Value());
+  __ LoadFromOffset(kLoadWord, card, TR, Thread::CardTableOffset<kArmPointerSize>().Int32Value());
   __ Lsr(temp, object, gc::accounting::CardTable::kCardShift);
   __ strb(card, Address(card, temp));
   if (can_be_null) {
@@ -4996,7 +4996,7 @@ void InstructionCodeGeneratorARM::GenerateSuspendCheck(HSuspendCheck* instructio
   }
 
   __ LoadFromOffset(
-      kLoadUnsignedHalfword, IP, TR, Thread::ThreadFlagsOffset<kArmWordSize>().Int32Value());
+      kLoadUnsignedHalfword, IP, TR, Thread::ThreadFlagsOffset<kArmPointerSize>().Int32Value());
   if (successor == nullptr) {
     __ CompareAndBranchIfNonZero(IP, slow_path->GetEntryLabel());
     __ Bind(slow_path->GetReturnLabel());
@@ -5577,7 +5577,7 @@ void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) {
 }
 
 static int32_t GetExceptionTlsOffset() {
-  return Thread::ExceptionOffset<kArmWordSize>().Int32Value();
+  return Thread::ExceptionOffset<kArmPointerSize>().Int32Value();
 }
 
 void LocationsBuilderARM::VisitLoadException(HLoadException* load) {
@@ -6332,7 +6332,7 @@ void InstructionCodeGeneratorARM::GenerateGcRootFieldLoad(HInstruction* instruct
 
       // IP = Thread::Current()->GetIsGcMarking()
       __ LoadFromOffset(
-          kLoadWord, IP, TR, Thread::IsGcMarkingOffset<kArmWordSize>().Int32Value());
+          kLoadWord, IP, TR, Thread::IsGcMarkingOffset<kArmPointerSize>().Int32Value());
       __ CompareAndBranchIfNonZero(IP, slow_path->GetEntryLabel());
       __ Bind(slow_path->GetExitLabel());
     } else {
@@ -6691,7 +6691,7 @@ void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
       // LR = callee_method->entry_point_from_quick_compiled_code_
       __ LoadFromOffset(
           kLoadWord, LR, callee_method.AsRegister<Register>(),
-          ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArmWordSize).Int32Value());
+          ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArmPointerSize).Int32Value());
       // LR()
       __ blx(LR);
       break;
@@ -6725,7 +6725,7 @@ void CodeGeneratorARM::GenerateVirtualCall(HInvokeVirtual* invoke, Location temp
   __ MaybeUnpoisonHeapReference(temp);
   // temp = temp->GetMethodAt(method_offset);
   uint32_t entry_point = ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-      kArmWordSize).Int32Value();
+      kArmPointerSize).Int32Value();
   __ LoadFromOffset(kLoadWord, temp, temp, method_offset);
   // LR = temp->GetEntryPoint();
   __ LoadFromOffset(kLoadWord, LR, temp, entry_point);

@@ -172,7 +172,7 @@ const ManagedRegisterEntrySpills& MipsManagedRuntimeCallingConvention::EntrySpil
 
 MipsJniCallingConvention::MipsJniCallingConvention(bool is_static, bool is_synchronized,
                                                    const char* shorty)
-    : JniCallingConvention(is_static, is_synchronized, shorty, kFramePointerSize) {
+    : JniCallingConvention(is_static, is_synchronized, shorty, kMipsPointerSize) {
   // Compute padding to ensure longs and doubles are not split in AAPCS. Ignore the 'this' jobject
   // or jclass for static methods and the JNIEnv. We start at the aligned register A2.
   size_t padding = 0;
@@ -203,10 +203,10 @@ ManagedRegister MipsJniCallingConvention::ReturnScratchRegister() const {
 
 size_t MipsJniCallingConvention::FrameSize() {
   // ArtMethod*, RA and callee save area size, local reference segment state
-  size_t frame_data_size = kMipsPointerSize +
+  size_t frame_data_size = static_cast<size_t>(kMipsPointerSize) +
       (2 + CalleeSaveRegisters().size()) * kFramePointerSize;
   // References plus 2 words for HandleScope header
-  size_t handle_scope_size = HandleScope::SizeOf(kFramePointerSize, ReferenceCount());
+  size_t handle_scope_size = HandleScope::SizeOf(kMipsPointerSize, ReferenceCount());
   // Plus return value spill area size
   return RoundUp(frame_data_size + handle_scope_size + SizeOfReturnValue(), kStackAlignment);
 }

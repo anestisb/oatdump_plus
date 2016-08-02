@@ -57,9 +57,9 @@ inline size_t HandleScope::SizeOf(uint32_t num_references) {
   return header_size + data_size;
 }
 
-inline size_t HandleScope::SizeOf(size_t pointer_size, uint32_t num_references) {
+inline size_t HandleScope::SizeOf(PointerSize pointer_size, uint32_t num_references) {
   // Assume that the layout is packed.
-  size_t header_size = pointer_size + sizeof(number_of_references_);
+  size_t header_size = ReferencesOffset(pointer_size);
   size_t data_size = sizeof(StackReference<mirror::Object>) * num_references;
   return header_size + data_size;
 }

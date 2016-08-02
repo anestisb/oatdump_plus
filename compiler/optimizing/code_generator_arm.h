@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_CODE_GENERATOR_ARM_H_
 #define ART_COMPILER_OPTIMIZING_CODE_GENERATOR_ARM_H_
 
+#include "base/enums.h"
 #include "code_generator.h"
 #include "driver/compiler_options.h"
 #include "nodes.h"
@@ -31,7 +32,7 @@ namespace arm {
 class CodeGeneratorARM;
 
 // Use a local definition to prevent copying mistakes.
-static constexpr size_t kArmWordSize = kArmPointerSize;
+static constexpr size_t kArmWordSize = static_cast<size_t>(kArmPointerSize);
 static constexpr size_t kArmBitsPerWord = kArmWordSize * kBitsPerByte;
 
 static constexpr Register kParameterCoreRegisters[] = { R1, R2, R3 };

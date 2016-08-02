@@ -57,8 +57,10 @@ static inline void CheckAsmSupportOffsetsAndSizes() {
 
 #if defined(__LP64__)
 #define POINTER_SIZE_SHIFT 3
+#define POINTER_SIZE art::PointerSize::k64
 #else
 #define POINTER_SIZE_SHIFT 2
+#define POINTER_SIZE art::PointerSize::k32
 #endif
 ADD_TEST_EQ(static_cast<size_t>(1U << POINTER_SIZE_SHIFT),
             static_cast<size_t>(__SIZEOF_POINTER__))
@@ -71,54 +73,54 @@ ADD_TEST_EQ(static_cast<size_t>(1U << POINTER_SIZE_SHIFT),
 // Offset of field Thread::tlsPtr_.exception.
 #define THREAD_EXCEPTION_OFFSET (THREAD_CARD_TABLE_OFFSET + __SIZEOF_POINTER__)
 ADD_TEST_EQ(THREAD_EXCEPTION_OFFSET,
-            art::Thread::ExceptionOffset<__SIZEOF_POINTER__>().Int32Value())
+            art::Thread::ExceptionOffset<POINTER_SIZE>().Int32Value())
 
 // Offset of field Thread::tlsPtr_.managed_stack.top_quick_frame_.
 #define THREAD_TOP_QUICK_FRAME_OFFSET (THREAD_CARD_TABLE_OFFSET + (3 * __SIZEOF_POINTER__))
 ADD_TEST_EQ(THREAD_TOP_QUICK_FRAME_OFFSET,
-            art::Thread::TopOfManagedStackOffset<__SIZEOF_POINTER__>().Int32Value())
+            art::Thread::TopOfManagedStackOffset<POINTER_SIZE>().Int32Value())
 
 // Offset of field Thread::tlsPtr_.self.
 #define THREAD_SELF_OFFSET (THREAD_CARD_TABLE_OFFSET + (9 * __SIZEOF_POINTER__))
 ADD_TEST_EQ(THREAD_SELF_OFFSET,
-            art::Thread::SelfOffset<__SIZEOF_POINTER__>().Int32Value())
+            art::Thread::SelfOffset<POINTER_SIZE>().Int32Value())
 
 // Offset of field Thread::tlsPtr_.thread_local_objects.
 #define THREAD_LOCAL_OBJECTS_OFFSET (THREAD_CARD_TABLE_OFFSET + 197 * __SIZEOF_POINTER__)
 ADD_TEST_EQ(THREAD_LOCAL_OBJECTS_OFFSET,
-            art::Thread::ThreadLocalObjectsOffset<__SIZEOF_POINTER__>().Int32Value())
+            art::Thread::ThreadLocalObjectsOffset<POINTER_SIZE>().Int32Value())
 // Offset of field Thread::tlsPtr_.thread_local_pos.
 #define THREAD_LOCAL_POS_OFFSET (THREAD_LOCAL_OBJECTS_OFFSET + __SIZEOF_SIZE_T__)
 ADD_TEST_EQ(THREAD_LOCAL_POS_OFFSET,
-            art::Thread::ThreadLocalPosOffset<__SIZEOF_POINTER__>().Int32Value())
+            art::Thread::ThreadLocalPosOffset<POINTER_SIZE>().Int32Value())
 // Offset of field Thread::tlsPtr_.thread_local_end.
 #define THREAD_LOCAL_END_OFFSET (THREAD_LOCAL_POS_OFFSET + __SIZEOF_POINTER__)
 ADD_TEST_EQ(THREAD_LOCAL_END_OFFSET,
-            art::Thread::ThreadLocalEndOffset<__SIZEOF_POINTER__>().Int32Value())
+            art::Thread::ThreadLocalEndOffset<POINTER_SIZE>().Int32Value())
 // Offset of field Thread::tlsPtr_.mterp_current_ibase.
 #define THREAD_CURRENT_IBASE_OFFSET (THREAD_LOCAL_END_OFFSET + __SIZEOF_POINTER__)
 ADD_TEST_EQ(THREAD_CURRENT_IBASE_OFFSET,
-            art::Thread::MterpCurrentIBaseOffset<__SIZEOF_POINTER__>().Int32Value())
+            art::Thread::MterpCurrentIBaseOffset<POINTER_SIZE>().Int32Value())
 // Offset of field Thread::tlsPtr_.mterp_default_ibase.
 #define THREAD_DEFAULT_IBASE_OFFSET (THREAD_CURRENT_IBASE_OFFSET + __SIZEOF_POINTER__)
 ADD_TEST_EQ(THREAD_DEFAULT_IBASE_OFFSET,
-            art::Thread::MterpDefaultIBaseOffset<__SIZEOF_POINTER__>().Int32Value())
+            art::Thread::MterpDefaultIBaseOffset<POINTER_SIZE>().Int32Value())
 // Offset of field Thread::tlsPtr_.mterp_alt_ibase.
 #define THREAD_ALT_IBASE_OFFSET (THREAD_DEFAULT_IBASE_OFFSET + __SIZEOF_POINTER__)
 ADD_TEST_EQ(THREAD_ALT_IBASE_OFFSET,
-            art::Thread::MterpAltIBaseOffset<__SIZEOF_POINTER__>().Int32Value())
+            art::Thread::MterpAltIBaseOffset<POINTER_SIZE>().Int32Value())
 // Offset of field Thread::tlsPtr_.rosalloc_runs.
 #define THREAD_ROSALLOC_RUNS_OFFSET (THREAD_ALT_IBASE_OFFSET + __SIZEOF_POINTER__)
 ADD_TEST_EQ(THREAD_ROSALLOC_RUNS_OFFSET,
-            art::Thread::RosAllocRunsOffset<__SIZEOF_POINTER__>().Int32Value())
+            art::Thread::RosAllocRunsOffset<POINTER_SIZE>().Int32Value())
 // Offset of field Thread::tlsPtr_.thread_local_alloc_stack_top.
 #define THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET (THREAD_ROSALLOC_RUNS_OFFSET + 16 * __SIZEOF_POINTER__)
 ADD_TEST_EQ(THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET,
-            art::Thread::ThreadLocalAllocStackTopOffset<__SIZEOF_POINTER__>().Int32Value())
+            art::Thread::ThreadLocalAllocStackTopOffset<POINTER_SIZE>().Int32Value())
 // Offset of field Thread::tlsPtr_.thread_local_alloc_stack_end.
 #define THREAD_LOCAL_ALLOC_STACK_END_OFFSET (THREAD_ROSALLOC_RUNS_OFFSET + 17 * __SIZEOF_POINTER__)
 ADD_TEST_EQ(THREAD_LOCAL_ALLOC_STACK_END_OFFSET,
-            art::Thread::ThreadLocalAllocStackEndOffset<__SIZEOF_POINTER__>().Int32Value())
+            art::Thread::ThreadLocalAllocStackEndOffset<POINTER_SIZE>().Int32Value())
 
 // Offsets within ShadowFrame.
 #define SHADOWFRAME_LINK_OFFSET 0

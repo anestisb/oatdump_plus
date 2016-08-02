@@ -22,6 +22,7 @@
 #include <unordered_set>
 
 #include "arch/instruction_set.h"
+#include "base/enums.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "gc_root.h"
@@ -234,7 +235,7 @@ class Instrumentation {
   // Get the quick code for the given method. More efficient than asking the class linker as it
   // will short-cut to GetCode if instrumentation and static method resolution stubs aren't
   // installed.
-  const void* GetQuickCodeFor(ArtMethod* method, size_t pointer_size) const
+  const void* GetQuickCodeFor(ArtMethod* method, PointerSize pointer_size) const
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   void ForceInterpretOnly() {

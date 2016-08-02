@@ -164,24 +164,25 @@ void Arm64Assembler::StoreImmediateToFrame(FrameOffset offs, uint32_t imm,
                  offs.Int32Value());
 }
 
-void Arm64Assembler::StoreImmediateToThread64(ThreadOffset<8> offs, uint32_t imm,
-                                            ManagedRegister m_scratch) {
+void Arm64Assembler::StoreImmediateToThread64(ThreadOffset64 offs,
+                                              uint32_t imm,
+                                              ManagedRegister m_scratch) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
   CHECK(scratch.IsXRegister()) << scratch;
   LoadImmediate(scratch.AsXRegister(), imm);
   StoreToOffset(scratch.AsXRegister(), TR, offs.Int32Value());
 }
 
-void Arm64Assembler::StoreStackOffsetToThread64(ThreadOffset<8> tr_offs,
-                                              FrameOffset fr_offs,
-                                              ManagedRegister m_scratch) {
+void Arm64Assembler::StoreStackOffsetToThread64(ThreadOffset64 tr_offs,
+                                                FrameOffset fr_offs,
+                                                ManagedRegister m_scratch) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
   CHECK(scratch.IsXRegister()) << scratch;
   AddConstant(scratch.AsXRegister(), SP, fr_offs.Int32Value());
   StoreToOffset(scratch.AsXRegister(), TR, tr_offs.Int32Value());
 }
 
-void Arm64Assembler::StoreStackPointerToThread64(ThreadOffset<8> tr_offs) {
+void Arm64Assembler::StoreStackPointerToThread64(ThreadOffset64 tr_offs) {
   UseScratchRegisterScope temps(vixl_masm_);
   Register temp = temps.AcquireX();
   ___ Mov(temp, reg_x(SP));
@@ -285,7 +286,7 @@ void Arm64Assembler::Load(ManagedRegister m_dst, FrameOffset src, size_t size) {
   return Load(m_dst.AsArm64(), SP, src.Int32Value(), size);
 }
 
-void Arm64Assembler::LoadFromThread64(ManagedRegister m_dst, ThreadOffset<8> src, size_t size) {
+void Arm64Assembler::LoadFromThread64(ManagedRegister m_dst, ThreadOffset64 src, size_t size) {
   return Load(m_dst.AsArm64(), TR, src.Int32Value(), size);
 }
 
@@ -318,7 +319,7 @@ void Arm64Assembler::LoadRawPtr(ManagedRegister m_dst, ManagedRegister m_base, O
   ___ Ldr(reg_x(dst.AsXRegister()), MEM_OP(reg_x(base.AsXRegister()), offs.Int32Value()));
 }
 
-void Arm64Assembler::LoadRawPtrFromThread64(ManagedRegister m_dst, ThreadOffset<8> offs) {
+void Arm64Assembler::LoadRawPtrFromThread64(ManagedRegister m_dst, ThreadOffset64 offs) {
   Arm64ManagedRegister dst = m_dst.AsArm64();
   CHECK(dst.IsXRegister()) << dst;
   LoadFromOffset(dst.AsXRegister(), TR, offs.Int32Value());
@@ -355,17 +356,17 @@ void Arm64Assembler::Move(ManagedRegister m_dst, ManagedRegister m_src, size_t s
 }
 
 void Arm64Assembler::CopyRawPtrFromThread64(FrameOffset fr_offs,
-                                          ThreadOffset<8> tr_offs,
-                                          ManagedRegister m_scratch) {
+                                            ThreadOffset64 tr_offs,
+                                            ManagedRegister m_scratch) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
   CHECK(scratch.IsXRegister()) << scratch;
   LoadFromOffset(scratch.AsXRegister(), TR, tr_offs.Int32Value());
   StoreToOffset(scratch.AsXRegister(), SP, fr_offs.Int32Value());
 }
 
-void Arm64Assembler::CopyRawPtrToThread64(ThreadOffset<8> tr_offs,
-                                        FrameOffset fr_offs,
-                                        ManagedRegister m_scratch) {
+void Arm64Assembler::CopyRawPtrToThread64(ThreadOffset64 tr_offs,
+                                          FrameOffset fr_offs,
+                                          ManagedRegister m_scratch) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
   CHECK(scratch.IsXRegister()) << scratch;
   LoadFromOffset(scratch.AsXRegister(), SP, fr_offs.Int32Value());
@@ -542,7 +543,8 @@ void Arm64Assembler::Call(FrameOffset base, Offset offs, ManagedRegister m_scrat
   ___ Blr(reg_x(scratch.AsXRegister()));
 }
 
-void Arm64Assembler::CallFromThread64(ThreadOffset<8> /*offset*/, ManagedRegister /*scratch*/) {
+void Arm64Assembler::CallFromThread64(ThreadOffset64 offset ATTRIBUTE_UNUSED,
+                                      ManagedRegister scratch ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL) << "Unimplemented Call() variant";
 }
 
@@ -612,7 +614,9 @@ void Arm64Assembler::ExceptionPoll(ManagedRegister m_scratch, size_t stack_adjus
   CHECK_ALIGNED(stack_adjust, kStackAlignment);
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
   exception_blocks_.emplace_back(new Arm64Exception(scratch, stack_adjust));
-  LoadFromOffset(scratch.AsXRegister(), TR, Thread::ExceptionOffset<8>().Int32Value());
+  LoadFromOffset(scratch.AsXRegister(),
+                 TR,
+                 Thread::ExceptionOffset<kArm64PointerSize>().Int32Value());
   ___ Cbnz(reg_x(scratch.AsXRegister()), exception_blocks_.back()->Entry());
 }
 
@@ -629,7 +633,9 @@ void Arm64Assembler::EmitExceptionPoll(Arm64Exception *exception) {
   // Pass exception object as argument.
   // Don't care about preserving X0 as this won't return.
   ___ Mov(reg_x(X0), reg_x(exception->scratch_.AsXRegister()));
-  ___ Ldr(temp, MEM_OP(reg_x(TR), QUICK_ENTRYPOINT_OFFSET(8, pDeliverException).Int32Value()));
+  ___ Ldr(temp,
+          MEM_OP(reg_x(TR),
+                 QUICK_ENTRYPOINT_OFFSET(kArm64PointerSize, pDeliverException).Int32Value()));
 
   ___ Blr(temp);
   // Call should never return.
@@ -720,7 +726,7 @@ void Arm64Assembler::BuildFrame(size_t frame_size,
 
   // Increase frame to required size.
   DCHECK_ALIGNED(frame_size, kStackAlignment);
-  DCHECK_GE(frame_size, core_reg_size + fp_reg_size + kArm64PointerSize);
+  DCHECK_GE(frame_size, core_reg_size + fp_reg_size + static_cast<size_t>(kArm64PointerSize));
   IncreaseFrameSize(frame_size);
 
   // Save callee-saves.
@@ -734,7 +740,7 @@ void Arm64Assembler::BuildFrame(size_t frame_size,
   StoreToOffset(X0, SP, 0);
 
   // Write out entry spills
-  int32_t offset = frame_size + kArm64PointerSize;
+  int32_t offset = frame_size + static_cast<size_t>(kArm64PointerSize);
   for (size_t i = 0; i < entry_spills.size(); ++i) {
     Arm64ManagedRegister reg = entry_spills.at(i).AsArm64();
     if (reg.IsNoRegister()) {
@@ -776,7 +782,7 @@ void Arm64Assembler::RemoveFrame(size_t frame_size,
 
   // For now we only check that the size of the frame is large enough to hold spills and method
   // reference.
-  DCHECK_GE(frame_size, core_reg_size + fp_reg_size + kArm64PointerSize);
+  DCHECK_GE(frame_size, core_reg_size + fp_reg_size + static_cast<size_t>(kArm64PointerSize));
   DCHECK_ALIGNED(frame_size, kStackAlignment);
 
   DCHECK(core_reg_list.IncludesAliasOf(reg_x(TR)));

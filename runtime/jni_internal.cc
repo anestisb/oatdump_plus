@@ -27,6 +27,7 @@
 #include "art_method-inl.h"
 #include "atomic.h"
 #include "base/allocator.h"
+#include "base/enums.h"
 #include "base/logging.h"
 #include "base/mutex.h"
 #include "base/stl_util.h"
@@ -375,12 +376,12 @@ class JNI {
     ScopedObjectAccess soa(env);
     ArtMethod* m = soa.DecodeMethod(mid);
     mirror::AbstractMethod* method;
-    DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), sizeof(void*));
+    DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), kRuntimePointerSize);
     DCHECK(!Runtime::Current()->IsActiveTransaction());
     if (m->IsConstructor()) {
-      method = mirror::Constructor::CreateFromArtMethod<sizeof(void*), false>(soa.Self(), m);
+      method = mirror::Constructor::CreateFromArtMethod<kRuntimePointerSize, false>(soa.Self(), m);
     } else {
-      method = mirror::Method::CreateFromArtMethod<sizeof(void*), false>(soa.Self(), m);
+      method = mirror::Method::CreateFromArtMethod<kRuntimePointerSize, false>(soa.Self(), m);
     }
     return soa.AddLocalReference<jobject>(method);
   }
@@ -390,7 +391,7 @@ class JNI {
     ScopedObjectAccess soa(env);
     ArtField* f = soa.DecodeField(fid);
     return soa.AddLocalReference<jobject>(
-        mirror::Field::CreateFromArtField<sizeof(void*)>(soa.Self(), f, true));
+        mirror::Field::CreateFromArtField<kRuntimePointerSize>(soa.Self(), f, true));
   }
 
   static jclass GetObjectClass(JNIEnv* env, jobject java_object) {

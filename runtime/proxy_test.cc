@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "art_field-inl.h"
+#include "base/enums.h"
 #include "class_linker-inl.h"
 #include "common_compiler_test.h"
 #include "mirror/field-inl.h"
@@ -60,31 +61,31 @@ class ProxyTest : public CommonCompilerTest {
 
     jsize array_index = 0;
     // Fill the method array
-    DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), sizeof(void*));
+    DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), kRuntimePointerSize);
     ArtMethod* method = javaLangObject->FindDeclaredVirtualMethod(
-        "equals", "(Ljava/lang/Object;)Z", sizeof(void*));
+        "equals", "(Ljava/lang/Object;)Z", kRuntimePointerSize);
     CHECK(method != nullptr);
     DCHECK(!Runtime::Current()->IsActiveTransaction());
     soa.Env()->SetObjectArrayElement(
         proxyClassMethods, array_index++, soa.AddLocalReference<jobject>(
-            mirror::Method::CreateFromArtMethod<sizeof(void*), false>(soa.Self(), method)));
-    method = javaLangObject->FindDeclaredVirtualMethod("hashCode", "()I", sizeof(void*));
+            mirror::Method::CreateFromArtMethod<kRuntimePointerSize, false>(soa.Self(), method)));
+    method = javaLangObject->FindDeclaredVirtualMethod("hashCode", "()I", kRuntimePointerSize);
     CHECK(method != nullptr);
     soa.Env()->SetObjectArrayElement(
         proxyClassMethods, array_index++, soa.AddLocalReference<jobject>(
-            mirror::Method::CreateFromArtMethod<sizeof(void*), false>(soa.Self(), method)));
+            mirror::Method::CreateFromArtMethod<kRuntimePointerSize, false>(soa.Self(), method)));
     method = javaLangObject->FindDeclaredVirtualMethod(
-        "toString", "()Ljava/lang/String;", sizeof(void*));
+        "toString", "()Ljava/lang/String;", kRuntimePointerSize);
     CHECK(method != nullptr);
     soa.Env()->SetObjectArrayElement(
         proxyClassMethods, array_index++, soa.AddLocalReference<jobject>(
-            mirror::Method::CreateFromArtMethod<sizeof(void*), false>(soa.Self(), method)));
+            mirror::Method::CreateFromArtMethod<kRuntimePointerSize, false>(soa.Self(), method)));
     // Now adds all interfaces virtual methods.
     for (mirror::Class* interface : interfaces) {
-      for (auto& m : interface->GetDeclaredVirtualMethods(sizeof(void*))) {
+      for (auto& m : interface->GetDeclaredVirtualMethods(kRuntimePointerSize)) {
         soa.Env()->SetObjectArrayElement(
             proxyClassMethods, array_index++, soa.AddLocalReference<jobject>(
-                mirror::Method::CreateFromArtMethod<sizeof(void*), false>(soa.Self(), &m)));
+                mirror::Method::CreateFromArtMethod<kRuntimePointerSize, false>(soa.Self(), &m)));
       }
     }
     CHECK_EQ(array_index, methods_count);
@@ -228,19 +229,19 @@ TEST_F(ProxyTest, CheckArtMirrorFieldsOfProxyStaticFields) {
   EXPECT_EQ(static_fields1->At(0).GetDeclaringClass(), proxyClass1.Get());
   EXPECT_EQ(static_fields1->At(1).GetDeclaringClass(), proxyClass1.Get());
 
-  ASSERT_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), sizeof(void*));
+  ASSERT_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), kRuntimePointerSize);
   ASSERT_FALSE(Runtime::Current()->IsActiveTransaction());
   Handle<mirror::Field> field00 =
-      hs.NewHandle(mirror::Field::CreateFromArtField<sizeof(void*), false>(
+      hs.NewHandle(mirror::Field::CreateFromArtField<kRuntimePointerSize, false>(
           soa.Self(), &static_fields0->At(0), true));
   Handle<mirror::Field> field01 =
-      hs.NewHandle(mirror::Field::CreateFromArtField<sizeof(void*), false>(
+      hs.NewHandle(mirror::Field::CreateFromArtField<kRuntimePointerSize, false>(
           soa.Self(), &static_fields0->At(1), true));
   Handle<mirror::Field> field10 =
-      hs.NewHandle(mirror::Field::CreateFromArtField<sizeof(void*), false>(
+      hs.NewHandle(mirror::Field::CreateFromArtField<kRuntimePointerSize, false>(
           soa.Self(), &static_fields1->At(0), true));
   Handle<mirror::Field> field11 =
-      hs.NewHandle(mirror::Field::CreateFromArtField<sizeof(void*), false>(
+      hs.NewHandle(mirror::Field::CreateFromArtField<kRuntimePointerSize, false>(
           soa.Self(), &static_fields1->At(1), true));
   EXPECT_EQ(field00->GetArtField(), &static_fields0->At(0));
   EXPECT_EQ(field01->GetArtField(), &static_fields0->At(1));

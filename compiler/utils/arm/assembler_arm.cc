@@ -384,7 +384,7 @@ static dwarf::Reg DWARFReg(SRegister reg) {
   return dwarf::Reg::ArmFp(static_cast<int>(reg));
 }
 
-constexpr size_t kFramePointerSize = kArmPointerSize;
+constexpr size_t kFramePointerSize = static_cast<size_t>(kArmPointerSize);
 
 void ArmAssembler::BuildFrame(size_t frame_size,
                               ManagedRegister method_reg,
@@ -568,8 +568,9 @@ void ArmAssembler::StoreImmediateToFrame(FrameOffset dest, uint32_t imm,
   StoreToOffset(kStoreWord, scratch.AsCoreRegister(), SP, dest.Int32Value());
 }
 
-void ArmAssembler::StoreImmediateToThread32(ThreadOffset<4> dest, uint32_t imm,
-                                       ManagedRegister mscratch) {
+void ArmAssembler::StoreImmediateToThread32(ThreadOffset32 dest,
+                                            uint32_t imm,
+                                            ManagedRegister mscratch) {
   ArmManagedRegister scratch = mscratch.AsArm();
   CHECK(scratch.IsCoreRegister()) << scratch;
   LoadImmediate(scratch.AsCoreRegister(), imm);
@@ -600,19 +601,19 @@ void ArmAssembler::Load(ManagedRegister m_dst, FrameOffset src, size_t size) {
   return EmitLoad(this, m_dst, SP, src.Int32Value(), size);
 }
 
-void ArmAssembler::LoadFromThread32(ManagedRegister m_dst, ThreadOffset<4> src, size_t size) {
+void ArmAssembler::LoadFromThread32(ManagedRegister m_dst, ThreadOffset32 src, size_t size) {
   return EmitLoad(this, m_dst, TR, src.Int32Value(), size);
 }
 
-void ArmAssembler::LoadRawPtrFromThread32(ManagedRegister m_dst, ThreadOffset<4> offs) {
+void ArmAssembler::LoadRawPtrFromThread32(ManagedRegister m_dst, ThreadOffset32 offs) {
   ArmManagedRegister dst = m_dst.AsArm();
   CHECK(dst.IsCoreRegister()) << dst;
   LoadFromOffset(kLoadWord, dst.AsCoreRegister(), TR, offs.Int32Value());
 }
 
 void ArmAssembler::CopyRawPtrFromThread32(FrameOffset fr_offs,
-                                        ThreadOffset<4> thr_offs,
-                                        ManagedRegister mscratch) {
+                                          ThreadOffset32 thr_offs,
+                                          ManagedRegister mscratch) {
   ArmManagedRegister scratch = mscratch.AsArm();
   CHECK(scratch.IsCoreRegister()) << scratch;
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
@@ -621,9 +622,9 @@ void ArmAssembler::CopyRawPtrFromThread32(FrameOffset fr_offs,
                 SP, fr_offs.Int32Value());
 }
 
-void ArmAssembler::CopyRawPtrToThread32(ThreadOffset<4> thr_offs,
-                                      FrameOffset fr_offs,
-                                      ManagedRegister mscratch) {
+void ArmAssembler::CopyRawPtrToThread32(ThreadOffset32 thr_offs,
+                                        FrameOffset fr_offs,
+                                        ManagedRegister mscratch) {
   ArmManagedRegister scratch = mscratch.AsArm();
   CHECK(scratch.IsCoreRegister()) << scratch;
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
@@ -632,9 +633,9 @@ void ArmAssembler::CopyRawPtrToThread32(ThreadOffset<4> thr_offs,
                 TR, thr_offs.Int32Value());
 }
 
-void ArmAssembler::StoreStackOffsetToThread32(ThreadOffset<4> thr_offs,
-                                            FrameOffset fr_offs,
-                                            ManagedRegister mscratch) {
+void ArmAssembler::StoreStackOffsetToThread32(ThreadOffset32 thr_offs,
+                                              FrameOffset fr_offs,
+                                              ManagedRegister mscratch) {
   ArmManagedRegister scratch = mscratch.AsArm();
   CHECK(scratch.IsCoreRegister()) << scratch;
   AddConstant(scratch.AsCoreRegister(), SP, fr_offs.Int32Value(), AL);
@@ -642,7 +643,7 @@ void ArmAssembler::StoreStackOffsetToThread32(ThreadOffset<4> thr_offs,
                 TR, thr_offs.Int32Value());
 }
 
-void ArmAssembler::StoreStackPointerToThread32(ThreadOffset<4> thr_offs) {
+void ArmAssembler::StoreStackPointerToThread32(ThreadOffset32 thr_offs) {
   StoreToOffset(kStoreWord, SP, TR, thr_offs.Int32Value());
 }
 
@@ -831,7 +832,8 @@ void ArmAssembler::Call(FrameOffset base, Offset offset,
   // TODO: place reference map on call
 }
 
-void ArmAssembler::CallFromThread32(ThreadOffset<4> /*offset*/, ManagedRegister /*scratch*/) {
+void ArmAssembler::CallFromThread32(ThreadOffset32 offset ATTRIBUTE_UNUSED,
+                                    ManagedRegister scratch ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL);
 }
 
@@ -848,8 +850,10 @@ void ArmAssembler::ExceptionPoll(ManagedRegister mscratch, size_t stack_adjust) 
   ArmManagedRegister scratch = mscratch.AsArm();
   ArmExceptionSlowPath* slow = new (GetArena()) ArmExceptionSlowPath(scratch, stack_adjust);
   buffer_.EnqueueSlowPath(slow);
-  LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
-                 TR, Thread::ExceptionOffset<4>().Int32Value());
+  LoadFromOffset(kLoadWord,
+                 scratch.AsCoreRegister(),
+                 TR,
+                 Thread::ExceptionOffset<kArmPointerSize>().Int32Value());
   cmp(scratch.AsCoreRegister(), ShifterOperand(0));
   b(slow->Entry(), NE);
 }
@@ -865,7 +869,10 @@ void ArmExceptionSlowPath::Emit(Assembler* sasm) {
   // Don't care about preserving R0 as this call won't return.
   __ mov(R0, ShifterOperand(scratch_.AsCoreRegister()));
   // Set up call to Thread::Current()->pDeliverException.
-  __ LoadFromOffset(kLoadWord, R12, TR, QUICK_ENTRYPOINT_OFFSET(4, pDeliverException).Int32Value());
+  __ LoadFromOffset(kLoadWord,
+                    R12,
+                    TR,
+                    QUICK_ENTRYPOINT_OFFSET(kArmPointerSize, pDeliverException).Int32Value());
   __ blx(R12);
 #undef __
 }

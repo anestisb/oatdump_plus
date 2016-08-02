@@ -17,6 +17,7 @@
 #include "concurrent_copying.h"
 
 #include "art_field-inl.h"
+#include "base/enums.h"
 #include "base/histogram-inl.h"
 #include "base/stl_util.h"
 #include "base/systrace.h"
@@ -1592,7 +1593,7 @@ void ConcurrentCopying::AssertToSpaceInvariant(GcRootSource* gc_root_source,
         ArtMethod* method = gc_root_source->GetArtMethod();
         LOG(INTERNAL_FATAL) << "gc root in method " << method << " " << PrettyMethod(method);
         RootPrinter root_printer;
-        method->VisitRoots(root_printer, sizeof(void*));
+        method->VisitRoots(root_printer, kRuntimePointerSize);
       }
       ref->GetLockWord(false).Dump(LOG(INTERNAL_FATAL));
       region_space_->DumpNonFreeRegions(LOG(INTERNAL_FATAL));

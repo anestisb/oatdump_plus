@@ -26,7 +26,7 @@ template<class T>
 class MANAGED ObjectArray: public Array {
  public:
   // The size of Object[].class.
-  static uint32_t ClassSize(size_t pointer_size) {
+  static uint32_t ClassSize(PointerSize pointer_size) {
     return Array::ClassSize(pointer_size);
   }
 

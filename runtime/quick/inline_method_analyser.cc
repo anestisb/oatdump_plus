@@ -18,6 +18,7 @@
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
@@ -145,7 +146,7 @@ ArtMethod* GetTargetConstructor(ArtMethod* method, const Instruction* invoke_dir
   DCHECK_EQ(invoke_direct->VRegC_35c(),
             method->GetCodeItem()->registers_size_ - method->GetCodeItem()->ins_size_);
   uint32_t method_index = invoke_direct->VRegB_35c();
-  size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+  PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
   ArtMethod* target_method =
       method->GetDexCache()->GetResolvedMethod(method_index, pointer_size);
   if (kIsDebugBuild && target_method != nullptr) {
@@ -214,7 +215,7 @@ bool RecordConstructorIPut(ArtMethod* method,
     SHARED_REQUIRES(Locks::mutator_lock_) {
   DCHECK(IsInstructionIPut(new_iput->Opcode()));
   uint32_t field_index = new_iput->VRegC_22c();
-  size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+  PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
   mirror::DexCache* dex_cache = method->GetDexCache();
   ArtField* field = dex_cache->GetResolvedField(field_index, pointer_size);
   if (UNLIKELY(field == nullptr)) {
@@ -732,7 +733,7 @@ bool InlineMethodAnalyser::ComputeSpecialAccessorInfo(ArtMethod* method,
     return false;
   }
   mirror::DexCache* dex_cache = method->GetDexCache();
-  size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+  PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
   ArtField* field = dex_cache->GetResolvedField(field_idx, pointer_size);
   if (field == nullptr || field->IsStatic()) {
     return false;

@@ -80,13 +80,12 @@ inline uint32_t Class::GetVirtualMethodsStartOffset() {
 }
 
 template<VerifyObjectFlags kVerifyFlags>
-inline ArraySlice<ArtMethod> Class::GetDirectMethodsSlice(size_t pointer_size) {
+inline ArraySlice<ArtMethod> Class::GetDirectMethodsSlice(PointerSize pointer_size) {
   DCHECK(IsLoaded() || IsErroneous());
-  DCHECK(ValidPointerSize(pointer_size)) << pointer_size;
   return GetDirectMethodsSliceUnchecked(pointer_size);
 }
 
-inline ArraySlice<ArtMethod> Class::GetDirectMethodsSliceUnchecked(size_t pointer_size) {
+inline ArraySlice<ArtMethod> Class::GetDirectMethodsSliceUnchecked(PointerSize pointer_size) {
   return ArraySlice<ArtMethod>(GetMethodsPtr(),
                                GetDirectMethodsStartOffset(),
                                GetVirtualMethodsStartOffset(),
@@ -95,13 +94,12 @@ inline ArraySlice<ArtMethod> Class::GetDirectMethodsSliceUnchecked(size_t pointe
 }
 
 template<VerifyObjectFlags kVerifyFlags>
-inline ArraySlice<ArtMethod> Class::GetDeclaredMethodsSlice(size_t pointer_size) {
+inline ArraySlice<ArtMethod> Class::GetDeclaredMethodsSlice(PointerSize pointer_size) {
   DCHECK(IsLoaded() || IsErroneous());
-  DCHECK(ValidPointerSize(pointer_size)) << pointer_size;
   return GetDeclaredMethodsSliceUnchecked(pointer_size);
 }
 
-inline ArraySlice<ArtMethod> Class::GetDeclaredMethodsSliceUnchecked(size_t pointer_size) {
+inline ArraySlice<ArtMethod> Class::GetDeclaredMethodsSliceUnchecked(PointerSize pointer_size) {
   return ArraySlice<ArtMethod>(GetMethodsPtr(),
                                GetDirectMethodsStartOffset(),
                                GetCopiedMethodsStartOffset(),
@@ -109,13 +107,13 @@ inline ArraySlice<ArtMethod> Class::GetDeclaredMethodsSliceUnchecked(size_t poin
                                ArtMethod::Alignment(pointer_size));
 }
 template<VerifyObjectFlags kVerifyFlags>
-inline ArraySlice<ArtMethod> Class::GetDeclaredVirtualMethodsSlice(size_t pointer_size) {
+inline ArraySlice<ArtMethod> Class::GetDeclaredVirtualMethodsSlice(PointerSize pointer_size) {
   DCHECK(IsLoaded() || IsErroneous());
-  DCHECK(ValidPointerSize(pointer_size)) << pointer_size;
   return GetDeclaredVirtualMethodsSliceUnchecked(pointer_size);
 }
 
-inline ArraySlice<ArtMethod> Class::GetDeclaredVirtualMethodsSliceUnchecked(size_t pointer_size) {
+inline ArraySlice<ArtMethod> Class::GetDeclaredVirtualMethodsSliceUnchecked(
+    PointerSize pointer_size) {
   return ArraySlice<ArtMethod>(GetMethodsPtr(),
                                GetVirtualMethodsStartOffset(),
                                GetCopiedMethodsStartOffset(),
@@ -124,13 +122,12 @@ inline ArraySlice<ArtMethod> Class::GetDeclaredVirtualMethodsSliceUnchecked(size
 }
 
 template<VerifyObjectFlags kVerifyFlags>
-inline ArraySlice<ArtMethod> Class::GetVirtualMethodsSlice(size_t pointer_size) {
+inline ArraySlice<ArtMethod> Class::GetVirtualMethodsSlice(PointerSize pointer_size) {
   DCHECK(IsLoaded() || IsErroneous());
-  DCHECK(ValidPointerSize(pointer_size)) << pointer_size;
   return GetVirtualMethodsSliceUnchecked(pointer_size);
 }
 
-inline ArraySlice<ArtMethod> Class::GetVirtualMethodsSliceUnchecked(size_t pointer_size) {
+inline ArraySlice<ArtMethod> Class::GetVirtualMethodsSliceUnchecked(PointerSize pointer_size) {
   LengthPrefixedArray<ArtMethod>* methods = GetMethodsPtr();
   return ArraySlice<ArtMethod>(methods,
                                GetVirtualMethodsStartOffset(),
@@ -140,13 +137,12 @@ inline ArraySlice<ArtMethod> Class::GetVirtualMethodsSliceUnchecked(size_t point
 }
 
 template<VerifyObjectFlags kVerifyFlags>
-inline ArraySlice<ArtMethod> Class::GetCopiedMethodsSlice(size_t pointer_size) {
+inline ArraySlice<ArtMethod> Class::GetCopiedMethodsSlice(PointerSize pointer_size) {
   DCHECK(IsLoaded() || IsErroneous());
-  DCHECK(ValidPointerSize(pointer_size)) << pointer_size;
   return GetCopiedMethodsSliceUnchecked(pointer_size);
 }
 
-inline ArraySlice<ArtMethod> Class::GetCopiedMethodsSliceUnchecked(size_t pointer_size) {
+inline ArraySlice<ArtMethod> Class::GetCopiedMethodsSliceUnchecked(PointerSize pointer_size) {
   LengthPrefixedArray<ArtMethod>* methods = GetMethodsPtr();
   return ArraySlice<ArtMethod>(methods,
                                GetCopiedMethodsStartOffset(),
@@ -161,7 +157,7 @@ inline LengthPrefixedArray<ArtMethod>* Class::GetMethodsPtr() {
 }
 
 template<VerifyObjectFlags kVerifyFlags>
-inline ArraySlice<ArtMethod> Class::GetMethodsSlice(size_t pointer_size) {
+inline ArraySlice<ArtMethod> Class::GetMethodsSlice(PointerSize pointer_size) {
   DCHECK(IsLoaded() || IsErroneous());
   LengthPrefixedArray<ArtMethod>* methods = GetMethodsPtr();
   return ArraySlice<ArtMethod>(methods,
@@ -177,12 +173,12 @@ inline uint32_t Class::NumMethods() {
   return (methods == nullptr) ? 0 : methods->size();
 }
 
-inline ArtMethod* Class::GetDirectMethodUnchecked(size_t i, size_t pointer_size) {
+inline ArtMethod* Class::GetDirectMethodUnchecked(size_t i, PointerSize pointer_size) {
   CheckPointerSize(pointer_size);
   return &GetDirectMethodsSliceUnchecked(pointer_size).At(i);
 }
 
-inline ArtMethod* Class::GetDirectMethod(size_t i, size_t pointer_size) {
+inline ArtMethod* Class::GetDirectMethod(size_t i, PointerSize pointer_size) {
   CheckPointerSize(pointer_size);
   return &GetDirectMethodsSlice(pointer_size).At(i);
 }
@@ -212,20 +208,20 @@ inline void Class::SetMethodsPtrInternal(LengthPrefixedArray<ArtMethod>* new_met
 }
 
 template<VerifyObjectFlags kVerifyFlags>
-inline ArtMethod* Class::GetVirtualMethod(size_t i, size_t pointer_size) {
+inline ArtMethod* Class::GetVirtualMethod(size_t i, PointerSize pointer_size) {
   CheckPointerSize(pointer_size);
   DCHECK(IsResolved<kVerifyFlags>() || IsErroneous<kVerifyFlags>())
       << PrettyClass(this) << " status=" << GetStatus();
   return GetVirtualMethodUnchecked(i, pointer_size);
 }
 
-inline ArtMethod* Class::GetVirtualMethodDuringLinking(size_t i, size_t pointer_size) {
+inline ArtMethod* Class::GetVirtualMethodDuringLinking(size_t i, PointerSize pointer_size) {
   CheckPointerSize(pointer_size);
   DCHECK(IsLoaded() || IsErroneous());
   return GetVirtualMethodUnchecked(i, pointer_size);
 }
 
-inline ArtMethod* Class::GetVirtualMethodUnchecked(size_t i, size_t pointer_size) {
+inline ArtMethod* Class::GetVirtualMethodUnchecked(size_t i, PointerSize pointer_size) {
   CheckPointerSize(pointer_size);
   return &GetVirtualMethodsSliceUnchecked(pointer_size).At(i);
 }
@@ -258,7 +254,7 @@ inline int32_t Class::GetVTableLength() {
   return GetVTable() != nullptr ? GetVTable()->GetLength() : 0;
 }
 
-inline ArtMethod* Class::GetVTableEntry(uint32_t i, size_t pointer_size) {
+inline ArtMethod* Class::GetVTableEntry(uint32_t i, PointerSize pointer_size) {
   if (ShouldHaveEmbeddedVTable()) {
     return GetEmbeddedVTableEntry(i, pointer_size);
   }
@@ -275,29 +271,29 @@ inline void Class::SetEmbeddedVTableLength(int32_t len) {
   SetField32<false>(MemberOffset(EmbeddedVTableLengthOffset()), len);
 }
 
-inline ImTable* Class::GetImt(size_t pointer_size) {
+inline ImTable* Class::GetImt(PointerSize pointer_size) {
   return GetFieldPtrWithSize<ImTable*>(MemberOffset(ImtPtrOffset(pointer_size)), pointer_size);
 }
 
-inline void Class::SetImt(ImTable* imt, size_t pointer_size) {
+inline void Class::SetImt(ImTable* imt, PointerSize pointer_size) {
   return SetFieldPtrWithSize<false>(MemberOffset(ImtPtrOffset(pointer_size)), imt, pointer_size);
 }
 
-inline MemberOffset Class::EmbeddedVTableEntryOffset(uint32_t i, size_t pointer_size) {
+inline MemberOffset Class::EmbeddedVTableEntryOffset(uint32_t i, PointerSize pointer_size) {
   return MemberOffset(
       EmbeddedVTableOffset(pointer_size).Uint32Value() + i * VTableEntrySize(pointer_size));
 }
 
-inline ArtMethod* Class::GetEmbeddedVTableEntry(uint32_t i, size_t pointer_size) {
+inline ArtMethod* Class::GetEmbeddedVTableEntry(uint32_t i, PointerSize pointer_size) {
   return GetFieldPtrWithSize<ArtMethod*>(EmbeddedVTableEntryOffset(i, pointer_size), pointer_size);
 }
 
 inline void Class::SetEmbeddedVTableEntryUnchecked(
-    uint32_t i, ArtMethod* method, size_t pointer_size) {
+    uint32_t i, ArtMethod* method, PointerSize pointer_size) {
   SetFieldPtrWithSize<false>(EmbeddedVTableEntryOffset(i, pointer_size), method, pointer_size);
 }
 
-inline void Class::SetEmbeddedVTableEntry(uint32_t i, ArtMethod* method, size_t pointer_size) {
+inline void Class::SetEmbeddedVTableEntry(uint32_t i, ArtMethod* method, PointerSize pointer_size) {
   auto* vtable = GetVTableDuringLinking();
   CHECK_EQ(method, vtable->GetElementPtrSize<ArtMethod*>(i, pointer_size));
   SetEmbeddedVTableEntryUnchecked(i, method, pointer_size);
@@ -453,7 +449,8 @@ inline bool Class::IsSubClass(Class* klass) {
   return false;
 }
 
-inline ArtMethod* Class::FindVirtualMethodForInterface(ArtMethod* method, size_t pointer_size) {
+inline ArtMethod* Class::FindVirtualMethodForInterface(ArtMethod* method,
+                                                       PointerSize pointer_size) {
   Class* declaring_class = method->GetDeclaringClass();
   DCHECK(declaring_class != nullptr) << PrettyClass(this);
   DCHECK(declaring_class->IsInterface()) << PrettyMethod(method);
@@ -470,7 +467,7 @@ inline ArtMethod* Class::FindVirtualMethodForInterface(ArtMethod* method, size_t
   return nullptr;
 }
 
-inline ArtMethod* Class::FindVirtualMethodForVirtual(ArtMethod* method, size_t pointer_size) {
+inline ArtMethod* Class::FindVirtualMethodForVirtual(ArtMethod* method, PointerSize pointer_size) {
   // Only miranda or default methods may come from interfaces and be used as a virtual.
   DCHECK(!method->GetDeclaringClass()->IsInterface() || method->IsDefault() || method->IsMiranda());
   // The argument method may from a super class.
@@ -478,13 +475,13 @@ inline ArtMethod* Class::FindVirtualMethodForVirtual(ArtMethod* method, size_t p
   return GetVTableEntry(method->GetMethodIndex(), pointer_size);
 }
 
-inline ArtMethod* Class::FindVirtualMethodForSuper(ArtMethod* method, size_t pointer_size) {
+inline ArtMethod* Class::FindVirtualMethodForSuper(ArtMethod* method, PointerSize pointer_size) {
   DCHECK(!method->GetDeclaringClass()->IsInterface());
   return GetSuperClass()->GetVTableEntry(method->GetMethodIndex(), pointer_size);
 }
 
 inline ArtMethod* Class::FindVirtualMethodForVirtualOrInterface(ArtMethod* method,
-                                                                size_t pointer_size) {
+                                                                PointerSize pointer_size) {
   if (method->IsDirect()) {
     return method;
   }
@@ -528,7 +525,7 @@ inline MemberOffset Class::GetFirstReferenceInstanceFieldOffset() {
 }
 
 template <VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
-inline MemberOffset Class::GetFirstReferenceStaticFieldOffset(size_t pointer_size) {
+inline MemberOffset Class::GetFirstReferenceStaticFieldOffset(PointerSize pointer_size) {
   DCHECK(IsResolved());
   uint32_t base = sizeof(mirror::Class);  // Static fields come after the class.
   if (ShouldHaveEmbeddedVTable<kVerifyFlags, kReadBarrierOption>()) {
@@ -539,7 +536,8 @@ inline MemberOffset Class::GetFirstReferenceStaticFieldOffset(size_t pointer_siz
   return MemberOffset(base);
 }
 
-inline MemberOffset Class::GetFirstReferenceStaticFieldOffsetDuringLinking(size_t pointer_size) {
+inline MemberOffset Class::GetFirstReferenceStaticFieldOffsetDuringLinking(
+    PointerSize pointer_size) {
   DCHECK(IsLoaded());
   uint32_t base = sizeof(mirror::Class);  // Static fields come after the class.
   if (ShouldHaveEmbeddedVTable()) {
@@ -708,13 +706,13 @@ inline uint32_t Class::ComputeClassSize(bool has_embedded_vtable,
                                         uint32_t num_32bit_static_fields,
                                         uint32_t num_64bit_static_fields,
                                         uint32_t num_ref_static_fields,
-                                        size_t pointer_size) {
+                                        PointerSize pointer_size) {
   // Space used by java.lang.Class and its instance fields.
   uint32_t size = sizeof(Class);
   // Space used by embedded tables.
   if (has_embedded_vtable) {
-    size = RoundUp(size + sizeof(uint32_t), pointer_size);
-    size += pointer_size;  // size of pointer to IMT
+    size = RoundUp(size + sizeof(uint32_t), static_cast<size_t>(pointer_size));
+    size += static_cast<size_t>(pointer_size);  // size of pointer to IMT
     size += num_vtable_entries * VTableEntrySize(pointer_size);
   }
 
@@ -908,7 +906,7 @@ inline GcRoot<String>* Class::GetDexCacheStrings() {
 }
 
 template<ReadBarrierOption kReadBarrierOption, class Visitor>
-void mirror::Class::VisitNativeRoots(Visitor& visitor, size_t pointer_size) {
+void mirror::Class::VisitNativeRoots(Visitor& visitor, PointerSize pointer_size) {
   for (ArtField& field : GetSFieldsUnchecked()) {
     // Visit roots first in case the declaring class gets moved.
     field.VisitRoots(visitor);
@@ -928,35 +926,34 @@ void mirror::Class::VisitNativeRoots(Visitor& visitor, size_t pointer_size) {
   }
 }
 
-inline IterationRange<StrideIterator<ArtMethod>> Class::GetDirectMethods(size_t pointer_size) {
+inline IterationRange<StrideIterator<ArtMethod>> Class::GetDirectMethods(PointerSize pointer_size) {
   CheckPointerSize(pointer_size);
   return GetDirectMethodsSliceUnchecked(pointer_size).AsRange();
 }
 
 inline IterationRange<StrideIterator<ArtMethod>> Class::GetDeclaredMethods(
-      size_t pointer_size) {
-  CheckPointerSize(pointer_size);
+      PointerSize pointer_size) {
   return GetDeclaredMethodsSliceUnchecked(pointer_size).AsRange();
 }
 
 inline IterationRange<StrideIterator<ArtMethod>> Class::GetDeclaredVirtualMethods(
-      size_t pointer_size) {
-  CheckPointerSize(pointer_size);
+      PointerSize pointer_size) {
   return GetDeclaredVirtualMethodsSliceUnchecked(pointer_size).AsRange();
 }
 
-inline IterationRange<StrideIterator<ArtMethod>> Class::GetVirtualMethods(size_t pointer_size) {
+inline IterationRange<StrideIterator<ArtMethod>> Class::GetVirtualMethods(
+    PointerSize pointer_size) {
   CheckPointerSize(pointer_size);
   return GetVirtualMethodsSliceUnchecked(pointer_size).AsRange();
 }
 
-inline IterationRange<StrideIterator<ArtMethod>> Class::GetCopiedMethods(size_t pointer_size) {
+inline IterationRange<StrideIterator<ArtMethod>> Class::GetCopiedMethods(PointerSize pointer_size) {
   CheckPointerSize(pointer_size);
   return GetCopiedMethodsSliceUnchecked(pointer_size).AsRange();
 }
 
 
-inline IterationRange<StrideIterator<ArtMethod>> Class::GetMethods(size_t pointer_size) {
+inline IterationRange<StrideIterator<ArtMethod>> Class::GetMethods(PointerSize pointer_size) {
   CheckPointerSize(pointer_size);
   return MakeIterationRangeFromLengthPrefixedArray(GetMethodsPtr(),
                                                    ArtMethod::Size(pointer_size),
@@ -979,13 +976,12 @@ inline IterationRange<StrideIterator<ArtField>> Class::GetSFieldsUnchecked() {
   return MakeIterationRangeFromLengthPrefixedArray(GetSFieldsPtrUnchecked());
 }
 
-inline MemberOffset Class::EmbeddedVTableOffset(size_t pointer_size) {
+inline MemberOffset Class::EmbeddedVTableOffset(PointerSize pointer_size) {
   CheckPointerSize(pointer_size);
-  return MemberOffset(ImtPtrOffset(pointer_size).Uint32Value() + pointer_size);
+  return MemberOffset(ImtPtrOffset(pointer_size).Uint32Value() + static_cast<size_t>(pointer_size));
 }
 
-inline void Class::CheckPointerSize(size_t pointer_size) {
-  DCHECK(ValidPointerSize(pointer_size)) << pointer_size;
+inline void Class::CheckPointerSize(PointerSize pointer_size) {
   DCHECK_EQ(pointer_size, Runtime::Current()->GetClassLinker()->GetImagePointerSize());
 }
 
@@ -1040,7 +1036,7 @@ inline uint32_t Class::NumStaticFields() {
 
 template <VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption, typename Visitor>
 inline void Class::FixupNativePointers(mirror::Class* dest,
-                                       size_t pointer_size,
+                                       PointerSize pointer_size,
                                        const Visitor& visitor) {
   // Update the field arrays.
   LengthPrefixedArray<ArtField>* const sfields = GetSFieldsPtr();

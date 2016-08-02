@@ -17,6 +17,7 @@
 #include <memory>
 
 #include "base/arena_allocator.h"
+#include "base/enums.h"
 #include "class_linker.h"
 #include "common_runtime_test.h"
 #include "dex_file.h"
@@ -100,11 +101,11 @@ class ExceptionTest : public CommonRuntimeTest {
       CHECK_ALIGNED(stack_maps_offset, 2);
     }
 
-    method_f_ = my_klass_->FindVirtualMethod("f", "()I", sizeof(void*));
+    method_f_ = my_klass_->FindVirtualMethod("f", "()I", kRuntimePointerSize);
     ASSERT_TRUE(method_f_ != nullptr);
     method_f_->SetEntryPointFromQuickCompiledCode(code_ptr);
 
-    method_g_ = my_klass_->FindVirtualMethod("g", "(I)V", sizeof(void*));
+    method_g_ = my_klass_->FindVirtualMethod("g", "(I)V", kRuntimePointerSize);
     ASSERT_TRUE(method_g_ != nullptr);
     method_g_->SetEntryPointFromQuickCompiledCode(code_ptr);
   }
