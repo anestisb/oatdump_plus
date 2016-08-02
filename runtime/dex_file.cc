@@ -338,6 +338,11 @@ std::unique_ptr<const DexFile> DexFile::Open(const ZipArchive& zip_archive,
     *error_code = ZipOpenErrorCode::kEntryNotFound;
     return nullptr;
   }
+  if (zip_entry->GetUncompressedLength() == 0) {
+    *error_msg = StringPrintf("Dex file '%s' has zero length", location.c_str());
+    *error_code = ZipOpenErrorCode::kDexFileError;
+    return nullptr;
+  }
   std::unique_ptr<MemMap> map(zip_entry->ExtractToMemMap(location.c_str(), entry_name, error_msg));
   if (map.get() == nullptr) {
     *error_msg = StringPrintf("Failed to extract '%s' from '%s': %s", entry_name, location.c_str(),
@@ -435,6 +440,8 @@ std::unique_ptr<const DexFile> DexFile::OpenMemory(const uint8_t* base,
                                                    MemMap* mem_map,
                                                    const OatDexFile* oat_dex_file,
                                                    std::string* error_msg) {
+  DCHECK(base != nullptr);
+  DCHECK_NE(size, 0UL);
   CHECK_ALIGNED(base, 4);  // various dex file structures must be word aligned
   std::unique_ptr<DexFile> dex_file(
       new DexFile(base, size, location, location_checksum, mem_map, oat_dex_file));
