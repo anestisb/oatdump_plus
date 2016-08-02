@@ -22,9 +22,11 @@
 #include <vector>
 
 #include "base/arena_containers.h"
+#include "base/enums.h"
 #include "base/logging.h"
 #include "utils/arm64/managed_register_arm64.h"
 #include "utils/assembler.h"
+#include "utils/jni_macro_assembler.h"
 #include "offsets.h"
 
 // TODO: make vixl clean wrt -Wshadow, -Wunknown-pragmas, -Wmissing-noreturn
@@ -81,7 +83,7 @@ class Arm64Exception {
   DISALLOW_COPY_AND_ASSIGN(Arm64Exception);
 };
 
-class Arm64Assembler FINAL : public Assembler {
+class Arm64Assembler FINAL : public Assembler, public JNIMacroAssembler<PointerSize::k64> {
  public:
   explicit Arm64Assembler(ArenaAllocator* arena)
       : Assembler(arena),
@@ -90,6 +92,8 @@ class Arm64Assembler FINAL : public Assembler {
   virtual ~Arm64Assembler() {}
 
   vixl::aarch64::MacroAssembler* GetVIXLAssembler() { return &vixl_masm_; }
+
+  DebugFrameOpCodeWriterForAssembler& cfi() { return Assembler::cfi(); }
 
   // Finalize the code.
   void FinalizeCode() OVERRIDE;
@@ -122,28 +126,28 @@ class Arm64Assembler FINAL : public Assembler {
   void StoreRef(FrameOffset dest, ManagedRegister src) OVERRIDE;
   void StoreRawPtr(FrameOffset dest, ManagedRegister src) OVERRIDE;
   void StoreImmediateToFrame(FrameOffset dest, uint32_t imm, ManagedRegister scratch) OVERRIDE;
-  void StoreImmediateToThread64(ThreadOffset64 dest, uint32_t imm, ManagedRegister scratch)
-      OVERRIDE;
-  void StoreStackOffsetToThread64(ThreadOffset64 thr_offs, FrameOffset fr_offs,
-                                  ManagedRegister scratch) OVERRIDE;
-  void StoreStackPointerToThread64(ThreadOffset64 thr_offs) OVERRIDE;
+  void StoreStackOffsetToThread(ThreadOffset64 thr_offs,
+                                FrameOffset fr_offs,
+                                ManagedRegister scratch) OVERRIDE;
+  void StoreStackPointerToThread(ThreadOffset64 thr_offs) OVERRIDE;
   void StoreSpanning(FrameOffset dest, ManagedRegister src, FrameOffset in_off,
                      ManagedRegister scratch) OVERRIDE;
 
   // Load routines.
   void Load(ManagedRegister dest, FrameOffset src, size_t size) OVERRIDE;
-  void LoadFromThread64(ManagedRegister dest, ThreadOffset64 src, size_t size) OVERRIDE;
+  void LoadFromThread(ManagedRegister dest, ThreadOffset64 src, size_t size) OVERRIDE;
   void LoadRef(ManagedRegister dest, FrameOffset src) OVERRIDE;
   void LoadRef(ManagedRegister dest, ManagedRegister base, MemberOffset offs,
                bool unpoison_reference) OVERRIDE;
   void LoadRawPtr(ManagedRegister dest, ManagedRegister base, Offset offs) OVERRIDE;
-  void LoadRawPtrFromThread64(ManagedRegister dest, ThreadOffset64 offs) OVERRIDE;
+  void LoadRawPtrFromThread(ManagedRegister dest, ThreadOffset64 offs) OVERRIDE;
 
   // Copying routines.
   void Move(ManagedRegister dest, ManagedRegister src, size_t size) OVERRIDE;
-  void CopyRawPtrFromThread64(FrameOffset fr_offs, ThreadOffset64 thr_offs,
-                              ManagedRegister scratch) OVERRIDE;
-  void CopyRawPtrToThread64(ThreadOffset64 thr_offs, FrameOffset fr_offs, ManagedRegister scratch)
+  void CopyRawPtrFromThread(FrameOffset fr_offs,
+                            ThreadOffset64 thr_offs,
+                            ManagedRegister scratch) OVERRIDE;
+  void CopyRawPtrToThread(ThreadOffset64 thr_offs, FrameOffset fr_offs, ManagedRegister scratch)
       OVERRIDE;
   void CopyRef(FrameOffset dest, FrameOffset src, ManagedRegister scratch) OVERRIDE;
   void Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch, size_t size) OVERRIDE;
@@ -196,7 +200,7 @@ class Arm64Assembler FINAL : public Assembler {
   // Call to address held at [base+offset].
   void Call(ManagedRegister base, Offset offset, ManagedRegister scratch) OVERRIDE;
   void Call(FrameOffset base, Offset offset, ManagedRegister scratch) OVERRIDE;
-  void CallFromThread64(ThreadOffset64 offset, ManagedRegister scratch) OVERRIDE;
+  void CallFromThread(ThreadOffset64 offset, ManagedRegister scratch) OVERRIDE;
 
   // Jump to address (not setting link register)
   void JumpTo(ManagedRegister m_base, Offset offs, ManagedRegister m_scratch);

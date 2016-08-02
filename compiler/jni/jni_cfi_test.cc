@@ -19,10 +19,12 @@
 
 #include "arch/instruction_set.h"
 #include "base/arena_allocator.h"
+#include "base/enums.h"
 #include "cfi_test.h"
 #include "gtest/gtest.h"
 #include "jni/quick/calling_convention.h"
 #include "utils/assembler.h"
+#include "utils/jni_macro_assembler.h"
 
 #include "jni/jni_cfi_test_expected.inc"
 
@@ -36,9 +38,23 @@ class JNICFITest : public CFITest {
   // Enable this flag to generate the expected outputs.
   static constexpr bool kGenerateExpected = false;
 
-  void TestImpl(InstructionSet isa, const char* isa_str,
+  void TestImpl(InstructionSet isa,
+                const char* isa_str,
                 const std::vector<uint8_t>& expected_asm,
                 const std::vector<uint8_t>& expected_cfi) {
+    if (Is64BitInstructionSet(isa)) {
+      TestImplSized<PointerSize::k64>(isa, isa_str, expected_asm, expected_cfi);
+    } else {
+      TestImplSized<PointerSize::k32>(isa, isa_str, expected_asm, expected_cfi);
+    }
+  }
+
+ private:
+  template <PointerSize kPointerSize>
+  void TestImplSized(InstructionSet isa,
+                     const char* isa_str,
+                     const std::vector<uint8_t>& expected_asm,
+                     const std::vector<uint8_t>& expected_cfi) {
     // Description of simple method.
     const bool is_static = true;
     const bool is_synchronized = false;
@@ -55,7 +71,8 @@ class JNICFITest : public CFITest {
     ArrayRef<const ManagedRegister> callee_save_regs = jni_conv->CalleeSaveRegisters();
 
     // Assemble the method.
-    std::unique_ptr<Assembler> jni_asm(Assembler::Create(&arena, isa));
+    std::unique_ptr<JNIMacroAssembler<kPointerSize>> jni_asm(
+        JNIMacroAssembler<kPointerSize>::Create(&arena, isa));
     jni_asm->cfi().SetEnabled(true);
     jni_asm->BuildFrame(frame_size, mr_conv->MethodRegister(),
                         callee_save_regs, mr_conv->EntrySpills());
