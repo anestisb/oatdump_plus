@@ -63,7 +63,9 @@ const uint8_t DexFile::kDexMagicVersions[DexFile::kNumDexVersions][DexFile::kDex
   {'0', '3', '5', '\0'},
   // Dex version 036 skipped because of an old dalvik bug on some versions of android where dex
   // files with that version number would erroneously be accepted and run.
-  {'0', '3', '7', '\0'}
+  {'0', '3', '7', '\0'},
+  // Dex version 038: Android "O" and beyond.
+  {'0', '3', '8', '\0'}
 };
 
 bool DexFile::GetChecksum(const char* filename, uint32_t* checksum, std::string* error_msg) {
