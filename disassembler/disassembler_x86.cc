@@ -597,7 +597,7 @@ DISASSEMBLER_ENTRY(cmp,
               opcode1 = "roundss";
               prefix[2] = 0;
               has_modrm = true;
-              store = true;
+              load = true;
               src_reg_file = SSE;
               dst_reg_file = SSE;
               immediate_bytes = 1;
@@ -606,7 +606,7 @@ DISASSEMBLER_ENTRY(cmp,
               opcode1 = "roundsd";
               prefix[2] = 0;
               has_modrm = true;
-              store = true;
+              load = true;
               src_reg_file = SSE;
               dst_reg_file = SSE;
               immediate_bytes = 1;
