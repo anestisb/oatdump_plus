@@ -75,13 +75,13 @@ public class Main {
   /// CHECK-START: int Main.compareBooleans(boolean, boolean) select_generator (after)
   /// CHECK-NOT:                     Phi
 
-  /// CHECK-START: int Main.compareBooleans(boolean, boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-START: int Main.compareBooleans(boolean, boolean) instruction_simplifier$after_bce (after)
   /// CHECK:         <<ArgX:z\d+>>   ParameterValue
   /// CHECK:         <<ArgY:z\d+>>   ParameterValue
   /// CHECK-DAG:     <<Result:i\d+>> Compare [<<ArgX>>,<<ArgY>>]
   /// CHECK-DAG:                     Return [<<Result>>]
 
-  /// CHECK-START: int Main.compareBooleans(boolean, boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-START: int Main.compareBooleans(boolean, boolean) instruction_simplifier$after_bce (after)
   /// CHECK-NOT:                     Select
 
   private static int compareBooleans(boolean x, boolean y) {

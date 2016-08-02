@@ -52,14 +52,14 @@ public class Main {
   /// CHECK-START: int Main.rotateLeftBoolean(boolean, int) select_generator (after)
   /// CHECK-NOT:                      Phi
 
-  /// CHECK-START: int Main.rotateLeftBoolean(boolean, int) instruction_simplifier_after_bce (after)
+  /// CHECK-START: int Main.rotateLeftBoolean(boolean, int) instruction_simplifier$after_bce (after)
   /// CHECK:         <<ArgVal:z\d+>>  ParameterValue
   /// CHECK:         <<ArgDist:i\d+>> ParameterValue
   /// CHECK-DAG:     <<NegDist:i\d+>> Neg [<<ArgDist>>]
   /// CHECK-DAG:     <<Result:i\d+>>  Ror [<<ArgVal>>,<<NegDist>>]
   /// CHECK-DAG:                      Return [<<Result>>]
 
-  /// CHECK-START: int Main.rotateLeftBoolean(boolean, int) instruction_simplifier_after_bce (after)
+  /// CHECK-START: int Main.rotateLeftBoolean(boolean, int) instruction_simplifier$after_bce (after)
   /// CHECK-NOT:                      Select
 
   private static int rotateLeftBoolean(boolean value, int distance) {
@@ -206,13 +206,13 @@ public class Main {
   /// CHECK-START: int Main.rotateRightBoolean(boolean, int) select_generator (after)
   /// CHECK-NOT:                     Phi
 
-  /// CHECK-START: int Main.rotateRightBoolean(boolean, int) instruction_simplifier_after_bce (after)
+  /// CHECK-START: int Main.rotateRightBoolean(boolean, int) instruction_simplifier$after_bce (after)
   /// CHECK:         <<ArgVal:z\d+>>  ParameterValue
   /// CHECK:         <<ArgDist:i\d+>> ParameterValue
   /// CHECK-DAG:     <<Result:i\d+>>  Ror [<<ArgVal>>,<<ArgDist>>]
   /// CHECK-DAG:                      Return [<<Result>>]
 
-  /// CHECK-START: int Main.rotateRightBoolean(boolean, int) instruction_simplifier_after_bce (after)
+  /// CHECK-START: int Main.rotateRightBoolean(boolean, int) instruction_simplifier$after_bce (after)
   /// CHECK-NOT:                     Select
 
   private static int rotateRightBoolean(boolean value, int distance) {
