@@ -27,6 +27,7 @@
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "base/bit_vector.h"
+#include "base/enums.h"
 #include "base/stl_util.h"
 #include "base/systrace.h"
 #include "base/time_utils.h"
@@ -434,10 +435,10 @@ CompilerDriver::~CompilerDriver() {
 #define CREATE_TRAMPOLINE(type, abi, offset) \
     if (Is64BitInstructionSet(instruction_set_)) { \
       return CreateTrampoline64(instruction_set_, abi, \
-                                type ## _ENTRYPOINT_OFFSET(8, offset)); \
+                                type ## _ENTRYPOINT_OFFSET(PointerSize::k64, offset)); \
     } else { \
       return CreateTrampoline32(instruction_set_, abi, \
-                                type ## _ENTRYPOINT_OFFSET(4, offset)); \
+                                type ## _ENTRYPOINT_OFFSET(PointerSize::k32, offset)); \
     }
 
 std::unique_ptr<const std::vector<uint8_t>> CompilerDriver::CreateJniDlsymLookup() const {
@@ -1015,7 +1016,7 @@ class ResolveCatchBlockExceptionsClassVisitor : public ClassVisitor {
   }
 
  private:
-  void ResolveExceptionsForMethod(ArtMethod* method_handle, size_t pointer_size)
+  void ResolveExceptionsForMethod(ArtMethod* method_handle, PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_) {
     const DexFile::CodeItem* code_item = method_handle->GetCodeItem();
     if (code_item == nullptr) {
@@ -1147,7 +1148,7 @@ static void MaybeAddToImageClasses(Handle<mirror::Class> c,
   // Make a copy of the handle so that we don't clobber it doing Assign.
   MutableHandle<mirror::Class> klass(hs.NewHandle(c.Get()));
   std::string temp;
-  const size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+  const PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
   while (!klass->IsObjectClass()) {
     const char* descriptor = klass->GetDescriptor(&temp);
     std::pair<std::unordered_set<std::string>::iterator, bool> result =
@@ -2885,7 +2886,7 @@ bool CompilerDriver::IsStringTypeIndex(uint16_t type_index, const DexFile* dex_f
 
 bool CompilerDriver::IsStringInit(uint32_t method_index, const DexFile* dex_file, int32_t* offset) {
   DexFileMethodInliner* inliner = GetMethodInlinerMap()->GetMethodInliner(dex_file);
-  size_t pointer_size = InstructionSetPointerSize(GetInstructionSet());
+  PointerSize pointer_size = InstructionSetPointerSize(GetInstructionSet());
   *offset = inliner->GetOffsetForStringInit(method_index, pointer_size);
   return inliner->IsStringInitMethodIndex(method_index);
 }

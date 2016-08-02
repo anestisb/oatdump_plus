@@ -1899,8 +1899,7 @@ void IntrinsicCodeGeneratorMIPS::VisitStringCompareTo(HInvoke* invoke) {
   __ LoadFromOffset(kLoadWord,
                     T9,
                     TR,
-                    QUICK_ENTRYPOINT_OFFSET(kMipsWordSize,
-                                            pStringCompareTo).Int32Value());
+                    QUICK_ENTRYPOINT_OFFSET(kMipsPointerSize, pStringCompareTo).Int32Value());
   __ Jalr(T9);
   __ Nop();
   __ Bind(slow_path->GetExitLabel());
@@ -2059,7 +2058,7 @@ static void GenerateStringIndexOf(HInvoke* invoke,
   __ LoadFromOffset(kLoadWord,
                     T9,
                     TR,
-                    QUICK_ENTRYPOINT_OFFSET(kMipsWordSize, pIndexOf).Int32Value());
+                    QUICK_ENTRYPOINT_OFFSET(kMipsPointerSize, pIndexOf).Int32Value());
   __ Jalr(T9);
   __ Nop();
 
@@ -2145,7 +2144,7 @@ void IntrinsicCodeGeneratorMIPS::VisitStringNewStringFromBytes(HInvoke* invoke) 
   __ LoadFromOffset(kLoadWord,
                     T9,
                     TR,
-                    QUICK_ENTRYPOINT_OFFSET(kMipsWordSize, pAllocStringFromBytes).Int32Value());
+                    QUICK_ENTRYPOINT_OFFSET(kMipsPointerSize, pAllocStringFromBytes).Int32Value());
   __ Jalr(T9);
   __ Nop();
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
@@ -2178,7 +2177,7 @@ void IntrinsicCodeGeneratorMIPS::VisitStringNewStringFromChars(HInvoke* invoke) 
   __ LoadFromOffset(kLoadWord,
                     T9,
                     TR,
-                    QUICK_ENTRYPOINT_OFFSET(kMipsWordSize, pAllocStringFromChars).Int32Value());
+                    QUICK_ENTRYPOINT_OFFSET(kMipsPointerSize, pAllocStringFromChars).Int32Value());
   __ Jalr(T9);
   __ Nop();
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
@@ -2207,7 +2206,7 @@ void IntrinsicCodeGeneratorMIPS::VisitStringNewStringFromString(HInvoke* invoke)
   __ LoadFromOffset(kLoadWord,
                     T9,
                     TR,
-                    QUICK_ENTRYPOINT_OFFSET(kMipsWordSize, pAllocStringFromString).Int32Value());
+                    QUICK_ENTRYPOINT_OFFSET(kMipsPointerSize, pAllocStringFromString).Int32Value());
   __ Jalr(T9);
   __ Nop();
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());

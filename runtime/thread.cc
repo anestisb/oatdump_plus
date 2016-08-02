@@ -1383,7 +1383,7 @@ struct StackDumpVisitor : public StackVisitor {
     if (m->IsRuntimeMethod()) {
       return true;
     }
-    m = m->GetInterfaceMethodIfProxy(sizeof(void*));
+    m = m->GetInterfaceMethodIfProxy(kRuntimePointerSize);
     const int kMaxRepetition = 3;
     mirror::Class* c = m->GetDeclaringClass();
     mirror::DexCache* dex_cache = c->GetDexCache();
@@ -2111,7 +2111,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
   // the i'th frame.
   mirror::ObjectArray<mirror::Object>* trace_;
   // For cross compilation.
-  const size_t pointer_size_;
+  const PointerSize pointer_size_;
 
   DISALLOW_COPY_AND_ASSIGN(BuildInternalStackTraceVisitor);
 };
@@ -2198,9 +2198,9 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
     mirror::PointerArray* const method_trace =
         down_cast<mirror::PointerArray*>(decoded_traces->Get(0));
     // Prepare parameters for StackTraceElement(String cls, String method, String file, int line)
-    ArtMethod* method = method_trace->GetElementPtrSize<ArtMethod*>(i, sizeof(void*));
+    ArtMethod* method = method_trace->GetElementPtrSize<ArtMethod*>(i, kRuntimePointerSize);
     uint32_t dex_pc = method_trace->GetElementPtrSize<uint32_t>(
-        i + method_trace->GetLength() / 2, sizeof(void*));
+        i + method_trace->GetLength() / 2, kRuntimePointerSize);
     int32_t line_number;
     StackHandleScope<3> hs(soa.Self());
     auto class_name_object(hs.NewHandle<mirror::String>(nullptr));
@@ -2231,7 +2231,7 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
         }
       }
     }
-    const char* method_name = method->GetInterfaceMethodIfProxy(sizeof(void*))->GetName();
+    const char* method_name = method->GetInterfaceMethodIfProxy(kRuntimePointerSize)->GetName();
     CHECK(method_name != nullptr);
     Handle<mirror::String> method_name_object(
         hs.NewHandle(mirror::String::AllocFromModifiedUtf8(soa.Self(), method_name)));
@@ -2408,10 +2408,12 @@ void Thread::DumpFromGdb() const {
 }
 
 // Explicitly instantiate 32 and 64bit thread offset dumping support.
-template void Thread::DumpThreadOffset<4>(std::ostream& os, uint32_t offset);
-template void Thread::DumpThreadOffset<8>(std::ostream& os, uint32_t offset);
+template
+void Thread::DumpThreadOffset<PointerSize::k32>(std::ostream& os, uint32_t offset);
+template
+void Thread::DumpThreadOffset<PointerSize::k64>(std::ostream& os, uint32_t offset);
 
-template<size_t ptr_size>
+template<PointerSize ptr_size>
 void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset) {
 #define DO_THREAD_OFFSET(x, y) \
     if (offset == (x).Uint32Value()) { \

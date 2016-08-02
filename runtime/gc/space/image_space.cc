@@ -23,6 +23,7 @@
 #include <unistd.h>
 
 #include "art_method.h"
+#include "base/enums.h"
 #include "base/macros.h"
 #include "base/stl_util.h"
 #include "base/scoped_flock.h"
@@ -731,7 +732,7 @@ class FixupObjectVisitor : public FixupVisitor {
  public:
   template<typename... Args>
   explicit FixupObjectVisitor(gc::accounting::ContinuousSpaceBitmap* visited,
-                              const size_t pointer_size,
+                              const PointerSize pointer_size,
                               Args... args)
       : FixupVisitor(args...),
         pointer_size_(pointer_size),
@@ -851,7 +852,7 @@ class FixupObjectVisitor : public FixupVisitor {
   }
 
  private:
-  const size_t pointer_size_;
+  const PointerSize pointer_size_;
   gc::accounting::ContinuousSpaceBitmap* const visited_;
 };
 
@@ -885,7 +886,7 @@ class ForwardCodeAdapter {
 class FixupArtMethodVisitor : public FixupVisitor, public ArtMethodVisitor {
  public:
   template<typename... Args>
-  explicit FixupArtMethodVisitor(bool fixup_heap_objects, size_t pointer_size, Args... args)
+  explicit FixupArtMethodVisitor(bool fixup_heap_objects, PointerSize pointer_size, Args... args)
       : FixupVisitor(args...),
         fixup_heap_objects_(fixup_heap_objects),
         pointer_size_(pointer_size) {}
@@ -915,7 +916,7 @@ class FixupArtMethodVisitor : public FixupVisitor, public ArtMethodVisitor {
 
  private:
   const bool fixup_heap_objects_;
-  const size_t pointer_size_;
+  const PointerSize pointer_size_;
 };
 
 class FixupArtFieldVisitor : public FixupVisitor, public ArtFieldVisitor {
@@ -951,7 +952,7 @@ static bool RelocateInPlace(ImageHeader& image_header,
   uint32_t boot_image_end = 0;
   uint32_t boot_oat_begin = 0;
   uint32_t boot_oat_end = 0;
-  const size_t pointer_size = image_header.GetPointerSize();
+  const PointerSize pointer_size = image_header.GetPointerSize();
   gc::Heap* const heap = Runtime::Current()->GetHeap();
   heap->GetBootImagesSize(&boot_image_begin, &boot_image_end, &boot_oat_begin, &boot_oat_end);
   if (boot_image_begin == boot_image_end) {

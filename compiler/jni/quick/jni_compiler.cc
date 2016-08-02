@@ -23,6 +23,7 @@
 
 #include "art_method.h"
 #include "base/arena_allocator.h"
+#include "base/enums.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "calling_convention.h"
@@ -125,16 +126,16 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
 
   if (is_64_bit_target) {
     __ CopyRawPtrFromThread64(main_jni_conv->HandleScopeLinkOffset(),
-                              Thread::TopHandleScopeOffset<8>(),
+                              Thread::TopHandleScopeOffset<PointerSize::k64>(),
                               mr_conv->InterproceduralScratchRegister());
-    __ StoreStackOffsetToThread64(Thread::TopHandleScopeOffset<8>(),
+    __ StoreStackOffsetToThread64(Thread::TopHandleScopeOffset<PointerSize::k64>(),
                                   main_jni_conv->HandleScopeOffset(),
                                   mr_conv->InterproceduralScratchRegister());
   } else {
     __ CopyRawPtrFromThread32(main_jni_conv->HandleScopeLinkOffset(),
-                              Thread::TopHandleScopeOffset<4>(),
+                              Thread::TopHandleScopeOffset<PointerSize::k32>(),
                               mr_conv->InterproceduralScratchRegister());
-    __ StoreStackOffsetToThread32(Thread::TopHandleScopeOffset<4>(),
+    __ StoreStackOffsetToThread32(Thread::TopHandleScopeOffset<PointerSize::k32>(),
                                   main_jni_conv->HandleScopeOffset(),
                                   mr_conv->InterproceduralScratchRegister());
   }
@@ -188,9 +189,9 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
 
   // 4. Write out the end of the quick frames.
   if (is_64_bit_target) {
-    __ StoreStackPointerToThread64(Thread::TopOfManagedStackOffset<8>());
+    __ StoreStackPointerToThread64(Thread::TopOfManagedStackOffset<PointerSize::k64>());
   } else {
-    __ StoreStackPointerToThread32(Thread::TopOfManagedStackOffset<4>());
+    __ StoreStackPointerToThread32(Thread::TopOfManagedStackOffset<PointerSize::k32>());
   }
 
   // 5. Move frame down to allow space for out going args.
@@ -201,8 +202,10 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   // Call the read barrier for the declaring class loaded from the method for a static call.
   // Note that we always have outgoing param space available for at least two params.
   if (kUseReadBarrier && is_static) {
-    ThreadOffset<4> read_barrier32 = QUICK_ENTRYPOINT_OFFSET(4, pReadBarrierJni);
-    ThreadOffset<8> read_barrier64 = QUICK_ENTRYPOINT_OFFSET(8, pReadBarrierJni);
+    ThreadOffset32 read_barrier32 =
+        QUICK_ENTRYPOINT_OFFSET(PointerSize::k32, pReadBarrierJni);
+    ThreadOffset64 read_barrier64 =
+        QUICK_ENTRYPOINT_OFFSET(PointerSize::k64, pReadBarrierJni);
     main_jni_conv->ResetIterator(FrameOffset(main_out_arg_size));
     main_jni_conv->Next();  // Skip JNIEnv.
     FrameOffset class_handle_scope_offset = main_jni_conv->CurrentParamHandleScopeEntryOffset();
@@ -245,10 +248,14 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   //    can occur. The result is the saved JNI local state that is restored by the exit call. We
   //    abuse the JNI calling convention here, that is guaranteed to support passing 2 pointer
   //    arguments.
-  ThreadOffset<4> jni_start32 = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(4, pJniMethodStartSynchronized)
-                                                : QUICK_ENTRYPOINT_OFFSET(4, pJniMethodStart);
-  ThreadOffset<8> jni_start64 = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(8, pJniMethodStartSynchronized)
-                                                : QUICK_ENTRYPOINT_OFFSET(8, pJniMethodStart);
+  ThreadOffset32 jni_start32 =
+      is_synchronized
+          ? QUICK_ENTRYPOINT_OFFSET(PointerSize::k32, pJniMethodStartSynchronized)
+          : QUICK_ENTRYPOINT_OFFSET(PointerSize::k32, pJniMethodStart);
+  ThreadOffset64 jni_start64 =
+      is_synchronized
+          ? QUICK_ENTRYPOINT_OFFSET(PointerSize::k64, pJniMethodStartSynchronized)
+          : QUICK_ENTRYPOINT_OFFSET(PointerSize::k64, pJniMethodStart);
   main_jni_conv->ResetIterator(FrameOffset(main_out_arg_size));
   FrameOffset locked_object_handle_scope_offset(0);
   if (is_synchronized) {
@@ -346,17 +353,17 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
     ManagedRegister jni_env = main_jni_conv->CurrentParamRegister();
     DCHECK(!jni_env.Equals(main_jni_conv->InterproceduralScratchRegister()));
     if (is_64_bit_target) {
-      __ LoadRawPtrFromThread64(jni_env, Thread::JniEnvOffset<8>());
+      __ LoadRawPtrFromThread64(jni_env, Thread::JniEnvOffset<PointerSize::k64>());
     } else {
-      __ LoadRawPtrFromThread32(jni_env, Thread::JniEnvOffset<4>());
+      __ LoadRawPtrFromThread32(jni_env, Thread::JniEnvOffset<PointerSize::k32>());
     }
   } else {
     FrameOffset jni_env = main_jni_conv->CurrentParamStackOffset();
     if (is_64_bit_target) {
-      __ CopyRawPtrFromThread64(jni_env, Thread::JniEnvOffset<8>(),
+      __ CopyRawPtrFromThread64(jni_env, Thread::JniEnvOffset<PointerSize::k64>(),
                                 main_jni_conv->InterproceduralScratchRegister());
     } else {
-      __ CopyRawPtrFromThread32(jni_env, Thread::JniEnvOffset<4>(),
+      __ CopyRawPtrFromThread32(jni_env, Thread::JniEnvOffset<PointerSize::k32>(),
                                 main_jni_conv->InterproceduralScratchRegister());
     }
   }
@@ -387,7 +394,8 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
         main_jni_conv->GetReturnType() == Primitive::kPrimDouble &&
         return_save_location.Uint32Value() % 8 != 0) {
       // Ensure doubles are 8-byte aligned for MIPS
-      return_save_location = FrameOffset(return_save_location.Uint32Value() + kMipsPointerSize);
+      return_save_location = FrameOffset(return_save_location.Uint32Value()
+                                             + static_cast<size_t>(kMipsPointerSize));
     }
     CHECK_LT(return_save_location.Uint32Value(), frame_size + main_out_arg_size);
     __ Store(return_save_location, main_jni_conv->ReturnRegister(), main_jni_conv->SizeOfReturnValue());
@@ -406,21 +414,27 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   }
   //     thread.
   end_jni_conv->ResetIterator(FrameOffset(end_out_arg_size));
-  ThreadOffset<4> jni_end32(-1);
-  ThreadOffset<8> jni_end64(-1);
+  ThreadOffset32 jni_end32(-1);
+  ThreadOffset64 jni_end64(-1);
   if (reference_return) {
     // Pass result.
-    jni_end32 = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(4, pJniMethodEndWithReferenceSynchronized)
-                                : QUICK_ENTRYPOINT_OFFSET(4, pJniMethodEndWithReference);
-    jni_end64 = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(8, pJniMethodEndWithReferenceSynchronized)
-                                : QUICK_ENTRYPOINT_OFFSET(8, pJniMethodEndWithReference);
+    jni_end32 = is_synchronized
+        ? QUICK_ENTRYPOINT_OFFSET(PointerSize::k32,
+                                  pJniMethodEndWithReferenceSynchronized)
+        : QUICK_ENTRYPOINT_OFFSET(PointerSize::k32, pJniMethodEndWithReference);
+    jni_end64 = is_synchronized
+        ? QUICK_ENTRYPOINT_OFFSET(PointerSize::k64,
+                                  pJniMethodEndWithReferenceSynchronized)
+        : QUICK_ENTRYPOINT_OFFSET(PointerSize::k64, pJniMethodEndWithReference);
     SetNativeParameter(jni_asm.get(), end_jni_conv.get(), end_jni_conv->ReturnRegister());
     end_jni_conv->Next();
   } else {
-    jni_end32 = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(4, pJniMethodEndSynchronized)
-                                : QUICK_ENTRYPOINT_OFFSET(4, pJniMethodEnd);
-    jni_end64 = is_synchronized ? QUICK_ENTRYPOINT_OFFSET(8, pJniMethodEndSynchronized)
-                                : QUICK_ENTRYPOINT_OFFSET(8, pJniMethodEnd);
+    jni_end32 = is_synchronized
+        ? QUICK_ENTRYPOINT_OFFSET(PointerSize::k32, pJniMethodEndSynchronized)
+        : QUICK_ENTRYPOINT_OFFSET(PointerSize::k32, pJniMethodEnd);
+    jni_end64 = is_synchronized
+        ? QUICK_ENTRYPOINT_OFFSET(PointerSize::k64, pJniMethodEndSynchronized)
+        : QUICK_ENTRYPOINT_OFFSET(PointerSize::k64, pJniMethodEnd);
   }
   // Pass saved local reference state.
   if (end_jni_conv->IsCurrentParamOnStack()) {
@@ -458,9 +472,11 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
     __ GetCurrentThread(end_jni_conv->CurrentParamStackOffset(),
                         end_jni_conv->InterproceduralScratchRegister());
     if (is_64_bit_target) {
-      __ CallFromThread64(ThreadOffset<8>(jni_end64), end_jni_conv->InterproceduralScratchRegister());
+      __ CallFromThread64(ThreadOffset64(jni_end64),
+                          end_jni_conv->InterproceduralScratchRegister());
     } else {
-      __ CallFromThread32(ThreadOffset<4>(jni_end32), end_jni_conv->InterproceduralScratchRegister());
+      __ CallFromThread32(ThreadOffset32(jni_end32),
+                          end_jni_conv->InterproceduralScratchRegister());
     }
   }
 

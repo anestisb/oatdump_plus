@@ -843,13 +843,14 @@ bool DexFileMethodInliner::AddInlineMethod(int32_t method_idx, const InlineMetho
   }
 }
 
-uint32_t DexFileMethodInliner::GetOffsetForStringInit(uint32_t method_index, size_t pointer_size) {
+uint32_t DexFileMethodInliner::GetOffsetForStringInit(uint32_t method_index,
+                                                      PointerSize pointer_size) {
   ReaderMutexLock mu(Thread::Current(), lock_);
   auto it = inline_methods_.find(method_index);
   if (it != inline_methods_.end() && (it->second.opcode == kInlineStringInit)) {
     uint32_t string_init_base_offset = Thread::QuickEntryPointOffsetWithSize(
               OFFSETOF_MEMBER(QuickEntryPoints, pNewEmptyString), pointer_size);
-    return string_init_base_offset + it->second.d.data * pointer_size;
+    return string_init_base_offset + it->second.d.data * static_cast<size_t>(pointer_size);
   }
   return 0;
 }

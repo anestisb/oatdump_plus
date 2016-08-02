@@ -19,6 +19,7 @@
 #include "arch/instruction_set_features.h"
 #include "art_field-inl.h"
 #include "art_method.h"
+#include "base/enums.h"
 #include "class_linker.h"
 #include "compiled_method.h"
 #include "dex/quick_compiler_callbacks.h"
@@ -115,7 +116,7 @@ void CommonCompilerTest::MakeExecutable(mirror::ClassLoader* class_loader, const
   Handle<mirror::ClassLoader> loader(hs.NewHandle(class_loader));
   mirror::Class* klass = class_linker_->FindClass(self, class_descriptor.c_str(), loader);
   CHECK(klass != nullptr) << "Class not found " << class_name;
-  size_t pointer_size = class_linker_->GetImagePointerSize();
+  PointerSize pointer_size = class_linker_->GetImagePointerSize();
   for (auto& m : klass->GetMethods(pointer_size)) {
     MakeExecutable(&m);
   }

@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "base/allocator.h"
+#include "base/enums.h"
 #include "base/hash_set.h"
 #include "base/macros.h"
 #include "base/mutex.h"
@@ -566,8 +567,7 @@ class ClassLinker {
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!dex_lock_);
 
-  size_t GetImagePointerSize() const {
-    DCHECK(ValidPointerSize(image_pointer_size_)) << image_pointer_size_;
+  PointerSize GetImagePointerSize() const {
     return image_pointer_size_;
   }
 
@@ -630,7 +630,7 @@ class ClassLinker {
   // Static version for when the class linker is not yet created.
   static ImtConflictTable* CreateImtConflictTable(size_t count,
                                                   LinearAlloc* linear_alloc,
-                                                  size_t pointer_size);
+                                                  PointerSize pointer_size);
 
 
   // Create the IMT and conflict tables for a class.
@@ -1166,7 +1166,7 @@ class ClassLinker {
   const void* quick_to_interpreter_bridge_trampoline_;
 
   // Image pointer size.
-  size_t image_pointer_size_;
+  PointerSize image_pointer_size_;
 
   friend class ImageDumper;  // for DexLock
   friend class ImageWriter;  // for GetClassRoots

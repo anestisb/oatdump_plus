@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "base/enums.h"
 #include "gtest/gtest.h"
 #include "handle_scope-inl.h"
 #include "scoped_thread_state_change.h"
@@ -48,13 +49,13 @@ TEST(HandleScopeTest, Offsets) NO_THREAD_SAFETY_ANALYSIS {
 
   {
     uintptr_t* link_ptr = reinterpret_cast<uintptr_t*>(table_base_ptr +
-        HandleScope::LinkOffset(sizeof(void*)));
+        HandleScope::LinkOffset(kRuntimePointerSize));
     EXPECT_EQ(*link_ptr, static_cast<size_t>(0x5678));
   }
 
   {
     uint32_t* num_ptr = reinterpret_cast<uint32_t*>(table_base_ptr +
-        HandleScope::NumberOfReferencesOffset(sizeof(void*)));
+        HandleScope::NumberOfReferencesOffset(kRuntimePointerSize));
     EXPECT_EQ(*num_ptr, static_cast<size_t>(0x9ABC));
   }
 
@@ -64,7 +65,7 @@ TEST(HandleScopeTest, Offsets) NO_THREAD_SAFETY_ANALYSIS {
     EXPECT_EQ(sizeof(StackReference<mirror::Object>), sizeof(uint32_t));
 
     uint32_t* ref_ptr = reinterpret_cast<uint32_t*>(table_base_ptr +
-        HandleScope::ReferencesOffset(sizeof(void*)));
+        HandleScope::ReferencesOffset(kRuntimePointerSize));
     EXPECT_EQ(*ref_ptr, static_cast<uint32_t>(0x1234));
   }
 }

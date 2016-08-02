@@ -904,13 +904,13 @@ class ArmAssembler : public Assembler {
 
   void StoreImmediateToFrame(FrameOffset dest, uint32_t imm, ManagedRegister scratch) OVERRIDE;
 
-  void StoreImmediateToThread32(ThreadOffset<4> dest, uint32_t imm, ManagedRegister scratch)
+  void StoreImmediateToThread32(ThreadOffset32 dest, uint32_t imm, ManagedRegister scratch)
       OVERRIDE;
 
-  void StoreStackOffsetToThread32(ThreadOffset<4> thr_offs, FrameOffset fr_offs,
+  void StoreStackOffsetToThread32(ThreadOffset32 thr_offs, FrameOffset fr_offs,
                                   ManagedRegister scratch) OVERRIDE;
 
-  void StoreStackPointerToThread32(ThreadOffset<4> thr_offs) OVERRIDE;
+  void StoreStackPointerToThread32(ThreadOffset32 thr_offs) OVERRIDE;
 
   void StoreSpanning(FrameOffset dest, ManagedRegister src, FrameOffset in_off,
                      ManagedRegister scratch) OVERRIDE;
@@ -918,7 +918,7 @@ class ArmAssembler : public Assembler {
   // Load routines
   void Load(ManagedRegister dest, FrameOffset src, size_t size) OVERRIDE;
 
-  void LoadFromThread32(ManagedRegister dest, ThreadOffset<4> src, size_t size) OVERRIDE;
+  void LoadFromThread32(ManagedRegister dest, ThreadOffset32 src, size_t size) OVERRIDE;
 
   void LoadRef(ManagedRegister dest, FrameOffset src) OVERRIDE;
 
@@ -927,15 +927,15 @@ class ArmAssembler : public Assembler {
 
   void LoadRawPtr(ManagedRegister dest, ManagedRegister base, Offset offs) OVERRIDE;
 
-  void LoadRawPtrFromThread32(ManagedRegister dest, ThreadOffset<4> offs) OVERRIDE;
+  void LoadRawPtrFromThread32(ManagedRegister dest, ThreadOffset32 offs) OVERRIDE;
 
   // Copying routines
   void Move(ManagedRegister dest, ManagedRegister src, size_t size) OVERRIDE;
 
-  void CopyRawPtrFromThread32(FrameOffset fr_offs, ThreadOffset<4> thr_offs,
+  void CopyRawPtrFromThread32(FrameOffset fr_offs, ThreadOffset32 thr_offs,
                               ManagedRegister scratch) OVERRIDE;
 
-  void CopyRawPtrToThread32(ThreadOffset<4> thr_offs, FrameOffset fr_offs, ManagedRegister scratch)
+  void CopyRawPtrToThread32(ThreadOffset32 thr_offs, FrameOffset fr_offs, ManagedRegister scratch)
       OVERRIDE;
 
   void CopyRef(FrameOffset dest, FrameOffset src, ManagedRegister scratch) OVERRIDE;
@@ -990,7 +990,7 @@ class ArmAssembler : public Assembler {
   // Call to address held at [base+offset]
   void Call(ManagedRegister base, Offset offset, ManagedRegister scratch) OVERRIDE;
   void Call(FrameOffset base, Offset offset, ManagedRegister scratch) OVERRIDE;
-  void CallFromThread32(ThreadOffset<4> offset, ManagedRegister scratch) OVERRIDE;
+  void CallFromThread32(ThreadOffset32 offset, ManagedRegister scratch) OVERRIDE;
 
   // Generate code to check if Thread::Current()->exception_ is non-null
   // and branch to a ExceptionSlowPath if it is.

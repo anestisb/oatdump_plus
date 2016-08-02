@@ -16,6 +16,7 @@
 
 #include "instrumentation.h"
 
+#include "base/enums.h"
 #include "common_runtime_test.h"
 #include "common_throws.h"
 #include "class_linker-inl.h"
@@ -461,7 +462,7 @@ TEST_F(InstrumentationTest, DeoptimizeDirectMethod) {
   mirror::Class* klass = class_linker->FindClass(soa.Self(), "LInstrumentation;", loader);
   ASSERT_TRUE(klass != nullptr);
   ArtMethod* method_to_deoptimize = klass->FindDeclaredDirectMethod("instanceMethod", "()V",
-                                                                    sizeof(void*));
+                                                                    kRuntimePointerSize);
   ASSERT_TRUE(method_to_deoptimize != nullptr);
 
   EXPECT_FALSE(instr->AreAllMethodsDeoptimized());
@@ -508,7 +509,7 @@ TEST_F(InstrumentationTest, MixedDeoptimization) {
   mirror::Class* klass = class_linker->FindClass(soa.Self(), "LInstrumentation;", loader);
   ASSERT_TRUE(klass != nullptr);
   ArtMethod* method_to_deoptimize = klass->FindDeclaredDirectMethod("instanceMethod", "()V",
-                                                                    sizeof(void*));
+                                                                    kRuntimePointerSize);
   ASSERT_TRUE(method_to_deoptimize != nullptr);
 
   EXPECT_FALSE(instr->AreAllMethodsDeoptimized());

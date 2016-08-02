@@ -29,6 +29,7 @@
 
 #include "art_method-inl.h"
 #include "base/casts.h"
+#include "base/enums.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "class_linker.h"
@@ -301,21 +302,23 @@ void UnstartedRuntime::UnstartedClassGetDeclaredField(
     return;
   }
   Runtime* runtime = Runtime::Current();
-  size_t pointer_size = runtime->GetClassLinker()->GetImagePointerSize();
+  PointerSize pointer_size = runtime->GetClassLinker()->GetImagePointerSize();
   mirror::Field* field;
   if (runtime->IsActiveTransaction()) {
-    if (pointer_size == 8) {
-      field = mirror::Field::CreateFromArtField<8U, true>(self, found, true);
+    if (pointer_size == PointerSize::k64) {
+      field = mirror::Field::CreateFromArtField<PointerSize::k64, true>(
+          self, found, true);
     } else {
-      DCHECK_EQ(pointer_size, 4U);
-      field = mirror::Field::CreateFromArtField<4U, true>(self, found, true);
+      field = mirror::Field::CreateFromArtField<PointerSize::k32, true>(
+          self, found, true);
     }
   } else {
-    if (pointer_size == 8) {
-      field = mirror::Field::CreateFromArtField<8U, false>(self, found, true);
+    if (pointer_size == PointerSize::k64) {
+      field = mirror::Field::CreateFromArtField<PointerSize::k64, false>(
+          self, found, true);
     } else {
-      DCHECK_EQ(pointer_size, 4U);
-      field = mirror::Field::CreateFromArtField<4U, false>(self, found, true);
+      field = mirror::Field::CreateFromArtField<PointerSize::k32, false>(
+          self, found, true);
     }
   }
   result->SetL(field);
@@ -335,21 +338,23 @@ void UnstartedRuntime::UnstartedClassGetDeclaredMethod(
       shadow_frame->GetVRegReference(arg_offset + 2)->AsObjectArray<mirror::Class>();
   Runtime* runtime = Runtime::Current();
   bool transaction = runtime->IsActiveTransaction();
-  size_t pointer_size = runtime->GetClassLinker()->GetImagePointerSize();
+  PointerSize pointer_size = runtime->GetClassLinker()->GetImagePointerSize();
   mirror::Method* method;
   if (transaction) {
-    if (pointer_size == 8U) {
-      method = mirror::Class::GetDeclaredMethodInternal<8U, true>(self, klass, name, args);
+    if (pointer_size == PointerSize::k64) {
+      method = mirror::Class::GetDeclaredMethodInternal<PointerSize::k64, true>(
+          self, klass, name, args);
     } else {
-      DCHECK_EQ(pointer_size, 4U);
-      method = mirror::Class::GetDeclaredMethodInternal<4U, true>(self, klass, name, args);
+      method = mirror::Class::GetDeclaredMethodInternal<PointerSize::k32, true>(
+          self, klass, name, args);
     }
   } else {
-    if (pointer_size == 8U) {
-      method = mirror::Class::GetDeclaredMethodInternal<8U, false>(self, klass, name, args);
+    if (pointer_size == PointerSize::k64) {
+      method = mirror::Class::GetDeclaredMethodInternal<PointerSize::k64, false>(
+          self, klass, name, args);
     } else {
-      DCHECK_EQ(pointer_size, 4U);
-      method = mirror::Class::GetDeclaredMethodInternal<4U, false>(self, klass, name, args);
+      method = mirror::Class::GetDeclaredMethodInternal<PointerSize::k32, false>(
+          self, klass, name, args);
     }
   }
   result->SetL(method);
@@ -367,21 +372,23 @@ void UnstartedRuntime::UnstartedClassGetDeclaredConstructor(
       shadow_frame->GetVRegReference(arg_offset + 1)->AsObjectArray<mirror::Class>();
   Runtime* runtime = Runtime::Current();
   bool transaction = runtime->IsActiveTransaction();
-  size_t pointer_size = runtime->GetClassLinker()->GetImagePointerSize();
+  PointerSize pointer_size = runtime->GetClassLinker()->GetImagePointerSize();
   mirror::Constructor* constructor;
   if (transaction) {
-    if (pointer_size == 8U) {
-      constructor = mirror::Class::GetDeclaredConstructorInternal<8U, true>(self, klass, args);
+    if (pointer_size == PointerSize::k64) {
+      constructor = mirror::Class::GetDeclaredConstructorInternal<PointerSize::k64,
+                                                                  true>(self, klass, args);
     } else {
-      DCHECK_EQ(pointer_size, 4U);
-      constructor = mirror::Class::GetDeclaredConstructorInternal<4U, true>(self, klass, args);
+      constructor = mirror::Class::GetDeclaredConstructorInternal<PointerSize::k32,
+                                                                  true>(self, klass, args);
     }
   } else {
-    if (pointer_size == 8U) {
-      constructor = mirror::Class::GetDeclaredConstructorInternal<8U, false>(self, klass, args);
+    if (pointer_size == PointerSize::k64) {
+      constructor = mirror::Class::GetDeclaredConstructorInternal<PointerSize::k64,
+                                                                  false>(self, klass, args);
     } else {
-      DCHECK_EQ(pointer_size, 4U);
-      constructor = mirror::Class::GetDeclaredConstructorInternal<4U, false>(self, klass, args);
+      constructor = mirror::Class::GetDeclaredConstructorInternal<PointerSize::k32,
+                                                                  false>(self, klass, args);
     }
   }
   result->SetL(constructor);

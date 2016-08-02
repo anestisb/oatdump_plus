@@ -122,7 +122,7 @@ bool ArtMethod::HasSameNameAndSignature(ArtMethod* other) {
   return dex_file->GetMethodSignature(mid) == dex_file2->GetMethodSignature(mid2);
 }
 
-ArtMethod* ArtMethod::FindOverriddenMethod(size_t pointer_size) {
+ArtMethod* ArtMethod::FindOverriddenMethod(PointerSize pointer_size) {
   if (IsStatic()) {
     return nullptr;
   }
@@ -196,7 +196,7 @@ uint32_t ArtMethod::FindCatchBlock(Handle<mirror::Class> exception_type,
   // Default to handler not found.
   uint32_t found_dex_pc = DexFile::kDexNoIndex;
   // Iterate over the catch handlers associated with dex_pc.
-  size_t pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
+  PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
   for (CatchHandlerIterator it(*code_item, dex_pc); it.HasNext(); it.Next()) {
     uint16_t iter_type_idx = it.GetHandlerTypeIndex();
     // Catch all case
@@ -245,7 +245,7 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
   if (kIsDebugBuild) {
     self->AssertThreadSuspensionIsAllowable();
     CHECK_EQ(kRunnable, self->GetState());
-    CHECK_STREQ(GetInterfaceMethodIfProxy(sizeof(void*))->GetShorty(), shorty);
+    CHECK_STREQ(GetInterfaceMethodIfProxy(kRuntimePointerSize)->GetShorty(), shorty);
   }
 
   // Push a transition back into managed code onto the linked list in thread.
@@ -268,7 +268,7 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
           self, this, receiver, args + 1, result, /*stay_in_interpreter*/ true);
     }
   } else {
-    DCHECK_EQ(runtime->GetClassLinker()->GetImagePointerSize(), sizeof(void*));
+    DCHECK_EQ(runtime->GetClassLinker()->GetImagePointerSize(), kRuntimePointerSize);
 
     constexpr bool kLogInvocationStartAndReturn = false;
     bool have_quick_code = GetEntryPointFromQuickCompiledCode() != nullptr;
@@ -476,7 +476,7 @@ bool ArtMethod::HasAnyCompiledCode() {
   return Runtime::Current()->GetClassLinker()->GetOatMethodQuickCodeFor(this) != nullptr;
 }
 
-void ArtMethod::CopyFrom(ArtMethod* src, size_t image_pointer_size) {
+void ArtMethod::CopyFrom(ArtMethod* src, PointerSize image_pointer_size) {
   memcpy(reinterpret_cast<void*>(this), reinterpret_cast<const void*>(src),
          Size(image_pointer_size));
   declaring_class_ = GcRoot<mirror::Class>(const_cast<ArtMethod*>(src)->GetDeclaringClass());
@@ -499,18 +499,20 @@ void ArtMethod::CopyFrom(ArtMethod* src, size_t image_pointer_size) {
   hotness_count_ = 0;
 }
 
-bool ArtMethod::IsImagePointerSize(size_t pointer_size) {
+bool ArtMethod::IsImagePointerSize(PointerSize pointer_size) {
   // Hijack this function to get access to PtrSizedFieldsOffset.
   //
   // Ensure that PrtSizedFieldsOffset is correct. We rely here on usually having both 32-bit and
   // 64-bit builds.
   static_assert(std::is_standard_layout<ArtMethod>::value, "ArtMethod is not standard layout.");
-  static_assert((sizeof(void*) != 4) ||
-                    (offsetof(ArtMethod, ptr_sized_fields_) == PtrSizedFieldsOffset(4)),
-                "Unexpected 32-bit class layout.");
-  static_assert((sizeof(void*) != 8) ||
-                    (offsetof(ArtMethod, ptr_sized_fields_) == PtrSizedFieldsOffset(8)),
-                "Unexpected 64-bit class layout.");
+  static_assert(
+      (sizeof(void*) != 4) ||
+          (offsetof(ArtMethod, ptr_sized_fields_) == PtrSizedFieldsOffset(PointerSize::k32)),
+      "Unexpected 32-bit class layout.");
+  static_assert(
+      (sizeof(void*) != 8) ||
+          (offsetof(ArtMethod, ptr_sized_fields_) == PtrSizedFieldsOffset(PointerSize::k64)),
+      "Unexpected 64-bit class layout.");
 
   Runtime* runtime = Runtime::Current();
   if (runtime == nullptr) {

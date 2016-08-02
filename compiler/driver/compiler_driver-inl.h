@@ -21,6 +21,7 @@
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "class_linker-inl.h"
 #include "dex_compilation_unit.h"
 #include "mirror/class_loader.h"
@@ -336,7 +337,7 @@ inline int CompilerDriver::IsFastInvoke(
                                      methods_declaring_class->IsFinal());
   // For invoke-super, ensure the vtable index will be correct to dispatch in the vtable of
   // the super class.
-  const size_t pointer_size = InstructionSetPointerSize(GetInstructionSet());
+  const PointerSize pointer_size = InstructionSetPointerSize(GetInstructionSet());
   // TODO We should be able to sharpen if we are going into the boot image as well.
   bool can_sharpen_super_based_on_type = same_dex_file &&
       (*invoke_type == kSuper) &&

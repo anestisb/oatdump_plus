@@ -19,6 +19,7 @@
 
 #include <stack>
 
+#include "base/enums.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "handle.h"
@@ -52,7 +53,7 @@ class PACKED(4) HandleScope {
   static size_t SizeOf(uint32_t num_references);
 
   // Returns the size of a HandleScope containing num_references handles.
-  static size_t SizeOf(size_t pointer_size, uint32_t num_references);
+  static size_t SizeOf(PointerSize pointer_size, uint32_t num_references);
 
   // Link to previous HandleScope or null.
   HandleScope* GetLink() const {
@@ -73,18 +74,18 @@ class PACKED(4) HandleScope {
   ALWAYS_INLINE bool Contains(StackReference<mirror::Object>* handle_scope_entry) const;
 
   // Offset of link within HandleScope, used by generated code.
-  static size_t LinkOffset(size_t pointer_size ATTRIBUTE_UNUSED) {
+  static constexpr size_t LinkOffset(PointerSize pointer_size ATTRIBUTE_UNUSED) {
     return 0;
   }
 
   // Offset of length within handle scope, used by generated code.
-  static size_t NumberOfReferencesOffset(size_t pointer_size) {
-    return pointer_size;
+  static constexpr size_t NumberOfReferencesOffset(PointerSize pointer_size) {
+    return static_cast<size_t>(pointer_size);
   }
 
   // Offset of link within handle scope, used by generated code.
-  static size_t ReferencesOffset(size_t pointer_size) {
-    return pointer_size + sizeof(number_of_references_);
+  static constexpr size_t ReferencesOffset(PointerSize pointer_size) {
+    return NumberOfReferencesOffset(pointer_size) + sizeof(number_of_references_);
   }
 
   // Placement new creation.
@@ -96,7 +97,7 @@ class PACKED(4) HandleScope {
  protected:
   // Return backing storage used for references.
   ALWAYS_INLINE StackReference<mirror::Object>* GetReferences() const {
-    uintptr_t address = reinterpret_cast<uintptr_t>(this) + ReferencesOffset(sizeof(void*));
+    uintptr_t address = reinterpret_cast<uintptr_t>(this) + ReferencesOffset(kRuntimePointerSize);
     return reinterpret_cast<StackReference<mirror::Object>*>(address);
   }
 

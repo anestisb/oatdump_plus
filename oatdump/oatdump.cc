@@ -1823,7 +1823,7 @@ class ImageDumper {
     }
     ScopedIndentation indent1(&state->vios_);
     DumpFields(os, obj, obj_class);
-    const size_t image_pointer_size = state->image_header_.GetPointerSize();
+    const PointerSize image_pointer_size = state->image_header_.GetPointerSize();
     if (obj->IsObjectArray()) {
       auto* obj_array = obj->AsObjectArray<mirror::Object>();
       for (int32_t i = 0, length = obj_array->GetLength(); i < length; i++) {
@@ -1968,7 +1968,7 @@ class ImageDumper {
     DCHECK(method != nullptr);
     const void* quick_oat_code_begin = GetQuickOatCodeBegin(method);
     const void* quick_oat_code_end = GetQuickOatCodeEnd(method);
-    const size_t pointer_size = image_header_.GetPointerSize();
+    const PointerSize pointer_size = image_header_.GetPointerSize();
     OatQuickMethodHeader* method_header = reinterpret_cast<OatQuickMethodHeader*>(
         reinterpret_cast<uintptr_t>(quick_oat_code_begin) - sizeof(OatQuickMethodHeader));
     if (method->IsNative()) {

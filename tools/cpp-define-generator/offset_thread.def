@@ -17,13 +17,14 @@
 // Offsets within ShadowFrame.
 
 #if defined(DEFINE_INCLUDE_DEPENDENCIES)
+#include "base/enums.h"    // PointerSize
 #include "stack.h"         // art::ShadowFrame
 #endif
 
 #include "common.def"        // DEFINE_OFFSET_EXPR
 
 #define DEFINE_THREAD_OFFSET(field_name, method_name) \
-  DEFINE_OFFSET_EXPR(Thread, field_name, int32_t, art::Thread::method_name##Offset<sizeof(void*)>().Int32Value())
+  DEFINE_OFFSET_EXPR(Thread, field_name, int32_t, art::Thread::method_name##Offset<art::kRuntimePointerSize>().Int32Value())
 
 //                   New macro suffix            Method Name (of the Offset method)
 DEFINE_THREAD_OFFSET(FLAGS,                      ThreadFlags)

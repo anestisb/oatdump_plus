@@ -178,9 +178,9 @@ class MemoryRegion FINAL : public ValueObject {
   }
 
   // Is `address` aligned on a machine word?
-  template<typename T> static bool IsWordAligned(const T* address) {
+  template<typename T> static constexpr bool IsWordAligned(const T* address) {
     // Word alignment in bytes.
-    size_t kWordAlignment = GetInstructionSetPointerSize(kRuntimeISA);
+    size_t kWordAlignment = static_cast<size_t>(GetInstructionSetPointerSize(kRuntimeISA));
     return IsAlignedParam(address, kWordAlignment);
   }
 

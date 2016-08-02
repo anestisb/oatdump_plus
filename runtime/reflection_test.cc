@@ -21,6 +21,7 @@
 #include "ScopedLocalRef.h"
 
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "common_compiler_test.h"
 #include "scoped_thread_state_change.h"
 
@@ -107,8 +108,8 @@ class ReflectionTest : public CommonCompilerTest {
                                                 class_loader);
     CHECK(c != nullptr);
 
-    *method = is_static ? c->FindDirectMethod(method_name, method_signature, sizeof(void*))
-                        : c->FindVirtualMethod(method_name, method_signature, sizeof(void*));
+    *method = is_static ? c->FindDirectMethod(method_name, method_signature, kRuntimePointerSize)
+                        : c->FindVirtualMethod(method_name, method_signature, kRuntimePointerSize);
     CHECK(method != nullptr);
 
     if (is_static) {
@@ -517,7 +518,9 @@ TEST_F(ReflectionTest, StaticMainMethod) {
   mirror::Class* klass = class_linker_->FindClass(soa.Self(), "LMain;", class_loader);
   ASSERT_TRUE(klass != nullptr);
 
-  ArtMethod* method = klass->FindDirectMethod("main", "([Ljava/lang/String;)V", sizeof(void*));
+  ArtMethod* method = klass->FindDirectMethod("main",
+                                              "([Ljava/lang/String;)V",
+                                              kRuntimePointerSize);
   ASSERT_TRUE(method != nullptr);
 
   // Start runtime.

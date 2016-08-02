@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_MIRROR_REFERENCE_H_
 #define ART_RUNTIME_MIRROR_REFERENCE_H_
 
+#include "base/enums.h"
 #include "class.h"
 #include "gc_root.h"
 #include "object.h"
@@ -43,7 +44,7 @@ namespace mirror {
 class MANAGED Reference : public Object {
  public:
   // Size of java.lang.ref.Reference.class.
-  static uint32_t ClassSize(size_t pointer_size);
+  static uint32_t ClassSize(PointerSize pointer_size);
 
   // Size of an instance of java.lang.ref.Reference.
   static constexpr uint32_t InstanceSize() {

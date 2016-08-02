@@ -17,6 +17,7 @@
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
 
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "callee_save_frame.h"
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "mirror/class-inl.h"
@@ -33,7 +34,7 @@ extern "C" mirror::Object* artAllocObjectFromCode ##suffix##suffix2( \
     SHARED_REQUIRES(Locks::mutator_lock_) { \
   ScopedQuickEntrypointChecks sqec(self); \
   if (kUseTlabFastPath && !(instrumented_bool) && (allocator_type) == gc::kAllocatorTypeTLAB) { \
-    mirror::Class* klass = method->GetDexCacheResolvedType<false>(type_idx, sizeof(void*)); \
+    mirror::Class* klass = method->GetDexCacheResolvedType<false>(type_idx, kRuntimePointerSize); \
     if (LIKELY(klass != nullptr && klass->IsInitialized() && !klass->IsFinalizable())) { \
       size_t byte_count = klass->GetObjectSize(); \
       byte_count = RoundUp(byte_count, gc::space::BumpPointerSpace::kAlignment); \

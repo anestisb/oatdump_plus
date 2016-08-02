@@ -63,7 +63,7 @@ constexpr uint32_t ArmCalleeSaveFpSpills(Runtime::CalleeSaveType type) {
 constexpr uint32_t ArmCalleeSaveFrameSize(Runtime::CalleeSaveType type) {
   return RoundUp((POPCOUNT(ArmCalleeSaveCoreSpills(type)) /* gprs */ +
                   POPCOUNT(ArmCalleeSaveFpSpills(type)) /* fprs */ +
-                  1 /* Method* */) * kArmPointerSize, kStackAlignment);
+                  1 /* Method* */) * static_cast<size_t>(kArmPointerSize), kStackAlignment);
 }
 
 constexpr QuickMethodFrameInfo ArmCalleeSaveMethodFrameInfo(Runtime::CalleeSaveType type) {
@@ -75,17 +75,17 @@ constexpr QuickMethodFrameInfo ArmCalleeSaveMethodFrameInfo(Runtime::CalleeSaveT
 constexpr size_t ArmCalleeSaveFpr1Offset(Runtime::CalleeSaveType type) {
   return ArmCalleeSaveFrameSize(type) -
          (POPCOUNT(ArmCalleeSaveCoreSpills(type)) +
-          POPCOUNT(ArmCalleeSaveFpSpills(type))) * kArmPointerSize;
+          POPCOUNT(ArmCalleeSaveFpSpills(type))) * static_cast<size_t>(kArmPointerSize);
 }
 
 constexpr size_t ArmCalleeSaveGpr1Offset(Runtime::CalleeSaveType type) {
   return ArmCalleeSaveFrameSize(type) -
-         POPCOUNT(ArmCalleeSaveCoreSpills(type)) * kArmPointerSize;
+         POPCOUNT(ArmCalleeSaveCoreSpills(type)) * static_cast<size_t>(kArmPointerSize);
 }
 
 constexpr size_t ArmCalleeSaveLrOffset(Runtime::CalleeSaveType type) {
   return ArmCalleeSaveFrameSize(type) -
-      POPCOUNT(ArmCalleeSaveCoreSpills(type) & (-(1 << LR))) * kArmPointerSize;
+      POPCOUNT(ArmCalleeSaveCoreSpills(type) & (-(1 << LR))) * static_cast<size_t>(kArmPointerSize);
 }
 
 }  // namespace arm
