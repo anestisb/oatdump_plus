@@ -31,10 +31,6 @@ uint32_t ArmBaseRelativePatcher::ReserveSpace(uint32_t offset,
 }
 
 uint32_t ArmBaseRelativePatcher::ReserveSpaceEnd(uint32_t offset) {
-  // NOTE: The final thunk can be reserved from InitCodeMethodVisitor::EndClass() while it
-  // may be written early by WriteCodeMethodVisitor::VisitMethod() for a deduplicated chunk
-  // of code. To avoid any alignment discrepancies for the final chunk, we always align the
-  // offset after reserving of writing any chunk.
   uint32_t aligned_offset = CompiledMethod::AlignCode(offset, instruction_set_);
   bool needs_thunk = ReserveSpaceProcessPatches(aligned_offset,
                                                 MethodReference(nullptr, 0u),
@@ -46,7 +42,7 @@ uint32_t ArmBaseRelativePatcher::ReserveSpaceEnd(uint32_t offset) {
     unprocessed_patches_.clear();
 
     thunk_locations_.push_back(aligned_offset);
-    offset = CompiledMethod::AlignCode(aligned_offset + thunk_code_.size(), instruction_set_);
+    offset = aligned_offset + thunk_code_.size();
   }
   return offset;
 }
@@ -65,13 +61,7 @@ uint32_t ArmBaseRelativePatcher::WriteThunks(OutputStream* out, uint32_t offset)
     if (UNLIKELY(!WriteRelCallThunk(out, ArrayRef<const uint8_t>(thunk_code_)))) {
       return 0u;
     }
-    uint32_t thunk_end_offset = aligned_offset + thunk_code_.size();
-    // Align after writing chunk, see the ReserveSpace() above.
-    offset = CompiledMethod::AlignCode(thunk_end_offset, instruction_set_);
-    aligned_code_delta = offset - thunk_end_offset;
-    if (aligned_code_delta != 0u && !WriteCodeAlignment(out, aligned_code_delta)) {
-      return 0u;
-    }
+    offset = aligned_offset + thunk_code_.size();
   }
   return offset;
 }
@@ -92,7 +82,7 @@ uint32_t ArmBaseRelativePatcher::ReserveSpaceInternal(uint32_t offset,
                                                       MethodReference method_ref,
                                                       uint32_t max_extra_space) {
   uint32_t quick_code_size = compiled_method->GetQuickCode().size();
-  uint32_t quick_code_offset = compiled_method->AlignCode(offset) + sizeof(OatQuickMethodHeader);
+  uint32_t quick_code_offset = compiled_method->AlignCode(offset + sizeof(OatQuickMethodHeader));
   uint32_t next_aligned_offset = compiled_method->AlignCode(quick_code_offset + quick_code_size);
   // Adjust for extra space required by the subclass.
   next_aligned_offset = compiled_method->AlignCode(next_aligned_offset + max_extra_space);
@@ -106,9 +96,9 @@ uint32_t ArmBaseRelativePatcher::ReserveSpaceInternal(uint32_t offset,
     if (needs_thunk) {
       // A single thunk will cover all pending patches.
       unprocessed_patches_.clear();
-      uint32_t thunk_location = compiled_method->AlignCode(offset);
+      uint32_t thunk_location = CompiledMethod::AlignCode(offset, instruction_set_);
       thunk_locations_.push_back(thunk_location);
-      offset = CompiledMethod::AlignCode(thunk_location + thunk_code_.size(), instruction_set_);
+      offset = thunk_location + thunk_code_.size();
     }
   }
   for (const LinkerPatch& patch : compiled_method->GetPatches()) {
