@@ -33,13 +33,13 @@ DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET),
 #define RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET 0x10
 DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET), (static_cast<size_t>(art::Runtime::GetCalleeSaveMethodOffset(art::Runtime:: kRefsAndArgs))))
 #define THREAD_FLAGS_OFFSET 0
-DEFINE_CHECK_EQ(static_cast<int32_t>(THREAD_FLAGS_OFFSET), (static_cast<int32_t>(art::Thread:: ThreadFlagsOffset<sizeof(void*)>().Int32Value())))
+DEFINE_CHECK_EQ(static_cast<int32_t>(THREAD_FLAGS_OFFSET), (static_cast<int32_t>(art::Thread:: ThreadFlagsOffset<art::kRuntimePointerSize>().Int32Value())))
 #define THREAD_ID_OFFSET 12
-DEFINE_CHECK_EQ(static_cast<int32_t>(THREAD_ID_OFFSET), (static_cast<int32_t>(art::Thread:: ThinLockIdOffset<sizeof(void*)>().Int32Value())))
+DEFINE_CHECK_EQ(static_cast<int32_t>(THREAD_ID_OFFSET), (static_cast<int32_t>(art::Thread:: ThinLockIdOffset<art::kRuntimePointerSize>().Int32Value())))
 #define THREAD_IS_GC_MARKING_OFFSET 52
-DEFINE_CHECK_EQ(static_cast<int32_t>(THREAD_IS_GC_MARKING_OFFSET), (static_cast<int32_t>(art::Thread:: IsGcMarkingOffset<sizeof(void*)>().Int32Value())))
+DEFINE_CHECK_EQ(static_cast<int32_t>(THREAD_IS_GC_MARKING_OFFSET), (static_cast<int32_t>(art::Thread:: IsGcMarkingOffset<art::kRuntimePointerSize>().Int32Value())))
 #define THREAD_CARD_TABLE_OFFSET 128
-DEFINE_CHECK_EQ(static_cast<int32_t>(THREAD_CARD_TABLE_OFFSET), (static_cast<int32_t>(art::Thread:: CardTableOffset<sizeof(void*)>().Int32Value())))
+DEFINE_CHECK_EQ(static_cast<int32_t>(THREAD_CARD_TABLE_OFFSET), (static_cast<int32_t>(art::Thread:: CardTableOffset<art::kRuntimePointerSize>().Int32Value())))
 #define CODEITEM_INSNS_OFFSET 16
 DEFINE_CHECK_EQ(static_cast<int32_t>(CODEITEM_INSNS_OFFSET), (static_cast<int32_t>(__builtin_offsetof(art::DexFile::CodeItem, insns_))))
 #define MIRROR_OBJECT_CLASS_OFFSET 0
@@ -53,21 +53,21 @@ DEFINE_CHECK_EQ(static_cast<uint32_t>(ACCESS_FLAGS_CLASS_IS_FINALIZABLE), (stati
 #define ACCESS_FLAGS_CLASS_IS_FINALIZABLE_BIT 0x1f
 DEFINE_CHECK_EQ(static_cast<uint32_t>(ACCESS_FLAGS_CLASS_IS_FINALIZABLE_BIT), (static_cast<uint32_t>((art::MostSignificantBit(art::kAccClassIsFinalizable)))))
 #define ART_METHOD_DEX_CACHE_METHODS_OFFSET_32 20
-DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_DEX_CACHE_METHODS_OFFSET_32), (static_cast<int32_t>(art::ArtMethod:: DexCacheResolvedMethodsOffset(4).Int32Value())))
+DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_DEX_CACHE_METHODS_OFFSET_32), (static_cast<int32_t>(art::ArtMethod:: DexCacheResolvedMethodsOffset(art::PointerSize::k32).Int32Value())))
 #define ART_METHOD_DEX_CACHE_METHODS_OFFSET_64 24
-DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_DEX_CACHE_METHODS_OFFSET_64), (static_cast<int32_t>(art::ArtMethod:: DexCacheResolvedMethodsOffset(8).Int32Value())))
+DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_DEX_CACHE_METHODS_OFFSET_64), (static_cast<int32_t>(art::ArtMethod:: DexCacheResolvedMethodsOffset(art::PointerSize::k64).Int32Value())))
 #define ART_METHOD_DEX_CACHE_TYPES_OFFSET_32 24
-DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_DEX_CACHE_TYPES_OFFSET_32), (static_cast<int32_t>(art::ArtMethod:: DexCacheResolvedTypesOffset(4).Int32Value())))
+DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_DEX_CACHE_TYPES_OFFSET_32), (static_cast<int32_t>(art::ArtMethod:: DexCacheResolvedTypesOffset(art::PointerSize::k32).Int32Value())))
 #define ART_METHOD_DEX_CACHE_TYPES_OFFSET_64 32
-DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_DEX_CACHE_TYPES_OFFSET_64), (static_cast<int32_t>(art::ArtMethod:: DexCacheResolvedTypesOffset(8).Int32Value())))
+DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_DEX_CACHE_TYPES_OFFSET_64), (static_cast<int32_t>(art::ArtMethod:: DexCacheResolvedTypesOffset(art::PointerSize::k64).Int32Value())))
 #define ART_METHOD_JNI_OFFSET_32 28
-DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_JNI_OFFSET_32), (static_cast<int32_t>(art::ArtMethod:: EntryPointFromJniOffset(4).Int32Value())))
+DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_JNI_OFFSET_32), (static_cast<int32_t>(art::ArtMethod:: EntryPointFromJniOffset(art::PointerSize::k32).Int32Value())))
 #define ART_METHOD_JNI_OFFSET_64 40
-DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_JNI_OFFSET_64), (static_cast<int32_t>(art::ArtMethod:: EntryPointFromJniOffset(8).Int32Value())))
+DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_JNI_OFFSET_64), (static_cast<int32_t>(art::ArtMethod:: EntryPointFromJniOffset(art::PointerSize::k64).Int32Value())))
 #define ART_METHOD_QUICK_CODE_OFFSET_32 32
-DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_QUICK_CODE_OFFSET_32), (static_cast<int32_t>(art::ArtMethod:: EntryPointFromQuickCompiledCodeOffset(4).Int32Value())))
+DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_QUICK_CODE_OFFSET_32), (static_cast<int32_t>(art::ArtMethod:: EntryPointFromQuickCompiledCodeOffset(art::PointerSize::k32).Int32Value())))
 #define ART_METHOD_QUICK_CODE_OFFSET_64 48
-DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_QUICK_CODE_OFFSET_64), (static_cast<int32_t>(art::ArtMethod:: EntryPointFromQuickCompiledCodeOffset(8).Int32Value())))
+DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_QUICK_CODE_OFFSET_64), (static_cast<int32_t>(art::ArtMethod:: EntryPointFromQuickCompiledCodeOffset(art::PointerSize::k64).Int32Value())))
 #define LOCK_WORD_STATE_SHIFT 30
 DEFINE_CHECK_EQ(static_cast<int32_t>(LOCK_WORD_STATE_SHIFT), (static_cast<int32_t>(art::LockWord::kStateShift)))
 #define LOCK_WORD_STATE_MASK 0xc0000000

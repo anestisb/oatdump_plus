@@ -17,17 +17,21 @@
 #ifndef ART_COMPILER_JNI_QUICK_X86_CALLING_CONVENTION_X86_H_
 #define ART_COMPILER_JNI_QUICK_X86_CALLING_CONVENTION_X86_H_
 
+#include "base/enums.h"
 #include "jni/quick/calling_convention.h"
 
 namespace art {
 namespace x86 {
 
-constexpr size_t kFramePointerSize = 4;
+constexpr size_t kFramePointerSize = static_cast<size_t>(PointerSize::k32);
 
 class X86ManagedRuntimeCallingConvention FINAL : public ManagedRuntimeCallingConvention {
  public:
   X86ManagedRuntimeCallingConvention(bool is_static, bool is_synchronized, const char* shorty)
-      : ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty, kFramePointerSize),
+      : ManagedRuntimeCallingConvention(is_static,
+                                        is_synchronized,
+                                        shorty,
+                                        PointerSize::k32),
         gpr_arg_count_(0) {}
   ~X86ManagedRuntimeCallingConvention() OVERRIDE {}
   // Calling convention

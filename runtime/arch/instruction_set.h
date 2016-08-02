@@ -20,6 +20,7 @@
 #include <iosfwd>
 #include <string>
 
+#include "base/enums.h"
 #include "base/logging.h"  // Logging is required for FATAL in the helper functions.
 
 namespace art {
@@ -53,12 +54,12 @@ static constexpr InstructionSet kRuntimeISA = kNone;
 #endif
 
 // Architecture-specific pointer sizes
-static constexpr size_t kArmPointerSize = 4;
-static constexpr size_t kArm64PointerSize = 8;
-static constexpr size_t kMipsPointerSize = 4;
-static constexpr size_t kMips64PointerSize = 8;
-static constexpr size_t kX86PointerSize = 4;
-static constexpr size_t kX86_64PointerSize = 8;
+static constexpr PointerSize kArmPointerSize = PointerSize::k32;
+static constexpr PointerSize kArm64PointerSize = PointerSize::k64;
+static constexpr PointerSize kMipsPointerSize = PointerSize::k32;
+static constexpr PointerSize kMips64PointerSize = PointerSize::k64;
+static constexpr PointerSize kX86PointerSize = PointerSize::k32;
+static constexpr PointerSize kX86_64PointerSize = PointerSize::k64;
 
 // ARM instruction alignment. ARM processors require code to be 4-byte aligned,
 // but ARM ELF requires 8..
@@ -82,7 +83,7 @@ InstructionSet GetInstructionSetFromString(const char* instruction_set);
 
 InstructionSet GetInstructionSetFromELF(uint16_t e_machine, uint32_t e_flags);
 
-static inline size_t GetInstructionSetPointerSize(InstructionSet isa) {
+static inline PointerSize GetInstructionSetPointerSize(InstructionSet isa) {
   switch (isa) {
     case kArm:
       // Fall-through.
@@ -147,8 +148,8 @@ static inline bool Is64BitInstructionSet(InstructionSet isa) {
   }
 }
 
-static inline size_t InstructionSetPointerSize(InstructionSet isa) {
-  return Is64BitInstructionSet(isa) ? 8U : 4U;
+static inline PointerSize InstructionSetPointerSize(InstructionSet isa) {
+  return Is64BitInstructionSet(isa) ? PointerSize::k64 : PointerSize::k32;
 }
 
 static inline size_t GetBytesPerGprSpillLocation(InstructionSet isa) {

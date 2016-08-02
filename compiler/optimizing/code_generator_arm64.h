@@ -40,7 +40,7 @@ namespace arm64 {
 class CodeGeneratorARM64;
 
 // Use a local definition to prevent copying mistakes.
-static constexpr size_t kArm64WordSize = kArm64PointerSize;
+static constexpr size_t kArm64WordSize = static_cast<size_t>(kArm64PointerSize);
 
 static const vixl::aarch64::Register kParameterCoreRegisters[] = {
   vixl::aarch64::x1,

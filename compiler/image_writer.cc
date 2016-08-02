@@ -1416,7 +1416,7 @@ void ImageWriter::CalculateNewObjectOffsets() {
         }
         case kBinImTable:
         case kBinIMTConflictTable: {
-          bin_offset = RoundUp(bin_offset, target_ptr_size_);
+          bin_offset = RoundUp(bin_offset, static_cast<size_t>(target_ptr_size_));
           break;
         }
         default: {
@@ -1573,7 +1573,7 @@ void ImageWriter::CreateHeader(size_t oat_index) {
                                                boot_image_end - boot_image_begin,
                                                boot_oat_begin,
                                                boot_oat_end - boot_oat_begin,
-                                               target_ptr_size_,
+                                               static_cast<uint32_t>(target_ptr_size_),
                                                compile_pic_,
                                                /*is_pic*/compile_app_image_,
                                                image_storage_mode_,
@@ -2029,7 +2029,7 @@ void ImageWriter::FixupDexCache(mirror::DexCache* orig_dex_cache,
   if (orig_strings != nullptr) {
     copy_dex_cache->SetFieldPtrWithSize<false>(mirror::DexCache::StringsOffset(),
                                                NativeLocationInImage(orig_strings),
-                                               /*pointer size*/8u);
+                                               PointerSize::k64);
     orig_dex_cache->FixupStrings(NativeCopyLocation(orig_strings, orig_dex_cache),
                                  ImageAddressVisitor(this));
   }
@@ -2037,7 +2037,7 @@ void ImageWriter::FixupDexCache(mirror::DexCache* orig_dex_cache,
   if (orig_types != nullptr) {
     copy_dex_cache->SetFieldPtrWithSize<false>(mirror::DexCache::ResolvedTypesOffset(),
                                                NativeLocationInImage(orig_types),
-                                               /*pointer size*/8u);
+                                               PointerSize::k64);
     orig_dex_cache->FixupResolvedTypes(NativeCopyLocation(orig_types, orig_dex_cache),
                                        ImageAddressVisitor(this));
   }
@@ -2045,7 +2045,7 @@ void ImageWriter::FixupDexCache(mirror::DexCache* orig_dex_cache,
   if (orig_methods != nullptr) {
     copy_dex_cache->SetFieldPtrWithSize<false>(mirror::DexCache::ResolvedMethodsOffset(),
                                                NativeLocationInImage(orig_methods),
-                                               /*pointer size*/8u);
+                                               PointerSize::k64);
     ArtMethod** copy_methods = NativeCopyLocation(orig_methods, orig_dex_cache);
     for (size_t i = 0, num = orig_dex_cache->NumResolvedMethods(); i != num; ++i) {
       ArtMethod* orig = mirror::DexCache::GetElementPtrSize(orig_methods, i, target_ptr_size_);
@@ -2058,7 +2058,7 @@ void ImageWriter::FixupDexCache(mirror::DexCache* orig_dex_cache,
   if (orig_fields != nullptr) {
     copy_dex_cache->SetFieldPtrWithSize<false>(mirror::DexCache::ResolvedFieldsOffset(),
                                                NativeLocationInImage(orig_fields),
-                                               /*pointer size*/8u);
+                                               PointerSize::k64);
     ArtField** copy_fields = NativeCopyLocation(orig_fields, orig_dex_cache);
     for (size_t i = 0, num = orig_dex_cache->NumResolvedFields(); i != num; ++i) {
       ArtField* orig = mirror::DexCache::GetElementPtrSize(orig_fields, i, target_ptr_size_);

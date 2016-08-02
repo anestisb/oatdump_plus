@@ -329,7 +329,7 @@ void DisassemblerArm::DumpArm(std::ostream& os, const uint8_t* instr_ptr) {
           }
           if (rn.r == 9) {
             args << "  ; ";
-            Thread::DumpThreadOffset<4>(args, offset);
+            Thread::DumpThreadOffset<kArmPointerSize>(args, offset);
           }
         }
       }
@@ -1407,7 +1407,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             args << Rt << ", [" << Rn << ", #" << (U != 0u ? "" : "-") << imm12 << "]";
             if (Rn.r == TR && is_load) {
               args << "  ; ";
-              Thread::DumpThreadOffset<4>(args, imm12);
+              Thread::DumpThreadOffset<kArmPointerSize>(args, imm12);
             } else if (Rn.r == PC) {
               T2LitType lit_type[] = {
                   kT2LitUByte, kT2LitUHalf, kT2LitHexWord, kT2LitInvalid,

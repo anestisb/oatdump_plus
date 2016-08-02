@@ -17,6 +17,7 @@
 #include "java_lang_reflect_Method.h"
 
 #include "art_method-inl.h"
+#include "base/enums.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
 #include "jni_internal.h"
@@ -57,7 +58,7 @@ static jobjectArray Method_getExceptionTypes(JNIEnv* env, jobject javaMethod) {
     mirror::Class* klass = method->GetDeclaringClass();
     int throws_index = -1;
     size_t i = 0;
-    for (const auto& m : klass->GetDeclaredVirtualMethods(sizeof(void*))) {
+    for (const auto& m : klass->GetDeclaredVirtualMethods(kRuntimePointerSize)) {
       if (&m == method) {
         throws_index = i;
         break;

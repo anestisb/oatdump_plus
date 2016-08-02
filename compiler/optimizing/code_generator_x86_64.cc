@@ -53,7 +53,7 @@ static constexpr int kC2ConditionMask = 0x400;
 
 // NOLINT on __ macro to suppress wrong warning/fix from clang-tidy.
 #define __ down_cast<X86_64Assembler*>(codegen->GetAssembler())-> // NOLINT
-#define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, x).Int32Value()
+#define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kX86_64PointerSize, x).Int32Value()
 
 class NullCheckSlowPathX86_64 : public SlowPathCode {
  public:
@@ -513,7 +513,7 @@ class ReadBarrierMarkSlowPathX86_64 : public SlowPathCode {
     //   rX <- ReadBarrierMarkRegX(rX)
     //
     int32_t entry_point_offset =
-        CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kX86_64WordSize>(reg);
+        CodeGenerator::GetReadBarrierMarkEntryPointsOffset<kX86_64PointerSize>(reg);
     // This runtime call does not require a stack map.
     x86_64_codegen->InvokeRuntimeWithoutRecordingPcInfo(entry_point_offset, instruction_, this);
     __ jmp(GetExitLabel());
@@ -883,7 +883,7 @@ void CodeGeneratorX86_64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
       // (callee_method + offset_of_quick_compiled_code)()
       __ call(Address(callee_method.AsRegister<CpuRegister>(),
                       ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-                          kX86_64WordSize).SizeValue()));
+                          kX86_64PointerSize).SizeValue()));
       break;
   }
 
@@ -918,7 +918,7 @@ void CodeGeneratorX86_64::GenerateVirtualCall(HInvokeVirtual* invoke, Location t
   __ movq(temp, Address(temp, method_offset));
   // call temp->GetEntryPoint();
   __ call(Address(temp, ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-      kX86_64WordSize).SizeValue()));
+      kX86_64PointerSize).SizeValue()));
 }
 
 void CodeGeneratorX86_64::RecordSimplePatch() {
@@ -1031,7 +1031,7 @@ void CodeGeneratorX86_64::InvokeRuntime(QuickEntrypointEnum entrypoint,
                                         HInstruction* instruction,
                                         uint32_t dex_pc,
                                         SlowPathCode* slow_path) {
-  InvokeRuntime(GetThreadOffset<kX86_64WordSize>(entrypoint).Int32Value(),
+  InvokeRuntime(GetThreadOffset<kX86_64PointerSize>(entrypoint).Int32Value(),
                 instruction,
                 dex_pc,
                 slow_path);
@@ -2323,8 +2323,8 @@ void InstructionCodeGeneratorX86_64::VisitInvokeInterface(HInvokeInterface* invo
   // temp = temp->GetImtEntryAt(method_offset);
   __ movq(temp, Address(temp, method_offset));
   // call temp->GetEntryPoint();
-  __ call(Address(temp,
-                  ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86_64WordSize).SizeValue()));
+  __ call(Address(
+      temp, ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86_64PointerSize).SizeValue()));
 
   DCHECK(!codegen_->IsLeafMethod());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
@@ -3962,7 +3962,7 @@ void InstructionCodeGeneratorX86_64::VisitNewInstance(HNewInstance* instruction)
   if (instruction->IsStringAlloc()) {
     // String is allocated through StringFactory. Call NewEmptyString entry point.
     CpuRegister temp = instruction->GetLocations()->GetTemp(0).AsRegister<CpuRegister>();
-    MemberOffset code_offset = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86_64WordSize);
+    MemberOffset code_offset = ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86_64PointerSize);
     __ gs()->movq(temp, Address::Absolute(QUICK_ENTRY_POINT(pNewEmptyString), /* no_rip */ true));
     __ call(Address(temp, code_offset.SizeValue()));
     codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
@@ -5118,7 +5118,7 @@ void CodeGeneratorX86_64::MarkGCCard(CpuRegister temp,
     __ testl(value, value);
     __ j(kEqual, &is_null);
   }
-  __ gs()->movq(card, Address::Absolute(Thread::CardTableOffset<kX86_64WordSize>().Int32Value(),
+  __ gs()->movq(card, Address::Absolute(Thread::CardTableOffset<kX86_64PointerSize>().Int32Value(),
                                         /* no_rip */ true));
   __ movq(temp, object);
   __ shrq(temp, Immediate(gc::accounting::CardTable::kCardShift));
@@ -5170,7 +5170,7 @@ void InstructionCodeGeneratorX86_64::GenerateSuspendCheck(HSuspendCheck* instruc
     DCHECK_EQ(slow_path->GetSuccessor(), successor);
   }
 
-  __ gs()->cmpw(Address::Absolute(Thread::ThreadFlagsOffset<kX86_64WordSize>().Int32Value(),
+  __ gs()->cmpw(Address::Absolute(Thread::ThreadFlagsOffset<kX86_64PointerSize>().Int32Value(),
                                   /* no_rip */ true),
                 Immediate(0));
   if (successor == nullptr) {
@@ -5687,7 +5687,7 @@ void InstructionCodeGeneratorX86_64::VisitLoadString(HLoadString* load) {
 }
 
 static Address GetExceptionTlsAddress() {
-  return Address::Absolute(Thread::ExceptionOffset<kX86_64WordSize>().Int32Value(),
+  return Address::Absolute(Thread::ExceptionOffset<kX86_64PointerSize>().Int32Value(),
                            /* no_rip */ true);
 }
 
@@ -6445,7 +6445,7 @@ void InstructionCodeGeneratorX86_64::GenerateGcRootFieldLoad(HInstruction* instr
           new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathX86_64(instruction, root);
       codegen_->AddSlowPath(slow_path);
 
-      __ gs()->cmpl(Address::Absolute(Thread::IsGcMarkingOffset<kX86_64WordSize>().Int32Value(),
+      __ gs()->cmpl(Address::Absolute(Thread::IsGcMarkingOffset<kX86_64PointerSize>().Int32Value(),
                                       /* no_rip */ true),
                     Immediate(0));
       __ j(kNotEqual, slow_path->GetEntryLabel());

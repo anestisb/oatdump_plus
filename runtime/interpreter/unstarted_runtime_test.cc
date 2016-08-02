@@ -20,6 +20,7 @@
 #include <locale>
 
 #include "base/casts.h"
+#include "base/enums.h"
 #include "base/memory_tool.h"
 #include "class_linker.h"
 #include "common_runtime_test.h"
@@ -383,7 +384,7 @@ TEST_F(UnstartedRuntimeTest, StringInit) {
   ScopedObjectAccess soa(self);
   mirror::Class* klass = mirror::String::GetJavaLangString();
   ArtMethod* method = klass->FindDeclaredDirectMethod("<init>", "(Ljava/lang/String;)V",
-                                                      sizeof(void*));
+                                                      kRuntimePointerSize);
 
   // create instruction data for invoke-direct {v0, v1} of method with fake index
   uint16_t inst_data[3] = { 0x2070, 0x0000, 0x0010 };

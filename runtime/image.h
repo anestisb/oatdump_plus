@@ -19,6 +19,7 @@
 
 #include <string.h>
 
+#include "base/enums.h"
 #include "globals.h"
 #include "mirror/object.h"
 
@@ -156,7 +157,11 @@ class PACKED(4) ImageHeader {
     return reinterpret_cast<uint8_t*>(oat_file_end_);
   }
 
-  uint32_t GetPointerSize() const {
+  PointerSize GetPointerSize() const {
+    return ConvertToPointerSize(pointer_size_);
+  }
+
+  uint32_t GetPointerSizeUnchecked() const {
     return pointer_size_;
   }
 
@@ -273,7 +278,9 @@ class PACKED(4) ImageHeader {
 
   // Visit ArtMethods in the section starting at base. Includes runtime methods.
   // TODO: Delete base parameter if it is always equal to GetImageBegin.
-  void VisitPackedArtMethods(ArtMethodVisitor* visitor, uint8_t* base, size_t pointer_size) const;
+  void VisitPackedArtMethods(ArtMethodVisitor* visitor,
+                             uint8_t* base,
+                             PointerSize pointer_size) const;
 
   // Visit ArtMethods in the section starting at base.
   // TODO: Delete base parameter if it is always equal to GetImageBegin.
@@ -282,12 +289,12 @@ class PACKED(4) ImageHeader {
   template <typename Visitor>
   void VisitPackedImTables(const Visitor& visitor,
                            uint8_t* base,
-                           size_t pointer_size) const;
+                           PointerSize pointer_size) const;
 
   template <typename Visitor>
   void VisitPackedImtConflictTables(const Visitor& visitor,
                                     uint8_t* base,
-                                    size_t pointer_size) const;
+                                    PointerSize pointer_size) const;
 
  private:
   static const uint8_t kImageMagic[4];

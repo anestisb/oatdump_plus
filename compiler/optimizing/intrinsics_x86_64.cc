@@ -720,7 +720,7 @@ static void GenFPToFPCall(HInvoke* invoke, CodeGeneratorX86_64* codegen,
   DCHECK(invoke->IsInvokeStaticOrDirect());
   X86_64Assembler* assembler = codegen->GetAssembler();
 
-  __ gs()->call(Address::Absolute(GetThreadOffset<kX86_64WordSize>(entry), true));
+  __ gs()->call(Address::Absolute(GetThreadOffset<kX86_64PointerSize>(entry), true));
   codegen->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
@@ -1324,7 +1324,7 @@ void IntrinsicCodeGeneratorX86_64::VisitStringCompareTo(HInvoke* invoke) {
   codegen_->AddSlowPath(slow_path);
   __ j(kEqual, slow_path->GetEntryLabel());
 
-  __ gs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pStringCompareTo),
+  __ gs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64PointerSize, pStringCompareTo),
                                   /* no_rip */ true));
   __ Bind(slow_path->GetExitLabel());
 }
@@ -1597,7 +1597,8 @@ void IntrinsicCodeGeneratorX86_64::VisitStringNewStringFromBytes(HInvoke* invoke
   codegen_->AddSlowPath(slow_path);
   __ j(kEqual, slow_path->GetEntryLabel());
 
-  __ gs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pAllocStringFromBytes),
+  __ gs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64PointerSize,
+                                                          pAllocStringFromBytes),
                                   /* no_rip */ true));
   CheckEntrypointTypes<kQuickAllocStringFromBytes, void*, void*, int32_t, int32_t, int32_t>();
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
@@ -1624,7 +1625,8 @@ void IntrinsicCodeGeneratorX86_64::VisitStringNewStringFromChars(HInvoke* invoke
   //   java.lang.StringFactory.newStringFromChars(int offset, int charCount, char[] data)
   //
   // all include a null check on `data` before calling that method.
-  __ gs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pAllocStringFromChars),
+  __ gs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64PointerSize,
+                                                          pAllocStringFromChars),
                                   /* no_rip */ true));
   CheckEntrypointTypes<kQuickAllocStringFromChars, void*, int32_t, int32_t, void*>();
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
@@ -1649,7 +1651,8 @@ void IntrinsicCodeGeneratorX86_64::VisitStringNewStringFromString(HInvoke* invok
   codegen_->AddSlowPath(slow_path);
   __ j(kEqual, slow_path->GetEntryLabel());
 
-  __ gs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pAllocStringFromString),
+  __ gs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64PointerSize,
+                                                          pAllocStringFromString),
                                   /* no_rip */ true));
   CheckEntrypointTypes<kQuickAllocStringFromString, void*, void*>();
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
@@ -1875,7 +1878,7 @@ void IntrinsicLocationsBuilderX86_64::VisitThreadCurrentThread(HInvoke* invoke) 
 
 void IntrinsicCodeGeneratorX86_64::VisitThreadCurrentThread(HInvoke* invoke) {
   CpuRegister out = invoke->GetLocations()->Out().AsRegister<CpuRegister>();
-  GetAssembler()->gs()->movl(out, Address::Absolute(Thread::PeerOffset<kX86_64WordSize>(),
+  GetAssembler()->gs()->movl(out, Address::Absolute(Thread::PeerOffset<kX86_64PointerSize>(),
                                                     /* no_rip */ true));
 }
 

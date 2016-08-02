@@ -39,7 +39,7 @@ class String;
 class MANAGED DexCache FINAL : public Object {
  public:
   // Size of java.lang.DexCache.class.
-  static uint32_t ClassSize(size_t pointer_size);
+  static uint32_t ClassSize(PointerSize pointer_size);
 
   // Size of an instance of java.lang.DexCache not including referenced values.
   static constexpr uint32_t InstanceSize() {
@@ -56,9 +56,9 @@ class MANAGED DexCache FINAL : public Object {
             uint32_t num_resolved_methods,
             ArtField** resolved_fields,
             uint32_t num_resolved_fields,
-            size_t pointer_size) SHARED_REQUIRES(Locks::mutator_lock_);
+            PointerSize pointer_size) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void Fixup(ArtMethod* trampoline, size_t pointer_size)
+  void Fixup(ArtMethod* trampoline, PointerSize pointer_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier, typename Visitor>
@@ -119,18 +119,20 @@ class MANAGED DexCache FINAL : public Object {
 
   void SetResolvedType(uint32_t type_idx, Class* resolved) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ALWAYS_INLINE ArtMethod* GetResolvedMethod(uint32_t method_idx, size_t ptr_size)
+  ALWAYS_INLINE ArtMethod* GetResolvedMethod(uint32_t method_idx, PointerSize ptr_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  ALWAYS_INLINE void SetResolvedMethod(uint32_t method_idx, ArtMethod* resolved, size_t ptr_size)
+  ALWAYS_INLINE void SetResolvedMethod(uint32_t method_idx,
+                                       ArtMethod* resolved,
+                                       PointerSize ptr_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Pointer sized variant, used for patching.
-  ALWAYS_INLINE ArtField* GetResolvedField(uint32_t idx, size_t ptr_size)
+  ALWAYS_INLINE ArtField* GetResolvedField(uint32_t idx, PointerSize ptr_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Pointer sized variant, used for patching.
-  ALWAYS_INLINE void SetResolvedField(uint32_t idx, ArtField* field, size_t ptr_size)
+  ALWAYS_INLINE void SetResolvedField(uint32_t idx, ArtField* field, PointerSize ptr_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   GcRoot<String>* GetStrings() ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
@@ -202,10 +204,10 @@ class MANAGED DexCache FINAL : public Object {
   // so they need to be public.
 
   template <typename PtrType>
-  static PtrType GetElementPtrSize(PtrType* ptr_array, size_t idx, size_t ptr_size);
+  static PtrType GetElementPtrSize(PtrType* ptr_array, size_t idx, PointerSize ptr_size);
 
   template <typename PtrType>
-  static void SetElementPtrSize(PtrType* ptr_array, size_t idx, PtrType ptr, size_t ptr_size);
+  static void SetElementPtrSize(PtrType* ptr_array, size_t idx, PtrType ptr, PointerSize ptr_size);
 
  private:
   // Visit instance fields of the dex cache as well as its associated arrays.

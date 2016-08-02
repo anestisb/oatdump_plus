@@ -1409,11 +1409,11 @@ DISASSEMBLER_ENTRY(cmp,
   }
   if (prefix[1] == kFs && !supports_rex_) {
     args << "  ; ";
-    Thread::DumpThreadOffset<4>(args, address_bits);
+    Thread::DumpThreadOffset<kX86PointerSize>(args, address_bits);
   }
   if (prefix[1] == kGs && supports_rex_) {
     args << "  ; ";
-    Thread::DumpThreadOffset<8>(args, address_bits);
+    Thread::DumpThreadOffset<kX86_64PointerSize>(args, address_bits);
   }
   const char* prefix_str;
   switch (prefix[0]) {

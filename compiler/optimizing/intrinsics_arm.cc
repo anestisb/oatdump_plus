@@ -1201,7 +1201,7 @@ static void GenerateVisitStringIndexOf(HInvoke* invoke,
   }
 
   __ LoadFromOffset(kLoadWord, LR, TR,
-                    QUICK_ENTRYPOINT_OFFSET(kArmWordSize, pIndexOf).Int32Value());
+                    QUICK_ENTRYPOINT_OFFSET(kArmPointerSize, pIndexOf).Int32Value());
   CheckEntrypointTypes<kQuickIndexOf, int32_t, void*, uint32_t, uint32_t>();
   __ blx(LR);
 
@@ -1270,8 +1270,10 @@ void IntrinsicCodeGeneratorARM::VisitStringNewStringFromBytes(HInvoke* invoke) {
   codegen_->AddSlowPath(slow_path);
   __ b(slow_path->GetEntryLabel(), EQ);
 
-  __ LoadFromOffset(
-      kLoadWord, LR, TR, QUICK_ENTRYPOINT_OFFSET(kArmWordSize, pAllocStringFromBytes).Int32Value());
+  __ LoadFromOffset(kLoadWord,
+                    LR,
+                    TR,
+                    QUICK_ENTRYPOINT_OFFSET(kArmPointerSize, pAllocStringFromBytes).Int32Value());
   CheckEntrypointTypes<kQuickAllocStringFromBytes, void*, void*, int32_t, int32_t, int32_t>();
   __ blx(LR);
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
@@ -1298,8 +1300,10 @@ void IntrinsicCodeGeneratorARM::VisitStringNewStringFromChars(HInvoke* invoke) {
   //   java.lang.StringFactory.newStringFromChars(int offset, int charCount, char[] data)
   //
   // all include a null check on `data` before calling that method.
-  __ LoadFromOffset(
-      kLoadWord, LR, TR, QUICK_ENTRYPOINT_OFFSET(kArmWordSize, pAllocStringFromChars).Int32Value());
+  __ LoadFromOffset(kLoadWord,
+                    LR,
+                    TR,
+                    QUICK_ENTRYPOINT_OFFSET(kArmPointerSize, pAllocStringFromChars).Int32Value());
   CheckEntrypointTypes<kQuickAllocStringFromChars, void*, int32_t, int32_t, void*>();
   __ blx(LR);
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
@@ -1325,7 +1329,7 @@ void IntrinsicCodeGeneratorARM::VisitStringNewStringFromString(HInvoke* invoke) 
   __ b(slow_path->GetEntryLabel(), EQ);
 
   __ LoadFromOffset(kLoadWord,
-      LR, TR, QUICK_ENTRYPOINT_OFFSET(kArmWordSize, pAllocStringFromString).Int32Value());
+      LR, TR, QUICK_ENTRYPOINT_OFFSET(kArmPointerSize, pAllocStringFromString).Int32Value());
   CheckEntrypointTypes<kQuickAllocStringFromString, void*, void*>();
   __ blx(LR);
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
@@ -1718,7 +1722,7 @@ static void GenFPToFPCall(HInvoke* invoke,
   DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(calling_convention.GetRegisterAt(0)));
   DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(calling_convention.GetRegisterAt(1)));
 
-  __ LoadFromOffset(kLoadWord, LR, TR, GetThreadOffset<kArmWordSize>(entry).Int32Value());
+  __ LoadFromOffset(kLoadWord, LR, TR, GetThreadOffset<kArmPointerSize>(entry).Int32Value());
   // Native code uses the soft float ABI.
   __ vmovrrd(calling_convention.GetRegisterAt(0),
              calling_convention.GetRegisterAt(1),
@@ -1744,7 +1748,7 @@ static void GenFPFPToFPCall(HInvoke* invoke,
   DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(calling_convention.GetRegisterAt(2)));
   DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(calling_convention.GetRegisterAt(3)));
 
-  __ LoadFromOffset(kLoadWord, LR, TR, GetThreadOffset<kArmWordSize>(entry).Int32Value());
+  __ LoadFromOffset(kLoadWord, LR, TR, GetThreadOffset<kArmPointerSize>(entry).Int32Value());
   // Native code uses the soft float ABI.
   __ vmovrrd(calling_convention.GetRegisterAt(0),
              calling_convention.GetRegisterAt(1),

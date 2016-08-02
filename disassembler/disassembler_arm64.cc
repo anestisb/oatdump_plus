@@ -102,7 +102,7 @@ void CustomDisassembler::VisitLoadStoreUnsignedOffset(const Instruction* instr) 
   if (instr->GetRn() == TR) {
     int64_t offset = instr->GetImmLSUnsigned() << instr->GetSizeLS();
     std::ostringstream tmp_stream;
-    Thread::DumpThreadOffset<8>(tmp_stream, static_cast<uint32_t>(offset));
+    Thread::DumpThreadOffset<kArm64PointerSize>(tmp_stream, static_cast<uint32_t>(offset));
     AppendToOutput(" ; %s", tmp_stream.str().c_str());
   }
 }

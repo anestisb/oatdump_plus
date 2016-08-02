@@ -22,6 +22,8 @@
 namespace art {
 namespace arm64 {
 
+static_assert(kArm64PointerSize == PointerSize::k64, "Unexpected ARM64 pointer size");
+
 static const XRegister kXArgumentRegisters[] = {
   X0, X1, X2, X3, X4, X5, X6, X7
 };
@@ -211,7 +213,7 @@ const ManagedRegisterEntrySpills& Arm64ManagedRuntimeCallingConvention::EntrySpi
 // JNI calling convention
 Arm64JniCallingConvention::Arm64JniCallingConvention(bool is_static, bool is_synchronized,
                                                      const char* shorty)
-    : JniCallingConvention(is_static, is_synchronized, shorty, kFramePointerSize) {
+    : JniCallingConvention(is_static, is_synchronized, shorty, kArm64PointerSize) {
 }
 
 uint32_t Arm64JniCallingConvention::CoreSpillMask() const {
@@ -231,7 +233,7 @@ size_t Arm64JniCallingConvention::FrameSize() {
   size_t frame_data_size = kFramePointerSize +
       CalleeSaveRegisters().size() * kFramePointerSize + sizeof(uint32_t);
   // References plus 2 words for HandleScope header
-  size_t handle_scope_size = HandleScope::SizeOf(kFramePointerSize, ReferenceCount());
+  size_t handle_scope_size = HandleScope::SizeOf(kArm64PointerSize, ReferenceCount());
   // Plus return value spill area size
   return RoundUp(frame_data_size + handle_scope_size + SizeOfReturnValue(), kStackAlignment);
 }

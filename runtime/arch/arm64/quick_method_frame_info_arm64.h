@@ -71,7 +71,7 @@ constexpr uint32_t Arm64CalleeSaveFpSpills(Runtime::CalleeSaveType type) {
 constexpr uint32_t Arm64CalleeSaveFrameSize(Runtime::CalleeSaveType type) {
   return RoundUp((POPCOUNT(Arm64CalleeSaveCoreSpills(type)) /* gprs */ +
                   POPCOUNT(Arm64CalleeSaveFpSpills(type)) /* fprs */ +
-                  1 /* Method* */) * kArm64PointerSize, kStackAlignment);
+                  1 /* Method* */) * static_cast<size_t>(kArm64PointerSize), kStackAlignment);
 }
 
 constexpr QuickMethodFrameInfo Arm64CalleeSaveMethodFrameInfo(Runtime::CalleeSaveType type) {
@@ -83,17 +83,18 @@ constexpr QuickMethodFrameInfo Arm64CalleeSaveMethodFrameInfo(Runtime::CalleeSav
 constexpr size_t Arm64CalleeSaveFpr1Offset(Runtime::CalleeSaveType type) {
   return Arm64CalleeSaveFrameSize(type) -
          (POPCOUNT(Arm64CalleeSaveCoreSpills(type)) +
-          POPCOUNT(Arm64CalleeSaveFpSpills(type))) * kArm64PointerSize;
+          POPCOUNT(Arm64CalleeSaveFpSpills(type))) * static_cast<size_t>(kArm64PointerSize);
 }
 
 constexpr size_t Arm64CalleeSaveGpr1Offset(Runtime::CalleeSaveType type) {
   return Arm64CalleeSaveFrameSize(type) -
-         POPCOUNT(Arm64CalleeSaveCoreSpills(type)) * kArm64PointerSize;
+         POPCOUNT(Arm64CalleeSaveCoreSpills(type)) * static_cast<size_t>(kArm64PointerSize);
 }
 
 constexpr size_t Arm64CalleeSaveLrOffset(Runtime::CalleeSaveType type) {
   return Arm64CalleeSaveFrameSize(type) -
-      POPCOUNT(Arm64CalleeSaveCoreSpills(type) & (-(1 << LR))) * kArm64PointerSize;
+      POPCOUNT(Arm64CalleeSaveCoreSpills(type) & (-(1 << LR))) *
+      static_cast<size_t>(kArm64PointerSize);
 }
 
 }  // namespace arm64

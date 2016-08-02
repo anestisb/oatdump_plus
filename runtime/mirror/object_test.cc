@@ -24,6 +24,7 @@
 #include "art_field-inl.h"
 #include "art_method-inl.h"
 #include "asm_support.h"
+#include "base/enums.h"
 #include "class-inl.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
@@ -78,9 +79,11 @@ TEST_F(ObjectTest, Constants) {
   EXPECT_EQ(kObjectReferenceSize, sizeof(HeapReference<Object>));
   EXPECT_EQ(kObjectHeaderSize, sizeof(Object));
   EXPECT_EQ(ART_METHOD_QUICK_CODE_OFFSET_32,
-            ArtMethod::EntryPointFromQuickCompiledCodeOffset(4).Int32Value());
+            ArtMethod::EntryPointFromQuickCompiledCodeOffset(PointerSize::k32).
+                Int32Value());
   EXPECT_EQ(ART_METHOD_QUICK_CODE_OFFSET_64,
-            ArtMethod::EntryPointFromQuickCompiledCodeOffset(8).Int32Value());
+            ArtMethod::EntryPointFromQuickCompiledCodeOffset(PointerSize::k64).
+                Int32Value());
 }
 
 TEST_F(ObjectTest, IsInSamePackage) {
@@ -306,7 +309,7 @@ TEST_F(ObjectTest, CheckAndAllocArrayFromCode) {
   // pretend we are trying to call 'new char[3]' from String.toCharArray
   ScopedObjectAccess soa(Thread::Current());
   Class* java_util_Arrays = class_linker_->FindSystemClass(soa.Self(), "Ljava/util/Arrays;");
-  ArtMethod* sort = java_util_Arrays->FindDirectMethod("sort", "([I)V", sizeof(void*));
+  ArtMethod* sort = java_util_Arrays->FindDirectMethod("sort", "([I)V", kRuntimePointerSize);
   const DexFile::TypeId* type_id = java_lang_dex_file_->FindTypeId("[I");
   ASSERT_TRUE(type_id != nullptr);
   uint32_t type_idx = java_lang_dex_file_->GetIndexForTypeId(*type_id);
@@ -363,7 +366,7 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
   StackHandleScope<2> hs(soa.Self());
   Handle<mirror::ClassLoader> loader(hs.NewHandle(soa.Decode<ClassLoader*>(class_loader)));
   Class* klass = class_linker_->FindClass(soa.Self(), "LStaticsFromCode;", loader);
-  ArtMethod* clinit = klass->FindClassInitializer(sizeof(void*));
+  ArtMethod* clinit = klass->FindClassInitializer(kRuntimePointerSize);
   const DexFile::TypeId* klass_type_id = dex_file->FindTypeId("LStaticsFromCode;");
   ASSERT_TRUE(klass_type_id != nullptr);
 
@@ -499,22 +502,22 @@ TEST_F(ObjectTest, DescriptorCompare) {
   Class* klass2 = linker->FindClass(soa.Self(), "LProtoCompare2;", class_loader_2);
   ASSERT_TRUE(klass2 != nullptr);
 
-  ArtMethod* m1_1 = klass1->GetVirtualMethod(0, sizeof(void*));
+  ArtMethod* m1_1 = klass1->GetVirtualMethod(0, kRuntimePointerSize);
   EXPECT_STREQ(m1_1->GetName(), "m1");
-  ArtMethod* m2_1 = klass1->GetVirtualMethod(1, sizeof(void*));
+  ArtMethod* m2_1 = klass1->GetVirtualMethod(1, kRuntimePointerSize);
   EXPECT_STREQ(m2_1->GetName(), "m2");
-  ArtMethod* m3_1 = klass1->GetVirtualMethod(2, sizeof(void*));
+  ArtMethod* m3_1 = klass1->GetVirtualMethod(2, kRuntimePointerSize);
   EXPECT_STREQ(m3_1->GetName(), "m3");
-  ArtMethod* m4_1 = klass1->GetVirtualMethod(3, sizeof(void*));
+  ArtMethod* m4_1 = klass1->GetVirtualMethod(3, kRuntimePointerSize);
   EXPECT_STREQ(m4_1->GetName(), "m4");
 
-  ArtMethod* m1_2 = klass2->GetVirtualMethod(0, sizeof(void*));
+  ArtMethod* m1_2 = klass2->GetVirtualMethod(0, kRuntimePointerSize);
   EXPECT_STREQ(m1_2->GetName(), "m1");
-  ArtMethod* m2_2 = klass2->GetVirtualMethod(1, sizeof(void*));
+  ArtMethod* m2_2 = klass2->GetVirtualMethod(1, kRuntimePointerSize);
   EXPECT_STREQ(m2_2->GetName(), "m2");
-  ArtMethod* m3_2 = klass2->GetVirtualMethod(2, sizeof(void*));
+  ArtMethod* m3_2 = klass2->GetVirtualMethod(2, kRuntimePointerSize);
   EXPECT_STREQ(m3_2->GetName(), "m3");
-  ArtMethod* m4_2 = klass2->GetVirtualMethod(3, sizeof(void*));
+  ArtMethod* m4_2 = klass2->GetVirtualMethod(3, kRuntimePointerSize);
   EXPECT_STREQ(m4_2->GetName(), "m4");
 }
 

@@ -771,7 +771,7 @@ void IntrinsicLocationsBuilderARM64::VisitThreadCurrentThread(HInvoke* invoke) {
 
 void IntrinsicCodeGeneratorARM64::VisitThreadCurrentThread(HInvoke* invoke) {
   codegen_->Load(Primitive::kPrimNot, WRegisterFrom(invoke->GetLocations()->Out()),
-                 MemOperand(tr, Thread::PeerOffset<8>().Int32Value()));
+                 MemOperand(tr, Thread::PeerOffset<kArm64PointerSize>().Int32Value()));
 }
 
 static void GenUnsafeGet(HInvoke* invoke,
@@ -1398,7 +1398,7 @@ static void GenerateVisitStringIndexOf(HInvoke* invoke,
     __ Mov(tmp_reg, 0);
   }
 
-  __ Ldr(lr, MemOperand(tr, QUICK_ENTRYPOINT_OFFSET(kArm64WordSize, pIndexOf).Int32Value()));
+  __ Ldr(lr, MemOperand(tr, QUICK_ENTRYPOINT_OFFSET(kArm64PointerSize, pIndexOf).Int32Value()));
   CheckEntrypointTypes<kQuickIndexOf, int32_t, void*, uint32_t, uint32_t>();
   __ Blr(lr);
 
@@ -1468,7 +1468,8 @@ void IntrinsicCodeGeneratorARM64::VisitStringNewStringFromBytes(HInvoke* invoke)
   __ B(eq, slow_path->GetEntryLabel());
 
   __ Ldr(lr,
-      MemOperand(tr, QUICK_ENTRYPOINT_OFFSET(kArm64WordSize, pAllocStringFromBytes).Int32Value()));
+      MemOperand(tr,
+                 QUICK_ENTRYPOINT_OFFSET(kArm64PointerSize, pAllocStringFromBytes).Int32Value()));
   CheckEntrypointTypes<kQuickAllocStringFromBytes, void*, void*, int32_t, int32_t, int32_t>();
   __ Blr(lr);
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
@@ -1496,7 +1497,8 @@ void IntrinsicCodeGeneratorARM64::VisitStringNewStringFromChars(HInvoke* invoke)
   //
   // all include a null check on `data` before calling that method.
   __ Ldr(lr,
-      MemOperand(tr, QUICK_ENTRYPOINT_OFFSET(kArm64WordSize, pAllocStringFromChars).Int32Value()));
+      MemOperand(tr,
+                 QUICK_ENTRYPOINT_OFFSET(kArm64PointerSize, pAllocStringFromChars).Int32Value()));
   CheckEntrypointTypes<kQuickAllocStringFromChars, void*, int32_t, int32_t, void*>();
   __ Blr(lr);
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
@@ -1522,7 +1524,8 @@ void IntrinsicCodeGeneratorARM64::VisitStringNewStringFromString(HInvoke* invoke
   __ B(eq, slow_path->GetEntryLabel());
 
   __ Ldr(lr,
-      MemOperand(tr, QUICK_ENTRYPOINT_OFFSET(kArm64WordSize, pAllocStringFromString).Int32Value()));
+      MemOperand(tr,
+                 QUICK_ENTRYPOINT_OFFSET(kArm64PointerSize, pAllocStringFromString).Int32Value()));
   CheckEntrypointTypes<kQuickAllocStringFromString, void*, void*>();
   __ Blr(lr);
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
@@ -1563,7 +1566,8 @@ static void GenFPToFPCall(HInvoke* invoke,
                           MacroAssembler* masm,
                           CodeGeneratorARM64* codegen,
                           QuickEntrypointEnum entry) {
-  __ Ldr(lr, MemOperand(tr, GetThreadOffset<kArm64WordSize>(entry).Int32Value()));
+  __ Ldr(lr, MemOperand(tr,
+                        GetThreadOffset<kArm64PointerSize>(entry).Int32Value()));
   __ Blr(lr);
   codegen->RecordPcInfo(invoke, invoke->GetDexPc());
 }

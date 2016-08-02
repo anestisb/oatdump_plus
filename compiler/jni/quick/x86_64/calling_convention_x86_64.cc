@@ -24,6 +24,10 @@
 namespace art {
 namespace x86_64 {
 
+constexpr size_t kFramePointerSize = static_cast<size_t>(PointerSize::k64);
+
+static_assert(kX86_64PointerSize == PointerSize::k64, "Unexpected x86_64 pointer size");
+
 static constexpr ManagedRegister kCalleeSaveRegisters[] = {
     // Core registers.
     X86_64ManagedRegister::FromCpuRegister(RBX),
@@ -136,7 +140,7 @@ ManagedRegister X86_64ManagedRuntimeCallingConvention::CurrentParamRegister() {
 
 FrameOffset X86_64ManagedRuntimeCallingConvention::CurrentParamStackOffset() {
   return FrameOffset(displacement_.Int32Value() +  // displacement
-                     kX86_64PointerSize +  // Method ref
+                     static_cast<size_t>(kX86_64PointerSize) +  // Method ref
                      itr_slots_ * sizeof(uint32_t));  // offset into in args
 }
 
@@ -163,7 +167,7 @@ const ManagedRegisterEntrySpills& X86_64ManagedRuntimeCallingConvention::EntrySp
 
 X86_64JniCallingConvention::X86_64JniCallingConvention(bool is_static, bool is_synchronized,
                                                        const char* shorty)
-    : JniCallingConvention(is_static, is_synchronized, shorty, kFramePointerSize) {
+    : JniCallingConvention(is_static, is_synchronized, shorty, kX86_64PointerSize) {
 }
 
 uint32_t X86_64JniCallingConvention::CoreSpillMask() const {
@@ -176,10 +180,10 @@ uint32_t X86_64JniCallingConvention::FpSpillMask() const {
 
 size_t X86_64JniCallingConvention::FrameSize() {
   // Method*, return address and callee save area size, local reference segment state
-  size_t frame_data_size = kX86_64PointerSize +
+  size_t frame_data_size = static_cast<size_t>(kX86_64PointerSize) +
       (2 + CalleeSaveRegisters().size()) * kFramePointerSize;
   // References plus link_ (pointer) and number_of_references_ (uint32_t) for HandleScope header
-  size_t handle_scope_size = HandleScope::SizeOf(kFramePointerSize, ReferenceCount());
+  size_t handle_scope_size = HandleScope::SizeOf(kX86_64PointerSize, ReferenceCount());
   // Plus return value spill area size
   return RoundUp(frame_data_size + handle_scope_size + SizeOfReturnValue(), kStackAlignment);
 }

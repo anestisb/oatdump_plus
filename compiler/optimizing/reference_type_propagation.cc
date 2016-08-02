@@ -16,6 +16,7 @@
 
 #include "reference_type_propagation.h"
 
+#include "base/enums.h"
 #include "class_linker-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
@@ -775,7 +776,7 @@ void ReferenceTypePropagation::RTPVisitor::VisitInvoke(HInvoke* instr) {
   ClassLinker* cl = Runtime::Current()->GetClassLinker();
   mirror::DexCache* dex_cache =
       FindDexCacheWithHint(soa.Self(), instr->GetDexFile(), hint_dex_cache_);
-  size_t pointer_size = cl->GetImagePointerSize();
+  PointerSize pointer_size = cl->GetImagePointerSize();
   ArtMethod* method = dex_cache->GetResolvedMethod(instr->GetDexMethodIndex(), pointer_size);
   mirror::Class* klass = (method == nullptr) ? nullptr : method->GetReturnType(false, pointer_size);
   SetClassAsTypeInfo(instr, klass, /* is_exact */ false);

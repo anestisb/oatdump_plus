@@ -30,7 +30,7 @@
 namespace art {
 namespace mirror {
 
-inline uint32_t Array::ClassSize(size_t pointer_size) {
+inline uint32_t Array::ClassSize(PointerSize pointer_size) {
   uint32_t vtable_entries = Object::kVTableLength;
   return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0, 0, 0, pointer_size);
 }
@@ -371,25 +371,23 @@ inline void PrimitiveArray<T>::Memcpy(int32_t dst_pos, PrimitiveArray<T>* src, i
 }
 
 template<typename T, VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
-inline T PointerArray::GetElementPtrSize(uint32_t idx, size_t ptr_size) {
+inline T PointerArray::GetElementPtrSize(uint32_t idx, PointerSize ptr_size) {
   // C style casts here since we sometimes have T be a pointer, or sometimes an integer
   // (for stack traces).
-  if (ptr_size == 8) {
+  if (ptr_size == PointerSize::k64) {
     return (T)static_cast<uintptr_t>(
         AsLongArray<kVerifyFlags, kReadBarrierOption>()->GetWithoutChecks(idx));
   }
-  DCHECK_EQ(ptr_size, 4u);
   return (T)static_cast<uintptr_t>(
       AsIntArray<kVerifyFlags, kReadBarrierOption>()->GetWithoutChecks(idx));
 }
 
 template<bool kTransactionActive, bool kUnchecked>
-inline void PointerArray::SetElementPtrSize(uint32_t idx, uint64_t element, size_t ptr_size) {
-  if (ptr_size == 8) {
+inline void PointerArray::SetElementPtrSize(uint32_t idx, uint64_t element, PointerSize ptr_size) {
+  if (ptr_size == PointerSize::k64) {
     (kUnchecked ? down_cast<LongArray*>(static_cast<Object*>(this)) : AsLongArray())->
         SetWithoutChecks<kTransactionActive>(idx, element);
   } else {
-    DCHECK_EQ(ptr_size, 4u);
     DCHECK_LE(element, static_cast<uint64_t>(0xFFFFFFFFu));
     (kUnchecked ? down_cast<IntArray*>(static_cast<Object*>(this)) : AsIntArray())
         ->SetWithoutChecks<kTransactionActive>(idx, static_cast<uint32_t>(element));
@@ -397,7 +395,7 @@ inline void PointerArray::SetElementPtrSize(uint32_t idx, uint64_t element, size
 }
 
 template<bool kTransactionActive, bool kUnchecked, typename T>
-inline void PointerArray::SetElementPtrSize(uint32_t idx, T* element, size_t ptr_size) {
+inline void PointerArray::SetElementPtrSize(uint32_t idx, T* element, PointerSize ptr_size) {
   SetElementPtrSize<kTransactionActive, kUnchecked>(idx,
                                                     reinterpret_cast<uintptr_t>(element),
                                                     ptr_size);
@@ -405,7 +403,7 @@ inline void PointerArray::SetElementPtrSize(uint32_t idx, T* element, size_t ptr
 
 template <VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption, typename Visitor>
 inline void PointerArray::Fixup(mirror::PointerArray* dest,
-                                size_t pointer_size,
+                                PointerSize pointer_size,
                                 const Visitor& visitor) {
   for (size_t i = 0, count = GetLength(); i < count; ++i) {
     void* ptr = GetElementPtrSize<void*, kVerifyFlags, kReadBarrierOption>(i, pointer_size);

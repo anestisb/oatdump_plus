@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "base/bounded_fifo.h"
+#include "base/enums.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "base/mutex-inl.h"
@@ -430,7 +431,7 @@ class MarkSweep::MarkObjectSlowPath {
                             << " first_ref_field_offset="
                             << (holder_->IsClass()
                                 ? holder_->AsClass()->GetFirstReferenceStaticFieldOffset(
-                                    sizeof(void*))
+                                    kRuntimePointerSize)
                                 : holder_->GetClass()->GetFirstReferenceInstanceFieldOffset())
                             << " num_of_ref_fields="
                             << (holder_->IsClass()

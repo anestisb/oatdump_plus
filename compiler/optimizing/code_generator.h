@@ -22,6 +22,7 @@
 #include "base/arena_containers.h"
 #include "base/arena_object.h"
 #include "base/bit_field.h"
+#include "base/enums.h"
 #include "compiled_method.h"
 #include "driver/compiler_options.h"
 #include "globals.h"
@@ -191,7 +192,7 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
   size_t GetStackSlotOfParameter(HParameterValue* parameter) const {
     // Note that this follows the current calling convention.
     return GetFrameSize()
-        + InstructionSetPointerSize(GetInstructionSet())  // Art method
+        + static_cast<size_t>(InstructionSetPointerSize(GetInstructionSet()))  // Art method
         + parameter->GetIndex() * kVRegSize;
   }
 
@@ -357,14 +358,14 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
   static uint32_t GetArrayDataOffset(HArrayGet* array_get);
 
   // Return the entry point offset for ReadBarrierMarkRegX, where X is `reg`.
-  template <size_t pointer_size>
+  template <PointerSize pointer_size>
   static int32_t GetReadBarrierMarkEntryPointsOffset(size_t reg) {
     // The entry point list defines 30 ReadBarrierMarkRegX entry points.
     DCHECK_LT(reg, 30u);
     // The ReadBarrierMarkRegX entry points are ordered by increasing
     // register number in Thread::tls_Ptr_.quick_entrypoints.
     return QUICK_ENTRYPOINT_OFFSET(pointer_size, pReadBarrierMarkReg00).Int32Value()
-        + pointer_size * reg;
+        + static_cast<size_t>(pointer_size) * reg;
   }
 
   void EmitParallelMoves(Location from1,
@@ -700,7 +701,7 @@ class CallingConvention {
                     size_t number_of_registers,
                     const F* fpu_registers,
                     size_t number_of_fpu_registers,
-                    size_t pointer_size)
+                    PointerSize pointer_size)
       : registers_(registers),
         number_of_registers_(number_of_registers),
         fpu_registers_(fpu_registers),
@@ -723,7 +724,7 @@ class CallingConvention {
   size_t GetStackOffsetOf(size_t index) const {
     // We still reserve the space for parameters passed by registers.
     // Add space for the method pointer.
-    return pointer_size_ + index * kVRegSize;
+    return static_cast<size_t>(pointer_size_) + index * kVRegSize;
   }
 
  private:
@@ -731,7 +732,7 @@ class CallingConvention {
   const size_t number_of_registers_;
   const F* fpu_registers_;
   const size_t number_of_fpu_registers_;
-  const size_t pointer_size_;
+  const PointerSize pointer_size_;
 
   DISALLOW_COPY_AND_ASSIGN(CallingConvention);
 };
