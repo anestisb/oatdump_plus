@@ -98,6 +98,14 @@ class RelativePatcherTest : public testing::Test {
         patches));
   }
 
+  uint32_t CodeAlignmentSize(uint32_t header_offset_to_align) {
+    // We want to align the code rather than the preheader.
+    uint32_t unaligned_code_offset = header_offset_to_align + sizeof(OatQuickMethodHeader);
+    uint32_t aligned_code_offset =
+        CompiledMethod::AlignCode(unaligned_code_offset, instruction_set_);
+    return aligned_code_offset - unaligned_code_offset;
+  }
+
   void Link() {
     // Reserve space.
     static_assert(kTrampolineOffset == 0u, "Unexpected trampoline offset.");
@@ -106,9 +114,8 @@ class RelativePatcherTest : public testing::Test {
     for (auto& compiled_method : compiled_methods_) {
       offset = patcher_->ReserveSpace(offset, compiled_method.get(), compiled_method_refs_[idx]);
 
-      uint32_t aligned_offset = compiled_method->AlignCode(offset);
-      uint32_t aligned_code_delta = aligned_offset - offset;
-      offset += aligned_code_delta;
+      uint32_t alignment_size = CodeAlignmentSize(offset);
+      offset += alignment_size;
 
       offset += sizeof(OatQuickMethodHeader);
       uint32_t quick_code_offset = offset + compiled_method->CodeDelta();
@@ -136,11 +143,10 @@ class RelativePatcherTest : public testing::Test {
     for (auto& compiled_method : compiled_methods_) {
       offset = patcher_->WriteThunks(&out_, offset);
 
-      uint32_t aligned_offset = compiled_method->AlignCode(offset);
-      uint32_t aligned_code_delta = aligned_offset - offset;
-      CHECK_LE(aligned_code_delta, sizeof(kPadding));
-      out_.WriteFully(kPadding, aligned_code_delta);
-      offset += aligned_code_delta;
+      uint32_t alignment_size = CodeAlignmentSize(offset);
+      CHECK_LE(alignment_size, sizeof(kPadding));
+      out_.WriteFully(kPadding, alignment_size);
+      offset += alignment_size;
 
       out_.WriteFully(dummy_header, sizeof(OatQuickMethodHeader));
       offset += sizeof(OatQuickMethodHeader);

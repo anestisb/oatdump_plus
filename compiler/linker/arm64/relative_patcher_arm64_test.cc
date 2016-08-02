@@ -67,36 +67,39 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
                                  const ArrayRef<const LinkerPatch>& last_method_patches,
                                  uint32_t distance_without_thunks) {
     CHECK_EQ(distance_without_thunks % kArm64Alignment, 0u);
-    const uint32_t method1_offset =
-        CompiledCode::AlignCode(kTrampolineSize, kArm64) + sizeof(OatQuickMethodHeader);
+    uint32_t method1_offset =
+        kTrampolineSize + CodeAlignmentSize(kTrampolineSize) + sizeof(OatQuickMethodHeader);
     AddCompiledMethod(MethodRef(1u), method1_code, method1_patches);
-    const uint32_t gap_start =
-        CompiledCode::AlignCode(method1_offset + method1_code.size(), kArm64);
+    const uint32_t gap_start = method1_offset + method1_code.size();
 
     // We want to put the method3 at a very precise offset.
     const uint32_t last_method_offset = method1_offset + distance_without_thunks;
+    CHECK_ALIGNED(last_method_offset, kArm64Alignment);
     const uint32_t gap_end = last_method_offset - sizeof(OatQuickMethodHeader);
-    CHECK_ALIGNED(gap_end, kArm64Alignment);
 
-    // Fill the gap with intermediate methods in chunks of 2MiB and the last in [2MiB, 4MiB).
+    // Fill the gap with intermediate methods in chunks of 2MiB and the first in [2MiB, 4MiB).
     // (This allows deduplicating the small chunks to avoid using 256MiB of memory for +-128MiB
-    // offsets by this test.)
+    // offsets by this test. Making the first chunk bigger makes it easy to give all intermediate
+    // methods the same alignment of the end, so the thunk insertion adds a predictable size as
+    // long as it's after the first chunk.)
     uint32_t method_idx = 2u;
     constexpr uint32_t kSmallChunkSize = 2 * MB;
     std::vector<uint8_t> gap_code;
-    size_t gap_size = gap_end - gap_start;
-    for (; gap_size >= 2u * kSmallChunkSize; gap_size -= kSmallChunkSize) {
-      uint32_t chunk_code_size = kSmallChunkSize - sizeof(OatQuickMethodHeader);
+    uint32_t gap_size = gap_end - gap_start;
+    uint32_t num_small_chunks = std::max(gap_size / kSmallChunkSize, 1u) - 1u;
+    uint32_t chunk_start = gap_start;
+    uint32_t chunk_size = gap_size - num_small_chunks * kSmallChunkSize;
+    for (uint32_t i = 0; i <= num_small_chunks; ++i) {  // num_small_chunks+1 iterations.
+      uint32_t chunk_code_size =
+          chunk_size - CodeAlignmentSize(chunk_start) - sizeof(OatQuickMethodHeader);
       gap_code.resize(chunk_code_size, 0u);
       AddCompiledMethod(MethodRef(method_idx), ArrayRef<const uint8_t>(gap_code),
                         ArrayRef<const LinkerPatch>());
       method_idx += 1u;
+      chunk_start += chunk_size;
+      chunk_size = kSmallChunkSize;  // For all but the first chunk.
+      DCHECK_EQ(CodeAlignmentSize(gap_end), CodeAlignmentSize(chunk_start));
     }
-    uint32_t chunk_code_size = gap_size - sizeof(OatQuickMethodHeader);
-    gap_code.resize(chunk_code_size, 0u);
-    AddCompiledMethod(MethodRef(method_idx), ArrayRef<const uint8_t>(gap_code),
-                      ArrayRef<const LinkerPatch>());
-    method_idx += 1u;
 
     // Add the last method and link
     AddCompiledMethod(MethodRef(method_idx), last_method_code, last_method_patches);
@@ -109,8 +112,9 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
     // There may be a thunk before method2.
     if (last_result.second != last_method_offset) {
       // Thunk present. Check that there's only one.
-      uint32_t aligned_thunk_size = CompiledCode::AlignCode(ThunkSize(), kArm64);
-      CHECK_EQ(last_result.second, last_method_offset + aligned_thunk_size);
+      uint32_t thunk_end = CompiledCode::AlignCode(gap_end, kArm64) + ThunkSize();
+      uint32_t header_offset = thunk_end + CodeAlignmentSize(thunk_end);
+      CHECK_EQ(last_result.second, header_offset + sizeof(OatQuickMethodHeader));
     }
     return method_idx;
   }
@@ -341,7 +345,7 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
                         uint32_t dex_cache_arrays_begin,
                         uint32_t element_offset) {
     uint32_t method1_offset =
-        CompiledCode::AlignCode(kTrampolineSize, kArm64) + sizeof(OatQuickMethodHeader);
+        kTrampolineSize + CodeAlignmentSize(kTrampolineSize) + sizeof(OatQuickMethodHeader);
     ASSERT_LT(method1_offset, adrp_offset);
     CHECK_ALIGNED(adrp_offset, 4u);
     uint32_t num_nops = (adrp_offset - method1_offset) / 4u;
@@ -391,7 +395,7 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
                         bool has_thunk,
                         uint32_t string_offset) {
     uint32_t method1_offset =
-        CompiledCode::AlignCode(kTrampolineSize, kArm64) + sizeof(OatQuickMethodHeader);
+        kTrampolineSize + CodeAlignmentSize(kTrampolineSize) + sizeof(OatQuickMethodHeader);
     ASSERT_LT(method1_offset, adrp_offset);
     CHECK_ALIGNED(adrp_offset, 4u);
     uint32_t num_nops = (adrp_offset - method1_offset) / 4u;
@@ -614,10 +618,12 @@ TEST_F(Arm64RelativePatcherTestDefault, CallOtherJustTooFarAfter) {
 
   uint32_t method1_offset = GetMethodOffset(1u);
   uint32_t last_method_offset = GetMethodOffset(last_method_idx);
+  ASSERT_TRUE(IsAligned<kArm64Alignment>(last_method_offset));
   uint32_t last_method_header_offset = last_method_offset - sizeof(OatQuickMethodHeader);
-  ASSERT_TRUE(IsAligned<kArm64Alignment>(last_method_header_offset));
-  uint32_t thunk_offset = last_method_header_offset - CompiledCode::AlignCode(ThunkSize(), kArm64);
-  ASSERT_TRUE(IsAligned<kArm64Alignment>(thunk_offset));
+  uint32_t thunk_offset =
+      RoundDown(last_method_header_offset - ThunkSize(), GetInstructionSetAlignment(kArm64));
+  DCHECK_EQ(thunk_offset + ThunkSize() + CodeAlignmentSize(thunk_offset + ThunkSize()),
+            last_method_header_offset);
   uint32_t diff = thunk_offset - (method1_offset + bl_offset_in_method1);
   CHECK_ALIGNED(diff, 4u);
   ASSERT_LT(diff, 128 * MB);

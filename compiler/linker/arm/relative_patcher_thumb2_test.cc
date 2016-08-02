@@ -48,18 +48,18 @@ class Thumb2RelativePatcherTest : public RelativePatcherTest {
                              const ArrayRef<const LinkerPatch>& method3_patches,
                              uint32_t distance_without_thunks) {
     CHECK_EQ(distance_without_thunks % kArmAlignment, 0u);
-    const uint32_t method1_offset =
-        CompiledCode::AlignCode(kTrampolineSize, kThumb2) + sizeof(OatQuickMethodHeader);
+    uint32_t method1_offset =
+        kTrampolineSize + CodeAlignmentSize(kTrampolineSize) + sizeof(OatQuickMethodHeader);
     AddCompiledMethod(MethodRef(1u), method1_code, method1_patches);
 
     // We want to put the method3 at a very precise offset.
     const uint32_t method3_offset = method1_offset + distance_without_thunks;
-    CHECK_ALIGNED(method3_offset - sizeof(OatQuickMethodHeader), kArmAlignment);
+    CHECK_ALIGNED(method3_offset, kArmAlignment);
 
     // Calculate size of method2 so that we put method3 at the correct place.
+    const uint32_t method1_end = method1_offset + method1_code.size();
     const uint32_t method2_offset =
-        CompiledCode::AlignCode(method1_offset + method1_code.size(), kThumb2) +
-        sizeof(OatQuickMethodHeader);
+        method1_end + CodeAlignmentSize(method1_end) + sizeof(OatQuickMethodHeader);
     const uint32_t method2_size = (method3_offset - sizeof(OatQuickMethodHeader) - method2_offset);
     std::vector<uint8_t> method2_raw_code(method2_size);
     ArrayRef<const uint8_t> method2_code(method2_raw_code);
@@ -78,8 +78,11 @@ class Thumb2RelativePatcherTest : public RelativePatcherTest {
     if (result3.second == method3_offset + 1 /* thumb mode */) {
       return false;  // No thunk.
     } else {
-      uint32_t aligned_thunk_size = CompiledCode::AlignCode(ThunkSize(), kThumb2);
-      CHECK_EQ(result3.second, method3_offset + aligned_thunk_size + 1 /* thumb mode */);
+      uint32_t thunk_end =
+          CompiledCode::AlignCode(method3_offset - sizeof(OatQuickMethodHeader), kThumb2) +
+          ThunkSize();
+      uint32_t header_offset = thunk_end + CodeAlignmentSize(thunk_end);
+      CHECK_EQ(result3.second, header_offset + sizeof(OatQuickMethodHeader) + 1 /* thumb mode */);
       return true;   // Thunk present.
     }
   }
@@ -352,9 +355,12 @@ TEST_F(Thumb2RelativePatcherTest, CallOtherJustTooFarAfter) {
 
   uint32_t method1_offset = GetMethodOffset(1u);
   uint32_t method3_offset = GetMethodOffset(3u);
+  ASSERT_TRUE(IsAligned<kArmAlignment>(method3_offset));
   uint32_t method3_header_offset = method3_offset - sizeof(OatQuickMethodHeader);
-  ASSERT_TRUE(IsAligned<kArmAlignment>(method3_header_offset));
-  uint32_t thunk_offset = method3_header_offset - CompiledCode::AlignCode(ThunkSize(), kThumb2);
+  uint32_t thunk_offset =
+      RoundDown(method3_header_offset - ThunkSize(), GetInstructionSetAlignment(kThumb2));
+  DCHECK_EQ(thunk_offset + ThunkSize() + CodeAlignmentSize(thunk_offset + ThunkSize()),
+            method3_header_offset);
   ASSERT_TRUE(IsAligned<kArmAlignment>(thunk_offset));
   uint32_t diff = thunk_offset - (method1_offset + bl_offset_in_method1 + 4u /* PC adjustment */);
   ASSERT_EQ(diff & 1u, 0u);
