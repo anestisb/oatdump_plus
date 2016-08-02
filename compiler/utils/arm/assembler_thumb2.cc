@@ -2325,7 +2325,7 @@ void Thumb2Assembler::EmitLoadStore(Condition cond,
   }
 
   Register rn = ad.GetRegister();
-  if (IsHighRegister(rn) && rn != SP && rn != PC) {
+  if (IsHighRegister(rn) && (byte || half || (rn != SP && rn != PC))) {
     must_be_32bit = true;
   }
 
@@ -2337,24 +2337,24 @@ void Thumb2Assembler::EmitLoadStore(Condition cond,
     // Immediate offset
     int32_t offset = ad.GetOffset();
 
-    // The 16 bit SP relative instruction can only have a 10 bit offset.
-    if (rn == SP && offset >= (1 << 10)) {
-      must_be_32bit = true;
-    }
-
     if (byte) {
       // 5 bit offset, no shift.
-      if (offset >= (1 << 5)) {
+      if ((offset & ~0x1f) != 0) {
         must_be_32bit = true;
       }
     } else if (half) {
-      // 6 bit offset, shifted by 1.
-      if (offset >= (1 << 6)) {
+      // 5 bit offset, shifted by 1.
+      if ((offset & ~(0x1f << 1)) != 0) {
+        must_be_32bit = true;
+      }
+    } else if (rn == SP || rn == PC) {
+      // The 16 bit SP/PC relative instruction can only have an (imm8 << 2) offset.
+      if ((offset & ~(0xff << 2)) != 0) {
         must_be_32bit = true;
       }
     } else {
-      // 7 bit offset, shifted by 2.
-      if (offset >= (1 << 7)) {
+      // 5 bit offset, shifted by 2.
+      if ((offset & ~(0x1f << 2)) != 0) {
         must_be_32bit = true;
       }
     }
@@ -2370,7 +2370,7 @@ void Thumb2Assembler::EmitLoadStore(Condition cond,
     } else {
       // 16 bit thumb1.
       uint8_t opA = 0;
-      bool sp_relative = false;
+      bool sp_or_pc_relative = false;
 
       if (byte) {
         opA = 7U /* 0b0111 */;
@@ -2379,7 +2379,10 @@ void Thumb2Assembler::EmitLoadStore(Condition cond,
       } else {
         if (rn == SP) {
           opA = 9U /* 0b1001 */;
-          sp_relative = true;
+          sp_or_pc_relative = true;
+        } else if (rn == PC) {
+          opA = 4U;
+          sp_or_pc_relative = true;
         } else {
           opA = 6U /* 0b0110 */;
         }
@@ -2388,7 +2391,7 @@ void Thumb2Assembler::EmitLoadStore(Condition cond,
           (load ? B11 : 0);
 
       CHECK_GE(offset, 0);
-      if (sp_relative) {
+      if (sp_or_pc_relative) {
         // SP relative, 10 bit offset.
         CHECK_LT(offset, (1 << 10));
         CHECK_ALIGNED(offset, 4);
