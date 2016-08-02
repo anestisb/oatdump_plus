@@ -63,7 +63,7 @@ class DexFile {
   static const uint32_t kClassDefinitionOrderEnforcedVersion = 37;
 
   static const uint8_t kDexMagic[];
-  static constexpr size_t kNumDexVersions = 2;
+  static constexpr size_t kNumDexVersions = 3;
   static constexpr size_t kDexVersionLen = 4;
   static const uint8_t kDexMagicVersions[kNumDexVersions][kDexVersionLen];
 

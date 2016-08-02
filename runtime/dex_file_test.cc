@@ -133,8 +133,40 @@ static const char kRawDex[] =
   "AAACAAAAQAEAAAEgAAACAAAAVAEAAAYgAAACAAAAiAEAAAEQAAABAAAAqAEAAAIgAAAPAAAArgEA"
   "AAMgAAACAAAAiAIAAAQgAAADAAAAlAIAAAAgAAACAAAAqwIAAAAQAAABAAAAxAIAAA==";
 
-static std::unique_ptr<const DexFile> OpenDexFileBase64(const char* base64,
-                                                        const char* location) {
+// kRawDex38 and 39 are dex'ed versions of the following Java source :
+//
+// public class Main {
+//     public static void main(String[] foo) {
+//     }
+// }
+//
+// The dex file was manually edited to change its dex version code to 38
+// or 39, respectively.
+static const char kRawDex38[] =
+  "ZGV4CjAzOAC4OovJlJ1089ikzK6asMf/f8qp3Kve5VsgAgAAcAAAAHhWNBIAAAAAAAAAAIwBAAAI"
+  "AAAAcAAAAAQAAACQAAAAAgAAAKAAAAAAAAAAAAAAAAMAAAC4AAAAAQAAANAAAAAwAQAA8AAAACIB"
+  "AAAqAQAAMgEAAEYBAABRAQAAVAEAAFgBAABtAQAAAQAAAAIAAAAEAAAABgAAAAQAAAACAAAAAAAA"
+  "AAUAAAACAAAAHAEAAAAAAAAAAAAAAAABAAcAAAABAAAAAAAAAAAAAAABAAAAAQAAAAAAAAADAAAA"
+  "AAAAAH4BAAAAAAAAAQABAAEAAABzAQAABAAAAHAQAgAAAA4AAQABAAAAAAB4AQAAAQAAAA4AAAAB"
+  "AAAAAwAGPGluaXQ+AAZMTWFpbjsAEkxqYXZhL2xhbmcvT2JqZWN0OwAJTWFpbi5qYXZhAAFWAAJW"
+  "TAATW0xqYXZhL2xhbmcvU3RyaW5nOwAEbWFpbgABAAcOAAMBAAcOAAAAAgAAgYAE8AEBCYgCDAAA"
+  "AAAAAAABAAAAAAAAAAEAAAAIAAAAcAAAAAIAAAAEAAAAkAAAAAMAAAACAAAAoAAAAAUAAAADAAAA"
+  "uAAAAAYAAAABAAAA0AAAAAEgAAACAAAA8AAAAAEQAAABAAAAHAEAAAIgAAAIAAAAIgEAAAMgAAAC"
+  "AAAAcwEAAAAgAAABAAAAfgEAAAAQAAABAAAAjAEAAA==";
+
+static const char kRawDex39[] =
+  "ZGV4CjAzOQC4OovJlJ1089ikzK6asMf/f8qp3Kve5VsgAgAAcAAAAHhWNBIAAAAAAAAAAIwBAAAI"
+  "AAAAcAAAAAQAAACQAAAAAgAAAKAAAAAAAAAAAAAAAAMAAAC4AAAAAQAAANAAAAAwAQAA8AAAACIB"
+  "AAAqAQAAMgEAAEYBAABRAQAAVAEAAFgBAABtAQAAAQAAAAIAAAAEAAAABgAAAAQAAAACAAAAAAAA"
+  "AAUAAAACAAAAHAEAAAAAAAAAAAAAAAABAAcAAAABAAAAAAAAAAAAAAABAAAAAQAAAAAAAAADAAAA"
+  "AAAAAH4BAAAAAAAAAQABAAEAAABzAQAABAAAAHAQAgAAAA4AAQABAAAAAAB4AQAAAQAAAA4AAAAB"
+  "AAAAAwAGPGluaXQ+AAZMTWFpbjsAEkxqYXZhL2xhbmcvT2JqZWN0OwAJTWFpbi5qYXZhAAFWAAJW"
+  "TAATW0xqYXZhL2xhbmcvU3RyaW5nOwAEbWFpbgABAAcOAAMBAAcOAAAAAgAAgYAE8AEBCYgCDAAA"
+  "AAAAAAABAAAAAAAAAAEAAAAIAAAAcAAAAAIAAAAEAAAAkAAAAAMAAAACAAAAoAAAAAUAAAADAAAA"
+  "uAAAAAYAAAABAAAA0AAAAAEgAAACAAAA8AAAAAEQAAABAAAAHAEAAAIgAAAIAAAAIgEAAAMgAAAC"
+  "AAAAcwEAAAAgAAABAAAAfgEAAAAQAAABAAAAjAEAAA==";
+
+static void DecodeAndWriteDexFile(const char* base64, const char* location) {
   // decode base64
   CHECK(base64 != nullptr);
   size_t length;
@@ -150,7 +182,11 @@ static std::unique_ptr<const DexFile> OpenDexFileBase64(const char* base64,
   if (file->FlushCloseOrErase() != 0) {
     PLOG(FATAL) << "Could not flush and close test file.";
   }
-  file.reset();
+}
+
+static std::unique_ptr<const DexFile> OpenDexFileBase64(const char* base64,
+                                                        const char* location) {
+  DecodeAndWriteDexFile(base64, location);
 
   // read dex file
   ScopedObjectAccess soa(Thread::Current());
@@ -195,6 +231,27 @@ TEST_F(DexFileTest, Header) {
   EXPECT_EQ(320U, header.data_off_);
 
   EXPECT_EQ(header.checksum_, raw->GetLocationChecksum());
+}
+
+TEST_F(DexFileTest, Version38Accepted) {
+  ScratchFile tmp;
+  std::unique_ptr<const DexFile> raw(OpenDexFileBase64(kRawDex38, tmp.GetFilename().c_str()));
+  ASSERT_TRUE(raw.get() != nullptr);
+
+  const DexFile::Header& header = raw->GetHeader();
+  EXPECT_EQ(38u, header.GetVersion());
+}
+
+TEST_F(DexFileTest, Version39Rejected) {
+  ScratchFile tmp;
+  const char* location = tmp.GetFilename().c_str();
+  DecodeAndWriteDexFile(kRawDex39, location);
+
+  ScopedObjectAccess soa(Thread::Current());
+  static constexpr bool kVerifyChecksum = true;
+  std::string error_msg;
+  std::vector<std::unique_ptr<const DexFile>> dex_files;
+  ASSERT_FALSE(DexFile::Open(location, location, kVerifyChecksum, &error_msg, &dex_files));
 }
 
 TEST_F(DexFileTest, GetLocationChecksum) {
