@@ -28,7 +28,7 @@ namespace arm64 {
 #ifdef ___
 #error "ARM64 Assembler macro already defined."
 #else
-#define ___   vixl_masm_->
+#define ___   vixl_masm_.
 #endif
 
 void Arm64Assembler::FinalizeCode() {
@@ -39,16 +39,16 @@ void Arm64Assembler::FinalizeCode() {
 }
 
 size_t Arm64Assembler::CodeSize() const {
-  return vixl_masm_->GetBufferCapacity() - vixl_masm_->GetRemainingBufferSpace();
+  return vixl_masm_.GetBufferCapacity() - vixl_masm_.GetRemainingBufferSpace();
 }
 
 const uint8_t* Arm64Assembler::CodeBufferBaseAddress() const {
-  return vixl_masm_->GetStartAddress<uint8_t*>();
+  return vixl_masm_.GetStartAddress<uint8_t*>();
 }
 
 void Arm64Assembler::FinalizeInstructions(const MemoryRegion& region) {
   // Copy the instructions from the buffer.
-  MemoryRegion from(vixl_masm_->GetStartAddress<void*>(), CodeSize());
+  MemoryRegion from(vixl_masm_.GetStartAddress<void*>(), CodeSize());
   region.CopyFrom(0, from);
 }
 
@@ -86,7 +86,7 @@ void Arm64Assembler::AddConstant(XRegister rd, XRegister rn, int32_t value,
   } else {
     // temp = rd + value
     // rd = cond ? temp : rn
-    UseScratchRegisterScope temps(vixl_masm_);
+    UseScratchRegisterScope temps(&vixl_masm_);
     temps.Exclude(reg_x(rd), reg_x(rn));
     Register temp = temps.AcquireX();
     ___ Add(temp, reg_x(rn), value);
@@ -183,7 +183,7 @@ void Arm64Assembler::StoreStackOffsetToThread64(ThreadOffset64 tr_offs,
 }
 
 void Arm64Assembler::StoreStackPointerToThread64(ThreadOffset64 tr_offs) {
-  UseScratchRegisterScope temps(vixl_masm_);
+  UseScratchRegisterScope temps(&vixl_masm_);
   Register temp = temps.AcquireX();
   ___ Mov(temp, reg_x(SP));
   ___ Str(temp, MEM_OP(reg_x(TR), tr_offs.Int32Value()));
@@ -207,7 +207,7 @@ void Arm64Assembler::LoadImmediate(XRegister dest, int32_t value,
     // temp = value
     // rd = cond ? temp : rd
     if (value != 0) {
-      UseScratchRegisterScope temps(vixl_masm_);
+      UseScratchRegisterScope temps(&vixl_masm_);
       temps.Exclude(reg_x(dest));
       Register temp = temps.AcquireX();
       ___ Mov(temp, value);
@@ -314,7 +314,7 @@ void Arm64Assembler::LoadRawPtr(ManagedRegister m_dst, ManagedRegister m_base, O
   Arm64ManagedRegister base = m_base.AsArm64();
   CHECK(dst.IsXRegister() && base.IsXRegister());
   // Remove dst and base form the temp list - higher level API uses IP1, IP0.
-  UseScratchRegisterScope temps(vixl_masm_);
+  UseScratchRegisterScope temps(&vixl_masm_);
   temps.Exclude(reg_x(dst.AsXRegister()), reg_x(base.AsXRegister()));
   ___ Ldr(reg_x(dst.AsXRegister()), MEM_OP(reg_x(base.AsXRegister()), offs.Int32Value()));
 }
@@ -528,7 +528,7 @@ void Arm64Assembler::JumpTo(ManagedRegister m_base, Offset offs, ManagedRegister
   CHECK(base.IsXRegister()) << base;
   CHECK(scratch.IsXRegister()) << scratch;
   // Remove base and scratch form the temp list - higher level API uses IP1, IP0.
-  UseScratchRegisterScope temps(vixl_masm_);
+  UseScratchRegisterScope temps(&vixl_masm_);
   temps.Exclude(reg_x(base.AsXRegister()), reg_x(scratch.AsXRegister()));
   ___ Ldr(reg_x(scratch.AsXRegister()), MEM_OP(reg_x(base.AsXRegister()), offs.Int32Value()));
   ___ Br(reg_x(scratch.AsXRegister()));
@@ -621,7 +621,7 @@ void Arm64Assembler::ExceptionPoll(ManagedRegister m_scratch, size_t stack_adjus
 }
 
 void Arm64Assembler::EmitExceptionPoll(Arm64Exception *exception) {
-  UseScratchRegisterScope temps(vixl_masm_);
+  UseScratchRegisterScope temps(&vixl_masm_);
   temps.Exclude(reg_x(exception->scratch_.AsXRegister()));
   Register temp = temps.AcquireX();
 
@@ -653,7 +653,7 @@ static inline dwarf::Reg DWARFReg(CPURegister reg) {
 
 void Arm64Assembler::SpillRegisters(CPURegList registers, int offset) {
   int size = registers.GetRegisterSizeInBytes();
-  const Register sp = vixl_masm_->StackPointer();
+  const Register sp = vixl_masm_.StackPointer();
   // Since we are operating on register pairs, we would like to align on
   // double the standard size; on the other hand, we don't want to insert
   // an extra store, which will happen if the number of registers is even.
@@ -681,7 +681,7 @@ void Arm64Assembler::SpillRegisters(CPURegList registers, int offset) {
 
 void Arm64Assembler::UnspillRegisters(CPURegList registers, int offset) {
   int size = registers.GetRegisterSizeInBytes();
-  const Register sp = vixl_masm_->StackPointer();
+  const Register sp = vixl_masm_.StackPointer();
   // Be consistent with the logic for spilling registers.
   if (!IsAlignedParam(offset, 2 * size) && registers.GetCount() % 2 != 0) {
     const CPURegister& dst0 = registers.PopLowestIndex();
