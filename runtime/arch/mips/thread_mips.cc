@@ -25,7 +25,7 @@ namespace art {
 void Thread::InitCpu() {
   CHECK_EQ(THREAD_FLAGS_OFFSET, ThreadFlagsOffset<PointerSize::k32>().Int32Value());
   CHECK_EQ(THREAD_CARD_TABLE_OFFSET, CardTableOffset<PointerSize::k32>().Int32Value());
-  CHECK_EQ(THREAD_EXCEPTION_OFFSET, ExceptionOffset<PointerSize::k64>().Int32Value());
+  CHECK_EQ(THREAD_EXCEPTION_OFFSET, ExceptionOffset<PointerSize::k32>().Int32Value());
 }
 
 void Thread::CleanupCpu() {
