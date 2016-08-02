@@ -32,7 +32,7 @@ class DexInstructionVisitor {
     while (i < size_in_code_units) {
       const Instruction* inst = Instruction::At(&code[i]);
       switch (inst->Opcode()) {
-#define INSTRUCTION_CASE(o, cname, p, f, r, i, a, v)  \
+#define INSTRUCTION_CASE(o, cname, p, f, i, a, v)  \
         case Instruction::cname: {                    \
           derived->Do_ ## cname(inst);                \
           break;                                      \
@@ -50,7 +50,7 @@ class DexInstructionVisitor {
 
  private:
   // Specific handlers for each instruction.
-#define INSTRUCTION_VISITOR(o, cname, p, f, r, i, a, v)    \
+#define INSTRUCTION_VISITOR(o, cname, p, f, i, a, v)    \
   void Do_ ## cname(const Instruction* inst) {             \
     T* derived = static_cast<T*>(this);                    \
     derived->Do_Default(inst);                             \
