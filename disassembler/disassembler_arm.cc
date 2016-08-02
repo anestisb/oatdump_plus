@@ -941,17 +941,11 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
                 opcode << (op != 0 ? "vsqrt" : "vneg") << (S != 0 ? ".f64" : ".f32");
                 args << d << ", " << m;
               } else if (op5 == 4) {
-                opcode << "vcmp" << (S != 0 ? ".f64" : ".f32");
+                opcode << "vcmp" << ((op != 0) ? "e" : "") << (S != 0 ? ".f64" : ".f32");
                 args << d << ", " << m;
-                if (op != 0) {
-                  args << " (quiet nan)";
-                }
               } else if (op5 == 5) {
-                opcode << "vcmpe" << (S != 0 ? ".f64" : ".f32");
+                opcode << "vcmp" << ((op != 0) ? "e" : "") << (S != 0 ? ".f64" : ".f32");
                 args << d << ", #0.0";
-                if (op != 0) {
-                  args << " (quiet nan)";
-                }
                 if ((instr & 0x2f) != 0) {
                   args << " (UNPREDICTABLE)";
                 }
