@@ -346,6 +346,19 @@ TEST_F(AssemblerX86Test, UComisdAddr) {
   DriverStr(expected, "ucomisd");
 }
 
+TEST_F(AssemblerX86Test, RoundSS) {
+  GetAssembler()->roundss(
+      x86::XmmRegister(x86::XMM0), x86::XmmRegister(x86::XMM1), x86::Immediate(1));
+  const char* expected = "roundss $1, %xmm1, %xmm0\n";
+  DriverStr(expected, "roundss");
+}
+
+TEST_F(AssemblerX86Test, RoundSD) {
+  GetAssembler()->roundsd(
+      x86::XmmRegister(x86::XMM0), x86::XmmRegister(x86::XMM1), x86::Immediate(1));
+  const char* expected = "roundsd $1, %xmm1, %xmm0\n";
+  DriverStr(expected, "roundsd");
+}
 
 TEST_F(AssemblerX86Test, CmovlAddress) {
   GetAssembler()->cmovl(x86::kEqual, x86::Register(x86::EAX), x86::Address(
