@@ -71,13 +71,16 @@ DEFAULT_EXPERIMENT="no-experiment"
 declare -A JACK_EXPERIMENTAL_ARGS
 JACK_EXPERIMENTAL_ARGS["default-methods"]="-D jack.java.source.version=1.8 -D jack.android.min-api-level=24"
 JACK_EXPERIMENTAL_ARGS["lambdas"]="-D jack.java.source.version=1.8 -D jack.android.min-api-level=24"
+JACK_EXPERIMENTAL_ARGS["method-handles"]="-D jack.java.source.version=1.8 -D jack.android.min-api-level=26"
 
 declare -A SMALI_EXPERIMENTAL_ARGS
 SMALI_EXPERIMENTAL_ARGS["default-methods"]="--api-level 24"
+SMALI_EXPERIMENTAL_ARGS["method-handles"]="--api-level 26"
 
 declare -A JAVAC_EXPERIMENTAL_ARGS
 JAVAC_EXPERIMENTAL_ARGS["default-methods"]="-source 1.8 -target 1.8"
 JAVAC_EXPERIMENTAL_ARGS["lambdas"]="-source 1.8 -target 1.8"
+JAVAC_EXPERIMENTAL_ARGS["method-handles"]="-source 1.8 -target 1.8"
 JAVAC_EXPERIMENTAL_ARGS[${DEFAULT_EXPERIMENT}]="-source 1.7 -target 1.7"
 
 while true; do
