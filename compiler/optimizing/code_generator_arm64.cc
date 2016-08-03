@@ -1281,17 +1281,21 @@ void CodeGeneratorARM64::MoveLocation(Location destination,
       UseScratchRegisterScope temps(GetVIXLAssembler());
       HConstant* src_cst = source.GetConstant();
       CPURegister temp;
-      if (src_cst->IsIntConstant() || src_cst->IsNullConstant()) {
-        temp = temps.AcquireW();
-      } else if (src_cst->IsLongConstant()) {
-        temp = temps.AcquireX();
-      } else if (src_cst->IsFloatConstant()) {
-        temp = temps.AcquireS();
+      if (src_cst->IsZeroBitPattern()) {
+        temp = (src_cst->IsLongConstant() || src_cst->IsDoubleConstant()) ? xzr : wzr;
       } else {
-        DCHECK(src_cst->IsDoubleConstant());
-        temp = temps.AcquireD();
+        if (src_cst->IsIntConstant()) {
+          temp = temps.AcquireW();
+        } else if (src_cst->IsLongConstant()) {
+          temp = temps.AcquireX();
+        } else if (src_cst->IsFloatConstant()) {
+          temp = temps.AcquireS();
+        } else {
+          DCHECK(src_cst->IsDoubleConstant());
+          temp = temps.AcquireD();
+        }
+        MoveConstant(temp, src_cst);
       }
-      MoveConstant(temp, src_cst);
       __ Str(temp, StackOperandFrom(destination));
     } else {
       DCHECK(source.IsStackSlot() || source.IsDoubleStackSlot());
