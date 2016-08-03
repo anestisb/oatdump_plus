@@ -28,6 +28,7 @@ struct ExperimentalFlags {
     kNone           = 0x0000,
     kAgents         = 0x0001,  // 0b00000001
     kRuntimePlugins = 0x0002,  // 0b00000010
+    kMethodHandles  = 0x0004,  // 0b00000100
   };
 
   constexpr ExperimentalFlags() : value_(0x0000) {}
@@ -72,6 +73,10 @@ inline std::ostream& operator<<(std::ostream& stream, const ExperimentalFlags& e
   }
   if (e & ExperimentalFlags::kRuntimePlugins) {
     stream << (started ? "|" : "") << "kRuntimePlugins";
+    started = true;
+  }
+  if (e & ExperimentalFlags::kMethodHandles) {
+    stream << (started ? "|" : "") << "kMethodHandles";
     started = true;
   }
   if (!started) {

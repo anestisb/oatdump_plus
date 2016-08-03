@@ -775,6 +775,8 @@ struct CmdlineType<ExperimentalFlags> : CmdlineTypeParser<ExperimentalFlags> {
       existing = existing | ExperimentalFlags::kAgents;
     } else if (option == "runtime-plugins") {
       existing = existing | ExperimentalFlags::kRuntimePlugins;
+    } else if (option == "method-handles") {
+      existing = existing | ExperimentalFlags::kMethodHandles;
     } else {
       return Result::Failure(std::string("Unknown option '") + option + "'");
     }

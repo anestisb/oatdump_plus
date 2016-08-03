@@ -33,6 +33,7 @@ GTEST_DEX_DIRECTORIES := \
   Interfaces \
   Lookup \
   Main \
+  MethodTypes \
   MultiDex \
   MultiDexModifiedSecondary \
   MyClass \
@@ -80,9 +81,9 @@ $(ART_TEST_TARGET_GTEST_VerifierDeps_DEX): $(ART_TEST_GTEST_VerifierDeps_SRC) $(
 # Dex file dependencies for each gtest.
 ART_GTEST_dex2oat_environment_tests_DEX_DEPS := Main MainStripped MultiDex MultiDexModifiedSecondary Nested
 
-ART_GTEST_class_linker_test_DEX_DEPS := Interfaces MultiDex MyClass Nested Statics StaticsFromCode
+ART_GTEST_class_linker_test_DEX_DEPS := Interfaces MethodTypes MultiDex MyClass Nested Statics StaticsFromCode
 ART_GTEST_compiler_driver_test_DEX_DEPS := AbstractMethod StaticLeafMethods ProfileTestMultiDex
-ART_GTEST_dex_cache_test_DEX_DEPS := Main Packages
+ART_GTEST_dex_cache_test_DEX_DEPS := Main Packages MethodTypes
 ART_GTEST_dex_file_test_DEX_DEPS := GetMethodSignature Main Nested
 ART_GTEST_dex2oat_test_DEX_DEPS := $(ART_GTEST_dex2oat_environment_tests_DEX_DEPS) Statics
 ART_GTEST_exception_test_DEX_DEPS := ExceptionHandle

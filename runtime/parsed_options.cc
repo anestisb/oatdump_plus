@@ -761,6 +761,8 @@ void ParsedOptions::Usage(const char* fmt, ...) {
                        "(Enable new and experimental agent support)\n");
   UsageMessage(stream, "  -Xexperimental:agents"
                        "(Enable new and experimental agent support)\n");
+  UsageMessage(stream, "  -Xexperimental:method-handles"
+                       "(Enable new and experimental method handles support)\n");
   UsageMessage(stream, "\n");
 
   UsageMessage(stream, "The following previously supported Dalvik options are ignored:\n");
