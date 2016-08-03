@@ -130,9 +130,10 @@ extern "C" JNIEXPORT void JNICALL Java_Main_ensureJitCompiled(JNIEnv* env,
     return;
   }
 
+  Thread* self = Thread::Current();
   ArtMethod* method = nullptr;
   {
-    ScopedObjectAccess soa(Thread::Current());
+    ScopedObjectAccess soa(self);
 
     ScopedUtfChars chars(env, method_name);
     CHECK(chars.c_str() != nullptr);
@@ -149,11 +150,11 @@ extern "C" JNIEXPORT void JNICALL Java_Main_ensureJitCompiled(JNIEnv* env,
     } else {
       // Sleep to yield to the compiler thread.
       usleep(1000);
-      ScopedObjectAccess soa(Thread::Current());
+      ScopedObjectAccess soa(self);
       // Make sure there is a profiling info, required by the compiler.
-      ProfilingInfo::Create(soa.Self(), method, /* retry_allocation */ true);
+      ProfilingInfo::Create(self, method, /* retry_allocation */ true);
       // Will either ensure it's compiled or do the compilation itself.
-      jit->CompileMethod(method, soa.Self(), /* osr */ false);
+      jit->CompileMethod(method, self, /* osr */ false);
     }
   }
 }
