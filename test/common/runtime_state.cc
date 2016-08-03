@@ -130,18 +130,18 @@ extern "C" JNIEXPORT void JNICALL Java_Main_ensureJitCompiled(JNIEnv* env,
     return;
   }
 
-  ScopedObjectAccess soa(Thread::Current());
+  ArtMethod* method = nullptr;
+  {
+    ScopedObjectAccess soa(Thread::Current());
 
-  ScopedUtfChars chars(env, method_name);
-  CHECK(chars.c_str() != nullptr);
-
-  mirror::Class* klass = soa.Decode<mirror::Class*>(cls);
-  ArtMethod* method = klass->FindDeclaredDirectMethodByName(chars.c_str(), kRuntimePointerSize);
+    ScopedUtfChars chars(env, method_name);
+    CHECK(chars.c_str() != nullptr);
+    method = soa.Decode<mirror::Class*>(cls)->FindDeclaredDirectMethodByName(
+        chars.c_str(), kRuntimePointerSize);
+  }
 
   jit::JitCodeCache* code_cache = jit->GetCodeCache();
   OatQuickMethodHeader* header = nullptr;
-  // Make sure there is a profiling info, required by the compiler.
-  ProfilingInfo::Create(soa.Self(), method, /* retry_allocation */ true);
   while (true) {
     header = OatQuickMethodHeader::FromEntryPoint(method->GetEntryPointFromQuickCompiledCode());
     if (code_cache->ContainsPc(header->GetCode())) {
@@ -149,6 +149,9 @@ extern "C" JNIEXPORT void JNICALL Java_Main_ensureJitCompiled(JNIEnv* env,
     } else {
       // Sleep to yield to the compiler thread.
       usleep(1000);
+      ScopedObjectAccess soa(Thread::Current());
+      // Make sure there is a profiling info, required by the compiler.
+      ProfilingInfo::Create(soa.Self(), method, /* retry_allocation */ true);
       // Will either ensure it's compiled or do the compilation itself.
       jit->CompileMethod(method, soa.Self(), /* osr */ false);
     }
