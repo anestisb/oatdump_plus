@@ -57,6 +57,9 @@ class ConcurrentCopying : public GarbageCollector {
   static constexpr bool kEnableFromSpaceAccountingCheck = kIsDebugBuild;
   // Enable verbose mode.
   static constexpr bool kVerboseMode = false;
+  // If kGrayDirtyImmuneObjects is true then we gray dirty objects in the GC pause to prevent dirty
+  // pages.
+  static constexpr bool kGrayDirtyImmuneObjects = true;
 
   ConcurrentCopying(Heap* heap,
                     const std::string& name_prefix = "",
@@ -230,6 +233,8 @@ class ConcurrentCopying : public GarbageCollector {
   space::RegionSpace* region_space_;      // The underlying region space.
   std::unique_ptr<Barrier> gc_barrier_;
   std::unique_ptr<accounting::ObjectStack> gc_mark_stack_;
+  std::unique_ptr<accounting::ObjectStack> rb_mark_bit_stack_;
+  bool rb_mark_bit_stack_full_;
   std::vector<mirror::Object*> false_gray_stack_ GUARDED_BY(mark_stack_lock_);
   Mutex mark_stack_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::vector<accounting::ObjectStack*> revoked_mark_stacks_
