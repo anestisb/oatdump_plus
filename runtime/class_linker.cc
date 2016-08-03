@@ -73,6 +73,8 @@
 #include "mirror/field.h"
 #include "mirror/iftable-inl.h"
 #include "mirror/method.h"
+#include "mirror/method_type.h"
+#include "mirror/method_handle_impl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/proxy.h"
@@ -636,6 +638,18 @@ bool ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   SetClassRoot(kJavaLangReflectMethodArrayClass, class_root);
   mirror::Method::SetArrayClass(class_root);
 
+  // Create java.lang.invoke.MethodType.class root
+  class_root = FindSystemClass(self, "Ljava/lang/invoke/MethodType;");
+  CHECK(class_root != nullptr);
+  SetClassRoot(kJavaLangInvokeMethodType, class_root);
+  mirror::MethodType::SetClass(class_root);
+
+  // Create java.lang.invoke.MethodHandleImpl.class root
+  class_root = FindSystemClass(self, "Ljava/lang/invoke/MethodHandleImpl;");
+  CHECK(class_root != nullptr);
+  SetClassRoot(kJavaLangInvokeMethodHandleImpl, class_root);
+  mirror::MethodHandleImpl::SetClass(class_root);
+
   // java.lang.ref classes need to be specially flagged, but otherwise are normal classes
   // finish initializing Reference class
   mirror::Class::SetStatus(java_lang_ref_Reference, mirror::Class::kStatusNotReady, self);
@@ -1032,6 +1046,8 @@ bool ClassLinker::InitFromBootImage(std::string* error_msg) {
   mirror::Constructor::SetArrayClass(GetClassRoot(kJavaLangReflectConstructorArrayClass));
   mirror::Method::SetClass(GetClassRoot(kJavaLangReflectMethod));
   mirror::Method::SetArrayClass(GetClassRoot(kJavaLangReflectMethodArrayClass));
+  mirror::MethodType::SetClass(GetClassRoot(kJavaLangInvokeMethodType));
+  mirror::MethodHandleImpl::SetClass(GetClassRoot(kJavaLangInvokeMethodHandleImpl));
   mirror::Reference::SetClass(GetClassRoot(kJavaLangRefReference));
   mirror::BooleanArray::SetArrayClass(GetClassRoot(kBooleanArrayClass));
   mirror::ByteArray::SetArrayClass(GetClassRoot(kByteArrayClass));
@@ -2032,6 +2048,8 @@ ClassLinker::~ClassLinker() {
   mirror::IntArray::ResetArrayClass();
   mirror::LongArray::ResetArrayClass();
   mirror::ShortArray::ResetArrayClass();
+  mirror::MethodType::ResetClass();
+  mirror::MethodHandleImpl::ResetClass();
   Thread* const self = Thread::Current();
   for (const ClassLoaderData& data : class_loaders_) {
     DeleteClassLoader(self, data);
@@ -8071,6 +8089,8 @@ const char* ClassLinker::GetClassRootDescriptor(ClassRoot class_root) {
     "[Ljava/lang/reflect/Constructor;",
     "[Ljava/lang/reflect/Field;",
     "[Ljava/lang/reflect/Method;",
+    "Ljava/lang/invoke/MethodHandleImpl;",
+    "Ljava/lang/invoke/MethodType;",
     "Ljava/lang/ClassLoader;",
     "Ljava/lang/Throwable;",
     "Ljava/lang/ClassNotFoundException;",
