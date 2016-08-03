@@ -217,8 +217,7 @@ class ImageWriter FINAL {
   // uint32 = typeof(lockword_)
   // Subtract read barrier bits since we want these to remain 0, or else it may result in DCHECK
   // failures due to invalid read barrier bits during object field reads.
-  static const size_t kBinShift = BitSizeOf<uint32_t>() - kBinBits -
-      LockWord::kReadBarrierStateSize;
+  static const size_t kBinShift = BitSizeOf<uint32_t>() - kBinBits - LockWord::kGCStateSize;
   // 111000.....0
   static const size_t kBinMask = ((static_cast<size_t>(1) << kBinBits) - 1) << kBinShift;
 

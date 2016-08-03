@@ -39,6 +39,7 @@
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/heap_bitmap.h"
 #include "gc/accounting/space_bitmap-inl.h"
+#include "gc/collector/concurrent_copying.h"
 #include "gc/heap.h"
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
@@ -1823,6 +1824,11 @@ void ImageWriter::CopyAndFixupObject(Object* obj) {
   const auto it = saved_hashcode_map_.find(obj);
   dst->SetLockWord(it != saved_hashcode_map_.end() ?
       LockWord::FromHashCode(it->second, 0u) : LockWord::Default(), false);
+  if (kUseBakerReadBarrier && gc::collector::ConcurrentCopying::kGrayDirtyImmuneObjects) {
+    // Treat all of the objects in the image as marked to avoid unnecessary dirty pages. This is
+    // safe since we mark all of the objects that may reference non immune objects as gray.
+    CHECK(dst->AtomicSetMarkBit(0, 1));
+  }
   FixupObject(obj, dst);
 }
 

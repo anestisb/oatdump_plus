@@ -2538,6 +2538,17 @@ void Heap::PreZygoteFork() {
   AddSpace(zygote_space_);
   non_moving_space_->SetFootprintLimit(non_moving_space_->Capacity());
   AddSpace(non_moving_space_);
+  if (kUseBakerReadBarrier && gc::collector::ConcurrentCopying::kGrayDirtyImmuneObjects) {
+    // Treat all of the objects in the zygote as marked to avoid unnecessary dirty pages. This is
+    // safe since we mark all of the objects that may reference non immune objects as gray.
+    zygote_space_->GetLiveBitmap()->VisitMarkedRange(
+        reinterpret_cast<uintptr_t>(zygote_space_->Begin()),
+        reinterpret_cast<uintptr_t>(zygote_space_->Limit()),
+        [](mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_) {
+      CHECK(obj->AtomicSetMarkBit(0, 1));
+    });
+  }
+
   // Create the zygote space mod union table.
   accounting::ModUnionTable* mod_union_table =
       new accounting::ModUnionTableCardCache("zygote space mod-union table", this,
