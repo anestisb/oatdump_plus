@@ -99,8 +99,9 @@ class ReadBarrier {
   // Note: These couldn't be constexpr pointers as reinterpret_cast isn't compatible with them.
   static constexpr uintptr_t white_ptr_ = 0x0;    // Not marked.
   static constexpr uintptr_t gray_ptr_ = 0x1;     // Marked, but not marked through. On mark stack.
+  // TODO: black_ptr_ is unused, we should remove it.
   static constexpr uintptr_t black_ptr_ = 0x2;    // Marked through. Used for non-moving objects.
-  static constexpr uintptr_t rb_ptr_mask_ = 0x3;  // The low 2 bits for white|gray|black.
+  static constexpr uintptr_t rb_ptr_mask_ = 0x1;  // The low bits for white|gray.
 };
 
 }  // namespace art

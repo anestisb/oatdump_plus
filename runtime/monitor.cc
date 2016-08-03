@@ -155,7 +155,7 @@ bool Monitor::Install(Thread* self) {
       return false;
     }
   }
-  LockWord fat(this, lw.ReadBarrierState());
+  LockWord fat(this, lw.GCState());
   // Publish the updated lock word, which may race with other threads.
   bool success = GetObject()->CasLockWordWeakSequentiallyConsistent(lw, fat);
   // Lock profiling.
@@ -774,20 +774,21 @@ bool Monitor::Deflate(Thread* self, mirror::Object* obj) {
         return false;
       }
       // Deflate to a thin lock.
-      LockWord new_lw = LockWord::FromThinLockId(owner->GetThreadId(), monitor->lock_count_,
-                                                 lw.ReadBarrierState());
+      LockWord new_lw = LockWord::FromThinLockId(owner->GetThreadId(),
+                                                 monitor->lock_count_,
+                                                 lw.GCState());
       // Assume no concurrent read barrier state changes as mutators are suspended.
       obj->SetLockWord(new_lw, false);
       VLOG(monitor) << "Deflated " << obj << " to thin lock " << owner->GetTid() << " / "
           << monitor->lock_count_;
     } else if (monitor->HasHashCode()) {
-      LockWord new_lw = LockWord::FromHashCode(monitor->GetHashCode(), lw.ReadBarrierState());
+      LockWord new_lw = LockWord::FromHashCode(monitor->GetHashCode(), lw.GCState());
       // Assume no concurrent read barrier state changes as mutators are suspended.
       obj->SetLockWord(new_lw, false);
       VLOG(monitor) << "Deflated " << obj << " to hash monitor " << monitor->GetHashCode();
     } else {
       // No lock and no hash, just put an empty lock word inside the object.
-      LockWord new_lw = LockWord::FromDefault(lw.ReadBarrierState());
+      LockWord new_lw = LockWord::FromDefault(lw.GCState());
       // Assume no concurrent read barrier state changes as mutators are suspended.
       obj->SetLockWord(new_lw, false);
       VLOG(monitor) << "Deflated" << obj << " to empty lock word";
@@ -876,7 +877,7 @@ mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj, bool tr
     LockWord lock_word = h_obj->GetLockWord(true);
     switch (lock_word.GetState()) {
       case LockWord::kUnlocked: {
-        LockWord thin_locked(LockWord::FromThinLockId(thread_id, 0, lock_word.ReadBarrierState()));
+        LockWord thin_locked(LockWord::FromThinLockId(thread_id, 0, lock_word.GCState()));
         if (h_obj->CasLockWordWeakSequentiallyConsistent(lock_word, thin_locked)) {
           AtraceMonitorLock(self, h_obj.Get(), false /* is_wait */);
           // CasLockWord enforces more than the acquire ordering we need here.
@@ -890,8 +891,9 @@ mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj, bool tr
           // We own the lock, increase the recursion count.
           uint32_t new_count = lock_word.ThinLockCount() + 1;
           if (LIKELY(new_count <= LockWord::kThinLockMaxCount)) {
-            LockWord thin_locked(LockWord::FromThinLockId(thread_id, new_count,
-                                                          lock_word.ReadBarrierState()));
+            LockWord thin_locked(LockWord::FromThinLockId(thread_id,
+                                                          new_count,
+                                                          lock_word.GCState()));
             if (!kUseReadBarrier) {
               h_obj->SetLockWord(thin_locked, true);
               AtraceMonitorLock(self, h_obj.Get(), false /* is_wait */);
@@ -975,9 +977,9 @@ bool Monitor::MonitorExit(Thread* self, mirror::Object* obj) {
           LockWord new_lw = LockWord::Default();
           if (lock_word.ThinLockCount() != 0) {
             uint32_t new_count = lock_word.ThinLockCount() - 1;
-            new_lw = LockWord::FromThinLockId(thread_id, new_count, lock_word.ReadBarrierState());
+            new_lw = LockWord::FromThinLockId(thread_id, new_count, lock_word.GCState());
           } else {
-            new_lw = LockWord::FromDefault(lock_word.ReadBarrierState());
+            new_lw = LockWord::FromDefault(lock_word.GCState());
           }
           if (!kUseReadBarrier) {
             DCHECK_EQ(new_lw.ReadBarrierState(), 0U);
