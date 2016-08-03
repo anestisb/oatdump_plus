@@ -95,9 +95,7 @@ class InstanceUtils {
       return null;
     }
 
-    // TODO: When perflib provides a better way to get the length of the
-    // array, we should use that here.
-    int numChars = chars.getValues().length;
+    int numChars = chars.getLength();
     int count = getIntField(inst, "count", numChars);
     if (count == 0) {
       return "";
