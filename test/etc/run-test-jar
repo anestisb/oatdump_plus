@@ -553,12 +553,10 @@ else
     if [ "$TIME_OUT" = "timeout" ]; then
       # Add timeout command if time out is desired.
       #
-      # Note: We use nested timeouts. The inner timeout sends SIGRTMIN+2 (usually 36) to ART, which
-      #       will induce a full thread dump before abort. However, dumping threads might deadlock,
-      #       so the outer timeout sends the regular SIGTERM after an additional minute to ensure
-      #       termination (without dumping all threads).
-      TIME_PLUS_ONE=$(($TIME_OUT_VALUE + 60))
-      cmdline="timeout ${TIME_PLUS_ONE}s timeout -s SIGRTMIN+2 ${TIME_OUT_VALUE}s $cmdline"
+      # Note: We first send SIGRTMIN+2 (usually 36) to ART, which will induce a full thread dump
+      #       before abort. However, dumping threads might deadlock, so we also use the "-k"
+      #       option to definitely kill the child.
+      cmdline="timeout -k 120s -s SIGRTMIN+2 ${TIME_OUT_VALUE}s $cmdline"
     fi
 
     if [ "$DEV_MODE" = "y" ]; then
