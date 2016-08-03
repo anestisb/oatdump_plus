@@ -441,7 +441,7 @@ std::unique_ptr<const DexFile> DexFile::OpenMemory(const uint8_t* base,
                                                    const OatDexFile* oat_dex_file,
                                                    std::string* error_msg) {
   DCHECK(base != nullptr);
-  DCHECK_NE(size, 0UL);
+  DCHECK_NE(size, 0U);
   CHECK_ALIGNED(base, 4);  // various dex file structures must be word aligned
   std::unique_ptr<DexFile> dex_file(
       new DexFile(base, size, location, location_checksum, mem_map, oat_dex_file));
