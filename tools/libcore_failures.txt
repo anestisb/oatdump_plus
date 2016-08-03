@@ -36,6 +36,15 @@
   names: ["libcore.io.OsTest#testUnixDomainSockets_in_file_system"]
 },
 {
+  description: "TCP_USER_TIMEOUT is not defined on host's tcp.h (glibc-2.15-4.8).",
+  result: EXEC_FAILED,
+  modes: [host],
+  names: ["libcore.android.system.OsConstantsTest#testTcpUserTimeoutIsDefined",
+          "libcore.io.OsTest#test_socket_tcpUserTimeout_setAndGet",
+          "libcore.io.OsTest#test_socket_tcpUserTimeout_doesNotWorkOnDatagramSocket"],
+  bug: 30402085
+},
+{
   description: "Issue with incorrect device time (1970)",
   result: EXEC_FAILED,
   modes: [device],
