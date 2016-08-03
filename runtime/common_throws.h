@@ -24,6 +24,7 @@ namespace art {
 namespace mirror {
   class Class;
   class Object;
+  class MethodType;
 }  // namespace mirror
 class ArtField;
 class ArtMethod;
@@ -217,6 +218,11 @@ void ThrowStringIndexOutOfBoundsException(int index, int length)
 
 void ThrowVerifyError(mirror::Class* referrer, const char* fmt, ...)
     __attribute__((__format__(__printf__, 2, 3)))
+    REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
+
+// WrontMethodTypeException
+void ThrowWrongMethodTypeException(mirror::MethodType* callee_type,
+                                   mirror::MethodType* callsite_type)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
 }  // namespace art
