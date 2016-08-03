@@ -71,15 +71,15 @@ static constexpr uint32_t kMips64CalleeSaveFpEverythingSpills =
 
 constexpr uint32_t Mips64CalleeSaveCoreSpills(Runtime::CalleeSaveType type) {
   return kMips64CalleeSaveAlwaysSpills | kMips64CalleeSaveRefSpills |
-      (type == Runtime::kRefsAndArgs ? kMips64CalleeSaveArgSpills : 0) |
-      (type == Runtime::kSaveAll ? kMips64CalleeSaveAllSpills : 0) |
+      (type == Runtime::kSaveRefsAndArgs ? kMips64CalleeSaveArgSpills : 0) |
+      (type == Runtime::kSaveAllCalleeSaves ? kMips64CalleeSaveAllSpills : 0) |
       (type == Runtime::kSaveEverything ? kMips64CalleeSaveEverythingSpills : 0);
 }
 
 constexpr uint32_t Mips64CalleeSaveFpSpills(Runtime::CalleeSaveType type) {
   return kMips64CalleeSaveFpRefSpills |
-      (type == Runtime::kRefsAndArgs ? kMips64CalleeSaveFpArgSpills: 0) |
-      (type == Runtime::kSaveAll ? kMips64CalleeSaveFpAllSpills : 0) |
+      (type == Runtime::kSaveRefsAndArgs ? kMips64CalleeSaveFpArgSpills: 0) |
+      (type == Runtime::kSaveAllCalleeSaves ? kMips64CalleeSaveFpAllSpills : 0) |
       (type == Runtime::kSaveEverything ? kMips64CalleeSaveFpEverythingSpills : 0);
 }
 

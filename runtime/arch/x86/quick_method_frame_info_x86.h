@@ -56,12 +56,12 @@ static constexpr uint32_t kX86CalleeSaveFpEverythingSpills =
 
 constexpr uint32_t X86CalleeSaveCoreSpills(Runtime::CalleeSaveType type) {
   return kX86CalleeSaveAlwaysSpills | kX86CalleeSaveRefSpills |
-      (type == Runtime::kRefsAndArgs ? kX86CalleeSaveArgSpills : 0) |
+      (type == Runtime::kSaveRefsAndArgs ? kX86CalleeSaveArgSpills : 0) |
       (type == Runtime::kSaveEverything ? kX86CalleeSaveEverythingSpills : 0);
 }
 
 constexpr uint32_t X86CalleeSaveFpSpills(Runtime::CalleeSaveType type) {
-    return (type == Runtime::kRefsAndArgs ? kX86CalleeSaveFpArgSpills : 0) |
+    return (type == Runtime::kSaveRefsAndArgs ? kX86CalleeSaveFpArgSpills : 0) |
         (type == Runtime::kSaveEverything ? kX86CalleeSaveFpEverythingSpills : 0);
 }
 
