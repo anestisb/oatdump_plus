@@ -609,6 +609,8 @@ class ReadBarrierMarkSlowPathARM64 : public SlowPathCodeARM64 {
     DCHECK_NE(obj_.reg(), LR);
     DCHECK_NE(obj_.reg(), WSP);
     DCHECK_NE(obj_.reg(), WZR);
+    // WIP0 is used by the slow path as a temp, it can not be the object register.
+    DCHECK_NE(obj_.reg(), IP0);
     DCHECK(0 <= obj_.reg() && obj_.reg() < kNumberOfWRegisters) << obj_.reg();
     // "Compact" slow path, saving two moves.
     //

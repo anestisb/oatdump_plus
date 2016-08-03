@@ -154,11 +154,29 @@ inline mirror::Object* ConcurrentCopying::Mark(mirror::Object* from_ref) {
 }
 
 inline mirror::Object* ConcurrentCopying::MarkFromReadBarrier(mirror::Object* from_ref) {
+  mirror::Object* ret;
+  // TODO: Delete GetMarkBit check when all of the callers properly check the bit. Remaining caller
+  // is array allocations.
+  if (from_ref == nullptr || from_ref->GetMarkBit()) {
+    return from_ref;
+  }
   // TODO: Consider removing this check when we are done investigating slow paths. b/30162165
   if (UNLIKELY(mark_from_read_barrier_measurements_)) {
-    return MarkFromReadBarrierWithMeasurements(from_ref);
+    ret = MarkFromReadBarrierWithMeasurements(from_ref);
+  } else {
+    ret = Mark(from_ref);
   }
-  return Mark(from_ref);
+  if (LIKELY(!rb_mark_bit_stack_full_ && ret->AtomicSetMarkBit(0, 1))) {
+    // If the mark stack is full, we may temporarily go to mark and back to unmarked. Seeing both
+    // values are OK since the only race is doing an unnecessary Mark.
+    if (!rb_mark_bit_stack_->AtomicPushBack(ret)) {
+      // Mark stack is full, set the bit back to zero.
+      CHECK(ret->AtomicSetMarkBit(1, 0));
+      // Set rb_mark_bit_stack_full_, this is racy but OK since AtomicPushBack is thread safe.
+      rb_mark_bit_stack_full_ = true;
+    }
+  }
+  return ret;
 }
 
 inline mirror::Object* ConcurrentCopying::GetFwdPtr(mirror::Object* from_ref) {

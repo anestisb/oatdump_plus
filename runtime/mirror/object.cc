@@ -163,8 +163,7 @@ int32_t Object::IdentityHashCode() const {
       case LockWord::kUnlocked: {
         // Try to compare and swap in a new hash, if we succeed we will return the hash on the next
         // loop iteration.
-        LockWord hash_word = LockWord::FromHashCode(GenerateIdentityHashCode(),
-                                                    lw.ReadBarrierState());
+        LockWord hash_word = LockWord::FromHashCode(GenerateIdentityHashCode(), lw.GCState());
         DCHECK_EQ(hash_word.GetState(), LockWord::kHashCode);
         if (const_cast<Object*>(this)->CasLockWordWeakRelaxed(lw, hash_word)) {
           return hash_word.GetHashCode();
