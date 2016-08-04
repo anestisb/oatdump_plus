@@ -765,16 +765,24 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
   LocationSummary* locations = instruction->GetLocations();
 
   uint32_t register_mask = locations->GetRegisterMask();
-  if (locations->OnlyCallsOnSlowPath()) {
-    // In case of slow path, we currently set the location of caller-save registers
-    // to register (instead of their stack location when pushed before the slow-path
-    // call). Therefore register_mask contains both callee-save and caller-save
-    // registers that hold objects. We must remove the caller-save from the mask, since
-    // they will be overwritten by the callee.
-    register_mask &= core_callee_save_mask_;
+  if (instruction->IsSuspendCheck()) {
+    // Suspend check has special ABI that saves the caller-save registers in callee,
+    // so we want to emit stack maps containing the registers.
+    // TODO: Register allocator still reserves space for the caller-save registers.
+    // We should add slow-path-specific caller-save information into LocationSummary
+    // and refactor the code here as well as in the register allocator to use it.
+  } else {
+    if (locations->OnlyCallsOnSlowPath()) {
+      // In case of slow path, we currently set the location of caller-save registers
+      // to register (instead of their stack location when pushed before the slow-path
+      // call). Therefore register_mask contains both callee-save and caller-save
+      // registers that hold objects. We must remove the caller-save from the mask, since
+      // they will be overwritten by the callee.
+      register_mask &= core_callee_save_mask_;
+    }
+    // The register mask must be a subset of callee-save registers.
+    DCHECK_EQ(register_mask & core_callee_save_mask_, register_mask);
   }
-  // The register mask must be a subset of callee-save registers.
-  DCHECK_EQ(register_mask & core_callee_save_mask_, register_mask);
   stack_map_stream_.BeginStackMapEntry(outer_dex_pc,
                                        native_pc,
                                        register_mask,

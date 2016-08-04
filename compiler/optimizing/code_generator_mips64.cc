@@ -300,13 +300,11 @@ class SuspendCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorMIPS64* mips64_codegen = down_cast<CodeGeneratorMIPS64*>(codegen);
     __ Bind(GetEntryLabel());
-    SaveLiveRegisters(codegen, instruction_->GetLocations());
     mips64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pTestSuspend),
                                   instruction_,
                                   instruction_->GetDexPc(),
                                   this);
     CheckEntrypointTypes<kQuickTestSuspend, void, void>();
-    RestoreLiveRegisters(codegen, instruction_->GetLocations());
     if (successor_ == nullptr) {
       __ Bc(GetReturnLabel());
     } else {

@@ -76,6 +76,7 @@ const char* image_methods_descriptions_[] = {
   "kCalleeSaveMethod",
   "kRefsOnlySaveMethod",
   "kRefsAndArgsSaveMethod",
+  "kSaveEverythingMethod",
 };
 
 const char* image_roots_descriptions_[] = {

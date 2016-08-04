@@ -149,13 +149,11 @@ class SuspendCheckSlowPathX86_64 : public SlowPathCode {
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorX86_64* x86_64_codegen = down_cast<CodeGeneratorX86_64*>(codegen);
     __ Bind(GetEntryLabel());
-    SaveLiveRegisters(codegen, instruction_->GetLocations());
     x86_64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pTestSuspend),
                                   instruction_,
                                   instruction_->GetDexPc(),
                                   this);
     CheckEntrypointTypes<kQuickTestSuspend, void, void>();
-    RestoreLiveRegisters(codegen, instruction_->GetLocations());
     if (successor_ == nullptr) {
       __ jmp(GetReturnLabel());
     } else {

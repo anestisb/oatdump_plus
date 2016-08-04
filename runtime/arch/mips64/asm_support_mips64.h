@@ -25,5 +25,7 @@
 #define FRAME_SIZE_REFS_ONLY_CALLEE_SAVE 80
 // $f12-$f19, $a1-$a7, $s2-$s7 + $gp + $s8 + $ra, 16 total + 1x8 bytes padding + method*
 #define FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE 208
+// $f0-$f31, $at, $v0-$v1, $a0-$a7, $t0-$t3, $s0-$s7, $t8-$t9, $gp, $s8, $ra + padding + method*
+#define FRAME_SIZE_SAVE_EVERYTHING_CALLEE_SAVE 496
 
 #endif  // ART_RUNTIME_ARCH_MIPS64_ASM_SUPPORT_MIPS64_H_

@@ -165,8 +165,8 @@ MACRO0(SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME)
     PUSH rdx  // Quick arg 2.
     PUSH rcx  // Quick arg 3.
     // Create space for FPR args and create 2 slots for ArtMethod*.
-    subq MACRO_LITERAL(80 + 4 * 8), %rsp
-    CFI_ADJUST_CFA_OFFSET(80 + 4 * 8)
+    subq MACRO_LITERAL(16 + 12 * 8), %rsp
+    CFI_ADJUST_CFA_OFFSET(16 + 12 * 8)
     // R10 := ArtMethod* for ref and args callee save frame method.
     movq RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
     // Save FPRs.
@@ -189,7 +189,7 @@ MACRO0(SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME)
 
     // Ugly compile-time check, but we only have the preprocessor.
     // Last +8: implicit return address pushed on stack when caller made call.
-#if (FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE != 11 * 8 + 4 * 8 + 80 + 8)
+#if (FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE != 11 * 8 + 12 * 8 + 16 + 8)
 #error "REFS_AND_ARGS_CALLEE_SAVE_FRAME(X86_64) size not as expected."
 #endif
 #endif  // __APPLE__
@@ -254,6 +254,108 @@ MACRO0(RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME)
     POP rsi
     POP r8
     POP r9
+    POP r12
+    POP r13
+    POP r14
+    POP r15
+END_MACRO
+
+    /*
+     * Macro that sets up the callee save frame to conform with
+     * Runtime::CreateCalleeSaveMethod(kSaveEverything)
+     */
+MACRO0(SETUP_SAVE_EVERYTHING_CALLEE_SAVE_FRAME)
+#if defined(__APPLE__)
+    int3
+    int3
+#else
+    // Save core registers from highest to lowest to agree with core spills bitmap.
+    PUSH r15
+    PUSH r14
+    PUSH r13
+    PUSH r12
+    PUSH r11
+    PUSH r10
+    PUSH r9
+    PUSH r8
+    PUSH rdi
+    PUSH rsi
+    PUSH rbp
+    PUSH rbx
+    PUSH rdx
+    PUSH rcx
+    PUSH rax
+    // Create space for FPRs and stack alignment padding.
+    subq MACRO_LITERAL(8 + 16 * 8), %rsp
+    CFI_ADJUST_CFA_OFFSET(8 + 16 * 8)
+    // R10 := Runtime::Current()
+    movq _ZN3art7Runtime9instance_E@GOTPCREL(%rip), %r10
+    movq (%r10), %r10
+    // Save FPRs.
+    movq %xmm0, 8(%rsp)
+    movq %xmm1, 16(%rsp)
+    movq %xmm2, 24(%rsp)
+    movq %xmm3, 32(%rsp)
+    movq %xmm4, 40(%rsp)
+    movq %xmm5, 48(%rsp)
+    movq %xmm6, 56(%rsp)
+    movq %xmm7, 64(%rsp)
+    movq %xmm8, 72(%rsp)
+    movq %xmm9, 80(%rsp)
+    movq %xmm10, 88(%rsp)
+    movq %xmm11, 96(%rsp)
+    movq %xmm12, 104(%rsp)
+    movq %xmm13, 112(%rsp)
+    movq %xmm14, 120(%rsp)
+    movq %xmm15, 128(%rsp)
+    // Push ArtMethod* for save everything frame method.
+    pushq RUNTIME_SAVE_EVERYTHING_CALLEE_SAVE_FRAME_OFFSET(%r10)
+    CFI_ADJUST_CFA_OFFSET(8)
+    // Store rsp as the top quick frame.
+    movq %rsp, %gs:THREAD_TOP_QUICK_FRAME_OFFSET
+
+    // Ugly compile-time check, but we only have the preprocessor.
+    // Last +8: implicit return address pushed on stack when caller made call.
+#if (FRAME_SIZE_SAVE_EVERYTHING_CALLEE_SAVE != 15 * 8 + 16 * 8 + 16 + 8)
+#error "SAVE_EVERYTHING_CALLEE_SAVE_FRAME(X86_64) size not as expected."
+#endif
+#endif  // __APPLE__
+END_MACRO
+
+MACRO0(RESTORE_SAVE_EVERYTHING_CALLEE_SAVE_FRAME)
+    // Restore FPRs. Method and padding is still on the stack.
+    movq 16(%rsp), %xmm0
+    movq 24(%rsp), %xmm1
+    movq 32(%rsp), %xmm2
+    movq 40(%rsp), %xmm3
+    movq 48(%rsp), %xmm4
+    movq 56(%rsp), %xmm5
+    movq 64(%rsp), %xmm6
+    movq 72(%rsp), %xmm7
+    movq 80(%rsp), %xmm8
+    movq 88(%rsp), %xmm9
+    movq 96(%rsp), %xmm10
+    movq 104(%rsp), %xmm11
+    movq 112(%rsp), %xmm12
+    movq 120(%rsp), %xmm13
+    movq 128(%rsp), %xmm14
+    movq 136(%rsp), %xmm15
+
+    // Remove save everything callee save method, stack alignment padding and FPRs.
+    addq MACRO_LITERAL(16 + 16 * 8), %rsp
+    CFI_ADJUST_CFA_OFFSET(-(16 + 16 * 8))
+    // Restore callee and GPR args, mixed together to agree with core spills bitmap.
+    POP rax
+    POP rcx
+    POP rdx
+    POP rbx
+    POP rbp
+    POP rsi
+    POP rdi
+    POP r8
+    POP r9
+    POP r10
+    POP r11
     POP r12
     POP r13
     POP r14
@@ -701,17 +803,6 @@ DEFINE_FUNCTION art_quick_do_long_jump
     ret            // From higher in the stack pop rip.
 #endif  // __APPLE__
 END_FUNCTION art_quick_do_long_jump
-
-MACRO3(NO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
-    DEFINE_FUNCTION VAR(c_name)
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    // save ref containing registers for GC
-    // Outgoing argument set up
-    movq %gs:THREAD_SELF_OFFSET, %rdi    // pass Thread::Current()
-    call VAR(cxx_name)                   // cxx_name(Thread*)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    CALL_MACRO(return_macro)             // return or deliver exception
-    END_FUNCTION VAR(c_name)
-END_MACRO
 
 MACRO3(ONE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name)
@@ -1335,7 +1426,14 @@ DEFINE_FUNCTION art_quick_memcpy
     ret
 END_FUNCTION art_quick_memcpy
 
-NO_ARG_DOWNCALL art_quick_test_suspend, artTestSuspendFromCode, ret
+DEFINE_FUNCTION art_quick_test_suspend
+    SETUP_SAVE_EVERYTHING_CALLEE_SAVE_FRAME     // save everything for GC
+    // Outgoing argument set up
+    movq %gs:THREAD_SELF_OFFSET, %rdi           // pass Thread::Current()
+    call artTestSuspendFromCode                 // artTestSuspendFromCode(Thread*)
+    RESTORE_SAVE_EVERYTHING_CALLEE_SAVE_FRAME   // restore frame up to return address
+    ret
+END_FUNCTION art_quick_test_suspend
 
 UNIMPLEMENTED art_quick_ldiv
 UNIMPLEMENTED art_quick_lmod
