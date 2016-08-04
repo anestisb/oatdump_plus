@@ -31,7 +31,8 @@
     // Clang/llvm does not support .altmacro. However, the clang/llvm preprocessor doesn't
     // separate the backslash and parameter by a space. Everything just works.
     #define RAW_VAR(name) \name
-    #define VAR(name) SYMBOL(\name)
+    #define VAR(name) \name
+    #define CALLVAR(name) SYMBOL(\name)
     #define PLT_VAR(name) \name@PLT
     #define REG_VAR(name) %\name
     #define CALL_MACRO(name) \name
@@ -45,6 +46,7 @@
     .altmacro
     #define RAW_VAR(name) name&
     #define VAR(name) name&
+    #define CALLVAR(name) SYMBOL(name&)
     #define PLT_VAR(name) name&@PLT
     #define REG_VAR(name) %name
     #define CALL_MACRO(name) name&
@@ -110,10 +112,10 @@ END_MACRO
 // for mac builds.
 MACRO1(DEFINE_FUNCTION, c_name)
     FUNCTION_TYPE(SYMBOL(\c_name))
-    ASM_HIDDEN SYMBOL(\c_name)
-    .globl VAR(c_name)
+    ASM_HIDDEN CALLVAR(c_name)
+    .globl CALLVAR(c_name)
     ALIGN_FUNCTION_ENTRY
-VAR(c_name):
+CALLVAR(c_name):
     CFI_STARTPROC
     // Ensure we get a sane starting CFA.
     CFI_DEF_CFA(rsp, 8)
