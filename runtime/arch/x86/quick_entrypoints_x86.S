@@ -1028,7 +1028,13 @@ DEFINE_FUNCTION art_quick_alloc_object_region_tlab
     movl 0(%edx, %eax, COMPRESSED_REFERENCE_SIZE), %edx
                                                                // Read barrier for class load.
     cmpl LITERAL(0), %fs:THREAD_IS_GC_MARKING_OFFSET
-    jne .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path
+    jz .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path_exit
+    // Null check so that we can load the lock word.
+    testl %edx, %edx
+    jz .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path_exit
+    // Check the mark bit, if it is 1 return.
+    testl LITERAL(LOCK_WORD_MARK_BIT_MASK_SHIFTED), MIRROR_OBJECT_LOCK_WORD_OFFSET(%edx)
+    jz .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path
 .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path_exit:
     ALLOC_OBJECT_TLAB_FAST_PATH .Lart_quick_alloc_object_region_tlab_slow_path
 .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path:
@@ -1065,7 +1071,7 @@ DEFINE_FUNCTION art_quick_lock_object
     test LITERAL(LOCK_WORD_STATE_MASK), %ecx         // test the 2 high bits.
     jne  .Lslow_lock                      // slow path if either of the two high bits are set.
     movl %ecx, %edx                       // save lock word (edx) to keep read barrier bits.
-    andl LITERAL(LOCK_WORD_READ_BARRIER_STATE_MASK_TOGGLED), %ecx  // zero the read barrier bits.
+    andl LITERAL(LOCK_WORD_GC_STATE_MASK_SHIFTED_TOGGLED), %ecx  // zero the gc bits.
     test %ecx, %ecx
     jnz  .Lalready_thin                   // lock word contains a thin lock
     // unlocked case - edx: original lock word, eax: obj.
@@ -1081,9 +1087,9 @@ DEFINE_FUNCTION art_quick_lock_object
     cmpw %cx, %dx                         // do we hold the lock already?
     jne  .Lslow_lock
     movl %edx, %ecx                       // copy the lock word to check count overflow.
-    andl LITERAL(LOCK_WORD_READ_BARRIER_STATE_MASK_TOGGLED), %ecx  // zero the read barrier bits.
+    andl LITERAL(LOCK_WORD_GC_STATE_MASK_SHIFTED_TOGGLED), %ecx  // zero the read barrier bits.
     addl LITERAL(LOCK_WORD_THIN_LOCK_COUNT_ONE), %ecx  // increment recursion count for overflow check.
-    test LITERAL(LOCK_WORD_READ_BARRIER_STATE_MASK), %ecx  // overflowed if either of the upper two bits (28-29) are set.
+    test LITERAL(LOCK_WORD_GC_STATE_MASK_SHIFTED), %ecx  // overflowed if the first gc state bit is set.
     jne  .Lslow_lock                      // count overflowed so go slow
     movl %eax, %ecx                       // save obj to use eax for cmpxchg.
     movl %edx, %eax                       // copy the lock word as the old val for cmpxchg.
@@ -1137,13 +1143,13 @@ DEFINE_FUNCTION art_quick_unlock_object
     cmpw %cx, %dx                         // does the thread id match?
     jne  .Lslow_unlock
     movl %ecx, %edx                       // copy the lock word to detect new count of 0.
-    andl LITERAL(LOCK_WORD_READ_BARRIER_STATE_MASK_TOGGLED), %edx  // zero the read barrier bits.
+    andl LITERAL(LOCK_WORD_GC_STATE_MASK_SHIFTED_TOGGLED), %edx  // zero the gc bits.
     cmpl LITERAL(LOCK_WORD_THIN_LOCK_COUNT_ONE), %edx
     jae  .Lrecursive_thin_unlock
     // update lockword, cmpxchg necessary for read barrier bits.
     movl %eax, %edx                       // edx: obj
     movl %ecx, %eax                       // eax: old lock word.
-    andl LITERAL(LOCK_WORD_READ_BARRIER_STATE_MASK), %ecx  // ecx: new lock word zero except original rb bits.
+    andl LITERAL(LOCK_WORD_GC_STATE_MASK_SHIFTED), %ecx  // ecx: new lock word zero except original rb bits.
 #ifndef USE_READ_BARRIER
     movl %ecx, MIRROR_OBJECT_LOCK_WORD_OFFSET(%edx)
 #else
@@ -1923,6 +1929,14 @@ END_FUNCTION art_nested_signal_return
 //   convention (e.g. standard callee-save registers are preserved).
 MACRO2(READ_BARRIER_MARK_REG, name, reg)
     DEFINE_FUNCTION VAR(name)
+    // Null check so that we can load the lock word.
+    test REG_VAR(reg), REG_VAR(reg)
+    jz .Lret_rb_\name
+    // Check the mark bit, if it is 1 return.
+    testl LITERAL(LOCK_WORD_MARK_BIT_MASK_SHIFTED), MIRROR_OBJECT_LOCK_WORD_OFFSET(REG_VAR(reg))
+    jz .Lslow_rb_\name
+    ret
+.Lslow_rb_\name:
     // Save all potentially live caller-save core registers.
     PUSH eax
     PUSH ecx
@@ -1970,6 +1984,7 @@ MACRO2(READ_BARRIER_MARK_REG, name, reg)
     POP_REG_NE edx, RAW_VAR(reg)
     POP_REG_NE ecx, RAW_VAR(reg)
     POP_REG_NE eax, RAW_VAR(reg)
+.Lret_rb_\name:
     ret
     END_FUNCTION VAR(name)
 END_MACRO

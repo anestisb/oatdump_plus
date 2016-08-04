@@ -47,7 +47,8 @@ static inline bool CanDoImplicitNullCheckOn(uintptr_t offset) {
 }
 
 // Required object alignment
-static constexpr size_t kObjectAlignment = 8;
+static constexpr size_t kObjectAlignmentShift = 3;
+static constexpr size_t kObjectAlignment = 1u << kObjectAlignmentShift;
 static constexpr size_t kLargeObjectAlignment = kPageSize;
 
 // Whether or not this is a debug build. Useful in conditionals where NDEBUG isn't.
