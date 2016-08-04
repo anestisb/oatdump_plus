@@ -277,6 +277,197 @@
 .endm
 
     /*
+     * Macro that sets up the callee save frame to conform with
+     * Runtime::CreateCalleeSaveMethod(kSaveEverything).
+     * Callee-save: $at, $v0-$v1, $a0-$a3, $t0-$t7, $s0-$s7, $t8-$t9, $gp, $fp $ra, $f0-$f31;
+     *              28(GPR)+ 32(FPR) + 3 words for padding and 1 word for Method*
+     * Clobbers $t0 and $t1.
+     * Allocates ARG_SLOT_SIZE bytes at the bottom of the stack for arg slots.
+     * Reserves FRAME_SIZE_SAVE_EVERYTHING_CALLEE_SAVE + ARG_SLOT_SIZE bytes on the stack.
+     * This macro sets up $gp; entrypoints using it should start with ENTRY_NO_GP.
+     */
+.macro SETUP_SAVE_EVERYTHING_CALLEE_SAVE_FRAME
+    addiu  $sp, $sp, -256
+    .cfi_adjust_cfa_offset 256
+
+     // Ugly compile-time check, but we only have the preprocessor.
+#if (FRAME_SIZE_SAVE_EVERYTHING_CALLEE_SAVE != 256)
+#error "SAVE_EVERYTHING_CALLEE_SAVE_FRAME(MIPS) size not as expected."
+#endif
+
+    sw     $ra, 252($sp)
+    .cfi_rel_offset 31, 252
+    sw     $fp, 248($sp)
+    .cfi_rel_offset 30, 248
+    sw     $gp, 244($sp)
+    .cfi_rel_offset 28, 244
+    sw     $t9, 240($sp)
+    .cfi_rel_offset 25, 240
+    sw     $t8, 236($sp)
+    .cfi_rel_offset 24, 236
+    sw     $s7, 232($sp)
+    .cfi_rel_offset 23, 232
+    sw     $s6, 228($sp)
+    .cfi_rel_offset 22, 228
+    sw     $s5, 224($sp)
+    .cfi_rel_offset 21, 224
+    sw     $s4, 220($sp)
+    .cfi_rel_offset 20, 220
+    sw     $s3, 216($sp)
+    .cfi_rel_offset 19, 216
+    sw     $s2, 212($sp)
+    .cfi_rel_offset 18, 212
+    sw     $s1, 208($sp)
+    .cfi_rel_offset 17, 208
+    sw     $s0, 204($sp)
+    .cfi_rel_offset 16, 204
+    sw     $t7, 200($sp)
+    .cfi_rel_offset 15, 200
+    sw     $t6, 196($sp)
+    .cfi_rel_offset 14, 196
+    sw     $t5, 192($sp)
+    .cfi_rel_offset 13, 192
+    sw     $t4, 188($sp)
+    .cfi_rel_offset 12, 188
+    sw     $t3, 184($sp)
+    .cfi_rel_offset 11, 184
+    sw     $t2, 180($sp)
+    .cfi_rel_offset 10, 180
+    sw     $t1, 176($sp)
+    .cfi_rel_offset 9, 176
+    sw     $t0, 172($sp)
+    .cfi_rel_offset 8, 172
+    sw     $a3, 168($sp)
+    .cfi_rel_offset 7, 168
+    sw     $a2, 164($sp)
+    .cfi_rel_offset 6, 164
+    sw     $a1, 160($sp)
+    .cfi_rel_offset 5, 160
+    sw     $a0, 156($sp)
+    .cfi_rel_offset 4, 156
+    sw     $v1, 152($sp)
+    .cfi_rel_offset 3, 152
+    sw     $v0, 148($sp)
+    .cfi_rel_offset 2, 148
+
+    // Set up $gp, clobbering $ra and using the branch delay slot for a useful instruction.
+    bal 1f
+    sw     $at, 144($sp)
+    .cfi_rel_offset 1, 144
+1:
+    .cpload $ra
+
+    SDu $f30, $f31, 136, $sp, $t1
+    SDu $f28, $f29, 128, $sp, $t1
+    SDu $f26, $f27, 120, $sp, $t1
+    SDu $f24, $f25, 112, $sp, $t1
+    SDu $f22, $f23, 104, $sp, $t1
+    SDu $f20, $f21, 96,  $sp, $t1
+    SDu $f18, $f19, 88,  $sp, $t1
+    SDu $f16, $f17, 80,  $sp, $t1
+    SDu $f14, $f15, 72,  $sp, $t1
+    SDu $f12, $f13, 64,  $sp, $t1
+    SDu $f10, $f11, 56,  $sp, $t1
+    SDu $f8, $f9, 48,  $sp, $t1
+    SDu $f6, $f7, 40,  $sp, $t1
+    SDu $f4, $f5, 32,  $sp, $t1
+    SDu $f2, $f3, 24,  $sp, $t1
+    SDu $f0, $f1, 16,  $sp, $t1
+
+    # 3 words padding and 1 word for holding Method*
+
+    lw $t0, %got(_ZN3art7Runtime9instance_E)($gp)
+    lw $t0, 0($t0)
+    lw $t0, RUNTIME_SAVE_EVERYTHING_CALLEE_SAVE_FRAME_OFFSET($t0)
+    sw $t0, 0($sp)                                # Place Method* at bottom of stack.
+    sw $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)  # Place sp in Thread::Current()->top_quick_frame.
+    addiu  $sp, $sp, -ARG_SLOT_SIZE               # reserve argument slots on the stack
+    .cfi_adjust_cfa_offset ARG_SLOT_SIZE
+.endm
+
+.macro RESTORE_SAVE_EVERYTHING_CALLEE_SAVE_FRAME
+    addiu  $sp, $sp, ARG_SLOT_SIZE                # remove argument slots on the stack
+    .cfi_adjust_cfa_offset -ARG_SLOT_SIZE
+
+    LDu $f30, $f31, 136, $sp, $t1
+    LDu $f28, $f29, 128, $sp, $t1
+    LDu $f26, $f27, 120, $sp, $t1
+    LDu $f24, $f25, 112, $sp, $t1
+    LDu $f22, $f23, 104, $sp, $t1
+    LDu $f20, $f21, 96,  $sp, $t1
+    LDu $f18, $f19, 88,  $sp, $t1
+    LDu $f16, $f17, 80,  $sp, $t1
+    LDu $f14, $f15, 72,  $sp, $t1
+    LDu $f12, $f13, 64,  $sp, $t1
+    LDu $f10, $f11, 56,  $sp, $t1
+    LDu $f8, $f9, 48,  $sp, $t1
+    LDu $f6, $f7, 40,  $sp, $t1
+    LDu $f4, $f5, 32,  $sp, $t1
+    LDu $f2, $f3, 24,  $sp, $t1
+    LDu $f0, $f1, 16,  $sp, $t1
+
+    lw     $ra, 252($sp)
+    .cfi_restore 31
+    lw     $fp, 248($sp)
+    .cfi_restore 30
+    lw     $gp, 244($sp)
+    .cfi_restore 28
+    lw     $t9, 240($sp)
+    .cfi_restore 25
+    lw     $t8, 236($sp)
+    .cfi_restore 24
+    lw     $s7, 232($sp)
+    .cfi_restore 23
+    lw     $s6, 228($sp)
+    .cfi_restore 22
+    lw     $s5, 224($sp)
+    .cfi_restore 21
+    lw     $s4, 220($sp)
+    .cfi_restore 20
+    lw     $s3, 216($sp)
+    .cfi_restore 19
+    lw     $s2, 212($sp)
+    .cfi_restore 18
+    lw     $s1, 208($sp)
+    .cfi_restore 17
+    lw     $s0, 204($sp)
+    .cfi_restore 16
+    lw     $t7, 200($sp)
+    .cfi_restore 15
+    lw     $t6, 196($sp)
+    .cfi_restore 14
+    lw     $t5, 192($sp)
+    .cfi_restore 13
+    lw     $t4, 188($sp)
+    .cfi_restore 12
+    lw     $t3, 184($sp)
+    .cfi_restore 11
+    lw     $t2, 180($sp)
+    .cfi_restore 10
+    lw     $t1, 176($sp)
+    .cfi_restore 9
+    lw     $t0, 172($sp)
+    .cfi_restore 8
+    lw     $a3, 168($sp)
+    .cfi_restore 7
+    lw     $a2, 164($sp)
+    .cfi_restore 6
+    lw     $a1, 160($sp)
+    .cfi_restore 5
+    lw     $a0, 156($sp)
+    .cfi_restore 4
+    lw     $v1, 152($sp)
+    .cfi_restore 3
+    lw     $v0, 148($sp)
+    .cfi_restore 2
+    lw     $at, 144($sp)
+    .cfi_restore 1
+
+    addiu  $sp, $sp, 256            # pop frame
+    .cfi_adjust_cfa_offset -256
+.endm
+
+    /*
      * Macro that set calls through to artDeliverPendingExceptionFromCode, where the pending
      * exception is Thread::Current()->exception_
      */
@@ -1652,18 +1843,20 @@ ONE_ARG_DOWNCALL art_quick_initialize_type_and_verify_access, artInitializeTypeA
      * Called by managed code when the value in rSUSPEND has been decremented to 0.
      */
     .extern artTestSuspendFromCode
-ENTRY art_quick_test_suspend
-    lh     $a0, THREAD_FLAGS_OFFSET(rSELF)
-    bnez   $a0, 1f
+ENTRY_NO_GP art_quick_test_suspend
+    lh     rSUSPEND, THREAD_FLAGS_OFFSET(rSELF)
+    bnez   rSUSPEND, 1f
     addiu  rSUSPEND, $zero, SUSPEND_CHECK_INTERVAL   # reset rSUSPEND to SUSPEND_CHECK_INTERVAL
     jalr   $zero, $ra
     nop
 1:
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME          # save callee saves for stack crawl
+    SETUP_SAVE_EVERYTHING_CALLEE_SAVE_FRAME          # save everything for stack crawl
     la     $t9, artTestSuspendFromCode
-    jalr   $t9                                 # (Thread*)
+    jalr   $t9                                       # (Thread*)
     move   $a0, rSELF
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
+    RESTORE_SAVE_EVERYTHING_CALLEE_SAVE_FRAME
+    jalr   $zero, $ra
+    nop
 END art_quick_test_suspend
 
     /*

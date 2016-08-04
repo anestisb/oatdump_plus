@@ -34,6 +34,12 @@ static constexpr uint32_t kMipsCalleeSaveArgSpills =
     (1 << art::mips::A1) | (1 << art::mips::A2) | (1 << art::mips::A3);
 static constexpr uint32_t kMipsCalleeSaveAllSpills =
     (1 << art::mips::S0) | (1 << art::mips::S1);
+static constexpr uint32_t kMipsCalleeSaveEverythingSpills =
+    (1 << art::mips::AT) | (1 << art::mips::V0) | (1 << art::mips::V1) |
+    (1 << art::mips::A0) | (1 << art::mips::A1) | (1 << art::mips::A2) | (1 << art::mips::A3) |
+    (1 << art::mips::T0) | (1 << art::mips::T1) | (1 << art::mips::T2) | (1 << art::mips::T3) |
+    (1 << art::mips::T4) | (1 << art::mips::T5) | (1 << art::mips::T6) | (1 << art::mips::T7) |
+    (1 << art::mips::S0) | (1 << art::mips::S1) | (1 << art::mips::T8) | (1 << art::mips::T9);
 
 static constexpr uint32_t kMipsCalleeSaveFpAlwaysSpills = 0;
 static constexpr uint32_t kMipsCalleeSaveFpRefSpills = 0;
@@ -43,17 +49,28 @@ static constexpr uint32_t kMipsCalleeSaveAllFPSpills =
     (1 << art::mips::F20) | (1 << art::mips::F21) | (1 << art::mips::F22) | (1 << art::mips::F23) |
     (1 << art::mips::F24) | (1 << art::mips::F25) | (1 << art::mips::F26) | (1 << art::mips::F27) |
     (1 << art::mips::F28) | (1 << art::mips::F29) | (1 << art::mips::F30) | (1 << art::mips::F31);
+static constexpr uint32_t kMipsCalleeSaveFpEverythingSpills =
+    (1 << art::mips::F0) | (1 << art::mips::F1) | (1 << art::mips::F2) | (1 << art::mips::F3) |
+    (1 << art::mips::F4) | (1 << art::mips::F5) | (1 << art::mips::F6) | (1 << art::mips::F7) |
+    (1 << art::mips::F8) | (1 << art::mips::F9) | (1 << art::mips::F10) | (1 << art::mips::F11) |
+    (1 << art::mips::F12) | (1 << art::mips::F13) | (1 << art::mips::F14) | (1 << art::mips::F15) |
+    (1 << art::mips::F16) | (1 << art::mips::F17) | (1 << art::mips::F18) | (1 << art::mips::F19) |
+    (1 << art::mips::F20) | (1 << art::mips::F21) | (1 << art::mips::F22) | (1 << art::mips::F23) |
+    (1 << art::mips::F24) | (1 << art::mips::F25) | (1 << art::mips::F26) | (1 << art::mips::F27) |
+    (1 << art::mips::F28) | (1 << art::mips::F29) | (1 << art::mips::F30) | (1 << art::mips::F31);
 
 constexpr uint32_t MipsCalleeSaveCoreSpills(Runtime::CalleeSaveType type) {
   return kMipsCalleeSaveAlwaysSpills | kMipsCalleeSaveRefSpills |
       (type == Runtime::kRefsAndArgs ? kMipsCalleeSaveArgSpills : 0) |
-      (type == Runtime::kSaveAll ? kMipsCalleeSaveAllSpills : 0);
+      (type == Runtime::kSaveAll ? kMipsCalleeSaveAllSpills : 0) |
+      (type == Runtime::kSaveEverything ? kMipsCalleeSaveEverythingSpills : 0);
 }
 
 constexpr uint32_t MipsCalleeSaveFPSpills(Runtime::CalleeSaveType type) {
   return kMipsCalleeSaveFpAlwaysSpills | kMipsCalleeSaveFpRefSpills |
       (type == Runtime::kRefsAndArgs ? kMipsCalleeSaveFpArgSpills : 0) |
-      (type == Runtime::kSaveAll ? kMipsCalleeSaveAllFPSpills : 0);
+      (type == Runtime::kSaveAll ? kMipsCalleeSaveAllFPSpills : 0) |
+      (type == Runtime::kSaveEverything ? kMipsCalleeSaveFpEverythingSpills : 0);
 }
 
 constexpr uint32_t MipsCalleeSaveFrameSize(Runtime::CalleeSaveType type) {
