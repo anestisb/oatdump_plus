@@ -166,7 +166,8 @@ inline mirror::Object* ConcurrentCopying::MarkFromReadBarrier(mirror::Object* fr
   } else {
     ret = Mark(from_ref);
   }
-  if (LIKELY(!rb_mark_bit_stack_full_ && ret->AtomicSetMarkBit(0, 1))) {
+  // Only set the mark bit for baker barrier.
+  if (kUseBakerReadBarrier && LIKELY(!rb_mark_bit_stack_full_ && ret->AtomicSetMarkBit(0, 1))) {
     // If the mark stack is full, we may temporarily go to mark and back to unmarked. Seeing both
     // values are OK since the only race is doing an unnecessary Mark.
     if (!rb_mark_bit_stack_->AtomicPushBack(ret)) {

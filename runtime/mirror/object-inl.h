@@ -149,7 +149,6 @@ inline Object* Object::GetReadBarrierPointer() {
 
 inline uint32_t Object::GetMarkBit() {
 #ifdef USE_READ_BARRIER
-  DCHECK(kUseBakerReadBarrier);
   return GetLockWord(false).MarkBitState();
 #else
   LOG(FATAL) << "Unreachable";
