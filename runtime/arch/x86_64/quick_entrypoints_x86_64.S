@@ -380,7 +380,7 @@ MACRO2(NO_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME   // save all registers as basis for long jump context
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rdi  // pass Thread::Current()
-    call VAR(cxx_name)                 // cxx_name(Thread*)
+    call CALLVAR(cxx_name)             // cxx_name(Thread*)
     UNREACHABLE
     END_FUNCTION VAR(c_name)
 END_MACRO
@@ -390,7 +390,7 @@ MACRO2(ONE_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME   // save all registers as basis for long jump context
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rsi  // pass Thread::Current()
-    call VAR(cxx_name)                 // cxx_name(arg1, Thread*)
+    call CALLVAR(cxx_name)             // cxx_name(arg1, Thread*)
     UNREACHABLE
     END_FUNCTION VAR(c_name)
 END_MACRO
@@ -400,7 +400,7 @@ MACRO2(TWO_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME   // save all registers as basis for long jump context
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rdx  // pass Thread::Current()
-    call VAR(cxx_name)                 // cxx_name(Thread*)
+    call CALLVAR(cxx_name)             // cxx_name(Thread*)
     UNREACHABLE
     END_FUNCTION VAR(c_name)
 END_MACRO
@@ -473,7 +473,7 @@ MACRO1(INVOKE_TRAMPOLINE_BODY, cxx_name)
     movq %gs:THREAD_SELF_OFFSET, %rdx                      // pass Thread
     movq %rsp, %rcx                                        // pass SP
 
-    call VAR(cxx_name)                                     // cxx_name(arg1, arg2, Thread*, SP)
+    call CALLVAR(cxx_name)                                 // cxx_name(arg1, arg2, Thread*, SP)
                                                            // save the code pointer
     movq %rax, %rdi
     movq %rdx, %rax
@@ -809,7 +809,7 @@ MACRO3(ONE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    // save ref containing registers for GC
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rsi    // pass Thread::Current()
-    call VAR(cxx_name)                   // cxx_name(arg0, Thread*)
+    call CALLVAR(cxx_name)               // cxx_name(arg0, Thread*)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     CALL_MACRO(return_macro)             // return or deliver exception
     END_FUNCTION VAR(c_name)
@@ -820,7 +820,7 @@ MACRO3(TWO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    // save ref containing registers for GC
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rdx    // pass Thread::Current()
-    call VAR(cxx_name)                   // cxx_name(arg0, arg1, Thread*)
+    call CALLVAR(cxx_name)               // cxx_name(arg0, arg1, Thread*)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     CALL_MACRO(return_macro)             // return or deliver exception
     END_FUNCTION VAR(c_name)
@@ -831,7 +831,7 @@ MACRO3(THREE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME   // save ref containing registers for GC
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rcx   // pass Thread::Current()
-    call VAR(cxx_name)                  // cxx_name(arg0, arg1, arg2, Thread*)
+    call CALLVAR(cxx_name)              // cxx_name(arg0, arg1, arg2, Thread*)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
     CALL_MACRO(return_macro)            // return or deliver exception
     END_FUNCTION VAR(c_name)
@@ -842,7 +842,7 @@ MACRO3(FOUR_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME   // save ref containing registers for GC
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %r8    // pass Thread::Current()
-    call VAR(cxx_name)                  // cxx_name(arg1, arg2, arg3, arg4, Thread*)
+    call CALLVAR(cxx_name)              // cxx_name(arg1, arg2, arg3, arg4, Thread*)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
     CALL_MACRO(return_macro)            // return or deliver exception
     END_FUNCTION VAR(c_name)
@@ -854,7 +854,7 @@ MACRO3(ONE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
                                         // arg0 is in rdi
     movq %gs:THREAD_SELF_OFFSET, %rdx   // pass Thread::Current()
-    call VAR(cxx_name)                  // cxx_name(arg0, referrer, Thread*)
+    call CALLVAR(cxx_name)              // cxx_name(arg0, referrer, Thread*)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
     CALL_MACRO(return_macro)
     END_FUNCTION VAR(c_name)
@@ -866,7 +866,7 @@ MACRO3(TWO_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
                                         // arg0 and arg1 are in rdi/rsi
     movq %gs:THREAD_SELF_OFFSET, %rcx   // pass Thread::Current()
-    call VAR(cxx_name)                  // (arg0, arg1, referrer, Thread*)
+    call CALLVAR(cxx_name)              // (arg0, arg1, referrer, Thread*)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
     CALL_MACRO(return_macro)
     END_FUNCTION VAR(c_name)
@@ -878,7 +878,7 @@ MACRO3(THREE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
                                         // arg0, arg1, and arg2 are in rdi/rsi/rdx
     movq %gs:THREAD_SELF_OFFSET, %r8    // pass Thread::Current()
-    call VAR(cxx_name)                  // cxx_name(arg0, arg1, arg2, referrer, Thread*)
+    call CALLVAR(cxx_name)              // cxx_name(arg0, arg1, arg2, referrer, Thread*)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
     CALL_MACRO(return_macro)            // return or deliver exception
     END_FUNCTION VAR(c_name)
@@ -1041,7 +1041,7 @@ MACRO1(ALLOC_OBJECT_TLAB_SLOW_PATH, cxx_name)
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME                          // save ref containing registers for GC
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rdx                          // pass Thread::Current()
-    call VAR(cxx_name)                                         // cxx_name(arg0, arg1, Thread*)
+    call CALLVAR(cxx_name)                                     // cxx_name(arg0, arg1, Thread*)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME                        // restore frame up to return address
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER                    // return or deliver exception
 END_MACRO
