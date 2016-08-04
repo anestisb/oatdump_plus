@@ -227,6 +227,7 @@ class PCRelativeHandlerVisitor : public HGraphVisitor {
       case Intrinsics::kMathMaxFloatFloat:
       case Intrinsics::kMathMinDoubleDouble:
       case Intrinsics::kMathMinFloatFloat:
+      case Intrinsics::kMathRoundFloat:
         if (!base_added) {
           DCHECK(invoke_static_or_direct != nullptr);
           DCHECK(!invoke_static_or_direct->HasCurrentMethodInput());
