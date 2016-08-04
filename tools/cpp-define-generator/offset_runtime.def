@@ -34,6 +34,8 @@ DEFINE_RUNTIME_CALLEE_SAVE_OFFSET(SAVE_ALL,      kSaveAll)
 DEFINE_RUNTIME_CALLEE_SAVE_OFFSET(REFS_ONLY,     kRefsOnly)
 // Offset of field Runtime::callee_save_methods_[kRefsAndArgs]
 DEFINE_RUNTIME_CALLEE_SAVE_OFFSET(REFS_AND_ARGS, kRefsAndArgs)
+// Offset of field Runtime::callee_save_methods_[kSaveEverything]
+DEFINE_RUNTIME_CALLEE_SAVE_OFFSET(SAVE_EVERYTHING, kSaveEverything)
 
 #undef DEFINE_RUNTIME_CALLEE_SAVE_OFFSET
 #include "common_undef.def"  // undef DEFINE_OFFSET_EXPR

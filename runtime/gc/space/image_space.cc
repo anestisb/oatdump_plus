@@ -1413,6 +1413,8 @@ ImageSpace* ImageSpace::Init(const char* image_filename,
              image_header->GetImageMethod(ImageHeader::kRefsOnlySaveMethod));
     CHECK_EQ(runtime->GetCalleeSaveMethod(Runtime::kRefsAndArgs),
              image_header->GetImageMethod(ImageHeader::kRefsAndArgsSaveMethod));
+    CHECK_EQ(runtime->GetCalleeSaveMethod(Runtime::kSaveEverything),
+             image_header->GetImageMethod(ImageHeader::kSaveEverythingMethod));
   } else if (!runtime->HasResolutionMethod()) {
     runtime->SetInstructionSet(space->oat_file_non_owned_->GetOatHeader().GetInstructionSet());
     runtime->SetResolutionMethod(image_header->GetImageMethod(ImageHeader::kResolutionMethod));
@@ -1425,6 +1427,8 @@ ImageSpace* ImageSpace::Init(const char* image_filename,
         image_header->GetImageMethod(ImageHeader::kRefsOnlySaveMethod), Runtime::kRefsOnly);
     runtime->SetCalleeSaveMethod(
         image_header->GetImageMethod(ImageHeader::kRefsAndArgsSaveMethod), Runtime::kRefsAndArgs);
+    runtime->SetCalleeSaveMethod(
+        image_header->GetImageMethod(ImageHeader::kSaveEverythingMethod), Runtime::kSaveEverything);
   }
 
   VLOG(image) << "ImageSpace::Init exiting " << *space.get();
