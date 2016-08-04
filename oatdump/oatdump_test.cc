@@ -104,11 +104,13 @@ class OatDumpTest : public CommonRuntimeTest {
     // We must set --android-root.
     int link[2];
     if (pipe(link) == -1) {
+      *error_msg = strerror(errno);
       return false;
     }
 
     const pid_t pid = fork();
     if (pid == -1) {
+      *error_msg = strerror(errno);
       return false;
     }
 
@@ -116,10 +118,19 @@ class OatDumpTest : public CommonRuntimeTest {
       dup2(link[1], STDOUT_FILENO);
       close(link[0]);
       close(link[1]);
-      bool res = ::art::Exec(exec_argv, error_msg);
-      // Delete the runtime to prevent memory leaks and please valgrind.
-      delete Runtime::Current();
-      exit(res ? 0 : 1);
+      // change process groups, so we don't get reaped by ProcessManager
+      setpgid(0, 0);
+      // Use execv here rather than art::Exec to avoid blocking on waitpid here.
+      std::vector<char*> argv;
+      for (size_t i = 0; i < exec_argv.size(); ++i) {
+        argv.push_back(const_cast<char*>(exec_argv[i].c_str()));
+      }
+      argv.push_back(nullptr);
+      UNUSED(execv(argv[0], &argv[0]));
+      const std::string command_line(Join(exec_argv, ' '));
+      PLOG(ERROR) << "Failed to execv(" << command_line << ")";
+      // _exit to avoid atexit handlers in child.
+      _exit(1);
     } else {
       close(link[1]);
       static const size_t kLineMax = 256;
