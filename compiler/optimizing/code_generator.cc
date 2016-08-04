@@ -1182,7 +1182,7 @@ void CodeGenerator::ValidateInvokeRuntime(HInstruction* instruction, SlowPathCod
         << "instruction->DebugName()=" << instruction->DebugName()
         << " instruction->GetSideEffects().ToString()=" << instruction->GetSideEffects().ToString();
   } else {
-    DCHECK(instruction->GetLocations()->OnlyCallsOnSlowPath() || slow_path->IsFatal())
+    DCHECK(instruction->GetLocations()->CallsOnSlowPath() || slow_path->IsFatal())
         << "instruction->DebugName()=" << instruction->DebugName()
         << " slow_path->GetDescription()=" << slow_path->GetDescription();
     DCHECK(instruction->GetSideEffects().Includes(SideEffects::CanTriggerGC()) ||
