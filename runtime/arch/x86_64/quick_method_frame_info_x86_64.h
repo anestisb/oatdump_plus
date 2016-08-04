@@ -25,12 +25,19 @@
 namespace art {
 namespace x86_64 {
 
+static constexpr uint32_t kX86_64CalleeSaveAlwaysSpills =
+    (1 << art::x86_64::kNumberOfCpuRegisters);  // Fake return address callee save.
 static constexpr uint32_t kX86_64CalleeSaveRefSpills =
     (1 << art::x86_64::RBX) | (1 << art::x86_64::RBP) | (1 << art::x86_64::R12) |
     (1 << art::x86_64::R13) | (1 << art::x86_64::R14) | (1 << art::x86_64::R15);
 static constexpr uint32_t kX86_64CalleeSaveArgSpills =
     (1 << art::x86_64::RSI) | (1 << art::x86_64::RDX) | (1 << art::x86_64::RCX) |
     (1 << art::x86_64::R8) | (1 << art::x86_64::R9);
+static constexpr uint32_t kX86_64CalleeSaveEverythingSpills =
+    (1 << art::x86_64::RAX) | (1 << art::x86_64::RCX) | (1 << art::x86_64::RDX) |
+    (1 << art::x86_64::RSI) | (1 << art::x86_64::RDI) | (1 << art::x86_64::R8) |
+    (1 << art::x86_64::R9) | (1 << art::x86_64::R10) | (1 << art::x86_64::R11);
+
 static constexpr uint32_t kX86_64CalleeSaveFpArgSpills =
     (1 << art::x86_64::XMM0) | (1 << art::x86_64::XMM1) | (1 << art::x86_64::XMM2) |
     (1 << art::x86_64::XMM3) | (1 << art::x86_64::XMM4) | (1 << art::x86_64::XMM5) |
@@ -38,16 +45,24 @@ static constexpr uint32_t kX86_64CalleeSaveFpArgSpills =
 static constexpr uint32_t kX86_64CalleeSaveFpSpills =
     (1 << art::x86_64::XMM12) | (1 << art::x86_64::XMM13) |
     (1 << art::x86_64::XMM14) | (1 << art::x86_64::XMM15);
+static constexpr uint32_t kX86_64CalleeSaveFpEverythingSpills =
+    (1 << art::x86_64::XMM0) | (1 << art::x86_64::XMM1) |
+    (1 << art::x86_64::XMM2) | (1 << art::x86_64::XMM3) |
+    (1 << art::x86_64::XMM4) | (1 << art::x86_64::XMM5) |
+    (1 << art::x86_64::XMM6) | (1 << art::x86_64::XMM7) |
+    (1 << art::x86_64::XMM8) | (1 << art::x86_64::XMM9) |
+    (1 << art::x86_64::XMM10) | (1 << art::x86_64::XMM11);
 
 constexpr uint32_t X86_64CalleeSaveCoreSpills(Runtime::CalleeSaveType type) {
-  return kX86_64CalleeSaveRefSpills |
+  return kX86_64CalleeSaveAlwaysSpills | kX86_64CalleeSaveRefSpills |
       (type == Runtime::kRefsAndArgs ? kX86_64CalleeSaveArgSpills : 0) |
-      (1 << art::x86_64::kNumberOfCpuRegisters);  // fake return address callee save;
+      (type == Runtime::kSaveEverything ? kX86_64CalleeSaveEverythingSpills : 0);
 }
 
 constexpr uint32_t X86_64CalleeSaveFpSpills(Runtime::CalleeSaveType type) {
   return kX86_64CalleeSaveFpSpills |
-      (type == Runtime::kRefsAndArgs ? kX86_64CalleeSaveFpArgSpills : 0);
+      (type == Runtime::kRefsAndArgs ? kX86_64CalleeSaveFpArgSpills : 0) |
+      (type == Runtime::kSaveEverything ? kX86_64CalleeSaveFpEverythingSpills : 0);
 }
 
 constexpr uint32_t X86_64CalleeSaveFrameSize(Runtime::CalleeSaveType type) {

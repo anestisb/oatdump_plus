@@ -45,9 +45,11 @@ inline QuickMethodFrameInfo Runtime::GetRuntimeMethodFrameInfo(ArtMethod* method
     return GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
   } else if (method == GetCalleeSaveMethodUnchecked(Runtime::kSaveAll)) {
     return GetCalleeSaveMethodFrameInfo(Runtime::kSaveAll);
-  } else {
-    DCHECK_EQ(method, GetCalleeSaveMethodUnchecked(Runtime::kRefsOnly));
+  } else if (method == GetCalleeSaveMethodUnchecked(Runtime::kRefsOnly)) {
     return GetCalleeSaveMethodFrameInfo(Runtime::kRefsOnly);
+  } else {
+    DCHECK_EQ(method, GetCalleeSaveMethodUnchecked(Runtime::kSaveEverything));
+    return GetCalleeSaveMethodFrameInfo(Runtime::kSaveEverything);
   }
 }
 
