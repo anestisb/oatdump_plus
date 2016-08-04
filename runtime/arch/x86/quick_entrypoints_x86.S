@@ -1462,7 +1462,7 @@ DEFINE_FUNCTION art_quick_test_suspend
     CFI_ADJUST_CFA_OFFSET(12)
     pushl %fs:THREAD_SELF_OFFSET                      // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
-    call artTestSuspendFromCode                       // artTestSuspendFromCode(Thread*)
+    call SYMBOL(artTestSuspendFromCode)               // (Thread*)
     addl MACRO_LITERAL(16), %esp                      // pop arguments
     CFI_ADJUST_CFA_OFFSET(-16)
     RESTORE_SAVE_EVERYTHING_CALLEE_SAVE_FRAME         // restore frame up to return address
