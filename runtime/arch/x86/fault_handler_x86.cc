@@ -71,18 +71,9 @@
 
 namespace art {
 
-#if defined(__APPLE__) && defined(__x86_64__)
-// mac symbols have a prefix of _ on x86_64
-extern "C" void _art_quick_throw_null_pointer_exception_from_signal();
-extern "C" void _art_quick_throw_stack_overflow();
-extern "C" void _art_quick_test_suspend();
-#define EXT_SYM(sym) _ ## sym
-#else
 extern "C" void art_quick_throw_null_pointer_exception_from_signal();
 extern "C" void art_quick_throw_stack_overflow();
 extern "C" void art_quick_test_suspend();
-#define EXT_SYM(sym) sym
-#endif
 
 // Note this is different from the others (no underscore on 64 bit mac) due to
 // the way the symbol is defined in the .S file.
@@ -320,7 +311,7 @@ bool NullPointerHandler::Action(int, siginfo_t* sig, void* context) {
   uc->CTX_ESP = reinterpret_cast<uintptr_t>(next_sp);
 
   uc->CTX_EIP = reinterpret_cast<uintptr_t>(
-      EXT_SYM(art_quick_throw_null_pointer_exception_from_signal));
+      art_quick_throw_null_pointer_exception_from_signal);
   // Pass the faulting address as the first argument of
   // art_quick_throw_null_pointer_exception_from_signal.
 #if defined(__x86_64__)
@@ -397,7 +388,7 @@ bool SuspensionHandler::Action(int, siginfo_t*, void* context) {
     *next_sp = retaddr;
     uc->CTX_ESP = reinterpret_cast<uintptr_t>(next_sp);
 
-    uc->CTX_EIP = reinterpret_cast<uintptr_t>(EXT_SYM(art_quick_test_suspend));
+    uc->CTX_EIP = reinterpret_cast<uintptr_t>(art_quick_test_suspend);
 
     // Now remove the suspend trigger that caused this fault.
     Thread::Current()->RemoveSuspendTrigger();
@@ -443,7 +434,7 @@ bool StackOverflowHandler::Action(int, siginfo_t* info, void* context) {
   // the previous frame.
 
   // Now arrange for the signal handler to return to art_quick_throw_stack_overflow.
-  uc->CTX_EIP = reinterpret_cast<uintptr_t>(EXT_SYM(art_quick_throw_stack_overflow));
+  uc->CTX_EIP = reinterpret_cast<uintptr_t>(art_quick_throw_stack_overflow);
 
   return true;
 }
