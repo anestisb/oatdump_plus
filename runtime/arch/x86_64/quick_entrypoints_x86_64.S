@@ -1430,7 +1430,7 @@ DEFINE_FUNCTION art_quick_test_suspend
     SETUP_SAVE_EVERYTHING_CALLEE_SAVE_FRAME     // save everything for GC
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rdi           // pass Thread::Current()
-    call artTestSuspendFromCode                 // artTestSuspendFromCode(Thread*)
+    call SYMBOL(artTestSuspendFromCode)         // (Thread*)
     RESTORE_SAVE_EVERYTHING_CALLEE_SAVE_FRAME   // restore frame up to return address
     ret
 END_FUNCTION art_quick_test_suspend
