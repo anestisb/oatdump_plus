@@ -583,6 +583,7 @@ static void CreateSSE41FPToIntLocations(ArenaAllocator* arena,
     locations->SetInAt(0, Location::RequiresFpuRegister());
     locations->SetOut(Location::RequiresRegister());
     locations->AddTemp(Location::RequiresFpuRegister());
+    locations->AddTemp(Location::RequiresFpuRegister());
     return;
   }
 
@@ -597,10 +598,7 @@ static void CreateSSE41FPToIntLocations(ArenaAllocator* arena,
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitMathRoundFloat(HInvoke* invoke) {
-  // See intrinsics.h.
-  if (kRoundIsPlusPointFive) {
-    CreateSSE41FPToIntLocations(arena_, invoke, codegen_);
-  }
+  CreateSSE41FPToIntLocations(arena_, invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitMathRoundFloat(HInvoke* invoke) {
@@ -610,47 +608,41 @@ void IntrinsicCodeGeneratorX86_64::VisitMathRoundFloat(HInvoke* invoke) {
     return;
   }
 
-  // Implement RoundFloat as t1 = floor(input + 0.5f);  convert to int.
   XmmRegister in = locations->InAt(0).AsFpuRegister<XmmRegister>();
   CpuRegister out = locations->Out().AsRegister<CpuRegister>();
-  XmmRegister inPlusPointFive = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
-  NearLabel done, nan;
+  XmmRegister t1 = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
+  XmmRegister t2 = locations->GetTemp(1).AsFpuRegister<XmmRegister>();
+  NearLabel skip_incr, done;
   X86_64Assembler* assembler = GetAssembler();
 
-  // Load 0.5 into inPlusPointFive.
-  __ movss(inPlusPointFive, codegen_->LiteralFloatAddress(0.5f));
+  // Since no direct x86 rounding instruction matches the required semantics,
+  // this intrinsic is implemented as follows:
+  //  result = floor(in);
+  //  if (in - result >= 0.5f)
+  //    result = result + 1.0f;
+  __ movss(t2, in);
+  __ roundss(t1, in, Immediate(1));
+  __ subss(t2, t1);
+  __ comiss(t2, codegen_->LiteralFloatAddress(0.5f));
+  __ j(kBelow, &skip_incr);
+  __ addss(t1, codegen_->LiteralFloatAddress(1.0f));
+  __ Bind(&skip_incr);
 
-  // Add in the input.
-  __ addss(inPlusPointFive, in);
-
-  // And truncate to an integer.
-  __ roundss(inPlusPointFive, inPlusPointFive, Immediate(1));
-
-  // Load maxInt into out.
-  codegen_->Load64BitValue(out, kPrimIntMax);
-
-  // if inPlusPointFive >= maxInt goto done
-  __ comiss(inPlusPointFive, codegen_->LiteralFloatAddress(static_cast<float>(kPrimIntMax)));
-  __ j(kAboveEqual, &done);
-
-  // if input == NaN goto nan
-  __ j(kUnordered, &nan);
-
-  // output = float-to-int-truncate(input)
-  __ cvttss2si(out, inPlusPointFive);
-  __ jmp(&done);
-  __ Bind(&nan);
-
-  //  output = 0
-  __ xorl(out, out);
+  // Final conversion to an integer. Unfortunately this also does not have a
+  // direct x86 instruction, since NaN should map to 0 and large positive
+  // values need to be clipped to the extreme value.
+  codegen_->Load32BitValue(out, kPrimIntMax);
+  __ cvtsi2ss(t2, out);
+  __ comiss(t1, t2);
+  __ j(kAboveEqual, &done);  // clipped to max (already in out), does not jump on unordered
+  __ movl(out, Immediate(0));  // does not change flags
+  __ j(kUnordered, &done);  // NaN mapped to 0 (just moved in out)
+  __ cvttss2si(out, t1);
   __ Bind(&done);
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitMathRoundDouble(HInvoke* invoke) {
-  // See intrinsics.h.
-  if (kRoundIsPlusPointFive) {
-    CreateSSE41FPToIntLocations(arena_, invoke, codegen_);
-  }
+  CreateSSE41FPToIntLocations(arena_, invoke, codegen_);
 }
 
 void IntrinsicCodeGeneratorX86_64::VisitMathRoundDouble(HInvoke* invoke) {
@@ -660,39 +652,36 @@ void IntrinsicCodeGeneratorX86_64::VisitMathRoundDouble(HInvoke* invoke) {
     return;
   }
 
-  // Implement RoundDouble as t1 = floor(input + 0.5);  convert to long.
   XmmRegister in = locations->InAt(0).AsFpuRegister<XmmRegister>();
   CpuRegister out = locations->Out().AsRegister<CpuRegister>();
-  XmmRegister inPlusPointFive = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
-  NearLabel done, nan;
+  XmmRegister t1 = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
+  XmmRegister t2 = locations->GetTemp(1).AsFpuRegister<XmmRegister>();
+  NearLabel skip_incr, done;
   X86_64Assembler* assembler = GetAssembler();
 
-  // Load 0.5 into inPlusPointFive.
-  __ movsd(inPlusPointFive, codegen_->LiteralDoubleAddress(0.5));
+  // Since no direct x86 rounding instruction matches the required semantics,
+  // this intrinsic is implemented as follows:
+  //  result = floor(in);
+  //  if (in - result >= 0.5)
+  //    result = result + 1.0f;
+  __ movsd(t2, in);
+  __ roundsd(t1, in, Immediate(1));
+  __ subsd(t2, t1);
+  __ comisd(t2, codegen_->LiteralDoubleAddress(0.5));
+  __ j(kBelow, &skip_incr);
+  __ addsd(t1, codegen_->LiteralDoubleAddress(1.0f));
+  __ Bind(&skip_incr);
 
-  // Add in the input.
-  __ addsd(inPlusPointFive, in);
-
-  // And truncate to an integer.
-  __ roundsd(inPlusPointFive, inPlusPointFive, Immediate(1));
-
-  // Load maxLong into out.
+  // Final conversion to an integer. Unfortunately this also does not have a
+  // direct x86 instruction, since NaN should map to 0 and large positive
+  // values need to be clipped to the extreme value.
   codegen_->Load64BitValue(out, kPrimLongMax);
-
-  // if inPlusPointFive >= maxLong goto done
-  __ comisd(inPlusPointFive, codegen_->LiteralDoubleAddress(static_cast<double>(kPrimLongMax)));
-  __ j(kAboveEqual, &done);
-
-  // if input == NaN goto nan
-  __ j(kUnordered, &nan);
-
-  // output = double-to-long-truncate(input)
-  __ cvttsd2si(out, inPlusPointFive, /* is64bit */ true);
-  __ jmp(&done);
-  __ Bind(&nan);
-
-  //  output = 0
-  __ xorl(out, out);
+  __ cvtsi2sd(t2, out, /* is64bit */ true);
+  __ comisd(t1, t2);
+  __ j(kAboveEqual, &done);  // clipped to max (already in out), does not jump on unordered
+  __ movl(out, Immediate(0));  // does not change flags, implicit zero extension to 64-bit
+  __ j(kUnordered, &done);  // NaN mapped to 0 (just moved in out)
+  __ cvttsd2si(out, t1, /* is64bit */ true);
   __ Bind(&done);
 }
 
