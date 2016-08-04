@@ -387,9 +387,10 @@ class Runtime {
 
   // Returns a special method that describes all callee saves being spilled to the stack.
   enum CalleeSaveType {
-    kSaveAll,
+    kSaveAll,            // All callee-save registers.
     kRefsOnly,
     kRefsAndArgs,
+    kSaveEverything,     // Even caller-save registers.
     kLastCalleeSaveType  // Value used for iteration
   };
 

@@ -314,6 +314,227 @@
 .endm
 
     /*
+     * Macro that sets up the callee save frame to conform with
+     * Runtime::CreateCalleeSaveMethod(kSaveEverything).
+     * callee-save: $at + $v0-$v1 + $a0-$a7 + $t0-$t3 + $s0-$s7 + $t8-$t9 + $gp + $s8 + $ra + $s8,
+     *              $f0-$f31; 28(GPR)+ 32(FPR) + 1x8 bytes padding + method*
+     * This macro sets up $gp; entrypoints using it should start with ENTRY_NO_GP.
+     */
+.macro SETUP_SAVE_EVERYTHING_CALLEE_SAVE_FRAME
+    daddiu $sp, $sp, -496
+    .cfi_adjust_cfa_offset 496
+
+     // Ugly compile-time check, but we only have the preprocessor.
+#if (FRAME_SIZE_SAVE_EVERYTHING_CALLEE_SAVE != 496)
+#error "SAVE_EVERYTHING_CALLEE_SAVE_FRAME(MIPS64) size not as expected."
+#endif
+
+    // Save core registers.
+    sd     $ra, 488($sp)
+    .cfi_rel_offset 31, 488
+    sd     $s8, 480($sp)
+    .cfi_rel_offset 30, 480
+    sd     $gp, 472($sp)
+    .cfi_rel_offset 28, 472
+    sd     $t9, 464($sp)
+    .cfi_rel_offset 25, 464
+    sd     $t8, 456($sp)
+    .cfi_rel_offset 24, 456
+    sd     $s7, 448($sp)
+    .cfi_rel_offset 23, 448
+    sd     $s6, 440($sp)
+    .cfi_rel_offset 22, 440
+    sd     $s5, 432($sp)
+    .cfi_rel_offset 21, 432
+    sd     $s4, 424($sp)
+    .cfi_rel_offset 20, 424
+    sd     $s3,  416($sp)
+    .cfi_rel_offset 19, 416
+    sd     $s2,  408($sp)
+    .cfi_rel_offset 18, 408
+    sd     $s1,  400($sp)
+    .cfi_rel_offset 17, 400
+    sd     $s0,  392($sp)
+    .cfi_rel_offset 16, 392
+    sd     $t3,  384($sp)
+    .cfi_rel_offset 15, 384
+    sd     $t2,  376($sp)
+    .cfi_rel_offset 14, 376
+    sd     $t1,  368($sp)
+    .cfi_rel_offset 13, 368
+    sd     $t0,  360($sp)
+    .cfi_rel_offset 12, 360
+    sd     $a7, 352($sp)
+    .cfi_rel_offset 11, 352
+    sd     $a6, 344($sp)
+    .cfi_rel_offset 10, 344
+    sd     $a5, 336($sp)
+    .cfi_rel_offset 9, 336
+    sd     $a4, 328($sp)
+    .cfi_rel_offset 8, 328
+    sd     $a3,  320($sp)
+    .cfi_rel_offset 7, 320
+    sd     $a2,  312($sp)
+    .cfi_rel_offset 6, 312
+    sd     $a1,  304($sp)
+    .cfi_rel_offset 5, 304
+    sd     $a0,  296($sp)
+    .cfi_rel_offset 4, 296
+    sd     $v1,  288($sp)
+    .cfi_rel_offset 3, 288
+    sd     $v0,  280($sp)
+    .cfi_rel_offset 2, 280
+
+    // Set up $gp, clobbering $ra and using the branch delay slot for a useful instruction.
+    bal 1f
+    sd     $at,  272($sp)
+    .cfi_rel_offset 1, 272
+1:
+    // TODO: Can we avoid the unnecessary move $t8<-$gp?
+    .cpsetup $ra, $t8, 1b
+
+    // Save FP registers.
+    s.d    $f31, 264($sp)
+    s.d    $f30, 256($sp)
+    s.d    $f29, 248($sp)
+    s.d    $f28, 240($sp)
+    s.d    $f27, 232($sp)
+    s.d    $f26, 224($sp)
+    s.d    $f25, 216($sp)
+    s.d    $f24, 208($sp)
+    s.d    $f23, 200($sp)
+    s.d    $f22, 192($sp)
+    s.d    $f21, 184($sp)
+    s.d    $f20, 176($sp)
+    s.d    $f19, 168($sp)
+    s.d    $f18, 160($sp)
+    s.d    $f17, 152($sp)
+    s.d    $f16, 144($sp)
+    s.d    $f15, 136($sp)
+    s.d    $f14, 128($sp)
+    s.d    $f13, 120($sp)
+    s.d    $f12, 112($sp)
+    s.d    $f11, 104($sp)
+    s.d    $f10, 96($sp)
+    s.d    $f9, 88($sp)
+    s.d    $f8, 80($sp)
+    s.d    $f7, 72($sp)
+    s.d    $f6, 64($sp)
+    s.d    $f5, 56($sp)
+    s.d    $f4, 48($sp)
+    s.d    $f3, 40($sp)
+    s.d    $f2, 32($sp)
+    s.d    $f1, 24($sp)
+    s.d    $f0, 16($sp)
+
+    # load appropriate callee-save-method
+    ld      $t1, %got(_ZN3art7Runtime9instance_E)($gp)
+    ld      $t1, 0($t1)
+    ld      $t1, RUNTIME_SAVE_EVERYTHING_CALLEE_SAVE_FRAME_OFFSET($t1)
+    sd      $t1, 0($sp)                                # Place ArtMethod* at bottom of stack.
+    # Place sp in Thread::Current()->top_quick_frame.
+    sd      $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)
+.endm
+
+.macro RESTORE_SAVE_EVERYTHING_CALLEE_SAVE_FRAME
+    // Restore FP registers.
+    l.d    $f31, 264($sp)
+    l.d    $f30, 256($sp)
+    l.d    $f29, 248($sp)
+    l.d    $f28, 240($sp)
+    l.d    $f27, 232($sp)
+    l.d    $f26, 224($sp)
+    l.d    $f25, 216($sp)
+    l.d    $f24, 208($sp)
+    l.d    $f23, 200($sp)
+    l.d    $f22, 192($sp)
+    l.d    $f21, 184($sp)
+    l.d    $f20, 176($sp)
+    l.d    $f19, 168($sp)
+    l.d    $f18, 160($sp)
+    l.d    $f17, 152($sp)
+    l.d    $f16, 144($sp)
+    l.d    $f15, 136($sp)
+    l.d    $f14, 128($sp)
+    l.d    $f13, 120($sp)
+    l.d    $f12, 112($sp)
+    l.d    $f11, 104($sp)
+    l.d    $f10, 96($sp)
+    l.d    $f9, 88($sp)
+    l.d    $f8, 80($sp)
+    l.d    $f7, 72($sp)
+    l.d    $f6, 64($sp)
+    l.d    $f5, 56($sp)
+    l.d    $f4, 48($sp)
+    l.d    $f3, 40($sp)
+    l.d    $f2, 32($sp)
+    l.d    $f1, 24($sp)
+    l.d    $f0, 16($sp)
+
+    // Restore core registers.
+    ld     $ra, 488($sp)
+    .cfi_restore 31
+    ld     $s8, 480($sp)
+    .cfi_restore 30
+    ld     $gp, 472($sp)
+    .cfi_restore 28
+    ld     $t9, 464($sp)
+    .cfi_restore 25
+    ld     $t8, 456($sp)
+    .cfi_restore 24
+    ld     $s7, 448($sp)
+    .cfi_restore 23
+    ld     $s6, 440($sp)
+    .cfi_restore 22
+    ld     $s5, 432($sp)
+    .cfi_restore 21
+    ld     $s4, 424($sp)
+    .cfi_restore 20
+    ld     $s3,  416($sp)
+    .cfi_restore 19
+    ld     $s2,  408($sp)
+    .cfi_restore 18
+    ld     $s1,  400($sp)
+    .cfi_restore 17
+    ld     $s0,  392($sp)
+    .cfi_restore 16
+    ld     $t3,  384($sp)
+    .cfi_restore 15
+    ld     $t2,  376($sp)
+    .cfi_restore 14
+    ld     $t1,  368($sp)
+    .cfi_restore 13
+    ld     $t0,  360($sp)
+    .cfi_restore 12
+    ld     $a7, 352($sp)
+    .cfi_restore 11
+    ld     $a6, 344($sp)
+    .cfi_restore 10
+    ld     $a5, 336($sp)
+    .cfi_restore 9
+    ld     $a4, 328($sp)
+    .cfi_restore 8
+    ld     $a3,  320($sp)
+    .cfi_restore 7
+    ld     $a2,  312($sp)
+    .cfi_restore 6
+    ld     $a1,  304($sp)
+    .cfi_restore 5
+    ld     $a0,  296($sp)
+    .cfi_restore 4
+    ld     $v1,  288($sp)
+    .cfi_restore 3
+    ld     $v0,  280($sp)
+    .cfi_restore 2
+    ld     $at,  272($sp)
+    .cfi_restore 1
+
+    .cpreturn
+    daddiu $sp, $sp, 496
+    .cfi_adjust_cfa_offset -496
+.endm
+
+    /*
      * Macro that set calls through to artDeliverPendingExceptionFromCode,
      * where the pending
      * exception is Thread::Current()->exception_
@@ -1673,17 +1894,19 @@ ONE_ARG_DOWNCALL art_quick_initialize_type_and_verify_access, artInitializeTypeA
      * Called by managed code when the value in rSUSPEND has been decremented to 0.
      */
     .extern artTestSuspendFromCode
-ENTRY art_quick_test_suspend
-    lh     $a0, THREAD_FLAGS_OFFSET(rSELF)
-    bne    $a0, $zero, 1f
+ENTRY_NO_GP art_quick_test_suspend
+    lh     rSUSPEND, THREAD_FLAGS_OFFSET(rSELF)
+    bne    rSUSPEND, $zero, 1f
     daddiu rSUSPEND, $zero, SUSPEND_CHECK_INTERVAL   # reset rSUSPEND to SUSPEND_CHECK_INTERVAL
     jalr   $zero, $ra
-    .cpreturn                                 # Restore gp from t8 in branch delay slot.
+    nop
 1:
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME         # save callee saves for stack crawl
+    SETUP_SAVE_EVERYTHING_CALLEE_SAVE_FRAME   # save everything for stack crawl
     jal    artTestSuspendFromCode             # (Thread*)
     move   $a0, rSELF
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
+    RESTORE_SAVE_EVERYTHING_CALLEE_SAVE_FRAME
+    jalr   $zero, $ra
+    nop
 END art_quick_test_suspend
 
     /*
