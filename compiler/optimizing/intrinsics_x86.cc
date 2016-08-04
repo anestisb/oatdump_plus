@@ -753,6 +753,11 @@ void IntrinsicCodeGeneratorX86::VisitMathRint(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderX86::VisitMathRoundFloat(HInvoke* invoke) {
+  // See intrinsics.h.
+  if (!kRoundIsPlusPointFive) {
+    return;
+  }
+
   // Do we have instruction support?
   if (codegen_->GetInstructionSetFeatures().HasSSE4_1()) {
     HInvokeStaticOrDirect* static_or_direct = invoke->AsInvokeStaticOrDirect();
