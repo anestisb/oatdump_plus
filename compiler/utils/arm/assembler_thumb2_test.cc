@@ -279,6 +279,148 @@ TEST_F(AssemblerThumb2Test, smull) {
   DriverStr(expected, "smull");
 }
 
+TEST_F(AssemblerThumb2Test, LoadByteFromThumbOffset) {
+  arm::LoadOperandType type = arm::kLoadUnsignedByte;
+
+  __ LoadFromOffset(type, arm::R0, arm::R7, 0);
+  __ LoadFromOffset(type, arm::R1, arm::R7, 31);
+  __ LoadFromOffset(type, arm::R2, arm::R7, 32);
+  __ LoadFromOffset(type, arm::R3, arm::R7, 4095);
+  __ LoadFromOffset(type, arm::R4, arm::SP, 0);
+
+  const char* expected =
+      "ldrb r0, [r7, #0]\n"
+      "ldrb r1, [r7, #31]\n"
+      "ldrb.w r2, [r7, #32]\n"
+      "ldrb.w r3, [r7, #4095]\n"
+      "ldrb.w r4, [sp, #0]\n";
+  DriverStr(expected, "LoadByteFromThumbOffset");
+}
+
+TEST_F(AssemblerThumb2Test, StoreByteToThumbOffset) {
+  arm::StoreOperandType type = arm::kStoreByte;
+
+  __ StoreToOffset(type, arm::R0, arm::R7, 0);
+  __ StoreToOffset(type, arm::R1, arm::R7, 31);
+  __ StoreToOffset(type, arm::R2, arm::R7, 32);
+  __ StoreToOffset(type, arm::R3, arm::R7, 4095);
+  __ StoreToOffset(type, arm::R4, arm::SP, 0);
+
+  const char* expected =
+      "strb r0, [r7, #0]\n"
+      "strb r1, [r7, #31]\n"
+      "strb.w r2, [r7, #32]\n"
+      "strb.w r3, [r7, #4095]\n"
+      "strb.w r4, [sp, #0]\n";
+  DriverStr(expected, "StoreByteToThumbOffset");
+}
+
+TEST_F(AssemblerThumb2Test, LoadHalfFromThumbOffset) {
+  arm::LoadOperandType type = arm::kLoadUnsignedHalfword;
+
+  __ LoadFromOffset(type, arm::R0, arm::R7, 0);
+  __ LoadFromOffset(type, arm::R1, arm::R7, 62);
+  __ LoadFromOffset(type, arm::R2, arm::R7, 64);
+  __ LoadFromOffset(type, arm::R3, arm::R7, 4094);
+  __ LoadFromOffset(type, arm::R4, arm::SP, 0);
+  __ LoadFromOffset(type, arm::R5, arm::R7, 1);  // Unaligned
+
+  const char* expected =
+      "ldrh r0, [r7, #0]\n"
+      "ldrh r1, [r7, #62]\n"
+      "ldrh.w r2, [r7, #64]\n"
+      "ldrh.w r3, [r7, #4094]\n"
+      "ldrh.w r4, [sp, #0]\n"
+      "ldrh.w r5, [r7, #1]\n";
+  DriverStr(expected, "LoadHalfFromThumbOffset");
+}
+
+TEST_F(AssemblerThumb2Test, StoreHalfToThumbOffset) {
+  arm::StoreOperandType type = arm::kStoreHalfword;
+
+  __ StoreToOffset(type, arm::R0, arm::R7, 0);
+  __ StoreToOffset(type, arm::R1, arm::R7, 62);
+  __ StoreToOffset(type, arm::R2, arm::R7, 64);
+  __ StoreToOffset(type, arm::R3, arm::R7, 4094);
+  __ StoreToOffset(type, arm::R4, arm::SP, 0);
+  __ StoreToOffset(type, arm::R5, arm::R7, 1);  // Unaligned
+
+  const char* expected =
+      "strh r0, [r7, #0]\n"
+      "strh r1, [r7, #62]\n"
+      "strh.w r2, [r7, #64]\n"
+      "strh.w r3, [r7, #4094]\n"
+      "strh.w r4, [sp, #0]\n"
+      "strh.w r5, [r7, #1]\n";
+  DriverStr(expected, "StoreHalfToThumbOffset");
+}
+
+TEST_F(AssemblerThumb2Test, LoadWordFromSpPlusOffset) {
+  arm::LoadOperandType type = arm::kLoadWord;
+
+  __ LoadFromOffset(type, arm::R0, arm::SP, 0);
+  __ LoadFromOffset(type, arm::R1, arm::SP, 124);
+  __ LoadFromOffset(type, arm::R2, arm::SP, 128);
+  __ LoadFromOffset(type, arm::R3, arm::SP, 1020);
+  __ LoadFromOffset(type, arm::R4, arm::SP, 1024);
+  __ LoadFromOffset(type, arm::R5, arm::SP, 4092);
+  __ LoadFromOffset(type, arm::R6, arm::SP, 1);  // Unaligned
+
+  const char* expected =
+      "ldr r0, [sp, #0]\n"
+      "ldr r1, [sp, #124]\n"
+      "ldr r2, [sp, #128]\n"
+      "ldr r3, [sp, #1020]\n"
+      "ldr.w r4, [sp, #1024]\n"
+      "ldr.w r5, [sp, #4092]\n"
+      "ldr.w r6, [sp, #1]\n";
+  DriverStr(expected, "LoadWordFromSpPlusOffset");
+}
+
+TEST_F(AssemblerThumb2Test, StoreWordToSpPlusOffset) {
+  arm::StoreOperandType type = arm::kStoreWord;
+
+  __ StoreToOffset(type, arm::R0, arm::SP, 0);
+  __ StoreToOffset(type, arm::R1, arm::SP, 124);
+  __ StoreToOffset(type, arm::R2, arm::SP, 128);
+  __ StoreToOffset(type, arm::R3, arm::SP, 1020);
+  __ StoreToOffset(type, arm::R4, arm::SP, 1024);
+  __ StoreToOffset(type, arm::R5, arm::SP, 4092);
+  __ StoreToOffset(type, arm::R6, arm::SP, 1);  // Unaligned
+
+  const char* expected =
+      "str r0, [sp, #0]\n"
+      "str r1, [sp, #124]\n"
+      "str r2, [sp, #128]\n"
+      "str r3, [sp, #1020]\n"
+      "str.w r4, [sp, #1024]\n"
+      "str.w r5, [sp, #4092]\n"
+      "str.w r6, [sp, #1]\n";
+  DriverStr(expected, "StoreWordToSpPlusOffset");
+}
+
+TEST_F(AssemblerThumb2Test, LoadWordFromPcPlusOffset) {
+  arm::LoadOperandType type = arm::kLoadWord;
+
+  __ LoadFromOffset(type, arm::R0, arm::PC, 0);
+  __ LoadFromOffset(type, arm::R1, arm::PC, 124);
+  __ LoadFromOffset(type, arm::R2, arm::PC, 128);
+  __ LoadFromOffset(type, arm::R3, arm::PC, 1020);
+  __ LoadFromOffset(type, arm::R4, arm::PC, 1024);
+  __ LoadFromOffset(type, arm::R5, arm::PC, 4092);
+  __ LoadFromOffset(type, arm::R6, arm::PC, 1);  // Unaligned
+
+  const char* expected =
+      "ldr r0, [pc, #0]\n"
+      "ldr r1, [pc, #124]\n"
+      "ldr r2, [pc, #128]\n"
+      "ldr r3, [pc, #1020]\n"
+      "ldr.w r4, [pc, #1024]\n"
+      "ldr.w r5, [pc, #4092]\n"
+      "ldr.w r6, [pc, #1]\n";
+  DriverStr(expected, "LoadWordFromPcPlusOffset");
+}
+
 TEST_F(AssemblerThumb2Test, StoreWordToThumbOffset) {
   arm::StoreOperandType type = arm::kStoreWord;
   int32_t offset = 4092;
