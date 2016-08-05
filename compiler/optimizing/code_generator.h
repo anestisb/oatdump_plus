@@ -340,6 +340,9 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
   bool* GetBlockedCoreRegisters() const { return blocked_core_registers_; }
   bool* GetBlockedFloatingPointRegisters() const { return blocked_fpu_registers_; }
 
+  bool IsBlockedCoreRegister(size_t i) { return blocked_core_registers_[i]; }
+  bool IsBlockedFloatingPointRegister(size_t i) { return blocked_fpu_registers_[i]; }
+
   // Helper that returns the pointer offset of an index in an object array.
   // Note: this method assumes we always have the same pointer size, regardless
   // of the architecture.

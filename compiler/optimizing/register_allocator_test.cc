@@ -394,6 +394,7 @@ TEST_F(RegisterAllocatorTest, DeadPhi) {
  * Test that the TryAllocateFreeReg method works in the presence of inactive intervals
  * that share the same register. It should split the interval it is currently
  * allocating for at the minimum lifetime position between the two inactive intervals.
+ * This test only applies to the linear scan allocator.
  */
 TEST_F(RegisterAllocatorTest, FreeUntil) {
   const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
@@ -816,6 +817,7 @@ TEST_F(RegisterAllocatorTest, ExpectedExactInRegisterAndSameOutputHint) {
 // Test a bug in the register allocator, where allocating a blocked
 // register would lead to spilling an inactive interval at the wrong
 // position.
+// This test only applies to the linear scan allocator.
 TEST_F(RegisterAllocatorTest, SpillInactive) {
   ArenaPool pool;
 
