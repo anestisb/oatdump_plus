@@ -275,10 +275,8 @@ class Main {
   }
 
   public static void testConstructorReflection() throws Exception {
-    Constructor<?> ctor;
-
-    ctor = String.class.getConstructor(new Class[0]);
-    show(ctor.newInstance((Object[]) null));
+    Constructor<String> ctor = String.class.getConstructor();
+    show(ctor.newInstance());
 
     ctor = String.class.getConstructor(char[].class, int.class, int.class);
     show(ctor.newInstance(new char[] { '\u2714', 'y', 'z', '!' }, 1, 2));
@@ -287,7 +285,7 @@ class Main {
   private static void testPackagePrivateConstructor() {
     try {
       Class<?> c = Class.forName("sub.PPClass");
-      Constructor cons = c.getConstructor();
+      Constructor<?> cons = c.getConstructor();
       cons.newInstance();
       throw new RuntimeException("Expected IllegalAccessException.");
     } catch (IllegalAccessException e) {
@@ -301,7 +299,7 @@ class Main {
   private static void testPackagePrivateAccessibleConstructor() {
     try {
       Class<?> c = Class.forName("sub.PPClass");
-      Constructor cons = c.getConstructor();
+      Constructor<?> cons = c.getConstructor();
       cons.setAccessible(true);  // ensure we prevent IllegalAccessException
       cons.newInstance();
     } catch (Exception e) {

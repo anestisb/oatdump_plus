@@ -106,7 +106,7 @@ public class Main {
   /// CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect
   /// CHECK-DAG:                      Return [<<Invoke>>]
 
-  public static Class dontInlineOtherDexClass() {
+  public static Class<?> dontInlineOtherDexClass() {
     return OtherDex.returnOtherDexClass();
   }
 
@@ -123,7 +123,7 @@ public class Main {
   // Note: There are two LoadClass instructions. We obtain the correct
   //       instruction id by matching the Return's input list first.
 
-  public static Class inlineMainClass() {
+  public static Class<?> inlineMainClass() {
     return OtherDex.returnMainClass();
   }
 
@@ -135,7 +135,7 @@ public class Main {
   /// CHECK-DAG:     <<Invoke:l\d+>>  InvokeStaticOrDirect
   /// CHECK-DAG:                      Return [<<Invoke>>]
 
-  public static Class dontInlineOtherDexClassStaticCall() {
+  public static Class<?> dontInlineOtherDexClassStaticCall() {
     return OtherDex.returnOtherDexClassStaticCall();
   }
 
@@ -152,11 +152,11 @@ public class Main {
   // Note: There are two LoadClass instructions. We obtain the correct
   //       instruction id by matching the Return's input list first.
 
-  public static Class inlineOtherDexCallingMain() {
+  public static Class<?> inlineOtherDexCallingMain() {
     return OtherDex.returnOtherDexCallingMain();
   }
 
-  public static Class getOtherClass() {
+  public static Class<?> getOtherClass() {
     return Main.class;
   }
 

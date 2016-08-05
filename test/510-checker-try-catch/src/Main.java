@@ -39,7 +39,7 @@ public class Main {
 
   public static void testMethod(String method) throws Exception {
     Class<?> c = Class.forName("Runtime");
-    Method m = c.getMethod(method, new Class[] { boolean.class, boolean.class });
+    Method m = c.getMethod(method, boolean.class, boolean.class);
 
     for (TestPath path : TestPath.values()) {
       Object[] arguments = new Object[] { path.arg1, path.arg2 };

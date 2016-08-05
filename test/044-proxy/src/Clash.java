@@ -30,7 +30,7 @@ public class Clash {
         /* try passing in the same interface twice */
         try {
             Proxy.newProxyInstance(Clash.class.getClassLoader(),
-                new Class[] { Interface1A.class, Interface1A.class },
+                new Class<?>[] { Interface1A.class, Interface1A.class },
                 handler);
             System.err.println("Dupe did not throw expected exception");
         } catch (IllegalArgumentException iae) {
@@ -39,7 +39,7 @@ public class Clash {
 
         try {
             Proxy.newProxyInstance(Clash.class.getClassLoader(),
-                new Class[] { Interface1A.class, Interface1B.class },
+                new Class<?>[] { Interface1A.class, Interface1B.class },
                 handler);
             System.err.println("Clash did not throw expected exception");
         } catch (IllegalArgumentException iae) {

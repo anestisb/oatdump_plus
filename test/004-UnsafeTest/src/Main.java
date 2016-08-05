@@ -249,6 +249,6 @@ public class Main {
     public volatile Object volatileObjectVar = null;
   }
 
-  private static native int vmArrayBaseOffset(Class clazz);
-  private static native int vmArrayIndexScale(Class clazz);
+  private static native int vmArrayBaseOffset(Class<?> clazz);
+  private static native int vmArrayIndexScale(Class<?> clazz);
 }
