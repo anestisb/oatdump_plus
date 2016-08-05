@@ -98,7 +98,7 @@ public class ReturnsAndArgPassing {
     MyInvocationHandler myHandler = new MyInvocationHandler();
     MyInterface proxyMyInterface =
         (MyInterface)Proxy.newProxyInstance(ReturnsAndArgPassing.class.getClassLoader(),
-                                            new Class[] { MyInterface.class },
+                                            new Class<?>[] { MyInterface.class },
                                             myHandler);
     check(fooInvocations == 0);
     proxyMyInterface.voidFoo();
@@ -441,7 +441,7 @@ public class ReturnsAndArgPassing {
     MyInvocationHandler myHandler = new MyInvocationHandler();
     MyInterface proxyMyInterface =
         (MyInterface)Proxy.newProxyInstance(ReturnsAndArgPassing.class.getClassLoader(),
-                                            new Class[] { MyInterface.class },
+                                            new Class<?>[] { MyInterface.class },
                                             myHandler);
 
     check((Integer)proxyMyInterface.selectArg(0, Integer.MAX_VALUE, Long.MAX_VALUE,

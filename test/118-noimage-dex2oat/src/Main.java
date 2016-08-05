@@ -51,7 +51,7 @@ public class Main {
     private static final Method isBootClassPathOnDiskMethod;
     static {
         try {
-            Class c = Class.forName("dalvik.system.VMRuntime");
+            Class<?> c = Class.forName("dalvik.system.VMRuntime");
             getCurrentInstructionSetMethod = c.getDeclaredMethod("getCurrentInstructionSet");
             isBootClassPathOnDiskMethod = c.getDeclaredMethod("isBootClassPathOnDisk",
                                                               String.class);

@@ -111,11 +111,11 @@ public class Main {
   }
 
   private static void loadDexFile(String dexFile) throws Exception {
-    Class pathClassLoader = Class.forName("dalvik.system.PathClassLoader");
+    Class<?> pathClassLoader = Class.forName("dalvik.system.PathClassLoader");
     if (pathClassLoader == null) {
         throw new RuntimeException("Couldn't find path class loader class");
     }
-    Constructor constructor =
+    Constructor<?> constructor =
         pathClassLoader.getDeclaredConstructor(String.class, ClassLoader.class);
     constructor.newInstance(
             dexFile, ClassLoader.getSystemClassLoader());
@@ -125,7 +125,7 @@ public class Main {
     private static final Method registerAppInfoMethod;
     static {
       try {
-        Class c = Class.forName("dalvik.system.VMRuntime");
+        Class<?> c = Class.forName("dalvik.system.VMRuntime");
         registerAppInfoMethod = c.getDeclaredMethod("registerAppInfo",
             String.class, String.class, String[].class, String.class);
       } catch (Exception e) {

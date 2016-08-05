@@ -53,15 +53,15 @@ public class Main {
     $opt$LoadAndClinitCheck();
   }
 
-  public static Class $opt$LoadThisClass() {
+  public static Class<?> $opt$LoadThisClass() {
     return Main.class;
   }
 
-  public static Class $opt$LoadOtherClass() {
+  public static Class<?> $opt$LoadOtherClass() {
     return Other.class;
   }
 
-  public static Class $opt$LoadSystemClass() {
+  public static Class<?> $opt$LoadSystemClass() {
     return System.class;
   }
 

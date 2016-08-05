@@ -29,7 +29,7 @@ public class Clash3 {
 
         try {
             Proxy.newProxyInstance(Clash.class.getClassLoader(),
-                new Class[] {
+                new Class<?>[] {
                     Interface3a.class,
                     Interface3base.class,
                     Interface3aa.class,

@@ -35,11 +35,11 @@ class MyClassNatives {
     static native int getText(long val1, Object obj1, long val2, Object obj2);
     synchronized native Object []getSinkPropertiesNative(String path);
 
-    native Class instanceMethodThatShouldReturnClass();
-    static native Class staticMethodThatShouldReturnClass();
+    native Class<?> instanceMethodThatShouldReturnClass();
+    static native Class<?> staticMethodThatShouldReturnClass();
 
-    native void instanceMethodThatShouldTakeClass(int i, Class c);
-    static native void staticMethodThatShouldTakeClass(int i, Class c);
+    native void instanceMethodThatShouldTakeClass(int i, Class<?> c);
+    static native void staticMethodThatShouldTakeClass(int i, Class<?> c);
 
     native float checkFloats(float f1, float f2);
     native void forceStackParameters(int i1, int i2, int i3, int i4, int i5, int i6, int i8, int i9,

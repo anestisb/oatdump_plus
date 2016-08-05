@@ -29,7 +29,7 @@ public class Main {
     }
   }
 
-  private static native void ensureJitCompiled(Class itf, String method_name);
+  private static native void ensureJitCompiled(Class<?> itf, String method_name);
 }
 
 interface Itf {

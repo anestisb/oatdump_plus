@@ -40,7 +40,7 @@ public class NativeProxy {
         try {
             NativeInterface inf = (NativeInterface)Proxy.newProxyInstance(
                     NativeProxy.class.getClassLoader(),
-                    new Class[] { NativeInterface.class },
+                    new Class<?>[] { NativeInterface.class },
                     new NativeInvocationHandler());
 
             nativeCall(inf);

@@ -10,5 +10,5 @@ public @interface AnnoFancyMethod {
     boolean callMe() default false;
     boolean biteMe();
     AnnoFancyMethodEnum enumerated() default AnnoFancyMethodEnum.FOO;
-    Class someClass() default SomeClass.class;
+    Class<?> someClass() default SomeClass.class;
 }

@@ -32,7 +32,7 @@ public class WrappedThrow {
 
         try {
             proxy = Proxy.newProxyInstance(WrappedThrow.class.getClassLoader(),
-                new Class[] { InterfaceW1.class, InterfaceW2.class },
+                new Class<?>[] { InterfaceW1.class, InterfaceW2.class },
                 handler);
         } catch (IllegalArgumentException iae) {
             System.out.println("WT init failed");
