@@ -735,8 +735,6 @@ struct CmdlineType<ExperimentalFlags> : CmdlineTypeParser<ExperimentalFlags> {
   Result ParseAndAppend(const std::string& option, ExperimentalFlags& existing) {
     if (option == "none") {
       existing = ExperimentalFlags::kNone;
-    } else if (option == "lambdas") {
-      existing = existing | ExperimentalFlags::kLambdas;
     } else {
       return Result::Failure(std::string("Unknown option '") + option + "'");
     }

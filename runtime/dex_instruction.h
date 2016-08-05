@@ -105,7 +105,6 @@ class Instruction {
     k22t,  // op vA, vB, +CCCC
     k22s,  // op vA, vB, #+CCCC
     k22c,  // op vA, vB, thing@CCCC
-    k25x,  // op vC, {vD, vE, vF, vG} (B: count)
     k32x,  // op vAAAA, vBBBB
     k30t,  // op +AAAAAAAA
     k31t,  // op vAA, +BBBBBBBB
@@ -180,12 +179,9 @@ class Instruction {
     kVerifyVarArgRangeNonZero = 0x100000,
     kVerifyRuntimeOnly        = 0x200000,
     kVerifyError              = 0x400000,
-    kVerifyRegCString         = 0x800000,
   };
 
   static constexpr uint32_t kMaxVarArgRegs = 5;
-  static constexpr uint32_t kMaxVarArgRegs25x = 6;  // lambdas are 2 registers.
-  static constexpr uint32_t kLambdaVirtualRegisterWidth = 2;
 
   // Returns the size (in 2 byte code units) of this instruction.
   size_t SizeInCodeUnits() const {
@@ -221,7 +217,7 @@ class Instruction {
 
   // Returns a pointer to the instruction after this 2xx instruction in the stream.
   const Instruction* Next_2xx() const {
-    DCHECK(FormatOf(Opcode()) >= k20t && FormatOf(Opcode()) <= k25x);
+    DCHECK(FormatOf(Opcode()) >= k20t && FormatOf(Opcode()) <= k22c);
     return RelativeAt(2);
   }
 
@@ -371,7 +367,6 @@ class Instruction {
   }
   uint16_t VRegB_22x() const;
   uint8_t VRegB_23x() const;
-  uint4_t VRegB_25x() const;
   uint32_t VRegB_31c() const;
   int32_t VRegB_31i() const;
   int32_t VRegB_31t() const;
@@ -398,20 +393,15 @@ class Instruction {
   int16_t VRegC_22s() const;
   int16_t VRegC_22t() const;
   uint8_t VRegC_23x() const;
-  uint4_t VRegC_25x() const;
   uint4_t VRegC_35c() const;
   uint16_t VRegC_3rc() const;
 
   // Fills the given array with the 'arg' array of the instruction.
-  bool HasVarArgs35c() const;
-  bool HasVarArgs25x() const;
-
-  // TODO(iam): Make this name more consistent with GetAllArgs25x by including the opcode format.
+  bool HasVarArgs() const;
   void GetVarArgs(uint32_t args[kMaxVarArgRegs], uint16_t inst_data) const;
   void GetVarArgs(uint32_t args[kMaxVarArgRegs]) const {
     return GetVarArgs(args, Fetch16(0));
   }
-  void GetAllArgs25x(uint32_t (&args)[kMaxVarArgRegs25x]) const;
 
   // Returns the opcode field of the instruction. The given "inst_data" parameter must be the first
   // 16 bits of instruction.
@@ -539,7 +529,7 @@ class Instruction {
 
   int GetVerifyTypeArgumentC() const {
     return (kInstructionVerifyFlags[Opcode()] & (kVerifyRegC | kVerifyRegCField |
-        kVerifyRegCNewArray | kVerifyRegCType | kVerifyRegCWide | kVerifyRegCString));
+        kVerifyRegCNewArray | kVerifyRegCType | kVerifyRegCWide));
   }
 
   int GetVerifyExtraFlags() const {
