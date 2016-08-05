@@ -368,6 +368,27 @@ bool SsaLivenessAnalysis::UpdateLiveIn(const HBasicBlock& block) {
   return live_in->UnionIfNotIn(live_out, kill);
 }
 
+void LiveInterval::DumpWithContext(std::ostream& stream,
+                                   const CodeGenerator& codegen) const {
+  Dump(stream);
+  if (IsFixed()) {
+    stream << ", register:" << GetRegister() << "(";
+    if (IsFloatingPoint()) {
+      codegen.DumpFloatingPointRegister(stream, GetRegister());
+    } else {
+      codegen.DumpCoreRegister(stream, GetRegister());
+    }
+    stream << ")";
+  } else {
+    stream << ", spill slot:" << GetSpillSlot();
+  }
+  stream << ", requires_register:" << (GetDefinedBy() != nullptr && RequiresRegister());
+  if (GetParent()->GetDefinedBy() != nullptr) {
+    stream << ", defined_by:" << GetParent()->GetDefinedBy()->GetKind();
+    stream << "(" << GetParent()->GetDefinedBy()->GetLifetimePosition() << ")";
+  }
+}
+
 static int RegisterOrLowRegister(Location location) {
   return location.IsPair() ? location.low() : location.reg();
 }
