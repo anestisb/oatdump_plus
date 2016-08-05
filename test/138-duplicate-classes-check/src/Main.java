@@ -38,7 +38,7 @@ public class Main {
                 getClass().getClassLoader());
 
         try {
-            Class testEx = loader.loadClass("TestEx");
+            Class<?> testEx = loader.loadClass("TestEx");
             Method test = testEx.getDeclaredMethod("test");
             test.invoke(null);
         } catch (Exception exc) {

@@ -70,7 +70,7 @@ public class Main {
                 throws TestFailed, InvocationTargetException
         {
             Object dexFile = null;
-            Class dexClass = null;
+            Class<?> dexClass = null;
 
             try {
                 try {
@@ -80,11 +80,9 @@ public class Main {
                      */
                     dexClass = ClassLoader.getSystemClassLoader().
                             loadClass("dalvik.system.DexFile");
-                    Constructor ctor = dexClass.
-                            getConstructor(new Class[] {String.class});
+                    Constructor<?> ctor = dexClass.getConstructor(String.class);
                     dexFile = ctor.newInstance(DEX_FILE);
-                    Method meth = dexClass.getMethod("loadClass",
-                            new Class[] { String.class, ClassLoader.class });
+                    Method meth = dexClass.getMethod("loadClass", String.class, ClassLoader.class);
                     /*
                      * Invoking loadClass on CLASS_NAME is expected to
                      * throw an InvocationTargetException. Anything else
@@ -95,7 +93,7 @@ public class Main {
                 } finally {
                     if (dexFile != null) {
                         /* close the DexFile to make CloseGuard happy */
-                        Method meth = dexClass.getMethod("close", (Class[]) null);
+                        Method meth = dexClass.getMethod("close");
                         meth.invoke(dexFile);
                     }
                 }

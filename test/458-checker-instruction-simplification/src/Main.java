@@ -1859,7 +1859,7 @@ public class Main {
     if (doThrow) { throw new Error(); }
     try {
       Class<?> c = Class.forName("SmaliTests");
-      Method m = c.getMethod(name, new Class[] { boolean.class });
+      Method m = c.getMethod(name, boolean.class);
       return (Integer) m.invoke(null, input);
     } catch (Exception ex) {
       throw new Error(ex);

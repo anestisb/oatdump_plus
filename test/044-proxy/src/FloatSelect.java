@@ -34,7 +34,7 @@ public class FloatSelect {
     public static void main(String[] args) {
         FloatSelectI proxyObject = (FloatSelectI) Proxy.newProxyInstance(
             FloatSelectI.class.getClassLoader(),
-            new Class[] { FloatSelectI.class },
+            new Class<?>[] { FloatSelectI.class },
             new FloatSelectIInvoke1());
 
         float floatResult = proxyObject.method(2.1f, 5.8f);

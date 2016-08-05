@@ -99,18 +99,16 @@ public class BasicTest {
         InvocationHandler handler = new MyInvocationHandler(proxyMe);
 
         /* create the proxy class */
-        Class proxyClass = Proxy.getProxyClass(Shapes.class.getClassLoader(),
-                            new Class[] { Quads.class, Colors.class, Trace.class });
+        Class<?> proxyClass = Proxy.getProxyClass(Shapes.class.getClassLoader(),
+                Quads.class, Colors.class, Trace.class);
         Main.registerProxyClassName(proxyClass.getCanonicalName());
 
         /* create a proxy object, passing the handler object in */
         Object proxy = null;
         try {
-            Constructor<Class> cons;
-            cons = proxyClass.getConstructor(
-                            new Class[] { InvocationHandler.class });
+            Constructor<?> cons = proxyClass.getConstructor(InvocationHandler.class);
             //System.out.println("Constructor is " + cons);
-            proxy = cons.newInstance(new Object[] { handler });
+            proxy = cons.newInstance(handler);
         } catch (NoSuchMethodException nsme) {
             System.err.println("failed: " + nsme);
         } catch (InstantiationException ie) {

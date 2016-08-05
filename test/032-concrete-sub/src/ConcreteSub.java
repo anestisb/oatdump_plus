@@ -37,13 +37,13 @@ public class ConcreteSub extends AbstractBase {
         /*
          * Check reflection stuff.
          */
-        Class absClass = AbstractBase.class;
+        Class<?> absClass = AbstractBase.class;
         Method meth;
 
         System.out.println("class modifiers=" + absClass.getModifiers());
 
         try {
-            meth = absClass.getMethod("redefineMe", (Class[]) null);
+            meth = absClass.getMethod("redefineMe");
         } catch (NoSuchMethodException nsme) {
             nsme.printStackTrace();
             return;

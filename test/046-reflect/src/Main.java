@@ -32,7 +32,7 @@ public class Main {
     public Main(ArrayList<Integer> stuff) {}
 
     void printMethodInfo(Method meth) {
-        Class[] params, exceptions;
+        Class<?>[] params, exceptions;
         int i;
 
         System.out.println("Method name is " + meth.getName());
@@ -62,7 +62,7 @@ public class Main {
     private void showStrings(Target instance)
         throws NoSuchFieldException, IllegalAccessException {
 
-        Class target = Target.class;
+        Class<?> target = Target.class;
         String one, two, three, four;
         Field field = null;
 
@@ -80,15 +80,15 @@ public class Main {
 
     public static void checkAccess() {
         try {
-            Class target = otherpackage.Other.class;
+            Class<?> target = otherpackage.Other.class;
             Object instance = new otherpackage.Other();
             Method meth;
 
-            meth = target.getMethod("publicMethod", (Class[]) null);
+            meth = target.getMethod("publicMethod");
             meth.invoke(instance);
 
             try {
-                meth = target.getMethod("packageMethod", (Class[]) null);
+                meth = target.getMethod("packageMethod");
                 System.err.println("succeeded on package-scope method");
             } catch (NoSuchMethodException nsme) {
                 // good
@@ -97,7 +97,7 @@ public class Main {
 
             instance = otherpackage.Other.getInnerClassInstance();
             target = instance.getClass();
-            meth = target.getMethod("innerMethod", (Class[]) null);
+            meth = target.getMethod("innerMethod");
             try {
                 if (!FULL_ACCESS_CHECKS) { throw new IllegalAccessException(); }
                 meth.invoke(instance);
@@ -121,26 +121,25 @@ public class Main {
     }
 
     public void run() {
-        Class target = Target.class;
+        Class<Target> target = Target.class;
         Method meth = null;
         Field field = null;
         boolean excep;
 
         try {
-            meth = target.getMethod("myMethod", new Class[] { int.class });
+            meth = target.getMethod("myMethod", int.class);
 
             if (meth.getDeclaringClass() != target)
                 throw new RuntimeException();
             printMethodInfo(meth);
 
-            meth = target.getMethod("myMethod", new Class[] { float.class });
+            meth = target.getMethod("myMethod", float.class);
             printMethodInfo(meth);
 
-            meth = target.getMethod("myNoargMethod", (Class[]) null);
+            meth = target.getMethod("myNoargMethod");
             printMethodInfo(meth);
 
-            meth = target.getMethod("myMethod",
-                new Class[] { String[].class, float.class, char.class });
+            meth = target.getMethod("myMethod", String[].class, float.class, char.class);
             printMethodInfo(meth);
 
             Target instance = new Target();
@@ -157,11 +156,11 @@ public class Main {
             System.out.println("Result of invoke: " + boxval.intValue());
 
             System.out.println("Calling no-arg void-return method");
-            meth = target.getMethod("myNoargMethod", (Class[]) null);
+            meth = target.getMethod("myNoargMethod");
             meth.invoke(instance, (Object[]) null);
 
             /* try invoking a method that throws an exception */
-            meth = target.getMethod("throwingMethod", (Class[]) null);
+            meth = target.getMethod("throwingMethod");
             try {
                 meth.invoke(instance, (Object[]) null);
                 System.out.println("GLITCH: didn't throw");
@@ -372,7 +371,7 @@ public class Main {
             Target targ;
             Object[] args;
 
-            cons = target.getConstructor(new Class[] { int.class,float.class });
+            cons = target.getConstructor(int.class, float.class);
             args = new Object[] { new Integer(7), new Float(3.3333) };
             System.out.println("cons modifiers=" + cons.getModifiers());
             targ = cons.newInstance(args);
@@ -458,7 +457,7 @@ public class Main {
     public static void checkClinitForFields() throws Exception {
       // Loading a class constant shouldn't run <clinit>.
       System.out.println("calling const-class FieldNoisyInitUser.class");
-      Class niuClass = FieldNoisyInitUser.class;
+      Class<?> niuClass = FieldNoisyInitUser.class;
       System.out.println("called const-class FieldNoisyInitUser.class");
 
       // Getting the declared fields doesn't run <clinit>.
@@ -480,14 +479,14 @@ public class Main {
     public static void checkClinitForMethods() throws Exception {
       // Loading a class constant shouldn't run <clinit>.
       System.out.println("calling const-class MethodNoisyInitUser.class");
-      Class niuClass = MethodNoisyInitUser.class;
+      Class<?> niuClass = MethodNoisyInitUser.class;
       System.out.println("called const-class MethodNoisyInitUser.class");
 
       // Getting the declared methods doesn't run <clinit>.
       Method[] methods = niuClass.getDeclaredMethods();
       System.out.println("got methods");
 
-      Method method = niuClass.getMethod("staticMethod", (Class[]) null);
+      Method method = niuClass.getMethod("staticMethod");
       System.out.println("got method");
       method.invoke(null);
       System.out.println("invoked method");
@@ -517,8 +516,7 @@ public class Main {
 
         Method method;
         try {
-            method = Main.class.getMethod("fancyMethod",
-                new Class[] { ArrayList.class });
+            method = Main.class.getMethod("fancyMethod", ArrayList.class);
         } catch (NoSuchMethodException nsme) {
             throw new RuntimeException(nsme);
         }
@@ -527,9 +525,9 @@ public class Main {
         System.out.println("generic method " + method.getName() + " params='"
             + stringifyTypeArray(parmTypes) + "' ret='" + ret + "'");
 
-        Constructor ctor;
+        Constructor<?> ctor;
         try {
-            ctor = Main.class.getConstructor(new Class[] { ArrayList.class });
+            ctor = Main.class.getConstructor( ArrayList.class);
         } catch (NoSuchMethodException nsme) {
             throw new RuntimeException(nsme);
         }
@@ -580,8 +578,8 @@ public class Main {
         }
         Method method1, method2;
         try {
-            method1 = Main.class.getMethod("fancyMethod", new Class[] { ArrayList.class });
-            method2 = Main.class.getMethod("fancyMethod", new Class[] { ArrayList.class });
+            method1 = Main.class.getMethod("fancyMethod", ArrayList.class);
+            method2 = Main.class.getMethod("fancyMethod", ArrayList.class);
         } catch (NoSuchMethodException nsme) {
             throw new RuntimeException(nsme);
         }
