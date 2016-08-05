@@ -69,7 +69,7 @@ public class Main {
      */
     private static Method getDumpHprofDataMethod() {
         ClassLoader myLoader = Main.class.getClassLoader();
-        Class vmdClass;
+        Class<?> vmdClass;
         try {
             vmdClass = myLoader.loadClass("dalvik.system.VMDebug");
         } catch (ClassNotFoundException cnfe) {
@@ -78,8 +78,7 @@ public class Main {
 
         Method meth;
         try {
-            meth = vmdClass.getMethod("dumpHprofData",
-                    new Class[] { String.class });
+            meth = vmdClass.getMethod("dumpHprofData", String.class);
         } catch (NoSuchMethodException nsme) {
             System.err.println("Found VMDebug but not dumpHprofData method");
             return null;

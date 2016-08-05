@@ -105,7 +105,7 @@ public class Main {
     static boolean triggerReflectionOOM() {
         try {
             Class<?> c = Main.class;
-            Method m = c.getMethod("blowup", (Class[]) null);
+            Method m = c.getMethod("blowup");
             holder = new Object[1000000];
             m.invoke(null);
             holder = null;

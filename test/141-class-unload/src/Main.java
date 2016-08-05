@@ -28,11 +28,11 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
         nativeLibraryName = args[0];
-        Class pathClassLoader = Class.forName("dalvik.system.PathClassLoader");
+        Class<?> pathClassLoader = Class.forName("dalvik.system.PathClassLoader");
         if (pathClassLoader == null) {
             throw new AssertionError("Couldn't find path class loader class");
         }
-        Constructor constructor =
+        Constructor<?> constructor =
             pathClassLoader.getDeclaredConstructor(String.class, String.class, ClassLoader.class);
         try {
             testUnloadClass(constructor);
@@ -67,7 +67,7 @@ public class Main {
         System.out.println("Number of loaded unload-ex maps " + count);
     }
 
-    private static void stressTest(Constructor constructor) throws Exception {
+    private static void stressTest(Constructor<?> constructor) throws Exception {
         for (int i = 0; i <= 100; ++i) {
             setUpUnloadLoader(constructor, false);
             if (i % 10 == 0) {
@@ -76,7 +76,7 @@ public class Main {
         }
     }
 
-    private static void testUnloadClass(Constructor constructor) throws Exception {
+    private static void testUnloadClass(Constructor<?> constructor) throws Exception {
         WeakReference<Class> klass = setUpUnloadClassWeak(constructor);
         // No strong references to class loader, should get unloaded.
         Runtime.getRuntime().gc();
@@ -87,7 +87,7 @@ public class Main {
         System.out.println(klass2.get());
     }
 
-    private static void testUnloadLoader(Constructor constructor)
+    private static void testUnloadLoader(Constructor<?> constructor)
         throws Exception {
       WeakReference<ClassLoader> loader = setUpUnloadLoader(constructor, true);
       // No strong references to class loader, should get unloaded.
@@ -96,8 +96,8 @@ public class Main {
       System.out.println(loader.get());
     }
 
-    private static void testStackTrace(Constructor constructor) throws Exception {
-        Class klass = setUpUnloadClass(constructor);
+    private static void testStackTrace(Constructor<?> constructor) throws Exception {
+        Class<?> klass = setUpUnloadClass(constructor);
         WeakReference<Class> weak_klass = new WeakReference(klass);
         Method stackTraceMethod = klass.getDeclaredMethod("generateStackTrace");
         Throwable throwable = (Throwable) stackTraceMethod.invoke(klass);
@@ -108,7 +108,7 @@ public class Main {
         System.out.println("class null " + isNull + " " + throwable.getMessage());
     }
 
-    private static void testLoadAndUnloadLibrary(Constructor constructor) throws Exception {
+    private static void testLoadAndUnloadLibrary(Constructor<?> constructor) throws Exception {
         WeakReference<ClassLoader> loader = setUpLoadLibrary(constructor);
         // No strong references to class loader, should get unloaded.
         Runtime.getRuntime().gc();
@@ -117,7 +117,7 @@ public class Main {
     }
 
     private static Object testNoUnloadHelper(ClassLoader loader) throws Exception {
-        Class intHolder = loader.loadClass("IntHolder");
+        Class<?> intHolder = loader.loadClass("IntHolder");
         return intHolder.newInstance();
     }
 
@@ -131,14 +131,14 @@ public class Main {
       public WeakReference<ClassLoader> classLoader;
     }
 
-    private static Pair testNoUnloadInstanceHelper(Constructor constructor) throws Exception {
+    private static Pair testNoUnloadInstanceHelper(Constructor<?> constructor) throws Exception {
         ClassLoader loader = (ClassLoader) constructor.newInstance(
             DEX_FILE, LIBRARY_SEARCH_PATH, ClassLoader.getSystemClassLoader());
         Object o = testNoUnloadHelper(loader);
         return new Pair(o, loader);
     }
 
-    private static void testNoUnloadInstance(Constructor constructor) throws Exception {
+    private static void testNoUnloadInstance(Constructor<?> constructor) throws Exception {
         Pair p = testNoUnloadInstanceHelper(constructor);
         Runtime.getRuntime().gc();
         // If the class loader was unloded too early due to races, just pass the test.
@@ -146,10 +146,10 @@ public class Main {
         System.out.println("loader null " + isNull);
     }
 
-    private static Class setUpUnloadClass(Constructor constructor) throws Exception {
+    private static Class<?> setUpUnloadClass(Constructor<?> constructor) throws Exception {
         ClassLoader loader = (ClassLoader) constructor.newInstance(
             DEX_FILE, LIBRARY_SEARCH_PATH, ClassLoader.getSystemClassLoader());
-        Class intHolder = loader.loadClass("IntHolder");
+        Class<?> intHolder = loader.loadClass("IntHolder");
         Method getValue = intHolder.getDeclaredMethod("getValue");
         Method setValue = intHolder.getDeclaredMethod("setValue", Integer.TYPE);
         // Make sure we don't accidentally preserve the value in the int holder, the class
@@ -161,17 +161,17 @@ public class Main {
         return intHolder;
     }
 
-    private static WeakReference<Class> setUpUnloadClassWeak(Constructor constructor)
+    private static WeakReference<Class> setUpUnloadClassWeak(Constructor<?> constructor)
             throws Exception {
         return new WeakReference<Class>(setUpUnloadClass(constructor));
     }
 
-    private static WeakReference<ClassLoader> setUpUnloadLoader(Constructor constructor,
+    private static WeakReference<ClassLoader> setUpUnloadLoader(Constructor<?> constructor,
                                                                 boolean waitForCompilation)
         throws Exception {
         ClassLoader loader = (ClassLoader) constructor.newInstance(
             DEX_FILE, LIBRARY_SEARCH_PATH, ClassLoader.getSystemClassLoader());
-        Class intHolder = loader.loadClass("IntHolder");
+        Class<?> intHolder = loader.loadClass("IntHolder");
         Method setValue = intHolder.getDeclaredMethod("setValue", Integer.TYPE);
         setValue.invoke(intHolder, 2);
         if (waitForCompilation) {
@@ -180,7 +180,7 @@ public class Main {
         return new WeakReference(loader);
     }
 
-    private static void waitForCompilation(Class intHolder) throws Exception {
+    private static void waitForCompilation(Class<?> intHolder) throws Exception {
       // Load the native library so that we can call waitForCompilation.
       Method loadLibrary = intHolder.getDeclaredMethod("loadLibrary", String.class);
       loadLibrary.invoke(intHolder, nativeLibraryName);
@@ -189,11 +189,11 @@ public class Main {
       waitForCompilation.invoke(intHolder);
     }
 
-    private static WeakReference<ClassLoader> setUpLoadLibrary(Constructor constructor)
+    private static WeakReference<ClassLoader> setUpLoadLibrary(Constructor<?> constructor)
         throws Exception {
         ClassLoader loader = (ClassLoader) constructor.newInstance(
             DEX_FILE, LIBRARY_SEARCH_PATH, ClassLoader.getSystemClassLoader());
-        Class intHolder = loader.loadClass("IntHolder");
+        Class<?> intHolder = loader.loadClass("IntHolder");
         Method loadLibrary = intHolder.getDeclaredMethod("loadLibrary", String.class);
         loadLibrary.invoke(intHolder, nativeLibraryName);
         waitForCompilation(intHolder);

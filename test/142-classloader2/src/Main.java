@@ -25,8 +25,8 @@ public class Main {
     private static ClassLoader createClassLoader(String dexPath, ClassLoader parent) {
         try {
             Class<?> myClassLoaderClass = Class.forName("MyPathClassLoader");
-            Constructor constructor = myClassLoaderClass.getConstructor(String.class,
-                                                                        ClassLoader.class);
+            Constructor<?> constructor = myClassLoaderClass.getConstructor(String.class,
+                                                                           ClassLoader.class);
             return (ClassLoader)constructor.newInstance(dexPath, parent);
         } catch (Exception e) {
             // Ups, not available?!?!

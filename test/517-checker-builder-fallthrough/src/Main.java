@@ -20,7 +20,7 @@ public class Main {
 
   public static int runTest(int input) throws Exception {
     Class<?> c = Class.forName("TestCase");
-    Method m = c.getMethod("testCase", new Class[] { int.class });
+    Method m = c.getMethod("testCase", int.class);
     return (Integer) m.invoke(null, input);
   }
 

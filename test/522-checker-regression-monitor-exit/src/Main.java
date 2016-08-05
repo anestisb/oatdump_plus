@@ -40,7 +40,7 @@ public class Main {
       Integer result;
       try {
         Class<?> c = Class.forName("Test");
-        Method m = c.getMethod("synchronizedHashCode", new Class[] { Object.class });
+        Method m = c.getMethod("synchronizedHashCode", Object.class);
         result = (Integer) m.invoke(null, m_obj);
       } catch (Exception e) {
         System.err.println("Hash code query exception");

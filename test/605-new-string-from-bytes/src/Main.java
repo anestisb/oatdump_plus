@@ -20,7 +20,7 @@ import java.lang.reflect.Method;
 public class Main {
 
   public static void main(String[] args) throws Exception {
-    Class c = Class.forName("java.lang.StringFactory");
+    Class<?> c = Class.forName("java.lang.StringFactory");
     Method m = c.getDeclaredMethod("newStringFromBytes", byte[].class, int.class);
 
     // Loop over allocations to get more chances of doing GC while in the

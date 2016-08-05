@@ -66,7 +66,7 @@ public class Main {
      */
     private static void testDexClassLoader() throws Exception {
         ClassLoader dexClassLoader = getDexClassLoader();
-        Class Another = dexClassLoader.loadClass("Another");
+        Class<?> Another = dexClassLoader.loadClass("Another");
         Object another = Another.newInstance();
         // not expected to work; just exercises the call
         dexClassLoader.getResource("nonexistent");
@@ -79,18 +79,21 @@ public class Main {
      */
     private static ClassLoader getDexClassLoader() throws Exception {
         ClassLoader classLoader = Main.class.getClassLoader();
-        Class DexClassLoader = classLoader.loadClass("dalvik.system.DexClassLoader");
-        Constructor DexClassLoader_init = DexClassLoader.getConstructor(String.class,
-                                                                        String.class,
-                                                                        String.class,
-                                                                        ClassLoader.class);
+        Class<?> DexClassLoader = classLoader.loadClass("dalvik.system.DexClassLoader");
+        Constructor<?> DexClassLoader_init = DexClassLoader.getConstructor(String.class,
+                                                                           String.class,
+                                                                           String.class,
+                                                                           ClassLoader.class);
         // create an instance, using the path we found
-        return (ClassLoader) DexClassLoader_init.newInstance(CLASS_PATH, getOdexDir(), LIB_DIR, classLoader);
+        return (ClassLoader) DexClassLoader_init.newInstance(CLASS_PATH,
+                                                             getOdexDir(),
+                                                             LIB_DIR,
+                                                             classLoader);
     }
 
     private static void testDexFile() throws Exception {
         ClassLoader classLoader = Main.class.getClassLoader();
-        Class DexFile = classLoader.loadClass("dalvik.system.DexFile");
+        Class<?> DexFile = classLoader.loadClass("dalvik.system.DexFile");
         Method DexFile_loadDex = DexFile.getMethod("loadDex",
                                                    String.class,
                                                    String.class,

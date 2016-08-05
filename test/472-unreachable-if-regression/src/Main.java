@@ -25,12 +25,12 @@ public class Main {
     System.out.println("Test started.");
     Class<?> c = Class.forName("Test");
 
-    Method unreachableIf = c.getMethod("UnreachableIf", (Class[]) null);
-    unreachableIf.invoke(null, (Object[]) null);
+    Method unreachableIf = c.getMethod("UnreachableIf");
+    unreachableIf.invoke(null);
     System.out.println("Successfully called UnreachableIf().");
 
-    Method unreachablePackedSwitch = c.getMethod("UnreachablePackedSwitch", (Class[]) null);
-    unreachablePackedSwitch.invoke(null, (Object[]) null);
+    Method unreachablePackedSwitch = c.getMethod("UnreachablePackedSwitch");
+    unreachablePackedSwitch.invoke(null);
     System.out.println("Successfully called UnreachablePackedSwitch().");
   }
 

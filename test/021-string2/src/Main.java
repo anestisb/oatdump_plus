@@ -85,7 +85,7 @@ public class Main {
         Assert.assertEquals("this is a path", test.replaceAll("/", " "));
         Assert.assertEquals("this is a path", test.replace("/", " "));
 
-        Class Strings = Class.forName("com.android.org.bouncycastle.util.Strings");
+        Class<?> Strings = Class.forName("com.android.org.bouncycastle.util.Strings");
         Method fromUTF8ByteArray = Strings.getDeclaredMethod("fromUTF8ByteArray", byte[].class);
         String result = (String) fromUTF8ByteArray.invoke(null, new byte[] {'O', 'K'});
         System.out.println(result);

@@ -22,7 +22,7 @@ import java.lang.reflect.InvocationTargetException;
 public class Main {
   public static void main(String[] args) {
     try {
-      Class c = Class.forName("SubClassUsingInaccessibleMethod");
+      Class<?> c = Class.forName("SubClassUsingInaccessibleMethod");
       Object o = c.newInstance();
       c.getMethod("test").invoke(o, null);
     } catch (InvocationTargetException ite) {

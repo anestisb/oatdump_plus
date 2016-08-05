@@ -38,25 +38,25 @@ public class OtherDex {
     return "OtherDex";
   }
 
-  public static Class returnOtherDexClass() {
+  public static Class<?> returnOtherDexClass() {
     return OtherDex.class;
   }
 
-  public static Class returnMainClass() {
+  public static Class<?> returnMainClass() {
     return Main.class;
   }
 
-  private static Class returnOtherDexClass2() {
+  private static Class<?> returnOtherDexClass2() {
     return OtherDex.class;
   }
 
-  public static Class returnOtherDexClassStaticCall() {
+  public static Class<?> returnOtherDexClassStaticCall() {
     // Do not call returnOtherDexClass, as it may have been flagged
     // as non-inlineable.
     return returnOtherDexClass2();
   }
 
-  public static Class returnOtherDexCallingMain() {
+  public static Class<?> returnOtherDexCallingMain() {
     return Main.getOtherClass();
   }
 

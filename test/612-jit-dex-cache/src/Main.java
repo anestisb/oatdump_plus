@@ -41,7 +41,7 @@ class DelegateLastPathClassLoader extends PathClassLoader {
 
 public class Main {
 
-   private static Class classFromDifferentLoader() throws Exception {
+   private static Class<?> classFromDifferentLoader() throws Exception {
      final String DEX_FILE = System.getenv("DEX_LOCATION") + "/612-jit-dex-cache-ex.jar";
      ClassLoader loader = new DelegateLastPathClassLoader(DEX_FILE, Main.class.getClassLoader());
      return loader.loadClass("LoadedByAppClassLoader");
@@ -49,7 +49,7 @@ public class Main {
 
   public static void main(String[] args) throws Exception {
     System.loadLibrary(args[0]);
-    Class cls = classFromDifferentLoader();
+    Class<?> cls = classFromDifferentLoader();
     Method m = cls.getDeclaredMethod("letMeInlineYou", A.class);
     B b = new B();
     // Invoke the method enough times to get an inline cache and get JITted.
@@ -63,5 +63,5 @@ public class Main {
     }
   }
 
-  public static native void ensureJitCompiled(Class cls, String method_name);
+  public static native void ensureJitCompiled(Class<?> cls, String method_name);
 }

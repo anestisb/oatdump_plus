@@ -129,7 +129,7 @@ public class Main {
     DeoptimizationController.startDeoptimization();
   }
 
-  public static Class $noinline$inlineCache(Main m, boolean isSecondInvocation) {
+  public static Class<?> $noinline$inlineCache(Main m, boolean isSecondInvocation) {
     // If we are running in non-JIT mode, or were unlucky enough to get this method
     // already JITted, just return the expected value.
     if (!isInInterpreter("$noinline$inlineCache")) {
@@ -159,7 +159,7 @@ public class Main {
     return other.returnClass();
   }
 
-  public static Class $noinline$inlineCache2(Main m, boolean isSecondInvocation) {
+  public static Class<?> $noinline$inlineCache2(Main m, boolean isSecondInvocation) {
     // If we are running in non-JIT mode, or were unlucky enough to get this method
     // already JITted, just return the expected value.
     if (!isInInterpreter("$noinline$inlineCache2")) {
@@ -188,7 +188,7 @@ public class Main {
     return (other == null) ? null : other.returnClass();
   }
 
-  public static Class $noinline$inlineCache3(Main m, boolean isSecondInvocation) {
+  public static Class<?> $noinline$inlineCache3(Main m, boolean isSecondInvocation) {
     // If we are running in non-JIT mode, or were unlucky enough to get this method
     // already JITted, just return the expected value.
     if (!isInInterpreter("$noinline$inlineCache3")) {
@@ -229,7 +229,7 @@ public class Main {
     return null;
   }
 
-  public Class returnClass() {
+  public Class<?> returnClass() {
     return Main.class;
   }
 
@@ -305,7 +305,7 @@ public class Main {
 }
 
 class SubMain extends Main {
-  public Class returnClass() {
+  public Class<?> returnClass() {
     return SubMain.class;
   }
 
