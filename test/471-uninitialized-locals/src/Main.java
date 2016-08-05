@@ -24,8 +24,8 @@ public class Main {
   public static void main(String args[]) throws Exception {
     try {
       Class<?> c = Class.forName("Test");
-      Method m = c.getMethod("ThrowException", (Class[]) null);
-      m.invoke(null, (Object[]) null);
+      Method m = c.getMethod("ThrowException");
+      m.invoke(null);
     } catch (VerifyError e) {
        // Compilation should go fine but we expect the runtime verification to fail.
       return;

@@ -103,7 +103,7 @@ public class Main {
   /// CHECK-NOT:     CheckCast
   public String testClassRemove() {
     Object s = SubclassA.class;
-    return ((Class)s).getName();
+    return ((Class<?>)s).getName();
   }
 
   /// CHECK-START: java.lang.String Main.testClassKeep() instruction_simplifier (before)

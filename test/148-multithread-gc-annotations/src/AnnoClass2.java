@@ -19,5 +19,5 @@ import java.lang.annotation.*;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 public @interface AnnoClass2 {
-    Class value();
+    Class<?> value();
 }

@@ -32,13 +32,13 @@ public class Main {
 
     public static void main(String args[]) throws Exception {
         Class<?> c = Class.forName("Test");
-        Method m = c.getMethod("run", (Class[]) null);
+        Method m = c.getMethod("run");
         for (int i = 0; i < 10; i++) {
             holder = new char[128 * 1024][];
             m.invoke(null, (Object[]) null);
             holder = null;
         }
-        m = c.getMethod("run2", (Class[]) null);
+        m = c.getMethod("run2");
         for (int i = 0; i < 10; i++) {
             holder = new char[128 * 1024][];
             m.invoke(null, (Object[]) null);

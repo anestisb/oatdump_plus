@@ -29,15 +29,15 @@ public class Main {
 
   public static void main(String[] args) throws Exception {
     Class<?> c = Class.forName("SsaBuilder");
-    Method m = c.getMethod("environmentPhi", new Class[] { boolean.class, int[].class });
+    Method m = c.getMethod("environmentPhi", boolean.class, int[].class);
 
     int[] array = new int[3];
     int result;
 
-    result = (Integer) m.invoke(null, new Object[] { true, array } );
+    result = (Integer) m.invoke(null, true, array);
     assertEquals(2, result);
 
-    result = (Integer) m.invoke(null, new Object[] { false, array } );
+    result = (Integer) m.invoke(null, false, array);
     assertEquals(0, result);
   }
 }

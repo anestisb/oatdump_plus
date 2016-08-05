@@ -38,7 +38,7 @@ public class Main {
     }
 
     try {
-      Class c = Class.forName("SubClassUsingInaccessibleField");
+      Class<?> c = Class.forName("SubClassUsingInaccessibleField");
       Object o = c.newInstance();
       c.getMethod("test").invoke(o, null);
     } catch (InvocationTargetException ite) {
@@ -64,7 +64,7 @@ public class Main {
    * On success, the boxed value retrieved is returned.
    */
   public Object getValue(Field field, Object obj, char type,
-      Class expectedException) {
+      Class<?> expectedException) {
     Object result = null;
     try {
       switch (type) {
@@ -638,7 +638,7 @@ class SubClass extends PublicClass {
    * reflection call is significant]
    */
   public Object getValue(Field field, Object obj, char type,
-      Class expectedException) {
+      Class<?> expectedException) {
     Object result = null;
     try {
       switch (type) {
@@ -698,7 +698,7 @@ class SubClass extends PublicClass {
     return result;
   }
 
-  public Object invoke(Method method, Object obj, Class expectedException) {
+  public Object invoke(Method method, Object obj, Class<?> expectedException) {
     Object result = null;
     try {
       result = method.invoke(obj);

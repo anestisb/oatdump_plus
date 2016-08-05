@@ -15,9 +15,9 @@
  */
 
 interface Itf {
-  public Class sameInvokeInterface();
-  public Class sameInvokeInterface2();
-  public Class sameInvokeInterface3();
+  public Class<?> sameInvokeInterface();
+  public Class<?> sameInvokeInterface2();
+  public Class<?> sameInvokeInterface3();
 }
 
 public class Main implements Itf {
@@ -81,31 +81,31 @@ public class Main implements Itf {
     assertEquals(20001, counter);
   }
 
-  public Class sameInvokeVirtual() {
+  public Class<?> sameInvokeVirtual() {
     field.getClass(); // null check to ensure we get an inlined frame in the CodeInfo.
     return Main.class;
   }
 
-  public Class sameInvokeInterface() {
+  public Class<?> sameInvokeInterface() {
     field.getClass(); // null check to ensure we get an inlined frame in the CodeInfo.
     return Itf.class;
   }
 
-  public Class sameInvokeInterface2() {
+  public Class<?> sameInvokeInterface2() {
     field.getClass(); // null check to ensure we get an inlined frame in the CodeInfo.
     return Itf.class;
   }
 
-  public Class sameInvokeInterface3() {
+  public Class<?> sameInvokeInterface3() {
     field.getClass(); // null check to ensure we get an inlined frame in the CodeInfo.
     return Itf.class;
   }
 
-  public static Class testInvokeInterface(Itf i) {
+  public static Class<?> testInvokeInterface(Itf i) {
     return i.sameInvokeInterface();
   }
 
-  public static Class testInvokeInterface2(Itf i) {
+  public static Class<?> testInvokeInterface2(Itf i) {
     // Make three interface calls that will do a ClassTableGet to ensure bogus code
     // generation of ClassTableGet will crash.
     i.sameInvokeInterface();
@@ -113,7 +113,7 @@ public class Main implements Itf {
     return i.sameInvokeInterface3();
   }
 
-  public static Class testInvokeVirtual(Main m) {
+  public static Class<?> testInvokeVirtual(Main m) {
     return m.sameInvokeVirtual();
   }
 
@@ -139,18 +139,18 @@ class Subclass extends Main {
 }
 
 class OtherSubclass extends Main {
-  public Class sameInvokeVirtual() {
+  public Class<?> sameInvokeVirtual() {
     return OtherSubclass.class;
   }
 
-  public Class sameInvokeInterface() {
+  public Class<?> sameInvokeInterface() {
     return OtherSubclass.class;
   }
 
-  public Class sameInvokeInterface2() {
+  public Class<?> sameInvokeInterface2() {
     return null;
   }
-  public Class sameInvokeInterface3() {
+  public Class<?> sameInvokeInterface3() {
     return null;
   }
 }

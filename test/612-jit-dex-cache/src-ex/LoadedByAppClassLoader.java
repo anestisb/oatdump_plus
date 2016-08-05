@@ -29,7 +29,7 @@ public class LoadedByAppClassLoader {
 }
 
 class OtherClass {
-  public static Class getB() {
+  public static Class<?> getB() {
     // This used to return the B class of another class loader.
     return B.class;
   }

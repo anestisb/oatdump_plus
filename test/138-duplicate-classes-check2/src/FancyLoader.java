@@ -42,7 +42,7 @@ public class FancyLoader extends ClassLoader {
             "/138-duplicate-classes-check2-ex.jar";
 
     /* on Dalvik, this is a DexFile; otherwise, it's null */
-    private Class mDexClass;
+    private Class<?> mDexClass;
 
     private Object mDexFile;
 
@@ -83,12 +83,12 @@ public class FancyLoader extends ClassLoader {
 
         if (mDexFile == null) {
             synchronized (FancyLoader.class) {
-                Constructor ctor;
+                Constructor<?> ctor;
                 /*
                  * Construct a DexFile object through reflection.
                  */
                 try {
-                    ctor = mDexClass.getConstructor(new Class[] {String.class});
+                    ctor = mDexClass.getConstructor(String.class);
                 } catch (NoSuchMethodException nsme) {
                     throw new ClassNotFoundException("getConstructor failed",
                         nsme);
@@ -112,8 +112,7 @@ public class FancyLoader extends ClassLoader {
         Method meth;
 
         try {
-            meth = mDexClass.getMethod("loadClass",
-                    new Class[] { String.class, ClassLoader.class });
+            meth = mDexClass.getMethod("loadClass", String.class, ClassLoader.class);
         } catch (NoSuchMethodException nsme) {
             throw new ClassNotFoundException("getMethod failed", nsme);
         }
@@ -185,7 +184,7 @@ public class FancyLoader extends ClassLoader {
     protected Class<?> loadClass(String name, boolean resolve)
         throws ClassNotFoundException
     {
-        Class res;
+        Class<?> res;
 
         /*
          * 1. Invoke findLoadedClass(String) to check if the class has

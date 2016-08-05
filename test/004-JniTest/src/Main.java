@@ -220,7 +220,7 @@ public class Main {
         InvocationHandler handler = new DummyInvocationHandler();
         SimpleInterface proxy =
                 (SimpleInterface) Proxy.newProxyInstance(SimpleInterface.class.getClassLoader(),
-                        new Class[] {SimpleInterface.class}, handler);
+                        new Class<?>[] {SimpleInterface.class}, handler);
         if (testGetMethodID(SimpleInterface.class) == 0) {
             throw new AssertionError();
         }

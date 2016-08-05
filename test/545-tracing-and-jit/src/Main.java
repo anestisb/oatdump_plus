@@ -226,7 +226,7 @@ public class Main {
         private static final Method getMethodTracingModeMethod;
         static {
             try {
-                Class c = Class.forName("dalvik.system.VMDebug");
+                Class<?> c = Class.forName("dalvik.system.VMDebug");
                 startMethodTracingMethod = c.getDeclaredMethod("startMethodTracing", String.class,
                         Integer.TYPE, Integer.TYPE, Boolean.TYPE, Integer.TYPE);
                 stopMethodTracingMethod = c.getDeclaredMethod("stopMethodTracing");

@@ -100,7 +100,7 @@ public class Main {
      */
     void constantLock() {
         assertIsManaged();
-        Class thing = Thread.class;
+        Class<?> thing = Thread.class;
         synchronized (Thread.class) {}
     }
 

@@ -29,8 +29,8 @@ public class ConstructorAccess {
     // accessibility using the frame below (in Main class), we will see an
     // IllegalAccessException from #newInstance
     static public void newConstructorInstance() throws Exception {
-      Class c = Inner.class;
-      Constructor cons = c.getDeclaredConstructor((Class[]) null);
+      Class<?> c = Inner.class;
+      Constructor cons = c.getDeclaredConstructor();
       Object obj = cons.newInstance();
     }
 }

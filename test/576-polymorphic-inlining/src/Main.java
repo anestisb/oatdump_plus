@@ -65,11 +65,11 @@ public class Main {
   public void willOnlyInlineForMainVoid() {
   }
 
-  public Class willInlineWithReturnValue() {
+  public Class<?> willInlineWithReturnValue() {
     return Main.class;
   }
 
-  public Class willOnlyInlineForMainWithReturnValue() {
+  public Class<?> willOnlyInlineForMainWithReturnValue() {
     return Main.class;
   }
   public static boolean doThrow;
@@ -83,21 +83,21 @@ class SubMain extends Main {
   public void willInlineVoid() {
   }
 
-  public Class willInlineWithReturnValue() {
+  public Class<?> willInlineWithReturnValue() {
     return SubMain.class;
   }
 
-  public Class willOnlyInlineForMainWithReturnValue() {
+  public Class<?> willOnlyInlineForMainWithReturnValue() {
     return SubMain.class;
   }
 }
 
 class SubSubMain extends SubMain {
-  public Class willInlineWithReturnValue() {
+  public Class<?> willInlineWithReturnValue() {
     return SubSubMain.class;
   }
 
-  public Class willOnlyInlineForMainWithReturnValue() {
+  public Class<?> willOnlyInlineForMainWithReturnValue() {
     return SubSubMain.class;
   }
 }
