@@ -43,6 +43,7 @@ class RegisterAllocatorLinearScan : public RegisterAllocator {
   RegisterAllocatorLinearScan(ArenaAllocator* allocator,
                               CodeGenerator* codegen,
                               const SsaLivenessAnalysis& analysis);
+  ~RegisterAllocatorLinearScan() OVERRIDE {}
 
   void AllocateRegisters() OVERRIDE;
 
