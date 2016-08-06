@@ -568,15 +568,6 @@ void ArmAssembler::StoreImmediateToFrame(FrameOffset dest, uint32_t imm,
   StoreToOffset(kStoreWord, scratch.AsCoreRegister(), SP, dest.Int32Value());
 }
 
-void ArmAssembler::StoreImmediateToThread32(ThreadOffset32 dest,
-                                            uint32_t imm,
-                                            ManagedRegister mscratch) {
-  ArmManagedRegister scratch = mscratch.AsArm();
-  CHECK(scratch.IsCoreRegister()) << scratch;
-  LoadImmediate(scratch.AsCoreRegister(), imm);
-  StoreToOffset(kStoreWord, scratch.AsCoreRegister(), TR, dest.Int32Value());
-}
-
 static void EmitLoad(ArmAssembler* assembler, ManagedRegister m_dst,
                      Register src_register, int32_t src_offset, size_t size) {
   ArmManagedRegister dst = m_dst.AsArm();
@@ -601,19 +592,19 @@ void ArmAssembler::Load(ManagedRegister m_dst, FrameOffset src, size_t size) {
   return EmitLoad(this, m_dst, SP, src.Int32Value(), size);
 }
 
-void ArmAssembler::LoadFromThread32(ManagedRegister m_dst, ThreadOffset32 src, size_t size) {
+void ArmAssembler::LoadFromThread(ManagedRegister m_dst, ThreadOffset32 src, size_t size) {
   return EmitLoad(this, m_dst, TR, src.Int32Value(), size);
 }
 
-void ArmAssembler::LoadRawPtrFromThread32(ManagedRegister m_dst, ThreadOffset32 offs) {
+void ArmAssembler::LoadRawPtrFromThread(ManagedRegister m_dst, ThreadOffset32 offs) {
   ArmManagedRegister dst = m_dst.AsArm();
   CHECK(dst.IsCoreRegister()) << dst;
   LoadFromOffset(kLoadWord, dst.AsCoreRegister(), TR, offs.Int32Value());
 }
 
-void ArmAssembler::CopyRawPtrFromThread32(FrameOffset fr_offs,
-                                          ThreadOffset32 thr_offs,
-                                          ManagedRegister mscratch) {
+void ArmAssembler::CopyRawPtrFromThread(FrameOffset fr_offs,
+                                        ThreadOffset32 thr_offs,
+                                        ManagedRegister mscratch) {
   ArmManagedRegister scratch = mscratch.AsArm();
   CHECK(scratch.IsCoreRegister()) << scratch;
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
@@ -622,9 +613,9 @@ void ArmAssembler::CopyRawPtrFromThread32(FrameOffset fr_offs,
                 SP, fr_offs.Int32Value());
 }
 
-void ArmAssembler::CopyRawPtrToThread32(ThreadOffset32 thr_offs,
-                                        FrameOffset fr_offs,
-                                        ManagedRegister mscratch) {
+void ArmAssembler::CopyRawPtrToThread(ThreadOffset32 thr_offs,
+                                      FrameOffset fr_offs,
+                                      ManagedRegister mscratch) {
   ArmManagedRegister scratch = mscratch.AsArm();
   CHECK(scratch.IsCoreRegister()) << scratch;
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
@@ -633,9 +624,9 @@ void ArmAssembler::CopyRawPtrToThread32(ThreadOffset32 thr_offs,
                 TR, thr_offs.Int32Value());
 }
 
-void ArmAssembler::StoreStackOffsetToThread32(ThreadOffset32 thr_offs,
-                                              FrameOffset fr_offs,
-                                              ManagedRegister mscratch) {
+void ArmAssembler::StoreStackOffsetToThread(ThreadOffset32 thr_offs,
+                                            FrameOffset fr_offs,
+                                            ManagedRegister mscratch) {
   ArmManagedRegister scratch = mscratch.AsArm();
   CHECK(scratch.IsCoreRegister()) << scratch;
   AddConstant(scratch.AsCoreRegister(), SP, fr_offs.Int32Value(), AL);
@@ -643,7 +634,7 @@ void ArmAssembler::StoreStackOffsetToThread32(ThreadOffset32 thr_offs,
                 TR, thr_offs.Int32Value());
 }
 
-void ArmAssembler::StoreStackPointerToThread32(ThreadOffset32 thr_offs) {
+void ArmAssembler::StoreStackPointerToThread(ThreadOffset32 thr_offs) {
   StoreToOffset(kStoreWord, SP, TR, thr_offs.Int32Value());
 }
 
@@ -832,8 +823,8 @@ void ArmAssembler::Call(FrameOffset base, Offset offset,
   // TODO: place reference map on call
 }
 
-void ArmAssembler::CallFromThread32(ThreadOffset32 offset ATTRIBUTE_UNUSED,
-                                    ManagedRegister scratch ATTRIBUTE_UNUSED) {
+void ArmAssembler::CallFromThread(ThreadOffset32 offset ATTRIBUTE_UNUSED,
+                                  ManagedRegister scratch ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL);
 }
 

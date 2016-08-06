@@ -164,25 +164,16 @@ void Arm64Assembler::StoreImmediateToFrame(FrameOffset offs, uint32_t imm,
                  offs.Int32Value());
 }
 
-void Arm64Assembler::StoreImmediateToThread64(ThreadOffset64 offs,
-                                              uint32_t imm,
+void Arm64Assembler::StoreStackOffsetToThread(ThreadOffset64 tr_offs,
+                                              FrameOffset fr_offs,
                                               ManagedRegister m_scratch) {
-  Arm64ManagedRegister scratch = m_scratch.AsArm64();
-  CHECK(scratch.IsXRegister()) << scratch;
-  LoadImmediate(scratch.AsXRegister(), imm);
-  StoreToOffset(scratch.AsXRegister(), TR, offs.Int32Value());
-}
-
-void Arm64Assembler::StoreStackOffsetToThread64(ThreadOffset64 tr_offs,
-                                                FrameOffset fr_offs,
-                                                ManagedRegister m_scratch) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
   CHECK(scratch.IsXRegister()) << scratch;
   AddConstant(scratch.AsXRegister(), SP, fr_offs.Int32Value());
   StoreToOffset(scratch.AsXRegister(), TR, tr_offs.Int32Value());
 }
 
-void Arm64Assembler::StoreStackPointerToThread64(ThreadOffset64 tr_offs) {
+void Arm64Assembler::StoreStackPointerToThread(ThreadOffset64 tr_offs) {
   UseScratchRegisterScope temps(&vixl_masm_);
   Register temp = temps.AcquireX();
   ___ Mov(temp, reg_x(SP));
@@ -286,7 +277,7 @@ void Arm64Assembler::Load(ManagedRegister m_dst, FrameOffset src, size_t size) {
   return Load(m_dst.AsArm64(), SP, src.Int32Value(), size);
 }
 
-void Arm64Assembler::LoadFromThread64(ManagedRegister m_dst, ThreadOffset64 src, size_t size) {
+void Arm64Assembler::LoadFromThread(ManagedRegister m_dst, ThreadOffset64 src, size_t size) {
   return Load(m_dst.AsArm64(), TR, src.Int32Value(), size);
 }
 
@@ -319,7 +310,7 @@ void Arm64Assembler::LoadRawPtr(ManagedRegister m_dst, ManagedRegister m_base, O
   ___ Ldr(reg_x(dst.AsXRegister()), MEM_OP(reg_x(base.AsXRegister()), offs.Int32Value()));
 }
 
-void Arm64Assembler::LoadRawPtrFromThread64(ManagedRegister m_dst, ThreadOffset64 offs) {
+void Arm64Assembler::LoadRawPtrFromThread(ManagedRegister m_dst, ThreadOffset64 offs) {
   Arm64ManagedRegister dst = m_dst.AsArm64();
   CHECK(dst.IsXRegister()) << dst;
   LoadFromOffset(dst.AsXRegister(), TR, offs.Int32Value());
@@ -355,18 +346,18 @@ void Arm64Assembler::Move(ManagedRegister m_dst, ManagedRegister m_src, size_t s
   }
 }
 
-void Arm64Assembler::CopyRawPtrFromThread64(FrameOffset fr_offs,
-                                            ThreadOffset64 tr_offs,
-                                            ManagedRegister m_scratch) {
+void Arm64Assembler::CopyRawPtrFromThread(FrameOffset fr_offs,
+                                          ThreadOffset64 tr_offs,
+                                          ManagedRegister m_scratch) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
   CHECK(scratch.IsXRegister()) << scratch;
   LoadFromOffset(scratch.AsXRegister(), TR, tr_offs.Int32Value());
   StoreToOffset(scratch.AsXRegister(), SP, fr_offs.Int32Value());
 }
 
-void Arm64Assembler::CopyRawPtrToThread64(ThreadOffset64 tr_offs,
-                                          FrameOffset fr_offs,
-                                          ManagedRegister m_scratch) {
+void Arm64Assembler::CopyRawPtrToThread(ThreadOffset64 tr_offs,
+                                        FrameOffset fr_offs,
+                                        ManagedRegister m_scratch) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
   CHECK(scratch.IsXRegister()) << scratch;
   LoadFromOffset(scratch.AsXRegister(), SP, fr_offs.Int32Value());
@@ -543,8 +534,8 @@ void Arm64Assembler::Call(FrameOffset base, Offset offs, ManagedRegister m_scrat
   ___ Blr(reg_x(scratch.AsXRegister()));
 }
 
-void Arm64Assembler::CallFromThread64(ThreadOffset64 offset ATTRIBUTE_UNUSED,
-                                      ManagedRegister scratch ATTRIBUTE_UNUSED) {
+void Arm64Assembler::CallFromThread(ThreadOffset64 offset ATTRIBUTE_UNUSED,
+                                    ManagedRegister scratch ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL) << "Unimplemented Call() variant";
 }
 
