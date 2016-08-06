@@ -546,7 +546,8 @@ void OptimizingCompiler::RunArchOptimizations(InstructionSet instruction_set,
 NO_INLINE  // Avoid increasing caller's frame size by large stack-allocated objects.
 static void AllocateRegisters(HGraph* graph,
                               CodeGenerator* codegen,
-                              PassObserver* pass_observer) {
+                              PassObserver* pass_observer,
+                              RegisterAllocator::Strategy strategy) {
   {
     PassScope scope(PrepareForRegisterAllocation::kPrepareForRegisterAllocationPassName,
                     pass_observer);
@@ -559,7 +560,7 @@ static void AllocateRegisters(HGraph* graph,
   }
   {
     PassScope scope(RegisterAllocator::kRegisterAllocatorPassName, pass_observer);
-    RegisterAllocator::Create(graph->GetArena(), codegen, liveness)->AllocateRegisters();
+    RegisterAllocator::Create(graph->GetArena(), codegen, liveness, strategy)->AllocateRegisters();
   }
 }
 
@@ -626,7 +627,9 @@ void OptimizingCompiler::RunOptimizations(HGraph* graph,
   RunOptimizations(optimizations2, arraysize(optimizations2), pass_observer);
 
   RunArchOptimizations(driver->GetInstructionSet(), graph, codegen, pass_observer);
-  AllocateRegisters(graph, codegen, pass_observer);
+  RegisterAllocator::Strategy regalloc_strategy =
+      driver->GetCompilerOptions().GetRegisterAllocationStrategy();
+  AllocateRegisters(graph, codegen, pass_observer, regalloc_strategy);
 }
 
 static ArenaVector<LinkerPatch> EmitAndSortLinkerPatches(CodeGenerator* codegen) {
