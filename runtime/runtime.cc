@@ -115,6 +115,7 @@
 #include "native/org_apache_harmony_dalvik_ddmc_DdmVmInternal.h"
 #include "native/sun_misc_Unsafe.h"
 #include "native_bridge_art_interface.h"
+#include "native_stack_dump.h"
 #include "oat_file.h"
 #include "oat_file_manager.h"
 #include "os.h"

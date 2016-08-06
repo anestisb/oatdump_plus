@@ -35,6 +35,7 @@
 #include "jni_internal.h"
 #include "lock_word.h"
 #include "monitor.h"
+#include "native_stack_dump.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
 #include "trace.h"
