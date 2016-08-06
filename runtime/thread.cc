@@ -55,6 +55,7 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/stack_trace_element.h"
 #include "monitor.h"
+#include "native_stack_dump.h"
 #include "nth_caller_visitor.h"
 #include "oat_quick_method_header.h"
 #include "object_lock.h"
