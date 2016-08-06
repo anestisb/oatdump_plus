@@ -2799,19 +2799,9 @@ void MipsAssembler::StoreImmediateToFrame(FrameOffset dest, uint32_t imm,
   StoreToOffset(kStoreWord, scratch.AsCoreRegister(), SP, dest.Int32Value());
 }
 
-void MipsAssembler::StoreImmediateToThread32(ThreadOffset32 dest,
-                                             uint32_t imm,
+void MipsAssembler::StoreStackOffsetToThread(ThreadOffset32 thr_offs,
+                                             FrameOffset fr_offs,
                                              ManagedRegister mscratch) {
-  MipsManagedRegister scratch = mscratch.AsMips();
-  CHECK(scratch.IsCoreRegister()) << scratch;
-  // Is this function even referenced anywhere else in the code?
-  LoadConst32(scratch.AsCoreRegister(), imm);
-  StoreToOffset(kStoreWord, scratch.AsCoreRegister(), S1, dest.Int32Value());
-}
-
-void MipsAssembler::StoreStackOffsetToThread32(ThreadOffset32 thr_offs,
-                                               FrameOffset fr_offs,
-                                               ManagedRegister mscratch) {
   MipsManagedRegister scratch = mscratch.AsMips();
   CHECK(scratch.IsCoreRegister()) << scratch;
   Addiu32(scratch.AsCoreRegister(), SP, fr_offs.Int32Value());
@@ -2819,7 +2809,7 @@ void MipsAssembler::StoreStackOffsetToThread32(ThreadOffset32 thr_offs,
                 S1, thr_offs.Int32Value());
 }
 
-void MipsAssembler::StoreStackPointerToThread32(ThreadOffset32 thr_offs) {
+void MipsAssembler::StoreStackPointerToThread(ThreadOffset32 thr_offs) {
   StoreToOffset(kStoreWord, SP, S1, thr_offs.Int32Value());
 }
 
@@ -2836,7 +2826,7 @@ void MipsAssembler::Load(ManagedRegister mdest, FrameOffset src, size_t size) {
   return EmitLoad(mdest, SP, src.Int32Value(), size);
 }
 
-void MipsAssembler::LoadFromThread32(ManagedRegister mdest, ThreadOffset32 src, size_t size) {
+void MipsAssembler::LoadFromThread(ManagedRegister mdest, ThreadOffset32 src, size_t size) {
   return EmitLoad(mdest, S1, src.Int32Value(), size);
 }
 
@@ -2864,7 +2854,7 @@ void MipsAssembler::LoadRawPtr(ManagedRegister mdest, ManagedRegister base, Offs
                  base.AsMips().AsCoreRegister(), offs.Int32Value());
 }
 
-void MipsAssembler::LoadRawPtrFromThread32(ManagedRegister mdest, ThreadOffset32 offs) {
+void MipsAssembler::LoadRawPtrFromThread(ManagedRegister mdest, ThreadOffset32 offs) {
   MipsManagedRegister dest = mdest.AsMips();
   CHECK(dest.IsCoreRegister());
   LoadFromOffset(kLoadWord, dest.AsCoreRegister(), S1, offs.Int32Value());
@@ -2918,9 +2908,9 @@ void MipsAssembler::CopyRef(FrameOffset dest, FrameOffset src, ManagedRegister m
   StoreToOffset(kStoreWord, scratch.AsCoreRegister(), SP, dest.Int32Value());
 }
 
-void MipsAssembler::CopyRawPtrFromThread32(FrameOffset fr_offs,
-                                           ThreadOffset32 thr_offs,
-                                           ManagedRegister mscratch) {
+void MipsAssembler::CopyRawPtrFromThread(FrameOffset fr_offs,
+                                         ThreadOffset32 thr_offs,
+                                         ManagedRegister mscratch) {
   MipsManagedRegister scratch = mscratch.AsMips();
   CHECK(scratch.IsCoreRegister()) << scratch;
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
@@ -2929,9 +2919,9 @@ void MipsAssembler::CopyRawPtrFromThread32(FrameOffset fr_offs,
                 SP, fr_offs.Int32Value());
 }
 
-void MipsAssembler::CopyRawPtrToThread32(ThreadOffset32 thr_offs,
-                                         FrameOffset fr_offs,
-                                         ManagedRegister mscratch) {
+void MipsAssembler::CopyRawPtrToThread(ThreadOffset32 thr_offs,
+                                       FrameOffset fr_offs,
+                                       ManagedRegister mscratch) {
   MipsManagedRegister scratch = mscratch.AsMips();
   CHECK(scratch.IsCoreRegister()) << scratch;
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
@@ -3103,8 +3093,8 @@ void MipsAssembler::Call(FrameOffset base, Offset offset, ManagedRegister mscrat
   // TODO: place reference map on call.
 }
 
-void MipsAssembler::CallFromThread32(ThreadOffset32 offset ATTRIBUTE_UNUSED,
-                                     ManagedRegister mscratch ATTRIBUTE_UNUSED) {
+void MipsAssembler::CallFromThread(ThreadOffset32 offset ATTRIBUTE_UNUSED,
+                                   ManagedRegister mscratch ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL) << "no mips implementation";
 }
 

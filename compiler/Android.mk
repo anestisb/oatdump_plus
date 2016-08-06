@@ -81,6 +81,7 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/x86_memory_gen.cc \
 	trampolines/trampoline_compiler.cc \
 	utils/assembler.cc \
+	utils/jni_macro_assembler.cc \
 	utils/swap_space.cc \
 	compiler.cc \
 	elf_writer.cc \
