@@ -132,6 +132,7 @@ LIBART_COMMON_SRC_FILES := \
   mirror/throwable.cc \
   monitor.cc \
   native_bridge_art_interface.cc \
+  native_stack_dump.cc \
   native/dalvik_system_DexFile.cc \
   native/dalvik_system_VMDebug.cc \
   native/dalvik_system_VMRuntime.cc \
