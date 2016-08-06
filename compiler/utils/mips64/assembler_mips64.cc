@@ -2115,16 +2115,16 @@ void Mips64Assembler::StoreImmediateToFrame(FrameOffset dest, uint32_t imm,
   StoreToOffset(kStoreWord, scratch.AsGpuRegister(), SP, dest.Int32Value());
 }
 
-void Mips64Assembler::StoreStackOffsetToThread64(ThreadOffset64 thr_offs,
-                                                 FrameOffset fr_offs,
-                                                 ManagedRegister mscratch) {
+void Mips64Assembler::StoreStackOffsetToThread(ThreadOffset64 thr_offs,
+                                               FrameOffset fr_offs,
+                                               ManagedRegister mscratch) {
   Mips64ManagedRegister scratch = mscratch.AsMips64();
   CHECK(scratch.IsGpuRegister()) << scratch;
   Daddiu64(scratch.AsGpuRegister(), SP, fr_offs.Int32Value());
   StoreToOffset(kStoreDoubleword, scratch.AsGpuRegister(), S1, thr_offs.Int32Value());
 }
 
-void Mips64Assembler::StoreStackPointerToThread64(ThreadOffset64 thr_offs) {
+void Mips64Assembler::StoreStackPointerToThread(ThreadOffset64 thr_offs) {
   StoreToOffset(kStoreDoubleword, SP, S1, thr_offs.Int32Value());
 }
 
@@ -2141,7 +2141,7 @@ void Mips64Assembler::Load(ManagedRegister mdest, FrameOffset src, size_t size) 
   return EmitLoad(mdest, SP, src.Int32Value(), size);
 }
 
-void Mips64Assembler::LoadFromThread64(ManagedRegister mdest, ThreadOffset64 src, size_t size) {
+void Mips64Assembler::LoadFromThread(ManagedRegister mdest, ThreadOffset64 src, size_t size) {
   return EmitLoad(mdest, S1, src.Int32Value(), size);
 }
 
@@ -2174,7 +2174,7 @@ void Mips64Assembler::LoadRawPtr(ManagedRegister mdest, ManagedRegister base,
                  base.AsMips64().AsGpuRegister(), offs.Int32Value());
 }
 
-void Mips64Assembler::LoadRawPtrFromThread64(ManagedRegister mdest, ThreadOffset64 offs) {
+void Mips64Assembler::LoadRawPtrFromThread(ManagedRegister mdest, ThreadOffset64 offs) {
   Mips64ManagedRegister dest = mdest.AsMips64();
   CHECK(dest.IsGpuRegister());
   LoadFromOffset(kLoadDoubleword, dest.AsGpuRegister(), S1, offs.Int32Value());
@@ -2218,18 +2218,18 @@ void Mips64Assembler::CopyRef(FrameOffset dest, FrameOffset src,
   StoreToOffset(kStoreWord, scratch.AsGpuRegister(), SP, dest.Int32Value());
 }
 
-void Mips64Assembler::CopyRawPtrFromThread64(FrameOffset fr_offs,
-                                             ThreadOffset64 thr_offs,
-                                             ManagedRegister mscratch) {
+void Mips64Assembler::CopyRawPtrFromThread(FrameOffset fr_offs,
+                                           ThreadOffset64 thr_offs,
+                                           ManagedRegister mscratch) {
   Mips64ManagedRegister scratch = mscratch.AsMips64();
   CHECK(scratch.IsGpuRegister()) << scratch;
   LoadFromOffset(kLoadDoubleword, scratch.AsGpuRegister(), S1, thr_offs.Int32Value());
   StoreToOffset(kStoreDoubleword, scratch.AsGpuRegister(), SP, fr_offs.Int32Value());
 }
 
-void Mips64Assembler::CopyRawPtrToThread64(ThreadOffset64 thr_offs,
-                                           FrameOffset fr_offs,
-                                           ManagedRegister mscratch) {
+void Mips64Assembler::CopyRawPtrToThread(ThreadOffset64 thr_offs,
+                                         FrameOffset fr_offs,
+                                         ManagedRegister mscratch) {
   Mips64ManagedRegister scratch = mscratch.AsMips64();
   CHECK(scratch.IsGpuRegister()) << scratch;
   LoadFromOffset(kLoadDoubleword, scratch.AsGpuRegister(),
@@ -2431,8 +2431,8 @@ void Mips64Assembler::Call(FrameOffset base, Offset offset, ManagedRegister mscr
   // TODO: place reference map on call
 }
 
-void Mips64Assembler::CallFromThread64(ThreadOffset64 offset ATTRIBUTE_UNUSED,
-                                       ManagedRegister mscratch ATTRIBUTE_UNUSED) {
+void Mips64Assembler::CallFromThread(ThreadOffset64 offset ATTRIBUTE_UNUSED,
+                                     ManagedRegister mscratch ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL) << "No MIPS64 implementation";
 }
 

@@ -20,12 +20,14 @@
 #include <utility>
 #include <vector>
 
+#include "base/enums.h"
 #include "base/macros.h"
 #include "constants_mips64.h"
 #include "globals.h"
 #include "managed_register_mips64.h"
 #include "offsets.h"
 #include "utils/assembler.h"
+#include "utils/jni_macro_assembler.h"
 #include "utils/label.h"
 
 namespace art {
@@ -100,7 +102,7 @@ class Mips64ExceptionSlowPath {
   DISALLOW_COPY_AND_ASSIGN(Mips64ExceptionSlowPath);
 };
 
-class Mips64Assembler FINAL : public Assembler {
+class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<PointerSize::k64> {
  public:
   explicit Mips64Assembler(ArenaAllocator* arena)
       : Assembler(arena),
@@ -117,6 +119,9 @@ class Mips64Assembler FINAL : public Assembler {
       CHECK(branch.IsResolved());
     }
   }
+
+  size_t CodeSize() const OVERRIDE { return Assembler::CodeSize(); }
+  DebugFrameOpCodeWriterForAssembler& cfi() { return Assembler::cfi(); }
 
   // Emit Machine Instructions.
   void Addu(GpuRegister rd, GpuRegister rs, GpuRegister rt);
@@ -383,11 +388,11 @@ class Mips64Assembler FINAL : public Assembler {
 
   void StoreImmediateToFrame(FrameOffset dest, uint32_t imm, ManagedRegister mscratch) OVERRIDE;
 
-  void StoreStackOffsetToThread64(ThreadOffset64 thr_offs,
-                                  FrameOffset fr_offs,
-                                  ManagedRegister mscratch) OVERRIDE;
+  void StoreStackOffsetToThread(ThreadOffset64 thr_offs,
+                                FrameOffset fr_offs,
+                                ManagedRegister mscratch) OVERRIDE;
 
-  void StoreStackPointerToThread64(ThreadOffset64 thr_offs) OVERRIDE;
+  void StoreStackPointerToThread(ThreadOffset64 thr_offs) OVERRIDE;
 
   void StoreSpanning(FrameOffset dest, ManagedRegister msrc, FrameOffset in_off,
                      ManagedRegister mscratch) OVERRIDE;
@@ -395,7 +400,7 @@ class Mips64Assembler FINAL : public Assembler {
   // Load routines.
   void Load(ManagedRegister mdest, FrameOffset src, size_t size) OVERRIDE;
 
-  void LoadFromThread64(ManagedRegister mdest, ThreadOffset64 src, size_t size) OVERRIDE;
+  void LoadFromThread(ManagedRegister mdest, ThreadOffset64 src, size_t size) OVERRIDE;
 
   void LoadRef(ManagedRegister dest, FrameOffset src) OVERRIDE;
 
@@ -404,18 +409,18 @@ class Mips64Assembler FINAL : public Assembler {
 
   void LoadRawPtr(ManagedRegister mdest, ManagedRegister base, Offset offs) OVERRIDE;
 
-  void LoadRawPtrFromThread64(ManagedRegister mdest, ThreadOffset64 offs) OVERRIDE;
+  void LoadRawPtrFromThread(ManagedRegister mdest, ThreadOffset64 offs) OVERRIDE;
 
   // Copying routines.
   void Move(ManagedRegister mdest, ManagedRegister msrc, size_t size) OVERRIDE;
 
-  void CopyRawPtrFromThread64(FrameOffset fr_offs,
-                              ThreadOffset64 thr_offs,
-                              ManagedRegister mscratch) OVERRIDE;
-
-  void CopyRawPtrToThread64(ThreadOffset64 thr_offs,
-                            FrameOffset fr_offs,
+  void CopyRawPtrFromThread(FrameOffset fr_offs,
+                            ThreadOffset64 thr_offs,
                             ManagedRegister mscratch) OVERRIDE;
+
+  void CopyRawPtrToThread(ThreadOffset64 thr_offs,
+                          FrameOffset fr_offs,
+                          ManagedRegister mscratch) OVERRIDE;
 
   void CopyRef(FrameOffset dest, FrameOffset src, ManagedRegister mscratch) OVERRIDE;
 
@@ -471,7 +476,7 @@ class Mips64Assembler FINAL : public Assembler {
   // Call to address held at [base+offset].
   void Call(ManagedRegister base, Offset offset, ManagedRegister mscratch) OVERRIDE;
   void Call(FrameOffset base, Offset offset, ManagedRegister mscratch) OVERRIDE;
-  void CallFromThread64(ThreadOffset64 offset, ManagedRegister mscratch) OVERRIDE;
+  void CallFromThread(ThreadOffset64 offset, ManagedRegister mscratch) OVERRIDE;
 
   // Generate code to check if Thread::Current()->exception_ is non-null
   // and branch to a ExceptionSlowPath if it is.
