@@ -44,7 +44,8 @@ CompilerOptions::CompilerOptions()
       init_failure_output_(nullptr),
       dump_cfg_file_name_(""),
       dump_cfg_append_(false),
-      force_determinism_(false) {
+      force_determinism_(false),
+      register_allocation_strategy_(RegisterAllocator::kRegisterAllocatorDefault) {
 }
 
 CompilerOptions::~CompilerOptions() {
@@ -74,7 +75,8 @@ CompilerOptions::CompilerOptions(CompilerFilter::Filter compiler_filter,
                                  bool abort_on_hard_verifier_failure,
                                  const std::string& dump_cfg_file_name,
                                  bool dump_cfg_append,
-                                 bool force_determinism
+                                 bool force_determinism,
+                                 RegisterAllocator::Strategy regalloc_strategy
                                  ) :  // NOLINT(whitespace/parens)
     compiler_filter_(compiler_filter),
     huge_method_threshold_(huge_method_threshold),
@@ -99,7 +101,8 @@ CompilerOptions::CompilerOptions(CompilerFilter::Filter compiler_filter,
     init_failure_output_(init_failure_output),
     dump_cfg_file_name_(dump_cfg_file_name),
     dump_cfg_append_(dump_cfg_append),
-    force_determinism_(force_determinism) {
+    force_determinism_(force_determinism),
+    register_allocation_strategy_(regalloc_strategy) {
 }
 
 void CompilerOptions::ParseHugeMethodMax(const StringPiece& option, UsageFn Usage) {
@@ -141,6 +144,19 @@ void CompilerOptions::ParseDumpInitFailures(const StringPiece& option,
     LOG(ERROR) << "Failed to open " << file_name << " for writing the initialization "
                << "failures.";
     init_failure_output_.reset();
+  }
+}
+
+void CompilerOptions::ParseRegisterAllocationStrategy(const StringPiece& option,
+                                                      UsageFn Usage) {
+  DCHECK(option.starts_with("--register-allocation-strategy="));
+  StringPiece choice = option.substr(strlen("--register-allocation-strategy=")).data();
+  if (choice == "linear-scan") {
+    register_allocation_strategy_ = RegisterAllocator::Strategy::kRegisterAllocatorLinearScan;
+  } else if (choice == "graph-color") {
+    register_allocation_strategy_ = RegisterAllocator::Strategy::kRegisterAllocatorGraphColor;
+  } else {
+    Usage("Unrecognized register allocation strategy. Try linear-scan, or graph-color.");
   }
 }
 
@@ -190,6 +206,8 @@ bool CompilerOptions::ParseCompilerOption(const StringPiece& option, UsageFn Usa
     dump_cfg_file_name_ = option.substr(strlen("--dump-cfg=")).data();
   } else if (option.starts_with("--dump-cfg-append")) {
     dump_cfg_append_ = true;
+  } else if (option.starts_with("--register-allocation-strategy=")) {
+    ParseRegisterAllocationStrategy(option, Usage);
   } else {
     // Option not recognized.
     return false;
