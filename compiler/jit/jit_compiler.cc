@@ -32,6 +32,7 @@
 #include "oat_file-inl.h"
 #include "oat_quick_method_header.h"
 #include "object_lock.h"
+#include "optimizing/register_allocator.h"
 #include "thread_list.h"
 
 namespace art {
@@ -110,7 +111,8 @@ JitCompiler::JitCompiler() {
       /* abort_on_hard_verifier_failure */ false,
       /* dump_cfg_file_name */ "",
       /* dump_cfg_append */ false,
-      /* force_determinism */ false));
+      /* force_determinism */ false,
+      RegisterAllocator::kRegisterAllocatorDefault));
   for (const std::string& argument : Runtime::Current()->GetCompilerOptions()) {
     compiler_options_->ParseCompilerOption(argument, Usage);
   }
