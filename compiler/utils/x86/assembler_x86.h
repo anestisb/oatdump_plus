@@ -21,6 +21,7 @@
 
 #include "base/arena_containers.h"
 #include "base/bit_utils.h"
+#include "base/enums.h"
 #include "base/macros.h"
 #include "constants_x86.h"
 #include "globals.h"
@@ -28,6 +29,7 @@
 #include "offsets.h"
 #include "utils/array_ref.h"
 #include "utils/assembler.h"
+#include "utils/jni_macro_assembler.h"
 
 namespace art {
 namespace x86 {
@@ -302,10 +304,17 @@ class ConstantArea {
   ArenaVector<int32_t> buffer_;
 };
 
-class X86Assembler FINAL : public Assembler {
+class X86Assembler FINAL : public Assembler, public JNIMacroAssembler<PointerSize::k32> {
  public:
   explicit X86Assembler(ArenaAllocator* arena) : Assembler(arena), constant_area_(arena) {}
   virtual ~X86Assembler() {}
+
+  size_t CodeSize() const OVERRIDE { return Assembler::CodeSize(); }
+  DebugFrameOpCodeWriterForAssembler& cfi() { return Assembler::cfi(); }
+  void FinalizeCode() { Assembler::FinalizeCode(); }
+  void FinalizeInstructions(const MemoryRegion& region) {
+    Assembler::FinalizeInstructions(region);
+  }
 
   /*
    * Emit Machine Instructions.
@@ -654,13 +663,11 @@ class X86Assembler FINAL : public Assembler {
 
   void StoreImmediateToFrame(FrameOffset dest, uint32_t imm, ManagedRegister scratch) OVERRIDE;
 
-  void StoreImmediateToThread32(ThreadOffset32 dest, uint32_t imm, ManagedRegister scratch)
-      OVERRIDE;
+  void StoreStackOffsetToThread(ThreadOffset32 thr_offs,
+                                FrameOffset fr_offs,
+                                ManagedRegister scratch) OVERRIDE;
 
-  void StoreStackOffsetToThread32(ThreadOffset32 thr_offs, FrameOffset fr_offs,
-                                  ManagedRegister scratch) OVERRIDE;
-
-  void StoreStackPointerToThread32(ThreadOffset32 thr_offs) OVERRIDE;
+  void StoreStackPointerToThread(ThreadOffset32 thr_offs) OVERRIDE;
 
   void StoreSpanning(FrameOffset dest, ManagedRegister src, FrameOffset in_off,
                      ManagedRegister scratch) OVERRIDE;
@@ -668,7 +675,7 @@ class X86Assembler FINAL : public Assembler {
   // Load routines
   void Load(ManagedRegister dest, FrameOffset src, size_t size) OVERRIDE;
 
-  void LoadFromThread32(ManagedRegister dest, ThreadOffset32 src, size_t size) OVERRIDE;
+  void LoadFromThread(ManagedRegister dest, ThreadOffset32 src, size_t size) OVERRIDE;
 
   void LoadRef(ManagedRegister dest, FrameOffset src) OVERRIDE;
 
@@ -677,15 +684,16 @@ class X86Assembler FINAL : public Assembler {
 
   void LoadRawPtr(ManagedRegister dest, ManagedRegister base, Offset offs) OVERRIDE;
 
-  void LoadRawPtrFromThread32(ManagedRegister dest, ThreadOffset32 offs) OVERRIDE;
+  void LoadRawPtrFromThread(ManagedRegister dest, ThreadOffset32 offs) OVERRIDE;
 
   // Copying routines
   void Move(ManagedRegister dest, ManagedRegister src, size_t size) OVERRIDE;
 
-  void CopyRawPtrFromThread32(FrameOffset fr_offs, ThreadOffset32 thr_offs,
-                              ManagedRegister scratch) OVERRIDE;
+  void CopyRawPtrFromThread(FrameOffset fr_offs,
+                            ThreadOffset32 thr_offs,
+                            ManagedRegister scratch) OVERRIDE;
 
-  void CopyRawPtrToThread32(ThreadOffset32 thr_offs, FrameOffset fr_offs, ManagedRegister scratch)
+  void CopyRawPtrToThread(ThreadOffset32 thr_offs, FrameOffset fr_offs, ManagedRegister scratch)
       OVERRIDE;
 
   void CopyRef(FrameOffset dest, FrameOffset src, ManagedRegister scratch) OVERRIDE;
@@ -742,7 +750,7 @@ class X86Assembler FINAL : public Assembler {
   // Call to address held at [base+offset]
   void Call(ManagedRegister base, Offset offset, ManagedRegister scratch) OVERRIDE;
   void Call(FrameOffset base, Offset offset, ManagedRegister scratch) OVERRIDE;
-  void CallFromThread32(ThreadOffset32 offset, ManagedRegister scratch) OVERRIDE;
+  void CallFromThread(ThreadOffset32 offset, ManagedRegister scratch) OVERRIDE;
 
   // Generate code to check if Thread::Current()->exception_ is non-null
   // and branch to a ExceptionSlowPath if it is.

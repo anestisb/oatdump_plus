@@ -26,6 +26,7 @@
 #include "base/enums.h"
 #include "base/logging.h"
 #include "base/macros.h"
+#include "memory_region.h"
 #include "calling_convention.h"
 #include "class_linker.h"
 #include "compiled_method.h"
@@ -34,7 +35,9 @@
 #include "driver/compiler_options.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "jni_env_ext.h"
+#include "debug/dwarf/debug_frame_opcode_writer.h"
 #include "utils/assembler.h"
+#include "utils/jni_macro_assembler.h"
 #include "utils/managed_register.h"
 #include "utils/arm/managed_register_arm.h"
 #include "utils/arm64/managed_register_arm64.h"
@@ -47,22 +50,32 @@
 
 namespace art {
 
-static void CopyParameter(Assembler* jni_asm,
+template <PointerSize kPointerSize>
+static void CopyParameter(JNIMacroAssembler<kPointerSize>* jni_asm,
                           ManagedRuntimeCallingConvention* mr_conv,
                           JniCallingConvention* jni_conv,
                           size_t frame_size, size_t out_arg_size);
-static void SetNativeParameter(Assembler* jni_asm,
+template <PointerSize kPointerSize>
+static void SetNativeParameter(JNIMacroAssembler<kPointerSize>* jni_asm,
                                JniCallingConvention* jni_conv,
                                ManagedRegister in_reg);
+
+template <PointerSize kPointerSize>
+static std::unique_ptr<JNIMacroAssembler<kPointerSize>> GetMacroAssembler(
+    ArenaAllocator* arena, InstructionSet isa, const InstructionSetFeatures* features) {
+  return JNIMacroAssembler<kPointerSize>::Create(arena, isa, features);
+}
 
 // Generate the JNI bridge for the given method, general contract:
 // - Arguments are in the managed runtime format, either on stack or in
 //   registers, a reference to the method object is supplied as part of this
 //   convention.
 //
-CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
-                                            uint32_t access_flags, uint32_t method_idx,
-                                            const DexFile& dex_file) {
+template <PointerSize kPointerSize>
+static CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
+                                                   uint32_t access_flags,
+                                                   uint32_t method_idx,
+                                                   const DexFile& dex_file) {
   const bool is_native = (access_flags & kAccNative) != 0;
   CHECK(is_native);
   const bool is_static = (access_flags & kAccStatic) != 0;
@@ -70,7 +83,6 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));
   InstructionSet instruction_set = driver->GetInstructionSet();
   const InstructionSetFeatures* instruction_set_features = driver->GetInstructionSetFeatures();
-  const bool is_64_bit_target = Is64BitInstructionSet(instruction_set);
 
   ArenaPool pool;
   ArenaAllocator arena(&pool);
@@ -101,8 +113,8 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
       &arena, is_static, is_synchronized, jni_end_shorty, instruction_set));
 
   // Assembler that holds generated instructions
-  std::unique_ptr<Assembler> jni_asm(
-      Assembler::Create(&arena, instruction_set, instruction_set_features));
+  std::unique_ptr<JNIMacroAssembler<kPointerSize>> jni_asm =
+      GetMacroAssembler<kPointerSize>(&arena, instruction_set, instruction_set_features);
   jni_asm->cfi().SetEnabled(driver->GetCompilerOptions().GenerateAnyDebugInfo());
 
   // Offsets into data structures
@@ -124,21 +136,12 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
                            main_jni_conv->ReferenceCount(),
                            mr_conv->InterproceduralScratchRegister());
 
-  if (is_64_bit_target) {
-    __ CopyRawPtrFromThread64(main_jni_conv->HandleScopeLinkOffset(),
-                              Thread::TopHandleScopeOffset<PointerSize::k64>(),
+  __ CopyRawPtrFromThread(main_jni_conv->HandleScopeLinkOffset(),
+                          Thread::TopHandleScopeOffset<kPointerSize>(),
+                          mr_conv->InterproceduralScratchRegister());
+  __ StoreStackOffsetToThread(Thread::TopHandleScopeOffset<kPointerSize>(),
+                              main_jni_conv->HandleScopeOffset(),
                               mr_conv->InterproceduralScratchRegister());
-    __ StoreStackOffsetToThread64(Thread::TopHandleScopeOffset<PointerSize::k64>(),
-                                  main_jni_conv->HandleScopeOffset(),
-                                  mr_conv->InterproceduralScratchRegister());
-  } else {
-    __ CopyRawPtrFromThread32(main_jni_conv->HandleScopeLinkOffset(),
-                              Thread::TopHandleScopeOffset<PointerSize::k32>(),
-                              mr_conv->InterproceduralScratchRegister());
-    __ StoreStackOffsetToThread32(Thread::TopHandleScopeOffset<PointerSize::k32>(),
-                                  main_jni_conv->HandleScopeOffset(),
-                                  mr_conv->InterproceduralScratchRegister());
-  }
 
   // 3. Place incoming reference arguments into handle scope
   main_jni_conv->Next();  // Skip JNIEnv*
@@ -188,11 +191,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   }
 
   // 4. Write out the end of the quick frames.
-  if (is_64_bit_target) {
-    __ StoreStackPointerToThread64(Thread::TopOfManagedStackOffset<PointerSize::k64>());
-  } else {
-    __ StoreStackPointerToThread32(Thread::TopOfManagedStackOffset<PointerSize::k32>());
-  }
+  __ StoreStackPointerToThread(Thread::TopOfManagedStackOffset<kPointerSize>());
 
   // 5. Move frame down to allow space for out going args.
   const size_t main_out_arg_size = main_jni_conv->OutArgSize();
@@ -202,10 +201,8 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   // Call the read barrier for the declaring class loaded from the method for a static call.
   // Note that we always have outgoing param space available for at least two params.
   if (kUseReadBarrier && is_static) {
-    ThreadOffset32 read_barrier32 =
-        QUICK_ENTRYPOINT_OFFSET(PointerSize::k32, pReadBarrierJni);
-    ThreadOffset64 read_barrier64 =
-        QUICK_ENTRYPOINT_OFFSET(PointerSize::k64, pReadBarrierJni);
+    ThreadOffset<kPointerSize> read_barrier = QUICK_ENTRYPOINT_OFFSET(kPointerSize,
+                                                                      pReadBarrierJni);
     main_jni_conv->ResetIterator(FrameOffset(main_out_arg_size));
     main_jni_conv->Next();  // Skip JNIEnv.
     FrameOffset class_handle_scope_offset = main_jni_conv->CurrentParamHandleScopeEntryOffset();
@@ -225,21 +222,13 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
     // Pass the current thread as the second argument and call.
     if (main_jni_conv->IsCurrentParamInRegister()) {
       __ GetCurrentThread(main_jni_conv->CurrentParamRegister());
-      if (is_64_bit_target) {
-        __ Call(main_jni_conv->CurrentParamRegister(), Offset(read_barrier64),
-                main_jni_conv->InterproceduralScratchRegister());
-      } else {
-        __ Call(main_jni_conv->CurrentParamRegister(), Offset(read_barrier32),
-                main_jni_conv->InterproceduralScratchRegister());
-      }
+      __ Call(main_jni_conv->CurrentParamRegister(),
+              Offset(read_barrier),
+              main_jni_conv->InterproceduralScratchRegister());
     } else {
       __ GetCurrentThread(main_jni_conv->CurrentParamStackOffset(),
                           main_jni_conv->InterproceduralScratchRegister());
-      if (is_64_bit_target) {
-        __ CallFromThread64(read_barrier64, main_jni_conv->InterproceduralScratchRegister());
-      } else {
-        __ CallFromThread32(read_barrier32, main_jni_conv->InterproceduralScratchRegister());
-      }
+      __ CallFromThread(read_barrier, main_jni_conv->InterproceduralScratchRegister());
     }
     main_jni_conv->ResetIterator(FrameOffset(main_out_arg_size));  // Reset.
   }
@@ -248,14 +237,10 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   //    can occur. The result is the saved JNI local state that is restored by the exit call. We
   //    abuse the JNI calling convention here, that is guaranteed to support passing 2 pointer
   //    arguments.
-  ThreadOffset32 jni_start32 =
+  ThreadOffset<kPointerSize> jni_start =
       is_synchronized
-          ? QUICK_ENTRYPOINT_OFFSET(PointerSize::k32, pJniMethodStartSynchronized)
-          : QUICK_ENTRYPOINT_OFFSET(PointerSize::k32, pJniMethodStart);
-  ThreadOffset64 jni_start64 =
-      is_synchronized
-          ? QUICK_ENTRYPOINT_OFFSET(PointerSize::k64, pJniMethodStartSynchronized)
-          : QUICK_ENTRYPOINT_OFFSET(PointerSize::k64, pJniMethodStart);
+          ? QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodStartSynchronized)
+          : QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodStart);
   main_jni_conv->ResetIterator(FrameOffset(main_out_arg_size));
   FrameOffset locked_object_handle_scope_offset(0);
   if (is_synchronized) {
@@ -276,21 +261,13 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   }
   if (main_jni_conv->IsCurrentParamInRegister()) {
     __ GetCurrentThread(main_jni_conv->CurrentParamRegister());
-    if (is_64_bit_target) {
-      __ Call(main_jni_conv->CurrentParamRegister(), Offset(jni_start64),
-              main_jni_conv->InterproceduralScratchRegister());
-    } else {
-      __ Call(main_jni_conv->CurrentParamRegister(), Offset(jni_start32),
-              main_jni_conv->InterproceduralScratchRegister());
-    }
+    __ Call(main_jni_conv->CurrentParamRegister(),
+            Offset(jni_start),
+            main_jni_conv->InterproceduralScratchRegister());
   } else {
     __ GetCurrentThread(main_jni_conv->CurrentParamStackOffset(),
                         main_jni_conv->InterproceduralScratchRegister());
-    if (is_64_bit_target) {
-      __ CallFromThread64(jni_start64, main_jni_conv->InterproceduralScratchRegister());
-    } else {
-      __ CallFromThread32(jni_start32, main_jni_conv->InterproceduralScratchRegister());
-    }
+    __ CallFromThread(jni_start, main_jni_conv->InterproceduralScratchRegister());
   }
   if (is_synchronized) {  // Check for exceptions from monitor enter.
     __ ExceptionPoll(main_jni_conv->InterproceduralScratchRegister(), main_out_arg_size);
@@ -352,20 +329,12 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   if (main_jni_conv->IsCurrentParamInRegister()) {
     ManagedRegister jni_env = main_jni_conv->CurrentParamRegister();
     DCHECK(!jni_env.Equals(main_jni_conv->InterproceduralScratchRegister()));
-    if (is_64_bit_target) {
-      __ LoadRawPtrFromThread64(jni_env, Thread::JniEnvOffset<PointerSize::k64>());
-    } else {
-      __ LoadRawPtrFromThread32(jni_env, Thread::JniEnvOffset<PointerSize::k32>());
-    }
+    __ LoadRawPtrFromThread(jni_env, Thread::JniEnvOffset<kPointerSize>());
   } else {
     FrameOffset jni_env = main_jni_conv->CurrentParamStackOffset();
-    if (is_64_bit_target) {
-      __ CopyRawPtrFromThread64(jni_env, Thread::JniEnvOffset<PointerSize::k64>(),
-                                main_jni_conv->InterproceduralScratchRegister());
-    } else {
-      __ CopyRawPtrFromThread32(jni_env, Thread::JniEnvOffset<PointerSize::k32>(),
-                                main_jni_conv->InterproceduralScratchRegister());
-    }
+    __ CopyRawPtrFromThread(jni_env,
+                            Thread::JniEnvOffset<kPointerSize>(),
+                            main_jni_conv->InterproceduralScratchRegister());
   }
 
   // 9. Plant call to native code associated with method.
@@ -398,7 +367,9 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
                                              + static_cast<size_t>(kMipsPointerSize));
     }
     CHECK_LT(return_save_location.Uint32Value(), frame_size + main_out_arg_size);
-    __ Store(return_save_location, main_jni_conv->ReturnRegister(), main_jni_conv->SizeOfReturnValue());
+    __ Store(return_save_location,
+             main_jni_conv->ReturnRegister(),
+             main_jni_conv->SizeOfReturnValue());
   }
 
   // Increase frame size for out args if needed by the end_jni_conv.
@@ -414,27 +385,18 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   }
   //     thread.
   end_jni_conv->ResetIterator(FrameOffset(end_out_arg_size));
-  ThreadOffset32 jni_end32(-1);
-  ThreadOffset64 jni_end64(-1);
+  ThreadOffset<kPointerSize> jni_end(-1);
   if (reference_return) {
     // Pass result.
-    jni_end32 = is_synchronized
-        ? QUICK_ENTRYPOINT_OFFSET(PointerSize::k32,
-                                  pJniMethodEndWithReferenceSynchronized)
-        : QUICK_ENTRYPOINT_OFFSET(PointerSize::k32, pJniMethodEndWithReference);
-    jni_end64 = is_synchronized
-        ? QUICK_ENTRYPOINT_OFFSET(PointerSize::k64,
-                                  pJniMethodEndWithReferenceSynchronized)
-        : QUICK_ENTRYPOINT_OFFSET(PointerSize::k64, pJniMethodEndWithReference);
+    jni_end = is_synchronized
+                  ? QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodEndWithReferenceSynchronized)
+                  : QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodEndWithReference);
     SetNativeParameter(jni_asm.get(), end_jni_conv.get(), end_jni_conv->ReturnRegister());
     end_jni_conv->Next();
   } else {
-    jni_end32 = is_synchronized
-        ? QUICK_ENTRYPOINT_OFFSET(PointerSize::k32, pJniMethodEndSynchronized)
-        : QUICK_ENTRYPOINT_OFFSET(PointerSize::k32, pJniMethodEnd);
-    jni_end64 = is_synchronized
-        ? QUICK_ENTRYPOINT_OFFSET(PointerSize::k64, pJniMethodEndSynchronized)
-        : QUICK_ENTRYPOINT_OFFSET(PointerSize::k64, pJniMethodEnd);
+    jni_end = is_synchronized
+                  ? QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodEndSynchronized)
+                  : QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodEnd);
   }
   // Pass saved local reference state.
   if (end_jni_conv->IsCurrentParamOnStack()) {
@@ -461,23 +423,13 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   }
   if (end_jni_conv->IsCurrentParamInRegister()) {
     __ GetCurrentThread(end_jni_conv->CurrentParamRegister());
-    if (is_64_bit_target) {
-      __ Call(end_jni_conv->CurrentParamRegister(), Offset(jni_end64),
-              end_jni_conv->InterproceduralScratchRegister());
-    } else {
-      __ Call(end_jni_conv->CurrentParamRegister(), Offset(jni_end32),
-              end_jni_conv->InterproceduralScratchRegister());
-    }
+    __ Call(end_jni_conv->CurrentParamRegister(),
+            Offset(jni_end),
+            end_jni_conv->InterproceduralScratchRegister());
   } else {
     __ GetCurrentThread(end_jni_conv->CurrentParamStackOffset(),
                         end_jni_conv->InterproceduralScratchRegister());
-    if (is_64_bit_target) {
-      __ CallFromThread64(ThreadOffset64(jni_end64),
-                          end_jni_conv->InterproceduralScratchRegister());
-    } else {
-      __ CallFromThread32(ThreadOffset32(jni_end32),
-                          end_jni_conv->InterproceduralScratchRegister());
-    }
+    __ CallFromThread(jni_end, end_jni_conv->InterproceduralScratchRegister());
   }
 
   // 13. Reload return value
@@ -517,7 +469,8 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
 }
 
 // Copy a single parameter from the managed to the JNI calling convention.
-static void CopyParameter(Assembler* jni_asm,
+template <PointerSize kPointerSize>
+static void CopyParameter(JNIMacroAssembler<kPointerSize>* jni_asm,
                           ManagedRuntimeCallingConvention* mr_conv,
                           JniCallingConvention* jni_conv,
                           size_t frame_size, size_t out_arg_size) {
@@ -606,7 +559,8 @@ static void CopyParameter(Assembler* jni_asm,
   }
 }
 
-static void SetNativeParameter(Assembler* jni_asm,
+template <PointerSize kPointerSize>
+static void SetNativeParameter(JNIMacroAssembler<kPointerSize>* jni_asm,
                                JniCallingConvention* jni_conv,
                                ManagedRegister in_reg) {
   if (jni_conv->IsCurrentParamOnStack()) {
@@ -621,7 +575,13 @@ static void SetNativeParameter(Assembler* jni_asm,
 
 CompiledMethod* ArtQuickJniCompileMethod(CompilerDriver* compiler, uint32_t access_flags,
                                          uint32_t method_idx, const DexFile& dex_file) {
-  return ArtJniCompileMethodInternal(compiler, access_flags, method_idx, dex_file);
+  if (Is64BitInstructionSet(compiler->GetInstructionSet())) {
+    return ArtJniCompileMethodInternal<PointerSize::k64>(
+        compiler, access_flags, method_idx, dex_file);
+  } else {
+    return ArtJniCompileMethodInternal<PointerSize::k32>(
+        compiler, access_flags, method_idx, dex_file);
+  }
 }
 
 }  // namespace art
