@@ -28,6 +28,7 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "base/stringprintf.h"
+#include "native_stack_dump.h"
 #include "thread-inl.h"
 #include "thread_list.h"
 #include "utils.h"
