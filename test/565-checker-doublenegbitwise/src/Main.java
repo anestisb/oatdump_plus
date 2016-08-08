@@ -70,7 +70,7 @@ public class Main {
    * same pass.
    */
 
-  /// CHECK-START: boolean Main.$opt$noinline$booleanAndToOr(boolean, boolean) instruction_simplifier_after_bce (before)
+  /// CHECK-START: boolean Main.$opt$noinline$booleanAndToOr(boolean, boolean) instruction_simplifier$after_bce (before)
   /// CHECK:       <<P1:z\d+>>          ParameterValue
   /// CHECK:       <<P2:z\d+>>          ParameterValue
   /// CHECK-DAG:   <<Const0:i\d+>>      IntConstant 0
@@ -80,18 +80,18 @@ public class Main {
   /// CHECK:       <<And:i\d+>>         And [<<Select2>>,<<Select1>>]
   /// CHECK:                            Return [<<And>>]
 
-  /// CHECK-START: boolean Main.$opt$noinline$booleanAndToOr(boolean, boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-START: boolean Main.$opt$noinline$booleanAndToOr(boolean, boolean) instruction_simplifier$after_bce (after)
   /// CHECK:       <<Cond1:z\d+>>       ParameterValue
   /// CHECK:       <<Cond2:z\d+>>       ParameterValue
   /// CHECK:       <<Or:i\d+>>          Or [<<Cond2>>,<<Cond1>>]
   /// CHECK:       <<BooleanNot:z\d+>>  BooleanNot [<<Or>>]
   /// CHECK:                            Return [<<BooleanNot>>]
 
-  /// CHECK-START: boolean Main.$opt$noinline$booleanAndToOr(boolean, boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-START: boolean Main.$opt$noinline$booleanAndToOr(boolean, boolean) instruction_simplifier$after_bce (after)
   /// CHECK:                            BooleanNot
   /// CHECK-NOT:                        BooleanNot
 
-  /// CHECK-START: boolean Main.$opt$noinline$booleanAndToOr(boolean, boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-START: boolean Main.$opt$noinline$booleanAndToOr(boolean, boolean) instruction_simplifier$after_bce (after)
   /// CHECK-NOT:                        And
 
   public static boolean $opt$noinline$booleanAndToOr(boolean a, boolean b) {
@@ -138,7 +138,7 @@ public class Main {
    * same pass.
    */
 
-  /// CHECK-START: boolean Main.$opt$noinline$booleanOrToAnd(boolean, boolean) instruction_simplifier_after_bce (before)
+  /// CHECK-START: boolean Main.$opt$noinline$booleanOrToAnd(boolean, boolean) instruction_simplifier$after_bce (before)
   /// CHECK:       <<P1:z\d+>>          ParameterValue
   /// CHECK:       <<P2:z\d+>>          ParameterValue
   /// CHECK-DAG:   <<Const0:i\d+>>      IntConstant 0
@@ -148,18 +148,18 @@ public class Main {
   /// CHECK:       <<Or:i\d+>>          Or [<<Select2>>,<<Select1>>]
   /// CHECK:                            Return [<<Or>>]
 
-  /// CHECK-START: boolean Main.$opt$noinline$booleanOrToAnd(boolean, boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-START: boolean Main.$opt$noinline$booleanOrToAnd(boolean, boolean) instruction_simplifier$after_bce (after)
   /// CHECK:       <<Cond1:z\d+>>       ParameterValue
   /// CHECK:       <<Cond2:z\d+>>       ParameterValue
   /// CHECK:       <<And:i\d+>>         And [<<Cond2>>,<<Cond1>>]
   /// CHECK:       <<BooleanNot:z\d+>>  BooleanNot [<<And>>]
   /// CHECK:                            Return [<<BooleanNot>>]
 
-  /// CHECK-START: boolean Main.$opt$noinline$booleanOrToAnd(boolean, boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-START: boolean Main.$opt$noinline$booleanOrToAnd(boolean, boolean) instruction_simplifier$after_bce (after)
   /// CHECK:                            BooleanNot
   /// CHECK-NOT:                        BooleanNot
 
-  /// CHECK-START: boolean Main.$opt$noinline$booleanOrToAnd(boolean, boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-START: boolean Main.$opt$noinline$booleanOrToAnd(boolean, boolean) instruction_simplifier$after_bce (after)
   /// CHECK-NOT:                        Or
 
   public static boolean $opt$noinline$booleanOrToAnd(boolean a, boolean b) {
@@ -246,7 +246,7 @@ public class Main {
    * same pass.
    */
 
-  /// CHECK-START: boolean Main.$opt$noinline$booleanNotXorToXor(boolean, boolean) instruction_simplifier_after_bce (before)
+  /// CHECK-START: boolean Main.$opt$noinline$booleanNotXorToXor(boolean, boolean) instruction_simplifier$after_bce (before)
   /// CHECK:       <<P1:z\d+>>          ParameterValue
   /// CHECK:       <<P2:z\d+>>          ParameterValue
   /// CHECK-DAG:   <<Const0:i\d+>>      IntConstant 0
@@ -256,13 +256,13 @@ public class Main {
   /// CHECK:       <<Xor:i\d+>>         Xor [<<Select2>>,<<Select1>>]
   /// CHECK:                            Return [<<Xor>>]
 
-  /// CHECK-START: boolean Main.$opt$noinline$booleanNotXorToXor(boolean, boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-START: boolean Main.$opt$noinline$booleanNotXorToXor(boolean, boolean) instruction_simplifier$after_bce (after)
   /// CHECK:       <<Cond1:z\d+>>       ParameterValue
   /// CHECK:       <<Cond2:z\d+>>       ParameterValue
   /// CHECK:       <<Xor:i\d+>>         Xor [<<Cond2>>,<<Cond1>>]
   /// CHECK:                            Return [<<Xor>>]
 
-  /// CHECK-START: boolean Main.$opt$noinline$booleanNotXorToXor(boolean, boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-START: boolean Main.$opt$noinline$booleanNotXorToXor(boolean, boolean) instruction_simplifier$after_bce (after)
   /// CHECK-NOT:                        BooleanNot
 
   public static boolean $opt$noinline$booleanNotXorToXor(boolean a, boolean b) {

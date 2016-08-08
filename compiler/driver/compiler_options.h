@@ -76,7 +76,8 @@ class CompilerOptions FINAL {
                   const std::string& dump_cfg_file_name,
                   bool dump_cfg_append,
                   bool force_determinism,
-                  RegisterAllocator::Strategy regalloc_strategy);
+                  RegisterAllocator::Strategy regalloc_strategy,
+                  const std::vector<std::string>* passes_to_run);
 
   CompilerFilter::Filter GetCompilerFilter() const {
     return compiler_filter_;
@@ -250,6 +251,10 @@ class CompilerOptions FINAL {
     return register_allocation_strategy_;
   }
 
+  const std::vector<std::string>* GetPassesToRun() const {
+    return passes_to_run_;
+  }
+
  private:
   void ParseDumpInitFailures(const StringPiece& option, UsageFn Usage);
   void ParseDumpCfgPasses(const StringPiece& option, UsageFn Usage);
@@ -305,6 +310,14 @@ class CompilerOptions FINAL {
   bool force_determinism_;
 
   RegisterAllocator::Strategy register_allocation_strategy_;
+
+  // If not null, specifies optimization passes which will be run instead of defaults.
+  // Note that passes_to_run_ is not checked for correctness and providing an incorrect
+  // list of passes can lead to unexpected compiler behaviour. This is caused by dependencies
+  // between passes. Failing to satisfy them can for example lead to compiler crashes.
+  // Passing pass names which are not recognized by the compiler will result in
+  // compiler-dependant behavior.
+  const std::vector<std::string>* passes_to_run_;
 
   friend class Dex2Oat;
 

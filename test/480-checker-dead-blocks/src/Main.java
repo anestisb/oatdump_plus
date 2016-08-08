@@ -30,7 +30,7 @@ public class Main {
     return false;
   }
 
-  /// CHECK-START: int Main.testTrueBranch(int, int) dead_code_elimination_final (before)
+  /// CHECK-START: int Main.testTrueBranch(int, int) dead_code_elimination$final (before)
   /// CHECK-DAG:     <<ArgX:i\d+>>    ParameterValue
   /// CHECK-DAG:     <<ArgY:i\d+>>    ParameterValue
   /// CHECK-DAG:                      If
@@ -39,13 +39,13 @@ public class Main {
   /// CHECK-DAG:     <<Phi:i\d+>>     Phi [<<Add>>,<<Sub>>]
   /// CHECK-DAG:                      Return [<<Phi>>]
 
-  /// CHECK-START: int Main.testTrueBranch(int, int) dead_code_elimination_final (after)
+  /// CHECK-START: int Main.testTrueBranch(int, int) dead_code_elimination$final (after)
   /// CHECK-DAG:     <<ArgX:i\d+>>    ParameterValue
   /// CHECK-DAG:     <<ArgY:i\d+>>    ParameterValue
   /// CHECK-DAG:     <<Add:i\d+>>     Add [<<ArgX>>,<<ArgY>>]
   /// CHECK-DAG:                      Return [<<Add>>]
 
-  /// CHECK-START: int Main.testTrueBranch(int, int) dead_code_elimination_final (after)
+  /// CHECK-START: int Main.testTrueBranch(int, int) dead_code_elimination$final (after)
   /// CHECK-NOT:                      If
   /// CHECK-NOT:                      Sub
   /// CHECK-NOT:                      Phi
@@ -62,7 +62,7 @@ public class Main {
     return z;
   }
 
-  /// CHECK-START: int Main.testFalseBranch(int, int) dead_code_elimination_final (before)
+  /// CHECK-START: int Main.testFalseBranch(int, int) dead_code_elimination$final (before)
   /// CHECK-DAG:     <<ArgX:i\d+>>    ParameterValue
   /// CHECK-DAG:     <<ArgY:i\d+>>    ParameterValue
   /// CHECK-DAG:                      If
@@ -71,13 +71,13 @@ public class Main {
   /// CHECK-DAG:     <<Phi:i\d+>>     Phi [<<Add>>,<<Sub>>]
   /// CHECK-DAG:                      Return [<<Phi>>]
 
-  /// CHECK-START: int Main.testFalseBranch(int, int) dead_code_elimination_final (after)
+  /// CHECK-START: int Main.testFalseBranch(int, int) dead_code_elimination$final (after)
   /// CHECK-DAG:     <<ArgX:i\d+>>    ParameterValue
   /// CHECK-DAG:     <<ArgY:i\d+>>    ParameterValue
   /// CHECK-DAG:     <<Sub:i\d+>>     Sub [<<ArgX>>,<<ArgY>>]
   /// CHECK-DAG:                      Return [<<Sub>>]
 
-  /// CHECK-START: int Main.testFalseBranch(int, int) dead_code_elimination_final (after)
+  /// CHECK-START: int Main.testFalseBranch(int, int) dead_code_elimination$final (after)
   /// CHECK-NOT:                      If
   /// CHECK-NOT:                      Add
   /// CHECK-NOT:                      Phi
@@ -94,10 +94,10 @@ public class Main {
     return z;
   }
 
-  /// CHECK-START: int Main.testRemoveLoop(int) dead_code_elimination_final (before)
+  /// CHECK-START: int Main.testRemoveLoop(int) dead_code_elimination$final (before)
   /// CHECK:                          Mul
 
-  /// CHECK-START: int Main.testRemoveLoop(int) dead_code_elimination_final (after)
+  /// CHECK-START: int Main.testRemoveLoop(int) dead_code_elimination$final (after)
   /// CHECK-NOT:                      Mul
 
   public static int testRemoveLoop(int x) {
@@ -109,11 +109,11 @@ public class Main {
     return x;
   }
 
-  /// CHECK-START: int Main.testInfiniteLoop(int) dead_code_elimination_final (before)
+  /// CHECK-START: int Main.testInfiniteLoop(int) dead_code_elimination$final (before)
   /// CHECK-DAG:                      Return
   /// CHECK-DAG:                      Exit
 
-  /// CHECK-START: int Main.testInfiniteLoop(int) dead_code_elimination_final (after)
+  /// CHECK-START: int Main.testInfiniteLoop(int) dead_code_elimination$final (after)
   /// CHECK-NOT:                      Return
   /// CHECK-NOT:                      Exit
 
@@ -124,15 +124,15 @@ public class Main {
     return x;
   }
 
-  /// CHECK-START: int Main.testDeadLoop(int) dead_code_elimination_final (before)
+  /// CHECK-START: int Main.testDeadLoop(int) dead_code_elimination$final (before)
   /// CHECK-DAG:                      If
   /// CHECK-DAG:                      Add
 
-  /// CHECK-START: int Main.testDeadLoop(int) dead_code_elimination_final (after)
+  /// CHECK-START: int Main.testDeadLoop(int) dead_code_elimination$final (after)
   /// CHECK-DAG:     <<Arg:i\d+>>     ParameterValue
   /// CHECK-DAG:                      Return [<<Arg>>]
 
-  /// CHECK-START: int Main.testDeadLoop(int) dead_code_elimination_final (after)
+  /// CHECK-START: int Main.testDeadLoop(int) dead_code_elimination$final (after)
   /// CHECK-NOT:                      If
   /// CHECK-NOT:                      Add
 
@@ -143,16 +143,16 @@ public class Main {
     return x;
   }
 
-  /// CHECK-START: int Main.testUpdateLoopInformation(int) dead_code_elimination_final (before)
+  /// CHECK-START: int Main.testUpdateLoopInformation(int) dead_code_elimination$final (before)
   /// CHECK-DAG:                      If
   /// CHECK-DAG:                      If
   /// CHECK-DAG:                      Add
 
-  /// CHECK-START: int Main.testUpdateLoopInformation(int) dead_code_elimination_final (after)
+  /// CHECK-START: int Main.testUpdateLoopInformation(int) dead_code_elimination$final (after)
   /// CHECK-DAG:     <<Arg:i\d+>>     ParameterValue
   /// CHECK-DAG:                      Return [<<Arg>>]
 
-  /// CHECK-START: int Main.testUpdateLoopInformation(int) dead_code_elimination_final (after)
+  /// CHECK-START: int Main.testUpdateLoopInformation(int) dead_code_elimination$final (after)
   /// CHECK-NOT:                      If
   /// CHECK-NOT:                      Add
 
@@ -165,13 +165,13 @@ public class Main {
     return x;
   }
 
-  /// CHECK-START: int Main.testRemoveSuspendCheck(int, int) dead_code_elimination_final (before)
+  /// CHECK-START: int Main.testRemoveSuspendCheck(int, int) dead_code_elimination$final (before)
   /// CHECK:                          SuspendCheck
   /// CHECK:                          SuspendCheck
   /// CHECK:                          SuspendCheck
   /// CHECK-NOT:                      SuspendCheck
 
-  /// CHECK-START: int Main.testRemoveSuspendCheck(int, int) dead_code_elimination_final (after)
+  /// CHECK-START: int Main.testRemoveSuspendCheck(int, int) dead_code_elimination$final (after)
   /// CHECK:                          SuspendCheck
   /// CHECK:                          SuspendCheck
   /// CHECK-NOT:                      SuspendCheck

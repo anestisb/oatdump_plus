@@ -26,7 +26,9 @@ namespace arm {
 class DexCacheArrayFixups : public HOptimization {
  public:
   DexCacheArrayFixups(HGraph* graph, OptimizingCompilerStats* stats)
-      : HOptimization(graph, "dex_cache_array_fixups_arm", stats) {}
+      : HOptimization(graph, kDexCacheArrayFixupsArmPassName, stats) {}
+
+  static constexpr const char* kDexCacheArrayFixupsArmPassName = "dex_cache_array_fixups_arm";
 
   void Run() OVERRIDE;
 };

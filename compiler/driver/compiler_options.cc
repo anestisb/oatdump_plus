@@ -45,7 +45,8 @@ CompilerOptions::CompilerOptions()
       dump_cfg_file_name_(""),
       dump_cfg_append_(false),
       force_determinism_(false),
-      register_allocation_strategy_(RegisterAllocator::kRegisterAllocatorDefault) {
+      register_allocation_strategy_(RegisterAllocator::kRegisterAllocatorDefault),
+      passes_to_run_(nullptr) {
 }
 
 CompilerOptions::~CompilerOptions() {
@@ -76,7 +77,8 @@ CompilerOptions::CompilerOptions(CompilerFilter::Filter compiler_filter,
                                  const std::string& dump_cfg_file_name,
                                  bool dump_cfg_append,
                                  bool force_determinism,
-                                 RegisterAllocator::Strategy regalloc_strategy
+                                 RegisterAllocator::Strategy regalloc_strategy,
+                                 const std::vector<std::string>* passes_to_run
                                  ) :  // NOLINT(whitespace/parens)
     compiler_filter_(compiler_filter),
     huge_method_threshold_(huge_method_threshold),
@@ -102,7 +104,8 @@ CompilerOptions::CompilerOptions(CompilerFilter::Filter compiler_filter,
     dump_cfg_file_name_(dump_cfg_file_name),
     dump_cfg_append_(dump_cfg_append),
     force_determinism_(force_determinism),
-    register_allocation_strategy_(regalloc_strategy) {
+    register_allocation_strategy_(regalloc_strategy),
+    passes_to_run_(passes_to_run) {
 }
 
 void CompilerOptions::ParseHugeMethodMax(const StringPiece& option, UsageFn Usage) {
