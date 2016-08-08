@@ -29,7 +29,6 @@
 #include "offsets.h"
 #include "utils/array_ref.h"
 #include "utils/assembler.h"
-#include "utils/jni_macro_assembler.h"
 
 namespace art {
 namespace x86 {
@@ -304,17 +303,10 @@ class ConstantArea {
   ArenaVector<int32_t> buffer_;
 };
 
-class X86Assembler FINAL : public Assembler, public JNIMacroAssembler<PointerSize::k32> {
+class X86Assembler FINAL : public Assembler {
  public:
   explicit X86Assembler(ArenaAllocator* arena) : Assembler(arena), constant_area_(arena) {}
   virtual ~X86Assembler() {}
-
-  size_t CodeSize() const OVERRIDE { return Assembler::CodeSize(); }
-  DebugFrameOpCodeWriterForAssembler& cfi() { return Assembler::cfi(); }
-  void FinalizeCode() { Assembler::FinalizeCode(); }
-  void FinalizeInstructions(const MemoryRegion& region) {
-    Assembler::FinalizeInstructions(region);
-  }
 
   /*
    * Emit Machine Instructions.
@@ -640,123 +632,6 @@ class X86Assembler FINAL : public Assembler, public JNIMacroAssembler<PointerSiz
   void Bind(NearLabel* label);
 
   //
-  // Overridden common assembler high-level functionality
-  //
-
-  // Emit code that will create an activation on the stack
-  void BuildFrame(size_t frame_size,
-                  ManagedRegister method_reg,
-                  ArrayRef<const ManagedRegister> callee_save_regs,
-                  const ManagedRegisterEntrySpills& entry_spills) OVERRIDE;
-
-  // Emit code that will remove an activation from the stack
-  void RemoveFrame(size_t frame_size, ArrayRef<const ManagedRegister> callee_save_regs)
-      OVERRIDE;
-
-  void IncreaseFrameSize(size_t adjust) OVERRIDE;
-  void DecreaseFrameSize(size_t adjust) OVERRIDE;
-
-  // Store routines
-  void Store(FrameOffset offs, ManagedRegister src, size_t size) OVERRIDE;
-  void StoreRef(FrameOffset dest, ManagedRegister src) OVERRIDE;
-  void StoreRawPtr(FrameOffset dest, ManagedRegister src) OVERRIDE;
-
-  void StoreImmediateToFrame(FrameOffset dest, uint32_t imm, ManagedRegister scratch) OVERRIDE;
-
-  void StoreStackOffsetToThread(ThreadOffset32 thr_offs,
-                                FrameOffset fr_offs,
-                                ManagedRegister scratch) OVERRIDE;
-
-  void StoreStackPointerToThread(ThreadOffset32 thr_offs) OVERRIDE;
-
-  void StoreSpanning(FrameOffset dest, ManagedRegister src, FrameOffset in_off,
-                     ManagedRegister scratch) OVERRIDE;
-
-  // Load routines
-  void Load(ManagedRegister dest, FrameOffset src, size_t size) OVERRIDE;
-
-  void LoadFromThread(ManagedRegister dest, ThreadOffset32 src, size_t size) OVERRIDE;
-
-  void LoadRef(ManagedRegister dest, FrameOffset src) OVERRIDE;
-
-  void LoadRef(ManagedRegister dest, ManagedRegister base, MemberOffset offs,
-               bool unpoison_reference) OVERRIDE;
-
-  void LoadRawPtr(ManagedRegister dest, ManagedRegister base, Offset offs) OVERRIDE;
-
-  void LoadRawPtrFromThread(ManagedRegister dest, ThreadOffset32 offs) OVERRIDE;
-
-  // Copying routines
-  void Move(ManagedRegister dest, ManagedRegister src, size_t size) OVERRIDE;
-
-  void CopyRawPtrFromThread(FrameOffset fr_offs,
-                            ThreadOffset32 thr_offs,
-                            ManagedRegister scratch) OVERRIDE;
-
-  void CopyRawPtrToThread(ThreadOffset32 thr_offs, FrameOffset fr_offs, ManagedRegister scratch)
-      OVERRIDE;
-
-  void CopyRef(FrameOffset dest, FrameOffset src, ManagedRegister scratch) OVERRIDE;
-
-  void Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch, size_t size) OVERRIDE;
-
-  void Copy(FrameOffset dest, ManagedRegister src_base, Offset src_offset, ManagedRegister scratch,
-            size_t size) OVERRIDE;
-
-  void Copy(ManagedRegister dest_base, Offset dest_offset, FrameOffset src, ManagedRegister scratch,
-            size_t size) OVERRIDE;
-
-  void Copy(FrameOffset dest, FrameOffset src_base, Offset src_offset, ManagedRegister scratch,
-            size_t size) OVERRIDE;
-
-  void Copy(ManagedRegister dest, Offset dest_offset, ManagedRegister src, Offset src_offset,
-            ManagedRegister scratch, size_t size) OVERRIDE;
-
-  void Copy(FrameOffset dest, Offset dest_offset, FrameOffset src, Offset src_offset,
-            ManagedRegister scratch, size_t size) OVERRIDE;
-
-  void MemoryBarrier(ManagedRegister) OVERRIDE;
-
-  // Sign extension
-  void SignExtend(ManagedRegister mreg, size_t size) OVERRIDE;
-
-  // Zero extension
-  void ZeroExtend(ManagedRegister mreg, size_t size) OVERRIDE;
-
-  // Exploit fast access in managed code to Thread::Current()
-  void GetCurrentThread(ManagedRegister tr) OVERRIDE;
-  void GetCurrentThread(FrameOffset dest_offset, ManagedRegister scratch) OVERRIDE;
-
-  // Set up out_reg to hold a Object** into the handle scope, or to be null if the
-  // value is null and null_allowed. in_reg holds a possibly stale reference
-  // that can be used to avoid loading the handle scope entry to see if the value is
-  // null.
-  void CreateHandleScopeEntry(ManagedRegister out_reg, FrameOffset handlescope_offset,
-                              ManagedRegister in_reg, bool null_allowed) OVERRIDE;
-
-  // Set up out_off to hold a Object** into the handle scope, or to be null if the
-  // value is null and null_allowed.
-  void CreateHandleScopeEntry(FrameOffset out_off, FrameOffset handlescope_offset,
-                              ManagedRegister scratch, bool null_allowed) OVERRIDE;
-
-  // src holds a handle scope entry (Object**) load this into dst
-  void LoadReferenceFromHandleScope(ManagedRegister dst, ManagedRegister src) OVERRIDE;
-
-  // Heap::VerifyObject on src. In some cases (such as a reference to this) we
-  // know that src may not be null.
-  void VerifyObject(ManagedRegister src, bool could_be_null) OVERRIDE;
-  void VerifyObject(FrameOffset src, bool could_be_null) OVERRIDE;
-
-  // Call to address held at [base+offset]
-  void Call(ManagedRegister base, Offset offset, ManagedRegister scratch) OVERRIDE;
-  void Call(FrameOffset base, Offset offset, ManagedRegister scratch) OVERRIDE;
-  void CallFromThread(ThreadOffset32 offset, ManagedRegister scratch) OVERRIDE;
-
-  // Generate code to check if Thread::Current()->exception_ is non-null
-  // and branch to a ExceptionSlowPath if it is.
-  void ExceptionPoll(ManagedRegister scratch, size_t stack_adjust) OVERRIDE;
-
-  //
   // Heap poisoning.
   //
 
@@ -852,15 +727,6 @@ inline void X86Assembler::EmitFixup(AssemblerFixup* fixup) {
 inline void X86Assembler::EmitOperandSizeOverride() {
   EmitUint8(0x66);
 }
-
-// Slowpath entered when Thread::Current()->_exception is non-null
-class X86ExceptionSlowPath FINAL : public SlowPath {
- public:
-  explicit X86ExceptionSlowPath(size_t stack_adjust) : stack_adjust_(stack_adjust) {}
-  virtual void Emit(Assembler *sp_asm) OVERRIDE;
- private:
-  const size_t stack_adjust_;
-};
 
 }  // namespace x86
 }  // namespace art
