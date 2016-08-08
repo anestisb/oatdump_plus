@@ -82,14 +82,14 @@ DEX2OAT_STATIC_DEPENDENCIES := \
 ifeq ($(ART_BUILD_HOST_NDEBUG),true)
   $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libcutils libart-compiler libsigchain libziparchive-host liblz4,art/compiler,host,ndebug,$(dex2oat_host_arch)))
   ifeq ($(ART_BUILD_HOST_STATIC),true)
-    $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libart libart-compiler libart libvixl-arm64 $(DEX2OAT_STATIC_DEPENDENCIES),art/compiler,host,ndebug,$(dex2oat_host_arch),static))
+    $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libart libart-compiler libart libvixl-arm libvixl-arm64 $(DEX2OAT_STATIC_DEPENDENCIES),art/compiler,host,ndebug,$(dex2oat_host_arch),static))
   endif
 endif
 
 ifeq ($(ART_BUILD_HOST_DEBUG),true)
   $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libcutils libartd-compiler libsigchain libziparchive-host liblz4,art/compiler,host,debug,$(dex2oat_host_arch)))
   ifeq ($(ART_BUILD_HOST_STATIC),true)
-    $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libartd libartd-compiler libartd libvixld-arm64 $(DEX2OAT_STATIC_DEPENDENCIES),art/compiler,host,debug,$(dex2oat_host_arch),static))
+    $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libartd libartd-compiler libartd libvixld-arm libvixld-arm64 $(DEX2OAT_STATIC_DEPENDENCIES),art/compiler,host,debug,$(dex2oat_host_arch),static))
   endif
 endif
 
