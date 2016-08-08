@@ -21,7 +21,7 @@ fi
 
 out_dir=${OUT_DIR-out}
 java_libraries_dir=${out_dir}/target/common/obj/JAVA_LIBRARIES
-common_targets="vogar core-tests apache-harmony-jdwp-tests-hostdex jsr166-tests ${out_dir}/host/linux-x86/bin/jack"
+common_targets="vogar core-tests apache-harmony-jdwp-tests-hostdex jsr166-tests mockito-target ${out_dir}/host/linux-x86/bin/jack"
 mode="target"
 j_arg="-j$(nproc)"
 showcommands=
