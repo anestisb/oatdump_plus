@@ -6473,6 +6473,10 @@ constvalop_long_to_double:
      * This could be an ARM instruction or a function call.  (If the result
      * comes back in a register other than r0, you can override "result".)
      *
+     * You can override "extract" if the extraction of the literal value
+     * from r3 to r1 is not the default "asr r1, r3, #8". The extraction
+     * can be omitted completely if the shift is embedded in "instr".
+     *
      * If "chkzero" is set to 1, we perform a divide-by-zero check on
      * vCC (r1).  Useful for integer division and modulus.
      *
@@ -6485,15 +6489,14 @@ constvalop_long_to_double:
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r3, #255                @ r2<- BB
     GET_VREG r0, r2                     @ r0<- vBB
-    movs    r1, r3, asr #8              @ r1<- ssssssCC (sign extended)
+                                @ optional; typically r1<- ssssssCC (sign extended)
     .if 0
     @cmp     r1, #0                     @ is second operand zero?
     beq     common_errDivideByZero
     .endif
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
 
-                               @ optional op; may set condition codes
-    add     r0, r0, r1                              @ r0<- op, r0-r3 changed
+    add     r0, r0, r3, asr #8                              @ r0<- op, r0-r3 changed
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     SET_VREG r0, r9                @ vAA<- r0
     GOTO_OPCODE ip                      @ jump to next instruction
@@ -6511,6 +6514,10 @@ constvalop_long_to_double:
      * This could be an ARM instruction or a function call.  (If the result
      * comes back in a register other than r0, you can override "result".)
      *
+     * You can override "extract" if the extraction of the literal value
+     * from r3 to r1 is not the default "asr r1, r3, #8". The extraction
+     * can be omitted completely if the shift is embedded in "instr".
+     *
      * If "chkzero" is set to 1, we perform a divide-by-zero check on
      * vCC (r1).  Useful for integer division and modulus.
      *
@@ -6523,15 +6530,14 @@ constvalop_long_to_double:
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r3, #255                @ r2<- BB
     GET_VREG r0, r2                     @ r0<- vBB
-    movs    r1, r3, asr #8              @ r1<- ssssssCC (sign extended)
+                                @ optional; typically r1<- ssssssCC (sign extended)
     .if 0
     @cmp     r1, #0                     @ is second operand zero?
     beq     common_errDivideByZero
     .endif
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
 
-                               @ optional op; may set condition codes
-    rsb     r0, r0, r1                              @ r0<- op, r0-r3 changed
+    rsb     r0, r0, r3, asr #8                              @ r0<- op, r0-r3 changed
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     SET_VREG r0, r9                @ vAA<- r0
     GOTO_OPCODE ip                      @ jump to next instruction
@@ -6550,6 +6556,10 @@ constvalop_long_to_double:
      * This could be an ARM instruction or a function call.  (If the result
      * comes back in a register other than r0, you can override "result".)
      *
+     * You can override "extract" if the extraction of the literal value
+     * from r3 to r1 is not the default "asr r1, r3, #8". The extraction
+     * can be omitted completely if the shift is embedded in "instr".
+     *
      * If "chkzero" is set to 1, we perform a divide-by-zero check on
      * vCC (r1).  Useful for integer division and modulus.
      *
@@ -6562,14 +6572,13 @@ constvalop_long_to_double:
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r3, #255                @ r2<- BB
     GET_VREG r0, r2                     @ r0<- vBB
-    movs    r1, r3, asr #8              @ r1<- ssssssCC (sign extended)
+    asr     r1, r3, #8                            @ optional; typically r1<- ssssssCC (sign extended)
     .if 0
     @cmp     r1, #0                     @ is second operand zero?
     beq     common_errDivideByZero
     .endif
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
 
-                               @ optional op; may set condition codes
     mul     r0, r1, r0                              @ r0<- op, r0-r3 changed
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     SET_VREG r0, r9                @ vAA<- r0
@@ -6657,6 +6666,10 @@ constvalop_long_to_double:
      * This could be an ARM instruction or a function call.  (If the result
      * comes back in a register other than r0, you can override "result".)
      *
+     * You can override "extract" if the extraction of the literal value
+     * from r3 to r1 is not the default "asr r1, r3, #8". The extraction
+     * can be omitted completely if the shift is embedded in "instr".
+     *
      * If "chkzero" is set to 1, we perform a divide-by-zero check on
      * vCC (r1).  Useful for integer division and modulus.
      *
@@ -6669,15 +6682,14 @@ constvalop_long_to_double:
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r3, #255                @ r2<- BB
     GET_VREG r0, r2                     @ r0<- vBB
-    movs    r1, r3, asr #8              @ r1<- ssssssCC (sign extended)
+                                @ optional; typically r1<- ssssssCC (sign extended)
     .if 0
     @cmp     r1, #0                     @ is second operand zero?
     beq     common_errDivideByZero
     .endif
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
 
-                               @ optional op; may set condition codes
-    and     r0, r0, r1                              @ r0<- op, r0-r3 changed
+    and     r0, r0, r3, asr #8                              @ r0<- op, r0-r3 changed
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     SET_VREG r0, r9                @ vAA<- r0
     GOTO_OPCODE ip                      @ jump to next instruction
@@ -6695,6 +6707,10 @@ constvalop_long_to_double:
      * This could be an ARM instruction or a function call.  (If the result
      * comes back in a register other than r0, you can override "result".)
      *
+     * You can override "extract" if the extraction of the literal value
+     * from r3 to r1 is not the default "asr r1, r3, #8". The extraction
+     * can be omitted completely if the shift is embedded in "instr".
+     *
      * If "chkzero" is set to 1, we perform a divide-by-zero check on
      * vCC (r1).  Useful for integer division and modulus.
      *
@@ -6707,15 +6723,14 @@ constvalop_long_to_double:
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r3, #255                @ r2<- BB
     GET_VREG r0, r2                     @ r0<- vBB
-    movs    r1, r3, asr #8              @ r1<- ssssssCC (sign extended)
+                                @ optional; typically r1<- ssssssCC (sign extended)
     .if 0
     @cmp     r1, #0                     @ is second operand zero?
     beq     common_errDivideByZero
     .endif
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
 
-                               @ optional op; may set condition codes
-    orr     r0, r0, r1                              @ r0<- op, r0-r3 changed
+    orr     r0, r0, r3, asr #8                              @ r0<- op, r0-r3 changed
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     SET_VREG r0, r9                @ vAA<- r0
     GOTO_OPCODE ip                      @ jump to next instruction
@@ -6733,6 +6748,10 @@ constvalop_long_to_double:
      * This could be an ARM instruction or a function call.  (If the result
      * comes back in a register other than r0, you can override "result".)
      *
+     * You can override "extract" if the extraction of the literal value
+     * from r3 to r1 is not the default "asr r1, r3, #8". The extraction
+     * can be omitted completely if the shift is embedded in "instr".
+     *
      * If "chkzero" is set to 1, we perform a divide-by-zero check on
      * vCC (r1).  Useful for integer division and modulus.
      *
@@ -6745,15 +6764,14 @@ constvalop_long_to_double:
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r3, #255                @ r2<- BB
     GET_VREG r0, r2                     @ r0<- vBB
-    movs    r1, r3, asr #8              @ r1<- ssssssCC (sign extended)
+                                @ optional; typically r1<- ssssssCC (sign extended)
     .if 0
     @cmp     r1, #0                     @ is second operand zero?
     beq     common_errDivideByZero
     .endif
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
 
-                               @ optional op; may set condition codes
-    eor     r0, r0, r1                              @ r0<- op, r0-r3 changed
+    eor     r0, r0, r3, asr #8                              @ r0<- op, r0-r3 changed
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     SET_VREG r0, r9                @ vAA<- r0
     GOTO_OPCODE ip                      @ jump to next instruction
@@ -6771,6 +6789,10 @@ constvalop_long_to_double:
      * This could be an ARM instruction or a function call.  (If the result
      * comes back in a register other than r0, you can override "result".)
      *
+     * You can override "extract" if the extraction of the literal value
+     * from r3 to r1 is not the default "asr r1, r3, #8". The extraction
+     * can be omitted completely if the shift is embedded in "instr".
+     *
      * If "chkzero" is set to 1, we perform a divide-by-zero check on
      * vCC (r1).  Useful for integer division and modulus.
      *
@@ -6783,14 +6805,13 @@ constvalop_long_to_double:
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r3, #255                @ r2<- BB
     GET_VREG r0, r2                     @ r0<- vBB
-    movs    r1, r3, asr #8              @ r1<- ssssssCC (sign extended)
+    ubfx    r1, r3, #8, #5                            @ optional; typically r1<- ssssssCC (sign extended)
     .if 0
     @cmp     r1, #0                     @ is second operand zero?
     beq     common_errDivideByZero
     .endif
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
 
-    and     r1, r1, #31                           @ optional op; may set condition codes
     mov     r0, r0, asl r1                              @ r0<- op, r0-r3 changed
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     SET_VREG r0, r9                @ vAA<- r0
@@ -6809,6 +6830,10 @@ constvalop_long_to_double:
      * This could be an ARM instruction or a function call.  (If the result
      * comes back in a register other than r0, you can override "result".)
      *
+     * You can override "extract" if the extraction of the literal value
+     * from r3 to r1 is not the default "asr r1, r3, #8". The extraction
+     * can be omitted completely if the shift is embedded in "instr".
+     *
      * If "chkzero" is set to 1, we perform a divide-by-zero check on
      * vCC (r1).  Useful for integer division and modulus.
      *
@@ -6821,14 +6846,13 @@ constvalop_long_to_double:
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r3, #255                @ r2<- BB
     GET_VREG r0, r2                     @ r0<- vBB
-    movs    r1, r3, asr #8              @ r1<- ssssssCC (sign extended)
+    ubfx    r1, r3, #8, #5                            @ optional; typically r1<- ssssssCC (sign extended)
     .if 0
     @cmp     r1, #0                     @ is second operand zero?
     beq     common_errDivideByZero
     .endif
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
 
-    and     r1, r1, #31                           @ optional op; may set condition codes
     mov     r0, r0, asr r1                              @ r0<- op, r0-r3 changed
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     SET_VREG r0, r9                @ vAA<- r0
@@ -6847,6 +6871,10 @@ constvalop_long_to_double:
      * This could be an ARM instruction or a function call.  (If the result
      * comes back in a register other than r0, you can override "result".)
      *
+     * You can override "extract" if the extraction of the literal value
+     * from r3 to r1 is not the default "asr r1, r3, #8". The extraction
+     * can be omitted completely if the shift is embedded in "instr".
+     *
      * If "chkzero" is set to 1, we perform a divide-by-zero check on
      * vCC (r1).  Useful for integer division and modulus.
      *
@@ -6859,14 +6887,13 @@ constvalop_long_to_double:
     mov     r9, rINST, lsr #8           @ r9<- AA
     and     r2, r3, #255                @ r2<- BB
     GET_VREG r0, r2                     @ r0<- vBB
-    movs    r1, r3, asr #8              @ r1<- ssssssCC (sign extended)
+    ubfx    r1, r3, #8, #5                            @ optional; typically r1<- ssssssCC (sign extended)
     .if 0
     @cmp     r1, #0                     @ is second operand zero?
     beq     common_errDivideByZero
     .endif
     FETCH_ADVANCE_INST 2                @ advance rPC, load rINST
 
-    and     r1, r1, #31                           @ optional op; may set condition codes
     mov     r0, r0, lsr r1                              @ r0<- op, r0-r3 changed
     GET_INST_OPCODE ip                  @ extract opcode from rINST
     SET_VREG r0, r9                @ vAA<- r0
