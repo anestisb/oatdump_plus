@@ -434,6 +434,11 @@ class ReadBarrierMarkSlowPathARM : public SlowPathCode {
            (instruction_->IsInvokeVirtual()) && instruction_->GetLocations()->Intrinsified())
         << "Unexpected instruction in read barrier marking slow path: "
         << instruction_->DebugName();
+    // The read barrier instrumentation of object ArrayGet
+    // instructions does not support the HIntermediateAddress
+    // instruction.
+    DCHECK(!(instruction_->IsArrayGet() &&
+             instruction_->AsArrayGet()->GetArray()->IsIntermediateAddress()));
 
     __ Bind(GetEntryLabel());
     // No need to save live registers; it's taken care of by the
@@ -514,6 +519,11 @@ class ReadBarrierForHeapReferenceSlowPathARM : public SlowPathCode {
            (instruction_->IsInvokeVirtual()) && instruction_->GetLocations()->Intrinsified())
         << "Unexpected instruction in read barrier for heap reference slow path: "
         << instruction_->DebugName();
+    // The read barrier instrumentation of object ArrayGet
+    // instructions does not support the HIntermediateAddress
+    // instruction.
+    DCHECK(!(instruction_->IsArrayGet() &&
+             instruction_->AsArrayGet()->GetArray()->IsIntermediateAddress()));
 
     __ Bind(GetEntryLabel());
     SaveLiveRegisters(codegen, locations);
@@ -4469,8 +4479,6 @@ void InstructionCodeGeneratorARM::VisitArrayGet(HArrayGet* instruction) {
   Primitive::Type type = instruction->GetType();
   HInstruction* array_instr = instruction->GetArray();
   bool has_intermediate_address = array_instr->IsIntermediateAddress();
-  // The read barrier instrumentation does not support the HIntermediateAddress instruction yet.
-  DCHECK(!(has_intermediate_address && kEmitCompilerReadBarrier));
 
   switch (type) {
     case Primitive::kPrimBoolean:
@@ -4505,6 +4513,11 @@ void InstructionCodeGeneratorARM::VisitArrayGet(HArrayGet* instruction) {
     }
 
     case Primitive::kPrimNot: {
+      // The read barrier instrumentation of object ArrayGet
+      // instructions does not support the HIntermediateAddress
+      // instruction.
+      DCHECK(!(has_intermediate_address && kEmitCompilerReadBarrier));
+
       static_assert(
           sizeof(mirror::HeapReference<mirror::Object>) == sizeof(int32_t),
           "art::mirror::HeapReference<art::mirror::Object> and int32_t have different sizes.");
@@ -4647,8 +4660,6 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
   Location value_loc = locations->InAt(2);
   HInstruction* array_instr = instruction->GetArray();
   bool has_intermediate_address = array_instr->IsIntermediateAddress();
-  // The read barrier instrumentation does not support the HIntermediateAddress instruction yet.
-  DCHECK(!(has_intermediate_address && kEmitCompilerReadBarrier));
 
   switch (value_type) {
     case Primitive::kPrimBoolean:
@@ -4913,8 +4924,6 @@ void InstructionCodeGeneratorARM::VisitArrayLength(HArrayLength* instruction) {
 }
 
 void LocationsBuilderARM::VisitIntermediateAddress(HIntermediateAddress* instruction) {
-  // The read barrier instrumentation does not support the HIntermediateAddress instruction yet.
-  DCHECK(!kEmitCompilerReadBarrier);
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
 
@@ -4928,9 +4937,6 @@ void InstructionCodeGeneratorARM::VisitIntermediateAddress(HIntermediateAddress*
   Location out = locations->Out();
   Location first = locations->InAt(0);
   Location second = locations->InAt(1);
-
-  // The read barrier instrumentation does not support the HIntermediateAddress instruction yet.
-  DCHECK(!kEmitCompilerReadBarrier);
 
   if (second.IsRegister()) {
     __ add(out.AsRegister<Register>(),
