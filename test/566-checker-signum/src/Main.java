@@ -45,13 +45,13 @@ public class Main {
   /// CHECK-START: int Main.signBoolean(boolean) select_generator (after)
   /// CHECK-NOT:                     Phi
 
-  /// CHECK-START: int Main.signBoolean(boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-START: int Main.signBoolean(boolean) instruction_simplifier$after_bce (after)
   /// CHECK-DAG:     <<Arg:z\d+>>    ParameterValue
   /// CHECK-DAG:     <<Zero:i\d+>>   IntConstant 0
   /// CHECK-DAG:     <<Result:i\d+>> Compare [<<Arg>>,<<Zero>>]
   /// CHECK-DAG:                     Return [<<Result>>]
 
-  /// CHECK-START: int Main.signBoolean(boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-START: int Main.signBoolean(boolean) instruction_simplifier$after_bce (after)
   /// CHECK-NOT:                     Select
 
   private static int signBoolean(boolean x) {

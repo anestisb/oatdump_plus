@@ -48,7 +48,7 @@ public class Main {
   /// CHECK:    <<Class:l\d+>>   LoadClass
   /// CHECK:                     InstanceOf [<<Phi>>,<<Class>>]
 
-  /// CHECK-START: void Main.testKeepInstanceOf(java.lang.Object, boolean) dead_code_elimination (after)
+  /// CHECK-START: void Main.testKeepInstanceOf(java.lang.Object, boolean) dead_code_elimination$initial(after)
   /// CHECK:    <<Phi:l\d+>>     Phi
   /// CHECK:    <<Class:l\d+>>   LoadClass
   /// CHECK:                     InstanceOf [<<Phi>>,<<Class>>]
