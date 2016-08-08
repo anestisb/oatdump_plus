@@ -114,6 +114,7 @@ LIBART_COMPILER_SRC_FILES_arm64 := \
 	optimizing/instruction_simplifier_shared.cc \
 	optimizing/intrinsics_arm64.cc \
 	utils/arm64/assembler_arm64.cc \
+	utils/arm64/jni_macro_assembler_arm64.cc \
 	utils/arm64/managed_register_arm64.cc \
 
 LIBART_COMPILER_SRC_FILES_mips := \
