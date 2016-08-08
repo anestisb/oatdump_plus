@@ -64,12 +64,6 @@ class MANAGED Class FINAL : public Object {
   // 2 ref instance fields.]
   static constexpr uint32_t kClassWalkSuper = 0xC0000000;
 
-  // Shift primitive type by kPrimitiveTypeSizeShiftShift to get the component type size shift
-  // Used for computing array size as follows:
-  // array_bytes = header_size + (elements << (primitive_type >> kPrimitiveTypeSizeShiftShift))
-  static constexpr uint32_t kPrimitiveTypeSizeShiftShift = 16;
-  static constexpr uint32_t kPrimitiveTypeMask = (1u << kPrimitiveTypeSizeShiftShift) - 1;
-
   // Class Status
   //
   // kStatusRetired: Class that's temporarily used till class linking time
@@ -377,10 +371,10 @@ class MANAGED Class FINAL : public Object {
 
   void SetPrimitiveType(Primitive::Type new_type) SHARED_REQUIRES(Locks::mutator_lock_) {
     DCHECK_EQ(sizeof(Primitive::Type), sizeof(int32_t));
-    uint32_t v32 = static_cast<uint32_t>(new_type);
-    DCHECK_EQ(v32 & kPrimitiveTypeMask, v32) << "upper 16 bits aren't zero";
+    int32_t v32 = static_cast<int32_t>(new_type);
+    DCHECK_EQ(v32 & 0xFFFF, v32) << "upper 16 bits aren't zero";
     // Store the component size shift in the upper 16 bits.
-    v32 |= Primitive::ComponentSizeShift(new_type) << kPrimitiveTypeSizeShiftShift;
+    v32 |= Primitive::ComponentSizeShift(new_type) << 16;
     SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, primitive_type_), v32);
   }
 
