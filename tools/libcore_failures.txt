@@ -180,12 +180,6 @@
   bug: 25437292
 },
 {
-  description: "Failing tests after OpenJDK move.",
-  result: EXEC_FAILED,
-  bug: 26326992,
-  names: ["libcore.java.lang.OldSystemTest#test_load"]
-},
-{
   description: "Missing resource in classpath",
   result: EXEC_FAILED,
   modes: [device],
