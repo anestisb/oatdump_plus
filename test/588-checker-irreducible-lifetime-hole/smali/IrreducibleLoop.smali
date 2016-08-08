@@ -16,7 +16,7 @@
 
 .super Ljava/lang/Object;
 
-## CHECK-START-X86: int IrreducibleLoop.simpleLoop1(int) dead_code_elimination$initial(before)
+## CHECK-START-X86: int IrreducibleLoop.simpleLoop1(int) dead_code_elimination$initial (before)
 ## CHECK-DAG: <<Method:(i|j)\d+>> CurrentMethod
 ## CHECK-DAG: <<Constant:i\d+>>   IntConstant 42
 ## CHECK-DAG:                     Goto irreducible:true
@@ -57,7 +57,7 @@
    return v0
 .end method
 
-## CHECK-START-X86: int IrreducibleLoop.simpleLoop2(int) dead_code_elimination$initial(before)
+## CHECK-START-X86: int IrreducibleLoop.simpleLoop2(int) dead_code_elimination$initial (before)
 ## CHECK-DAG: <<Method:(i|j)\d+>> CurrentMethod
 ## CHECK-DAG: <<Constant:i\d+>>   IntConstant 42
 ## CHECK-DAG:                     Goto irreducible:true
