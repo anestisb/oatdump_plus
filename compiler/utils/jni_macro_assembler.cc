@@ -36,7 +36,7 @@
 #include "x86/assembler_x86.h"
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86_64
-#include "x86_64/assembler_x86_64.h"
+#include "x86_64/jni_macro_assembler_x86_64.h"
 #endif
 #include "base/casts.h"
 #include "globals.h"
@@ -98,7 +98,7 @@ MacroAsm64UniquePtr JNIMacroAssembler<PointerSize::k64>::Create(
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86_64
     case kX86_64:
-      return MacroAsm64UniquePtr(new (arena) x86_64::X86_64Assembler(arena));
+      return MacroAsm64UniquePtr(new (arena) x86_64::X86_64JNIMacroAssembler(arena));
 #endif
     default:
       LOG(FATAL) << "Unknown/unsupported 8B InstructionSet: " << instruction_set;
