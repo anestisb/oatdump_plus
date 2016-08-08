@@ -35,14 +35,14 @@ public class Main {
 
   // Test when a condition is the input of the if.
 
-  /// CHECK-START: void Main.testNoInline(java.lang.String[]) dead_code_elimination$initial(before)
+  /// CHECK-START: void Main.testNoInline(java.lang.String[]) dead_code_elimination$initial (before)
   /// CHECK: <<Const0:i\d+>>   IntConstant 0
   /// CHECK:                   If
   /// CHECK: <<Phi:i\d+>>      Phi
   /// CHECK: <<Equal:z\d+>>    Equal [<<Phi>>,<<Const0>>]
   /// CHECK:                   If [<<Equal>>]
 
-  /// CHECK-START: void Main.testNoInline(java.lang.String[]) dead_code_elimination$initial(after)
+  /// CHECK-START: void Main.testNoInline(java.lang.String[]) dead_code_elimination$initial (after)
   /// CHECK:      If
   /// CHECK-NOT:  Phi
   /// CHECK-NOT:  Equal
@@ -96,7 +96,7 @@ public class Main {
 
   // Test when one input is not a constant. We can only optimize the constant input.
 
-  /// CHECK-START: void Main.testNonConstantInputs(java.lang.String[]) dead_code_elimination$initial(before)
+  /// CHECK-START: void Main.testNonConstantInputs(java.lang.String[]) dead_code_elimination$initial (before)
   /// CHECK-DAG: <<Const34:i\d+>>         IntConstant 34
   /// CHECK-DAG: <<Const42:i\d+>>         IntConstant 42
   /// CHECK-DAG:                          If
@@ -105,7 +105,7 @@ public class Main {
   /// CHECK-DAG: <<NotEqual:z\d+>>        NotEqual [<<Phi>>,<<Const42>>]
   /// CHECK-DAG:                          If [<<NotEqual>>]
 
-  /// CHECK-START: void Main.testNonConstantInputs(java.lang.String[]) dead_code_elimination$initial(after)
+  /// CHECK-START: void Main.testNonConstantInputs(java.lang.String[]) dead_code_elimination$initial (after)
   /// CHECK-DAG: <<Const42:i\d+>>         IntConstant 42
   /// CHECK-DAG:                          If
   /// CHECK-DAG: <<StaticFieldGet:i\d+>>  StaticFieldGet
@@ -129,7 +129,7 @@ public class Main {
 
   // Test with a condition.
 
-  /// CHECK-START: void Main.testGreaterCondition(java.lang.String[]) dead_code_elimination$initial(before)
+  /// CHECK-START: void Main.testGreaterCondition(java.lang.String[]) dead_code_elimination$initial (before)
   /// CHECK-DAG: <<Const34:i\d+>>         IntConstant 34
   /// CHECK-DAG: <<Const22:i\d+>>         IntConstant 22
   /// CHECK-DAG: <<Const25:i\d+>>         IntConstant 25
@@ -138,7 +138,7 @@ public class Main {
   /// CHECK-DAG: <<GE:z\d+>>              GreaterThanOrEqual [<<Phi>>,<<Const25>>]
   /// CHECK-DAG:                          If [<<GE>>]
 
-  /// CHECK-START: void Main.testGreaterCondition(java.lang.String[]) dead_code_elimination$initial(after)
+  /// CHECK-START: void Main.testGreaterCondition(java.lang.String[]) dead_code_elimination$initial (after)
   /// CHECK-DAG:                          If
   /// CHECK-NOT:                          Phi
   /// CHECK-NOT:                          GreaterThanOrEqual
@@ -160,7 +160,7 @@ public class Main {
 
   // Test when comparing non constants.
 
-  /// CHECK-START: void Main.testNonConstantEqual(java.lang.String[]) dead_code_elimination$initial(before)
+  /// CHECK-START: void Main.testNonConstantEqual(java.lang.String[]) dead_code_elimination$initial (before)
   /// CHECK-DAG: <<Const34:i\d+>>         IntConstant 34
   /// CHECK-DAG: <<Const42:i\d+>>         IntConstant 42
   /// CHECK-DAG:                          If
@@ -169,7 +169,7 @@ public class Main {
   /// CHECK-DAG: <<NotEqual:z\d+>>        NotEqual [<<Phi>>,<<StaticFieldGet>>]
   /// CHECK-DAG:                          If [<<NotEqual>>]
 
-  /// CHECK-START: void Main.testNonConstantEqual(java.lang.String[]) dead_code_elimination$initial(after)
+  /// CHECK-START: void Main.testNonConstantEqual(java.lang.String[]) dead_code_elimination$initial (after)
   /// CHECK-DAG: <<Const34:i\d+>>         IntConstant 34
   /// CHECK-DAG:                          If
   /// CHECK-DAG: <<StaticFieldGet:i\d+>>  StaticFieldGet
@@ -217,12 +217,12 @@ public class Main {
     return true;
   }
 
-  /// CHECK-START: void Main.testSwitch(java.lang.String[]) dead_code_elimination$initial(before)
+  /// CHECK-START: void Main.testSwitch(java.lang.String[]) dead_code_elimination$initial (before)
   /// CHECK:      If
   /// CHECK:      If
   /// CHECK:      If
 
-  /// CHECK-START: void Main.testSwitch(java.lang.String[]) dead_code_elimination$initial(after)
+  /// CHECK-START: void Main.testSwitch(java.lang.String[]) dead_code_elimination$initial (after)
   /// CHECK:      If
   /// CHECK:      If
   /// CHECK-NOT:  If
@@ -248,11 +248,11 @@ public class Main {
     // Redirect default here.
   }
 
-  /// CHECK-START: void Main.testFP(java.lang.String[]) dead_code_elimination$initial(before)
+  /// CHECK-START: void Main.testFP(java.lang.String[]) dead_code_elimination$initial (before)
   /// CHECK:      If
   /// CHECK:      If
 
-  /// CHECK-START: void Main.testFP(java.lang.String[]) dead_code_elimination$initial(after)
+  /// CHECK-START: void Main.testFP(java.lang.String[]) dead_code_elimination$initial (after)
   /// CHECK:      If
   /// CHECK:      If
   public static void testFP(String[] args) {

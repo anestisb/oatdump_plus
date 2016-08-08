@@ -17,7 +17,7 @@
 class Main {
   private static boolean $inline$false() { return false; }
 
-  /// CHECK-START: void Main.main(java.lang.String[]) dead_code_elimination$initial(before)
+  /// CHECK-START: void Main.main(java.lang.String[]) dead_code_elimination$initial (before)
   /// CHECK-DAG:     <<Const0:i\d+>> IntConstant 0
   /// CHECK-DAG:     <<Const1:i\d+>> IntConstant 1
   /// CHECK-DAG:     <<Phi:i\d+>>    Phi [<<Const0>>,<<Add:i\d+>>] loop:{{B\d+}}
