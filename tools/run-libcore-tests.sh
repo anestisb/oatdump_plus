@@ -25,17 +25,22 @@ else
   JAVA_LIBRARIES=${ANDROID_PRODUCT_OUT}/../../common/obj/JAVA_LIBRARIES
 fi
 
-# Jar containing jsr166 tests.
-jsr166_test_jack=${JAVA_LIBRARIES}/jsr166-tests_intermediates/classes.jack
+function cparg {
+  for var
+  do
+    printf -- "--classpath ${JAVA_LIBRARIES}/${var}_intermediates/classes.jack ";
+  done
+}
 
-# Jar containing all the other tests.
-test_jack=${JAVA_LIBRARIES}/core-tests_intermediates/classes.jack
+DEPS="core-tests jsr166-tests mockito-target"
 
-if [ ! -f $test_jack ]; then
-  echo "Before running, you must build core-tests, jsr166-tests and vogar: \
-        make core-tests jsr166-tests vogar"
-  exit 1
-fi
+for lib in $DEPS
+do
+  if [ ! -f "${JAVA_LIBRARIES}/${lib}_intermediates/classes.jack" ]; then
+    echo "${lib} is missing. Before running, you must run art/tools/buildbot-build.sh"
+    exit 1
+  fi
+done
 
 expectations="--expectations art/tools/libcore_failures.txt"
 if [ "x$ART_USE_READ_BARRIER" = xtrue ]; then
@@ -133,4 +138,4 @@ vogar_args="$vogar_args --vm-arg -Xusejit:$use_jit"
 # Run the tests using vogar.
 echo "Running tests for the following test packages:"
 echo ${working_packages[@]} | tr " " "\n"
-vogar $vogar_args $expectations --classpath $jsr166_test_jack --classpath $test_jack ${working_packages[@]}
+vogar $vogar_args $expectations $(cparg $DEPS) ${working_packages[@]}
