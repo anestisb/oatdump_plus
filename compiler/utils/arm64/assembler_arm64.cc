@@ -36,7 +36,7 @@ void Arm64Assembler::FinalizeCode() {
 }
 
 size_t Arm64Assembler::CodeSize() const {
-  return vixl_masm_.GetBufferCapacity() - vixl_masm_.GetRemainingBufferSpace();
+  return vixl_masm_.GetSizeOfCodeGenerated();
 }
 
 const uint8_t* Arm64Assembler::CodeBufferBaseAddress() const {
