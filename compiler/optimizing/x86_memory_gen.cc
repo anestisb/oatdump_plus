@@ -69,8 +69,8 @@ class MemoryOperandVisitor : public HGraphVisitor {
 };
 
 X86MemoryOperandGeneration::X86MemoryOperandGeneration(HGraph* graph,
-                                                       OptimizingCompilerStats* stats,
-                                                       CodeGenerator* codegen)
+                                                       CodeGenerator* codegen,
+                                                       OptimizingCompilerStats* stats)
     : HOptimization(graph, kX86MemoryOperandGenerationPassName, stats),
       do_implicit_null_checks_(codegen->GetCompilerOptions().GetImplicitNullChecks()) {
 }

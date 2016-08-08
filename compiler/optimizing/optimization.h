@@ -37,7 +37,10 @@ class HOptimization : public ArenaObject<kArenaAllocOptimization> {
 
   virtual ~HOptimization() {}
 
-  // Return the name of the pass.
+  // Return the name of the pass. Pass names for a single HOptimization should be of form
+  // <optimization_name> or <optimization_name>$<pass_name> for common <optimization_name> prefix.
+  // Example: 'instruction_simplifier', 'instruction_simplifier$after_bce',
+  // 'instruction_simplifier$before_codegen'.
   const char* GetPassName() const { return pass_name_; }
 
   // Perform the analysis itself.

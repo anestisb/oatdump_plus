@@ -876,7 +876,7 @@ public class Main {
   /// CHECK-NOT:                       Neg
   /// CHECK-NOT:                       Add
 
-  /// CHECK-START: int Main.$noinline$NegNeg2(int) constant_folding_after_inlining (after)
+  /// CHECK-START: int Main.$noinline$NegNeg2(int) constant_folding$after_inlining (after)
   /// CHECK:         <<Const0:i\d+>>   IntConstant 0
   /// CHECK-NOT:                       Neg
   /// CHECK-NOT:                       Add
@@ -1126,7 +1126,7 @@ public class Main {
     return res;
   }
 
-  /// CHECK-START: boolean Main.$noinline$EqualBoolVsIntConst(boolean) instruction_simplifier_after_bce (before)
+  /// CHECK-START: boolean Main.$noinline$EqualBoolVsIntConst(boolean) instruction_simplifier$after_bce (before)
   /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
   /// CHECK-DAG:     <<Const0:i\d+>>   IntConstant 0
   /// CHECK-DAG:     <<Const1:i\d+>>   IntConstant 1
@@ -1136,7 +1136,7 @@ public class Main {
   /// CHECK-DAG:     <<NotCond:i\d+>>  Select [<<Const1>>,<<Const0>>,<<Cond>>]
   /// CHECK-DAG:                       Return [<<NotCond>>]
 
-  /// CHECK-START: boolean Main.$noinline$EqualBoolVsIntConst(boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-START: boolean Main.$noinline$EqualBoolVsIntConst(boolean) instruction_simplifier$after_bce (after)
   /// CHECK-DAG:     <<True:i\d+>>     IntConstant 1
   /// CHECK-DAG:                       Return [<<True>>]
 
@@ -1151,7 +1151,7 @@ public class Main {
     return arg;
   }
 
-  /// CHECK-START: boolean Main.$noinline$NotEqualBoolVsIntConst(boolean) instruction_simplifier_after_bce (before)
+  /// CHECK-START: boolean Main.$noinline$NotEqualBoolVsIntConst(boolean) instruction_simplifier$after_bce (before)
   /// CHECK-DAG:     <<Arg:z\d+>>      ParameterValue
   /// CHECK-DAG:     <<Const0:i\d+>>   IntConstant 0
   /// CHECK-DAG:     <<Const1:i\d+>>   IntConstant 1
@@ -1161,7 +1161,7 @@ public class Main {
   /// CHECK-DAG:     <<NotCond:i\d+>>  Select [<<Const1>>,<<Const0>>,<<Cond>>]
   /// CHECK-DAG:                       Return [<<NotCond>>]
 
-  /// CHECK-START: boolean Main.$noinline$NotEqualBoolVsIntConst(boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-START: boolean Main.$noinline$NotEqualBoolVsIntConst(boolean) instruction_simplifier$after_bce (after)
   /// CHECK-DAG:     <<False:i\d+>>    IntConstant 0
   /// CHECK-DAG:                       Return [<<False>>]
 
@@ -1178,7 +1178,7 @@ public class Main {
    * remove the second.
    */
 
-  /// CHECK-START: boolean Main.$noinline$NotNotBool(boolean) instruction_simplifier_after_bce (before)
+  /// CHECK-START: boolean Main.$noinline$NotNotBool(boolean) instruction_simplifier$after_bce (before)
   /// CHECK-DAG:     <<Arg:z\d+>>       ParameterValue
   /// CHECK-DAG:     <<Const0:i\d+>>    IntConstant 0
   /// CHECK-DAG:     <<Const1:i\d+>>    IntConstant 1
@@ -1186,7 +1186,7 @@ public class Main {
   /// CHECK-DAG:     <<NotNotArg:i\d+>> Select [<<Const1>>,<<Const0>>,<<NotArg>>]
   /// CHECK-DAG:                        Return [<<NotNotArg>>]
 
-  /// CHECK-START: boolean Main.$noinline$NotNotBool(boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-START: boolean Main.$noinline$NotNotBool(boolean) instruction_simplifier$after_bce (after)
   /// CHECK-DAG:     <<Arg:z\d+>>       ParameterValue
   /// CHECK-DAG:                        Return [<<Arg>>]
 
@@ -1317,7 +1317,7 @@ public class Main {
     return arg * 31;
   }
 
-  /// CHECK-START: int Main.$noinline$booleanFieldNotEqualOne() instruction_simplifier_after_bce (before)
+  /// CHECK-START: int Main.$noinline$booleanFieldNotEqualOne() instruction_simplifier$after_bce (before)
   /// CHECK-DAG:      <<Const1:i\d+>>   IntConstant 1
   /// CHECK-DAG:      <<Const13:i\d+>>  IntConstant 13
   /// CHECK-DAG:      <<Const54:i\d+>>  IntConstant 54
@@ -1327,7 +1327,7 @@ public class Main {
   /// CHECK-DAG:      <<Select:i\d+>>   Select [<<Const13>>,<<Const54>>,<<NE>>]
   /// CHECK-DAG:                        Return [<<Select>>]
 
-  /// CHECK-START: int Main.$noinline$booleanFieldNotEqualOne() instruction_simplifier_after_bce (after)
+  /// CHECK-START: int Main.$noinline$booleanFieldNotEqualOne() instruction_simplifier$after_bce (after)
   /// CHECK-DAG:      <<doThrow:z\d+>>  StaticFieldGet
   /// CHECK-DAG:      <<Field:z\d+>>    StaticFieldGet
   /// CHECK-DAG:      <<Const13:i\d+>>  IntConstant 13
@@ -1340,7 +1340,7 @@ public class Main {
     return (booleanField == $inline$true()) ? 13 : 54;
   }
 
-  /// CHECK-START: int Main.$noinline$booleanFieldEqualZero() instruction_simplifier_after_bce (before)
+  /// CHECK-START: int Main.$noinline$booleanFieldEqualZero() instruction_simplifier$after_bce (before)
   /// CHECK-DAG:      <<Const0:i\d+>>   IntConstant 0
   /// CHECK-DAG:      <<Const13:i\d+>>  IntConstant 13
   /// CHECK-DAG:      <<Const54:i\d+>>  IntConstant 54
@@ -1350,7 +1350,7 @@ public class Main {
   /// CHECK-DAG:      <<Select:i\d+>>   Select [<<Const13>>,<<Const54>>,<<NE>>]
   /// CHECK-DAG:                        Return [<<Select>>]
 
-  /// CHECK-START: int Main.$noinline$booleanFieldEqualZero() instruction_simplifier_after_bce (after)
+  /// CHECK-START: int Main.$noinline$booleanFieldEqualZero() instruction_simplifier$after_bce (after)
   /// CHECK-DAG:      <<doThrow:z\d+>>  StaticFieldGet
   /// CHECK-DAG:      <<Field:z\d+>>    StaticFieldGet
   /// CHECK-DAG:      <<Const13:i\d+>>  IntConstant 13
@@ -1363,7 +1363,7 @@ public class Main {
     return (booleanField != $inline$false()) ? 13 : 54;
   }
 
-  /// CHECK-START: int Main.$noinline$intConditionNotEqualOne(int) instruction_simplifier_after_bce (before)
+  /// CHECK-START: int Main.$noinline$intConditionNotEqualOne(int) instruction_simplifier$after_bce (before)
   /// CHECK-DAG:      <<Arg:i\d+>>      ParameterValue
   /// CHECK-DAG:      <<Const0:i\d+>>   IntConstant 0
   /// CHECK-DAG:      <<Const1:i\d+>>   IntConstant 1
@@ -1376,7 +1376,7 @@ public class Main {
   /// CHECK-DAG:      <<Result:i\d+>>   Select [<<Const13>>,<<Const54>>,<<NE>>]
   /// CHECK-DAG:                        Return [<<Result>>]
 
-  /// CHECK-START: int Main.$noinline$intConditionNotEqualOne(int) instruction_simplifier_after_bce (after)
+  /// CHECK-START: int Main.$noinline$intConditionNotEqualOne(int) instruction_simplifier$after_bce (after)
   /// CHECK-DAG:      <<Arg:i\d+>>      ParameterValue
   /// CHECK-DAG:      <<Const13:i\d+>>  IntConstant 13
   /// CHECK-DAG:      <<Const42:i\d+>>  IntConstant 42
@@ -1392,7 +1392,7 @@ public class Main {
     return ((i > 42) == $inline$true()) ? 13 : 54;
   }
 
-  /// CHECK-START: int Main.$noinline$intConditionEqualZero(int) instruction_simplifier_after_bce (before)
+  /// CHECK-START: int Main.$noinline$intConditionEqualZero(int) instruction_simplifier$after_bce (before)
   /// CHECK-DAG:      <<Arg:i\d+>>      ParameterValue
   /// CHECK-DAG:      <<Const0:i\d+>>   IntConstant 0
   /// CHECK-DAG:      <<Const1:i\d+>>   IntConstant 1
@@ -1405,7 +1405,7 @@ public class Main {
   /// CHECK-DAG:      <<Result:i\d+>>   Select [<<Const13>>,<<Const54>>,<<NE>>]
   /// CHECK-DAG:                        Return [<<Result>>]
 
-  /// CHECK-START: int Main.$noinline$intConditionEqualZero(int) instruction_simplifier_after_bce (after)
+  /// CHECK-START: int Main.$noinline$intConditionEqualZero(int) instruction_simplifier$after_bce (after)
   /// CHECK-DAG:      <<Arg:i\d+>>      ParameterValue
   /// CHECK-DAG:      <<Const13:i\d+>>  IntConstant 13
   /// CHECK-DAG:      <<Const42:i\d+>>  IntConstant 42
@@ -1426,7 +1426,7 @@ public class Main {
   /// CHECK-START: int Main.$noinline$floatConditionNotEqualOne(float) builder (after)
   /// CHECK:                            LessThanOrEqual
 
-  /// CHECK-START: int Main.$noinline$floatConditionNotEqualOne(float) instruction_simplifier_before_codegen (after)
+  /// CHECK-START: int Main.$noinline$floatConditionNotEqualOne(float) instruction_simplifier$before_codegen (after)
   /// CHECK-DAG:      <<Arg:f\d+>>      ParameterValue
   /// CHECK-DAG:      <<Const13:i\d+>>  IntConstant 13
   /// CHECK-DAG:      <<Const54:i\d+>>  IntConstant 54
@@ -1443,7 +1443,7 @@ public class Main {
   /// CHECK-START: int Main.$noinline$doubleConditionEqualZero(double) builder (after)
   /// CHECK:                            LessThanOrEqual
 
-  /// CHECK-START: int Main.$noinline$doubleConditionEqualZero(double) instruction_simplifier_before_codegen (after)
+  /// CHECK-START: int Main.$noinline$doubleConditionEqualZero(double) instruction_simplifier$before_codegen (after)
   /// CHECK-DAG:      <<Arg:d\d+>>      ParameterValue
   /// CHECK-DAG:      <<Const13:i\d+>>  IntConstant 13
   /// CHECK-DAG:      <<Const54:i\d+>>  IntConstant 54

@@ -26,18 +26,18 @@
 # Test a case when one entering TryBoundary is dead but the rest of the try
 # block remains live.
 
-## CHECK-START: int TestCase.testDeadEntry(int, int, int, int) dead_code_elimination_final (before)
+## CHECK-START: int TestCase.testDeadEntry(int, int, int, int) dead_code_elimination$final (before)
 ## CHECK: Add
 
-## CHECK-START: int TestCase.testDeadEntry(int, int, int, int) dead_code_elimination_final (before)
+## CHECK-START: int TestCase.testDeadEntry(int, int, int, int) dead_code_elimination$final (before)
 ## CHECK:     TryBoundary kind:entry
 ## CHECK:     TryBoundary kind:entry
 ## CHECK-NOT: TryBoundary kind:entry
 
-## CHECK-START: int TestCase.testDeadEntry(int, int, int, int) dead_code_elimination_final (after)
+## CHECK-START: int TestCase.testDeadEntry(int, int, int, int) dead_code_elimination$final (after)
 ## CHECK-NOT: Add
 
-## CHECK-START: int TestCase.testDeadEntry(int, int, int, int) dead_code_elimination_final (after)
+## CHECK-START: int TestCase.testDeadEntry(int, int, int, int) dead_code_elimination$final (after)
 ## CHECK:     TryBoundary kind:entry
 ## CHECK-NOT: TryBoundary kind:entry
 
@@ -71,18 +71,18 @@
 # Test a case when one exiting TryBoundary is dead but the rest of the try
 # block remains live.
 
-## CHECK-START: int TestCase.testDeadExit(int, int, int, int) dead_code_elimination_final (before)
+## CHECK-START: int TestCase.testDeadExit(int, int, int, int) dead_code_elimination$final (before)
 ## CHECK: Add
 
-## CHECK-START: int TestCase.testDeadExit(int, int, int, int) dead_code_elimination_final (before)
+## CHECK-START: int TestCase.testDeadExit(int, int, int, int) dead_code_elimination$final (before)
 ## CHECK:     TryBoundary kind:exit
 ## CHECK:     TryBoundary kind:exit
 ## CHECK-NOT: TryBoundary kind:exit
 
-## CHECK-START: int TestCase.testDeadExit(int, int, int, int) dead_code_elimination_final (after)
+## CHECK-START: int TestCase.testDeadExit(int, int, int, int) dead_code_elimination$final (after)
 ## CHECK-NOT: Add
 
-## CHECK-START: int TestCase.testDeadExit(int, int, int, int) dead_code_elimination_final (after)
+## CHECK-START: int TestCase.testDeadExit(int, int, int, int) dead_code_elimination$final (after)
 ## CHECK:     TryBoundary kind:exit
 ## CHECK-NOT: TryBoundary kind:exit
 
@@ -117,21 +117,21 @@
 # Test that a catch block remains live and consistent if some of try blocks
 # throwing into it are removed.
 
-## CHECK-START: int TestCase.testOneTryBlockDead(int, int, int, int) dead_code_elimination_final (before)
+## CHECK-START: int TestCase.testOneTryBlockDead(int, int, int, int) dead_code_elimination$final (before)
 ## CHECK:     TryBoundary kind:entry
 ## CHECK:     TryBoundary kind:entry
 ## CHECK-NOT: TryBoundary kind:entry
 
-## CHECK-START: int TestCase.testOneTryBlockDead(int, int, int, int) dead_code_elimination_final (before)
+## CHECK-START: int TestCase.testOneTryBlockDead(int, int, int, int) dead_code_elimination$final (before)
 ## CHECK:     TryBoundary kind:exit
 ## CHECK:     TryBoundary kind:exit
 ## CHECK-NOT: TryBoundary kind:exit
 
-## CHECK-START: int TestCase.testOneTryBlockDead(int, int, int, int) dead_code_elimination_final (after)
+## CHECK-START: int TestCase.testOneTryBlockDead(int, int, int, int) dead_code_elimination$final (after)
 ## CHECK:     TryBoundary kind:entry
 ## CHECK-NOT: TryBoundary kind:entry
 
-## CHECK-START: int TestCase.testOneTryBlockDead(int, int, int, int) dead_code_elimination_final (after)
+## CHECK-START: int TestCase.testOneTryBlockDead(int, int, int, int) dead_code_elimination$final (after)
 ## CHECK:     TryBoundary kind:exit
 ## CHECK-NOT: TryBoundary kind:exit
 
@@ -203,7 +203,7 @@
 
 # Test that DCE removes catch phi uses of instructions defined in dead try blocks.
 
-## CHECK-START: int TestCase.testCatchPhiInputs_DefinedInTryBlock(int, int, int, int) dead_code_elimination_final (before)
+## CHECK-START: int TestCase.testCatchPhiInputs_DefinedInTryBlock(int, int, int, int) dead_code_elimination$final (before)
 ## CHECK-DAG:     <<Arg0:i\d+>>      ParameterValue
 ## CHECK-DAG:     <<Arg1:i\d+>>      ParameterValue
 ## CHECK-DAG:     <<Const0xa:i\d+>>  IntConstant 10
@@ -220,7 +220,7 @@
 ## CHECK-DAG:                        Phi [<<Add>>,<<Const0xc>>,<<Const0xe>>] reg:2 is_catch_phi:true
 ## CHECK-DAG:                        Phi [<<Select>>,<<Const0x10>>,<<Const0x11>>] reg:3 is_catch_phi:true
 
-## CHECK-START: int TestCase.testCatchPhiInputs_DefinedInTryBlock(int, int, int, int) dead_code_elimination_final (after)
+## CHECK-START: int TestCase.testCatchPhiInputs_DefinedInTryBlock(int, int, int, int) dead_code_elimination$final (after)
 ## CHECK-DAG:     <<Const0xb:i\d+>>  IntConstant 11
 ## CHECK-DAG:     <<Const0xc:i\d+>>  IntConstant 12
 ## CHECK-DAG:     <<Const0xd:i\d+>>  IntConstant 13
@@ -277,7 +277,7 @@
 # Test that DCE does not remove catch phi uses of instructions defined outside
 # dead try blocks.
 
-## CHECK-START: int TestCase.testCatchPhiInputs_DefinedOutsideTryBlock(int, int, int, int) dead_code_elimination_final (before)
+## CHECK-START: int TestCase.testCatchPhiInputs_DefinedOutsideTryBlock(int, int, int, int) dead_code_elimination$final (before)
 ## CHECK-DAG:     <<Const0xa:i\d+>> IntConstant 10
 ## CHECK-DAG:     <<Const0xb:i\d+>> IntConstant 11
 ## CHECK-DAG:     <<Const0xc:i\d+>> IntConstant 12
@@ -287,7 +287,7 @@
 ## CHECK-DAG:                       Phi [<<Const0xa>>,<<Const0xb>>,<<Const0xd>>] reg:1 is_catch_phi:true
 ## CHECK-DAG:                       Phi [<<Const0xf>>,<<Const0xc>>,<<Const0xe>>] reg:2 is_catch_phi:true
 
-## CHECK-START: int TestCase.testCatchPhiInputs_DefinedOutsideTryBlock(int, int, int, int) dead_code_elimination_final (after)
+## CHECK-START: int TestCase.testCatchPhiInputs_DefinedOutsideTryBlock(int, int, int, int) dead_code_elimination$final (after)
 ## CHECK-DAG:     <<Const0xa:i\d+>> IntConstant 10
 ## CHECK-DAG:     <<Const0xb:i\d+>> IntConstant 11
 ## CHECK-DAG:     <<Const0xc:i\d+>> IntConstant 12

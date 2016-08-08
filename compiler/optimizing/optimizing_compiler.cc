@@ -95,6 +95,8 @@ namespace art {
 
 static constexpr size_t kArenaAllocatorMemoryReportThreshold = 8 * MB;
 
+static constexpr const char* kPassNameSeparator = "$";
+
 /**
  * Used by the code generator, to allocate the code in a vector.
  */
@@ -266,7 +268,7 @@ class PassScope : public ValueObject {
 class OptimizingCompiler FINAL : public Compiler {
  public:
   explicit OptimizingCompiler(CompilerDriver* driver);
-  ~OptimizingCompiler();
+  ~OptimizingCompiler() OVERRIDE;
 
   bool CanCompileMethod(uint32_t method_idx, const DexFile& dex_file) const OVERRIDE;
 
@@ -305,17 +307,17 @@ class OptimizingCompiler FINAL : public Compiler {
       OVERRIDE
       SHARED_REQUIRES(Locks::mutator_lock_);
 
- protected:
-  virtual void RunOptimizations(HGraph* graph,
-                                CodeGenerator* codegen,
-                                CompilerDriver* driver,
-                                const DexCompilationUnit& dex_compilation_unit,
-                                PassObserver* pass_observer,
-                                StackHandleScopeCollection* handles) const;
+ private:
+  void RunOptimizations(HGraph* graph,
+                        CodeGenerator* codegen,
+                        CompilerDriver* driver,
+                        const DexCompilationUnit& dex_compilation_unit,
+                        PassObserver* pass_observer,
+                        StackHandleScopeCollection* handles) const;
 
-  virtual void RunOptimizations(HOptimization* optimizations[],
-                                size_t length,
-                                PassObserver* pass_observer) const;
+  void RunOptimizations(HOptimization* optimizations[],
+                        size_t length,
+                        PassObserver* pass_observer) const;
 
  private:
   // Create a 'CompiledMethod' for an optimized graph.
@@ -420,6 +422,117 @@ static bool InstructionSetSupportsReadBarrier(InstructionSet instruction_set) {
       || instruction_set == kX86_64;
 }
 
+static HOptimization* BuildOptimization(
+    const std::string& opt_name,
+    ArenaAllocator* arena,
+    HGraph* graph,
+    OptimizingCompilerStats* stats,
+    CodeGenerator* codegen,
+    CompilerDriver* driver,
+    const DexCompilationUnit& dex_compilation_unit,
+    StackHandleScopeCollection* handles,
+    SideEffectsAnalysis* most_recent_side_effects,
+    HInductionVarAnalysis* most_recent_induction) {
+  if (opt_name == arm::InstructionSimplifierArm::kInstructionSimplifierArmPassName) {
+    return new (arena) arm::InstructionSimplifierArm(graph, stats);
+  } else if (opt_name == arm64::InstructionSimplifierArm64::kInstructionSimplifierArm64PassName) {
+    return new (arena) arm64::InstructionSimplifierArm64(graph, stats);
+  } else if (opt_name == BoundsCheckElimination::kBoundsCheckEliminationPassName) {
+    CHECK(most_recent_side_effects != nullptr && most_recent_induction != nullptr);
+    return new (arena) BoundsCheckElimination(graph,
+                                              *most_recent_side_effects,
+                                              most_recent_induction);
+  } else if (opt_name == GVNOptimization::kGlobalValueNumberingPassName) {
+    CHECK(most_recent_side_effects != nullptr);
+    return new (arena) GVNOptimization(graph, *most_recent_side_effects);
+  } else if (opt_name == HConstantFolding::kConstantFoldingPassName) {
+    return new (arena) HConstantFolding(graph);
+  } else if (opt_name == HDeadCodeElimination::kDeadCodeEliminationPassName) {
+    return new (arena) HDeadCodeElimination(graph, stats);
+  } else if (opt_name == HInliner::kInlinerPassName) {
+    size_t number_of_dex_registers = dex_compilation_unit.GetCodeItem()->registers_size_;
+    return new (arena) HInliner(graph,                   // outer_graph
+                                graph,                   // outermost_graph
+                                codegen,
+                                dex_compilation_unit,    // outer_compilation_unit
+                                dex_compilation_unit,    // outermost_compilation_unit
+                                driver,
+                                handles,
+                                stats,
+                                number_of_dex_registers,
+                                /* depth */ 0);
+  } else if (opt_name == HSharpening::kSharpeningPassName) {
+    return new (arena) HSharpening(graph, codegen, dex_compilation_unit, driver);
+  } else if (opt_name == HSelectGenerator::kSelectGeneratorPassName) {
+    return new (arena) HSelectGenerator(graph, stats);
+  } else if (opt_name == HInductionVarAnalysis::kInductionPassName) {
+    return new (arena) HInductionVarAnalysis(graph);
+  } else if (opt_name == InstructionSimplifier::kInstructionSimplifierPassName) {
+    return new (arena) InstructionSimplifier(graph, stats);
+  } else if (opt_name == IntrinsicsRecognizer::kIntrinsicsRecognizerPassName) {
+    return new (arena) IntrinsicsRecognizer(graph, driver, stats);
+  } else if (opt_name == LICM::kLoopInvariantCodeMotionPassName) {
+    CHECK(most_recent_side_effects != nullptr);
+    return new (arena) LICM(graph, *most_recent_side_effects, stats);
+  } else if (opt_name == LoadStoreElimination::kLoadStoreEliminationPassName) {
+    CHECK(most_recent_side_effects != nullptr);
+    return new (arena) LoadStoreElimination(graph, *most_recent_side_effects);
+  } else if (opt_name == mips::DexCacheArrayFixups::kDexCacheArrayFixupsMipsPassName) {
+    return new (arena) mips::DexCacheArrayFixups(graph, codegen, stats);
+  } else if (opt_name == mips::PcRelativeFixups::kPcRelativeFixupsMipsPassName) {
+    return new (arena) mips::PcRelativeFixups(graph, codegen, stats);
+  } else if (opt_name == SideEffectsAnalysis::kSideEffectsAnalysisPassName) {
+    return new (arena) SideEffectsAnalysis(graph);
+  } else if (opt_name == x86::PcRelativeFixups::kPcRelativeFixupsX86PassName) {
+    return new (arena) x86::PcRelativeFixups(graph, codegen, stats);
+  } else if (opt_name == x86::X86MemoryOperandGeneration::kX86MemoryOperandGenerationPassName) {
+    return new (arena) x86::X86MemoryOperandGeneration(graph, codegen, stats);
+  }
+  return nullptr;
+}
+
+static ArenaVector<HOptimization*> BuildOptimizations(
+    const std::vector<std::string>& pass_names,
+    ArenaAllocator* arena,
+    HGraph* graph,
+    OptimizingCompilerStats* stats,
+    CodeGenerator* codegen,
+    CompilerDriver* driver,
+    const DexCompilationUnit& dex_compilation_unit,
+    StackHandleScopeCollection* handles) {
+  // Few HOptimizations constructors require SideEffectsAnalysis or HInductionVarAnalysis
+  // instances. This method assumes that each of them expects the nearest instance preceeding it
+  // in the pass name list.
+  SideEffectsAnalysis* most_recent_side_effects = nullptr;
+  HInductionVarAnalysis* most_recent_induction = nullptr;
+  ArenaVector<HOptimization*> ret(arena->Adapter());
+  for (std::string pass_name : pass_names) {
+    size_t pos = pass_name.find(kPassNameSeparator);    // Strip suffix to get base pass name.
+    std::string opt_name = pos == std::string::npos ? pass_name : pass_name.substr(0, pos);
+
+    HOptimization* opt = BuildOptimization(
+        opt_name,
+        arena,
+        graph,
+        stats,
+        codegen,
+        driver,
+        dex_compilation_unit,
+        handles,
+        most_recent_side_effects,
+        most_recent_induction);
+    CHECK(opt != nullptr) << "Couldn't build optimization: \"" << pass_name << "\"";
+    ret.push_back(opt);
+
+    if (opt_name == SideEffectsAnalysis::kSideEffectsAnalysisPassName) {
+      most_recent_side_effects = down_cast<SideEffectsAnalysis*>(opt);
+    } else if (opt_name == HInductionVarAnalysis::kInductionPassName) {
+      most_recent_induction = down_cast<HInductionVarAnalysis*>(opt);
+    }
+  }
+  return ret;
+}
+
 void OptimizingCompiler::RunOptimizations(HOptimization* optimizations[],
                                           size_t length,
                                           PassObserver* pass_observer) const {
@@ -444,11 +557,11 @@ void OptimizingCompiler::MaybeRunInliner(HGraph* graph,
   }
   size_t number_of_dex_registers = dex_compilation_unit.GetCodeItem()->registers_size_;
   HInliner* inliner = new (graph->GetArena()) HInliner(
-      graph,
-      graph,
+      graph,                   // outer_graph
+      graph,                   // outermost_graph
       codegen,
-      dex_compilation_unit,
-      dex_compilation_unit,
+      dex_compilation_unit,    // outer_compilation_unit
+      dex_compilation_unit,    // outermost_compilation_unit
       driver,
       handles,
       stats,
@@ -473,7 +586,7 @@ void OptimizingCompiler::RunArchOptimizations(InstructionSet instruction_set,
       arm::InstructionSimplifierArm* simplifier =
           new (arena) arm::InstructionSimplifierArm(graph, stats);
       SideEffectsAnalysis* side_effects = new (arena) SideEffectsAnalysis(graph);
-      GVNOptimization* gvn = new (arena) GVNOptimization(graph, *side_effects, "GVN_after_arch");
+      GVNOptimization* gvn = new (arena) GVNOptimization(graph, *side_effects, "GVN$after_arch");
       HOptimization* arm_optimizations[] = {
         simplifier,
         side_effects,
@@ -489,7 +602,7 @@ void OptimizingCompiler::RunArchOptimizations(InstructionSet instruction_set,
       arm64::InstructionSimplifierArm64* simplifier =
           new (arena) arm64::InstructionSimplifierArm64(graph, stats);
       SideEffectsAnalysis* side_effects = new (arena) SideEffectsAnalysis(graph);
-      GVNOptimization* gvn = new (arena) GVNOptimization(graph, *side_effects, "GVN_after_arch");
+      GVNOptimization* gvn = new (arena) GVNOptimization(graph, *side_effects, "GVN$after_arch");
       HOptimization* arm64_optimizations[] = {
         simplifier,
         side_effects,
@@ -518,7 +631,7 @@ void OptimizingCompiler::RunArchOptimizations(InstructionSet instruction_set,
       x86::PcRelativeFixups* pc_relative_fixups =
           new (arena) x86::PcRelativeFixups(graph, codegen, stats);
       x86::X86MemoryOperandGeneration* memory_gen =
-          new(arena) x86::X86MemoryOperandGeneration(graph, stats, codegen);
+          new (arena) x86::X86MemoryOperandGeneration(graph, codegen, stats);
       HOptimization* x86_optimizations[] = {
           pc_relative_fixups,
           memory_gen
@@ -530,7 +643,7 @@ void OptimizingCompiler::RunArchOptimizations(InstructionSet instruction_set,
 #ifdef ART_ENABLE_CODEGEN_x86_64
     case kX86_64: {
       x86::X86MemoryOperandGeneration* memory_gen =
-          new(arena) x86::X86MemoryOperandGeneration(graph, stats, codegen);
+          new (arena) x86::X86MemoryOperandGeneration(graph, codegen, stats);
       HOptimization* x86_64_optimizations[] = {
           memory_gen
       };
@@ -572,15 +685,30 @@ void OptimizingCompiler::RunOptimizations(HGraph* graph,
                                           StackHandleScopeCollection* handles) const {
   OptimizingCompilerStats* stats = compilation_stats_.get();
   ArenaAllocator* arena = graph->GetArena();
+  if (driver->GetCompilerOptions().GetPassesToRun() != nullptr) {
+    ArenaVector<HOptimization*> optimizations = BuildOptimizations(
+        *driver->GetCompilerOptions().GetPassesToRun(),
+        arena,
+        graph,
+        stats,
+        codegen,
+        driver,
+        dex_compilation_unit,
+        handles);
+    RunOptimizations(&optimizations[0], optimizations.size(), pass_observer);
+    return;
+  }
+
   HDeadCodeElimination* dce1 = new (arena) HDeadCodeElimination(
-      graph, stats, HDeadCodeElimination::kInitialDeadCodeEliminationPassName);
+      graph, stats, "dead_code_elimination$initial");
   HDeadCodeElimination* dce2 = new (arena) HDeadCodeElimination(
-      graph, stats, HDeadCodeElimination::kFinalDeadCodeEliminationPassName);
+      graph, stats, "dead_code_elimination$final");
   HConstantFolding* fold1 = new (arena) HConstantFolding(graph);
   InstructionSimplifier* simplify1 = new (arena) InstructionSimplifier(graph, stats);
   HSelectGenerator* select_generator = new (arena) HSelectGenerator(graph, stats);
-  HConstantFolding* fold2 = new (arena) HConstantFolding(graph, "constant_folding_after_inlining");
-  HConstantFolding* fold3 = new (arena) HConstantFolding(graph, "constant_folding_after_bce");
+  HConstantFolding* fold2 = new (arena) HConstantFolding(
+      graph, "constant_folding$after_inlining");
+  HConstantFolding* fold3 = new (arena) HConstantFolding(graph, "constant_folding$after_bce");
   SideEffectsAnalysis* side_effects = new (arena) SideEffectsAnalysis(graph);
   GVNOptimization* gvn = new (arena) GVNOptimization(graph, *side_effects);
   LICM* licm = new (arena) LICM(graph, *side_effects, stats);
@@ -589,9 +717,9 @@ void OptimizingCompiler::RunOptimizations(HGraph* graph,
   BoundsCheckElimination* bce = new (arena) BoundsCheckElimination(graph, *side_effects, induction);
   HSharpening* sharpening = new (arena) HSharpening(graph, codegen, dex_compilation_unit, driver);
   InstructionSimplifier* simplify2 = new (arena) InstructionSimplifier(
-      graph, stats, "instruction_simplifier_after_bce");
+      graph, stats, "instruction_simplifier$after_bce");
   InstructionSimplifier* simplify3 = new (arena) InstructionSimplifier(
-      graph, stats, "instruction_simplifier_before_codegen");
+      graph, stats, "instruction_simplifier$before_codegen");
   IntrinsicsRecognizer* intrinsics = new (arena) IntrinsicsRecognizer(graph, driver, stats);
 
   HOptimization* optimizations1[] = {
@@ -627,9 +755,6 @@ void OptimizingCompiler::RunOptimizations(HGraph* graph,
   RunOptimizations(optimizations2, arraysize(optimizations2), pass_observer);
 
   RunArchOptimizations(driver->GetInstructionSet(), graph, codegen, pass_observer);
-  RegisterAllocator::Strategy regalloc_strategy =
-      driver->GetCompilerOptions().GetRegisterAllocationStrategy();
-  AllocateRegisters(graph, codegen, pass_observer, regalloc_strategy);
 }
 
 static ArenaVector<LinkerPatch> EmitAndSortLinkerPatches(CodeGenerator* codegen) {
@@ -843,6 +968,10 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
                      dex_compilation_unit,
                      &pass_observer,
                      &handles);
+
+    RegisterAllocator::Strategy regalloc_strategy =
+      compiler_options.GetRegisterAllocationStrategy();
+    AllocateRegisters(graph, codegen.get(), &pass_observer, regalloc_strategy);
 
     codegen->Compile(code_allocator);
     pass_observer.DumpDisassembly();

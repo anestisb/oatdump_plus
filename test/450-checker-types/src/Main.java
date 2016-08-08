@@ -214,11 +214,11 @@ public class Main {
   /// CHECK-DAG:     <<IOf:z\d+>>  InstanceOf
   /// CHECK-DAG:                   If [<<IOf>>]
 
-  /// CHECK-START: void Main.testInstanceOf_Inlined(java.lang.Object) instruction_simplifier_after_bce (before)
+  /// CHECK-START: void Main.testInstanceOf_Inlined(java.lang.Object) instruction_simplifier$after_bce (before)
   /// CHECK:         CheckCast
   /// CHECK-NOT:     CheckCast
 
-  /// CHECK-START: void Main.testInstanceOf_Inlined(java.lang.Object) instruction_simplifier_after_bce (after)
+  /// CHECK-START: void Main.testInstanceOf_Inlined(java.lang.Object) instruction_simplifier$after_bce (after)
   /// CHECK-NOT:     CheckCast
   public void testInstanceOf_Inlined(Object o) {
     if (!$inline$InstanceofSubclassC(o)) {

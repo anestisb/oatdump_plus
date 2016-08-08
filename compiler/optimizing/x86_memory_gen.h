@@ -28,8 +28,8 @@ namespace x86 {
 class X86MemoryOperandGeneration : public HOptimization {
  public:
   X86MemoryOperandGeneration(HGraph* graph,
-                             OptimizingCompilerStats* stats,
-                             CodeGenerator* codegen);
+                             CodeGenerator* codegen,
+                             OptimizingCompilerStats* stats);
 
   void Run() OVERRIDE;
 

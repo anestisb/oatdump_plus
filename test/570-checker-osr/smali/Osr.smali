@@ -19,7 +19,7 @@
 # Check that blocks only havig nops are not merged when they are loop headers.
 # This ensures we can do on-stack replacement for branches to those nop blocks.
 
-## CHECK-START: int Osr.simpleLoop(int, int) dead_code_elimination_final (after)
+## CHECK-START: int Osr.simpleLoop(int, int) dead_code_elimination$final (after)
 ## CHECK-DAG:                     SuspendCheck loop:<<OuterLoop:B\d+>> outer_loop:none
 ## CHECK-DAG:                     SuspendCheck loop:{{B\d+}} outer_loop:<<OuterLoop>>
 .method public static simpleLoop(II)I
