@@ -28,7 +28,7 @@
 #  exit    \-    \
 #           other_loop_entry
 #
-## CHECK-START: int IrreducibleLoop.simpleLoop(int) dead_code_elimination$initial(before)
+## CHECK-START: int IrreducibleLoop.simpleLoop(int) dead_code_elimination$initial (before)
 ## CHECK: irreducible:true
 .method public static simpleLoop(I)I
    .registers 2
@@ -65,7 +65,7 @@
 #                other_loop_entry
 #              set 30 in p1:myField
 #
-## CHECK-START: int IrreducibleLoop.lse(int, Main) dead_code_elimination$initial(after)
+## CHECK-START: int IrreducibleLoop.lse(int, Main) dead_code_elimination$initial (after)
 ## CHECK: irreducible:true
 #
 ## CHECK-START: int IrreducibleLoop.lse(int, Main) load_store_elimination (after)
@@ -101,10 +101,10 @@
 #  exit    \-    \
 #           other_loop_entry
 #
-## CHECK-START: int IrreducibleLoop.dce(int) dead_code_elimination$initial(before)
+## CHECK-START: int IrreducibleLoop.dce(int) dead_code_elimination$initial (before)
 ## CHECK: irreducible:true
 
-## CHECK-START: int IrreducibleLoop.dce(int) dead_code_elimination$initial(after)
+## CHECK-START: int IrreducibleLoop.dce(int) dead_code_elimination$initial (after)
 ## CHECK: irreducible:true
 .method public static dce(I)I
    .registers 3
