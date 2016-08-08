@@ -152,6 +152,7 @@ LIBART_COMPILER_SRC_FILES_x86_64 := \
 	optimizing/intrinsics_x86_64.cc \
 	optimizing/code_generator_x86_64.cc \
 	utils/x86_64/assembler_x86_64.cc \
+	utils/x86_64/jni_macro_assembler_x86_64.cc \
 	utils/x86_64/managed_register_x86_64.cc \
 
 
