@@ -1360,7 +1360,7 @@
 # Test that a throw-catch loop on monitor-exit is eliminated.
 # Note that we do not test this until after DCE which merges trivially split blocks.
 
-## CHECK-START: int Builder.testSynchronized(java.lang.Object) dead_code_elimination (after)
+## CHECK-START: int Builder.testSynchronized(java.lang.Object) dead_code_elimination$initial(after)
 ## CHECK:      flags "catch_block"
 ## CHECK-NOT:  end_block
 ## CHECK:      MonitorOperation kind:exit

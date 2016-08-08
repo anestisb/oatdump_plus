@@ -516,6 +516,7 @@ class Dex2Oat FINAL {
       compiled_classes_filename_(nullptr),
       compiled_methods_zip_filename_(nullptr),
       compiled_methods_filename_(nullptr),
+      passes_to_run_filename_(nullptr),
       app_image_(false),
       boot_image_(false),
       multi_image_(false),
@@ -894,6 +895,16 @@ class Dex2Oat FINAL {
       }
     }
     compiler_options_->force_determinism_ = force_determinism_;
+
+    if (passes_to_run_filename_ != nullptr) {
+      passes_to_run_.reset(ReadCommentedInputFromFile<std::vector<std::string>>(
+          passes_to_run_filename_,
+          nullptr));         // No post-processing.
+      if (passes_to_run_.get() == nullptr) {
+        Usage("Failed to read list of passes to run.");
+      }
+    }
+    compiler_options_->passes_to_run_ = passes_to_run_.get();
   }
 
   static bool SupportsDeterministicCompilation() {
@@ -1093,6 +1104,8 @@ class Dex2Oat FINAL {
         compiled_methods_filename_ = option.substr(strlen("--compiled-methods=")).data();
       } else if (option.starts_with("--compiled-methods-zip=")) {
         compiled_methods_zip_filename_ = option.substr(strlen("--compiled-methods-zip=")).data();
+      } else if (option.starts_with("--run-passes=")) {
+        passes_to_run_filename_ = option.substr(strlen("--run-passes=")).data();
       } else if (option.starts_with("--base=")) {
         ParseBase(option);
       } else if (option.starts_with("--boot-image=")) {
@@ -2106,13 +2119,15 @@ class Dex2Oat FINAL {
     if (compiled_methods_filename_ != nullptr) {
       std::string error_msg;
       if (compiled_methods_zip_filename_ != nullptr) {
-        compiled_methods_.reset(ReadCommentedInputFromZip(compiled_methods_zip_filename_,
-                                                          compiled_methods_filename_,
-                                                          nullptr,            // No post-processing.
-                                                          &error_msg));
+        compiled_methods_.reset(ReadCommentedInputFromZip<std::unordered_set<std::string>>(
+            compiled_methods_zip_filename_,
+            compiled_methods_filename_,
+            nullptr,            // No post-processing.
+            &error_msg));
       } else {
-        compiled_methods_.reset(ReadCommentedInputFromFile(compiled_methods_filename_,
-                                                           nullptr));         // No post-processing.
+        compiled_methods_.reset(ReadCommentedInputFromFile<std::unordered_set<std::string>>(
+            compiled_methods_filename_,
+            nullptr));          // No post-processing.
       }
       if (compiled_methods_.get() == nullptr) {
         LOG(ERROR) << "Failed to create list of compiled methods from '"
@@ -2346,7 +2361,8 @@ class Dex2Oat FINAL {
   static std::unordered_set<std::string>* ReadImageClassesFromFile(
       const char* image_classes_filename) {
     std::function<std::string(const char*)> process = DotToDescriptor;
-    return ReadCommentedInputFromFile(image_classes_filename, &process);
+    return ReadCommentedInputFromFile<std::unordered_set<std::string>>(image_classes_filename,
+                                                                       &process);
   }
 
   // Reads the class names (java.lang.Object) and returns a set of descriptors (Ljava/lang/Object;)
@@ -2355,27 +2371,32 @@ class Dex2Oat FINAL {
         const char* image_classes_filename,
         std::string* error_msg) {
     std::function<std::string(const char*)> process = DotToDescriptor;
-    return ReadCommentedInputFromZip(zip_filename, image_classes_filename, &process, error_msg);
+    return ReadCommentedInputFromZip<std::unordered_set<std::string>>(zip_filename,
+                                                                      image_classes_filename,
+                                                                      &process,
+                                                                      error_msg);
   }
 
   // Read lines from the given file, dropping comments and empty lines. Post-process each line with
   // the given function.
-  static std::unordered_set<std::string>* ReadCommentedInputFromFile(
+  template <typename T>
+  static T* ReadCommentedInputFromFile(
       const char* input_filename, std::function<std::string(const char*)>* process) {
     std::unique_ptr<std::ifstream> input_file(new std::ifstream(input_filename, std::ifstream::in));
     if (input_file.get() == nullptr) {
       LOG(ERROR) << "Failed to open input file " << input_filename;
       return nullptr;
     }
-    std::unique_ptr<std::unordered_set<std::string>> result(
-        ReadCommentedInputStream(*input_file, process));
+    std::unique_ptr<T> result(
+        ReadCommentedInputStream<T>(*input_file, process));
     input_file->close();
     return result.release();
   }
 
   // Read lines from the given file from the given zip file, dropping comments and empty lines.
   // Post-process each line with the given function.
-  static std::unordered_set<std::string>* ReadCommentedInputFromZip(
+  template <typename T>
+  static T* ReadCommentedInputFromZip(
       const char* zip_filename,
       const char* input_filename,
       std::function<std::string(const char*)>* process,
@@ -2401,16 +2422,16 @@ class Dex2Oat FINAL {
     const std::string input_string(reinterpret_cast<char*>(input_file->Begin()),
                                    input_file->Size());
     std::istringstream input_stream(input_string);
-    return ReadCommentedInputStream(input_stream, process);
+    return ReadCommentedInputStream<T>(input_stream, process);
   }
 
   // Read lines from the given stream, dropping comments and empty lines. Post-process each line
   // with the given function.
-  static std::unordered_set<std::string>* ReadCommentedInputStream(
+  template <typename T>
+  static T* ReadCommentedInputStream(
       std::istream& in_stream,
       std::function<std::string(const char*)>* process) {
-    std::unique_ptr<std::unordered_set<std::string>> image_classes(
-        new std::unordered_set<std::string>);
+    std::unique_ptr<T> output(new T());
     while (in_stream.good()) {
       std::string dot;
       std::getline(in_stream, dot);
@@ -2419,12 +2440,12 @@ class Dex2Oat FINAL {
       }
       if (process != nullptr) {
         std::string descriptor((*process)(dot.c_str()));
-        image_classes->insert(descriptor);
+        output->insert(output->end(), descriptor);
       } else {
-        image_classes->insert(dot);
+        output->insert(output->end(), dot);
       }
     }
-    return image_classes.release();
+    return output.release();
   }
 
   void LogCompletionTime() {
@@ -2501,9 +2522,11 @@ class Dex2Oat FINAL {
   const char* compiled_classes_filename_;
   const char* compiled_methods_zip_filename_;
   const char* compiled_methods_filename_;
+  const char* passes_to_run_filename_;
   std::unique_ptr<std::unordered_set<std::string>> image_classes_;
   std::unique_ptr<std::unordered_set<std::string>> compiled_classes_;
   std::unique_ptr<std::unordered_set<std::string>> compiled_methods_;
+  std::unique_ptr<std::vector<std::string>> passes_to_run_;
   bool app_image_;
   bool boot_image_;
   bool multi_image_;

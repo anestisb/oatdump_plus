@@ -46,7 +46,7 @@ public class Main {
   /// CHECK-DAG:     <<IToS:b\d+>>          TypeConversion [<<Sel>>]
   /// CHECK-DAG:                            Return [<<IToS>>]
 
-  /// CHECK-START: byte Main.booleanToByte(boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-START: byte Main.booleanToByte(boolean) instruction_simplifier$after_bce (after)
   /// CHECK:         <<Arg:z\d+>>           ParameterValue
   /// CHECK-DAG:                            Return [<<Arg>>]
 
@@ -72,7 +72,7 @@ public class Main {
   /// CHECK-DAG:     <<IToS:s\d+>>          TypeConversion [<<Sel>>]
   /// CHECK-DAG:                            Return [<<IToS>>]
 
-  /// CHECK-START: short Main.booleanToShort(boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-START: short Main.booleanToShort(boolean) instruction_simplifier$after_bce (after)
   /// CHECK:         <<Arg:z\d+>>           ParameterValue
   /// CHECK-DAG:                            Return [<<Arg>>]
 
@@ -98,7 +98,7 @@ public class Main {
   /// CHECK-DAG:     <<IToC:c\d+>>          TypeConversion [<<Sel>>]
   /// CHECK-DAG:                            Return [<<IToC>>]
 
-  /// CHECK-START: char Main.booleanToChar(boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-START: char Main.booleanToChar(boolean) instruction_simplifier$after_bce (after)
   /// CHECK:         <<Arg:z\d+>>           ParameterValue
   /// CHECK-DAG:                            Return [<<Arg>>]
 
@@ -122,7 +122,7 @@ public class Main {
   /// CHECK-DAG:     <<Sel:i\d+>>           Select [<<Zero>>,<<One>>,<<Arg>>]
   /// CHECK-DAG:                            Return [<<Sel>>]
 
-  /// CHECK-START: int Main.booleanToInt(boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-START: int Main.booleanToInt(boolean) instruction_simplifier$after_bce (after)
   /// CHECK:         <<Arg:z\d+>>           ParameterValue
   /// CHECK-DAG:                            Return [<<Arg>>]
 
@@ -148,7 +148,7 @@ public class Main {
   /// CHECK-DAG:     <<IToJ:j\d+>>          TypeConversion [<<Sel>>]
   /// CHECK-DAG:                            Return [<<IToJ>>]
 
-  /// CHECK-START: long Main.booleanToLong(boolean) instruction_simplifier_after_bce (after)
+  /// CHECK-START: long Main.booleanToLong(boolean) instruction_simplifier$after_bce (after)
   /// CHECK:         <<Arg:z\d+>>           ParameterValue
   /// CHECK-DAG:     <<ZToJ:j\d+>>          TypeConversion [<<Arg>>]
   /// CHECK-DAG:                            Return [<<ZToJ>>]
@@ -185,7 +185,7 @@ public class Main {
   /// CHECK-DAG:     <<JToI:i\d+>>          TypeConversion [<<IToJ>>]
   /// CHECK-DAG:                            Return [<<JToI>>]
 
-  /// CHECK-START: int Main.longToIntOfBoolean() instruction_simplifier_after_bce (after)
+  /// CHECK-START: int Main.longToIntOfBoolean() instruction_simplifier$after_bce (after)
   /// CHECK-DAG:     <<Method:[ij]\d+>>     CurrentMethod
   /// CHECK-DAG:     <<Sget:z\d+>>          StaticFieldGet
   /// CHECK-DAG:                            Return [<<Sget>>]

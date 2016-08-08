@@ -32,6 +32,8 @@ class PcRelativeFixups : public HOptimization {
       : HOptimization(graph, "pc_relative_fixups_mips", stats),
         codegen_(codegen) {}
 
+  static constexpr const char* kPcRelativeFixupsMipsPassName = "pc_relative_fixups_mips";
+
   void Run() OVERRIDE;
 
  private:

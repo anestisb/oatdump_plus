@@ -39,9 +39,9 @@ class HInductionVarAnalysis : public HOptimization {
 
   void Run() OVERRIDE;
 
- private:
   static constexpr const char* kInductionPassName = "induction_var_analysis";
 
+ private:
   struct NodeInfo {
     explicit NodeInfo(uint32_t d) : depth(d), done(false) {}
     uint32_t depth;

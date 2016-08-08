@@ -20,14 +20,14 @@ public class Main {
     return 5;
   }
 
-  /// CHECK-START: int Main.wholeSwitchDead(int) dead_code_elimination_final (before)
+  /// CHECK-START: int Main.wholeSwitchDead(int) dead_code_elimination$final (before)
   /// CHECK-DAG:                      PackedSwitch
 
-  /// CHECK-START: int Main.wholeSwitchDead(int) dead_code_elimination_final (after)
+  /// CHECK-START: int Main.wholeSwitchDead(int) dead_code_elimination$final (after)
   /// CHECK-DAG:    <<Const100:i\d+>> IntConstant 100
   /// CHECK-DAG:                      Return [<<Const100>>]
 
-  /// CHECK-START: int Main.wholeSwitchDead(int) dead_code_elimination_final (after)
+  /// CHECK-START: int Main.wholeSwitchDead(int) dead_code_elimination$final (after)
   /// CHECK-NOT:                      PackedSwitch
 
   public static int wholeSwitchDead(int j) {
@@ -60,14 +60,14 @@ public class Main {
     return l;
   }
 
-  /// CHECK-START: int Main.constantSwitch_InRange() dead_code_elimination_final (before)
+  /// CHECK-START: int Main.constantSwitch_InRange() dead_code_elimination$final (before)
   /// CHECK-DAG:                      PackedSwitch
 
-  /// CHECK-START: int Main.constantSwitch_InRange() dead_code_elimination_final (after)
+  /// CHECK-START: int Main.constantSwitch_InRange() dead_code_elimination$final (after)
   /// CHECK-DAG:     <<Const7:i\d+>>  IntConstant 7
   /// CHECK-DAG:                      Return [<<Const7>>]
 
-  /// CHECK-START: int Main.constantSwitch_InRange() dead_code_elimination_final (after)
+  /// CHECK-START: int Main.constantSwitch_InRange() dead_code_elimination$final (after)
   /// CHECK-NOT:                      PackedSwitch
 
   public static int constantSwitch_InRange() {
@@ -96,14 +96,14 @@ public class Main {
     return i;
   }
 
-  /// CHECK-START: int Main.constantSwitch_AboveRange() dead_code_elimination_final (before)
+  /// CHECK-START: int Main.constantSwitch_AboveRange() dead_code_elimination$final (before)
   /// CHECK-DAG:                      PackedSwitch
 
-  /// CHECK-START: int Main.constantSwitch_AboveRange() dead_code_elimination_final (after)
+  /// CHECK-START: int Main.constantSwitch_AboveRange() dead_code_elimination$final (after)
   /// CHECK-DAG:     <<Const15:i\d+>> IntConstant 15
   /// CHECK-DAG:                      Return [<<Const15>>]
 
-  /// CHECK-START: int Main.constantSwitch_AboveRange() dead_code_elimination_final (after)
+  /// CHECK-START: int Main.constantSwitch_AboveRange() dead_code_elimination$final (after)
   /// CHECK-NOT:                      PackedSwitch
 
   public static int constantSwitch_AboveRange() {
@@ -132,14 +132,14 @@ public class Main {
     return i;
   }
 
-  /// CHECK-START: int Main.constantSwitch_BelowRange() dead_code_elimination_final (before)
+  /// CHECK-START: int Main.constantSwitch_BelowRange() dead_code_elimination$final (before)
   /// CHECK-DAG:                      PackedSwitch
 
-  /// CHECK-START: int Main.constantSwitch_BelowRange() dead_code_elimination_final (after)
+  /// CHECK-START: int Main.constantSwitch_BelowRange() dead_code_elimination$final (after)
   /// CHECK-DAG:     <<ConstM5:i\d+>> IntConstant -5
   /// CHECK-DAG:                      Return [<<ConstM5>>]
 
-  /// CHECK-START: int Main.constantSwitch_BelowRange() dead_code_elimination_final (after)
+  /// CHECK-START: int Main.constantSwitch_BelowRange() dead_code_elimination$final (after)
   /// CHECK-NOT:                      PackedSwitch
 
   public static int constantSwitch_BelowRange() {

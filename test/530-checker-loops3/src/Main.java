@@ -132,7 +132,7 @@ public class Main {
   /// CHECK-DAG: Deoptimize loop:none
   /// CHECK-NOT: Deoptimize
   //
-  /// CHECK-START: void Main.multipleUnitStrides(int[], int[]) instruction_simplifier_after_bce (after)
+  /// CHECK-START: void Main.multipleUnitStrides(int[], int[]) instruction_simplifier$after_bce (after)
   /// CHECK-DAG: Deoptimize loop:none
   /// CHECK-DAG: Deoptimize loop:none
   /// CHECK-DAG: Deoptimize loop:none
@@ -164,7 +164,7 @@ public class Main {
   /// CHECK-DAG: Deoptimize loop:none
   /// CHECK-NOT: Deoptimize
   //
-  /// CHECK-START: void Main.multipleUnitStridesConditional(int[], int[]) instruction_simplifier_after_bce (after)
+  /// CHECK-START: void Main.multipleUnitStridesConditional(int[], int[]) instruction_simplifier$after_bce (after)
   /// CHECK-DAG: Deoptimize loop:none
   /// CHECK-DAG: Deoptimize loop:none
   /// CHECK-DAG: Deoptimize loop:none
@@ -196,7 +196,7 @@ public class Main {
   /// CHECK-DAG: Deoptimize loop:none
   /// CHECK-NOT: Deoptimize
   //
-  /// CHECK-START: void Main.shifter(int[]) instruction_simplifier_after_bce (after)
+  /// CHECK-START: void Main.shifter(int[]) instruction_simplifier$after_bce (after)
   /// CHECK-DAG: Deoptimize loop:none
   /// CHECK-DAG: Deoptimize loop:none
   /// CHECK-NOT: Deoptimize

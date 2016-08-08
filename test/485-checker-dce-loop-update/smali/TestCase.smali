@@ -23,7 +23,7 @@
 .end method
 
 
-## CHECK-START: int TestCase.testSingleExit(int, boolean) dead_code_elimination_final (before)
+## CHECK-START: int TestCase.testSingleExit(int, boolean) dead_code_elimination$final (before)
 ## CHECK-DAG:     <<ArgX:i\d+>>  ParameterValue
 ## CHECK-DAG:     <<ArgY:z\d+>>  ParameterValue
 ## CHECK-DAG:     <<Cst1:i\d+>>  IntConstant 1
@@ -36,7 +36,7 @@
 ## CHECK-DAG:     <<Add7>>       Add [<<PhiX>>,<<Cst7>>]                    loop:<<HeaderY>>
 ## CHECK-DAG:                    Return [<<PhiX>>]                          loop:none
 
-## CHECK-START: int TestCase.testSingleExit(int, boolean) dead_code_elimination_final (after)
+## CHECK-START: int TestCase.testSingleExit(int, boolean) dead_code_elimination$final (after)
 ## CHECK-DAG:     <<ArgX:i\d+>>  ParameterValue
 ## CHECK-DAG:     <<ArgY:z\d+>>  ParameterValue
 ## CHECK-DAG:     <<Cst7:i\d+>>  IntConstant 7
@@ -73,7 +73,7 @@
 .end method
 
 
-## CHECK-START: int TestCase.testMultipleExits(int, boolean, boolean) dead_code_elimination_final (before)
+## CHECK-START: int TestCase.testMultipleExits(int, boolean, boolean) dead_code_elimination$final (before)
 ## CHECK-DAG:     <<ArgX:i\d+>>  ParameterValue
 ## CHECK-DAG:     <<ArgY:z\d+>>  ParameterValue
 ## CHECK-DAG:     <<ArgZ:z\d+>>  ParameterValue
@@ -88,7 +88,7 @@
 ## CHECK-DAG:     <<Add7>>       Add [<<PhiX>>,<<Cst7>>]                    loop:<<HeaderY>>
 ## CHECK-DAG:                    Return [<<PhiX>>]                          loop:none
 
-## CHECK-START: int TestCase.testMultipleExits(int, boolean, boolean) dead_code_elimination_final (after)
+## CHECK-START: int TestCase.testMultipleExits(int, boolean, boolean) dead_code_elimination$final (after)
 ## CHECK-DAG:     <<ArgX:i\d+>>  ParameterValue
 ## CHECK-DAG:     <<ArgY:z\d+>>  ParameterValue
 ## CHECK-DAG:     <<ArgZ:z\d+>>  ParameterValue
@@ -129,7 +129,7 @@
 .end method
 
 
-## CHECK-START: int TestCase.testExitPredecessors(int, boolean, boolean) dead_code_elimination_final (before)
+## CHECK-START: int TestCase.testExitPredecessors(int, boolean, boolean) dead_code_elimination$final (before)
 ## CHECK-DAG:     <<ArgX:i\d+>>  ParameterValue
 ## CHECK-DAG:     <<ArgY:z\d+>>  ParameterValue
 ## CHECK-DAG:     <<ArgZ:z\d+>>  ParameterValue
@@ -146,7 +146,7 @@
 ## CHECK-DAG:     <<Add7>>       Add [<<PhiX>>,<<Cst7>>]                    loop:<<HeaderY>>
 ## CHECK-DAG:                    Return [<<SelX>>]                          loop:none
 
-## CHECK-START: int TestCase.testExitPredecessors(int, boolean, boolean) dead_code_elimination_final (after)
+## CHECK-START: int TestCase.testExitPredecessors(int, boolean, boolean) dead_code_elimination$final (after)
 ## CHECK-DAG:     <<ArgX:i\d+>>  ParameterValue
 ## CHECK-DAG:     <<ArgY:z\d+>>  ParameterValue
 ## CHECK-DAG:     <<ArgZ:z\d+>>  ParameterValue
@@ -194,7 +194,7 @@
 .end method
 
 
-## CHECK-START: int TestCase.testInnerLoop(int, boolean, boolean) dead_code_elimination_final (before)
+## CHECK-START: int TestCase.testInnerLoop(int, boolean, boolean) dead_code_elimination$final (before)
 ## CHECK-DAG:     <<ArgX:i\d+>>  ParameterValue
 ## CHECK-DAG:     <<ArgY:z\d+>>  ParameterValue
 ## CHECK-DAG:     <<ArgZ:z\d+>>  ParameterValue
@@ -217,7 +217,7 @@
 ## CHECK-DAG:     <<Add7>>       Add [<<PhiX>>,<<Cst7>>]                    loop:<<HeaderY>>
 ## CHECK-DAG:                    Return [<<PhiX>>]                          loop:none
 
-## CHECK-START: int TestCase.testInnerLoop(int, boolean, boolean) dead_code_elimination_final (after)
+## CHECK-START: int TestCase.testInnerLoop(int, boolean, boolean) dead_code_elimination$final (after)
 ## CHECK-DAG:     <<ArgX:i\d+>>  ParameterValue
 ## CHECK-DAG:     <<ArgY:z\d+>>  ParameterValue
 ## CHECK-DAG:     <<ArgZ:z\d+>>  ParameterValue
