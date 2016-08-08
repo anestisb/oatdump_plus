@@ -86,7 +86,7 @@ class AhatSnapshot {
     mSnapshot = snapshot;
     mHeaps = new ArrayList<Heap>(mSnapshot.getHeaps());
 
-    ClassObj javaLangClass = mSnapshot.findClass("java.lang.Class");
+    final ClassObj javaLangClass = mSnapshot.findClass("java.lang.Class");
     for (Heap heap : mHeaps) {
       // Use a single element array for the total to act as a reference to a
       // long.
