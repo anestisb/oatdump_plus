@@ -17,11 +17,11 @@
 
 .super Ljava/lang/Object;
 
-## CHECK-START: int Test.synchronizedHashCode(java.lang.Object) dead_code_elimination$initial(before)
+## CHECK-START: int Test.synchronizedHashCode(java.lang.Object) dead_code_elimination$initial (before)
 ## CHECK:         MonitorOperation [<<Param:l\d+>>] kind:enter
 ## CHECK:         MonitorOperation [<<Param>>]      kind:exit
 
-## CHECK-START: int Test.synchronizedHashCode(java.lang.Object) dead_code_elimination$initial(after)
+## CHECK-START: int Test.synchronizedHashCode(java.lang.Object) dead_code_elimination$initial (after)
 ## CHECK:         MonitorOperation [<<Param:l\d+>>] kind:enter
 ## CHECK:         MonitorOperation [<<Param>>]      kind:exit
 
