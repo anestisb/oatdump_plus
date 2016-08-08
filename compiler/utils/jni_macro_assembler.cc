@@ -33,7 +33,7 @@
 #include "mips64/assembler_mips64.h"
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86
-#include "x86/assembler_x86.h"
+#include "x86/jni_macro_assembler_x86.h"
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86_64
 #include "x86_64/jni_macro_assembler_x86_64.h"
@@ -72,7 +72,7 @@ MacroAsm32UniquePtr JNIMacroAssembler<PointerSize::k32>::Create(
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86
     case kX86:
-      return MacroAsm32UniquePtr(new (arena) x86::X86Assembler(arena));
+      return MacroAsm32UniquePtr(new (arena) x86::X86JNIMacroAssembler(arena));
 #endif
     default:
       LOG(FATAL) << "Unknown/unsupported 4B InstructionSet: " << instruction_set;
