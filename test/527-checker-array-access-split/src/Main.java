@@ -189,7 +189,7 @@ public class Main {
   /// CHECK:             <<Address2:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-NEXT:                               ArraySet [<<Address2>>,<<Index>>,<<Add>>]
 
-  /// CHECK-START-ARM64: void Main.getSet(int[], int) GVN_after_arch (after)
+  /// CHECK-START-ARM64: void Main.getSet(int[], int) GVN$after_arch (after)
   /// CHECK-DAG:         <<Const1:i\d+>>        IntConstant 1
   /// CHECK-DAG:         <<DataOffset:i\d+>>    IntConstant
   /// CHECK:             <<Array:l\d+>>         NullCheck
@@ -220,7 +220,7 @@ public class Main {
   /// CHECK:             <<Address2:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-NEXT:                               ArraySet [<<Address2>>,<<Index>>,<<Add>>]
 
-  /// CHECK-START-ARM:   void Main.getSet(int[], int) GVN_after_arch (after)
+  /// CHECK-START-ARM:   void Main.getSet(int[], int) GVN$after_arch (after)
   /// CHECK-DAG:         <<Const1:i\d+>>        IntConstant 1
   /// CHECK-DAG:         <<DataOffset:i\d+>>    IntConstant
   /// CHECK:             <<Array:l\d+>>         NullCheck
@@ -260,7 +260,7 @@ public class Main {
   /// CHECK:             <<Address2:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-NEXT:                               ArraySet [<<Address2>>,<<Index>>,<<Add>>]
 
-  /// CHECK-START-ARM64: int[] Main.accrossGC(int[], int) GVN_after_arch (after)
+  /// CHECK-START-ARM64: int[] Main.accrossGC(int[], int) GVN$after_arch (after)
   /// CHECK-DAG:         <<Const1:i\d+>>        IntConstant 1
   /// CHECK-DAG:         <<DataOffset:i\d+>>    IntConstant
   /// CHECK:             <<Array:l\d+>>         NullCheck
@@ -294,7 +294,7 @@ public class Main {
   /// CHECK:             <<Address2:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-NEXT:                               ArraySet [<<Address2>>,<<Index>>,<<Add>>]
 
-  /// CHECK-START-ARM:   int[] Main.accrossGC(int[], int) GVN_after_arch (after)
+  /// CHECK-START-ARM:   int[] Main.accrossGC(int[], int) GVN$after_arch (after)
   /// CHECK-DAG:         <<Const1:i\d+>>        IntConstant 1
   /// CHECK-DAG:         <<DataOffset:i\d+>>    IntConstant
   /// CHECK:             <<Array:l\d+>>         NullCheck
@@ -349,7 +349,7 @@ public class Main {
   /// CHECK:             <<Address2:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-NEXT:                               ArraySet [<<Address2>>,<<Index>>,<<Add>>]
 
-  /// CHECK-START-ARM64: int Main.canMergeAfterBCE1() GVN_after_arch (after)
+  /// CHECK-START-ARM64: int Main.canMergeAfterBCE1() GVN$after_arch (after)
   /// CHECK-DAG:         <<Const1:i\d+>>        IntConstant 1
   /// CHECK-DAG:         <<DataOffset:i\d+>>    IntConstant 12
   /// CHECK:             <<Array:l\d+>>         NewArray
@@ -386,7 +386,7 @@ public class Main {
   /// CHECK:             <<Address2:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-NEXT:                               ArraySet [<<Address2>>,<<Index>>,<<Add>>]
 
-  /// CHECK-START-ARM:   int Main.canMergeAfterBCE1() GVN_after_arch (after)
+  /// CHECK-START-ARM:   int Main.canMergeAfterBCE1() GVN$after_arch (after)
   /// CHECK-DAG:         <<Const1:i\d+>>        IntConstant 1
   /// CHECK-DAG:         <<DataOffset:i\d+>>    IntConstant 12
   /// CHECK:             <<Array:l\d+>>         NewArray
@@ -445,7 +445,7 @@ public class Main {
   /// CHECK:             <<Address3:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK:                                    ArraySet [<<Address3>>,<<Index1>>,<<Add>>]
 
-  /// CHECK-START-ARM64: int Main.canMergeAfterBCE2() GVN_after_arch (after)
+  /// CHECK-START-ARM64: int Main.canMergeAfterBCE2() GVN$after_arch (after)
   /// CHECK-DAG:         <<Const1:i\d+>>        IntConstant 1
   /// CHECK-DAG:         <<DataOffset:i\d+>>    IntConstant 12
   /// CHECK:             <<Array:l\d+>>         NewArray
@@ -461,7 +461,7 @@ public class Main {
 
   // There should be only one intermediate address computation in the loop.
 
-  /// CHECK-START-ARM64: int Main.canMergeAfterBCE2() GVN_after_arch (after)
+  /// CHECK-START-ARM64: int Main.canMergeAfterBCE2() GVN$after_arch (after)
   /// CHECK:                                    IntermediateAddress
   /// CHECK-NOT:                                IntermediateAddress
 
@@ -494,7 +494,7 @@ public class Main {
   /// CHECK:             <<Address3:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK:                                    ArraySet [<<Address3>>,<<Index1>>,<<Add>>]
 
-  /// CHECK-START-ARM:   int Main.canMergeAfterBCE2() GVN_after_arch (after)
+  /// CHECK-START-ARM:   int Main.canMergeAfterBCE2() GVN$after_arch (after)
   /// CHECK-DAG:         <<Const1:i\d+>>        IntConstant 1
   /// CHECK-DAG:         <<DataOffset:i\d+>>    IntConstant 12
   /// CHECK:             <<Array:l\d+>>         NewArray
@@ -508,7 +508,7 @@ public class Main {
   /// CHECK:             <<Add:i\d+>>           Add [<<ArrayGetI>>,<<ArrayGetI1>>]
   /// CHECK:                                    ArraySet [<<Address>>,<<Index1>>,<<Add>>]
 
-  /// CHECK-START-ARM:   int Main.canMergeAfterBCE2() GVN_after_arch (after)
+  /// CHECK-START-ARM:   int Main.canMergeAfterBCE2() GVN$after_arch (after)
   /// CHECK:                                    IntermediateAddress
   /// CHECK-NOT:                                IntermediateAddress
 
