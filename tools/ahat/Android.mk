@@ -30,6 +30,10 @@ LOCAL_STATIC_JAVA_LIBRARIES := perflib-prebuilt guavalib trove-prebuilt
 LOCAL_IS_HOST_MODULE := true
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := ahat
+
+# Let users with Java 7 run ahat (b/28303627)
+LOCAL_JAVA_LANGUAGE_VERSION := 1.7
+
 include $(BUILD_HOST_JAVA_LIBRARY)
 
 # --- ahat script ----------------
