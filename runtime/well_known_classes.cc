@@ -57,7 +57,6 @@ jclass WellKnownClasses::java_lang_String;
 jclass WellKnownClasses::java_lang_StringFactory;
 jclass WellKnownClasses::java_lang_System;
 jclass WellKnownClasses::java_lang_Thread;
-jclass WellKnownClasses::java_lang_Thread__UncaughtExceptionHandler;
 jclass WellKnownClasses::java_lang_ThreadGroup;
 jclass WellKnownClasses::java_lang_Throwable;
 jclass WellKnownClasses::java_nio_DirectByteBuffer;
@@ -121,9 +120,9 @@ jmethodID WellKnownClasses::java_lang_StringFactory_newStringFromStringBuffer;
 jmethodID WellKnownClasses::java_lang_StringFactory_newStringFromCodePoints;
 jmethodID WellKnownClasses::java_lang_StringFactory_newStringFromStringBuilder;
 jmethodID WellKnownClasses::java_lang_System_runFinalization = nullptr;
+jmethodID WellKnownClasses::java_lang_Thread_dispatchUncaughtException;
 jmethodID WellKnownClasses::java_lang_Thread_init;
 jmethodID WellKnownClasses::java_lang_Thread_run;
-jmethodID WellKnownClasses::java_lang_Thread__UncaughtExceptionHandler_uncaughtException;
 jmethodID WellKnownClasses::java_lang_ThreadGroup_removeThread;
 jmethodID WellKnownClasses::java_nio_DirectByteBuffer_init;
 jmethodID WellKnownClasses::libcore_reflect_AnnotationFactory_createAnnotation;
@@ -141,7 +140,6 @@ jfieldID WellKnownClasses::java_lang_Thread_group;
 jfieldID WellKnownClasses::java_lang_Thread_lock;
 jfieldID WellKnownClasses::java_lang_Thread_name;
 jfieldID WellKnownClasses::java_lang_Thread_priority;
-jfieldID WellKnownClasses::java_lang_Thread_uncaughtHandler;
 jfieldID WellKnownClasses::java_lang_Thread_nativePeer;
 jfieldID WellKnownClasses::java_lang_ThreadGroup_groups;
 jfieldID WellKnownClasses::java_lang_ThreadGroup_ngroups;
@@ -245,8 +243,6 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_StringFactory = CacheClass(env, "java/lang/StringFactory");
   java_lang_System = CacheClass(env, "java/lang/System");
   java_lang_Thread = CacheClass(env, "java/lang/Thread");
-  java_lang_Thread__UncaughtExceptionHandler = CacheClass(env,
-      "java/lang/Thread$UncaughtExceptionHandler");
   java_lang_ThreadGroup = CacheClass(env, "java/lang/ThreadGroup");
   java_lang_Throwable = CacheClass(env, "java/lang/Throwable");
   java_nio_DirectByteBuffer = CacheClass(env, "java/nio/DirectByteBuffer");
@@ -273,9 +269,9 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_ref_ReferenceQueue_add = CacheMethod(env, java_lang_ref_ReferenceQueue.get(), true, "add", "(Ljava/lang/ref/Reference;)V");
 
   java_lang_reflect_Proxy_invoke = CacheMethod(env, java_lang_reflect_Proxy, true, "invoke", "(Ljava/lang/reflect/Proxy;Ljava/lang/reflect/Method;[Ljava/lang/Object;)Ljava/lang/Object;");
+  java_lang_Thread_dispatchUncaughtException = CacheMethod(env, java_lang_Thread, false, "dispatchUncaughtException", "(Ljava/lang/Throwable;)V");
   java_lang_Thread_init = CacheMethod(env, java_lang_Thread, false, "<init>", "(Ljava/lang/ThreadGroup;Ljava/lang/String;IZ)V");
   java_lang_Thread_run = CacheMethod(env, java_lang_Thread, false, "run", "()V");
-  java_lang_Thread__UncaughtExceptionHandler_uncaughtException = CacheMethod(env, java_lang_Thread__UncaughtExceptionHandler, false, "uncaughtException", "(Ljava/lang/Thread;Ljava/lang/Throwable;)V");
   java_lang_ThreadGroup_removeThread = CacheMethod(env, java_lang_ThreadGroup, false, "threadTerminated", "(Ljava/lang/Thread;)V");
   java_nio_DirectByteBuffer_init = CacheMethod(env, java_nio_DirectByteBuffer, false, "<init>", "(JI)V");
   libcore_reflect_AnnotationFactory_createAnnotation = CacheMethod(env, libcore_reflect_AnnotationFactory, true, "createAnnotation", "(Ljava/lang/Class;[Llibcore/reflect/AnnotationMember;)Ljava/lang/annotation/Annotation;");
@@ -349,7 +345,6 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_Thread_lock = CacheField(env, java_lang_Thread, false, "lock", "Ljava/lang/Object;");
   java_lang_Thread_name = CacheField(env, java_lang_Thread, false, "name", "Ljava/lang/String;");
   java_lang_Thread_priority = CacheField(env, java_lang_Thread, false, "priority", "I");
-  java_lang_Thread_uncaughtHandler = CacheField(env, java_lang_Thread, false, "uncaughtExceptionHandler", "Ljava/lang/Thread$UncaughtExceptionHandler;");
   java_lang_Thread_nativePeer = CacheField(env, java_lang_Thread, false, "nativePeer", "J");
   java_lang_ThreadGroup_groups = CacheField(env, java_lang_ThreadGroup, false, "groups", "[Ljava/lang/ThreadGroup;");
   java_lang_ThreadGroup_ngroups = CacheField(env, java_lang_ThreadGroup, false, "ngroups", "I");
