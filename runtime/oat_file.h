@@ -213,9 +213,15 @@ class OatFile {
 
     friend class art::OatDexFile;
   };
+
+  // Get the OatDexFile for the given dex_location within this oat file.
+  // If dex_location_checksum is non-null, the OatDexFile will only be
+  // returned if it has a matching checksum.
+  // If error_msg is non-null and no OatDexFile is returned, error_msg will
+  // be updated with a description of why no OatDexFile was returned.
   const OatDexFile* GetOatDexFile(const char* dex_location,
                                   const uint32_t* const dex_location_checksum,
-                                  bool exception_if_not_found = true) const
+                                  /*out*/std::string* error_msg = nullptr) const
       REQUIRES(!secondary_lookup_lock_);
 
   const std::vector<const OatDexFile*>& GetOatDexFiles() const {
