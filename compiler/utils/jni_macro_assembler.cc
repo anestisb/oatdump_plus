@@ -24,7 +24,7 @@
 #include "arm/assembler_thumb2.h"
 #endif
 #ifdef ART_ENABLE_CODEGEN_arm64
-#include "arm64/assembler_arm64.h"
+#include "arm64/jni_macro_assembler_arm64.h"
 #endif
 #ifdef ART_ENABLE_CODEGEN_mips
 #include "mips/assembler_mips.h"
@@ -90,7 +90,7 @@ MacroAsm64UniquePtr JNIMacroAssembler<PointerSize::k64>::Create(
   switch (instruction_set) {
 #ifdef ART_ENABLE_CODEGEN_arm64
     case kArm64:
-      return MacroAsm64UniquePtr(new (arena) arm64::Arm64Assembler(arena));
+      return MacroAsm64UniquePtr(new (arena) arm64::Arm64JNIMacroAssembler(arena));
 #endif
 #ifdef ART_ENABLE_CODEGEN_mips64
     case kMips64:
