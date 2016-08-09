@@ -257,6 +257,7 @@ Heap::Heap(size_t initial_size,
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() entering";
   }
+  CHECK_GE(large_object_threshold, kMinLargeObjectThreshold);
   ScopedTrace trace(__FUNCTION__);
   Runtime* const runtime = Runtime::Current();
   // If we aren't the zygote, switch to the default non zygote allocator. This may update the
