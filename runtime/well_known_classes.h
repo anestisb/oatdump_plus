@@ -69,7 +69,6 @@ struct WellKnownClasses {
   static jclass java_lang_System;
   static jclass java_lang_Thread;
   static jclass java_lang_ThreadGroup;
-  static jclass java_lang_Thread__UncaughtExceptionHandler;
   static jclass java_lang_Throwable;
   static jclass java_util_ArrayList;
   static jclass java_util_Collections;
@@ -132,9 +131,9 @@ struct WellKnownClasses {
   static jmethodID java_lang_StringFactory_newStringFromCodePoints;
   static jmethodID java_lang_StringFactory_newStringFromStringBuilder;
   static jmethodID java_lang_System_runFinalization;
+  static jmethodID java_lang_Thread_dispatchUncaughtException;
   static jmethodID java_lang_Thread_init;
   static jmethodID java_lang_Thread_run;
-  static jmethodID java_lang_Thread__UncaughtExceptionHandler_uncaughtException;
   static jmethodID java_lang_ThreadGroup_removeThread;
   static jmethodID java_nio_DirectByteBuffer_init;
   static jmethodID libcore_reflect_AnnotationFactory_createAnnotation;
@@ -154,7 +153,6 @@ struct WellKnownClasses {
   static jfieldID java_lang_Thread_lock;
   static jfieldID java_lang_Thread_name;
   static jfieldID java_lang_Thread_priority;
-  static jfieldID java_lang_Thread_uncaughtHandler;
   static jfieldID java_lang_Thread_nativePeer;
   static jfieldID java_lang_ThreadGroup_groups;
   static jfieldID java_lang_ThreadGroup_ngroups;
