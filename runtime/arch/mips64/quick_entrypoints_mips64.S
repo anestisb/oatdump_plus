@@ -334,8 +334,6 @@
     .cfi_rel_offset 31, 488
     sd     $s8, 480($sp)
     .cfi_rel_offset 30, 480
-    sd     $gp, 472($sp)
-    .cfi_rel_offset 28, 472
     sd     $t9, 464($sp)
     .cfi_rel_offset 25, 464
     sd     $t8, 456($sp)
@@ -387,11 +385,13 @@
 
     // Set up $gp, clobbering $ra and using the branch delay slot for a useful instruction.
     bal 1f
+    .set push
+    .set noat
     sd     $at,  272($sp)
     .cfi_rel_offset 1, 272
+    .set pop
 1:
-    // TODO: Can we avoid the unnecessary move $t8<-$gp?
-    .cpsetup $ra, $t8, 1b
+    .cpsetup $ra, 472, 1b
 
     // Save FP registers.
     s.d    $f31, 264($sp)
@@ -472,12 +472,11 @@
     l.d    $f0, 16($sp)
 
     // Restore core registers.
+    .cpreturn
     ld     $ra, 488($sp)
     .cfi_restore 31
     ld     $s8, 480($sp)
     .cfi_restore 30
-    ld     $gp, 472($sp)
-    .cfi_restore 28
     ld     $t9, 464($sp)
     .cfi_restore 25
     ld     $t8, 456($sp)
@@ -526,10 +525,12 @@
     .cfi_restore 3
     ld     $v0,  280($sp)
     .cfi_restore 2
+    .set push
+    .set noat
     ld     $at,  272($sp)
     .cfi_restore 1
+    .set pop
 
-    .cpreturn
     daddiu $sp, $sp, 496
     .cfi_adjust_cfa_offset -496
 .endm
