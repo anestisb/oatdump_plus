@@ -53,7 +53,7 @@ File* OS::CreateEmptyFileWriteOnly(const char* name) {
 
 File* OS::OpenFileWithFlags(const char* name, int flags) {
   CHECK(name != nullptr);
-  bool read_only = (flags == O_RDONLY);
+  bool read_only = ((flags & O_ACCMODE) == O_RDONLY);
   std::unique_ptr<File> file(new File(name, flags, 0666, !read_only));
   if (!file->IsOpened()) {
     return nullptr;
