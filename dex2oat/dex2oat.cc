@@ -1576,7 +1576,7 @@ class Dex2Oat FINAL {
                                      IsAppImage(),
                                      image_classes_.release(),
                                      compiled_classes_.release(),
-                                     /* compiled_methods */ nullptr,
+                                     compiled_methods_.release(),
                                      thread_count_,
                                      dump_stats_,
                                      dump_passes_,
