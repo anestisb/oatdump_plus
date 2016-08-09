@@ -98,6 +98,7 @@ LIBART_COMPILER_SRC_FILES_arm := \
 	utils/arm/assembler_arm.cc \
 	utils/arm/assembler_arm32.cc \
 	utils/arm/assembler_thumb2.cc \
+	utils/arm/jni_macro_assembler_arm.cc \
 	utils/arm/managed_register_arm.cc \
 
 # TODO We should really separate out those files that are actually needed for both variants of an

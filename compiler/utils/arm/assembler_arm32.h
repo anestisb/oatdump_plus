@@ -316,8 +316,6 @@ class Arm32Assembler FINAL : public ArmAssembler {
   void Emit(int32_t value);
   void Bind(Label* label) OVERRIDE;
 
-  void MemoryBarrier(ManagedRegister scratch) OVERRIDE;
-
   JumpTable* CreateJumpTable(std::vector<Label*>&& labels, Register base_reg) OVERRIDE;
   void EmitJumpTableDispatch(JumpTable* jump_table, Register displacement_reg) OVERRIDE;
 
