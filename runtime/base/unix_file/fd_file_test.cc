@@ -53,12 +53,14 @@ TEST_F(FdFileTest, OpenClose) {
   ASSERT_TRUE(file.IsOpened());
   EXPECT_GE(file.Fd(), 0);
   EXPECT_TRUE(file.IsOpened());
+  EXPECT_FALSE(file.ReadOnlyMode());
   EXPECT_EQ(0, file.Flush());
   EXPECT_EQ(0, file.Close());
   EXPECT_EQ(-1, file.Fd());
   EXPECT_FALSE(file.IsOpened());
-  FdFile file2(good_path,  O_RDONLY, true);
+  FdFile file2(good_path, O_RDONLY, true);
   EXPECT_TRUE(file2.IsOpened());
+  EXPECT_TRUE(file2.ReadOnlyMode());
   EXPECT_GE(file2.Fd(), 0);
 
   ASSERT_EQ(file2.Close(), 0);
@@ -70,6 +72,7 @@ TEST_F(FdFileTest, ReadFullyEmptyFile) {
   art::ScratchFile tmp;
   FdFile file(tmp.GetFilename(), O_RDONLY, false);
   ASSERT_TRUE(file.IsOpened());
+  EXPECT_TRUE(file.ReadOnlyMode());
   EXPECT_GE(file.Fd(), 0);
   uint8_t buffer[16];
   EXPECT_FALSE(file.ReadFully(&buffer, 4));
@@ -86,6 +89,7 @@ TEST_F(FdFileTest, ReadFullyWithOffset) {
   FdFile file(tmp.GetFilename(), O_RDWR, false);
   ASSERT_TRUE(file.IsOpened());
   EXPECT_GE(file.Fd(), 0);
+  EXPECT_FALSE(file.ReadOnlyMode());
 
   char ignore_prefix[20] = {'a', };
   NullTerminateCharArray(ignore_prefix);
@@ -114,6 +118,7 @@ TEST_F(FdFileTest, ReadWriteFullyWithOffset) {
   FdFile file(tmp.GetFilename(), O_RDWR, false);
   ASSERT_GE(file.Fd(), 0);
   EXPECT_TRUE(file.IsOpened());
+  EXPECT_FALSE(file.ReadOnlyMode());
 
   const char* test_string = "This is a test string";
   size_t length = strlen(test_string) + 1;
