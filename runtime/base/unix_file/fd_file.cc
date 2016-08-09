@@ -132,14 +132,14 @@ bool FdFile::Open(const std::string& path, int flags) {
 }
 
 bool FdFile::Open(const std::string& path, int flags, mode_t mode) {
+  static_assert(O_RDONLY == 0, "Readonly flag has unexpected value.");
   CHECK_EQ(fd_, -1) << path;
-  read_only_mode_ = (flags & O_RDONLY) != 0;
+  read_only_mode_ = ((flags & O_ACCMODE) == O_RDONLY);
   fd_ = TEMP_FAILURE_RETRY(open(path.c_str(), flags, mode));
   if (fd_ == -1) {
     return false;
   }
   file_path_ = path;
-  static_assert(O_RDONLY == 0, "Readonly flag has unexpected value.");
   if (kCheckSafeUsage && (flags & (O_RDWR | O_CREAT | O_WRONLY)) != 0) {
     // Start in the base state (not flushed, not closed).
     guard_state_ = GuardState::kBase;
