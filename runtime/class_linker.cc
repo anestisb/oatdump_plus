@@ -1501,11 +1501,8 @@ static std::unique_ptr<const DexFile> OpenOatDexFile(const OatFile* oat_file,
     SHARED_REQUIRES(Locks::mutator_lock_) {
   DCHECK(error_msg != nullptr);
   std::unique_ptr<const DexFile> dex_file;
-  const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(location, nullptr);
+  const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(location, nullptr, error_msg);
   if (oat_dex_file == nullptr) {
-    *error_msg = StringPrintf("Failed finding oat dex file for %s %s",
-                              oat_file->GetLocation().c_str(),
-                              location);
     return std::unique_ptr<const DexFile>();
   }
   std::string inner_error_msg;

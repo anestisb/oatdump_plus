@@ -320,6 +320,34 @@ TEST_F(OatFileAssistantTest, OatUpToDate) {
   EXPECT_TRUE(oat_file_assistant.HasOriginalDexFiles());
 }
 
+// Case: We have a DEX file and ODEX file for a different dex location.
+// Expect: The status is kDex2OatNeeded.
+TEST_F(OatFileAssistantTest, OatForDifferentDex) {
+  // Generate an odex file for OatForDifferentDex_A.jar
+  std::string dex_location_a = GetScratchDir() + "/OatForDifferentDex_A.jar";
+  std::string odex_location = GetOdexDir() + "/OatForDifferentDex.odex";
+  Copy(GetDexSrc1(), dex_location_a);
+  GenerateOdexForTest(dex_location_a, odex_location, CompilerFilter::kSpeed);
+
+  // Try to use that odex file for OatForDifferentDex.jar
+  std::string dex_location = GetScratchDir() + "/OatForDifferentDex.jar";
+  Copy(GetDexSrc1(), dex_location);
+
+  OatFileAssistant oat_file_assistant(dex_location.c_str(), kRuntimeISA, false);
+
+  EXPECT_EQ(OatFileAssistant::kDex2OatNeeded,
+      oat_file_assistant.GetDexOptNeeded(CompilerFilter::kSpeed));
+
+  EXPECT_FALSE(oat_file_assistant.IsInBootClassPath());
+  EXPECT_TRUE(oat_file_assistant.OdexFileExists());
+  EXPECT_TRUE(oat_file_assistant.OdexFileIsOutOfDate());
+  EXPECT_FALSE(oat_file_assistant.OdexFileIsUpToDate());
+  EXPECT_FALSE(oat_file_assistant.OatFileExists());
+  EXPECT_TRUE(oat_file_assistant.OatFileIsOutOfDate());
+  EXPECT_FALSE(oat_file_assistant.OatFileNeedsRelocation());
+  EXPECT_FALSE(oat_file_assistant.OatFileIsUpToDate());
+}
+
 // Case: We have a DEX file and speed-profile OAT file for it.
 // Expect: The status is kNoDexOptNeeded if the profile hasn't changed, but
 // kDex2Oat if the profile has changed.
