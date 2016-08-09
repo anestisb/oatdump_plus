@@ -3782,7 +3782,9 @@ void InstructionCodeGeneratorMIPS64::VisitUnresolvedStaticFieldSet(
 }
 
 void LocationsBuilderMIPS64::VisitSuspendCheck(HSuspendCheck* instruction) {
-  new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCallOnSlowPath);
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCallOnSlowPath);
+  locations->SetCustomSlowPathCallerSaves(RegisterSet());  // No caller-save registers.
 }
 
 void InstructionCodeGeneratorMIPS64::VisitSuspendCheck(HSuspendCheck* instruction) {

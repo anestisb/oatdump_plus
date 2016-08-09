@@ -208,11 +208,6 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
     return new (allocator) LiveInterval(allocator, type, instruction);
   }
 
-  static LiveInterval* MakeSlowPathInterval(ArenaAllocator* allocator, HInstruction* instruction) {
-    return new (allocator) LiveInterval(
-        allocator, Primitive::kPrimVoid, instruction, false, kNoRegister, false, true);
-  }
-
   static LiveInterval* MakeFixedInterval(ArenaAllocator* allocator, int reg, Primitive::Type type) {
     return new (allocator) LiveInterval(allocator, type, nullptr, true, reg, false);
   }
@@ -223,7 +218,6 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
 
   bool IsFixed() const { return is_fixed_; }
   bool IsTemp() const { return is_temp_; }
-  bool IsSlowPathSafepoint() const { return is_slow_path_safepoint_; }
   // This interval is the result of a split.
   bool IsSplit() const { return parent_ != this; }
 
@@ -790,7 +784,7 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
     DCHECK(!HasHighInterval());
     DCHECK(!HasLowInterval());
     high_or_low_interval_ = new (allocator_) LiveInterval(
-        allocator_, type_, defined_by_, false, kNoRegister, is_temp, false, true);
+        allocator_, type_, defined_by_, false, kNoRegister, is_temp, true);
     high_or_low_interval_->high_or_low_interval_ = this;
     if (first_range_ != nullptr) {
       high_or_low_interval_->first_range_ = first_range_->Dup(allocator_);
@@ -919,7 +913,6 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
                bool is_fixed = false,
                int reg = kNoRegister,
                bool is_temp = false,
-               bool is_slow_path_safepoint = false,
                bool is_high_interval = false)
       : allocator_(allocator),
         first_range_(nullptr),
@@ -936,7 +929,6 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
         spill_slot_(kNoSpillSlot),
         is_fixed_(is_fixed),
         is_temp_(is_temp),
-        is_slow_path_safepoint_(is_slow_path_safepoint),
         is_high_interval_(is_high_interval),
         high_or_low_interval_(nullptr),
         defined_by_(defined_by) {}
@@ -1120,9 +1112,6 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
 
   // Whether the interval is for a temporary.
   const bool is_temp_;
-
-  // Whether the interval is for a safepoint that calls on slow path.
-  const bool is_slow_path_safepoint_;
 
   // Whether this interval is a synthesized interval for register pair.
   const bool is_high_interval_;
