@@ -352,8 +352,11 @@
 
     // Set up $gp, clobbering $ra and using the branch delay slot for a useful instruction.
     bal 1f
+    .set push
+    .set noat
     sw     $at, 144($sp)
     .cfi_rel_offset 1, 144
+    .set pop
 1:
     .cpload $ra
 
@@ -460,8 +463,11 @@
     .cfi_restore 3
     lw     $v0, 148($sp)
     .cfi_restore 2
+    .set push
+    .set noat
     lw     $at, 144($sp)
     .cfi_restore 1
+    .set pop
 
     addiu  $sp, $sp, 256            # pop frame
     .cfi_adjust_cfa_offset -256
