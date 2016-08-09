@@ -70,6 +70,8 @@ DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_JNI_OFFSET_64), (static_cast<int
 DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_QUICK_CODE_OFFSET_32), (static_cast<int32_t>(art::ArtMethod:: EntryPointFromQuickCompiledCodeOffset(art::PointerSize::k32).Int32Value())))
 #define ART_METHOD_QUICK_CODE_OFFSET_64 48
 DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_QUICK_CODE_OFFSET_64), (static_cast<int32_t>(art::ArtMethod:: EntryPointFromQuickCompiledCodeOffset(art::PointerSize::k64).Int32Value())))
+#define MIN_LARGE_OBJECT_THRESHOLD 0x3000
+DEFINE_CHECK_EQ(static_cast<size_t>(MIN_LARGE_OBJECT_THRESHOLD), (static_cast<size_t>(art::gc::Heap::kMinLargeObjectThreshold)))
 #define LOCK_WORD_STATE_SHIFT 30
 DEFINE_CHECK_EQ(static_cast<int32_t>(LOCK_WORD_STATE_SHIFT), (static_cast<int32_t>(art::LockWord::kStateShift)))
 #define LOCK_WORD_STATE_MASK 0xc0000000
