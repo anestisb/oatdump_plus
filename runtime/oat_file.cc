@@ -1073,7 +1073,7 @@ const uint8_t* OatFile::BssEnd() const {
 
 const OatFile::OatDexFile* OatFile::GetOatDexFile(const char* dex_location,
                                                   const uint32_t* dex_location_checksum,
-                                                  bool warn_if_not_found) const {
+                                                  std::string* error_msg) const {
   // NOTE: We assume here that the canonical location for a given dex_location never
   // changes. If it does (i.e. some symlink used by the filename changes) we may return
   // an incorrect OatDexFile. As long as we have a checksum to check, we shall return
@@ -1115,32 +1115,29 @@ const OatFile::OatDexFile* OatFile::GetOatDexFile(const char* dex_location,
       secondary_oat_dex_files_.PutBefore(secondary_lb, key_copy, oat_dex_file);
     }
   }
-  if (oat_dex_file != nullptr &&
-      (dex_location_checksum == nullptr ||
-       oat_dex_file->GetDexFileLocationChecksum() == *dex_location_checksum)) {
-    return oat_dex_file;
+
+  if (oat_dex_file == nullptr) {
+    if (error_msg != nullptr) {
+      std::string dex_canonical_location = DexFile::GetDexCanonicalLocation(dex_location);
+      *error_msg = "Failed to find OatDexFile for DexFile " + std::string(dex_location)
+          + " (canonical path " + dex_canonical_location + ") in OatFile " + GetLocation();
+    }
+    return nullptr;
   }
 
-  if (warn_if_not_found) {
-    std::string dex_canonical_location = DexFile::GetDexCanonicalLocation(dex_location);
-    std::string checksum("<unspecified>");
-    if (dex_location_checksum != nullptr) {
-      checksum = StringPrintf("0x%08x", *dex_location_checksum);
+  if (dex_location_checksum != nullptr &&
+      oat_dex_file->GetDexFileLocationChecksum() != *dex_location_checksum) {
+    if (error_msg != nullptr) {
+      std::string dex_canonical_location = DexFile::GetDexCanonicalLocation(dex_location);
+      std::string checksum = StringPrintf("0x%08x", oat_dex_file->GetDexFileLocationChecksum());
+      std::string required_checksum = StringPrintf("0x%08x", *dex_location_checksum);
+      *error_msg = "OatDexFile for DexFile " + std::string(dex_location)
+          + " (canonical path " + dex_canonical_location + ") in OatFile " + GetLocation()
+          + " has checksum " + checksum + " but " + required_checksum + " was required";
     }
-    LOG(WARNING) << "Failed to find OatDexFile for DexFile " << dex_location
-                 << " ( canonical path " << dex_canonical_location << ")"
-                 << " with checksum " << checksum << " in OatFile " << GetLocation();
-    if (kIsDebugBuild) {
-      for (const OatDexFile* odf : oat_dex_files_storage_) {
-        LOG(WARNING) << "OatFile " << GetLocation()
-                     << " contains OatDexFile " << odf->GetDexFileLocation()
-                     << " (canonical path " << odf->GetCanonicalDexFileLocation() << ")"
-                     << " with checksum 0x" << std::hex << odf->GetDexFileLocationChecksum();
-      }
-    }
+    return nullptr;
   }
-
-  return nullptr;
+  return oat_dex_file;
 }
 
 OatFile::OatDexFile::OatDexFile(const OatFile* oat_file,
