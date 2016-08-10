@@ -368,8 +368,6 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   void Emit16(int16_t value);     // Emit a 16 bit instruction in little endian format.
   void Bind(Label* label) OVERRIDE;
 
-  void MemoryBarrier(ManagedRegister scratch) OVERRIDE;
-
   // Force the assembler to generate 32 bit instructions.
   void Force32Bit() {
     force_32bit_ = true;
