@@ -2531,7 +2531,7 @@ void LocationsBuilderARM::VisitAdd(HAdd* add) {
 
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetInAt(1, ArmEncodableConstantOrRegister(add->InputAt(1), ADD));
       locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       break;
     }
@@ -2568,13 +2568,18 @@ void InstructionCodeGeneratorARM::VisitAdd(HAdd* add) {
       break;
 
     case Primitive::kPrimLong: {
-      DCHECK(second.IsRegisterPair());
-      __ adds(out.AsRegisterPairLow<Register>(),
-              first.AsRegisterPairLow<Register>(),
-              ShifterOperand(second.AsRegisterPairLow<Register>()));
-      __ adc(out.AsRegisterPairHigh<Register>(),
-             first.AsRegisterPairHigh<Register>(),
-             ShifterOperand(second.AsRegisterPairHigh<Register>()));
+      if (second.IsConstant()) {
+        uint64_t value = static_cast<uint64_t>(Int64FromConstant(second.GetConstant()));
+        GenerateAddLongConst(out, first, value);
+      } else {
+        DCHECK(second.IsRegisterPair());
+        __ adds(out.AsRegisterPairLow<Register>(),
+                first.AsRegisterPairLow<Register>(),
+                ShifterOperand(second.AsRegisterPairLow<Register>()));
+        __ adc(out.AsRegisterPairHigh<Register>(),
+               first.AsRegisterPairHigh<Register>(),
+               ShifterOperand(second.AsRegisterPairHigh<Register>()));
+      }
       break;
     }
 
@@ -2608,7 +2613,7 @@ void LocationsBuilderARM::VisitSub(HSub* sub) {
 
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetInAt(1, ArmEncodableConstantOrRegister(sub->InputAt(1), SUB));
       locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       break;
     }
@@ -2644,13 +2649,18 @@ void InstructionCodeGeneratorARM::VisitSub(HSub* sub) {
     }
 
     case Primitive::kPrimLong: {
-      DCHECK(second.IsRegisterPair());
-      __ subs(out.AsRegisterPairLow<Register>(),
-              first.AsRegisterPairLow<Register>(),
-              ShifterOperand(second.AsRegisterPairLow<Register>()));
-      __ sbc(out.AsRegisterPairHigh<Register>(),
-             first.AsRegisterPairHigh<Register>(),
-             ShifterOperand(second.AsRegisterPairHigh<Register>()));
+      if (second.IsConstant()) {
+        uint64_t value = static_cast<uint64_t>(Int64FromConstant(second.GetConstant()));
+        GenerateAddLongConst(out, first, -value);
+      } else {
+        DCHECK(second.IsRegisterPair());
+        __ subs(out.AsRegisterPairLow<Register>(),
+                first.AsRegisterPairLow<Register>(),
+                ShifterOperand(second.AsRegisterPairLow<Register>()));
+        __ sbc(out.AsRegisterPairHigh<Register>(),
+               first.AsRegisterPairHigh<Register>(),
+               ShifterOperand(second.AsRegisterPairHigh<Register>()));
+      }
       break;
     }
 
@@ -4052,31 +4062,51 @@ bool LocationsBuilderARM::CanEncodeConstantAsImmediate(HConstant* input_cst,
                                                        Opcode opcode) {
   uint64_t value = static_cast<uint64_t>(Int64FromConstant(input_cst));
   if (Primitive::Is64BitType(input_cst->GetType())) {
-    return CanEncodeConstantAsImmediate(Low32Bits(value), opcode) &&
-        CanEncodeConstantAsImmediate(High32Bits(value), opcode);
+    Opcode high_opcode = opcode;
+    SetCc low_set_cc = kCcDontCare;
+    switch (opcode) {
+      case SUB:
+        // Flip the operation to an ADD.
+        value = -value;
+        opcode = ADD;
+        FALLTHROUGH_INTENDED;
+      case ADD:
+        if (Low32Bits(value) == 0u) {
+          return CanEncodeConstantAsImmediate(High32Bits(value), opcode, kCcDontCare);
+        }
+        high_opcode = ADC;
+        low_set_cc = kCcSet;
+        break;
+      default:
+        break;
+    }
+    return CanEncodeConstantAsImmediate(Low32Bits(value), opcode, low_set_cc) &&
+        CanEncodeConstantAsImmediate(High32Bits(value), high_opcode, kCcDontCare);
   } else {
     return CanEncodeConstantAsImmediate(Low32Bits(value), opcode);
   }
 }
 
-bool LocationsBuilderARM::CanEncodeConstantAsImmediate(uint32_t value, Opcode opcode) {
+bool LocationsBuilderARM::CanEncodeConstantAsImmediate(uint32_t value,
+                                                       Opcode opcode,
+                                                       SetCc set_cc) {
   ShifterOperand so;
   ArmAssembler* assembler = codegen_->GetAssembler();
-  if (assembler->ShifterOperandCanHold(kNoRegister, kNoRegister, opcode, value, &so)) {
+  if (assembler->ShifterOperandCanHold(kNoRegister, kNoRegister, opcode, value, set_cc, &so)) {
     return true;
   }
   Opcode neg_opcode = kNoOperand;
   switch (opcode) {
-    case AND:
-      neg_opcode = BIC;
-      break;
-    case ORR:
-      neg_opcode = ORN;
-      break;
+    case AND: neg_opcode = BIC; value = ~value; break;
+    case ORR: neg_opcode = ORN; value = ~value; break;
+    case ADD: neg_opcode = SUB; value = -value; break;
+    case ADC: neg_opcode = SBC; value = ~value; break;
+    case SUB: neg_opcode = ADD; value = -value; break;
+    case SBC: neg_opcode = ADC; value = ~value; break;
     default:
       return false;
   }
-  return assembler->ShifterOperandCanHold(kNoRegister, kNoRegister, neg_opcode, ~value, &so);
+  return assembler->ShifterOperandCanHold(kNoRegister, kNoRegister, neg_opcode, value, set_cc, &so);
 }
 
 void InstructionCodeGeneratorARM::HandleFieldGet(HInstruction* instruction,
@@ -6200,6 +6230,34 @@ void InstructionCodeGeneratorARM::GenerateEorConst(Register out, Register first,
     return;
   }
   __ eor(out, first, ShifterOperand(value));
+}
+
+void InstructionCodeGeneratorARM::GenerateAddLongConst(Location out,
+                                                       Location first,
+                                                       uint64_t value) {
+  Register out_low = out.AsRegisterPairLow<Register>();
+  Register out_high = out.AsRegisterPairHigh<Register>();
+  Register first_low = first.AsRegisterPairLow<Register>();
+  Register first_high = first.AsRegisterPairHigh<Register>();
+  uint32_t value_low = Low32Bits(value);
+  uint32_t value_high = High32Bits(value);
+  if (value_low == 0u) {
+    if (out_low != first_low) {
+      __ mov(out_low, ShifterOperand(first_low));
+    }
+    __ AddConstant(out_high, first_high, value_high);
+    return;
+  }
+  __ AddConstantSetFlags(out_low, first_low, value_low);
+  ShifterOperand so;
+  if (__ ShifterOperandCanHold(out_high, first_high, ADC, value_high, kCcDontCare, &so)) {
+    __ adc(out_high, first_high, so);
+  } else if (__ ShifterOperandCanHold(out_low, first_low, SBC, ~value_high, kCcDontCare, &so)) {
+    __ sbc(out_high, first_high, so);
+  } else {
+    LOG(FATAL) << "Unexpected constant " << value_high;
+    UNREACHABLE();
+  }
 }
 
 void InstructionCodeGeneratorARM::HandleBitwiseOperation(HBinaryOperation* instruction) {
