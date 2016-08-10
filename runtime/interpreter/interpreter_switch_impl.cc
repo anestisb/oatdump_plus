@@ -2322,9 +2322,12 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         inst = inst->Next_2xx();
         break;
       case Instruction::UNUSED_3E ... Instruction::UNUSED_43:
-      case Instruction::UNUSED_F3 ... Instruction::UNUSED_FF:
+      case Instruction::UNUSED_F3 ... Instruction::UNUSED_F9:
+      case Instruction::UNUSED_FC ... Instruction::UNUSED_FF:
       case Instruction::UNUSED_79:
       case Instruction::UNUSED_7A:
+      case Instruction::INVOKE_POLYMORPHIC:
+      case Instruction::INVOKE_POLYMORPHIC_RANGE:
         UnexpectedOpcode(inst, shadow_frame);
     }
   } while (!interpret_one_instruction);
