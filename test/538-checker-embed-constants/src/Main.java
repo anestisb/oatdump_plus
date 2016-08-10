@@ -473,7 +473,7 @@ public class Main {
   }
 
   /**
-   * Test that the `-1` constant is not synthesized in a register and that we
+   * ARM/ARM64: Test that the `-1` constant is not synthesized in a register and that we
    * instead simply switch between `add` and `sub` instructions with the
    * constant embedded.
    * We need two uses (or more) of the constant because the compiler always
@@ -491,8 +491,135 @@ public class Main {
   /// CHECK:                        sub x{{\d+}}, x{{\d+}}, #0x1
   /// CHECK:                        add x{{\d+}}, x{{\d+}}, #0x1
 
+  /// CHECK-START-ARM: long Main.addM1(long) register (after)
+  /// CHECK:     <<Arg:j\d+>>       ParameterValue
+  /// CHECK:     <<ConstM1:j\d+>>   LongConstant -1
+  /// CHECK-NOT:                    ParallelMove
+  /// CHECK:                        Add [<<Arg>>,<<ConstM1>>]
+  /// CHECK:                        Sub [<<Arg>>,<<ConstM1>>]
+
+  /// CHECK-START-ARM: long Main.addM1(long) disassembly (after)
+  /// CHECK:     <<Arg:j\d+>>       ParameterValue
+  /// CHECK:     <<ConstM1:j\d+>>   LongConstant -1
+  /// CHECK:                        Add [<<Arg>>,<<ConstM1>>]
+  /// CHECK-NEXT:                   subs r{{\d+}}, #1
+  /// CHECK-NEXT:                   adc r{{\d+}}, r{{\d+}}, #-1
+  /// CHECK:                        Sub [<<Arg>>,<<ConstM1>>]
+  /// CHECK-NEXT:                   adds r{{\d+}}, #1
+  /// CHECK-NEXT:                   adc r{{\d+}}, r{{\d+}}, #0
+
   public static long addM1(long arg) {
     return (arg + (-1)) | (arg - (-1));
+  }
+
+  /**
+   * ARM: Test that some long constants are not synthesized in a register for add-long.
+   * Also test some negative cases where we do synthetize constants in registers.
+   */
+
+  /// CHECK-START-ARM: long Main.addLongConstants(long) disassembly (after)
+  /// CHECK:     <<Arg:j\d+>>       ParameterValue
+  /// CHECK-DAG: <<ConstA:j\d+>>    LongConstant 4486007727657233
+  /// CHECK-DAG: <<ConstB:j\d+>>    LongConstant 4486011735248896
+  /// CHECK-DAG: <<ConstC:j\d+>>    LongConstant -1071856711330889728
+  /// CHECK-DAG: <<ConstD:j\d+>>    LongConstant 17587891077120
+  /// CHECK-DAG: <<ConstE:j\d+>>    LongConstant -8808977924096
+  /// CHECK-DAG: <<ConstF:j\d+>>    LongConstant 17587891077121
+  /// CHECK-DAG: <<ConstG:j\d+>>    LongConstant 4095
+  /// CHECK:                        Add [<<Arg>>,<<ConstA>>]
+  /// CHECK-NEXT:                   adds r{{\d+}}, r{{\d+}}, #286331153
+  /// CHECK-NEXT:                   adc r{{\d+}}, r{{\d+}}, #1044480
+  /// CHECK:                        Add [<<Arg>>,<<ConstB>>]
+  /// CHECK-NEXT:                   subs r{{\d+}}, r{{\d+}}, #1044480
+  /// CHECK-NEXT:                   adc r{{\d+}}, r{{\d+}}, #1044480
+  /// CHECK:                        Add [<<Arg>>,<<ConstC>>]
+  /// CHECK-NEXT:                   subs r{{\d+}}, r{{\d+}}, #16711680
+  /// CHECK-NEXT:                   sbc r{{\d+}}, r{{\d+}}, #249561088
+  /// CHECK:                        Add [<<Arg>>,<<ConstD>>]
+  // There may or may not be a MOV here.
+  /// CHECK:                        addw r{{\d+}}, r{{\d+}}, #4095
+  /// CHECK:                        Add [<<Arg>>,<<ConstE>>]
+  // There may or may not be a MOV here.
+  /// CHECK:                        subw r{{\d+}}, r{{\d+}}, #2051
+  /// CHECK:                        Add [<<Arg>>,<<ConstF>>]
+  /// CHECK-NEXT:                   adds{{(\.w)?}} r{{\d+}}, r{{\d+}}, r{{\d+}}
+  /// CHECK-NEXT:                   adc{{(\.w)?}} r{{\d+}}, r{{\d+}}, r{{\d+}}
+  /// CHECK:                        Add [<<Arg>>,<<ConstG>>]
+  /// CHECK-NEXT:                   adds{{(\.w)?}} r{{\d+}}, r{{\d+}}, r{{\d+}}
+  /// CHECK-NEXT:                   adc{{(\.w)?}} r{{\d+}}, r{{\d+}}, r{{\d+}}
+
+  public static long addLongConstants(long arg) {
+    return
+        // Modified immediates.
+        (arg + 0x000ff00011111111L) ^  // 4486007727657233
+        // Modified immediates high and -low.
+        (arg + 0x000ff000fff01000L) ^  // 4486011735248896
+        // Modified immediates ~high and -low.
+        (arg + 0xf11fffffff010000L) ^  // -1071856711330889728
+        // Low word 0 (no carry), high is imm12.
+        (arg + 0x00000fff00000000L) ^  // 17587891077120
+        // Low word 0 (no carry), -high is imm12.
+        (arg + 0xfffff7fd00000000L) ^  // -8808977924096
+        // Cannot embed imm12 in ADC/SBC for high word.
+        (arg + 0x00000fff00000001L) ^  // 17587891077121
+        // Cannot embed imm12 in ADDS/SUBS for low word (need to set flags).
+        (arg + 0x0000000000000fffL) ^  // 4095
+        arg;
+  }
+
+  /**
+   * ARM: Test that some long constants are not synthesized in a register for add-long.
+   * Also test some negative cases where we do synthetize constants in registers.
+   */
+
+  /// CHECK-START-ARM: long Main.subLongConstants(long) disassembly (after)
+  /// CHECK:     <<Arg:j\d+>>       ParameterValue
+  /// CHECK-DAG: <<ConstA:j\d+>>    LongConstant 4486007727657233
+  /// CHECK-DAG: <<ConstB:j\d+>>    LongConstant 4486011735248896
+  /// CHECK-DAG: <<ConstC:j\d+>>    LongConstant -1071856711330889728
+  /// CHECK-DAG: <<ConstD:j\d+>>    LongConstant 17587891077120
+  /// CHECK-DAG: <<ConstE:j\d+>>    LongConstant -8808977924096
+  /// CHECK-DAG: <<ConstF:j\d+>>    LongConstant 17587891077121
+  /// CHECK-DAG: <<ConstG:j\d+>>    LongConstant 4095
+  /// CHECK:                        Sub [<<Arg>>,<<ConstA>>]
+  /// CHECK-NEXT:                   subs r{{\d+}}, r{{\d+}}, #286331153
+  /// CHECK-NEXT:                   sbc r{{\d+}}, r{{\d+}}, #1044480
+  /// CHECK:                        Sub [<<Arg>>,<<ConstB>>]
+  /// CHECK-NEXT:                   adds r{{\d+}}, r{{\d+}}, #1044480
+  /// CHECK-NEXT:                   sbc r{{\d+}}, r{{\d+}}, #1044480
+  /// CHECK:                        Sub [<<Arg>>,<<ConstC>>]
+  /// CHECK-NEXT:                   adds r{{\d+}}, r{{\d+}}, #16711680
+  /// CHECK-NEXT:                   adc r{{\d+}}, r{{\d+}}, #249561088
+  /// CHECK:                        Sub [<<Arg>>,<<ConstD>>]
+  // There may or may not be a MOV here.
+  /// CHECK:                        subw r{{\d+}}, r{{\d+}}, #4095
+  /// CHECK:                        Sub [<<Arg>>,<<ConstE>>]
+  // There may or may not be a MOV here.
+  /// CHECK:                        addw r{{\d+}}, r{{\d+}}, #2051
+  /// CHECK:                        Sub [<<Arg>>,<<ConstF>>]
+  /// CHECK-NEXT:                   subs{{(\.w)?}} r{{\d+}}, r{{\d+}}, r{{\d+}}
+  /// CHECK-NEXT:                   sbc{{(\.w)?}} r{{\d+}}, r{{\d+}}, r{{\d+}}
+  /// CHECK:                        Sub [<<Arg>>,<<ConstG>>]
+  /// CHECK-NEXT:                   subs{{(\.w)?}} r{{\d+}}, r{{\d+}}, r{{\d+}}
+  /// CHECK-NEXT:                   sbc{{(\.w)?}} r{{\d+}}, r{{\d+}}, r{{\d+}}
+
+  public static long subLongConstants(long arg) {
+    return
+        // Modified immediates.
+        (arg - 0x000ff00011111111L) ^  // 4486007727657233
+        // Modified immediates high and -low.
+        (arg - 0x000ff000fff01000L) ^  // 4486011735248896
+        // Modified immediates ~high and -low.
+        (arg - 0xf11fffffff010000L) ^  // -1071856711330889728
+        // Low word 0 (no carry), high is imm12.
+        (arg - 0x00000fff00000000L) ^  // 17587891077120
+        // Low word 0 (no carry), -high is imm12.
+        (arg - 0xfffff7fd00000000L) ^  // -8808977924096
+        // Cannot embed imm12 in ADC/SBC for high word.
+        (arg - 0x00000fff00000001L) ^  // 17587891077121
+        // Cannot embed imm12 in ADDS/SUBS for low word (need to set flags).
+        (arg - 0x0000000000000fffL) ^  // 4095
+        arg;
   }
 
   public static void main(String[] args) {
@@ -522,7 +649,7 @@ public class Main {
     assertLongEquals(xor0xfffffff00000000f(longArg), 0xedcba9888765432eL);
     assertLongEquals(xor0xf00000000000000f(longArg), 0xe23456788765432eL);
 
-    assertLongEquals(14, addM1(7));
+    assertLongEquals(14L, addM1(7));
 
     assertLongEquals(shl1(longArg), 0x2468acf10eca8642L);
     assertLongEquals(shl2(longArg), 0x48d159e21d950c84L);
@@ -562,5 +689,30 @@ public class Main {
     assertLongEquals(ushr32(~longArg), 0x00000000edcba987L);
     assertLongEquals(ushr33(~longArg), 0x0000000076e5d4c3L);
     assertLongEquals(ushr63(~longArg), 0x0000000000000001L);
+
+    // Test -1, 0, +1 and arbitrary constants just before and after overflow
+    // on low word in subexpressions of addLongConstants()/subLongConstants(),
+    // so that we check that we carry the overflow correctly to the high word.
+    // For example
+    //    0x111eeeeeeee+0x000ff00011111111 = 0x000ff111ffffffff (carry=0),
+    //    0x111eeeeeeef+0x000ff00011111111 = 0x000ff11200000000 (carry=1).
+    assertLongEquals(0xf11ff7fdee1e1111L, addLongConstants(0xffffffffffffffffL));
+    assertLongEquals(0xee0080211e00eefL, addLongConstants(0x0L));
+    assertLongEquals(0xee0080211e01111L, addLongConstants(0x1L));
+    assertLongEquals(0xedff81c12201113L, addLongConstants(0x111eeeeeeeeL));
+    assertLongEquals(0xedff81feddfeef1L, addLongConstants(0x111eeeeeeefL));
+    assertLongEquals(0xedff83e11c1f111L, addLongConstants(0x222000fefffL));
+    assertLongEquals(0xedff83fee3e0eefL, addLongConstants(0x222000ff000L));
+    assertLongEquals(0xedff805edfe1111L, addLongConstants(0x33300feffffL));
+    assertLongEquals(0xedff80412000eefL, addLongConstants(0x33300ff0000L));
+    assertLongEquals(0xee0080211e00eefL, subLongConstants(0xffffffffffffffffL));
+    assertLongEquals(0xf11ff7fdee1e1111L, subLongConstants(0x0L));
+    assertLongEquals(0xf11ff7fc11e1eef3L, subLongConstants(0x1L));
+    assertLongEquals(0xee0080412201113L, subLongConstants(0x44411111111L));
+    assertLongEquals(0xee0080412201111L, subLongConstants(0x44411111112L));
+    assertLongEquals(0xee0080e11c1f111L, subLongConstants(0x555fff01000L));
+    assertLongEquals(0xee0080e11c1eef3L, subLongConstants(0x555fff01001L));
+    assertLongEquals(0xee0080dedfe1111L, subLongConstants(0x666ff010000L));
+    assertLongEquals(0xee0080dedffeef3L, subLongConstants(0x666ff010001L));
   }
 }
