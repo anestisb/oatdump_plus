@@ -1938,10 +1938,13 @@ END art_quick_alloc_object_rosalloc
                                                               // (for 64 bit alignment).
     and    \xTemp0, \xTemp0, #4
     add    \xTemp1, \xTemp1, \xTemp0
-    and    \xTemp1, \xTemp1, #OBJECT_ALIGNMENT_MASK_TOGGLED   // Round up the object size by the
-                                                              // object alignment. (addr + 7) & ~7.
-                                                              // Add by 7 is done above.
-
+    and    \xTemp1, \xTemp1, #OBJECT_ALIGNMENT_MASK_TOGGLED64 // Apply alignemnt mask
+                                                              // (addr + 7) & ~7. The mask must
+                                                              // be 64 bits to keep high bits in
+                                                              // case of overflow.
+    // Negative sized arrays are handled here since xCount holds a zero extended 32 bit value.
+    // Negative ints become large 64 bit unsigned ints which will always be larger than max signed
+    // 32 bit int. Since the max shift for arrays is 3, it can not become a negative 64 bit int.
     cmp    \xTemp1, #MIN_LARGE_OBJECT_THRESHOLD               // Possibly a large object, go slow
     bhs    \slowPathLabel                                     // path.
 
@@ -1955,7 +1958,6 @@ END art_quick_alloc_object_rosalloc
     sub    \xTemp2, \xTemp2, \xTemp0
     cmp    \xTemp1, \xTemp2
     bhi    \slowPathLabel
-
     // "Point of no slow path". Won't go to the slow path from here on. OK to clobber x0 and x1.
                                                               // Move old thread_local_pos to x0
                                                               // for the return value.
