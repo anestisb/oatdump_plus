@@ -269,8 +269,9 @@
   V(0xF7, UNUSED_F7, "unused-f7", k10x, kIndexUnknown, 0, kVerifyError) \
   V(0xF8, UNUSED_F8, "unused-f8", k10x, kIndexUnknown, 0, kVerifyError) \
   V(0xF9, UNUSED_F9, "unused-f9", k10x, kIndexUnknown, 0, kVerifyError) \
-  V(0xFA, UNUSED_FA, "unused-fa", k10x, kIndexUnknown, 0, kVerifyError) \
-  V(0xFB, UNUSED_FB, "unused-fb", k10x, kIndexUnknown, 0, kVerifyError) \
+  /* TODO(narayan): The following two entries are placeholders. */ \
+  V(0xFA, INVOKE_POLYMORPHIC, "invoke-polymorphic", k45cc, kIndexUnknown, 0, kVerifyError) \
+  V(0xFB, INVOKE_POLYMORPHIC_RANGE, "invoke-polymorphic/range", k4rcc, kIndexUnknown, 0, kVerifyError) \
   V(0xFC, UNUSED_FC, "unused-fc", k10x, kIndexUnknown, 0, kVerifyError) \
   V(0xFD, UNUSED_FD, "unused-fd", k10x, kIndexUnknown, 0, kVerifyError) \
   V(0xFE, UNUSED_FE, "unused-fe", k10x, kIndexUnknown, 0, kVerifyError) \
