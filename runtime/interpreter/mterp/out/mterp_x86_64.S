@@ -5966,8 +5966,12 @@ movswl %ax, %eax
 
 /* ------------------------------ */
     .balign 128
-.L_op_invoke_lambda: /* 0xf3 */
-/* Transfer stub to alternate interpreter */
+.L_op_unused_f3: /* 0xf3 */
+/* File: x86_64/op_unused_f3.S */
+/* File: x86_64/unused.S */
+/*
+ * Bail to reference interpreter to throw.
+ */
     jmp     MterpFallback
 
 
@@ -5984,36 +5988,56 @@ movswl %ax, %eax
 
 /* ------------------------------ */
     .balign 128
-.L_op_capture_variable: /* 0xf5 */
-/* Transfer stub to alternate interpreter */
+.L_op_unused_f5: /* 0xf5 */
+/* File: x86_64/op_unused_f5.S */
+/* File: x86_64/unused.S */
+/*
+ * Bail to reference interpreter to throw.
+ */
     jmp     MterpFallback
 
 
 /* ------------------------------ */
     .balign 128
-.L_op_create_lambda: /* 0xf6 */
-/* Transfer stub to alternate interpreter */
+.L_op_unused_f6: /* 0xf6 */
+/* File: x86_64/op_unused_f6.S */
+/* File: x86_64/unused.S */
+/*
+ * Bail to reference interpreter to throw.
+ */
     jmp     MterpFallback
 
 
 /* ------------------------------ */
     .balign 128
-.L_op_liberate_variable: /* 0xf7 */
-/* Transfer stub to alternate interpreter */
+.L_op_unused_f7: /* 0xf7 */
+/* File: x86_64/op_unused_f7.S */
+/* File: x86_64/unused.S */
+/*
+ * Bail to reference interpreter to throw.
+ */
     jmp     MterpFallback
 
 
 /* ------------------------------ */
     .balign 128
-.L_op_box_lambda: /* 0xf8 */
-/* Transfer stub to alternate interpreter */
+.L_op_unused_f8: /* 0xf8 */
+/* File: x86_64/op_unused_f8.S */
+/* File: x86_64/unused.S */
+/*
+ * Bail to reference interpreter to throw.
+ */
     jmp     MterpFallback
 
 
 /* ------------------------------ */
     .balign 128
-.L_op_unbox_lambda: /* 0xf9 */
-/* Transfer stub to alternate interpreter */
+.L_op_unused_f9: /* 0xf9 */
+/* File: x86_64/op_unused_f9.S */
+/* File: x86_64/unused.S */
+/*
+ * Bail to reference interpreter to throw.
+ */
     jmp     MterpFallback
 
 
@@ -11457,7 +11481,7 @@ SYMBOL(artMterpAsmAltInstructionStart) = .L_ALT_op_nop
 
 /* ------------------------------ */
     .balign 128
-.L_ALT_op_invoke_lambda: /* 0xf3 */
+.L_ALT_op_unused_f3: /* 0xf3 */
 /* File: x86_64/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to MterpCheckBefore to handle
@@ -11501,7 +11525,7 @@ SYMBOL(artMterpAsmAltInstructionStart) = .L_ALT_op_nop
 
 /* ------------------------------ */
     .balign 128
-.L_ALT_op_capture_variable: /* 0xf5 */
+.L_ALT_op_unused_f5: /* 0xf5 */
 /* File: x86_64/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to MterpCheckBefore to handle
@@ -11523,7 +11547,7 @@ SYMBOL(artMterpAsmAltInstructionStart) = .L_ALT_op_nop
 
 /* ------------------------------ */
     .balign 128
-.L_ALT_op_create_lambda: /* 0xf6 */
+.L_ALT_op_unused_f6: /* 0xf6 */
 /* File: x86_64/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to MterpCheckBefore to handle
@@ -11545,7 +11569,7 @@ SYMBOL(artMterpAsmAltInstructionStart) = .L_ALT_op_nop
 
 /* ------------------------------ */
     .balign 128
-.L_ALT_op_liberate_variable: /* 0xf7 */
+.L_ALT_op_unused_f7: /* 0xf7 */
 /* File: x86_64/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to MterpCheckBefore to handle
@@ -11567,7 +11591,7 @@ SYMBOL(artMterpAsmAltInstructionStart) = .L_ALT_op_nop
 
 /* ------------------------------ */
     .balign 128
-.L_ALT_op_box_lambda: /* 0xf8 */
+.L_ALT_op_unused_f8: /* 0xf8 */
 /* File: x86_64/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to MterpCheckBefore to handle
@@ -11589,7 +11613,7 @@ SYMBOL(artMterpAsmAltInstructionStart) = .L_ALT_op_nop
 
 /* ------------------------------ */
     .balign 128
-.L_ALT_op_unbox_lambda: /* 0xf9 */
+.L_ALT_op_unused_f9: /* 0xf9 */
 /* File: x86_64/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to MterpCheckBefore to handle

@@ -1157,9 +1157,6 @@ bool MethodVerifier::VerifyInstruction(const Instruction* inst, uint32_t code_of
     case Instruction::kVerifyRegCWide:
       result = result && CheckWideRegisterIndex(inst->VRegC());
       break;
-    case Instruction::kVerifyRegCString:
-      result = result && CheckStringIndex(inst->VRegC());
-      break;
   }
   switch (inst->GetVerifyExtraFlags()) {
     case Instruction::kVerifyArrayData:
@@ -3331,67 +3328,10 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       }
       break;
     }
-    case Instruction::INVOKE_LAMBDA: {
-      // Don't bother verifying, instead the interpreter will take the slow path with access checks.
-      // If the code would've normally hard-failed, then the interpreter will throw the
-      // appropriate verification errors at runtime.
-      Fail(VERIFY_ERROR_FORCE_INTERPRETER);  // TODO(iam): implement invoke-lambda verification
-      break;
-    }
-    case Instruction::CAPTURE_VARIABLE: {
-      // Don't bother verifying, instead the interpreter will take the slow path with access checks.
-      // If the code would've normally hard-failed, then the interpreter will throw the
-      // appropriate verification errors at runtime.
-      Fail(VERIFY_ERROR_FORCE_INTERPRETER);  // TODO(iam): implement capture-variable verification
-      break;
-    }
-    case Instruction::CREATE_LAMBDA: {
-      // Don't bother verifying, instead the interpreter will take the slow path with access checks.
-      // If the code would've normally hard-failed, then the interpreter will throw the
-      // appropriate verification errors at runtime.
-      Fail(VERIFY_ERROR_FORCE_INTERPRETER);  // TODO(iam): implement create-lambda verification
-      break;
-    }
-    case Instruction::LIBERATE_VARIABLE: {
-      // Don't bother verifying, instead the interpreter will take the slow path with access checks.
-      // If the code would've normally hard-failed, then the interpreter will throw the
-      // appropriate verification errors at runtime.
-      Fail(VERIFY_ERROR_FORCE_INTERPRETER);  // TODO(iam): implement liberate-variable verification
-      break;
-    }
-
-    case Instruction::UNUSED_F4: {
-      DCHECK(false);  // TODO(iam): Implement opcodes for lambdas
-      // Conservatively fail verification on release builds.
-      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Unexpected opcode " << inst->DumpString(dex_file_);
-      break;
-    }
-
-    case Instruction::BOX_LAMBDA: {
-      // Don't bother verifying, instead the interpreter will take the slow path with access checks.
-      // If the code would've normally hard-failed, then the interpreter will throw the
-      // appropriate verification errors at runtime.
-      Fail(VERIFY_ERROR_FORCE_INTERPRETER);  // TODO(iam): implement box-lambda verification
-
-      // Partial verification. Sets the resulting type to always be an object, which
-      // is good enough for some other verification to occur without hard-failing.
-      const uint32_t vreg_target_object = inst->VRegA_22x();  // box-lambda vA, vB
-      const RegType& reg_type = reg_types_.JavaLangObject(need_precise_constants_);
-      work_line_->SetRegisterType<LockOp::kClear>(this, vreg_target_object, reg_type);
-      break;
-    }
-
-     case Instruction::UNBOX_LAMBDA: {
-      // Don't bother verifying, instead the interpreter will take the slow path with access checks.
-      // If the code would've normally hard-failed, then the interpreter will throw the
-      // appropriate verification errors at runtime.
-      Fail(VERIFY_ERROR_FORCE_INTERPRETER);  // TODO(iam): implement unbox-lambda verification
-      break;
-    }
 
     /* These should never appear during verification. */
     case Instruction::UNUSED_3E ... Instruction::UNUSED_43:
-    case Instruction::UNUSED_FA ... Instruction::UNUSED_FF:
+    case Instruction::UNUSED_F3 ... Instruction::UNUSED_FF:
     case Instruction::UNUSED_79:
     case Instruction::UNUSED_7A:
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Unexpected opcode " << inst->DumpString(dex_file_);

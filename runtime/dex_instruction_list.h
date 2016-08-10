@@ -262,13 +262,13 @@
   V(0xF0, IGET_BYTE_QUICK, "iget-byte-quick", k22c, kIndexFieldOffset, kContinue | kThrow | kLoad | kRegCFieldOrConstant, kVerifyRegA | kVerifyRegB | kVerifyRuntimeOnly) \
   V(0xF1, IGET_CHAR_QUICK, "iget-char-quick", k22c, kIndexFieldOffset, kContinue | kThrow | kLoad | kRegCFieldOrConstant, kVerifyRegA | kVerifyRegB | kVerifyRuntimeOnly) \
   V(0xF2, IGET_SHORT_QUICK, "iget-short-quick", k22c, kIndexFieldOffset, kContinue | kThrow | kLoad | kRegCFieldOrConstant, kVerifyRegA | kVerifyRegB | kVerifyRuntimeOnly) \
-  V(0xF3, INVOKE_LAMBDA, "invoke-lambda", k25x, kIndexNone, kContinue | kThrow | kInvoke | kExperimental, kVerifyRegC /*TODO: | kVerifyVarArg*/) \
+  V(0xF3, UNUSED_F3, "unused-f3", k10x, kIndexUnknown, 0, kVerifyError) \
   V(0xF4, UNUSED_F4, "unused-f4", k10x, kIndexUnknown, 0, kVerifyError) \
-  V(0xF5, CAPTURE_VARIABLE, "capture-variable", k21c, kIndexStringRef, kExperimental, kVerifyRegA | kVerifyRegBString) \
-  V(0xF6, CREATE_LAMBDA, "create-lambda", k21c, kIndexMethodRef, kContinue | kThrow | kExperimental, kVerifyRegA | kVerifyRegBMethod) \
-  V(0xF7, LIBERATE_VARIABLE, "liberate-variable", k22c, kIndexStringRef, kExperimental, kVerifyRegA | kVerifyRegB | kVerifyRegCString) \
-  V(0xF8, BOX_LAMBDA, "box-lambda", k22x, kIndexNone, kContinue | kExperimental, kVerifyRegA | kVerifyRegB) \
-  V(0xF9, UNBOX_LAMBDA, "unbox-lambda", k22c, kIndexTypeRef, kContinue | kThrow | kExperimental, kVerifyRegA | kVerifyRegB | kVerifyRegCType) \
+  V(0xF5, UNUSED_F5, "unused-f5", k10x, kIndexUnknown, 0, kVerifyError) \
+  V(0xF6, UNUSED_F6, "unused-f6", k10x, kIndexUnknown, 0, kVerifyError) \
+  V(0xF7, UNUSED_F7, "unused-f7", k10x, kIndexUnknown, 0, kVerifyError) \
+  V(0xF8, UNUSED_F8, "unused-f8", k10x, kIndexUnknown, 0, kVerifyError) \
+  V(0xF9, UNUSED_F9, "unused-f9", k10x, kIndexUnknown, 0, kVerifyError) \
   V(0xFA, UNUSED_FA, "unused-fa", k10x, kIndexUnknown, 0, kVerifyError) \
   V(0xFB, UNUSED_FB, "unused-fb", k10x, kIndexUnknown, 0, kVerifyError) \
   V(0xFC, UNUSED_FC, "unused-fc", k10x, kIndexUnknown, 0, kVerifyError) \
@@ -293,7 +293,6 @@
   V(k22t) \
   V(k22s) \
   V(k22c) \
-  V(k25x) \
   V(k32x) \
   V(k30t) \
   V(k31t) \

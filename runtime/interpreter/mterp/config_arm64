@@ -277,13 +277,13 @@ op-start arm64
     # op op_iget_byte_quick FALLBACK
     # op op_iget_char_quick FALLBACK
     # op op_iget_short_quick FALLBACK
-    op op_invoke_lambda FALLBACK
+    # op op_unused_f3 FALLBACK
     # op op_unused_f4 FALLBACK
-    op op_capture_variable FALLBACK
-    op op_create_lambda FALLBACK
-    op op_liberate_variable FALLBACK
-    op op_box_lambda FALLBACK
-    op op_unbox_lambda FALLBACK
+    # op op_unused_f5 FALLBACK
+    # op op_unused_f6 FALLBACK
+    # op op_unused_f7 FALLBACK
+    # op op_unused_f8 FALLBACK
+    # op op_unused_f9 FALLBACK
     # op op_unused_fa FALLBACK
     # op op_unused_fb FALLBACK
     # op op_unused_fc FALLBACK
