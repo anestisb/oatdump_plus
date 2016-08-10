@@ -183,7 +183,7 @@ class LocationsBuilderARM : public HGraphVisitor {
   Location ArithmeticZeroOrFpuRegister(HInstruction* input);
   Location ArmEncodableConstantOrRegister(HInstruction* constant, Opcode opcode);
   bool CanEncodeConstantAsImmediate(HConstant* input_cst, Opcode opcode);
-  bool CanEncodeConstantAsImmediate(uint32_t value, Opcode opcode);
+  bool CanEncodeConstantAsImmediate(uint32_t value, Opcode opcode, SetCc set_cc = kCcDontCare);
 
   CodeGeneratorARM* const codegen_;
   InvokeDexCallingConventionVisitorARM parameter_visitor_;
@@ -220,6 +220,7 @@ class InstructionCodeGeneratorARM : public InstructionCodeGenerator {
   void GenerateAndConst(Register out, Register first, uint32_t value);
   void GenerateOrrConst(Register out, Register first, uint32_t value);
   void GenerateEorConst(Register out, Register first, uint32_t value);
+  void GenerateAddLongConst(Location out, Location first, uint64_t value);
   void HandleBitwiseOperation(HBinaryOperation* operation);
   void HandleCondition(HCondition* condition);
   void HandleIntegerRotate(LocationSummary* locations);
