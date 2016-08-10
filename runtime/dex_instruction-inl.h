@@ -49,6 +49,8 @@ inline bool Instruction::HasVRegA() const {
     case k32x: return true;
     case k35c: return true;
     case k3rc: return true;
+    case k45cc: return true;
+    case k4rcc: return true;
     case k51l: return true;
     default: return false;
   }
@@ -79,6 +81,8 @@ inline int32_t Instruction::VRegA() const {
     case k32x: return VRegA_32x();
     case k35c: return VRegA_35c();
     case k3rc: return VRegA_3rc();
+    case k45cc: return VRegA_45cc();
+    case k4rcc: return VRegA_4rcc();
     case k51l: return VRegA_51l();
     default:
       LOG(FATAL) << "Tried to access vA of instruction " << Name() << " which has no A operand.";
@@ -206,6 +210,16 @@ inline uint8_t Instruction::VRegA_51l(uint16_t inst_data) const {
   return InstAA(inst_data);
 }
 
+inline uint4_t Instruction::VRegA_45cc(uint16_t inst_data) const {
+  DCHECK_EQ(FormatOf(Opcode()), k45cc);
+  return InstB(inst_data);  // This is labeled A in the spec.
+}
+
+inline uint8_t Instruction::VRegA_4rcc(uint16_t inst_data) const {
+  DCHECK_EQ(FormatOf(Opcode()), k4rcc);
+  return InstAA(inst_data);
+}
+
 //------------------------------------------------------------------------------
 // VRegB
 //------------------------------------------------------------------------------
@@ -229,6 +243,8 @@ inline bool Instruction::HasVRegB() const {
     case k32x: return true;
     case k35c: return true;
     case k3rc: return true;
+    case k45cc: return true;
+    case k4rcc: return true;
     case k51l: return true;
     default: return false;
   }
@@ -258,6 +274,8 @@ inline int32_t Instruction::VRegB() const {
     case k32x: return VRegB_32x();
     case k35c: return VRegB_35c();
     case k3rc: return VRegB_3rc();
+    case k45cc: return VRegB_45cc();
+    case k4rcc: return VRegB_4rcc();
     case k51l: return VRegB_51l();
     default:
       LOG(FATAL) << "Tried to access vB of instruction " << Name() << " which has no B operand.";
@@ -359,6 +377,16 @@ inline uint16_t Instruction::VRegB_3rc() const {
   return Fetch16(1);
 }
 
+inline uint16_t Instruction::VRegB_45cc() const {
+  DCHECK_EQ(FormatOf(Opcode()), k45cc);
+  return Fetch16(1);
+}
+
+inline uint16_t Instruction::VRegB_4rcc() const {
+  DCHECK_EQ(FormatOf(Opcode()), k4rcc);
+  return Fetch16(1);
+}
+
 inline uint64_t Instruction::VRegB_51l() const {
   DCHECK_EQ(FormatOf(Opcode()), k51l);
   uint64_t vB_wide = Fetch32(1) | ((uint64_t) Fetch32(3) << 32);
@@ -377,6 +405,8 @@ inline bool Instruction::HasVRegC() const {
     case k23x: return true;
     case k35c: return true;
     case k3rc: return true;
+    case k45cc: return true;
+    case k4rcc: return true;
     default: return false;
   }
 }
@@ -390,6 +420,8 @@ inline int32_t Instruction::VRegC() const {
     case k23x: return VRegC_23x();
     case k35c: return VRegC_35c();
     case k3rc: return VRegC_3rc();
+    case k45cc: return VRegC_45cc();
+    case k4rcc: return VRegC_4rcc();
     default:
       LOG(FATAL) << "Tried to access vC of instruction " << Name() << " which has no C operand.";
       exit(EXIT_FAILURE);
@@ -431,11 +463,52 @@ inline uint16_t Instruction::VRegC_3rc() const {
   return Fetch16(2);
 }
 
+inline uint4_t Instruction::VRegC_45cc() const {
+  DCHECK_EQ(FormatOf(Opcode()), k45cc);
+  return static_cast<uint4_t>(Fetch16(2) & 0x0f);
+}
+
+inline uint16_t Instruction::VRegC_4rcc() const {
+  DCHECK_EQ(FormatOf(Opcode()), k4rcc);
+  return Fetch16(2);
+}
+
+//------------------------------------------------------------------------------
+// VRegH
+//------------------------------------------------------------------------------
+inline bool Instruction::HasVRegH() const {
+  switch (FormatOf(Opcode())) {
+    case k45cc: return true;
+    case k4rcc: return true;
+    default : return false;
+  }
+}
+
+inline int32_t Instruction::VRegH() const {
+  switch (FormatOf(Opcode())) {
+    case k45cc: return VRegH_45cc();
+    case k4rcc: return VRegH_4rcc();
+    default :
+      LOG(FATAL) << "Tried to access vH of instruction " << Name() << " which has no H operand.";
+      exit(EXIT_FAILURE);
+  }
+}
+
+inline uint16_t Instruction::VRegH_45cc() const {
+  DCHECK_EQ(FormatOf(Opcode()), k45cc);
+  return Fetch16(3);
+}
+
+inline uint16_t Instruction::VRegH_4rcc() const {
+  DCHECK_EQ(FormatOf(Opcode()), k4rcc);
+  return Fetch16(3);
+}
+
 inline bool Instruction::HasVarArgs() const {
   return FormatOf(Opcode()) == k35c;
 }
 
-inline void Instruction::GetVarArgs(uint32_t arg[5], uint16_t inst_data) const {
+inline void Instruction::GetVarArgs(uint32_t arg[kMaxVarArgRegs], uint16_t inst_data) const {
   DCHECK_EQ(FormatOf(Opcode()), k35c);
 
   /*

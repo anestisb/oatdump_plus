@@ -112,6 +112,15 @@ class Instruction {
     k31c,  // op vAA, thing@BBBBBBBB
     k35c,  // op {vC, vD, vE, vF, vG}, thing@BBBB (B: count, A: vG)
     k3rc,  // op {vCCCC .. v(CCCC+AA-1)}, meth@BBBB
+
+    // op {vC, vD, vE, vF, vG}, meth@BBBB, proto@HHHH (A: count)
+    // format: AG op BBBB FEDC HHHH
+    k45cc,
+
+    // op {VCCCC .. v(CCCC+AA-1)}, meth@BBBB, proto@HHHH (AA: count)
+    // format: AA op BBBB CCCC HHHH
+    k4rcc,  // op {VCCCC .. v(CCCC+AA-1)}, meth@BBBB, proto@HHHH (AA: count)
+
     k51l,  // op vAA, #+BBBBBBBBBBBBBBBB
   };
 
@@ -227,6 +236,12 @@ class Instruction {
     return RelativeAt(3);
   }
 
+  // Returns a pointer to the instruction after this 4xx instruction in the stream.
+  const Instruction* Next_4xx() const {
+    DCHECK(FormatOf(Opcode()) >= k45cc && FormatOf(Opcode()) <= k4rcc);
+    return RelativeAt(4);
+  }
+
   // Returns a pointer to the instruction after this 51l instruction in the stream.
   const Instruction* Next_51l() const {
     DCHECK(FormatOf(Opcode()) == k51l);
@@ -313,6 +328,12 @@ class Instruction {
   uint8_t VRegA_51l() const {
     return VRegA_51l(Fetch16(0));
   }
+  uint4_t VRegA_45cc() const {
+    return VRegA_45cc(Fetch16(0));
+  }
+  uint8_t VRegA_4rcc() const {
+    return VRegA_4rcc(Fetch16(0));
+  }
 
   // The following methods return the vA operand for various instruction formats. The "inst_data"
   // parameter holds the first 16 bits of instruction which the returned value is decoded from.
@@ -337,6 +358,8 @@ class Instruction {
   uint4_t VRegA_35c(uint16_t inst_data) const;
   uint8_t VRegA_3rc(uint16_t inst_data) const;
   uint8_t VRegA_51l(uint16_t inst_data) const;
+  uint4_t VRegA_45cc(uint16_t inst_data) const;
+  uint8_t VRegA_4rcc(uint16_t inst_data) const;
 
   // VRegB
   bool HasVRegB() const;
@@ -374,6 +397,8 @@ class Instruction {
   uint16_t VRegB_35c() const;
   uint16_t VRegB_3rc() const;
   uint64_t VRegB_51l() const;  // vB_wide
+  uint16_t VRegB_45cc() const;
+  uint16_t VRegB_4rcc() const;
 
   // The following methods return the vB operand for all instruction formats where it is encoded in
   // the first 16 bits of instruction. The "inst_data" parameter holds these 16 bits. The returned
@@ -395,6 +420,15 @@ class Instruction {
   uint8_t VRegC_23x() const;
   uint4_t VRegC_35c() const;
   uint16_t VRegC_3rc() const;
+  uint4_t VRegC_45cc() const;
+  uint16_t VRegC_4rcc() const;
+
+
+  // VRegH
+  bool HasVRegH() const;
+  int32_t VRegH() const;
+  uint16_t VRegH_45cc() const;
+  uint16_t VRegH_4rcc() const;
 
   // Fills the given array with the 'arg' array of the instruction.
   bool HasVarArgs() const;
