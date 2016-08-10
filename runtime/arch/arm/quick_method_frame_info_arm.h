@@ -55,15 +55,15 @@ static constexpr uint32_t kArmCalleeSaveFpEverythingSpills =
 
 constexpr uint32_t ArmCalleeSaveCoreSpills(Runtime::CalleeSaveType type) {
   return kArmCalleeSaveAlwaysSpills | kArmCalleeSaveRefSpills |
-      (type == Runtime::kRefsAndArgs ? kArmCalleeSaveArgSpills : 0) |
-      (type == Runtime::kSaveAll ? kArmCalleeSaveAllSpills : 0) |
+      (type == Runtime::kSaveRefsAndArgs ? kArmCalleeSaveArgSpills : 0) |
+      (type == Runtime::kSaveAllCalleeSaves ? kArmCalleeSaveAllSpills : 0) |
       (type == Runtime::kSaveEverything ? kArmCalleeSaveEverythingSpills : 0);
 }
 
 constexpr uint32_t ArmCalleeSaveFpSpills(Runtime::CalleeSaveType type) {
   return kArmCalleeSaveFpAlwaysSpills | kArmCalleeSaveFpRefSpills |
-      (type == Runtime::kRefsAndArgs ? kArmCalleeSaveFpArgSpills: 0) |
-      (type == Runtime::kSaveAll ? kArmCalleeSaveFpAllSpills : 0) |
+      (type == Runtime::kSaveRefsAndArgs ? kArmCalleeSaveFpArgSpills: 0) |
+      (type == Runtime::kSaveAllCalleeSaves ? kArmCalleeSaveFpAllSpills : 0) |
       (type == Runtime::kSaveEverything ? kArmCalleeSaveFpEverythingSpills : 0);
 }
 

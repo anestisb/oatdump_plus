@@ -356,7 +356,7 @@ static void InstrumentationRestoreStack(Thread* thread, void* arg)
             LOG(INFO) << "  Removing exit stub in " << DescribeLocation();
           }
           if (instrumentation_frame.interpreter_entry_) {
-            CHECK(m == Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs));
+            CHECK(m == Runtime::Current()->GetCalleeSaveMethod(Runtime::kSaveRefsAndArgs));
           } else {
             CHECK(m == instrumentation_frame.method_) << PrettyMethod(m);
           }
