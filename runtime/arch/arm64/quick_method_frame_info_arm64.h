@@ -78,15 +78,15 @@ static constexpr uint32_t kArm64CalleeSaveFpEverythingSpills =
 
 constexpr uint32_t Arm64CalleeSaveCoreSpills(Runtime::CalleeSaveType type) {
   return kArm64CalleeSaveAlwaysSpills | kArm64CalleeSaveRefSpills |
-      (type == Runtime::kRefsAndArgs ? kArm64CalleeSaveArgSpills : 0) |
-      (type == Runtime::kSaveAll ? kArm64CalleeSaveAllSpills : 0) |
+      (type == Runtime::kSaveRefsAndArgs ? kArm64CalleeSaveArgSpills : 0) |
+      (type == Runtime::kSaveAllCalleeSaves ? kArm64CalleeSaveAllSpills : 0) |
       (type == Runtime::kSaveEverything ? kArm64CalleeSaveEverythingSpills : 0);
 }
 
 constexpr uint32_t Arm64CalleeSaveFpSpills(Runtime::CalleeSaveType type) {
   return kArm64CalleeSaveFpAlwaysSpills | kArm64CalleeSaveFpRefSpills |
-      (type == Runtime::kRefsAndArgs ? kArm64CalleeSaveFpArgSpills: 0) |
-      (type == Runtime::kSaveAll ? kArm64CalleeSaveFpAllSpills : 0) |
+      (type == Runtime::kSaveRefsAndArgs ? kArm64CalleeSaveFpArgSpills: 0) |
+      (type == Runtime::kSaveAllCalleeSaves ? kArm64CalleeSaveFpAllSpills : 0) |
       (type == Runtime::kSaveEverything ? kArm64CalleeSaveFpEverythingSpills : 0);
 }
 

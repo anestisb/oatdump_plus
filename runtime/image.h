@@ -183,9 +183,9 @@ class PACKED(4) ImageHeader {
     kResolutionMethod,
     kImtConflictMethod,
     kImtUnimplementedMethod,
-    kCalleeSaveMethod,
-    kRefsOnlySaveMethod,
-    kRefsAndArgsSaveMethod,
+    kSaveAllCalleeSavesMethod,
+    kSaveRefsOnlyMethod,
+    kSaveRefsAndArgsMethod,
     kSaveEverythingMethod,
     kImageMethodsCount,  // Number of elements in enum.
   };

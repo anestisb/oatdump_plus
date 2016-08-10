@@ -1407,12 +1407,12 @@ ImageSpace* ImageSpace::Init(const char* image_filename,
              image_header->GetImageMethod(ImageHeader::kImtConflictMethod));
     CHECK_EQ(runtime->GetImtUnimplementedMethod(),
              image_header->GetImageMethod(ImageHeader::kImtUnimplementedMethod));
-    CHECK_EQ(runtime->GetCalleeSaveMethod(Runtime::kSaveAll),
-             image_header->GetImageMethod(ImageHeader::kCalleeSaveMethod));
-    CHECK_EQ(runtime->GetCalleeSaveMethod(Runtime::kRefsOnly),
-             image_header->GetImageMethod(ImageHeader::kRefsOnlySaveMethod));
-    CHECK_EQ(runtime->GetCalleeSaveMethod(Runtime::kRefsAndArgs),
-             image_header->GetImageMethod(ImageHeader::kRefsAndArgsSaveMethod));
+    CHECK_EQ(runtime->GetCalleeSaveMethod(Runtime::kSaveAllCalleeSaves),
+             image_header->GetImageMethod(ImageHeader::kSaveAllCalleeSavesMethod));
+    CHECK_EQ(runtime->GetCalleeSaveMethod(Runtime::kSaveRefsOnly),
+             image_header->GetImageMethod(ImageHeader::kSaveRefsOnlyMethod));
+    CHECK_EQ(runtime->GetCalleeSaveMethod(Runtime::kSaveRefsAndArgs),
+             image_header->GetImageMethod(ImageHeader::kSaveRefsAndArgsMethod));
     CHECK_EQ(runtime->GetCalleeSaveMethod(Runtime::kSaveEverything),
              image_header->GetImageMethod(ImageHeader::kSaveEverythingMethod));
   } else if (!runtime->HasResolutionMethod()) {
@@ -1422,11 +1422,13 @@ ImageSpace* ImageSpace::Init(const char* image_filename,
     runtime->SetImtUnimplementedMethod(
         image_header->GetImageMethod(ImageHeader::kImtUnimplementedMethod));
     runtime->SetCalleeSaveMethod(
-        image_header->GetImageMethod(ImageHeader::kCalleeSaveMethod), Runtime::kSaveAll);
+        image_header->GetImageMethod(ImageHeader::kSaveAllCalleeSavesMethod),
+        Runtime::kSaveAllCalleeSaves);
     runtime->SetCalleeSaveMethod(
-        image_header->GetImageMethod(ImageHeader::kRefsOnlySaveMethod), Runtime::kRefsOnly);
+        image_header->GetImageMethod(ImageHeader::kSaveRefsOnlyMethod), Runtime::kSaveRefsOnly);
     runtime->SetCalleeSaveMethod(
-        image_header->GetImageMethod(ImageHeader::kRefsAndArgsSaveMethod), Runtime::kRefsAndArgs);
+        image_header->GetImageMethod(ImageHeader::kSaveRefsAndArgsMethod),
+        Runtime::kSaveRefsAndArgs);
     runtime->SetCalleeSaveMethod(
         image_header->GetImageMethod(ImageHeader::kSaveEverythingMethod), Runtime::kSaveEverything);
   }
