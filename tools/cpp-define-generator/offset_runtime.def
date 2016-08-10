@@ -25,15 +25,15 @@
 // Note: these callee save methods loads require read barriers.
 
 #define DEFINE_RUNTIME_CALLEE_SAVE_OFFSET(field_name, constant_name) \
-  DEFINE_OFFSET_EXPR(Runtime, field_name ## _CALLEE_SAVE_FRAME, size_t, art::Runtime::GetCalleeSaveMethodOffset(art::Runtime:: constant_name))
+  DEFINE_OFFSET_EXPR(Runtime, field_name ## _METHOD, size_t, art::Runtime::GetCalleeSaveMethodOffset(art::Runtime:: constant_name))
 
                     //     Macro substring       Constant name
-// Offset of field Runtime::callee_save_methods_[kSaveAll]
-DEFINE_RUNTIME_CALLEE_SAVE_OFFSET(SAVE_ALL,      kSaveAll)
-// Offset of field Runtime::callee_save_methods_[kRefsOnly]
-DEFINE_RUNTIME_CALLEE_SAVE_OFFSET(REFS_ONLY,     kRefsOnly)
-// Offset of field Runtime::callee_save_methods_[kRefsAndArgs]
-DEFINE_RUNTIME_CALLEE_SAVE_OFFSET(REFS_AND_ARGS, kRefsAndArgs)
+// Offset of field Runtime::callee_save_methods_[kSaveAllCalleeSaves]
+DEFINE_RUNTIME_CALLEE_SAVE_OFFSET(SAVE_ALL_CALLEE_SAVES, kSaveAllCalleeSaves)
+// Offset of field Runtime::callee_save_methods_[kSaveRefsOnly]
+DEFINE_RUNTIME_CALLEE_SAVE_OFFSET(SAVE_REFS_ONLY, kSaveRefsOnly)
+// Offset of field Runtime::callee_save_methods_[kSaveRefsAndArgs]
+DEFINE_RUNTIME_CALLEE_SAVE_OFFSET(SAVE_REFS_AND_ARGS, kSaveRefsAndArgs)
 // Offset of field Runtime::callee_save_methods_[kSaveEverything]
 DEFINE_RUNTIME_CALLEE_SAVE_OFFSET(SAVE_EVERYTHING, kSaveEverything)
 

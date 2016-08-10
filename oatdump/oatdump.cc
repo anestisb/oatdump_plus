@@ -73,9 +73,9 @@ const char* image_methods_descriptions_[] = {
   "kResolutionMethod",
   "kImtConflictMethod",
   "kImtUnimplementedMethod",
-  "kCalleeSaveMethod",
-  "kRefsOnlySaveMethod",
-  "kRefsAndArgsSaveMethod",
+  "kSaveAllCalleeSavesMethod",
+  "kSaveRefsOnlyMethod",
+  "kSaveRefsAndArgsMethod",
   "kSaveEverythingMethod",
 };
 

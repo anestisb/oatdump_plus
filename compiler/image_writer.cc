@@ -1373,11 +1373,12 @@ void ImageWriter::CalculateNewObjectOffsets() {
   image_methods_[ImageHeader::kResolutionMethod] = runtime->GetResolutionMethod();
   image_methods_[ImageHeader::kImtConflictMethod] = runtime->GetImtConflictMethod();
   image_methods_[ImageHeader::kImtUnimplementedMethod] = runtime->GetImtUnimplementedMethod();
-  image_methods_[ImageHeader::kCalleeSaveMethod] = runtime->GetCalleeSaveMethod(Runtime::kSaveAll);
-  image_methods_[ImageHeader::kRefsOnlySaveMethod] =
-      runtime->GetCalleeSaveMethod(Runtime::kRefsOnly);
-  image_methods_[ImageHeader::kRefsAndArgsSaveMethod] =
-      runtime->GetCalleeSaveMethod(Runtime::kRefsAndArgs);
+  image_methods_[ImageHeader::kSaveAllCalleeSavesMethod] =
+      runtime->GetCalleeSaveMethod(Runtime::kSaveAllCalleeSaves);
+  image_methods_[ImageHeader::kSaveRefsOnlyMethod] =
+      runtime->GetCalleeSaveMethod(Runtime::kSaveRefsOnly);
+  image_methods_[ImageHeader::kSaveRefsAndArgsMethod] =
+      runtime->GetCalleeSaveMethod(Runtime::kSaveRefsAndArgs);
   image_methods_[ImageHeader::kSaveEverythingMethod] =
       runtime->GetCalleeSaveMethod(Runtime::kSaveEverything);
   // Visit image methods first to have the main runtime methods in the first image.
