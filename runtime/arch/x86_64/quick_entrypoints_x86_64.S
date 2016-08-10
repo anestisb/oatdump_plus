@@ -910,7 +910,20 @@ MACRO0(RETURN_OR_DELIVER_PENDING_EXCEPTION)
 END_MACRO
 
 // Generate the allocation entrypoints for each allocator.
-GENERATE_ALLOC_ENTRYPOINTS_FOR_EACH_ALLOCATOR
+GENERATE_ALLOC_ENTRYPOINTS_FOR_NON_REGION_TLAB_ALLOCATORS
+// Comment out allocators that have x86_64 specific asm.
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_region_tlab, RegionTLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_region_tlab, RegionTLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(_region_tlab, RegionTLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(_region_tlab, RegionTLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY(_region_tlab, RegionTLAB)
+// GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED(_region_tlab, RegionTLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_WITH_ACCESS_CHECK(_region_tlab, RegionTLAB)
+GENERATE_ALLOC_ENTRYPOINTS_CHECK_AND_ALLOC_ARRAY(_region_tlab, RegionTLAB)
+GENERATE_ALLOC_ENTRYPOINTS_CHECK_AND_ALLOC_ARRAY_WITH_ACCESS_CHECK(_region_tlab, RegionTLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_BYTES(_region_tlab, RegionTLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_CHARS(_region_tlab, RegionTLAB)
+GENERATE_ALLOC_ENTRYPOINTS_ALLOC_STRING_FROM_STRING(_region_tlab, RegionTLAB)
 
 // A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_rosalloc, RosAlloc).
 DEFINE_FUNCTION art_quick_alloc_object_rosalloc
@@ -1003,6 +1016,14 @@ END_FUNCTION art_quick_alloc_object_rosalloc
 MACRO1(ALLOC_OBJECT_TLAB_FAST_PATH, slowPathLabel)
     testl %edx, %edx                                       // Check null class
     jz   RAW_VAR(slowPathLabel)
+    ALLOC_OBJECT_RESOLVED_TLAB_FAST_PATH(RAW_VAR(slowPathLabel))
+END_MACRO
+
+// The common fast path code for art_quick_alloc_object_resolved_region_tlab.
+//
+// RDI: type_idx, RSI: ArtMethod*, RDX/EDX: the class, RAX: return value.
+// RCX: scratch, r8: Thread::Current().
+MACRO1(ALLOC_OBJECT_RESOLVED_TLAB_FAST_PATH, slowPathLabel)
                                                            // Check class status.
     cmpl LITERAL(MIRROR_CLASS_STATUS_INITIALIZED), MIRROR_CLASS_STATUS_OFFSET(%rdx)
     jne  RAW_VAR(slowPathLabel)
@@ -1014,26 +1035,73 @@ MACRO1(ALLOC_OBJECT_TLAB_FAST_PATH, slowPathLabel)
                                                            // kAccClassIsFinalizable
     testl LITERAL(ACCESS_FLAGS_CLASS_IS_FINALIZABLE), MIRROR_CLASS_ACCESS_FLAGS_OFFSET(%rdx)
     jnz  RAW_VAR(slowPathLabel)
-    movq %gs:THREAD_SELF_OFFSET, %r8                       // r8 = thread
-    movq THREAD_LOCAL_END_OFFSET(%r8), %rax                // Load thread_local_end.
-    subq THREAD_LOCAL_POS_OFFSET(%r8), %rax                // Compute the remaining buffer size.
-    movl MIRROR_CLASS_OBJECT_SIZE_OFFSET(%rdx), %ecx       // Load the object size.
-    cmpq %rax, %rcx                                        // Check if it fits. OK to do this
-                                                           // before rounding up the object size
-                                                           // assuming the buf size alignment.
+    ALLOC_OBJECT_INITIALIZED_TLAB_FAST_PATH(RAW_VAR(slowPathLabel))
+END_MACRO
+
+// The fast path code for art_quick_alloc_object_initialized_region_tlab.
+//
+// RDI: type_idx, RSI: ArtMethod*, RDX/EDX: the class, RAX: return value.
+// RCX: scratch, r8: Thread::Current().
+MACRO1(ALLOC_OBJECT_INITIALIZED_TLAB_FAST_PATH, slowPathLabel)
+    movq %gs:THREAD_SELF_OFFSET, %r8                           // r8 = thread
+    movl MIRROR_CLASS_OBJECT_SIZE_OFFSET(%rdx), %ecx           // Load the object size.
+    movq THREAD_LOCAL_POS_OFFSET(%r8), %rax
+    leaq OBJECT_ALIGNMENT_MASK(%rax, %rcx), %rcx               // Add size to pos, note that these
+                                                               // are both 32 bit ints, overflow
+                                                               // will cause the add to be past the
+                                                               // end of the thread local region.
+                                                               // Also sneak in alignment mask add.
+    andq LITERAL(OBJECT_ALIGNMENT_MASK_TOGGLED64), %rcx        // Align the size by 8. (addr + 7) &
+                                                               // ~7.
+    cmpq THREAD_LOCAL_END_OFFSET(%r8), %rcx                    // Check if it fits.
     ja   RAW_VAR(slowPathLabel)
-    addl LITERAL(OBJECT_ALIGNMENT_MASK), %ecx              // Align the size by 8. (addr + 7) & ~7.
-    andl LITERAL(OBJECT_ALIGNMENT_MASK_TOGGLED), %ecx
-    movq THREAD_LOCAL_POS_OFFSET(%r8), %rax                // Load thread_local_pos
-                                                           // as allocated object.
-    addq %rax, %rcx                                        // Add the object size.
-    movq %rcx, THREAD_LOCAL_POS_OFFSET(%r8)                // Update thread_local_pos.
-    addq LITERAL(1), THREAD_LOCAL_OBJECTS_OFFSET(%r8)      // Increase thread_local_objects.
-                                                           // Store the class pointer in the header.
-                                                           // No fence needed for x86.
+    movq %rcx, THREAD_LOCAL_POS_OFFSET(%r8)                    // Update thread_local_pos.
+    addq LITERAL(1), THREAD_LOCAL_OBJECTS_OFFSET(%r8)          // Increase thread_local_objects.
+                                                               // Store the class pointer in the
+                                                               // header.
+                                                               // No fence needed for x86.
     POISON_HEAP_REF edx
     movl %edx, MIRROR_OBJECT_CLASS_OFFSET(%rax)
-    ret                                                    // Fast path succeeded.
+    ret                                                        // Fast path succeeded.
+END_MACRO
+
+// The fast path code for art_quick_alloc_array_region_tlab.
+// Inputs: RDI: uint32_t type_idx, RSI: int32_t component_count, RDX: ArtMethod* method
+// Temps: RCX: the class, r8, r9
+// Output: RAX: return value.
+MACRO1(ALLOC_ARRAY_TLAB_FAST_PATH_RESOLVED, slowPathLabel)
+    movq %rcx, %r8                                             // Save class for later
+    movl MIRROR_CLASS_COMPONENT_TYPE_OFFSET(%rcx), %ecx        // Load component type.
+    UNPOISON_HEAP_REF ecx
+    movl MIRROR_CLASS_OBJECT_PRIMITIVE_TYPE_OFFSET(%rcx), %ecx // Load primitive type.
+    shrq LITERAL(PRIMITIVE_TYPE_SIZE_SHIFT_SHIFT), %rcx        // Get component size shift.
+    movq %rsi, %r9
+    salq %cl, %r9                                              // Calculate array count shifted.
+    // Add array header + alignment rounding.
+    addq LITERAL(MIRROR_INT_ARRAY_DATA_OFFSET + OBJECT_ALIGNMENT_MASK), %r9
+    // Add 4 extra bytes if we are doing a long array.
+    addq LITERAL(1), %rcx
+    andq LITERAL(4), %rcx
+    addq %rcx, %r9
+    movq %gs:THREAD_SELF_OFFSET, %rcx                          // rcx = thread
+#if MIRROR_LONG_ARRAY_DATA_OFFSET != MIRROR_INT_ARRAY_DATA_OFFSET + 4
+#error Long array data offset must be 4 greater than int array data offset.
+#endif
+    // Mask out the unaligned part to make sure we are 8 byte aligned.
+    andq LITERAL(OBJECT_ALIGNMENT_MASK_TOGGLED64), %r9
+    movq THREAD_LOCAL_POS_OFFSET(%rcx), %rax
+    addq %rax, %r9
+    cmpq THREAD_LOCAL_END_OFFSET(%rcx), %r9                    // Check if it fits.
+    ja   RAW_VAR(slowPathLabel)
+    movq %r9, THREAD_LOCAL_POS_OFFSET(%rcx)                    // Update thread_local_pos.
+    addq LITERAL(1), THREAD_LOCAL_OBJECTS_OFFSET(%rcx)         // Increase thread_local_objects.
+                                                               // Store the class pointer in the
+                                                               // header.
+                                                               // No fence needed for x86.
+    POISON_HEAP_REF ecx
+    movl %r8d, MIRROR_OBJECT_CLASS_OFFSET(%rax)
+    movl %esi, MIRROR_ARRAY_LENGTH_OFFSET(%rax)
+    ret                                                        // Fast path succeeded.
 END_MACRO
 
 // The common slow path code for art_quick_alloc_object_tlab and art_quick_alloc_object_region_tlab.
@@ -1044,6 +1112,16 @@ MACRO1(ALLOC_OBJECT_TLAB_SLOW_PATH, cxx_name)
     call CALLVAR(cxx_name)                                 // cxx_name(arg0, arg1, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME                           // restore frame up to return address
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER                // return or deliver exception
+END_MACRO
+
+// The slow path code for art_quick_alloc_array_region_tlab.
+MACRO1(ALLOC_ARRAY_TLAB_SLOW_PATH, cxx_name)
+    SETUP_SAVE_REFS_ONLY_FRAME                                 // save ref containing registers for GC
+    // Outgoing argument set up
+    movq %gs:THREAD_SELF_OFFSET, %rcx                          // pass Thread::Current()
+    call CALLVAR(cxx_name)                                     // cxx_name(arg0, arg1, arg2, Thread*)
+    RESTORE_SAVE_REFS_ONLY_FRAME                               // restore frame up to return address
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER                    // return or deliver exception
 END_MACRO
 
 // A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_tlab, TLAB).
@@ -1065,6 +1143,82 @@ DEFINE_FUNCTION art_quick_alloc_object_tlab
     ALLOC_OBJECT_TLAB_SLOW_PATH artAllocObjectFromCodeTLAB
 END_FUNCTION art_quick_alloc_object_tlab
 
+// A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY(_region_tlab, RegionTLAB).
+DEFINE_FUNCTION art_quick_alloc_array_region_tlab
+    // Fast path region tlab allocation.
+    // RDI: uint32_t type_idx, RSI: int32_t component_count, RDX: ArtMethod*
+    // RCX: klass, R8, R9: free. RAX: return val.
+#if !defined(USE_READ_BARRIER)
+    int3
+    int3
+#endif
+    movq ART_METHOD_DEX_CACHE_TYPES_OFFSET_64(%rdx), %rcx      // Load dex cache resolved types array
+    movl 0(%rcx, %rdi, COMPRESSED_REFERENCE_SIZE), %ecx        // Load the class
+    // Null check so that we can load the lock word.
+    testl %ecx, %ecx
+    jz .Lart_quick_alloc_array_region_tlab_slow_path
+
+    cmpl LITERAL(0), %gs:THREAD_IS_GC_MARKING_OFFSET
+    jne .Lart_quick_alloc_array_region_tlab_class_load_read_barrier_marking
+.Lart_quick_alloc_array_region_tlab_class_load_read_barrier_slow_path_exit:
+    ALLOC_ARRAY_TLAB_FAST_PATH_RESOLVED .Lart_quick_alloc_array_region_tlab_slow_path
+.Lart_quick_alloc_array_region_tlab_class_load_read_barrier_marking:
+    // Check the mark bit, if it is 1 return.
+    testl LITERAL(LOCK_WORD_MARK_BIT_MASK_SHIFTED), MIRROR_OBJECT_LOCK_WORD_OFFSET(%ecx)
+    jnz .Lart_quick_alloc_array_region_tlab_class_load_read_barrier_slow_path_exit
+.Lart_quick_alloc_array_region_tlab_class_load_read_barrier_slow_path:
+    // The read barrier slow path. Mark the class.
+    PUSH rdi
+    PUSH rsi
+    PUSH rdx
+    // Outgoing argument set up
+    movq %rcx, %rdi                                            // Pass the class as the first param.
+    call SYMBOL(artReadBarrierMark)                            // cxx_name(mirror::Object* obj)
+    movq %rax, %rcx
+    POP rdx
+    POP rsi
+    POP rdi
+    jmp .Lart_quick_alloc_array_region_tlab_class_load_read_barrier_slow_path_exit
+.Lart_quick_alloc_array_region_tlab_slow_path:
+    ALLOC_ARRAY_TLAB_SLOW_PATH artAllocArrayFromCodeRegionTLAB
+END_FUNCTION art_quick_alloc_array_region_tlab
+
+// A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_RESOLVED(_region_tlab, RegionTLAB).
+DEFINE_FUNCTION art_quick_alloc_array_resolved_region_tlab
+    // Fast path region tlab allocation.
+    // RDI: mirror::Class* klass, RSI: int32_t component_count, RDX: ArtMethod*
+    // RCX: mirror::Class* klass, R8, R9: free. RAX: return val.
+#if !defined(USE_READ_BARRIER)
+    int3
+    int3
+#endif
+    movq %rdi, %rcx
+    // Already resolved, no null check.
+    cmpl LITERAL(0), %gs:THREAD_IS_GC_MARKING_OFFSET
+    jne .Lart_quick_alloc_array_resolved_region_tlab_class_load_read_barrier_marking
+.Lart_quick_alloc_array_resolved_region_tlab_class_load_read_barrier_slow_path_exit:
+    ALLOC_ARRAY_TLAB_FAST_PATH_RESOLVED .Lart_quick_alloc_array_resolved_region_tlab_slow_path
+.Lart_quick_alloc_array_resolved_region_tlab_class_load_read_barrier_marking:
+    // Check the mark bit, if it is 1 return.
+    testl LITERAL(LOCK_WORD_MARK_BIT_MASK_SHIFTED), MIRROR_OBJECT_LOCK_WORD_OFFSET(%ecx)
+    jnz .Lart_quick_alloc_array_region_tlab_class_load_read_barrier_slow_path_exit
+.Lart_quick_alloc_array_resolved_region_tlab_class_load_read_barrier_slow_path:
+    // The read barrier slow path. Mark the class.
+    PUSH rdi
+    PUSH rsi
+    PUSH rdx
+    // Outgoing argument set up
+    movq %rcx, %rdi                                            // Pass the class as the first param.
+    call SYMBOL(artReadBarrierMark)                            // cxx_name(mirror::Object* obj)
+    movq %rax, %rcx
+    POP rdx
+    POP rsi
+    POP rdi
+    jmp .Lart_quick_alloc_array_resolved_region_tlab_class_load_read_barrier_slow_path_exit
+.Lart_quick_alloc_array_resolved_region_tlab_slow_path:
+    ALLOC_ARRAY_TLAB_SLOW_PATH artAllocArrayFromCodeResolvedRegionTLAB
+END_FUNCTION art_quick_alloc_array_resolved_region_tlab
+
 // A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_region_tlab, RegionTLAB).
 DEFINE_FUNCTION art_quick_alloc_object_region_tlab
     // Fast path region tlab allocation.
@@ -1074,35 +1228,107 @@ DEFINE_FUNCTION art_quick_alloc_object_region_tlab
     int3
     int3
 #endif
-    // Might need a special macro since rsi and edx is 32b/64b mismatched.
     movq ART_METHOD_DEX_CACHE_TYPES_OFFSET_64(%rsi), %rdx  // Load dex cache resolved types array
-    // Might need to break down into multiple instructions to get the base address in a register.
-                                                               // Load the class
-    movl 0(%rdx, %rdi, COMPRESSED_REFERENCE_SIZE), %edx
-    cmpl LITERAL(0), %gs:THREAD_IS_GC_MARKING_OFFSET
-    jz .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path_exit
+    movl 0(%rdx, %rdi, COMPRESSED_REFERENCE_SIZE), %edx    // Load the class
     // Null check so that we can load the lock word.
     testl %edx, %edx
-    jz .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path_exit
-    // Check the mark bit, if it is 1 return.
-    testl LITERAL(LOCK_WORD_MARK_BIT_MASK_SHIFTED), MIRROR_OBJECT_LOCK_WORD_OFFSET(%edx)
-    jz .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path
+    jz .Lart_quick_alloc_object_region_tlab_slow_path
+    // Test if the GC is marking.
+    cmpl LITERAL(0), %gs:THREAD_IS_GC_MARKING_OFFSET
+    jne .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_marking
 .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path_exit:
     ALLOC_OBJECT_TLAB_FAST_PATH .Lart_quick_alloc_object_region_tlab_slow_path
+.Lart_quick_alloc_object_region_tlab_class_load_read_barrier_marking:
+    // Check the mark bit, if it is 1 avoid the read barrier.
+    testl LITERAL(LOCK_WORD_MARK_BIT_MASK_SHIFTED), MIRROR_OBJECT_LOCK_WORD_OFFSET(%edx)
+    jnz .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path_exit
 .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path:
     // The read barrier slow path. Mark the class.
     PUSH rdi
     PUSH rsi
+    subq LITERAL(8), %rsp // 16 byte alignment
     // Outgoing argument set up
     movq %rdx, %rdi                                            // Pass the class as the first param.
     call SYMBOL(artReadBarrierMark)                            // cxx_name(mirror::Object* obj)
     movq %rax, %rdx
+    addq LITERAL(8), %rsp
     POP rsi
     POP rdi
     jmp .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path_exit
 .Lart_quick_alloc_object_region_tlab_slow_path:
     ALLOC_OBJECT_TLAB_SLOW_PATH artAllocObjectFromCodeRegionTLAB
 END_FUNCTION art_quick_alloc_object_region_tlab
+
+// A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_region_tlab, RegionTLAB).
+DEFINE_FUNCTION art_quick_alloc_object_resolved_region_tlab
+    // Fast path region tlab allocation.
+    // RDI: mirror::Class* klass, RSI: ArtMethod*
+    // RDX, RCX, R8, R9: free. RAX: return val.
+#if !defined(USE_READ_BARRIER)
+    int3
+    int3
+#endif
+    movq %rdi, %rdx
+    cmpl LITERAL(0), %gs:THREAD_IS_GC_MARKING_OFFSET
+    jne .Lart_quick_alloc_object_resolved_region_tlab_class_load_read_barrier_marking
+.Lart_quick_alloc_object_resolved_region_tlab_class_load_read_barrier_slow_path_exit:
+    ALLOC_OBJECT_RESOLVED_TLAB_FAST_PATH .Lart_quick_alloc_object_resolved_region_tlab_slow_path
+.Lart_quick_alloc_object_resolved_region_tlab_class_load_read_barrier_marking:
+    // Check the mark bit, if it is 1 avoid the read barrier.
+    testl LITERAL(LOCK_WORD_MARK_BIT_MASK_SHIFTED), MIRROR_OBJECT_LOCK_WORD_OFFSET(%edx)
+    jnz .Lart_quick_alloc_object_resolved_region_tlab_class_load_read_barrier_slow_path_exit
+.Lart_quick_alloc_object_resolved_region_tlab_class_load_read_barrier_slow_path:
+    // The read barrier slow path. Mark the class.
+    PUSH rdi
+    PUSH rsi
+    subq LITERAL(8), %rsp // 16 byte alignment
+    // Outgoing argument set up
+    movq %rdx, %rdi                                            // Pass the class as the first param.
+    call SYMBOL(artReadBarrierMark)                            // cxx_name(mirror::Object* obj)
+    movq %rax, %rdx
+    addq LITERAL(8), %rsp
+    POP rsi
+    POP rdi
+    jmp .Lart_quick_alloc_object_resolved_region_tlab_class_load_read_barrier_slow_path_exit
+.Lart_quick_alloc_object_resolved_region_tlab_slow_path:
+    ALLOC_OBJECT_TLAB_SLOW_PATH artAllocObjectFromCodeResolvedRegionTLAB
+END_FUNCTION art_quick_alloc_object_resolved_region_tlab
+
+// A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(_region_tlab, RegionTLAB).
+DEFINE_FUNCTION art_quick_alloc_object_initialized_region_tlab
+    // Fast path region tlab allocation.
+    // RDI: mirror::Class* klass, RSI: ArtMethod*
+    // RDX, RCX, R8, R9: free. RAX: return val.
+#if !defined(USE_READ_BARRIER)
+    int3
+    int3
+#endif
+    // Might need a special macro since rsi and edx is 32b/64b mismatched.
+    movq %rdi, %rdx
+    cmpl LITERAL(0), %gs:THREAD_IS_GC_MARKING_OFFSET
+    jne .Lart_quick_alloc_object_initialized_region_tlab_class_load_read_barrier_marking
+.Lart_quick_alloc_object_initialized_region_tlab_class_load_read_barrier_slow_path_exit:
+    ALLOC_OBJECT_INITIALIZED_TLAB_FAST_PATH .Lart_quick_alloc_object_initialized_region_tlab_slow_path
+.Lart_quick_alloc_object_initialized_region_tlab_class_load_read_barrier_marking:
+    // Check the mark bit, if it is 1 avoid the read barrier.
+    testl LITERAL(LOCK_WORD_MARK_BIT_MASK_SHIFTED), MIRROR_OBJECT_LOCK_WORD_OFFSET(%edx)
+    jnz .Lart_quick_alloc_object_initialized_region_tlab_class_load_read_barrier_slow_path
+.Lart_quick_alloc_object_initialized_region_tlab_class_load_read_barrier_slow_path:
+    // The read barrier slow path. Mark the class.
+    PUSH rdi
+    PUSH rsi
+    subq LITERAL(8), %rsp // 16 byte alignment
+    // Outgoing argument set up
+    movq %rdx, %rdi                                            // Pass the class as the first param.
+    call SYMBOL(artReadBarrierMark)                            // cxx_name(mirror::Object* obj)
+    movq %rax, %rdx
+    addq LITERAL(8), %rsp
+    POP rsi
+    POP rdi
+    jmp .Lart_quick_alloc_object_initialized_region_tlab_class_load_read_barrier_slow_path_exit
+.Lart_quick_alloc_object_initialized_region_tlab_slow_path:
+    ALLOC_OBJECT_TLAB_SLOW_PATH artAllocObjectFromCodeInitializedRegionTLAB
+END_FUNCTION art_quick_alloc_object_initialized_region_tlab
 
 ONE_ARG_DOWNCALL art_quick_resolve_string, artResolveStringFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 ONE_ARG_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
