@@ -86,13 +86,10 @@ enum VerifyError {
   VERIFY_ERROR_ACCESS_METHOD = 128,       // IllegalAccessError.
   VERIFY_ERROR_CLASS_CHANGE = 256,        // IncompatibleClassChangeError.
   VERIFY_ERROR_INSTANTIATION = 512,       // InstantiationError.
-  // For opcodes that don't have complete verifier support (such as lambda opcodes),
-  // we need a way to continue execution at runtime without attempting to re-verify
-  // (since we know it will fail no matter what). Instead, run as the interpreter
-  // in a special "do access checks" mode which will perform verifier-like checking
-  // on the fly.
-  //
-  // TODO: Once all new opcodes have implemented full verifier support, this can be removed.
+  // For opcodes that don't have complete verifier support,  we need a way to continue
+  // execution at runtime without attempting to re-verify (since we know it will fail no
+  // matter what). Instead, run as the interpreter in a special "do access checks" mode
+  // which will perform verifier-like checking on the fly.
   VERIFY_ERROR_FORCE_INTERPRETER = 1024,  // Skip the verification phase at runtime;
                                           // force the interpreter to do access checks.
                                           // (sets a soft fail at compile time).
