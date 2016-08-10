@@ -15,13 +15,10 @@
  */
 
 #include "base/enums.h"
-#include "base/stl_util.h"  // MakeUnique
 #include "experimental_flags.h"
 #include "interpreter_common.h"
 #include "jit/jit.h"
 #include "safe_math.h"
-
-#include <memory>  // std::unique_ptr
 
 namespace art {
 namespace interpreter {
@@ -92,11 +89,6 @@ namespace interpreter {
     }                                                                                          \
   } while (false)
 
-static bool IsExperimentalInstructionEnabled(const Instruction *inst) {
-  DCHECK(inst->IsExperimental());
-  return Runtime::Current()->AreExperimentalFlagsEnabled(ExperimentalFlags::kLambdas);
-}
-
 template<bool do_access_check, bool transaction_active>
 JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
                          ShadowFrame& shadow_frame, JValue result_register,
@@ -116,10 +108,6 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
   ArtMethod* method = shadow_frame.GetMethod();
   jit::Jit* jit = Runtime::Current()->GetJit();
 
-  // TODO: collapse capture-variable+create-lambda into one opcode, then we won't need
-  // to keep this live for the scope of the entire function call.
-  std::unique_ptr<lambda::ClosureBuilder> lambda_closure_builder;
-  size_t lambda_captured_variable_index = 0;
   do {
     dex_pc = inst->GetDexPc(insns);
     shadow_frame.SetDexPC(dex_pc);
@@ -2333,103 +2321,8 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
                              (inst->VRegC_22b() & 0x1f));
         inst = inst->Next_2xx();
         break;
-      case Instruction::INVOKE_LAMBDA: {
-        if (!IsExperimentalInstructionEnabled(inst)) {
-          UnexpectedOpcode(inst, shadow_frame);
-        }
-
-        PREAMBLE();
-        bool success = DoInvokeLambda<do_access_check>(self, shadow_frame, inst, inst_data,
-                                                       &result_register);
-        POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
-        break;
-      }
-      case Instruction::CAPTURE_VARIABLE: {
-        if (!IsExperimentalInstructionEnabled(inst)) {
-          UnexpectedOpcode(inst, shadow_frame);
-        }
-
-        if (lambda_closure_builder == nullptr) {
-          lambda_closure_builder = MakeUnique<lambda::ClosureBuilder>();
-        }
-
-        PREAMBLE();
-        bool success = DoCaptureVariable<do_access_check>(self,
-                                                          inst,
-                                                          /*inout*/shadow_frame,
-                                                          /*inout*/lambda_closure_builder.get());
-        POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
-        break;
-      }
-      case Instruction::CREATE_LAMBDA: {
-        if (!IsExperimentalInstructionEnabled(inst)) {
-          UnexpectedOpcode(inst, shadow_frame);
-        }
-
-        PREAMBLE();
-
-        if (lambda_closure_builder == nullptr) {
-          // DoCreateLambda always needs a ClosureBuilder, even if it has 0 captured variables.
-          lambda_closure_builder = MakeUnique<lambda::ClosureBuilder>();
-        }
-
-        // TODO: these allocations should not leak, and the lambda method should not be local.
-        lambda::Closure* lambda_closure =
-            reinterpret_cast<lambda::Closure*>(alloca(lambda_closure_builder->GetSize()));
-        bool success = DoCreateLambda<do_access_check>(self,
-                                                       inst,
-                                                       /*inout*/shadow_frame,
-                                                       /*inout*/lambda_closure_builder.get(),
-                                                       /*inout*/lambda_closure);
-        lambda_closure_builder.reset(nullptr);  // reset state of variables captured
-        POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
-        break;
-      }
-      case Instruction::LIBERATE_VARIABLE: {
-        if (!IsExperimentalInstructionEnabled(inst)) {
-          UnexpectedOpcode(inst, shadow_frame);
-        }
-
-        PREAMBLE();
-        bool success = DoLiberateVariable<do_access_check>(self,
-                                                           inst,
-                                                           lambda_captured_variable_index,
-                                                           /*inout*/shadow_frame);
-        // Temporarily only allow sequences of 'liberate-variable, liberate-variable, ...'
-        lambda_captured_variable_index++;
-        POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
-        break;
-      }
-      case Instruction::UNUSED_F4: {
-        if (!IsExperimentalInstructionEnabled(inst)) {
-          UnexpectedOpcode(inst, shadow_frame);
-        }
-
-        CHECK(false);  // TODO(iam): Implement opcodes for lambdas
-        break;
-      }
-      case Instruction::BOX_LAMBDA: {
-        if (!IsExperimentalInstructionEnabled(inst)) {
-          UnexpectedOpcode(inst, shadow_frame);
-        }
-
-        PREAMBLE();
-        bool success = DoBoxLambda<do_access_check>(self, shadow_frame, inst, inst_data);
-        POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
-        break;
-      }
-      case Instruction::UNBOX_LAMBDA: {
-        if (!IsExperimentalInstructionEnabled(inst)) {
-          UnexpectedOpcode(inst, shadow_frame);
-        }
-
-        PREAMBLE();
-        bool success = DoUnboxLambda<do_access_check>(self, shadow_frame, inst, inst_data);
-        POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
-        break;
-      }
       case Instruction::UNUSED_3E ... Instruction::UNUSED_43:
-      case Instruction::UNUSED_FA ... Instruction::UNUSED_FF:
+      case Instruction::UNUSED_F3 ... Instruction::UNUSED_FF:
       case Instruction::UNUSED_79:
       case Instruction::UNUSED_7A:
         UnexpectedOpcode(inst, shadow_frame);

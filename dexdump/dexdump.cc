@@ -1060,20 +1060,6 @@ static void dumpInstruction(const DexFile* pDexFile,
       fprintf(gOutFile, "}, %s", indexBuf.get());
       break;
     }
-    case Instruction::k25x: {      // op vC, {vD, vE, vF, vG} (B: count)
-      u4 arg[Instruction::kMaxVarArgRegs25x];
-      pDecInsn->GetAllArgs25x(arg);
-      fprintf(gOutFile, " v%d, {", arg[0]);
-      for (int i = 0, n = pDecInsn->VRegB(); i < n; i++) {
-        if (i == 0) {
-          fprintf(gOutFile, "v%d", arg[Instruction::kLambdaVirtualRegisterWidth + i]);
-        } else {
-          fprintf(gOutFile, ", v%d", arg[Instruction::kLambdaVirtualRegisterWidth + i]);
-        }
-      }  // for
-      fputc('}', gOutFile);
-      break;
-    }
     case Instruction::k3rc:        // op {vCCCC .. v(CCCC+AA-1)}, thing@BBBB
     // NOT SUPPORTED:
     // case Instruction::k3rms:       // [opt] invoke-virtual+super/range

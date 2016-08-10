@@ -71,7 +71,7 @@ int const Instruction::kInstructionSizeInCodeUnits[] = {
 #define INSTRUCTION_SIZE(opcode, c, p, format, i, a, v) \
     (((opcode) == NOP)                        ? -1 :       \
      (((format) >= k10x) && ((format) <= k10t)) ?  1 :     \
-     (((format) >= k20t) && ((format) <= k25x)) ?  2 :     \
+     (((format) >= k20t) && ((format) <= k22c)) ?  2 :     \
      (((format) >= k32x) && ((format) <= k3rc)) ?  3 :     \
       ((format) == k51l)                      ?  5 : -1),
 #include "dex_instruction_list.h"
@@ -241,14 +241,6 @@ std::string Instruction::DumpString(const DexFile* file) const {
             break;
           }
           FALLTHROUGH_INTENDED;
-        case CREATE_LAMBDA:
-          if (file != nullptr) {
-            uint32_t method_idx = VRegB_21c();
-            os << opcode << " v" << static_cast<int>(VRegA_21c()) << ", " << PrettyMethod(method_idx, *file, true)
-               << " // method@" << method_idx;
-            break;
-          }
-          FALLTHROUGH_INTENDED;
         default:
           os << StringPrintf("%s v%d, thing@%d", opcode, VRegA_21c(), VRegB_21c());
           break;
@@ -328,26 +320,6 @@ std::string Instruction::DumpString(const DexFile* file) const {
           break;
       }
       break;
-    }
-    case k25x: {
-      if (Opcode() == INVOKE_LAMBDA) {
-        uint32_t arg[kMaxVarArgRegs25x];
-        GetAllArgs25x(arg);
-        const size_t num_extra_var_args = VRegB_25x();
-        DCHECK_LE(num_extra_var_args + 2, arraysize(arg));
-
-        // invoke-lambda vC, {vD, vE, vF, vG}
-        os << opcode << " v" << arg[0] << ", {";
-        for (size_t i = 0; i < num_extra_var_args; ++i) {
-          if (i != 0) {
-            os << ", ";
-          }
-          os << "v" << arg[i + 2];  // Don't print the pair of vC registers. Pair is implicit.
-        }
-        os << "}";
-        break;
-      }
-      FALLTHROUGH_INTENDED;
     }
     case k32x:  os << StringPrintf("%s v%d, v%d", opcode, VRegA_32x(), VRegB_32x()); break;
     case k30t:  os << StringPrintf("%s %+d", opcode, VRegA_30t()); break;

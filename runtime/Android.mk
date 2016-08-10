@@ -109,11 +109,6 @@ LIBART_COMMON_SRC_FILES := \
   jit/offline_profiling_info.cc \
   jit/profiling_info.cc \
   jit/profile_saver.cc  \
-  lambda/art_lambda_method.cc \
-  lambda/box_table.cc \
-  lambda/closure.cc \
-  lambda/closure_builder.cc \
-  lambda/leaking_allocator.cc \
   jni_internal.cc \
   jobject_comparator.cc \
   linear_alloc.cc \
