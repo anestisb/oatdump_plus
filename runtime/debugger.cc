@@ -1454,6 +1454,15 @@ static uint16_t MangleSlot(uint16_t slot, ArtMethod* m)
   }
 }
 
+static size_t GetMethodNumArgRegistersIncludingThis(ArtMethod* method)
+    SHARED_REQUIRES(Locks::mutator_lock_) {
+  uint32_t num_registers = ArtMethod::NumArgRegisters(method->GetShorty());
+  if (!method->IsStatic()) {
+    ++num_registers;
+  }
+  return num_registers;
+}
+
 /*
  * Circularly shifts registers so that arguments come last. Reverts
  * slots to dex style argument placement.
@@ -1465,7 +1474,7 @@ static uint16_t DemangleSlot(uint16_t slot, ArtMethod* m, JDWP::JdwpError* error
     // We should not get here for a method without code (native, proxy or abstract). Log it and
     // return the slot as is since all registers are arguments.
     LOG(WARNING) << "Trying to demangle slot for method without code " << PrettyMethod(m);
-    uint16_t vreg_count = ArtMethod::NumArgRegisters(m->GetShorty());
+    uint16_t vreg_count = GetMethodNumArgRegistersIncludingThis(m);
     if (slot < vreg_count) {
       *error = JDWP::ERR_NONE;
       return slot;
@@ -1637,8 +1646,7 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId, JDWP::MethodId method_id, bool wi
 
   // arg_count considers doubles and longs to take 2 units.
   // variable_count considers everything to take 1 unit.
-  std::string shorty(m->GetShorty());
-  expandBufAdd4BE(pReply, ArtMethod::NumArgRegisters(shorty));
+  expandBufAdd4BE(pReply, GetMethodNumArgRegistersIncludingThis(m));
 
   // We don't know the total number of variables yet, so leave a blank and update it later.
   size_t variable_count_offset = expandBufGetLength(pReply);
