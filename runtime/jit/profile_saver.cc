@@ -163,14 +163,13 @@ void ProfileSaver::NotifyJitActivityInternal() {
     MutexLock wait_mutex(Thread::Current(), wait_lock_);
     if ((NanoTime() - last_time_ns_saver_woke_up_) > MsToNs(options_.GetMinSavePeriodMs())) {
       WakeUpSaver();
+    } else if (jit_activity_notifications_ > options_.GetMaxNotificationBeforeWake()) {
+      // Make sure to wake up the saver if we see a spike in the number of notifications.
+      // This is a precaution to avoid losing a big number of methods in case
+      // this is a spike with no jit after.
+      total_number_of_hot_spikes_++;
+      WakeUpSaver();
     }
-  } else if (jit_activity_notifications_ > options_.GetMaxNotificationBeforeWake()) {
-    // Make sure to wake up the saver if we see a spike in the number of notifications.
-    // This is a precaution to avoid "loosing" a big number of methods in case
-    // this is a spike with no jit after.
-    total_number_of_hot_spikes_++;
-    MutexLock wait_mutex(Thread::Current(), wait_lock_);
-    WakeUpSaver();
   }
 }
 
