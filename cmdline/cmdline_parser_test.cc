@@ -501,11 +501,6 @@ TEST_F(CmdlineParserTest, TestExperimentalFlags) {
   EXPECT_SINGLE_PARSE_VALUE(ExperimentalFlags::kNone,
                             "-Xexperimental:none",
                             M::Experimental);
-
-  // Enabled explicitly
-  EXPECT_SINGLE_PARSE_VALUE(ExperimentalFlags::kLambdas,
-                            "-Xexperimental:lambdas",
-                            M::Experimental);
 }
 
 // -Xverify:_

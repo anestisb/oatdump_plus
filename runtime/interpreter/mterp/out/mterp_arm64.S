@@ -6785,9 +6785,13 @@ artMterpAsmInstructionStart = .L_op_nop
 
 /* ------------------------------ */
     .balign 128
-.L_op_invoke_lambda: /* 0xf3 */
-/* Transfer stub to alternate interpreter */
-    b    MterpFallback
+.L_op_unused_f3: /* 0xf3 */
+/* File: arm64/op_unused_f3.S */
+/* File: arm64/unused.S */
+/*
+ * Bail to reference interpreter to throw.
+ */
+  b MterpFallback
 
 
 /* ------------------------------ */
@@ -6803,37 +6807,57 @@ artMterpAsmInstructionStart = .L_op_nop
 
 /* ------------------------------ */
     .balign 128
-.L_op_capture_variable: /* 0xf5 */
-/* Transfer stub to alternate interpreter */
-    b    MterpFallback
+.L_op_unused_f5: /* 0xf5 */
+/* File: arm64/op_unused_f5.S */
+/* File: arm64/unused.S */
+/*
+ * Bail to reference interpreter to throw.
+ */
+  b MterpFallback
 
 
 /* ------------------------------ */
     .balign 128
-.L_op_create_lambda: /* 0xf6 */
-/* Transfer stub to alternate interpreter */
-    b    MterpFallback
+.L_op_unused_f6: /* 0xf6 */
+/* File: arm64/op_unused_f6.S */
+/* File: arm64/unused.S */
+/*
+ * Bail to reference interpreter to throw.
+ */
+  b MterpFallback
 
 
 /* ------------------------------ */
     .balign 128
-.L_op_liberate_variable: /* 0xf7 */
-/* Transfer stub to alternate interpreter */
-    b    MterpFallback
+.L_op_unused_f7: /* 0xf7 */
+/* File: arm64/op_unused_f7.S */
+/* File: arm64/unused.S */
+/*
+ * Bail to reference interpreter to throw.
+ */
+  b MterpFallback
 
 
 /* ------------------------------ */
     .balign 128
-.L_op_box_lambda: /* 0xf8 */
-/* Transfer stub to alternate interpreter */
-    b    MterpFallback
+.L_op_unused_f8: /* 0xf8 */
+/* File: arm64/op_unused_f8.S */
+/* File: arm64/unused.S */
+/*
+ * Bail to reference interpreter to throw.
+ */
+  b MterpFallback
 
 
 /* ------------------------------ */
     .balign 128
-.L_op_unbox_lambda: /* 0xf9 */
-/* Transfer stub to alternate interpreter */
-    b    MterpFallback
+.L_op_unused_f9: /* 0xf9 */
+/* File: arm64/op_unused_f9.S */
+/* File: arm64/unused.S */
+/*
+ * Bail to reference interpreter to throw.
+ */
+  b MterpFallback
 
 
 /* ------------------------------ */
@@ -11376,7 +11400,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
 
 /* ------------------------------ */
     .balign 128
-.L_ALT_op_invoke_lambda: /* 0xf3 */
+.L_ALT_op_unused_f3: /* 0xf3 */
 /* File: arm64/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to MterpCheckBefore to handle
@@ -11410,7 +11434,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
 
 /* ------------------------------ */
     .balign 128
-.L_ALT_op_capture_variable: /* 0xf5 */
+.L_ALT_op_unused_f5: /* 0xf5 */
 /* File: arm64/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to MterpCheckBefore to handle
@@ -11427,7 +11451,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
 
 /* ------------------------------ */
     .balign 128
-.L_ALT_op_create_lambda: /* 0xf6 */
+.L_ALT_op_unused_f6: /* 0xf6 */
 /* File: arm64/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to MterpCheckBefore to handle
@@ -11444,7 +11468,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
 
 /* ------------------------------ */
     .balign 128
-.L_ALT_op_liberate_variable: /* 0xf7 */
+.L_ALT_op_unused_f7: /* 0xf7 */
 /* File: arm64/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to MterpCheckBefore to handle
@@ -11461,7 +11485,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
 
 /* ------------------------------ */
     .balign 128
-.L_ALT_op_box_lambda: /* 0xf8 */
+.L_ALT_op_unused_f8: /* 0xf8 */
 /* File: arm64/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to MterpCheckBefore to handle
@@ -11478,7 +11502,7 @@ artMterpAsmAltInstructionStart = .L_ALT_op_nop
 
 /* ------------------------------ */
     .balign 128
-.L_ALT_op_unbox_lambda: /* 0xf9 */
+.L_ALT_op_unused_f9: /* 0xf9 */
 /* File: arm64/alt_stub.S */
 /*
  * Inter-instruction transfer stub.  Call out to MterpCheckBefore to handle
