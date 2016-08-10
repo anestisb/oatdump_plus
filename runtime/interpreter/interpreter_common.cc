@@ -30,9 +30,6 @@
 namespace art {
 namespace interpreter {
 
-// All lambda closures have to be a consecutive pair of virtual registers.
-static constexpr size_t kLambdaVirtualRegisterWidth = 2;
-
 void ThrowNullPointerExceptionFromInterpreter() {
   ThrowNullPointerExceptionFromDexPC();
 }
@@ -732,7 +729,6 @@ static inline bool DoCallCommon(ArtMethod* called_method,
 
     // Fast path: no extra checks.
     if (is_range) {
-      // TODO: Implement the range version of invoke-lambda
       uint16_t first_src_reg = vregC;
 
       for (size_t src_reg = first_src_reg, dest_reg = first_dest_reg; dest_reg < num_regs;
@@ -769,34 +765,6 @@ static inline bool DoCallCommon(ArtMethod* called_method,
   }
 
   return !self->IsExceptionPending();
-}
-
-template<bool is_range, bool do_assignability_check>
-bool DoLambdaCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
-                  const Instruction* inst, uint16_t inst_data ATTRIBUTE_UNUSED, JValue* result) {
-  const uint4_t num_additional_registers = inst->VRegB_25x();
-  // Argument word count.
-  const uint16_t number_of_inputs = num_additional_registers + kLambdaVirtualRegisterWidth;
-  // The lambda closure register is always present and is not encoded in the count.
-  // Furthermore, the lambda closure register is always wide, so it counts as 2 inputs.
-
-  // TODO: find a cleaner way to separate non-range and range information without duplicating
-  //       code.
-  uint32_t arg[Instruction::kMaxVarArgRegs25x];  // only used in invoke-XXX.
-  uint32_t vregC = 0;   // only used in invoke-XXX-range.
-  if (is_range) {
-    vregC = inst->VRegC_3rc();
-  } else {
-    // TODO(iam): See if it's possible to remove inst_data dependency from 35x to avoid this path
-    inst->GetAllArgs25x(arg);
-  }
-
-  // TODO: if there's an assignability check, throw instead?
-  DCHECK(called_method->IsStatic());
-
-  return DoCallCommon<is_range, do_assignability_check>(
-      called_method, self, shadow_frame,
-      result, number_of_inputs, arg, vregC);
 }
 
 template<bool is_range, bool do_assignability_check>
@@ -946,20 +914,6 @@ EXPLICIT_DO_CALL_TEMPLATE_DECL(false, true);
 EXPLICIT_DO_CALL_TEMPLATE_DECL(true, false);
 EXPLICIT_DO_CALL_TEMPLATE_DECL(true, true);
 #undef EXPLICIT_DO_CALL_TEMPLATE_DECL
-
-// Explicit DoLambdaCall template function declarations.
-#define EXPLICIT_DO_LAMBDA_CALL_TEMPLATE_DECL(_is_range, _do_assignability_check)               \
-  template SHARED_REQUIRES(Locks::mutator_lock_)                                                \
-  bool DoLambdaCall<_is_range, _do_assignability_check>(ArtMethod* method, Thread* self,        \
-                                                        ShadowFrame& shadow_frame,              \
-                                                        const Instruction* inst,                \
-                                                        uint16_t inst_data,                     \
-                                                        JValue* result)
-EXPLICIT_DO_LAMBDA_CALL_TEMPLATE_DECL(false, false);
-EXPLICIT_DO_LAMBDA_CALL_TEMPLATE_DECL(false, true);
-EXPLICIT_DO_LAMBDA_CALL_TEMPLATE_DECL(true, false);
-EXPLICIT_DO_LAMBDA_CALL_TEMPLATE_DECL(true, true);
-#undef EXPLICIT_DO_LAMBDA_CALL_TEMPLATE_DECL
 
 // Explicit DoFilledNewArray template function declarations.
 #define EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(_is_range_, _check, _transaction_active)       \

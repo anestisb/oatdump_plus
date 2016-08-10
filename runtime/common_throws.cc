@@ -640,14 +640,6 @@ void ThrowNullPointerExceptionFromDexPC(bool check_address, uintptr_t addr) {
                      "Attempt to write to null array");
       break;
     }
-    case Instruction::INVOKE_LAMBDA:
-    case Instruction::BOX_LAMBDA:
-    case Instruction::UNBOX_LAMBDA:
-    case Instruction::LIBERATE_VARIABLE: {
-      ThrowException("Ljava/lang/NullPointerException;", nullptr,
-                     "Using a null lambda");
-      break;
-    }
     case Instruction::MONITOR_ENTER:
     case Instruction::MONITOR_EXIT: {
       ThrowException("Ljava/lang/NullPointerException;", nullptr,

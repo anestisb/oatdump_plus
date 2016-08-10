@@ -41,6 +41,7 @@
 #include "mirror/array-inl.h"
 #include "mirror/class.h"
 #include "mirror/field-inl.h"
+#include "mirror/method.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"

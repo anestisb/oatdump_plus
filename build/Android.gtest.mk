@@ -234,8 +234,6 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/interpreter/unstarted_runtime_test.cc \
   runtime/java_vm_ext_test.cc \
   runtime/jit/profile_compilation_info_test.cc \
-  runtime/lambda/closure_test.cc \
-  runtime/lambda/shorty_field_type_test.cc \
   runtime/leb128_test.cc \
   runtime/mem_map_test.cc \
   runtime/memory_region_test.cc \
