@@ -435,18 +435,9 @@ extern const char* kConditionNames[];
 // This is an abstract ARM assembler.  Subclasses provide assemblers for the individual
 // instruction sets (ARM32, Thumb2, etc.)
 //
-class ArmAssembler : public Assembler, public JNIMacroAssembler<PointerSize::k32> {
+class ArmAssembler : public Assembler {
  public:
   virtual ~ArmAssembler() {}
-
-  size_t CodeSize() const OVERRIDE { return Assembler::CodeSize(); }
-  DebugFrameOpCodeWriterForAssembler& cfi() { return Assembler::cfi(); }
-  void FinalizeCode() OVERRIDE {
-    Assembler::FinalizeCode();
-  }
-  void FinalizeInstructions(const MemoryRegion& region) {
-    Assembler::FinalizeInstructions(region);
-  }
 
   // Is this assembler for the thumb instruction set?
   virtual bool IsThumb() const = 0;
@@ -891,121 +882,6 @@ class ArmAssembler : public Assembler, public JNIMacroAssembler<PointerSize::k32
   virtual void CompareAndBranchIfZero(Register r, Label* label) = 0;
   virtual void CompareAndBranchIfNonZero(Register r, Label* label) = 0;
 
-  //
-  // Overridden common assembler high-level functionality
-  //
-
-  // Emit code that will create an activation on the stack
-  void BuildFrame(size_t frame_size,
-                  ManagedRegister method_reg,
-                  ArrayRef<const ManagedRegister> callee_save_regs,
-                  const ManagedRegisterEntrySpills& entry_spills) OVERRIDE;
-
-  // Emit code that will remove an activation from the stack
-  void RemoveFrame(size_t frame_size, ArrayRef<const ManagedRegister> callee_save_regs)
-    OVERRIDE;
-
-  void IncreaseFrameSize(size_t adjust) OVERRIDE;
-  void DecreaseFrameSize(size_t adjust) OVERRIDE;
-
-  // Store routines
-  void Store(FrameOffset offs, ManagedRegister src, size_t size) OVERRIDE;
-  void StoreRef(FrameOffset dest, ManagedRegister src) OVERRIDE;
-  void StoreRawPtr(FrameOffset dest, ManagedRegister src) OVERRIDE;
-
-  void StoreImmediateToFrame(FrameOffset dest, uint32_t imm, ManagedRegister scratch) OVERRIDE;
-
-  void StoreStackOffsetToThread(ThreadOffset32 thr_offs,
-                                FrameOffset fr_offs,
-                                ManagedRegister scratch) OVERRIDE;
-
-  void StoreStackPointerToThread(ThreadOffset32 thr_offs) OVERRIDE;
-
-  void StoreSpanning(FrameOffset dest, ManagedRegister src, FrameOffset in_off,
-                     ManagedRegister scratch) OVERRIDE;
-
-  // Load routines
-  void Load(ManagedRegister dest, FrameOffset src, size_t size) OVERRIDE;
-
-  void LoadFromThread(ManagedRegister dest, ThreadOffset32 src, size_t size) OVERRIDE;
-
-  void LoadRef(ManagedRegister dest, FrameOffset src) OVERRIDE;
-
-  void LoadRef(ManagedRegister dest, ManagedRegister base, MemberOffset offs,
-               bool unpoison_reference) OVERRIDE;
-
-  void LoadRawPtr(ManagedRegister dest, ManagedRegister base, Offset offs) OVERRIDE;
-
-  void LoadRawPtrFromThread(ManagedRegister dest, ThreadOffset32 offs) OVERRIDE;
-
-  // Copying routines
-  void Move(ManagedRegister dest, ManagedRegister src, size_t size) OVERRIDE;
-
-  void CopyRawPtrFromThread(FrameOffset fr_offs,
-                            ThreadOffset32 thr_offs,
-                            ManagedRegister scratch) OVERRIDE;
-
-  void CopyRawPtrToThread(ThreadOffset32 thr_offs, FrameOffset fr_offs, ManagedRegister scratch)
-      OVERRIDE;
-
-  void CopyRef(FrameOffset dest, FrameOffset src, ManagedRegister scratch) OVERRIDE;
-
-  void Copy(FrameOffset dest, FrameOffset src, ManagedRegister scratch, size_t size) OVERRIDE;
-
-  void Copy(FrameOffset dest, ManagedRegister src_base, Offset src_offset, ManagedRegister scratch,
-            size_t size) OVERRIDE;
-
-  void Copy(ManagedRegister dest_base, Offset dest_offset, FrameOffset src, ManagedRegister scratch,
-            size_t size) OVERRIDE;
-
-  void Copy(FrameOffset dest, FrameOffset src_base, Offset src_offset, ManagedRegister scratch,
-            size_t size) OVERRIDE;
-
-  void Copy(ManagedRegister dest, Offset dest_offset, ManagedRegister src, Offset src_offset,
-            ManagedRegister scratch, size_t size) OVERRIDE;
-
-  void Copy(FrameOffset dest, Offset dest_offset, FrameOffset src, Offset src_offset,
-            ManagedRegister scratch, size_t size) OVERRIDE;
-
-  // Sign extension
-  void SignExtend(ManagedRegister mreg, size_t size) OVERRIDE;
-
-  // Zero extension
-  void ZeroExtend(ManagedRegister mreg, size_t size) OVERRIDE;
-
-  // Exploit fast access in managed code to Thread::Current()
-  void GetCurrentThread(ManagedRegister tr) OVERRIDE;
-  void GetCurrentThread(FrameOffset dest_offset, ManagedRegister scratch) OVERRIDE;
-
-  // Set up out_reg to hold a Object** into the handle scope, or to be null if the
-  // value is null and null_allowed. in_reg holds a possibly stale reference
-  // that can be used to avoid loading the handle scope entry to see if the value is
-  // null.
-  void CreateHandleScopeEntry(ManagedRegister out_reg, FrameOffset handlescope_offset,
-                              ManagedRegister in_reg, bool null_allowed) OVERRIDE;
-
-  // Set up out_off to hold a Object** into the handle scope, or to be null if the
-  // value is null and null_allowed.
-  void CreateHandleScopeEntry(FrameOffset out_off, FrameOffset handlescope_offset,
-                              ManagedRegister scratch, bool null_allowed) OVERRIDE;
-
-  // src holds a handle scope entry (Object**) load this into dst
-  void LoadReferenceFromHandleScope(ManagedRegister dst, ManagedRegister src) OVERRIDE;
-
-  // Heap::VerifyObject on src. In some cases (such as a reference to this) we
-  // know that src may not be null.
-  void VerifyObject(ManagedRegister src, bool could_be_null) OVERRIDE;
-  void VerifyObject(FrameOffset src, bool could_be_null) OVERRIDE;
-
-  // Call to address held at [base+offset]
-  void Call(ManagedRegister base, Offset offset, ManagedRegister scratch) OVERRIDE;
-  void Call(FrameOffset base, Offset offset, ManagedRegister scratch) OVERRIDE;
-  void CallFromThread(ThreadOffset32 offset, ManagedRegister scratch) OVERRIDE;
-
-  // Generate code to check if Thread::Current()->exception_ is non-null
-  // and branch to a ExceptionSlowPath if it is.
-  void ExceptionPoll(ManagedRegister scratch, size_t stack_adjust) OVERRIDE;
-
   static uint32_t ModifiedImmediate(uint32_t value);
 
   static bool IsLowRegister(Register r) {
@@ -1081,18 +957,6 @@ class ArmAssembler : public Assembler, public JNIMacroAssembler<PointerSize::k32
 
   // Tracked labels. Use a vector, as we need to sort before adjusting.
   ArenaVector<Label*> tracked_labels_;
-};
-
-// Slowpath entered when Thread::Current()->_exception is non-null
-class ArmExceptionSlowPath FINAL : public SlowPath {
- public:
-  ArmExceptionSlowPath(ArmManagedRegister scratch, size_t stack_adjust)
-      : scratch_(scratch), stack_adjust_(stack_adjust) {
-  }
-  void Emit(Assembler *sp_asm) OVERRIDE;
- private:
-  const ArmManagedRegister scratch_;
-  const size_t stack_adjust_;
 };
 
 }  // namespace arm
