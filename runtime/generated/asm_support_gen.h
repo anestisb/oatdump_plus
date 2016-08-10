@@ -26,14 +26,14 @@ DEFINE_CHECK_EQ(static_cast<size_t>(STACK_REFERENCE_SIZE), (static_cast<size_t>(
 DEFINE_CHECK_EQ(static_cast<size_t>(COMPRESSED_REFERENCE_SIZE), (static_cast<size_t>(sizeof(art::mirror::CompressedReference<art::mirror::Object>))))
 #define COMPRESSED_REFERENCE_SIZE_SHIFT 0x2
 DEFINE_CHECK_EQ(static_cast<size_t>(COMPRESSED_REFERENCE_SIZE_SHIFT), (static_cast<size_t>(art::WhichPowerOf2(sizeof(art::mirror::CompressedReference<art::mirror::Object>)))))
-#define RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET 0
-DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET), (static_cast<size_t>(art::Runtime::GetCalleeSaveMethodOffset(art::Runtime:: kSaveAll))))
-#define RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET 0x8
-DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET), (static_cast<size_t>(art::Runtime::GetCalleeSaveMethodOffset(art::Runtime:: kRefsOnly))))
-#define RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET 0x10
-DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET), (static_cast<size_t>(art::Runtime::GetCalleeSaveMethodOffset(art::Runtime:: kRefsAndArgs))))
-#define RUNTIME_SAVE_EVERYTHING_CALLEE_SAVE_FRAME_OFFSET 0x18
-DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_SAVE_EVERYTHING_CALLEE_SAVE_FRAME_OFFSET), (static_cast<size_t>(art::Runtime::GetCalleeSaveMethodOffset(art::Runtime:: kSaveEverything))))
+#define RUNTIME_SAVE_ALL_CALLEE_SAVES_METHOD_OFFSET 0
+DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_SAVE_ALL_CALLEE_SAVES_METHOD_OFFSET), (static_cast<size_t>(art::Runtime::GetCalleeSaveMethodOffset(art::Runtime:: kSaveAllCalleeSaves))))
+#define RUNTIME_SAVE_REFS_ONLY_METHOD_OFFSET 0x8
+DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_SAVE_REFS_ONLY_METHOD_OFFSET), (static_cast<size_t>(art::Runtime::GetCalleeSaveMethodOffset(art::Runtime:: kSaveRefsOnly))))
+#define RUNTIME_SAVE_REFS_AND_ARGS_METHOD_OFFSET 0x10
+DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_SAVE_REFS_AND_ARGS_METHOD_OFFSET), (static_cast<size_t>(art::Runtime::GetCalleeSaveMethodOffset(art::Runtime:: kSaveRefsAndArgs))))
+#define RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET 0x18
+DEFINE_CHECK_EQ(static_cast<size_t>(RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET), (static_cast<size_t>(art::Runtime::GetCalleeSaveMethodOffset(art::Runtime:: kSaveEverything))))
 #define THREAD_FLAGS_OFFSET 0
 DEFINE_CHECK_EQ(static_cast<int32_t>(THREAD_FLAGS_OFFSET), (static_cast<int32_t>(art::Thread:: ThreadFlagsOffset<art::kRuntimePointerSize>().Int32Value())))
 #define THREAD_ID_OFFSET 12

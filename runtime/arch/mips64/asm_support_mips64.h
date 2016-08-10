@@ -20,12 +20,12 @@
 #include "asm_support.h"
 
 // 64 ($f24-$f31) + 64 ($s0-$s7) + 8 ($gp) + 8 ($s8) + 8 ($ra) + 1x8 bytes padding
-#define FRAME_SIZE_SAVE_ALL_CALLEE_SAVE 160
+#define FRAME_SIZE_SAVE_ALL_CALLEE_SAVES 160
 // 48 ($s2-$s7) + 8 ($gp) + 8 ($s8) + 8 ($ra) + 1x8 bytes padding
-#define FRAME_SIZE_REFS_ONLY_CALLEE_SAVE 80
+#define FRAME_SIZE_SAVE_REFS_ONLY 80
 // $f12-$f19, $a1-$a7, $s2-$s7 + $gp + $s8 + $ra, 16 total + 1x8 bytes padding + method*
-#define FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE 208
+#define FRAME_SIZE_SAVE_REFS_AND_ARGS 208
 // $f0-$f31, $at, $v0-$v1, $a0-$a7, $t0-$t3, $s0-$s7, $t8-$t9, $gp, $s8, $ra + padding + method*
-#define FRAME_SIZE_SAVE_EVERYTHING_CALLEE_SAVE 496
+#define FRAME_SIZE_SAVE_EVERYTHING 496
 
 #endif  // ART_RUNTIME_ARCH_MIPS64_ASM_SUPPORT_MIPS64_H_

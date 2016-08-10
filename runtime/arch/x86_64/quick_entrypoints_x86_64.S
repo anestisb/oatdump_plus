@@ -42,9 +42,9 @@ END_MACRO
 
     /*
      * Macro that sets up the callee save frame to conform with
-     * Runtime::CreateCalleeSaveMethod(kSaveAll)
+     * Runtime::CreateCalleeSaveMethod(kSaveAllCalleeSaves)
      */
-MACRO0(SETUP_SAVE_ALL_CALLEE_SAVE_FRAME)
+MACRO0(SETUP_SAVE_ALL_CALLEE_SAVES_FRAME)
 #if defined(__APPLE__)
     int3
     int3
@@ -68,7 +68,7 @@ MACRO0(SETUP_SAVE_ALL_CALLEE_SAVE_FRAME)
     movq %xmm14, 24(%rsp)
     movq %xmm15, 32(%rsp)
     // R10 := ArtMethod* for save all callee save frame method.
-    movq RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
+    movq RUNTIME_SAVE_ALL_CALLEE_SAVES_METHOD_OFFSET(%r10), %r10
     // Store ArtMethod* to bottom of stack.
     movq %r10, 0(%rsp)
     // Store rsp as the top quick frame.
@@ -76,17 +76,17 @@ MACRO0(SETUP_SAVE_ALL_CALLEE_SAVE_FRAME)
 
     // Ugly compile-time check, but we only have the preprocessor.
     // Last +8: implicit return address pushed on stack when caller made call.
-#if (FRAME_SIZE_SAVE_ALL_CALLEE_SAVE != 6 * 8 + 4 * 8 + 8 + 8)
-#error "SAVE_ALL_CALLEE_SAVE_FRAME(X86_64) size not as expected."
+#if (FRAME_SIZE_SAVE_ALL_CALLEE_SAVES != 6 * 8 + 4 * 8 + 8 + 8)
+#error "FRAME_SIZE_SAVE_ALL_CALLEE_SAVES(X86_64) size not as expected."
 #endif
 #endif  // __APPLE__
 END_MACRO
 
     /*
      * Macro that sets up the callee save frame to conform with
-     * Runtime::CreateCalleeSaveMethod(kRefsOnly)
+     * Runtime::CreateCalleeSaveMethod(kSaveRefsOnly)
      */
-MACRO0(SETUP_REFS_ONLY_CALLEE_SAVE_FRAME)
+MACRO0(SETUP_SAVE_REFS_ONLY_FRAME)
 #if defined(__APPLE__)
     int3
     int3
@@ -110,7 +110,7 @@ MACRO0(SETUP_REFS_ONLY_CALLEE_SAVE_FRAME)
     movq %xmm14, 24(%rsp)
     movq %xmm15, 32(%rsp)
     // R10 := ArtMethod* for refs only callee save frame method.
-    movq RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
+    movq RUNTIME_SAVE_REFS_ONLY_METHOD_OFFSET(%r10), %r10
     // Store ArtMethod* to bottom of stack.
     movq %r10, 0(%rsp)
     // Store rsp as the stop quick frame.
@@ -118,13 +118,13 @@ MACRO0(SETUP_REFS_ONLY_CALLEE_SAVE_FRAME)
 
     // Ugly compile-time check, but we only have the preprocessor.
     // Last +8: implicit return address pushed on stack when caller made call.
-#if (FRAME_SIZE_REFS_ONLY_CALLEE_SAVE != 6 * 8 + 4 * 8 + 8 + 8)
-#error "REFS_ONLY_CALLEE_SAVE_FRAME(X86_64) size not as expected."
+#if (FRAME_SIZE_SAVE_REFS_ONLY != 6 * 8 + 4 * 8 + 8 + 8)
+#error "FRAME_SIZE_SAVE_REFS_ONLY(X86_64) size not as expected."
 #endif
 #endif  // __APPLE__
 END_MACRO
 
-MACRO0(RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME)
+MACRO0(RESTORE_SAVE_REFS_ONLY_FRAME)
     movq 8(%rsp), %xmm12
     movq 16(%rsp), %xmm13
     movq 24(%rsp), %xmm14
@@ -142,9 +142,9 @@ END_MACRO
 
     /*
      * Macro that sets up the callee save frame to conform with
-     * Runtime::CreateCalleeSaveMethod(kRefsAndArgs)
+     * Runtime::CreateCalleeSaveMethod(kSaveRefsAndArgs)
      */
-MACRO0(SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME)
+MACRO0(SETUP_SAVE_REFS_AND_ARGS_FRAME)
 #if defined(__APPLE__)
     int3
     int3
@@ -168,7 +168,7 @@ MACRO0(SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME)
     subq MACRO_LITERAL(16 + 12 * 8), %rsp
     CFI_ADJUST_CFA_OFFSET(16 + 12 * 8)
     // R10 := ArtMethod* for ref and args callee save frame method.
-    movq RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET(%r10), %r10
+    movq RUNTIME_SAVE_REFS_AND_ARGS_METHOD_OFFSET(%r10), %r10
     // Save FPRs.
     movq %xmm0, 16(%rsp)
     movq %xmm1, 24(%rsp)
@@ -189,13 +189,13 @@ MACRO0(SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME)
 
     // Ugly compile-time check, but we only have the preprocessor.
     // Last +8: implicit return address pushed on stack when caller made call.
-#if (FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE != 11 * 8 + 12 * 8 + 16 + 8)
-#error "REFS_AND_ARGS_CALLEE_SAVE_FRAME(X86_64) size not as expected."
+#if (FRAME_SIZE_SAVE_REFS_AND_ARGS != 11 * 8 + 12 * 8 + 16 + 8)
+#error "FRAME_SIZE_SAVE_REFS_AND_ARGS(X86_64) size not as expected."
 #endif
 #endif  // __APPLE__
 END_MACRO
 
-MACRO0(SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_WITH_METHOD_IN_RDI)
+MACRO0(SETUP_SAVE_REFS_AND_ARGS_FRAME_WITH_METHOD_IN_RDI)
     // Save callee and GPR args, mixed together to agree with core spills bitmap.
     PUSH r15  // Callee save.
     PUSH r14  // Callee save.
@@ -230,7 +230,7 @@ MACRO0(SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_WITH_METHOD_IN_RDI)
     movq %rsp, %gs:THREAD_TOP_QUICK_FRAME_OFFSET
 END_MACRO
 
-MACRO0(RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME)
+MACRO0(RESTORE_SAVE_REFS_AND_ARGS_FRAME)
     // Restore FPRs.
     movq 16(%rsp), %xmm0
     movq 24(%rsp), %xmm1
@@ -264,7 +264,7 @@ END_MACRO
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveEverything)
      */
-MACRO0(SETUP_SAVE_EVERYTHING_CALLEE_SAVE_FRAME)
+MACRO0(SETUP_SAVE_EVERYTHING_FRAME)
 #if defined(__APPLE__)
     int3
     int3
@@ -309,20 +309,20 @@ MACRO0(SETUP_SAVE_EVERYTHING_CALLEE_SAVE_FRAME)
     movq %xmm14, 120(%rsp)
     movq %xmm15, 128(%rsp)
     // Push ArtMethod* for save everything frame method.
-    pushq RUNTIME_SAVE_EVERYTHING_CALLEE_SAVE_FRAME_OFFSET(%r10)
+    pushq RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET(%r10)
     CFI_ADJUST_CFA_OFFSET(8)
     // Store rsp as the top quick frame.
     movq %rsp, %gs:THREAD_TOP_QUICK_FRAME_OFFSET
 
     // Ugly compile-time check, but we only have the preprocessor.
     // Last +8: implicit return address pushed on stack when caller made call.
-#if (FRAME_SIZE_SAVE_EVERYTHING_CALLEE_SAVE != 15 * 8 + 16 * 8 + 16 + 8)
-#error "SAVE_EVERYTHING_CALLEE_SAVE_FRAME(X86_64) size not as expected."
+#if (FRAME_SIZE_SAVE_EVERYTHING != 15 * 8 + 16 * 8 + 16 + 8)
+#error "FRAME_SIZE_SAVE_EVERYTHING(X86_64) size not as expected."
 #endif
 #endif  // __APPLE__
 END_MACRO
 
-MACRO0(RESTORE_SAVE_EVERYTHING_CALLEE_SAVE_FRAME)
+MACRO0(RESTORE_SAVE_EVERYTHING_FRAME)
     // Restore FPRs. Method and padding is still on the stack.
     movq 16(%rsp), %xmm0
     movq 24(%rsp), %xmm1
@@ -368,7 +368,7 @@ END_MACRO
      * exception is Thread::Current()->exception_.
      */
 MACRO0(DELIVER_PENDING_EXCEPTION)
-    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME         // save callee saves for throw
+    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME        // save callee saves for throw
     // (Thread*) setup
     movq %gs:THREAD_SELF_OFFSET, %rdi
     call SYMBOL(artDeliverPendingExceptionFromCode)  // artDeliverPendingExceptionFromCode(Thread*)
@@ -377,7 +377,7 @@ END_MACRO
 
 MACRO2(NO_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
     DEFINE_FUNCTION VAR(c_name)
-    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME   // save all registers as basis for long jump context
+    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME  // save all registers as basis for long jump context
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rdi  // pass Thread::Current()
     call CALLVAR(cxx_name)             // cxx_name(Thread*)
@@ -387,7 +387,7 @@ END_MACRO
 
 MACRO2(ONE_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
     DEFINE_FUNCTION VAR(c_name)
-    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME   // save all registers as basis for long jump context
+    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME  // save all registers as basis for long jump context
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rsi  // pass Thread::Current()
     call CALLVAR(cxx_name)             // cxx_name(arg1, Thread*)
@@ -397,7 +397,7 @@ END_MACRO
 
 MACRO2(TWO_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
     DEFINE_FUNCTION VAR(c_name)
-    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME   // save all registers as basis for long jump context
+    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME  // save all registers as basis for long jump context
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rdx  // pass Thread::Current()
     call CALLVAR(cxx_name)             // cxx_name(Thread*)
@@ -466,7 +466,7 @@ TWO_ARG_RUNTIME_EXCEPTION art_quick_throw_string_bounds, artThrowStringBoundsFro
      * Adapted from x86 code.
      */
 MACRO1(INVOKE_TRAMPOLINE_BODY, cxx_name)
-    SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME  // save callee saves in case allocation triggers GC
+    SETUP_SAVE_REFS_AND_ARGS_FRAME  // save callee saves in case allocation triggers GC
     // Helper signature is always
     // (method_idx, *this_object, *caller_method, *self, sp)
 
@@ -477,7 +477,7 @@ MACRO1(INVOKE_TRAMPOLINE_BODY, cxx_name)
                                                            // save the code pointer
     movq %rax, %rdi
     movq %rdx, %rax
-    RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME
 
     testq %rdi, %rdi
     jz 1f
@@ -806,44 +806,44 @@ END_FUNCTION art_quick_do_long_jump
 
 MACRO3(ONE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name)
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    // save ref containing registers for GC
+    SETUP_SAVE_REFS_ONLY_FRAME           // save ref containing registers for GC
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rsi    // pass Thread::Current()
     call CALLVAR(cxx_name)               // cxx_name(arg0, Thread*)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
+    RESTORE_SAVE_REFS_ONLY_FRAME         // restore frame up to return address
     CALL_MACRO(return_macro)             // return or deliver exception
     END_FUNCTION VAR(c_name)
 END_MACRO
 
 MACRO3(TWO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name)
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    // save ref containing registers for GC
+    SETUP_SAVE_REFS_ONLY_FRAME           // save ref containing registers for GC
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rdx    // pass Thread::Current()
     call CALLVAR(cxx_name)               // cxx_name(arg0, arg1, Thread*)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
+    RESTORE_SAVE_REFS_ONLY_FRAME         // restore frame up to return address
     CALL_MACRO(return_macro)             // return or deliver exception
     END_FUNCTION VAR(c_name)
 END_MACRO
 
 MACRO3(THREE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name)
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME   // save ref containing registers for GC
+    SETUP_SAVE_REFS_ONLY_FRAME          // save ref containing registers for GC
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rcx   // pass Thread::Current()
     call CALLVAR(cxx_name)              // cxx_name(arg0, arg1, arg2, Thread*)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
+    RESTORE_SAVE_REFS_ONLY_FRAME        // restore frame up to return address
     CALL_MACRO(return_macro)            // return or deliver exception
     END_FUNCTION VAR(c_name)
 END_MACRO
 
 MACRO3(FOUR_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name)
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME   // save ref containing registers for GC
+    SETUP_SAVE_REFS_ONLY_FRAME          // save ref containing registers for GC
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %r8    // pass Thread::Current()
     call CALLVAR(cxx_name)              // cxx_name(arg1, arg2, arg3, arg4, Thread*)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
+    RESTORE_SAVE_REFS_ONLY_FRAME        // restore frame up to return address
     CALL_MACRO(return_macro)            // return or deliver exception
     END_FUNCTION VAR(c_name)
 END_MACRO
@@ -851,11 +851,11 @@ END_MACRO
 MACRO3(ONE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name)
     movq 8(%rsp), %rsi                  // pass referrer
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
+    SETUP_SAVE_REFS_ONLY_FRAME
                                         // arg0 is in rdi
     movq %gs:THREAD_SELF_OFFSET, %rdx   // pass Thread::Current()
     call CALLVAR(cxx_name)              // cxx_name(arg0, referrer, Thread*)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
+    RESTORE_SAVE_REFS_ONLY_FRAME        // restore frame up to return address
     CALL_MACRO(return_macro)
     END_FUNCTION VAR(c_name)
 END_MACRO
@@ -863,11 +863,11 @@ END_MACRO
 MACRO3(TWO_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name)
     movq 8(%rsp), %rdx                  // pass referrer
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
+    SETUP_SAVE_REFS_ONLY_FRAME
                                         // arg0 and arg1 are in rdi/rsi
     movq %gs:THREAD_SELF_OFFSET, %rcx   // pass Thread::Current()
     call CALLVAR(cxx_name)              // (arg0, arg1, referrer, Thread*)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
+    RESTORE_SAVE_REFS_ONLY_FRAME        // restore frame up to return address
     CALL_MACRO(return_macro)
     END_FUNCTION VAR(c_name)
 END_MACRO
@@ -875,11 +875,11 @@ END_MACRO
 MACRO3(THREE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION VAR(c_name)
     movq 8(%rsp), %rcx                  // pass referrer
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
+    SETUP_SAVE_REFS_ONLY_FRAME
                                         // arg0, arg1, and arg2 are in rdi/rsi/rdx
     movq %gs:THREAD_SELF_OFFSET, %r8    // pass Thread::Current()
     call CALLVAR(cxx_name)              // cxx_name(arg0, arg1, arg2, referrer, Thread*)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME // restore frame up to return address
+    RESTORE_SAVE_REFS_ONLY_FRAME        // restore frame up to return address
     CALL_MACRO(return_macro)            // return or deliver exception
     END_FUNCTION VAR(c_name)
 END_MACRO
@@ -917,83 +917,83 @@ DEFINE_FUNCTION art_quick_alloc_object_rosalloc
     // Fast path rosalloc allocation.
     // RDI: type_idx, RSI: ArtMethod*, RAX: return value
     // RDX, RCX, R8, R9: free.
-    movq   ART_METHOD_DEX_CACHE_TYPES_OFFSET_64(%rsi), %rdx   // Load dex cache resolved types array
-                                                              // Load the class (edx)
+    movq   ART_METHOD_DEX_CACHE_TYPES_OFFSET_64(%rsi), %rdx  // Load dex cache resolved types array
+                                                             // Load the class (edx)
     movl   0(%rdx, %rdi, COMPRESSED_REFERENCE_SIZE), %edx
-    testl  %edx, %edx                                         // Check null class
+    testl  %edx, %edx                                      // Check null class
     jz     .Lart_quick_alloc_object_rosalloc_slow_path
-                                                              // Check class status.
+                                                           // Check class status.
     cmpl   LITERAL(MIRROR_CLASS_STATUS_INITIALIZED), MIRROR_CLASS_STATUS_OFFSET(%rdx)
     jne    .Lart_quick_alloc_object_rosalloc_slow_path
-                                                              // We don't need a fence (between the
-                                                              // the status and the access flag
-                                                              // loads) here because every load is
-                                                              // a load acquire on x86.
-                                                              // Check access flags has
-                                                              // kAccClassIsFinalizable
+                                                           // We don't need a fence (between the
+                                                           // the status and the access flag
+                                                           // loads) here because every load is
+                                                           // a load acquire on x86.
+                                                           // Check access flags has
+                                                           // kAccClassIsFinalizable
     testl  LITERAL(ACCESS_FLAGS_CLASS_IS_FINALIZABLE), MIRROR_CLASS_ACCESS_FLAGS_OFFSET(%rdx)
     jnz    .Lart_quick_alloc_object_rosalloc_slow_path
-                                                              // Check if the thread local
-                                                              // allocation stack has room.
-    movq   %gs:THREAD_SELF_OFFSET, %r8                        // r8 = thread
-    movq   THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET(%r8), %rcx     // rcx = alloc stack top.
+                                                           // Check if the thread local
+                                                           // allocation stack has room.
+    movq   %gs:THREAD_SELF_OFFSET, %r8                     // r8 = thread
+    movq   THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET(%r8), %rcx  // rcx = alloc stack top.
     cmpq   THREAD_LOCAL_ALLOC_STACK_END_OFFSET(%r8), %rcx
     jae    .Lart_quick_alloc_object_rosalloc_slow_path
-                                                              // Load the object size
+                                                           // Load the object size
     movl   MIRROR_CLASS_OBJECT_SIZE_OFFSET(%rdx), %eax
-                                                              // Check if the size is for a thread
-                                                              // local allocation
+                                                           // Check if the size is for a thread
+                                                           // local allocation
     cmpl   LITERAL(ROSALLOC_MAX_THREAD_LOCAL_BRACKET_SIZE), %eax
     ja     .Lart_quick_alloc_object_rosalloc_slow_path
-                                                              // Compute the rosalloc bracket index
-                                                              // from the size.
-                                                              // Align up the size by the rosalloc
-                                                              // bracket quantum size and divide
-                                                              // by the quantum size and subtract
-                                                              // by 1. This code is a shorter but
-                                                              // equivalent version.
+                                                           // Compute the rosalloc bracket index
+                                                           // from the size.
+                                                           // Align up the size by the rosalloc
+                                                           // bracket quantum size and divide
+                                                           // by the quantum size and subtract
+                                                           // by 1. This code is a shorter but
+                                                           // equivalent version.
     subq   LITERAL(1), %rax
     shrq   LITERAL(ROSALLOC_BRACKET_QUANTUM_SIZE_SHIFT), %rax
-                                                              // Load the rosalloc run (r9)
+                                                           // Load the rosalloc run (r9)
     movq   THREAD_ROSALLOC_RUNS_OFFSET(%r8, %rax, __SIZEOF_POINTER__), %r9
-                                                              // Load the free list head (rax). This
-                                                              // will be the return val.
+                                                           // Load the free list head (rax). This
+                                                           // will be the return val.
     movq   (ROSALLOC_RUN_FREE_LIST_OFFSET + ROSALLOC_RUN_FREE_LIST_HEAD_OFFSET)(%r9), %rax
     testq  %rax, %rax
     jz     .Lart_quick_alloc_object_rosalloc_slow_path
     // "Point of no slow path". Won't go to the slow path from here on. OK to clobber rdi and rsi.
-                                                              // Push the new object onto the thread
-                                                              // local allocation stack and
-                                                              // increment the thread local
-                                                              // allocation stack top.
+                                                           // Push the new object onto the thread
+                                                           // local allocation stack and
+                                                           // increment the thread local
+                                                           // allocation stack top.
     movl   %eax, (%rcx)
     addq   LITERAL(COMPRESSED_REFERENCE_SIZE), %rcx
     movq   %rcx, THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET(%r8)
-                                                              // Load the next pointer of the head
-                                                              // and update the list head with the
-                                                              // next pointer.
+                                                           // Load the next pointer of the head
+                                                           // and update the list head with the
+                                                           // next pointer.
     movq   ROSALLOC_SLOT_NEXT_OFFSET(%rax), %rcx
     movq   %rcx, (ROSALLOC_RUN_FREE_LIST_OFFSET + ROSALLOC_RUN_FREE_LIST_HEAD_OFFSET)(%r9)
-                                                              // Store the class pointer in the
-                                                              // header. This also overwrites the
-                                                              // next pointer. The offsets are
-                                                              // asserted to match.
+                                                           // Store the class pointer in the
+                                                           // header. This also overwrites the
+                                                           // next pointer. The offsets are
+                                                           // asserted to match.
 #if ROSALLOC_SLOT_NEXT_OFFSET != MIRROR_OBJECT_CLASS_OFFSET
 #error "Class pointer needs to overwrite next pointer."
 #endif
     POISON_HEAP_REF edx
     movl   %edx, MIRROR_OBJECT_CLASS_OFFSET(%rax)
-                                                              // Decrement the size of the free list
+                                                           // Decrement the size of the free list
     decl   (ROSALLOC_RUN_FREE_LIST_OFFSET + ROSALLOC_RUN_FREE_LIST_SIZE_OFFSET)(%r9)
-                                                              // No fence necessary for x86.
+                                                           // No fence necessary for x86.
     ret
 .Lart_quick_alloc_object_rosalloc_slow_path:
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME                         // save ref containing registers for GC
+    SETUP_SAVE_REFS_ONLY_FRAME                             // save ref containing registers for GC
     // Outgoing argument set up
-    movq %gs:THREAD_SELF_OFFSET, %rdx                         // pass Thread::Current()
-    call SYMBOL(artAllocObjectFromCodeRosAlloc)               // cxx_name(arg0, arg1, Thread*)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME                       // restore frame up to return address
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER                   // return or deliver exception
+    movq %gs:THREAD_SELF_OFFSET, %rdx                      // pass Thread::Current()
+    call SYMBOL(artAllocObjectFromCodeRosAlloc)            // cxx_name(arg0, arg1, Thread*)
+    RESTORE_SAVE_REFS_ONLY_FRAME                           // restore frame up to return address
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER                // return or deliver exception
 END_FUNCTION art_quick_alloc_object_rosalloc
 
 // The common fast path code for art_quick_alloc_object_tlab and art_quick_alloc_object_region_tlab.
@@ -1001,49 +1001,49 @@ END_FUNCTION art_quick_alloc_object_rosalloc
 // RDI: type_idx, RSI: ArtMethod*, RDX/EDX: the class, RAX: return value.
 // RCX: scratch, r8: Thread::Current().
 MACRO1(ALLOC_OBJECT_TLAB_FAST_PATH, slowPathLabel)
-    testl %edx, %edx                                           // Check null class
+    testl %edx, %edx                                       // Check null class
     jz   RAW_VAR(slowPathLabel)
-                                                               // Check class status.
+                                                           // Check class status.
     cmpl LITERAL(MIRROR_CLASS_STATUS_INITIALIZED), MIRROR_CLASS_STATUS_OFFSET(%rdx)
     jne  RAW_VAR(slowPathLabel)
-                                                               // No fake dependence needed on x86
-                                                               // between status and flags load,
-                                                               // since each load is a load-acquire,
-                                                               // no loads reordering.
-                                                               // Check access flags has
-                                                               // kAccClassIsFinalizable
+                                                           // No fake dependence needed on x86
+                                                           // between status and flags load,
+                                                           // since each load is a load-acquire,
+                                                           // no loads reordering.
+                                                           // Check access flags has
+                                                           // kAccClassIsFinalizable
     testl LITERAL(ACCESS_FLAGS_CLASS_IS_FINALIZABLE), MIRROR_CLASS_ACCESS_FLAGS_OFFSET(%rdx)
     jnz  RAW_VAR(slowPathLabel)
-    movq %gs:THREAD_SELF_OFFSET, %r8                           // r8 = thread
-    movq THREAD_LOCAL_END_OFFSET(%r8), %rax                    // Load thread_local_end.
-    subq THREAD_LOCAL_POS_OFFSET(%r8), %rax                    // Compute the remaining buffer size.
-    movl MIRROR_CLASS_OBJECT_SIZE_OFFSET(%rdx), %ecx           // Load the object size.
-    cmpq %rax, %rcx                                            // Check if it fits. OK to do this
-                                                               // before rounding up the object size
-                                                               // assuming the buf size alignment.
+    movq %gs:THREAD_SELF_OFFSET, %r8                       // r8 = thread
+    movq THREAD_LOCAL_END_OFFSET(%r8), %rax                // Load thread_local_end.
+    subq THREAD_LOCAL_POS_OFFSET(%r8), %rax                // Compute the remaining buffer size.
+    movl MIRROR_CLASS_OBJECT_SIZE_OFFSET(%rdx), %ecx       // Load the object size.
+    cmpq %rax, %rcx                                        // Check if it fits. OK to do this
+                                                           // before rounding up the object size
+                                                           // assuming the buf size alignment.
     ja   RAW_VAR(slowPathLabel)
-    addl LITERAL(OBJECT_ALIGNMENT_MASK), %ecx                  // Align the size by 8. (addr + 7) & ~7.
+    addl LITERAL(OBJECT_ALIGNMENT_MASK), %ecx              // Align the size by 8. (addr + 7) & ~7.
     andl LITERAL(OBJECT_ALIGNMENT_MASK_TOGGLED), %ecx
-    movq THREAD_LOCAL_POS_OFFSET(%r8), %rax                    // Load thread_local_pos
-                                                               // as allocated object.
-    addq %rax, %rcx                                            // Add the object size.
-    movq %rcx, THREAD_LOCAL_POS_OFFSET(%r8)                    // Update thread_local_pos.
-    addq LITERAL(1), THREAD_LOCAL_OBJECTS_OFFSET(%r8)          // Increase thread_local_objects.
-                                                               // Store the class pointer in the header.
-                                                               // No fence needed for x86.
+    movq THREAD_LOCAL_POS_OFFSET(%r8), %rax                // Load thread_local_pos
+                                                           // as allocated object.
+    addq %rax, %rcx                                        // Add the object size.
+    movq %rcx, THREAD_LOCAL_POS_OFFSET(%r8)                // Update thread_local_pos.
+    addq LITERAL(1), THREAD_LOCAL_OBJECTS_OFFSET(%r8)      // Increase thread_local_objects.
+                                                           // Store the class pointer in the header.
+                                                           // No fence needed for x86.
     POISON_HEAP_REF edx
     movl %edx, MIRROR_OBJECT_CLASS_OFFSET(%rax)
-    ret                                                        // Fast path succeeded.
+    ret                                                    // Fast path succeeded.
 END_MACRO
 
 // The common slow path code for art_quick_alloc_object_tlab and art_quick_alloc_object_region_tlab.
 MACRO1(ALLOC_OBJECT_TLAB_SLOW_PATH, cxx_name)
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME                          // save ref containing registers for GC
+    SETUP_SAVE_REFS_ONLY_FRAME                             // save ref containing registers for GC
     // Outgoing argument set up
-    movq %gs:THREAD_SELF_OFFSET, %rdx                          // pass Thread::Current()
-    call CALLVAR(cxx_name)                                     // cxx_name(arg0, arg1, Thread*)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME                        // restore frame up to return address
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER                    // return or deliver exception
+    movq %gs:THREAD_SELF_OFFSET, %rdx                      // pass Thread::Current()
+    call CALLVAR(cxx_name)                                 // cxx_name(arg0, arg1, Thread*)
+    RESTORE_SAVE_REFS_ONLY_FRAME                           // restore frame up to return address
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER                // return or deliver exception
 END_MACRO
 
 // A hand-written override for GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_tlab, TLAB).
@@ -1145,18 +1145,18 @@ DEFINE_FUNCTION art_quick_lock_object
     jnz  .Lretry_lock                     // cmpxchg failed retry
     ret
 .Lslow_lock:
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
+    SETUP_SAVE_REFS_ONLY_FRAME
     movq %gs:THREAD_SELF_OFFSET, %rsi     // pass Thread::Current()
     call SYMBOL(artLockObjectFromCode)    // artLockObjectFromCode(object, Thread*)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME   // restore frame up to return address
+    RESTORE_SAVE_REFS_ONLY_FRAME          // restore frame up to return address
     RETURN_IF_EAX_ZERO
 END_FUNCTION art_quick_lock_object
 
 DEFINE_FUNCTION art_quick_lock_object_no_inline
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
+    SETUP_SAVE_REFS_ONLY_FRAME
     movq %gs:THREAD_SELF_OFFSET, %rsi     // pass Thread::Current()
     call SYMBOL(artLockObjectFromCode)    // artLockObjectFromCode(object, Thread*)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME   // restore frame up to return address
+    RESTORE_SAVE_REFS_ONLY_FRAME          // restore frame up to return address
     RETURN_IF_EAX_ZERO
 END_FUNCTION art_quick_lock_object_no_inline
 
@@ -1196,18 +1196,18 @@ DEFINE_FUNCTION art_quick_unlock_object
 #endif
     ret
 .Lslow_unlock:
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
+    SETUP_SAVE_REFS_ONLY_FRAME
     movq %gs:THREAD_SELF_OFFSET, %rsi     // pass Thread::Current()
     call SYMBOL(artUnlockObjectFromCode)  // artUnlockObjectFromCode(object, Thread*)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME   // restore frame up to return address
+    RESTORE_SAVE_REFS_ONLY_FRAME          // restore frame up to return address
     RETURN_IF_EAX_ZERO
 END_FUNCTION art_quick_unlock_object
 
 DEFINE_FUNCTION art_quick_unlock_object_no_inline
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
+    SETUP_SAVE_REFS_ONLY_FRAME
     movq %gs:THREAD_SELF_OFFSET, %rsi     // pass Thread::Current()
     call SYMBOL(artUnlockObjectFromCode)  // artUnlockObjectFromCode(object, Thread*)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME   // restore frame up to return address
+    RESTORE_SAVE_REFS_ONLY_FRAME          // restore frame up to return address
     RETURN_IF_EAX_ZERO
 END_FUNCTION art_quick_unlock_object_no_inline
 
@@ -1233,7 +1233,7 @@ DEFINE_FUNCTION art_quick_check_cast
     CFI_ADJUST_CFA_OFFSET(-8)
     POP rsi                           // Pop arguments
     POP rdi
-    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
+    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME // save all registers as basis for long jump context
     mov %gs:THREAD_SELF_OFFSET, %rdx  // pass Thread::Current()
     call SYMBOL(artThrowClassCastException) // (Class* a, Class* b, Thread*)
     UNREACHABLE
@@ -1410,7 +1410,7 @@ DEFINE_FUNCTION art_quick_aput_obj
     POP  rsi
     POP  rdi
 
-    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // Save all registers as basis for long jump context.
+    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME  // Save all registers as basis for long jump context.
 
     // Outgoing argument set up.
     movq %rdx, %rsi                         // Pass arg 2 = value.
@@ -1427,11 +1427,11 @@ DEFINE_FUNCTION art_quick_memcpy
 END_FUNCTION art_quick_memcpy
 
 DEFINE_FUNCTION art_quick_test_suspend
-    SETUP_SAVE_EVERYTHING_CALLEE_SAVE_FRAME     // save everything for GC
+    SETUP_SAVE_EVERYTHING_FRAME                 // save everything for GC
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rdi           // pass Thread::Current()
     call SYMBOL(artTestSuspendFromCode)         // (Thread*)
-    RESTORE_SAVE_EVERYTHING_CALLEE_SAVE_FRAME   // restore frame up to return address
+    RESTORE_SAVE_EVERYTHING_FRAME               // restore frame up to return address
     ret
 END_FUNCTION art_quick_test_suspend
 
@@ -1473,22 +1473,22 @@ ONE_ARG_REF_DOWNCALL art_quick_get_obj_static, artGetObjStaticFromCode, RETURN_O
 DEFINE_FUNCTION art_quick_set64_static
                                          // new_val is already in %rdx
     movq 8(%rsp), %rsi                   // pass referrer
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
+    SETUP_SAVE_REFS_ONLY_FRAME
                                          // field_idx is in rdi
     movq %gs:THREAD_SELF_OFFSET, %rcx    // pass Thread::Current()
     call SYMBOL(artSet64StaticFromCode)  // (field_idx, referrer, new_val, Thread*)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
+    RESTORE_SAVE_REFS_ONLY_FRAME         // restore frame up to return address
     RETURN_IF_EAX_ZERO                   // return or deliver exception
 END_FUNCTION art_quick_set64_static
 
 
 DEFINE_FUNCTION art_quick_proxy_invoke_handler
-    SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_WITH_METHOD_IN_RDI
+    SETUP_SAVE_REFS_AND_ARGS_FRAME_WITH_METHOD_IN_RDI
 
     movq %gs:THREAD_SELF_OFFSET, %rdx       // Pass Thread::Current().
     movq %rsp, %rcx                         // Pass SP.
     call SYMBOL(artQuickProxyInvokeHandler) // (proxy method, receiver, Thread*, SP)
-    RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME
     movq %rax, %xmm0                        // Copy return value in case of float returns.
     RETURN_OR_DELIVER_PENDING_EXCEPTION
 END_FUNCTION art_quick_proxy_invoke_handler
@@ -1531,13 +1531,13 @@ DEFINE_FUNCTION art_quick_imt_conflict_trampoline
 END_FUNCTION art_quick_imt_conflict_trampoline
 
 DEFINE_FUNCTION art_quick_resolution_trampoline
-    SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME
+    SETUP_SAVE_REFS_AND_ARGS_FRAME
     movq %gs:THREAD_SELF_OFFSET, %rdx
     movq %rsp, %rcx
     call SYMBOL(artQuickResolutionTrampoline) // (called, receiver, Thread*, SP)
     movq %rax, %r10               // Remember returned code pointer in R10.
     movq (%rsp), %rdi             // Load called method into RDI.
-    RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME
     testq %r10, %r10              // If code pointer is null goto deliver pending exception.
     jz 1f
     jmp *%r10                     // Tail call into method.
@@ -1622,7 +1622,7 @@ END_FUNCTION art_quick_resolution_trampoline
      * Called to do a generic JNI down-call
      */
 DEFINE_FUNCTION art_quick_generic_jni_trampoline
-    SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_WITH_METHOD_IN_RDI
+    SETUP_SAVE_REFS_AND_ARGS_FRAME_WITH_METHOD_IN_RDI
 
     movq %rsp, %rbp                 // save SP at (old) callee-save frame
     CFI_DEF_CFA_REGISTER(rbp)
@@ -1755,11 +1755,11 @@ END_FUNCTION art_quick_generic_jni_trampoline
      * RSI, RDX, RCX, R8, R9 are arguments to that method.
      */
 DEFINE_FUNCTION art_quick_to_interpreter_bridge
-    SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME   // Set up frame and save arguments.
-    movq %gs:THREAD_SELF_OFFSET, %rsi      // RSI := Thread::Current()
-    movq %rsp, %rdx                        // RDX := sp
+    SETUP_SAVE_REFS_AND_ARGS_FRAME     // Set up frame and save arguments.
+    movq %gs:THREAD_SELF_OFFSET, %rsi  // RSI := Thread::Current()
+    movq %rsp, %rdx                    // RDX := sp
     call SYMBOL(artQuickToInterpreterBridge)  // (method, Thread*, SP)
-    RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME  // TODO: no need to restore arguments in this case.
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME   // TODO: no need to restore arguments in this case.
     movq %rax, %xmm0                   // Place return value also into floating point return value.
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 END_FUNCTION art_quick_to_interpreter_bridge
@@ -1772,12 +1772,12 @@ DEFINE_FUNCTION art_quick_instrumentation_entry
     int3
     int3
 #else
-    SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME
+    SETUP_SAVE_REFS_AND_ARGS_FRAME
 
     movq %rdi, %r12               // Preserve method pointer in a callee-save.
 
     movq %gs:THREAD_SELF_OFFSET, %rdx   // Pass thread.
-    movq FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE-8(%rsp), %rcx   // Pass return PC.
+    movq FRAME_SIZE_SAVE_REFS_AND_ARGS-8(%rsp), %rcx   // Pass return PC.
 
     call SYMBOL(artInstrumentationMethodEntryFromCode) // (Method*, Object*, Thread*, LR)
 
@@ -1785,9 +1785,9 @@ DEFINE_FUNCTION art_quick_instrumentation_entry
     movq %r12, %rdi               // Reload method pointer.
 
     leaq art_quick_instrumentation_exit(%rip), %r12   // Set up return through instrumentation
-    movq %r12, FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE-8(%rsp) // exit.
+    movq %r12, FRAME_SIZE_SAVE_REFS_AND_ARGS-8(%rsp)  // exit.
 
-    RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
+    RESTORE_SAVE_REFS_AND_ARGS_FRAME
 
     jmp *%rax                     // Tail call to intended method.
 #endif  // __APPLE__
@@ -1796,7 +1796,7 @@ END_FUNCTION art_quick_instrumentation_entry
 DEFINE_FUNCTION art_quick_instrumentation_exit
     pushq LITERAL(0)          // Push a fake return PC as there will be none on the stack.
 
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
+    SETUP_SAVE_REFS_ONLY_FRAME
 
     // We need to save rax and xmm0. We could use a callee-save from SETUP_REF_ONLY, but then
     // we would need to fully restore it. As there are a good number of callee-save registers, it
@@ -1823,7 +1823,7 @@ DEFINE_FUNCTION art_quick_instrumentation_exit
     CFI_ADJUST_CFA_OFFSET(-8)
     POP rax                   // Restore integer result.
 
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
+    RESTORE_SAVE_REFS_ONLY_FRAME
 
     addq LITERAL(8), %rsp     // Drop fake return pc.
 
@@ -1837,7 +1837,7 @@ END_FUNCTION art_quick_instrumentation_exit
 DEFINE_FUNCTION art_quick_deoptimize
     pushq %rsi                         // Entry point for a jump. Fake that we were called.
                                        // Use hidden arg.
-    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
+    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME
                                        // Stack should be aligned now.
     movq %gs:THREAD_SELF_OFFSET, %rdi  // Pass Thread.
     call SYMBOL(artDeoptimize)         // artDeoptimize(Thread*)
@@ -1849,7 +1849,7 @@ END_FUNCTION art_quick_deoptimize
      * will long jump to the interpreter bridge.
      */
 DEFINE_FUNCTION art_quick_deoptimize_from_compiled_code
-    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
+    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME
                                                 // Stack should be aligned now.
     movq %gs:THREAD_SELF_OFFSET, %rdi           // Pass Thread.
     call SYMBOL(artDeoptimizeFromCompiledCode)  // artDeoptimizeFromCompiledCode(Thread*)
