@@ -41,12 +41,12 @@ inline QuickMethodFrameInfo Runtime::GetRuntimeMethodFrameInfo(ArtMethod* method
   DCHECK_NE(method, GetImtConflictMethod());
   DCHECK_NE(method, GetResolutionMethod());
   // Don't use GetCalleeSaveMethod(), some tests don't set all callee save methods.
-  if (method == GetCalleeSaveMethodUnchecked(Runtime::kRefsAndArgs)) {
-    return GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
-  } else if (method == GetCalleeSaveMethodUnchecked(Runtime::kSaveAll)) {
-    return GetCalleeSaveMethodFrameInfo(Runtime::kSaveAll);
-  } else if (method == GetCalleeSaveMethodUnchecked(Runtime::kRefsOnly)) {
-    return GetCalleeSaveMethodFrameInfo(Runtime::kRefsOnly);
+  if (method == GetCalleeSaveMethodUnchecked(Runtime::kSaveRefsAndArgs)) {
+    return GetCalleeSaveMethodFrameInfo(Runtime::kSaveRefsAndArgs);
+  } else if (method == GetCalleeSaveMethodUnchecked(Runtime::kSaveAllCalleeSaves)) {
+    return GetCalleeSaveMethodFrameInfo(Runtime::kSaveAllCalleeSaves);
+  } else if (method == GetCalleeSaveMethodUnchecked(Runtime::kSaveRefsOnly)) {
+    return GetCalleeSaveMethodFrameInfo(Runtime::kSaveRefsOnly);
   } else {
     DCHECK_EQ(method, GetCalleeSaveMethodUnchecked(Runtime::kSaveEverything));
     return GetCalleeSaveMethodFrameInfo(Runtime::kSaveEverything);

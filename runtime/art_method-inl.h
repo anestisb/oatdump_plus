@@ -322,11 +322,11 @@ inline const char* ArtMethod::GetName() {
     return "<runtime internal resolution method>";
   } else if (this == runtime->GetImtConflictMethod()) {
     return "<runtime internal imt conflict method>";
-  } else if (this == runtime->GetCalleeSaveMethod(Runtime::kSaveAll)) {
+  } else if (this == runtime->GetCalleeSaveMethod(Runtime::kSaveAllCalleeSaves)) {
     return "<runtime internal callee-save all registers method>";
-  } else if (this == runtime->GetCalleeSaveMethod(Runtime::kRefsOnly)) {
+  } else if (this == runtime->GetCalleeSaveMethod(Runtime::kSaveRefsOnly)) {
     return "<runtime internal callee-save reference registers method>";
-  } else if (this == runtime->GetCalleeSaveMethod(Runtime::kRefsAndArgs)) {
+  } else if (this == runtime->GetCalleeSaveMethod(Runtime::kSaveRefsAndArgs)) {
     return "<runtime internal callee-save reference and argument registers method>";
   } else {
     return "<unknown runtime internal method>";

@@ -63,137 +63,97 @@ TEST_F(ArchTest, CheckCommonOffsetsAndSizes) {
 // Grab architecture specific constants.
 namespace arm {
 #include "arch/arm/asm_support_arm.h"
-static constexpr size_t kFrameSizeSaveAllCalleeSave = FRAME_SIZE_SAVE_ALL_CALLEE_SAVE;
-#undef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
-static constexpr size_t kFrameSizeRefsOnlyCalleeSave = FRAME_SIZE_REFS_ONLY_CALLEE_SAVE;
-#undef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
-static constexpr size_t kFrameSizeRefsAndArgsCalleeSave = FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE;
-#undef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
-static constexpr size_t kFrameSizeSaveEverythingCalleeSave = FRAME_SIZE_SAVE_EVERYTHING_CALLEE_SAVE;
-#undef FRAME_SIZE_SAVE_EVERYTHING_CALLEE_SAVE
+static constexpr size_t kFrameSizeSaveAllCalleeSaves = FRAME_SIZE_SAVE_ALL_CALLEE_SAVES;
+#undef FRAME_SIZE_SAVE_ALL_CALLEE_SAVES
+static constexpr size_t kFrameSizeSaveRefsOnly = FRAME_SIZE_SAVE_REFS_ONLY;
+#undef FRAME_SIZE_SAVE_REFS_ONLY
+static constexpr size_t kFrameSizeSaveRefsAndArgs = FRAME_SIZE_SAVE_REFS_AND_ARGS;
+#undef FRAME_SIZE_SAVE_REFS_AND_ARGS
+static constexpr size_t kFrameSizeSaveEverything = FRAME_SIZE_SAVE_EVERYTHING;
+#undef FRAME_SIZE_SAVE_EVERYTHING
 }  // namespace arm
 
 namespace arm64 {
 #include "arch/arm64/asm_support_arm64.h"
-static constexpr size_t kFrameSizeSaveAllCalleeSave = FRAME_SIZE_SAVE_ALL_CALLEE_SAVE;
-#undef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
-static constexpr size_t kFrameSizeRefsOnlyCalleeSave = FRAME_SIZE_REFS_ONLY_CALLEE_SAVE;
-#undef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
-static constexpr size_t kFrameSizeRefsAndArgsCalleeSave = FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE;
-#undef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
-static constexpr size_t kFrameSizeSaveEverythingCalleeSave = FRAME_SIZE_SAVE_EVERYTHING_CALLEE_SAVE;
-#undef FRAME_SIZE_SAVE_EVERYTHING_CALLEE_SAVE
+static constexpr size_t kFrameSizeSaveAllCalleeSaves = FRAME_SIZE_SAVE_ALL_CALLEE_SAVES;
+#undef FRAME_SIZE_SAVE_ALL_CALLEE_SAVES
+static constexpr size_t kFrameSizeSaveRefsOnly = FRAME_SIZE_SAVE_REFS_ONLY;
+#undef FRAME_SIZE_SAVE_REFS_ONLY
+static constexpr size_t kFrameSizeSaveRefsAndArgs = FRAME_SIZE_SAVE_REFS_AND_ARGS;
+#undef FRAME_SIZE_SAVE_REFS_AND_ARGS
+static constexpr size_t kFrameSizeSaveEverything = FRAME_SIZE_SAVE_EVERYTHING;
+#undef FRAME_SIZE_SAVE_EVERYTHING
 }  // namespace arm64
 
 namespace mips {
 #include "arch/mips/asm_support_mips.h"
-static constexpr size_t kFrameSizeSaveAllCalleeSave = FRAME_SIZE_SAVE_ALL_CALLEE_SAVE;
-#undef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
-static constexpr size_t kFrameSizeRefsOnlyCalleeSave = FRAME_SIZE_REFS_ONLY_CALLEE_SAVE;
-#undef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
-static constexpr size_t kFrameSizeRefsAndArgsCalleeSave = FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE;
-#undef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
-static constexpr size_t kFrameSizeSaveEverythingCalleeSave = FRAME_SIZE_SAVE_EVERYTHING_CALLEE_SAVE;
-#undef FRAME_SIZE_SAVE_EVERYTHING_CALLEE_SAVE
+static constexpr size_t kFrameSizeSaveAllCalleeSaves = FRAME_SIZE_SAVE_ALL_CALLEE_SAVES;
+#undef FRAME_SIZE_SAVE_ALL_CALLEE_SAVES
+static constexpr size_t kFrameSizeSaveRefsOnly = FRAME_SIZE_SAVE_REFS_ONLY;
+#undef FRAME_SIZE_SAVE_REFS_ONLY
+static constexpr size_t kFrameSizeSaveRefsAndArgs = FRAME_SIZE_SAVE_REFS_AND_ARGS;
+#undef FRAME_SIZE_SAVE_REFS_AND_ARGS
+static constexpr size_t kFrameSizeSaveEverything = FRAME_SIZE_SAVE_EVERYTHING;
+#undef FRAME_SIZE_SAVE_EVERYTHING
 }  // namespace mips
 
 namespace mips64 {
 #include "arch/mips64/asm_support_mips64.h"
-static constexpr size_t kFrameSizeSaveAllCalleeSave = FRAME_SIZE_SAVE_ALL_CALLEE_SAVE;
-#undef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
-static constexpr size_t kFrameSizeRefsOnlyCalleeSave = FRAME_SIZE_REFS_ONLY_CALLEE_SAVE;
-#undef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
-static constexpr size_t kFrameSizeRefsAndArgsCalleeSave = FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE;
-#undef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
-static constexpr size_t kFrameSizeSaveEverythingCalleeSave = FRAME_SIZE_SAVE_EVERYTHING_CALLEE_SAVE;
-#undef FRAME_SIZE_SAVE_EVERYTHING_CALLEE_SAVE
+static constexpr size_t kFrameSizeSaveAllCalleeSaves = FRAME_SIZE_SAVE_ALL_CALLEE_SAVES;
+#undef FRAME_SIZE_SAVE_ALL_CALLEE_SAVES
+static constexpr size_t kFrameSizeSaveRefsOnly = FRAME_SIZE_SAVE_REFS_ONLY;
+#undef FRAME_SIZE_SAVE_REFS_ONLY
+static constexpr size_t kFrameSizeSaveRefsAndArgs = FRAME_SIZE_SAVE_REFS_AND_ARGS;
+#undef FRAME_SIZE_SAVE_REFS_AND_ARGS
+static constexpr size_t kFrameSizeSaveEverything = FRAME_SIZE_SAVE_EVERYTHING;
+#undef FRAME_SIZE_SAVE_EVERYTHING
 }  // namespace mips64
 
 namespace x86 {
 #include "arch/x86/asm_support_x86.h"
-static constexpr size_t kFrameSizeSaveAllCalleeSave = FRAME_SIZE_SAVE_ALL_CALLEE_SAVE;
-#undef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
-static constexpr size_t kFrameSizeRefsOnlyCalleeSave = FRAME_SIZE_REFS_ONLY_CALLEE_SAVE;
-#undef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
-static constexpr size_t kFrameSizeRefsAndArgsCalleeSave = FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE;
-#undef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
-static constexpr size_t kFrameSizeSaveEverythingCalleeSave = FRAME_SIZE_SAVE_EVERYTHING_CALLEE_SAVE;
-#undef FRAME_SIZE_SAVE_EVERYTHING_CALLEE_SAVE
+static constexpr size_t kFrameSizeSaveAllCalleeSaves = FRAME_SIZE_SAVE_ALL_CALLEE_SAVES;
+#undef FRAME_SIZE_SAVE_ALL_CALLEE_SAVES
+static constexpr size_t kFrameSizeSaveRefsOnly = FRAME_SIZE_SAVE_REFS_ONLY;
+#undef FRAME_SIZE_SAVE_REFS_ONLY
+static constexpr size_t kFrameSizeSaveRefsAndArgs = FRAME_SIZE_SAVE_REFS_AND_ARGS;
+#undef FRAME_SIZE_SAVE_REFS_AND_ARGS
+static constexpr size_t kFrameSizeSaveEverything = FRAME_SIZE_SAVE_EVERYTHING;
+#undef FRAME_SIZE_SAVE_EVERYTHING
 }  // namespace x86
 
 namespace x86_64 {
 #include "arch/x86_64/asm_support_x86_64.h"
-static constexpr size_t kFrameSizeSaveAllCalleeSave = FRAME_SIZE_SAVE_ALL_CALLEE_SAVE;
-#undef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
-static constexpr size_t kFrameSizeRefsOnlyCalleeSave = FRAME_SIZE_REFS_ONLY_CALLEE_SAVE;
-#undef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
-static constexpr size_t kFrameSizeRefsAndArgsCalleeSave = FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE;
-#undef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
-static constexpr size_t kFrameSizeSaveEverythingCalleeSave = FRAME_SIZE_SAVE_EVERYTHING_CALLEE_SAVE;
-#undef FRAME_SIZE_SAVE_EVERYTHING_CALLEE_SAVE
+static constexpr size_t kFrameSizeSaveAllCalleeSaves = FRAME_SIZE_SAVE_ALL_CALLEE_SAVES;
+#undef FRAME_SIZE_SAVE_ALL_CALLEE_SAVES
+static constexpr size_t kFrameSizeSaveRefsOnly = FRAME_SIZE_SAVE_REFS_ONLY;
+#undef FRAME_SIZE_SAVE_REFS_ONLY
+static constexpr size_t kFrameSizeSaveRefsAndArgs = FRAME_SIZE_SAVE_REFS_AND_ARGS;
+#undef FRAME_SIZE_SAVE_REFS_AND_ARGS
+static constexpr size_t kFrameSizeSaveEverything = FRAME_SIZE_SAVE_EVERYTHING;
+#undef FRAME_SIZE_SAVE_EVERYTHING
 }  // namespace x86_64
 
 // Check architecture specific constants are sound.
-TEST_F(ArchTest, ARM) {
-  CheckFrameSize(InstructionSet::kArm, Runtime::kSaveAll, arm::kFrameSizeSaveAllCalleeSave);
-  CheckFrameSize(InstructionSet::kArm, Runtime::kRefsOnly, arm::kFrameSizeRefsOnlyCalleeSave);
-  CheckFrameSize(InstructionSet::kArm, Runtime::kRefsAndArgs, arm::kFrameSizeRefsAndArgsCalleeSave);
-  CheckFrameSize(InstructionSet::kArm,
-                 Runtime::kSaveEverything,
-                 arm::kFrameSizeSaveEverythingCalleeSave);
-}
-
-
-TEST_F(ArchTest, ARM64) {
-  CheckFrameSize(InstructionSet::kArm64, Runtime::kSaveAll, arm64::kFrameSizeSaveAllCalleeSave);
-  CheckFrameSize(InstructionSet::kArm64, Runtime::kRefsOnly, arm64::kFrameSizeRefsOnlyCalleeSave);
-  CheckFrameSize(InstructionSet::kArm64, Runtime::kRefsAndArgs,
-                 arm64::kFrameSizeRefsAndArgsCalleeSave);
-  CheckFrameSize(InstructionSet::kArm64,
-                 Runtime::kSaveEverything,
-                 arm64::kFrameSizeSaveEverythingCalleeSave);
-}
-
-TEST_F(ArchTest, MIPS) {
-  CheckFrameSize(InstructionSet::kMips, Runtime::kSaveAll, mips::kFrameSizeSaveAllCalleeSave);
-  CheckFrameSize(InstructionSet::kMips, Runtime::kRefsOnly, mips::kFrameSizeRefsOnlyCalleeSave);
-  CheckFrameSize(InstructionSet::kMips,
-                 Runtime::kRefsAndArgs,
-                 mips::kFrameSizeRefsAndArgsCalleeSave);
-  CheckFrameSize(InstructionSet::kMips,
-                 Runtime::kSaveEverything,
-                 mips::kFrameSizeSaveEverythingCalleeSave);
-}
-
-TEST_F(ArchTest, MIPS64) {
-  CheckFrameSize(InstructionSet::kMips64, Runtime::kSaveAll, mips64::kFrameSizeSaveAllCalleeSave);
-  CheckFrameSize(InstructionSet::kMips64, Runtime::kRefsOnly, mips64::kFrameSizeRefsOnlyCalleeSave);
-  CheckFrameSize(InstructionSet::kMips64,
-                 Runtime::kRefsAndArgs,
-                 mips64::kFrameSizeRefsAndArgsCalleeSave);
-  CheckFrameSize(InstructionSet::kMips64,
-                 Runtime::kSaveEverything,
-                 mips64::kFrameSizeSaveEverythingCalleeSave);
-}
-
-TEST_F(ArchTest, X86) {
-  CheckFrameSize(InstructionSet::kX86, Runtime::kSaveAll, x86::kFrameSizeSaveAllCalleeSave);
-  CheckFrameSize(InstructionSet::kX86, Runtime::kRefsOnly, x86::kFrameSizeRefsOnlyCalleeSave);
-  CheckFrameSize(InstructionSet::kX86, Runtime::kRefsAndArgs, x86::kFrameSizeRefsAndArgsCalleeSave);
-  CheckFrameSize(InstructionSet::kX86,
-                 Runtime::kSaveEverything,
-                 x86::kFrameSizeSaveEverythingCalleeSave);
-}
-
-TEST_F(ArchTest, X86_64) {
-  CheckFrameSize(InstructionSet::kX86_64, Runtime::kSaveAll, x86_64::kFrameSizeSaveAllCalleeSave);
-  CheckFrameSize(InstructionSet::kX86_64, Runtime::kRefsOnly, x86_64::kFrameSizeRefsOnlyCalleeSave);
-  CheckFrameSize(InstructionSet::kX86_64,
-                 Runtime::kRefsAndArgs,
-                 x86_64::kFrameSizeRefsAndArgsCalleeSave);
-  CheckFrameSize(InstructionSet::kX86_64,
-                 Runtime::kSaveEverything,
-                 x86_64::kFrameSizeSaveEverythingCalleeSave);
-}
+#define TEST_ARCH(Arch, arch)                             \
+  TEST_F(ArchTest, Arch) {                                \
+    CheckFrameSize(InstructionSet::k##Arch,               \
+                   Runtime::kSaveAllCalleeSaves,          \
+                   arch::kFrameSizeSaveAllCalleeSaves);   \
+    CheckFrameSize(InstructionSet::k##Arch,               \
+                   Runtime::kSaveRefsOnly,                \
+                   arch::kFrameSizeSaveRefsOnly);         \
+    CheckFrameSize(InstructionSet::k##Arch,               \
+                   Runtime::kSaveRefsAndArgs,             \
+                   arch::kFrameSizeSaveRefsAndArgs);      \
+    CheckFrameSize(InstructionSet::k##Arch,               \
+                   Runtime::kSaveEverything,              \
+                   arch::kFrameSizeSaveEverything);       \
+  }
+TEST_ARCH(Arm, arm)
+TEST_ARCH(Arm64, arm64)
+TEST_ARCH(Mips, mips)
+TEST_ARCH(Mips64, mips64)
+TEST_ARCH(X86, x86)
+TEST_ARCH(X86_64, x86_64)
 
 }  // namespace art
