@@ -191,7 +191,7 @@
     .cfi_rel_offset r11, 44
     .cfi_rel_offset ip, 48
     .cfi_rel_offset lr, 52
-    vpush {s0-s31}                      @ 32 words of float args.
+    vpush {d0-d15}                      @ 32 words of float args.
     .cfi_adjust_cfa_offset 128
     sub sp, #8                          @ 2 words of space, alignment padding and Method*
     .cfi_adjust_cfa_offset 8
@@ -210,7 +210,7 @@
 .macro RESTORE_SAVE_EVERYTHING_FRAME
     add  sp, #8                         @ rewind sp
     .cfi_adjust_cfa_offset -8
-    vpop {s0-s31}
+    vpop {d0-d15}
     .cfi_adjust_cfa_offset -128
     pop {r0-r12, lr}                    @ 14 words of callee saves
     .cfi_restore r0
