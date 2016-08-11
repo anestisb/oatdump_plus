@@ -90,9 +90,9 @@ define build-libart-disassembler
   LOCAL_NATIVE_COVERAGE := $(ART_COVERAGE)
   # For disassembler_arm64.
   ifeq ($$(art_ndebug_or_debug),debug)
-     LOCAL_SHARED_LIBRARIES += libvixl-arm64
+    LOCAL_SHARED_LIBRARIES += libvixld-arm64
   else
-     LOCAL_SHARED_LIBRARIES += libvixl-arm64
+    LOCAL_SHARED_LIBRARIES += libvixl-arm64
   endif
   ifeq ($$(art_target_or_host),target)
     include $(BUILD_SHARED_LIBRARY)
