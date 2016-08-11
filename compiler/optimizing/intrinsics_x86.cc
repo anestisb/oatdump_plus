@@ -753,11 +753,6 @@ void IntrinsicCodeGeneratorX86::VisitMathRint(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderX86::VisitMathRoundFloat(HInvoke* invoke) {
-  // See intrinsics.h.
-  if (!kRoundIsPlusPointFive) {
-    return;
-  }
-
   // Do we have instruction support?
   if (codegen_->GetInstructionSetFeatures().HasSSE4_1()) {
     HInvokeStaticOrDirect* static_or_direct = invoke->AsInvokeStaticOrDirect();
@@ -795,7 +790,6 @@ void IntrinsicCodeGeneratorX86::VisitMathRoundFloat(HInvoke* invoke) {
   }
 
   XmmRegister in = locations->InAt(0).AsFpuRegister<XmmRegister>();
-  Register constant_area = locations->InAt(1).AsRegister<Register>();
   XmmRegister t1 = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
   XmmRegister t2 = locations->GetTemp(1).AsFpuRegister<XmmRegister>();
   Register out = locations->Out().AsRegister<Register>();
@@ -810,10 +804,23 @@ void IntrinsicCodeGeneratorX86::VisitMathRoundFloat(HInvoke* invoke) {
   __ movss(t2, in);
   __ roundss(t1, in, Immediate(1));
   __ subss(t2, t1);
-  __ comiss(t2, codegen_->LiteralInt32Address(bit_cast<int32_t, float>(0.5f), constant_area));
-  __ j(kBelow, &skip_incr);
-  __ addss(t1, codegen_->LiteralInt32Address(bit_cast<int32_t, float>(1.0f), constant_area));
-  __ Bind(&skip_incr);
+  if (locations->GetInputCount() == 2 && locations->InAt(1).IsValid()) {
+    // Direct constant area available.
+    Register constant_area = locations->InAt(1).AsRegister<Register>();
+    __ comiss(t2, codegen_->LiteralInt32Address(bit_cast<int32_t, float>(0.5f), constant_area));
+    __ j(kBelow, &skip_incr);
+    __ addss(t1, codegen_->LiteralInt32Address(bit_cast<int32_t, float>(1.0f), constant_area));
+    __ Bind(&skip_incr);
+  } else {
+    // No constant area: go through stack.
+    __ pushl(Immediate(bit_cast<int32_t, float>(0.5f)));
+    __ pushl(Immediate(bit_cast<int32_t, float>(1.0f)));
+    __ comiss(t2, Address(ESP, 4));
+    __ j(kBelow, &skip_incr);
+    __ addss(t1, Address(ESP, 0));
+    __ Bind(&skip_incr);
+    __ addl(ESP, Immediate(8));
+  }
 
   // Final conversion to an integer. Unfortunately this also does not have a
   // direct x86 instruction, since NaN should map to 0 and large positive
