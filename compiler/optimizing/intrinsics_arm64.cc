@@ -1160,8 +1160,10 @@ void IntrinsicCodeGeneratorARM64::VisitStringCompareTo(HInvoke* invoke) {
   MacroAssembler* masm = GetVIXLAssembler();
   LocationSummary* locations = invoke->GetLocations();
 
-  Register str = XRegisterFrom(locations->InAt(0));
-  Register arg = XRegisterFrom(locations->InAt(1));
+  Register str = InputRegisterAt(invoke, 0);
+  Register arg = InputRegisterAt(invoke, 1);
+  DCHECK(str.IsW());
+  DCHECK(arg.IsW());
   Register out = OutputRegister(invoke);
 
   Register temp0 = WRegisterFrom(locations->GetTemp(0));
@@ -1192,8 +1194,8 @@ void IntrinsicCodeGeneratorARM64::VisitStringCompareTo(HInvoke* invoke) {
   __ Subs(out, str, arg);
   __ B(&end, eq);
   // Load lengths of this and argument strings.
-  __ Ldr(temp0, MemOperand(str.X(), count_offset));
-  __ Ldr(temp1, MemOperand(arg.X(), count_offset));
+  __ Ldr(temp0, HeapOperand(str, count_offset));
+  __ Ldr(temp1, HeapOperand(arg, count_offset));
   // Return zero if both strings are empty.
   __ Orr(out, temp0, temp1);
   __ Cbz(out, &end);
@@ -1222,8 +1224,8 @@ void IntrinsicCodeGeneratorARM64::VisitStringCompareTo(HInvoke* invoke) {
 
   // Loop to compare 4x16-bit characters at a time (ok because of string data alignment).
   __ Bind(&loop);
-  __ Ldr(temp4, MemOperand(str.X(), temp1));
-  __ Ldr(temp0, MemOperand(arg.X(), temp1));
+  __ Ldr(temp4, MemOperand(str.X(), temp1.X()));
+  __ Ldr(temp0, MemOperand(arg.X(), temp1.X()));
   __ Cmp(temp4, temp0);
   __ B(ne, &find_char_diff);
   __ Add(temp1, temp1, char_size * 4);
@@ -1242,14 +1244,14 @@ void IntrinsicCodeGeneratorARM64::VisitStringCompareTo(HInvoke* invoke) {
   __ Clz(temp1, temp1);
   // If the number of 16-bit chars remaining <= the index where the difference occurs (0-3), then
   // the difference occurs outside the remaining string data, so just return length diff (out).
-  __ Cmp(temp2, Operand(temp1, LSR, 4));
+  __ Cmp(temp2, Operand(temp1.W(), LSR, 4));
   __ B(le, &end);
   // Extract the characters and calculate the difference.
   __ Bic(temp1, temp1, 0xf);
   __ Lsr(temp0, temp0, temp1);
   __ Lsr(temp4, temp4, temp1);
   __ And(temp4, temp4, 0xffff);
-  __ Sub(out, temp4, Operand(temp0, UXTH));
+  __ Sub(out, temp4.W(), Operand(temp0.W(), UXTH));
 
   __ Bind(&end);
 
