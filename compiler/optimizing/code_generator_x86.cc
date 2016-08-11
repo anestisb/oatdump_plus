@@ -7099,12 +7099,6 @@ void CodeGeneratorX86::GenerateReferenceLoadWithBakerReadBarrier(HInstruction* i
   // /* LockWord */ lock_word = LockWord(monitor)
   static_assert(sizeof(LockWord) == sizeof(int32_t),
                 "art::LockWord and int32_t have different sizes.");
-  // /* uint32_t */ rb_state = lock_word.ReadBarrierState()
-  __ shrl(temp_reg, Immediate(LockWord::kReadBarrierStateShift));
-  __ andl(temp_reg, Immediate(LockWord::kReadBarrierStateMask));
-  static_assert(
-      LockWord::kReadBarrierStateMask == ReadBarrier::rb_ptr_mask_,
-      "art::LockWord::kReadBarrierStateMask is not equal to art::ReadBarrier::rb_ptr_mask_.");
 
   // Load fence to prevent load-load reordering.
   // Note that this is a no-op, thanks to the x86 memory model.
@@ -7124,8 +7118,13 @@ void CodeGeneratorX86::GenerateReferenceLoadWithBakerReadBarrier(HInstruction* i
 
   // if (rb_state == ReadBarrier::gray_ptr_)
   //   ref = ReadBarrier::Mark(ref);
-  __ cmpl(temp_reg, Immediate(ReadBarrier::gray_ptr_));
-  __ j(kEqual, slow_path->GetEntryLabel());
+  // Given the numeric representation, it's enough to check the low bit of the
+  // rb_state. We do that by shifting the bit out of the lock word with SHR.
+  static_assert(ReadBarrier::white_ptr_ == 0, "Expecting white to have value 0");
+  static_assert(ReadBarrier::gray_ptr_ == 1, "Expecting gray to have value 1");
+  static_assert(ReadBarrier::black_ptr_ == 2, "Expecting black to have value 2");
+  __ shrl(temp_reg, Immediate(LockWord::kReadBarrierStateShift + 1));
+  __ j(kCarrySet, slow_path->GetEntryLabel());
   __ Bind(slow_path->GetExitLabel());
 }
 
