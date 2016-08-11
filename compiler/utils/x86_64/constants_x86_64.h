@@ -106,6 +106,8 @@ enum Condition {
   kNotZero      = kNotEqual,
   kNegative     = kSign,
   kPositive     = kNotSign,
+  kCarrySet     = kBelow,
+  kCarryClear   = kAboveEqual,
   kUnordered    = kParityEven
 };
 
