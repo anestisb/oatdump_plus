@@ -27,6 +27,7 @@ struct ExperimentalFlags {
   enum {
     kNone           = 0x0000,
     kAgents         = 0x0001,  // 0b00000001
+    kRuntimePlugins = 0x0002,  // 0b00000010
   };
 
   constexpr ExperimentalFlags() : value_(0x0000) {}
@@ -66,6 +67,10 @@ inline std::ostream& operator<<(std::ostream& stream, const ExperimentalFlags& e
   bool started = false;
   if (e & ExperimentalFlags::kAgents) {
     stream << (started ? "|" : "") << "kAgents";
+    started = true;
+  }
+  if (e & ExperimentalFlags::kRuntimePlugins) {
+    stream << (started ? "|" : "") << "kRuntimePlugins";
     started = true;
   }
   if (!started) {

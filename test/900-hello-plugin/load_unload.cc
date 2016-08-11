@@ -23,10 +23,41 @@
 
 namespace art {
 
-extern "C" JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* vm ATTRIBUTE_UNUSED,
+constexpr jint TEST_900_ENV_VERSION_NUMBER = 0x900FFFFF;
+constexpr uintptr_t ENV_VALUE = 900;
+
+// Allow this library to be used as a plugin too so we can test the stack.
+static jint GetEnvHandler(JavaVMExt* vm ATTRIBUTE_UNUSED, void** new_env, jint version) {
+  printf("%s called in test 900\n", __func__);
+  if (version != TEST_900_ENV_VERSION_NUMBER) {
+    return JNI_EVERSION;
+  }
+  printf("GetEnvHandler called with version 0x%x\n", version);
+  *new_env = reinterpret_cast<void*>(ENV_VALUE);
+  return JNI_OK;
+}
+
+extern "C" bool ArtPlugin_Initialize() {
+  printf("%s called in test 900\n", __func__);
+  Runtime::Current()->GetJavaVM()->AddEnvironmentHook(GetEnvHandler);
+  return true;
+}
+
+extern "C" bool ArtPlugin_Deinitialize() {
+  printf("%s called in test 900\n", __func__);
+  return true;
+}
+
+extern "C" JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* vm,
                                                char* options,
                                                void* reserved ATTRIBUTE_UNUSED) {
   printf("Agent_OnLoad called with options \"%s\"\n", options);
+  uintptr_t env = 0;
+  jint res = vm->GetEnv(reinterpret_cast<void**>(&env), TEST_900_ENV_VERSION_NUMBER);
+  if (res != JNI_OK) {
+    printf("GetEnv(TEST_900_ENV_VERSION_NUMBER) returned non-zero\n");
+  }
+  printf("GetEnv returned '%" PRIdPTR "' environment!\n", env);
   return 0;
 }
 

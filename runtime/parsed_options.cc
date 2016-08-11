@@ -297,6 +297,9 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
           .IntoKey(M::Experimental)
       .Define("-Xforce-nb-testing")
           .IntoKey(M::ForceNativeBridge)
+      .Define("-Xplugin:_")
+          .WithType<std::vector<Plugin>>().AppendValues()
+          .IntoKey(M::Plugins)
       .Ignore({
           "-ea", "-da", "-enableassertions", "-disableassertions", "--runtime-arg", "-esa",
           "-dsa", "-enablesystemassertions", "-disablesystemassertions", "-Xrs", "-Xint:_",
@@ -591,6 +594,18 @@ bool ParsedOptions::DoParse(const RuntimeOptions& options,
     args.Set(M::HeapGrowthLimit, args.GetOrDefault(M::MemoryMaximumSize));
   }
 
+  if (args.GetOrDefault(M::Experimental) & ExperimentalFlags::kRuntimePlugins) {
+    LOG(WARNING) << "Experimental runtime plugin support has been enabled. No guarantees are made "
+                 << "about stability or usage of this plugin support. Use at your own risk. Do "
+                 << "not attempt to write shipping code that relies on the implementation of "
+                 << "runtime plugins.";
+  } else if (!args.GetOrDefault(M::Plugins).empty()) {
+    LOG(WARNING) << "Experimental runtime plugin support has not been enabled. Ignored options: ";
+    for (auto& op : args.GetOrDefault(M::Plugins)) {
+      LOG(WARNING) << "    -plugin:" << op.GetLibrary();
+    }
+  }
+
   if (args.GetOrDefault(M::Experimental) & ExperimentalFlags::kAgents) {
     LOG(WARNING) << "Experimental runtime agent support has been enabled. No guarantees are made "
                  << "the completeness, accuracy, reliability, or stability of the agent "
@@ -740,6 +755,10 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -X[no]image-dex2oat (Whether to create and use a boot image)\n");
   UsageMessage(stream, "  -Xno-dex-file-fallback "
                        "(Don't fall back to dex files without oat files)\n");
+  UsageMessage(stream, "  -Xplugin:<library.so> "
+                       "(Load a runtime plugin, requires -Xexperimental:runtime-plugins)\n");
+  UsageMessage(stream, "  -Xexperimental:runtime-plugins"
+                       "(Enable new and experimental agent support)\n");
   UsageMessage(stream, "  -Xexperimental:agents"
                        "(Enable new and experimental agent support)\n");
   UsageMessage(stream, "\n");

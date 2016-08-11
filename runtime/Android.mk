@@ -164,6 +164,7 @@ LIBART_COMMON_SRC_FILES := \
   offsets.cc \
   os_linux.cc \
   parsed_options.cc \
+  plugin.cc \
   primitive.cc \
   quick_exception_handler.cc \
   quick/inline_method_analyser.cc \

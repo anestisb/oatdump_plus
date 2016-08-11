@@ -287,6 +287,11 @@ Runtime::~Runtime() {
     agent.Unload();
   }
 
+  // TODO Maybe do some locking
+  for (auto& plugin : plugins_) {
+    plugin.Unload();
+  }
+
   // Make sure our internal threads are dead before we start tearing down things they're using.
   Dbg::StopJdwp();
   delete signal_catcher_;
@@ -966,6 +971,9 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   experimental_flags_ = runtime_options.GetOrDefault(Opt::Experimental);
   is_low_memory_mode_ = runtime_options.Exists(Opt::LowMemoryMode);
 
+  if (experimental_flags_ & ExperimentalFlags::kRuntimePlugins) {
+    plugins_ = runtime_options.ReleaseOrDefault(Opt::Plugins);
+  }
   if (experimental_flags_ & ExperimentalFlags::kAgents) {
     agents_ = runtime_options.ReleaseOrDefault(Opt::AgentPath);
     // TODO Add back in -agentlib
@@ -1097,6 +1105,10 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
 
   java_vm_ = new JavaVMExt(this, runtime_options);
 
+  // Add the JniEnv handler.
+  // TODO Refactor this stuff.
+  java_vm_->AddEnvironmentHook(JNIEnvExt::GetEnvHandler);
+
   Thread::Startup();
 
   // ClassLinker needs an attached thread, but we can't fully attach a thread without creating
@@ -1212,6 +1224,16 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
                           "Class not found using the boot class loader; no stack trace available");
   pre_allocated_NoClassDefFoundError_ = GcRoot<mirror::Throwable>(self->GetException());
   self->ClearException();
+
+  // Runtime initialization is largely done now.
+  // We load plugins first since that can modify the runtime state slightly.
+  // Load all plugins
+  for (auto& plugin : plugins_) {
+    std::string err;
+    if (!plugin.Load(&err)) {
+      LOG(FATAL) << plugin << " failed to load: " << err;
+    }
+  }
 
   // Look for a native bridge.
   //

@@ -83,6 +83,7 @@ class MonitorList;
 class MonitorPool;
 class NullPointerHandler;
 class OatFileManager;
+class Plugin;
 struct RuntimeArgumentMap;
 class SignalCatcher;
 class StackOverflowHandler;
@@ -702,6 +703,7 @@ class Runtime {
   std::vector<std::string> properties_;
 
   std::vector<ti::Agent> agents_;
+  std::vector<Plugin> plugins_;
 
   // The default stack size for managed threads created by the runtime.
   size_t default_stack_size_;

@@ -15,4 +15,6 @@
 # limitations under the License.
 
 ./default-run "$@" --experimental agents \
-                   --runtime-option -agentpath:libartagentd.so=test_900
+                   --experimental runtime-plugins \
+                   --runtime-option -agentpath:libartagentd.so=test_900 \
+                   --android-runtime-option -Xplugin:libartagentd.so

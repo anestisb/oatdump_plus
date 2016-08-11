@@ -1,2 +1,2 @@
-Test that agents are loaded.
+Tests that agents and plugins are loaded.
 
