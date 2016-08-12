@@ -264,19 +264,44 @@ art_debug_asflags := -UNDEBUG
 art_host_non_debug_cflags := $(art_non_debug_cflags)
 art_target_non_debug_cflags := $(art_non_debug_cflags)
 
+###
+# Frame size
+###
+
+# Size of the stack-overflow gap.
+ART_STACK_OVERFLOW_GAP_arm := 8192
+ART_STACK_OVERFLOW_GAP_arm64 := 8192
+ART_STACK_OVERFLOW_GAP_mips := 16384
+ART_STACK_OVERFLOW_GAP_mips64 := 16384
+ART_STACK_OVERFLOW_GAP_x86 := 8192
+ART_STACK_OVERFLOW_GAP_x86_64 := 8192
+ART_COMMON_STACK_OVERFLOW_DEFINES := \
+  -DART_STACK_OVERFLOW_GAP_arm=$(ART_STACK_OVERFLOW_GAP_arm) \
+  -DART_STACK_OVERFLOW_GAP_arm64=$(ART_STACK_OVERFLOW_GAP_arm64) \
+  -DART_STACK_OVERFLOW_GAP_mips=$(ART_STACK_OVERFLOW_GAP_mips) \
+  -DART_STACK_OVERFLOW_GAP_mips64=$(ART_STACK_OVERFLOW_GAP_mips64) \
+  -DART_STACK_OVERFLOW_GAP_x86=$(ART_STACK_OVERFLOW_GAP_x86) \
+  -DART_STACK_OVERFLOW_GAP_x86_64=$(ART_STACK_OVERFLOW_GAP_x86_64) \
+
+# Larger frame-size for host builds today.
+ART_HOST_FRAME_SIZE_LIMIT := 2700
+ART_TARGET_FRAME_SIZE_LIMIT := 1736
+
+# Frame size adaptations for instrumented builds.
+ifdef SANITIZE_TARGET
+  ART_TARGET_FRAME_SIZE_LIMIT := 6400
+endif
+
+# Add frame-size checks for non-debug builds.
 ifeq ($(HOST_OS),linux)
-  # Larger frame-size for host clang builds today
   ifneq ($(ART_COVERAGE),true)
     ifneq ($(NATIVE_COVERAGE),true)
-      art_host_non_debug_cflags += -Wframe-larger-than=2700
-      ifdef SANITIZE_TARGET
-        art_target_non_debug_cflags += -Wframe-larger-than=6400
-      else
-        art_target_non_debug_cflags += -Wframe-larger-than=1736
-      endif
+      art_host_non_debug_cflags += -Wframe-larger-than=$(ART_HOST_FRAME_SIZE_LIMIT)
+      art_target_non_debug_cflags += -Wframe-larger-than=$(ART_TARGET_FRAME_SIZE_LIMIT)
     endif
   endif
 endif
+
 
 ART_HOST_CFLAGS := $(art_cflags)
 ART_TARGET_CFLAGS := $(art_cflags)
@@ -294,12 +319,19 @@ endif
 ART_HOST_CFLAGS += -DART_BASE_ADDRESS=$(LIBART_IMG_HOST_BASE_ADDRESS)
 ART_HOST_CFLAGS += -DART_DEFAULT_INSTRUCTION_SET_FEATURES=default $(art_host_cflags)
 
+ART_HOST_CFLAGS += -DART_FRAME_SIZE_LIMIT=$(ART_HOST_FRAME_SIZE_LIMIT) \
+                   $(ART_COMMON_STACK_OVERFLOW_DEFINES)
+
+
 ifndef LIBART_IMG_TARGET_BASE_ADDRESS
   $(error LIBART_IMG_TARGET_BASE_ADDRESS unset)
 endif
 
 ART_TARGET_CFLAGS += -DART_TARGET \
                      -DART_BASE_ADDRESS=$(LIBART_IMG_TARGET_BASE_ADDRESS) \
+
+ART_TARGET_CFLAGS += -DART_FRAME_SIZE_LIMIT=$(ART_TARGET_FRAME_SIZE_LIMIT) \
+                     $(ART_COMMON_STACK_OVERFLOW_DEFINES)
 
 ifeq ($(ART_TARGET_LINUX),true)
 # Setting ART_TARGET_LINUX to true compiles art/ assuming that the target device
