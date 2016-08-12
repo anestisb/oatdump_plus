@@ -36,6 +36,10 @@ class ParsedOptions;
 class Runtime;
 struct RuntimeArgumentMap;
 
+class JavaVMExt;
+// Hook definition for runtime plugins.
+using GetEnvHook = jint (*)(JavaVMExt* vm, /*out*/void** new_env, jint version);
+
 class JavaVMExt : public JavaVM {
  public:
   JavaVMExt(Runtime* runtime, const RuntimeArgumentMap& runtime_options);
@@ -171,6 +175,12 @@ class JavaVMExt : public JavaVM {
   void TrimGlobals() SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!globals_lock_);
 
+  jint HandleGetEnv(/*out*/void** env, jint version);
+
+  void AddEnvironmentHook(GetEnvHook hook);
+
+  static bool IsBadJniVersion(int version);
+
  private:
   // Return true if self can currently access weak globals.
   bool MayAccessWeakGlobalsUnlocked(Thread* self) const SHARED_REQUIRES(Locks::mutator_lock_);
@@ -214,6 +224,9 @@ class JavaVMExt : public JavaVM {
   // Not guarded by weak_globals_lock since we may use SynchronizedGet in DecodeWeakGlobal.
   Atomic<bool> allow_accessing_weak_globals_;
   ConditionVariable weak_globals_add_condition_ GUARDED_BY(weak_globals_lock_);
+
+  // TODO Maybe move this to Runtime.
+  std::vector<GetEnvHook> env_hooks_;
 
   DISALLOW_COPY_AND_ASSIGN(JavaVMExt);
 };
