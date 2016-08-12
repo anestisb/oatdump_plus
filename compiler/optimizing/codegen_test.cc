@@ -247,7 +247,7 @@ static void RunCode(InstructionSet target_isa,
   } else if (target_isa == kX86) {
     std::unique_ptr<const X86InstructionSetFeatures> features_x86(
         X86InstructionSetFeatures::FromCppDefines());
-    x86::CodeGeneratorX86 codegenX86(graph, *features_x86.get(), compiler_options);
+    TestCodeGeneratorX86 codegenX86(graph, *features_x86.get(), compiler_options);
     RunCode(&codegenX86, graph, hook_before_codegen, has_result, expected);
   } else if (target_isa == kX86_64) {
     std::unique_ptr<const X86_64InstructionSetFeatures> features_x86_64(
