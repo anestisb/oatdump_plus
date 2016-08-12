@@ -497,7 +497,7 @@ namespace art {
       std::function<void(TArg&)> save_argument_;
       std::function<TArg&(void)> load_argument_;
     };
-  } // namespace detail // NOLINT [readability/namespace] [5] [whitespace/comments] [2]
+  }  // namespace detail  // NOLINT [readability/namespace] [5]
 }  // namespace art
 
 #endif  // ART_CMDLINE_DETAIL_CMDLINE_PARSE_ARGUMENT_DETAIL_H_
