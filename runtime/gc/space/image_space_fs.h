@@ -198,9 +198,11 @@ static bool RelabelOTAFiles(const std::string& dalvik_cache_dir) {
 static void PruneDalvikCache(InstructionSet isa) {
   CHECK_NE(isa, kNone);
   // Prune the base /data/dalvik-cache.
-  impl::DeleteDirectoryContents(GetDalvikCacheOrDie(".", false), false);
+  // Note: GetDalvikCache may return the empty string if the directory doesn't
+  // exist. It is safe to pass "" to DeleteDirectoryContents, so this is okay.
+  impl::DeleteDirectoryContents(GetDalvikCache("."), false);
   // Prune /data/dalvik-cache/<isa>.
-  impl::DeleteDirectoryContents(GetDalvikCacheOrDie(GetInstructionSetString(isa), false), false);
+  impl::DeleteDirectoryContents(GetDalvikCache(GetInstructionSetString(isa)), false);
 
   // Be defensive. There should be a runtime created here, but this may be called in a test.
   if (Runtime::Current() != nullptr) {
@@ -213,7 +215,8 @@ static void PruneDalvikCache(InstructionSet isa) {
 // present, it usually means the boot didn't complete. We wipe the entire dalvik
 // cache if that's the case.
 static void MarkZygoteStart(const InstructionSet isa, const uint32_t max_failed_boots) {
-  const std::string isa_subdir = GetDalvikCacheOrDie(GetInstructionSetString(isa), false);
+  const std::string isa_subdir = GetDalvikCache(GetInstructionSetString(isa));
+  CHECK(!isa_subdir.empty()) << "Dalvik cache not found";
   const std::string boot_marker = isa_subdir + "/.booting";
   const char* file_name = boot_marker.c_str();
 

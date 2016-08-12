@@ -1087,56 +1087,16 @@ void GetDalvikCache(const char* subdir, const bool create_if_absent, std::string
   }
 }
 
-static std::string GetDalvikCacheImpl(const char* subdir,
-                                      const bool create_if_absent,
-                                      const bool abort_on_error) {
+std::string GetDalvikCache(const char* subdir) {
   CHECK(subdir != nullptr);
   const char* android_data = GetAndroidData();
   const std::string dalvik_cache_root(StringPrintf("%s/dalvik-cache/", android_data));
   const std::string dalvik_cache = dalvik_cache_root + subdir;
   if (!OS::DirectoryExists(dalvik_cache.c_str())) {
-    if (!create_if_absent) {
-      // TODO: Check callers. Traditional behavior is to not to abort, even when abort_on_error.
-      return "";
-    }
-
-    // Don't create the system's /data/dalvik-cache/... because it needs special permissions.
-    if (strcmp(android_data, "/data") == 0) {
-      if (abort_on_error) {
-        LOG(FATAL) << "Failed to find dalvik-cache directory " << dalvik_cache
-                   << ", cannot create /data dalvik-cache.";
-        UNREACHABLE();
-      }
-      return "";
-    }
-
-    int result = mkdir(dalvik_cache_root.c_str(), 0700);
-    if (result != 0 && errno != EEXIST) {
-      if (abort_on_error) {
-        PLOG(FATAL) << "Failed to create dalvik-cache root directory " << dalvik_cache_root;
-        UNREACHABLE();
-      }
-      return "";
-    }
-
-    result = mkdir(dalvik_cache.c_str(), 0700);
-    if (result != 0) {
-      if (abort_on_error) {
-        PLOG(FATAL) << "Failed to create dalvik-cache directory " << dalvik_cache;
-        UNREACHABLE();
-      }
-      return "";
-    }
+    // TODO: Check callers. Traditional behavior is to not abort.
+    return "";
   }
   return dalvik_cache;
-}
-
-std::string GetDalvikCache(const char* subdir, const bool create_if_absent) {
-  return GetDalvikCacheImpl(subdir, create_if_absent, false);
-}
-
-std::string GetDalvikCacheOrDie(const char* subdir, const bool create_if_absent) {
-  return GetDalvikCacheImpl(subdir, create_if_absent, true);
 }
 
 bool GetDalvikCacheFilename(const char* location, const char* cache_location,
