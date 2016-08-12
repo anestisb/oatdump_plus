@@ -243,14 +243,16 @@ void ArmJNIMacroAssembler::CopyRef(FrameOffset dest, FrameOffset src, ManagedReg
 }
 
 void ArmJNIMacroAssembler::LoadRef(ManagedRegister mdest,
-                                   ManagedRegister base,
+                                   ManagedRegister mbase,
                                    MemberOffset offs,
                                    bool unpoison_reference) {
+  ArmManagedRegister base = mbase.AsArm();
   ArmManagedRegister dst = mdest.AsArm();
-  CHECK(dst.IsCoreRegister() && dst.IsCoreRegister()) << dst;
+  CHECK(base.IsCoreRegister()) << base;
+  CHECK(dst.IsCoreRegister()) << dst;
   __ LoadFromOffset(kLoadWord,
                     dst.AsCoreRegister(),
-                    base.AsArm().AsCoreRegister(),
+                    base.AsCoreRegister(),
                     offs.Int32Value());
   if (unpoison_reference) {
     __ MaybeUnpoisonHeapReference(dst.AsCoreRegister());
@@ -263,13 +265,16 @@ void ArmJNIMacroAssembler::LoadRef(ManagedRegister mdest, FrameOffset  src) {
   __ LoadFromOffset(kLoadWord, dst.AsCoreRegister(), SP, src.Int32Value());
 }
 
-void ArmJNIMacroAssembler::LoadRawPtr(ManagedRegister mdest, ManagedRegister base,
-                           Offset offs) {
+void ArmJNIMacroAssembler::LoadRawPtr(ManagedRegister mdest,
+                                      ManagedRegister mbase,
+                                      Offset offs) {
+  ArmManagedRegister base = mbase.AsArm();
   ArmManagedRegister dst = mdest.AsArm();
-  CHECK(dst.IsCoreRegister() && dst.IsCoreRegister()) << dst;
+  CHECK(base.IsCoreRegister()) << base;
+  CHECK(dst.IsCoreRegister()) << dst;
   __ LoadFromOffset(kLoadWord,
                     dst.AsCoreRegister(),
-                    base.AsArm().AsCoreRegister(),
+                    base.AsCoreRegister(),
                     offs.Int32Value());
 }
 
@@ -530,8 +535,9 @@ void ArmJNIMacroAssembler::VerifyObject(FrameOffset /*src*/, bool /*could_be_nul
   // TODO: not validating references.
 }
 
-void ArmJNIMacroAssembler::Call(ManagedRegister mbase, Offset offset,
-                        ManagedRegister mscratch) {
+void ArmJNIMacroAssembler::Call(ManagedRegister mbase,
+                                Offset offset,
+                                ManagedRegister mscratch) {
   ArmManagedRegister base = mbase.AsArm();
   ArmManagedRegister scratch = mscratch.AsArm();
   CHECK(base.IsCoreRegister()) << base;
