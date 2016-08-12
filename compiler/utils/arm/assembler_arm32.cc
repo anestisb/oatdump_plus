@@ -1106,6 +1106,18 @@ void Arm32Assembler::vpopd(DRegister reg, int nregs, Condition cond) {
 }
 
 
+void Arm32Assembler::vldmiad(Register, DRegister, int, Condition) {
+  LOG(FATAL) << "Unimplemented.";
+  UNREACHABLE();
+}
+
+
+void Arm32Assembler::vstmiad(Register, DRegister, int, Condition) {
+  LOG(FATAL) << "Unimplemented.";
+  UNREACHABLE();
+}
+
+
 void Arm32Assembler::EmitVPushPop(uint32_t reg, int nregs, bool push, bool dbl, Condition cond) {
   CHECK_NE(cond, kNoCondition);
   CHECK_GT(nregs, 0);

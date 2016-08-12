@@ -258,6 +258,8 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   void vpushd(DRegister reg, int nregs, Condition cond = AL) OVERRIDE;
   void vpops(SRegister reg, int nregs, Condition cond = AL) OVERRIDE;
   void vpopd(DRegister reg, int nregs, Condition cond = AL) OVERRIDE;
+  void vldmiad(Register base_reg, DRegister reg, int nregs, Condition cond = AL) OVERRIDE;
+  void vstmiad(Register base_reg, DRegister reg, int nregs, Condition cond = AL) OVERRIDE;
 
   // Branch instructions.
   void b(Label* label, Condition cond = AL);
@@ -747,6 +749,14 @@ class Thumb2Assembler FINAL : public ArmAssembler {
                   SRegister sd,
                   SRegister sn,
                   SRegister sm);
+
+  void EmitVLdmOrStm(int32_t rest,
+                     uint32_t reg,
+                     int nregs,
+                     Register rn,
+                     bool is_load,
+                     bool dbl,
+                     Condition cond);
 
   void EmitVFPddd(Condition cond,
                   int32_t opcode,
