@@ -514,7 +514,9 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
 
   // Whether the interval requires a register rather than a stack location.
   // If needed for performance, this could be cached.
-  bool RequiresRegister() const { return FirstRegisterUse() != kNoLifetime; }
+  bool RequiresRegister() const {
+    return !HasRegister() && FirstRegisterUse() != kNoLifetime;
+  }
 
   size_t FirstUseAfter(size_t position) const {
     if (is_temp_) {
