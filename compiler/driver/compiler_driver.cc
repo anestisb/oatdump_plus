@@ -77,10 +77,6 @@ namespace art {
 
 static constexpr bool kTimeCompileMethod = !kIsDebugBuild;
 
-// Whether classes-to-compile and methods-to-compile are only applied to the boot image, or, when
-// given, too all compilations.
-static constexpr bool kRestrictCompilationFiltersToImage = true;
-
 // Print additional info during profile guided compilation.
 static constexpr bool kDebugProfileGuidedCompilation = false;
 
@@ -946,10 +942,6 @@ bool CompilerDriver::IsImageClass(const char* descriptor) const {
 }
 
 bool CompilerDriver::IsClassToCompile(const char* descriptor) const {
-  if (kRestrictCompilationFiltersToImage && !IsBootImage()) {
-    return true;
-  }
-
   if (classes_to_compile_ == nullptr) {
     return true;
   }
@@ -957,10 +949,6 @@ bool CompilerDriver::IsClassToCompile(const char* descriptor) const {
 }
 
 bool CompilerDriver::IsMethodToCompile(const MethodReference& method_ref) const {
-  if (kRestrictCompilationFiltersToImage && !IsBootImage()) {
-    return true;
-  }
-
   if (methods_to_compile_ == nullptr) {
     return true;
   }
