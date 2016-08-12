@@ -59,8 +59,8 @@ static constexpr DRegister DTMP = D31;
 
 static constexpr uint32_t kPackedSwitchCompareJumpThreshold = 7;
 
-// NOLINT on __ macro to suppress wrong warning/fix from clang-tidy.
-#define __ down_cast<ArmAssembler*>(codegen->GetAssembler())-> // NOLINT
+// NOLINT on __ macro to suppress wrong warning/fix (misc-macro-parentheses) from clang-tidy.
+#define __ down_cast<ArmAssembler*>(codegen->GetAssembler())->  // NOLINT
 #define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kArmPointerSize, x).Int32Value()
 
 class NullCheckSlowPathARM : public SlowPathCode {
@@ -706,8 +706,8 @@ class ReadBarrierForRootSlowPathARM : public SlowPathCode {
 };
 
 #undef __
-// NOLINT on __ macro to suppress wrong warning/fix from clang-tidy.
-#define __ down_cast<ArmAssembler*>(GetAssembler())-> // NOLINT
+// NOLINT on __ macro to suppress wrong warning/fix (misc-macro-parentheses) from clang-tidy.
+#define __ down_cast<ArmAssembler*>(GetAssembler())->  // NOLINT
 
 inline Condition ARMCondition(IfCondition cond) {
   switch (cond) {

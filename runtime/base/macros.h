@@ -75,7 +75,7 @@ template<typename T> ART_FRIEND_TEST(test_set_name, individual_test)
     ALWAYS_INLINE void* operator new(size_t, void* ptr) noexcept { return ptr; } \
     ALWAYS_INLINE void operator delete(void*, void*) noexcept { } \
   private: \
-    void* operator new(size_t) = delete // NOLINT
+    void* operator new(size_t) = delete  // NOLINT
 
 // The arraysize(arr) macro returns the # of elements in an array arr.
 // The expression is a compile-time constant, and therefore can be
@@ -135,13 +135,13 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 #define ARRAYSIZE_UNSAFE(a) \
   ((sizeof(a) / sizeof(*(a))) / static_cast<size_t>(!(sizeof(a) % sizeof(*(a)))))
 
-#define SIZEOF_MEMBER(t, f) sizeof((reinterpret_cast<t*>(4096))->f) // NOLINT
+#define SIZEOF_MEMBER(t, f) sizeof((reinterpret_cast<t*>(4096))->f)  // NOLINT
 
 #define OFFSETOF_MEMBER(t, f) \
-  (reinterpret_cast<uintptr_t>(&reinterpret_cast<t*>(16)->f) - static_cast<uintptr_t>(16u)) // NOLINT
+  (reinterpret_cast<uintptr_t>(&reinterpret_cast<t*>(16)->f) - static_cast<uintptr_t>(16u))  // NOLINT
 
 #define OFFSETOF_MEMBERPTR(t, f) \
-  (reinterpret_cast<uintptr_t>(&(reinterpret_cast<t*>(16)->*f)) - static_cast<uintptr_t>(16)) // NOLINT
+  (reinterpret_cast<uintptr_t>(&(reinterpret_cast<t*>(16)->*f)) - static_cast<uintptr_t>(16))  // NOLINT
 
 #define PACKED(x) __attribute__ ((__aligned__(x), __packed__))
 
