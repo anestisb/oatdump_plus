@@ -283,8 +283,9 @@ ART_COMMON_STACK_OVERFLOW_DEFINES := \
   -DART_STACK_OVERFLOW_GAP_x86=$(ART_STACK_OVERFLOW_GAP_x86) \
   -DART_STACK_OVERFLOW_GAP_x86_64=$(ART_STACK_OVERFLOW_GAP_x86_64) \
 
-# Larger frame-size for host builds today.
-ART_HOST_FRAME_SIZE_LIMIT := 2700
+# Keep these as small as possible. We have separate values as we have some host vs target
+# specific code (and previously GCC vs Clang).
+ART_HOST_FRAME_SIZE_LIMIT := 1736
 ART_TARGET_FRAME_SIZE_LIMIT := 1736
 
 # Frame size adaptations for instrumented builds.
