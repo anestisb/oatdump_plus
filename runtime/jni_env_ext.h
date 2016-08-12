@@ -54,6 +54,8 @@ struct JNIEnvExt : public JNIEnv {
   static Offset LocalRefCookieOffset(size_t pointer_size);
   static Offset SelfOffset(size_t pointer_size);
 
+  static jint GetEnvHandler(JavaVMExt* vm, /*out*/void** out, jint version);
+
   jobject NewLocalRef(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_);
   void DeleteLocalRef(jobject obj) SHARED_REQUIRES(Locks::mutator_lock_);
 

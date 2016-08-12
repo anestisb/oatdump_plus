@@ -45,6 +45,20 @@ static bool CheckLocalsValid(JNIEnvExt* in) NO_THREAD_SAFETY_ANALYSIS {
   return in->locals.IsValid();
 }
 
+jint JNIEnvExt::GetEnvHandler(JavaVMExt* vm, /*out*/void** env, jint version) {
+  UNUSED(vm);
+  // GetEnv always returns a JNIEnv* for the most current supported JNI version,
+  // and unlike other calls that take a JNI version doesn't care if you supply
+  // JNI_VERSION_1_1, which we don't otherwise support.
+  if (JavaVMExt::IsBadJniVersion(version) && version != JNI_VERSION_1_1) {
+    return JNI_EVERSION;
+  }
+  Thread* thread = Thread::Current();
+  CHECK(thread != nullptr);
+  *env = thread->GetJniEnv();
+  return JNI_OK;
+}
+
 JNIEnvExt* JNIEnvExt::Create(Thread* self_in, JavaVMExt* vm_in) {
   std::unique_ptr<JNIEnvExt> ret(new JNIEnvExt(self_in, vm_in));
   if (CheckLocalsValid(ret.get())) {
