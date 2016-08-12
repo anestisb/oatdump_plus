@@ -1098,7 +1098,7 @@ MACRO1(ALLOC_ARRAY_TLAB_FAST_PATH_RESOLVED, slowPathLabel)
                                                                // Store the class pointer in the
                                                                // header.
                                                                // No fence needed for x86.
-    POISON_HEAP_REF ecx
+    POISON_HEAP_REF r8d
     movl %r8d, MIRROR_OBJECT_CLASS_OFFSET(%rax)
     movl %esi, MIRROR_ARRAY_LENGTH_OFFSET(%rax)
     ret                                                        // Fast path succeeded.
