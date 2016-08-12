@@ -2751,7 +2751,7 @@ READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg12, w12, x12
 READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg13, w13, x13
 READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg14, w14, x14
 READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg15, w15, x15
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg16, w16, x16
+// READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg16, w16, x16 ip0 is blocked
 READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg17, w17, x17
 READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg18, w18, x18
 READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg19, w19, x19
