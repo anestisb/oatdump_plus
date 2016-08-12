@@ -14,7 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+plugin=libartagentd.so
+if  [[ "$@" == *"-O"* ]]; then
+  plugin=libartagent.so
+fi
 ./default-run "$@" --experimental agents \
                    --experimental runtime-plugins \
-                   --runtime-option -agentpath:libartagentd.so=test_900 \
-                   --android-runtime-option -Xplugin:libartagentd.so
+                   --runtime-option -agentpath:${plugin}=test_900 \
+                   --android-runtime-option -Xplugin:${plugin}
