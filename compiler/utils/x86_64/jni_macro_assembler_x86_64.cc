@@ -288,21 +288,27 @@ void X86_64JNIMacroAssembler::LoadRef(ManagedRegister mdest, FrameOffset src) {
 }
 
 void X86_64JNIMacroAssembler::LoadRef(ManagedRegister mdest,
-                                      ManagedRegister base,
+                                      ManagedRegister mbase,
                                       MemberOffset offs,
                                       bool unpoison_reference) {
+  X86_64ManagedRegister base = mbase.AsX86_64();
   X86_64ManagedRegister dest = mdest.AsX86_64();
-  CHECK(dest.IsCpuRegister() && dest.IsCpuRegister());
-  __ movl(dest.AsCpuRegister(), Address(base.AsX86_64().AsCpuRegister(), offs));
+  CHECK(base.IsCpuRegister());
+  CHECK(dest.IsCpuRegister());
+  __ movl(dest.AsCpuRegister(), Address(base.AsCpuRegister(), offs));
   if (unpoison_reference) {
     __ MaybeUnpoisonHeapReference(dest.AsCpuRegister());
   }
 }
 
-void X86_64JNIMacroAssembler::LoadRawPtr(ManagedRegister mdest, ManagedRegister base, Offset offs) {
+void X86_64JNIMacroAssembler::LoadRawPtr(ManagedRegister mdest,
+                                         ManagedRegister mbase,
+                                         Offset offs) {
+  X86_64ManagedRegister base = mbase.AsX86_64();
   X86_64ManagedRegister dest = mdest.AsX86_64();
-  CHECK(dest.IsCpuRegister() && dest.IsCpuRegister());
-  __ movq(dest.AsCpuRegister(), Address(base.AsX86_64().AsCpuRegister(), offs));
+  CHECK(base.IsCpuRegister());
+  CHECK(dest.IsCpuRegister());
+  __ movq(dest.AsCpuRegister(), Address(base.AsCpuRegister(), offs));
 }
 
 void X86_64JNIMacroAssembler::LoadRawPtrFromThread(ManagedRegister mdest, ThreadOffset64 offs) {
