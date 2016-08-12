@@ -17,7 +17,7 @@
 #ifndef ART_RUNTIME_MIRROR_ABSTRACT_METHOD_H_
 #define ART_RUNTIME_MIRROR_ABSTRACT_METHOD_H_
 
-#include "accessible_object.h"
+#include "executable.h"
 #include "gc_root.h"
 #include "object.h"
 #include "object_callbacks.h"
@@ -31,7 +31,7 @@ class ArtMethod;
 namespace mirror {
 
 // C++ mirror of java.lang.reflect.AbstractMethod.
-class MANAGED AbstractMethod : public AccessibleObject {
+class MANAGED AbstractMethod : public Executable {
  public:
   // Called from Constructor::CreateFromArtMethod, Method::CreateFromArtMethod.
   template <PointerSize kPointerSize, bool kTransactionActive>
