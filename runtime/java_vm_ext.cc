@@ -48,7 +48,7 @@ static size_t gGlobalsMax = 51200;  // Arbitrary sanity check. (Must fit in 16 b
 static const size_t kWeakGlobalsInitial = 16;  // Arbitrary.
 static const size_t kWeakGlobalsMax = 51200;  // Arbitrary sanity check. (Must fit in 16 bits.)
 
-static bool IsBadJniVersion(int version) {
+bool JavaVMExt::IsBadJniVersion(int version) {
   // We don't support JNI_VERSION_1_1. These are the only other valid versions.
   return version != JNI_VERSION_1_2 && version != JNI_VERSION_1_4 && version != JNI_VERSION_1_6;
 }
@@ -344,13 +344,6 @@ class JII {
   }
 
   static jint GetEnv(JavaVM* vm, void** env, jint version) {
-    // GetEnv always returns a JNIEnv* for the most current supported JNI version,
-    // and unlike other calls that take a JNI version doesn't care if you supply
-    // JNI_VERSION_1_1, which we don't otherwise support.
-    if (IsBadJniVersion(version) && version != JNI_VERSION_1_1) {
-      LOG(ERROR) << "Bad JNI version passed to GetEnv: " << version;
-      return JNI_EVERSION;
-    }
     if (vm == nullptr || env == nullptr) {
       return JNI_ERR;
     }
@@ -359,8 +352,8 @@ class JII {
       *env = nullptr;
       return JNI_EDETACHED;
     }
-    *env = thread->GetJniEnv();
-    return JNI_OK;
+    JavaVMExt* raw_vm = reinterpret_cast<JavaVMExt*>(vm);
+    return raw_vm->HandleGetEnv(env, version);
   }
 
  private:
@@ -388,7 +381,7 @@ class JII {
     const char* thread_name = nullptr;
     jobject thread_group = nullptr;
     if (args != nullptr) {
-      if (IsBadJniVersion(args->version)) {
+      if (JavaVMExt::IsBadJniVersion(args->version)) {
         LOG(ERROR) << "Bad JNI version passed to "
                    << (as_daemon ? "AttachCurrentThreadAsDaemon" : "AttachCurrentThread") << ": "
                    << args->version;
@@ -436,12 +429,33 @@ JavaVMExt::JavaVMExt(Runtime* runtime, const RuntimeArgumentMap& runtime_options
       weak_globals_lock_("JNI weak global reference table lock", kJniWeakGlobalsLock),
       weak_globals_(kWeakGlobalsInitial, kWeakGlobalsMax, kWeakGlobal),
       allow_accessing_weak_globals_(true),
-      weak_globals_add_condition_("weak globals add condition", weak_globals_lock_) {
+      weak_globals_add_condition_("weak globals add condition", weak_globals_lock_),
+      env_hooks_() {
   functions = unchecked_functions_;
   SetCheckJniEnabled(runtime_options.Exists(RuntimeArgumentMap::CheckJni));
 }
 
 JavaVMExt::~JavaVMExt() {
+}
+
+jint JavaVMExt::HandleGetEnv(/*out*/void** env, jint version) {
+  for (GetEnvHook hook : env_hooks_) {
+    jint res = hook(this, env, version);
+    if (res == JNI_OK) {
+      return JNI_OK;
+    } else if (res != JNI_EVERSION) {
+      LOG(ERROR) << "Error returned from a plugin GetEnv handler! " << res;
+      return res;
+    }
+  }
+  LOG(ERROR) << "Bad JNI version passed to GetEnv: " << version;
+  return JNI_EVERSION;
+}
+
+// Add a hook to handle getting environments from the GetEnv call.
+void JavaVMExt::AddEnvironmentHook(GetEnvHook hook) {
+  CHECK(hook != nullptr) << "environment hooks shouldn't be null!";
+  env_hooks_.push_back(hook);
 }
 
 void JavaVMExt::JniAbort(const char* jni_function_name, const char* msg) {
@@ -866,7 +880,7 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env,
 
     if (version == JNI_ERR) {
       StringAppendF(error_msg, "JNI_ERR returned from JNI_OnLoad in \"%s\"", path.c_str());
-    } else if (IsBadJniVersion(version)) {
+    } else if (JavaVMExt::IsBadJniVersion(version)) {
       StringAppendF(error_msg, "Bad JNI version returned from JNI_OnLoad in \"%s\": %d",
                     path.c_str(), version);
       // It's unwise to call dlclose() here, but we can mark it
@@ -939,7 +953,7 @@ void JavaVMExt::VisitRoots(RootVisitor* visitor) {
 extern "C" jint JNI_CreateJavaVM(JavaVM** p_vm, JNIEnv** p_env, void* vm_args) {
   ScopedTrace trace(__FUNCTION__);
   const JavaVMInitArgs* args = static_cast<JavaVMInitArgs*>(vm_args);
-  if (IsBadJniVersion(args->version)) {
+  if (JavaVMExt::IsBadJniVersion(args->version)) {
     LOG(ERROR) << "Bad JNI version passed to CreateJavaVM: " << args->version;
     return JNI_EVERSION;
   }
