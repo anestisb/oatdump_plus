@@ -34,6 +34,8 @@ class HParallelMove;
 class Location;
 class SsaLivenessAnalysis;
 class InterferenceNode;
+struct CoalesceOpportunity;
+enum class CoalesceKind;
 
 /**
  * A graph coloring register allocator.
@@ -60,6 +62,25 @@ class InterferenceNode;
  *       sparser, so that future coloring attempts may succeed.
  *     - If the node does not require a register, we simply assign it a location on the stack.
  *
+ * If iterative move coalescing is enabled, the algorithm also attempts to conservatively
+ * combine nodes in the graph that would prefer to have the same color. (For example, the output
+ * of a phi instruction would prefer to have the same register as at least one of its inputs.)
+ * There are several additional steps involved with this:
+ * - We look for coalesce opportunities by examining each live interval, a step similar to that
+ *   used by linear scan when looking for register hints.
+ * - When pruning the graph, we maintain a worklist of coalesce opportunities, as well as a worklist
+ *   of low degree nodes that have associated coalesce opportunities. Only when we run out of
+ *   coalesce opportunities do we start pruning coalesce-associated nodes.
+ * - When pruning a node, if any nodes transition from high degree to low degree, we add
+ *   associated coalesce opportunities to the worklist, since these opportunities may now succeed.
+ * - Whether two nodes can be combined is decided by two different heuristics--one used when
+ *   coalescing uncolored nodes, and one used for coalescing an uncolored node with a colored node.
+ *   It is vital that we only combine two nodes if the node that remains is guaranteed to receive
+ *   a color. This is because additionally spilling is more costly than failing to coalesce.
+ * - Even if nodes are not coalesced while pruning, we keep the coalesce opportunities around
+ *   to be used as last-chance register hints when coloring. If nothing else, we try to use
+ *   caller-save registers before callee-save registers.
+ *
  * A good reference for graph coloring register allocation is
  * "Modern Compiler Implementation in Java" (Andrew W. Appel, 2nd Edition).
  */
@@ -67,7 +88,8 @@ class RegisterAllocatorGraphColor : public RegisterAllocator {
  public:
   RegisterAllocatorGraphColor(ArenaAllocator* allocator,
                               CodeGenerator* codegen,
-                              const SsaLivenessAnalysis& analysis);
+                              const SsaLivenessAnalysis& analysis,
+                              bool iterative_move_coalescing = true);
   ~RegisterAllocatorGraphColor() OVERRIDE {}
 
   void AllocateRegisters() OVERRIDE;
@@ -116,12 +138,20 @@ class RegisterAllocatorGraphColor : public RegisterAllocator {
   void BlockRegister(Location location, size_t start, size_t end);
   void BlockRegisters(size_t start, size_t end, bool caller_save_only = false);
 
+  static bool HasGreaterNodePriority(const InterferenceNode* lhs, const InterferenceNode* rhs);
+
+  // Compare two coalesce opportunities based on their priority.
+  // Return true if lhs has a lower priority than that of rhs.
+  static bool CmpCoalesceOpportunity(const CoalesceOpportunity* lhs,
+                                     const CoalesceOpportunity* rhs);
+
   // Use the intervals collected from instructions to construct an
   // interference graph mapping intervals to adjacency lists.
   // Also, collect synthesized safepoint nodes, used to keep
   // track of live intervals across safepoints.
+  // TODO: Should build safepoints elsewhere.
   void BuildInterferenceGraph(const ArenaVector<LiveInterval*>& intervals,
-                              ArenaVector<InterferenceNode*>* prunable_nodes,
+                              const ArenaVector<InterferenceNode*>& physical_nodes,
                               ArenaVector<InterferenceNode*>* safepoints);
 
   // Prune nodes from the interference graph to be colored later. Build
@@ -131,11 +161,61 @@ class RegisterAllocatorGraphColor : public RegisterAllocator {
                               size_t num_registers,
                               ArenaStdStack<InterferenceNode*>* pruned_nodes);
 
-  // Process pruned_intervals to color the interference graph, spilling when
-  // necessary. Return true if successful. Else, split some intervals to make
-  // the interference graph sparser.
-  bool ColorInterferenceGraph(ArenaStdStack<InterferenceNode*>* pruned_nodes,
-                              size_t num_registers);
+  // Add an edge in the interference graph, if valid.
+  // Note that `guaranteed_not_interfering_yet` is used to optimize adjacency set insertion
+  // when possible.
+  void AddPotentialInterference(InterferenceNode* from,
+                                InterferenceNode* to,
+                                bool guaranteed_not_interfering_yet,
+                                bool both_directions = true);
+
+  // Create a coalesce opportunity between two nodes.
+  void CreateCoalesceOpportunity(InterferenceNode* a,
+                                 InterferenceNode* b,
+                                 CoalesceKind kind,
+                                 size_t position);
+
+  // Add coalesce opportunities to interference nodes.
+  void FindCoalesceOpportunities();
+
+  // Prune nodes from the interference graph to be colored later. Returns
+  // a stack containing these intervals in an order determined by various
+  // heuristics.
+  // Also performs iterative conservative coalescing, based on Modern Compiler Implementation
+  // in Java, 2nd ed. (Andrew Appel, Cambridge University Press.)
+  void PruneInterferenceGraph(size_t num_registers);
+
+  // Invalidate all coalesce opportunities this node has, so that it (and possibly its neighbors)
+  // may be pruned from the interference graph.
+  void FreezeMoves(InterferenceNode* node, size_t num_regs);
+
+  // Prune a node from the interference graph, updating worklists if necessary.
+  void PruneNode(InterferenceNode* node, size_t num_regs);
+
+  // Add coalesce opportunities associated with this node to the coalesce worklist.
+  void EnableCoalesceOpportunities(InterferenceNode* node);
+
+  // If needed, from `node` from the freeze worklist to the simplify worklist.
+  void CheckTransitionFromFreezeWorklist(InterferenceNode* node, size_t num_regs);
+
+  // Return true if `into` is colored, and `from` can be coalesced with `into` conservatively.
+  bool PrecoloredHeuristic(InterferenceNode* from, InterferenceNode* into, size_t num_regs);
+
+  // Return true if `from` and `into` are uncolored, and can be coalesced conservatively.
+  bool UncoloredHeuristic(InterferenceNode* from, InterferenceNode* into, size_t num_regs);
+
+  void Coalesce(CoalesceOpportunity* opportunity, size_t num_regs);
+
+  // Merge `from` into `into` in the interference graph.
+  void Combine(InterferenceNode* from, InterferenceNode* into, size_t num_regs);
+
+  bool IsCallerSave(size_t reg, bool processing_core_regs);
+
+  // Process pruned_intervals_ to color the interference graph, spilling when
+  // necessary. Returns true if successful. Else, some intervals have been
+  // split, and the interference graph should be rebuilt for another attempt.
+  bool ColorInterferenceGraph(size_t num_registers,
+                              bool processing_core_regs);
 
   // Return the maximum number of registers live at safepoints,
   // based on the outgoing interference edges of safepoint nodes.
@@ -144,6 +224,10 @@ class RegisterAllocatorGraphColor : public RegisterAllocator {
   // If necessary, add the given interval to the list of spilled intervals,
   // and make sure it's ready to be spilled to the stack.
   void AllocateSpillSlotFor(LiveInterval* interval);
+
+  // Whether iterative move coalescing should be performed. Iterative move coalescing
+  // improves code quality, but increases compile time.
+  const bool iterative_move_coalescing_;
 
   // Live intervals, split by kind (core and floating point).
   // These should not contain high intervals, as those are represented by
@@ -157,10 +241,10 @@ class RegisterAllocatorGraphColor : public RegisterAllocator {
   // Safepoints, saved for special handling while processing instructions.
   ArenaVector<HInstruction*> safepoints_;
 
-  // Live intervals for specific registers. These become pre-colored nodes
+  // Interference nodes representing specific registers. These are "pre-colored" nodes
   // in the interference graph.
-  ArenaVector<LiveInterval*> physical_core_intervals_;
-  ArenaVector<LiveInterval*> physical_fp_intervals_;
+  ArenaVector<InterferenceNode*> physical_core_nodes_;
+  ArenaVector<InterferenceNode*> physical_fp_nodes_;
 
   // Allocated stack slot counters.
   size_t int_spill_slot_counter_;
@@ -188,6 +272,36 @@ class RegisterAllocatorGraphColor : public RegisterAllocator {
   // Many data structures are cleared between graph coloring attempts, so we reduce
   // total memory usage by using a new arena allocator for each attempt.
   ArenaAllocator* coloring_attempt_allocator_;
+
+  // A monotonically increasing counter for assigning unique IDs to interference nodes.
+  // Unique IDs are used to maintain determinism when storing interference nodes in certain
+  // data structure, such as sets.
+  size_t node_id_counter_;
+
+  // A map from live intervals to interference nodes.
+  ArenaHashMap<LiveInterval*, InterferenceNode*> interval_node_map_;
+
+  // Uncolored nodes that should be pruned from the interference graph.
+  ArenaVector<InterferenceNode*> prunable_nodes_;
+
+  // A stack of nodes pruned from the interference graph, waiting to be pruned.
+  ArenaStdStack<InterferenceNode*> pruned_nodes_;
+
+  // A queue containing low degree, non-move-related nodes that can pruned immediately.
+  ArenaDeque<InterferenceNode*> simplify_worklist_;
+
+  // A queue containing low degree, move-related nodes.
+  ArenaDeque<InterferenceNode*> freeze_worklist_;
+
+  // A queue containing high degree nodes.
+  // If we have to prune from the spill worklist, we cannot guarantee
+  // the pruned node a color, so we order the worklist by priority.
+  ArenaPriorityQueue<InterferenceNode*, decltype(&HasGreaterNodePriority)> spill_worklist_;
+
+  // A queue containing coalesce opportunities.
+  // We order the coalesce worklist by priority, since some coalesce opportunities (e.g., those
+  // inside of loops) are more important than others.
+  ArenaPriorityQueue<CoalesceOpportunity*, decltype(&CmpCoalesceOpportunity)> coalesce_worklist_;
 
   DISALLOW_COPY_AND_ASSIGN(RegisterAllocatorGraphColor);
 };
