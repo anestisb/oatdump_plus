@@ -60,6 +60,9 @@ while true; do
     if [ "x$1" = "x--quiet" ]; then
         QUIET="y"
         shift
+    elif [ "x$1" = "x-O" ]; then
+        # Ignore this option.
+        shift
     elif [ "x$1" = "x--lib" ]; then
         shift
         if [ "x$1" = "x" ]; then

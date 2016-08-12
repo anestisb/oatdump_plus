@@ -165,6 +165,7 @@ while true; do
     elif [ "x$1" = "x-O" ]; then
         lib="libart.so"
         testlib="arttest"
+        run_args="${run_args} -O"
         shift
     elif [ "x$1" = "x--dalvik" ]; then
         lib="libdvm.so"
