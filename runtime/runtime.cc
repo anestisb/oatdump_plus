@@ -130,6 +130,7 @@
 #include "signal_set.h"
 #include "thread.h"
 #include "thread_list.h"
+#include "ti/agent.h"
 #include "trace.h"
 #include "transaction.h"
 #include "utils.h"
@@ -279,6 +280,16 @@ Runtime::~Runtime() {
     jit_->DeleteThreadPool();
     // Similarly, stop the profile saver thread before deleting the thread list.
     jit_->StopProfileSaver();
+  }
+
+  // TODO Maybe do some locking.
+  for (auto& agent : agents_) {
+    agent.Unload();
+  }
+
+  // TODO Maybe do some locking
+  for (auto& plugin : plugins_) {
+    plugin.Unload();
   }
 
   // Make sure our internal threads are dead before we start tearing down things they're using.
@@ -960,6 +971,16 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   experimental_flags_ = runtime_options.GetOrDefault(Opt::Experimental);
   is_low_memory_mode_ = runtime_options.Exists(Opt::LowMemoryMode);
 
+  if (experimental_flags_ & ExperimentalFlags::kRuntimePlugins) {
+    plugins_ = runtime_options.ReleaseOrDefault(Opt::Plugins);
+  }
+  if (experimental_flags_ & ExperimentalFlags::kAgents) {
+    agents_ = runtime_options.ReleaseOrDefault(Opt::AgentPath);
+    // TODO Add back in -agentlib
+    // for (auto lib : runtime_options.ReleaseOrDefault(Opt::AgentLib)) {
+    //   agents_.push_back(lib);
+    // }
+  }
   XGcOption xgc_option = runtime_options.GetOrDefault(Opt::GcOption);
   heap_ = new gc::Heap(runtime_options.GetOrDefault(Opt::MemoryInitialSize),
                        runtime_options.GetOrDefault(Opt::HeapGrowthLimit),
@@ -1084,6 +1105,10 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
 
   java_vm_ = new JavaVMExt(this, runtime_options);
 
+  // Add the JniEnv handler.
+  // TODO Refactor this stuff.
+  java_vm_->AddEnvironmentHook(JNIEnvExt::GetEnvHandler);
+
   Thread::Startup();
 
   // ClassLinker needs an attached thread, but we can't fully attach a thread without creating
@@ -1200,6 +1225,16 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   pre_allocated_NoClassDefFoundError_ = GcRoot<mirror::Throwable>(self->GetException());
   self->ClearException();
 
+  // Runtime initialization is largely done now.
+  // We load plugins first since that can modify the runtime state slightly.
+  // Load all plugins
+  for (auto& plugin : plugins_) {
+    std::string err;
+    if (!plugin.Load(&err)) {
+      LOG(FATAL) << plugin << " failed to load: " << err;
+    }
+  }
+
   // Look for a native bridge.
   //
   // The intended flow here is, in the case of a running system:
@@ -1230,6 +1265,20 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   {
     std::string native_bridge_file_name = runtime_options.ReleaseOrDefault(Opt::NativeBridge);
     is_native_bridge_loaded_ = LoadNativeBridge(native_bridge_file_name);
+  }
+
+  // Startup agents
+  // TODO Maybe we should start a new thread to run these on. Investigate RI behavior more.
+  for (auto& agent : agents_) {
+    // TODO Check err
+    int res = 0;
+    std::string err = "";
+    ti::Agent::LoadError result = agent.Load(&res, &err);
+    if (result == ti::Agent::kInitializationError) {
+      LOG(FATAL) << "Unable to initialize agent!";
+    } else if (result != ti::Agent::kNoError) {
+      LOG(ERROR) << "Unable to load an agent: " << err;
+    }
   }
 
   VLOG(startup) << "Runtime::Init exiting";
