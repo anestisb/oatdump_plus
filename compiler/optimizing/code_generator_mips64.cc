@@ -102,8 +102,8 @@ Location InvokeRuntimeCallingConvention::GetReturnLocation(Primitive::Type type)
   return Mips64ReturnLocation(type);
 }
 
-// NOLINT on __ macro to suppress wrong warning/fix from clang-tidy.
-#define __ down_cast<CodeGeneratorMIPS64*>(codegen)->GetAssembler()-> // NOLINT
+// NOLINT on __ macro to suppress wrong warning/fix (misc-macro-parentheses) from clang-tidy.
+#define __ down_cast<CodeGeneratorMIPS64*>(codegen)->GetAssembler()->  // NOLINT
 #define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kMips64PointerSize, x).Int32Value()
 
 class BoundsCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
@@ -427,8 +427,8 @@ CodeGeneratorMIPS64::CodeGeneratorMIPS64(HGraph* graph,
 }
 
 #undef __
-// NOLINT on __ macro to suppress wrong warning/fix from clang-tidy.
-#define __ down_cast<Mips64Assembler*>(GetAssembler())-> // NOLINT
+// NOLINT on __ macro to suppress wrong warning/fix (misc-macro-parentheses) from clang-tidy.
+#define __ down_cast<Mips64Assembler*>(GetAssembler())->  // NOLINT
 #define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kMips64PointerSize, x).Int32Value()
 
 void CodeGeneratorMIPS64::Finalize(CodeAllocator* allocator) {

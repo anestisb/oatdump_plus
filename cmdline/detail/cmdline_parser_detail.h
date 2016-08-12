@@ -35,7 +35,7 @@ namespace art {
      private:
       template <typename TStream, typename T>
       static std::true_type InsertionOperatorTest(TStream& os, const T& value,
-                                                  std::remove_reference<decltype(os << value)>* = 0); // NOLINT [whitespace/operators] [3]
+                                                  std::remove_reference<decltype(os << value)>* = 0);  // NOLINT [whitespace/operators] [3]
 
       template <typename TStream, typename ... T>
       static std::false_type InsertionOperatorTest(TStream& os, const T& ... args);
@@ -53,7 +53,7 @@ namespace art {
      private:
       template <typename TL, typename TR>
       static std::true_type EqualityOperatorTest(const TL& left, const TR& right,
-                                                 std::remove_reference<decltype(left == right)>* = 0); // NOLINT [whitespace/operators] [3]
+                                                 std::remove_reference<decltype(left == right)>* = 0);  // NOLINT [whitespace/operators] [3]
 
       template <typename TL, typename ... T>
       static std::false_type EqualityOperatorTest(const TL& left, const T& ... args);

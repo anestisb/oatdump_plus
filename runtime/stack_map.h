@@ -1050,7 +1050,7 @@ struct CodeInfoEncoding {
       inline_info_encoding = *reinterpret_cast<const InlineInfoEncoding*>(ptr);
       ptr += sizeof(InlineInfoEncoding);
     } else {
-      inline_info_encoding = InlineInfoEncoding{}; // NOLINT.
+      inline_info_encoding = InlineInfoEncoding{};  // NOLINT.
     }
     header_size = dchecked_integral_cast<uint8_t>(ptr - reinterpret_cast<const uint8_t*>(data));
   }
