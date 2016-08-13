@@ -297,12 +297,13 @@ Heap::Heap(size_t initial_size,
     for (size_t index = 0; index < image_file_names.size(); ++index) {
       std::string& image_name = image_file_names[index];
       std::string error_msg;
-      space::ImageSpace* boot_image_space = space::ImageSpace::CreateBootImage(
+      std::unique_ptr<space::ImageSpace> boot_image_space_uptr = space::ImageSpace::CreateBootImage(
           image_name.c_str(),
           image_instruction_set,
           index > 0,
           &error_msg);
-      if (boot_image_space != nullptr) {
+      if (boot_image_space_uptr != nullptr) {
+        space::ImageSpace* boot_image_space = boot_image_space_uptr.release();
         AddSpace(boot_image_space);
         added_image_spaces.push_back(boot_image_space);
         // Oat files referenced by image files immediately follow them in memory, ensure alloc space

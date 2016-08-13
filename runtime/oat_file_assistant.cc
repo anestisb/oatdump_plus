@@ -786,8 +786,12 @@ const OatFileAssistant::ImageInfo* OatFileAssistant::GetImageInfo() {
             image_header.GetOatDataBegin());
         cached_image_info_.patch_delta = image_header.GetPatchDelta();
       } else {
+        std::string error_msg;
         std::unique_ptr<ImageHeader> image_header(
-            gc::space::ImageSpace::ReadImageHeaderOrDie(cached_image_info_.location.c_str(), isa_));
+            gc::space::ImageSpace::ReadImageHeader(cached_image_info_.location.c_str(),
+                                                   isa_,
+                                                   &error_msg));
+        CHECK(image_header != nullptr) << error_msg;
         cached_image_info_.oat_checksum = image_header->GetOatChecksum();
         cached_image_info_.oat_data_begin = reinterpret_cast<uintptr_t>(
             image_header->GetOatDataBegin());
@@ -813,8 +817,10 @@ uint32_t OatFileAssistant::CalculateCombinedImageChecksum(InstructionSet isa) {
   } else {
     for (gc::space::ImageSpace* image_space : image_spaces) {
       std::string location = image_space->GetImageLocation();
+      std::string error_msg;
       std::unique_ptr<ImageHeader> image_header(
-          gc::space::ImageSpace::ReadImageHeaderOrDie(location.c_str(), isa));
+          gc::space::ImageSpace::ReadImageHeader(location.c_str(), isa, &error_msg));
+      CHECK(image_header != nullptr) << error_msg;
       checksum ^= image_header->GetOatChecksum();
     }
   }
@@ -828,7 +834,7 @@ uint32_t OatFileAssistant::GetCombinedImageChecksum() {
   return combined_image_checksum_;
 }
 
-gc::space::ImageSpace* OatFileAssistant::OpenImageSpace(const OatFile* oat_file) {
+std::unique_ptr<gc::space::ImageSpace> OatFileAssistant::OpenImageSpace(const OatFile* oat_file) {
   DCHECK(oat_file != nullptr);
   std::string art_file = ArtFileName(oat_file);
   if (art_file.empty()) {
@@ -836,9 +842,8 @@ gc::space::ImageSpace* OatFileAssistant::OpenImageSpace(const OatFile* oat_file)
   }
   std::string error_msg;
   ScopedObjectAccess soa(Thread::Current());
-  gc::space::ImageSpace* ret = gc::space::ImageSpace::CreateFromAppImage(art_file.c_str(),
-                                                                         oat_file,
-                                                                         &error_msg);
+  std::unique_ptr<gc::space::ImageSpace> ret =
+      gc::space::ImageSpace::CreateFromAppImage(art_file.c_str(), oat_file, &error_msg);
   if (ret == nullptr && (VLOG_IS_ON(image) || OS::FileExists(art_file.c_str()))) {
     LOG(INFO) << "Failed to open app image " << art_file.c_str() << " " << error_msg;
   }
