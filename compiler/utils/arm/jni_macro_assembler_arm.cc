@@ -18,7 +18,6 @@
 
 #include <algorithm>
 
-#include "assembler_arm32.h"
 #include "assembler_thumb2.h"
 #include "base/arena_allocator.h"
 #include "base/bit_utils.h"
@@ -47,9 +46,6 @@ class ArmExceptionSlowPath FINAL : public SlowPath {
 ArmJNIMacroAssembler::ArmJNIMacroAssembler(ArenaAllocator* arena, InstructionSet isa) {
   switch (isa) {
     case kArm:
-      asm_.reset(new (arena) Arm32Assembler(arena));
-      break;
-
     case kThumb2:
       asm_.reset(new (arena) Thumb2Assembler(arena));
       break;

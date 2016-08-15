@@ -28,7 +28,6 @@ class AssemblerFixup;
 
 namespace arm {
   class ArmAssembler;
-  class Arm32Assembler;
   class Thumb2Assembler;
 }
 namespace arm64 {
@@ -118,7 +117,6 @@ class Label {
   }
 
   friend class arm::ArmAssembler;
-  friend class arm::Arm32Assembler;
   friend class arm::Thumb2Assembler;
   friend class arm64::Arm64Assembler;
   friend class mips::MipsAssembler;
