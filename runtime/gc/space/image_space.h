@@ -43,22 +43,17 @@ class ImageSpace : public MemMapSpace {
   // creation of the alloc space. The ReleaseOatFile will later be
   // used to transfer ownership of the OatFile to the ClassLinker when
   // it is initialized.
-  static ImageSpace* CreateBootImage(const char* image,
+  static std::unique_ptr<ImageSpace> CreateBootImage(const char* image,
                                      InstructionSet image_isa,
                                      bool secondary_image,
                                      std::string* error_msg)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Try to open an existing app image space.
-  static ImageSpace* CreateFromAppImage(const char* image,
-                                        const OatFile* oat_file,
-                                        std::string* error_msg)
+  static std::unique_ptr<ImageSpace> CreateFromAppImage(const char* image,
+                                                        const OatFile* oat_file,
+                                                        std::string* error_msg)
       SHARED_REQUIRES(Locks::mutator_lock_);
-
-  // Reads the image header from the specified image location for the
-  // instruction set image_isa or dies trying.
-  static ImageHeader* ReadImageHeaderOrDie(const char* image_location,
-                                           InstructionSet image_isa);
 
   // Reads the image header from the specified image location for the
   // instruction set image_isa. Returns null on failure, with
@@ -158,20 +153,12 @@ class ImageSpace : public MemMapSpace {
   // relative to its DexFile inputs. Otherwise (for /data), validate the inputs and generate the
   // OatFile in /data/dalvik-cache if necessary. If the oat_file is null, it uses the oat file from
   // the image.
-  static ImageSpace* Init(const char* image_filename,
-                          const char* image_location,
-                          bool validate_oat_file,
-                          const OatFile* oat_file,
-                          std::string* error_msg)
+  static std::unique_ptr<ImageSpace> Init(const char* image_filename,
+                                          const char* image_location,
+                                          bool validate_oat_file,
+                                          const OatFile* oat_file,
+                                          std::string* error_msg)
       SHARED_REQUIRES(Locks::mutator_lock_);
-
-  OatFile* OpenOatFile(const char* image, std::string* error_msg) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  bool ValidateOatFile(std::string* error_msg) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
-
-  friend class Space;
 
   static Atomic<uint32_t> bitmap_index_;
 
@@ -193,6 +180,9 @@ class ImageSpace : public MemMapSpace {
   const OatFile* oat_file_non_owned_;
 
   const std::string image_location_;
+
+  friend class ImageSpaceLoader;
+  friend class Space;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(ImageSpace);
