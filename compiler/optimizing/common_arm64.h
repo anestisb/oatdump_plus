@@ -22,8 +22,13 @@
 #include "nodes.h"
 #include "utils/arm64/assembler_arm64.h"
 
-#include "a64/disasm-a64.h"
-#include "a64/macro-assembler-a64.h"
+// TODO(VIXL): Make VIXL compile with -Wshadow.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
+#include "aarch64/disasm-aarch64.h"
+#include "aarch64/macro-assembler-aarch64.h"
+#include "aarch64/simulator-aarch64.h"
+#pragma GCC diagnostic pop
 
 namespace art {
 namespace arm64 {
