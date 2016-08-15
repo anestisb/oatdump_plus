@@ -1246,9 +1246,15 @@ ENTRY art_quick_alloc_object_region_tlab
     ldr    r2, [r2, r0, lsl #COMPRESSED_REFERENCE_SIZE_SHIFT]
                                                               // Read barrier for class load.
     ldr    r3, [r9, #THREAD_IS_GC_MARKING_OFFSET]
-    cbnz   r3, .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path
+    cbnz   r3, .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_marking
 .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path_exit:
     ALLOC_OBJECT_TLAB_FAST_PATH .Lart_quick_alloc_object_region_tlab_slow_path
+.Lart_quick_alloc_object_region_tlab_class_load_read_barrier_marking:
+    cbz    r2, .Lart_quick_alloc_object_region_tlab_slow_path  // Null check for loading lock word.
+    // Check lock word for mark bit, if marked do the allocation.
+    ldr r3, [r2, MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    ands r3, #LOCK_WORD_MARK_BIT_MASK_SHIFTED
+    bne .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path_exit
 .Lart_quick_alloc_object_region_tlab_class_load_read_barrier_slow_path:
                                                               // The read barrier slow path. Mark
                                                               // the class.
@@ -1817,6 +1823,39 @@ ENTRY art_quick_l2f
     pop   {pc}
 END art_quick_l2f
 
+.macro CONDITIONAL_CBZ reg, reg_if, dest
+.ifc \reg, \reg_if
+    cbz \reg, \dest
+.endif
+.endm
+
+.macro CONDITIONAL_CMPBZ reg, reg_if, dest
+.ifc \reg, \reg_if
+    cmp \reg, #0
+    beq \dest
+.endif
+.endm
+
+// Use CBZ if the register is in {r0, r7} otherwise compare and branch.
+.macro SMART_CBZ reg, dest
+    CONDITIONAL_CBZ \reg, r0, \dest
+    CONDITIONAL_CBZ \reg, r1, \dest
+    CONDITIONAL_CBZ \reg, r2, \dest
+    CONDITIONAL_CBZ \reg, r3, \dest
+    CONDITIONAL_CBZ \reg, r4, \dest
+    CONDITIONAL_CBZ \reg, r5, \dest
+    CONDITIONAL_CBZ \reg, r6, \dest
+    CONDITIONAL_CBZ \reg, r7, \dest
+    CONDITIONAL_CMPBZ \reg, r8, \dest
+    CONDITIONAL_CMPBZ \reg, r9, \dest
+    CONDITIONAL_CMPBZ \reg, r10, \dest
+    CONDITIONAL_CMPBZ \reg, r11, \dest
+    CONDITIONAL_CMPBZ \reg, r12, \dest
+    CONDITIONAL_CMPBZ \reg, r13, \dest
+    CONDITIONAL_CMPBZ \reg, r14, \dest
+    CONDITIONAL_CMPBZ \reg, r15, \dest
+.endm
+
     /*
      * Create a function `name` calling the ReadBarrier::Mark routine,
      * getting its argument and returning its result through register
@@ -1835,28 +1874,25 @@ END art_quick_l2f
 .macro READ_BARRIER_MARK_REG name, reg
 ENTRY \name
     // Null check so that we can load the lock word.
-    cmp \reg, #0
-    beq .Lret_rb_\name
-    // Check lock word for mark bit, if marked return.
-    push {r0}
-    ldr r0, [\reg, MIRROR_OBJECT_LOCK_WORD_OFFSET]
-    and r0, #LOCK_WORD_MARK_BIT_MASK_SHIFTED
-    cbz r0, .Lslow_rb_\name
-    // Restore LR and return.
-    pop   {r0}
-    bx    lr
+    SMART_CBZ \reg, .Lret_rb_\name
+    // Check lock word for mark bit, if marked return. Use IP for scratch since it is blocked.
+    ldr ip, [\reg, MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    ands ip, #LOCK_WORD_MARK_BIT_MASK_SHIFTED
+    beq .Lslow_rb_\name
+    // Already marked, return right away.
+    bx lr
 
 .Lslow_rb_\name:
-    pop   {r0}
-    push  {r0-r4, r9, r12, lr}          @ save return address and core caller-save registers
+    push  {r0-r5, r9, lr}               @ save return address and core caller-save registers
+                                        @ also save callee save r5 for 16 byte alignment
     .cfi_adjust_cfa_offset 32
     .cfi_rel_offset r0, 0
     .cfi_rel_offset r1, 4
     .cfi_rel_offset r2, 8
     .cfi_rel_offset r3, 12
     .cfi_rel_offset r4, 16
-    .cfi_rel_offset r9, 20
-    .cfi_rel_offset r12, 24
+    .cfi_rel_offset r5, 20
+    .cfi_rel_offset r9, 24
     .cfi_rel_offset lr, 28
     vpush {s0-s15}                      @ save floating-point caller-save registers
     .cfi_adjust_cfa_offset 64
@@ -1865,48 +1901,11 @@ ENTRY \name
       mov   r0, \reg                    @ pass arg1 - obj from `reg`
     .endif
     bl    artReadBarrierMark            @ r0 <- artReadBarrierMark(obj)
-
+    mov ip, r0                          @ Save result in IP
     vpop {s0-s15}                       @ restore floating-point registers
     .cfi_adjust_cfa_offset -64
-    @ If `reg` is a caller-save register, save the result to its
-    @ corresponding stack slot; it will be restored by the "pop"
-    @ instruction below. Otherwise, move result into `reg`.
-    @
-    @ (Note that saving `reg` to its stack slot will overwrite the value
-    @ previously stored by the "push" instruction above. That is
-    @ alright, as in that case we know that `reg` is not a live
-    @ register, as it is used to pass the argument and return the result
-    @ of this function.)
-    .ifc \reg, r0
-      PUSH_REG r0, 0                    @ copy result to r0's stack location
-    .else
-      .ifc \reg, r1
-        PUSH_REG r0, 4                  @ copy result to r1's stack location
-      .else
-        .ifc \reg, r2
-          PUSH_REG r0, 8                @ copy result to r2's stack location
-        .else
-          .ifc \reg, r3
-            PUSH_REG r0, 12             @ copy result to r3's stack location
-          .else
-            .ifc \reg, r4
-              PUSH_REG r0, 16           @ copy result to r4's stack location
-            .else
-              .ifc \reg, r9
-                PUSH_REG r0, 20         @ copy result to r9's stack location
-              .else
-                .ifc \reg, r12
-                  PUSH_REG r0, 24       @ copy result to r12's stack location
-                .else
-                  mov   \reg, r0        @ return result into `reg`
-                .endif
-              .endif
-            .endif
-          .endif
-        .endif
-      .endif
-    .endif
-    pop   {r0-r4, r9, r12, pc}          @ restore caller-save registers and return
+    pop   {r0-r5, r9, lr}               @ restore caller-save registers
+    mov \reg, ip                        @ copy result to reg
 .Lret_rb_\name:
     bx lr
 END \name
@@ -1924,4 +1923,3 @@ READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg08, r8
 READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg09, r9
 READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg10, r10
 READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg11, r11
-READ_BARRIER_MARK_REG art_quick_read_barrier_mark_reg12, r12

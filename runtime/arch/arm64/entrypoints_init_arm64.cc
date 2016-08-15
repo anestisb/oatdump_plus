@@ -149,7 +149,7 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   qpoints->pReadBarrierMarkReg13 = art_quick_read_barrier_mark_reg13;
   qpoints->pReadBarrierMarkReg14 = art_quick_read_barrier_mark_reg14;
   qpoints->pReadBarrierMarkReg15 = art_quick_read_barrier_mark_reg15;
-  qpoints->pReadBarrierMarkReg16 = art_quick_read_barrier_mark_reg16;
+  qpoints->pReadBarrierMarkReg16 = nullptr;  // IP0 is used as a temp by the asm stub.
   qpoints->pReadBarrierMarkReg17 = art_quick_read_barrier_mark_reg17;
   qpoints->pReadBarrierMarkReg18 = art_quick_read_barrier_mark_reg18;
   qpoints->pReadBarrierMarkReg19 = art_quick_read_barrier_mark_reg19;
