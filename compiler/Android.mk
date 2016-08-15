@@ -284,7 +284,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   endif
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
-  # Vixl assembly support for ARM64 targets.
+  # VIXL assembly support for ARM64 targets.
   ifeq ($$(art_ndebug_or_debug),debug)
     ifeq ($$(art_static_or_shared), static)
       LOCAL_WHOLESTATIC_LIBRARIES += libvixld-arm64
