@@ -137,7 +137,20 @@ class Dex2oatEnvironmentTest : public CommonRuntimeTest {
   }
 
   bool GetCachedImageFile(/*out*/std::string* image, std::string* error_msg) const {
-    std::string cache = GetDalvikCache(GetInstructionSetString(kRuntimeISA), true);
+    std::string cache;
+    bool have_android_data;
+    bool dalvik_cache_exists;
+    bool is_global_cache;
+    GetDalvikCache(GetInstructionSetString(kRuntimeISA),
+                   true,
+                   &cache,
+                   &have_android_data,
+                   &dalvik_cache_exists,
+                   &is_global_cache);
+    if (!dalvik_cache_exists) {
+      *error_msg = "Failed to create dalvik cache";
+      return false;
+    }
     return GetDalvikCacheFilename(GetImageLocation().c_str(), cache.c_str(), image, error_msg);
   }
 
