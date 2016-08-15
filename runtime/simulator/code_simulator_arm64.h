@@ -20,10 +20,10 @@
 #include "memory"
 #include "simulator/code_simulator.h"
 
-// TODO: make vixl clean wrt -Wshadow.
+// TODO(VIXL): Make VIXL compile with -Wshadow.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wshadow"
-#include "a64/simulator-a64.h"
+#include "aarch64/simulator-aarch64.h"
 #pragma GCC diagnostic pop
 
 namespace art {

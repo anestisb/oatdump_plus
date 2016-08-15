@@ -27,13 +27,11 @@
 #include "utils/assembler.h"
 #include "offsets.h"
 
-// TODO: make vixl clean wrt -Wshadow, -Wunknown-pragmas, -Wmissing-noreturn
+// TODO(VIXL): Make VIXL compile with -Wshadow.
 #pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunknown-pragmas"
 #pragma GCC diagnostic ignored "-Wshadow"
-#pragma GCC diagnostic ignored "-Wmissing-noreturn"
-#include "a64/disasm-a64.h"
-#include "a64/macro-assembler-a64.h"
+#include "aarch64/disasm-aarch64.h"
+#include "aarch64/macro-assembler-aarch64.h"
 #pragma GCC diagnostic pop
 
 namespace art {
