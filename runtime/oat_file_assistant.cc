@@ -713,21 +713,15 @@ bool OatFileAssistant::DexLocationToOatFilename(const std::string& location,
   CHECK(oat_filename != nullptr);
   CHECK(error_msg != nullptr);
 
-  // TODO: The work done in GetDalvikCache is overkill for what we need.
-  // Ideally a new API for getting the DalvikCacheDirectory the way we want
-  // (without existence testing, creation, or death) is provided with the rest
-  // of the GetDalvikCache family of functions. Until such an API is in place,
-  // we use GetDalvikCache to avoid duplicating the logic for determining the
-  // dalvik cache directory.
-  std::string dalvik_cache_dir;
-  bool ignored;
-  GetDalvikCache("", false, &dalvik_cache_dir, &ignored, &ignored, &ignored);
+  std::string cache_dir = GetDalvikCache(GetInstructionSetString(isa));
+  if (cache_dir.empty()) {
+    *error_msg = "Dalvik cache directory does not exist";
+    return false;
+  }
 
   // TODO: The oat file assistant should be the definitive place for
   // determining the oat file name from the dex location, not
   // GetDalvikCacheFilename.
-  std::string cache_dir = StringPrintf("%s%s",
-      dalvik_cache_dir.c_str(), GetInstructionSetString(isa));
   return GetDalvikCacheFilename(location.c_str(), cache_dir.c_str(), oat_filename, error_msg);
 }
 
