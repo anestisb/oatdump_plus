@@ -133,7 +133,7 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   qpoints->pReadBarrierMarkReg09 = art_quick_read_barrier_mark_reg09;
   qpoints->pReadBarrierMarkReg10 = art_quick_read_barrier_mark_reg10;
   qpoints->pReadBarrierMarkReg11 = art_quick_read_barrier_mark_reg11;
-  qpoints->pReadBarrierMarkReg12 = art_quick_read_barrier_mark_reg12;
+  qpoints->pReadBarrierMarkReg12 = nullptr;  // Cannot use register 12 (IP) to pass arguments.
   qpoints->pReadBarrierMarkReg13 = nullptr;  // Cannot use register 13 (SP) to pass arguments.
   qpoints->pReadBarrierMarkReg14 = nullptr;  // Cannot use register 14 (LR) to pass arguments.
   qpoints->pReadBarrierMarkReg15 = nullptr;  // Cannot use register 15 (PC) to pass arguments.
