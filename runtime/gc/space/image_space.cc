@@ -363,15 +363,29 @@ static bool ChecksumsMatch(const char* image_a, const char* image_b, std::string
   return true;
 }
 
-static bool ImageCreationAllowed(bool is_global_cache, std::string* error_msg) {
+static bool CanWriteToDalvikCache(const InstructionSet isa) {
+  const std::string dalvik_cache = GetDalvikCache(GetInstructionSetString(isa));
+  if (access(dalvik_cache.c_str(), O_RDWR) == 0) {
+    return true;
+  } else if (errno != EACCES) {
+    PLOG(WARNING) << "CanWriteToDalvikCache returned error other than EACCES";
+  }
+  return false;
+}
+
+static bool ImageCreationAllowed(bool is_global_cache,
+                                 const InstructionSet isa,
+                                 std::string* error_msg) {
   // Anyone can write into a "local" cache.
   if (!is_global_cache) {
     return true;
   }
 
-  // Only the zygote is allowed to create the global boot image.
+  // Only the zygote running as root is allowed to create the global boot image.
+  // If the zygote is running as non-root (and cannot write to the dalvik-cache),
+  // then image creation is not allowed..
   if (Runtime::Current()->IsZygote()) {
-    return true;
+    return CanWriteToDalvikCache(isa);
   }
 
   *error_msg = "Only the zygote can create the global boot image.";
@@ -1410,7 +1424,7 @@ std::unique_ptr<ImageSpace> ImageSpace::CreateBootImage(const char* image_locati
 
   // Step 0.a: If we're the zygote, mark boot.
   const bool is_zygote = Runtime::Current()->IsZygote();
-  if (is_zygote && !secondary_image) {
+  if (is_zygote && !secondary_image && CanWriteToDalvikCache(image_isa)) {
     MarkZygoteStart(image_isa, Runtime::Current()->GetZygoteMaxFailedBoots());
   }
 
@@ -1525,7 +1539,7 @@ std::unique_ptr<ImageSpace> ImageSpace::CreateBootImage(const char* image_locati
       local_error_msg = "Patching disabled.";
     } else if (secondary_image) {
       local_error_msg = "Cannot patch a secondary image.";
-    } else if (ImageCreationAllowed(is_global_cache, &local_error_msg)) {
+    } else if (ImageCreationAllowed(is_global_cache, image_isa, &local_error_msg)) {
       bool patch_success =
           RelocateImage(image_location, cache_filename.c_str(), image_isa, &local_error_msg);
       if (patch_success) {
@@ -1555,7 +1569,7 @@ std::unique_ptr<ImageSpace> ImageSpace::CreateBootImage(const char* image_locati
       local_error_msg = "Image compilation disabled.";
     } else if (secondary_image) {
       local_error_msg = "Cannot compile a secondary image.";
-    } else if (ImageCreationAllowed(is_global_cache, &local_error_msg)) {
+    } else if (ImageCreationAllowed(is_global_cache, image_isa, &local_error_msg)) {
       bool compilation_success = GenerateImage(cache_filename, image_isa, &local_error_msg);
       if (compilation_success) {
         std::unique_ptr<ImageSpace> compiled_space =
