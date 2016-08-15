@@ -19,10 +19,11 @@
 
 #include "disassembler.h"
 
+// TODO(VIXL): Make VIXL compile with -Wshadow.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wshadow"
-#include "a64/decoder-a64.h"
-#include "a64/disasm-a64.h"
+#include "aarch64/decoder-aarch64.h"
+#include "aarch64/disasm-aarch64.h"
 #pragma GCC diagnostic pop
 
 namespace art {

@@ -27,11 +27,11 @@
 #include "utils/arm64/assembler_arm64.h"
 #include "utils/type_reference.h"
 
-// TODO: make vixl clean wrt -Wshadow.
+// TODO(VIXL): Make VIXL compile with -Wshadow.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wshadow"
-#include "a64/disasm-a64.h"
-#include "a64/macro-assembler-a64.h"
+#include "aarch64/disasm-aarch64.h"
+#include "aarch64/macro-assembler-aarch64.h"
 #pragma GCC diagnostic pop
 
 namespace art {
