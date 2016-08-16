@@ -1115,15 +1115,6 @@ bool GetDalvikCacheFilename(const char* location, const char* cache_location,
   return true;
 }
 
-std::string GetDalvikCacheFilenameOrDie(const char* location, const char* cache_location) {
-  std::string ret;
-  std::string error_msg;
-  if (!GetDalvikCacheFilename(location, cache_location, &ret, &error_msg)) {
-    LOG(FATAL) << error_msg;
-  }
-  return ret;
-}
-
 static void InsertIsaDirectory(const InstructionSet isa, std::string* filename) {
   // in = /foo/bar/baz
   // out = /foo/bar/<isa>/baz
