@@ -30,7 +30,8 @@ rm 'classes/android/test/anno/ClassWithInnerAnnotationClass$MissingInnerAnnotati
 
 if [ ${USE_JACK} = "true" ]; then
   jar cf classes.jill.jar -C classes .
-  ${JACK} --import classes.jill.jar --output-dex .
+  # Jack needs to emit annotations with CLASS retention.
+  ${JACK} -D jack.dex.annotation.class-retention=true --import classes.jill.jar --output-dex .
 else
   ${DX} -JXmx256m --debug --dex --output=classes.dex classes
 fi
