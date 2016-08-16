@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_JNI_QUICK_JNI_COMPILER_H_
 #define ART_COMPILER_JNI_QUICK_JNI_COMPILER_H_
 
+#include "compiler.h"
 #include "dex_file.h"
 
 namespace art {
@@ -24,8 +25,11 @@ namespace art {
 class CompilerDriver;
 class CompiledMethod;
 
-CompiledMethod* ArtQuickJniCompileMethod(CompilerDriver* compiler, uint32_t access_flags,
-                                         uint32_t method_idx, const DexFile& dex_file);
+CompiledMethod* ArtQuickJniCompileMethod(CompilerDriver* compiler,
+                                         uint32_t access_flags,
+                                         uint32_t method_idx,
+                                         const DexFile& dex_file,
+                                         Compiler::JniOptimizationFlags optimization_flags);
 
 }  // namespace art
 

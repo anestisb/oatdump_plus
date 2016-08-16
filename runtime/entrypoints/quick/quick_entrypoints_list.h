@@ -72,8 +72,10 @@
   V(HandleFillArrayData, void, void*, void*) \
 \
   V(JniMethodStart, uint32_t, Thread*) \
+  V(JniMethodFastStart, uint32_t, Thread*) \
   V(JniMethodStartSynchronized, uint32_t, jobject, Thread*) \
   V(JniMethodEnd, void, uint32_t, Thread*) \
+  V(JniMethodFastEnd, void, uint32_t, Thread*) \
   V(JniMethodEndSynchronized, void, uint32_t, jobject, Thread*) \
   V(JniMethodEndWithReference, mirror::Object*, jobject, uint32_t, Thread*) \
   V(JniMethodEndWithReferenceSynchronized, mirror::Object*, jobject, uint32_t, jobject, Thread*) \
@@ -195,7 +197,8 @@
   V(ReadBarrierMarkReg28, mirror::Object*, mirror::Object*) \
   V(ReadBarrierMarkReg29, mirror::Object*, mirror::Object*) \
   V(ReadBarrierSlow, mirror::Object*, mirror::Object*, mirror::Object*, uint32_t) \
-  V(ReadBarrierForRootSlow, mirror::Object*, GcRoot<mirror::Object>*)
+  V(ReadBarrierForRootSlow, mirror::Object*, GcRoot<mirror::Object>*) \
+\
 
 #endif  // ART_RUNTIME_ENTRYPOINTS_QUICK_QUICK_ENTRYPOINTS_LIST_H_
 #undef ART_RUNTIME_ENTRYPOINTS_QUICK_QUICK_ENTRYPOINTS_LIST_H_   // #define is only for lint.

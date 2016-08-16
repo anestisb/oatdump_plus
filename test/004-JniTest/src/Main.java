@@ -18,6 +18,8 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 
+import dalvik.annotation.optimization.FastNative;
+
 public class Main {
     public static void main(String[] args) {
         System.loadLibrary(args[0]);
@@ -44,7 +46,12 @@ public class Main {
         testInvokeLambdaMethod(() -> { System.out.println("hi-lambda: " + lambda); });
         String def = "δ";
         testInvokeLambdaDefaultMethod(() -> { System.out.println("hi-default " + def + lambda); });
+
+        registerNativesJniTest();
+        testFastNativeMethods();
     }
+
+    private static native boolean registerNativesJniTest();
 
     private static native void testCallDefaultMethods();
 
@@ -263,6 +270,25 @@ public class Main {
     private static native void testInvokeLambdaMethod(LambdaInterface iface);
 
     private static native void testInvokeLambdaDefaultMethod(LambdaInterface iface);
+
+    // Test invoking @FastNative methods works correctly.
+
+    // Return sum of a+b+c.
+    @FastNative
+    static native int intFastNativeMethod(int a, int b, int c);
+
+    private static void testFastNativeMethods() {
+      int returns[] = { 0, 3, 6, 9, 12 };
+      for (int i = 0; i < returns.length; i++) {
+        int result = intFastNativeMethod(i, i, i);
+        if (returns[i] != result) {
+          System.out.println("FastNative Int Run " + i + " with " + returns[i] + " vs " + result);
+          throw new AssertionError();
+        }
+      }
+    }
+
+
 }
 
 @FunctionalInterface

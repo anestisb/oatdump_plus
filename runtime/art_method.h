@@ -375,6 +375,10 @@ class ArtMethod FINAL {
     return (GetAccessFlags() & kAccMustCountLocks) != 0;
   }
 
+  // Checks to see if the method was annotated with @dalvik.annotation.optimization.FastNative
+  // -- Independent of kAccFastNative access flags.
+  bool IsAnnotatedWithFastNative();
+
   // Returns true if this method could be overridden by a default method.
   bool IsOverridableByDefaultMethod() SHARED_REQUIRES(Locks::mutator_lock_);
 

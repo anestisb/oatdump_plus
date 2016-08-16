@@ -283,8 +283,13 @@ class OptimizingCompiler FINAL : public Compiler {
 
   CompiledMethod* JniCompile(uint32_t access_flags,
                              uint32_t method_idx,
-                             const DexFile& dex_file) const OVERRIDE {
-    return ArtQuickJniCompileMethod(GetCompilerDriver(), access_flags, method_idx, dex_file);
+                             const DexFile& dex_file,
+                             JniOptimizationFlags optimization_flags) const OVERRIDE {
+    return ArtQuickJniCompileMethod(GetCompilerDriver(),
+                                    access_flags,
+                                    method_idx,
+                                    dex_file,
+                                    optimization_flags);
   }
 
   uintptr_t GetEntryPointOf(ArtMethod* method) const OVERRIDE

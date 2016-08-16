@@ -1403,7 +1403,9 @@ mirror::ObjectArray<mirror::String>* DexFile::GetSignatureAnnotationForMethod(Ar
   return GetSignatureValue(method_class, annotation_set);
 }
 
-bool DexFile::IsMethodAnnotationPresent(ArtMethod* method, Handle<mirror::Class> annotation_class)
+bool DexFile::IsMethodAnnotationPresent(ArtMethod* method,
+                                        Handle<mirror::Class> annotation_class,
+                                        uint32_t visibility /* = kDexVisibilityRuntime */)
     const {
   const AnnotationSetItem* annotation_set = FindAnnotationSetForMethod(method);
   if (annotation_set == nullptr) {
@@ -1411,8 +1413,10 @@ bool DexFile::IsMethodAnnotationPresent(ArtMethod* method, Handle<mirror::Class>
   }
   StackHandleScope<1> hs(Thread::Current());
   Handle<mirror::Class> method_class(hs.NewHandle(method->GetDeclaringClass()));
-  const AnnotationItem* annotation_item = GetAnnotationItemFromAnnotationSet(
-      method_class, annotation_set, kDexVisibilityRuntime, annotation_class);
+  const AnnotationItem* annotation_item = GetAnnotationItemFromAnnotationSet(method_class,
+                                                                             annotation_set,
+                                                                             visibility,
+                                                                             annotation_class);
   return annotation_item != nullptr;
 }
 
