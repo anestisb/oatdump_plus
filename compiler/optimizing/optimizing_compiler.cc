@@ -180,6 +180,7 @@ class PassObserver : public ValueObject {
 
  private:
   void StartPass(const char* pass_name) {
+    VLOG(compiler) << "Starting pass: " << pass_name;
     // Dump graph first, then start timer.
     if (visualizer_enabled_) {
       visualizer_.DumpGraph(pass_name, /* is_after_pass */ false, graph_in_bad_state_);
