@@ -556,6 +556,7 @@ art_test_bother :=
 TEST_ART_TARGET_SYNC_DEPS :=
 
 include $(art_path)/runtime/openjdkjvm/Android.mk
+include $(art_path)/runtime/openjdkjvmti/Android.mk
 
 # Helper target that depends on boot image creation.
 #

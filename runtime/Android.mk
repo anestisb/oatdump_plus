@@ -376,6 +376,7 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
   verifier/method_verifier.h
 
 LIBOPENJDKJVM_SRC_FILES := openjdkjvm/OpenjdkJvm.cc
+LIBOPENJDKJVMTI_SRC_FILES := openjdkjvmti/OpenjdkJvmTi.cc
 
 LIBART_CFLAGS := -DBUILDING_LIBART=1
 
@@ -408,7 +409,7 @@ endif
 # $(1): target or host
 # $(2): ndebug or debug
 # $(3): static or shared (note that static only applies for host)
-# $(4): module name : either libart or libopenjdkjvm
+# $(4): module name : either libart, libopenjdkjvm, or libopenjdkjvmti
 define build-runtime-library
   ifneq ($(1),target)
     ifneq ($(1),host)
@@ -422,7 +423,9 @@ define build-runtime-library
   endif
   ifneq ($(4),libart)
     ifneq ($(4),libopenjdkjvm)
-      $$(error expected libart or libopenjdkjvm for argument 4, received $(4))
+      ifneq ($(4),libopenjdkjvmti)
+        $$(error expected libart, libopenjdkjvmti, or libopenjdkjvm for argument 4, received $(4))
+      endif
     endif
   endif
 
@@ -460,8 +463,12 @@ define build-runtime-library
       LOCAL_SRC_FILES_64 := $$(LIBART_HOST_SRC_FILES_64)
       LOCAL_IS_HOST_MODULE := true
     endif
-  else # libopenjdkjvm
-    LOCAL_SRC_FILES := $$(LIBOPENJDKJVM_SRC_FILES)
+  else
+    ifeq ($(4),libopenjdkjvmti)
+      LOCAL_SRC_FILES := $$(LIBOPENJDKJVMTI_SRC_FILES)
+    else # libopenjdkjvm
+      LOCAL_SRC_FILES := $$(LIBOPENJDKJVM_SRC_FILES)
+    endif
     ifeq ($$(art_target_or_host),host)
       LOCAL_IS_HOST_MODULE := true
     endif
@@ -570,6 +577,15 @@ endif
       LOCAL_SHARED_LIBRARIES += libartd
     endif
     LOCAL_NOTICE_FILE := $(LOCAL_PATH)/openjdkjvm/NOTICE
+  else
+    ifeq ($(4),libopenjdkjvmti)
+      ifeq ($$(art_ndebug_or_debug),ndebug)
+        LOCAL_SHARED_LIBRARIES += libart
+      else
+        LOCAL_SHARED_LIBRARIES += libartd
+      endif
+      LOCAL_NOTICE_FILE := $(LOCAL_PATH)/openjdkjvmti/NOTICE
+    endif
   endif
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $$(LOCAL_PATH)/Android.mk
@@ -609,17 +625,21 @@ endef
 ifeq ($(ART_BUILD_HOST_NDEBUG),true)
   $(eval $(call build-runtime-library,host,ndebug,shared,libart))
   $(eval $(call build-runtime-library,host,ndebug,shared,libopenjdkjvm))
+  $(eval $(call build-runtime-library,host,ndebug,shared,libopenjdkjvmti))
   ifeq ($(ART_BUILD_HOST_STATIC),true)
     $(eval $(call build-runtime-library,host,ndebug,static,libart))
     $(eval $(call build-runtime-library,host,ndebug,static,libopenjdkjvm))
+    $(eval $(call build-runtime-library,host,ndebug,static,libopenjdkjvmti))
   endif
 endif
 ifeq ($(ART_BUILD_HOST_DEBUG),true)
   $(eval $(call build-runtime-library,host,debug,shared,libart))
   $(eval $(call build-runtime-library,host,debug,shared,libopenjdkjvm))
+  $(eval $(call build-runtime-library,host,debug,shared,libopenjdkjvmti))
   ifeq ($(ART_BUILD_HOST_STATIC),true)
     $(eval $(call build-runtime-library,host,debug,static,libart))
     $(eval $(call build-runtime-library,host,debug,static,libopenjdkjvm))
+    $(eval $(call build-runtime-library,host,debug,static,libopenjdkjvmti))
   endif
 endif
 
@@ -627,10 +647,12 @@ ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
 #  $(error $(call build-runtime-library,target,ndebug))
   $(eval $(call build-runtime-library,target,ndebug,shared,libart))
   $(eval $(call build-runtime-library,target,ndebug,shared,libopenjdkjvm))
+  $(eval $(call build-runtime-library,target,ndebug,shared,libopenjdkjvmti))
 endif
 ifeq ($(ART_BUILD_TARGET_DEBUG),true)
   $(eval $(call build-runtime-library,target,debug,shared,libart))
   $(eval $(call build-runtime-library,target,debug,shared,libopenjdkjvm))
+  $(eval $(call build-runtime-library,target,debug,shared,libopenjdkjvmti))
 endif
 
 # Clear locally defined variables.
