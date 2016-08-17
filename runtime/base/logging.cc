@@ -193,7 +193,10 @@ LogMessage::LogMessage(const char* file, unsigned int line, LogSeverity severity
   }
 }
 LogMessage::~LogMessage() {
-  if (!PrintDirectly(data_->GetSeverity()) && data_->GetSeverity() != LogSeverity::NONE) {
+  if (PrintDirectly(data_->GetSeverity())) {
+    // Add newline at the end to match the not printing directly behavior.
+    std::cerr << '\n';
+  } else if (data_->GetSeverity() != LogSeverity::NONE) {
     if (data_->GetSeverity() < gMinimumLogSeverity) {
       return;  // No need to format something we're not going to output.
     }
