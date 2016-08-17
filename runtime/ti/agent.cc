@@ -38,6 +38,7 @@ Agent Agent::Create(std::string arg) {
 Agent::LoadError Agent::Load(/*out*/jint* call_res, /*out*/ std::string* error_msg) {
   DCHECK(call_res != nullptr);
   DCHECK(error_msg != nullptr);
+
   if (IsStarted()) {
     *error_msg = StringPrintf("the agent at %s has already been started!", name_.c_str());
     VLOG(agents) << "err: " << *error_msg;
@@ -54,9 +55,12 @@ Agent::LoadError Agent::Load(/*out*/jint* call_res, /*out*/ std::string* error_m
     VLOG(agents) << "err: " << *error_msg;
     return kLoadingError;
   }
+  // Need to let the function fiddle with the array.
+  std::unique_ptr<char[]> copied_args(new char[args_.size() + 1]);
+  strcpy(copied_args.get(), args_.c_str());
   // TODO Need to do some checks that we are at a good spot etc.
   *call_res = onload_(static_cast<JavaVM*>(Runtime::Current()->GetJavaVM()),
-                      args_.c_str(),
+                      copied_args.get(),
                       nullptr);
   if (*call_res != 0) {
     *error_msg = StringPrintf("Initialization of %s returned non-zero value of %d",
