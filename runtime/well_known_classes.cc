@@ -181,7 +181,7 @@ static jfieldID CacheField(JNIEnv* env, jclass c, bool is_static,
   if (fid == nullptr) {
     ScopedObjectAccess soa(env);
     if (soa.Self()->IsExceptionPending()) {
-      LOG(INTERNAL_FATAL) << soa.Self()->GetException()->Dump() << '\n';
+      LOG(INTERNAL_FATAL) << soa.Self()->GetException()->Dump();
     }
     std::ostringstream os;
     WellKnownClasses::ToClass(c)->DumpClass(os, mirror::Class::kDumpClassFullDetail);
@@ -198,7 +198,7 @@ jmethodID CacheMethod(JNIEnv* env, jclass c, bool is_static,
   if (mid == nullptr) {
     ScopedObjectAccess soa(env);
     if (soa.Self()->IsExceptionPending()) {
-      LOG(INTERNAL_FATAL) << soa.Self()->GetException()->Dump() << '\n';
+      LOG(INTERNAL_FATAL) << soa.Self()->GetException()->Dump();
     }
     std::ostringstream os;
     WellKnownClasses::ToClass(c)->DumpClass(os, mirror::Class::kDumpClassFullDetail);
