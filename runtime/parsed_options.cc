@@ -498,7 +498,7 @@ bool ParsedOptions::DoParse(const RuntimeOptions& options,
   args.SetIfMissing(M::ParallelGCThreads, gc::Heap::kDefaultEnableParallelGC ?
       static_cast<unsigned int>(sysconf(_SC_NPROCESSORS_CONF) - 1u) : 0u);
 
-  // -Xverbose:
+  // -verbose:
   {
     LogVerbosity *log_verbosity = args.Get(M::Verbose);
     if (log_verbosity != nullptr) {

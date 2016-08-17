@@ -211,11 +211,14 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pAputObjectWithBoundCheck, pAputObject, sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pAputObject, pHandleFillArrayData, sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pHandleFillArrayData, pJniMethodStart, sizeof(void*));
-    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pJniMethodStart, pJniMethodStartSynchronized,
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pJniMethodStart, pJniMethodFastStart,
+                         sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pJniMethodFastStart, pJniMethodStartSynchronized,
                          sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pJniMethodStartSynchronized, pJniMethodEnd,
                          sizeof(void*));
-    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pJniMethodEnd, pJniMethodEndSynchronized, sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pJniMethodEnd, pJniMethodFastEnd, sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pJniMethodFastEnd, pJniMethodEndSynchronized, sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pJniMethodEndSynchronized, pJniMethodEndWithReference,
                          sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pJniMethodEndWithReference,
