@@ -1508,7 +1508,9 @@ void ConcurrentCopying::ReclaimPhase() {
     uint64_t unevac_from_bytes = region_space_->GetBytesAllocatedInUnevacFromSpace();
     uint64_t unevac_from_objects = region_space_->GetObjectsAllocatedInUnevacFromSpace();
     uint64_t to_bytes = bytes_moved_.LoadSequentiallyConsistent();
+    cumulative_bytes_moved_.FetchAndAddRelaxed(to_bytes);
     uint64_t to_objects = objects_moved_.LoadSequentiallyConsistent();
+    cumulative_objects_moved_.FetchAndAddRelaxed(to_objects);
     if (kEnableFromSpaceAccountingCheck) {
       CHECK_EQ(from_space_num_objects_at_first_pause_, from_objects + unevac_from_objects);
       CHECK_EQ(from_space_num_bytes_at_first_pause_, from_bytes + unevac_from_bytes);
@@ -2360,6 +2362,8 @@ void ConcurrentCopying::DumpPerformanceInfo(std::ostream& os) {
   if (rb_slow_path_count_gc_total_ > 0) {
     os << "GC slow path count " << rb_slow_path_count_gc_total_ << "\n";
   }
+  os << "Cumulative bytes moved " << cumulative_bytes_moved_.LoadRelaxed() << "\n";
+  os << "Cumulative objects moved " << cumulative_objects_moved_.LoadRelaxed() << "\n";
 }
 
 }  // namespace collector
