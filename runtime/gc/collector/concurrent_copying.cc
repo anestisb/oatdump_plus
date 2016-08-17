@@ -228,6 +228,8 @@ void ConcurrentCopying::InitializePhase() {
     }
     LOG(INFO) << "GC end of InitializePhase";
   }
+  // Mark all of the zygote large objects without graying them.
+  MarkZygoteLargeObjects();
 }
 
 // Used to switch the thread roots of a thread from from-space refs to to-space refs.
@@ -385,10 +387,18 @@ class ConcurrentCopying::VerifyGrayImmuneObjectsVisitor {
   void CheckReference(mirror::Object* ref, mirror::Object* holder, MemberOffset offset) const
       SHARED_REQUIRES(Locks::mutator_lock_) {
     if (ref != nullptr) {
-      CHECK(collector_->immune_spaces_.ContainsObject(ref))
-          << "Non gray object references non immune object "<< ref << " " << PrettyTypeOf(ref)
-          << " in holder " << holder << " " << PrettyTypeOf(holder) << " offset="
-          << offset.Uint32Value();
+      if (!collector_->immune_spaces_.ContainsObject(ref)) {
+        // Not immune, must be a zygote large object.
+        CHECK(Runtime::Current()->GetHeap()->GetLargeObjectsSpace()->IsZygoteLargeObject(
+            Thread::Current(), ref))
+            << "Non gray object references non immune, non zygote large object "<< ref << " "
+            << PrettyTypeOf(ref) << " in holder " << holder << " " << PrettyTypeOf(holder)
+            << " offset=" << offset.Uint32Value();
+      } else {
+        // Make sure the large object class is immune since we will never scan the large object.
+        CHECK(collector_->immune_spaces_.ContainsObject(
+            ref->GetClass<kVerifyNone, kWithoutReadBarrier>()));
+      }
     }
   }
 };
@@ -1438,6 +1448,26 @@ void ConcurrentCopying::Sweep(bool swap_bitmaps) {
     }
   }
   SweepLargeObjects(swap_bitmaps);
+}
+
+void ConcurrentCopying::MarkZygoteLargeObjects() {
+  TimingLogger::ScopedTiming split(__FUNCTION__, GetTimings());
+  Thread* const self = Thread::Current();
+  WriterMutexLock rmu(self, *Locks::heap_bitmap_lock_);
+  space::LargeObjectSpace* const los = heap_->GetLargeObjectsSpace();
+  // Pick the current live bitmap (mark bitmap if swapped).
+  accounting::LargeObjectBitmap* const live_bitmap = los->GetLiveBitmap();
+  accounting::LargeObjectBitmap* const mark_bitmap = los->GetMarkBitmap();
+  // Walk through all of the objects and explicitly mark the zygote ones so they don't get swept.
+  live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(los->Begin()),
+                                reinterpret_cast<uintptr_t>(los->End()),
+                                [mark_bitmap, los, self](mirror::Object* obj)
+      REQUIRES(Locks::heap_bitmap_lock_)
+      SHARED_REQUIRES(Locks::mutator_lock_) {
+    if (los->IsZygoteLargeObject(self, obj)) {
+      mark_bitmap->Set(obj);
+    }
+  });
 }
 
 void ConcurrentCopying::SweepLargeObjects(bool swap_bitmaps) {
