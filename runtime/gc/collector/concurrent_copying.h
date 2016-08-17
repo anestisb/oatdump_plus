@@ -187,6 +187,8 @@ class ConcurrentCopying : public GarbageCollector {
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_, !mark_stack_lock_);
   void SweepLargeObjects(bool swap_bitmaps)
       SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_);
+  void MarkZygoteLargeObjects()
+      SHARED_REQUIRES(Locks::mutator_lock_);
   void FillWithDummyObject(mirror::Object* dummy_obj, size_t byte_size)
       REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_, !immune_gray_stack_lock_)
       SHARED_REQUIRES(Locks::mutator_lock_);

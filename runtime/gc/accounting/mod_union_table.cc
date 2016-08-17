@@ -175,6 +175,11 @@ void ModUnionTableReferenceCache::ClearCards() {
   card_table->ModifyCardsAtomic(space_->Begin(), space_->End(), AgeCardVisitor(), visitor);
 }
 
+void ModUnionTableReferenceCache::ClearTable() {
+  cleared_cards_.clear();
+  references_.clear();
+}
+
 class AddToReferenceArrayVisitor {
  public:
   AddToReferenceArrayVisitor(ModUnionTableReferenceCache* mod_union_table,
@@ -524,6 +529,10 @@ void ModUnionTableCardCache::ClearCards() {
   ModUnionAddToCardBitmapVisitor visitor(card_bitmap_.get(), card_table);
   // Clear dirty cards in the this space and update the corresponding mod-union bits.
   card_table->ModifyCardsAtomic(space_->Begin(), space_->End(), AgeCardVisitor(), visitor);
+}
+
+void ModUnionTableCardCache::ClearTable() {
+  card_bitmap_->Bitmap::Clear();
 }
 
 // Mark all references to the alloc space(s).

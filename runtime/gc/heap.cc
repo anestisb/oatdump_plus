@@ -2556,15 +2556,25 @@ void Heap::PreZygoteFork() {
 
   // Create the zygote space mod union table.
   accounting::ModUnionTable* mod_union_table =
-      new accounting::ModUnionTableCardCache("zygote space mod-union table", this,
-                                             zygote_space_);
+      new accounting::ModUnionTableCardCache("zygote space mod-union table", this, zygote_space_);
   CHECK(mod_union_table != nullptr) << "Failed to create zygote space mod-union table";
-  // Set all the cards in the mod-union table since we don't know which objects contain references
-  // to large objects.
-  mod_union_table->SetCards();
-  // Filter out cards that do not to be dirty. This is mostly for CC collector so that it does
-  // not gray the objects on all the cards in the zygote space.
-  mod_union_table->FilterCards();
+
+  if (collector_type_ != kCollectorTypeCC) {
+    // Set all the cards in the mod-union table since we don't know which objects contain references
+    // to large objects.
+    mod_union_table->SetCards();
+  } else {
+    // For CC we never collect zygote large objects. This means we do not need to set the cards for
+    // the zygote mod-union table and we can also clear all of the existing image mod-union tables.
+    // The existing mod-union tables are only for image spaces and may only reference zygote and
+    // image objects.
+    for (auto& pair : mod_union_tables_) {
+      CHECK(pair.first->IsImageSpace());
+      CHECK(!pair.first->AsImageSpace()->GetImageHeader().IsAppImage());
+      accounting::ModUnionTable* table = pair.second;
+      table->ClearTable();
+    }
+  }
   AddModUnionTable(mod_union_table);
   large_object_space_->SetAllLargeObjectsAsZygoteObjects(self);
   if (collector::SemiSpace::kUseRememberedSet) {
