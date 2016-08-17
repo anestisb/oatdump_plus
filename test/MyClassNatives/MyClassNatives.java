@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import dalvik.annotation.optimization.FastNative;
+
 class MyClassNatives {
     native void throwException();
     native void foo();
@@ -102,4 +104,9 @@ class MyClassNatives {
     static native boolean returnTrue();
     static native boolean returnFalse();
     static native int returnInt();
+
+    // Check for @FastNative annotation presence [or lack of presence].
+    public static native void normalNative();
+    @FastNative
+    public static native void fastNative();
 }

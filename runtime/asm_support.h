@@ -87,7 +87,7 @@ ADD_TEST_EQ(THREAD_SELF_OFFSET,
             art::Thread::SelfOffset<POINTER_SIZE>().Int32Value())
 
 // Offset of field Thread::tlsPtr_.thread_local_objects.
-#define THREAD_LOCAL_OBJECTS_OFFSET (THREAD_CARD_TABLE_OFFSET + 197 * __SIZEOF_POINTER__)
+#define THREAD_LOCAL_OBJECTS_OFFSET (THREAD_CARD_TABLE_OFFSET + 199 * __SIZEOF_POINTER__)
 ADD_TEST_EQ(THREAD_LOCAL_OBJECTS_OFFSET,
             art::Thread::ThreadLocalObjectsOffset<POINTER_SIZE>().Int32Value())
 // Offset of field Thread::tlsPtr_.thread_local_pos.

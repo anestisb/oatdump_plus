@@ -599,7 +599,38 @@ static void CompileMethod(Thread* self,
         InstructionSetHasGenericJniStub(driver->GetInstructionSet())) {
       // Leaving this empty will trigger the generic JNI version
     } else {
-      compiled_method = driver->GetCompiler()->JniCompile(access_flags, method_idx, dex_file);
+      // Look-up the ArtMethod associated with this code_item (if any)
+      // -- It is later used to lookup any [optimization] annotations for this method.
+      ScopedObjectAccess soa(self);
+      StackHandleScope<1> hs(soa.Self());
+      Handle<mirror::ClassLoader> class_loader_handle(hs.NewHandle(
+          soa.Decode<mirror::ClassLoader*>(class_loader)));
+
+      // TODO: Lookup annotation from DexFile directly without resolving method.
+      ArtMethod* method =
+          Runtime::Current()->GetClassLinker()->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
+              dex_file,
+              method_idx,
+              dex_cache,
+              class_loader_handle,
+              /* referrer */ nullptr,
+              invoke_type);
+
+      bool fast_native = false;
+      if (LIKELY(method != nullptr)) {
+        fast_native = method->IsAnnotatedWithFastNative();
+      } else {
+        // Failed method resolutions happen very rarely, e.g. ancestor class cannot be resolved.
+        DCHECK(self->IsExceptionPending());
+        self->ClearException();
+      }
+
+      Compiler::JniOptimizationFlags optimization_flags =
+          fast_native ? Compiler::kFastNative : Compiler::kNone;
+      compiled_method = driver->GetCompiler()->JniCompile(access_flags,
+                                                          method_idx,
+                                                          dex_file,
+                                                          optimization_flags);
       CHECK(compiled_method != nullptr);
     }
   } else if ((access_flags & kAccAbstract) != 0) {
@@ -2874,7 +2905,7 @@ bool CompilerDriver::IsStringTypeIndex(uint16_t type_index, const DexFile* dex_f
 
 bool CompilerDriver::IsStringInit(uint32_t method_index, const DexFile* dex_file, int32_t* offset) {
   DexFileMethodInliner* inliner = GetMethodInlinerMap()->GetMethodInliner(dex_file);
-  PointerSize pointer_size = InstructionSetPointerSize(GetInstructionSet());
+  const PointerSize pointer_size = InstructionSetPointerSize(GetInstructionSet());
   *offset = inliner->GetOffsetForStringInit(method_index, pointer_size);
   return inliner->IsStringInitMethodIndex(method_index);
 }
