@@ -322,18 +322,24 @@ TEST_F(UtilsTest, EndsWith) {
   EXPECT_FALSE(EndsWith("oo", "foo"));
 }
 
-TEST_F(UtilsTest, GetDalvikCacheFilenameOrDie) {
-  EXPECT_STREQ("/foo/system@app@Foo.apk@classes.dex",
-               GetDalvikCacheFilenameOrDie("/system/app/Foo.apk", "/foo").c_str());
+TEST_F(UtilsTest, GetDalvikCacheFilename) {
+  std::string name;
+  std::string error;
 
-  EXPECT_STREQ("/foo/data@app@foo-1.apk@classes.dex",
-               GetDalvikCacheFilenameOrDie("/data/app/foo-1.apk", "/foo").c_str());
-  EXPECT_STREQ("/foo/system@framework@core.jar@classes.dex",
-               GetDalvikCacheFilenameOrDie("/system/framework/core.jar", "/foo").c_str());
-  EXPECT_STREQ("/foo/system@framework@boot.art",
-               GetDalvikCacheFilenameOrDie("/system/framework/boot.art", "/foo").c_str());
-  EXPECT_STREQ("/foo/system@framework@boot.oat",
-               GetDalvikCacheFilenameOrDie("/system/framework/boot.oat", "/foo").c_str());
+  EXPECT_TRUE(GetDalvikCacheFilename("/system/app/Foo.apk", "/foo", &name, &error)) << error;
+  EXPECT_EQ("/foo/system@app@Foo.apk@classes.dex", name);
+
+  EXPECT_TRUE(GetDalvikCacheFilename("/data/app/foo-1.apk", "/foo", &name, &error)) << error;
+  EXPECT_EQ("/foo/data@app@foo-1.apk@classes.dex", name);
+
+  EXPECT_TRUE(GetDalvikCacheFilename("/system/framework/core.jar", "/foo", &name, &error)) << error;
+  EXPECT_EQ("/foo/system@framework@core.jar@classes.dex", name);
+
+  EXPECT_TRUE(GetDalvikCacheFilename("/system/framework/boot.art", "/foo", &name, &error)) << error;
+  EXPECT_EQ("/foo/system@framework@boot.art", name);
+
+  EXPECT_TRUE(GetDalvikCacheFilename("/system/framework/boot.oat", "/foo", &name, &error)) << error;
+  EXPECT_EQ("/foo/system@framework@boot.oat", name);
 }
 
 TEST_F(UtilsTest, GetDalvikCache) {
