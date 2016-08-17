@@ -9,6 +9,9 @@ Usage:
        Serve pages on the given port. Defaults to 7100.
 
 TODO:
+ * Show GC Root paths.
+ * Have a way to diff two heap dumps.
+
  * Add more tips to the help page.
    - Recommend how to start looking at a heap dump.
    - Say how to enable allocation sites.
@@ -35,11 +38,6 @@ TODO:
  * [low priority] Have a switch to choose whether unreachable objects are
    ignored or not?  Is there any interest in what's unreachable, or is it only
    reachable objects that people care about?
-
- * [low priority] Have a way to diff two heap dumps by site.
-   This should be pretty easy to do, actually. The interface is the real
-   question. Maybe: augment each byte count field on every page with the diff
-   if a baseline has been provided, and allow the user to sort by the diff.
 
 Things to Test:
  * That we can open a hprof without an 'app' heap and show a tabulation of
@@ -77,7 +75,14 @@ Things to move to perflib:
  * Instance.isRoot and Instance.getRootTypes.
 
 Release History:
- 0.6 Pending
+ 0.8 Pending
+
+ 0.7 Aug 16, 2016
+   Launch ahat server before processing the heap dump.
+   Target Java 1.7.
+
+ 0.6 Jun 21, 2016
+   Add support for proguard deobfuscation (pending AOSP push of perflib)
 
  0.5 Apr 19, 2016
    Update perflib to perflib-25.0.0 to improve processing performance.
