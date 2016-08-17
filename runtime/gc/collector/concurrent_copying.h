@@ -272,6 +272,8 @@ class ConcurrentCopying : public GarbageCollector {
   // How many objects and bytes we moved. Used for accounting.
   Atomic<size_t> bytes_moved_;
   Atomic<size_t> objects_moved_;
+  Atomic<uint64_t> cumulative_bytes_moved_;
+  Atomic<uint64_t> cumulative_objects_moved_;
 
   // The skipped blocks are memory blocks/chucks that were copies of
   // objects that were unused due to lost races (cas failures) at
