@@ -334,6 +334,23 @@ bool ArtMethod::IsOverridableByDefaultMethod() {
   return GetDeclaringClass()->IsInterface();
 }
 
+bool ArtMethod::IsAnnotatedWithFastNative() {
+  Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
+  StackHandleScope<1> shs(self);
+
+  const DexFile& dex_file = GetDeclaringClass()->GetDexFile();
+
+  mirror::Class* fast_native_annotation =
+      soa.Decode<mirror::Class*>(WellKnownClasses::dalvik_annotation_optimization_FastNative);
+  Handle<mirror::Class> fast_native_handle(shs.NewHandle(fast_native_annotation));
+
+  // Note: Resolves any method annotations' classes as a side-effect.
+  // -- This seems allowed by the spec since it says we can preload any classes
+  //    referenced by another classes's constant pool table.
+  return dex_file.IsMethodAnnotationPresent(this, fast_native_handle, DexFile::kDexVisibilityBuild);
+}
+
 bool ArtMethod::EqualParameters(Handle<mirror::ObjectArray<mirror::Class>> params) {
   auto* dex_cache = GetDexCache();
   auto* dex_file = dex_cache->GetDexFile();

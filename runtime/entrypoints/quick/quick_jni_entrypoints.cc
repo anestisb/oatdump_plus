@@ -29,6 +29,21 @@ extern void ReadBarrierJni(mirror::CompressedReference<mirror::Object>* handle_o
   handle_on_stack->Assign(to_ref);
 }
 
+// Called on entry to fast JNI, push a new local reference table only.
+extern uint32_t JniMethodFastStart(Thread* self) {
+  JNIEnvExt* env = self->GetJniEnv();
+  DCHECK(env != nullptr);
+  uint32_t saved_local_ref_cookie = env->local_ref_cookie;
+  env->local_ref_cookie = env->locals.GetSegmentState();
+
+  if (kIsDebugBuild) {
+    ArtMethod* native_method = *self->GetManagedStack()->GetTopQuickFrame();
+    CHECK(native_method->IsAnnotatedWithFastNative()) << PrettyMethod(native_method);
+  }
+
+  return saved_local_ref_cookie;
+}
+
 // Called on entry to JNI, transition out of Runnable and release share of mutator_lock_.
 extern uint32_t JniMethodStart(Thread* self) {
   JNIEnvExt* env = self->GetJniEnv();
@@ -73,8 +88,29 @@ static void PopLocalReferences(uint32_t saved_local_ref_cookie, Thread* self)
   self->PopHandleScope();
 }
 
+// TODO: These should probably be templatized or macro-ized.
+// Otherwise there's just too much repetitive boilerplate.
+
 extern void JniMethodEnd(uint32_t saved_local_ref_cookie, Thread* self) {
   GoToRunnable(self);
+  PopLocalReferences(saved_local_ref_cookie, self);
+}
+
+extern void JniMethodFastEnd(uint32_t saved_local_ref_cookie, Thread* self) {
+  // inlined fast version of GoToRunnable(self);
+
+  if (kIsDebugBuild) {
+    ArtMethod* native_method = *self->GetManagedStack()->GetTopQuickFrame();
+    CHECK(native_method->IsAnnotatedWithFastNative()) << PrettyMethod(native_method);
+  }
+
+  if (UNLIKELY(self->TestAllFlags())) {
+    // In fast JNI mode we never transitioned out of runnable. Perform a suspend check if there
+    // is a flag raised.
+    DCHECK(Locks::mutator_lock_->IsSharedHeld(self));
+    self->CheckSuspend();
+  }
+
   PopLocalReferences(saved_local_ref_cookie, self);
 }
 
@@ -84,6 +120,10 @@ extern void JniMethodEndSynchronized(uint32_t saved_local_ref_cookie, jobject lo
   UnlockJniSynchronizedMethod(locked, self);  // Must decode before pop.
   PopLocalReferences(saved_local_ref_cookie, self);
 }
+
+// TODO: JniMethodFastEndWithReference
+// (Probably don't need to have a synchronized variant since
+// it already has to do atomic operations)
 
 // Common result handling for EndWithReference.
 static mirror::Object* JniMethodEndWithReferenceHandleResult(jobject result,
