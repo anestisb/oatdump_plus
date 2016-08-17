@@ -63,6 +63,9 @@ class ModUnionTable {
   // Set all the cards.
   virtual void SetCards() = 0;
 
+  // Clear all of the table.
+  virtual void ClearTable() = 0;
+
   // Update the mod-union table using data stored by ClearCards. There may be multiple ClearCards
   // before a call to update, for example, back-to-back sticky GCs. Also mark references to other
   // spaces which are stored in the mod-union table.
@@ -140,6 +143,8 @@ class ModUnionTableReferenceCache : public ModUnionTable {
 
   virtual void SetCards() OVERRIDE;
 
+  virtual void ClearTable() OVERRIDE;
+
  protected:
   // Cleared card array, used to update the mod-union table.
   ModUnionTable::CardSet cleared_cards_;
@@ -177,8 +182,9 @@ class ModUnionTableCardCache : public ModUnionTable {
 
   virtual bool ContainsCardFor(uintptr_t addr) OVERRIDE;
 
-  // Sets all the cards in the mod union table to be marked.
   virtual void SetCards() OVERRIDE;
+
+  virtual void ClearTable() OVERRIDE;
 
  protected:
   // Cleared card bitmap, used to update the mod-union table.
