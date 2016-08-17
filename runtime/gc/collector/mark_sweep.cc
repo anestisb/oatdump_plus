@@ -413,7 +413,7 @@ class MarkSweep::MarkObjectSlowPath {
     if (UNLIKELY(obj == nullptr || !IsAligned<kPageSize>(obj) ||
                  (kIsDebugBuild && large_object_space != nullptr &&
                      !large_object_space->Contains(obj)))) {
-      LOG(INTERNAL_FATAL) << "Tried to mark " << obj << " not contained by any spaces";
+      LOG(INTERNAL_FATAL) << "Tried to mark " << obj << " not contained by any spaces\n";
       if (holder_ != nullptr) {
         size_t holder_size = holder_->SizeOf();
         ArtField* field = holder_->FindFieldByOffset(offset_);
@@ -442,7 +442,7 @@ class MarkSweep::MarkObjectSlowPath {
         for (size_t i = 0; i < holder_size / sizeof(uint32_t); ++i) {
           uint32_t* p = reinterpret_cast<uint32_t*>(holder_);
           LOG(INTERNAL_FATAL) << &p[i] << ": " << "holder+" << (i * sizeof(uint32_t)) << " = "
-                              << std::hex << p[i];
+                              << std::hex << p[i] << "\n";
         }
       }
       PrintFileToLog("/proc/self/maps", LogSeverity::INTERNAL_FATAL);
