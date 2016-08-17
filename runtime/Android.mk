@@ -383,29 +383,6 @@ LIBART_CFLAGS := -DBUILDING_LIBART=1
 LIBART_TARGET_CFLAGS :=
 LIBART_HOST_CFLAGS :=
 
-# Default dex2oat instruction set features.
-LIBART_HOST_DEFAULT_INSTRUCTION_SET_FEATURES := default
-LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES := default
-2ND_LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES := default
-ifeq ($(DEX2OAT_TARGET_ARCH),arm)
-  ifneq (,$(filter $(DEX2OAT_TARGET_CPU_VARIANT),cortex-a15 krait denver))
-    LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES := atomic_ldrd_strd,div
-  else
-    ifneq (,$(filter $(DEX2OAT_TARGET_CPU_VARIANT),cortex-a7))
-      LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES := div
-    endif
-  endif
-endif
-ifeq ($(2ND_DEX2OAT_TARGET_ARCH),arm)
-  ifneq (,$(filter $(DEX2OAT_TARGET_CPU_VARIANT),cortex-a15 krait denver))
-    2ND_LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES := atomic_ldrd_strd,div
-  else
-    ifneq (,$(filter $(DEX2OAT_TARGET_CPU_VARIANT),cortex-a7))
-      2ND_LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES := div
-    endif
-  endif
-endif
-
 # $(1): target or host
 # $(2): ndebug or debug
 # $(3): static or shared (note that static only applies for host)
@@ -507,8 +484,6 @@ endif
     $$(eval LOCAL_CLANG := $$(ART_TARGET_CLANG))
     $$(eval $$(call set-target-local-cflags-vars,$(2)))
     LOCAL_ASFLAGS_arm += -no-integrated-as
-    LOCAL_CFLAGS_$(DEX2OAT_TARGET_ARCH) += -DART_DEFAULT_INSTRUCTION_SET_FEATURES="$(LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES)"
-    LOCAL_CFLAGS_$(2ND_DEX2OAT_TARGET_ARCH) += -DART_DEFAULT_INSTRUCTION_SET_FEATURES="$(2ND_LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES)"
   else # host
     LOCAL_CLANG := $$(ART_HOST_CLANG)
     LOCAL_LDLIBS += -ldl -lpthread
@@ -516,7 +491,6 @@ endif
       LOCAL_LDLIBS += -lrt
     endif
     LOCAL_CFLAGS += $$(ART_HOST_CFLAGS)
-    LOCAL_CFLAGS += -DART_DEFAULT_INSTRUCTION_SET_FEATURES="$(LIBART_HOST_DEFAULT_INSTRUCTION_SET_FEATURES)"
     LOCAL_ASFLAGS += $$(ART_HOST_ASFLAGS)
 
     ifeq ($$(art_ndebug_or_debug),debug)
@@ -658,9 +632,6 @@ endif
 # Clear locally defined variables.
 LOCAL_PATH :=
 LIBART_COMMON_SRC_FILES :=
-LIBART_HOST_DEFAULT_INSTRUCTION_SET_FEATURES :=
-LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES :=
-2ND_LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES :=
 LIBART_HOST_LDFLAGS :=
 LIBART_TARGET_LDFLAGS :=
 LIBART_TARGET_LDFLAGS_arm :=
