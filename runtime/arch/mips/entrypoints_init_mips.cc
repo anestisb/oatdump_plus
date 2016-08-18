@@ -153,16 +153,23 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   // JNI
   qpoints->pJniMethodStart = JniMethodStart;
   static_assert(!IsDirectEntrypoint(kQuickJniMethodStart), "Non-direct C stub marked direct.");
+  qpoints->pJniMethodFastStart = JniMethodFastStart;
+  static_assert(!IsDirectEntrypoint(kQuickJniMethodFastStart), "Non-direct C stub marked direct.");
   qpoints->pJniMethodStartSynchronized = JniMethodStartSynchronized;
   static_assert(!IsDirectEntrypoint(kQuickJniMethodStartSynchronized),
                 "Non-direct C stub marked direct.");
   qpoints->pJniMethodEnd = JniMethodEnd;
   static_assert(!IsDirectEntrypoint(kQuickJniMethodEnd), "Non-direct C stub marked direct.");
+  qpoints->pJniMethodFastEnd = JniMethodFastEnd;
+  static_assert(!IsDirectEntrypoint(kQuickJniMethodFastEnd), "Non-direct C stub marked direct.");
   qpoints->pJniMethodEndSynchronized = JniMethodEndSynchronized;
   static_assert(!IsDirectEntrypoint(kQuickJniMethodEndSynchronized),
                 "Non-direct C stub marked direct.");
   qpoints->pJniMethodEndWithReference = JniMethodEndWithReference;
   static_assert(!IsDirectEntrypoint(kQuickJniMethodEndWithReference),
+                "Non-direct C stub marked direct.");
+  qpoints->pJniMethodFastEndWithReference = JniMethodFastEndWithReference;
+  static_assert(!IsDirectEntrypoint(kQuickJniMethodFastEndWithReference),
                 "Non-direct C stub marked direct.");
   qpoints->pJniMethodEndWithReferenceSynchronized = JniMethodEndWithReferenceSynchronized;
   static_assert(!IsDirectEntrypoint(kQuickJniMethodEndWithReferenceSynchronized),
