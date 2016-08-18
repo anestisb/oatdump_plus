@@ -5635,53 +5635,15 @@ void InstructionCodeGeneratorX86_64::VisitLoadString(HLoadString* load) {
       codegen_->RecordSimplePatch();
       return;  // No dex cache slow path.
     }
-    case HLoadString::LoadKind::kDexCacheAddress: {
-      DCHECK_NE(load->GetAddress(), 0u);
-      // /* GcRoot<mirror::String> */ out = *address
-      if (IsUint<32>(load->GetAddress())) {
-        Address address = Address::Absolute(load->GetAddress(), /* no_rip */ true);
-        GenerateGcRootFieldLoad(load, out_loc, address);
-      } else {
-        // TODO: Consider using opcode A1, i.e. movl eax, moff32 (with 64-bit address).
-        __ movq(out, Immediate(load->GetAddress()));
-        GenerateGcRootFieldLoad(load, out_loc, Address(out, 0));
-      }
-      break;
-    }
-    case HLoadString::LoadKind::kDexCachePcRelative: {
-      uint32_t offset = load->GetDexCacheElementOffset();
-      Label* fixup_label = codegen_->NewPcRelativeDexCacheArrayPatch(load->GetDexFile(), offset);
-      Address address = Address::Absolute(CodeGeneratorX86_64::kDummy32BitOffset,
-                                          /* no_rip */ false);
-      // /* GcRoot<mirror::String> */ out = *address  /* PC-relative */
-      GenerateGcRootFieldLoad(load, out_loc, address, fixup_label);
-      break;
-    }
-    case HLoadString::LoadKind::kDexCacheViaMethod: {
-      CpuRegister current_method = locations->InAt(0).AsRegister<CpuRegister>();
-
-      // /* GcRoot<mirror::Class> */ out = current_method->declaring_class_
-      GenerateGcRootFieldLoad(
-          load, out_loc, Address(current_method, ArtMethod::DeclaringClassOffset().Int32Value()));
-      // /* GcRoot<mirror::String>[] */ out = out->dex_cache_strings_
-      __ movq(out, Address(out, mirror::Class::DexCacheStringsOffset().Uint32Value()));
-      // /* GcRoot<mirror::String> */ out = out[string_index]
-      GenerateGcRootFieldLoad(
-          load, out_loc, Address(out, CodeGenerator::GetCacheOffset(load->GetStringIndex())));
-      break;
-    }
     default:
-      LOG(FATAL) << "Unexpected load kind: " << load->GetLoadKind();
-      UNREACHABLE();
+      break;
   }
 
-  if (!load->IsInDexCache()) {
-    SlowPathCode* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathX86_64(load);
-    codegen_->AddSlowPath(slow_path);
-    __ testl(out, out);
-    __ j(kEqual, slow_path->GetEntryLabel());
-    __ Bind(slow_path->GetExitLabel());
-  }
+  // TODO: Re-add the compiler code to do string dex cache lookup again.
+  SlowPathCode* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathX86_64(load);
+  codegen_->AddSlowPath(slow_path);
+  __ jmp(slow_path->GetEntryLabel());
+  __ Bind(slow_path->GetExitLabel());
 }
 
 static Address GetExceptionTlsAddress() {
