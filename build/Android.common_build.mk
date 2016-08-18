@@ -157,19 +157,14 @@ ART_HOST_CODEGEN_ARCHS ?= all
 
 ifeq ($(ART_TARGET_CODEGEN_ARCHS),all)
   ART_TARGET_CODEGEN_ARCHS := $(sort $(ART_TARGET_SUPPORTED_ARCH) $(ART_HOST_SUPPORTED_ARCH))
-  # We need to handle the fact that some compiler tests mix code from different architectures.
-  ART_TARGET_COMPILER_TESTS ?= true
 else
-  ART_TARGET_COMPILER_TESTS := false
   ifeq ($(ART_TARGET_CODEGEN_ARCHS),svelte)
     ART_TARGET_CODEGEN_ARCHS := $(sort $(ART_TARGET_ARCH_64) $(ART_TARGET_ARCH_32))
   endif
 endif
 ifeq ($(ART_HOST_CODEGEN_ARCHS),all)
   ART_HOST_CODEGEN_ARCHS := $(sort $(ART_TARGET_SUPPORTED_ARCH) $(ART_HOST_SUPPORTED_ARCH))
-  ART_HOST_COMPILER_TESTS ?= true
 else
-  ART_HOST_COMPILER_TESTS := false
   ifeq ($(ART_HOST_CODEGEN_ARCHS),svelte)
     ART_HOST_CODEGEN_ARCHS := $(sort $(ART_TARGET_CODEGEN_ARCHS) $(ART_HOST_ARCH_64) $(ART_HOST_ARCH_32))
   endif

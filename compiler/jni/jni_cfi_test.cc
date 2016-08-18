@@ -104,12 +104,24 @@ class JNICFITest : public CFITest {
     TestImpl(isa, #isa, expected_asm, expected_cfi); \
   }
 
+#ifdef ART_ENABLE_CODEGEN_arm
 TEST_ISA(kThumb2)
+#endif
+#ifdef ART_ENABLE_CODEGEN_arm64
 TEST_ISA(kArm64)
+#endif
+#ifdef ART_ENABLE_CODEGEN_x86
 TEST_ISA(kX86)
+#endif
+#ifdef ART_ENABLE_CODEGEN_x86_64
 TEST_ISA(kX86_64)
+#endif
+#ifdef ART_ENABLE_CODEGEN_mips
 TEST_ISA(kMips)
+#endif
+#ifdef ART_ENABLE_CODEGEN_mips64
 TEST_ISA(kMips64)
+#endif
 
 #endif  // ART_TARGET_ANDROID
 
