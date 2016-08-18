@@ -438,11 +438,7 @@ static HOptimization* BuildOptimization(
     StackHandleScopeCollection* handles,
     SideEffectsAnalysis* most_recent_side_effects,
     HInductionVarAnalysis* most_recent_induction) {
-  if (opt_name == arm::InstructionSimplifierArm::kInstructionSimplifierArmPassName) {
-    return new (arena) arm::InstructionSimplifierArm(graph, stats);
-  } else if (opt_name == arm64::InstructionSimplifierArm64::kInstructionSimplifierArm64PassName) {
-    return new (arena) arm64::InstructionSimplifierArm64(graph, stats);
-  } else if (opt_name == BoundsCheckElimination::kBoundsCheckEliminationPassName) {
+  if (opt_name == BoundsCheckElimination::kBoundsCheckEliminationPassName) {
     CHECK(most_recent_side_effects != nullptr && most_recent_induction != nullptr);
     return new (arena) BoundsCheckElimination(graph,
                                               *most_recent_side_effects,
@@ -482,16 +478,30 @@ static HOptimization* BuildOptimization(
   } else if (opt_name == LoadStoreElimination::kLoadStoreEliminationPassName) {
     CHECK(most_recent_side_effects != nullptr);
     return new (arena) LoadStoreElimination(graph, *most_recent_side_effects);
+  } else if (opt_name == SideEffectsAnalysis::kSideEffectsAnalysisPassName) {
+    return new (arena) SideEffectsAnalysis(graph);
+#ifdef ART_ENABLE_CODEGEN_arm
+  } else if (opt_name == arm::DexCacheArrayFixups::kDexCacheArrayFixupsArmPassName) {
+    return new (arena) arm::DexCacheArrayFixups(graph, stats);
+  } else if (opt_name == arm::InstructionSimplifierArm::kInstructionSimplifierArmPassName) {
+    return new (arena) arm::InstructionSimplifierArm(graph, stats);
+#endif
+#ifdef ART_ENABLE_CODEGEN_arm64
+  } else if (opt_name == arm64::InstructionSimplifierArm64::kInstructionSimplifierArm64PassName) {
+    return new (arena) arm64::InstructionSimplifierArm64(graph, stats);
+#endif
+#ifdef ART_ENABLE_CODEGEN_mips
   } else if (opt_name == mips::DexCacheArrayFixups::kDexCacheArrayFixupsMipsPassName) {
     return new (arena) mips::DexCacheArrayFixups(graph, codegen, stats);
   } else if (opt_name == mips::PcRelativeFixups::kPcRelativeFixupsMipsPassName) {
     return new (arena) mips::PcRelativeFixups(graph, codegen, stats);
-  } else if (opt_name == SideEffectsAnalysis::kSideEffectsAnalysisPassName) {
-    return new (arena) SideEffectsAnalysis(graph);
+#endif
+#ifdef ART_ENABLE_CODEGEN_x86
   } else if (opt_name == x86::PcRelativeFixups::kPcRelativeFixupsX86PassName) {
     return new (arena) x86::PcRelativeFixups(graph, codegen, stats);
   } else if (opt_name == x86::X86MemoryOperandGeneration::kX86MemoryOperandGenerationPassName) {
     return new (arena) x86::X86MemoryOperandGeneration(graph, codegen, stats);
+#endif
   }
   return nullptr;
 }
@@ -581,6 +591,7 @@ void OptimizingCompiler::RunArchOptimizations(InstructionSet instruction_set,
                                               HGraph* graph,
                                               CodeGenerator* codegen,
                                               PassObserver* pass_observer) const {
+  UNUSED(codegen);  // To avoid compilation error when compiling for svelte
   OptimizingCompilerStats* stats = compilation_stats_.get();
   ArenaAllocator* arena = graph->GetArena();
   switch (instruction_set) {
