@@ -18,8 +18,6 @@
 
 #include <stdlib.h>
 
-#include <cutils/process_name.h>
-
 #include "arch/instruction_set.h"
 #include "debugger.h"
 #include "java_vm_ext.h"
