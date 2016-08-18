@@ -505,11 +505,11 @@ inline uint16_t Instruction::VRegH_4rcc() const {
 }
 
 inline bool Instruction::HasVarArgs() const {
-  return FormatOf(Opcode()) == k35c;
+  return (FormatOf(Opcode()) == k35c) || (FormatOf(Opcode()) == k45cc);
 }
 
 inline void Instruction::GetVarArgs(uint32_t arg[kMaxVarArgRegs], uint16_t inst_data) const {
-  DCHECK_EQ(FormatOf(Opcode()), k35c);
+  DCHECK(HasVarArgs());
 
   /*
    * Note that the fields mentioned in the spec don't appear in
