@@ -92,6 +92,15 @@ TEST(Instruction, PropertiesOf45cc) {
   ASSERT_TRUE(ins->HasVRegH());
   ASSERT_EQ(32, ins->VRegH());
   ASSERT_EQ(32, ins->VRegH_45cc());
+
+  ASSERT_TRUE(ins->HasVarArgs());
+
+  uint32_t arg_regs[Instruction::kMaxVarArgRegs];
+  ins->GetVarArgs(arg_regs);
+  ASSERT_EQ(0xeu, arg_regs[0]);
+  ASSERT_EQ(0xfu, arg_regs[1]);
+  ASSERT_EQ(0xau, arg_regs[2]);
+  ASSERT_EQ(0xcu, arg_regs[3]);
 }
 
 TEST(Instruction, PropertiesOf4rcc) {
@@ -118,6 +127,8 @@ TEST(Instruction, PropertiesOf4rcc) {
   ASSERT_TRUE(ins->HasVRegH());
   ASSERT_EQ(32, ins->VRegH());
   ASSERT_EQ(32, ins->VRegH_4rcc());
+
+  ASSERT_FALSE(ins->HasVarArgs());
 }
 
 }  // namespace art
