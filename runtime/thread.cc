@@ -1217,8 +1217,10 @@ void Thread::FullSuspendCheck() {
   ScopedTrace trace(__FUNCTION__);
   VLOG(threads) << this << " self-suspending";
   // Make thread appear suspended to other threads, release mutator_lock_.
+  tls32_.suspended_at_suspend_check = true;
   // Transition to suspended and back to runnable, re-acquire share on mutator_lock_.
   ScopedThreadSuspension(this, kSuspended);
+  tls32_.suspended_at_suspend_check = false;
   VLOG(threads) << this << " self-reviving";
 }
 
@@ -1633,7 +1635,7 @@ Thread::Thread(bool daemon) : tls32_(daemon), wait_monitor_(nullptr), interrupte
   }
   tlsPtr_.flip_function = nullptr;
   tlsPtr_.thread_local_mark_stack = nullptr;
-  tls32_.is_transitioning_to_runnable = false;
+  tls32_.suspended_at_suspend_check = false;
 }
 
 bool Thread::IsStillStarting() const {
@@ -1771,7 +1773,7 @@ Thread::~Thread() {
   CHECK(tlsPtr_.checkpoint_function == nullptr);
   CHECK_EQ(checkpoint_overflow_.size(), 0u);
   CHECK(tlsPtr_.flip_function == nullptr);
-  CHECK_EQ(tls32_.is_transitioning_to_runnable, false);
+  CHECK_EQ(tls32_.suspended_at_suspend_check, false);
 
   // Make sure we processed all deoptimization requests.
   CHECK(tlsPtr_.deoptimization_context_stack == nullptr) << "Missed deoptimization";
