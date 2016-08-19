@@ -460,7 +460,7 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
 
   DCHECK(method_header->Contains(pc))
       << PrettyMethod(this)
-      << std::hex << pc << " " << oat_entry_point
+      << " " << std::hex << pc << " " << oat_entry_point
       << " " << (uintptr_t)(method_header->code_ + method_header->code_size_);
   return method_header;
 }
