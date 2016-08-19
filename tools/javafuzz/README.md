@@ -1,12 +1,12 @@
 JavaFuzz
 ========
 
-JavaFuzz is tool for generating random Java programs with the objective of
-fuzz testing the ART infrastructure. Each randomly generated Java program
+JavaFuzz is a tool for generating random Java programs with the objective
+of fuzz testing the ART infrastructure. Each randomly generated Java program
 can be run under various modes of execution, such as using the interpreter,
 using the optimizing compiler, using an external reference implementation,
 or using various target architectures. Any difference between the outputs
-(a divergence) may indicate a bug in one of the execution modes.
+(**divergence**) may indicate a bug in one of the execution modes.
 
 JavaFuzz can be combined with dexfuzz to get multilayered fuzz testing.
 
@@ -35,6 +35,24 @@ a fixed testing class named Test. So a typical test run looks as follows.
     javafuzz > Test.java
     jack -cp ${JACK_CLASSPATH} --output-dex . Test.java
     art -classpath classes.dex Test
+
+How to start the JavaFuzz tests
+===============================
+
+    run_java_fuzz_test.py [--num_tests]
+                          [--mode1=mode] [--mode2=mode]
+
+where
+
+    --num_tests: number of tests to run (10000 by default)
+    --mode1:m1
+    --mode2:m2
+    with m1 != m2, and one of
+      ri   : reference implementation on host (default for m1)
+      hint : Art interpreter on host
+      hopt : Art optimizing on host (default for m2)
+      tint : Art interpreter on target
+      topt : Art optimizing on target
 
 Background
 ==========
