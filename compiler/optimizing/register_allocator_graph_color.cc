@@ -227,7 +227,8 @@ class InterferenceNode : public ArenaObject<kArenaAllocRegisterAllocator> {
           out_degree_(interval->HasRegister() ? std::numeric_limits<size_t>::max() : 0),
           alias_(this),
           spill_weight_(ComputeSpillWeight(interval, liveness)),
-          requires_color_(interval->RequiresRegister()) {
+          requires_color_(interval->RequiresRegister()),
+          needs_spill_slot_(false) {
     DCHECK(!interval->IsHighInterval()) << "Pair nodes should be represented by the low interval";
   }
 
@@ -342,6 +343,14 @@ class InterferenceNode : public ArenaObject<kArenaAllocRegisterAllocator> {
     return (IsPair() || other->IsPair()) ? 2 : 1;
   }
 
+  bool NeedsSpillSlot() const {
+    return needs_spill_slot_;
+  }
+
+  void SetNeedsSpillSlot() {
+    needs_spill_slot_ = true;
+  }
+
   // The current stage of this node, indicating which worklist it belongs to.
   NodeStage stage;
 
@@ -375,6 +384,8 @@ class InterferenceNode : public ArenaObject<kArenaAllocRegisterAllocator> {
   const float spill_weight_;
 
   const bool requires_color_;
+
+  bool needs_spill_slot_;
 
   DISALLOW_COPY_AND_ASSIGN(InterferenceNode);
 };
@@ -549,10 +560,10 @@ RegisterAllocatorGraphColor::RegisterAllocatorGraphColor(ArenaAllocator* allocat
         safepoints_(allocator->Adapter(kArenaAllocRegisterAllocator)),
         physical_core_nodes_(allocator->Adapter(kArenaAllocRegisterAllocator)),
         physical_fp_nodes_(allocator->Adapter(kArenaAllocRegisterAllocator)),
-        int_spill_slot_counter_(0),
-        double_spill_slot_counter_(0),
-        float_spill_slot_counter_(0),
-        long_spill_slot_counter_(0),
+        num_int_spill_slots_(0),
+        num_double_spill_slots_(0),
+        num_float_spill_slots_(0),
+        num_long_spill_slots_(0),
         catch_phi_spill_slot_counter_(0),
         reserved_art_method_slots_(ComputeReservedArtMethodSlots(*codegen)),
         reserved_out_slots_(codegen->GetGraph()->GetMaximumNumberOfOutVRegs()),
@@ -653,6 +664,9 @@ void RegisterAllocatorGraphColor::AllocateRegisters() {
       }
 
       if (successful) {
+        // Assign spill slots.
+        AllocateSpillSlots(iteration.GetPrunableNodes());
+
         // Compute the maximum number of live registers across safepoints.
         // Notice that we do not count globally blocked registers, such as the stack pointer.
         if (safepoints.size() > 0) {
@@ -700,10 +714,10 @@ void RegisterAllocatorGraphColor::AllocateRegisters() {
       .Resolve(max_safepoint_live_core_regs_,
                max_safepoint_live_fp_regs_,
                reserved_art_method_slots_ + reserved_out_slots_,
-               int_spill_slot_counter_,
-               long_spill_slot_counter_,
-               float_spill_slot_counter_,
-               double_spill_slot_counter_,
+               num_int_spill_slots_,
+               num_long_spill_slots_,
+               num_float_spill_slots_,
+               num_double_spill_slots_,
                catch_phi_spill_slot_counter_,
                temp_intervals_);
 
@@ -743,10 +757,10 @@ bool RegisterAllocatorGraphColor::Validate(bool log_fatal_on_failure) {
       }
     }
 
-    size_t spill_slots = int_spill_slot_counter_
-                       + long_spill_slot_counter_
-                       + float_spill_slot_counter_
-                       + double_spill_slot_counter_
+    size_t spill_slots = num_int_spill_slots_
+                       + num_long_spill_slots_
+                       + num_float_spill_slots_
+                       + num_double_spill_slots_
                        + catch_phi_spill_slot_counter_;
     bool ok = ValidateIntervals(intervals,
                                 spill_slots,
@@ -1910,7 +1924,7 @@ bool ColoringIteration::ColorInterferenceGraph() {
       // be colored, and that we should split.
     } else {
       // Spill.
-      register_allocator_->AllocateSpillSlotFor(interval);
+      node->SetNeedsSpillSlot();
     }
   }
 
@@ -1936,52 +1950,156 @@ size_t RegisterAllocatorGraphColor::ComputeMaxSafepointLiveRegisters(
   return max_safepoint_live_regs;
 }
 
-void RegisterAllocatorGraphColor::AllocateSpillSlotFor(LiveInterval* interval) {
-  LiveInterval* parent = interval->GetParent();
-  HInstruction* defined_by = parent->GetDefinedBy();
-  if (parent->HasSpillSlot()) {
-    // We already have a spill slot for this value that we can reuse.
-  } else if (defined_by->IsParameterValue()) {
-    // Parameters already have a stack slot.
-    parent->SetSpillSlot(codegen_->GetStackSlotOfParameter(defined_by->AsParameterValue()));
-  } else if (defined_by->IsCurrentMethod()) {
-    // The current method is always at spill slot 0.
-    parent->SetSpillSlot(0);
-  } else if (defined_by->IsConstant()) {
-    // Constants don't need a spill slot.
-  } else {
-    // Allocate a spill slot based on type.
-    size_t* spill_slot_counter;
-    switch (interval->GetType()) {
-      case Primitive::kPrimDouble:
-        spill_slot_counter = &double_spill_slot_counter_;
-        break;
-      case Primitive::kPrimLong:
-        spill_slot_counter = &long_spill_slot_counter_;
-        break;
-      case Primitive::kPrimFloat:
-        spill_slot_counter = &float_spill_slot_counter_;
-        break;
-      case Primitive::kPrimNot:
-      case Primitive::kPrimInt:
-      case Primitive::kPrimChar:
-      case Primitive::kPrimByte:
-      case Primitive::kPrimBoolean:
-      case Primitive::kPrimShort:
-        spill_slot_counter = &int_spill_slot_counter_;
-        break;
-      case Primitive::kPrimVoid:
-        LOG(FATAL) << "Unexpected type for interval " << interval->GetType();
-        UNREACHABLE();
+void RegisterAllocatorGraphColor::AllocateSpillSlots(const ArenaVector<InterferenceNode*>& nodes) {
+  // The register allocation resolver will organize the stack based on value type,
+  // so we assign stack slots for each value type separately.
+  ArenaVector<LiveInterval*> double_intervals(allocator_->Adapter(kArenaAllocRegisterAllocator));
+  ArenaVector<LiveInterval*> long_intervals(allocator_->Adapter(kArenaAllocRegisterAllocator));
+  ArenaVector<LiveInterval*> float_intervals(allocator_->Adapter(kArenaAllocRegisterAllocator));
+  ArenaVector<LiveInterval*> int_intervals(allocator_->Adapter(kArenaAllocRegisterAllocator));
+
+  // The set of parent intervals already handled.
+  ArenaSet<LiveInterval*> seen(allocator_->Adapter(kArenaAllocRegisterAllocator));
+
+  // Find nodes that need spill slots.
+  for (InterferenceNode* node : nodes) {
+    if (!node->NeedsSpillSlot()) {
+      continue;
     }
 
-    parent->SetSpillSlot(*spill_slot_counter);
-    *spill_slot_counter += parent->NeedsTwoSpillSlots() ? 2 : 1;
-    // TODO: Could color stack slots if we wanted to, even if
-    //       it's just a trivial coloring. See the linear scan implementation,
-    //       which simply reuses spill slots for values whose live intervals
-    //       have already ended.
+    LiveInterval* parent = node->GetInterval()->GetParent();
+    if (seen.find(parent) != seen.end()) {
+      // We've already handled this interval.
+      // This can happen if multiple siblings of the same interval request a stack slot.
+      continue;
+    }
+    seen.insert(parent);
+
+    HInstruction* defined_by = parent->GetDefinedBy();
+    if (parent->HasSpillSlot()) {
+      // We already have a spill slot for this value that we can reuse.
+    } else if (defined_by->IsParameterValue()) {
+      // Parameters already have a stack slot.
+      parent->SetSpillSlot(codegen_->GetStackSlotOfParameter(defined_by->AsParameterValue()));
+    } else if (defined_by->IsCurrentMethod()) {
+      // The current method is always at stack slot 0.
+      parent->SetSpillSlot(0);
+    } else if (defined_by->IsConstant()) {
+      // Constants don't need a spill slot.
+    } else {
+      // We need to find a spill slot for this interval. Place it in the correct
+      // worklist to be processed later.
+      switch (node->GetInterval()->GetType()) {
+        case Primitive::kPrimDouble:
+          double_intervals.push_back(parent);
+          break;
+        case Primitive::kPrimLong:
+          long_intervals.push_back(parent);
+          break;
+        case Primitive::kPrimFloat:
+          float_intervals.push_back(parent);
+          break;
+        case Primitive::kPrimNot:
+        case Primitive::kPrimInt:
+        case Primitive::kPrimChar:
+        case Primitive::kPrimByte:
+        case Primitive::kPrimBoolean:
+        case Primitive::kPrimShort:
+          int_intervals.push_back(parent);
+          break;
+        case Primitive::kPrimVoid:
+          LOG(FATAL) << "Unexpected type for interval " << node->GetInterval()->GetType();
+          UNREACHABLE();
+      }
+    }
   }
+
+  // Color spill slots for each value type.
+  ColorSpillSlots(&double_intervals, &num_double_spill_slots_);
+  ColorSpillSlots(&long_intervals, &num_long_spill_slots_);
+  ColorSpillSlots(&float_intervals, &num_float_spill_slots_);
+  ColorSpillSlots(&int_intervals, &num_int_spill_slots_);
+}
+
+void RegisterAllocatorGraphColor::ColorSpillSlots(ArenaVector<LiveInterval*>* intervals,
+                                                  size_t* num_stack_slots_used) {
+  // We cannot use the original interference graph here because spill slots are assigned to
+  // all of the siblings of an interval, whereas an interference node represents only a single
+  // sibling. So, we assign spill slots linear-scan-style by sorting all the interval endpoints
+  // by position, and assigning the lowest spill slot available when we encounter an interval
+  // beginning. We ignore lifetime holes for simplicity.
+  ArenaVector<std::tuple<size_t, bool, LiveInterval*>> interval_endpoints(
+      allocator_->Adapter(kArenaAllocRegisterAllocator));
+
+  for (auto it = intervals->begin(), e = intervals->end(); it != e; ++it) {
+    LiveInterval* parent_interval = *it;
+    DCHECK(parent_interval->IsParent());
+    DCHECK(!parent_interval->HasSpillSlot());
+    size_t start = parent_interval->GetStart();
+    size_t end = parent_interval->GetLastSibling()->GetEnd();
+    DCHECK_LT(start, end);
+    interval_endpoints.push_back(std::make_tuple(start, true, parent_interval));
+    interval_endpoints.push_back(std::make_tuple(end, false, parent_interval));
+  }
+
+  // Sort by position.
+  // We explicitly ignore the third entry of each tuple (the interval pointer) in order
+  // to maintain determinism.
+  std::sort(interval_endpoints.begin(), interval_endpoints.end(),
+            [] (const std::tuple<size_t, bool, LiveInterval*>& lhs,
+                const std::tuple<size_t, bool, LiveInterval*>& rhs) {
+    return std::tie(std::get<0>(lhs), std::get<1>(lhs))
+         < std::tie(std::get<0>(rhs), std::get<1>(rhs));
+  });
+
+  ArenaBitVector taken(allocator_, 0, true);
+  for (auto it = interval_endpoints.begin(), end = interval_endpoints.end(); it != end; ++it) {
+    // Extract information from the current tuple.
+    LiveInterval* parent_interval;
+    bool is_interval_beginning;
+    size_t position;
+    std::tie(position, is_interval_beginning, parent_interval) = *it;
+
+    bool needs_two_slots = parent_interval->NeedsTwoSpillSlots();
+
+    if (is_interval_beginning) {
+      DCHECK(!parent_interval->HasSpillSlot());
+      DCHECK_EQ(position, parent_interval->GetStart());
+
+      // Find a free stack slot.
+      size_t slot = 0;
+      for (; taken.IsBitSet(slot) || (needs_two_slots && taken.IsBitSet(slot + 1)); ++slot) {
+        // Skip taken slots.
+      }
+      parent_interval->SetSpillSlot(slot);
+
+      *num_stack_slots_used = std::max(*num_stack_slots_used,
+                                       needs_two_slots ? slot + 1 : slot + 2);
+      if (needs_two_slots && *num_stack_slots_used % 2 != 0) {
+        // The parallel move resolver requires that there be an even number of spill slots
+        // allocated for pair value types.
+        ++(*num_stack_slots_used);
+      }
+
+      taken.SetBit(slot);
+      if (needs_two_slots) {
+        taken.SetBit(slot + 1);
+      }
+    } else {
+      DCHECK_EQ(position, parent_interval->GetLastSibling()->GetEnd());
+      DCHECK(parent_interval->HasSpillSlot());
+
+      // Free up the stack slot used by this interval.
+      size_t slot = parent_interval->GetSpillSlot();
+      DCHECK(taken.IsBitSet(slot));
+      DCHECK(!needs_two_slots || taken.IsBitSet(slot + 1));
+      taken.ClearBit(slot);
+      if (needs_two_slots) {
+        taken.ClearBit(slot + 1);
+      }
+    }
+  }
+  DCHECK_EQ(taken.NumSetBits(), 0u);
 }
 
 }  // namespace art
