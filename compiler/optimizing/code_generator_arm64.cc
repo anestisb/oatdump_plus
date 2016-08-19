@@ -4197,7 +4197,6 @@ void LocationsBuilderARM64::VisitLoadString(HLoadString* load) {
 }
 
 void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
-  Location out_loc = load->GetLocations()->Out();
   Register out = OutputRegister(load);
 
   switch (load->GetLoadKind()) {
@@ -4233,63 +4232,15 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
       __ Ldr(out.W(), codegen_->DeduplicateBootImageAddressLiteral(load->GetAddress()));
       return;  // No dex cache slow path.
     }
-    case HLoadString::LoadKind::kDexCacheAddress: {
-      DCHECK_NE(load->GetAddress(), 0u);
-      // LDR immediate has a 12-bit offset multiplied by the size and for 32-bit loads
-      // that gives a 16KiB range. To try and reduce the number of literals if we load
-      // multiple strings, simply split the dex cache address to a 16KiB aligned base
-      // loaded from a literal and the remaining offset embedded in the load.
-      static_assert(sizeof(GcRoot<mirror::String>) == 4u, "Expected GC root to be 4 bytes.");
-      DCHECK_ALIGNED(load->GetAddress(), 4u);
-      constexpr size_t offset_bits = /* encoded bits */ 12 + /* scale */ 2;
-      uint64_t base_address = load->GetAddress() & ~MaxInt<uint64_t>(offset_bits);
-      uint32_t offset = load->GetAddress() & MaxInt<uint64_t>(offset_bits);
-      __ Ldr(out.X(), codegen_->DeduplicateDexCacheAddressLiteral(base_address));
-      // /* GcRoot<mirror::String> */ out = *(base_address + offset)
-      GenerateGcRootFieldLoad(load, out_loc, out.X(), offset);
-      break;
-    }
-    case HLoadString::LoadKind::kDexCachePcRelative: {
-      // Add ADRP with its PC-relative DexCache access patch.
-      const DexFile& dex_file = load->GetDexFile();
-      uint32_t element_offset = load->GetDexCacheElementOffset();
-      vixl::aarch64::Label* adrp_label =
-          codegen_->NewPcRelativeDexCacheArrayPatch(dex_file, element_offset);
-      {
-        SingleEmissionCheckScope guard(GetVIXLAssembler());
-        __ Bind(adrp_label);
-        __ adrp(out.X(), /* offset placeholder */ 0);
-      }
-      // Add LDR with its PC-relative DexCache access patch.
-      vixl::aarch64::Label* ldr_label =
-          codegen_->NewPcRelativeDexCacheArrayPatch(dex_file, element_offset, adrp_label);
-      // /* GcRoot<mirror::String> */ out = *(base_address + offset)  /* PC-relative */
-      GenerateGcRootFieldLoad(load, out_loc, out.X(), /* offset placeholder */ 0, ldr_label);
-      break;
-    }
-    case HLoadString::LoadKind::kDexCacheViaMethod: {
-      Register current_method = InputRegisterAt(load, 0);
-      // /* GcRoot<mirror::Class> */ out = current_method->declaring_class_
-      GenerateGcRootFieldLoad(
-          load, out_loc, current_method, ArtMethod::DeclaringClassOffset().Int32Value());
-      // /* GcRoot<mirror::String>[] */ out = out->dex_cache_strings_
-      __ Ldr(out.X(), HeapOperand(out, mirror::Class::DexCacheStringsOffset().Uint32Value()));
-      // /* GcRoot<mirror::String> */ out = out[string_index]
-      GenerateGcRootFieldLoad(
-          load, out_loc, out.X(), CodeGenerator::GetCacheOffset(load->GetStringIndex()));
-      break;
-    }
     default:
-      LOG(FATAL) << "Unexpected load kind: " << load->GetLoadKind();
-      UNREACHABLE();
+      break;
   }
 
-  if (!load->IsInDexCache()) {
-    SlowPathCodeARM64* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathARM64(load);
-    codegen_->AddSlowPath(slow_path);
-    __ Cbz(out, slow_path->GetEntryLabel());
-    __ Bind(slow_path->GetExitLabel());
-  }
+  // TODO: Re-add the compiler code to do string dex cache lookup again.
+  SlowPathCodeARM64* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathARM64(load);
+  codegen_->AddSlowPath(slow_path);
+  __ B(slow_path->GetEntryLabel());
+  __ Bind(slow_path->GetExitLabel());
 }
 
 void LocationsBuilderARM64::VisitLongConstant(HLongConstant* constant) {

@@ -3261,22 +3261,11 @@ void LocationsBuilderMIPS64::VisitLoadString(HLoadString* load) {
 }
 
 void InstructionCodeGeneratorMIPS64::VisitLoadString(HLoadString* load) {
-  LocationSummary* locations = load->GetLocations();
-  GpuRegister out = locations->Out().AsRegister<GpuRegister>();
-  GpuRegister current_method = locations->InAt(0).AsRegister<GpuRegister>();
-  __ LoadFromOffset(kLoadUnsignedWord, out, current_method,
-                    ArtMethod::DeclaringClassOffset().Int32Value());
-  __ LoadFromOffset(kLoadDoubleword, out, out, mirror::Class::DexCacheStringsOffset().Int32Value());
-  __ LoadFromOffset(
-      kLoadUnsignedWord, out, out, CodeGenerator::GetCacheOffset(load->GetStringIndex()));
-  // TODO: We will need a read barrier here.
-
-  if (!load->IsInDexCache()) {
-    SlowPathCodeMIPS64* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathMIPS64(load);
-    codegen_->AddSlowPath(slow_path);
-    __ Beqzc(out, slow_path->GetEntryLabel());
-    __ Bind(slow_path->GetExitLabel());
-  }
+  // TODO: Re-add the compiler code to do string dex cache lookup again.
+  SlowPathCodeMIPS64* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathMIPS64(load);
+  codegen_->AddSlowPath(slow_path);
+  __ Bc(slow_path->GetEntryLabel());
+  __ Bind(slow_path->GetExitLabel());
 }
 
 void LocationsBuilderMIPS64::VisitLongConstant(HLongConstant* constant) {
