@@ -23,7 +23,6 @@
 
 #include "base/logging.h"
 #include "base/stringprintf.h"
-#include "thread.h"
 
 namespace art {
 namespace x86 {
@@ -1409,11 +1408,11 @@ DISASSEMBLER_ENTRY(cmp,
   }
   if (prefix[1] == kFs && !supports_rex_) {
     args << "  ; ";
-    Thread::DumpThreadOffset<kX86PointerSize>(args, address_bits);
+    GetDisassemblerOptions()->thread_offset_name_function_(args, address_bits);
   }
   if (prefix[1] == kGs && supports_rex_) {
     args << "  ; ";
-    Thread::DumpThreadOffset<kX86_64PointerSize>(args, address_bits);
+    GetDisassemblerOptions()->thread_offset_name_function_(args, address_bits);
   }
   const char* prefix_str;
   switch (prefix[0]) {
