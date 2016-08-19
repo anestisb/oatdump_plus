@@ -299,13 +299,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
 COMPILER_GTEST_COMMON_SRC_FILES_all := \
   compiler/jni/jni_cfi_test.cc \
   compiler/optimizing/codegen_test.cc \
-  compiler/optimizing/constant_folding_test.cc \
-  compiler/optimizing/dead_code_elimination_test.cc \
-  compiler/optimizing/linearize_test.cc \
-  compiler/optimizing/liveness_test.cc \
-  compiler/optimizing/live_ranges_test.cc \
   compiler/optimizing/optimizing_cfi_test.cc \
-  compiler/optimizing/register_allocator_test.cc \
 
 COMPILER_GTEST_COMMON_SRC_FILES_arm := \
   compiler/linker/arm/relative_patcher_thumb2_test.cc \
@@ -324,6 +318,16 @@ COMPILER_GTEST_COMMON_SRC_FILES_mips64 := \
 COMPILER_GTEST_COMMON_SRC_FILES_x86 := \
   compiler/linker/x86/relative_patcher_x86_test.cc \
   compiler/utils/x86/managed_register_x86_test.cc \
+
+# These tests are testing architecture-independent functionality, but happen
+# to use x86 codegen as part of the test.
+COMPILER_GTEST_COMMON_SRC_FILES_x86 += \
+  compiler/optimizing/constant_folding_test.cc \
+  compiler/optimizing/dead_code_elimination_test.cc \
+  compiler/optimizing/linearize_test.cc \
+  compiler/optimizing/live_ranges_test.cc \
+  compiler/optimizing/liveness_test.cc \
+  compiler/optimizing/register_allocator_test.cc \
 
 COMPILER_GTEST_COMMON_SRC_FILES_x86_64 := \
   compiler/linker/x86_64/relative_patcher_x86_64_test.cc \
@@ -359,9 +363,7 @@ COMPILER_GTEST_TARGET_SRC_FILES_x86_64 := \
   $(COMPILER_GTEST_COMMON_SRC_FILES_x86_64) \
 
 $(foreach arch,$(ART_TARGET_CODEGEN_ARCHS),$(eval COMPILER_GTEST_TARGET_SRC_FILES += $$(COMPILER_GTEST_TARGET_SRC_FILES_$(arch))))
-ifeq (true,$(ART_TARGET_COMPILER_TESTS))
-  COMPILER_GTEST_TARGET_SRC_FILES += $(COMPILER_GTEST_TARGET_SRC_FILES_all)
-endif
+COMPILER_GTEST_TARGET_SRC_FILES += $(COMPILER_GTEST_TARGET_SRC_FILES_all)
 
 COMPILER_GTEST_HOST_SRC_FILES := \
   $(COMPILER_GTEST_COMMON_SRC_FILES) \
@@ -396,9 +398,7 @@ COMPILER_GTEST_HOST_SRC_FILES_x86_64 := \
   compiler/utils/x86_64/assembler_x86_64_test.cc
 
 $(foreach arch,$(ART_HOST_CODEGEN_ARCHS),$(eval COMPILER_GTEST_HOST_SRC_FILES += $$(COMPILER_GTEST_HOST_SRC_FILES_$(arch))))
-ifeq (true,$(ART_HOST_COMPILER_TESTS))
-  COMPILER_GTEST_HOST_SRC_FILES += $(COMPILER_GTEST_HOST_SRC_FILES_all)
-endif
+COMPILER_GTEST_HOST_SRC_FILES += $(COMPILER_GTEST_HOST_SRC_FILES_all)
 
 ART_TEST_CFLAGS :=
 
