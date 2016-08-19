@@ -144,9 +144,13 @@ class RegisterAllocatorGraphColor : public RegisterAllocator {
   // based on the outgoing interference edges of safepoint nodes.
   size_t ComputeMaxSafepointLiveRegisters(const ArenaVector<InterferenceNode*>& safepoints);
 
-  // If necessary, add the given interval to the list of spilled intervals,
-  // and make sure it's ready to be spilled to the stack.
-  void AllocateSpillSlotFor(LiveInterval* interval);
+  // Assigns stack slots to a list of intervals, ensuring that interfering intervals are not
+  // assigned the same stack slot.
+  void ColorSpillSlots(ArenaVector<LiveInterval*>* nodes,
+                       size_t* num_stack_slots_used);
+
+  // Provide stack slots to nodes that need them.
+  void AllocateSpillSlots(const ArenaVector<InterferenceNode*>& nodes);
 
   // Whether iterative move coalescing should be performed. Iterative move coalescing
   // improves code quality, but increases compile time.
@@ -170,10 +174,10 @@ class RegisterAllocatorGraphColor : public RegisterAllocator {
   ArenaVector<InterferenceNode*> physical_fp_nodes_;
 
   // Allocated stack slot counters.
-  size_t int_spill_slot_counter_;
-  size_t double_spill_slot_counter_;
-  size_t float_spill_slot_counter_;
-  size_t long_spill_slot_counter_;
+  size_t num_int_spill_slots_;
+  size_t num_double_spill_slots_;
+  size_t num_float_spill_slots_;
+  size_t num_long_spill_slots_;
   size_t catch_phi_spill_slot_counter_;
 
   // Number of stack slots needed for the pointer to the current method.
