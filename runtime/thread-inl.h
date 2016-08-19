@@ -224,7 +224,6 @@ inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
         thread_to_pass = this;
       }
       MutexLock mu(thread_to_pass, *Locks::thread_suspend_count_lock_);
-      ScopedTransitioningToRunnable scoped_transitioning_to_runnable(this);
       old_state_and_flags.as_int = tls32_.state_and_flags.as_int;
       DCHECK_EQ(old_state_and_flags.as_struct.state, old_state);
       while ((old_state_and_flags.as_struct.flags & kSuspendRequest) != 0) {
