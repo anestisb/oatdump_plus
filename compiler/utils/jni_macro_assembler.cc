@@ -99,6 +99,7 @@ MacroAsm64UniquePtr JNIMacroAssembler<PointerSize::k64>::Create(
       return MacroAsm64UniquePtr(new (arena) x86_64::X86_64JNIMacroAssembler(arena));
 #endif
     default:
+      UNUSED(arena);
       LOG(FATAL) << "Unknown/unsupported 8B InstructionSet: " << instruction_set;
       UNREACHABLE();
   }
