@@ -35,7 +35,7 @@ namespace mirror {
 
 class String;
 
-struct StringDexCachePair {
+struct PACKED(8) StringDexCachePair {
   GcRoot<String> string_pointer;
   uint32_t string_index;
   // The array is initially [ {0,0}, {0,0}, {0,0} ... ]

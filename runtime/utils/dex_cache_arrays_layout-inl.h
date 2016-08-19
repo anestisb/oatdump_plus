@@ -50,7 +50,7 @@ inline constexpr size_t DexCacheArraysLayout::Alignment() {
   // GcRoot<> alignment is 4, i.e. lower than or equal to the pointer alignment.
   static_assert(alignof(GcRoot<mirror::Class>) == 4, "Expecting alignof(GcRoot<>) == 4");
   static_assert(alignof(mirror::StringDexCacheType) == 8, "Expecting alignof(StringDexCacheType) == 8");
-  return sizeof(mirror::StringDexCacheType);
+  return alignof(mirror::StringDexCacheType);
 }
 
 template <typename T>
@@ -100,7 +100,7 @@ inline size_t DexCacheArraysLayout::StringsSize(size_t num_elements) const {
 }
 
 inline size_t DexCacheArraysLayout::StringsAlignment() const {
-  return alignof(uint64_t);
+  return alignof(mirror::StringDexCacheType);
 }
 
 inline size_t DexCacheArraysLayout::FieldOffset(uint32_t field_idx) const {
