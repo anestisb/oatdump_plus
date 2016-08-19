@@ -404,8 +404,6 @@ size_t ThreadList::FlipThreadRoots(Closure* thread_flip_visitor,
   Locks::thread_suspend_count_lock_->AssertNotHeld(self);
   CHECK_NE(self->GetState(), kRunnable);
 
-  collector->GetHeap()->ThreadFlipBegin(self);  // Sync with JNI critical calls.
-
   SuspendAllInternal(self, self, nullptr);
 
   // Run the flip callback for the collector.
@@ -415,31 +413,26 @@ size_t ThreadList::FlipThreadRoots(Closure* thread_flip_visitor,
   collector->RegisterPause(NanoTime() - start_time);
 
   // Resume runnable threads.
-  size_t runnable_thread_count = 0;
+  std::vector<Thread*> runnable_threads;
   std::vector<Thread*> other_threads;
   {
-    TimingLogger::ScopedTiming split2("ResumeRunnableThreads", collector->GetTimings());
     MutexLock mu(self, *Locks::thread_list_lock_);
     MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
     --suspend_all_count_;
     for (const auto& thread : list_) {
-      // Set the flip function for all threads because Thread::DumpState/DumpJavaStack() (invoked by
-      // a checkpoint) may cause the flip function to be run for a runnable/suspended thread before
-      // a runnable thread runs it for itself or we run it for a suspended thread below.
-      thread->SetFlipFunction(thread_flip_visitor);
       if (thread == self) {
         continue;
       }
-      // Resume early the threads that were runnable but are suspended just for this thread flip or
-      // about to transition from non-runnable (eg. kNative at the SOA entry in a JNI function) to
-      // runnable (both cases waiting inside Thread::TransitionFromSuspendedToRunnable), or waiting
-      // for the thread flip to end at the JNI critical section entry (kWaitingForGcThreadFlip),
-      ThreadState state = thread->GetState();
-      if (state == kWaitingForGcThreadFlip ||
-          thread->IsTransitioningToRunnable()) {
+      // Set the flip function for both runnable and suspended threads
+      // because Thread::DumpState/DumpJavaStack() (invoked by a
+      // checkpoint) may cause the flip function to be run for a
+      // runnable/suspended thread before a runnable threads runs it
+      // for itself or we run it for a suspended thread below.
+      thread->SetFlipFunction(thread_flip_visitor);
+      if (thread->IsSuspendedAtSuspendCheck()) {
         // The thread will resume right after the broadcast.
         thread->ModifySuspendCount(self, -1, nullptr, false);
-        ++runnable_thread_count;
+        runnable_threads.push_back(thread);
       } else {
         other_threads.push_back(thread);
       }
@@ -447,11 +440,8 @@ size_t ThreadList::FlipThreadRoots(Closure* thread_flip_visitor,
     Thread::resume_cond_->Broadcast(self);
   }
 
-  collector->GetHeap()->ThreadFlipEnd(self);
-
   // Run the closure on the other threads and let them resume.
   {
-    TimingLogger::ScopedTiming split3("FlipOtherThreads", collector->GetTimings());
     ReaderMutexLock mu(self, *Locks::mutator_lock_);
     for (const auto& thread : other_threads) {
       Closure* flip_func = thread->GetFlipFunction();
@@ -460,15 +450,11 @@ size_t ThreadList::FlipThreadRoots(Closure* thread_flip_visitor,
       }
     }
     // Run it for self.
-    Closure* flip_func = self->GetFlipFunction();
-    if (flip_func != nullptr) {
-      flip_func->Run(self);
-    }
+    thread_flip_visitor->Run(self);
   }
 
   // Resume other threads.
   {
-    TimingLogger::ScopedTiming split4("ResumeOtherThreads", collector->GetTimings());
     MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
     for (const auto& thread : other_threads) {
       thread->ModifySuspendCount(self, -1, nullptr, false);
@@ -476,7 +462,7 @@ size_t ThreadList::FlipThreadRoots(Closure* thread_flip_visitor,
     Thread::resume_cond_->Broadcast(self);
   }
 
-  return runnable_thread_count + other_threads.size() + 1;  // +1 for self.
+  return runnable_threads.size() + other_threads.size() + 1;  // +1 for self.
 }
 
 void ThreadList::SuspendAll(const char* cause, bool long_suspend) {
