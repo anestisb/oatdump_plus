@@ -22,6 +22,7 @@
 #include "common_runtime_test.h"
 #include "linear_alloc.h"
 #include "mirror/class_loader-inl.h"
+#include "mirror/dex_cache-inl.h"
 #include "handle_scope-inl.h"
 #include "scoped_thread_state_change.h"
 
@@ -40,7 +41,8 @@ TEST_F(DexCacheTest, Open) {
                                                 Runtime::Current()->GetLinearAlloc())));
   ASSERT_TRUE(dex_cache.Get() != nullptr);
 
-  EXPECT_EQ(java_lang_dex_file_->NumStringIds(), dex_cache->NumStrings());
+  EXPECT_TRUE(dex_cache->StaticStringSize() == dex_cache->NumStrings()
+      || java_lang_dex_file_->NumStringIds() == dex_cache->NumStrings());
   EXPECT_EQ(java_lang_dex_file_->NumTypeIds(),   dex_cache->NumResolvedTypes());
   EXPECT_EQ(java_lang_dex_file_->NumMethodIds(), dex_cache->NumResolvedMethods());
   EXPECT_EQ(java_lang_dex_file_->NumFieldIds(),  dex_cache->NumResolvedFields());

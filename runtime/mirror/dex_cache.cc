@@ -33,7 +33,7 @@ namespace mirror {
 
 void DexCache::Init(const DexFile* dex_file,
                     String* location,
-                    GcRoot<String>* strings,
+                    StringDexCacheType* strings,
                     uint32_t num_strings,
                     GcRoot<Class>* resolved_types,
                     uint32_t num_resolved_types,

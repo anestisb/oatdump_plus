@@ -52,7 +52,7 @@ class DexCacheArraysLayout {
     return size_;
   }
 
-  size_t Alignment() const;
+  static constexpr size_t Alignment();
 
   size_t TypesOffset() const {
     return types_offset_;
