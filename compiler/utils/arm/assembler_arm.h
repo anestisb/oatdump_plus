@@ -908,6 +908,12 @@ class ArmAssembler : public Assembler {
     // reg = -reg.
     rsb(reg, reg, ShifterOperand(0));
   }
+  // Poison a heap reference contained in `reg` if heap poisoning is enabled.
+  void MaybePoisonHeapReference(Register reg) {
+    if (kPoisonHeapReferences) {
+      PoisonHeapReference(reg);
+    }
+  }
   // Unpoison a heap reference contained in `reg` if heap poisoning is enabled.
   void MaybeUnpoisonHeapReference(Register reg) {
     if (kPoisonHeapReferences) {
