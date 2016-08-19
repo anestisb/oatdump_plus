@@ -52,6 +52,7 @@
 #include "mirror/array-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
+#include "mirror/dex_cache.h"
 #include "mirror/dex_cache-inl.h"
 #include "mirror/method.h"
 #include "mirror/object-inl.h"
@@ -1418,6 +1419,9 @@ void ImageWriter::CalculateNewObjectOffsets() {
           bin_offset = RoundUp(bin_offset, method_alignment);
           break;
         }
+        case kBinDexCacheArray:
+          bin_offset = RoundUp(bin_offset, DexCacheArraysLayout::Alignment());
+          break;
         case kBinImTable:
         case kBinIMTConflictTable: {
           bin_offset = RoundUp(bin_offset, static_cast<size_t>(target_ptr_size_));
@@ -2034,7 +2038,7 @@ void ImageWriter::FixupDexCache(mirror::DexCache* orig_dex_cache,
   // 64-bit values here, clearing the top 32 bits for 32-bit targets. The zero-extension is
   // done by casting to the unsigned type uintptr_t before casting to int64_t, i.e.
   //     static_cast<int64_t>(reinterpret_cast<uintptr_t>(image_begin_ + offset))).
-  GcRoot<mirror::String>* orig_strings = orig_dex_cache->GetStrings();
+  mirror::StringDexCacheType* orig_strings = orig_dex_cache->GetStrings();
   if (orig_strings != nullptr) {
     copy_dex_cache->SetFieldPtrWithSize<false>(mirror::DexCache::StringsOffset(),
                                                NativeLocationInImage(orig_strings),

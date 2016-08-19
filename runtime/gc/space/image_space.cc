@@ -1197,9 +1197,9 @@ class ImageSpaceLoader {
       for (int32_t i = 0, count = dex_caches->GetLength(); i < count; ++i) {
         mirror::DexCache* dex_cache = dex_caches->Get<kVerifyNone, kWithoutReadBarrier>(i);
         // Fix up dex cache pointers.
-        GcRoot<mirror::String>* strings = dex_cache->GetStrings();
+        mirror::StringDexCacheType* strings = dex_cache->GetStrings();
         if (strings != nullptr) {
-          GcRoot<mirror::String>* new_strings = fixup_adapter.ForwardObject(strings);
+          mirror::StringDexCacheType* new_strings = fixup_adapter.ForwardObject(strings);
           if (strings != new_strings) {
             dex_cache->SetStrings(new_strings);
           }

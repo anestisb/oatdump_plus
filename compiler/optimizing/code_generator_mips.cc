@@ -4580,11 +4580,6 @@ void InstructionCodeGeneratorMIPS::VisitLoadString(HLoadString* load) {
     case HLoadString::LoadKind::kBootImageLinkTimePcRelative:
       base_or_current_method_reg = isR6 ? ZERO : locations->InAt(0).AsRegister<Register>();
       break;
-    // We need an extra register for PC-relative dex cache accesses.
-    case HLoadString::LoadKind::kDexCachePcRelative:
-    case HLoadString::LoadKind::kDexCacheViaMethod:
-      base_or_current_method_reg = locations->InAt(0).AsRegister<Register>();
-      break;
     default:
       base_or_current_method_reg = ZERO;
       break;
@@ -4628,52 +4623,15 @@ void InstructionCodeGeneratorMIPS::VisitLoadString(HLoadString* load) {
                      codegen_->DeduplicateBootImageAddressLiteral(address));
       return;  // No dex cache slow path.
     }
-    case HLoadString::LoadKind::kDexCacheAddress: {
-      DCHECK_NE(load->GetAddress(), 0u);
-      uint32_t address = dchecked_integral_cast<uint32_t>(load->GetAddress());
-      static_assert(sizeof(GcRoot<mirror::String>) == 4u, "Expected GC root to be 4 bytes.");
-      DCHECK_ALIGNED(load->GetAddress(), 4u);
-      int16_t offset = Low16Bits(address);
-      uint32_t base_address = address - offset;  // This accounts for offset sign extension.
-      __ Lui(out, High16Bits(base_address));
-      // /* GcRoot<mirror::String> */ out = *(base_address + offset)
-      GenerateGcRootFieldLoad(load, out_loc, out, offset);
-      break;
-    }
-    case HLoadString::LoadKind::kDexCachePcRelative: {
-      HMipsDexCacheArraysBase* base = load->InputAt(0)->AsMipsDexCacheArraysBase();
-      int32_t offset =
-          load->GetDexCacheElementOffset() - base->GetElementOffset() - kDexCacheArrayLwOffset;
-      // /* GcRoot<mirror::String> */ out = *(dex_cache_arrays_base + offset)
-      GenerateGcRootFieldLoad(load, out_loc, base_or_current_method_reg, offset);
-      break;
-    }
-    case HLoadString::LoadKind::kDexCacheViaMethod: {
-      // /* GcRoot<mirror::Class> */ out = current_method->declaring_class_
-      GenerateGcRootFieldLoad(load,
-                              out_loc,
-                              base_or_current_method_reg,
-                              ArtMethod::DeclaringClassOffset().Int32Value());
-      // /* GcRoot<mirror::String>[] */ out = out->dex_cache_strings_
-      __ LoadFromOffset(kLoadWord, out, out, mirror::Class::DexCacheStringsOffset().Int32Value());
-      // /* GcRoot<mirror::String> */ out = out[string_index]
-      GenerateGcRootFieldLoad(load,
-                              out_loc,
-                              out,
-                              CodeGenerator::GetCacheOffset(load->GetStringIndex()));
-      break;
-    }
     default:
-      LOG(FATAL) << "Unexpected load kind: " << load->GetLoadKind();
-      UNREACHABLE();
+      break;
   }
 
-  if (!load->IsInDexCache()) {
-    SlowPathCodeMIPS* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathMIPS(load);
-    codegen_->AddSlowPath(slow_path);
-    __ Beqz(out, slow_path->GetEntryLabel());
-    __ Bind(slow_path->GetExitLabel());
-  }
+  // TODO: Re-add the compiler code to do string dex cache lookup again.
+  SlowPathCodeMIPS* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathMIPS(load);
+  codegen_->AddSlowPath(slow_path);
+  __ B(slow_path->GetEntryLabel());
+  __ Bind(slow_path->GetExitLabel());
 }
 
 void LocationsBuilderMIPS::VisitLongConstant(HLongConstant* constant) {
