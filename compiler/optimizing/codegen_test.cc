@@ -29,12 +29,6 @@
 #include "arch/x86_64/instruction_set_features_x86_64.h"
 #include "base/macros.h"
 #include "builder.h"
-#include "code_generator_arm.h"
-#include "code_generator_arm64.h"
-#include "code_generator_mips.h"
-#include "code_generator_mips64.h"
-#include "code_generator_x86.h"
-#include "code_generator_x86_64.h"
 #include "code_simulator_container.h"
 #include "common_compiler_test.h"
 #include "dex_file.h"
@@ -52,10 +46,35 @@
 #include "utils/mips64/managed_register_mips64.h"
 #include "utils/x86/managed_register_x86.h"
 
+#ifdef ART_ENABLE_CODEGEN_arm
+#include "code_generator_arm.h"
+#endif
+
+#ifdef ART_ENABLE_CODEGEN_arm64
+#include "code_generator_arm64.h"
+#endif
+
+#ifdef ART_ENABLE_CODEGEN_x86
+#include "code_generator_x86.h"
+#endif
+
+#ifdef ART_ENABLE_CODEGEN_x86_64
+#include "code_generator_x86_64.h"
+#endif
+
+#ifdef ART_ENABLE_CODEGEN_mips
+#include "code_generator_mips.h"
+#endif
+
+#ifdef ART_ENABLE_CODEGEN_mips64
+#include "code_generator_mips64.h"
+#endif
+
 #include "gtest/gtest.h"
 
 namespace art {
 
+#ifdef ART_ENABLE_CODEGEN_arm
 // Provide our own codegen, that ensures the C calling conventions
 // are preserved. Currently, ART and C do not match as R4 is caller-save
 // in ART, and callee-save in C. Alternatively, we could use or write
@@ -80,7 +99,9 @@ class TestCodeGeneratorARM : public arm::CodeGeneratorARM {
     blocked_register_pairs_[arm::R6_R7] = false;
   }
 };
+#endif
 
+#ifdef ART_ENABLE_CODEGEN_x86
 class TestCodeGeneratorX86 : public x86::CodeGeneratorX86 {
  public:
   TestCodeGeneratorX86(HGraph* graph,
@@ -105,6 +126,7 @@ class TestCodeGeneratorX86 : public x86::CodeGeneratorX86 {
     blocked_register_pairs_[x86::ECX_EDI] = false;
   }
 };
+#endif
 
 class InternalCodeAllocator : public CodeAllocator {
  public:
@@ -234,37 +256,54 @@ static void RunCode(InstructionSet target_isa,
                     bool has_result,
                     Expected expected) {
   CompilerOptions compiler_options;
+#ifdef ART_ENABLE_CODEGEN_arm
   if (target_isa == kArm || target_isa == kThumb2) {
     std::unique_ptr<const ArmInstructionSetFeatures> features_arm(
         ArmInstructionSetFeatures::FromCppDefines());
     TestCodeGeneratorARM codegenARM(graph, *features_arm.get(), compiler_options);
     RunCode(&codegenARM, graph, hook_before_codegen, has_result, expected);
-  } else if (target_isa == kArm64) {
+  }
+#endif
+#ifdef ART_ENABLE_CODEGEN_arm64
+  if (target_isa == kArm64) {
     std::unique_ptr<const Arm64InstructionSetFeatures> features_arm64(
         Arm64InstructionSetFeatures::FromCppDefines());
     arm64::CodeGeneratorARM64 codegenARM64(graph, *features_arm64.get(), compiler_options);
     RunCode(&codegenARM64, graph, hook_before_codegen, has_result, expected);
-  } else if (target_isa == kX86) {
+  }
+#endif
+#ifdef ART_ENABLE_CODEGEN_x86
+  if (target_isa == kX86) {
     std::unique_ptr<const X86InstructionSetFeatures> features_x86(
         X86InstructionSetFeatures::FromCppDefines());
     TestCodeGeneratorX86 codegenX86(graph, *features_x86.get(), compiler_options);
     RunCode(&codegenX86, graph, hook_before_codegen, has_result, expected);
-  } else if (target_isa == kX86_64) {
+  }
+#endif
+#ifdef ART_ENABLE_CODEGEN_x86_64
+  if (target_isa == kX86_64) {
     std::unique_ptr<const X86_64InstructionSetFeatures> features_x86_64(
         X86_64InstructionSetFeatures::FromCppDefines());
     x86_64::CodeGeneratorX86_64 codegenX86_64(graph, *features_x86_64.get(), compiler_options);
     RunCode(&codegenX86_64, graph, hook_before_codegen, has_result, expected);
-  } else if (target_isa == kMips) {
+  }
+#endif
+#ifdef ART_ENABLE_CODEGEN_mips
+  if (target_isa == kMips) {
     std::unique_ptr<const MipsInstructionSetFeatures> features_mips(
         MipsInstructionSetFeatures::FromCppDefines());
     mips::CodeGeneratorMIPS codegenMIPS(graph, *features_mips.get(), compiler_options);
     RunCode(&codegenMIPS, graph, hook_before_codegen, has_result, expected);
-  } else if (target_isa == kMips64) {
+  }
+#endif
+#ifdef ART_ENABLE_CODEGEN_mips64
+  if (target_isa == kMips64) {
     std::unique_ptr<const Mips64InstructionSetFeatures> features_mips64(
         Mips64InstructionSetFeatures::FromCppDefines());
     mips64::CodeGeneratorMIPS64 codegenMIPS64(graph, *features_mips64.get(), compiler_options);
     RunCode(&codegenMIPS64, graph, hook_before_codegen, has_result, expected);
   }
+#endif
 }
 
 static ::std::vector<InstructionSet> GetTargetISAs() {

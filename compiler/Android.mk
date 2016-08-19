@@ -47,7 +47,6 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/code_generator_utils.cc \
 	optimizing/constant_folding.cc \
 	optimizing/dead_code_elimination.cc \
-	optimizing/dex_cache_array_fixups_arm.cc \
 	optimizing/graph_checker.cc \
 	optimizing/graph_visualizer.cc \
 	optimizing/gvn.cc \
@@ -61,7 +60,6 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/load_store_elimination.cc \
 	optimizing/locations.cc \
 	optimizing/nodes.cc \
-	optimizing/nodes_arm64.cc \
 	optimizing/optimization.cc \
 	optimizing/optimizing_compiler.cc \
 	optimizing/parallel_move_resolver.cc \
@@ -78,7 +76,6 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/ssa_liveness_analysis.cc \
 	optimizing/ssa_phi_elimination.cc \
 	optimizing/stack_map_stream.cc \
-	optimizing/x86_memory_gen.cc \
 	trampolines/trampoline_compiler.cc \
 	utils/assembler.cc \
 	utils/jni_macro_assembler.cc \
@@ -94,6 +91,7 @@ LIBART_COMPILER_SRC_FILES_arm := \
 	linker/arm/relative_patcher_arm_base.cc \
 	linker/arm/relative_patcher_thumb2.cc \
 	optimizing/code_generator_arm.cc \
+	optimizing/dex_cache_array_fixups_arm.cc \
 	optimizing/intrinsics_arm.cc \
 	utils/arm/assembler_arm.cc \
 	utils/arm/assembler_arm32.cc \
@@ -109,6 +107,7 @@ LIBART_COMPILER_SRC_FILES_arm64 := \
     $(LIBART_COMPILER_SRC_FILES_arm) \
 	jni/quick/arm64/calling_convention_arm64.cc \
 	linker/arm64/relative_patcher_arm64.cc \
+	optimizing/nodes_arm64.cc \
 	optimizing/code_generator_arm64.cc \
 	optimizing/instruction_simplifier_arm.cc \
 	optimizing/instruction_simplifier_arm64.cc \
@@ -144,6 +143,7 @@ LIBART_COMPILER_SRC_FILES_x86 := \
 	optimizing/code_generator_x86.cc \
 	optimizing/intrinsics_x86.cc \
 	optimizing/pc_relative_fixups_x86.cc \
+	optimizing/x86_memory_gen.cc \
 	utils/x86/assembler_x86.cc \
 	utils/x86/jni_macro_assembler_x86.cc \
 	utils/x86/managed_register_x86.cc \
