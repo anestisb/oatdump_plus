@@ -93,6 +93,8 @@ class Arm64Assembler FINAL : public Assembler {
   void PoisonHeapReference(vixl::aarch64::Register reg);
   // Unpoison a heap reference contained in `reg`.
   void UnpoisonHeapReference(vixl::aarch64::Register reg);
+  // Poison a heap reference contained in `reg` if heap poisoning is enabled.
+  void MaybePoisonHeapReference(vixl::aarch64::Register reg);
   // Unpoison a heap reference contained in `reg` if heap poisoning is enabled.
   void MaybeUnpoisonHeapReference(vixl::aarch64::Register reg);
 

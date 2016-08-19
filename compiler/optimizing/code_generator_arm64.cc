@@ -595,7 +595,8 @@ class ReadBarrierMarkSlowPathARM64 : public SlowPathCodeARM64 {
            instruction_->IsLoadString() ||
            instruction_->IsInstanceOf() ||
            instruction_->IsCheckCast() ||
-           (instruction_->IsInvokeVirtual()) && instruction_->GetLocations()->Intrinsified())
+           (instruction_->IsInvokeVirtual() && instruction_->GetLocations()->Intrinsified()) ||
+           (instruction_->IsInvokeStaticOrDirect() && instruction_->GetLocations()->Intrinsified()))
         << "Unexpected instruction in read barrier marking slow path: "
         << instruction_->DebugName();
 
@@ -607,7 +608,8 @@ class ReadBarrierMarkSlowPathARM64 : public SlowPathCodeARM64 {
     DCHECK_NE(obj_.reg(), LR);
     DCHECK_NE(obj_.reg(), WSP);
     DCHECK_NE(obj_.reg(), WZR);
-    // WIP0 is used by the slow path as a temp, it can not be the object register.
+    // IP0 is used internally by the ReadBarrierMarkRegX entry point
+    // as a temporary, it cannot be the entry point's input/output.
     DCHECK_NE(obj_.reg(), IP0);
     DCHECK(0 <= obj_.reg() && obj_.reg() < kNumberOfWRegisters) << obj_.reg();
     // "Compact" slow path, saving two moves.
@@ -5239,7 +5241,8 @@ void CodeGeneratorARM64::GenerateReferenceLoadWithBakerReadBarrier(HInstruction*
   // Introduce a dependency on the lock_word including rb_state,
   // to prevent load-load reordering, and without using
   // a memory barrier (which would be more expensive).
-  // obj is unchanged by this operation, but its value now depends on temp.
+  // `obj` is unchanged by this operation, but its value now depends
+  // on `temp`.
   __ Add(obj.X(), obj.X(), Operand(temp.X(), LSR, 32));
 
   // The actual reference load.
