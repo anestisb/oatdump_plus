@@ -37,6 +37,7 @@
 #include "gc/space/image_space.h"
 #include "image-inl.h"
 #include "mirror/abstract_method.h"
+#include "mirror/dex_cache.h"
 #include "mirror/object-inl.h"
 #include "mirror/method.h"
 #include "mirror/reference.h"
@@ -592,8 +593,8 @@ void PatchOat::PatchDexFileArrays(mirror::ObjectArray<mirror::Object>* img_roots
     // 64-bit values here, clearing the top 32 bits for 32-bit targets. The zero-extension is
     // done by casting to the unsigned type uintptr_t before casting to int64_t, i.e.
     //     static_cast<int64_t>(reinterpret_cast<uintptr_t>(image_begin_ + offset))).
-    GcRoot<mirror::String>* orig_strings = orig_dex_cache->GetStrings();
-    GcRoot<mirror::String>* relocated_strings = RelocatedAddressOfPointer(orig_strings);
+    mirror::StringDexCacheType* orig_strings = orig_dex_cache->GetStrings();
+    mirror::StringDexCacheType* relocated_strings = RelocatedAddressOfPointer(orig_strings);
     copy_dex_cache->SetField64<false>(
         mirror::DexCache::StringsOffset(),
         static_cast<int64_t>(reinterpret_cast<uintptr_t>(relocated_strings)));

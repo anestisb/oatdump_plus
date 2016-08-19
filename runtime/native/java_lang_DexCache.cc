@@ -59,7 +59,7 @@ static jobject DexCache_getResolvedType(JNIEnv* env, jobject javaDexCache, jint 
 static jobject DexCache_getResolvedString(JNIEnv* env, jobject javaDexCache, jint string_index) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::DexCache* dex_cache = soa.Decode<mirror::DexCache*>(javaDexCache);
-  CHECK_LT(static_cast<size_t>(string_index), dex_cache->NumStrings());
+  CHECK_LT(static_cast<size_t>(string_index), dex_cache->GetDexFile()->NumStringIds());
   return soa.AddLocalReference<jobject>(dex_cache->GetResolvedString(string_index));
 }
 
@@ -75,7 +75,7 @@ static void DexCache_setResolvedString(JNIEnv* env, jobject javaDexCache, jint s
                                        jobject string) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::DexCache* dex_cache = soa.Decode<mirror::DexCache*>(javaDexCache);
-  CHECK_LT(static_cast<size_t>(string_index), dex_cache->NumStrings());
+  CHECK_LT(static_cast<size_t>(string_index), dex_cache->GetDexFile()->NumStringIds());
   dex_cache->SetResolvedString(string_index, soa.Decode<mirror::String*>(string));
 }
 

@@ -27,6 +27,8 @@
 #include "mirror/object_array.h"
 #include "handle_scope-inl.h"
 
+#include <atomic>
+
 namespace art {
 
 inline mirror::Class* ClassLinker::FindSystemClass(Thread* self, const char* descriptor) {
@@ -63,18 +65,21 @@ inline mirror::Class* ClassLinker::FindArrayClass(Thread* self, mirror::Class** 
 inline mirror::String* ClassLinker::ResolveString(uint32_t string_idx, ArtMethod* referrer) {
   mirror::Class* declaring_class = referrer->GetDeclaringClass();
   // MethodVerifier refuses methods with string_idx out of bounds.
-  DCHECK_LT(string_idx, declaring_class->GetDexCache()->NumStrings());
-  mirror::String* resolved_string = declaring_class->GetDexCacheStrings()[string_idx].Read();
-  if (UNLIKELY(resolved_string == nullptr)) {
+  DCHECK_LT(string_idx, declaring_class->GetDexFile().NumStringIds());;
+  mirror::String* string =
+        mirror::StringDexCachePair::LookupString(declaring_class->GetDexCacheStrings(),
+                                                 string_idx,
+                                                 mirror::DexCache::kDexCacheStringCacheSize).Read();
+  if (UNLIKELY(string == nullptr)) {
     StackHandleScope<1> hs(Thread::Current());
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
     const DexFile& dex_file = *dex_cache->GetDexFile();
-    resolved_string = ResolveString(dex_file, string_idx, dex_cache);
-    if (resolved_string != nullptr) {
-      DCHECK_EQ(dex_cache->GetResolvedString(string_idx), resolved_string);
+    string = ResolveString(dex_file, string_idx, dex_cache);
+    if (string != nullptr) {
+      DCHECK_EQ(dex_cache->GetResolvedString(string_idx), string);
     }
   }
-  return resolved_string;
+  return string;
 }
 
 inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx, ArtMethod* referrer) {

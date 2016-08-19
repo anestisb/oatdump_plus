@@ -66,6 +66,7 @@
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
+#include "mirror/dex_cache.h"
 #include "mirror/dex_cache-inl.h"
 #include "mirror/field.h"
 #include "mirror/iftable-inl.h"
@@ -1271,7 +1272,10 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
       // If the oat file expects the dex cache arrays to be in the BSS, then allocate there and
         // copy over the arrays.
         DCHECK(dex_file != nullptr);
-        const size_t num_strings = dex_file->NumStringIds();
+        size_t num_strings = mirror::DexCache::kDexCacheStringCacheSize;
+        if (dex_file->NumStringIds() < num_strings) {
+          num_strings = dex_file->NumStringIds();
+        }
         const size_t num_types = dex_file->NumTypeIds();
         const size_t num_methods = dex_file->NumMethodIds();
         const size_t num_fields = dex_file->NumFieldIds();
@@ -1281,16 +1285,17 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
         CHECK_EQ(num_fields, dex_cache->NumResolvedFields());
         DexCacheArraysLayout layout(image_pointer_size_, dex_file);
         uint8_t* const raw_arrays = oat_dex_file->GetDexCacheArrays();
-        // The space is not yet visible to the GC, we can avoid the read barriers and use
-        // std::copy_n.
         if (num_strings != 0u) {
-          GcRoot<mirror::String>* const image_resolved_strings = dex_cache->GetStrings();
-          GcRoot<mirror::String>* const strings =
-              reinterpret_cast<GcRoot<mirror::String>*>(raw_arrays + layout.StringsOffset());
-          for (size_t j = 0; kIsDebugBuild && j < num_strings; ++j) {
-            DCHECK(strings[j].IsNull());
+          mirror::StringDexCacheType* const image_resolved_strings = dex_cache->GetStrings();
+          mirror::StringDexCacheType* const strings =
+              reinterpret_cast<mirror::StringDexCacheType*>(raw_arrays + layout.StringsOffset());
+          for (size_t j = 0; j < num_strings; ++j) {
+            DCHECK_EQ(strings[j].load(std::memory_order_relaxed).string_index, 0u);
+            DCHECK(strings[j].load(std::memory_order_relaxed).string_pointer.IsNull());
+            strings[j].store(image_resolved_strings[j].load(std::memory_order_relaxed),
+                             std::memory_order_relaxed);
           }
-          std::copy_n(image_resolved_strings, num_strings, strings);
+          mirror::StringDexCachePair::Initialize(strings);
           dex_cache->SetStrings(strings);
         }
         if (num_types != 0u) {
@@ -1473,14 +1478,14 @@ class UpdateClassLoaderAndResolvedStringsVisitor {
 
   bool operator()(mirror::Class* klass) const SHARED_REQUIRES(Locks::mutator_lock_) {
     if (forward_strings_) {
-      GcRoot<mirror::String>* strings = klass->GetDexCacheStrings();
+      mirror::StringDexCacheType* strings = klass->GetDexCacheStrings();
       if (strings != nullptr) {
         DCHECK(
             space_->GetImageHeader().GetImageSection(ImageHeader::kSectionDexCacheArrays).Contains(
                 reinterpret_cast<uint8_t*>(strings) - space_->Begin()))
             << "String dex cache array for " << PrettyClass(klass) << " is not in app image";
         // Dex caches have already been updated, so take the strings pointer from there.
-        GcRoot<mirror::String>* new_strings = klass->GetDexCache()->GetStrings();
+        mirror::StringDexCacheType* new_strings = klass->GetDexCache()->GetStrings();
         DCHECK_NE(strings, new_strings);
         klass->SetDexCacheStrings(new_strings);
       }
@@ -2079,18 +2084,27 @@ mirror::DexCache* ClassLinker::AllocDexCache(Thread* self,
     // Zero-initialized.
     raw_arrays = reinterpret_cast<uint8_t*>(linear_alloc->Alloc(self, layout.Size()));
   }
-  GcRoot<mirror::String>* strings = (dex_file.NumStringIds() == 0u) ? nullptr :
-      reinterpret_cast<GcRoot<mirror::String>*>(raw_arrays + layout.StringsOffset());
+  mirror::StringDexCacheType* strings = (dex_file.NumStringIds() == 0u) ? nullptr :
+      reinterpret_cast<mirror::StringDexCacheType*>(raw_arrays + layout.StringsOffset());
   GcRoot<mirror::Class>* types = (dex_file.NumTypeIds() == 0u) ? nullptr :
       reinterpret_cast<GcRoot<mirror::Class>*>(raw_arrays + layout.TypesOffset());
   ArtMethod** methods = (dex_file.NumMethodIds() == 0u) ? nullptr :
       reinterpret_cast<ArtMethod**>(raw_arrays + layout.MethodsOffset());
   ArtField** fields = (dex_file.NumFieldIds() == 0u) ? nullptr :
       reinterpret_cast<ArtField**>(raw_arrays + layout.FieldsOffset());
+  size_t num_strings = mirror::DexCache::kDexCacheStringCacheSize;
+  if (dex_file.NumStringIds() < num_strings) {
+    num_strings = dex_file.NumStringIds();
+  }
+  DCHECK_ALIGNED(strings, alignof(mirror::StringDexCacheType)) <<
+                "Expected strings to align to StringDexCacheType.";
+  static_assert(alignof(mirror::StringDexCacheType) == 8u,
+                "Expected StringDexCacheType to have align of 8.");
   if (kIsDebugBuild) {
     // Sanity check to make sure all the dex cache arrays are empty. b/28992179
-    for (size_t i = 0; i < dex_file.NumStringIds(); ++i) {
-      CHECK(strings[i].Read<kWithoutReadBarrier>() == nullptr);
+    for (size_t i = 0; i < num_strings; ++i) {
+      CHECK_EQ(strings[i].load(std::memory_order_relaxed).string_index, 0u);
+      CHECK(strings[i].load(std::memory_order_relaxed).string_pointer.IsNull());
     }
     for (size_t i = 0; i < dex_file.NumTypeIds(); ++i) {
       CHECK(types[i].Read<kWithoutReadBarrier>() == nullptr);
@@ -2102,10 +2116,13 @@ mirror::DexCache* ClassLinker::AllocDexCache(Thread* self,
       CHECK(mirror::DexCache::GetElementPtrSize(fields, i, image_pointer_size_) == nullptr);
     }
   }
+  if (strings != nullptr) {
+    mirror::StringDexCachePair::Initialize(strings);
+  }
   dex_cache->Init(&dex_file,
                   location.Get(),
                   strings,
-                  dex_file.NumStringIds(),
+                  num_strings,
                   types,
                   dex_file.NumTypeIds(),
                   methods,

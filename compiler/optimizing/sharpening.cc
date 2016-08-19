@@ -279,8 +279,7 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
   const DexFile& dex_file = load_string->GetDexFile();
   uint32_t string_index = load_string->GetStringIndex();
 
-  bool is_in_dex_cache = false;
-  HLoadString::LoadKind desired_load_kind;
+  HLoadString::LoadKind desired_load_kind = HLoadString::LoadKind::kDexCacheViaMethod;
   uint64_t address = 0u;  // String or dex cache element address.
   {
     Runtime* runtime = Runtime::Current();
@@ -296,33 +295,14 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
       DCHECK(!runtime->UseJitCompilation());
       mirror::String* string = class_linker->ResolveString(dex_file, string_index, dex_cache);
       CHECK(string != nullptr);
-      if (!compiler_driver_->GetSupportBootImageFixup()) {
-        // MIPS/MIPS64 or compiler_driver_test. Do not sharpen.
-        desired_load_kind = HLoadString::LoadKind::kDexCacheViaMethod;
-      } else {
-        DCHECK(ContainsElement(compiler_driver_->GetDexFilesForOatFile(), &dex_file));
-        is_in_dex_cache = true;
-        desired_load_kind = codegen_->GetCompilerOptions().GetCompilePic()
-            ? HLoadString::LoadKind::kBootImageLinkTimePcRelative
-            : HLoadString::LoadKind::kBootImageLinkTimeAddress;
-      }
+      // TODO: In follow up CL, add PcRelative and Address back in.
     } else if (runtime->UseJitCompilation()) {
       // TODO: Make sure we don't set the "compile PIC" flag for JIT as that's bogus.
-      // DCHECK(!codegen_->GetCompilerOptions().GetCompilePic());
+      DCHECK(!codegen_->GetCompilerOptions().GetCompilePic());
       mirror::String* string = dex_cache->GetResolvedString(string_index);
-      is_in_dex_cache = (string != nullptr);
       if (string != nullptr && runtime->GetHeap()->ObjectIsInBootImageSpace(string)) {
-        // TODO: Use direct pointers for all non-moving spaces, not just boot image. Bug: 29530787
         desired_load_kind = HLoadString::LoadKind::kBootImageAddress;
         address = reinterpret_cast64<uint64_t>(string);
-      } else {
-        // Note: If the string is not in the dex cache, the instruction needs environment
-        // and will not be inlined across dex files. Within a dex file, the slow-path helper
-        // loads the correct string and inlined frames are used correctly for OOM stack trace.
-        // TODO: Write a test for this. Bug: 29416588
-        desired_load_kind = HLoadString::LoadKind::kDexCacheAddress;
-        void* dex_cache_element_address = &dex_cache->GetStrings()[string_index];
-        address = reinterpret_cast64<uint64_t>(dex_cache_element_address);
       }
     } else {
       // AOT app compilation. Try to lookup the string without allocating if not found.
@@ -332,18 +312,8 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
           !codegen_->GetCompilerOptions().GetCompilePic()) {
         desired_load_kind = HLoadString::LoadKind::kBootImageAddress;
         address = reinterpret_cast64<uint64_t>(string);
-      } else {
-        // Not JIT and either the string is not in boot image or we are compiling in PIC mode.
-        // Use PC-relative load from the dex cache if the dex file belongs
-        // to the oat file that we're currently compiling.
-        desired_load_kind = ContainsElement(compiler_driver_->GetDexFilesForOatFile(), &dex_file)
-            ? HLoadString::LoadKind::kDexCachePcRelative
-            : HLoadString::LoadKind::kDexCacheViaMethod;
       }
     }
-  }
-  if (is_in_dex_cache) {
-    load_string->MarkInDexCache();
   }
 
   HLoadString::LoadKind load_kind = codegen_->GetSupportedLoadStringKind(desired_load_kind);
