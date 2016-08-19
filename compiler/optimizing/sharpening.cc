@@ -298,7 +298,7 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
       // TODO: In follow up CL, add PcRelative and Address back in.
     } else if (runtime->UseJitCompilation()) {
       // TODO: Make sure we don't set the "compile PIC" flag for JIT as that's bogus.
-      DCHECK(!codegen_->GetCompilerOptions().GetCompilePic());
+      // DCHECK(!codegen_->GetCompilerOptions().GetCompilePic());
       mirror::String* string = dex_cache->GetResolvedString(string_index);
       if (string != nullptr && runtime->GetHeap()->ObjectIsInBootImageSpace(string)) {
         desired_load_kind = HLoadString::LoadKind::kBootImageAddress;
