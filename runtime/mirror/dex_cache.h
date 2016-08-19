@@ -35,11 +35,61 @@ namespace mirror {
 
 class String;
 
+struct StringDexCachePair {
+  GcRoot<String> string_pointer;
+  uint32_t string_index;
+  // The array is initially [ {0,0}, {0,0}, {0,0} ... ]
+  // We maintain the invariant that once a dex cache entry is populated,
+  // the pointer is always non-0
+  // Any given entry would thus be:
+  // {non-0, non-0} OR {0,0}
+  //
+  // It's generally sufficiently enough then to check if the
+  // lookup string index matches the stored string index (for a >0 string index)
+  // because if it's true the pointer is also non-null.
+  //
+  // For the 0th entry which is a special case, the value is either
+  // {0,0} (initial state) or {non-0, 0} which indicates
+  // that a valid string is stored at that index for a dex string id of 0.
+  //
+  // As an optimization, we want to avoid branching on the string pointer since
+  // it's always non-null if the string id branch succeeds (except for the 0th string id).
+  // Set the initial state for the 0th entry to be {0,1} which is guaranteed to fail
+  // the lookup string id == stored id branch.
+  static void Initialize(StringDexCacheType* strings) {
+    DCHECK(StringDexCacheType().is_lock_free());
+    mirror::StringDexCachePair first_elem;
+    first_elem.string_pointer = GcRoot<String>(nullptr);
+    first_elem.string_index = 1;
+    strings[0].store(first_elem, std::memory_order_relaxed);
+  }
+  static GcRoot<String> LookupString(StringDexCacheType* dex_cache,
+                                     uint32_t string_idx,
+                                     uint32_t cache_size) {
+    StringDexCachePair index_string = dex_cache[string_idx % cache_size]
+        .load(std::memory_order_relaxed);
+    if (string_idx != index_string.string_index) return GcRoot<String>(nullptr);
+    DCHECK(!index_string.string_pointer.IsNull());
+    return index_string.string_pointer;
+  }
+};
+using StringDexCacheType = std::atomic<StringDexCachePair>;
+
+
 // C++ mirror of java.lang.DexCache.
 class MANAGED DexCache FINAL : public Object {
  public:
   // Size of java.lang.DexCache.class.
   static uint32_t ClassSize(PointerSize pointer_size);
+
+  // Size of string dex cache. Needs to be a power of 2 for entrypoint assumptions to hold.
+  static constexpr size_t kDexCacheStringCacheSize = 1024;
+  static_assert(IsPowerOfTwo(kDexCacheStringCacheSize),
+                "String dex cache size is not a power of 2.");
+
+  static constexpr size_t StaticStringSize() {
+    return kDexCacheStringCacheSize;
+  }
 
   // Size of an instance of java.lang.DexCache not including referenced values.
   static constexpr uint32_t InstanceSize() {
@@ -48,7 +98,7 @@ class MANAGED DexCache FINAL : public Object {
 
   void Init(const DexFile* dex_file,
             String* location,
-            GcRoot<String>* strings,
+            StringDexCacheType* strings,
             uint32_t num_strings,
             GcRoot<Class>* resolved_types,
             uint32_t num_resolved_types,
@@ -62,7 +112,7 @@ class MANAGED DexCache FINAL : public Object {
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier, typename Visitor>
-  void FixupStrings(GcRoot<mirror::String>* dest, const Visitor& visitor)
+  void FixupStrings(StringDexCacheType* dest, const Visitor& visitor)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier, typename Visitor>
@@ -109,10 +159,10 @@ class MANAGED DexCache FINAL : public Object {
     return OFFSET_OF_OBJECT_MEMBER(DexCache, num_resolved_methods_);
   }
 
-  String* GetResolvedString(uint32_t string_idx) ALWAYS_INLINE
+  mirror::String* GetResolvedString(uint32_t string_idx) ALWAYS_INLINE
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  void SetResolvedString(uint32_t string_idx, String* resolved) ALWAYS_INLINE
+  void SetResolvedString(uint32_t string_idx, mirror::String* resolved) ALWAYS_INLINE
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   Class* GetResolvedType(uint32_t type_idx) SHARED_REQUIRES(Locks::mutator_lock_);
@@ -135,11 +185,11 @@ class MANAGED DexCache FINAL : public Object {
   ALWAYS_INLINE void SetResolvedField(uint32_t idx, ArtField* field, PointerSize ptr_size)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
-  GcRoot<String>* GetStrings() ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
-    return GetFieldPtr<GcRoot<String>*>(StringsOffset());
+  StringDexCacheType* GetStrings() ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
+    return GetFieldPtr64<StringDexCacheType*>(StringsOffset());
   }
 
-  void SetStrings(GcRoot<String>* strings) ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
+  void SetStrings(StringDexCacheType* strings) ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
     SetFieldPtr<false>(StringsOffset(), strings);
   }
 
@@ -224,7 +274,8 @@ class MANAGED DexCache FINAL : public Object {
   uint64_t resolved_fields_;    // ArtField*, array with num_resolved_fields_ elements.
   uint64_t resolved_methods_;   // ArtMethod*, array with num_resolved_methods_ elements.
   uint64_t resolved_types_;     // GcRoot<Class>*, array with num_resolved_types_ elements.
-  uint64_t strings_;            // GcRoot<String>*, array with num_strings_ elements.
+  uint64_t strings_;            // std::atomic<StringDexCachePair>*,
+                                // array with num_strings_ elements.
   uint32_t num_resolved_fields_;    // Number of elements in the resolved_fields_ array.
   uint32_t num_resolved_methods_;   // Number of elements in the resolved_methods_ array.
   uint32_t num_resolved_types_;     // Number of elements in the resolved_types_ array.
