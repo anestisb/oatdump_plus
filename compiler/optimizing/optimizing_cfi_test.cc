@@ -157,13 +157,26 @@ class OptimizingCFITest : public CFITest {
     TestImpl(isa, #isa, expected_asm, expected_cfi);          \
   }
 
+#ifdef ART_ENABLE_CODEGEN_arm
 TEST_ISA(kThumb2)
+#endif
+#ifdef ART_ENABLE_CODEGEN_arm64
 TEST_ISA(kArm64)
+#endif
+#ifdef ART_ENABLE_CODEGEN_x86
 TEST_ISA(kX86)
+#endif
+#ifdef ART_ENABLE_CODEGEN_x86_64
 TEST_ISA(kX86_64)
+#endif
+#ifdef ART_ENABLE_CODEGEN_mips
 TEST_ISA(kMips)
+#endif
+#ifdef ART_ENABLE_CODEGEN_mips64
 TEST_ISA(kMips64)
+#endif
 
+#ifdef ART_ENABLE_CODEGEN_arm
 TEST_F(OptimizingCFITest, kThumb2Adjust) {
   std::vector<uint8_t> expected_asm(
       expected_asm_kThumb2_adjust,
@@ -184,7 +197,9 @@ TEST_F(OptimizingCFITest, kThumb2Adjust) {
   Finish();
   Check(kThumb2, "kThumb2_adjust", expected_asm, expected_cfi);
 }
+#endif
 
+#ifdef ART_ENABLE_CODEGEN_mips
 TEST_F(OptimizingCFITest, kMipsAdjust) {
   // One NOP in delay slot, 1 << 15 NOPS have size 1 << 17 which exceeds 18-bit signed maximum.
   static constexpr size_t kNumNops = 1u + (1u << 15);
@@ -212,7 +227,9 @@ TEST_F(OptimizingCFITest, kMipsAdjust) {
   Finish();
   Check(kMips, "kMips_adjust", expected_asm, expected_cfi);
 }
+#endif
 
+#ifdef ART_ENABLE_CODEGEN_mips64
 TEST_F(OptimizingCFITest, kMips64Adjust) {
   // One NOP in forbidden slot, 1 << 15 NOPS have size 1 << 17 which exceeds 18-bit signed maximum.
   static constexpr size_t kNumNops = 1u + (1u << 15);
@@ -240,6 +257,7 @@ TEST_F(OptimizingCFITest, kMips64Adjust) {
   Finish();
   Check(kMips64, "kMips64_adjust", expected_asm, expected_cfi);
 }
+#endif
 
 #endif  // ART_TARGET_ANDROID
 
