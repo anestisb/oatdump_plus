@@ -295,7 +295,6 @@ class InstructionCodeGeneratorX86 : public InstructionCodeGenerator {
                                    HBasicBlock* default_block);
 
   void GenerateFPCompare(Location lhs, Location rhs, HInstruction* insn, bool is_double);
-  void GenerateIntCompare(Location lhs, Location rhs);
 
   X86Assembler* const assembler_;
   CodeGeneratorX86* const codegen_;
@@ -430,6 +429,8 @@ class CodeGeneratorX86 : public CodeGenerator {
                   Register object,
                   Register value,
                   bool value_can_be_null);
+
+  void GenerateIntCompare(Location lhs, Location rhs);
 
   void GenerateMemoryBarrier(MemBarrierKind kind);
 

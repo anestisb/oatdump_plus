@@ -464,7 +464,8 @@ class ReadBarrierMarkSlowPathX86 : public SlowPathCode {
            instruction_->IsLoadString() ||
            instruction_->IsInstanceOf() ||
            instruction_->IsCheckCast() ||
-           (instruction_->IsInvokeVirtual()) && instruction_->GetLocations()->Intrinsified())
+           (instruction_->IsInvokeVirtual() && instruction_->GetLocations()->Intrinsified()) ||
+           (instruction_->IsInvokeStaticOrDirect() && instruction_->GetLocations()->Intrinsified()))
         << "Unexpected instruction in read barrier marking slow path: "
         << instruction_->DebugName();
 
@@ -1578,15 +1579,15 @@ void LocationsBuilderX86::VisitSelect(HSelect* select) {
   locations->SetOut(Location::SameAsFirstInput());
 }
 
-void InstructionCodeGeneratorX86::GenerateIntCompare(Location lhs, Location rhs) {
+void CodeGeneratorX86::GenerateIntCompare(Location lhs, Location rhs) {
   Register lhs_reg = lhs.AsRegister<Register>();
   if (rhs.IsConstant()) {
     int32_t value = CodeGenerator::GetInt32ValueOf(rhs.GetConstant());
-    codegen_->Compare32BitValue(lhs_reg, value);
+    Compare32BitValue(lhs_reg, value);
   } else if (rhs.IsStackSlot()) {
-    __ cmpl(lhs_reg, Address(ESP, rhs.GetStackIndex()));
+    assembler_.cmpl(lhs_reg, Address(ESP, rhs.GetStackIndex()));
   } else {
-    __ cmpl(lhs_reg, rhs.AsRegister<Register>());
+    assembler_.cmpl(lhs_reg, rhs.AsRegister<Register>());
   }
 }
 
@@ -1619,7 +1620,7 @@ void InstructionCodeGeneratorX86::VisitSelect(HSelect* select) {
         DCHECK_NE(condition->InputAt(0)->GetType(), Primitive::kPrimLong);
         DCHECK(!Primitive::IsFloatingPointType(condition->InputAt(0)->GetType()));
         LocationSummary* cond_locations = condition->GetLocations();
-        GenerateIntCompare(cond_locations->InAt(0), cond_locations->InAt(1));
+        codegen_->GenerateIntCompare(cond_locations->InAt(0), cond_locations->InAt(1));
         cond = X86Condition(condition->GetCondition());
       }
     } else {
@@ -1728,7 +1729,7 @@ void InstructionCodeGeneratorX86::HandleCondition(HCondition* cond) {
 
       // Clear output register: setb only sets the low byte.
       __ xorl(reg, reg);
-      GenerateIntCompare(lhs, rhs);
+      codegen_->GenerateIntCompare(lhs, rhs);
       __ setb(X86Condition(cond->GetCondition()), reg);
       return;
     }
@@ -4210,7 +4211,7 @@ void InstructionCodeGeneratorX86::VisitCompare(HCompare* compare) {
     case Primitive::kPrimShort:
     case Primitive::kPrimChar:
     case Primitive::kPrimInt: {
-      GenerateIntCompare(left, right);
+      codegen_->GenerateIntCompare(left, right);
       break;
     }
     case Primitive::kPrimLong: {

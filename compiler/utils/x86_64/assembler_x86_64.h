@@ -741,6 +741,12 @@ class X86_64Assembler FINAL : public Assembler {
   void PoisonHeapReference(CpuRegister reg) { negl(reg); }
   // Unpoison a heap reference contained in `reg`.
   void UnpoisonHeapReference(CpuRegister reg) { negl(reg); }
+  // Poison a heap reference contained in `reg` if heap poisoning is enabled.
+  void MaybePoisonHeapReference(CpuRegister reg) {
+    if (kPoisonHeapReferences) {
+      PoisonHeapReference(reg);
+    }
+  }
   // Unpoison a heap reference contained in `reg` if heap poisoning is enabled.
   void MaybeUnpoisonHeapReference(CpuRegister reg) {
     if (kPoisonHeapReferences) {
