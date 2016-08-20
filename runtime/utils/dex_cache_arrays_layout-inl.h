@@ -100,6 +100,8 @@ inline size_t DexCacheArraysLayout::StringsSize(size_t num_elements) const {
 }
 
 inline size_t DexCacheArraysLayout::StringsAlignment() const {
+  static_assert(alignof(mirror::StringDexCacheType) == 8,
+                "Expecting alignof(StringDexCacheType) == 8");
   return alignof(mirror::StringDexCacheType);
 }
 
