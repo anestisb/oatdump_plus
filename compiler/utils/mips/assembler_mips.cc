@@ -1407,44 +1407,6 @@ void MipsAssembler::LoadConst64(Register reg_hi, Register reg_lo, int64_t value)
   }
 }
 
-void MipsAssembler::StoreConst32ToOffset(int32_t value,
-                                         Register base,
-                                         int32_t offset,
-                                         Register temp) {
-  CHECK_NE(temp, AT);  // Must not use AT as temp, so as not to overwrite the adjusted base.
-  AdjustBaseAndOffset(base, offset, /* is_doubleword */ false);
-  if (value == 0) {
-    temp = ZERO;
-  } else {
-    LoadConst32(temp, value);
-  }
-  Sw(temp, base, offset);
-}
-
-void MipsAssembler::StoreConst64ToOffset(int64_t value,
-                                         Register base,
-                                         int32_t offset,
-                                         Register temp) {
-  CHECK_NE(temp, AT);  // Must not use AT as temp, so as not to overwrite the adjusted base.
-  AdjustBaseAndOffset(base, offset, /* is_doubleword */ true);
-  uint32_t low = Low32Bits(value);
-  uint32_t high = High32Bits(value);
-  if (low == 0) {
-    Sw(ZERO, base, offset);
-  } else {
-    LoadConst32(temp, low);
-    Sw(temp, base, offset);
-  }
-  if (high == 0) {
-    Sw(ZERO, base, offset + kMipsWordSize);
-  } else {
-    if (high != low) {
-      LoadConst32(temp, high);
-    }
-    Sw(temp, base, offset + kMipsWordSize);
-  }
-}
-
 void MipsAssembler::LoadSConst32(FRegister r, int32_t value, Register temp) {
   if (value == 0) {
     temp = ZERO;
@@ -2533,61 +2495,19 @@ void MipsAssembler::AdjustBaseAndOffset(Register& base,
   CHECK_EQ(misalignment, offset & (kMipsDoublewordSize - 1));
 }
 
-void MipsAssembler::LoadFromOffset(LoadOperandType type, Register reg, Register base,
+void MipsAssembler::LoadFromOffset(LoadOperandType type,
+                                   Register reg,
+                                   Register base,
                                    int32_t offset) {
-  AdjustBaseAndOffset(base, offset, /* is_doubleword */ (type == kLoadDoubleword));
-  switch (type) {
-    case kLoadSignedByte:
-      Lb(reg, base, offset);
-      break;
-    case kLoadUnsignedByte:
-      Lbu(reg, base, offset);
-      break;
-    case kLoadSignedHalfword:
-      Lh(reg, base, offset);
-      break;
-    case kLoadUnsignedHalfword:
-      Lhu(reg, base, offset);
-      break;
-    case kLoadWord:
-      Lw(reg, base, offset);
-      break;
-    case kLoadDoubleword:
-      if (reg == base) {
-        // This will clobber the base when loading the lower register. Since we have to load the
-        // higher register as well, this will fail. Solution: reverse the order.
-        Lw(static_cast<Register>(reg + 1), base, offset + kMipsWordSize);
-        Lw(reg, base, offset);
-      } else {
-        Lw(reg, base, offset);
-        Lw(static_cast<Register>(reg + 1), base, offset + kMipsWordSize);
-      }
-      break;
-    default:
-      LOG(FATAL) << "UNREACHABLE";
-  }
+  LoadFromOffset<>(type, reg, base, offset);
 }
 
 void MipsAssembler::LoadSFromOffset(FRegister reg, Register base, int32_t offset) {
-  AdjustBaseAndOffset(base, offset, /* is_doubleword */ false, /* is_float */ true);
-  Lwc1(reg, base, offset);
+  LoadSFromOffset<>(reg, base, offset);
 }
 
 void MipsAssembler::LoadDFromOffset(FRegister reg, Register base, int32_t offset) {
-  AdjustBaseAndOffset(base, offset, /* is_doubleword */ true, /* is_float */ true);
-  if (offset & 0x7) {
-    if (Is32BitFPU()) {
-      Lwc1(reg, base, offset);
-      Lwc1(static_cast<FRegister>(reg + 1), base, offset + kMipsWordSize);
-    } else {
-      // 64-bit FPU.
-      Lwc1(reg, base, offset);
-      Lw(T8, base, offset + kMipsWordSize);
-      Mthc1(T8, reg);
-    }
-  } else {
-    Ldc1(reg, base, offset);
-  }
+  LoadDFromOffset<>(reg, base, offset);
 }
 
 void MipsAssembler::EmitLoad(ManagedRegister m_dst, Register src_register, int32_t src_offset,
@@ -2611,53 +2531,19 @@ void MipsAssembler::EmitLoad(ManagedRegister m_dst, Register src_register, int32
   }
 }
 
-void MipsAssembler::StoreToOffset(StoreOperandType type, Register reg, Register base,
+void MipsAssembler::StoreToOffset(StoreOperandType type,
+                                  Register reg,
+                                  Register base,
                                   int32_t offset) {
-  // Must not use AT as `reg`, so as not to overwrite the value being stored
-  // with the adjusted `base`.
-  CHECK_NE(reg, AT);
-  AdjustBaseAndOffset(base, offset, /* is_doubleword */ (type == kStoreDoubleword));
-  switch (type) {
-    case kStoreByte:
-      Sb(reg, base, offset);
-      break;
-    case kStoreHalfword:
-      Sh(reg, base, offset);
-      break;
-    case kStoreWord:
-      Sw(reg, base, offset);
-      break;
-    case kStoreDoubleword:
-      CHECK_NE(reg, base);
-      CHECK_NE(static_cast<Register>(reg + 1), base);
-      Sw(reg, base, offset);
-      Sw(static_cast<Register>(reg + 1), base, offset + kMipsWordSize);
-      break;
-    default:
-      LOG(FATAL) << "UNREACHABLE";
-  }
+  StoreToOffset<>(type, reg, base, offset);
 }
 
 void MipsAssembler::StoreSToOffset(FRegister reg, Register base, int32_t offset) {
-  AdjustBaseAndOffset(base, offset, /* is_doubleword */ false, /* is_float */ true);
-  Swc1(reg, base, offset);
+  StoreSToOffset<>(reg, base, offset);
 }
 
 void MipsAssembler::StoreDToOffset(FRegister reg, Register base, int32_t offset) {
-  AdjustBaseAndOffset(base, offset, /* is_doubleword */ true, /* is_float */ true);
-  if (offset & 0x7) {
-    if (Is32BitFPU()) {
-      Swc1(reg, base, offset);
-      Swc1(static_cast<FRegister>(reg + 1), base, offset + kMipsWordSize);
-    } else {
-      // 64-bit FPU.
-      Mfhc1(T8, reg);
-      Swc1(reg, base, offset);
-      Sw(T8, base, offset + kMipsWordSize);
-    }
-  } else {
-    Sdc1(reg, base, offset);
-  }
+  StoreDToOffset<>(reg, base, offset);
 }
 
 static dwarf::Reg DWARFReg(Register reg) {
