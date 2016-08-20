@@ -310,6 +310,7 @@ class ArenaAllocator
       return AllocFromNewArena(bytes);
     }
     uint8_t* ret = ptr_;
+    DCHECK_ALIGNED(ret, kAlignment);
     ptr_ += bytes;
     return ret;
   }
@@ -319,20 +320,24 @@ class ArenaAllocator
                 ArenaAllocKind kind = kArenaAllocMisc) ALWAYS_INLINE {
     DCHECK_GE(new_size, ptr_size);
     DCHECK_EQ(ptr == nullptr, ptr_size == 0u);
-    auto* end = reinterpret_cast<uint8_t*>(ptr) + ptr_size;
+    // We always allocate aligned.
+    const size_t aligned_ptr_size = RoundUp(ptr_size, kAlignment);
+    auto* end = reinterpret_cast<uint8_t*>(ptr) + aligned_ptr_size;
     // If we haven't allocated anything else, we can safely extend.
     if (end == ptr_) {
       DCHECK(!IsRunningOnMemoryTool());  // Red zone prevents end == ptr_.
-      const size_t size_delta = new_size - ptr_size;
+      const size_t aligned_new_size = RoundUp(new_size, kAlignment);
+      const size_t size_delta = aligned_new_size - aligned_ptr_size;
       // Check remain space.
       const size_t remain = end_ - ptr_;
       if (remain >= size_delta) {
         ptr_ += size_delta;
         ArenaAllocatorStats::RecordAlloc(size_delta, kind);
+        DCHECK_ALIGNED(ptr_, kAlignment);
         return ptr;
       }
     }
-    auto* new_ptr = Alloc(new_size, kind);
+    auto* new_ptr = Alloc(new_size, kind);  // Note: Alloc will take care of aligning new_size.
     memcpy(new_ptr, ptr, ptr_size);
     // TODO: Call free on ptr if linear alloc supports free.
     return new_ptr;
@@ -362,11 +367,12 @@ class ArenaAllocator
 
   bool Contains(const void* ptr) const;
 
+  static constexpr size_t kAlignment = 8;
+
  private:
   void* AllocWithMemoryTool(size_t bytes, ArenaAllocKind kind);
   uint8_t* AllocFromNewArena(size_t bytes);
 
-  static constexpr size_t kAlignment = 8;
 
   void UpdateBytesAllocated();
 
