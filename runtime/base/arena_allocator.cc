@@ -163,6 +163,7 @@ Arena::Arena() : bytes_allocated_(0), next_(nullptr) {
 MallocArena::MallocArena(size_t size) {
   memory_ = reinterpret_cast<uint8_t*>(calloc(1, size));
   CHECK(memory_ != nullptr);  // Abort on OOM.
+  DCHECK_ALIGNED(memory_, ArenaAllocator::kAlignment);
   size_ = size;
 }
 
@@ -370,6 +371,7 @@ uint8_t* ArenaAllocator::AllocFromNewArena(size_t bytes) {
     arena_head_ = new_arena;
     // Update our internal data structures.
     begin_ = new_arena->Begin();
+    DCHECK_ALIGNED(begin_, kAlignment);
     ptr_ = begin_ + bytes;
     end_ = new_arena->End();
   }
