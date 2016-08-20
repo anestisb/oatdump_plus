@@ -2096,8 +2096,12 @@ mirror::DexCache* ClassLinker::AllocDexCache(Thread* self,
   if (dex_file.NumStringIds() < num_strings) {
     num_strings = dex_file.NumStringIds();
   }
+  DCHECK_ALIGNED(raw_arrays, alignof(mirror::StringDexCacheType)) <<
+                 "Expected raw_arrays to align to StringDexCacheType.";
+  DCHECK_ALIGNED(layout.StringsOffset(), alignof(mirror::StringDexCacheType)) <<
+                 "Expected StringsOffset() to align to StringDexCacheType.";
   DCHECK_ALIGNED(strings, alignof(mirror::StringDexCacheType)) <<
-                "Expected strings to align to StringDexCacheType.";
+                 "Expected strings to align to StringDexCacheType.";
   static_assert(alignof(mirror::StringDexCacheType) == 8u,
                 "Expected StringDexCacheType to have align of 8.");
   if (kIsDebugBuild) {
