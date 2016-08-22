@@ -28,14 +28,18 @@ namespace art {
 
 class DisassemblerOptions {
  public:
-  // Should the disassembler print absolute or relative addresses.
-  const bool absolute_addresses_;
+  using ThreadOffsetNameFunction = void (*)(std::ostream& os, uint32_t offset);
+
+  ThreadOffsetNameFunction thread_offset_name_function_;
 
   // Base address for calculating relative code offsets when absolute_addresses_ is false.
   const uint8_t* const base_address_;
 
   // End address (exclusive);
   const uint8_t* const end_address_;
+
+  // Should the disassembler print absolute or relative addresses.
+  const bool absolute_addresses_;
 
   // If set, the disassembler is allowed to look at load targets in literal
   // pools.
@@ -44,10 +48,12 @@ class DisassemblerOptions {
   DisassemblerOptions(bool absolute_addresses,
                       const uint8_t* base_address,
                       const uint8_t* end_address,
-                      bool can_read_literals)
-      : absolute_addresses_(absolute_addresses),
+                      bool can_read_literals,
+                      ThreadOffsetNameFunction fn)
+      : thread_offset_name_function_(fn),
         base_address_(base_address),
         end_address_(end_address),
+        absolute_addresses_(absolute_addresses),
         can_read_literals_(can_read_literals) {}
 
  private:
