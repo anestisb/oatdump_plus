@@ -1217,10 +1217,8 @@ void Thread::FullSuspendCheck() {
   ScopedTrace trace(__FUNCTION__);
   VLOG(threads) << this << " self-suspending";
   // Make thread appear suspended to other threads, release mutator_lock_.
-  tls32_.suspended_at_suspend_check = true;
   // Transition to suspended and back to runnable, re-acquire share on mutator_lock_.
   ScopedThreadSuspension(this, kSuspended);
-  tls32_.suspended_at_suspend_check = false;
   VLOG(threads) << this << " self-reviving";
 }
 
@@ -1433,6 +1431,12 @@ struct StackDumpVisitor : public StackVisitor {
     if (o == nullptr) {
       os << "an unknown object";
     } else {
+      if (kUseReadBarrier && Thread::Current()->GetIsGcMarking()) {
+        // We may call Thread::Dump() in the middle of the CC thread flip and this thread's stack
+        // may have not been flipped yet and "o" may be a from-space (stale) ref, in which case the
+        // IdentityHashCode call below will crash. So explicitly mark/forward it here.
+        o = ReadBarrier::Mark(o);
+      }
       if ((o->GetLockWord(false).GetState() == LockWord::kThinLocked) &&
           Locks::mutator_lock_->IsExclusiveHeld(Thread::Current())) {
         // Getting the identity hashcode here would result in lock inflation and suspension of the
@@ -1635,7 +1639,7 @@ Thread::Thread(bool daemon) : tls32_(daemon), wait_monitor_(nullptr), interrupte
   }
   tlsPtr_.flip_function = nullptr;
   tlsPtr_.thread_local_mark_stack = nullptr;
-  tls32_.suspended_at_suspend_check = false;
+  tls32_.is_transitioning_to_runnable = false;
 }
 
 bool Thread::IsStillStarting() const {
@@ -1773,7 +1777,7 @@ Thread::~Thread() {
   CHECK(tlsPtr_.checkpoint_function == nullptr);
   CHECK_EQ(checkpoint_overflow_.size(), 0u);
   CHECK(tlsPtr_.flip_function == nullptr);
-  CHECK_EQ(tls32_.suspended_at_suspend_check, false);
+  CHECK_EQ(tls32_.is_transitioning_to_runnable, false);
 
   // Make sure we processed all deoptimization requests.
   CHECK(tlsPtr_.deoptimization_context_stack == nullptr) << "Missed deoptimization";
