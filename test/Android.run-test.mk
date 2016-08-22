@@ -566,6 +566,18 @@ TEST_ART_BROKEN_OPTIMIZING_READ_BARRIER_RUN_TESTS := \
 # Tests that should fail in the read barrier configuration with JIT (Optimizing compiler).
 TEST_ART_BROKEN_JIT_READ_BARRIER_RUN_TESTS :=
 
+# Tests failing in non-Baker read barrier configurations with the Optimizing compiler (AOT).
+# 537: Expects an array copy to be intrinsified, but calling-on-slowpath intrinsics are not yet
+#      handled in non-Baker read barrier configurations.
+TEST_ART_BROKEN_OPTIMIZING_NON_BAKER_READ_BARRIER_RUN_TESTS := \
+  537-checker-arraycopy
+
+# Tests failing in non-Baker read barrier configurations with JIT (Optimizing compiler).
+# 537: Expects an array copy to be intrinsified, but calling-on-slowpath intrinsics are not yet
+#      handled in non-Baker read barrier configurations.
+TEST_ART_BROKEN_JIT_NON_BAKER_READ_BARRIER_RUN_TESTS := \
+  537-checker-arraycopy
+
 ifeq ($(ART_USE_READ_BARRIER),true)
   ifneq (,$(filter interpreter,$(COMPILER_TYPES)))
     ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES), \
@@ -576,9 +588,15 @@ ifeq ($(ART_USE_READ_BARRIER),true)
 
   ifneq (,$(filter $(OPTIMIZING_COMPILER_TYPES),$(COMPILER_TYPES)))
     ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES), \
-        $(PREBUILD_TYPES),$(OPTIMIZING_COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES), \
-        $(JNI_TYPES),$(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), \
+        $(PREBUILD_TYPES),$(OPTIMIZING_COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES), \
+        $(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), \
         $(TEST_ART_BROKEN_OPTIMIZING_READ_BARRIER_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+    ifneq ($(ART_READ_BARRIER_TYPE),BAKER)
+      ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES), \
+          $(PREBUILD_TYPES),$(OPTIMIZING_COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES), \
+          $(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), \
+          $(TEST_ART_BROKEN_OPTIMIZING_NON_BAKER_READ_BARRIER_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+    endif
   endif
 
   ifneq (,$(filter jit,$(COMPILER_TYPES)))
@@ -586,6 +604,12 @@ ifeq ($(ART_USE_READ_BARRIER),true)
         $(PREBUILD_TYPES),jit,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES), \
         $(JNI_TYPES),$(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), \
         $(TEST_ART_BROKEN_JIT_READ_BARRIER_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+    ifneq ($(ART_READ_BARRIER_TYPE),BAKER)
+      ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES), \
+          $(PREBUILD_TYPES),jit,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES), \
+          $(JNI_TYPES),$(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), \
+          $(TEST_ART_BROKEN_JIT_NON_BAKER_READ_BARRIER_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+    endif
   endif
 endif
 
