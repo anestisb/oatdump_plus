@@ -1350,15 +1350,13 @@ DEFINE_FUNCTION art_quick_resolve_string
     jz .Lart_quick_resolve_string_slow_path
 #endif
     ret
-
 .Lart_quick_resolve_string_slow_path:
     SETUP_SAVE_REFS_ONLY_FRAME
     movq %rcx, %rax
     // Outgoing argument set up
-    movq %gs:THREAD_SELF_OFFSET, %rsi             // pass Thread::Current()
-
-    call artResolveStringFromCode                 // artResolveStringFromCode(arg0, referrer, Thread*)
-    RESTORE_SAVE_REFS_ONLY_FRAME                  // restore frame up to return address
+    movq %gs:THREAD_SELF_OFFSET, %rsi           // pass Thread::Current()
+    call SYMBOL(artResolveStringFromCode)       // artResolveStringFromCode(arg0, referrer, Thread*)
+    RESTORE_SAVE_REFS_ONLY_FRAME                // restore frame up to return address
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 END_FUNCTION art_quick_resolve_string
 
