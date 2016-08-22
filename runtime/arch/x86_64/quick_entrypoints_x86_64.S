@@ -1330,7 +1330,38 @@ DEFINE_FUNCTION art_quick_alloc_object_initialized_region_tlab
     ALLOC_OBJECT_TLAB_SLOW_PATH artAllocObjectFromCodeInitializedRegionTLAB
 END_FUNCTION art_quick_alloc_object_initialized_region_tlab
 
-ONE_ARG_DOWNCALL art_quick_resolve_string, artResolveStringFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+DEFINE_FUNCTION art_quick_resolve_string
+    movq 8(%rsp), %rcx                                         // get referrer
+    movl ART_METHOD_DECLARING_CLASS_OFFSET(%rcx), %ecx         // get declaring class
+    movq DECLARING_CLASS_DEX_CACHE_STRINGS_OFFSET(%ecx), %rcx  // get string dex cache
+    movq LITERAL(STRING_DEX_CACHE_SIZE_MINUS_ONE), %rdx
+    andq %rdi, %rdx
+    shlq LITERAL(STRING_DEX_CACHE_ELEMENT_SIZE_SHIFT), %rdx
+    addq %rcx, %rdx
+    movq %rax, %rcx
+    movq (%rdx), %rdx
+    movq %rdx, %rax
+    movl %eax, %eax
+    shrq LITERAL(32), %rdx
+    cmp %rdx, %rdi
+    jne .Lart_quick_resolve_string_slow_path
+#ifdef USE_READ_BARRIER
+    testl LITERAL(LOCK_WORD_MARK_BIT_MASK_SHIFTED), MIRROR_OBJECT_LOCK_WORD_OFFSET(%rax)
+    jz .Lart_quick_resolve_string_slow_path
+#endif
+    ret
+
+.Lart_quick_resolve_string_slow_path:
+    SETUP_SAVE_REFS_ONLY_FRAME
+    movq %rcx, %rax
+    // Outgoing argument set up
+    movq %gs:THREAD_SELF_OFFSET, %rsi             // pass Thread::Current()
+
+    call artResolveStringFromCode                 // artResolveStringFromCode(arg0, referrer, Thread*)
+    RESTORE_SAVE_REFS_ONLY_FRAME                  // restore frame up to return address
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+END_FUNCTION art_quick_resolve_string
+
 ONE_ARG_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 ONE_ARG_DOWNCALL art_quick_initialize_type, artInitializeTypeFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 ONE_ARG_DOWNCALL art_quick_initialize_type_and_verify_access, artInitializeTypeAndVerifyAccessFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
