@@ -22,11 +22,13 @@
 #include <sstream>
 
 #include "arch/instruction_set.h"
+#include "base/enums.h"
 #include "debug/dwarf/dwarf_constants.h"
 #include "debug/dwarf/dwarf_test.h"
 #include "debug/dwarf/headers.h"
 #include "disassembler/disassembler.h"
 #include "gtest/gtest.h"
+#include "thread.h"
 
 namespace art {
 
@@ -57,7 +59,13 @@ class CFITest : public dwarf::DwarfTest {
     // Pretty-print assembly.
     const uint8_t* asm_base = actual_asm.data();
     const uint8_t* asm_end = asm_base + actual_asm.size();
-    auto* opts = new DisassemblerOptions(false, asm_base, asm_end, true);
+    auto* opts = new DisassemblerOptions(false,
+                                         asm_base,
+                                         asm_end,
+                                         true,
+                                         is64bit
+                                             ? &Thread::DumpThreadOffset<PointerSize::k64>
+                                             : &Thread::DumpThreadOffset<PointerSize::k32>);
     std::unique_ptr<Disassembler> disasm(Disassembler::Create(isa, opts));
     std::stringstream stream;
     const uint8_t* base = actual_asm.data() + (isa == kThumb2 ? 1 : 0);

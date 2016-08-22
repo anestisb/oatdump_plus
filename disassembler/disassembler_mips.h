@@ -26,9 +26,8 @@ namespace mips {
 
 class DisassemblerMips FINAL : public Disassembler {
  public:
-  DisassemblerMips(DisassemblerOptions* options, bool is64bit)
+  explicit DisassemblerMips(DisassemblerOptions* options)
       : Disassembler(options),
-        is64bit_(is64bit),
         last_ptr_(nullptr),
         last_instr_(0) {}
 
@@ -36,8 +35,6 @@ class DisassemblerMips FINAL : public Disassembler {
   void Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end) OVERRIDE;
 
  private:
-  const bool is64bit_;
-
   // Address and encoding of the last disassembled instruction.
   // Needed to produce more readable disassembly of certain 2-instruction sequences.
   const uint8_t* last_ptr_;
