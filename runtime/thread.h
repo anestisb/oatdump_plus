@@ -1085,8 +1085,12 @@ class Thread {
     return tlsPtr_.nested_signal_state;
   }
 
-  bool IsSuspendedAtSuspendCheck() const {
-    return tls32_.suspended_at_suspend_check;
+  bool IsTransitioningToRunnable() const {
+    return tls32_.is_transitioning_to_runnable;
+  }
+
+  void SetIsTransitioningToRunnable(bool value) {
+    tls32_.is_transitioning_to_runnable = value;
   }
 
   void PushVerifier(verifier::MethodVerifier* verifier);
@@ -1264,7 +1268,7 @@ class Thread {
       suspend_count(0), debug_suspend_count(0), thin_lock_thread_id(0), tid(0),
       daemon(is_daemon), throwing_OutOfMemoryError(false), no_thread_suspension(0),
       thread_exit_check_count(0), handling_signal_(false),
-      suspended_at_suspend_check(false), ready_for_debug_invoke(false),
+      is_transitioning_to_runnable(false), ready_for_debug_invoke(false),
       debug_method_entry_(false), is_gc_marking(false), weak_ref_access_enabled(true),
       disable_thread_flip_count(0) {
     }
@@ -1306,10 +1310,10 @@ class Thread {
     // True if signal is being handled by this thread.
     bool32_t handling_signal_;
 
-    // True if the thread is suspended in FullSuspendCheck(). This is
-    // used to distinguish runnable threads that are suspended due to
-    // a normal suspend check from other threads.
-    bool32_t suspended_at_suspend_check;
+    // True if the thread is in TransitionFromSuspendedToRunnable(). This is used to distinguish the
+    // non-runnable threads (eg. kNative, kWaiting) that are about to transition to runnable from
+    // the rest of them.
+    bool32_t is_transitioning_to_runnable;
 
     // True if the thread has been suspended by a debugger event. This is
     // used to invoke method from the debugger which is only allowed when
@@ -1582,6 +1586,26 @@ class ScopedDebugDisallowReadBarriers {
   }
   ~ScopedDebugDisallowReadBarriers() {
     self_->ModifyDebugDisallowReadBarrier(-1);
+  }
+
+ private:
+  Thread* const self_;
+};
+
+class ScopedTransitioningToRunnable : public ValueObject {
+ public:
+  explicit ScopedTransitioningToRunnable(Thread* self)
+      : self_(self) {
+    DCHECK_EQ(self, Thread::Current());
+    if (kUseReadBarrier) {
+      self_->SetIsTransitioningToRunnable(true);
+    }
+  }
+
+  ~ScopedTransitioningToRunnable() {
+    if (kUseReadBarrier) {
+      self_->SetIsTransitioningToRunnable(false);
+    }
   }
 
  private:
