@@ -35,7 +35,8 @@ class CustomDisassembler FINAL : public vixl::aarch64::Disassembler {
       : vixl::aarch64::Disassembler(),
         read_literals_(options->can_read_literals_),
         base_address_(options->base_address_),
-        end_address_(options->end_address_) {
+        end_address_(options->end_address_),
+        options_(options) {
     if (!options->absolute_addresses_) {
       MapCodeAddress(0,
                      reinterpret_cast<const vixl::aarch64::Instruction*>(options->base_address_));
@@ -64,6 +65,8 @@ class CustomDisassembler FINAL : public vixl::aarch64::Disassembler {
   // Valid address range: [base_address_, end_address_)
   const void* const base_address_;
   const void* const end_address_;
+
+  DisassemblerOptions* options_;
 };
 
 class DisassemblerArm64 FINAL : public Disassembler {

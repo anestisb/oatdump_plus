@@ -21,7 +21,6 @@
 
 #include "base/logging.h"
 #include "base/stringprintf.h"
-#include "thread.h"
 
 namespace art {
 namespace mips {
@@ -503,11 +502,7 @@ size_t DisassemblerMips::Dump(std::ostream& os, const uint8_t* instr_ptr) {
               args << StringPrintf("%+d(r%d)", offset, rs);
               if (rs == 17) {
                 args << "  ; ";
-                if (is64bit_) {
-                  Thread::DumpThreadOffset<kMips64PointerSize>(args, offset);
-                } else {
-                  Thread::DumpThreadOffset<kMipsPointerSize>(args, offset);
-                }
+                GetDisassemblerOptions()->thread_offset_name_function_(args, offset);
               }
             }
             break;

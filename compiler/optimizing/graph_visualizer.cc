@@ -122,7 +122,10 @@ class HGraphVisualizerDisassembler {
             new DisassemblerOptions(/* absolute_addresses */ false,
                                     base_address,
                                     end_address,
-                                    /* can_read_literals */ true)));
+                                    /* can_read_literals */ true,
+                                    Is64BitInstructionSet(instruction_set)
+                                        ? &Thread::DumpThreadOffset<PointerSize::k64>
+                                        : &Thread::DumpThreadOffset<PointerSize::k32>)));
   }
 
   ~HGraphVisualizerDisassembler() {
