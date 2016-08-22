@@ -70,6 +70,16 @@ DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_JNI_OFFSET_64), (static_cast<int
 DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_QUICK_CODE_OFFSET_32), (static_cast<int32_t>(art::ArtMethod:: EntryPointFromQuickCompiledCodeOffset(art::PointerSize::k32).Int32Value())))
 #define ART_METHOD_QUICK_CODE_OFFSET_64 48
 DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_QUICK_CODE_OFFSET_64), (static_cast<int32_t>(art::ArtMethod:: EntryPointFromQuickCompiledCodeOffset(art::PointerSize::k64).Int32Value())))
+#define ART_METHOD_DECLARING_CLASS_OFFSET 0
+DEFINE_CHECK_EQ(static_cast<int32_t>(ART_METHOD_DECLARING_CLASS_OFFSET), (static_cast<int32_t>(art::ArtMethod:: DeclaringClassOffset().Int32Value())))
+#define DECLARING_CLASS_DEX_CACHE_STRINGS_OFFSET 40
+DEFINE_CHECK_EQ(static_cast<int32_t>(DECLARING_CLASS_DEX_CACHE_STRINGS_OFFSET), (static_cast<int32_t>(art::mirror::Class:: DexCacheStringsOffset().Int32Value())))
+#define STRING_DEX_CACHE_ELEMENT_SIZE_SHIFT 3
+DEFINE_CHECK_EQ(static_cast<int32_t>(STRING_DEX_CACHE_ELEMENT_SIZE_SHIFT), (static_cast<int32_t>(art::WhichPowerOf2(sizeof(art::mirror::StringDexCachePair)))))
+#define STRING_DEX_CACHE_SIZE_MINUS_ONE 1023
+DEFINE_CHECK_EQ(static_cast<int32_t>(STRING_DEX_CACHE_SIZE_MINUS_ONE), (static_cast<int32_t>(art::mirror::DexCache::kDexCacheStringCacheSize - 1)))
+#define STRING_DEX_CACHE_HASH_BITS 10
+DEFINE_CHECK_EQ(static_cast<int32_t>(STRING_DEX_CACHE_HASH_BITS), (static_cast<int32_t>(art::LeastSignificantBit(art::mirror::DexCache::kDexCacheStringCacheSize))))
 #define MIN_LARGE_OBJECT_THRESHOLD 0x3000
 DEFINE_CHECK_EQ(static_cast<size_t>(MIN_LARGE_OBJECT_THRESHOLD), (static_cast<size_t>(art::gc::Heap::kMinLargeObjectThreshold)))
 #define LOCK_WORD_STATE_SHIFT 30
