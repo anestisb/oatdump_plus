@@ -22,6 +22,9 @@ LIBART_SIMULATOR_SRC_FILES := \
   code_simulator.cc \
   code_simulator_arm64.cc
 
+LIBART_SIMULATOR_CFLAGS := \
+  -DVIXL_INCLUDE_SIMULATOR_AARCH64
+
 # $(1): target or host
 # $(2): ndebug or debug
 define build-libart-simulator
@@ -54,6 +57,7 @@ define build-libart-simulator
   LOCAL_MODULE_CLASS := SHARED_LIBRARIES
 
   LOCAL_SRC_FILES := $$(LIBART_SIMULATOR_SRC_FILES)
+  LOCAL_CFLAGS := $$(LIBART_SIMULATOR_CFLAGS)
 
   ifeq ($$(art_target_or_host),target)
     $(call set-target-local-clang-vars)
