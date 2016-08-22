@@ -1108,7 +1108,44 @@ DEFINE_FUNCTION art_quick_alloc_object_region_tlab
     ALLOC_OBJECT_TLAB_SLOW_PATH artAllocObjectFromCodeRegionTLAB
 END_FUNCTION art_quick_alloc_object_region_tlab
 
-ONE_ARG_DOWNCALL art_quick_resolve_string, artResolveStringFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+DEFINE_FUNCTION art_quick_resolve_string
+    SETUP_SAVE_REFS_ONLY_FRAME  ebx, ebx
+    movl FRAME_SIZE_SAVE_REFS_ONLY(%esp), %ecx                   // get referrer
+    movl ART_METHOD_DECLARING_CLASS_OFFSET(%ecx), %ecx           // get declaring class
+    movl DECLARING_CLASS_DEX_CACHE_STRINGS_OFFSET(%ecx), %ecx    // get string dex cache
+    movl LITERAL(STRING_DEX_CACHE_SIZE_MINUS_ONE), %edx
+    andl %eax, %edx
+    shl LITERAL(STRING_DEX_CACHE_ELEMENT_SIZE_SHIFT), %edx
+    addl %ecx, %edx
+    movlps (%edx), %xmm0                                     // load string idx and pointer to xmm0
+    movd %xmm0, %ecx                                         // extract pointer
+    pshufd LITERAL(0x55), %xmm0, %xmm0                       // shuffle index into lowest bits
+    movd %xmm0, %edx                                         // extract index
+    cmp %edx, %eax
+    jne .Lart_quick_resolve_string_slow_path
+#ifdef USE_READ_BARRIER
+    testl LITERAL(LOCK_WORD_MARK_BIT_MASK_SHIFTED), MIRROR_OBJECT_LOCK_WORD_OFFSET(%ecx)
+    jz .Lart_quick_resolve_string_slow_path
+#endif
+    movl %ecx, %eax
+    RESTORE_SAVE_REFS_ONLY_FRAME
+    ret
+
+.Lart_quick_resolve_string_slow_path:
+    // Outgoing argument set up
+    subl LITERAL(8), %esp                                        // push padding
+    CFI_ADJUST_CFA_OFFSET(8)
+    pushl %fs:THREAD_SELF_OFFSET                                 // pass Thread::Current()
+    CFI_ADJUST_CFA_OFFSET(4)
+    PUSH eax                                                     // pass arg1
+    call SYMBOL(artResolveStringFromCode)
+    addl LITERAL(16), %esp                                       // pop arguments
+    CFI_ADJUST_CFA_OFFSET(-16)
+    RESTORE_SAVE_REFS_ONLY_FRAME
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+
+END_FUNCTION art_quick_resolve_string
+
 ONE_ARG_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 ONE_ARG_DOWNCALL art_quick_initialize_type, artInitializeTypeFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 ONE_ARG_DOWNCALL art_quick_initialize_type_and_verify_access, artInitializeTypeAndVerifyAccessFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
