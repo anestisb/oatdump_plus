@@ -22,7 +22,6 @@
 
 #include "base/logging.h"
 #include "base/stringprintf.h"
-#include "thread.h"
 
 using namespace vixl::aarch64;  // NOLINT(build/namespaces)
 
@@ -102,7 +101,7 @@ void CustomDisassembler::VisitLoadStoreUnsignedOffset(const Instruction* instr) 
   if (instr->GetRn() == TR) {
     int64_t offset = instr->GetImmLSUnsigned() << instr->GetSizeLS();
     std::ostringstream tmp_stream;
-    Thread::DumpThreadOffset<kArm64PointerSize>(tmp_stream, static_cast<uint32_t>(offset));
+    options_->thread_offset_name_function_(tmp_stream, static_cast<uint32_t>(offset));
     AppendToOutput(" ; %s", tmp_stream.str().c_str());
   }
 }
