@@ -152,7 +152,7 @@ art_cflags += \
 
 # The architectures the compiled tools are able to run on. Setting this to 'all' will cause all
 # architectures to be included.
-ART_TARGET_CODEGEN_ARCHS ?= all
+ART_TARGET_CODEGEN_ARCHS ?= svelte
 ART_HOST_CODEGEN_ARCHS ?= all
 
 ifeq ($(ART_TARGET_CODEGEN_ARCHS),all)
