@@ -1786,11 +1786,40 @@ ENTRY art_quick_set64_static
 END art_quick_set64_static
 
     /*
-     * Entry from managed code to resolve a string, this stub will allocate a String and deliver an
-     * exception on error. On success the String is returned. w0 holds the string index. The fast
-     * path check for hit in strings cache has already been performed.
+     * Entry from managed code to resolve a string, this stub will
+     * check the dex cache for a matching string (the fast path), and if not found,
+     * it will allocate a String and deliver an exception on error.
+     * On success the String is returned. R0 holds the string index.
      */
-ONE_ARG_DOWNCALL art_quick_resolve_string, artResolveStringFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+
+ENTRY art_quick_resolve_string
+    ldr   x1, [sp]                                               // load referrer
+    ldr   w2, [x1, #ART_METHOD_DECLARING_CLASS_OFFSET]           // load declaring class
+    ldr   x1, [x2, #DECLARING_CLASS_DEX_CACHE_STRINGS_OFFSET]    // load string dex cache
+    mov   x2, #STRING_DEX_CACHE_SIZE_MINUS_ONE
+    and   x2, x0, x2
+    lsl   x2, x2, #STRING_DEX_CACHE_ELEMENT_SIZE_SHIFT
+    add   x1, x2, x1
+    ldr   x2, [x1]                                               // load index and pointer into x2
+    lsr   x3, x2, #32                                            // get upper 32 bits
+    ubfx  x2, x2, #0, #32                                        // get lower 32 bits
+    cmp   x0, x3
+    bne   .Lart_quick_resolve_string_slow_path
+#ifdef USE_READ_BARRIER
+    ldr   x3, [x2, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    tbz   x3, #LOCK_WORD_MARK_BIT_SHIFT, .Lart_quick_resolve_string_slow_path
+#endif
+    mov   x0, x2
+    ret
+
+.Lart_quick_resolve_string_slow_path:
+    SETUP_SAVE_REFS_ONLY_FRAME                      // save callee saves in case of GC
+    mov   x1, xSELF                                 // pass Thread::Current
+    bl    artResolveStringFromCode                  // (uint32_t type_idx, Method* method, Thread*)
+    RESTORE_SAVE_REFS_ONLY_FRAME
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+
+END art_quick_resolve_string
 
 // Generate the allocation entrypoints for each allocator.
 GENERATE_ALLOC_ENTRYPOINTS_FOR_NON_REGION_TLAB_ALLOCATORS
