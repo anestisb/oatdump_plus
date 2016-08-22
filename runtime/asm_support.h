@@ -19,12 +19,15 @@
 
 #if defined(__cplusplus)
 #include "art_method.h"
+#include "base/bit_utils.h"
 #include "gc/allocator/rosalloc.h"
 #include "gc/heap.h"
 #include "jit/jit.h"
 #include "lock_word.h"
 #include "mirror/class.h"
+#include "mirror/dex_cache.h"
 #include "mirror/string.h"
+#include "utils/dex_cache_arrays_layout.h"
 #include "runtime.h"
 #include "thread.h"
 #endif
