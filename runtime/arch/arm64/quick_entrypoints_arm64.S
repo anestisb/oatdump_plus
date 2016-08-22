@@ -331,6 +331,7 @@
 #endif
 
     // Save FP registers.
+    // For better performance, store d0 and d31 separately, so that all STPs are 16-byte aligned.
     str d0,       [sp, #8]
     stp d1, d2,   [sp, #16]
     stp d3, d4,   [sp, #32]
@@ -431,6 +432,7 @@
 
 .macro RESTORE_SAVE_EVERYTHING_FRAME
     // Restore FP registers.
+    // For better performance, load d0 and d31 separately, so that all LDPs are 16-byte aligned.
     ldr d0,       [sp, #8]
     ldp d1, d2,   [sp, #16]
     ldp d3, d4,   [sp, #32]

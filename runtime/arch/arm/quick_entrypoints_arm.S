@@ -191,7 +191,7 @@
     .cfi_rel_offset r11, 44
     .cfi_rel_offset ip, 48
     .cfi_rel_offset lr, 52
-    vpush {d0-d15}                      @ 32 words of float args.
+    vpush {d0-d15}                      @ 32 words, 2 for each of the 16 saved doubles.
     .cfi_adjust_cfa_offset 128
     sub sp, #8                          @ 2 words of space, alignment padding and Method*
     .cfi_adjust_cfa_offset 8
