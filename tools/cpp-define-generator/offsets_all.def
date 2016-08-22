@@ -48,6 +48,7 @@
 // TODO: MIRROR_*_ARRAY offsets (depends on header size)
 // TODO: MIRROR_STRING offsets (depends on header size)
 #include "offset_dexcache.def"
+#include "constant_dexcache.def"
 #include "constant_heap.def"
 #include "constant_lockword.def"
 #include "constant_globals.def"
