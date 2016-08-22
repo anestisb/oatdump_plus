@@ -4098,10 +4098,17 @@ void Dbg::ExecuteMethodWithoutPendingException(ScopedObjectAccess& soa, DebugInv
     // unless we threw, in which case we return null.
     DCHECK_EQ(JDWP::JT_VOID, result_tag);
     if (exceptionObjectId == 0) {
-      // TODO we could keep the receiver ObjectId in the DebugInvokeReq to avoid looking into the
-      // object registry.
-      result_value = GetObjectRegistry()->Add(pReq->receiver.Read());
-      result_tag = TagFromObject(soa, pReq->receiver.Read());
+      if (m->GetDeclaringClass()->IsStringClass()) {
+        // For string constructors, the new string is remapped to the receiver (stored in ref).
+        mirror::Object* decoded_ref = soa.Self()->DecodeJObject(ref.get());
+        result_value = gRegistry->Add(decoded_ref);
+        result_tag = TagFromObject(soa, decoded_ref);
+      } else {
+        // TODO we could keep the receiver ObjectId in the DebugInvokeReq to avoid looking into the
+        // object registry.
+        result_value = GetObjectRegistry()->Add(pReq->receiver.Read());
+        result_tag = TagFromObject(soa, pReq->receiver.Read());
+      }
     } else {
       result_value = 0;
       result_tag = JDWP::JT_OBJECT;
