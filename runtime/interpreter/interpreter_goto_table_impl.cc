@@ -14,17 +14,28 @@
  * limitations under the License.
  */
 
+#include "interpreter_goto_table_impl.h"
+
+// Common includes
+#include "base/logging.h"
+#include "base/macros.h"
+#include "base/mutex.h"
+#include "stack.h"
+#include "thread.h"
+
+// Clang compiles the GOTO interpreter very slowly. So we skip it. These are the implementation
+// details only necessary when compiling it.
 #if !defined(__clang__)
-// Clang 3.4 fails to build the goto interpreter implementation.
-
-
 #include "experimental_flags.h"
 #include "interpreter_common.h"
 #include "jit/jit.h"
 #include "safe_math.h"
+#endif
 
 namespace art {
 namespace interpreter {
+
+#if !defined(__clang__)
 
 // In the following macros, we expect the following local variables exist:
 // - "self": the current Thread*.
@@ -2558,20 +2569,40 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 }  // NOLINT(readability/fn_size)
 
 // Explicit definitions of ExecuteGotoImpl.
-template SHARED_REQUIRES(Locks::mutator_lock_) HOT_ATTR
+template HOT_ATTR
 JValue ExecuteGotoImpl<true, false>(Thread* self, const DexFile::CodeItem* code_item,
                                     ShadowFrame& shadow_frame, JValue result_register);
-template SHARED_REQUIRES(Locks::mutator_lock_) HOT_ATTR
+template HOT_ATTR
 JValue ExecuteGotoImpl<false, false>(Thread* self, const DexFile::CodeItem* code_item,
                                      ShadowFrame& shadow_frame, JValue result_register);
-template SHARED_REQUIRES(Locks::mutator_lock_)
+template
 JValue ExecuteGotoImpl<true, true>(Thread* self, const DexFile::CodeItem* code_item,
                                    ShadowFrame& shadow_frame, JValue result_register);
-template SHARED_REQUIRES(Locks::mutator_lock_)
+template
 JValue ExecuteGotoImpl<false, true>(Thread* self, const DexFile::CodeItem* code_item,
                                     ShadowFrame& shadow_frame, JValue result_register);
 
+#else
+
+template<bool do_access_check, bool transaction_active>
+JValue ExecuteGotoImpl(Thread*, const DexFile::CodeItem*, ShadowFrame&, JValue) {
+  LOG(FATAL) << "UNREACHABLE";
+  UNREACHABLE();
+}
+// Explicit definitions of ExecuteGotoImpl.
+template<>
+JValue ExecuteGotoImpl<true, false>(Thread* self, const DexFile::CodeItem* code_item,
+                                    ShadowFrame& shadow_frame, JValue result_register);
+template<>
+JValue ExecuteGotoImpl<false, false>(Thread* self, const DexFile::CodeItem* code_item,
+                                     ShadowFrame& shadow_frame, JValue result_register);
+template<>
+JValue ExecuteGotoImpl<true, true>(Thread* self,  const DexFile::CodeItem* code_item,
+                                   ShadowFrame& shadow_frame, JValue result_register);
+template<>
+JValue ExecuteGotoImpl<false, true>(Thread* self, const DexFile::CodeItem* code_item,
+                                    ShadowFrame& shadow_frame, JValue result_register);
+#endif
+
 }  // namespace interpreter
 }  // namespace art
-
-#endif
