@@ -1796,28 +1796,36 @@ ENTRY art_quick_resolve_string
     ldr   x1, [sp]                                               // load referrer
     ldr   w2, [x1, #ART_METHOD_DECLARING_CLASS_OFFSET]           // load declaring class
     ldr   x1, [x2, #DECLARING_CLASS_DEX_CACHE_STRINGS_OFFSET]    // load string dex cache
-    mov   x2, #STRING_DEX_CACHE_SIZE_MINUS_ONE
-    and   x2, x0, x2
-    lsl   x2, x2, #STRING_DEX_CACHE_ELEMENT_SIZE_SHIFT
-    add   x1, x2, x1
-    ldr   x2, [x1]                                               // load index and pointer into x2
-    lsr   x3, x2, #32                                            // get upper 32 bits
-    ubfx  x2, x2, #0, #32                                        // get lower 32 bits
-    cmp   x0, x3
+    and   x2, x0, #STRING_DEX_CACHE_SIZE_MINUS_ONE               // get masked string index into x2
+    ldr   x2, [x1, x2, lsl #STRING_DEX_CACHE_ELEMENT_SIZE_SHIFT]  // load dex cache pair into x2
+    cmp   x0, x2, lsr #32                                         // compare against upper 32 bits
     bne   .Lart_quick_resolve_string_slow_path
+    ubfx  x0, x2, #0, #32                                        // extract lower 32 bits into x0
 #ifdef USE_READ_BARRIER
-    ldr   x3, [x2, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
-    tbz   x3, #LOCK_WORD_MARK_BIT_SHIFT, .Lart_quick_resolve_string_slow_path
+    // Most common case: GC is not marking.
+    ldr    w3, [xSELF, #THREAD_IS_GC_MARKING_OFFSET]
+    cbnz   x3, .Lart_quick_resolve_string_marking
 #endif
-    mov   x0, x2
     ret
 
+// Slow path case, the index did not match.
 .Lart_quick_resolve_string_slow_path:
     SETUP_SAVE_REFS_ONLY_FRAME                      // save callee saves in case of GC
     mov   x1, xSELF                                 // pass Thread::Current
-    bl    artResolveStringFromCode                  // (uint32_t type_idx, Method* method, Thread*)
+    bl    artResolveStringFromCode                  // (int32_t string_idx, Thread* self)
     RESTORE_SAVE_REFS_ONLY_FRAME
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+
+// GC is marking case, need to check the mark bit.
+.Lart_quick_resolve_string_marking:
+    ldr   x3, [x0, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    tbnz  x3, #LOCK_WORD_MARK_BIT_SHIFT, .Lart_quick_resolve_string_no_rb
+    // Save LR so that we can return, also x1 for alignment purposes.
+    stp    x1, xLR, [sp, #-16]!                     // Save x1, LR.
+    bl     artReadBarrierMark                       // Get the marked string back.
+    ldp    x1, xLR, [sp], #16                       // Restore registers.
+.Lart_quick_resolve_string_no_rb:
+    ret
 
 END art_quick_resolve_string
 
