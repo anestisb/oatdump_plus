@@ -428,8 +428,14 @@ static bool InstructionSetSupportsReadBarrier(InstructionSet instruction_set) {
       || instruction_set == kX86_64;
 }
 
+// Strip pass name suffix to get optimization name.
+static std::string ConvertPassNameToOptimizationName(const std::string& pass_name) {
+  size_t pos = pass_name.find(kPassNameSeparator);
+  return pos == std::string::npos ? pass_name : pass_name.substr(0, pos);
+}
+
 static HOptimization* BuildOptimization(
-    const std::string& opt_name,
+    const std::string& pass_name,
     ArenaAllocator* arena,
     HGraph* graph,
     OptimizingCompilerStats* stats,
@@ -439,6 +445,7 @@ static HOptimization* BuildOptimization(
     StackHandleScopeCollection* handles,
     SideEffectsAnalysis* most_recent_side_effects,
     HInductionVarAnalysis* most_recent_induction) {
+  std::string opt_name = ConvertPassNameToOptimizationName(pass_name);
   if (opt_name == BoundsCheckElimination::kBoundsCheckEliminationPassName) {
     CHECK(most_recent_side_effects != nullptr && most_recent_induction != nullptr);
     return new (arena) BoundsCheckElimination(graph,
@@ -446,11 +453,11 @@ static HOptimization* BuildOptimization(
                                               most_recent_induction);
   } else if (opt_name == GVNOptimization::kGlobalValueNumberingPassName) {
     CHECK(most_recent_side_effects != nullptr);
-    return new (arena) GVNOptimization(graph, *most_recent_side_effects);
+    return new (arena) GVNOptimization(graph, *most_recent_side_effects, pass_name.c_str());
   } else if (opt_name == HConstantFolding::kConstantFoldingPassName) {
-    return new (arena) HConstantFolding(graph);
+    return new (arena) HConstantFolding(graph, pass_name.c_str());
   } else if (opt_name == HDeadCodeElimination::kDeadCodeEliminationPassName) {
-    return new (arena) HDeadCodeElimination(graph, stats);
+    return new (arena) HDeadCodeElimination(graph, stats, pass_name.c_str());
   } else if (opt_name == HInliner::kInlinerPassName) {
     size_t number_of_dex_registers = dex_compilation_unit.GetCodeItem()->registers_size_;
     return new (arena) HInliner(graph,                   // outer_graph
@@ -470,7 +477,7 @@ static HOptimization* BuildOptimization(
   } else if (opt_name == HInductionVarAnalysis::kInductionPassName) {
     return new (arena) HInductionVarAnalysis(graph);
   } else if (opt_name == InstructionSimplifier::kInstructionSimplifierPassName) {
-    return new (arena) InstructionSimplifier(graph, stats);
+    return new (arena) InstructionSimplifier(graph, stats, pass_name.c_str());
   } else if (opt_name == IntrinsicsRecognizer::kIntrinsicsRecognizerPassName) {
     return new (arena) IntrinsicsRecognizer(graph, driver, stats);
   } else if (opt_name == LICM::kLoopInvariantCodeMotionPassName) {
@@ -522,12 +529,9 @@ static ArenaVector<HOptimization*> BuildOptimizations(
   SideEffectsAnalysis* most_recent_side_effects = nullptr;
   HInductionVarAnalysis* most_recent_induction = nullptr;
   ArenaVector<HOptimization*> ret(arena->Adapter());
-  for (std::string pass_name : pass_names) {
-    size_t pos = pass_name.find(kPassNameSeparator);    // Strip suffix to get base pass name.
-    std::string opt_name = pos == std::string::npos ? pass_name : pass_name.substr(0, pos);
-
+  for (const std::string& pass_name : pass_names) {
     HOptimization* opt = BuildOptimization(
-        opt_name,
+        pass_name,
         arena,
         graph,
         stats,
@@ -540,6 +544,7 @@ static ArenaVector<HOptimization*> BuildOptimizations(
     CHECK(opt != nullptr) << "Couldn't build optimization: \"" << pass_name << "\"";
     ret.push_back(opt);
 
+    std::string opt_name = ConvertPassNameToOptimizationName(pass_name);
     if (opt_name == SideEffectsAnalysis::kSideEffectsAnalysisPassName) {
       most_recent_side_effects = down_cast<SideEffectsAnalysis*>(opt);
     } else if (opt_name == HInductionVarAnalysis::kInductionPassName) {
