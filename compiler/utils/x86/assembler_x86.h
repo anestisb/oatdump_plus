@@ -496,6 +496,9 @@ class X86Assembler FINAL : public Assembler {
   void testl(Register reg, const Immediate& imm);
   void testl(Register reg1, const Address& address);
 
+  void testb(const Address& dst, const Immediate& imm);
+  void testl(const Address& dst, const Immediate& imm);
+
   void andl(Register dst, const Immediate& imm);
   void andl(Register dst, Register src);
   void andl(Register dst, const Address& address);
