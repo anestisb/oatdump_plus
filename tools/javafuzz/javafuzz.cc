@@ -53,7 +53,9 @@ static constexpr const char* kRelOps[]     = { "==", "!=", ">", ">=", "<", "<=" 
  * to preserve the property that a given version of JavaFuzz yields the same
  * fuzzed Java program for a deterministic random seed.
  */
-const char* VERSION = "1.0";
+const char* VERSION = "1.1";
+
+static const uint32_t MAX_DIMS[11] = { 0, 1000, 32, 10, 6, 4, 3, 3, 2, 2, 2 };
 
 /**
  * A class that generates a random Java program that compiles correctly. The program
@@ -83,8 +85,8 @@ class JavaFuzz {
         fuzz_loop_nest_(loop_nest),
         return_type_(randomType()),
         array_type_(randomType()),
-        array_dim_(random1(3)),
-        array_size_(random1(10)),
+        array_dim_(random1(10)),
+        array_size_(random1(MAX_DIMS[array_dim_])),
         indentation_(0),
         expr_depth_(0),
         stmt_length_(0),
@@ -169,7 +171,7 @@ class JavaFuzz {
   // Emit an unary operator (same type in-out).
   void emitUnaryOp(Type tp) {
     if (tp == kBoolean) {
-      fputs("!", out_);
+      fputc('!', out_);
     } else if (isInteger(tp)) {
       EMIT(kIntUnaryOps);
     } else {  // isFP(tp)
@@ -239,16 +241,21 @@ class JavaFuzz {
         case 6: fputs("(long)(int)(long)",   out_); return kLong;
       }
     } else if (tp == kFloat) {
-      switch (random1(3)) {
+      switch (random1(4)) {
         case 1: fputs("(float)", out_); return kInt;
         case 2: fputs("(float)", out_); return kLong;
         case 3: fputs("(float)", out_); return kDouble;
+        // Narrowing-widening.
+        case 4: fputs("(float)(int)(float)", out_); return kFloat;
       }
     } else if (tp == kDouble) {
-      switch (random1(3)) {
+      switch (random1(5)) {
         case 1: fputs("(double)", out_); return kInt;
         case 2: fputs("(double)", out_); return kLong;
         case 3: fputs("(double)", out_); return kFloat;
+        // Narrowing-widening.
+        case 4: fputs("(double)(int)(double)",   out_); return kDouble;
+        case 5: fputs("(double)(float)(double)", out_); return kDouble;
       }
     }
     return tp;  // nothing suitable, just keep type
@@ -273,15 +280,17 @@ class JavaFuzz {
   // Emit an unary intrinsic (out type given, new suitable in type picked).
   Type emitIntrinsic1(Type tp) {
     if (tp == kBoolean) {
-      switch (random1(4)) {
+      switch (random1(6)) {
         case 1: fputs("Float.isNaN",       out_); return kFloat;
-        case 2: fputs("Float.isInfinite",  out_); return kFloat;
-        case 3: fputs("Double.isNaN",      out_); return kDouble;
-        case 4: fputs("Double.isInfinite", out_); return kDouble;
+        case 2: fputs("Float.isFinite",    out_); return kFloat;
+        case 3: fputs("Float.isInfinite",  out_); return kFloat;
+        case 4: fputs("Double.isNaN",      out_); return kDouble;
+        case 5: fputs("Double.isFinite",   out_); return kDouble;
+        case 6: fputs("Double.isInfinite", out_); return kDouble;
       }
     } else if (isInteger(tp)) {
       const char* prefix = tp == kLong ? "Long" : "Integer";
-      switch (random1(9)) {
+      switch (random1(13)) {
         case 1: fprintf(out_, "%s.highestOneBit",         prefix); break;
         case 2: fprintf(out_, "%s.lowestOneBit",          prefix); break;
         case 3: fprintf(out_, "%s.numberOfLeadingZeros",  prefix); break;
@@ -290,15 +299,27 @@ class JavaFuzz {
         case 6: fprintf(out_, "%s.signum",                prefix); break;
         case 7: fprintf(out_, "%s.reverse",               prefix); break;
         case 8: fprintf(out_, "%s.reverseBytes",          prefix); break;
-        case 9: fputs("Math.abs", out_);                           break;
+        case 9:  fputs("Math.incrementExact", out_); break;
+        case 10: fputs("Math.decrementExact", out_); break;
+        case 11: fputs("Math.negateExact",    out_); break;
+        case 12: fputs("Math.abs",            out_); break;
+        case 13: fputs("Math.round", out_);
+                 return tp == kLong ? kDouble : kFloat;
       }
     } else {  // isFP(tp)
-      switch (random1(5)) {
+      switch (random1(6)) {
         case 1: fputs("Math.abs",      out_); break;
         case 2: fputs("Math.ulp",      out_); break;
         case 3: fputs("Math.signum",   out_); break;
         case 4: fputs("Math.nextUp",   out_); break;
         case 5: fputs("Math.nextDown", out_); break;
+        case 6: if (tp == kDouble) {
+                  fputs("Double.longBitsToDouble", out_);
+                  return kLong;
+                } else {
+                  fputs("Float.intBitsToFloat", out_);
+                  return kInt;
+                }
       }
     }
     return tp;  // same type in-out
@@ -314,15 +335,27 @@ class JavaFuzz {
       }
     } else if (isInteger(tp)) {
       const char* prefix = tp == kLong ? "Long" : "Integer";
-      switch (random1(3)) {
+      switch (random1(11)) {
         case 1: fprintf(out_, "%s.compare", prefix); break;
-        case 2: fputs("Math.min", out_); break;
-        case 3: fputs("Math.max", out_); break;
+        case 2: fprintf(out_, "%s.sum",     prefix); break;
+        case 3: fprintf(out_, "%s.min",     prefix); break;
+        case 4: fprintf(out_, "%s.max",     prefix); break;
+        case 5:  fputs("Math.min",           out_); break;
+        case 6:  fputs("Math.max",           out_); break;
+        case 7:  fputs("Math.floorDiv",      out_); break;
+        case 8:  fputs("Math.floorMod",      out_); break;
+        case 9:  fputs("Math.addExact",      out_); break;
+        case 10: fputs("Math.subtractExact", out_); break;
+        case 11: fputs("Math.multiplyExact", out_); break;
       }
     } else {  // isFP(tp)
-      switch (random1(2)) {
-        case 1: fputs("Math.min", out_); break;
-        case 2: fputs("Math.max", out_); break;
+      const char* prefix = tp == kDouble ? "Double" : "Float";
+      switch (random1(5)) {
+        case 1: fprintf(out_, "%s.sum", prefix); break;
+        case 2: fprintf(out_, "%s.min", prefix); break;
+        case 3: fprintf(out_, "%s.max", prefix); break;
+        case 4: fputs("Math.min", out_); break;
+        case 5: fputs("Math.max", out_); break;
       }
     }
     return tp;  // same type in-out
@@ -358,12 +391,24 @@ class JavaFuzz {
 
   // Emit miscellaneous constructs.
   void emitMisc(Type tp) {
-    switch (tp) {
-      case kBoolean: fputs("this instanceof Test", out_); break;
-      case kInt:     fputs("mArray.length",    out_); break;
-      case kLong:    fputs("Long.MAX_VALUE",   out_); break;
-      case kFloat:   fputs("Float.MAX_VALUE",  out_); break;
-      case kDouble:  fputs("Double.MAX_VALUE", out_); break;
+    if (tp == kBoolean) {
+      fputs("this instanceof Test", out_);
+    } else if (isInteger(tp)) {
+      const char* prefix = tp == kLong ? "Long" : "Integer";
+      switch (random1(2)) {
+        case 1: fprintf(out_, "%s.MIN_VALUE", prefix); break;
+        case 2: fprintf(out_, "%s.MAX_VALUE", prefix); break;
+      }
+    } else {  // isFP(tp)
+      const char* prefix = tp == kDouble ? "Double" : "Float";
+      switch (random1(6)) {
+        case 1: fprintf(out_, "%s.MIN_NORMAL", prefix);        break;
+        case 2: fprintf(out_, "%s.MIN_VALUE", prefix);         break;
+        case 3: fprintf(out_, "%s.MAX_VALUE", prefix);         break;
+        case 4: fprintf(out_, "%s.POSITIVE_INFINITY", prefix); break;
+        case 5: fprintf(out_, "%s.NEGATIVE_INFINITY", prefix); break;
+        case 6: fprintf(out_, "%s.NaN", prefix);               break;
+      }
     }
   }
 
@@ -412,10 +457,10 @@ class JavaFuzz {
   void emitLiteral(Type tp) {
     switch (tp) {
       case kBoolean: fputs(random1(2) == 1 ? "true" : "false", out_); break;
-      case kInt:     fprintf(out_, "%d",    random0(100)); break;
-      case kLong:    fprintf(out_, "%dL",   random0(100)); break;
-      case kFloat:   fprintf(out_, "%d.0f", random0(100)); break;
-      case kDouble:  fprintf(out_, "%d.0",  random0(100)); break;
+      case kInt:     fprintf(out_, "%d",    random()); break;
+      case kLong:    fprintf(out_, "%dL",   random()); break;
+      case kFloat:   fprintf(out_, "%d.0f", random()); break;
+      case kDouble:  fprintf(out_, "%d.0",  random()); break;
     }
   }
 
@@ -429,17 +474,6 @@ class JavaFuzz {
         fputc(']', out_);
       }
       return true;
-    }
-    return false;
-  }
-
-  // Emit a loop variable, if available.
-  bool emitLoopVariable(Type tp) {
-    if (tp == kInt) {
-      if (loop_nest_ > 0) {
-        fprintf(out_, "i%u", random0(loop_nest_));
-        return true;
-      }
     }
     return false;
   }
@@ -483,10 +517,6 @@ class JavaFuzz {
         if (emitLocalVariable(tp))
           return;
         // FALL-THROUGH
-      case 3:
-        if (emitLoopVariable(tp))
-          return;
-        // FALL-THROUGH
       default:
         emitFieldVariable(tp);
         break;
@@ -510,8 +540,9 @@ class JavaFuzz {
     fputc('(', out_);
     switch (random1(12)) {  // favor binary operations
       case 1:
-        // Unary operator: ~x
+        // Unary operator: ~ x
         emitUnaryOp(tp);
+        fputc(' ', out_);
         emitExpression(tp);
         break;
       case 2:
@@ -761,7 +792,7 @@ class JavaFuzz {
 
     bool mayFollow = false;
     fputs("switch (", out_);
-    emitExpression(kInt);
+    emitArrayIndex();  // restrict its range
     fputs(") {\n", out_);
 
     ++if_nest_;
@@ -771,7 +802,7 @@ class JavaFuzz {
     for (uint32_t i = 0; i < 2; i++) {
       emitIndentation();
       if (i == 0) {
-        fprintf(out_, "case %d: {\n", random0(100));
+        fprintf(out_, "case %u: {\n", random0(array_size_));
       } else {
         fprintf(out_, "default: {\n");
       }
@@ -977,6 +1008,11 @@ class JavaFuzz {
   // Random integers.
   //
 
+  // Return random integer.
+  int32_t random() {
+    return fuzz_random_engine_();
+  }
+
   // Return random integer in range [0,max).
   uint32_t random0(uint32_t max) {
     std::uniform_int_distribution<uint32_t> gen(0, max - 1);
@@ -1025,7 +1061,7 @@ int32_t main(int32_t argc, char** argv) {
   // Defaults.
   uint32_t seed = time(NULL);
   uint32_t expr_depth = 1;
-  uint32_t stmt_length = 4;
+  uint32_t stmt_length = 8;
   uint32_t if_nest = 2;
   uint32_t loop_nest = 3;
 
