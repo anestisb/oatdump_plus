@@ -92,6 +92,8 @@ LIBART_COMPILER_SRC_FILES_arm := \
 	linker/arm/relative_patcher_thumb2.cc \
 	optimizing/code_generator_arm.cc \
 	optimizing/dex_cache_array_fixups_arm.cc \
+	optimizing/instruction_simplifier_arm.cc \
+	optimizing/instruction_simplifier_shared.cc \
 	optimizing/intrinsics_arm.cc \
 	utils/arm/assembler_arm.cc \
 	utils/arm/assembler_arm32.cc \
@@ -109,7 +111,6 @@ LIBART_COMPILER_SRC_FILES_arm64 := \
 	linker/arm64/relative_patcher_arm64.cc \
 	optimizing/nodes_arm64.cc \
 	optimizing/code_generator_arm64.cc \
-	optimizing/instruction_simplifier_arm.cc \
 	optimizing/instruction_simplifier_arm64.cc \
 	optimizing/instruction_simplifier_shared.cc \
 	optimizing/intrinsics_arm64.cc \
