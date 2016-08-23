@@ -8,7 +8,7 @@ using the optimizing compiler, using an external reference implementation,
 or using various target architectures. Any difference between the outputs
 (**divergence**) may indicate a bug in one of the execution modes.
 
-JavaFuzz can be combined with dexfuzz to get multilayered fuzz testing.
+JavaFuzz can be combined with dexfuzz to get multi-layered fuzz testing.
 
 How to run JavaFuzz
 ===================
@@ -40,19 +40,20 @@ How to start the JavaFuzz tests
 ===============================
 
     run_java_fuzz_test.py [--num_tests]
+                          [--device]
                           [--mode1=mode] [--mode2=mode]
 
 where
 
-    --num_tests: number of tests to run (10000 by default)
-    --mode1:m1
-    --mode2:m2
-    with m1 != m2, and one of
-      ri   : reference implementation on host (default for m1)
-      hint : Art interpreter on host
-      hopt : Art optimizing on host (default for m2)
-      tint : Art interpreter on target
-      topt : Art optimizing on target
+    --num_tests : number of tests to run (10000 by default)
+    --device    : target device serial number (passed to adb -s)
+    --mode1     : m1
+    --mode2     : m2, with m1 != m2, and values one of
+      ri   = reference implementation on host (default for m1)
+      hint = Art interpreter on host
+      hopt = Art optimizing on host (default for m2)
+      tint = Art interpreter on target
+      topt = Art optimizing on target
 
 Background
 ==========
@@ -67,14 +68,15 @@ Still, any test suite leaves the developer wondering whether undetected bugs
 and flaws still linger in the system.
 
 Over the years, fuzz testing has gained popularity as a testing technique for
-discovering such lingering bugs, including bugs that can bring down a system in
-an unexpected way. Fuzzing refers to feeding a large amount of random data as
-input to a system in an attempt to find bugs or make it crash. Mutation-based
-fuzz testing is a special form of fuzzing that applies small random changes to
-existing inputs in order to detect shortcomings in a system. Profile-guided or
-coverage-guided fuzzing adds a direction to the way these random changes are
-applied. Multilayer approaches generate random inputs that are subsequently
-mutated at various stages of execution.
+discovering such lingering bugs, including bugs that can bring down a system
+in an unexpected way. Fuzzing refers to feeding a large amount of random data
+as input to a system in an attempt to find bugs or make it crash. Generation-
+based fuzz testing constructs random, but properly formatted input data.
+Mutation-based fuzz testing applies small random changes to existing inputs
+in order to detect shortcomings in a system. Profile-guided or coverage-guided
+fuzzing adds a direction to the way these random changes are applied. Multi-
+layered approaches generate random inputs that are subsequently mutated at
+various stages of execution.
 
 The randomness of fuzz testing implies that the size and scope of testing is no
 longer bounded. Every new run can potentially discover bugs and crashes that were

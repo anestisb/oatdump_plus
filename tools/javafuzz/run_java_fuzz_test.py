@@ -78,10 +78,11 @@ def GetJackClassPath():
   return libdir + '/core-libart-hostdex_intermediates/classes.jack:' \
        + libdir + '/core-oj-hostdex_intermediates/classes.jack'
 
-def GetExecutionModeRunner(mode):
+def GetExecutionModeRunner(device, mode):
   """Returns a runner for the given execution mode.
 
   Args:
+    device: string, target device serial number (or None)
     mode: string, execution mode
   Returns:
     TestRunner with given execution mode
@@ -95,9 +96,9 @@ def GetExecutionModeRunner(mode):
   if mode == 'hopt':
     return TestRunnerArtOnHost(False)
   if mode == 'tint':
-    return TestRunnerArtOnTarget(True)
+    return TestRunnerArtOnTarget(device, True)
   if mode == 'topt':
-    return TestRunnerArtOnTarget(False)
+    return TestRunnerArtOnTarget(device, False)
   raise FatalError('Unknown execution mode')
 
 def GetReturnCode(retc):
@@ -210,13 +211,14 @@ class TestRunnerArtOnHost(TestRunner):
 class TestRunnerArtOnTarget(TestRunner):
   """Concrete test runner of Art on target (interpreter or optimizing)."""
 
-  def  __init__(self, interpreter):
+  def  __init__(self, device, interpreter):
     """Constructor for the Art on target tester.
 
     Args:
+      device: string, target device serial number (or None)
       interpreter: boolean, selects between interpreter or optimizing
     """
-    self._dalvik_args = '-cp /data/local/tmp/classes.dex Test'
+    self._dalvik_args = 'shell dalvikvm -cp /data/local/tmp/classes.dex Test'
     if interpreter:
       self._description = 'Art interpreter on target'
       self._id = 'TInt'
@@ -224,16 +226,19 @@ class TestRunnerArtOnTarget(TestRunner):
     else:
       self._description = 'Art optimizing on target'
       self._id = 'TOpt'
+    self._adb = 'adb'
+    if device != None:
+      self._adb = self._adb + ' -s ' + device
     self._jack_args = '-cp ' + GetJackClassPath() + ' --output-dex . Test.java'
 
   def CompileAndRunTest(self):
     if RunCommand('jack', self._jack_args,
                   out=None, err='jackerr.txt', timeout=30) == EXIT_SUCCESS:
-      if RunCommand('adb push', 'classes.dex /data/local/tmp/',
+      if RunCommand(self._adb, 'push classes.dex /data/local/tmp/',
                     'adb.txt', err=None) != EXIT_SUCCESS:
         raise FatalError('Cannot push to target device')
       out = self.GetId() + '_run_out.txt'
-      retc = RunCommand('adb shell dalvikvm', self._dalvik_args, out, err=None)
+      retc = RunCommand(self._adb, self._dalvik_args, out, err=None)
       if retc != EXIT_SUCCESS and retc != EXIT_TIMEOUT:
         retc = EXIT_NOTRUN
     else:
@@ -241,7 +246,7 @@ class TestRunnerArtOnTarget(TestRunner):
     # Cleanup and return.
     RunCommand('rm', '-f classes.dex jackerr.txt adb.txt',
                out=None, err=None)
-    RunCommand('adb shell', 'rm -f /data/local/tmp/classes.dex',
+    RunCommand(self._adb, 'shell rm -f /data/local/tmp/classes.dex',
                out=None, err=None)
     return retc
 
@@ -256,17 +261,19 @@ class FatalError(Exception):
 class JavaFuzzTester(object):
   """Tester that runs JavaFuzz many times and report divergences."""
 
-  def  __init__(self, num_tests, mode1, mode2):
+  def  __init__(self, num_tests, device, mode1, mode2):
     """Constructor for the tester.
 
     Args:
     num_tests: int, number of tests to run
+    device: string, target device serial number (or None)
     mode1: string, execution mode for first runner
     mode2: string, execution mode for second runner
     """
     self._num_tests = num_tests
-    self._runner1 = GetExecutionModeRunner(mode1)
-    self._runner2 = GetExecutionModeRunner(mode2)
+    self._device = device
+    self._runner1 = GetExecutionModeRunner(device, mode1)
+    self._runner2 = GetExecutionModeRunner(device, mode2)
     self._save_dir = None
     self._tmp_dir = None
     # Statistics.
@@ -302,6 +309,7 @@ class JavaFuzzTester(object):
     print '**\n**** JavaFuzz Testing\n**'
     print
     print '#Tests    :', self._num_tests
+    print 'Device    :', self._device
     print 'Directory :', self._tmp_dir
     print 'Exec-mode1:', self._runner1.GetDescription()
     print 'Exec-mode2:', self._runner2.GetDescription()
@@ -391,6 +399,7 @@ def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--num_tests', default=10000,
                       type=int, help='number of tests to run')
+  parser.add_argument('--device', help='target device serial number')
   parser.add_argument('--mode1', default='ri',
                       help='execution mode 1 (default: ri)')
   parser.add_argument('--mode2', default='hopt',
@@ -399,7 +408,8 @@ def main():
   if args.mode1 == args.mode2:
     raise FatalError("Identical execution modes given")
   # Run the JavaFuzz tester.
-  with JavaFuzzTester(args.num_tests, args.mode1, args.mode2) as fuzzer:
+  with JavaFuzzTester(args.num_tests, args.device,
+                      args.mode1, args.mode2) as fuzzer:
     fuzzer.Run()
 
 if __name__ == "__main__":
