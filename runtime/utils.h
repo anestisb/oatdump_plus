@@ -42,6 +42,7 @@ namespace art {
 class ArtField;
 class ArtMethod;
 class DexFile;
+struct EnvSnapshot;
 
 namespace mirror {
 class Class;
@@ -267,6 +268,10 @@ bool GetDalvikCacheFilename(const char* file_location, const char* cache_locatio
 
 // Returns the system location for an image
 std::string GetSystemImageFilename(const char* location, InstructionSet isa);
+
+// Capture an environment snapshot that will be used by Exec.
+// Any subsequent setenvs will be ignored in child processes.
+const EnvSnapshot* TakeEnvSnapshot();
 
 // Wrapper on fork/execv to run a command in a subprocess.
 bool Exec(std::vector<std::string>& arg_vector, std::string* error_msg);

@@ -44,6 +44,7 @@
 #if defined(__APPLE__)
 #include "AvailabilityMacros.h"  // For MAC_OS_X_VERSION_MAX_ALLOWED
 #include <sys/syscall.h>
+#include <crt_externs.h>
 #endif
 
 #if defined(__linux__)
@@ -51,6 +52,22 @@
 #endif
 
 namespace art {
+
+namespace {
+#ifdef __APPLE__
+inline char** GetEnviron() {
+  // When Google Test is built as a framework on MacOS X, the environ variable
+  // is unavailable. Apple's documentation (man environ) recommends using
+  // _NSGetEnviron() instead.
+  return *_NSGetEnviron();
+}
+#else
+// Some POSIX platforms expect you to declare environ. extern "C" makes
+// it reside in the global namespace.
+extern "C" char** environ;
+inline char** GetEnviron() { return environ; }
+#endif
+}  // namespace
 
 pid_t GetTid() {
 #if defined(__APPLE__)
@@ -1132,6 +1149,15 @@ std::string GetSystemImageFilename(const char* location, const InstructionSet is
   return filename;
 }
 
+const EnvSnapshot* TakeEnvSnapshot() {
+  EnvSnapshot* snapshot = new EnvSnapshot();
+  char** env = GetEnviron();
+  for (size_t i = 0; env[i] != nullptr; ++i) {
+    snapshot->name_value_pairs_.emplace_back(new std::string(env[i]));
+  }
+  return snapshot;
+}
+
 int ExecAndReturnCode(std::vector<std::string>& arg_vector, std::string* error_msg) {
   const std::string command_line(Join(arg_vector, ' '));
   CHECK_GE(arg_vector.size(), 1U) << command_line;
@@ -1155,8 +1181,20 @@ int ExecAndReturnCode(std::vector<std::string>& arg_vector, std::string* error_m
     // change process groups, so we don't get reaped by ProcessManager
     setpgid(0, 0);
 
-    execv(program, &args[0]);
-    PLOG(ERROR) << "Failed to execv(" << command_line << ")";
+    // The child inherits the environment unless the caller overrides it.
+    if (Runtime::Current() == nullptr || Runtime::Current()->GetEnvSnapshot() == nullptr) {
+      execv(program, &args[0]);
+    } else {
+      const EnvSnapshot* saved_snapshot = Runtime::Current()->GetEnvSnapshot();
+      // Allocation between fork and exec is not well-behaved.  Use a variable-length array instead.
+      char* envp[saved_snapshot->name_value_pairs_.size() + 1];
+      for (size_t i = 0; i < saved_snapshot->name_value_pairs_.size(); ++i) {
+        envp[i] = const_cast<char*>(saved_snapshot->name_value_pairs_[i]->c_str());
+      }
+      envp[saved_snapshot->name_value_pairs_.size()] = nullptr;
+      execve(program, &args[0], envp);
+    }
+    PLOG(ERROR) << "Failed to execve(" << command_line << ")";
     // _exit to avoid atexit handlers in child.
     _exit(1);
   } else {
