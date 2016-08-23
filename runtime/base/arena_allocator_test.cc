@@ -16,6 +16,7 @@
 
 #include "base/arena_allocator.h"
 #include "base/arena_bit_vector.h"
+#include "base/memory_tool.h"
 #include "gtest/gtest.h"
 
 namespace art {
@@ -136,6 +137,99 @@ TEST_F(ArenaAllocatorTest, AllocAlignment) {
   }
 }
 
+TEST_F(ArenaAllocatorTest, ReallocReuse) {
+  // Realloc does not reuse arenas when running under sanitization. So we cannot do those
+  if (RUNNING_ON_MEMORY_TOOL != 0) {
+    printf("WARNING: TEST DISABLED FOR MEMORY_TOOL\n");
+    return;
+  }
+
+  {
+    // Case 1: small aligned allocation, aligned extend inside arena.
+    ArenaPool pool;
+    ArenaAllocator arena(&pool);
+
+    const size_t original_size = ArenaAllocator::kAlignment * 2;
+    void* original_allocation = arena.Alloc(original_size);
+
+    const size_t new_size = ArenaAllocator::kAlignment * 3;
+    void* realloc_allocation = arena.Realloc(original_allocation, original_size, new_size);
+    EXPECT_EQ(original_allocation, realloc_allocation);
+  }
+
+  {
+    // Case 2: small aligned allocation, non-aligned extend inside arena.
+    ArenaPool pool;
+    ArenaAllocator arena(&pool);
+
+    const size_t original_size = ArenaAllocator::kAlignment * 2;
+    void* original_allocation = arena.Alloc(original_size);
+
+    const size_t new_size = ArenaAllocator::kAlignment * 2 + (ArenaAllocator::kAlignment / 2);
+    void* realloc_allocation = arena.Realloc(original_allocation, original_size, new_size);
+    EXPECT_EQ(original_allocation, realloc_allocation);
+  }
+
+  {
+    // Case 3: small non-aligned allocation, aligned extend inside arena.
+    ArenaPool pool;
+    ArenaAllocator arena(&pool);
+
+    const size_t original_size = ArenaAllocator::kAlignment * 2 + (ArenaAllocator::kAlignment / 2);
+    void* original_allocation = arena.Alloc(original_size);
+
+    const size_t new_size = ArenaAllocator::kAlignment * 4;
+    void* realloc_allocation = arena.Realloc(original_allocation, original_size, new_size);
+    EXPECT_EQ(original_allocation, realloc_allocation);
+  }
+
+  {
+    // Case 4: small non-aligned allocation, aligned non-extend inside arena.
+    ArenaPool pool;
+    ArenaAllocator arena(&pool);
+
+    const size_t original_size = ArenaAllocator::kAlignment * 2 + (ArenaAllocator::kAlignment / 2);
+    void* original_allocation = arena.Alloc(original_size);
+
+    const size_t new_size = ArenaAllocator::kAlignment * 3;
+    void* realloc_allocation = arena.Realloc(original_allocation, original_size, new_size);
+    EXPECT_EQ(original_allocation, realloc_allocation);
+  }
+
+  // The next part is brittle, as the default size for an arena is variable, and we don't know about
+  // sanitization.
+
+  {
+    // Case 5: large allocation, aligned extend into next arena.
+    ArenaPool pool;
+    ArenaAllocator arena(&pool);
+
+    const size_t original_size = Arena::kDefaultSize - ArenaAllocator::kAlignment * 5;
+    void* original_allocation = arena.Alloc(original_size);
+
+    const size_t new_size = Arena::kDefaultSize + ArenaAllocator::kAlignment * 2;
+    void* realloc_allocation = arena.Realloc(original_allocation, original_size, new_size);
+    EXPECT_NE(original_allocation, realloc_allocation);
+  }
+
+  {
+    // Case 6: large allocation, non-aligned extend into next arena.
+    ArenaPool pool;
+    ArenaAllocator arena(&pool);
+
+    const size_t original_size = Arena::kDefaultSize -
+        ArenaAllocator::kAlignment * 4 -
+        ArenaAllocator::kAlignment / 2;
+    void* original_allocation = arena.Alloc(original_size);
+
+    const size_t new_size = Arena::kDefaultSize +
+        ArenaAllocator::kAlignment * 2 +
+        ArenaAllocator::kAlignment / 2;
+    void* realloc_allocation = arena.Realloc(original_allocation, original_size, new_size);
+    EXPECT_NE(original_allocation, realloc_allocation);
+  }
+}
+
 TEST_F(ArenaAllocatorTest, ReallocAlignment) {
   {
     // Case 1: small aligned allocation, aligned extend inside arena.
@@ -149,8 +243,6 @@ TEST_F(ArenaAllocatorTest, ReallocAlignment) {
     const size_t new_size = ArenaAllocator::kAlignment * 3;
     void* realloc_allocation = arena.Realloc(original_allocation, original_size, new_size);
     EXPECT_TRUE(IsAligned<ArenaAllocator::kAlignment>(realloc_allocation));
-    // Secondary: expect the same buffer.
-    EXPECT_EQ(original_allocation, realloc_allocation);
 
     void* after_alloc = arena.Alloc(1);
     EXPECT_TRUE(IsAligned<ArenaAllocator::kAlignment>(after_alloc));
@@ -168,8 +260,6 @@ TEST_F(ArenaAllocatorTest, ReallocAlignment) {
     const size_t new_size = ArenaAllocator::kAlignment * 2 + (ArenaAllocator::kAlignment / 2);
     void* realloc_allocation = arena.Realloc(original_allocation, original_size, new_size);
     EXPECT_TRUE(IsAligned<ArenaAllocator::kAlignment>(realloc_allocation));
-    // Secondary: expect the same buffer.
-    EXPECT_EQ(original_allocation, realloc_allocation);
 
     void* after_alloc = arena.Alloc(1);
     EXPECT_TRUE(IsAligned<ArenaAllocator::kAlignment>(after_alloc));
@@ -187,8 +277,6 @@ TEST_F(ArenaAllocatorTest, ReallocAlignment) {
     const size_t new_size = ArenaAllocator::kAlignment * 4;
     void* realloc_allocation = arena.Realloc(original_allocation, original_size, new_size);
     EXPECT_TRUE(IsAligned<ArenaAllocator::kAlignment>(realloc_allocation));
-    // Secondary: expect the same buffer.
-    EXPECT_EQ(original_allocation, realloc_allocation);
 
     void* after_alloc = arena.Alloc(1);
     EXPECT_TRUE(IsAligned<ArenaAllocator::kAlignment>(after_alloc));
@@ -206,8 +294,6 @@ TEST_F(ArenaAllocatorTest, ReallocAlignment) {
     const size_t new_size = ArenaAllocator::kAlignment * 3;
     void* realloc_allocation = arena.Realloc(original_allocation, original_size, new_size);
     EXPECT_TRUE(IsAligned<ArenaAllocator::kAlignment>(realloc_allocation));
-    // Secondary: expect the same buffer.
-    EXPECT_EQ(original_allocation, realloc_allocation);
 
     void* after_alloc = arena.Alloc(1);
     EXPECT_TRUE(IsAligned<ArenaAllocator::kAlignment>(after_alloc));
@@ -228,8 +314,6 @@ TEST_F(ArenaAllocatorTest, ReallocAlignment) {
     const size_t new_size = Arena::kDefaultSize + ArenaAllocator::kAlignment * 2;
     void* realloc_allocation = arena.Realloc(original_allocation, original_size, new_size);
     EXPECT_TRUE(IsAligned<ArenaAllocator::kAlignment>(realloc_allocation));
-    // Secondary: expect new buffer.
-    EXPECT_NE(original_allocation, realloc_allocation);
 
     void* after_alloc = arena.Alloc(1);
     EXPECT_TRUE(IsAligned<ArenaAllocator::kAlignment>(after_alloc));
@@ -251,8 +335,6 @@ TEST_F(ArenaAllocatorTest, ReallocAlignment) {
         ArenaAllocator::kAlignment / 2;
     void* realloc_allocation = arena.Realloc(original_allocation, original_size, new_size);
     EXPECT_TRUE(IsAligned<ArenaAllocator::kAlignment>(realloc_allocation));
-    // Secondary: expect new buffer.
-    EXPECT_NE(original_allocation, realloc_allocation);
 
     void* after_alloc = arena.Alloc(1);
     EXPECT_TRUE(IsAligned<ArenaAllocator::kAlignment>(after_alloc));
