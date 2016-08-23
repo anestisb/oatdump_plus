@@ -445,8 +445,8 @@ class ArraySetSlowPathX86 : public SlowPathCode {
 // Slow path marking an object during a read barrier.
 class ReadBarrierMarkSlowPathX86 : public SlowPathCode {
  public:
-  ReadBarrierMarkSlowPathX86(HInstruction* instruction, Location obj, bool unpoison)
-      : SlowPathCode(instruction), obj_(obj), unpoison_(unpoison) {
+  ReadBarrierMarkSlowPathX86(HInstruction* instruction, Location obj)
+      : SlowPathCode(instruction), obj_(obj) {
     DCHECK(kEmitCompilerReadBarrier);
   }
 
@@ -470,10 +470,6 @@ class ReadBarrierMarkSlowPathX86 : public SlowPathCode {
         << instruction_->DebugName();
 
     __ Bind(GetEntryLabel());
-    if (unpoison_) {
-      // Object* ref = ref_addr->AsMirrorPtr()
-      __ MaybeUnpoisonHeapReference(reg);
-    }
     // No need to save live registers; it's taken care of by the
     // entrypoint. Also, there is no need to update the stack mask,
     // as this runtime call will not trigger a garbage collection.
@@ -503,7 +499,6 @@ class ReadBarrierMarkSlowPathX86 : public SlowPathCode {
 
  private:
   const Location obj_;
-  const bool unpoison_;
 
   DISALLOW_COPY_AND_ASSIGN(ReadBarrierMarkSlowPathX86);
 };
@@ -4636,6 +4631,10 @@ void LocationsBuilderX86::HandleFieldGet(HInstruction* instruction, const FieldI
     // load the temp into the XMM and then copy the XMM into the
     // output, 32 bits at a time).
     locations->AddTemp(Location::RequiresFpuRegister());
+  } else if (object_field_get_with_read_barrier && kUseBakerReadBarrier) {
+    // We need a temporary register for the read barrier marking slow
+    // path in CodeGeneratorX86::GenerateFieldLoadWithBakerReadBarrier.
+    locations->AddTemp(Location::RequiresRegister());
   }
 }
 
@@ -4679,10 +4678,11 @@ void InstructionCodeGeneratorX86::HandleFieldGet(HInstruction* instruction,
     case Primitive::kPrimNot: {
       // /* HeapReference<Object> */ out = *(base + offset)
       if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+        Location temp_loc = locations->GetTemp(0);
         // Note that a potential implicit null check is handled in this
         // CodeGeneratorX86::GenerateFieldLoadWithBakerReadBarrier call.
         codegen_->GenerateFieldLoadWithBakerReadBarrier(
-            instruction, out, base, offset, /* needs_null_check */ true);
+            instruction, out, base, offset, temp_loc, /* needs_null_check */ true);
         if (is_volatile) {
           codegen_->GenerateMemoryBarrier(MemBarrierKind::kLoadAny);
         }
@@ -5093,6 +5093,11 @@ void LocationsBuilderX86::VisitArrayGet(HArrayGet* instruction) {
             Location::kOutputOverlap :
             Location::kNoOutputOverlap);
   }
+  // We need a temporary register for the read barrier marking slow
+  // path in CodeGeneratorX86::GenerateArrayLoadWithBakerReadBarrier.
+  if (object_array_get_with_read_barrier && kUseBakerReadBarrier) {
+    locations->AddTemp(Location::RequiresRegister());
+  }
 }
 
 void InstructionCodeGeneratorX86::VisitArrayGet(HArrayGet* instruction) {
@@ -5167,10 +5172,11 @@ void InstructionCodeGeneratorX86::VisitArrayGet(HArrayGet* instruction) {
       // /* HeapReference<Object> */ out =
       //     *(obj + data_offset + index * sizeof(HeapReference<Object>))
       if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+        Location temp = locations->GetTemp(0);
         // Note that a potential implicit null check is handled in this
         // CodeGeneratorX86::GenerateArrayLoadWithBakerReadBarrier call.
         codegen_->GenerateArrayLoadWithBakerReadBarrier(
-            instruction, out_loc, obj, data_offset, index, /* needs_null_check */ true);
+            instruction, out_loc, obj, data_offset, index, temp, /* needs_null_check */ true);
       } else {
         Register out = out_loc.AsRegister<Register>();
         if (index.IsConstant()) {
@@ -6275,8 +6281,8 @@ void InstructionCodeGeneratorX86::VisitThrow(HThrow* instruction) {
 
 static bool TypeCheckNeedsATemporary(TypeCheckKind type_check_kind) {
   return kEmitCompilerReadBarrier &&
-      !kUseBakerReadBarrier &&
-      (type_check_kind == TypeCheckKind::kAbstractClassCheck ||
+      (kUseBakerReadBarrier ||
+       type_check_kind == TypeCheckKind::kAbstractClassCheck ||
        type_check_kind == TypeCheckKind::kClassHierarchyCheck ||
        type_check_kind == TypeCheckKind::kArrayObjectCheck);
 }
@@ -6337,7 +6343,7 @@ void InstructionCodeGeneratorX86::VisitInstanceOf(HInstanceOf* instruction) {
   }
 
   // /* HeapReference<Class> */ out = obj->klass_
-  GenerateReferenceLoadTwoRegisters(instruction, out_loc, obj_loc, class_offset);
+  GenerateReferenceLoadTwoRegisters(instruction, out_loc, obj_loc, class_offset, maybe_temp_loc);
 
   switch (type_check_kind) {
     case TypeCheckKind::kExactCheck: {
@@ -6559,7 +6565,7 @@ void InstructionCodeGeneratorX86::VisitCheckCast(HCheckCast* instruction) {
   }
 
   // /* HeapReference<Class> */ temp = obj->klass_
-  GenerateReferenceLoadTwoRegisters(instruction, temp_loc, obj_loc, class_offset);
+  GenerateReferenceLoadTwoRegisters(instruction, temp_loc, obj_loc, class_offset, maybe_temp2_loc);
 
   switch (type_check_kind) {
     case TypeCheckKind::kExactCheck:
@@ -6595,7 +6601,8 @@ void InstructionCodeGeneratorX86::VisitCheckCast(HCheckCast* instruction) {
       // going into the slow path, as it has been overwritten in the
       // meantime.
       // /* HeapReference<Class> */ temp = obj->klass_
-      GenerateReferenceLoadTwoRegisters(instruction, temp_loc, obj_loc, class_offset);
+      GenerateReferenceLoadTwoRegisters(
+          instruction, temp_loc, obj_loc, class_offset, maybe_temp2_loc);
       __ jmp(type_check_slow_path->GetEntryLabel());
 
       __ Bind(&compare_classes);
@@ -6634,7 +6641,8 @@ void InstructionCodeGeneratorX86::VisitCheckCast(HCheckCast* instruction) {
       // going into the slow path, as it has been overwritten in the
       // meantime.
       // /* HeapReference<Class> */ temp = obj->klass_
-      GenerateReferenceLoadTwoRegisters(instruction, temp_loc, obj_loc, class_offset);
+      GenerateReferenceLoadTwoRegisters(
+          instruction, temp_loc, obj_loc, class_offset, maybe_temp2_loc);
       __ jmp(type_check_slow_path->GetEntryLabel());
       break;
     }
@@ -6666,7 +6674,8 @@ void InstructionCodeGeneratorX86::VisitCheckCast(HCheckCast* instruction) {
       // going into the slow path, as it has been overwritten in the
       // meantime.
       // /* HeapReference<Class> */ temp = obj->klass_
-      GenerateReferenceLoadTwoRegisters(instruction, temp_loc, obj_loc, class_offset);
+      GenerateReferenceLoadTwoRegisters(
+          instruction, temp_loc, obj_loc, class_offset, maybe_temp2_loc);
       __ jmp(type_check_slow_path->GetEntryLabel());
 
       __ Bind(&check_non_primitive_component_type);
@@ -6674,7 +6683,8 @@ void InstructionCodeGeneratorX86::VisitCheckCast(HCheckCast* instruction) {
       __ j(kEqual, &done);
       // Same comment as above regarding `temp` and the slow path.
       // /* HeapReference<Class> */ temp = obj->klass_
-      GenerateReferenceLoadTwoRegisters(instruction, temp_loc, obj_loc, class_offset);
+      GenerateReferenceLoadTwoRegisters(
+          instruction, temp_loc, obj_loc, class_offset, maybe_temp2_loc);
       __ jmp(type_check_slow_path->GetEntryLabel());
       break;
     }
@@ -6865,17 +6875,17 @@ void InstructionCodeGeneratorX86::GenerateReferenceLoadOneRegister(HInstruction*
                                                                    Location maybe_temp) {
   Register out_reg = out.AsRegister<Register>();
   if (kEmitCompilerReadBarrier) {
+    DCHECK(maybe_temp.IsRegister()) << maybe_temp;
     if (kUseBakerReadBarrier) {
       // Load with fast path based Baker's read barrier.
       // /* HeapReference<Object> */ out = *(out + offset)
       codegen_->GenerateFieldLoadWithBakerReadBarrier(
-          instruction, out, out_reg, offset, /* needs_null_check */ false);
+          instruction, out, out_reg, offset, maybe_temp, /* needs_null_check */ false);
     } else {
       // Load with slow path based read barrier.
       // Save the value of `out` into `maybe_temp` before overwriting it
       // in the following move operation, as we will need it for the
       // read barrier below.
-      DCHECK(maybe_temp.IsRegister()) << maybe_temp;
       __ movl(maybe_temp.AsRegister<Register>(), out_reg);
       // /* HeapReference<Object> */ out = *(out + offset)
       __ movl(out_reg, Address(out_reg, offset));
@@ -6892,15 +6902,17 @@ void InstructionCodeGeneratorX86::GenerateReferenceLoadOneRegister(HInstruction*
 void InstructionCodeGeneratorX86::GenerateReferenceLoadTwoRegisters(HInstruction* instruction,
                                                                     Location out,
                                                                     Location obj,
-                                                                    uint32_t offset) {
+                                                                    uint32_t offset,
+                                                                    Location maybe_temp) {
   Register out_reg = out.AsRegister<Register>();
   Register obj_reg = obj.AsRegister<Register>();
   if (kEmitCompilerReadBarrier) {
     if (kUseBakerReadBarrier) {
+      DCHECK(maybe_temp.IsRegister()) << maybe_temp;
       // Load with fast path based Baker's read barrier.
       // /* HeapReference<Object> */ out = *(obj + offset)
       codegen_->GenerateFieldLoadWithBakerReadBarrier(
-          instruction, out, obj_reg, offset, /* needs_null_check */ false);
+          instruction, out, obj_reg, offset, maybe_temp, /* needs_null_check */ false);
     } else {
       // Load with slow path based read barrier.
       // /* HeapReference<Object> */ out = *(obj + offset)
@@ -6943,9 +6955,9 @@ void InstructionCodeGeneratorX86::GenerateGcRootFieldLoad(HInstruction* instruct
                     "art::mirror::CompressedReference<mirror::Object> and int32_t "
                     "have different sizes.");
 
-      // Slow path marking the GC root `root`.
-      SlowPathCode* slow_path = new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathX86(
-          instruction, root, /* unpoison */ false);
+      // Slow path used to mark the GC root `root`.
+      SlowPathCode* slow_path =
+          new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathX86(instruction, root);
       codegen_->AddSlowPath(slow_path);
 
       __ fs()->cmpl(Address::Absolute(Thread::IsGcMarkingOffset<kX86PointerSize>().Int32Value()),
@@ -6979,13 +6991,14 @@ void CodeGeneratorX86::GenerateFieldLoadWithBakerReadBarrier(HInstruction* instr
                                                              Location ref,
                                                              Register obj,
                                                              uint32_t offset,
+                                                             Location temp,
                                                              bool needs_null_check) {
   DCHECK(kEmitCompilerReadBarrier);
   DCHECK(kUseBakerReadBarrier);
 
   // /* HeapReference<Object> */ ref = *(obj + offset)
   Address src(obj, offset);
-  GenerateReferenceLoadWithBakerReadBarrier(instruction, ref, obj, src, needs_null_check);
+  GenerateReferenceLoadWithBakerReadBarrier(instruction, ref, obj, src, temp, needs_null_check);
 }
 
 void CodeGeneratorX86::GenerateArrayLoadWithBakerReadBarrier(HInstruction* instruction,
@@ -6993,6 +7006,7 @@ void CodeGeneratorX86::GenerateArrayLoadWithBakerReadBarrier(HInstruction* instr
                                                              Register obj,
                                                              uint32_t data_offset,
                                                              Location index,
+                                                             Location temp,
                                                              bool needs_null_check) {
   DCHECK(kEmitCompilerReadBarrier);
   DCHECK(kUseBakerReadBarrier);
@@ -7005,13 +7019,14 @@ void CodeGeneratorX86::GenerateArrayLoadWithBakerReadBarrier(HInstruction* instr
   Address src = index.IsConstant() ?
       Address(obj, (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset) :
       Address(obj, index.AsRegister<Register>(), TIMES_4, data_offset);
-  GenerateReferenceLoadWithBakerReadBarrier(instruction, ref, obj, src, needs_null_check);
+  GenerateReferenceLoadWithBakerReadBarrier(instruction, ref, obj, src, temp, needs_null_check);
 }
 
 void CodeGeneratorX86::GenerateReferenceLoadWithBakerReadBarrier(HInstruction* instruction,
                                                                  Location ref,
                                                                  Register obj,
                                                                  const Address& src,
+                                                                 Location temp,
                                                                  bool needs_null_check) {
   DCHECK(kEmitCompilerReadBarrier);
   DCHECK(kUseBakerReadBarrier);
@@ -7041,23 +7056,17 @@ void CodeGeneratorX86::GenerateReferenceLoadWithBakerReadBarrier(HInstruction* i
   //   performance reasons.
 
   Register ref_reg = ref.AsRegister<Register>();
+  Register temp_reg = temp.AsRegister<Register>();
   uint32_t monitor_offset = mirror::Object::MonitorOffset().Int32Value();
 
-  // Given the numeric representation, it's enough to check the low bit of the rb_state.
-  static_assert(ReadBarrier::white_ptr_ == 0, "Expecting white to have value 0");
-  static_assert(ReadBarrier::gray_ptr_ == 1, "Expecting gray to have value 1");
-  static_assert(ReadBarrier::black_ptr_ == 2, "Expecting black to have value 2");
-  constexpr uint32_t gray_byte_position = LockWord::kReadBarrierStateShift / kBitsPerByte;
-  constexpr uint32_t gray_bit_position = LockWord::kReadBarrierStateShift % kBitsPerByte;
-  constexpr int32_t test_value = static_cast<int8_t>(1 << gray_bit_position);
-
-  // if (rb_state == ReadBarrier::gray_ptr_)
-  //   ref = ReadBarrier::Mark(ref);
-  // At this point, just do the "if" and make sure that flags are preserved until the branch.
-  __ testb(Address(obj, monitor_offset + gray_byte_position), Immediate(test_value));
+  // /* int32_t */ monitor = obj->monitor_
+  __ movl(temp_reg, Address(obj, monitor_offset));
   if (needs_null_check) {
     MaybeRecordImplicitNullCheck(instruction);
   }
+  // /* LockWord */ lock_word = LockWord(monitor)
+  static_assert(sizeof(LockWord) == sizeof(int32_t),
+                "art::LockWord and int32_t have different sizes.");
 
   // Load fence to prevent load-load reordering.
   // Note that this is a no-op, thanks to the x86 memory model.
@@ -7065,20 +7074,25 @@ void CodeGeneratorX86::GenerateReferenceLoadWithBakerReadBarrier(HInstruction* i
 
   // The actual reference load.
   // /* HeapReference<Object> */ ref = *src
-  __ movl(ref_reg, src);  // Flags are unaffected.
-
-  // Note: Reference unpoisoning modifies the flags, so we need to delay it after the branch.
-  // Slow path marking the object `ref` when it is gray.
-  SlowPathCode* slow_path = new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathX86(
-      instruction, ref, /* unpoison */ true);
-  AddSlowPath(slow_path);
-
-  // We have done the "if" of the gray bit check above, now branch based on the flags.
-  __ j(kNotZero, slow_path->GetEntryLabel());
+  __ movl(ref_reg, src);
 
   // Object* ref = ref_addr->AsMirrorPtr()
   __ MaybeUnpoisonHeapReference(ref_reg);
 
+  // Slow path used to mark the object `ref` when it is gray.
+  SlowPathCode* slow_path =
+      new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathX86(instruction, ref);
+  AddSlowPath(slow_path);
+
+  // if (rb_state == ReadBarrier::gray_ptr_)
+  //   ref = ReadBarrier::Mark(ref);
+  // Given the numeric representation, it's enough to check the low bit of the
+  // rb_state. We do that by shifting the bit out of the lock word with SHR.
+  static_assert(ReadBarrier::white_ptr_ == 0, "Expecting white to have value 0");
+  static_assert(ReadBarrier::gray_ptr_ == 1, "Expecting gray to have value 1");
+  static_assert(ReadBarrier::black_ptr_ == 2, "Expecting black to have value 2");
+  __ shrl(temp_reg, Immediate(LockWord::kReadBarrierStateShift + 1));
+  __ j(kCarrySet, slow_path->GetEntryLabel());
   __ Bind(slow_path->GetExitLabel());
 }
 
