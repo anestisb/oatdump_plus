@@ -1123,14 +1123,13 @@ DEFINE_FUNCTION art_quick_resolve_string
     movd %xmm0, %edx                                         // extract index
     cmp %edx, %eax
     jne .Lart_quick_resolve_string_slow_path
-#ifdef USE_READ_BARRIER
-    testl LITERAL(LOCK_WORD_MARK_BIT_MASK_SHIFTED), MIRROR_OBJECT_LOCK_WORD_OFFSET(%ecx)
-    jz .Lart_quick_resolve_string_slow_path
-#endif
     movl %ecx, %eax
+#ifdef USE_READ_BARRIER
+    cmpl LITERAL(0), %fs:THREAD_IS_GC_MARKING_OFFSET
+    jne .Lart_quick_resolve_string_marking
+#endif
     RESTORE_SAVE_REFS_ONLY_FRAME
     ret
-
 .Lart_quick_resolve_string_slow_path:
     // Outgoing argument set up
     subl LITERAL(8), %esp                                        // push padding
@@ -1143,7 +1142,18 @@ DEFINE_FUNCTION art_quick_resolve_string
     CFI_ADJUST_CFA_OFFSET(-16)
     RESTORE_SAVE_REFS_ONLY_FRAME
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
-
+.Lart_quick_resolve_string_marking:
+    testl LITERAL(LOCK_WORD_MARK_BIT_MASK_SHIFTED), MIRROR_OBJECT_LOCK_WORD_OFFSET(%eax)
+    jnz .Lart_quick_resolve_string_no_rb
+    subl LITERAL(12), %esp                                   // alignment padding
+    CFI_ADJUST_CFA_OFFSET(12)
+    PUSH eax                                                 // Pass the string as the first param.
+    call SYMBOL(artReadBarrierMark)
+    addl LITERAL(16), %esp
+    CFI_ADJUST_CFA_OFFSET(-16)
+.Lart_quick_resolve_string_no_rb:
+    RESTORE_SAVE_REFS_ONLY_FRAME
+    ret
 END_FUNCTION art_quick_resolve_string
 
 ONE_ARG_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
