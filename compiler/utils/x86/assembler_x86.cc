@@ -1148,23 +1148,6 @@ void X86Assembler::testl(Register reg, const Immediate& immediate) {
 }
 
 
-void X86Assembler::testb(const Address& dst, const Immediate& imm) {
-  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
-  EmitUint8(0xF6);
-  EmitOperand(EAX, dst);
-  CHECK(imm.is_int8());
-  EmitUint8(imm.value() & 0xFF);
-}
-
-
-void X86Assembler::testl(const Address& dst, const Immediate& imm) {
-  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
-  EmitUint8(0xF7);
-  EmitOperand(0, dst);
-  EmitImmediate(imm);
-}
-
-
 void X86Assembler::andl(Register dst, Register src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x23);

@@ -1526,48 +1526,6 @@ TEST_F(AssemblerX86_64Test, Cmpb) {
   DriverStr(expected, "cmpb");
 }
 
-TEST_F(AssemblerX86_64Test, TestbAddressImmediate) {
-  GetAssembler()->testb(
-      x86_64::Address(x86_64::CpuRegister(x86_64::RDI),
-                      x86_64::CpuRegister(x86_64::RBX),
-                      x86_64::TIMES_4,
-                      12),
-      x86_64::Immediate(1));
-  GetAssembler()->testb(
-      x86_64::Address(x86_64::CpuRegister(x86_64::RSP), FrameOffset(7)),
-      x86_64::Immediate(-128));
-  GetAssembler()->testb(
-      x86_64::Address(x86_64::CpuRegister(x86_64::RBX), MemberOffset(130)),
-      x86_64::Immediate(127));
-  const char* expected =
-      "testb $1, 0xc(%RDI,%RBX,4)\n"
-      "testb $-128, 0x7(%RSP)\n"
-      "testb $127, 0x82(%RBX)\n";
-
-  DriverStr(expected, "TestbAddressImmediate");
-}
-
-TEST_F(AssemblerX86_64Test, TestlAddressImmediate) {
-  GetAssembler()->testl(
-      x86_64::Address(x86_64::CpuRegister(x86_64::RDI),
-                      x86_64::CpuRegister(x86_64::RBX),
-                      x86_64::TIMES_4,
-                      12),
-      x86_64::Immediate(1));
-  GetAssembler()->testl(
-      x86_64::Address(x86_64::CpuRegister(x86_64::RSP), FrameOffset(7)),
-      x86_64::Immediate(-100000));
-  GetAssembler()->testl(
-      x86_64::Address(x86_64::CpuRegister(x86_64::RBX), MemberOffset(130)),
-      x86_64::Immediate(77777777));
-  const char* expected =
-      "testl $1, 0xc(%RDI,%RBX,4)\n"
-      "testl $-100000, 0x7(%RSP)\n"
-      "testl $77777777, 0x82(%RBX)\n";
-
-  DriverStr(expected, "TestlAddressImmediate");
-}
-
 class JNIMacroAssemblerX86_64Test : public JNIMacroAssemblerTest<x86_64::X86_64JNIMacroAssembler> {
  public:
   using Base = JNIMacroAssemblerTest<x86_64::X86_64JNIMacroAssembler>;
