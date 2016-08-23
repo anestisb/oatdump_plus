@@ -375,6 +375,42 @@ TEST_F(AssemblerX86Test, CmovlAddress) {
   DriverStr(expected, "cmovl_address");
 }
 
+TEST_F(AssemblerX86Test, TestbAddressImmediate) {
+  GetAssembler()->testb(
+      x86::Address(x86::Register(x86::EDI), x86::Register(x86::EBX), x86::TIMES_4, 12),
+      x86::Immediate(1));
+  GetAssembler()->testb(
+      x86::Address(x86::Register(x86::ESP), FrameOffset(7)),
+      x86::Immediate(-128));
+  GetAssembler()->testb(
+      x86::Address(x86::Register(x86::EBX), MemberOffset(130)),
+      x86::Immediate(127));
+  const char* expected =
+      "testb $1, 0xc(%EDI,%EBX,4)\n"
+      "testb $-128, 0x7(%ESP)\n"
+      "testb $127, 0x82(%EBX)\n";
+
+  DriverStr(expected, "TestbAddressImmediate");
+}
+
+TEST_F(AssemblerX86Test, TestlAddressImmediate) {
+  GetAssembler()->testl(
+      x86::Address(x86::Register(x86::EDI), x86::Register(x86::EBX), x86::TIMES_4, 12),
+      x86::Immediate(1));
+  GetAssembler()->testl(
+      x86::Address(x86::Register(x86::ESP), FrameOffset(7)),
+      x86::Immediate(-100000));
+  GetAssembler()->testl(
+      x86::Address(x86::Register(x86::EBX), MemberOffset(130)),
+      x86::Immediate(77777777));
+  const char* expected =
+      "testl $1, 0xc(%EDI,%EBX,4)\n"
+      "testl $-100000, 0x7(%ESP)\n"
+      "testl $77777777, 0x82(%EBX)\n";
+
+  DriverStr(expected, "TestlAddressImmediate");
+}
+
 /////////////////
 // Near labels //
 /////////////////
