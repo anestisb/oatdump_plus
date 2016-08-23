@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "interpreter_switch_impl.h"
+
 #include "base/enums.h"
 #include "experimental_flags.h"
 #include "interpreter_common.h"
@@ -2337,19 +2339,19 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
 }  // NOLINT(readability/fn_size)
 
 // Explicit definitions of ExecuteSwitchImpl.
-template SHARED_REQUIRES(Locks::mutator_lock_) HOT_ATTR
+template HOT_ATTR
 JValue ExecuteSwitchImpl<true, false>(Thread* self, const DexFile::CodeItem* code_item,
                                       ShadowFrame& shadow_frame, JValue result_register,
                                       bool interpret_one_instruction);
-template SHARED_REQUIRES(Locks::mutator_lock_) HOT_ATTR
+template HOT_ATTR
 JValue ExecuteSwitchImpl<false, false>(Thread* self, const DexFile::CodeItem* code_item,
                                        ShadowFrame& shadow_frame, JValue result_register,
                                        bool interpret_one_instruction);
-template SHARED_REQUIRES(Locks::mutator_lock_)
+template
 JValue ExecuteSwitchImpl<true, true>(Thread* self, const DexFile::CodeItem* code_item,
                                      ShadowFrame& shadow_frame, JValue result_register,
                                      bool interpret_one_instruction);
-template SHARED_REQUIRES(Locks::mutator_lock_)
+template
 JValue ExecuteSwitchImpl<false, true>(Thread* self, const DexFile::CodeItem* code_item,
                                       ShadowFrame& shadow_frame, JValue result_register,
                                       bool interpret_one_instruction);

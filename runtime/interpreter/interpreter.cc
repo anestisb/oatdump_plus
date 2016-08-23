@@ -20,6 +20,9 @@
 
 #include "common_throws.h"
 #include "interpreter_common.h"
+#include "interpreter_goto_table_impl.h"
+#include "interpreter_mterp_impl.h"
+#include "interpreter_switch_impl.h"
 #include "mirror/string-inl.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
@@ -241,28 +244,6 @@ static std::ostream& operator<<(std::ostream& os, const InterpreterImplKind& rhs
 }
 
 static constexpr InterpreterImplKind kInterpreterImplKind = kMterpImplKind;
-
-#if defined(__clang__)
-// Clang 3.4 fails to build the goto interpreter implementation.
-template<bool do_access_check, bool transaction_active>
-JValue ExecuteGotoImpl(Thread*, const DexFile::CodeItem*, ShadowFrame&, JValue) {
-  LOG(FATAL) << "UNREACHABLE";
-  UNREACHABLE();
-}
-// Explicit definitions of ExecuteGotoImpl.
-template<> SHARED_REQUIRES(Locks::mutator_lock_)
-JValue ExecuteGotoImpl<true, false>(Thread* self, const DexFile::CodeItem* code_item,
-                                    ShadowFrame& shadow_frame, JValue result_register);
-template<> SHARED_REQUIRES(Locks::mutator_lock_)
-JValue ExecuteGotoImpl<false, false>(Thread* self, const DexFile::CodeItem* code_item,
-                                     ShadowFrame& shadow_frame, JValue result_register);
-template<> SHARED_REQUIRES(Locks::mutator_lock_)
-JValue ExecuteGotoImpl<true, true>(Thread* self,  const DexFile::CodeItem* code_item,
-                                   ShadowFrame& shadow_frame, JValue result_register);
-template<> SHARED_REQUIRES(Locks::mutator_lock_)
-JValue ExecuteGotoImpl<false, true>(Thread* self, const DexFile::CodeItem* code_item,
-                                    ShadowFrame& shadow_frame, JValue result_register);
-#endif
 
 static inline JValue Execute(
     Thread* self,
