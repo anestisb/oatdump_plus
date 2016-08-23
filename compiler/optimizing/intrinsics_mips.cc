@@ -2456,16 +2456,18 @@ void IntrinsicCodeGeneratorMIPS::VisitMathRoundFloat(HInvoke* invoke) {
   __ FloorWS(FTMP, in);
   __ Mfc1(out, FTMP);
 
-  __ LoadConst32(TMP, 1);
+  if (!IsR6()) {
+    __ LoadConst32(TMP, -1);
+  }
 
-  // TMP = (out = java.lang.Integer.MAX_VALUE) ? 1 : 0;
+  // TMP = (out = java.lang.Integer.MAX_VALUE) ? -1 : 0;
   __ LoadConst32(AT, std::numeric_limits<int32_t>::max());
   __ Bne(AT, out, &finite);
 
   __ Mtc1(ZERO, FTMP);
   if (IsR6()) {
     __ CmpLtS(FTMP, in, FTMP);
-    __ Mfc1(AT, FTMP);
+    __ Mfc1(TMP, FTMP);
   } else {
     __ ColtS(in, FTMP);
   }
@@ -2474,28 +2476,26 @@ void IntrinsicCodeGeneratorMIPS::VisitMathRoundFloat(HInvoke* invoke) {
 
   __ Bind(&finite);
 
-  // TMP = (0.5f <= (in - out)) ? 1 : 0;
+  // TMP = (0.5f <= (in - out)) ? -1 : 0;
   __ Cvtsw(FTMP, FTMP);  // Convert output of floor.w.s back to "float".
   __ LoadConst32(AT, bit_cast<int32_t, float>(0.5f));
   __ SubS(FTMP, in, FTMP);
   __ Mtc1(AT, half);
   if (IsR6()) {
     __ CmpLeS(FTMP, half, FTMP);
-    __ Mfc1(AT, FTMP);
+    __ Mfc1(TMP, FTMP);
   } else {
     __ ColeS(half, FTMP);
   }
 
   __ Bind(&add);
 
-  if (IsR6()) {
-    __ Selnez(TMP, TMP, AT);
-  } else {
+  if (!IsR6()) {
     __ Movf(TMP, ZERO);
   }
 
-  // Return out += TMP.
-  __ Addu(out, out, TMP);
+  // Return out -= TMP.
+  __ Subu(out, out, TMP);
 
   __ Bind(&done);
 }
