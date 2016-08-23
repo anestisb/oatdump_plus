@@ -1046,20 +1046,32 @@ ENTRY art_quick_resolve_string
     cmp    r0, r3
     bne    .Lart_quick_resolve_string_slow_path
 #ifdef USE_READ_BARRIER
-    ldr    r3, [r2, MIRROR_OBJECT_LOCK_WORD_OFFSET]
-    tst    r3, #LOCK_WORD_MARK_BIT_MASK_SHIFTED
-    beq    .Lart_quick_resolve_string_slow_path
+    ldr    r3, [rSELF, #THREAD_IS_GC_MARKING_OFFSET]
+    cbnz   r3, .Lart_quick_resolve_string_marking
 #endif
     mov    r0, r2
     bx     lr
-
+// Slow path case, the index did not match
 .Lart_quick_resolve_string_slow_path:
-    SETUP_SAVE_REFS_ONLY_FRAME r2                                @ save callee saves in case of GC
-    mov    r1, r9                                                @ pass Thread::Current
+    SETUP_SAVE_REFS_ONLY_FRAME r2                    @ save callee saves in case of GC
+    mov    r1, r9                                    @ pass Thread::Current
     mov    r3, sp
-    bl     artResolveStringFromCode                              @ (uint32_t type_idx, Method* method, Thread*)
+    bl     artResolveStringFromCode                  @ (uint32_t type_idx, Method* method, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+// GC is marking case, need to check the mark bit.
+.Lart_quick_resolve_string_marking:
+    ldr    r3, [r2, MIRROR_OBJECT_LOCK_WORD_OFFSET]
+    tst    r3, #LOCK_WORD_MARK_BIT_MASK_SHIFTED
+    mov    r0, r2
+    bne    .Lart_quick_resolve_string_no_rb
+    push   {r1, r2, r3, lr}                          @ Save x1, LR
+    .cfi_adjust_cfa_offset 16
+    bl     artReadBarrierMark                        @ Get the marked string back.
+    pop    {r1, r2, r3, lr}                          @ Restore registers.
+    .cfi_adjust_cfa_offset -16
+.Lart_quick_resolve_string_no_rb:
+    bx     lr
 END art_quick_resolve_string
 
 // Generate the allocation entrypoints for each allocator.
