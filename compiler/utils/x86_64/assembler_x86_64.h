@@ -528,9 +528,6 @@ class X86_64Assembler FINAL : public Assembler {
   void testq(CpuRegister reg1, CpuRegister reg2);
   void testq(CpuRegister reg, const Address& address);
 
-  void testb(const Address& address, const Immediate& imm);
-  void testl(const Address& address, const Immediate& imm);
-
   void andl(CpuRegister dst, const Immediate& imm);
   void andl(CpuRegister dst, CpuRegister src);
   void andl(CpuRegister reg, const Address& address);

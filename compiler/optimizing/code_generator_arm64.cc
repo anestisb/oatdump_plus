@@ -5041,7 +5041,7 @@ void InstructionCodeGeneratorARM64::GenerateGcRootFieldLoad(HInstruction* instru
                     "art::mirror::CompressedReference<mirror::Object> and int32_t "
                     "have different sizes.");
 
-      // Slow path marking the GC root `root`.
+      // Slow path used to mark the GC root `root`.
       SlowPathCodeARM64* slow_path =
           new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathARM64(instruction, root);
       codegen_->AddSlowPath(slow_path);
@@ -5239,7 +5239,7 @@ void CodeGeneratorARM64::GenerateReferenceLoadWithBakerReadBarrier(HInstruction*
   // Object* ref = ref_addr->AsMirrorPtr()
   GetAssembler()->MaybeUnpoisonHeapReference(ref_reg);
 
-  // Slow path marking the object `ref` when it is gray.
+  // Slow path used to mark the object `ref` when it is gray.
   SlowPathCodeARM64* slow_path =
       new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathARM64(instruction, ref);
   AddSlowPath(slow_path);
