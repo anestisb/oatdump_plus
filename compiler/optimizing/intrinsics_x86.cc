@@ -1934,9 +1934,10 @@ static void GenUnsafeGet(HInvoke* invoke,
       Register output = output_loc.AsRegister<Register>();
       if (kEmitCompilerReadBarrier) {
         if (kUseBakerReadBarrier) {
+          Location temp = locations->GetTemp(0);
           Address src(base, offset, ScaleFactor::TIMES_1, 0);
           codegen->GenerateReferenceLoadWithBakerReadBarrier(
-              invoke, output_loc, base, src, /* needs_null_check */ false);
+              invoke, output_loc, base, src, temp, /* needs_null_check */ false);
         } else {
           __ movl(output, Address(base, offset, ScaleFactor::TIMES_1, 0));
           codegen->GenerateReadBarrierSlow(
@@ -1998,6 +1999,11 @@ static void CreateIntIntIntToIntLocations(ArenaAllocator* arena,
   } else {
     locations->SetOut(Location::RequiresRegister(),
                       can_call ? Location::kOutputOverlap : Location::kNoOutputOverlap);
+  }
+  if (type == Primitive::kPrimNot && kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
+    // We need a temporary register for the read barrier marking slow
+    // path in InstructionCodeGeneratorX86::GenerateReferenceLoadWithBakerReadBarrier.
+    locations->AddTemp(Location::RequiresRegister());
   }
 }
 
@@ -2927,11 +2933,11 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
       if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
         // /* HeapReference<Class> */ temp1 = src->klass_
         codegen_->GenerateFieldLoadWithBakerReadBarrier(
-            invoke, temp1_loc, src, class_offset, /* needs_null_check */ false);
+            invoke, temp1_loc, src, class_offset, temp2_loc, /* needs_null_check */ false);
         // Bail out if the source is not a non primitive array.
         // /* HeapReference<Class> */ temp1 = temp1->component_type_
         codegen_->GenerateFieldLoadWithBakerReadBarrier(
-            invoke, temp1_loc, temp1, component_offset, /* needs_null_check */ false);
+            invoke, temp1_loc, temp1, component_offset, temp2_loc, /* needs_null_check */ false);
         __ testl(temp1, temp1);
         __ j(kEqual, intrinsic_slow_path->GetEntryLabel());
         // If heap poisoning is enabled, `temp1` has been unpoisoned
@@ -2964,7 +2970,7 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
 
       // /* HeapReference<Class> */ temp1 = dest->klass_
       codegen_->GenerateFieldLoadWithBakerReadBarrier(
-          invoke, temp1_loc, dest, class_offset, /* needs_null_check */ false);
+          invoke, temp1_loc, dest, class_offset, temp2_loc, /* needs_null_check */ false);
 
       if (!optimizations.GetDestinationIsNonPrimitiveArray()) {
         // Bail out if the destination is not a non primitive array.
@@ -2976,7 +2982,7 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
         // temporaries such a `temp1`.
         // /* HeapReference<Class> */ temp2 = temp1->component_type_
         codegen_->GenerateFieldLoadWithBakerReadBarrier(
-            invoke, temp2_loc, temp1, component_offset, /* needs_null_check */ false);
+            invoke, temp2_loc, temp1, component_offset, temp3_loc, /* needs_null_check */ false);
         __ testl(temp2, temp2);
         __ j(kEqual, intrinsic_slow_path->GetEntryLabel());
         // If heap poisoning is enabled, `temp2` has been unpoisoned
@@ -2989,7 +2995,7 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
       // read barrier emitted by GenerateFieldLoadWithBakerReadBarrier below.
       // /* HeapReference<Class> */ temp2 = src->klass_
       codegen_->GenerateFieldLoadWithBakerReadBarrier(
-          invoke, temp2_loc, src, class_offset, /* needs_null_check */ false);
+          invoke, temp2_loc, src, class_offset, temp3_loc, /* needs_null_check */ false);
       // Note: if heap poisoning is on, we are comparing two unpoisoned references here.
       __ cmpl(temp1, temp2);
 
@@ -2998,7 +3004,7 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
         __ j(kEqual, &do_copy);
         // /* HeapReference<Class> */ temp1 = temp1->component_type_
         codegen_->GenerateFieldLoadWithBakerReadBarrier(
-            invoke, temp1_loc, temp1, component_offset, /* needs_null_check */ false);
+            invoke, temp1_loc, temp1, component_offset, temp2_loc, /* needs_null_check */ false);
         // We do not need to emit a read barrier for the following
         // heap reference load, as `temp1` is only used in a
         // comparison with null below, and this reference is not
@@ -3052,10 +3058,10 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
     if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
       // /* HeapReference<Class> */ temp1 = src->klass_
       codegen_->GenerateFieldLoadWithBakerReadBarrier(
-          invoke, temp1_loc, src, class_offset, /* needs_null_check */ false);
+          invoke, temp1_loc, src, class_offset, temp2_loc, /* needs_null_check */ false);
       // /* HeapReference<Class> */ temp1 = temp1->component_type_
       codegen_->GenerateFieldLoadWithBakerReadBarrier(
-          invoke, temp1_loc, temp1, component_offset, /* needs_null_check */ false);
+          invoke, temp1_loc, temp1, component_offset, temp2_loc, /* needs_null_check */ false);
       __ testl(temp1, temp1);
       __ j(kEqual, intrinsic_slow_path->GetEntryLabel());
       // If heap poisoning is enabled, `temp1` has been unpoisoned
@@ -3133,18 +3139,11 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
     __ cmpl(temp1, temp3);
     __ j(kEqual, &done);
 
-    // Given the numeric representation, it's enough to check the low bit of the rb_state.
-    static_assert(ReadBarrier::white_ptr_ == 0, "Expecting white to have value 0");
-    static_assert(ReadBarrier::gray_ptr_ == 1, "Expecting gray to have value 1");
-    static_assert(ReadBarrier::black_ptr_ == 2, "Expecting black to have value 2");
-    constexpr uint32_t gray_byte_position = LockWord::kReadBarrierStateShift / kBitsPerByte;
-    constexpr uint32_t gray_bit_position = LockWord::kReadBarrierStateShift % kBitsPerByte;
-    constexpr int32_t test_value = static_cast<int8_t>(1 << gray_bit_position);
-
-    // if (rb_state == ReadBarrier::gray_ptr_)
-    //   goto slow_path;
-    // At this point, just do the "if" and make sure that flags are preserved until the branch.
-    __ testb(Address(src, monitor_offset + gray_byte_position), Immediate(test_value));
+    // /* int32_t */ monitor = src->monitor_
+    __ movl(temp2, Address(src, monitor_offset));
+    // /* LockWord */ lock_word = LockWord(monitor)
+    static_assert(sizeof(LockWord) == sizeof(int32_t),
+                  "art::LockWord and int32_t have different sizes.");
 
     // Load fence to prevent load-load reordering.
     // Note that this is a no-op, thanks to the x86 memory model.
@@ -3155,8 +3154,13 @@ void IntrinsicCodeGeneratorX86::VisitSystemArrayCopy(HInvoke* invoke) {
         new (GetAllocator()) ReadBarrierSystemArrayCopySlowPathX86(invoke);
     codegen_->AddSlowPath(read_barrier_slow_path);
 
-    // We have done the "if" of the gray bit check above, now branch based on the flags.
-    __ j(kNotZero, read_barrier_slow_path->GetEntryLabel());
+    // Given the numeric representation, it's enough to check the low bit of the
+    // rb_state. We do that by shifting the bit out of the lock word with SHR.
+    static_assert(ReadBarrier::white_ptr_ == 0, "Expecting white to have value 0");
+    static_assert(ReadBarrier::gray_ptr_ == 1, "Expecting gray to have value 1");
+    static_assert(ReadBarrier::black_ptr_ == 2, "Expecting black to have value 2");
+    __ shrl(temp2, Immediate(LockWord::kReadBarrierStateShift + 1));
+    __ j(kCarrySet, read_barrier_slow_path->GetEntryLabel());
 
     // Fast-path copy.
 
