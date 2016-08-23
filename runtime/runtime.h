@@ -95,11 +95,6 @@ class Transaction;
 
 typedef std::vector<std::pair<std::string, const void*>> RuntimeOptions;
 
-struct EnvSnapshot {
- public:
-  std::vector<std::unique_ptr<std::string> > name_value_pairs_;
-};
-
 // Not all combinations of flags are valid. You may not visit all roots as well as the new roots
 // (no logical reason to do this). You also may not start logging new roots and stop logging new
 // roots (also no logical reason to do this).
@@ -647,12 +642,6 @@ class Runtime {
   // optimization that makes it impossible to deoptimize.
   bool IsDeoptimizeable(uintptr_t code) const SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // Returns a saved copy of the environment (getenv/setenv values).
-  // Used by Fork to protect against overwriting LD_LIBRARY_PATH, etc.
-  const EnvSnapshot* GetEnvSnapshot() const {
-    return env_snapshot_.get();
-  }
-
  private:
   static void InitPlatformSignalHandlers();
 
@@ -874,9 +863,6 @@ class Runtime {
 
   // Whether zygote code is in a section that should not start threads.
   bool zygote_no_threads_;
-
-  // Saved environment.
-  std::unique_ptr<const EnvSnapshot> env_snapshot_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };
