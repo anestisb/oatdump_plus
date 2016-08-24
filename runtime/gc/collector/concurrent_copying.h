@@ -104,7 +104,7 @@ class ConcurrentCopying : public GarbageCollector {
     DCHECK(ref != nullptr);
     return IsMarked(ref) == ref;
   }
-  template<bool kGrayImmuneObject = true>
+  template<bool kGrayImmuneObject = true, bool kFromGCThread = false>
   ALWAYS_INLINE mirror::Object* Mark(mirror::Object* from_ref)
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_, !immune_gray_stack_lock_);
@@ -178,6 +178,8 @@ class ConcurrentCopying : public GarbageCollector {
       SHARED_REQUIRES(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_, !skipped_blocks_lock_, !immune_gray_stack_lock_);
   virtual mirror::Object* IsMarked(mirror::Object* from_ref) OVERRIDE
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  bool IsMarkedInUnevacFromSpace(mirror::Object* from_ref)
       SHARED_REQUIRES(Locks::mutator_lock_);
   virtual bool IsMarkedHeapReference(mirror::HeapReference<mirror::Object>* field) OVERRIDE
       SHARED_REQUIRES(Locks::mutator_lock_);

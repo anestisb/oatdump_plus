@@ -147,6 +147,18 @@ inline Object* Object::GetReadBarrierPointer() {
 #endif
 }
 
+inline Object* Object::GetReadBarrierPointerAcquire() {
+#ifdef USE_BAKER_READ_BARRIER
+  DCHECK(kUseBakerReadBarrier);
+  LockWord lw(GetFieldAcquire<uint32_t>(OFFSET_OF_OBJECT_MEMBER(Object, monitor_)));
+  return reinterpret_cast<Object*>(lw.ReadBarrierState());
+#else
+  LOG(FATAL) << "Unreachable";
+  UNREACHABLE();
+#endif
+}
+
+
 inline uint32_t Object::GetMarkBit() {
 #ifdef USE_READ_BARRIER
   return GetLockWord(false).MarkBitState();
@@ -812,6 +824,13 @@ inline kSize Object::GetField(MemberOffset field_offset) {
   } else {
     return reinterpret_cast<const Atomic<kSize>*>(addr)->LoadJavaData();
   }
+}
+
+template<typename kSize>
+inline kSize Object::GetFieldAcquire(MemberOffset field_offset) {
+  const uint8_t* raw_addr = reinterpret_cast<const uint8_t*>(this) + field_offset.Int32Value();
+  const kSize* addr = reinterpret_cast<const kSize*>(raw_addr);
+  return reinterpret_cast<const Atomic<kSize>*>(addr)->LoadAcquire();
 }
 
 template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
