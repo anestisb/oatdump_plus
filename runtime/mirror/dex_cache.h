@@ -57,7 +57,6 @@ struct PACKED(8) StringDexCachePair {
   // Set the initial state for the 0th entry to be {0,1} which is guaranteed to fail
   // the lookup string id == stored id branch.
   static void Initialize(StringDexCacheType* strings) {
-    DCHECK(StringDexCacheType().is_lock_free());
     mirror::StringDexCachePair first_elem;
     first_elem.string_pointer = GcRoot<String>(nullptr);
     first_elem.string_index = 1;
