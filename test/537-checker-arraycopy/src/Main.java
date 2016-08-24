@@ -51,10 +51,10 @@ public class Main {
 
   /// CHECK-START-X86_64: void Main.arraycopy() disassembly (after)
   /// CHECK:          InvokeStaticOrDirect intrinsic:SystemArrayCopy
-  /// CHECK-NOT:      test
+  /// CHECK-NOT:      test {{^[^\[].*}}, {{^[^\[].*}}
   /// CHECK-NOT:      call
   /// CHECK:          ReturnVoid
-  // Checks that the call is intrinsified and that there is no test instruction
+  // Checks that the call is intrinsified and that there is no register test instruction
   // when we know the source and destination are not null.
   public static void arraycopy() {
     Object[] obj = new Object[4];
