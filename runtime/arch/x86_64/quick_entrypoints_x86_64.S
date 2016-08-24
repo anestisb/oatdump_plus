@@ -1346,10 +1346,11 @@ DEFINE_FUNCTION art_quick_resolve_string
     cmp %rdx, %rdi
     jne .Lart_quick_resolve_string_slow_path
 #ifdef USE_READ_BARRIER
-    testl LITERAL(LOCK_WORD_MARK_BIT_MASK_SHIFTED), MIRROR_OBJECT_LOCK_WORD_OFFSET(%rax)
-    jz .Lart_quick_resolve_string_slow_path
+    cmpl LITERAL(0), %gs:THREAD_IS_GC_MARKING_OFFSET
+    jne .Lart_quick_resolve_string_marking
 #endif
     ret
+// Slow path, the index did not match
 .Lart_quick_resolve_string_slow_path:
     SETUP_SAVE_REFS_ONLY_FRAME
     movq %rcx, %rax
@@ -1358,6 +1359,21 @@ DEFINE_FUNCTION art_quick_resolve_string
     call SYMBOL(artResolveStringFromCode)       // artResolveStringFromCode(arg0, referrer, Thread*)
     RESTORE_SAVE_REFS_ONLY_FRAME                // restore frame up to return address
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+// GC is marking case, need to check the mark bit.
+.Lart_quick_resolve_string_marking:
+    testl LITERAL(LOCK_WORD_MARK_BIT_MASK_SHIFTED), MIRROR_OBJECT_LOCK_WORD_OFFSET(%rax)
+    jnz .Lart_quick_resolve_string_no_rb
+    // Save LR so that we can return, also x1 for alignment purposes
+    PUSH rdi
+    PUSH rsi
+    subq LITERAL(8), %rsp                         // 16 byte alignment
+    movq %rax, %rdi
+    call SYMBOL(artReadBarrierMark)
+    addq LITERAL(8), %rsp
+    POP  rsi
+    POP  rdi
+.Lart_quick_resolve_string_no_rb:
+    ret
 END_FUNCTION art_quick_resolve_string
 
 ONE_ARG_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
