@@ -454,8 +454,7 @@ class ImageSpaceLoader {
                                           const std::string& image_filename,
                                           bool is_zygote,
                                           bool is_global_cache,
-                                          bool is_system,
-                                          bool relocated_version_used,
+                                          bool validate_oat_file,
                                           std::string* error_msg)
       SHARED_REQUIRES(Locks::mutator_lock_) {
     // Note that we must not use the file descriptor associated with
@@ -483,7 +482,7 @@ class ImageSpaceLoader {
     // file name.
     return Init(image_filename.c_str(),
                 image_location,
-                !(is_system || relocated_version_used),
+                validate_oat_file,
                 /* oat_file */nullptr,
                 error_msg);
   }
@@ -1473,8 +1472,7 @@ std::unique_ptr<ImageSpace> ImageSpace::CreateBootImage(const char* image_locati
                                  cache_filename,
                                  is_zygote,
                                  is_global_cache,
-                                 /* is_system */ false,
-                                 /* relocated_version_used */ true,
+                                 /* validate_oat_file */ false,
                                  &local_error_msg);
       if (relocated_space != nullptr) {
         return relocated_space;
@@ -1491,8 +1489,7 @@ std::unique_ptr<ImageSpace> ImageSpace::CreateBootImage(const char* image_locati
                                cache_filename,
                                is_zygote,
                                is_global_cache,
-                               /* is_system */ false,
-                               /* relocated_version_used */ true,
+                               /* validate_oat_file */ true,
                                &local_error_msg);
     if (cache_space != nullptr) {
       return cache_space;
@@ -1512,8 +1509,7 @@ std::unique_ptr<ImageSpace> ImageSpace::CreateBootImage(const char* image_locati
                                system_filename,
                                is_zygote,
                                is_global_cache,
-                               /* is_system */ true,
-                               /* relocated_version_used */ false,
+                               /* validate_oat_file */ false,
                                &local_error_msg);
     if (system_space != nullptr) {
       return system_space;
@@ -1538,8 +1534,7 @@ std::unique_ptr<ImageSpace> ImageSpace::CreateBootImage(const char* image_locati
                                    cache_filename,
                                    is_zygote,
                                    is_global_cache,
-                                   /* is_system */ false,
-                                   /* relocated_version_used */ true,
+                                   /* validate_oat_file */ false,
                                    &local_error_msg);
         if (patched_space != nullptr) {
           return patched_space;
@@ -1568,8 +1563,7 @@ std::unique_ptr<ImageSpace> ImageSpace::CreateBootImage(const char* image_locati
                                    cache_filename,
                                    is_zygote,
                                    is_global_cache,
-                                   /* is_system */ false,
-                                   /* relocated_version_used */ true,
+                                   /* validate_oat_file */ false,
                                    &local_error_msg);
         if (compiled_space != nullptr) {
           return compiled_space;
