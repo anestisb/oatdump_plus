@@ -170,14 +170,6 @@ void ConvertUtf16ToModifiedUtf8(char* utf8_out, size_t byte_count,
   }
 }
 
-int32_t ComputeUtf16Hash(const uint16_t* chars, size_t char_count) {
-  uint32_t hash = 0;
-  while (char_count--) {
-    hash = hash * 31 + *chars++;
-  }
-  return static_cast<int32_t>(hash);
-}
-
 int32_t ComputeUtf16HashFromModifiedUtf8(const char* utf8, size_t utf16_length) {
   uint32_t hash = 0;
   while (utf16_length != 0u) {

@@ -188,6 +188,7 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
   }
 
   uint64_t image_file_size;
+  size_t image_size;
   {
     std::unique_ptr<File> file(OS::OpenFileForReading(image_file.GetFilename().c_str()));
     ASSERT_TRUE(file.get() != nullptr);
@@ -206,6 +207,7 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
     ASSERT_TRUE(space->IsMallocSpace());
 
     image_file_size = file->GetLength();
+    image_size = image_header.GetImageSize();
   }
 
   ASSERT_TRUE(compiler_driver_->GetImageClasses() != nullptr);
@@ -255,10 +257,10 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
   ASSERT_TRUE(image_space != nullptr);
   if (storage_mode == ImageHeader::kStorageModeUncompressed) {
     // Uncompressed, image should be smaller than file.
-    ASSERT_LE(image_space->Size(), image_file_size);
+    ASSERT_LE(image_size, image_file_size);
   } else {
     // Compressed, file should be smaller than image.
-    ASSERT_LE(image_file_size, image_space->Size());
+    ASSERT_LE(image_file_size, image_size);
   }
 
   image_space->VerifyImageAllocations();

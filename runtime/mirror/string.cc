@@ -41,15 +41,11 @@ int32_t String::FastIndexOf(int32_t ch, int32_t start) {
   } else if (start > count) {
     start = count;
   }
-  const uint16_t* chars = GetValue();
-  const uint16_t* p = chars + start;
-  const uint16_t* end = chars + count;
-  while (p < end) {
-    if (*p++ == ch) {
-      return (p - 1) - chars;
-    }
+  if (IsCompressed()) {
+    return FastIndexOf<uint8_t>(GetValueCompressed(), ch, start);
+  } else {
+    return FastIndexOf<uint16_t>(GetValue(), ch, start);
   }
-  return -1;
 }
 
 void String::SetClass(Class* java_lang_String) {
@@ -65,45 +61,91 @@ void String::ResetClass() {
 }
 
 int String::ComputeHashCode() {
-  const int32_t hash_code = ComputeUtf16Hash(GetValue(), GetLength());
+  int32_t hash_code = 0;
+  if (IsCompressed()) {
+    hash_code = ComputeUtf16Hash(GetValueCompressed(), GetLength());
+  } else {
+    hash_code = ComputeUtf16Hash(GetValue(), GetLength());
+  }
   SetHashCode(hash_code);
   return hash_code;
 }
 
 int32_t String::GetUtfLength() {
-  return CountUtf8Bytes(GetValue(), GetLength());
+  if (IsCompressed()) {
+    return GetLength();
+  } else {
+    return CountUtf8Bytes(GetValue(), GetLength());
+  }
 }
 
 void String::SetCharAt(int32_t index, uint16_t c) {
-  DCHECK((index >= 0) && (index < count_));
-  GetValue()[index] = c;
+  DCHECK((index >= 0) && (index < GetLength()));
+  if (IsCompressed()) {
+    // TODO: Handle the case where String is compressed and c is non-ASCII
+    GetValueCompressed()[index] = static_cast<uint8_t>(c);
+  } else {
+    GetValue()[index] = c;
+  }
 }
 
 String* String::AllocFromStrings(Thread* self, Handle<String> string, Handle<String> string2) {
   int32_t length = string->GetLength();
   int32_t length2 = string2->GetLength();
   gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
-  SetStringCountVisitor visitor(length + length2);
-  String* new_string = Alloc<true>(self, length + length2, allocator_type, visitor);
+  const bool compressible = kUseStringCompression && (string->IsCompressed() && string2->IsCompressed());
+  const int32_t length_with_flag = (compressible) ? String::GetFlaggedCount(length + length2)
+                                                  : (length + length2);
+
+  SetStringCountVisitor visitor(length_with_flag);
+  String* new_string = Alloc<true>(self, length_with_flag, allocator_type, visitor);
   if (UNLIKELY(new_string == nullptr)) {
     return nullptr;
   }
-  uint16_t* new_value = new_string->GetValue();
-  memcpy(new_value, string->GetValue(), length * sizeof(uint16_t));
-  memcpy(new_value + length, string2->GetValue(), length2 * sizeof(uint16_t));
+  if (compressible) {
+    uint8_t* new_value = new_string->GetValueCompressed();
+    memcpy(new_value, string->GetValueCompressed(), length * sizeof(uint8_t));
+    memcpy(new_value + length, string2->GetValueCompressed(), length2 * sizeof(uint8_t));
+  } else {
+    uint16_t* new_value = new_string->GetValue();
+    if (string->IsCompressed()) {
+      for (int i = 0; i < length; ++i) {
+        new_value[i] = string->CharAt(i);
+      }
+    } else {
+      memcpy(new_value, string->GetValue(), length * sizeof(uint16_t));
+    }
+    if (string2->IsCompressed()) {
+      for (int i = 0; i < length2; ++i) {
+        new_value[i+length] = string2->CharAt(i);
+      }
+    } else {
+      memcpy(new_value + length, string2->GetValue(), length2 * sizeof(uint16_t));
+    }
+  }
   return new_string;
 }
 
 String* String::AllocFromUtf16(Thread* self, int32_t utf16_length, const uint16_t* utf16_data_in) {
   CHECK(utf16_data_in != nullptr || utf16_length == 0);
   gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
-  SetStringCountVisitor visitor(utf16_length);
-  String* string = Alloc<true>(self, utf16_length, allocator_type, visitor);
+  const bool compressible = kUseStringCompression &&
+                            String::AllASCII<uint16_t>(utf16_data_in, utf16_length);
+  int32_t length_with_flag = (compressible) ? String::GetFlaggedCount(utf16_length)
+                                            : utf16_length;
+  SetStringCountVisitor visitor(length_with_flag);
+  String* string = Alloc<true>(self, length_with_flag, allocator_type, visitor);
   if (UNLIKELY(string == nullptr)) {
     return nullptr;
   }
-  uint16_t* array = string->GetValue();
-  memcpy(array, utf16_data_in, utf16_length * sizeof(uint16_t));
+  if (compressible) {
+    for (int i = 0; i < utf16_length; ++i) {
+      string->GetValueCompressed()[i] = static_cast<uint8_t>(utf16_data_in[i]);
+    }
+  } else {
+    uint16_t* array = string->GetValue();
+    memcpy(array, utf16_data_in, utf16_length * sizeof(uint16_t));
+  }
   return string;
 }
 
@@ -121,13 +163,20 @@ String* String::AllocFromModifiedUtf8(Thread* self, int32_t utf16_length, const 
 String* String::AllocFromModifiedUtf8(Thread* self, int32_t utf16_length,
                                       const char* utf8_data_in, int32_t utf8_length) {
   gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
-  SetStringCountVisitor visitor(utf16_length);
-  String* string = Alloc<true>(self, utf16_length, allocator_type, visitor);
+  const bool compressible = kUseStringCompression && (utf16_length == utf8_length);
+  const int32_t utf16_length_with_flag = (compressible) ? String::GetFlaggedCount(utf16_length)
+                                                        : utf16_length;
+  SetStringCountVisitor visitor(utf16_length_with_flag);
+  String* string = Alloc<true>(self, utf16_length_with_flag, allocator_type, visitor);
   if (UNLIKELY(string == nullptr)) {
     return nullptr;
   }
-  uint16_t* utf16_data_out = string->GetValue();
-  ConvertModifiedUtf8ToUtf16(utf16_data_out, utf16_length, utf8_data_in, utf8_length);
+  if (compressible) {
+    memcpy(string->GetValueCompressed(), utf8_data_in, utf16_length * sizeof(uint8_t));
+  } else {
+    uint16_t* utf16_data_out = string->GetValue();
+    ConvertModifiedUtf8ToUtf16(utf16_data_out, utf16_length, utf8_data_in, utf8_length);
+  }
   return string;
 }
 
@@ -219,10 +268,16 @@ bool String::Equals(const StringPiece& modified_utf8) {
 
 // Create a modified UTF-8 encoded std::string from a java/lang/String object.
 std::string String::ToModifiedUtf8() {
-  const uint16_t* chars = GetValue();
   size_t byte_count = GetUtfLength();
   std::string result(byte_count, static_cast<char>(0));
-  ConvertUtf16ToModifiedUtf8(&result[0], byte_count, chars, GetLength());
+  if (IsCompressed()) {
+    for (size_t i = 0; i < byte_count; ++i) {
+      result[i] = static_cast<char>(CharAt(i));
+    }
+  } else {
+    const uint16_t* chars = GetValue();
+    ConvertUtf16ToModifiedUtf8(&result[0], byte_count, chars, GetLength());
+  }
   return result;
 }
 
@@ -242,11 +297,24 @@ int32_t String::CompareTo(String* rhs) {
   int32_t rhsCount = rhs->GetLength();
   int32_t countDiff = lhsCount - rhsCount;
   int32_t minCount = (countDiff < 0) ? lhsCount : rhsCount;
-  const uint16_t* lhsChars = lhs->GetValue();
-  const uint16_t* rhsChars = rhs->GetValue();
-  int32_t otherRes = MemCmp16(lhsChars, rhsChars, minCount);
-  if (otherRes != 0) {
-    return otherRes;
+  if (lhs->IsCompressed() && rhs->IsCompressed()) {
+    int32_t comparison = memcmp(lhs->GetValueCompressed(), rhs->GetValueCompressed(), minCount * sizeof(uint8_t));
+    if (comparison != 0) {
+      return comparison;
+    }
+  } else if (lhs->IsCompressed() || rhs->IsCompressed()) {
+    for (int32_t i = 0; i < minCount; ++i) {
+      if (lhs->CharAt(i) != rhs->CharAt(i)) {
+        return static_cast<int32_t>(lhs->CharAt(i)) - static_cast<int32_t>(rhs->CharAt(i));
+      }
+    }
+  } else {
+    const uint16_t* lhsChars = lhs->GetValue();
+    const uint16_t* rhsChars = rhs->GetValue();
+    int32_t otherRes = MemCmp16(lhsChars, rhsChars, minCount);
+    if (otherRes != 0) {
+      return otherRes;
+    }
   }
   return countDiff;
 }
@@ -260,7 +328,14 @@ CharArray* String::ToCharArray(Thread* self) {
   Handle<String> string(hs.NewHandle(this));
   CharArray* result = CharArray::Alloc(self, GetLength());
   if (result != nullptr) {
-    memcpy(result->GetData(), string->GetValue(), string->GetLength() * sizeof(uint16_t));
+    if (string->IsCompressed()) {
+      int32_t length = string->GetLength();
+      for (int i = 0; i < length; ++i) {
+        result->GetData()[i] = string->CharAt(i);
+      }
+    } else {
+      memcpy(result->GetData(), string->GetValue(), string->GetLength() * sizeof(uint16_t));
+    }
   } else {
     self->AssertPendingOOMException();
   }
@@ -269,8 +344,18 @@ CharArray* String::ToCharArray(Thread* self) {
 
 void String::GetChars(int32_t start, int32_t end, Handle<CharArray> array, int32_t index) {
   uint16_t* data = array->GetData() + index;
-  uint16_t* value = GetValue() + start;
-  memcpy(data, value, (end - start) * sizeof(uint16_t));
+  if (IsCompressed()) {
+    for (int i = start; i < end; ++i) {
+      data[i-start] = CharAt(i);
+    }
+  } else {
+    uint16_t* value = GetValue() + start;
+    memcpy(data, value, (end - start) * sizeof(uint16_t));
+  }
+}
+
+bool String::IsValueNull() {
+  return (IsCompressed()) ? (GetValueCompressed() == nullptr) : (GetValue() == nullptr);
 }
 
 }  // namespace mirror

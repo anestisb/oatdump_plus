@@ -223,6 +223,12 @@ class EndianOutput {
     HandleU1List(values, count);
     length_ += count;
   }
+  void AddU1AsU2List(const uint8_t* values, size_t count) {
+    HandleU1AsU2List(values, count);
+    // Array of char from compressed String (8-bit) is added as 16-bit blocks
+    int ceil_count_to_even = count + ((count & 1) ? 1 : 0);
+    length_ += ceil_count_to_even * sizeof(uint8_t);
+  }
   void AddU2List(const uint16_t* values, size_t count) {
     HandleU2List(values, count);
     length_ += count * sizeof(uint16_t);
@@ -268,6 +274,9 @@ class EndianOutput {
   virtual void HandleU1List(const uint8_t* values ATTRIBUTE_UNUSED,
                             size_t count ATTRIBUTE_UNUSED) {
   }
+  virtual void HandleU1AsU2List(const uint8_t* values ATTRIBUTE_UNUSED,
+                                size_t count ATTRIBUTE_UNUSED) {
+  }
   virtual void HandleU2List(const uint16_t* values ATTRIBUTE_UNUSED,
                             size_t count ATTRIBUTE_UNUSED) {
   }
@@ -306,6 +315,19 @@ class EndianOutputBuffered : public EndianOutput {
   void HandleU1List(const uint8_t* values, size_t count) OVERRIDE {
     DCHECK_EQ(length_, buffer_.size());
     buffer_.insert(buffer_.end(), values, values + count);
+  }
+
+  void HandleU1AsU2List(const uint8_t* values, size_t count) OVERRIDE {
+    DCHECK_EQ(length_, buffer_.size());
+    // All 8-bits are grouped in 2 to make 16-bit block like Java Char
+    if (count & 1) {
+      buffer_.push_back(0);
+    }
+    for (size_t i = 0; i < count; ++i) {
+      uint8_t value = *values;
+      buffer_.push_back(value);
+      values++;
+    }
   }
 
   void HandleU2List(const uint16_t* values, size_t count) OVERRIDE {
@@ -1354,7 +1376,11 @@ void Hprof::DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass) {
         string_value = reinterpret_cast<mirror::Object*>(
             reinterpret_cast<uintptr_t>(s) + kObjectAlignment);
       } else {
-        string_value = reinterpret_cast<mirror::Object*>(s->GetValue());
+        if (s->IsCompressed()) {
+          string_value = reinterpret_cast<mirror::Object*>(s->GetValueCompressed());
+        } else {
+          string_value = reinterpret_cast<mirror::Object*>(s->GetValue());
+        }
       }
       __ AddObjectId(string_value);
     }
@@ -1369,12 +1395,18 @@ void Hprof::DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass) {
   CHECK_EQ(obj->IsString(), string_value != nullptr);
   if (string_value != nullptr) {
     mirror::String* s = obj->AsString();
+    // Compressed string's (8-bit) length is ceil(length/2) in 16-bit blocks
+    int length_in_16_bit = (s->IsCompressed()) ? ((s->GetLength() + 1) / 2) : s->GetLength();
     __ AddU1(HPROF_PRIMITIVE_ARRAY_DUMP);
     __ AddObjectId(string_value);
     __ AddStackTraceSerialNumber(LookupStackTraceSerialNumber(obj));
-    __ AddU4(s->GetLength());
+    __ AddU4(length_in_16_bit);
     __ AddU1(hprof_basic_char);
-    __ AddU2List(s->GetValue(), s->GetLength());
+    if (s->IsCompressed()) {
+      __ AddU1AsU2List(s->GetValueCompressed(), s->GetLength());
+    } else {
+      __ AddU2List(s->GetValue(), s->GetLength());
+    }
   }
 }
 
