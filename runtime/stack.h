@@ -224,7 +224,6 @@ class ShadowFrame {
   int64_t GetVRegLong(size_t i) const {
     DCHECK_LT(i, NumberOfVRegs());
     const uint32_t* vreg = &vregs_[i];
-    // Alignment attribute required for GCC 4.8
     typedef const int64_t unaligned_int64 __attribute__ ((aligned (4)));
     return *reinterpret_cast<unaligned_int64*>(vreg);
   }
@@ -232,7 +231,6 @@ class ShadowFrame {
   double GetVRegDouble(size_t i) const {
     DCHECK_LT(i, NumberOfVRegs());
     const uint32_t* vreg = &vregs_[i];
-    // Alignment attribute required for GCC 4.8
     typedef const double unaligned_double __attribute__ ((aligned (4)));
     return *reinterpret_cast<unaligned_double*>(vreg);
   }
@@ -289,7 +287,6 @@ class ShadowFrame {
   void SetVRegLong(size_t i, int64_t val) {
     DCHECK_LT(i, NumberOfVRegs());
     uint32_t* vreg = &vregs_[i];
-    // Alignment attribute required for GCC 4.8
     typedef int64_t unaligned_int64 __attribute__ ((aligned (4)));
     *reinterpret_cast<unaligned_int64*>(vreg) = val;
     // This is needed for moving collectors since these can update the vreg references if they
@@ -303,7 +300,6 @@ class ShadowFrame {
   void SetVRegDouble(size_t i, double val) {
     DCHECK_LT(i, NumberOfVRegs());
     uint32_t* vreg = &vregs_[i];
-    // Alignment attribute required for GCC 4.8
     typedef double unaligned_double __attribute__ ((aligned (4)));
     *reinterpret_cast<unaligned_double*>(vreg) = val;
     // This is needed for moving collectors since these can update the vreg references if they
