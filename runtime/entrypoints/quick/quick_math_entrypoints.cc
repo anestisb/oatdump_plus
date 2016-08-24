@@ -18,10 +18,8 @@
 
 namespace art {
 
-#if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wfloat-equal"
-#endif
 
 int CmplFloat(float a, float b) {
   if (a == b) {
@@ -67,9 +65,7 @@ int CmplDouble(double a, double b) {
   return -1;
 }
 
-#if defined(__clang__)
 #pragma clang diagnostic pop
-#endif
 
 extern "C" int64_t artLmul(int64_t a, int64_t b) {
   return a * b;
