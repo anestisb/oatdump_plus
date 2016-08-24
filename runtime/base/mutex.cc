@@ -98,12 +98,7 @@ class ScopedAllMutexesLock FINAL {
   }
 
   ~ScopedAllMutexesLock() {
-#if !defined(__clang__)
-    // TODO: remove this workaround target GCC/libc++/bionic bug "invalid failure memory model".
-    while (!gAllMutexData->all_mutexes_guard.CompareExchangeWeakSequentiallyConsistent(mutex_, 0)) {
-#else
     while (!gAllMutexData->all_mutexes_guard.CompareExchangeWeakRelease(mutex_, 0)) {
-#endif
       NanoSleep(100);
     }
   }
