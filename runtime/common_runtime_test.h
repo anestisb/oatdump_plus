@@ -207,6 +207,12 @@ class CheckJniAbortCatcher {
     return; \
   }
 
+#define TEST_DISABLED_FOR_STRING_COMPRESSION() \
+  if (mirror::kUseStringCompression) { \
+    printf("WARNING: TEST DISABLED FOR STRING COMPRESSION\n"); \
+    return; \
+  }
+
 }  // namespace art
 
 namespace std {
