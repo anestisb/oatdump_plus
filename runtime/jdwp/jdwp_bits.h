@@ -59,10 +59,19 @@ static inline void Append8BE(std::vector<uint8_t>& bytes, uint64_t value) {
   bytes.push_back(static_cast<uint8_t>(value));
 }
 
-static inline void AppendUtf16BE(std::vector<uint8_t>& bytes, const uint16_t* chars, size_t char_count) {
+static inline void AppendUtf16BE(std::vector<uint8_t>& bytes, const uint16_t* chars,
+                                 size_t char_count) {
   Append4BE(bytes, char_count);
   for (size_t i = 0; i < char_count; ++i) {
     Append2BE(bytes, chars[i]);
+  }
+}
+
+static inline void AppendUtf16CompressedBE(std::vector<uint8_t>& bytes,
+                                           const uint8_t* chars, size_t char_count) {
+  Append4BE(bytes, char_count);
+  for (size_t i = 0; i < char_count; ++i) {
+    Append2BE(bytes, static_cast<uint16_t>(chars[i]));
   }
 }
 
