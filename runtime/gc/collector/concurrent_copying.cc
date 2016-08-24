@@ -1302,8 +1302,19 @@ inline void ConcurrentCopying::ProcessMarkStackRef(mirror::Object* to_ref) {
         << " " << to_ref << " " << to_ref->GetReadBarrierPointer()
         << " is_marked=" << IsMarked(to_ref);
   }
-  // Scan ref fields.
-  Scan(to_ref);
+  bool add_to_live_bytes = false;
+  if (region_space_->IsInUnevacFromSpace(to_ref)) {
+    // Mark the bitmap only in the GC thread here so that we don't need a CAS.
+    if (!kUseBakerReadBarrier || !region_space_bitmap_->Set(to_ref)) {
+      // It may be already marked if we accidentally pushed the same object twice due to the racy
+      // bitmap read in MarkUnevacFromSpaceRegion.
+      Scan(to_ref);
+      // Only add to the live bytes if the object was not already marked.
+      add_to_live_bytes = true;
+    }
+  } else {
+    Scan(to_ref);
+  }
   if (kUseBakerReadBarrier) {
     DCHECK(to_ref->GetReadBarrierPointer() == ReadBarrier::GrayPtr())
         << " " << to_ref << " " << to_ref->GetReadBarrierPointer()
@@ -1332,7 +1343,7 @@ inline void ConcurrentCopying::ProcessMarkStackRef(mirror::Object* to_ref) {
   DCHECK(!kUseBakerReadBarrier);
 #endif
 
-  if (region_space_->IsInUnevacFromSpace(to_ref)) {
+  if (add_to_live_bytes) {
     // Add to the live bytes per unevacuated from space. Note this code is always run by the
     // GC-running thread (no synchronization required).
     DCHECK(region_space_bitmap_->Test(to_ref));
@@ -1567,7 +1578,7 @@ void ConcurrentCopying::AssertToSpaceInvariant(mirror::Object* obj, MemberOffset
       // OK.
       return;
     } else if (region_space_->IsInUnevacFromSpace(ref)) {
-      CHECK(region_space_bitmap_->Test(ref)) << ref;
+      CHECK(IsMarkedInUnevacFromSpace(ref)) << ref;
     } else if (region_space_->IsInFromSpace(ref)) {
       // Not OK. Do extra logging.
       if (obj != nullptr) {
@@ -1614,7 +1625,7 @@ void ConcurrentCopying::AssertToSpaceInvariant(GcRootSource* gc_root_source,
       // OK.
       return;
     } else if (region_space_->IsInUnevacFromSpace(ref)) {
-      CHECK(region_space_bitmap_->Test(ref)) << ref;
+      CHECK(IsMarkedInUnevacFromSpace(ref)) << ref;
     } else if (region_space_->IsInFromSpace(ref)) {
       // Not OK. Do extra logging.
       if (gc_root_source == nullptr) {
@@ -1654,7 +1665,7 @@ void ConcurrentCopying::LogFromSpaceRefHolder(mirror::Object* obj, MemberOffset 
     LOG(INFO) << "holder is in the to-space.";
   } else if (region_space_->IsInUnevacFromSpace(obj)) {
     LOG(INFO) << "holder is in the unevac from-space.";
-    if (region_space_bitmap_->Test(obj)) {
+    if (IsMarkedInUnevacFromSpace(obj)) {
       LOG(INFO) << "holder is marked in the region space bitmap.";
     } else {
       LOG(INFO) << "holder is not marked in the region space bitmap.";
@@ -1783,7 +1794,7 @@ inline void ConcurrentCopying::Process(mirror::Object* obj, MemberOffset offset)
   DCHECK_EQ(Thread::Current(), thread_running_gc_);
   mirror::Object* ref = obj->GetFieldObject<
       mirror::Object, kVerifyNone, kWithoutReadBarrier, false>(offset);
-  mirror::Object* to_ref = Mark</*kGrayImmuneObject*/false>(ref);
+  mirror::Object* to_ref = Mark</*kGrayImmuneObject*/false, /*kFromGCThread*/true>(ref);
   if (to_ref == ref) {
     return;
   }
@@ -2126,7 +2137,7 @@ mirror::Object* ConcurrentCopying::IsMarked(mirror::Object* from_ref) {
            heap_->non_moving_space_->HasAddress(to_ref))
         << "from_ref=" << from_ref << " to_ref=" << to_ref;
   } else if (rtype == space::RegionSpace::RegionType::kRegionTypeUnevacFromSpace) {
-    if (region_space_bitmap_->Test(from_ref)) {
+    if (IsMarkedInUnevacFromSpace(from_ref)) {
       to_ref = from_ref;
     } else {
       to_ref = nullptr;

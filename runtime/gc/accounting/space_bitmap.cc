@@ -51,7 +51,9 @@ SpaceBitmap<kAlignment>* SpaceBitmap<kAlignment>::CreateFromMemMap(
 template<size_t kAlignment>
 SpaceBitmap<kAlignment>::SpaceBitmap(const std::string& name, MemMap* mem_map, uintptr_t* bitmap_begin,
                                      size_t bitmap_size, const void* heap_begin)
-    : mem_map_(mem_map), bitmap_begin_(bitmap_begin), bitmap_size_(bitmap_size),
+    : mem_map_(mem_map),
+      bitmap_begin_(reinterpret_cast<Atomic<uintptr_t>*>(bitmap_begin)),
+      bitmap_size_(bitmap_size),
       heap_begin_(reinterpret_cast<uintptr_t>(heap_begin)),
       name_(name) {
   CHECK(bitmap_begin_ != nullptr);
@@ -104,7 +106,12 @@ void SpaceBitmap<kAlignment>::Clear() {
 template<size_t kAlignment>
 void SpaceBitmap<kAlignment>::CopyFrom(SpaceBitmap* source_bitmap) {
   DCHECK_EQ(Size(), source_bitmap->Size());
-  std::copy(source_bitmap->Begin(), source_bitmap->Begin() + source_bitmap->Size() / sizeof(intptr_t), Begin());
+  const size_t count = source_bitmap->Size() / sizeof(intptr_t);
+  Atomic<uintptr_t>* const src = source_bitmap->Begin();
+  Atomic<uintptr_t>* const dest = Begin();
+  for (size_t i = 0; i < count; ++i) {
+    dest[i].StoreRelaxed(src[i].LoadRelaxed());
+  }
 }
 
 template<size_t kAlignment>
@@ -113,9 +120,9 @@ void SpaceBitmap<kAlignment>::Walk(ObjectCallback* callback, void* arg) {
   CHECK(callback != nullptr);
 
   uintptr_t end = OffsetToIndex(HeapLimit() - heap_begin_ - 1);
-  uintptr_t* bitmap_begin = bitmap_begin_;
+  Atomic<uintptr_t>* bitmap_begin = bitmap_begin_;
   for (uintptr_t i = 0; i <= end; ++i) {
-    uintptr_t w = bitmap_begin[i];
+    uintptr_t w = bitmap_begin[i].LoadRelaxed();
     if (w != 0) {
       uintptr_t ptr_base = IndexToOffset(i) + heap_begin_;
       do {
@@ -160,10 +167,10 @@ void SpaceBitmap<kAlignment>::SweepWalk(const SpaceBitmap<kAlignment>& live_bitm
   size_t start = OffsetToIndex(sweep_begin - live_bitmap.heap_begin_);
   size_t end = OffsetToIndex(sweep_end - live_bitmap.heap_begin_ - 1);
   CHECK_LT(end, live_bitmap.Size() / sizeof(intptr_t));
-  uintptr_t* live = live_bitmap.bitmap_begin_;
-  uintptr_t* mark = mark_bitmap.bitmap_begin_;
+  Atomic<uintptr_t>* live = live_bitmap.bitmap_begin_;
+  Atomic<uintptr_t>* mark = mark_bitmap.bitmap_begin_;
   for (size_t i = start; i <= end; i++) {
-    uintptr_t garbage = live[i] & ~mark[i];
+    uintptr_t garbage = live[i].LoadRelaxed() & ~mark[i].LoadRelaxed();
     if (UNLIKELY(garbage != 0)) {
       uintptr_t ptr_base = IndexToOffset(i) + live_bitmap.heap_begin_;
       do {
@@ -251,7 +258,7 @@ void SpaceBitmap<kAlignment>::InOrderWalk(ObjectCallback* callback, void* arg) {
   uintptr_t end = Size() / sizeof(intptr_t);
   for (uintptr_t i = 0; i < end; ++i) {
     // Need uint for unsigned shift.
-    uintptr_t w = bitmap_begin_[i];
+    uintptr_t w = bitmap_begin_[i].LoadRelaxed();
     if (UNLIKELY(w != 0)) {
       uintptr_t ptr_base = IndexToOffset(i) + heap_begin_;
       while (w != 0) {

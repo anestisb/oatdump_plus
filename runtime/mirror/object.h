@@ -93,8 +93,11 @@ class MANAGED LOCKABLE Object {
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   void SetClass(Class* new_klass) SHARED_REQUIRES(Locks::mutator_lock_);
 
-  // TODO: Clean this up and change to return int32_t
+  // TODO: Clean these up and change to return int32_t
   Object* GetReadBarrierPointer() SHARED_REQUIRES(Locks::mutator_lock_);
+
+  // Get the read barrier pointer with release semantics, only supported for baker.
+  Object* GetReadBarrierPointerAcquire() SHARED_REQUIRES(Locks::mutator_lock_);
 
 #ifndef USE_BAKER_OR_BROOKS_READ_BARRIER
   NO_RETURN
@@ -573,6 +576,10 @@ class MANAGED LOCKABLE Object {
       SHARED_REQUIRES(Locks::mutator_lock_);
   template<typename kSize, bool kIsVolatile>
   ALWAYS_INLINE kSize GetField(MemberOffset field_offset)
+      SHARED_REQUIRES(Locks::mutator_lock_);
+  // Get a field with acquire semantics.
+  template<typename kSize>
+  ALWAYS_INLINE kSize GetFieldAcquire(MemberOffset field_offset)
       SHARED_REQUIRES(Locks::mutator_lock_);
 
   // Verify the type correctness of stores to fields.
