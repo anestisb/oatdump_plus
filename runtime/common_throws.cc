@@ -402,6 +402,16 @@ void ThrowNullPointerExceptionForMethodAccess(ArtMethod* method,
                                                dex_file, type);
 }
 
+static bool IsValidReadBarrierImplicitCheck(uintptr_t addr) {
+  DCHECK(kEmitCompilerReadBarrier);
+  uint32_t monitor_offset = mirror::Object::MonitorOffset().Uint32Value();
+  if (kUseBakerReadBarrier && (kRuntimeISA == kX86 || kRuntimeISA == kX86_64)) {
+    constexpr uint32_t gray_byte_position = LockWord::kReadBarrierStateShift / kBitsPerByte;
+    monitor_offset += gray_byte_position;
+  }
+  return addr == monitor_offset;
+}
+
 static bool IsValidImplicitCheck(uintptr_t addr, ArtMethod* method, const Instruction& instr)
     SHARED_REQUIRES(Locks::mutator_lock_) {
   if (!CanDoImplicitNullCheckOn(addr)) {
@@ -424,9 +434,13 @@ static bool IsValidImplicitCheck(uintptr_t addr, ArtMethod* method, const Instru
       return true;
     }
 
+    case Instruction::IGET_OBJECT:
+      if (kEmitCompilerReadBarrier && IsValidReadBarrierImplicitCheck(addr)) {
+        return true;
+      }
+      FALLTHROUGH_INTENDED;
     case Instruction::IGET:
     case Instruction::IGET_WIDE:
-    case Instruction::IGET_OBJECT:
     case Instruction::IGET_BOOLEAN:
     case Instruction::IGET_BYTE:
     case Instruction::IGET_CHAR:
@@ -440,18 +454,20 @@ static bool IsValidImplicitCheck(uintptr_t addr, ArtMethod* method, const Instru
     case Instruction::IPUT_SHORT: {
       ArtField* field =
           Runtime::Current()->GetClassLinker()->ResolveField(instr.VRegC_22c(), method, false);
-      return (addr == 0) ||
-          (addr == field->GetOffset().Uint32Value()) ||
-          (kEmitCompilerReadBarrier && (addr == mirror::Object::MonitorOffset().Uint32Value()));
+      return (addr == 0) || (addr == field->GetOffset().Uint32Value());
     }
 
+    case Instruction::IGET_OBJECT_QUICK:
+      if (kEmitCompilerReadBarrier && IsValidReadBarrierImplicitCheck(addr)) {
+        return true;
+      }
+      FALLTHROUGH_INTENDED;
     case Instruction::IGET_QUICK:
     case Instruction::IGET_BOOLEAN_QUICK:
     case Instruction::IGET_BYTE_QUICK:
     case Instruction::IGET_CHAR_QUICK:
     case Instruction::IGET_SHORT_QUICK:
     case Instruction::IGET_WIDE_QUICK:
-    case Instruction::IGET_OBJECT_QUICK:
     case Instruction::IPUT_QUICK:
     case Instruction::IPUT_BOOLEAN_QUICK:
     case Instruction::IPUT_BYTE_QUICK:
@@ -459,14 +475,16 @@ static bool IsValidImplicitCheck(uintptr_t addr, ArtMethod* method, const Instru
     case Instruction::IPUT_SHORT_QUICK:
     case Instruction::IPUT_WIDE_QUICK:
     case Instruction::IPUT_OBJECT_QUICK: {
-      return (addr == 0u) ||
-          (addr == instr.VRegC_22c()) ||
-          (kEmitCompilerReadBarrier && (addr == mirror::Object::MonitorOffset().Uint32Value()));
+      return (addr == 0u) || (addr == instr.VRegC_22c());
     }
 
+    case Instruction::AGET_OBJECT:
+      if (kEmitCompilerReadBarrier && IsValidReadBarrierImplicitCheck(addr)) {
+        return true;
+      }
+      FALLTHROUGH_INTENDED;
     case Instruction::AGET:
     case Instruction::AGET_WIDE:
-    case Instruction::AGET_OBJECT:
     case Instruction::AGET_BOOLEAN:
     case Instruction::AGET_BYTE:
     case Instruction::AGET_CHAR:
@@ -482,9 +500,7 @@ static bool IsValidImplicitCheck(uintptr_t addr, ArtMethod* method, const Instru
     case Instruction::ARRAY_LENGTH: {
       // The length access should crash. We currently do not do implicit checks on
       // the array access itself.
-      return (addr == 0u) ||
-          (addr == mirror::Array::LengthOffset().Uint32Value()) ||
-          (kEmitCompilerReadBarrier && (addr == mirror::Object::MonitorOffset().Uint32Value()));
+      return (addr == 0u) || (addr == mirror::Array::LengthOffset().Uint32Value());
     }
 
     default: {

@@ -191,6 +191,27 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
         immediate_size = operand_size_prefix ? 2 : 4;
         break;
 
+      case 0xf6:
+      case 0xf7:
+        modrm = *pc++;
+        has_modrm = true;
+        switch ((modrm >> 3) & 7) {  // Extract "reg/opcode" from "modr/m".
+          case 0:  // test
+            immediate_size = (opcode == 0xf6) ? 1 : (operand_size_prefix ? 2 : 4);
+            break;
+          case 2:  // not
+          case 3:  // neg
+          case 4:  // mul
+          case 5:  // imul
+          case 6:  // div
+          case 7:  // idiv
+            break;
+          default:
+            unhandled_instruction = true;
+            break;
+        }
+        break;
+
       default:
         unhandled_instruction = true;
         break;
