@@ -1203,6 +1203,7 @@ TEST_F(StubTest, AllocObjectArray) {
 
 
 TEST_F(StubTest, StringCompareTo) {
+  TEST_DISABLED_FOR_STRING_COMPRESSION();
   // There is no StringCompareTo runtime entrypoint for __arm__ or __aarch64__.
 #if defined(__i386__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))

@@ -592,9 +592,8 @@ class JNI {
     }
     if (c->IsStringClass()) {
       gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
-      mirror::SetStringCountVisitor visitor(0);
-      return soa.AddLocalReference<jobject>(mirror::String::Alloc<true>(soa.Self(), 0,
-                                                                        allocator_type, visitor));
+      return soa.AddLocalReference<jobject>(mirror::String::AllocEmptyString<true>(soa.Self(),
+                                                                              allocator_type));
     }
     return soa.AddLocalReference<jobject>(c->AllocObject(soa.Self()));
   }
@@ -1673,8 +1672,14 @@ class JNI {
       ThrowSIOOBE(soa, start, length, s->GetLength());
     } else {
       CHECK_NON_NULL_MEMCPY_ARGUMENT(length, buf);
-      const jchar* chars = s->GetValue();
-      memcpy(buf, chars + start, length * sizeof(jchar));
+      if (s->IsCompressed()) {
+        for (int i = 0; i < length; ++i) {
+          buf[i] = static_cast<jchar>(s->CharAt(start+i));
+        }
+      } else {
+        const jchar* chars = static_cast<jchar*>(s->GetValue());
+        memcpy(buf, chars + start, length * sizeof(jchar));
+      }
     }
   }
 
@@ -1687,9 +1692,15 @@ class JNI {
       ThrowSIOOBE(soa, start, length, s->GetLength());
     } else {
       CHECK_NON_NULL_MEMCPY_ARGUMENT(length, buf);
-      const jchar* chars = s->GetValue();
-      size_t bytes = CountUtf8Bytes(chars + start, length);
-      ConvertUtf16ToModifiedUtf8(buf, bytes, chars + start, length);
+      if (s->IsCompressed()) {
+        for (int i = 0; i < length; ++i) {
+          buf[i] = s->CharAt(start+i);
+        }
+      } else {
+        const jchar* chars = s->GetValue();
+        size_t bytes = CountUtf8Bytes(chars + start, length);
+        ConvertUtf16ToModifiedUtf8(buf, bytes, chars + start, length);
+      }
     }
   }
 
@@ -1698,9 +1709,16 @@ class JNI {
     ScopedObjectAccess soa(env);
     mirror::String* s = soa.Decode<mirror::String*>(java_string);
     gc::Heap* heap = Runtime::Current()->GetHeap();
-    if (heap->IsMovableObject(s)) {
+    if (heap->IsMovableObject(s) || s->IsCompressed()) {
       jchar* chars = new jchar[s->GetLength()];
-      memcpy(chars, s->GetValue(), sizeof(jchar) * s->GetLength());
+      if (s->IsCompressed()) {
+        int32_t length = s->GetLength();
+        for (int i = 0; i < length; ++i) {
+          chars[i] = s->CharAt(i);
+        }
+      } else {
+        memcpy(chars, s->GetValue(), sizeof(jchar) * s->GetLength());
+      }
       if (is_copy != nullptr) {
         *is_copy = JNI_TRUE;
       }
@@ -1716,7 +1734,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(java_string);
     ScopedObjectAccess soa(env);
     mirror::String* s = soa.Decode<mirror::String*>(java_string);
-    if (chars != s->GetValue()) {
+    if (s->IsCompressed() || (s->IsCompressed() == false && chars != s->GetValue())) {
       delete[] chars;
     }
   }
@@ -1737,15 +1755,27 @@ class JNI {
         heap->IncrementDisableThreadFlip(soa.Self());
       }
     }
-    if (is_copy != nullptr) {
-      *is_copy = JNI_FALSE;
+    if (s->IsCompressed()) {
+      if (is_copy != nullptr) {
+        *is_copy = JNI_TRUE;
+      }
+      int32_t length = s->GetLength();
+      jchar* chars = new jchar[length];
+      for (int i = 0; i < length; ++i) {
+        chars[i] = s->CharAt(i);
+      }
+      return chars;
+    } else {
+      if (is_copy != nullptr) {
+        *is_copy = JNI_FALSE;
+      }
+      return static_cast<jchar*>(s->GetValue());
     }
-    return static_cast<jchar*>(s->GetValue());
   }
 
   static void ReleaseStringCritical(JNIEnv* env,
                                     jstring java_string,
-                                    const jchar* chars ATTRIBUTE_UNUSED) {
+                                    const jchar* chars) {
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(java_string);
     ScopedObjectAccess soa(env);
     gc::Heap* heap = Runtime::Current()->GetHeap();
@@ -1756,6 +1786,9 @@ class JNI {
       } else {
         heap->DecrementDisableThreadFlip(soa.Self());
       }
+    }
+    if (s->IsCompressed() || (s->IsCompressed() == false && s->GetValue() != chars)) {
+      delete[] chars;
     }
   }
 
@@ -1771,8 +1804,14 @@ class JNI {
     size_t byte_count = s->GetUtfLength();
     char* bytes = new char[byte_count + 1];
     CHECK(bytes != nullptr);  // bionic aborts anyway.
-    const uint16_t* chars = s->GetValue();
-    ConvertUtf16ToModifiedUtf8(bytes, byte_count, chars, s->GetLength());
+    if (s->IsCompressed()) {
+      for (size_t i = 0; i < byte_count; ++i) {
+        bytes[i] = s->CharAt(i);
+      }
+    } else {
+      const uint16_t* chars = s->GetValue();
+      ConvertUtf16ToModifiedUtf8(bytes, byte_count, chars, s->GetLength());
+    }
     bytes[byte_count] = '\0';
     return bytes;
   }

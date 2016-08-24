@@ -45,7 +45,14 @@ public class Main {
         if (testStr.length() != testStr2.length())
             System.out.println("WARNING: stringTest length mismatch");
 
-        System.out.println("Compare result is " + testStr.compareTo(testStr2));
+        int compareResult = testStr.compareTo(testStr2);
+        if (compareResult > 0) {
+          System.out.println("Compare result is greater than zero");
+        } else if (compareResult == 0) {
+          System.out.println("Compare result is equal to zero");
+        } else {
+          System.out.println("Compare result is less than zero");
+        }
 
         // expected: -65302
         String s1 = "\u0c6d\u0cb6\u0d00\u0000\u0080\u0080\u0080\u0000\u0002\u0002\u0002\u0000\u00e9\u00e9\u00e9";

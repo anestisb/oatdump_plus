@@ -358,8 +358,7 @@ extern "C" size_t MterpNewInstance(ShadowFrame* shadow_frame, Thread* self, uint
   if (LIKELY(c != nullptr)) {
     if (UNLIKELY(c->IsStringClass())) {
       gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
-      mirror::SetStringCountVisitor visitor(0);
-      obj = String::Alloc<true>(self, 0, allocator_type, visitor);
+      obj = mirror::String::AllocEmptyString<true>(self, allocator_type);
     } else {
       obj = AllocObjectFromCode<false, true>(
         inst->VRegB_21c(), shadow_frame->GetMethod(), self,
