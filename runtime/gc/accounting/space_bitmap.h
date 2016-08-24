@@ -147,7 +147,7 @@ class SpaceBitmap {
   void CopyFrom(SpaceBitmap* source_bitmap);
 
   // Starting address of our internal storage.
-  uintptr_t* Begin() {
+  Atomic<uintptr_t>* Begin() {
     return bitmap_begin_;
   }
 
@@ -215,7 +215,7 @@ class SpaceBitmap {
   std::unique_ptr<MemMap> mem_map_;
 
   // This bitmap itself, word sized for efficiency in scanning.
-  uintptr_t* const bitmap_begin_;
+  Atomic<uintptr_t>* const bitmap_begin_;
 
   // Size of this bitmap.
   size_t bitmap_size_;

@@ -34,32 +34,27 @@ inline mirror::Object* ConcurrentCopying::MarkUnevacFromSpaceRegion(
   // to gray even though the object has already been marked through. This happens if a mutator
   // thread gets preempted before the AtomicSetReadBarrierPointer below, GC marks through the
   // object (changes it from white to gray and back to white), and the thread runs and
-  // incorrectly changes it from white to gray. We need to detect such "false gray" cases and
-  // change the objects back to white at the end of marking.
+  // incorrectly changes it from white to gray. If this happens, the object will get added to the
+  // mark stack again and get changed back to white after it is processed.
   if (kUseBakerReadBarrier) {
-    // Test the bitmap first to reduce the chance of false gray cases.
+    // Test the bitmap first to avoid graying an object that has already been marked through most
+    // of the time.
     if (bitmap->Test(ref)) {
       return ref;
     }
   }
   // This may or may not succeed, which is ok because the object may already be gray.
-  bool cas_success = false;
+  bool success = false;
   if (kUseBakerReadBarrier) {
-    cas_success = ref->AtomicSetReadBarrierPointer(ReadBarrier::WhitePtr(),
-                                                   ReadBarrier::GrayPtr());
-  }
-  if (bitmap->AtomicTestAndSet(ref)) {
-    // Already marked.
-    if (kUseBakerReadBarrier &&
-        cas_success &&
-        // The object could be white here if a thread gets preempted after a success at the
-        // above AtomicSetReadBarrierPointer, GC has marked through it, and the thread runs up
-        // to this point.
-        ref->GetReadBarrierPointer() == ReadBarrier::GrayPtr()) {
-      // Register a "false-gray" object to change it from gray to white at the end of marking.
-      PushOntoFalseGrayStack(ref);
-    }
+    // GC will mark the bitmap when popping from mark stack. If only the GC is touching the bitmap
+    // we can avoid an expensive CAS.
+    // For the baker case, an object is marked if either the mark bit marked or the bitmap bit is
+    // set.
+    success = ref->AtomicSetReadBarrierPointer(ReadBarrier::WhitePtr(), ReadBarrier::GrayPtr());
   } else {
+    success = !bitmap->AtomicTestAndSet(ref);
+  }
+  if (success) {
     // Newly marked.
     if (kUseBakerReadBarrier) {
       DCHECK_EQ(ref->GetReadBarrierPointer(), ReadBarrier::GrayPtr());
@@ -99,13 +94,16 @@ inline mirror::Object* ConcurrentCopying::MarkImmuneSpace(mirror::Object* ref) {
   return ref;
 }
 
-template<bool kGrayImmuneObject>
+template<bool kGrayImmuneObject, bool kFromGCThread>
 inline mirror::Object* ConcurrentCopying::Mark(mirror::Object* from_ref) {
   if (from_ref == nullptr) {
     return nullptr;
   }
   DCHECK(heap_->collector_type_ == kCollectorTypeCC);
-  if (UNLIKELY(kUseBakerReadBarrier && !is_active_)) {
+  if (kFromGCThread) {
+    DCHECK(is_active_);
+    DCHECK_EQ(Thread::Current(), thread_running_gc_);
+  } else if (UNLIKELY(kUseBakerReadBarrier && !is_active_)) {
     // In the lock word forward address state, the read barrier bits
     // in the lock word are part of the stored forwarding address and
     // invalid. This is usually OK as the from-space copy of objects
@@ -190,6 +188,16 @@ inline mirror::Object* ConcurrentCopying::GetFwdPtr(mirror::Object* from_ref) {
   } else {
     return nullptr;
   }
+}
+
+inline bool ConcurrentCopying::IsMarkedInUnevacFromSpace(mirror::Object* from_ref) {
+  // Use load acquire on the read barrier pointer to ensure that we never see a white read barrier
+  // pointer with an unmarked bit due to reordering.
+  DCHECK(region_space_->IsInUnevacFromSpace(from_ref));
+  if (kUseBakerReadBarrier && from_ref->GetReadBarrierPointerAcquire() == ReadBarrier::GrayPtr()) {
+    return true;
+  }
+  return region_space_bitmap_->Test(from_ref);
 }
 
 }  // namespace collector
