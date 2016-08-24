@@ -1389,6 +1389,25 @@ void X86_64Assembler::testq(CpuRegister reg, const Address& address) {
 }
 
 
+void X86_64Assembler::testb(const Address& dst, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOptionalRex32(dst);
+  EmitUint8(0xF6);
+  EmitOperand(Register::RAX, dst);
+  CHECK(imm.is_int8());
+  EmitUint8(imm.value() & 0xFF);
+}
+
+
+void X86_64Assembler::testl(const Address& dst, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOptionalRex32(dst);
+  EmitUint8(0xF7);
+  EmitOperand(0, dst);
+  EmitImmediate(imm);
+}
+
+
 void X86_64Assembler::andl(CpuRegister dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitOptionalRex32(dst, src);
