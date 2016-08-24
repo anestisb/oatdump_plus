@@ -30,16 +30,8 @@
   _rc; })
 #endif
 
-#define GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
-
-// C++11 final and override keywords that were introduced in GCC version 4.7.
-#if defined(__clang__) || GCC_VERSION >= 40700
 #define OVERRIDE override
 #define FINAL final
-#else
-#define OVERRIDE
-#define FINAL
-#endif
 
 // Declare a friend relationship in a class with a test. Used rather that FRIEND_TEST to avoid
 // globally importing gtest/gtest.h into the main ART header files.
@@ -158,12 +150,9 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 #define ALWAYS_INLINE  __attribute__ ((always_inline))
 #endif
 
-#ifdef __clang__
-/* clang doesn't like attributes on lambda functions */
+// clang doesn't like attributes on lambda functions. It would be nice to say:
+//   #define ALWAYS_INLINE_LAMBDA ALWAYS_INLINE
 #define ALWAYS_INLINE_LAMBDA
-#else
-#define ALWAYS_INLINE_LAMBDA ALWAYS_INLINE
-#endif
 
 #define NO_INLINE __attribute__ ((noinline))
 
@@ -228,10 +217,8 @@ template<typename... T> void UNUSED(const T&...) {}
 //
 //  In either case this macro has no effect on runtime behavior and performance
 //  of code.
-#if defined(__clang__) && __cplusplus >= 201103L && defined(__has_warning)
 #if __has_feature(cxx_attributes) && __has_warning("-Wimplicit-fallthrough")
 #define FALLTHROUGH_INTENDED [[clang::fallthrough]]  // NOLINT
-#endif
 #endif
 
 #ifndef FALLTHROUGH_INTENDED
@@ -239,64 +226,37 @@ template<typename... T> void UNUSED(const T&...) {}
 #endif
 
 // Annotalysis thread-safety analysis support.
-#if defined(__SUPPORT_TS_ANNOTATION__) || defined(__clang__)
-#define THREAD_ANNOTATION_ATTRIBUTE__(x)   __attribute__((x))
-#else
-#define THREAD_ANNOTATION_ATTRIBUTE__(x)   // no-op
-#endif
 
-#define ACQUIRED_AFTER(...) THREAD_ANNOTATION_ATTRIBUTE__(acquired_after(__VA_ARGS__))
-#define ACQUIRED_BEFORE(...) THREAD_ANNOTATION_ATTRIBUTE__(acquired_before(__VA_ARGS__))
-#define GUARDED_BY(x) THREAD_ANNOTATION_ATTRIBUTE__(guarded_by(x))
-#define GUARDED_VAR THREAD_ANNOTATION_ATTRIBUTE__(guarded)
-#define LOCK_RETURNED(x) THREAD_ANNOTATION_ATTRIBUTE__(lock_returned(x))
-#define NO_THREAD_SAFETY_ANALYSIS THREAD_ANNOTATION_ATTRIBUTE__(no_thread_safety_analysis)
+#define ACQUIRED_AFTER(...) __attribute__((acquired_after(__VA_ARGS__)))
+#define ACQUIRED_BEFORE(...) __attribute__((acquired_before(__VA_ARGS__)))
+#define GUARDED_BY(x) __attribute__((guarded_by(x)))
+#define GUARDED_VAR __attribute__((guarded))
+#define LOCK_RETURNED(x) __attribute__((lock_returned(x)))
+#define NO_THREAD_SAFETY_ANALYSIS __attribute__((no_thread_safety_analysis))
 #define PT_GUARDED_BY(x)
 // THREAD_ANNOTATION_ATTRIBUTE__(point_to_guarded_by(x))
-#define PT_GUARDED_VAR THREAD_ANNOTATION_ATTRIBUTE__(point_to_guarded)
-#define SCOPED_LOCKABLE THREAD_ANNOTATION_ATTRIBUTE__(scoped_lockable)
+#define PT_GUARDED_VAR __attribute__((point_to_guarded))
+#define SCOPED_LOCKABLE __attribute__((scoped_lockable))
 
-#if defined(__clang__)
-#define EXCLUSIVE_LOCK_FUNCTION(...) THREAD_ANNOTATION_ATTRIBUTE__(exclusive_lock_function(__VA_ARGS__))
-#define EXCLUSIVE_TRYLOCK_FUNCTION(...) THREAD_ANNOTATION_ATTRIBUTE__(exclusive_trylock_function(__VA_ARGS__))
-#define SHARED_LOCK_FUNCTION(...) THREAD_ANNOTATION_ATTRIBUTE__(shared_lock_function(__VA_ARGS__))
-#define SHARED_TRYLOCK_FUNCTION(...) THREAD_ANNOTATION_ATTRIBUTE__(shared_trylock_function(__VA_ARGS__))
-#define UNLOCK_FUNCTION(...) THREAD_ANNOTATION_ATTRIBUTE__(unlock_function(__VA_ARGS__))
-#define REQUIRES(...) THREAD_ANNOTATION_ATTRIBUTE__(requires_capability(__VA_ARGS__))
-#define SHARED_REQUIRES(...) THREAD_ANNOTATION_ATTRIBUTE__(requires_shared_capability(__VA_ARGS__))
-#define CAPABILITY(...) THREAD_ANNOTATION_ATTRIBUTE__(capability(__VA_ARGS__))
-#define SHARED_CAPABILITY(...) THREAD_ANNOTATION_ATTRIBUTE__(shared_capability(__VA_ARGS__))
-#define ASSERT_CAPABILITY(...) THREAD_ANNOTATION_ATTRIBUTE__(assert_capability(__VA_ARGS__))
-#define ASSERT_SHARED_CAPABILITY(...) THREAD_ANNOTATION_ATTRIBUTE__(assert_shared_capability(__VA_ARGS__))
-#define RETURN_CAPABILITY(...) THREAD_ANNOTATION_ATTRIBUTE__(lock_returned(__VA_ARGS__))
-#define TRY_ACQUIRE(...) THREAD_ANNOTATION_ATTRIBUTE__(try_acquire_capability(__VA_ARGS__))
-#define TRY_ACQUIRE_SHARED(...) THREAD_ANNOTATION_ATTRIBUTE__(try_acquire_shared_capability(__VA_ARGS__))
-#define ACQUIRE(...) THREAD_ANNOTATION_ATTRIBUTE__(acquire_capability(__VA_ARGS__))
-#define ACQUIRE_SHARED(...) THREAD_ANNOTATION_ATTRIBUTE__(acquire_shared_capability(__VA_ARGS__))
-#define RELEASE(...) THREAD_ANNOTATION_ATTRIBUTE__(release_capability(__VA_ARGS__))
-#define RELEASE_SHARED(...) THREAD_ANNOTATION_ATTRIBUTE__(release_shared_capability(__VA_ARGS__))
-#define SCOPED_CAPABILITY THREAD_ANNOTATION_ATTRIBUTE__(scoped_lockable)
-#else
-#define EXCLUSIVE_LOCK_FUNCTION(...) THREAD_ANNOTATION_ATTRIBUTE__(exclusive_lock(__VA_ARGS__))
-#define EXCLUSIVE_TRYLOCK_FUNCTION(...) THREAD_ANNOTATION_ATTRIBUTE__(exclusive_trylock(__VA_ARGS__))
-#define SHARED_LOCK_FUNCTION(...) THREAD_ANNOTATION_ATTRIBUTE__(shared_lock(__VA_ARGS__))
-#define SHARED_TRYLOCK_FUNCTION(...) THREAD_ANNOTATION_ATTRIBUTE__(shared_trylock(__VA_ARGS__))
-#define UNLOCK_FUNCTION(...) THREAD_ANNOTATION_ATTRIBUTE__(unlock(__VA_ARGS__))
-#define REQUIRES(...)
-#define SHARED_REQUIRES(...)
-#define CAPABILITY(...)
-#define SHARED_CAPABILITY(...)
-#define ASSERT_CAPABILITY(...)
-#define ASSERT_SHARED_CAPABILITY(...)
-#define RETURN_CAPABILITY(...)
-#define TRY_ACQUIRE(...)
-#define TRY_ACQUIRE_SHARED(...)
-#define ACQUIRE(...)
-#define ACQUIRE_SHARED(...)
-#define RELEASE(...)
-#define RELEASE_SHARED(...)
-#define SCOPED_CAPABILITY
-#endif
+#define EXCLUSIVE_LOCK_FUNCTION(...) __attribute__((exclusive_lock_function(__VA_ARGS__)))
+#define EXCLUSIVE_TRYLOCK_FUNCTION(...) __attribute__((exclusive_trylock_function(__VA_ARGS__)))
+#define SHARED_LOCK_FUNCTION(...) __attribute__((shared_lock_function(__VA_ARGS__)))
+#define SHARED_TRYLOCK_FUNCTION(...) __attribute__((shared_trylock_function(__VA_ARGS__)))
+#define UNLOCK_FUNCTION(...) __attribute__((unlock_function(__VA_ARGS__)))
+#define REQUIRES(...) __attribute__((requires_capability(__VA_ARGS__)))
+#define SHARED_REQUIRES(...) __attribute__((requires_shared_capability(__VA_ARGS__)))
+#define CAPABILITY(...) __attribute__((capability(__VA_ARGS__)))
+#define SHARED_CAPABILITY(...) __attribute__((shared_capability(__VA_ARGS__)))
+#define ASSERT_CAPABILITY(...) __attribute__((assert_capability(__VA_ARGS__)))
+#define ASSERT_SHARED_CAPABILITY(...) __attribute__((assert_shared_capability(__VA_ARGS__)))
+#define RETURN_CAPABILITY(...) __attribute__((lock_returned(__VA_ARGS__)))
+#define TRY_ACQUIRE(...) __attribute__((try_acquire_capability(__VA_ARGS__)))
+#define TRY_ACQUIRE_SHARED(...) __attribute__((try_acquire_shared_capability(__VA_ARGS__)))
+#define ACQUIRE(...) __attribute__((acquire_capability(__VA_ARGS__)))
+#define ACQUIRE_SHARED(...) __attribute__((acquire_shared_capability(__VA_ARGS__)))
+#define RELEASE(...) __attribute__((release_capability(__VA_ARGS__)))
+#define RELEASE_SHARED(...) __attribute__((release_shared_capability(__VA_ARGS__)))
+#define SCOPED_CAPABILITY __attribute__((scoped_lockable))
 
 #define LOCKABLE CAPABILITY("mutex")
 #define SHARED_LOCKABLE SHARED_CAPABILITY("mutex")
