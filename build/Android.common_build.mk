@@ -136,7 +136,6 @@ endif
 # Base set of cflags used by all things ART.
 art_cflags += \
   -fno-rtti \
-  -std=gnu++11 \
   -ggdb3 \
   -Wall \
   -Werror \
