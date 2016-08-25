@@ -1624,9 +1624,9 @@ typedef arm::ArmVIXLJNIMacroAssembler JniAssemblerType;
 typedef arm::Thumb2Assembler AssemblerType;
 #endif
 
-class ArmVIXAssemblerTest : public ::testing::Test {
+class ArmVIXLAssemblerTest : public ::testing::Test {
  public:
-  ArmVIXAssemblerTest() : pool(), arena(&pool), assembler(&arena) { }
+  ArmVIXLAssemblerTest() : pool(), arena(&pool), assembler(&arena) { }
 
   ArenaPool pool;
   ArenaAllocator arena;
@@ -1658,7 +1658,7 @@ void EmitAndCheck(JniAssemblerType* assembler, const char* testname) {
 #undef __
 #define __ assembler.
 
-TEST_F(ArmVIXAssemblerTest, VixlJniHelpers) {
+TEST_F(ArmVIXLAssemblerTest, VixlJniHelpers) {
   const bool is_static = true;
   const bool is_synchronized = false;
   const char* shorty = "IIFII";
@@ -1689,7 +1689,7 @@ TEST_F(ArmVIXAssemblerTest, VixlJniHelpers) {
   __ Load(scratch_register, FrameOffset(4092), 4);
   __ Load(scratch_register, FrameOffset(4096), 4);
   __ LoadRawPtrFromThread(scratch_register, ThreadOffset32(512));
-  __ LoadRef(method_register, scratch_register, MemberOffset(128), true);
+  __ LoadRef(method_register, scratch_register, MemberOffset(128), /* unpoison_reference */ false);
 
   // Stores
   __ Store(FrameOffset(32), method_register, 4);
@@ -1743,7 +1743,7 @@ TEST_F(ArmVIXAssemblerTest, VixlJniHelpers) {
 #define __ assembler.asm_.
 #endif
 
-TEST_F(ArmVIXAssemblerTest, VixlLoadFromOffset) {
+TEST_F(ArmVIXLAssemblerTest, VixlLoadFromOffset) {
   __ LoadFromOffset(kLoadWord, R2, R4, 12);
   __ LoadFromOffset(kLoadWord, R2, R4, 0xfff);
   __ LoadFromOffset(kLoadWord, R2, R4, 0x1000);
@@ -1773,7 +1773,7 @@ TEST_F(ArmVIXAssemblerTest, VixlLoadFromOffset) {
   EmitAndCheck(&assembler, "VixlLoadFromOffset");
 }
 
-TEST_F(ArmVIXAssemblerTest, VixlStoreToOffset) {
+TEST_F(ArmVIXLAssemblerTest, VixlStoreToOffset) {
   __ StoreToOffset(kStoreWord, R2, R4, 12);
   __ StoreToOffset(kStoreWord, R2, R4, 0xfff);
   __ StoreToOffset(kStoreWord, R2, R4, 0x1000);
