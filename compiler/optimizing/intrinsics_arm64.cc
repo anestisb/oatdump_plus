@@ -1466,9 +1466,8 @@ static void GenerateVisitStringIndexOf(HInvoke* invoke,
     __ Mov(tmp_reg, 0);
   }
 
-  __ Ldr(lr, MemOperand(tr, QUICK_ENTRYPOINT_OFFSET(kArm64PointerSize, pIndexOf).Int32Value()));
+  codegen->InvokeRuntime(kQuickIndexOf, invoke, invoke->GetDexPc(), slow_path);
   CheckEntrypointTypes<kQuickIndexOf, int32_t, void*, uint32_t, uint32_t>();
-  __ Blr(lr);
 
   if (slow_path != nullptr) {
     __ Bind(slow_path->GetExitLabel());
@@ -1535,12 +1534,8 @@ void IntrinsicCodeGeneratorARM64::VisitStringNewStringFromBytes(HInvoke* invoke)
   codegen_->AddSlowPath(slow_path);
   __ B(eq, slow_path->GetEntryLabel());
 
-  __ Ldr(lr,
-      MemOperand(tr,
-                 QUICK_ENTRYPOINT_OFFSET(kArm64PointerSize, pAllocStringFromBytes).Int32Value()));
+  codegen_->InvokeRuntime(kQuickAllocStringFromBytes, invoke, invoke->GetDexPc(), slow_path);
   CheckEntrypointTypes<kQuickAllocStringFromBytes, void*, void*, int32_t, int32_t, int32_t>();
-  __ Blr(lr);
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
   __ Bind(slow_path->GetExitLabel());
 }
 
@@ -1556,20 +1551,14 @@ void IntrinsicLocationsBuilderARM64::VisitStringNewStringFromChars(HInvoke* invo
 }
 
 void IntrinsicCodeGeneratorARM64::VisitStringNewStringFromChars(HInvoke* invoke) {
-  MacroAssembler* masm = GetVIXLAssembler();
-
   // No need to emit code checking whether `locations->InAt(2)` is a null
   // pointer, as callers of the native method
   //
   //   java.lang.StringFactory.newStringFromChars(int offset, int charCount, char[] data)
   //
   // all include a null check on `data` before calling that method.
-  __ Ldr(lr,
-      MemOperand(tr,
-                 QUICK_ENTRYPOINT_OFFSET(kArm64PointerSize, pAllocStringFromChars).Int32Value()));
+  codegen_->InvokeRuntime(kQuickAllocStringFromChars, invoke, invoke->GetDexPc());
   CheckEntrypointTypes<kQuickAllocStringFromChars, void*, int32_t, int32_t, void*>();
-  __ Blr(lr);
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
 void IntrinsicLocationsBuilderARM64::VisitStringNewStringFromString(HInvoke* invoke) {
@@ -1591,12 +1580,8 @@ void IntrinsicCodeGeneratorARM64::VisitStringNewStringFromString(HInvoke* invoke
   codegen_->AddSlowPath(slow_path);
   __ B(eq, slow_path->GetEntryLabel());
 
-  __ Ldr(lr,
-      MemOperand(tr,
-                 QUICK_ENTRYPOINT_OFFSET(kArm64PointerSize, pAllocStringFromString).Int32Value()));
+  codegen_->InvokeRuntime(kQuickAllocStringFromString, invoke, invoke->GetDexPc(), slow_path);
   CheckEntrypointTypes<kQuickAllocStringFromString, void*, void*>();
-  __ Blr(lr);
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
   __ Bind(slow_path->GetExitLabel());
 }
 
@@ -1631,13 +1616,9 @@ static void CreateFPFPToFPCallLocations(ArenaAllocator* arena, HInvoke* invoke) 
 }
 
 static void GenFPToFPCall(HInvoke* invoke,
-                          MacroAssembler* masm,
                           CodeGeneratorARM64* codegen,
                           QuickEntrypointEnum entry) {
-  __ Ldr(lr, MemOperand(tr,
-                        GetThreadOffset<kArm64PointerSize>(entry).Int32Value()));
-  __ Blr(lr);
-  codegen->RecordPcInfo(invoke, invoke->GetDexPc());
+  codegen->InvokeRuntime(entry, invoke, invoke->GetDexPc());
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMathCos(HInvoke* invoke) {
@@ -1645,7 +1626,7 @@ void IntrinsicLocationsBuilderARM64::VisitMathCos(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorARM64::VisitMathCos(HInvoke* invoke) {
-  GenFPToFPCall(invoke, GetVIXLAssembler(), codegen_, kQuickCos);
+  GenFPToFPCall(invoke, codegen_, kQuickCos);
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMathSin(HInvoke* invoke) {
@@ -1653,7 +1634,7 @@ void IntrinsicLocationsBuilderARM64::VisitMathSin(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorARM64::VisitMathSin(HInvoke* invoke) {
-  GenFPToFPCall(invoke, GetVIXLAssembler(), codegen_, kQuickSin);
+  GenFPToFPCall(invoke, codegen_, kQuickSin);
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMathAcos(HInvoke* invoke) {
@@ -1661,7 +1642,7 @@ void IntrinsicLocationsBuilderARM64::VisitMathAcos(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorARM64::VisitMathAcos(HInvoke* invoke) {
-  GenFPToFPCall(invoke, GetVIXLAssembler(), codegen_, kQuickAcos);
+  GenFPToFPCall(invoke, codegen_, kQuickAcos);
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMathAsin(HInvoke* invoke) {
@@ -1669,7 +1650,7 @@ void IntrinsicLocationsBuilderARM64::VisitMathAsin(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorARM64::VisitMathAsin(HInvoke* invoke) {
-  GenFPToFPCall(invoke, GetVIXLAssembler(), codegen_, kQuickAsin);
+  GenFPToFPCall(invoke, codegen_, kQuickAsin);
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMathAtan(HInvoke* invoke) {
@@ -1677,7 +1658,7 @@ void IntrinsicLocationsBuilderARM64::VisitMathAtan(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorARM64::VisitMathAtan(HInvoke* invoke) {
-  GenFPToFPCall(invoke, GetVIXLAssembler(), codegen_, kQuickAtan);
+  GenFPToFPCall(invoke, codegen_, kQuickAtan);
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMathCbrt(HInvoke* invoke) {
@@ -1685,7 +1666,7 @@ void IntrinsicLocationsBuilderARM64::VisitMathCbrt(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorARM64::VisitMathCbrt(HInvoke* invoke) {
-  GenFPToFPCall(invoke, GetVIXLAssembler(), codegen_, kQuickCbrt);
+  GenFPToFPCall(invoke, codegen_, kQuickCbrt);
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMathCosh(HInvoke* invoke) {
@@ -1693,7 +1674,7 @@ void IntrinsicLocationsBuilderARM64::VisitMathCosh(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorARM64::VisitMathCosh(HInvoke* invoke) {
-  GenFPToFPCall(invoke, GetVIXLAssembler(), codegen_, kQuickCosh);
+  GenFPToFPCall(invoke, codegen_, kQuickCosh);
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMathExp(HInvoke* invoke) {
@@ -1701,7 +1682,7 @@ void IntrinsicLocationsBuilderARM64::VisitMathExp(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorARM64::VisitMathExp(HInvoke* invoke) {
-  GenFPToFPCall(invoke, GetVIXLAssembler(), codegen_, kQuickExp);
+  GenFPToFPCall(invoke, codegen_, kQuickExp);
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMathExpm1(HInvoke* invoke) {
@@ -1709,7 +1690,7 @@ void IntrinsicLocationsBuilderARM64::VisitMathExpm1(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorARM64::VisitMathExpm1(HInvoke* invoke) {
-  GenFPToFPCall(invoke, GetVIXLAssembler(), codegen_, kQuickExpm1);
+  GenFPToFPCall(invoke, codegen_, kQuickExpm1);
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMathLog(HInvoke* invoke) {
@@ -1717,7 +1698,7 @@ void IntrinsicLocationsBuilderARM64::VisitMathLog(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorARM64::VisitMathLog(HInvoke* invoke) {
-  GenFPToFPCall(invoke, GetVIXLAssembler(), codegen_, kQuickLog);
+  GenFPToFPCall(invoke, codegen_, kQuickLog);
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMathLog10(HInvoke* invoke) {
@@ -1725,7 +1706,7 @@ void IntrinsicLocationsBuilderARM64::VisitMathLog10(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorARM64::VisitMathLog10(HInvoke* invoke) {
-  GenFPToFPCall(invoke, GetVIXLAssembler(), codegen_, kQuickLog10);
+  GenFPToFPCall(invoke, codegen_, kQuickLog10);
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMathSinh(HInvoke* invoke) {
@@ -1733,7 +1714,7 @@ void IntrinsicLocationsBuilderARM64::VisitMathSinh(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorARM64::VisitMathSinh(HInvoke* invoke) {
-  GenFPToFPCall(invoke, GetVIXLAssembler(), codegen_, kQuickSinh);
+  GenFPToFPCall(invoke, codegen_, kQuickSinh);
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMathTan(HInvoke* invoke) {
@@ -1741,7 +1722,7 @@ void IntrinsicLocationsBuilderARM64::VisitMathTan(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorARM64::VisitMathTan(HInvoke* invoke) {
-  GenFPToFPCall(invoke, GetVIXLAssembler(), codegen_, kQuickTan);
+  GenFPToFPCall(invoke, codegen_, kQuickTan);
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMathTanh(HInvoke* invoke) {
@@ -1749,7 +1730,7 @@ void IntrinsicLocationsBuilderARM64::VisitMathTanh(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorARM64::VisitMathTanh(HInvoke* invoke) {
-  GenFPToFPCall(invoke, GetVIXLAssembler(), codegen_, kQuickTanh);
+  GenFPToFPCall(invoke, codegen_, kQuickTanh);
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMathAtan2(HInvoke* invoke) {
@@ -1757,7 +1738,7 @@ void IntrinsicLocationsBuilderARM64::VisitMathAtan2(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorARM64::VisitMathAtan2(HInvoke* invoke) {
-  GenFPToFPCall(invoke, GetVIXLAssembler(), codegen_, kQuickAtan2);
+  GenFPToFPCall(invoke, codegen_, kQuickAtan2);
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMathHypot(HInvoke* invoke) {
@@ -1765,7 +1746,7 @@ void IntrinsicLocationsBuilderARM64::VisitMathHypot(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorARM64::VisitMathHypot(HInvoke* invoke) {
-  GenFPToFPCall(invoke, GetVIXLAssembler(), codegen_, kQuickHypot);
+  GenFPToFPCall(invoke, codegen_, kQuickHypot);
 }
 
 void IntrinsicLocationsBuilderARM64::VisitMathNextAfter(HInvoke* invoke) {
@@ -1773,7 +1754,7 @@ void IntrinsicLocationsBuilderARM64::VisitMathNextAfter(HInvoke* invoke) {
 }
 
 void IntrinsicCodeGeneratorARM64::VisitMathNextAfter(HInvoke* invoke) {
-  GenFPToFPCall(invoke, GetVIXLAssembler(), codegen_, kQuickNextAfter);
+  GenFPToFPCall(invoke, codegen_, kQuickNextAfter);
 }
 
 void IntrinsicLocationsBuilderARM64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
