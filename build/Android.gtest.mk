@@ -373,7 +373,6 @@ COMPILER_GTEST_HOST_SRC_FILES_all := \
 
 COMPILER_GTEST_HOST_SRC_FILES_arm := \
   $(COMPILER_GTEST_COMMON_SRC_FILES_arm) \
-  compiler/utils/arm/assembler_arm32_test.cc \
   compiler/utils/arm/assembler_thumb2_test.cc \
   compiler/utils/assembler_thumb_test.cc \
 
