@@ -96,8 +96,10 @@ LIBART_COMPILER_SRC_FILES_arm := \
 	optimizing/instruction_simplifier_shared.cc \
 	optimizing/intrinsics_arm.cc \
 	utils/arm/assembler_arm.cc \
+	utils/arm/assembler_arm_vixl.cc \
 	utils/arm/assembler_thumb2.cc \
 	utils/arm/jni_macro_assembler_arm.cc \
+	utils/arm/jni_macro_assembler_arm_vixl.cc \
 	utils/arm/managed_register_arm.cc \
 
 # TODO We should really separate out those files that are actually needed for both variants of an
@@ -287,15 +289,15 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   # VIXL assembly support for ARM64 targets.
   ifeq ($$(art_ndebug_or_debug),debug)
     ifeq ($$(art_static_or_shared), static)
-      LOCAL_WHOLESTATIC_LIBRARIES += libvixld-arm64
+      LOCAL_WHOLESTATIC_LIBRARIES += libvixld-arm libvixld-arm64
     else
-      LOCAL_SHARED_LIBRARIES += libvixld-arm64
+      LOCAL_SHARED_LIBRARIES += libvixld-arm libvixld-arm64
     endif
   else
     ifeq ($$(art_static_or_shared), static)
-      LOCAL_WHOLE_STATIC_LIBRARIES += libvixl-arm64
+      LOCAL_WHOLE_STATIC_LIBRARIES += libvixl-arm libvixl-arm64
     else
-      LOCAL_SHARED_LIBRARIES += libvixl-arm64
+      LOCAL_SHARED_LIBRARIES += libvixl-arm libvixl-arm64
     endif
   endif
 

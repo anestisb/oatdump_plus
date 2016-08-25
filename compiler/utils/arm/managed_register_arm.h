@@ -22,6 +22,12 @@
 #include "debug/dwarf/register.h"
 #include "utils/managed_register.h"
 
+// TODO(VIXL): Make VIXL compile with -Wshadow.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
+#include "aarch32/macro-assembler-aarch32.h"
+#pragma GCC diagnostic pop
+
 namespace art {
 namespace arm {
 
@@ -90,14 +96,29 @@ class ArmManagedRegister : public ManagedRegister {
     return static_cast<Register>(id_);
   }
 
+  vixl::aarch32::Register AsVIXLRegister() const {
+    CHECK(IsCoreRegister());
+    return vixl::aarch32::Register(id_);
+  }
+
   constexpr SRegister AsSRegister() const {
     CHECK(IsSRegister());
     return static_cast<SRegister>(id_ - kNumberOfCoreRegIds);
   }
 
+  vixl::aarch32::SRegister AsVIXLSRegister() const {
+    CHECK(IsSRegister());
+    return vixl::aarch32::SRegister(id_ - kNumberOfCoreRegIds);
+  }
+
   constexpr DRegister AsDRegister() const {
     CHECK(IsDRegister());
     return static_cast<DRegister>(id_ - kNumberOfCoreRegIds - kNumberOfSRegIds);
+  }
+
+  vixl::aarch32::DRegister AsVIXLDRegister() const {
+    CHECK(IsDRegister());
+    return vixl::aarch32::DRegister(id_ - kNumberOfCoreRegIds - kNumberOfSRegIds);
   }
 
   constexpr SRegister AsOverlappingDRegisterLow() const {
@@ -128,10 +149,18 @@ class ArmManagedRegister : public ManagedRegister {
     return FromRegId(AllocIdLow()).AsCoreRegister();
   }
 
+  vixl::aarch32::Register AsVIXLRegisterPairLow() const {
+    return vixl::aarch32::Register(AsRegisterPairLow());
+  }
+
   constexpr Register AsRegisterPairHigh() const {
     CHECK(IsRegisterPair());
     // Appropriate mapping of register ids allows to use AllocIdHigh().
     return FromRegId(AllocIdHigh()).AsCoreRegister();
+  }
+
+  vixl::aarch32::Register AsVIXLRegisterPairHigh() const {
+    return vixl::aarch32::Register(AsRegisterPairHigh());
   }
 
   constexpr bool IsCoreRegister() const {
