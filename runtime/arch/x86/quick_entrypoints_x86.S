@@ -1109,18 +1109,15 @@ DEFINE_FUNCTION art_quick_alloc_object_region_tlab
 END_FUNCTION art_quick_alloc_object_region_tlab
 
 DEFINE_FUNCTION art_quick_resolve_string
-    SETUP_SAVE_REFS_ONLY_FRAME  ebx, ebx
-    movl FRAME_SIZE_SAVE_REFS_ONLY(%esp), %ecx                   // get referrer
+    movl 4(%esp), %ecx                                           // get referrer
     movl ART_METHOD_DECLARING_CLASS_OFFSET(%ecx), %ecx           // get declaring class
     movl DECLARING_CLASS_DEX_CACHE_STRINGS_OFFSET(%ecx), %ecx    // get string dex cache
     movl LITERAL(STRING_DEX_CACHE_SIZE_MINUS_ONE), %edx
     andl %eax, %edx
-    shl LITERAL(STRING_DEX_CACHE_ELEMENT_SIZE_SHIFT), %edx
-    addl %ecx, %edx
-    movlps (%edx), %xmm0                                     // load string idx and pointer to xmm0
-    movd %xmm0, %ecx                                         // extract pointer
-    pshufd LITERAL(0x55), %xmm0, %xmm0                       // shuffle index into lowest bits
-    movd %xmm0, %edx                                         // extract index
+    movlps (%ecx, %edx, STRING_DEX_CACHE_ELEMENT_SIZE), %xmm0    // load string idx and ptr to xmm0
+    movd %xmm0, %ecx                                             // extract pointer
+    pshufd LITERAL(0x55), %xmm0, %xmm0                           // shuffle index into lowest bits
+    movd %xmm0, %edx                                             // extract index
     cmp %edx, %eax
     jne .Lart_quick_resolve_string_slow_path
     movl %ecx, %eax
@@ -1128,10 +1125,10 @@ DEFINE_FUNCTION art_quick_resolve_string
     cmpl LITERAL(0), %fs:THREAD_IS_GC_MARKING_OFFSET
     jne .Lart_quick_resolve_string_marking
 #endif
-    RESTORE_SAVE_REFS_ONLY_FRAME
     ret
 .Lart_quick_resolve_string_slow_path:
     // Outgoing argument set up
+    SETUP_SAVE_REFS_ONLY_FRAME  ebx, ebx
     subl LITERAL(8), %esp                                        // push padding
     CFI_ADJUST_CFA_OFFSET(8)
     pushl %fs:THREAD_SELF_OFFSET                                 // pass Thread::Current()
@@ -1143,6 +1140,7 @@ DEFINE_FUNCTION art_quick_resolve_string
     RESTORE_SAVE_REFS_ONLY_FRAME
     RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 .Lart_quick_resolve_string_marking:
+    SETUP_SAVE_REFS_ONLY_FRAME  ebx, ebx
     testl LITERAL(LOCK_WORD_MARK_BIT_MASK_SHIFTED), MIRROR_OBJECT_LOCK_WORD_OFFSET(%eax)
     jnz .Lart_quick_resolve_string_no_rb
     subl LITERAL(12), %esp                                   // alignment padding
