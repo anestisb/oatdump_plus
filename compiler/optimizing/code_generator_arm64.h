@@ -491,18 +491,15 @@ class CodeGeneratorARM64 : public CodeGenerator {
   void InvokeRuntime(QuickEntrypointEnum entrypoint,
                      HInstruction* instruction,
                      uint32_t dex_pc,
-                     SlowPathCode* slow_path) OVERRIDE;
-
-  void InvokeRuntime(int32_t offset,
-                     HInstruction* instruction,
-                     uint32_t dex_pc,
-                     SlowPathCode* slow_path);
+                     SlowPathCode* slow_path = nullptr) OVERRIDE;
 
   // Generate code to invoke a runtime entry point, but do not record
   // PC-related information in a stack map.
   void InvokeRuntimeWithoutRecordingPcInfo(int32_t entry_point_offset,
                                            HInstruction* instruction,
                                            SlowPathCode* slow_path);
+
+  void GenerateInvokeRuntime(int32_t entry_point_offset);
 
   ParallelMoveResolverARM64* GetMoveResolver() OVERRIDE { return &move_resolver_; }
 
