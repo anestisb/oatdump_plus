@@ -76,6 +76,9 @@ include $(art_path)/build/Android.cpplint.mk
 ########################################################################
 # product rules
 
+include $(art_path)/runtime/Android.mk
+include $(art_path)/runtime/simulator/Android.mk
+include $(art_path)/compiler/Android.mk
 include $(art_path)/dexdump/Android.mk
 include $(art_path)/dexlist/Android.mk
 include $(art_path)/dex2oat/Android.mk
@@ -89,6 +92,7 @@ include $(art_path)/tools/Android.mk
 include $(art_path)/tools/ahat/Android.mk
 include $(art_path)/tools/dexfuzz/Android.mk
 include $(art_path)/tools/dmtracedump/Android.mk
+include $(art_path)/sigchainlib/Android.mk
 include $(art_path)/libart_fake/Android.mk
 
 
@@ -550,6 +554,9 @@ endif # !art_dont_bother
 art_dont_bother :=
 art_test_bother :=
 TEST_ART_TARGET_SYNC_DEPS :=
+
+include $(art_path)/runtime/openjdkjvm/Android.mk
+include $(art_path)/runtime/openjdkjvmti/Android.mk
 
 # Helper target that depends on boot image creation.
 #

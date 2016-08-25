@@ -1,6 +1,0 @@
-subdirs = [
-    "build",
-    "compiler",
-    "runtime",
-    "sigchainlib",
-]
