@@ -96,7 +96,6 @@ LIBART_COMPILER_SRC_FILES_arm := \
 	optimizing/instruction_simplifier_shared.cc \
 	optimizing/intrinsics_arm.cc \
 	utils/arm/assembler_arm.cc \
-	utils/arm/assembler_arm32.cc \
 	utils/arm/assembler_thumb2.cc \
 	utils/arm/jni_macro_assembler_arm.cc \
 	utils/arm/managed_register_arm.cc \

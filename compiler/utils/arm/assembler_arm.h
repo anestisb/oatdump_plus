@@ -36,7 +36,6 @@
 namespace art {
 namespace arm {
 
-class Arm32Assembler;
 class Thumb2Assembler;
 
 // Assembler literal is a value embedded in code, retrieved using a PC-relative load.
@@ -208,7 +207,6 @@ class ShifterOperand {
   uint32_t rotate_;
   uint32_t immed_;
 
-  friend class Arm32Assembler;
   friend class Thumb2Assembler;
 
 #ifdef SOURCE_ASSEMBLER_SUPPORT
