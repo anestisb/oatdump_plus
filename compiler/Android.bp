@@ -1,0 +1,245 @@
+//
+// Copyright (C) 2012 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+// TODO We should really separate out those files that are actually needed for both variants of an
+// architecture into its own category. Currently we just include all of the 32bit variant in the
+// 64bit variant. It also might be good to allow one to compile only the 64bit variant without the
+// 32bit one.
+
+art_cc_defaults {
+    name: "libart-compiler-defaults",
+    defaults: ["art_defaults"],
+    host_supported: true,
+    clang: true,
+    srcs: [
+        "compiled_method.cc",
+        "debug/elf_debug_writer.cc",
+        "dex/dex_to_dex_compiler.cc",
+        "dex/verified_method.cc",
+        "dex/verification_results.cc",
+        "dex/quick_compiler_callbacks.cc",
+        "dex/quick/dex_file_method_inliner.cc",
+        "dex/quick/dex_file_to_method_inliner_map.cc",
+        "driver/compiled_method_storage.cc",
+        "driver/compiler_driver.cc",
+        "driver/compiler_options.cc",
+        "driver/dex_compilation_unit.cc",
+        "linker/buffered_output_stream.cc",
+        "linker/file_output_stream.cc",
+        "linker/multi_oat_relative_patcher.cc",
+        "linker/output_stream.cc",
+        "linker/vector_output_stream.cc",
+        "linker/relative_patcher.cc",
+        "jit/jit_compiler.cc",
+        "jni/quick/calling_convention.cc",
+        "jni/quick/jni_compiler.cc",
+        "optimizing/block_builder.cc",
+        "optimizing/bounds_check_elimination.cc",
+        "optimizing/builder.cc",
+        "optimizing/code_generator.cc",
+        "optimizing/code_generator_utils.cc",
+        "optimizing/constant_folding.cc",
+        "optimizing/dead_code_elimination.cc",
+        "optimizing/graph_checker.cc",
+        "optimizing/graph_visualizer.cc",
+        "optimizing/gvn.cc",
+        "optimizing/induction_var_analysis.cc",
+        "optimizing/induction_var_range.cc",
+        "optimizing/inliner.cc",
+        "optimizing/instruction_builder.cc",
+        "optimizing/instruction_simplifier.cc",
+        "optimizing/intrinsics.cc",
+        "optimizing/licm.cc",
+        "optimizing/load_store_elimination.cc",
+        "optimizing/locations.cc",
+        "optimizing/nodes.cc",
+        "optimizing/optimization.cc",
+        "optimizing/optimizing_compiler.cc",
+        "optimizing/parallel_move_resolver.cc",
+        "optimizing/prepare_for_register_allocation.cc",
+        "optimizing/reference_type_propagation.cc",
+        "optimizing/register_allocation_resolver.cc",
+        "optimizing/register_allocator.cc",
+        "optimizing/register_allocator_graph_color.cc",
+        "optimizing/register_allocator_linear_scan.cc",
+        "optimizing/select_generator.cc",
+        "optimizing/sharpening.cc",
+        "optimizing/side_effects_analysis.cc",
+        "optimizing/ssa_builder.cc",
+        "optimizing/ssa_liveness_analysis.cc",
+        "optimizing/ssa_phi_elimination.cc",
+        "optimizing/stack_map_stream.cc",
+        "trampolines/trampoline_compiler.cc",
+        "utils/assembler.cc",
+        "utils/jni_macro_assembler.cc",
+        "utils/swap_space.cc",
+        "compiler.cc",
+        "elf_writer.cc",
+        "elf_writer_quick.cc",
+        "image_writer.cc",
+        "oat_writer.cc",
+    ],
+
+    codegen: {
+        arm: {
+            srcs: [
+                "jni/quick/arm/calling_convention_arm.cc",
+                "linker/arm/relative_patcher_arm_base.cc",
+                "linker/arm/relative_patcher_thumb2.cc",
+                "optimizing/code_generator_arm.cc",
+                "optimizing/dex_cache_array_fixups_arm.cc",
+                "optimizing/instruction_simplifier_arm.cc",
+                "optimizing/instruction_simplifier_shared.cc",
+                "optimizing/intrinsics_arm.cc",
+                "utils/arm/assembler_arm.cc",
+                "utils/arm/assembler_arm32.cc",
+                "utils/arm/assembler_thumb2.cc",
+                "utils/arm/jni_macro_assembler_arm.cc",
+                "utils/arm/managed_register_arm.cc",
+            ],
+        },
+        arm64: {
+            srcs: [
+                "jni/quick/arm64/calling_convention_arm64.cc",
+                "linker/arm64/relative_patcher_arm64.cc",
+                "optimizing/code_generator_arm64.cc",
+                "optimizing/instruction_simplifier_arm64.cc",
+                "optimizing/intrinsics_arm64.cc",
+                "optimizing/nodes_arm64.cc",
+                "utils/arm64/assembler_arm64.cc",
+                "utils/arm64/jni_macro_assembler_arm64.cc",
+                "utils/arm64/managed_register_arm64.cc",
+            ],
+        },
+        mips: {
+            srcs: [
+                "jni/quick/mips/calling_convention_mips.cc",
+                "linker/mips/relative_patcher_mips.cc",
+                "optimizing/code_generator_mips.cc",
+                "optimizing/dex_cache_array_fixups_mips.cc",
+                "optimizing/intrinsics_mips.cc",
+                "optimizing/pc_relative_fixups_mips.cc",
+                "utils/mips/assembler_mips.cc",
+                "utils/mips/managed_register_mips.cc",
+            ],
+        },
+        mips64: {
+            srcs: [
+                "jni/quick/mips64/calling_convention_mips64.cc",
+                "optimizing/code_generator_mips64.cc",
+                "optimizing/intrinsics_mips64.cc",
+                "utils/mips64/assembler_mips64.cc",
+                "utils/mips64/managed_register_mips64.cc",
+            ],
+        },
+        x86: {
+            srcs: [
+                "jni/quick/x86/calling_convention_x86.cc",
+                "linker/x86/relative_patcher_x86.cc",
+                "linker/x86/relative_patcher_x86_base.cc",
+                "optimizing/code_generator_x86.cc",
+                "optimizing/intrinsics_x86.cc",
+                "optimizing/pc_relative_fixups_x86.cc",
+                "optimizing/x86_memory_gen.cc",
+                "utils/x86/assembler_x86.cc",
+                "utils/x86/jni_macro_assembler_x86.cc",
+                "utils/x86/managed_register_x86.cc",
+            ],
+        },
+        x86_64: {
+            srcs: [
+                "jni/quick/x86_64/calling_convention_x86_64.cc",
+                "linker/x86_64/relative_patcher_x86_64.cc",
+                "optimizing/intrinsics_x86_64.cc",
+                "optimizing/code_generator_x86_64.cc",
+                "utils/x86_64/assembler_x86_64.cc",
+                "utils/x86_64/jni_macro_assembler_x86_64.cc",
+                "utils/x86_64/managed_register_x86_64.cc",
+            ],
+        },
+    },
+    target: {
+        host: {
+            // For compiler driver TLS.
+            host_ldlibs: ["-lpthread"],
+        },
+        android: {
+            // For atrace.
+            shared_libs: ["libcutils"],
+        },
+    },
+    generated_sources: ["art_compiler_operator_srcs"],
+    shared_libs: [
+        "liblz4",
+        "liblzma",
+    ],
+    include_dirs: ["art/disassembler"],
+}
+
+gensrcs {
+    name: "art_compiler_operator_srcs",
+    cmd: "art/tools/generate-operator-out.py art/compiler $in > $out",
+    srcs: [
+        "compiled_method.h",
+        "dex/dex_to_dex_compiler.h",
+        "driver/compiler_driver.h",
+        "driver/compiler_options.h",
+        "image_writer.h",
+        "optimizing/locations.h",
+
+        "utils/arm/constants_arm.h",
+        "utils/mips/assembler_mips.h",
+        "utils/mips64/assembler_mips64.h",
+    ],
+    output_extension: "operator_out.cc",
+}
+
+art_cc_library {
+    name: "libart-compiler",
+    defaults: ["libart-compiler-defaults"],
+    codegen: {
+        arm64: {
+            // VIXL assembly support for ARM64 targets.
+            static: {
+                whole_static_libs: ["libvixl-arm64"],
+            },
+            shared: {
+                shared_libs: ["libvixl-arm64"],
+            },
+        },
+    },
+    shared_libs: ["libart"],
+}
+
+art_cc_library {
+    name: "libartd-compiler",
+    defaults: [
+        "libart-compiler-defaults",
+        "art_debug_defaults",
+    ],
+    codegen: {
+        arm64: {
+            // VIXL assembly support for ARM64 targets.
+            static: {
+                whole_static_libs: ["libvixld-arm64"],
+            },
+            shared: {
+                shared_libs: ["libvixld-arm64"],
+            },
+        },
+    },
+    shared_libs: ["libartd"],
+}
