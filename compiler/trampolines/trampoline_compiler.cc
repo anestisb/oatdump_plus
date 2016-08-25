@@ -20,7 +20,7 @@
 #include "jni_env_ext.h"
 
 #ifdef ART_ENABLE_CODEGEN_arm
-#include "utils/arm/assembler_thumb2.h"
+#include "utils/arm/assembler_arm_vixl.h"
 #endif
 
 #ifdef ART_ENABLE_CODEGEN_arm64
@@ -49,22 +49,37 @@ namespace art {
 
 #ifdef ART_ENABLE_CODEGEN_arm
 namespace arm {
+
+#ifdef ___
+#error "ARM Assembler macro already defined."
+#else
+#define ___ assembler.GetVIXLAssembler()->
+#endif
+
 static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(
     ArenaAllocator* arena, EntryPointCallingConvention abi, ThreadOffset32 offset) {
-  Thumb2Assembler assembler(arena);
+  using vixl::aarch32::MemOperand;
+  using vixl::aarch32::pc;
+  using vixl::aarch32::r0;
+  ArmVIXLAssembler assembler(arena);
 
   switch (abi) {
     case kInterpreterAbi:  // Thread* is first argument (R0) in interpreter ABI.
-      __ LoadFromOffset(kLoadWord, PC, R0, offset.Int32Value());
+      ___ Ldr(pc, MemOperand(r0, offset.Int32Value()));
       break;
-    case kJniAbi:  // Load via Thread* held in JNIEnv* in first argument (R0).
-      __ LoadFromOffset(kLoadWord, IP, R0, JNIEnvExt::SelfOffset(4).Int32Value());
-      __ LoadFromOffset(kLoadWord, PC, IP, offset.Int32Value());
+    case kJniAbi: {  // Load via Thread* held in JNIEnv* in first argument (R0).
+      vixl::aarch32::UseScratchRegisterScope temps(assembler.GetVIXLAssembler());
+      const vixl::aarch32::Register temp_reg = temps.Acquire();
+
+      // VIXL will use the destination as a scratch register if
+      // the offset is not encodable as an immediate operand.
+      ___ Ldr(temp_reg, MemOperand(r0, JNIEnvExt::SelfOffset(4).Int32Value()));
+      ___ Ldr(pc, MemOperand(temp_reg, offset.Int32Value()));
       break;
-    case kQuickAbi:  // R9 holds Thread*.
-      __ LoadFromOffset(kLoadWord, PC, R9, offset.Int32Value());
+    }
+    case kQuickAbi:  // TR holds Thread*.
+      ___ Ldr(pc, MemOperand(tr, offset.Int32Value()));
   }
-  __ bkpt(0);
 
   __ FinalizeCode();
   size_t cs = __ CodeSize();
@@ -74,6 +89,9 @@ static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(
 
   return std::move(entry_stub);
 }
+
+#undef ___
+
 }  // namespace arm
 #endif  // ART_ENABLE_CODEGEN_arm
 
