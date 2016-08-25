@@ -212,17 +212,28 @@ art_cc_library {
     name: "libart-compiler",
     defaults: ["libart-compiler-defaults"],
     codegen: {
-        arm64: {
-            // VIXL assembly support for ARM64 targets.
+        arm: {
+            // VIXL assembly support for ARM targets.
             static: {
                 whole_static_libs: [
                     "libvixl-arm",
-                    "libvixl-arm64",
                 ],
             },
             shared: {
                 shared_libs: [
                     "libvixl-arm",
+                ],
+            },
+        },
+        arm64: {
+            // VIXL assembly support for ARM64 targets.
+            static: {
+                whole_static_libs: [
+                    "libvixl-arm64",
+                ],
+            },
+            shared: {
+                shared_libs: [
                     "libvixl-arm64",
                 ],
             },
@@ -238,17 +249,28 @@ art_cc_library {
         "art_debug_defaults",
     ],
     codegen: {
-        arm64: {
-            // VIXL assembly support for ARM64 targets.
+        arm: {
+            // VIXL assembly support for ARM targets.
             static: {
                 whole_static_libs: [
                     "libvixld-arm",
-                    "libvixld-arm64",
                 ],
             },
             shared: {
                 shared_libs: [
                     "libvixld-arm",
+                ],
+            },
+        },
+        arm64: {
+            // VIXL assembly support for ARM64 targets.
+            static: {
+                whole_static_libs: [
+                    "libvixld-arm64",
+                ],
+            },
+            shared: {
+                shared_libs: [
                     "libvixld-arm64",
                 ],
             },
