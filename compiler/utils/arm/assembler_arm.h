@@ -28,6 +28,7 @@
 #include "base/stl_util.h"
 #include "base/value_object.h"
 #include "constants_arm.h"
+#include "utils/arm/assembler_arm_shared.h"
 #include "utils/arm/managed_register_arm.h"
 #include "utils/assembler.h"
 #include "utils/jni_macro_assembler.h"
@@ -214,29 +215,6 @@ class ShifterOperand {
 #endif
 };
 
-
-enum LoadOperandType {
-  kLoadSignedByte,
-  kLoadUnsignedByte,
-  kLoadSignedHalfword,
-  kLoadUnsignedHalfword,
-  kLoadWord,
-  kLoadWordPair,
-  kLoadSWord,
-  kLoadDWord
-};
-
-
-enum StoreOperandType {
-  kStoreByte,
-  kStoreHalfword,
-  kStoreWord,
-  kStoreWordPair,
-  kStoreSWord,
-  kStoreDWord
-};
-
-
 // Load/store multiple addressing mode.
 enum BlockAddressMode {
   // bit encoding P U W
@@ -415,13 +393,6 @@ enum ItState {
   kItT = kItThen,
   kItElse,
   kItE = kItElse
-};
-
-// Set condition codes request.
-enum SetCc {
-  kCcDontCare,  // Allows prioritizing 16-bit instructions on Thumb2 whether they set CCs or not.
-  kCcSet,
-  kCcKeep,
 };
 
 constexpr uint32_t kNoItCondition = 3;

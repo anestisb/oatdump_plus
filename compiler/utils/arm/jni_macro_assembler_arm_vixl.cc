@@ -1,0 +1,599 @@
+/*
+ * Copyright (C) 2016 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include <iostream>
+#include <type_traits>
+
+#include "jni_macro_assembler_arm_vixl.h"
+#include "entrypoints/quick/quick_entrypoints.h"
+#include "thread.h"
+
+using namespace vixl::aarch32;  // NOLINT(build/namespaces)
+namespace vixl32 = vixl::aarch32;
+
+namespace art {
+namespace arm {
+
+#ifdef ___
+#error "ARM Assembler macro already defined."
+#else
+#define ___   asm_.GetVIXLAssembler()->
+#endif
+
+void ArmVIXLJNIMacroAssembler::FinalizeCode() {
+  for (const std::unique_ptr<
+      ArmVIXLJNIMacroAssembler::ArmException>& exception : exception_blocks_) {
+    EmitExceptionPoll(exception.get());
+  }
+  asm_.FinalizeCode();
+}
+
+static dwarf::Reg DWARFReg(vixl32::Register reg) {
+  return dwarf::Reg::ArmCore(static_cast<int>(reg.GetCode()));
+}
+
+static dwarf::Reg DWARFReg(vixl32::SRegister reg) {
+  return dwarf::Reg::ArmFp(static_cast<int>(reg.GetCode()));
+}
+
+static constexpr size_t kFramePointerSize = static_cast<size_t>(kArmPointerSize);;
+
+void ArmVIXLJNIMacroAssembler::BuildFrame(size_t frame_size,
+                                          ManagedRegister method_reg,
+                                          ArrayRef<const ManagedRegister> callee_save_regs,
+                                          const ManagedRegisterEntrySpills& entry_spills) {
+  CHECK_ALIGNED(frame_size, kStackAlignment);
+  CHECK(r0.Is(method_reg.AsArm().AsVIXLRegister()));
+
+  // Push callee saves and link register.
+  RegList core_spill_mask = 1 << LR;
+  uint32_t fp_spill_mask = 0;
+  for (const ManagedRegister& reg : callee_save_regs) {
+    if (reg.AsArm().IsCoreRegister()) {
+      core_spill_mask |= 1 << reg.AsArm().AsCoreRegister();
+    } else {
+      fp_spill_mask |= 1 << reg.AsArm().AsSRegister();
+    }
+  }
+  ___ Push(RegisterList(core_spill_mask));
+  cfi().AdjustCFAOffset(POPCOUNT(core_spill_mask) * kFramePointerSize);
+  cfi().RelOffsetForMany(DWARFReg(r0), 0, core_spill_mask, kFramePointerSize);
+  if (fp_spill_mask != 0) {
+    uint32_t first = CTZ(fp_spill_mask);
+    uint32_t last  = first + POPCOUNT(fp_spill_mask) - 1;
+
+    // Check that list is contiguous.
+    DCHECK_EQ(fp_spill_mask >> CTZ(fp_spill_mask), ~0u >> (32 - POPCOUNT(fp_spill_mask)));
+
+    ___ Vpush(SRegisterList(vixl32::SRegister(first), vixl32::SRegister(last)));
+    cfi().AdjustCFAOffset(POPCOUNT(fp_spill_mask) * kFramePointerSize);
+    cfi().RelOffsetForMany(DWARFReg(s0), 0, fp_spill_mask, kFramePointerSize);
+  }
+
+  // Increase frame to required size.
+  int pushed_values = POPCOUNT(core_spill_mask) + POPCOUNT(fp_spill_mask);
+  // Must at least have space for Method*.
+  CHECK_GT(frame_size, pushed_values * kFramePointerSize);
+  IncreaseFrameSize(frame_size - pushed_values * kFramePointerSize);  // handles CFI as well.
+
+  // Write out Method*.
+  asm_.StoreToOffset(kStoreWord, r0, sp, 0);
+
+  // Write out entry spills.
+  int32_t offset = frame_size + kFramePointerSize;
+  for (size_t i = 0; i < entry_spills.size(); ++i) {
+    ArmManagedRegister reg = entry_spills.at(i).AsArm();
+    if (reg.IsNoRegister()) {
+      // only increment stack offset.
+      ManagedRegisterSpill spill = entry_spills.at(i);
+      offset += spill.getSize();
+    } else if (reg.IsCoreRegister()) {
+      asm_.StoreToOffset(kStoreWord, reg.AsVIXLRegister(), sp, offset);
+      offset += 4;
+    } else if (reg.IsSRegister()) {
+      asm_.StoreSToOffset(reg.AsVIXLSRegister(), sp, offset);
+      offset += 4;
+    } else if (reg.IsDRegister()) {
+      asm_.StoreDToOffset(reg.AsVIXLDRegister(), sp, offset);
+      offset += 8;
+    }
+  }
+}
+
+void ArmVIXLJNIMacroAssembler::RemoveFrame(size_t frame_size,
+                                           ArrayRef<const ManagedRegister> callee_save_regs) {
+  CHECK_ALIGNED(frame_size, kStackAlignment);
+  cfi().RememberState();
+
+  // Compute callee saves to pop and PC.
+  RegList core_spill_mask = 1 << PC;
+  uint32_t fp_spill_mask = 0;
+  for (const ManagedRegister& reg : callee_save_regs) {
+    if (reg.AsArm().IsCoreRegister()) {
+      core_spill_mask |= 1 << reg.AsArm().AsCoreRegister();
+    } else {
+      fp_spill_mask |= 1 << reg.AsArm().AsSRegister();
+    }
+  }
+
+  // Decrease frame to start of callee saves.
+  int pop_values = POPCOUNT(core_spill_mask) + POPCOUNT(fp_spill_mask);
+  CHECK_GT(frame_size, pop_values * kFramePointerSize);
+  DecreaseFrameSize(frame_size - (pop_values * kFramePointerSize));  // handles CFI as well.
+
+  if (fp_spill_mask != 0) {
+    uint32_t first = CTZ(fp_spill_mask);
+    uint32_t last  = first + POPCOUNT(fp_spill_mask) - 1;
+    // Check that list is contiguous.
+     DCHECK_EQ(fp_spill_mask >> CTZ(fp_spill_mask), ~0u >> (32 - POPCOUNT(fp_spill_mask)));
+
+    ___ Vpop(SRegisterList(vixl32::SRegister(first), vixl32::SRegister(last)));
+    cfi().AdjustCFAOffset(-kFramePointerSize * POPCOUNT(fp_spill_mask));
+    cfi().RestoreMany(DWARFReg(s0), fp_spill_mask);
+  }
+
+  // Pop callee saves and PC.
+  ___ Pop(RegisterList(core_spill_mask));
+
+  // The CFI should be restored for any code that follows the exit block.
+  cfi().RestoreState();
+  cfi().DefCFAOffset(frame_size);
+}
+
+
+void ArmVIXLJNIMacroAssembler::IncreaseFrameSize(size_t adjust) {
+  asm_.AddConstant(sp, -adjust);
+  cfi().AdjustCFAOffset(adjust);
+}
+
+void ArmVIXLJNIMacroAssembler::DecreaseFrameSize(size_t adjust) {
+  asm_.AddConstant(sp, adjust);
+  cfi().AdjustCFAOffset(-adjust);
+}
+
+void ArmVIXLJNIMacroAssembler::Store(FrameOffset dest, ManagedRegister m_src, size_t size) {
+  ArmManagedRegister src = m_src.AsArm();
+  if (src.IsNoRegister()) {
+    CHECK_EQ(0u, size);
+  } else if (src.IsCoreRegister()) {
+    CHECK_EQ(4u, size);
+    asm_.StoreToOffset(kStoreWord, src.AsVIXLRegister(), sp, dest.Int32Value());
+  } else if (src.IsRegisterPair()) {
+    CHECK_EQ(8u, size);
+    asm_.StoreToOffset(kStoreWord, src.AsVIXLRegisterPairLow(),  sp, dest.Int32Value());
+    asm_.StoreToOffset(kStoreWord, src.AsVIXLRegisterPairHigh(), sp, dest.Int32Value() + 4);
+  } else if (src.IsSRegister()) {
+    CHECK_EQ(4u, size);
+    asm_.StoreSToOffset(src.AsVIXLSRegister(), sp, dest.Int32Value());
+  } else {
+    CHECK_EQ(8u, size);
+    CHECK(src.IsDRegister()) << src;
+    asm_.StoreDToOffset(src.AsVIXLDRegister(), sp, dest.Int32Value());
+  }
+}
+
+void ArmVIXLJNIMacroAssembler::StoreRef(FrameOffset dest, ManagedRegister msrc) {
+  ArmManagedRegister src = msrc.AsArm();
+  CHECK(src.IsCoreRegister()) << src;
+  asm_.StoreToOffset(kStoreWord, src.AsVIXLRegister(), sp, dest.Int32Value());
+}
+
+void ArmVIXLJNIMacroAssembler::StoreRawPtr(FrameOffset dest, ManagedRegister msrc) {
+  ArmManagedRegister src = msrc.AsArm();
+  CHECK(src.IsCoreRegister()) << src;
+  asm_.StoreToOffset(kStoreWord, src.AsVIXLRegister(), sp, dest.Int32Value());
+}
+
+void ArmVIXLJNIMacroAssembler::StoreSpanning(FrameOffset dest,
+                                             ManagedRegister msrc,
+                                             FrameOffset in_off,
+                                             ManagedRegister mscratch) {
+  ArmManagedRegister src = msrc.AsArm();
+  ArmManagedRegister scratch = mscratch.AsArm();
+  asm_.StoreToOffset(kStoreWord, src.AsVIXLRegister(), sp, dest.Int32Value());
+  asm_.LoadFromOffset(kLoadWord, scratch.AsVIXLRegister(), sp, in_off.Int32Value());
+  asm_.StoreToOffset(kStoreWord, scratch.AsVIXLRegister(), sp, dest.Int32Value() + 4);
+}
+
+void ArmVIXLJNIMacroAssembler::CopyRef(FrameOffset dest,
+                                       FrameOffset src,
+                                       ManagedRegister mscratch) {
+  ArmManagedRegister scratch = mscratch.AsArm();
+  asm_.LoadFromOffset(kLoadWord, scratch.AsVIXLRegister(), sp, src.Int32Value());
+  asm_.StoreToOffset(kStoreWord, scratch.AsVIXLRegister(), sp, dest.Int32Value());
+}
+
+void ArmVIXLJNIMacroAssembler::LoadRef(ManagedRegister dest,
+                                       ManagedRegister base,
+                                       MemberOffset offs,
+                                       bool unpoison_reference) {
+  ArmManagedRegister dst = dest.AsArm();
+  CHECK(dst.IsCoreRegister() && dst.IsCoreRegister()) << dst;
+  asm_.LoadFromOffset(kLoadWord,
+                      dst.AsVIXLRegister(),
+                      base.AsArm().AsVIXLRegister(),
+                      offs.Int32Value());
+
+  if (unpoison_reference) {
+    asm_.MaybeUnpoisonHeapReference(dst.AsVIXLRegister());
+  }
+}
+
+void ArmVIXLJNIMacroAssembler::LoadRef(ManagedRegister dest ATTRIBUTE_UNUSED,
+                                       FrameOffset src ATTRIBUTE_UNUSED) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void ArmVIXLJNIMacroAssembler::LoadRawPtr(ManagedRegister dest ATTRIBUTE_UNUSED,
+                                          ManagedRegister base ATTRIBUTE_UNUSED,
+                                          Offset offs ATTRIBUTE_UNUSED) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void ArmVIXLJNIMacroAssembler::StoreImmediateToFrame(FrameOffset dest,
+                                                     uint32_t imm,
+                                                     ManagedRegister scratch) {
+  ArmManagedRegister mscratch = scratch.AsArm();
+  CHECK(mscratch.IsCoreRegister()) << mscratch;
+  asm_.LoadImmediate(mscratch.AsVIXLRegister(), imm);
+  asm_.StoreToOffset(kStoreWord, mscratch.AsVIXLRegister(), sp, dest.Int32Value());
+}
+
+void ArmVIXLJNIMacroAssembler::Load(ManagedRegister m_dst, FrameOffset src, size_t size) {
+  return Load(m_dst.AsArm(), sp, src.Int32Value(), size);
+}
+
+void ArmVIXLJNIMacroAssembler::LoadFromThread(ManagedRegister m_dst ATTRIBUTE_UNUSED,
+                                              ThreadOffset32 src ATTRIBUTE_UNUSED,
+                                              size_t size ATTRIBUTE_UNUSED) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void ArmVIXLJNIMacroAssembler::LoadRawPtrFromThread(ManagedRegister m_dst, ThreadOffset32 offs) {
+  ArmManagedRegister dst = m_dst.AsArm();
+  CHECK(dst.IsCoreRegister()) << dst;
+  asm_.LoadFromOffset(kLoadWord, dst.AsVIXLRegister(), tr, offs.Int32Value());
+}
+
+void ArmVIXLJNIMacroAssembler::CopyRawPtrFromThread(FrameOffset fr_offs,
+                                                    ThreadOffset32 thr_offs,
+                                                    ManagedRegister mscratch) {
+  ArmManagedRegister scratch = mscratch.AsArm();
+  CHECK(scratch.IsCoreRegister()) << scratch;
+  asm_.LoadFromOffset(kLoadWord, scratch.AsVIXLRegister(), tr, thr_offs.Int32Value());
+  asm_.StoreToOffset(kStoreWord, scratch.AsVIXLRegister(), sp, fr_offs.Int32Value());
+}
+
+void ArmVIXLJNIMacroAssembler::CopyRawPtrToThread(ThreadOffset32 thr_offs ATTRIBUTE_UNUSED,
+                                                  FrameOffset fr_offs ATTRIBUTE_UNUSED,
+                                                  ManagedRegister mscratch ATTRIBUTE_UNUSED) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void ArmVIXLJNIMacroAssembler::StoreStackOffsetToThread(ThreadOffset32 thr_offs,
+                                                        FrameOffset fr_offs,
+                                                        ManagedRegister mscratch) {
+  ArmManagedRegister scratch = mscratch.AsArm();
+  CHECK(scratch.IsCoreRegister()) << scratch;
+  asm_.AddConstant(scratch.AsVIXLRegister(), sp, fr_offs.Int32Value());
+  asm_.StoreToOffset(kStoreWord, scratch.AsVIXLRegister(), tr, thr_offs.Int32Value());
+}
+
+void ArmVIXLJNIMacroAssembler::StoreStackPointerToThread(ThreadOffset32 thr_offs) {
+  asm_.StoreToOffset(kStoreWord, sp, tr, thr_offs.Int32Value());
+}
+
+void ArmVIXLJNIMacroAssembler::SignExtend(ManagedRegister mreg ATTRIBUTE_UNUSED,
+                                          size_t size ATTRIBUTE_UNUSED) {
+  UNIMPLEMENTED(FATAL) << "no sign extension necessary for arm";
+}
+
+void ArmVIXLJNIMacroAssembler::ZeroExtend(ManagedRegister mreg ATTRIBUTE_UNUSED,
+                                          size_t size ATTRIBUTE_UNUSED) {
+  UNIMPLEMENTED(FATAL) << "no zero extension necessary for arm";
+}
+
+void ArmVIXLJNIMacroAssembler::Move(ManagedRegister m_dst,
+                                    ManagedRegister m_src,
+                                    size_t size  ATTRIBUTE_UNUSED) {
+  ArmManagedRegister dst = m_dst.AsArm();
+  ArmManagedRegister src = m_src.AsArm();
+  if (!dst.Equals(src)) {
+    if (dst.IsCoreRegister()) {
+      CHECK(src.IsCoreRegister()) << src;
+      ___ Mov(dst.AsVIXLRegister(), src.AsVIXLRegister());
+    } else if (dst.IsDRegister()) {
+      CHECK(src.IsDRegister()) << src;
+      ___ Vmov(F64, dst.AsVIXLDRegister(), src.AsVIXLDRegister());
+    } else if (dst.IsSRegister()) {
+      CHECK(src.IsSRegister()) << src;
+      ___ Vmov(F32, dst.AsVIXLSRegister(), src.AsVIXLSRegister());
+    } else {
+      CHECK(dst.IsRegisterPair()) << dst;
+      CHECK(src.IsRegisterPair()) << src;
+      // Ensure that the first move doesn't clobber the input of the second.
+      if (src.AsRegisterPairHigh() != dst.AsRegisterPairLow()) {
+        ___ Mov(dst.AsVIXLRegisterPairLow(),  src.AsVIXLRegisterPairLow());
+        ___ Mov(dst.AsVIXLRegisterPairHigh(), src.AsVIXLRegisterPairHigh());
+      } else {
+        ___ Mov(dst.AsVIXLRegisterPairHigh(), src.AsVIXLRegisterPairHigh());
+        ___ Mov(dst.AsVIXLRegisterPairLow(),  src.AsVIXLRegisterPairLow());
+      }
+    }
+  }
+}
+
+void ArmVIXLJNIMacroAssembler::Copy(FrameOffset dest,
+                                    FrameOffset src,
+                                    ManagedRegister scratch,
+                                    size_t size) {
+  ArmManagedRegister temp = scratch.AsArm();
+  CHECK(temp.IsCoreRegister()) << temp;
+  CHECK(size == 4 || size == 8) << size;
+  if (size == 4) {
+    asm_.LoadFromOffset(kLoadWord, temp.AsVIXLRegister(), sp, src.Int32Value());
+    asm_.StoreToOffset(kStoreWord, temp.AsVIXLRegister(), sp, dest.Int32Value());
+  } else if (size == 8) {
+    asm_.LoadFromOffset(kLoadWord, temp.AsVIXLRegister(), sp, src.Int32Value());
+    asm_.StoreToOffset(kStoreWord, temp.AsVIXLRegister(), sp, dest.Int32Value());
+    asm_.LoadFromOffset(kLoadWord, temp.AsVIXLRegister(), sp, src.Int32Value() + 4);
+    asm_.StoreToOffset(kStoreWord, temp.AsVIXLRegister(), sp, dest.Int32Value() + 4);
+  }
+}
+
+void ArmVIXLJNIMacroAssembler::Copy(FrameOffset dest ATTRIBUTE_UNUSED,
+                                    ManagedRegister src_base ATTRIBUTE_UNUSED,
+                                    Offset src_offset ATTRIBUTE_UNUSED,
+                                    ManagedRegister mscratch ATTRIBUTE_UNUSED,
+                                    size_t size ATTRIBUTE_UNUSED) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void ArmVIXLJNIMacroAssembler::Copy(ManagedRegister dest_base ATTRIBUTE_UNUSED,
+                                    Offset dest_offset ATTRIBUTE_UNUSED,
+                                    FrameOffset src ATTRIBUTE_UNUSED,
+                                    ManagedRegister mscratch ATTRIBUTE_UNUSED,
+                                    size_t size ATTRIBUTE_UNUSED) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void ArmVIXLJNIMacroAssembler::Copy(FrameOffset dst ATTRIBUTE_UNUSED,
+                                    FrameOffset src_base ATTRIBUTE_UNUSED,
+                                    Offset src_offset ATTRIBUTE_UNUSED,
+                                    ManagedRegister mscratch ATTRIBUTE_UNUSED,
+                                    size_t size ATTRIBUTE_UNUSED) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void ArmVIXLJNIMacroAssembler::Copy(ManagedRegister dest ATTRIBUTE_UNUSED,
+                                    Offset dest_offset ATTRIBUTE_UNUSED,
+                                    ManagedRegister src ATTRIBUTE_UNUSED,
+                                    Offset src_offset ATTRIBUTE_UNUSED,
+                                    ManagedRegister mscratch ATTRIBUTE_UNUSED,
+                                    size_t size ATTRIBUTE_UNUSED) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void ArmVIXLJNIMacroAssembler::Copy(FrameOffset dst ATTRIBUTE_UNUSED,
+                                    Offset dest_offset ATTRIBUTE_UNUSED,
+                                    FrameOffset src ATTRIBUTE_UNUSED,
+                                    Offset src_offset ATTRIBUTE_UNUSED,
+                                    ManagedRegister scratch ATTRIBUTE_UNUSED,
+                                    size_t size ATTRIBUTE_UNUSED) {
+  UNIMPLEMENTED(FATAL);
+}
+
+static constexpr uint32_t kArmInstrMaxSizeInBytes = 4;
+
+void ArmVIXLJNIMacroAssembler::CreateHandleScopeEntry(ManagedRegister mout_reg,
+                                                      FrameOffset handle_scope_offset,
+                                                      ManagedRegister min_reg,
+                                                      bool null_allowed) {
+  ArmManagedRegister out_reg = mout_reg.AsArm();
+  ArmManagedRegister in_reg = min_reg.AsArm();
+  CHECK(in_reg.IsNoRegister() || in_reg.IsCoreRegister()) << in_reg;
+  CHECK(out_reg.IsCoreRegister()) << out_reg;
+  if (null_allowed) {
+    // Null values get a handle scope entry value of 0.  Otherwise, the handle scope entry is
+    // the address in the handle scope holding the reference.
+    // e.g. out_reg = (handle == 0) ? 0 : (SP+handle_offset)
+    if (in_reg.IsNoRegister()) {
+      asm_.LoadFromOffset(kLoadWord,
+                          out_reg.AsVIXLRegister(),
+                          sp,
+                          handle_scope_offset.Int32Value());
+      in_reg = out_reg;
+    }
+    ___ Cmp(in_reg.AsVIXLRegister(), 0);
+
+    if (asm_.ShifterOperandCanHold(ADD, handle_scope_offset.Int32Value(), kCcDontCare)) {
+      if (!out_reg.Equals(in_reg)) {
+        AssemblerAccurateScope guard(asm_.GetVIXLAssembler(),
+                                     3 * kArmInstrMaxSizeInBytes,
+                                     CodeBufferCheckScope::kMaximumSize);
+        ___ it(eq, 0xc);
+        ___ mov(eq, out_reg.AsVIXLRegister(), 0);
+        asm_.AddConstantInIt(out_reg.AsVIXLRegister(), sp, handle_scope_offset.Int32Value(), ne);
+      } else {
+        AssemblerAccurateScope guard(asm_.GetVIXLAssembler(),
+                                     2 * kArmInstrMaxSizeInBytes,
+                                     CodeBufferCheckScope::kMaximumSize);
+        ___ it(ne, 0x8);
+        asm_.AddConstantInIt(out_reg.AsVIXLRegister(), sp, handle_scope_offset.Int32Value(), ne);
+      }
+    } else {
+      // TODO: Implement this (old arm assembler would have crashed here).
+      UNIMPLEMENTED(FATAL);
+    }
+  } else {
+    asm_.AddConstant(out_reg.AsVIXLRegister(), sp, handle_scope_offset.Int32Value());
+  }
+}
+
+void ArmVIXLJNIMacroAssembler::CreateHandleScopeEntry(FrameOffset out_off,
+                                                      FrameOffset handle_scope_offset,
+                                                      ManagedRegister mscratch,
+                                                      bool null_allowed) {
+  ArmManagedRegister scratch = mscratch.AsArm();
+  CHECK(scratch.IsCoreRegister()) << scratch;
+  if (null_allowed) {
+    asm_.LoadFromOffset(kLoadWord, scratch.AsVIXLRegister(), sp, handle_scope_offset.Int32Value());
+    // Null values get a handle scope entry value of 0.  Otherwise, the handle scope entry is
+    // the address in the handle scope holding the reference.
+    // e.g. scratch = (scratch == 0) ? 0 : (SP+handle_scope_offset)
+    ___ Cmp(scratch.AsVIXLRegister(), 0);
+
+    if (asm_.ShifterOperandCanHold(ADD, handle_scope_offset.Int32Value(), kCcDontCare)) {
+      AssemblerAccurateScope guard(asm_.GetVIXLAssembler(),
+                                   2 * kArmInstrMaxSizeInBytes,
+                                   CodeBufferCheckScope::kMaximumSize);
+      ___ it(ne, 0x8);
+      asm_.AddConstantInIt(scratch.AsVIXLRegister(), sp, handle_scope_offset.Int32Value(), ne);
+    } else {
+      // TODO: Implement this (old arm assembler would have crashed here).
+      UNIMPLEMENTED(FATAL);
+    }
+  } else {
+    asm_.AddConstant(scratch.AsVIXLRegister(), sp, handle_scope_offset.Int32Value());
+  }
+  asm_.StoreToOffset(kStoreWord, scratch.AsVIXLRegister(), sp, out_off.Int32Value());
+}
+
+void ArmVIXLJNIMacroAssembler::LoadReferenceFromHandleScope(
+    ManagedRegister mout_reg ATTRIBUTE_UNUSED,
+    ManagedRegister min_reg ATTRIBUTE_UNUSED) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void ArmVIXLJNIMacroAssembler::VerifyObject(ManagedRegister src ATTRIBUTE_UNUSED,
+                                            bool could_be_null ATTRIBUTE_UNUSED) {
+  // TODO: not validating references.
+}
+
+void ArmVIXLJNIMacroAssembler::VerifyObject(FrameOffset src ATTRIBUTE_UNUSED,
+                                            bool could_be_null ATTRIBUTE_UNUSED) {
+  // TODO: not validating references.
+}
+
+void ArmVIXLJNIMacroAssembler::Call(ManagedRegister mbase,
+                                    Offset offset,
+                                    ManagedRegister mscratch) {
+  ArmManagedRegister base = mbase.AsArm();
+  ArmManagedRegister scratch = mscratch.AsArm();
+  CHECK(base.IsCoreRegister()) << base;
+  CHECK(scratch.IsCoreRegister()) << scratch;
+  asm_.LoadFromOffset(kLoadWord,
+                      scratch.AsVIXLRegister(),
+                      base.AsVIXLRegister(),
+                      offset.Int32Value());
+  ___ Blx(scratch.AsVIXLRegister());
+  // TODO: place reference map on call.
+}
+
+void ArmVIXLJNIMacroAssembler::Call(FrameOffset base, Offset offset, ManagedRegister mscratch) {
+  ArmManagedRegister scratch = mscratch.AsArm();
+  CHECK(scratch.IsCoreRegister()) << scratch;
+  // Call *(*(SP + base) + offset)
+  asm_.LoadFromOffset(kLoadWord, scratch.AsVIXLRegister(), sp, base.Int32Value());
+  asm_.LoadFromOffset(kLoadWord,
+                      scratch.AsVIXLRegister(),
+                      scratch.AsVIXLRegister(),
+                      offset.Int32Value());
+  ___ Blx(scratch.AsVIXLRegister());
+  // TODO: place reference map on call
+}
+
+void ArmVIXLJNIMacroAssembler::CallFromThread(ThreadOffset32 offset ATTRIBUTE_UNUSED,
+                                              ManagedRegister scratch ATTRIBUTE_UNUSED) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void ArmVIXLJNIMacroAssembler::GetCurrentThread(ManagedRegister mtr) {
+  ___ Mov(mtr.AsArm().AsVIXLRegister(), tr);
+}
+
+void ArmVIXLJNIMacroAssembler::GetCurrentThread(FrameOffset dest_offset,
+                                                ManagedRegister scratch ATTRIBUTE_UNUSED) {
+  asm_.StoreToOffset(kStoreWord, tr, sp, dest_offset.Int32Value());
+}
+
+void ArmVIXLJNIMacroAssembler::ExceptionPoll(ManagedRegister m_scratch, size_t stack_adjust) {
+  CHECK_ALIGNED(stack_adjust, kStackAlignment);
+  ArmManagedRegister scratch = m_scratch.AsArm();
+  exception_blocks_.emplace_back(
+      new ArmVIXLJNIMacroAssembler::ArmException(scratch, stack_adjust));
+  asm_.LoadFromOffset(kLoadWord,
+                      scratch.AsVIXLRegister(),
+                      tr,
+                      Thread::ExceptionOffset<kArmPointerSize>().Int32Value());
+
+  ___ Cmp(scratch.AsVIXLRegister(), 0);
+  {
+    AssemblerAccurateScope guard(asm_.GetVIXLAssembler(),
+                                 kArmInstrMaxSizeInBytes,
+                                 CodeBufferCheckScope::kMaximumSize);
+    ___ b(ne, Narrow, exception_blocks_.back()->Entry());
+  }
+  // TODO: think about using CBNZ here.
+}
+
+void ArmVIXLJNIMacroAssembler::EmitExceptionPoll(
+    ArmVIXLJNIMacroAssembler::ArmException* exception) {
+  ___ Bind(exception->Entry());
+  if (exception->stack_adjust_ != 0) {  // Fix up the frame.
+    DecreaseFrameSize(exception->stack_adjust_);
+  }
+  // Pass exception object as argument.
+  // Don't care about preserving r0 as this won't return.
+  ___ Mov(r0, exception->scratch_.AsVIXLRegister());
+  // TODO: check that exception->scratch_ is dead by this point.
+  UseScratchRegisterScope temps(asm_.GetVIXLAssembler());
+  vixl32::Register temp = temps.Acquire();
+  ___ Ldr(temp,
+          MemOperand(tr,
+              QUICK_ENTRYPOINT_OFFSET(kArmPointerSize, pDeliverException).Int32Value()));
+  ___ Blx(temp);
+}
+
+void ArmVIXLJNIMacroAssembler::MemoryBarrier(ManagedRegister scratch ATTRIBUTE_UNUSED) {
+  UNIMPLEMENTED(FATAL);
+}
+
+void ArmVIXLJNIMacroAssembler::Load(ArmManagedRegister
+                                    dest,
+                                    vixl32::Register base,
+                                    int32_t offset,
+                                    size_t size) {
+  if (dest.IsNoRegister()) {
+    CHECK_EQ(0u, size) << dest;
+  } else if (dest.IsCoreRegister()) {
+    CHECK_EQ(4u, size) << dest;
+    CHECK(!dest.AsVIXLRegister().Is(sp)) << dest;
+    ___ Ldr(dest.AsVIXLRegister(), MemOperand(base, offset));
+  } else if (dest.IsRegisterPair()) {
+    CHECK_EQ(8u, size) << dest;
+    ___ Ldr(dest.AsVIXLRegisterPairLow(),  MemOperand(base, offset));
+    ___ Ldr(dest.AsVIXLRegisterPairHigh(), MemOperand(base, offset + 4));
+  } else if (dest.IsSRegister()) {
+    ___ Vldr(dest.AsVIXLSRegister(), MemOperand(base, offset));
+  } else {
+    CHECK(dest.IsDRegister()) << dest;
+    ___ Vldr(dest.AsVIXLDRegister(), MemOperand(base, offset));
+  }
+}
+
+}  // namespace arm
+}  // namespace art
