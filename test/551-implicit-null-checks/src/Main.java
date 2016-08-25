@@ -18,6 +18,7 @@ public class Main {
 
   private class Inner {
     private long i1;
+    private double i2;
   }
   private Inner inst;
 
@@ -26,12 +27,22 @@ public class Main {
     try {
       m.$opt$noinline$testGetLong();
     } catch (NullPointerException ex) {
-      // good
+      System.out.println("NPE from GetLong");
     }
     try {
       m.$opt$noinline$testPutLong(778899112233L);
     } catch (NullPointerException ex) {
-      // good
+      System.out.println("NPE from PutLong");
+    }
+    try {
+      m.$opt$noinline$testGetDouble();
+    } catch (NullPointerException ex) {
+      System.out.println("NPE from GetDouble");
+    }
+    try {
+      m.$opt$noinline$testPutDouble(1.0);
+    } catch (NullPointerException ex) {
+      System.out.println("NPE from PutDouble");
     }
   }
 
@@ -42,6 +53,16 @@ public class Main {
 
   public void $opt$noinline$testPutLong(long a) throws Exception {
     inst.i1 = a;
+    throw new Exception();  // prevent inline
+  }
+
+  public void $opt$noinline$testGetDouble() throws Exception {
+    double result = inst.i2;
+    throw new Exception();  // prevent inline
+  }
+
+  public void $opt$noinline$testPutDouble(double a) throws Exception {
+    inst.i2 = a;
     throw new Exception();  // prevent inline
   }
 }

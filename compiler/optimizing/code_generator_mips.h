@@ -257,6 +257,7 @@ class InstructionCodeGeneratorMIPS : public InstructionCodeGenerator {
   void GenerateDivRemWithAnyConstant(HBinaryOperation* instruction);
   void GenerateDivRemIntegral(HBinaryOperation* instruction);
   void HandleGoto(HInstruction* got, HBasicBlock* successor);
+  auto GetImplicitNullChecker(HInstruction* instruction);
 
   MipsAssembler* const assembler_;
   CodeGeneratorMIPS* const codegen_;
