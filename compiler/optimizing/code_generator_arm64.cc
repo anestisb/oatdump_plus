@@ -46,16 +46,20 @@ class GcRoot;
 
 namespace arm64 {
 
+using helpers::ARM64EncodableConstantOrRegister;
+using helpers::ArtVixlRegCodeCoherentForRegSet;
 using helpers::CPURegisterFrom;
 using helpers::DRegisterFrom;
 using helpers::FPRegisterFrom;
 using helpers::HeapOperand;
 using helpers::HeapOperandFrom;
 using helpers::InputCPURegisterAt;
+using helpers::InputCPURegisterOrZeroRegAt;
 using helpers::InputFPRegisterAt;
-using helpers::InputRegisterAt;
 using helpers::InputOperandAt;
+using helpers::InputRegisterAt;
 using helpers::Int64ConstantFrom;
+using helpers::IsConstantZeroBitPattern;
 using helpers::LocationFrom;
 using helpers::OperandFromMemOperand;
 using helpers::OutputCPURegister;
@@ -66,8 +70,6 @@ using helpers::StackOperandFrom;
 using helpers::VIXLRegCodeFromART;
 using helpers::WRegisterFrom;
 using helpers::XRegisterFrom;
-using helpers::ARM64EncodableConstantOrRegister;
-using helpers::ArtVixlRegCodeCoherentForRegSet;
 
 static constexpr int kCurrentMethodStackOffset = 0;
 // The compare/jump sequence will generate about (1.5 * num_entries + 3) instructions. While jump
@@ -1465,12 +1467,18 @@ void CodeGeneratorARM64::StoreRelease(Primitive::Type type,
       break;
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
-      DCHECK(src.IsFPRegister());
       DCHECK_EQ(src.Is64Bits(), Primitive::Is64BitType(type));
+      Register temp_src;
+      if (src.IsZero()) {
+        // The zero register is used to avoid synthesizing zero constants.
+        temp_src = Register(src);
+      } else {
+        DCHECK(src.IsFPRegister());
+        temp_src = src.Is64Bits() ? temps.AcquireX() : temps.AcquireW();
+        __ Fmov(temp_src, FPRegister(src));
+      }
 
-      Register temp = src.Is64Bits() ? temps.AcquireX() : temps.AcquireW();
-      __ Fmov(temp, FPRegister(src));
-      __ Stlr(temp, base);
+      __ Stlr(temp_src, base);
       break;
     }
     case Primitive::kPrimVoid:
@@ -1709,7 +1717,9 @@ void LocationsBuilderARM64::HandleFieldSet(HInstruction* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
-  if (Primitive::IsFloatingPointType(instruction->InputAt(1)->GetType())) {
+  if (IsConstantZeroBitPattern(instruction->InputAt(1))) {
+    locations->SetInAt(1, Location::ConstantLocation(instruction->InputAt(1)->AsConstant()));
+  } else if (Primitive::IsFloatingPointType(instruction->InputAt(1)->GetType())) {
     locations->SetInAt(1, Location::RequiresFpuRegister());
   } else {
     locations->SetInAt(1, Location::RequiresRegister());
@@ -1723,7 +1733,7 @@ void InstructionCodeGeneratorARM64::HandleFieldSet(HInstruction* instruction,
   BlockPoolsScope block_pools(GetVIXLAssembler());
 
   Register obj = InputRegisterAt(instruction, 0);
-  CPURegister value = InputCPURegisterAt(instruction, 1);
+  CPURegister value = InputCPURegisterOrZeroRegAt(instruction, 1);
   CPURegister source = value;
   Offset offset = field_info.GetFieldOffset();
   Primitive::Type field_type = field_info.GetFieldType();
@@ -2171,7 +2181,9 @@ void LocationsBuilderARM64::VisitArraySet(HArraySet* instruction) {
           LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
-  if (Primitive::IsFloatingPointType(value_type)) {
+  if (IsConstantZeroBitPattern(instruction->InputAt(2))) {
+    locations->SetInAt(2, Location::ConstantLocation(instruction->InputAt(2)->AsConstant()));
+  } else if (Primitive::IsFloatingPointType(value_type)) {
     locations->SetInAt(2, Location::RequiresFpuRegister());
   } else {
     locations->SetInAt(2, Location::RequiresRegister());
@@ -2186,7 +2198,7 @@ void InstructionCodeGeneratorARM64::VisitArraySet(HArraySet* instruction) {
       CodeGenerator::StoreNeedsWriteBarrier(value_type, instruction->GetValue());
 
   Register array = InputRegisterAt(instruction, 0);
-  CPURegister value = InputCPURegisterAt(instruction, 2);
+  CPURegister value = InputCPURegisterOrZeroRegAt(instruction, 2);
   CPURegister source = value;
   Location index = locations->InAt(1);
   size_t offset = mirror::Array::DataOffset(Primitive::ComponentSize(value_type)).Uint32Value();
