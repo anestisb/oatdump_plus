@@ -124,6 +124,18 @@ static inline vixl::aarch64::CPURegister InputCPURegisterAt(HInstruction* instr,
       : static_cast<vixl::aarch64::CPURegister>(InputRegisterAt(instr, index));
 }
 
+static inline vixl::aarch64::CPURegister InputCPURegisterOrZeroRegAt(HInstruction* instr,
+                                                                     int index) {
+  HInstruction* input = instr->InputAt(index);
+  Primitive::Type input_type = input->GetType();
+  if (input->IsConstant() && input->AsConstant()->IsZeroBitPattern()) {
+    return (Primitive::ComponentSize(input_type) >= vixl::aarch64::kXRegSizeInBytes)
+        ?  vixl::aarch64::xzr
+        : vixl::aarch64::wzr;
+  }
+  return InputCPURegisterAt(instr, index);
+}
+
 static inline int64_t Int64ConstantFrom(Location location) {
   HConstant* instr = location.GetConstant();
   if (instr->IsIntConstant()) {
@@ -337,6 +349,10 @@ static inline bool ShifterOperandSupportsExtension(HInstruction* instruction) {
   // the other form `shifted register, the register with code 31 is interpreted
   // as the zero register.
   return instruction->IsAdd() || instruction->IsSub();
+}
+
+static inline bool IsConstantZeroBitPattern(const HInstruction* instruction) {
+  return instruction->IsConstant() && instruction->AsConstant()->IsZeroBitPattern();
 }
 
 }  // namespace helpers
