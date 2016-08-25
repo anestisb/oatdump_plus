@@ -1,0 +1,157 @@
+bootstrap_go_package {
+    name: "soong-art",
+    pkgPath: "android/soong/art",
+    deps: [
+        "blueprint",
+        "blueprint-pathtools",
+        "soong",
+        "soong-android",
+        "soong-cc",
+    ],
+    srcs: [
+        "art.go",
+        "codegen.go",
+        "makevars.go",
+    ],
+    pluginFor: ["soong_build"],
+}
+
+art_global_defaults {
+    // Additional flags are computed by art.go
+
+    name: "art_defaults",
+    clang: true,
+    cflags: [
+        "-O3",
+
+        // Base set of cflags used by all things ART.
+        "-fno-rtti",
+        "-ggdb3",
+        "-Wall",
+        "-Werror",
+        "-Wextra",
+        "-Wstrict-aliasing",
+        "-fstrict-aliasing",
+        "-Wunreachable-code",
+        "-Wredundant-decls",
+        "-Wshadow",
+        "-Wunused",
+        "-fvisibility=protected",
+
+        // Warn about thread safety violations with clang.
+        "-Wthread-safety",
+        "-Wthread-safety-negative",
+
+        // Warn if switch fallthroughs aren't annotated.
+        "-Wimplicit-fallthrough",
+
+        // Enable float equality warnings.
+        "-Wfloat-equal",
+
+        // Enable warning of converting ints to void*.
+        "-Wint-to-void-pointer-cast",
+
+        // Enable warning of wrong unused annotations.
+        "-Wused-but-marked-unused",
+
+        // Enable warning for deprecated language features.
+        "-Wdeprecated",
+
+        // Enable warning for unreachable break & return.
+        "-Wunreachable-code-break",
+        "-Wunreachable-code-return",
+
+        // Bug: http://b/29823425  Disable -Wconstant-conversion and
+        // -Wundefined-var-template for Clang update to r271374
+        "-Wno-constant-conversion",
+        "-Wno-undefined-var-template",
+
+        "-DART_STACK_OVERFLOW_GAP_arm=8192",
+        "-DART_STACK_OVERFLOW_GAP_arm64=8192",
+        "-DART_STACK_OVERFLOW_GAP_mips=16384",
+        "-DART_STACK_OVERFLOW_GAP_mips64=16384",
+        "-DART_STACK_OVERFLOW_GAP_x86=8192",
+        "-DART_STACK_OVERFLOW_GAP_x86_64=8192",
+    ],
+
+    target: {
+        android: {
+            cflags: [
+                "-DART_TARGET",
+
+                // Enable missing-noreturn only on non-Mac. As lots of things are not implemented
+                // for Apple, it's a pain.
+                "-Wmissing-noreturn",
+
+                // To use oprofile_android --callgraph, uncomment this and recompile with
+                //    mmma -j art
+                // "-fno-omit-frame-pointer",
+                // "-marm",
+                // "-mapcs",
+            ],
+            include_dirs: [
+                // We optimize Thread::Current() with a direct TLS access. This requires access to a
+                //  private Bionic header.
+                "bionic/libc/private",
+            ],
+        },
+        linux: {
+            cflags: [
+                // Enable missing-noreturn only on non-Mac. As lots of things are not implemented for
+                // Apple, it's a pain.
+                "-Wmissing-noreturn",
+            ],
+        },
+        host: {
+            cflags: [
+                // Bug: 15446488. We don't omit the frame pointer to work around
+                // clang/libunwind bugs that cause SEGVs in run-test-004-ThreadStress.
+                "-fno-omit-frame-pointer",
+            ],
+        },
+    },
+
+    codegen: {
+        arm: {
+            cflags: ["-DART_ENABLE_CODEGEN_arm"],
+        },
+        arm64: {
+            cflags: ["-DART_ENABLE_CODEGEN_arm64"],
+        },
+        mips: {
+            cflags: ["-DART_ENABLE_CODEGEN_mips"],
+        },
+        mips64: {
+            cflags: ["-DART_ENABLE_CODEGEN_mips64"],
+        },
+        x86: {
+            cflags: ["-DART_ENABLE_CODEGEN_x86"],
+        },
+        x86_64: {
+            cflags: ["-DART_ENABLE_CODEGEN_x86_64"],
+        },
+    },
+
+    include_dirs: [
+        "external/gtest/include",
+        "external/icu/icu4c/source/common",
+        "external/lz4/lib",
+        "external/valgrind/include",
+        "external/valgrind",
+        "external/vixl/src",
+        "external/zlib",
+    ],
+}
+
+cc_defaults {
+    name: "art_debug_defaults",
+    cflags: [
+        "-O2",
+        "-DDYNAMIC_ANNOTATIONS_ENABLED=1",
+        "-DVIXL_DEBUG",
+        "-UNDEBUG",
+    ],
+    asflags: [
+        "-UNDEBUG",
+    ],
+}
