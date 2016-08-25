@@ -412,8 +412,6 @@ class MipsAssembler FINAL : public Assembler, public JNIMacroAssembler<PointerSi
   void LoadConst64(Register reg_hi, Register reg_lo, int64_t value);
   void LoadDConst64(FRegister rd, int64_t value, Register temp);
   void LoadSConst32(FRegister r, int32_t value, Register temp);
-  void StoreConst32ToOffset(int32_t value, Register base, int32_t offset, Register temp);
-  void StoreConst64ToOffset(int64_t value, Register base, int32_t offset, Register temp);
   void Addiu32(Register rt, Register rs, int32_t value, Register rtmp = AT);
 
   // These will generate R2 branches or R6 branches as appropriate.
@@ -444,6 +442,204 @@ class MipsAssembler FINAL : public Assembler, public JNIMacroAssembler<PointerSi
                            int32_t& offset,
                            bool is_doubleword,
                            bool is_float = false);
+
+ private:
+  struct NoImplicitNullChecker {
+    void operator()() {}
+  };
+
+ public:
+  template <typename ImplicitNullChecker = NoImplicitNullChecker>
+  void StoreConst32ToOffset(int32_t value,
+                            Register base,
+                            int32_t offset,
+                            Register temp,
+                            ImplicitNullChecker null_checker = NoImplicitNullChecker()) {
+    CHECK_NE(temp, AT);  // Must not use AT as temp, so as not to overwrite the adjusted base.
+    AdjustBaseAndOffset(base, offset, /* is_doubleword */ false);
+    if (value == 0) {
+      temp = ZERO;
+    } else {
+      LoadConst32(temp, value);
+    }
+    Sw(temp, base, offset);
+    null_checker();
+  }
+
+  template <typename ImplicitNullChecker = NoImplicitNullChecker>
+  void StoreConst64ToOffset(int64_t value,
+                            Register base,
+                            int32_t offset,
+                            Register temp,
+                            ImplicitNullChecker null_checker = NoImplicitNullChecker()) {
+    CHECK_NE(temp, AT);  // Must not use AT as temp, so as not to overwrite the adjusted base.
+    AdjustBaseAndOffset(base, offset, /* is_doubleword */ true);
+    uint32_t low = Low32Bits(value);
+    uint32_t high = High32Bits(value);
+    if (low == 0) {
+      Sw(ZERO, base, offset);
+    } else {
+      LoadConst32(temp, low);
+      Sw(temp, base, offset);
+    }
+    null_checker();
+    if (high == 0) {
+      Sw(ZERO, base, offset + kMipsWordSize);
+    } else {
+      if (high != low) {
+        LoadConst32(temp, high);
+      }
+      Sw(temp, base, offset + kMipsWordSize);
+    }
+  }
+
+  template <typename ImplicitNullChecker = NoImplicitNullChecker>
+  void LoadFromOffset(LoadOperandType type,
+                      Register reg,
+                      Register base,
+                      int32_t offset,
+                      ImplicitNullChecker null_checker = NoImplicitNullChecker()) {
+    AdjustBaseAndOffset(base, offset, /* is_doubleword */ (type == kLoadDoubleword));
+    switch (type) {
+      case kLoadSignedByte:
+        Lb(reg, base, offset);
+        break;
+      case kLoadUnsignedByte:
+        Lbu(reg, base, offset);
+        break;
+      case kLoadSignedHalfword:
+        Lh(reg, base, offset);
+        break;
+      case kLoadUnsignedHalfword:
+        Lhu(reg, base, offset);
+        break;
+      case kLoadWord:
+        Lw(reg, base, offset);
+        break;
+      case kLoadDoubleword:
+        if (reg == base) {
+          // This will clobber the base when loading the lower register. Since we have to load the
+          // higher register as well, this will fail. Solution: reverse the order.
+          Lw(static_cast<Register>(reg + 1), base, offset + kMipsWordSize);
+          null_checker();
+          Lw(reg, base, offset);
+        } else {
+          Lw(reg, base, offset);
+          null_checker();
+          Lw(static_cast<Register>(reg + 1), base, offset + kMipsWordSize);
+        }
+        break;
+      default:
+        LOG(FATAL) << "UNREACHABLE";
+    }
+    if (type != kLoadDoubleword) {
+      null_checker();
+    }
+  }
+
+  template <typename ImplicitNullChecker = NoImplicitNullChecker>
+  void LoadSFromOffset(FRegister reg,
+                       Register base,
+                       int32_t offset,
+                       ImplicitNullChecker null_checker = NoImplicitNullChecker()) {
+    AdjustBaseAndOffset(base, offset, /* is_doubleword */ false, /* is_float */ true);
+    Lwc1(reg, base, offset);
+    null_checker();
+  }
+
+  template <typename ImplicitNullChecker = NoImplicitNullChecker>
+  void LoadDFromOffset(FRegister reg,
+                       Register base,
+                       int32_t offset,
+                       ImplicitNullChecker null_checker = NoImplicitNullChecker()) {
+    AdjustBaseAndOffset(base, offset, /* is_doubleword */ true, /* is_float */ true);
+    if (IsAligned<kMipsDoublewordSize>(offset)) {
+      Ldc1(reg, base, offset);
+      null_checker();
+    } else {
+      if (Is32BitFPU()) {
+        Lwc1(reg, base, offset);
+        null_checker();
+        Lwc1(static_cast<FRegister>(reg + 1), base, offset + kMipsWordSize);
+      } else {
+        // 64-bit FPU.
+        Lwc1(reg, base, offset);
+        null_checker();
+        Lw(T8, base, offset + kMipsWordSize);
+        Mthc1(T8, reg);
+      }
+    }
+  }
+
+  template <typename ImplicitNullChecker = NoImplicitNullChecker>
+  void StoreToOffset(StoreOperandType type,
+                     Register reg,
+                     Register base,
+                     int32_t offset,
+                     ImplicitNullChecker null_checker = NoImplicitNullChecker()) {
+    // Must not use AT as `reg`, so as not to overwrite the value being stored
+    // with the adjusted `base`.
+    CHECK_NE(reg, AT);
+    AdjustBaseAndOffset(base, offset, /* is_doubleword */ (type == kStoreDoubleword));
+    switch (type) {
+      case kStoreByte:
+        Sb(reg, base, offset);
+        break;
+      case kStoreHalfword:
+        Sh(reg, base, offset);
+        break;
+      case kStoreWord:
+        Sw(reg, base, offset);
+        break;
+      case kStoreDoubleword:
+        CHECK_NE(reg, base);
+        CHECK_NE(static_cast<Register>(reg + 1), base);
+        Sw(reg, base, offset);
+        null_checker();
+        Sw(static_cast<Register>(reg + 1), base, offset + kMipsWordSize);
+        break;
+      default:
+        LOG(FATAL) << "UNREACHABLE";
+    }
+    if (type != kStoreDoubleword) {
+      null_checker();
+    }
+  }
+
+  template <typename ImplicitNullChecker = NoImplicitNullChecker>
+  void StoreSToOffset(FRegister reg,
+                      Register base,
+                      int32_t offset,
+                      ImplicitNullChecker null_checker = NoImplicitNullChecker()) {
+    AdjustBaseAndOffset(base, offset, /* is_doubleword */ false, /* is_float */ true);
+    Swc1(reg, base, offset);
+    null_checker();
+  }
+
+  template <typename ImplicitNullChecker = NoImplicitNullChecker>
+  void StoreDToOffset(FRegister reg,
+                      Register base,
+                      int32_t offset,
+                      ImplicitNullChecker null_checker = NoImplicitNullChecker()) {
+    AdjustBaseAndOffset(base, offset, /* is_doubleword */ true, /* is_float */ true);
+    if (IsAligned<kMipsDoublewordSize>(offset)) {
+      Sdc1(reg, base, offset);
+      null_checker();
+    } else {
+      if (Is32BitFPU()) {
+        Swc1(reg, base, offset);
+        null_checker();
+        Swc1(static_cast<FRegister>(reg + 1), base, offset + kMipsWordSize);
+      } else {
+        // 64-bit FPU.
+        Mfhc1(T8, reg);
+        Swc1(reg, base, offset);
+        null_checker();
+        Sw(T8, base, offset + kMipsWordSize);
+      }
+    }
+  }
+
   void LoadFromOffset(LoadOperandType type, Register reg, Register base, int32_t offset);
   void LoadSFromOffset(FRegister reg, Register base, int32_t offset);
   void LoadDFromOffset(FRegister reg, Register base, int32_t offset);
