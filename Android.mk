@@ -80,6 +80,7 @@ include $(art_path)/runtime/Android.mk
 include $(art_path)/runtime/simulator/Android.mk
 include $(art_path)/compiler/Android.mk
 include $(art_path)/dexdump/Android.mk
+include $(art_path)/dexlayout/Android.mk
 include $(art_path)/dexlist/Android.mk
 include $(art_path)/dex2oat/Android.mk
 include $(art_path)/disassembler/Android.mk
