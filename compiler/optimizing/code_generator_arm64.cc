@@ -2171,7 +2171,7 @@ void LocationsBuilderARM64::VisitArraySet(HArraySet* instruction) {
   } else {
     locations->SetInAt(2, Location::RequiresRegister());
   }
-  if (object_array_set_with_read_barrier && kUseBakerReadBarrier) {
+  if (kEmitCompilerReadBarrier && kUseBakerReadBarrier && (value_type == Primitive::kPrimNot)) {
     // Additional temporary registers for a Baker read barrier.
     locations->AddTemp(Location::RequiresRegister());
     locations->AddTemp(Location::RequiresRegister());
