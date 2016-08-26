@@ -115,28 +115,13 @@ class PCRelativeHandlerVisitor : public HGraphVisitor {
         return;
       }
 
-      if (has_extra_input && !WillHaveCallFreeIntrinsicsCodeGen(invoke)) {
+      if (has_extra_input &&
+          !IsCallFreeIntrinsic<IntrinsicLocationsBuilderMIPS>(invoke, codegen_)) {
         InitializePCRelativeBasePointer();
         // Add the extra parameter base_.
         invoke_static_or_direct->AddSpecialInput(base_);
       }
     }
-  }
-
-  bool WillHaveCallFreeIntrinsicsCodeGen(HInvoke* invoke) {
-    if (invoke->GetIntrinsic() != Intrinsics::kNone) {
-      // This invoke may have intrinsic code generation defined. However, we must
-      // now also determine if this code generation is truly there and call-free
-      // (not unimplemented, no bail on instruction features, or call on slow path).
-      // This is done by actually calling the locations builder on the instruction
-      // and clearing out the locations once result is known. We assume this
-      // call only has creating locations as side effects!
-      IntrinsicLocationsBuilderMIPS builder(codegen_);
-      bool success = builder.TryDispatch(invoke) && !invoke->GetLocations()->CanCall();
-      invoke->SetLocations(nullptr);
-      return success;
-    }
-    return false;
   }
 
   CodeGeneratorMIPS* codegen_;
