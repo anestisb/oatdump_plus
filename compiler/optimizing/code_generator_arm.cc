@@ -1857,9 +1857,7 @@ void LocationsBuilderARM::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invok
   // art::PrepareForRegisterAllocation.
   DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
 
-  IntrinsicLocationsBuilderARM intrinsic(GetGraph()->GetArena(),
-                                         codegen_->GetAssembler(),
-                                         codegen_->GetInstructionSetFeatures());
+  IntrinsicLocationsBuilderARM intrinsic(codegen_);
   if (intrinsic.TryDispatch(invoke)) {
     if (invoke->GetLocations()->CanCall() && invoke->HasPcRelativeDexCache()) {
       invoke->GetLocations()->SetInAt(invoke->GetSpecialInputIndex(), Location::Any());
@@ -1905,9 +1903,7 @@ void LocationsBuilderARM::HandleInvoke(HInvoke* invoke) {
 }
 
 void LocationsBuilderARM::VisitInvokeVirtual(HInvokeVirtual* invoke) {
-  IntrinsicLocationsBuilderARM intrinsic(GetGraph()->GetArena(),
-                                         codegen_->GetAssembler(),
-                                         codegen_->GetInstructionSetFeatures());
+  IntrinsicLocationsBuilderARM intrinsic(codegen_);
   if (intrinsic.TryDispatch(invoke)) {
     return;
   }
