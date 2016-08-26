@@ -1286,10 +1286,8 @@ static void GenerateVisitStringIndexOf(HInvoke* invoke,
     __ LoadImmediate(tmp_reg, 0);
   }
 
-  __ LoadFromOffset(kLoadWord, LR, TR,
-                    QUICK_ENTRYPOINT_OFFSET(kArmPointerSize, pIndexOf).Int32Value());
+  codegen->InvokeRuntime(kQuickIndexOf, invoke, invoke->GetDexPc(), slow_path);
   CheckEntrypointTypes<kQuickIndexOf, int32_t, void*, uint32_t, uint32_t>();
-  __ blx(LR);
 
   if (slow_path != nullptr) {
     __ Bind(slow_path->GetExitLabel());
@@ -1356,13 +1354,8 @@ void IntrinsicCodeGeneratorARM::VisitStringNewStringFromBytes(HInvoke* invoke) {
   codegen_->AddSlowPath(slow_path);
   __ b(slow_path->GetEntryLabel(), EQ);
 
-  __ LoadFromOffset(kLoadWord,
-                    LR,
-                    TR,
-                    QUICK_ENTRYPOINT_OFFSET(kArmPointerSize, pAllocStringFromBytes).Int32Value());
+  codegen_->InvokeRuntime(kQuickAllocStringFromBytes, invoke, invoke->GetDexPc(), slow_path);
   CheckEntrypointTypes<kQuickAllocStringFromBytes, void*, void*, int32_t, int32_t, int32_t>();
-  __ blx(LR);
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
   __ Bind(slow_path->GetExitLabel());
 }
 
@@ -1378,21 +1371,14 @@ void IntrinsicLocationsBuilderARM::VisitStringNewStringFromChars(HInvoke* invoke
 }
 
 void IntrinsicCodeGeneratorARM::VisitStringNewStringFromChars(HInvoke* invoke) {
-  ArmAssembler* assembler = GetAssembler();
-
   // No need to emit code checking whether `locations->InAt(2)` is a null
   // pointer, as callers of the native method
   //
   //   java.lang.StringFactory.newStringFromChars(int offset, int charCount, char[] data)
   //
   // all include a null check on `data` before calling that method.
-  __ LoadFromOffset(kLoadWord,
-                    LR,
-                    TR,
-                    QUICK_ENTRYPOINT_OFFSET(kArmPointerSize, pAllocStringFromChars).Int32Value());
+  codegen_->InvokeRuntime(kQuickAllocStringFromChars, invoke, invoke->GetDexPc());
   CheckEntrypointTypes<kQuickAllocStringFromChars, void*, int32_t, int32_t, void*>();
-  __ blx(LR);
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
 void IntrinsicLocationsBuilderARM::VisitStringNewStringFromString(HInvoke* invoke) {
@@ -1414,11 +1400,9 @@ void IntrinsicCodeGeneratorARM::VisitStringNewStringFromString(HInvoke* invoke) 
   codegen_->AddSlowPath(slow_path);
   __ b(slow_path->GetEntryLabel(), EQ);
 
-  __ LoadFromOffset(kLoadWord,
-      LR, TR, QUICK_ENTRYPOINT_OFFSET(kArmPointerSize, pAllocStringFromString).Int32Value());
+  codegen_->InvokeRuntime(kQuickAllocStringFromString, invoke, invoke->GetDexPc(), slow_path);
   CheckEntrypointTypes<kQuickAllocStringFromString, void*, void*>();
-  __ blx(LR);
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+
   __ Bind(slow_path->GetExitLabel());
 }
 
@@ -1994,13 +1978,11 @@ static void GenFPToFPCall(HInvoke* invoke,
   DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(calling_convention.GetRegisterAt(0)));
   DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(calling_convention.GetRegisterAt(1)));
 
-  __ LoadFromOffset(kLoadWord, LR, TR, GetThreadOffset<kArmPointerSize>(entry).Int32Value());
   // Native code uses the soft float ABI.
   __ vmovrrd(calling_convention.GetRegisterAt(0),
              calling_convention.GetRegisterAt(1),
              FromLowSToD(locations->InAt(0).AsFpuRegisterPairLow<SRegister>()));
-  __ blx(LR);
-  codegen->RecordPcInfo(invoke, invoke->GetDexPc());
+  codegen->InvokeRuntime(entry, invoke, invoke->GetDexPc());
   __ vmovdrr(FromLowSToD(locations->Out().AsFpuRegisterPairLow<SRegister>()),
              calling_convention.GetRegisterAt(0),
              calling_convention.GetRegisterAt(1));
@@ -2020,7 +2002,6 @@ static void GenFPFPToFPCall(HInvoke* invoke,
   DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(calling_convention.GetRegisterAt(2)));
   DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(calling_convention.GetRegisterAt(3)));
 
-  __ LoadFromOffset(kLoadWord, LR, TR, GetThreadOffset<kArmPointerSize>(entry).Int32Value());
   // Native code uses the soft float ABI.
   __ vmovrrd(calling_convention.GetRegisterAt(0),
              calling_convention.GetRegisterAt(1),
@@ -2028,8 +2009,7 @@ static void GenFPFPToFPCall(HInvoke* invoke,
   __ vmovrrd(calling_convention.GetRegisterAt(2),
              calling_convention.GetRegisterAt(3),
              FromLowSToD(locations->InAt(1).AsFpuRegisterPairLow<SRegister>()));
-  __ blx(LR);
-  codegen->RecordPcInfo(invoke, invoke->GetDexPc());
+  codegen->InvokeRuntime(entry, invoke, invoke->GetDexPc());
   __ vmovdrr(FromLowSToD(locations->Out().AsFpuRegisterPairLow<SRegister>()),
              calling_convention.GetRegisterAt(0),
              calling_convention.GetRegisterAt(1));
