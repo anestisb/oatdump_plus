@@ -880,12 +880,12 @@ void Heap::IncrementDisableThreadFlip(Thread* self) {
   bool has_waited = false;
   uint64_t wait_start = NanoTime();
   if (thread_flip_running_) {
-    TimingLogger::ScopedTiming split("IncrementDisableThreadFlip",
-                                     GetCurrentGcIteration()->GetTimings());
+    ATRACE_BEGIN("IncrementDisableThreadFlip");
     while (thread_flip_running_) {
       has_waited = true;
       thread_flip_cond_->Wait(self);
     }
+    ATRACE_END();
   }
   ++disable_thread_flip_count_;
   if (has_waited) {
