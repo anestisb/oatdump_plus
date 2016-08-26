@@ -202,8 +202,10 @@ void ConcurrentCopying::InitializePhase() {
   immune_spaces_.Reset();
   bytes_moved_.StoreRelaxed(0);
   objects_moved_.StoreRelaxed(0);
-  if (GetCurrentIteration()->GetGcCause() == kGcCauseExplicit ||
-      GetCurrentIteration()->GetGcCause() == kGcCauseForNativeAlloc ||
+  GcCause gc_cause = GetCurrentIteration()->GetGcCause();
+  if (gc_cause == kGcCauseExplicit ||
+      gc_cause == kGcCauseForNativeAlloc ||
+      gc_cause == kGcCauseCollectorTransition ||
       GetCurrentIteration()->GetClearSoftReferences()) {
     force_evacuate_all_ = true;
   } else {
