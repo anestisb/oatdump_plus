@@ -115,7 +115,9 @@ public class Main {
     // 'incoming' must have a use only at the first loop's back edge.
     for (long i = System.nanoTime(); i < 42; ++i) {
       System.out.println(incoming);
-      for (long j = System.currentTimeMillis(); j != 42; ++j) {}
+      for (long j = System.currentTimeMillis(); j != 42; ++j) {
+        System.out.print(j);  // non-empty body
+      }
     }
   }
 
