@@ -1450,7 +1450,7 @@ void IntrinsicLocationsBuilderARM::VisitSystemArrayCopy(HInvoke* invoke) {
   }
   if (kEmitCompilerReadBarrier && kUseBakerReadBarrier) {
     // Temporary register IP cannot be used in
-    // ReadBarrierSystemArrayCopySlowPathARM64 (because that register
+    // ReadBarrierSystemArrayCopySlowPathARM (because that register
     // is clobbered by ReadBarrierMarkRegX entry points). Get an extra
     // temporary register from the register allocator.
     locations->AddTemp(Location::RequiresRegister());
