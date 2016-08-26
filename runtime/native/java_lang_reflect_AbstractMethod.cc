@@ -41,6 +41,21 @@ static jobjectArray AbstractMethod_getDeclaredAnnotations(JNIEnv* env, jobject j
   return soa.AddLocalReference<jobjectArray>(method->GetDexFile()->GetAnnotationsForMethod(method));
 }
 
+static jobject AbstractMethod_getAnnotationNative(JNIEnv* env,
+                                                  jobject javaMethod,
+                                                  jclass annotationType) {
+  ScopedFastNativeObjectAccess soa(env);
+  StackHandleScope<1> hs(soa.Self());
+  ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
+  if (method->IsProxyMethod()) {
+    return nullptr;
+  } else {
+    Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
+    return soa.AddLocalReference<jobject>(
+        method->GetDexFile()->GetAnnotationForMethod(method, klass));
+  }
+}
+
 static jobjectArray AbstractMethod_getSignatureAnnotation(JNIEnv* env, jobject javaMethod) {
   ScopedFastNativeObjectAccess soa(env);
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
@@ -53,7 +68,19 @@ static jobjectArray AbstractMethod_getSignatureAnnotation(JNIEnv* env, jobject j
 }
 
 
-static jboolean AbstractMethod_isAnnotationPresentNative(JNIEnv* env, jobject javaMethod,
+static jobjectArray AbstractMethod_getParameterAnnotationsNative(JNIEnv* env, jobject javaMethod) {
+  ScopedFastNativeObjectAccess soa(env);
+  ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
+  if (method->IsProxyMethod()) {
+    return nullptr;
+  } else {
+    return soa.AddLocalReference<jobjectArray>(
+        method->GetDexFile()->GetParameterAnnotations(method));
+  }
+}
+
+static jboolean AbstractMethod_isAnnotationPresentNative(JNIEnv* env,
+                                                         jobject javaMethod,
                                                          jclass annotationType) {
   ScopedFastNativeObjectAccess soa(env);
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
@@ -66,7 +93,11 @@ static jboolean AbstractMethod_isAnnotationPresentNative(JNIEnv* env, jobject ja
 }
 
 static JNINativeMethod gMethods[] = {
+  NATIVE_METHOD(AbstractMethod, getAnnotationNative,
+                "!(Ljava/lang/Class;)Ljava/lang/annotation/Annotation;"),
   NATIVE_METHOD(AbstractMethod, getDeclaredAnnotations, "!()[Ljava/lang/annotation/Annotation;"),
+  NATIVE_METHOD(AbstractMethod, getParameterAnnotationsNative,
+                "!()[[Ljava/lang/annotation/Annotation;"),
   NATIVE_METHOD(AbstractMethod, getSignatureAnnotation, "!()[Ljava/lang/String;"),
   NATIVE_METHOD(AbstractMethod, isAnnotationPresentNative, "!(Ljava/lang/Class;)Z"),
 };
