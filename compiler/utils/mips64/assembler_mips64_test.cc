@@ -1636,6 +1636,177 @@ TEST_F(AssemblerMIPS64Test, StoreFpuToOffset) {
   DriverStr(expected, "StoreFpuToOffset");
 }
 
+///////////////////////
+// Loading Constants //
+///////////////////////
+
+TEST_F(AssemblerMIPS64Test, LoadConst32) {
+  // IsUint<16>(value)
+  __ LoadConst32(mips64::V0, 0);
+  __ LoadConst32(mips64::V0, 65535);
+  // IsInt<16>(value)
+  __ LoadConst32(mips64::V0, -1);
+  __ LoadConst32(mips64::V0, -32768);
+  // Everything else
+  __ LoadConst32(mips64::V0, 65536);
+  __ LoadConst32(mips64::V0, 65537);
+  __ LoadConst32(mips64::V0, 2147483647);
+  __ LoadConst32(mips64::V0, -32769);
+  __ LoadConst32(mips64::V0, -65536);
+  __ LoadConst32(mips64::V0, -65537);
+  __ LoadConst32(mips64::V0, -2147483647);
+  __ LoadConst32(mips64::V0, -2147483648);
+
+  const char* expected =
+      // IsUint<16>(value)
+      "ori $v0, $zero, 0\n"         // __ LoadConst32(mips64::V0, 0);
+      "ori $v0, $zero, 65535\n"     // __ LoadConst32(mips64::V0, 65535);
+      // IsInt<16>(value)
+      "addiu $v0, $zero, -1\n"      // __ LoadConst32(mips64::V0, -1);
+      "addiu $v0, $zero, -32768\n"  // __ LoadConst32(mips64::V0, -32768);
+      // Everything else
+      "lui $v0, 1\n"                // __ LoadConst32(mips64::V0, 65536);
+      "lui $v0, 1\n"                // __ LoadConst32(mips64::V0, 65537);
+      "ori $v0, 1\n"                //                 "
+      "lui $v0, 32767\n"            // __ LoadConst32(mips64::V0, 2147483647);
+      "ori $v0, 65535\n"            //                 "
+      "lui $v0, 65535\n"            // __ LoadConst32(mips64::V0, -32769);
+      "ori $v0, 32767\n"            //                 "
+      "lui $v0, 65535\n"            // __ LoadConst32(mips64::V0, -65536);
+      "lui $v0, 65534\n"            // __ LoadConst32(mips64::V0, -65537);
+      "ori $v0, 65535\n"            //                 "
+      "lui $v0, 32768\n"            // __ LoadConst32(mips64::V0, -2147483647);
+      "ori $v0, 1\n"                //                 "
+      "lui $v0, 32768\n";           // __ LoadConst32(mips64::V0, -2147483648);
+  DriverStr(expected, "LoadConst32");
+}
+
+static uint64_t SignExtend16To64(uint16_t n) {
+  return static_cast<int16_t>(n);
+}
+
+// The art::mips64::Mips64Assembler::LoadConst64() method uses a template
+// to minimize the number of instructions needed to load a 64-bit constant
+// value into a register. The template calls various methods which emit
+// MIPS machine instructions. This struct (class) uses the same template
+// but overrides the definitions of the methods which emit MIPS instructions
+// to use methods which simulate the operation of the corresponding MIPS
+// instructions. After invoking LoadConst64() the target register should
+// contain the same 64-bit value as was input to LoadConst64(). If the
+// simulated register doesn't contain the correct value then there is probably
+// an error in the template function.
+struct LoadConst64Tester {
+  LoadConst64Tester() {
+    // Initialize all of the registers for simulation to zero.
+    for (int r = 0; r < 32; r++) {
+      regs_[r] = 0;
+    }
+    // Clear all of the path flags.
+    loadconst64_paths_ = art::mips64::kLoadConst64PathZero;
+  }
+  void Addiu(mips64::GpuRegister rd, mips64::GpuRegister rs, uint16_t c) {
+    regs_[rd] = static_cast<int32_t>(regs_[rs] + SignExtend16To64(c));
+  }
+  void Daddiu(mips64::GpuRegister rd, mips64::GpuRegister rs, uint16_t c) {
+    regs_[rd] = regs_[rs] + SignExtend16To64(c);
+  }
+  void Dahi(mips64::GpuRegister rd, uint16_t c) {
+    regs_[rd] += SignExtend16To64(c) << 32;
+  }
+  void Dati(mips64::GpuRegister rd, uint16_t c) {
+    regs_[rd] += SignExtend16To64(c) << 48;
+  }
+  void Dinsu(mips64::GpuRegister rt, mips64::GpuRegister rs, int pos, int size) {
+    CHECK(IsUint<5>(pos - 32)) << pos;
+    CHECK(IsUint<5>(size - 1)) << size;
+    CHECK(IsUint<5>(pos + size - 33)) << pos << " + " << size;
+    uint64_t src_mask = (UINT64_C(1) << size) - 1;
+    uint64_t dsk_mask = ~(src_mask << pos);
+
+    regs_[rt] = (regs_[rt] & dsk_mask) | ((regs_[rs] & src_mask) << pos);
+  }
+  void Dsll(mips64::GpuRegister rd, mips64::GpuRegister rt, int shamt) {
+    regs_[rd] = regs_[rt] << (shamt & 0x1f);
+  }
+  void Dsll32(mips64::GpuRegister rd, mips64::GpuRegister rt, int shamt) {
+    regs_[rd] = regs_[rt] << (32 + (shamt & 0x1f));
+  }
+  void Dsrl(mips64::GpuRegister rd, mips64::GpuRegister rt, int shamt) {
+    regs_[rd] = regs_[rt] >> (shamt & 0x1f);
+  }
+  void Dsrl32(mips64::GpuRegister rd, mips64::GpuRegister rt, int shamt) {
+    regs_[rd] = regs_[rt] >> (32 + (shamt & 0x1f));
+  }
+  void Lui(mips64::GpuRegister rd, uint16_t c) {
+    regs_[rd] = SignExtend16To64(c) << 16;
+  }
+  void Ori(mips64::GpuRegister rd, mips64::GpuRegister rs, uint16_t c) {
+    regs_[rd] = regs_[rs] | c;
+  }
+  void LoadConst32(mips64::GpuRegister rd, int32_t c) {
+    CHECK_NE(rd, 0);
+    mips64::TemplateLoadConst32<LoadConst64Tester>(this, rd, c);
+    CHECK_EQ(regs_[rd], static_cast<uint64_t>(c));
+  }
+  void LoadConst64(mips64::GpuRegister rd, int64_t c) {
+    CHECK_NE(rd, 0);
+    mips64::TemplateLoadConst64<LoadConst64Tester>(this, rd, c);
+    CHECK_EQ(regs_[rd], static_cast<uint64_t>(c));
+  }
+  uint64_t regs_[32];
+
+  // Getter function for loadconst64_paths_.
+  int GetPathsCovered() {
+    return loadconst64_paths_;
+  }
+
+  void RecordLoadConst64Path(int value) {
+    loadconst64_paths_ |= value;
+  }
+
+ private:
+  // This variable holds a bitmask to tell us which paths were taken
+  // through the template function which loads 64-bit values.
+  int loadconst64_paths_;
+};
+
+TEST_F(AssemblerMIPS64Test, LoadConst64) {
+  const uint16_t imms[] = {
+      0, 1, 2, 3, 4, 0x33, 0x66, 0x55, 0x99, 0xaa, 0xcc, 0xff, 0x5500, 0x5555,
+      0x7ffc, 0x7ffd, 0x7ffe, 0x7fff, 0x8000, 0x8001, 0x8002, 0x8003, 0x8004,
+      0xaaaa, 0xfffc, 0xfffd, 0xfffe, 0xffff
+  };
+  unsigned d0, d1, d2, d3;
+  LoadConst64Tester tester;
+
+  union {
+    int64_t v64;
+    uint16_t v16[4];
+  } u;
+
+  for (d3 = 0; d3 < sizeof imms / sizeof imms[0]; d3++) {
+    u.v16[3] = imms[d3];
+
+    for (d2 = 0; d2 < sizeof imms / sizeof imms[0]; d2++) {
+      u.v16[2] = imms[d2];
+
+      for (d1 = 0; d1 < sizeof imms / sizeof imms[0]; d1++) {
+        u.v16[1] = imms[d1];
+
+        for (d0 = 0; d0 < sizeof imms / sizeof imms[0]; d0++) {
+          u.v16[0] = imms[d0];
+
+          tester.LoadConst64(mips64::V0, u.v64);
+        }
+      }
+    }
+  }
+
+  // Verify that we tested all paths through the "load 64-bit value"
+  // function template.
+  EXPECT_EQ(tester.GetPathsCovered(), art::mips64::kLoadConst64PathAllPaths);
+}
+
 #undef __
 
 }  // namespace art

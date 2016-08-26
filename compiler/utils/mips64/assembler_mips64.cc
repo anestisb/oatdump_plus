@@ -1038,129 +1038,15 @@ void Mips64Assembler::Not(GpuRegister rd, GpuRegister rs) {
 }
 
 void Mips64Assembler::LoadConst32(GpuRegister rd, int32_t value) {
-  if (IsUint<16>(value)) {
-    // Use OR with (unsigned) immediate to encode 16b unsigned int.
-    Ori(rd, ZERO, value);
-  } else if (IsInt<16>(value)) {
-    // Use ADD with (signed) immediate to encode 16b signed int.
-    Addiu(rd, ZERO, value);
-  } else {
-    Lui(rd, value >> 16);
-    if (value & 0xFFFF)
-      Ori(rd, rd, value);
-  }
+  TemplateLoadConst32(this, rd, value);
+}
+
+// This function is only used for testing purposes.
+void Mips64Assembler::RecordLoadConst64Path(int value ATTRIBUTE_UNUSED) {
 }
 
 void Mips64Assembler::LoadConst64(GpuRegister rd, int64_t value) {
-  int bit31 = (value & UINT64_C(0x80000000)) != 0;
-
-  // Loads with 1 instruction.
-  if (IsUint<16>(value)) {
-    Ori(rd, ZERO, value);
-  } else if (IsInt<16>(value)) {
-    Daddiu(rd, ZERO, value);
-  } else if ((value & 0xFFFF) == 0 && IsInt<16>(value >> 16)) {
-    Lui(rd, value >> 16);
-  } else if (IsInt<32>(value)) {
-    // Loads with 2 instructions.
-    Lui(rd, value >> 16);
-    Ori(rd, rd, value);
-  } else if ((value & 0xFFFF0000) == 0 && IsInt<16>(value >> 32)) {
-    Ori(rd, ZERO, value);
-    Dahi(rd, value >> 32);
-  } else if ((value & UINT64_C(0xFFFFFFFF0000)) == 0) {
-    Ori(rd, ZERO, value);
-    Dati(rd, value >> 48);
-  } else if ((value & 0xFFFF) == 0 &&
-             (-32768 - bit31) <= (value >> 32) && (value >> 32) <= (32767 - bit31)) {
-    Lui(rd, value >> 16);
-    Dahi(rd, (value >> 32) + bit31);
-  } else if ((value & 0xFFFF) == 0 && ((value >> 31) & 0x1FFFF) == ((0x20000 - bit31) & 0x1FFFF)) {
-    Lui(rd, value >> 16);
-    Dati(rd, (value >> 48) + bit31);
-  } else if (IsPowerOfTwo(value + UINT64_C(1))) {
-    int shift_cnt = 64 - CTZ(value + UINT64_C(1));
-    Daddiu(rd, ZERO, -1);
-    if (shift_cnt < 32) {
-      Dsrl(rd, rd, shift_cnt);
-    } else {
-      Dsrl32(rd, rd, shift_cnt & 31);
-    }
-  } else {
-    int shift_cnt = CTZ(value);
-    int64_t tmp = value >> shift_cnt;
-    if (IsUint<16>(tmp)) {
-      Ori(rd, ZERO, tmp);
-      if (shift_cnt < 32) {
-        Dsll(rd, rd, shift_cnt);
-      } else {
-        Dsll32(rd, rd, shift_cnt & 31);
-      }
-    } else if (IsInt<16>(tmp)) {
-      Daddiu(rd, ZERO, tmp);
-      if (shift_cnt < 32) {
-        Dsll(rd, rd, shift_cnt);
-      } else {
-        Dsll32(rd, rd, shift_cnt & 31);
-      }
-    } else if (IsInt<32>(tmp)) {
-      // Loads with 3 instructions.
-      Lui(rd, tmp >> 16);
-      Ori(rd, rd, tmp);
-      if (shift_cnt < 32) {
-        Dsll(rd, rd, shift_cnt);
-      } else {
-        Dsll32(rd, rd, shift_cnt & 31);
-      }
-    } else {
-      shift_cnt = 16 + CTZ(value >> 16);
-      tmp = value >> shift_cnt;
-      if (IsUint<16>(tmp)) {
-        Ori(rd, ZERO, tmp);
-        if (shift_cnt < 32) {
-          Dsll(rd, rd, shift_cnt);
-        } else {
-          Dsll32(rd, rd, shift_cnt & 31);
-        }
-        Ori(rd, rd, value);
-      } else if (IsInt<16>(tmp)) {
-        Daddiu(rd, ZERO, tmp);
-        if (shift_cnt < 32) {
-          Dsll(rd, rd, shift_cnt);
-        } else {
-          Dsll32(rd, rd, shift_cnt & 31);
-        }
-        Ori(rd, rd, value);
-      } else {
-        // Loads with 3-4 instructions.
-        uint64_t tmp2 = value;
-        bool used_lui = false;
-        if (((tmp2 >> 16) & 0xFFFF) != 0 || (tmp2 & 0xFFFFFFFF) == 0) {
-          Lui(rd, tmp2 >> 16);
-          used_lui = true;
-        }
-        if ((tmp2 & 0xFFFF) != 0) {
-          if (used_lui) {
-            Ori(rd, rd, tmp2);
-          } else {
-            Ori(rd, ZERO, tmp2);
-          }
-        }
-        if (bit31) {
-          tmp2 += UINT64_C(0x100000000);
-        }
-        if (((tmp2 >> 32) & 0xFFFF) != 0) {
-          Dahi(rd, tmp2 >> 32);
-        }
-        if (tmp2 & UINT64_C(0x800000000000)) {
-          tmp2 += UINT64_C(0x1000000000000);
-        }
-        if ((tmp2 >> 48) != 0) {
-          Dati(rd, tmp2 >> 48);
-        }
-      }
-    }
-  }
+  TemplateLoadConst64(this, rd, value);
 }
 
 void Mips64Assembler::Daddiu64(GpuRegister rt, GpuRegister rs, int64_t value, GpuRegister rtmp) {
