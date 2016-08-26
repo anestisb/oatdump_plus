@@ -30,18 +30,6 @@
 
 namespace art {
 
-static jobject Method_getAnnotationNative(JNIEnv* env, jobject javaMethod, jclass annotationType) {
-  ScopedFastNativeObjectAccess soa(env);
-  ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
-  if (method->GetDeclaringClass()->IsProxyClass()) {
-    return nullptr;
-  }
-  StackHandleScope<1> hs(soa.Self());
-  Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
-  return soa.AddLocalReference<jobject>(
-      method->GetDexFile()->GetAnnotationForMethod(method, klass));
-}
-
 static jobject Method_getDefaultValue(JNIEnv* env, jobject javaMethod) {
   ScopedFastNativeObjectAccess soa(env);
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
@@ -88,15 +76,6 @@ static jobjectArray Method_getExceptionTypes(JNIEnv* env, jobject javaMethod) {
   }
 }
 
-static jobjectArray Method_getParameterAnnotationsNative(JNIEnv* env, jobject javaMethod) {
-  ScopedFastNativeObjectAccess soa(env);
-  ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
-  if (method->GetDeclaringClass()->IsProxyClass()) {
-    return nullptr;
-  }
-  return soa.AddLocalReference<jobjectArray>(method->GetDexFile()->GetParameterAnnotations(method));
-}
-
 static jobject Method_invoke(JNIEnv* env, jobject javaMethod, jobject javaReceiver,
                              jobject javaArgs) {
   ScopedFastNativeObjectAccess soa(env);
@@ -104,11 +83,8 @@ static jobject Method_invoke(JNIEnv* env, jobject javaMethod, jobject javaReceiv
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Method, getAnnotationNative,
-                "!(Ljava/lang/Class;)Ljava/lang/annotation/Annotation;"),
   NATIVE_METHOD(Method, getDefaultValue, "!()Ljava/lang/Object;"),
   NATIVE_METHOD(Method, getExceptionTypes, "!()[Ljava/lang/Class;"),
-  NATIVE_METHOD(Method, getParameterAnnotationsNative, "!()[[Ljava/lang/annotation/Annotation;"),
   NATIVE_METHOD(Method, invoke, "!(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;"),
 };
 
