@@ -490,7 +490,7 @@ static HOptimization* BuildOptimization(
     return new (arena) SideEffectsAnalysis(graph);
 #ifdef ART_ENABLE_CODEGEN_arm
   } else if (opt_name == arm::DexCacheArrayFixups::kDexCacheArrayFixupsArmPassName) {
-    return new (arena) arm::DexCacheArrayFixups(graph, stats);
+    return new (arena) arm::DexCacheArrayFixups(graph, codegen, stats);
   } else if (opt_name == arm::InstructionSimplifierArm::kInstructionSimplifierArmPassName) {
     return new (arena) arm::InstructionSimplifierArm(graph, stats);
 #endif
@@ -604,7 +604,8 @@ void OptimizingCompiler::RunArchOptimizations(InstructionSet instruction_set,
 #ifdef ART_ENABLE_CODEGEN_arm
     case kThumb2:
     case kArm: {
-      arm::DexCacheArrayFixups* fixups = new (arena) arm::DexCacheArrayFixups(graph, stats);
+      arm::DexCacheArrayFixups* fixups =
+          new (arena) arm::DexCacheArrayFixups(graph, codegen, stats);
       arm::InstructionSimplifierArm* simplifier =
           new (arena) arm::InstructionSimplifierArm(graph, stats);
       SideEffectsAnalysis* side_effects = new (arena) SideEffectsAnalysis(graph);

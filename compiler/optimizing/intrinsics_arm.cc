@@ -127,6 +127,11 @@ class ReadBarrierSystemArrayCopySlowPathARM : public SlowPathCode {
 
 #undef __
 
+IntrinsicLocationsBuilderARM::IntrinsicLocationsBuilderARM(CodeGeneratorARM* codegen)
+    : arena_(codegen->GetGraph()->GetArena()),
+      assembler_(codegen->GetAssembler()),
+      features_(codegen->GetInstructionSetFeatures()) {}
+
 bool IntrinsicLocationsBuilderARM::TryDispatch(HInvoke* invoke) {
   Dispatch(invoke);
   LocationSummary* res = invoke->GetLocations();
