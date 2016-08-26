@@ -33,10 +33,7 @@ class CodeGeneratorARM;
 
 class IntrinsicLocationsBuilderARM FINAL : public IntrinsicVisitor {
  public:
-  IntrinsicLocationsBuilderARM(ArenaAllocator* arena,
-                               ArmAssembler* assembler,
-                               const ArmInstructionSetFeatures& features)
-      : arena_(arena), assembler_(assembler), features_(features) {}
+  explicit IntrinsicLocationsBuilderARM(CodeGeneratorARM* codegen);
 
   // Define visitor methods.
 

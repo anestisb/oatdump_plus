@@ -243,6 +243,24 @@ UNREACHABLE_INTRINSIC(Arch, UnsafeLoadFence)        \
 UNREACHABLE_INTRINSIC(Arch, UnsafeStoreFence)       \
 UNREACHABLE_INTRINSIC(Arch, UnsafeFullFence)
 
+template <typename IntrinsicLocationsBuilder, typename Codegenerator>
+bool IsCallFreeIntrinsic(HInvoke* invoke, Codegenerator* codegen) {
+  if (invoke->GetIntrinsic() != Intrinsics::kNone) {
+    // This invoke may have intrinsic code generation defined. However, we must
+    // now also determine if this code generation is truly there and call-free
+    // (not unimplemented, no bail on instruction features, or call on slow path).
+    // This is done by actually calling the locations builder on the instruction
+    // and clearing out the locations once result is known. We assume this
+    // call only has creating locations as side effects!
+    // TODO: Avoid wasting Arena memory.
+    IntrinsicLocationsBuilder builder(codegen);
+    bool success = builder.TryDispatch(invoke) && !invoke->GetLocations()->CanCall();
+    invoke->SetLocations(nullptr);
+    return success;
+  }
+  return false;
+}
+
 }  // namespace art
 
 #endif  // ART_COMPILER_OPTIMIZING_INTRINSICS_H_

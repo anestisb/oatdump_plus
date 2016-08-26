@@ -17,6 +17,8 @@
 #include "dex_cache_array_fixups_arm.h"
 
 #include "base/arena_containers.h"
+#include "code_generator_arm.h"
+#include "intrinsics_arm.h"
 #include "utils/dex_cache_arrays_layout-inl.h"
 
 namespace art {
@@ -27,8 +29,9 @@ namespace arm {
  */
 class DexCacheArrayFixupsVisitor : public HGraphVisitor {
  public:
-  explicit DexCacheArrayFixupsVisitor(HGraph* graph)
+  DexCacheArrayFixupsVisitor(HGraph* graph, CodeGenerator* codegen)
       : HGraphVisitor(graph),
+        codegen_(down_cast<CodeGeneratorARM*>(codegen)),
         dex_cache_array_bases_(std::less<const DexFile*>(),
                                // Attribute memory use to code generator.
                                graph->GetArena()->Adapter(kArenaAllocCodeGenerator)) {}
@@ -77,7 +80,8 @@ class DexCacheArrayFixupsVisitor : public HGraphVisitor {
   void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE {
     // If this is an invoke with PC-relative access to the dex cache methods array,
     // we need to add the dex cache arrays base as the special input.
-    if (invoke->HasPcRelativeDexCache()) {
+    if (invoke->HasPcRelativeDexCache() &&
+        !IsCallFreeIntrinsic<IntrinsicLocationsBuilderARM>(invoke, codegen_)) {
       // Initialize base for target method dex file if needed.
       MethodReference target_method = invoke->GetTargetMethod();
       HArmDexCacheArraysBase* base = GetOrCreateDexCacheArrayBase(*target_method.dex_file);
@@ -107,6 +111,8 @@ class DexCacheArrayFixupsVisitor : public HGraphVisitor {
     return base;
   }
 
+  CodeGeneratorARM* codegen_;
+
   using DexCacheArraysBaseMap =
       ArenaSafeMap<const DexFile*, HArmDexCacheArraysBase*, std::less<const DexFile*>>;
   DexCacheArraysBaseMap dex_cache_array_bases_;
@@ -118,7 +124,7 @@ void DexCacheArrayFixups::Run() {
     // that can be live-in at the irreducible loop header.
     return;
   }
-  DexCacheArrayFixupsVisitor visitor(graph_);
+  DexCacheArrayFixupsVisitor visitor(graph_, codegen_);
   visitor.VisitInsertionOrder();
   visitor.MoveBasesIfNeeded();
 }

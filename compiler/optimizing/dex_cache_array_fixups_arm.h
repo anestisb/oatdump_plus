@@ -21,16 +21,23 @@
 #include "optimization.h"
 
 namespace art {
+
+class CodeGenerator;
+
 namespace arm {
 
 class DexCacheArrayFixups : public HOptimization {
  public:
-  DexCacheArrayFixups(HGraph* graph, OptimizingCompilerStats* stats)
-      : HOptimization(graph, kDexCacheArrayFixupsArmPassName, stats) {}
+  DexCacheArrayFixups(HGraph* graph, CodeGenerator* codegen, OptimizingCompilerStats* stats)
+      : HOptimization(graph, kDexCacheArrayFixupsArmPassName, stats),
+        codegen_(codegen) {}
 
   static constexpr const char* kDexCacheArrayFixupsArmPassName = "dex_cache_array_fixups_arm";
 
   void Run() OVERRIDE;
+
+ private:
+  CodeGenerator* codegen_;
 };
 
 }  // namespace arm
