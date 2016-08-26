@@ -581,7 +581,7 @@ struct BackgroundGcOption {
     : background_collector_type_(gc::kCollectorTypeNone) {
 
     if (kUseReadBarrier) {
-      background_collector_type_ = gc::kCollectorTypeCC;  // Disable background compaction for CC.
+      background_collector_type_ = gc::kCollectorTypeCCBackground;  // Background compaction for CC.
     }
   }
 
