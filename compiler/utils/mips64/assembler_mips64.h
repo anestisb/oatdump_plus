@@ -33,6 +33,237 @@
 namespace art {
 namespace mips64 {
 
+enum LoadConst64Path {
+  kLoadConst64PathZero           = 0x0,
+  kLoadConst64PathOri            = 0x1,
+  kLoadConst64PathDaddiu         = 0x2,
+  kLoadConst64PathLui            = 0x4,
+  kLoadConst64PathLuiOri         = 0x8,
+  kLoadConst64PathOriDahi        = 0x10,
+  kLoadConst64PathOriDati        = 0x20,
+  kLoadConst64PathLuiDahi        = 0x40,
+  kLoadConst64PathLuiDati        = 0x80,
+  kLoadConst64PathDaddiuDsrlX    = 0x100,
+  kLoadConst64PathOriDsllX       = 0x200,
+  kLoadConst64PathDaddiuDsllX    = 0x400,
+  kLoadConst64PathLuiOriDsllX    = 0x800,
+  kLoadConst64PathOriDsllXOri    = 0x1000,
+  kLoadConst64PathDaddiuDsllXOri = 0x2000,
+  kLoadConst64PathDaddiuDahi     = 0x4000,
+  kLoadConst64PathDaddiuDati     = 0x8000,
+  kLoadConst64PathDinsu1         = 0x10000,
+  kLoadConst64PathDinsu2         = 0x20000,
+  kLoadConst64PathCatchAll       = 0x40000,
+  kLoadConst64PathAllPaths       = 0x7ffff,
+};
+
+template <typename Asm>
+void TemplateLoadConst32(Asm* a, GpuRegister rd, int32_t value) {
+  if (IsUint<16>(value)) {
+    // Use OR with (unsigned) immediate to encode 16b unsigned int.
+    a->Ori(rd, ZERO, value);
+  } else if (IsInt<16>(value)) {
+    // Use ADD with (signed) immediate to encode 16b signed int.
+    a->Addiu(rd, ZERO, value);
+  } else {
+    // Set 16 most significant bits of value. The "lui" instruction
+    // also clears the 16 least significant bits to zero.
+    a->Lui(rd, value >> 16);
+    if (value & 0xFFFF) {
+      // If the 16 least significant bits are non-zero, set them
+      // here.
+      a->Ori(rd, rd, value);
+    }
+  }
+}
+
+static inline int InstrCountForLoadReplicatedConst32(int64_t value) {
+  int32_t x = Low32Bits(value);
+  int32_t y = High32Bits(value);
+
+  if (x == y) {
+    return (IsUint<16>(x) || IsInt<16>(x) || ((x & 0xFFFF) == 0 && IsInt<16>(value >> 16))) ? 2 : 3;
+  }
+
+  return INT_MAX;
+}
+
+template <typename Asm, typename Rtype, typename Vtype>
+void TemplateLoadConst64(Asm* a, Rtype rd, Vtype value) {
+  int bit31 = (value & UINT64_C(0x80000000)) != 0;
+  int rep32_count = InstrCountForLoadReplicatedConst32(value);
+
+  // Loads with 1 instruction.
+  if (IsUint<16>(value)) {
+    // 64-bit value can be loaded as an unsigned 16-bit number.
+    a->RecordLoadConst64Path(kLoadConst64PathOri);
+    a->Ori(rd, ZERO, value);
+  } else if (IsInt<16>(value)) {
+    // 64-bit value can be loaded as an signed 16-bit number.
+    a->RecordLoadConst64Path(kLoadConst64PathDaddiu);
+    a->Daddiu(rd, ZERO, value);
+  } else if ((value & 0xFFFF) == 0 && IsInt<16>(value >> 16)) {
+    // 64-bit value can be loaded as an signed 32-bit number which has all
+    // of its 16 least significant bits set to zero.
+    a->RecordLoadConst64Path(kLoadConst64PathLui);
+    a->Lui(rd, value >> 16);
+  } else if (IsInt<32>(value)) {
+    // Loads with 2 instructions.
+    // 64-bit value can be loaded as an signed 32-bit number which has some
+    // or all of its 16 least significant bits set to one.
+    a->RecordLoadConst64Path(kLoadConst64PathLuiOri);
+    a->Lui(rd, value >> 16);
+    a->Ori(rd, rd, value);
+  } else if ((value & 0xFFFF0000) == 0 && IsInt<16>(value >> 32)) {
+    // 64-bit value which consists of an unsigned 16-bit value in its
+    // least significant 32-bits, and a signed 16-bit value in its
+    // most significant 32-bits.
+    a->RecordLoadConst64Path(kLoadConst64PathOriDahi);
+    a->Ori(rd, ZERO, value);
+    a->Dahi(rd, value >> 32);
+  } else if ((value & UINT64_C(0xFFFFFFFF0000)) == 0) {
+    // 64-bit value which consists of an unsigned 16-bit value in its
+    // least significant 48-bits, and a signed 16-bit value in its
+    // most significant 16-bits.
+    a->RecordLoadConst64Path(kLoadConst64PathOriDati);
+    a->Ori(rd, ZERO, value);
+    a->Dati(rd, value >> 48);
+  } else if ((value & 0xFFFF) == 0 &&
+             (-32768 - bit31) <= (value >> 32) && (value >> 32) <= (32767 - bit31)) {
+    // 16 LSBs (Least Significant Bits) all set to zero.
+    // 48 MSBs (Most Significant Bits) hold a signed 32-bit value.
+    a->RecordLoadConst64Path(kLoadConst64PathLuiDahi);
+    a->Lui(rd, value >> 16);
+    a->Dahi(rd, (value >> 32) + bit31);
+  } else if ((value & 0xFFFF) == 0 && ((value >> 31) & 0x1FFFF) == ((0x20000 - bit31) & 0x1FFFF)) {
+    // 16 LSBs all set to zero.
+    // 48 MSBs hold a signed value which can't be represented by signed
+    // 32-bit number, and the middle 16 bits are all zero, or all one.
+    a->RecordLoadConst64Path(kLoadConst64PathLuiDati);
+    a->Lui(rd, value >> 16);
+    a->Dati(rd, (value >> 48) + bit31);
+  } else if (IsInt<16>(static_cast<int32_t>(value)) &&
+             (-32768 - bit31) <= (value >> 32) && (value >> 32) <= (32767 - bit31)) {
+    // 32 LSBs contain an unsigned 16-bit number.
+    // 32 MSBs contain a signed 16-bit number.
+    a->RecordLoadConst64Path(kLoadConst64PathDaddiuDahi);
+    a->Daddiu(rd, ZERO, value);
+    a->Dahi(rd, (value >> 32) + bit31);
+  } else if (IsInt<16>(static_cast<int32_t>(value)) &&
+             ((value >> 31) & 0x1FFFF) == ((0x20000 - bit31) & 0x1FFFF)) {
+    // 48 LSBs contain an unsigned 16-bit number.
+    // 16 MSBs contain a signed 16-bit number.
+    a->RecordLoadConst64Path(kLoadConst64PathDaddiuDati);
+    a->Daddiu(rd, ZERO, value);
+    a->Dati(rd, (value >> 48) + bit31);
+  } else if (IsPowerOfTwo(value + UINT64_C(1))) {
+    // 64-bit values which have their "n" MSBs set to one, and their
+    // "64-n" LSBs set to zero. "n" must meet the restrictions 0 < n < 64.
+    int shift_cnt = 64 - CTZ(value + UINT64_C(1));
+    a->RecordLoadConst64Path(kLoadConst64PathDaddiuDsrlX);
+    a->Daddiu(rd, ZERO, -1);
+    if (shift_cnt < 32) {
+      a->Dsrl(rd, rd, shift_cnt);
+    } else {
+      a->Dsrl32(rd, rd, shift_cnt & 31);
+    }
+  } else {
+    int shift_cnt = CTZ(value);
+    int64_t tmp = value >> shift_cnt;
+    a->RecordLoadConst64Path(kLoadConst64PathOriDsllX);
+    if (IsUint<16>(tmp)) {
+      // Value can be computed by loading a 16-bit unsigned value, and
+      // then shifting left.
+      a->Ori(rd, ZERO, tmp);
+      if (shift_cnt < 32) {
+        a->Dsll(rd, rd, shift_cnt);
+      } else {
+        a->Dsll32(rd, rd, shift_cnt & 31);
+      }
+    } else if (IsInt<16>(tmp)) {
+      // Value can be computed by loading a 16-bit signed value, and
+      // then shifting left.
+      a->RecordLoadConst64Path(kLoadConst64PathDaddiuDsllX);
+      a->Daddiu(rd, ZERO, tmp);
+      if (shift_cnt < 32) {
+        a->Dsll(rd, rd, shift_cnt);
+      } else {
+        a->Dsll32(rd, rd, shift_cnt & 31);
+      }
+    } else if (rep32_count < 3) {
+      // Value being loaded has 32 LSBs equal to the 32 MSBs, and the
+      // value loaded into the 32 LSBs can be loaded with a single
+      // MIPS instruction.
+      a->LoadConst32(rd, value);
+      a->Dinsu(rd, rd, 32, 32);
+      a->RecordLoadConst64Path(kLoadConst64PathDinsu1);
+    } else if (IsInt<32>(tmp)) {
+      // Loads with 3 instructions.
+      // Value can be computed by loading a 32-bit signed value, and
+      // then shifting left.
+      a->RecordLoadConst64Path(kLoadConst64PathLuiOriDsllX);
+      a->Lui(rd, tmp >> 16);
+      a->Ori(rd, rd, tmp);
+      if (shift_cnt < 32) {
+        a->Dsll(rd, rd, shift_cnt);
+      } else {
+        a->Dsll32(rd, rd, shift_cnt & 31);
+      }
+    } else {
+      shift_cnt = 16 + CTZ(value >> 16);
+      tmp = value >> shift_cnt;
+      if (IsUint<16>(tmp)) {
+        // Value can be computed by loading a 16-bit unsigned value,
+        // shifting left, and "or"ing in another 16-bit unsigned value.
+        a->RecordLoadConst64Path(kLoadConst64PathOriDsllXOri);
+        a->Ori(rd, ZERO, tmp);
+        if (shift_cnt < 32) {
+          a->Dsll(rd, rd, shift_cnt);
+        } else {
+          a->Dsll32(rd, rd, shift_cnt & 31);
+        }
+        a->Ori(rd, rd, value);
+      } else if (IsInt<16>(tmp)) {
+        // Value can be computed by loading a 16-bit signed value,
+        // shifting left, and "or"ing in a 16-bit unsigned value.
+        a->RecordLoadConst64Path(kLoadConst64PathDaddiuDsllXOri);
+        a->Daddiu(rd, ZERO, tmp);
+        if (shift_cnt < 32) {
+          a->Dsll(rd, rd, shift_cnt);
+        } else {
+          a->Dsll32(rd, rd, shift_cnt & 31);
+        }
+        a->Ori(rd, rd, value);
+      } else if (rep32_count < 4) {
+        // Value being loaded has 32 LSBs equal to the 32 MSBs, and the
+        // value in the 32 LSBs requires 2 MIPS instructions to load.
+        a->LoadConst32(rd, value);
+        a->Dinsu(rd, rd, 32, 32);
+        a->RecordLoadConst64Path(kLoadConst64PathDinsu2);
+      } else {
+        // Loads with 3-4 instructions.
+        // Catch-all case to get any other 64-bit values which aren't
+        // handled by special cases above.
+        uint64_t tmp2 = value;
+        a->RecordLoadConst64Path(kLoadConst64PathCatchAll);
+        a->LoadConst32(rd, value);
+        if (bit31) {
+          tmp2 += UINT64_C(0x100000000);
+        }
+        if (((tmp2 >> 32) & 0xFFFF) != 0) {
+          a->Dahi(rd, tmp2 >> 32);
+        }
+        if (tmp2 & UINT64_C(0x800000000000)) {
+          tmp2 += UINT64_C(0x1000000000000);
+        }
+        if ((tmp2 >> 48) != 0) {
+          a->Dati(rd, tmp2 >> 48);
+        }
+      }
+    }
+  }
+}
+
 static constexpr size_t kMips64WordSize = 4;
 static constexpr size_t kMips64DoublewordSize = 8;
 
@@ -326,8 +557,12 @@ class Mips64Assembler FINAL : public Assembler, public JNIMacroAssembler<Pointer
   void Not(GpuRegister rd, GpuRegister rs);
 
   // Higher level composite instructions.
+  int InstrCountForLoadReplicatedConst32(int64_t);
   void LoadConst32(GpuRegister rd, int32_t value);
   void LoadConst64(GpuRegister rd, int64_t value);  // MIPS64
+
+  // This function is only used for testing purposes.
+  void RecordLoadConst64Path(int value);
 
   void Daddiu64(GpuRegister rt, GpuRegister rs, int64_t value, GpuRegister rtmp = AT);  // MIPS64
 
