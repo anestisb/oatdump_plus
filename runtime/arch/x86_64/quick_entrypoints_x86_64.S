@@ -1336,12 +1336,8 @@ DEFINE_FUNCTION art_quick_resolve_string
     movq DECLARING_CLASS_DEX_CACHE_STRINGS_OFFSET(%ecx), %rcx  // get string dex cache
     movq LITERAL(STRING_DEX_CACHE_SIZE_MINUS_ONE), %rdx
     andq %rdi, %rdx
-    shlq LITERAL(STRING_DEX_CACHE_ELEMENT_SIZE_SHIFT), %rdx
-    addq %rcx, %rdx
-    movq %rax, %rcx
-    movq (%rdx), %rdx
-    movq %rdx, %rax
-    movl %eax, %eax
+    movq (%rcx, %rdx, STRING_DEX_CACHE_ELEMENT_SIZE), %rdx
+    movl %edx, %eax
     shrq LITERAL(32), %rdx
     cmp %rdx, %rdi
     jne .Lart_quick_resolve_string_slow_path
