@@ -54,9 +54,10 @@ static bool GetPositionsCb(void* context, const DexFile::PositionInfo& entry) {
 static void GetLocalsCb(void* context, const DexFile::LocalInfo& entry) {
   DebugInfoItem* debug_info = reinterpret_cast<DebugInfoItem*>(context);
   std::vector<std::unique_ptr<LocalInfo>>& locals = debug_info->GetLocalInfo();
+  const char* name = entry.name_ != nullptr ? entry.name_ : "(null)";
   const char* signature = entry.signature_ != nullptr ? entry.signature_ : "";
   locals.push_back(std::unique_ptr<LocalInfo>(
-      new LocalInfo(entry.name_, entry.descriptor_, signature, entry.start_address_,
+      new LocalInfo(name, entry.descriptor_, signature, entry.start_address_,
                     entry.end_address_, entry.reg_)));
 }
 }  // namespace
@@ -205,7 +206,7 @@ void ArrayItem::Read(Header& header, const uint8_t** data, uint8_t type, uint8_t
 ClassDef::ClassDef(const DexFile::ClassDef& disk_class_def, Header& header) {
   class_type_ = header.TypeIds()[disk_class_def.class_idx_].get();
   access_flags_ = disk_class_def.access_flags_;
-  superclass_ = header.TypeIds()[disk_class_def.superclass_idx_].get();
+  superclass_ = header.GetTypeIdOrNullPtr(disk_class_def.superclass_idx_);
 
   const DexFile::TypeList* type_list = header.GetDexFile().GetInterfacesList(disk_class_def);
   interfaces_offset_ = disk_class_def.interfaces_off_;
@@ -214,11 +215,7 @@ ClassDef::ClassDef(const DexFile::ClassDef& disk_class_def, Header& header) {
       interfaces_.push_back(header.TypeIds()[type_list->GetTypeItem(index).type_idx_].get());
     }
   }
-  if (disk_class_def.source_file_idx_ == DexFile::kDexNoIndex) {
-    source_file_ = nullptr;
-  } else {
-    source_file_ = header.StringIds()[disk_class_def.source_file_idx_].get();
-  }
+  source_file_ = header.GetStringIdOrNullPtr(disk_class_def.source_file_idx_);
   // Annotations.
   const DexFile::AnnotationsDirectoryItem* disk_annotations_directory_item =
       header.GetDexFile().GetAnnotationsDirectory(disk_class_def);
@@ -262,49 +259,35 @@ ClassDef::ClassDef(const DexFile::ClassDef& disk_class_def, Header& header) {
     }
     // Direct methods.
     for (uint32_t i = 0; cdii.HasNextDirectMethod(); i++, cdii.Next()) {
-      MethodId* method_item = header.MethodIds()[cdii.GetMemberIndex()].get();
-      uint32_t access_flags = cdii.GetRawMemberAccessFlags();
-      const DexFile::CodeItem* disk_code_item = cdii.GetMethodCodeItem();
-      CodeItem* code_item = nullptr;
-      DebugInfoItem* debug_info = nullptr;
-      if (disk_code_item != nullptr) {
-        code_item = new CodeItem(*disk_code_item, header);
-        code_item->SetOffset(cdii.GetMethodCodeItemOffset());
-        debug_info = code_item->DebugInfo();
-      }
-      if (debug_info != nullptr) {
-        // TODO: Fix debug local info.
-        // bool is_static = (access_flags & kAccStatic) != 0;
-        // header.GetDexFile().DecodeDebugLocalInfo(
-        //       disk_code_item, is_static, cdii.GetMemberIndex(), GetLocalsCb, debug_info);
-        header.GetDexFile().DecodeDebugPositionInfo(disk_code_item, GetPositionsCb, debug_info);
-      }
       class_data_.DirectMethods().push_back(
-          std::unique_ptr<MethodItem>(new MethodItem(access_flags, method_item, code_item)));
+          std::unique_ptr<MethodItem>(GenerateMethodItem(header, cdii)));
     }
     // Virtual methods.
     for (uint32_t i = 0; cdii.HasNextVirtualMethod(); i++, cdii.Next()) {
-      MethodId* method_item = header.MethodIds()[cdii.GetMemberIndex()].get();
-      uint32_t access_flags = cdii.GetRawMemberAccessFlags();
-      const DexFile::CodeItem* disk_code_item = cdii.GetMethodCodeItem();
-      CodeItem* code_item = nullptr;
-      DebugInfoItem* debug_info = nullptr;
-      if (disk_code_item != nullptr) {
-        code_item = new CodeItem(*disk_code_item, header);
-        code_item->SetOffset(cdii.GetMethodCodeItemOffset());
-        debug_info = code_item->DebugInfo();
-      }
-      if (debug_info != nullptr) {
-        // TODO: Fix debug local info.
-        // bool is_static = (access_flags & kAccStatic) != 0;
-        // header.GetDexFile().DecodeDebugLocalInfo(
-        //       disk_code_item, is_static, cdii.GetMemberIndex(), GetLocalsCb, debug_info);
-        header.GetDexFile().DecodeDebugPositionInfo(disk_code_item, GetPositionsCb, debug_info);
-      }
       class_data_.VirtualMethods().push_back(
-          std::unique_ptr<MethodItem>(new MethodItem(access_flags, method_item, code_item)));
+          std::unique_ptr<MethodItem>(GenerateMethodItem(header, cdii)));
     }
   }
+}
+
+MethodItem* ClassDef::GenerateMethodItem(Header& header, ClassDataItemIterator& cdii) {
+  MethodId* method_item = header.MethodIds()[cdii.GetMemberIndex()].get();
+  uint32_t access_flags = cdii.GetRawMemberAccessFlags();
+  const DexFile::CodeItem* disk_code_item = cdii.GetMethodCodeItem();
+  CodeItem* code_item = nullptr;
+  DebugInfoItem* debug_info = nullptr;
+  if (disk_code_item != nullptr) {
+    code_item = new CodeItem(*disk_code_item, header);
+    code_item->SetOffset(cdii.GetMethodCodeItemOffset());
+    debug_info = code_item->DebugInfo();
+  }
+  if (debug_info != nullptr) {
+    bool is_static = (access_flags & kAccStatic) != 0;
+    header.GetDexFile().DecodeDebugLocalInfo(
+        disk_code_item, is_static, cdii.GetMemberIndex(), GetLocalsCb, debug_info);
+    header.GetDexFile().DecodeDebugPositionInfo(disk_code_item, GetPositionsCb, debug_info);
+  }
+  return new MethodItem(access_flags, method_item, code_item);
 }
 
 CodeItem::CodeItem(const DexFile::CodeItem& disk_code_item, Header& header) {
