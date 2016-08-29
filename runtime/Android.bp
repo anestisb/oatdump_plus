@@ -379,6 +379,8 @@ cc_defaults {
         "liblz4",
         // For liblog, atrace, properties, ashmem, set_sched_policy and socket_peer_is_trusted.
         "libcutils",
+        // For common macros.
+        "libbase",
     ],
     static: {
         static_libs: ["libsigchain_dummy"],
@@ -387,6 +389,8 @@ cc_defaults {
         shared_libs: ["libsigchain"],
     },
     export_include_dirs: ["."],
+    // ART's macros.h depends on libbase's macros.h.
+    export_shared_lib_headers: ["libbase"],
 }
 
 gensrcs {
