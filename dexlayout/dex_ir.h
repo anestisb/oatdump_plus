@@ -167,6 +167,14 @@ class Header : public Item {
   uint32_t MethodIdsSize() const { return method_ids_.Size(); }
   uint32_t ClassDefsSize() const { return class_defs_.Size(); }
 
+  TypeId* GetTypeIdOrNullPtr(uint16_t index) {
+    return index == DexFile::kDexNoIndex16 ? nullptr : TypeIds()[index].get();
+  }
+
+  StringId* GetStringIdOrNullPtr(uint32_t index) {
+    return index == DexFile::kDexNoIndex ? nullptr : StringIds()[index].get();
+  }
+
   void Accept(AbstractDispatcher* dispatch) { dispatch->Dispatch(this); }
 
  private:
@@ -432,6 +440,8 @@ class ClassDef : public Item {
   std::vector<std::unique_ptr<ArrayItem>>* StaticValues() { return static_values_; }
   ClassData* GetClassData() { return &class_data_; }
 
+  MethodItem* GenerateMethodItem(Header& header, ClassDataItemIterator& cdii);
+
   void Accept(AbstractDispatcher* dispatch) { dispatch->Dispatch(this); }
 
  private:
@@ -497,8 +507,7 @@ class TryItem : public Item {
     insn_count_ = disk_try_item.insn_count_;
     for (CatchHandlerIterator it(disk_code_item, disk_try_item); it.HasNext(); it.Next()) {
       const uint16_t type_index = it.GetHandlerTypeIndex();
-      const TypeId* type_id = type_index != DexFile::kDexNoIndex16 ?
-          header.TypeIds()[type_index].get() : nullptr;
+      const TypeId* type_id = header.GetTypeIdOrNullPtr(type_index);
       handlers_.push_back(std::unique_ptr<const CatchHandler>(
           new CatchHandler(type_id, it.GetHandlerAddress())));
     }
