@@ -439,6 +439,11 @@ gensrcs {
 art_cc_library {
     name: "libart",
     defaults: ["libart_defaults"],
+    // Leave the symbols in the shared library so that stack unwinders can
+    // produce meaningful name resolution.
+    strip: {
+        keep_symbols: true,
+    },
 }
 
 art_cc_library {
@@ -447,11 +452,6 @@ art_cc_library {
         "libart_defaults",
         "art_debug_defaults",
     ],
-    // Leave the symbols in the shared library so that stack unwinders can
-    // produce meaningful name resolution.
-    strip: {
-        keep_symbols: true,
-    },
 }
 
 subdirs = [
