@@ -449,8 +449,8 @@ art_cc_library {
 art_cc_library {
     name: "libartd",
     defaults: [
-        "libart_defaults",
-        "art_debug_defaults",
+       "art_debug_defaults",
+       "libart_defaults",
     ],
 }
 

@@ -150,9 +150,19 @@ cc_defaults {
         "-DDYNAMIC_ANNOTATIONS_ENABLED=1",
         "-DVIXL_DEBUG",
         "-UNDEBUG",
-        "-Wno-frame-larger-than=",
     ],
     asflags: [
         "-UNDEBUG",
     ],
+    target: {
+        // This has to be duplicated for android and host to make sure it
+        // comes after the -Wframe-larger-than warnings inserted by art.go
+        // target-specific properties
+        android: {
+            cflags: ["-Wno-frame-larger-than="],
+        },
+        host: {
+            cflags: ["-Wno-frame-larger-than="],
+        },
+    },
 }
