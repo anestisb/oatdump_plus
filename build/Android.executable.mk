@@ -16,9 +16,6 @@
 
 include art/build/Android.common_build.mk
 
-ART_HOST_EXECUTABLES ?=
-ART_TARGET_EXECUTABLES ?=
-
 ART_EXECUTABLES_CFLAGS :=
 
 # $(1): executable ("d" will be appended for debug version)
@@ -169,11 +166,9 @@ define build-art-executable
 
   ifeq ($$(art_target_or_host),target)
     include $(BUILD_EXECUTABLE)
-    ART_TARGET_EXECUTABLES := $(ART_TARGET_EXECUTABLES) $$(foreach name,$$(art_out_binary_name),$(TARGET_OUT_EXECUTABLES)/$$(name))
   else # host
     LOCAL_IS_HOST_MODULE := true
     include $(BUILD_HOST_EXECUTABLE)
-    ART_HOST_EXECUTABLES := $(ART_HOST_EXECUTABLES) $$(foreach name,$$(art_out_binary_name),$(HOST_OUT_EXECUTABLES)/$$(name))
   endif
 
   # Clear out local variables now that we're done with them.
