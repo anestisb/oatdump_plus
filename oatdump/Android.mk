@@ -16,41 +16,6 @@
 
 LOCAL_PATH := $(call my-dir)
 
-include art/build/Android.executable.mk
-
-OATDUMP_SRC_FILES := \
-	oatdump.cc
-
-# Build variants {target,host} x {debug,ndebug}
-$(eval $(call build-art-multi-executable,oatdump,$(OATDUMP_SRC_FILES),libart-compiler libart-disassembler,libcutils,,art/compiler art/disassembler))
-
-# Static variants (only for host).
-ifeq ($(ART_BUILD_HOST_STATIC),true)
-  ifeq ($(HOST_PREFER_32_BIT),true)
-    # We need to explicitly restrict the host arch to 32-bit only, as
-    # giving 'both' would make build-art-executable generate a build
-    # rule for a 64-bit oatdump executable too.
-    oatdump_host_arch := 32
-  else
-    oatdump_host_arch := both
-  endif
-
-  ifeq ($(ART_BUILD_HOST_NDEBUG),true)
-    $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libart libart-compiler libart-disassembler libvixl-arm64 $(ART_STATIC_DEPENDENCIES),art/compiler art/disassembler,host,ndebug,$(oatdump_host_arch),static))
-  endif
-  ifeq ($(ART_BUILD_HOST_DEBUG),true)
-    $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libartd libartd-compiler libartd-disassembler libvixld-arm64 $(ART_STATIC_DEPENDENCIES),art/compiler art/disassembler,host,debug,$(oatdump_host_arch),static))
-  endif
-
-  # Clear locals now they've served their purpose.
-  oatdump_host_arch :=
-endif
-
-########################################################################
-# oatdump targets
-
-ART_DUMP_OAT_PATH ?= $(OUT_DIR)
-
 OATDUMP := $(HOST_OUT_EXECUTABLES)/oatdump$(HOST_EXECUTABLE_SUFFIX)
 OATDUMPD := $(HOST_OUT_EXECUTABLES)/oatdumpd$(HOST_EXECUTABLE_SUFFIX)
 # TODO: for now, override with debug version for better error reporting
