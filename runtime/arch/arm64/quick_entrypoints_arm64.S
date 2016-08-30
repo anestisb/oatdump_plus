@@ -1796,7 +1796,7 @@ ENTRY art_quick_resolve_string
     ldr   x1, [sp]                                               // load referrer
     ldr   w2, [x1, #ART_METHOD_DECLARING_CLASS_OFFSET]           // load declaring class
     ldr   x1, [x2, #DECLARING_CLASS_DEX_CACHE_STRINGS_OFFSET]    // load string dex cache
-    and   x2, x0, #STRING_DEX_CACHE_SIZE_MINUS_ONE               // get masked string index into x2
+    ubfx  x2, x0, #0, #STRING_DEX_CACHE_HASH_BITS                // get masked string index into x2
     ldr   x2, [x1, x2, lsl #STRING_DEX_CACHE_ELEMENT_SIZE_SHIFT]  // load dex cache pair into x2
     cmp   x0, x2, lsr #32                                         // compare against upper 32 bits
     bne   .Lart_quick_resolve_string_slow_path
@@ -1822,8 +1822,14 @@ ENTRY art_quick_resolve_string
     tbnz  x3, #LOCK_WORD_MARK_BIT_SHIFT, .Lart_quick_resolve_string_no_rb
     // Save LR so that we can return, also x1 for alignment purposes.
     stp    x1, xLR, [sp, #-16]!                     // Save x1, LR.
+    .cfi_adjust_cfa_offset 16
+    .cfi_rel_offset x1, 0
+    .cfi_rel_offset xLR, 8
     bl     artReadBarrierMark                       // Get the marked string back.
     ldp    x1, xLR, [sp], #16                       // Restore registers.
+    .cfi_restore xLR
+    .cfi_restore x1
+    .cfi_adjust_cfa_offset -16
 .Lart_quick_resolve_string_no_rb:
     ret
 
