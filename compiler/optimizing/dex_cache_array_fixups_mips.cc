@@ -18,6 +18,7 @@
 #include "dex_cache_array_fixups_mips.h"
 
 #include "base/arena_containers.h"
+#include "intrinsics_mips.h"
 #include "utils/dex_cache_arrays_layout-inl.h"
 
 namespace art {
@@ -85,7 +86,8 @@ class DexCacheArrayFixupsVisitor : public HGraphVisitor {
   void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE {
     // If this is an invoke with PC-relative access to the dex cache methods array,
     // we need to add the dex cache arrays base as the special input.
-    if (invoke->HasPcRelativeDexCache()) {
+    if (invoke->HasPcRelativeDexCache() &&
+        !IsCallFreeIntrinsic<IntrinsicLocationsBuilderMIPS>(invoke, codegen_)) {
       // Initialize base for target method dex file if needed.
       MethodReference target_method = invoke->GetTargetMethod();
       HMipsDexCacheArraysBase* base = GetOrCreateDexCacheArrayBase(*target_method.dex_file);
