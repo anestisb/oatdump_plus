@@ -234,15 +234,5 @@
   modes: [device],
   names: ["libcore.java.lang.ProcessBuilderTest#testRedirectInherit",
           "libcore.java.lang.ProcessBuilderTest#testRedirect_nullStreams"]
-},
-{
-  description: "BigInteger failures due to the BoringSSL upgrade",
-  result: EXEC_FAILED,
-  bug: 30917411,
-  names: [
-    "org.apache.harmony.tests.java.math.BigIntegerModPowTest#testModPowNegExp",
-    "org.apache.harmony.tests.java.math.BigIntegerModPowTest#testmodInversePos1",
-    "org.apache.harmony.tests.java.math.BigIntegerTest#test_modInverseLjava_math_BigInteger"
-  ]
 }
 ]
