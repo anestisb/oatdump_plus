@@ -39,12 +39,12 @@ bool operator<(const IFLTestValue& lhs, const IFLTestValue& rhs) {
   return lhs.value < rhs.value;
 }
 
-#define ASSERT_LISTS_EQUAL(expected, value)                                   \
-  do {                                                                        \
-    ASSERT_EQ(expected.empty(), value.empty());                               \
-    ASSERT_EQ(std::distance(expected.begin(), expected.end()),                \
-              std::distance(value.begin(), value.end()));                     \
-    ASSERT_TRUE(std::equal(expected.begin(), expected.end(), value.begin())); \
+#define ASSERT_LISTS_EQUAL(expected, value)                                         \
+  do {                                                                              \
+    ASSERT_EQ((expected).empty(), (value).empty());                                 \
+    ASSERT_EQ(std::distance((expected).begin(), (expected).end()),                  \
+              std::distance((value).begin(), (value).end()));                       \
+    ASSERT_TRUE(std::equal((expected).begin(), (expected).end(), (value).begin())); \
   } while (false)
 
 TEST(IntrusiveForwardList, IteratorToConstIterator) {
