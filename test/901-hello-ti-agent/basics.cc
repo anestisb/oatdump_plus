@@ -35,7 +35,7 @@ jint OnLoad(JavaVM* vm,
 
 #define CHECK_CALL_SUCCESS(c) \
   do { \
-    if (c != JNI_OK) { \
+    if ((c) != JNI_OK) { \
       printf("call " #c " did not succeed\n"); \
       return -1; \
     } \

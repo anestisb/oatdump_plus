@@ -588,7 +588,7 @@ TEST_F(InstrumentationTest, MethodTracing_InstrumentationEntryExitStubs) {
   do {                                                                                  \
     Instrumentation* const instr = Runtime::Current()->GetInstrumentation();            \
     bool interpreter =                                                                  \
-      (_level == Instrumentation::InstrumentationLevel::kInstrumentWithInterpreter);    \
+      ((_level) == Instrumentation::InstrumentationLevel::kInstrumentWithInterpreter);  \
     EXPECT_EQ(_level, GetCurrentInstrumentationLevel());                                \
     EXPECT_EQ(_user_count, GetInstrumentationUserCount());                              \
     if (instr->IsForcedInterpretOnly()) {                                               \

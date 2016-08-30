@@ -1105,8 +1105,9 @@ TEST_F(JniInternalTest, RegisterAndUnregisterNatives) {
   ExpectException(aioobe_); \
   \
   /* Prepare a couple of buffers. */ \
-  std::unique_ptr<scalar_type[]> src_buf(new scalar_type[size]); \
-  std::unique_ptr<scalar_type[]> dst_buf(new scalar_type[size]); \
+  /* NOLINT, no parentheses around scalar_type. */ \
+  std::unique_ptr<scalar_type[]> src_buf(new scalar_type[size]); /* NOLINT */ \
+  std::unique_ptr<scalar_type[]> dst_buf(new scalar_type[size]); /* NOLINT */ \
   for (jsize i = 0; i < size; ++i) { src_buf[i] = scalar_type(i); } \
   for (jsize i = 0; i < size; ++i) { dst_buf[i] = scalar_type(-1); } \
   \
@@ -1131,7 +1132,7 @@ TEST_F(JniInternalTest, RegisterAndUnregisterNatives) {
     << "GetPrimitiveArrayCritical not equal"; \
   env_->ReleasePrimitiveArrayCritical(a, v, 0); \
   /* GetXArrayElements */ \
-  scalar_type* xs = env_->get_elements_fn(a, nullptr); \
+  scalar_type* xs = env_->get_elements_fn(a, nullptr); /* NOLINT, scalar_type */ \
   EXPECT_EQ(memcmp(&src_buf[0], xs, size * sizeof(scalar_type)), 0) \
     << # get_elements_fn " not equal"; \
   env_->release_elements_fn(a, xs, 0); \

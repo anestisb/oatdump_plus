@@ -37,7 +37,7 @@ namespace art {
 // name.
 #define EXPECT_OFFSET_DIFF(first_type, first_field, second_type, second_field, diff, name) \
   CHECKED(OFFSETOF_MEMBER(second_type, second_field) \
-          - OFFSETOF_MEMBER(first_type, first_field) == diff, name)
+          - OFFSETOF_MEMBER(first_type, first_field) == (diff), name)
 
 // Helper macro for when the fields are from the same type.
 #define EXPECT_OFFSET_DIFFNP(type, first_field, second_field, diff) \
@@ -45,15 +45,16 @@ namespace art {
                      type ## _ ## first_field ## _ ## second_field)
 
 // Helper macro for when the fields are from the same type and in the same member of said type.
+// NOLINT, do not add parentheses around 'prefix'.
 #define EXPECT_OFFSET_DIFFP(type, prefix, first_field, second_field, diff) \
-  EXPECT_OFFSET_DIFF(type, prefix . first_field, type, prefix . second_field, diff, \
+  EXPECT_OFFSET_DIFF(type, prefix . first_field, type, prefix . second_field, diff, /* NOLINT */ \
                      type ## _ ## prefix ## _ ## first_field ## _ ## second_field)
 
 // Macro to check whether two fields have at least an expected difference in offsets.  The error is
 // named name.
 #define EXPECT_OFFSET_DIFF_GT(first_type, first_field, second_type, second_field, diff, name) \
   CHECKED(OFFSETOF_MEMBER(second_type, second_field) \
-          - OFFSETOF_MEMBER(first_type, first_field) >= diff, name)
+          - OFFSETOF_MEMBER(first_type, first_field) >= (diff), name)
 
 // Helper macro for when the fields are from the same type.
 #define EXPECT_OFFSET_DIFF_GT3(type, first_field, second_field, diff, name) \
