@@ -32,6 +32,7 @@
 #include "mirror/accessible_object.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
+#include "mirror/executable.h"
 #include "mirror/field.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
@@ -691,6 +692,12 @@ struct FieldOffsets : public CheckOffsets<mirror::Field> {
   };
 };
 
+struct ExecutableOffsets : public CheckOffsets<mirror::Executable> {
+  ExecutableOffsets() : CheckOffsets<mirror::Executable>(
+      false, "Ljava/lang/reflect/Executable;") {
+  };
+};
+
 struct AbstractMethodOffsets : public CheckOffsets<mirror::AbstractMethod> {
   AbstractMethodOffsets() : CheckOffsets<mirror::AbstractMethod>(
       false, "Ljava/lang/reflect/AbstractMethod;") {
@@ -720,6 +727,7 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_TRUE(FinalizerReferenceOffsets().Check());
   EXPECT_TRUE(AccessibleObjectOffsets().Check());
   EXPECT_TRUE(FieldOffsets().Check());
+  EXPECT_TRUE(ExecutableOffsets().Check());
   EXPECT_TRUE(AbstractMethodOffsets().Check());
 }
 
