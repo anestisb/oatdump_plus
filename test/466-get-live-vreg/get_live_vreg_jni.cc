@@ -28,10 +28,10 @@ namespace {
 
 class TestVisitor : public StackVisitor {
  public:
-  TestVisitor(Thread* thread, Context* context) SHARED_REQUIRES(Locks::mutator_lock_)
+  TestVisitor(Thread* thread, Context* context) REQUIRES_SHARED(Locks::mutator_lock_)
       : StackVisitor(thread, context, StackVisitor::StackWalkKind::kIncludeInlinedFrames) {}
 
-  bool VisitFrame() SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool VisitFrame() REQUIRES_SHARED(Locks::mutator_lock_) {
     ArtMethod* m = GetMethod();
     std::string m_name(m->GetName());
 

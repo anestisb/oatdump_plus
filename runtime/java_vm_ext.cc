@@ -234,7 +234,7 @@ class Libraries {
   // See section 11.3 "Linking Native Methods" of the JNI spec.
   void* FindNativeMethod(ArtMethod* m, std::string& detail)
       REQUIRES(Locks::jni_libraries_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     std::string jni_short_name(JniShortName(m));
     std::string jni_long_name(JniLongName(m));
     mirror::ClassLoader* const declaring_class_loader = m->GetDeclaringClass()->GetClassLoader();
@@ -273,7 +273,7 @@ class Libraries {
   // Unload native libraries with cleared class loaders.
   void UnloadNativeLibraries()
       REQUIRES(!Locks::jni_libraries_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     ScopedObjectAccessUnchecked soa(Thread::Current());
     std::vector<SharedLibrary*> unload_libraries;
     {

@@ -64,26 +64,26 @@ class MANAGED Reference : public Object {
     return OFFSET_OF_OBJECT_MEMBER(Reference, referent_);
   }
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  Object* GetReferent() SHARED_REQUIRES(Locks::mutator_lock_) {
+  Object* GetReferent() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetFieldObjectVolatile<Object, kDefaultVerifyFlags, kReadBarrierOption>(
         ReferentOffset());
   }
   template<bool kTransactionActive>
-  void SetReferent(Object* referent) SHARED_REQUIRES(Locks::mutator_lock_) {
+  void SetReferent(Object* referent) REQUIRES_SHARED(Locks::mutator_lock_) {
     SetFieldObjectVolatile<kTransactionActive>(ReferentOffset(), referent);
   }
   template<bool kTransactionActive>
-  void ClearReferent() SHARED_REQUIRES(Locks::mutator_lock_) {
+  void ClearReferent() REQUIRES_SHARED(Locks::mutator_lock_) {
     SetFieldObjectVolatile<kTransactionActive>(ReferentOffset(), nullptr);
   }
 
   template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  Reference* GetPendingNext() SHARED_REQUIRES(Locks::mutator_lock_) {
+  Reference* GetPendingNext() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetFieldObject<Reference, kDefaultVerifyFlags, kReadBarrierOption>(PendingNextOffset());
   }
 
   void SetPendingNext(Reference* pending_next)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     if (Runtime::Current()->IsActiveTransaction()) {
       SetFieldObject<true>(PendingNextOffset(), pending_next);
     } else {
@@ -103,22 +103,22 @@ class MANAGED Reference : public Object {
   // should not be processed again until and unless the reference has been
   // removed from the list after having determined the reference is not ready
   // to be enqueued on a java ReferenceQueue.
-  bool IsUnprocessed() SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool IsUnprocessed() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetPendingNext<kWithoutReadBarrier>() == nullptr;
   }
 
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  static Class* GetJavaLangRefReference() SHARED_REQUIRES(Locks::mutator_lock_) {
+  static Class* GetJavaLangRefReference() REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(!java_lang_ref_Reference_.IsNull());
     return java_lang_ref_Reference_.Read<kReadBarrierOption>();
   }
   static void SetClass(Class* klass);
   static void ResetClass();
-  static void VisitRoots(RootVisitor* visitor) SHARED_REQUIRES(Locks::mutator_lock_);
+  static void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   // Note: This avoids a read barrier, it should only be used by the GC.
-  HeapReference<Object>* GetReferentReferenceAddr() SHARED_REQUIRES(Locks::mutator_lock_) {
+  HeapReference<Object>* GetReferentReferenceAddr() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetFieldObjectReferenceAddr<kDefaultVerifyFlags>(ReferentOffset());
   }
 
@@ -144,10 +144,10 @@ class MANAGED FinalizerReference : public Reference {
   }
 
   template<bool kTransactionActive>
-  void SetZombie(Object* zombie) SHARED_REQUIRES(Locks::mutator_lock_) {
+  void SetZombie(Object* zombie) REQUIRES_SHARED(Locks::mutator_lock_) {
     return SetFieldObjectVolatile<kTransactionActive>(ZombieOffset(), zombie);
   }
-  Object* GetZombie() SHARED_REQUIRES(Locks::mutator_lock_) {
+  Object* GetZombie() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetFieldObjectVolatile<Object>(ZombieOffset());
   }
 

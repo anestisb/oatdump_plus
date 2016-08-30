@@ -125,7 +125,7 @@ class CompilerDriver {
 
   // Compile a single Method.
   void CompileOne(Thread* self, ArtMethod* method, TimingLogger* timings)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!compiled_methods_lock_, !compiled_classes_lock_, !dex_to_dex_references_lock_);
 
   VerificationResults* GetVerificationResults() const {
@@ -199,7 +199,7 @@ class CompilerDriver {
 
   bool CanAssumeTypeIsPresentInDexCache(Handle<mirror::DexCache> dex_cache,
                                         uint32_t type_idx)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool CanAssumeStringIsPresentInDexCache(const DexFile& dex_file, uint32_t string_idx)
       REQUIRES(!Locks::mutator_lock_);
@@ -208,7 +208,7 @@ class CompilerDriver {
   bool CanAccessTypeWithoutChecks(uint32_t referrer_idx,
                                   Handle<mirror::DexCache> dex_cache,
                                   uint32_t type_idx)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Are runtime access and instantiable checks necessary in the code?
   // out_is_finalizable is set to whether the type is finalizable.
@@ -216,7 +216,7 @@ class CompilerDriver {
                                               Handle<mirror::DexCache> dex_cache,
                                               uint32_t type_idx,
                                               bool* out_is_finalizable)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool CanEmbedTypeInCode(const DexFile& dex_file, uint32_t type_idx,
                           bool* is_type_initialized, bool* use_direct_type_ptr,
@@ -230,23 +230,23 @@ class CompilerDriver {
 
   // Get the DexCache for the
   mirror::DexCache* GetDexCache(const DexCompilationUnit* mUnit)
-    SHARED_REQUIRES(Locks::mutator_lock_);
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
   mirror::ClassLoader* GetClassLoader(const ScopedObjectAccess& soa,
                                       const DexCompilationUnit* mUnit)
-    SHARED_REQUIRES(Locks::mutator_lock_);
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Resolve compiling method's class. Returns null on failure.
   mirror::Class* ResolveCompilingMethodsClass(
       const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
       Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   mirror::Class* ResolveClass(
       const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
       Handle<mirror::ClassLoader> class_loader, uint16_t type_index,
       const DexCompilationUnit* mUnit)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Resolve a field. Returns null on failure, including incompatible class change.
   // NOTE: Unlike ClassLinker's ResolveField(), this method enforces is_static.
@@ -254,40 +254,40 @@ class CompilerDriver {
       const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
       Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
       uint32_t field_idx, bool is_static)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Resolve a field with a given dex file.
   ArtField* ResolveFieldWithDexFile(
       const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
       Handle<mirror::ClassLoader> class_loader, const DexFile* dex_file,
       uint32_t field_idx, bool is_static)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Get declaration location of a resolved field.
   void GetResolvedFieldDexFileLocation(
       ArtField* resolved_field, const DexFile** declaring_dex_file,
       uint16_t* declaring_class_idx, uint16_t* declaring_field_idx)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
-  bool IsFieldVolatile(ArtField* field) SHARED_REQUIRES(Locks::mutator_lock_);
-  MemberOffset GetFieldOffset(ArtField* field) SHARED_REQUIRES(Locks::mutator_lock_);
+  bool IsFieldVolatile(ArtField* field) REQUIRES_SHARED(Locks::mutator_lock_);
+  MemberOffset GetFieldOffset(ArtField* field) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Find a dex cache for a dex file.
   inline mirror::DexCache* FindDexCache(const DexFile* dex_file)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Can we fast-path an IGET/IPUT access to an instance field? If yes, compute the field offset.
   std::pair<bool, bool> IsFastInstanceField(
       mirror::DexCache* dex_cache, mirror::Class* referrer_class,
       ArtField* resolved_field, uint16_t field_idx)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Can we fast-path an SGET/SPUT access to a static field? If yes, compute the type index
   // of the declaring class in the referrer's dex file.
   std::pair<bool, bool> IsFastStaticField(
       mirror::DexCache* dex_cache, mirror::Class* referrer_class,
       ArtField* resolved_field, uint16_t field_idx, uint32_t* storage_index)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Return whether the declaring class of `resolved_method` is
   // available to `referrer_class`. If this is true, compute the type
@@ -299,34 +299,34 @@ class CompilerDriver {
                                                 ArtMethod* resolved_method,
                                                 uint16_t method_idx,
                                                 uint32_t* storage_index)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Is static field's in referrer's class?
   bool IsStaticFieldInReferrerClass(mirror::Class* referrer_class, ArtField* resolved_field)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Is static field's class initialized?
   bool IsStaticFieldsClassInitialized(mirror::Class* referrer_class,
                                       ArtField* resolved_field)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Resolve a method. Returns null on failure, including incompatible class change.
   ArtMethod* ResolveMethod(
       ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
       Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
       uint32_t method_idx, InvokeType invoke_type, bool check_incompatible_class_change = true)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Get declaration location of a resolved field.
   void GetResolvedMethodDexFileLocation(
       ArtMethod* resolved_method, const DexFile** declaring_dex_file,
       uint16_t* declaring_class_idx, uint16_t* declaring_method_idx)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Get the index in the vtable of the method.
   uint16_t GetResolvedMethodVTableIndex(
       ArtMethod* resolved_method, InvokeType type)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Can we fast-path an INVOKE? If no, returns 0. If yes, returns a non-zero opaque flags value
   // for ProcessedInvoke() and computes the necessary lowering info.
@@ -336,13 +336,13 @@ class CompilerDriver {
       mirror::Class* referrer_class, ArtMethod* resolved_method, InvokeType* invoke_type,
       MethodReference* target_method, const MethodReference* devirt_target,
       uintptr_t* direct_code, uintptr_t* direct_method)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Is method's class initialized for an invoke?
   // For static invokes to determine whether we need to consider potential call to <clinit>().
   // For non-static invokes, assuming a non-null reference, the class is always initialized.
   bool IsMethodsClassInitialized(mirror::Class* referrer_class, ArtMethod* resolved_method)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Get the layout of dex cache arrays for a dex file. Returns invalid layout if the
   // dex cache arrays don't have a fixed layout.
@@ -357,7 +357,7 @@ class CompilerDriver {
                         ArtField** resolved_field,
                         mirror::Class** referrer_class,
                         mirror::DexCache** dex_cache)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Can we fast path instance field access? Computes field's offset and volatility.
   bool ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit, bool is_put,
@@ -368,7 +368,7 @@ class CompilerDriver {
                                              const DexCompilationUnit* mUnit,
                                              bool is_put,
                                              const ScopedObjectAccess& soa)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
 
   // Can we fastpath a interface, super class or virtual method call? Computes method's vtable
@@ -467,7 +467,7 @@ class CompilerDriver {
 
   // Can we assume that the klass is loaded?
   bool CanAssumeClassIsLoaded(mirror::Class* klass)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool MayInline(const DexFile* inlined_from, const DexFile* inlined_into) const {
     if (!kIsTargetBuild) {
@@ -497,7 +497,7 @@ class CompilerDriver {
                                                                  ArtMember* resolved_member,
                                                                  uint16_t member_idx,
                                                                  uint32_t* storage_index)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Can `referrer_class` access the resolved `member`?
   // Dispatch call to mirror::Class::CanAccessResolvedField or
@@ -509,13 +509,13 @@ class CompilerDriver {
                                       ArtMember* member,
                                       mirror::DexCache* dex_cache,
                                       uint32_t field_idx)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Can we assume that the klass is initialized?
   bool CanAssumeClassIsInitialized(mirror::Class* klass)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   bool CanReferrerAssumeClassIsInitialized(mirror::Class* referrer_class, mirror::Class* klass)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // These flags are internal to CompilerDriver for collecting INVOKE resolution statistics.
   // The only external contract is that unresolved method has flags 0 and resolved non-0.
@@ -546,7 +546,7 @@ class CompilerDriver {
                                      /*out*/int* stats_flags,
                                      MethodReference* target_method,
                                      uintptr_t* direct_code, uintptr_t* direct_method)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   void PreCompile(jobject class_loader,
@@ -605,7 +605,7 @@ class CompilerDriver {
 
   void UpdateImageClasses(TimingLogger* timings) REQUIRES(!Locks::mutator_lock_);
   static void FindClinitImageClassesCallback(mirror::Object* object, void* arg)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void Compile(jobject class_loader,
                const std::vector<const DexFile*>& dex_files,

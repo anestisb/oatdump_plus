@@ -1287,7 +1287,7 @@ TEST_F(StubTest, StringCompareTo) {
 
 static void GetSetBooleanStatic(ArtField* f, Thread* self,
                                 ArtMethod* referrer, StubTest* test)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
   constexpr size_t num_values = 5;
@@ -1318,7 +1318,7 @@ static void GetSetBooleanStatic(ArtField* f, Thread* self,
 }
 static void GetSetByteStatic(ArtField* f, Thread* self, ArtMethod* referrer,
                              StubTest* test)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
   int8_t values[] = { -128, -64, 0, 64, 127 };
@@ -1349,7 +1349,7 @@ static void GetSetByteStatic(ArtField* f, Thread* self, ArtMethod* referrer,
 
 static void GetSetBooleanInstance(Handle<mirror::Object>* obj, ArtField* f, Thread* self,
                                   ArtMethod* referrer, StubTest* test)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
   uint8_t values[] = { 0, true, 2, 128, 0xFF };
@@ -1384,7 +1384,7 @@ static void GetSetBooleanInstance(Handle<mirror::Object>* obj, ArtField* f, Thre
 }
 static void GetSetByteInstance(Handle<mirror::Object>* obj, ArtField* f,
                              Thread* self, ArtMethod* referrer, StubTest* test)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
   int8_t values[] = { -128, -64, 0, 64, 127 };
@@ -1419,7 +1419,7 @@ static void GetSetByteInstance(Handle<mirror::Object>* obj, ArtField* f,
 
 static void GetSetCharStatic(ArtField* f, Thread* self, ArtMethod* referrer,
                              StubTest* test)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
   uint16_t values[] = { 0, 1, 2, 255, 32768, 0xFFFF };
@@ -1449,7 +1449,7 @@ static void GetSetCharStatic(ArtField* f, Thread* self, ArtMethod* referrer,
 }
 static void GetSetShortStatic(ArtField* f, Thread* self,
                               ArtMethod* referrer, StubTest* test)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
   int16_t values[] = { -0x7FFF, -32768, 0, 255, 32767, 0x7FFE };
@@ -1480,7 +1480,7 @@ static void GetSetShortStatic(ArtField* f, Thread* self,
 
 static void GetSetCharInstance(Handle<mirror::Object>* obj, ArtField* f,
                                Thread* self, ArtMethod* referrer, StubTest* test)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
   uint16_t values[] = { 0, 1, 2, 255, 32768, 0xFFFF };
@@ -1514,7 +1514,7 @@ static void GetSetCharInstance(Handle<mirror::Object>* obj, ArtField* f,
 }
 static void GetSetShortInstance(Handle<mirror::Object>* obj, ArtField* f,
                              Thread* self, ArtMethod* referrer, StubTest* test)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
   int16_t values[] = { -0x7FFF, -32768, 0, 255, 32767, 0x7FFE };
@@ -1549,7 +1549,7 @@ static void GetSetShortInstance(Handle<mirror::Object>* obj, ArtField* f,
 
 static void GetSet32Static(ArtField* f, Thread* self, ArtMethod* referrer,
                            StubTest* test)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
   uint32_t values[] = { 0, 1, 2, 255, 32768, 1000000, 0xFFFFFFFF };
@@ -1585,7 +1585,7 @@ static void GetSet32Static(ArtField* f, Thread* self, ArtMethod* referrer,
 
 static void GetSet32Instance(Handle<mirror::Object>* obj, ArtField* f,
                              Thread* self, ArtMethod* referrer, StubTest* test)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
   uint32_t values[] = { 0, 1, 2, 255, 32768, 1000000, 0xFFFFFFFF };
@@ -1626,7 +1626,7 @@ static void GetSet32Instance(Handle<mirror::Object>* obj, ArtField* f,
 
 static void set_and_check_static(uint32_t f_idx, mirror::Object* val, Thread* self,
                                  ArtMethod* referrer, StubTest* test)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   test->Invoke3WithReferrer(static_cast<size_t>(f_idx),
                             reinterpret_cast<size_t>(val),
                             0U,
@@ -1646,7 +1646,7 @@ static void set_and_check_static(uint32_t f_idx, mirror::Object* val, Thread* se
 
 static void GetSetObjStatic(ArtField* f, Thread* self, ArtMethod* referrer,
                             StubTest* test)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
   set_and_check_static(f->GetDexFieldIndex(), nullptr, self, referrer, test);
@@ -1670,7 +1670,7 @@ static void GetSetObjStatic(ArtField* f, Thread* self, ArtMethod* referrer,
 static void set_and_check_instance(ArtField* f, mirror::Object* trg,
                                    mirror::Object* val, Thread* self, ArtMethod* referrer,
                                    StubTest* test)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   test->Invoke3WithReferrer(static_cast<size_t>(f->GetDexFieldIndex()),
                             reinterpret_cast<size_t>(trg),
                             reinterpret_cast<size_t>(val),
@@ -1693,7 +1693,7 @@ static void set_and_check_instance(ArtField* f, mirror::Object* trg,
 
 static void GetSetObjInstance(Handle<mirror::Object>* obj, ArtField* f,
                               Thread* self, ArtMethod* referrer, StubTest* test)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || defined(__mips__) || \
     (defined(__x86_64__) && !defined(__APPLE__))
   set_and_check_instance(f, obj->Get(), nullptr, self, referrer, test);
@@ -1716,7 +1716,7 @@ static void GetSetObjInstance(Handle<mirror::Object>* obj, ArtField* f,
 
 static void GetSet64Static(ArtField* f, Thread* self, ArtMethod* referrer,
                            StubTest* test)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
 #if (defined(__x86_64__) && !defined(__APPLE__)) || (defined(__mips__) && defined(__LP64__)) \
     || defined(__aarch64__)
   uint64_t values[] = { 0, 1, 2, 255, 32768, 1000000, 0xFFFFFFFF, 0xFFFFFFFFFFFF };
@@ -1749,7 +1749,7 @@ static void GetSet64Static(ArtField* f, Thread* self, ArtMethod* referrer,
 
 static void GetSet64Instance(Handle<mirror::Object>* obj, ArtField* f,
                              Thread* self, ArtMethod* referrer, StubTest* test)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
 #if (defined(__x86_64__) && !defined(__APPLE__)) || (defined(__mips__) && defined(__LP64__)) || \
     defined(__aarch64__)
   uint64_t values[] = { 0, 1, 2, 255, 32768, 1000000, 0xFFFFFFFF, 0xFFFFFFFFFFFF };

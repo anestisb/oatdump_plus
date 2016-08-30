@@ -47,13 +47,13 @@ class ImageSpace : public MemMapSpace {
                                      InstructionSet image_isa,
                                      bool secondary_image,
                                      std::string* error_msg)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Try to open an existing app image space.
   static std::unique_ptr<ImageSpace> CreateFromAppImage(const char* image,
                                                         const OatFile* oat_file,
                                                         std::string* error_msg)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Reads the image header from the specified image location for the
   // instruction set image_isa. Returns null on failure, with
@@ -70,7 +70,7 @@ class ImageSpace : public MemMapSpace {
   std::unique_ptr<const OatFile> ReleaseOatFile();
 
   void VerifyImageAllocations()
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   const ImageHeader& GetImageHeader() const {
     return *reinterpret_cast<ImageHeader*>(Begin());
@@ -158,7 +158,7 @@ class ImageSpace : public MemMapSpace {
                                           bool validate_oat_file,
                                           const OatFile* oat_file,
                                           std::string* error_msg)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   static Atomic<uint32_t> bitmap_index_;
 

@@ -57,7 +57,7 @@ class BuildStackTraceVisitor : public StackVisitor {
       : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         method_trace_(Trace::AllocStackTrace()) {}
 
-  bool VisitFrame() SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool VisitFrame() REQUIRES_SHARED(Locks::mutator_lock_) {
     ArtMethod* m = GetMethod();
     // Ignore runtime frames (in particular callee save).
     if (!m->IsRuntimeMethod()) {
@@ -220,7 +220,7 @@ static void Append8LE(uint8_t* buf, uint64_t val) {
   *buf++ = static_cast<uint8_t>(val >> 56);
 }
 
-static void GetSample(Thread* thread, void* arg) SHARED_REQUIRES(Locks::mutator_lock_) {
+static void GetSample(Thread* thread, void* arg) REQUIRES_SHARED(Locks::mutator_lock_) {
   BuildStackTraceVisitor build_trace_visitor(thread);
   build_trace_visitor.WalkStack();
   std::vector<ArtMethod*>* stack_trace = build_trace_visitor.GetStackTrace();
@@ -747,7 +747,7 @@ void Trace::FieldRead(Thread* thread ATTRIBUTE_UNUSED,
                       ArtMethod* method,
                       uint32_t dex_pc,
                       ArtField* field ATTRIBUTE_UNUSED)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   // We're not recorded to listen to this kind of event, so complain.
   LOG(ERROR) << "Unexpected field read event in tracing " << PrettyMethod(method) << " " << dex_pc;
 }
@@ -758,7 +758,7 @@ void Trace::FieldWritten(Thread* thread ATTRIBUTE_UNUSED,
                          uint32_t dex_pc,
                          ArtField* field ATTRIBUTE_UNUSED,
                          const JValue& field_value ATTRIBUTE_UNUSED)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   // We're not recorded to listen to this kind of event, so complain.
   LOG(ERROR) << "Unexpected field write event in tracing " << PrettyMethod(method) << " " << dex_pc;
 }
@@ -793,13 +793,13 @@ void Trace::MethodUnwind(Thread* thread, mirror::Object* this_object ATTRIBUTE_U
 
 void Trace::ExceptionCaught(Thread* thread ATTRIBUTE_UNUSED,
                             mirror::Throwable* exception_object ATTRIBUTE_UNUSED)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   LOG(ERROR) << "Unexpected exception caught event in tracing";
 }
 
 void Trace::Branch(Thread* /*thread*/, ArtMethod* method,
                    uint32_t /*dex_pc*/, int32_t /*dex_pc_offset*/)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
   LOG(ERROR) << "Unexpected branch event in tracing" << PrettyMethod(method);
 }
 

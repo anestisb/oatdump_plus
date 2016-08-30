@@ -684,7 +684,7 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
   }
 
   bool VisitMethod(size_t class_def_method_index, const ClassDataItemIterator& it)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     OatClass* oat_class = &writer_->oat_classes_[oat_class_index_];
     CompiledMethod* compiled_method = oat_class->GetCompiledMethod(class_def_method_index);
 
@@ -845,7 +845,7 @@ class OatWriter::InitMapMethodVisitor : public OatDexMethodVisitor {
   }
 
   bool VisitMethod(size_t class_def_method_index, const ClassDataItemIterator& it ATTRIBUTE_UNUSED)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     OatClass* oat_class = &writer_->oat_classes_[oat_class_index_];
     CompiledMethod* compiled_method = oat_class->GetCompiledMethod(class_def_method_index);
 
@@ -887,7 +887,7 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
   }
 
   bool VisitMethod(size_t class_def_method_index, const ClassDataItemIterator& it)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     const DexFile::TypeId& type_id =
         dex_file_->GetTypeId(dex_file_->GetClassDef(class_def_index_).class_idx_);
     const char* class_descriptor = dex_file_->GetTypeDescriptor(type_id);
@@ -974,7 +974,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   }
 
   bool StartClass(const DexFile* dex_file, size_t class_def_index)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     OatDexMethodVisitor::StartClass(dex_file, class_def_index);
     if (dex_cache_ == nullptr || dex_cache_->GetDexFile() != dex_file) {
       dex_cache_ = class_linker_->FindDexCache(Thread::Current(), *dex_file);
@@ -983,7 +983,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
     return true;
   }
 
-  bool EndClass() SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool EndClass() REQUIRES_SHARED(Locks::mutator_lock_) {
     bool result = OatDexMethodVisitor::EndClass();
     if (oat_class_index_ == writer_->oat_classes_.size()) {
       DCHECK(result);  // OatDexMethodVisitor::EndClass() never fails.
@@ -997,7 +997,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   }
 
   bool VisitMethod(size_t class_def_method_index, const ClassDataItemIterator& it)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     OatClass* oat_class = &writer_->oat_classes_[oat_class_index_];
     const CompiledMethod* compiled_method = oat_class->GetCompiledMethod(class_def_method_index);
 
@@ -1138,7 +1138,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   }
 
   ArtMethod* GetTargetMethod(const LinkerPatch& patch)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     MethodReference ref = patch.TargetMethod();
     mirror::DexCache* dex_cache =
         (dex_file_ == ref.dex_file) ? dex_cache_ : class_linker_->FindDexCache(
@@ -1149,7 +1149,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
     return method;
   }
 
-  uint32_t GetTargetOffset(const LinkerPatch& patch) SHARED_REQUIRES(Locks::mutator_lock_) {
+  uint32_t GetTargetOffset(const LinkerPatch& patch) REQUIRES_SHARED(Locks::mutator_lock_) {
     uint32_t target_offset = writer_->relative_patcher_->GetOffset(patch.TargetMethod());
     // If there's no new compiled code, either we're compiling an app and the target method
     // is in the boot image, or we need to point to the correct trampoline.
@@ -1175,20 +1175,20 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   }
 
   mirror::DexCache* GetDexCache(const DexFile* target_dex_file)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     return (target_dex_file == dex_file_)
         ? dex_cache_
         : class_linker_->FindDexCache(Thread::Current(), *target_dex_file);
   }
 
-  mirror::Class* GetTargetType(const LinkerPatch& patch) SHARED_REQUIRES(Locks::mutator_lock_) {
+  mirror::Class* GetTargetType(const LinkerPatch& patch) REQUIRES_SHARED(Locks::mutator_lock_) {
     mirror::DexCache* dex_cache = GetDexCache(patch.TargetTypeDexFile());
     mirror::Class* type = dex_cache->GetResolvedType(patch.TargetTypeIndex());
     CHECK(type != nullptr);
     return type;
   }
 
-  mirror::String* GetTargetString(const LinkerPatch& patch) SHARED_REQUIRES(Locks::mutator_lock_) {
+  mirror::String* GetTargetString(const LinkerPatch& patch) REQUIRES_SHARED(Locks::mutator_lock_) {
     ScopedObjectAccessUnchecked soa(Thread::Current());
     StackHandleScope<1> hs(soa.Self());
     ClassLinker* linker = Runtime::Current()->GetClassLinker();
@@ -1202,7 +1202,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
     return string;
   }
 
-  uint32_t GetDexCacheOffset(const LinkerPatch& patch) SHARED_REQUIRES(Locks::mutator_lock_) {
+  uint32_t GetDexCacheOffset(const LinkerPatch& patch) REQUIRES_SHARED(Locks::mutator_lock_) {
     if (writer_->HasBootImage()) {
       uintptr_t element = writer_->image_writer_->GetDexCacheArrayElementImageAddress<uintptr_t>(
           patch.TargetDexCacheDexFile(), patch.TargetDexCacheElementOffset());
@@ -1215,7 +1215,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
     }
   }
 
-  uint32_t GetTargetObjectOffset(mirror::Object* object) SHARED_REQUIRES(Locks::mutator_lock_) {
+  uint32_t GetTargetObjectOffset(mirror::Object* object) REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(writer_->HasBootImage());
     object = writer_->image_writer_->GetImageAddress(object);
     size_t oat_index = writer_->image_writer_->GetOatIndexForDexFile(dex_file_);
@@ -1225,7 +1225,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   }
 
   void PatchObjectAddress(std::vector<uint8_t>* code, uint32_t offset, mirror::Object* object)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     if (writer_->HasBootImage()) {
       object = writer_->image_writer_->GetImageAddress(object);
     } else {
@@ -1245,7 +1245,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   }
 
   void PatchMethodAddress(std::vector<uint8_t>* code, uint32_t offset, ArtMethod* method)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     if (writer_->HasBootImage()) {
       method = writer_->image_writer_->GetImageMethodAddress(method);
     } else if (kIsDebugBuild) {
@@ -1273,7 +1273,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
   }
 
   void PatchCodeAddress(std::vector<uint8_t>* code, uint32_t offset, uint32_t target_offset)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     uint32_t address = target_offset;
     if (writer_->HasBootImage()) {
       size_t oat_index = writer_->image_writer_->GetOatIndexForDexCache(dex_cache_);

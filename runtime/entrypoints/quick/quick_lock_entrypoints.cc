@@ -23,7 +23,7 @@ namespace art {
 extern "C" int artLockObjectFromCode(mirror::Object* obj, Thread* self)
     NO_THREAD_SAFETY_ANALYSIS
     REQUIRES(!Roles::uninterruptible_)
-    SHARED_REQUIRES(Locks::mutator_lock_) /* EXCLUSIVE_LOCK_FUNCTION(Monitor::monitor_lock_) */ {
+    REQUIRES_SHARED(Locks::mutator_lock_) /* EXCLUSIVE_LOCK_FUNCTION(Monitor::monitor_lock_) */ {
   ScopedQuickEntrypointChecks sqec(self);
   if (UNLIKELY(obj == nullptr)) {
     ThrowNullPointerException("Null reference used for synchronization (monitor-enter)");
@@ -44,7 +44,7 @@ extern "C" int artLockObjectFromCode(mirror::Object* obj, Thread* self)
 extern "C" int artUnlockObjectFromCode(mirror::Object* obj, Thread* self)
     NO_THREAD_SAFETY_ANALYSIS
     REQUIRES(!Roles::uninterruptible_)
-    SHARED_REQUIRES(Locks::mutator_lock_) /* UNLOCK_FUNCTION(Monitor::monitor_lock_) */ {
+    REQUIRES_SHARED(Locks::mutator_lock_) /* UNLOCK_FUNCTION(Monitor::monitor_lock_) */ {
   ScopedQuickEntrypointChecks sqec(self);
   if (UNLIKELY(obj == nullptr)) {
     ThrowNullPointerException("Null reference used for synchronization (monitor-exit)");

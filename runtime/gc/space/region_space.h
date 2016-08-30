@@ -62,11 +62,11 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
 
   // Return the storage space required by obj.
   size_t AllocationSize(mirror::Object* obj, size_t* usable_size) OVERRIDE
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!region_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!region_lock_) {
     return AllocationSizeNonvirtual(obj, usable_size);
   }
   size_t AllocationSizeNonvirtual(mirror::Object* obj, size_t* usable_size)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!region_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!region_lock_);
 
   size_t Free(Thread*, mirror::Object*) OVERRIDE {
     UNIMPLEMENTED(FATAL);
@@ -163,7 +163,7 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
     return nullptr;
   }
   void LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes) OVERRIDE
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!region_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!region_lock_);
 
   // Object alignment within the space.
   static constexpr size_t kAlignment = kObjectAlignment;
@@ -503,7 +503,7 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
   }
 
   mirror::Object* GetNextObject(mirror::Object* obj)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   Mutex region_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 

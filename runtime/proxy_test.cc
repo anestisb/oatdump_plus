@@ -35,7 +35,7 @@ class ProxyTest : public CommonCompilerTest {
   mirror::Class* GenerateProxyClass(ScopedObjectAccess& soa, jobject jclass_loader,
                                     const char* className,
                                     const std::vector<mirror::Class*>& interfaces)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     mirror::Class* javaLangObject = class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;");
     CHECK(javaLangObject != nullptr);
 

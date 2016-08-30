@@ -26,7 +26,7 @@ namespace art {
 class IndirectReferenceTableTest : public CommonRuntimeTest {};
 
 static void CheckDump(IndirectReferenceTable* irt, size_t num_objects, size_t num_unique)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   std::ostringstream oss;
   irt->Dump(oss);
   if (num_objects == 0) {

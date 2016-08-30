@@ -226,7 +226,7 @@ static void AddNext(/*inout*/DexFileAndClassPair* original,
 static void IterateOverJavaDexFile(mirror::Object* dex_file,
                                    ArtField* const cookie_field,
                                    std::function<bool(const DexFile*)> fn)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   if (dex_file != nullptr) {
     mirror::LongArray* long_array = cookie_field->GetObject(dex_file)->AsLongArray();
     if (long_array == nullptr) {
@@ -250,7 +250,7 @@ static void IterateOverPathClassLoader(
     ScopedObjectAccessAlreadyRunnable& soa,
     Handle<mirror::ClassLoader> class_loader,
     MutableHandle<mirror::ObjectArray<mirror::Object>> dex_elements,
-    std::function<bool(const DexFile*)> fn) SHARED_REQUIRES(Locks::mutator_lock_) {
+    std::function<bool(const DexFile*)> fn) REQUIRES_SHARED(Locks::mutator_lock_) {
   // Handle this step.
   // Handle as if this is the child PathClassLoader.
   // The class loader is a PathClassLoader which inherits from BaseDexClassLoader.
@@ -286,7 +286,7 @@ static void IterateOverPathClassLoader(
 static bool GetDexFilesFromClassLoader(
     ScopedObjectAccessAlreadyRunnable& soa,
     mirror::ClassLoader* class_loader,
-    std::priority_queue<DexFileAndClassPair>* queue) SHARED_REQUIRES(Locks::mutator_lock_) {
+    std::priority_queue<DexFileAndClassPair>* queue) REQUIRES_SHARED(Locks::mutator_lock_) {
   if (ClassLinker::IsBootClassLoader(soa, class_loader)) {
     // The boot class loader. We don't load any of these files, as we know we compiled against
     // them correctly.
@@ -308,7 +308,7 @@ static bool GetDexFilesFromClassLoader(
 
   // Collect all the dex files.
   auto GetDexFilesFn = [&] (const DexFile* cp_dex_file)
-            SHARED_REQUIRES(Locks::mutator_lock_) {
+            REQUIRES_SHARED(Locks::mutator_lock_) {
     if (cp_dex_file->NumClassDefs() > 0) {
       queue->emplace(cp_dex_file, 0U, true);
     }
@@ -329,7 +329,7 @@ static bool GetDexFilesFromClassLoader(
 static void GetDexFilesFromDexElementsArray(
     ScopedObjectAccessAlreadyRunnable& soa,
     Handle<mirror::ObjectArray<mirror::Object>> dex_elements,
-    std::priority_queue<DexFileAndClassPair>* queue) SHARED_REQUIRES(Locks::mutator_lock_) {
+    std::priority_queue<DexFileAndClassPair>* queue) REQUIRES_SHARED(Locks::mutator_lock_) {
   if (dex_elements.Get() == nullptr) {
     // Nothing to do.
     return;
@@ -345,7 +345,7 @@ static void GetDexFilesFromDexElementsArray(
 
   // Collect all the dex files.
   auto GetDexFilesFn = [&] (const DexFile* cp_dex_file)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     if (cp_dex_file != nullptr && cp_dex_file->NumClassDefs() > 0) {
       queue->emplace(cp_dex_file, 0U, true);
     }

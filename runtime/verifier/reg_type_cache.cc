@@ -36,7 +36,7 @@ const PreciseConstType* RegTypeCache::small_precise_constants_[kMaxSmallConstant
                                                                kMinSmallConstant + 1];
 
 ALWAYS_INLINE static inline bool MatchingPrecisionForClass(const RegType* entry, bool precise)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   if (entry->IsPreciseReference() == precise) {
     // We were or weren't looking for a precise reference and we found what we need.
     return true;

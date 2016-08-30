@@ -64,12 +64,12 @@ class HInliner : public HOptimization {
   // reference type propagation can run after the inlining. If the inlining is successful, this
   // method will replace and remove the `invoke_instruction`.
   bool TryInlineAndReplace(HInvoke* invoke_instruction, ArtMethod* resolved_method, bool do_rtp)
-    SHARED_REQUIRES(Locks::mutator_lock_);
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool TryBuildAndInline(HInvoke* invoke_instruction,
                          ArtMethod* resolved_method,
                          HInstruction** return_replacement)
-    SHARED_REQUIRES(Locks::mutator_lock_);
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool TryBuildAndInlineHelper(HInvoke* invoke_instruction,
                                ArtMethod* resolved_method,
@@ -86,7 +86,7 @@ class HInliner : public HOptimization {
   bool TryPatternSubstitution(HInvoke* invoke_instruction,
                               ArtMethod* resolved_method,
                               HInstruction** return_replacement)
-    SHARED_REQUIRES(Locks::mutator_lock_);
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Create a new HInstanceFieldGet.
   HInstanceFieldGet* CreateInstanceFieldGet(Handle<mirror::DexCache> dex_cache,
@@ -105,38 +105,38 @@ class HInliner : public HOptimization {
   bool TryInlineMonomorphicCall(HInvoke* invoke_instruction,
                                 ArtMethod* resolved_method,
                                 const InlineCache& ic)
-    SHARED_REQUIRES(Locks::mutator_lock_);
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Try to inline targets of a polymorphic call.
   bool TryInlinePolymorphicCall(HInvoke* invoke_instruction,
                                 ArtMethod* resolved_method,
                                 const InlineCache& ic)
-    SHARED_REQUIRES(Locks::mutator_lock_);
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool TryInlinePolymorphicCallToSameTarget(HInvoke* invoke_instruction,
                                             ArtMethod* resolved_method,
                                             const InlineCache& ic)
-    SHARED_REQUIRES(Locks::mutator_lock_);
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
 
   HInstanceFieldGet* BuildGetReceiverClass(ClassLinker* class_linker,
                                            HInstruction* receiver,
                                            uint32_t dex_pc) const
-    SHARED_REQUIRES(Locks::mutator_lock_);
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
   void FixUpReturnReferenceType(ArtMethod* resolved_method, HInstruction* return_replacement)
-    SHARED_REQUIRES(Locks::mutator_lock_);
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Creates an instance of ReferenceTypeInfo from `klass` if `klass` is
   // admissible (see ReferenceTypePropagation::IsAdmissible for details).
   // Otherwise returns inexact Object RTI.
-  ReferenceTypeInfo GetClassRTI(mirror::Class* klass) SHARED_REQUIRES(Locks::mutator_lock_);
+  ReferenceTypeInfo GetClassRTI(mirror::Class* klass) REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool ArgumentTypesMoreSpecific(HInvoke* invoke_instruction, ArtMethod* resolved_method)
-    SHARED_REQUIRES(Locks::mutator_lock_);
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool ReturnTypeMoreSpecific(HInvoke* invoke_instruction, HInstruction* return_replacement)
-    SHARED_REQUIRES(Locks::mutator_lock_);
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Add a type guard on the given `receiver`. This will add to the graph:
   // i0 = HFieldGet(receiver, klass)
@@ -154,7 +154,7 @@ class HInliner : public HOptimization {
                              bool is_referrer,
                              HInstruction* invoke_instruction,
                              bool with_deoptimization)
-    SHARED_REQUIRES(Locks::mutator_lock_);
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
    * Ad-hoc implementation for implementing a diamond pattern in the graph for

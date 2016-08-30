@@ -64,9 +64,9 @@ class RosAllocSpace : public MallocSpace {
     return AllocationSizeNonvirtual<true>(obj, usable_size);
   }
   size_t Free(Thread* self, mirror::Object* ptr) OVERRIDE
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) OVERRIDE
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   mirror::Object* AllocNonvirtual(Thread* self, size_t num_bytes, size_t* bytes_allocated,
                                   size_t* usable_size, size_t* bytes_tl_bulk_allocated) {

@@ -143,7 +143,7 @@ extern "C" ssize_t MterpDoPackedSwitch(const uint16_t* switchData, int32_t testV
 }
 
 extern "C" size_t MterpShouldSwitchInterpreters()
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   const instrumentation::Instrumentation* const instrumentation =
       Runtime::Current()->GetInstrumentation();
   return instrumentation->NonJitProfilingActive() || Dbg::IsDebuggerActive();
@@ -154,7 +154,7 @@ extern "C" size_t MterpInvokeVirtual(Thread* self,
                                      ShadowFrame* shadow_frame,
                                      uint16_t* dex_pc_ptr,
                                      uint16_t inst_data)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   JValue* result_register = shadow_frame->GetResultRegister();
   const Instruction* inst = Instruction::At(dex_pc_ptr);
   return DoInvoke<kVirtual, false, false>(
@@ -165,7 +165,7 @@ extern "C" size_t MterpInvokeSuper(Thread* self,
                                    ShadowFrame* shadow_frame,
                                    uint16_t* dex_pc_ptr,
                                    uint16_t inst_data)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   JValue* result_register = shadow_frame->GetResultRegister();
   const Instruction* inst = Instruction::At(dex_pc_ptr);
   return DoInvoke<kSuper, false, false>(
@@ -176,7 +176,7 @@ extern "C" size_t MterpInvokeInterface(Thread* self,
                                        ShadowFrame* shadow_frame,
                                        uint16_t* dex_pc_ptr,
                                        uint16_t inst_data)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   JValue* result_register = shadow_frame->GetResultRegister();
   const Instruction* inst = Instruction::At(dex_pc_ptr);
   return DoInvoke<kInterface, false, false>(
@@ -187,7 +187,7 @@ extern "C" size_t MterpInvokeDirect(Thread* self,
                                     ShadowFrame* shadow_frame,
                                     uint16_t* dex_pc_ptr,
                                     uint16_t inst_data)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   JValue* result_register = shadow_frame->GetResultRegister();
   const Instruction* inst = Instruction::At(dex_pc_ptr);
   return DoInvoke<kDirect, false, false>(
@@ -198,7 +198,7 @@ extern "C" size_t MterpInvokeStatic(Thread* self,
                                     ShadowFrame* shadow_frame,
                                     uint16_t* dex_pc_ptr,
                                     uint16_t inst_data)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   JValue* result_register = shadow_frame->GetResultRegister();
   const Instruction* inst = Instruction::At(dex_pc_ptr);
   return DoInvoke<kStatic, false, false>(
@@ -209,7 +209,7 @@ extern "C" size_t MterpInvokeVirtualRange(Thread* self,
                                           ShadowFrame* shadow_frame,
                                           uint16_t* dex_pc_ptr,
                                           uint16_t inst_data)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   JValue* result_register = shadow_frame->GetResultRegister();
   const Instruction* inst = Instruction::At(dex_pc_ptr);
   return DoInvoke<kVirtual, true, false>(
@@ -220,7 +220,7 @@ extern "C" size_t MterpInvokeSuperRange(Thread* self,
                                         ShadowFrame* shadow_frame,
                                         uint16_t* dex_pc_ptr,
                                         uint16_t inst_data)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   JValue* result_register = shadow_frame->GetResultRegister();
   const Instruction* inst = Instruction::At(dex_pc_ptr);
   return DoInvoke<kSuper, true, false>(
@@ -231,7 +231,7 @@ extern "C" size_t MterpInvokeInterfaceRange(Thread* self,
                                             ShadowFrame* shadow_frame,
                                             uint16_t* dex_pc_ptr,
                                             uint16_t inst_data)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   JValue* result_register = shadow_frame->GetResultRegister();
   const Instruction* inst = Instruction::At(dex_pc_ptr);
   return DoInvoke<kInterface, true, false>(
@@ -242,7 +242,7 @@ extern "C" size_t MterpInvokeDirectRange(Thread* self,
                                          ShadowFrame* shadow_frame,
                                          uint16_t* dex_pc_ptr,
                                          uint16_t inst_data)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   JValue* result_register = shadow_frame->GetResultRegister();
   const Instruction* inst = Instruction::At(dex_pc_ptr);
   return DoInvoke<kDirect, true, false>(
@@ -253,7 +253,7 @@ extern "C" size_t MterpInvokeStaticRange(Thread* self,
                                          ShadowFrame* shadow_frame,
                                          uint16_t* dex_pc_ptr,
                                          uint16_t inst_data)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   JValue* result_register = shadow_frame->GetResultRegister();
   const Instruction* inst = Instruction::At(dex_pc_ptr);
   return DoInvoke<kStatic, true, false>(
@@ -264,7 +264,7 @@ extern "C" size_t MterpInvokeVirtualQuick(Thread* self,
                                           ShadowFrame* shadow_frame,
                                           uint16_t* dex_pc_ptr,
                                           uint16_t inst_data)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   JValue* result_register = shadow_frame->GetResultRegister();
   const Instruction* inst = Instruction::At(dex_pc_ptr);
   return DoInvokeVirtualQuick<false>(
@@ -275,7 +275,7 @@ extern "C" size_t MterpInvokeVirtualQuickRange(Thread* self,
                                                ShadowFrame* shadow_frame,
                                                uint16_t* dex_pc_ptr,
                                                uint16_t inst_data)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   JValue* result_register = shadow_frame->GetResultRegister();
   const Instruction* inst = Instruction::At(dex_pc_ptr);
   return DoInvokeVirtualQuick<true>(
@@ -290,7 +290,7 @@ extern "C" size_t MterpConstString(uint32_t index,
                                    uint32_t tgt_vreg,
                                    ShadowFrame* shadow_frame,
                                    Thread* self)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   String* s = ResolveString(self, *shadow_frame,  index);
   if (UNLIKELY(s == nullptr)) {
     return true;
@@ -303,7 +303,7 @@ extern "C" size_t MterpConstClass(uint32_t index,
                                   uint32_t tgt_vreg,
                                   ShadowFrame* shadow_frame,
                                   Thread* self)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   Class* c = ResolveVerifyAndClinit(index, shadow_frame->GetMethod(), self, false, false);
   if (UNLIKELY(c == nullptr)) {
     return true;
@@ -316,7 +316,7 @@ extern "C" size_t MterpCheckCast(uint32_t index,
                                  StackReference<mirror::Object>* vreg_addr,
                                  art::ArtMethod* method,
                                  Thread* self)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   Class* c = ResolveVerifyAndClinit(index, method, self, false, false);
   if (UNLIKELY(c == nullptr)) {
     return true;
@@ -334,7 +334,7 @@ extern "C" size_t MterpInstanceOf(uint32_t index,
                                   StackReference<mirror::Object>* vreg_addr,
                                   art::ArtMethod* method,
                                   Thread* self)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   Class* c = ResolveVerifyAndClinit(index, method, self, false, false);
   if (UNLIKELY(c == nullptr)) {
     return false;  // Caller will check for pending exception.  Return value unimportant.
@@ -345,12 +345,12 @@ extern "C" size_t MterpInstanceOf(uint32_t index,
 }
 
 extern "C" size_t MterpFillArrayData(Object* obj, const Instruction::ArrayDataPayload* payload)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   return FillArrayData(obj, payload);
 }
 
 extern "C" size_t MterpNewInstance(ShadowFrame* shadow_frame, Thread* self, uint32_t inst_data)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   const Instruction* inst = Instruction::At(shadow_frame->GetDexPCPtr());
   Object* obj = nullptr;
   Class* c = ResolveVerifyAndClinit(inst->VRegB_21c(), shadow_frame->GetMethod(),
@@ -375,7 +375,7 @@ extern "C" size_t MterpNewInstance(ShadowFrame* shadow_frame, Thread* self, uint
 
 extern "C" size_t MterpSputObject(ShadowFrame* shadow_frame, uint16_t* dex_pc_ptr,
                                 uint32_t inst_data, Thread* self)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   const Instruction* inst = Instruction::At(dex_pc_ptr);
   return DoFieldPut<StaticObjectWrite, Primitive::kPrimNot, false, false>
       (self, *shadow_frame, inst, inst_data);
@@ -385,7 +385,7 @@ extern "C" size_t MterpIputObject(ShadowFrame* shadow_frame,
                                   uint16_t* dex_pc_ptr,
                                   uint32_t inst_data,
                                   Thread* self)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   const Instruction* inst = Instruction::At(dex_pc_ptr);
   return DoFieldPut<InstanceObjectWrite, Primitive::kPrimNot, false, false>
       (self, *shadow_frame, inst, inst_data);
@@ -394,7 +394,7 @@ extern "C" size_t MterpIputObject(ShadowFrame* shadow_frame,
 extern "C" size_t MterpIputObjectQuick(ShadowFrame* shadow_frame,
                                        uint16_t* dex_pc_ptr,
                                        uint32_t inst_data)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   const Instruction* inst = Instruction::At(dex_pc_ptr);
   return DoIPutQuick<Primitive::kPrimNot, false>(*shadow_frame, inst, inst_data);
 }
@@ -402,7 +402,7 @@ extern "C" size_t MterpIputObjectQuick(ShadowFrame* shadow_frame,
 extern "C" size_t MterpAputObject(ShadowFrame* shadow_frame,
                                   uint16_t* dex_pc_ptr,
                                   uint32_t inst_data)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   const Instruction* inst = Instruction::At(dex_pc_ptr);
   Object* a = shadow_frame->GetVRegReference(inst->VRegB_23x());
   if (UNLIKELY(a == nullptr)) {
@@ -421,7 +421,7 @@ extern "C" size_t MterpAputObject(ShadowFrame* shadow_frame,
 extern "C" size_t MterpFilledNewArray(ShadowFrame* shadow_frame,
                                       uint16_t* dex_pc_ptr,
                                       Thread* self)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   const Instruction* inst = Instruction::At(dex_pc_ptr);
   return DoFilledNewArray<false, false, false>(inst, *shadow_frame, self,
                                                shadow_frame->GetResultRegister());
@@ -430,7 +430,7 @@ extern "C" size_t MterpFilledNewArray(ShadowFrame* shadow_frame,
 extern "C" size_t MterpFilledNewArrayRange(ShadowFrame* shadow_frame,
                                            uint16_t* dex_pc_ptr,
                                            Thread* self)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   const Instruction* inst = Instruction::At(dex_pc_ptr);
   return DoFilledNewArray<true, false, false>(inst, *shadow_frame, self,
                                               shadow_frame->GetResultRegister());
@@ -439,7 +439,7 @@ extern "C" size_t MterpFilledNewArrayRange(ShadowFrame* shadow_frame,
 extern "C" size_t MterpNewArray(ShadowFrame* shadow_frame,
                                 uint16_t* dex_pc_ptr,
                                 uint32_t inst_data, Thread* self)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   const Instruction* inst = Instruction::At(dex_pc_ptr);
   int32_t length = shadow_frame->GetVReg(inst->VRegB_22c(inst_data));
   Object* obj = AllocArrayFromCode<false, true>(
@@ -453,7 +453,7 @@ extern "C" size_t MterpNewArray(ShadowFrame* shadow_frame,
 }
 
 extern "C" size_t MterpHandleException(Thread* self, ShadowFrame* shadow_frame)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(self->IsExceptionPending());
   const instrumentation::Instrumentation* const instrumentation =
       Runtime::Current()->GetInstrumentation();
@@ -469,7 +469,7 @@ extern "C" size_t MterpHandleException(Thread* self, ShadowFrame* shadow_frame)
 }
 
 extern "C" void MterpCheckBefore(Thread* self, ShadowFrame* shadow_frame, uint16_t* dex_pc_ptr)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   const Instruction* inst = Instruction::At(dex_pc_ptr);
   uint16_t inst_data = inst->Fetch16(0);
   if (inst->Opcode(inst_data) == Instruction::MOVE_EXCEPTION) {
@@ -488,7 +488,7 @@ extern "C" void MterpCheckBefore(Thread* self, ShadowFrame* shadow_frame, uint16
 }
 
 extern "C" void MterpLogDivideByZeroException(Thread* self, ShadowFrame* shadow_frame)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   UNUSED(self);
   const Instruction* inst = Instruction::At(shadow_frame->GetDexPCPtr());
   uint16_t inst_data = inst->Fetch16(0);
@@ -496,7 +496,7 @@ extern "C" void MterpLogDivideByZeroException(Thread* self, ShadowFrame* shadow_
 }
 
 extern "C" void MterpLogArrayIndexException(Thread* self, ShadowFrame* shadow_frame)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   UNUSED(self);
   const Instruction* inst = Instruction::At(shadow_frame->GetDexPCPtr());
   uint16_t inst_data = inst->Fetch16(0);
@@ -504,7 +504,7 @@ extern "C" void MterpLogArrayIndexException(Thread* self, ShadowFrame* shadow_fr
 }
 
 extern "C" void MterpLogNegativeArraySizeException(Thread* self, ShadowFrame* shadow_frame)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   UNUSED(self);
   const Instruction* inst = Instruction::At(shadow_frame->GetDexPCPtr());
   uint16_t inst_data = inst->Fetch16(0);
@@ -512,7 +512,7 @@ extern "C" void MterpLogNegativeArraySizeException(Thread* self, ShadowFrame* sh
 }
 
 extern "C" void MterpLogNoSuchMethodException(Thread* self, ShadowFrame* shadow_frame)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   UNUSED(self);
   const Instruction* inst = Instruction::At(shadow_frame->GetDexPCPtr());
   uint16_t inst_data = inst->Fetch16(0);
@@ -520,7 +520,7 @@ extern "C" void MterpLogNoSuchMethodException(Thread* self, ShadowFrame* shadow_
 }
 
 extern "C" void MterpLogExceptionThrownException(Thread* self, ShadowFrame* shadow_frame)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   UNUSED(self);
   const Instruction* inst = Instruction::At(shadow_frame->GetDexPCPtr());
   uint16_t inst_data = inst->Fetch16(0);
@@ -528,7 +528,7 @@ extern "C" void MterpLogExceptionThrownException(Thread* self, ShadowFrame* shad
 }
 
 extern "C" void MterpLogNullObjectException(Thread* self, ShadowFrame* shadow_frame)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   UNUSED(self);
   const Instruction* inst = Instruction::At(shadow_frame->GetDexPCPtr());
   uint16_t inst_data = inst->Fetch16(0);
@@ -536,7 +536,7 @@ extern "C" void MterpLogNullObjectException(Thread* self, ShadowFrame* shadow_fr
 }
 
 extern "C" void MterpLogFallback(Thread* self, ShadowFrame* shadow_frame)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   UNUSED(self);
   const Instruction* inst = Instruction::At(shadow_frame->GetDexPCPtr());
   uint16_t inst_data = inst->Fetch16(0);
@@ -545,7 +545,7 @@ extern "C" void MterpLogFallback(Thread* self, ShadowFrame* shadow_frame)
 }
 
 extern "C" void MterpLogOSR(Thread* self, ShadowFrame* shadow_frame, int32_t offset)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   UNUSED(self);
   const Instruction* inst = Instruction::At(shadow_frame->GetDexPCPtr());
   uint16_t inst_data = inst->Fetch16(0);
@@ -553,7 +553,7 @@ extern "C" void MterpLogOSR(Thread* self, ShadowFrame* shadow_frame, int32_t off
 }
 
 extern "C" void MterpLogSuspendFallback(Thread* self, ShadowFrame* shadow_frame, uint32_t flags)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   UNUSED(self);
   const Instruction* inst = Instruction::At(shadow_frame->GetDexPCPtr());
   uint16_t inst_data = inst->Fetch16(0);
@@ -565,7 +565,7 @@ extern "C" void MterpLogSuspendFallback(Thread* self, ShadowFrame* shadow_frame,
 }
 
 extern "C" size_t MterpSuspendCheck(Thread* self)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   self->AllowThreadSuspension();
   return MterpShouldSwitchInterpreters();
 }
@@ -574,7 +574,7 @@ extern "C" ssize_t artSet64IndirectStaticFromMterp(uint32_t field_idx,
                                                    ArtMethod* referrer,
                                                    uint64_t* new_value,
                                                    Thread* self)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
   ArtField* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite, sizeof(int64_t));
   if (LIKELY(field != nullptr)) {
@@ -595,7 +595,7 @@ extern "C" ssize_t artSet8InstanceFromMterp(uint32_t field_idx,
                                             mirror::Object* obj,
                                             uint8_t new_value,
                                             ArtMethod* referrer)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite, sizeof(int8_t));
   if (LIKELY(field != nullptr && obj != nullptr)) {
     Primitive::Type type = field->GetTypeAsPrimitiveType();
@@ -614,7 +614,7 @@ extern "C" ssize_t artSet16InstanceFromMterp(uint32_t field_idx,
                                              mirror::Object* obj,
                                              uint16_t new_value,
                                              ArtMethod* referrer)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite,
                                           sizeof(int16_t));
   if (LIKELY(field != nullptr && obj != nullptr)) {
@@ -634,7 +634,7 @@ extern "C" ssize_t artSet32InstanceFromMterp(uint32_t field_idx,
                                              mirror::Object* obj,
                                              uint32_t new_value,
                                              ArtMethod* referrer)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite,
                                           sizeof(int32_t));
   if (LIKELY(field != nullptr && obj != nullptr)) {
@@ -648,7 +648,7 @@ extern "C" ssize_t artSet64InstanceFromMterp(uint32_t field_idx,
                                              mirror::Object* obj,
                                              uint64_t* new_value,
                                              ArtMethod* referrer)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   ArtField* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite,
                                           sizeof(int64_t));
   if (LIKELY(field != nullptr  && obj != nullptr)) {
@@ -662,7 +662,7 @@ extern "C" ssize_t artSetObjInstanceFromMterp(uint32_t field_idx,
                                               mirror::Object* obj,
                                               mirror::Object* new_value,
                                               ArtMethod* referrer)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   ArtField* field = FindFieldFast(field_idx, referrer, InstanceObjectWrite,
                                           sizeof(mirror::HeapReference<mirror::Object>));
   if (LIKELY(field != nullptr && obj != nullptr)) {
@@ -673,7 +673,7 @@ extern "C" ssize_t artSetObjInstanceFromMterp(uint32_t field_idx,
 }
 
 extern "C" mirror::Object* artAGetObjectFromMterp(mirror::Object* arr, int32_t index)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   if (UNLIKELY(arr == nullptr)) {
     ThrowNullPointerExceptionFromInterpreter();
     return nullptr;
@@ -687,7 +687,7 @@ extern "C" mirror::Object* artAGetObjectFromMterp(mirror::Object* arr, int32_t i
 }
 
 extern "C" mirror::Object* artIGetObjectFromMterp(mirror::Object* obj, uint32_t field_offset)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   if (UNLIKELY(obj == nullptr)) {
     ThrowNullPointerExceptionFromInterpreter();
     return nullptr;
@@ -702,7 +702,7 @@ extern "C" mirror::Object* artIGetObjectFromMterp(mirror::Object* obj, uint32_t 
  * and regenerated following batch updates.
  */
 extern "C" ssize_t MterpSetUpHotnessCountdown(ArtMethod* method, ShadowFrame* shadow_frame)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   uint16_t hotness_count = method->GetCounter();
   int32_t countdown_value = jit::kJitHotnessDisabled;
   jit::Jit* jit = Runtime::Current()->GetJit();
@@ -742,7 +742,7 @@ extern "C" ssize_t MterpSetUpHotnessCountdown(ArtMethod* method, ShadowFrame* sh
 extern "C" ssize_t MterpAddHotnessBatch(ArtMethod* method,
                                         ShadowFrame* shadow_frame,
                                         Thread* self)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   jit::Jit* jit = Runtime::Current()->GetJit();
   if (jit != nullptr) {
     int16_t count = shadow_frame->GetCachedHotnessCountdown() - shadow_frame->GetHotnessCountdown();
@@ -753,7 +753,7 @@ extern "C" ssize_t MterpAddHotnessBatch(ArtMethod* method,
 
 // TUNING: Unused by arm/arm64/x86/x86_64.  Remove when mips/mips64 mterps support batch updates.
 extern "C" size_t MterpProfileBranch(Thread* self, ShadowFrame* shadow_frame, int32_t offset)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   ArtMethod* method = shadow_frame->GetMethod();
   JValue* result = shadow_frame->GetResultRegister();
   uint32_t dex_pc = shadow_frame->GetDexPC();
@@ -772,7 +772,7 @@ extern "C" size_t MterpProfileBranch(Thread* self, ShadowFrame* shadow_frame, in
 extern "C" size_t MterpMaybeDoOnStackReplacement(Thread* self,
                                                  ShadowFrame* shadow_frame,
                                                  int32_t offset)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   ArtMethod* method = shadow_frame->GetMethod();
   JValue* result = shadow_frame->GetResultRegister();
   uint32_t dex_pc = shadow_frame->GetDexPC();

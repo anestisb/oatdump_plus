@@ -142,11 +142,11 @@ class ThreadList {
                !Locks::thread_suspend_count_lock_);
 
   void VisitRoots(RootVisitor* visitor) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void VisitRootsForSuspendedThreads(RootVisitor* visitor)
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Return a copy of the thread list.
   std::list<Thread*> GetList() REQUIRES(Locks::thread_list_lock_) {

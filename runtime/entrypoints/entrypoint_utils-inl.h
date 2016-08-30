@@ -44,7 +44,7 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
                                     const InlineInfo& inline_info,
                                     const InlineInfoEncoding& encoding,
                                     uint8_t inlining_depth)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   // This method is being used by artQuickResolutionTrampoline, before it sets up
   // the passed parameters in a GC friendly way. Therefore we must never be
   // suspended while executing it.
@@ -121,7 +121,7 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
 }
 
 inline ArtMethod* GetCalleeSaveMethodCaller(Thread* self, Runtime::CalleeSaveType type)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   return GetCalleeSaveMethodCaller(
       self->GetManagedStack()->GetTopQuickFrame(), type, true /* do_caller_check */);
 }
@@ -457,7 +457,7 @@ inline ArtField* FindFieldFromCode(uint32_t field_idx,
 
 // Explicit template declarations of FindFieldFromCode for all field access types.
 #define EXPLICIT_FIND_FIELD_FROM_CODE_TEMPLATE_DECL(_type, _access_check) \
-template SHARED_REQUIRES(Locks::mutator_lock_) ALWAYS_INLINE \
+template REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE \
 ArtField* FindFieldFromCode<_type, _access_check>(uint32_t field_idx, \
                                                   ArtMethod* referrer, \
                                                   Thread* self, size_t expected_size) \
@@ -640,7 +640,7 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object** this_
 
 // Explicit template declarations of FindMethodFromCode for all invoke types.
 #define EXPLICIT_FIND_METHOD_FROM_CODE_TEMPLATE_DECL(_type, _access_check)                 \
-  template SHARED_REQUIRES(Locks::mutator_lock_) ALWAYS_INLINE                       \
+  template REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE                       \
   ArtMethod* FindMethodFromCode<_type, _access_check>(uint32_t method_idx,         \
                                                       mirror::Object** this_object, \
                                                       ArtMethod* referrer, \

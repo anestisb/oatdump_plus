@@ -141,7 +141,7 @@ bool Matcher::DoMatch(const DexFile::CodeItem* code_item, MatchFn* const* patter
 // Used for a single invoke in a constructor. In that situation, the method verifier makes
 // sure we invoke a constructor either in the same class or superclass with at least "this".
 ArtMethod* GetTargetConstructor(ArtMethod* method, const Instruction* invoke_direct)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK_EQ(invoke_direct->Opcode(), Instruction::INVOKE_DIRECT);
   DCHECK_EQ(invoke_direct->VRegC_35c(),
             method->GetCodeItem()->registers_size_ - method->GetCodeItem()->ins_size_);
@@ -212,7 +212,7 @@ bool RecordConstructorIPut(ArtMethod* method,
                            uint16_t this_vreg,
                            uint16_t zero_vreg_mask,
                            /*inout*/ ConstructorIPutData (&iputs)[kMaxConstructorIPuts])
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(IsInstructionIPut(new_iput->Opcode()));
   uint32_t field_index = new_iput->VRegC_22c();
   PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
@@ -253,7 +253,7 @@ bool RecordConstructorIPut(ArtMethod* method,
 bool DoAnalyseConstructor(const DexFile::CodeItem* code_item,
                           ArtMethod* method,
                           /*inout*/ ConstructorIPutData (&iputs)[kMaxConstructorIPuts])
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   // On entry we should not have any IPUTs yet.
   DCHECK_EQ(0, std::count_if(
       iputs,
@@ -367,7 +367,7 @@ bool DoAnalyseConstructor(const DexFile::CodeItem* code_item,
 bool AnalyseConstructor(const DexFile::CodeItem* code_item,
                         ArtMethod* method,
                         InlineMethod* result)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   ConstructorIPutData iputs[kMaxConstructorIPuts];
   if (!DoAnalyseConstructor(code_item, method, iputs)) {
     return false;

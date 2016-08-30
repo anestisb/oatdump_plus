@@ -119,7 +119,7 @@ void AllocRecordObjectMap::VisitRoots(RootVisitor* visitor) {
 }
 
 static inline void SweepClassObject(AllocRecord* record, IsMarkedVisitor* visitor)
-    SHARED_REQUIRES(Locks::mutator_lock_)
+    REQUIRES_SHARED(Locks::mutator_lock_)
     REQUIRES(Locks::alloc_tracker_lock_) {
   GcRoot<mirror::Class>& klass = record->GetClassGcRoot();
   // This does not need a read barrier because this is called by GC.
@@ -187,7 +187,7 @@ void AllocRecordObjectMap::BroadcastForNewAllocationRecords() {
 class AllocRecordStackVisitor : public StackVisitor {
  public:
   AllocRecordStackVisitor(Thread* thread, size_t max_depth, AllocRecordStackTrace* trace_out)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         max_depth_(max_depth),
         trace_(trace_out) {}
