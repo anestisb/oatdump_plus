@@ -338,8 +338,7 @@ bool RegionSpace::AllocNewTlab(Thread* self) {
     if (r->IsFree()) {
       r->Unfree(time_);
       ++num_non_free_regions_;
-      // TODO: this is buggy. Debug it.
-      // r->SetNewlyAllocated();
+      r->SetNewlyAllocated();
       r->SetTop(r->End());
       r->is_a_tlab_ = true;
       r->thread_ = self;
