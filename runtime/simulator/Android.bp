@@ -39,7 +39,7 @@ cc_library_host_shared {
 }
 
 cc_library_host_shared {
-    name: "libart-simulatord",
+    name: "libartd-simulator",
     defaults: [
         "art_debug_defaults",
         "libart_simulator_defaults",
