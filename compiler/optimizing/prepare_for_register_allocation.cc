@@ -129,6 +129,7 @@ void PrepareForRegisterAllocation::VisitClinitCheck(HClinitCheck* check) {
   } else if (can_merge_with_load_class && !load_class->NeedsAccessCheck()) {
     // Pass the initialization duty to the `HLoadClass` instruction,
     // and remove the instruction from the graph.
+    DCHECK(load_class->HasEnvironment());
     load_class->SetMustGenerateClinitCheck(true);
     check->GetBlock()->RemoveInstruction(check);
   }
@@ -136,7 +137,7 @@ void PrepareForRegisterAllocation::VisitClinitCheck(HClinitCheck* check) {
 
 void PrepareForRegisterAllocation::VisitNewInstance(HNewInstance* instruction) {
   HLoadClass* load_class = instruction->InputAt(0)->AsLoadClass();
-  bool has_only_one_use = load_class->HasOnlyOneNonEnvironmentUse();
+  const bool has_only_one_use = load_class->HasOnlyOneNonEnvironmentUse();
   // Change the entrypoint to kQuickAllocObject if either:
   // - the class is finalizable (only kQuickAllocObject handles finalizable classes),
   // - the class needs access checks (we do not know if it's finalizable),
@@ -144,19 +145,25 @@ void PrepareForRegisterAllocation::VisitNewInstance(HNewInstance* instruction) {
   if (instruction->IsFinalizable() || has_only_one_use || load_class->NeedsAccessCheck()) {
     instruction->SetEntrypoint(kQuickAllocObject);
     instruction->ReplaceInput(GetGraph()->GetIntConstant(load_class->GetTypeIndex()), 0);
-    // The allocation entry point that deals with access checks does not work with inlined
-    // methods, so we need to check whether this allocation comes from an inlined method.
-    // We also need to make the same check as for moving clinit check, whether the HLoadClass
-    // has the clinit check responsibility or not (HLoadClass can throw anyway).
-    if (has_only_one_use &&
-        !instruction->GetEnvironment()->IsFromInlinedInvoke() &&
-        CanMoveClinitCheck(load_class, instruction)) {
-      // We can remove the load class from the graph. If it needed access checks, we delegate
-      // the access check to the allocation.
-      if (load_class->NeedsAccessCheck()) {
-        instruction->SetEntrypoint(kQuickAllocObjectWithAccessCheck);
+    if (has_only_one_use) {
+      // We've just removed the only use of the HLoadClass. Since we don't run DCE after this pass,
+      // do it manually if possible.
+      if (!load_class->CanThrow()) {
+        // If the load class can not throw, it has no side effects and can be removed if there is
+        // only one use.
+        load_class->GetBlock()->RemoveInstruction(load_class);
+      } else if (!instruction->GetEnvironment()->IsFromInlinedInvoke() &&
+          CanMoveClinitCheck(load_class, instruction)) {
+        // The allocation entry point that deals with access checks does not work with inlined
+        // methods, so we need to check whether this allocation comes from an inlined method.
+        // We also need to make the same check as for moving clinit check, whether the HLoadClass
+        // has the clinit check responsibility or not (HLoadClass can throw anyway).
+        // If it needed access checks, we delegate the access check to the allocation.
+        if (load_class->NeedsAccessCheck()) {
+          instruction->SetEntrypoint(kQuickAllocObjectWithAccessCheck);
+        }
+        load_class->GetBlock()->RemoveInstruction(load_class);
       }
-      load_class->GetBlock()->RemoveInstruction(load_class);
     }
   }
 }
