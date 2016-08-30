@@ -21,8 +21,9 @@
 
 #include <iosfwd>
 
+#include "android-base/macros.h"
+
 #include "arch/instruction_set.h"
-#include "base/macros.h"
 
 namespace art {
 
@@ -81,10 +82,7 @@ class Disassembler {
   }
 
  protected:
-  explicit Disassembler(DisassemblerOptions* disassembler_options)
-      : disassembler_options_(disassembler_options) {
-    CHECK(disassembler_options_ != nullptr);
-  }
+  explicit Disassembler(DisassemblerOptions* disassembler_options);
 
   std::string FormatInstructionPointer(const uint8_t* begin);
 

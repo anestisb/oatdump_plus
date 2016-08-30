@@ -157,9 +157,7 @@ class PACKED(4) ImageHeader {
     return reinterpret_cast<uint8_t*>(oat_file_end_);
   }
 
-  PointerSize GetPointerSize() const {
-    return ConvertToPointerSize(pointer_size_);
-  }
+  PointerSize GetPointerSize() const;
 
   uint32_t GetPointerSizeUnchecked() const {
     return pointer_size_;

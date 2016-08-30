@@ -20,8 +20,10 @@
 
 #include <sstream>
 
-#include "base/logging.h"
-#include "base/stringprintf.h"
+#include "android-base/logging.h"
+#include "android-base/stringprintf.h"
+
+using android::base::StringPrintf;
 
 using namespace vixl::aarch64;  // NOLINT(build/namespaces)
 
