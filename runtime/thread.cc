@@ -1362,7 +1362,7 @@ void Thread::DumpState(std::ostream& os) const {
 
 struct StackDumpVisitor : public StackVisitor {
   StackDumpVisitor(std::ostream& os_in, Thread* thread_in, Context* context, bool can_allocate_in)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       : StackVisitor(thread_in, context, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         os(os_in),
         can_allocate(can_allocate_in),
@@ -1377,7 +1377,7 @@ struct StackDumpVisitor : public StackVisitor {
     }
   }
 
-  bool VisitFrame() SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool VisitFrame() REQUIRES_SHARED(Locks::mutator_lock_) {
     ArtMethod* m = GetMethod();
     if (m->IsRuntimeMethod()) {
       return true;
@@ -1425,7 +1425,7 @@ struct StackDumpVisitor : public StackVisitor {
   }
 
   static void DumpLockedObject(mirror::Object* o, void* context)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     std::ostream& os = *reinterpret_cast<std::ostream*>(context);
     os << "  - locked ";
     if (o == nullptr) {
@@ -1462,7 +1462,7 @@ struct StackDumpVisitor : public StackVisitor {
 };
 
 static bool ShouldShowNativeStack(const Thread* thread)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   ThreadState state = thread->GetState();
 
   // In native code somewhere in the VM (one of the kWaitingFor* states)? That's interesting.
@@ -1975,11 +1975,11 @@ void Thread::SetClassLoaderOverride(jobject class_loader_override) {
 class CountStackDepthVisitor : public StackVisitor {
  public:
   explicit CountStackDepthVisitor(Thread* thread)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         depth_(0), skip_depth_(0), skipping_(true) {}
 
-  bool VisitFrame() SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool VisitFrame() REQUIRES_SHARED(Locks::mutator_lock_) {
     // We want to skip frames up to and including the exception's constructor.
     // Note we also skip the frame if it doesn't have a method (namely the callee
     // save frame)
@@ -2025,7 +2025,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
         trace_(nullptr),
         pointer_size_(Runtime::Current()->GetClassLinker()->GetImagePointerSize()) {}
 
-  bool Init(int depth) SHARED_REQUIRES(Locks::mutator_lock_) ACQUIRE(Roles::uninterruptible_) {
+  bool Init(int depth) REQUIRES_SHARED(Locks::mutator_lock_) ACQUIRE(Roles::uninterruptible_) {
     // Allocate method trace as an object array where the first element is a pointer array that
     // contains the ArtMethod pointers and dex PCs. The rest of the elements are the declaring
     // class of the ArtMethod pointers.
@@ -2061,7 +2061,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
     self_->EndAssertNoThreadSuspension(nullptr);
   }
 
-  bool VisitFrame() SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool VisitFrame() REQUIRES_SHARED(Locks::mutator_lock_) {
     if (trace_ == nullptr) {
       return true;  // We're probably trying to fillInStackTrace for an OutOfMemoryError.
     }
@@ -2086,7 +2086,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
     return true;
   }
 
-  mirror::PointerArray* GetTraceMethodsAndPCs() const SHARED_REQUIRES(Locks::mutator_lock_) {
+  mirror::PointerArray* GetTraceMethodsAndPCs() const REQUIRES_SHARED(Locks::mutator_lock_) {
     return down_cast<mirror::PointerArray*>(trace_->Get(0));
   }
 
@@ -2266,7 +2266,7 @@ void Thread::ThrowNewException(const char* exception_class_descriptor,
 }
 
 static mirror::ClassLoader* GetCurrentClassLoader(Thread* self)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   ArtMethod* method = self->GetCurrentMethod(nullptr);
   return method != nullptr
       ? method->GetDeclaringClass()->GetClassLoader()
@@ -2670,13 +2670,13 @@ Context* Thread::GetLongJumpContext() {
 //       so we don't abort in a special situation (thinlocked monitor) when dumping the Java stack.
 struct CurrentMethodVisitor FINAL : public StackVisitor {
   CurrentMethodVisitor(Thread* thread, Context* context, bool abort_on_error)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       : StackVisitor(thread, context, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         this_object_(nullptr),
         method_(nullptr),
         dex_pc_(0),
         abort_on_error_(abort_on_error) {}
-  bool VisitFrame() OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool VisitFrame() OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     ArtMethod* m = GetMethod();
     if (m->IsRuntimeMethod()) {
       // Continue if this is a runtime method.
@@ -2716,13 +2716,13 @@ template <typename RootVisitor>
 class ReferenceMapVisitor : public StackVisitor {
  public:
   ReferenceMapVisitor(Thread* thread, Context* context, RootVisitor& visitor)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
         // We are visiting the references in compiled frames, so we do not need
         // to know the inlined frames.
       : StackVisitor(thread, context, StackVisitor::StackWalkKind::kSkipInlinedFrames),
         visitor_(visitor) {}
 
-  bool VisitFrame() SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool VisitFrame() REQUIRES_SHARED(Locks::mutator_lock_) {
     if (false) {
       LOG(INFO) << "Visiting stack roots in " << PrettyMethod(GetMethod())
                 << StringPrintf("@ PC:%04x", GetDexPc());
@@ -2736,7 +2736,7 @@ class ReferenceMapVisitor : public StackVisitor {
     return true;
   }
 
-  void VisitShadowFrame(ShadowFrame* shadow_frame) SHARED_REQUIRES(Locks::mutator_lock_) {
+  void VisitShadowFrame(ShadowFrame* shadow_frame) REQUIRES_SHARED(Locks::mutator_lock_) {
     ArtMethod* m = shadow_frame->GetMethod();
     VisitDeclaringClass(m);
     DCHECK(m != nullptr);
@@ -2762,7 +2762,7 @@ class ReferenceMapVisitor : public StackVisitor {
   // is executing. We need to ensure that the code stays mapped. NO_THREAD_SAFETY_ANALYSIS since
   // the threads do not all hold the heap bitmap lock for parallel GC.
   void VisitDeclaringClass(ArtMethod* method)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       NO_THREAD_SAFETY_ANALYSIS {
     mirror::Class* klass = method->GetDeclaringClassUnchecked<kWithoutReadBarrier>();
     // klass can be null for runtime methods.
@@ -2798,7 +2798,7 @@ class ReferenceMapVisitor : public StackVisitor {
     }
   }
 
-  void VisitQuickFrame() SHARED_REQUIRES(Locks::mutator_lock_) {
+  void VisitQuickFrame() REQUIRES_SHARED(Locks::mutator_lock_) {
     ArtMethod** cur_quick_frame = GetCurrentQuickFrame();
     DCHECK(cur_quick_frame != nullptr);
     ArtMethod* m = *cur_quick_frame;
@@ -2852,7 +2852,7 @@ class RootCallbackVisitor {
   RootCallbackVisitor(RootVisitor* visitor, uint32_t tid) : visitor_(visitor), tid_(tid) {}
 
   void operator()(mirror::Object** obj, size_t vreg, const StackVisitor* stack_visitor) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     visitor_->VisitRoot(obj, JavaFrameRootInfo(tid_, stack_visitor, vreg));
   }
 
@@ -2925,7 +2925,7 @@ void Thread::VisitRoots(RootVisitor* visitor) {
 class VerifyRootVisitor : public SingleRootVisitor {
  public:
   void VisitRoot(mirror::Object* root, const RootInfo& info ATTRIBUTE_UNUSED)
-      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+      OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     VerifyObject(root);
   }
 };

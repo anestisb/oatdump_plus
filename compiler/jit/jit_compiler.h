@@ -37,7 +37,7 @@ class JitCompiler {
 
   // Compilation entrypoint. Returns whether the compilation succeeded.
   bool CompileMethod(Thread* self, ArtMethod* method, bool osr)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   CompilerOptions* GetCompilerOptions() const {
     return compiler_options_.get();
@@ -59,7 +59,7 @@ class JitCompiler {
   // This is in the compiler since the runtime doesn't have access to the compiled method
   // structures.
   bool AddToCodeCache(ArtMethod* method, const CompiledMethod* compiled_method)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   DISALLOW_COPY_AND_ASSIGN(JitCompiler);
 };

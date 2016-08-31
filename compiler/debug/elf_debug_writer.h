@@ -56,7 +56,7 @@ std::vector<uint8_t> WriteDebugElfFileForClasses(
     InstructionSet isa,
     const InstructionSetFeatures* features,
     const ArrayRef<mirror::Class*>& types)
-    SHARED_REQUIRES(Locks::mutator_lock_);
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
 std::vector<MethodDebugInfo> MakeTrampolineInfos(const OatHeader& oat_header);
 

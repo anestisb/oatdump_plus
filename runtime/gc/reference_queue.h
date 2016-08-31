@@ -55,35 +55,35 @@ class ReferenceQueue {
   // threads since it uses a lock to avoid a race between checking for the references presence and
   // adding it.
   void AtomicEnqueueIfNotEnqueued(Thread* self, mirror::Reference* ref)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!*lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!*lock_);
 
   // Enqueue a reference. The reference must be unprocessed.
   // Not thread safe, used when mutators are paused to minimize lock overhead.
-  void EnqueueReference(mirror::Reference* ref) SHARED_REQUIRES(Locks::mutator_lock_);
+  void EnqueueReference(mirror::Reference* ref) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Dequeue a reference from the queue and return that dequeued reference.
-  mirror::Reference* DequeuePendingReference() SHARED_REQUIRES(Locks::mutator_lock_);
+  mirror::Reference* DequeuePendingReference() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Enqueues finalizer references with white referents.  White referents are blackened, moved to
   // the zombie field, and the referent field is cleared.
   void EnqueueFinalizerReferences(ReferenceQueue* cleared_references,
                                   collector::GarbageCollector* collector)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Walks the reference list marking any references subject to the reference clearing policy.
   // References with a black referent are removed from the list.  References with white referents
   // biased toward saving are blackened and also removed from the list.
   void ForwardSoftReferences(MarkObjectVisitor* visitor)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Unlink the reference list clearing references objects with white referents. Cleared references
   // registered to a reference queue are scheduled for appending by the heap worker thread.
   void ClearWhiteReferences(ReferenceQueue* cleared_references,
                             collector::GarbageCollector* collector)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void Dump(std::ostream& os) const SHARED_REQUIRES(Locks::mutator_lock_);
-  size_t GetLength() const SHARED_REQUIRES(Locks::mutator_lock_);
+  void Dump(std::ostream& os) const REQUIRES_SHARED(Locks::mutator_lock_);
+  size_t GetLength() const REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool IsEmpty() const {
     return list_ == nullptr;
@@ -91,13 +91,13 @@ class ReferenceQueue {
   void Clear() {
     list_ = nullptr;
   }
-  mirror::Reference* GetList() SHARED_REQUIRES(Locks::mutator_lock_) {
+  mirror::Reference* GetList() REQUIRES_SHARED(Locks::mutator_lock_) {
     return list_;
   }
 
   // Visits list_, currently only used for the mark compact GC.
   void UpdateRoots(IsMarkedVisitor* visitor)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   // Lock, used for parallel GC reference enqueuing. It allows for multiple threads simultaneously

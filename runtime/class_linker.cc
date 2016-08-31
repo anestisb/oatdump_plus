@@ -102,7 +102,7 @@ static constexpr bool kVerifyArtMethodDeclaringClasses = kIsDebugBuild;
 
 static void ThrowNoClassDefFoundError(const char* fmt, ...)
     __attribute__((__format__(__printf__, 1, 2)))
-    SHARED_REQUIRES(Locks::mutator_lock_);
+    REQUIRES_SHARED(Locks::mutator_lock_);
 static void ThrowNoClassDefFoundError(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
@@ -112,7 +112,7 @@ static void ThrowNoClassDefFoundError(const char* fmt, ...) {
 }
 
 static bool HasInitWithString(Thread* self, ClassLinker* class_linker, const char* descriptor)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   ArtMethod* method = self->GetCurrentMethod(nullptr);
   StackHandleScope<1> hs(self);
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(method != nullptr ?
@@ -133,7 +133,7 @@ static bool HasInitWithString(Thread* self, ClassLinker* class_linker, const cha
 
 // Helper for ThrowEarlierClassFailure. Throws the stored error.
 static void HandleEarlierVerifyError(Thread* self, ClassLinker* class_linker, mirror::Class* c)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   mirror::Object* obj = c->GetVerifyError();
   DCHECK(obj != nullptr);
   self->AssertNoPendingException();
@@ -201,7 +201,7 @@ void ClassLinker::ThrowEarlierClassFailure(mirror::Class* c, bool wrap_in_no_cla
 }
 
 static void VlogClassInitializationFailure(Handle<mirror::Class> klass)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   if (VLOG_IS_ON(class_linker)) {
     std::string temp;
     LOG(INFO) << "Failed to initialize class " << klass->GetDescriptor(&temp) << " from "
@@ -210,7 +210,7 @@ static void VlogClassInitializationFailure(Handle<mirror::Class> klass)
 }
 
 static void WrapExceptionInInitializer(Handle<mirror::Class> klass)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   Thread* self = Thread::Current();
   JNIEnv* env = self->GetJniEnv();
 
@@ -272,7 +272,7 @@ static void ShuffleForward(size_t* current_field_idx,
                            MemberOffset* field_offset,
                            std::deque<ArtField*>* grouped_and_sorted_fields,
                            FieldGaps* gaps)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(current_field_idx != nullptr);
   DCHECK(grouped_and_sorted_fields != nullptr);
   DCHECK(gaps != nullptr);
@@ -761,7 +761,7 @@ void ClassLinker::RunRootClinits() {
 static void SanityCheckArtMethod(ArtMethod* m,
                                  mirror::Class* expected_class,
                                  const std::vector<gc::space::ImageSpace*>& spaces)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   if (m->IsRuntimeMethod()) {
     mirror::Class* declaring_class = m->GetDeclaringClassUnchecked();
     CHECK(declaring_class == nullptr) << declaring_class << " " << PrettyMethod(m);
@@ -790,7 +790,7 @@ static void SanityCheckArtMethodPointerArray(mirror::PointerArray* arr,
                                              mirror::Class* expected_class,
                                              PointerSize pointer_size,
                                              const std::vector<gc::space::ImageSpace*>& spaces)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   CHECK(arr != nullptr);
   for (int32_t j = 0; j < arr->GetLength(); ++j) {
     auto* method = arr->GetElementPtrSize<ArtMethod*>(j, pointer_size);
@@ -808,7 +808,7 @@ static void SanityCheckArtMethodPointerArray(ArtMethod** arr,
                                              size_t size,
                                              PointerSize pointer_size,
                                              const std::vector<gc::space::ImageSpace*>& spaces)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   CHECK_EQ(arr != nullptr, size != 0u);
   if (arr != nullptr) {
     bool contains = false;
@@ -832,7 +832,7 @@ static void SanityCheckArtMethodPointerArray(ArtMethod** arr,
 }
 
 static void SanityCheckObjectsCallback(mirror::Object* obj, void* arg ATTRIBUTE_UNUSED)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(obj != nullptr);
   CHECK(obj->GetClass() != nullptr) << "Null class in object " << obj;
   CHECK(obj->GetClass()->GetClass() != nullptr) << "Null class class " << obj;
@@ -883,7 +883,7 @@ class SetInterpreterEntrypointArtMethodVisitor : public ArtMethodVisitor {
   explicit SetInterpreterEntrypointArtMethodVisitor(PointerSize image_pointer_size)
     : image_pointer_size_(image_pointer_size) {}
 
-  void Visit(ArtMethod* method) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+  void Visit(ArtMethod* method) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     if (kIsDebugBuild && !method->IsRuntimeMethod()) {
       CHECK(method->GetDeclaringClass() != nullptr);
     }
@@ -1073,7 +1073,7 @@ bool ClassLinker::IsBootClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
 
 static mirror::String* GetDexPathListElementName(ScopedObjectAccessUnchecked& soa,
                                                  mirror::Object* element)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   ArtField* const dex_file_field =
       soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
   ArtField* const dex_file_name_field =
@@ -1096,7 +1096,7 @@ static mirror::String* GetDexPathListElementName(ScopedObjectAccessUnchecked& so
 static bool FlattenPathClassLoader(mirror::ClassLoader* class_loader,
                                    std::list<mirror::String*>* out_dex_file_names,
                                    std::string* error_msg)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(out_dex_file_names != nullptr);
   DCHECK(error_msg != nullptr);
   ScopedObjectAccessUnchecked soa(Thread::Current());
@@ -1147,7 +1147,7 @@ class FixupArtMethodArrayVisitor : public ArtMethodVisitor {
  public:
   explicit FixupArtMethodArrayVisitor(const ImageHeader& header) : header_(header) {}
 
-  virtual void Visit(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_) {
+  virtual void Visit(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
     GcRoot<mirror::Class>* resolved_types = method->GetDexCacheResolvedTypes(kRuntimePointerSize);
     const bool is_copied = method->IsCopied();
     if (resolved_types != nullptr) {
@@ -1194,7 +1194,7 @@ class VerifyClassInTableArtMethodVisitor : public ArtMethodVisitor {
   explicit VerifyClassInTableArtMethodVisitor(ClassTable* table) : table_(table) {}
 
   virtual void Visit(ArtMethod* method)
-      SHARED_REQUIRES(Locks::mutator_lock_, Locks::classlinker_classes_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_, Locks::classlinker_classes_lock_) {
     mirror::Class* klass = method->GetDeclaringClass();
     if (klass != nullptr && !Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(klass)) {
       CHECK_EQ(table_->LookupByDescriptor(klass), klass) << PrettyClass(klass);
@@ -1207,11 +1207,11 @@ class VerifyClassInTableArtMethodVisitor : public ArtMethodVisitor {
 
 class VerifyDeclaringClassVisitor : public ArtMethodVisitor {
  public:
-  VerifyDeclaringClassVisitor() SHARED_REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_)
+  VerifyDeclaringClassVisitor() REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_)
       : live_bitmap_(Runtime::Current()->GetHeap()->GetLiveBitmap()) {}
 
   virtual void Visit(ArtMethod* method)
-      SHARED_REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     mirror::Class* klass = method->GetDeclaringClassUnchecked();
     if (klass != nullptr) {
       CHECK(live_bitmap_->Test(klass)) << "Image method has unmarked declaring class";
@@ -1476,7 +1476,7 @@ class UpdateClassLoaderAndResolvedStringsVisitor {
         class_loader_(class_loader),
         forward_strings_(forward_strings) {}
 
-  bool operator()(mirror::Class* klass) const SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool operator()(mirror::Class* klass) const REQUIRES_SHARED(Locks::mutator_lock_) {
     if (forward_strings_) {
       mirror::StringDexCacheType* strings = klass->GetDexCacheStrings();
       if (strings != nullptr) {
@@ -1503,7 +1503,7 @@ class UpdateClassLoaderAndResolvedStringsVisitor {
 static std::unique_ptr<const DexFile> OpenOatDexFile(const OatFile* oat_file,
                                                      const char* location,
                                                      std::string* error_msg)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(error_msg != nullptr);
   std::unique_ptr<const DexFile> dex_file;
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(location, nullptr, error_msg);
@@ -1894,7 +1894,7 @@ class VisitClassLoaderClassesVisitor : public ClassLoaderVisitor {
         done_(false) {}
 
   void Visit(mirror::ClassLoader* class_loader)
-      SHARED_REQUIRES(Locks::classlinker_classes_lock_, Locks::mutator_lock_) OVERRIDE {
+      REQUIRES_SHARED(Locks::classlinker_classes_lock_, Locks::mutator_lock_) OVERRIDE {
     ClassTable* const class_table = class_loader->GetClassTable();
     if (!done_ && class_table != nullptr && !class_table->Visit(*visitor_)) {
       // If the visitor ClassTable returns false it means that we don't need to continue.
@@ -1944,7 +1944,7 @@ class GetClassInToObjectArray : public ClassVisitor {
   explicit GetClassInToObjectArray(mirror::ObjectArray<mirror::Class>* arr)
       : arr_(arr), index_(0) {}
 
-  bool operator()(mirror::Class* klass) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool operator()(mirror::Class* klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     ++index_;
     if (index_ <= arr_->GetLength()) {
       arr_->Set(index_ - 1, klass);
@@ -1953,7 +1953,7 @@ class GetClassInToObjectArray : public ClassVisitor {
     return false;
   }
 
-  bool Succeeded() const SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool Succeeded() const REQUIRES_SHARED(Locks::mutator_lock_) {
     return index_ <= arr_->GetLength();
   }
 
@@ -3669,7 +3669,7 @@ mirror::Class* ClassLinker::LookupClass(Thread* self,
 }
 
 static std::vector<mirror::ObjectArray<mirror::DexCache>*> GetImageDexCaches(
-    std::vector<gc::space::ImageSpace*> image_spaces) SHARED_REQUIRES(Locks::mutator_lock_) {
+    std::vector<gc::space::ImageSpace*> image_spaces) REQUIRES_SHARED(Locks::mutator_lock_) {
   CHECK(!image_spaces.empty());
   std::vector<mirror::ObjectArray<mirror::DexCache>*> dex_caches_vector;
   for (gc::space::ImageSpace* image_space : image_spaces) {
@@ -3731,7 +3731,7 @@ class MoveClassTableToPreZygoteVisitor : public ClassLoaderVisitor {
 
   void Visit(mirror::ClassLoader* class_loader)
       REQUIRES(Locks::classlinker_classes_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_) OVERRIDE {
+      REQUIRES_SHARED(Locks::mutator_lock_) OVERRIDE {
     ClassTable* const class_table = class_loader->GetClassTable();
     if (class_table != nullptr) {
       class_table->FreezeSnapshot();
@@ -3777,7 +3777,7 @@ class LookupClassesVisitor : public ClassLoaderVisitor {
        result_(result) {}
 
   void Visit(mirror::ClassLoader* class_loader)
-      SHARED_REQUIRES(Locks::classlinker_classes_lock_, Locks::mutator_lock_) OVERRIDE {
+      REQUIRES_SHARED(Locks::classlinker_classes_lock_, Locks::mutator_lock_) OVERRIDE {
     ClassTable* const class_table = class_loader->GetClassTable();
     mirror::Class* klass = class_table->Lookup(descriptor_, hash_);
     if (klass != nullptr) {
@@ -4758,7 +4758,7 @@ bool ClassLinker::InitializeDefaultInterfaceRecursive(Thread* self,
 bool ClassLinker::WaitForInitializeClass(Handle<mirror::Class> klass,
                                          Thread* self,
                                          ObjectLock<mirror::Class>& lock)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   while (true) {
     self->AssertNoPendingException();
     CHECK(!klass->IsInitialized());
@@ -4802,7 +4802,7 @@ static void ThrowSignatureCheckResolveReturnTypeException(Handle<mirror::Class> 
                                                           Handle<mirror::Class> super_klass,
                                                           ArtMethod* method,
                                                           ArtMethod* m)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(Thread::Current()->IsExceptionPending());
   DCHECK(!m->IsProxyMethod());
   const DexFile* dex_file = m->GetDexFile();
@@ -4827,7 +4827,7 @@ static void ThrowSignatureCheckResolveArgException(Handle<mirror::Class> klass,
                                                    ArtMethod* m,
                                                    uint32_t index,
                                                    uint32_t arg_type_idx)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(Thread::Current()->IsExceptionPending());
   DCHECK(!m->IsProxyMethod());
   const DexFile* dex_file = m->GetDexFile();
@@ -4847,7 +4847,7 @@ static void ThrowSignatureMismatch(Handle<mirror::Class> klass,
                                    Handle<mirror::Class> super_klass,
                                    ArtMethod* method,
                                    const std::string& error_msg)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   ThrowLinkageError(klass.Get(),
                     "Class %s method %s resolves differently in %s %s: %s",
                     PrettyDescriptor(klass.Get()).c_str(),
@@ -4863,7 +4863,7 @@ static bool HasSameSignatureWithDifferentClassLoaders(Thread* self,
                                                       Handle<mirror::Class> super_klass,
                                                       ArtMethod* method1,
                                                       ArtMethod* method2)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   {
     StackHandleScope<1> hs(self);
     Handle<mirror::Class> return_type(hs.NewHandle(method1->GetReturnType(true /* resolve */,
@@ -5075,7 +5075,7 @@ ClassTable* ClassLinker::ClassTableForClassLoader(mirror::ClassLoader* class_loa
 }
 
 static ImTable* FindSuperImt(mirror::Class* klass, PointerSize pointer_size)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   while (klass->HasSuperClass()) {
     klass = klass->GetSuperClass();
     if (klass->ShouldHaveImt()) {
@@ -5353,7 +5353,7 @@ static bool CheckSuperClassChange(Handle<mirror::Class> klass,
                                   const DexFile& dex_file,
                                   const DexFile::ClassDef& class_def,
                                   mirror::Class* super_class)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   // Check for unexpected changes in the superclass.
   // Quick check 1) is the super_class class-loader the boot class loader? This always has
   // precedence.
@@ -5565,7 +5565,7 @@ bool ClassLinker::LinkMethods(Thread* self,
 class MethodNameAndSignatureComparator FINAL : public ValueObject {
  public:
   explicit MethodNameAndSignatureComparator(ArtMethod* method)
-      SHARED_REQUIRES(Locks::mutator_lock_) :
+      REQUIRES_SHARED(Locks::mutator_lock_) :
       dex_file_(method->GetDexFile()), mid_(&dex_file_->GetMethodId(method->GetDexMethodIndex())),
       name_(nullptr), name_len_(0) {
     DCHECK(!method->IsProxyMethod()) << PrettyMethod(method);
@@ -5579,7 +5579,7 @@ class MethodNameAndSignatureComparator FINAL : public ValueObject {
   }
 
   bool HasSameNameAndSignature(ArtMethod* other)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(!other->IsProxyMethod()) << PrettyMethod(other);
     const DexFile* other_dex_file = other->GetDexFile();
     const DexFile::MethodId& other_mid = other_dex_file->GetMethodId(other->GetDexMethodIndex());
@@ -5620,7 +5620,7 @@ class LinkVirtualHashTable {
     std::fill(hash_table_, hash_table_ + hash_size_, invalid_index_);
   }
 
-  void Add(uint32_t virtual_method_index) SHARED_REQUIRES(Locks::mutator_lock_) {
+  void Add(uint32_t virtual_method_index) REQUIRES_SHARED(Locks::mutator_lock_) {
     ArtMethod* local_method = klass_->GetVirtualMethodDuringLinking(
         virtual_method_index, image_pointer_size_);
     const char* name = local_method->GetInterfaceMethodIfProxy(image_pointer_size_)->GetName();
@@ -5636,7 +5636,7 @@ class LinkVirtualHashTable {
   }
 
   uint32_t FindAndRemove(MethodNameAndSignatureComparator* comparator)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     const char* name = comparator->GetName();
     uint32_t hash = ComputeModifiedUtf8Hash(name);
     size_t index = hash % hash_size_;
@@ -5936,7 +5936,7 @@ static bool ContainsOverridingMethodOf(Thread* self,
                                        size_t ifstart,
                                        Handle<mirror::Class> iface,
                                        PointerSize image_pointer_size)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(self != nullptr);
   DCHECK(iface.Get() != nullptr);
   DCHECK(iftable.Get() != nullptr);
@@ -6336,7 +6336,7 @@ void ClassLinker::FillIMTFromIfTable(mirror::IfTable* if_table,
 static bool NotSubinterfaceOfAny(const std::unordered_set<mirror::Class*>& classes,
                                  mirror::Class* val)
     REQUIRES(Roles::uninterruptible_)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(val != nullptr);
   for (auto c : classes) {
     if (val->IsAssignableFrom(&*c)) {
@@ -6369,7 +6369,7 @@ static size_t FillIfTable(mirror::IfTable* iftable,
                           size_t super_ifcount,
                           std::vector<mirror::Class*> to_process)
     REQUIRES(Roles::uninterruptible_)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   // This is the set of all class's already in the iftable. Used to make checking if a class has
   // already been added quicker.
   std::unordered_set<mirror::Class*> classes_in_iftable;
@@ -6537,7 +6537,7 @@ bool ClassLinker::SetupInterfaceLookupTable(Thread* self, Handle<mirror::Class> 
 // methods must be unique.
 static ArtMethod* FindSameNameAndSignature(MethodNameAndSignatureComparator& cmp,
                                            const ScopedArenaVector<ArtMethod*>& list)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   for (ArtMethod* method : list) {
     if (cmp.HasSameNameAndSignature(method)) {
       return method;
@@ -6547,7 +6547,7 @@ static ArtMethod* FindSameNameAndSignature(MethodNameAndSignatureComparator& cmp
 }
 
 static void SanityCheckVTable(Handle<mirror::Class> klass, PointerSize pointer_size)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   mirror::PointerArray* check_vtable = klass->GetVTableDuringLinking();
   mirror::Class* superclass = (klass->HasSuperClass()) ? klass->GetSuperClass() : nullptr;
   int32_t super_vtable_length = (superclass != nullptr) ? superclass->GetVTableLength() : 0;
@@ -7165,7 +7165,7 @@ bool ClassLinker::LinkStaticFields(Thread* self, Handle<mirror::Class> klass, si
 }
 
 struct LinkFieldsComparator {
-  explicit LinkFieldsComparator() SHARED_REQUIRES(Locks::mutator_lock_) {
+  explicit LinkFieldsComparator() REQUIRES_SHARED(Locks::mutator_lock_) {
   }
   // No thread safety analysis as will be called from STL. Checked lock held in constructor.
   bool operator()(ArtField* field1, ArtField* field2)
@@ -7814,7 +7814,7 @@ class DumpClassVisitor : public ClassVisitor {
  public:
   explicit DumpClassVisitor(int flags) : flags_(flags) {}
 
-  bool operator()(mirror::Class* klass) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool operator()(mirror::Class* klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     klass->DumpClass(LOG(ERROR), flags_);
     return true;
   }
@@ -7886,7 +7886,7 @@ class CountClassesVisitor : public ClassLoaderVisitor {
   CountClassesVisitor() : num_zygote_classes(0), num_non_zygote_classes(0) {}
 
   void Visit(mirror::ClassLoader* class_loader)
-      SHARED_REQUIRES(Locks::classlinker_classes_lock_, Locks::mutator_lock_) OVERRIDE {
+      REQUIRES_SHARED(Locks::classlinker_classes_lock_, Locks::mutator_lock_) OVERRIDE {
     ClassTable* const class_table = class_loader->GetClassTable();
     if (class_table != nullptr) {
       num_zygote_classes += class_table->NumZygoteClasses();
@@ -8285,7 +8285,7 @@ class ClassLinker::FindVirtualMethodHolderVisitor : public ClassVisitor {
       : method_(method),
         pointer_size_(pointer_size) {}
 
-  bool operator()(mirror::Class* klass) SHARED_REQUIRES(Locks::mutator_lock_) OVERRIDE {
+  bool operator()(mirror::Class* klass) REQUIRES_SHARED(Locks::mutator_lock_) OVERRIDE {
     if (klass->GetVirtualMethodsSliceUnchecked(pointer_size_).Contains(method_)) {
       holder_ = klass;
     }

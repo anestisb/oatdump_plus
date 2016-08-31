@@ -43,7 +43,7 @@ class VerificationResults {
     ~VerificationResults();
 
     void ProcessVerifiedMethod(verifier::MethodVerifier* method_verifier)
-        SHARED_REQUIRES(Locks::mutator_lock_)
+        REQUIRES_SHARED(Locks::mutator_lock_)
         REQUIRES(!verified_methods_lock_);
 
     const VerifiedMethod* GetVerifiedMethod(MethodReference ref)

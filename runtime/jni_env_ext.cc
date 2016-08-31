@@ -154,7 +154,7 @@ Offset JNIEnvExt::SelfOffset(size_t pointer_size) {
 }
 
 // Use some defining part of the caller's frame as the identifying mark for the JNI segment.
-static uintptr_t GetJavaCallFrame(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_) {
+static uintptr_t GetJavaCallFrame(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_) {
   NthCallerVisitor zeroth_caller(self, 0, false);
   zeroth_caller.WalkStack();
   if (zeroth_caller.caller == nullptr) {
@@ -175,7 +175,7 @@ void JNIEnvExt::RecordMonitorEnter(jobject obj) {
 }
 
 static std::string ComputeMonitorDescription(Thread* self,
-                                             jobject obj) SHARED_REQUIRES(Locks::mutator_lock_) {
+                                             jobject obj) REQUIRES_SHARED(Locks::mutator_lock_) {
   mirror::Object* o = self->DecodeJObject(obj);
   if ((o->GetLockWord(false).GetState() == LockWord::kThinLocked) &&
       Locks::mutator_lock_->IsExclusiveHeld(self)) {
@@ -196,12 +196,12 @@ static void RemoveMonitors(Thread* self,
                            uintptr_t frame,
                            ReferenceTable* monitors,
                            std::vector<std::pair<uintptr_t, jobject>>* locked_objects)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   auto kept_end = std::remove_if(
       locked_objects->begin(),
       locked_objects->end(),
       [self, frame, monitors](const std::pair<uintptr_t, jobject>& pair)
-          SHARED_REQUIRES(Locks::mutator_lock_) {
+          REQUIRES_SHARED(Locks::mutator_lock_) {
         if (frame == pair.first) {
           mirror::Object* o = self->DecodeJObject(pair.second);
           monitors->Remove(o);

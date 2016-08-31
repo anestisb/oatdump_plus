@@ -21,7 +21,7 @@ namespace art {
 
 // Assignable test for code, won't throw.  Null and equality tests already performed
 extern "C" size_t artIsAssignableFromCode(mirror::Class* klass, mirror::Class* ref_class)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(klass != nullptr);
   DCHECK(ref_class != nullptr);
   return klass->IsAssignableFrom(ref_class) ? 1 : 0;

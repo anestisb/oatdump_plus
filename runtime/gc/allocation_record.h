@@ -38,7 +38,7 @@ namespace gc {
 
 class AllocRecordStackTraceElement {
  public:
-  int32_t ComputeLineNumber() const SHARED_REQUIRES(Locks::mutator_lock_);
+  int32_t ComputeLineNumber() const REQUIRES_SHARED(Locks::mutator_lock_);
 
   AllocRecordStackTraceElement() = default;
   AllocRecordStackTraceElement(ArtMethod* method, uint32_t dex_pc)
@@ -174,14 +174,14 @@ class AllocRecord {
     return trace_.GetTid();
   }
 
-  mirror::Class* GetClass() const SHARED_REQUIRES(Locks::mutator_lock_) {
+  mirror::Class* GetClass() const REQUIRES_SHARED(Locks::mutator_lock_) {
     return klass_.Read();
   }
 
   const char* GetClassDescriptor(std::string* storage) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
-  GcRoot<mirror::Class>& GetClassGcRoot() SHARED_REQUIRES(Locks::mutator_lock_) {
+  GcRoot<mirror::Class>& GetClassGcRoot() REQUIRES_SHARED(Locks::mutator_lock_) {
     return klass_;
   }
 
@@ -213,7 +213,7 @@ class AllocRecordObjectMap {
                         mirror::Object** obj,
                         size_t byte_count)
       REQUIRES(!Locks::alloc_tracker_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   static void SetAllocTrackingEnabled(bool enabled) REQUIRES(!Locks::alloc_tracker_lock_);
 
@@ -221,7 +221,7 @@ class AllocRecordObjectMap {
   ~AllocRecordObjectMap();
 
   void Put(mirror::Object* obj, AllocRecord&& record)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::alloc_tracker_lock_) {
     if (entries_.size() == alloc_record_max_) {
       entries_.pop_front();
@@ -229,22 +229,22 @@ class AllocRecordObjectMap {
     entries_.push_back(EntryPair(GcRoot<mirror::Object>(obj), std::move(record)));
   }
 
-  size_t Size() const SHARED_REQUIRES(Locks::alloc_tracker_lock_) {
+  size_t Size() const REQUIRES_SHARED(Locks::alloc_tracker_lock_) {
     return entries_.size();
   }
 
-  size_t GetRecentAllocationSize() const SHARED_REQUIRES(Locks::alloc_tracker_lock_) {
+  size_t GetRecentAllocationSize() const REQUIRES_SHARED(Locks::alloc_tracker_lock_) {
     CHECK_LE(recent_record_max_, alloc_record_max_);
     size_t sz = entries_.size();
     return std::min(recent_record_max_, sz);
   }
 
   void VisitRoots(RootVisitor* visitor)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::alloc_tracker_lock_);
 
   void SweepAllocationRecords(IsMarkedVisitor* visitor)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::alloc_tracker_lock_);
 
   // Allocation tracking could be enabled by user in between DisallowNewAllocationRecords() and
@@ -254,36 +254,36 @@ class AllocRecordObjectMap {
   // swept from the list. But missing the first few records is acceptable for using the button to
   // enable allocation tracking.
   void DisallowNewAllocationRecords()
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::alloc_tracker_lock_);
   void AllowNewAllocationRecords()
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::alloc_tracker_lock_);
   void BroadcastForNewAllocationRecords()
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::alloc_tracker_lock_);
 
   // TODO: Is there a better way to hide the entries_'s type?
   EntryList::iterator Begin()
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::alloc_tracker_lock_) {
     return entries_.begin();
   }
 
   EntryList::iterator End()
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::alloc_tracker_lock_) {
     return entries_.end();
   }
 
   EntryList::reverse_iterator RBegin()
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::alloc_tracker_lock_) {
     return entries_.rbegin();
   }
 
   EntryList::reverse_iterator REnd()
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::alloc_tracker_lock_) {
     return entries_.rend();
   }

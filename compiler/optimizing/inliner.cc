@@ -109,7 +109,7 @@ void HInliner::Run() {
 }
 
 static bool IsMethodOrDeclaringClassFinal(ArtMethod* method)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   return method->IsFinal() || method->GetDeclaringClass()->IsFinal();
 }
 
@@ -119,7 +119,7 @@ static bool IsMethodOrDeclaringClassFinal(ArtMethod* method)
  * Return nullptr if the runtime target cannot be proven.
  */
 static ArtMethod* FindVirtualOrInterfaceTarget(HInvoke* invoke, ArtMethod* resolved_method)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   if (IsMethodOrDeclaringClassFinal(resolved_method)) {
     // No need to lookup further, the resolved method will be the target.
     return resolved_method;
@@ -189,7 +189,7 @@ static ArtMethod* FindVirtualOrInterfaceTarget(HInvoke* invoke, ArtMethod* resol
 static uint32_t FindMethodIndexIn(ArtMethod* method,
                                   const DexFile& dex_file,
                                   uint32_t name_and_signature_index)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   if (IsSameDexFile(*method->GetDexFile(), dex_file)) {
     return method->GetDexMethodIndex();
   } else {
@@ -200,7 +200,7 @@ static uint32_t FindMethodIndexIn(ArtMethod* method,
 static uint32_t FindClassIndexIn(mirror::Class* cls,
                                  const DexFile& dex_file,
                                  Handle<mirror::DexCache> dex_cache)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   uint32_t index = DexFile::kDexNoIndex;
   if (cls->GetDexCache() == nullptr) {
     DCHECK(cls->IsArrayClass()) << PrettyClass(cls);
@@ -894,7 +894,7 @@ bool HInliner::TryBuildAndInline(HInvoke* invoke_instruction,
 
 static HInstruction* GetInvokeInputForArgVRegIndex(HInvoke* invoke_instruction,
                                                    size_t arg_vreg_index)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   size_t input_index = 0;
   for (size_t i = 0; i < arg_vreg_index; ++i, ++input_index) {
     DCHECK_LT(input_index, invoke_instruction->GetNumberOfArguments());
@@ -1030,7 +1030,7 @@ bool HInliner::TryPatternSubstitution(HInvoke* invoke_instruction,
 HInstanceFieldGet* HInliner::CreateInstanceFieldGet(Handle<mirror::DexCache> dex_cache,
                                                     uint32_t field_index,
                                                     HInstruction* obj)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   PointerSize pointer_size = InstructionSetPointerSize(codegen_->GetInstructionSet());
   ArtField* resolved_field = dex_cache->GetResolvedField(field_index, pointer_size);
   DCHECK(resolved_field != nullptr);
@@ -1058,7 +1058,7 @@ HInstanceFieldSet* HInliner::CreateInstanceFieldSet(Handle<mirror::DexCache> dex
                                                     uint32_t field_index,
                                                     HInstruction* obj,
                                                     HInstruction* value)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   PointerSize pointer_size = InstructionSetPointerSize(codegen_->GetInstructionSet());
   ArtField* resolved_field = dex_cache->GetResolvedField(field_index, pointer_size);
   DCHECK(resolved_field != nullptr);
@@ -1374,7 +1374,7 @@ size_t HInliner::RunOptimizations(HGraph* callee_graph,
 static bool IsReferenceTypeRefinement(ReferenceTypeInfo declared_rti,
                                       bool declared_can_be_null,
                                       HInstruction* actual_obj)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   if (declared_can_be_null && !actual_obj->CanBeNull()) {
     return true;
   }

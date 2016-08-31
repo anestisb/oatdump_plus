@@ -934,108 +934,108 @@ class DexFile {
   }
 
   const AnnotationSetItem* FindAnnotationSetForField(ArtField* field) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::Object* GetAnnotationForField(ArtField* field, Handle<mirror::Class> annotation_class)
-      const SHARED_REQUIRES(Locks::mutator_lock_);
+      const REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::Object>* GetAnnotationsForField(ArtField* field) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::String>* GetSignatureAnnotationForField(ArtField* field) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   bool IsFieldAnnotationPresent(ArtField* field, Handle<mirror::Class> annotation_class) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   const AnnotationSetItem* FindAnnotationSetForMethod(ArtMethod* method) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   const ParameterAnnotationsItem* FindAnnotationsItemForMethod(ArtMethod* method) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::Object* GetAnnotationDefaultValue(ArtMethod* method) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::Object* GetAnnotationForMethod(ArtMethod* method, Handle<mirror::Class> annotation_class)
-      const SHARED_REQUIRES(Locks::mutator_lock_);
+      const REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::Object>* GetAnnotationsForMethod(ArtMethod* method) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::Class>* GetExceptionTypesForMethod(ArtMethod* method) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::Object>* GetParameterAnnotations(ArtMethod* method) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::String>* GetSignatureAnnotationForMethod(ArtMethod* method) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   bool IsMethodAnnotationPresent(ArtMethod* method,
                                  Handle<mirror::Class> annotation_class,
                                  uint32_t visibility = kDexVisibilityRuntime) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   const AnnotationSetItem* FindAnnotationSetForClass(Handle<mirror::Class> klass) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::Object* GetAnnotationForClass(Handle<mirror::Class> klass,
                                         Handle<mirror::Class> annotation_class) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::Object>* GetAnnotationsForClass(Handle<mirror::Class> klass) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::Class>* GetDeclaredClasses(Handle<mirror::Class> klass) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::Class* GetDeclaringClass(Handle<mirror::Class> klass) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::Class* GetEnclosingClass(Handle<mirror::Class> klass) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::Object* GetEnclosingMethod(Handle<mirror::Class> klass) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   bool GetInnerClass(Handle<mirror::Class> klass, mirror::String** name) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   bool GetInnerClassFlags(Handle<mirror::Class> klass, uint32_t* flags) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::String>* GetSignatureAnnotationForClass(Handle<mirror::Class> klass)
-      const SHARED_REQUIRES(Locks::mutator_lock_);
+      const REQUIRES_SHARED(Locks::mutator_lock_);
   bool IsClassAnnotationPresent(Handle<mirror::Class> klass, Handle<mirror::Class> annotation_class)
-      const SHARED_REQUIRES(Locks::mutator_lock_);
+      const REQUIRES_SHARED(Locks::mutator_lock_);
 
   mirror::Object* CreateAnnotationMember(Handle<mirror::Class> klass,
                                          Handle<mirror::Class> annotation_class,
                                          const uint8_t** annotation) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   const AnnotationItem* GetAnnotationItemFromAnnotationSet(Handle<mirror::Class> klass,
                                                            const AnnotationSetItem* annotation_set,
                                                            uint32_t visibility,
                                                            Handle<mirror::Class> annotation_class)
-      const SHARED_REQUIRES(Locks::mutator_lock_);
+      const REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::Object* GetAnnotationObjectFromAnnotationSet(Handle<mirror::Class> klass,
                                                        const AnnotationSetItem* annotation_set,
                                                        uint32_t visibility,
                                                        Handle<mirror::Class> annotation_class) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::Object* GetAnnotationValue(Handle<mirror::Class> klass,
                                      const AnnotationItem* annotation_item,
                                      const char* annotation_name,
                                      Handle<mirror::Class> array_class,
                                      uint32_t expected_type) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::String>* GetSignatureValue(Handle<mirror::Class> klass,
                                                          const AnnotationSetItem* annotation_set)
-      const SHARED_REQUIRES(Locks::mutator_lock_);
+      const REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::Class>* GetThrowsValue(Handle<mirror::Class> klass,
                                                      const AnnotationSetItem* annotation_set) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::Object>* ProcessAnnotationSet(Handle<mirror::Class> klass,
                                                             const AnnotationSetItem* annotation_set,
                                                             uint32_t visibility) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::Object>* ProcessAnnotationSetRefList(Handle<mirror::Class> klass,
       const AnnotationSetRefList* set_ref_list, uint32_t size) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   bool ProcessAnnotationValue(Handle<mirror::Class> klass, const uint8_t** annotation_ptr,
                               AnnotationValue* annotation_value, Handle<mirror::Class> return_class,
                               DexFile::AnnotationResultStyle result_style) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::Object* ProcessEncodedAnnotation(Handle<mirror::Class> klass,
                                            const uint8_t** annotation) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   const AnnotationItem* SearchAnnotationSet(const AnnotationSetItem* annotation_set,
                                             const char* descriptor, uint32_t visibility) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   const uint8_t* SearchEncodedAnnotation(const uint8_t* annotation, const char* name) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   bool SkipAnnotationValue(const uint8_t** annotation_ptr) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Debug info opcodes and constants
   enum {
@@ -1072,7 +1072,7 @@ class DexFile {
   //
   // This is used by runtime; therefore use art::Method not art::DexFile::Method.
   int32_t GetLineNumFromPC(ArtMethod* method, uint32_t rel_pc) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns false if there is no debugging information or if it cannot be decoded.
   bool DecodeDebugLocalInfo(const CodeItem* code_item, bool is_static, uint32_t method_idx,
@@ -1518,10 +1518,10 @@ class EncodedStaticFieldValueIterator {
                                   Handle<mirror::ClassLoader>* class_loader,
                                   ClassLinker* linker,
                                   const DexFile::ClassDef& class_def)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<bool kTransactionActive>
-  void ReadValueToField(ArtField* field) const SHARED_REQUIRES(Locks::mutator_lock_);
+  void ReadValueToField(ArtField* field) const REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool HasNext() const { return pos_ < array_size_; }
 

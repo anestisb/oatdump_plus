@@ -462,7 +462,7 @@ class PatchOatArtFieldVisitor : public ArtFieldVisitor {
  public:
   explicit PatchOatArtFieldVisitor(PatchOat* patch_oat) : patch_oat_(patch_oat) {}
 
-  void Visit(ArtField* field) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+  void Visit(ArtField* field) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     ArtField* const dest = patch_oat_->RelocatedCopyOf(field);
     dest->SetDeclaringClass(patch_oat_->RelocatedAddressOfPointer(field->GetDeclaringClass()));
   }
@@ -480,7 +480,7 @@ class PatchOatArtMethodVisitor : public ArtMethodVisitor {
  public:
   explicit PatchOatArtMethodVisitor(PatchOat* patch_oat) : patch_oat_(patch_oat) {}
 
-  void Visit(ArtMethod* method) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+  void Visit(ArtMethod* method) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     ArtMethod* const dest = patch_oat_->RelocatedCopyOf(method);
     patch_oat_->FixupMethod(method, dest);
   }
@@ -523,7 +523,7 @@ class FixupRootVisitor : public RootVisitor {
   }
 
   void VisitRoots(mirror::Object*** roots, size_t count, const RootInfo& info ATTRIBUTE_UNUSED)
-      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+      OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     for (size_t i = 0; i < count; ++i) {
       *roots[i] = patch_oat_->RelocatedAddressOfPointer(*roots[i]);
     }
@@ -531,7 +531,7 @@ class FixupRootVisitor : public RootVisitor {
 
   void VisitRoots(mirror::CompressedReference<mirror::Object>** roots, size_t count,
                   const RootInfo& info ATTRIBUTE_UNUSED)
-      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+      OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     for (size_t i = 0; i < count; ++i) {
       roots[i]->Assign(patch_oat_->RelocatedAddressOfPointer(roots[i]->AsMirrorPtr()));
     }

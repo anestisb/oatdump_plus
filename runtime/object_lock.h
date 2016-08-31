@@ -28,15 +28,15 @@ class Thread;
 template <typename T>
 class ObjectLock {
  public:
-  ObjectLock(Thread* self, Handle<T> object) SHARED_REQUIRES(Locks::mutator_lock_);
+  ObjectLock(Thread* self, Handle<T> object) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ~ObjectLock() SHARED_REQUIRES(Locks::mutator_lock_);
+  ~ObjectLock() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void WaitIgnoringInterrupts() SHARED_REQUIRES(Locks::mutator_lock_);
+  void WaitIgnoringInterrupts() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void Notify() SHARED_REQUIRES(Locks::mutator_lock_);
+  void Notify() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void NotifyAll() SHARED_REQUIRES(Locks::mutator_lock_);
+  void NotifyAll() REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   Thread* const self_;
@@ -48,9 +48,9 @@ class ObjectLock {
 template <typename T>
 class ObjectTryLock {
  public:
-  ObjectTryLock(Thread* self, Handle<T> object) SHARED_REQUIRES(Locks::mutator_lock_);
+  ObjectTryLock(Thread* self, Handle<T> object) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ~ObjectTryLock() SHARED_REQUIRES(Locks::mutator_lock_);
+  ~ObjectTryLock() REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool Acquired() const {
     return acquired_;

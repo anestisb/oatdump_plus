@@ -228,20 +228,20 @@ class ArtMethod FINAL {
 
   static ArtMethod* FromReflectedMethod(const ScopedObjectAccessAlreadyRunnable& soa,
                                         jobject jlr_method)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  ALWAYS_INLINE mirror::Class* GetDeclaringClass() SHARED_REQUIRES(Locks::mutator_lock_);
+  ALWAYS_INLINE mirror::Class* GetDeclaringClass() REQUIRES_SHARED(Locks::mutator_lock_);
 
   template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ALWAYS_INLINE mirror::Class* GetDeclaringClassUnchecked()
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void SetDeclaringClass(mirror::Class *new_declaring_class)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool CASDeclaringClass(mirror::Class* expected_class, mirror::Class* desired_class)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   static MemberOffset DeclaringClassOffset() {
     return MemberOffset(OFFSETOF_MEMBER(ArtMethod, declaring_class_));
@@ -258,7 +258,7 @@ class ArtMethod FINAL {
   }
 
   // Approximate what kind of method call would be used for this method.
-  InvokeType GetInvokeType() SHARED_REQUIRES(Locks::mutator_lock_);
+  InvokeType GetInvokeType() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns true if the method is declared public.
   bool IsPublic() {
@@ -358,7 +358,7 @@ class ArtMethod FINAL {
   }
 
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  bool IsProxyMethod() SHARED_REQUIRES(Locks::mutator_lock_);
+  bool IsProxyMethod() REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool SkipAccessChecks() {
     return (GetAccessFlags() & kAccSkipAccessChecks) != 0;
@@ -380,24 +380,24 @@ class ArtMethod FINAL {
   bool IsAnnotatedWithFastNative();
 
   // Returns true if this method could be overridden by a default method.
-  bool IsOverridableByDefaultMethod() SHARED_REQUIRES(Locks::mutator_lock_);
+  bool IsOverridableByDefaultMethod() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  bool CheckIncompatibleClassChange(InvokeType type) SHARED_REQUIRES(Locks::mutator_lock_);
+  bool CheckIncompatibleClassChange(InvokeType type) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Throws the error that would result from trying to invoke this method (i.e.
   // IncompatibleClassChangeError or AbstractMethodError). Only call if !IsInvokable();
-  void ThrowInvocationTimeError() SHARED_REQUIRES(Locks::mutator_lock_);
+  void ThrowInvocationTimeError() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  uint16_t GetMethodIndex() SHARED_REQUIRES(Locks::mutator_lock_);
+  uint16_t GetMethodIndex() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Doesn't do erroneous / unresolved class checks.
-  uint16_t GetMethodIndexDuringLinking() SHARED_REQUIRES(Locks::mutator_lock_);
+  uint16_t GetMethodIndexDuringLinking() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  size_t GetVtableIndex() SHARED_REQUIRES(Locks::mutator_lock_) {
+  size_t GetVtableIndex() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetMethodIndex();
   }
 
-  void SetMethodIndex(uint16_t new_method_index) SHARED_REQUIRES(Locks::mutator_lock_) {
+  void SetMethodIndex(uint16_t new_method_index) REQUIRES_SHARED(Locks::mutator_lock_) {
     // Not called within a transaction.
     method_index_ = new_method_index;
   }
@@ -422,9 +422,9 @@ class ArtMethod FINAL {
   // Number of 32bit registers that would be required to hold all the arguments
   static size_t NumArgRegisters(const StringPiece& shorty);
 
-  ALWAYS_INLINE uint32_t GetDexMethodIndex() SHARED_REQUIRES(Locks::mutator_lock_);
+  ALWAYS_INLINE uint32_t GetDexMethodIndex() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ALWAYS_INLINE uint32_t GetImtIndex() SHARED_REQUIRES(Locks::mutator_lock_);
+  ALWAYS_INLINE uint32_t GetImtIndex() REQUIRES_SHARED(Locks::mutator_lock_);
 
   void SetDexMethodIndex(uint32_t new_idx) {
     // Not called within a transaction.
@@ -432,45 +432,45 @@ class ArtMethod FINAL {
   }
 
   ALWAYS_INLINE ArtMethod** GetDexCacheResolvedMethods(PointerSize pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   ALWAYS_INLINE ArtMethod* GetDexCacheResolvedMethod(uint16_t method_index,
                                                      PointerSize pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   ALWAYS_INLINE void SetDexCacheResolvedMethod(uint16_t method_index,
                                                ArtMethod* new_method,
                                                PointerSize pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   ALWAYS_INLINE void SetDexCacheResolvedMethods(ArtMethod** new_dex_cache_methods,
                                                 PointerSize pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-  bool HasDexCacheResolvedMethods(PointerSize pointer_size) SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  bool HasDexCacheResolvedMethods(PointerSize pointer_size) REQUIRES_SHARED(Locks::mutator_lock_);
   bool HasSameDexCacheResolvedMethods(ArtMethod* other, PointerSize pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   bool HasSameDexCacheResolvedMethods(ArtMethod** other_cache, PointerSize pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   template <bool kWithCheck = true>
   mirror::Class* GetDexCacheResolvedType(uint32_t type_idx, PointerSize pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   void SetDexCacheResolvedTypes(GcRoot<mirror::Class>* new_dex_cache_types,
                                 PointerSize pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-  bool HasDexCacheResolvedTypes(PointerSize pointer_size) SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  bool HasDexCacheResolvedTypes(PointerSize pointer_size) REQUIRES_SHARED(Locks::mutator_lock_);
   bool HasSameDexCacheResolvedTypes(ArtMethod* other, PointerSize pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   bool HasSameDexCacheResolvedTypes(GcRoot<mirror::Class>* other_cache, PointerSize pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Get the Class* from the type index into this method's dex cache.
   mirror::Class* GetClassFromTypeIndex(uint16_t type_idx, bool resolve, PointerSize pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns true if this method has the same name and signature of the other method.
-  bool HasSameNameAndSignature(ArtMethod* other) SHARED_REQUIRES(Locks::mutator_lock_);
+  bool HasSameNameAndSignature(ArtMethod* other) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Find the method that this method overrides.
   ArtMethod* FindOverriddenMethod(PointerSize pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Find the method index for this method within other_dexfile. If this method isn't present then
   // return DexFile::kDexNoIndex. The name_and_signature_idx MUST refer to a MethodId with the same
@@ -478,10 +478,10 @@ class ArtMethod FINAL {
   // in the other_dexfile.
   uint32_t FindDexMethodIndexInOtherDexFile(const DexFile& other_dexfile,
                                             uint32_t name_and_signature_idx)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result, const char* shorty)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   const void* GetEntryPointFromQuickCompiledCode() {
     return GetEntryPointFromQuickCompiledCodePtrSize(kRuntimePointerSize);
@@ -503,9 +503,9 @@ class ArtMethod FINAL {
   }
 
   void RegisterNative(const void* native_method, bool is_fast)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void UnregisterNative() SHARED_REQUIRES(Locks::mutator_lock_);
+  void UnregisterNative() REQUIRES_SHARED(Locks::mutator_lock_);
 
   static MemberOffset DexCacheResolvedMethodsOffset(PointerSize pointer_size) {
     return MemberOffset(PtrSizedFieldsOffset(pointer_size) + OFFSETOF_MEMBER(
@@ -594,13 +594,13 @@ class ArtMethod FINAL {
   ALWAYS_INLINE bool IsRuntimeMethod();
 
   // Is this a hand crafted method used for something like describing callee saves?
-  bool IsCalleeSaveMethod() SHARED_REQUIRES(Locks::mutator_lock_);
+  bool IsCalleeSaveMethod() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  bool IsResolutionMethod() SHARED_REQUIRES(Locks::mutator_lock_);
+  bool IsResolutionMethod() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  bool IsImtUnimplementedMethod() SHARED_REQUIRES(Locks::mutator_lock_);
+  bool IsImtUnimplementedMethod() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  MethodReference ToMethodReference() SHARED_REQUIRES(Locks::mutator_lock_) {
+  MethodReference ToMethodReference() REQUIRES_SHARED(Locks::mutator_lock_) {
     return MethodReference(GetDexFile(), GetDexMethodIndex());
   }
 
@@ -609,66 +609,66 @@ class ArtMethod FINAL {
   // a move-exception instruction is present.
   uint32_t FindCatchBlock(Handle<mirror::Class> exception_type, uint32_t dex_pc,
                           bool* has_no_move_exception)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // NO_THREAD_SAFETY_ANALYSIS since we don't know what the callback requires.
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier, typename RootVisitorType>
   void VisitRoots(RootVisitorType& visitor, PointerSize pointer_size) NO_THREAD_SAFETY_ANALYSIS;
 
-  const DexFile* GetDexFile() SHARED_REQUIRES(Locks::mutator_lock_);
+  const DexFile* GetDexFile() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  const char* GetDeclaringClassDescriptor() SHARED_REQUIRES(Locks::mutator_lock_);
+  const char* GetDeclaringClassDescriptor() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  const char* GetShorty() SHARED_REQUIRES(Locks::mutator_lock_) {
+  const char* GetShorty() REQUIRES_SHARED(Locks::mutator_lock_) {
     uint32_t unused_length;
     return GetShorty(&unused_length);
   }
 
-  const char* GetShorty(uint32_t* out_length) SHARED_REQUIRES(Locks::mutator_lock_);
+  const char* GetShorty(uint32_t* out_length) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  const Signature GetSignature() SHARED_REQUIRES(Locks::mutator_lock_);
+  const Signature GetSignature() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ALWAYS_INLINE const char* GetName() SHARED_REQUIRES(Locks::mutator_lock_);
+  ALWAYS_INLINE const char* GetName() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  mirror::String* GetNameAsString(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_);
+  mirror::String* GetNameAsString(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  const DexFile::CodeItem* GetCodeItem() SHARED_REQUIRES(Locks::mutator_lock_);
+  const DexFile::CodeItem* GetCodeItem() REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool IsResolvedTypeIdx(uint16_t type_idx, PointerSize pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
-  int32_t GetLineNumFromDexPC(uint32_t dex_pc) SHARED_REQUIRES(Locks::mutator_lock_);
+  int32_t GetLineNumFromDexPC(uint32_t dex_pc) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  const DexFile::ProtoId& GetPrototype() SHARED_REQUIRES(Locks::mutator_lock_);
+  const DexFile::ProtoId& GetPrototype() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  const DexFile::TypeList* GetParameterTypeList() SHARED_REQUIRES(Locks::mutator_lock_);
+  const DexFile::TypeList* GetParameterTypeList() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  const char* GetDeclaringClassSourceFile() SHARED_REQUIRES(Locks::mutator_lock_);
+  const char* GetDeclaringClassSourceFile() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  uint16_t GetClassDefIndex() SHARED_REQUIRES(Locks::mutator_lock_);
+  uint16_t GetClassDefIndex() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  const DexFile::ClassDef& GetClassDef() SHARED_REQUIRES(Locks::mutator_lock_);
+  const DexFile::ClassDef& GetClassDef() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  const char* GetReturnTypeDescriptor() SHARED_REQUIRES(Locks::mutator_lock_);
+  const char* GetReturnTypeDescriptor() REQUIRES_SHARED(Locks::mutator_lock_);
 
   const char* GetTypeDescriptorFromTypeIdx(uint16_t type_idx)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // May cause thread suspension due to GetClassFromTypeIdx calling ResolveType this caused a large
   // number of bugs at call sites.
   mirror::Class* GetReturnType(bool resolve, PointerSize pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
-  mirror::ClassLoader* GetClassLoader() SHARED_REQUIRES(Locks::mutator_lock_);
+  mirror::ClassLoader* GetClassLoader() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  mirror::DexCache* GetDexCache() SHARED_REQUIRES(Locks::mutator_lock_);
+  mirror::DexCache* GetDexCache() REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE ArtMethod* GetInterfaceMethodIfProxy(PointerSize pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // May cause thread suspension due to class resolution.
   bool EqualParameters(Handle<mirror::ObjectArray<mirror::Class>> params)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Size of an instance of this native class.
   static size_t Size(PointerSize pointer_size) {
@@ -684,10 +684,10 @@ class ArtMethod FINAL {
   }
 
   void CopyFrom(ArtMethod* src, PointerSize image_pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE GcRoot<mirror::Class>* GetDexCacheResolvedTypes(PointerSize pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Note, hotness_counter_ updates are non-atomic but it doesn't need to be precise.  Also,
   // given that the counter is only 16 bits wide we can expect wrap-around in some
@@ -708,15 +708,15 @@ class ArtMethod FINAL {
     return hotness_count_;
   }
 
-  const uint8_t* GetQuickenedInfo() SHARED_REQUIRES(Locks::mutator_lock_);
+  const uint8_t* GetQuickenedInfo() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns the method header for the compiled code containing 'pc'. Note that runtime
   // methods will return null for this method, as they are not oat based.
   const OatQuickMethodHeader* GetOatQuickMethodHeader(uintptr_t pc)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns whether the method has any compiled code, JIT or AOT.
-  bool HasAnyCompiledCode() SHARED_REQUIRES(Locks::mutator_lock_);
+  bool HasAnyCompiledCode() REQUIRES_SHARED(Locks::mutator_lock_);
 
 
   // Update heap objects and non-entrypoint pointers by the passed in visitor for image relocation.
@@ -724,7 +724,7 @@ class ArtMethod FINAL {
   template <typename Visitor>
   ALWAYS_INLINE void UpdateObjectsForImageRelocation(const Visitor& visitor,
                                                      PointerSize pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Update entry points by passing them through the visitor.
   template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier, typename Visitor>

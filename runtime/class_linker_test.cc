@@ -49,7 +49,7 @@ namespace art {
 class ClassLinkerTest : public CommonRuntimeTest {
  protected:
   void AssertNonExistentClass(const std::string& descriptor)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     Thread* self = Thread::Current();
     EXPECT_TRUE(class_linker_->FindSystemClass(self, descriptor.c_str()) == nullptr);
     EXPECT_TRUE(self->IsExceptionPending());
@@ -61,13 +61,13 @@ class ClassLinkerTest : public CommonRuntimeTest {
   }
 
   void AssertPrimitiveClass(const std::string& descriptor)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     Thread* self = Thread::Current();
     AssertPrimitiveClass(descriptor, class_linker_->FindSystemClass(self, descriptor.c_str()));
   }
 
   void AssertPrimitiveClass(const std::string& descriptor, mirror::Class* primitive)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     ASSERT_TRUE(primitive != nullptr);
     ASSERT_TRUE(primitive->GetClass() != nullptr);
     ASSERT_EQ(primitive->GetClass(), primitive->GetClass()->GetClass());
@@ -103,7 +103,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
   }
 
   void AssertObjectClass(mirror::Class* JavaLangObject)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     ASSERT_TRUE(JavaLangObject != nullptr);
     ASSERT_TRUE(JavaLangObject->GetClass() != nullptr);
     ASSERT_EQ(JavaLangObject->GetClass(),
@@ -161,7 +161,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
   void AssertArrayClass(const std::string& array_descriptor,
                         const std::string& component_type,
                         mirror::ClassLoader* class_loader)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     Thread* self = Thread::Current();
     StackHandleScope<2> hs(self);
     Handle<mirror::ClassLoader> loader(hs.NewHandle(class_loader));
@@ -175,7 +175,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
   }
 
   void AssertArrayClass(const std::string& array_descriptor, Handle<mirror::Class> array)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     ASSERT_TRUE(array.Get() != nullptr);
     ASSERT_TRUE(array->GetClass() != nullptr);
     ASSERT_EQ(array->GetClass(), array->GetClass()->GetClass());
@@ -226,7 +226,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     ASSERT_EQ(JavaLangObject_imt, array->GetImt(pointer_size));
   }
 
-  void AssertMethod(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_) {
+  void AssertMethod(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
     EXPECT_TRUE(method != nullptr);
     EXPECT_TRUE(method->GetDeclaringClass() != nullptr);
     EXPECT_TRUE(method->GetName() != nullptr);
@@ -243,7 +243,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
   }
 
   void AssertField(mirror::Class* klass, ArtField* field)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     EXPECT_TRUE(field != nullptr);
     EXPECT_EQ(klass, field->GetDeclaringClass());
     EXPECT_TRUE(field->GetName() != nullptr);
@@ -251,7 +251,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
   }
 
   void AssertClass(const std::string& descriptor, Handle<mirror::Class> klass)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     std::string temp;
     EXPECT_STREQ(descriptor.c_str(), klass->GetDescriptor(&temp));
     if (descriptor == "Ljava/lang/Object;") {
@@ -397,7 +397,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
   }
 
   void AssertDexFileClass(mirror::ClassLoader* class_loader, const std::string& descriptor)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     ASSERT_TRUE(descriptor != nullptr);
     Thread* self = Thread::Current();
     StackHandleScope<1> hs(self);
@@ -417,7 +417,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
   }
 
   void AssertDexFile(const DexFile& dex, mirror::ClassLoader* class_loader)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     // Verify all the classes defined in this file
     for (size_t i = 0; i < dex.NumClassDefs(); i++) {
       const DexFile::ClassDef& class_def = dex.GetClassDef(i);
@@ -464,7 +464,7 @@ struct CheckOffsets {
   std::string class_descriptor;
   std::vector<CheckOffset> offsets;
 
-  bool Check() SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool Check() REQUIRES_SHARED(Locks::mutator_lock_) {
     Thread* self = Thread::Current();
     mirror::Class* klass =
         Runtime::Current()->GetClassLinker()->FindSystemClass(self, class_descriptor.c_str());
@@ -1158,7 +1158,7 @@ TEST_F(ClassLinkerTest, ValidatePredefinedClassSizes) {
 }
 
 static void CheckMethod(ArtMethod* method, bool verified)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   if (!method->IsNative() && !method->IsAbstract()) {
     EXPECT_EQ((method->GetAccessFlags() & kAccSkipAccessChecks) != 0U, verified)
         << PrettyMethod(method, true);
@@ -1166,7 +1166,7 @@ static void CheckMethod(ArtMethod* method, bool verified)
 }
 
 static void CheckVerificationAttempted(mirror::Class* c, bool preverified)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   EXPECT_EQ((c->GetAccessFlags() & kAccVerificationAttempted) != 0U, preverified)
       << "Class " << PrettyClass(c) << " not as expected";
   for (auto& m : c->GetMethods(kRuntimePointerSize)) {

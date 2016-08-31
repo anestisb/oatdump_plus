@@ -195,7 +195,7 @@ template<size_t kAlignment>
 void SpaceBitmap<kAlignment>::WalkInstanceFields(SpaceBitmap<kAlignment>* visited,
                                                  ObjectCallback* callback, mirror::Object* obj,
                                                  mirror::Class* klass, void* arg)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   // Visit fields of parent classes first.
   mirror::Class* super = klass->GetSuperClass();
   if (super != nullptr) {

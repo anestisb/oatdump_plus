@@ -114,12 +114,12 @@ class CommonRuntimeTestImpl {
   std::string GetTestDexFileName(const char* name) const;
 
   std::vector<std::unique_ptr<const DexFile>> OpenTestDexFiles(const char* name)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   std::unique_ptr<const DexFile> OpenTestDexFile(const char* name)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
-  jobject LoadDex(const char* dex_name) SHARED_REQUIRES(Locks::mutator_lock_);
+  jobject LoadDex(const char* dex_name) REQUIRES_SHARED(Locks::mutator_lock_);
 
   std::string android_data_;
   std::string dalvik_cache_;

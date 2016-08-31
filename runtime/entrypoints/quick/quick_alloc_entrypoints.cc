@@ -31,7 +31,7 @@ static constexpr bool kUseTlabFastPath = true;
 #define GENERATE_ENTRYPOINTS_FOR_ALLOCATOR_INST(suffix, suffix2, instrumented_bool, allocator_type) \
 extern "C" mirror::Object* artAllocObjectFromCode ##suffix##suffix2( \
     uint32_t type_idx, ArtMethod* method, Thread* self) \
-    SHARED_REQUIRES(Locks::mutator_lock_) { \
+    REQUIRES_SHARED(Locks::mutator_lock_) { \
   ScopedQuickEntrypointChecks sqec(self); \
   if (kUseTlabFastPath && !(instrumented_bool) && (allocator_type) == gc::kAllocatorTypeTLAB) { \
     mirror::Class* klass = method->GetDexCacheResolvedType<false>(type_idx, kRuntimePointerSize); \
@@ -58,7 +58,7 @@ extern "C" mirror::Object* artAllocObjectFromCode ##suffix##suffix2( \
 } \
 extern "C" mirror::Object* artAllocObjectFromCodeResolved##suffix##suffix2( \
     mirror::Class* klass, ArtMethod* method ATTRIBUTE_UNUSED, Thread* self) \
-    SHARED_REQUIRES(Locks::mutator_lock_) { \
+    REQUIRES_SHARED(Locks::mutator_lock_) { \
   ScopedQuickEntrypointChecks sqec(self); \
   if (kUseTlabFastPath && !(instrumented_bool) && (allocator_type) == gc::kAllocatorTypeTLAB) { \
     if (LIKELY(klass->IsInitialized())) { \
@@ -84,7 +84,7 @@ extern "C" mirror::Object* artAllocObjectFromCodeResolved##suffix##suffix2( \
 } \
 extern "C" mirror::Object* artAllocObjectFromCodeInitialized##suffix##suffix2( \
     mirror::Class* klass, ArtMethod* method ATTRIBUTE_UNUSED, Thread* self) \
-    SHARED_REQUIRES(Locks::mutator_lock_) { \
+    REQUIRES_SHARED(Locks::mutator_lock_) { \
   ScopedQuickEntrypointChecks sqec(self); \
   if (kUseTlabFastPath && !(instrumented_bool) && (allocator_type) == gc::kAllocatorTypeTLAB) { \
     size_t byte_count = klass->GetObjectSize(); \
@@ -108,34 +108,34 @@ extern "C" mirror::Object* artAllocObjectFromCodeInitialized##suffix##suffix2( \
 } \
 extern "C" mirror::Object* artAllocObjectFromCodeWithAccessCheck##suffix##suffix2( \
     uint32_t type_idx, ArtMethod* method, Thread* self) \
-    SHARED_REQUIRES(Locks::mutator_lock_) { \
+    REQUIRES_SHARED(Locks::mutator_lock_) { \
   ScopedQuickEntrypointChecks sqec(self); \
   return AllocObjectFromCode<true, instrumented_bool>(type_idx, method, self, allocator_type); \
 } \
 extern "C" mirror::Array* artAllocArrayFromCode##suffix##suffix2( \
     uint32_t type_idx, int32_t component_count, ArtMethod* method, Thread* self) \
-    SHARED_REQUIRES(Locks::mutator_lock_) { \
+    REQUIRES_SHARED(Locks::mutator_lock_) { \
   ScopedQuickEntrypointChecks sqec(self); \
   return AllocArrayFromCode<false, instrumented_bool>(type_idx, component_count, method, self, \
                                                       allocator_type); \
 } \
 extern "C" mirror::Array* artAllocArrayFromCodeResolved##suffix##suffix2( \
     mirror::Class* klass, int32_t component_count, ArtMethod* method, Thread* self) \
-    SHARED_REQUIRES(Locks::mutator_lock_) { \
+    REQUIRES_SHARED(Locks::mutator_lock_) { \
   ScopedQuickEntrypointChecks sqec(self); \
   return AllocArrayFromCodeResolved<false, instrumented_bool>(klass, component_count, method, self, \
                                                               allocator_type); \
 } \
 extern "C" mirror::Array* artAllocArrayFromCodeWithAccessCheck##suffix##suffix2( \
     uint32_t type_idx, int32_t component_count, ArtMethod* method, Thread* self) \
-    SHARED_REQUIRES(Locks::mutator_lock_) { \
+    REQUIRES_SHARED(Locks::mutator_lock_) { \
   ScopedQuickEntrypointChecks sqec(self); \
   return AllocArrayFromCode<true, instrumented_bool>(type_idx, component_count, method, self, \
                                                      allocator_type); \
 } \
 extern "C" mirror::Array* artCheckAndAllocArrayFromCode##suffix##suffix2( \
     uint32_t type_idx, int32_t component_count, ArtMethod* method, Thread* self) \
-    SHARED_REQUIRES(Locks::mutator_lock_) { \
+    REQUIRES_SHARED(Locks::mutator_lock_) { \
   ScopedQuickEntrypointChecks sqec(self); \
   if (!(instrumented_bool)) { \
     return CheckAndAllocArrayFromCode(type_idx, component_count, method, self, false, allocator_type); \
@@ -145,7 +145,7 @@ extern "C" mirror::Array* artCheckAndAllocArrayFromCode##suffix##suffix2( \
 } \
 extern "C" mirror::Array* artCheckAndAllocArrayFromCodeWithAccessCheck##suffix##suffix2( \
     uint32_t type_idx, int32_t component_count, ArtMethod* method, Thread* self) \
-    SHARED_REQUIRES(Locks::mutator_lock_) { \
+    REQUIRES_SHARED(Locks::mutator_lock_) { \
   ScopedQuickEntrypointChecks sqec(self); \
   if (!(instrumented_bool)) { \
     return CheckAndAllocArrayFromCode(type_idx, component_count, method, self, true, allocator_type); \
@@ -156,7 +156,7 @@ extern "C" mirror::Array* artCheckAndAllocArrayFromCodeWithAccessCheck##suffix##
 extern "C" mirror::String* artAllocStringFromBytesFromCode##suffix##suffix2( \
     mirror::ByteArray* byte_array, int32_t high, int32_t offset, int32_t byte_count, \
     Thread* self) \
-    SHARED_REQUIRES(Locks::mutator_lock_) { \
+    REQUIRES_SHARED(Locks::mutator_lock_) { \
   ScopedQuickEntrypointChecks sqec(self); \
   StackHandleScope<1> hs(self); \
   Handle<mirror::ByteArray> handle_array(hs.NewHandle(byte_array)); \
@@ -165,7 +165,7 @@ extern "C" mirror::String* artAllocStringFromBytesFromCode##suffix##suffix2( \
 } \
 extern "C" mirror::String* artAllocStringFromCharsFromCode##suffix##suffix2( \
     int32_t offset, int32_t char_count, mirror::CharArray* char_array, Thread* self) \
-    SHARED_REQUIRES(Locks::mutator_lock_) { \
+    REQUIRES_SHARED(Locks::mutator_lock_) { \
   StackHandleScope<1> hs(self); \
   Handle<mirror::CharArray> handle_array(hs.NewHandle(char_array)); \
   return mirror::String::AllocFromCharArray<instrumented_bool>(self, char_count, handle_array, \
@@ -173,7 +173,7 @@ extern "C" mirror::String* artAllocStringFromCharsFromCode##suffix##suffix2( \
 } \
 extern "C" mirror::String* artAllocStringFromStringFromCode##suffix##suffix2( /* NOLINT */ \
     mirror::String* string, Thread* self) \
-    SHARED_REQUIRES(Locks::mutator_lock_) { \
+    REQUIRES_SHARED(Locks::mutator_lock_) { \
   StackHandleScope<1> hs(self); \
   Handle<mirror::String> handle_string(hs.NewHandle(string)); \
   return mirror::String::AllocFromString<instrumented_bool>(self, handle_string->GetLength(), \

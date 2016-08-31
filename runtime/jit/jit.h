@@ -50,7 +50,7 @@ class Jit {
   virtual ~Jit();
   static Jit* Create(JitOptions* options, std::string* error_msg);
   bool CompileMethod(ArtMethod* method, Thread* self, bool osr)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   void CreateThreadPool();
 
   const JitCodeCache* GetCodeCache() const {
@@ -70,7 +70,7 @@ class Jit {
 
   void AddMemoryUsage(ArtMethod* method, size_t bytes)
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   size_t OSRMethodThreshold() const {
     return osr_method_threshold_;
@@ -102,25 +102,25 @@ class Jit {
 
   // Profiling methods.
   void MethodEntered(Thread* thread, ArtMethod* method)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void AddSamples(Thread* self, ArtMethod* method, uint16_t samples, bool with_backedges)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void InvokeVirtualOrInterface(Thread* thread,
                                 mirror::Object* this_object,
                                 ArtMethod* caller,
                                 uint32_t dex_pc,
                                 ArtMethod* callee)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void NotifyInterpreterToCompiledCodeTransition(Thread* self, ArtMethod* caller)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     AddSamples(self, caller, invoke_transition_weight_, false);
   }
 
   void NotifyCompiledCodeToInterpreterTransition(Thread* self, ArtMethod* callee)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     AddSamples(self, callee, invoke_transition_weight_, false);
   }
 
@@ -140,7 +140,7 @@ class Jit {
   void DumpForSigQuit(std::ostream& os) REQUIRES(!lock_);
 
   static void NewTypeLoadedIfUsingJit(mirror::Class* type)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // If debug info generation is turned on then write the type information for types already loaded
   // into the specified class linker to the jit debug interface,
@@ -164,7 +164,7 @@ class Jit {
                                         uint32_t dex_pc,
                                         int32_t dex_pc_offset,
                                         JValue* result)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   static bool LoadCompilerLibrary(std::string* error_msg);
 

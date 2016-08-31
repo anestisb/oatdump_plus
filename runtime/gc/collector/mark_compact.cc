@@ -136,7 +136,7 @@ inline mirror::Object* MarkCompact::MarkObject(mirror::Object* obj) {
     } else {
       DCHECK(!space_->HasAddress(obj));
       auto slow_path = [this](const mirror::Object* ref)
-          SHARED_REQUIRES(Locks::mutator_lock_) {
+          REQUIRES_SHARED(Locks::mutator_lock_) {
         // Marking a large object, make sure its aligned as a sanity check.
         if (!IsAligned<kPageSize>(ref)) {
           Runtime::Current()->GetHeap()->DumpSpaces(LOG(ERROR));
@@ -289,7 +289,7 @@ class MarkCompact::UpdateRootVisitor : public RootVisitor {
 
   void VisitRoots(mirror::Object*** roots, size_t count, const RootInfo& info ATTRIBUTE_UNUSED)
       OVERRIDE REQUIRES(Locks::mutator_lock_)
-      SHARED_REQUIRES(Locks::heap_bitmap_lock_) {
+      REQUIRES_SHARED(Locks::heap_bitmap_lock_) {
     for (size_t i = 0; i < count; ++i) {
       mirror::Object* obj = *roots[i];
       mirror::Object* new_obj = collector_->GetMarkedForwardAddress(obj);
@@ -303,7 +303,7 @@ class MarkCompact::UpdateRootVisitor : public RootVisitor {
   void VisitRoots(mirror::CompressedReference<mirror::Object>** roots, size_t count,
                   const RootInfo& info ATTRIBUTE_UNUSED)
       OVERRIDE REQUIRES(Locks::mutator_lock_)
-      SHARED_REQUIRES(Locks::heap_bitmap_lock_) {
+      REQUIRES_SHARED(Locks::heap_bitmap_lock_) {
     for (size_t i = 0; i < count; ++i) {
       mirror::Object* obj = roots[i]->AsMirrorPtr();
       mirror::Object* new_obj = collector_->GetMarkedForwardAddress(obj);
@@ -322,7 +322,7 @@ class MarkCompact::UpdateObjectReferencesVisitor {
  public:
   explicit UpdateObjectReferencesVisitor(MarkCompact* collector) : collector_(collector) {}
 
-  void operator()(mirror::Object* obj) const SHARED_REQUIRES(Locks::heap_bitmap_lock_)
+  void operator()(mirror::Object* obj) const REQUIRES_SHARED(Locks::heap_bitmap_lock_)
           REQUIRES(Locks::mutator_lock_) ALWAYS_INLINE {
     collector_->UpdateObjectReferences(obj);
   }
@@ -509,7 +509,7 @@ void MarkCompact::MoveObjects() {
   objects_before_forwarding_->VisitMarkedRange(reinterpret_cast<uintptr_t>(space_->Begin()),
                                                reinterpret_cast<uintptr_t>(space_->End()),
                                                [this](mirror::Object* obj)
-      SHARED_REQUIRES(Locks::heap_bitmap_lock_)
+      REQUIRES_SHARED(Locks::heap_bitmap_lock_)
       REQUIRES(Locks::mutator_lock_) ALWAYS_INLINE {
     MoveObject(obj, obj->SizeOf());
   });
@@ -558,7 +558,7 @@ class MarkCompact::MarkObjectVisitor {
   }
 
   void operator()(mirror::Class* klass, mirror::Reference* ref) const
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::heap_bitmap_lock_) {
     collector_->DelayReferenceReferent(klass, ref);
   }

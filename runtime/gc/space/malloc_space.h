@@ -63,9 +63,9 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
   // amount of the storage space that may be used by obj.
   virtual size_t AllocationSize(mirror::Object* obj, size_t* usable_size) = 0;
   virtual size_t Free(Thread* self, mirror::Object* ptr)
-      SHARED_REQUIRES(Locks::mutator_lock_) = 0;
+      REQUIRES_SHARED(Locks::mutator_lock_) = 0;
   virtual size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs)
-      SHARED_REQUIRES(Locks::mutator_lock_) = 0;
+      REQUIRES_SHARED(Locks::mutator_lock_) = 0;
 
   // Returns the maximum bytes that could be allocated for the given
   // size in bulk, that is the maximum value for the
@@ -160,7 +160,7 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
                                 size_t maximum_size, bool low_memory_mode) = 0;
 
   virtual void RegisterRecentFree(mirror::Object* ptr)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(lock_);
 
   virtual accounting::ContinuousSpaceBitmap::SweepCallback* GetSweepCallback() {
@@ -196,7 +196,7 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
 
  private:
   static void SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* arg)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   DISALLOW_COPY_AND_ASSIGN(MallocSpace);
 };

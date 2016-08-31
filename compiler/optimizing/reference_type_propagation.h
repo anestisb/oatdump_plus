@@ -44,7 +44,7 @@ class ReferenceTypePropagation : public HOptimization {
 
   // Returns true if klass is admissible to the propagation: non-null and resolved.
   // For an array type, we also check if the component type is admissible.
-  static bool IsAdmissible(mirror::Class* klass) SHARED_REQUIRES(Locks::mutator_lock_) {
+  static bool IsAdmissible(mirror::Class* klass) REQUIRES_SHARED(Locks::mutator_lock_) {
     return klass != nullptr &&
            klass->IsResolved() &&
            (!klass->IsArrayClass() || IsAdmissible(klass->GetComponentType()));
@@ -58,7 +58,7 @@ class ReferenceTypePropagation : public HOptimization {
     explicit HandleCache(StackHandleScopeCollection* handles) : handles_(handles) { }
 
     template <typename T>
-    MutableHandle<T> NewHandle(T* object) SHARED_REQUIRES(Locks::mutator_lock_) {
+    MutableHandle<T> NewHandle(T* object) REQUIRES_SHARED(Locks::mutator_lock_) {
       return handles_->NewHandle(object);
     }
 
@@ -80,8 +80,8 @@ class ReferenceTypePropagation : public HOptimization {
 
   void VisitPhi(HPhi* phi);
   void VisitBasicBlock(HBasicBlock* block);
-  void UpdateBoundType(HBoundType* bound_type) SHARED_REQUIRES(Locks::mutator_lock_);
-  void UpdatePhi(HPhi* phi) SHARED_REQUIRES(Locks::mutator_lock_);
+  void UpdateBoundType(HBoundType* bound_type) REQUIRES_SHARED(Locks::mutator_lock_);
+  void UpdatePhi(HPhi* phi) REQUIRES_SHARED(Locks::mutator_lock_);
   void BoundTypeForIfNotNull(HBasicBlock* block);
   void BoundTypeForIfInstanceOf(HBasicBlock* block);
   void ProcessWorklist();
@@ -92,10 +92,10 @@ class ReferenceTypePropagation : public HOptimization {
   bool UpdateReferenceTypeInfo(HInstruction* instr);
 
   static void UpdateArrayGet(HArrayGet* instr, HandleCache* handle_cache)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   ReferenceTypeInfo MergeTypes(const ReferenceTypeInfo& a, const ReferenceTypeInfo& b)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void ValidateTypes();
 

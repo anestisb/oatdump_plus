@@ -379,7 +379,7 @@ namespace allocator {
 
 // Callback from rosalloc when it needs to increase the footprint.
 void* ArtRosAllocMoreCore(allocator::RosAlloc* rosalloc, intptr_t increment)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   Heap* heap = Runtime::Current()->GetHeap();
   art::gc::space::RosAllocSpace* rosalloc_space = heap->GetRosAllocSpace(rosalloc);
   DCHECK(rosalloc_space != nullptr);
