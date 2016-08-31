@@ -59,7 +59,7 @@ class ImgDiagDumper {
         image_diff_pid_(image_diff_pid),
         zygote_diff_pid_(zygote_diff_pid) {}
 
-  bool Dump() SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool Dump() REQUIRES_SHARED(Locks::mutator_lock_) {
     std::ostream& os = *os_;
     os << "IMAGE LOCATION: " << image_location_ << "\n\n";
 
@@ -98,7 +98,7 @@ class ImgDiagDumper {
   }
 
   bool DumpImageDiff(pid_t image_diff_pid, pid_t zygote_diff_pid)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     std::ostream& os = *os_;
 
     {
@@ -145,7 +145,7 @@ class ImgDiagDumper {
   }
 
   static std::string PrettyFieldValue(ArtField* field, mirror::Object* obj)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     std::ostringstream oss;
     switch (field->GetTypeAsPrimitiveType()) {
       case Primitive::kPrimNot: {
@@ -217,7 +217,7 @@ class ImgDiagDumper {
 
   void DiffObjectContents(mirror::Object* obj,
                           uint8_t* remote_bytes,
-                          std::ostream& os) SHARED_REQUIRES(Locks::mutator_lock_) {
+                          std::ostream& os) REQUIRES_SHARED(Locks::mutator_lock_) {
     const char* tabs = "    ";
     // Attempt to find fields for all dirty bytes.
     mirror::Class* klass = obj->GetClass();
@@ -283,7 +283,7 @@ class ImgDiagDumper {
   bool DumpImageDiffMap(pid_t image_diff_pid,
                         pid_t zygote_diff_pid,
                         const backtrace_map_t& boot_map)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
     std::ostream& os = *os_;
     const PointerSize pointer_size = InstructionSetPointerSize(
         Runtime::Current()->GetInstructionSet());
@@ -867,7 +867,7 @@ class ImgDiagDumper {
   }
 
   static std::string GetClassDescriptor(mirror::Class* klass)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
     CHECK(klass != nullptr);
 
     std::string descriptor;

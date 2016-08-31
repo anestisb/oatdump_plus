@@ -99,14 +99,14 @@ class PatchOat {
                                         bool new_oat_out);  // Output oat was newly created?
 
   static void BitmapCallback(mirror::Object* obj, void* arg)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     reinterpret_cast<PatchOat*>(arg)->VisitObject(obj);
   }
 
   void VisitObject(mirror::Object* obj)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   void FixupMethod(ArtMethod* object, ArtMethod* copy)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Patches oat in place, modifying the oat_file given to the constructor.
   bool PatchElf();
@@ -115,18 +115,18 @@ class PatchOat {
   template <typename ElfFileImpl>
   bool PatchOatHeader(ElfFileImpl* oat_file);
 
-  bool PatchImage(bool primary_image) SHARED_REQUIRES(Locks::mutator_lock_);
-  void PatchArtFields(const ImageHeader* image_header) SHARED_REQUIRES(Locks::mutator_lock_);
-  void PatchArtMethods(const ImageHeader* image_header) SHARED_REQUIRES(Locks::mutator_lock_);
-  void PatchImTables(const ImageHeader* image_header) SHARED_REQUIRES(Locks::mutator_lock_);
+  bool PatchImage(bool primary_image) REQUIRES_SHARED(Locks::mutator_lock_);
+  void PatchArtFields(const ImageHeader* image_header) REQUIRES_SHARED(Locks::mutator_lock_);
+  void PatchArtMethods(const ImageHeader* image_header) REQUIRES_SHARED(Locks::mutator_lock_);
+  void PatchImTables(const ImageHeader* image_header) REQUIRES_SHARED(Locks::mutator_lock_);
   void PatchImtConflictTables(const ImageHeader* image_header)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   void PatchInternedStrings(const ImageHeader* image_header)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   void PatchClassTable(const ImageHeader* image_header)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   void PatchDexFileArrays(mirror::ObjectArray<mirror::Object>* img_roots)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool WriteElf(File* out);
   bool WriteImage(File* out);

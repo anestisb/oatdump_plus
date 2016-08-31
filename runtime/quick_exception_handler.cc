@@ -59,13 +59,13 @@ class CatchBlockStackVisitor FINAL : public StackVisitor {
  public:
   CatchBlockStackVisitor(Thread* self, Context* context, Handle<mirror::Throwable>* exception,
                          QuickExceptionHandler* exception_handler)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       : StackVisitor(self, context, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         exception_(exception),
         exception_handler_(exception_handler) {
   }
 
-  bool VisitFrame() OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool VisitFrame() OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     ArtMethod* method = GetMethod();
     exception_handler_->SetHandlerFrameDepth(GetFrameDepth());
     if (method == nullptr) {
@@ -97,7 +97,7 @@ class CatchBlockStackVisitor FINAL : public StackVisitor {
 
  private:
   bool HandleTryItems(ArtMethod* method)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     uint32_t dex_pc = DexFile::kDexNoIndex;
     if (!method->IsNative()) {
       dex_pc = GetDexPc();
@@ -284,7 +284,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
                          Context* context,
                          QuickExceptionHandler* exception_handler,
                          bool single_frame)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       : StackVisitor(self, context, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         exception_handler_(exception_handler),
         prev_shadow_frame_(nullptr),
@@ -304,7 +304,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
     return single_frame_deopt_quick_method_header_;
   }
 
-  void FinishStackWalk() SHARED_REQUIRES(Locks::mutator_lock_) {
+  void FinishStackWalk() REQUIRES_SHARED(Locks::mutator_lock_) {
     // This is the upcall, or the next full frame in single-frame deopt, or the
     // code isn't deoptimizeable. We remember the frame and last pc so that we
     // may long jump to them.
@@ -327,7 +327,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
     }
   }
 
-  bool VisitFrame() OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool VisitFrame() OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     exception_handler_->SetHandlerFrameDepth(GetFrameDepth());
     ArtMethod* method = GetMethod();
     if (method == nullptr || single_frame_done_) {
@@ -396,7 +396,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
   void HandleOptimizingDeoptimization(ArtMethod* m,
                                       ShadowFrame* new_frame,
                                       const bool* updated_vregs)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
     CodeInfo code_info = method_header->GetOptimizedCodeInfo();
     uintptr_t native_pc_offset = method_header->NativeQuickPcOffset(GetCurrentQuickFramePc());
@@ -577,14 +577,14 @@ void QuickExceptionHandler::DeoptimizePartialFragmentFixup(uintptr_t return_pc) 
 class InstrumentationStackVisitor : public StackVisitor {
  public:
   InstrumentationStackVisitor(Thread* self, size_t frame_depth)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       : StackVisitor(self, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         frame_depth_(frame_depth),
         instrumentation_frames_to_pop_(0) {
     CHECK_NE(frame_depth_, kInvalidFrameDepth);
   }
 
-  bool VisitFrame() SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool VisitFrame() REQUIRES_SHARED(Locks::mutator_lock_) {
     size_t current_frame_depth = GetFrameDepth();
     if (current_frame_depth < frame_depth_) {
       CHECK(GetMethod() != nullptr);
@@ -647,11 +647,11 @@ void QuickExceptionHandler::DoLongJump(bool smash_caller_saves) {
 class DumpFramesWithTypeStackVisitor FINAL : public StackVisitor {
  public:
   explicit DumpFramesWithTypeStackVisitor(Thread* self, bool show_details = false)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       : StackVisitor(self, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         show_details_(show_details) {}
 
-  bool VisitFrame() OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool VisitFrame() OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     ArtMethod* method = GetMethod();
     if (show_details_) {
       LOG(INFO) << "|> pc   = " << std::hex << GetCurrentQuickFramePc();

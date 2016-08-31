@@ -254,7 +254,7 @@ inline void ArtField::SetObject(mirror::Object* object, mirror::Object* l) {
   SetObj<kTransactionActive>(object, l);
 }
 
-inline const char* ArtField::GetName() SHARED_REQUIRES(Locks::mutator_lock_) {
+inline const char* ArtField::GetName() REQUIRES_SHARED(Locks::mutator_lock_) {
   uint32_t field_index = GetDexFieldIndex();
   if (UNLIKELY(GetDeclaringClass()->IsProxyClass())) {
     DCHECK(IsStatic());
@@ -265,7 +265,7 @@ inline const char* ArtField::GetName() SHARED_REQUIRES(Locks::mutator_lock_) {
   return dex_file->GetFieldName(dex_file->GetFieldId(field_index));
 }
 
-inline const char* ArtField::GetTypeDescriptor() SHARED_REQUIRES(Locks::mutator_lock_) {
+inline const char* ArtField::GetTypeDescriptor() REQUIRES_SHARED(Locks::mutator_lock_) {
   uint32_t field_index = GetDexFieldIndex();
   if (UNLIKELY(GetDeclaringClass()->IsProxyClass())) {
     DCHECK(IsStatic());
@@ -279,11 +279,11 @@ inline const char* ArtField::GetTypeDescriptor() SHARED_REQUIRES(Locks::mutator_
 }
 
 inline Primitive::Type ArtField::GetTypeAsPrimitiveType()
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   return Primitive::GetType(GetTypeDescriptor()[0]);
 }
 
-inline bool ArtField::IsPrimitiveType() SHARED_REQUIRES(Locks::mutator_lock_) {
+inline bool ArtField::IsPrimitiveType() REQUIRES_SHARED(Locks::mutator_lock_) {
   return GetTypeAsPrimitiveType() != Primitive::kPrimNot;
 }
 
@@ -305,15 +305,15 @@ inline mirror::Class* ArtField::GetType() {
   return type;
 }
 
-inline size_t ArtField::FieldSize() SHARED_REQUIRES(Locks::mutator_lock_) {
+inline size_t ArtField::FieldSize() REQUIRES_SHARED(Locks::mutator_lock_) {
   return Primitive::ComponentSize(GetTypeAsPrimitiveType());
 }
 
-inline mirror::DexCache* ArtField::GetDexCache() SHARED_REQUIRES(Locks::mutator_lock_) {
+inline mirror::DexCache* ArtField::GetDexCache() REQUIRES_SHARED(Locks::mutator_lock_) {
   return GetDeclaringClass()->GetDexCache();
 }
 
-inline const DexFile* ArtField::GetDexFile() SHARED_REQUIRES(Locks::mutator_lock_) {
+inline const DexFile* ArtField::GetDexFile() REQUIRES_SHARED(Locks::mutator_lock_) {
   return GetDexCache()->GetDexFile();
 }
 
@@ -349,7 +349,7 @@ inline void ArtField::UpdateObjects(const Visitor& visitor) {
 template <bool kExactOffset>
 static inline ArtField* FindFieldWithOffset(
     const IterationRange<StrideIterator<ArtField>>& fields,
-    uint32_t field_offset) SHARED_REQUIRES(Locks::mutator_lock_) {
+    uint32_t field_offset) REQUIRES_SHARED(Locks::mutator_lock_) {
   for (ArtField& field : fields) {
     if (kExactOffset) {
       if (field.GetOffset().Uint32Value() == field_offset) {

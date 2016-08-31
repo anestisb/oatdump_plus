@@ -81,7 +81,7 @@ void ConvertUtf16ToModifiedUtf8(char* utf8_out, size_t byte_count,
  * The java.lang.String hashCode() algorithm.
  */
 int32_t ComputeUtf16Hash(mirror::CharArray* chars, int32_t offset, size_t char_count)
-    SHARED_REQUIRES(Locks::mutator_lock_);
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
 template<typename MemoryType>
 int32_t ComputeUtf16Hash(const MemoryType* chars, size_t char_count) {

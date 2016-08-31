@@ -52,7 +52,7 @@ class SpaceTest : public Super {
     heap->SetSpaceAsDefault(space);
   }
 
-  mirror::Class* GetByteArrayClass(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_) {
+  mirror::Class* GetByteArrayClass(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_) {
     StackHandleScope<1> hs(self);
     auto null_loader(hs.NewHandle<mirror::ClassLoader>(nullptr));
     if (byte_array_class_ == nullptr) {
@@ -71,7 +71,7 @@ class SpaceTest : public Super {
                         size_t* bytes_allocated,
                         size_t* usable_size,
                         size_t* bytes_tl_bulk_allocated)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     StackHandleScope<1> hs(self);
     Handle<mirror::Class> byte_array_class(hs.NewHandle(GetByteArrayClass(self)));
     mirror::Object* obj = alloc_space->Alloc(self,
@@ -91,7 +91,7 @@ class SpaceTest : public Super {
                                   size_t* bytes_allocated,
                                   size_t* usable_size,
                                   size_t* bytes_tl_bulk_allocated)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     StackHandleScope<1> hs(self);
     Handle<mirror::Class> byte_array_class(hs.NewHandle(GetByteArrayClass(self)));
     mirror::Object* obj = alloc_space->AllocWithGrowth(self, bytes, bytes_allocated, usable_size,
@@ -103,7 +103,7 @@ class SpaceTest : public Super {
   }
 
   void InstallClass(mirror::Object* o, mirror::Class* byte_array_class, size_t size)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     // Note the minimum size, which is the size of a zero-length byte array.
     EXPECT_GE(size, SizeOfZeroLengthByteArray());
     EXPECT_TRUE(byte_array_class != nullptr);

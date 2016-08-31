@@ -2008,7 +2008,7 @@ bool Runtime::IsVerificationSoftFail() const {
 }
 
 bool Runtime::IsDeoptimizeable(uintptr_t code) const
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   return !heap_->IsInBootImageOatFile(reinterpret_cast<void *>(code));
 }
 

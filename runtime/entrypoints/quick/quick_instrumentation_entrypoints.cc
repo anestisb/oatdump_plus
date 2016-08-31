@@ -29,7 +29,7 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(ArtMethod* method,
                                                              mirror::Object* this_object,
                                                              Thread* self,
                                                              uintptr_t lr)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   // Instrumentation changes the stack. Thus, when exiting, the stack cannot be verified, so skip
   // that part.
   ScopedQuickEntrypointChecks sqec(self, kIsDebugBuild, false);
@@ -51,7 +51,7 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(ArtMethod* method,
 extern "C" TwoWordReturn artInstrumentationMethodExitFromCode(Thread* self, ArtMethod** sp,
                                                               uint64_t gpr_result,
                                                               uint64_t fpr_result)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   // Instrumentation exit stub must not be entered with a pending exception.
   CHECK(!self->IsExceptionPending()) << "Enter instrumentation exit stub with pending exception "
                                      << self->GetException()->Dump();

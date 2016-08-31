@@ -80,21 +80,21 @@ class LockCountData {
  public:
   // Add the given object to the list of monitors, that is, objects that have been locked. This
   // will not throw (but be skipped if there is an exception pending on entry).
-  void AddMonitor(Thread* self, mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_);
+  void AddMonitor(Thread* self, mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Try to remove the given object from the monitor list, indicating an unlock operation.
   // This will throw an IllegalMonitorStateException (clearing any already pending exception), in
   // case that there wasn't a lock recorded for the object.
   void RemoveMonitorOrThrow(Thread* self,
-                            const mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_);
+                            const mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Check whether all acquired monitors have been released. This will potentially throw an
   // IllegalMonitorStateException, clearing any already pending exception. Returns true if the
   // check shows that everything is OK wrt/ lock counting, false otherwise.
-  bool CheckAllMonitorsReleasedOrThrow(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_);
+  bool CheckAllMonitorsReleasedOrThrow(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_);
 
   template <typename T, typename... Args>
-  void VisitMonitors(T visitor, Args&&... args) SHARED_REQUIRES(Locks::mutator_lock_) {
+  void VisitMonitors(T visitor, Args&&... args) REQUIRES_SHARED(Locks::mutator_lock_) {
     if (monitors_ != nullptr) {
       // Visitors may change the Object*. Be careful with the foreach loop.
       for (mirror::Object*& obj : *monitors_) {
@@ -239,7 +239,7 @@ class ShadowFrame {
   // If this returns non-null then this does not mean the vreg is currently a reference
   // on non-moving collectors. Check that the raw reg with GetVReg is equal to this if not certain.
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  mirror::Object* GetVRegReference(size_t i) const SHARED_REQUIRES(Locks::mutator_lock_) {
+  mirror::Object* GetVRegReference(size_t i) const REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK_LT(i, NumberOfVRegs());
     mirror::Object* ref;
     if (HasReferenceArray()) {
@@ -311,7 +311,7 @@ class ShadowFrame {
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  void SetVRegReference(size_t i, mirror::Object* val) SHARED_REQUIRES(Locks::mutator_lock_) {
+  void SetVRegReference(size_t i, mirror::Object* val) REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK_LT(i, NumberOfVRegs());
     if (kVerifyFlags & kVerifyWrites) {
       VerifyObject(val);
@@ -326,14 +326,14 @@ class ShadowFrame {
     }
   }
 
-  ArtMethod* GetMethod() const SHARED_REQUIRES(Locks::mutator_lock_) {
+  ArtMethod* GetMethod() const REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(method_ != nullptr);
     return method_;
   }
 
-  mirror::Object* GetThisObject() const SHARED_REQUIRES(Locks::mutator_lock_);
+  mirror::Object* GetThisObject() const REQUIRES_SHARED(Locks::mutator_lock_);
 
-  mirror::Object* GetThisObject(uint16_t num_ins) const SHARED_REQUIRES(Locks::mutator_lock_);
+  mirror::Object* GetThisObject(uint16_t num_ins) const REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool Contains(StackReference<mirror::Object>* shadow_frame_entry_obj) const {
     if (HasReferenceArray()) {
@@ -479,7 +479,7 @@ class JavaFrameRootInfo : public RootInfo {
      : RootInfo(kRootJavaFrame, thread_id), stack_visitor_(stack_visitor), vreg_(vreg) {
   }
   virtual void Describe(std::ostream& os) const OVERRIDE
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   const StackVisitor* const stack_visitor_;
@@ -556,7 +556,7 @@ class PACKED(4) ManagedStack {
     return OFFSETOF_MEMBER(ManagedStack, top_shadow_frame_);
   }
 
-  size_t NumJniShadowFrameReferences() const SHARED_REQUIRES(Locks::mutator_lock_);
+  size_t NumJniShadowFrameReferences() const REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool ShadowFramesContain(StackReference<mirror::Object>* shadow_frame_entry) const;
 
@@ -577,25 +577,25 @@ class StackVisitor {
 
  protected:
   StackVisitor(Thread* thread, Context* context, StackWalkKind walk_kind)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool GetRegisterIfAccessible(uint32_t reg, VRegKind kind, uint32_t* val) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
  public:
   virtual ~StackVisitor() {}
 
   // Return 'true' if we should continue to visit more frames, 'false' to stop.
-  virtual bool VisitFrame() SHARED_REQUIRES(Locks::mutator_lock_) = 0;
+  virtual bool VisitFrame() REQUIRES_SHARED(Locks::mutator_lock_) = 0;
 
   void WalkStack(bool include_transitions = false)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   Thread* GetThread() const {
     return thread_;
   }
 
-  ArtMethod* GetMethod() const SHARED_REQUIRES(Locks::mutator_lock_);
+  ArtMethod* GetMethod() const REQUIRES_SHARED(Locks::mutator_lock_);
 
   ArtMethod* GetOuterMethod() const {
     return *GetCurrentQuickFrame();
@@ -605,48 +605,48 @@ class StackVisitor {
     return cur_shadow_frame_ != nullptr;
   }
 
-  uint32_t GetDexPc(bool abort_on_failure = true) const SHARED_REQUIRES(Locks::mutator_lock_);
+  uint32_t GetDexPc(bool abort_on_failure = true) const REQUIRES_SHARED(Locks::mutator_lock_);
 
-  mirror::Object* GetThisObject() const SHARED_REQUIRES(Locks::mutator_lock_);
+  mirror::Object* GetThisObject() const REQUIRES_SHARED(Locks::mutator_lock_);
 
-  size_t GetNativePcOffset() const SHARED_REQUIRES(Locks::mutator_lock_);
+  size_t GetNativePcOffset() const REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns the height of the stack in the managed stack frames, including transitions.
-  size_t GetFrameHeight() SHARED_REQUIRES(Locks::mutator_lock_) {
+  size_t GetFrameHeight() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetNumFrames() - cur_depth_ - 1;
   }
 
   // Returns a frame ID for JDWP use, starting from 1.
-  size_t GetFrameId() SHARED_REQUIRES(Locks::mutator_lock_) {
+  size_t GetFrameId() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetFrameHeight() + 1;
   }
 
-  size_t GetNumFrames() SHARED_REQUIRES(Locks::mutator_lock_) {
+  size_t GetNumFrames() REQUIRES_SHARED(Locks::mutator_lock_) {
     if (num_frames_ == 0) {
       num_frames_ = ComputeNumFrames(thread_, walk_kind_);
     }
     return num_frames_;
   }
 
-  size_t GetFrameDepth() SHARED_REQUIRES(Locks::mutator_lock_) {
+  size_t GetFrameDepth() REQUIRES_SHARED(Locks::mutator_lock_) {
     return cur_depth_;
   }
 
   // Get the method and dex pc immediately after the one that's currently being visited.
   bool GetNextMethodAndDexPc(ArtMethod** next_method, uint32_t* next_dex_pc)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool GetVReg(ArtMethod* m, uint16_t vreg, VRegKind kind, uint32_t* val) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool GetVRegPair(ArtMethod* m, uint16_t vreg, VRegKind kind_lo, VRegKind kind_hi,
                    uint64_t* val) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Values will be set in debugger shadow frames. Debugger will make sure deoptimization
   // is triggered to make the values effective.
   bool SetVReg(ArtMethod* m, uint16_t vreg, uint32_t new_value, VRegKind kind)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Values will be set in debugger shadow frames. Debugger will make sure deoptimization
   // is triggered to make the values effective.
@@ -655,7 +655,7 @@ class StackVisitor {
                    uint64_t new_value,
                    VRegKind kind_lo,
                    VRegKind kind_hi)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   uintptr_t* GetGPRAddress(uint32_t reg) const;
 
@@ -671,9 +671,9 @@ class StackVisitor {
     return reinterpret_cast<uint32_t*>(vreg_addr);
   }
 
-  uintptr_t GetReturnPc() const SHARED_REQUIRES(Locks::mutator_lock_);
+  uintptr_t GetReturnPc() const REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void SetReturnPc(uintptr_t new_ret_pc) SHARED_REQUIRES(Locks::mutator_lock_);
+  void SetReturnPc(uintptr_t new_ret_pc) REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
    * Return sp-relative offset for a Dalvik virtual register, compiler
@@ -763,23 +763,23 @@ class StackVisitor {
     return reinterpret_cast<HandleScope*>(reinterpret_cast<uintptr_t>(sp) + pointer_size);
   }
 
-  std::string DescribeLocation() const SHARED_REQUIRES(Locks::mutator_lock_);
+  std::string DescribeLocation() const REQUIRES_SHARED(Locks::mutator_lock_);
 
   static size_t ComputeNumFrames(Thread* thread, StackWalkKind walk_kind)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
-  static void DescribeStack(Thread* thread) SHARED_REQUIRES(Locks::mutator_lock_);
+  static void DescribeStack(Thread* thread) REQUIRES_SHARED(Locks::mutator_lock_);
 
   const OatQuickMethodHeader* GetCurrentOatQuickMethodHeader() const {
     return cur_oat_quick_method_header_;
   }
 
-  QuickMethodFrameInfo GetCurrentQuickFrameInfo() const SHARED_REQUIRES(Locks::mutator_lock_);
+  QuickMethodFrameInfo GetCurrentQuickFrameInfo() const REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   // Private constructor known in the case that num_frames_ has already been computed.
   StackVisitor(Thread* thread, Context* context, StackWalkKind walk_kind, size_t num_frames)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool IsAccessibleRegister(uint32_t reg, bool is_float) const {
     return is_float ? IsAccessibleFPR(reg) : IsAccessibleGPR(reg);
@@ -796,25 +796,25 @@ class StackVisitor {
   uintptr_t GetFPR(uint32_t reg) const;
 
   bool GetVRegFromDebuggerShadowFrame(uint16_t vreg, VRegKind kind, uint32_t* val) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   bool GetVRegFromOptimizedCode(ArtMethod* m, uint16_t vreg, VRegKind kind,
                                 uint32_t* val) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool GetVRegPairFromDebuggerShadowFrame(uint16_t vreg, VRegKind kind_lo, VRegKind kind_hi,
                                           uint64_t* val) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   bool GetVRegPairFromOptimizedCode(ArtMethod* m, uint16_t vreg,
                                     VRegKind kind_lo, VRegKind kind_hi,
                                     uint64_t* val) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   bool GetRegisterPairIfAccessible(uint32_t reg_lo, uint32_t reg_hi, VRegKind kind_lo,
                                    uint64_t* val) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void SanityCheckFrame() const SHARED_REQUIRES(Locks::mutator_lock_);
+  void SanityCheckFrame() const REQUIRES_SHARED(Locks::mutator_lock_);
 
-  InlineInfo GetCurrentInlineInfo() const SHARED_REQUIRES(Locks::mutator_lock_);
+  InlineInfo GetCurrentInlineInfo() const REQUIRES_SHARED(Locks::mutator_lock_);
 
   Thread* const thread_;
   const StackWalkKind walk_kind_;

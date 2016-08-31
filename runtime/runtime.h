@@ -290,15 +290,15 @@ class Runtime {
   }
 
   // Is the given object the special object used to mark a cleared JNI weak global?
-  bool IsClearedJniWeakGlobal(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_);
+  bool IsClearedJniWeakGlobal(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Get the special object used to mark a cleared JNI weak global.
-  mirror::Object* GetClearedJniWeakGlobal() SHARED_REQUIRES(Locks::mutator_lock_);
+  mirror::Object* GetClearedJniWeakGlobal() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  mirror::Throwable* GetPreAllocatedOutOfMemoryError() SHARED_REQUIRES(Locks::mutator_lock_);
+  mirror::Throwable* GetPreAllocatedOutOfMemoryError() REQUIRES_SHARED(Locks::mutator_lock_);
 
   mirror::Throwable* GetPreAllocatedNoClassDefFoundError()
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   const std::vector<std::string>& GetProperties() const {
     return properties_;
@@ -312,33 +312,33 @@ class Runtime {
     return "2.1.0";
   }
 
-  void DisallowNewSystemWeaks() SHARED_REQUIRES(Locks::mutator_lock_);
-  void AllowNewSystemWeaks() SHARED_REQUIRES(Locks::mutator_lock_);
-  void BroadcastForNewSystemWeaks() SHARED_REQUIRES(Locks::mutator_lock_);
+  void DisallowNewSystemWeaks() REQUIRES_SHARED(Locks::mutator_lock_);
+  void AllowNewSystemWeaks() REQUIRES_SHARED(Locks::mutator_lock_);
+  void BroadcastForNewSystemWeaks() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Visit all the roots. If only_dirty is true then non-dirty roots won't be visited. If
   // clean_dirty is true then dirty roots will be marked as non-dirty after visiting.
   void VisitRoots(RootVisitor* visitor, VisitRootFlags flags = kVisitRootFlagAllRoots)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Visit image roots, only used for hprof since the GC uses the image space mod union table
   // instead.
-  void VisitImageRoots(RootVisitor* visitor) SHARED_REQUIRES(Locks::mutator_lock_);
+  void VisitImageRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Visit all of the roots we can do safely do concurrently.
   void VisitConcurrentRoots(RootVisitor* visitor,
                             VisitRootFlags flags = kVisitRootFlagAllRoots)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Visit all of the non thread roots, we can do this with mutators unpaused.
   void VisitNonThreadRoots(RootVisitor* visitor)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void VisitTransactionRoots(RootVisitor* visitor)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Visit all of the thread roots.
-  void VisitThreadRoots(RootVisitor* visitor) SHARED_REQUIRES(Locks::mutator_lock_);
+  void VisitThreadRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Flip thread roots from from-space refs to to-space refs.
   size_t FlipThreadRoots(Closure* thread_flip_visitor, Closure* flip_callback,
@@ -347,17 +347,17 @@ class Runtime {
 
   // Visit all other roots which must be done with mutators suspended.
   void VisitNonConcurrentRoots(RootVisitor* visitor)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Sweep system weaks, the system weak is deleted if the visitor return null. Otherwise, the
   // system weak is updated to be the visitor's returned value.
   void SweepSystemWeaks(IsMarkedVisitor* visitor)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Constant roots are the roots which never change after the runtime is initialized, they only
   // need to be visited once per GC cycle.
   void VisitConstantRoots(RootVisitor* visitor)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns a special method that calls into a trampoline for runtime method resolution
   ArtMethod* GetResolutionMethod();
@@ -366,9 +366,9 @@ class Runtime {
     return resolution_method_ != nullptr;
   }
 
-  void SetResolutionMethod(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_);
+  void SetResolutionMethod(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtMethod* CreateResolutionMethod() SHARED_REQUIRES(Locks::mutator_lock_);
+  ArtMethod* CreateResolutionMethod() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns a special method that calls into a trampoline for runtime imt conflicts.
   ArtMethod* GetImtConflictMethod();
@@ -379,11 +379,11 @@ class Runtime {
   }
 
   void FixupConflictTables();
-  void SetImtConflictMethod(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_);
-  void SetImtUnimplementedMethod(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_);
+  void SetImtConflictMethod(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_);
+  void SetImtUnimplementedMethod(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_);
 
   ArtMethod* CreateImtConflictMethod(LinearAlloc* linear_alloc)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns a special method that describes all callee saves being spilled to the stack.
   enum CalleeSaveType {
@@ -399,17 +399,17 @@ class Runtime {
   }
 
   ArtMethod* GetCalleeSaveMethod(CalleeSaveType type)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   ArtMethod* GetCalleeSaveMethodUnchecked(CalleeSaveType type)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   QuickMethodFrameInfo GetCalleeSaveMethodFrameInfo(CalleeSaveType type) const {
     return callee_save_method_frame_infos_[type];
   }
 
   QuickMethodFrameInfo GetRuntimeMethodFrameInfo(ArtMethod* method)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   static size_t GetCalleeSaveMethodOffset(CalleeSaveType type) {
     return OFFSETOF_MEMBER(Runtime, callee_save_methods_[type]);
@@ -423,7 +423,7 @@ class Runtime {
 
   void SetCalleeSaveMethod(ArtMethod* method, CalleeSaveType type);
 
-  ArtMethod* CreateCalleeSaveMethod() SHARED_REQUIRES(Locks::mutator_lock_);
+  ArtMethod* CreateCalleeSaveMethod() REQUIRES_SHARED(Locks::mutator_lock_);
 
   int32_t GetStat(int kind);
 
@@ -480,9 +480,9 @@ class Runtime {
   bool IsTransactionAborted() const;
 
   void AbortTransactionAndThrowAbortError(Thread* self, const std::string& abort_message)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   void ThrowTransactionAbortError(Thread* self)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void RecordWriteFieldBoolean(mirror::Object* obj, MemberOffset field_offset, uint8_t value,
                                bool is_volatile) const;
@@ -499,7 +499,7 @@ class Runtime {
   void RecordWriteFieldReference(mirror::Object* obj, MemberOffset field_offset,
                                  mirror::Object* value, bool is_volatile) const;
   void RecordWriteArray(mirror::Array* array, size_t index, uint64_t value) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   void RecordStrongStringInsertion(mirror::String* s) const
       REQUIRES(Locks::intern_table_lock_);
   void RecordWeakStringInsertion(mirror::String* s) const
@@ -592,7 +592,7 @@ class Runtime {
   }
 
   // Called from class linker.
-  void SetSentinel(mirror::Object* sentinel) SHARED_REQUIRES(Locks::mutator_lock_);
+  void SetSentinel(mirror::Object* sentinel) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Create a normal LinearAlloc or low 4gb version if we are 64 bit AOT compiler.
   LinearAlloc* CreateLinearAlloc();
@@ -640,7 +640,7 @@ class Runtime {
 
   // Returns if the code can be deoptimized. Code may be compiled with some
   // optimization that makes it impossible to deoptimize.
-  bool IsDeoptimizeable(uintptr_t code) const SHARED_REQUIRES(Locks::mutator_lock_);
+  bool IsDeoptimizeable(uintptr_t code) const REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns a saved copy of the environment (getenv/setenv values).
   // Used by Fork to protect against overwriting LD_LIBRARY_PATH, etc.

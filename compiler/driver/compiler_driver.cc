@@ -492,7 +492,7 @@ void CompilerDriver::CompileAll(jobject class_loader,
 static optimizer::DexToDexCompilationLevel GetDexToDexCompilationLevel(
     Thread* self, const CompilerDriver& driver, Handle<mirror::ClassLoader> class_loader,
     const DexFile& dex_file, const DexFile::ClassDef& class_def)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   auto* const runtime = Runtime::Current();
   if (runtime->UseJitCompilation() || driver.GetCompilerOptions().VerifyAtRuntime()) {
     // Verify at runtime shouldn't dex to dex since we didn't resolve of verify.
@@ -1026,7 +1026,7 @@ class ResolveCatchBlockExceptionsClassVisitor : public ClassVisitor {
       std::set<std::pair<uint16_t, const DexFile*>>& exceptions_to_resolve)
      : exceptions_to_resolve_(exceptions_to_resolve) {}
 
-  virtual bool operator()(mirror::Class* c) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+  virtual bool operator()(mirror::Class* c) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     const auto pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
     for (auto& m : c->GetMethods(pointer_size)) {
       ResolveExceptionsForMethod(&m, pointer_size);
@@ -1036,7 +1036,7 @@ class ResolveCatchBlockExceptionsClassVisitor : public ClassVisitor {
 
  private:
   void ResolveExceptionsForMethod(ArtMethod* method_handle, PointerSize pointer_size)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     const DexFile::CodeItem* code_item = method_handle->GetCodeItem();
     if (code_item == nullptr) {
       return;  // native or abstract method
@@ -1080,7 +1080,7 @@ class RecordImageClassesVisitor : public ClassVisitor {
   explicit RecordImageClassesVisitor(std::unordered_set<std::string>* image_classes)
       : image_classes_(image_classes) {}
 
-  bool operator()(mirror::Class* klass) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool operator()(mirror::Class* klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     std::string temp;
     image_classes_->insert(klass->GetDescriptor(&temp));
     return true;
@@ -1161,7 +1161,7 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings) {
 
 static void MaybeAddToImageClasses(Handle<mirror::Class> c,
                                    std::unordered_set<std::string>* image_classes)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   Thread* self = Thread::Current();
   StackHandleScope<1> hs(self);
   // Make a copy of the handle so that we don't clobber it doing Assign.
@@ -1216,7 +1216,7 @@ class ClinitImageUpdate {
 
   // Visitor for VisitReferences.
   void operator()(mirror::Object* object, MemberOffset field_offset, bool /* is_static */) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     mirror::Object* ref = object->GetFieldObject<mirror::Object>(field_offset);
     if (ref != nullptr) {
       VisitClinitClassesObject(ref);
@@ -1232,7 +1232,7 @@ class ClinitImageUpdate {
       const {}
   void VisitRoot(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED) const {}
 
-  void Walk() SHARED_REQUIRES(Locks::mutator_lock_) {
+  void Walk() REQUIRES_SHARED(Locks::mutator_lock_) {
     // Use the initial classes as roots for a search.
     for (mirror::Class* klass_root : image_classes_) {
       VisitClinitClassesObject(klass_root);
@@ -1244,7 +1244,7 @@ class ClinitImageUpdate {
    public:
     explicit FindImageClassesVisitor(ClinitImageUpdate* data) : data_(data) {}
 
-    bool operator()(mirror::Class* klass) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+    bool operator()(mirror::Class* klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
       std::string temp;
       const char* name = klass->GetDescriptor(&temp);
       if (data_->image_class_descriptors_->find(name) != data_->image_class_descriptors_->end()) {
@@ -1265,7 +1265,7 @@ class ClinitImageUpdate {
 
   ClinitImageUpdate(std::unordered_set<std::string>* image_class_descriptors, Thread* self,
                     ClassLinker* linker)
-      SHARED_REQUIRES(Locks::mutator_lock_) :
+      REQUIRES_SHARED(Locks::mutator_lock_) :
       image_class_descriptors_(image_class_descriptors), self_(self) {
     CHECK(linker != nullptr);
     CHECK(image_class_descriptors != nullptr);
@@ -1284,7 +1284,7 @@ class ClinitImageUpdate {
   }
 
   void VisitClinitClassesObject(mirror::Object* object) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(object != nullptr);
     if (marked_objects_.find(object) != marked_objects_.end()) {
       // Already processed.
@@ -1983,7 +1983,7 @@ class ParallelCompilationManager {
 // A fast version of SkipClass above if the class pointer is available
 // that avoids the expensive FindInClassPath search.
 static bool SkipClass(jobject class_loader, const DexFile& dex_file, mirror::Class* klass)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(klass != nullptr);
   const DexFile& original_dex_file = *klass->GetDexCache()->GetDexFile();
   if (&dex_file != &original_dex_file) {
@@ -1998,7 +1998,7 @@ static bool SkipClass(jobject class_loader, const DexFile& dex_file, mirror::Cla
 }
 
 static void CheckAndClearResolveException(Thread* self)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   CHECK(self->IsExceptionPending());
   mirror::Throwable* exception = self->GetException();
   std::string temp;
@@ -2529,7 +2529,7 @@ void CompilerDriver::InitializeClasses(jobject jni_class_loader,
 
 class InitializeArrayClassesAndCreateConflictTablesVisitor : public ClassVisitor {
  public:
-  virtual bool operator()(mirror::Class* klass) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+  virtual bool operator()(mirror::Class* klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     if (Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(klass)) {
       return true;
     }
@@ -2546,7 +2546,7 @@ class InitializeArrayClassesAndCreateConflictTablesVisitor : public ClassVisitor
   }
 
  private:
-  void FillIMTAndConflictTables(mirror::Class* klass) SHARED_REQUIRES(Locks::mutator_lock_) {
+  void FillIMTAndConflictTables(mirror::Class* klass) REQUIRES_SHARED(Locks::mutator_lock_) {
     if (!klass->ShouldHaveImt()) {
       return;
     }

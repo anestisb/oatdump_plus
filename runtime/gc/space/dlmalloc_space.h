@@ -65,11 +65,11 @@ class DlMallocSpace : public MallocSpace {
   // Virtual to allow MemoryToolMallocSpace to intercept.
   virtual size_t Free(Thread* self, mirror::Object* ptr) OVERRIDE
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   // Virtual to allow MemoryToolMallocSpace to intercept.
   virtual size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) OVERRIDE
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   size_t MaxBytesBulkAllocatedFor(size_t num_bytes) OVERRIDE {
     return num_bytes;
@@ -136,7 +136,7 @@ class DlMallocSpace : public MallocSpace {
   }
 
   void LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes) OVERRIDE
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
  protected:
   DlMallocSpace(MemMap* mem_map, size_t initial_size, const std::string& name, void* mspace,

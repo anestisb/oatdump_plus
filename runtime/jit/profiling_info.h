@@ -53,7 +53,7 @@ class InlineCache {
     return true;
   }
 
-  mirror::Class* GetMonomorphicType() const SHARED_REQUIRES(Locks::mutator_lock_) {
+  mirror::Class* GetMonomorphicType() const REQUIRES_SHARED(Locks::mutator_lock_) {
     // Note that we cannot ensure the inline cache is actually monomorphic
     // at this point, as other threads may have updated it.
     DCHECK(!classes_[0].IsNull());
@@ -69,7 +69,7 @@ class InlineCache {
     return !classes_[1].IsNull() && classes_[kIndividualCacheSize - 1].IsNull();
   }
 
-  mirror::Class* GetTypeAt(size_t i) const SHARED_REQUIRES(Locks::mutator_lock_) {
+  mirror::Class* GetTypeAt(size_t i) const REQUIRES_SHARED(Locks::mutator_lock_) {
     return classes_[i].Read();
   }
 
@@ -93,14 +93,14 @@ class ProfilingInfo {
   // Create a ProfilingInfo for 'method'. Return whether it succeeded, or if it is
   // not needed in case the method does not have virtual/interface invocations.
   static bool Create(Thread* self, ArtMethod* method, bool retry_allocation)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Add information from an executed INVOKE instruction to the profile.
   void AddInvokeInfo(uint32_t dex_pc, mirror::Class* cls)
       // Method should not be interruptible, as it manipulates the ProfilingInfo
       // which can be concurrently collected.
       REQUIRES(Roles::uninterruptible_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // NO_THREAD_SAFETY_ANALYSIS since we don't know what the callback requires.
   template<typename RootVisitorType>

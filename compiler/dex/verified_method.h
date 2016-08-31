@@ -44,7 +44,7 @@ class VerifiedMethod {
   typedef SafeMap<uint32_t, DexFileReference> DequickenMap;
 
   static const VerifiedMethod* Create(verifier::MethodVerifier* method_verifier, bool compile)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   ~VerifiedMethod() = default;
 
   const DevirtualizationMap& GetDevirtMap() const {
@@ -100,15 +100,15 @@ class VerifiedMethod {
 
   // Generate devirtualizaion map into devirt_map_.
   void GenerateDevirtMap(verifier::MethodVerifier* method_verifier)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Generate dequickening map into dequicken_map_. Returns false if there is an error.
   bool GenerateDequickenMap(verifier::MethodVerifier* method_verifier)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Generate safe case set into safe_cast_set_.
   void GenerateSafeCastSet(verifier::MethodVerifier* method_verifier)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   DevirtualizationMap devirt_map_;
   // Dequicken map is required for compiling quickened byte codes. The quicken maps from

@@ -70,7 +70,7 @@ class JitCodeCache {
   size_t DataCacheSize() REQUIRES(!lock_);
 
   bool NotifyCompilationOf(ArtMethod* method, Thread* self, bool osr)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!lock_);
 
   // Notify to the code cache that the compiler wants to use the
@@ -78,15 +78,15 @@ class JitCodeCache {
   // and therefore ensure the returned profiling info object is not
   // collected.
   ProfilingInfo* NotifyCompilerUse(ArtMethod* method, Thread* self)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!lock_);
 
   void DoneCompiling(ArtMethod* method, Thread* self, bool osr)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!lock_);
 
   void DoneCompilerUse(ArtMethod* method, Thread* self)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!lock_);
 
   // Allocate and write code and its metadata to the code cache.
@@ -99,7 +99,7 @@ class JitCodeCache {
                       const uint8_t* code,
                       size_t code_size,
                       bool osr)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!lock_);
 
   // Return true if the code cache contains this pc.
@@ -110,12 +110,12 @@ class JitCodeCache {
 
   // Reserve a region of data of size at least "size". Returns null if there is no more room.
   uint8_t* ReserveData(Thread* self, size_t size, ArtMethod* method)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!lock_);
 
   // Clear data from the data portion of the code cache.
   void ClearData(Thread* self, void* data)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!lock_);
 
   CodeCacheBitmap* GetLiveBitmap() const {
@@ -125,28 +125,28 @@ class JitCodeCache {
   // Return whether we should do a full collection given the current state of the cache.
   bool ShouldDoFullCollection()
       REQUIRES(lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Perform a collection on the code cache.
   void GarbageCollectCache(Thread* self)
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Given the 'pc', try to find the JIT compiled code associated with it.
   // Return null if 'pc' is not in the code cache. 'method' is passed for
   // sanity check.
   OatQuickMethodHeader* LookupMethodHeader(uintptr_t pc, ArtMethod* method)
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   OatQuickMethodHeader* LookupOsrMethodHeader(ArtMethod* method)
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Remove all methods in our cache that were allocated by 'alloc'.
   void RemoveMethodsIn(Thread* self, const LinearAlloc& alloc)
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void ClearGcRootsInInlineCaches(Thread* self) REQUIRES(!lock_);
 
@@ -157,7 +157,7 @@ class JitCodeCache {
                                   const std::vector<uint32_t>& entries,
                                   bool retry_allocation)
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool OwnsSpace(const void* mspace) const NO_THREAD_SAFETY_ANALYSIS {
     return mspace == code_mspace_ || mspace == data_mspace_;
@@ -169,7 +169,7 @@ class JitCodeCache {
   void GetProfiledMethods(const std::set<std::string>& dex_base_locations,
                           std::vector<MethodReference>& methods)
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   uint64_t GetLastUpdateTimeNs() const;
 
@@ -182,7 +182,7 @@ class JitCodeCache {
 
   void InvalidateCompiledCodeFor(ArtMethod* method, const OatQuickMethodHeader* code)
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void Dump(std::ostream& os) REQUIRES(!lock_);
 
@@ -209,13 +209,13 @@ class JitCodeCache {
                               size_t code_size,
                               bool osr)
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   ProfilingInfo* AddProfilingInfoInternal(Thread* self,
                                           ArtMethod* method,
                                           const std::vector<uint32_t>& entries)
       REQUIRES(lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // If a collection is in progress, wait for it to finish. Return
   // whether the thread actually waited.
@@ -243,15 +243,15 @@ class JitCodeCache {
 
   void DoCollection(Thread* self, bool collect_profiling_info)
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void RemoveUnmarkedCode(Thread* self)
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void MarkCompiledCodeOnThreadStacks(Thread* self)
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool CheckLiveCompiledCodeHasProfilingInfo()
       REQUIRES(lock_);
