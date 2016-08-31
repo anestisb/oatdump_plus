@@ -1268,28 +1268,9 @@ DEFINE_FUNCTION art_quick_alloc_object_resolved_region_tlab
     int3
     int3
 #endif
+    // No read barrier since the caller is responsible for that.
     movq %rdi, %rdx
-    cmpl LITERAL(0), %gs:THREAD_IS_GC_MARKING_OFFSET
-    jne .Lart_quick_alloc_object_resolved_region_tlab_class_load_read_barrier_marking
-.Lart_quick_alloc_object_resolved_region_tlab_class_load_read_barrier_slow_path_exit:
     ALLOC_OBJECT_RESOLVED_TLAB_FAST_PATH .Lart_quick_alloc_object_resolved_region_tlab_slow_path
-.Lart_quick_alloc_object_resolved_region_tlab_class_load_read_barrier_marking:
-    // Check the mark bit, if it is 1 avoid the read barrier.
-    testl LITERAL(LOCK_WORD_MARK_BIT_MASK_SHIFTED), MIRROR_OBJECT_LOCK_WORD_OFFSET(%edx)
-    jnz .Lart_quick_alloc_object_resolved_region_tlab_class_load_read_barrier_slow_path_exit
-.Lart_quick_alloc_object_resolved_region_tlab_class_load_read_barrier_slow_path:
-    // The read barrier slow path. Mark the class.
-    PUSH rdi
-    PUSH rsi
-    subq LITERAL(8), %rsp // 16 byte alignment
-    // Outgoing argument set up
-    movq %rdx, %rdi                                            // Pass the class as the first param.
-    call SYMBOL(artReadBarrierMark)                            // cxx_name(mirror::Object* obj)
-    movq %rax, %rdx
-    addq LITERAL(8), %rsp
-    POP rsi
-    POP rdi
-    jmp .Lart_quick_alloc_object_resolved_region_tlab_class_load_read_barrier_slow_path_exit
 .Lart_quick_alloc_object_resolved_region_tlab_slow_path:
     ALLOC_OBJECT_TLAB_SLOW_PATH artAllocObjectFromCodeResolvedRegionTLAB
 END_FUNCTION art_quick_alloc_object_resolved_region_tlab
@@ -1303,29 +1284,9 @@ DEFINE_FUNCTION art_quick_alloc_object_initialized_region_tlab
     int3
     int3
 #endif
-    // Might need a special macro since rsi and edx is 32b/64b mismatched.
     movq %rdi, %rdx
-    cmpl LITERAL(0), %gs:THREAD_IS_GC_MARKING_OFFSET
-    jne .Lart_quick_alloc_object_initialized_region_tlab_class_load_read_barrier_marking
-.Lart_quick_alloc_object_initialized_region_tlab_class_load_read_barrier_slow_path_exit:
+    // No read barrier since the caller is responsible for that.
     ALLOC_OBJECT_INITIALIZED_TLAB_FAST_PATH .Lart_quick_alloc_object_initialized_region_tlab_slow_path
-.Lart_quick_alloc_object_initialized_region_tlab_class_load_read_barrier_marking:
-    // Check the mark bit, if it is 1 avoid the read barrier.
-    testl LITERAL(LOCK_WORD_MARK_BIT_MASK_SHIFTED), MIRROR_OBJECT_LOCK_WORD_OFFSET(%edx)
-    jnz .Lart_quick_alloc_object_initialized_region_tlab_class_load_read_barrier_slow_path
-.Lart_quick_alloc_object_initialized_region_tlab_class_load_read_barrier_slow_path:
-    // The read barrier slow path. Mark the class.
-    PUSH rdi
-    PUSH rsi
-    subq LITERAL(8), %rsp // 16 byte alignment
-    // Outgoing argument set up
-    movq %rdx, %rdi                                            // Pass the class as the first param.
-    call SYMBOL(artReadBarrierMark)                            // cxx_name(mirror::Object* obj)
-    movq %rax, %rdx
-    addq LITERAL(8), %rsp
-    POP rsi
-    POP rdi
-    jmp .Lart_quick_alloc_object_initialized_region_tlab_class_load_read_barrier_slow_path_exit
 .Lart_quick_alloc_object_initialized_region_tlab_slow_path:
     ALLOC_OBJECT_TLAB_SLOW_PATH artAllocObjectFromCodeInitializedRegionTLAB
 END_FUNCTION art_quick_alloc_object_initialized_region_tlab
