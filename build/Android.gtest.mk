@@ -126,6 +126,19 @@ ART_GTEST_dexdump_test_TARGET_DEPS := \
   $(TARGET_CORE_IMAGE_default_no-pic_32) \
   dexdump2
 
+# The dexlayout test requires an image and the dexlayout utility.
+# TODO: rename into dexdump when migration completes
+ART_GTEST_dexlayout_test_HOST_DEPS := \
+  $(HOST_CORE_IMAGE_default_no-pic_64) \
+  $(HOST_CORE_IMAGE_default_no-pic_32) \
+  $(HOST_OUT_EXECUTABLES)/dexlayout \
+  $(HOST_OUT_EXECUTABLES)/dexdump2
+ART_GTEST_dexlayout_test_TARGET_DEPS := \
+  $(TARGET_CORE_IMAGE_default_no-pic_64) \
+  $(TARGET_CORE_IMAGE_default_no-pic_32) \
+  dexlayout \
+  dexdump2
+
 # The dexlist test requires an image and the dexlist utility.
 ART_GTEST_dexlist_test_HOST_DEPS := \
   $(HOST_CORE_IMAGE_default_no-pic_64) \
@@ -170,6 +183,7 @@ LOCAL_PATH := art
 RUNTIME_GTEST_COMMON_SRC_FILES := \
   cmdline/cmdline_parser_test.cc \
   dexdump/dexdump_test.cc \
+  dexlayout/dexlayout_test.cc \
   dexlist/dexlist_test.cc \
   dex2oat/dex2oat_test.cc \
   imgdiag/imgdiag_test.cc \
