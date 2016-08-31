@@ -45,12 +45,12 @@ class IterationRange {
 };
 
 template <typename Iter>
-static inline IterationRange<Iter> MakeIterationRange(const Iter& begin_it, const Iter& end_it) {
+inline IterationRange<Iter> MakeIterationRange(const Iter& begin_it, const Iter& end_it) {
   return IterationRange<Iter>(begin_it, end_it);
 }
 
 template <typename Iter>
-static inline IterationRange<Iter> MakeEmptyIterationRange(const Iter& it) {
+inline IterationRange<Iter> MakeEmptyIterationRange(const Iter& it) {
   return IterationRange<Iter>(it, it);
 }
 
