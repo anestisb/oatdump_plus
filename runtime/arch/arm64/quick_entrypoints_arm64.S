@@ -2027,48 +2027,24 @@ END art_quick_alloc_object_rosalloc
     ALLOC_OBJECT_TLAB_FAST_PATH_RESOLVED \slowPathLabel
 .endm
 
+// TODO: delete ALLOC_OBJECT_TLAB_FAST_PATH_RESOLVED since it is the same as
+// ALLOC_OBJECT_TLAB_FAST_PATH_INITIALIZED.
 .macro ALLOC_OBJECT_TLAB_FAST_PATH_RESOLVED slowPathLabel
-    ldr    w3, [x2, #MIRROR_CLASS_STATUS_OFFSET]              // Check class status.
-    cmp    x3, #MIRROR_CLASS_STATUS_INITIALIZED
-    bne    \slowPathLabel
-                                                              // Add a fake dependence from the
-                                                              // following access flag and size
-                                                              // loads to the status load.
-                                                              // This is to prevent those loads
-                                                              // from being reordered above the
-                                                              // status load and reading wrong
-                                                              // values (an alternative is to use
-                                                              // a load-acquire for the status).
-    eor    x3, x3, x3
-    add    x2, x2, x3
     ALLOC_OBJECT_TLAB_FAST_PATH_INITIALIZED \slowPathLabel
 .endm
 
 .macro ALLOC_OBJECT_TLAB_FAST_PATH_INITIALIZED slowPathLabel
-                                                              // Check access flags has
-                                                              // kAccClassIsFinalizable.
-    ldr    w3, [x2, #MIRROR_CLASS_ACCESS_FLAGS_OFFSET]
-    tbnz   x3, #ACCESS_FLAGS_CLASS_IS_FINALIZABLE_BIT, \slowPathLabel
-                                                              // Load thread_local_pos (x4) and
-                                                              // thread_local_end (x5).
     ldr    x4, [xSELF, #THREAD_LOCAL_POS_OFFSET]
     ldr    x5, [xSELF, #THREAD_LOCAL_END_OFFSET]
-    sub    x6, x5, x4                                         // Compute the remaining buf size.
-    ldr    w7, [x2, #MIRROR_CLASS_OBJECT_SIZE_OFFSET]         // Load the object size (x7).
-    cmp    x7, x6                                             // Check if it fits. OK to do this
-                                                              // before rounding up the object size
-                                                              // assuming the buf size alignment.
+    ldr    w7, [x2, #MIRROR_CLASS_OBJECT_SIZE_ALLOC_FAST_PATH_OFFSET]  // Load the object size (x7).
+    add    x6, x4, x7                                         // Add object size to tlab pos.
+    cmp    x6, x5                                             // Check if it fits, overflow works
+                                                              // since the tlab pos and end are 32
+                                                              // bit values.
     bhi    \slowPathLabel
     // "Point of no slow path". Won't go to the slow path from here on. OK to clobber x0 and x1.
-                                                              // Round up the object size by the
-                                                              // object alignment. (addr + 7) & ~7.
-    add    x7, x7, #OBJECT_ALIGNMENT_MASK
-    and    x7, x7, #OBJECT_ALIGNMENT_MASK_TOGGLED
-                                                              // Move old thread_local_pos to x0
-                                                              // for the return value.
     mov    x0, x4
-    add    x5, x0, x7
-    str    x5, [xSELF, #THREAD_LOCAL_POS_OFFSET]              // Store new thread_local_pos.
+    str    x6, [xSELF, #THREAD_LOCAL_POS_OFFSET]              // Store new thread_local_pos.
     ldr    x5, [xSELF, #THREAD_LOCAL_OBJECTS_OFFSET]          // Increment thread_local_objects.
     add    x5, x5, #1
     str    x5, [xSELF, #THREAD_LOCAL_OBJECTS_OFFSET]
@@ -2080,7 +2056,7 @@ END art_quick_alloc_object_rosalloc
                                                               // the fields of the class.
                                                               // Alternatively we could use "ishst"
                                                               // if we use load-acquire for the
-                                                              // class status load.)
+                                                              // object size load.)
     dmb    ish
     ret
 .endm
