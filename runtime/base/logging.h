@@ -161,16 +161,6 @@ extern const char* ProgramInvocationShortName();
     } \
   } while (false)
 
-// CHECK that can be used in a constexpr function. For example,
-//    constexpr int half(int n) {
-//      return
-//          DCHECK_CONSTEXPR(n >= 0, , 0)
-//          CHECK_CONSTEXPR((n & 1) == 0), << "Extra debugging output: n = " << n, 0)
-//          n / 2;
-//    }
-#define CHECK_CONSTEXPR(x, out, dummy) \
-  (UNLIKELY(!(x))) ? (LOG(::art::FATAL) << "Check failed: " << #x out, dummy) :
-
 
 // DCHECKs are debug variants of CHECKs only enabled in debug builds. Generally CHECK should be
 // used unless profiling identifies a CHECK as being in performance critical code.
@@ -189,11 +179,6 @@ static constexpr bool kEnableDChecks = true;
 #define DCHECK_GT(x, y) if (::art::kEnableDChecks) CHECK_GT(x, y)
 #define DCHECK_STREQ(s1, s2) if (::art::kEnableDChecks) CHECK_STREQ(s1, s2)
 #define DCHECK_STRNE(s1, s2) if (::art::kEnableDChecks) CHECK_STRNE(s1, s2)
-#if defined(NDEBUG)
-#define DCHECK_CONSTEXPR(x, out, dummy)
-#else
-#define DCHECK_CONSTEXPR(x, out, dummy) CHECK_CONSTEXPR(x, out, dummy)
-#endif
 
 // Temporary class created to evaluate the LHS and RHS, used with MakeEagerEvaluator to infer the
 // types of LHS and RHS.
@@ -206,7 +191,7 @@ struct EagerEvaluator {
 
 // Helper function for CHECK_xx.
 template <typename LHS, typename RHS>
-static inline constexpr EagerEvaluator<LHS, RHS> MakeEagerEvaluator(LHS lhs, RHS rhs) {
+constexpr EagerEvaluator<LHS, RHS> MakeEagerEvaluator(LHS lhs, RHS rhs) {
   return EagerEvaluator<LHS, RHS>(lhs, rhs);
 }
 
