@@ -697,16 +697,17 @@ void CodeGeneratorMIPS::ComputeSpillMask() {
   if ((fpu_spill_mask_ != 0) && (POPCOUNT(core_spill_mask_) % 2 != 0)) {
     core_spill_mask_ |= (1 << ZERO);
   }
+}
+
+bool CodeGeneratorMIPS::HasAllocatedCalleeSaveRegisters() const {
   // If RA is clobbered by PC-relative operations on R2 and it's the only spilled register
-  // (this can happen in leaf methods), artificially spill the ZERO register in order to
-  // force explicit saving and restoring of RA. RA isn't saved/restored when it's the only
-  // spilled register.
+  // (this can happen in leaf methods), force CodeGenerator::InitializeCodeGeneration()
+  // into the path that creates a stack frame so that RA can be explicitly saved and restored.
+  // RA can't otherwise be saved/restored when it's the only spilled register.
   // TODO: Can this be improved? It causes creation of a stack frame (while RA might be
   // saved in an unused temporary register) and saving of RA and the current method pointer
   // in the frame.
-  if (clobbered_ra_ && core_spill_mask_ == (1u << RA) && fpu_spill_mask_ == 0) {
-    core_spill_mask_ |= (1 << ZERO);
-  }
+  return CodeGenerator::HasAllocatedCalleeSaveRegisters() || clobbered_ra_;
 }
 
 static dwarf::Reg DWARFReg(Register reg) {
@@ -729,6 +730,9 @@ void CodeGeneratorMIPS::GenerateFrameEntry() {
   }
 
   if (HasEmptyFrame()) {
+    CHECK_EQ(fpu_spill_mask_, 0u);
+    CHECK_EQ(core_spill_mask_, 1u << RA);
+    CHECK(!clobbered_ra_);
     return;
   }
 
@@ -762,6 +766,7 @@ void CodeGeneratorMIPS::GenerateFrameEntry() {
   }
 
   // Store the current method pointer.
+  // TODO: can we not do this if RequiresCurrentMethod() returns false?
   __ StoreToOffset(kStoreWord, kMethodRegisterArgument, SP, kCurrentMethodStackOffset);
 }
 

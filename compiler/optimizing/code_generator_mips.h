@@ -274,6 +274,7 @@ class CodeGeneratorMIPS : public CodeGenerator {
   virtual ~CodeGeneratorMIPS() {}
 
   void ComputeSpillMask() OVERRIDE;
+  bool HasAllocatedCalleeSaveRegisters() const OVERRIDE;
   void GenerateFrameEntry() OVERRIDE;
   void GenerateFrameExit() OVERRIDE;
 
