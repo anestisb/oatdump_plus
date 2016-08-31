@@ -1209,7 +1209,9 @@ void CodeGeneratorARM::InvokeRuntime(QuickEntrypointEnum entrypoint,
                                      SlowPathCode* slow_path) {
   ValidateInvokeRuntime(instruction, slow_path);
   GenerateInvokeRuntime(GetThreadOffset<kArmPointerSize>(entrypoint).Int32Value());
-  RecordPcInfo(instruction, dex_pc, slow_path);
+  if (EntrypointRequiresStackMap(entrypoint)) {
+    RecordPcInfo(instruction, dex_pc, slow_path);
+  }
 }
 
 void CodeGeneratorARM::InvokeRuntimeWithoutRecordingPcInfo(int32_t entry_point_offset,
