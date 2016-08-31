@@ -673,6 +673,144 @@ TEST_F(AssemblerMIPS32r6Test, LoadNearestFarLiteral) {
 // BRANCHES //
 //////////////
 
+TEST_F(AssemblerMIPS32r6Test, ImpossibleReordering) {
+  mips::MipsLabel label;
+  __ SetReorder(true);
+  __ Bind(&label);
+
+  __ CmpLtD(mips::F0, mips::F2, mips::F4);
+  __ Bc1nez(mips::F0, &label);  // F0 dependency.
+
+  __ MulD(mips::F10, mips::F2, mips::F4);
+  __ Bc1eqz(mips::F10, &label);  // F10 dependency.
+
+  std::string expected =
+      ".set noreorder\n"
+      "1:\n"
+
+      "cmp.lt.d $f0, $f2, $f4\n"
+      "bc1nez $f0, 1b\n"
+      "nop\n"
+
+      "mul.d $f10, $f2, $f4\n"
+      "bc1eqz $f10, 1b\n"
+      "nop\n";
+  DriverStr(expected, "ImpossibleReordering");
+}
+
+TEST_F(AssemblerMIPS32r6Test, Reordering) {
+  mips::MipsLabel label;
+  __ SetReorder(true);
+  __ Bind(&label);
+
+  __ CmpLtD(mips::F0, mips::F2, mips::F4);
+  __ Bc1nez(mips::F2, &label);
+
+  __ MulD(mips::F0, mips::F2, mips::F4);
+  __ Bc1eqz(mips::F4, &label);
+
+  std::string expected =
+      ".set noreorder\n"
+      "1:\n"
+
+      "bc1nez $f2, 1b\n"
+      "cmp.lt.d $f0, $f2, $f4\n"
+
+      "bc1eqz $f4, 1b\n"
+      "mul.d $f0, $f2, $f4\n";
+  DriverStr(expected, "Reordering");
+}
+
+TEST_F(AssemblerMIPS32r6Test, SetReorder) {
+  mips::MipsLabel label1, label2, label3, label4;
+
+  __ SetReorder(true);
+  __ Bind(&label1);
+  __ Addu(mips::T0, mips::T1, mips::T2);
+  __ Bc1nez(mips::F0, &label1);
+
+  __ SetReorder(false);
+  __ Bind(&label2);
+  __ Addu(mips::T0, mips::T1, mips::T2);
+  __ Bc1nez(mips::F0, &label2);
+
+  __ SetReorder(true);
+  __ Bind(&label3);
+  __ Addu(mips::T0, mips::T1, mips::T2);
+  __ Bc1eqz(mips::F0, &label3);
+
+  __ SetReorder(false);
+  __ Bind(&label4);
+  __ Addu(mips::T0, mips::T1, mips::T2);
+  __ Bc1eqz(mips::F0, &label4);
+
+  std::string expected =
+      ".set noreorder\n"
+      "1:\n"
+      "bc1nez $f0, 1b\n"
+      "addu $t0, $t1, $t2\n"
+
+      "2:\n"
+      "addu $t0, $t1, $t2\n"
+      "bc1nez $f0, 2b\n"
+      "nop\n"
+
+      "3:\n"
+      "bc1eqz $f0, 3b\n"
+      "addu $t0, $t1, $t2\n"
+
+      "4:\n"
+      "addu $t0, $t1, $t2\n"
+      "bc1eqz $f0, 4b\n"
+      "nop\n";
+  DriverStr(expected, "SetReorder");
+}
+
+TEST_F(AssemblerMIPS32r6Test, LongBranchReorder) {
+  mips::MipsLabel label;
+  __ SetReorder(true);
+  __ Subu(mips::T0, mips::T1, mips::T2);
+  __ Bc1nez(mips::F0, &label);
+  constexpr uint32_t kAdduCount1 = (1u << 15) + 1;
+  for (uint32_t i = 0; i != kAdduCount1; ++i) {
+    __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
+  }
+  __ Bind(&label);
+  constexpr uint32_t kAdduCount2 = (1u << 15) + 1;
+  for (uint32_t i = 0; i != kAdduCount2; ++i) {
+    __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
+  }
+  __ Subu(mips::T0, mips::T1, mips::T2);
+  __ Bc1eqz(mips::F0, &label);
+
+  uint32_t offset_forward = 2 + kAdduCount1;  // 2: account for auipc and jic.
+  offset_forward <<= 2;
+  offset_forward += (offset_forward & 0x8000) << 1;  // Account for sign extension in jic.
+
+  uint32_t offset_back = -(kAdduCount2 + 2);  // 2: account for subu and bc1nez.
+  offset_back <<= 2;
+  offset_back += (offset_back & 0x8000) << 1;  // Account for sign extension in jic.
+
+  std::ostringstream oss;
+  oss <<
+      ".set noreorder\n"
+      "subu $t0, $t1, $t2\n"
+      "bc1eqz $f0, 1f\n"
+      "auipc $at, 0x" << std::hex << High16Bits(offset_forward) << "\n"
+      "jic $at, 0x" << std::hex << Low16Bits(offset_forward) << "\n"
+      "1:\n" <<
+      RepeatInsn(kAdduCount1, "addu $zero, $zero, $zero\n") <<
+      "2:\n" <<
+      RepeatInsn(kAdduCount2, "addu $zero, $zero, $zero\n") <<
+      "subu $t0, $t1, $t2\n"
+      "bc1nez $f0, 3f\n"
+      "auipc $at, 0x" << std::hex << High16Bits(offset_back) << "\n"
+      "jic $at, 0x" << std::hex << Low16Bits(offset_back) << "\n"
+      "3:\n";
+  std::string expected = oss.str();
+  DriverStr(expected, "LongBeqc");
+}
+
 // TODO: MipsAssembler::Addiupc
 //       MipsAssembler::Bc
 //       MipsAssembler::Jic
