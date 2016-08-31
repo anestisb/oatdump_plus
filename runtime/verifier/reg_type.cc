@@ -279,7 +279,7 @@ void BooleanType::Destroy() {
   }
 }
 
-std::string UndefinedType::Dump() const SHARED_REQUIRES(Locks::mutator_lock_) {
+std::string UndefinedType::Dump() const REQUIRES_SHARED(Locks::mutator_lock_) {
   return "Undefined";
 }
 
@@ -517,11 +517,11 @@ const RegType& RegType::GetSuperClass(RegTypeCache* cache) const {
   }
 }
 
-bool RegType::IsJavaLangObject() const SHARED_REQUIRES(Locks::mutator_lock_) {
+bool RegType::IsJavaLangObject() const REQUIRES_SHARED(Locks::mutator_lock_) {
   return IsReference() && GetClass()->IsObjectClass();
 }
 
-bool RegType::IsObjectArrayTypes() const SHARED_REQUIRES(Locks::mutator_lock_) {
+bool RegType::IsObjectArrayTypes() const REQUIRES_SHARED(Locks::mutator_lock_) {
   if (IsUnresolvedTypes()) {
     DCHECK(!IsUnresolvedMergedReference());
 
@@ -542,7 +542,7 @@ bool RegType::IsObjectArrayTypes() const SHARED_REQUIRES(Locks::mutator_lock_) {
   }
 }
 
-bool RegType::IsArrayTypes() const SHARED_REQUIRES(Locks::mutator_lock_) {
+bool RegType::IsArrayTypes() const REQUIRES_SHARED(Locks::mutator_lock_) {
   if (IsUnresolvedTypes()) {
     DCHECK(!IsUnresolvedMergedReference());
 

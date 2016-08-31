@@ -3986,7 +3986,7 @@ class MethodParamListDescriptorIterator {
     ++pos_;
   }
 
-  const char* GetDescriptor() SHARED_REQUIRES(Locks::mutator_lock_) {
+  const char* GetDescriptor() REQUIRES_SHARED(Locks::mutator_lock_) {
     return res_method_->GetTypeDescriptorFromTypeIdx(params_->GetTypeItem(pos_).type_idx_);
   }
 

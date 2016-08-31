@@ -43,10 +43,10 @@ class MemoryToolMallocSpace FINAL : public BaseMallocSpaceType {
   size_t AllocationSize(mirror::Object* obj, size_t* usable_size) OVERRIDE;
 
   size_t Free(Thread* self, mirror::Object* ptr) OVERRIDE
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) OVERRIDE
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void RegisterRecentFree(mirror::Object* ptr ATTRIBUTE_UNUSED) OVERRIDE {}
 

@@ -28,13 +28,13 @@ namespace {
 class TestVisitor : public StackVisitor {
  public:
   TestVisitor(const ScopedObjectAccess& soa, Context* context, jobject expected_value)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       : StackVisitor(soa.Self(), context, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         expected_value_(expected_value),
         found_(false),
         soa_(soa) {}
 
-  bool VisitFrame() SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool VisitFrame() REQUIRES_SHARED(Locks::mutator_lock_) {
     ArtMethod* m = GetMethod();
     std::string m_name(m->GetName());
 

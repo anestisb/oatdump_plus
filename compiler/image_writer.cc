@@ -111,7 +111,7 @@ bool ImageWriter::IsInBootOatFile(const void* ptr) const {
 }
 
 static void CheckNoDexObjectsCallback(Object* obj, void* arg ATTRIBUTE_UNUSED)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   Class* klass = obj->GetClass();
   CHECK_NE(PrettyClass(klass), "com.android.dex.Dex");
 }
@@ -687,7 +687,7 @@ bool ImageWriter::AllocMemory() {
 
 class ComputeLazyFieldsForClassesVisitor : public ClassVisitor {
  public:
-  bool operator()(Class* c) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool operator()(Class* c) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     StackHandleScope<1> hs(Thread::Current());
     mirror::Class::ComputeName(hs.NewHandle(c));
     return true;
@@ -700,7 +700,7 @@ void ImageWriter::ComputeLazyFieldsForImageClasses() {
   class_linker->VisitClassesWithoutClassesLock(&visitor);
 }
 
-static bool IsBootClassLoaderClass(mirror::Class* klass) SHARED_REQUIRES(Locks::mutator_lock_) {
+static bool IsBootClassLoaderClass(mirror::Class* klass) REQUIRES_SHARED(Locks::mutator_lock_) {
   return klass->GetClassLoader() == nullptr;
 }
 
@@ -828,7 +828,7 @@ class NonImageClassesVisitor : public ClassVisitor {
  public:
   explicit NonImageClassesVisitor(ImageWriter* image_writer) : image_writer_(image_writer) {}
 
-  bool operator()(Class* klass) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool operator()(Class* klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     if (!image_writer_->KeepClass(klass)) {
       classes_to_prune_.insert(klass);
     }
@@ -1603,7 +1603,7 @@ class FixupRootVisitor : public RootVisitor {
   }
 
   void VisitRoots(mirror::Object*** roots, size_t count, const RootInfo& info ATTRIBUTE_UNUSED)
-      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+      OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     for (size_t i = 0; i < count; ++i) {
       *roots[i] = image_writer_->GetImageAddress(*roots[i]);
     }
@@ -1611,7 +1611,7 @@ class FixupRootVisitor : public RootVisitor {
 
   void VisitRoots(mirror::CompressedReference<mirror::Object>** roots, size_t count,
                   const RootInfo& info ATTRIBUTE_UNUSED)
-      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+      OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     for (size_t i = 0; i < count; ++i) {
       roots[i]->Assign(image_writer_->GetImageAddress(roots[i]->AsMirrorPtr()));
     }
@@ -1864,7 +1864,7 @@ class FixupVisitor {
 
   // java.lang.ref.Reference visitor.
   void operator()(mirror::Class* klass ATTRIBUTE_UNUSED, mirror::Reference* ref) const
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_) {
     copy_->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(
         mirror::Reference::ReferentOffset(),
         image_writer_->GetImageAddress(ref->GetReferent()));
@@ -1888,7 +1888,7 @@ class FixupClassVisitor FINAL : public FixupVisitor {
 
   void operator()(mirror::Class* klass ATTRIBUTE_UNUSED,
                   mirror::Reference* ref ATTRIBUTE_UNUSED) const
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_) {
     LOG(FATAL) << "Reference not expected here.";
   }
 };
@@ -1904,14 +1904,14 @@ uintptr_t ImageWriter::NativeOffsetInImage(void* obj) {
 }
 
 template <typename T>
-std::string PrettyPrint(T* ptr) SHARED_REQUIRES(Locks::mutator_lock_) {
+std::string PrettyPrint(T* ptr) REQUIRES_SHARED(Locks::mutator_lock_) {
   std::ostringstream oss;
   oss << ptr;
   return oss.str();
 }
 
 template <>
-std::string PrettyPrint(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_) {
+std::string PrettyPrint(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
   return PrettyMethod(method);
 }
 
@@ -1945,7 +1945,7 @@ class NativeLocationVisitor {
   explicit NativeLocationVisitor(ImageWriter* image_writer) : image_writer_(image_writer) {}
 
   template <typename T>
-  T* operator()(T* ptr) const SHARED_REQUIRES(Locks::mutator_lock_) {
+  T* operator()(T* ptr) const REQUIRES_SHARED(Locks::mutator_lock_) {
     return image_writer_->NativeLocationInImage(ptr);
   }
 
@@ -2023,7 +2023,7 @@ class ImageAddressVisitor {
   explicit ImageAddressVisitor(ImageWriter* image_writer) : image_writer_(image_writer) {}
 
   template <typename T>
-  T* operator()(T* ptr) const SHARED_REQUIRES(Locks::mutator_lock_) {
+  T* operator()(T* ptr) const REQUIRES_SHARED(Locks::mutator_lock_) {
     return image_writer_->GetImageAddress(ptr);
   }
 

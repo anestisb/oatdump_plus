@@ -219,13 +219,13 @@ void Monitor::SetObject(mirror::Object* object) {
 
 struct NthCallerWithDexPcVisitor FINAL : public StackVisitor {
   explicit NthCallerWithDexPcVisitor(Thread* thread, size_t frame)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames),
         method_(nullptr),
         dex_pc_(0),
         current_frame_number_(0),
         wanted_frame_number_(frame) {}
-  bool VisitFrame() OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool VisitFrame() OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     ArtMethod* m = GetMethod();
     if (m == nullptr || m->IsRuntimeMethod()) {
       // Runtime method, upcall, or resolution issue. Skip.
@@ -449,7 +449,7 @@ static void ThrowIllegalMonitorStateExceptionF(const char* fmt, ...)
                                               __attribute__((format(printf, 1, 2)));
 
 static void ThrowIllegalMonitorStateExceptionF(const char* fmt, ...)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   va_list args;
   va_start(args, fmt);
   Thread* self = Thread::Current();
@@ -1261,7 +1261,7 @@ bool Monitor::IsValidLockWord(LockWord lock_word) {
   }
 }
 
-bool Monitor::IsLocked() SHARED_REQUIRES(Locks::mutator_lock_) {
+bool Monitor::IsLocked() REQUIRES_SHARED(Locks::mutator_lock_) {
   MutexLock mu(Thread::Current(), monitor_lock_);
   return owner_ != nullptr;
 }
@@ -1364,7 +1364,7 @@ class MonitorDeflateVisitor : public IsMarkedVisitor {
   MonitorDeflateVisitor() : self_(Thread::Current()), deflate_count_(0) {}
 
   virtual mirror::Object* IsMarked(mirror::Object* object) OVERRIDE
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     if (Monitor::Deflate(self_, object)) {
       DCHECK_NE(object->GetLockWord(true).GetState(), LockWord::kFatLocked);
       ++deflate_count_;

@@ -289,7 +289,7 @@ class SemiSpace::VerifyNoFromSpaceReferencesVisitor {
       : from_space_(from_space) {}
 
   void operator()(Object* obj, MemberOffset offset, bool /* is_static */) const
-      SHARED_REQUIRES(Locks::mutator_lock_) ALWAYS_INLINE {
+      REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE {
     mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset);
     if (from_space_->HasAddress(ref)) {
       Runtime::Current()->GetHeap()->DumpObject(LOG(INFO), obj);
@@ -382,7 +382,7 @@ void SemiSpace::MarkReachableObjects() {
         live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(space->Begin()),
                                       reinterpret_cast<uintptr_t>(space->End()),
                                       [this](Object* obj)
-            SHARED_REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
+            REQUIRES_SHARED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
           DCHECK(obj != nullptr);
           VerifyNoFromSpaceReferences(obj);
         });

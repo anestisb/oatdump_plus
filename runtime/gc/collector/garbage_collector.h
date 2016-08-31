@@ -155,7 +155,7 @@ class GarbageCollector : public RootVisitor, public IsMarkedVisitor, public Mark
   // this is the allocation space, for full GC then we swap the zygote bitmaps too.
   void SwapBitmaps()
       REQUIRES(Locks::heap_bitmap_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   uint64_t GetTotalPausedTimeNs() REQUIRES(!pause_histogram_lock_);
   int64_t GetTotalFreedBytes() const {
     return total_freed_bytes_;
@@ -186,18 +186,18 @@ class GarbageCollector : public RootVisitor, public IsMarkedVisitor, public Mark
   // Helper functions for querying if objects are marked. These are used for processing references,
   // and will be used for reading system weaks while the GC is running.
   virtual mirror::Object* IsMarked(mirror::Object* obj)
-      SHARED_REQUIRES(Locks::mutator_lock_) = 0;
+      REQUIRES_SHARED(Locks::mutator_lock_) = 0;
   virtual bool IsMarkedHeapReference(mirror::HeapReference<mirror::Object>* obj)
-      SHARED_REQUIRES(Locks::mutator_lock_) = 0;
+      REQUIRES_SHARED(Locks::mutator_lock_) = 0;
   // Used by reference processor.
-  virtual void ProcessMarkStack() SHARED_REQUIRES(Locks::mutator_lock_) = 0;
+  virtual void ProcessMarkStack() REQUIRES_SHARED(Locks::mutator_lock_) = 0;
   // Force mark an object.
   virtual mirror::Object* MarkObject(mirror::Object* obj)
-      SHARED_REQUIRES(Locks::mutator_lock_) = 0;
+      REQUIRES_SHARED(Locks::mutator_lock_) = 0;
   virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>* obj)
-      SHARED_REQUIRES(Locks::mutator_lock_) = 0;
+      REQUIRES_SHARED(Locks::mutator_lock_) = 0;
   virtual void DelayReferenceReferent(mirror::Class* klass, mirror::Reference* reference)
-      SHARED_REQUIRES(Locks::mutator_lock_) = 0;
+      REQUIRES_SHARED(Locks::mutator_lock_) = 0;
 
  protected:
   // Run all of the GC phases.

@@ -47,10 +47,10 @@ class Transaction FINAL {
 
   void Abort(const std::string& abort_message)
       REQUIRES(!log_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   void ThrowAbortError(Thread* self, const std::string* abort_message)
       REQUIRES(!log_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   bool IsAborted() REQUIRES(!log_lock_);
 
   // Record object field changes.
@@ -79,7 +79,7 @@ class Transaction FINAL {
   // Record array change.
   void RecordWriteArray(mirror::Array* array, size_t index, uint64_t value)
       REQUIRES(!log_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Record intern string table changes.
   void RecordStrongStringInsertion(mirror::String* s)
@@ -97,12 +97,12 @@ class Transaction FINAL {
 
   // Abort transaction by undoing all recorded changes.
   void Rollback()
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!log_lock_);
 
   void VisitRoots(RootVisitor* visitor)
       REQUIRES(!log_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   class ObjectLog : public ValueObject {
@@ -115,8 +115,8 @@ class Transaction FINAL {
     void Log64BitsValue(MemberOffset offset, uint64_t value, bool is_volatile);
     void LogReferenceValue(MemberOffset offset, mirror::Object* obj, bool is_volatile);
 
-    void Undo(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_);
-    void VisitRoots(RootVisitor* visitor) SHARED_REQUIRES(Locks::mutator_lock_);
+    void Undo(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_);
+    void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
     size_t Size() const {
       return field_values_.size();
@@ -141,7 +141,7 @@ class Transaction FINAL {
 
     void LogValue(FieldValueKind kind, MemberOffset offset, uint64_t value, bool is_volatile);
     void UndoFieldWrite(mirror::Object* obj, MemberOffset field_offset,
-                        const FieldValue& field_value) SHARED_REQUIRES(Locks::mutator_lock_);
+                        const FieldValue& field_value) REQUIRES_SHARED(Locks::mutator_lock_);
 
     // Maps field's offset to its value.
     std::map<uint32_t, FieldValue> field_values_;
@@ -151,7 +151,7 @@ class Transaction FINAL {
    public:
     void LogValue(size_t index, uint64_t value);
 
-    void Undo(mirror::Array* obj) SHARED_REQUIRES(Locks::mutator_lock_);
+    void Undo(mirror::Array* obj) REQUIRES_SHARED(Locks::mutator_lock_);
 
     size_t Size() const {
       return array_values_.size();
@@ -159,7 +159,7 @@ class Transaction FINAL {
 
    private:
     void UndoArrayWrite(mirror::Array* array, Primitive::Type array_type, size_t index,
-                        uint64_t value) SHARED_REQUIRES(Locks::mutator_lock_);
+                        uint64_t value) REQUIRES_SHARED(Locks::mutator_lock_);
 
     // Maps index to value.
     // TODO use JValue instead ?
@@ -182,9 +182,9 @@ class Transaction FINAL {
     }
 
     void Undo(InternTable* intern_table)
-        SHARED_REQUIRES(Locks::mutator_lock_)
+        REQUIRES_SHARED(Locks::mutator_lock_)
         REQUIRES(Locks::intern_table_lock_);
-    void VisitRoots(RootVisitor* visitor) SHARED_REQUIRES(Locks::mutator_lock_);
+    void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
    private:
     mirror::String* str_;
@@ -198,24 +198,24 @@ class Transaction FINAL {
 
   void UndoObjectModifications()
       REQUIRES(log_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   void UndoArrayModifications()
       REQUIRES(log_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   void UndoInternStringTableModifications()
       REQUIRES(Locks::intern_table_lock_)
       REQUIRES(log_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void VisitObjectLogs(RootVisitor* visitor)
       REQUIRES(log_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   void VisitArrayLogs(RootVisitor* visitor)
       REQUIRES(log_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   void VisitStringLogs(RootVisitor* visitor)
       REQUIRES(log_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   const std::string& GetAbortMessage() REQUIRES(!log_lock_);
 

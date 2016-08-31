@@ -31,32 +31,32 @@ namespace mirror {
 // C++ mirror of java.lang.StackTraceElement
 class MANAGED StackTraceElement FINAL : public Object {
  public:
-  String* GetDeclaringClass() SHARED_REQUIRES(Locks::mutator_lock_) {
+  String* GetDeclaringClass() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, declaring_class_));
   }
 
-  String* GetMethodName() SHARED_REQUIRES(Locks::mutator_lock_) {
+  String* GetMethodName() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, method_name_));
   }
 
-  String* GetFileName() SHARED_REQUIRES(Locks::mutator_lock_) {
+  String* GetFileName() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, file_name_));
   }
 
-  int32_t GetLineNumber() SHARED_REQUIRES(Locks::mutator_lock_) {
+  int32_t GetLineNumber() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetField32(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, line_number_));
   }
 
   static StackTraceElement* Alloc(Thread* self, Handle<String> declaring_class,
                                   Handle<String> method_name, Handle<String> file_name,
                                   int32_t line_number)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   static void SetClass(Class* java_lang_StackTraceElement);
   static void ResetClass();
   static void VisitRoots(RootVisitor* visitor)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-  static Class* GetStackTraceElement() SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  static Class* GetStackTraceElement() REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(!java_lang_StackTraceElement_.IsNull());
     return java_lang_StackTraceElement_.Read();
   }
@@ -71,7 +71,7 @@ class MANAGED StackTraceElement FINAL : public Object {
   template<bool kTransactionActive>
   void Init(Handle<String> declaring_class, Handle<String> method_name, Handle<String> file_name,
             int32_t line_number)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   static GcRoot<Class> java_lang_StackTraceElement_;
 

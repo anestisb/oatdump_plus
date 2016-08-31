@@ -28,10 +28,10 @@ namespace art {
 // holding references.
 class CheckReferenceMapVisitor : public StackVisitor {
  public:
-  explicit CheckReferenceMapVisitor(Thread* thread) SHARED_REQUIRES(Locks::mutator_lock_)
+  explicit CheckReferenceMapVisitor(Thread* thread) REQUIRES_SHARED(Locks::mutator_lock_)
       : StackVisitor(thread, nullptr, StackVisitor::StackWalkKind::kIncludeInlinedFrames) {}
 
-  bool VisitFrame() SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool VisitFrame() REQUIRES_SHARED(Locks::mutator_lock_) {
     ArtMethod* m = GetMethod();
     if (m->IsCalleeSaveMethod() || m->IsNative()) {
       CHECK_EQ(GetDexPc(), DexFile::kDexNoIndex);
@@ -52,14 +52,14 @@ class CheckReferenceMapVisitor : public StackVisitor {
   }
 
   void CheckReferences(int* registers, int number_of_references, uint32_t native_pc_offset)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     CHECK(GetCurrentOatQuickMethodHeader()->IsOptimized());
     CheckOptimizedMethod(registers, number_of_references, native_pc_offset);
   }
 
  private:
   void CheckOptimizedMethod(int* registers, int number_of_references, uint32_t native_pc_offset)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     ArtMethod* m = GetMethod();
     CodeInfo code_info = GetCurrentOatQuickMethodHeader()->GetOptimizedCodeInfo();
     CodeInfoEncoding encoding = code_info.ExtractEncoding();

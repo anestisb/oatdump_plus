@@ -117,7 +117,7 @@ class SemiSpace : public GarbageCollector {
       REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   void VerifyNoFromSpaceReferences(mirror::Object* obj)
-      SHARED_REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   // Marks the root set at the start of a garbage collection.
   void MarkRoots()
@@ -125,7 +125,7 @@ class SemiSpace : public GarbageCollector {
 
   // Bind the live bits to the mark bits of bitmaps for spaces that are never collected, ie
   // the image. Mark that portion of the heap as immune.
-  virtual void BindBitmaps() SHARED_REQUIRES(Locks::mutator_lock_)
+  virtual void BindBitmaps() REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::heap_bitmap_lock_);
 
   void UnBindBitmaps()
@@ -137,13 +137,13 @@ class SemiSpace : public GarbageCollector {
   // Sweeps unmarked objects to complete the garbage collection.
   virtual void Sweep(bool swap_bitmaps)
       REQUIRES(Locks::heap_bitmap_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Sweeps unmarked objects to complete the garbage collection.
   void SweepLargeObjects(bool swap_bitmaps) REQUIRES(Locks::heap_bitmap_lock_);
 
   void SweepSystemWeaks()
-      SHARED_REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   virtual void VisitRoots(mirror::Object*** roots, size_t count, const RootInfo& info) OVERRIDE
       REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
@@ -157,44 +157,44 @@ class SemiSpace : public GarbageCollector {
 
   // Schedules an unmarked object for reference processing.
   void DelayReferenceReferent(mirror::Class* klass, mirror::Reference* reference)
-      SHARED_REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
  protected:
   // Returns null if the object is not marked, otherwise returns the forwarding address (same as
   // object for non movable things).
   virtual mirror::Object* IsMarked(mirror::Object* object) OVERRIDE
       REQUIRES(Locks::mutator_lock_)
-      SHARED_REQUIRES(Locks::heap_bitmap_lock_);
+      REQUIRES_SHARED(Locks::heap_bitmap_lock_);
 
   virtual bool IsMarkedHeapReference(mirror::HeapReference<mirror::Object>* object) OVERRIDE
       REQUIRES(Locks::mutator_lock_)
-      SHARED_REQUIRES(Locks::heap_bitmap_lock_);
+      REQUIRES_SHARED(Locks::heap_bitmap_lock_);
 
   // Marks or unmarks a large object based on whether or not set is true. If set is true, then we
   // mark, otherwise we unmark.
   bool MarkLargeObject(const mirror::Object* obj)
       REQUIRES(Locks::heap_bitmap_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Expand mark stack to 2x its current size.
-  void ResizeMarkStack(size_t new_size) SHARED_REQUIRES(Locks::mutator_lock_);
+  void ResizeMarkStack(size_t new_size) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns true if we should sweep the space.
   virtual bool ShouldSweepSpace(space::ContinuousSpace* space) const;
 
   // Push an object onto the mark stack.
-  void MarkStackPush(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_);
+  void MarkStackPush(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_);
 
   void UpdateAndMarkModUnion()
       REQUIRES(Locks::heap_bitmap_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Recursively blackens objects on the mark stack.
   void ProcessMarkStack()
       REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
   inline mirror::Object* GetForwardingAddressInFromSpace(mirror::Object* obj) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Revoke all the thread-local buffers.
   void RevokeAllThreadLocalBuffers();

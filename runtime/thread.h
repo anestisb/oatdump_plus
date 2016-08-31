@@ -166,18 +166,18 @@ class Thread {
   static Thread* Current();
 
   // On a runnable thread, check for pending thread suspension request and handle if pending.
-  void AllowThreadSuspension() SHARED_REQUIRES(Locks::mutator_lock_);
+  void AllowThreadSuspension() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Process pending thread suspension request and handle if pending.
-  void CheckSuspend() SHARED_REQUIRES(Locks::mutator_lock_);
+  void CheckSuspend() REQUIRES_SHARED(Locks::mutator_lock_);
 
   static Thread* FromManagedThread(const ScopedObjectAccessAlreadyRunnable& ts,
                                    mirror::Object* thread_peer)
       REQUIRES(Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   static Thread* FromManagedThread(const ScopedObjectAccessAlreadyRunnable& ts, jobject thread)
       REQUIRES(Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Translates 172 to pAllocArrayFromCode and so on.
   template<PointerSize size_of_pointers>
@@ -191,17 +191,17 @@ class Thread {
             bool dump_native_stack = true,
             BacktraceMap* backtrace_map = nullptr) const
       REQUIRES(!Locks::thread_suspend_count_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void DumpJavaStack(std::ostream& os) const
       REQUIRES(!Locks::thread_suspend_count_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Dumps the SIGQUIT per-thread header. 'thread' can be null for a non-attached thread, in which
   // case we use 'tid' to identify the thread, and we'll include as much information as we can.
   static void DumpState(std::ostream& os, const Thread* thread, pid_t tid)
       REQUIRES(!Locks::thread_suspend_count_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   ThreadState GetState() const {
     DCHECK_GE(tls32_.state_and_flags.as_struct.state, kTerminated);
@@ -248,7 +248,7 @@ class Thread {
   // mutator_lock_ and waits until it is resumed and thread_suspend_count_ is zero.
   void FullSuspendCheck()
       REQUIRES(!Locks::thread_suspend_count_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Transition from non-runnable to runnable state acquiring share on mutator_lock_.
   ALWAYS_INLINE ThreadState TransitionFromSuspendedToRunnable()
@@ -297,7 +297,7 @@ class Thread {
 
   size_t NumberOfHeldMutexes() const;
 
-  bool HoldsLock(mirror::Object*) const SHARED_REQUIRES(Locks::mutator_lock_);
+  bool HoldsLock(mirror::Object*) const REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
    * Changes the priority of this thread to match that of the java.lang.Thread object.
@@ -326,19 +326,19 @@ class Thread {
 
   // Returns the java.lang.Thread's name, or null if this Thread* doesn't have a peer.
   mirror::String* GetThreadName(const ScopedObjectAccessAlreadyRunnable& ts) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Sets 'name' to the java.lang.Thread's name. This requires no transition to managed code,
   // allocation, or locking.
   void GetThreadName(std::string& name) const;
 
   // Sets the thread's name.
-  void SetThreadName(const char* name) SHARED_REQUIRES(Locks::mutator_lock_);
+  void SetThreadName(const char* name) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns the thread-specific CPU-time clock in microseconds or -1 if unavailable.
   uint64_t GetCpuMicroTime() const;
 
-  mirror::Object* GetPeer() const SHARED_REQUIRES(Locks::mutator_lock_) {
+  mirror::Object* GetPeer() const REQUIRES_SHARED(Locks::mutator_lock_) {
     CHECK(tlsPtr_.jpeer == nullptr);
     return tlsPtr_.opeer;
   }
@@ -357,23 +357,23 @@ class Thread {
     return tlsPtr_.exception != nullptr;
   }
 
-  mirror::Throwable* GetException() const SHARED_REQUIRES(Locks::mutator_lock_) {
+  mirror::Throwable* GetException() const REQUIRES_SHARED(Locks::mutator_lock_) {
     return tlsPtr_.exception;
   }
 
   void AssertPendingException() const;
-  void AssertPendingOOMException() const SHARED_REQUIRES(Locks::mutator_lock_);
+  void AssertPendingOOMException() const REQUIRES_SHARED(Locks::mutator_lock_);
   void AssertNoPendingException() const;
   void AssertNoPendingExceptionForNewException(const char* msg) const;
 
-  void SetException(mirror::Throwable* new_exception) SHARED_REQUIRES(Locks::mutator_lock_);
+  void SetException(mirror::Throwable* new_exception) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void ClearException() SHARED_REQUIRES(Locks::mutator_lock_) {
+  void ClearException() REQUIRES_SHARED(Locks::mutator_lock_) {
     tlsPtr_.exception = nullptr;
   }
 
   // Find catch block and perform long jump to appropriate exception handle
-  NO_RETURN void QuickDeliverException() SHARED_REQUIRES(Locks::mutator_lock_);
+  NO_RETURN void QuickDeliverException() REQUIRES_SHARED(Locks::mutator_lock_);
 
   Context* GetLongJumpContext();
   void ReleaseLongJumpContext(Context* context) {
@@ -395,12 +395,12 @@ class Thread {
   // Get the current method and dex pc. If there are errors in retrieving the dex pc, this will
   // abort the runtime iff abort_on_error is true.
   ArtMethod* GetCurrentMethod(uint32_t* dex_pc, bool abort_on_error = true) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns whether the given exception was thrown by the current Java method being executed
   // (Note that this includes native Java methods).
   bool IsExceptionThrownByCurrentMethod(mirror::Throwable* exception) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void SetTopOfStack(ArtMethod** top_method) {
     tlsPtr_.managed_stack.SetTopQuickFrame(top_method);
@@ -417,23 +417,23 @@ class Thread {
 
   // If 'msg' is null, no detail message is set.
   void ThrowNewException(const char* exception_class_descriptor, const char* msg)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   // If 'msg' is null, no detail message is set. An exception must be pending, and will be
   // used as the new exception's cause.
   void ThrowNewWrappedException(const char* exception_class_descriptor, const char* msg)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   void ThrowNewExceptionF(const char* exception_class_descriptor, const char* fmt, ...)
       __attribute__((format(printf, 3, 4)))
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   void ThrowNewExceptionV(const char* exception_class_descriptor, const char* fmt, va_list ap)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   // OutOfMemoryError is special, because we need to pre-allocate an instance.
   // Only the GC should call this.
-  void ThrowOutOfMemoryError(const char* msg) SHARED_REQUIRES(Locks::mutator_lock_)
+  void ThrowOutOfMemoryError(const char* msg) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 
   static void Startup();
@@ -446,15 +446,15 @@ class Thread {
   }
 
   // Convert a jobject into a Object*
-  mirror::Object* DecodeJObject(jobject obj) const SHARED_REQUIRES(Locks::mutator_lock_);
+  mirror::Object* DecodeJObject(jobject obj) const REQUIRES_SHARED(Locks::mutator_lock_);
   // Checks if the weak global ref has been cleared by the GC without decoding it.
-  bool IsJWeakCleared(jweak obj) const SHARED_REQUIRES(Locks::mutator_lock_);
+  bool IsJWeakCleared(jweak obj) const REQUIRES_SHARED(Locks::mutator_lock_);
 
-  mirror::Object* GetMonitorEnterObject() const SHARED_REQUIRES(Locks::mutator_lock_) {
+  mirror::Object* GetMonitorEnterObject() const REQUIRES_SHARED(Locks::mutator_lock_) {
     return tlsPtr_.monitor_enter_object;
   }
 
-  void SetMonitorEnterObject(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_) {
+  void SetMonitorEnterObject(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_) {
     tlsPtr_.monitor_enter_object = obj;
   }
 
@@ -510,7 +510,7 @@ class Thread {
   // and space efficient to compute than the StackTraceElement[].
   template<bool kTransactionActive>
   jobject CreateInternalStackTrace(const ScopedObjectAccessAlreadyRunnable& soa) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Convert an internal stack trace representation (returned by CreateInternalStackTrace) to a
   // StackTraceElement[]. If output_array is null, a new array is created, otherwise as many
@@ -519,15 +519,15 @@ class Thread {
   static jobjectArray InternalStackTraceToStackTraceElementArray(
       const ScopedObjectAccessAlreadyRunnable& soa, jobject internal,
       jobjectArray output_array = nullptr, int* stack_depth = nullptr)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool HasDebuggerShadowFrames() const {
     return tlsPtr_.frame_id_to_shadow_frame != nullptr;
   }
 
-  void VisitRoots(RootVisitor* visitor) SHARED_REQUIRES(Locks::mutator_lock_);
+  void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ALWAYS_INLINE void VerifyStack() SHARED_REQUIRES(Locks::mutator_lock_);
+  ALWAYS_INLINE void VerifyStack() REQUIRES_SHARED(Locks::mutator_lock_);
 
   //
   // Offsets of various members of native Thread class, used by compiled code.
@@ -555,7 +555,7 @@ class Thread {
   }
 
   // Deoptimize the Java stack.
-  void DeoptimizeWithDeoptimizationException(JValue* result) SHARED_REQUIRES(Locks::mutator_lock_);
+  void DeoptimizeWithDeoptimizationException(JValue* result) REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   template<PointerSize pointer_size>
@@ -702,7 +702,7 @@ class Thread {
   }
 
   // Set the stack end to that to be used during a stack overflow
-  void SetStackEndForStackOverflow() SHARED_REQUIRES(Locks::mutator_lock_);
+  void SetStackEndForStackOverflow() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Set the stack end to that to be used during regular execution
   void ResetDefaultStackEnd() {
@@ -765,7 +765,7 @@ class Thread {
   }
 
   // Number of references allocated in JNI ShadowFrames on this thread.
-  size_t NumJniShadowFrameReferences() const SHARED_REQUIRES(Locks::mutator_lock_) {
+  size_t NumJniShadowFrameReferences() const REQUIRES_SHARED(Locks::mutator_lock_) {
     return tlsPtr_.managed_stack.NumJniShadowFrameReferences();
   }
 
@@ -773,7 +773,7 @@ class Thread {
   size_t NumHandleReferences();
 
   // Number of references allocated in handle scopes & JNI shadow frames on this thread.
-  size_t NumStackReferences() SHARED_REQUIRES(Locks::mutator_lock_) {
+  size_t NumStackReferences() REQUIRES_SHARED(Locks::mutator_lock_) {
     return NumHandleReferences() + NumJniShadowFrameReferences();
   }
 
@@ -781,7 +781,7 @@ class Thread {
   bool HandleScopeContains(jobject obj) const;
 
   void HandleScopeVisitRoots(RootVisitor* visitor, uint32_t thread_id)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   HandleScope* GetTopHandleScope() {
     return tlsPtr_.top_handle_scope;
@@ -905,32 +905,32 @@ class Thread {
                                  bool is_reference,
                                  bool from_code,
                                  mirror::Throwable* exception)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   void PopDeoptimizationContext(JValue* result, mirror::Throwable** exception, bool* from_code)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   void AssertHasDeoptimizationContext()
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   void PushStackedShadowFrame(ShadowFrame* sf, StackedShadowFrameType type);
   ShadowFrame* PopStackedShadowFrame(StackedShadowFrameType type, bool must_be_present = true);
 
   // For debugger, find the shadow frame that corresponds to a frame id.
   // Or return null if there is none.
   ShadowFrame* FindDebuggerShadowFrame(size_t frame_id)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   // For debugger, find the bool array that keeps track of the updated vreg set
   // for a frame id.
-  bool* GetUpdatedVRegFlags(size_t frame_id) SHARED_REQUIRES(Locks::mutator_lock_);
+  bool* GetUpdatedVRegFlags(size_t frame_id) REQUIRES_SHARED(Locks::mutator_lock_);
   // For debugger, find the shadow frame that corresponds to a frame id. If
   // one doesn't exist yet, create one and track it in frame_id_to_shadow_frame.
   ShadowFrame* FindOrCreateDebuggerShadowFrame(size_t frame_id,
                                                uint32_t num_vregs,
                                                ArtMethod* method,
                                                uint32_t dex_pc)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Delete the entry that maps from frame_id to shadow_frame.
   void RemoveDebuggerShadowFrameMapping(size_t frame_id)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   std::deque<instrumentation::InstrumentationStackFrame>* GetInstrumentationStack() {
     return tlsPtr_.instrumentation_stack;
@@ -1016,7 +1016,7 @@ class Thread {
 
   // Push an object onto the allocation stack.
   bool PushOnThreadLocalAllocationStack(mirror::Object* obj)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Set the thread local allocation pointers to the given pointers.
   void SetThreadLocalAllocationStack(StackReference<mirror::Object>* start,
@@ -1129,7 +1129,7 @@ class Thread {
   template<bool kTransactionActive>
   void InitPeer(ScopedObjectAccess& soa, jboolean thread_is_daemon, jobject thread_group,
                 jobject thread_name, jint thread_priority)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Avoid use, callers should use SetState. Used only by SignalCatcher::HandleSigQuit, ~Thread and
   // Dbg::ManageDeoptimization.
@@ -1148,25 +1148,25 @@ class Thread {
     return old_state;
   }
 
-  void VerifyStackImpl() SHARED_REQUIRES(Locks::mutator_lock_);
+  void VerifyStackImpl() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void DumpState(std::ostream& os) const SHARED_REQUIRES(Locks::mutator_lock_);
+  void DumpState(std::ostream& os) const REQUIRES_SHARED(Locks::mutator_lock_);
   void DumpStack(std::ostream& os,
                  bool dump_native_stack = true,
                  BacktraceMap* backtrace_map = nullptr) const
       REQUIRES(!Locks::thread_suspend_count_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Out-of-line conveniences for debugging in gdb.
   static Thread* CurrentFromGdb();  // Like Thread::Current.
   // Like Thread::Dump(std::cerr).
-  void DumpFromGdb() const SHARED_REQUIRES(Locks::mutator_lock_);
+  void DumpFromGdb() const REQUIRES_SHARED(Locks::mutator_lock_);
 
   static void* CreateCallback(void* arg);
 
   void HandleUncaughtExceptions(ScopedObjectAccess& soa)
-      SHARED_REQUIRES(Locks::mutator_lock_);
-  void RemoveFromThreadGroup(ScopedObjectAccess& soa) SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  void RemoveFromThreadGroup(ScopedObjectAccess& soa) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Initialize a thread.
   //

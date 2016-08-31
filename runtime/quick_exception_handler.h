@@ -36,7 +36,7 @@ class ShadowFrame;
 class QuickExceptionHandler {
  public:
   QuickExceptionHandler(Thread* self, bool is_deoptimization)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   NO_RETURN ~QuickExceptionHandler() {
     LOG(FATAL) << "UNREACHABLE";  // Expected to take long jump.
@@ -44,12 +44,12 @@ class QuickExceptionHandler {
   }
 
   // Find the catch handler for the given exception.
-  void FindCatch(mirror::Throwable* exception) SHARED_REQUIRES(Locks::mutator_lock_);
+  void FindCatch(mirror::Throwable* exception) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Deoptimize the stack to the upcall/some code that's not deoptimizeable. For
   // every compiled frame, we create a "copy" shadow frame that will be executed
   // with the interpreter.
-  void DeoptimizeStack() SHARED_REQUIRES(Locks::mutator_lock_);
+  void DeoptimizeStack() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Deoptimize a single frame. It's directly triggered from compiled code. It
   // has the following properties:
@@ -60,22 +60,22 @@ class QuickExceptionHandler {
   //   the result of IsDeoptimizeable().
   // - It can be either full-fragment, or partial-fragment deoptimization, depending
   //   on whether that single frame covers full or partial fragment.
-  void DeoptimizeSingleFrame() SHARED_REQUIRES(Locks::mutator_lock_);
+  void DeoptimizeSingleFrame() REQUIRES_SHARED(Locks::mutator_lock_);
 
   void DeoptimizePartialFragmentFixup(uintptr_t return_pc)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Update the instrumentation stack by removing all methods that will be unwound
   // by the exception being thrown.
   // Return the return pc of the last frame that's unwound.
-  uintptr_t UpdateInstrumentationStack() SHARED_REQUIRES(Locks::mutator_lock_);
+  uintptr_t UpdateInstrumentationStack() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Set up environment before delivering an exception to optimized code.
   void SetCatchEnvironmentForOptimizedHandler(StackVisitor* stack_visitor)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Long jump either to a catch handler or to the upcall.
-  NO_RETURN void DoLongJump(bool smash_caller_saves = true) SHARED_REQUIRES(Locks::mutator_lock_);
+  NO_RETURN void DoLongJump(bool smash_caller_saves = true) REQUIRES_SHARED(Locks::mutator_lock_);
 
   void SetHandlerQuickFrame(ArtMethod** handler_quick_frame) {
     handler_quick_frame_ = handler_quick_frame;
@@ -128,7 +128,7 @@ class QuickExceptionHandler {
   // Walk the stack frames of the given thread, printing out non-runtime methods with their types
   // of frames. Helps to verify that partial-fragment deopt really works as expected.
   static void DumpFramesWithType(Thread* self, bool details = false)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   Thread* const self_;
@@ -159,7 +159,7 @@ class QuickExceptionHandler {
   bool full_fragment_done_;
 
   void PrepareForLongJumpToInvokeStubOrInterpreterBridge()
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   DISALLOW_COPY_AND_ASSIGN(QuickExceptionHandler);
 };

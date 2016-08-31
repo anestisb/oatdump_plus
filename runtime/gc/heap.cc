@@ -1704,7 +1704,7 @@ space::RosAllocSpace* Heap::GetRosAllocSpace(gc::allocator::RosAlloc* rosalloc) 
   return nullptr;
 }
 
-static inline bool EntrypointsInstrumented() SHARED_REQUIRES(Locks::mutator_lock_) {
+static inline bool EntrypointsInstrumented() REQUIRES_SHARED(Locks::mutator_lock_) {
   instrumentation::Instrumentation* const instrumentation =
       Runtime::Current()->GetInstrumentation();
   return instrumentation != nullptr && instrumentation->AllocEntrypointsInstrumented();
@@ -1930,11 +1930,11 @@ class InstanceCounter {
   InstanceCounter(const std::vector<mirror::Class*>& classes,
                   bool use_is_assignable_from,
                   uint64_t* counts)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       : classes_(classes), use_is_assignable_from_(use_is_assignable_from), counts_(counts) {}
 
   static void Callback(mirror::Object* obj, void* arg)
-      SHARED_REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     InstanceCounter* instance_counter = reinterpret_cast<InstanceCounter*>(arg);
     mirror::Class* instance_class = obj->GetClass();
     CHECK(instance_class != nullptr);
@@ -1966,11 +1966,11 @@ void Heap::CountInstances(const std::vector<mirror::Class*>& classes, bool use_i
 class InstanceCollector {
  public:
   InstanceCollector(mirror::Class* c, int32_t max_count, std::vector<mirror::Object*>& instances)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       : class_(c), max_count_(max_count), instances_(instances) {
   }
   static void Callback(mirror::Object* obj, void* arg)
-      SHARED_REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     DCHECK(arg != nullptr);
     InstanceCollector* instance_collector = reinterpret_cast<InstanceCollector*>(arg);
     if (obj->GetClass() == instance_collector->class_) {
@@ -2000,12 +2000,12 @@ class ReferringObjectsFinder {
   ReferringObjectsFinder(mirror::Object* object,
                          int32_t max_count,
                          std::vector<mirror::Object*>& referring_objects)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       : object_(object), max_count_(max_count), referring_objects_(referring_objects) {
   }
 
   static void Callback(mirror::Object* obj, void* arg)
-      SHARED_REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     reinterpret_cast<ReferringObjectsFinder*>(arg)->operator()(obj);
   }
 
@@ -2018,7 +2018,7 @@ class ReferringObjectsFinder {
 
   // For Object::VisitReferences.
   void operator()(mirror::Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset);
     if (ref == object_ && (max_count_ == 0 || referring_objects_.size() < max_count_)) {
       referring_objects_.push_back(obj);
@@ -2374,7 +2374,7 @@ class ZygoteCompactingCollector FINAL : public collector::SemiSpace {
   const bool is_running_on_memory_tool_;
 
   static void Callback(mirror::Object* obj, void* arg)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(arg != nullptr);
     BinContext* context = reinterpret_cast<BinContext*>(arg);
     ZygoteCompactingCollector* collector = context->collector_;
@@ -2571,7 +2571,7 @@ void Heap::PreZygoteFork() {
     zygote_space_->GetLiveBitmap()->VisitMarkedRange(
         reinterpret_cast<uintptr_t>(zygote_space_->Begin()),
         reinterpret_cast<uintptr_t>(zygote_space_->Limit()),
-        [](mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_) {
+        [](mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_) {
       CHECK(obj->AtomicSetMarkBit(0, 1));
     });
   }
@@ -2891,7 +2891,7 @@ class RootMatchesObjectVisitor : public SingleRootVisitor {
   explicit RootMatchesObjectVisitor(const mirror::Object* obj) : obj_(obj) { }
 
   void VisitRoot(mirror::Object* root, const RootInfo& info)
-      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+      OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     if (root == obj_) {
       LOG(INFO) << "Object " << obj_ << " is a root " << info.ToString();
     }
@@ -2913,7 +2913,7 @@ class ScanVisitor {
 class VerifyReferenceVisitor : public SingleRootVisitor {
  public:
   VerifyReferenceVisitor(Heap* heap, Atomic<size_t>* fail_count, bool verify_referent)
-      SHARED_REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_)
       : heap_(heap), fail_count_(fail_count), verify_referent_(verify_referent) {}
 
   size_t GetFailureCount() const {
@@ -2921,14 +2921,14 @@ class VerifyReferenceVisitor : public SingleRootVisitor {
   }
 
   void operator()(mirror::Class* klass ATTRIBUTE_UNUSED, mirror::Reference* ref) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     if (verify_referent_) {
       VerifyReference(ref, ref->GetReferent(), mirror::Reference::ReferentOffset());
     }
   }
 
   void operator()(mirror::Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     VerifyReference(obj, obj->GetFieldObject<mirror::Object>(offset), offset);
   }
 
@@ -2937,19 +2937,19 @@ class VerifyReferenceVisitor : public SingleRootVisitor {
   }
 
   void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     if (!root->IsNull()) {
       VisitRoot(root);
     }
   }
   void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     const_cast<VerifyReferenceVisitor*>(this)->VisitRoot(
         root->AsMirrorPtr(), RootInfo(kRootVMInternal));
   }
 
   virtual void VisitRoot(mirror::Object* root, const RootInfo& root_info) OVERRIDE
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     if (root == nullptr) {
       LOG(ERROR) << "Root is null with info " << root_info.GetType();
     } else if (!VerifyReference(nullptr, root, MemberOffset(0))) {
@@ -3066,7 +3066,7 @@ class VerifyObjectVisitor {
       : heap_(heap), fail_count_(fail_count), verify_referent_(verify_referent) {}
 
   void operator()(mirror::Object* obj)
-      SHARED_REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     // Note: we are verifying the references in obj but not obj itself, this is because obj must
     // be live or else how did we find it in the live bitmap?
     VerifyReferenceVisitor visitor(heap_, fail_count_, verify_referent_);
@@ -3075,12 +3075,12 @@ class VerifyObjectVisitor {
   }
 
   static void VisitCallback(mirror::Object* obj, void* arg)
-      SHARED_REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     VerifyObjectVisitor* visitor = reinterpret_cast<VerifyObjectVisitor*>(arg);
     visitor->operator()(obj);
   }
 
-  void VerifyRoots() SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Locks::heap_bitmap_lock_) {
+  void VerifyRoots() REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Locks::heap_bitmap_lock_) {
     ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
     VerifyReferenceVisitor visitor(heap_, fail_count_, verify_referent_);
     Runtime::Current()->VisitRoots(&visitor);
@@ -3172,7 +3172,7 @@ size_t Heap::VerifyHeapReferences(bool verify_referents) {
 class VerifyReferenceCardVisitor {
  public:
   VerifyReferenceCardVisitor(Heap* heap, bool* failed)
-      SHARED_REQUIRES(Locks::mutator_lock_,
+      REQUIRES_SHARED(Locks::mutator_lock_,
                             Locks::heap_bitmap_lock_)
       : heap_(heap), failed_(failed) {
   }
@@ -3250,7 +3250,7 @@ class VerifyLiveStackReferences {
         failed_(false) {}
 
   void operator()(mirror::Object* obj) const
-      SHARED_REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     VerifyReferenceCardVisitor visitor(heap_, const_cast<bool*>(&failed_));
     obj->VisitReferences(visitor, VoidFunctor());
   }

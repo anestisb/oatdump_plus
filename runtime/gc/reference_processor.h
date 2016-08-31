@@ -48,34 +48,34 @@ class ReferenceProcessor {
   explicit ReferenceProcessor();
   void ProcessReferences(bool concurrent, TimingLogger* timings, bool clear_soft_references,
                          gc::collector::GarbageCollector* collector)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::heap_bitmap_lock_)
       REQUIRES(!Locks::reference_processor_lock_);
   // The slow path bool is contained in the reference class object, can only be set once
   // Only allow setting this with mutators suspended so that we can avoid using a lock in the
   // GetReferent fast path as an optimization.
-  void EnableSlowPath() SHARED_REQUIRES(Locks::mutator_lock_);
+  void EnableSlowPath() REQUIRES_SHARED(Locks::mutator_lock_);
   void BroadcastForSlowPath(Thread* self);
   // Decode the referent, may block if references are being processed.
   mirror::Object* GetReferent(Thread* self, mirror::Reference* reference)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Locks::reference_processor_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Locks::reference_processor_lock_);
   void EnqueueClearedReferences(Thread* self) REQUIRES(!Locks::mutator_lock_);
   void DelayReferenceReferent(mirror::Class* klass, mirror::Reference* ref,
                               collector::GarbageCollector* collector)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   void UpdateRoots(IsMarkedVisitor* visitor)
-      SHARED_REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
   // Make a circular list with reference if it is not enqueued. Uses the finalizer queue lock.
   bool MakeCircularListIfUnenqueued(mirror::FinalizerReference* reference)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::reference_processor_lock_,
                !Locks::reference_queue_finalizer_references_lock_);
 
  private:
-  bool SlowPathEnabled() SHARED_REQUIRES(Locks::mutator_lock_);
+  bool SlowPathEnabled() REQUIRES_SHARED(Locks::mutator_lock_);
   // Called by ProcessReferences.
   void DisableSlowPath(Thread* self) REQUIRES(Locks::reference_processor_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   // If we are preserving references it means that some dead objects may become live, we use start
   // and stop preserving to block mutators using GetReferrent from getting access to these
   // referents.

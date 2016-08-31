@@ -43,7 +43,7 @@ static inline mirror::Class* CheckFilledNewArrayAlloc(uint32_t type_idx,
                                                       ArtMethod* referrer,
                                                       Thread* self,
                                                       bool access_check)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   if (UNLIKELY(component_count < 0)) {
     ThrowNegativeArraySizeException(component_count);
     return nullptr;  // Failure
@@ -259,7 +259,7 @@ bool FillArrayData(mirror::Object* obj, const Instruction::ArrayDataPayload* pay
 ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp,
                                      Runtime::CalleeSaveType type,
                                      bool do_caller_check)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK_EQ(*sp, Runtime::Current()->GetCalleeSaveMethod(type));
 
   const size_t callee_frame_size = GetCalleeSaveFrameSize(kRuntimeISA, type);

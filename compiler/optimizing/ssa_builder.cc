@@ -303,7 +303,7 @@ static HArrayGet* CreateFloatOrDoubleEquivalentOfArrayGet(HArrayGet* aget) {
 }
 
 static Primitive::Type GetPrimitiveArrayComponentType(HInstruction* array)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   ReferenceTypeInfo array_type = array->GetReferenceTypeInfo();
   DCHECK(array_type.IsPrimitiveArrayClass());
   return array_type.GetTypeHandle()->GetComponentType()->GetPrimitiveType();

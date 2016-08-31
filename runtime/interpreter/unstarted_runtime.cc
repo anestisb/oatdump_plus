@@ -57,7 +57,7 @@ namespace interpreter {
 
 static void AbortTransactionOrFail(Thread* self, const char* fmt, ...)
     __attribute__((__format__(__printf__, 2, 3)))
-    SHARED_REQUIRES(Locks::mutator_lock_);
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
 static void AbortTransactionOrFail(Thread* self, const char* fmt, ...) {
   va_list args;
@@ -81,7 +81,7 @@ static void CharacterLowerUpper(Thread* self,
                                 ShadowFrame* shadow_frame,
                                 JValue* result,
                                 size_t arg_offset,
-                                bool to_lower_case) SHARED_REQUIRES(Locks::mutator_lock_) {
+                                bool to_lower_case) REQUIRES_SHARED(Locks::mutator_lock_) {
   uint32_t int_value = static_cast<uint32_t>(shadow_frame->GetVReg(arg_offset));
 
   // Only ASCII (7-bit).
@@ -117,7 +117,7 @@ static void UnstartedRuntimeFindClass(Thread* self, Handle<mirror::String> class
                                       Handle<mirror::ClassLoader> class_loader, JValue* result,
                                       const std::string& method_name, bool initialize_class,
                                       bool abort_if_not_found)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   CHECK(className.Get() != nullptr);
   std::string descriptor(DotToDescriptor(className->ToModifiedUtf8().c_str()));
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -147,7 +147,7 @@ static void UnstartedRuntimeFindClass(Thread* self, Handle<mirror::String> class
 // actually the transaction abort exception. This must not be wrapped, as it signals an
 // initialization abort.
 static void CheckExceptionGenerateClassNotFound(Thread* self)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   if (self->IsExceptionPending()) {
     // If it is not the transaction abort exception, wrap it.
     std::string type(PrettyTypeOf(self->GetException()));
@@ -159,7 +159,7 @@ static void CheckExceptionGenerateClassNotFound(Thread* self)
 }
 
 static mirror::String* GetClassName(Thread* self, ShadowFrame* shadow_frame, size_t arg_offset)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   mirror::Object* param = shadow_frame->GetVRegReference(arg_offset);
   if (param == nullptr) {
     AbortTransactionOrFail(self, "Null-pointer in Class.forName.");
@@ -442,7 +442,7 @@ static std::unique_ptr<MemMap> FindAndExtractEntry(const std::string& jar_file,
 static void GetResourceAsStream(Thread* self,
                                 ShadowFrame* shadow_frame,
                                 JValue* result,
-                                size_t arg_offset) SHARED_REQUIRES(Locks::mutator_lock_) {
+                                size_t arg_offset) REQUIRES_SHARED(Locks::mutator_lock_) {
   mirror::Object* resource_obj = shadow_frame->GetVRegReference(arg_offset + 1);
   if (resource_obj == nullptr) {
     AbortTransactionOrFail(self, "null name for getResourceAsStream");
@@ -604,7 +604,7 @@ static void PrimitiveArrayCopy(Thread* self,
                                mirror::Array* src_array, int32_t src_pos,
                                mirror::Array* dst_array, int32_t dst_pos,
                                int32_t length)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   if (src_array->GetClass()->GetComponentType() != dst_array->GetClass()->GetComponentType()) {
     AbortTransactionOrFail(self, "Types mismatched in arraycopy: %s vs %s.",
                            PrettyDescriptor(src_array->GetClass()->GetComponentType()).c_str(),
@@ -748,7 +748,7 @@ static void GetSystemProperty(Thread* self,
                               JValue* result,
                               size_t arg_offset,
                               bool is_default_version)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   StackHandleScope<4> hs(self);
   Handle<mirror::String> h_key(
       hs.NewHandle(reinterpret_cast<mirror::String*>(shadow_frame->GetVRegReference(arg_offset))));
@@ -915,7 +915,7 @@ void UnstartedRuntime::UnstartedDoubleDoubleToRawLongBits(
 }
 
 static mirror::Object* GetDexFromDexCache(Thread* self, mirror::DexCache* dex_cache)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   const DexFile* dex_file = dex_cache->GetDexFile();
   if (dex_file == nullptr) {
     return nullptr;
@@ -1026,7 +1026,7 @@ void UnstartedRuntime::UnstartedMemoryPeekLong(
 
 static void UnstartedMemoryPeekArray(
     Primitive::Type type, Thread* self, ShadowFrame* shadow_frame, size_t arg_offset)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   int64_t address_long = shadow_frame->GetVRegLong(arg_offset);
   mirror::Object* obj = shadow_frame->GetVRegReference(arg_offset + 2);
   if (obj == nullptr) {
@@ -1173,7 +1173,7 @@ void UnstartedRuntime::UnstartedStringFastSubstring(
 // This allows getting the char array for new style of String objects during compilation.
 void UnstartedRuntime::UnstartedStringToCharArray(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   mirror::String* string = shadow_frame->GetVRegReference(arg_offset)->AsString();
   if (string == nullptr) {
     AbortTransactionOrFail(self, "String.charAt with null object");
@@ -1299,7 +1299,7 @@ void UnstartedRuntime::UnstartedUnsafeCompareAndSwapObject(
 
 void UnstartedRuntime::UnstartedUnsafeGetObjectVolatile(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   // Argument 0 is the Unsafe instance, skip.
   mirror::Object* obj = shadow_frame->GetVRegReference(arg_offset + 1);
   if (obj == nullptr) {
@@ -1313,7 +1313,7 @@ void UnstartedRuntime::UnstartedUnsafeGetObjectVolatile(
 
 void UnstartedRuntime::UnstartedUnsafePutObjectVolatile(
     Thread* self, ShadowFrame* shadow_frame, JValue* result ATTRIBUTE_UNUSED, size_t arg_offset)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   // Argument 0 is the Unsafe instance, skip.
   mirror::Object* obj = shadow_frame->GetVRegReference(arg_offset + 1);
   if (obj == nullptr) {
@@ -1331,7 +1331,7 @@ void UnstartedRuntime::UnstartedUnsafePutObjectVolatile(
 
 void UnstartedRuntime::UnstartedUnsafePutOrderedObject(
     Thread* self, ShadowFrame* shadow_frame, JValue* result ATTRIBUTE_UNUSED, size_t arg_offset)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   // Argument 0 is the Unsafe instance, skip.
   mirror::Object* obj = shadow_frame->GetVRegReference(arg_offset + 1);
   if (obj == nullptr) {
@@ -1352,7 +1352,7 @@ void UnstartedRuntime::UnstartedUnsafePutOrderedObject(
 // of correctly handling the corner cases.
 void UnstartedRuntime::UnstartedIntegerParseInt(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   mirror::Object* obj = shadow_frame->GetVRegReference(arg_offset);
   if (obj == nullptr) {
     AbortTransactionOrFail(self, "Cannot parse null string, retry at runtime.");
@@ -1396,7 +1396,7 @@ void UnstartedRuntime::UnstartedIntegerParseInt(
 //       well.
 void UnstartedRuntime::UnstartedLongParseLong(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   mirror::Object* obj = shadow_frame->GetVRegReference(arg_offset);
   if (obj == nullptr) {
     AbortTransactionOrFail(self, "Cannot parse null string, retry at runtime.");
@@ -1437,7 +1437,7 @@ void UnstartedRuntime::UnstartedLongParseLong(
 
 void UnstartedRuntime::UnstartedMethodInvoke(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   JNIEnvExt* env = self->GetJniEnv();
   ScopedObjectAccessUnchecked soa(self);
 

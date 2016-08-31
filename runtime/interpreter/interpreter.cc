@@ -37,7 +37,7 @@ namespace interpreter {
 
 static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& shorty,
                            Object* receiver, uint32_t* args, JValue* result)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   // TODO: The following enters JNI code using a typedef-ed function rather than the JNI compiler,
   //       it should be removed and JNI compiled stubs used instead.
   ScopedObjectAccessUnchecked soa(self);
@@ -250,7 +250,7 @@ static inline JValue Execute(
     const DexFile::CodeItem* code_item,
     ShadowFrame& shadow_frame,
     JValue result_register,
-    bool stay_in_interpreter = false) SHARED_REQUIRES(Locks::mutator_lock_) {
+    bool stay_in_interpreter = false) REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(!shadow_frame.GetMethod()->IsAbstract());
   DCHECK(!shadow_frame.GetMethod()->IsNative());
   if (LIKELY(shadow_frame.GetDexPC() == 0)) {  // Entering the method, but not via deoptimization.
@@ -466,7 +466,7 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
 }
 
 static bool IsStringInit(const Instruction* instr, ArtMethod* caller)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   if (instr->Opcode() == Instruction::INVOKE_DIRECT ||
       instr->Opcode() == Instruction::INVOKE_DIRECT_RANGE) {
     // Instead of calling ResolveMethod() which has suspend point and can trigger
@@ -499,7 +499,7 @@ void EnterInterpreterFromDeoptimize(Thread* self,
                                     ShadowFrame* shadow_frame,
                                     bool from_code,
                                     JValue* ret_val)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   JValue value;
   // Set value to last known result in case the shadow frame chain is empty.
   value.SetJ(ret_val->GetJ());
