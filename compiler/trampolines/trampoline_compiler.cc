@@ -152,7 +152,7 @@ static std::unique_ptr<const std::vector<uint8_t>> CreateTrampoline(
       __ LoadFromOffset(kLoadWord, T9, S1, offset.Int32Value());
   }
   __ Jr(T9);
-  __ Nop();
+  __ NopIfNoReordering();
   __ Break();
 
   __ FinalizeCode();
