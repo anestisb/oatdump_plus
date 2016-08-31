@@ -62,6 +62,8 @@ template <> inline void CheckEntrypointTypes<kQuick ## name, __VA_ARGS__>() {}; 
 #undef QUICK_ENTRYPOINT_LIST
 #undef ENTRYPOINT_ENUM
 
+bool EntrypointRequiresStackMap(QuickEntrypointEnum trampoline);
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_ENTRYPOINTS_QUICK_QUICK_ENTRYPOINTS_ENUM_H_
