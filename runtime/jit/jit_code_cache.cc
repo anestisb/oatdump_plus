@@ -446,7 +446,7 @@ class MarkCodeVisitor FINAL : public StackVisitor {
         code_cache_(code_cache_in),
         bitmap_(code_cache_->GetLiveBitmap()) {}
 
-  bool VisitFrame() OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool VisitFrame() OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     const OatQuickMethodHeader* method_header = GetCurrentOatQuickMethodHeader();
     if (method_header == nullptr) {
       return true;
@@ -469,7 +469,7 @@ class MarkCodeClosure FINAL : public Closure {
   MarkCodeClosure(JitCodeCache* code_cache, Barrier* barrier)
       : code_cache_(code_cache), barrier_(barrier) {}
 
-  void Run(Thread* thread) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+  void Run(Thread* thread) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     ScopedTrace trace(__PRETTY_FUNCTION__);
     DCHECK(thread == Thread::Current() || thread->IsSuspended());
     MarkCodeVisitor visitor(thread, code_cache_);

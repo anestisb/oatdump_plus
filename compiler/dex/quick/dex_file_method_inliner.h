@@ -64,7 +64,7 @@ class DexFileMethodInliner {
      * @return true if the method is a candidate for inlining, false otherwise.
      */
     bool AnalyseMethodCode(verifier::MethodVerifier* verifier)
-        SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!lock_);
+        REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!lock_);
 
     /**
      * Check whether a particular method index corresponds to an intrinsic or special function.

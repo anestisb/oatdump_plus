@@ -217,9 +217,9 @@ class InlineMethodAnalyser {
    * @return true if the method is a candidate for inlining, false otherwise.
    */
   static bool AnalyseMethodCode(verifier::MethodVerifier* verifier, InlineMethod* result)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   static bool AnalyseMethodCode(ArtMethod* method, InlineMethod* result)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   static constexpr bool IsInstructionIGet(Instruction::Code opcode) {
     return Instruction::IGET <= opcode && opcode <= Instruction::IGET_SHORT;
@@ -246,7 +246,7 @@ class InlineMethodAnalyser {
                                 bool is_static,
                                 ArtMethod* method,
                                 InlineMethod* result)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   static bool AnalyseReturnMethod(const DexFile::CodeItem* code_item, InlineMethod* result);
   static bool AnalyseConstMethod(const DexFile::CodeItem* code_item, InlineMethod* result);
   static bool AnalyseIGetMethod(const DexFile::CodeItem* code_item,
@@ -254,13 +254,13 @@ class InlineMethodAnalyser {
                                 bool is_static,
                                 ArtMethod* method,
                                 InlineMethod* result)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   static bool AnalyseIPutMethod(const DexFile::CodeItem* code_item,
                                 const MethodReference& method_ref,
                                 bool is_static,
                                 ArtMethod* method,
                                 InlineMethod* result)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Can we fast path instance field access in a verified accessor?
   // If yes, computes field's offset and volatility and whether the method is static or not.
@@ -268,7 +268,7 @@ class InlineMethodAnalyser {
                                          uint32_t field_idx,
                                          bool is_put,
                                          InlineIGetIPutData* result)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 };
 
 }  // namespace art

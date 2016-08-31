@@ -44,7 +44,7 @@ namespace art {
 
 ALWAYS_INLINE static inline mirror::Class* DecodeClass(
     const ScopedFastNativeObjectAccess& soa, jobject java_class)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   mirror::Class* c = soa.Decode<mirror::Class*>(java_class);
   DCHECK(c != nullptr);
   DCHECK(c->IsClass());
@@ -111,7 +111,7 @@ static jobjectArray Class_getProxyInterfaces(JNIEnv* env, jobject javaThis) {
 
 static mirror::ObjectArray<mirror::Field>* GetDeclaredFields(
     Thread* self, mirror::Class* klass, bool public_only, bool force_resolve)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
   StackHandleScope<1> hs(self);
   IterationRange<StrideIterator<ArtField>> ifields = klass->GetIFields();
   IterationRange<StrideIterator<ArtField>> sfields = klass->GetSFields();
@@ -192,7 +192,7 @@ static jobjectArray Class_getPublicDeclaredFields(JNIEnv* env, jobject javaThis)
 // fast.
 ALWAYS_INLINE static inline ArtField* FindFieldByName(
     Thread* self ATTRIBUTE_UNUSED, mirror::String* name, LengthPrefixedArray<ArtField>* fields)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   if (fields == nullptr) {
     return nullptr;
   }
@@ -237,7 +237,7 @@ ALWAYS_INLINE static inline ArtField* FindFieldByName(
 
 ALWAYS_INLINE static inline mirror::Field* GetDeclaredField(
     Thread* self, mirror::Class* c, mirror::String* name)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   ArtField* art_field = FindFieldByName(self, name, c->GetIFieldsPtr());
   if (art_field != nullptr) {
     return mirror::Field::CreateFromArtField<kRuntimePointerSize>(self, art_field, true);
@@ -251,7 +251,7 @@ ALWAYS_INLINE static inline mirror::Field* GetDeclaredField(
 
 static mirror::Field* GetPublicFieldRecursive(
     Thread* self, mirror::Class* clazz, mirror::String* name)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(clazz != nullptr);
   DCHECK(name != nullptr);
   DCHECK(self != nullptr);
@@ -352,7 +352,7 @@ static jobject Class_getDeclaredConstructorInternal(
 }
 
 static ALWAYS_INLINE inline bool MethodMatchesConstructor(ArtMethod* m, bool public_only)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(m != nullptr);
   return (!public_only || m->IsPublic()) && !m->IsStatic() && m->IsConstructor();
 }

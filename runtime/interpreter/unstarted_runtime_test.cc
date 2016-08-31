@@ -49,7 +49,7 @@ class UnstartedRuntimeTest : public CommonRuntimeTest {
                                 ShadowFrame* shadow_frame, \
                                 JValue* result,            \
                                 size_t arg_offset)         \
-      SHARED_REQUIRES(Locks::mutator_lock_) {        \
+      REQUIRES_SHARED(Locks::mutator_lock_) {        \
     interpreter::UnstartedRuntime::Unstarted ## Name(self, shadow_frame, result, arg_offset); \
   }
 #include "unstarted_runtime_list.h"
@@ -65,7 +65,7 @@ class UnstartedRuntimeTest : public CommonRuntimeTest {
                                    mirror::Object* receiver,  \
                                    uint32_t* args,            \
                                    JValue* result)            \
-      SHARED_REQUIRES(Locks::mutator_lock_) {           \
+      REQUIRES_SHARED(Locks::mutator_lock_) {           \
     interpreter::UnstartedRuntime::UnstartedJNI ## Name(self, method, receiver, args, result); \
   }
 #include "unstarted_runtime_list.h"
@@ -83,7 +83,7 @@ class UnstartedRuntimeTest : public CommonRuntimeTest {
       Thread* self,
       mirror::Class* component_type,
       const StackHandleScope<3>& data)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     Runtime* runtime = Runtime::Current();
     mirror::Class* array_type = runtime->GetClassLinker()->FindArrayClass(self, &component_type);
     CHECK(array_type != nullptr);
@@ -99,7 +99,7 @@ class UnstartedRuntimeTest : public CommonRuntimeTest {
 
   static void CheckObjectArray(mirror::ObjectArray<mirror::Object>* array,
                                const StackHandleScope<3>& data)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     CHECK_EQ(array->GetLength(), 3);
     CHECK_EQ(data.NumberOfReferences(), 3U);
     for (size_t i = 0; i < 3; ++i) {
@@ -115,7 +115,7 @@ class UnstartedRuntimeTest : public CommonRuntimeTest {
                     mirror::ObjectArray<mirror::Object>* dst,
                     int32_t dst_pos,
                     int32_t length)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     JValue result;
     tmp->SetVRegReference(0, src);
     tmp->SetVReg(1, src_pos);
@@ -141,7 +141,7 @@ class UnstartedRuntimeTest : public CommonRuntimeTest {
                     int32_t dst_pos,
                     int32_t length,
                     const StackHandleScope<3>& expected_result)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     StackHandleScope<3> hs_misc(self);
     Handle<mirror::Class> dst_component_handle(hs_misc.NewHandle(dst_component_class));
 
@@ -167,7 +167,7 @@ class UnstartedRuntimeTest : public CommonRuntimeTest {
                      ShadowFrame* tmp,
                      double const test_pairs[][2],
                      size_t num_pairs)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     for (size_t i = 0; i < num_pairs; ++i) {
       tmp->SetVRegDouble(0, test_pairs[i][0]);
 
@@ -189,7 +189,7 @@ class UnstartedRuntimeTest : public CommonRuntimeTest {
 
   // Prepare for aborts. Aborts assume that the exception class is already resolved, as the
   // loading code doesn't work under transactions.
-  void PrepareForAborts() SHARED_REQUIRES(Locks::mutator_lock_) {
+  void PrepareForAborts() REQUIRES_SHARED(Locks::mutator_lock_) {
     mirror::Object* result = Runtime::Current()->GetClassLinker()->FindClass(
         Thread::Current(),
         Transaction::kAbortExceptionSignature,

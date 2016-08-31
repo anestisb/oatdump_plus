@@ -246,7 +246,7 @@ class EndianOutput {
   }
 
   void AddIdList(mirror::ObjectArray<mirror::Object>* values)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     const int32_t length = values->GetLength();
     for (int32_t i = 0; i < length; ++i) {
       AddObjectId(values->GetWithoutChecks(i));
@@ -489,23 +489,23 @@ class Hprof : public SingleRootVisitor {
 
  private:
   static void VisitObjectCallback(mirror::Object* obj, void* arg)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(obj != nullptr);
     DCHECK(arg != nullptr);
     reinterpret_cast<Hprof*>(arg)->DumpHeapObject(obj);
   }
 
   void DumpHeapObject(mirror::Object* obj)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void DumpHeapClass(mirror::Class* klass)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void DumpHeapArray(mirror::Array* obj, mirror::Class* klass)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void ProcessHeap(bool header_first)
       REQUIRES(Locks::mutator_lock_) {
@@ -555,7 +555,7 @@ class Hprof : public SingleRootVisitor {
     output_->EndRecord();
   }
 
-  void WriteClassTable() SHARED_REQUIRES(Locks::mutator_lock_) {
+  void WriteClassTable() REQUIRES_SHARED(Locks::mutator_lock_) {
     for (const auto& p : classes_) {
       mirror::Class* c = p.first;
       HprofClassSerialNumber sn = p.second;
@@ -604,11 +604,11 @@ class Hprof : public SingleRootVisitor {
   }
 
   void VisitRoot(mirror::Object* obj, const RootInfo& root_info)
-      OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_);
+      OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_);
   void MarkRootObject(const mirror::Object* obj, jobject jni_obj, HprofHeapTag heap_tag,
                       uint32_t thread_serial);
 
-  HprofClassObjectId LookupClassId(mirror::Class* c) SHARED_REQUIRES(Locks::mutator_lock_) {
+  HprofClassObjectId LookupClassId(mirror::Class* c) REQUIRES_SHARED(Locks::mutator_lock_) {
     if (c != nullptr) {
       auto it = classes_.find(c);
       if (it == classes_.end()) {
@@ -623,7 +623,7 @@ class Hprof : public SingleRootVisitor {
   }
 
   HprofStackTraceSerialNumber LookupStackTraceSerialNumber(const mirror::Object* obj)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     auto r = allocation_records_.find(obj);
     if (r == allocation_records_.end()) {
       return kHprofNullStackTrace;
@@ -635,7 +635,7 @@ class Hprof : public SingleRootVisitor {
     }
   }
 
-  HprofStringId LookupStringId(mirror::String* string) SHARED_REQUIRES(Locks::mutator_lock_) {
+  HprofStringId LookupStringId(mirror::String* string) REQUIRES_SHARED(Locks::mutator_lock_) {
     return LookupStringId(string->ToModifiedUtf8());
   }
 
@@ -653,7 +653,7 @@ class Hprof : public SingleRootVisitor {
     return id;
   }
 
-  HprofStringId LookupClassNameId(mirror::Class* c) SHARED_REQUIRES(Locks::mutator_lock_) {
+  HprofStringId LookupClassNameId(mirror::Class* c) REQUIRES_SHARED(Locks::mutator_lock_) {
     return LookupStringId(PrettyDescriptor(c));
   }
 
@@ -681,7 +681,7 @@ class Hprof : public SingleRootVisitor {
     __ AddU4(static_cast<uint32_t>(nowMs & 0xFFFFFFFF));
   }
 
-  void WriteStackTraces() SHARED_REQUIRES(Locks::mutator_lock_) {
+  void WriteStackTraces() REQUIRES_SHARED(Locks::mutator_lock_) {
     // Write a dummy stack trace record so the analysis tools don't freak out.
     output_->StartNewRecord(HPROF_TAG_STACK_TRACE, kHprofTime);
     __ AddStackTraceSerialNumber(kHprofNullStackTrace);
@@ -1072,14 +1072,14 @@ class GcRootVisitor {
   // Note that these don't have read barriers. Its OK however since the GC is guaranteed to not be
   // running during the hprof dumping process.
   void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     if (!root->IsNull()) {
       VisitRoot(root);
     }
   }
 
   void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     mirror::Object* obj = root->AsMirrorPtr();
     // The two cases are either classes or dex cache arrays. If it is a dex cache array, then use
     // VM internal. Otherwise the object is a declaring class of an ArtField or ArtMethod or a

@@ -957,7 +957,7 @@ bool HInstructionBuilder::BuildNewInstance(uint16_t type_index, uint32_t dex_pc)
 }
 
 static bool IsSubClass(mirror::Class* to_test, mirror::Class* super_class)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   return to_test != nullptr && !to_test->IsInterface() && to_test->IsSubClass(super_class);
 }
 
@@ -1607,7 +1607,7 @@ void HInstructionBuilder::BuildFillWideArrayData(HInstruction* object,
 }
 
 static TypeCheckKind ComputeTypeCheckKind(Handle<mirror::Class> cls)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   if (cls.Get() == nullptr) {
     return TypeCheckKind::kUnresolvedCheck;
   } else if (cls->IsInterface()) {

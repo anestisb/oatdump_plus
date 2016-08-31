@@ -47,7 +47,7 @@ class CopyReferenceFieldsWithReadBarrierVisitor {
       : dest_obj_(dest_obj) {}
 
   void operator()(Object* obj, MemberOffset offset, bool /* is_static */) const
-      ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
+      ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
     // GetFieldObject() contains a RB.
     Object* ref = obj->GetFieldObject<Object>(offset);
     // No WB here as a large object space does not have a card table
@@ -56,7 +56,7 @@ class CopyReferenceFieldsWithReadBarrierVisitor {
   }
 
   void operator()(mirror::Class* klass, mirror::Reference* ref) const
-      ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
+      ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
     // Copy java.lang.ref.Reference.referent which isn't visited in
     // Object::VisitReferences().
     DCHECK(klass->IsTypeOfReferenceClass());
@@ -112,7 +112,7 @@ class CopyObjectVisitor {
   }
 
   void operator()(Object* obj, size_t usable_size ATTRIBUTE_UNUSED) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     Object::CopyObject(self_, obj, orig_->Get(), num_bytes_);
   }
 

@@ -130,7 +130,7 @@ class ScopedObjectAccessAlreadyRunnable : public ValueObject {
    * it's best if we don't grab a mutex.
    */
   template<typename T>
-  T AddLocalReference(mirror::Object* obj) const SHARED_REQUIRES(Locks::mutator_lock_) {
+  T AddLocalReference(mirror::Object* obj) const REQUIRES_SHARED(Locks::mutator_lock_) {
     Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK(IsRunnable());  // Don't work with raw objects in non-runnable states.
     DCHECK_NE(obj, Runtime::Current()->GetClearedJniWeakGlobal());
@@ -139,32 +139,32 @@ class ScopedObjectAccessAlreadyRunnable : public ValueObject {
 
   template<typename T>
   T Decode(jobject obj) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK(IsRunnable());  // Don't work with raw objects in non-runnable states.
     return down_cast<T>(Self()->DecodeJObject(obj));
   }
 
   ArtField* DecodeField(jfieldID fid) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK(IsRunnable());  // Don't work with raw objects in non-runnable states.
     return reinterpret_cast<ArtField*>(fid);
   }
 
-  jfieldID EncodeField(ArtField* field) const SHARED_REQUIRES(Locks::mutator_lock_) {
+  jfieldID EncodeField(ArtField* field) const REQUIRES_SHARED(Locks::mutator_lock_) {
     Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK(IsRunnable());  // Don't work with raw objects in non-runnable states.
     return reinterpret_cast<jfieldID>(field);
   }
 
-  ArtMethod* DecodeMethod(jmethodID mid) const SHARED_REQUIRES(Locks::mutator_lock_) {
+  ArtMethod* DecodeMethod(jmethodID mid) const REQUIRES_SHARED(Locks::mutator_lock_) {
     Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK(IsRunnable());  // Don't work with raw objects in non-runnable states.
     return reinterpret_cast<ArtMethod*>(mid);
   }
 
-  jmethodID EncodeMethod(ArtMethod* method) const SHARED_REQUIRES(Locks::mutator_lock_) {
+  jmethodID EncodeMethod(ArtMethod* method) const REQUIRES_SHARED(Locks::mutator_lock_) {
     Locks::mutator_lock_->AssertSharedHeld(Self());
     DCHECK(IsRunnable());  // Don't work with raw objects in non-runnable states.
     return reinterpret_cast<jmethodID>(method);

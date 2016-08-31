@@ -96,7 +96,7 @@ class LargeObjectSpace : public DiscontinuousSpace, public AllocSpace {
     return Begin() <= byte_obj && byte_obj < End();
   }
   void LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes) OVERRIDE
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Return true if the large object is a zygote large object. Potentially slow.
   virtual bool IsZygoteLargeObject(Thread* self, mirror::Object* obj) const = 0;

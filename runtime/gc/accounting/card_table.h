@@ -108,7 +108,7 @@ class CardTable {
               const Visitor& visitor,
               const uint8_t minimum_age = kCardDirty) const
       REQUIRES(Locks::heap_bitmap_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Assertion used to check the given address is covered by the card table
   void CheckAddrIsInCardTable(const uint8_t* addr) const;

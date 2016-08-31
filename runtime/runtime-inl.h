@@ -69,13 +69,13 @@ inline ArtMethod* Runtime::GetImtUnimplementedMethod() {
 }
 
 inline ArtMethod* Runtime::GetCalleeSaveMethod(CalleeSaveType type)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   DCHECK(HasCalleeSaveMethod(type));
   return GetCalleeSaveMethodUnchecked(type);
 }
 
 inline ArtMethod* Runtime::GetCalleeSaveMethodUnchecked(CalleeSaveType type)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   return reinterpret_cast<ArtMethod*>(callee_save_methods_[type]);
 }
 

@@ -101,12 +101,12 @@ void Instrumentation::InstallStubsForClass(mirror::Class* klass) {
 }
 
 static void UpdateEntrypoints(ArtMethod* method, const void* quick_code)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   method->SetEntryPointFromQuickCompiledCode(quick_code);
 }
 
 bool Instrumentation::NeedDebugVersionForBootImageCode(ArtMethod* method, const void* code) const
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   return Dbg::IsDebuggerActive() &&
          Runtime::Current()->GetHeap()->IsInBootImageOatFile(code) &&
          !method->IsNative() &&
@@ -169,7 +169,7 @@ void Instrumentation::InstallStubsForMethod(ArtMethod* method) {
 // Since we may already have done this previously, we need to push new instrumentation frame before
 // existing instrumentation frames.
 static void InstrumentationInstallStack(Thread* thread, void* arg)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   struct InstallStackVisitor FINAL : public StackVisitor {
     InstallStackVisitor(Thread* thread_in, Context* context, uintptr_t instrumentation_exit_pc)
         : StackVisitor(thread_in, context, kInstrumentationStackWalk),
@@ -179,7 +179,7 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
           last_return_pc_(0) {
     }
 
-    bool VisitFrame() OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+    bool VisitFrame() OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
       ArtMethod* m = GetMethod();
       if (m == nullptr) {
         if (kVerboseInstrumentation) {
@@ -329,7 +329,7 @@ static void InstrumentationRestoreStack(Thread* thread, void* arg)
           instrumentation_stack_(thread_in->GetInstrumentationStack()),
           frames_removed_(0) {}
 
-    bool VisitFrame() OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_) {
+    bool VisitFrame() OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
       if (instrumentation_stack_->size() == 0) {
         return false;  // Stop.
       }
@@ -1019,7 +1019,7 @@ size_t Instrumentation::ComputeFrameId(Thread* self,
 
 static void CheckStackDepth(Thread* self, const InstrumentationStackFrame& instrumentation_frame,
                             int delta)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   size_t frame_id = StackVisitor::ComputeNumFrames(self, kInstrumentationStackWalk) + delta;
   if (frame_id != instrumentation_frame.frame_id_) {
     LOG(ERROR) << "Expected frame_id=" << frame_id << " but found "

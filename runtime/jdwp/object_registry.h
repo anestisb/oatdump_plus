@@ -63,24 +63,24 @@ class ObjectRegistry {
   ObjectRegistry();
 
   JDWP::ObjectId Add(mirror::Object* o)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_, !lock_);
 
   JDWP::RefTypeId AddRefType(mirror::Class* c)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_, !lock_);
 
   template<class T>
   JDWP::ObjectId Add(Handle<T> obj_h)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_, !lock_);
 
   JDWP::RefTypeId AddRefType(Handle<mirror::Class> c_h)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_, !lock_);
 
   template<typename T> T Get(JDWP::ObjectId id, JDWP::JdwpError* error)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!lock_) {
     if (id == 0) {
       *error = JDWP::ERR_NONE;
       return nullptr;
@@ -88,42 +88,42 @@ class ObjectRegistry {
     return down_cast<T>(InternalGet(id, error));
   }
 
-  void Clear() SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!lock_);
+  void Clear() REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!lock_);
 
   void DisableCollection(JDWP::ObjectId id)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!lock_);
 
   void EnableCollection(JDWP::ObjectId id)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!lock_);
 
   bool IsCollected(JDWP::ObjectId id)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!lock_);
 
   void DisposeObject(JDWP::ObjectId id, uint32_t reference_count)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!lock_);
 
   // This is needed to get the jobject instead of the Object*.
   // Avoid using this and use standard Get when possible.
-  jobject GetJObject(JDWP::ObjectId id) SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!lock_);
+  jobject GetJObject(JDWP::ObjectId id) REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!lock_);
 
  private:
   template<class T>
   JDWP::ObjectId InternalAdd(Handle<T> obj_h)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!lock_, !Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
 
   mirror::Object* InternalGet(JDWP::ObjectId id, JDWP::JdwpError* error)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!lock_);
 
   void Demote(ObjectRegistryEntry& entry)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(lock_);
 
   void Promote(ObjectRegistryEntry& entry)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(lock_);
 
   bool ContainsLocked(Thread* self, mirror::Object* o, int32_t identity_hash_code,
                       ObjectRegistryEntry** out_entry)
-      REQUIRES(lock_) SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES(lock_) REQUIRES_SHARED(Locks::mutator_lock_);
 
   Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::multimap<int32_t, ObjectRegistryEntry*> object_to_entry_ GUARDED_BY(lock_);

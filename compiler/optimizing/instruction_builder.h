@@ -103,7 +103,7 @@ class HInstructionBuilder : public ValueObject {
   bool NeedsAccessCheck(uint32_t type_index,
                         Handle<mirror::DexCache> dex_cache,
                         /*out*/bool* finalizable) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   bool NeedsAccessCheck(uint32_t type_index, /*out*/bool* finalizable) const;
 
   template<typename T>
@@ -255,14 +255,14 @@ class HInstructionBuilder : public ValueObject {
       ArtMethod* method,
       uint32_t method_idx,
       HInvokeStaticOrDirect::ClinitCheckRequirement* clinit_check_requirement)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Build a HNewInstance instruction.
   bool BuildNewInstance(uint16_t type_index, uint32_t dex_pc);
 
   // Return whether the compiler can assume `cls` is initialized.
   bool IsInitialized(Handle<mirror::Class> cls) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Try to resolve a method using the class linker. Return null if a method could
   // not be resolved.

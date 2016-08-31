@@ -171,7 +171,7 @@ class ReferenceTypeInfo : ValueObject {
 
   static ReferenceTypeInfo Create(TypeHandle type_handle, bool is_exact);
 
-  static ReferenceTypeInfo Create(TypeHandle type_handle) SHARED_REQUIRES(Locks::mutator_lock_) {
+  static ReferenceTypeInfo Create(TypeHandle type_handle) REQUIRES_SHARED(Locks::mutator_lock_) {
     return Create(type_handle, type_handle->CannotBeAssignedFromOtherTypes());
   }
 
@@ -191,49 +191,49 @@ class ReferenceTypeInfo : ValueObject {
 
   bool IsExact() const { return is_exact_; }
 
-  bool IsObjectClass() const SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool IsObjectClass() const REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(IsValid());
     return GetTypeHandle()->IsObjectClass();
   }
 
-  bool IsStringClass() const SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool IsStringClass() const REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(IsValid());
     return GetTypeHandle()->IsStringClass();
   }
 
-  bool IsObjectArray() const SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool IsObjectArray() const REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(IsValid());
     return IsArrayClass() && GetTypeHandle()->GetComponentType()->IsObjectClass();
   }
 
-  bool IsInterface() const SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool IsInterface() const REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(IsValid());
     return GetTypeHandle()->IsInterface();
   }
 
-  bool IsArrayClass() const SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool IsArrayClass() const REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(IsValid());
     return GetTypeHandle()->IsArrayClass();
   }
 
-  bool IsPrimitiveArrayClass() const SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool IsPrimitiveArrayClass() const REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(IsValid());
     return GetTypeHandle()->IsPrimitiveArray();
   }
 
-  bool IsNonPrimitiveArrayClass() const SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool IsNonPrimitiveArrayClass() const REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(IsValid());
     return GetTypeHandle()->IsArrayClass() && !GetTypeHandle()->IsPrimitiveArray();
   }
 
-  bool CanArrayHold(ReferenceTypeInfo rti)  const SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool CanArrayHold(ReferenceTypeInfo rti)  const REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(IsValid());
     if (!IsExact()) return false;
     if (!IsArrayClass()) return false;
     return GetTypeHandle()->GetComponentType()->IsAssignableFrom(rti.GetTypeHandle().Get());
   }
 
-  bool CanArrayHoldValuesOf(ReferenceTypeInfo rti)  const SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool CanArrayHoldValuesOf(ReferenceTypeInfo rti)  const REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(IsValid());
     if (!IsExact()) return false;
     if (!IsArrayClass()) return false;
@@ -244,13 +244,13 @@ class ReferenceTypeInfo : ValueObject {
 
   Handle<mirror::Class> GetTypeHandle() const { return type_handle_; }
 
-  bool IsSupertypeOf(ReferenceTypeInfo rti) const SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool IsSupertypeOf(ReferenceTypeInfo rti) const REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(IsValid());
     DCHECK(rti.IsValid());
     return GetTypeHandle()->IsAssignableFrom(rti.GetTypeHandle().Get());
   }
 
-  bool IsStrictSupertypeOf(ReferenceTypeInfo rti) const SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool IsStrictSupertypeOf(ReferenceTypeInfo rti) const REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(IsValid());
     DCHECK(rti.IsValid());
     return GetTypeHandle().Get() != rti.GetTypeHandle().Get() &&
@@ -260,7 +260,7 @@ class ReferenceTypeInfo : ValueObject {
   // Returns true if the type information provide the same amount of details.
   // Note that it does not mean that the instructions have the same actual type
   // (because the type can be the result of a merge).
-  bool IsEqual(ReferenceTypeInfo rti) const SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool IsEqual(ReferenceTypeInfo rti) const REQUIRES_SHARED(Locks::mutator_lock_) {
     if (!IsValid() && !rti.IsValid()) {
       // Invalid types are equal.
       return true;

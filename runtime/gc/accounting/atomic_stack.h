@@ -73,12 +73,12 @@ class AtomicStack {
   // Beware: Mixing atomic pushes and atomic pops will cause ABA problem.
 
   // Returns false if we overflowed the stack.
-  bool AtomicPushBackIgnoreGrowthLimit(T* value) SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool AtomicPushBackIgnoreGrowthLimit(T* value) REQUIRES_SHARED(Locks::mutator_lock_) {
     return AtomicPushBackInternal(value, capacity_);
   }
 
   // Returns false if we overflowed the stack.
-  bool AtomicPushBack(T* value) SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool AtomicPushBack(T* value) REQUIRES_SHARED(Locks::mutator_lock_) {
     return AtomicPushBackInternal(value, growth_limit_);
   }
 
@@ -86,7 +86,7 @@ class AtomicStack {
   // slots. Returns false if we overflowed the stack.
   bool AtomicBumpBack(size_t num_slots, StackReference<T>** start_address,
                       StackReference<T>** end_address)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     if (kIsDebugBuild) {
       debug_is_sorted_ = false;
     }
@@ -112,7 +112,7 @@ class AtomicStack {
     return true;
   }
 
-  void AssertAllZero() SHARED_REQUIRES(Locks::mutator_lock_) {
+  void AssertAllZero() REQUIRES_SHARED(Locks::mutator_lock_) {
     if (kIsDebugBuild) {
       for (size_t i = 0; i < capacity_; ++i) {
         DCHECK_EQ(begin_[i].AsMirrorPtr(), static_cast<T*>(nullptr)) << "i=" << i;
@@ -120,7 +120,7 @@ class AtomicStack {
     }
   }
 
-  void PushBack(T* value) SHARED_REQUIRES(Locks::mutator_lock_) {
+  void PushBack(T* value) REQUIRES_SHARED(Locks::mutator_lock_) {
     if (kIsDebugBuild) {
       debug_is_sorted_ = false;
     }
@@ -130,7 +130,7 @@ class AtomicStack {
     begin_[index].Assign(value);
   }
 
-  T* PopBack() SHARED_REQUIRES(Locks::mutator_lock_) {
+  T* PopBack() REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK_GT(back_index_.LoadRelaxed(), front_index_.LoadRelaxed());
     // Decrement the back index non atomically.
     back_index_.StoreRelaxed(back_index_.LoadRelaxed() - 1);
@@ -193,12 +193,12 @@ class AtomicStack {
     }
   }
 
-  bool ContainsSorted(const T* value) const SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool ContainsSorted(const T* value) const REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(debug_is_sorted_);
     return std::binary_search(Begin(), End(), value, ObjectComparator());
   }
 
-  bool Contains(const T* value) const SHARED_REQUIRES(Locks::mutator_lock_) {
+  bool Contains(const T* value) const REQUIRES_SHARED(Locks::mutator_lock_) {
     for (auto cur = Begin(), end = End(); cur != end; ++cur) {
       if (cur->AsMirrorPtr() == value) {
         return true;
@@ -220,7 +220,7 @@ class AtomicStack {
 
   // Returns false if we overflowed the stack.
   bool AtomicPushBackInternal(T* value, size_t limit) ALWAYS_INLINE
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     if (kIsDebugBuild) {
       debug_is_sorted_ = false;
     }

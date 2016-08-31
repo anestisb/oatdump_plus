@@ -58,14 +58,14 @@ extern "C" void jit_unload(void* handle) {
 
 extern "C" bool jit_compile_method(
     void* handle, ArtMethod* method, Thread* self, bool osr)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   auto* jit_compiler = reinterpret_cast<JitCompiler*>(handle);
   DCHECK(jit_compiler != nullptr);
   return jit_compiler->CompileMethod(self, method, osr);
 }
 
 extern "C" void jit_types_loaded(void* handle, mirror::Class** types, size_t count)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   auto* jit_compiler = reinterpret_cast<JitCompiler*>(handle);
   DCHECK(jit_compiler != nullptr);
   if (jit_compiler->GetCompilerOptions()->GetGenerateDebugInfo()) {

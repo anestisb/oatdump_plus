@@ -275,7 +275,7 @@ class ElfCompilationUnitWriter {
     owner_->builder_->GetDebugInfo()->WriteFully(buffer.data(), buffer.size());
   }
 
-  void Write(const ArrayRef<mirror::Class*>& types) SHARED_REQUIRES(Locks::mutator_lock_) {
+  void Write(const ArrayRef<mirror::Class*>& types) REQUIRES_SHARED(Locks::mutator_lock_) {
     using namespace dwarf;  // NOLINT. For easy access to DWARF constants.
 
     info_.StartTag(DW_TAG_compile_unit);
@@ -466,7 +466,7 @@ class ElfCompilationUnitWriter {
   // Linkage name uniquely identifies type.
   // It is used to determine the dynamic type of objects.
   // We use the methods_ field of class since it is unique and it is not moved by the GC.
-  void WriteLinkageName(mirror::Class* type) SHARED_REQUIRES(Locks::mutator_lock_) {
+  void WriteLinkageName(mirror::Class* type) REQUIRES_SHARED(Locks::mutator_lock_) {
     auto* methods_ptr = type->GetMethodsPtr();
     if (methods_ptr == nullptr) {
       // Some types might have no methods.  Allocate empty array instead.

@@ -36,7 +36,7 @@ namespace art {
  */
 
 static void ThrowArrayStoreException_NotAnArray(const char* identifier, mirror::Object* array)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   std::string actualType(PrettyTypeOf(array));
   Thread* self = Thread::Current();
   self->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",

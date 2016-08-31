@@ -121,17 +121,17 @@ class ModUnionTableReferenceCache : public ModUnionTable {
 
   // Update table based on cleared cards and mark all references to the other spaces.
   void UpdateAndMarkReferences(MarkObjectVisitor* visitor) OVERRIDE
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::heap_bitmap_lock_);
 
   virtual void VisitObjects(ObjectCallback* callback, void* arg) OVERRIDE
       REQUIRES(Locks::heap_bitmap_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Exclusive lock is required since verify uses SpaceBitmap::VisitMarkedRange and
   // VisitMarkedRange can't know if the callback will modify the bitmap or not.
   void Verify() OVERRIDE
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::heap_bitmap_lock_);
 
   // Function that tells whether or not to add a reference to the table.
@@ -139,7 +139,7 @@ class ModUnionTableReferenceCache : public ModUnionTable {
 
   virtual bool ContainsCardFor(uintptr_t addr) OVERRIDE;
 
-  virtual void Dump(std::ostream& os) OVERRIDE SHARED_REQUIRES(Locks::mutator_lock_);
+  virtual void Dump(std::ostream& os) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_);
 
   virtual void SetCards() OVERRIDE;
 
@@ -169,11 +169,11 @@ class ModUnionTableCardCache : public ModUnionTable {
   // Mark all references to the alloc space(s).
   virtual void UpdateAndMarkReferences(MarkObjectVisitor* visitor) OVERRIDE
       REQUIRES(Locks::heap_bitmap_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   virtual void VisitObjects(ObjectCallback* callback, void* arg) OVERRIDE
       REQUIRES(Locks::heap_bitmap_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Nothing to verify.
   virtual void Verify() OVERRIDE {}

@@ -69,12 +69,12 @@ class Compiler {
                           jit::JitCodeCache* code_cache ATTRIBUTE_UNUSED,
                           ArtMethod* method ATTRIBUTE_UNUSED,
                           bool osr ATTRIBUTE_UNUSED)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     return false;
   }
 
   virtual uintptr_t GetEntryPointOf(ArtMethod* method) const
-     SHARED_REQUIRES(Locks::mutator_lock_) = 0;
+     REQUIRES_SHARED(Locks::mutator_lock_) = 0;
 
   uint64_t GetMaximumCompilationTimeBeforeWarning() const {
     return maximum_compilation_time_before_warning_;
