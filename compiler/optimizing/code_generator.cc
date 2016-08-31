@@ -753,7 +753,7 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
   }
 
   // Collect PC infos for the mapping table.
-  uint32_t native_pc = GetAssembler()->CodeSize();
+  uint32_t native_pc = GetAssembler()->CodePosition();
 
   if (instruction == nullptr) {
     // For stack overflow checks and native-debug-info entries without dex register
