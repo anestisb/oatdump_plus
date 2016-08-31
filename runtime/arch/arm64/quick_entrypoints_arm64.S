@@ -2107,7 +2107,7 @@ ENTRY art_quick_alloc_object_tlab
 END art_quick_alloc_object_tlab
 
 // The common code for art_quick_alloc_object_*region_tlab
-.macro GENERATE_ALLOC_OBJECT_REGION_TLAB name, entrypoint, fast_path, is_resolved
+.macro GENERATE_ALLOC_OBJECT_REGION_TLAB name, entrypoint, fast_path, is_resolved, read_barrier
 ENTRY \name
     // Fast path region tlab allocation.
     // x0: type_idx/resolved class/return value, x1: ArtMethod*, xSELF(x19): Thread::Current
@@ -2123,16 +2123,19 @@ ENTRY \name
     ldr    x2, [x1, #ART_METHOD_DEX_CACHE_TYPES_OFFSET_64]    // Load dex cache resolved types array
                                                               // Load the class (x2)
     ldr    w2, [x2, x0, lsl #COMPRESSED_REFERENCE_SIZE_SHIFT]
+    // If the class is null, go slow path. The check is required to read the lock word.
+    cbz    w2, .Lslow_path\name
 .endif
+.if \read_barrier
     // Most common case: GC is not marking.
     ldr    w3, [xSELF, #THREAD_IS_GC_MARKING_OFFSET]
     cbnz   x3, .Lmarking\name
+.endif
 .Ldo_allocation\name:
     \fast_path .Lslow_path\name
 .Lmarking\name:
+.if \read_barrier
     // GC is marking, check the lock word of the class for the mark bit.
-    // If the class is null, go slow path. The check is required to read the lock word.
-    cbz    w2, .Lslow_path\name
     // Class is not null, check mark bit in lock word.
     ldr    w3, [x2, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
     // If the bit is not zero, do the allocation.
@@ -2140,14 +2143,23 @@ ENTRY \name
                                                               // The read barrier slow path. Mark
                                                               // the class.
     stp    x0, x1, [sp, #-32]!                                // Save registers (x0, x1, lr).
+    .cfi_adjust_cfa_offset 32
+    .cfi_rel_offset x0, 0
+    .cfi_rel_offset x1, 8
     str    xLR, [sp, #16]                                     // Align sp by 16 bytes.
+    .cfi_rel_offset xLR, 16
     mov    x0, x2                                             // Pass the class as the first param.
     bl     artReadBarrierMark
     mov    x2, x0                                             // Get the (marked) class back.
     ldp    x0, x1, [sp, #0]                                   // Restore registers.
+    .cfi_restore x0
+    .cfi_restore x1
     ldr    xLR, [sp, #16]
+    .cfi_restore xLR
     add    sp, sp, #32
+    .cfi_adjust_cfa_offset -32
     b      .Ldo_allocation\name
+.endif
 .Lslow_path\name:
     SETUP_SAVE_REFS_ONLY_FRAME                 // Save callee saves in case of GC.
     mov    x2, xSELF                           // Pass Thread::Current.
@@ -2157,9 +2169,14 @@ ENTRY \name
 END \name
 .endm
 
-GENERATE_ALLOC_OBJECT_REGION_TLAB art_quick_alloc_object_region_tlab, artAllocObjectFromCodeRegionTLAB, ALLOC_OBJECT_TLAB_FAST_PATH, 0
-GENERATE_ALLOC_OBJECT_REGION_TLAB art_quick_alloc_object_resolved_region_tlab, artAllocObjectFromCodeResolvedRegionTLAB, ALLOC_OBJECT_TLAB_FAST_PATH_RESOLVED, 1
-GENERATE_ALLOC_OBJECT_REGION_TLAB art_quick_alloc_object_initialized_region_tlab, artAllocObjectFromCodeInitializedRegionTLAB, ALLOC_OBJECT_TLAB_FAST_PATH_INITIALIZED, 1
+// Use ALLOC_OBJECT_TLAB_FAST_PATH_RESOLVED since the null check is already done in GENERATE_ALLOC_OBJECT_TLAB.
+GENERATE_ALLOC_OBJECT_REGION_TLAB art_quick_alloc_object_region_tlab, artAllocObjectFromCodeRegionTLAB, ALLOC_OBJECT_TLAB_FAST_PATH_RESOLVED, 0, 1
+// No read barrier for the resolved or initialized cases since the caller is responsible for the
+// read barrier due to the to-space invariant.
+GENERATE_ALLOC_OBJECT_REGION_TLAB art_quick_alloc_object_resolved_region_tlab, artAllocObjectFromCodeResolvedRegionTLAB, ALLOC_OBJECT_TLAB_FAST_PATH_RESOLVED, 1, 0
+GENERATE_ALLOC_OBJECT_REGION_TLAB art_quick_alloc_object_initialized_region_tlab, artAllocObjectFromCodeInitializedRegionTLAB, ALLOC_OBJECT_TLAB_FAST_PATH_INITIALIZED, 1, 0
+
+// TODO: We could use this macro for the normal tlab allocator too.
 
 // The common code for art_quick_alloc_array_*region_tlab
 .macro GENERATE_ALLOC_ARRAY_REGION_TLAB name, entrypoint, fast_path, is_resolved
