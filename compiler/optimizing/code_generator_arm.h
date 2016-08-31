@@ -63,9 +63,9 @@ class InvokeRuntimeCallingConvention : public CallingConvention<Register, SRegis
   DISALLOW_COPY_AND_ASSIGN(InvokeRuntimeCallingConvention);
 };
 
-static constexpr DRegister FromLowSToD(SRegister reg) {
-  return DCHECK_CONSTEXPR(reg % 2 == 0, , D0)
-      static_cast<DRegister>(reg / 2);
+constexpr DRegister FromLowSToD(SRegister reg) {
+  DCHECK_EQ(reg % 2, 0);
+  return static_cast<DRegister>(reg / 2);
 }
 
 

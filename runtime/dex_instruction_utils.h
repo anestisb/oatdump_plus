@@ -134,74 +134,54 @@ constexpr bool IsInstructionBinOp2Addr(Instruction::Code code) {
   return Instruction::ADD_INT_2ADDR <= code && code <= Instruction::REM_DOUBLE_2ADDR;
 }
 
-// TODO: Remove the #if guards below when we fully migrate to C++14.
-
 constexpr bool IsInvokeInstructionRange(Instruction::Code opcode) {
-#if __cplusplus >= 201402  // C++14 allows the DCHECK() in constexpr functions.
   DCHECK(IsInstructionInvoke(opcode));
-#endif
   return opcode >= Instruction::INVOKE_VIRTUAL_RANGE;
 }
 
 constexpr DexInvokeType InvokeInstructionType(Instruction::Code opcode) {
-#if __cplusplus >= 201402  // C++14 allows the DCHECK() in constexpr functions.
   DCHECK(IsInstructionInvoke(opcode));
-#endif
   return static_cast<DexInvokeType>(IsInvokeInstructionRange(opcode)
                                     ? (opcode - Instruction::INVOKE_VIRTUAL_RANGE)
                                     : (opcode - Instruction::INVOKE_VIRTUAL));
 }
 
 constexpr DexMemAccessType IGetMemAccessType(Instruction::Code code) {
-#if __cplusplus >= 201402  // C++14 allows the DCHECK() in constexpr functions.
   DCHECK(IsInstructionIGet(code));
-#endif
   return static_cast<DexMemAccessType>(code - Instruction::IGET);
 }
 
 constexpr DexMemAccessType IPutMemAccessType(Instruction::Code code) {
-#if __cplusplus >= 201402  // C++14 allows the DCHECK() in constexpr functions.
   DCHECK(IsInstructionIPut(code));
-#endif
   return static_cast<DexMemAccessType>(code - Instruction::IPUT);
 }
 
 constexpr DexMemAccessType SGetMemAccessType(Instruction::Code code) {
-#if __cplusplus >= 201402  // C++14 allows the DCHECK() in constexpr functions.
   DCHECK(IsInstructionSGet(code));
-#endif
   return static_cast<DexMemAccessType>(code - Instruction::SGET);
 }
 
 constexpr DexMemAccessType SPutMemAccessType(Instruction::Code code) {
-#if __cplusplus >= 201402  // C++14 allows the DCHECK() in constexpr functions.
   DCHECK(IsInstructionSPut(code));
-#endif
   return static_cast<DexMemAccessType>(code - Instruction::SPUT);
 }
 
 constexpr DexMemAccessType AGetMemAccessType(Instruction::Code code) {
-#if __cplusplus >= 201402  // C++14 allows the DCHECK() in constexpr functions.
   DCHECK(IsInstructionAGet(code));
-#endif
   return static_cast<DexMemAccessType>(code - Instruction::AGET);
 }
 
 constexpr DexMemAccessType APutMemAccessType(Instruction::Code code) {
-#if __cplusplus >= 201402  // C++14 allows the DCHECK() in constexpr functions.
   DCHECK(IsInstructionAPut(code));
-#endif
   return static_cast<DexMemAccessType>(code - Instruction::APUT);
 }
 
 constexpr DexMemAccessType IGetOrIPutMemAccessType(Instruction::Code code) {
-#if __cplusplus >= 201402  // C++14 allows the DCHECK() in constexpr functions.
   DCHECK(IsInstructionIGetOrIPut(code));
-#endif
   return (code >= Instruction::IPUT) ? IPutMemAccessType(code) : IGetMemAccessType(code);
 }
 
-static inline DexMemAccessType IGetQuickOrIPutQuickMemAccessType(Instruction::Code code) {
+inline DexMemAccessType IGetQuickOrIPutQuickMemAccessType(Instruction::Code code) {
   DCHECK(IsInstructionIGetQuickOrIPutQuick(code));
   switch (code) {
     case Instruction::IGET_QUICK: case Instruction::IPUT_QUICK:
@@ -225,16 +205,12 @@ static inline DexMemAccessType IGetQuickOrIPutQuickMemAccessType(Instruction::Co
 }
 
 constexpr DexMemAccessType SGetOrSPutMemAccessType(Instruction::Code code) {
-#if __cplusplus >= 201402  // C++14 allows the DCHECK() in constexpr functions.
   DCHECK(IsInstructionSGetOrSPut(code));
-#endif
   return (code >= Instruction::SPUT) ? SPutMemAccessType(code) : SGetMemAccessType(code);
 }
 
 constexpr DexMemAccessType AGetOrAPutMemAccessType(Instruction::Code code) {
-#if __cplusplus >= 201402  // C++14 allows the DCHECK() in constexpr functions.
   DCHECK(IsInstructionAGetOrAPut(code));
-#endif
   return (code >= Instruction::APUT) ? APutMemAccessType(code) : AGetMemAccessType(code);
 }
 
