@@ -2125,11 +2125,11 @@ HomogeneousSpaceCompactResult Heap::PerformHomogeneousSpaceCompact() {
 }
 
 void Heap::TransitionCollector(CollectorType collector_type) {
-  // Collector transition must not happen with CC
-  CHECK(!kUseReadBarrier);
   if (collector_type == collector_type_) {
     return;
   }
+  // Collector transition must not happen with CC
+  CHECK(!kUseReadBarrier);
   VLOG(heap) << "TransitionCollector: " << static_cast<int>(collector_type_)
              << " -> " << static_cast<int>(collector_type);
   uint64_t start_time = NanoTime();
