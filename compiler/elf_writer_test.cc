@@ -38,16 +38,16 @@ class ElfWriterTest : public CommonCompilerTest {
 
 #define EXPECT_ELF_FILE_ADDRESS(ef, expected_value, symbol_name, build_map) \
   do { \
-    void* addr = reinterpret_cast<void*>(ef->FindSymbolAddress(SHT_DYNSYM, \
-                                                               symbol_name, \
-                                                               build_map)); \
+    void* addr = reinterpret_cast<void*>((ef)->FindSymbolAddress(SHT_DYNSYM, \
+                                                                 symbol_name, \
+                                                                 build_map)); \
     EXPECT_NE(nullptr, addr); \
     EXPECT_LT(static_cast<uintptr_t>(ART_BASE_ADDRESS), reinterpret_cast<uintptr_t>(addr)); \
-    if (expected_value == nullptr) { \
-      expected_value = addr; \
+    if ((expected_value) == nullptr) { \
+      (expected_value) = addr; \
     }                        \
     EXPECT_EQ(expected_value, addr); \
-    EXPECT_EQ(expected_value, ef->FindDynamicSymbolAddress(symbol_name)); \
+    EXPECT_EQ(expected_value, (ef)->FindDynamicSymbolAddress(symbol_name)); \
   } while (false)
 
 TEST_F(ElfWriterTest, dlsym) {

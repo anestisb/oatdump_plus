@@ -701,7 +701,7 @@ TEST_F(Arm64RelativePatcherTestDefault, StringReference4) {
 
 #define DEFAULT_LDUR_LDR_TEST(adrp_offset, disp) \
   TEST_F(Arm64RelativePatcherTestDefault, DexCacheReference ## adrp_offset ## Ldur ## disp) { \
-    bool has_thunk = (adrp_offset == 0xff8u || adrp_offset == 0xffcu); \
+    bool has_thunk = ((adrp_offset) == 0xff8u || (adrp_offset) == 0xffcu); \
     TestAdrpLdurLdr(adrp_offset, has_thunk, 0x12345678u, disp); \
   }
 
@@ -725,8 +725,8 @@ TEST_FOR_OFFSETS(LDRW_PCREL_LDR_TEST, 0x1234, 0x1238)
 // LDR <Xt>, <label> is aligned when offset + displacement is a multiple of 8.
 #define LDRX_PCREL_LDR_TEST(adrp_offset, disp) \
   TEST_F(Arm64RelativePatcherTestDefault, DexCacheReference ## adrp_offset ## XPcRel ## disp) { \
-    bool unaligned = !IsAligned<8u>(adrp_offset + 4u + static_cast<uint32_t>(disp)); \
-    bool has_thunk = (adrp_offset == 0xff8u || adrp_offset == 0xffcu) && unaligned; \
+    bool unaligned = !IsAligned<8u>((adrp_offset) + 4u + static_cast<uint32_t>(disp)); \
+    bool has_thunk = ((adrp_offset) == 0xff8u || (adrp_offset) == 0xffcu) && unaligned; \
     TestAdrpLdrPcRelLdr(kLdrXPcRelInsn, disp, adrp_offset, has_thunk, 0x12345678u, 0x1234u); \
   }
 
@@ -735,21 +735,21 @@ TEST_FOR_OFFSETS(LDRX_PCREL_LDR_TEST, 0x1234, 0x1238)
 // LDR <Wt>, [SP, #<pimm>] and LDR <Xt>, [SP, #<pimm>] are always aligned. No fixup needed.
 #define LDRW_SPREL_LDR_TEST(adrp_offset, disp) \
   TEST_F(Arm64RelativePatcherTestDefault, DexCacheReference ## adrp_offset ## WSpRel ## disp) { \
-    TestAdrpLdrSpRelLdr(kLdrWSpRelInsn, disp >> 2, adrp_offset, false, 0x12345678u, 0x1234u); \
+    TestAdrpLdrSpRelLdr(kLdrWSpRelInsn, (disp) >> 2, adrp_offset, false, 0x12345678u, 0x1234u); \
   }
 
 TEST_FOR_OFFSETS(LDRW_SPREL_LDR_TEST, 0, 4)
 
 #define LDRX_SPREL_LDR_TEST(adrp_offset, disp) \
   TEST_F(Arm64RelativePatcherTestDefault, DexCacheReference ## adrp_offset ## XSpRel ## disp) { \
-    TestAdrpLdrSpRelLdr(kLdrXSpRelInsn, disp >> 3, adrp_offset, false, 0x12345678u, 0x1234u); \
+    TestAdrpLdrSpRelLdr(kLdrXSpRelInsn, (disp) >> 3, adrp_offset, false, 0x12345678u, 0x1234u); \
   }
 
 TEST_FOR_OFFSETS(LDRX_SPREL_LDR_TEST, 0, 8)
 
 #define DEFAULT_LDUR_ADD_TEST(adrp_offset, disp) \
   TEST_F(Arm64RelativePatcherTestDefault, StringReference ## adrp_offset ## Ldur ## disp) { \
-    bool has_thunk = (adrp_offset == 0xff8u || adrp_offset == 0xffcu); \
+    bool has_thunk = ((adrp_offset) == 0xff8u || (adrp_offset) == 0xffcu); \
     TestAdrpLdurAdd(adrp_offset, has_thunk, disp); \
   }
 
@@ -793,7 +793,7 @@ TEST_FOR_OFFSETS(DEFAULT_ADDX0X0_ADD_TEST, 0x12345678, 0xffffc840)
   TEST_F(Arm64RelativePatcherTestDefault, StringReference ## adrp_offset ## AddsX0X2 ## disp) { \
     /* ADDS that does not use the result of "ADRP x0, addr" but overwrites that register. */ \
     uint32_t adds = kAddsXInsn | (100 << 10) | (2u << 5) | 0u;  /* ADDS x0, x2, #100 */ \
-    bool has_thunk = (adrp_offset == 0xff8u || adrp_offset == 0xffcu); \
+    bool has_thunk = ((adrp_offset) == 0xff8u || (adrp_offset) == 0xffcu); \
     TestAdrpInsn2Add(adds, adrp_offset, has_thunk, disp); \
   }
 
@@ -810,8 +810,8 @@ TEST_FOR_OFFSETS(LDRW_PCREL_ADD_TEST, 0x1234, 0x1238)
 // LDR <Xt>, <label> is aligned when offset + displacement is a multiple of 8.
 #define LDRX_PCREL_ADD_TEST(adrp_offset, disp) \
   TEST_F(Arm64RelativePatcherTestDefault, StringReference ## adrp_offset ## XPcRel ## disp) { \
-    bool unaligned = !IsAligned<8u>(adrp_offset + 4u + static_cast<uint32_t>(disp)); \
-    bool has_thunk = (adrp_offset == 0xff8u || adrp_offset == 0xffcu) && unaligned; \
+    bool unaligned = !IsAligned<8u>((adrp_offset) + 4u + static_cast<uint32_t>(disp)); \
+    bool has_thunk = ((adrp_offset) == 0xff8u || (adrp_offset) == 0xffcu) && unaligned; \
     TestAdrpLdrPcRelAdd(kLdrXPcRelInsn, disp, adrp_offset, has_thunk, 0x12345678u); \
   }
 
@@ -820,14 +820,14 @@ TEST_FOR_OFFSETS(LDRX_PCREL_ADD_TEST, 0x1234, 0x1238)
 // LDR <Wt>, [SP, #<pimm>] and LDR <Xt>, [SP, #<pimm>] are always aligned. No fixup needed.
 #define LDRW_SPREL_ADD_TEST(adrp_offset, disp) \
   TEST_F(Arm64RelativePatcherTestDefault, StringReference ## adrp_offset ## WSpRel ## disp) { \
-    TestAdrpLdrSpRelAdd(kLdrWSpRelInsn, disp >> 2, adrp_offset, false, 0x12345678u); \
+    TestAdrpLdrSpRelAdd(kLdrWSpRelInsn, (disp) >> 2, adrp_offset, false, 0x12345678u); \
   }
 
 TEST_FOR_OFFSETS(LDRW_SPREL_ADD_TEST, 0, 4)
 
 #define LDRX_SPREL_ADD_TEST(adrp_offset, disp) \
   TEST_F(Arm64RelativePatcherTestDefault, StringReference ## adrp_offset ## XSpRel ## disp) { \
-    TestAdrpLdrSpRelAdd(kLdrXSpRelInsn, disp >> 3, adrp_offset, false, 0x12345678u); \
+    TestAdrpLdrSpRelAdd(kLdrXSpRelInsn, (disp) >> 3, adrp_offset, false, 0x12345678u); \
   }
 
 TEST_FOR_OFFSETS(LDRX_SPREL_ADD_TEST, 0, 8)

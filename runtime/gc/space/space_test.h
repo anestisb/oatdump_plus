@@ -354,7 +354,7 @@ void SpaceTest<Super>::SizeFootPrintGrowthLimitAndTrimDriver(size_t object_size,
 
 #define TEST_SizeFootPrintGrowthLimitAndTrimRandom(name, spaceName, spaceFn, size) \
   TEST_F(spaceName##RandomTest, SizeFootPrintGrowthLimitAndTrim_RandomAllocationsWithMax_##name) { \
-    SizeFootPrintGrowthLimitAndTrimDriver(-size, spaceFn); \
+    SizeFootPrintGrowthLimitAndTrimDriver(-(size), spaceFn); \
   }
 
 #define TEST_SPACE_CREATE_FN_STATIC(spaceName, spaceFn) \
