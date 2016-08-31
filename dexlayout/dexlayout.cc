@@ -63,6 +63,22 @@ static inline uint16_t Get2LE(unsigned char const* src) {
 }
 
 /*
+ * Converts a type descriptor to human-readable "dotted" form.  For
+ * example, "Ljava/lang/String;" becomes "java.lang.String", and
+ * "[I" becomes "int[]".  Also converts '$' to '.', which means this
+ * form can't be converted back to a descriptor.
+ */
+static std::string DescriptorToDotWrapper(const char* descriptor) {
+  std::string result = DescriptorToDot(descriptor);
+  size_t found = result.find('$');
+  while (found != std::string::npos) {
+    result[found] = '.';
+    found = result.find('$', found);
+  }
+  return result;
+}
+
+/*
  * Converts the class name portion of a type descriptor to human-readable
  * "dotted" form. For example, "Ljava/lang/String;" becomes "String".
  */
@@ -469,7 +485,9 @@ static void DumpClassDef(dex_ir::Header* header, int idx) {
   fprintf(out_file_, "class_idx           : %d\n", class_def->ClassType()->GetOffset());
   fprintf(out_file_, "access_flags        : %d (0x%04x)\n",
           class_def->GetAccessFlags(), class_def->GetAccessFlags());
-  fprintf(out_file_, "superclass_idx      : %d\n", class_def->Superclass()->GetOffset());
+  uint32_t superclass_idx =  class_def->Superclass() == nullptr ?
+      DexFile::kDexNoIndex16 : class_def->Superclass()->GetOffset();
+  fprintf(out_file_, "superclass_idx      : %d\n", superclass_idx);
   fprintf(out_file_, "interfaces_off      : %d (0x%06x)\n",
           class_def->InterfacesOffset(), class_def->InterfacesOffset());
   uint32_t source_file_offset = 0xffffffffU;
@@ -599,7 +617,7 @@ static void DumpInterface(dex_ir::TypeId* type_item, int i) {
   if (options_.output_format_ == kOutputPlain) {
     fprintf(out_file_, "    #%d              : '%s'\n", i, interface_name);
   } else {
-    std::string dot(DescriptorToDot(interface_name));
+    std::string dot(DescriptorToDotWrapper(interface_name));
     fprintf(out_file_, "<implements name=\"%s\">\n</implements>\n", dot.c_str());
   }
 }
@@ -1001,7 +1019,7 @@ static void DumpBytecodes(dex_ir::Header* header, uint32_t idx,
   const char* back_descriptor = method_id->Class()->GetStringId()->Data();
 
   // Generate header.
-  std::string dot(DescriptorToDot(back_descriptor));
+  std::string dot(DescriptorToDotWrapper(back_descriptor));
   fprintf(out_file_, "%06x:                                        |[%06x] %s.%s:%s\n",
           code_offset, code_offset, dot.c_str(), name, type_descriptor);
 
@@ -1082,7 +1100,7 @@ static void DumpMethod(dex_ir::Header* header, uint32_t idx, uint32_t flags,
     if (constructor) {
       std::string dot(DescriptorClassToDot(back_descriptor));
       fprintf(out_file_, "<constructor name=\"%s\"\n", dot.c_str());
-      dot = DescriptorToDot(back_descriptor);
+      dot = DescriptorToDotWrapper(back_descriptor);
       fprintf(out_file_, " type=\"%s\"\n", dot.c_str());
     } else {
       fprintf(out_file_, "<method name=\"%s\"\n", name);
@@ -1091,7 +1109,7 @@ static void DumpMethod(dex_ir::Header* header, uint32_t idx, uint32_t flags,
         fprintf(stderr, "bad method type descriptor '%s'\n", type_descriptor);
         goto bail;
       }
-      std::string dot(DescriptorToDot(return_type + 1));
+      std::string dot(DescriptorToDotWrapper(return_type + 1));
       fprintf(out_file_, " return=\"%s\"\n", dot.c_str());
       fprintf(out_file_, " abstract=%s\n", QuotedBool((flags & kAccAbstract) != 0));
       fprintf(out_file_, " native=%s\n", QuotedBool((flags & kAccNative) != 0));
@@ -1133,7 +1151,7 @@ static void DumpMethod(dex_ir::Header* header, uint32_t idx, uint32_t flags,
       }
       // Null terminate and display.
       *cp++ = '\0';
-      std::string dot(DescriptorToDot(tmp_buf));
+      std::string dot(DescriptorToDotWrapper(tmp_buf));
       fprintf(out_file_, "<parameter name=\"arg%d\" type=\"%s\">\n"
                         "</parameter>\n", arg_num++, dot.c_str());
     }  // while
@@ -1178,7 +1196,7 @@ static void DumpSField(dex_ir::Header* header, uint32_t idx, uint32_t flags,
     }
   } else if (options_.output_format_ == kOutputXml) {
     fprintf(out_file_, "<field name=\"%s\"\n", name);
-    std::string dot(DescriptorToDot(type_descriptor));
+    std::string dot(DescriptorToDotWrapper(type_descriptor));
     fprintf(out_file_, " type=\"%s\"\n", dot.c_str());
     fprintf(out_file_, " transient=%s\n", QuotedBool((flags & kAccTransient) != 0));
     fprintf(out_file_, " volatile=%s\n", QuotedBool((flags & kAccVolatile) != 0));
@@ -1335,7 +1353,7 @@ static void DumpClass(dex_ir::Header* header, int idx, char** last_package) {
     std::string dot(DescriptorClassToDot(class_descriptor));
     fprintf(out_file_, "<class name=\"%s\"\n", dot.c_str());
     if (superclass_descriptor != nullptr) {
-      dot = DescriptorToDot(superclass_descriptor);
+      dot = DescriptorToDotWrapper(superclass_descriptor);
       fprintf(out_file_, " extends=\"%s\"\n", dot.c_str());
     }
     fprintf(out_file_, " interface=%s\n",
