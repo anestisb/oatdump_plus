@@ -33,7 +33,7 @@ namespace interpreter {
 extern "C" bool ExecuteMterpImpl(Thread* self,
                                  const DexFile::CodeItem* code_item,
                                  ShadowFrame* shadow_frame,
-                                 JValue* result_register) SHARED_REQUIRES(Locks::mutator_lock_);
+                                 JValue* result_register) REQUIRES_SHARED(Locks::mutator_lock_);
 
 }  // namespace interpreter
 }  // namespace art

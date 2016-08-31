@@ -66,19 +66,19 @@ class Monitor {
       EXCLUSIVE_LOCK_FUNCTION(obj)
       NO_THREAD_SAFETY_ANALYSIS
       REQUIRES(!Roles::uninterruptible_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // NO_THREAD_SAFETY_ANALYSIS for mon->Unlock.
   static bool MonitorExit(Thread* thread, mirror::Object* obj)
       NO_THREAD_SAFETY_ANALYSIS
       REQUIRES(!Roles::uninterruptible_)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       UNLOCK_FUNCTION(obj);
 
-  static void Notify(Thread* self, mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_) {
+  static void Notify(Thread* self, mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_) {
     DoNotify(self, obj, false);
   }
-  static void NotifyAll(Thread* self, mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_) {
+  static void NotifyAll(Thread* self, mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_) {
     DoNotify(self, obj, true);
   }
 
@@ -86,15 +86,15 @@ class Monitor {
   // NO_THREAD_SAFETY_ANALYSIS for mon->Wait.
   static void Wait(Thread* self, mirror::Object* obj, int64_t ms, int32_t ns,
                    bool interruptShouldThrow, ThreadState why)
-      SHARED_REQUIRES(Locks::mutator_lock_) NO_THREAD_SAFETY_ANALYSIS;
+      REQUIRES_SHARED(Locks::mutator_lock_) NO_THREAD_SAFETY_ANALYSIS;
 
   static void DescribeWait(std::ostream& os, const Thread* thread)
       REQUIRES(!Locks::thread_suspend_count_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Used to implement JDWP's ThreadReference.CurrentContendedMonitor.
   static mirror::Object* GetContendedMonitor(Thread* thread)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Calls 'callback' once for each lock held in the single stack frame represented by
   // the current state of 'stack_visitor'.
@@ -102,12 +102,12 @@ class Monitor {
   // is necessary when we have already aborted but want to dump the stack as much as we can.
   static void VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::Object*, void*),
                          void* callback_context, bool abort_on_failure = true)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   static bool IsValidLockWord(LockWord lock_word);
 
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  mirror::Object* GetObject() SHARED_REQUIRES(Locks::mutator_lock_) {
+  mirror::Object* GetObject() REQUIRES_SHARED(Locks::mutator_lock_) {
     return obj_.Read<kReadBarrierOption>();
   }
 
@@ -119,7 +119,7 @@ class Monitor {
 
   int32_t GetHashCode();
 
-  bool IsLocked() SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!monitor_lock_);
+  bool IsLocked() REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!monitor_lock_);
 
   bool HasHashCode() const {
     return hash_code_.LoadRelaxed() != 0;
@@ -131,13 +131,13 @@ class Monitor {
 
   // Inflate the lock on obj. May fail to inflate for spurious reasons, always re-check.
   static void InflateThinLocked(Thread* self, Handle<mirror::Object> obj, LockWord lock_word,
-                                uint32_t hash_code) SHARED_REQUIRES(Locks::mutator_lock_);
+                                uint32_t hash_code) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Not exclusive because ImageWriter calls this during a Heap::VisitObjects() that
   // does not allow a thread suspension in the middle. TODO: maybe make this exclusive.
   // NO_THREAD_SAFETY_ANALYSIS for monitor->monitor_lock_.
   static bool Deflate(Thread* self, mirror::Object* obj)
-      SHARED_REQUIRES(Locks::mutator_lock_) NO_THREAD_SAFETY_ANALYSIS;
+      REQUIRES_SHARED(Locks::mutator_lock_) NO_THREAD_SAFETY_ANALYSIS;
 
 #ifndef __LP64__
   void* operator new(size_t size) {
@@ -155,15 +155,15 @@ class Monitor {
 
  private:
   Monitor(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   Monitor(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code, MonitorId id)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Install the monitor into its object, may fail if another thread installs a different monitor
   // first.
   bool Install(Thread* self)
       REQUIRES(!monitor_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Links a thread into a monitor's wait set.  The monitor lock must be held by the caller of this
   // routine.
@@ -178,12 +178,12 @@ class Monitor {
   // threads inflating the lock, installing hash codes and spurious failures. The caller should
   // re-read the lock word following the call.
   static void Inflate(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code)
-      SHARED_REQUIRES(Locks::mutator_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       NO_THREAD_SAFETY_ANALYSIS;  // For m->Install(self)
 
   void LogContentionEvent(Thread* self, uint32_t wait_ms, uint32_t sample_percent,
                           const char* owner_filename, int32_t owner_line_number)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   static void FailedUnlock(mirror::Object* obj,
                            uint32_t expected_owner_thread_id,
@@ -191,34 +191,34 @@ class Monitor {
                            Monitor* mon)
       REQUIRES(!Locks::thread_list_lock_,
                !monitor_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Try to lock without blocking, returns true if we acquired the lock.
   bool TryLock(Thread* self)
       REQUIRES(!monitor_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   // Variant for already holding the monitor lock.
   bool TryLockLocked(Thread* self)
       REQUIRES(monitor_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void Lock(Thread* self)
       REQUIRES(!monitor_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   bool Unlock(Thread* thread)
       REQUIRES(!monitor_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   static void DoNotify(Thread* self, mirror::Object* obj, bool notify_all)
-      SHARED_REQUIRES(Locks::mutator_lock_) NO_THREAD_SAFETY_ANALYSIS;  // For mon->Notify.
+      REQUIRES_SHARED(Locks::mutator_lock_) NO_THREAD_SAFETY_ANALYSIS;  // For mon->Notify.
 
   void Notify(Thread* self)
       REQUIRES(!monitor_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void NotifyAll(Thread* self)
       REQUIRES(!monitor_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   static std::string PrettyContentionInfo(const std::string& owner_name,
                                           pid_t owner_tid,
@@ -226,7 +226,7 @@ class Monitor {
                                           uint32_t owners_dex_pc,
                                           size_t num_waiters)
       REQUIRES(!Locks::thread_list_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Wait on a monitor until timeout, interrupt, or notification.  Used for Object.wait() and
   // (somewhat indirectly) Thread.sleep() and Thread.join().
@@ -249,13 +249,13 @@ class Monitor {
   // of the 32-bit time epoch.
   void Wait(Thread* self, int64_t msec, int32_t nsec, bool interruptShouldThrow, ThreadState why)
       REQUIRES(!monitor_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Translates the provided method and pc into its declaring class' source file and line number.
   static void TranslateLocation(ArtMethod* method, uint32_t pc,
                                 const char** source_file,
                                 int32_t* line_number)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   uint32_t GetOwnerThreadId() REQUIRES(!monitor_lock_);
 
@@ -263,11 +263,11 @@ class Monitor {
   ALWAYS_INLINE static void AtraceMonitorLock(Thread* self,
                                               mirror::Object* obj,
                                               bool is_wait)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   static void AtraceMonitorLockImpl(Thread* self,
                                     mirror::Object* obj,
                                     bool is_wait)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   ALWAYS_INLINE static void AtraceMonitorUnlock();
 
   static uint32_t lock_profiling_threshold_;
@@ -322,10 +322,10 @@ class MonitorList {
   MonitorList();
   ~MonitorList();
 
-  void Add(Monitor* m) SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!monitor_list_lock_);
+  void Add(Monitor* m) REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!monitor_list_lock_);
 
   void SweepMonitorList(IsMarkedVisitor* visitor)
-      REQUIRES(!monitor_list_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES(!monitor_list_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
   void DisallowNewMonitors() REQUIRES(!monitor_list_lock_);
   void AllowNewMonitors() REQUIRES(!monitor_list_lock_);
   void BroadcastForNewMonitors() REQUIRES(!monitor_list_lock_);

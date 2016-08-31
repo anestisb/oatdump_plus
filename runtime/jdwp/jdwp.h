@@ -88,7 +88,7 @@ struct JdwpLocation {
   uint64_t dex_pc;
 };
 std::ostream& operator<<(std::ostream& os, const JdwpLocation& rhs)
-    SHARED_REQUIRES(Locks::mutator_lock_);
+    REQUIRES_SHARED(Locks::mutator_lock_);
 bool operator==(const JdwpLocation& lhs, const JdwpLocation& rhs);
 bool operator!=(const JdwpLocation& lhs, const JdwpLocation& rhs);
 
@@ -186,7 +186,7 @@ struct JdwpState {
    * The VM has finished initializing.  Only called when the debugger is
    * connected at the time initialization completes.
    */
-  void PostVMStart() SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!jdwp_token_lock_);
+  void PostVMStart() REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!jdwp_token_lock_);
 
   /*
    * A location of interest has been reached.  This is used for breakpoints,
@@ -202,7 +202,7 @@ struct JdwpState {
    */
   void PostLocationEvent(const EventLocation* pLoc, mirror::Object* thisPtr, int eventFlags,
                          const JValue* returnValue)
-     REQUIRES(!event_list_lock_, !jdwp_token_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
+     REQUIRES(!event_list_lock_, !jdwp_token_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
    * A field of interest has been accessed or modified. This is used for field access and field
@@ -213,7 +213,7 @@ struct JdwpState {
    */
   void PostFieldEvent(const EventLocation* pLoc, ArtField* field, mirror::Object* thisPtr,
                       const JValue* fieldValue, bool is_modification)
-      REQUIRES(!event_list_lock_, !jdwp_token_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES(!event_list_lock_, !jdwp_token_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
    * An exception has been thrown.
@@ -222,19 +222,19 @@ struct JdwpState {
    */
   void PostException(const EventLocation* pThrowLoc, mirror::Throwable* exception_object,
                      const EventLocation* pCatchLoc, mirror::Object* thisPtr)
-      REQUIRES(!event_list_lock_, !jdwp_token_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES(!event_list_lock_, !jdwp_token_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
    * A thread has started or stopped.
    */
   void PostThreadChange(Thread* thread, bool start)
-      REQUIRES(!event_list_lock_, !jdwp_token_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES(!event_list_lock_, !jdwp_token_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
    * Class has been prepared.
    */
   void PostClassPrepare(mirror::Class* klass)
-      REQUIRES(!event_list_lock_, !jdwp_token_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES(!event_list_lock_, !jdwp_token_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
    * The VM is about to stop.
@@ -242,7 +242,7 @@ struct JdwpState {
   bool PostVMDeath();
 
   // Called if/when we realize we're talking to DDMS.
-  void NotifyDdmsActive() SHARED_REQUIRES(Locks::mutator_lock_);
+  void NotifyDdmsActive() REQUIRES_SHARED(Locks::mutator_lock_);
 
 
   void SetupChunkHeader(uint32_t type, size_t data_len, size_t header_size, uint8_t* out_header);
@@ -251,7 +251,7 @@ struct JdwpState {
    * Send up a chunk of DDM data.
    */
   void DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool HandlePacket() REQUIRES(!shutdown_lock_, !jdwp_token_lock_);
 
@@ -259,7 +259,7 @@ struct JdwpState {
 
   void ResetState()
       REQUIRES(!event_list_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   /* atomic ops to get next serial number */
   uint32_t NextRequestSerial();
@@ -277,21 +277,21 @@ struct JdwpState {
    */
   JdwpError RegisterEvent(JdwpEvent* pEvent)
       REQUIRES(!event_list_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
    * Unregister an event, given the requestId.
    */
   void UnregisterEventById(uint32_t requestId)
       REQUIRES(!event_list_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
    * Unregister all events.
    */
   void UnregisterAll()
       REQUIRES(!event_list_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   explicit JdwpState(const JdwpOptions* options);
@@ -303,18 +303,18 @@ struct JdwpState {
       REQUIRES(!Locks::mutator_lock_);
   void SendRequestAndPossiblySuspend(ExpandBuf* pReq, JdwpSuspendPolicy suspend_policy,
                                      ObjectId threadId)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!jdwp_token_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!jdwp_token_lock_);
   void CleanupMatchList(const std::vector<JdwpEvent*>& match_list)
-      REQUIRES(event_list_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES(event_list_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
   void EventFinish(ExpandBuf* pReq);
   bool FindMatchingEvents(JdwpEventKind eventKind, const ModBasket& basket,
                           std::vector<JdwpEvent*>* match_list)
-      REQUIRES(!event_list_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES(!event_list_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
   void FindMatchingEventsLocked(JdwpEventKind eventKind, const ModBasket& basket,
                                 std::vector<JdwpEvent*>* match_list)
-      REQUIRES(event_list_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES(event_list_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
   void UnregisterEvent(JdwpEvent* pEvent)
-      REQUIRES(event_list_lock_) SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES(event_list_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
   void SendBufferedRequest(uint32_t type, const std::vector<iovec>& iov);
 
   /*
@@ -410,9 +410,9 @@ struct JdwpState {
   bool processing_request_ GUARDED_BY(shutdown_lock_);
 };
 
-std::string DescribeField(const FieldId& field_id) SHARED_REQUIRES(Locks::mutator_lock_);
-std::string DescribeMethod(const MethodId& method_id) SHARED_REQUIRES(Locks::mutator_lock_);
-std::string DescribeRefTypeId(const RefTypeId& ref_type_id) SHARED_REQUIRES(Locks::mutator_lock_);
+std::string DescribeField(const FieldId& field_id) REQUIRES_SHARED(Locks::mutator_lock_);
+std::string DescribeMethod(const MethodId& method_id) REQUIRES_SHARED(Locks::mutator_lock_);
+std::string DescribeRefTypeId(const RefTypeId& ref_type_id) REQUIRES_SHARED(Locks::mutator_lock_);
 
 class Request {
  public:
@@ -428,9 +428,9 @@ class Request {
 
   uint32_t ReadUnsigned32(const char* what);
 
-  FieldId ReadFieldId() SHARED_REQUIRES(Locks::mutator_lock_);
+  FieldId ReadFieldId() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  MethodId ReadMethodId() SHARED_REQUIRES(Locks::mutator_lock_);
+  MethodId ReadMethodId() REQUIRES_SHARED(Locks::mutator_lock_);
 
   ObjectId ReadObjectId(const char* specific_kind);
 
@@ -442,7 +442,7 @@ class Request {
 
   ObjectId ReadThreadGroupId();
 
-  RefTypeId ReadRefTypeId() SHARED_REQUIRES(Locks::mutator_lock_);
+  RefTypeId ReadRefTypeId() REQUIRES_SHARED(Locks::mutator_lock_);
 
   FrameId ReadFrameId();
 
@@ -456,7 +456,7 @@ class Request {
 
   JdwpTypeTag ReadTypeTag();
 
-  JdwpLocation ReadLocation() SHARED_REQUIRES(Locks::mutator_lock_);
+  JdwpLocation ReadLocation() REQUIRES_SHARED(Locks::mutator_lock_);
 
   JdwpModKind ReadModKind();
 

@@ -294,7 +294,7 @@ class OptimizingCompiler FINAL : public Compiler {
   }
 
   uintptr_t GetEntryPointOf(ArtMethod* method) const OVERRIDE
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     return reinterpret_cast<uintptr_t>(method->GetEntryPointFromQuickCompiledCodePtrSize(
         InstructionSetPointerSize(GetCompilerDriver()->GetInstructionSet())));
   }
@@ -311,7 +311,7 @@ class OptimizingCompiler FINAL : public Compiler {
 
   bool JitCompile(Thread* self, jit::JitCodeCache* code_cache, ArtMethod* method, bool osr)
       OVERRIDE
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   void RunOptimizations(HGraph* graph,

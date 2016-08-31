@@ -39,16 +39,16 @@ struct JNIEnvExt : public JNIEnv {
   ~JNIEnvExt();
 
   void DumpReferenceTables(std::ostream& os)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void SetCheckJniEnabled(bool enabled);
 
-  void PushFrame(int capacity) SHARED_REQUIRES(Locks::mutator_lock_);
-  void PopFrame() SHARED_REQUIRES(Locks::mutator_lock_);
+  void PushFrame(int capacity) REQUIRES_SHARED(Locks::mutator_lock_);
+  void PopFrame() REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<typename T>
   T AddLocalReference(mirror::Object* obj)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   static Offset SegmentStateOffset(size_t pointer_size);
   static Offset LocalRefCookieOffset(size_t pointer_size);
@@ -56,8 +56,8 @@ struct JNIEnvExt : public JNIEnv {
 
   static jint GetEnvHandler(JavaVMExt* vm, /*out*/void** out, jint version);
 
-  jobject NewLocalRef(mirror::Object* obj) SHARED_REQUIRES(Locks::mutator_lock_);
-  void DeleteLocalRef(jobject obj) SHARED_REQUIRES(Locks::mutator_lock_);
+  jobject NewLocalRef(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_);
+  void DeleteLocalRef(jobject obj) REQUIRES_SHARED(Locks::mutator_lock_);
 
   Thread* const self;
   JavaVMExt* const vm;
@@ -92,13 +92,13 @@ struct JNIEnvExt : public JNIEnv {
   // rules in CheckJNI mode.
 
   // Record locking of a monitor.
-  void RecordMonitorEnter(jobject obj) SHARED_REQUIRES(Locks::mutator_lock_);
+  void RecordMonitorEnter(jobject obj) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Check the release, that is, that the release is performed in the same JNI "segment."
-  void CheckMonitorRelease(jobject obj) SHARED_REQUIRES(Locks::mutator_lock_);
+  void CheckMonitorRelease(jobject obj) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Check that no monitors are held that have been acquired in this JNI "segment."
-  void CheckNoHeldMonitors() SHARED_REQUIRES(Locks::mutator_lock_);
+  void CheckNoHeldMonitors() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Set the functions to the runtime shutdown functions.
   void SetFunctionsToRuntimeShutdownFunctions();

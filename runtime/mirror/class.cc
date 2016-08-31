@@ -641,7 +641,7 @@ ArtMethod* Class::FindClassInitializer(PointerSize pointer_size) {
 static ArtField* FindFieldByNameAndType(LengthPrefixedArray<ArtField>* fields,
                                         const StringPiece& name,
                                         const StringPiece& type)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   if (fields == nullptr) {
     return nullptr;
   }
@@ -952,14 +952,14 @@ class ReadBarrierOnNativeRootsVisitor {
                   bool is_static ATTRIBUTE_UNUSED) const {}
 
   void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     if (!root->IsNull()) {
       VisitRoot(root);
     }
   }
 
   void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     mirror::Object* old_ref = root->AsMirrorPtr();
     mirror::Object* new_ref = ReadBarrier::BarrierForRoot(root);
     if (old_ref != new_ref) {
@@ -987,7 +987,7 @@ class CopyClassVisitor {
   }
 
   void operator()(mirror::Object* obj, size_t usable_size ATTRIBUTE_UNUSED) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     StackHandleScope<1> hs(self_);
     Handle<mirror::Class> h_new_class_obj(hs.NewHandle(obj->AsClass()));
     mirror::Object::CopyObject(self_, h_new_class_obj.Get(), orig_->Get(), copy_bytes_);

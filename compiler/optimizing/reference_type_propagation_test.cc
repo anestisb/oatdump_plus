@@ -46,7 +46,7 @@ class ReferenceTypePropagationTest : public CommonCompilerTest {
 
   // Relay method to merge type in reference type propagation.
   ReferenceTypeInfo MergeTypes(const ReferenceTypeInfo& a,
-                               const ReferenceTypeInfo& b) SHARED_REQUIRES(Locks::mutator_lock_) {
+                               const ReferenceTypeInfo& b) REQUIRES_SHARED(Locks::mutator_lock_) {
     return propagation_->MergeTypes(a, b);
   }
 
@@ -56,12 +56,12 @@ class ReferenceTypePropagationTest : public CommonCompilerTest {
   }
 
   // Helper method to construct the Object type.
-  ReferenceTypeInfo ObjectType(bool is_exact = true) SHARED_REQUIRES(Locks::mutator_lock_) {
+  ReferenceTypeInfo ObjectType(bool is_exact = true) REQUIRES_SHARED(Locks::mutator_lock_) {
     return ReferenceTypeInfo::Create(propagation_->handle_cache_.GetObjectClassHandle(), is_exact);
   }
 
   // Helper method to construct the String type.
-  ReferenceTypeInfo StringType(bool is_exact = true) SHARED_REQUIRES(Locks::mutator_lock_) {
+  ReferenceTypeInfo StringType(bool is_exact = true) REQUIRES_SHARED(Locks::mutator_lock_) {
     return ReferenceTypeInfo::Create(propagation_->handle_cache_.GetStringClassHandle(), is_exact);
   }
 

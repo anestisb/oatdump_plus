@@ -229,11 +229,11 @@ class PACKED(4) ImageHeader {
 
   template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   mirror::Object* GetImageRoot(ImageRoot image_root) const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   mirror::ObjectArray<mirror::Object>* GetImageRoots() const
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void RelocateImage(off_t delta);
   void RelocateImageMethods(off_t delta);

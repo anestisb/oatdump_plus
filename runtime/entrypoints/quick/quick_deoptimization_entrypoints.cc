@@ -30,7 +30,7 @@
 namespace art {
 
 NO_RETURN static void artDeoptimizeImpl(Thread* self, bool single_frame)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
   if (VLOG_IS_ON(deopt)) {
     if (single_frame) {
       // Deopt logging will be in DeoptimizeSingleFrame. It is there to take advantage of the
@@ -60,14 +60,14 @@ NO_RETURN static void artDeoptimizeImpl(Thread* self, bool single_frame)
   }
 }
 
-extern "C" NO_RETURN void artDeoptimize(Thread* self) SHARED_REQUIRES(Locks::mutator_lock_) {
+extern "C" NO_RETURN void artDeoptimize(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
   artDeoptimizeImpl(self, false);
 }
 
 // This is called directly from compiled code by an HDepptimize.
 extern "C" NO_RETURN void artDeoptimizeFromCompiledCode(Thread* self)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
   // Before deoptimizing to interpreter, we must push the deoptimization context.
   JValue return_value;

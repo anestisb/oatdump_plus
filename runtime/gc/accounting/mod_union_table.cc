@@ -98,24 +98,24 @@ class ModUnionUpdateObjectReferencesVisitor {
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
   void operator()(mirror::Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     MarkReference(obj->GetFieldObjectReferenceAddr(offset));
   }
 
   void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     VisitRoot(root);
   }
 
   void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     MarkReference(root);
   }
 
  private:
   template<bool kPoisonReferences>
   void MarkReference(mirror::ObjectReference<kPoisonReferences, mirror::Object>* obj_ptr) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     // Only add the reference if it is non null and fits our criteria.
     mirror::Object* ref = obj_ptr->AsMirrorPtr();
     if (ref != nullptr && !from_space_->HasAddress(ref) && !immune_space_->HasAddress(ref)) {
@@ -150,7 +150,7 @@ class ModUnionScanImageRootVisitor {
 
   void operator()(mirror::Object* root) const
       REQUIRES(Locks::heap_bitmap_lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(root != nullptr);
     ModUnionUpdateObjectReferencesVisitor ref_visitor(visitor_,
                                                       from_space_,
@@ -193,7 +193,7 @@ class AddToReferenceArrayVisitor {
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
   void operator()(mirror::Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     mirror::HeapReference<mirror::Object>* ref_ptr = obj->GetFieldObjectReferenceAddr(offset);
     mirror::Object* ref = ref_ptr->AsMirrorPtr();
     // Only add the reference if it is non null and fits our criteria.
@@ -204,14 +204,14 @@ class AddToReferenceArrayVisitor {
   }
 
   void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     if (!root->IsNull()) {
       VisitRoot(root);
     }
   }
 
   void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     if (mod_union_table_->ShouldAddReference(root->AsMirrorPtr())) {
       *has_target_reference_ = true;
       // TODO: Add MarkCompressedReference callback here.
@@ -242,7 +242,7 @@ class ModUnionReferenceVisitor {
         has_target_reference_(has_target_reference) {}
 
   void operator()(mirror::Object* obj) const
-      SHARED_REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
     // We don't have an early exit since we use the visitor pattern, an early
     // exit should significantly speed this up.
     AddToReferenceArrayVisitor visitor(mod_union_table_,
@@ -268,7 +268,7 @@ class CheckReferenceVisitor {
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
   void operator()(mirror::Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
-      SHARED_REQUIRES(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
     mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset);
     if (ref != nullptr &&
         mod_union_table_->ShouldAddReference(ref) &&
@@ -289,14 +289,14 @@ class CheckReferenceVisitor {
   }
 
   void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     if (kIsDebugBuild && !root->IsNull()) {
       VisitRoot(root);
     }
   }
 
   void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(!mod_union_table_->ShouldAddReference(root->AsMirrorPtr()));
   }
 

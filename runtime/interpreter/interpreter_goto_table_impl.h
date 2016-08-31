@@ -33,7 +33,7 @@ template<bool do_access_check, bool transaction_active>
 JValue ExecuteGotoImpl(Thread* self,
                        const DexFile::CodeItem* code_item,
                        ShadowFrame& shadow_frame,
-                       JValue result_register) SHARED_REQUIRES(Locks::mutator_lock_);
+                       JValue result_register) REQUIRES_SHARED(Locks::mutator_lock_);
 
 }  // namespace interpreter
 }  // namespace art

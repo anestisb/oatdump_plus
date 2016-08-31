@@ -72,13 +72,13 @@ class ClassTable {
   // Used by image writer for checking.
   bool Contains(mirror::Class* klass)
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Freeze the current class tables by allocating a new table and never updating or modifying the
   // existing table. This helps prevents dirty pages after caused by inserting after zygote fork.
   void FreezeSnapshot()
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns the number of classes in previous snapshots.
   size_t NumZygoteClasses() const REQUIRES(!lock_);
@@ -89,74 +89,74 @@ class ClassTable {
   // Update a class in the table with the new class. Returns the existing class which was replaced.
   mirror::Class* UpdateClass(const char* descriptor, mirror::Class* new_klass, size_t hash)
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // NO_THREAD_SAFETY_ANALYSIS for object marking requiring heap bitmap lock.
   template<class Visitor>
   void VisitRoots(Visitor& visitor)
       NO_THREAD_SAFETY_ANALYSIS
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<class Visitor>
   void VisitRoots(const Visitor& visitor)
       NO_THREAD_SAFETY_ANALYSIS
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Stops visit if the visitor returns false.
   template <typename Visitor>
   bool Visit(Visitor& visitor)
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Return the first class that matches the descriptor. Returns null if there are none.
   mirror::Class* Lookup(const char* descriptor, size_t hash)
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Return the first class that matches the descriptor of klass. Returns null if there are none.
   mirror::Class* LookupByDescriptor(mirror::Class* klass)
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void Insert(mirror::Class* klass)
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void InsertWithHash(mirror::Class* klass, size_t hash)
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns true if the class was found and removed, false otherwise.
   bool Remove(const char* descriptor)
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Return true if we inserted the strong root, false if it already exists.
   bool InsertStrongRoot(mirror::Object* obj)
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Combines all of the tables into one class set.
   size_t WriteToMemory(uint8_t* ptr) const
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Read a table from ptr and put it at the front of the class set.
   size_t ReadFromMemory(uint8_t* ptr)
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Add a class set to the front of classes.
   void AddClassSet(ClassSet&& set)
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Clear strong roots (other than classes themselves).
   void ClearStrongRoots()
       REQUIRES(!lock_)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   ReaderWriterMutex& GetLock() {
     return lock_;

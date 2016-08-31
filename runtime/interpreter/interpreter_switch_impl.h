@@ -34,7 +34,7 @@ JValue ExecuteSwitchImpl(Thread* self,
                          const DexFile::CodeItem* code_item,
                          ShadowFrame& shadow_frame,
                          JValue result_register,
-                         bool interpret_one_instruction) SHARED_REQUIRES(Locks::mutator_lock_);
+                         bool interpret_one_instruction) REQUIRES_SHARED(Locks::mutator_lock_);
 
 }  // namespace interpreter
 }  // namespace art

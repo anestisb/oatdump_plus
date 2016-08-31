@@ -456,7 +456,7 @@ class ImageSpaceLoader {
                                           bool is_global_cache,
                                           bool validate_oat_file,
                                           std::string* error_msg)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     // Note that we must not use the file descriptor associated with
     // ScopedFlock::GetFile to Init the image file. We want the file
     // descriptor (and the associated exclusive lock) to be released when
@@ -492,7 +492,7 @@ class ImageSpaceLoader {
                                           bool validate_oat_file,
                                           const OatFile* oat_file,
                                           std::string* error_msg)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     CHECK(image_filename != nullptr);
     CHECK(image_location != nullptr);
 
@@ -865,14 +865,14 @@ class ImageSpaceLoader {
     explicit FixupRootVisitor(Args... args) : FixupVisitor(args...) {}
 
     ALWAYS_INLINE void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
-        SHARED_REQUIRES(Locks::mutator_lock_) {
+        REQUIRES_SHARED(Locks::mutator_lock_) {
       if (!root->IsNull()) {
         VisitRoot(root);
       }
     }
 
     ALWAYS_INLINE void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
-        SHARED_REQUIRES(Locks::mutator_lock_) {
+        REQUIRES_SHARED(Locks::mutator_lock_) {
       mirror::Object* ref = root->AsMirrorPtr();
       mirror::Object* new_ref = ForwardObject(ref);
       if (ref != new_ref) {
@@ -936,7 +936,7 @@ class ImageSpaceLoader {
 
     // java.lang.ref.Reference visitor.
     void operator()(mirror::Class* klass ATTRIBUTE_UNUSED, mirror::Reference* ref) const
-        SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_) {
+        REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_) {
       mirror::Object* obj = ref->GetReferent<kWithoutReadBarrier>();
       ref->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(
           mirror::Reference::ReferentOffset(),

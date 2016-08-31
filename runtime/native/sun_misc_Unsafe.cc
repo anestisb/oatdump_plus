@@ -305,7 +305,7 @@ template<typename T>
 static void copyToArray(jlong srcAddr, mirror::PrimitiveArray<T>* array,
                         size_t array_offset,
                         size_t size)
-        SHARED_REQUIRES(Locks::mutator_lock_) {
+        REQUIRES_SHARED(Locks::mutator_lock_) {
     const T* src = reinterpret_cast<T*>(srcAddr);
     size_t sz = size / sizeof(T);
     size_t of = array_offset / sizeof(T);
@@ -318,7 +318,7 @@ template<typename T>
 static void copyFromArray(jlong dstAddr, mirror::PrimitiveArray<T>* array,
                           size_t array_offset,
                           size_t size)
-        SHARED_REQUIRES(Locks::mutator_lock_) {
+        REQUIRES_SHARED(Locks::mutator_lock_) {
     T* dst = reinterpret_cast<T*>(dstAddr);
     size_t sz = size / sizeof(T);
     size_t of = array_offset / sizeof(T);

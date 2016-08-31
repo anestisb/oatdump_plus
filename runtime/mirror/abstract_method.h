@@ -35,14 +35,14 @@ class MANAGED AbstractMethod : public Executable {
  public:
   // Called from Constructor::CreateFromArtMethod, Method::CreateFromArtMethod.
   template <PointerSize kPointerSize, bool kTransactionActive>
-  bool CreateFromArtMethod(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_)
+  bool CreateFromArtMethod(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 
-  ArtMethod* GetArtMethod() SHARED_REQUIRES(Locks::mutator_lock_);
+  ArtMethod* GetArtMethod() REQUIRES_SHARED(Locks::mutator_lock_);
   // Only used by the image writer.
   template <bool kTransactionActive = false>
-  void SetArtMethod(ArtMethod* method) SHARED_REQUIRES(Locks::mutator_lock_);
-  mirror::Class* GetDeclaringClass() SHARED_REQUIRES(Locks::mutator_lock_);
+  void SetArtMethod(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_);
+  mirror::Class* GetDeclaringClass() REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   static MemberOffset ArtMethodOffset() {

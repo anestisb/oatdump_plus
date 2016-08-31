@@ -244,7 +244,7 @@ template<typename... T> void UNUSED(const T&...) {}
 #define SHARED_TRYLOCK_FUNCTION(...) __attribute__((shared_trylock_function(__VA_ARGS__)))
 #define UNLOCK_FUNCTION(...) __attribute__((unlock_function(__VA_ARGS__)))
 #define REQUIRES(...) __attribute__((requires_capability(__VA_ARGS__)))
-#define SHARED_REQUIRES(...) __attribute__((requires_shared_capability(__VA_ARGS__)))
+#define REQUIRES_SHARED(...) __attribute__((requires_shared_capability(__VA_ARGS__)))
 #define CAPABILITY(...) __attribute__((capability(__VA_ARGS__)))
 #define SHARED_CAPABILITY(...) __attribute__((shared_capability(__VA_ARGS__)))
 #define ASSERT_CAPABILITY(...) __attribute__((assert_capability(__VA_ARGS__)))

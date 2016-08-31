@@ -27,7 +27,7 @@ namespace art {
 static inline mirror::DexCache* FindDexCacheWithHint(Thread* self,
                                                      const DexFile& dex_file,
                                                      Handle<mirror::DexCache> hint_dex_cache)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   if (LIKELY(hint_dex_cache->GetDexFile() == &dex_file)) {
     return hint_dex_cache.Get();
   } else {
@@ -85,7 +85,7 @@ class ReferenceTypePropagation::RTPVisitor : public HGraphDelegateVisitor {
   void VisitParameterValue(HParameterValue* instr) OVERRIDE;
   void UpdateFieldAccessTypeInfo(HInstruction* instr, const FieldInfo& info);
   void SetClassAsTypeInfo(HInstruction* instr, mirror::Class* klass, bool is_exact)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   void VisitInstanceFieldGet(HInstanceFieldGet* instr) OVERRIDE;
   void VisitStaticFieldGet(HStaticFieldGet* instr) OVERRIDE;
   void VisitUnresolvedInstanceFieldGet(HUnresolvedInstanceFieldGet* instr) OVERRIDE;
@@ -194,7 +194,7 @@ static bool ShouldCreateBoundType(HInstruction* position,
                                   ReferenceTypeInfo upper_bound,
                                   HInstruction* dominator_instr,
                                   HBasicBlock* dominator_block)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   // If the position where we should insert the bound type is not already a
   // a bound type then we need to create one.
   if (position == nullptr || !position->IsBoundType()) {
@@ -487,7 +487,7 @@ static mirror::Class* GetClassFromDexCache(Thread* self,
                                            const DexFile& dex_file,
                                            uint16_t type_idx,
                                            Handle<mirror::DexCache> hint_dex_cache)
-    SHARED_REQUIRES(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   mirror::DexCache* dex_cache = FindDexCacheWithHint(self, dex_file, hint_dex_cache);
   // Get type from dex cache assuming it was populated by the verifier.
   return dex_cache->GetResolvedType(type_idx);

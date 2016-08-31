@@ -36,10 +36,10 @@ template<typename T>
 class MutatorLockedDumpable {
  public:
   explicit MutatorLockedDumpable(T& value)
-      SHARED_REQUIRES(Locks::mutator_lock_) : value_(value) {
+      REQUIRES_SHARED(Locks::mutator_lock_) : value_(value) {
   }
 
-  void Dump(std::ostream& os) const SHARED_REQUIRES(Locks::mutator_lock_) {
+  void Dump(std::ostream& os) const REQUIRES_SHARED(Locks::mutator_lock_) {
     value_.Dump(os);
   }
 
@@ -51,7 +51,7 @@ class MutatorLockedDumpable {
 
 template<typename T>
 std::ostream& operator<<(std::ostream& os, const MutatorLockedDumpable<T>& rhs)
-// TODO: should be SHARED_REQUIRES(Locks::mutator_lock_) however annotalysis
+// TODO: should be REQUIRES_SHARED(Locks::mutator_lock_) however annotalysis
 //       currently fails for this.
     NO_THREAD_SAFETY_ANALYSIS {
   rhs.Dump(os);

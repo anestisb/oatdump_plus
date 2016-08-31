@@ -40,21 +40,21 @@ class MANAGED Array : public Object {
   template <bool kIsInstrumented, bool kFillUsable = false>
   ALWAYS_INLINE static Array* Alloc(Thread* self, Class* array_class, int32_t component_count,
                                     size_t component_size_shift, gc::AllocatorType allocator_type)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   static Array* CreateMultiArray(Thread* self, Handle<Class> element_class,
                                  Handle<IntArray> dimensions)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  size_t SizeOf() SHARED_REQUIRES(Locks::mutator_lock_);
+  size_t SizeOf() REQUIRES_SHARED(Locks::mutator_lock_);
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ALWAYS_INLINE int32_t GetLength() SHARED_REQUIRES(Locks::mutator_lock_) {
+  ALWAYS_INLINE int32_t GetLength() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Array, length_));
   }
 
-  void SetLength(int32_t length) SHARED_REQUIRES(Locks::mutator_lock_) {
+  void SetLength(int32_t length) REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK_GE(length, 0);
     // We use non transactional version since we can't undo this write. We also disable checking
     // since it would fail during a transaction.
@@ -68,7 +68,7 @@ class MANAGED Array : public Object {
   static MemberOffset DataOffset(size_t component_size);
 
   void* GetRawData(size_t component_size, int32_t index)
-      SHARED_REQUIRES(Locks::mutator_lock_) {
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     intptr_t data = reinterpret_cast<intptr_t>(this) + DataOffset(component_size).Int32Value() +
         + (index * component_size);
     return reinterpret_cast<void*>(data);
@@ -83,18 +83,18 @@ class MANAGED Array : public Object {
   // Returns true if the index is valid. If not, throws an ArrayIndexOutOfBoundsException and
   // returns false.
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ALWAYS_INLINE bool CheckIsValidIndex(int32_t index) SHARED_REQUIRES(Locks::mutator_lock_);
+  ALWAYS_INLINE bool CheckIsValidIndex(int32_t index) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  Array* CopyOf(Thread* self, int32_t new_length) SHARED_REQUIRES(Locks::mutator_lock_)
+  Array* CopyOf(Thread* self, int32_t new_length) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 
  protected:
-  void ThrowArrayStoreException(Object* object) SHARED_REQUIRES(Locks::mutator_lock_)
+  void ThrowArrayStoreException(Object* object) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 
  private:
   void ThrowArrayIndexOutOfBoundsException(int32_t index)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // The number of array elements.
   int32_t length_;
@@ -110,32 +110,32 @@ class MANAGED PrimitiveArray : public Array {
   typedef T ElementType;
 
   static PrimitiveArray<T>* Alloc(Thread* self, size_t length)
-      SHARED_REQUIRES(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
+      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
-  const T* GetData() const ALWAYS_INLINE  SHARED_REQUIRES(Locks::mutator_lock_) {
+  const T* GetData() const ALWAYS_INLINE  REQUIRES_SHARED(Locks::mutator_lock_) {
     return reinterpret_cast<const T*>(GetRawData(sizeof(T), 0));
   }
 
-  T* GetData() ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
+  T* GetData() ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
     return reinterpret_cast<T*>(GetRawData(sizeof(T), 0));
   }
 
-  T Get(int32_t i) ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_);
+  T Get(int32_t i) ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_);
 
-  T GetWithoutChecks(int32_t i) ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_) {
+  T GetWithoutChecks(int32_t i) ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(CheckIsValidIndex(i)) << "i=" << i << " length=" << GetLength();
     return GetData()[i];
   }
 
-  void Set(int32_t i, T value) ALWAYS_INLINE SHARED_REQUIRES(Locks::mutator_lock_);
+  void Set(int32_t i, T value) ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_);
 
   // TODO fix thread safety analysis broken by the use of template. This should be
-  // SHARED_REQUIRES(Locks::mutator_lock_).
+  // REQUIRES_SHARED(Locks::mutator_lock_).
   template<bool kTransactionActive, bool kCheckTransaction = true>
   void Set(int32_t i, T value) ALWAYS_INLINE NO_THREAD_SAFETY_ANALYSIS;
 
   // TODO fix thread safety analysis broken by the use of template. This should be
-  // SHARED_REQUIRES(Locks::mutator_lock_).
+  // REQUIRES_SHARED(Locks::mutator_lock_).
   template<bool kTransactionActive,
            bool kCheckTransaction = true,
            VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
@@ -147,7 +147,7 @@ class MANAGED PrimitiveArray : public Array {
    * and the arrays non-null.
    */
   void Memmove(int32_t dst_pos, PrimitiveArray<T>* src, int32_t src_pos, int32_t count)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
    * Works like memcpy(), except we guarantee not to allow tearing of array values (ie using
@@ -155,7 +155,7 @@ class MANAGED PrimitiveArray : public Array {
    * and the arrays non-null.
    */
   void Memcpy(int32_t dst_pos, PrimitiveArray<T>* src, int32_t src_pos, int32_t count)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   static void SetArrayClass(Class* array_class) {
     CHECK(array_class_.IsNull());
@@ -164,7 +164,7 @@ class MANAGED PrimitiveArray : public Array {
   }
 
   template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  static Class* GetArrayClass() SHARED_REQUIRES(Locks::mutator_lock_) {
+  static Class* GetArrayClass() REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(!array_class_.IsNull());
     return array_class_.Read<kReadBarrierOption>();
   }
@@ -174,7 +174,7 @@ class MANAGED PrimitiveArray : public Array {
     array_class_ = GcRoot<Class>(nullptr);
   }
 
-  static void VisitRoots(RootVisitor* visitor) SHARED_REQUIRES(Locks::mutator_lock_);
+  static void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   static GcRoot<Class> array_class_;
@@ -189,14 +189,14 @@ class PointerArray : public Array {
            VerifyObjectFlags kVerifyFlags = kVerifyNone,
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   T GetElementPtrSize(uint32_t idx, PointerSize ptr_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<bool kTransactionActive = false, bool kUnchecked = false>
   void SetElementPtrSize(uint32_t idx, uint64_t element, PointerSize ptr_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
   template<bool kTransactionActive = false, bool kUnchecked = false, typename T>
   void SetElementPtrSize(uint32_t idx, T* element, PointerSize ptr_size)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Fixup the pointers in the dest arrays by passing our pointers through the visitor. Only copies
   // to dest if visitor(source_ptr) != source_ptr.
@@ -204,7 +204,7 @@ class PointerArray : public Array {
             ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
             typename Visitor>
   void Fixup(mirror::PointerArray* dest, PointerSize pointer_size, const Visitor& visitor)
-      SHARED_REQUIRES(Locks::mutator_lock_);
+      REQUIRES_SHARED(Locks::mutator_lock_);
 };
 
 }  // namespace mirror
