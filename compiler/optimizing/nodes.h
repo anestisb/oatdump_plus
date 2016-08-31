@@ -109,6 +109,9 @@ enum IfCondition {
   kCondBE,  // <=
   kCondA,   // >
   kCondAE,  // >=
+  // First and last aliases.
+  kCondFirst = kCondEQ,
+  kCondLast = kCondAE,
 };
 
 enum GraphAnalysisResult {
