@@ -586,6 +586,8 @@ struct ClassOffsets : public CheckOffsets<mirror::Class> {
     addOffset(OFFSETOF_MEMBER(mirror::Class, num_reference_static_fields_),
               "numReferenceStaticFields");
     addOffset(OFFSETOF_MEMBER(mirror::Class, object_size_), "objectSize");
+    addOffset(OFFSETOF_MEMBER(mirror::Class, object_size_alloc_fast_path_),
+              "objectSizeAllocFastPath");
     addOffset(OFFSETOF_MEMBER(mirror::Class, primitive_type_), "primitiveType");
     addOffset(OFFSETOF_MEMBER(mirror::Class, reference_instance_offsets_),
               "referenceInstanceOffsets");

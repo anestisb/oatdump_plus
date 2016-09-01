@@ -861,6 +861,8 @@ inline void Class::InitializeClassVisitor::operator()(
   klass->SetPrimitiveType(Primitive::kPrimNot);  // Default to not being primitive.
   klass->SetDexClassDefIndex(DexFile::kDexNoIndex16);  // Default to no valid class def index.
   klass->SetDexTypeIndex(DexFile::kDexNoIndex16);  // Default to no valid type index.
+  // Default to force slow path until initialized.
+  klass->SetObjectSizeAllocFastPath(std::numeric_limits<int32_t>::max());
 }
 
 inline void Class::SetAccessFlags(uint32_t new_access_flags) {

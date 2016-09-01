@@ -586,12 +586,17 @@ class MANAGED Class FINAL : public Object {
   static MemberOffset ObjectSizeOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Class, object_size_);
   }
+  static MemberOffset ObjectSizeAllocFastPathOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(Class, object_size_alloc_fast_path_);
+  }
 
   void SetObjectSize(uint32_t new_object_size) REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(!IsVariableSize());
     // Not called within a transaction.
     return SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, object_size_), new_object_size);
   }
+
+  void SetObjectSizeAllocFastPath(uint32_t new_object_size) REQUIRES_SHARED(Locks::mutator_lock_);
 
   void SetObjectSizeWithoutChecks(uint32_t new_object_size)
       REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -1456,6 +1461,10 @@ class MANAGED Class FINAL : public Object {
   // (For interfaces and abstract classes this will be zero.)
   // See also class_size_.
   uint32_t object_size_;
+
+  // Aligned object size for allocation fast path. The value is max int if the object is
+  // uninitialized or finalizable. Not currently used for variable sized objects.
+  uint32_t object_size_alloc_fast_path_;
 
   // The lower 16 bits contains a Primitive::Type value. The upper 16
   // bits contains the size shift of the primitive type.
