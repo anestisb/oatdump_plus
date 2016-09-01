@@ -217,7 +217,8 @@ MterpExceptionReturn:
     b       MterpDone
 /*
  * Returned value is expected in a0 and if it's not 64-bit, the 32 most
- * significant bits of a0 must be 0.
+ * significant bits of a0 must be zero-extended or sign-extended
+ * depending on the return type.
  */
 MterpReturn:
     ld      a2, OFF_FP_RESULT_REGISTER(rFP)
