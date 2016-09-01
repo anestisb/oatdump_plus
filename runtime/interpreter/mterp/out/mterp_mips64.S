@@ -651,7 +651,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /*
      * Return a 32-bit value.
      *
-     * for: return, return-object
+     * for: return (sign-extend), return-object (zero-extend)
      */
     /* op vAA */
     .extern MterpThreadFenceForConstructor
@@ -664,7 +664,7 @@ artMterpAsmInstructionStart = .L_op_nop
     jal     MterpSuspendCheck           # (self)
 1:
     srl     a2, rINST, 8                # a2 <- AA
-    GET_VREG_U a0, a2                   # a0 <- vAA
+    GET_VREG  a0, a2                      # a0 <- vAA
     b       MterpReturn
 
 /* ------------------------------ */
@@ -697,7 +697,7 @@ artMterpAsmInstructionStart = .L_op_nop
     /*
      * Return a 32-bit value.
      *
-     * for: return, return-object
+     * for: return (sign-extend), return-object (zero-extend)
      */
     /* op vAA */
     .extern MterpThreadFenceForConstructor
@@ -710,7 +710,7 @@ artMterpAsmInstructionStart = .L_op_nop
     jal     MterpSuspendCheck           # (self)
 1:
     srl     a2, rINST, 8                # a2 <- AA
-    GET_VREG_U a0, a2                   # a0 <- vAA
+    GET_VREG_U  a0, a2                      # a0 <- vAA
     b       MterpReturn
 
 
@@ -12298,7 +12298,8 @@ MterpExceptionReturn:
     b       MterpDone
 /*
  * Returned value is expected in a0 and if it's not 64-bit, the 32 most
- * significant bits of a0 must be 0.
+ * significant bits of a0 must be zero-extended or sign-extended
+ * depending on the return type.
  */
 MterpReturn:
     ld      a2, OFF_FP_RESULT_REGISTER(rFP)
