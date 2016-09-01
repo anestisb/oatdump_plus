@@ -111,6 +111,7 @@
 #include "native/java_lang_reflect_Constructor.h"
 #include "native/java_lang_reflect_Field.h"
 #include "native/java_lang_reflect_Method.h"
+#include "native/java_lang_reflect_Parameter.h"
 #include "native/java_lang_reflect_Proxy.h"
 #include "native/java_util_concurrent_atomic_AtomicLong.h"
 #include "native/libcore_util_CharsetUtils.h"
@@ -1404,6 +1405,7 @@ void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
   register_java_lang_reflect_Constructor(env);
   register_java_lang_reflect_Field(env);
   register_java_lang_reflect_Method(env);
+  register_java_lang_reflect_Parameter(env);
   register_java_lang_reflect_Proxy(env);
   register_java_lang_ref_Reference(env);
   register_java_lang_String(env);
