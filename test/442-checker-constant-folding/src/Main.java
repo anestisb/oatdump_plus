@@ -27,6 +27,12 @@ public class Main {
     }
   }
 
+  public static void assertTrue(boolean condition) {
+    if (!condition) {
+      throw new Error();
+    }
+  }
+
   public static void assertIntEquals(int expected, int result) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
@@ -1322,6 +1328,58 @@ public class Main {
 
 
   /**
+   * Test optimizations of comparisons with null yielding a constant result.
+   */
+
+  /// CHECK-START: boolean Main.ConstStringEqualsNull() constant_folding$after_inlining (before)
+  /// CHECK-DAG:     <<ConstStr:l\d+>> LoadString
+  /// CHECK-DAG:     <<Null:l\d+>>     NullConstant
+  /// CHECK-DAG:     <<Eq:z\d+>>       Equal [<<ConstStr>>,<<Null>>]
+  /// CHECK-DAG:                       If [<<Eq>>]
+
+  /// CHECK-START: boolean Main.ConstStringEqualsNull() constant_folding$after_inlining (after)
+  /// CHECK-DAG:     <<False:i\d+>>    IntConstant 0
+  /// CHECK-DAG:                       If [<<False>>]
+
+  /// CHECK-START: boolean Main.ConstStringEqualsNull() constant_folding$after_inlining (after)
+  /// CHECK-NOT:                       Equal
+
+  public static boolean ConstStringEqualsNull() {
+    // Due to Jack emitting code using the opposite condition, use != to generate Equal.
+    if ($inline$ConstString() != null) {
+      return false;
+    } else {
+      return true;
+    }
+  }
+
+  /// CHECK-START: boolean Main.ConstStringNotEqualsNull() constant_folding$after_inlining (before)
+  /// CHECK-DAG:     <<ConstStr:l\d+>> LoadString
+  /// CHECK-DAG:     <<Null:l\d+>>     NullConstant
+  /// CHECK-DAG:     <<Ne:z\d+>>       NotEqual [<<ConstStr>>,<<Null>>]
+  /// CHECK-DAG:                       If [<<Ne>>]
+
+  /// CHECK-START: boolean Main.ConstStringNotEqualsNull() constant_folding$after_inlining (after)
+  /// CHECK-DAG:     <<True:i\d+>>     IntConstant 1
+  /// CHECK-DAG:                       If [<<True>>]
+
+  /// CHECK-START: boolean Main.ConstStringNotEqualsNull() constant_folding$after_inlining (after)
+  /// CHECK-NOT:                       NotEqual
+
+  public static boolean ConstStringNotEqualsNull() {
+    // Due to Jack emitting code using the opposite condition, use == to generate NotEqual.
+    if ($inline$ConstString() == null) {
+      return false;
+    } else {
+      return true;
+    }
+  }
+
+  public static String $inline$ConstString() {
+    return "";
+  }
+
+  /**
    * Exercise constant folding on type conversions.
    */
 
@@ -1600,6 +1658,9 @@ public class Main {
 
     assertFalse(CmpFloatGreaterThanNaN(arbitrary));
     assertFalse(CmpDoubleLessThanNaN(arbitrary));
+
+    assertFalse(ConstStringEqualsNull());
+    assertTrue(ConstStringNotEqualsNull());
 
     Main main = new Main();
     assertIntEquals(1, main.smaliCmpLongConstants());
