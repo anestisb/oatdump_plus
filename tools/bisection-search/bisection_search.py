@@ -22,14 +22,19 @@ Example usage:
 ./bisection-search.py -cp classes.dex --expected-output output Test
 """
 
+import abc
 import argparse
 import re
+import shlex
+from subprocess import call
 import sys
+from tempfile import NamedTemporaryFile
 
 from common import DeviceTestEnv
 from common import FatalError
 from common import GetEnvVariableOrError
 from common import HostTestEnv
+
 
 # Passes that are never disabled during search process because disabling them
 # would compromise correctness.
@@ -53,23 +58,18 @@ class Dex2OatWrapperTestable(object):
   Accepts filters on compiled methods and optimization passes.
   """
 
-  def __init__(self, base_cmd, test_env, class_name, args,
-               expected_output=None, verbose=False):
+  def __init__(self, base_cmd, test_env, output_checker=None, verbose=False):
     """Constructor.
 
     Args:
       base_cmd: list of strings, base command to run.
       test_env: ITestEnv.
-      class_name: string, name of class to run.
-      args: list of strings, program arguments to pass.
-      expected_output: string, expected output to compare against or None.
+      output_checker: IOutputCheck, output checker.
       verbose: bool, enable verbose output.
     """
     self._base_cmd = base_cmd
     self._test_env = test_env
-    self._class_name = class_name
-    self._args = args
-    self._expected_output = expected_output
+    self._output_checker = output_checker
     self._compiled_methods_path = self._test_env.CreateFile('compiled_methods')
     self._passes_to_run_path = self._test_env.CreateFile('run_passes')
     self._verbose = verbose
@@ -88,14 +88,15 @@ class Dex2OatWrapperTestable(object):
       True if test passes with given settings. False otherwise.
     """
     if self._verbose:
-      print('Testing methods: {0} passes:{1}.'.format(
+      print('Testing methods: {0} passes: {1}.'.format(
           compiled_methods, passes_to_run))
     cmd = self._PrepareCmd(compiled_methods=compiled_methods,
                            passes_to_run=passes_to_run,
-                           verbose_compiler=True)
-    (output, _, ret_code) = self._test_env.RunCommand(cmd)
-    res = ret_code == 0 and (self._expected_output is None
-                             or output == self._expected_output)
+                           verbose_compiler=False)
+    (output, ret_code) = self._test_env.RunCommand(
+        cmd, {'ANDROID_LOG_TAGS': '*:e'})
+    res = ((self._output_checker is None and ret_code == 0)
+           or self._output_checker.Check(output))
     if self._verbose:
       print('Test passed: {0}.'.format(res))
     return res
@@ -110,8 +111,8 @@ class Dex2OatWrapperTestable(object):
       FatalError: An error occurred when retrieving methods list.
     """
     cmd = self._PrepareCmd(verbose_compiler=True)
-    (_, err_output, _) = self._test_env.RunCommand(cmd)
-    match_methods = re.findall(r'Building ([^\n]+)\n', err_output)
+    (output, _) = self._test_env.RunCommand(cmd, {'ANDROID_LOG_TAGS': '*:i'})
+    match_methods = re.findall(r'Building ([^\n]+)\n', output)
     if not match_methods:
       raise FatalError('Failed to retrieve methods list. '
                        'Not recognized output format.')
@@ -131,8 +132,8 @@ class Dex2OatWrapperTestable(object):
     """
     cmd = self._PrepareCmd(compiled_methods=[compiled_method],
                            verbose_compiler=True)
-    (_, err_output, _) = self._test_env.RunCommand(cmd)
-    match_passes = re.findall(r'Starting pass: ([^\n]+)\n', err_output)
+    (output, _) = self._test_env.RunCommand(cmd, {'ANDROID_LOG_TAGS': '*:i'})
+    match_passes = re.findall(r'Starting pass: ([^\n]+)\n', output)
     if not match_passes:
       raise FatalError('Failed to retrieve passes list. '
                        'Not recognized output format.')
@@ -141,7 +142,8 @@ class Dex2OatWrapperTestable(object):
   def _PrepareCmd(self, compiled_methods=None, passes_to_run=None,
                   verbose_compiler=False):
     """Prepare command to run."""
-    cmd = list(self._base_cmd)
+    cmd = [self._base_cmd[0]]
+    # insert additional arguments
     if compiled_methods is not None:
       self._test_env.WriteLines(self._compiled_methods_path, compiled_methods)
       cmd += ['-Xcompiler-option', '--compiled-methods={0}'.format(
@@ -152,10 +154,76 @@ class Dex2OatWrapperTestable(object):
           self._passes_to_run_path)]
     if verbose_compiler:
       cmd += ['-Xcompiler-option', '--runtime-arg', '-Xcompiler-option',
-              '-verbose:compiler']
-    cmd += ['-classpath', self._test_env.classpath, self._class_name]
-    cmd += self._args
+              '-verbose:compiler', '-Xcompiler-option', '-j1']
+    cmd += self._base_cmd[1:]
     return cmd
+
+
+class IOutputCheck(object):
+  """Abstract output checking class.
+
+  Checks if output is correct.
+  """
+  __meta_class__ = abc.ABCMeta
+
+  @abc.abstractmethod
+  def Check(self, output):
+    """Check if output is correct.
+
+    Args:
+      output: string, output to check.
+
+    Returns:
+      boolean, True if output is correct, False otherwise.
+    """
+
+
+class EqualsOutputCheck(IOutputCheck):
+  """Concrete output checking class checking for equality to expected output."""
+
+  def __init__(self, expected_output):
+    """Constructor.
+
+    Args:
+      expected_output: string, expected output.
+    """
+    self._expected_output = expected_output
+
+  def Check(self, output):
+    """See base class."""
+    return self._expected_output == output
+
+
+class ExternalScriptOutputCheck(IOutputCheck):
+  """Concrete output checking class calling an external script.
+
+  The script should accept two arguments, path to expected output and path to
+  program output. It should exit with 0 return code if outputs are equivalent
+  and with different return code otherwise.
+  """
+
+  def __init__(self, script_path, expected_output_path, logfile):
+    """Constructor.
+
+    Args:
+      script_path: string, path to checking script.
+      expected_output_path: string, path to file with expected output.
+      logfile: file handle, logfile.
+    """
+    self._script_path = script_path
+    self._expected_output_path = expected_output_path
+    self._logfile = logfile
+
+  def Check(self, output):
+    """See base class."""
+    ret_code = None
+    with NamedTemporaryFile(mode='w', delete=False) as temp_file:
+      temp_file.write(output)
+      temp_file.flush()
+      ret_code = call(
+          [self._script_path, self._expected_output_path, temp_file.name],
+          stdout=self._logfile, stderr=self._logfile, universal_newlines=True)
+    return ret_code == 0
 
 
 def BinarySearch(start, end, test):
@@ -200,9 +268,9 @@ def BugSearch(testable):
   all_methods = testable.GetAllMethods()
   faulty_method_idx = BinarySearch(
       0,
-      len(all_methods),
+      len(all_methods) + 1,
       lambda mid: testable.Test(all_methods[0:mid]))
-  if faulty_method_idx == len(all_methods):
+  if faulty_method_idx == len(all_methods) + 1:
     return (None, None)
   if faulty_method_idx == 0:
     raise FatalError('Testable fails with no methods compiled. '
@@ -211,72 +279,100 @@ def BugSearch(testable):
   all_passes = testable.GetAllPassesForMethod(faulty_method)
   faulty_pass_idx = BinarySearch(
       0,
-      len(all_passes),
+      len(all_passes) + 1,
       lambda mid: testable.Test([faulty_method],
                                 FilterPasses(all_passes, mid)))
   if faulty_pass_idx == 0:
     return (faulty_method, None)
-  assert faulty_pass_idx != len(all_passes), 'Method must fail for some passes.'
+  assert faulty_pass_idx != len(all_passes) + 1, ('Method must fail for some '
+                                                  'passes.')
   faulty_pass = all_passes[faulty_pass_idx - 1]
   return (faulty_method, faulty_pass)
 
 
 def PrepareParser():
   """Prepares argument parser."""
-  parser = argparse.ArgumentParser()
-  parser.add_argument(
-      '-cp', '--classpath', required=True, type=str, help='classpath')
-  parser.add_argument('--expected-output', type=str,
-                      help='file containing expected output')
-  parser.add_argument(
+  parser = argparse.ArgumentParser(
+      description='Tool for finding compiler bugs. Either --raw-cmd or both '
+                  '-cp and --class are required.')
+  command_opts = parser.add_argument_group('dalvikvm command options')
+  command_opts.add_argument('-cp', '--classpath', type=str, help='classpath')
+  command_opts.add_argument('--class', dest='classname', type=str,
+                            help='name of main class')
+  command_opts.add_argument('--lib', dest='lib', type=str, default='libart.so',
+                            help='lib to use, default: libart.so')
+  command_opts.add_argument('--dalvikvm-option', dest='dalvikvm_opts',
+                            metavar='OPT', nargs='*', default=[],
+                            help='additional dalvikvm option')
+  command_opts.add_argument('--arg', dest='test_args', nargs='*', default=[],
+                            metavar='ARG', help='argument passed to test')
+  command_opts.add_argument('--image', type=str, help='path to image')
+  command_opts.add_argument('--raw-cmd', dest='raw_cmd', type=str,
+                            help='bisect with this command, ignore other '
+                                 'command options')
+  bisection_opts = parser.add_argument_group('bisection options')
+  bisection_opts.add_argument('--64', dest='x64', action='store_true',
+                              default=False, help='x64 mode')
+  bisection_opts.add_argument(
       '--device', action='store_true', default=False, help='run on device')
-  parser.add_argument('classname', type=str, help='name of class to run')
-  parser.add_argument('--lib', dest='lib', type=str, default='libart.so',
-                      help='lib to use, default: libart.so')
-  parser.add_argument('--64', dest='x64', action='store_true',
-                      default=False, help='x64 mode')
-  parser.add_argument('--dalvikvm-option', dest='dalvikvm_opts',
-                      metavar='OPTION', nargs='*', default=[],
-                      help='additional dalvikvm option')
-  parser.add_argument('--arg', dest='test_args', nargs='*', default=[],
-                      help='argument to pass to program')
-  parser.add_argument('--image', type=str, help='path to image')
-  parser.add_argument('--verbose', action='store_true',
-                      default=False, help='enable verbose output')
+  bisection_opts.add_argument('--expected-output', type=str,
+                              help='file containing expected output')
+  bisection_opts.add_argument(
+      '--check-script', dest='check_script', type=str,
+      help='script comparing output and expected output')
+  bisection_opts.add_argument('--verbose', action='store_true',
+                              default=False, help='enable verbose output')
   return parser
+
+
+def PrepareBaseCommand(args, classpath):
+  """Prepares base command used to run test."""
+  if args.raw_cmd:
+    return shlex.split(args.raw_cmd)
+  else:
+    base_cmd = ['dalvikvm64'] if args.x64 else ['dalvikvm32']
+    if not args.device:
+      base_cmd += ['-XXlib:{0}'.format(args.lib)]
+      if not args.image:
+        image_path = '{0}/framework/core-optimizing-pic.art'.format(
+            GetEnvVariableOrError('ANDROID_HOST_OUT'))
+      else:
+        image_path = args.image
+      base_cmd += ['-Ximage:{0}'.format(image_path)]
+    if args.dalvikvm_opts:
+      base_cmd += args.dalvikvm_opts
+    base_cmd += ['-cp', classpath, args.classname] + args.test_args
+  return base_cmd
 
 
 def main():
   # Parse arguments
   parser = PrepareParser()
   args = parser.parse_args()
+  if not args.raw_cmd and (not args.classpath or not args.classname):
+    parser.error('Either --raw-cmd or both -cp and --class are required')
 
   # Prepare environment
-  if args.expected_output is not None:
-    with open(args.expected_output, 'r') as f:
-      expected_output = f.read()
-  else:
-    expected_output = None
+  classpath = args.classpath
   if args.device:
-    run_cmd = ['dalvikvm64'] if args.x64 else ['dalvikvm32']
-    test_env = DeviceTestEnv(args.classpath)
+    test_env = DeviceTestEnv()
+    if classpath:
+      classpath = test_env.PushClasspath(classpath)
   else:
-    run_cmd = ['dalvikvm64'] if args.x64 else ['dalvikvm32']
-    run_cmd += ['-XXlib:{0}'.format(args.lib)]
-    if not args.image:
-      image_path = '{0}/framework/core-optimizing-pic.art'.format(
-          GetEnvVariableOrError('ANDROID_HOST_OUT'))
+    test_env = HostTestEnv(args.x64)
+  base_cmd = PrepareBaseCommand(args, classpath)
+  output_checker = None
+  if args.expected_output:
+    if args.check_script:
+      output_checker = ExternalScriptOutputCheck(
+          args.check_script, args.expected_output, test_env.logfile)
     else:
-      image_path = args.image
-    run_cmd += ['-Ximage:{0}'.format(image_path)]
-    if args.dalvikvm_opts:
-      run_cmd += args.dalvikvm_opts
-    test_env = HostTestEnv(args.classpath, args.x64)
+      with open(args.expected_output, 'r') as expected_output_file:
+        output_checker = EqualsOutputCheck(expected_output_file.read())
 
   # Perform the search
   try:
-    testable = Dex2OatWrapperTestable(run_cmd, test_env, args.classname,
-                                      args.test_args, expected_output,
+    testable = Dex2OatWrapperTestable(base_cmd, test_env, output_checker,
                                       args.verbose)
     (method, opt_pass) = BugSearch(testable)
   except Exception as e:
