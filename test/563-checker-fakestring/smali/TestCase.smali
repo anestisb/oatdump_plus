@@ -42,16 +42,19 @@
 # Test usage of String new-instance before it is initialized.
 
 ## CHECK-START: void TestCase.compareNewInstance() register (after)
-## CHECK-DAG:     <<Null:l\d+>>   NullConstant
+## CHECK-DAG:     <<Null:l\d+>>   InvokeStaticOrDirect method_name:Main.$noinline$HiddenNull
 ## CHECK-DAG:     <<String:l\d+>> NewInstance
-## CHECK-DAG:     <<Cond:z\d+>>   NotEqual [<<String>>,<<Null>>]
+## CHECK-DAG:     <<Cond:z\d+>>   NotEqual [<<Null>>,<<String>>]
 ## CHECK-DAG:                     If [<<Cond>>]
 
 .method public static compareNewInstance()V
    .registers 3
 
+   invoke-static {}, LMain;->$noinline$HiddenNull()Ljava/lang/Object;
+   move-result-object v1
+
    new-instance v0, Ljava/lang/String;
-   if-nez v0, :return
+   if-ne v0, v1, :return
 
    # Will throw NullPointerException if this branch is taken.
    const v1, 0x0
