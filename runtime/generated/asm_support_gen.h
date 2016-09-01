@@ -80,8 +80,8 @@ DEFINE_CHECK_EQ(static_cast<int32_t>(STRING_DEX_CACHE_ELEMENT_SIZE_SHIFT), (stat
 DEFINE_CHECK_EQ(static_cast<int32_t>(STRING_DEX_CACHE_SIZE_MINUS_ONE), (static_cast<int32_t>(art::mirror::DexCache::kDexCacheStringCacheSize - 1)))
 #define STRING_DEX_CACHE_HASH_BITS 10
 DEFINE_CHECK_EQ(static_cast<int32_t>(STRING_DEX_CACHE_HASH_BITS), (static_cast<int32_t>(art::LeastSignificantBit(art::mirror::DexCache::kDexCacheStringCacheSize))))
-#define STRING_DEX_CACHE_ELEMENT_SIZE 0x8
-DEFINE_CHECK_EQ(static_cast<size_t>(STRING_DEX_CACHE_ELEMENT_SIZE), (static_cast<size_t>(sizeof(art::mirror::StringDexCachePair))))
+#define STRING_DEX_CACHE_ELEMENT_SIZE 8
+DEFINE_CHECK_EQ(static_cast<int32_t>(STRING_DEX_CACHE_ELEMENT_SIZE), (static_cast<int32_t>(sizeof(art::mirror::StringDexCachePair))))
 #define MIN_LARGE_OBJECT_THRESHOLD 0x3000
 DEFINE_CHECK_EQ(static_cast<size_t>(MIN_LARGE_OBJECT_THRESHOLD), (static_cast<size_t>(art::gc::Heap::kMinLargeObjectThreshold)))
 #define LOCK_WORD_STATE_SHIFT 30
