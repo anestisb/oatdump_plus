@@ -837,7 +837,7 @@ static constexpr uint32_t kInvalidBlockId = static_cast<uint32_t>(-1);
 
 class HBasicBlock : public ArenaObject<kArenaAllocBasicBlock> {
  public:
-  HBasicBlock(HGraph* graph, uint32_t dex_pc = kNoDexPc)
+  explicit HBasicBlock(HGraph* graph, uint32_t dex_pc = kNoDexPc)
       : graph_(graph),
         predecessors_(graph->GetArena()->Adapter(kArenaAllocPredecessors)),
         successors_(graph->GetArena()->Adapter(kArenaAllocSuccessors)),
@@ -6282,7 +6282,7 @@ class HInstanceOf FINAL : public HExpression<2> {
 
 class HBoundType FINAL : public HExpression<1> {
  public:
-  HBoundType(HInstruction* input, uint32_t dex_pc = kNoDexPc)
+  explicit HBoundType(HInstruction* input, uint32_t dex_pc = kNoDexPc)
       : HExpression(Primitive::kPrimNot, SideEffects::None(), dex_pc),
         upper_bound_(ReferenceTypeInfo::CreateInvalid()) {
     SetPackedFlag<kFlagUpperCanBeNull>(true);

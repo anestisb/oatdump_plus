@@ -258,9 +258,9 @@ class MemMapArena FINAL : public Arena {
 
 class ArenaPool {
  public:
-  ArenaPool(bool use_malloc = true,
-            bool low_4gb = false,
-            const char* name = "LinearAlloc");
+  explicit ArenaPool(bool use_malloc = true,
+                     bool low_4gb = false,
+                     const char* name = "LinearAlloc");
   ~ArenaPool();
   Arena* AllocArena(size_t size) REQUIRES(!lock_);
   void FreeArenaChain(Arena* first) REQUIRES(!lock_);

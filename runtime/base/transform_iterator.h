@@ -62,7 +62,7 @@ class TransformIterator {
       : data_(base, fn) { }
 
   template <typename OtherBI>
-  TransformIterator(const TransformIterator<OtherBI, Function>& other)
+  TransformIterator(const TransformIterator<OtherBI, Function>& other)  // NOLINT, implicit
       : data_(other.base(), other.GetFunction()) {
   }
 
