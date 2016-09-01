@@ -634,7 +634,7 @@ static void GenBitCount(LocationSummary* locations,
   // For 64-bit quantities, this algorithm gets executed twice, (once
   // for in_lo, and again for in_hi), but saves a few instructions
   // because the mask values only have to be loaded once.  Using this
-  // algorithm the count for a 64-bit operand can be performed in 33
+  // algorithm the count for a 64-bit operand can be performed in 29
   // instructions compared to a loop-based algorithm which required 47
   // instructions.
 
@@ -687,37 +687,36 @@ static void GenBitCount(LocationSummary* locations,
     __ Srl(tmp_lo, tmp_lo, 2);
     __ And(tmp_lo, tmp_lo, AT);
     __ Addu(tmp_lo, out_lo, tmp_lo);
-    __ Srl(out_lo, tmp_lo, 4);
-    __ Addu(out_lo, out_lo, tmp_lo);
 
     __ And(out_hi, tmp_hi, AT);
     __ Srl(tmp_hi, tmp_hi, 2);
     __ And(tmp_hi, tmp_hi, AT);
     __ Addu(tmp_hi, out_hi, tmp_hi);
-    __ Srl(out_hi, tmp_hi, 4);
-    __ Addu(out_hi, out_hi, tmp_hi);
 
+    // Here we deviate from the original algorithm a bit. We've reached
+    // the stage where the bitfields holding the subtotals are large
+    // enough to hold the combined subtotals for both the low word, and
+    // the high word. This means that we can add the subtotals for the
+    // the high, and low words into a single word, and compute the final
+    // result for both the high, and low words using fewer instructions.
     __ LoadConst32(AT, 0x0F0F0F0F);
 
-    __ And(out_lo, out_lo, AT);
-    __ And(out_hi, out_hi, AT);
+    __ Addu(TMP, tmp_hi, tmp_lo);
+
+    __ Srl(out, TMP, 4);
+    __ And(out, out, AT);
+    __ And(TMP, TMP, AT);
+    __ Addu(out, out, TMP);
 
     __ LoadConst32(AT, 0x01010101);
 
     if (isR6) {
-      __ MulR6(out_lo, out_lo, AT);
-
-      __ MulR6(out_hi, out_hi, AT);
+      __ MulR6(out, out, AT);
     } else {
-      __ MulR2(out_lo, out_lo, AT);
-
-      __ MulR2(out_hi, out_hi, AT);
+      __ MulR2(out, out, AT);
     }
 
-    __ Srl(out_lo, out_lo, 24);
-    __ Srl(out_hi, out_hi, 24);
-
-    __ Addu(out, out_hi, out_lo);
+    __ Srl(out, out, 24);
   }
 }
 
