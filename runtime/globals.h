@@ -166,6 +166,12 @@ static constexpr bool kDefaultMustRelocate = true;
 
 static constexpr bool kArm32QuickCodeUseSoftFloat = false;
 
+#ifdef ART_ENABLE_VDEX
+static constexpr bool kIsVdexEnabled = true;
+#else
+static constexpr bool kIsVdexEnabled = false;
+#endif
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_GLOBALS_H_

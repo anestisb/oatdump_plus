@@ -244,6 +244,11 @@ ifeq ($(ART_BUILD_HOST_STATIC),true)
   art_cflags += -DART_BUILD_HOST_STATIC=1
 endif
 
+# Temporary flag allowing to disable recent changes in oat file management.
+ifneq ($(ART_ENABLE_VDEX),false)
+  art_cflags += -DART_ENABLE_VDEX
+endif
+
 # Cflags for non-debug ART and ART tools.
 art_non_debug_cflags := \
   $(ART_NDEBUG_OPT_FLAG)

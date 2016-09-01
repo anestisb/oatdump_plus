@@ -190,6 +190,7 @@ cc_defaults {
         "type_lookup_table.cc",
         "utf.cc",
         "utils.cc",
+        "vdex_file.cc",
         "verifier/instruction_flags.cc",
         "verifier/method_verifier.cc",
         "verifier/reg_type.cc",
