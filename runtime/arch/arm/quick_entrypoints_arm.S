@@ -1191,25 +1191,6 @@ END art_quick_alloc_object_rosalloc
 // Need to preserve r0 and r1 to the slow path.
 .macro ALLOC_OBJECT_TLAB_FAST_PATH slowPathLabel
     cbz    r2, \slowPathLabel                                 // Check null class
-                                                              // Check class status.
-    ldr    r3, [r2, #MIRROR_CLASS_STATUS_OFFSET]
-    cmp    r3, #MIRROR_CLASS_STATUS_INITIALIZED
-    bne    \slowPathLabel
-                                                              // Add a fake dependence from the
-                                                              // following access flag and size
-                                                              // loads to the status load.
-                                                              // This is to prevent those loads
-                                                              // from being reordered above the
-                                                              // status load and reading wrong
-                                                              // values (an alternative is to use
-                                                              // a load-acquire for the status).
-    eor    r3, r3, r3
-    add    r2, r2, r3
-                                                              // Check access flags has
-                                                              // kAccClassIsFinalizable.
-    ldr    r3, [r2, #MIRROR_CLASS_ACCESS_FLAGS_OFFSET]
-    tst    r3, #ACCESS_FLAGS_CLASS_IS_FINALIZABLE
-    bne    \slowPathLabel
                                                               // Load thread_local_pos (r12) and
                                                               // thread_local_end (r3) with ldrd.
                                                               // Check constraints for ldrd.
@@ -1218,16 +1199,12 @@ END art_quick_alloc_object_rosalloc
 #endif
     ldrd   r12, r3, [r9, #THREAD_LOCAL_POS_OFFSET]
     sub    r12, r3, r12                                       // Compute the remaining buf size.
-    ldr    r3, [r2, #MIRROR_CLASS_OBJECT_SIZE_OFFSET]         // Load the object size (r3).
+    ldr    r3, [r2, #MIRROR_CLASS_OBJECT_SIZE_ALLOC_FAST_PATH_OFFSET]  // Load the object size (r3).
     cmp    r3, r12                                            // Check if it fits. OK to do this
                                                               // before rounding up the object size
                                                               // assuming the buf size alignment.
     bhi    \slowPathLabel
     // "Point of no slow path". Won't go to the slow path from here on. OK to clobber r0 and r1.
-                                                              // Round up the object size by the
-                                                              // object alignment. (addr + 7) & ~7.
-    add    r3, r3, #OBJECT_ALIGNMENT_MASK
-    and    r3, r3, #OBJECT_ALIGNMENT_MASK_TOGGLED
                                                               // Reload old thread_local_pos (r0)
                                                               // for the return value.
     ldr    r0, [r9, #THREAD_LOCAL_POS_OFFSET]
@@ -1244,7 +1221,7 @@ END art_quick_alloc_object_rosalloc
                                                               // the fields of the class.
                                                               // Alternatively we could use "ishst"
                                                               // if we use load-acquire for the
-                                                              // class status load.)
+                                                              // object size load.)
     dmb    ish
     bx     lr
 .endm
