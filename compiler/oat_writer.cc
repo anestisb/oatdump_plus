@@ -226,6 +226,7 @@ class OatWriter::OatDexFile {
     return dex_file_location_data_;
   }
 
+  void ReserveTypeLookupTable(OatWriter* oat_writer);
   void ReserveClassOffsets(OatWriter* oat_writer);
 
   size_t SizeOf() const;
@@ -435,35 +436,36 @@ bool OatWriter::WriteAndOpenDexFiles(
                                 instruction_set_features,
                                 dchecked_integral_cast<uint32_t>(oat_dex_files_.size()),
                                 key_value_store);
-  size_ = InitOatDexFiles(offset);
+  offset = InitOatDexFiles(offset);
+  size_ = offset;
 
   std::unique_ptr<MemMap> dex_files_map;
   std::vector<std::unique_ptr<const DexFile>> dex_files;
-  if (!WriteDexFiles(rodata, file) ||
-      !OpenDexFiles(file, verify, &dex_files_map, &dex_files)) {
+  if (!WriteDexFiles(rodata, file)) {
     return false;
   }
-
-  // Do a bulk checksum update for Dex[]. Doing it piece by piece would be
-  // difficult because we're not using the OutputStream directly.
-  if (!oat_dex_files_.empty()) {
-    size_t size = size_ - oat_dex_files_[0].dex_file_offset_;
-    oat_header_->UpdateChecksum(dex_files_map->Begin(), size);
+  // Reserve space for type lookup tables and update type_lookup_table_offset_.
+  for (OatDexFile& oat_dex_file : oat_dex_files_) {
+    oat_dex_file.ReserveTypeLookupTable(this);
   }
-
-  ChecksumUpdatingOutputStream checksum_updating_rodata(rodata, oat_header_.get());
-
-  if (!WriteTypeLookupTables(&checksum_updating_rodata, dex_files)) {
-    return false;
-  }
-
+  size_t size_after_type_lookup_tables = size_;
   // Reserve space for class offsets and update class_offsets_offset_.
   for (OatDexFile& oat_dex_file : oat_dex_files_) {
     oat_dex_file.ReserveClassOffsets(this);
   }
-
-  if (!WriteOatDexFiles(&checksum_updating_rodata)) {
+  ChecksumUpdatingOutputStream checksum_updating_rodata(rodata, oat_header_.get());
+  if (!WriteOatDexFiles(&checksum_updating_rodata) ||
+      !ExtendForTypeLookupTables(rodata, file, size_after_type_lookup_tables) ||
+      !OpenDexFiles(file, verify, &dex_files_map, &dex_files) ||
+      !WriteTypeLookupTables(dex_files_map.get(), dex_files)) {
     return false;
+  }
+
+  // Do a bulk checksum update for Dex[] and TypeLookupTable[]. Doing it piece by
+  // piece would be difficult because we're not using the OutpuStream directly.
+  if (!oat_dex_files_.empty()) {
+    size_t size = size_after_type_lookup_tables - oat_dex_files_[0].dex_file_offset_;
+    oat_header_->UpdateChecksum(dex_files_map->Begin(), size);
   }
 
   *opened_dex_files_map = std::move(dex_files_map);
@@ -2120,6 +2122,30 @@ bool OatWriter::WriteOatDexFiles(OutputStream* rodata) {
   return true;
 }
 
+bool OatWriter::ExtendForTypeLookupTables(OutputStream* rodata, File* file, size_t offset) {
+  TimingLogger::ScopedTiming split("ExtendForTypeLookupTables", timings_);
+
+  int64_t new_length = oat_data_offset_ + dchecked_integral_cast<int64_t>(offset);
+  if (file->SetLength(new_length) != 0) {
+    PLOG(ERROR) << "Failed to extend file for type lookup tables. new_length: " << new_length
+        << "File: " << file->GetPath();
+    return false;
+  }
+  off_t actual_offset = rodata->Seek(new_length, kSeekSet);
+  if (actual_offset != static_cast<off_t>(new_length)) {
+    PLOG(ERROR) << "Failed to seek stream after extending file for type lookup tables."
+                << " Actual: " << actual_offset << " Expected: " << new_length
+                << " File: " << rodata->GetLocation();
+    return false;
+  }
+  if (!rodata->Flush()) {
+    PLOG(ERROR) << "Failed to flush stream after extending for type lookup tables."
+                << " File: " << rodata->GetLocation();
+    return false;
+  }
+  return true;
+}
+
 bool OatWriter::OpenDexFiles(
     File* file,
     bool verify,
@@ -2197,66 +2223,26 @@ bool OatWriter::OpenDexFiles(
 }
 
 bool OatWriter::WriteTypeLookupTables(
-    OutputStream* rodata,
+    MemMap* opened_dex_files_map,
     const std::vector<std::unique_ptr<const DexFile>>& opened_dex_files) {
   TimingLogger::ScopedTiming split("WriteTypeLookupTables", timings_);
 
   DCHECK_EQ(opened_dex_files.size(), oat_dex_files_.size());
   for (size_t i = 0, size = opened_dex_files.size(); i != size; ++i) {
     OatDexFile* oat_dex_file = &oat_dex_files_[i];
-    DCHECK_EQ(oat_dex_file->lookup_table_offset_, 0u);
-
-    if (oat_dex_file->create_type_lookup_table_ != CreateTypeLookupTable::kCreate ||
-        oat_dex_file->class_offsets_.empty()) {
-      continue;
+    if (oat_dex_file->lookup_table_offset_ != 0u) {
+      DCHECK(oat_dex_file->create_type_lookup_table_ == CreateTypeLookupTable::kCreate);
+      DCHECK_NE(oat_dex_file->class_offsets_.size(), 0u);
+      size_t map_offset = oat_dex_files_[0].dex_file_offset_;
+      size_t lookup_table_offset = oat_dex_file->lookup_table_offset_;
+      uint8_t* lookup_table = opened_dex_files_map->Begin() + (lookup_table_offset - map_offset);
+      opened_dex_files[i]->CreateTypeLookupTable(lookup_table);
     }
-
-    size_t table_size = TypeLookupTable::RawDataLength(oat_dex_file->class_offsets_.size());
-    if (table_size == 0u) {
-      continue;
-    }
-
-    // Create the lookup table. When `nullptr` is given as the storage buffer,
-    // TypeLookupTable allocates its own and DexFile takes ownership.
-    opened_dex_files[i]->CreateTypeLookupTable(/* storage */ nullptr);
-    TypeLookupTable* table = opened_dex_files[i]->GetTypeLookupTable();
-
-    // Type tables are required to be 4 byte aligned.
-    size_t original_offset = size_;
-    size_t rodata_offset = RoundUp(original_offset, 4);
-    size_t padding_size = rodata_offset - original_offset;
-
-    if (padding_size != 0u) {
-      std::vector<uint8_t> buffer(padding_size, 0u);
-      if (!rodata->WriteFully(buffer.data(), padding_size)) {
-        PLOG(ERROR) << "Failed to write lookup table alignment padding."
-                    << " File: " << oat_dex_file->GetLocation()
-                    << " Output: " << rodata->GetLocation();
-        return false;
-      }
-    }
-
-    DCHECK_EQ(oat_data_offset_ + rodata_offset,
-              static_cast<size_t>(rodata->Seek(0u, kSeekCurrent)));
-    DCHECK_EQ(table_size, table->RawDataLength());
-
-    if (!rodata->WriteFully(table->RawData(), table_size)) {
-      PLOG(ERROR) << "Failed to write lookup table."
-                  << " File: " << oat_dex_file->GetLocation()
-                  << " Output: " << rodata->GetLocation();
-      return false;
-    }
-
-    oat_dex_file->lookup_table_offset_ = rodata_offset;
-
-    size_ += padding_size + table_size;
-    size_oat_lookup_table_ += table_size;
-    size_oat_lookup_table_alignment_ += padding_size;
   }
 
-  if (!rodata->Flush()) {
-    PLOG(ERROR) << "Failed to flush stream after writing type lookup tables."
-                << " File: " << rodata->GetLocation();
+  DCHECK_EQ(opened_dex_files_map == nullptr, opened_dex_files.empty());
+  if (opened_dex_files_map != nullptr && !opened_dex_files_map->Sync()) {
+    PLOG(ERROR) << "Failed to Sync() type lookup tables. Map: " << opened_dex_files_map->GetName();
     return false;
   }
 
@@ -2310,6 +2296,22 @@ size_t OatWriter::OatDexFile::SizeOf() const {
           + sizeof(dex_file_offset_)
           + sizeof(class_offsets_offset_)
           + sizeof(lookup_table_offset_);
+}
+
+void OatWriter::OatDexFile::ReserveTypeLookupTable(OatWriter* oat_writer) {
+  DCHECK_EQ(lookup_table_offset_, 0u);
+  if (create_type_lookup_table_ == CreateTypeLookupTable::kCreate && !class_offsets_.empty()) {
+    size_t table_size = TypeLookupTable::RawDataLength(class_offsets_.size());
+    if (table_size != 0u) {
+      // Type tables are required to be 4 byte aligned.
+      size_t original_offset = oat_writer->size_;
+      size_t offset = RoundUp(original_offset, 4);
+      oat_writer->size_oat_lookup_table_alignment_ += offset - original_offset;
+      lookup_table_offset_ = offset;
+      oat_writer->size_ = offset + table_size;
+      oat_writer->size_oat_lookup_table_ += table_size;
+    }
+  }
 }
 
 void OatWriter::OatDexFile::ReserveClassOffsets(OatWriter* oat_writer) {

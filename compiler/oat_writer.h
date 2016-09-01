@@ -262,11 +262,12 @@ class OatWriter {
   bool WriteDexFile(OutputStream* rodata, File* file, OatDexFile* oat_dex_file, File* dex_file);
   bool WriteDexFile(OutputStream* rodata, OatDexFile* oat_dex_file, const uint8_t* dex_file);
   bool WriteOatDexFiles(OutputStream* rodata);
+  bool ExtendForTypeLookupTables(OutputStream* rodata, File* file, size_t offset);
   bool OpenDexFiles(File* file,
                     bool verify,
                     /*out*/ std::unique_ptr<MemMap>* opened_dex_files_map,
                     /*out*/ std::vector<std::unique_ptr<const DexFile>>* opened_dex_files);
-  bool WriteTypeLookupTables(OutputStream* rodata,
+  bool WriteTypeLookupTables(MemMap* opened_dex_files_map,
                              const std::vector<std::unique_ptr<const DexFile>>& opened_dex_files);
   bool WriteCodeAlignment(OutputStream* out, uint32_t aligned_code_delta);
   void SetMultiOatRelativePatcherAdjustment();
