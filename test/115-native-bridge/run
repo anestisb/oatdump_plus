@@ -18,11 +18,11 @@ ARGS=${@}
 
 # Use libnativebridgetest as a native bridge, start NativeBridgeMain (Main is JniTest main file).
 LIBPATH=$(echo ${ARGS} | sed -r 's/.*Djava.library.path=([^ ]*) .*/\1/')
-ln -s ${LIBPATH}/libnativebridgetest.so .
+ln -sf ${LIBPATH}/libnativebridgetest.so .
 touch libarttest.so
 touch libarttestd.so
-ln -s ${LIBPATH}/libarttest.so libarttest2.so
-ln -s ${LIBPATH}/libarttestd.so libarttestd2.so
+ln -sf ${LIBPATH}/libarttest.so libarttest2.so
+ln -sf ${LIBPATH}/libarttestd.so libarttestd2.so
 
 # pwd likely has /, so it's a pain to put that into a sed rule.
 LEFT=$(echo ${ARGS} | sed -r 's/-Djava.library.path.*//')
