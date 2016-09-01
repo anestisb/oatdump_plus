@@ -195,6 +195,12 @@ class CheckJniAbortCatcher {
   DISALLOW_COPY_AND_ASSIGN(CheckJniAbortCatcher);
 };
 
+#define TEST_DISABLED_FOR_TARGET() \
+  if (kIsTargetBuild) { \
+    printf("WARNING: TEST DISABLED FOR TARGET\n"); \
+    return; \
+  }
+
 #define TEST_DISABLED_FOR_MIPS() \
   if (kRuntimeISA == kMips) { \
     printf("WARNING: TEST DISABLED FOR MIPS\n"); \

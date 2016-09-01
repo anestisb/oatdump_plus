@@ -72,6 +72,8 @@ class DexLayoutTest : public CommonRuntimeTest {
 
 
 TEST_F(DexLayoutTest, FullPlainOutput) {
+  // Disable test on target.
+  TEST_DISABLED_FOR_TARGET();
   std::string error_msg;
   ASSERT_TRUE(Exec(&error_msg)) << error_msg;
 }
