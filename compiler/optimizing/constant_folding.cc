@@ -47,6 +47,9 @@ class InstructionWithAbsorbingInputSimplifier : public HGraphVisitor {
  private:
   void VisitShift(HBinaryOperation* shift);
 
+  void VisitEqual(HEqual* instruction) OVERRIDE;
+  void VisitNotEqual(HNotEqual* instruction) OVERRIDE;
+
   void VisitAbove(HAbove* instruction) OVERRIDE;
   void VisitAboveOrEqual(HAboveOrEqual* instruction) OVERRIDE;
   void VisitBelow(HBelow* instruction) OVERRIDE;
@@ -136,6 +139,30 @@ void InstructionWithAbsorbingInputSimplifier::VisitShift(HBinaryOperation* instr
     // with
     //    CONSTANT 0
     instruction->ReplaceWith(left);
+    instruction->GetBlock()->RemoveInstruction(instruction);
+  }
+}
+
+void InstructionWithAbsorbingInputSimplifier::VisitEqual(HEqual* instruction) {
+  if ((instruction->GetLeft()->IsNullConstant() && !instruction->GetRight()->CanBeNull()) ||
+      (instruction->GetRight()->IsNullConstant() && !instruction->GetLeft()->CanBeNull())) {
+    // Replace code looking like
+    //    EQUAL lhs, null
+    // where lhs cannot be null with
+    //    CONSTANT false
+    instruction->ReplaceWith(GetGraph()->GetConstant(Primitive::kPrimBoolean, 0));
+    instruction->GetBlock()->RemoveInstruction(instruction);
+  }
+}
+
+void InstructionWithAbsorbingInputSimplifier::VisitNotEqual(HNotEqual* instruction) {
+  if ((instruction->GetLeft()->IsNullConstant() && !instruction->GetRight()->CanBeNull()) ||
+      (instruction->GetRight()->IsNullConstant() && !instruction->GetLeft()->CanBeNull())) {
+    // Replace code looking like
+    //    NOT_EQUAL lhs, null
+    // where lhs cannot be null with
+    //    CONSTANT true
+    instruction->ReplaceWith(GetGraph()->GetConstant(Primitive::kPrimBoolean, 1));
     instruction->GetBlock()->RemoveInstruction(instruction);
   }
 }
