@@ -990,32 +990,23 @@ END_FUNCTION art_quick_alloc_object_rosalloc
 MACRO1(ALLOC_OBJECT_TLAB_FAST_PATH, slowPathLabel)
     testl %edx, %edx                                    // Check null class
     jz   VAR(slowPathLabel)
-                                                        // Check class status.
-    cmpl LITERAL(MIRROR_CLASS_STATUS_INITIALIZED), MIRROR_CLASS_STATUS_OFFSET(%edx)
-    jne  VAR(slowPathLabel)
                                                         // No fake dependence needed on x86
                                                         // between status and flags load,
                                                         // since each load is a load-acquire,
                                                         // no loads reordering.
-                                                        // Check access flags has
-                                                        // kAccClassIsFinalizable
-    testl LITERAL(ACCESS_FLAGS_CLASS_IS_FINALIZABLE), MIRROR_CLASS_ACCESS_FLAGS_OFFSET(%edx)
-    jnz  VAR(slowPathLabel)
     movl %fs:THREAD_SELF_OFFSET, %ebx                   // ebx = thread
     movl THREAD_LOCAL_END_OFFSET(%ebx), %edi            // Load thread_local_end.
     subl THREAD_LOCAL_POS_OFFSET(%ebx), %edi            // Compute the remaining buffer size.
-    movl MIRROR_CLASS_OBJECT_SIZE_OFFSET(%edx), %esi    // Load the object size.
+    movl MIRROR_CLASS_OBJECT_SIZE_ALLOC_FAST_PATH_OFFSET(%edx), %esi  // Load the object size.
     cmpl %edi, %esi                                     // Check if it fits. OK to do this
                                                         // before rounding up the object size
                                                         // assuming the buf size alignment.
     ja   VAR(slowPathLabel)
-    addl LITERAL(OBJECT_ALIGNMENT_MASK), %esi           // Align the size by 8. (addr + 7) & ~7.
-    andl LITERAL(OBJECT_ALIGNMENT_MASK_TOGGLED), %esi
     movl THREAD_LOCAL_POS_OFFSET(%ebx), %eax            // Load thread_local_pos
                                                         // as allocated object.
     addl %eax, %esi                                     // Add the object size.
     movl %esi, THREAD_LOCAL_POS_OFFSET(%ebx)            // Update thread_local_pos.
-    addl LITERAL(1), THREAD_LOCAL_OBJECTS_OFFSET(%ebx)  // Increase thread_local_objects.
+    incl THREAD_LOCAL_OBJECTS_OFFSET(%ebx)              // Increase thread_local_objects.
                                                         // Store the class pointer in the header.
                                                         // No fence needed for x86.
     POISON_HEAP_REF edx

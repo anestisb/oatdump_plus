@@ -1020,21 +1020,12 @@ MACRO1(ALLOC_OBJECT_TLAB_FAST_PATH, slowPathLabel)
 END_MACRO
 
 // The common fast path code for art_quick_alloc_object_resolved_region_tlab.
+// TODO: delete ALLOC_OBJECT_RESOLVED_TLAB_FAST_PATH since it is the same as
+// ALLOC_OBJECT_INITIALIZED_TLAB_FAST_PATH.
 //
 // RDI: type_idx, RSI: ArtMethod*, RDX/EDX: the class, RAX: return value.
 // RCX: scratch, r8: Thread::Current().
 MACRO1(ALLOC_OBJECT_RESOLVED_TLAB_FAST_PATH, slowPathLabel)
-                                                           // Check class status.
-    cmpl LITERAL(MIRROR_CLASS_STATUS_INITIALIZED), MIRROR_CLASS_STATUS_OFFSET(%rdx)
-    jne  RAW_VAR(slowPathLabel)
-                                                           // No fake dependence needed on x86
-                                                           // between status and flags load,
-                                                           // since each load is a load-acquire,
-                                                           // no loads reordering.
-                                                           // Check access flags has
-                                                           // kAccClassIsFinalizable
-    testl LITERAL(ACCESS_FLAGS_CLASS_IS_FINALIZABLE), MIRROR_CLASS_ACCESS_FLAGS_OFFSET(%rdx)
-    jnz  RAW_VAR(slowPathLabel)
     ALLOC_OBJECT_INITIALIZED_TLAB_FAST_PATH(RAW_VAR(slowPathLabel))
 END_MACRO
 
@@ -1044,19 +1035,16 @@ END_MACRO
 // RCX: scratch, r8: Thread::Current().
 MACRO1(ALLOC_OBJECT_INITIALIZED_TLAB_FAST_PATH, slowPathLabel)
     movq %gs:THREAD_SELF_OFFSET, %r8                           // r8 = thread
-    movl MIRROR_CLASS_OBJECT_SIZE_OFFSET(%rdx), %ecx           // Load the object size.
+    movl MIRROR_CLASS_OBJECT_SIZE_ALLOC_FAST_PATH_OFFSET(%rdx), %ecx // Load the object size.
     movq THREAD_LOCAL_POS_OFFSET(%r8), %rax
-    leaq OBJECT_ALIGNMENT_MASK(%rax, %rcx), %rcx               // Add size to pos, note that these
+    addq %rax, %rcx                                            // Add size to pos, note that these
                                                                // are both 32 bit ints, overflow
                                                                // will cause the add to be past the
                                                                // end of the thread local region.
-                                                               // Also sneak in alignment mask add.
-    andq LITERAL(OBJECT_ALIGNMENT_MASK_TOGGLED64), %rcx        // Align the size by 8. (addr + 7) &
-                                                               // ~7.
     cmpq THREAD_LOCAL_END_OFFSET(%r8), %rcx                    // Check if it fits.
     ja   RAW_VAR(slowPathLabel)
     movq %rcx, THREAD_LOCAL_POS_OFFSET(%r8)                    // Update thread_local_pos.
-    addq LITERAL(1), THREAD_LOCAL_OBJECTS_OFFSET(%r8)          // Increase thread_local_objects.
+    incq THREAD_LOCAL_OBJECTS_OFFSET(%r8)                      // Increase thread_local_objects.
                                                                // Store the class pointer in the
                                                                // header.
                                                                // No fence needed for x86.
