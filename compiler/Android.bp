@@ -245,8 +245,8 @@ art_cc_library {
 art_cc_library {
     name: "libartd-compiler",
     defaults: [
-        "libart-compiler-defaults",
         "art_debug_defaults",
+        "libart-compiler-defaults",
     ],
     codegen: {
         arm: {
