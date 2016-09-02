@@ -1268,7 +1268,7 @@ class OatDumper {
       DCHECK(options_.class_loader_ != nullptr);
       return verifier::MethodVerifier::VerifyMethodAndDump(
           soa.Self(), vios, dex_method_idx, dex_file, dex_cache, *options_.class_loader_,
-          &class_def, code_item, nullptr, method_access_flags);
+          class_def, code_item, nullptr, method_access_flags);
     }
 
     return nullptr;
