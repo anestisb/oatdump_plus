@@ -897,17 +897,6 @@ DEFINE_FUNCTION art_quick_alloc_object_rosalloc
     movl 0(%edx, %eax, COMPRESSED_REFERENCE_SIZE), %edx
     testl %edx, %edx                                    // Check null class
     jz   .Lart_quick_alloc_object_rosalloc_slow_path
-                                                        // Check class status
-    cmpl LITERAL(MIRROR_CLASS_STATUS_INITIALIZED), MIRROR_CLASS_STATUS_OFFSET(%edx)
-    jne  .Lart_quick_alloc_object_rosalloc_slow_path
-                                                        // No fake dependence needed on x86
-                                                        // between status and flags load,
-                                                        // since each load is a load-acquire,
-                                                        // no loads reordering.
-                                                        // Check access flags has
-                                                        // kAccClassIsFinalizable
-    testl LITERAL(ACCESS_FLAGS_CLASS_IS_FINALIZABLE), MIRROR_CLASS_ACCESS_FLAGS_OFFSET(%edx)
-    jnz   .Lart_quick_alloc_object_rosalloc_slow_path
 
     movl %fs:THREAD_SELF_OFFSET, %ebx                   // ebx = thread
                                                         // Check if the thread local allocation
@@ -916,21 +905,19 @@ DEFINE_FUNCTION art_quick_alloc_object_rosalloc
     cmpl THREAD_LOCAL_ALLOC_STACK_END_OFFSET(%ebx), %edi
     jae  .Lart_quick_alloc_object_rosalloc_slow_path
 
-    movl MIRROR_CLASS_OBJECT_SIZE_OFFSET(%edx), %edi    // Load the object size (edi)
+    movl MIRROR_CLASS_OBJECT_SIZE_ALLOC_FAST_PATH_OFFSET(%edx), %edi  // Load the object size (edi)
                                                         // Check if the size is for a thread
-                                                        // local allocation
+                                                        // local allocation. Also does the
+                                                        // finalizable and initialization check.
     cmpl LITERAL(ROSALLOC_MAX_THREAD_LOCAL_BRACKET_SIZE), %edi
     ja   .Lart_quick_alloc_object_rosalloc_slow_path
-    decl %edi
     shrl LITERAL(ROSALLOC_BRACKET_QUANTUM_SIZE_SHIFT), %edi // Calculate the rosalloc bracket index
                                                             // from object size.
-                                                            // Align up the size by the rosalloc
-                                                            // bracket quantum size and divide
-                                                            // by the quantum size and subtract
-                                                            // by 1. This code is a shorter but
-                                                            // equivalent version.
                                                         // Load thread local rosalloc run (ebx)
-    movl THREAD_ROSALLOC_RUNS_OFFSET(%ebx, %edi, __SIZEOF_POINTER__), %ebx
+                                                        // Subtract __SIZEOF_POINTER__ to subtract
+                                                        // one from edi as there is no 0 byte run
+                                                        // and the size is already aligned.
+    movl (THREAD_ROSALLOC_RUNS_OFFSET - __SIZEOF_POINTER__)(%ebx, %edi, __SIZEOF_POINTER__), %ebx
                                                         // Load free_list head (edi),
                                                         // this will be the return value.
     movl (ROSALLOC_RUN_FREE_LIST_OFFSET + ROSALLOC_RUN_FREE_LIST_HEAD_OFFSET)(%ebx), %edi
@@ -990,17 +977,11 @@ END_FUNCTION art_quick_alloc_object_rosalloc
 MACRO1(ALLOC_OBJECT_TLAB_FAST_PATH, slowPathLabel)
     testl %edx, %edx                                    // Check null class
     jz   VAR(slowPathLabel)
-                                                        // No fake dependence needed on x86
-                                                        // between status and flags load,
-                                                        // since each load is a load-acquire,
-                                                        // no loads reordering.
     movl %fs:THREAD_SELF_OFFSET, %ebx                   // ebx = thread
     movl THREAD_LOCAL_END_OFFSET(%ebx), %edi            // Load thread_local_end.
     subl THREAD_LOCAL_POS_OFFSET(%ebx), %edi            // Compute the remaining buffer size.
     movl MIRROR_CLASS_OBJECT_SIZE_ALLOC_FAST_PATH_OFFSET(%edx), %esi  // Load the object size.
-    cmpl %edi, %esi                                     // Check if it fits. OK to do this
-                                                        // before rounding up the object size
-                                                        // assuming the buf size alignment.
+    cmpl %edi, %esi                                     // Check if it fits.
     ja   VAR(slowPathLabel)
     movl THREAD_LOCAL_POS_OFFSET(%ebx), %eax            // Load thread_local_pos
                                                         // as allocated object.
