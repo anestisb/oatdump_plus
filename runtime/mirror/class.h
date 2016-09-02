@@ -598,6 +598,10 @@ class MANAGED Class FINAL : public Object {
 
   void SetObjectSizeAllocFastPath(uint32_t new_object_size) REQUIRES_SHARED(Locks::mutator_lock_);
 
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
+           ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
+  uint32_t GetObjectSizeAllocFastPath() REQUIRES_SHARED(Locks::mutator_lock_);
+
   void SetObjectSizeWithoutChecks(uint32_t new_object_size)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     // Not called within a transaction.
@@ -1462,7 +1466,7 @@ class MANAGED Class FINAL : public Object {
   // See also class_size_.
   uint32_t object_size_;
 
-  // Aligned object size for allocation fast path. The value is max int if the object is
+  // Aligned object size for allocation fast path. The value is max uint32_t if the object is
   // uninitialized or finalizable. Not currently used for variable sized objects.
   uint32_t object_size_alloc_fast_path_;
 
