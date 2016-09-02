@@ -159,7 +159,7 @@ class MethodVerifier {
                                  const DexFile* dex_file,
                                  Handle<mirror::DexCache> dex_cache,
                                  Handle<mirror::ClassLoader> class_loader,
-                                 const DexFile::ClassDef* class_def,
+                                 const DexFile::ClassDef& class_def,
                                  CompilerCallbacks* callbacks,
                                  bool allow_soft_failures,
                                  LogSeverity log_level,
@@ -172,7 +172,7 @@ class MethodVerifier {
                                              const DexFile* dex_file,
                                              Handle<mirror::DexCache> dex_cache,
                                              Handle<mirror::ClassLoader> class_loader,
-                                             const DexFile::ClassDef* class_def,
+                                             const DexFile::ClassDef& class_def,
                                              const DexFile::CodeItem* code_item, ArtMethod* method,
                                              uint32_t method_access_flags)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -283,7 +283,7 @@ class MethodVerifier {
                  const DexFile* dex_file,
                  Handle<mirror::DexCache> dex_cache,
                  Handle<mirror::ClassLoader> class_loader,
-                 const DexFile::ClassDef* class_def,
+                 const DexFile::ClassDef& class_def,
                  const DexFile::CodeItem* code_item,
                  uint32_t method_idx,
                  ArtMethod* method,
@@ -330,7 +330,7 @@ class MethodVerifier {
   static FailureData VerifyMethods(Thread* self,
                                    ClassLinker* linker,
                                    const DexFile* dex_file,
-                                   const DexFile::ClassDef* class_def,
+                                   const DexFile::ClassDef& class_def,
                                    ClassDataItemIterator* it,
                                    Handle<mirror::DexCache> dex_cache,
                                    Handle<mirror::ClassLoader> class_loader,
@@ -356,7 +356,7 @@ class MethodVerifier {
                                   const DexFile* dex_file,
                                   Handle<mirror::DexCache> dex_cache,
                                   Handle<mirror::ClassLoader> class_loader,
-                                  const DexFile::ClassDef* class_def_idx,
+                                  const DexFile::ClassDef& class_def_idx,
                                   const DexFile::CodeItem* code_item,
                                   ArtMethod* method,
                                   uint32_t method_access_flags,
@@ -759,7 +759,7 @@ class MethodVerifier {
   Handle<mirror::DexCache> dex_cache_ GUARDED_BY(Locks::mutator_lock_);
   // The class loader for the declaring class of the method.
   Handle<mirror::ClassLoader> class_loader_ GUARDED_BY(Locks::mutator_lock_);
-  const DexFile::ClassDef* const class_def_;  // The class def of the declaring class of the method.
+  const DexFile::ClassDef& class_def_;  // The class def of the declaring class of the method.
   const DexFile::CodeItem* const code_item_;  // The code item containing the code for the method.
   const RegType* declaring_class_;  // Lazily computed reg type of the method's declaring class.
   // Instruction widths and flags, one entry per code unit.

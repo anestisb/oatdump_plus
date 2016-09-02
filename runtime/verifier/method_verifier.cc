@@ -159,7 +159,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
                      &dex_file,
                      dex_cache,
                      class_loader,
-                     class_def,
+                     *class_def,
                      callbacks,
                      allow_soft_failures,
                      log_level,
@@ -190,7 +190,7 @@ template <bool kDirect>
 MethodVerifier::FailureData MethodVerifier::VerifyMethods(Thread* self,
                                                           ClassLinker* linker,
                                                           const DexFile* dex_file,
-                                                          const DexFile::ClassDef* class_def,
+                                                          const DexFile::ClassDef& class_def,
                                                           ClassDataItemIterator* it,
                                                           Handle<mirror::DexCache> dex_cache,
                                                           Handle<mirror::ClassLoader> class_loader,
@@ -214,7 +214,7 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethods(Thread* self,
       continue;
     }
     previous_method_idx = method_idx;
-    InvokeType type = it->GetMethodInvokeType(*class_def);
+    InvokeType type = it->GetMethodInvokeType(class_def);
     ArtMethod* method = linker->ResolveMethod<ClassLinker::kNoICCECheckForCache>(
         *dex_file, method_idx, dex_cache, class_loader, nullptr, type);
     if (method == nullptr) {
@@ -247,7 +247,7 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethods(Thread* self,
       } else {
         // If we didn't log a hard failure before, print the header of the message.
         *error_string += "Verifier rejected class ";
-        *error_string += PrettyDescriptor(dex_file->GetClassDescriptor(*class_def));
+        *error_string += PrettyDescriptor(dex_file->GetClassDescriptor(class_def));
         *error_string += ":";
       }
       *error_string += " ";
@@ -264,23 +264,22 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
                                                         const DexFile* dex_file,
                                                         Handle<mirror::DexCache> dex_cache,
                                                         Handle<mirror::ClassLoader> class_loader,
-                                                        const DexFile::ClassDef* class_def,
+                                                        const DexFile::ClassDef& class_def,
                                                         CompilerCallbacks* callbacks,
                                                         bool allow_soft_failures,
                                                         LogSeverity log_level,
                                                         std::string* error) {
-  DCHECK(class_def != nullptr);
   ScopedTrace trace(__FUNCTION__);
 
   // A class must not be abstract and final.
-  if ((class_def->access_flags_ & (kAccAbstract | kAccFinal)) == (kAccAbstract | kAccFinal)) {
+  if ((class_def.access_flags_ & (kAccAbstract | kAccFinal)) == (kAccAbstract | kAccFinal)) {
     *error = "Verifier rejected class ";
-    *error += PrettyDescriptor(dex_file->GetClassDescriptor(*class_def));
+    *error += PrettyDescriptor(dex_file->GetClassDescriptor(class_def));
     *error += ": class is abstract and final.";
     return kHardFailure;
   }
 
-  const uint8_t* class_data = dex_file->GetClassData(*class_def);
+  const uint8_t* class_data = dex_file->GetClassData(class_def);
   if (class_data == nullptr) {
     // empty class, probably a marker interface
     return kNoFailure;
@@ -327,7 +326,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
       // warning.
       std::string tmp =
           StringPrintf("Class %s failed lock verification and will run slower.",
-                       PrettyDescriptor(dex_file->GetClassDescriptor(*class_def)).c_str());
+                       PrettyDescriptor(dex_file->GetClassDescriptor(class_def)).c_str());
       if (!gPrintedDxMonitorText) {
         tmp = tmp + "\nCommon causes for lock verification issues are non-optimized dex code\n"
                     "and incorrect proguard optimizations.";
@@ -355,7 +354,7 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
                                                          const DexFile* dex_file,
                                                          Handle<mirror::DexCache> dex_cache,
                                                          Handle<mirror::ClassLoader> class_loader,
-                                                         const DexFile::ClassDef* class_def,
+                                                         const DexFile::ClassDef& class_def,
                                                          const DexFile::CodeItem* code_item,
                                                          ArtMethod* method,
                                                          uint32_t method_access_flags,
@@ -436,7 +435,7 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
 
       if (callbacks != nullptr) {
         // Let the interested party know that we failed the class.
-        ClassReference ref(dex_file, dex_file->GetIndexForClassDef(*class_def));
+        ClassReference ref(dex_file, dex_file->GetIndexForClassDef(class_def));
         callbacks->ClassRejected(ref);
       }
     }
@@ -463,7 +462,7 @@ MethodVerifier* MethodVerifier::VerifyMethodAndDump(Thread* self,
                                                     const DexFile* dex_file,
                                                     Handle<mirror::DexCache> dex_cache,
                                                     Handle<mirror::ClassLoader> class_loader,
-                                                    const DexFile::ClassDef* class_def,
+                                                    const DexFile::ClassDef& class_def,
                                                     const DexFile::CodeItem* code_item,
                                                     ArtMethod* method,
                                                     uint32_t method_access_flags) {
@@ -499,7 +498,7 @@ MethodVerifier::MethodVerifier(Thread* self,
                                const DexFile* dex_file,
                                Handle<mirror::DexCache> dex_cache,
                                Handle<mirror::ClassLoader> class_loader,
-                               const DexFile::ClassDef* class_def,
+                               const DexFile::ClassDef& class_def,
                                const DexFile::CodeItem* code_item,
                                uint32_t dex_method_idx,
                                ArtMethod* method,
@@ -544,7 +543,6 @@ MethodVerifier::MethodVerifier(Thread* self,
       is_constructor_(false),
       link_(nullptr) {
   self->PushVerifier(this);
-  DCHECK(class_def != nullptr);
 }
 
 MethodVerifier::~MethodVerifier() {
@@ -561,7 +559,7 @@ void MethodVerifier::FindLocksAtDexPc(ArtMethod* m, uint32_t dex_pc,
                           m->GetDexFile(),
                           dex_cache,
                           class_loader,
-                          &m->GetClassDef(),
+                          m->GetClassDef(),
                           m->GetCodeItem(),
                           m->GetDexMethodIndex(),
                           m,
@@ -616,7 +614,7 @@ ArtField* MethodVerifier::FindAccessedFieldAtDexPc(ArtMethod* m, uint32_t dex_pc
                           m->GetDexFile(),
                           dex_cache,
                           class_loader,
-                          &m->GetClassDef(),
+                          m->GetClassDef(),
                           m->GetCodeItem(),
                           m->GetDexMethodIndex(),
                           m,
@@ -656,7 +654,7 @@ ArtMethod* MethodVerifier::FindInvokedMethodAtDexPc(ArtMethod* m, uint32_t dex_p
                           m->GetDexFile(),
                           dex_cache,
                           class_loader,
-                          &m->GetClassDef(),
+                          m->GetClassDef(),
                           m->GetCodeItem(),
                           m->GetDexMethodIndex(),
                           m,
@@ -761,7 +759,7 @@ bool MethodVerifier::Verify() {
           return false;
         }
       }
-      if ((class_def_->GetJavaAccessFlags() & kAccInterface) != 0) {
+      if ((class_def_.GetJavaAccessFlags() & kAccInterface) != 0) {
         // Interface methods must be public and abstract (if default methods are disabled).
         uint32_t kRequired = kAccPublic;
         if ((method_access_flags_ & kRequired) != kRequired) {
@@ -792,7 +790,7 @@ bool MethodVerifier::Verify() {
       return false;
     }
 
-    if ((class_def_->GetJavaAccessFlags() & kAccInterface) != 0) {
+    if ((class_def_.GetJavaAccessFlags() & kAccInterface) != 0) {
       // Interfaces may always have static initializers for their fields. If we are running with
       // default methods enabled we also allow other public, static, non-final methods to have code.
       // Otherwise that is the only type of method allowed.
@@ -4023,7 +4021,7 @@ ArtMethod* MethodVerifier::VerifyInvocationArgs(
     }
     if (reference_class->IsInterface()) {
       // TODO Can we verify anything else.
-      if (class_idx == class_def_->class_idx_) {
+      if (class_idx == class_def_.class_idx_) {
         Fail(VERIFY_ERROR_CLASS_CHANGE) << "Cannot invoke-super on self as interface";
         return nullptr;
       }
