@@ -234,5 +234,11 @@
   modes: [device],
   names: ["libcore.java.lang.ProcessBuilderTest#testRedirectInherit",
           "libcore.java.lang.ProcessBuilderTest#testRedirect_nullStreams"]
+},
+{
+  description: "Sometimes timeouts",
+  result: EXEC_FAILED,
+  bug: 31258002,
+  names: ["libcore.net.NetworkSecurityPolicyTest#testCleartextTrafficPolicyWithJarHttpURLConnection"]
 }
 ]
