@@ -59,6 +59,38 @@ static void AddToListForLinearization(ArenaVector<HBasicBlock*>* worklist, HBasi
   worklist->insert(insert_pos.base(), block);
 }
 
+static bool IsLinearOrderWellFormed(const HGraph& graph) {
+  for (HBasicBlock* header : graph.GetBlocks()) {
+    if (header == nullptr || !header->IsLoopHeader()) {
+      continue;
+    }
+
+    HLoopInformation* loop = header->GetLoopInformation();
+    size_t num_blocks = loop->GetBlocks().NumSetBits();
+    size_t found_blocks = 0u;
+
+    for (HLinearOrderIterator it(graph); !it.Done(); it.Advance()) {
+      HBasicBlock* current = it.Current();
+      if (loop->Contains(*current)) {
+        found_blocks++;
+        if (found_blocks == 1u && current != header) {
+          // First block is not the header.
+          return false;
+        } else if (found_blocks == num_blocks && !loop->IsBackEdge(*current)) {
+          // Last block is not a back edge.
+          return false;
+        }
+      } else if (found_blocks != 0u && found_blocks != num_blocks) {
+        // Blocks are not adjacent.
+        return false;
+      }
+    }
+    DCHECK_EQ(found_blocks, num_blocks);
+  }
+
+  return true;
+}
+
 void SsaLivenessAnalysis::LinearizeGraph() {
   // Create a reverse post ordering with the following properties:
   // - Blocks in a loop are consecutive,
@@ -100,6 +132,8 @@ void SsaLivenessAnalysis::LinearizeGraph() {
       forward_predecessors[block_id] = number_of_remaining_predecessors - 1;
     }
   } while (!worklist.empty());
+
+  DCHECK(graph_->HasIrreducibleLoops() || IsLinearOrderWellFormed(*graph_));
 }
 
 void SsaLivenessAnalysis::NumberInstructions() {
