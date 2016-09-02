@@ -25,8 +25,16 @@ namespace art {
 namespace x86_64 {
 
 constexpr size_t kFramePointerSize = static_cast<size_t>(PointerSize::k64);
-
 static_assert(kX86_64PointerSize == PointerSize::k64, "Unexpected x86_64 pointer size");
+static_assert(kStackAlignment >= 16u, "System V AMD64 ABI requires at least 16 byte stack alignment");
+
+// XMM0..XMM7 can be used to pass the first 8 floating args. The rest must go on the stack.
+// -- Managed and JNI calling conventions.
+constexpr size_t kMaxFloatOrDoubleRegisterArguments = 8u;
+// Up to how many integer-like (pointers, objects, longs, int, short, bool, etc) args can be
+// enregistered. The rest of the args must go on the stack.
+// -- JNI calling convention only (Managed excludes RDI, so it's actually 5).
+constexpr size_t kMaxIntLikeRegisterArguments = 6u;
 
 static constexpr ManagedRegister kCalleeSaveRegisters[] = {
     // Core registers.
@@ -130,7 +138,7 @@ ManagedRegister X86_64ManagedRuntimeCallingConvention::CurrentParamRegister() {
     case 3: res = X86_64ManagedRegister::FromCpuRegister(R8); break;
     case 4: res = X86_64ManagedRegister::FromCpuRegister(R9); break;
     }
-  } else if (itr_float_and_doubles_ < 8) {
+  } else if (itr_float_and_doubles_ < kMaxFloatOrDoubleRegisterArguments) {
     // First eight float parameters are passed via XMM0..XMM7
     res = X86_64ManagedRegister::FromXmmRegister(
                                  static_cast<FloatRegister>(XMM0 + itr_float_and_doubles_));
@@ -165,9 +173,15 @@ const ManagedRegisterEntrySpills& X86_64ManagedRuntimeCallingConvention::EntrySp
 
 // JNI calling convention
 
-X86_64JniCallingConvention::X86_64JniCallingConvention(bool is_static, bool is_synchronized,
+X86_64JniCallingConvention::X86_64JniCallingConvention(bool is_static,
+                                                       bool is_synchronized,
+                                                       bool is_critical_native,
                                                        const char* shorty)
-    : JniCallingConvention(is_static, is_synchronized, shorty, kX86_64PointerSize) {
+    : JniCallingConvention(is_static,
+                           is_synchronized,
+                           is_critical_native,
+                           shorty,
+                           kX86_64PointerSize) {
 }
 
 uint32_t X86_64JniCallingConvention::CoreSpillMask() const {
@@ -179,13 +193,30 @@ uint32_t X86_64JniCallingConvention::FpSpillMask() const {
 }
 
 size_t X86_64JniCallingConvention::FrameSize() {
-  // Method*, return address and callee save area size, local reference segment state
-  size_t frame_data_size = static_cast<size_t>(kX86_64PointerSize) +
-      (2 + CalleeSaveRegisters().size()) * kFramePointerSize;
+  // Method*, PC return address and callee save area size, local reference segment state
+  const size_t method_ptr_size = static_cast<size_t>(kX86_64PointerSize);
+  const size_t pc_return_addr_size = kFramePointerSize;
+  const size_t callee_save_area_size = CalleeSaveRegisters().size() * kFramePointerSize;
+  size_t frame_data_size = method_ptr_size + pc_return_addr_size + callee_save_area_size;
+
+  if (LIKELY(HasLocalReferenceSegmentState())) {                     // local ref. segment state
+    // Local reference segment state is sometimes excluded.
+    frame_data_size += kFramePointerSize;
+  }
+
   // References plus link_ (pointer) and number_of_references_ (uint32_t) for HandleScope header
-  size_t handle_scope_size = HandleScope::SizeOf(kX86_64PointerSize, ReferenceCount());
+  const size_t handle_scope_size = HandleScope::SizeOf(kX86_64PointerSize, ReferenceCount());
+
+  size_t total_size = frame_data_size;
+  if (LIKELY(HasHandleScope())) {
+    // HandleScope is sometimes excluded.
+    total_size += handle_scope_size;                                 // handle scope size
+  }
+
   // Plus return value spill area size
-  return RoundUp(frame_data_size + handle_scope_size + SizeOfReturnValue(), kStackAlignment);
+  total_size += SizeOfReturnValue();
+
+  return RoundUp(total_size, kStackAlignment);
 }
 
 size_t X86_64JniCallingConvention::OutArgSize() {
@@ -214,8 +245,9 @@ ManagedRegister X86_64JniCallingConvention::CurrentParamRegister() {
     case 3: res = X86_64ManagedRegister::FromCpuRegister(RCX); break;
     case 4: res = X86_64ManagedRegister::FromCpuRegister(R8); break;
     case 5: res = X86_64ManagedRegister::FromCpuRegister(R9); break;
+    static_assert(5u == kMaxIntLikeRegisterArguments - 1, "Missing case statement(s)");
     }
-  } else if (itr_float_and_doubles_ < 8) {
+  } else if (itr_float_and_doubles_ < kMaxFloatOrDoubleRegisterArguments) {
     // First eight float parameters are passed via XMM0..XMM7
     res = X86_64ManagedRegister::FromXmmRegister(
                                  static_cast<FloatRegister>(XMM0 + itr_float_and_doubles_));
@@ -224,24 +256,35 @@ ManagedRegister X86_64JniCallingConvention::CurrentParamRegister() {
 }
 
 FrameOffset X86_64JniCallingConvention::CurrentParamStackOffset() {
-  size_t offset = itr_args_
-      - std::min(8U, itr_float_and_doubles_)               // Float arguments passed through Xmm0..Xmm7
-      - std::min(6U, itr_args_ - itr_float_and_doubles_);  // Integer arguments passed through GPR
-  return FrameOffset(displacement_.Int32Value() - OutArgSize() + (offset * kFramePointerSize));
+  CHECK(IsCurrentParamOnStack());
+  size_t args_on_stack = itr_args_
+      - std::min(kMaxFloatOrDoubleRegisterArguments,
+                 static_cast<size_t>(itr_float_and_doubles_))
+          // Float arguments passed through Xmm0..Xmm7
+      - std::min(kMaxIntLikeRegisterArguments,
+                 static_cast<size_t>(itr_args_ - itr_float_and_doubles_));
+          // Integer arguments passed through GPR
+  size_t offset = displacement_.Int32Value() - OutArgSize() + (args_on_stack * kFramePointerSize);
+  CHECK_LT(offset, OutArgSize());
+  return FrameOffset(offset);
 }
 
+// TODO: Calling this "NumberArgs" is misleading.
+// It's really more like NumberSlots (like itr_slots_)
+// because doubles/longs get counted twice.
 size_t X86_64JniCallingConvention::NumberOfOutgoingStackArgs() {
-  size_t static_args = IsStatic() ? 1 : 0;  // count jclass
+  size_t static_args = HasSelfClass() ? 1 : 0;  // count jclass
   // regular argument parameters and this
   size_t param_args = NumArgs() + NumLongOrDoubleArgs();
   // count JNIEnv* and return pc (pushed after Method*)
-  size_t total_args = static_args + param_args + 2;
+  size_t internal_args = 1 /* return pc */ + (HasJniEnv() ? 1 : 0 /* jni env */);
+  size_t total_args = static_args + param_args + internal_args;
 
   // Float arguments passed through Xmm0..Xmm7
   // Other (integer) arguments passed through GPR (RDI, RSI, RDX, RCX, R8, R9)
   size_t total_stack_args = total_args
-                            - std::min(8U, static_cast<unsigned int>(NumFloatOrDoubleArgs()))
-                            - std::min(6U, static_cast<unsigned int>(NumArgs() - NumFloatOrDoubleArgs()));
+                            - std::min(kMaxFloatOrDoubleRegisterArguments, static_cast<size_t>(NumFloatOrDoubleArgs()))
+                            - std::min(kMaxIntLikeRegisterArguments, static_cast<size_t>(NumArgs() - NumFloatOrDoubleArgs()));
 
   return total_stack_args;
 }

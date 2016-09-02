@@ -24,21 +24,43 @@ namespace arm {
 
 static_assert(kArmPointerSize == PointerSize::k32, "Unexpected ARM pointer size");
 
-// Used by hard float.
+//
+// JNI calling convention constants.
+//
+
+// List of parameters passed via registers for JNI.
+// JNI uses soft-float, so there is only a GPR list.
+static const Register kJniArgumentRegisters[] = {
+  R0, R1, R2, R3
+};
+
+static const size_t kJniArgumentRegisterCount = arraysize(kJniArgumentRegisters);
+
+//
+// Managed calling convention constants.
+//
+
+// Used by hard float. (General purpose registers.)
 static const Register kHFCoreArgumentRegisters[] = {
   R0, R1, R2, R3
 };
 
+// (VFP single-precision registers.)
 static const SRegister kHFSArgumentRegisters[] = {
   S0, S1, S2, S3, S4, S5, S6, S7, S8, S9, S10, S11, S12, S13, S14, S15
 };
 
+// (VFP double-precision registers.)
 static const DRegister kHFDArgumentRegisters[] = {
   D0, D1, D2, D3, D4, D5, D6, D7
 };
 
 static_assert(arraysize(kHFDArgumentRegisters) * 2 == arraysize(kHFSArgumentRegisters),
     "ks d argument registers mismatch");
+
+//
+// Shared managed+JNI calling convention constants.
+//
 
 static constexpr ManagedRegister kCalleeSaveRegisters[] = {
     // Core registers.
@@ -255,23 +277,95 @@ const ManagedRegisterEntrySpills& ArmManagedRuntimeCallingConvention::EntrySpill
 }
 // JNI calling convention
 
-ArmJniCallingConvention::ArmJniCallingConvention(bool is_static, bool is_synchronized,
+ArmJniCallingConvention::ArmJniCallingConvention(bool is_static,
+                                                 bool is_synchronized,
+                                                 bool is_critical_native,
                                                  const char* shorty)
-    : JniCallingConvention(is_static, is_synchronized, shorty, kArmPointerSize) {
-  // Compute padding to ensure longs and doubles are not split in AAPCS. Ignore the 'this' jobject
-  // or jclass for static methods and the JNIEnv. We start at the aligned register r2.
-  size_t padding = 0;
-  for (size_t cur_arg = IsStatic() ? 0 : 1, cur_reg = 2; cur_arg < NumArgs(); cur_arg++) {
+    : JniCallingConvention(is_static,
+                           is_synchronized,
+                           is_critical_native,
+                           shorty,
+                           kArmPointerSize) {
+  // AAPCS 4.1 specifies fundamental alignments for each type. All of our stack arguments are
+  // usually 4-byte aligned, however longs and doubles must be 8 bytes aligned. Add padding to
+  // maintain 8-byte alignment invariant.
+  //
+  // Compute padding to ensure longs and doubles are not split in AAPCS.
+  size_t shift = 0;
+
+  size_t cur_arg, cur_reg;
+  if (LIKELY(HasExtraArgumentsForJni())) {
+    // Ignore the 'this' jobject or jclass for static methods and the JNIEnv.
+    // We start at the aligned register r2.
+    //
+    // Ignore the first 2 parameters because they are guaranteed to be aligned.
+    cur_arg = NumImplicitArgs();  // skip the "this" arg.
+    cur_reg = 2;  // skip {r0=JNIEnv, r1=jobject} / {r0=JNIEnv, r1=jclass} parameters (start at r2).
+  } else {
+    // Check every parameter.
+    cur_arg = 0;
+    cur_reg = 0;
+  }
+
+  // TODO: Maybe should just use IsCurrentParamALongOrDouble instead to be cleaner?
+  // (this just seems like an unnecessary micro-optimization).
+
+  // Shift across a logical register mapping that looks like:
+  //
+  //   | r0 | r1 | r2 | r3 | SP | SP+4| SP+8 | SP+12 | ... | SP+n | SP+n+4 |
+  //
+  //   (where SP is some arbitrary stack pointer that our 0th stack arg would go into).
+  //
+  // Any time there would normally be a long/double in an odd logical register,
+  // we have to push out the rest of the mappings by 4 bytes to maintain an 8-byte alignment.
+  //
+  // This works for both physical register pairs {r0, r1}, {r2, r3} and for when
+  // the value is on the stack.
+  //
+  // For example:
+  // (a) long would normally go into r1, but we shift it into r2
+  //  | INT | (PAD) | LONG      |
+  //  | r0  |  r1   |  r2  | r3 |
+  //
+  // (b) long would normally go into r3, but we shift it into SP
+  //  | INT | INT | INT | (PAD) | LONG     |
+  //  | r0  |  r1 |  r2 |  r3   | SP+4 SP+8|
+  //
+  // where INT is any <=4 byte arg, and LONG is any 8-byte arg.
+  for (; cur_arg < NumArgs(); cur_arg++) {
     if (IsParamALongOrDouble(cur_arg)) {
-      if ((cur_reg & 1) != 0) {
-        padding += 4;
+      if ((cur_reg & 1) != 0) {  // check that it's in a logical contiguous register pair
+        shift += 4;
         cur_reg++;  // additional bump to ensure alignment
       }
-      cur_reg++;  // additional bump to skip extra long word
+      cur_reg += 2;  // bump the iterator twice for every long argument
+    } else {
+      cur_reg++;  // bump the iterator for every non-long argument
     }
-    cur_reg++;  // bump the iterator for every argument
   }
-  padding_ = padding;
+
+  if (cur_reg < kJniArgumentRegisterCount) {
+    // As a special case when, as a result of shifting (or not) there are no arguments on the stack,
+    // we actually have 0 stack padding.
+    //
+    // For example with @CriticalNative and:
+    // (int, long) -> shifts the long but doesn't need to pad the stack
+    //
+    //          shift
+    //           \/
+    //  | INT | (PAD) | LONG      | (EMPTY) ...
+    //  | r0  |  r1   |  r2  | r3 |   SP    ...
+    //                                /\
+    //                          no stack padding
+    padding_ = 0;
+  } else {
+    padding_ = shift;
+  }
+
+  // TODO: add some new JNI tests for @CriticalNative that introduced new edge cases
+  // (a) Using r0,r1 pair = f(long,...)
+  // (b) Shifting r1 long into r2,r3 pair = f(int, long, int, ...);
+  // (c) Shifting but not introducing a stack padding = f(int, long);
 }
 
 uint32_t ArmJniCallingConvention::CoreSpillMask() const {
@@ -289,15 +383,34 @@ ManagedRegister ArmJniCallingConvention::ReturnScratchRegister() const {
 
 size_t ArmJniCallingConvention::FrameSize() {
   // Method*, LR and callee save area size, local reference segment state
-  size_t frame_data_size = static_cast<size_t>(kArmPointerSize)
-      + (2 + CalleeSaveRegisters().size()) * kFramePointerSize;
-  // References plus 2 words for HandleScope header
-  size_t handle_scope_size = HandleScope::SizeOf(kArmPointerSize, ReferenceCount());
+  const size_t method_ptr_size = static_cast<size_t>(kArmPointerSize);
+  const size_t lr_return_addr_size = kFramePointerSize;
+  const size_t callee_save_area_size = CalleeSaveRegisters().size() * kFramePointerSize;
+  size_t frame_data_size = method_ptr_size + lr_return_addr_size + callee_save_area_size;
+
+  if (LIKELY(HasLocalReferenceSegmentState())) {
+    // local reference segment state
+    frame_data_size += kFramePointerSize;
+    // TODO: Probably better to use sizeof(IRTSegmentState) here...
+  }
+
+  // References plus link_ (pointer) and number_of_references_ (uint32_t) for HandleScope header
+  const size_t handle_scope_size = HandleScope::SizeOf(kArmPointerSize, ReferenceCount());
+
+  size_t total_size = frame_data_size;
+  if (LIKELY(HasHandleScope())) {
+    // HandleScope is sometimes excluded.
+    total_size += handle_scope_size;                                 // handle scope size
+  }
+
   // Plus return value spill area size
-  return RoundUp(frame_data_size + handle_scope_size + SizeOfReturnValue(), kStackAlignment);
+  total_size += SizeOfReturnValue();
+
+  return RoundUp(total_size, kStackAlignment);
 }
 
 size_t ArmJniCallingConvention::OutArgSize() {
+  // TODO: Identical to x86_64 except for also adding additional padding.
   return RoundUp(NumberOfOutgoingStackArgs() * kFramePointerSize + padding_,
                  kStackAlignment);
 }
@@ -309,55 +422,70 @@ ArrayRef<const ManagedRegister> ArmJniCallingConvention::CalleeSaveRegisters() c
 // JniCallingConvention ABI follows AAPCS where longs and doubles must occur
 // in even register numbers and stack slots
 void ArmJniCallingConvention::Next() {
+  // Update the iterator by usual JNI rules.
   JniCallingConvention::Next();
-  size_t arg_pos = itr_args_ - NumberOfExtraArgumentsForJni();
-  if ((itr_args_ >= 2) &&
-      (arg_pos < NumArgs()) &&
-      IsParamALongOrDouble(arg_pos)) {
-    // itr_slots_ needs to be an even number, according to AAPCS.
-    if ((itr_slots_ & 0x1u) != 0) {
+
+  if (LIKELY(HasNext())) {  // Avoid CHECK failure for IsCurrentParam
+    // Ensure slot is 8-byte aligned for longs/doubles (AAPCS).
+    if (IsCurrentParamALongOrDouble() && ((itr_slots_ & 0x1u) != 0)) {
+      // itr_slots_ needs to be an even number, according to AAPCS.
       itr_slots_++;
     }
   }
 }
 
 bool ArmJniCallingConvention::IsCurrentParamInRegister() {
-  return itr_slots_ < 4;
+  return itr_slots_ < kJniArgumentRegisterCount;
 }
 
 bool ArmJniCallingConvention::IsCurrentParamOnStack() {
   return !IsCurrentParamInRegister();
 }
 
-static const Register kJniArgumentRegisters[] = {
-  R0, R1, R2, R3
-};
 ManagedRegister ArmJniCallingConvention::CurrentParamRegister() {
-  CHECK_LT(itr_slots_, 4u);
-  int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni();
-  if ((itr_args_ >= 2) && IsParamALongOrDouble(arg_pos)) {
-    CHECK_EQ(itr_slots_, 2u);
-    return ArmManagedRegister::FromRegisterPair(R2_R3);
+  CHECK_LT(itr_slots_, kJniArgumentRegisterCount);
+  if (IsCurrentParamALongOrDouble()) {
+    // AAPCS 5.1.1 requires 64-bit values to be in a consecutive register pair:
+    // "A double-word sized type is passed in two consecutive registers (e.g., r0 and r1, or r2 and
+    // r3). The content of the registers is as if the value had been loaded from memory
+    // representation with a single LDM instruction."
+    if (itr_slots_ == 0u) {
+      return ArmManagedRegister::FromRegisterPair(R0_R1);
+    } else if (itr_slots_ == 2u) {
+      return ArmManagedRegister::FromRegisterPair(R2_R3);
+    } else {
+      // The register can either be R0 (+R1) or R2 (+R3). Cannot be other values.
+      LOG(FATAL) << "Invalid iterator register position for a long/double " << itr_args_;
+      UNREACHABLE();
+    }
   } else {
-    return
-      ArmManagedRegister::FromCoreRegister(kJniArgumentRegisters[itr_slots_]);
+    // All other types can fit into one register.
+    return ArmManagedRegister::FromCoreRegister(kJniArgumentRegisters[itr_slots_]);
   }
 }
 
 FrameOffset ArmJniCallingConvention::CurrentParamStackOffset() {
-  CHECK_GE(itr_slots_, 4u);
+  CHECK_GE(itr_slots_, kJniArgumentRegisterCount);
   size_t offset =
-      displacement_.Int32Value() - OutArgSize() + ((itr_slots_ - 4) * kFramePointerSize);
+      displacement_.Int32Value()
+          - OutArgSize()
+          + ((itr_slots_ - kJniArgumentRegisterCount) * kFramePointerSize);
   CHECK_LT(offset, OutArgSize());
   return FrameOffset(offset);
 }
 
 size_t ArmJniCallingConvention::NumberOfOutgoingStackArgs() {
-  size_t static_args = IsStatic() ? 1 : 0;  // count jclass
+  size_t static_args = HasSelfClass() ? 1 : 0;  // count jclass
   // regular argument parameters and this
-  size_t param_args = NumArgs() + NumLongOrDoubleArgs();
+  size_t param_args = NumArgs() + NumLongOrDoubleArgs();  // twice count 8-byte args
+  // XX: Why is the long/ordouble counted twice but not JNIEnv* ???
   // count JNIEnv* less arguments in registers
-  return static_args + param_args + 1 - 4;
+  size_t internal_args = (HasJniEnv() ? 1 : 0 /* jni env */);
+  size_t total_args = static_args + param_args + internal_args;
+
+  return total_args - std::min(kJniArgumentRegisterCount, static_cast<size_t>(total_args));
+
+  // TODO: Very similar to x86_64 except for the return pc.
 }
 
 }  // namespace arm
