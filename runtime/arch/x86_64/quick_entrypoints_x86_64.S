@@ -935,17 +935,6 @@ DEFINE_FUNCTION art_quick_alloc_object_rosalloc
     movl   0(%rdx, %rdi, COMPRESSED_REFERENCE_SIZE), %edx
     testl  %edx, %edx                                      // Check null class
     jz     .Lart_quick_alloc_object_rosalloc_slow_path
-                                                           // Check class status.
-    cmpl   LITERAL(MIRROR_CLASS_STATUS_INITIALIZED), MIRROR_CLASS_STATUS_OFFSET(%rdx)
-    jne    .Lart_quick_alloc_object_rosalloc_slow_path
-                                                           // We don't need a fence (between the
-                                                           // the status and the access flag
-                                                           // loads) here because every load is
-                                                           // a load acquire on x86.
-                                                           // Check access flags has
-                                                           // kAccClassIsFinalizable
-    testl  LITERAL(ACCESS_FLAGS_CLASS_IS_FINALIZABLE), MIRROR_CLASS_ACCESS_FLAGS_OFFSET(%rdx)
-    jnz    .Lart_quick_alloc_object_rosalloc_slow_path
                                                            // Check if the thread local
                                                            // allocation stack has room.
     movq   %gs:THREAD_SELF_OFFSET, %r8                     // r8 = thread
@@ -953,22 +942,21 @@ DEFINE_FUNCTION art_quick_alloc_object_rosalloc
     cmpq   THREAD_LOCAL_ALLOC_STACK_END_OFFSET(%r8), %rcx
     jae    .Lart_quick_alloc_object_rosalloc_slow_path
                                                            // Load the object size
-    movl   MIRROR_CLASS_OBJECT_SIZE_OFFSET(%rdx), %eax
+    movl   MIRROR_CLASS_OBJECT_SIZE_ALLOC_FAST_PATH_OFFSET(%rdx), %eax
                                                            // Check if the size is for a thread
-                                                           // local allocation
+                                                           // local allocation. Also does the
+                                                           // initialized and finalizable checks.
     cmpl   LITERAL(ROSALLOC_MAX_THREAD_LOCAL_BRACKET_SIZE), %eax
     ja     .Lart_quick_alloc_object_rosalloc_slow_path
                                                            // Compute the rosalloc bracket index
                                                            // from the size.
-                                                           // Align up the size by the rosalloc
-                                                           // bracket quantum size and divide
-                                                           // by the quantum size and subtract
-                                                           // by 1. This code is a shorter but
-                                                           // equivalent version.
-    subq   LITERAL(1), %rax
     shrq   LITERAL(ROSALLOC_BRACKET_QUANTUM_SIZE_SHIFT), %rax
                                                            // Load the rosalloc run (r9)
-    movq   THREAD_ROSALLOC_RUNS_OFFSET(%r8, %rax, __SIZEOF_POINTER__), %r9
+                                                           // Subtract __SIZEOF_POINTER__ to
+                                                           // subtract one from edi as there is no
+                                                           // 0 byte run and the size is already
+                                                           // aligned.
+    movq   (THREAD_ROSALLOC_RUNS_OFFSET - __SIZEOF_POINTER__)(%r8, %rax, __SIZEOF_POINTER__), %r9
                                                            // Load the free list head (rax). This
                                                            // will be the return val.
     movq   (ROSALLOC_RUN_FREE_LIST_OFFSET + ROSALLOC_RUN_FREE_LIST_HEAD_OFFSET)(%r9), %rax
