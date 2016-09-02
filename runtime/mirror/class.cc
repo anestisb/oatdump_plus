@@ -109,12 +109,11 @@ void Class::SetStatus(Handle<Class> h_this, Status new_status, Thread* self) {
   // alloc path sees a valid object size, we would know that it's initialized as long as it has a
   // load-acquire/fake dependency.
   if (new_status == kStatusInitialized && !h_this->IsVariableSize()) {
-    uint32_t object_size = RoundUp(h_this->GetObjectSize(), kObjectAlignment);
-    if (h_this->IsFinalizable()) {
-      // Finalizable objects must always go slow path.
-      object_size = std::numeric_limits<int32_t>::max();
+    DCHECK_EQ(h_this->GetObjectSizeAllocFastPath(), std::numeric_limits<uint32_t>::max());
+    // Finalizable objects must always go slow path.
+    if (!h_this->IsFinalizable()) {
+      h_this->SetObjectSizeAllocFastPath(RoundUp(h_this->GetObjectSize(), kObjectAlignment));
     }
-    h_this->SetObjectSizeAllocFastPath(object_size);
   }
 
   if (!class_linker_initialized) {
@@ -149,7 +148,7 @@ void Class::SetClassSize(uint32_t new_class_size) {
   if (kIsDebugBuild && new_class_size < GetClassSize()) {
     DumpClass(LOG(INTERNAL_FATAL), kDumpClassFullDetail);
     LOG(INTERNAL_FATAL) << new_class_size << " vs " << GetClassSize();
-    LOG(FATAL) << " class=" << PrettyTypeOf(this);
+    LOG(FATAL) << "class=" << PrettyTypeOf(this);
   }
   // Not called within a transaction.
   SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, class_size_), new_class_size);

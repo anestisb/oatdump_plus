@@ -42,9 +42,17 @@ namespace mirror {
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline uint32_t Class::GetObjectSize() {
   // Note: Extra parentheses to avoid the comma being interpreted as macro parameter separator.
-  DCHECK((!IsVariableSize<kVerifyFlags, kReadBarrierOption>())) << " class=" << PrettyTypeOf(this);
+  DCHECK((!IsVariableSize<kVerifyFlags, kReadBarrierOption>())) << "class=" << PrettyTypeOf(this);
   return GetField32(ObjectSizeOffset());
 }
+
+template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
+inline uint32_t Class::GetObjectSizeAllocFastPath() {
+  // Note: Extra parentheses to avoid the comma being interpreted as macro parameter separator.
+  DCHECK((!IsVariableSize<kVerifyFlags, kReadBarrierOption>())) << "class=" << PrettyTypeOf(this);
+  return GetField32(ObjectSizeAllocFastPathOffset());
+}
+
 
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline Class* Class::GetSuperClass() {
@@ -862,7 +870,7 @@ inline void Class::InitializeClassVisitor::operator()(
   klass->SetDexClassDefIndex(DexFile::kDexNoIndex16);  // Default to no valid class def index.
   klass->SetDexTypeIndex(DexFile::kDexNoIndex16);  // Default to no valid type index.
   // Default to force slow path until initialized.
-  klass->SetObjectSizeAllocFastPath(std::numeric_limits<int32_t>::max());
+  klass->SetObjectSizeAllocFastPath(std::numeric_limits<uint32_t>::max());
 }
 
 inline void Class::SetAccessFlags(uint32_t new_access_flags) {
