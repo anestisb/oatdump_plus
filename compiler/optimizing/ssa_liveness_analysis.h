@@ -983,38 +983,6 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
     return false;
   }
 
-  bool IsLinearOrderWellFormed(const HGraph& graph) {
-    for (HBasicBlock* header : graph.GetBlocks()) {
-      if (header == nullptr || !header->IsLoopHeader()) {
-        continue;
-      }
-
-      HLoopInformation* loop = header->GetLoopInformation();
-      size_t num_blocks = loop->GetBlocks().NumSetBits();
-      size_t found_blocks = 0u;
-
-      for (HLinearOrderIterator it(graph); !it.Done(); it.Advance()) {
-        HBasicBlock* current = it.Current();
-        if (loop->Contains(*current)) {
-          found_blocks++;
-          if (found_blocks == 1u && current != header) {
-            // First block is not the header.
-            return false;
-          } else if (found_blocks == num_blocks && !loop->IsBackEdge(*current)) {
-            // Last block is not a back edge.
-            return false;
-          }
-        } else if (found_blocks != 0u && found_blocks != num_blocks) {
-          // Blocks are not adjacent.
-          return false;
-        }
-      }
-      DCHECK_EQ(found_blocks, num_blocks);
-    }
-
-    return true;
-  }
-
   void AddBackEdgeUses(const HBasicBlock& block_at_use) {
     DCHECK(block_at_use.IsInLoop());
     if (block_at_use.GetGraph()->HasIrreducibleLoops()) {
@@ -1023,8 +991,6 @@ class LiveInterval : public ArenaObject<kArenaAllocSsaLiveness> {
       // which violates assumptions made in this method.
       return;
     }
-
-    DCHECK(IsLinearOrderWellFormed(*block_at_use.GetGraph()));
 
     // Add synthesized uses at the back edge of loops to help the register allocator.
     // Note that this method is called in decreasing liveness order, to faciliate adding
