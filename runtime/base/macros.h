@@ -21,6 +21,7 @@
 #include <unistd.h>  // for TEMP_FAILURE_RETRY
 
 #include "android-base/macros.h"
+#include "android-base/thread_annotations.h"
 
 #define OVERRIDE override
 #define FINAL final
@@ -88,38 +89,7 @@ template<typename T> ART_FRIEND_TEST(test_set_name, individual_test)
 // Add the C++11 noreturn attribute.
 #define NO_RETURN [[ noreturn ]]  // NOLINT[whitespace/braces] [5]
 
-// Annotalysis thread-safety analysis support.
-
-#define ACQUIRED_AFTER(...) __attribute__((acquired_after(__VA_ARGS__)))
-#define ACQUIRED_BEFORE(...) __attribute__((acquired_before(__VA_ARGS__)))
-#define GUARDED_BY(x) __attribute__((guarded_by(x)))
-#define GUARDED_VAR __attribute__((guarded))
-#define LOCK_RETURNED(x) __attribute__((lock_returned(x)))
-#define NO_THREAD_SAFETY_ANALYSIS __attribute__((no_thread_safety_analysis))
-#define PT_GUARDED_BY(x)
-// THREAD_ANNOTATION_ATTRIBUTE__(point_to_guarded_by(x))
-#define PT_GUARDED_VAR __attribute__((point_to_guarded))
-#define SCOPED_LOCKABLE __attribute__((scoped_lockable))
-
-#define EXCLUSIVE_LOCK_FUNCTION(...) __attribute__((exclusive_lock_function(__VA_ARGS__)))
-#define EXCLUSIVE_TRYLOCK_FUNCTION(...) __attribute__((exclusive_trylock_function(__VA_ARGS__)))
-#define SHARED_LOCK_FUNCTION(...) __attribute__((shared_lock_function(__VA_ARGS__)))
-#define SHARED_TRYLOCK_FUNCTION(...) __attribute__((shared_trylock_function(__VA_ARGS__)))
-#define UNLOCK_FUNCTION(...) __attribute__((unlock_function(__VA_ARGS__)))
-#define REQUIRES(...) __attribute__((requires_capability(__VA_ARGS__)))
-#define REQUIRES_SHARED(...) __attribute__((requires_shared_capability(__VA_ARGS__)))
-#define CAPABILITY(...) __attribute__((capability(__VA_ARGS__)))
-#define SHARED_CAPABILITY(...) __attribute__((shared_capability(__VA_ARGS__)))
-#define ASSERT_CAPABILITY(...) __attribute__((assert_capability(__VA_ARGS__)))
-#define ASSERT_SHARED_CAPABILITY(...) __attribute__((assert_shared_capability(__VA_ARGS__)))
-#define RETURN_CAPABILITY(...) __attribute__((lock_returned(__VA_ARGS__)))
-#define TRY_ACQUIRE(...) __attribute__((try_acquire_capability(__VA_ARGS__)))
-#define TRY_ACQUIRE_SHARED(...) __attribute__((try_acquire_shared_capability(__VA_ARGS__)))
-#define ACQUIRE(...) __attribute__((acquire_capability(__VA_ARGS__)))
-#define ACQUIRE_SHARED(...) __attribute__((acquire_shared_capability(__VA_ARGS__)))
-#define RELEASE(...) __attribute__((release_capability(__VA_ARGS__)))
-#define RELEASE_SHARED(...) __attribute__((release_shared_capability(__VA_ARGS__)))
-#define SCOPED_CAPABILITY __attribute__((scoped_lockable))
+// Annotalysis thread-safety analysis support. Things that are not in base.
 
 #define LOCKABLE CAPABILITY("mutex")
 #define SHARED_LOCKABLE SHARED_CAPABILITY("mutex")
