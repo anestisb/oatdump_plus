@@ -1860,47 +1860,27 @@ ENTRY art_quick_alloc_object_rosalloc
                                                               // Load the class (x2)
     ldr    w2, [x2, x0, lsl #COMPRESSED_REFERENCE_SIZE_SHIFT]
     cbz    x2, .Lart_quick_alloc_object_rosalloc_slow_path    // Check null class
-                                                              // Check class status.
-    ldr    w3, [x2, #MIRROR_CLASS_STATUS_OFFSET]
-    cmp    x3, #MIRROR_CLASS_STATUS_INITIALIZED
-    bne    .Lart_quick_alloc_object_rosalloc_slow_path
-                                                              // Add a fake dependence from the
-                                                              // following access flag and size
-                                                              // loads to the status load.
-                                                              // This is to prevent those loads
-                                                              // from being reordered above the
-                                                              // status load and reading wrong
-                                                              // values (an alternative is to use
-                                                              // a load-acquire for the status).
-    eor    x3, x3, x3
-    add    x2, x2, x3
-                                                              // Check access flags has
-                                                              // kAccClassIsFinalizable
-    ldr    w3, [x2, #MIRROR_CLASS_ACCESS_FLAGS_OFFSET]
-    tst    x3, #ACCESS_FLAGS_CLASS_IS_FINALIZABLE
-    bne    .Lart_quick_alloc_object_rosalloc_slow_path
     ldr    x3, [xSELF, #THREAD_LOCAL_ALLOC_STACK_TOP_OFFSET]  // Check if the thread local
                                                               // allocation stack has room.
                                                               // ldp won't work due to large offset.
     ldr    x4, [xSELF, #THREAD_LOCAL_ALLOC_STACK_END_OFFSET]
     cmp    x3, x4
     bhs    .Lart_quick_alloc_object_rosalloc_slow_path
-    ldr    w3, [x2, #MIRROR_CLASS_OBJECT_SIZE_OFFSET]         // Load the object size (x3)
+    ldr    w3, [x2, #MIRROR_CLASS_OBJECT_SIZE_ALLOC_FAST_PATH_OFFSET]  // Load the object size (x3)
     cmp    x3, #ROSALLOC_MAX_THREAD_LOCAL_BRACKET_SIZE        // Check if the size is for a thread
-                                                              // local allocation
+                                                              // local allocation. Also does the
+                                                              // finalizable and initialization
+                                                              // checks.
     bhs    .Lart_quick_alloc_object_rosalloc_slow_path
                                                               // Compute the rosalloc bracket index
-                                                              // from the size.
-                                                              // Align up the size by the rosalloc
-                                                              // bracket quantum size and divide
-                                                              // by the quantum size and subtract
-                                                              // by 1. This code is a shorter but
-                                                              // equivalent version.
-    sub    x3, x3, #1
-    lsr    x3, x3, #ROSALLOC_BRACKET_QUANTUM_SIZE_SHIFT
-                                                              // Load the rosalloc run (x4)
-    add    x4, xSELF, x3, lsl #POINTER_SIZE_SHIFT
-    ldr    x4, [x4, #THREAD_ROSALLOC_RUNS_OFFSET]
+                                                              // from the size. Since the size is
+                                                              // already aligned we can combine the
+                                                              // two shifts together.
+    add    x4, xSELF, x3, lsr #(ROSALLOC_BRACKET_QUANTUM_SIZE_SHIFT - POINTER_SIZE_SHIFT)
+                                                              // Subtract pointer size since ther
+                                                              // are no runs for 0 byte allocations
+                                                              // and the size is already aligned.
+    ldr    x4, [x4, #(THREAD_ROSALLOC_RUNS_OFFSET - __SIZEOF_POINTER__)]
                                                               // Load the free list head (x3). This
                                                               // will be the return val.
     ldr    x3, [x4, #(ROSALLOC_RUN_FREE_LIST_OFFSET + ROSALLOC_RUN_FREE_LIST_HEAD_OFFSET)]
@@ -1921,11 +1901,11 @@ ENTRY art_quick_alloc_object_rosalloc
     str    w2, [x3, #MIRROR_OBJECT_CLASS_OFFSET]
                                                               // Fence. This is "ish" not "ishst" so
                                                               // that it also ensures ordering of
-                                                              // the class status load with respect
+                                                              // the object size load with respect
                                                               // to later accesses to the class
                                                               // object. Alternatively we could use
                                                               // "ishst" if we use load-acquire for
-                                                              // the class status load.)
+                                                              // the class status load.
                                                               // Needs to be done before pushing on
                                                               // allocation since Heap::VisitObjects
                                                               // relies on seeing the class pointer.
