@@ -2289,7 +2289,7 @@ class VerifyClassVisitor : public CompilationVisitor {
                                                 &dex_file,
                                                 dex_cache,
                                                 class_loader,
-                                                &class_def,
+                                                class_def,
                                                 Runtime::Current()->GetCompilerCallbacks(),
                                                 true /* allow soft failures */,
                                                 log_level_,
