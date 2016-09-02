@@ -19,7 +19,6 @@
 
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "base/logging.h"
@@ -28,7 +27,6 @@
 #include "globals.h"
 #include "invoke_type.h"
 #include "jni.h"
-#include "jvalue.h"
 #include "mirror/object_array.h"
 #include "modifiers.h"
 #include "utf.h"
@@ -396,11 +394,6 @@ class DexFile {
 
    private:
     DISALLOW_COPY_AND_ASSIGN(AnnotationItem);
-  };
-
-  struct AnnotationValue {
-    JValue value_;
-    uint8_t type_;
   };
 
   enum AnnotationResultStyle {  // private
@@ -1022,10 +1015,6 @@ class DexFile {
   mirror::ObjectArray<mirror::Object>* ProcessAnnotationSetRefList(Handle<mirror::Class> klass,
       const AnnotationSetRefList* set_ref_list, uint32_t size) const
       REQUIRES_SHARED(Locks::mutator_lock_);
-  bool ProcessAnnotationValue(Handle<mirror::Class> klass, const uint8_t** annotation_ptr,
-                              AnnotationValue* annotation_value, Handle<mirror::Class> return_class,
-                              DexFile::AnnotationResultStyle result_style) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::Object* ProcessEncodedAnnotation(Handle<mirror::Class> klass,
                                            const uint8_t** annotation) const
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -1203,6 +1192,12 @@ class DexFile {
   // whether the string contains the separator character.
   static bool IsMultiDexLocation(const char* location);
 
+  struct AnnotationValue;
+
+  bool ProcessAnnotationValue(Handle<mirror::Class> klass, const uint8_t** annotation_ptr,
+                              AnnotationValue* annotation_value, Handle<mirror::Class> return_class,
+                              DexFile::AnnotationResultStyle result_style) const
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // The base address of the memory mapping.
   const uint8_t* const begin_;

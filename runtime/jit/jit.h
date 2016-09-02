@@ -31,6 +31,7 @@ namespace art {
 
 class ArtMethod;
 struct RuntimeArgumentMap;
+union JValue;
 
 namespace jit {
 

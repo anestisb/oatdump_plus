@@ -20,7 +20,7 @@
 #include "base/logging.h"
 #include "base/macros.h"
 #include "base/mutex.h"
-#include "stack.h"  // StackReference
+#include "stack_reference.h"
 
 namespace art {
 
@@ -29,8 +29,10 @@ class Throwable;
 }  // namespace mirror
 class ArtMethod;
 class Context;
+class OatQuickMethodHeader;
 class Thread;
 class ShadowFrame;
+class StackVisitor;
 
 // Manages exception delivery for Quick backend.
 class QuickExceptionHandler {

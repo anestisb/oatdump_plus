@@ -42,6 +42,7 @@
 #include "dex_file_verifier.h"
 #include "globals.h"
 #include "handle_scope-inl.h"
+#include "jvalue.h"
 #include "leb128.h"
 #include "mirror/field.h"
 #include "mirror/method.h"
@@ -66,6 +67,11 @@ const uint8_t DexFile::kDexMagicVersions[DexFile::kNumDexVersions][DexFile::kDex
   {'0', '3', '7', '\0'},
   // Dex version 038: Android "O" and beyond.
   {'0', '3', '8', '\0'}
+};
+
+struct DexFile::AnnotationValue {
+  JValue value_;
+  uint8_t type_;
 };
 
 bool DexFile::GetChecksum(const char* filename, uint32_t* checksum, std::string* error_msg) {

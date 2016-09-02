@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#include <math.h>
+#include <string.h>
+
 #include "entrypoints/jni/jni_entrypoints.h"
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "entrypoints/quick/quick_default_externs.h"
