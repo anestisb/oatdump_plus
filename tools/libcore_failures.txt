@@ -86,7 +86,6 @@
           "libcore.net.NetworkSecurityPolicyTest#testCleartextTrafficPolicyWithJarFtpURLConnection",
           "libcore.net.NetworkSecurityPolicyTest#testCleartextTrafficPolicyWithLoggingSocketHandler",
           "libcore.net.NetworkSecurityPolicyTest#testCleartextTrafficPolicyWithHttpURLConnection",
-          "libcore.net.NetworkSecurityPolicyTest#testCleartextTrafficPolicyWithJarHttpURLConnection",
           "org.apache.harmony.luni.tests.internal.net.www.protocol.http.HttpURLConnectionTest",
           "org.apache.harmony.luni.tests.internal.net.www.protocol.https.HttpsURLConnectionTest",
           "org.apache.harmony.luni.tests.java.net.URLConnectionTest",
