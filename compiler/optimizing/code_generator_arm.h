@@ -271,11 +271,12 @@ class InstructionCodeGeneratorARM : public InstructionCodeGenerator {
   //
   //   root <- *(obj + offset)
   //
-  // while honoring read barriers (if any).
+  // while honoring read barriers if requires_read_barrier is true.
   void GenerateGcRootFieldLoad(HInstruction* instruction,
                                Location root,
                                Register obj,
-                               uint32_t offset);
+                               uint32_t offset,
+                               bool requires_read_barrier = kEmitCompilerReadBarrier);
   void GenerateTestAndBranch(HInstruction* instruction,
                              size_t condition_input_index,
                              Label* true_target,

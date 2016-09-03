@@ -294,7 +294,8 @@ class InstructionCodeGeneratorARM64 : public InstructionCodeGenerator {
                                Location root,
                                vixl::aarch64::Register obj,
                                uint32_t offset,
-                               vixl::aarch64::Label* fixup_label = nullptr);
+                               vixl::aarch64::Label* fixup_label = nullptr,
+                               bool requires_read_barrier = kEmitCompilerReadBarrier);
 
   // Generate a floating-point comparison.
   void GenerateFcmp(HInstruction* instruction);

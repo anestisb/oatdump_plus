@@ -452,7 +452,8 @@ HInstruction* HInliner::AddTypeGuard(HInstruction* receiver,
                                                                is_referrer,
                                                                invoke_instruction->GetDexPc(),
                                                                /* needs_access_check */ false,
-                                                               /* is_in_dex_cache */ true);
+                                                               /* is_in_dex_cache */ true,
+                                                               /* is_in_boot_image */ false);
 
   HNotEqual* compare = new (graph_->GetArena()) HNotEqual(load_class, receiver_class);
   // TODO: Extend reference type propagation to understand the guard.
