@@ -13,3 +13,12 @@
    fun:_dl_start
    obj:/lib/x86_64-linux-gnu/ld-2.19.so
 }
+
+{
+   b/31275764
+   Memcheck:Leak
+   match-leak-kinds: definite
+   fun:malloc
+   ...
+   fun:_ZN3art7Runtime17InitNativeMethodsEv
+}
