@@ -905,7 +905,7 @@ void CodeGeneratorMIPS::MoveConstant(Location destination, HConstant* c) {
     } else {
       DCHECK(destination.IsStackSlot())
           << "Cannot move " << c->DebugName() << " to " << destination;
-      __ StoreConst32ToOffset(value, SP, destination.GetStackIndex(), TMP);
+      __ StoreConstToOffset(kStoreWord, value, SP, destination.GetStackIndex(), TMP);
     }
   } else if (c->IsLongConstant()) {
     // Move 64 bit constant.
@@ -917,7 +917,7 @@ void CodeGeneratorMIPS::MoveConstant(Location destination, HConstant* c) {
     } else {
       DCHECK(destination.IsDoubleStackSlot())
           << "Cannot move " << c->DebugName() << " to " << destination;
-      __ StoreConst64ToOffset(value, SP, destination.GetStackIndex(), TMP);
+      __ StoreConstToOffset(kStoreDoubleword, value, SP, destination.GetStackIndex(), TMP);
     }
   } else if (c->IsFloatConstant()) {
     // Move 32 bit float constant.
@@ -927,7 +927,7 @@ void CodeGeneratorMIPS::MoveConstant(Location destination, HConstant* c) {
     } else {
       DCHECK(destination.IsStackSlot())
           << "Cannot move " << c->DebugName() << " to " << destination;
-      __ StoreConst32ToOffset(value, SP, destination.GetStackIndex(), TMP);
+      __ StoreConstToOffset(kStoreWord, value, SP, destination.GetStackIndex(), TMP);
     }
   } else {
     // Move 64 bit double constant.
@@ -939,7 +939,7 @@ void CodeGeneratorMIPS::MoveConstant(Location destination, HConstant* c) {
     } else {
       DCHECK(destination.IsDoubleStackSlot())
           << "Cannot move " << c->DebugName() << " to " << destination;
-      __ StoreConst64ToOffset(value, SP, destination.GetStackIndex(), TMP);
+      __ StoreConstToOffset(kStoreDoubleword, value, SP, destination.GetStackIndex(), TMP);
     }
   }
 }
@@ -1960,6 +1960,25 @@ void InstructionCodeGeneratorMIPS::VisitArrayLength(HArrayLength* instruction) {
   codegen_->MaybeRecordImplicitNullCheck(instruction);
 }
 
+Location LocationsBuilderMIPS::RegisterOrZeroConstant(HInstruction* instruction) {
+  return (instruction->IsConstant() && instruction->AsConstant()->IsZeroBitPattern())
+      ? Location::ConstantLocation(instruction->AsConstant())
+      : Location::RequiresRegister();
+}
+
+Location LocationsBuilderMIPS::FpuRegisterOrConstantForStore(HInstruction* instruction) {
+  // We can store 0.0 directly (from the ZERO register) without loading it into an FPU register.
+  // We can store a non-zero float or double constant without first loading it into the FPU,
+  // but we should only prefer this if the constant has a single use.
+  if (instruction->IsConstant() &&
+      (instruction->AsConstant()->IsZeroBitPattern() ||
+       instruction->GetUses().HasExactlyOneElement())) {
+    return Location::ConstantLocation(instruction->AsConstant());
+    // Otherwise fall through and require an FPU register for the constant.
+  }
+  return Location::RequiresFpuRegister();
+}
+
 void LocationsBuilderMIPS::VisitArraySet(HArraySet* instruction) {
   bool needs_runtime_call = instruction->NeedsTypeCheck();
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(
@@ -1974,9 +1993,9 @@ void LocationsBuilderMIPS::VisitArraySet(HArraySet* instruction) {
     locations->SetInAt(0, Location::RequiresRegister());
     locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
     if (Primitive::IsFloatingPointType(instruction->InputAt(2)->GetType())) {
-      locations->SetInAt(2, Location::RequiresFpuRegister());
+      locations->SetInAt(2, FpuRegisterOrConstantForStore(instruction->InputAt(2)));
     } else {
-      locations->SetInAt(2, Location::RequiresRegister());
+      locations->SetInAt(2, RegisterOrZeroConstant(instruction->InputAt(2)));
     }
   }
 }
@@ -1985,24 +2004,29 @@ void InstructionCodeGeneratorMIPS::VisitArraySet(HArraySet* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   Register obj = locations->InAt(0).AsRegister<Register>();
   Location index = locations->InAt(1);
+  Location value_location = locations->InAt(2);
   Primitive::Type value_type = instruction->GetComponentType();
   bool needs_runtime_call = locations->WillCall();
   bool needs_write_barrier =
       CodeGenerator::StoreNeedsWriteBarrier(value_type, instruction->GetValue());
   auto null_checker = GetImplicitNullChecker(instruction);
+  Register base_reg = index.IsConstant() ? obj : TMP;
 
   switch (value_type) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte: {
       uint32_t data_offset = mirror::Array::DataOffset(sizeof(uint8_t)).Uint32Value();
-      Register value = locations->InAt(2).AsRegister<Register>();
       if (index.IsConstant()) {
-        size_t offset =
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_1) + data_offset;
-        __ StoreToOffset(kStoreByte, value, obj, offset, null_checker);
+        data_offset += index.GetConstant()->AsIntConstant()->GetValue() << TIMES_1;
       } else {
-        __ Addu(TMP, obj, index.AsRegister<Register>());
-        __ StoreToOffset(kStoreByte, value, TMP, data_offset, null_checker);
+        __ Addu(base_reg, obj, index.AsRegister<Register>());
+      }
+      if (value_location.IsConstant()) {
+        int32_t value = CodeGenerator::GetInt32ValueOf(value_location.GetConstant());
+        __ StoreConstToOffset(kStoreByte, value, base_reg, data_offset, TMP, null_checker);
+      } else {
+        Register value = value_location.AsRegister<Register>();
+        __ StoreToOffset(kStoreByte, value, base_reg, data_offset, null_checker);
       }
       break;
     }
@@ -2010,15 +2034,18 @@ void InstructionCodeGeneratorMIPS::VisitArraySet(HArraySet* instruction) {
     case Primitive::kPrimShort:
     case Primitive::kPrimChar: {
       uint32_t data_offset = mirror::Array::DataOffset(sizeof(uint16_t)).Uint32Value();
-      Register value = locations->InAt(2).AsRegister<Register>();
       if (index.IsConstant()) {
-        size_t offset =
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_2) + data_offset;
-        __ StoreToOffset(kStoreHalfword, value, obj, offset, null_checker);
+        data_offset += index.GetConstant()->AsIntConstant()->GetValue() << TIMES_2;
       } else {
-        __ Sll(TMP, index.AsRegister<Register>(), TIMES_2);
-        __ Addu(TMP, obj, TMP);
-        __ StoreToOffset(kStoreHalfword, value, TMP, data_offset, null_checker);
+        __ Sll(base_reg, index.AsRegister<Register>(), TIMES_2);
+        __ Addu(base_reg, obj, base_reg);
+      }
+      if (value_location.IsConstant()) {
+        int32_t value = CodeGenerator::GetInt32ValueOf(value_location.GetConstant());
+        __ StoreConstToOffset(kStoreHalfword, value, base_reg, data_offset, TMP, null_checker);
+      } else {
+        Register value = value_location.AsRegister<Register>();
+        __ StoreToOffset(kStoreHalfword, value, base_reg, data_offset, null_checker);
       }
       break;
     }
@@ -2027,20 +2054,23 @@ void InstructionCodeGeneratorMIPS::VisitArraySet(HArraySet* instruction) {
     case Primitive::kPrimNot: {
       if (!needs_runtime_call) {
         uint32_t data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
-        Register value = locations->InAt(2).AsRegister<Register>();
         if (index.IsConstant()) {
-          size_t offset =
-              (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
-          __ StoreToOffset(kStoreWord, value, obj, offset, null_checker);
+          data_offset += index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4;
         } else {
-          DCHECK(index.IsRegister()) << index;
-          __ Sll(TMP, index.AsRegister<Register>(), TIMES_4);
-          __ Addu(TMP, obj, TMP);
-          __ StoreToOffset(kStoreWord, value, TMP, data_offset, null_checker);
+          __ Sll(base_reg, index.AsRegister<Register>(), TIMES_4);
+          __ Addu(base_reg, obj, base_reg);
         }
-        if (needs_write_barrier) {
-          DCHECK_EQ(value_type, Primitive::kPrimNot);
-          codegen_->MarkGCCard(obj, value);
+        if (value_location.IsConstant()) {
+          int32_t value = CodeGenerator::GetInt32ValueOf(value_location.GetConstant());
+          __ StoreConstToOffset(kStoreWord, value, base_reg, data_offset, TMP, null_checker);
+          DCHECK(!needs_write_barrier);
+        } else {
+          Register value = value_location.AsRegister<Register>();
+          __ StoreToOffset(kStoreWord, value, base_reg, data_offset, null_checker);
+          if (needs_write_barrier) {
+            DCHECK_EQ(value_type, Primitive::kPrimNot);
+            codegen_->MarkGCCard(obj, value);
+          }
         }
       } else {
         DCHECK_EQ(value_type, Primitive::kPrimNot);
@@ -2052,47 +2082,54 @@ void InstructionCodeGeneratorMIPS::VisitArraySet(HArraySet* instruction) {
 
     case Primitive::kPrimLong: {
       uint32_t data_offset = mirror::Array::DataOffset(sizeof(int64_t)).Uint32Value();
-      Register value = locations->InAt(2).AsRegisterPairLow<Register>();
       if (index.IsConstant()) {
-        size_t offset =
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + data_offset;
-        __ StoreToOffset(kStoreDoubleword, value, obj, offset, null_checker);
+        data_offset += index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8;
       } else {
-        __ Sll(TMP, index.AsRegister<Register>(), TIMES_8);
-        __ Addu(TMP, obj, TMP);
-        __ StoreToOffset(kStoreDoubleword, value, TMP, data_offset, null_checker);
+        __ Sll(base_reg, index.AsRegister<Register>(), TIMES_8);
+        __ Addu(base_reg, obj, base_reg);
+      }
+      if (value_location.IsConstant()) {
+        int64_t value = CodeGenerator::GetInt64ValueOf(value_location.GetConstant());
+        __ StoreConstToOffset(kStoreDoubleword, value, base_reg, data_offset, TMP, null_checker);
+      } else {
+        Register value = value_location.AsRegisterPairLow<Register>();
+        __ StoreToOffset(kStoreDoubleword, value, base_reg, data_offset, null_checker);
       }
       break;
     }
 
     case Primitive::kPrimFloat: {
       uint32_t data_offset = mirror::Array::DataOffset(sizeof(float)).Uint32Value();
-      FRegister value = locations->InAt(2).AsFpuRegister<FRegister>();
-      DCHECK(locations->InAt(2).IsFpuRegister());
       if (index.IsConstant()) {
-        size_t offset =
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
-        __ StoreSToOffset(value, obj, offset, null_checker);
+        data_offset += index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4;
       } else {
-        __ Sll(TMP, index.AsRegister<Register>(), TIMES_4);
-        __ Addu(TMP, obj, TMP);
-        __ StoreSToOffset(value, TMP, data_offset, null_checker);
+        __ Sll(base_reg, index.AsRegister<Register>(), TIMES_4);
+        __ Addu(base_reg, obj, base_reg);
+      }
+      if (value_location.IsConstant()) {
+        int32_t value = CodeGenerator::GetInt32ValueOf(value_location.GetConstant());
+        __ StoreConstToOffset(kStoreWord, value, base_reg, data_offset, TMP, null_checker);
+      } else {
+        FRegister value = value_location.AsFpuRegister<FRegister>();
+        __ StoreSToOffset(value, base_reg, data_offset, null_checker);
       }
       break;
     }
 
     case Primitive::kPrimDouble: {
       uint32_t data_offset = mirror::Array::DataOffset(sizeof(double)).Uint32Value();
-      FRegister value = locations->InAt(2).AsFpuRegister<FRegister>();
-      DCHECK(locations->InAt(2).IsFpuRegister());
       if (index.IsConstant()) {
-        size_t offset =
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + data_offset;
-        __ StoreDToOffset(value, obj, offset, null_checker);
+        data_offset += index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8;
       } else {
-        __ Sll(TMP, index.AsRegister<Register>(), TIMES_8);
-        __ Addu(TMP, obj, TMP);
-        __ StoreDToOffset(value, TMP, data_offset, null_checker);
+        __ Sll(base_reg, index.AsRegister<Register>(), TIMES_8);
+        __ Addu(base_reg, obj, base_reg);
+      }
+      if (value_location.IsConstant()) {
+        int64_t value = CodeGenerator::GetInt64ValueOf(value_location.GetConstant());
+        __ StoreConstToOffset(kStoreDoubleword, value, base_reg, data_offset, TMP, null_checker);
+      } else {
+        FRegister value = value_location.AsFpuRegister<FRegister>();
+        __ StoreDToOffset(value, base_reg, data_offset, null_checker);
       }
       break;
     }
@@ -3888,9 +3925,9 @@ void LocationsBuilderMIPS::HandleFieldSet(HInstruction* instruction, const Field
     }
   } else {
     if (Primitive::IsFloatingPointType(field_type)) {
-      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetInAt(1, FpuRegisterOrConstantForStore(instruction->InputAt(1)));
     } else {
-      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetInAt(1, RegisterOrZeroConstant(instruction->InputAt(1)));
     }
   }
 }
@@ -3901,6 +3938,7 @@ void InstructionCodeGeneratorMIPS::HandleFieldSet(HInstruction* instruction,
   Primitive::Type type = field_info.GetFieldType();
   LocationSummary* locations = instruction->GetLocations();
   Register obj = locations->InAt(0).AsRegister<Register>();
+  Location value_location = locations->InAt(1);
   StoreOperandType store_type = kStoreByte;
   bool is_volatile = field_info.IsVolatile();
   uint32_t offset = field_info.GetFieldOffset().Uint32Value();
@@ -3941,24 +3979,24 @@ void InstructionCodeGeneratorMIPS::HandleFieldSet(HInstruction* instruction,
     codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
     if (type == Primitive::kPrimDouble) {
       // Pass FP parameters in core registers.
-      Location in = locations->InAt(1);
-      if (in.IsFpuRegister()) {
-        __ Mfc1(locations->GetTemp(1).AsRegister<Register>(), in.AsFpuRegister<FRegister>());
+      if (value_location.IsFpuRegister()) {
+        __ Mfc1(locations->GetTemp(1).AsRegister<Register>(),
+                value_location.AsFpuRegister<FRegister>());
         __ MoveFromFpuHigh(locations->GetTemp(2).AsRegister<Register>(),
-                           in.AsFpuRegister<FRegister>());
-      } else if (in.IsDoubleStackSlot()) {
+                           value_location.AsFpuRegister<FRegister>());
+      } else if (value_location.IsDoubleStackSlot()) {
         __ LoadFromOffset(kLoadWord,
                           locations->GetTemp(1).AsRegister<Register>(),
                           SP,
-                          in.GetStackIndex());
+                          value_location.GetStackIndex());
         __ LoadFromOffset(kLoadWord,
                           locations->GetTemp(2).AsRegister<Register>(),
                           SP,
-                          in.GetStackIndex() + 4);
+                          value_location.GetStackIndex() + 4);
       } else {
-        DCHECK(in.IsConstant());
-        DCHECK(in.GetConstant()->IsDoubleConstant());
-        int64_t value = bit_cast<int64_t, double>(in.GetConstant()->AsDoubleConstant()->GetValue());
+        DCHECK(value_location.IsConstant());
+        DCHECK(value_location.GetConstant()->IsDoubleConstant());
+        int64_t value = CodeGenerator::GetInt64ValueOf(value_location.GetConstant());
         __ LoadConst64(locations->GetTemp(2).AsRegister<Register>(),
                        locations->GetTemp(1).AsRegister<Register>(),
                        value);
@@ -3967,19 +4005,19 @@ void InstructionCodeGeneratorMIPS::HandleFieldSet(HInstruction* instruction,
     codegen_->InvokeRuntime(kQuickA64Store, instruction, dex_pc);
     CheckEntrypointTypes<kQuickA64Store, void, volatile int64_t *, int64_t>();
   } else {
-    if (!Primitive::IsFloatingPointType(type)) {
+    if (value_location.IsConstant()) {
+      int64_t value = CodeGenerator::GetInt64ValueOf(value_location.GetConstant());
+      __ StoreConstToOffset(store_type, value, obj, offset, TMP, null_checker);
+    } else if (!Primitive::IsFloatingPointType(type)) {
       Register src;
       if (type == Primitive::kPrimLong) {
-        DCHECK(locations->InAt(1).IsRegisterPair());
-        src = locations->InAt(1).AsRegisterPairLow<Register>();
+        src = value_location.AsRegisterPairLow<Register>();
       } else {
-        DCHECK(locations->InAt(1).IsRegister());
-        src = locations->InAt(1).AsRegister<Register>();
+        src = value_location.AsRegister<Register>();
       }
       __ StoreToOffset(store_type, src, obj, offset, null_checker);
     } else {
-      DCHECK(locations->InAt(1).IsFpuRegister());
-      FRegister src = locations->InAt(1).AsFpuRegister<FRegister>();
+      FRegister src = value_location.AsFpuRegister<FRegister>();
       if (type == Primitive::kPrimFloat) {
         __ StoreSToOffset(src, obj, offset, null_checker);
       } else {
@@ -3990,8 +4028,7 @@ void InstructionCodeGeneratorMIPS::HandleFieldSet(HInstruction* instruction,
 
   // TODO: memory barriers?
   if (CodeGenerator::StoreNeedsWriteBarrier(type, instruction->InputAt(1))) {
-    DCHECK(locations->InAt(1).IsRegister());
-    Register src = locations->InAt(1).AsRegister<Register>();
+    Register src = value_location.AsRegister<Register>();
     codegen_->MarkGCCard(obj, src);
   }
 
