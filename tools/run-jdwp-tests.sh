@@ -50,6 +50,7 @@ test="org.apache.harmony.jpda.tests.share.AllTests"
 host="no"
 # Use JIT compiling by default.
 use_jit=true
+variant_cmdline_parameter="--variant=X32"
 
 while true; do
   if [[ "$1" == "--mode=host" ]]; then
@@ -93,10 +94,33 @@ while true; do
     shift
   elif [[ "$1" == "" ]]; then
     break
+  elif [[ $1 == --variant=* ]]; then
+    variant_cmdline_parameter=$1
+    shift
   else
     shift
   fi
 done
+
+# For the host:
+#
+# If, on the other hand, there is a variant set, use it to modify the art_debugee parameter to
+# force the fork to have the same bitness as the controller. This should be fine and not impact
+# testing (cross-bitness), as the protocol is always 64-bit anyways (our implementation).
+#
+# Note: this isn't necessary for the device as the BOOTCLASSPATH environment variable is set there
+#       and used as a fallback.
+if [[ $host == "yes" ]]; then
+  variant=${variant_cmdline_parameter:10}
+  if [[ $variant == "x32" || $variant == "X32" ]]; then
+    art_debugee="$art_debugee --32"
+  elif [[ $variant == "x64" || $variant == "X64" ]]; then
+    art_debugee="$art_debugee --64"
+  else
+    echo "Error, do not understand variant $variant_cmdline_parameter."
+    exit 1
+  fi
+fi
 
 if [[ "$image" != "" ]]; then
   vm_args="--vm-arg $image"
