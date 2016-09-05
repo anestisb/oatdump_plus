@@ -222,6 +222,10 @@ std::unique_ptr<const DexFile> DexFile::Open(const uint8_t* base, size_t size,
                                                        nullptr,
                                                        oat_dex_file,
                                                        error_msg);
+  if (dex_file == nullptr) {
+    return nullptr;
+  }
+
   if (verify && !DexFileVerifier::Verify(dex_file.get(),
                                          dex_file->Begin(),
                                          dex_file->Size(),
@@ -230,7 +234,32 @@ std::unique_ptr<const DexFile> DexFile::Open(const uint8_t* base, size_t size,
                                          error_msg)) {
     return nullptr;
   }
+  return dex_file;
+}
 
+std::unique_ptr<const DexFile> DexFile::Open(const std::string& location,
+                                             uint32_t location_checksum,
+                                             std::unique_ptr<MemMap> mem_map,
+                                             bool verify,
+                                             bool verify_checksum,
+                                             std::string* error_msg) {
+  ScopedTrace trace(std::string("Open dex file from mapped-memory ") + location);
+  std::unique_ptr<const DexFile> dex_file = OpenMemory(location,
+                                                       location_checksum,
+                                                       std::move(mem_map),
+                                                       error_msg);
+  if (dex_file == nullptr) {
+    return nullptr;
+  }
+
+  if (verify && !DexFileVerifier::Verify(dex_file.get(),
+                                         dex_file->Begin(),
+                                         dex_file->Size(),
+                                         location.c_str(),
+                                         verify_checksum,
+                                         error_msg)) {
+    return nullptr;
+  }
   return dex_file;
 }
 
@@ -263,7 +292,7 @@ std::unique_ptr<const DexFile> DexFile::OpenFile(int fd,
                               /*low_4gb*/false,
                               location,
                               error_msg));
-    if (map.get() == nullptr) {
+    if (map == nullptr) {
       DCHECK(!error_msg->empty());
       return nullptr;
     }
@@ -277,7 +306,9 @@ std::unique_ptr<const DexFile> DexFile::OpenFile(int fd,
 
   const Header* dex_header = reinterpret_cast<const Header*>(map->Begin());
 
-  std::unique_ptr<const DexFile> dex_file(OpenMemory(location, dex_header->checksum_, map.release(),
+  std::unique_ptr<const DexFile> dex_file(OpenMemory(location,
+                                                     dex_header->checksum_,
+                                                     std::move(map),
                                                      error_msg));
   if (dex_file.get() == nullptr) {
     *error_msg = StringPrintf("Failed to open dex file '%s' from memory: %s", location,
@@ -314,13 +345,13 @@ bool DexFile::OpenZip(int fd,
 
 std::unique_ptr<const DexFile> DexFile::OpenMemory(const std::string& location,
                                                    uint32_t location_checksum,
-                                                   MemMap* mem_map,
+                                                   std::unique_ptr<MemMap> mem_map,
                                                    std::string* error_msg) {
   return OpenMemory(mem_map->Begin(),
                     mem_map->Size(),
                     location,
                     location_checksum,
-                    mem_map,
+                    std::move(mem_map),
                     nullptr,
                     error_msg);
 }
@@ -350,9 +381,11 @@ std::unique_ptr<const DexFile> DexFile::Open(const ZipArchive& zip_archive,
     *error_code = ZipOpenErrorCode::kExtractToMemoryError;
     return nullptr;
   }
-  std::unique_ptr<const DexFile> dex_file(OpenMemory(location, zip_entry->GetCrc32(), map.release(),
-                                               error_msg));
-  if (dex_file.get() == nullptr) {
+  std::unique_ptr<const DexFile> dex_file(OpenMemory(location,
+                                                     zip_entry->GetCrc32(),
+                                                     std::move(map),
+                                                     error_msg));
+  if (dex_file == nullptr) {
     *error_msg = StringPrintf("Failed to open dex file '%s' from memory: %s", location.c_str(),
                               error_msg->c_str());
     *error_code = ZipOpenErrorCode::kDexFileError;
@@ -437,14 +470,14 @@ std::unique_ptr<const DexFile> DexFile::OpenMemory(const uint8_t* base,
                                                    size_t size,
                                                    const std::string& location,
                                                    uint32_t location_checksum,
-                                                   MemMap* mem_map,
+                                                   std::unique_ptr<MemMap> mem_map,
                                                    const OatDexFile* oat_dex_file,
                                                    std::string* error_msg) {
   DCHECK(base != nullptr);
   DCHECK_NE(size, 0U);
   CHECK_ALIGNED(base, 4);  // various dex file structures must be word aligned
   std::unique_ptr<DexFile> dex_file(
-      new DexFile(base, size, location, location_checksum, mem_map, oat_dex_file));
+      new DexFile(base, size, location, location_checksum, std::move(mem_map), oat_dex_file));
   if (!dex_file->Init(error_msg)) {
     dex_file.reset();
   }
@@ -454,13 +487,13 @@ std::unique_ptr<const DexFile> DexFile::OpenMemory(const uint8_t* base,
 DexFile::DexFile(const uint8_t* base, size_t size,
                  const std::string& location,
                  uint32_t location_checksum,
-                 MemMap* mem_map,
+                 std::unique_ptr<MemMap> mem_map,
                  const OatDexFile* oat_dex_file)
     : begin_(base),
       size_(size),
       location_(location),
       location_checksum_(location_checksum),
-      mem_map_(mem_map),
+      mem_map_(std::move(mem_map)),
       header_(reinterpret_cast<const Header*>(base)),
       string_ids_(reinterpret_cast<const StringId*>(base + header_->string_ids_off_)),
       type_ids_(reinterpret_cast<const TypeId*>(base + header_->type_ids_off_)),

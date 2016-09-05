@@ -22,6 +22,7 @@
 #include "base/unix_file/fd_file.h"
 #include "common_runtime_test.h"
 #include "dex_file-inl.h"
+#include "mem_map.h"
 #include "os.h"
 #include "scoped_thread_state_change.h"
 #include "thread-inl.h"
@@ -61,7 +62,7 @@ static const uint8_t kBase64Map[256] = {
   255, 255, 255, 255
 };
 
-static inline uint8_t* DecodeBase64(const char* src, size_t* dst_size) {
+static inline std::vector<uint8_t> DecodeBase64(const char* src) {
   std::vector<uint8_t> tmp;
   uint32_t t = 0, y = 0;
   int g = 3;
@@ -73,13 +74,11 @@ static inline uint8_t* DecodeBase64(const char* src, size_t* dst_size) {
       c = 0;
       // prevent g < 0 which would potentially allow an overflow later
       if (--g < 0) {
-        *dst_size = 0;
-        return nullptr;
+        return std::vector<uint8_t>();
       }
     } else if (g != 3) {
       // we only allow = to be at the end
-      *dst_size = 0;
-      return nullptr;
+        return std::vector<uint8_t>();
     }
     t = (t << 6) | c;
     if (++y == 4) {
@@ -94,17 +93,9 @@ static inline uint8_t* DecodeBase64(const char* src, size_t* dst_size) {
     }
   }
   if (y != 0) {
-    *dst_size = 0;
-    return nullptr;
+    return std::vector<uint8_t>();
   }
-  std::unique_ptr<uint8_t[]> dst(new uint8_t[tmp.size()]);
-  if (dst_size != nullptr) {
-    *dst_size = tmp.size();
-  } else {
-    *dst_size = 0;
-  }
-  std::copy(tmp.begin(), tmp.end(), dst.get());
-  return dst.release();
+  return tmp;
 }
 
 // Although this is the same content logically as the Nested test dex,
@@ -175,14 +166,13 @@ static const char kRawDexZeroLength[] =
 static void DecodeAndWriteDexFile(const char* base64, const char* location) {
   // decode base64
   CHECK(base64 != nullptr);
-  size_t length;
-  std::unique_ptr<uint8_t[]> dex_bytes(DecodeBase64(base64, &length));
-  CHECK(dex_bytes.get() != nullptr);
+  std::vector<uint8_t> dex_bytes = DecodeBase64(base64);
+  CHECK_NE(dex_bytes.size(), 0u);
 
   // write to provided file
   std::unique_ptr<File> file(OS::CreateEmptyFile(location));
   CHECK(file.get() != nullptr);
-  if (!file->WriteFully(dex_bytes.get(), length)) {
+  if (!file->WriteFully(dex_bytes.data(), dex_bytes.size())) {
     PLOG(FATAL) << "Failed to write base64 as dex file";
   }
   if (file->FlushCloseOrErase() != 0) {
@@ -208,9 +198,67 @@ static std::unique_ptr<const DexFile> OpenDexFileBase64(const char* base64,
   return dex_file;
 }
 
+static std::unique_ptr<const DexFile> OpenDexFileInMemoryBase64(const char* base64,
+                                                                const char* location,
+                                                                uint32_t location_checksum) {
+  CHECK(base64 != nullptr);
+  std::vector<uint8_t> dex_bytes = DecodeBase64(base64);
+  CHECK_NE(dex_bytes.size(), 0u);
+
+  std::string error_message;
+  std::unique_ptr<MemMap> region(MemMap::MapAnonymous("test-region",
+                                                      nullptr,
+                                                      dex_bytes.size(),
+                                                      PROT_READ | PROT_WRITE,
+                                                      /* low_4gb */ false,
+                                                      /* reuse */ false,
+                                                      &error_message));
+  memcpy(region->Begin(), dex_bytes.data(), dex_bytes.size());
+  std::unique_ptr<const DexFile> dex_file(DexFile::Open(location,
+                                                        location_checksum,
+                                                        std::move(region),
+                                                        /* verify */ true,
+                                                        /* verify_checksum */ true,
+                                                        &error_message));
+  CHECK(dex_file != nullptr) << error_message;
+  return dex_file;
+}
+
 TEST_F(DexFileTest, Header) {
   ScratchFile tmp;
   std::unique_ptr<const DexFile> raw(OpenDexFileBase64(kRawDex, tmp.GetFilename().c_str()));
+  ASSERT_TRUE(raw != nullptr);
+
+  const DexFile::Header& header = raw->GetHeader();
+  // TODO: header.magic_
+  EXPECT_EQ(0x00d87910U, header.checksum_);
+  // TODO: header.signature_
+  EXPECT_EQ(904U, header.file_size_);
+  EXPECT_EQ(112U, header.header_size_);
+  EXPECT_EQ(0U, header.link_size_);
+  EXPECT_EQ(0U, header.link_off_);
+  EXPECT_EQ(15U, header.string_ids_size_);
+  EXPECT_EQ(112U, header.string_ids_off_);
+  EXPECT_EQ(7U, header.type_ids_size_);
+  EXPECT_EQ(172U, header.type_ids_off_);
+  EXPECT_EQ(2U, header.proto_ids_size_);
+  EXPECT_EQ(200U, header.proto_ids_off_);
+  EXPECT_EQ(1U, header.field_ids_size_);
+  EXPECT_EQ(224U, header.field_ids_off_);
+  EXPECT_EQ(3U, header.method_ids_size_);
+  EXPECT_EQ(232U, header.method_ids_off_);
+  EXPECT_EQ(2U, header.class_defs_size_);
+  EXPECT_EQ(256U, header.class_defs_off_);
+  EXPECT_EQ(584U, header.data_size_);
+  EXPECT_EQ(320U, header.data_off_);
+
+  EXPECT_EQ(header.checksum_, raw->GetLocationChecksum());
+}
+
+TEST_F(DexFileTest, HeaderInMemory) {
+  ScratchFile tmp;
+  std::unique_ptr<const DexFile> raw =
+      OpenDexFileInMemoryBase64(kRawDex, tmp.GetFilename().c_str(), 0x00d87910U);
   ASSERT_TRUE(raw.get() != nullptr);
 
   const DexFile::Header& header = raw->GetHeader();
