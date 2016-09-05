@@ -422,10 +422,6 @@ class DexFile {
                    std::string* error_msg,
                    std::vector<std::unique_ptr<const DexFile>>* dex_files);
 
-  // Checks whether the given file has the dex magic, or is a zip file with a classes.dex entry.
-  // If this function returns false, Open will not succeed. The inverse is not true, however.
-  static bool MaybeDex(const char* filename);
-
   // Opens .dex file, backed by existing memory
   static std::unique_ptr<const DexFile> Open(const uint8_t* base, size_t size,
                                              const std::string& location,
@@ -434,6 +430,18 @@ class DexFile {
                                              bool verify,
                                              bool verify_checksum,
                                              std::string* error_msg);
+
+  // Opens .dex file that has been memory-mapped by the caller.
+  static std::unique_ptr<const DexFile> Open(const std::string& location,
+                                             uint32_t location_checkum,
+                                             std::unique_ptr<MemMap> mem_map,
+                                             bool verify,
+                                             bool verify_checksum,
+                                             std::string* error_msg);
+
+  // Checks whether the given file has the dex magic, or is a zip file with a classes.dex entry.
+  // If this function returns false, Open will not succeed. The inverse is not true, however.
+  static bool MaybeDex(const char* filename);
 
   // Open all classesXXX.dex files from a zip archive.
   static bool OpenFromZip(const ZipArchive& zip_archive,
@@ -1175,7 +1183,7 @@ class DexFile {
   // Opens a .dex file at the given address backed by a MemMap
   static std::unique_ptr<const DexFile> OpenMemory(const std::string& location,
                                                    uint32_t location_checksum,
-                                                   MemMap* mem_map,
+                                                   std::unique_ptr<MemMap> mem_map,
                                                    std::string* error_msg);
 
   // Opens a .dex file at the given address, optionally backed by a MemMap
@@ -1183,14 +1191,14 @@ class DexFile {
                                                    size_t size,
                                                    const std::string& location,
                                                    uint32_t location_checksum,
-                                                   MemMap* mem_map,
+                                                   std::unique_ptr<MemMap> mem_map,
                                                    const OatDexFile* oat_dex_file,
                                                    std::string* error_msg);
 
   DexFile(const uint8_t* base, size_t size,
           const std::string& location,
           uint32_t location_checksum,
-          MemMap* mem_map,
+          std::unique_ptr<MemMap> mem_map,
           const OatDexFile* oat_dex_file);
 
   // Top-level initializer that calls other Init methods.
