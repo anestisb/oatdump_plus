@@ -171,12 +171,6 @@ class RegisterAllocatorLinearScan : public RegisterAllocator {
   // Slots reserved for out arguments.
   size_t reserved_out_slots_;
 
-  // The maximum live core registers at safepoints.
-  size_t maximum_number_of_live_core_registers_;
-
-  // The maximum live FP registers at safepoints.
-  size_t maximum_number_of_live_fp_registers_;
-
   ART_FRIEND_TEST(RegisterAllocatorTest, FreeUntil);
   ART_FRIEND_TEST(RegisterAllocatorTest, SpillInactive);
 

@@ -22,6 +22,7 @@
 #include "base/arena_containers.h"
 #include "base/arena_object.h"
 #include "base/bit_field.h"
+#include "base/bit_utils.h"
 #include "base/enums.h"
 #include "globals.h"
 #include "graph_visualizer.h"
@@ -211,8 +212,7 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
   virtual size_t GetFloatingPointSpillSlotSize() const = 0;
   virtual uintptr_t GetAddressOf(HBasicBlock* block) = 0;
   void InitializeCodeGeneration(size_t number_of_spill_slots,
-                                size_t maximum_number_of_live_core_registers,
-                                size_t maximum_number_of_live_fpu_registers,
+                                size_t maximum_safepoint_spill_size,
                                 size_t number_of_out_slots,
                                 const ArenaVector<HBasicBlock*>& block_order);
   // Backends can override this as necessary. For most, no special alignment is required.
@@ -276,6 +276,30 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
 
   bool IsFloatingPointCalleeSaveRegister(int reg) const {
     return (fpu_callee_save_mask_ & (1 << reg)) != 0;
+  }
+
+  uint32_t GetSlowPathSpills(LocationSummary* locations, bool core_registers) const {
+    DCHECK(locations->OnlyCallsOnSlowPath() ||
+           (locations->Intrinsified() && locations->CallsOnMainAndSlowPath() &&
+               !locations->HasCustomSlowPathCallingConvention()));
+    uint32_t live_registers = core_registers
+        ? locations->GetLiveRegisters()->GetCoreRegisters()
+        : locations->GetLiveRegisters()->GetFloatingPointRegisters();
+    if (locations->HasCustomSlowPathCallingConvention()) {
+      // Save only the live registers that the custom calling convention wants us to save.
+      uint32_t caller_saves = core_registers
+          ? locations->GetCustomSlowPathCallerSaves().GetCoreRegisters()
+          : locations->GetCustomSlowPathCallerSaves().GetFloatingPointRegisters();
+      return live_registers & caller_saves;
+    } else {
+      // Default ABI, we need to spill non-callee-save live registers.
+      uint32_t callee_saves = core_registers ? core_callee_save_mask_ : fpu_callee_save_mask_;
+      return live_registers & ~callee_saves;
+    }
+  }
+
+  size_t GetNumberOfSlowPathSpills(LocationSummary* locations, bool core_registers) const {
+    return POPCOUNT(GetSlowPathSpills(locations, core_registers));
   }
 
   // Record native to dex mapping for a suspend point.  Required by runtime.

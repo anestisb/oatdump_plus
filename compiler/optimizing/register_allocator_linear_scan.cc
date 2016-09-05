@@ -63,9 +63,7 @@ RegisterAllocatorLinearScan::RegisterAllocatorLinearScan(ArenaAllocator* allocat
         registers_array_(nullptr),
         blocked_core_registers_(codegen->GetBlockedCoreRegisters()),
         blocked_fp_registers_(codegen->GetBlockedFloatingPointRegisters()),
-        reserved_out_slots_(0),
-        maximum_number_of_live_core_registers_(0),
-        maximum_number_of_live_fp_registers_(0) {
+        reserved_out_slots_(0) {
   temp_intervals_.reserve(4);
   int_spill_slots_.reserve(kDefaultNumberOfSpillSlots);
   long_spill_slots_.reserve(kDefaultNumberOfSpillSlots);
@@ -92,8 +90,7 @@ static bool ShouldProcess(bool processing_core_registers, LiveInterval* interval
 void RegisterAllocatorLinearScan::AllocateRegisters() {
   AllocateRegistersInternal();
   RegisterAllocationResolver(allocator_, codegen_, liveness_)
-      .Resolve(maximum_number_of_live_core_registers_,
-               maximum_number_of_live_fp_registers_,
+      .Resolve(ArrayRef<HInstruction* const>(safepoints_),
                reserved_out_slots_,
                int_spill_slots_.size(),
                long_spill_slots_.size(),
@@ -283,20 +280,6 @@ void RegisterAllocatorLinearScan::ProcessInstruction(HInstruction* instruction) 
       return;
     }
     safepoints_.push_back(instruction);
-    if (locations->OnlyCallsOnSlowPath()) {
-      // We add a synthesized range at this position to record the live registers
-      // at this position. Ideally, we could just update the safepoints when locations
-      // are updated, but we currently need to know the full stack size before updating
-      // locations (because of parameters and the fact that we don't have a frame pointer).
-      // And knowing the full stack size requires to know the maximum number of live
-      // registers at calls in slow paths.
-      // By adding the following interval in the algorithm, we can compute this
-      // maximum before updating locations.
-      LiveInterval* interval = LiveInterval::MakeSlowPathInterval(allocator_, instruction);
-      interval->AddRange(position, position + 1);
-      AddSorted(&unhandled_core_intervals_, interval);
-      AddSorted(&unhandled_fp_intervals_, interval);
-    }
   }
 
   if (locations->WillCall()) {
@@ -569,20 +552,6 @@ void RegisterAllocatorLinearScan::LinearScan() {
         });
     inactive_.erase(inactive_kept_end, inactive_to_handle_end);
 
-    if (current->IsSlowPathSafepoint()) {
-      // Synthesized interval to record the maximum number of live registers
-      // at safepoints. No need to allocate a register for it.
-      if (processing_core_registers_) {
-        maximum_number_of_live_core_registers_ =
-          std::max(maximum_number_of_live_core_registers_, active_.size());
-      } else {
-        maximum_number_of_live_fp_registers_ =
-          std::max(maximum_number_of_live_fp_registers_, active_.size());
-      }
-      DCHECK(unhandled_->empty() || unhandled_->back()->GetStart() > current->GetStart());
-      continue;
-    }
-
     if (current->IsHighInterval() && !current->GetLowInterval()->HasRegister()) {
       DCHECK(!current->HasRegister());
       // Allocating the low part was unsucessful. The splitted interval for the high part
@@ -685,7 +654,7 @@ bool RegisterAllocatorLinearScan::TryAllocateFreeReg(LiveInterval* current) {
   // the next intersection with `current`.
   for (LiveInterval* inactive : inactive_) {
     // Temp/Slow-path-safepoint interval has no holes.
-    DCHECK(!inactive->IsTemp() && !inactive->IsSlowPathSafepoint());
+    DCHECK(!inactive->IsTemp());
     if (!current->IsSplit() && !inactive->IsFixed()) {
       // Neither current nor inactive are fixed.
       // Thanks to SSA, a non-split interval starting in a hole of an
@@ -933,7 +902,7 @@ bool RegisterAllocatorLinearScan::AllocateBlockedReg(LiveInterval* current) {
   // start of current.
   for (LiveInterval* inactive : inactive_) {
     // Temp/Slow-path-safepoint interval has no holes.
-    DCHECK(!inactive->IsTemp() && !inactive->IsSlowPathSafepoint());
+    DCHECK(!inactive->IsTemp());
     if (!current->IsSplit() && !inactive->IsFixed()) {
       // Neither current nor inactive are fixed.
       // Thanks to SSA, a non-split interval starting in a hole of an
@@ -1083,12 +1052,6 @@ void RegisterAllocatorLinearScan::AddSorted(ArenaVector<LiveInterval*>* array, L
     LiveInterval* current = (*array)[i - 1u];
     // High intervals must be processed right after their low equivalent.
     if (current->StartsAfter(interval) && !current->IsHighInterval()) {
-      insert_at = i;
-      break;
-    } else if ((current->GetStart() == interval->GetStart()) && current->IsSlowPathSafepoint()) {
-      // Ensure the slow path interval is the last to be processed at its location: we want the
-      // interval to know all live registers at this location.
-      DCHECK(i == 1 || (*array)[i - 2u]->StartsAfter(current));
       insert_at = i;
       break;
     }
