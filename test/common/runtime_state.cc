@@ -22,12 +22,10 @@
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
 #include "mirror/class-inl.h"
-#include "nth_caller_visitor.h"
 #include "oat_quick_method_header.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedUtfChars.h"
-#include "stack.h"
 #include "thread-inl.h"
 
 namespace art {
