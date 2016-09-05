@@ -20,6 +20,7 @@
 #include "base/arena_containers.h"
 #include "base/arena_object.h"
 #include "base/bit_field.h"
+#include "base/bit_utils.h"
 #include "base/bit_vector.h"
 #include "base/value_object.h"
 
@@ -452,7 +453,7 @@ class RegisterSet : public ValueObject {
   }
 
   size_t GetNumberOfRegisters() const {
-    return __builtin_popcount(core_registers_) + __builtin_popcount(floating_point_registers_);
+    return POPCOUNT(core_registers_) + POPCOUNT(floating_point_registers_);
   }
 
   uint32_t GetCoreRegisters() const {
@@ -466,8 +467,6 @@ class RegisterSet : public ValueObject {
  private:
   uint32_t core_registers_;
   uint32_t floating_point_registers_;
-
-  DISALLOW_COPY_AND_ASSIGN(RegisterSet);
 };
 
 static constexpr bool kIntrinsified = true;
@@ -569,6 +568,21 @@ class LocationSummary : public ArenaObject<kArenaAllocLocationSummary> {
     return CanCall();
   }
 
+  void SetCustomSlowPathCallerSaves(const RegisterSet& caller_saves) {
+    DCHECK(OnlyCallsOnSlowPath());
+    has_custom_slow_path_calling_convention_ = true;
+    custom_slow_path_caller_saves_ = caller_saves;
+  }
+
+  bool HasCustomSlowPathCallingConvention() const {
+    return has_custom_slow_path_calling_convention_;
+  }
+
+  const RegisterSet& GetCustomSlowPathCallerSaves() const {
+    DCHECK(HasCustomSlowPathCallingConvention());
+    return custom_slow_path_caller_saves_;
+  }
+
   void SetStackBit(uint32_t index) {
     stack_mask_->SetBit(index);
   }
@@ -628,18 +642,18 @@ class LocationSummary : public ArenaObject<kArenaAllocLocationSummary> {
     return intrinsified_;
   }
 
-  void SetIntrinsified(bool intrinsified) {
-    intrinsified_ = intrinsified;
-  }
-
  private:
   ArenaVector<Location> inputs_;
   ArenaVector<Location> temps_;
+  const CallKind call_kind_;
+  // Whether these are locations for an intrinsified call.
+  const bool intrinsified_;
+  // Whether the slow path has default or custom calling convention.
+  bool has_custom_slow_path_calling_convention_;
   // Whether the output overlaps with any of the inputs. If it overlaps, then it cannot
   // share the same register as the inputs.
   Location::OutputOverlap output_overlaps_;
   Location output_;
-  const CallKind call_kind_;
 
   // Mask of objects that live in the stack.
   BitVector* stack_mask_;
@@ -650,8 +664,8 @@ class LocationSummary : public ArenaObject<kArenaAllocLocationSummary> {
   // Registers that are in use at this position.
   RegisterSet live_registers_;
 
-  // Whether these are locations for an intrinsified call.
-  bool intrinsified_;
+  // Custom slow path caller saves. Valid only if indicated by slow_path_calling_convention_.
+  RegisterSet custom_slow_path_caller_saves_;
 
   friend class RegisterAllocatorTest;
   DISALLOW_COPY_AND_ASSIGN(LocationSummary);
