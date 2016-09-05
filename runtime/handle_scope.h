@@ -22,8 +22,9 @@
 #include "base/enums.h"
 #include "base/logging.h"
 #include "base/macros.h"
+#include "base/mutex.h"
 #include "handle.h"
-#include "stack.h"
+#include "stack_reference.h"
 #include "verify_object.h"
 
 namespace art {

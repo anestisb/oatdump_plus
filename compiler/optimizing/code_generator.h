@@ -23,8 +23,6 @@
 #include "base/arena_object.h"
 #include "base/bit_field.h"
 #include "base/enums.h"
-#include "compiled_method.h"
-#include "driver/compiler_options.h"
 #include "globals.h"
 #include "graph_visualizer.h"
 #include "locations.h"
@@ -54,6 +52,7 @@ static int64_t constexpr kPrimLongMax = INT64_C(0x7fffffffffffffff);
 class Assembler;
 class CodeGenerator;
 class CompilerDriver;
+class CompilerOptions;
 class LinkerPatch;
 class ParallelMoveResolver;
 

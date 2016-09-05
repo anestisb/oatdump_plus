@@ -30,6 +30,7 @@
 #include "mirror/class_loader.h"
 #include "mirror/throwable.h"
 #include "oat_quick_method_header.h"
+#include "stack.h"
 #include "stack_map.h"
 #include "verifier/method_verifier.h"
 

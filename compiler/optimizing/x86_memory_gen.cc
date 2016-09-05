@@ -16,6 +16,7 @@
 
 #include "x86_memory_gen.h"
 #include "code_generator.h"
+#include "driver/compiler_options.h"
 
 namespace art {
 namespace x86 {
