@@ -61,6 +61,11 @@ bool EntrypointRequiresStackMap(QuickEntrypointEnum trampoline) {
     case kQuickUshrLong:
       return false;
 
+    /* Used by mips for 64bit volatile load/stores. */
+    case kQuickA64Load:
+    case kQuickA64Store:
+      return false;
+
     default:
       return true;
   }
