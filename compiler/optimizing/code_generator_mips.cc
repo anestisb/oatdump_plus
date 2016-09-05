@@ -171,14 +171,10 @@ class BoundsCheckSlowPathMIPS : public SlowPathCodeMIPS {
                                locations->InAt(1),
                                Location::RegisterLocation(calling_convention.GetRegisterAt(1)),
                                Primitive::kPrimInt);
-    uint32_t entry_point_offset = instruction_->AsBoundsCheck()->IsStringCharAt()
-        ? QUICK_ENTRY_POINT(pThrowStringBounds)
-        : QUICK_ENTRY_POINT(pThrowArrayBounds);
-    mips_codegen->InvokeRuntime(entry_point_offset,
-                                instruction_,
-                                instruction_->GetDexPc(),
-                                this,
-                                IsDirectEntrypoint(kQuickThrowArrayBounds));
+    QuickEntrypointEnum entrypoint = instruction_->AsBoundsCheck()->IsStringCharAt()
+        ? kQuickThrowStringBounds
+        : kQuickThrowArrayBounds;
+    mips_codegen->InvokeRuntime(entrypoint, instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickThrowStringBounds, void, int32_t, int32_t>();
     CheckEntrypointTypes<kQuickThrowArrayBounds, void, int32_t, int32_t>();
   }
@@ -202,11 +198,7 @@ class DivZeroCheckSlowPathMIPS : public SlowPathCodeMIPS {
       // Live registers will be restored in the catch block if caught.
       SaveLiveRegisters(codegen, instruction_->GetLocations());
     }
-    mips_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pThrowDivZero),
-                                instruction_,
-                                instruction_->GetDexPc(),
-                                this,
-                                IsDirectEntrypoint(kQuickThrowDivZero));
+    mips_codegen->InvokeRuntime(kQuickThrowDivZero, instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickThrowDivZero, void, void>();
   }
 
@@ -238,12 +230,9 @@ class LoadClassSlowPathMIPS : public SlowPathCodeMIPS {
     InvokeRuntimeCallingConvention calling_convention;
     __ LoadConst32(calling_convention.GetRegisterAt(0), cls_->GetTypeIndex());
 
-    int32_t entry_point_offset = do_clinit_ ? QUICK_ENTRY_POINT(pInitializeStaticStorage)
-                                            : QUICK_ENTRY_POINT(pInitializeType);
-    bool direct = do_clinit_ ? IsDirectEntrypoint(kQuickInitializeStaticStorage)
-                             : IsDirectEntrypoint(kQuickInitializeType);
-
-    mips_codegen->InvokeRuntime(entry_point_offset, at_, dex_pc_, this, direct);
+    QuickEntrypointEnum entrypoint = do_clinit_ ? kQuickInitializeStaticStorage
+                                                : kQuickInitializeType;
+    mips_codegen->InvokeRuntime(entrypoint, at_, dex_pc_, this);
     if (do_clinit_) {
       CheckEntrypointTypes<kQuickInitializeStaticStorage, void*, uint32_t>();
     } else {
@@ -296,11 +285,7 @@ class LoadStringSlowPathMIPS : public SlowPathCodeMIPS {
     InvokeRuntimeCallingConvention calling_convention;
     const uint32_t string_index = instruction_->AsLoadString()->GetStringIndex();
     __ LoadConst32(calling_convention.GetRegisterAt(0), string_index);
-    mips_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pResolveString),
-                                instruction_,
-                                instruction_->GetDexPc(),
-                                this,
-                                IsDirectEntrypoint(kQuickResolveString));
+    mips_codegen->InvokeRuntime(kQuickResolveString, instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
     Primitive::Type type = instruction_->GetType();
     mips_codegen->MoveLocation(locations->Out(),
@@ -328,11 +313,10 @@ class NullCheckSlowPathMIPS : public SlowPathCodeMIPS {
       // Live registers will be restored in the catch block if caught.
       SaveLiveRegisters(codegen, instruction_->GetLocations());
     }
-    mips_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pThrowNullPointer),
+    mips_codegen->InvokeRuntime(kQuickThrowNullPointer,
                                 instruction_,
                                 instruction_->GetDexPc(),
-                                this,
-                                IsDirectEntrypoint(kQuickThrowNullPointer));
+                                this);
     CheckEntrypointTypes<kQuickThrowNullPointer, void, void>();
   }
 
@@ -352,11 +336,7 @@ class SuspendCheckSlowPathMIPS : public SlowPathCodeMIPS {
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorMIPS* mips_codegen = down_cast<CodeGeneratorMIPS*>(codegen);
     __ Bind(GetEntryLabel());
-    mips_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pTestSuspend),
-                                instruction_,
-                                instruction_->GetDexPc(),
-                                this,
-                                IsDirectEntrypoint(kQuickTestSuspend));
+    mips_codegen->InvokeRuntime(kQuickTestSuspend, instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickTestSuspend, void, void>();
     if (successor_ == nullptr) {
       __ B(GetReturnLabel());
@@ -408,11 +388,7 @@ class TypeCheckSlowPathMIPS : public SlowPathCodeMIPS {
                                Primitive::kPrimNot);
 
     if (instruction_->IsInstanceOf()) {
-      mips_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pInstanceofNonTrivial),
-                                  instruction_,
-                                  dex_pc,
-                                  this,
-                                  IsDirectEntrypoint(kQuickInstanceofNonTrivial));
+      mips_codegen->InvokeRuntime(kQuickInstanceofNonTrivial, instruction_, dex_pc, this);
       CheckEntrypointTypes<
           kQuickInstanceofNonTrivial, size_t, const mirror::Class*, const mirror::Class*>();
       Primitive::Type ret_type = instruction_->GetType();
@@ -420,11 +396,7 @@ class TypeCheckSlowPathMIPS : public SlowPathCodeMIPS {
       mips_codegen->MoveLocation(locations->Out(), ret_loc, ret_type);
     } else {
       DCHECK(instruction_->IsCheckCast());
-      mips_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pCheckCast),
-                                  instruction_,
-                                  dex_pc,
-                                  this,
-                                  IsDirectEntrypoint(kQuickCheckCast));
+      mips_codegen->InvokeRuntime(kQuickCheckCast, instruction_, dex_pc, this);
       CheckEntrypointTypes<kQuickCheckCast, void, const mirror::Class*, const mirror::Class*>();
     }
 
@@ -447,11 +419,7 @@ class DeoptimizationSlowPathMIPS : public SlowPathCodeMIPS {
     CodeGeneratorMIPS* mips_codegen = down_cast<CodeGeneratorMIPS*>(codegen);
     __ Bind(GetEntryLabel());
     SaveLiveRegisters(codegen, instruction_->GetLocations());
-    mips_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pDeoptimize),
-                                instruction_,
-                                instruction_->GetDexPc(),
-                                this,
-                                IsDirectEntrypoint(kQuickDeoptimize));
+    mips_codegen->InvokeRuntime(kQuickDeoptimize, instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickDeoptimize, void, void>();
   }
 
@@ -1246,28 +1214,17 @@ void CodeGeneratorMIPS::DumpFloatingPointRegister(std::ostream& stream, int reg)
   stream << FRegister(reg);
 }
 
+constexpr size_t kMipsDirectEntrypointRuntimeOffset = 16;
+
 void CodeGeneratorMIPS::InvokeRuntime(QuickEntrypointEnum entrypoint,
                                       HInstruction* instruction,
                                       uint32_t dex_pc,
                                       SlowPathCode* slow_path) {
-  InvokeRuntime(GetThreadOffset<kMipsPointerSize>(entrypoint).Int32Value(),
-                instruction,
-                dex_pc,
-                slow_path,
-                IsDirectEntrypoint(entrypoint));
-}
-
-constexpr size_t kMipsDirectEntrypointRuntimeOffset = 16;
-
-void CodeGeneratorMIPS::InvokeRuntime(int32_t entry_point_offset,
-                                      HInstruction* instruction,
-                                      uint32_t dex_pc,
-                                      SlowPathCode* slow_path,
-                                      bool is_direct_entrypoint) {
+  ValidateInvokeRuntime(instruction, slow_path);
   bool reordering = __ SetReorder(false);
-  __ LoadFromOffset(kLoadWord, T9, TR, entry_point_offset);
+  __ LoadFromOffset(kLoadWord, T9, TR, GetThreadOffset<kMipsPointerSize>(entrypoint).Int32Value());
   __ Jalr(T9);
-  if (is_direct_entrypoint) {
+  if (IsDirectEntrypoint(entrypoint)) {
     // Reserve argument space on stack (for $a0-$a3) for
     // entrypoints that directly reference native implementations.
     // Called function may use this space to store $a0-$a3 regs.
@@ -1277,7 +1234,9 @@ void CodeGeneratorMIPS::InvokeRuntime(int32_t entry_point_offset,
     __ Nop();  // In delay slot.
   }
   __ SetReorder(reordering);
-  RecordPcInfo(instruction, dex_pc, slow_path);
+  if (EntrypointRequiresStackMap(entrypoint)) {
+    RecordPcInfo(instruction, dex_pc, slow_path);
+  }
 }
 
 void InstructionCodeGeneratorMIPS::GenerateClassInitializationCheck(SlowPathCodeMIPS* slow_path,
@@ -2081,11 +2040,7 @@ void InstructionCodeGeneratorMIPS::VisitArraySet(HArraySet* instruction) {
         }
       } else {
         DCHECK_EQ(value_type, Primitive::kPrimNot);
-        codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pAputObject),
-                                instruction,
-                                instruction->GetDexPc(),
-                                nullptr,
-                                IsDirectEntrypoint(kQuickAputObject));
+        codegen_->InvokeRuntime(kQuickAputObject, instruction, instruction->GetDexPc());
         CheckEntrypointTypes<kQuickAputObject, void, mirror::Array*, int32_t, mirror::Object*>();
       }
       break;
@@ -2651,11 +2606,7 @@ void InstructionCodeGeneratorMIPS::VisitDiv(HDiv* instruction) {
       GenerateDivRemIntegral(instruction);
       break;
     case Primitive::kPrimLong: {
-      codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pLdiv),
-                              instruction,
-                              instruction->GetDexPc(),
-                              nullptr,
-                              IsDirectEntrypoint(kQuickLdiv));
+      codegen_->InvokeRuntime(kQuickLdiv, instruction, instruction->GetDexPc());
       CheckEntrypointTypes<kQuickLdiv, int64_t, int64_t, int64_t>();
       break;
     }
@@ -3641,11 +3592,7 @@ void InstructionCodeGeneratorMIPS::HandleFieldGet(HInstruction* instruction,
     // Do implicit Null check
     __ Lw(ZERO, locations->GetTemp(0).AsRegister<Register>(), 0);
     codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
-    codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pA64Load),
-                            instruction,
-                            dex_pc,
-                            nullptr,
-                            IsDirectEntrypoint(kQuickA64Load));
+    codegen_->InvokeRuntime(kQuickA64Load, instruction, dex_pc);
     CheckEntrypointTypes<kQuickA64Load, int64_t, volatile const int64_t*>();
     if (type == Primitive::kPrimDouble) {
       // FP results are returned in core registers. Need to move them.
@@ -3793,11 +3740,7 @@ void InstructionCodeGeneratorMIPS::HandleFieldSet(HInstruction* instruction,
                        value);
       }
     }
-    codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pA64Store),
-                            instruction,
-                            dex_pc,
-                            nullptr,
-                            IsDirectEntrypoint(kQuickA64Store));
+    codegen_->InvokeRuntime(kQuickA64Store, instruction, dex_pc);
     CheckEntrypointTypes<kQuickA64Store, void, volatile int64_t *, int64_t>();
   } else {
     if (!Primitive::IsFloatingPointType(type)) {
@@ -4381,11 +4324,7 @@ void InstructionCodeGeneratorMIPS::VisitLoadClass(HLoadClass* cls) {
   LocationSummary* locations = cls->GetLocations();
   if (cls->NeedsAccessCheck()) {
     codegen_->MoveConstant(locations->GetTemp(0), cls->GetTypeIndex());
-    codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pInitializeTypeAndVerifyAccess),
-                            cls,
-                            cls->GetDexPc(),
-                            nullptr,
-                            IsDirectEntrypoint(kQuickInitializeTypeAndVerifyAccess));
+    codegen_->InvokeRuntime(kQuickInitializeTypeAndVerifyAccess, cls, cls->GetDexPc());
     CheckEntrypointTypes<kQuickInitializeTypeAndVerifyAccess, void*, uint32_t>();
     return;
   }
@@ -4653,18 +4592,10 @@ void LocationsBuilderMIPS::VisitMonitorOperation(HMonitorOperation* instruction)
 
 void InstructionCodeGeneratorMIPS::VisitMonitorOperation(HMonitorOperation* instruction) {
   if (instruction->IsEnter()) {
-    codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pLockObject),
-                            instruction,
-                            instruction->GetDexPc(),
-                            nullptr,
-                            IsDirectEntrypoint(kQuickLockObject));
+    codegen_->InvokeRuntime(kQuickLockObject, instruction, instruction->GetDexPc());
     CheckEntrypointTypes<kQuickLockObject, void, mirror::Object*>();
   } else {
-    codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pUnlockObject),
-                            instruction,
-                            instruction->GetDexPc(),
-                            nullptr,
-                            IsDirectEntrypoint(kQuickUnlockObject));
+    codegen_->InvokeRuntime(kQuickUnlockObject, instruction, instruction->GetDexPc());
   }
   CheckEntrypointTypes<kQuickUnlockObject, void, mirror::Object*>();
 }
@@ -4839,12 +4770,7 @@ void InstructionCodeGeneratorMIPS::VisitNewArray(HNewArray* instruction) {
   __ Lw(current_method_register, SP, kCurrentMethodStackOffset);
   // Move an uint16_t value to a register.
   __ LoadConst32(calling_convention.GetRegisterAt(0), instruction->GetTypeIndex());
-  codegen_->InvokeRuntime(
-      GetThreadOffset<kMipsPointerSize>(instruction->GetEntrypoint()).Int32Value(),
-      instruction,
-      instruction->GetDexPc(),
-      nullptr,
-      IsDirectEntrypoint(kQuickAllocArrayWithAccessCheck));
+  codegen_->InvokeRuntime(instruction->GetEntrypoint(), instruction, instruction->GetDexPc());
   CheckEntrypointTypes<kQuickAllocArrayWithAccessCheck,
                        void*, uint32_t, int32_t, ArtMethod*>();
 }
@@ -4873,12 +4799,7 @@ void InstructionCodeGeneratorMIPS::VisitNewInstance(HNewInstance* instruction) {
     __ NopIfNoReordering();
     codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
   } else {
-    codegen_->InvokeRuntime(
-        GetThreadOffset<kMipsPointerSize>(instruction->GetEntrypoint()).Int32Value(),
-        instruction,
-        instruction->GetDexPc(),
-        nullptr,
-        IsDirectEntrypoint(kQuickAllocObjectWithAccessCheck));
+    codegen_->InvokeRuntime(instruction->GetEntrypoint(), instruction, instruction->GetDexPc());
     CheckEntrypointTypes<kQuickAllocObjectWithAccessCheck, void*, uint32_t, ArtMethod*>();
   }
 }
@@ -5063,27 +4984,17 @@ void InstructionCodeGeneratorMIPS::VisitRem(HRem* instruction) {
       GenerateDivRemIntegral(instruction);
       break;
     case Primitive::kPrimLong: {
-      codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pLmod),
-                              instruction,
-                              instruction->GetDexPc(),
-                              nullptr,
-                              IsDirectEntrypoint(kQuickLmod));
+      codegen_->InvokeRuntime(kQuickLmod, instruction, instruction->GetDexPc());
       CheckEntrypointTypes<kQuickLmod, int64_t, int64_t, int64_t>();
       break;
     }
     case Primitive::kPrimFloat: {
-      codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pFmodf),
-                              instruction, instruction->GetDexPc(),
-                              nullptr,
-                              IsDirectEntrypoint(kQuickFmodf));
+      codegen_->InvokeRuntime(kQuickFmodf, instruction, instruction->GetDexPc());
       CheckEntrypointTypes<kQuickFmodf, float, float, float>();
       break;
     }
     case Primitive::kPrimDouble: {
-      codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pFmod),
-                              instruction, instruction->GetDexPc(),
-                              nullptr,
-                              IsDirectEntrypoint(kQuickFmod));
+      codegen_->InvokeRuntime(kQuickFmod, instruction, instruction->GetDexPc());
       CheckEntrypointTypes<kQuickFmod, double, double, double>();
       break;
     }
@@ -5264,11 +5175,7 @@ void LocationsBuilderMIPS::VisitThrow(HThrow* instruction) {
 }
 
 void InstructionCodeGeneratorMIPS::VisitThrow(HThrow* instruction) {
-  codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pDeliverException),
-                          instruction,
-                          instruction->GetDexPc(),
-                          nullptr,
-                          IsDirectEntrypoint(kQuickDeliverException));
+  codegen_->InvokeRuntime(kQuickDeliverException, instruction, instruction->GetDexPc());
   CheckEntrypointTypes<kQuickDeliverException, void, mirror::Object*>();
 }
 
@@ -5389,15 +5296,9 @@ void InstructionCodeGeneratorMIPS::VisitTypeConversion(HTypeConversion* conversi
           __ Cvtdl(dst, FTMP);
         }
       } else {
-        int32_t entry_offset = (result_type == Primitive::kPrimFloat) ? QUICK_ENTRY_POINT(pL2f)
-                                                                      : QUICK_ENTRY_POINT(pL2d);
-        bool direct = (result_type == Primitive::kPrimFloat) ? IsDirectEntrypoint(kQuickL2f)
-                                                             : IsDirectEntrypoint(kQuickL2d);
-        codegen_->InvokeRuntime(entry_offset,
-                                conversion,
-                                conversion->GetDexPc(),
-                                nullptr,
-                                direct);
+        QuickEntrypointEnum entrypoint = (result_type == Primitive::kPrimFloat) ? kQuickL2f
+                                                                                : kQuickL2d;
+        codegen_->InvokeRuntime(entrypoint, conversion, conversion->GetDexPc());
         if (result_type == Primitive::kPrimFloat) {
           CheckEntrypointTypes<kQuickL2f, float, int64_t>();
         } else {
@@ -5490,11 +5391,9 @@ void InstructionCodeGeneratorMIPS::VisitTypeConversion(HTypeConversion* conversi
 
         __ Bind(&done);
       } else {
-        int32_t entry_offset = (input_type == Primitive::kPrimFloat) ? QUICK_ENTRY_POINT(pF2l)
-                                                                     : QUICK_ENTRY_POINT(pD2l);
-        bool direct = (result_type == Primitive::kPrimFloat) ? IsDirectEntrypoint(kQuickF2l)
-                                                             : IsDirectEntrypoint(kQuickD2l);
-        codegen_->InvokeRuntime(entry_offset, conversion, conversion->GetDexPc(), nullptr, direct);
+        QuickEntrypointEnum entrypoint = (input_type == Primitive::kPrimFloat) ? kQuickF2l
+                                                                               : kQuickD2l;
+        codegen_->InvokeRuntime(entrypoint, conversion, conversion->GetDexPc());
         if (input_type == Primitive::kPrimFloat) {
           CheckEntrypointTypes<kQuickF2l, int64_t, float>();
         } else {
