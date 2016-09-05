@@ -21,7 +21,7 @@ ART_TARGET_EXECUTABLES ?=
 
 ART_EXECUTABLES_CFLAGS :=
 
-# $(1): executable ("d" will be appended for debug version)
+# $(1): executable ("d" will be appended for debug version, "s" will be appended for static version)
 # $(2): source
 # $(3): extra shared libraries
 # $(4): extra include directories
@@ -70,7 +70,7 @@ define build-art-executable
   endif
 
   ifeq ($$(art_static_or_shared),static)
-    LOCAL_MODULE := $(LOCAL_MODULE)s
+    LOCAL_MODULE := $$(LOCAL_MODULE)s
   endif
 
   LOCAL_CFLAGS := $(ART_EXECUTABLES_CFLAGS)
