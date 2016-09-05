@@ -19,6 +19,7 @@
 
 #include "arch/instruction_set.h"
 #include "cfi_test.h"
+#include "driver/compiler_options.h"
 #include "gtest/gtest.h"
 #include "optimizing/code_generator.h"
 #include "optimizing/optimizing_unit_test.h"
