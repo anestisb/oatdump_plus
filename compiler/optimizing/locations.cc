@@ -27,12 +27,14 @@ LocationSummary::LocationSummary(HInstruction* instruction,
     : inputs_(instruction->InputCount(),
               instruction->GetBlock()->GetGraph()->GetArena()->Adapter(kArenaAllocLocationSummary)),
       temps_(instruction->GetBlock()->GetGraph()->GetArena()->Adapter(kArenaAllocLocationSummary)),
-      output_overlaps_(Location::kOutputOverlap),
       call_kind_(call_kind),
+      intrinsified_(intrinsified),
+      has_custom_slow_path_calling_convention_(false),
+      output_overlaps_(Location::kOutputOverlap),
       stack_mask_(nullptr),
       register_mask_(0),
       live_registers_(),
-      intrinsified_(intrinsified) {
+      custom_slow_path_caller_saves_() {
   instruction->SetLocations(this);
 
   if (NeedsSafepoint()) {
