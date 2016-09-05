@@ -347,13 +347,7 @@ class CodeGeneratorMIPS : public CodeGenerator {
   void InvokeRuntime(QuickEntrypointEnum entrypoint,
                      HInstruction* instruction,
                      uint32_t dex_pc,
-                     SlowPathCode* slow_path) OVERRIDE;
-
-  void InvokeRuntime(int32_t offset,
-                     HInstruction* instruction,
-                     uint32_t dex_pc,
-                     SlowPathCode* slow_path,
-                     bool is_direct_entrypoint);
+                     SlowPathCode* slow_path = nullptr) OVERRIDE;
 
   ParallelMoveResolver* GetMoveResolver() OVERRIDE { return &move_resolver_; }
 
