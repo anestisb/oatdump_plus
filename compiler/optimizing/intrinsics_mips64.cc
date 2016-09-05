@@ -1519,7 +1519,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitUnsafeCASObject(HInvoke* invoke) {
 // int java.lang.String.compareTo(String anotherString)
 void IntrinsicLocationsBuilderMIPS64::VisitStringCompareTo(HInvoke* invoke) {
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
-                                                            LocationSummary::kCallOnMainOnly,
+                                                            LocationSummary::kCallOnMainAndSlowPath,
                                                             kIntrinsified);
   InvokeRuntimeCallingConvention calling_convention;
   locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
@@ -1540,12 +1540,7 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringCompareTo(HInvoke* invoke) {
   codegen_->AddSlowPath(slow_path);
   __ Beqzc(argument, slow_path->GetEntryLabel());
 
-  __ LoadFromOffset(kLoadDoubleword,
-                    T9,
-                    TR,
-                    QUICK_ENTRYPOINT_OFFSET(kMips64PointerSize, pStringCompareTo).Int32Value());
-  __ Jalr(T9);
-  __ Nop();
+  codegen_->InvokeRuntime(kQuickStringCompareTo, invoke, invoke->GetDexPc(), slow_path);
   __ Bind(slow_path->GetExitLabel());
 }
 
@@ -1691,13 +1686,8 @@ static void GenerateStringIndexOf(HInvoke* invoke,
     __ Clear(tmp_reg);
   }
 
-  __ LoadFromOffset(kLoadDoubleword,
-                    T9,
-                    TR,
-                    QUICK_ENTRYPOINT_OFFSET(kMips64PointerSize, pIndexOf).Int32Value());
+  codegen->InvokeRuntime(kQuickIndexOf, invoke, invoke->GetDexPc(), slow_path);
   CheckEntrypointTypes<kQuickIndexOf, int32_t, void*, uint32_t, uint32_t>();
-  __ Jalr(T9);
-  __ Nop();
 
   if (slow_path != nullptr) {
     __ Bind(slow_path->GetExitLabel());
@@ -1768,15 +1758,8 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringNewStringFromBytes(HInvoke* invoke
   codegen_->AddSlowPath(slow_path);
   __ Beqzc(byte_array, slow_path->GetEntryLabel());
 
-  __ LoadFromOffset(kLoadDoubleword,
-                    T9,
-                    TR,
-                    QUICK_ENTRYPOINT_OFFSET(kMips64PointerSize,
-                                            pAllocStringFromBytes).Int32Value());
+  codegen_->InvokeRuntime(kQuickAllocStringFromBytes, invoke, invoke->GetDexPc(), slow_path);
   CheckEntrypointTypes<kQuickAllocStringFromBytes, void*, void*, int32_t, int32_t, int32_t>();
-  __ Jalr(T9);
-  __ Nop();
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
   __ Bind(slow_path->GetExitLabel());
 }
 
@@ -1794,23 +1777,14 @@ void IntrinsicLocationsBuilderMIPS64::VisitStringNewStringFromChars(HInvoke* inv
 }
 
 void IntrinsicCodeGeneratorMIPS64::VisitStringNewStringFromChars(HInvoke* invoke) {
-  Mips64Assembler* assembler = GetAssembler();
-
   // No need to emit code checking whether `locations->InAt(2)` is a null
   // pointer, as callers of the native method
   //
   //   java.lang.StringFactory.newStringFromChars(int offset, int charCount, char[] data)
   //
   // all include a null check on `data` before calling that method.
-  __ LoadFromOffset(kLoadDoubleword,
-                    T9,
-                    TR,
-                    QUICK_ENTRYPOINT_OFFSET(kMips64PointerSize,
-                                            pAllocStringFromChars).Int32Value());
+  codegen_->InvokeRuntime(kQuickAllocStringFromChars, invoke, invoke->GetDexPc());
   CheckEntrypointTypes<kQuickAllocStringFromChars, void*, int32_t, int32_t, void*>();
-  __ Jalr(T9);
-  __ Nop();
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
 // java.lang.StringFactory.newStringFromString(String toCopy)
@@ -1833,15 +1807,8 @@ void IntrinsicCodeGeneratorMIPS64::VisitStringNewStringFromString(HInvoke* invok
   codegen_->AddSlowPath(slow_path);
   __ Beqzc(string_to_copy, slow_path->GetEntryLabel());
 
-  __ LoadFromOffset(kLoadDoubleword,
-                    T9,
-                    TR,
-                    QUICK_ENTRYPOINT_OFFSET(kMips64PointerSize,
-                                            pAllocStringFromString).Int32Value());
+  codegen_->InvokeRuntime(kQuickAllocStringFromString, invoke, invoke->GetDexPc(), slow_path);
   CheckEntrypointTypes<kQuickAllocStringFromString, void*, void*>();
-  __ Jalr(T9);
-  __ Nop();
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
   __ Bind(slow_path->GetExitLabel());
 }
 
