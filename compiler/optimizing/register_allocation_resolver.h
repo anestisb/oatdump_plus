@@ -20,6 +20,7 @@
 #include "base/arena_containers.h"
 #include "base/value_object.h"
 #include "primitive.h"
+#include "utils/array_ref.h"
 
 namespace art {
 
@@ -43,8 +44,7 @@ class RegisterAllocationResolver : ValueObject {
                              CodeGenerator* codegen,
                              const SsaLivenessAnalysis& liveness);
 
-  void Resolve(size_t max_safepoint_live_core_regs,
-               size_t max_safepoint_live_fp_regs,
+  void Resolve(ArrayRef<HInstruction* const> safepoints,
                size_t reserved_out_slots,  // Includes slot(s) for the art method.
                size_t int_spill_slots,
                size_t long_spill_slots,
@@ -54,10 +54,14 @@ class RegisterAllocationResolver : ValueObject {
                const ArenaVector<LiveInterval*>& temp_intervals);
 
  private:
+  // Update live registers of safepoint location summary.
+  void UpdateSafepointLiveRegisters();
+
+  // Calculate the maximum size of the spill area for safepoints.
+  size_t CalculateMaximumSafepointSpillSize(ArrayRef<HInstruction* const> safepoints);
+
   // Connect adjacent siblings within blocks, and resolve inputs along the way.
-  // Uses max_safepoint_live_regs to check that we did not underestimate the
-  // number of live registers at safepoints.
-  void ConnectSiblings(LiveInterval* interval, size_t max_safepoint_live_regs);
+  void ConnectSiblings(LiveInterval* interval);
 
   // Connect siblings between block entries and exits.
   void ConnectSplitSiblings(LiveInterval* interval, HBasicBlock* from, HBasicBlock* to) const;

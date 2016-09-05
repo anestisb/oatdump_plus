@@ -3959,6 +3959,9 @@ void LocationsBuilderARM::HandleFieldGet(HInstruction* instruction, const FieldI
                                                    object_field_get_with_read_barrier ?
                                                        LocationSummary::kCallOnSlowPath :
                                                        LocationSummary::kNoCall);
+  if (object_field_get_with_read_barrier && kUseBakerReadBarrier) {
+    locations->SetCustomSlowPathCallerSaves(RegisterSet());  // No caller-save registers.
+  }
   locations->SetInAt(0, Location::RequiresRegister());
 
   bool volatile_for_double = field_info.IsVolatile()
@@ -4435,6 +4438,9 @@ void LocationsBuilderARM::VisitArrayGet(HArrayGet* instruction) {
                                                    object_array_get_with_read_barrier ?
                                                        LocationSummary::kCallOnSlowPath :
                                                        LocationSummary::kNoCall);
+  if (object_array_get_with_read_barrier && kUseBakerReadBarrier) {
+    locations->SetCustomSlowPathCallerSaves(RegisterSet());  // No caller-save registers.
+  }
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
   if (Primitive::IsFloatingPointType(instruction->GetType())) {
@@ -5054,7 +5060,9 @@ void InstructionCodeGeneratorARM::VisitParallelMove(HParallelMove* instruction) 
 }
 
 void LocationsBuilderARM::VisitSuspendCheck(HSuspendCheck* instruction) {
-  new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCallOnSlowPath);
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCallOnSlowPath);
+  locations->SetCustomSlowPathCallerSaves(RegisterSet());  // No caller-save registers.
 }
 
 void InstructionCodeGeneratorARM::VisitSuspendCheck(HSuspendCheck* instruction) {
@@ -5385,6 +5393,10 @@ void LocationsBuilderARM::VisitLoadClass(HLoadClass* cls) {
       ? LocationSummary::kCallOnSlowPath
       : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(cls, call_kind);
+  if (kUseBakerReadBarrier && !cls->NeedsEnvironment()) {
+    locations->SetCustomSlowPathCallerSaves(RegisterSet());  // No caller-save registers.
+  }
+
   HLoadClass::LoadKind load_kind = cls->GetLoadKind();
   if (load_kind == HLoadClass::LoadKind::kReferrersClass ||
       load_kind == HLoadClass::LoadKind::kDexCacheViaMethod ||
@@ -5575,6 +5587,10 @@ void LocationsBuilderARM::VisitLoadString(HLoadString* load) {
       ? LocationSummary::kCallOnSlowPath
       : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load, call_kind);
+  if (kUseBakerReadBarrier && !load->NeedsEnvironment()) {
+    locations->SetCustomSlowPathCallerSaves(RegisterSet());  // No caller-save registers.
+  }
+
   HLoadString::LoadKind load_kind = load->GetLoadKind();
   if (load_kind == HLoadString::LoadKind::kDexCacheViaMethod ||
       load_kind == HLoadString::LoadKind::kDexCachePcRelative) {
@@ -5672,6 +5688,7 @@ static bool TypeCheckNeedsATemporary(TypeCheckKind type_check_kind) {
 void LocationsBuilderARM::VisitInstanceOf(HInstanceOf* instruction) {
   LocationSummary::CallKind call_kind = LocationSummary::kNoCall;
   TypeCheckKind type_check_kind = instruction->GetTypeCheckKind();
+  bool baker_read_barrier_slow_path = false;
   switch (type_check_kind) {
     case TypeCheckKind::kExactCheck:
     case TypeCheckKind::kAbstractClassCheck:
@@ -5679,6 +5696,7 @@ void LocationsBuilderARM::VisitInstanceOf(HInstanceOf* instruction) {
     case TypeCheckKind::kArrayObjectCheck:
       call_kind =
           kEmitCompilerReadBarrier ? LocationSummary::kCallOnSlowPath : LocationSummary::kNoCall;
+      baker_read_barrier_slow_path = kUseBakerReadBarrier;
       break;
     case TypeCheckKind::kArrayCheck:
     case TypeCheckKind::kUnresolvedCheck:
@@ -5688,6 +5706,9 @@ void LocationsBuilderARM::VisitInstanceOf(HInstanceOf* instruction) {
   }
 
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
+  if (baker_read_barrier_slow_path) {
+    locations->SetCustomSlowPathCallerSaves(RegisterSet());  // No caller-save registers.
+  }
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
   // The "out" register is used as a temporary, so it overlaps with the inputs.
@@ -5858,6 +5879,7 @@ void LocationsBuilderARM::VisitCheckCast(HCheckCast* instruction) {
   bool throws_into_catch = instruction->CanThrowIntoCatchBlock();
 
   TypeCheckKind type_check_kind = instruction->GetTypeCheckKind();
+  bool baker_read_barrier_slow_path = false;
   switch (type_check_kind) {
     case TypeCheckKind::kExactCheck:
     case TypeCheckKind::kAbstractClassCheck:
@@ -5866,6 +5888,7 @@ void LocationsBuilderARM::VisitCheckCast(HCheckCast* instruction) {
       call_kind = (throws_into_catch || kEmitCompilerReadBarrier) ?
           LocationSummary::kCallOnSlowPath :
           LocationSummary::kNoCall;  // In fact, call on a fatal (non-returning) slow path.
+      baker_read_barrier_slow_path = kUseBakerReadBarrier && !throws_into_catch;
       break;
     case TypeCheckKind::kArrayCheck:
     case TypeCheckKind::kUnresolvedCheck:
@@ -5875,6 +5898,9 @@ void LocationsBuilderARM::VisitCheckCast(HCheckCast* instruction) {
   }
 
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
+  if (baker_read_barrier_slow_path) {
+    locations->SetCustomSlowPathCallerSaves(RegisterSet());  // No caller-save registers.
+  }
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
   // Note that TypeCheckSlowPathARM uses this "temp" register too.

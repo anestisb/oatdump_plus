@@ -28,8 +28,7 @@ RegisterAllocationResolver::RegisterAllocationResolver(ArenaAllocator* allocator
         codegen_(codegen),
         liveness_(liveness) {}
 
-void RegisterAllocationResolver::Resolve(size_t max_safepoint_live_core_regs,
-                                         size_t max_safepoint_live_fp_regs,
+void RegisterAllocationResolver::Resolve(ArrayRef<HInstruction* const> safepoints,
                                          size_t reserved_out_slots,
                                          size_t int_spill_slots,
                                          size_t long_spill_slots,
@@ -43,10 +42,13 @@ void RegisterAllocationResolver::Resolve(size_t max_safepoint_live_core_regs,
                      + double_spill_slots
                      + catch_phi_spill_slots;
 
+  // Update safepoints and calculate the size of the spills.
+  UpdateSafepointLiveRegisters();
+  size_t maximum_safepoint_spill_size = CalculateMaximumSafepointSpillSize(safepoints);
+
   // Computes frame size and spill mask.
   codegen_->InitializeCodeGeneration(spill_slots,
-                                     max_safepoint_live_core_regs,
-                                     max_safepoint_live_fp_regs,
+                                     maximum_safepoint_spill_size,
                                      reserved_out_slots,  // Includes slot(s) for the art method.
                                      codegen_->GetGraph()->GetLinearOrder());
 
@@ -135,8 +137,7 @@ void RegisterAllocationResolver::Resolve(size_t max_safepoint_live_core_regs,
   // Connect siblings and resolve inputs.
   for (size_t i = 0, e = liveness_.GetNumberOfSsaValues(); i < e; ++i) {
     HInstruction* instruction = liveness_.GetInstructionFromSsaIndex(i);
-    ConnectSiblings(instruction->GetLiveInterval(),
-                    max_safepoint_live_core_regs + max_safepoint_live_fp_regs);
+    ConnectSiblings(instruction->GetLiveInterval());
   }
 
   // Resolve non-linear control flow across branches. Order does not matter.
@@ -222,8 +223,73 @@ void RegisterAllocationResolver::Resolve(size_t max_safepoint_live_core_regs,
   }
 }
 
-void RegisterAllocationResolver::ConnectSiblings(LiveInterval* interval,
-                                                 size_t max_safepoint_live_regs) {
+void RegisterAllocationResolver::UpdateSafepointLiveRegisters() {
+  for (size_t i = 0, e = liveness_.GetNumberOfSsaValues(); i < e; ++i) {
+    HInstruction* instruction = liveness_.GetInstructionFromSsaIndex(i);
+    for (LiveInterval* current = instruction->GetLiveInterval();
+         current != nullptr;
+         current = current->GetNextSibling()) {
+      if (!current->HasRegister()) {
+        continue;
+      }
+      Location source = current->ToLocation();
+      for (SafepointPosition* safepoint_position = current->GetFirstSafepoint();
+           safepoint_position != nullptr;
+           safepoint_position = safepoint_position->GetNext()) {
+        DCHECK(current->CoversSlow(safepoint_position->GetPosition()));
+        LocationSummary* locations = safepoint_position->GetLocations();
+        switch (source.GetKind()) {
+          case Location::kRegister:
+          case Location::kFpuRegister: {
+            locations->AddLiveRegister(source);
+            break;
+          }
+          case Location::kRegisterPair:
+          case Location::kFpuRegisterPair: {
+            locations->AddLiveRegister(source.ToLow());
+            locations->AddLiveRegister(source.ToHigh());
+            break;
+          }
+          case Location::kStackSlot:  // Fall-through
+          case Location::kDoubleStackSlot:  // Fall-through
+          case Location::kConstant: {
+            // Nothing to do.
+            break;
+          }
+          default: {
+            LOG(FATAL) << "Unexpected location for object";
+          }
+        }
+      }
+    }
+  }
+}
+
+size_t RegisterAllocationResolver::CalculateMaximumSafepointSpillSize(
+    ArrayRef<HInstruction* const> safepoints) {
+  size_t core_register_spill_size = codegen_->GetWordSize();
+  size_t fp_register_spill_size = codegen_->GetFloatingPointSpillSlotSize();
+  size_t maximum_safepoint_spill_size = 0u;
+  for (HInstruction* instruction : safepoints) {
+    LocationSummary* locations = instruction->GetLocations();
+    if (locations->OnlyCallsOnSlowPath()) {
+      size_t core_spills =
+          codegen_->GetNumberOfSlowPathSpills(locations, /* core_registers */ true);
+      size_t fp_spills =
+          codegen_->GetNumberOfSlowPathSpills(locations, /* core_registers */ false);
+      size_t spill_size =
+          core_register_spill_size * core_spills + fp_register_spill_size * fp_spills;
+      maximum_safepoint_spill_size = std::max(maximum_safepoint_spill_size, spill_size);
+    } else if (locations->CallsOnMainAndSlowPath()) {
+      // Nothing to spill on the slow path if the main path already clobbers caller-saves.
+      DCHECK_EQ(0u, codegen_->GetNumberOfSlowPathSpills(locations, /* core_registers */ true));
+      DCHECK_EQ(0u, codegen_->GetNumberOfSlowPathSpills(locations, /* core_registers */ false));
+    }
+  }
+  return maximum_safepoint_spill_size;
+}
+
+void RegisterAllocationResolver::ConnectSiblings(LiveInterval* interval) {
   LiveInterval* current = interval;
   if (current->HasSpillSlot()
       && current->HasRegister()
@@ -306,48 +372,16 @@ void RegisterAllocationResolver::ConnectSiblings(LiveInterval* interval,
          safepoint_position = safepoint_position->GetNext()) {
       DCHECK(current->CoversSlow(safepoint_position->GetPosition()));
 
-      LocationSummary* locations = safepoint_position->GetLocations();
-      if ((current->GetType() == Primitive::kPrimNot) && current->GetParent()->HasSpillSlot()) {
+      if (current->GetType() == Primitive::kPrimNot) {
         DCHECK(interval->GetDefinedBy()->IsActualObject())
             << interval->GetDefinedBy()->DebugName()
             << "@" << safepoint_position->GetInstruction()->DebugName();
-        locations->SetStackBit(current->GetParent()->GetSpillSlot() / kVRegSize);
-      }
-
-      switch (source.GetKind()) {
-        case Location::kRegister: {
-          locations->AddLiveRegister(source);
-          if (kIsDebugBuild && locations->OnlyCallsOnSlowPath()) {
-            DCHECK_LE(locations->GetNumberOfLiveRegisters(),
-                      max_safepoint_live_regs);
-          }
-          if (current->GetType() == Primitive::kPrimNot) {
-            DCHECK(interval->GetDefinedBy()->IsActualObject())
-                << interval->GetDefinedBy()->DebugName()
-                << "@" << safepoint_position->GetInstruction()->DebugName();
-            locations->SetRegisterBit(source.reg());
-          }
-          break;
+        LocationSummary* locations = safepoint_position->GetLocations();
+        if (current->GetParent()->HasSpillSlot()) {
+          locations->SetStackBit(current->GetParent()->GetSpillSlot() / kVRegSize);
         }
-        case Location::kFpuRegister: {
-          locations->AddLiveRegister(source);
-          break;
-        }
-
-        case Location::kRegisterPair:
-        case Location::kFpuRegisterPair: {
-          locations->AddLiveRegister(source.ToLow());
-          locations->AddLiveRegister(source.ToHigh());
-          break;
-        }
-        case Location::kStackSlot:  // Fall-through
-        case Location::kDoubleStackSlot:  // Fall-through
-        case Location::kConstant: {
-          // Nothing to do.
-          break;
-        }
-        default: {
-          LOG(FATAL) << "Unexpected location for object";
+        if (source.GetKind() == Location::kRegister) {
+          locations->SetRegisterBit(source.reg());
         }
       }
     }
