@@ -438,8 +438,7 @@ class ColoringIteration {
   // track of live intervals across safepoints.
   // TODO: Should build safepoints elsewhere.
   void BuildInterferenceGraph(const ArenaVector<LiveInterval*>& intervals,
-                              const ArenaVector<InterferenceNode*>& physical_nodes,
-                              ArenaVector<InterferenceNode*>* safepoints);
+                              const ArenaVector<InterferenceNode*>& physical_nodes);
 
   // Add coalesce opportunities to interference nodes.
   void FindCoalesceOpportunities();
@@ -566,11 +565,7 @@ RegisterAllocatorGraphColor::RegisterAllocatorGraphColor(ArenaAllocator* allocat
         num_long_spill_slots_(0),
         catch_phi_spill_slot_counter_(0),
         reserved_art_method_slots_(ComputeReservedArtMethodSlots(*codegen)),
-        reserved_out_slots_(codegen->GetGraph()->GetMaximumNumberOfOutVRegs()),
-        number_of_globally_blocked_core_regs_(0),
-        number_of_globally_blocked_fp_regs_(0),
-        max_safepoint_live_core_regs_(0),
-        max_safepoint_live_fp_regs_(0) {
+        reserved_out_slots_(codegen->GetGraph()->GetMaximumNumberOfOutVRegs()) {
   // Before we ask for blocked registers, set them up in the code generator.
   codegen->SetupBlockedRegisters();
 
@@ -584,7 +579,6 @@ RegisterAllocatorGraphColor::RegisterAllocatorGraphColor(ArenaAllocator* allocat
     physical_core_nodes_[i]->stage = NodeStage::kPrecolored;
     core_intervals_.push_back(interval);
     if (codegen_->IsBlockedCoreRegister(i)) {
-      ++number_of_globally_blocked_core_regs_;
       interval->AddRange(0, liveness.GetMaxLifetimePosition());
     }
   }
@@ -597,7 +591,6 @@ RegisterAllocatorGraphColor::RegisterAllocatorGraphColor(ArenaAllocator* allocat
     physical_fp_nodes_[i]->stage = NodeStage::kPrecolored;
     fp_intervals_.push_back(interval);
     if (codegen_->IsBlockedFloatingPointRegister(i)) {
-      ++number_of_globally_blocked_fp_regs_;
       interval->AddRange(0, liveness.GetMaxLifetimePosition());
     }
   }
@@ -638,7 +631,7 @@ void RegisterAllocatorGraphColor::AllocateRegisters() {
       ArenaVector<InterferenceNode*>& physical_nodes = processing_core_regs
           ? physical_core_nodes_
           : physical_fp_nodes_;
-      iteration.BuildInterferenceGraph(intervals, physical_nodes, &safepoints);
+      iteration.BuildInterferenceGraph(intervals, physical_nodes);
 
       // (3) Add coalesce opportunities.
       //     If we have tried coloring the graph a suspiciously high number of times, give
@@ -666,19 +659,6 @@ void RegisterAllocatorGraphColor::AllocateRegisters() {
       if (successful) {
         // Assign spill slots.
         AllocateSpillSlots(iteration.GetPrunableNodes());
-
-        // Compute the maximum number of live registers across safepoints.
-        // Notice that we do not count globally blocked registers, such as the stack pointer.
-        if (safepoints.size() > 0) {
-          size_t max_safepoint_live_regs = ComputeMaxSafepointLiveRegisters(safepoints);
-          if (processing_core_regs) {
-            max_safepoint_live_core_regs_ =
-                max_safepoint_live_regs - number_of_globally_blocked_core_regs_;
-          } else {
-            max_safepoint_live_fp_regs_=
-                max_safepoint_live_regs - number_of_globally_blocked_fp_regs_;
-          }
-        }
 
         // Tell the code generator which registers were allocated.
         // We only look at prunable_nodes because we already told the code generator about
@@ -711,8 +691,7 @@ void RegisterAllocatorGraphColor::AllocateRegisters() {
 
   // (6) Resolve locations and deconstruct SSA form.
   RegisterAllocationResolver(allocator_, codegen_, liveness_)
-      .Resolve(max_safepoint_live_core_regs_,
-               max_safepoint_live_fp_regs_,
+      .Resolve(ArrayRef<HInstruction* const>(safepoints_),
                reserved_art_method_slots_ + reserved_out_slots_,
                num_int_spill_slots_,
                num_long_spill_slots_,
@@ -989,24 +968,9 @@ void RegisterAllocatorGraphColor::CheckForTempLiveIntervals(HInstruction* instru
 
 void RegisterAllocatorGraphColor::CheckForSafepoint(HInstruction* instruction) {
   LocationSummary* locations = instruction->GetLocations();
-  size_t position = instruction->GetLifetimePosition();
 
   if (locations->NeedsSafepoint()) {
     safepoints_.push_back(instruction);
-    if (locations->OnlyCallsOnSlowPath()) {
-      // We add a synthesized range at this position to record the live registers
-      // at this position. Ideally, we could just update the safepoints when locations
-      // are updated, but we currently need to know the full stack size before updating
-      // locations (because of parameters and the fact that we don't have a frame pointer).
-      // And knowing the full stack size requires to know the maximum number of live
-      // registers at calls in slow paths.
-      // By adding the following interval in the algorithm, we can compute this
-      // maximum before updating locations.
-      LiveInterval* interval = LiveInterval::MakeSlowPathInterval(allocator_, instruction);
-      interval->AddRange(position, position + 1);
-      core_intervals_.push_back(interval);
-      fp_intervals_.push_back(interval);
-    }
   }
 }
 
@@ -1110,11 +1074,6 @@ void ColoringIteration::AddPotentialInterference(InterferenceNode* from,
                                                  bool both_directions) {
   if (from->IsPrecolored()) {
     // We save space by ignoring outgoing edges from fixed nodes.
-  } else if (to->GetInterval()->IsSlowPathSafepoint()) {
-    // Safepoint intervals are only there to count max live registers,
-    // so no need to give them incoming interference edges.
-    // This is also necessary for correctness, because we don't want nodes
-    // to remove themselves from safepoint adjacency sets when they're pruned.
   } else if (to->IsPrecolored()) {
     // It is important that only a single node represents a given fixed register in the
     // interference graph. We retrieve that node here.
@@ -1200,8 +1159,7 @@ static bool CheckInputOutputCanOverlap(InterferenceNode* in_node, InterferenceNo
 
 void ColoringIteration::BuildInterferenceGraph(
     const ArenaVector<LiveInterval*>& intervals,
-    const ArenaVector<InterferenceNode*>& physical_nodes,
-    ArenaVector<InterferenceNode*>* safepoints) {
+    const ArenaVector<InterferenceNode*>& physical_nodes) {
   DCHECK(interval_node_map_.Empty() && prunable_nodes_.empty());
   // Build the interference graph efficiently by ordering range endpoints
   // by position and doing a linear sweep to find interferences. (That is, we
@@ -1236,11 +1194,6 @@ void ColoringIteration::BuildInterferenceGraph(
           node->SetAlias(physical_node);
           DCHECK_EQ(node->GetInterval()->GetRegister(),
                     physical_node->GetInterval()->GetRegister());
-        } else if (sibling->IsSlowPathSafepoint()) {
-          // Safepoint intervals are synthesized to count max live registers.
-          // They will be processed separately after coloring.
-          node->stage = NodeStage::kSafepoint;
-          safepoints->push_back(node);
         } else {
           node->stage = NodeStage::kPrunable;
           prunable_nodes_.push_back(node);
@@ -1494,7 +1447,6 @@ void ColoringIteration::PruneInterferenceGraph() {
   // filled by FindCoalesceOpportunities().
   for (InterferenceNode* node : prunable_nodes_) {
     DCHECK(!node->IsPrecolored()) << "Fixed nodes should never be pruned";
-    DCHECK(!node->GetInterval()->IsSlowPathSafepoint()) << "Safepoint nodes should never be pruned";
     if (IsLowDegreeNode(node, num_regs_)) {
       if (node->GetCoalesceOpportunities().empty()) {
         // Simplify Worklist.
@@ -1577,8 +1529,6 @@ void ColoringIteration::PruneNode(InterferenceNode* node) {
   pruned_nodes_.push(node);
 
   for (InterferenceNode* adj : node->GetAdjacentNodes()) {
-    DCHECK(!adj->GetInterval()->IsSlowPathSafepoint())
-        << "Nodes should never interfere with synthesized safepoint nodes";
     DCHECK_NE(adj->stage, NodeStage::kPruned) << "Should be no interferences with pruned nodes";
 
     if (adj->IsPrecolored()) {
@@ -1936,18 +1886,6 @@ bool ColoringIteration::ColorInterferenceGraph() {
   }
 
   return successful;
-}
-
-size_t RegisterAllocatorGraphColor::ComputeMaxSafepointLiveRegisters(
-    const ArenaVector<InterferenceNode*>& safepoints) {
-  size_t max_safepoint_live_regs = 0;
-  for (InterferenceNode* safepoint : safepoints) {
-    DCHECK(safepoint->GetInterval()->IsSlowPathSafepoint());
-    std::bitset<kMaxNumRegs> conflict_mask = BuildConflictMask(safepoint->GetAdjacentNodes());
-    size_t live_regs = conflict_mask.count();
-    max_safepoint_live_regs = std::max(max_safepoint_live_regs, live_regs);
-  }
-  return max_safepoint_live_regs;
 }
 
 void RegisterAllocatorGraphColor::AllocateSpillSlots(const ArenaVector<InterferenceNode*>& nodes) {
