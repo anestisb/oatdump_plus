@@ -20,6 +20,7 @@
 #include "base/enums.h"
 #include "class_linker.h"
 #include "code_generator.h"
+#include "driver/compiler_options.h"
 #include "driver/dex_compilation_unit.h"
 #include "utils/dex_cache_arrays_layout-inl.h"
 #include "driver/compiler_driver.h"

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <string.h>
+
 #include "atomic.h"
 #include "entrypoints/jni/jni_entrypoints.h"
 #include "entrypoints/quick/quick_alloc_entrypoints.h"

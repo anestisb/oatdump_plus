@@ -18,7 +18,6 @@
 #define ART_RUNTIME_UTF_H_
 
 #include "base/macros.h"
-#include "base/mutex.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -30,11 +29,6 @@
  * See http://en.wikipedia.org/wiki/UTF-8#Modified_UTF-8 for the details.
  */
 namespace art {
-
-namespace mirror {
-  template<class T> class PrimitiveArray;
-  typedef PrimitiveArray<uint16_t> CharArray;
-}  // namespace mirror
 
 /*
  * Returns the number of UTF-16 characters in the given modified UTF-8 string.
@@ -80,9 +74,6 @@ void ConvertUtf16ToModifiedUtf8(char* utf8_out, size_t byte_count,
 /*
  * The java.lang.String hashCode() algorithm.
  */
-int32_t ComputeUtf16Hash(mirror::CharArray* chars, int32_t offset, size_t char_count)
-    REQUIRES_SHARED(Locks::mutator_lock_);
-
 template<typename MemoryType>
 int32_t ComputeUtf16Hash(const MemoryType* chars, size_t char_count) {
   uint32_t hash = 0;
