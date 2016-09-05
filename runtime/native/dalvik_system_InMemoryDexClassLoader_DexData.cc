@@ -16,8 +16,6 @@
 
 #include "dalvik_system_InMemoryDexClassLoader_DexData.h"
 
-#include <sstream>
-
 #include "class_linker.h"
 #include "common_throws.h"
 #include "dex_file.h"
