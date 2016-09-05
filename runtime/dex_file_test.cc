@@ -224,15 +224,21 @@ static std::unique_ptr<const DexFile> OpenDexFileInMemoryBase64(const char* base
   return dex_file;
 }
 
-TEST_F(DexFileTest, Header) {
-  ScratchFile tmp;
-  std::unique_ptr<const DexFile> raw(OpenDexFileBase64(kRawDex, tmp.GetFilename().c_str()));
-  ASSERT_TRUE(raw != nullptr);
+static void ValidateDexFileHeader(std::unique_ptr<const DexFile> dex_file) {
+  static const uint8_t kExpectedDexFileMagic[8] = {
+    /* d */ 0x64, /* e */ 0x64, /* x */ 0x78, /* \n */ 0x0d,
+    /* 0 */ 0x30, /* 3 */ 0x33, /* 5 */ 0x35, /* \0 */ 0x00
+  };
+  static const uint8_t kExpectedSha1[DexFile::kSha1DigestSize] = {
+    0x7b, 0xb8, 0x0c, 0xd4, 0x1f, 0xd6, 0x1e, 0xc5,
+    0x89, 0xe8, 0xbe, 0xe5, 0x18, 0x02, 0x12, 0x18,
+    0x2e, 0xf2, 0x8c, 0x3d,
+  };
 
-  const DexFile::Header& header = raw->GetHeader();
-  // TODO: header.magic_
+  const DexFile::Header& header = dex_file->GetHeader();
+  EXPECT_EQ(*kExpectedDexFileMagic, *header.magic_);
   EXPECT_EQ(0x00d87910U, header.checksum_);
-  // TODO: header.signature_
+  EXPECT_EQ(*kExpectedSha1, *header.signature_);
   EXPECT_EQ(904U, header.file_size_);
   EXPECT_EQ(112U, header.header_size_);
   EXPECT_EQ(0U, header.link_size_);
@@ -252,39 +258,20 @@ TEST_F(DexFileTest, Header) {
   EXPECT_EQ(584U, header.data_size_);
   EXPECT_EQ(320U, header.data_off_);
 
-  EXPECT_EQ(header.checksum_, raw->GetLocationChecksum());
+  EXPECT_EQ(header.checksum_, dex_file->GetLocationChecksum());
+}
+
+TEST_F(DexFileTest, Header) {
+  ScratchFile tmp;
+  std::unique_ptr<const DexFile> raw(OpenDexFileBase64(kRawDex, tmp.GetFilename().c_str()));
+  ValidateDexFileHeader(std::move(raw));
 }
 
 TEST_F(DexFileTest, HeaderInMemory) {
   ScratchFile tmp;
   std::unique_ptr<const DexFile> raw =
       OpenDexFileInMemoryBase64(kRawDex, tmp.GetFilename().c_str(), 0x00d87910U);
-  ASSERT_TRUE(raw.get() != nullptr);
-
-  const DexFile::Header& header = raw->GetHeader();
-  // TODO: header.magic_
-  EXPECT_EQ(0x00d87910U, header.checksum_);
-  // TODO: header.signature_
-  EXPECT_EQ(904U, header.file_size_);
-  EXPECT_EQ(112U, header.header_size_);
-  EXPECT_EQ(0U, header.link_size_);
-  EXPECT_EQ(0U, header.link_off_);
-  EXPECT_EQ(15U, header.string_ids_size_);
-  EXPECT_EQ(112U, header.string_ids_off_);
-  EXPECT_EQ(7U, header.type_ids_size_);
-  EXPECT_EQ(172U, header.type_ids_off_);
-  EXPECT_EQ(2U, header.proto_ids_size_);
-  EXPECT_EQ(200U, header.proto_ids_off_);
-  EXPECT_EQ(1U, header.field_ids_size_);
-  EXPECT_EQ(224U, header.field_ids_off_);
-  EXPECT_EQ(3U, header.method_ids_size_);
-  EXPECT_EQ(232U, header.method_ids_off_);
-  EXPECT_EQ(2U, header.class_defs_size_);
-  EXPECT_EQ(256U, header.class_defs_off_);
-  EXPECT_EQ(584U, header.data_size_);
-  EXPECT_EQ(320U, header.data_off_);
-
-  EXPECT_EQ(header.checksum_, raw->GetLocationChecksum());
+  ValidateDexFileHeader(std::move(raw));
 }
 
 TEST_F(DexFileTest, Version38Accepted) {
