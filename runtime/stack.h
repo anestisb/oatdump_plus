@@ -25,9 +25,9 @@
 #include "base/mutex.h"
 #include "dex_file.h"
 #include "gc_root.h"
-#include "mirror/object_reference.h"
 #include "quick/quick_method_frame_info.h"
 #include "read_barrier.h"
+#include "stack_reference.h"
 #include "verify_object.h"
 
 namespace art {
@@ -45,6 +45,7 @@ class ScopedObjectAccess;
 class ShadowFrame;
 class StackVisitor;
 class Thread;
+union JValue;
 
 // The kind of vreg being accessed in calls to Set/GetVReg.
 enum VRegKind {
@@ -60,11 +61,6 @@ enum VRegKind {
   kUndefined,
 };
 std::ostream& operator<<(std::ostream& os, const VRegKind& rhs);
-
-// A reference from the shadow stack to a MirrorType object within the Java heap.
-template<class MirrorType>
-class MANAGED StackReference : public mirror::CompressedReference<MirrorType> {
-};
 
 // Forward declaration. Just calls the destructor.
 struct ShadowFrameDeleter;
