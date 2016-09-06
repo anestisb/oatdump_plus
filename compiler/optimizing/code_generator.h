@@ -624,7 +624,7 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
     return POPCOUNT(core_spill_mask_) * GetWordSize();
   }
 
-  bool HasAllocatedCalleeSaveRegisters() const {
+  virtual bool HasAllocatedCalleeSaveRegisters() const {
     // We check the core registers against 1 because it always comprises the return PC.
     return (POPCOUNT(allocated_registers_.GetCoreRegisters() & core_callee_save_mask_) != 1)
       || (POPCOUNT(allocated_registers_.GetFloatingPointRegisters() & fpu_callee_save_mask_) != 0);
