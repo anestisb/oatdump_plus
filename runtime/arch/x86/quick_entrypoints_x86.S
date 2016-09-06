@@ -1930,7 +1930,7 @@ END_FUNCTION art_quick_deoptimize
      * will long jump to the interpreter bridge.
      */
 DEFINE_FUNCTION art_quick_deoptimize_from_compiled_code
-    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME ebx, ebx
+    SETUP_SAVE_EVERYTHING_FRAME ebx, ebx
     subl LITERAL(12), %esp                      // Align stack.
     CFI_ADJUST_CFA_OFFSET(12)
     pushl %fs:THREAD_SELF_OFFSET                // Pass Thread::Current().
