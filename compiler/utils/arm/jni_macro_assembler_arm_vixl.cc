@@ -73,12 +73,11 @@ void ArmVIXLJNIMacroAssembler::BuildFrame(size_t frame_size,
   cfi().RelOffsetForMany(DWARFReg(r0), 0, core_spill_mask, kFramePointerSize);
   if (fp_spill_mask != 0) {
     uint32_t first = CTZ(fp_spill_mask);
-    uint32_t last  = first + POPCOUNT(fp_spill_mask) - 1;
 
     // Check that list is contiguous.
     DCHECK_EQ(fp_spill_mask >> CTZ(fp_spill_mask), ~0u >> (32 - POPCOUNT(fp_spill_mask)));
 
-    ___ Vpush(SRegisterList(vixl32::SRegister(first), vixl32::SRegister(last)));
+    ___ Vpush(SRegisterList(vixl32::SRegister(first), POPCOUNT(fp_spill_mask)));
     cfi().AdjustCFAOffset(POPCOUNT(fp_spill_mask) * kFramePointerSize);
     cfi().RelOffsetForMany(DWARFReg(s0), 0, fp_spill_mask, kFramePointerSize);
   }
@@ -136,11 +135,10 @@ void ArmVIXLJNIMacroAssembler::RemoveFrame(size_t frame_size,
 
   if (fp_spill_mask != 0) {
     uint32_t first = CTZ(fp_spill_mask);
-    uint32_t last  = first + POPCOUNT(fp_spill_mask) - 1;
     // Check that list is contiguous.
      DCHECK_EQ(fp_spill_mask >> CTZ(fp_spill_mask), ~0u >> (32 - POPCOUNT(fp_spill_mask)));
 
-    ___ Vpop(SRegisterList(vixl32::SRegister(first), vixl32::SRegister(last)));
+    ___ Vpop(SRegisterList(vixl32::SRegister(first), POPCOUNT(fp_spill_mask)));
     cfi().AdjustCFAOffset(-kFramePointerSize * POPCOUNT(fp_spill_mask));
     cfi().RestoreMany(DWARFReg(s0), fp_spill_mask);
   }
