@@ -87,7 +87,7 @@ if [ "$ANDROID_DATA" = "/data" ] || [ "$ANDROID_DATA" = "" ]; then
 fi
 
 if [ z"$PERF" != z ]; then
-  invoke_with="perf record -o $ANDROID_DATA/perf.data -e cycles:u $invoke_with"
+  invoke_with="perf record -g -o $ANDROID_DATA/perf.data -e cycles:u $invoke_with"
   DEBUG_OPTION="-Xcompiler-option --generate-debug-info"
 fi
 
