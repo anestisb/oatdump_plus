@@ -418,7 +418,6 @@ class DeoptimizationSlowPathMIPS : public SlowPathCodeMIPS {
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorMIPS* mips_codegen = down_cast<CodeGeneratorMIPS*>(codegen);
     __ Bind(GetEntryLabel());
-    SaveLiveRegisters(codegen, instruction_->GetLocations());
     mips_codegen->InvokeRuntime(kQuickDeoptimize, instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickDeoptimize, void, void>();
   }
@@ -3470,6 +3469,7 @@ void InstructionCodeGeneratorMIPS::VisitIf(HIf* if_instr) {
 void LocationsBuilderMIPS::VisitDeoptimize(HDeoptimize* deoptimize) {
   LocationSummary* locations = new (GetGraph()->GetArena())
       LocationSummary(deoptimize, LocationSummary::kCallOnSlowPath);
+  locations->SetCustomSlowPathCallerSaves(RegisterSet());  // No caller-save registers.
   if (IsBooleanValueOrMaterializedCondition(deoptimize->InputAt(0))) {
     locations->SetInAt(0, Location::RequiresRegister());
   }

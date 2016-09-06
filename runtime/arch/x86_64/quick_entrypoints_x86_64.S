@@ -2053,7 +2053,7 @@ END_FUNCTION art_quick_deoptimize
      * will long jump to the interpreter bridge.
      */
 DEFINE_FUNCTION art_quick_deoptimize_from_compiled_code
-    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME
+    SETUP_SAVE_EVERYTHING_FRAME
                                                 // Stack should be aligned now.
     movq %gs:THREAD_SELF_OFFSET, %rdi           // Pass Thread.
     call SYMBOL(artDeoptimizeFromCompiledCode)  // artDeoptimizeFromCompiledCode(Thread*)

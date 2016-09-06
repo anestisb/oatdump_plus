@@ -388,7 +388,6 @@ class DeoptimizationSlowPathX86_64 : public SlowPathCode {
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorX86_64* x86_64_codegen = down_cast<CodeGeneratorX86_64*>(codegen);
     __ Bind(GetEntryLabel());
-    SaveLiveRegisters(codegen, instruction_->GetLocations());
     x86_64_codegen->InvokeRuntime(kQuickDeoptimize, instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickDeoptimize, void, void>();
   }
@@ -1563,6 +1562,7 @@ void InstructionCodeGeneratorX86_64::VisitIf(HIf* if_instr) {
 void LocationsBuilderX86_64::VisitDeoptimize(HDeoptimize* deoptimize) {
   LocationSummary* locations = new (GetGraph()->GetArena())
       LocationSummary(deoptimize, LocationSummary::kCallOnSlowPath);
+  locations->SetCustomSlowPathCallerSaves(RegisterSet());  // No caller-save registers.
   if (IsBooleanValueOrMaterializedCondition(deoptimize->InputAt(0))) {
     locations->SetInAt(0, Location::Any());
   }
