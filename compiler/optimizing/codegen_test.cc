@@ -991,4 +991,67 @@ TEST_F(CodegenTest, ComparisonsLong) {
   }
 }
 
+#ifdef ART_ENABLE_CODEGEN_mips
+TEST_F(CodegenTest, MipsClobberRA) {
+  std::unique_ptr<const MipsInstructionSetFeatures> features_mips(
+      MipsInstructionSetFeatures::FromCppDefines());
+  if (!CanExecute(kMips) || features_mips->IsR6()) {
+    // HMipsComputeBaseMethodAddress and the NAL instruction behind it
+    // should only be generated on non-R6.
+    return;
+  }
+
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+  HGraph* graph = CreateGraph(&allocator);
+
+  HBasicBlock* entry_block = new (&allocator) HBasicBlock(graph);
+  graph->AddBlock(entry_block);
+  graph->SetEntryBlock(entry_block);
+  entry_block->AddInstruction(new (&allocator) HGoto());
+
+  HBasicBlock* block = new (&allocator) HBasicBlock(graph);
+  graph->AddBlock(block);
+
+  HBasicBlock* exit_block = new (&allocator) HBasicBlock(graph);
+  graph->AddBlock(exit_block);
+  graph->SetExitBlock(exit_block);
+  exit_block->AddInstruction(new (&allocator) HExit());
+
+  entry_block->AddSuccessor(block);
+  block->AddSuccessor(exit_block);
+
+  // To simplify matters, don't create PC-relative HLoadClass or HLoadString.
+  // Instead, generate HMipsComputeBaseMethodAddress directly.
+  HMipsComputeBaseMethodAddress* base = new (&allocator) HMipsComputeBaseMethodAddress();
+  block->AddInstruction(base);
+  // HMipsComputeBaseMethodAddress is defined as int, so just make the
+  // compiled method return it.
+  block->AddInstruction(new (&allocator) HReturn(base));
+
+  graph->BuildDominatorTree();
+
+  mips::CodeGeneratorMIPS codegenMIPS(graph, *features_mips.get(), CompilerOptions());
+  // Since there isn't HLoadClass or HLoadString, we need to manually indicate
+  // that RA is clobbered and the method entry code should generate a stack frame
+  // and preserve RA in it. And this is what we're testing here.
+  codegenMIPS.ClobberRA();
+  // Without ClobberRA() the code would be:
+  //   nal              # Sets RA to point to the jr instruction below
+  //   move  v0, ra     # and the CPU falls into an infinite loop.
+  //   jr    ra
+  //   nop
+  // The expected code is:
+  //   addiu sp, sp, -16
+  //   sw    ra, 12(sp)
+  //   sw    a0, 0(sp)
+  //   nal              # Sets RA to point to the lw instruction below.
+  //   move  v0, ra
+  //   lw    ra, 12(sp)
+  //   jr    ra
+  //   addiu sp, sp, 16
+  RunCode(&codegenMIPS, graph, [](HGraph*) {}, false, 0);
+}
+#endif
+
 }  // namespace art
