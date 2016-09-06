@@ -1544,7 +1544,7 @@ END art_quick_deoptimize
      */
     .extern artDeoptimizeFromCompiledCode
 ENTRY art_quick_deoptimize_from_compiled_code
-    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME r0
+    SETUP_SAVE_EVERYTHING_FRAME r0
     mov    r0, r9                         @ Set up args.
     blx    artDeoptimizeFromCompiledCode  @ artDeoptimizeFromCompiledCode(Thread*)
 END art_quick_deoptimize_from_compiled_code

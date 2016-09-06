@@ -2094,7 +2094,7 @@ END art_quick_deoptimize
      */
     .extern artDeoptimizeFromCompiledCode
 ENTRY art_quick_deoptimize_from_compiled_code
-    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME
+    SETUP_SAVE_EVERYTHING_FRAME
     la       $t9, artDeoptimizeFromCompiledCode
     jalr     $t9                            # artDeoptimizeFromCompiledCode(Thread*)
                                             # Returns caller method's frame size.

@@ -2138,8 +2138,8 @@ END art_quick_deoptimize
      * will long jump to the upcall with a special exception of -1.
      */
     .extern artDeoptimizeFromCompiledCode
-ENTRY art_quick_deoptimize_from_compiled_code
-    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME
+ENTRY_NO_GP art_quick_deoptimize_from_compiled_code
+    SETUP_SAVE_EVERYTHING_FRAME
     jal      artDeoptimizeFromCompiledCode    # artDeoptimizeFromCompiledCode(Thread*, SP)
                                               # Returns caller method's frame size.
     move     $a0, rSELF                       # pass Thread::current
