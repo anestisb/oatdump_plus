@@ -238,6 +238,12 @@ ifeq ($(ART_USE_TLAB),true)
   art_cflags += -DART_USE_TLAB=1
 endif
 
+# Are additional statically-linked ART host binaries (dex2oats,
+# oatdumps, etc.) getting built?
+ifeq ($(ART_BUILD_HOST_STATIC),true)
+  art_cflags += -DART_BUILD_HOST_STATIC=1
+endif
+
 # Cflags for non-debug ART and ART tools.
 art_non_debug_cflags := \
   $(ART_NDEBUG_OPT_FLAG)
