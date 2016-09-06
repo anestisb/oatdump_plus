@@ -29,6 +29,7 @@
 
 #include "base/logging.h"
 #include "base/macros.h"
+#include "base/stringprintf.h"
 #include "gc/heap.h"
 #include "gc/space/image_space.h"
 #include "oat_file.h"
@@ -55,7 +56,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_sleep(JNIEnv*, jobject, jint, jb
   // Keep pausing.
   printf("Going to sleep\n");
   for (;;) {
-    pause();
+    sleep(1);
   }
 }
 
@@ -85,6 +86,19 @@ static bool CheckStack(Backtrace* bt, const std::vector<std::string>& seq) {
   }
 
   return false;
+}
+
+static void MoreErrorInfo(pid_t pid, bool sig_quit_on_fail) {
+  printf("Secondary pid is %d\n", pid);
+
+  PrintFileToLog(StringPrintf("/proc/%d/maps", pid), ERROR);
+
+  if (sig_quit_on_fail) {
+    int res = kill(pid, SIGQUIT);
+    if (res != 0) {
+      PLOG(ERROR) << "Failed to send signal";
+    }
+  }
 }
 #endif
 
@@ -254,8 +268,18 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_unwindOtherProcess(
     result = CheckStack(bt.get(), full_signatrues ? full_seq : seq);
   }
 
+  constexpr bool kSigQuitOnFail = true;
+  if (!result) {
+    MoreErrorInfo(pid, kSigQuitOnFail);
+  }
+
   if (ptrace(PTRACE_DETACH, pid, 0, 0) != 0) {
     PLOG(ERROR) << "Detach failed";
+  }
+
+  // If we failed to unwind and induced an ANR dump, give the child some time (20s).
+  if (!result && kSigQuitOnFail) {
+    sleep(20);
   }
 
   // Kill the other process once we are done with it.
