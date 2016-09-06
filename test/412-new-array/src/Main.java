@@ -220,6 +220,38 @@ public class Main extends TestCase {
   public static void testSmaliFillArrayData() throws Exception {
     Class<?> c = Class.forName("FillArrayData");
     {
+      Method m = c.getMethod("emptyIntArray", int[].class);
+      int[] array = new int[0];
+      Object[] args = { array };
+      m.invoke(null, args);
+      assertEquals(0, array.length);
+
+      array = new int[2];
+      args[0] = array;
+      m.invoke(null, args);
+      // Test that nothing has been written to the array.
+      assertEquals(0, array[0]);
+      assertEquals(0, array[1]);
+
+      array = new int[] { 42, -42 };
+      args[0] = array;
+      m.invoke(null, args);
+      // Test that nothing has been written to the array.
+      assertEquals(42, array[0]);
+      assertEquals(-42, array[1]);
+
+      Throwable exception = null;
+      args[0] = null;
+      try {
+        m.invoke(null, args);
+      } catch (InvocationTargetException e) {
+        exception = e.getCause();
+        assertTrue(exception instanceof NullPointerException);
+      }
+      assertNotNull(exception);
+    }
+
+    {
       Method m = c.getMethod("intArray", int[].class);
       int[] array = new int[7];
       Object[] args = { array };
@@ -235,7 +267,7 @@ public class Main extends TestCase {
 
       array = new int[2];
       args[0] = array;
-      Throwable exception  = null;
+      Throwable exception = null;
       try {
         m.invoke(null, args);
       } catch (InvocationTargetException e) {
@@ -274,7 +306,7 @@ public class Main extends TestCase {
 
       array = new int[2];
       args[0] = array;
-      Throwable exception  = null;
+      Throwable exception = null;
       try {
         m.invoke(null, args);
       } catch (InvocationTargetException e) {
@@ -313,7 +345,7 @@ public class Main extends TestCase {
 
       array = new short[2];
       args[0] = array;
-      Throwable exception  = null;
+      Throwable exception = null;
       try {
         m.invoke(null, args);
       } catch (InvocationTargetException e) {
@@ -352,7 +384,7 @@ public class Main extends TestCase {
 
       array = new long[2];
       args[0] = array;
-      Throwable exception  = null;
+      Throwable exception = null;
       try {
         m.invoke(null, args);
       } catch (InvocationTargetException e) {
@@ -391,7 +423,7 @@ public class Main extends TestCase {
 
       array = new char[2];
       args[0] = array;
-      Throwable exception  = null;
+      Throwable exception = null;
       try {
         m.invoke(null, args);
       } catch (InvocationTargetException e) {
@@ -430,7 +462,7 @@ public class Main extends TestCase {
 
       array = new byte[2];
       args[0] = array;
-      Throwable exception  = null;
+      Throwable exception = null;
       try {
         m.invoke(null, args);
       } catch (InvocationTargetException e) {
@@ -467,7 +499,7 @@ public class Main extends TestCase {
 
       array = new boolean[2];
       args[0] = array;
-      Throwable exception  = null;
+      Throwable exception = null;
       try {
         m.invoke(null, args);
       } catch (InvocationTargetException e) {
