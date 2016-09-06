@@ -319,8 +319,11 @@ bool StackVisitor::GetVRegFromOptimizedCode(ArtMethod* m, uint16_t vreg, VRegKin
 bool StackVisitor::GetRegisterIfAccessible(uint32_t reg, VRegKind kind, uint32_t* val) const {
   const bool is_float = (kind == kFloatVReg) || (kind == kDoubleLoVReg) || (kind == kDoubleHiVReg);
 
-  // X86 float registers are 64-bit and the logic below does not apply.
-  DCHECK(!is_float || kRuntimeISA != InstructionSet::kX86);
+  if (kRuntimeISA == InstructionSet::kX86 && is_float) {
+    // X86 float registers are 64-bit and each XMM register is provided as two separate
+    // 32-bit registers by the context.
+    reg = (kind == kDoubleHiVReg) ? (2 * reg + 1) : (2 * reg);
+  }
 
   if (!IsAccessibleRegister(reg, is_float)) {
     return false;
