@@ -2,6 +2,18 @@
 
 .super Ljava/lang/Object;
 
+.method public static emptyIntArray([I)V
+   .registers 1
+
+   fill-array-data v0, :ArrayData
+   return-void
+
+:ArrayData
+    .array-data 4
+    .end array-data
+
+.end method
+
 .method public static intArray([I)V
    .registers 1
 
