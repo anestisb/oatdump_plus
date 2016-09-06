@@ -265,9 +265,9 @@ void SemiSpace::MarkingPhase() {
   RecordFree(ObjectBytePair(from_objects - to_objects, from_bytes - to_bytes));
   // Clear and protect the from space.
   from_space_->Clear();
-  // b/31172841. Temporarily disable the from-space protection under gcstress mode with debug build
+  // b/31172841. Temporarily disable the from-space protection with host debug build
   // due to some protection issue in the build server.
-  if (kProtectFromSpace && !(kIsDebugBuild && heap_->gc_stress_mode_)) {
+  if (kProtectFromSpace && !(kIsDebugBuild && !kIsTargetBuild)) {
     if (!from_space_->IsRosAllocSpace()) {
       // Protect with PROT_NONE.
       VLOG(heap) << "Protecting from_space_ : " << *from_space_;
@@ -794,9 +794,9 @@ void SemiSpace::SetFromSpace(space::ContinuousMemMapAllocSpace* from_space) {
 
 void SemiSpace::FinishPhase() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
-  // b/31172841. Temporarily disable the from-space protection under gcstress mode with debug build
+  // b/31172841. Temporarily disable the from-space protection with host debug build
   // due to some protection issue in the build server.
-  if (kProtectFromSpace && !(kIsDebugBuild && heap_->gc_stress_mode_)) {
+  if (kProtectFromSpace && !(kIsDebugBuild && !kIsTargetBuild)) {
     if (from_space_->IsRosAllocSpace()) {
       VLOG(heap) << "Protecting from_space_ with PROT_NONE : " << *from_space_;
       from_space_->GetMemMap()->Protect(PROT_NONE);
