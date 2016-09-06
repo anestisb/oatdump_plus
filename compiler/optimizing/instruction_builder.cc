@@ -1545,14 +1545,20 @@ void HInstructionBuilder::BuildFillArrayData(HInstruction* object,
 
 void HInstructionBuilder::BuildFillArrayData(const Instruction& instruction, uint32_t dex_pc) {
   HInstruction* array = LoadNullCheckedLocal(instruction.VRegA_31t(), dex_pc);
-  HInstruction* length = new (arena_) HArrayLength(array, dex_pc);
-  AppendInstruction(length);
 
   int32_t payload_offset = instruction.VRegB_31t() + dex_pc;
   const Instruction::ArrayDataPayload* payload =
       reinterpret_cast<const Instruction::ArrayDataPayload*>(code_item_.insns_ + payload_offset);
   const uint8_t* data = payload->data;
   uint32_t element_count = payload->element_count;
+
+  if (element_count == 0u) {
+    // For empty payload we emit only the null check above.
+    return;
+  }
+
+  HInstruction* length = new (arena_) HArrayLength(array, dex_pc);
+  AppendInstruction(length);
 
   // Implementation of this DEX instruction seems to be that the bounds check is
   // done before doing any stores.
