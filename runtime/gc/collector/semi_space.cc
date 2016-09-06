@@ -265,20 +265,16 @@ void SemiSpace::MarkingPhase() {
   RecordFree(ObjectBytePair(from_objects - to_objects, from_bytes - to_bytes));
   // Clear and protect the from space.
   from_space_->Clear();
-  // b/31172841. Temporarily disable the from-space protection under gcstress mode with debug build
-  // due to some protection issue in the build server.
-  if (kProtectFromSpace && !(kIsDebugBuild && heap_->gc_stress_mode_)) {
-    if (!from_space_->IsRosAllocSpace()) {
-      // Protect with PROT_NONE.
-      VLOG(heap) << "Protecting from_space_ : " << *from_space_;
-      from_space_->GetMemMap()->Protect(PROT_NONE);
-    } else {
-      // If RosAllocSpace, we'll leave it as PROT_READ here so the
-      // rosaloc verification can read the metadata magic number and
-      // protect it with PROT_NONE later in FinishPhase().
-      VLOG(heap) << "Protecting from_space_ with PROT_READ : " << *from_space_;
-      from_space_->GetMemMap()->Protect(PROT_READ);
-    }
+  if (kProtectFromSpace && !from_space_->IsRosAllocSpace()) {
+    // Protect with PROT_NONE.
+    VLOG(heap) << "Protecting from_space_ : " << *from_space_;
+    from_space_->GetMemMap()->Protect(PROT_NONE);
+  } else {
+    // If RosAllocSpace, we'll leave it as PROT_READ here so the
+    // rosaloc verification can read the metadata magic number and
+    // protect it with PROT_NONE later in FinishPhase().
+    VLOG(heap) << "Protecting from_space_ with PROT_READ : " << *from_space_;
+    from_space_->GetMemMap()->Protect(PROT_READ);
   }
   heap_->PreSweepingGcVerification(this);
   if (swap_semi_spaces_) {
@@ -794,13 +790,9 @@ void SemiSpace::SetFromSpace(space::ContinuousMemMapAllocSpace* from_space) {
 
 void SemiSpace::FinishPhase() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
-  // b/31172841. Temporarily disable the from-space protection under gcstress mode with debug build
-  // due to some protection issue in the build server.
-  if (kProtectFromSpace && !(kIsDebugBuild && heap_->gc_stress_mode_)) {
-    if (from_space_->IsRosAllocSpace()) {
-      VLOG(heap) << "Protecting from_space_ with PROT_NONE : " << *from_space_;
-      from_space_->GetMemMap()->Protect(PROT_NONE);
-    }
+  if (kProtectFromSpace && from_space_->IsRosAllocSpace()) {
+    VLOG(heap) << "Protecting from_space_ with PROT_NONE : " << *from_space_;
+    from_space_->GetMemMap()->Protect(PROT_NONE);
   }
   // Null the "to" and "from" spaces since compacting from one to the other isn't valid until
   // further action is done by the heap.
