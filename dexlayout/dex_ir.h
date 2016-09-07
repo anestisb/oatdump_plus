@@ -19,12 +19,10 @@
 #ifndef ART_DEXLAYOUT_DEX_IR_H_
 #define ART_DEXLAYOUT_DEX_IR_H_
 
-#include <iostream>
-#include <map>
 #include <vector>
 #include <stdint.h>
 
-#include "dex_file.h"
+#include "dex_file-inl.h"
 
 namespace art {
 namespace dex_ir {
@@ -106,18 +104,38 @@ template<class T> class CollectionWithOffset {
 class Item {
  public:
   virtual ~Item() { }
+
   uint32_t GetOffset() const { return offset_; }
   void SetOffset(uint32_t offset) { offset_ = offset; }
+
  protected:
   uint32_t offset_ = 0;
 };
 
 class Header : public Item {
  public:
-  explicit Header(const DexFile& dex_file);
+  Header(const uint8_t* magic,
+         uint32_t checksum,
+         const uint8_t* signature,
+         uint32_t endian_tag,
+         uint32_t file_size,
+         uint32_t header_size,
+         uint32_t link_size,
+         uint32_t link_offset,
+         uint32_t data_size,
+         uint32_t data_offset)
+      : checksum_(checksum),
+        endian_tag_(endian_tag),
+        file_size_(file_size),
+        header_size_(header_size),
+        link_size_(link_size),
+        link_offset_(link_offset),
+        data_size_(data_size),
+        data_offset_(data_offset) {
+    memcpy(magic_, magic, sizeof(magic_));
+    memcpy(signature_, signature, sizeof(signature_));
+  }
   ~Header() OVERRIDE { }
-
-  const DexFile& GetDexFile() const { return dex_file_; }
 
   const uint8_t* Magic() const { return magic_; }
   uint32_t Checksum() const { return checksum_; }
@@ -178,7 +196,6 @@ class Header : public Item {
   void Accept(AbstractDispatcher* dispatch) { dispatch->Dispatch(this); }
 
  private:
-  const DexFile& dex_file_;
   uint8_t magic_[8];
   uint32_t checksum_;
   uint8_t signature_[DexFile::kSha1DigestSize];
@@ -201,9 +218,7 @@ class Header : public Item {
 
 class StringId : public Item {
  public:
-  StringId(const DexFile::StringId& disk_string_id, Header& header) :
-    data_(strdup(header.GetDexFile().GetStringData(disk_string_id))) {
-  }
+  explicit StringId(const char* data) : data_(strdup(data)) { }
   ~StringId() OVERRIDE { }
 
   const char* Data() const { return data_.get(); }
@@ -217,9 +232,7 @@ class StringId : public Item {
 
 class TypeId : public Item {
  public:
-  TypeId(const DexFile::TypeId& disk_type_id, Header& header) :
-    string_id_(header.StringIds()[disk_type_id.descriptor_idx_].get()) {
-  }
+  explicit TypeId(StringId* string_id) : string_id_(string_id) { }
   ~TypeId() OVERRIDE { }
 
   StringId* GetStringId() const { return string_id_; }
@@ -231,39 +244,31 @@ class TypeId : public Item {
   DISALLOW_COPY_AND_ASSIGN(TypeId);
 };
 
+using TypeIdVector = std::vector<const TypeId*>;
+
 class ProtoId : public Item {
  public:
-  ProtoId(const DexFile::ProtoId& disk_proto_id, Header& header) {
-    shorty_ = header.StringIds()[disk_proto_id.shorty_idx_].get();
-    return_type_ = header.TypeIds()[disk_proto_id.return_type_idx_].get();
-    DexFileParameterIterator dfpi(header.GetDexFile(), disk_proto_id);
-    while (dfpi.HasNext()) {
-      parameters_.push_back(header.TypeIds()[dfpi.GetTypeIdx()].get());
-      dfpi.Next();
-    }
-  }
+  ProtoId(const StringId* shorty, const TypeId* return_type, TypeIdVector* parameters)
+      : shorty_(shorty), return_type_(return_type), parameters_(parameters) { }
   ~ProtoId() OVERRIDE { }
 
   const StringId* Shorty() const { return shorty_; }
   const TypeId* ReturnType() const { return return_type_; }
-  const std::vector<const TypeId*>& Parameters() const { return parameters_; }
+  const std::vector<const TypeId*>& Parameters() const { return *parameters_; }
 
   void Accept(AbstractDispatcher* dispatch) const { dispatch->Dispatch(this); }
 
  private:
   const StringId* shorty_;
   const TypeId* return_type_;
-  std::vector<const TypeId*> parameters_;
+  std::unique_ptr<TypeIdVector> parameters_;
   DISALLOW_COPY_AND_ASSIGN(ProtoId);
 };
 
 class FieldId : public Item {
  public:
-  FieldId(const DexFile::FieldId& disk_field_id, Header& header) {
-    class_ = header.TypeIds()[disk_field_id.class_idx_].get();
-    type_ = header.TypeIds()[disk_field_id.type_idx_].get();
-    name_ = header.StringIds()[disk_field_id.name_idx_].get();
-  }
+  FieldId(const TypeId* klass, const TypeId* type, const StringId* name)
+      : class_(klass), type_(type), name_(name) { }
   ~FieldId() OVERRIDE { }
 
   const TypeId* Class() const { return class_; }
@@ -281,11 +286,8 @@ class FieldId : public Item {
 
 class MethodId : public Item {
  public:
-  MethodId(const DexFile::MethodId& disk_method_id, Header& header) {
-    class_ = header.TypeIds()[disk_method_id.class_idx_].get();
-    proto_ = header.ProtoIds()[disk_method_id.proto_idx_].get();
-    name_ = header.StringIds()[disk_method_id.name_idx_].get();
-  }
+  MethodId(const TypeId* klass, const ProtoId* proto, const StringId* name)
+      : class_(klass), proto_(proto), name_(name) { }
   ~MethodId() OVERRIDE { }
 
   const TypeId* Class() const { return class_; }
@@ -303,8 +305,8 @@ class MethodId : public Item {
 
 class FieldItem : public Item {
  public:
-  FieldItem(uint32_t access_flags, const FieldId* field_id) :
-    access_flags_(access_flags), field_id_(field_id) { }
+  FieldItem(uint32_t access_flags, const FieldId* field_id)
+      : access_flags_(access_flags), field_id_(field_id) { }
   ~FieldItem() OVERRIDE { }
 
   uint32_t GetAccessFlags() const { return access_flags_; }
@@ -318,10 +320,12 @@ class FieldItem : public Item {
   DISALLOW_COPY_AND_ASSIGN(FieldItem);
 };
 
+using FieldItemVector = std::vector<std::unique_ptr<FieldItem>>;
+
 class MethodItem : public Item {
  public:
-  MethodItem(uint32_t access_flags, const MethodId* method_id, const CodeItem* code) :
-    access_flags_(access_flags), method_id_(method_id), code_(code) { }
+  MethodItem(uint32_t access_flags, const MethodId* method_id, const CodeItem* code)
+      : access_flags_(access_flags), method_id_(method_id), code_(code) { }
   ~MethodItem() OVERRIDE { }
 
   uint32_t GetAccessFlags() const { return access_flags_; }
@@ -337,12 +341,14 @@ class MethodItem : public Item {
   DISALLOW_COPY_AND_ASSIGN(MethodItem);
 };
 
+using MethodItemVector = std::vector<std::unique_ptr<MethodItem>>;
+
 class ArrayItem : public Item {
  public:
   class NameValuePair {
    public:
-    NameValuePair(StringId* name, ArrayItem* value) :
-      name_(name), value_(value) { }
+    NameValuePair(StringId* name, ArrayItem* value)
+        : name_(name), value_(value) { }
 
     StringId* Name() const { return name_; }
     ArrayItem* Value() const { return value_.get(); }
@@ -353,8 +359,26 @@ class ArrayItem : public Item {
     DISALLOW_COPY_AND_ASSIGN(NameValuePair);
   };
 
-  ArrayItem(Header& header, const uint8_t** data, uint8_t type, uint8_t length);
-  ArrayItem(Header& header, const uint8_t** data);
+  union PayloadUnion {
+    bool bool_val_;
+    int8_t byte_val_;
+    int16_t short_val_;
+    uint16_t char_val_;
+    int32_t int_val_;
+    int64_t long_val_;
+    float float_val_;
+    double double_val_;
+    StringId* string_val_;
+    FieldId* field_val_;
+    MethodId* method_val_;
+    std::vector<std::unique_ptr<ArrayItem>>* annotation_array_val_;
+    struct {
+      StringId* string_;
+      std::vector<std::unique_ptr<NameValuePair>>* array_;
+    } annotation_annotation_val_;
+  };
+
+  explicit ArrayItem(uint8_t type) : type_(type) { }
   ~ArrayItem() OVERRIDE { }
 
   int8_t Type() const { return type_; }
@@ -378,67 +402,79 @@ class ArrayItem : public Item {
   std::vector<std::unique_ptr<NameValuePair>>* GetAnnotationAnnotationNameValuePairArray() const {
     return item_.annotation_annotation_val_.array_;
   }
+  // Used to construct the item union.  Ugly, but necessary.
+  PayloadUnion* GetPayloadUnion() { return &item_; }
 
   void Accept(AbstractDispatcher* dispatch) { dispatch->Dispatch(this); }
 
  private:
-  void Read(Header& header, const uint8_t** data, uint8_t type, uint8_t length);
   uint8_t type_;
-  union {
-    bool bool_val_;
-    int8_t byte_val_;
-    int16_t short_val_;
-    uint16_t char_val_;
-    int32_t int_val_;
-    int64_t long_val_;
-    float float_val_;
-    double double_val_;
-    StringId* string_val_;
-    FieldId* field_val_;
-    MethodId* method_val_;
-    std::vector<std::unique_ptr<ArrayItem>>* annotation_array_val_;
-    struct {
-      StringId* string_;
-      std::vector<std::unique_ptr<NameValuePair>>* array_;
-    } annotation_annotation_val_;
-  } item_;
+  PayloadUnion item_;
   DISALLOW_COPY_AND_ASSIGN(ArrayItem);
 };
 
+using ArrayItemVector = std::vector<std::unique_ptr<ArrayItem>>;
+
 class ClassData : public Item {
  public:
-  ClassData() = default;
+  ClassData(FieldItemVector* static_fields,
+            FieldItemVector* instance_fields,
+            MethodItemVector* direct_methods,
+            MethodItemVector* virtual_methods)
+      : static_fields_(static_fields),
+        instance_fields_(instance_fields),
+        direct_methods_(direct_methods),
+        virtual_methods_(virtual_methods) { }
+
   ~ClassData() OVERRIDE = default;
-  std::vector<std::unique_ptr<FieldItem>>& StaticFields() { return static_fields_; }
-  std::vector<std::unique_ptr<FieldItem>>& InstanceFields() { return instance_fields_; }
-  std::vector<std::unique_ptr<MethodItem>>& DirectMethods() { return direct_methods_; }
-  std::vector<std::unique_ptr<MethodItem>>& VirtualMethods() { return virtual_methods_; }
+  FieldItemVector* StaticFields() { return static_fields_.get(); }
+  FieldItemVector* InstanceFields() { return instance_fields_.get(); }
+  MethodItemVector* DirectMethods() { return direct_methods_.get(); }
+  MethodItemVector* VirtualMethods() { return virtual_methods_.get(); }
 
   void Accept(AbstractDispatcher* dispatch) { dispatch->Dispatch(this); }
 
  private:
-  std::vector<std::unique_ptr<FieldItem>> static_fields_;
-  std::vector<std::unique_ptr<FieldItem>> instance_fields_;
-  std::vector<std::unique_ptr<MethodItem>> direct_methods_;
-  std::vector<std::unique_ptr<MethodItem>> virtual_methods_;
+  std::unique_ptr<FieldItemVector> static_fields_;
+  std::unique_ptr<FieldItemVector> instance_fields_;
+  std::unique_ptr<MethodItemVector> direct_methods_;
+  std::unique_ptr<MethodItemVector> virtual_methods_;
   DISALLOW_COPY_AND_ASSIGN(ClassData);
 };
 
 class ClassDef : public Item {
  public:
-  ClassDef(const DexFile::ClassDef& disk_class_def, Header& header);
+  ClassDef(const TypeId* class_type,
+           uint32_t access_flags,
+           const TypeId* superclass,
+           TypeIdVector* interfaces,
+           uint32_t interfaces_offset,
+           const StringId* source_file,
+           AnnotationsDirectoryItem* annotations,
+           ArrayItemVector* static_values,
+           ClassData* class_data)
+      : class_type_(class_type),
+        access_flags_(access_flags),
+        superclass_(superclass),
+        interfaces_(interfaces),
+        interfaces_offset_(interfaces_offset),
+        source_file_(source_file),
+        annotations_(annotations),
+        static_values_(static_values),
+        class_data_(class_data) { }
+
   ~ClassDef() OVERRIDE { }
 
   const TypeId* ClassType() const { return class_type_; }
   uint32_t GetAccessFlags() const { return access_flags_; }
   const TypeId* Superclass() const { return superclass_; }
-  std::vector<TypeId*>* Interfaces() { return &interfaces_; }
+  TypeIdVector* Interfaces() { return interfaces_.get(); }
   uint32_t InterfacesOffset() const { return interfaces_offset_; }
   void SetInterfacesOffset(uint32_t new_offset) { interfaces_offset_ = new_offset; }
   const StringId* SourceFile() const { return source_file_; }
   AnnotationsDirectoryItem* Annotations() const { return annotations_.get(); }
-  std::vector<std::unique_ptr<ArrayItem>>* StaticValues() { return static_values_; }
-  ClassData* GetClassData() { return &class_data_; }
+  ArrayItemVector* StaticValues() { return static_values_.get(); }
+  ClassData* GetClassData() { return class_data_.get(); }
 
   MethodItem* GenerateMethodItem(Header& header, ClassDataItemIterator& cdii);
 
@@ -448,28 +484,78 @@ class ClassDef : public Item {
   const TypeId* class_type_;
   uint32_t access_flags_;
   const TypeId* superclass_;
-  std::vector<TypeId*> interfaces_;
+  std::unique_ptr<TypeIdVector> interfaces_;
   uint32_t interfaces_offset_;
   const StringId* source_file_;
   std::unique_ptr<AnnotationsDirectoryItem> annotations_;
-  std::vector<std::unique_ptr<ArrayItem>>* static_values_;
-  ClassData class_data_;
+  std::unique_ptr<ArrayItemVector> static_values_;
+  std::unique_ptr<ClassData> class_data_;
   DISALLOW_COPY_AND_ASSIGN(ClassDef);
 };
 
+class CatchHandler {
+ public:
+  CatchHandler(const TypeId* type_id, uint32_t address) : type_id_(type_id), address_(address) { }
+
+  const TypeId* GetTypeId() const { return type_id_; }
+  uint32_t GetAddress() const { return address_; }
+
+ private:
+  const TypeId* type_id_;
+  uint32_t address_;
+  DISALLOW_COPY_AND_ASSIGN(CatchHandler);
+};
+
+using CatchHandlerVector = std::vector<std::unique_ptr<const CatchHandler>>;
+
+class TryItem : public Item {
+ public:
+  TryItem(uint32_t start_addr, uint16_t insn_count, CatchHandlerVector* handlers)
+      : start_addr_(start_addr), insn_count_(insn_count), handlers_(handlers) { }
+  ~TryItem() OVERRIDE { }
+
+  uint32_t StartAddr() const { return start_addr_; }
+  uint16_t InsnCount() const { return insn_count_; }
+  const CatchHandlerVector& GetHandlers() const { return *handlers_.get(); }
+
+  void Accept(AbstractDispatcher* dispatch) { dispatch->Dispatch(this); }
+
+ private:
+  uint32_t start_addr_;
+  uint16_t insn_count_;
+  std::unique_ptr<CatchHandlerVector> handlers_;
+  DISALLOW_COPY_AND_ASSIGN(TryItem);
+};
+
+using TryItemVector = std::vector<std::unique_ptr<const TryItem>>;
+
 class CodeItem : public Item {
  public:
-  CodeItem(const DexFile::CodeItem& disk_code_item, Header& header);
+  CodeItem(uint16_t registers_size,
+           uint16_t ins_size,
+           uint16_t outs_size,
+           DebugInfoItem* debug_info,
+           uint32_t insns_size,
+           uint16_t* insns,
+           TryItemVector* tries)
+      : registers_size_(registers_size),
+        ins_size_(ins_size),
+        outs_size_(outs_size),
+        debug_info_(debug_info),
+        insns_size_(insns_size),
+        insns_(insns),
+        tries_(tries) { }
+
   ~CodeItem() OVERRIDE { }
 
   uint16_t RegistersSize() const { return registers_size_; }
   uint16_t InsSize() const { return ins_size_; }
   uint16_t OutsSize() const { return outs_size_; }
-  uint16_t TriesSize() const { return tries_size_; }
+  uint16_t TriesSize() const { return tries_ == nullptr ? 0 : tries_->size(); }
   DebugInfoItem* DebugInfo() const { return debug_info_.get(); }
   uint32_t InsnsSize() const { return insns_size_; }
   uint16_t* Insns() const { return insns_.get(); }
-  std::vector<std::unique_ptr<const TryItem>>* Tries() const { return tries_; }
+  TryItemVector* Tries() const { return tries_.get(); }
 
   void Accept(AbstractDispatcher* dispatch) { dispatch->Dispatch(this); }
 
@@ -477,54 +563,11 @@ class CodeItem : public Item {
   uint16_t registers_size_;
   uint16_t ins_size_;
   uint16_t outs_size_;
-  uint16_t tries_size_;
   std::unique_ptr<DebugInfoItem> debug_info_;
   uint32_t insns_size_;
   std::unique_ptr<uint16_t[]> insns_;
-  std::vector<std::unique_ptr<const TryItem>>* tries_;
+  std::unique_ptr<TryItemVector> tries_;
   DISALLOW_COPY_AND_ASSIGN(CodeItem);
-};
-
-class TryItem : public Item {
- public:
-  class CatchHandler {
-   public:
-    CatchHandler(const TypeId* type_id, uint32_t address) : type_id_(type_id), address_(address) { }
-
-    const TypeId* GetTypeId() const { return type_id_; }
-    uint32_t GetAddress() const { return address_; }
-
-   private:
-    const TypeId* type_id_;
-    uint32_t address_;
-    DISALLOW_COPY_AND_ASSIGN(CatchHandler);
-  };
-
-  TryItem(const DexFile::TryItem& disk_try_item,
-          const DexFile::CodeItem& disk_code_item,
-          Header& header) {
-    start_addr_ = disk_try_item.start_addr_;
-    insn_count_ = disk_try_item.insn_count_;
-    for (CatchHandlerIterator it(disk_code_item, disk_try_item); it.HasNext(); it.Next()) {
-      const uint16_t type_index = it.GetHandlerTypeIndex();
-      const TypeId* type_id = header.GetTypeIdOrNullPtr(type_index);
-      handlers_.push_back(std::unique_ptr<const CatchHandler>(
-          new CatchHandler(type_id, it.GetHandlerAddress())));
-    }
-  }
-  ~TryItem() OVERRIDE { }
-
-  uint32_t StartAddr() const { return start_addr_; }
-  uint16_t InsnCount() const { return insn_count_; }
-  const std::vector<std::unique_ptr<const CatchHandler>>& GetHandlers() const { return handlers_; }
-
-  void Accept(AbstractDispatcher* dispatch) { dispatch->Dispatch(this); }
-
- private:
-  uint32_t start_addr_;
-  uint16_t insn_count_;
-  std::vector<std::unique_ptr<const CatchHandler>> handlers_;
-  DISALLOW_COPY_AND_ASSIGN(TryItem);
 };
 
 
@@ -535,11 +578,21 @@ struct PositionInfo {
   uint32_t line_;
 };
 
+using PositionInfoVector = std::vector<std::unique_ptr<PositionInfo>>;
+
 struct LocalInfo {
-  LocalInfo(const char* name, const char* descriptor, const char* signature, uint32_t start_address,
-            uint32_t end_address, uint16_t reg) :
-    name_(name), descriptor_(descriptor), signature_(signature), start_address_(start_address),
-    end_address_(end_address), reg_(reg) { }
+  LocalInfo(const char* name,
+            const char* descriptor,
+            const char* signature,
+            uint32_t start_address,
+            uint32_t end_address,
+            uint16_t reg)
+      : name_(name),
+        descriptor_(descriptor),
+        signature_(signature),
+        start_address_(start_address),
+        end_address_(end_address),
+        reg_(reg) { }
 
   std::string name_;
   std::string descriptor_;
@@ -549,124 +602,123 @@ struct LocalInfo {
   uint16_t reg_;
 };
 
+using LocalInfoVector = std::vector<std::unique_ptr<LocalInfo>>;
+
 class DebugInfoItem : public Item {
  public:
   DebugInfoItem() = default;
 
-  std::vector<std::unique_ptr<PositionInfo>>& GetPositionInfo() { return positions_; }
-  std::vector<std::unique_ptr<LocalInfo>>& GetLocalInfo() { return locals_; }
+  PositionInfoVector& GetPositionInfo() { return positions_; }
+  LocalInfoVector& GetLocalInfo() { return locals_; }
 
  private:
-  std::vector<std::unique_ptr<PositionInfo>> positions_;
-  std::vector<std::unique_ptr<LocalInfo>> locals_;
+  PositionInfoVector positions_;
+  LocalInfoVector locals_;
   DISALLOW_COPY_AND_ASSIGN(DebugInfoItem);
 };
 
+class AnnotationItem {
+ public:
+  AnnotationItem(uint8_t visibility, ArrayItem* item) : visibility_(visibility), item_(item) { }
+
+  uint8_t GetVisibility() const { return visibility_; }
+  ArrayItem* GetItem() const { return item_.get(); }
+
+ private:
+  uint8_t visibility_;
+  std::unique_ptr<ArrayItem> item_;
+  DISALLOW_COPY_AND_ASSIGN(AnnotationItem);
+};
+
+using AnnotationItemVector = std::vector<std::unique_ptr<AnnotationItem>>;
+
 class AnnotationSetItem : public Item {
  public:
-  class AnnotationItem {
-   public:
-    AnnotationItem(uint8_t visibility, ArrayItem* item) :
-      visibility_(visibility), item_(item) { }
-
-    uint8_t GetVisibility() const { return visibility_; }
-    ArrayItem* GetItem() const { return item_.get(); }
-
-   private:
-    uint8_t visibility_;
-    std::unique_ptr<ArrayItem> item_;
-    DISALLOW_COPY_AND_ASSIGN(AnnotationItem);
-  };
-
-  AnnotationSetItem(const DexFile::AnnotationSetItem& disk_annotations_item, Header& header);
+  explicit AnnotationSetItem(AnnotationItemVector* items) : items_(items) { }
   ~AnnotationSetItem() OVERRIDE { }
 
-  std::vector<std::unique_ptr<AnnotationItem>>& GetItems() { return items_; }
+  AnnotationItemVector* GetItems() { return items_.get(); }
 
   void Accept(AbstractDispatcher* dispatch) { dispatch->Dispatch(this); }
 
  private:
-  std::vector<std::unique_ptr<AnnotationItem>> items_;
+  std::unique_ptr<AnnotationItemVector> items_;
   DISALLOW_COPY_AND_ASSIGN(AnnotationSetItem);
 };
 
+using AnnotationSetItemVector = std::vector<std::unique_ptr<AnnotationSetItem>>;
+
+class FieldAnnotation {
+ public:
+  FieldAnnotation(FieldId* field_id, AnnotationSetItem* annotation_set_item)
+      : field_id_(field_id), annotation_set_item_(annotation_set_item) { }
+
+  FieldId* GetFieldId() const { return field_id_; }
+  AnnotationSetItem* GetAnnotationSetItem() const { return annotation_set_item_.get(); }
+
+ private:
+  FieldId* field_id_;
+  std::unique_ptr<AnnotationSetItem> annotation_set_item_;
+  DISALLOW_COPY_AND_ASSIGN(FieldAnnotation);
+};
+
+using FieldAnnotationVector = std::vector<std::unique_ptr<FieldAnnotation>>;
+
+class MethodAnnotation {
+ public:
+  MethodAnnotation(MethodId* method_id, AnnotationSetItem* annotation_set_item)
+      : method_id_(method_id), annotation_set_item_(annotation_set_item) { }
+
+  MethodId* GetMethodId() const { return method_id_; }
+  AnnotationSetItem* GetAnnotationSetItem() const { return annotation_set_item_.get(); }
+
+ private:
+  MethodId* method_id_;
+  std::unique_ptr<AnnotationSetItem> annotation_set_item_;
+  DISALLOW_COPY_AND_ASSIGN(MethodAnnotation);
+};
+
+using MethodAnnotationVector = std::vector<std::unique_ptr<MethodAnnotation>>;
+
+class ParameterAnnotation {
+ public:
+  ParameterAnnotation(MethodId* method_id, AnnotationSetItemVector* annotations)
+      : method_id_(method_id), annotations_(annotations) { }
+
+  MethodId* GetMethodId() const { return method_id_; }
+  AnnotationSetItemVector* GetAnnotations() { return annotations_.get(); }
+
+ private:
+  MethodId* method_id_;
+  std::unique_ptr<AnnotationSetItemVector> annotations_;
+  DISALLOW_COPY_AND_ASSIGN(ParameterAnnotation);
+};
+
+using ParameterAnnotationVector = std::vector<std::unique_ptr<ParameterAnnotation>>;
+
 class AnnotationsDirectoryItem : public Item {
  public:
-  class FieldAnnotation {
-   public:
-    FieldAnnotation(FieldId* field_id, AnnotationSetItem* annotation_set_item) :
-      field_id_(field_id), annotation_set_item_(annotation_set_item) { }
-
-    FieldId* GetFieldId() const { return field_id_; }
-    AnnotationSetItem* GetAnnotationSetItem() const { return annotation_set_item_.get(); }
-
-   private:
-    FieldId* field_id_;
-    std::unique_ptr<AnnotationSetItem> annotation_set_item_;
-    DISALLOW_COPY_AND_ASSIGN(FieldAnnotation);
-  };
-
-  class MethodAnnotation {
-   public:
-    MethodAnnotation(MethodId* method_id, AnnotationSetItem* annotation_set_item) :
-      method_id_(method_id), annotation_set_item_(annotation_set_item) { }
-
-    MethodId* GetMethodId() const { return method_id_; }
-    AnnotationSetItem* GetAnnotationSetItem() const { return annotation_set_item_.get(); }
-
-   private:
-    MethodId* method_id_;
-    std::unique_ptr<AnnotationSetItem> annotation_set_item_;
-    DISALLOW_COPY_AND_ASSIGN(MethodAnnotation);
-  };
-
-  class ParameterAnnotation {
-   public:
-    ParameterAnnotation(MethodId* method_id,
-                        const DexFile::AnnotationSetRefList* annotation_set_ref_list,
-                        Header& header) :
-      method_id_(method_id) {
-      for (uint32_t i = 0; i < annotation_set_ref_list->size_; ++i) {
-        const DexFile::AnnotationSetItem* annotation_set_item =
-            header.GetDexFile().GetSetRefItemItem(&annotation_set_ref_list->list_[i]);
-        annotations_.push_back(std::unique_ptr<AnnotationSetItem>(
-            new AnnotationSetItem(*annotation_set_item, header)));
-      }
-    }
-
-    MethodId* GetMethodId() const { return method_id_; }
-    std::vector<std::unique_ptr<AnnotationSetItem>>& GetAnnotations() { return annotations_; }
-
-   private:
-    MethodId* method_id_;
-    std::vector<std::unique_ptr<AnnotationSetItem>> annotations_;
-    DISALLOW_COPY_AND_ASSIGN(ParameterAnnotation);
-  };
-
-  AnnotationsDirectoryItem(const DexFile::AnnotationsDirectoryItem* disk_annotations_item,
-                           Header& header);
+  AnnotationsDirectoryItem(AnnotationSetItem* class_annotation,
+                           FieldAnnotationVector* field_annotations,
+                           MethodAnnotationVector* method_annotations,
+                           ParameterAnnotationVector* parameter_annotations)
+      : class_annotation_(class_annotation),
+        field_annotations_(field_annotations),
+        method_annotations_(method_annotations),
+        parameter_annotations_(parameter_annotations) { }
 
   AnnotationSetItem* GetClassAnnotation() const { return class_annotation_.get(); }
-
-  std::vector<std::unique_ptr<FieldAnnotation>>& GetFieldAnnotations() {
-    return field_annotations_;
-  }
-
-  std::vector<std::unique_ptr<MethodAnnotation>>& GetMethodAnnotations() {
-    return method_annotations_;
-  }
-
-  std::vector<std::unique_ptr<ParameterAnnotation>>& GetParameterAnnotations() {
-    return parameter_annotations_;
-  }
+  FieldAnnotationVector* GetFieldAnnotations() { return field_annotations_.get(); }
+  MethodAnnotationVector* GetMethodAnnotations() { return method_annotations_.get(); }
+  ParameterAnnotationVector* GetParameterAnnotations() { return parameter_annotations_.get(); }
 
   void Accept(AbstractDispatcher* dispatch) { dispatch->Dispatch(this); }
 
  private:
   std::unique_ptr<AnnotationSetItem> class_annotation_;
-  std::vector<std::unique_ptr<FieldAnnotation>> field_annotations_;
-  std::vector<std::unique_ptr<MethodAnnotation>> method_annotations_;
-  std::vector<std::unique_ptr<ParameterAnnotation>> parameter_annotations_;
+  std::unique_ptr<FieldAnnotationVector> field_annotations_;
+  std::unique_ptr<MethodAnnotationVector> method_annotations_;
+  std::unique_ptr<ParameterAnnotationVector> parameter_annotations_;
   DISALLOW_COPY_AND_ASSIGN(AnnotationsDirectoryItem);
 };
 

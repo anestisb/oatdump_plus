@@ -16,7 +16,7 @@
 
 LOCAL_PATH:= $(call my-dir)
 
-dexlayout_src_files := dexlayout_main.cc dexlayout.cc dex_ir.cc
+dexlayout_src_files := dexlayout_main.cc dexlayout.cc dex_ir_builder.cc
 dexlayout_c_includes := art/runtime
 dexlayout_libraries := libart
 
