@@ -249,3 +249,20 @@ define build-art-multi-executable
     )
   )
 endef
+
+# Note: the order is important because of static linking resolution.
+ART_STATIC_DEPENDENCIES := \
+  libziparchive \
+  libnativehelper \
+  libnativebridge \
+  libnativeloader \
+  libsigchain_dummy \
+  liblog \
+  libz \
+  libbacktrace \
+  libcutils \
+  libunwindbacktrace \
+  libutils \
+  libbase \
+  liblz4 \
+  liblzma
