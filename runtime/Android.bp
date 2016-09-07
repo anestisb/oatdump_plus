@@ -97,7 +97,6 @@ cc_defaults {
         "intern_table.cc",
         "interpreter/interpreter.cc",
         "interpreter/interpreter_common.cc",
-        "interpreter/interpreter_goto_table_impl.cc",
         "interpreter/interpreter_switch_impl.cc",
         "interpreter/unstarted_runtime.cc",
         "java_vm_ext.cc",
