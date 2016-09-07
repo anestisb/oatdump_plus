@@ -18,6 +18,7 @@ cc_binary {
     name: "dalvikvm",
     host_supported: true,
     defaults: ["art_defaults"],
+    compile_multilib: "both",
 
     srcs: ["dalvikvm.cc"],
     cflags: [
