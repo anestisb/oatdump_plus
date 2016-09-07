@@ -27,6 +27,7 @@ LIBART_DISASSEMBLER_SRC_FILES := \
 
 # $(1): target or host
 # $(2): ndebug or debug
+# $(3): static or shared (static is only valid for host)
 define build-libart-disassembler
   ifneq ($(1),target)
     ifneq ($(1),host)
@@ -38,9 +39,19 @@ define build-libart-disassembler
       $$(error expected ndebug or debug for argument 2, received $(2))
     endif
   endif
+  ifeq ($(3),static)
+    ifneq ($(1),host)
+      $$(error received static for argument 3, but argument 1 is not host)
+    endif
+  else
+    ifneq ($(3),shared)
+      $$(error expected static or shared for argument 3, received $(3))
+    endif
+  endif
 
   art_target_or_host := $(1)
   art_ndebug_or_debug := $(2)
+  art_static_or_shared := $(3)
 
   include $(CLEAR_VARS)
   ifeq ($$(art_target_or_host),host)
@@ -54,7 +65,11 @@ define build-libart-disassembler
   endif
 
   LOCAL_MODULE_TAGS := optional
-  LOCAL_MODULE_CLASS := SHARED_LIBRARIES
+  ifeq ($$(art_static_or_shared),static)
+    LOCAL_MODULE_CLASS := STATIC_LIBRARIES
+  else # shared
+    LOCAL_MODULE_CLASS := SHARED_LIBRARIES
+  endif
 
   LOCAL_SRC_FILES := $$(LIBART_DISASSEMBLER_SRC_FILES)
 
@@ -74,11 +89,20 @@ define build-libart-disassembler
     endif
   endif
 
-  LOCAL_SHARED_LIBRARIES += liblog
-  ifeq ($$(art_ndebug_or_debug),debug)
-    LOCAL_SHARED_LIBRARIES += libartd
-  else
-    LOCAL_SHARED_LIBRARIES += libart
+  ifeq ($$(art_static_or_shared),static)
+    LOCAL_STATIC_LIBRARIES += liblog
+    ifeq ($$(art_ndebug_or_debug),debug)
+      LOCAL_STATIC_LIBRARIES += libartd
+    else
+      LOCAL_STATIC_LIBRARIES += libart
+    endif
+  else # shared
+    LOCAL_SHARED_LIBRARIES += liblog
+    ifeq ($$(art_ndebug_or_debug),debug)
+      LOCAL_SHARED_LIBRARIES += libartd
+    else
+      LOCAL_SHARED_LIBRARIES += libart
+    endif
   endif
 
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime
@@ -89,28 +113,53 @@ define build-libart-disassembler
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
   LOCAL_NATIVE_COVERAGE := $(ART_COVERAGE)
   # For disassembler_arm64.
-  ifeq ($$(art_ndebug_or_debug),debug)
-    LOCAL_SHARED_LIBRARIES += libvixld-arm64
-  else
-    LOCAL_SHARED_LIBRARIES += libvixl-arm64
+  ifeq ($$(art_static_or_shared),static)
+    ifeq ($$(art_ndebug_or_debug),debug)
+      LOCAL_STATIC_LIBRARIES += libvixld-arm64
+    else
+      LOCAL_STATIC_LIBRARIES += libvixl-arm64
+    endif
+    ifeq ($$(art_target_or_host),target)
+      $$(error libart-disassembler static builds for target are not supported)
+    else # host
+      include $(BUILD_HOST_STATIC_LIBRARY)
+    endif
+  else # shared
+    ifeq ($$(art_ndebug_or_debug),debug)
+      LOCAL_SHARED_LIBRARIES += libvixld-arm64
+    else
+      LOCAL_SHARED_LIBRARIES += libvixl-arm64
+    endif
+    ifeq ($$(art_target_or_host),target)
+      include $(BUILD_SHARED_LIBRARY)
+    else # host
+      include $(BUILD_HOST_SHARED_LIBRARY)
+    endif
   endif
-  ifeq ($$(art_target_or_host),target)
-    include $(BUILD_SHARED_LIBRARY)
-  else # host
-    include $(BUILD_HOST_SHARED_LIBRARY)
-  endif
+
+  # Clear out local variables now that we're done with them.
+  art_target_or_host :=
+  art_ndebug_or_debug :=
+  art_static_or_shared :=
 endef
 
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
-  $(eval $(call build-libart-disassembler,target,ndebug))
+  $(eval $(call build-libart-disassembler,target,ndebug,shared))
 endif
 ifeq ($(ART_BUILD_TARGET_DEBUG),true)
-  $(eval $(call build-libart-disassembler,target,debug))
+  $(eval $(call build-libart-disassembler,target,debug,shared))
 endif
-# We always build dex2oat and dependencies, even if the host build is otherwise disabled, since they are used to cross compile for the target.
+# We always build dex2oat and dependencies, even if the host build is
+# otherwise disabled, since they are used to cross compile for the target.
 ifeq ($(ART_BUILD_HOST_NDEBUG),true)
-  $(eval $(call build-libart-disassembler,host,ndebug))
+  $(eval $(call build-libart-disassembler,host,ndebug,shared))
+  ifeq ($(ART_BUILD_HOST_STATIC),true)
+    $(eval $(call build-libart-disassembler,host,ndebug,static))
+  endif
 endif
 ifeq ($(ART_BUILD_HOST_DEBUG),true)
-  $(eval $(call build-libart-disassembler,host,debug))
+  $(eval $(call build-libart-disassembler,host,debug,shared))
+  ifeq ($(ART_BUILD_HOST_STATIC),true)
+    $(eval $(call build-libart-disassembler,host,debug,static))
+  endif
 endif
