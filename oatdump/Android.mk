@@ -16,6 +16,19 @@
 
 LOCAL_PATH := $(call my-dir)
 
+include art/build/Android.executable.mk
+
+OATDUMP_SRC_FILES := \
+	oatdump.cc
+
+# Build variants {target,host} x {debug,ndebug}
+$(eval $(call build-art-multi-executable,oatdump,$(OATDUMP_SRC_FILES),libart-compiler libart-disassembler,libcutils,,art/compiler art/disassembler))
+
+########################################################################
+# oatdump targets
+
+ART_DUMP_OAT_PATH ?= $(OUT_DIR)
+
 OATDUMP := $(HOST_OUT_EXECUTABLES)/oatdump$(HOST_EXECUTABLE_SUFFIX)
 OATDUMPD := $(HOST_OUT_EXECUTABLES)/oatdumpd$(HOST_EXECUTABLE_SUFFIX)
 # TODO: for now, override with debug version for better error reporting
