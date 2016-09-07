@@ -247,35 +247,6 @@ class LoadClassSlowPathARM : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(LoadClassSlowPathARM);
 };
 
-class LoadStringSlowPathARM : public SlowPathCode {
- public:
-  explicit LoadStringSlowPathARM(HLoadString* instruction) : SlowPathCode(instruction) {}
-
-  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
-    LocationSummary* locations = instruction_->GetLocations();
-    DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
-
-    CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
-    __ Bind(GetEntryLabel());
-    SaveLiveRegisters(codegen, locations);
-
-    InvokeRuntimeCallingConvention calling_convention;
-    const uint32_t string_index = instruction_->AsLoadString()->GetStringIndex();
-    __ LoadImmediate(calling_convention.GetRegisterAt(0), string_index);
-    arm_codegen->InvokeRuntime(kQuickResolveString, instruction_, instruction_->GetDexPc(), this);
-    CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
-    arm_codegen->Move32(locations->Out(), Location::RegisterLocation(R0));
-
-    RestoreLiveRegisters(codegen, locations);
-    __ b(GetExitLabel());
-  }
-
-  const char* GetDescription() const OVERRIDE { return "LoadStringSlowPathARM"; }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(LoadStringSlowPathARM);
-};
-
 class TypeCheckSlowPathARM : public SlowPathCode {
  public:
   TypeCheckSlowPathARM(HInstruction* instruction, bool is_fatal)
@@ -5577,28 +5548,28 @@ HLoadString::LoadKind CodeGeneratorARM::GetSupportedLoadStringKind(
 }
 
 void LocationsBuilderARM::VisitLoadString(HLoadString* load) {
-  LocationSummary::CallKind call_kind = (load->NeedsEnvironment() || kEmitCompilerReadBarrier)
-      ? LocationSummary::kCallOnSlowPath
+  LocationSummary::CallKind call_kind = load->NeedsEnvironment()
+      ? LocationSummary::kCallOnMainOnly
       : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load, call_kind);
-  if (kUseBakerReadBarrier && !load->NeedsEnvironment()) {
-    locations->SetCustomSlowPathCallerSaves(RegisterSet());  // No caller-save registers.
-  }
 
   HLoadString::LoadKind load_kind = load->GetLoadKind();
-  if (load_kind == HLoadString::LoadKind::kDexCacheViaMethod ||
-      load_kind == HLoadString::LoadKind::kDexCachePcRelative) {
+  DCHECK(load_kind != HLoadString::LoadKind::kDexCachePcRelative) << "Not supported";
+  if (load_kind == HLoadString::LoadKind::kDexCacheViaMethod) {
     locations->SetInAt(0, Location::RequiresRegister());
+    locations->SetOut(Location::RegisterLocation(R0));
+  } else {
+    locations->SetOut(Location::RequiresRegister());
   }
-  locations->SetOut(Location::RequiresRegister());
 }
 
 void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) {
   LocationSummary* locations = load->GetLocations();
   Location out_loc = locations->Out();
   Register out = out_loc.AsRegister<Register>();
+  HLoadString::LoadKind load_kind = load->GetLoadKind();
 
-  switch (load->GetLoadKind()) {
+  switch (load_kind) {
     case HLoadString::LoadKind::kBootImageLinkTimeAddress: {
       DCHECK(!kEmitCompilerReadBarrier);
       __ LoadLiteral(out, codegen_->DeduplicateBootImageStringLiteral(load->GetDexFile(),
@@ -5628,11 +5599,12 @@ void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) {
       break;
   }
 
-  // TODO: Re-add the compiler code to do string dex cache lookup again.
-  SlowPathCode* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathARM(load);
-  codegen_->AddSlowPath(slow_path);
-  __ b(slow_path->GetEntryLabel());
-  __ Bind(slow_path->GetExitLabel());
+  // TODO: Consider re-adding the compiler code to do string dex cache lookup again.
+  DCHECK(load_kind == HLoadString::LoadKind::kDexCacheViaMethod);
+  InvokeRuntimeCallingConvention calling_convention;
+  __ LoadImmediate(calling_convention.GetRegisterAt(0), load->GetStringIndex());
+  codegen_->InvokeRuntime(kQuickResolveString, load, load->GetDexPc());
+  CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
 }
 
 static int32_t GetExceptionTlsOffset() {
