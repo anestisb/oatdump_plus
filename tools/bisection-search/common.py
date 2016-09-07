@@ -23,6 +23,7 @@ import shlex
 from subprocess import check_call
 from subprocess import PIPE
 from subprocess import Popen
+from subprocess import STDOUT
 from subprocess import TimeoutExpired
 
 from tempfile import mkdtemp
@@ -81,19 +82,20 @@ def _RunCommandForOutputAndLog(cmd, env, logfile, timeout=60):
   Returns:
    tuple (string, string, int) stdout output, stderr output, return code.
   """
-  proc = Popen(cmd, stderr=PIPE, stdout=PIPE, env=env, universal_newlines=True)
+  proc = Popen(cmd, stderr=STDOUT, stdout=PIPE, env=env,
+               universal_newlines=True)
   timeouted = False
   try:
-    (output, err_output) = proc.communicate(timeout=timeout)
+    (output, _) = proc.communicate(timeout=timeout)
   except TimeoutExpired:
     timeouted = True
     proc.kill()
-    (output, err_output) = proc.communicate()
-  logfile.write('Command:\n{0}\n{1}{2}\nReturn code: {3}\n'.format(
-      _CommandListToCommandString(cmd), err_output, output,
+    (output, _) = proc.communicate()
+  logfile.write('Command:\n{0}\n{1}\nReturn code: {2}\n'.format(
+      _CommandListToCommandString(cmd), output,
       'TIMEOUT' if timeouted else proc.returncode))
   ret_code = 1 if timeouted else proc.returncode
-  return (output, err_output, ret_code)
+  return (output, ret_code)
 
 
 def _CommandListToCommandString(cmd):
@@ -148,19 +150,16 @@ class ITestEnv(object):
     """
 
   @abc.abstractmethod
-  def RunCommand(self, cmd):
-    """Runs command in environment.
+  def RunCommand(self, cmd, env_updates=None):
+    """Runs command in environment with updated environmental variables.
 
     Args:
-      cmd: string, command to run.
-
+      cmd: list of strings, command to run.
+      env_updates: dict, string to string, maps names of variables to their
+        updated values.
     Returns:
       tuple (string, string, int) stdout output, stderr output, return code.
     """
-
-  @abc.abstractproperty
-  def classpath(self):
-    """Gets environment specific classpath with test class."""
 
   @abc.abstractproperty
   def logfile(self):
@@ -176,14 +175,12 @@ class HostTestEnv(ITestEnv):
   For methods documentation see base class.
   """
 
-  def __init__(self, classpath, x64):
+  def __init__(self, x64):
     """Constructor.
 
     Args:
-      classpath: string, classpath with test class.
       x64: boolean, whether to setup in x64 mode.
     """
-    self._classpath = classpath
     self._env_path = mkdtemp(dir='/tmp/', prefix='bisection_search_')
     self._logfile = open('{0}/log'.format(self._env_path), 'w+')
     os.mkdir('{0}/dalvik-cache'.format(self._env_path))
@@ -197,6 +194,7 @@ class HostTestEnv(ITestEnv):
     self._shell_env['ANDROID_DATA'] = self._env_path
     self._shell_env['ANDROID_ROOT'] = android_root
     self._shell_env['LD_LIBRARY_PATH'] = library_path
+    self._shell_env['DYLD_LIBRARY_PATH'] = library_path
     self._shell_env['PATH'] = (path + ':' + self._shell_env['PATH'])
     # Using dlopen requires load bias on the host.
     self._shell_env['LD_USE_LOAD_BIAS'] = '1'
@@ -213,13 +211,13 @@ class HostTestEnv(ITestEnv):
       f.writelines('{0}\n'.format(line) for line in lines)
     return
 
-  def RunCommand(self, cmd):
+  def RunCommand(self, cmd, env_updates=None):
+    if not env_updates:
+      env_updates = {}
     self._EmptyDexCache()
-    return _RunCommandForOutputAndLog(cmd, self._shell_env, self._logfile)
-
-  @property
-  def classpath(self):
-    return self._classpath
+    env = self._shell_env.copy()
+    env.update(env_updates)
+    return _RunCommandForOutputAndLog(cmd, env, self._logfile)
 
   @property
   def logfile(self):
@@ -247,31 +245,17 @@ class DeviceTestEnv(ITestEnv):
   For methods documentation see base class.
   """
 
-  def __init__(self, classpath):
-    """Constructor.
-
-    Args:
-      classpath: string, classpath with test class.
-    """
+  def __init__(self):
+    """Constructor."""
     self._host_env_path = mkdtemp(dir='/tmp/', prefix='bisection_search_')
     self._logfile = open('{0}/log'.format(self._host_env_path), 'w+')
     self._device_env_path = '{0}/{1}'.format(
         DEVICE_TMP_PATH, os.path.basename(self._host_env_path))
-    self._classpath = os.path.join(
-        self._device_env_path, os.path.basename(classpath))
-    self._shell_env = os.environ
+    self._shell_env = os.environ.copy()
 
     self._AdbMkdir('{0}/dalvik-cache'.format(self._device_env_path))
     for arch_cache_path in _DexArchCachePaths(self._device_env_path):
       self._AdbMkdir(arch_cache_path)
-
-    paths = classpath.split(':')
-    device_paths = []
-    for path in paths:
-      device_paths.append('{0}/{1}'.format(
-          self._device_env_path, os.path.basename(path)))
-      self._AdbPush(path, self._device_env_path)
-    self._classpath = ':'.join(device_paths)
 
   def CreateFile(self, name=None):
     with NamedTemporaryFile(mode='w') as temp_file:
@@ -283,24 +267,46 @@ class DeviceTestEnv(ITestEnv):
   def WriteLines(self, file_path, lines):
     with NamedTemporaryFile(mode='w') as temp_file:
       temp_file.writelines('{0}\n'.format(line) for line in lines)
+      temp_file.flush()
       self._AdbPush(temp_file.name, file_path)
     return
 
-  def RunCommand(self, cmd):
+  def RunCommand(self, cmd, env_updates=None):
+    if not env_updates:
+      env_updates = {}
     self._EmptyDexCache()
+    if 'ANDROID_DATA' not in env_updates:
+      env_updates['ANDROID_DATA'] = self._device_env_path
+    env_updates_cmd = ' '.join(['{0}={1}'.format(var, val) for var, val
+                                in env_updates.items()])
     cmd = _CommandListToCommandString(cmd)
-    cmd = ('adb shell "logcat -c && ANDROID_DATA={0} {1} && '
-           'logcat -d dex2oat:* *:S 1>&2"').format(self._device_env_path, cmd)
-    return _RunCommandForOutputAndLog(shlex.split(cmd), self._shell_env,
-                                      self._logfile)
-
-  @property
-  def classpath(self):
-    return self._classpath
+    cmd = ('adb shell "logcat -c && {0} {1} ; logcat -d -s dex2oat:* dex2oatd:*'
+           '| grep -v "^---------" 1>&2"').format(env_updates_cmd, cmd)
+    return _RunCommandForOutputAndLog(
+        shlex.split(cmd), self._shell_env, self._logfile)
 
   @property
   def logfile(self):
     return self._logfile
+
+  def PushClasspath(self, classpath):
+    """Push classpath to on-device test directory.
+
+    Classpath can contain multiple colon separated file paths, each file is
+    pushed. Returns analogous classpath with paths valid on device.
+
+    Args:
+      classpath: string, classpath in format 'a/b/c:d/e/f'.
+    Returns:
+      string, classpath valid on device.
+    """
+    paths = classpath.split(':')
+    device_paths = []
+    for path in paths:
+      device_paths.append('{0}/{1}'.format(
+          self._device_env_path, os.path.basename(path)))
+      self._AdbPush(path, self._device_env_path)
+    return ':'.join(device_paths)
 
   def _AdbPush(self, what, where):
     check_call(shlex.split('adb push "{0}" "{1}"'.format(what, where)),
