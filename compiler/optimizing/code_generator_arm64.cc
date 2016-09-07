@@ -4044,17 +4044,6 @@ void InstructionCodeGeneratorARM64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
 
 HLoadClass::LoadKind CodeGeneratorARM64::GetSupportedLoadClassKind(
     HLoadClass::LoadKind desired_class_load_kind) {
-  if (kEmitCompilerReadBarrier) {
-    switch (desired_class_load_kind) {
-      case HLoadClass::LoadKind::kBootImageLinkTimeAddress:
-      case HLoadClass::LoadKind::kBootImageLinkTimePcRelative:
-      case HLoadClass::LoadKind::kBootImageAddress:
-        // TODO: Implement for read barrier.
-        return HLoadClass::LoadKind::kDexCacheViaMethod;
-      default:
-        break;
-    }
-  }
   switch (desired_class_load_kind) {
     case HLoadClass::LoadKind::kReferrersClass:
       break;
@@ -4089,11 +4078,12 @@ void LocationsBuilderARM64::VisitLoadClass(HLoadClass* cls) {
     return;
   }
 
-  LocationSummary::CallKind call_kind = (cls->NeedsEnvironment() || kEmitCompilerReadBarrier)
+  const bool requires_read_barrier = kEmitCompilerReadBarrier && !cls->IsInBootImage();
+  LocationSummary::CallKind call_kind = (cls->NeedsEnvironment() || requires_read_barrier)
       ? LocationSummary::kCallOnSlowPath
       : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(cls, call_kind);
-  if (kUseBakerReadBarrier && !cls->NeedsEnvironment()) {
+  if (kUseBakerReadBarrier && requires_read_barrier && !cls->NeedsEnvironment()) {
     locations->SetCustomSlowPathCallerSaves(RegisterSet());  // No caller-save registers.
   }
 
@@ -4116,6 +4106,7 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
   Location out_loc = cls->GetLocations()->Out();
   Register out = OutputRegister(cls);
 
+  const bool requires_read_barrier = kEmitCompilerReadBarrier && !cls->IsInBootImage();
   bool generate_null_check = false;
   switch (cls->GetLoadKind()) {
     case HLoadClass::LoadKind::kReferrersClass: {
@@ -4123,17 +4114,21 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
       DCHECK(!cls->MustGenerateClinitCheck());
       // /* GcRoot<mirror::Class> */ out = current_method->declaring_class_
       Register current_method = InputRegisterAt(cls, 0);
-      GenerateGcRootFieldLoad(
-          cls, out_loc, current_method, ArtMethod::DeclaringClassOffset().Int32Value());
+      GenerateGcRootFieldLoad(cls,
+                              out_loc,
+                              current_method,
+                              ArtMethod::DeclaringClassOffset().Int32Value(),
+                              /*fixup_label*/ nullptr,
+                              requires_read_barrier);
       break;
     }
     case HLoadClass::LoadKind::kBootImageLinkTimeAddress:
-      DCHECK(!kEmitCompilerReadBarrier);
+      DCHECK(!requires_read_barrier);
       __ Ldr(out, codegen_->DeduplicateBootImageTypeLiteral(cls->GetDexFile(),
                                                             cls->GetTypeIndex()));
       break;
     case HLoadClass::LoadKind::kBootImageLinkTimePcRelative: {
-      DCHECK(!kEmitCompilerReadBarrier);
+      DCHECK(!requires_read_barrier);
       // Add ADRP with its PC-relative type patch.
       const DexFile& dex_file = cls->GetDexFile();
       uint32_t type_index = cls->GetTypeIndex();
@@ -4154,7 +4149,7 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
       break;
     }
     case HLoadClass::LoadKind::kBootImageAddress: {
-      DCHECK(!kEmitCompilerReadBarrier);
+      DCHECK(!requires_read_barrier);
       DCHECK(cls->GetAddress() != 0u && IsUint<32>(cls->GetAddress()));
       __ Ldr(out.W(), codegen_->DeduplicateBootImageAddressLiteral(cls->GetAddress()));
       break;
@@ -4172,7 +4167,12 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
       uint32_t offset = cls->GetAddress() & MaxInt<uint64_t>(offset_bits);
       __ Ldr(out.X(), codegen_->DeduplicateDexCacheAddressLiteral(base_address));
       // /* GcRoot<mirror::Class> */ out = *(base_address + offset)
-      GenerateGcRootFieldLoad(cls, out_loc, out.X(), offset);
+      GenerateGcRootFieldLoad(cls,
+                              out_loc,
+                              out.X(),
+                              offset,
+                              /*fixup_label*/ nullptr,
+                              requires_read_barrier);
       generate_null_check = !cls->IsInDexCache();
       break;
     }
@@ -4191,7 +4191,12 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
       vixl::aarch64::Label* ldr_label =
           codegen_->NewPcRelativeDexCacheArrayPatch(dex_file, element_offset, adrp_label);
       // /* GcRoot<mirror::Class> */ out = *(base_address + offset)  /* PC-relative */
-      GenerateGcRootFieldLoad(cls, out_loc, out.X(), /* offset placeholder */ 0, ldr_label);
+      GenerateGcRootFieldLoad(cls,
+                              out_loc,
+                              out.X(),
+                              /* offset placeholder */ 0,
+                              ldr_label,
+                              requires_read_barrier);
       generate_null_check = !cls->IsInDexCache();
       break;
     }
@@ -4203,8 +4208,12 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
       Register current_method = InputRegisterAt(cls, 0);
       __ Ldr(out.X(), MemOperand(current_method, resolved_types_offset.Int32Value()));
       // /* GcRoot<mirror::Class> */ out = out[type_index]
-      GenerateGcRootFieldLoad(
-          cls, out_loc, out.X(), CodeGenerator::GetCacheOffset(cls->GetTypeIndex()));
+      GenerateGcRootFieldLoad(cls,
+                              out_loc,
+                              out.X(),
+                              CodeGenerator::GetCacheOffset(cls->GetTypeIndex()),
+                              /*fixup_label*/ nullptr,
+                              requires_read_barrier);
       generate_null_check = !cls->IsInDexCache();
       break;
     }
@@ -5106,9 +5115,11 @@ void InstructionCodeGeneratorARM64::GenerateGcRootFieldLoad(HInstruction* instru
                                                             Location root,
                                                             Register obj,
                                                             uint32_t offset,
-                                                            vixl::aarch64::Label* fixup_label) {
+                                                            vixl::aarch64::Label* fixup_label,
+                                                            bool requires_read_barrier) {
   Register root_reg = RegisterFrom(root, Primitive::kPrimNot);
-  if (kEmitCompilerReadBarrier) {
+  if (requires_read_barrier) {
+    DCHECK(kEmitCompilerReadBarrier);
     if (kUseBakerReadBarrier) {
       // Fast path implementation of art::ReadBarrier::BarrierForRoot when
       // Baker's read barrier are used:
