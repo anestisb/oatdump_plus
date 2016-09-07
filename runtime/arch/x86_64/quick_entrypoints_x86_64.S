@@ -263,14 +263,15 @@ END_MACRO
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveEverything)
+     * when R15 is already saved.
      */
-MACRO0(SETUP_SAVE_EVERYTHING_FRAME)
+MACRO0(SETUP_SAVE_EVERYTHING_FRAME_R15_SAVED)
 #if defined(__APPLE__)
     int3
     int3
 #else
     // Save core registers from highest to lowest to agree with core spills bitmap.
-    PUSH r15
+    // R15, or at least a placeholder for it, is already on the stack.
     PUSH r14
     PUSH r13
     PUSH r12
@@ -320,6 +321,15 @@ MACRO0(SETUP_SAVE_EVERYTHING_FRAME)
 #error "FRAME_SIZE_SAVE_EVERYTHING(X86_64) size not as expected."
 #endif
 #endif  // __APPLE__
+END_MACRO
+
+    /*
+     * Macro that sets up the callee save frame to conform with
+     * Runtime::CreateCalleeSaveMethod(kSaveEverything)
+     */
+MACRO0(SETUP_SAVE_EVERYTHING_FRAME)
+    PUSH r15
+    SETUP_SAVE_EVERYTHING_FRAME_R15_SAVED
 END_MACRO
 
 MACRO0(RESTORE_SAVE_EVERYTHING_FRAME)
@@ -413,7 +423,19 @@ NO_ARG_RUNTIME_EXCEPTION art_quick_throw_null_pointer_exception, artThrowNullPoi
     /*
      * Call installed by a signal handler to create and deliver a NullPointerException.
      */
-ONE_ARG_RUNTIME_EXCEPTION art_quick_throw_null_pointer_exception_from_signal, artThrowNullPointerExceptionFromSignal
+DEFINE_FUNCTION_CUSTOM_CFA art_quick_throw_null_pointer_exception_from_signal, 2 * __SIZEOF_POINTER__
+    // Fault address and return address were saved by the fault handler.
+    // Save all registers as basis for long jump context; R15 will replace fault address later.
+    SETUP_SAVE_EVERYTHING_FRAME_R15_SAVED
+    // Retrieve fault address and save R15.
+    movq (FRAME_SIZE_SAVE_EVERYTHING - 2 * __SIZEOF_POINTER__)(%rsp), %rdi
+    movq %r15, (FRAME_SIZE_SAVE_EVERYTHING - 2 * __SIZEOF_POINTER__)(%rsp)
+    CFI_REL_OFFSET(%r15, (FRAME_SIZE_SAVE_EVERYTHING - 2 * __SIZEOF_POINTER__))
+    // Outgoing argument set up; RDI already contains the fault address.
+    movq %gs:THREAD_SELF_OFFSET, %rsi  // pass Thread::Current()
+    call SYMBOL(artThrowNullPointerExceptionFromSignal)  // (addr, self)
+    UNREACHABLE
+END_FUNCTION art_quick_throw_null_pointer_exception_from_signal
 
     /*
      * Called by managed code to create and deliver an ArithmeticException.
