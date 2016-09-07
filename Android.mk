@@ -76,20 +76,13 @@ include $(art_path)/build/Android.cpplint.mk
 ########################################################################
 # product rules
 
-include $(art_path)/dexdump/Android.mk
-include $(art_path)/dexlayout/Android.mk
-include $(art_path)/dexlist/Android.mk
 include $(art_path)/dex2oat/Android.mk
-include $(art_path)/disassembler/Android.mk
-include $(art_path)/oatdump/Android.mk
 include $(art_path)/imgdiag/Android.mk
 include $(art_path)/patchoat/Android.mk
 include $(art_path)/profman/Android.mk
-include $(art_path)/dalvikvm/Android.mk
 include $(art_path)/tools/Android.mk
 include $(art_path)/tools/ahat/Android.mk
 include $(art_path)/tools/dexfuzz/Android.mk
-include $(art_path)/tools/dmtracedump/Android.mk
 include $(art_path)/libart_fake/Android.mk
 
 
@@ -114,7 +107,6 @@ TEST_ART_TARGET_SYNC_DEPS :=
 include $(art_path)/build/Android.common_test.mk
 include $(art_path)/build/Android.gtest.mk
 include $(art_path)/test/Android.run-test.mk
-include $(art_path)/benchmark/Android.mk
 
 TEST_ART_ADB_ROOT_AND_REMOUNT := \
     (adb root && \
