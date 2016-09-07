@@ -139,13 +139,10 @@ void InitLogging(char* argv[]) {
 class LogMessageData {
  public:
   LogMessageData(const char* file, unsigned int line, LogSeverity severity, int error)
-      : file_(file),
+      : file_(GetFilenameBase(file)),
         line_number_(line),
         severity_(severity),
-        error_(error) {
-    const char* last_slash = strrchr(file, '/');
-    file = (last_slash == nullptr) ? file : last_slash + 1;
-  }
+        error_(error) {}
 
   const char * GetFile() const {
     return file_;
@@ -177,6 +174,11 @@ class LogMessageData {
   const unsigned int line_number_;
   const LogSeverity severity_;
   const int error_;
+
+  static const char* GetFilenameBase(const char* file) {
+    const char* last_slash = strrchr(file, '/');
+    return (last_slash == nullptr) ? file : last_slash + 1;
+  }
 
   DISALLOW_COPY_AND_ASSIGN(LogMessageData);
 };
