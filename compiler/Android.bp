@@ -188,7 +188,6 @@ art_cc_defaults {
         "liblzma",
     ],
     include_dirs: ["art/disassembler"],
-    export_include_dirs: ["."],
 }
 
 gensrcs {
