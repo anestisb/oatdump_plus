@@ -5337,17 +5337,6 @@ void ParallelMoveResolverARM::RestoreScratch(int reg) {
 
 HLoadClass::LoadKind CodeGeneratorARM::GetSupportedLoadClassKind(
     HLoadClass::LoadKind desired_class_load_kind) {
-  if (kEmitCompilerReadBarrier) {
-    switch (desired_class_load_kind) {
-      case HLoadClass::LoadKind::kBootImageLinkTimeAddress:
-      case HLoadClass::LoadKind::kBootImageLinkTimePcRelative:
-      case HLoadClass::LoadKind::kBootImageAddress:
-        // TODO: Implement for read barrier.
-        return HLoadClass::LoadKind::kDexCacheViaMethod;
-      default:
-        break;
-    }
-  }
   switch (desired_class_load_kind) {
     case HLoadClass::LoadKind::kReferrersClass:
       break;
@@ -5389,11 +5378,12 @@ void LocationsBuilderARM::VisitLoadClass(HLoadClass* cls) {
     return;
   }
 
-  LocationSummary::CallKind call_kind = (cls->NeedsEnvironment() || kEmitCompilerReadBarrier)
+  const bool requires_read_barrier = kEmitCompilerReadBarrier && !cls->IsInBootImage();
+  LocationSummary::CallKind call_kind = (cls->NeedsEnvironment() || requires_read_barrier)
       ? LocationSummary::kCallOnSlowPath
       : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(cls, call_kind);
-  if (kUseBakerReadBarrier && !cls->NeedsEnvironment()) {
+  if (kUseBakerReadBarrier && requires_read_barrier && !cls->NeedsEnvironment()) {
     locations->SetCustomSlowPathCallerSaves(RegisterSet());  // No caller-save registers.
   }
 
@@ -5418,6 +5408,7 @@ void InstructionCodeGeneratorARM::VisitLoadClass(HLoadClass* cls) {
   Location out_loc = locations->Out();
   Register out = out_loc.AsRegister<Register>();
 
+  const bool requires_read_barrier = kEmitCompilerReadBarrier && !cls->IsInBootImage();
   bool generate_null_check = false;
   switch (cls->GetLoadKind()) {
     case HLoadClass::LoadKind::kReferrersClass: {
@@ -5425,18 +5416,21 @@ void InstructionCodeGeneratorARM::VisitLoadClass(HLoadClass* cls) {
       DCHECK(!cls->MustGenerateClinitCheck());
       // /* GcRoot<mirror::Class> */ out = current_method->declaring_class_
       Register current_method = locations->InAt(0).AsRegister<Register>();
-      GenerateGcRootFieldLoad(
-          cls, out_loc, current_method, ArtMethod::DeclaringClassOffset().Int32Value());
+      GenerateGcRootFieldLoad(cls,
+                              out_loc,
+                              current_method,
+                              ArtMethod::DeclaringClassOffset().Int32Value(),
+                              requires_read_barrier);
       break;
     }
     case HLoadClass::LoadKind::kBootImageLinkTimeAddress: {
-      DCHECK(!kEmitCompilerReadBarrier);
+      DCHECK(!requires_read_barrier);
       __ LoadLiteral(out, codegen_->DeduplicateBootImageTypeLiteral(cls->GetDexFile(),
                                                                     cls->GetTypeIndex()));
       break;
     }
     case HLoadClass::LoadKind::kBootImageLinkTimePcRelative: {
-      DCHECK(!kEmitCompilerReadBarrier);
+      DCHECK(!requires_read_barrier);
       CodeGeneratorARM::PcRelativePatchInfo* labels =
           codegen_->NewPcRelativeTypePatch(cls->GetDexFile(), cls->GetTypeIndex());
       __ BindTrackedLabel(&labels->movw_label);
@@ -5448,7 +5442,7 @@ void InstructionCodeGeneratorARM::VisitLoadClass(HLoadClass* cls) {
       break;
     }
     case HLoadClass::LoadKind::kBootImageAddress: {
-      DCHECK(!kEmitCompilerReadBarrier);
+      DCHECK(!requires_read_barrier);
       DCHECK_NE(cls->GetAddress(), 0u);
       uint32_t address = dchecked_integral_cast<uint32_t>(cls->GetAddress());
       __ LoadLiteral(out, codegen_->DeduplicateBootImageAddressLiteral(address));
@@ -5468,7 +5462,7 @@ void InstructionCodeGeneratorARM::VisitLoadClass(HLoadClass* cls) {
       uint32_t offset = address & MaxInt<uint32_t>(offset_bits);
       __ LoadLiteral(out, codegen_->DeduplicateDexCacheAddressLiteral(base_address));
       // /* GcRoot<mirror::Class> */ out = *(base_address + offset)
-      GenerateGcRootFieldLoad(cls, out_loc, out, offset);
+      GenerateGcRootFieldLoad(cls, out_loc, out, offset, requires_read_barrier);
       generate_null_check = !cls->IsInDexCache();
       break;
     }
@@ -5477,7 +5471,7 @@ void InstructionCodeGeneratorARM::VisitLoadClass(HLoadClass* cls) {
       HArmDexCacheArraysBase* base = cls->InputAt(0)->AsArmDexCacheArraysBase();
       int32_t offset = cls->GetDexCacheElementOffset() - base->GetElementOffset();
       // /* GcRoot<mirror::Class> */ out = *(dex_cache_arrays_base + offset)
-      GenerateGcRootFieldLoad(cls, out_loc, base_reg, offset);
+      GenerateGcRootFieldLoad(cls, out_loc, base_reg, offset, requires_read_barrier);
       generate_null_check = !cls->IsInDexCache();
       break;
     }
@@ -5491,7 +5485,7 @@ void InstructionCodeGeneratorARM::VisitLoadClass(HLoadClass* cls) {
                         ArtMethod::DexCacheResolvedTypesOffset(kArmPointerSize).Int32Value());
       // /* GcRoot<mirror::Class> */ out = out[type_index]
       size_t offset = CodeGenerator::GetCacheOffset(cls->GetTypeIndex());
-      GenerateGcRootFieldLoad(cls, out_loc, out, offset);
+      GenerateGcRootFieldLoad(cls, out_loc, out, offset, requires_read_barrier);
       generate_null_check = !cls->IsInDexCache();
     }
   }
@@ -6403,9 +6397,11 @@ void InstructionCodeGeneratorARM::GenerateReferenceLoadTwoRegisters(HInstruction
 void InstructionCodeGeneratorARM::GenerateGcRootFieldLoad(HInstruction* instruction,
                                                           Location root,
                                                           Register obj,
-                                                          uint32_t offset) {
+                                                          uint32_t offset,
+                                                          bool requires_read_barrier) {
   Register root_reg = root.AsRegister<Register>();
-  if (kEmitCompilerReadBarrier) {
+  if (requires_read_barrier) {
+    DCHECK(kEmitCompilerReadBarrier);
     if (kUseBakerReadBarrier) {
       // Fast path implementation of art::ReadBarrier::BarrierForRoot when
       // Baker's read barrier are used:
