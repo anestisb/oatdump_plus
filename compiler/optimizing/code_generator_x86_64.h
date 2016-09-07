@@ -257,7 +257,8 @@ class InstructionCodeGeneratorX86_64 : public InstructionCodeGenerator {
   void GenerateGcRootFieldLoad(HInstruction* instruction,
                                Location root,
                                const Address& address,
-                               Label* fixup_label = nullptr);
+                               Label* fixup_label = nullptr,
+                               bool requires_read_barrier = kEmitCompilerReadBarrier);
 
   void PushOntoFPStack(Location source, uint32_t temp_offset,
                        uint32_t stack_adjustment, bool is_float);
