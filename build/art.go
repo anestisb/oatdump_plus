@@ -67,6 +67,12 @@ func globalFlags(ctx android.BaseContext) ([]string, []string) {
 		cflags = append(cflags, "-fstack-protector")
 	}
 
+	// Are additional statically-linked ART host binaries
+	// (dex2oats, oatdumps, etc.) getting built?
+	if envTrue(ctx, "ART_BUILD_HOST_STATIC") {
+		cflags = append(cflags, "-DART_BUILD_HOST_STATIC=1")
+	}
+
 	return cflags, asflags
 }
 

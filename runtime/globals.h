@@ -67,22 +67,30 @@ static constexpr bool kIsDebugBuild = true;
 #if defined(ART_TARGET)
 // Useful in conditionals where ART_TARGET isn't.
 static constexpr bool kIsTargetBuild = true;
-#if defined(ART_TARGET_LINUX)
+# if defined(ART_TARGET_LINUX)
 static constexpr bool kIsTargetLinux = true;
-#elif defined(ART_TARGET_ANDROID)
+# elif defined(ART_TARGET_ANDROID)
 static constexpr bool kIsTargetLinux = false;
-#else
-#error "Either ART_TARGET_LINUX or ART_TARGET_ANDROID needs to be defined for target builds."
-#endif
+# else
+# error "Either ART_TARGET_LINUX or ART_TARGET_ANDROID needs to be defined for target builds."
+# endif
 #else
 static constexpr bool kIsTargetBuild = false;
-#if defined(ART_TARGET_LINUX)
-#error "ART_TARGET_LINUX defined for host build."
-#elif defined(ART_TARGET_ANDROID)
-#error "ART_TARGET_ANDROID defined for host build."
-#else
+# if defined(ART_TARGET_LINUX)
+# error "ART_TARGET_LINUX defined for host build."
+# elif defined(ART_TARGET_ANDROID)
+# error "ART_TARGET_ANDROID defined for host build."
+# else
 static constexpr bool kIsTargetLinux = false;
+# endif
 #endif
+
+// Are additional statically-linked ART host binaries (dex2oats,
+// oatdumps, etc.) built and available?
+#if !defined(ART_TARGET) && defined(ART_BUILD_HOST_STATIC)
+static constexpr bool kHostStaticBuildEnabled = true;
+#else
+static constexpr bool kHostStaticBuildEnabled = false;
 #endif
 
 // Garbage collector constants.
