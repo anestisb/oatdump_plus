@@ -55,8 +55,9 @@ namespace jit {
 }  // namespace jit
 
 namespace mirror {
-  class ClassLoader;
   class Array;
+  class ClassLoader;
+  class DexCache;
   template<class T> class ObjectArray;
   template<class T> class PrimitiveArray;
   typedef PrimitiveArray<int8_t> ByteArray;
@@ -508,6 +509,8 @@ class Runtime {
       REQUIRES(Locks::intern_table_lock_);
   void RecordWeakStringRemoval(mirror::String* s) const
       REQUIRES(Locks::intern_table_lock_);
+  void RecordResolveString(mirror::DexCache* dex_cache, uint32_t string_idx) const
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void SetFaultMessage(const std::string& message) REQUIRES(!fault_message_lock_);
   // Only read by the signal handler, NO_THREAD_SAFETY_ANALYSIS to prevent lock order violations

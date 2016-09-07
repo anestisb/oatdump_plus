@@ -1929,6 +1929,12 @@ void Runtime::RecordWeakStringRemoval(mirror::String* s) const {
   preinitialization_transaction_->RecordWeakStringRemoval(s);
 }
 
+void Runtime::RecordResolveString(mirror::DexCache* dex_cache, uint32_t string_idx) const {
+  DCHECK(IsAotCompiler());
+  DCHECK(IsActiveTransaction());
+  preinitialization_transaction_->RecordResolveString(dex_cache, string_idx);
+}
+
 void Runtime::SetFaultMessage(const std::string& message) {
   MutexLock mu(Thread::Current(), fault_message_lock_);
   fault_message_ = message;

@@ -49,13 +49,15 @@ Transaction::~Transaction() {
     for (auto it : array_logs_) {
       array_values_count += it.second.Size();
     }
-    size_t string_count = intern_string_logs_.size();
+    size_t intern_string_count = intern_string_logs_.size();
+    size_t resolve_string_count = resolve_string_logs_.size();
     LOG(INFO) << "Transaction::~Transaction"
               << ": objects_count=" << objects_count
               << ", field_values_count=" << field_values_count
               << ", array_count=" << array_count
               << ", array_values_count=" << array_values_count
-              << ", string_count=" << string_count;
+              << ", intern_string_count=" << intern_string_count
+              << ", resolve_string_count=" << resolve_string_count;
   }
 }
 
@@ -165,6 +167,13 @@ void Transaction::RecordWriteArray(mirror::Array* array, size_t index, uint64_t 
   array_log.LogValue(index, value);
 }
 
+void Transaction::RecordResolveString(mirror::DexCache* dex_cache, uint32_t string_idx) {
+  DCHECK(dex_cache != nullptr);
+  DCHECK_LT(string_idx, dex_cache->GetDexFile()->NumStringIds());
+  MutexLock mu(Thread::Current(), log_lock_);
+  resolve_string_logs_.push_back(ResolveStringLog(dex_cache, string_idx));
+}
+
 void Transaction::RecordStrongStringInsertion(mirror::String* s) {
   InternStringLog log(s, InternStringLog::kStrongString, InternStringLog::kInsert);
   LogInternedString(log);
@@ -200,6 +209,7 @@ void Transaction::Rollback() {
   UndoObjectModifications();
   UndoArrayModifications();
   UndoInternStringTableModifications();
+  UndoResolveStringModifications();
 }
 
 void Transaction::UndoObjectModifications() {
@@ -230,11 +240,19 @@ void Transaction::UndoInternStringTableModifications() {
   intern_string_logs_.clear();
 }
 
+void Transaction::UndoResolveStringModifications() {
+  for (ResolveStringLog& string_log : resolve_string_logs_) {
+    string_log.Undo();
+  }
+  resolve_string_logs_.clear();
+}
+
 void Transaction::VisitRoots(RootVisitor* visitor) {
   MutexLock mu(Thread::Current(), log_lock_);
   VisitObjectLogs(visitor);
   VisitArrayLogs(visitor);
-  VisitStringLogs(visitor);
+  VisitInternStringLogs(visitor);
+  VisitResolveStringLogs(visitor);
 }
 
 void Transaction::VisitObjectLogs(RootVisitor* visitor) {
@@ -292,8 +310,14 @@ void Transaction::VisitArrayLogs(RootVisitor* visitor) {
   }
 }
 
-void Transaction::VisitStringLogs(RootVisitor* visitor) {
+void Transaction::VisitInternStringLogs(RootVisitor* visitor) {
   for (InternStringLog& log : intern_string_logs_) {
+    log.VisitRoots(visitor);
+  }
+}
+
+void Transaction::VisitResolveStringLogs(RootVisitor* visitor) {
+  for (ResolveStringLog& log : resolve_string_logs_) {
     log.VisitRoots(visitor);
   }
 }
@@ -479,6 +503,21 @@ void Transaction::InternStringLog::Undo(InternTable* intern_table) {
 
 void Transaction::InternStringLog::VisitRoots(RootVisitor* visitor) {
   visitor->VisitRoot(reinterpret_cast<mirror::Object**>(&str_), RootInfo(kRootInternedString));
+}
+
+void Transaction::ResolveStringLog::Undo() {
+  dex_cache_.Read()->ClearString(string_idx_);
+}
+
+Transaction::ResolveStringLog::ResolveStringLog(mirror::DexCache* dex_cache, uint32_t string_idx)
+    : dex_cache_(dex_cache),
+      string_idx_(string_idx) {
+  DCHECK(dex_cache != nullptr);
+  DCHECK_LT(string_idx_, dex_cache->GetDexFile()->NumStringIds());
+}
+
+void Transaction::ResolveStringLog::VisitRoots(RootVisitor* visitor) {
+  dex_cache_.VisitRoot(visitor, RootInfo(kRootVMInternal));
 }
 
 void Transaction::ArrayLog::LogValue(size_t index, uint64_t value) {
