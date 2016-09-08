@@ -90,14 +90,14 @@ define build-libart-disassembler
   endif
 
   ifeq ($$(art_static_or_shared),static)
-    LOCAL_STATIC_LIBRARIES += liblog
+    LOCAL_STATIC_LIBRARIES += liblog libbase
     ifeq ($$(art_ndebug_or_debug),debug)
       LOCAL_STATIC_LIBRARIES += libartd
     else
       LOCAL_STATIC_LIBRARIES += libart
     endif
   else # shared
-    LOCAL_SHARED_LIBRARIES += liblog
+    LOCAL_SHARED_LIBRARIES += liblog libbase
     ifeq ($$(art_ndebug_or_debug),debug)
       LOCAL_SHARED_LIBRARIES += libartd
     else

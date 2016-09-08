@@ -21,7 +21,7 @@
 #include <string>
 
 #include "base/enums.h"
-#include "base/logging.h"  // Logging is required for FATAL in the helper functions.
+#include "base/macros.h"
 
 namespace art {
 
@@ -75,13 +75,15 @@ static constexpr size_t kMipsAlignment = 8;
 // X86 instruction alignment. This is the recommended alignment for maximum performance.
 static constexpr size_t kX86Alignment = 16;
 
-
 const char* GetInstructionSetString(InstructionSet isa);
 
 // Note: Returns kNone when the string cannot be parsed to a known value.
 InstructionSet GetInstructionSetFromString(const char* instruction_set);
 
 InstructionSet GetInstructionSetFromELF(uint16_t e_machine, uint32_t e_flags);
+
+// Fatal logging out of line to keep the header clean of logging.h.
+NO_RETURN void InstructionSetAbort(InstructionSet isa);
 
 static inline PointerSize GetInstructionSetPointerSize(InstructionSet isa) {
   switch (isa) {
@@ -99,12 +101,8 @@ static inline PointerSize GetInstructionSetPointerSize(InstructionSet isa) {
       return kMipsPointerSize;
     case kMips64:
       return kMips64PointerSize;
-    case kNone:
-      LOG(FATAL) << "ISA kNone does not have pointer size.";
-      UNREACHABLE();
     default:
-      LOG(FATAL) << "Unknown ISA " << isa;
-      UNREACHABLE();
+      InstructionSetAbort(isa);
   }
 }
 
@@ -139,12 +137,8 @@ static inline bool Is64BitInstructionSet(InstructionSet isa) {
     case kMips64:
       return true;
 
-    case kNone:
-      LOG(FATAL) << "ISA kNone does not have bit width.";
-      UNREACHABLE();
     default:
-      LOG(FATAL) << "Unknown ISA " << isa;
-      UNREACHABLE();
+      InstructionSetAbort(isa);
   }
 }
 
@@ -168,12 +162,9 @@ static inline size_t GetBytesPerGprSpillLocation(InstructionSet isa) {
       return 4;
     case kMips64:
       return 8;
-    case kNone:
-      LOG(FATAL) << "ISA kNone does not have spills.";
-      UNREACHABLE();
+
     default:
-      LOG(FATAL) << "Unknown ISA " << isa;
-      UNREACHABLE();
+      InstructionSetAbort(isa);
   }
 }
 
@@ -193,12 +184,9 @@ static inline size_t GetBytesPerFprSpillLocation(InstructionSet isa) {
       return 4;
     case kMips64:
       return 8;
-    case kNone:
-      LOG(FATAL) << "ISA kNone does not have spills.";
-      UNREACHABLE();
+
     default:
-      LOG(FATAL) << "Unknown ISA " << isa;
-      UNREACHABLE();
+      InstructionSetAbort(isa);
   }
 }
 
