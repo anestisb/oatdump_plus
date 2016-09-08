@@ -101,6 +101,9 @@ art_global_defaults {
                 // Apple, it's a pain.
                 "-Wmissing-noreturn",
             ],
+            host_ldlibs: [
+                "-lrt",
+            ],
         },
         host: {
             cflags: [
@@ -111,7 +114,6 @@ art_global_defaults {
             host_ldlibs: [
                 "-ldl",
                 "-lpthread",
-                "-lrt",
             ],
         },
     },
