@@ -20,7 +20,6 @@
 
 #include "common_throws.h"
 #include "interpreter_common.h"
-#include "interpreter_goto_table_impl.h"
 #include "interpreter_mterp_impl.h"
 #include "interpreter_switch_impl.h"
 #include "mirror/string-inl.h"
@@ -231,15 +230,12 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
 
 enum InterpreterImplKind {
   kSwitchImplKind,        // Switch-based interpreter implementation.
-  kComputedGotoImplKind,  // Computed-goto-based interpreter implementation.
   kMterpImplKind          // Assembly interpreter
 };
 static std::ostream& operator<<(std::ostream& os, const InterpreterImplKind& rhs) {
   os << ((rhs == kSwitchImplKind)
               ? "Switch-based interpreter"
-              : (rhs == kComputedGotoImplKind)
-                  ? "Computed-goto-based interpreter"
-                  : "Asm interpreter");
+              : "Asm interpreter");
   return os;
 }
 
@@ -323,20 +319,14 @@ static inline JValue Execute(
           }
         }
       }
-    } else if (kInterpreterImplKind == kSwitchImplKind) {
+    } else {
+      DCHECK_EQ(kInterpreterImplKind, kSwitchImplKind);
       if (transaction_active) {
         return ExecuteSwitchImpl<false, true>(self, code_item, shadow_frame, result_register,
                                               false);
       } else {
         return ExecuteSwitchImpl<false, false>(self, code_item, shadow_frame, result_register,
                                                false);
-      }
-    } else {
-      DCHECK_EQ(kInterpreterImplKind, kComputedGotoImplKind);
-      if (transaction_active) {
-        return ExecuteGotoImpl<false, true>(self, code_item, shadow_frame, result_register);
-      } else {
-        return ExecuteGotoImpl<false, false>(self, code_item, shadow_frame, result_register);
       }
     }
   } else {
@@ -350,20 +340,14 @@ static inline JValue Execute(
         return ExecuteSwitchImpl<true, false>(self, code_item, shadow_frame, result_register,
                                               false);
       }
-    } else if (kInterpreterImplKind == kSwitchImplKind) {
+    } else {
+      DCHECK_EQ(kInterpreterImplKind, kSwitchImplKind);
       if (transaction_active) {
         return ExecuteSwitchImpl<true, true>(self, code_item, shadow_frame, result_register,
                                              false);
       } else {
         return ExecuteSwitchImpl<true, false>(self, code_item, shadow_frame, result_register,
                                               false);
-      }
-    } else {
-      DCHECK_EQ(kInterpreterImplKind, kComputedGotoImplKind);
-      if (transaction_active) {
-        return ExecuteGotoImpl<true, true>(self, code_item, shadow_frame, result_register);
-      } else {
-        return ExecuteGotoImpl<true, false>(self, code_item, shadow_frame, result_register);
       }
     }
   }
