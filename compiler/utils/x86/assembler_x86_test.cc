@@ -207,10 +207,22 @@ TEST_F(AssemblerX86Test, FPUIntegerStore) {
   DriverStr(expected, "FPUIntegerStore");
 }
 
+TEST_F(AssemblerX86Test, Repnescasb) {
+  GetAssembler()->repne_scasb();
+  const char* expected = "repne scasb\n";
+  DriverStr(expected, "Repnescasb");
+}
+
 TEST_F(AssemblerX86Test, Repnescasw) {
   GetAssembler()->repne_scasw();
   const char* expected = "repne scasw\n";
   DriverStr(expected, "Repnescasw");
+}
+
+TEST_F(AssemblerX86Test, Repecmpsb) {
+  GetAssembler()->repe_cmpsb();
+  const char* expected = "repe cmpsb\n";
+  DriverStr(expected, "Repecmpsb");
 }
 
 TEST_F(AssemblerX86Test, Repecmpsw) {
@@ -225,10 +237,10 @@ TEST_F(AssemblerX86Test, Repecmpsl) {
   DriverStr(expected, "Repecmpsl");
 }
 
-TEST_F(AssemblerX86Test, RepneScasw) {
-  GetAssembler()->repne_scasw();
-  const char* expected = "repne scasw\n";
-  DriverStr(expected, "repne_scasw");
+TEST_F(AssemblerX86Test, RepMovsb) {
+  GetAssembler()->rep_movsb();
+  const char* expected = "rep movsb\n";
+  DriverStr(expected, "rep_movsb");
 }
 
 TEST_F(AssemblerX86Test, RepMovsw) {
