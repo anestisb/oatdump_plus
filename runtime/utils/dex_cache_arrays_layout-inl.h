@@ -55,7 +55,8 @@ inline constexpr size_t DexCacheArraysLayout::Alignment() {
 
 template <typename T>
 static constexpr PointerSize GcRootAsPointerSize() {
-  return ConvertToPointerSize(sizeof(GcRoot<T>));
+  static_assert(sizeof(GcRoot<T>) == 4U, "Unexpected GcRoot size");
+  return PointerSize::k32;
 }
 
 inline size_t DexCacheArraysLayout::TypeOffset(uint32_t type_idx) const {

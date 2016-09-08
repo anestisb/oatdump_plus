@@ -386,6 +386,16 @@ inline void FlushInstructionCache(char* begin, char* end) {
   __builtin___clear_cache(begin, end);
 }
 
+template <typename T>
+constexpr PointerSize ConvertToPointerSize(T any) {
+  if (any == 4 || any == 8) {
+    return static_cast<PointerSize>(any);
+  } else {
+    LOG(FATAL);
+    UNREACHABLE();
+  }
+}
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_UTILS_H_

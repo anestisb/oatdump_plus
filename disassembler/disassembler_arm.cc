@@ -21,10 +21,13 @@
 #include <ostream>
 #include <sstream>
 
+#include "android-base/logging.h"
+#include "android-base/stringprintf.h"
+
 #include "arch/arm/registers_arm.h"
 #include "base/bit_utils.h"
-#include "base/logging.h"
-#include "base/stringprintf.h"
+
+using android::base::StringPrintf;
 
 namespace art {
 namespace arm {
