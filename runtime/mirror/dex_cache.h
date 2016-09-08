@@ -56,12 +56,20 @@ struct PACKED(8) StringDexCachePair {
   // it's always non-null if the string id branch succeeds (except for the 0th string id).
   // Set the initial state for the 0th entry to be {0,1} which is guaranteed to fail
   // the lookup string id == stored id branch.
+  StringDexCachePair(String* string, uint32_t string_idx)
+      : string_pointer(string),
+        string_index(string_idx) {}
+  StringDexCachePair() = default;
+  StringDexCachePair(const StringDexCachePair&) = default;
+  StringDexCachePair& operator=(const StringDexCachePair&) = default;
+
   static void Initialize(StringDexCacheType* strings) {
     mirror::StringDexCachePair first_elem;
     first_elem.string_pointer = GcRoot<String>(nullptr);
-    first_elem.string_index = 1;
+    first_elem.string_index = InvalidStringIndexForSlot(0);
     strings[0].store(first_elem, std::memory_order_relaxed);
   }
+
   static GcRoot<String> LookupString(StringDexCacheType* dex_cache,
                                      uint32_t string_idx,
                                      uint32_t cache_size) {
@@ -71,9 +79,14 @@ struct PACKED(8) StringDexCachePair {
     DCHECK(!index_string.string_pointer.IsNull());
     return index_string.string_pointer;
   }
+
+  static uint32_t InvalidStringIndexForSlot(uint32_t slot) {
+    // Since the cache size is a power of two, 0 will always map to slot 0.
+    // Use 1 for slot 0 and 0 for all other slots.
+    return (slot == 0) ? 1u : 0u;
+  }
 };
 using StringDexCacheType = std::atomic<StringDexCachePair>;
-
 
 // C++ mirror of java.lang.DexCache.
 class MANAGED DexCache FINAL : public Object {
@@ -163,6 +176,10 @@ class MANAGED DexCache FINAL : public Object {
 
   void SetResolvedString(uint32_t string_idx, mirror::String* resolved) ALWAYS_INLINE
       REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Clear a string for a string_idx, used to undo string intern transactions to make sure
+  // the string isn't kept live.
+  void ClearString(uint32_t string_idx) REQUIRES_SHARED(Locks::mutator_lock_);
 
   Class* GetResolvedType(uint32_t type_idx) REQUIRES_SHARED(Locks::mutator_lock_);
 
