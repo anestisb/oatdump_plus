@@ -39,15 +39,15 @@ static uint64_t ReadVarWidth(const uint8_t** data, uint8_t length, bool sign_ext
 }
 
 // Prototype to break cyclic dependency.
-void ReadPayloadUnion(Header& header,
-                      const uint8_t** data,
-                      uint8_t type,
-                      uint8_t length,
-                      ArrayItem::PayloadUnion* item);
+void ReadArrayItemVariant(Header& header,
+                          const uint8_t** data,
+                          uint8_t type,
+                          uint8_t length,
+                          ArrayItem::ArrayItemVariant* item);
 
 ArrayItem* ReadArrayItem(Header& header, const uint8_t** data, uint8_t type, uint8_t length) {
   ArrayItem* item = new ArrayItem(type);
-  ReadPayloadUnion(header, data, type, length, item->GetPayloadUnion());
+  ReadArrayItemVariant(header, data, type, length, item->GetArrayItemVariant());
   return item;
 }
 
@@ -55,30 +55,30 @@ ArrayItem* ReadArrayItem(Header& header, const uint8_t** data) {
   const uint8_t encoded_value = *(*data)++;
   const uint8_t type = encoded_value & 0x1f;
   ArrayItem* item = new ArrayItem(type);
-  ReadPayloadUnion(header, data, type, encoded_value >> 5, item->GetPayloadUnion());
+  ReadArrayItemVariant(header, data, type, encoded_value >> 5, item->GetArrayItemVariant());
   return item;
 }
 
-void ReadPayloadUnion(Header& header,
-                      const uint8_t** data,
-                      uint8_t type,
-                      uint8_t length,
-                      ArrayItem::PayloadUnion* item) {
+void ReadArrayItemVariant(Header& header,
+                          const uint8_t** data,
+                          uint8_t type,
+                          uint8_t length,
+                          ArrayItem::ArrayItemVariant* item) {
   switch (type) {
     case DexFile::kDexAnnotationByte:
-      item->byte_val_ = static_cast<int8_t>(ReadVarWidth(data, length, false));
+      item->u_.byte_val_ = static_cast<int8_t>(ReadVarWidth(data, length, false));
       break;
     case DexFile::kDexAnnotationShort:
-      item->short_val_ = static_cast<int16_t>(ReadVarWidth(data, length, true));
+      item->u_.short_val_ = static_cast<int16_t>(ReadVarWidth(data, length, true));
       break;
     case DexFile::kDexAnnotationChar:
-      item->char_val_ = static_cast<uint16_t>(ReadVarWidth(data, length, false));
+      item->u_.char_val_ = static_cast<uint16_t>(ReadVarWidth(data, length, false));
       break;
     case DexFile::kDexAnnotationInt:
-      item->int_val_ = static_cast<int32_t>(ReadVarWidth(data, length, true));
+      item->u_.int_val_ = static_cast<int32_t>(ReadVarWidth(data, length, true));
       break;
     case DexFile::kDexAnnotationLong:
-      item->long_val_ = static_cast<int64_t>(ReadVarWidth(data, length, true));
+      item->u_.long_val_ = static_cast<int64_t>(ReadVarWidth(data, length, true));
       break;
     case DexFile::kDexAnnotationFloat: {
       // Fill on right.
@@ -87,7 +87,7 @@ void ReadPayloadUnion(Header& header,
         uint32_t data;
       } conv;
       conv.data = static_cast<uint32_t>(ReadVarWidth(data, length, false)) << (3 - length) * 8;
-      item->float_val_ = conv.f;
+      item->u_.float_val_ = conv.f;
       break;
     }
     case DexFile::kDexAnnotationDouble: {
@@ -97,32 +97,32 @@ void ReadPayloadUnion(Header& header,
         uint64_t data;
       } conv;
       conv.data = ReadVarWidth(data, length, false) << (7 - length) * 8;
-      item->double_val_ = conv.d;
+      item->u_.double_val_ = conv.d;
       break;
     }
     case DexFile::kDexAnnotationString: {
       const uint32_t string_index = static_cast<uint32_t>(ReadVarWidth(data, length, false));
-      item->string_val_ = header.StringIds()[string_index].get();
+      item->u_.string_val_ = header.StringIds()[string_index].get();
       break;
     }
     case DexFile::kDexAnnotationType: {
       const uint32_t string_index = static_cast<uint32_t>(ReadVarWidth(data, length, false));
-      item->string_val_ = header.TypeIds()[string_index]->GetStringId();
+      item->u_.string_val_ = header.TypeIds()[string_index]->GetStringId();
       break;
     }
     case DexFile::kDexAnnotationField:
     case DexFile::kDexAnnotationEnum: {
       const uint32_t field_index = static_cast<uint32_t>(ReadVarWidth(data, length, false));
-      item->field_val_ = header.FieldIds()[field_index].get();
+      item->u_.field_val_ = header.FieldIds()[field_index].get();
       break;
     }
     case DexFile::kDexAnnotationMethod: {
       const uint32_t method_index = static_cast<uint32_t>(ReadVarWidth(data, length, false));
-      item->method_val_ = header.MethodIds()[method_index].get();
+      item->u_.method_val_ = header.MethodIds()[method_index].get();
       break;
     }
     case DexFile::kDexAnnotationArray: {
-      item->annotation_array_val_ = new ArrayItemVector();
+      item->annotation_array_val_.reset(new ArrayItemVector());
       // Decode all elements.
       const uint32_t size = DecodeUnsignedLeb128(data);
       for (uint32_t i = 0; i < size; i++) {
@@ -134,8 +134,8 @@ void ReadPayloadUnion(Header& header,
     case DexFile::kDexAnnotationAnnotation: {
       const uint32_t type_idx = DecodeUnsignedLeb128(data);
       item->annotation_annotation_val_.string_ = header.TypeIds()[type_idx]->GetStringId();
-      item->annotation_annotation_val_.array_ =
-          new std::vector<std::unique_ptr<ArrayItem::NameValuePair>>();
+      item->annotation_annotation_val_.array_.reset(
+          new std::vector<std::unique_ptr<ArrayItem::NameValuePair>>());
       // Decode all name=value pairs.
       const uint32_t size = DecodeUnsignedLeb128(data);
       for (uint32_t i = 0; i < size; i++) {
@@ -150,7 +150,7 @@ void ReadPayloadUnion(Header& header,
     case DexFile::kDexAnnotationNull:
       break;
     case DexFile::kDexAnnotationBoolean:
-      item->bool_val_ = (length != 0);
+      item->u_.bool_val_ = (length != 0);
       break;
     default:
       break;
