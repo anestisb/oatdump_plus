@@ -18,7 +18,9 @@
 
 import abc
 import os
+import signal
 import shlex
+import shutil
 
 from subprocess import check_call
 from subprocess import PIPE
@@ -29,11 +31,24 @@ from subprocess import TimeoutExpired
 from tempfile import mkdtemp
 from tempfile import NamedTemporaryFile
 
+from enum import Enum
+from enum import unique
+
 # Temporary directory path on device.
 DEVICE_TMP_PATH = '/data/local/tmp'
 
 # Architectures supported in dalvik cache.
 DALVIK_CACHE_ARCHS = ['arm', 'arm64', 'x86', 'x86_64']
+
+
+@unique
+class RetCode(Enum):
+  """Enum representing normalized return codes."""
+  SUCCESS = 0
+  TIMEOUT = 1
+  ERROR = 2
+  NOTCOMPILED = 3
+  NOTRUN = 4
 
 
 def GetEnvVariableOrError(variable_name):
@@ -70,6 +85,37 @@ def _DexArchCachePaths(android_data_path):
           for arch in DALVIK_CACHE_ARCHS)
 
 
+def RunCommandForOutput(cmd, env, stdout, stderr, timeout=60):
+  """Runs command piping output to files, stderr or stdout.
+
+  Args:
+    cmd: list of strings, command to run.
+    env: shell environment to run the command with.
+    stdout: file handle or one of Subprocess.PIPE, Subprocess.STDOUT,
+      Subprocess.DEVNULL, see Popen.
+    stderr: file handle or one of Subprocess.PIPE, Subprocess.STDOUT,
+      Subprocess.DEVNULL, see Popen.
+    timeout: int, timeout in seconds.
+
+  Returns:
+    tuple (string, string, RetCode) stdout output, stderr output, normalized
+      return code.
+  """
+  proc = Popen(cmd, stdout=stdout, stderr=stderr, env=env,
+               universal_newlines=True, start_new_session=True)
+  try:
+    (output, stderr_output) = proc.communicate(timeout=timeout)
+    if proc.returncode == 0:
+      retcode = RetCode.SUCCESS
+    else:
+      retcode = RetCode.ERROR
+  except TimeoutExpired:
+    os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+    (output, stderr_output) = proc.communicate()
+    retcode = RetCode.TIMEOUT
+  return (output, stderr_output, retcode)
+
+
 def _RunCommandForOutputAndLog(cmd, env, logfile, timeout=60):
   """Runs command and logs its output. Returns the output.
 
@@ -77,28 +123,19 @@ def _RunCommandForOutputAndLog(cmd, env, logfile, timeout=60):
     cmd: list of strings, command to run.
     env: shell environment to run the command with.
     logfile: file handle to logfile.
-    timeout: int, timeout in seconds
+    timeout: int, timeout in seconds.
 
   Returns:
-   tuple (string, string, int) stdout output, stderr output, return code.
+    tuple (string, string, RetCode) stdout output, stderr output, normalized
+      return code.
   """
-  proc = Popen(cmd, stderr=STDOUT, stdout=PIPE, env=env,
-               universal_newlines=True)
-  timeouted = False
-  try:
-    (output, _) = proc.communicate(timeout=timeout)
-  except TimeoutExpired:
-    timeouted = True
-    proc.kill()
-    (output, _) = proc.communicate()
+  (output, _, retcode) = RunCommandForOutput(cmd, env, PIPE, STDOUT, timeout)
   logfile.write('Command:\n{0}\n{1}\nReturn code: {2}\n'.format(
-      _CommandListToCommandString(cmd), output,
-      'TIMEOUT' if timeouted else proc.returncode))
-  ret_code = 1 if timeouted else proc.returncode
-  return (output, ret_code)
+      CommandListToCommandString(cmd), output, retcode))
+  return (output, retcode)
 
 
-def _CommandListToCommandString(cmd):
+def CommandListToCommandString(cmd):
   """Converts shell command represented as list of strings to a single string.
 
   Each element of the list is wrapped in double quotes.
@@ -109,7 +146,7 @@ def _CommandListToCommandString(cmd):
   Returns:
     string, shell command.
   """
-  return ' '.join(['"{0}"'.format(segment) for segment in cmd])
+  return ' '.join([shlex.quote(segment) for segment in cmd])
 
 
 class FatalError(Exception):
@@ -175,14 +212,24 @@ class HostTestEnv(ITestEnv):
   For methods documentation see base class.
   """
 
-  def __init__(self, x64):
+  def __init__(self, directory_prefix, cleanup=True, logfile_path=None,
+               timeout=60, x64=False):
     """Constructor.
 
     Args:
+      directory_prefix: string, prefix for environment directory name.
+      cleanup: boolean, if True remove test directory in destructor.
+      logfile_path: string, can be used to specify custom logfile location.
+      timeout: int, seconds, time to wait for single test run to finish.
       x64: boolean, whether to setup in x64 mode.
     """
-    self._env_path = mkdtemp(dir='/tmp/', prefix='bisection_search_')
-    self._logfile = open('{0}/log'.format(self._env_path), 'w+')
+    self._cleanup = cleanup
+    self._timeout = timeout
+    self._env_path = mkdtemp(dir='/tmp/', prefix=directory_prefix)
+    if logfile_path is None:
+      self._logfile = open('{0}/log'.format(self._env_path), 'w+')
+    else:
+      self._logfile = open(logfile_path, 'w+')
     os.mkdir('{0}/dalvik-cache'.format(self._env_path))
     for arch_cache_path in _DexArchCachePaths(self._env_path):
       os.mkdir(arch_cache_path)
@@ -198,6 +245,10 @@ class HostTestEnv(ITestEnv):
     self._shell_env['PATH'] = (path + ':' + self._shell_env['PATH'])
     # Using dlopen requires load bias on the host.
     self._shell_env['LD_USE_LOAD_BIAS'] = '1'
+
+  def __del__(self):
+    if self._cleanup:
+      shutil.rmtree(self._env_path)
 
   def CreateFile(self, name=None):
     if name is None:
@@ -217,7 +268,7 @@ class HostTestEnv(ITestEnv):
     self._EmptyDexCache()
     env = self._shell_env.copy()
     env.update(env_updates)
-    return _RunCommandForOutputAndLog(cmd, env, self._logfile)
+    return _RunCommandForOutputAndLog(cmd, env, self._logfile, self._timeout)
 
   @property
   def logfile(self):
@@ -239,16 +290,28 @@ class HostTestEnv(ITestEnv):
 class DeviceTestEnv(ITestEnv):
   """Device test environment. Concrete implementation of ITestEnv.
 
-  Makes use of HostTestEnv to maintain a test directory on host. Creates an
-  on device test directory which is kept in sync with the host one.
-
   For methods documentation see base class.
   """
 
-  def __init__(self):
-    """Constructor."""
-    self._host_env_path = mkdtemp(dir='/tmp/', prefix='bisection_search_')
-    self._logfile = open('{0}/log'.format(self._host_env_path), 'w+')
+  def __init__(self, directory_prefix, cleanup=True, logfile_path=None,
+               timeout=60, specific_device=None):
+    """Constructor.
+
+    Args:
+      directory_prefix: string, prefix for environment directory name.
+      cleanup: boolean, if True remove test directory in destructor.
+      logfile_path: string, can be used to specify custom logfile location.
+      timeout: int, seconds, time to wait for single test run to finish.
+      specific_device: string, serial number of device to use.
+    """
+    self._cleanup = cleanup
+    self._timeout = timeout
+    self._specific_device = specific_device
+    self._host_env_path = mkdtemp(dir='/tmp/', prefix=directory_prefix)
+    if logfile_path is None:
+      self._logfile = open('{0}/log'.format(self._host_env_path), 'w+')
+    else:
+      self._logfile = open(logfile_path, 'w+')
     self._device_env_path = '{0}/{1}'.format(
         DEVICE_TMP_PATH, os.path.basename(self._host_env_path))
     self._shell_env = os.environ.copy()
@@ -256,6 +319,13 @@ class DeviceTestEnv(ITestEnv):
     self._AdbMkdir('{0}/dalvik-cache'.format(self._device_env_path))
     for arch_cache_path in _DexArchCachePaths(self._device_env_path):
       self._AdbMkdir(arch_cache_path)
+
+  def __del__(self):
+    if self._cleanup:
+      shutil.rmtree(self._host_env_path)
+      check_call(shlex.split(
+          'adb shell if [ -d "{0}" ]; then rm -rf "{0}"; fi'
+          .format(self._device_env_path)))
 
   def CreateFile(self, name=None):
     with NamedTemporaryFile(mode='w') as temp_file:
@@ -279,11 +349,18 @@ class DeviceTestEnv(ITestEnv):
       env_updates['ANDROID_DATA'] = self._device_env_path
     env_updates_cmd = ' '.join(['{0}={1}'.format(var, val) for var, val
                                 in env_updates.items()])
-    cmd = _CommandListToCommandString(cmd)
-    cmd = ('adb shell "logcat -c && {0} {1} ; logcat -d -s dex2oat:* dex2oatd:*'
-           '| grep -v "^---------" 1>&2"').format(env_updates_cmd, cmd)
-    return _RunCommandForOutputAndLog(
-        shlex.split(cmd), self._shell_env, self._logfile)
+    cmd = CommandListToCommandString(cmd)
+    adb = 'adb'
+    if self._specific_device:
+      adb += ' -s ' + self._specific_device
+    cmd = '{0} shell "logcat -c && {1} {2}"'.format(
+        adb, env_updates_cmd, cmd)
+    (output, retcode) = _RunCommandForOutputAndLog(
+        shlex.split(cmd), self._shell_env, self._logfile, self._timeout)
+    logcat_cmd = 'adb shell "logcat -d -s -b main dex2oat:* dex2oatd:*"'
+    (err_output, _) = _RunCommandForOutputAndLog(
+        shlex.split(logcat_cmd), self._shell_env, self._logfile)
+    return (output + err_output, retcode)
 
   @property
   def logfile(self):
