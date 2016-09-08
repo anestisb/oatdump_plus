@@ -22,6 +22,7 @@
 #include "cutils/properties.h"
 #endif
 
+#include "base/logging.h"
 #include "base/stringprintf.h"
 
 namespace art {
