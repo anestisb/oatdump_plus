@@ -108,6 +108,11 @@ art_global_defaults {
                 // clang/libunwind bugs that cause SEGVs in run-test-004-ThreadStress.
                 "-fno-omit-frame-pointer",
             ],
+            host_ldlibs: [
+                "-ldl",
+                "-lpthread",
+                "-lrt",
+            ],
         },
     },
 
