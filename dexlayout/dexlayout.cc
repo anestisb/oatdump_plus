@@ -767,10 +767,10 @@ static std::unique_ptr<char[]> IndexString(dex_ir::Header* header,
       if (index < header->MethodIdsSize()) {
         dex_ir::MethodId* method_id = header->MethodIds()[index].get();
         const char* name = method_id->Name()->Data();
-        char* type_descriptor = strdup(GetSignatureForProtoId(method_id->Proto()).c_str());
+        std::string type_descriptor = GetSignatureForProtoId(method_id->Proto());
         const char* back_descriptor = method_id->Class()->GetStringId()->Data();
         outSize = snprintf(buf.get(), buf_size, "%s.%s:%s // method@%0*x",
-                           back_descriptor, name, type_descriptor, width, index);
+                           back_descriptor, name, type_descriptor.c_str(), width, index);
       } else {
         outSize = snprintf(buf.get(), buf_size, "<method?> // method@%0*x", width, index);
       }
@@ -1030,13 +1030,13 @@ static void DumpBytecodes(dex_ir::Header* header, uint32_t idx,
                           const dex_ir::CodeItem* code, uint32_t code_offset) {
   dex_ir::MethodId* method_id = header->MethodIds()[idx].get();
   const char* name = method_id->Name()->Data();
-  const char* type_descriptor = strdup(GetSignatureForProtoId(method_id->Proto()).c_str());
+  std::string type_descriptor = GetSignatureForProtoId(method_id->Proto());
   const char* back_descriptor = method_id->Class()->GetStringId()->Data();
 
   // Generate header.
   std::string dot(DescriptorToDotWrapper(back_descriptor));
   fprintf(out_file_, "%06x:                                        |[%06x] %s.%s:%s\n",
-          code_offset, code_offset, dot.c_str(), name, type_descriptor);
+          code_offset, code_offset, dot.c_str(), name, type_descriptor.c_str());
 
   // Iterate over all instructions.
   const uint16_t* insns = code->Insns();
@@ -1490,11 +1490,11 @@ static void ProcessDexFile(const char* file_name, const DexFile* dex_file) {
     fprintf(out_file_, "Opened '%s', DEX version '%.3s'\n",
             file_name, dex_file->GetHeader().magic_ + 4);
   }
-  dex_ir::Header* header = dex_ir::DexIrBuilder(*dex_file);
+  std::unique_ptr<dex_ir::Header> header(dex_ir::DexIrBuilder(*dex_file));
 
   // Headers.
   if (options_.show_file_headers_) {
-    DumpFileHeader(header);
+    DumpFileHeader(header.get());
   }
 
   // Open XML context.
@@ -1506,7 +1506,7 @@ static void ProcessDexFile(const char* file_name, const DexFile* dex_file) {
   char* package = nullptr;
   const uint32_t class_defs_size = header->ClassDefsSize();
   for (uint32_t i = 0; i < class_defs_size; i++) {
-    DumpClass(dex_file, header, i, &package);
+    DumpClass(dex_file, header.get(), i, &package);
   }  // for
 
   // Free the last package allocated.
