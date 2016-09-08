@@ -19,6 +19,42 @@
 #include "arch/quick_alloc_entrypoints.S"
 
 
+.macro SAVE_REG reg, offset
+    str \reg, [sp, #(\offset)]
+    .cfi_rel_offset \reg, (\offset)
+.endm
+
+.macro RESTORE_REG reg, offset
+    ldr \reg, [sp, #(\offset)]
+    .cfi_restore \reg
+.endm
+
+.macro SAVE_TWO_REGS reg1, reg2, offset
+    stp \reg1, \reg2, [sp, #(\offset)]
+    .cfi_rel_offset \reg1, (\offset)
+    .cfi_rel_offset \reg2, (\offset) + 8
+.endm
+
+.macro RESTORE_TWO_REGS reg1, reg2, offset
+    ldp \reg1, \reg2, [sp, #(\offset)]
+    .cfi_restore \reg1
+    .cfi_restore \reg2
+.endm
+
+.macro SAVE_TWO_REGS_INCREASE_FRAME reg1, reg2, frame_adjustment
+    stp \reg1, \reg2, [sp, #-(\frame_adjustment)]!
+    .cfi_adjust_cfa_offset (\frame_adjustment)
+    .cfi_rel_offset \reg1, 0
+    .cfi_rel_offset \reg2, 8
+.endm
+
+.macro RESTORE_TWO_REGS_DECREASE_FRAME reg1, reg2, frame_adjustment
+    ldp \reg1, \reg2, [sp], #(\frame_adjustment)
+    .cfi_restore \reg1
+    .cfi_restore \reg2
+    .cfi_adjust_cfa_offset -(\frame_adjustment)
+.endm
+
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveAllCalleeSaves)
@@ -50,29 +86,12 @@
     stp d14, d15, [sp, #64]
 
     // GP callee-saves
-    stp x19, x20, [sp, #80]
-    .cfi_rel_offset x19, 80
-    .cfi_rel_offset x20, 88
-
-    stp x21, x22, [sp, #96]
-    .cfi_rel_offset x21, 96
-    .cfi_rel_offset x22, 104
-
-    stp x23, x24, [sp, #112]
-    .cfi_rel_offset x23, 112
-    .cfi_rel_offset x24, 120
-
-    stp x25, x26, [sp, #128]
-    .cfi_rel_offset x25, 128
-    .cfi_rel_offset x26, 136
-
-    stp x27, x28, [sp, #144]
-    .cfi_rel_offset x27, 144
-    .cfi_rel_offset x28, 152
-
-    stp x29, xLR, [sp, #160]
-    .cfi_rel_offset x29, 160
-    .cfi_rel_offset x30, 168
+    SAVE_TWO_REGS x19, x20, 80
+    SAVE_TWO_REGS x21, x22, 96
+    SAVE_TWO_REGS x23, x24, 112
+    SAVE_TWO_REGS x25, x26, 128
+    SAVE_TWO_REGS x27, x28, 144
+    SAVE_TWO_REGS x29, xLR, 160
 
     // Store ArtMethod* Runtime::callee_save_methods_[kSaveAllCalleeSaves].
     str xIP0, [sp]
@@ -106,25 +125,11 @@
 
     // GP callee-saves.
     // x20 paired with ArtMethod* - see below.
-    stp x21, x22, [sp, #16]
-    .cfi_rel_offset x21, 16
-    .cfi_rel_offset x22, 24
-
-    stp x23, x24, [sp, #32]
-    .cfi_rel_offset x23, 32
-    .cfi_rel_offset x24, 40
-
-    stp x25, x26, [sp, #48]
-    .cfi_rel_offset x25, 48
-    .cfi_rel_offset x26, 56
-
-    stp x27, x28, [sp, #64]
-    .cfi_rel_offset x27, 64
-    .cfi_rel_offset x28, 72
-
-    stp x29, xLR, [sp, #80]
-    .cfi_rel_offset x29, 80
-    .cfi_rel_offset x30, 88
+    SAVE_TWO_REGS x21, x22, 16
+    SAVE_TWO_REGS x23, x24, 32
+    SAVE_TWO_REGS x25, x26, 48
+    SAVE_TWO_REGS x27, x28, 64
+    SAVE_TWO_REGS x29, xLR, 80
 
     // Store ArtMethod* Runtime::callee_save_methods_[kSaveRefsOnly].
     stp xIP0, x20, [sp]
@@ -138,28 +143,12 @@
 // TODO: Probably no need to restore registers preserved by aapcs64.
 .macro RESTORE_SAVE_REFS_ONLY_FRAME
     // Callee-saves.
-    ldr x20, [sp, #8]
-    .cfi_restore x20
-
-    ldp x21, x22, [sp, #16]
-    .cfi_restore x21
-    .cfi_restore x22
-
-    ldp x23, x24, [sp, #32]
-    .cfi_restore x23
-    .cfi_restore x24
-
-    ldp x25, x26, [sp, #48]
-    .cfi_restore x25
-    .cfi_restore x26
-
-    ldp x27, x28, [sp, #64]
-    .cfi_restore x27
-    .cfi_restore x28
-
-    ldp x29, xLR, [sp, #80]
-    .cfi_restore x29
-    .cfi_restore x30
+    RESTORE_REG x20, 8
+    RESTORE_TWO_REGS x21, x22, 16
+    RESTORE_TWO_REGS x23, x24, 32
+    RESTORE_TWO_REGS x25, x26, 48
+    RESTORE_TWO_REGS x27, x28, 64
+    RESTORE_TWO_REGS x29, xLR, 80
 
     add sp, sp, #96
     .cfi_adjust_cfa_offset -96
@@ -193,43 +182,19 @@
     stp d6, d7, [sp, #64]
 
     // Core args.
-    stp x1, x2, [sp, #80]
-    .cfi_rel_offset x1, 80
-    .cfi_rel_offset x2, 88
-
-    stp x3, x4, [sp, #96]
-    .cfi_rel_offset x3, 96
-    .cfi_rel_offset x4, 104
-
-    stp x5, x6, [sp, #112]
-    .cfi_rel_offset x5, 112
-    .cfi_rel_offset x6, 120
+    SAVE_TWO_REGS x1, x2, 80
+    SAVE_TWO_REGS x3, x4, 96
+    SAVE_TWO_REGS x5, x6, 112
 
     // x7, Callee-saves.
-    stp x7, x20, [sp, #128]
-    .cfi_rel_offset x7, 128
-    .cfi_rel_offset x20, 136
-
-    stp x21, x22, [sp, #144]
-    .cfi_rel_offset x21, 144
-    .cfi_rel_offset x22, 152
-
-    stp x23, x24, [sp, #160]
-    .cfi_rel_offset x23, 160
-    .cfi_rel_offset x24, 168
-
-    stp x25, x26, [sp, #176]
-    .cfi_rel_offset x25, 176
-    .cfi_rel_offset x26, 184
-
-    stp x27, x28, [sp, #192]
-    .cfi_rel_offset x27, 192
-    .cfi_rel_offset x28, 200
+    SAVE_TWO_REGS x7, x20, 128
+    SAVE_TWO_REGS x21, x22, 144
+    SAVE_TWO_REGS x23, x24, 160
+    SAVE_TWO_REGS x25, x26, 176
+    SAVE_TWO_REGS x27, x28, 192
 
     // x29(callee-save) and LR.
-    stp x29, xLR, [sp, #208]
-    .cfi_rel_offset x29, 208
-    .cfi_rel_offset x30, 216
+    SAVE_TWO_REGS x29, xLR, 208
 
 .endm
 
@@ -275,43 +240,19 @@
     ldp d6, d7, [sp, #64]
 
     // Core args.
-    ldp x1, x2, [sp, #80]
-    .cfi_restore x1
-    .cfi_restore x2
-
-    ldp x3, x4, [sp, #96]
-    .cfi_restore x3
-    .cfi_restore x4
-
-    ldp x5, x6, [sp, #112]
-    .cfi_restore x5
-    .cfi_restore x6
+    RESTORE_TWO_REGS x1, x2, 80
+    RESTORE_TWO_REGS x3, x4, 96
+    RESTORE_TWO_REGS x5, x6, 112
 
     // x7, Callee-saves.
-    ldp x7, x20, [sp, #128]
-    .cfi_restore x7
-    .cfi_restore x20
-
-    ldp x21, x22, [sp, #144]
-    .cfi_restore x21
-    .cfi_restore x22
-
-    ldp x23, x24, [sp, #160]
-    .cfi_restore x23
-    .cfi_restore x24
-
-    ldp x25, x26, [sp, #176]
-    .cfi_restore x25
-    .cfi_restore x26
-
-    ldp x27, x28, [sp, #192]
-    .cfi_restore x27
-    .cfi_restore x28
+    RESTORE_TWO_REGS x7, x20, 128
+    RESTORE_TWO_REGS x21, x22, 144
+    RESTORE_TWO_REGS x23, x24, 160
+    RESTORE_TWO_REGS x25, x26, 176
+    RESTORE_TWO_REGS x27, x28, 192
 
     // x29(callee-save) and LR.
-    ldp x29, xLR, [sp, #208]
-    .cfi_restore x29
-    .cfi_restore x30
+    RESTORE_TWO_REGS x29, xLR, 208
 
     add sp, sp, #224
     .cfi_adjust_cfa_offset -224
@@ -351,68 +292,22 @@
     str d31,      [sp, #256]
 
     // Save core registers.
-    str x0,       [sp, #264]
-    .cfi_rel_offset x0, 264
-
-    stp x1, x2,   [sp, #272]
-    .cfi_rel_offset x1, 272
-    .cfi_rel_offset x2, 280
-
-    stp x3, x4,   [sp, #288]
-    .cfi_rel_offset x3, 288
-    .cfi_rel_offset x4, 296
-
-    stp x5, x6,   [sp, #304]
-    .cfi_rel_offset x5, 304
-    .cfi_rel_offset x6, 312
-
-    stp x7, x8,   [sp, #320]
-    .cfi_rel_offset x7, 320
-    .cfi_rel_offset x8, 328
-
-    stp x9, x10,  [sp, #336]
-    .cfi_rel_offset x9, 336
-    .cfi_rel_offset x10, 344
-
-    stp x11, x12, [sp, #352]
-    .cfi_rel_offset x11, 352
-    .cfi_rel_offset x12, 360
-
-    stp x13, x14, [sp, #368]
-    .cfi_rel_offset x13, 368
-    .cfi_rel_offset x14, 376
-
-    stp x15, x16, [sp, #384]
-    .cfi_rel_offset x15, 384
-    .cfi_rel_offset x16, 392
-
-    stp x17, x18, [sp, #400]
-    .cfi_rel_offset x17, 400
-    .cfi_rel_offset x18, 408
-
-    stp x19, x20, [sp, #416]
-    .cfi_rel_offset x19, 416
-    .cfi_rel_offset x20, 424
-
-    stp x21, x22, [sp, #432]
-    .cfi_rel_offset x21, 432
-    .cfi_rel_offset x22, 440
-
-    stp x23, x24, [sp, #448]
-    .cfi_rel_offset x23, 448
-    .cfi_rel_offset x24, 456
-
-    stp x25, x26, [sp, #464]
-    .cfi_rel_offset x25, 464
-    .cfi_rel_offset x26, 472
-
-    stp x27, x28, [sp, #480]
-    .cfi_rel_offset x27, 480
-    .cfi_rel_offset x28, 488
-
-    stp x29, xLR, [sp, #496]
-    .cfi_rel_offset x29, 496
-    .cfi_rel_offset x30, 504
+    SAVE_REG            x0, 264
+    SAVE_TWO_REGS  x1,  x2, 272
+    SAVE_TWO_REGS  x3,  x4, 288
+    SAVE_TWO_REGS  x5,  x6, 304
+    SAVE_TWO_REGS  x7,  x8, 320
+    SAVE_TWO_REGS  x9, x10, 336
+    SAVE_TWO_REGS x11, x12, 352
+    SAVE_TWO_REGS x13, x14, 368
+    SAVE_TWO_REGS x15, x16, 384
+    SAVE_TWO_REGS x17, x18, 400
+    SAVE_TWO_REGS x19, x20, 416
+    SAVE_TWO_REGS x21, x22, 432
+    SAVE_TWO_REGS x23, x24, 448
+    SAVE_TWO_REGS x25, x26, 464
+    SAVE_TWO_REGS x27, x28, 480
+    SAVE_TWO_REGS x29, xLR, 496
 
     // art::Runtime** xIP0 = &art::Runtime::instance_
     adrp xIP0, :got:_ZN3art7Runtime9instance_E
@@ -452,68 +347,22 @@
     ldr d31,      [sp, #256]
 
     // Restore core registers.
-    ldr x0,       [sp, #264]
-    .cfi_restore x0
-
-    ldp x1, x2,   [sp, #272]
-    .cfi_restore x1
-    .cfi_restore x2
-
-    ldp x3, x4,   [sp, #288]
-    .cfi_restore x3
-    .cfi_restore x4
-
-    ldp x5, x6,   [sp, #304]
-    .cfi_restore x5
-    .cfi_restore x6
-
-    ldp x7, x8,   [sp, #320]
-    .cfi_restore x7
-    .cfi_restore x8
-
-    ldp x9, x10,  [sp, #336]
-    .cfi_restore x9
-    .cfi_restore x10
-
-    ldp x11, x12, [sp, #352]
-    .cfi_restore x11
-    .cfi_restore x12
-
-    ldp x13, x14, [sp, #368]
-    .cfi_restore x13
-    .cfi_restore x14
-
-    ldp x15, x16, [sp, #384]
-    .cfi_restore x15
-    .cfi_restore x16
-
-    ldp x17, x18, [sp, #400]
-    .cfi_restore x17
-    .cfi_restore x18
-
-    ldp x19, x20, [sp, #416]
-    .cfi_restore x19
-    .cfi_restore x20
-
-    ldp x21, x22, [sp, #432]
-    .cfi_restore x21
-    .cfi_restore x22
-
-    ldp x23, x24, [sp, #448]
-    .cfi_restore x23
-    .cfi_restore x24
-
-    ldp x25, x26, [sp, #464]
-    .cfi_restore x25
-    .cfi_restore x26
-
-    ldp x27, x28, [sp, #480]
-    .cfi_restore x27
-    .cfi_restore x28
-
-    ldp x29, xLR, [sp, #496]
-    .cfi_restore x29
-    .cfi_restore x30
+    RESTORE_REG            x0, 264
+    RESTORE_TWO_REGS  x1,  x2, 272
+    RESTORE_TWO_REGS  x3,  x4, 288
+    RESTORE_TWO_REGS  x5,  x6, 304
+    RESTORE_TWO_REGS  x7,  x8, 320
+    RESTORE_TWO_REGS  x9, x10, 336
+    RESTORE_TWO_REGS x11, x12, 352
+    RESTORE_TWO_REGS x13, x14, 368
+    RESTORE_TWO_REGS x15, x16, 384
+    RESTORE_TWO_REGS x17, x18, 400
+    RESTORE_TWO_REGS x19, x20, 416
+    RESTORE_TWO_REGS x21, x22, 432
+    RESTORE_TWO_REGS x23, x24, 448
+    RESTORE_TWO_REGS x25, x26, 464
+    RESTORE_TWO_REGS x27, x28, 480
+    RESTORE_TWO_REGS x29, xLR, 496
 
     add sp, sp, #512
     .cfi_adjust_cfa_offset -512
@@ -1409,12 +1258,8 @@ END art_quick_unlock_object_no_inline
 ENTRY art_quick_check_cast
     // Store arguments and link register
     // Stack needs to be 16B aligned on calls.
-    stp x0, x1, [sp,#-32]!
-    .cfi_adjust_cfa_offset 32
-    .cfi_rel_offset x0, 0
-    .cfi_rel_offset x1, 8
-    str xLR, [sp, #24]
-    .cfi_rel_offset x30, 24
+    SAVE_TWO_REGS_INCREASE_FRAME x0, x1, 32
+    SAVE_REG xLR, 24
 
     // Call runtime code
     bl artIsAssignableFromCode
@@ -1423,24 +1268,16 @@ ENTRY art_quick_check_cast
     cbz x0, .Lthrow_class_cast_exception
 
     // Restore and return
-    ldr xLR, [sp, #24]
-    .cfi_restore x30
-    ldp x0, x1, [sp], #32
-    .cfi_restore x0
-    .cfi_restore x1
-    .cfi_adjust_cfa_offset -32
+    RESTORE_REG xLR, 24
+    RESTORE_TWO_REGS_DECREASE_FRAME x0, x1, 32
     ret
 
     .cfi_adjust_cfa_offset 32         // Reset unwind info so following code unwinds.
 
 .Lthrow_class_cast_exception:
     // Restore
-    ldr xLR, [sp, #24]
-    .cfi_restore x30
-    ldp x0, x1, [sp], #32
-    .cfi_restore x0
-    .cfi_restore x1
-    .cfi_adjust_cfa_offset -32
+    RESTORE_REG xLR, 24
+    RESTORE_TWO_REGS_DECREASE_FRAME x0, x1, 32
 
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME // save all registers as basis for long jump context
     mov x2, xSELF                     // pass Thread::Current
@@ -1492,16 +1329,9 @@ END art_quick_check_cast
 #endif
 .Lrb_slowpath\number:
     // Store registers used in art_quick_aput_obj (x0-x4, LR), stack is 16B aligned.
-    stp x0, x1, [sp, #-48]!
-    .cfi_adjust_cfa_offset 48
-    .cfi_rel_offset x0, 0
-    .cfi_rel_offset x1, 8
-    stp x2, x3, [sp, #16]
-    .cfi_rel_offset x2, 16
-    .cfi_rel_offset x3, 24
-    stp x4, xLR, [sp, #32]
-    .cfi_rel_offset x4, 32
-    .cfi_rel_offset x30, 40
+    SAVE_TWO_REGS_INCREASE_FRAME x0, x1, 48
+    SAVE_TWO_REGS x2, x3, 16
+    SAVE_TWO_REGS x4, xLR, 32
 
     // mov x0, \xRef                // pass ref in x0 (no-op for now since parameter ref is unused)
     .ifnc \xObj, x1
@@ -1520,8 +1350,7 @@ END art_quick_check_cast
     POP_REG_NE x2, 16, \xDest
     POP_REG_NE x3, 24, \xDest
     POP_REG_NE x4, 32, \xDest
-    ldr xLR, [sp, #40]
-    .cfi_restore x30
+    RESTORE_REG xLR, 40
     add sp, sp, #48
     .cfi_adjust_cfa_offset -48
 .Lrb_exit\number:
@@ -1587,13 +1416,8 @@ ENTRY art_quick_aput_obj
     ret
 .Lcheck_assignability:
     // Store arguments and link register
-    stp x0, x1, [sp,#-32]!
-    .cfi_adjust_cfa_offset 32
-    .cfi_rel_offset x0, 0
-    .cfi_rel_offset x1, 8
-    stp x2, xLR, [sp, #16]
-    .cfi_rel_offset x2, 16
-    .cfi_rel_offset x30, 24
+    SAVE_TWO_REGS_INCREASE_FRAME x0, x1, 32
+    SAVE_TWO_REGS x2, xLR, 16
 
     // Call runtime code
     mov x0, x3              // Heap reference, 32b, "uncompress" = do nothing, already zero-extended
@@ -1604,13 +1428,8 @@ ENTRY art_quick_aput_obj
     cbz x0, .Lthrow_array_store_exception
 
     // Restore
-    ldp x2, x30, [sp, #16]
-    .cfi_restore x2
-    .cfi_restore x30
-    ldp x0, x1, [sp], #32
-    .cfi_restore x0
-    .cfi_restore x1
-    .cfi_adjust_cfa_offset -32
+    RESTORE_TWO_REGS x2, xLR, 16
+    RESTORE_TWO_REGS_DECREASE_FRAME x0, x1, 32
 
     add x3, x0, #MIRROR_OBJECT_ARRAY_DATA_OFFSET
                                                           // "Compress" = do nothing
@@ -1622,13 +1441,8 @@ ENTRY art_quick_aput_obj
     ret
     .cfi_adjust_cfa_offset 32  // 4 restores after cbz for unwinding.
 .Lthrow_array_store_exception:
-    ldp x2, x30, [sp, #16]
-    .cfi_restore x2
-    .cfi_restore x30
-    ldp x0, x1, [sp], #32
-    .cfi_restore x0
-    .cfi_restore x1
-    .cfi_adjust_cfa_offset -32
+    RESTORE_TWO_REGS x2, xLR, 16
+    RESTORE_TWO_REGS_DECREASE_FRAME x0, x1, 32
 
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME
     mov x1, x2                    // Pass value.
@@ -1821,15 +1635,9 @@ ENTRY art_quick_resolve_string
     ldr   x3, [x0, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
     tbnz  x3, #LOCK_WORD_MARK_BIT_SHIFT, .Lart_quick_resolve_string_no_rb
     // Save LR so that we can return, also x1 for alignment purposes.
-    stp    x1, xLR, [sp, #-16]!                     // Save x1, LR.
-    .cfi_adjust_cfa_offset 16
-    .cfi_rel_offset x1, 0
-    .cfi_rel_offset xLR, 8
+    SAVE_TWO_REGS_INCREASE_FRAME x1, xLR, 16        // Save x1, LR.
     bl     artReadBarrierMark                       // Get the marked string back.
-    ldp    x1, xLR, [sp], #16                       // Restore registers.
-    .cfi_restore xLR
-    .cfi_restore x1
-    .cfi_adjust_cfa_offset -16
+    RESTORE_TWO_REGS_DECREASE_FRAME x1, xLR, 16     // Restore registers.
 .Lart_quick_resolve_string_no_rb:
     ret
 
@@ -2104,22 +1912,13 @@ ENTRY \name
     tbnz    w3, #LOCK_WORD_MARK_BIT_SHIFT, .Ldo_allocation\name
                                                               // The read barrier slow path. Mark
                                                               // the class.
-    stp    x0, x1, [sp, #-32]!                                // Save registers (x0, x1, lr).
-    .cfi_adjust_cfa_offset 32
-    .cfi_rel_offset x0, 0
-    .cfi_rel_offset x1, 8
-    str    xLR, [sp, #16]                                     // Align sp by 16 bytes.
-    .cfi_rel_offset xLR, 16
+    SAVE_TWO_REGS_INCREASE_FRAME x0, x1, 32                   // Save registers (x0, x1, lr).
+    SAVE_REG xLR, 24                                          // Align sp by 16 bytes.
     mov    x0, x2                                             // Pass the class as the first param.
     bl     artReadBarrierMark
     mov    x2, x0                                             // Get the (marked) class back.
-    ldp    x0, x1, [sp, #0]                                   // Restore registers.
-    .cfi_restore x0
-    .cfi_restore x1
-    ldr    xLR, [sp, #16]
-    .cfi_restore xLR
-    add    sp, sp, #32
-    .cfi_adjust_cfa_offset -32
+    RESTORE_REG xLR, 24
+    RESTORE_TWO_REGS_DECREASE_FRAME x0, x1, 32                // Restore registers.
     b      .Ldo_allocation\name
 .endif
 .Lslow_path\name:
@@ -2503,7 +2302,7 @@ ENTRY art_quick_instrumentation_exit
     mov   xLR, x1             // r1 is holding link register if we're to bounce to deoptimize
 
     ldr   d0, [sp, #8]        // Restore floating-point result.
-    ldr   x0, [sp], 16        // Restore integer result, and drop stack area.
+    ldr   x0, [sp], #16       // Restore integer result, and drop stack area.
     .cfi_adjust_cfa_offset 16
 
     POP_SAVE_REFS_ONLY_FRAME
@@ -2661,37 +2460,16 @@ ENTRY \name
     ret
 .Lslow_path_rb_\name:
     // Save all potentially live caller-save core registers.
-    stp   x0, x1,   [sp, #-368]!
-    .cfi_adjust_cfa_offset 368
-    .cfi_rel_offset x0, 0
-    .cfi_rel_offset x1, 8
-    stp   x2, x3,   [sp, #16]
-    .cfi_rel_offset x2, 16
-    .cfi_rel_offset x3, 24
-    stp   x4, x5,   [sp, #32]
-    .cfi_rel_offset x4, 32
-    .cfi_rel_offset x5, 40
-    stp   x6, x7,   [sp, #48]
-    .cfi_rel_offset x6, 48
-    .cfi_rel_offset x7, 56
-    stp   x8, x9,   [sp, #64]
-    .cfi_rel_offset x8, 64
-    .cfi_rel_offset x9, 72
-    stp   x10, x11, [sp, #80]
-    .cfi_rel_offset x10, 80
-    .cfi_rel_offset x11, 88
-    stp   x12, x13, [sp, #96]
-    .cfi_rel_offset x12, 96
-    .cfi_rel_offset x13, 104
-    stp   x14, x15, [sp, #112]
-    .cfi_rel_offset x14, 112
-    .cfi_rel_offset x15, 120
-    stp   x16, x17, [sp, #128]
-    .cfi_rel_offset x16, 128
-    .cfi_rel_offset x17, 136
-    stp   x18, x19, [sp, #144]
-    .cfi_rel_offset x18, 144
-    .cfi_rel_offset x19, 152
+    SAVE_TWO_REGS_INCREASE_FRAME x0, x1, 368
+    SAVE_TWO_REGS  x2,  x3, 16
+    SAVE_TWO_REGS  x4,  x5, 32
+    SAVE_TWO_REGS  x6,  x7, 48
+    SAVE_TWO_REGS  x8,  x9, 64
+    SAVE_TWO_REGS x10, x11, 80
+    SAVE_TWO_REGS x12, x13, 96
+    SAVE_TWO_REGS x14, x15, 112
+    SAVE_TWO_REGS   x16, x17, 128
+    SAVE_TWO_REGS   x18, x19, 144
     // Save all potentially live caller-save floating-point registers.
     stp   d0, d1,   [sp, #160]
     stp   d2, d3,   [sp, #176]
@@ -2706,9 +2484,8 @@ ENTRY \name
     stp   d28, d29, [sp, #320]
     stp   d30, d31, [sp, #336]
     // Save return address.
-    str   xLR,      [sp, #352]
-    .cfi_rel_offset x30, 352
-    // (sp + #360 is a padding slot)
+    // (sp + #352 is a padding slot)
+    SAVE_REG xLR, 360
 
     .ifnc \wreg, w0
       mov   w0, \wreg                   // Pass arg1 - obj from `wreg`
@@ -2744,8 +2521,7 @@ ENTRY \name
     ldp   d28, d29, [sp, #320]
     ldp   d30, d31, [sp, #336]
     // Restore return address and remove padding.
-    ldr   xLR,      [sp, #352]
-    .cfi_restore x30
+    RESTORE_REG xLR, 360
     add sp, sp, #368
     .cfi_adjust_cfa_offset -368
 .Lret_rb_\name:
