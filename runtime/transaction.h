@@ -32,6 +32,7 @@
 namespace art {
 namespace mirror {
 class Array;
+class DexCache;
 class Object;
 class String;
 }
@@ -93,6 +94,11 @@ class Transaction FINAL {
       REQUIRES(!log_lock_);
   void RecordWeakStringRemoval(mirror::String* s)
       REQUIRES(Locks::intern_table_lock_)
+      REQUIRES(!log_lock_);
+
+  // Record resolve string.
+  void RecordResolveString(mirror::DexCache* dex_cache, uint32_t string_idx)
+      REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!log_lock_);
 
   // Abort transaction by undoing all recorded changes.
@@ -192,6 +198,19 @@ class Transaction FINAL {
     const StringOp string_op_;
   };
 
+  class ResolveStringLog : public ValueObject {
+   public:
+    ResolveStringLog(mirror::DexCache* dex_cache, uint32_t string_idx);
+
+    void Undo() REQUIRES_SHARED(Locks::mutator_lock_);
+
+    void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
+
+   private:
+    GcRoot<mirror::DexCache> dex_cache_;
+    const uint32_t string_idx_;
+  };
+
   void LogInternedString(const InternStringLog& log)
       REQUIRES(Locks::intern_table_lock_)
       REQUIRES(!log_lock_);
@@ -206,6 +225,9 @@ class Transaction FINAL {
       REQUIRES(Locks::intern_table_lock_)
       REQUIRES(log_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
+  void UndoResolveStringModifications()
+      REQUIRES(log_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void VisitObjectLogs(RootVisitor* visitor)
       REQUIRES(log_lock_)
@@ -213,7 +235,10 @@ class Transaction FINAL {
   void VisitArrayLogs(RootVisitor* visitor)
       REQUIRES(log_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  void VisitStringLogs(RootVisitor* visitor)
+  void VisitInternStringLogs(RootVisitor* visitor)
+      REQUIRES(log_lock_)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  void VisitResolveStringLogs(RootVisitor* visitor)
       REQUIRES(log_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -223,6 +248,7 @@ class Transaction FINAL {
   std::map<mirror::Object*, ObjectLog> object_logs_ GUARDED_BY(log_lock_);
   std::map<mirror::Array*, ArrayLog> array_logs_  GUARDED_BY(log_lock_);
   std::list<InternStringLog> intern_string_logs_ GUARDED_BY(log_lock_);
+  std::list<ResolveStringLog> resolve_string_logs_ GUARDED_BY(log_lock_);
   bool aborted_ GUARDED_BY(log_lock_);
   std::string abort_message_ GUARDED_BY(log_lock_);
 

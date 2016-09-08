@@ -20,10 +20,13 @@
 #include "art_method-inl.h"
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
+#include "dex_file.h"
 #include "mirror/array-inl.h"
 #include "scoped_thread_state_change.h"
 
 namespace art {
+
+static const size_t kDexNoIndex = DexFile::kDexNoIndex;  // Make copy to prevent linking errors.
 
 class TransactionTest : public CommonRuntimeTest {
  public:
@@ -480,6 +483,55 @@ TEST_F(TransactionTest, StaticArrayFieldsTest) {
   EXPECT_FLOAT_EQ(floatArray->GetWithoutChecks(0), static_cast<float>(0.0f));
   EXPECT_DOUBLE_EQ(doubleArray->GetWithoutChecks(0), static_cast<double>(0.0f));
   EXPECT_EQ(objectArray->GetWithoutChecks(0), nullptr);
+}
+
+// Tests rolling back interned strings and resolved strings.
+TEST_F(TransactionTest, ResolveString) {
+  ScopedObjectAccess soa(Thread::Current());
+  StackHandleScope<3> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader(
+      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(LoadDex("Transaction"))));
+  ASSERT_TRUE(class_loader.Get() != nullptr);
+
+  Handle<mirror::Class> h_klass(
+      hs.NewHandle(class_linker_->FindClass(soa.Self(), "LTransaction$ResolveString;",
+                                            class_loader)));
+  ASSERT_TRUE(h_klass.Get() != nullptr);
+
+  Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(h_klass->GetDexCache()));
+  ASSERT_TRUE(h_dex_cache.Get() != nullptr);
+  const DexFile* const dex_file = h_dex_cache->GetDexFile();
+  ASSERT_TRUE(dex_file != nullptr);
+
+  // Go search the dex file to find the string id of our string.
+  static const char* kResolvedString = "ResolvedString";
+  const DexFile::StringId* string_id = dex_file->FindStringId(kResolvedString);
+  ASSERT_TRUE(string_id != nullptr);
+  uint32_t string_idx = dex_file->GetIndexForStringId(*string_id);
+  ASSERT_NE(string_idx, kDexNoIndex);
+  // String should only get resolved by the initializer.
+  EXPECT_TRUE(class_linker_->LookupString(*dex_file, string_idx, h_dex_cache) == nullptr);
+  EXPECT_TRUE(h_dex_cache->GetResolvedString(string_idx) == nullptr);
+  // Do the transaction, then roll back.
+  Transaction transaction;
+  Runtime::Current()->EnterTransactionMode(&transaction);
+  bool success = class_linker_->EnsureInitialized(soa.Self(), h_klass, true, true);
+  ASSERT_TRUE(success);
+  ASSERT_TRUE(h_klass->IsInitialized());
+  // Make sure the string got resolved by the transaction.
+  {
+    mirror::String* s = class_linker_->LookupString(*dex_file, string_idx, h_dex_cache);
+    ASSERT_TRUE(s != nullptr);
+    EXPECT_STREQ(s->ToModifiedUtf8().c_str(), kResolvedString);
+    EXPECT_EQ(s, h_dex_cache->GetResolvedString(string_idx));
+  }
+  Runtime::Current()->ExitTransactionMode();
+  transaction.Rollback();
+  // Check that the string did not stay resolved.
+  EXPECT_TRUE(class_linker_->LookupString(*dex_file, string_idx, h_dex_cache) == nullptr);
+  EXPECT_TRUE(h_dex_cache->GetResolvedString(string_idx) == nullptr);
+  ASSERT_FALSE(h_klass->IsInitialized());
+  ASSERT_FALSE(soa.Self()->IsExceptionPending());
 }
 
 // Tests successful class initialization without class initializer.
