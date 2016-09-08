@@ -90,7 +90,7 @@ class DexCompiler {
 
   // Compiles a virtual method invocation into a quick virtual method invocation.
   // The method index is replaced by the vtable index where the corresponding
-  // AbstractMethod can be found. Therefore, this does not involve any resolution
+  // Executable can be found. Therefore, this does not involve any resolution
   // at runtime.
   // Since the method index is encoded with 16 bits, we can replace it only if the
   // vtable index can be encoded with 16 bits too.

@@ -24,8 +24,8 @@
 #include "dex_file-inl.h"
 #include "indirect_reference_table-inl.h"
 #include "jni_internal.h"
-#include "mirror/abstract_method.h"
 #include "mirror/class-inl.h"
+#include "mirror/executable.h"
 #include "mirror/object_array-inl.h"
 #include "nth_caller_visitor.h"
 #include "scoped_thread_state_change.h"
@@ -578,9 +578,9 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
     return nullptr;
   }
 
-  auto* abstract_method = soa.Decode<mirror::AbstractMethod*>(javaMethod);
-  const bool accessible = abstract_method->IsAccessible();
-  ArtMethod* m = abstract_method->GetArtMethod();
+  auto* executable = soa.Decode<mirror::Executable*>(javaMethod);
+  const bool accessible = executable->IsAccessible();
+  ArtMethod* m = executable->GetArtMethod();
 
   mirror::Class* declaring_class = m->GetDeclaringClass();
   if (UNLIKELY(!declaring_class->IsInitialized())) {

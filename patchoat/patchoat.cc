@@ -37,8 +37,8 @@
 #include "elf_file_impl.h"
 #include "gc/space/image_space.h"
 #include "image-inl.h"
-#include "mirror/abstract_method.h"
 #include "mirror/dex_cache.h"
+#include "mirror/executable.h"
 #include "mirror/object-inl.h"
 #include "mirror/method.h"
 #include "mirror/reference.h"
@@ -770,8 +770,8 @@ void PatchOat::VisitObject(mirror::Object* object) {
   } else if (object->GetClass() == mirror::Method::StaticClass() ||
              object->GetClass() == mirror::Constructor::StaticClass()) {
     // Need to go update the ArtMethod.
-    auto* dest = down_cast<mirror::AbstractMethod*>(copy);
-    auto* src = down_cast<mirror::AbstractMethod*>(object);
+    auto* dest = down_cast<mirror::Executable*>(copy);
+    auto* src = down_cast<mirror::Executable*>(object);
     dest->SetArtMethod(RelocatedAddressOfPointer(src->GetArtMethod()));
   }
 }
