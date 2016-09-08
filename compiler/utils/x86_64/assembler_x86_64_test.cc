@@ -956,6 +956,12 @@ TEST_F(AssemblerX86_64Test, Xorq) {
   DriverStr(expected, "xorq");
 }
 
+TEST_F(AssemblerX86_64Test, RepneScasb) {
+  GetAssembler()->repne_scasb();
+  const char* expected = "repne scasb\n";
+  DriverStr(expected, "repne_scasb");
+}
+
 TEST_F(AssemblerX86_64Test, RepneScasw) {
   GetAssembler()->repne_scasw();
   const char* expected = "repne scasw\n";
