@@ -1708,11 +1708,25 @@ void X86Assembler::jmp(NearLabel* label) {
 }
 
 
+void X86Assembler::repne_scasb() {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0xF2);
+  EmitUint8(0xAE);
+}
+
+
 void X86Assembler::repne_scasw() {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x66);
   EmitUint8(0xF2);
   EmitUint8(0xAF);
+}
+
+
+void X86Assembler::repe_cmpsb() {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0xF2);
+  EmitUint8(0xA6);
 }
 
 
@@ -1728,6 +1742,13 @@ void X86Assembler::repe_cmpsl() {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0xF3);
   EmitUint8(0xA7);
+}
+
+
+void X86Assembler::rep_movsb() {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0xF3);
+  EmitUint8(0xA4);
 }
 
 
