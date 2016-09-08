@@ -137,6 +137,20 @@ func (a *artGlobalDefaults) CustomizeProperties(ctx android.CustomizePropertiesC
 	p.Target.Android.Cflags = deviceFlags(ctx)
 	p.Target.Host.Cflags = hostFlags(ctx)
 	ctx.AppendProperties(p)
+
+	if envTrue(ctx, "HOST_PREFER_32_BIT") {
+		type props struct {
+			Target struct {
+				Host struct {
+					Compile_multilib string
+				}
+			}
+		}
+
+		p := &props{}
+		p.Target.Host.Compile_multilib = "prefer32"
+		ctx.AppendProperties(p)
+	}
 }
 
 type artGlobalDefaults struct{}
