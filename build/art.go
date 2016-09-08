@@ -137,12 +137,42 @@ func (a *artGlobalDefaults) CustomizeProperties(ctx android.CustomizePropertiesC
 	p.Target.Android.Cflags = deviceFlags(ctx)
 	p.Target.Host.Cflags = hostFlags(ctx)
 	ctx.AppendProperties(p)
+
+	if envTrue(ctx, "HOST_PREFER_32_BIT") {
+		type props struct {
+			Target struct {
+				Host struct {
+					Compile_multilib string
+				}
+			}
+		}
+
+		p := &props{}
+		p.Target.Host.Compile_multilib = "prefer32"
+		ctx.AppendProperties(p)
+	}
 }
 
 type artGlobalDefaults struct{}
 
+func (a *artLinkerCustomizer) CustomizeProperties(ctx android.CustomizePropertiesContext) {
+	linker := envDefault(ctx, "CUSTOM_TARGET_LINKER", "")
+	if linker != "" {
+		type props struct {
+			DynamicLinker string
+		}
+
+		p := &props{}
+		p.DynamicLinker = linker
+		ctx.AppendProperties(p)
+	}
+}
+
+type artLinkerCustomizer struct{}
+
 func init() {
 	soong.RegisterModuleType("art_cc_library", artLibrary)
+	soong.RegisterModuleType("art_cc_binary", artBinary)
 	soong.RegisterModuleType("art_cc_defaults", artDefaultsFactory)
 	soong.RegisterModuleType("art_global_defaults", artGlobalDefaultsFactory)
 }
@@ -170,6 +200,14 @@ func artLibrary() (blueprint.Module, []interface{}) {
 	c := &codegenCustomizer{}
 	android.AddCustomizer(library, c)
 	props = append(props, &c.codegenProperties)
+	return module, props
+}
+
+func artBinary() (blueprint.Module, []interface{}) {
+	binary, _ := cc.NewBinary(android.HostAndDeviceSupported)
+	module, props := binary.Init()
+
+	android.AddCustomizer(binary, &artLinkerCustomizer{})
 	return module, props
 }
 
