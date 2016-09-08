@@ -359,22 +359,25 @@ class ArrayItem : public Item {
     DISALLOW_COPY_AND_ASSIGN(NameValuePair);
   };
 
-  union PayloadUnion {
-    bool bool_val_;
-    int8_t byte_val_;
-    int16_t short_val_;
-    uint16_t char_val_;
-    int32_t int_val_;
-    int64_t long_val_;
-    float float_val_;
-    double double_val_;
-    StringId* string_val_;
-    FieldId* field_val_;
-    MethodId* method_val_;
-    std::vector<std::unique_ptr<ArrayItem>>* annotation_array_val_;
+  struct ArrayItemVariant {
+   public:
+    union {
+      bool bool_val_;
+      int8_t byte_val_;
+      int16_t short_val_;
+      uint16_t char_val_;
+      int32_t int_val_;
+      int64_t long_val_;
+      float float_val_;
+      double double_val_;
+      StringId* string_val_;
+      FieldId* field_val_;
+      MethodId* method_val_;
+    } u_;
+    std::unique_ptr<std::vector<std::unique_ptr<ArrayItem>>> annotation_array_val_;
     struct {
       StringId* string_;
-      std::vector<std::unique_ptr<NameValuePair>>* array_;
+      std::unique_ptr<std::vector<std::unique_ptr<NameValuePair>>> array_;
     } annotation_annotation_val_;
   };
 
@@ -382,34 +385,34 @@ class ArrayItem : public Item {
   ~ArrayItem() OVERRIDE { }
 
   int8_t Type() const { return type_; }
-  bool GetBoolean() const { return item_.bool_val_; }
-  int8_t GetByte() const { return item_.byte_val_; }
-  int16_t GetShort() const { return item_.short_val_; }
-  uint16_t GetChar() const { return item_.char_val_; }
-  int32_t GetInt() const { return item_.int_val_; }
-  int64_t GetLong() const { return item_.long_val_; }
-  float GetFloat() const { return item_.float_val_; }
-  double GetDouble() const { return item_.double_val_; }
-  StringId* GetStringId() const { return item_.string_val_; }
-  FieldId* GetFieldId() const { return item_.field_val_; }
-  MethodId* GetMethodId() const { return item_.method_val_; }
+  bool GetBoolean() const { return item_.u_.bool_val_; }
+  int8_t GetByte() const { return item_.u_.byte_val_; }
+  int16_t GetShort() const { return item_.u_.short_val_; }
+  uint16_t GetChar() const { return item_.u_.char_val_; }
+  int32_t GetInt() const { return item_.u_.int_val_; }
+  int64_t GetLong() const { return item_.u_.long_val_; }
+  float GetFloat() const { return item_.u_.float_val_; }
+  double GetDouble() const { return item_.u_.double_val_; }
+  StringId* GetStringId() const { return item_.u_.string_val_; }
+  FieldId* GetFieldId() const { return item_.u_.field_val_; }
+  MethodId* GetMethodId() const { return item_.u_.method_val_; }
   std::vector<std::unique_ptr<ArrayItem>>* GetAnnotationArray() const {
-    return item_.annotation_array_val_;
+    return item_.annotation_array_val_.get();
   }
   StringId* GetAnnotationAnnotationString() const {
     return item_.annotation_annotation_val_.string_;
   }
   std::vector<std::unique_ptr<NameValuePair>>* GetAnnotationAnnotationNameValuePairArray() const {
-    return item_.annotation_annotation_val_.array_;
+    return item_.annotation_annotation_val_.array_.get();
   }
   // Used to construct the item union.  Ugly, but necessary.
-  PayloadUnion* GetPayloadUnion() { return &item_; }
+  ArrayItemVariant* GetArrayItemVariant() { return &item_; }
 
   void Accept(AbstractDispatcher* dispatch) { dispatch->Dispatch(this); }
 
  private:
   uint8_t type_;
-  PayloadUnion item_;
+  ArrayItemVariant item_;
   DISALLOW_COPY_AND_ASSIGN(ArrayItem);
 };
 
