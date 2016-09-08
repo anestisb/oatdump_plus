@@ -44,13 +44,29 @@ inline mirror::String* DexCache::GetResolvedString(uint32_t string_idx) {
 
 inline void DexCache::SetResolvedString(uint32_t string_idx, mirror::String* resolved) {
   DCHECK_LT(string_idx % NumStrings(), NumStrings());
-  // TODO default transaction support.
-  StringDexCachePair idx_ptr;
-  idx_ptr.string_index = string_idx;
-  idx_ptr.string_pointer = GcRoot<String>(resolved);
-  GetStrings()[string_idx % NumStrings()].store(idx_ptr, std::memory_order_relaxed);
+  GetStrings()[string_idx % NumStrings()].store(
+      StringDexCachePair(resolved, string_idx),
+      std::memory_order_relaxed);
+  Runtime* const runtime = Runtime::Current();
+  if (UNLIKELY(runtime->IsActiveTransaction())) {
+    DCHECK(runtime->IsAotCompiler());
+    runtime->RecordResolveString(this, string_idx);
+  }
   // TODO: Fine-grained marking, so that we don't need to go through all arrays in full.
-  Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(this);
+  runtime->GetHeap()->WriteBarrierEveryFieldOf(this);
+}
+
+inline void DexCache::ClearString(uint32_t string_idx) {
+  const uint32_t slot_idx = string_idx % NumStrings();
+  DCHECK(Runtime::Current()->IsAotCompiler());
+  StringDexCacheType* slot = &GetStrings()[slot_idx];
+  // This is racy but should only be called from the transactional interpreter.
+  if (slot->load(std::memory_order_relaxed).string_index == string_idx) {
+    StringDexCachePair cleared(
+        nullptr,
+        StringDexCachePair::InvalidStringIndexForSlot(slot_idx));
+    slot->store(cleared, std::memory_order_relaxed);
+  }
 }
 
 inline Class* DexCache::GetResolvedType(uint32_t type_idx) {
