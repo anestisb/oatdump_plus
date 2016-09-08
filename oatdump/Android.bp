@@ -53,6 +53,11 @@ art_cc_binary {
 art_cc_binary {
     name: "oatdumps",
     defaults: ["oatdump-defaults"],
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
     static_libs: [
         "libart",
         "libart-compiler",
@@ -68,6 +73,11 @@ art_cc_binary {
         "art_debug_defaults",
         "oatdump-defaults",
     ],
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
     static_libs: [
         "libartd",
         "libartd-compiler",
