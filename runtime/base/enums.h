@@ -20,9 +20,6 @@
 #include <cstddef>
 #include <ostream>
 
-#include "base/logging.h"
-#include "base/macros.h"
-
 namespace art {
 
 enum class PointerSize : size_t {
@@ -34,16 +31,6 @@ std::ostream& operator<<(std::ostream& os, const PointerSize& rhs);
 static constexpr PointerSize kRuntimePointerSize = sizeof(void*) == 8U
                                                        ? PointerSize::k64
                                                        : PointerSize::k32;
-
-template <typename T>
-static constexpr PointerSize ConvertToPointerSize(T any) {
-  if (any == 4 || any == 8) {
-    return static_cast<PointerSize>(any);
-  } else {
-    LOG(FATAL);
-    UNREACHABLE();
-  }
-}
 
 }  // namespace art
 
