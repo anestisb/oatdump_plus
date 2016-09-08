@@ -18,6 +18,10 @@ public class Transaction {
     static class EmptyStatic {
     }
 
+    static class ResolveString {
+      static String s = "ResolvedString";
+    }
+
     static class StaticFieldClass {
       public static int intField;
       static {
