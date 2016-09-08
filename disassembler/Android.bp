@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2015 The Android Open Source Project
+// Copyright (C) 2012 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,41 +14,45 @@
 // limitations under the License.
 //
 
-cc_defaults {
-    name: "libart_simulator_defaults",
-    host_supported: true,
-    device_supported: false,
-
+art_cc_defaults {
+    name: "libart-disassembler-defaults",
     defaults: ["art_defaults"],
+    host_supported: true,
+    clang: true,
     srcs: [
-        "code_simulator.cc",
-        "code_simulator_arm64.cc",
+        "disassembler.cc",
+        "disassembler_arm.cc",
+        "disassembler_arm64.cc",
+        "disassembler_mips.cc",
+        "disassembler_x86.cc",
     ],
+
     shared_libs: [
         "liblog",
+        "libbase",
     ],
-    cflags: ["-DVIXL_INCLUDE_SIMULATOR_AARCH64"],
     export_include_dirs: ["."],
-    include_dirs: ["art/runtime"],
 }
 
 art_cc_library {
-    name: "libart-simulator",
-    defaults: ["libart_simulator_defaults"],
+    name: "libart-disassembler",
+    defaults: ["libart-disassembler-defaults"],
     shared_libs: [
         "libart",
-        "libvixl-arm64",
+        // For disassembler_arm64.
+        "libvixld-arm64",
     ],
 }
 
 art_cc_library {
-    name: "libartd-simulator",
+    name: "libartd-disassembler",
     defaults: [
+        "libart-disassembler-defaults",
         "art_debug_defaults",
-        "libart_simulator_defaults",
     ],
     shared_libs: [
         "libartd",
+        // For disassembler_arm64.
         "libvixld-arm64",
     ],
 }
