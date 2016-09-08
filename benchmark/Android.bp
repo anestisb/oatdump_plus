@@ -14,41 +14,30 @@
 // limitations under the License.
 //
 
-cc_defaults {
-    name: "libart_simulator_defaults",
-    host_supported: true,
-    device_supported: false,
-
-    defaults: ["art_defaults"],
-    srcs: [
-        "code_simulator.cc",
-        "code_simulator_arm64.cc",
-    ],
-    shared_libs: [
-        "liblog",
-    ],
-    cflags: ["-DVIXL_INCLUDE_SIMULATOR_AARCH64"],
-    export_include_dirs: ["."],
-    include_dirs: ["art/runtime"],
-}
-
 art_cc_library {
-    name: "libart-simulator",
-    defaults: ["libart_simulator_defaults"],
+    name: "libartbenchmark",
+    host_supported: true,
+    defaults: ["art_defaults", "art_debug_defaults"],
+    srcs: [
+        "jobject-benchmark/jobject_benchmark.cc",
+        "jni-perf/perf_jni.cc",
+        "scoped-primitive-array/scoped_primitive_array.cc",
+    ],
     shared_libs: [
         "libart",
-        "libvixl-arm64",
+        "libbacktrace",
+        "libnativehelper",
     ],
-}
-
-art_cc_library {
-    name: "libartd-simulator",
-    defaults: [
-        "art_debug_defaults",
-        "libart_simulator_defaults",
-    ],
-    shared_libs: [
-        "libartd",
-        "libvixld-arm64",
+    clang: true,
+    target: {
+        android: {
+            shared_libs: ["libdl"],
+        },
+        host: {
+            host_ldlibs: ["-ldl", "-lpthread"],
+        },
+    },
+    cflags: [
+        "-Wno-frame-larger-than=",
     ],
 }

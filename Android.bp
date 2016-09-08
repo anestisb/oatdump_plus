@@ -1,6 +1,34 @@
+// TODO: These should be handled with transitive static library dependencies
+art_static_dependencies = [
+    // Note: the order is important because of static linking resolution.
+    "libziparchive",
+    "libnativehelper",
+    "libnativebridge",
+    "libnativeloader",
+    "libsigchain_dummy",
+    "liblog",
+    "libz",
+    "libbacktrace",
+    "libcutils",
+    "libunwindbacktrace",
+    "libutils",
+    "libbase",
+    "liblz4",
+    "liblzma",
+]
+
 subdirs = [
+    "benchmark",
     "build",
     "compiler",
+    "dalvikvm",
+    "dexdump",
+    "dexlayout",
+    "dexlist",
+    "disassembler",
+    "oatdump",
     "runtime",
     "sigchainlib",
+    "tools/cpp-define-generator",
+    "tools/dmtracedump",
 ]

@@ -137,7 +137,26 @@ func (a *artGlobalDefaults) CustomizeProperties(ctx android.CustomizePropertiesC
 	p.Target.Android.Cflags = deviceFlags(ctx)
 	p.Target.Host.Cflags = hostFlags(ctx)
 	ctx.AppendProperties(p)
+}
 
+type artGlobalDefaults struct{}
+
+func (a *artCustomLinkerCustomizer) CustomizeProperties(ctx android.CustomizePropertiesContext) {
+	linker := envDefault(ctx, "CUSTOM_TARGET_LINKER", "")
+	if linker != "" {
+		type props struct {
+			DynamicLinker string
+		}
+
+		p := &props{}
+		p.DynamicLinker = linker
+		ctx.AppendProperties(p)
+	}
+}
+
+type artCustomLinkerCustomizer struct{}
+
+func (a *artPrefer32BitCustomizer) CustomizeProperties(ctx android.CustomizePropertiesContext) {
 	if envTrue(ctx, "HOST_PREFER_32_BIT") {
 		type props struct {
 			Target struct {
@@ -153,22 +172,7 @@ func (a *artGlobalDefaults) CustomizeProperties(ctx android.CustomizePropertiesC
 	}
 }
 
-type artGlobalDefaults struct{}
-
-func (a *artLinkerCustomizer) CustomizeProperties(ctx android.CustomizePropertiesContext) {
-	linker := envDefault(ctx, "CUSTOM_TARGET_LINKER", "")
-	if linker != "" {
-		type props struct {
-			DynamicLinker string
-		}
-
-		p := &props{}
-		p.DynamicLinker = linker
-		ctx.AppendProperties(p)
-	}
-}
-
-type artLinkerCustomizer struct{}
+type artPrefer32BitCustomizer struct{}
 
 func init() {
 	soong.RegisterModuleType("art_cc_library", artLibrary)
@@ -200,6 +204,7 @@ func artLibrary() (blueprint.Module, []interface{}) {
 	c := &codegenCustomizer{}
 	android.AddCustomizer(library, c)
 	props = append(props, &c.codegenProperties)
+
 	return module, props
 }
 
@@ -207,7 +212,8 @@ func artBinary() (blueprint.Module, []interface{}) {
 	binary, _ := cc.NewBinary(android.HostAndDeviceSupported)
 	module, props := binary.Init()
 
-	android.AddCustomizer(binary, &artLinkerCustomizer{})
+	android.AddCustomizer(binary, &artCustomLinkerCustomizer{})
+	android.AddCustomizer(binary, &artPrefer32BitCustomizer{})
 	return module, props
 }
 
