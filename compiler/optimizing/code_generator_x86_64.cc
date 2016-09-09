@@ -288,37 +288,6 @@ class LoadClassSlowPathX86_64 : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(LoadClassSlowPathX86_64);
 };
 
-class LoadStringSlowPathX86_64 : public SlowPathCode {
- public:
-  explicit LoadStringSlowPathX86_64(HLoadString* instruction) : SlowPathCode(instruction) {}
-
-  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
-    LocationSummary* locations = instruction_->GetLocations();
-    DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
-
-    CodeGeneratorX86_64* x86_64_codegen = down_cast<CodeGeneratorX86_64*>(codegen);
-    __ Bind(GetEntryLabel());
-    SaveLiveRegisters(codegen, locations);
-
-    InvokeRuntimeCallingConvention calling_convention;
-    const uint32_t string_index = instruction_->AsLoadString()->GetStringIndex();
-    __ movl(CpuRegister(calling_convention.GetRegisterAt(0)), Immediate(string_index));
-    x86_64_codegen->InvokeRuntime(kQuickResolveString,
-                                  instruction_,
-                                  instruction_->GetDexPc(),
-                                  this);
-    CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
-    x86_64_codegen->Move(locations->Out(), Location::RegisterLocation(RAX));
-    RestoreLiveRegisters(codegen, locations);
-    __ jmp(GetExitLabel());
-  }
-
-  const char* GetDescription() const OVERRIDE { return "LoadStringSlowPathX86_64"; }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(LoadStringSlowPathX86_64);
-};
-
 class TypeCheckSlowPathX86_64 : public SlowPathCode {
  public:
   TypeCheckSlowPathX86_64(HInstruction* instruction, bool is_fatal)
@@ -5560,18 +5529,16 @@ HLoadString::LoadKind CodeGeneratorX86_64::GetSupportedLoadStringKind(
 }
 
 void LocationsBuilderX86_64::VisitLoadString(HLoadString* load) {
-  LocationSummary::CallKind call_kind = (load->NeedsEnvironment() || kEmitCompilerReadBarrier)
-      ? LocationSummary::kCallOnSlowPath
+  LocationSummary::CallKind call_kind = load->NeedsEnvironment()
+      ? LocationSummary::kCallOnMainOnly
       : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load, call_kind);
-  if (kUseBakerReadBarrier && !load->NeedsEnvironment()) {
-    locations->SetCustomSlowPathCallerSaves(RegisterSet());  // No caller-save registers.
-  }
-
   if (load->GetLoadKind() == HLoadString::LoadKind::kDexCacheViaMethod) {
     locations->SetInAt(0, Location::RequiresRegister());
+    locations->SetOut(Location::RegisterLocation(RAX));
+  } else {
+    locations->SetOut(Location::RequiresRegister());
   }
-  locations->SetOut(Location::RequiresRegister());
 }
 
 void InstructionCodeGeneratorX86_64::VisitLoadString(HLoadString* load) {
@@ -5599,10 +5566,13 @@ void InstructionCodeGeneratorX86_64::VisitLoadString(HLoadString* load) {
   }
 
   // TODO: Re-add the compiler code to do string dex cache lookup again.
-  SlowPathCode* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathX86_64(load);
-  codegen_->AddSlowPath(slow_path);
-  __ jmp(slow_path->GetEntryLabel());
-  __ Bind(slow_path->GetExitLabel());
+  InvokeRuntimeCallingConvention calling_convention;
+  __ movl(CpuRegister(calling_convention.GetRegisterAt(0)),
+          Immediate(load->GetStringIndex()));
+  codegen_->InvokeRuntime(kQuickResolveString,
+                          load,
+                          load->GetDexPc());
+  CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
 }
 
 static Address GetExceptionTlsAddress() {
