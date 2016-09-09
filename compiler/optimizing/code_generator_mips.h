@@ -243,6 +243,10 @@ class InstructionCodeGeneratorMIPS : public InstructionCodeGenerator {
   void GenerateLongCompareAndBranch(IfCondition cond,
                                     LocationSummary* locations,
                                     MipsLabel* label);
+  void GenerateFpCompare(IfCondition cond,
+                         bool gt_bias,
+                         Primitive::Type type,
+                         LocationSummary* locations);
   void GenerateFpCompareAndBranch(IfCondition cond,
                                   bool gt_bias,
                                   Primitive::Type type,
