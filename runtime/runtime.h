@@ -43,6 +43,7 @@
 namespace art {
 
 namespace gc {
+  class AbstractSystemWeakHolder;
   class Heap;
   namespace collector {
     class GarbageCollector;
@@ -648,6 +649,9 @@ class Runtime {
     return env_snapshot_.GetSnapshot();
   }
 
+  void AddSystemWeakHolder(gc::AbstractSystemWeakHolder* holder);
+  void RemoveSystemWeakHolder(gc::AbstractSystemWeakHolder* holder);
+
  private:
   static void InitPlatformSignalHandlers();
 
@@ -883,6 +887,9 @@ class Runtime {
 
     DISALLOW_COPY_AND_ASSIGN(EnvSnapshot);
   } env_snapshot_;
+
+  // Generic system-weak holders.
+  std::vector<gc::AbstractSystemWeakHolder*> system_weak_holders_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };
