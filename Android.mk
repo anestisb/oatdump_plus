@@ -77,6 +77,7 @@ include $(art_path)/build/Android.cpplint.mk
 # product rules
 
 include $(art_path)/dex2oat/Android.mk
+include $(art_path)/oatdump/Android.mk
 include $(art_path)/imgdiag/Android.mk
 include $(art_path)/patchoat/Android.mk
 include $(art_path)/profman/Android.mk
