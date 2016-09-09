@@ -38,7 +38,7 @@ namespace helpers {
 static_assert((SP == 31) && (WSP == 31) && (XZR == 32) && (WZR == 32),
               "Unexpected values for register codes.");
 
-static inline int VIXLRegCodeFromART(int code) {
+inline int VIXLRegCodeFromART(int code) {
   if (code == SP) {
     return vixl::aarch64::kSPRegInternalCode;
   }
@@ -48,7 +48,7 @@ static inline int VIXLRegCodeFromART(int code) {
   return code;
 }
 
-static inline int ARTRegCodeFromVIXL(int code) {
+inline int ARTRegCodeFromVIXL(int code) {
   if (code == vixl::aarch64::kSPRegInternalCode) {
     return SP;
   }
@@ -58,85 +58,85 @@ static inline int ARTRegCodeFromVIXL(int code) {
   return code;
 }
 
-static inline vixl::aarch64::Register XRegisterFrom(Location location) {
+inline vixl::aarch64::Register XRegisterFrom(Location location) {
   DCHECK(location.IsRegister()) << location;
   return vixl::aarch64::Register::GetXRegFromCode(VIXLRegCodeFromART(location.reg()));
 }
 
-static inline vixl::aarch64::Register WRegisterFrom(Location location) {
+inline vixl::aarch64::Register WRegisterFrom(Location location) {
   DCHECK(location.IsRegister()) << location;
   return vixl::aarch64::Register::GetWRegFromCode(VIXLRegCodeFromART(location.reg()));
 }
 
-static inline vixl::aarch64::Register RegisterFrom(Location location, Primitive::Type type) {
+inline vixl::aarch64::Register RegisterFrom(Location location, Primitive::Type type) {
   DCHECK(type != Primitive::kPrimVoid && !Primitive::IsFloatingPointType(type)) << type;
   return type == Primitive::kPrimLong ? XRegisterFrom(location) : WRegisterFrom(location);
 }
 
-static inline vixl::aarch64::Register OutputRegister(HInstruction* instr) {
+inline vixl::aarch64::Register OutputRegister(HInstruction* instr) {
   return RegisterFrom(instr->GetLocations()->Out(), instr->GetType());
 }
 
-static inline vixl::aarch64::Register InputRegisterAt(HInstruction* instr, int input_index) {
+inline vixl::aarch64::Register InputRegisterAt(HInstruction* instr, int input_index) {
   return RegisterFrom(instr->GetLocations()->InAt(input_index),
                       instr->InputAt(input_index)->GetType());
 }
 
-static inline vixl::aarch64::FPRegister DRegisterFrom(Location location) {
+inline vixl::aarch64::FPRegister DRegisterFrom(Location location) {
   DCHECK(location.IsFpuRegister()) << location;
   return vixl::aarch64::FPRegister::GetDRegFromCode(location.reg());
 }
 
-static inline vixl::aarch64::FPRegister SRegisterFrom(Location location) {
+inline vixl::aarch64::FPRegister SRegisterFrom(Location location) {
   DCHECK(location.IsFpuRegister()) << location;
   return vixl::aarch64::FPRegister::GetSRegFromCode(location.reg());
 }
 
-static inline vixl::aarch64::FPRegister FPRegisterFrom(Location location, Primitive::Type type) {
+inline vixl::aarch64::FPRegister FPRegisterFrom(Location location, Primitive::Type type) {
   DCHECK(Primitive::IsFloatingPointType(type)) << type;
   return type == Primitive::kPrimDouble ? DRegisterFrom(location) : SRegisterFrom(location);
 }
 
-static inline vixl::aarch64::FPRegister OutputFPRegister(HInstruction* instr) {
+inline vixl::aarch64::FPRegister OutputFPRegister(HInstruction* instr) {
   return FPRegisterFrom(instr->GetLocations()->Out(), instr->GetType());
 }
 
-static inline vixl::aarch64::FPRegister InputFPRegisterAt(HInstruction* instr, int input_index) {
+inline vixl::aarch64::FPRegister InputFPRegisterAt(HInstruction* instr, int input_index) {
   return FPRegisterFrom(instr->GetLocations()->InAt(input_index),
                         instr->InputAt(input_index)->GetType());
 }
 
-static inline vixl::aarch64::CPURegister CPURegisterFrom(Location location, Primitive::Type type) {
+inline vixl::aarch64::CPURegister CPURegisterFrom(Location location, Primitive::Type type) {
   return Primitive::IsFloatingPointType(type)
       ? vixl::aarch64::CPURegister(FPRegisterFrom(location, type))
       : vixl::aarch64::CPURegister(RegisterFrom(location, type));
 }
 
-static inline vixl::aarch64::CPURegister OutputCPURegister(HInstruction* instr) {
+inline vixl::aarch64::CPURegister OutputCPURegister(HInstruction* instr) {
   return Primitive::IsFloatingPointType(instr->GetType())
       ? static_cast<vixl::aarch64::CPURegister>(OutputFPRegister(instr))
       : static_cast<vixl::aarch64::CPURegister>(OutputRegister(instr));
 }
 
-static inline vixl::aarch64::CPURegister InputCPURegisterAt(HInstruction* instr, int index) {
+inline vixl::aarch64::CPURegister InputCPURegisterAt(HInstruction* instr, int index) {
   return Primitive::IsFloatingPointType(instr->InputAt(index)->GetType())
       ? static_cast<vixl::aarch64::CPURegister>(InputFPRegisterAt(instr, index))
       : static_cast<vixl::aarch64::CPURegister>(InputRegisterAt(instr, index));
 }
 
-static inline vixl::aarch64::CPURegister InputCPURegisterOrZeroRegAt(HInstruction* instr,
+inline vixl::aarch64::CPURegister InputCPURegisterOrZeroRegAt(HInstruction* instr,
                                                                      int index) {
   HInstruction* input = instr->InputAt(index);
   Primitive::Type input_type = input->GetType();
   if (input->IsConstant() && input->AsConstant()->IsZeroBitPattern()) {
     return (Primitive::ComponentSize(input_type) >= vixl::aarch64::kXRegSizeInBytes)
-        ?  vixl::aarch64::xzr
+        ? vixl::aarch64::xzr
         : vixl::aarch64::wzr;
   }
   return InputCPURegisterAt(instr, index);
 }
 
-static inline int64_t Int64ConstantFrom(Location location) {
+inline int64_t Int64ConstantFrom(Location location) {
   HConstant* instr = location.GetConstant();
   if (instr->IsIntConstant()) {
     return instr->AsIntConstant()->GetValue();
@@ -148,7 +148,7 @@ static inline int64_t Int64ConstantFrom(Location location) {
   }
 }
 
-static inline vixl::aarch64::Operand OperandFrom(Location location, Primitive::Type type) {
+inline vixl::aarch64::Operand OperandFrom(Location location, Primitive::Type type) {
   if (location.IsRegister()) {
     return vixl::aarch64::Operand(RegisterFrom(location, type));
   } else {
@@ -156,23 +156,23 @@ static inline vixl::aarch64::Operand OperandFrom(Location location, Primitive::T
   }
 }
 
-static inline vixl::aarch64::Operand InputOperandAt(HInstruction* instr, int input_index) {
+inline vixl::aarch64::Operand InputOperandAt(HInstruction* instr, int input_index) {
   return OperandFrom(instr->GetLocations()->InAt(input_index),
                      instr->InputAt(input_index)->GetType());
 }
 
-static inline vixl::aarch64::MemOperand StackOperandFrom(Location location) {
+inline vixl::aarch64::MemOperand StackOperandFrom(Location location) {
   return vixl::aarch64::MemOperand(vixl::aarch64::sp, location.GetStackIndex());
 }
 
-static inline vixl::aarch64::MemOperand HeapOperand(const vixl::aarch64::Register& base,
+inline vixl::aarch64::MemOperand HeapOperand(const vixl::aarch64::Register& base,
                                                     size_t offset = 0) {
   // A heap reference must be 32bit, so fit in a W register.
   DCHECK(base.IsW());
   return vixl::aarch64::MemOperand(base.X(), offset);
 }
 
-static inline vixl::aarch64::MemOperand HeapOperand(const vixl::aarch64::Register& base,
+inline vixl::aarch64::MemOperand HeapOperand(const vixl::aarch64::Register& base,
                                                     const vixl::aarch64::Register& regoffset,
                                                     vixl::aarch64::Shift shift = vixl::aarch64::LSL,
                                                     unsigned shift_amount = 0) {
@@ -181,24 +181,24 @@ static inline vixl::aarch64::MemOperand HeapOperand(const vixl::aarch64::Registe
   return vixl::aarch64::MemOperand(base.X(), regoffset, shift, shift_amount);
 }
 
-static inline vixl::aarch64::MemOperand HeapOperand(const vixl::aarch64::Register& base,
+inline vixl::aarch64::MemOperand HeapOperand(const vixl::aarch64::Register& base,
                                                     Offset offset) {
   return HeapOperand(base, offset.SizeValue());
 }
 
-static inline vixl::aarch64::MemOperand HeapOperandFrom(Location location, Offset offset) {
+inline vixl::aarch64::MemOperand HeapOperandFrom(Location location, Offset offset) {
   return HeapOperand(RegisterFrom(location, Primitive::kPrimNot), offset);
 }
 
-static inline Location LocationFrom(const vixl::aarch64::Register& reg) {
+inline Location LocationFrom(const vixl::aarch64::Register& reg) {
   return Location::RegisterLocation(ARTRegCodeFromVIXL(reg.GetCode()));
 }
 
-static inline Location LocationFrom(const vixl::aarch64::FPRegister& fpreg) {
+inline Location LocationFrom(const vixl::aarch64::FPRegister& fpreg) {
   return Location::FpuRegisterLocation(fpreg.GetCode());
 }
 
-static inline vixl::aarch64::Operand OperandFromMemOperand(
+inline vixl::aarch64::Operand OperandFromMemOperand(
     const vixl::aarch64::MemOperand& mem_op) {
   if (mem_op.IsImmediateOffset()) {
     return vixl::aarch64::Operand(mem_op.GetOffset());
@@ -219,7 +219,7 @@ static inline vixl::aarch64::Operand OperandFromMemOperand(
   }
 }
 
-static bool CanEncodeConstantAsImmediate(HConstant* constant, HInstruction* instr) {
+inline bool CanEncodeConstantAsImmediate(HConstant* constant, HInstruction* instr) {
   DCHECK(constant->IsIntConstant() || constant->IsLongConstant() || constant->IsNullConstant())
       << constant->DebugName();
 
@@ -258,7 +258,7 @@ static bool CanEncodeConstantAsImmediate(HConstant* constant, HInstruction* inst
   }
 }
 
-static inline Location ARM64EncodableConstantOrRegister(HInstruction* constant,
+inline Location ARM64EncodableConstantOrRegister(HInstruction* constant,
                                                         HInstruction* instr) {
   if (constant->IsConstant()
       && CanEncodeConstantAsImmediate(constant->AsConstant(), instr)) {
@@ -272,7 +272,7 @@ static inline Location ARM64EncodableConstantOrRegister(HInstruction* constant,
 // codes are same, we can initialize vixl register list simply by the register masks. Currently,
 // only SP/WSP and ZXR/WZR codes are different between art and vixl.
 // Note: This function is only used for debug checks.
-static inline bool ArtVixlRegCodeCoherentForRegSet(uint32_t art_core_registers,
+inline bool ArtVixlRegCodeCoherentForRegSet(uint32_t art_core_registers,
                                                    size_t num_core,
                                                    uint32_t art_fpu_registers,
                                                    size_t num_fpu) {
@@ -290,7 +290,7 @@ static inline bool ArtVixlRegCodeCoherentForRegSet(uint32_t art_core_registers,
   return true;
 }
 
-static inline vixl::aarch64::Shift ShiftFromOpKind(HArm64DataProcWithShifterOp::OpKind op_kind) {
+inline vixl::aarch64::Shift ShiftFromOpKind(HArm64DataProcWithShifterOp::OpKind op_kind) {
   switch (op_kind) {
     case HArm64DataProcWithShifterOp::kASR: return vixl::aarch64::ASR;
     case HArm64DataProcWithShifterOp::kLSL: return vixl::aarch64::LSL;
@@ -302,7 +302,7 @@ static inline vixl::aarch64::Shift ShiftFromOpKind(HArm64DataProcWithShifterOp::
   }
 }
 
-static inline vixl::aarch64::Extend ExtendFromOpKind(HArm64DataProcWithShifterOp::OpKind op_kind) {
+inline vixl::aarch64::Extend ExtendFromOpKind(HArm64DataProcWithShifterOp::OpKind op_kind) {
   switch (op_kind) {
     case HArm64DataProcWithShifterOp::kUXTB: return vixl::aarch64::UXTB;
     case HArm64DataProcWithShifterOp::kUXTH: return vixl::aarch64::UXTH;
@@ -317,7 +317,7 @@ static inline vixl::aarch64::Extend ExtendFromOpKind(HArm64DataProcWithShifterOp
   }
 }
 
-static inline bool CanFitInShifterOperand(HInstruction* instruction) {
+inline bool CanFitInShifterOperand(HInstruction* instruction) {
   if (instruction->IsTypeConversion()) {
     HTypeConversion* conversion = instruction->AsTypeConversion();
     Primitive::Type result_type = conversion->GetResultType();
@@ -332,7 +332,7 @@ static inline bool CanFitInShifterOperand(HInstruction* instruction) {
   }
 }
 
-static inline bool HasShifterOperand(HInstruction* instr) {
+inline bool HasShifterOperand(HInstruction* instr) {
   // `neg` instructions are an alias of `sub` using the zero register as the
   // first register input.
   bool res = instr->IsAdd() || instr->IsAnd() || instr->IsNeg() ||
@@ -340,7 +340,7 @@ static inline bool HasShifterOperand(HInstruction* instr) {
   return res;
 }
 
-static inline bool ShifterOperandSupportsExtension(HInstruction* instruction) {
+inline bool ShifterOperandSupportsExtension(HInstruction* instruction) {
   DCHECK(HasShifterOperand(instruction));
   // Although the `neg` instruction is an alias of the `sub` instruction, `HNeg`
   // does *not* support extension. This is because the `extended register` form
@@ -351,7 +351,7 @@ static inline bool ShifterOperandSupportsExtension(HInstruction* instruction) {
   return instruction->IsAdd() || instruction->IsSub();
 }
 
-static inline bool IsConstantZeroBitPattern(const HInstruction* instruction) {
+inline bool IsConstantZeroBitPattern(const HInstruction* instruction) {
   return instruction->IsConstant() && instruction->AsConstant()->IsZeroBitPattern();
 }
 
