@@ -30,6 +30,7 @@
 namespace art {
 
 jclass WellKnownClasses::com_android_dex_Dex;
+jclass WellKnownClasses::dalvik_annotation_optimization_CriticalNative;
 jclass WellKnownClasses::dalvik_annotation_optimization_FastNative;
 jclass WellKnownClasses::dalvik_system_DexFile;
 jclass WellKnownClasses::dalvik_system_DexPathList;
@@ -216,6 +217,8 @@ static jmethodID CachePrimitiveBoxingMethod(JNIEnv* env, char prim_name, const c
 
 void WellKnownClasses::Init(JNIEnv* env) {
   com_android_dex_Dex = CacheClass(env, "com/android/dex/Dex");
+  dalvik_annotation_optimization_CriticalNative =
+      CacheClass(env, "dalvik/annotation/optimization/CriticalNative");
   dalvik_annotation_optimization_FastNative = CacheClass(env, "dalvik/annotation/optimization/FastNative");
   dalvik_system_DexFile = CacheClass(env, "dalvik/system/DexFile");
   dalvik_system_DexPathList = CacheClass(env, "dalvik/system/DexPathList");

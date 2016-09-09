@@ -24,6 +24,13 @@ namespace arm64 {
 
 static_assert(kArm64PointerSize == PointerSize::k64, "Unexpected ARM64 pointer size");
 
+// Up to how many float-like (float, double) args can be enregistered.
+// The rest of the args must go on the stack.
+constexpr size_t kMaxFloatOrDoubleRegisterArguments = 8u;
+// Up to how many integer-like (pointers, objects, longs, int, short, bool, etc) args can be
+// enregistered. The rest of the args must go on the stack.
+constexpr size_t kMaxIntLikeRegisterArguments = 8u;
+
 static const XRegister kXArgumentRegisters[] = {
   X0, X1, X2, X3, X4, X5, X6, X7
 };
@@ -211,9 +218,11 @@ const ManagedRegisterEntrySpills& Arm64ManagedRuntimeCallingConvention::EntrySpi
 }
 
 // JNI calling convention
-Arm64JniCallingConvention::Arm64JniCallingConvention(bool is_static, bool is_synchronized,
+Arm64JniCallingConvention::Arm64JniCallingConvention(bool is_static,
+                                                     bool is_synchronized,
+                                                     bool is_critical_native,
                                                      const char* shorty)
-    : JniCallingConvention(is_static, is_synchronized, shorty, kArm64PointerSize) {
+    : JniCallingConvention(is_static, is_synchronized, is_critical_native, shorty, kArm64PointerSize) {
 }
 
 uint32_t Arm64JniCallingConvention::CoreSpillMask() const {
@@ -230,38 +239,59 @@ ManagedRegister Arm64JniCallingConvention::ReturnScratchRegister() const {
 
 size_t Arm64JniCallingConvention::FrameSize() {
   // Method*, callee save area size, local reference segment state
-  size_t frame_data_size = kFramePointerSize +
-      CalleeSaveRegisters().size() * kFramePointerSize + sizeof(uint32_t);
+  //
+  // (Unlike x86_64, do not include return address, and the segment state is uint32
+  // instead of pointer).
+  size_t method_ptr_size = static_cast<size_t>(kFramePointerSize);
+  size_t callee_save_area_size = CalleeSaveRegisters().size() * kFramePointerSize;
+
+  size_t frame_data_size = method_ptr_size + callee_save_area_size;
+  if (LIKELY(HasLocalReferenceSegmentState())) {
+    frame_data_size += sizeof(uint32_t);
+  }
   // References plus 2 words for HandleScope header
   size_t handle_scope_size = HandleScope::SizeOf(kArm64PointerSize, ReferenceCount());
+
+  size_t total_size = frame_data_size;
+  if (LIKELY(HasHandleScope())) {
+    // HandleScope is sometimes excluded.
+    total_size += handle_scope_size;                                 // handle scope size
+  }
+
   // Plus return value spill area size
-  return RoundUp(frame_data_size + handle_scope_size + SizeOfReturnValue(), kStackAlignment);
+  total_size += SizeOfReturnValue();
+
+  return RoundUp(total_size, kStackAlignment);
 }
 
 size_t Arm64JniCallingConvention::OutArgSize() {
+  // Same as X86_64
   return RoundUp(NumberOfOutgoingStackArgs() * kFramePointerSize, kStackAlignment);
 }
 
 ArrayRef<const ManagedRegister> Arm64JniCallingConvention::CalleeSaveRegisters() const {
+  // Same as X86_64
   return ArrayRef<const ManagedRegister>(kCalleeSaveRegisters);
 }
 
 bool Arm64JniCallingConvention::IsCurrentParamInRegister() {
   if (IsCurrentParamAFloatOrDouble()) {
-    return (itr_float_and_doubles_ < 8);
+    return (itr_float_and_doubles_ < kMaxFloatOrDoubleRegisterArguments);
   } else {
-    return ((itr_args_ - itr_float_and_doubles_) < 8);
+    return ((itr_args_ - itr_float_and_doubles_) < kMaxIntLikeRegisterArguments);
   }
+  // TODO: Can we just call CurrentParamRegister to figure this out?
 }
 
 bool Arm64JniCallingConvention::IsCurrentParamOnStack() {
+  // Is this ever not the same for all the architectures?
   return !IsCurrentParamInRegister();
 }
 
 ManagedRegister Arm64JniCallingConvention::CurrentParamRegister() {
   CHECK(IsCurrentParamInRegister());
   if (IsCurrentParamAFloatOrDouble()) {
-    CHECK_LT(itr_float_and_doubles_, 8u);
+    CHECK_LT(itr_float_and_doubles_, kMaxFloatOrDoubleRegisterArguments);
     if (IsCurrentParamADouble()) {
       return Arm64ManagedRegister::FromDRegister(kDArgumentRegisters[itr_float_and_doubles_]);
     } else {
@@ -269,7 +299,7 @@ ManagedRegister Arm64JniCallingConvention::CurrentParamRegister() {
     }
   } else {
     int gp_reg = itr_args_ - itr_float_and_doubles_;
-    CHECK_LT(static_cast<unsigned int>(gp_reg), 8u);
+    CHECK_LT(static_cast<unsigned int>(gp_reg), kMaxIntLikeRegisterArguments);
     if (IsCurrentParamALong() || IsCurrentParamAReference() || IsCurrentParamJniEnv())  {
       return Arm64ManagedRegister::FromXRegister(kXArgumentRegisters[gp_reg]);
     } else {
@@ -281,20 +311,30 @@ ManagedRegister Arm64JniCallingConvention::CurrentParamRegister() {
 FrameOffset Arm64JniCallingConvention::CurrentParamStackOffset() {
   CHECK(IsCurrentParamOnStack());
   size_t args_on_stack = itr_args_
-                  - std::min(8u, itr_float_and_doubles_)
-                  - std::min(8u, (itr_args_ - itr_float_and_doubles_));
+                  - std::min(kMaxFloatOrDoubleRegisterArguments,
+                             static_cast<size_t>(itr_float_and_doubles_))
+                  - std::min(kMaxIntLikeRegisterArguments,
+                             static_cast<size_t>(itr_args_ - itr_float_and_doubles_));
   size_t offset = displacement_.Int32Value() - OutArgSize() + (args_on_stack * kFramePointerSize);
   CHECK_LT(offset, OutArgSize());
   return FrameOffset(offset);
+  // TODO: Seems identical to X86_64 code.
 }
 
 size_t Arm64JniCallingConvention::NumberOfOutgoingStackArgs() {
   // all arguments including JNI args
   size_t all_args = NumArgs() + NumberOfExtraArgumentsForJni();
 
-  size_t all_stack_args = all_args -
-            std::min(8u, static_cast<unsigned int>(NumFloatOrDoubleArgs())) -
-            std::min(8u, static_cast<unsigned int>((all_args - NumFloatOrDoubleArgs())));
+  DCHECK_GE(all_args, NumFloatOrDoubleArgs());
+
+  size_t all_stack_args =
+      all_args
+      - std::min(kMaxFloatOrDoubleRegisterArguments,
+                 static_cast<size_t>(NumFloatOrDoubleArgs()))
+      - std::min(kMaxIntLikeRegisterArguments,
+                 static_cast<size_t>((all_args - NumFloatOrDoubleArgs())));
+
+  // TODO: Seems similar to X86_64 code except it doesn't count return pc.
 
   return all_stack_args;
 }
