@@ -149,19 +149,44 @@ bool ManagedRuntimeCallingConvention::IsCurrentParamALong() {
 std::unique_ptr<JniCallingConvention> JniCallingConvention::Create(ArenaAllocator* arena,
                                                                    bool is_static,
                                                                    bool is_synchronized,
+                                                                   bool is_critical_native,
                                                                    const char* shorty,
                                                                    InstructionSet instruction_set) {
+  if (UNLIKELY(is_critical_native)) {
+    // Sanity check that the requested JNI instruction set
+    // is supported for critical natives. Not every one is.
+    switch (instruction_set) {
+      case kX86_64:
+      case kX86:
+      case kArm64:
+      case kArm:
+      case kThumb2:
+        break;
+      default:
+        is_critical_native = false;
+        LOG(WARNING) << "@CriticalNative support not implemented for " << instruction_set
+                     << "; will crash at runtime if trying to invoke such a method.";
+        // TODO: implement for MIPS/MIPS64
+    }
+  }
+
   switch (instruction_set) {
 #ifdef ART_ENABLE_CODEGEN_arm
     case kArm:
     case kThumb2:
       return std::unique_ptr<JniCallingConvention>(
-          new (arena) arm::ArmJniCallingConvention(is_static, is_synchronized, shorty));
+          new (arena) arm::ArmJniCallingConvention(is_static,
+                                                   is_synchronized,
+                                                   is_critical_native,
+                                                   shorty));
 #endif
 #ifdef ART_ENABLE_CODEGEN_arm64
     case kArm64:
       return std::unique_ptr<JniCallingConvention>(
-          new (arena) arm64::Arm64JniCallingConvention(is_static, is_synchronized, shorty));
+          new (arena) arm64::Arm64JniCallingConvention(is_static,
+                                                       is_synchronized,
+                                                       is_critical_native,
+                                                       shorty));
 #endif
 #ifdef ART_ENABLE_CODEGEN_mips
     case kMips:
@@ -176,12 +201,18 @@ std::unique_ptr<JniCallingConvention> JniCallingConvention::Create(ArenaAllocato
 #ifdef ART_ENABLE_CODEGEN_x86
     case kX86:
       return std::unique_ptr<JniCallingConvention>(
-          new (arena) x86::X86JniCallingConvention(is_static, is_synchronized, shorty));
+          new (arena) x86::X86JniCallingConvention(is_static,
+                                                   is_synchronized,
+                                                   is_critical_native,
+                                                   shorty));
 #endif
 #ifdef ART_ENABLE_CODEGEN_x86_64
     case kX86_64:
       return std::unique_ptr<JniCallingConvention>(
-          new (arena) x86_64::X86_64JniCallingConvention(is_static, is_synchronized, shorty));
+          new (arena) x86_64::X86_64JniCallingConvention(is_static,
+                                                         is_synchronized,
+                                                         is_critical_native,
+                                                         shorty));
 #endif
     default:
       LOG(FATAL) << "Unknown InstructionSet: " << instruction_set;
@@ -199,27 +230,36 @@ FrameOffset JniCallingConvention::SavedLocalReferenceCookieOffset() const {
 }
 
 FrameOffset JniCallingConvention::ReturnValueSaveLocation() const {
-  // Segment state is 4 bytes long
-  return FrameOffset(SavedLocalReferenceCookieOffset().Int32Value() + 4);
+  if (LIKELY(HasHandleScope())) {
+    // Initial offset already includes the displacement.
+    // -- Remove the additional local reference cookie offset if we don't have a handle scope.
+    const size_t saved_local_reference_cookie_offset =
+        SavedLocalReferenceCookieOffset().Int32Value();
+    // Segment state is 4 bytes long
+    const size_t segment_state_size = 4;
+    return FrameOffset(saved_local_reference_cookie_offset + segment_state_size);
+  } else {
+    // Include only the initial Method* as part of the offset.
+    CHECK_LT(displacement_.SizeValue(),
+             static_cast<size_t>(std::numeric_limits<int32_t>::max()));
+    return FrameOffset(displacement_.Int32Value() + static_cast<size_t>(frame_pointer_size_));
+  }
 }
 
 bool JniCallingConvention::HasNext() {
-  if (itr_args_ <= kObjectOrClass) {
+  if (IsCurrentArgExtraForJni()) {
     return true;
   } else {
-    unsigned int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni();
+    unsigned int arg_pos = GetIteratorPositionWithinShorty();
     return arg_pos < NumArgs();
   }
 }
 
 void JniCallingConvention::Next() {
   CHECK(HasNext());
-  if (itr_args_ > kObjectOrClass) {
-    int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni();
-    if (IsParamALongOrDouble(arg_pos)) {
-      itr_longs_and_doubles_++;
-      itr_slots_++;
-    }
+  if (IsCurrentParamALong() || IsCurrentParamADouble()) {
+    itr_longs_and_doubles_++;
+    itr_slots_++;
   }
   if (IsCurrentParamAFloatOrDouble()) {
     itr_float_and_doubles_++;
@@ -227,63 +267,73 @@ void JniCallingConvention::Next() {
   if (IsCurrentParamAReference()) {
     itr_refs_++;
   }
+  // This default/fallthrough case also covers the extra JNIEnv* argument,
+  // as well as any other single-slot primitives.
   itr_args_++;
   itr_slots_++;
 }
 
 bool JniCallingConvention::IsCurrentParamAReference() {
-  switch (itr_args_) {
-    case kJniEnv:
-      return false;  // JNIEnv*
-    case kObjectOrClass:
-      return true;   // jobject or jclass
-    default: {
-      int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni();
-      return IsParamAReference(arg_pos);
-    }
+  bool return_value;
+  if (SwitchExtraJniArguments(itr_args_,
+                              false,  // JNIEnv*
+                              true,   // jobject or jclass
+                              /* out parameters */
+                              &return_value)) {
+    return return_value;
+  } else {
+    int arg_pos = GetIteratorPositionWithinShorty();
+    return IsParamAReference(arg_pos);
   }
 }
 
+
 bool JniCallingConvention::IsCurrentParamJniEnv() {
+  if (UNLIKELY(!HasJniEnv())) {
+    return false;
+  }
   return (itr_args_ == kJniEnv);
 }
 
 bool JniCallingConvention::IsCurrentParamAFloatOrDouble() {
-  switch (itr_args_) {
-    case kJniEnv:
-      return false;  // JNIEnv*
-    case kObjectOrClass:
-      return false;   // jobject or jclass
-    default: {
-      int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni();
-      return IsParamAFloatOrDouble(arg_pos);
-    }
+  bool return_value;
+  if (SwitchExtraJniArguments(itr_args_,
+                              false,  // jnienv*
+                              false,  // jobject or jclass
+                              /* out parameters */
+                              &return_value)) {
+    return return_value;
+  } else {
+    int arg_pos = GetIteratorPositionWithinShorty();
+    return IsParamAFloatOrDouble(arg_pos);
   }
 }
 
 bool JniCallingConvention::IsCurrentParamADouble() {
-  switch (itr_args_) {
-    case kJniEnv:
-      return false;  // JNIEnv*
-    case kObjectOrClass:
-      return false;   // jobject or jclass
-    default: {
-      int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni();
-      return IsParamADouble(arg_pos);
-    }
+  bool return_value;
+  if (SwitchExtraJniArguments(itr_args_,
+                              false,  // jnienv*
+                              false,  // jobject or jclass
+                              /* out parameters */
+                              &return_value)) {
+    return return_value;
+  } else {
+    int arg_pos = GetIteratorPositionWithinShorty();
+    return IsParamADouble(arg_pos);
   }
 }
 
 bool JniCallingConvention::IsCurrentParamALong() {
-  switch (itr_args_) {
-    case kJniEnv:
-      return false;  // JNIEnv*
-    case kObjectOrClass:
-      return false;   // jobject or jclass
-    default: {
-      int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni();
-      return IsParamALong(arg_pos);
-    }
+  bool return_value;
+  if (SwitchExtraJniArguments(itr_args_,
+                              false,  // jnienv*
+                              false,  // jobject or jclass
+                              /* out parameters */
+                              &return_value)) {
+    return return_value;
+  } else {
+    int arg_pos = GetIteratorPositionWithinShorty();
+    return IsParamALong(arg_pos);
   }
 }
 
@@ -297,19 +347,93 @@ FrameOffset JniCallingConvention::CurrentParamHandleScopeEntryOffset() {
   return FrameOffset(result);
 }
 
-size_t JniCallingConvention::CurrentParamSize() {
-  if (itr_args_ <= kObjectOrClass) {
+size_t JniCallingConvention::CurrentParamSize() const {
+  if (IsCurrentArgExtraForJni()) {
     return static_cast<size_t>(frame_pointer_size_);  // JNIEnv or jobject/jclass
   } else {
-    int arg_pos = itr_args_ - NumberOfExtraArgumentsForJni();
+    int arg_pos = GetIteratorPositionWithinShorty();
     return ParamSize(arg_pos);
   }
 }
 
-size_t JniCallingConvention::NumberOfExtraArgumentsForJni() {
-  // The first argument is the JNIEnv*.
-  // Static methods have an extra argument which is the jclass.
-  return IsStatic() ? 2 : 1;
+size_t JniCallingConvention::NumberOfExtraArgumentsForJni() const {
+  if (LIKELY(HasExtraArgumentsForJni())) {
+    // The first argument is the JNIEnv*.
+    // Static methods have an extra argument which is the jclass.
+    return IsStatic() ? 2 : 1;
+  } else {
+    // Critical natives exclude the JNIEnv and the jclass/this parameters.
+    return 0;
+  }
 }
+
+bool JniCallingConvention::HasHandleScope() const {
+  // Exclude HandleScope for @CriticalNative methods for optimization speed.
+  return is_critical_native_ == false;
+}
+
+bool JniCallingConvention::HasLocalReferenceSegmentState() const {
+  // Exclude local reference segment states for @CriticalNative methods for optimization speed.
+  return is_critical_native_ == false;
+}
+
+bool JniCallingConvention::HasJniEnv() const {
+  // Exclude "JNIEnv*" parameter for @CriticalNative methods.
+  return HasExtraArgumentsForJni();
+}
+
+bool JniCallingConvention::HasSelfClass() const {
+  if (!IsStatic()) {
+    // Virtual functions: There is never an implicit jclass parameter.
+    return false;
+  } else {
+    // Static functions: There is an implicit jclass parameter unless it's @CriticalNative.
+    return HasExtraArgumentsForJni();
+  }
+}
+
+bool JniCallingConvention::HasExtraArgumentsForJni() const {
+  // @CriticalNative jni implementations exclude both JNIEnv* and the jclass/jobject parameters.
+  return is_critical_native_ == false;
+}
+
+unsigned int JniCallingConvention::GetIteratorPositionWithinShorty() const {
+  // We need to subtract out the extra JNI arguments if we want to use this iterator position
+  // with the inherited CallingConvention member functions, which rely on scanning the shorty.
+  // Note that our shorty does *not* include the JNIEnv, jclass/jobject parameters.
+  DCHECK_GE(itr_args_, NumberOfExtraArgumentsForJni());
+  return itr_args_ - NumberOfExtraArgumentsForJni();
+}
+
+bool JniCallingConvention::IsCurrentArgExtraForJni() const {
+  if (UNLIKELY(!HasExtraArgumentsForJni())) {
+    return false;  // If there are no extra args, we can never be an extra.
+  }
+  // Only parameters kJniEnv and kObjectOrClass are considered extra.
+  return itr_args_ <= kObjectOrClass;
+}
+
+bool JniCallingConvention::SwitchExtraJniArguments(size_t switch_value,
+                                                   bool case_jni_env,
+                                                   bool case_object_or_class,
+                                                   /* out parameters */
+                                                   bool* return_value) const {
+  DCHECK(return_value != nullptr);
+  if (UNLIKELY(!HasExtraArgumentsForJni())) {
+    return false;
+  }
+
+  switch (switch_value) {
+    case kJniEnv:
+      *return_value = case_jni_env;
+      return true;
+    case kObjectOrClass:
+      *return_value = case_object_or_class;
+      return true;
+    default:
+      return false;
+  }
+}
+
 
 }  // namespace art

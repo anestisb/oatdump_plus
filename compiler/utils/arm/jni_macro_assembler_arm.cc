@@ -367,11 +367,21 @@ void ArmJNIMacroAssembler::Move(ManagedRegister m_dst, ManagedRegister m_src, si
       CHECK(src.IsCoreRegister()) << src;
       __ mov(dst.AsCoreRegister(), ShifterOperand(src.AsCoreRegister()));
     } else if (dst.IsDRegister()) {
-      CHECK(src.IsDRegister()) << src;
-      __ vmovd(dst.AsDRegister(), src.AsDRegister());
+      if (src.IsDRegister()) {
+        __ vmovd(dst.AsDRegister(), src.AsDRegister());
+      } else {
+        // VMOV Dn, Rlo, Rhi (Dn = {Rlo, Rhi})
+        CHECK(src.IsRegisterPair()) << src;
+        __ vmovdrr(dst.AsDRegister(), src.AsRegisterPairLow(), src.AsRegisterPairHigh());
+      }
     } else if (dst.IsSRegister()) {
-      CHECK(src.IsSRegister()) << src;
-      __ vmovs(dst.AsSRegister(), src.AsSRegister());
+      if (src.IsSRegister()) {
+        __ vmovs(dst.AsSRegister(), src.AsSRegister());
+      } else {
+        // VMOV Sn, Rn  (Sn = Rn)
+        CHECK(src.IsCoreRegister()) << src;
+        __ vmovsr(dst.AsSRegister(), src.AsCoreRegister());
+      }
     } else {
       CHECK(dst.IsRegisterPair()) << dst;
       CHECK(src.IsRegisterPair()) << src;
