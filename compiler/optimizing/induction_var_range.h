@@ -76,10 +76,10 @@ class InductionVarRange {
    * and need_taken test flags denote if an additional finite-test and/or taken-test
    * are needed to protect the range evaluation inside its loop.
    */
-  bool CanGenerateCode(HInstruction* context,
-                       HInstruction* instruction,
-                       /*out*/ bool* needs_finite_test,
-                       /*out*/ bool* needs_taken_test);
+  bool CanGenerateRange(HInstruction* context,
+                        HInstruction* instruction,
+                        /*out*/ bool* needs_finite_test,
+                        /*out*/ bool* needs_taken_test);
 
   /**
    * Generates the actual code in the HIR for the lower and upper bound expressions on the
@@ -94,25 +94,42 @@ class InductionVarRange {
    *   lower: add x, 0
    *   upper: add x, 5
    *
-   * Precondition: CanGenerateCode() returns true.
+   * Precondition: CanGenerateRange() returns true.
    */
-  void GenerateRangeCode(HInstruction* context,
-                         HInstruction* instruction,
-                         HGraph* graph,
-                         HBasicBlock* block,
-                         /*out*/ HInstruction** lower,
-                         /*out*/ HInstruction** upper);
+  void GenerateRange(HInstruction* context,
+                     HInstruction* instruction,
+                     HGraph* graph,
+                     HBasicBlock* block,
+                     /*out*/ HInstruction** lower,
+                     /*out*/ HInstruction** upper);
 
   /**
    * Generates explicit taken-test for the loop in the given context. Code is generated in
-   * given block and graph. The taken-test is returned in parameter test.
+   * given block and graph. Returns generated taken-test.
    *
-   * Precondition: CanGenerateCode() returns true and needs_taken_test is set.
+   * Precondition: CanGenerateRange() returns true and needs_taken_test is set.
    */
-  void GenerateTakenTest(HInstruction* context,
-                         HGraph* graph,
-                         HBasicBlock* block,
-                         /*out*/ HInstruction** taken_test);
+  HInstruction* GenerateTakenTest(HInstruction* context, HGraph* graph, HBasicBlock* block);
+
+  /**
+   * Returns true if induction analysis is able to generate code for last value of
+   * the given instruction inside the closest enveloping loop.
+   */
+  bool CanGenerateLastValue(HInstruction* instruction);
+
+  /**
+   * Generates last value of the given instruction in the closest enveloping loop.
+   * Code is generated in given block and graph. Returns generated last value.
+   *
+   * Precondition: CanGenerateLastValue() returns true.
+   */
+  HInstruction* GenerateLastValue(HInstruction* instruction, HGraph* graph, HBasicBlock* block);
+
+  /**
+   * Updates all matching fetches with the given replacement in all induction information
+   * that is associated with the given instruction.
+   */
+  void Replace(HInstruction* instruction, HInstruction* fetch, HInstruction* replacement);
 
  private:
   /*
@@ -140,7 +157,8 @@ class InductionVarRange {
                         /*out*/ HInductionVarAnalysis::InductionInfo** trip) const;
 
   bool HasFetchInLoop(HInductionVarAnalysis::InductionInfo* info) const;
-  bool NeedsTripCount(HInductionVarAnalysis::InductionInfo* info) const;
+  bool NeedsTripCount(HInductionVarAnalysis::InductionInfo* info,
+                      /*out*/ int64_t* stride_value) const;
   bool IsBodyTripCount(HInductionVarAnalysis::InductionInfo* trip) const;
   bool IsUnsafeTripCount(HInductionVarAnalysis::InductionInfo* trip) const;
   bool IsWellBehavedTripCount(HInductionVarAnalysis::InductionInfo* trip) const;
@@ -186,17 +204,19 @@ class InductionVarRange {
   Value MergeVal(Value v1, Value v2, bool is_min) const;
 
   /**
-   * Generates code for lower/upper/taken-test in the HIR. Returns true on success.
-   * With values nullptr, the method can be used to determine if code generation
+   * Generates code for lower/upper/taken-test or last value in the HIR. Returns true on
+   * success. With values nullptr, the method can be used to determine if code generation
    * would be successful without generating actual code yet.
    */
   bool GenerateCode(HInstruction* context,
                     HInstruction* instruction,
+                    bool is_last_val,
                     HGraph* graph,
                     HBasicBlock* block,
                     /*out*/ HInstruction** lower,
                     /*out*/ HInstruction** upper,
                     /*out*/ HInstruction** taken_test,
+                    /*out*/ int64_t* stride_value,
                     /*out*/ bool* needs_finite_test,
                     /*out*/ bool* needs_taken_test) const;
 
@@ -207,6 +227,10 @@ class InductionVarRange {
                     /*out*/ HInstruction** result,
                     bool in_body,
                     bool is_min) const;
+
+  void ReplaceInduction(HInductionVarAnalysis::InductionInfo* info,
+                        HInstruction* fetch,
+                        HInstruction* replacement);
 
   /** Results of prior induction variable analysis. */
   HInductionVarAnalysis* induction_analysis_;
