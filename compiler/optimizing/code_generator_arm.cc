@@ -5422,17 +5422,6 @@ void InstructionCodeGeneratorARM::GenerateClassInitializationCheck(
 
 HLoadString::LoadKind CodeGeneratorARM::GetSupportedLoadStringKind(
     HLoadString::LoadKind desired_string_load_kind) {
-  if (kEmitCompilerReadBarrier) {
-    switch (desired_string_load_kind) {
-      case HLoadString::LoadKind::kBootImageLinkTimeAddress:
-      case HLoadString::LoadKind::kBootImageLinkTimePcRelative:
-      case HLoadString::LoadKind::kBootImageAddress:
-        // TODO: Implement for read barrier.
-        return HLoadString::LoadKind::kDexCacheViaMethod;
-      default:
-        break;
-    }
-  }
   switch (desired_string_load_kind) {
     case HLoadString::LoadKind::kBootImageLinkTimeAddress:
       DCHECK(!GetCompilerOptions().GetCompilePic());
@@ -5485,13 +5474,11 @@ void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) {
 
   switch (load_kind) {
     case HLoadString::LoadKind::kBootImageLinkTimeAddress: {
-      DCHECK(!kEmitCompilerReadBarrier);
       __ LoadLiteral(out, codegen_->DeduplicateBootImageStringLiteral(load->GetDexFile(),
                                                                       load->GetStringIndex()));
       return;  // No dex cache slow path.
     }
     case HLoadString::LoadKind::kBootImageLinkTimePcRelative: {
-      DCHECK(!kEmitCompilerReadBarrier);
       CodeGeneratorARM::PcRelativePatchInfo* labels =
           codegen_->NewPcRelativeStringPatch(load->GetDexFile(), load->GetStringIndex());
       __ BindTrackedLabel(&labels->movw_label);
@@ -5503,7 +5490,6 @@ void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) {
       return;  // No dex cache slow path.
     }
     case HLoadString::LoadKind::kBootImageAddress: {
-      DCHECK(!kEmitCompilerReadBarrier);
       DCHECK_NE(load->GetAddress(), 0u);
       uint32_t address = dchecked_integral_cast<uint32_t>(load->GetAddress());
       __ LoadLiteral(out, codegen_->DeduplicateBootImageAddressLiteral(address));
