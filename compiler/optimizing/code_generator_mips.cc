@@ -2378,13 +2378,8 @@ void InstructionCodeGeneratorMIPS::HandleCondition(HCondition* instruction) {
 
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
-      // TODO: don't use branches.
-      GenerateFpCompareAndBranch(instruction->GetCondition(),
-                                 instruction->IsGtBias(),
-                                 type,
-                                 locations,
-                                 &true_label);
-      break;
+      GenerateFpCompare(instruction->GetCondition(), instruction->IsGtBias(), type, locations);
+      return;
   }
 
   // Convert the branches into the result.
@@ -3173,6 +3168,230 @@ void InstructionCodeGeneratorMIPS::GenerateLongCompareAndBranch(IfCondition cond
         __ Sltu(AT, rhs_low, lhs_low);
         __ Blt(TMP, AT, label);
         break;
+    }
+  }
+}
+
+void InstructionCodeGeneratorMIPS::GenerateFpCompare(IfCondition cond,
+                                                     bool gt_bias,
+                                                     Primitive::Type type,
+                                                     LocationSummary* locations) {
+  Register dst = locations->Out().AsRegister<Register>();
+  FRegister lhs = locations->InAt(0).AsFpuRegister<FRegister>();
+  FRegister rhs = locations->InAt(1).AsFpuRegister<FRegister>();
+  bool isR6 = codegen_->GetInstructionSetFeatures().IsR6();
+  if (type == Primitive::kPrimFloat) {
+    if (isR6) {
+      switch (cond) {
+        case kCondEQ:
+          __ CmpEqS(FTMP, lhs, rhs);
+          __ Mfc1(dst, FTMP);
+          __ Andi(dst, dst, 1);
+          break;
+        case kCondNE:
+          __ CmpEqS(FTMP, lhs, rhs);
+          __ Mfc1(dst, FTMP);
+          __ Addiu(dst, dst, 1);
+          break;
+        case kCondLT:
+          if (gt_bias) {
+            __ CmpLtS(FTMP, lhs, rhs);
+          } else {
+            __ CmpUltS(FTMP, lhs, rhs);
+          }
+          __ Mfc1(dst, FTMP);
+          __ Andi(dst, dst, 1);
+          break;
+        case kCondLE:
+          if (gt_bias) {
+            __ CmpLeS(FTMP, lhs, rhs);
+          } else {
+            __ CmpUleS(FTMP, lhs, rhs);
+          }
+          __ Mfc1(dst, FTMP);
+          __ Andi(dst, dst, 1);
+          break;
+        case kCondGT:
+          if (gt_bias) {
+            __ CmpUltS(FTMP, rhs, lhs);
+          } else {
+            __ CmpLtS(FTMP, rhs, lhs);
+          }
+          __ Mfc1(dst, FTMP);
+          __ Andi(dst, dst, 1);
+          break;
+        case kCondGE:
+          if (gt_bias) {
+            __ CmpUleS(FTMP, rhs, lhs);
+          } else {
+            __ CmpLeS(FTMP, rhs, lhs);
+          }
+          __ Mfc1(dst, FTMP);
+          __ Andi(dst, dst, 1);
+          break;
+        default:
+          LOG(FATAL) << "Unexpected non-floating-point condition " << cond;
+          UNREACHABLE();
+      }
+    } else {
+      switch (cond) {
+        case kCondEQ:
+          __ CeqS(0, lhs, rhs);
+          __ LoadConst32(dst, 1);
+          __ Movf(dst, ZERO, 0);
+          break;
+        case kCondNE:
+          __ CeqS(0, lhs, rhs);
+          __ LoadConst32(dst, 1);
+          __ Movt(dst, ZERO, 0);
+          break;
+        case kCondLT:
+          if (gt_bias) {
+            __ ColtS(0, lhs, rhs);
+          } else {
+            __ CultS(0, lhs, rhs);
+          }
+          __ LoadConst32(dst, 1);
+          __ Movf(dst, ZERO, 0);
+          break;
+        case kCondLE:
+          if (gt_bias) {
+            __ ColeS(0, lhs, rhs);
+          } else {
+            __ CuleS(0, lhs, rhs);
+          }
+          __ LoadConst32(dst, 1);
+          __ Movf(dst, ZERO, 0);
+          break;
+        case kCondGT:
+          if (gt_bias) {
+            __ CultS(0, rhs, lhs);
+          } else {
+            __ ColtS(0, rhs, lhs);
+          }
+          __ LoadConst32(dst, 1);
+          __ Movf(dst, ZERO, 0);
+          break;
+        case kCondGE:
+          if (gt_bias) {
+            __ CuleS(0, rhs, lhs);
+          } else {
+            __ ColeS(0, rhs, lhs);
+          }
+          __ LoadConst32(dst, 1);
+          __ Movf(dst, ZERO, 0);
+          break;
+        default:
+          LOG(FATAL) << "Unexpected non-floating-point condition " << cond;
+          UNREACHABLE();
+      }
+    }
+  } else {
+    DCHECK_EQ(type, Primitive::kPrimDouble);
+    if (isR6) {
+      switch (cond) {
+        case kCondEQ:
+          __ CmpEqD(FTMP, lhs, rhs);
+          __ Mfc1(dst, FTMP);
+          __ Andi(dst, dst, 1);
+          break;
+        case kCondNE:
+          __ CmpEqD(FTMP, lhs, rhs);
+          __ Mfc1(dst, FTMP);
+          __ Addiu(dst, dst, 1);
+          break;
+        case kCondLT:
+          if (gt_bias) {
+            __ CmpLtD(FTMP, lhs, rhs);
+          } else {
+            __ CmpUltD(FTMP, lhs, rhs);
+          }
+          __ Mfc1(dst, FTMP);
+          __ Andi(dst, dst, 1);
+          break;
+        case kCondLE:
+          if (gt_bias) {
+            __ CmpLeD(FTMP, lhs, rhs);
+          } else {
+            __ CmpUleD(FTMP, lhs, rhs);
+          }
+          __ Mfc1(dst, FTMP);
+          __ Andi(dst, dst, 1);
+          break;
+        case kCondGT:
+          if (gt_bias) {
+            __ CmpUltD(FTMP, rhs, lhs);
+          } else {
+            __ CmpLtD(FTMP, rhs, lhs);
+          }
+          __ Mfc1(dst, FTMP);
+          __ Andi(dst, dst, 1);
+          break;
+        case kCondGE:
+          if (gt_bias) {
+            __ CmpUleD(FTMP, rhs, lhs);
+          } else {
+            __ CmpLeD(FTMP, rhs, lhs);
+          }
+          __ Mfc1(dst, FTMP);
+          __ Andi(dst, dst, 1);
+          break;
+        default:
+          LOG(FATAL) << "Unexpected non-floating-point condition " << cond;
+          UNREACHABLE();
+      }
+    } else {
+      switch (cond) {
+        case kCondEQ:
+          __ CeqD(0, lhs, rhs);
+          __ LoadConst32(dst, 1);
+          __ Movf(dst, ZERO, 0);
+          break;
+        case kCondNE:
+          __ CeqD(0, lhs, rhs);
+          __ LoadConst32(dst, 1);
+          __ Movt(dst, ZERO, 0);
+          break;
+        case kCondLT:
+          if (gt_bias) {
+            __ ColtD(0, lhs, rhs);
+          } else {
+            __ CultD(0, lhs, rhs);
+          }
+          __ LoadConst32(dst, 1);
+          __ Movf(dst, ZERO, 0);
+          break;
+        case kCondLE:
+          if (gt_bias) {
+            __ ColeD(0, lhs, rhs);
+          } else {
+            __ CuleD(0, lhs, rhs);
+          }
+          __ LoadConst32(dst, 1);
+          __ Movf(dst, ZERO, 0);
+          break;
+        case kCondGT:
+          if (gt_bias) {
+            __ CultD(0, rhs, lhs);
+          } else {
+            __ ColtD(0, rhs, lhs);
+          }
+          __ LoadConst32(dst, 1);
+          __ Movf(dst, ZERO, 0);
+          break;
+        case kCondGE:
+          if (gt_bias) {
+            __ CuleD(0, rhs, lhs);
+          } else {
+            __ ColeD(0, rhs, lhs);
+          }
+          __ LoadConst32(dst, 1);
+          __ Movf(dst, ZERO, 0);
+          break;
+        default:
+          LOG(FATAL) << "Unexpected non-floating-point condition " << cond;
+          UNREACHABLE();
+      }
     }
   }
 }
