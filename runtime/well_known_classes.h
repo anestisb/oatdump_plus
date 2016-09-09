@@ -67,6 +67,8 @@ struct WellKnownClasses {
   static jclass java_lang_reflect_Executable;
   static jclass java_lang_reflect_Field;
   static jclass java_lang_reflect_Method;
+  static jclass java_lang_reflect_Parameter;
+  static jclass java_lang_reflect_Parameter__array;
   static jclass java_lang_reflect_Proxy;
   static jclass java_lang_RuntimeException;
   static jclass java_lang_StackOverflowError;
@@ -101,6 +103,7 @@ struct WellKnownClasses {
   static jmethodID java_lang_Long_valueOf;
   static jmethodID java_lang_ref_FinalizerReference_add;
   static jmethodID java_lang_ref_ReferenceQueue_add;
+  static jmethodID java_lang_reflect_Parameter_init;
   static jmethodID java_lang_reflect_Proxy_invoke;
   static jmethodID java_lang_Runtime_nativeLoad;
   static jmethodID java_lang_Short_valueOf;
