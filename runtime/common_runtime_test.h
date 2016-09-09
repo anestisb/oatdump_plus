@@ -184,6 +184,7 @@ class CheckJniAbortCatcher {
 
   ~CheckJniAbortCatcher();
 
+  void Check(const std::string& expected_text);
   void Check(const char* expected_text);
 
  private:

@@ -378,6 +378,10 @@ class ArtMethod FINAL {
   // -- Independent of kAccFastNative access flags.
   bool IsAnnotatedWithFastNative();
 
+  // Checks to see if the method was annotated with @dalvik.annotation.optimization.CriticalNative
+  // -- Unrelated to the GC notion of "critical".
+  bool IsAnnotatedWithCriticalNative();
+
   // Returns true if this method could be overridden by a default method.
   bool IsOverridableByDefaultMethod() REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -776,6 +780,8 @@ class ArtMethod FINAL {
   } ptr_sized_fields_;
 
  private:
+  bool IsAnnotatedWith(jclass klass, uint32_t visibility);
+
   static constexpr size_t PtrSizedFieldsOffset(PointerSize pointer_size) {
     // Round up to pointer size for padding field. Tested in art_method.cc.
     return RoundUp(offsetof(ArtMethod, hotness_count_) + sizeof(hotness_count_),
