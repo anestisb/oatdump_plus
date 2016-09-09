@@ -16,14 +16,15 @@
 
 package com.android.ahat;
 
-import com.android.tools.perflib.heap.ClassObj;
-import com.android.tools.perflib.heap.Field;
-import com.android.tools.perflib.heap.Instance;
+import com.android.ahat.heapdump.AhatClassObj;
+import com.android.ahat.heapdump.AhatInstance;
+import com.android.ahat.heapdump.AhatSnapshot;
+import com.android.ahat.heapdump.FieldValue;
+import com.android.ahat.heapdump.Value;
 import com.android.tools.perflib.heap.ProguardMap;
 import java.io.File;
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.Map;
 
 /**
  * The TestDump class is used to get an AhatSnapshot for the test-dump
@@ -71,18 +72,27 @@ public class TestDump {
   }
 
   /**
-   * Return the value of a field in the DumpedStuff instance in the
+   * Returns the value of a field in the DumpedStuff instance in the
    * snapshot for the test-dump program.
    */
-  public Object getDumpedThing(String name) {
-    ClassObj main = mSnapshot.findClass("Main");
-    Instance stuff = null;
-    for (Map.Entry<Field, Object> fields : main.getStaticFieldValues().entrySet()) {
-      if ("stuff".equals(fields.getKey().getName())) {
-        stuff = (Instance) fields.getValue();
+  public Value getDumpedValue(String name) {
+    AhatClassObj main = mSnapshot.findClass("Main");
+    AhatInstance stuff = null;
+    for (FieldValue fields : main.getStaticFieldValues()) {
+      if ("stuff".equals(fields.getName())) {
+        stuff = fields.getValue().asAhatInstance();
       }
     }
-    return InstanceUtils.getField(stuff, name);
+    return stuff.getField(name);
+  }
+
+  /**
+   * Returns the value of a non-primitive field in the DumpedStuff instance in
+   * the snapshot for the test-dump program.
+   */
+  public AhatInstance getDumpedAhatInstance(String name) {
+    Value value = getDumpedValue(name);
+    return value == null ? null : value.asAhatInstance();
   }
 
   /**

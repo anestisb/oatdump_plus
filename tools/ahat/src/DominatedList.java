@@ -16,8 +16,9 @@
 
 package com.android.ahat;
 
-import com.android.tools.perflib.heap.Heap;
-import com.android.tools.perflib.heap.Instance;
+import com.android.ahat.heapdump.AhatHeap;
+import com.android.ahat.heapdump.AhatInstance;
+import com.android.ahat.heapdump.AhatSnapshot;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -39,39 +40,32 @@ class DominatedList {
    * @param instances the collection of instances to generate a list for
    */
   public static void render(final AhatSnapshot snapshot,
-      Doc doc, Query query, String id, Collection<Instance> instances) {
-    List<Instance> insts = new ArrayList<Instance>(instances);
+      Doc doc, Query query, String id, Collection<AhatInstance> instances) {
+    List<AhatInstance> insts = new ArrayList<AhatInstance>(instances);
     Collections.sort(insts, Sort.defaultInstanceCompare(snapshot));
-    HeapTable.render(doc, query, id, new TableConfig(snapshot), snapshot, insts);
+    HeapTable.render(doc, query, id, new TableConfig(), snapshot, insts);
   }
 
-  private static class TableConfig implements HeapTable.TableConfig<Instance> {
-    AhatSnapshot mSnapshot;
-
-    public TableConfig(AhatSnapshot snapshot) {
-      mSnapshot = snapshot;
-    }
-
+  private static class TableConfig implements HeapTable.TableConfig<AhatInstance> {
     @Override
     public String getHeapsDescription() {
       return "Bytes Retained by Heap";
     }
 
     @Override
-    public long getSize(Instance element, Heap heap) {
-      int index = mSnapshot.getHeapIndex(heap);
-      return element.getRetainedSize(index);
+    public long getSize(AhatInstance element, AhatHeap heap) {
+      return element.getRetainedSize(heap);
     }
 
     @Override
-    public List<HeapTable.ValueConfig<Instance>> getValueConfigs() {
-      HeapTable.ValueConfig<Instance> value = new HeapTable.ValueConfig<Instance>() {
+    public List<HeapTable.ValueConfig<AhatInstance>> getValueConfigs() {
+      HeapTable.ValueConfig<AhatInstance> value = new HeapTable.ValueConfig<AhatInstance>() {
         public String getDescription() {
           return "Object";
         }
 
-        public DocString render(Instance element) {
-          return Value.render(mSnapshot, element);
+        public DocString render(AhatInstance element) {
+          return Summarizer.summarize(element);
         }
       };
       return Collections.singletonList(value);

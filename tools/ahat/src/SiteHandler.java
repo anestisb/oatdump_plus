@@ -16,7 +16,9 @@
 
 package com.android.ahat;
 
-import com.android.tools.perflib.heap.Heap;
+import com.android.ahat.heapdump.AhatHeap;
+import com.android.ahat.heapdump.AhatSnapshot;
+import com.android.ahat.heapdump.Site;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Comparator;
@@ -35,11 +37,13 @@ class SiteHandler implements AhatHandler {
 
   @Override
   public void handle(Doc doc, Query query) throws IOException {
-    int stackId = query.getInt("stack", 0);
-    int depth = query.getInt("depth", -1);
-    Site site = mSnapshot.getSite(stackId, depth);
+    int id = query.getInt("id", 0);
+    int depth = query.getInt("depth", 0);
+    Site site = mSnapshot.getSite(id, depth);
 
-    doc.title("Site %s", site.getName());
+    doc.title("Site");
+    doc.big(Summarizer.summarize(site));
+
     doc.section("Allocation Site");
     SitePrinter.printSite(mSnapshot, doc, query, ALLOCATION_SITE_ID, site);
 
@@ -48,15 +52,14 @@ class SiteHandler implements AhatHandler {
     if (children.isEmpty()) {
       doc.println(DocString.text("(none)"));
     } else {
-      Collections.sort(children, new Sort.SiteBySize("app"));
-
+      Collections.sort(children, Sort.defaultSiteCompare(mSnapshot));
       HeapTable.TableConfig<Site> table = new HeapTable.TableConfig<Site>() {
         public String getHeapsDescription() {
           return "Reachable Bytes Allocated on Heap";
         }
 
-        public long getSize(Site element, Heap heap) {
-          return element.getSize(heap.getName());
+        public long getSize(Site element, AhatHeap heap) {
+          return element.getSize(heap);
         }
 
         public List<HeapTable.ValueConfig<Site>> getValueConfigs() {
@@ -66,10 +69,7 @@ class SiteHandler implements AhatHandler {
             }
 
             public DocString render(Site element) {
-              return DocString.link(
-                  DocString.formattedUri("site?stack=%d&depth=%d",
-                    element.getStackId(), element.getStackDepth()),
-                  DocString.text(element.getName()));
+              return Summarizer.summarize(element);
             }
           };
           return Collections.singletonList(value);
@@ -93,15 +93,15 @@ class SiteHandler implements AhatHandler {
     SubsetSelector<Site.ObjectsInfo> selector
       = new SubsetSelector(query, OBJECTS_ALLOCATED_ID, infos);
     for (Site.ObjectsInfo info : selector.selected()) {
-      String className = AhatSnapshot.getClassName(info.classObj);
+      String className = info.getClassName();
       doc.row(
           DocString.format("%,14d", info.numBytes),
           DocString.link(
-            DocString.formattedUri("objects?stack=%d&depth=%d&heap=%s&class=%s",
-                site.getStackId(), site.getStackDepth(), info.heap.getName(), className),
+            DocString.formattedUri("objects?id=%d&depth=%d&heap=%s&class=%s",
+                site.getId(), site.getDepth(), info.heap.getName(), className),
             DocString.format("%,14d", info.numInstances)),
           DocString.text(info.heap.getName()),
-          Value.render(mSnapshot, info.classObj));
+          Summarizer.summarize(info.classObj));
     }
     doc.end();
     selector.render(doc);

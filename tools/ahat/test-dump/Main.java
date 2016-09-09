@@ -20,6 +20,7 @@ import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import libcore.util.NativeAllocationRegistry;
+import org.apache.harmony.dalvik.ddmc.DdmVmInternal;
 
 /**
  * Program used to create a heap dump for test purposes.
@@ -45,7 +46,7 @@ public class Main {
   // class and reading the desired field.
   public static class DumpedStuff {
     public String basicString = "hello, world";
-    public String nonAscii = "Sigma (\u01a9) is not ASCII";
+    public String nonAscii = "Sigma (Ʃ) is not ASCII";
     public String embeddedZero = "embedded\0...";  // Non-ASCII for string compression purposes.
     public char[] charArray = "char thing".toCharArray();
     public String nullString = null;
@@ -53,12 +54,14 @@ public class Main {
     public ReferenceQueue<Object> referenceQueue = new ReferenceQueue<Object>();
     public PhantomReference aPhantomReference = new PhantomReference(anObject, referenceQueue);
     public WeakReference aWeakReference = new WeakReference(anObject, referenceQueue);
+    public WeakReference aNullReferentReference = new WeakReference(null, referenceQueue);
     public byte[] bigArray;
     public ObjectTree[] gcPathArray = new ObjectTree[]{null, null,
       new ObjectTree(
           new ObjectTree(null, new ObjectTree(null, null)),
           new ObjectTree(null, null)),
       null};
+    public Object[] basicStringRef;
 
     DumpedStuff() {
       int N = 1000000;
@@ -82,8 +85,17 @@ public class Main {
     }
     String file = args[0];
 
+    // Enable allocation tracking so we get stack traces in the heap dump.
+    DdmVmInternal.enableRecentAllocations(true);
+
     // Allocate the instance of DumpedStuff.
     stuff = new DumpedStuff();
+
+    // Create a bunch of unreachable objects pointing to basicString for the
+    // reverseReferencesAreNotUnreachable test
+    for (int i = 0; i < 100; i++) {
+      stuff.basicStringRef = new Object[]{stuff.basicString};
+    }
 
     // Take a heap dump that will include that instance of DumpedStuff.
     System.err.println("Dumping hprof data to " + file);

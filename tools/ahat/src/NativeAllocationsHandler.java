@@ -16,6 +16,8 @@
 
 package com.android.ahat;
 
+import com.android.ahat.heapdump.AhatSnapshot;
+import com.android.ahat.heapdump.NativeAllocation;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Comparator;
@@ -32,13 +34,13 @@ class NativeAllocationsHandler implements AhatHandler {
 
   @Override
   public void handle(Doc doc, Query query) throws IOException {
-    List<InstanceUtils.NativeAllocation> allocs = mSnapshot.getNativeAllocations();
+    List<NativeAllocation> allocs = mSnapshot.getNativeAllocations();
 
     doc.title("Registered Native Allocations");
 
     doc.section("Overview");
     long totalSize = 0;
-    for (InstanceUtils.NativeAllocation alloc : allocs) {
+    for (NativeAllocation alloc : allocs) {
       totalSize += alloc.size;
     }
     doc.descriptions();
@@ -57,26 +59,26 @@ class NativeAllocationsHandler implements AhatHandler {
           new Column("Heap"),
           new Column("Native Pointer"),
           new Column("Referent"));
-      Comparator<InstanceUtils.NativeAllocation> compare
-        = new Sort.WithPriority<InstanceUtils.NativeAllocation>(
+      Comparator<NativeAllocation> compare
+        = new Sort.WithPriority<NativeAllocation>(
             new Sort.NativeAllocationByHeapName(),
             new Sort.NativeAllocationBySize());
       Collections.sort(allocs, compare);
-      SubsetSelector<InstanceUtils.NativeAllocation> selector
+      SubsetSelector<NativeAllocation> selector
         = new SubsetSelector(query, ALLOCATIONS_ID, allocs);
-      for (InstanceUtils.NativeAllocation alloc : selector.selected()) {
+      for (NativeAllocation alloc : selector.selected()) {
         doc.row(
             DocString.format("%,14d", alloc.size),
             DocString.text(alloc.heap.getName()),
             DocString.format("0x%x", alloc.pointer),
-            Value.render(mSnapshot, alloc.referent));
+            Summarizer.summarize(alloc.referent));
       }
 
       // Print a summary of the remaining entries if there are any.
-      List<InstanceUtils.NativeAllocation> remaining = selector.remaining();
+      List<NativeAllocation> remaining = selector.remaining();
       if (!remaining.isEmpty()) {
         long total = 0;
-        for (InstanceUtils.NativeAllocation alloc : remaining) {
+        for (NativeAllocation alloc : remaining) {
           total += alloc.size;
         }
 

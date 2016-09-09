@@ -16,7 +16,9 @@
 
 package com.android.ahat;
 
-import com.android.tools.perflib.heap.Instance;
+import com.android.ahat.heapdump.AhatInstance;
+import com.android.ahat.heapdump.AhatSnapshot;
+import com.android.ahat.heapdump.Site;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,17 +35,16 @@ class ObjectsHandler implements AhatHandler {
 
   @Override
   public void handle(Doc doc, Query query) throws IOException {
-    int stackId = query.getInt("stack", 0);
+    int id = query.getInt("id", 0);
     int depth = query.getInt("depth", 0);
     String className = query.get("class", null);
     String heapName = query.get("heap", null);
-    Site site = mSnapshot.getSite(stackId, depth);
+    Site site = mSnapshot.getSite(id, depth);
 
-    List<Instance> insts = new ArrayList<Instance>();
-    for (Instance inst : site.getObjects()) {
+    List<AhatInstance> insts = new ArrayList<AhatInstance>();
+    for (AhatInstance inst : site.getObjects()) {
       if ((heapName == null || inst.getHeap().getName().equals(heapName))
-          && (className == null
-            || AhatSnapshot.getClassName(inst.getClassObj()).equals(className))) {
+          && (className == null || inst.getClassName().equals(className))) {
         insts.add(inst);
       }
     }
@@ -55,12 +56,12 @@ class ObjectsHandler implements AhatHandler {
         new Column("Size", Column.Align.RIGHT),
         new Column("Heap"),
         new Column("Object"));
-    SubsetSelector<Instance> selector = new SubsetSelector(query, OBJECTS_ID, insts);
-    for (Instance inst : selector.selected()) {
+    SubsetSelector<AhatInstance> selector = new SubsetSelector(query, OBJECTS_ID, insts);
+    for (AhatInstance inst : selector.selected()) {
       doc.row(
           DocString.format("%,d", inst.getSize()),
           DocString.text(inst.getHeap().getName()),
-          Value.render(mSnapshot, inst));
+          Summarizer.summarize(inst));
     }
     doc.end();
     selector.render(doc);

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 The Android Open Source Project
+ * Copyright (C) 2016 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,24 +14,16 @@
  * limitations under the License.
  */
 
-package com.android.ahat;
+package com.android.ahat.heapdump;
 
-import com.android.ahat.heapdump.AhatSnapshot;
-import java.io.IOException;
+public class PathElement {
+  public final AhatInstance instance;
+  public final String field;
+  public boolean isDominator;
 
-class RootedHandler implements AhatHandler {
-
-  private static final String ROOTED_ID = "rooted";
-
-  private AhatSnapshot mSnapshot;
-
-  public RootedHandler(AhatSnapshot snapshot) {
-    mSnapshot = snapshot;
-  }
-
-  @Override
-  public void handle(Doc doc, Query query) throws IOException {
-    doc.title("Rooted");
-    DominatedList.render(mSnapshot, doc, query, ROOTED_ID, mSnapshot.getRooted());
+  public PathElement(AhatInstance instance, String field) {
+    this.instance = instance;
+    this.field = field;
+    this.isDominator = false;
   }
 }

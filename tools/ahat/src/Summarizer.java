@@ -16,23 +16,24 @@
 
 package com.android.ahat;
 
-import com.android.tools.perflib.heap.ClassObj;
-import com.android.tools.perflib.heap.Instance;
+import com.android.ahat.heapdump.AhatInstance;
+import com.android.ahat.heapdump.Site;
+import com.android.ahat.heapdump.Value;
 import java.net.URI;
 
 /**
- * Class to render an hprof value to a DocString.
+ * Class for generating a DocString summary of an instance or value.
  */
-class Value {
+class Summarizer {
 
   // For string literals, we limit the number of characters we show to
   // kMaxChars in case the string is really long.
   private static int kMaxChars = 200;
 
   /**
-   * Create a DocString representing a summary of the given instance.
+   * Creates a DocString representing a summary of the given instance.
    */
-  private static DocString renderInstance(AhatSnapshot snapshot, Instance inst) {
+  public static DocString summarize(AhatInstance inst) {
     DocString formatted = new DocString();
     if (inst == null) {
       formatted.append("(null)");
@@ -40,14 +41,13 @@ class Value {
     }
 
     // Annotate roots as roots.
-    if (snapshot.isRoot(inst)) {
+    if (inst.isRoot()) {
       formatted.append("(root) ");
     }
 
-
     // Annotate classes as classes.
     DocString link = new DocString();
-    if (inst instanceof ClassObj) {
+    if (inst.isClassObj()) {
       link.append("class ");
     }
 
@@ -57,25 +57,25 @@ class Value {
     formatted.appendLink(objTarget, link);
 
     // Annotate Strings with their values.
-    String stringValue = InstanceUtils.asString(inst, kMaxChars);
+    String stringValue = inst.asString(kMaxChars);
     if (stringValue != null) {
       formatted.appendFormat(" \"%s", stringValue);
       formatted.append(kMaxChars == stringValue.length() ? "..." : "\"");
     }
 
     // Annotate Reference with its referent
-    Instance referent = InstanceUtils.getReferent(inst);
+    AhatInstance referent = inst.getReferent();
     if (referent != null) {
       formatted.append(" for ");
 
       // It should not be possible for a referent to refer back to the
       // reference object, even indirectly, so there shouldn't be any issues
       // with infinite recursion here.
-      formatted.append(renderInstance(snapshot, referent));
+      formatted.append(summarize(referent));
     }
 
     // Annotate DexCache with its location.
-    String dexCacheLocation = InstanceUtils.getDexCacheLocation(inst, kMaxChars);
+    String dexCacheLocation = inst.getDexCacheLocation(kMaxChars);
     if (dexCacheLocation != null) {
       formatted.appendFormat(" for %s", dexCacheLocation);
       if (kMaxChars == dexCacheLocation.length()) {
@@ -85,7 +85,7 @@ class Value {
 
 
     // Annotate bitmaps with a thumbnail.
-    Instance bitmap = InstanceUtils.getAssociatedBitmapInstance(inst);
+    AhatInstance bitmap = inst.getAssociatedBitmapInstance();
     String thumbnail = "";
     if (bitmap != null) {
       URI uri = DocString.formattedUri("bitmap?id=%d", bitmap.getId());
@@ -95,13 +95,30 @@ class Value {
   }
 
   /**
-   * Create a DocString summarizing the given value.
+   * Creates a DocString summarizing the given value.
    */
-  public static DocString render(AhatSnapshot snapshot, Object val) {
-    if (val instanceof Instance) {
-      return renderInstance(snapshot, (Instance)val);
-    } else {
-      return DocString.format("%s", val);
+  public static DocString summarize(Value value) {
+    if (value == null) {
+      return DocString.text("null");
     }
+    if (value.isAhatInstance()) {
+      return summarize(value.asAhatInstance());
+    }
+    return DocString.text(value.toString());
+  }
+
+  /**
+   * Creates a DocString summarizing the given site.
+   */
+  public static DocString summarize(Site site) {
+    DocString text = DocString.text(site.getMethodName());
+    text.append(site.getSignature());
+    text.append(" - ");
+    text.append(site.getFilename());
+    if (site.getLineNumber() > 0) {
+      text.append(":").append(Integer.toString(site.getLineNumber()));
+    }
+    URI uri = DocString.formattedUri("site?id=%d&depth=%d", site.getId(), site.getDepth());
+    return DocString.link(uri, text);
   }
 }

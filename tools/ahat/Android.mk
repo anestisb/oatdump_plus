@@ -98,7 +98,7 @@ ahat-test: PRIVATE_AHAT_TEST_DUMP_HPROF := $(AHAT_TEST_DUMP_HPROF)
 ahat-test: PRIVATE_AHAT_TEST_JAR := $(AHAT_TEST_JAR)
 ahat-test: PRIVATE_AHAT_PROGUARD_MAP := $(AHAT_TEST_DUMP_PROGUARD_MAP)
 ahat-test: $(AHAT_TEST_JAR) $(AHAT_TEST_DUMP_HPROF)
-	java -Dahat.test.dump.hprof=$(PRIVATE_AHAT_TEST_DUMP_HPROF) -Dahat.test.dump.map=$(PRIVATE_AHAT_PROGUARD_MAP) -jar $(PRIVATE_AHAT_TEST_JAR)
+	java -enableassertions -Dahat.test.dump.hprof=$(PRIVATE_AHAT_TEST_DUMP_HPROF) -Dahat.test.dump.map=$(PRIVATE_AHAT_PROGUARD_MAP) -jar $(PRIVATE_AHAT_TEST_JAR)
 
 # Clean up local variables.
 AHAT_TEST_DUMP_DEPENDENCIES :=

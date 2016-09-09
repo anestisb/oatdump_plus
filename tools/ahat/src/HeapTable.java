@@ -16,7 +16,8 @@
 
 package com.android.ahat;
 
-import com.android.tools.perflib.heap.Heap;
+import com.android.ahat.heapdump.AhatHeap;
+import com.android.ahat.heapdump.AhatSnapshot;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -39,7 +40,7 @@ class HeapTable {
    */
   public interface TableConfig<T> {
     String getHeapsDescription();
-    long getSize(T element, Heap heap);
+    long getSize(T element, AhatHeap heap);
     List<ValueConfig<T>> getValueConfigs();
   }
 
@@ -51,9 +52,9 @@ class HeapTable {
   public static <T> void render(Doc doc, Query query, String id,
       TableConfig<T> config, AhatSnapshot snapshot, List<T> elements) {
     // Only show the heaps that have non-zero entries.
-    List<Heap> heaps = new ArrayList<Heap>();
-    for (Heap heap : snapshot.getHeaps()) {
-      if (hasNonZeroEntry(snapshot, heap, config, elements)) {
+    List<AhatHeap> heaps = new ArrayList<AhatHeap>();
+    for (AhatHeap heap : snapshot.getHeaps()) {
+      if (hasNonZeroEntry(heap, config, elements)) {
         heaps.add(heap);
       }
     }
@@ -63,7 +64,7 @@ class HeapTable {
     // Print the heap and values descriptions.
     boolean showTotal = heaps.size() > 1;
     List<Column> subcols = new ArrayList<Column>();
-    for (Heap heap : heaps) {
+    for (AhatHeap heap : heaps) {
       subcols.add(new Column(heap.getName(), Column.Align.RIGHT));
     }
     if (showTotal) {
@@ -81,7 +82,7 @@ class HeapTable {
     for (T elem : selector.selected()) {
       vals.clear();
       long total = 0;
-      for (Heap heap : heaps) {
+      for (AhatHeap heap : heaps) {
         long size = config.getSize(elem, heap);
         total += size;
         vals.add(size == 0 ? DocString.text("") : DocString.format("%,14d", size));
@@ -99,20 +100,20 @@ class HeapTable {
     // Print a summary of the remaining entries if there are any.
     List<T> remaining = selector.remaining();
     if (!remaining.isEmpty()) {
-      Map<Heap, Long> summary = new HashMap<Heap, Long>();
-      for (Heap heap : heaps) {
+      Map<AhatHeap, Long> summary = new HashMap<AhatHeap, Long>();
+      for (AhatHeap heap : heaps) {
         summary.put(heap, 0L);
       }
 
       for (T elem : remaining) {
-        for (Heap heap : heaps) {
+        for (AhatHeap heap : heaps) {
           summary.put(heap, summary.get(heap) + config.getSize(elem, heap));
         }
       }
 
       vals.clear();
       long total = 0;
-      for (Heap heap : heaps) {
+      for (AhatHeap heap : heaps) {
         long size = summary.get(heap);
         total += size;
         vals.add(DocString.format("%,14d", size));
@@ -131,9 +132,9 @@ class HeapTable {
   }
 
   // Returns true if the given heap has a non-zero size entry.
-  public static <T> boolean hasNonZeroEntry(AhatSnapshot snapshot, Heap heap,
+  public static <T> boolean hasNonZeroEntry(AhatHeap heap,
       TableConfig<T> config, List<T> elements) {
-    if (snapshot.getHeapSize(heap) > 0) {
+    if (heap.getSize() > 0) {
       for (T element : elements) {
         if (config.getSize(element, heap) > 0) {
           return true;

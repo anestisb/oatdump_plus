@@ -16,9 +16,11 @@
 
 package com.android.ahat;
 
-import com.android.tools.perflib.heap.Heap;
-import java.io.IOException;
+import com.android.ahat.heapdump.AhatHeap;
+import com.android.ahat.heapdump.AhatSnapshot;
+import com.android.ahat.heapdump.NativeAllocation;
 import java.io.File;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
@@ -49,11 +51,11 @@ class OverviewHandler implements AhatHandler {
     doc.section("Heap Sizes");
     printHeapSizes(doc, query);
 
-    List<InstanceUtils.NativeAllocation> allocs = mSnapshot.getNativeAllocations();
+    List<NativeAllocation> allocs = mSnapshot.getNativeAllocations();
     if (!allocs.isEmpty()) {
       doc.section("Registered Native Allocations");
       long totalSize = 0;
-      for (InstanceUtils.NativeAllocation alloc : allocs) {
+      for (NativeAllocation alloc : allocs) {
         totalSize += alloc.size;
       }
       doc.descriptions();
@@ -75,8 +77,8 @@ class OverviewHandler implements AhatHandler {
         return "Bytes Retained by Heap";
       }
 
-      public long getSize(Object element, Heap heap) {
-        return mSnapshot.getHeapSize(heap);
+      public long getSize(Object element, AhatHeap heap) {
+        return heap.getSize();
       }
 
       public List<HeapTable.ValueConfig<Object>> getValueConfigs() {

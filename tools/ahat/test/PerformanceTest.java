@@ -16,13 +16,15 @@
 
 package com.android.ahat;
 
-import com.android.tools.perflib.heap.Instance;
+import com.android.ahat.heapdump.AhatInstance;
+import com.android.ahat.heapdump.AhatSnapshot;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import org.junit.Test;
+
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import org.junit.Test;
 
 public class PerformanceTest {
   private static class NullOutputStream extends OutputStream {
@@ -36,7 +38,7 @@ public class PerformanceTest {
     // for any object, including big arrays.
     TestDump dump = TestDump.getTestDump();
 
-    Instance bigArray = (Instance)dump.getDumpedThing("bigArray");
+    AhatInstance bigArray = dump.getDumpedAhatInstance("bigArray");
     assertNotNull(bigArray);
 
     AhatSnapshot snapshot = dump.getAhatSnapshot();

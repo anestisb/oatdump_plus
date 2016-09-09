@@ -16,7 +16,9 @@
 
 package com.android.ahat;
 
-import com.android.tools.perflib.heap.Heap;
+import com.android.ahat.heapdump.AhatHeap;
+import com.android.ahat.heapdump.AhatSnapshot;
+import com.android.ahat.heapdump.Site;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -35,8 +37,8 @@ class SitePrinter {
         return "Reachable Bytes Allocated on Heap";
       }
 
-      public long getSize(Site element, Heap heap) {
-        return element.getSize(heap.getName());
+      public long getSize(Site element, AhatHeap heap) {
+        return element.getSize(heap);
       }
 
       public List<HeapTable.ValueConfig<Site>> getValueConfigs() {
@@ -50,11 +52,7 @@ class SitePrinter {
             if (element.getParent() != null) {
               str.append("→ ");
             }
-            str.appendLink(
-                DocString.formattedUri("site?stack=%d&depth=%d",
-                    element.getStackId(), element.getStackDepth()),
-                DocString.text(element.getName()));
-            return str;
+            return str.append(Summarizer.summarize(element));
           }
         };
         return Collections.singletonList(value);
