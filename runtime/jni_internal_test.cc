@@ -679,7 +679,12 @@ TEST_F(JniInternalTest, AllocObject) {
   ASSERT_TRUE(env_->IsInstanceOf(o, c));
   // ...whose fields haven't been initialized because
   // we didn't call a constructor.
-  ASSERT_EQ(0, env_->GetIntField(o, env_->GetFieldID(c, "count", "I")));
+  if (art::mirror::kUseStringCompression) {
+    // Zero-length string is compressed, so the length internally will be -(1 << 31).
+    ASSERT_EQ(-2147483648, env_->GetIntField(o, env_->GetFieldID(c, "count", "I")));
+  } else {
+    ASSERT_EQ(0, env_->GetIntField(o, env_->GetFieldID(c, "count", "I")));
+  }
 }
 
 TEST_F(JniInternalTest, GetVersion) {
