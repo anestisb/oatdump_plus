@@ -608,6 +608,10 @@ CheckJniAbortCatcher::~CheckJniAbortCatcher() {
   EXPECT_TRUE(actual_.empty()) << actual_;
 }
 
+void CheckJniAbortCatcher::Check(const std::string& expected_text) {
+  Check(expected_text.c_str());
+}
+
 void CheckJniAbortCatcher::Check(const char* expected_text) {
   EXPECT_TRUE(actual_.find(expected_text) != std::string::npos) << "\n"
       << "Expected to find: " << expected_text << "\n"

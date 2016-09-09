@@ -28,9 +28,11 @@ namespace art {
 static JavaVM* jvm = nullptr;
 
 static jint Java_Main_intFastNativeMethod(JNIEnv*, jclass, jint a, jint b, jint c);
+static jint Java_Main_intCriticalNativeMethod(jint a, jint b, jint c);
 
 static JNINativeMethod sMainMethods[] = {
-  {"intFastNativeMethod", "(III)I", reinterpret_cast<void*>(Java_Main_intFastNativeMethod) }
+  {"intFastNativeMethod", "(III)I", reinterpret_cast<void*>(Java_Main_intFastNativeMethod) },
+  {"intCriticalNativeMethod", "(III)I", reinterpret_cast<void*>(Java_Main_intCriticalNativeMethod) },
 };
 
 extern "C" JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void*) {
@@ -763,6 +765,13 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_registerNativesJniTest(JNIEnv* e
 // Annotated with @FastNative in Java code. Doesn't need to be explicitly registered with "!".
 // NOTE: Has to be registered explicitly to avoid mutator lock check failures.
 static jint Java_Main_intFastNativeMethod(JNIEnv*, jclass, jint a, jint b, jint c) {
+  return a + b + c;
+}
+
+// Annotated with @CriticalNative in Java code. Doesn't need to be explicitly registered with "!".
+// NOTE: Has to be registered explicitly to avoid mutator lock check failures.
+static jint Java_Main_intCriticalNativeMethod(jint a, jint b, jint c) {
+  // Note that unlike a "Fast Native" method this excludes JNIEnv and the jclass parameters.
   return a + b + c;
 }
 

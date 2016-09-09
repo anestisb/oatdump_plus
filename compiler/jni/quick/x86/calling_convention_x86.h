@@ -52,9 +52,13 @@ class X86ManagedRuntimeCallingConvention FINAL : public ManagedRuntimeCallingCon
   DISALLOW_COPY_AND_ASSIGN(X86ManagedRuntimeCallingConvention);
 };
 
+// Implements the x86 cdecl calling convention.
 class X86JniCallingConvention FINAL : public JniCallingConvention {
  public:
-  X86JniCallingConvention(bool is_static, bool is_synchronized, const char* shorty);
+  X86JniCallingConvention(bool is_static,
+                          bool is_synchronized,
+                          bool is_critical_native,
+                          const char* shorty);
   ~X86JniCallingConvention() OVERRIDE {}
   // Calling convention
   ManagedRegister ReturnRegister() OVERRIDE;

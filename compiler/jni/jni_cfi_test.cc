@@ -64,7 +64,12 @@ class JNICFITest : public CFITest {
     ArenaAllocator arena(&pool);
 
     std::unique_ptr<JniCallingConvention> jni_conv(
-        JniCallingConvention::Create(&arena, is_static, is_synchronized, shorty, isa));
+        JniCallingConvention::Create(&arena,
+                                     is_static,
+                                     is_synchronized,
+                                     /*is_critical_native*/false,
+                                     shorty,
+                                     isa));
     std::unique_ptr<ManagedRuntimeCallingConvention> mr_conv(
         ManagedRuntimeCallingConvention::Create(&arena, is_static, is_synchronized, shorty, isa));
     const int frame_size(jni_conv->FrameSize());
