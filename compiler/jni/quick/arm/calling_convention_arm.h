@@ -52,7 +52,10 @@ class ArmManagedRuntimeCallingConvention FINAL : public ManagedRuntimeCallingCon
 
 class ArmJniCallingConvention FINAL : public JniCallingConvention {
  public:
-  ArmJniCallingConvention(bool is_static, bool is_synchronized, const char* shorty);
+  ArmJniCallingConvention(bool is_static,
+                          bool is_synchronized,
+                          bool is_critical_native,
+                          const char* shorty);
   ~ArmJniCallingConvention() OVERRIDE {}
   // Calling convention
   ManagedRegister ReturnRegister() OVERRIDE;

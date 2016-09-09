@@ -18,6 +18,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 
+import dalvik.annotation.optimization.CriticalNative;
 import dalvik.annotation.optimization.FastNative;
 
 public class Main {
@@ -49,6 +50,7 @@ public class Main {
 
         registerNativesJniTest();
         testFastNativeMethods();
+        testCriticalNativeMethods();
     }
 
     private static native boolean registerNativesJniTest();
@@ -288,7 +290,23 @@ public class Main {
       }
     }
 
+    // Smoke test for @CriticalNative
+    // TODO: Way more thorough tests since it involved quite a bit of changes.
 
+    // Return sum of a+b+c.
+    @CriticalNative
+    static native int intCriticalNativeMethod(int a, int b, int c);
+
+    private static void testCriticalNativeMethods() {
+      int returns[] = { 3, 6, 9, 12, 15 };
+      for (int i = 0; i < returns.length; i++) {
+        int result = intCriticalNativeMethod(i, i+1, i+2);
+        if (returns[i] != result) {
+          System.out.println("CriticalNative Int Run " + i + " with " + returns[i] + " vs " + result);
+          throw new AssertionError();
+        }
+      }
+    }
 }
 
 @FunctionalInterface

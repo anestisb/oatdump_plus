@@ -39,8 +39,9 @@ class Compiler {
   };
 
   enum JniOptimizationFlags {
-    kNone,
-    kFastNative,
+    kNone                       = 0x0,
+    kFastNative                 = 0x1,
+    kCriticalNative             = 0x2,
   };
 
   static Compiler* Create(CompilerDriver* driver, Kind kind);

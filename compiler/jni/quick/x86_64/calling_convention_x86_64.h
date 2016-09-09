@@ -48,7 +48,10 @@ class X86_64ManagedRuntimeCallingConvention FINAL : public ManagedRuntimeCalling
 
 class X86_64JniCallingConvention FINAL : public JniCallingConvention {
  public:
-  X86_64JniCallingConvention(bool is_static, bool is_synchronized, const char* shorty);
+  X86_64JniCallingConvention(bool is_static,
+                             bool is_synchronized,
+                             bool is_critical_native,
+                             const char* shorty);
   ~X86_64JniCallingConvention() OVERRIDE {}
   // Calling convention
   ManagedRegister ReturnRegister() OVERRIDE;
