@@ -112,7 +112,15 @@ type codegenCustomizer struct {
 func defaultDeviceCodegenArches(ctx android.CustomizePropertiesContext) []string {
 	arches := make(map[string]bool)
 	for _, a := range ctx.DeviceConfig().Arches() {
-		arches[a.ArchType.String()] = true
+		s := a.ArchType.String()
+		arches[s] = true
+		if s == "arm64" {
+			arches["arm"] = true
+		} else if s == "mips64" {
+			arches["mips"] = true
+		} else if s == "x86_64" {
+			arches["x86"] = true
+		}
 	}
 	ret := make([]string, 0, len(arches))
 	for a := range arches {
