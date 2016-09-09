@@ -16,6 +16,11 @@
 
 LOCAL_PATH := $(call my-dir)
 
+########################################################################
+# oatdump targets
+
+ART_DUMP_OAT_PATH ?= $(OUT_DIR)
+
 OATDUMP := $(HOST_OUT_EXECUTABLES)/oatdump$(HOST_EXECUTABLE_SUFFIX)
 OATDUMPD := $(HOST_OUT_EXECUTABLES)/oatdumpd$(HOST_EXECUTABLE_SUFFIX)
 # TODO: for now, override with debug version for better error reporting
