@@ -19,6 +19,16 @@
 #include "arch/quick_alloc_entrypoints.S"
 
 
+.macro INCREASE_FRAME frame_adjustment
+    sub sp, sp, #(\frame_adjustment)
+    .cfi_adjust_cfa_offset (\frame_adjustment)
+.endm
+
+.macro DECREASE_FRAME frame_adjustment
+    add sp, sp, #(\frame_adjustment)
+    .cfi_adjust_cfa_offset -(\frame_adjustment)
+.endm
+
 .macro SAVE_REG reg, offset
     str \reg, [sp, #(\offset)]
     .cfi_rel_offset \reg, (\offset)
@@ -70,8 +80,7 @@
     // ArtMethod* xIP0 = Runtime::instance_->callee_save_methods_[kSaveAllCalleeSaves];
     ldr xIP0, [xIP0, RUNTIME_SAVE_ALL_CALLEE_SAVES_METHOD_OFFSET]
 
-    sub sp, sp, #176
-    .cfi_adjust_cfa_offset 176
+    INCREASE_FRAME 176
 
     // Ugly compile-time check, but we only have the preprocessor.
 #if (FRAME_SIZE_SAVE_ALL_CALLEE_SAVES != 176)
@@ -115,8 +124,7 @@
     // ArtMethod* xIP0 = Runtime::instance_->callee_save_methods_[kSaveRefOnly];
     ldr xIP0, [xIP0, RUNTIME_SAVE_REFS_ONLY_METHOD_OFFSET]
 
-    sub sp, sp, #96
-    .cfi_adjust_cfa_offset 96
+    INCREASE_FRAME 96
 
     // Ugly compile-time check, but we only have the preprocessor.
 #if (FRAME_SIZE_SAVE_REFS_ONLY != 96)
@@ -150,13 +158,11 @@
     RESTORE_TWO_REGS x27, x28, 64
     RESTORE_TWO_REGS x29, xLR, 80
 
-    add sp, sp, #96
-    .cfi_adjust_cfa_offset -96
+    DECREASE_FRAME 96
 .endm
 
 .macro POP_SAVE_REFS_ONLY_FRAME
-    add sp, sp, #96
-    .cfi_adjust_cfa_offset - 96
+    DECREASE_FRAME 96
 .endm
 
 .macro RESTORE_SAVE_REFS_ONLY_FRAME_AND_RETURN
@@ -166,8 +172,7 @@
 
 
 .macro SETUP_SAVE_REFS_AND_ARGS_FRAME_INTERNAL
-    sub sp, sp, #224
-    .cfi_adjust_cfa_offset 224
+    INCREASE_FRAME 224
 
     // Ugly compile-time check, but we only have the preprocessor.
 #if (FRAME_SIZE_SAVE_REFS_AND_ARGS != 224)
@@ -254,8 +259,7 @@
     // x29(callee-save) and LR.
     RESTORE_TWO_REGS x29, xLR, 208
 
-    add sp, sp, #224
-    .cfi_adjust_cfa_offset -224
+    DECREASE_FRAME 224
 .endm
 
     /*
@@ -263,8 +267,7 @@
      * Runtime::CreateCalleeSaveMethod(kSaveEverything)
      */
 .macro SETUP_SAVE_EVERYTHING_FRAME
-    sub sp, sp, #512
-    .cfi_adjust_cfa_offset 512
+    INCREASE_FRAME 512
 
     // Ugly compile-time check, but we only have the preprocessor.
 #if (FRAME_SIZE_SAVE_EVERYTHING != 512)
@@ -364,8 +367,7 @@
     RESTORE_TWO_REGS x27, x28, 480
     RESTORE_TWO_REGS x29, xLR, 496
 
-    add sp, sp, #512
-    .cfi_adjust_cfa_offset -512
+    DECREASE_FRAME 512
 .endm
 
 .macro RETURN_IF_RESULT_IS_ZERO
@@ -1268,11 +1270,11 @@ ENTRY art_quick_check_cast
     cbz x0, .Lthrow_class_cast_exception
 
     // Restore and return
+    .cfi_remember_state
     RESTORE_REG xLR, 24
     RESTORE_TWO_REGS_DECREASE_FRAME x0, x1, 32
     ret
-
-    .cfi_adjust_cfa_offset 32         // Reset unwind info so following code unwinds.
+    .cfi_restore_state                // Reset unwind info so following code unwinds.
 
 .Lthrow_class_cast_exception:
     // Restore
@@ -1351,8 +1353,7 @@ END art_quick_check_cast
     POP_REG_NE x3, 24, \xDest
     POP_REG_NE x4, 32, \xDest
     RESTORE_REG xLR, 40
-    add sp, sp, #48
-    .cfi_adjust_cfa_offset -48
+    DECREASE_FRAME 48
 .Lrb_exit\number:
 #else
     ldr \wDest, [\xObj, #\offset]   // Heap reference = 32b. This also zero-extends to \xDest.
@@ -1428,6 +1429,7 @@ ENTRY art_quick_aput_obj
     cbz x0, .Lthrow_array_store_exception
 
     // Restore
+    .cfi_remember_state
     RESTORE_TWO_REGS x2, xLR, 16
     RESTORE_TWO_REGS_DECREASE_FRAME x0, x1, 32
 
@@ -1439,7 +1441,7 @@ ENTRY art_quick_aput_obj
     lsr x0, x0, #7
     strb w3, [x3, x0]
     ret
-    .cfi_adjust_cfa_offset 32  // 4 restores after cbz for unwinding.
+    .cfi_restore_state            // Reset unwind info so following code unwinds.
 .Lthrow_array_store_exception:
     RESTORE_TWO_REGS x2, xLR, 16
     RESTORE_TWO_REGS_DECREASE_FRAME x0, x1, 32
@@ -2468,8 +2470,8 @@ ENTRY \name
     SAVE_TWO_REGS x10, x11, 80
     SAVE_TWO_REGS x12, x13, 96
     SAVE_TWO_REGS x14, x15, 112
-    SAVE_TWO_REGS   x16, x17, 128
-    SAVE_TWO_REGS   x18, x19, 144
+    SAVE_TWO_REGS x16, x17, 128
+    SAVE_TWO_REGS x18, x19, 144
     // Save all potentially live caller-save floating-point registers.
     stp   d0, d1,   [sp, #160]
     stp   d2, d3,   [sp, #176]
@@ -2522,8 +2524,7 @@ ENTRY \name
     ldp   d30, d31, [sp, #336]
     // Restore return address and remove padding.
     RESTORE_REG xLR, 360
-    add sp, sp, #368
-    .cfi_adjust_cfa_offset -368
+    DECREASE_FRAME 368
 .Lret_rb_\name:
     ret
 END \name
