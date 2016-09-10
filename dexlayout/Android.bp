@@ -18,6 +18,7 @@ art_cc_binary {
     srcs: [
         "dexlayout_main.cc",
         "dexlayout.cc",
+        "dex_ir.cc",
         "dex_ir_builder.cc",
     ],
     cflags: ["-Wall"],
