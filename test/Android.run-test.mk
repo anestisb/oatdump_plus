@@ -397,9 +397,11 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),ndebug,$(PREB
 # All these tests check that we have sane behavior if we don't have a patchoat or dex2oat.
 # Therefore we shouldn't run them in situations where we actually don't have these since they
 # explicitly test for them. These all also assume we have an image.
+# 004-JniTest is disabled because @CriticalNative is unsupported by generic JNI b/31400248
 # 147-stripped-dex-fallback is disabled because it requires --prebuild.
 # 554-jit-profile-file is disabled because it needs a primary oat file to know what it should save.
 TEST_ART_BROKEN_FALLBACK_RUN_TESTS := \
+  004-JniTest \
   116-nodex2oat \
   117-nopatchoat \
   118-noimage-dex2oat \
@@ -473,7 +475,9 @@ TEST_ART_BROKEN_INTERPRETER_RUN_TESTS :=
 # Known broken tests for the JIT.
 # CFI unwinding expects managed frames, and the test does not iterate enough to even compile. JIT
 # also uses Generic JNI instead of the JNI compiler.
+# 004-JniTest is disabled because @CriticalNative is unsupported by generic JNI b/31400248
 TEST_ART_BROKEN_JIT_RUN_TESTS := \
+  004-JniTest \
   137-cfi
 
 ifneq (,$(filter jit,$(COMPILER_TYPES)))
