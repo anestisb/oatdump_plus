@@ -44,6 +44,14 @@ void InstructionSimplifierArmVisitor::VisitArrayGet(HArrayGet* instruction) {
   size_t data_offset = CodeGenerator::GetArrayDataOffset(instruction);
   Primitive::Type type = instruction->GetType();
 
+  // TODO: Implement reading (length + compression) for String compression feature from
+  // negative offset (count_offset - data_offset). Thumb2Assembler does not support T4
+  // encoding of "LDR (immediate)" at the moment.
+  // Don't move array pointer if it is charAt because we need to take the count first.
+  if (mirror::kUseStringCompression && instruction->IsStringCharAt()) {
+    return;
+  }
+
   if (type == Primitive::kPrimLong
       || type == Primitive::kPrimFloat
       || type == Primitive::kPrimDouble) {
