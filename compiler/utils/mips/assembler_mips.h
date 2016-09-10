@@ -126,6 +126,36 @@ class Literal {
   DISALLOW_COPY_AND_ASSIGN(Literal);
 };
 
+// Jump table: table of labels emitted after the literals. Similar to literals.
+class JumpTable {
+ public:
+  explicit JumpTable(std::vector<MipsLabel*>&& labels)
+      : label_(), labels_(std::move(labels)) {
+  }
+
+  uint32_t GetSize() const {
+    return static_cast<uint32_t>(labels_.size()) * sizeof(uint32_t);
+  }
+
+  const std::vector<MipsLabel*>& GetData() const {
+    return labels_;
+  }
+
+  MipsLabel* GetLabel() {
+    return &label_;
+  }
+
+  const MipsLabel* GetLabel() const {
+    return &label_;
+  }
+
+ private:
+  MipsLabel label_;
+  std::vector<MipsLabel*> labels_;
+
+  DISALLOW_COPY_AND_ASSIGN(JumpTable);
+};
+
 // Slowpath entered when Thread::Current()->_exception is non-null.
 class MipsExceptionSlowPath {
  public:
@@ -158,6 +188,7 @@ class MipsAssembler FINAL : public Assembler, public JNIMacroAssembler<PointerSi
         ds_fsm_state_(kExpectingLabel),
         ds_fsm_target_pc_(0),
         literals_(arena->Adapter(kArenaAllocAssembler)),
+        jump_tables_(arena->Adapter(kArenaAllocAssembler)),
         last_position_adjustment_(0),
         last_old_position_(0),
         last_branch_id_(0),
@@ -685,12 +716,23 @@ class MipsAssembler FINAL : public Assembler, public JNIMacroAssembler<PointerSi
     return NewLiteral(sizeof(value), reinterpret_cast<const uint8_t*>(&value));
   }
 
+  // Load label address using the base register (for R2 only) or using PC-relative loads
+  // (for R6 only; base_reg must be ZERO). To be used with data labels in the literal /
+  // jump table area only and not with regular code labels.
+  void LoadLabelAddress(Register dest_reg, Register base_reg, MipsLabel* label);
+
   // Create a new literal with the given data.
   Literal* NewLiteral(size_t size, const uint8_t* data);
 
   // Load literal using the base register (for R2 only) or using PC-relative loads
   // (for R6 only; base_reg must be ZERO).
   void LoadLiteral(Register dest_reg, Register base_reg, Literal* literal);
+
+  // Create a jump table for the given labels that will be emitted when finalizing.
+  // When the table is emitted, offsets will be relative to the location of the table.
+  // The table location is determined by the location of its label (the label precedes
+  // the table data) and should be loaded using LoadLabelAddress().
+  JumpTable* CreateJumpTable(std::vector<MipsLabel*>&& labels);
 
   //
   // Overridden common assembler high-level functionality.
@@ -935,24 +977,32 @@ class MipsAssembler FINAL : public Assembler, public JNIMacroAssembler<PointerSi
       kUncondBranch,
       kCondBranch,
       kCall,
+      // R2 near label.
+      kLabel,
       // R2 near literal.
       kLiteral,
       // R2 long branches.
       kLongUncondBranch,
       kLongCondBranch,
       kLongCall,
+      // R2 far label.
+      kFarLabel,
       // R2 far literal.
       kFarLiteral,
       // R6 short branches.
       kR6UncondBranch,
       kR6CondBranch,
       kR6Call,
+      // R6 near label.
+      kR6Label,
       // R6 near literal.
       kR6Literal,
       // R6 long branches.
       kR6LongUncondBranch,
       kR6LongCondBranch,
       kR6LongCall,
+      // R6 far label.
+      kR6FarLabel,
       // R6 far literal.
       kR6FarLiteral,
     };
@@ -1009,8 +1059,12 @@ class MipsAssembler FINAL : public Assembler, public JNIMacroAssembler<PointerSi
            BranchCondition condition,
            Register lhs_reg,
            Register rhs_reg);
-    // Literal.
-    Branch(bool is_r6, uint32_t location, Register dest_reg, Register base_reg);
+    // Label address (in literal area) or literal.
+    Branch(bool is_r6,
+           uint32_t location,
+           Register dest_reg,
+           Register base_reg,
+           Type label_or_literal_type);
 
     // Some conditional branches with lhs = rhs are effectively NOPs, while some
     // others are effectively unconditional. MIPSR6 conditional branches require lhs != rhs.
@@ -1105,7 +1159,7 @@ class MipsAssembler FINAL : public Assembler, public JNIMacroAssembler<PointerSi
 
    private:
     // Completes branch construction by determining and recording its type.
-    void InitializeType(bool is_call, bool is_literal, bool is_r6);
+    void InitializeType(Type initial_type, bool is_r6);
     // Helper for the above.
     void InitShortOrLong(OffsetBits ofs_size, Type short_type, Type long_type);
 
@@ -1178,6 +1232,8 @@ class MipsAssembler FINAL : public Assembler, public JNIMacroAssembler<PointerSi
   uint32_t GetBranchOrPcRelBaseForEncoding(const MipsAssembler::Branch* branch) const;
 
   void EmitLiterals();
+  void ReserveJumpTableSpace();
+  void EmitJumpTables();
   void PromoteBranches();
   void EmitBranch(Branch* branch);
   void EmitBranches();
@@ -1226,6 +1282,9 @@ class MipsAssembler FINAL : public Assembler, public JNIMacroAssembler<PointerSi
   // Use std::deque<> for literal labels to allow insertions at the end
   // without invalidating pointers and references to existing elements.
   ArenaDeque<Literal> literals_;
+
+  // Jump table list.
+  ArenaDeque<JumpTable> jump_tables_;
 
   // There's no PC-relative addressing on MIPS32R2. So, in order to access literals relative to PC
   // we get PC using the NAL instruction. This label marks the position within the assembler buffer

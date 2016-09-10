@@ -92,6 +92,25 @@ class PCRelativeHandlerVisitor : public HGraphVisitor {
     }
   }
 
+  void VisitPackedSwitch(HPackedSwitch* switch_insn) OVERRIDE {
+    if (switch_insn->GetNumEntries() <=
+        InstructionCodeGeneratorMIPS::kPackedSwitchJumpTableThreshold) {
+      return;
+    }
+    // We need to replace the HPackedSwitch with a HMipsPackedSwitch in order to
+    // address the constant area.
+    InitializePCRelativeBasePointer();
+    HGraph* graph = GetGraph();
+    HBasicBlock* block = switch_insn->GetBlock();
+    HMipsPackedSwitch* mips_switch = new (graph->GetArena()) HMipsPackedSwitch(
+        switch_insn->GetStartValue(),
+        switch_insn->GetNumEntries(),
+        switch_insn->InputAt(0),
+        base_,
+        switch_insn->GetDexPc());
+    block->ReplaceAndRemoveInstructionWith(switch_insn, mips_switch);
+  }
+
   void HandleInvoke(HInvoke* invoke) {
     // If this is an invoke-static/-direct with PC-relative dex cache array
     // addressing, we need the PC-relative address base.

@@ -218,6 +218,14 @@ class InstructionCodeGeneratorMIPS : public InstructionCodeGenerator {
 
   MipsAssembler* GetAssembler() const { return assembler_; }
 
+  // Compare-and-jump packed switch generates approx. 3 + 2.5 * N 32-bit
+  // instructions for N cases.
+  // Table-based packed switch generates approx. 11 32-bit instructions
+  // and N 32-bit data words for N cases.
+  // At N = 6 they come out as 18 and 17 32-bit words respectively.
+  // We switch to the table-based method starting with 7 cases.
+  static constexpr uint32_t kPackedSwitchJumpTableThreshold = 6;
+
  private:
   void GenerateClassInitializationCheck(SlowPathCodeMIPS* slow_path, Register class_reg);
   void GenerateMemoryBarrier(MemBarrierKind kind);
@@ -262,6 +270,17 @@ class InstructionCodeGeneratorMIPS : public InstructionCodeGenerator {
   void GenerateDivRemIntegral(HBinaryOperation* instruction);
   void HandleGoto(HInstruction* got, HBasicBlock* successor);
   auto GetImplicitNullChecker(HInstruction* instruction);
+  void GenPackedSwitchWithCompares(Register value_reg,
+                                   int32_t lower_bound,
+                                   uint32_t num_entries,
+                                   HBasicBlock* switch_block,
+                                   HBasicBlock* default_block);
+  void GenTableBasedPackedSwitch(Register value_reg,
+                                 Register constant_area,
+                                 int32_t lower_bound,
+                                 uint32_t num_entries,
+                                 HBasicBlock* switch_block,
+                                 HBasicBlock* default_block);
 
   MipsAssembler* const assembler_;
   CodeGeneratorMIPS* const codegen_;
