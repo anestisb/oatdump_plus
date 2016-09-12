@@ -1,0 +1,82 @@
+//
+// Copyright (C) 2016 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+art_cc_defaults {
+    name: "libart-gtest-defaults",
+    host_supported: true,
+    defaults: [
+        "art_defaults",
+        "art_debug_defaults",
+    ],
+    shared_libs: [
+        "libartd",
+        "libartd-compiler",
+    ],
+    static_libs: [
+        "libgtest",
+    ],
+    target: {
+        android32: {
+            cflags: ["-DART_TARGET_NATIVETEST_DIR=/data/nativetest32/art"],
+        },
+        android64: {
+            cflags: ["-DART_TARGET_NATIVETEST_DIR=/data/nativetest64/art"],
+        },
+        android: {
+            cflags: [
+                // gtest issue
+                "-Wno-used-but-marked-unused",
+                "-Wno-deprecated",
+                "-Wno-missing-noreturn",
+            ],
+        },
+        linux: {
+            cflags: [
+                // gtest issue
+                "-Wno-used-but-marked-unused",
+                "-Wno-deprecated",
+                "-Wno-missing-noreturn",
+            ],
+        },
+    },
+}
+
+art_cc_library {
+    name: "libart-gtest",
+    host_supported: true,
+    whole_static_libs: [
+        "libart-compiler-gtest",
+        "libart-runtime-gtest",
+        "libgtest",
+    ],
+    shared_libs: [
+        "libartd",
+        "libartd-compiler",
+    ],
+    target: {
+        android: {
+            shared_libs: [
+                "libdl",
+            ],
+        },
+        host: {
+            host_ldlibs: [
+                "-ldl",
+                "-lpthread",
+            ],
+        },
+    },
+}

@@ -462,6 +462,15 @@ art_cc_library {
     ],
 }
 
+art_cc_library {
+    name: "libart-runtime-gtest",
+    defaults: ["libart-gtest-defaults"],
+    srcs: ["common_runtime_test.cc"],
+    shared_libs: [
+        "libartd",
+    ],
+}
+
 subdirs = [
     "openjdkjvm",
     "openjdkjvmti",
