@@ -122,13 +122,16 @@ bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info, void*
   struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
   struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
   uint8_t* ptr = reinterpret_cast<uint8_t*>(sc->arm_pc);
-
   uint32_t instr_size = GetInstructionSize(ptr);
-  sc->arm_lr = (sc->arm_pc + instr_size) | 1;      // LR needs to point to gc map location
+  uintptr_t gc_map_location = (sc->arm_pc + instr_size) | 1;
+
+  // Push the gc map location to the stack and pass the fault address in LR.
+  sc->arm_sp -= sizeof(uintptr_t);
+  *reinterpret_cast<uintptr_t*>(sc->arm_sp) = gc_map_location;
+  sc->arm_lr = reinterpret_cast<uintptr_t>(info->si_addr);
   sc->arm_pc = reinterpret_cast<uintptr_t>(art_quick_throw_null_pointer_exception_from_signal);
   // Pass the faulting address as the first argument of
   // art_quick_throw_null_pointer_exception_from_signal.
-  sc->arm_r0 = reinterpret_cast<uintptr_t>(info->si_addr);
   VLOG(signals) << "Generating null pointer exception";
   return true;
 }
