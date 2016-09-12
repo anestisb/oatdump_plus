@@ -325,6 +325,14 @@ bool StackVisitor::GetRegisterIfAccessible(uint32_t reg, VRegKind kind, uint32_t
     reg = (kind == kDoubleHiVReg) ? (2 * reg + 1) : (2 * reg);
   }
 
+  // MIPS32 float registers are used as 64-bit (for MIPS32r2 it is pair
+  // F(2n)-F(2n+1), and for MIPS32r6 it is 64-bit register F(2n)). When
+  // accessing upper 32-bits from double, reg + 1 should be used.
+  if ((kRuntimeISA == InstructionSet::kMips) && (kind == kDoubleHiVReg)) {
+    DCHECK_ALIGNED(reg, 2);
+    reg++;
+  }
+
   if (!IsAccessibleRegister(reg, is_float)) {
     return false;
   }
