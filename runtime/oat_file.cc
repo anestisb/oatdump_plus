@@ -132,6 +132,10 @@ class OatFileBase : public OatFile {
     end_ = end;
   }
 
+  void SetVdex(VdexFile* vdex) {
+    vdex_.reset(vdex);
+  }
+
  private:
   DISALLOW_COPY_AND_ASSIGN(OatFileBase);
 };
@@ -793,6 +797,7 @@ class ElfOatFile FINAL : public OatFileBase {
                                  std::string* error_msg);
 
   bool InitializeFromElfFile(ElfFile* elf_file,
+                             VdexFile* vdex_file,
                              const char* abs_dex_location,
                              std::string* error_msg);
 
@@ -869,6 +874,7 @@ ElfOatFile* ElfOatFile::OpenElfFile(File* file,
 }
 
 bool ElfOatFile::InitializeFromElfFile(ElfFile* elf_file,
+                                       VdexFile* vdex_file,
                                        const char* abs_dex_location,
                                        std::string* error_msg) {
   ScopedTrace trace(__PRETTY_FUNCTION__);
@@ -877,6 +883,7 @@ bool ElfOatFile::InitializeFromElfFile(ElfFile* elf_file,
     return false;
   }
   elf_file_.reset(elf_file);
+  SetVdex(vdex_file);
   uint64_t offset, size;
   bool has_section = elf_file->GetSectionOffsetAndSize(".rodata", &offset, &size);
   CHECK(has_section);
@@ -958,11 +965,12 @@ static void CheckLocation(const std::string& location) {
 }
 
 OatFile* OatFile::OpenWithElfFile(ElfFile* elf_file,
+                                  VdexFile* vdex_file,
                                   const std::string& location,
                                   const char* abs_dex_location,
                                   std::string* error_msg) {
   std::unique_ptr<ElfOatFile> oat_file(new ElfOatFile(location, false /* executable */));
-  return oat_file->InitializeFromElfFile(elf_file, abs_dex_location, error_msg)
+  return oat_file->InitializeFromElfFile(elf_file, vdex_file, abs_dex_location, error_msg)
       ? oat_file.release()
       : nullptr;
 }

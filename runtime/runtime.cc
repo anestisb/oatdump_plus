@@ -829,6 +829,8 @@ static bool OpenDexFilesFromImage(const std::string& image_location,
 
     // We are falling back to non-executable use of the oat file because patching failed, presumably
     // due to lack of space.
+    std::string vdex_filename =
+        ImageHeader::GetVdexLocationFromImageLocation(system_filename.c_str());
     std::string oat_filename =
         ImageHeader::GetOatLocationFromImageLocation(system_filename.c_str());
     std::string oat_location =
@@ -838,22 +840,34 @@ static bool OpenDexFilesFromImage(const std::string& image_location,
     if (EndsWith(oat_location, ".jar")) {
       oat_location.replace(oat_location.length() - 3, 3, "oat");
     }
+    std::string error_msg;
+
+    std::unique_ptr<VdexFile> vdex_file(VdexFile::Open(vdex_filename,
+                                                       false /* writable */,
+                                                       false /* low_4gb */,
+                                                       &error_msg));
+    if (vdex_file.get() == nullptr) {
+      return false;
+    }
 
     std::unique_ptr<File> file(OS::OpenFileForReading(oat_filename.c_str()));
     if (file.get() == nullptr) {
       return false;
     }
-    std::string error_msg;
     std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file.release(),
-                                                    false,
-                                                    false,
-                                                    /*low_4gb*/false,
+                                                    false /* writable */,
+                                                    false /* program_header_only */,
+                                                    false /* low_4gb */,
                                                     &error_msg));
     if (elf_file.get() == nullptr) {
       return false;
     }
     std::unique_ptr<const OatFile> oat_file(
-        OatFile::OpenWithElfFile(elf_file.release(), oat_location, nullptr, &error_msg));
+        OatFile::OpenWithElfFile(elf_file.release(),
+                                 vdex_file.release(),
+                                 oat_location,
+                                 nullptr,
+                                 &error_msg));
     if (oat_file == nullptr) {
       LOG(WARNING) << "Unable to use '" << oat_filename << "' because " << error_msg;
       return false;
