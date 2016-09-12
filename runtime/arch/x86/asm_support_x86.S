@@ -114,7 +114,7 @@ MACRO0(ALIGN_FUNCTION_ENTRY)
     .balign 16
 END_MACRO
 
-MACRO1(DEFINE_FUNCTION, c_name)
+MACRO2(DEFINE_FUNCTION_CUSTOM_CFA, c_name, cfa_offset)
     FUNCTION_TYPE(SYMBOL(\c_name))
     ASM_HIDDEN CALLVAR(c_name)
     .globl CALLVAR(c_name)
@@ -122,7 +122,11 @@ MACRO1(DEFINE_FUNCTION, c_name)
 CALLVAR(c_name):
     CFI_STARTPROC
     // Ensure we get a sane starting CFA.
-    CFI_DEF_CFA(esp, 4)
+    CFI_DEF_CFA(esp, RAW_VAR(cfa_offset))
+END_MACRO
+
+MACRO1(DEFINE_FUNCTION, c_name)
+    DEFINE_FUNCTION_CUSTOM_CFA RAW_VAR(c_name), __SIZEOF_POINTER__
 END_MACRO
 
 MACRO1(END_FUNCTION, c_name)

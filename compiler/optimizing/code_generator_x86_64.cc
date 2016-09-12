@@ -4459,16 +4459,10 @@ void InstructionCodeGeneratorX86_64::VisitUnresolvedStaticFieldSet(
 }
 
 void LocationsBuilderX86_64::VisitNullCheck(HNullCheck* instruction) {
-  LocationSummary::CallKind call_kind = instruction->CanThrowIntoCatchBlock()
-      ? LocationSummary::kCallOnSlowPath
-      : LocationSummary::kNoCall;
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
-  Location loc = codegen_->IsImplicitNullCheckAllowed(instruction)
-      ? Location::RequiresRegister()
-      : Location::Any();
-  locations->SetInAt(0, loc);
-  if (instruction->HasUses()) {
-    locations->SetOut(Location::SameAsFirstInput());
+  LocationSummary* locations = codegen_->CreateNullCheckLocations(instruction);
+  if (!codegen_->GetCompilerOptions().GetImplicitNullChecks()) {
+    // Explicit null checks can use any location.
+    locations->SetInAt(0, Location::Any());
   }
 }
 
