@@ -30,6 +30,7 @@
 #include "oat.h"
 #include "os.h"
 #include "utils.h"
+#include "vdex_file.h"
 
 namespace art {
 
@@ -45,6 +46,14 @@ namespace collector {
 class DummyOatFile;
 }  // namespace collector
 }  // namespace gc
+
+// Runtime representation of the OAT file format which holds compiler output.
+// The class opens an OAT file from storage and maps it to memory, typically with
+// dlopen and provides access to its internal data structures (see OatWriter for
+// for more details about the OAT format).
+// In the process of loading OAT, the class also loads the associated VDEX file
+// with the input DEX files (see VdexFile for details about the VDEX format).
+// The raw DEX data are accessible transparently through the OatDexFile objects.
 
 class OatFile {
  public:
@@ -240,11 +249,18 @@ class OatFile {
     return BssEnd() - BssBegin();
   }
 
+  size_t DexSize() const {
+    return DexEnd() - DexBegin();
+  }
+
   const uint8_t* Begin() const;
   const uint8_t* End() const;
 
   const uint8_t* BssBegin() const;
   const uint8_t* BssEnd() const;
+
+  const uint8_t* DexBegin() const;
+  const uint8_t* DexEnd() const;
 
   // Returns the absolute dex location for the encoded relative dex location.
   //
@@ -278,6 +294,9 @@ class OatFile {
   //
   // The image will embed this to link its associated oat file.
   const std::string location_;
+
+  // Pointer to the Vdex file with the Dex files for this Oat file.
+  std::unique_ptr<VdexFile> vdex_;
 
   // Pointer to OatHeader.
   const uint8_t* begin_;
