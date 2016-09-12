@@ -316,8 +316,14 @@ mirror::String* InternTable::Insert(mirror::String* s, bool is_strong, bool hold
 
 mirror::String* InternTable::InternStrong(int32_t utf16_length, const char* utf8_data) {
   DCHECK(utf8_data != nullptr);
+  Thread* self = Thread::Current();
+  // Try to avoid allocation.
+  mirror::String* s = LookupStrong(self, utf16_length, utf8_data);
+  if (s != nullptr) {
+    return s;
+  }
   return InternStrong(mirror::String::AllocFromModifiedUtf8(
-      Thread::Current(), utf16_length, utf8_data));
+      self, utf16_length, utf8_data));
 }
 
 mirror::String* InternTable::InternStrong(const char* utf8_data) {
