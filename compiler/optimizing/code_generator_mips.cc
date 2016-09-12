@@ -5075,14 +5075,7 @@ void InstructionCodeGeneratorMIPS::VisitBooleanNot(HBooleanNot* instruction) {
 }
 
 void LocationsBuilderMIPS::VisitNullCheck(HNullCheck* instruction) {
-  LocationSummary::CallKind call_kind = instruction->CanThrowIntoCatchBlock()
-      ? LocationSummary::kCallOnSlowPath
-      : LocationSummary::kNoCall;
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
-  locations->SetInAt(0, Location::RequiresRegister());
-  if (instruction->HasUses()) {
-    locations->SetOut(Location::SameAsFirstInput());
-  }
+  codegen_->CreateNullCheckLocations(instruction);
 }
 
 void CodeGeneratorMIPS::GenerateImplicitNullCheck(HNullCheck* instruction) {

@@ -325,21 +325,15 @@ bool NullPointerHandler::Action(int, siginfo_t* sig, void* context) {
   // next instruction (this instruction + instruction size).  The return address
   // is on the stack at the top address of the current frame.
 
-  // Push the return address onto the stack.
+  // Push the return address and fault address onto the stack.
   uintptr_t retaddr = reinterpret_cast<uintptr_t>(pc + instr_size);
-  uintptr_t* next_sp = reinterpret_cast<uintptr_t*>(sp - sizeof(uintptr_t));
-  *next_sp = retaddr;
+  uintptr_t* next_sp = reinterpret_cast<uintptr_t*>(sp - 2 * sizeof(uintptr_t));
+  next_sp[1] = retaddr;
+  next_sp[0] = reinterpret_cast<uintptr_t>(sig->si_addr);
   uc->CTX_ESP = reinterpret_cast<uintptr_t>(next_sp);
 
   uc->CTX_EIP = reinterpret_cast<uintptr_t>(
       art_quick_throw_null_pointer_exception_from_signal);
-  // Pass the faulting address as the first argument of
-  // art_quick_throw_null_pointer_exception_from_signal.
-#if defined(__x86_64__)
-  uc->CTX_RDI = reinterpret_cast<uintptr_t>(sig->si_addr);
-#else
-  uc->CTX_EAX = reinterpret_cast<uintptr_t>(sig->si_addr);
-#endif
   VLOG(signals) << "Generating null pointer exception";
   return true;
 }
