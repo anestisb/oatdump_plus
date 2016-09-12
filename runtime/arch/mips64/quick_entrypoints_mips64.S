@@ -1487,6 +1487,7 @@ ENTRY art_quick_get32_static
     ld     $a1, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
     jal    artGet32StaticFromCode        # (uint32_t field_idx, const Method* referrer, Thread*)
     move   $a2, rSELF                    # pass Thread::Current
+    sll    $v0, $v0, 0                   # sign-extend result
     RETURN_IF_NO_EXCEPTION
 END art_quick_get32_static
 
@@ -1571,6 +1572,7 @@ ENTRY art_quick_get32_instance
     ld     $a2, FRAME_SIZE_SAVE_REFS_ONLY($sp)  # pass referrer's Method*
     jal    artGet32InstanceFromCode      # (field_idx, Object*, referrer, Thread*)
     move   $a3, rSELF                    # pass Thread::Current
+    sll    $v0, $v0, 0                   # sign-extend result
     RETURN_IF_NO_EXCEPTION
 END art_quick_get32_instance
 
