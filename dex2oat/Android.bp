@@ -120,3 +120,11 @@ art_cc_binary {
         "libvixld-arm64",
     ] + art_static_dependencies,
 }
+
+art_cc_test {
+    name: "art_dex2oat_tests",
+    defaults: [
+        "art_test_defaults",
+    ],
+    srcs: ["dex2oat_test.cc"],
+}
