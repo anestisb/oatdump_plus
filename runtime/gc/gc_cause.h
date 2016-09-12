@@ -51,6 +51,8 @@ enum GcCause {
   kGcCauseClassLinker,
   // Not a real GC cause, used to implement exclusion between code cache metadata and GC.
   kGcCauseJitCodeCache,
+  // Not a real GC cause, used to add or remove system-weak holders.
+  kGcCauseAddRemoveSystemWeakHolder,
 };
 
 const char* PrettyCause(GcCause cause);
