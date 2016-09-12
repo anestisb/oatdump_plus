@@ -316,12 +316,14 @@
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveEverything).
-     * when the $sp has already been decremented by FRAME_SIZE_SAVE_EVERYTHING.
      * callee-save: $at + $v0-$v1 + $a0-$a7 + $t0-$t3 + $s0-$s7 + $t8-$t9 + $gp + $s8 + $ra + $s8,
      *              $f0-$f31; 28(GPR)+ 32(FPR) + 1x8 bytes padding + method*
      * This macro sets up $gp; entrypoints using it should start with ENTRY_NO_GP.
      */
-.macro SETUP_SAVE_EVERYTHING_FRAME_DECREMENTED_SP
+.macro SETUP_SAVE_EVERYTHING_FRAME
+    daddiu $sp, $sp, -496
+    .cfi_adjust_cfa_offset 496
+
      // Ugly compile-time check, but we only have the preprocessor.
 #if (FRAME_SIZE_SAVE_EVERYTHING != 496)
 #error "FRAME_SIZE_SAVE_EVERYTHING(MIPS64) size not as expected."
@@ -432,19 +434,6 @@
     sd      $t1, 0($sp)                                # Place ArtMethod* at bottom of stack.
     # Place sp in Thread::Current()->top_quick_frame.
     sd      $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)
-.endm
-
-    /*
-     * Macro that sets up the callee save frame to conform with
-     * Runtime::CreateCalleeSaveMethod(kSaveEverything).
-     * callee-save: $at + $v0-$v1 + $a0-$a7 + $t0-$t3 + $s0-$s7 + $t8-$t9 + $gp + $s8 + $ra + $s8,
-     *              $f0-$f31; 28(GPR)+ 32(FPR) + 1x8 bytes padding + method*
-     * This macro sets up $gp; entrypoints using it should start with ENTRY_NO_GP.
-     */
-.macro SETUP_SAVE_EVERYTHING_FRAME
-    daddiu $sp, $sp, -(FRAME_SIZE_SAVE_EVERYTHING)
-    .cfi_adjust_cfa_offset (FRAME_SIZE_SAVE_EVERYTHING)
-    SETUP_SAVE_EVERYTHING_FRAME_DECREMENTED_SP
 .endm
 
 .macro RESTORE_SAVE_EVERYTHING_FRAME
@@ -829,10 +818,8 @@ END art_quick_throw_null_pointer_exception
      * Call installed by a signal handler to create and deliver a NullPointerException
      */
     .extern artThrowNullPointerExceptionFromSignal
-ENTRY_NO_GP_CUSTOM_CFA art_quick_throw_null_pointer_exception_from_signal, FRAME_SIZE_SAVE_EVERYTHING
-    SETUP_SAVE_EVERYTHING_FRAME_DECREMENTED_SP
-    # Retrieve the fault address from the padding where the signal handler stores it.
-    ld   $a0, (__SIZEOF_POINTER__)($sp)
+ENTRY art_quick_throw_null_pointer_exception_from_signal
+    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME
     dla  $t9, artThrowNullPointerExceptionFromSignal
     jalr $zero, $t9                 # artThrowNullPointerExceptionFromSignal(uinptr_t, Thread*)
     move $a1, rSELF                 # pass Thread::Current
