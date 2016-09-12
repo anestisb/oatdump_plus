@@ -21,7 +21,6 @@
 #include <string>
 
 #include "base/macros.h"
-#include "base/unix_file/fd_file.h"
 #include "mem_map.h"
 #include "os.h"
 
@@ -66,9 +65,8 @@ class VdexFile {
   size_t Size() const { return mmap_->Size(); }
 
  private:
-  VdexFile(File* file, MemMap* mmap) : file_(file), mmap_(mmap) {}
+  explicit VdexFile(MemMap* mmap) : mmap_(mmap) {}
 
-  std::unique_ptr<File> file_;
   std::unique_ptr<MemMap> mmap_;
 
   DISALLOW_COPY_AND_ASSIGN(VdexFile);
