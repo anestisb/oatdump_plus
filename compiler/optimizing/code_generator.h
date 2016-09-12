@@ -313,6 +313,7 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
 
   bool CanMoveNullCheckToUser(HNullCheck* null_check);
   void MaybeRecordImplicitNullCheck(HInstruction* instruction);
+  LocationSummary* CreateNullCheckLocations(HNullCheck* null_check);
   void GenerateNullCheck(HNullCheck* null_check);
   virtual void GenerateImplicitNullCheck(HNullCheck* null_check) = 0;
   virtual void GenerateExplicitNullCheck(HNullCheck* null_check) = 0;
@@ -321,12 +322,6 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
   // during exception delivery.
   // TODO: Replace with a catch-entering instruction that records the environment.
   void RecordCatchBlockInfo();
-
-  // Returns true if implicit null checks are allowed in the compiler options
-  // and if the null check is not inside a try block. We currently cannot do
-  // implicit null checks in that case because we need the NullCheckSlowPath to
-  // save live registers, which may be needed by the runtime to set catch phis.
-  bool IsImplicitNullCheckAllowed(HNullCheck* null_check) const;
 
   // TODO: Avoid creating the `std::unique_ptr` here.
   void AddSlowPath(SlowPathCode* slow_path) {
@@ -713,6 +708,8 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
   bool is_leaf_;
 
   // Whether an instruction in the graph accesses the current method.
+  // TODO: Rename: this actually indicates that some instruction in the method
+  // needs the environment including a valid stack frame.
   bool requires_current_method_;
 
   friend class OptimizingCFITest;
