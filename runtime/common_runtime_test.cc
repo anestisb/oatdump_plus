@@ -591,9 +591,9 @@ std::string CommonRuntimeTestImpl::GetCoreFileLocation(const char* suffix) {
   if (IsHost()) {
     const char* host_dir = getenv("ANDROID_HOST_OUT");
     CHECK(host_dir != nullptr);
-    location = StringPrintf("%s/framework/core-npic.%s", host_dir, suffix);
+    location = StringPrintf("%s/framework/core.%s", host_dir, suffix);
   } else {
-    location = StringPrintf("/data/art-test/core-npic.%s", suffix);
+    location = StringPrintf("/data/art-test/core.%s", suffix);
   }
 
   return location;
