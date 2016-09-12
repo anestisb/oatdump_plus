@@ -5825,7 +5825,6 @@ void LocationsBuilderX86_64::VisitCheckCast(HCheckCast* instruction) {
   LocationSummary::CallKind call_kind = LocationSummary::kNoCall;
   bool throws_into_catch = instruction->CanThrowIntoCatchBlock();
   TypeCheckKind type_check_kind = instruction->GetTypeCheckKind();
-  bool baker_read_barrier_slow_path = false;
   switch (type_check_kind) {
     case TypeCheckKind::kExactCheck:
     case TypeCheckKind::kAbstractClassCheck:
@@ -5834,7 +5833,6 @@ void LocationsBuilderX86_64::VisitCheckCast(HCheckCast* instruction) {
       call_kind = (throws_into_catch || kEmitCompilerReadBarrier) ?
           LocationSummary::kCallOnSlowPath :
           LocationSummary::kNoCall;  // In fact, call on a fatal (non-returning) slow path.
-      baker_read_barrier_slow_path = kUseBakerReadBarrier && !throws_into_catch;
       break;
     case TypeCheckKind::kArrayCheck:
     case TypeCheckKind::kUnresolvedCheck:
@@ -5843,9 +5841,6 @@ void LocationsBuilderX86_64::VisitCheckCast(HCheckCast* instruction) {
       break;
   }
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
-  if (baker_read_barrier_slow_path) {
-    locations->SetCustomSlowPathCallerSaves(RegisterSet());  // No caller-save registers.
-  }
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::Any());
   // Note that TypeCheckSlowPathX86_64 uses this "temp" register too.
