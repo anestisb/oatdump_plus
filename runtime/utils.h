@@ -279,6 +279,13 @@ int ExecAndReturnCode(std::vector<std::string>& arg_vector, std::string* error_m
 bool FileExists(const std::string& filename);
 bool FileExistsAndNotEmpty(const std::string& filename);
 
+// Returns `filename` with the text after the last occurrence of '.' replaced with
+// `extension`. If `filename` does not contain a period, returns a string containing `filename`,
+// a period, and `new_extension`.
+// Example: ReplaceFileExtension("foo.bar", "abc") == "foo.abc"
+//          ReplaceFileExtension("foo", "abc") == "foo.abc"
+std::string ReplaceFileExtension(const std::string& filename, const std::string& new_extension);
+
 class VoidFunctor {
  public:
   template <typename A>

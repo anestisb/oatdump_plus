@@ -1214,6 +1214,15 @@ bool FileExistsAndNotEmpty(const std::string& filename) {
   return buffer.st_size > 0;
 }
 
+std::string ReplaceFileExtension(const std::string& filename, const std::string& new_extension) {
+  const size_t last_ext = filename.find_last_of('.');
+  if (last_ext == std::string::npos) {
+    return filename + "." + new_extension;
+  } else {
+    return filename.substr(0, last_ext + 1) + new_extension;
+  }
+}
+
 std::string PrettyDescriptor(Primitive::Type type) {
   return PrettyDescriptor(Primitive::Descriptor(type));
 }

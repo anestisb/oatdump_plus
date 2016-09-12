@@ -719,10 +719,12 @@ class OatDumper {
     os << StringPrintf("location: %s\n", oat_dex_file.GetDexFileLocation().c_str());
     os << StringPrintf("checksum: 0x%08x\n", oat_dex_file.GetDexFileLocationChecksum());
 
-    // Print embedded dex file data range.
     const uint8_t* const oat_file_begin = oat_dex_file.GetOatFile()->Begin();
+    const uint8_t* const vdex_file_begin = oat_dex_file.GetOatFile()->DexBegin();
+
+    // Print data range of the dex file embedded inside the corresponding vdex file.
     const uint8_t* const dex_file_pointer = oat_dex_file.GetDexFilePointer();
-    uint32_t dex_offset = dchecked_integral_cast<uint32_t>(dex_file_pointer - oat_file_begin);
+    uint32_t dex_offset = dchecked_integral_cast<uint32_t>(dex_file_pointer - vdex_file_begin);
     os << StringPrintf("dex-file: 0x%08x..0x%08x\n",
                        dex_offset,
                        dchecked_integral_cast<uint32_t>(dex_offset + oat_dex_file.FileSize() - 1));
