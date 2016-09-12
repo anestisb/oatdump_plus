@@ -173,29 +173,6 @@
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveEverything)
-     * when core registers are already saved.
-     */
-.macro SETUP_SAVE_EVERYTHING_FRAME_CORE_REGS_SAVED rTemp
-                                        @ 14 words of callee saves and args already saved.
-    vpush {d0-d15}                      @ 32 words, 2 for each of the 16 saved doubles.
-    .cfi_adjust_cfa_offset 128
-    sub sp, #8                          @ 2 words of space, alignment padding and Method*
-    .cfi_adjust_cfa_offset 8
-    RUNTIME_CURRENT1 \rTemp             @ Load Runtime::Current into rTemp.
-    @ Load kSaveEverything Method* into rTemp.
-    ldr \rTemp, [\rTemp, #RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET]
-    str \rTemp, [sp, #0]                @ Place Method* at bottom of stack.
-    str sp, [r9, #THREAD_TOP_QUICK_FRAME_OFFSET]  @ Place sp in Thread::Current()->top_quick_frame.
-
-    // Ugly compile-time check, but we only have the preprocessor.
-#if (FRAME_SIZE_SAVE_EVERYTHING != 56 + 128 + 8)
-#error "FRAME_SIZE_SAVE_EVERYTHING(ARM) size not as expected."
-#endif
-.endm
-
-    /*
-     * Macro that sets up the callee save frame to conform with
-     * Runtime::CreateCalleeSaveMethod(kSaveEverything)
      */
 .macro SETUP_SAVE_EVERYTHING_FRAME rTemp
     push {r0-r12, lr}                   @ 14 words of callee saves and args.
@@ -214,7 +191,20 @@
     .cfi_rel_offset r11, 44
     .cfi_rel_offset ip, 48
     .cfi_rel_offset lr, 52
-    SETUP_SAVE_EVERYTHING_FRAME_CORE_REGS_SAVED \rTemp
+    vpush {d0-d15}                      @ 32 words, 2 for each of the 16 saved doubles.
+    .cfi_adjust_cfa_offset 128
+    sub sp, #8                          @ 2 words of space, alignment padding and Method*
+    .cfi_adjust_cfa_offset 8
+    RUNTIME_CURRENT1 \rTemp             @ Load Runtime::Current into rTemp.
+    @ Load kSaveEverything Method* into rTemp.
+    ldr \rTemp, [\rTemp, #RUNTIME_SAVE_EVERYTHING_METHOD_OFFSET]
+    str \rTemp, [sp, #0]                @ Place Method* at bottom of stack.
+    str sp, [r9, #THREAD_TOP_QUICK_FRAME_OFFSET]  @ Place sp in Thread::Current()->top_quick_frame.
+
+    // Ugly compile-time check, but we only have the preprocessor.
+#if (FRAME_SIZE_SAVE_EVERYTHING != 56 + 128 + 8)
+#error "FRAME_SIZE_SAVE_EVERYTHING(ARM) size not as expected."
+#endif
 .endm
 
 .macro RESTORE_SAVE_EVERYTHING_FRAME
@@ -366,34 +356,7 @@ NO_ARG_RUNTIME_EXCEPTION art_quick_throw_null_pointer_exception, artThrowNullPoi
     /*
      * Call installed by a signal handler to create and deliver a NullPointerException.
      */
-    .extern art_quick_throw_null_pointer_exception_from_signal
-ENTRY art_quick_throw_null_pointer_exception_from_signal
-    // The fault handler pushes the gc map address, i.e. "return address", to stack
-    // and passes the fault address in LR. So we need to set up the CFI info accordingly.
-    .cfi_def_cfa_offset __SIZEOF_POINTER__
-    .cfi_rel_offset lr, 0
-    push {r0-r12}                   @ 13 words of callee saves and args; LR already saved.
-    .cfi_adjust_cfa_offset 52
-    .cfi_rel_offset r0, 0
-    .cfi_rel_offset r1, 4
-    .cfi_rel_offset r2, 8
-    .cfi_rel_offset r3, 12
-    .cfi_rel_offset r4, 16
-    .cfi_rel_offset r5, 20
-    .cfi_rel_offset r6, 24
-    .cfi_rel_offset r7, 28
-    .cfi_rel_offset r8, 32
-    .cfi_rel_offset r9, 36
-    .cfi_rel_offset r10, 40
-    .cfi_rel_offset r11, 44
-    .cfi_rel_offset ip, 48
-
-    @ save all registers as basis for long jump context
-    SETUP_SAVE_EVERYTHING_FRAME_CORE_REGS_SAVED r1
-    mov r0, lr                      @ pass the fault address stored in LR by the fault handler.
-    mov r1, r9                      @ pass Thread::Current
-    b   artThrowNullPointerExceptionFromSignal  @ (Thread*)
-END art_quick_throw_null_pointer_exception_from_signal
+ONE_ARG_RUNTIME_EXCEPTION art_quick_throw_null_pointer_exception_from_signal, artThrowNullPointerExceptionFromSignal
 
     /*
      * Called by managed code to create and deliver an ArithmeticException.
