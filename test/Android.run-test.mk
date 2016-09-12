@@ -338,7 +338,9 @@ endif
 TEST_ART_BROKEN_NO_RELOCATE_TESTS :=
 
 # Temporarily disable some broken tests when forcing access checks in interpreter b/22414682
+# 004-JniTest is disabled because @CriticalNative is unsupported by generic JNI b/31400248
 TEST_ART_BROKEN_INTERPRETER_ACCESS_CHECK_TESTS := \
+  004-JniTest \
   137-cfi
 
 ifneq (,$(filter interp-ac,$(COMPILER_TYPES)))
