@@ -265,10 +265,10 @@
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveEverything)
-     * when the SP has already been decremented by FRAME_SIZE_SAVE_EVERYTHING
-     * and saving registers x29 and LR is handled elsewhere.
      */
-.macro SETUP_SAVE_EVERYTHING_FRAME_DECREMENTED_SP_SKIP_X29_LR
+.macro SETUP_SAVE_EVERYTHING_FRAME
+    INCREASE_FRAME 512
+
     // Ugly compile-time check, but we only have the preprocessor.
 #if (FRAME_SIZE_SAVE_EVERYTHING != 512)
 #error "FRAME_SIZE_SAVE_EVERYTHING(ARM64) size not as expected."
@@ -310,6 +310,7 @@
     SAVE_TWO_REGS x23, x24, 448
     SAVE_TWO_REGS x25, x26, 464
     SAVE_TWO_REGS x27, x28, 480
+    SAVE_TWO_REGS x29, xLR, 496
 
     // art::Runtime** xIP0 = &art::Runtime::instance_
     adrp xIP0, :got:_ZN3art7Runtime9instance_E
@@ -325,16 +326,6 @@
     // Place sp in Thread::Current()->top_quick_frame.
     mov xIP0, sp
     str xIP0, [xSELF, # THREAD_TOP_QUICK_FRAME_OFFSET]
-.endm
-
-    /*
-     * Macro that sets up the callee save frame to conform with
-     * Runtime::CreateCalleeSaveMethod(kSaveEverything)
-     */
-.macro SETUP_SAVE_EVERYTHING_FRAME
-    INCREASE_FRAME 512
-    SAVE_TWO_REGS x29, xLR, 496
-    SETUP_SAVE_EVERYTHING_FRAME_DECREMENTED_SP_SKIP_X29_LR
 .endm
 
 .macro RESTORE_SAVE_EVERYTHING_FRAME
@@ -471,21 +462,7 @@ NO_ARG_RUNTIME_EXCEPTION art_quick_throw_null_pointer_exception, artThrowNullPoi
     /*
      * Call installed by a signal handler to create and deliver a NullPointerException.
      */
-    .extern art_quick_throw_null_pointer_exception_from_signal
-ENTRY art_quick_throw_null_pointer_exception_from_signal
-    // The fault handler pushes the gc map address, i.e. "return address", to stack
-    // and passes the fault address in LR. So we need to set up the CFI info accordingly.
-    .cfi_def_cfa_offset __SIZEOF_POINTER__
-    .cfi_rel_offset lr, 0
-    // Save all registers as basis for long jump context.
-    INCREASE_FRAME (FRAME_SIZE_SAVE_EVERYTHING - __SIZEOF_POINTER__)
-    SAVE_REG x29, (FRAME_SIZE_SAVE_EVERYTHING - 2 * __SIZEOF_POINTER__)  // LR already saved.
-    SETUP_SAVE_EVERYTHING_FRAME_DECREMENTED_SP_SKIP_X29_LR
-    mov x0, lr                        // pass the fault address stored in LR by the fault handler.
-    mov x1, xSELF                     // pass Thread::Current.
-    b   artThrowNullPointerExceptionFromSignal  // (arg, Thread*).
-    brk 0
-END art_quick_throw_null_pointer_exception_from_signal
+ONE_ARG_RUNTIME_EXCEPTION art_quick_throw_null_pointer_exception_from_signal, artThrowNullPointerExceptionFromSignal
 
     /*
      * Called by managed code to create and deliver an ArithmeticException.
