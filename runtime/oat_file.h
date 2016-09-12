@@ -64,7 +64,9 @@ class OatFile {
 
   // Opens an oat file contained within the given elf file. This is always opened as
   // non-executable at the moment.
-  static OatFile* OpenWithElfFile(ElfFile* elf_file, const std::string& location,
+  static OatFile* OpenWithElfFile(ElfFile* elf_file,
+                                  VdexFile* vdex_file,
+                                  const std::string& location,
                                   const char* abs_dex_location,
                                   std::string* error_msg);
   // Open an oat file. Returns null on failure.  Requested base can
