@@ -122,6 +122,16 @@ public class Main extends UnresolvedSuperClass {
     expectEquals(123456789123456789f, c.instanceFloat);
     expectEquals(123456789123456789d, c.instanceDouble);
     expectEquals(o, c.instanceObject);
+
+    // Check "large" values.
+
+    c.instanceByte = (byte)-1;
+    c.instanceChar = (char)32768;
+    c.instanceInt = -1;
+
+    expectEquals((byte)-1, c.instanceByte);
+    expectEquals((char)32768, c.instanceChar);
+    expectEquals(-1, c.instanceInt);
   }
 
   /// CHECK-START: void Main.callUnresolvedNull(UnresolvedClass) register (before)
