@@ -4124,17 +4124,6 @@ void InstructionCodeGeneratorARM64::VisitClearException(HClearException* clear A
 
 HLoadString::LoadKind CodeGeneratorARM64::GetSupportedLoadStringKind(
     HLoadString::LoadKind desired_string_load_kind) {
-  if (kEmitCompilerReadBarrier) {
-    switch (desired_string_load_kind) {
-      case HLoadString::LoadKind::kBootImageLinkTimeAddress:
-      case HLoadString::LoadKind::kBootImageLinkTimePcRelative:
-      case HLoadString::LoadKind::kBootImageAddress:
-        // TODO: Implement for read barrier.
-        return HLoadString::LoadKind::kDexCacheViaMethod;
-      default:
-        break;
-    }
-  }
   switch (desired_string_load_kind) {
     case HLoadString::LoadKind::kBootImageLinkTimeAddress:
       DCHECK(!GetCompilerOptions().GetCompilePic());
@@ -4175,12 +4164,10 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
 
   switch (load->GetLoadKind()) {
     case HLoadString::LoadKind::kBootImageLinkTimeAddress:
-      DCHECK(!kEmitCompilerReadBarrier);
       __ Ldr(out, codegen_->DeduplicateBootImageStringLiteral(load->GetDexFile(),
                                                               load->GetStringIndex()));
       return;  // No dex cache slow path.
     case HLoadString::LoadKind::kBootImageLinkTimePcRelative: {
-      DCHECK(!kEmitCompilerReadBarrier);
       // Add ADRP with its PC-relative String patch.
       const DexFile& dex_file = load->GetDexFile();
       uint32_t string_index = load->GetStringIndex();
@@ -4201,7 +4188,6 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
       return;  // No dex cache slow path.
     }
     case HLoadString::LoadKind::kBootImageAddress: {
-      DCHECK(!kEmitCompilerReadBarrier);
       DCHECK(load->GetAddress() != 0u && IsUint<32>(load->GetAddress()));
       __ Ldr(out.W(), codegen_->DeduplicateBootImageAddressLiteral(load->GetAddress()));
       return;  // No dex cache slow path.
