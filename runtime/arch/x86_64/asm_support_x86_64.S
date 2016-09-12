@@ -110,7 +110,7 @@ END_MACRO
 
 // TODO: we might need to use SYMBOL() here to add the underscore prefix
 // for mac builds.
-MACRO1(DEFINE_FUNCTION, c_name)
+MACRO2(DEFINE_FUNCTION_CUSTOM_CFA, c_name, cfa_offset)
     FUNCTION_TYPE(SYMBOL(\c_name))
     ASM_HIDDEN CALLVAR(c_name)
     .globl CALLVAR(c_name)
@@ -118,7 +118,11 @@ MACRO1(DEFINE_FUNCTION, c_name)
 CALLVAR(c_name):
     CFI_STARTPROC
     // Ensure we get a sane starting CFA.
-    CFI_DEF_CFA(rsp, 8)
+    CFI_DEF_CFA(rsp, RAW_VAR(cfa_offset))
+END_MACRO
+
+MACRO1(DEFINE_FUNCTION, c_name)
+    DEFINE_FUNCTION_CUSTOM_CFA RAW_VAR(c_name), __SIZEOF_POINTER__
 END_MACRO
 
 MACRO1(END_FUNCTION, c_name)
