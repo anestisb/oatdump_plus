@@ -1081,6 +1081,13 @@ void CodeGenerator::EmitEnvironment(HEnvironment* environment, SlowPathCode* slo
   }
 }
 
+bool CodeGenerator::IsImplicitNullCheckAllowed(HNullCheck* null_check) const {
+  return compiler_options_.GetImplicitNullChecks() &&
+         // Null checks which might throw into a catch block need to save live
+         // registers and therefore cannot be done implicitly.
+         !null_check->CanThrowIntoCatchBlock();
+}
+
 bool CodeGenerator::CanMoveNullCheckToUser(HNullCheck* null_check) {
   HInstruction* first_next_not_move = null_check->GetNextDisregardingMoves();
 
@@ -1089,10 +1096,6 @@ bool CodeGenerator::CanMoveNullCheckToUser(HNullCheck* null_check) {
 }
 
 void CodeGenerator::MaybeRecordImplicitNullCheck(HInstruction* instr) {
-  if (!compiler_options_.GetImplicitNullChecks()) {
-    return;
-  }
-
   // If we are from a static path don't record the pc as we can't throw NPE.
   // NB: having the checks here makes the code much less verbose in the arch
   // specific code generators.
@@ -1111,31 +1114,16 @@ void CodeGenerator::MaybeRecordImplicitNullCheck(HInstruction* instr) {
   // and needs to record the pc.
   if (first_prev_not_move != nullptr && first_prev_not_move->IsNullCheck()) {
     HNullCheck* null_check = first_prev_not_move->AsNullCheck();
-    // TODO: The parallel moves modify the environment. Their changes need to be
-    // reverted otherwise the stack maps at the throw point will not be correct.
-    RecordPcInfo(null_check, null_check->GetDexPc());
+    if (IsImplicitNullCheckAllowed(null_check)) {
+      // TODO: The parallel moves modify the environment. Their changes need to be
+      // reverted otherwise the stack maps at the throw point will not be correct.
+      RecordPcInfo(null_check, null_check->GetDexPc());
+    }
   }
-}
-
-LocationSummary* CodeGenerator::CreateNullCheckLocations(HNullCheck* null_check) {
-  // Note: Using kNoCall allows the method to be treated as leaf (and eliminate the
-  // HSuspendCheck from entry block). However, it will still get a valid stack frame
-  // because the HNullCheck needs an environment.
-  LocationSummary::CallKind call_kind = LocationSummary::kNoCall;
-  // When throwing from a try block, we may need to retrieve dalvik registers from
-  // physical registers. For implicit null checks, this is done by using kSaveEverything
-  // runtime method but for explicit null checks we need to save live registers.
-  if (!compiler_options_.GetImplicitNullChecks() && null_check->CanThrowIntoCatchBlock()) {
-    call_kind = LocationSummary::kCallOnSlowPath;
-  }
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(null_check, call_kind);
-  locations->SetInAt(0, Location::RequiresRegister());
-  DCHECK(!null_check->HasUses());
-  return locations;
 }
 
 void CodeGenerator::GenerateNullCheck(HNullCheck* instruction) {
-  if (compiler_options_.GetImplicitNullChecks()) {
+  if (IsImplicitNullCheckAllowed(instruction)) {
     MaybeRecordStat(kImplicitNullCheckGenerated);
     GenerateImplicitNullCheck(instruction);
   } else {

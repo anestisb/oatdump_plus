@@ -224,11 +224,10 @@ END_MACRO
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveEverything)
-     * when EDI is already saved.
      */
-MACRO2(SETUP_SAVE_EVERYTHING_FRAME_EDI_SAVED, got_reg, temp_reg)
-    // Save core registers from highest to lowest to agree with core spills bitmap.
-    // EDI, or at least a placeholder for it, is already on the stack.
+MACRO2(SETUP_SAVE_EVERYTHING_FRAME, got_reg, temp_reg)
+    // Save core registers.
+    PUSH edi
     PUSH esi
     PUSH ebp
     PUSH ebx
@@ -263,15 +262,6 @@ MACRO2(SETUP_SAVE_EVERYTHING_FRAME_EDI_SAVED, got_reg, temp_reg)
 #if (FRAME_SIZE_SAVE_EVERYTHING != 7*4 + 8*8 + 12 + 4 + 4)
 #error "FRAME_SIZE_SAVE_EVERYTHING(X86) size not as expected."
 #endif
-END_MACRO
-
-    /*
-     * Macro that sets up the callee save frame to conform with
-     * Runtime::CreateCalleeSaveMethod(kSaveEverything)
-     */
-MACRO2(SETUP_SAVE_EVERYTHING_FRAME, got_reg, temp_reg)
-    PUSH edi
-    SETUP_SAVE_EVERYTHING_FRAME_EDI_SAVED RAW_VAR(got_reg), RAW_VAR(temp_reg)
 END_MACRO
 
 MACRO0(RESTORE_SAVE_EVERYTHING_FRAME)
@@ -330,6 +320,7 @@ END_MACRO
 MACRO2(ONE_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
     DEFINE_FUNCTION VAR(c_name)
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME ebx, ebx // save all registers as basis for long jump context
+    mov %esp, %ecx
     // Outgoing argument set up
     subl MACRO_LITERAL(8), %esp                // alignment padding
     CFI_ADJUST_CFA_OFFSET(8)
@@ -363,23 +354,7 @@ NO_ARG_RUNTIME_EXCEPTION art_quick_throw_null_pointer_exception, artThrowNullPoi
     /*
      * Call installed by a signal handler to create and deliver a NullPointerException.
      */
-DEFINE_FUNCTION_CUSTOM_CFA art_quick_throw_null_pointer_exception_from_signal, 2 * __SIZEOF_POINTER__
-    // Fault address and return address were saved by the fault handler.
-    // Save all registers as basis for long jump context; EDI will replace fault address later.
-    SETUP_SAVE_EVERYTHING_FRAME_EDI_SAVED ebx, ebx
-    // Retrieve fault address and save EDI.
-    movl (FRAME_SIZE_SAVE_EVERYTHING - 2 * __SIZEOF_POINTER__)(%esp), %eax
-    movl %edi, (FRAME_SIZE_SAVE_EVERYTHING - 2 * __SIZEOF_POINTER__)(%esp)
-    CFI_REL_OFFSET(%edi, (FRAME_SIZE_SAVE_EVERYTHING - 2 * __SIZEOF_POINTER__))
-    // Outgoing argument set up
-    subl MACRO_LITERAL(8), %esp                           // alignment padding
-    CFI_ADJUST_CFA_OFFSET(8)
-    pushl %fs:THREAD_SELF_OFFSET                          // pass Thread::Current()
-    CFI_ADJUST_CFA_OFFSET(4)
-    PUSH eax                                              // pass arg1
-    call SYMBOL(artThrowNullPointerExceptionFromSignal)   // (addr, self)
-    UNREACHABLE
-END_FUNCTION art_quick_throw_null_pointer_exception
+ONE_ARG_RUNTIME_EXCEPTION art_quick_throw_null_pointer_exception_from_signal, artThrowNullPointerExceptionFromSignal
 
     /*
      * Called by managed code to create and deliver an ArithmeticException.
