@@ -73,9 +73,11 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
   CHECK_EQ(0, mkdir_result) << image_dir;
   ScratchFile image_file(OS::CreateEmptyFile(image_filename.c_str()));
 
-  std::string oat_filename(image_filename, 0, image_filename.size() - 3);
-  oat_filename += "oat";
+  std::string oat_filename = ReplaceFileExtension(image_filename, "oat");
   ScratchFile oat_file(OS::CreateEmptyFile(oat_filename.c_str()));
+
+  std::string vdex_filename = ReplaceFileExtension(image_filename, "vdex");
+  ScratchFile vdex_file(OS::CreateEmptyFile(vdex_filename.c_str()));
 
   const uintptr_t requested_image_base = ART_BASE_ADDRESS;
   std::unordered_map<const DexFile*, size_t> dex_file_to_oat_index_map;
@@ -109,7 +111,7 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
           oat_file.GetFile());
       elf_writer->Start();
       OatWriter oat_writer(/*compiling_boot_image*/true, &timings);
-      OutputStream* rodata = elf_writer->StartRoData();
+      OutputStream* oat_rodata = elf_writer->StartRoData();
       for (const DexFile* dex_file : dex_files) {
         ArrayRef<const uint8_t> raw_dex_file(
             reinterpret_cast<const uint8_t*>(&dex_file->GetHeader()),
@@ -120,16 +122,18 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
       }
       std::unique_ptr<MemMap> opened_dex_files_map;
       std::vector<std::unique_ptr<const DexFile>> opened_dex_files;
-      bool dex_files_ok = oat_writer.WriteAndOpenDexFiles(
-          rodata,
-          oat_file.GetFile(),
-          compiler_driver_->GetInstructionSet(),
-          compiler_driver_->GetInstructionSetFeatures(),
-          &key_value_store,
-          /* verify */ false,           // Dex files may be dex-to-dex-ed, don't verify.
-          &opened_dex_files_map,
-          &opened_dex_files);
-      ASSERT_TRUE(dex_files_ok);
+      {
+        bool dex_files_ok = oat_writer.WriteAndOpenDexFiles(
+            kIsVdexEnabled ? vdex_file.GetFile() : oat_file.GetFile(),
+            oat_rodata,
+            compiler_driver_->GetInstructionSet(),
+            compiler_driver_->GetInstructionSetFeatures(),
+            &key_value_store,
+            /* verify */ false,           // Dex files may be dex-to-dex-ed, don't verify.
+            &opened_dex_files_map,
+            &opened_dex_files);
+        ASSERT_TRUE(dex_files_ok);
+      }
 
       bool image_space_ok = writer->PrepareImageAddressSpace();
       ASSERT_TRUE(image_space_ok);
@@ -138,17 +142,17 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
                                               instruction_set_features_.get());
       oat_writer.PrepareLayout(compiler_driver_.get(), writer.get(), dex_files, &patcher);
       size_t rodata_size = oat_writer.GetOatHeader().GetExecutableOffset();
-      size_t text_size = oat_writer.GetSize() - rodata_size;
+      size_t text_size = oat_writer.GetOatSize() - rodata_size;
       elf_writer->SetLoadedSectionSizes(rodata_size, text_size, oat_writer.GetBssSize());
 
       writer->UpdateOatFileLayout(/* oat_index */ 0u,
                                   elf_writer->GetLoadedSize(),
                                   oat_writer.GetOatDataOffset(),
-                                  oat_writer.GetSize());
+                                  oat_writer.GetOatSize());
 
-      bool rodata_ok = oat_writer.WriteRodata(rodata);
+      bool rodata_ok = oat_writer.WriteRodata(oat_rodata);
       ASSERT_TRUE(rodata_ok);
-      elf_writer->EndRoData(rodata);
+      elf_writer->EndRoData(oat_rodata);
 
       OutputStream* text = elf_writer->StartText();
       bool text_ok = oat_writer.WriteCode(text);
@@ -285,6 +289,7 @@ void ImageTest::TestWriteRead(ImageHeader::StorageMode storage_mode) {
 
   image_file.Unlink();
   oat_file.Unlink();
+  vdex_file.Unlink();
   int rmdir_result = rmdir(image_dir.c_str());
   CHECK_EQ(0, rmdir_result);
 }

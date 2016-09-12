@@ -345,17 +345,6 @@ CompilerFilter::Filter OatFileAssistant::OdexFileCompilerFilter() {
   return odex_.CompilerFilter();
 }
 
-static std::string ArtFileName(const OatFile* oat_file) {
-  const std::string oat_file_location = oat_file->GetLocation();
-  // Replace extension with .art
-  const size_t last_ext = oat_file_location.find_last_of('.');
-  if (last_ext == std::string::npos) {
-    LOG(ERROR) << "No extension in oat file " << oat_file_location;
-    return std::string();
-  }
-  return oat_file_location.substr(0, last_ext) + ".art";
-}
-
 const std::string* OatFileAssistant::OatFileName() {
   return oat_.Filename();
 }
@@ -565,6 +554,7 @@ OatFileAssistant::GenerateOatFile(std::string* error_msg) {
     return kUpdateNotAttempted;
   }
   const std::string& oat_file_name = *oat_.Filename();
+  const std::string& vdex_file_name = ReplaceFileExtension(oat_file_name, "vdex");
 
   // dex2oat ignores missing dex files and doesn't report an error.
   // Check explicitly here so we can detect the error properly.
@@ -574,8 +564,22 @@ OatFileAssistant::GenerateOatFile(std::string* error_msg) {
     return kUpdateNotAttempted;
   }
 
-  std::unique_ptr<File> oat_file;
-  oat_file.reset(OS::CreateEmptyFile(oat_file_name.c_str()));
+  std::unique_ptr<File> vdex_file(OS::CreateEmptyFile(vdex_file_name.c_str()));
+  if (vdex_file.get() == nullptr) {
+    *error_msg = "Generation of oat file " + oat_file_name
+      + " not attempted because the vdex file " + vdex_file_name
+      + " could not be opened.";
+    return kUpdateNotAttempted;
+  }
+
+  if (fchmod(vdex_file->Fd(), 0644) != 0) {
+    *error_msg = "Generation of oat file " + oat_file_name
+      + " not attempted because the vdex file " + vdex_file_name
+      + " could not be made world readable.";
+    return kUpdateNotAttempted;
+  }
+
+  std::unique_ptr<File> oat_file(OS::CreateEmptyFile(oat_file_name.c_str()));
   if (oat_file.get() == nullptr) {
     *error_msg = "Generation of oat file " + oat_file_name
       + " not attempted because the oat file could not be created.";
@@ -591,14 +595,23 @@ OatFileAssistant::GenerateOatFile(std::string* error_msg) {
 
   std::vector<std::string> args;
   args.push_back("--dex-file=" + dex_location_);
+  args.push_back("--vdex-fd=" + std::to_string(vdex_file->Fd()));
   args.push_back("--oat-fd=" + std::to_string(oat_file->Fd()));
   args.push_back("--oat-location=" + oat_file_name);
 
   if (!Dex2Oat(args, error_msg)) {
-    // Manually delete the file. This ensures there is no garbage left over if
-    // the process unexpectedly died.
+    // Manually delete the oat and vdex files. This ensures there is no garbage
+    // left over if the process unexpectedly died.
+    vdex_file->Erase();
+    unlink(vdex_file_name.c_str());
     oat_file->Erase();
     unlink(oat_file_name.c_str());
+    return kUpdateFailed;
+  }
+
+  if (vdex_file->FlushCloseOrErase() != 0) {
+    *error_msg = "Unable to close vdex file " + vdex_file_name;
+    unlink(vdex_file_name.c_str());
     return kUpdateFailed;
   }
 
@@ -830,7 +843,7 @@ uint32_t OatFileAssistant::GetCombinedImageChecksum() {
 
 std::unique_ptr<gc::space::ImageSpace> OatFileAssistant::OpenImageSpace(const OatFile* oat_file) {
   DCHECK(oat_file != nullptr);
-  std::string art_file = ArtFileName(oat_file);
+  std::string art_file = ReplaceFileExtension(oat_file->GetLocation(), "art");
   if (art_file.empty()) {
     return nullptr;
   }
