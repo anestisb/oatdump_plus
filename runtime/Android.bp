@@ -155,6 +155,7 @@ cc_defaults {
         "native/java_lang_reflect_Constructor.cc",
         "native/java_lang_reflect_Field.cc",
         "native/java_lang_reflect_Method.cc",
+        "native/java_lang_reflect_Parameter.cc",
         "native/java_lang_reflect_Proxy.cc",
         "native/java_util_concurrent_atomic_AtomicLong.cc",
         "native/libcore_util_CharsetUtils.cc",
