@@ -122,7 +122,7 @@ func hostFlags(ctx android.BaseContext) []string {
 	return cflags
 }
 
-func (a *artGlobalDefaults) CustomizeProperties(ctx android.CustomizePropertiesContext) {
+func globalDefaults(ctx android.LoadHookContext) {
 	type props struct {
 		Target struct {
 			Android struct {
@@ -143,9 +143,7 @@ func (a *artGlobalDefaults) CustomizeProperties(ctx android.CustomizePropertiesC
 	ctx.AppendProperties(p)
 }
 
-type artGlobalDefaults struct{}
-
-func (a *artCustomLinkerCustomizer) CustomizeProperties(ctx android.CustomizePropertiesContext) {
+func customLinker(ctx android.LoadHookContext) {
 	linker := envDefault(ctx, "CUSTOM_TARGET_LINKER", "")
 	if linker != "" {
 		type props struct {
@@ -158,9 +156,7 @@ func (a *artCustomLinkerCustomizer) CustomizeProperties(ctx android.CustomizePro
 	}
 }
 
-type artCustomLinkerCustomizer struct{}
-
-func (a *artPrefer32BitCustomizer) CustomizeProperties(ctx android.CustomizePropertiesContext) {
+func prefer32Bit(ctx android.LoadHookContext) {
 	if envTrue(ctx, "HOST_PREFER_32_BIT") {
 		type props struct {
 			Target struct {
@@ -176,8 +172,6 @@ func (a *artPrefer32BitCustomizer) CustomizeProperties(ctx android.CustomizeProp
 	}
 }
 
-type artPrefer32BitCustomizer struct{}
-
 func init() {
 	soong.RegisterModuleType("art_cc_library", artLibrary)
 	soong.RegisterModuleType("art_cc_binary", artBinary)
@@ -187,17 +181,16 @@ func init() {
 }
 
 func artGlobalDefaultsFactory() (blueprint.Module, []interface{}) {
-	c := &artGlobalDefaults{}
 	module, props := artDefaultsFactory()
-	android.AddCustomizer(module.(android.Module), c)
+	android.AddLoadHook(module, globalDefaults)
 
 	return module, props
 }
 
 func artDefaultsFactory() (blueprint.Module, []interface{}) {
-	c := &codegenCustomizer{}
-	module, props := cc.DefaultsFactory(&c.codegenProperties)
-	android.AddCustomizer(module.(android.Module), c)
+	c := &codegenProperties{}
+	module, props := cc.DefaultsFactory(c)
+	android.AddLoadHook(module, func(ctx android.LoadHookContext) { codegen(ctx, c) })
 
 	return module, props
 }
@@ -206,9 +199,9 @@ func artLibrary() (blueprint.Module, []interface{}) {
 	library, _ := cc.NewLibrary(android.HostAndDeviceSupported, true, true)
 	module, props := library.Init()
 
-	c := &codegenCustomizer{}
-	android.AddCustomizer(library, c)
-	props = append(props, &c.codegenProperties)
+	c := &codegenProperties{}
+	android.AddLoadHook(module, func(ctx android.LoadHookContext) { codegen(ctx, c) })
+	props = append(props, c)
 
 	return module, props
 }
@@ -217,8 +210,8 @@ func artBinary() (blueprint.Module, []interface{}) {
 	binary, _ := cc.NewBinary(android.HostAndDeviceSupported)
 	module, props := binary.Init()
 
-	android.AddCustomizer(binary, &artCustomLinkerCustomizer{})
-	android.AddCustomizer(binary, &artPrefer32BitCustomizer{})
+	android.AddLoadHook(module, customLinker)
+	android.AddLoadHook(module, prefer32Bit)
 	return module, props
 }
 
@@ -226,8 +219,8 @@ func artTest() (blueprint.Module, []interface{}) {
 	test := cc.NewTest(android.HostAndDeviceSupported)
 	module, props := test.Init()
 
-	android.AddCustomizer(test, &artCustomLinkerCustomizer{})
-	android.AddCustomizer(test, &artPrefer32BitCustomizer{})
+	android.AddLoadHook(module, customLinker)
+	android.AddLoadHook(module, prefer32Bit)
 	return module, props
 }
 
