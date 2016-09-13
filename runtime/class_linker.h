@@ -768,8 +768,7 @@ class ClassLinker {
   void LoadField(const ClassDataItemIterator& it, Handle<mirror::Class> klass, ArtField* dst)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void LoadMethod(Thread* self,
-                  const DexFile& dex_file,
+  void LoadMethod(const DexFile& dex_file,
                   const ClassDataItemIterator& it,
                   Handle<mirror::Class> klass, ArtMethod* dst)
       REQUIRES_SHARED(Locks::mutator_lock_);

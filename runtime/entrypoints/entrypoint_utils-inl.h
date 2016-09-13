@@ -48,7 +48,7 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
   // This method is being used by artQuickResolutionTrampoline, before it sets up
   // the passed parameters in a GC friendly way. Therefore we must never be
   // suspended while executing it.
-  ScopedAssertNoThreadSuspension sants(Thread::Current(), __FUNCTION__);
+  ScopedAssertNoThreadSuspension sants(__FUNCTION__);
 
   uint32_t method_index = inline_info.GetMethodIndexAtDepth(encoding, inlining_depth);
   InvokeType invoke_type = static_cast<InvokeType>(

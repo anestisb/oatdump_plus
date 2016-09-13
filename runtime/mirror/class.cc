@@ -784,7 +784,7 @@ ArtField* Class::FindStaticField(Thread* self,
     }
     // Though GetDirectInterface() should not cause thread suspension when called
     // from here, it takes a Handle as an argument, so we need to wrap `k`.
-    ScopedAssertNoThreadSuspension ants(self, __FUNCTION__);
+    ScopedAssertNoThreadSuspension ants(__FUNCTION__);
     StackHandleScope<1> hs(self);
     Handle<mirror::Class> h_k(hs.NewHandle(k));
     // Is this field in any of this class' interfaces?

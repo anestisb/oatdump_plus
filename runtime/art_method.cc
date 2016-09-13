@@ -107,7 +107,7 @@ size_t ArtMethod::NumArgRegisters(const StringPiece& shorty) {
 }
 
 bool ArtMethod::HasSameNameAndSignature(ArtMethod* other) {
-  ScopedAssertNoThreadSuspension ants(Thread::Current(), "HasSameNameAndSignature");
+  ScopedAssertNoThreadSuspension ants("HasSameNameAndSignature");
   const DexFile* dex_file = GetDexFile();
   const DexFile::MethodId& mid = dex_file->GetMethodId(GetDexMethodIndex());
   if (GetDexCache() == other->GetDexCache()) {

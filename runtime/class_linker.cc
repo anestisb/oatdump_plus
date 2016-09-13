@@ -1533,7 +1533,7 @@ static std::unique_ptr<const DexFile> OpenOatDexFile(const OatFile* oat_file,
 bool ClassLinker::OpenImageDexFiles(gc::space::ImageSpace* space,
                                     std::vector<std::unique_ptr<const DexFile>>* out_dex_files,
                                     std::string* error_msg) {
-  ScopedAssertNoThreadSuspension nts(Thread::Current(), __FUNCTION__);
+  ScopedAssertNoThreadSuspension nts(__FUNCTION__);
   const ImageHeader& header = space->GetImageHeader();
   mirror::Object* dex_caches_object = header.GetImageRoot(ImageHeader::kDexCaches);
   DCHECK(dex_caches_object != nullptr);
@@ -1923,7 +1923,7 @@ void ClassLinker::VisitClasses(ClassVisitor* visitor) {
   ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);
   // Not safe to have thread suspension when we are holding a lock.
   if (self != nullptr) {
-    ScopedAssertNoThreadSuspension nts(self, __FUNCTION__);
+    ScopedAssertNoThreadSuspension nts(__FUNCTION__);
     VisitClassesInternal(visitor);
   } else {
     VisitClassesInternal(visitor);
@@ -1965,9 +1965,8 @@ class GetClassInToObjectArray : public ClassVisitor {
 void ClassLinker::VisitClassesWithoutClassesLock(ClassVisitor* visitor) {
   // TODO: it may be possible to avoid secondary storage if we iterate over dex caches. The problem
   // is avoiding duplicates.
-  Thread* const self = Thread::Current();
   if (!kMovingClasses) {
-    ScopedAssertNoThreadSuspension nts(self, __FUNCTION__);
+    ScopedAssertNoThreadSuspension nts(__FUNCTION__);
     GetClassesInToVector accumulator;
     VisitClasses(&accumulator);
     for (mirror::Class* klass : accumulator.classes_) {
@@ -1976,6 +1975,7 @@ void ClassLinker::VisitClassesWithoutClassesLock(ClassVisitor* visitor) {
       }
     }
   } else {
+    Thread* const self = Thread::Current();
     StackHandleScope<1> hs(self);
     auto classes = hs.NewHandle<mirror::ObjectArray<mirror::Class>>(nullptr);
     // We size the array assuming classes won't be added to the class table during the visit.
@@ -3047,7 +3047,7 @@ void ClassLinker::LoadClassMembers(Thread* self,
   {
     // Note: We cannot have thread suspension until the field and method arrays are setup or else
     // Class::VisitFieldRoots may miss some fields or methods.
-    ScopedAssertNoThreadSuspension nts(self, __FUNCTION__);
+    ScopedAssertNoThreadSuspension nts(__FUNCTION__);
     // Load static fields.
     // We allow duplicate definitions of the same field in a class_data_item
     // but ignore the repeated indexes here, b/21868015.
@@ -3113,7 +3113,7 @@ void ClassLinker::LoadClassMembers(Thread* self,
     // TODO These should really use the iterators.
     for (size_t i = 0; it.HasNextDirectMethod(); i++, it.Next()) {
       ArtMethod* method = klass->GetDirectMethodUnchecked(i, image_pointer_size_);
-      LoadMethod(self, dex_file, it, klass, method);
+      LoadMethod(dex_file, it, klass, method);
       LinkCode(method, oat_class, class_def_method_index);
       uint32_t it_method_index = it.GetMemberIndex();
       if (last_dex_method_index == it_method_index) {
@@ -3128,7 +3128,7 @@ void ClassLinker::LoadClassMembers(Thread* self,
     }
     for (size_t i = 0; it.HasNextVirtualMethod(); i++, it.Next()) {
       ArtMethod* method = klass->GetVirtualMethodUnchecked(i, image_pointer_size_);
-      LoadMethod(self, dex_file, it, klass, method);
+      LoadMethod(dex_file, it, klass, method);
       DCHECK_EQ(class_def_method_index, it.NumDirectMethods() + i);
       LinkCode(method, oat_class, class_def_method_index);
       class_def_method_index++;
@@ -3149,8 +3149,7 @@ void ClassLinker::LoadField(const ClassDataItemIterator& it,
   dst->SetAccessFlags(it.GetFieldAccessFlags());
 }
 
-void ClassLinker::LoadMethod(Thread* self,
-                             const DexFile& dex_file,
+void ClassLinker::LoadMethod(const DexFile& dex_file,
                              const ClassDataItemIterator& it,
                              Handle<mirror::Class> klass,
                              ArtMethod* dst) {
@@ -3158,7 +3157,7 @@ void ClassLinker::LoadMethod(Thread* self,
   const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method_idx);
   const char* method_name = dex_file.StringDataByIdx(method_id.name_idx_);
 
-  ScopedAssertNoThreadSuspension ants(self, "LoadMethod");
+  ScopedAssertNoThreadSuspension ants("LoadMethod");
   dst->SetDexMethodIndex(dex_method_idx);
   dst->SetDeclaringClass(klass.Get());
   dst->SetCodeItemOffset(it.GetMethodCodeItemOffset());
@@ -3692,7 +3691,7 @@ void ClassLinker::AddImageClassesToClassTable(std::vector<gc::space::ImageSpace*
                                               mirror::ClassLoader* class_loader) {
   Thread* self = Thread::Current();
   WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
-  ScopedAssertNoThreadSuspension ants(self, "Moving image classes to class table");
+  ScopedAssertNoThreadSuspension ants("Moving image classes to class table");
 
   ClassTable* const class_table = InsertClassTableForClassLoader(class_loader);
 
@@ -3747,7 +3746,7 @@ void ClassLinker::MoveClassTableToPreZygote() {
 }
 
 mirror::Class* ClassLinker::LookupClassFromBootImage(const char* descriptor) {
-  ScopedAssertNoThreadSuspension ants(Thread::Current(), "Image class lookup");
+  ScopedAssertNoThreadSuspension ants("Image class lookup");
   std::vector<mirror::ObjectArray<mirror::DexCache>*> dex_caches_vector =
       GetImageDexCaches(Runtime::Current()->GetHeap()->GetBootImageSpaces());
   for (mirror::ObjectArray<mirror::DexCache>* dex_caches : dex_caches_vector) {
@@ -6503,7 +6502,7 @@ bool ClassLinker::SetupInterfaceLookupTable(Thread* self, Handle<mirror::Class> 
 
   size_t new_ifcount;
   {
-    ScopedAssertNoThreadSuspension nts(self, "Copying mirror::Class*'s for FillIfTable");
+    ScopedAssertNoThreadSuspension nts("Copying mirror::Class*'s for FillIfTable");
     std::vector<mirror::Class*> to_add;
     for (size_t i = 0; i < num_interfaces; i++) {
       mirror::Class* interface = have_interfaces ? interfaces->Get(i) :
@@ -8266,7 +8265,7 @@ void ClassLinker::CleanupClassLoaders() {
 std::set<DexCacheResolvedClasses> ClassLinker::GetResolvedClasses(bool ignore_boot_classes) {
   ScopedTrace trace(__PRETTY_FUNCTION__);
   ScopedObjectAccess soa(Thread::Current());
-  ScopedAssertNoThreadSuspension ants(soa.Self(), __FUNCTION__);
+  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
   std::set<DexCacheResolvedClasses> ret;
   VLOG(class_linker) << "Collecting resolved classes";
   const uint64_t start_time = NanoTime();
@@ -8340,7 +8339,7 @@ std::unordered_set<std::string> ClassLinker::GetClassDescriptorsForProfileKeys(
   Thread* const self = Thread::Current();
   std::unordered_map<std::string, const DexFile*> location_to_dex_file;
   ScopedObjectAccess soa(self);
-  ScopedAssertNoThreadSuspension ants(soa.Self(), __FUNCTION__);
+  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
   ReaderMutexLock mu(self, *DexLock());
   for (const ClassLinker::DexCacheData& data : GetDexCachesData()) {
     if (!self->IsJWeakCleared(data.weak_root)) {

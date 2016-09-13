@@ -108,8 +108,7 @@ class Jit {
   void AddSamples(Thread* self, ArtMethod* method, uint16_t samples, bool with_backedges)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void InvokeVirtualOrInterface(Thread* thread,
-                                mirror::Object* this_object,
+  void InvokeVirtualOrInterface(mirror::Object* this_object,
                                 ArtMethod* caller,
                                 uint32_t dex_pc,
                                 ArtMethod* callee)
