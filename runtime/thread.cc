@@ -2835,6 +2835,14 @@ class ReferenceMapVisitor : public StackVisitor {
       for (size_t i = 0; i < BitSizeOf<uint32_t>(); ++i) {
         if (register_mask & (1 << i)) {
           mirror::Object** ref_addr = reinterpret_cast<mirror::Object**>(GetGPRAddress(i));
+          if (kIsDebugBuild && ref_addr == nullptr) {
+            std::string thread_name;
+            GetThread()->GetThreadName(thread_name);
+            LOG(INTERNAL_FATAL) << "On thread " << thread_name;
+            DescribeStack(GetThread());
+            LOG(FATAL) << "Found an unsaved callee-save register " << i << " (null GPRAddress) "
+                       << "set in register_mask=" << register_mask << " at " << DescribeLocation();
+          }
           if (*ref_addr != nullptr) {
             visitor_(ref_addr, -1, this);
           }
