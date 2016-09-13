@@ -187,7 +187,7 @@ class LogMessageData {
 LogMessage::LogMessage(const char* file, unsigned int line, LogSeverity severity, int error)
   : data_(new LogMessageData(file, line, severity, error)) {
   if (PrintDirectly(severity)) {
-    static constexpr char kLogCharacters[] = { 'N', 'V', 'D', 'I', 'W', 'E', 'F', 'F' };
+    static constexpr char kLogCharacters[] = { 'V', 'D', 'I', 'W', 'E', 'F', 'F' };
     static_assert(arraysize(kLogCharacters) == static_cast<size_t>(INTERNAL_FATAL) + 1,
                   "Wrong character array size");
     stream() << ProgramInvocationShortName() << " " << kLogCharacters[static_cast<size_t>(severity)]
@@ -198,7 +198,7 @@ LogMessage::~LogMessage() {
   if (PrintDirectly(data_->GetSeverity())) {
     // Add newline at the end to match the not printing directly behavior.
     std::cerr << '\n';
-  } else if (data_->GetSeverity() != LogSeverity::NONE) {
+  } else {
     if (data_->GetSeverity() < gMinimumLogSeverity) {
       return;  // No need to format something we're not going to output.
     }
@@ -242,7 +242,6 @@ std::ostream& LogMessage::stream() {
 
 #ifdef ART_TARGET_ANDROID
 static const android_LogPriority kLogSeverityToAndroidLogPriority[] = {
-  ANDROID_LOG_VERBOSE,  // NONE, use verbose as stand-in, will never be printed.
   ANDROID_LOG_VERBOSE, ANDROID_LOG_DEBUG, ANDROID_LOG_INFO, ANDROID_LOG_WARN,
   ANDROID_LOG_ERROR, ANDROID_LOG_FATAL, ANDROID_LOG_FATAL
 };
@@ -252,10 +251,6 @@ static_assert(arraysize(kLogSeverityToAndroidLogPriority) == INTERNAL_FATAL + 1,
 
 void LogMessage::LogLine(const char* file, unsigned int line, LogSeverity log_severity,
                          const char* message) {
-  if (log_severity == LogSeverity::NONE) {
-    return;
-  }
-
 #ifdef ART_TARGET_ANDROID
   const char* tag = ProgramInvocationShortName();
   int priority = kLogSeverityToAndroidLogPriority[static_cast<size_t>(log_severity)];
@@ -265,7 +260,7 @@ void LogMessage::LogLine(const char* file, unsigned int line, LogSeverity log_se
     LOG_PRI(priority, tag, "%s", message);
   }
 #else
-  static const char* log_characters = "NVDIWEFF";
+  static const char* log_characters = "VDIWEFF";
   CHECK_EQ(strlen(log_characters), INTERNAL_FATAL + 1U);
   char severity = log_characters[log_severity];
   fprintf(stderr, "%s %c %5d %5d %s:%u] %s\n",
@@ -275,10 +270,6 @@ void LogMessage::LogLine(const char* file, unsigned int line, LogSeverity log_se
 
 void LogMessage::LogLineLowStack(const char* file, unsigned int line, LogSeverity log_severity,
                                  const char* message) {
-  if (log_severity == LogSeverity::NONE) {
-    return;
-  }
-
 #ifdef ART_TARGET_ANDROID
   // Use android_writeLog() to avoid stack-based buffers used by android_printLog().
   const char* tag = ProgramInvocationShortName();
@@ -300,7 +291,7 @@ void LogMessage::LogLineLowStack(const char* file, unsigned int line, LogSeverit
     android_writeLog(priority, tag, message);
   }
 #else
-  static constexpr char kLogCharacters[] = { 'N', 'V', 'D', 'I', 'W', 'E', 'F', 'F' };
+  static constexpr char kLogCharacters[] = { 'V', 'D', 'I', 'W', 'E', 'F', 'F' };
   static_assert(arraysize(kLogCharacters) == static_cast<size_t>(INTERNAL_FATAL) + 1,
                 "Wrong character array size");
 
