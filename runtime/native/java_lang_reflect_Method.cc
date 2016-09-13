@@ -20,6 +20,7 @@
 #include "base/enums.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
+#include "dex_file_annotations.h"
 #include "jni_internal.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
@@ -36,7 +37,7 @@ static jobject Method_getDefaultValue(JNIEnv* env, jobject javaMethod) {
   if (!method->GetDeclaringClass()->IsAnnotation()) {
     return nullptr;
   }
-  return soa.AddLocalReference<jobject>(method->GetDexFile()->GetAnnotationDefaultValue(method));
+  return soa.AddLocalReference<jobject>(annotations::GetAnnotationDefaultValue(method));
 }
 
 static jobjectArray Method_getExceptionTypes(JNIEnv* env, jobject javaMethod) {
@@ -58,7 +59,7 @@ static jobjectArray Method_getExceptionTypes(JNIEnv* env, jobject javaMethod) {
     return soa.AddLocalReference<jobjectArray>(declared_exceptions->Clone(soa.Self()));
   } else {
     mirror::ObjectArray<mirror::Class>* result_array =
-        method->GetDexFile()->GetExceptionTypesForMethod(method);
+        annotations::GetExceptionTypesForMethod(method);
     if (result_array == nullptr) {
       // Return an empty array instead of a null pointer
       mirror::Class* class_class = mirror::Class::GetJavaLangClass();

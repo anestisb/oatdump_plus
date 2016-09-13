@@ -20,6 +20,7 @@
 #include "class_linker-inl.h"
 #include "common_throws.h"
 #include "dex_file-inl.h"
+#include "dex_file_annotations.h"
 #include "jni_internal.h"
 #include "mirror/class-inl.h"
 #include "mirror/field.h"
@@ -423,7 +424,7 @@ static jobject Field_getAnnotationNative(JNIEnv* env, jobject javaField, jclass 
     return nullptr;
   }
   Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
-  return soa.AddLocalReference<jobject>(field->GetDexFile()->GetAnnotationForField(field, klass));
+  return soa.AddLocalReference<jobject>(annotations::GetAnnotationForField(field, klass));
 }
 
 static jobjectArray Field_getDeclaredAnnotations(JNIEnv* env, jobject javaField) {
@@ -437,7 +438,7 @@ static jobjectArray Field_getDeclaredAnnotations(JNIEnv* env, jobject javaField)
         mirror::ObjectArray<mirror::Object>::Alloc(soa.Self(), annotation_array_class, 0);
     return soa.AddLocalReference<jobjectArray>(empty_array);
   }
-  return soa.AddLocalReference<jobjectArray>(field->GetDexFile()->GetAnnotationsForField(field));
+  return soa.AddLocalReference<jobjectArray>(annotations::GetAnnotationsForField(field));
 }
 
 static jobjectArray Field_getSignatureAnnotation(JNIEnv* env, jobject javaField) {
@@ -446,8 +447,7 @@ static jobjectArray Field_getSignatureAnnotation(JNIEnv* env, jobject javaField)
   if (field->GetDeclaringClass()->IsProxyClass()) {
     return nullptr;
   }
-  return soa.AddLocalReference<jobjectArray>(
-      field->GetDexFile()->GetSignatureAnnotationForField(field));
+  return soa.AddLocalReference<jobjectArray>(annotations::GetSignatureAnnotationForField(field));
 }
 
 static jboolean Field_isAnnotationPresentNative(JNIEnv* env, jobject javaField,
@@ -459,7 +459,7 @@ static jboolean Field_isAnnotationPresentNative(JNIEnv* env, jobject javaField,
     return false;
   }
   Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
-  return field->GetDexFile()->IsFieldAnnotationPresent(field, klass);
+  return annotations::IsFieldAnnotationPresent(field, klass);
 }
 
 static JNINativeMethod gMethods[] = {
