@@ -953,6 +953,10 @@ class DexFile {
       REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::Object* GetAnnotationForMethod(ArtMethod* method, Handle<mirror::Class> annotation_class)
       const REQUIRES_SHARED(Locks::mutator_lock_);
+  mirror::Object* GetAnnotationForMethodParameter(ArtMethod* method,
+                                                  uint32_t parameter_idx,
+                                                  Handle<mirror::Class> annotation_class) const
+      REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::Object>* GetAnnotationsForMethod(ArtMethod* method) const
       REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::Class>* GetExceptionTypesForMethod(ArtMethod* method) const
