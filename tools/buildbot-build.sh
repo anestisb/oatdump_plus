@@ -50,9 +50,9 @@ done
 # is addressed.
 repo=$(which repo)
 if [[ $repo == *"depot_tools"* ]]; then
-  curl https://storage.googleapis.com/git-repo-downloads/repo > ./repo
-  chmod +x ./repo
-  ./repo sync $j_arg
+  ln -s build/soong/root.bp Android.bp
+  ln -s build/soong/bootstrap.bash bootstrap.bash
+  echo "include build/core/main.mk" > Makefile
 fi
 
 if [[ $mode == "host" ]]; then
