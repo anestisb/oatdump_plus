@@ -245,6 +245,7 @@ art_cc_test_library {
         "ti-agent/common_load.cc",
         "901-hello-ti-agent/basics.cc",
         "902-hello-transformation/transform.cc",
+        "903-hello-tagging/tagging.cc",
     ],
     shared_libs: [
         "libart",
@@ -263,9 +264,11 @@ art_cc_test_library {
         "ti-agent/common_load.cc",
         "901-hello-ti-agent/basics.cc",
         "902-hello-transformation/transform.cc",
+        "903-hello-tagging/tagging.cc",
     ],
     shared_libs: [
         "libartd",
+        "libbase",
         "libopenjdkjvmtid",
     ],
 }
