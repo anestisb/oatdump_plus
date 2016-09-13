@@ -33,6 +33,9 @@ namespace mirror {
 // C++ mirror of java.lang.reflect.Executable.
 class MANAGED Executable : public AccessibleObject {
  private:
+  uint16_t has_real_parameter_data_;
+  HeapReference<mirror::Array> parameters_;
+
   friend struct art::ExecutableOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(Executable);
 };

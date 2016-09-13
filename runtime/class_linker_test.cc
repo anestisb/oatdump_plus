@@ -697,6 +697,9 @@ struct FieldOffsets : public CheckOffsets<mirror::Field> {
 struct ExecutableOffsets : public CheckOffsets<mirror::Executable> {
   ExecutableOffsets() : CheckOffsets<mirror::Executable>(
       false, "Ljava/lang/reflect/Executable;") {
+    addOffset(OFFSETOF_MEMBER(mirror::Executable, has_real_parameter_data_),
+              "hasRealParameterData");
+    addOffset(OFFSETOF_MEMBER(mirror::Executable, parameters_), "parameters");
   };
 };
 
