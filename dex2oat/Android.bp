@@ -82,6 +82,11 @@ cc_binary {
     device_supported: false,
     static_executable: true,
     defaults: ["dex2oat-defaults"],
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
     static_libs: [
         "libart-compiler",
         "libart",
@@ -98,6 +103,11 @@ cc_binary {
         "art_debug_defaults",
         "dex2oat-defaults",
     ],
+    target: {
+        darwin: {
+            enabled: false,
+        },
+    },
     static_libs: [
         "libartd-compiler",
         "libartd",
