@@ -32,6 +32,7 @@
 #include <jni.h>
 #include "openjdkjvmti/jvmti.h"
 
+#include "art_jvmti.h"
 #include "gc_root-inl.h"
 #include "globals.h"
 #include "jni_env_ext-inl.h"
@@ -43,25 +44,6 @@
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
 namespace openjdkjvmti {
-
-extern const jvmtiInterface_1 gJvmtiInterface;
-
-// A structure that is a jvmtiEnv with additional information for the runtime.
-struct ArtJvmTiEnv : public jvmtiEnv {
-  art::JavaVMExt* art_vm;
-  void* local_data;
-
-  explicit ArtJvmTiEnv(art::JavaVMExt* runtime) : art_vm(runtime), local_data(nullptr) {
-    functions = &gJvmtiInterface;
-  }
-};
-
-// Macro and constexpr to make error values less annoying to write.
-#define ERR(e) JVMTI_ERROR_ ## e
-static constexpr jvmtiError OK = JVMTI_ERROR_NONE;
-
-// Special error code for unimplemented functions in JVMTI
-static constexpr jvmtiError ERR(NOT_IMPLEMENTED) = JVMTI_ERROR_NOT_AVAILABLE;
 
 class JvmtiFunctions {
  private:
