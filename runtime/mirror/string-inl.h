@@ -245,8 +245,9 @@ inline String* String::Alloc(Thread* self, int32_t utf16_length_with_flag,
 
 template <bool kIsInstrumented>
 inline String* String::AllocEmptyString(Thread* self, gc::AllocatorType allocator_type) {
-  SetStringCountVisitor visitor(0);
-  return Alloc<kIsInstrumented>(self, 0, allocator_type, visitor);
+  const int32_t length_with_flag = String::GetFlaggedCount(0);
+  SetStringCountVisitor visitor(length_with_flag);
+  return Alloc<kIsInstrumented>(self, length_with_flag, allocator_type, visitor);
 }
 
 template <bool kIsInstrumented>
