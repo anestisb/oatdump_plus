@@ -45,6 +45,16 @@ while true; do
   fi
 done
 
+# Workaround for repo incompatibilities on the Chromium buildbot.
+# TODO: Remove this workaround once https://bugs.chromium.org/p/chromium/issues/detail?id=646329
+# is addressed.
+repo=$(which repo)
+if [[ $repo == *"depot_tools"* ]]; then
+  curl https://storage.googleapis.com/git-repo-downloads/repo > ./repo
+  chmod +x ./repo
+  ./repo sync $j_arg
+fi
+
 if [[ $mode == "host" ]]; then
   make_command="make $j_arg $showcommands build-art-host-tests $common_targets"
   make_command+=" ${out_dir}/host/linux-x86/lib/libjavacoretests.so "
