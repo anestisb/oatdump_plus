@@ -24,7 +24,6 @@
 namespace art {
 
 enum LogSeverity {
-  NONE,            // Fake level, don't log at all.
   VERBOSE,
   DEBUG,
   INFO,

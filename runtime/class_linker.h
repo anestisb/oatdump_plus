@@ -36,6 +36,7 @@
 #include "jni.h"
 #include "oat_file.h"
 #include "object_callbacks.h"
+#include "verifier/verifier_log_mode.h"
 
 namespace art {
 
@@ -460,7 +461,7 @@ class ClassLinker {
 
   void VerifyClass(Thread* self,
                    Handle<mirror::Class> klass,
-                   LogSeverity log_level = LogSeverity::NONE)
+                   verifier::HardFailLogMode log_level = verifier::HardFailLogMode::kLogNone)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!dex_lock_);
   bool VerifyClassUsingOatFile(const DexFile& dex_file,
