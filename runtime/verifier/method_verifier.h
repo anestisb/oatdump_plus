@@ -32,6 +32,7 @@
 #include "method_reference.h"
 #include "register_line.h"
 #include "reg_type_cache.h"
+#include "verifier_log_mode.h"
 
 namespace art {
 
@@ -152,7 +153,7 @@ class MethodVerifier {
                                  mirror::Class* klass,
                                  CompilerCallbacks* callbacks,
                                  bool allow_soft_failures,
-                                 LogSeverity log_level,
+                                 HardFailLogMode log_level,
                                  std::string* error)
       REQUIRES_SHARED(Locks::mutator_lock_);
   static FailureKind VerifyClass(Thread* self,
@@ -162,7 +163,7 @@ class MethodVerifier {
                                  const DexFile::ClassDef& class_def,
                                  CompilerCallbacks* callbacks,
                                  bool allow_soft_failures,
-                                 LogSeverity log_level,
+                                 HardFailLogMode log_level,
                                  std::string* error)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -336,7 +337,7 @@ class MethodVerifier {
                                    Handle<mirror::ClassLoader> class_loader,
                                    CompilerCallbacks* callbacks,
                                    bool allow_soft_failures,
-                                   LogSeverity log_level,
+                                   HardFailLogMode log_level,
                                    bool need_precise_constants,
                                    std::string* error_string)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -362,7 +363,7 @@ class MethodVerifier {
                                   uint32_t method_access_flags,
                                   CompilerCallbacks* callbacks,
                                   bool allow_soft_failures,
-                                  LogSeverity log_level,
+                                  HardFailLogMode log_level,
                                   bool need_precise_constants,
                                   std::string* hard_failure_msg)
       REQUIRES_SHARED(Locks::mutator_lock_);

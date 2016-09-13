@@ -72,6 +72,7 @@
 #include "utils/swap_space.h"
 #include "verifier/method_verifier.h"
 #include "verifier/method_verifier-inl.h"
+#include "verifier/verifier_log_mode.h"
 
 namespace art {
 
@@ -2258,7 +2259,7 @@ void CompilerDriver::Verify(jobject class_loader,
 
 class VerifyClassVisitor : public CompilationVisitor {
  public:
-  VerifyClassVisitor(const ParallelCompilationManager* manager, LogSeverity log_level)
+  VerifyClassVisitor(const ParallelCompilationManager* manager, verifier::HardFailLogMode log_level)
      : manager_(manager), log_level_(log_level) {}
 
   virtual void Visit(size_t class_def_index) REQUIRES(!Locks::mutator_lock_) OVERRIDE {
@@ -2329,7 +2330,7 @@ class VerifyClassVisitor : public CompilationVisitor {
 
  private:
   const ParallelCompilationManager* const manager_;
-  const LogSeverity log_level_;
+  const verifier::HardFailLogMode log_level_;
 };
 
 void CompilerDriver::VerifyDexFile(jobject class_loader,
@@ -2342,9 +2343,9 @@ void CompilerDriver::VerifyDexFile(jobject class_loader,
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   ParallelCompilationManager context(class_linker, class_loader, this, &dex_file, dex_files,
                                      thread_pool);
-  LogSeverity log_level = GetCompilerOptions().AbortOnHardVerifierFailure()
-                              ? LogSeverity::INTERNAL_FATAL
-                              : LogSeverity::WARNING;
+  verifier::HardFailLogMode log_level = GetCompilerOptions().AbortOnHardVerifierFailure()
+                              ? verifier::HardFailLogMode::kLogInternalFatal
+                              : verifier::HardFailLogMode::kLogWarning;
   VerifyClassVisitor visitor(&context, log_level);
   context.ForAll(0, dex_file.NumClassDefs(), &visitor, thread_count);
 }

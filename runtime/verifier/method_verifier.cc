@@ -123,7 +123,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
                                                         mirror::Class* klass,
                                                         CompilerCallbacks* callbacks,
                                                         bool allow_soft_failures,
-                                                        LogSeverity log_level,
+                                                        HardFailLogMode log_level,
                                                         std::string* error) {
   if (klass->IsVerified()) {
     return kNoFailure;
@@ -196,7 +196,7 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethods(Thread* self,
                                                           Handle<mirror::ClassLoader> class_loader,
                                                           CompilerCallbacks* callbacks,
                                                           bool allow_soft_failures,
-                                                          LogSeverity log_level,
+                                                          HardFailLogMode log_level,
                                                           bool need_precise_constants,
                                                           std::string* error_string) {
   DCHECK(it != nullptr);
@@ -267,7 +267,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
                                                         const DexFile::ClassDef& class_def,
                                                         CompilerCallbacks* callbacks,
                                                         bool allow_soft_failures,
-                                                        LogSeverity log_level,
+                                                        HardFailLogMode log_level,
                                                         std::string* error) {
   ScopedTrace trace(__FUNCTION__);
 
@@ -360,7 +360,7 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
                                                          uint32_t method_access_flags,
                                                          CompilerCallbacks* callbacks,
                                                          bool allow_soft_failures,
-                                                         LogSeverity log_level,
+                                                         HardFailLogMode log_level,
                                                          bool need_precise_constants,
                                                          std::string* hard_failure_msg) {
   MethodVerifier::FailureData result;
@@ -420,11 +420,26 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
     } else {
       CHECK(verifier.have_pending_hard_failure_);
       if (VLOG_IS_ON(verifier)) {
-        log_level = LogSeverity::VERBOSE;
+        log_level = std::max(HardFailLogMode::kLogVerbose, log_level);
       }
-      if (log_level > LogSeverity::VERBOSE) {
-        verifier.DumpFailures(LOG(log_level) << "Verification error in "
-                                             << PrettyMethod(method_idx, *dex_file) << "\n");
+      if (log_level >= HardFailLogMode::kLogVerbose) {
+        LogSeverity severity;
+        switch (log_level) {
+          case HardFailLogMode::kLogVerbose:
+            severity = LogSeverity::VERBOSE;
+            break;
+          case HardFailLogMode::kLogWarning:
+            severity = LogSeverity::WARNING;
+            break;
+          case HardFailLogMode::kLogInternalFatal:
+            severity = LogSeverity::INTERNAL_FATAL;
+            break;
+          default:
+            LOG(FATAL) << "Unsupported log-level " << static_cast<uint32_t>(log_level);
+            UNREACHABLE();
+        }
+        verifier.DumpFailures(LOG(severity) << "Verification error in "
+                                            << PrettyMethod(method_idx, *dex_file) << "\n");
       }
       if (hard_failure_msg != nullptr) {
         CHECK(!verifier.failure_messages_.empty());
