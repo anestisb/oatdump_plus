@@ -26,9 +26,9 @@ art_cc_defaults {
         "disassembler_mips.cc",
         "disassembler_x86.cc",
     ],
+    include_dirs: ["art/runtime"],
 
     shared_libs: [
-        "liblog",
         "libbase",
     ],
     export_include_dirs: ["."],
@@ -38,9 +38,8 @@ art_cc_library {
     name: "libart-disassembler",
     defaults: ["libart-disassembler-defaults"],
     shared_libs: [
-        "libart",
         // For disassembler_arm64.
-        "libvixld-arm64",
+        "libvixl-arm64",
     ],
 }
 
@@ -51,7 +50,6 @@ art_cc_library {
         "art_debug_defaults",
     ],
     shared_libs: [
-        "libartd",
         // For disassembler_arm64.
         "libvixld-arm64",
     ],
