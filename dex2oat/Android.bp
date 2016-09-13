@@ -1,0 +1,107 @@
+//
+// Copyright (C) 2011 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+cc_defaults {
+    name: "dex2oat-defaults",
+    host_supported: true,
+    defaults: ["art_defaults"],
+    srcs: ["dex2oat.cc"],
+
+    target: {
+        android: {
+            // Use the 32-bit version of dex2oat on devices
+            compile_multilib: "prefer32",
+
+            sanitize: {
+                // ASan slows down dex2oat by ~3.5x, which translates into
+                // extremely slow first boot. Disabled to help speed up
+                // SANITIZE_TARGET mode.
+                // Bug: 22233158
+                address: false,
+            },
+        },
+
+        host: {
+            ldflags: [
+                // We need this because GC stress mode makes use of
+                // _Unwind_GetIP and _Unwind_Backtrace and the symbols are also
+                // defined in libgcc_eh.a(unwind-dw2.o)
+                // TODO: Having this is not ideal as it might obscure errors.
+                // Try to get rid of it.
+                "-z muldefs",
+            ],
+        },
+    },
+
+
+    include_dirs: [
+        "art/cmdline",
+    ],
+}
+
+cc_binary {
+    name: "dex2oat",
+    defaults: [
+        "dex2oat-defaults",
+    ],
+    shared_libs: [
+        "libart",
+        "libart-compiler",
+        "libsigchain",
+    ],
+}
+
+cc_binary {
+    name: "dex2oatd",
+    defaults: [
+        "art_debug_defaults",
+        "dex2oat-defaults",
+    ],
+    shared_libs: [
+        "libartd",
+        "libartd-compiler",
+        "libsigchain",
+    ],
+}
+
+cc_binary {
+    name: "dex2oats",
+    device_supported: false,
+    static_executable: true,
+    defaults: ["dex2oat-defaults"],
+    static_libs: [
+        "libart-compiler",
+        "libart",
+        "libvixl-arm",
+        "libvixl-arm64",
+    ] + art_static_dependencies,
+}
+
+cc_binary {
+    name: "dex2oatds",
+    device_supported: false,
+    static_executable: true,
+    defaults: [
+        "art_debug_defaults",
+        "dex2oat-defaults",
+    ],
+    static_libs: [
+        "libartd-compiler",
+        "libartd",
+        "libvixld-arm",
+        "libvixld-arm64",
+    ] + art_static_dependencies,
+}

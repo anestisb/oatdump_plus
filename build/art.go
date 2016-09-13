@@ -181,6 +181,7 @@ type artPrefer32BitCustomizer struct{}
 func init() {
 	soong.RegisterModuleType("art_cc_library", artLibrary)
 	soong.RegisterModuleType("art_cc_binary", artBinary)
+	soong.RegisterModuleType("art_cc_test", artTest)
 	soong.RegisterModuleType("art_cc_defaults", artDefaultsFactory)
 	soong.RegisterModuleType("art_global_defaults", artGlobalDefaultsFactory)
 }
@@ -218,6 +219,15 @@ func artBinary() (blueprint.Module, []interface{}) {
 
 	android.AddCustomizer(binary, &artCustomLinkerCustomizer{})
 	android.AddCustomizer(binary, &artPrefer32BitCustomizer{})
+	return module, props
+}
+
+func artTest() (blueprint.Module, []interface{}) {
+	test := cc.NewTest(android.HostAndDeviceSupported)
+	module, props := test.Init()
+
+	android.AddCustomizer(test, &artCustomLinkerCustomizer{})
+	android.AddCustomizer(test, &artPrefer32BitCustomizer{})
 	return module, props
 }
 
