@@ -34,7 +34,10 @@ struct sigaction old_action;
 void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_context) {
   static bool handling_unexpected_signal = false;
   if (handling_unexpected_signal) {
-    LogMessage::LogLine(__FILE__, __LINE__, INTERNAL_FATAL, "HandleUnexpectedSignal reentered\n");
+    LogHelper::LogLineLowStack(__FILE__,
+                               __LINE__,
+                               ::android::base::FATAL_WITHOUT_ABORT,
+                               "HandleUnexpectedSignal reentered\n");
     _exit(1);
   }
   handling_unexpected_signal = true;
@@ -44,11 +47,11 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
   Runtime* runtime = Runtime::Current();
   if (runtime != nullptr) {
     // Print this out first in case DumpObject faults.
-    LOG(INTERNAL_FATAL) << "Fault message: " << runtime->GetFaultMessage();
+    LOG(FATAL_WITHOUT_ABORT) << "Fault message: " << runtime->GetFaultMessage();
     gc::Heap* heap = runtime->GetHeap();
     if (kDumpHeapObjectOnSigsevg && heap != nullptr && info != nullptr) {
-      LOG(INTERNAL_FATAL) << "Dump heap object at fault address: ";
-      heap->DumpObject(LOG(INTERNAL_FATAL), reinterpret_cast<mirror::Object*>(info->si_addr));
+      LOG(FATAL_WITHOUT_ABORT) << "Dump heap object at fault address: ";
+      heap->DumpObject(LOG_STREAM(FATAL_WITHOUT_ABORT), reinterpret_cast<mirror::Object*>(info->si_addr));
     }
   }
   // Run the old signal handler.

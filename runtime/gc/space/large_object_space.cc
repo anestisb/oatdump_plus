@@ -192,7 +192,7 @@ size_t LargeObjectMapSpace::Free(Thread* self, mirror::Object* ptr) {
   auto it = large_objects_.find(ptr);
   if (UNLIKELY(it == large_objects_.end())) {
     ScopedObjectAccess soa(self);
-    Runtime::Current()->GetHeap()->DumpSpaces(LOG(INTERNAL_FATAL));
+    Runtime::Current()->GetHeap()->DumpSpaces(LOG_STREAM(FATAL_WITHOUT_ABORT));
     LOG(FATAL) << "Attempted to free large object " << ptr << " which was not live";
   }
   MemMap* mem_map = it->second.mem_map;

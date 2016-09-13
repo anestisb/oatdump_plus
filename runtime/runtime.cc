@@ -255,7 +255,7 @@ Runtime::~Runtime() {
     // This can't be called from the Heap destructor below because it
     // could call RosAlloc::InspectAll() which needs the thread_list
     // to be still alive.
-    heap_->DumpGcPerformanceInfo(LOG(INFO));
+    heap_->DumpGcPerformanceInfo(LOG_STREAM(INFO));
   }
 
   Thread* self = Thread::Current();
@@ -433,14 +433,14 @@ void Runtime::Abort() {
   // Many people have difficulty distinguish aborts from crashes,
   // so be explicit.
   AbortState state;
-  LOG(INTERNAL_FATAL) << Dumpable<AbortState>(state);
+  LOG(FATAL_WITHOUT_ABORT) << Dumpable<AbortState>(state);
 
   // Call the abort hook if we have one.
   if (Runtime::Current() != nullptr && Runtime::Current()->abort_ != nullptr) {
-    LOG(INTERNAL_FATAL) << "Calling abort hook...";
+    LOG(FATAL_WITHOUT_ABORT) << "Calling abort hook...";
     Runtime::Current()->abort_();
     // notreached
-    LOG(INTERNAL_FATAL) << "Unexpectedly returned from abort hook!";
+    LOG(FATAL_WITHOUT_ABORT) << "Unexpectedly returned from abort hook!";
   }
 
 #if defined(__GLIBC__)

@@ -240,8 +240,8 @@ static void VMDebug_dumpReferenceTables(JNIEnv* env, jclass) {
   ScopedObjectAccess soa(env);
   LOG(INFO) << "--- reference table dump ---";
 
-  soa.Env()->DumpReferenceTables(LOG(INFO));
-  soa.Vm()->DumpReferenceTables(LOG(INFO));
+  soa.Env()->DumpReferenceTables(LOG_STREAM(INFO));
+  soa.Vm()->DumpReferenceTables(LOG_STREAM(INFO));
 
   LOG(INFO) << "---";
 }

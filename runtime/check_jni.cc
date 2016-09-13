@@ -275,7 +275,7 @@ class ScopedCheck {
       return false;
     }
     if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(o)) {
-      Runtime::Current()->GetHeap()->DumpSpaces(LOG(ERROR));
+      Runtime::Current()->GetHeap()->DumpSpaces(LOG_STREAM(ERROR));
       AbortF("field operation on invalid %s: %p",
              ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(),
              java_object);
@@ -783,7 +783,7 @@ class ScopedCheck {
     }
 
     if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(obj)) {
-      Runtime::Current()->GetHeap()->DumpSpaces(LOG(ERROR));
+      Runtime::Current()->GetHeap()->DumpSpaces(LOG_STREAM(ERROR));
       AbortF("%s is an invalid %s: %p (%p)",
              what, ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(),
              java_object, obj);
@@ -1109,7 +1109,7 @@ class ScopedCheck {
 
     mirror::Array* a = soa.Decode<mirror::Array*>(java_array);
     if (UNLIKELY(!Runtime::Current()->GetHeap()->IsValidObjectAddress(a))) {
-      Runtime::Current()->GetHeap()->DumpSpaces(LOG(ERROR));
+      Runtime::Current()->GetHeap()->DumpSpaces(LOG_STREAM(ERROR));
       AbortF("jarray is an invalid %s: %p (%p)",
              ToStr<IndirectRefKind>(GetIndirectRefKind(java_array)).c_str(),
              java_array, a);
@@ -1146,7 +1146,7 @@ class ScopedCheck {
     ArtField* f = soa.DecodeField(fid);
     // TODO: Better check here.
     if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(f->GetDeclaringClass())) {
-      Runtime::Current()->GetHeap()->DumpSpaces(LOG(ERROR));
+      Runtime::Current()->GetHeap()->DumpSpaces(LOG_STREAM(ERROR));
       AbortF("invalid jfieldID: %p", fid);
       return nullptr;
     }
@@ -1162,7 +1162,7 @@ class ScopedCheck {
     ArtMethod* m = soa.DecodeMethod(mid);
     // TODO: Better check here.
     if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(m->GetDeclaringClass())) {
-      Runtime::Current()->GetHeap()->DumpSpaces(LOG(ERROR));
+      Runtime::Current()->GetHeap()->DumpSpaces(LOG_STREAM(ERROR));
       AbortF("invalid jmethodID: %p", mid);
       return nullptr;
     }

@@ -139,7 +139,7 @@ inline mirror::Object* MarkCompact::MarkObject(mirror::Object* obj) {
           REQUIRES_SHARED(Locks::mutator_lock_) {
         // Marking a large object, make sure its aligned as a sanity check.
         if (!IsAligned<kPageSize>(ref)) {
-          Runtime::Current()->GetHeap()->DumpSpaces(LOG(ERROR));
+          Runtime::Current()->GetHeap()->DumpSpaces(LOG_STREAM(ERROR));
           LOG(FATAL) << ref;
         }
       };

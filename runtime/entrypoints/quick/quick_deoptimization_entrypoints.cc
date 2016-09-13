@@ -36,7 +36,7 @@ NO_RETURN static void artDeoptimizeImpl(Thread* self, bool single_frame)
       // specialized visitor that will show whether a method is Quick or Shadow.
     } else {
       LOG(INFO) << "Deopting:";
-      self->Dump(LOG(INFO));
+      self->Dump(LOG_STREAM(INFO));
     }
   }
 
