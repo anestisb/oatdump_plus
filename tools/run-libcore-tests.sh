@@ -95,7 +95,7 @@ while true; do
   if [[ "$1" == "--mode=device" ]]; then
     vogar_args="$vogar_args --device-dir=/data/local/tmp"
     vogar_args="$vogar_args --vm-command=/data/local/tmp/system/bin/art"
-    vogar_args="$vogar_args --vm-arg -Ximage:/data/art-test/core-optimizing.art"
+    vogar_args="$vogar_args --vm-arg -Ximage:/data/art-test/core.art"
     shift
   elif [[ "$1" == "--mode=host" ]]; then
     # We explicitly give a wrong path for the image, to ensure vogar
