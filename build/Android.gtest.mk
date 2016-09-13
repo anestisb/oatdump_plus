@@ -695,7 +695,7 @@ valgrind-test-art-target-gtest-$$(art_gtest_name): $$(ART_TEST_TARGET_VALGRIND_G
     LOCAL_CLANG := $$(ART_HOST_CLANG)
     LOCAL_CFLAGS += $$(ART_HOST_CFLAGS) $$(ART_HOST_DEBUG_CFLAGS)
     LOCAL_ASFLAGS += $$(ART_HOST_ASFLAGS) $$(ART_HOST_DEBUG_ASFLAGS)
-    LOCAL_SHARED_LIBRARIES += libicuuc-host libicui18n-host libnativehelper libziparchive libz-host libvixld-arm libvixld-arm64
+    LOCAL_SHARED_LIBRARIES += libicuuc libicui18n libnativehelper libziparchive libz-host libvixld-arm libvixld-arm64
     LOCAL_LDLIBS := -lpthread -ldl
     LOCAL_IS_HOST_MODULE := true
     LOCAL_MULTILIB := both
