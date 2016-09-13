@@ -153,17 +153,17 @@ JNI_TYPES := checkjni
 ifeq ($(ART_TEST_JNI_FORCECOPY),true)
   JNI_TYPES += forcecopy
 endif
-IMAGE_TYPES := picimage
+IMAGE_TYPES := image
 ifeq ($(ART_TEST_RUN_TEST_NO_IMAGE),true)
   IMAGE_TYPES += no-image
 endif
 ifeq ($(ART_TEST_RUN_TEST_MULTI_IMAGE),true)
-  IMAGE_TYPES := multipicimage
+  IMAGE_TYPES := multiimage
 endif
-ifeq ($(ART_TEST_NPIC_IMAGE),true)
-  IMAGE_TYPES += npicimage
+ifeq ($(ART_TEST_PIC_IMAGE),true)
+  IMAGE_TYPES += picimage
   ifeq ($(ART_TEST_RUN_TEST_MULTI_IMAGE),true)
-    IMAGE_TYPES := multinpicimage
+    IMAGE_TYPES := multipicimage
   endif
 endif
 PICTEST_TYPES := npictest
@@ -896,11 +896,6 @@ define define-test-art-run-test
   ifeq ($(4),regalloc_gc)
     # Graph coloring tests share the image_suffix with optimizing tests.
     image_suffix := optimizing
-  else
-    ifeq ($(4),jit)
-      # JIT tests share the image_suffix with interpreter tests.
-      image_suffix := interpreter
-    endif
   endif
   ifeq ($(9),no-image)
     test_groups += ART_RUN_TEST_$$(uc_host_or_target)_NO_IMAGE_RULES
@@ -912,9 +907,8 @@ define define-test-art-run-test
       prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_no-pic_$(13))
     endif
   else
-    ifeq ($(9),npicimage)
+    ifeq ($(9),image)
       test_groups += ART_RUN_TEST_$$(uc_host_or_target)_IMAGE_RULES
-      run_test_options += --npic-image
       # Add the core dependency.
       ifeq ($(1),host)
         prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_no-pic_$(13))
@@ -924,15 +918,16 @@ define define-test-art-run-test
     else
       ifeq ($(9),picimage)
         test_groups += ART_RUN_TEST_$$(uc_host_or_target)_PICIMAGE_RULES
+        run_test_options += --pic-image
         ifeq ($(1),host)
           prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_pic_$(13))
         else
           prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_pic_$(13))
         endif
       else
-        ifeq ($(9),multinpicimage)
+        ifeq ($(9),multiimage)
           test_groups += ART_RUN_TEST_$$(uc_host_or_target)_IMAGE_RULES
-          run_test_options += --npic-image --multi-image
+          run_test_options += --multi-image
                 ifeq ($(1),host)
                         prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_no-pic_multi_$(13))
                 else
@@ -941,7 +936,7 @@ define define-test-art-run-test
         else
           ifeq ($(9),multipicimage)
             test_groups += ART_RUN_TEST_$$(uc_host_or_target)_PICIMAGE_RULES
-                        run_test_options += --multi-image
+                        run_test_options += --pic-image --multi-image
                         ifeq ($(1),host)
                         prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_pic_multi_$(13))
                         else
