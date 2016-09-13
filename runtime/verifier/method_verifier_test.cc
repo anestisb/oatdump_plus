@@ -23,6 +23,7 @@
 #include "common_runtime_test.h"
 #include "dex_file.h"
 #include "scoped_thread_state_change.h"
+#include "verifier_log_mode.h"
 
 namespace art {
 namespace verifier {
@@ -37,12 +38,8 @@ class MethodVerifierTest : public CommonRuntimeTest {
 
     // Verify the class
     std::string error_msg;
-    MethodVerifier::FailureKind failure = MethodVerifier::VerifyClass(self,
-                                                                      klass,
-                                                                      nullptr,
-                                                                      true,
-                                                                      LogSeverity::WARNING,
-                                                                      &error_msg);
+    MethodVerifier::FailureKind failure = MethodVerifier::VerifyClass(
+        self, klass, nullptr, true, HardFailLogMode::kLogWarning, &error_msg);
     ASSERT_TRUE(failure == MethodVerifier::kNoFailure) << error_msg;
   }
 
