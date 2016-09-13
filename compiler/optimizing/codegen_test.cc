@@ -74,6 +74,24 @@
 
 namespace art {
 
+typedef CodeGenerator* (*CreateCodegenFn)(HGraph*, const CompilerOptions&);
+
+class CodegenTargetConfig {
+ public:
+  CodegenTargetConfig(InstructionSet isa, CreateCodegenFn create_codegen)
+      : isa_(isa), create_codegen_(create_codegen) {
+  }
+  InstructionSet GetInstructionSet() const { return isa_; }
+  CodeGenerator* CreateCodeGenerator(HGraph* graph, const CompilerOptions& compiler_options) {
+    return create_codegen_(graph, compiler_options);
+  }
+
+ private:
+  CodegenTargetConfig() {}
+  InstructionSet isa_;
+  CreateCodegenFn create_codegen_;
+};
+
 #ifdef ART_ENABLE_CODEGEN_arm
 // Provide our own codegen, that ensures the C calling conventions
 // are preserved. Currently, ART and C do not match as R4 is caller-save
@@ -222,12 +240,7 @@ static void Run(const InternalCodeAllocator& allocator,
   VerifyGeneratedCode(target_isa, f, has_result, expected);
 }
 
-template <typename Expected>
-static void RunCode(CodeGenerator* codegen,
-                    HGraph* graph,
-                    std::function<void(HGraph*)> hook_before_codegen,
-                    bool has_result,
-                    Expected expected) {
+static void ValidateGraph(HGraph* graph) {
   GraphChecker graph_checker(graph);
   graph_checker.Run();
   if (!graph_checker.IsValid()) {
@@ -236,92 +249,129 @@ static void RunCode(CodeGenerator* codegen,
     }
   }
   ASSERT_TRUE(graph_checker.IsValid());
+}
 
+template <typename Expected>
+static void RunCodeNoCheck(CodeGenerator* codegen,
+                           HGraph* graph,
+                           std::function<void(HGraph*)> hook_before_codegen,
+                           bool has_result,
+                           Expected expected) {
   SsaLivenessAnalysis liveness(graph, codegen);
-
   PrepareForRegisterAllocation(graph).Run();
   liveness.Analyze();
   RegisterAllocator::Create(graph->GetArena(), codegen, liveness)->AllocateRegisters();
   hook_before_codegen(graph);
-
   InternalCodeAllocator allocator;
   codegen->Compile(&allocator);
   Run(allocator, *codegen, has_result, expected);
 }
 
 template <typename Expected>
-static void RunCode(InstructionSet target_isa,
+static void RunCode(CodeGenerator* codegen,
+                    HGraph* graph,
+                    std::function<void(HGraph*)> hook_before_codegen,
+                    bool has_result,
+                    Expected expected) {
+  ValidateGraph(graph);
+  RunCodeNoCheck(codegen, graph, hook_before_codegen, has_result, expected);
+}
+
+template <typename Expected>
+static void RunCode(CodegenTargetConfig target_config,
                     HGraph* graph,
                     std::function<void(HGraph*)> hook_before_codegen,
                     bool has_result,
                     Expected expected) {
   CompilerOptions compiler_options;
-#ifdef ART_ENABLE_CODEGEN_arm
-  if (target_isa == kArm || target_isa == kThumb2) {
-    std::unique_ptr<const ArmInstructionSetFeatures> features_arm(
-        ArmInstructionSetFeatures::FromCppDefines());
-    TestCodeGeneratorARM codegenARM(graph, *features_arm.get(), compiler_options);
-    RunCode(&codegenARM, graph, hook_before_codegen, has_result, expected);
-  }
-#endif
-#ifdef ART_ENABLE_CODEGEN_arm64
-  if (target_isa == kArm64) {
-    std::unique_ptr<const Arm64InstructionSetFeatures> features_arm64(
-        Arm64InstructionSetFeatures::FromCppDefines());
-    arm64::CodeGeneratorARM64 codegenARM64(graph, *features_arm64.get(), compiler_options);
-    RunCode(&codegenARM64, graph, hook_before_codegen, has_result, expected);
-  }
-#endif
-#ifdef ART_ENABLE_CODEGEN_x86
-  if (target_isa == kX86) {
-    std::unique_ptr<const X86InstructionSetFeatures> features_x86(
-        X86InstructionSetFeatures::FromCppDefines());
-    TestCodeGeneratorX86 codegenX86(graph, *features_x86.get(), compiler_options);
-    RunCode(&codegenX86, graph, hook_before_codegen, has_result, expected);
-  }
-#endif
-#ifdef ART_ENABLE_CODEGEN_x86_64
-  if (target_isa == kX86_64) {
-    std::unique_ptr<const X86_64InstructionSetFeatures> features_x86_64(
-        X86_64InstructionSetFeatures::FromCppDefines());
-    x86_64::CodeGeneratorX86_64 codegenX86_64(graph, *features_x86_64.get(), compiler_options);
-    RunCode(&codegenX86_64, graph, hook_before_codegen, has_result, expected);
-  }
-#endif
-#ifdef ART_ENABLE_CODEGEN_mips
-  if (target_isa == kMips) {
-    std::unique_ptr<const MipsInstructionSetFeatures> features_mips(
-        MipsInstructionSetFeatures::FromCppDefines());
-    mips::CodeGeneratorMIPS codegenMIPS(graph, *features_mips.get(), compiler_options);
-    RunCode(&codegenMIPS, graph, hook_before_codegen, has_result, expected);
-  }
-#endif
-#ifdef ART_ENABLE_CODEGEN_mips64
-  if (target_isa == kMips64) {
-    std::unique_ptr<const Mips64InstructionSetFeatures> features_mips64(
-        Mips64InstructionSetFeatures::FromCppDefines());
-    mips64::CodeGeneratorMIPS64 codegenMIPS64(graph, *features_mips64.get(), compiler_options);
-    RunCode(&codegenMIPS64, graph, hook_before_codegen, has_result, expected);
-  }
-#endif
+  CodeGenerator* codegen = target_config.CreateCodeGenerator(graph, compiler_options);
+  RunCode(codegen, graph, hook_before_codegen, has_result, expected);
 }
 
-static ::std::vector<InstructionSet> GetTargetISAs() {
-  ::std::vector<InstructionSet> v;
-  // Add all ISAs that are executable on hardware or on simulator.
-  const ::std::vector<InstructionSet> executable_isa_candidates = {
-    kArm,
-    kArm64,
-    kThumb2,
-    kX86,
-    kX86_64,
-    kMips,
-    kMips64
+#ifdef ART_ENABLE_CODEGEN_arm
+CodeGenerator* create_codegen_arm(HGraph* graph, const CompilerOptions& compiler_options) {
+  std::unique_ptr<const ArmInstructionSetFeatures> features_arm(
+      ArmInstructionSetFeatures::FromCppDefines());
+  return new (graph->GetArena()) TestCodeGeneratorARM(graph,
+                                                      *features_arm.get(),
+                                                      compiler_options);
+}
+#endif
+
+#ifdef ART_ENABLE_CODEGEN_arm64
+CodeGenerator* create_codegen_arm64(HGraph* graph, const CompilerOptions& compiler_options) {
+  std::unique_ptr<const Arm64InstructionSetFeatures> features_arm64(
+      Arm64InstructionSetFeatures::FromCppDefines());
+  return new (graph->GetArena()) arm64::CodeGeneratorARM64(graph,
+                                                           *features_arm64.get(),
+                                                           compiler_options);
+}
+#endif
+
+#ifdef ART_ENABLE_CODEGEN_x86
+CodeGenerator* create_codegen_x86(HGraph* graph, const CompilerOptions& compiler_options) {
+  std::unique_ptr<const X86InstructionSetFeatures> features_x86(
+      X86InstructionSetFeatures::FromCppDefines());
+  return new (graph->GetArena()) TestCodeGeneratorX86(graph, *features_x86.get(), compiler_options);
+}
+#endif
+
+#ifdef ART_ENABLE_CODEGEN_x86_64
+CodeGenerator* create_codegen_x86_64(HGraph* graph, const CompilerOptions& compiler_options) {
+  std::unique_ptr<const X86_64InstructionSetFeatures> features_x86_64(
+     X86_64InstructionSetFeatures::FromCppDefines());
+  return new (graph->GetArena())
+      x86_64::CodeGeneratorX86_64(graph, *features_x86_64.get(), compiler_options);
+}
+#endif
+
+#ifdef ART_ENABLE_CODEGEN_mips
+CodeGenerator* create_codegen_mips(HGraph* graph, const CompilerOptions& compiler_options) {
+  std::unique_ptr<const MipsInstructionSetFeatures> features_mips(
+      MipsInstructionSetFeatures::FromCppDefines());
+  return new (graph->GetArena())
+      mips::CodeGeneratorMIPS(graph, *features_mips.get(), compiler_options);
+}
+#endif
+
+#ifdef ART_ENABLE_CODEGEN_mips64
+CodeGenerator* create_codegen_mips64(HGraph* graph, const CompilerOptions& compiler_options) {
+  std::unique_ptr<const Mips64InstructionSetFeatures> features_mips64(
+      Mips64InstructionSetFeatures::FromCppDefines());
+  return new (graph->GetArena())
+      mips64::CodeGeneratorMIPS64(graph, *features_mips64.get(), compiler_options);
+}
+#endif
+
+// Return all combinations of ISA and code generator that are executable on
+// hardware, or on simulator, and that we'd like to test.
+static ::std::vector<CodegenTargetConfig> GetTargetConfigs() {
+  ::std::vector<CodegenTargetConfig> v;
+  ::std::vector<CodegenTargetConfig> test_config_candidates = {
+#ifdef ART_ENABLE_CODEGEN_arm
+    CodegenTargetConfig(kArm, create_codegen_arm),
+    CodegenTargetConfig(kThumb2, create_codegen_arm),
+#endif
+#ifdef ART_ENABLE_CODEGEN_arm64
+    CodegenTargetConfig(kArm64, create_codegen_arm64),
+#endif
+#ifdef ART_ENABLE_CODEGEN_x86
+    CodegenTargetConfig(kX86, create_codegen_x86),
+#endif
+#ifdef ART_ENABLE_CODEGEN_x86_64
+    CodegenTargetConfig(kX86_64, create_codegen_x86_64),
+#endif
+#ifdef ART_ENABLE_CODEGEN_mips
+    CodegenTargetConfig(kMips, create_codegen_mips),
+#endif
+#ifdef ART_ENABLE_CODEGEN_mips64
+    CodegenTargetConfig(kMips64, create_codegen_mips64)
+#endif
   };
 
-  for (auto target_isa : executable_isa_candidates) {
-    if (CanExecute(target_isa)) {
-      v.push_back(target_isa);
+  for (auto test_config : test_config_candidates) {
+    if (CanExecute(test_config.GetInstructionSet())) {
+      v.push_back(test_config);
     }
   }
 
@@ -331,26 +381,26 @@ static ::std::vector<InstructionSet> GetTargetISAs() {
 static void TestCode(const uint16_t* data,
                      bool has_result = false,
                      int32_t expected = 0) {
-  for (InstructionSet target_isa : GetTargetISAs()) {
+  for (CodegenTargetConfig target_config : GetTargetConfigs()) {
     ArenaPool pool;
     ArenaAllocator arena(&pool);
     HGraph* graph = CreateCFG(&arena, data);
     // Remove suspend checks, they cannot be executed in this context.
     RemoveSuspendChecks(graph);
-    RunCode(target_isa, graph, [](HGraph*) {}, has_result, expected);
+    RunCode(target_config, graph, [](HGraph*) {}, has_result, expected);
   }
 }
 
 static void TestCodeLong(const uint16_t* data,
                          bool has_result,
                          int64_t expected) {
-  for (InstructionSet target_isa : GetTargetISAs()) {
+  for (CodegenTargetConfig target_config : GetTargetConfigs()) {
     ArenaPool pool;
     ArenaAllocator arena(&pool);
     HGraph* graph = CreateCFG(&arena, data, Primitive::kPrimLong);
     // Remove suspend checks, they cannot be executed in this context.
     RemoveSuspendChecks(graph);
-    RunCode(target_isa, graph, [](HGraph*) {}, has_result, expected);
+    RunCode(target_config, graph, [](HGraph*) {}, has_result, expected);
   }
 }
 
@@ -667,7 +717,7 @@ TEST_F(CodegenTest, ReturnMulIntLit16) {
 }
 
 TEST_F(CodegenTest, NonMaterializedCondition) {
-  for (InstructionSet target_isa : GetTargetISAs()) {
+  for (CodegenTargetConfig target_config : GetTargetConfigs()) {
     ArenaPool pool;
     ArenaAllocator allocator(&pool);
 
@@ -715,12 +765,12 @@ TEST_F(CodegenTest, NonMaterializedCondition) {
       block->InsertInstructionBefore(move, block->GetLastInstruction());
     };
 
-    RunCode(target_isa, graph, hook_before_codegen, true, 0);
+    RunCode(target_config, graph, hook_before_codegen, true, 0);
   }
 }
 
 TEST_F(CodegenTest, MaterializedCondition1) {
-  for (InstructionSet target_isa : GetTargetISAs()) {
+  for (CodegenTargetConfig target_config : GetTargetConfigs()) {
     // Check that condition are materialized correctly. A materialized condition
     // should yield `1` if it evaluated to true, and `0` otherwise.
     // We force the materialization of comparisons for different combinations of
@@ -762,13 +812,13 @@ TEST_F(CodegenTest, MaterializedCondition1) {
         HParallelMove* move = new (graph_in->GetArena()) HParallelMove(graph_in->GetArena());
         block->InsertInstructionBefore(move, block->GetLastInstruction());
       };
-      RunCode(target_isa, graph, hook_before_codegen, true, lhs[i] < rhs[i]);
+      RunCode(target_config, graph, hook_before_codegen, true, lhs[i] < rhs[i]);
     }
   }
 }
 
 TEST_F(CodegenTest, MaterializedCondition2) {
-  for (InstructionSet target_isa : GetTargetISAs()) {
+  for (CodegenTargetConfig target_config : GetTargetConfigs()) {
     // Check that HIf correctly interprets a materialized condition.
     // We force the materialization of comparisons for different combinations of
     // inputs. An HIf takes the materialized combination as input and returns a
@@ -830,7 +880,7 @@ TEST_F(CodegenTest, MaterializedCondition2) {
         HParallelMove* move = new (graph_in->GetArena()) HParallelMove(graph_in->GetArena());
         block->InsertInstructionBefore(move, block->GetLastInstruction());
       };
-      RunCode(target_isa, graph, hook_before_codegen, true, lhs[i] < rhs[i]);
+      RunCode(target_config, graph, hook_before_codegen, true, lhs[i] < rhs[i]);
     }
   }
 }
@@ -859,7 +909,7 @@ static void TestComparison(IfCondition condition,
                            int64_t i,
                            int64_t j,
                            Primitive::Type type,
-                           const InstructionSet target_isa) {
+                           const CodegenTargetConfig target_config) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraph* graph = CreateGraph(&allocator);
@@ -941,23 +991,16 @@ static void TestComparison(IfCondition condition,
   block->AddInstruction(new (&allocator) HReturn(comparison));
 
   graph->BuildDominatorTree();
-  RunCode(target_isa, graph, [](HGraph*) {}, true, expected_result);
+  RunCode(target_config, graph, [](HGraph*) {}, true, expected_result);
 }
 
 TEST_F(CodegenTest, ComparisonsInt) {
-  for (InstructionSet target_isa : GetTargetISAs()) {
+  for (CodegenTargetConfig target_config : GetTargetConfigs()) {
     for (int64_t i = -1; i <= 1; i++) {
       for (int64_t j = -1; j <= 1; j++) {
-        TestComparison(kCondEQ, i, j, Primitive::kPrimInt, target_isa);
-        TestComparison(kCondNE, i, j, Primitive::kPrimInt, target_isa);
-        TestComparison(kCondLT, i, j, Primitive::kPrimInt, target_isa);
-        TestComparison(kCondLE, i, j, Primitive::kPrimInt, target_isa);
-        TestComparison(kCondGT, i, j, Primitive::kPrimInt, target_isa);
-        TestComparison(kCondGE, i, j, Primitive::kPrimInt, target_isa);
-        TestComparison(kCondB,  i, j, Primitive::kPrimInt, target_isa);
-        TestComparison(kCondBE, i, j, Primitive::kPrimInt, target_isa);
-        TestComparison(kCondA,  i, j, Primitive::kPrimInt, target_isa);
-        TestComparison(kCondAE, i, j, Primitive::kPrimInt, target_isa);
+        for (int cond = kCondFirst; cond <= kCondLast; cond++) {
+          TestComparison(static_cast<IfCondition>(cond), i, j, Primitive::kPrimInt, target_config);
+        }
       }
     }
   }
@@ -969,23 +1012,17 @@ TEST_F(CodegenTest, ComparisonsLong) {
     return;
   }
 
-  for (InstructionSet target_isa : GetTargetISAs()) {
-    if (target_isa == kMips || target_isa == kMips64) {
+  for (CodegenTargetConfig target_config : GetTargetConfigs()) {
+    if ((target_config.GetInstructionSet() == kMips) ||
+        (target_config.GetInstructionSet() == kMips64)) {
       continue;
     }
 
     for (int64_t i = -1; i <= 1; i++) {
       for (int64_t j = -1; j <= 1; j++) {
-        TestComparison(kCondEQ, i, j, Primitive::kPrimLong, target_isa);
-        TestComparison(kCondNE, i, j, Primitive::kPrimLong, target_isa);
-        TestComparison(kCondLT, i, j, Primitive::kPrimLong, target_isa);
-        TestComparison(kCondLE, i, j, Primitive::kPrimLong, target_isa);
-        TestComparison(kCondGT, i, j, Primitive::kPrimLong, target_isa);
-        TestComparison(kCondGE, i, j, Primitive::kPrimLong, target_isa);
-        TestComparison(kCondB,  i, j, Primitive::kPrimLong, target_isa);
-        TestComparison(kCondBE, i, j, Primitive::kPrimLong, target_isa);
-        TestComparison(kCondA,  i, j, Primitive::kPrimLong, target_isa);
-        TestComparison(kCondAE, i, j, Primitive::kPrimLong, target_isa);
+        for (int cond = kCondFirst; cond <= kCondLast; cond++) {
+          TestComparison(static_cast<IfCondition>(cond), i, j, Primitive::kPrimLong, target_config);
+        }
       }
     }
   }
