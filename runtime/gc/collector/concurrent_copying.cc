@@ -2087,7 +2087,8 @@ mirror::Object* ConcurrentCopying::Copy(mirror::Object* from_ref) {
       to_ref = reinterpret_cast<mirror::Object*>(old_lock_word.ForwardingAddress());
       CHECK(to_ref != nullptr);
       CHECK_NE(to_ref, lost_fwd_ptr);
-      CHECK(region_space_->IsInToSpace(to_ref) || heap_->non_moving_space_->HasAddress(to_ref));
+      CHECK(region_space_->IsInToSpace(to_ref) || heap_->non_moving_space_->HasAddress(to_ref))
+          << "to_ref=" << to_ref << " " << heap_->DumpSpaces();
       CHECK_NE(to_ref->GetLockWord(false).GetState(), LockWord::kForwardingAddress);
       return to_ref;
     }
