@@ -99,6 +99,9 @@ class MANAGED Field : public AccessibleObject {
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
  private:
+  // Padding required for matching alignment with the Java peer.
+  uint8_t padding_[2];
+
   HeapReference<mirror::Class> declaring_class_;
   HeapReference<mirror::Class> type_;
   int32_t access_flags_;
