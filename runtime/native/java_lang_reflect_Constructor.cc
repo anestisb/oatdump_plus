@@ -20,6 +20,7 @@
 #include "base/enums.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
+#include "dex_file_annotations.h"
 #include "jni_internal.h"
 #include "mirror/class-inl.h"
 #include "mirror/method.h"
@@ -35,7 +36,7 @@ static jobjectArray Constructor_getExceptionTypes(JNIEnv* env, jobject javaMetho
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod)
       ->GetInterfaceMethodIfProxy(kRuntimePointerSize);
   mirror::ObjectArray<mirror::Class>* result_array =
-      method->GetDexFile()->GetExceptionTypesForMethod(method);
+      annotations::GetExceptionTypesForMethod(method);
   if (result_array == nullptr) {
     // Return an empty array instead of a null pointer.
     mirror::Class* class_class = mirror::Class::GetJavaLangClass();

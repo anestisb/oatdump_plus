@@ -402,7 +402,7 @@ void UnstartedRuntime::UnstartedClassGetEnclosingClass(
   if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
     result->SetL(nullptr);
   }
-  result->SetL(klass->GetDexFile().GetEnclosingClass(klass));
+  result->SetL(annotations::GetEnclosingClass(klass));
 }
 
 void UnstartedRuntime::UnstartedClassGetInnerClassFlags(
