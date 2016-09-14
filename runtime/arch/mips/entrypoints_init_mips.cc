@@ -264,8 +264,6 @@ void InitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) {
   static_assert(!IsDirectEntrypoint(kQuickThrowArrayBounds), "Non-direct C stub marked direct.");
   qpoints->pThrowDivZero = art_quick_throw_div_zero;
   static_assert(!IsDirectEntrypoint(kQuickThrowDivZero), "Non-direct C stub marked direct.");
-  qpoints->pThrowNoSuchMethod = art_quick_throw_no_such_method;
-  static_assert(!IsDirectEntrypoint(kQuickThrowNoSuchMethod), "Non-direct C stub marked direct.");
   qpoints->pThrowNullPointer = art_quick_throw_null_pointer_exception;
   static_assert(!IsDirectEntrypoint(kQuickThrowNullPointer), "Non-direct C stub marked direct.");
   qpoints->pThrowStackOverflow = art_quick_throw_stack_overflow;
