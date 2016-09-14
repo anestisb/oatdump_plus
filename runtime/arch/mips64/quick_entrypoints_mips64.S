@@ -887,17 +887,6 @@ ENTRY art_quick_throw_stack_overflow
 END art_quick_throw_stack_overflow
 
     /*
-     * Called by managed code to create and deliver a NoSuchMethodError.
-     */
-    .extern artThrowNoSuchMethodFromCode
-ENTRY art_quick_throw_no_such_method
-    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME
-    dla  $t9, artThrowNoSuchMethodFromCode
-    jalr $zero, $t9                 # artThrowNoSuchMethodFromCode(method_idx, Thread*)
-    move $a1, rSELF                 # pass Thread::Current
-END art_quick_throw_no_such_method
-
-    /*
      * All generated callsites for interface invokes and invocation slow paths will load arguments
      * as usual - except instead of loading arg0/$a0 with the target Method*, arg0/$a0 will contain
      * the method_idx.  This wrapper will save arg1-arg3, load the caller's Method*, align the

@@ -101,13 +101,6 @@ extern "C" NO_RETURN void artThrowStackOverflowFromCode(Thread* self)
   self->QuickDeliverException();
 }
 
-extern "C" NO_RETURN void artThrowNoSuchMethodFromCode(int32_t method_idx, Thread* self)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
-  ScopedQuickEntrypointChecks sqec(self);
-  ThrowNoSuchMethodError(method_idx);
-  self->QuickDeliverException();
-}
-
 extern "C" NO_RETURN void artThrowClassCastException(mirror::Class* dest_type,
                                                      mirror::Class* src_type,
                                                      Thread* self)

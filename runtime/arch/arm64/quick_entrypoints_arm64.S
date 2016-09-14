@@ -511,11 +511,6 @@ TWO_ARG_RUNTIME_EXCEPTION art_quick_throw_string_bounds, artThrowStringBoundsFro
 NO_ARG_RUNTIME_EXCEPTION art_quick_throw_stack_overflow, artThrowStackOverflowFromCode
 
     /*
-     * Called by managed code to create and deliver a NoSuchMethodError.
-     */
-ONE_ARG_RUNTIME_EXCEPTION art_quick_throw_no_such_method, artThrowNoSuchMethodFromCode
-
-    /*
      * All generated callsites for interface invokes and invocation slow paths will load arguments
      * as usual - except instead of loading arg0/x0 with the target Method*, arg0/x0 will contain
      * the method_idx.  This wrapper will save arg1-arg3, and call the appropriate C helper.

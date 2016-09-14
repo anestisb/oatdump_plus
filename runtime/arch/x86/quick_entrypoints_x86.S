@@ -398,11 +398,6 @@ NO_ARG_RUNTIME_EXCEPTION art_quick_throw_stack_overflow, artThrowStackOverflowFr
 ONE_ARG_RUNTIME_EXCEPTION art_quick_deliver_exception, artDeliverExceptionFromCode
 
     /*
-     * Called by managed code to create and deliver a NoSuchMethodError.
-     */
-ONE_ARG_RUNTIME_EXCEPTION art_quick_throw_no_such_method, artThrowNoSuchMethodFromCode
-
-    /*
      * Called by managed code to create and deliver an ArrayIndexOutOfBoundsException. Arg1 holds
      * index, arg2 holds limit.
      */
