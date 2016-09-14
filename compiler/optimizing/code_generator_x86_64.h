@@ -533,9 +533,9 @@ class CodeGeneratorX86_64 : public CodeGenerator {
     }
   }
 
-  void GenerateNop();
-  void GenerateImplicitNullCheck(HNullCheck* instruction);
-  void GenerateExplicitNullCheck(HNullCheck* instruction);
+  void GenerateNop() OVERRIDE;
+  void GenerateImplicitNullCheck(HNullCheck* instruction) OVERRIDE;
+  void GenerateExplicitNullCheck(HNullCheck* instruction) OVERRIDE;
 
   // When we don't know the proper offset for the value, we use kDummy32BitOffset.
   // We will fix this up in the linker later to have the right value.
