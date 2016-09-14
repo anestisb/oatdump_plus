@@ -309,6 +309,12 @@ TEST_F(AssemblerMIPS32r6Test, Lwpc) {
   DriverStr(RepeatRIb(&mips::MipsAssembler::Lwpc, 19, code), "Lwpc");
 }
 
+TEST_F(AssemblerMIPS32r6Test, Addiupc) {
+  // The comment from the Lwpc() test applies to this Addiupc() test as well.
+  const char* code = ".set imm, {imm}\naddiupc ${reg}, (imm - ((imm & 0x40000) << 1)) << 2";
+  DriverStr(RepeatRIb(&mips::MipsAssembler::Addiupc, 19, code), "Addiupc");
+}
+
 TEST_F(AssemblerMIPS32r6Test, Bitswap) {
   DriverStr(RepeatRR(&mips::MipsAssembler::Bitswap, "bitswap ${reg1}, ${reg2}"), "bitswap");
 }
@@ -635,6 +641,40 @@ TEST_F(AssemblerMIPS32r6Test, StoreDToOffset) {
   DriverStr(expected, "StoreDToOffset");
 }
 
+TEST_F(AssemblerMIPS32r6Test, LoadFarthestNearLabelAddress) {
+  mips::MipsLabel label;
+  __ LoadLabelAddress(mips::V0, mips::ZERO, &label);
+  constexpr size_t kAdduCount = 0x3FFDE;
+  for (size_t i = 0; i != kAdduCount; ++i) {
+    __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
+  }
+  __ Bind(&label);
+
+  std::string expected =
+      "lapc $v0, 1f\n" +
+      RepeatInsn(kAdduCount, "addu $zero, $zero, $zero\n") +
+      "1:\n";
+  DriverStr(expected, "LoadFarthestNearLabelAddress");
+}
+
+TEST_F(AssemblerMIPS32r6Test, LoadNearestFarLabelAddress) {
+  mips::MipsLabel label;
+  __ LoadLabelAddress(mips::V0, mips::ZERO, &label);
+  constexpr size_t kAdduCount = 0x3FFDF;
+  for (size_t i = 0; i != kAdduCount; ++i) {
+    __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
+  }
+  __ Bind(&label);
+
+  std::string expected =
+      "1:\n"
+      "auipc $at, %hi(2f - 1b)\n"
+      "addiu $v0, $at, %lo(2f - 1b)\n" +
+      RepeatInsn(kAdduCount, "addu $zero, $zero, $zero\n") +
+      "2:\n";
+  DriverStr(expected, "LoadNearestFarLabelAddress");
+}
+
 TEST_F(AssemblerMIPS32r6Test, LoadFarthestNearLiteral) {
   mips::Literal* literal = __ NewLiteral<uint32_t>(0x12345678);
   __ LoadLiteral(mips::V0, mips::ZERO, literal);
@@ -811,8 +851,7 @@ TEST_F(AssemblerMIPS32r6Test, LongBranchReorder) {
   DriverStr(expected, "LongBeqc");
 }
 
-// TODO: MipsAssembler::Addiupc
-//       MipsAssembler::Bc
+// TODO: MipsAssembler::Bc
 //       MipsAssembler::Jic
 //       MipsAssembler::Jialc
 //       MipsAssembler::Bltc
