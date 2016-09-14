@@ -260,7 +260,7 @@
     .fnstart
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME r0       @ save callee saves for throw
     mov    r0, r9                              @ pass Thread::Current
-    b      artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*)
+    bl     artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*)
 .endm
 
 .macro NO_ARG_RUNTIME_EXCEPTION c_name, cxx_name
@@ -268,7 +268,7 @@
 ENTRY \c_name
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME r0       @ save all registers as basis for long jump context
     mov r0, r9                      @ pass Thread::Current
-    b   \cxx_name                   @ \cxx_name(Thread*)
+    bl  \cxx_name                   @ \cxx_name(Thread*)
 END \c_name
 .endm
 
@@ -277,7 +277,7 @@ END \c_name
 ENTRY \c_name
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME r1       @ save all registers as basis for long jump context
     mov r1, r9                      @ pass Thread::Current
-    b   \cxx_name                   @ \cxx_name(Thread*)
+    bl  \cxx_name                   @ \cxx_name(Thread*)
 END \c_name
 .endm
 
@@ -286,7 +286,7 @@ END \c_name
 ENTRY \c_name
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME r2       @ save all registers as basis for long jump context
     mov r2, r9                      @ pass Thread::Current
-    b   \cxx_name                   @ \cxx_name(Thread*)
+    bl  \cxx_name                   @ \cxx_name(Thread*)
 END \c_name
 .endm
 
@@ -392,7 +392,7 @@ ENTRY art_quick_throw_null_pointer_exception_from_signal
     SETUP_SAVE_EVERYTHING_FRAME_CORE_REGS_SAVED r1
     mov r0, lr                      @ pass the fault address stored in LR by the fault handler.
     mov r1, r9                      @ pass Thread::Current
-    b   artThrowNullPointerExceptionFromSignal  @ (Thread*)
+    bl  artThrowNullPointerExceptionFromSignal  @ (Thread*)
 END art_quick_throw_null_pointer_exception_from_signal
 
     /*
@@ -753,7 +753,7 @@ ENTRY art_quick_check_cast
     .cfi_restore lr
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME r2       @ save all registers as basis for long jump context
     mov r2, r9                      @ pass Thread::Current
-    b   artThrowClassCastException  @ (Class*, Class*, Thread*)
+    bl  artThrowClassCastException  @ (Class*, Class*, Thread*)
     bkpt
 END art_quick_check_cast
 
@@ -896,7 +896,7 @@ ENTRY art_quick_aput_obj
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME r3
     mov r1, r2
     mov r2, r9                     @ pass Thread::Current
-    b artThrowArrayStoreException  @ (Class*, Class*, Thread*)
+    bl artThrowArrayStoreException @ (Class*, Class*, Thread*)
     bkpt                           @ unreached
 END art_quick_aput_obj
 
