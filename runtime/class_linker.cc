@@ -4639,8 +4639,11 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
       }
     }
 
-    EncodedStaticFieldValueIterator value_it(dex_file, &dex_cache, &class_loader,
-                                             this, *dex_class_def);
+    annotations::RuntimeEncodedStaticFieldValueIterator value_it(dex_file,
+                                                                 &dex_cache,
+                                                                 &class_loader,
+                                                                 this,
+                                                                 *dex_class_def);
     const uint8_t* class_data = dex_file.GetClassData(*dex_class_def);
     ClassDataItemIterator field_it(dex_file, class_data);
     if (value_it.HasNext()) {

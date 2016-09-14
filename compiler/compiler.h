@@ -25,10 +25,14 @@ namespace art {
 namespace jit {
   class JitCodeCache;
 }
+namespace mirror {
+  class DexCache;
+}
 
 class ArtMethod;
 class CompilerDriver;
 class CompiledMethod;
+template<class T> class Handle;
 class OatWriter;
 
 class Compiler {

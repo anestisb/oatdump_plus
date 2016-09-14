@@ -33,6 +33,7 @@ namespace art {
 namespace verifier {
 class MethodVerifier;
 }  // namespace verifier
+class ArtMethod;
 
 enum InlineMethodOpcode : uint16_t {
   kIntrinsicDoubleCvt,

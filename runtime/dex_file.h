@@ -27,27 +27,14 @@
 #include "globals.h"
 #include "invoke_type.h"
 #include "jni.h"
-#include "mirror/object_array.h"
 #include "modifiers.h"
 #include "utf.h"
 
 namespace art {
 
-// TODO: remove dependencies on mirror classes, primarily by moving
-// EncodedStaticFieldValueIterator to its own file.
-namespace mirror {
-  class ClassLoader;
-  class DexCache;
-}  // namespace mirror
-class ArtField;
-class ArtMethod;
-class ClassLinker;
-template <class Key, class Value, class EmptyFn, class HashFn, class Pred, class Alloc>
-class HashMap;
 class MemMap;
 class OatDexFile;
 class Signature;
-template<class T> class Handle;
 class StringPiece;
 class TypeLookupTable;
 class ZipArchive;
@@ -401,6 +388,8 @@ class DexFile {
     kPrimitivesOrObjects,
     kAllRaw
   };
+
+  struct AnnotationValue;
 
   // Returns the checksum of a file for comparison with GetLocationChecksum().
   // For .dex files, this is the header checksum.
@@ -934,110 +923,6 @@ class DexFile {
     return reinterpret_cast<const AnnotationSetItem*>(begin_ + offset);
   }
 
-  const AnnotationSetItem* FindAnnotationSetForField(ArtField* field) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::Object* GetAnnotationForField(ArtField* field, Handle<mirror::Class> annotation_class)
-      const REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::ObjectArray<mirror::Object>* GetAnnotationsForField(ArtField* field) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::ObjectArray<mirror::String>* GetSignatureAnnotationForField(ArtField* field) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  bool IsFieldAnnotationPresent(ArtField* field, Handle<mirror::Class> annotation_class) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  const AnnotationSetItem* FindAnnotationSetForMethod(ArtMethod* method) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  const ParameterAnnotationsItem* FindAnnotationsItemForMethod(ArtMethod* method) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::Object* GetAnnotationDefaultValue(ArtMethod* method) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::Object* GetAnnotationForMethod(ArtMethod* method, Handle<mirror::Class> annotation_class)
-      const REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::Object* GetAnnotationForMethodParameter(ArtMethod* method,
-                                                  uint32_t parameter_idx,
-                                                  Handle<mirror::Class> annotation_class) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::ObjectArray<mirror::Object>* GetAnnotationsForMethod(ArtMethod* method) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::ObjectArray<mirror::Class>* GetExceptionTypesForMethod(ArtMethod* method) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::ObjectArray<mirror::Object>* GetParameterAnnotations(ArtMethod* method) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::ObjectArray<mirror::String>* GetSignatureAnnotationForMethod(ArtMethod* method) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  bool IsMethodAnnotationPresent(ArtMethod* method,
-                                 Handle<mirror::Class> annotation_class,
-                                 uint32_t visibility = kDexVisibilityRuntime) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  const AnnotationSetItem* FindAnnotationSetForClass(Handle<mirror::Class> klass) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::Object* GetAnnotationForClass(Handle<mirror::Class> klass,
-                                        Handle<mirror::Class> annotation_class) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::ObjectArray<mirror::Object>* GetAnnotationsForClass(Handle<mirror::Class> klass) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::ObjectArray<mirror::Class>* GetDeclaredClasses(Handle<mirror::Class> klass) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::Class* GetDeclaringClass(Handle<mirror::Class> klass) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::Class* GetEnclosingClass(Handle<mirror::Class> klass) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::Object* GetEnclosingMethod(Handle<mirror::Class> klass) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  bool GetInnerClass(Handle<mirror::Class> klass, mirror::String** name) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  bool GetInnerClassFlags(Handle<mirror::Class> klass, uint32_t* flags) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::ObjectArray<mirror::String>* GetSignatureAnnotationForClass(Handle<mirror::Class> klass)
-      const REQUIRES_SHARED(Locks::mutator_lock_);
-  bool IsClassAnnotationPresent(Handle<mirror::Class> klass, Handle<mirror::Class> annotation_class)
-      const REQUIRES_SHARED(Locks::mutator_lock_);
-
-  mirror::Object* CreateAnnotationMember(Handle<mirror::Class> klass,
-                                         Handle<mirror::Class> annotation_class,
-                                         const uint8_t** annotation) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  const AnnotationItem* GetAnnotationItemFromAnnotationSet(Handle<mirror::Class> klass,
-                                                           const AnnotationSetItem* annotation_set,
-                                                           uint32_t visibility,
-                                                           Handle<mirror::Class> annotation_class)
-      const REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::Object* GetAnnotationObjectFromAnnotationSet(Handle<mirror::Class> klass,
-                                                       const AnnotationSetItem* annotation_set,
-                                                       uint32_t visibility,
-                                                       Handle<mirror::Class> annotation_class) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::Object* GetAnnotationValue(Handle<mirror::Class> klass,
-                                     const AnnotationItem* annotation_item,
-                                     const char* annotation_name,
-                                     Handle<mirror::Class> array_class,
-                                     uint32_t expected_type) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::ObjectArray<mirror::String>* GetSignatureValue(Handle<mirror::Class> klass,
-                                                         const AnnotationSetItem* annotation_set)
-      const REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::ObjectArray<mirror::Class>* GetThrowsValue(Handle<mirror::Class> klass,
-                                                     const AnnotationSetItem* annotation_set) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::ObjectArray<mirror::Object>* ProcessAnnotationSet(Handle<mirror::Class> klass,
-                                                            const AnnotationSetItem* annotation_set,
-                                                            uint32_t visibility) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::ObjectArray<mirror::Object>* ProcessAnnotationSetRefList(Handle<mirror::Class> klass,
-      const AnnotationSetRefList* set_ref_list, uint32_t size) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  mirror::Object* ProcessEncodedAnnotation(Handle<mirror::Class> klass,
-                                           const uint8_t** annotation) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  const AnnotationItem* SearchAnnotationSet(const AnnotationSetItem* annotation_set,
-                                            const char* descriptor, uint32_t visibility) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  const uint8_t* SearchEncodedAnnotation(const uint8_t* annotation, const char* name) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  bool SkipAnnotationValue(const uint8_t** annotation_ptr) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Debug info opcodes and constants
   enum {
     DBG_END_SEQUENCE         = 0x00,
@@ -1063,17 +948,6 @@ class DexFile {
    private:
     DISALLOW_COPY_AND_ASSIGN(LineNumFromPcContext);
   };
-
-  // Determine the source file line number based on the program counter.
-  // "pc" is an offset, in 16-bit units, from the start of the method's code.
-  //
-  // Returns -1 if no match was found (possibly because the source files were
-  // compiled without "-g", so no line number information is present).
-  // Returns -2 for native methods (as expected in exception traces).
-  //
-  // This is used by runtime; therefore use art::Method not art::DexFile::Method.
-  int32_t GetLineNumFromPC(ArtMethod* method, uint32_t rel_pc) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns false if there is no debugging information or if it cannot be decoded.
   bool DecodeDebugLocalInfo(const CodeItem* code_item, bool is_static, uint32_t method_idx,
@@ -1140,6 +1014,12 @@ class DexFile {
 
   void CreateTypeLookupTable(uint8_t* storage = nullptr) const;
 
+  // Utility methods for reading integral values from a buffer.
+  static int32_t ReadSignedInt(const uint8_t* ptr, int zwidth);
+  static uint32_t ReadUnsignedInt(const uint8_t* ptr, int zwidth, bool fill_on_right);
+  static int64_t ReadSignedLong(const uint8_t* ptr, int zwidth);
+  static uint64_t ReadUnsignedLong(const uint8_t* ptr, int zwidth, bool fill_on_right);
+
  private:
   // Opens a .dex file
   static std::unique_ptr<const DexFile> OpenFile(int fd,
@@ -1203,13 +1083,6 @@ class DexFile {
   // Check whether a location denotes a multidex dex file. This is a very simple check: returns
   // whether the string contains the separator character.
   static bool IsMultiDexLocation(const char* location);
-
-  struct AnnotationValue;
-
-  bool ProcessAnnotationValue(Handle<mirror::Class> klass, const uint8_t** annotation_ptr,
-                              AnnotationValue* annotation_value, Handle<mirror::Class> return_class,
-                              DexFile::AnnotationResultStyle result_style) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // The base address of the memory mapping.
   const uint8_t* const begin_;
@@ -1514,21 +1387,8 @@ class ClassDataItemIterator {
 
 class EncodedStaticFieldValueIterator {
  public:
-  // A constructor for static tools. You cannot call
-  // ReadValueToField() for an object created by this.
   EncodedStaticFieldValueIterator(const DexFile& dex_file,
                                   const DexFile::ClassDef& class_def);
-
-  // A constructor meant to be called from runtime code.
-  EncodedStaticFieldValueIterator(const DexFile& dex_file,
-                                  Handle<mirror::DexCache>* dex_cache,
-                                  Handle<mirror::ClassLoader>* class_loader,
-                                  ClassLinker* linker,
-                                  const DexFile::ClassDef& class_def)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  template<bool kTransactionActive>
-  void ReadValueToField(ArtField* field) const REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool HasNext() const { return pos_ < array_size_; }
 
@@ -1556,27 +1416,18 @@ class EncodedStaticFieldValueIterator {
   ValueType GetValueType() const { return type_; }
   const jvalue& GetJavaValue() const { return jval_; }
 
- private:
-  EncodedStaticFieldValueIterator(const DexFile& dex_file,
-                                  Handle<mirror::DexCache>* dex_cache,
-                                  Handle<mirror::ClassLoader>* class_loader,
-                                  ClassLinker* linker,
-                                  const DexFile::ClassDef& class_def,
-                                  size_t pos,
-                                  ValueType type);
-
+ protected:
   static constexpr uint8_t kEncodedValueTypeMask = 0x1f;  // 0b11111
   static constexpr uint8_t kEncodedValueArgShift = 5;
 
   const DexFile& dex_file_;
-  Handle<mirror::DexCache>* const dex_cache_;  // Dex cache to resolve literal objects.
-  Handle<mirror::ClassLoader>* const class_loader_;  // ClassLoader to resolve types.
-  ClassLinker* linker_;  // Linker to resolve literal objects.
   size_t array_size_;  // Size of array.
   size_t pos_;  // Current position.
   const uint8_t* ptr_;  // Pointer into encoded data array.
   ValueType type_;  // Type of current encoded value.
   jvalue jval_;  // Value of current encoded value.
+
+ private:
   DISALLOW_IMPLICIT_CONSTRUCTORS(EncodedStaticFieldValueIterator);
 };
 std::ostream& operator<<(std::ostream& os, const EncodedStaticFieldValueIterator::ValueType& code);
