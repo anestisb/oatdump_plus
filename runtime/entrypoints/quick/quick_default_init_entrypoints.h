@@ -113,7 +113,6 @@ void DefaultInitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) 
   qpoints->pDeliverException = art_quick_deliver_exception;
   qpoints->pThrowArrayBounds = art_quick_throw_array_bounds;
   qpoints->pThrowDivZero = art_quick_throw_div_zero;
-  qpoints->pThrowNoSuchMethod = art_quick_throw_no_such_method;
   qpoints->pThrowNullPointer = art_quick_throw_null_pointer_exception;
   qpoints->pThrowStackOverflow = art_quick_throw_stack_overflow;
   qpoints->pThrowStringBounds = art_quick_throw_string_bounds;
