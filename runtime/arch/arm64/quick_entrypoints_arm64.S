@@ -400,7 +400,7 @@
     mov x0, xSELF
 
     // Point of no return.
-    b artDeliverPendingExceptionFromCode  // artDeliverPendingExceptionFromCode(Thread*)
+    bl artDeliverPendingExceptionFromCode  // artDeliverPendingExceptionFromCode(Thread*)
     brk 0  // Unreached
 .endm
 
@@ -433,7 +433,7 @@
 ENTRY \c_name
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME // save all registers as basis for long jump context
     mov x0, xSELF                     // pass Thread::Current
-    b   \cxx_name                     // \cxx_name(Thread*)
+    bl  \cxx_name                     // \cxx_name(Thread*)
 END \c_name
 .endm
 
@@ -442,7 +442,7 @@ END \c_name
 ENTRY \c_name
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME // save all registers as basis for long jump context.
     mov x1, xSELF                     // pass Thread::Current.
-    b   \cxx_name                     // \cxx_name(arg, Thread*).
+    bl  \cxx_name                     // \cxx_name(arg, Thread*).
     brk 0
 END \c_name
 .endm
@@ -452,7 +452,7 @@ END \c_name
 ENTRY \c_name
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME // save all registers as basis for long jump context
     mov x2, xSELF                     // pass Thread::Current
-    b   \cxx_name                     // \cxx_name(arg1, arg2, Thread*)
+    bl  \cxx_name                     // \cxx_name(arg1, arg2, Thread*)
     brk 0
 END \c_name
 .endm
@@ -483,8 +483,7 @@ ENTRY art_quick_throw_null_pointer_exception_from_signal
     SETUP_SAVE_EVERYTHING_FRAME_DECREMENTED_SP_SKIP_X29_LR
     mov x0, lr                        // pass the fault address stored in LR by the fault handler.
     mov x1, xSELF                     // pass Thread::Current.
-    // TODO: Change other throwing entrypoints to use BL instead of B. http://b/31468464
-    bl   artThrowNullPointerExceptionFromSignal  // (arg, Thread*).
+    bl  artThrowNullPointerExceptionFromSignal  // (arg, Thread*).
     brk 0
 END art_quick_throw_null_pointer_exception_from_signal
 
@@ -1302,7 +1301,7 @@ ENTRY art_quick_check_cast
 
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME // save all registers as basis for long jump context
     mov x2, xSELF                     // pass Thread::Current
-    b artThrowClassCastException      // (Class*, Class*, Thread*)
+    bl artThrowClassCastException     // (Class*, Class*, Thread*)
     brk 0                             // We should not return here...
 END art_quick_check_cast
 
@@ -1466,10 +1465,10 @@ ENTRY art_quick_aput_obj
     RESTORE_TWO_REGS_DECREASE_FRAME x0, x1, 32
 
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME
-    mov x1, x2                    // Pass value.
-    mov x2, xSELF                 // Pass Thread::Current.
-    b artThrowArrayStoreException // (Object*, Object*, Thread*).
-    brk 0                         // Unreached.
+    mov x1, x2                      // Pass value.
+    mov x2, xSELF                   // Pass Thread::Current.
+    bl artThrowArrayStoreException  // (Object*, Object*, Thread*).
+    brk 0                           // Unreached.
 END art_quick_aput_obj
 
 // Macro to facilitate adding new allocation entrypoints.
