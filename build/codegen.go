@@ -24,9 +24,7 @@ import (
 	"strings"
 )
 
-func (a *codegenCustomizer) CustomizeProperties(ctx android.CustomizePropertiesContext) {
-	c := &a.codegenProperties.Codegen
-
+func codegen(ctx android.LoadHookContext, c *codegenProperties) {
 	var hostArches, deviceArches []string
 
 	e := envDefault(ctx, "ART_HOST_CODEGEN_ARCHS", "")
@@ -53,17 +51,17 @@ func (a *codegenCustomizer) CustomizeProperties(ctx android.CustomizePropertiesC
 	addCodegenArchProperties := func(p *props, hod **codegenArchProperties, arch string) {
 		switch arch {
 		case "arm":
-			*hod = &c.Arm
+			*hod = &c.Codegen.Arm
 		case "arm64":
-			*hod = &c.Arm64
+			*hod = &c.Codegen.Arm64
 		case "mips":
-			*hod = &c.Mips
+			*hod = &c.Codegen.Mips
 		case "mips64":
-			*hod = &c.Mips64
+			*hod = &c.Codegen.Mips64
 		case "x86":
-			*hod = &c.X86
+			*hod = &c.Codegen.X86
 		case "x86_64":
-			*hod = &c.X86_64
+			*hod = &c.Codegen.X86_64
 		default:
 			ctx.ModuleErrorf("Unknown codegen architecture %q", arch)
 			return
@@ -109,7 +107,7 @@ type codegenCustomizer struct {
 	codegenProperties codegenProperties
 }
 
-func defaultDeviceCodegenArches(ctx android.CustomizePropertiesContext) []string {
+func defaultDeviceCodegenArches(ctx android.LoadHookContext) []string {
 	arches := make(map[string]bool)
 	for _, a := range ctx.DeviceConfig().Arches() {
 		s := a.ArchType.String()
