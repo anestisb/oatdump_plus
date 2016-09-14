@@ -431,7 +431,7 @@ bool Jit::MaybeDoOnStackReplacement(Thread* thread,
   const uint8_t* native_pc = nullptr;
 
   {
-    ScopedAssertNoThreadSuspension sts(thread, "Holding OSR method");
+    ScopedAssertNoThreadSuspension sts("Holding OSR method");
     const OatQuickMethodHeader* osr_method = jit->GetCodeCache()->LookupOsrMethodHeader(method);
     if (osr_method == nullptr) {
       // No osr method yet, just return to the interpreter.
@@ -683,12 +683,11 @@ void Jit::MethodEntered(Thread* thread, ArtMethod* method) {
   }
 }
 
-void Jit::InvokeVirtualOrInterface(Thread* thread,
-                                   mirror::Object* this_object,
+void Jit::InvokeVirtualOrInterface(mirror::Object* this_object,
                                    ArtMethod* caller,
                                    uint32_t dex_pc,
                                    ArtMethod* callee ATTRIBUTE_UNUSED) {
-  ScopedAssertNoThreadSuspension ants(thread, __FUNCTION__);
+  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
   DCHECK(this_object != nullptr);
   ProfilingInfo* info = caller->GetProfilingInfo(kRuntimePointerSize);
   if (info != nullptr) {

@@ -1011,7 +1011,7 @@ void Heap::VisitObjects(ObjectCallback callback, void* arg) {
     DecrementDisableMovingGC(self);
   } else {
     // GCs can move objects, so don't allow this.
-    ScopedAssertNoThreadSuspension ants(self, "Visiting objects");
+    ScopedAssertNoThreadSuspension ants("Visiting objects");
     DCHECK(region_space_ == nullptr);
     VisitObjectsInternal(callback, arg);
   }

@@ -1546,19 +1546,25 @@ class Thread {
 
 class SCOPED_CAPABILITY ScopedAssertNoThreadSuspension {
  public:
-  ScopedAssertNoThreadSuspension(Thread* self, const char* cause) ACQUIRE(Roles::uninterruptible_)
-      : self_(self), old_cause_(self->StartAssertNoThreadSuspension(cause)) {
+  ALWAYS_INLINE ScopedAssertNoThreadSuspension(const char* cause) ACQUIRE(Roles::uninterruptible_) {
+    if (kIsDebugBuild) {
+      self_ = Thread::Current();
+      old_cause_ = self_->StartAssertNoThreadSuspension(cause);
+    } else {
+      Roles::uninterruptible_.Acquire();  // No-op.
+    }
   }
-  ~ScopedAssertNoThreadSuspension() RELEASE(Roles::uninterruptible_) {
-    self_->EndAssertNoThreadSuspension(old_cause_);
-  }
-  Thread* Self() {
-    return self_;
+  ALWAYS_INLINE ~ScopedAssertNoThreadSuspension() RELEASE(Roles::uninterruptible_) {
+    if (kIsDebugBuild) {
+      self_->EndAssertNoThreadSuspension(old_cause_);
+    } else {
+      Roles::uninterruptible_.Release();  // No-op.
+    }
   }
 
  private:
-  Thread* const self_;
-  const char* const old_cause_;
+  Thread* self_;
+  const char* old_cause_;
 };
 
 class ScopedStackedShadowFramePusher {
