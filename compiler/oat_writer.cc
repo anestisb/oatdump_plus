@@ -994,7 +994,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
       out_(out),
       file_offset_(file_offset),
       soa_(Thread::Current()),
-      no_thread_suspension_(soa_.Self(), "OatWriter patching"),
+      no_thread_suspension_("OatWriter patching"),
       class_linker_(Runtime::Current()->GetClassLinker()),
       dex_cache_(nullptr) {
     patched_code_.reserve(16 * KB);
@@ -1036,7 +1036,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
     const CompiledMethod* compiled_method = oat_class->GetCompiledMethod(class_def_method_index);
 
     // No thread suspension since dex_cache_ that may get invalidated if that occurs.
-    ScopedAssertNoThreadSuspension tsc(Thread::Current(), __FUNCTION__);
+    ScopedAssertNoThreadSuspension tsc(__FUNCTION__);
     if (compiled_method != nullptr) {  // ie. not an abstract method
       size_t file_offset = file_offset_;
       OutputStream* out = out_;

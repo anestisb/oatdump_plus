@@ -966,7 +966,7 @@ void Instrumentation::InvokeVirtualOrInterfaceImpl(Thread* thread,
                                                    ArtMethod* callee) const {
   // We cannot have thread suspension since that would cause the this_object parameter to
   // potentially become a dangling pointer. An alternative could be to put it in a handle instead.
-  ScopedAssertNoThreadSuspension ants(thread, __FUNCTION__);
+  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
   for (InstrumentationListener* listener : invoke_virtual_or_interface_listeners_) {
     if (listener != nullptr) {
       listener->InvokeVirtualOrInterface(thread, this_object, caller, dex_pc, callee);

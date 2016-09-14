@@ -1987,7 +1987,7 @@ JDWP::JdwpError Dbg::GetThreadGroup(JDWP::ObjectId thread_id, JDWP::ExpandBuf* p
   if (error != JDWP::ERR_NONE) {
     return JDWP::ERR_INVALID_OBJECT;
   }
-  ScopedAssertNoThreadSuspension ants(soa.Self(), "Debugger: GetThreadGroup");
+  ScopedAssertNoThreadSuspension ants("Debugger: GetThreadGroup");
   // Okay, so it's an object, but is it actually a thread?
   DecodeThread(soa, thread_id, &error);
   if (error == JDWP::ERR_THREAD_NOT_ALIVE) {
@@ -2037,7 +2037,7 @@ JDWP::JdwpError Dbg::GetThreadGroupName(JDWP::ObjectId thread_group_id, JDWP::Ex
   if (error != JDWP::ERR_NONE) {
     return error;
   }
-  ScopedAssertNoThreadSuspension ants(soa.Self(), "Debugger: GetThreadGroupName");
+  ScopedAssertNoThreadSuspension ants("Debugger: GetThreadGroupName");
   ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_name);
   CHECK(f != nullptr);
   mirror::String* s = reinterpret_cast<mirror::String*>(f->GetObject(thread_group));
@@ -2056,7 +2056,7 @@ JDWP::JdwpError Dbg::GetThreadGroupParent(JDWP::ObjectId thread_group_id, JDWP::
   }
   mirror::Object* parent;
   {
-    ScopedAssertNoThreadSuspension ants(soa.Self(), "Debugger: GetThreadGroupParent");
+    ScopedAssertNoThreadSuspension ants("Debugger: GetThreadGroupParent");
     ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_parent);
     CHECK(f != nullptr);
     parent = f->GetObject(thread_group);
