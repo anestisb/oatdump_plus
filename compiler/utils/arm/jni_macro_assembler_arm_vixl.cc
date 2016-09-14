@@ -314,11 +314,21 @@ void ArmVIXLJNIMacroAssembler::Move(ManagedRegister m_dst,
       CHECK(src.IsCoreRegister()) << src;
       ___ Mov(dst.AsVIXLRegister(), src.AsVIXLRegister());
     } else if (dst.IsDRegister()) {
-      CHECK(src.IsDRegister()) << src;
-      ___ Vmov(F64, dst.AsVIXLDRegister(), src.AsVIXLDRegister());
+      if (src.IsDRegister()) {
+        ___ Vmov(F64, dst.AsVIXLDRegister(), src.AsVIXLDRegister());
+      } else {
+        // VMOV Dn, Rlo, Rhi (Dn = {Rlo, Rhi})
+        CHECK(src.IsRegisterPair()) << src;
+        ___ Vmov(dst.AsVIXLDRegister(), src.AsVIXLRegisterPairLow(), src.AsVIXLRegisterPairHigh());
+      }
     } else if (dst.IsSRegister()) {
-      CHECK(src.IsSRegister()) << src;
-      ___ Vmov(F32, dst.AsVIXLSRegister(), src.AsVIXLSRegister());
+      if (src.IsSRegister()) {
+        ___ Vmov(F32, dst.AsVIXLSRegister(), src.AsVIXLSRegister());
+      } else {
+        // VMOV Sn, Rn  (Sn = Rn)
+        CHECK(src.IsCoreRegister()) << src;
+        ___ Vmov(dst.AsVIXLSRegister(), src.AsVIXLRegister());
+      }
     } else {
       CHECK(dst.IsRegisterPair()) << dst;
       CHECK(src.IsRegisterPair()) << src;
