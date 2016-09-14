@@ -33,17 +33,6 @@ cc_defaults {
                 address: false,
             },
         },
-
-        host: {
-            ldflags: [
-                // We need this because GC stress mode makes use of
-                // _Unwind_GetIP and _Unwind_Backtrace and the symbols are also
-                // defined in libgcc_eh.a(unwind-dw2.o)
-                // TODO: Having this is not ideal as it might obscure errors.
-                // Try to get rid of it.
-                "-z muldefs",
-            ],
-        },
     },
 
 
@@ -87,6 +76,14 @@ cc_binary {
             enabled: false,
         },
     },
+    ldflags: [
+        // We need this because GC stress mode makes use of
+        // _Unwind_GetIP and _Unwind_Backtrace and the symbols are also
+        // defined in libgcc_eh.a(unwind-dw2.o)
+        // TODO: Having this is not ideal as it might obscure errors.
+        // Try to get rid of it.
+        "-z muldefs",
+    ],
     static_libs: [
         "libart-compiler",
         "libart",
@@ -108,6 +105,14 @@ cc_binary {
             enabled: false,
         },
     },
+    ldflags: [
+        // We need this because GC stress mode makes use of
+        // _Unwind_GetIP and _Unwind_Backtrace and the symbols are also
+        // defined in libgcc_eh.a(unwind-dw2.o)
+        // TODO: Having this is not ideal as it might obscure errors.
+        // Try to get rid of it.
+        "-z muldefs",
+    ],
     static_libs: [
         "libartd-compiler",
         "libartd",
