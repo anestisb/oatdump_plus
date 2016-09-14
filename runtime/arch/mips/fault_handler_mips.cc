@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-
+#include "arch/mips/quick_method_frame_info_mips.h"
 #include "fault_handler.h"
 #include <sys/ucontext.h>
 #include "art_method-inl.h"
@@ -82,12 +82,15 @@ bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info, void*
   struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
   struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
 
+  // Decrement $sp by the frame size of the kSaveEverything method and store
+  // the fault address in the padding right after the ArtMethod*.
+  sc->sc_regs[mips::SP] -= mips::MipsCalleeSaveFrameSize(Runtime::kSaveEverything);
+  uintptr_t* padding = reinterpret_cast<uintptr_t*>(sc->sc_regs[mips::SP]) + /* ArtMethod* */ 1;
+  *padding = reinterpret_cast<uintptr_t>(info->si_addr);
+
   sc->sc_regs[mips::RA] = sc->sc_pc + 4;      // RA needs to point to gc map location
   sc->sc_pc = reinterpret_cast<uintptr_t>(art_quick_throw_null_pointer_exception_from_signal);
   sc->sc_regs[mips::T9] = sc->sc_pc;          // make sure T9 points to the function
-  // Pass the faulting address as the first argument of
-  // art_quick_throw_null_pointer_exception_from_signal.
-  sc->sc_regs[mips::A0] = reinterpret_cast<uintptr_t>(info->si_addr);
   VLOG(signals) << "Generating null pointer exception";
   return true;
 }
