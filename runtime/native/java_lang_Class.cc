@@ -23,6 +23,7 @@
 #include "class_linker.h"
 #include "common_throws.h"
 #include "dex_file-inl.h"
+#include "dex_file_annotations.h"
 #include "jni_internal.h"
 #include "nth_caller_visitor.h"
 #include "mirror/class-inl.h"
@@ -454,7 +455,7 @@ static jobject Class_getDeclaredAnnotation(JNIEnv* env, jobject javaThis, jclass
   }
   Handle<mirror::Class> annotation_class(hs.NewHandle(soa.Decode<mirror::Class*>(annotationClass)));
   return soa.AddLocalReference<jobject>(
-      klass->GetDexFile().GetAnnotationForClass(klass, annotation_class));
+      annotations::GetAnnotationForClass(klass, annotation_class));
 }
 
 static jobjectArray Class_getDeclaredAnnotations(JNIEnv* env, jobject javaThis) {
@@ -469,7 +470,7 @@ static jobjectArray Class_getDeclaredAnnotations(JNIEnv* env, jobject javaThis) 
         mirror::ObjectArray<mirror::Object>::Alloc(soa.Self(), annotation_array_class, 0);
     return soa.AddLocalReference<jobjectArray>(empty_array);
   }
-  return soa.AddLocalReference<jobjectArray>(klass->GetDexFile().GetAnnotationsForClass(klass));
+  return soa.AddLocalReference<jobjectArray>(annotations::GetAnnotationsForClass(klass));
 }
 
 static jobjectArray Class_getDeclaredClasses(JNIEnv* env, jobject javaThis) {
@@ -478,7 +479,7 @@ static jobjectArray Class_getDeclaredClasses(JNIEnv* env, jobject javaThis) {
   Handle<mirror::Class> klass(hs.NewHandle(DecodeClass(soa, javaThis)));
   mirror::ObjectArray<mirror::Class>* classes = nullptr;
   if (!klass->IsProxyClass() && klass->GetDexCache() != nullptr) {
-    classes = klass->GetDexFile().GetDeclaredClasses(klass);
+    classes = annotations::GetDeclaredClasses(klass);
   }
   if (classes == nullptr) {
     // Return an empty array instead of a null pointer.
@@ -506,7 +507,7 @@ static jclass Class_getEnclosingClass(JNIEnv* env, jobject javaThis) {
   if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
     return nullptr;
   }
-  return soa.AddLocalReference<jclass>(klass->GetDexFile().GetEnclosingClass(klass));
+  return soa.AddLocalReference<jclass>(annotations::GetEnclosingClass(klass));
 }
 
 static jobject Class_getEnclosingConstructorNative(JNIEnv* env, jobject javaThis) {
@@ -516,7 +517,7 @@ static jobject Class_getEnclosingConstructorNative(JNIEnv* env, jobject javaThis
   if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
     return nullptr;
   }
-  mirror::Object* method = klass->GetDexFile().GetEnclosingMethod(klass);
+  mirror::Object* method = annotations::GetEnclosingMethod(klass);
   if (method != nullptr) {
     if (method->GetClass() ==
         soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_reflect_Constructor)) {
@@ -533,7 +534,7 @@ static jobject Class_getEnclosingMethodNative(JNIEnv* env, jobject javaThis) {
   if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
     return nullptr;
   }
-  mirror::Object* method = klass->GetDexFile().GetEnclosingMethod(klass);
+  mirror::Object* method = annotations::GetEnclosingMethod(klass);
   if (method != nullptr) {
     if (method->GetClass() ==
         soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_reflect_Method)) {
@@ -558,7 +559,7 @@ static jstring Class_getInnerClassName(JNIEnv* env, jobject javaThis) {
     return nullptr;
   }
   mirror::String* class_name = nullptr;
-  if (!klass->GetDexFile().GetInnerClass(klass, &class_name)) {
+  if (!annotations::GetInnerClass(klass, &class_name)) {
     return nullptr;
   }
   return soa.AddLocalReference<jstring>(class_name);
@@ -572,7 +573,7 @@ static jobjectArray Class_getSignatureAnnotation(JNIEnv* env, jobject javaThis) 
     return nullptr;
   }
   return soa.AddLocalReference<jobjectArray>(
-      klass->GetDexFile().GetSignatureAnnotationForClass(klass));
+      annotations::GetSignatureAnnotationForClass(klass));
 }
 
 static jboolean Class_isAnonymousClass(JNIEnv* env, jobject javaThis) {
@@ -583,7 +584,7 @@ static jboolean Class_isAnonymousClass(JNIEnv* env, jobject javaThis) {
     return false;
   }
   mirror::String* class_name = nullptr;
-  if (!klass->GetDexFile().GetInnerClass(klass, &class_name)) {
+  if (!annotations::GetInnerClass(klass, &class_name)) {
     return false;
   }
   return class_name == nullptr;
@@ -598,7 +599,7 @@ static jboolean Class_isDeclaredAnnotationPresent(JNIEnv* env, jobject javaThis,
     return false;
   }
   Handle<mirror::Class> annotation_class(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
-  return klass->GetDexFile().IsClassAnnotationPresent(klass, annotation_class);
+  return annotations::IsClassAnnotationPresent(klass, annotation_class);
 }
 
 static jclass Class_getDeclaringClass(JNIEnv* env, jobject javaThis) {
@@ -612,7 +613,7 @@ static jclass Class_getDeclaringClass(JNIEnv* env, jobject javaThis) {
   if (Class_isAnonymousClass(env, javaThis)) {
     return nullptr;
   }
-  return soa.AddLocalReference<jclass>(klass->GetDexFile().GetDeclaringClass(klass));
+  return soa.AddLocalReference<jclass>(annotations::GetDeclaringClass(klass));
 }
 
 static jobject Class_newInstance(JNIEnv* env, jobject javaThis) {
