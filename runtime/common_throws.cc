@@ -357,16 +357,6 @@ void ThrowNoSuchMethodError(InvokeType type, mirror::Class* c, const StringPiece
   ThrowException("Ljava/lang/NoSuchMethodError;", c, msg.str().c_str());
 }
 
-void ThrowNoSuchMethodError(uint32_t method_idx) {
-  ArtMethod* method = Thread::Current()->GetCurrentMethod(nullptr);
-  mirror::DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
-  const DexFile& dex_file = *dex_cache->GetDexFile();
-  std::ostringstream msg;
-  msg << "No method '" << PrettyMethod(method_idx, dex_file, true) << "'";
-  ThrowException("Ljava/lang/NoSuchMethodError;",
-                 method->GetDeclaringClass(), msg.str().c_str());
-}
-
 // NullPointerException
 
 void ThrowNullPointerExceptionForFieldAccess(ArtField* field, bool is_read) {
