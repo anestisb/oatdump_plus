@@ -1857,11 +1857,11 @@ static void GenHighestOneBit(LocationSummary* locations,
   if (type == Primitive::kPrimLong) {
     __ Dclz(TMP, in);
     __ LoadConst64(AT, INT64_C(0x8000000000000000));
-    __ Dsrlv(out, AT, TMP);
+    __ Dsrlv(AT, AT, TMP);
   } else {
     __ Clz(TMP, in);
     __ LoadConst32(AT, 0x80000000);
-    __ Srlv(out, AT, TMP);
+    __ Srlv(AT, AT, TMP);
   }
   // For either value of "type", when "in" is zero, "out" should also
   // be zero. Without this extra "and" operation, when "in" is zero,
@@ -1869,7 +1869,7 @@ static void GenHighestOneBit(LocationSummary* locations,
   // the MIPS logical shift operations "dsrlv", and "srlv" don't use
   // the shift amount (TMP) directly; they use either (TMP % 64) or
   // (TMP % 32), respectively.
-  __ And(out, out, in);
+  __ And(out, AT, in);
 }
 
 // int java.lang.Integer.highestOneBit(int)
