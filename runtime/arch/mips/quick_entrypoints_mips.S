@@ -279,6 +279,7 @@
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveEverything).
+     * when the $sp has already been decremented by FRAME_SIZE_SAVE_EVERYTHING.
      * Callee-save: $at, $v0-$v1, $a0-$a3, $t0-$t7, $s0-$s7, $t8-$t9, $gp, $fp $ra, $f0-$f31;
      *              28(GPR)+ 32(FPR) + 3 words for padding and 1 word for Method*
      * Clobbers $t0 and $t1.
@@ -286,10 +287,7 @@
      * Reserves FRAME_SIZE_SAVE_EVERYTHING + ARG_SLOT_SIZE bytes on the stack.
      * This macro sets up $gp; entrypoints using it should start with ENTRY_NO_GP.
      */
-.macro SETUP_SAVE_EVERYTHING_FRAME
-    addiu  $sp, $sp, -256
-    .cfi_adjust_cfa_offset 256
-
+.macro SETUP_SAVE_EVERYTHING_FRAME_DECREMENTED_SP
      // Ugly compile-time check, but we only have the preprocessor.
 #if (FRAME_SIZE_SAVE_EVERYTHING != 256)
 #error "FRAME_SIZE_SAVE_EVERYTHING(MIPS) size not as expected."
@@ -386,6 +384,22 @@
     sw $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)  # Place sp in Thread::Current()->top_quick_frame.
     addiu  $sp, $sp, -ARG_SLOT_SIZE               # reserve argument slots on the stack
     .cfi_adjust_cfa_offset ARG_SLOT_SIZE
+.endm
+
+    /*
+     * Macro that sets up the callee save frame to conform with
+     * Runtime::CreateCalleeSaveMethod(kSaveEverything).
+     * Callee-save: $at, $v0-$v1, $a0-$a3, $t0-$t7, $s0-$s7, $t8-$t9, $gp, $fp $ra, $f0-$f31;
+     *              28(GPR)+ 32(FPR) + 3 words for padding and 1 word for Method*
+     * Clobbers $t0 and $t1.
+     * Allocates ARG_SLOT_SIZE bytes at the bottom of the stack for arg slots.
+     * Reserves FRAME_SIZE_SAVE_EVERYTHING + ARG_SLOT_SIZE bytes on the stack.
+     * This macro sets up $gp; entrypoints using it should start with ENTRY_NO_GP.
+     */
+.macro SETUP_SAVE_EVERYTHING_FRAME
+    addiu  $sp, $sp, -(FRAME_SIZE_SAVE_EVERYTHING)
+    .cfi_adjust_cfa_offset (FRAME_SIZE_SAVE_EVERYTHING)
+    SETUP_SAVE_EVERYTHING_FRAME_DECREMENTED_SP
 .endm
 
 .macro RESTORE_SAVE_EVERYTHING_FRAME
@@ -708,8 +722,10 @@ END art_quick_throw_null_pointer_exception
      * Call installed by a signal handler to create and deliver a NullPointerException.
      */
     .extern artThrowNullPointerExceptionFromSignal
-ENTRY art_quick_throw_null_pointer_exception_from_signal
-    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME
+ENTRY_NO_GP_CUSTOM_CFA art_quick_throw_null_pointer_exception_from_signal, FRAME_SIZE_SAVE_EVERYTHING
+    SETUP_SAVE_EVERYTHING_FRAME_DECREMENTED_SP
+    # Retrieve the fault address from the padding where the signal handler stores it.
+    lw   $a0, (ARG_SLOT_SIZE + __SIZEOF_POINTER__)($sp)
     la   $t9, artThrowNullPointerExceptionFromSignal
     jalr $zero, $t9                 # artThrowNullPointerExceptionFromSignal(uintptr_t, Thread*)
     move $a1, rSELF                 # pass Thread::Current
