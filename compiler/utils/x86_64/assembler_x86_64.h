@@ -20,13 +20,13 @@
 #include <vector>
 
 #include "base/arena_containers.h"
+#include "base/array_ref.h"
 #include "base/bit_utils.h"
 #include "base/macros.h"
 #include "constants_x86_64.h"
 #include "globals.h"
 #include "managed_register_x86_64.h"
 #include "offsets.h"
-#include "utils/array_ref.h"
 #include "utils/assembler.h"
 #include "utils/jni_macro_assembler.h"
 

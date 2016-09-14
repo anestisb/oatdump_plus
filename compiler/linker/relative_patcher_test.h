@@ -19,6 +19,7 @@
 
 #include "arch/instruction_set.h"
 #include "arch/instruction_set_features.h"
+#include "base/array_ref.h"
 #include "base/macros.h"
 #include "compiled_method.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
@@ -31,7 +32,6 @@
 #include "method_reference.h"
 #include "oat.h"
 #include "oat_quick_method_header.h"
-#include "utils/array_ref.h"
 #include "vector_output_stream.h"
 
 namespace art {
