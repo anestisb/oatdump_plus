@@ -25,6 +25,7 @@
 #include "class_linker-inl.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
+#include "dex_file_annotations.h"
 #include "dex_instruction.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc/accounting/card_table-inl.h"
@@ -349,8 +350,6 @@ bool ArtMethod::IsAnnotatedWith(jclass klass, uint32_t visibility) {
   ScopedObjectAccess soa(self);
   StackHandleScope<1> shs(self);
 
-  const DexFile& dex_file = GetDeclaringClass()->GetDexFile();
-
   mirror::Class* annotation = soa.Decode<mirror::Class*>(klass);
   DCHECK(annotation->IsAnnotation());
   Handle<mirror::Class> annotation_handle(shs.NewHandle(annotation));
@@ -358,7 +357,7 @@ bool ArtMethod::IsAnnotatedWith(jclass klass, uint32_t visibility) {
   // Note: Resolves any method annotations' classes as a side-effect.
   // -- This seems allowed by the spec since it says we can preload any classes
   //    referenced by another classes's constant pool table.
-  return dex_file.IsMethodAnnotationPresent(this, annotation_handle, visibility);
+  return annotations::IsMethodAnnotationPresent(this, annotation_handle, visibility);
 }
 
 bool ArtMethod::EqualParameters(Handle<mirror::ObjectArray<mirror::Class>> params) {

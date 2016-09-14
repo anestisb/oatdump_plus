@@ -28,6 +28,7 @@
 #include "class_linker.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
+#include "dex_file_annotations.h"
 #include "dex_instruction.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc/accounting/card_table-inl.h"
@@ -3694,8 +3695,8 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize 
           mirror::DexCache* dex_cache = m->GetDeclaringClass()->GetDexCache();
           method = m;
           if (dex_cache != nullptr) {
-            const DexFile& dex_file = *dex_cache->GetDexFile();
-            line_number = dex_file.GetLineNumFromPC(m, GetDexPc());
+            const DexFile* dex_file = dex_cache->GetDexFile();
+            line_number = annotations::GetLineNumFromPC(dex_file, m, GetDexPc());
           }
         }
       }

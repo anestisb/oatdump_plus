@@ -24,6 +24,7 @@
 #include "class_linker-inl.h"
 #include "common_throws.h"
 #include "dex_file.h"
+#include "dex_file_annotations.h"
 #include "dex_file-inl.h"
 #include "gc_root-inl.h"
 #include "jit/profiling_info.h"
@@ -347,7 +348,7 @@ inline int32_t ArtMethod::GetLineNumFromDexPC(uint32_t dex_pc) {
   if (dex_pc == DexFile::kDexNoIndex) {
     return IsNative() ? -2 : -1;
   }
-  return GetDexFile()->GetLineNumFromPC(this, dex_pc);
+  return annotations::GetLineNumFromPC(GetDexFile(), this, dex_pc);
 }
 
 inline const DexFile::ProtoId& ArtMethod::GetPrototype() {
