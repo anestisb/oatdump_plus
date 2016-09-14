@@ -178,9 +178,6 @@ void ThrowNoSuchMethodError(InvokeType type, mirror::Class* c, const StringPiece
                             const Signature& signature)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowNoSuchMethodError(uint32_t method_idx)
-    REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
-
 // NullPointerException
 
 void ThrowNullPointerExceptionForFieldAccess(ArtField* field,

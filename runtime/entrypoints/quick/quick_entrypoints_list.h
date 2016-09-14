@@ -139,7 +139,6 @@
   V(DeliverException, void, mirror::Object*) \
   V(ThrowArrayBounds, void, int32_t, int32_t) \
   V(ThrowDivZero, void, void) \
-  V(ThrowNoSuchMethod, void, int32_t) \
   V(ThrowNullPointer, void, void) \
   V(ThrowStackOverflow, void, void*) \
   V(ThrowStringBounds, void, int32_t, int32_t) \
