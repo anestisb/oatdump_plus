@@ -40,6 +40,7 @@
 #include "class_linker-inl.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
+#include "dex_file_annotations.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "gc/accounting/card_table-inl.h"
@@ -1388,8 +1389,8 @@ struct StackDumpVisitor : public StackVisitor {
     mirror::DexCache* dex_cache = c->GetDexCache();
     int line_number = -1;
     if (dex_cache != nullptr) {  // be tolerant of bad input
-      const DexFile& dex_file = *dex_cache->GetDexFile();
-      line_number = dex_file.GetLineNumFromPC(m, GetDexPc(false));
+      const DexFile* dex_file = dex_cache->GetDexFile();
+      line_number = annotations::GetLineNumFromPC(dex_file, m, GetDexPc(false));
     }
     if (line_number == last_line_number && last_method == m) {
       ++repetition_count;

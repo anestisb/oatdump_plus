@@ -30,6 +30,7 @@
 namespace art {
 
 class ArtMethod;
+class ClassLinker;
 struct RuntimeArgumentMap;
 union JValue;
 

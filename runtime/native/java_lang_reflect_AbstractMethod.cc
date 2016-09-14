@@ -17,6 +17,7 @@
 #include "java_lang_reflect_AbstractMethod.h"
 
 #include "art_method-inl.h"
+#include "dex_file_annotations.h"
 #include "jni_internal.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
@@ -38,7 +39,7 @@ static jobjectArray AbstractMethod_getDeclaredAnnotations(JNIEnv* env, jobject j
         mirror::ObjectArray<mirror::Object>::Alloc(soa.Self(), annotation_array_class, 0);
     return soa.AddLocalReference<jobjectArray>(empty_array);
   }
-  return soa.AddLocalReference<jobjectArray>(method->GetDexFile()->GetAnnotationsForMethod(method));
+  return soa.AddLocalReference<jobjectArray>(annotations::GetAnnotationsForMethod(method));
 }
 
 static jobject AbstractMethod_getAnnotationNative(JNIEnv* env,
@@ -51,8 +52,7 @@ static jobject AbstractMethod_getAnnotationNative(JNIEnv* env,
     return nullptr;
   } else {
     Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
-    return soa.AddLocalReference<jobject>(
-        method->GetDexFile()->GetAnnotationForMethod(method, klass));
+    return soa.AddLocalReference<jobject>(annotations::GetAnnotationForMethod(method, klass));
   }
 }
 
@@ -63,8 +63,7 @@ static jobjectArray AbstractMethod_getSignatureAnnotation(JNIEnv* env, jobject j
     return nullptr;
   }
   StackHandleScope<1> hs(soa.Self());
-  return soa.AddLocalReference<jobjectArray>(
-      method->GetDexFile()->GetSignatureAnnotationForMethod(method));
+  return soa.AddLocalReference<jobjectArray>(annotations::GetSignatureAnnotationForMethod(method));
 }
 
 
@@ -74,8 +73,7 @@ static jobjectArray AbstractMethod_getParameterAnnotationsNative(JNIEnv* env, jo
   if (method->IsProxyMethod()) {
     return nullptr;
   } else {
-    return soa.AddLocalReference<jobjectArray>(
-        method->GetDexFile()->GetParameterAnnotations(method));
+    return soa.AddLocalReference<jobjectArray>(annotations::GetParameterAnnotations(method));
   }
 }
 
@@ -89,7 +87,7 @@ static jboolean AbstractMethod_isAnnotationPresentNative(JNIEnv* env,
   }
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
-  return method->GetDexFile()->IsMethodAnnotationPresent(method, klass);
+  return annotations::IsMethodAnnotationPresent(method, klass);
 }
 
 static JNINativeMethod gMethods[] = {

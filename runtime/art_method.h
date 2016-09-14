@@ -33,6 +33,7 @@
 
 namespace art {
 
+template<class T> class Handle;
 union JValue;
 class OatQuickMethodHeader;
 class ProfilingInfo;

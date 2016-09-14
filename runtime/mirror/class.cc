@@ -23,6 +23,7 @@
 #include "class-inl.h"
 #include "dex_cache.h"
 #include "dex_file-inl.h"
+#include "dex_file_annotations.h"
 #include "gc/accounting/card_table-inl.h"
 #include "handle_scope-inl.h"
 #include "method.h"
@@ -1214,7 +1215,7 @@ int32_t Class::GetInnerClassFlags(Handle<Class> h_this, int32_t default_value) {
     return default_value;
   }
   uint32_t flags;
-  if (!h_this->GetDexFile().GetInnerClassFlags(h_this, &flags)) {
+  if (!annotations::GetInnerClassFlags(h_this, &flags)) {
     return default_value;
   }
   return flags;
