@@ -2307,6 +2307,44 @@ TEST_F(AssemblerMIPSTest, LoadConst32) {
   DriverStr(expected, "LoadConst32");
 }
 
+TEST_F(AssemblerMIPSTest, LoadFarthestNearLabelAddress) {
+  mips::MipsLabel label;
+  __ BindPcRelBaseLabel();
+  __ LoadLabelAddress(mips::V0, mips::V1, &label);
+  constexpr size_t kAddiuCount = 0x1FDE;
+  for (size_t i = 0; i != kAddiuCount; ++i) {
+    __ Addiu(mips::A0, mips::A1, 0);
+  }
+  __ Bind(&label);
+
+  std::string expected =
+      "1:\n"
+      "addiu $v0, $v1, %lo(2f - 1b)\n" +
+      RepeatInsn(kAddiuCount, "addiu $a0, $a1, %hi(2f - 1b)\n") +
+      "2:\n";
+  DriverStr(expected, "LoadFarthestNearLabelAddress");
+}
+
+TEST_F(AssemblerMIPSTest, LoadNearestFarLabelAddress) {
+  mips::MipsLabel label;
+  __ BindPcRelBaseLabel();
+  __ LoadLabelAddress(mips::V0, mips::V1, &label);
+  constexpr size_t kAdduCount = 0x1FDF;
+  for (size_t i = 0; i != kAdduCount; ++i) {
+    __ Addu(mips::ZERO, mips::ZERO, mips::ZERO);
+  }
+  __ Bind(&label);
+
+  std::string expected =
+      "1:\n"
+      "lui $at, %hi(2f - 1b)\n"
+      "ori $at, $at, %lo(2f - 1b)\n"
+      "addu $v0, $at, $v1\n" +
+      RepeatInsn(kAdduCount, "addu $zero, $zero, $zero\n") +
+      "2:\n";
+  DriverStr(expected, "LoadNearestFarLabelAddress");
+}
+
 TEST_F(AssemblerMIPSTest, LoadFarthestNearLiteral) {
   mips::Literal* literal = __ NewLiteral<uint32_t>(0x12345678);
   __ BindPcRelBaseLabel();
