@@ -2474,7 +2474,7 @@ class InitializeClassVisitor : public CompilationVisitor {
               // mode which prevents the GC from visiting objects modified during the transaction.
               // Ensure GC is not run so don't access freed objects when aborting transaction.
 
-              ScopedAssertNoThreadSuspension ants(soa.Self(), "Transaction end");
+              ScopedAssertNoThreadSuspension ants("Transaction end");
               runtime->ExitTransactionMode();
 
               if (!success) {

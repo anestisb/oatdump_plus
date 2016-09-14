@@ -147,8 +147,7 @@ static inline bool DoInvoke(Thread* self, ShadowFrame& shadow_frame, const Instr
     jit::Jit* jit = Runtime::Current()->GetJit();
     if (jit != nullptr) {
       if (type == kVirtual || type == kInterface) {
-        jit->InvokeVirtualOrInterface(
-            self, receiver, sf_method, shadow_frame.GetDexPC(), called_method);
+        jit->InvokeVirtualOrInterface(receiver, sf_method, shadow_frame.GetDexPC(), called_method);
       }
       jit->AddSamples(self, sf_method, 1, /*with_backedges*/false);
     }
@@ -195,7 +194,7 @@ static inline bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
     jit::Jit* jit = Runtime::Current()->GetJit();
     if (jit != nullptr) {
       jit->InvokeVirtualOrInterface(
-          self, receiver, shadow_frame.GetMethod(), shadow_frame.GetDexPC(), called_method);
+          receiver, shadow_frame.GetMethod(), shadow_frame.GetDexPC(), called_method);
       jit->AddSamples(self, shadow_frame.GetMethod(), 1, /*with_backedges*/false);
     }
     instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();

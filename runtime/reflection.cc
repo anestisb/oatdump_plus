@@ -625,8 +625,12 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
 
   // If method is not set to be accessible, verify it can be accessed by the caller.
   mirror::Class* calling_class = nullptr;
-  if (!accessible && !VerifyAccess(soa.Self(), receiver, declaring_class, m->GetAccessFlags(),
-                                   &calling_class, num_frames)) {
+  if (!accessible && !VerifyAccess(soa.Self(),
+                                   receiver,
+                                   declaring_class,
+                                   m->GetAccessFlags(),
+                                   &calling_class,
+                                   num_frames)) {
     ThrowIllegalAccessException(
         StringPrintf("Class %s cannot access %s method %s of class %s",
             calling_class == nullptr ? "null" : PrettyClass(calling_class).c_str(),
@@ -857,15 +861,17 @@ bool VerifyAccess(Thread* self, mirror::Object* obj, mirror::Class* declaring_cl
     return false;
   }
   *calling_class = klass;
-  return VerifyAccess(self, obj, declaring_class, access_flags, klass);
+  return VerifyAccess(obj, declaring_class, access_flags, klass);
 }
 
-bool VerifyAccess(Thread* self, mirror::Object* obj, mirror::Class* declaring_class,
-                  uint32_t access_flags, mirror::Class* calling_class) {
+bool VerifyAccess(mirror::Object* obj,
+                  mirror::Class* declaring_class,
+                  uint32_t access_flags,
+                  mirror::Class* calling_class) {
   if (calling_class == declaring_class) {
     return true;
   }
-  ScopedAssertNoThreadSuspension sants(self, "verify-access");
+  ScopedAssertNoThreadSuspension sants("verify-access");
   if ((access_flags & kAccPrivate) != 0) {
     return false;
   }
