@@ -5817,13 +5817,11 @@ void LocationsBuilderMIPS::VisitPackedSwitch(HPackedSwitch* switch_instr) {
   locations->SetInAt(0, Location::RequiresRegister());
 }
 
-void InstructionCodeGeneratorMIPS::VisitPackedSwitch(HPackedSwitch* switch_instr) {
-  int32_t lower_bound = switch_instr->GetStartValue();
-  int32_t num_entries = switch_instr->GetNumEntries();
-  LocationSummary* locations = switch_instr->GetLocations();
-  Register value_reg = locations->InAt(0).AsRegister<Register>();
-  HBasicBlock* default_block = switch_instr->GetDefaultBlock();
-
+void InstructionCodeGeneratorMIPS::GenPackedSwitchWithCompares(Register value_reg,
+                                                               int32_t lower_bound,
+                                                               uint32_t num_entries,
+                                                               HBasicBlock* switch_block,
+                                                               HBasicBlock* default_block) {
   // Create a set of compare/jumps.
   Register temp_reg = TMP;
   __ Addiu32(temp_reg, value_reg, -lower_bound);
@@ -5832,7 +5830,7 @@ void InstructionCodeGeneratorMIPS::VisitPackedSwitch(HPackedSwitch* switch_instr
   // this case, index >= num_entries must be true. So that we can save one branch instruction.
   __ Bltz(temp_reg, codegen_->GetLabelOf(default_block));
 
-  const ArenaVector<HBasicBlock*>& successors = switch_instr->GetBlock()->GetSuccessors();
+  const ArenaVector<HBasicBlock*>& successors = switch_block->GetSuccessors();
   // Jump to successors[0] if value == lower_bound.
   __ Beqz(temp_reg, codegen_->GetLabelOf(successors[0]));
   int32_t last_index = 0;
@@ -5850,9 +5848,105 @@ void InstructionCodeGeneratorMIPS::VisitPackedSwitch(HPackedSwitch* switch_instr
   }
 
   // And the default for any other value.
-  if (!codegen_->GoesToNextBlock(switch_instr->GetBlock(), default_block)) {
+  if (!codegen_->GoesToNextBlock(switch_block, default_block)) {
     __ B(codegen_->GetLabelOf(default_block));
   }
+}
+
+void InstructionCodeGeneratorMIPS::GenTableBasedPackedSwitch(Register value_reg,
+                                                             Register constant_area,
+                                                             int32_t lower_bound,
+                                                             uint32_t num_entries,
+                                                             HBasicBlock* switch_block,
+                                                             HBasicBlock* default_block) {
+  // Create a jump table.
+  std::vector<MipsLabel*> labels(num_entries);
+  const ArenaVector<HBasicBlock*>& successors = switch_block->GetSuccessors();
+  for (uint32_t i = 0; i < num_entries; i++) {
+    labels[i] = codegen_->GetLabelOf(successors[i]);
+  }
+  JumpTable* table = __ CreateJumpTable(std::move(labels));
+
+  // Is the value in range?
+  __ Addiu32(TMP, value_reg, -lower_bound);
+  if (IsInt<16>(static_cast<int32_t>(num_entries))) {
+    __ Sltiu(AT, TMP, num_entries);
+    __ Beqz(AT, codegen_->GetLabelOf(default_block));
+  } else {
+    __ LoadConst32(AT, num_entries);
+    __ Bgeu(TMP, AT, codegen_->GetLabelOf(default_block));
+  }
+
+  // We are in the range of the table.
+  // Load the target address from the jump table, indexing by the value.
+  __ LoadLabelAddress(AT, constant_area, table->GetLabel());
+  __ Sll(TMP, TMP, 2);
+  __ Addu(TMP, TMP, AT);
+  __ Lw(TMP, TMP, 0);
+  // Compute the absolute target address by adding the table start address
+  // (the table contains offsets to targets relative to its start).
+  __ Addu(TMP, TMP, AT);
+  // And jump.
+  __ Jr(TMP);
+  __ NopIfNoReordering();
+}
+
+void InstructionCodeGeneratorMIPS::VisitPackedSwitch(HPackedSwitch* switch_instr) {
+  int32_t lower_bound = switch_instr->GetStartValue();
+  uint32_t num_entries = switch_instr->GetNumEntries();
+  LocationSummary* locations = switch_instr->GetLocations();
+  Register value_reg = locations->InAt(0).AsRegister<Register>();
+  HBasicBlock* switch_block = switch_instr->GetBlock();
+  HBasicBlock* default_block = switch_instr->GetDefaultBlock();
+
+  if (codegen_->GetInstructionSetFeatures().IsR6() &&
+      num_entries > kPackedSwitchJumpTableThreshold) {
+    // R6 uses PC-relative addressing to access the jump table.
+    // R2, OTOH, requires an HMipsComputeBaseMethodAddress input to access
+    // the jump table and it is implemented by changing HPackedSwitch to
+    // HMipsPackedSwitch, which bears HMipsComputeBaseMethodAddress.
+    // See VisitMipsPackedSwitch() for the table-based implementation on R2.
+    GenTableBasedPackedSwitch(value_reg,
+                              ZERO,
+                              lower_bound,
+                              num_entries,
+                              switch_block,
+                              default_block);
+  } else {
+    GenPackedSwitchWithCompares(value_reg,
+                                lower_bound,
+                                num_entries,
+                                switch_block,
+                                default_block);
+  }
+}
+
+void LocationsBuilderMIPS::VisitMipsPackedSwitch(HMipsPackedSwitch* switch_instr) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(switch_instr, LocationSummary::kNoCall);
+  locations->SetInAt(0, Location::RequiresRegister());
+  // Constant area pointer (HMipsComputeBaseMethodAddress).
+  locations->SetInAt(1, Location::RequiresRegister());
+}
+
+void InstructionCodeGeneratorMIPS::VisitMipsPackedSwitch(HMipsPackedSwitch* switch_instr) {
+  int32_t lower_bound = switch_instr->GetStartValue();
+  uint32_t num_entries = switch_instr->GetNumEntries();
+  LocationSummary* locations = switch_instr->GetLocations();
+  Register value_reg = locations->InAt(0).AsRegister<Register>();
+  Register constant_area = locations->InAt(1).AsRegister<Register>();
+  HBasicBlock* switch_block = switch_instr->GetBlock();
+  HBasicBlock* default_block = switch_instr->GetDefaultBlock();
+
+  // This is an R2-only path. HPackedSwitch has been changed to
+  // HMipsPackedSwitch, which bears HMipsComputeBaseMethodAddress
+  // required to address the jump table relative to PC.
+  GenTableBasedPackedSwitch(value_reg,
+                            constant_area,
+                            lower_bound,
+                            num_entries,
+                            switch_block,
+                            default_block);
 }
 
 void LocationsBuilderMIPS::VisitMipsComputeBaseMethodAddress(
