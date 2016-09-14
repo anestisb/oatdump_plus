@@ -365,6 +365,13 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   // is a throw-catch loop, i.e. the header is a catch block.
   GraphAnalysisResult AnalyzeLoops() const;
 
+  // Computes the linear order (should be called before using HLinearOrderIterator).
+  // Linearizes the graph such that:
+  // (1): a block is always after its dominator,
+  // (2): blocks of loops are contiguous.
+  // This creates a natural and efficient ordering when visualizing live ranges.
+  void Linearize();
+
   // Iterate over blocks to compute try block membership. Needs reverse post
   // order and loop information.
   void ComputeTryBlockInformation();
