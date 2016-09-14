@@ -868,7 +868,7 @@ void ImageWriter::PruneNonImageClasses() {
   // Clear references to removed classes from the DexCaches.
   ArtMethod* resolution_method = runtime->GetResolutionMethod();
 
-  ScopedAssertNoThreadSuspension sa(self, __FUNCTION__);
+  ScopedAssertNoThreadSuspension sa(__FUNCTION__);
   ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);  // For ClassInClassTable
   ReaderMutexLock mu2(self, *class_linker->DexLock());
   for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
