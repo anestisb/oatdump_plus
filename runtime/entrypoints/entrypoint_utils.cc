@@ -43,7 +43,7 @@ static inline mirror::Class* CheckFilledNewArrayAlloc(uint32_t type_idx,
                                                       ArtMethod* referrer,
                                                       Thread* self,
                                                       bool access_check)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
+    REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_) {
   if (UNLIKELY(component_count < 0)) {
     ThrowNegativeArraySizeException(component_count);
     return nullptr;  // Failure
@@ -120,19 +120,19 @@ mirror::Array* CheckAndAllocArrayFromCodeInstrumented(uint32_t type_idx,
                                     heap->GetCurrentAllocator());
 }
 
-void CheckReferenceResult(mirror::Object* o, Thread* self) {
-  if (o == nullptr) {
+void CheckReferenceResult(Handle<mirror::Object> o, Thread* self) {
+  if (o.Get() == nullptr) {
     return;
   }
   // Make sure that the result is an instance of the type this method was expected to return.
-  mirror::Class* return_type = self->GetCurrentMethod(nullptr)->GetReturnType(true /* resolve */,
-                                                                              kRuntimePointerSize);
+  ArtMethod* method = self->GetCurrentMethod(nullptr);
+  mirror::Class* return_type = method->GetReturnType(true /* resolve */, kRuntimePointerSize);
 
   if (!o->InstanceOf(return_type)) {
     Runtime::Current()->GetJavaVM()->JniAbortF(nullptr,
                                                "attempt to return an instance of %s from %s",
-                                               PrettyTypeOf(o).c_str(),
-                                               PrettyMethod(self->GetCurrentMethod(nullptr)).c_str());
+                                               PrettyTypeOf(o.Get()).c_str(),
+                                               PrettyMethod(method).c_str());
   }
 }
 
@@ -186,12 +186,11 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
       // Do nothing.
       return zero;
     } else {
-      StackHandleScope<1> hs(soa.Self());
-      auto h_interface_method(hs.NewHandle(soa.Decode<mirror::Method*>(interface_method_jobj)));
+      ArtMethod* interface_method =
+          soa.Decode<mirror::Method*>(interface_method_jobj)->GetArtMethod();
       // This can cause thread suspension.
       PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
-      mirror::Class* result_type =
-          h_interface_method->GetArtMethod()->GetReturnType(true /* resolve */, pointer_size);
+      mirror::Class* result_type = interface_method->GetReturnType(true /* resolve */, pointer_size);
       mirror::Object* result_ref = soa.Decode<mirror::Object*>(result);
       JValue result_unboxed;
       if (!UnboxPrimitiveForResult(result_ref, result_type, &result_unboxed)) {
@@ -205,26 +204,29 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
     // a UndeclaredThrowableException.
     mirror::Throwable* exception = soa.Self()->GetException();
     if (exception->IsCheckedException()) {
-      mirror::Object* rcvr = soa.Decode<mirror::Object*>(rcvr_jobj);
-      mirror::Class* proxy_class = rcvr->GetClass();
-      mirror::Method* interface_method = soa.Decode<mirror::Method*>(interface_method_jobj);
-      ArtMethod* proxy_method = rcvr->GetClass()->FindVirtualMethodForInterface(
-          interface_method->GetArtMethod(), kRuntimePointerSize);
-      auto virtual_methods = proxy_class->GetVirtualMethodsSlice(kRuntimePointerSize);
-      size_t num_virtuals = proxy_class->NumVirtualMethods();
-      size_t method_size = ArtMethod::Size(kRuntimePointerSize);
-      // Rely on the fact that the methods are contiguous to determine the index of the method in
-      // the slice.
-      int throws_index = (reinterpret_cast<uintptr_t>(proxy_method) -
-          reinterpret_cast<uintptr_t>(&virtual_methods.At(0))) / method_size;
-      CHECK_LT(throws_index, static_cast<int>(num_virtuals));
-      mirror::ObjectArray<mirror::Class>* declared_exceptions =
-          proxy_class->GetThrows()->Get(throws_index);
-      mirror::Class* exception_class = exception->GetClass();
       bool declares_exception = false;
-      for (int32_t i = 0; i < declared_exceptions->GetLength() && !declares_exception; i++) {
-        mirror::Class* declared_exception = declared_exceptions->Get(i);
-        declares_exception = declared_exception->IsAssignableFrom(exception_class);
+      {
+        ScopedAssertNoThreadSuspension ants(__FUNCTION__);
+        mirror::Object* rcvr = soa.Decode<mirror::Object*>(rcvr_jobj);
+        mirror::Class* proxy_class = rcvr->GetClass();
+        mirror::Method* interface_method = soa.Decode<mirror::Method*>(interface_method_jobj);
+        ArtMethod* proxy_method = rcvr->GetClass()->FindVirtualMethodForInterface(
+            interface_method->GetArtMethod(), kRuntimePointerSize);
+        auto virtual_methods = proxy_class->GetVirtualMethodsSlice(kRuntimePointerSize);
+        size_t num_virtuals = proxy_class->NumVirtualMethods();
+        size_t method_size = ArtMethod::Size(kRuntimePointerSize);
+        // Rely on the fact that the methods are contiguous to determine the index of the method in
+        // the slice.
+        int throws_index = (reinterpret_cast<uintptr_t>(proxy_method) -
+            reinterpret_cast<uintptr_t>(&virtual_methods.At(0))) / method_size;
+        CHECK_LT(throws_index, static_cast<int>(num_virtuals));
+        mirror::ObjectArray<mirror::Class>* declared_exceptions =
+            proxy_class->GetThrows()->Get(throws_index);
+        mirror::Class* exception_class = exception->GetClass();
+        for (int32_t i = 0; i < declared_exceptions->GetLength() && !declares_exception; i++) {
+          mirror::Class* declared_exception = declared_exceptions->Get(i);
+          declares_exception = declared_exception->IsAssignableFrom(exception_class);
+        }
       }
       if (!declares_exception) {
         soa.Self()->ThrowNewWrappedException("Ljava/lang/reflect/UndeclaredThrowableException;",
@@ -260,6 +262,7 @@ ArtMethod* GetCalleeSaveMethodCaller(ArtMethod** sp,
                                      Runtime::CalleeSaveType type,
                                      bool do_caller_check)
     REQUIRES_SHARED(Locks::mutator_lock_) {
+  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
   DCHECK_EQ(*sp, Runtime::Current()->GetCalleeSaveMethod(type));
 
   const size_t callee_frame_size = GetCalleeSaveFrameSize(kRuntimeISA, type);
