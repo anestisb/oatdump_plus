@@ -448,7 +448,7 @@ class TypeCheckSlowPathARM64 : public SlowPathCodeARM64 {
   }
 
   const char* GetDescription() const OVERRIDE { return "TypeCheckSlowPathARM64"; }
-  bool IsFatal() const { return is_fatal_; }
+  bool IsFatal() const OVERRIDE { return is_fatal_; }
 
  private:
   const bool is_fatal_;
