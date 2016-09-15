@@ -1007,17 +1007,7 @@ TEST_F(CodegenTest, ComparisonsInt) {
 }
 
 TEST_F(CodegenTest, ComparisonsLong) {
-  // TODO: make MIPS work for long
-  if (kRuntimeISA == kMips || kRuntimeISA == kMips64) {
-    return;
-  }
-
   for (CodegenTargetConfig target_config : GetTargetConfigs()) {
-    if ((target_config.GetInstructionSet() == kMips) ||
-        (target_config.GetInstructionSet() == kMips64)) {
-      continue;
-    }
-
     for (int64_t i = -1; i <= 1; i++) {
       for (int64_t j = -1; j <= 1; j++) {
         for (int cond = kCondFirst; cond <= kCondLast; cond++) {
