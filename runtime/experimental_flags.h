@@ -31,7 +31,8 @@ struct ExperimentalFlags {
   };
 
   constexpr ExperimentalFlags() : value_(0x0000) {}
-  constexpr ExperimentalFlags(decltype(kNone) t) : value_(static_cast<uint32_t>(t)) {}
+  constexpr ExperimentalFlags(decltype(kNone) t)  // NOLINT, implicit
+      : value_(static_cast<uint32_t>(t)) {}
 
   constexpr operator decltype(kNone)() const {
     return static_cast<decltype(kNone)>(value_);
