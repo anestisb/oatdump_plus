@@ -1,4 +1,5 @@
-// Copyright (C) 2015 The Android Open Source Project
+//
+// Copyright (C) 2016 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,24 +12,12 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-// TODO(ajcbik): rename dexdump2 into dexdump when Dalvik version is removed
-
-art_cc_binary {
-    name: "dexdump2",
-    host_supported: true,
-    srcs: [
-        "dexdump_main.cc",
-        "dexdump.cc",
-    ],
-    cflags: ["-Wall"],
-    shared_libs: ["libart"],
-}
+//
 
 art_cc_test {
-    name: "art_dexdump_tests",
+    name: "art_cmdline_tests",
     defaults: [
         "art_test_defaults",
     ],
-    srcs: ["dexdump_test.cc"],
+    srcs: ["cmdline_parser_test.cc"],
 }

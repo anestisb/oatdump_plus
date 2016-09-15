@@ -52,3 +52,11 @@ art_cc_binary {
         "libartd",
     ],
 }
+
+art_cc_test {
+    name: "art_profman_tests",
+    defaults: [
+        "art_test_defaults",
+    ],
+    srcs: ["profile_assistant_test.cc"],
+}

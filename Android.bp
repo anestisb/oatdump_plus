@@ -20,6 +20,7 @@ art_static_dependencies = [
 subdirs = [
     "benchmark",
     "build",
+    "cmdline",
     "compiler",
     "dalvikvm",
     "dex2oat",
@@ -33,6 +34,7 @@ subdirs = [
     "profman",
     "runtime",
     "sigchainlib",
+    "test",
     "tools/cpp-define-generator",
     "tools/dmtracedump",
 ]

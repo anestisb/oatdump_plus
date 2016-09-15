@@ -279,3 +279,153 @@ art_cc_library {
     },
     shared_libs: ["libartd"],
 }
+
+art_cc_library {
+    name: "libart-compiler-gtest",
+    defaults: ["libart-gtest-defaults"],
+    srcs: ["common_compiler_test.cc"],
+    shared_libs: [
+        "libartd-compiler",
+        "libart-runtime-gtest",
+    ],
+}
+
+art_cc_test {
+    name: "art_compiler_tests",
+    defaults: [
+        "art_test_defaults",
+    ],
+    srcs: [
+        "compiled_method_test.cc",
+        "debug/dwarf/dwarf_test.cc",
+        "driver/compiled_method_storage_test.cc",
+        "driver/compiler_driver_test.cc",
+        "elf_writer_test.cc",
+        "exception_test.cc",
+        "image_test.cc",
+        "jni/jni_compiler_test.cc",
+        "linker/multi_oat_relative_patcher_test.cc",
+        "linker/output_stream_test.cc",
+        "oat_test.cc",
+        "optimizing/bounds_check_elimination_test.cc",
+        "optimizing/dominator_test.cc",
+        "optimizing/find_loops_test.cc",
+        "optimizing/graph_checker_test.cc",
+        "optimizing/graph_test.cc",
+        "optimizing/gvn_test.cc",
+        "optimizing/induction_var_analysis_test.cc",
+        "optimizing/induction_var_range_test.cc",
+        "optimizing/licm_test.cc",
+        "optimizing/live_interval_test.cc",
+        "optimizing/nodes_test.cc",
+        "optimizing/parallel_move_test.cc",
+        "optimizing/pretty_printer_test.cc",
+        "optimizing/reference_type_propagation_test.cc",
+        "optimizing/side_effects_test.cc",
+        "optimizing/ssa_test.cc",
+        "optimizing/stack_map_test.cc",
+        "optimizing/suspend_check_test.cc",
+        "utils/dedupe_set_test.cc",
+        "utils/intrusive_forward_list_test.cc",
+        "utils/string_reference_test.cc",
+        "utils/swap_space_test.cc",
+        "utils/test_dex_file_builder_test.cc",
+
+        "jni/jni_cfi_test.cc",
+        "optimizing/codegen_test.cc",
+        "optimizing/optimizing_cfi_test.cc",
+    ],
+
+    codegen: {
+        arm: {
+            srcs: [
+                "linker/arm/relative_patcher_thumb2_test.cc",
+                "utils/arm/managed_register_arm_test.cc",
+            ],
+        },
+        arm64: {
+            srcs: [
+                "linker/arm64/relative_patcher_arm64_test.cc",
+                "utils/arm64/managed_register_arm64_test.cc",
+            ],
+        },
+        mips: {
+            srcs: [
+                "linker/mips/relative_patcher_mips_test.cc",
+                "linker/mips/relative_patcher_mips32r6_test.cc",
+            ],
+        },
+        x86: {
+            srcs: [
+                "linker/x86/relative_patcher_x86_test.cc",
+                "utils/x86/managed_register_x86_test.cc",
+
+                // These tests are testing architecture-independent
+                // functionality, but happen to use x86 codegen as part of the
+                // test.
+                "optimizing/constant_folding_test.cc",
+                "optimizing/dead_code_elimination_test.cc",
+                "optimizing/linearize_test.cc",
+                "optimizing/live_ranges_test.cc",
+                "optimizing/liveness_test.cc",
+                "optimizing/register_allocator_test.cc",
+            ],
+        },
+        x86_64: {
+            srcs: [
+                "linker/x86_64/relative_patcher_x86_64_test.cc",
+            ],
+        },
+    },
+
+    shared_libs: [
+        "libartd-compiler",
+        "libvixld-arm",
+        "libvixld-arm64",
+
+        "libbacktrace",
+        "libnativeloader",
+    ],
+}
+
+art_cc_test {
+    name: "art_compiler_host_tests",
+    device_supported: false,
+    defaults: [
+        "art_test_defaults",
+    ],
+    codegen: {
+        arm: {
+            srcs: [
+                "utils/arm/assembler_thumb2_test.cc",
+                "utils/assembler_thumb_test.cc",
+            ],
+        },
+        mips: {
+            srcs: [
+                "utils/mips/assembler_mips_test.cc",
+                "utils/mips/assembler_mips32r6_test.cc",
+            ],
+        },
+        mips64: {
+            srcs: [
+                "utils/mips64/assembler_mips64_test.cc",
+            ],
+        },
+        x86: {
+            srcs: [
+                "utils/x86/assembler_x86_test.cc",
+            ],
+        },
+        x86_64: {
+            srcs: [
+                "utils/x86_64/assembler_x86_64_test.cc",
+            ],
+        },
+    },
+    shared_libs: [
+        "libartd-compiler",
+        "libvixld-arm",
+        "libvixld-arm64",
+    ],
+}
