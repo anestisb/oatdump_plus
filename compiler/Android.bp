@@ -279,3 +279,12 @@ art_cc_library {
     },
     shared_libs: ["libartd"],
 }
+
+art_cc_library {
+    name: "libart-compiler-gtest",
+    defaults: ["libart-gtest-defaults"],
+    srcs: ["common_compiler_test.cc"],
+    shared_libs: [
+        "libartd-compiler",
+    ],
+}
