@@ -573,6 +573,10 @@ class Thumb2Assembler FINAL : public ArmAssembler {
       return location_;
     }
 
+    uint32_t GetTarget() const {
+      return target_;
+    }
+
     uint32_t GetAdjustment() const {
       return adjustment_;
     }
@@ -591,6 +595,11 @@ class Thumb2Assembler FINAL : public ArmAssembler {
       DCHECK_NE(target, kUnresolved);
       target_ = target;
     }
+
+    // Branches with bound targets that are in range can be emitted early.
+    // However, the caller still needs to check if the branch doesn't go over
+    // another Fixup that's not ready to be emitted.
+    bool IsCandidateForEmitEarly() const;
 
     // Check if the current size is OK for current location_, target_ and adjustment_.
     // If not, increase the size. Return the size increase, 0 if unchanged.
