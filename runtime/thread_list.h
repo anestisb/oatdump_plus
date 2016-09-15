@@ -209,7 +209,7 @@ class ThreadList {
 // Helper for suspending all threads and
 class ScopedSuspendAll : public ValueObject {
  public:
-  ScopedSuspendAll(const char* cause, bool long_suspend = false)
+  explicit ScopedSuspendAll(const char* cause, bool long_suspend = false)
      EXCLUSIVE_LOCK_FUNCTION(Locks::mutator_lock_)
      REQUIRES(!Locks::thread_list_lock_,
               !Locks::thread_suspend_count_lock_,

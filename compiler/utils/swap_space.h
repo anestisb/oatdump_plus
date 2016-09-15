@@ -114,7 +114,8 @@ class SwapAllocator<void> {
   explicit SwapAllocator(SwapSpace* swap_space) : swap_space_(swap_space) {}
 
   template <typename U>
-  SwapAllocator(const SwapAllocator<U>& other) : swap_space_(other.swap_space_) {}
+  SwapAllocator(const SwapAllocator<U>& other)  // NOLINT, implicit
+      : swap_space_(other.swap_space_) {}
 
   SwapAllocator(const SwapAllocator& other) = default;
   SwapAllocator& operator=(const SwapAllocator& other) = default;
@@ -149,7 +150,8 @@ class SwapAllocator {
   explicit SwapAllocator(SwapSpace* swap_space) : swap_space_(swap_space) {}
 
   template <typename U>
-  SwapAllocator(const SwapAllocator<U>& other) : swap_space_(other.swap_space_) {}
+  SwapAllocator(const SwapAllocator<U>& other)  // NOLINT, implicit
+      : swap_space_(other.swap_space_) {}
 
   SwapAllocator(const SwapAllocator& other) = default;
   SwapAllocator& operator=(const SwapAllocator& other) = default;

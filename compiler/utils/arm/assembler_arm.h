@@ -246,7 +246,7 @@ class Address : public ValueObject {
     NegPostIndex = (0|0|0) << 21   // negative post-indexed with writeback
   };
 
-  Address(Register rn, int32_t offset = 0, Mode am = Offset) : rn_(rn), rm_(R0),
+  explicit Address(Register rn, int32_t offset = 0, Mode am = Offset) : rn_(rn), rm_(R0),
       offset_(offset),
       am_(am), is_immed_offset_(true), shift_(LSL) {
   }
