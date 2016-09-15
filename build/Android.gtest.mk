@@ -417,39 +417,6 @@ COMPILER_GTEST_HOST_SRC_FILES += $(COMPILER_GTEST_HOST_SRC_FILES_all)
 
 ART_TEST_CFLAGS :=
 
-include $(CLEAR_VARS)
-LOCAL_MODULE := libart-gtest
-LOCAL_MODULE_TAGS := optional
-LOCAL_CPP_EXTENSION := cc
-LOCAL_SRC_FILES := runtime/common_runtime_test.cc compiler/common_compiler_test.cc
-LOCAL_C_INCLUDES := $(ART_C_INCLUDES) art/runtime art/cmdline art/compiler
-LOCAL_SHARED_LIBRARIES := libartd libartd-compiler libdl
-LOCAL_WHOLE_STATIC_LIBRARIES += libgtest
-LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
-LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.gtest.mk
-$(eval LOCAL_CLANG := $(ART_TARGET_CLANG))
-$(eval $(call set-target-local-cflags-vars,debug))
-LOCAL_CFLAGS += -Wno-used-but-marked-unused -Wno-deprecated -Wno-missing-noreturn # gtest issue
-include $(BUILD_SHARED_LIBRARY)
-
-include $(CLEAR_VARS)
-LOCAL_MODULE := libart-gtest
-LOCAL_MODULE_TAGS := optional
-LOCAL_CPP_EXTENSION := cc
-LOCAL_CFLAGS := $(ART_HOST_CFLAGS)
-LOCAL_ASFLAGS := $(ART_HOST_ASFLAGS)
-LOCAL_SRC_FILES := runtime/common_runtime_test.cc compiler/common_compiler_test.cc
-LOCAL_C_INCLUDES := $(ART_C_INCLUDES) art/runtime art/cmdline art/compiler
-LOCAL_SHARED_LIBRARIES := libartd libartd-compiler
-LOCAL_WHOLE_STATIC_LIBRARIES := libgtest
-LOCAL_LDLIBS += -ldl -lpthread
-LOCAL_MULTILIB := both
-LOCAL_CLANG := $(ART_HOST_CLANG)
-LOCAL_CFLAGS += -Wno-used-but-marked-unused -Wno-deprecated -Wno-missing-noreturn  # gtest issue
-LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
-LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.gtest.mk
-include $(BUILD_HOST_SHARED_LIBRARY)
-
 # Variables holding collections of gtest pre-requisits used to run a number of gtests.
 ART_TEST_HOST_GTEST$(ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
 ART_TEST_HOST_GTEST$(2ND_ART_PHONY_TEST_HOST_SUFFIX)_RULES :=
