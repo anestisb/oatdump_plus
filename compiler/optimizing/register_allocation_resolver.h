@@ -18,9 +18,9 @@
 #define ART_COMPILER_OPTIMIZING_REGISTER_ALLOCATION_RESOLVER_H_
 
 #include "base/arena_containers.h"
+#include "base/array_ref.h"
 #include "base/value_object.h"
 #include "primitive.h"
-#include "utils/array_ref.h"
 
 namespace art {
 

@@ -22,12 +22,12 @@
 #include "arch/instruction_set.h"
 #include "base/arena_allocator.h"
 #include "base/arena_object.h"
+#include "base/array_ref.h"
 #include "base/enums.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "managed_register.h"
 #include "offsets.h"
-#include "utils/array_ref.h"
 
 namespace art {
 
