@@ -24,6 +24,7 @@
 
 #include "arch/instruction_set.h"
 #include "base/arena_allocator.h"
+#include "base/array_ref.h"
 #include "base/bit_utils.h"
 #include "base/mutex.h"
 #include "base/timing_logger.h"
@@ -39,7 +40,6 @@
 #include "runtime.h"
 #include "safe_map.h"
 #include "thread_pool.h"
-#include "utils/array_ref.h"
 #include "utils/dex_cache_arrays_layout.h"
 
 namespace art {

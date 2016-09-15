@@ -16,7 +16,7 @@
 
 #include "dead_code_elimination.h"
 
-#include "utils/array_ref.h"
+#include "base/array_ref.h"
 #include "base/bit_vector-inl.h"
 #include "ssa_phi_elimination.h"
 

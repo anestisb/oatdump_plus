@@ -24,6 +24,7 @@
 #include "arm/constants_arm.h"
 #include "base/arena_allocator.h"
 #include "base/arena_object.h"
+#include "base/array_ref.h"
 #include "base/enums.h"
 #include "base/logging.h"
 #include "base/macros.h"
@@ -33,7 +34,6 @@
 #include "memory_region.h"
 #include "mips/constants_mips.h"
 #include "offsets.h"
-#include "utils/array_ref.h"
 #include "x86/constants_x86.h"
 #include "x86_64/constants_x86_64.h"
 

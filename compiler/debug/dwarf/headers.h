@@ -19,13 +19,13 @@
 
 #include <cstdint>
 
+#include "base/array_ref.h"
 #include "debug/dwarf/debug_frame_opcode_writer.h"
 #include "debug/dwarf/debug_info_entry_writer.h"
 #include "debug/dwarf/debug_line_opcode_writer.h"
 #include "debug/dwarf/dwarf_constants.h"
 #include "debug/dwarf/register.h"
 #include "debug/dwarf/writer.h"
-#include "utils/array_ref.h"
 
 namespace art {
 namespace dwarf {
