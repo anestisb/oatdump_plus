@@ -55,7 +55,7 @@ class MANAGED ObjectReference {
   }
 
  protected:
-  ObjectReference<kPoisonReferences, MirrorType>(MirrorType* mirror_ptr)
+  explicit ObjectReference(MirrorType* mirror_ptr)
       REQUIRES_SHARED(Locks::mutator_lock_)
       : reference_(Compress(mirror_ptr)) {
   }
@@ -87,7 +87,7 @@ class MANAGED HeapReference : public ObjectReference<kPoisonHeapReferences, Mirr
     return HeapReference<MirrorType>(mirror_ptr);
   }
  private:
-  HeapReference<MirrorType>(MirrorType* mirror_ptr) REQUIRES_SHARED(Locks::mutator_lock_)
+  explicit HeapReference(MirrorType* mirror_ptr) REQUIRES_SHARED(Locks::mutator_lock_)
       : ObjectReference<kPoisonHeapReferences, MirrorType>(mirror_ptr) {}
 };
 
@@ -104,7 +104,7 @@ class MANAGED CompressedReference : public mirror::ObjectReference<false, Mirror
   }
 
  private:
-  CompressedReference<MirrorType>(MirrorType* p) REQUIRES_SHARED(Locks::mutator_lock_)
+  explicit CompressedReference(MirrorType* p) REQUIRES_SHARED(Locks::mutator_lock_)
       : mirror::ObjectReference<false, MirrorType>(p) {}
 };
 

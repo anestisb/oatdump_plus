@@ -488,9 +488,9 @@ class LocationSummary : public ArenaObject<kArenaAllocLocationSummary> {
     kCallOnMainOnly
   };
 
-  LocationSummary(HInstruction* instruction,
-                  CallKind call_kind = kNoCall,
-                  bool intrinsified = false);
+  explicit LocationSummary(HInstruction* instruction,
+                           CallKind call_kind = kNoCall,
+                           bool intrinsified = false);
 
   void SetInAt(uint32_t at, Location location) {
     inputs_[at] = location;
