@@ -61,9 +61,9 @@ class ConcurrentCopying : public GarbageCollector {
   // pages.
   static constexpr bool kGrayDirtyImmuneObjects = true;
 
-  ConcurrentCopying(Heap* heap,
-                    const std::string& name_prefix = "",
-                    bool measure_read_barrier_slow_path = false);
+  explicit ConcurrentCopying(Heap* heap,
+                             const std::string& name_prefix = "",
+                             bool measure_read_barrier_slow_path = false);
   ~ConcurrentCopying();
 
   virtual void RunPhases() OVERRIDE

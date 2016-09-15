@@ -44,7 +44,7 @@ class Heap;
 namespace collector {
 
 struct ObjectBytePair {
-  ObjectBytePair(uint64_t num_objects = 0, int64_t num_bytes = 0)
+  explicit ObjectBytePair(uint64_t num_objects = 0, int64_t num_bytes = 0)
       : objects(num_objects), bytes(num_bytes) {}
   void Add(const ObjectBytePair& other) {
     objects += other.objects;

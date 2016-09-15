@@ -35,9 +35,9 @@ namespace art {
  */
 class InstructionSimplifier : public HOptimization {
  public:
-  InstructionSimplifier(HGraph* graph,
-                        OptimizingCompilerStats* stats = nullptr,
-                        const char* name = kInstructionSimplifierPassName)
+  explicit InstructionSimplifier(HGraph* graph,
+                                 OptimizingCompilerStats* stats = nullptr,
+                                 const char* name = kInstructionSimplifierPassName)
       : HOptimization(graph, name, stats) {}
 
   static constexpr const char* kInstructionSimplifierPassName = "instruction_simplifier";
