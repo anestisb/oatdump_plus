@@ -2018,6 +2018,45 @@ inline size_t Thumb2Assembler::Fixup::IncreaseSize(Size new_size) {
   return adjustment;
 }
 
+bool Thumb2Assembler::Fixup::IsCandidateForEmitEarly() const {
+  DCHECK(size_ == original_size_);
+  if (target_ == kUnresolved) {
+    return false;
+  }
+  // GetOffset() does not depend on current_code_size for branches, only for literals.
+  constexpr uint32_t current_code_size = 0u;
+  switch (GetSize()) {
+    case kBranch16Bit:
+      return IsInt(cond_ != AL ? 9 : 12, GetOffset(current_code_size));
+    case kBranch32Bit:
+      // We don't support conditional branches beyond +-1MiB
+      // or unconditional branches beyond +-16MiB.
+      return true;
+
+    case kCbxz16Bit:
+      return IsUint<7>(GetOffset(current_code_size));
+    case kCbxz32Bit:
+      return IsInt<9>(GetOffset(current_code_size));
+    case kCbxz48Bit:
+      // We don't support conditional branches beyond +-1MiB.
+      return true;
+
+    case kLiteral1KiB:
+    case kLiteral4KiB:
+    case kLiteral64KiB:
+    case kLiteral1MiB:
+    case kLiteralFar:
+    case kLiteralAddr1KiB:
+    case kLiteralAddr4KiB:
+    case kLiteralAddr64KiB:
+    case kLiteralAddrFar:
+    case kLongOrFPLiteral1KiB:
+    case kLongOrFPLiteral64KiB:
+    case kLongOrFPLiteralFar:
+      return false;
+  }
+}
+
 uint32_t Thumb2Assembler::Fixup::AdjustSizeIfNeeded(uint32_t current_code_size) {
   uint32_t old_code_size = current_code_size;
   switch (GetSize()) {
@@ -3343,6 +3382,30 @@ void Thumb2Assembler::Mov(Register rd, Register rm, Condition cond) {
 
 void Thumb2Assembler::Bind(Label* label) {
   BindLabel(label, buffer_.Size());
+
+  // Try to emit some Fixups now to reduce the memory needed during the branch fixup later.
+  while (!fixups_.empty() && fixups_.back().IsCandidateForEmitEarly()) {
+    const Fixup& last_fixup = fixups_.back();
+    // Fixups are ordered by location, so the candidate can surely be emitted if it is
+    // a forward branch. If it's a backward branch, it may go over any number of other
+    // fixups. We could check for any number of emit early candidates but we want this
+    // heuristics to be quick, so check just one.
+    uint32_t target = last_fixup.GetTarget();
+    if (target < last_fixup.GetLocation() &&
+        fixups_.size() >= 2u &&
+        fixups_[fixups_.size() - 2u].GetLocation() >= target) {
+      const Fixup& prev_fixup = fixups_[fixups_.size() - 2u];
+      if (!prev_fixup.IsCandidateForEmitEarly()) {
+        break;
+      }
+      uint32_t min_target = std::min(target, prev_fixup.GetTarget());
+      if (fixups_.size() >= 3u && fixups_[fixups_.size() - 3u].GetLocation() >= min_target) {
+        break;
+      }
+    }
+    last_fixup.Emit(&buffer_, buffer_.Size());
+    fixups_.pop_back();
+  }
 }
 
 
