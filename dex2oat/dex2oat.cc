@@ -2782,6 +2782,8 @@ static int dex2oat(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+  VLOG(compiler) << "Running dex2oat (parent PID = " << getppid() << ")";
+
   bool result;
   if (dex2oat->IsImage()) {
     result = CompileImage(*dex2oat);
