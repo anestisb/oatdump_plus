@@ -1961,8 +1961,12 @@ extern "C" TwoWordReturn artQuickGenericJniTrampoline(Thread* self, ArtMethod** 
 
   // Run the visitor and update sp.
   BuildGenericJniFrameVisitor visitor(self, called->IsStatic(), shorty, shorty_len, &sp);
-  visitor.VisitArguments();
-  visitor.FinalizeHandleScope(self);
+  {
+    ScopedAssertNoThreadSuspension sants(__FUNCTION__);
+    visitor.VisitArguments();
+    // FinalizeHandleScope pushes the handle scope on the thread.
+    visitor.FinalizeHandleScope(self);
+  }
 
   // Fix up managed-stack things in Thread.
   self->SetTopOfStack(sp);

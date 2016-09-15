@@ -114,7 +114,8 @@ extern void JniMethodFastEnd(uint32_t saved_local_ref_cookie, Thread* self) {
   PopLocalReferences(saved_local_ref_cookie, self);
 }
 
-extern void JniMethodEndSynchronized(uint32_t saved_local_ref_cookie, jobject locked,
+extern void JniMethodEndSynchronized(uint32_t saved_local_ref_cookie,
+                                     jobject locked,
                                      Thread* self) {
   GoToRunnable(self);
   UnlockJniSynchronizedMethod(locked, self);  // Must decode before pop.
@@ -135,13 +136,17 @@ static mirror::Object* JniMethodEndWithReferenceHandleResult(jobject result,
   PopLocalReferences(saved_local_ref_cookie, self);
   // Process result.
   if (UNLIKELY(self->GetJniEnv()->check_jni)) {
-    CheckReferenceResult(o, self);
+    // CheckReferenceResult can resolve types.
+    StackHandleScope<1> hs(self);
+    HandleWrapper<mirror::Object> h_obj(hs.NewHandleWrapper(&o));
+    CheckReferenceResult(h_obj, self);
   }
   VerifyObject(o);
   return o;
 }
 
-extern mirror::Object* JniMethodEndWithReference(jobject result, uint32_t saved_local_ref_cookie,
+extern mirror::Object* JniMethodEndWithReference(jobject result,
+                                                 uint32_t saved_local_ref_cookie,
                                                  Thread* self) {
   GoToRunnable(self);
   return JniMethodEndWithReferenceHandleResult(result, saved_local_ref_cookie, self);
@@ -149,7 +154,8 @@ extern mirror::Object* JniMethodEndWithReference(jobject result, uint32_t saved_
 
 extern mirror::Object* JniMethodEndWithReferenceSynchronized(jobject result,
                                                              uint32_t saved_local_ref_cookie,
-                                                             jobject locked, Thread* self) {
+                                                             jobject locked,
+                                                             Thread* self) {
   GoToRunnable(self);
   UnlockJniSynchronizedMethod(locked, self);
   return JniMethodEndWithReferenceHandleResult(result, saved_local_ref_cookie, self);
