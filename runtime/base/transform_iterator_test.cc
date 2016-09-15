@@ -22,7 +22,7 @@
 
 #include "gtest/gtest.h"
 
-#include "utils/transform_iterator.h"
+#include "base/transform_iterator.h"
 
 namespace art {
 

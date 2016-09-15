@@ -19,7 +19,7 @@
 
 #include "gtest/gtest.h"
 
-#include "utils/transform_array_ref.h"
+#include "base/transform_array_ref.h"
 
 namespace art {
 

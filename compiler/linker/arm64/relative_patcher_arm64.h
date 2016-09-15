@@ -17,8 +17,8 @@
 #ifndef ART_COMPILER_LINKER_ARM64_RELATIVE_PATCHER_ARM64_H_
 #define ART_COMPILER_LINKER_ARM64_RELATIVE_PATCHER_ARM64_H_
 
+#include "base/array_ref.h"
 #include "linker/arm/relative_patcher_arm_base.h"
-#include "utils/array_ref.h"
 
 namespace art {
 namespace linker {

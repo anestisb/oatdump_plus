@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <memory>
 
+#include "base/array_ref.h"
 #include "base/dchecked_vector.h"
 #include "linker/relative_patcher.h"  // For linker::RelativePatcherTargetProvider.
 #include "mem_map.h"
@@ -29,7 +30,6 @@
 #include "oat.h"
 #include "os.h"
 #include "safe_map.h"
-#include "utils/array_ref.h"
 
 namespace art {
 
