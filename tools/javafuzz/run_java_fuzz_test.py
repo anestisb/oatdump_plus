@@ -28,8 +28,8 @@ import sys
 
 from tempfile import mkdtemp
 
-
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+sys.path.append(os.path.dirname(os.path.dirname(
+    os.path.realpath(__file__))))
 
 from bisection_search.common import RetCode
 from bisection_search.common import CommandListToCommandString
