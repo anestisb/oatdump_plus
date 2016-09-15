@@ -20,6 +20,7 @@ art_static_dependencies = [
 subdirs = [
     "benchmark",
     "build",
+    "cmdline",
     "compiler",
     "dalvikvm",
     "dex2oat",

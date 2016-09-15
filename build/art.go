@@ -19,6 +19,7 @@ import (
 	"android/soong/android"
 	"android/soong/cc"
 	"fmt"
+	"sync"
 
 	"github.com/google/blueprint"
 )
@@ -172,6 +173,33 @@ func prefer32Bit(ctx android.LoadHookContext) {
 	}
 }
 
+func testMap(config android.Config) map[string][]string {
+	return config.Once("artTests", func() interface{} {
+		return make(map[string][]string)
+	}).(map[string][]string)
+}
+
+func testInstall(ctx android.InstallHookContext) {
+	testMap := testMap(ctx.AConfig())
+
+	var name string
+	if ctx.Host() {
+		name = "host_"
+	} else {
+		name = "device_"
+	}
+	name += ctx.Arch().ArchType.String() + "_" + ctx.ModuleName()
+
+	artTestMutex.Lock()
+	defer artTestMutex.Unlock()
+
+	tests := testMap[name]
+	tests = append(tests, ctx.Path().RelPathString())
+	testMap[name] = tests
+}
+
+var artTestMutex sync.Mutex
+
 func init() {
 	soong.RegisterModuleType("art_cc_library", artLibrary)
 	soong.RegisterModuleType("art_cc_binary", artBinary)
@@ -190,7 +218,7 @@ func artGlobalDefaultsFactory() (blueprint.Module, []interface{}) {
 func artDefaultsFactory() (blueprint.Module, []interface{}) {
 	c := &codegenProperties{}
 	module, props := cc.DefaultsFactory(c)
-	android.AddLoadHook(module, func(ctx android.LoadHookContext) { codegen(ctx, c) })
+	android.AddLoadHook(module, func(ctx android.LoadHookContext) { codegen(ctx, c, true) })
 
 	return module, props
 }
@@ -199,9 +227,7 @@ func artLibrary() (blueprint.Module, []interface{}) {
 	library, _ := cc.NewLibrary(android.HostAndDeviceSupported, true, true)
 	module, props := library.Init()
 
-	c := &codegenProperties{}
-	android.AddLoadHook(module, func(ctx android.LoadHookContext) { codegen(ctx, c) })
-	props = append(props, c)
+	props = installCodegenCustomizer(module, props, true)
 
 	return module, props
 }
@@ -219,8 +245,11 @@ func artTest() (blueprint.Module, []interface{}) {
 	test := cc.NewTest(android.HostAndDeviceSupported)
 	module, props := test.Init()
 
+	props = installCodegenCustomizer(module, props, false)
+
 	android.AddLoadHook(module, customLinker)
 	android.AddLoadHook(module, prefer32Bit)
+	android.AddInstallHook(module, testInstall)
 	return module, props
 }
 
