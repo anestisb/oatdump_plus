@@ -396,7 +396,7 @@ class JavaFuzzTester(object):
     print('Directory :', self._results_dir)
     print('Exec-mode1:', self._runner1.description)
     print('Exec-mode2:', self._runner2.description)
-    print
+    print()
     self.ShowStats()
     for self._test in range(1, self._num_tests + 1):
       self.RunJavaFuzzTest()
