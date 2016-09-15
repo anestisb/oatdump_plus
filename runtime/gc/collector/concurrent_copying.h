@@ -34,6 +34,7 @@
 #include <vector>
 
 namespace art {
+class Closure;
 class RootInfo;
 
 namespace gc {
@@ -120,8 +121,8 @@ class ConcurrentCopying : public GarbageCollector {
   Barrier& GetBarrier() {
     return *gc_barrier_;
   }
-  bool IsWeakRefAccessEnabled() {
-    return weak_ref_access_enabled_.LoadRelaxed();
+  bool IsWeakRefAccessEnabled() REQUIRES(Locks::thread_list_lock_) {
+    return weak_ref_access_enabled_;
   }
   void RevokeThreadLocalMarkStack(Thread* thread) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_);
@@ -161,9 +162,9 @@ class ConcurrentCopying : public GarbageCollector {
   void VerifyGrayImmuneObjects()
       REQUIRES(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_);
-  size_t ProcessThreadLocalMarkStacks(bool disable_weak_ref_access)
+  size_t ProcessThreadLocalMarkStacks(bool disable_weak_ref_access, Closure* checkpoint_callback)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!mark_stack_lock_);
-  void RevokeThreadLocalMarkStacks(bool disable_weak_ref_access)
+  void RevokeThreadLocalMarkStacks(bool disable_weak_ref_access, Closure* checkpoint_callback)
       REQUIRES_SHARED(Locks::mutator_lock_);
   void SwitchToSharedMarkStackMode() REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_);
@@ -269,7 +270,7 @@ class ConcurrentCopying : public GarbageCollector {
                                 // without a lock. Other threads won't access the mark stack.
   };
   Atomic<MarkStackMode> mark_stack_mode_;
-  Atomic<bool> weak_ref_access_enabled_;
+  bool weak_ref_access_enabled_ GUARDED_BY(Locks::thread_list_lock_);
 
   // How many objects and bytes we moved. Used for accounting.
   Atomic<size_t> bytes_moved_;
@@ -311,7 +312,9 @@ class ConcurrentCopying : public GarbageCollector {
   class AssertToSpaceInvariantRefsVisitor;
   class ClearBlackPtrsVisitor;
   class ComputeUnevacFromSpaceLiveRatioVisitor;
+  class DisableMarkingCallback;
   class DisableMarkingCheckpoint;
+  class DisableWeakRefAccessCallback;
   class FlipCallback;
   class GrayImmuneObjectVisitor;
   class ImmuneSpaceScanObjVisitor;

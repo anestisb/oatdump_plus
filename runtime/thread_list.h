@@ -94,8 +94,10 @@ class ThreadList {
 
   // Run a checkpoint on threads, running threads are not suspended but run the checkpoint inside
   // of the suspend check. Returns how many checkpoints that are expected to run, including for
-  // already suspended threads for b/24191051.
-  size_t RunCheckpoint(Closure* checkpoint_function)
+  // already suspended threads for b/24191051. Run the callback, if non-null, inside the
+  // thread_list_lock critical section after determining the runnable/suspended states of the
+  // threads.
+  size_t RunCheckpoint(Closure* checkpoint_function, Closure* callback = nullptr)
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
 
   size_t RunCheckpointOnRunnableThreads(Closure* checkpoint_function)
