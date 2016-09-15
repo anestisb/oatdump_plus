@@ -15,6 +15,103 @@
 //
 
 art_cc_defaults {
+    name: "art_test_defaults",
+    host_supported: true,
+    test_per_src: true,
+    // These really are gtests, but the gtest library comes from libart-gtest.so
+    gtest: false,
+    defaults: [
+        "art_defaults",
+        "art_debug_defaults",
+    ],
+
+    shared_libs: [
+        "libartd",
+        "libartd-disassembler",
+        "libvixld-arm",
+        "libvixld-arm64",
+        "libart-gtest",
+
+        "libicuuc",
+        "libicui18n",
+        "libnativehelper",
+    ],
+    whole_static_libs: [
+        "libsigchain",
+    ],
+    include_dirs: [
+        "art",
+        "art/cmdline",
+    ],
+
+    target: {
+        linux: {
+            ldflags: [
+                // Allow jni_compiler_test to find Java_MyClassNatives_bar
+                // within itself using dlopen(NULL, ...).
+                // Mac OS linker doesn't understand --export-dynamic.
+                "-Wl,--export-dynamic",
+                "-Wl,-u,Java_MyClassNatives_bar",
+                "-Wl,-u,Java_MyClassNatives_sbar",
+            ],
+            shared_libs: [
+                "libziparchive",
+                "libz-host",
+            ],
+            host_ldlibs: [
+                "-ldl",
+                "-lpthread",
+            ],
+            cflags: [
+                // gtest issue
+                "-Wno-used-but-marked-unused",
+                "-Wno-deprecated",
+                "-Wno-missing-noreturn",
+            ],
+        },
+        android: {
+            ldflags: [
+                // Allow jni_compiler_test to find Java_MyClassNatives_bar
+                // within itself using dlopen(NULL, ...).
+                "-Wl,--export-dynamic",
+                "-Wl,-u,Java_MyClassNatives_bar",
+                "-Wl,-u,Java_MyClassNatives_sbar",
+            ],
+            shared_libs: [
+                "libcutils",
+                "libdl",
+                "libz",
+            ],
+            cflags: [
+                // gtest issue
+                "-Wno-used-but-marked-unused",
+                "-Wno-deprecated",
+                "-Wno-missing-noreturn",
+            ],
+        },
+
+        android_arm: {
+            relative_install_path: "art/arm",
+        },
+        android_arm64: {
+            relative_install_path: "art/arm64",
+        },
+        android_mips: {
+            relative_install_path: "art/mips",
+        },
+        android_mips64: {
+            relative_install_path: "art/mips64",
+        },
+        android_x86: {
+            relative_install_path: "art/x86",
+        },
+        android_x86_64: {
+            relative_install_path: "art/x86_64",
+        },
+    },
+}
+
+art_cc_defaults {
     name: "libart-gtest-defaults",
     host_supported: true,
     defaults: [
