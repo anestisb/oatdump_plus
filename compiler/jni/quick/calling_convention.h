@@ -18,11 +18,11 @@
 #define ART_COMPILER_JNI_QUICK_CALLING_CONVENTION_H_
 
 #include "base/arena_object.h"
+#include "base/array_ref.h"
 #include "base/enums.h"
 #include "handle_scope.h"
 #include "primitive.h"
 #include "thread.h"
-#include "utils/array_ref.h"
 #include "utils/managed_register.h"
 
 namespace art {

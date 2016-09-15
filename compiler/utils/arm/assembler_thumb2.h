@@ -22,11 +22,11 @@
 #include <vector>
 
 #include "base/arena_containers.h"
+#include "base/array_ref.h"
 #include "base/logging.h"
 #include "constants_arm.h"
 #include "utils/arm/managed_register_arm.h"
 #include "utils/arm/assembler_arm.h"
-#include "utils/array_ref.h"
 #include "offsets.h"
 
 namespace art {

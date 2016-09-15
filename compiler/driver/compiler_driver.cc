@@ -26,6 +26,7 @@
 
 #include "art_field-inl.h"
 #include "art_method-inl.h"
+#include "base/array_ref.h"
 #include "base/bit_vector.h"
 #include "base/enums.h"
 #include "base/stl_util.h"
@@ -67,7 +68,6 @@
 #include "thread_pool.h"
 #include "trampolines/trampoline_compiler.h"
 #include "transaction.h"
-#include "utils/array_ref.h"
 #include "utils/dex_cache_arrays_layout-inl.h"
 #include "utils/swap_space.h"
 #include "verifier/method_verifier.h"

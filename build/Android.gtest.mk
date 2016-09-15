@@ -214,6 +214,8 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/base/stringprintf_test.cc \
   runtime/base/time_utils_test.cc \
   runtime/base/timing_logger_test.cc \
+  runtime/base/transform_array_ref_test.cc \
+  runtime/base/transform_iterator_test.cc \
   runtime/base/variant_map_test.cc \
   runtime/base/unix_file/fd_file_test.cc \
   runtime/class_linker_test.cc \
@@ -308,9 +310,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/utils/intrusive_forward_list_test.cc \
   compiler/utils/string_reference_test.cc \
   compiler/utils/swap_space_test.cc \
-  compiler/utils/test_dex_file_builder_test.cc \
-  compiler/utils/transform_array_ref_test.cc \
-  compiler/utils/transform_iterator_test.cc \
+  compiler/utils/test_dex_file_builder_test.cc
 
 COMPILER_GTEST_COMMON_SRC_FILES_all := \
   compiler/jni/jni_cfi_test.cc \

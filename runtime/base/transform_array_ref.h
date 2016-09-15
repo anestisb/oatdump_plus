@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_UTILS_TRANSFORM_ARRAY_REF_H_
-#define ART_COMPILER_UTILS_TRANSFORM_ARRAY_REF_H_
+#ifndef ART_RUNTIME_BASE_TRANSFORM_ARRAY_REF_H_
+#define ART_RUNTIME_BASE_TRANSFORM_ARRAY_REF_H_
 
 #include <type_traits>
 
-#include "utils/array_ref.h"
-#include "utils/transform_iterator.h"
+#include "base/array_ref.h"
+#include "base/transform_iterator.h"
 
 namespace art {
 
@@ -193,4 +193,4 @@ TransformArrayRef<const typename Container::value_type, Function> MakeTransformA
 
 }  // namespace art
 
-#endif  // ART_COMPILER_UTILS_TRANSFORM_ARRAY_REF_H_
+#endif  // ART_RUNTIME_BASE_TRANSFORM_ARRAY_REF_H_

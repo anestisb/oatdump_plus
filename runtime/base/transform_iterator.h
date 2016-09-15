@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_UTILS_TRANSFORM_ITERATOR_H_
-#define ART_COMPILER_UTILS_TRANSFORM_ITERATOR_H_
+#ifndef ART_RUNTIME_BASE_TRANSFORM_ITERATOR_H_
+#define ART_RUNTIME_BASE_TRANSFORM_ITERATOR_H_
 
 #include <iterator>
 #include <type_traits>
@@ -175,4 +175,4 @@ auto MakeTransformRange(BaseRange& range, Function f) {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_UTILS_TRANSFORM_ITERATOR_H_
+#endif  // ART_RUNTIME_BASE_TRANSFORM_ITERATOR_H_
