@@ -46,6 +46,9 @@ ifeq ($(ART_BUILD_HOST_DEBUG),false)
 $(info Disabling ART_BUILD_HOST_DEBUG)
 endif
 
+# Enable the read barrier by default.
+ART_USE_READ_BARRIER ?= true
+
 ART_CPP_EXTENSION := .cc
 
 ifndef LIBART_IMG_HOST_BASE_ADDRESS
