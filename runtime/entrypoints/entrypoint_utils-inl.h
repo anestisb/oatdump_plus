@@ -120,8 +120,7 @@ inline ArtMethod* GetResolvedMethod(ArtMethod* outer_method,
   return inlined_method;
 }
 
-inline ArtMethod* GetCalleeSaveMethodCaller(Thread* self, Runtime::CalleeSaveType type)
-    REQUIRES_SHARED(Locks::mutator_lock_) {
+inline ArtMethod* GetCalleeSaveMethodCaller(Thread* self, Runtime::CalleeSaveType type) {
   return GetCalleeSaveMethodCaller(
       self->GetManagedStack()->GetTopQuickFrame(), type, true /* do_caller_check */);
 }
@@ -130,7 +129,8 @@ template <const bool kAccessCheck>
 ALWAYS_INLINE
 inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
                                        ArtMethod* method,
-                                       Thread* self, bool* slow_path) {
+                                       Thread* self,
+                                       bool* slow_path) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   PointerSize pointer_size = class_linker->GetImagePointerSize();
   mirror::Class* klass = method->GetDexCacheResolvedType<false>(type_idx, pointer_size);
@@ -363,7 +363,7 @@ template<FindFieldType type, bool access_check>
 inline ArtField* FindFieldFromCode(uint32_t field_idx,
                                    ArtMethod* referrer,
                                    Thread* self,
-                                   size_t expected_size) REQUIRES(!Roles::uninterruptible_) {
+                                   size_t expected_size) {
   bool is_primitive;
   bool is_set;
   bool is_static;
@@ -444,8 +444,7 @@ inline ArtField* FindFieldFromCode(uint32_t field_idx,
       return resolved_field;
     } else {
       StackHandleScope<1> hs(self);
-      Handle<mirror::Class> h_class(hs.NewHandle(fields_class));
-      if (LIKELY(class_linker->EnsureInitialized(self, h_class, true, true))) {
+      if (LIKELY(class_linker->EnsureInitialized(self, hs.NewHandle(fields_class), true, true))) {
         // Otherwise let's ensure the class is initialized before resolving the field.
         return resolved_field;
       }
@@ -479,8 +478,10 @@ EXPLICIT_FIND_FIELD_FROM_CODE_TYPED_TEMPLATE_DECL(StaticPrimitiveWrite);
 #undef EXPLICIT_FIND_FIELD_FROM_CODE_TEMPLATE_DECL
 
 template<InvokeType type, bool access_check>
-inline ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object** this_object,
-                                     ArtMethod* referrer, Thread* self) {
+inline ArtMethod* FindMethodFromCode(uint32_t method_idx,
+                                     mirror::Object** this_object,
+                                     ArtMethod* referrer,
+                                     Thread* self) {
   ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
   ArtMethod* resolved_method = class_linker->GetResolvedMethod(method_idx, referrer);
   if (resolved_method == nullptr) {
@@ -554,8 +555,11 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object** this_
       //    that will actually not be what we want in some cases where there are miranda methods or
       //    defaults. What we actually need is a GetContainingClass that says which classes virtuals
       //    this method is coming from.
-      mirror::Class* referring_class = referrer->GetDeclaringClass();
-      uint16_t method_type_idx = referring_class->GetDexFile().GetMethodId(method_idx).class_idx_;
+      StackHandleScope<2> hs2(self);
+      HandleWrapper<mirror::Object> h_this(hs2.NewHandleWrapper(this_object));
+      Handle<mirror::Class> h_referring_class(hs2.NewHandle(referrer->GetDeclaringClass()));
+      const uint16_t method_type_idx =
+          h_referring_class->GetDexFile().GetMethodId(method_idx).class_idx_;
       mirror::Class* method_reference_class = class_linker->ResolveType(method_type_idx, referrer);
       if (UNLIKELY(method_reference_class == nullptr)) {
         // Bad type idx.
@@ -566,8 +570,8 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object** this_
         // referenced class in the bytecode, we use its super class. Otherwise, we throw
         // a NoSuchMethodError.
         mirror::Class* super_class = nullptr;
-        if (method_reference_class->IsAssignableFrom(referring_class)) {
-          super_class = referring_class->GetSuperClass();
+        if (method_reference_class->IsAssignableFrom(h_referring_class.Get())) {
+          super_class = h_referring_class->GetSuperClass();
         }
         uint16_t vtable_index = resolved_method->GetMethodIndex();
         if (access_check) {
@@ -587,10 +591,10 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object** this_
       } else {
         // It is an interface.
         if (access_check) {
-          if (!method_reference_class->IsAssignableFrom((*this_object)->GetClass())) {
+          if (!method_reference_class->IsAssignableFrom(h_this->GetClass())) {
             ThrowIncompatibleClassChangeErrorClassForInterfaceSuper(resolved_method,
                                                                     method_reference_class,
-                                                                    *this_object,
+                                                                    h_this.Get(),
                                                                     referrer);
             return nullptr;  // Failure.
           }
@@ -605,6 +609,7 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx, mirror::Object** this_
         }
         return result;
       }
+      UNREACHABLE();
     }
     case kInterface: {
       uint32_t imt_index = resolved_method->GetImtIndex();
@@ -661,6 +666,7 @@ EXPLICIT_FIND_METHOD_FROM_CODE_TYPED_TEMPLATE_DECL(kInterface);
 // Fast path field resolution that can't initialize classes or throw exceptions.
 inline ArtField* FindFieldFast(uint32_t field_idx, ArtMethod* referrer, FindFieldType type,
                                size_t expected_size) {
+  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
   ArtField* resolved_field =
       referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx,
                                                                      kRuntimePointerSize);
@@ -713,6 +719,7 @@ inline ArtField* FindFieldFast(uint32_t field_idx, ArtMethod* referrer, FindFiel
 // Fast path method resolution that can't throw exceptions.
 inline ArtMethod* FindMethodFast(uint32_t method_idx, mirror::Object* this_object,
                                  ArtMethod* referrer, bool access_check, InvokeType type) {
+  ScopedAssertNoThreadSuspension ants(__FUNCTION__);
   if (UNLIKELY(this_object == nullptr && type != kStatic)) {
     return nullptr;
   }
