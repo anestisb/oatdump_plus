@@ -39,9 +39,10 @@ a fixed testing class named Test. So a typical test run looks as follows.
 How to start the JavaFuzz tests
 ===============================
 
-    run_java_fuzz_test.py [--num_tests]
-                          [--device]
-                          [--mode1=mode] [--mode2=mode]
+    run_java_fuzz_test.py
+                          [--num_tests=#TESTS]
+                          [--device=DEVICE]
+                          [--mode1=MODE] [--mode2=MODE]
 
 where
 
