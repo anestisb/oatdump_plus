@@ -644,10 +644,10 @@ class CodeGeneratorARM64 : public CodeGenerator {
   // artReadBarrierForRootSlow.
   void GenerateReadBarrierForRootSlow(HInstruction* instruction, Location out, Location root);
 
-  void GenerateNop();
+  void GenerateNop() OVERRIDE;
 
-  void GenerateImplicitNullCheck(HNullCheck* instruction);
-  void GenerateExplicitNullCheck(HNullCheck* instruction);
+  void GenerateImplicitNullCheck(HNullCheck* instruction) OVERRIDE;
+  void GenerateExplicitNullCheck(HNullCheck* instruction) OVERRIDE;
 
  private:
   using Uint64ToLiteralMap = ArenaSafeMap<uint64_t, vixl::aarch64::Literal<uint64_t>*>;

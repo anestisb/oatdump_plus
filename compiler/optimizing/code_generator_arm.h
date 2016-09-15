@@ -556,10 +556,10 @@ class CodeGeneratorARM : public CodeGenerator {
   // artReadBarrierForRootSlow.
   void GenerateReadBarrierForRootSlow(HInstruction* instruction, Location out, Location root);
 
-  void GenerateNop();
+  void GenerateNop() OVERRIDE;
 
-  void GenerateImplicitNullCheck(HNullCheck* instruction);
-  void GenerateExplicitNullCheck(HNullCheck* instruction);
+  void GenerateImplicitNullCheck(HNullCheck* instruction) OVERRIDE;
+  void GenerateExplicitNullCheck(HNullCheck* instruction) OVERRIDE;
 
  private:
   Register GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOrDirect* invoke, Register temp);
