@@ -285,10 +285,10 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
 
   void SetupBlockedRegisters() const OVERRIDE;
 
-  size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id);
-  size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id);
-  size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id);
-  size_t RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id);
+  size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  size_t RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
 
   void DumpCoreRegister(std::ostream& stream, int reg) const OVERRIDE;
   void DumpFloatingPointRegister(std::ostream& stream, int reg) const OVERRIDE;
@@ -327,7 +327,7 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
 
   ParallelMoveResolver* GetMoveResolver() OVERRIDE { return &move_resolver_; }
 
-  bool NeedsTwoRegisters(Primitive::Type type ATTRIBUTE_UNUSED) const { return false; }
+  bool NeedsTwoRegisters(Primitive::Type type ATTRIBUTE_UNUSED) const OVERRIDE { return false; }
 
   // Check if the desired_string_load_kind is supported. If it is, return it,
   // otherwise return a fall-back kind that should be used instead.
@@ -353,9 +353,9 @@ class CodeGeneratorMIPS64 : public CodeGenerator {
     UNIMPLEMENTED(FATAL) << "Not implemented on MIPS64";
   }
 
-  void GenerateNop();
-  void GenerateImplicitNullCheck(HNullCheck* instruction);
-  void GenerateExplicitNullCheck(HNullCheck* instruction);
+  void GenerateNop() OVERRIDE;
+  void GenerateImplicitNullCheck(HNullCheck* instruction) OVERRIDE;
+  void GenerateExplicitNullCheck(HNullCheck* instruction) OVERRIDE;
 
  private:
   // Labels for each block that will be compiled.

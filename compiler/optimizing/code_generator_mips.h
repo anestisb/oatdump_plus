@@ -329,10 +329,10 @@ class CodeGeneratorMIPS : public CodeGenerator {
 
   void SetupBlockedRegisters() const OVERRIDE;
 
-  size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id);
-  size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id);
-  size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id);
-  size_t RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id);
+  size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  size_t RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
   void ClobberRA() {
     clobbered_ra_ = true;
   }
@@ -363,7 +363,7 @@ class CodeGeneratorMIPS : public CodeGenerator {
 
   void MoveLocation(Location dst, Location src, Primitive::Type dst_type) OVERRIDE;
 
-  void MoveConstant(Location destination, int32_t value);
+  void MoveConstant(Location destination, int32_t value) OVERRIDE;
 
   void AddLocationAsTemp(Location location, LocationSummary* locations) OVERRIDE;
 
@@ -375,7 +375,7 @@ class CodeGeneratorMIPS : public CodeGenerator {
 
   ParallelMoveResolver* GetMoveResolver() OVERRIDE { return &move_resolver_; }
 
-  bool NeedsTwoRegisters(Primitive::Type type) const {
+  bool NeedsTwoRegisters(Primitive::Type type) const OVERRIDE {
     return type == Primitive::kPrimLong;
   }
 
@@ -403,9 +403,9 @@ class CodeGeneratorMIPS : public CodeGenerator {
     UNIMPLEMENTED(FATAL) << "Not implemented on MIPS";
   }
 
-  void GenerateNop();
-  void GenerateImplicitNullCheck(HNullCheck* instruction);
-  void GenerateExplicitNullCheck(HNullCheck* instruction);
+  void GenerateNop() OVERRIDE;
+  void GenerateImplicitNullCheck(HNullCheck* instruction) OVERRIDE;
+  void GenerateExplicitNullCheck(HNullCheck* instruction) OVERRIDE;
 
   // The PcRelativePatchInfo is used for PC-relative addressing of dex cache arrays
   // and boot image strings. The only difference is the interpretation of the offset_or_index.
