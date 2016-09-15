@@ -2043,13 +2043,23 @@ mirror::Object* ConcurrentCopying::Copy(mirror::Object* from_ref) {
   }
   DCHECK(to_ref != nullptr);
 
+  // Copy the object excluding the lock word since that is handled in the loop.
+  to_ref->SetClass(from_ref->GetClass<kVerifyNone, kWithoutReadBarrier>());
+  const size_t kObjectHeaderSize = sizeof(mirror::Object);
+  DCHECK_GE(obj_size, kObjectHeaderSize);
+  static_assert(kObjectHeaderSize == sizeof(mirror::HeapReference<mirror::Class>) +
+                    sizeof(LockWord),
+                "Object header size does not match");
+  // Memcpy can tear for words since it may do byte copy. It is only safe to do this since the
+  // object in the from space is immutable other than the lock word. b/31423258
+  memcpy(reinterpret_cast<uint8_t*>(to_ref) + kObjectHeaderSize,
+         reinterpret_cast<const uint8_t*>(from_ref) + kObjectHeaderSize,
+         obj_size - kObjectHeaderSize);
+
   // Attempt to install the forward pointer. This is in a loop as the
   // lock word atomic write can fail.
   while (true) {
-    // Copy the object. TODO: copy only the lockword in the second iteration and on?
-    memcpy(to_ref, from_ref, obj_size);
-
-    LockWord old_lock_word = to_ref->GetLockWord(false);
+    LockWord old_lock_word = from_ref->GetLockWord(false);
 
     if (old_lock_word.GetState() == LockWord::kForwardingAddress) {
       // Lost the race. Another thread (either GC or mutator) stored
@@ -2093,6 +2103,8 @@ mirror::Object* ConcurrentCopying::Copy(mirror::Object* from_ref) {
       return to_ref;
     }
 
+    // Copy the old lock word over since we did not copy it yet.
+    to_ref->SetLockWord(old_lock_word, false);
     // Set the gray ptr.
     if (kUseBakerReadBarrier) {
       to_ref->SetReadBarrierPointer(ReadBarrier::GrayPtr());
