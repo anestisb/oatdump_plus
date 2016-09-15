@@ -181,239 +181,25 @@ ART_GTEST_profile_assistant_test_TARGET_DEPS := \
 # The path for which all the source files are relative, not actually the current directory.
 LOCAL_PATH := art
 
-RUNTIME_GTEST_COMMON_SRC_FILES := \
-  cmdline/cmdline_parser_test.cc \
-  dexdump/dexdump_test.cc \
-  dexlayout/dexlayout_test.cc \
-  dexlist/dexlist_test.cc \
-  dex2oat/dex2oat_test.cc \
-  imgdiag/imgdiag_test.cc \
-  oatdump/oatdump_test.cc \
-  profman/profile_assistant_test.cc \
-  runtime/arch/arch_test.cc \
-  runtime/arch/instruction_set_test.cc \
-  runtime/arch/instruction_set_features_test.cc \
-  runtime/arch/memcmp16_test.cc \
-  runtime/arch/stub_test.cc \
-  runtime/arch/arm/instruction_set_features_arm_test.cc \
-  runtime/arch/arm64/instruction_set_features_arm64_test.cc \
-  runtime/arch/mips/instruction_set_features_mips_test.cc \
-  runtime/arch/mips64/instruction_set_features_mips64_test.cc \
-  runtime/arch/x86/instruction_set_features_x86_test.cc \
-  runtime/arch/x86_64/instruction_set_features_x86_64_test.cc \
-  runtime/barrier_test.cc \
-  runtime/base/arena_allocator_test.cc \
-  runtime/base/bit_field_test.cc \
-  runtime/base/bit_utils_test.cc \
-  runtime/base/bit_vector_test.cc \
-  runtime/base/hash_set_test.cc \
-  runtime/base/hex_dump_test.cc \
-  runtime/base/histogram_test.cc \
-  runtime/base/mutex_test.cc \
-  runtime/base/scoped_flock_test.cc \
-  runtime/base/stringprintf_test.cc \
-  runtime/base/time_utils_test.cc \
-  runtime/base/timing_logger_test.cc \
-  runtime/base/transform_array_ref_test.cc \
-  runtime/base/transform_iterator_test.cc \
-  runtime/base/variant_map_test.cc \
-  runtime/base/unix_file/fd_file_test.cc \
-  runtime/class_linker_test.cc \
-  runtime/compiler_filter_test.cc \
-  runtime/dex_file_test.cc \
-  runtime/dex_file_verifier_test.cc \
-  runtime/dex_instruction_test.cc \
-  runtime/dex_instruction_visitor_test.cc \
-  runtime/dex_method_iterator_test.cc \
-  runtime/entrypoints/math_entrypoints_test.cc \
-  runtime/entrypoints/quick/quick_trampoline_entrypoints_test.cc \
-  runtime/entrypoints_order_test.cc \
-  runtime/gc/accounting/card_table_test.cc \
-  runtime/gc/accounting/mod_union_table_test.cc \
-  runtime/gc/accounting/space_bitmap_test.cc \
-  runtime/gc/collector/immune_spaces_test.cc \
-  runtime/gc/heap_test.cc \
-  runtime/gc/reference_queue_test.cc \
-  runtime/gc/space/dlmalloc_space_static_test.cc \
-  runtime/gc/space/dlmalloc_space_random_test.cc \
-  runtime/gc/space/large_object_space_test.cc \
-  runtime/gc/space/rosalloc_space_static_test.cc \
-  runtime/gc/space/rosalloc_space_random_test.cc \
-  runtime/gc/space/space_create_test.cc \
-  runtime/gc/system_weak_test.cc \
-  runtime/gc/task_processor_test.cc \
-  runtime/gtest_test.cc \
-  runtime/handle_scope_test.cc \
-  runtime/indenter_test.cc \
-  runtime/indirect_reference_table_test.cc \
-  runtime/instrumentation_test.cc \
-  runtime/intern_table_test.cc \
-  runtime/interpreter/safe_math_test.cc \
-  runtime/interpreter/unstarted_runtime_test.cc \
-  runtime/java_vm_ext_test.cc \
-  runtime/jit/profile_compilation_info_test.cc \
-  runtime/leb128_test.cc \
-  runtime/mem_map_test.cc \
-  runtime/memory_region_test.cc \
-  runtime/mirror/dex_cache_test.cc \
-  runtime/mirror/object_test.cc \
-  runtime/monitor_pool_test.cc \
-  runtime/monitor_test.cc \
-  runtime/oat_file_test.cc \
-  runtime/oat_file_assistant_test.cc \
-  runtime/parsed_options_test.cc \
-  runtime/prebuilt_tools_test.cc \
-  runtime/reference_table_test.cc \
-  runtime/thread_pool_test.cc \
-  runtime/transaction_test.cc \
-  runtime/type_lookup_table_test.cc \
-  runtime/utf_test.cc \
-  runtime/utils_test.cc \
-  runtime/verifier/method_verifier_test.cc \
-  runtime/verifier/reg_type_test.cc \
-  runtime/zip_archive_test.cc
+ART_TEST_MODULES := \
+    art_cmdline_tests \
+    art_compiler_tests \
+    art_compiler_host_tests \
+    art_dex2oat_tests \
+    art_dexdump_tests \
+    art_dexlayout_tests \
+    art_dexlist_tests \
+    art_imgdiag_tests \
+    art_oatdump_tests \
+    art_profman_tests \
+    art_runtime_tests \
+    art_runtime_compiler_tests \
 
-COMPILER_GTEST_COMMON_SRC_FILES := \
-  runtime/jni_internal_test.cc \
-  runtime/proxy_test.cc \
-  runtime/reflection_test.cc \
-  compiler/compiled_method_test.cc \
-  compiler/debug/dwarf/dwarf_test.cc \
-  compiler/driver/compiled_method_storage_test.cc \
-  compiler/driver/compiler_driver_test.cc \
-  compiler/elf_writer_test.cc \
-  compiler/exception_test.cc \
-  compiler/image_test.cc \
-  compiler/jni/jni_compiler_test.cc \
-  compiler/linker/multi_oat_relative_patcher_test.cc \
-  compiler/linker/output_stream_test.cc \
-  compiler/oat_test.cc \
-  compiler/optimizing/bounds_check_elimination_test.cc \
-  compiler/optimizing/dominator_test.cc \
-  compiler/optimizing/find_loops_test.cc \
-  compiler/optimizing/graph_checker_test.cc \
-  compiler/optimizing/graph_test.cc \
-  compiler/optimizing/gvn_test.cc \
-  compiler/optimizing/induction_var_analysis_test.cc \
-  compiler/optimizing/induction_var_range_test.cc \
-  compiler/optimizing/licm_test.cc \
-  compiler/optimizing/live_interval_test.cc \
-  compiler/optimizing/nodes_test.cc \
-  compiler/optimizing/parallel_move_test.cc \
-  compiler/optimizing/pretty_printer_test.cc \
-  compiler/optimizing/reference_type_propagation_test.cc \
-  compiler/optimizing/side_effects_test.cc \
-  compiler/optimizing/ssa_test.cc \
-  compiler/optimizing/stack_map_test.cc \
-  compiler/optimizing/suspend_check_test.cc \
-  compiler/utils/dedupe_set_test.cc \
-  compiler/utils/intrusive_forward_list_test.cc \
-  compiler/utils/string_reference_test.cc \
-  compiler/utils/swap_space_test.cc \
-  compiler/utils/test_dex_file_builder_test.cc
+ART_TARGET_GTEST_FILES := $(foreach m,$(ART_TEST_MODULES),\
+    $(ART_TEST_LIST_device_$(TARGET_ARCH)_$(m)))
 
-COMPILER_GTEST_COMMON_SRC_FILES_all := \
-  compiler/jni/jni_cfi_test.cc \
-  compiler/optimizing/codegen_test.cc \
-  compiler/optimizing/optimizing_cfi_test.cc \
-
-COMPILER_GTEST_COMMON_SRC_FILES_arm := \
-  compiler/linker/arm/relative_patcher_thumb2_test.cc \
-  compiler/utils/arm/managed_register_arm_test.cc \
-
-COMPILER_GTEST_COMMON_SRC_FILES_arm64 := \
-  compiler/linker/arm64/relative_patcher_arm64_test.cc \
-  compiler/utils/arm64/managed_register_arm64_test.cc \
-
-COMPILER_GTEST_COMMON_SRC_FILES_mips := \
-  compiler/linker/mips/relative_patcher_mips_test.cc \
-  compiler/linker/mips/relative_patcher_mips32r6_test.cc \
-
-COMPILER_GTEST_COMMON_SRC_FILES_mips64 := \
-
-COMPILER_GTEST_COMMON_SRC_FILES_x86 := \
-  compiler/linker/x86/relative_patcher_x86_test.cc \
-  compiler/utils/x86/managed_register_x86_test.cc \
-
-# These tests are testing architecture-independent functionality, but happen
-# to use x86 codegen as part of the test.
-COMPILER_GTEST_COMMON_SRC_FILES_x86 += \
-  compiler/optimizing/constant_folding_test.cc \
-  compiler/optimizing/dead_code_elimination_test.cc \
-  compiler/optimizing/linearize_test.cc \
-  compiler/optimizing/live_ranges_test.cc \
-  compiler/optimizing/liveness_test.cc \
-  compiler/optimizing/register_allocator_test.cc \
-
-COMPILER_GTEST_COMMON_SRC_FILES_x86_64 := \
-  compiler/linker/x86_64/relative_patcher_x86_64_test.cc \
-
-RUNTIME_GTEST_TARGET_SRC_FILES := \
-  $(RUNTIME_GTEST_COMMON_SRC_FILES)
-
-RUNTIME_GTEST_HOST_SRC_FILES := \
-  $(RUNTIME_GTEST_COMMON_SRC_FILES)
-
-COMPILER_GTEST_TARGET_SRC_FILES := \
-  $(COMPILER_GTEST_COMMON_SRC_FILES)
-
-COMPILER_GTEST_TARGET_SRC_FILES_all := \
-  $(COMPILER_GTEST_COMMON_SRC_FILES_all) \
-
-COMPILER_GTEST_TARGET_SRC_FILES_arm := \
-  $(COMPILER_GTEST_COMMON_SRC_FILES_arm) \
-
-COMPILER_GTEST_TARGET_SRC_FILES_arm64 := \
-  $(COMPILER_GTEST_COMMON_SRC_FILES_arm64) \
-
-COMPILER_GTEST_TARGET_SRC_FILES_mips := \
-  $(COMPILER_GTEST_COMMON_SRC_FILES_mips) \
-
-COMPILER_GTEST_TARGET_SRC_FILES_mips64 := \
-  $(COMPILER_GTEST_COMMON_SRC_FILES_mips64) \
-
-COMPILER_GTEST_TARGET_SRC_FILES_x86 := \
-  $(COMPILER_GTEST_COMMON_SRC_FILES_x86) \
-
-COMPILER_GTEST_TARGET_SRC_FILES_x86_64 := \
-  $(COMPILER_GTEST_COMMON_SRC_FILES_x86_64) \
-
-$(foreach arch,$(ART_TARGET_CODEGEN_ARCHS),$(eval COMPILER_GTEST_TARGET_SRC_FILES += $$(COMPILER_GTEST_TARGET_SRC_FILES_$(arch))))
-COMPILER_GTEST_TARGET_SRC_FILES += $(COMPILER_GTEST_TARGET_SRC_FILES_all)
-
-COMPILER_GTEST_HOST_SRC_FILES := \
-  $(COMPILER_GTEST_COMMON_SRC_FILES) \
-
-COMPILER_GTEST_HOST_SRC_FILES_all := \
-  $(COMPILER_GTEST_COMMON_SRC_FILES_all) \
-
-COMPILER_GTEST_HOST_SRC_FILES_arm := \
-  $(COMPILER_GTEST_COMMON_SRC_FILES_arm) \
-  compiler/utils/arm/assembler_thumb2_test.cc \
-  compiler/utils/assembler_thumb_test.cc \
-
-COMPILER_GTEST_HOST_SRC_FILES_arm64 := \
-  $(COMPILER_GTEST_COMMON_SRC_FILES_arm64) \
-
-COMPILER_GTEST_HOST_SRC_FILES_mips := \
-  $(COMPILER_GTEST_COMMON_SRC_FILES_mips) \
-  compiler/utils/mips/assembler_mips_test.cc \
-  compiler/utils/mips/assembler_mips32r6_test.cc \
-
-COMPILER_GTEST_HOST_SRC_FILES_mips64 := \
-  $(COMPILER_GTEST_COMMON_SRC_FILES_mips64) \
-  compiler/utils/mips64/assembler_mips64_test.cc \
-
-COMPILER_GTEST_HOST_SRC_FILES_x86 := \
-  $(COMPILER_GTEST_COMMON_SRC_FILES_x86) \
-  compiler/utils/x86/assembler_x86_test.cc \
-
-COMPILER_GTEST_HOST_SRC_FILES_x86_64 := \
-  $(COMPILER_GTEST_COMMON_SRC_FILES_x86_64) \
-  compiler/utils/x86_64/assembler_x86_64_test.cc
-
-$(foreach arch,$(ART_HOST_CODEGEN_ARCHS),$(eval COMPILER_GTEST_HOST_SRC_FILES += $$(COMPILER_GTEST_HOST_SRC_FILES_$(arch))))
-COMPILER_GTEST_HOST_SRC_FILES += $(COMPILER_GTEST_HOST_SRC_FILES_all)
+ART_HOST_GTEST_FILES := $(foreach m,$(ART_TEST_MODULES),\
+    $(ART_TEST_LIST_host_$(HOST_ARCH)_$(m)))
 
 ART_TEST_CFLAGS :=
 
@@ -461,63 +247,70 @@ include $(BUILD_PREBUILT)
 
 # Define a make rule for a target device gtest.
 # $(1): gtest name - the name of the test we're building such as leb128_test.
-# $(2): 2ND_ or undefined - used to differentiate between the primary and secondary architecture.
-# $(3): LD_LIBRARY_PATH or undefined - used in case libartd.so is not in /system/lib/
+# $(2): path relative to $OUT to the test binary
+# $(3): 2ND_ or undefined - used to differentiate between the primary and secondary architecture.
+# $(4): LD_LIBRARY_PATH or undefined - used in case libartd.so is not in /system/lib/
 define define-art-gtest-rule-target
-  gtest_rule := test-art-target-gtest-$(1)$$($(2)ART_PHONY_TEST_TARGET_SUFFIX)
+  gtest_rule := test-art-target-gtest-$(1)$$($(3)ART_PHONY_TEST_TARGET_SUFFIX)
+  gtest_exe := $(OUT_DIR)/$(2)
+  gtest_target_exe := $$(patsubst $(PRODUCT_OUT)/%,/%,$$(gtest_exe))
 
   # Add the test dependencies to test-art-target-sync, which will be a prerequisite for the test
   # to ensure files are pushed to the device.
   TEST_ART_TARGET_SYNC_DEPS += \
     $$(ART_GTEST_$(1)_TARGET_DEPS) \
     $(foreach file,$(ART_GTEST_$(1)_DEX_DEPS),$(ART_TEST_TARGET_GTEST_$(file)_DEX)) \
-    $$(ART_TARGET_NATIVETEST_OUT)/$$(TARGET_$(2)ARCH)/$(1) \
-    $$($(2)TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so \
-    $$($(2)TARGET_OUT_SHARED_LIBRARIES)/libopenjdkd.so \
+    $$(gtest_exe) \
+    $$($(3)TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so \
+    $$($(3)TARGET_OUT_SHARED_LIBRARIES)/libopenjdkd.so \
     $$(TARGET_OUT_JAVA_LIBRARIES)/core-libart-testdex.jar \
     $$(TARGET_OUT_JAVA_LIBRARIES)/core-oj-testdex.jar \
     $$(ART_TARGET_TEST_OUT)/valgrind-target-suppressions.txt
 
+$$(gtest_rule) valgrind-$$(gtest_rule): PRIVATE_TARGET_EXE := $$(gtest_target_exe)
+
 .PHONY: $$(gtest_rule)
 $$(gtest_rule): test-art-target-sync
-	$(hide) adb shell touch $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$$$$PPID
-	$(hide) adb shell rm $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$$$$PPID
-	$(hide) adb shell chmod 755 $(ART_TARGET_NATIVETEST_DIR)/$(TARGET_$(2)ARCH)/$(1)
+	$(hide) adb shell touch $(ART_TARGET_TEST_DIR)/$(TARGET_$(3)ARCH)/$$@-$$$$PPID
+	$(hide) adb shell rm $(ART_TARGET_TEST_DIR)/$(TARGET_$(3)ARCH)/$$@-$$$$PPID
+	$(hide) adb shell chmod 755 $$(PRIVATE_TARGET_EXE)
 	$(hide) $$(call ART_TEST_SKIP,$$@) && \
-	  (adb shell "$(GCOV_ENV) LD_LIBRARY_PATH=$(3) ANDROID_ROOT=$(ART_GTEST_TARGET_ANDROID_ROOT) \
-	    $(ART_TARGET_NATIVETEST_DIR)/$(TARGET_$(2)ARCH)/$(1) && touch $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$$$$PPID" \
-	  && (adb pull $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$$$$PPID /tmp/ \
+	  (adb shell "$(GCOV_ENV) LD_LIBRARY_PATH=$(4) ANDROID_ROOT=$(ART_GTEST_TARGET_ANDROID_ROOT) \
+	    $$(PRIVATE_TARGET_EXE) && touch $(ART_TARGET_TEST_DIR)/$(TARGET_$(3)ARCH)/$$@-$$$$PPID" \
+	  && (adb pull $(ART_TARGET_TEST_DIR)/$(TARGET_$(3)ARCH)/$$@-$$$$PPID /tmp/ \
 	      && $$(call ART_TEST_PASSED,$$@)) \
 	  || $$(call ART_TEST_FAILED,$$@))
 	$(hide) rm -f /tmp/$$@-$$$$PPID
 
-  ART_TEST_TARGET_GTEST$($(2)ART_PHONY_TEST_TARGET_SUFFIX)_RULES += $$(gtest_rule)
+  ART_TEST_TARGET_GTEST$($(3)ART_PHONY_TEST_TARGET_SUFFIX)_RULES += $$(gtest_rule)
   ART_TEST_TARGET_GTEST_RULES += $$(gtest_rule)
   ART_TEST_TARGET_GTEST_$(1)_RULES += $$(gtest_rule)
 
 .PHONY: valgrind-$$(gtest_rule)
 valgrind-$$(gtest_rule): $(ART_VALGRIND_TARGET_DEPENDENCIES) test-art-target-sync
-	$(hide) adb shell touch $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$$$$PPID
-	$(hide) adb shell rm $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$$$$PPID
-	$(hide) adb shell chmod 755 $(ART_TARGET_NATIVETEST_DIR)/$(TARGET_$(2)ARCH)/$(1)
+	$(hide) adb shell touch $(ART_TARGET_TEST_DIR)/$(TARGET_$(3)ARCH)/$$@-$$$$PPID
+	$(hide) adb shell rm $(ART_TARGET_TEST_DIR)/$(TARGET_$(3)ARCH)/$$@-$$$$PPID
+	$(hide) adb shell chmod 755 $$(PRIVATE_TARGET_EXE)
 	$(hide) $$(call ART_TEST_SKIP,$$@) && \
-	  (adb shell "$(GCOV_ENV) LD_LIBRARY_PATH=$(3) ANDROID_ROOT=$(ART_GTEST_TARGET_ANDROID_ROOT) \
+	  (adb shell "$(GCOV_ENV) LD_LIBRARY_PATH=$(4) ANDROID_ROOT=$(ART_GTEST_TARGET_ANDROID_ROOT) \
 	    valgrind --leak-check=full --error-exitcode=1 --workaround-gcc296-bugs=yes \
 	    --suppressions=$(ART_TARGET_TEST_DIR)/valgrind-target-suppressions.txt \
 	    --num-callers=50 \
-	    $(ART_TARGET_NATIVETEST_DIR)/$(TARGET_$(2)ARCH)/$(1) && touch $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$$$$PPID" \
-	  && (adb pull $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$$$$PPID /tmp/ \
+	    $$(PRIVATE_TARGET_EXE) && touch $(ART_TARGET_TEST_DIR)/$(TARGET_$(3)ARCH)/$$@-$$$$PPID" \
+	  && (adb pull $(ART_TARGET_TEST_DIR)/$(TARGET_$(3)ARCH)/$$@-$$$$PPID /tmp/ \
 	      && $$(call ART_TEST_PASSED,$$@)) \
 	  || $$(call ART_TEST_FAILED,$$@))
 	$(hide) rm -f /tmp/$$@-$$$$PPID
 
-  ART_TEST_TARGET_VALGRIND_GTEST$$($(2)ART_PHONY_TEST_TARGET_SUFFIX)_RULES += valgrind-$$(gtest_rule)
+  ART_TEST_TARGET_VALGRIND_GTEST$$($(3)ART_PHONY_TEST_TARGET_SUFFIX)_RULES += valgrind-$$(gtest_rule)
   ART_TEST_TARGET_VALGRIND_GTEST_RULES += valgrind-$$(gtest_rule)
   ART_TEST_TARGET_VALGRIND_GTEST_$(1)_RULES += valgrind-$$(gtest_rule)
 
   # Clear locally defined variables.
   valgrind_gtest_rule :=
   gtest_rule :=
+  gtest_exe :=
+  gtest_target_exe :=
 endef  # define-art-gtest-rule-target
 
 ART_VALGRIND_DEPENDENCIES := \
@@ -532,14 +325,15 @@ ART_VALGRIND_DEPENDENCIES := \
 
 # Define make rules for a host gtests.
 # $(1): gtest name - the name of the test we're building such as leb128_test.
-# $(2): 2ND_ or undefined - used to differentiate between the primary and secondary architecture.
+# $(2): path relative to $OUT to the test binary
+# $(3): 2ND_ or undefined - used to differentiate between the primary and secondary architecture.
 define define-art-gtest-rule-host
-  gtest_rule := test-art-host-gtest-$(1)$$($(2)ART_PHONY_TEST_HOST_SUFFIX)
-  gtest_exe := $$(HOST_OUT_EXECUTABLES)/$(1)$$($(2)ART_PHONY_TEST_HOST_SUFFIX)
+  gtest_rule := test-art-host-gtest-$(1)$$($(3)ART_PHONY_TEST_HOST_SUFFIX)
+  gtest_exe := $(OUT_DIR)/$(2)
   # Dependencies for all host gtests.
   gtest_deps := $$(HOST_CORE_DEX_LOCATIONS) \
-    $$($(2)ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$$(ART_HOST_SHLIB_EXTENSION) \
-    $$($(2)ART_HOST_OUT_SHARED_LIBRARIES)/libopenjdkd$$(ART_HOST_SHLIB_EXTENSION) \
+    $$($(3)ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$$(ART_HOST_SHLIB_EXTENSION) \
+    $$($(3)ART_HOST_OUT_SHARED_LIBRARIES)/libopenjdkd$$(ART_HOST_SHLIB_EXTENSION) \
     $$(gtest_exe) \
     $$(ART_GTEST_$(1)_HOST_DEPS) \
     $(foreach file,$(ART_GTEST_$(1)_DEX_DEPS),$(ART_TEST_HOST_GTEST_$(file)_DEX))
@@ -551,7 +345,7 @@ $$(gtest_rule): $$(gtest_exe) $$(gtest_deps)
 	$(hide) ($$(call ART_TEST_SKIP,$$@) && $$< && $$(call ART_TEST_PASSED,$$@)) \
 	  || $$(call ART_TEST_FAILED,$$@)
 
-  ART_TEST_HOST_GTEST$$($(2)ART_PHONY_TEST_HOST_SUFFIX)_RULES += $$(gtest_rule)
+  ART_TEST_HOST_GTEST$$($(3)ART_PHONY_TEST_HOST_SUFFIX)_RULES += $$(gtest_rule)
   ART_TEST_HOST_GTEST_RULES += $$(gtest_rule)
   ART_TEST_HOST_GTEST_$(1)_RULES += $$(gtest_rule)
 
@@ -565,7 +359,7 @@ valgrind-$$(gtest_rule): $$(gtest_exe) $$(gtest_deps) $(ART_VALGRIND_DEPENDENCIE
 	    $$< && \
 	    $$(call ART_TEST_PASSED,$$@) || $$(call ART_TEST_FAILED,$$@)
 
-  ART_TEST_HOST_VALGRIND_GTEST$$($(2)ART_PHONY_TEST_HOST_SUFFIX)_RULES += valgrind-$$(gtest_rule)
+  ART_TEST_HOST_VALGRIND_GTEST$$($(3)ART_PHONY_TEST_HOST_SUFFIX)_RULES += valgrind-$$(gtest_rule)
   ART_TEST_HOST_VALGRIND_GTEST_RULES += valgrind-$$(gtest_rule)
   ART_TEST_HOST_VALGRIND_GTEST_$(1)_RULES += valgrind-$$(gtest_rule)
 
@@ -579,8 +373,6 @@ endef  # define-art-gtest-rule-host
 # Define the rules to build and run host and target gtests.
 # $(1): target or host
 # $(2): file name
-# $(3): extra C includes
-# $(4): extra shared libraries
 define define-art-gtest
   ifneq ($(1),target)
     ifneq ($(1),host)
@@ -590,40 +382,11 @@ define define-art-gtest
 
   art_target_or_host := $(1)
   art_gtest_filename := $(2)
-  art_gtest_extra_c_includes := $(3)
-  art_gtest_extra_shared_libraries := $(4)
 
   include $$(CLEAR_VARS)
   art_gtest_name := $$(notdir $$(basename $$(art_gtest_filename)))
-  LOCAL_MODULE := $$(art_gtest_name)
+
   ifeq ($$(art_target_or_host),target)
-    LOCAL_MODULE_TAGS := tests
-  endif
-  LOCAL_CPP_EXTENSION := $$(ART_CPP_EXTENSION)
-  LOCAL_SRC_FILES := $$(art_gtest_filename)
-  LOCAL_C_INCLUDES += $$(ART_C_INCLUDES) art/runtime art/cmdline $$(art_gtest_extra_c_includes)
-  LOCAL_SHARED_LIBRARIES += libartd $$(art_gtest_extra_shared_libraries) libart-gtest libartd-disassembler
-  LOCAL_WHOLE_STATIC_LIBRARIES += libsigchain
-
-  LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
-  LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.gtest.mk
-
-  # Mac OS linker doesn't understand --export-dynamic.
-  ifneq ($$(HOST_OS)-$$(art_target_or_host),darwin-host)
-    # Allow jni_compiler_test to find Java_MyClassNatives_bar within itself using dlopen(NULL, ...).
-    LOCAL_LDFLAGS := -Wl,--export-dynamic -Wl,-u,Java_MyClassNatives_bar -Wl,-u,Java_MyClassNatives_sbar
-  endif
-
-  LOCAL_CFLAGS := $$(ART_TEST_CFLAGS)
-  ifeq ($$(art_target_or_host),target)
-    $$(eval LOCAL_CLANG := $$(ART_TARGET_CLANG))
-    $$(eval $$(call set-target-local-cflags-vars,debug))
-    LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libz libcutils libvixld-arm libvixld-arm64
-    LOCAL_MODULE_PATH_32 := $$(ART_TARGET_NATIVETEST_OUT)/$$(ART_TARGET_ARCH_32)
-    LOCAL_MODULE_PATH_64 := $$(ART_TARGET_NATIVETEST_OUT)/$$(ART_TARGET_ARCH_64)
-    LOCAL_MULTILIB := both
-    LOCAL_CFLAGS += -Wno-used-but-marked-unused -Wno-deprecated -Wno-missing-noreturn  # gtest issue
-    include $$(BUILD_EXECUTABLE)
     library_path :=
     2nd_library_path :=
     ifneq ($$(ART_TEST_ANDROID_ROOT),)
@@ -642,9 +405,9 @@ define define-art-gtest
     ART_TEST_TARGET_GTEST_$$(art_gtest_name)_RULES :=
     ART_TEST_TARGET_VALGRIND_GTEST_$$(art_gtest_name)_RULES :=
     ifdef TARGET_2ND_ARCH
-      $$(eval $$(call define-art-gtest-rule-target,$$(art_gtest_name),2ND_,$$(2nd_library_path)))
+      $$(eval $$(call define-art-gtest-rule-target,$$(art_gtest_name),$$(art_gtest_filename),2ND_,$$(2nd_library_path)))
     endif
-    $$(eval $$(call define-art-gtest-rule-target,$$(art_gtest_name),,$$(library_path)))
+    $$(eval $$(call define-art-gtest-rule-target,$$(art_gtest_name),$$(art_gtest_filename),,$$(library_path)))
 
     # A rule to run the different architecture versions of the gtest.
 .PHONY: test-art-target-gtest-$$(art_gtest_name)
@@ -659,24 +422,12 @@ valgrind-test-art-target-gtest-$$(art_gtest_name): $$(ART_TEST_TARGET_VALGRIND_G
     ART_TEST_TARGET_GTEST_$$(art_gtest_name)_RULES :=
     ART_TEST_TARGET_VALGRIND_GTEST_$$(art_gtest_name)_RULES :=
   else # host
-    LOCAL_CLANG := $$(ART_HOST_CLANG)
-    LOCAL_CFLAGS += $$(ART_HOST_CFLAGS) $$(ART_HOST_DEBUG_CFLAGS)
-    LOCAL_ASFLAGS += $$(ART_HOST_ASFLAGS) $$(ART_HOST_DEBUG_ASFLAGS)
-    LOCAL_SHARED_LIBRARIES += libicuuc libicui18n libnativehelper libziparchive libz-host libvixld-arm libvixld-arm64
-    LOCAL_LDLIBS := -lpthread -ldl
-    LOCAL_IS_HOST_MODULE := true
-    LOCAL_MULTILIB := both
-    LOCAL_MODULE_STEM_32 := $$(art_gtest_name)32
-    LOCAL_MODULE_STEM_64 := $$(art_gtest_name)64
-    LOCAL_CFLAGS += -Wno-used-but-marked-unused -Wno-deprecated -Wno-missing-noreturn  # gtest issue
-    include $$(BUILD_HOST_EXECUTABLE)
-
     ART_TEST_HOST_GTEST_$$(art_gtest_name)_RULES :=
     ART_TEST_HOST_VALGRIND_GTEST_$$(art_gtest_name)_RULES :=
     ifneq ($$(HOST_PREFER_32_BIT),true)
-      $$(eval $$(call define-art-gtest-rule-host,$$(art_gtest_name),2ND_))
+      $$(eval $$(call define-art-gtest-rule-host,$$(art_gtest_name),$$(art_gtest_filename),2ND_))
     endif
-    $$(eval $$(call define-art-gtest-rule-host,$$(art_gtest_name),))
+    $$(eval $$(call define-art-gtest-rule-host,$$(art_gtest_name),$$(art_gtest_filename),))
 
     # Rules to run the different architecture versions of the gtest.
 .PHONY: test-art-host-gtest-$$(art_gtest_name)
@@ -695,8 +446,6 @@ valgrind-test-art-host-gtest-$$(art_gtest_name): $$(ART_TEST_HOST_VALGRIND_GTEST
   # Clear locally defined variables.
   art_target_or_host :=
   art_gtest_filename :=
-  art_gtest_extra_c_includes :=
-  art_gtest_extra_shared_libraries :=
   art_gtest_name :=
   library_path :=
   2nd_library_path :=
@@ -704,19 +453,16 @@ endef  # define-art-gtest
 
 
 ifeq ($(ART_BUILD_TARGET),true)
-  $(foreach file,$(RUNTIME_GTEST_TARGET_SRC_FILES), $(eval $(call define-art-gtest,target,$(file),,libbacktrace)))
-  $(foreach file,$(COMPILER_GTEST_TARGET_SRC_FILES), $(eval $(call define-art-gtest,target,$(file),art/compiler,libartd-compiler libbacktrace libnativeloader)))
+  $(foreach file,$(ART_TARGET_GTEST_FILES), $(eval $(call define-art-gtest,target,$(file))))
 endif
 ifeq ($(ART_BUILD_HOST),true)
-  $(foreach file,$(RUNTIME_GTEST_HOST_SRC_FILES), $(eval $(call define-art-gtest,host,$(file),,libbacktrace)))
-  $(foreach file,$(COMPILER_GTEST_HOST_SRC_FILES), $(eval $(call define-art-gtest,host,$(file),art/compiler,libartd-compiler libbacktrace libnativeloader)))
+  $(foreach file,$(ART_HOST_GTEST_FILES), $(eval $(call define-art-gtest,host,$(file))))
 endif
 
 # Used outside the art project to get a list of the current tests
 RUNTIME_TARGET_GTEST_MAKE_TARGETS :=
-$(foreach file, $(RUNTIME_GTEST_TARGET_SRC_FILES), $(eval RUNTIME_TARGET_GTEST_MAKE_TARGETS += $$(notdir $$(basename $$(file)))))
+$(foreach file, $(ART_TARGET_GTEST_FILES), $(eval RUNTIME_TARGET_GTEST_MAKE_TARGETS += $$(notdir $$(basename $$(file)))))
 COMPILER_TARGET_GTEST_MAKE_TARGETS :=
-$(foreach file, $(COMPILER_GTEST_TARGET_SRC_FILES), $(eval COMPILER_TARGET_GTEST_MAKE_TARGETS += $$(notdir $$(basename $$(file)))))
 
 # Define all the combinations of host/target, valgrind and suffix such as:
 # test-art-host-gtest or valgrind-test-art-host-gtest64

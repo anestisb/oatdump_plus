@@ -22,9 +22,11 @@ import (
 	"android/soong/android"
 	"sort"
 	"strings"
+
+	"github.com/google/blueprint"
 )
 
-func codegen(ctx android.LoadHookContext, c *codegenProperties) {
+func codegen(ctx android.LoadHookContext, c *codegenProperties, library bool) {
 	var hostArches, deviceArches []string
 
 	e := envDefault(ctx, "ART_HOST_CODEGEN_ARCHS", "")
@@ -41,60 +43,88 @@ func codegen(ctx android.LoadHookContext, c *codegenProperties) {
 		deviceArches = strings.Split(e, " ")
 	}
 
-	type props struct {
-		Target struct {
-			Android *codegenArchProperties
-			Host    *codegenArchProperties
+	addCodegenArchProperties := func(host bool, archName string) {
+		type props struct {
+			Target struct {
+				Android *CodegenCommonArchProperties
+				Host    *CodegenCommonArchProperties
+			}
 		}
-	}
 
-	addCodegenArchProperties := func(p *props, hod **codegenArchProperties, arch string) {
-		switch arch {
+		type libraryProps struct {
+			Target struct {
+				Android *CodegenLibraryArchProperties
+				Host    *CodegenLibraryArchProperties
+			}
+		}
+
+		var arch *codegenArchProperties
+		switch archName {
 		case "arm":
-			*hod = &c.Codegen.Arm
+			arch = &c.Codegen.Arm
 		case "arm64":
-			*hod = &c.Codegen.Arm64
+			arch = &c.Codegen.Arm64
 		case "mips":
-			*hod = &c.Codegen.Mips
+			arch = &c.Codegen.Mips
 		case "mips64":
-			*hod = &c.Codegen.Mips64
+			arch = &c.Codegen.Mips64
 		case "x86":
-			*hod = &c.Codegen.X86
+			arch = &c.Codegen.X86
 		case "x86_64":
-			*hod = &c.Codegen.X86_64
+			arch = &c.Codegen.X86_64
 		default:
-			ctx.ModuleErrorf("Unknown codegen architecture %q", arch)
+			ctx.ModuleErrorf("Unknown codegen architecture %q", archName)
 			return
 		}
+
+		p := &props{}
+		l := &libraryProps{}
+		if host {
+			p.Target.Host = &arch.CodegenCommonArchProperties
+			l.Target.Host = &arch.CodegenLibraryArchProperties
+		} else {
+			p.Target.Android = &arch.CodegenCommonArchProperties
+			l.Target.Android = &arch.CodegenLibraryArchProperties
+		}
+
 		ctx.AppendProperties(p)
+		if library {
+			ctx.AppendProperties(l)
+		}
 	}
 
-	for _, a := range deviceArches {
-		p := &props{}
-		addCodegenArchProperties(p, &p.Target.Android, a)
+	for _, arch := range deviceArches {
+		addCodegenArchProperties(false, arch)
 		if ctx.Failed() {
 			return
 		}
 	}
 
-	for _, a := range hostArches {
-		p := &props{}
-		addCodegenArchProperties(p, &p.Target.Host, a)
+	for _, arch := range hostArches {
+		addCodegenArchProperties(true, arch)
 		if ctx.Failed() {
 			return
 		}
 	}
 }
 
-type codegenArchProperties struct {
+type CodegenCommonArchProperties struct {
 	Srcs   []string
 	Cflags []string
+}
+
+type CodegenLibraryArchProperties struct {
 	Static struct {
 		Whole_static_libs []string
 	}
 	Shared struct {
 		Shared_libs []string
 	}
+}
+
+type codegenArchProperties struct {
+	CodegenCommonArchProperties
+	CodegenLibraryArchProperties
 }
 
 type codegenProperties struct {
@@ -104,6 +134,7 @@ type codegenProperties struct {
 }
 
 type codegenCustomizer struct {
+	library           bool
 	codegenProperties codegenProperties
 }
 
@@ -126,4 +157,12 @@ func defaultDeviceCodegenArches(ctx android.LoadHookContext) []string {
 	}
 	sort.Strings(ret)
 	return ret
+}
+
+func installCodegenCustomizer(module blueprint.Module, props []interface{}, library bool) []interface{} {
+	c := &codegenProperties{}
+	android.AddLoadHook(module, func(ctx android.LoadHookContext) { codegen(ctx, c, library) })
+	props = append(props, c)
+
+	return props
 }
