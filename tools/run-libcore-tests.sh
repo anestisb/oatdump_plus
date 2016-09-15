@@ -43,7 +43,7 @@ do
 done
 
 expectations="--expectations art/tools/libcore_failures.txt"
-if [ "x$ART_USE_READ_BARRIER" = xtrue ]; then
+if [ "x$ART_USE_READ_BARRIER" != xfalse ]; then
   # Tolerate some more failures on the concurrent collector configurations.
   expectations="$expectations --expectations art/tools/libcore_failures_concurrent_collector.txt"
 fi

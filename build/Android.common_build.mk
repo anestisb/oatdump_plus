@@ -70,6 +70,9 @@ ifeq ($(ART_BUILD_HOST_STATIC),true)
 $(info Enabling ART_BUILD_HOST_STATIC)
 endif
 
+# Enable the read barrier by default.
+ART_USE_READ_BARRIER ?= true
+
 ifeq ($(ART_TEST_DEBUG_GC),true)
   ART_DEFAULT_GC_TYPE := SS
   ART_USE_TLAB := true

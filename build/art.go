@@ -56,7 +56,7 @@ func globalFlags(ctx android.BaseContext) ([]string, []string) {
 		asflags = append(asflags, "-DART_HEAP_POISONING=1")
 	}
 
-	if envTrue(ctx, "ART_USE_READ_BARRIER") {
+	if !envFalse(ctx, "ART_USE_READ_BARRIER") {
 		// Used to change the read barrier type. Valid values are BAKER, BROOKS, TABLELOOKUP.
 		// The default is BAKER.
 		barrierType := envDefault(ctx, "ART_READ_BARRIER_TYPE", "BAKER")

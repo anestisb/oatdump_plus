@@ -686,7 +686,7 @@ if [[ "$TEST_NAME" =~ ^[0-9]+-checker- ]]; then
     #
     # TODO: Enable Checker when read barrier support is added to more
     # architectures (b/12687968).
-    if [ "x$ART_USE_READ_BARRIER" = xtrue ]                    \
+    if [ "x$ART_USE_READ_BARRIER" != xfalse ]                  \
        && (([ "x$host_mode" = "xyes" ]                         \
             && ! arch_supports_read_barrier "$host_arch_name") \
            || ([ "x$target_mode" = "xyes" ]                    \
