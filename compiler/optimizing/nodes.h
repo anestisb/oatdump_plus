@@ -24,7 +24,9 @@
 #include "base/arena_bit_vector.h"
 #include "base/arena_containers.h"
 #include "base/arena_object.h"
+#include "base/array_ref.h"
 #include "base/stl_util.h"
+#include "base/transform_array_ref.h"
 #include "dex_file.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "handle.h"
@@ -35,9 +37,7 @@
 #include "mirror/class.h"
 #include "offsets.h"
 #include "primitive.h"
-#include "utils/array_ref.h"
 #include "utils/intrusive_forward_list.h"
-#include "utils/transform_array_ref.h"
 
 namespace art {
 

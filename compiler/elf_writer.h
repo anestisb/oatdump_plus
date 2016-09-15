@@ -22,10 +22,10 @@
 #include <string>
 #include <vector>
 
+#include "base/array_ref.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "os.h"
-#include "utils/array_ref.h"
 
 namespace art {
 

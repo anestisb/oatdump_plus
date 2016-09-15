@@ -21,9 +21,9 @@
 
 #include "arch/instruction_set.h"
 #include "arch/instruction_set_features.h"
+#include "base/array_ref.h"
 #include "base/macros.h"
 #include "method_reference.h"
-#include "utils/array_ref.h"
 
 namespace art {
 

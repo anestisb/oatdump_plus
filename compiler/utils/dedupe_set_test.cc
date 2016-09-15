@@ -20,10 +20,10 @@
 #include <cstdio>
 #include <vector>
 
+#include "base/array_ref.h"
 #include "dedupe_set-inl.h"
 #include "gtest/gtest.h"
 #include "thread-inl.h"
-#include "utils/array_ref.h"
 
 namespace art {
 
