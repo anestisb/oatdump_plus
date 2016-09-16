@@ -67,8 +67,12 @@ $(ART_TEST_TARGET_GTEST_MainStripped_DEX): $(ART_TEST_TARGET_GTEST_Main_DEX)
 
 ART_TEST_GTEST_VerifierDeps_SRC := $(abspath $(wildcard $(LOCAL_PATH)/VerifierDeps/*.smali))
 ART_TEST_HOST_GTEST_VerifierDeps_DEX := $(dir $(ART_TEST_HOST_GTEST_Main_DEX))$(subst Main,VerifierDeps,$(basename $(notdir $(ART_TEST_HOST_GTEST_Main_DEX))))$(suffix $(ART_TEST_HOST_GTEST_Main_DEX))
+ART_TEST_TARGET_GTEST_VerifierDeps_DEX := $(dir $(ART_TEST_TARGET_GTEST_Main_DEX))$(subst Main,VerifierDeps,$(basename $(notdir $(ART_TEST_TARGET_GTEST_Main_DEX))))$(suffix $(ART_TEST_TARGET_GTEST_Main_DEX))
 
 $(ART_TEST_HOST_GTEST_VerifierDeps_DEX): $(ART_TEST_GTEST_VerifierDeps_SRC) $(HOST_OUT_EXECUTABLES)/smali
+	 $(HOST_OUT_EXECUTABLES)/smali --output=$@ $(filter %.smali,$^)
+
+$(ART_TEST_TARGET_GTEST_VerifierDeps_DEX): $(ART_TEST_GTEST_VerifierDeps_SRC) $(HOST_OUT_EXECUTABLES)/smali
 	 $(HOST_OUT_EXECUTABLES)/smali --output=$@ $(filter %.smali,$^)
 
 # Dex file dependencies for each gtest.
@@ -578,5 +582,6 @@ ART_TEST_HOST_GTEST_MainStripped_DEX :=
 ART_TEST_TARGET_GTEST_MainStripped_DEX :=
 ART_TEST_GTEST_VerifierDeps_SRC :=
 ART_TEST_HOST_GTEST_VerifierDeps_DEX :=
+ART_TEST_TARGET_GTEST_VerifierDeps_DEX :=
 GTEST_DEX_DIRECTORIES :=
 LOCAL_PATH :=
