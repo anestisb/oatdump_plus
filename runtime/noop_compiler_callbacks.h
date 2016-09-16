@@ -36,6 +36,8 @@ class NoopCompilerCallbacks FINAL : public CompilerCallbacks {
   // to disable the relocation since both deal with writing out the images directly.
   bool IsRelocationPossible() OVERRIDE { return false; }
 
+  verifier::VerifierDeps* GetVerifierDeps() const OVERRIDE { return nullptr; }
+
  private:
   DISALLOW_COPY_AND_ASSIGN(NoopCompilerCallbacks);
 };
