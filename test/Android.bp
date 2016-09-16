@@ -127,7 +127,7 @@ art_cc_defaults {
     ],
     target: {
         android32: {
-            cflags: ["-DART_TARGET_NATIVETEST_DIR=/data/nativetest32/art"],
+            cflags: ["-DART_TARGET_NATIVETEST_DIR=/data/nativetest/art"],
         },
         android64: {
             cflags: ["-DART_TARGET_NATIVETEST_DIR=/data/nativetest64/art"],
