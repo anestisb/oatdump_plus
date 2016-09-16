@@ -56,7 +56,7 @@ art_cc_binary {
 art_cc_test {
     name: "art_profman_tests",
     defaults: [
-        "art_test_defaults",
+        "art_gtest_defaults",
     ],
     srcs: ["profile_assistant_test.cc"],
 }

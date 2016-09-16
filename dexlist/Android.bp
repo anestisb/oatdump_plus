@@ -23,7 +23,7 @@ art_cc_binary {
 art_cc_test {
     name: "art_dexlist_tests",
     defaults: [
-        "art_test_defaults",
+        "art_gtest_defaults",
     ],
     srcs: ["dexlist_test.cc"],
 }

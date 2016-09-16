@@ -475,7 +475,7 @@ art_cc_library {
 art_cc_test {
     name: "art_runtime_tests",
     defaults: [
-        "art_test_defaults",
+        "art_gtest_defaults",
     ],
     srcs: [
         "arch/arch_test.cc",
@@ -570,7 +570,7 @@ art_cc_test {
 art_cc_test {
     name: "art_runtime_compiler_tests",
     defaults: [
-        "art_test_defaults",
+        "art_gtest_defaults",
     ],
     srcs: [
         "jni_internal_test.cc",
