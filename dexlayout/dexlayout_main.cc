@@ -26,8 +26,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "base/logging.h"
 #include "mem_map.h"
-#include "runtime.h"
 
 namespace art {
 
