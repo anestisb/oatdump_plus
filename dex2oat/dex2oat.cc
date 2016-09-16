@@ -2792,6 +2792,8 @@ static int dex2oat(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+  // Helps debugging on device. Can be used to determine which dalvikvm instance invoked a dex2oat
+  // instance. Used by tools/bisection_search/bisection_search.py.
   VLOG(compiler) << "Running dex2oat (parent PID = " << getppid() << ")";
 
   bool result;
