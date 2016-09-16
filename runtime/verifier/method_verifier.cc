@@ -37,6 +37,7 @@
 #include "indenter.h"
 #include "intern_table.h"
 #include "leb128.h"
+#include "method_resolution_kind.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
@@ -47,6 +48,7 @@
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "utils.h"
+#include "verifier_deps.h"
 #include "handle_scope-inl.h"
 
 namespace art {
@@ -2189,7 +2191,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
             // We really do expect a reference here.
             Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "return-object returns a non-reference type "
                                               << reg_type;
-          } else if (!return_type.IsAssignableFrom(reg_type)) {
+          } else if (!return_type.IsAssignableFrom(reg_type, this)) {
             if (reg_type.IsUnresolvedTypes() || return_type.IsUnresolvedTypes()) {
               Fail(VERIFY_ERROR_NO_CLASS) << " can't resolve returned type '" << return_type
                   << "' or '" << reg_type << "'";
@@ -2198,7 +2200,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
               // Check whether arrays are involved. They will show a valid class status, even
               // if their components are erroneous.
               if (reg_type.IsArrayTypes() && return_type.IsArrayTypes()) {
-                return_type.CanAssignArray(reg_type, reg_types_, class_loader_, &soft_error);
+                return_type.CanAssignArray(reg_type, reg_types_, class_loader_, this, &soft_error);
                 if (soft_error) {
                   Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "array with erroneous component type: "
                         << reg_type << " vs " << return_type;
@@ -2486,7 +2488,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       break;
     case Instruction::THROW: {
       const RegType& res_type = work_line_->GetRegisterType(this, inst->VRegA_11x());
-      if (!reg_types_.JavaLangThrowable(false).IsAssignableFrom(res_type)) {
+      if (!reg_types_.JavaLangThrowable(false).IsAssignableFrom(res_type, this)) {
         if (res_type.IsUninitializedTypes()) {
           Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "thrown exception not initialized";
         } else if (!res_type.IsReferenceTypes()) {
@@ -2639,7 +2641,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
             cast_type.HasClass() &&             // Could be conflict type, make sure it has a class.
             !cast_type.GetClass()->IsInterface() &&
             (orig_type.IsZero() ||
-                orig_type.IsStrictlyAssignableFrom(cast_type.Merge(orig_type, &reg_types_)))) {
+                orig_type.IsStrictlyAssignableFrom(
+                    cast_type.Merge(orig_type, &reg_types_, this), this))) {
           RegisterLine* update_line = RegisterLine::Create(code_item_->registers_size_, this);
           if (inst->Opcode() == Instruction::IF_EQZ) {
             fallthrough_line.reset(update_line);
@@ -3636,8 +3639,13 @@ const RegType& MethodVerifier::ResolveClassAndCheckAccess(uint32_t class_idx) {
     return *result;
   }
   if (klass == nullptr && !result->IsUnresolvedTypes()) {
-    dex_cache_->SetResolvedType(class_idx, result->GetClass());
+    klass = result->GetClass();
+    dex_cache_->SetResolvedType(class_idx, klass);
   }
+
+  // Record result of class resolution attempt.
+  VerifierDeps::MaybeRecordClassResolution(*dex_file_, class_idx, klass);
+
   // Check if access is allowed. Unresolved types use xxxWithAccessCheck to
   // check at runtime if access is allowed and so pass here. If result is
   // primitive, skip the access check.
@@ -3664,7 +3672,7 @@ const RegType& MethodVerifier::GetCaughtExceptionType() {
             common_super = &reg_types_.JavaLangThrowable(false);
           } else {
             const RegType& exception = ResolveClassAndCheckAccess(iterator.GetHandlerTypeIndex());
-            if (!reg_types_.JavaLangThrowable(false).IsAssignableFrom(exception)) {
+            if (!reg_types_.JavaLangThrowable(false).IsAssignableFrom(exception, this)) {
               DCHECK(!exception.IsUninitializedTypes());  // Comes from dex, shouldn't be uninit.
               if (exception.IsUnresolvedTypes()) {
                 // We don't know enough about the type. Fail here and let runtime handle it.
@@ -3679,9 +3687,10 @@ const RegType& MethodVerifier::GetCaughtExceptionType() {
             } else if (common_super->Equals(exception)) {
               // odd case, but nothing to do
             } else {
-              common_super = &common_super->Merge(exception, &reg_types_);
+              common_super = &common_super->Merge(exception, &reg_types_, this);
               if (FailOrAbort(this,
-                              reg_types_.JavaLangThrowable(false).IsAssignableFrom(*common_super),
+                              reg_types_.JavaLangThrowable(false).IsAssignableFrom(
+                                  *common_super, this),
                               "java.lang.Throwable is not assignable-from common_super at ",
                               work_insn_idx_)) {
                 break;
@@ -3701,6 +3710,20 @@ const RegType& MethodVerifier::GetCaughtExceptionType() {
   return *common_super;
 }
 
+inline static MethodResolutionKind GetMethodResolutionKind(
+    MethodType method_type, bool is_interface) {
+  if (method_type == METHOD_DIRECT || method_type == METHOD_STATIC) {
+    return kDirectMethodResolution;
+  } else if (method_type == METHOD_INTERFACE) {
+    return kInterfaceMethodResolution;
+  } else if (method_type == METHOD_SUPER && is_interface) {
+    return kInterfaceMethodResolution;
+  } else {
+    DCHECK(method_type == METHOD_VIRTUAL || method_type == METHOD_SUPER);
+    return kVirtualMethodResolution;
+  }
+}
+
 ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
     uint32_t dex_method_idx, MethodType method_type) {
   const DexFile::MethodId& method_id = dex_file_->GetMethodId(dex_method_idx);
@@ -3718,6 +3741,7 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
   const RegType& referrer = GetDeclaringClass();
   auto* cl = Runtime::Current()->GetClassLinker();
   auto pointer_size = cl->GetImagePointerSize();
+  MethodResolutionKind res_kind = GetMethodResolutionKind(method_type, klass->IsInterface());
 
   ArtMethod* res_method = dex_cache_->GetResolvedMethod(dex_method_idx, pointer_size);
   bool stash_method = false;
@@ -3725,35 +3749,44 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
     const char* name = dex_file_->GetMethodName(method_id);
     const Signature signature = dex_file_->GetMethodSignature(method_id);
 
-    if (method_type == METHOD_DIRECT || method_type == METHOD_STATIC) {
+    if (res_kind == kDirectMethodResolution) {
       res_method = klass->FindDirectMethod(name, signature, pointer_size);
-    } else if (method_type == METHOD_INTERFACE) {
-      res_method = klass->FindInterfaceMethod(name, signature, pointer_size);
-    } else if (method_type == METHOD_SUPER && klass->IsInterface()) {
-      res_method = klass->FindInterfaceMethod(name, signature, pointer_size);
-    } else {
-      DCHECK(method_type == METHOD_VIRTUAL || method_type == METHOD_SUPER);
+    } else if (res_kind == kVirtualMethodResolution) {
       res_method = klass->FindVirtualMethod(name, signature, pointer_size);
+    } else {
+      DCHECK_EQ(res_kind, kInterfaceMethodResolution);
+      res_method = klass->FindInterfaceMethod(name, signature, pointer_size);
     }
+
     if (res_method != nullptr) {
       stash_method = true;
     } else {
       // If a virtual or interface method wasn't found with the expected type, look in
       // the direct methods. This can happen when the wrong invoke type is used or when
       // a class has changed, and will be flagged as an error in later checks.
-      if (method_type == METHOD_INTERFACE ||
-          method_type == METHOD_VIRTUAL ||
-          method_type == METHOD_SUPER) {
+      // Note that in this case, we do not put the resolved method in the Dex cache
+      // because it was not discovered using the expected type of method resolution.
+      if (res_kind != kDirectMethodResolution) {
+        // Record result of the initial resolution attempt.
+        VerifierDeps::MaybeRecordMethodResolution(*dex_file_, dex_method_idx, res_kind, nullptr);
+        // Change resolution type to 'direct' and try to resolve again.
+        res_kind = kDirectMethodResolution;
         res_method = klass->FindDirectMethod(name, signature, pointer_size);
-      }
-      if (res_method == nullptr) {
-        Fail(VERIFY_ERROR_NO_METHOD) << "couldn't find method "
-                                     << PrettyDescriptor(klass) << "." << name
-                                     << " " << signature;
-        return nullptr;
       }
     }
   }
+
+  // Record result of method resolution attempt.
+  VerifierDeps::MaybeRecordMethodResolution(*dex_file_, dex_method_idx, res_kind, res_method);
+
+  if (res_method == nullptr) {
+    Fail(VERIFY_ERROR_NO_METHOD) << "couldn't find method "
+                                 << PrettyDescriptor(klass) << "."
+                                 << dex_file_->GetMethodName(method_id) << " "
+                                 << dex_file_->GetMethodSignature(method_id);
+    return nullptr;
+  }
+
   // Make sure calls to constructors are "direct". There are additional restrictions but we don't
   // enforce them here.
   if (res_method->IsConstructor() && method_type != METHOD_DIRECT) {
@@ -3897,7 +3930,7 @@ ArtMethod* MethodVerifier::VerifyInvocationArgsFromIterator(
             dex_file_->StringByTypeIdx(class_idx),
             false);
       }
-      if (!res_method_class->IsAssignableFrom(adjusted_type)) {
+      if (!res_method_class->IsAssignableFrom(adjusted_type, this)) {
         Fail(adjusted_type.IsUnresolvedTypes()
                  ? VERIFY_ERROR_NO_CLASS
                  : VERIFY_ERROR_BAD_CLASS_SOFT)
@@ -4029,12 +4062,15 @@ ArtMethod* MethodVerifier::VerifyInvocationArgs(
   // has a vtable entry for the target method. Or the target is on a interface.
   if (method_type == METHOD_SUPER) {
     uint16_t class_idx = dex_file_->GetMethodId(method_idx).class_idx_;
-    mirror::Class* reference_class = dex_cache_->GetResolvedType(class_idx);
-    if (reference_class == nullptr) {
+    const RegType& reference_type = reg_types_.FromDescriptor(
+        GetClassLoader(),
+        dex_file_->StringByTypeIdx(class_idx),
+        false);
+    if (reference_type.IsUnresolvedTypes()) {
       Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "Unable to find referenced class from invoke-super";
       return nullptr;
     }
-    if (reference_class->IsInterface()) {
+    if (reference_type.GetClass()->IsInterface()) {
       // TODO Can we verify anything else.
       if (class_idx == class_def_.class_idx_) {
         Fail(VERIFY_ERROR_CLASS_CHANGE) << "Cannot invoke-super on self as interface";
@@ -4046,12 +4082,12 @@ ArtMethod* MethodVerifier::VerifyInvocationArgs(
         Fail(VERIFY_ERROR_NO_CLASS) << "Unable to resolve the full class of 'this' used in an"
                                     << "interface invoke-super";
         return nullptr;
-      } else if (!reference_class->IsAssignableFrom(GetDeclaringClass().GetClass())) {
+      } else if (!reference_type.IsStrictlyAssignableFrom(GetDeclaringClass(), this)) {
         Fail(VERIFY_ERROR_CLASS_CHANGE)
             << "invoke-super in " << PrettyClass(GetDeclaringClass().GetClass()) << " in method "
             << PrettyMethod(dex_method_idx_, *dex_file_) << " to method "
             << PrettyMethod(method_idx, *dex_file_) << " references "
-            << "non-super-interface type " << PrettyClass(reference_class);
+            << "non-super-interface type " << PrettyClass(reference_type.GetClass());
         return nullptr;
       }
     } else {
@@ -4062,7 +4098,7 @@ ArtMethod* MethodVerifier::VerifyInvocationArgs(
                                     << " to super " << PrettyMethod(res_method);
         return nullptr;
       }
-      if (!reference_class->IsAssignableFrom(GetDeclaringClass().GetClass()) ||
+      if (!reference_type.IsStrictlyAssignableFrom(GetDeclaringClass(), this) ||
           (res_method->GetMethodIndex() >= super.GetClass()->GetVTableLength())) {
         Fail(VERIFY_ERROR_NO_METHOD) << "invalid invoke-super from "
                                     << PrettyMethod(dex_method_idx_, *dex_file_)
@@ -4177,7 +4213,7 @@ ArtMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instruction* inst,
     std::string temp;
     const RegType& res_method_class =
         FromClass(klass->GetDescriptor(&temp), klass, klass->CannotBeAssignedFromOtherTypes());
-    if (!res_method_class.IsAssignableFrom(actual_arg_type)) {
+    if (!res_method_class.IsAssignableFrom(actual_arg_type, this)) {
       Fail(actual_arg_type.IsUninitializedTypes()    // Just overcautious - should have never
                ? VERIFY_ERROR_BAD_CLASS_HARD         // quickened this.
                : actual_arg_type.IsUnresolvedTypes()
@@ -4466,8 +4502,11 @@ ArtField* MethodVerifier::GetStaticField(int field_idx) {
     return nullptr;  // Can't resolve Class so no more to do here, will do checking at runtime.
   }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  ArtField* field = class_linker->ResolveFieldJLS(*dex_file_, field_idx, dex_cache_,
-                                                  class_loader_);
+  ArtField* field = class_linker->ResolveFieldJLS(*dex_file_, field_idx, dex_cache_, class_loader_);
+
+  // Record result of the field resolution attempt.
+  VerifierDeps::MaybeRecordFieldResolution(*dex_file_, field_idx, field);
+
   if (field == nullptr) {
     VLOG(verifier) << "Unable to resolve static field " << field_idx << " ("
               << dex_file_->GetFieldName(field_id) << ") in "
@@ -4501,8 +4540,11 @@ ArtField* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_id
     return nullptr;  // Can't resolve Class so no more to do here
   }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  ArtField* field = class_linker->ResolveFieldJLS(*dex_file_, field_idx, dex_cache_,
-                                                  class_loader_);
+  ArtField* field = class_linker->ResolveFieldJLS(*dex_file_, field_idx, dex_cache_, class_loader_);
+
+  // Record result of the field resolution attempt.
+  VerifierDeps::MaybeRecordFieldResolution(*dex_file_, field_idx, field);
+
   if (field == nullptr) {
     VLOG(verifier) << "Unable to resolve instance field " << field_idx << " ("
               << dex_file_->GetFieldName(field_id) << ") in "
@@ -4536,7 +4578,7 @@ ArtField* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_id
                                           << " of " << PrettyMethod(dex_method_idx_, *dex_file_);
         return nullptr;
       }
-    } else if (!field_klass.IsAssignableFrom(obj_type)) {
+    } else if (!field_klass.IsAssignableFrom(obj_type, this)) {
       // Trying to access C1.field1 using reference of type C2, which is neither C1 or a sub-class
       // of C1. For resolution to occur the declared class of the field must be compatible with
       // obj_type, we've discovered this wasn't so, so report the field didn't exist.
@@ -4643,7 +4685,7 @@ void MethodVerifier::VerifyISFieldAccess(const Instruction* inst, const RegType&
     if (is_primitive) {
       VerifyPrimitivePut(*field_type, insn_type, vregA);
     } else {
-      if (!insn_type.IsAssignableFrom(*field_type)) {
+      if (!insn_type.IsAssignableFrom(*field_type, this)) {
         // If the field type is not a reference, this is a global failure rather than
         // a class change failure as the instructions and the descriptors for the type
         // should have been consistent within the same file at compile time.
@@ -4675,7 +4717,7 @@ void MethodVerifier::VerifyISFieldAccess(const Instruction* inst, const RegType&
         return;
       }
     } else {
-      if (!insn_type.IsAssignableFrom(*field_type)) {
+      if (!insn_type.IsAssignableFrom(*field_type, this)) {
         // If the field type is not a reference, this is a global failure rather than
         // a class change failure as the instructions and the descriptors for the type
         // should have been consistent within the same file at compile time.
@@ -4806,7 +4848,7 @@ void MethodVerifier::VerifyQuickFieldAccess(const Instruction* inst, const RegTy
         return;
       }
     } else {
-      if (!insn_type.IsAssignableFrom(*field_type)) {
+      if (!insn_type.IsAssignableFrom(*field_type, this)) {
         Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "expected field " << PrettyField(field)
                                           << " to be compatible with type '" << insn_type
                                           << "' but found type '" << *field_type
@@ -4832,7 +4874,7 @@ void MethodVerifier::VerifyQuickFieldAccess(const Instruction* inst, const RegTy
         return;
       }
     } else {
-      if (!insn_type.IsAssignableFrom(*field_type)) {
+      if (!insn_type.IsAssignableFrom(*field_type, this)) {
         Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "expected field " << PrettyField(field)
                                           << " to be compatible with type '" << insn_type
                                           << "' but found type '" << *field_type

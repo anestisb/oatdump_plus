@@ -342,7 +342,9 @@ void RegTypeCache::CreatePrimitiveAndSmallConstantTypes() {
   }
 }
 
-const RegType& RegTypeCache::FromUnresolvedMerge(const RegType& left, const RegType& right) {
+const RegType& RegTypeCache::FromUnresolvedMerge(const RegType& left,
+                                                 const RegType& right,
+                                                 MethodVerifier* verifier) {
   ArenaBitVector types(&arena_,
                        kDefaultArenaBitVectorBytes * kBitsPerByte,  // Allocate at least 8 bytes.
                        true);                                       // Is expandable.
@@ -383,7 +385,7 @@ const RegType& RegTypeCache::FromUnresolvedMerge(const RegType& left, const RegT
   }
 
   // Merge the resolved parts. Left and right might be equal, so use SafeMerge.
-  const RegType& resolved_parts_merged = left_resolved->SafeMerge(*right_resolved, this);
+  const RegType& resolved_parts_merged = left_resolved->SafeMerge(*right_resolved, this, verifier);
   // If we get a conflict here, the merge result is a conflict, not an unresolved merge type.
   if (resolved_parts_merged.IsConflict()) {
     return Conflict();
