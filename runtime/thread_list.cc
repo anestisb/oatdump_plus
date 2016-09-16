@@ -284,7 +284,7 @@ static void ThreadSuspendSleep(useconds_t delay_us) {
   }
 }
 
-size_t ThreadList::RunCheckpoint(Closure* checkpoint_function) {
+size_t ThreadList::RunCheckpoint(Closure* checkpoint_function, Closure* callback) {
   Thread* self = Thread::Current();
   Locks::mutator_lock_->AssertNotExclusiveHeld(self);
   Locks::thread_list_lock_->AssertNotHeld(self);
@@ -317,6 +317,10 @@ size_t ThreadList::RunCheckpoint(Closure* checkpoint_function) {
           }
         }
       }
+    }
+    // Run the callback to be called inside this critical section.
+    if (callback != nullptr) {
+      callback->Run(self);
     }
   }
 
