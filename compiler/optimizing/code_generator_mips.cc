@@ -2252,6 +2252,11 @@ void LocationsBuilderMIPS::VisitCompare(HCompare* compare) {
     case Primitive::kPrimShort:
     case Primitive::kPrimChar:
     case Primitive::kPrimInt:
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      break;
+
     case Primitive::kPrimLong:
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, Location::RequiresRegister());
@@ -2820,19 +2825,36 @@ void InstructionCodeGeneratorMIPS::GenerateIntCompare(IfCondition cond,
   switch (cond) {
     case kCondEQ:
     case kCondNE:
-      if (use_imm && IsUint<16>(rhs_imm)) {
-        __ Xori(dst, lhs, rhs_imm);
-      } else {
-        if (use_imm) {
-          rhs_reg = TMP;
-          __ LoadConst32(rhs_reg, rhs_imm);
+      if (use_imm && IsInt<16>(-rhs_imm)) {
+        if (rhs_imm == 0) {
+          if (cond == kCondEQ) {
+            __ Sltiu(dst, lhs, 1);
+          } else {
+            __ Sltu(dst, ZERO, lhs);
+          }
+        } else {
+          __ Addiu(dst, lhs, -rhs_imm);
+          if (cond == kCondEQ) {
+            __ Sltiu(dst, dst, 1);
+          } else {
+            __ Sltu(dst, ZERO, dst);
+          }
         }
-        __ Xor(dst, lhs, rhs_reg);
-      }
-      if (cond == kCondEQ) {
-        __ Sltiu(dst, dst, 1);
       } else {
-        __ Sltu(dst, ZERO, dst);
+        if (use_imm && IsUint<16>(rhs_imm)) {
+          __ Xori(dst, lhs, rhs_imm);
+        } else {
+          if (use_imm) {
+            rhs_reg = TMP;
+            __ LoadConst32(rhs_reg, rhs_imm);
+          }
+          __ Xor(dst, lhs, rhs_reg);
+        }
+        if (cond == kCondEQ) {
+          __ Sltiu(dst, dst, 1);
+        } else {
+          __ Sltu(dst, ZERO, dst);
+        }
       }
       break;
 
@@ -2938,7 +2960,7 @@ void InstructionCodeGeneratorMIPS::GenerateIntCompareAndBranch(IfCondition cond,
   Register lhs = locations->InAt(0).AsRegister<Register>();
   Location rhs_location = locations->InAt(1);
   Register rhs_reg = ZERO;
-  int32_t rhs_imm = 0;
+  int64_t rhs_imm = 0;
   bool use_imm = rhs_location.IsConstant();
   if (use_imm) {
     rhs_imm = CodeGenerator::GetInt32ValueOf(rhs_location.GetConstant());
@@ -2975,42 +2997,136 @@ void InstructionCodeGeneratorMIPS::GenerateIntCompareAndBranch(IfCondition cond,
         break;
     }
   } else {
-    if (use_imm) {
-      // TODO: more efficient comparison with 16-bit constants without loading them into TMP.
-      rhs_reg = TMP;
-      __ LoadConst32(rhs_reg, rhs_imm);
-    }
-    switch (cond) {
-      case kCondEQ:
-        __ Beq(lhs, rhs_reg, label);
-        break;
-      case kCondNE:
-        __ Bne(lhs, rhs_reg, label);
-        break;
-      case kCondLT:
-        __ Blt(lhs, rhs_reg, label);
-        break;
-      case kCondGE:
-        __ Bge(lhs, rhs_reg, label);
-        break;
-      case kCondLE:
-        __ Bge(rhs_reg, lhs, label);
-        break;
-      case kCondGT:
-        __ Blt(rhs_reg, lhs, label);
-        break;
-      case kCondB:
-        __ Bltu(lhs, rhs_reg, label);
-        break;
-      case kCondAE:
-        __ Bgeu(lhs, rhs_reg, label);
-        break;
-      case kCondBE:
-        __ Bgeu(rhs_reg, lhs, label);
-        break;
-      case kCondA:
-        __ Bltu(rhs_reg, lhs, label);
-        break;
+    bool isR6 = codegen_->GetInstructionSetFeatures().IsR6();
+    if (isR6 || !use_imm) {
+      if (use_imm) {
+        rhs_reg = TMP;
+        __ LoadConst32(rhs_reg, rhs_imm);
+      }
+      switch (cond) {
+        case kCondEQ:
+          __ Beq(lhs, rhs_reg, label);
+          break;
+        case kCondNE:
+          __ Bne(lhs, rhs_reg, label);
+          break;
+        case kCondLT:
+          __ Blt(lhs, rhs_reg, label);
+          break;
+        case kCondGE:
+          __ Bge(lhs, rhs_reg, label);
+          break;
+        case kCondLE:
+          __ Bge(rhs_reg, lhs, label);
+          break;
+        case kCondGT:
+          __ Blt(rhs_reg, lhs, label);
+          break;
+        case kCondB:
+          __ Bltu(lhs, rhs_reg, label);
+          break;
+        case kCondAE:
+          __ Bgeu(lhs, rhs_reg, label);
+          break;
+        case kCondBE:
+          __ Bgeu(rhs_reg, lhs, label);
+          break;
+        case kCondA:
+          __ Bltu(rhs_reg, lhs, label);
+          break;
+      }
+    } else {
+      // Special cases for more efficient comparison with constants on R2.
+      switch (cond) {
+        case kCondEQ:
+          __ LoadConst32(TMP, rhs_imm);
+          __ Beq(lhs, TMP, label);
+          break;
+        case kCondNE:
+          __ LoadConst32(TMP, rhs_imm);
+          __ Bne(lhs, TMP, label);
+          break;
+        case kCondLT:
+          if (IsInt<16>(rhs_imm)) {
+            __ Slti(TMP, lhs, rhs_imm);
+            __ Bnez(TMP, label);
+          } else {
+            __ LoadConst32(TMP, rhs_imm);
+            __ Blt(lhs, TMP, label);
+          }
+          break;
+        case kCondGE:
+          if (IsInt<16>(rhs_imm)) {
+            __ Slti(TMP, lhs, rhs_imm);
+            __ Beqz(TMP, label);
+          } else {
+            __ LoadConst32(TMP, rhs_imm);
+            __ Bge(lhs, TMP, label);
+          }
+          break;
+        case kCondLE:
+          if (IsInt<16>(rhs_imm + 1)) {
+            // Simulate lhs <= rhs via lhs < rhs + 1.
+            __ Slti(TMP, lhs, rhs_imm + 1);
+            __ Bnez(TMP, label);
+          } else {
+            __ LoadConst32(TMP, rhs_imm);
+            __ Bge(TMP, lhs, label);
+          }
+          break;
+        case kCondGT:
+          if (IsInt<16>(rhs_imm + 1)) {
+            // Simulate lhs > rhs via !(lhs < rhs + 1).
+            __ Slti(TMP, lhs, rhs_imm + 1);
+            __ Beqz(TMP, label);
+          } else {
+            __ LoadConst32(TMP, rhs_imm);
+            __ Blt(TMP, lhs, label);
+          }
+          break;
+        case kCondB:
+          if (IsInt<16>(rhs_imm)) {
+            __ Sltiu(TMP, lhs, rhs_imm);
+            __ Bnez(TMP, label);
+          } else {
+            __ LoadConst32(TMP, rhs_imm);
+            __ Bltu(lhs, TMP, label);
+          }
+          break;
+        case kCondAE:
+          if (IsInt<16>(rhs_imm)) {
+            __ Sltiu(TMP, lhs, rhs_imm);
+            __ Beqz(TMP, label);
+          } else {
+            __ LoadConst32(TMP, rhs_imm);
+            __ Bgeu(lhs, TMP, label);
+          }
+          break;
+        case kCondBE:
+          if ((rhs_imm != -1) && IsInt<16>(rhs_imm + 1)) {
+            // Simulate lhs <= rhs via lhs < rhs + 1.
+            // Note that this only works if rhs + 1 does not overflow
+            // to 0, hence the check above.
+            __ Sltiu(TMP, lhs, rhs_imm + 1);
+            __ Bnez(TMP, label);
+          } else {
+            __ LoadConst32(TMP, rhs_imm);
+            __ Bgeu(TMP, lhs, label);
+          }
+          break;
+        case kCondA:
+          if ((rhs_imm != -1) && IsInt<16>(rhs_imm + 1)) {
+            // Simulate lhs > rhs via !(lhs < rhs + 1).
+            // Note that this only works if rhs + 1 does not overflow
+            // to 0, hence the check above.
+            __ Sltiu(TMP, lhs, rhs_imm + 1);
+            __ Beqz(TMP, label);
+          } else {
+            __ LoadConst32(TMP, rhs_imm);
+            __ Bltu(TMP, lhs, label);
+          }
+          break;
+      }
     }
   }
 }
