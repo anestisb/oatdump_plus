@@ -639,11 +639,7 @@ bool Runtime::Start() {
 
   system_class_loader_ = CreateSystemClassLoader(this);
 
-  if (is_zygote_) {
-    if (!InitZygote()) {
-      return false;
-    }
-  } else {
+  if (!is_zygote_) {
     if (is_native_bridge_loaded_) {
       PreInitializeNativeBridge(".");
     }
@@ -686,45 +682,6 @@ void Runtime::EndThreadBirth() REQUIRES(Locks::runtime_shutdown_lock_) {
   if (shutting_down_started_ && threads_being_born_ == 0) {
     shutdown_cond_->Broadcast(Thread::Current());
   }
-}
-
-// Do zygote-mode-only initialization.
-bool Runtime::InitZygote() {
-#ifdef __linux__
-  // zygote goes into its own process group
-  setpgid(0, 0);
-
-  // See storage config details at http://source.android.com/tech/storage/
-  // Create private mount namespace shared by all children
-  if (unshare(CLONE_NEWNS) == -1) {
-    PLOG(ERROR) << "Failed to unshare()";
-    return false;
-  }
-
-  // Mark rootfs as being a slave so that changes from default
-  // namespace only flow into our children.
-  if (mount("rootfs", "/", nullptr, (MS_SLAVE | MS_REC), nullptr) == -1) {
-    PLOG(ERROR) << "Failed to mount() rootfs as MS_SLAVE";
-    return false;
-  }
-
-  // Create a staging tmpfs that is shared by our children; they will
-  // bind mount storage into their respective private namespaces, which
-  // are isolated from each other.
-  const char* target_base = getenv("EMULATED_STORAGE_TARGET");
-  if (target_base != nullptr) {
-    if (mount("tmpfs", target_base, "tmpfs", MS_NOSUID | MS_NODEV,
-              "uid=0,gid=1028,mode=0751") == -1) {
-      PLOG(ERROR) << "Failed to mount tmpfs to " << target_base;
-      return false;
-    }
-  }
-
-  return true;
-#else
-  UNIMPLEMENTED(FATAL);
-  return false;
-#endif
 }
 
 void Runtime::InitNonZygoteOrPostFork(
