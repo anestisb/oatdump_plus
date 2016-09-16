@@ -69,6 +69,9 @@ art_cc_defaults {
                 "-Wno-missing-noreturn",
             ],
         },
+        darwin: {
+            enabled: false,
+        },
         android: {
             ldflags: [
                 // Allow jni_compiler_test to find Java_MyClassNatives_bar
@@ -148,6 +151,9 @@ art_cc_defaults {
                 "-Wno-missing-noreturn",
             ],
         },
+        darwin: {
+            enabled: false,
+        },
     },
 }
 
@@ -174,6 +180,9 @@ art_cc_library {
                 "-ldl",
                 "-lpthread",
             ],
+        },
+        darwin: {
+            enabled: false,
         },
     },
 }
