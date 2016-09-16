@@ -59,11 +59,21 @@ class VerifierDepsTest : public CommonRuntimeTest {
     StackHandleScope<1> hs(Thread::Current());
     Handle<mirror::ClassLoader> class_loader_handle(
         hs.NewHandle(soa->Decode<mirror::ClassLoader*>(class_loader_)));
-    mirror::Class* result = class_linker_->FindClass(Thread::Current(),
-                                                     name.c_str(),
-                                                     class_loader_handle);
-    DCHECK(result != nullptr) << name;
-    return result;
+    mirror::Class* klass = class_linker_->FindClass(Thread::Current(),
+                                                    name.c_str(),
+                                                    class_loader_handle);
+    if (klass == nullptr) {
+      DCHECK(Thread::Current()->IsExceptionPending());
+      Thread::Current()->ClearException();
+    }
+    return klass;
+  }
+
+  void SetVerifierDeps(const std::vector<const DexFile*>& dex_files) {
+    verifier_deps_.reset(new verifier::VerifierDeps(dex_files));
+    VerifierDepsCompilerCallbacks* callbacks =
+        reinterpret_cast<VerifierDepsCompilerCallbacks*>(callbacks_.get());
+    callbacks->SetVerifierDeps(verifier_deps_.get());
   }
 
   void LoadDexFile(ScopedObjectAccess* soa) REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -72,16 +82,13 @@ class VerifierDepsTest : public CommonRuntimeTest {
     CHECK_EQ(dex_files.size(), 1u);
     dex_file_ = dex_files.front();
 
+    SetVerifierDeps(dex_files);
+
     mirror::ClassLoader* loader = soa->Decode<mirror::ClassLoader*>(class_loader_);
     class_linker_->RegisterDexFile(*dex_file_, loader);
 
     klass_Main_ = FindClassByName("LMain;", soa);
     CHECK(klass_Main_ != nullptr);
-
-    verifier_deps_.reset(new verifier::VerifierDeps(dex_files));
-    VerifierDepsCompilerCallbacks* callbacks =
-        reinterpret_cast<VerifierDepsCompilerCallbacks*>(callbacks_.get());
-    callbacks->SetVerifierDeps(verifier_deps_.get());
   }
 
   bool VerifyMethod(const std::string& method_name) {
@@ -138,15 +145,40 @@ class VerifierDepsTest : public CommonRuntimeTest {
     return !verifier.HasFailures();
   }
 
+  void VerifyDexFile() {
+    std::string error_msg;
+    ScopedObjectAccess soa(Thread::Current());
+
+    LoadDexFile(&soa);
+    SetVerifierDeps({ dex_file_ });
+
+    for (size_t i = 0; i < dex_file_->NumClassDefs(); i++) {
+      const char* descriptor = dex_file_->GetClassDescriptor(dex_file_->GetClassDef(i));
+      mirror::Class* klass = FindClassByName(descriptor, &soa);
+      if (klass != nullptr) {
+        MethodVerifier::VerifyClass(Thread::Current(),
+                                    klass,
+                                    nullptr,
+                                    true,
+                                    HardFailLogMode::kLogWarning,
+                                    &error_msg);
+      }
+    }
+  }
+
   bool TestAssignabilityRecording(const std::string& dst,
                                   const std::string& src,
                                   bool is_strict,
                                   bool is_assignable) {
     ScopedObjectAccess soa(Thread::Current());
     LoadDexFile(&soa);
+    mirror::Class* klass_dst = FindClassByName(dst, &soa);
+    DCHECK(klass_dst != nullptr);
+    mirror::Class* klass_src = FindClassByName(src, &soa);
+    DCHECK(klass_src != nullptr);
     verifier_deps_->AddAssignability(*dex_file_,
-                                     FindClassByName(dst, &soa),
-                                     FindClassByName(src, &soa),
+                                     klass_dst,
+                                     klass_src,
                                      is_strict,
                                      is_assignable);
     return true;
@@ -314,6 +346,34 @@ class VerifierDepsTest : public CommonRuntimeTest {
       }
     }
     return false;
+  }
+
+  size_t NumberOfCompiledDexFiles() {
+    MutexLock mu(Thread::Current(), *Locks::verifier_deps_lock_);
+    return verifier_deps_->dex_deps_.size();
+  }
+
+  size_t HasEachKindOfRecord() {
+    MutexLock mu(Thread::Current(), *Locks::verifier_deps_lock_);
+
+    bool has_strings = false;
+    bool has_assignability = false;
+    bool has_classes = false;
+    bool has_fields = false;
+    bool has_methods = false;
+
+    for (auto& entry : verifier_deps_->dex_deps_) {
+      has_strings |= !entry.second->strings_.empty();
+      has_assignability |= !entry.second->assignable_types_.empty();
+      has_assignability |= !entry.second->unassignable_types_.empty();
+      has_classes |= !entry.second->classes_.empty();
+      has_fields |= !entry.second->fields_.empty();
+      has_methods |= !entry.second->direct_methods_.empty();
+      has_methods |= !entry.second->virtual_methods_.empty();
+      has_methods |= !entry.second->interface_methods_.empty();
+    }
+
+    return has_strings && has_assignability && has_classes && has_fields && has_methods;
   }
 
   std::unique_ptr<verifier::VerifierDeps> verifier_deps_;
@@ -980,6 +1040,20 @@ TEST_F(VerifierDepsTest, InvokeSuper_ThisNotAssignable) {
   ASSERT_TRUE(HasAssignable("Ljava/lang/Integer;", "LMain;", false));
   ASSERT_TRUE(HasMethod(
       "virtual", "Ljava/lang/Integer;", "intValue", "()I", true, "public", "Ljava/lang/Integer;"));
+}
+
+TEST_F(VerifierDepsTest, EncodeDecode) {
+  VerifyDexFile();
+
+  ASSERT_EQ(1u, NumberOfCompiledDexFiles());
+  ASSERT_TRUE(HasEachKindOfRecord());
+
+  std::vector<uint8_t> buffer;
+  verifier_deps_->Encode(&buffer);
+  ASSERT_FALSE(buffer.empty());
+
+  VerifierDeps decoded_deps({ dex_file_ }, ArrayRef<uint8_t>(buffer));
+  ASSERT_TRUE(verifier_deps_->Equals(decoded_deps));
 }
 
 }  // namespace verifier
