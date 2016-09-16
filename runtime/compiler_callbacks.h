@@ -25,6 +25,7 @@ namespace art {
 namespace verifier {
 
 class MethodVerifier;
+class VerifierDeps;
 
 }  // namespace verifier
 
@@ -44,6 +45,8 @@ class CompilerCallbacks {
   // Return true if we should attempt to relocate to a random base address if we have not already
   // done so. Return false if relocating in this way would be problematic.
   virtual bool IsRelocationPossible() = 0;
+
+  virtual verifier::VerifierDeps* GetVerifierDeps() const = 0;
 
   bool IsBootImage() {
     return mode_ == CallbackMode::kCompileBootImage;

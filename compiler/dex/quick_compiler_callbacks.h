@@ -29,8 +29,10 @@ class QuickCompilerCallbacks FINAL : public CompilerCallbacks {
     QuickCompilerCallbacks(VerificationResults* verification_results,
                            DexFileToMethodInlinerMap* method_inliner_map,
                            CompilerCallbacks::CallbackMode mode)
-        : CompilerCallbacks(mode), verification_results_(verification_results),
-          method_inliner_map_(method_inliner_map) {
+        : CompilerCallbacks(mode),
+          verification_results_(verification_results),
+          method_inliner_map_(method_inliner_map),
+          verifier_deps_(nullptr) {
       CHECK(verification_results != nullptr);
       CHECK(method_inliner_map != nullptr);
     }
@@ -47,9 +49,18 @@ class QuickCompilerCallbacks FINAL : public CompilerCallbacks {
       return true;
     }
 
+    verifier::VerifierDeps* GetVerifierDeps() const OVERRIDE {
+      return verifier_deps_;
+    }
+
+    void SetVerifierDeps(verifier::VerifierDeps* deps) {
+      verifier_deps_ = deps;
+    }
+
   private:
     VerificationResults* const verification_results_;
     DexFileToMethodInlinerMap* const method_inliner_map_;
+    verifier::VerifierDeps* verifier_deps_;
 };
 
 }  // namespace art

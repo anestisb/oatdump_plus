@@ -43,7 +43,9 @@ class ScopedArenaAllocator;
 
 namespace verifier {
 
+class MethodVerifier;
 class RegTypeCache;
+
 /*
  * RegType holds information about the "type" of data held in a register.
  */
@@ -210,7 +212,7 @@ class RegType {
   // Note: Object and interface types may always be assigned to one another, see
   // comment on
   // ClassJoin.
-  bool IsAssignableFrom(const RegType& src) const
+  bool IsAssignableFrom(const RegType& src, MethodVerifier* verifier) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Can this array type potentially be assigned by src.
@@ -220,14 +222,17 @@ class RegType {
   // will be set to true iff the assignment test failure should be treated as a soft-error, i.e.,
   // when both array types have the same 'depth' and the 'final' component types may be assignable
   // (both are reference types).
-  bool CanAssignArray(const RegType& src, RegTypeCache& reg_types,
-                      Handle<mirror::ClassLoader> class_loader, bool* soft_error) const
+  bool CanAssignArray(const RegType& src,
+                      RegTypeCache& reg_types,
+                      Handle<mirror::ClassLoader> class_loader,
+                      MethodVerifier* verifier,
+                      bool* soft_error) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Can this type be assigned by src? Variant of IsAssignableFrom that doesn't
   // allow assignment to
   // an interface from an Object.
-  bool IsStrictlyAssignableFrom(const RegType& src) const
+  bool IsStrictlyAssignableFrom(const RegType& src, MethodVerifier* verifier) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Are these RegTypes the same?
@@ -235,35 +240,20 @@ class RegType {
 
   // Compute the merge of this register from one edge (path) with incoming_type
   // from another.
-  const RegType& Merge(const RegType& incoming_type, RegTypeCache* reg_types) const
+  const RegType& Merge(const RegType& incoming_type,
+                       RegTypeCache* reg_types,
+                       MethodVerifier* verifier) const
       REQUIRES_SHARED(Locks::mutator_lock_);
   // Same as above, but also handles the case where incoming_type == this.
-  const RegType& SafeMerge(const RegType& incoming_type, RegTypeCache* reg_types) const
+  const RegType& SafeMerge(const RegType& incoming_type,
+                           RegTypeCache* reg_types,
+                           MethodVerifier* verifier) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     if (Equals(incoming_type)) {
       return *this;
     }
-    return Merge(incoming_type, reg_types);
+    return Merge(incoming_type, reg_types, verifier);
   }
-
-  /*
-   * A basic Join operation on classes. For a pair of types S and T the Join, written S v T = J, is
-   * S <: J, T <: J and for-all U such that S <: U, T <: U then J <: U. That is J is the parent of
-   * S and T such that there isn't a parent of both S and T that isn't also the parent of J (ie J
-   * is the deepest (lowest upper bound) parent of S and T).
-   *
-   * This operation applies for regular classes and arrays, however, for interface types there
-   * needn't be a partial ordering on the types. We could solve the problem of a lack of a partial
-   * order by introducing sets of types, however, the only operation permissible on an interface is
-   * invoke-interface. In the tradition of Java verifiers [1] we defer the verification of interface
-   * types until an invoke-interface call on the interface typed reference at runtime and allow
-   * the perversion of Object being assignable to an interface type (note, however, that we don't
-   * allow assignment of Object or Interface to any concrete class and are therefore type safe).
-   *
-   * [1] Java bytecode verification: algorithms and formalizations, Xavier Leroy
-   */
-  static mirror::Class* ClassJoin(mirror::Class* s, mirror::Class* t)
-      REQUIRES_SHARED(Locks::mutator_lock_);
 
   virtual ~RegType() {}
 
@@ -298,7 +288,29 @@ class RegType {
   friend class RegTypeCache;
 
  private:
-  static bool AssignableFrom(const RegType& lhs, const RegType& rhs, bool strict)
+  /*
+   * A basic Join operation on classes. For a pair of types S and T the Join, written S v T = J, is
+   * S <: J, T <: J and for-all U such that S <: U, T <: U then J <: U. That is J is the parent of
+   * S and T such that there isn't a parent of both S and T that isn't also the parent of J (ie J
+   * is the deepest (lowest upper bound) parent of S and T).
+   *
+   * This operation applies for regular classes and arrays, however, for interface types there
+   * needn't be a partial ordering on the types. We could solve the problem of a lack of a partial
+   * order by introducing sets of types, however, the only operation permissible on an interface is
+   * invoke-interface. In the tradition of Java verifiers [1] we defer the verification of interface
+   * types until an invoke-interface call on the interface typed reference at runtime and allow
+   * the perversion of Object being assignable to an interface type (note, however, that we don't
+   * allow assignment of Object or Interface to any concrete class and are therefore type safe).
+   *
+   * [1] Java bytecode verification: algorithms and formalizations, Xavier Leroy
+   */
+  static mirror::Class* ClassJoin(mirror::Class* s, mirror::Class* t)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  static bool AssignableFrom(const RegType& lhs,
+                             const RegType& rhs,
+                             bool strict,
+                             MethodVerifier* verifier)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   DISALLOW_COPY_AND_ASSIGN(RegType);

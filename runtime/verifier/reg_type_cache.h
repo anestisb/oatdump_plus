@@ -75,7 +75,9 @@ class RegTypeCache {
       REQUIRES_SHARED(Locks::mutator_lock_);
   const RegType& FromDescriptor(mirror::ClassLoader* loader, const char* descriptor, bool precise)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  const RegType& FromUnresolvedMerge(const RegType& left, const RegType& right)
+  const RegType& FromUnresolvedMerge(const RegType& left,
+                                     const RegType& right,
+                                     MethodVerifier* verifier)
       REQUIRES_SHARED(Locks::mutator_lock_);
   const RegType& FromUnresolvedSuperClass(const RegType& child)
       REQUIRES_SHARED(Locks::mutator_lock_);

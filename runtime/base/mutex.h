@@ -83,6 +83,7 @@ enum LockLevel {
   kInternTableLock,
   kOatFileSecondaryLookupLock,
   kHostDlOpenHandlesLock,
+  kVerifierDepsLock,
   kOatFileManagerLock,
   kTracingUniqueMethodsLock,
   kTracingStreamingLock,
@@ -650,8 +651,11 @@ class Locks {
   // Guards opened oat files in OatFileManager.
   static ReaderWriterMutex* oat_file_manager_lock_ ACQUIRED_AFTER(modify_ldt_lock_);
 
+  // Guards verifier dependency collection in VerifierDeps.
+  static Mutex* verifier_deps_lock_ ACQUIRED_AFTER(oat_file_manager_lock_);
+
   // Guards dlopen_handles_ in DlOpenOatFile.
-  static Mutex* host_dlopen_handles_lock_ ACQUIRED_AFTER(oat_file_manager_lock_);
+  static Mutex* host_dlopen_handles_lock_ ACQUIRED_AFTER(verifier_deps_lock_);
 
   // Guards intern table.
   static Mutex* intern_table_lock_ ACQUIRED_AFTER(host_dlopen_handles_lock_);
