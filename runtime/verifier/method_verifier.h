@@ -180,6 +180,11 @@ class MethodVerifier {
 
   uint8_t EncodePcToReferenceMapData() const;
 
+  const DexFile& GetDexFile() const {
+    DCHECK(dex_file_ != nullptr);
+    return *dex_file_;
+  }
+
   uint32_t DexFileVersion() const {
     return dex_file_->GetVersion();
   }
@@ -353,7 +358,8 @@ class MethodVerifier {
    *  (3) Iterate through the method, checking type safety and looking
    *      for code flow problems.
    */
-  static FailureData VerifyMethod(Thread* self, uint32_t method_idx,
+  static FailureData VerifyMethod(Thread* self,
+                                  uint32_t method_idx,
                                   const DexFile* dex_file,
                                   Handle<mirror::DexCache> dex_cache,
                                   Handle<mirror::ClassLoader> class_loader,
@@ -842,6 +848,7 @@ class MethodVerifier {
   MethodVerifier* link_;
 
   friend class art::Thread;
+  friend class VerifierDepsTest;
 
   DISALLOW_COPY_AND_ASSIGN(MethodVerifier);
 };

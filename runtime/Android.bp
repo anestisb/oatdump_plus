@@ -198,6 +198,7 @@ cc_defaults {
         "verifier/reg_type.cc",
         "verifier/reg_type_cache.cc",
         "verifier/register_line.cc",
+        "verifier/verifier_deps.cc",
         "well_known_classes.cc",
         "zip_archive.cc",
 
@@ -558,6 +559,7 @@ art_cc_test {
         "utils_test.cc",
         "verifier/method_verifier_test.cc",
         "verifier/reg_type_test.cc",
+        "verifier/verifier_deps_test.cc",
         "zip_archive_test.cc",
     ],
     shared_libs: [

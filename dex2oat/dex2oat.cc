@@ -77,6 +77,7 @@
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
 #include "utils.h"
+#include "verifier/verifier_deps.h"
 #include "well_known_classes.h"
 #include "zip_archive.h"
 
@@ -1472,6 +1473,12 @@ class Dex2Oat FINAL {
 
     dex_files_ = MakeNonOwningPointerVector(opened_dex_files_);
 
+    if (!IsBootImage()) {
+      // Collect verification dependencies when compiling an app.
+      verifier_deps_.reset(new verifier::VerifierDeps(dex_files_));
+      callbacks_->SetVerifierDeps(verifier_deps_.get());
+    }
+
     // We had to postpone the swap decision till now, as this is the point when we actually
     // know about the dex files we're going to use.
 
@@ -2625,6 +2632,9 @@ class Dex2Oat FINAL {
   std::unique_ptr<CumulativeLogger> compiler_phases_timings_;
   std::vector<std::vector<const DexFile*>> dex_files_per_oat_file_;
   std::unordered_map<const DexFile*, size_t> dex_file_oat_index_map_;
+
+  // Collector of verifier dependencies.
+  std::unique_ptr<verifier::VerifierDeps> verifier_deps_;
 
   // Backing storage.
   std::vector<std::string> char_backing_storage_;
