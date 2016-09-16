@@ -455,7 +455,6 @@ class Runtime {
   bool UseJitCompilation() const;
 
   void PreZygoteFork();
-  bool InitZygote();
   void InitNonZygoteOrPostFork(
       JNIEnv* env, bool is_system_server, NativeBridgeAction action, const char* isa);
 
