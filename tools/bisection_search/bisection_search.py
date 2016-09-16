@@ -34,6 +34,7 @@ from common import DeviceTestEnv
 from common import FatalError
 from common import GetEnvVariableOrError
 from common import HostTestEnv
+from common import LogSeverity
 from common import RetCode
 
 
@@ -56,6 +57,9 @@ NON_PASSES = ['builder', 'prepare_for_register_allocation',
 # controlling the bisection search. Otherwise arguments will be placed on second
 # position in the command.
 RAW_CMD_RUNTIME_ARGS_TAG = '{ARGS}'
+
+# Default core image path relative to ANDROID_HOST_OUT.
+DEFAULT_IMAGE_RELATIVE_PATH = '/framework/core.art'
 
 class Dex2OatWrapperTestable(object):
   """Class representing a testable compilation.
@@ -104,10 +108,9 @@ class Dex2OatWrapperTestable(object):
       print('Testing methods: {0} passes: {1}.'.format(
           compiled_methods, passes_to_run))
     cmd = self._PrepareCmd(compiled_methods=compiled_methods,
-                           passes_to_run=passes_to_run,
-                           verbose_compiler=False)
+                           passes_to_run=passes_to_run)
     (output, ret_code) = self._test_env.RunCommand(
-        cmd, {'ANDROID_LOG_TAGS': '*:e'})
+        cmd, LogSeverity.ERROR)
     res = True
     if self._expected_retcode:
       res = self._expected_retcode == ret_code
@@ -126,8 +129,8 @@ class Dex2OatWrapperTestable(object):
     Raises:
       FatalError: An error occurred when retrieving methods list.
     """
-    cmd = self._PrepareCmd(verbose_compiler=True)
-    (output, _) = self._test_env.RunCommand(cmd, {'ANDROID_LOG_TAGS': '*:i'})
+    cmd = self._PrepareCmd()
+    (output, _) = self._test_env.RunCommand(cmd, LogSeverity.INFO)
     match_methods = re.findall(r'Building ([^\n]+)\n', output)
     if not match_methods:
       raise FatalError('Failed to retrieve methods list. '
@@ -146,9 +149,8 @@ class Dex2OatWrapperTestable(object):
     Raises:
       FatalError: An error occurred when retrieving passes list.
     """
-    cmd = self._PrepareCmd(compiled_methods=[compiled_method],
-                           verbose_compiler=True)
-    (output, _) = self._test_env.RunCommand(cmd, {'ANDROID_LOG_TAGS': '*:i'})
+    cmd = self._PrepareCmd(compiled_methods=[compiled_method])
+    (output, _) = self._test_env.RunCommand(cmd, LogSeverity.INFO)
     match_passes = re.findall(r'Starting pass: ([^\n]+)\n', output)
     if not match_passes:
       raise FatalError('Failed to retrieve passes list. '
@@ -168,9 +170,8 @@ class Dex2OatWrapperTestable(object):
       self._test_env.WriteLines(self._passes_to_run_path, passes_to_run)
       cmd += ['-Xcompiler-option', '--run-passes={0}'.format(
           self._passes_to_run_path)]
-    if verbose_compiler:
-      cmd += ['-Xcompiler-option', '--runtime-arg', '-Xcompiler-option',
-              '-verbose:compiler', '-Xcompiler-option', '-j1']
+    cmd += ['-Xcompiler-option', '--runtime-arg', '-Xcompiler-option',
+            '-verbose:compiler', '-Xcompiler-option', '-j1']
     cmd += self._base_cmd[self._arguments_position:]
     return cmd
 
@@ -361,8 +362,8 @@ def PrepareBaseCommand(args, classpath):
     if not args.device:
       base_cmd += ['-XXlib:{0}'.format(args.lib)]
       if not args.image:
-        image_path = '{0}/framework/core-optimizing-pic.art'.format(
-            GetEnvVariableOrError('ANDROID_HOST_OUT'))
+        image_path = (GetEnvVariableOrError('ANDROID_HOST_OUT') +
+                      DEFAULT_IMAGE_RELATIVE_PATH)
       else:
         image_path = args.image
       base_cmd += ['-Ximage:{0}'.format(image_path)]
