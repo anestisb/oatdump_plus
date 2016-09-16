@@ -434,6 +434,16 @@ build-art-host:   $(HOST_OUT_EXECUTABLES)/art $(ART_HOST_DEPENDENCIES) $(HOST_CO
 build-art-target: $(TARGET_OUT_EXECUTABLES)/art $(ART_TARGET_DEPENDENCIES) $(TARGET_CORE_IMG_OUTS)
 
 ########################################################################
+# Phony target for only building what go/lem requires on target.
+.PHONY: build-art-target-golem
+build-art-target-golem: dex2oat dalvikvm patchoat linker \
+                        $(TARGET_OUT)/etc/public.libraries.txt \
+                        $(ART_TARGET_DEX_DEPENDENCIES) \
+                        $(ART_TARGET_SHARED_LIBRARY_DEPENDENCIES) \
+                        $(TARGET_CORE_IMG_OUT_BASE).art \
+                        $(TARGET_CORE_IMG_OUT_BASE)-interpreter.art
+
+########################################################################
 # Rules for building all dependencies for tests.
 
 .PHONY: build-art-host-tests
