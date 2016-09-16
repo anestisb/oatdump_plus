@@ -427,8 +427,6 @@ class CodeGeneratorX86 : public CodeGenerator {
                   Register value,
                   bool value_can_be_null);
 
-  void GenerateIntCompare(Location lhs, Location rhs);
-
   void GenerateMemoryBarrier(MemBarrierKind kind);
 
   Label* GetLabelOf(HBasicBlock* block) const {
@@ -473,6 +471,15 @@ class CodeGeneratorX86 : public CodeGenerator {
 
   // Compare a register with a 32-bit value in the most efficient manner.
   void Compare32BitValue(Register dest, int32_t value);
+
+  // Compare int values. Supports only register locations for `lhs`.
+  void GenerateIntCompare(Location lhs, Location rhs);
+
+  // Construct address for array access.
+  static Address ArrayAddress(Register obj,
+                              Location index,
+                              ScaleFactor scale,
+                              uint32_t data_offset);
 
   Address LiteralCaseTable(HX86PackedSwitch* switch_instr, Register reg, Register value);
 
