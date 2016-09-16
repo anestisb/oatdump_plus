@@ -199,7 +199,7 @@ ART_TARGET_GTEST_FILES := $(foreach m,$(ART_TEST_MODULES),\
     $(ART_TEST_LIST_device_$(TARGET_ARCH)_$(m)))
 
 ART_HOST_GTEST_FILES := $(foreach m,$(ART_TEST_MODULES),\
-    $(ART_TEST_LIST_host_$(HOST_ARCH)_$(m)))
+    $(ART_TEST_LIST_host_$(ART_HOST_ARCH)_$(m)))
 
 ART_TEST_CFLAGS :=
 
