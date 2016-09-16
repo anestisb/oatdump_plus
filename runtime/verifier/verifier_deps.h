@@ -23,6 +23,7 @@
 
 #include "art_field.h"
 #include "art_method.h"
+#include "base/array_ref.h"
 #include "base/mutex.h"
 #include "method_resolution_kind.h"
 #include "os.h"
@@ -84,14 +85,23 @@ class VerifierDeps {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::verifier_deps_lock_);
 
+  // Serialize the recorded dependencies and store the data into `buffer`.
+  void Encode(std::vector<uint8_t>* buffer) const
+      REQUIRES(!Locks::verifier_deps_lock_);
+
  private:
   static constexpr uint16_t kUnresolvedMarker = static_cast<uint16_t>(-1);
 
+  // Only used in tests to reconstruct the data structure from serialized data.
+  VerifierDeps(const std::vector<const DexFile*>& dex_files, ArrayRef<uint8_t> data)
+      REQUIRES(!Locks::verifier_deps_lock_);
+
   using ClassResolutionBase = std::tuple<uint32_t, uint16_t>;
   struct ClassResolution : public ClassResolutionBase {
+    ClassResolution() = default;
+    ClassResolution(const ClassResolution&) = default;
     ClassResolution(uint32_t type_idx, uint16_t access_flags)
         : ClassResolutionBase(type_idx, access_flags) {}
-    ClassResolution(const ClassResolution&) = default;
 
     bool IsResolved() const { return GetAccessFlags() != kUnresolvedMarker; }
     uint32_t GetDexTypeIndex() const { return std::get<0>(*this); }
@@ -100,9 +110,10 @@ class VerifierDeps {
 
   using FieldResolutionBase = std::tuple<uint32_t, uint16_t, uint32_t>;
   struct FieldResolution : public FieldResolutionBase {
+    FieldResolution() = default;
+    FieldResolution(const FieldResolution&) = default;
     FieldResolution(uint32_t field_idx, uint16_t access_flags, uint32_t declaring_class_idx)
         : FieldResolutionBase(field_idx, access_flags, declaring_class_idx) {}
-    FieldResolution(const FieldResolution&) = default;
 
     bool IsResolved() const { return GetAccessFlags() != kUnresolvedMarker; }
     uint32_t GetDexFieldIndex() const { return std::get<0>(*this); }
@@ -112,9 +123,10 @@ class VerifierDeps {
 
   using MethodResolutionBase = std::tuple<uint32_t, uint16_t, uint32_t>;
   struct MethodResolution : public MethodResolutionBase {
+    MethodResolution() = default;
+    MethodResolution(const MethodResolution&) = default;
     MethodResolution(uint32_t method_idx, uint16_t access_flags, uint32_t declaring_class_idx)
         : MethodResolutionBase(method_idx, access_flags, declaring_class_idx) {}
-    MethodResolution(const MethodResolution&) = default;
 
     bool IsResolved() const { return GetAccessFlags() != kUnresolvedMarker; }
     uint32_t GetDexMethodIndex() const { return std::get<0>(*this); }
@@ -124,9 +136,10 @@ class VerifierDeps {
 
   using TypeAssignabilityBase = std::tuple<uint32_t, uint32_t>;
   struct TypeAssignability : public std::tuple<uint32_t, uint32_t> {
+    TypeAssignability() = default;
+    TypeAssignability(const TypeAssignability&) = default;
     TypeAssignability(uint32_t destination_idx, uint32_t source_idx)
         : TypeAssignabilityBase(destination_idx, source_idx) {}
-    TypeAssignability(const TypeAssignability&) = default;
 
     uint32_t GetDestination() const { return std::get<0>(*this); }
     uint32_t GetSource() const { return std::get<1>(*this); }
@@ -150,6 +163,8 @@ class VerifierDeps {
     std::set<MethodResolution> direct_methods_;
     std::set<MethodResolution> virtual_methods_;
     std::set<MethodResolution> interface_methods_;
+
+    bool Equals(const DexFileDeps& rhs) const;
   };
 
   // Finds the DexFileDep instance associated with `dex_file`, or nullptr if
@@ -215,12 +230,16 @@ class VerifierDeps {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::verifier_deps_lock_);
 
+  bool Equals(const VerifierDeps& rhs) const
+      REQUIRES(!Locks::verifier_deps_lock_);
+
   // Map from DexFiles into dependencies collected from verification of their methods.
   std::map<const DexFile*, std::unique_ptr<DexFileDeps>> dex_deps_
       GUARDED_BY(Locks::verifier_deps_lock_);
 
   friend class VerifierDepsTest;
   ART_FRIEND_TEST(VerifierDepsTest, StringToId);
+  ART_FRIEND_TEST(VerifierDepsTest, EncodeDecode);
 };
 
 }  // namespace verifier
