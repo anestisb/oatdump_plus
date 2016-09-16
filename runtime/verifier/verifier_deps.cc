@@ -17,6 +17,7 @@
 #include "verifier_deps.h"
 
 #include "compiler_callbacks.h"
+#include "leb128.h"
 #include "mirror/class-inl.h"
 #include "runtime.h"
 
@@ -315,6 +316,153 @@ void VerifierDeps::MaybeRecordAssignability(const DexFile& dex_file,
   if (singleton != nullptr) {
     singleton->AddAssignability(dex_file, destination, source, is_strict, is_assignable);
   }
+}
+
+static inline uint32_t DecodeUint32WithOverflowCheck(const uint8_t** in, const uint8_t* end) {
+  CHECK_LT(*in, end);
+  return DecodeUnsignedLeb128(in);
+}
+
+template<typename T1, typename T2>
+static inline void EncodeTuple(std::vector<uint8_t>* out, const std::tuple<T1, T2>& t) {
+  EncodeUnsignedLeb128(out, std::get<0>(t));
+  EncodeUnsignedLeb128(out, std::get<1>(t));
+}
+
+template<typename T1, typename T2>
+static inline void DecodeTuple(const uint8_t** in, const uint8_t* end, std::tuple<T1, T2>* t) {
+  T1 v1 = static_cast<T1>(DecodeUint32WithOverflowCheck(in, end));
+  T2 v2 = static_cast<T2>(DecodeUint32WithOverflowCheck(in, end));
+  *t = std::make_tuple(v1, v2);
+}
+
+template<typename T1, typename T2, typename T3>
+static inline void EncodeTuple(std::vector<uint8_t>* out, const std::tuple<T1, T2, T3>& t) {
+  EncodeUnsignedLeb128(out, std::get<0>(t));
+  EncodeUnsignedLeb128(out, std::get<1>(t));
+  EncodeUnsignedLeb128(out, std::get<2>(t));
+}
+
+template<typename T1, typename T2, typename T3>
+static inline void DecodeTuple(const uint8_t** in, const uint8_t* end, std::tuple<T1, T2, T3>* t) {
+  T1 v1 = static_cast<T1>(DecodeUint32WithOverflowCheck(in, end));
+  T2 v2 = static_cast<T2>(DecodeUint32WithOverflowCheck(in, end));
+  T3 v3 = static_cast<T2>(DecodeUint32WithOverflowCheck(in, end));
+  *t = std::make_tuple(v1, v2, v3);
+}
+
+template<typename T>
+static inline void EncodeSet(std::vector<uint8_t>* out, const std::set<T>& set) {
+  EncodeUnsignedLeb128(out, set.size());
+  for (const T& entry : set) {
+    EncodeTuple(out, entry);
+  }
+}
+
+template<typename T>
+static inline void DecodeSet(const uint8_t** in, const uint8_t* end, std::set<T>* set) {
+  DCHECK(set->empty());
+  size_t num_entries = DecodeUint32WithOverflowCheck(in, end);
+  for (size_t i = 0; i < num_entries; ++i) {
+    T tuple;
+    DecodeTuple(in, end, &tuple);
+    set->emplace(tuple);
+  }
+}
+
+static inline void EncodeStringVector(std::vector<uint8_t>* out,
+                                      const std::vector<std::string>& strings) {
+  EncodeUnsignedLeb128(out, strings.size());
+  for (const std::string& str : strings) {
+    const uint8_t* data = reinterpret_cast<const uint8_t*>(str.c_str());
+    size_t length = str.length() + 1;
+    out->insert(out->end(), data, data + length);
+    DCHECK_EQ(0u, out->back());
+  }
+}
+
+static inline void DecodeStringVector(const uint8_t** in,
+                                      const uint8_t* end,
+                                      std::vector<std::string>* strings) {
+  DCHECK(strings->empty());
+  size_t num_strings = DecodeUint32WithOverflowCheck(in, end);
+  strings->reserve(num_strings);
+  for (size_t i = 0; i < num_strings; ++i) {
+    CHECK_LT(*in, end);
+    const char* string_start = reinterpret_cast<const char*>(*in);
+    strings->emplace_back(std::string(string_start));
+    *in += strings->back().length() + 1;
+  }
+}
+
+void VerifierDeps::Encode(std::vector<uint8_t>* buffer) const {
+  MutexLock mu(Thread::Current(), *Locks::verifier_deps_lock_);
+  for (auto& entry : dex_deps_) {
+    EncodeStringVector(buffer, entry.second->strings_);
+    EncodeSet(buffer, entry.second->assignable_types_);
+    EncodeSet(buffer, entry.second->unassignable_types_);
+    EncodeSet(buffer, entry.second->classes_);
+    EncodeSet(buffer, entry.second->fields_);
+    EncodeSet(buffer, entry.second->direct_methods_);
+    EncodeSet(buffer, entry.second->virtual_methods_);
+    EncodeSet(buffer, entry.second->interface_methods_);
+  }
+}
+
+VerifierDeps::VerifierDeps(const std::vector<const DexFile*>& dex_files, ArrayRef<uint8_t> data)
+    : VerifierDeps(dex_files) {
+  const uint8_t* data_start = data.data();
+  const uint8_t* data_end = data_start + data.size();
+  for (auto& entry : dex_deps_) {
+    DecodeStringVector(&data_start, data_end, &entry.second->strings_);
+    DecodeSet(&data_start, data_end, &entry.second->assignable_types_);
+    DecodeSet(&data_start, data_end, &entry.second->unassignable_types_);
+    DecodeSet(&data_start, data_end, &entry.second->classes_);
+    DecodeSet(&data_start, data_end, &entry.second->fields_);
+    DecodeSet(&data_start, data_end, &entry.second->direct_methods_);
+    DecodeSet(&data_start, data_end, &entry.second->virtual_methods_);
+    DecodeSet(&data_start, data_end, &entry.second->interface_methods_);
+  }
+  CHECK_LE(data_start, data_end);
+}
+
+bool VerifierDeps::Equals(const VerifierDeps& rhs) const {
+  MutexLock mu(Thread::Current(), *Locks::verifier_deps_lock_);
+
+  if (dex_deps_.size() != rhs.dex_deps_.size()) {
+    return false;
+  }
+
+  auto lhs_it = dex_deps_.begin();
+  auto rhs_it = rhs.dex_deps_.begin();
+
+  for (; (lhs_it != dex_deps_.end()) && (rhs_it != rhs.dex_deps_.end()); lhs_it++, rhs_it++) {
+    const DexFile* lhs_dex_file = lhs_it->first;
+    const DexFile* rhs_dex_file = rhs_it->first;
+    if (lhs_dex_file != rhs_dex_file) {
+      return false;
+    }
+
+    DexFileDeps* lhs_deps = lhs_it->second.get();
+    DexFileDeps* rhs_deps = rhs_it->second.get();
+    if (!lhs_deps->Equals(*rhs_deps)) {
+      return false;
+    }
+  }
+
+  DCHECK((lhs_it == dex_deps_.end()) && (rhs_it == rhs.dex_deps_.end()));
+  return true;
+}
+
+bool VerifierDeps::DexFileDeps::Equals(const VerifierDeps::DexFileDeps& rhs) const {
+  return (strings_ == rhs.strings_) &&
+         (assignable_types_ == rhs.assignable_types_) &&
+         (unassignable_types_ == rhs.unassignable_types_) &&
+         (classes_ == rhs.classes_) &&
+         (fields_ == rhs.fields_) &&
+         (direct_methods_ == rhs.direct_methods_) &&
+         (virtual_methods_ == rhs.virtual_methods_) &&
+         (interface_methods_ == rhs.interface_methods_);
 }
 
 }  // namespace verifier
