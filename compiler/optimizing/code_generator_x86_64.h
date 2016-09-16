@@ -510,6 +510,18 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   void Compare32BitValue(CpuRegister dest, int32_t value);
   void Compare64BitValue(CpuRegister dest, int64_t value);
 
+  // Compare int values. Supports only register locations for `lhs`.
+  void GenerateIntCompare(Location lhs, Location rhs);
+
+  // Compare long values. Supports only register locations for `lhs`.
+  void GenerateLongCompare(Location lhs, Location rhs);
+
+  // Construct address for array access.
+  static Address ArrayAddress(CpuRegister obj,
+                              Location index,
+                              ScaleFactor scale,
+                              uint32_t data_offset);
+
   Address LiteralCaseTable(HPackedSwitch* switch_instr);
 
   // Store a 64 bit value into a DoubleStackSlot in the most efficient manner.
