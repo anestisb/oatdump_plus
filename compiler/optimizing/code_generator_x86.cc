@@ -1069,15 +1069,11 @@ void CodeGeneratorX86::Move64(Location destination, Location source) {
       __ movsd(Address(ESP, destination.GetStackIndex()), source.AsFpuRegister<XmmRegister>());
     } else if (source.IsConstant()) {
       HConstant* constant = source.GetConstant();
-      int64_t value;
-      if (constant->IsLongConstant()) {
-        value = constant->AsLongConstant()->GetValue();
-      } else {
-        DCHECK(constant->IsDoubleConstant());
-        value = bit_cast<int64_t, double>(constant->AsDoubleConstant()->GetValue());
-      }
+      DCHECK(constant->IsLongConstant() || constant->IsDoubleConstant());
+      int64_t value = GetInt64ValueOf(constant);
       __ movl(Address(ESP, destination.GetStackIndex()), Immediate(Low32Bits(value)));
-      __ movl(Address(ESP, destination.GetHighStackIndex(kX86WordSize)), Immediate(High32Bits(value)));
+      __ movl(Address(ESP, destination.GetHighStackIndex(kX86WordSize)),
+              Immediate(High32Bits(value)));
     } else {
       DCHECK(source.IsDoubleStackSlot()) << source;
       EmitParallelMoves(
@@ -1427,14 +1423,7 @@ void InstructionCodeGeneratorX86::GenerateTestAndBranch(HInstruction* instructio
     Location lhs = condition->GetLocations()->InAt(0);
     Location rhs = condition->GetLocations()->InAt(1);
     // LHS is guaranteed to be in a register (see LocationsBuilderX86::HandleCondition).
-    if (rhs.IsRegister()) {
-      __ cmpl(lhs.AsRegister<Register>(), rhs.AsRegister<Register>());
-    } else if (rhs.IsConstant()) {
-      int32_t constant = CodeGenerator::GetInt32ValueOf(rhs.GetConstant());
-      codegen_->Compare32BitValue(lhs.AsRegister<Register>(), constant);
-    } else {
-      __ cmpl(lhs.AsRegister<Register>(), Address(ESP, rhs.GetStackIndex()));
-    }
+    codegen_->GenerateIntCompare(lhs, rhs);
     if (true_target == nullptr) {
       __ j(X86Condition(condition->GetOppositeCondition()), false_target);
     } else {
@@ -1526,18 +1515,6 @@ void LocationsBuilderX86::VisitSelect(HSelect* select) {
     locations->SetInAt(2, Location::RequiresRegister());
   }
   locations->SetOut(Location::SameAsFirstInput());
-}
-
-void CodeGeneratorX86::GenerateIntCompare(Location lhs, Location rhs) {
-  Register lhs_reg = lhs.AsRegister<Register>();
-  if (rhs.IsConstant()) {
-    int32_t value = CodeGenerator::GetInt32ValueOf(rhs.GetConstant());
-    Compare32BitValue(lhs_reg, value);
-  } else if (rhs.IsStackSlot()) {
-    assembler_.cmpl(lhs_reg, Address(ESP, rhs.GetStackIndex()));
-  } else {
-    assembler_.cmpl(lhs_reg, rhs.AsRegister<Register>());
-  }
 }
 
 void InstructionCodeGeneratorX86::VisitSelect(HSelect* select) {
@@ -3621,7 +3598,7 @@ void InstructionCodeGeneratorX86::VisitDivZeroCheck(HDivZeroCheck* instruction) 
       } else {
         DCHECK(value.IsConstant()) << value;
         if (value.GetConstant()->AsIntConstant()->GetValue() == 0) {
-        __ jmp(slow_path->GetEntryLabel());
+          __ jmp(slow_path->GetEntryLabel());
         }
       }
       break;
@@ -5033,56 +5010,31 @@ void InstructionCodeGeneratorX86::VisitArrayGet(HArrayGet* instruction) {
   switch (type) {
     case Primitive::kPrimBoolean: {
       Register out = out_loc.AsRegister<Register>();
-      if (index.IsConstant()) {
-        __ movzxb(out, Address(obj,
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_1) + data_offset));
-      } else {
-        __ movzxb(out, Address(obj, index.AsRegister<Register>(), TIMES_1, data_offset));
-      }
+      __ movzxb(out, CodeGeneratorX86::ArrayAddress(obj, index, TIMES_1, data_offset));
       break;
     }
 
     case Primitive::kPrimByte: {
       Register out = out_loc.AsRegister<Register>();
-      if (index.IsConstant()) {
-        __ movsxb(out, Address(obj,
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_1) + data_offset));
-      } else {
-        __ movsxb(out, Address(obj, index.AsRegister<Register>(), TIMES_1, data_offset));
-      }
+      __ movsxb(out, CodeGeneratorX86::ArrayAddress(obj, index, TIMES_1, data_offset));
       break;
     }
 
     case Primitive::kPrimShort: {
       Register out = out_loc.AsRegister<Register>();
-      if (index.IsConstant()) {
-        __ movsxw(out, Address(obj,
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_2) + data_offset));
-      } else {
-        __ movsxw(out, Address(obj, index.AsRegister<Register>(), TIMES_2, data_offset));
-      }
+      __ movsxw(out, CodeGeneratorX86::ArrayAddress(obj, index, TIMES_2, data_offset));
       break;
     }
 
     case Primitive::kPrimChar: {
       Register out = out_loc.AsRegister<Register>();
-      if (index.IsConstant()) {
-        __ movzxw(out, Address(obj,
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_2) + data_offset));
-      } else {
-        __ movzxw(out, Address(obj, index.AsRegister<Register>(), TIMES_2, data_offset));
-      }
+      __ movzxw(out, CodeGeneratorX86::ArrayAddress(obj, index, TIMES_2, data_offset));
       break;
     }
 
     case Primitive::kPrimInt: {
       Register out = out_loc.AsRegister<Register>();
-      if (index.IsConstant()) {
-        __ movl(out, Address(obj,
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset));
-      } else {
-        __ movl(out, Address(obj, index.AsRegister<Register>(), TIMES_4, data_offset));
-      }
+      __ movl(out, CodeGeneratorX86::ArrayAddress(obj, index, TIMES_4, data_offset));
       break;
     }
 
@@ -5099,21 +5051,16 @@ void InstructionCodeGeneratorX86::VisitArrayGet(HArrayGet* instruction) {
             instruction, out_loc, obj, data_offset, index, /* needs_null_check */ true);
       } else {
         Register out = out_loc.AsRegister<Register>();
+        __ movl(out, CodeGeneratorX86::ArrayAddress(obj, index, TIMES_4, data_offset));
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
+        // If read barriers are enabled, emit read barriers other than
+        // Baker's using a slow path (and also unpoison the loaded
+        // reference, if heap poisoning is enabled).
         if (index.IsConstant()) {
           uint32_t offset =
               (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
-          __ movl(out, Address(obj, offset));
-          codegen_->MaybeRecordImplicitNullCheck(instruction);
-          // If read barriers are enabled, emit read barriers other than
-          // Baker's using a slow path (and also unpoison the loaded
-          // reference, if heap poisoning is enabled).
           codegen_->MaybeGenerateReadBarrierSlow(instruction, out_loc, out_loc, obj_loc, offset);
         } else {
-          __ movl(out, Address(obj, index.AsRegister<Register>(), TIMES_4, data_offset));
-          codegen_->MaybeRecordImplicitNullCheck(instruction);
-          // If read barriers are enabled, emit read barriers other than
-          // Baker's using a slow path (and also unpoison the loaded
-          // reference, if heap poisoning is enabled).
           codegen_->MaybeGenerateReadBarrierSlow(
               instruction, out_loc, out_loc, obj_loc, data_offset, index);
         }
@@ -5123,40 +5070,23 @@ void InstructionCodeGeneratorX86::VisitArrayGet(HArrayGet* instruction) {
 
     case Primitive::kPrimLong: {
       DCHECK_NE(obj, out_loc.AsRegisterPairLow<Register>());
-      if (index.IsConstant()) {
-        size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + data_offset;
-        __ movl(out_loc.AsRegisterPairLow<Register>(), Address(obj, offset));
-        codegen_->MaybeRecordImplicitNullCheck(instruction);
-        __ movl(out_loc.AsRegisterPairHigh<Register>(), Address(obj, offset + kX86WordSize));
-      } else {
-        __ movl(out_loc.AsRegisterPairLow<Register>(),
-                Address(obj, index.AsRegister<Register>(), TIMES_8, data_offset));
-        codegen_->MaybeRecordImplicitNullCheck(instruction);
-        __ movl(out_loc.AsRegisterPairHigh<Register>(),
-                Address(obj, index.AsRegister<Register>(), TIMES_8, data_offset + kX86WordSize));
-      }
+      __ movl(out_loc.AsRegisterPairLow<Register>(),
+              CodeGeneratorX86::ArrayAddress(obj, index, TIMES_8, data_offset));
+      codegen_->MaybeRecordImplicitNullCheck(instruction);
+      __ movl(out_loc.AsRegisterPairHigh<Register>(),
+              CodeGeneratorX86::ArrayAddress(obj, index, TIMES_8, data_offset + kX86WordSize));
       break;
     }
 
     case Primitive::kPrimFloat: {
       XmmRegister out = out_loc.AsFpuRegister<XmmRegister>();
-      if (index.IsConstant()) {
-        __ movss(out, Address(obj,
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset));
-      } else {
-        __ movss(out, Address(obj, index.AsRegister<Register>(), TIMES_4, data_offset));
-      }
+      __ movss(out, CodeGeneratorX86::ArrayAddress(obj, index, TIMES_4, data_offset));
       break;
     }
 
     case Primitive::kPrimDouble: {
       XmmRegister out = out_loc.AsFpuRegister<XmmRegister>();
-      if (index.IsConstant()) {
-        __ movsd(out, Address(obj,
-            (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + data_offset));
-      } else {
-        __ movsd(out, Address(obj, index.AsRegister<Register>(), TIMES_8, data_offset));
-      }
+      __ movsd(out, CodeGeneratorX86::ArrayAddress(obj, index, TIMES_8, data_offset));
       break;
     }
 
@@ -5227,9 +5157,7 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte: {
       uint32_t offset = mirror::Array::DataOffset(sizeof(uint8_t)).Uint32Value();
-      Address address = index.IsConstant()
-          ? Address(array, (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_1) + offset)
-          : Address(array, index.AsRegister<Register>(), TIMES_1, offset);
+      Address address = CodeGeneratorX86::ArrayAddress(array, index, TIMES_1, offset);
       if (value.IsRegister()) {
         __ movb(address, value.AsRegister<ByteRegister>());
       } else {
@@ -5242,9 +5170,7 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
     case Primitive::kPrimShort:
     case Primitive::kPrimChar: {
       uint32_t offset = mirror::Array::DataOffset(sizeof(uint16_t)).Uint32Value();
-      Address address = index.IsConstant()
-          ? Address(array, (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_2) + offset)
-          : Address(array, index.AsRegister<Register>(), TIMES_2, offset);
+      Address address = CodeGeneratorX86::ArrayAddress(array, index, TIMES_2, offset);
       if (value.IsRegister()) {
         __ movw(address, value.AsRegister<Register>());
       } else {
@@ -5256,9 +5182,7 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
 
     case Primitive::kPrimNot: {
       uint32_t offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
-      Address address = index.IsConstant()
-          ? Address(array, (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + offset)
-          : Address(array, index.AsRegister<Register>(), TIMES_4, offset);
+      Address address = CodeGeneratorX86::ArrayAddress(array, index, TIMES_4, offset);
 
       if (!value.IsRegister()) {
         // Just setting null.
@@ -5354,9 +5278,7 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
 
     case Primitive::kPrimInt: {
       uint32_t offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
-      Address address = index.IsConstant()
-          ? Address(array, (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + offset)
-          : Address(array, index.AsRegister<Register>(), TIMES_4, offset);
+      Address address = CodeGeneratorX86::ArrayAddress(array, index, TIMES_4, offset);
       if (value.IsRegister()) {
         __ movl(address, value.AsRegister<Register>());
       } else {
@@ -5370,44 +5292,27 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
 
     case Primitive::kPrimLong: {
       uint32_t data_offset = mirror::Array::DataOffset(sizeof(int64_t)).Uint32Value();
-      if (index.IsConstant()) {
-        size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + data_offset;
-        if (value.IsRegisterPair()) {
-          __ movl(Address(array, offset), value.AsRegisterPairLow<Register>());
-          codegen_->MaybeRecordImplicitNullCheck(instruction);
-          __ movl(Address(array, offset + kX86WordSize), value.AsRegisterPairHigh<Register>());
-        } else {
-          DCHECK(value.IsConstant());
-          int64_t val = value.GetConstant()->AsLongConstant()->GetValue();
-          __ movl(Address(array, offset), Immediate(Low32Bits(val)));
-          codegen_->MaybeRecordImplicitNullCheck(instruction);
-          __ movl(Address(array, offset + kX86WordSize), Immediate(High32Bits(val)));
-        }
+      if (value.IsRegisterPair()) {
+        __ movl(CodeGeneratorX86::ArrayAddress(array, index, TIMES_8, data_offset),
+                value.AsRegisterPairLow<Register>());
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
+        __ movl(CodeGeneratorX86::ArrayAddress(array, index, TIMES_8, data_offset + kX86WordSize),
+                value.AsRegisterPairHigh<Register>());
       } else {
-        if (value.IsRegisterPair()) {
-          __ movl(Address(array, index.AsRegister<Register>(), TIMES_8, data_offset),
-                  value.AsRegisterPairLow<Register>());
-          codegen_->MaybeRecordImplicitNullCheck(instruction);
-          __ movl(Address(array, index.AsRegister<Register>(), TIMES_8, data_offset + kX86WordSize),
-                  value.AsRegisterPairHigh<Register>());
-        } else {
-          DCHECK(value.IsConstant());
-          int64_t val = value.GetConstant()->AsLongConstant()->GetValue();
-          __ movl(Address(array, index.AsRegister<Register>(), TIMES_8, data_offset),
-                  Immediate(Low32Bits(val)));
-          codegen_->MaybeRecordImplicitNullCheck(instruction);
-          __ movl(Address(array, index.AsRegister<Register>(), TIMES_8, data_offset + kX86WordSize),
-                  Immediate(High32Bits(val)));
-        }
+        DCHECK(value.IsConstant());
+        int64_t val = value.GetConstant()->AsLongConstant()->GetValue();
+        __ movl(CodeGeneratorX86::ArrayAddress(array, index, TIMES_8, data_offset),
+                Immediate(Low32Bits(val)));
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
+        __ movl(CodeGeneratorX86::ArrayAddress(array, index, TIMES_8, data_offset + kX86WordSize),
+                Immediate(High32Bits(val)));
       }
       break;
     }
 
     case Primitive::kPrimFloat: {
       uint32_t offset = mirror::Array::DataOffset(sizeof(float)).Uint32Value();
-      Address address = index.IsConstant()
-          ? Address(array, (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + offset)
-          : Address(array, index.AsRegister<Register>(), TIMES_4, offset);
+      Address address = CodeGeneratorX86::ArrayAddress(array, index, TIMES_4, offset);
       if (value.IsFpuRegister()) {
         __ movss(address, value.AsFpuRegister<XmmRegister>());
       } else {
@@ -5421,17 +5326,13 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
 
     case Primitive::kPrimDouble: {
       uint32_t offset = mirror::Array::DataOffset(sizeof(double)).Uint32Value();
-      Address address = index.IsConstant()
-          ? Address(array, (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + offset)
-          : Address(array, index.AsRegister<Register>(), TIMES_8, offset);
+      Address address = CodeGeneratorX86::ArrayAddress(array, index, TIMES_8, offset);
       if (value.IsFpuRegister()) {
         __ movsd(address, value.AsFpuRegister<XmmRegister>());
       } else {
         DCHECK(value.IsConstant());
-        Address address_hi = index.IsConstant() ?
-            Address(array, (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) +
-                           offset + kX86WordSize) :
-            Address(array, index.AsRegister<Register>(), TIMES_8, offset + kX86WordSize);
+        Address address_hi =
+            CodeGeneratorX86::ArrayAddress(array, index, TIMES_8, offset + kX86WordSize);
         int64_t v = bit_cast<int64_t, double>(value.GetConstant()->AsDoubleConstant()->GetValue());
         __ movl(address, Immediate(Low32Bits(v)));
         codegen_->MaybeRecordImplicitNullCheck(instruction);
@@ -5525,13 +5426,7 @@ void InstructionCodeGeneratorX86::VisitBoundsCheck(HBoundsCheck* instruction) {
       }
       codegen_->MaybeRecordImplicitNullCheck(array_length);
     } else {
-      Register length = length_loc.AsRegister<Register>();
-      if (index_loc.IsConstant()) {
-        int32_t value = CodeGenerator::GetInt32ValueOf(index_loc.GetConstant());
-        __ cmpl(length, Immediate(value));
-      } else {
-        __ cmpl(length, index_loc.AsRegister<Register>());
-      }
+      codegen_->GenerateIntCompare(length_loc, index_loc);
     }
     codegen_->AddSlowPath(slow_path);
     __ j(kBelowEqual, slow_path->GetEntryLabel());
@@ -6909,9 +6804,7 @@ void CodeGeneratorX86::GenerateArrayLoadWithBakerReadBarrier(HInstruction* instr
       "art::mirror::HeapReference<art::mirror::Object> and int32_t have different sizes.");
   // /* HeapReference<Object> */ ref =
   //     *(obj + data_offset + index * sizeof(HeapReference<Object>))
-  Address src = index.IsConstant() ?
-      Address(obj, (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset) :
-      Address(obj, index.AsRegister<Register>(), TIMES_4, data_offset);
+  Address src = CodeGeneratorX86::ArrayAddress(obj, index, TIMES_4, data_offset);
   GenerateReferenceLoadWithBakerReadBarrier(instruction, ref, obj, src, needs_null_check);
 }
 
@@ -7390,6 +7283,27 @@ void CodeGeneratorX86::Compare32BitValue(Register dest, int32_t value) {
   } else {
     __ cmpl(dest, Immediate(value));
   }
+}
+
+void CodeGeneratorX86::GenerateIntCompare(Location lhs, Location rhs) {
+  Register lhs_reg = lhs.AsRegister<Register>();
+  if (rhs.IsConstant()) {
+    int32_t value = CodeGenerator::GetInt32ValueOf(rhs.GetConstant());
+    Compare32BitValue(lhs_reg, value);
+  } else if (rhs.IsStackSlot()) {
+    __ cmpl(lhs_reg, Address(ESP, rhs.GetStackIndex()));
+  } else {
+    __ cmpl(lhs_reg, rhs.AsRegister<Register>());
+  }
+}
+
+Address CodeGeneratorX86::ArrayAddress(Register obj,
+                                       Location index,
+                                       ScaleFactor scale,
+                                       uint32_t data_offset) {
+  return index.IsConstant() ?
+      Address(obj, (index.GetConstant()->AsIntConstant()->GetValue() << scale) + data_offset) :
+      Address(obj, index.AsRegister<Register>(), scale, data_offset);
 }
 
 Address CodeGeneratorX86::LiteralCaseTable(HX86PackedSwitch* switch_instr,
