@@ -664,10 +664,6 @@ class DexFile {
   // Returns the class descriptor string of a class definition.
   const char* GetClassDescriptor(const ClassDef& class_def) const;
 
-  // Looks up a class definition by its class descriptor. Hash must be
-  // ComputeModifiedUtf8Hash(descriptor).
-  const ClassDef* FindClassDef(const char* descriptor, size_t hash) const;
-
   // Looks up a class definition by its type index.
   const ClassDef* FindClassDef(uint16_t type_idx) const;
 
@@ -1008,12 +1004,6 @@ class DexFile {
     return oat_dex_file_;
   }
 
-  TypeLookupTable* GetTypeLookupTable() const {
-    return lookup_table_.get();
-  }
-
-  void CreateTypeLookupTable(uint8_t* storage = nullptr) const;
-
   // Utility methods for reading integral values from a buffer.
   static int32_t ReadSignedInt(const uint8_t* ptr, int zwidth);
   static uint32_t ReadUnsignedInt(const uint8_t* ptr, int zwidth, bool fill_on_right);
@@ -1126,7 +1116,6 @@ class DexFile {
   // pointer to the OatDexFile it was loaded from. Otherwise oat_dex_file_ is
   // null.
   const OatDexFile* oat_dex_file_;
-  mutable std::unique_ptr<TypeLookupTable> lookup_table_;
 
   friend class DexFileVerifierTest;
   ART_FRIEND_TEST(ClassLinkerTest, RegisterDexFileName);  // for constructor
