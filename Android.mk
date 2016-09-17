@@ -328,8 +328,6 @@ test-art-target-jit$(2ND_ART_PHONY_TEST_TARGET_SUFFIX): test-art-target-run-test
 	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
 endif
 
-endif  # art_test_bother
-
 # Valgrind.
 .PHONY: valgrind-test-art-target
 valgrind-test-art-target: valgrind-test-art-target-gtest
@@ -342,6 +340,8 @@ valgrind-test-art-target32: valgrind-test-art-target-gtest32
 .PHONY: valgrind-test-art-target64
 valgrind-test-art-target64: valgrind-test-art-target-gtest64
 	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
+
+endif  # art_test_bother
 
 ########################################################################
 # oat-target and oat-target-sync rules
