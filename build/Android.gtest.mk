@@ -209,8 +209,18 @@ ART_TEST_MODULES := \
 ART_TARGET_GTEST_FILES := $(foreach m,$(ART_TEST_MODULES),\
     $(ART_TEST_LIST_device_$(TARGET_ARCH)_$(m)))
 
+ifdef TARGET_2ND_ARCH
+2ND_ART_TARGET_GTEST_FILES := $(foreach m,$(ART_TEST_MODULES),\
+    $(ART_TEST_LIST_device_$(2ND_TARGET_ARCH)_$(m)))
+endif
+
 ART_HOST_GTEST_FILES := $(foreach m,$(ART_TEST_MODULES),\
     $(ART_TEST_LIST_host_$(ART_HOST_ARCH)_$(m)))
+
+ifneq ($(HOST_PREFER_32_BIT),true)
+2ND_ART_HOST_GTEST_FILES += $(foreach m,$(ART_TEST_MODULES),\
+    $(ART_TEST_LIST_host_$(2ND_ART_HOST_ARCH)_$(m)))
+endif
 
 ART_TEST_CFLAGS :=
 
@@ -382,43 +392,64 @@ valgrind-$$(gtest_rule): $$(gtest_exe) $$(gtest_deps) $(ART_VALGRIND_DEPENDENCIE
 endef  # define-art-gtest-rule-host
 
 # Define the rules to build and run host and target gtests.
-# $(1): target or host
-# $(2): file name
-define define-art-gtest
-  ifneq ($(1),target)
-    ifneq ($(1),host)
-      $$(error expected target or host for argument 1, received $(1))
-    endif
-  endif
-
-  art_target_or_host := $(1)
-  art_gtest_filename := $(2)
+# $(1): file name
+# $(2): 2ND_ or undefined - used to differentiate between the primary and secondary architecture.
+define define-art-gtest-target
+  art_gtest_filename := $(1)
 
   include $$(CLEAR_VARS)
   art_gtest_name := $$(notdir $$(basename $$(art_gtest_filename)))
 
-  ifeq ($$(art_target_or_host),target)
-    library_path :=
-    2nd_library_path :=
-    ifneq ($$(ART_TEST_ANDROID_ROOT),)
-      ifdef TARGET_2ND_ARCH
-        2nd_library_path := $$(ART_TEST_ANDROID_ROOT)/lib
+  library_path :=
+  2ND_library_path :=
+  ifneq ($$(ART_TEST_ANDROID_ROOT),)
+    ifdef TARGET_2ND_ARCH
+      2ND_library_path := $$(ART_TEST_ANDROID_ROOT)/lib
+      library_path := $$(ART_TEST_ANDROID_ROOT)/lib64
+    else
+      ifneq ($(filter %64,$(TARGET_ARCH)),)
         library_path := $$(ART_TEST_ANDROID_ROOT)/lib64
       else
-        ifneq ($(filter %64,$(TARGET_ARCH)),)
-          library_path := $$(ART_TEST_ANDROID_ROOT)/lib64
-        else
-          library_path := $$(ART_TEST_ANDROID_ROOT)/lib
-        endif
+        library_path := $$(ART_TEST_ANDROID_ROOT)/lib
       endif
     endif
+  endif
 
+  ifndef ART_TEST_TARGET_GTEST_$$(art_gtest_name)_RULES
     ART_TEST_TARGET_GTEST_$$(art_gtest_name)_RULES :=
     ART_TEST_TARGET_VALGRIND_GTEST_$$(art_gtest_name)_RULES :=
-    ifdef TARGET_2ND_ARCH
-      $$(eval $$(call define-art-gtest-rule-target,$$(art_gtest_name),$$(art_gtest_filename),2ND_,$$(2nd_library_path)))
-    endif
-    $$(eval $$(call define-art-gtest-rule-target,$$(art_gtest_name),$$(art_gtest_filename),,$$(library_path)))
+  endif
+  $$(eval $$(call define-art-gtest-rule-target,$$(art_gtest_name),$$(art_gtest_filename),$(2),$$($(2)library_path)))
+
+  # Clear locally defined variables.
+  art_gtest_filename :=
+  art_gtest_name :=
+  library_path :=
+  2ND_library_path :=
+endef  # define-art-gtest-target
+
+# $(1): file name
+# $(2): 2ND_ or undefined - used to differentiate between the primary and secondary architecture.
+define define-art-gtest-host
+  art_gtest_filename := $(1)
+
+  include $$(CLEAR_VARS)
+  art_gtest_name := $$(notdir $$(basename $$(art_gtest_filename)))
+  ifndef ART_TEST_HOST_GTEST_$$(art_gtest_name)_RULES
+    ART_TEST_HOST_GTEST_$$(art_gtest_name)_RULES :=
+    ART_TEST_HOST_VALGRIND_GTEST_$$(art_gtest_name)_RULES :=
+  endif
+  $$(eval $$(call define-art-gtest-rule-host,$$(art_gtest_name),$$(art_gtest_filename),$(2)))
+
+  # Clear locally defined variables.
+  art_gtest_filename :=
+  art_gtest_name :=
+endef  # define-art-gtest-host
+
+# Define the rules to build and run gtests for both archs on target.
+# $(1): test name
+define define-art-gtest-target-both
+  art_gtest_name := $(1)
 
     # A rule to run the different architecture versions of the gtest.
 .PHONY: test-art-target-gtest-$$(art_gtest_name)
@@ -429,18 +460,17 @@ test-art-target-gtest-$$(art_gtest_name): $$(ART_TEST_TARGET_GTEST_$$(art_gtest_
 valgrind-test-art-target-gtest-$$(art_gtest_name): $$(ART_TEST_TARGET_VALGRIND_GTEST_$$(art_gtest_name)_RULES)
 	$$(hide) $$(call ART_TEST_PREREQ_FINISHED,$$@)
 
-    # Clear locally defined variables.
-    ART_TEST_TARGET_GTEST_$$(art_gtest_name)_RULES :=
-    ART_TEST_TARGET_VALGRIND_GTEST_$$(art_gtest_name)_RULES :=
-  else # host
-    ART_TEST_HOST_GTEST_$$(art_gtest_name)_RULES :=
-    ART_TEST_HOST_VALGRIND_GTEST_$$(art_gtest_name)_RULES :=
-    ifneq ($$(HOST_PREFER_32_BIT),true)
-      $$(eval $$(call define-art-gtest-rule-host,$$(art_gtest_name),$$(art_gtest_filename),2ND_))
-    endif
-    $$(eval $$(call define-art-gtest-rule-host,$$(art_gtest_name),$$(art_gtest_filename),))
+  # Clear now unused variables.
+  ART_TEST_TARGET_GTEST_$$(art_gtest_name)_RULES :=
+  ART_TEST_TARGET_VALGRIND_GTEST_$$(art_gtest_name)_RULES :=
+  art_gtest_name :=
+endef  # define-art-gtest-target-both
 
-    # Rules to run the different architecture versions of the gtest.
+# Define the rules to build and run gtests for both archs on host.
+# $(1): test name
+define define-art-gtest-host-both
+  art_gtest_name := $(1)
+
 .PHONY: test-art-host-gtest-$$(art_gtest_name)
 test-art-host-gtest-$$(art_gtest_name): $$(ART_TEST_HOST_GTEST_$$(art_gtest_name)_RULES)
 	$$(hide) $$(call ART_TEST_PREREQ_FINISHED,$$@)
@@ -449,25 +479,27 @@ test-art-host-gtest-$$(art_gtest_name): $$(ART_TEST_HOST_GTEST_$$(art_gtest_name
 valgrind-test-art-host-gtest-$$(art_gtest_name): $$(ART_TEST_HOST_VALGRIND_GTEST_$$(art_gtest_name)_RULES)
 	$$(hide) $$(call ART_TEST_PREREQ_FINISHED,$$@)
 
-    # Clear locally defined variables.
-    ART_TEST_HOST_GTEST_$$(art_gtest_name)_RULES :=
-    ART_TEST_HOST_VALGRIND_GTEST_$$(art_gtest_name)_RULES :=
-  endif  # host_or_target
-
-  # Clear locally defined variables.
-  art_target_or_host :=
-  art_gtest_filename :=
+  # Clear now unused variables.
+  ART_TEST_HOST_GTEST_$$(art_gtest_name)_RULES :=
+  ART_TEST_HOST_VALGRIND_GTEST_$$(art_gtest_name)_RULES :=
   art_gtest_name :=
-  library_path :=
-  2nd_library_path :=
-endef  # define-art-gtest
-
+endef  # define-art-gtest-host-both
 
 ifeq ($(ART_BUILD_TARGET),true)
-  $(foreach file,$(ART_TARGET_GTEST_FILES), $(eval $(call define-art-gtest,target,$(file))))
+  $(foreach file,$(ART_TARGET_GTEST_FILES), $(eval $(call define-art-gtest-target,$(file),)))
+  ifdef TARGET_2ND_ARCH
+    $(foreach file,$(2ND_ART_TARGET_GTEST_FILES), $(eval $(call define-art-gtest-target,$(file),2ND_)))
+  endif
+  # Rules to run the different architecture versions of the gtest.
+  $(foreach file,$(ART_TARGET_GTEST_FILES), $(eval $(call define-art-gtest-target-both,$$(notdir $$(basename $$(file))))))
 endif
 ifeq ($(ART_BUILD_HOST),true)
-  $(foreach file,$(ART_HOST_GTEST_FILES), $(eval $(call define-art-gtest,host,$(file))))
+  $(foreach file,$(ART_HOST_GTEST_FILES), $(eval $(call define-art-gtest-host,$(file),)))
+  ifneq ($(HOST_PREFER_32_BIT),true)
+    $(foreach file,$(2ND_ART_HOST_GTEST_FILES), $(eval $(call define-art-gtest-host,$(file),2ND_)))
+  endif
+  # Rules to run the different architecture versions of the gtest.
+  $(foreach file,$(ART_HOST_GTEST_FILES), $(eval $(call define-art-gtest-host-both,$$(notdir $$(basename $$(file))))))
 endif
 
 # Used outside the art project to get a list of the current tests
