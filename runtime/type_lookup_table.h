@@ -62,8 +62,11 @@ class TypeLookupTable {
   // Method creates lookup table for dex file
   static TypeLookupTable* Create(const DexFile& dex_file, uint8_t* storage = nullptr);
 
-  // Method opens lookup table from binary data. Lookup table does not owns binary data.
-  static TypeLookupTable* Open(const uint8_t* raw_data, const DexFile& dex_file);
+  // Method opens lookup table from binary data. Lookups will traverse strings and other
+  // data contained in dex_file as well.  Lookup table does not own raw_data or dex_file.
+  static TypeLookupTable* Open(const uint8_t* dex_file_pointer,
+                               const uint8_t* raw_data,
+                               uint32_t num_class_defs);
 
   // Method returns pointer to binary data of lookup table. Used by the oat writer.
   const uint8_t* RawData() const {
@@ -71,10 +74,7 @@ class TypeLookupTable {
   }
 
   // Method returns length of binary data. Used by the oat writer.
-  uint32_t RawDataLength() const;
-
-  // Method returns length of binary data for the specified dex file.
-  static uint32_t RawDataLength(const DexFile& dex_file);
+  uint32_t RawDataLength() const { return raw_data_length_; }
 
   // Method returns length of binary data for the specified number of class definitions.
   static uint32_t RawDataLength(uint32_t num_class_defs);
@@ -119,10 +119,13 @@ class TypeLookupTable {
   explicit TypeLookupTable(const DexFile& dex_file, uint8_t* storage);
 
   // Construct from a dex file with existing data.
-  TypeLookupTable(const uint8_t* raw_data, const DexFile& dex_file);
+  TypeLookupTable(const uint8_t* dex_file_pointer,
+                  const uint8_t* raw_data,
+                  uint32_t num_class_defs);
 
   bool IsStringsEquals(const char* str, uint32_t str_offset) const {
-    const uint8_t* ptr = dex_file_.Begin() + str_offset;
+    const uint8_t* ptr = dex_file_begin_ + str_offset;
+    CHECK(dex_file_begin_ != nullptr);
     // Skip string length.
     DecodeUnsignedLeb128(&ptr);
     return CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(
@@ -154,7 +157,8 @@ class TypeLookupTable {
   // Find the last entry in a chain.
   uint32_t FindLastEntryInBucket(uint32_t cur_pos) const;
 
-  const DexFile& dex_file_;
+  const uint8_t* dex_file_begin_;
+  const uint32_t raw_data_length_;
   const uint32_t mask_;
   std::unique_ptr<Entry[]> entries_;
   // owns_entries_ specifies if the lookup table owns the entries_ array.
