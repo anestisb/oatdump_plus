@@ -32,14 +32,15 @@
 #include "base/hash_map.h"
 #include "base/logging.h"
 #include "base/stl_util.h"
+#include "base/stringprintf.h"
 #include "base/systrace.h"
 #include "base/unix_file/fd_file.h"
-#include "class_linker-inl.h"
 #include "dex_file-inl.h"
 #include "dex_file_verifier.h"
 #include "globals.h"
 #include "jvalue.h"
 #include "leb128.h"
+#include "oat_file.h"
 #include "os.h"
 #include "safe_map.h"
 #include "thread.h"
@@ -502,16 +503,6 @@ DexFile::DexFile(const uint8_t* base, size_t size,
       oat_dex_file_(oat_dex_file) {
   CHECK(begin_ != nullptr) << GetLocation();
   CHECK_GT(size_, 0U) << GetLocation();
-  const uint8_t* lookup_data = (oat_dex_file != nullptr)
-      ? oat_dex_file->GetLookupTableData()
-      : nullptr;
-  if (lookup_data != nullptr) {
-    if (lookup_data + TypeLookupTable::RawDataLength(*this) > oat_dex_file->GetOatFile()->End()) {
-      LOG(WARNING) << "found truncated lookup table in " << GetLocation();
-    } else {
-      lookup_table_.reset(TypeLookupTable::Open(lookup_data, *this));
-    }
-  }
 }
 
 DexFile::~DexFile() {
@@ -571,33 +562,12 @@ uint32_t DexFile::Header::GetVersion() const {
   return atoi(version);
 }
 
-const DexFile::ClassDef* DexFile::FindClassDef(const char* descriptor, size_t hash) const {
-  DCHECK_EQ(ComputeModifiedUtf8Hash(descriptor), hash);
-  if (LIKELY(lookup_table_ != nullptr)) {
-    const uint32_t class_def_idx = lookup_table_->Lookup(descriptor, hash);
-    return (class_def_idx != DexFile::kDexNoIndex) ? &GetClassDef(class_def_idx) : nullptr;
-  }
-
+const DexFile::ClassDef* DexFile::FindClassDef(uint16_t type_idx) const {
+  size_t num_class_defs = NumClassDefs();
   // Fast path for rare no class defs case.
-  const uint32_t num_class_defs = NumClassDefs();
   if (num_class_defs == 0) {
     return nullptr;
   }
-  const TypeId* type_id = FindTypeId(descriptor);
-  if (type_id != nullptr) {
-    uint16_t type_idx = GetIndexForTypeId(*type_id);
-    for (size_t i = 0; i < num_class_defs; ++i) {
-      const ClassDef& class_def = GetClassDef(i);
-      if (class_def.class_idx_ == type_idx) {
-        return &class_def;
-      }
-    }
-  }
-  return nullptr;
-}
-
-const DexFile::ClassDef* DexFile::FindClassDef(uint16_t type_idx) const {
-  size_t num_class_defs = NumClassDefs();
   for (size_t i = 0; i < num_class_defs; ++i) {
     const ClassDef& class_def = GetClassDef(i);
     if (class_def.class_idx_ == type_idx) {
@@ -786,10 +756,6 @@ const DexFile::ProtoId* DexFile::FindProtoId(uint16_t return_type_idx,
     }
   }
   return nullptr;
-}
-
-void DexFile::CreateTypeLookupTable(uint8_t* storage) const {
-  lookup_table_.reset(TypeLookupTable::Create(*this, storage));
 }
 
 // Given a signature place the type ids into the given vector

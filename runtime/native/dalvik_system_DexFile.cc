@@ -270,7 +270,8 @@ static jclass DexFile_defineClassNative(JNIEnv* env,
   const std::string descriptor(DotToDescriptor(class_name.c_str()));
   const size_t hash(ComputeModifiedUtf8Hash(descriptor.c_str()));
   for (auto& dex_file : dex_files) {
-    const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor.c_str(), hash);
+    const DexFile::ClassDef* dex_class_def =
+        OatDexFile::FindClassDef(*dex_file, descriptor.c_str(), hash);
     if (dex_class_def != nullptr) {
       ScopedObjectAccess soa(env);
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();

@@ -2242,7 +2242,7 @@ typedef std::pair<const DexFile*, const DexFile::ClassDef*> ClassPathEntry;
 ClassPathEntry FindInClassPath(const char* descriptor,
                                size_t hash, const std::vector<const DexFile*>& class_path) {
   for (const DexFile* dex_file : class_path) {
-    const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor, hash);
+    const DexFile::ClassDef* dex_class_def = OatDexFile::FindClassDef(*dex_file, descriptor, hash);
     if (dex_class_def != nullptr) {
       return ClassPathEntry(dex_file, dex_class_def);
     }
@@ -2343,7 +2343,8 @@ bool ClassLinker::FindClassInPathClassLoader(ScopedObjectAccessAlreadyRunnable& 
           for (int32_t j = kDexFileIndexStart; j < long_array_size; ++j) {
             const DexFile* cp_dex_file = reinterpret_cast<const DexFile*>(static_cast<uintptr_t>(
                 long_array->GetWithoutChecks(j)));
-            const DexFile::ClassDef* dex_class_def = cp_dex_file->FindClassDef(descriptor, hash);
+            const DexFile::ClassDef* dex_class_def =
+                OatDexFile::FindClassDef(*cp_dex_file, descriptor, hash);
             if (dex_class_def != nullptr) {
               mirror::Class* klass = DefineClass(self,
                                                  descriptor,
