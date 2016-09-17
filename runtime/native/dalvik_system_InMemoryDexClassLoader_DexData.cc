@@ -23,6 +23,7 @@
 #include "mem_map.h"
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"
+#include "oat_file.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedUtfChars.h"
 
@@ -140,7 +141,8 @@ static jclass InMemoryDexClassLoader_DexData_findClass(
   const char* class_descriptor = descriptor.c_str();
   const size_t hash = ComputeModifiedUtf8Hash(class_descriptor);
   const DexFile* dex_file = CookieToDexFile(cookie);
-  const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(class_descriptor, hash);
+  const DexFile::ClassDef* dex_class_def =
+      OatDexFile::FindClassDef(*dex_file, class_descriptor, hash);
   if (dex_class_def != nullptr) {
     ScopedObjectAccess soa(env);
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
