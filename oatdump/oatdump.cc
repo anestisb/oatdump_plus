@@ -526,7 +526,7 @@ class OatDumper {
       } else {
         const char* descriptor = m->GetDeclaringClassDescriptor();
         const DexFile::ClassDef* class_def =
-            dex_file->FindClassDef(descriptor, ComputeModifiedUtf8Hash(descriptor));
+            OatDexFile::FindClassDef(*dex_file, descriptor, ComputeModifiedUtf8Hash(descriptor));
         if (class_def != nullptr) {
           uint16_t class_def_index = dex_file->GetIndexForClassDef(*class_def);
           const OatFile::OatClass oat_class = oat_dex_file->GetOatClass(class_def_index);
@@ -742,7 +742,7 @@ class OatDumper {
     if (oat_dex_file.GetLookupTableData() != nullptr) {
       uint32_t table_offset = dchecked_integral_cast<uint32_t>(
           oat_dex_file.GetLookupTableData() - oat_file_begin);
-      uint32_t table_size = TypeLookupTable::RawDataLength(*dex_file);
+      uint32_t table_size = TypeLookupTable::RawDataLength(dex_file->NumClassDefs());
       os << StringPrintf("type-table: 0x%08x..0x%08x\n",
                          table_offset,
                          table_offset + table_size - 1);

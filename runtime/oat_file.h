@@ -29,6 +29,8 @@
 #include "mirror/class.h"
 #include "oat.h"
 #include "os.h"
+#include "type_lookup_table.h"
+#include "utf.h"
 #include "utils.h"
 #include "vdex_file.h"
 
@@ -404,6 +406,16 @@ class OatDexFile FINAL {
     return dex_file_pointer_;
   }
 
+  // Looks up a class definition by its class descriptor. Hash must be
+  // ComputeModifiedUtf8Hash(descriptor).
+  static const DexFile::ClassDef* FindClassDef(const DexFile& dex_file,
+                                               const char* descriptor,
+                                               size_t hash);
+
+  TypeLookupTable* GetTypeLookupTable() const {
+    return lookup_table_.get();
+  }
+
   ~OatDexFile();
 
  private:
@@ -424,6 +436,7 @@ class OatDexFile FINAL {
   const uint8_t* lookup_table_data_;
   const uint32_t* const oat_class_offsets_pointer_;
   uint8_t* const dex_cache_arrays_;
+  mutable std::unique_ptr<TypeLookupTable> lookup_table_;
 
   friend class OatFile;
   friend class OatFileBase;

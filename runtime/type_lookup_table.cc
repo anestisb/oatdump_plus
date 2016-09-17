@@ -38,14 +38,6 @@ TypeLookupTable::~TypeLookupTable() {
   }
 }
 
-uint32_t TypeLookupTable::RawDataLength() const {
-  return RawDataLength(dex_file_);
-}
-
-uint32_t TypeLookupTable::RawDataLength(const DexFile& dex_file) {
-  return RawDataLength(dex_file.NumClassDefs());
-}
-
 uint32_t TypeLookupTable::RawDataLength(uint32_t num_class_defs) {
   return SupportedSize(num_class_defs) ? RoundUpToPowerOfTwo(num_class_defs) * sizeof(Entry) : 0u;
 }
@@ -65,12 +57,15 @@ TypeLookupTable* TypeLookupTable::Create(const DexFile& dex_file, uint8_t* stora
       : nullptr;
 }
 
-TypeLookupTable* TypeLookupTable::Open(const uint8_t* raw_data, const DexFile& dex_file) {
-  return new TypeLookupTable(raw_data, dex_file);
+TypeLookupTable* TypeLookupTable::Open(const uint8_t* dex_file_pointer,
+                                       const uint8_t* raw_data,
+                                       uint32_t num_class_defs) {
+  return new TypeLookupTable(dex_file_pointer, raw_data, num_class_defs);
 }
 
 TypeLookupTable::TypeLookupTable(const DexFile& dex_file, uint8_t* storage)
-    : dex_file_(dex_file),
+    : dex_file_begin_(dex_file.Begin()),
+      raw_data_length_(RawDataLength(dex_file.NumClassDefs())),
       mask_(CalculateMask(dex_file.NumClassDefs())),
       entries_(storage != nullptr ? reinterpret_cast<Entry*>(storage) : new Entry[mask_ + 1]),
       owns_entries_(storage == nullptr) {
@@ -106,9 +101,12 @@ TypeLookupTable::TypeLookupTable(const DexFile& dex_file, uint8_t* storage)
   }
 }
 
-TypeLookupTable::TypeLookupTable(const uint8_t* raw_data, const DexFile& dex_file)
-    : dex_file_(dex_file),
-      mask_(CalculateMask(dex_file.NumClassDefs())),
+TypeLookupTable::TypeLookupTable(const uint8_t* dex_file_pointer,
+                                 const uint8_t* raw_data,
+                                 uint32_t num_class_defs)
+    : dex_file_begin_(dex_file_pointer),
+      raw_data_length_(RawDataLength(num_class_defs)),
+      mask_(CalculateMask(num_class_defs)),
       entries_(reinterpret_cast<Entry*>(const_cast<uint8_t*>(raw_data))),
       owns_entries_(false) {}
 

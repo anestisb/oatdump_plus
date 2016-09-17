@@ -49,6 +49,7 @@
 #include "os.h"
 #include "runtime.h"
 #include "type_lookup_table.h"
+#include "utf-inl.h"
 #include "utils.h"
 #include "utils/dex_cache_arrays_layout-inl.h"
 
@@ -1204,7 +1205,21 @@ OatFile::OatDexFile::OatDexFile(const OatFile* oat_file,
       dex_file_pointer_(dex_file_pointer),
       lookup_table_data_(lookup_table_data),
       oat_class_offsets_pointer_(oat_class_offsets_pointer),
-      dex_cache_arrays_(dex_cache_arrays) {}
+      dex_cache_arrays_(dex_cache_arrays) {
+  // Initialize TypeLookupTable.
+  if (lookup_table_data_ != nullptr) {
+    // Peek the number of classes from the DexFile.
+    const DexFile::Header* dex_header = reinterpret_cast<const DexFile::Header*>(dex_file_pointer_);
+    const uint32_t num_class_defs = dex_header->class_defs_size_;
+    if (lookup_table_data_ + TypeLookupTable::RawDataLength(num_class_defs) > GetOatFile()->End()) {
+      LOG(WARNING) << "found truncated lookup table in " << dex_file_location_;
+    } else {
+      lookup_table_.reset(TypeLookupTable::Open(dex_file_pointer_,
+                                                lookup_table_data_,
+                                                num_class_defs));
+    }
+  }
+}
 
 OatFile::OatDexFile::~OatDexFile() {}
 
@@ -1271,6 +1286,28 @@ OatFile::OatClass OatFile::OatDexFile::GetOatClass(uint16_t class_def_index) con
                            bitmap_size,
                            reinterpret_cast<const uint32_t*>(bitmap_pointer),
                            reinterpret_cast<const OatMethodOffsets*>(methods_pointer));
+}
+
+const DexFile::ClassDef* OatFile::OatDexFile::FindClassDef(const DexFile& dex_file,
+                                                           const char* descriptor,
+                                                           size_t hash) {
+  const OatFile::OatDexFile* oat_dex_file = dex_file.GetOatDexFile();
+  DCHECK_EQ(ComputeModifiedUtf8Hash(descriptor), hash);
+  if (LIKELY((oat_dex_file != nullptr) && (oat_dex_file->GetTypeLookupTable() != nullptr))) {
+    const uint32_t class_def_idx = oat_dex_file->GetTypeLookupTable()->Lookup(descriptor, hash);
+    return (class_def_idx != DexFile::kDexNoIndex) ? &dex_file.GetClassDef(class_def_idx) : nullptr;
+  }
+  // Fast path for rare no class defs case.
+  const uint32_t num_class_defs = dex_file.NumClassDefs();
+  if (num_class_defs == 0) {
+    return nullptr;
+  }
+  const DexFile::TypeId* type_id = dex_file.FindTypeId(descriptor);
+  if (type_id != nullptr) {
+    uint16_t type_idx = dex_file.GetIndexForTypeId(*type_id);
+    return dex_file.FindClassDef(type_idx);
+  }
+  return nullptr;
 }
 
 OatFile::OatClass::OatClass(const OatFile* oat_file,
