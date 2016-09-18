@@ -409,6 +409,15 @@ void CommonRuntimeTestImpl::TearDown() {
   TearDownAndroidData(android_data_, true);
   dalvik_cache_.clear();
 
+  // icu4c has a fixed 10-element array "gCommonICUDataArray".
+  // If we run > 10 tests, we fill that array and u_setCommonData fails.
+  // There's a function to clear the array, but it's not public...
+  typedef void (*IcuCleanupFn)();
+  void* sym = dlsym(RTLD_DEFAULT, "u_cleanup_" U_ICU_VERSION_SHORT);
+  CHECK(sym != nullptr) << dlerror();
+  IcuCleanupFn icu_cleanup_fn = reinterpret_cast<IcuCleanupFn>(sym);
+  (*icu_cleanup_fn)();
+
   Runtime::Current()->GetHeap()->VerifyHeap();  // Check for heap corruption after the test
 }
 
