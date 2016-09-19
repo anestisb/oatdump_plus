@@ -204,6 +204,7 @@ func init() {
 	soong.RegisterModuleType("art_cc_library", artLibrary)
 	soong.RegisterModuleType("art_cc_binary", artBinary)
 	soong.RegisterModuleType("art_cc_test", artTest)
+	soong.RegisterModuleType("art_cc_test_library", artTestLibrary)
 	soong.RegisterModuleType("art_cc_defaults", artDefaultsFactory)
 	soong.RegisterModuleType("art_global_defaults", artGlobalDefaultsFactory)
 }
@@ -248,6 +249,17 @@ func artTest() (blueprint.Module, []interface{}) {
 	props = installCodegenCustomizer(module, props, false)
 
 	android.AddLoadHook(module, customLinker)
+	android.AddLoadHook(module, prefer32Bit)
+	android.AddInstallHook(module, testInstall)
+	return module, props
+}
+
+func artTestLibrary() (blueprint.Module, []interface{}) {
+	test := cc.NewTestLibrary(android.HostAndDeviceSupported)
+	module, props := test.Init()
+
+	props = installCodegenCustomizer(module, props, false)
+
 	android.AddLoadHook(module, prefer32Bit)
 	android.AddInstallHook(module, testInstall)
 	return module, props

@@ -18,6 +18,8 @@ ARGS=${@}
 
 # Use libnativebridgetest as a native bridge, start NativeBridgeMain (Main is JniTest main file).
 LIBPATH=$(echo ${ARGS} | sed -r 's/.*Djava.library.path=([^ ]*) .*/\1/')
+# Trim all but the last entry in LIBPATH, which will be nativetest[64]
+LIBPATH=${LIBPATH##*:}
 ln -sf ${LIBPATH}/libnativebridgetest.so .
 touch libarttest.so
 touch libarttestd.so
