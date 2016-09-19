@@ -259,7 +259,8 @@ bool TryExtractArrayAccessAddress(HInstruction* access,
   HIntConstant* offset = graph->GetIntConstant(data_offset);
   HIntermediateAddress* address =
       new (arena) HIntermediateAddress(array, offset, kNoDexPc);
-  address->SetReferenceTypeInfo(array->GetReferenceTypeInfo());
+  // TODO: Is it ok to not have this on the intermediate address?
+  // address->SetReferenceTypeInfo(array->GetReferenceTypeInfo());
   access->GetBlock()->InsertInstructionBefore(address, access);
   access->ReplaceInput(address, 0);
   // Both instructions must depend on GC to prevent any instruction that can
