@@ -17,7 +17,7 @@
 art_cc_test {
     name: "art_cmdline_tests",
     defaults: [
-        "art_test_defaults",
+        "art_gtest_defaults",
     ],
     srcs: ["cmdline_parser_test.cc"],
 }
