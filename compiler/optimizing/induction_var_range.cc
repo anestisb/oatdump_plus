@@ -106,6 +106,12 @@ static HInstruction* Insert(HBasicBlock* block, HInstruction* instruction) {
   return instruction;
 }
 
+/** Helper method to obtain loop's control instruction. */
+static HInstruction* GetLoopControl(HLoopInformation* loop) {
+  DCHECK(loop != nullptr);
+  return loop->GetHeader()->GetLastInstruction();
+}
+
 //
 // Public class methods.
 //
@@ -179,7 +185,7 @@ void InductionVarRange::GenerateRange(HInstruction* context,
                                       /*out*/HInstruction** lower,
                                       /*out*/HInstruction** upper) {
   bool is_last_value = false;
-  int64_t s = 0;
+  int64_t stride_value = 0;
   bool b1, b2;  // unused
   if (!GenerateCode(context,
                     instruction,
@@ -189,7 +195,7 @@ void InductionVarRange::GenerateRange(HInstruction* context,
                     lower,
                     upper,
                     nullptr,
-                    &s,
+                    &stride_value,
                     &b1,
                     &b2)) {
     LOG(FATAL) << "Failed precondition: CanGenerateRange()";
@@ -232,7 +238,9 @@ bool InductionVarRange::CanGenerateLastValue(HInstruction* instruction) {
                       nullptr,
                       nullptr,
                       nullptr,  // nothing generated yet
-                      &stride_value, &needs_finite_test, &needs_taken_test)
+                      &stride_value,
+                      &needs_finite_test,
+                      &needs_taken_test)
       && !needs_finite_test && !needs_taken_test;
 }
 
@@ -265,7 +273,10 @@ void InductionVarRange::Replace(HInstruction* instruction,
   for (HLoopInformation* lp = instruction->GetBlock()->GetLoopInformation();  // closest enveloping loop
        lp != nullptr;
        lp = lp->GetPreHeader()->GetLoopInformation()) {
+    // Update instruction's information.
     ReplaceInduction(induction_analysis_->LookupInfo(lp, instruction), fetch, replacement);
+    // Update loop's trip-count information.
+    ReplaceInduction(induction_analysis_->LookupInfo(lp, GetLoopControl(lp)), fetch, replacement);
   }
 }
 
@@ -308,13 +319,13 @@ bool InductionVarRange::HasInductionInfo(
     /*out*/ HLoopInformation** loop,
     /*out*/ HInductionVarAnalysis::InductionInfo** info,
     /*out*/ HInductionVarAnalysis::InductionInfo** trip) const {
-  HLoopInformation* l = context->GetBlock()->GetLoopInformation();  // closest enveloping loop
-  if (l != nullptr) {
-    HInductionVarAnalysis::InductionInfo* i = induction_analysis_->LookupInfo(l, instruction);
+  HLoopInformation* lp = context->GetBlock()->GetLoopInformation();  // closest enveloping loop
+  if (lp != nullptr) {
+    HInductionVarAnalysis::InductionInfo* i = induction_analysis_->LookupInfo(lp, instruction);
     if (i != nullptr) {
-      *loop = l;
+      *loop = lp;
       *info = i;
-      *trip = induction_analysis_->LookupInfo(l, l->GetHeader()->GetLastInstruction());
+      *trip = induction_analysis_->LookupInfo(lp, GetLoopControl(lp));
       return true;
     }
   }
@@ -878,7 +889,8 @@ bool InductionVarRange::GenerateCode(HInductionVarAnalysis::InductionInfo* info,
               } else if (stride_value == -1) {
                 oper = new (graph->GetArena()) HSub(type, opb, opa);
               } else {
-                HInstruction* mul = new (graph->GetArena()) HMul(type, graph->GetIntConstant(stride_value), opa);
+                HInstruction* mul = new (graph->GetArena()) HMul(
+                    type, graph->GetIntConstant(stride_value), opa);
                 oper = new (graph->GetArena()) HAdd(type, Insert(block, mul), opb);
               }
               *result = Insert(block, oper);
