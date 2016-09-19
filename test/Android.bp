@@ -36,6 +36,9 @@ art_cc_defaults {
         android_x86_64: {
             relative_install_path: "art/x86_64",
         },
+        darwin: {
+            enabled: false,
+        },
     },
 }
 
@@ -93,9 +96,6 @@ art_cc_defaults {
                 "-Wno-deprecated",
                 "-Wno-missing-noreturn",
             ],
-        },
-        darwin: {
-            enabled: false,
         },
         android: {
             ldflags: [
