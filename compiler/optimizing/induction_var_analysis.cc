@@ -714,10 +714,12 @@ void HInductionVarAnalysis::VisitTripCount(HLoopInformation* loop,
     case kCondGE: op = kGE; break;
     default:      LOG(FATAL) << "CONDITION UNREACHABLE";
   }
+  // Associate trip count with control instruction, rather than the condition (even
+  // though it's its use) since former provides a convenient use-free placeholder.
+  HInstruction* control = loop->GetHeader()->GetLastInstruction();
   InductionInfo* taken_test = CreateInvariantOp(op, lower_expr, upper_expr);
-  AssignInfo(loop,
-             loop->GetHeader()->GetLastInstruction(),
-             CreateTripCount(tcKind, trip_count, taken_test, type));
+  DCHECK(control->IsIf());
+  AssignInfo(loop, control, CreateTripCount(tcKind, trip_count, taken_test, type));
 }
 
 bool HInductionVarAnalysis::IsTaken(InductionInfo* lower_expr,
