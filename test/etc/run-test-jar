@@ -32,6 +32,7 @@ JIT="n"
 INVOKE_WITH=""
 ISA=x86
 LIBRARY_DIRECTORY="lib"
+TEST_DIRECTORY="nativetest"
 MAIN=""
 OPTIMIZE="y"
 PATCHOAT=""
@@ -220,6 +221,7 @@ while true; do
         GDB_SERVER="gdbserver64"
         DALVIKVM="dalvikvm64"
         LIBRARY_DIRECTORY="lib64"
+        TEST_DIRECTORY="nativetest64"
         ARCHITECTURES_PATTERN="${ARCHITECTURES_64}"
         shift
     elif [ "x$1" = "x--pic-test" ]; then
@@ -479,7 +481,7 @@ if [ "$HOST" = "n" ]; then
       adb push $TEST_NAME-ex.jar $DEX_LOCATION >/dev/null 2>&1
     fi
 
-    LD_LIBRARY_PATH=/data/art-test/$ISA
+    LD_LIBRARY_PATH=/data/$TEST_DIRECTORY/art/$ISA
     if [ "$ANDROID_ROOT" != "/system" ]; then
       # Current default installation is dalvikvm 64bits and dex2oat 32bits,
       # so we can only use LD_LIBRARY_PATH when testing on a local
@@ -533,8 +535,8 @@ else
 
     export ANDROID_DATA="$DEX_LOCATION"
     export ANDROID_ROOT="${ANDROID_ROOT}"
-    export LD_LIBRARY_PATH="${ANDROID_ROOT}/lib"
-    export DYLD_LIBRARY_PATH="${ANDROID_ROOT}/lib"
+    export LD_LIBRARY_PATH="${ANDROID_ROOT}/${LIBRARY_DIRECTORY}:${ANDROID_ROOT}/${TEST_DIRECTORY}"
+    export DYLD_LIBRARY_PATH="${ANDROID_ROOT}/${LIBRARY_DIRECTORY}:${ANDROID_ROOT}/${TEST_DIRECTORY}"
     export PATH="$PATH:${ANDROID_ROOT}/bin"
 
     # Temporarily disable address space layout randomization (ASLR).
