@@ -946,7 +946,7 @@ void CodeGeneratorMIPS64::InvokeRuntime(QuickEntrypointEnum entrypoint,
                                         HInstruction* instruction,
                                         uint32_t dex_pc,
                                         SlowPathCode* slow_path) {
-  ValidateInvokeRuntime(instruction, slow_path);
+  ValidateInvokeRuntime(entrypoint, instruction, slow_path);
   // TODO: anything related to T9/GP/GOT/PIC/.so's?
   __ LoadFromOffset(kLoadDoubleword,
                     T9,
