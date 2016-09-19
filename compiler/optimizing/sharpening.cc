@@ -157,20 +157,11 @@ void HSharpening::ProcessInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
 }
 
 void HSharpening::ProcessLoadClass(HLoadClass* load_class) {
-  if (load_class->NeedsAccessCheck()) {
-    // We need to call the runtime anyway, so we simply get the class as that call's return value.
-    return;
-  }
-  if (load_class->GetLoadKind() == HLoadClass::LoadKind::kReferrersClass) {
-    // Loading from the ArtMethod* is the most efficient retrieval.
-    // TODO: This may not actually be true for all architectures and
-    // locations of target classes. The additional register pressure
-    // for using the ArtMethod* should be considered.
-    return;
-  }
-
-  DCHECK_EQ(load_class->GetLoadKind(), HLoadClass::LoadKind::kDexCacheViaMethod);
+  DCHECK(load_class->GetLoadKind() == HLoadClass::LoadKind::kDexCacheViaMethod ||
+         load_class->GetLoadKind() == HLoadClass::LoadKind::kReferrersClass)
+      << load_class->GetLoadKind();
   DCHECK(!load_class->IsInDexCache()) << "HLoadClass should not be optimized before sharpening.";
+  DCHECK(!load_class->IsInBootImage()) << "HLoadClass should not be optimized before sharpening.";
 
   const DexFile& dex_file = load_class->GetDexFile();
   uint32_t type_index = load_class->GetTypeIndex();
@@ -242,11 +233,26 @@ void HSharpening::ProcessLoadClass(HLoadClass* load_class) {
       }
     }
   }
-  if (is_in_dex_cache) {
-    load_class->MarkInDexCache();
-  }
+
   if (is_in_boot_image) {
     load_class->MarkInBootImage();
+  }
+
+  if (load_class->NeedsAccessCheck()) {
+    // We need to call the runtime anyway, so we simply get the class as that call's return value.
+    return;
+  }
+
+  if (load_class->GetLoadKind() == HLoadClass::LoadKind::kReferrersClass) {
+    // Loading from the ArtMethod* is the most efficient retrieval in code size.
+    // TODO: This may not actually be true for all architectures and
+    // locations of target classes. The additional register pressure
+    // for using the ArtMethod* should be considered.
+    return;
+  }
+
+  if (is_in_dex_cache) {
+    load_class->MarkInDexCache();
   }
 
   HLoadClass::LoadKind load_kind = codegen_->GetSupportedLoadClassKind(desired_load_kind);
