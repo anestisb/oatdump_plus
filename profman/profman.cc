@@ -280,18 +280,11 @@ class ProfMan FINAL {
     for (size_t i = 0; i < dex_locations_.size(); ++i) {
       std::string error_msg;
       std::vector<std::unique_ptr<const DexFile>> dex_files_for_location;
-      std::unique_ptr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(apks_fd_[i],
-                                                                     dex_locations_[i].c_str(),
-                                                                     &error_msg));
-      if (zip_archive == nullptr) {
-        LOG(WARNING) << "OpenFromFd failed for '" << dex_locations_[i] << "' " << error_msg;
-        continue;
-      }
-      if (DexFile::OpenFromZip(*zip_archive,
-                               dex_locations_[i],
-                               kVerifyChecksum,
-                               &error_msg,
-                               &dex_files_for_location)) {
+      if (DexFile::OpenZip(apks_fd_[i],
+                           dex_locations_[i],
+                           kVerifyChecksum,
+                           &error_msg,
+                           &dex_files_for_location)) {
       } else {
         LOG(WARNING) << "OpenFromZip failed for '" << dex_locations_[i] << "' " << error_msg;
         continue;
