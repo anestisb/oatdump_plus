@@ -125,7 +125,7 @@ public class Main {
 
     private static File getHprofConf() {
         // Use the java.library.path. It points to the lib directory.
-        File libDir = new File(System.getProperty("java.library.path"));
+        File libDir = new File(System.getProperty("java.library.path").split(":")[0]);
         return new File(new File(libDir.getParentFile(), "bin"), "hprof-conv");
     }
 

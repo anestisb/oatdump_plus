@@ -124,7 +124,7 @@ art_cc_binary {
 art_cc_test {
     name: "art_dex2oat_tests",
     defaults: [
-        "art_test_defaults",
+        "art_gtest_defaults",
     ],
     srcs: ["dex2oat_test.cc"],
 }

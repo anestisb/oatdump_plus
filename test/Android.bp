@@ -17,12 +17,37 @@
 art_cc_defaults {
     name: "art_test_defaults",
     host_supported: true,
+    target: {
+        android_arm: {
+            relative_install_path: "art/arm",
+        },
+        android_arm64: {
+            relative_install_path: "art/arm64",
+        },
+        android_mips: {
+            relative_install_path: "art/mips",
+        },
+        android_mips64: {
+            relative_install_path: "art/mips64",
+        },
+        android_x86: {
+            relative_install_path: "art/x86",
+        },
+        android_x86_64: {
+            relative_install_path: "art/x86_64",
+        },
+    },
+}
+
+art_cc_defaults {
+    name: "art_gtest_defaults",
     test_per_src: true,
     // These really are gtests, but the gtest library comes from libart-gtest.so
     gtest: false,
     defaults: [
         "art_defaults",
         "art_debug_defaults",
+        "art_test_defaults",
     ],
 
     shared_libs: [
@@ -91,25 +116,6 @@ art_cc_defaults {
                 "-Wno-deprecated",
                 "-Wno-missing-noreturn",
             ],
-        },
-
-        android_arm: {
-            relative_install_path: "art/arm",
-        },
-        android_arm64: {
-            relative_install_path: "art/arm64",
-        },
-        android_mips: {
-            relative_install_path: "art/mips",
-        },
-        android_mips64: {
-            relative_install_path: "art/mips64",
-        },
-        android_x86: {
-            relative_install_path: "art/x86",
-        },
-        android_x86_64: {
-            relative_install_path: "art/x86_64",
         },
     },
 }
@@ -183,6 +189,169 @@ art_cc_library {
         },
         darwin: {
             enabled: false,
+        },
+    },
+}
+
+cc_defaults {
+    name: "libartagent-defaults",
+    defaults: [
+        "art_defaults",
+        "art_test_defaults",
+    ],
+    shared_libs: [
+        "libbacktrace",
+        "libnativehelper",
+    ],
+    target: {
+        android: {
+            shared_libs: ["libdl"],
+        },
+        host: {
+            host_ldlibs: [
+                "-ldl",
+                "-lpthread",
+            ],
+        },
+    },
+}
+
+art_cc_test_library {
+    name: "libartagent",
+    srcs: ["900-hello-plugin/load_unload.cc"],
+    defaults: ["libartagent-defaults"],
+    shared_libs: ["libart"],
+}
+
+art_cc_test_library {
+    name: "libartagentd",
+    srcs: ["900-hello-plugin/load_unload.cc"],
+    defaults: [
+        "libartagent-defaults",
+        "art_debug_defaults",
+    ],
+    shared_libs: ["libartd"],
+}
+
+art_cc_test_library {
+    name: "libtiagent",
+    defaults: ["libartagent-defaults"],
+    srcs: [
+        "ti-agent/common_load.cc",
+        "901-hello-ti-agent/basics.cc",
+    ],
+    shared_libs: [
+        "libart",
+        "libopenjdkjvmti",
+    ],
+}
+
+art_cc_test_library {
+    name: "libtiagentd",
+    defaults: [
+        "libartagent-defaults",
+        "art_debug_defaults",
+    ],
+    srcs: [
+        "ti-agent/common_load.cc",
+        "901-hello-ti-agent/basics.cc",
+    ],
+    shared_libs: [
+        "libartd",
+        "libopenjdkjvmtid",
+    ],
+}
+
+cc_defaults {
+    name: "libarttest-defaults",
+    defaults: [
+        "art_defaults",
+        "art_test_defaults",
+    ],
+    srcs: [
+        "common/runtime_state.cc",
+        "common/stack_inspect.cc",
+        "004-JniTest/jni_test.cc",
+        "004-SignalTest/signaltest.cc",
+        "004-ReferenceMap/stack_walk_refmap_jni.cc",
+        "004-StackWalk/stack_walk_jni.cc",
+        "004-ThreadStress/thread_stress.cc",
+        "004-UnsafeTest/unsafe_test.cc",
+        "044-proxy/native_proxy.cc",
+        "051-thread/thread_test.cc",
+        "117-nopatchoat/nopatchoat.cc",
+        "1337-gc-coverage/gc_coverage.cc",
+        "136-daemon-jni-shutdown/daemon_jni_shutdown.cc",
+        "137-cfi/cfi.cc",
+        "139-register-natives/regnative.cc",
+        "141-class-unload/jni_unload.cc",
+        "148-multithread-gc-annotations/gc_coverage.cc",
+        "149-suspend-all-stress/suspend_all.cc",
+        "454-get-vreg/get_vreg_jni.cc",
+        "457-regs/regs_jni.cc",
+        "461-get-reference-vreg/get_reference_vreg_jni.cc",
+        "466-get-live-vreg/get_live_vreg_jni.cc",
+        "497-inlining-and-class-loader/clear_dex_cache.cc",
+        "543-env-long-ref/env_long_ref.cc",
+        "566-polymorphic-inlining/polymorphic_inline.cc",
+        "570-checker-osr/osr.cc",
+        "595-profile-saving/profile-saving.cc",
+        "596-app-images/app_images.cc",
+        "597-deopt-new-string/deopt.cc",
+    ],
+    shared_libs: [
+        "libbacktrace",
+        "libnativehelper",
+    ],
+    target: {
+        android: {
+            shared_libs: ["libdl"],
+        },
+        host: {
+            host_ldlibs: [
+                "-ldl",
+                "-lpthread",
+            ],
+        },
+    },
+}
+
+art_cc_test_library {
+    name: "libarttest",
+    defaults: ["libarttest-defaults"],
+    shared_libs: ["libart"],
+}
+
+art_cc_test_library {
+    name: "libarttestd",
+    defaults: [
+        "libarttest-defaults",
+        "art_debug_defaults",
+    ],
+    shared_libs: ["libartd"],
+}
+
+art_cc_test_library {
+    name: "libnativebridgetest",
+    shared_libs: ["libart"],
+    defaults: [
+        "art_defaults",
+        "art_debug_defaults",
+        "art_test_defaults",
+    ],
+    srcs: ["115-native-bridge/nativebridge.cc"],
+    target: {
+        android: {
+            shared_libs: ["libdl"],
+        },
+        host: {
+            host_ldlibs: [
+                "-ldl",
+                "-lpthread",
+            ],
+        },
+        linux: {
+            host_ldlibs: ["-lrt"],
         },
     },
 }
