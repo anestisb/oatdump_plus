@@ -17,32 +17,33 @@
 #ifndef ART_DISASSEMBLER_DISASSEMBLER_ARM_H_
 #define ART_DISASSEMBLER_DISASSEMBLER_ARM_H_
 
-#include <vector>
+#include <memory>
+#include <sstream>
 
+#include "base/macros.h"
 #include "disassembler.h"
 
 namespace art {
 namespace arm {
 
 class DisassemblerArm FINAL : public Disassembler {
+  class CustomDisassembler;
+
  public:
-  explicit DisassemblerArm(DisassemblerOptions* options) : Disassembler(options) {}
+  explicit DisassemblerArm(DisassemblerOptions* options);
 
   size_t Dump(std::ostream& os, const uint8_t* begin) OVERRIDE;
   void Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end) OVERRIDE;
 
  private:
-  void DumpArm(std::ostream& os, const uint8_t* instr);
+  uintptr_t GetPc(uintptr_t instr_ptr) const {
+    return GetDisassemblerOptions()->absolute_addresses_
+        ? instr_ptr
+        : instr_ptr - reinterpret_cast<uintptr_t>(GetDisassemblerOptions()->base_address_);
+  }
 
-  // Returns the size of the instruction just decoded
-  size_t DumpThumb16(std::ostream& os, const uint8_t* instr);
-  size_t DumpThumb32(std::ostream& os, const uint8_t* instr_ptr);
-
-  void DumpBranchTarget(std::ostream& os, const uint8_t* instr_ptr, int32_t imm32);
-  void DumpCond(std::ostream& os, uint32_t cond);
-  void DumpMemoryDomain(std::ostream& os, uint32_t domain);
-
-  std::vector<const char*> it_conditions_;
+  std::ostringstream output_;
+  std::unique_ptr<CustomDisassembler> disasm_;
 
   DISALLOW_COPY_AND_ASSIGN(DisassemblerArm);
 };

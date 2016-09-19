@@ -74,7 +74,7 @@ public class Main {
   /// CHECK-NOT:                        And
 
   /// CHECK-START-ARM:   int Main.$opt$noinline$notAnd(int, int) disassembly (after)
-  /// CHECK:                            bic.w r{{\d+}}, r{{\d+}}, r{{\d+}}
+  /// CHECK:                            bic r{{\d+}}, r{{\d+}}, r{{\d+}}
 
   public static int $opt$noinline$notAnd(int base, int mask) {
     if (doThrow) throw new Error();
@@ -124,7 +124,7 @@ public class Main {
   /// CHECK-NOT:                        Or
 
   /// CHECK-START-ARM:   long Main.$opt$noinline$notOr(long, long) disassembly (after)
-  /// CHECK:                            orn.w r{{\d+}}, r{{\d+}}, r{{\d+}}
+  /// CHECK:                            orn r{{\d+}}, r{{\d+}}, r{{\d+}}
 
   public static long $opt$noinline$notOr(long base, long mask) {
     if (doThrow) throw new Error();
