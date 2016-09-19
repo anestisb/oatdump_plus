@@ -4374,7 +4374,7 @@ class HDiv FINAL : public HBinaryOperation {
        HInstruction* left,
        HInstruction* right,
        uint32_t dex_pc)
-      : HBinaryOperation(result_type, left, right, SideEffectsForArchRuntimeCalls(), dex_pc) {}
+      : HBinaryOperation(result_type, left, right, SideEffects::None(), dex_pc) {}
 
   template <typename T>
   T ComputeIntegral(T x, T y) const {
@@ -4409,11 +4409,6 @@ class HDiv FINAL : public HBinaryOperation {
         ComputeFP(x->GetValue(), y->GetValue()), GetDexPc());
   }
 
-  static SideEffects SideEffectsForArchRuntimeCalls() {
-    // The generated code can use a runtime call.
-    return SideEffects::CanTriggerGC();
-  }
-
   DECLARE_INSTRUCTION(Div);
 
  private:
@@ -4426,7 +4421,7 @@ class HRem FINAL : public HBinaryOperation {
        HInstruction* left,
        HInstruction* right,
        uint32_t dex_pc)
-      : HBinaryOperation(result_type, left, right, SideEffectsForArchRuntimeCalls(), dex_pc) {}
+      : HBinaryOperation(result_type, left, right, SideEffects::None(), dex_pc) {}
 
   template <typename T>
   T ComputeIntegral(T x, T y) const {
@@ -4459,10 +4454,6 @@ class HRem FINAL : public HBinaryOperation {
   HConstant* Evaluate(HDoubleConstant* x, HDoubleConstant* y) const OVERRIDE {
     return GetBlock()->GetGraph()->GetDoubleConstant(
         ComputeFP(x->GetValue(), y->GetValue()), GetDexPc());
-  }
-
-  static SideEffects SideEffectsForArchRuntimeCalls() {
-    return SideEffects::CanTriggerGC();
   }
 
   DECLARE_INSTRUCTION(Rem);
@@ -4917,9 +4908,7 @@ class HTypeConversion FINAL : public HExpression<1> {
  public:
   // Instantiate a type conversion of `input` to `result_type`.
   HTypeConversion(Primitive::Type result_type, HInstruction* input, uint32_t dex_pc)
-      : HExpression(result_type,
-                    SideEffectsForArchRuntimeCalls(input->GetType(), result_type),
-                    dex_pc) {
+      : HExpression(result_type, SideEffects::None(), dex_pc) {
     SetRawInputAt(0, input);
     // Invariant: We should never generate a conversion to a Boolean value.
     DCHECK_NE(Primitive::kPrimBoolean, result_type);
@@ -4937,18 +4926,6 @@ class HTypeConversion FINAL : public HExpression<1> {
   // Try to statically evaluate the conversion and return a HConstant
   // containing the result.  If the input cannot be converted, return nullptr.
   HConstant* TryStaticEvaluation() const;
-
-  static SideEffects SideEffectsForArchRuntimeCalls(Primitive::Type input_type,
-                                                    Primitive::Type result_type) {
-    // Some architectures may not require the 'GC' side effects, but at this point
-    // in the compilation process we do not know what architecture we will
-    // generate code for, so we must be conservative.
-    if ((Primitive::IsFloatingPointType(input_type) && Primitive::IsIntegralType(result_type))
-        || (input_type == Primitive::kPrimLong && Primitive::IsFloatingPointType(result_type))) {
-      return SideEffects::CanTriggerGC();
-    }
-    return SideEffects::None();
-  }
 
   DECLARE_INSTRUCTION(TypeConversion);
 
@@ -5031,9 +5008,7 @@ class HInstanceFieldGet FINAL : public HExpression<1> {
                     const DexFile& dex_file,
                     Handle<mirror::DexCache> dex_cache,
                     uint32_t dex_pc)
-      : HExpression(field_type,
-                    SideEffectsForArchRuntimeCalls(field_type, is_volatile),
-                    dex_pc),
+      : HExpression(field_type, SideEffects::FieldReadOfType(field_type, is_volatile), dex_pc),
         field_info_(field_offset,
                     field_type,
                     is_volatile,
@@ -5064,16 +5039,6 @@ class HInstanceFieldGet FINAL : public HExpression<1> {
   Primitive::Type GetFieldType() const { return field_info_.GetFieldType(); }
   bool IsVolatile() const { return field_info_.IsVolatile(); }
 
-  static SideEffects SideEffectsForArchRuntimeCalls(Primitive::Type field_type, bool is_volatile) {
-    SideEffects side_effects = SideEffects::FieldReadOfType(field_type, is_volatile);
-
-    // MIPS delegates volatile kPrimLong and kPrimDouble loads to a runtime helper.
-    if (Primitive::Is64BitType(field_type)) {
-      side_effects.Add(SideEffects::CanTriggerGC());
-    }
-    return side_effects;
-  }
-
   DECLARE_INSTRUCTION(InstanceFieldGet);
 
  private:
@@ -5094,8 +5059,7 @@ class HInstanceFieldSet FINAL : public HTemplateInstruction<2> {
                     const DexFile& dex_file,
                     Handle<mirror::DexCache> dex_cache,
                     uint32_t dex_pc)
-      : HTemplateInstruction(SideEffectsForArchRuntimeCalls(field_type, is_volatile),
-                             dex_pc),
+      : HTemplateInstruction(SideEffects::FieldWriteOfType(field_type, is_volatile), dex_pc),
         field_info_(field_offset,
                     field_type,
                     is_volatile,
@@ -5119,16 +5083,6 @@ class HInstanceFieldSet FINAL : public HTemplateInstruction<2> {
   HInstruction* GetValue() const { return InputAt(1); }
   bool GetValueCanBeNull() const { return GetPackedFlag<kFlagValueCanBeNull>(); }
   void ClearValueCanBeNull() { SetPackedFlag<kFlagValueCanBeNull>(false); }
-
-  static SideEffects SideEffectsForArchRuntimeCalls(Primitive::Type field_type, bool is_volatile) {
-    SideEffects side_effects = SideEffects::FieldWriteOfType(field_type, is_volatile);
-
-    // MIPS delegates volatile kPrimLong and kPrimDouble stores to a runtime helper.
-    if (Primitive::Is64BitType(field_type)) {
-      side_effects.Add(SideEffects::CanTriggerGC());
-    }
-    return side_effects;
-  }
 
   DECLARE_INSTRUCTION(InstanceFieldSet);
 
@@ -5934,9 +5888,7 @@ class HStaticFieldGet FINAL : public HExpression<1> {
                   const DexFile& dex_file,
                   Handle<mirror::DexCache> dex_cache,
                   uint32_t dex_pc)
-      : HExpression(field_type,
-                    SideEffectsForArchRuntimeCalls(field_type, is_volatile),
-                    dex_pc),
+      : HExpression(field_type, SideEffects::FieldReadOfType(field_type, is_volatile), dex_pc),
         field_info_(field_offset,
                     field_type,
                     is_volatile,
@@ -5964,16 +5916,6 @@ class HStaticFieldGet FINAL : public HExpression<1> {
   Primitive::Type GetFieldType() const { return field_info_.GetFieldType(); }
   bool IsVolatile() const { return field_info_.IsVolatile(); }
 
-  static SideEffects SideEffectsForArchRuntimeCalls(Primitive::Type field_type, bool is_volatile) {
-    SideEffects side_effects = SideEffects::FieldReadOfType(field_type, is_volatile);
-
-    // MIPS delegates volatile kPrimLong and kPrimDouble loads to a runtime helper.
-    if (Primitive::Is64BitType(field_type)) {
-      side_effects.Add(SideEffects::CanTriggerGC());
-    }
-    return side_effects;
-  }
-
   DECLARE_INSTRUCTION(StaticFieldGet);
 
  private:
@@ -5994,8 +5936,7 @@ class HStaticFieldSet FINAL : public HTemplateInstruction<2> {
                   const DexFile& dex_file,
                   Handle<mirror::DexCache> dex_cache,
                   uint32_t dex_pc)
-      : HTemplateInstruction(SideEffectsForArchRuntimeCalls(field_type, is_volatile),
-                             dex_pc),
+      : HTemplateInstruction(SideEffects::FieldWriteOfType(field_type, is_volatile), dex_pc),
         field_info_(field_offset,
                     field_type,
                     is_volatile,
@@ -6016,16 +5957,6 @@ class HStaticFieldSet FINAL : public HTemplateInstruction<2> {
   HInstruction* GetValue() const { return InputAt(1); }
   bool GetValueCanBeNull() const { return GetPackedFlag<kFlagValueCanBeNull>(); }
   void ClearValueCanBeNull() { SetPackedFlag<kFlagValueCanBeNull>(false); }
-
-  static SideEffects SideEffectsForArchRuntimeCalls(Primitive::Type field_type, bool is_volatile) {
-    SideEffects side_effects = SideEffects::FieldWriteOfType(field_type, is_volatile);
-
-    // MIPS delegates volatile kPrimLong and kPrimDouble stores to a runtime helper.
-    if (Primitive::Is64BitType(field_type)) {
-      side_effects.Add(SideEffects::CanTriggerGC());
-    }
-    return side_effects;
-  }
 
   DECLARE_INSTRUCTION(StaticFieldSet);
 

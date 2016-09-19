@@ -1179,37 +1179,51 @@ void CodeGenerator::EmitParallelMoves(Location from1,
   GetMoveResolver()->EmitNativeCode(&parallel_move);
 }
 
-void CodeGenerator::ValidateInvokeRuntime(HInstruction* instruction, SlowPathCode* slow_path) {
+void CodeGenerator::ValidateInvokeRuntime(QuickEntrypointEnum entrypoint,
+                                          HInstruction* instruction,
+                                          SlowPathCode* slow_path) {
   // Ensure that the call kind indication given to the register allocator is
-  // coherent with the runtime call generated, and that the GC side effect is
-  // set when required.
+  // coherent with the runtime call generated.
   if (slow_path == nullptr) {
     DCHECK(instruction->GetLocations()->WillCall())
         << "instruction->DebugName()=" << instruction->DebugName();
-    DCHECK(instruction->GetSideEffects().Includes(SideEffects::CanTriggerGC()))
-        << "instruction->DebugName()=" << instruction->DebugName()
-        << " instruction->GetSideEffects().ToString()=" << instruction->GetSideEffects().ToString();
   } else {
     DCHECK(instruction->GetLocations()->CallsOnSlowPath() || slow_path->IsFatal())
         << "instruction->DebugName()=" << instruction->DebugName()
         << " slow_path->GetDescription()=" << slow_path->GetDescription();
-    DCHECK(instruction->GetSideEffects().Includes(SideEffects::CanTriggerGC()) ||
-           // When (non-Baker) read barriers are enabled, some instructions
-           // use a slow path to emit a read barrier, which does not trigger
-           // GC.
-           (kEmitCompilerReadBarrier &&
-            !kUseBakerReadBarrier &&
-            (instruction->IsInstanceFieldGet() ||
-             instruction->IsStaticFieldGet() ||
-             instruction->IsArrayGet() ||
-             instruction->IsLoadClass() ||
-             instruction->IsLoadString() ||
-             instruction->IsInstanceOf() ||
-             instruction->IsCheckCast() ||
-             (instruction->IsInvokeVirtual() && instruction->GetLocations()->Intrinsified()))))
-        << "instruction->DebugName()=" << instruction->DebugName()
-        << " instruction->GetSideEffects().ToString()=" << instruction->GetSideEffects().ToString()
-        << " slow_path->GetDescription()=" << slow_path->GetDescription();
+  }
+
+  // Check that the GC side effect is set when required.
+  // TODO: Reverse EntrypointCanTriggerGC
+  if (EntrypointCanTriggerGC(entrypoint)) {
+    if (slow_path == nullptr) {
+      DCHECK(instruction->GetSideEffects().Includes(SideEffects::CanTriggerGC()))
+          << "instruction->DebugName()=" << instruction->DebugName()
+          << " instruction->GetSideEffects().ToString()="
+          << instruction->GetSideEffects().ToString();
+    } else {
+      DCHECK(instruction->GetSideEffects().Includes(SideEffects::CanTriggerGC()) ||
+             // When (non-Baker) read barriers are enabled, some instructions
+             // use a slow path to emit a read barrier, which does not trigger
+             // GC.
+             (kEmitCompilerReadBarrier &&
+              !kUseBakerReadBarrier &&
+              (instruction->IsInstanceFieldGet() ||
+               instruction->IsStaticFieldGet() ||
+               instruction->IsArrayGet() ||
+               instruction->IsLoadClass() ||
+               instruction->IsLoadString() ||
+               instruction->IsInstanceOf() ||
+               instruction->IsCheckCast() ||
+               (instruction->IsInvokeVirtual() && instruction->GetLocations()->Intrinsified()))))
+          << "instruction->DebugName()=" << instruction->DebugName()
+          << " instruction->GetSideEffects().ToString()="
+          << instruction->GetSideEffects().ToString()
+          << " slow_path->GetDescription()=" << slow_path->GetDescription();
+    }
+  } else {
+    // The GC side effect is not required for the instruction. But the instruction might still have
+    // it, for example if it calls other entrypoints requiring it.
   }
 
   // Check the coherency of leaf information.
