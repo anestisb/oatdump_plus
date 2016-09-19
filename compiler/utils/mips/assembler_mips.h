@@ -496,46 +496,61 @@ class MipsAssembler FINAL : public Assembler, public JNIMacroAssembler<PointerSi
 
  public:
   template <typename ImplicitNullChecker = NoImplicitNullChecker>
-  void StoreConst32ToOffset(int32_t value,
-                            Register base,
-                            int32_t offset,
-                            Register temp,
-                            ImplicitNullChecker null_checker = NoImplicitNullChecker()) {
+  void StoreConstToOffset(StoreOperandType type,
+                          int64_t value,
+                          Register base,
+                          int32_t offset,
+                          Register temp,
+                          ImplicitNullChecker null_checker = NoImplicitNullChecker()) {
+    // We permit `base` and `temp` to coincide (however, we check that neither is AT),
+    // in which case the `base` register may be overwritten in the process.
     CHECK_NE(temp, AT);  // Must not use AT as temp, so as not to overwrite the adjusted base.
-    AdjustBaseAndOffset(base, offset, /* is_doubleword */ false);
-    if (value == 0) {
-      temp = ZERO;
-    } else {
-      LoadConst32(temp, value);
-    }
-    Sw(temp, base, offset);
-    null_checker();
-  }
-
-  template <typename ImplicitNullChecker = NoImplicitNullChecker>
-  void StoreConst64ToOffset(int64_t value,
-                            Register base,
-                            int32_t offset,
-                            Register temp,
-                            ImplicitNullChecker null_checker = NoImplicitNullChecker()) {
-    CHECK_NE(temp, AT);  // Must not use AT as temp, so as not to overwrite the adjusted base.
-    AdjustBaseAndOffset(base, offset, /* is_doubleword */ true);
+    AdjustBaseAndOffset(base, offset, /* is_doubleword */ (type == kStoreDoubleword));
     uint32_t low = Low32Bits(value);
     uint32_t high = High32Bits(value);
-    if (low == 0) {
-      Sw(ZERO, base, offset);
-    } else {
-      LoadConst32(temp, low);
-      Sw(temp, base, offset);
+    Register reg;
+    // If the adjustment left `base` unchanged and equal to `temp`, we can't use `temp`
+    // to load and hold the value but we can use AT instead as AT hasn't been used yet.
+    // Otherwise, `temp` can be used for the value. And if `temp` is the same as the
+    // original `base` (that is, `base` prior to the adjustment), the original `base`
+    // register will be overwritten.
+    if (base == temp) {
+      temp = AT;
     }
-    null_checker();
-    if (high == 0) {
-      Sw(ZERO, base, offset + kMipsWordSize);
+    if (low == 0) {
+      reg = ZERO;
     } else {
-      if (high != low) {
-        LoadConst32(temp, high);
-      }
-      Sw(temp, base, offset + kMipsWordSize);
+      reg = temp;
+      LoadConst32(reg, low);
+    }
+    switch (type) {
+      case kStoreByte:
+        Sb(reg, base, offset);
+        break;
+      case kStoreHalfword:
+        Sh(reg, base, offset);
+        break;
+      case kStoreWord:
+        Sw(reg, base, offset);
+        break;
+      case kStoreDoubleword:
+        Sw(reg, base, offset);
+        null_checker();
+        if (high == 0) {
+          reg = ZERO;
+        } else {
+          reg = temp;
+          if (high != low) {
+            LoadConst32(reg, high);
+          }
+        }
+        Sw(reg, base, offset + kMipsWordSize);
+        break;
+      default:
+        LOG(FATAL) << "UNREACHABLE";
+    }
+    if (type != kStoreDoubleword) {
+      null_checker();
     }
   }
 
