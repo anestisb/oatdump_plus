@@ -404,7 +404,9 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
 
 
   // Perfoms checks pertaining to an InvokeRuntime call.
-  void ValidateInvokeRuntime(HInstruction* instruction, SlowPathCode* slow_path);
+  void ValidateInvokeRuntime(QuickEntrypointEnum entrypoint,
+                             HInstruction* instruction,
+                             SlowPathCode* slow_path);
 
   // Perfoms checks pertaining to an InvokeRuntimeWithoutRecordingPcInfo call.
   static void ValidateInvokeRuntimeWithoutRecordingPcInfo(HInstruction* instruction,

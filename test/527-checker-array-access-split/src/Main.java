@@ -101,7 +101,7 @@ public class Main {
   /// CHECK:             <<DataOffset:i\d+>>    IntConstant
   /// CHECK:             <<Array:l\d+>>         NullCheck
   /// CHECK:             <<Index:i\d+>>         BoundsCheck
-  /// CHECK:             <<Address:l\d+>>       IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address:i\d+>>       IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-NEXT:                               ArrayGet [<<Address>>,<<Index>>]
 
 
@@ -114,7 +114,7 @@ public class Main {
   /// CHECK:             <<DataOffset:i\d+>>    IntConstant
   /// CHECK:             <<Array:l\d+>>         NullCheck
   /// CHECK:             <<Index:i\d+>>         BoundsCheck
-  /// CHECK:             <<Address:l\d+>>       IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address:i\d+>>       IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-NEXT:                               ArrayGet [<<Address>>,<<Index>>]
 
   public static int get(int array[], int index) {
@@ -140,7 +140,7 @@ public class Main {
   /// CHECK:             <<DataOffset:i\d+>>    IntConstant
   /// CHECK:             <<Array:l\d+>>         NullCheck
   /// CHECK:             <<Index:i\d+>>         BoundsCheck
-  /// CHECK:             <<Address:l\d+>>       IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address:i\d+>>       IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-NEXT:                               ArraySet [<<Address>>,<<Index>>,<<Arg>>]
 
 
@@ -159,7 +159,7 @@ public class Main {
   /// CHECK:             <<DataOffset:i\d+>>    IntConstant
   /// CHECK:             <<Array:l\d+>>         NullCheck
   /// CHECK:             <<Index:i\d+>>         BoundsCheck
-  /// CHECK:             <<Address:l\d+>>       IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address:i\d+>>       IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-NEXT:                               ArraySet [<<Address>>,<<Index>>,<<Arg>>]
 
   public static void set(int array[], int index, int value) {
@@ -183,10 +183,10 @@ public class Main {
   /// CHECK-DAG:         <<DataOffset:i\d+>>    IntConstant
   /// CHECK:             <<Array:l\d+>>         NullCheck
   /// CHECK:             <<Index:i\d+>>         BoundsCheck
-  /// CHECK:             <<Address1:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address1:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-NEXT:        <<ArrayGet:i\d+>>      ArrayGet [<<Address1>>,<<Index>>]
   /// CHECK:             <<Add:i\d+>>           Add [<<ArrayGet>>,<<Const1>>]
-  /// CHECK:             <<Address2:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address2:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-NEXT:                               ArraySet [<<Address2>>,<<Index>>,<<Add>>]
 
   /// CHECK-START-ARM64: void Main.getSet(int[], int) GVN$after_arch (after)
@@ -194,7 +194,7 @@ public class Main {
   /// CHECK-DAG:         <<DataOffset:i\d+>>    IntConstant
   /// CHECK:             <<Array:l\d+>>         NullCheck
   /// CHECK:             <<Index:i\d+>>         BoundsCheck
-  /// CHECK:             <<Address:l\d+>>       IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address:i\d+>>       IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK:             <<ArrayGet:i\d+>>      ArrayGet [<<Address>>,<<Index>>]
   /// CHECK:             <<Add:i\d+>>           Add [<<ArrayGet>>,<<Const1>>]
   /// CHECK-NOT:                                IntermediateAddress
@@ -214,10 +214,10 @@ public class Main {
   /// CHECK-DAG:         <<DataOffset:i\d+>>    IntConstant
   /// CHECK:             <<Array:l\d+>>         NullCheck
   /// CHECK:             <<Index:i\d+>>         BoundsCheck
-  /// CHECK:             <<Address1:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address1:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-NEXT:        <<ArrayGet:i\d+>>      ArrayGet [<<Address1>>,<<Index>>]
   /// CHECK:             <<Add:i\d+>>           Add [<<ArrayGet>>,<<Const1>>]
-  /// CHECK:             <<Address2:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address2:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-NEXT:                               ArraySet [<<Address2>>,<<Index>>,<<Add>>]
 
   /// CHECK-START-ARM:   void Main.getSet(int[], int) GVN$after_arch (after)
@@ -225,7 +225,7 @@ public class Main {
   /// CHECK-DAG:         <<DataOffset:i\d+>>    IntConstant
   /// CHECK:             <<Array:l\d+>>         NullCheck
   /// CHECK:             <<Index:i\d+>>         BoundsCheck
-  /// CHECK:             <<Address:l\d+>>       IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address:i\d+>>       IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK:             <<ArrayGet:i\d+>>      ArrayGet [<<Address>>,<<Index>>]
   /// CHECK:             <<Add:i\d+>>           Add [<<ArrayGet>>,<<Const1>>]
   /// CHECK-NOT:                                IntermediateAddress
@@ -253,11 +253,11 @@ public class Main {
   /// CHECK-DAG:         <<DataOffset:i\d+>>    IntConstant
   /// CHECK:             <<Array:l\d+>>         NullCheck
   /// CHECK:             <<Index:i\d+>>         BoundsCheck
-  /// CHECK:             <<Address1:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address1:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-NEXT:        <<ArrayGet:i\d+>>      ArrayGet [<<Address1>>,<<Index>>]
   /// CHECK:             <<Add:i\d+>>           Add [<<ArrayGet>>,<<Const1>>]
   /// CHECK:                                    NewArray
-  /// CHECK:             <<Address2:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address2:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-NEXT:                               ArraySet [<<Address2>>,<<Index>>,<<Add>>]
 
   /// CHECK-START-ARM64: int[] Main.accrossGC(int[], int) GVN$after_arch (after)
@@ -265,11 +265,11 @@ public class Main {
   /// CHECK-DAG:         <<DataOffset:i\d+>>    IntConstant
   /// CHECK:             <<Array:l\d+>>         NullCheck
   /// CHECK:             <<Index:i\d+>>         BoundsCheck
-  /// CHECK:             <<Address1:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address1:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK:             <<ArrayGet:i\d+>>      ArrayGet [<<Address1>>,<<Index>>]
   /// CHECK:             <<Add:i\d+>>           Add [<<ArrayGet>>,<<Const1>>]
   /// CHECK:                                    NewArray
-  /// CHECK:             <<Address2:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address2:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK:                                    ArraySet [<<Address2>>,<<Index>>,<<Add>>]
 
 
@@ -287,11 +287,11 @@ public class Main {
   /// CHECK-DAG:         <<DataOffset:i\d+>>    IntConstant
   /// CHECK:             <<Array:l\d+>>         NullCheck
   /// CHECK:             <<Index:i\d+>>         BoundsCheck
-  /// CHECK:             <<Address1:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address1:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-NEXT:        <<ArrayGet:i\d+>>      ArrayGet [<<Address1>>,<<Index>>]
   /// CHECK:             <<Add:i\d+>>           Add [<<ArrayGet>>,<<Const1>>]
   /// CHECK:                                    NewArray
-  /// CHECK:             <<Address2:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address2:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-NEXT:                               ArraySet [<<Address2>>,<<Index>>,<<Add>>]
 
   /// CHECK-START-ARM:   int[] Main.accrossGC(int[], int) GVN$after_arch (after)
@@ -299,11 +299,11 @@ public class Main {
   /// CHECK-DAG:         <<DataOffset:i\d+>>    IntConstant
   /// CHECK:             <<Array:l\d+>>         NullCheck
   /// CHECK:             <<Index:i\d+>>         BoundsCheck
-  /// CHECK:             <<Address1:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address1:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK:             <<ArrayGet:i\d+>>      ArrayGet [<<Address1>>,<<Index>>]
   /// CHECK:             <<Add:i\d+>>           Add [<<ArrayGet>>,<<Const1>>]
   /// CHECK:                                    NewArray
-  /// CHECK:             <<Address2:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address2:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK:                                    ArraySet [<<Address2>>,<<Index>>,<<Add>>]
 
   public static int[] accrossGC(int array[], int index) {
@@ -343,10 +343,10 @@ public class Main {
   /// CHECK:             <<Index:i\d+>>         Phi
   /// CHECK:                                    If
   //  -------------- Loop
-  /// CHECK:             <<Address1:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address1:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-NEXT:        <<ArrayGet:i\d+>>      ArrayGet [<<Address1>>,<<Index>>]
   /// CHECK:             <<Add:i\d+>>           Add [<<ArrayGet>>,<<Const1>>]
-  /// CHECK:             <<Address2:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address2:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-NEXT:                               ArraySet [<<Address2>>,<<Index>>,<<Add>>]
 
   /// CHECK-START-ARM64: int Main.canMergeAfterBCE1() GVN$after_arch (after)
@@ -356,7 +356,7 @@ public class Main {
   /// CHECK:             <<Index:i\d+>>         Phi
   /// CHECK:                                    If
   //  -------------- Loop
-  /// CHECK:             <<Address:l\d+>>       IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address:i\d+>>       IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK:             <<ArrayGet:i\d+>>      ArrayGet [<<Address>>,<<Index>>]
   /// CHECK:             <<Add:i\d+>>           Add [<<ArrayGet>>,<<Const1>>]
   /// CHECK-NOT:                                IntermediateAddress
@@ -380,10 +380,10 @@ public class Main {
   /// CHECK:             <<Index:i\d+>>         Phi
   /// CHECK:                                    If
   //  -------------- Loop
-  /// CHECK:             <<Address1:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address1:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-NEXT:        <<ArrayGet:i\d+>>      ArrayGet [<<Address1>>,<<Index>>]
   /// CHECK:             <<Add:i\d+>>           Add [<<ArrayGet>>,<<Const1>>]
-  /// CHECK:             <<Address2:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address2:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-NEXT:                               ArraySet [<<Address2>>,<<Index>>,<<Add>>]
 
   /// CHECK-START-ARM:   int Main.canMergeAfterBCE1() GVN$after_arch (after)
@@ -393,7 +393,7 @@ public class Main {
   /// CHECK:             <<Index:i\d+>>         Phi
   /// CHECK:                                    If
   //  -------------- Loop
-  /// CHECK:             <<Address:l\d+>>       IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address:i\d+>>       IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK:             <<ArrayGet:i\d+>>      ArrayGet [<<Address>>,<<Index>>]
   /// CHECK:             <<Add:i\d+>>           Add [<<ArrayGet>>,<<Const1>>]
   /// CHECK-NOT:                                IntermediateAddress
@@ -437,12 +437,12 @@ public class Main {
   /// CHECK:                                    If
   //  -------------- Loop
   /// CHECK-DAG:         <<Index1:i\d+>>        Add [<<Index>>,<<Const1>>]
-  /// CHECK-DAG:         <<Address1:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK-DAG:         <<Address1:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-DAG:         <<ArrayGetI:i\d+>>     ArrayGet [<<Address1>>,<<Index>>]
-  /// CHECK-DAG:         <<Address2:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK-DAG:         <<Address2:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-DAG:         <<ArrayGetI1:i\d+>>    ArrayGet [<<Address2>>,<<Index1>>]
   /// CHECK:             <<Add:i\d+>>           Add [<<ArrayGetI>>,<<ArrayGetI1>>]
-  /// CHECK:             <<Address3:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address3:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK:                                    ArraySet [<<Address3>>,<<Index1>>,<<Add>>]
 
   /// CHECK-START-ARM64: int Main.canMergeAfterBCE2() GVN$after_arch (after)
@@ -453,7 +453,7 @@ public class Main {
   /// CHECK:                                    If
   //  -------------- Loop
   /// CHECK-DAG:         <<Index1:i\d+>>        Add [<<Index>>,<<Const1>>]
-  /// CHECK-DAG:         <<Address:l\d+>>       IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK-DAG:         <<Address:i\d+>>       IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-DAG:         <<ArrayGetI:i\d+>>     ArrayGet [<<Address>>,<<Index>>]
   /// CHECK-DAG:         <<ArrayGetI1:i\d+>>    ArrayGet [<<Address>>,<<Index1>>]
   /// CHECK:             <<Add:i\d+>>           Add [<<ArrayGetI>>,<<ArrayGetI1>>]
@@ -486,12 +486,12 @@ public class Main {
   /// CHECK:                                    If
   //  -------------- Loop
   /// CHECK-DAG:         <<Index1:i\d+>>        Add [<<Index>>,<<Const1>>]
-  /// CHECK-DAG:         <<Address1:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK-DAG:         <<Address1:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-DAG:         <<ArrayGetI:i\d+>>     ArrayGet [<<Address1>>,<<Index>>]
-  /// CHECK-DAG:         <<Address2:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK-DAG:         <<Address2:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-DAG:         <<ArrayGetI1:i\d+>>    ArrayGet [<<Address2>>,<<Index1>>]
   /// CHECK:             <<Add:i\d+>>           Add [<<ArrayGetI>>,<<ArrayGetI1>>]
-  /// CHECK:             <<Address3:l\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK:             <<Address3:i\d+>>      IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK:                                    ArraySet [<<Address3>>,<<Index1>>,<<Add>>]
 
   /// CHECK-START-ARM:   int Main.canMergeAfterBCE2() GVN$after_arch (after)
@@ -502,7 +502,7 @@ public class Main {
   /// CHECK:                                    If
   //  -------------- Loop
   /// CHECK-DAG:         <<Index1:i\d+>>        Add [<<Index>>,<<Const1>>]
-  /// CHECK-DAG:         <<Address:l\d+>>       IntermediateAddress [<<Array>>,<<DataOffset>>]
+  /// CHECK-DAG:         <<Address:i\d+>>       IntermediateAddress [<<Array>>,<<DataOffset>>]
   /// CHECK-DAG:         <<ArrayGetI:i\d+>>     ArrayGet [<<Address>>,<<Index>>]
   /// CHECK-DAG:         <<ArrayGetI1:i\d+>>    ArrayGet [<<Address>>,<<Index1>>]
   /// CHECK:             <<Add:i\d+>>           Add [<<ArrayGetI>>,<<ArrayGetI1>>]
