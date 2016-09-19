@@ -25,6 +25,11 @@ if [ ${USE_JACK} = "true" ]; then
   jar cf classes.jill.jar -C classes .
   ${JACK} --import classes.jill.jar --output-dex .
 else
-  ${DX} -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex classes
+  if [ ${NEED_DEX} = "true" ]; then
+    ${DX} -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex classes
+  fi
 fi
-zip $TEST_NAME.jar classes.dex
+
+if [ ${NEED_DEX} = "true" ]; then
+  zip $TEST_NAME.jar classes.dex
+fi

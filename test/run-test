@@ -540,6 +540,13 @@ if [ "$usage" = "no" ]; then
     shift
 fi
 
+# For building with javac and dx always use Java 7. The dx compiler
+# only support byte codes from Java 7 or earlier (class file major
+# version 51 or lower).
+if [ "$USE_JACK" != "true" ] && [ "$NEED_DEX" = "true" ]; then
+  export JAVAC="${JAVAC} -source 1.7 -target 1.7"
+fi
+
 if [ "$usage" = "yes" ]; then
     prog=`basename $prog`
     (
@@ -561,8 +568,8 @@ if [ "$usage" = "yes" ]; then
         echo "    --gdb                 Run under gdb; incompatible with some tests."
         echo "    --gdb-arg             Pass an option to gdb."
         echo "    --build-only          Build test files only (off by default)."
-        echo "    --build-with-javac-dx Build test files with javac and dx (on by default)."
-        echo "    --build-with-jack     Build test files with jack and jill (off by default)."
+        echo "    --build-with-javac-dx Build test files with javac and dx (off by default)."
+        echo "    --build-with-jack     Build test files with jack and jill (on by default)."
         echo "    --interpreter         Enable interpreter only mode (off by default)."
         echo "    --jit                 Enable jit (off by default)."
         echo "    --optimizing          Enable optimizing compiler (default)."
