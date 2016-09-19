@@ -53,6 +53,7 @@ art_cc_binary {
 art_cc_binary {
     name: "oatdumps",
     defaults: ["oatdump-defaults"],
+    device_supported: false,
     target: {
         darwin: {
             enabled: false,
@@ -73,6 +74,7 @@ art_cc_binary {
         "art_debug_defaults",
         "oatdump-defaults",
     ],
+    device_supported: false,
     target: {
         darwin: {
             enabled: false,
