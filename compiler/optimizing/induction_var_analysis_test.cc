@@ -157,6 +157,13 @@ class InductionVarAnalysisTest : public CommonCompilerTest {
         iva_->LookupInfo(loop_body_[d]->GetLoopInformation(), instruction));
   }
 
+  // Returns induction information of the trip-count of loop at depth d.
+  std::string GetTripCount(int d) {
+    HInstruction* control = loop_header_[d]->GetLastInstruction();
+    DCHECK(control->IsIf());
+    return GetInductionInfo(control, d);
+  }
+
   // Returns true if instructions have identical induction.
   bool HaveSameInduction(HInstruction* instruction1, HInstruction* instruction2) {
     return HInductionVarAnalysis::InductionEqual(
@@ -239,8 +246,7 @@ TEST_F(InductionVarAnalysisTest, FindBasicInduction) {
   EXPECT_FALSE(HaveSameInduction(store->InputAt(1), increment_[0]));
 
   // Trip-count.
-  EXPECT_STREQ("((100) (TC-loop) ((0) < (100)))",
-               GetInductionInfo(loop_header_[0]->GetLastInstruction(), 0).c_str());
+  EXPECT_STREQ("((100) (TC-loop) ((0) < (100)))", GetTripCount(0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, FindDerivedInduction) {
@@ -579,8 +585,7 @@ TEST_F(InductionVarAnalysisTest, FindDeepLoopInduction) {
     }
     EXPECT_STREQ("((1) * i + (1)):PrimInt", GetInductionInfo(increment_[d], d).c_str());
     // Trip-count.
-    EXPECT_STREQ("((100) (TC-loop) ((0) < (100)))",
-                 GetInductionInfo(loop_header_[d]->GetLastInstruction(), d).c_str());
+    EXPECT_STREQ("((100) (TC-loop) ((0) < (100)))", GetTripCount(d).c_str());
   }
 }
 
@@ -607,8 +612,7 @@ TEST_F(InductionVarAnalysisTest, ByteInductionIntLoopControl) {
   EXPECT_FALSE(HaveSameInduction(store1->InputAt(1), store2->InputAt(1)));
 
   // Trip-count.
-  EXPECT_STREQ("((100) (TC-loop) ((0) < (100)))",
-               GetInductionInfo(loop_header_[0]->GetLastInstruction(), 0).c_str());
+  EXPECT_STREQ("((100) (TC-loop) ((0) < (100)))", GetTripCount(0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, ByteLoopControl1) {
@@ -626,8 +630,7 @@ TEST_F(InductionVarAnalysisTest, ByteLoopControl1) {
 
   EXPECT_STREQ("((1) * i + ((-128) + (1))):PrimByte", GetInductionInfo(increment_[0], 0).c_str());
   // Trip-count.
-  EXPECT_STREQ("(((127) - (-128)) (TC-loop) ((-128) < (127)))",
-               GetInductionInfo(loop_header_[0]->GetLastInstruction(), 0).c_str());
+  EXPECT_STREQ("(((127) - (-128)) (TC-loop) ((-128) < (127)))", GetTripCount(0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, ByteLoopControl2) {
@@ -645,7 +648,7 @@ TEST_F(InductionVarAnalysisTest, ByteLoopControl2) {
 
   EXPECT_STREQ("((1) * i + ((-128) + (1))):PrimByte", GetInductionInfo(increment_[0], 0).c_str());
   // Trip-count undefined.
-  EXPECT_STREQ("", GetInductionInfo(loop_header_[0]->GetLastInstruction(), 0).c_str());
+  EXPECT_STREQ("", GetTripCount(0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, ShortLoopControl1) {
@@ -664,8 +667,7 @@ TEST_F(InductionVarAnalysisTest, ShortLoopControl1) {
   EXPECT_STREQ("((1) * i + ((-32768) + (1))):PrimShort",
                GetInductionInfo(increment_[0], 0).c_str());
   // Trip-count.
-  EXPECT_STREQ("(((32767) - (-32768)) (TC-loop) ((-32768) < (32767)))",
-               GetInductionInfo(loop_header_[0]->GetLastInstruction(), 0).c_str());
+  EXPECT_STREQ("(((32767) - (-32768)) (TC-loop) ((-32768) < (32767)))", GetTripCount(0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, ShortLoopControl2) {
@@ -684,7 +686,7 @@ TEST_F(InductionVarAnalysisTest, ShortLoopControl2) {
   EXPECT_STREQ("((1) * i + ((-32768) + (1))):PrimShort",
                GetInductionInfo(increment_[0], 0).c_str());
   // Trip-count undefined.
-  EXPECT_STREQ("", GetInductionInfo(loop_header_[0]->GetLastInstruction(), 0).c_str());
+  EXPECT_STREQ("", GetTripCount(0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, CharLoopControl1) {
@@ -701,8 +703,7 @@ TEST_F(InductionVarAnalysisTest, CharLoopControl1) {
 
   EXPECT_STREQ("((1) * i + (1)):PrimChar", GetInductionInfo(increment_[0], 0).c_str());
   // Trip-count.
-  EXPECT_STREQ("((65535) (TC-loop) ((0) < (65535)))",
-               GetInductionInfo(loop_header_[0]->GetLastInstruction(), 0).c_str());
+  EXPECT_STREQ("((65535) (TC-loop) ((0) < (65535)))", GetTripCount(0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, CharLoopControl2) {
@@ -719,7 +720,7 @@ TEST_F(InductionVarAnalysisTest, CharLoopControl2) {
 
   EXPECT_STREQ("((1) * i + (1)):PrimChar", GetInductionInfo(increment_[0], 0).c_str());
   // Trip-count undefined.
-  EXPECT_STREQ("", GetInductionInfo(loop_header_[0]->GetLastInstruction(), 0).c_str());
+  EXPECT_STREQ("", GetTripCount(0).c_str());
 }
 
 }  // namespace art
