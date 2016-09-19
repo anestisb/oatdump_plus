@@ -1977,6 +1977,85 @@ TEST_F(AssemblerMIPSTest, StoreDToOffset) {
   DriverStr(expected, "StoreDToOffset");
 }
 
+TEST_F(AssemblerMIPSTest, StoreConstToOffset) {
+  __ StoreConstToOffset(mips::kStoreByte, 0xFF, mips::A1, +0, mips::T8);
+  __ StoreConstToOffset(mips::kStoreHalfword, 0xFFFF, mips::A1, +0, mips::T8);
+  __ StoreConstToOffset(mips::kStoreWord, 0x12345678, mips::A1, +0, mips::T8);
+  __ StoreConstToOffset(mips::kStoreDoubleword, 0x123456789ABCDEF0, mips::A1, +0, mips::T8);
+
+  __ StoreConstToOffset(mips::kStoreByte, 0, mips::A1, +0, mips::T8);
+  __ StoreConstToOffset(mips::kStoreHalfword, 0, mips::A1, +0, mips::T8);
+  __ StoreConstToOffset(mips::kStoreWord, 0, mips::A1, +0, mips::T8);
+  __ StoreConstToOffset(mips::kStoreDoubleword, 0, mips::A1, +0, mips::T8);
+
+  __ StoreConstToOffset(mips::kStoreDoubleword, 0x1234567812345678, mips::A1, +0, mips::T8);
+  __ StoreConstToOffset(mips::kStoreDoubleword, 0x1234567800000000, mips::A1, +0, mips::T8);
+  __ StoreConstToOffset(mips::kStoreDoubleword, 0x0000000012345678, mips::A1, +0, mips::T8);
+
+  __ StoreConstToOffset(mips::kStoreWord, 0, mips::T8, +0, mips::T8);
+  __ StoreConstToOffset(mips::kStoreWord, 0x12345678, mips::T8, +0, mips::T8);
+
+  __ StoreConstToOffset(mips::kStoreWord, 0, mips::A1, -0xFFF0, mips::T8);
+  __ StoreConstToOffset(mips::kStoreWord, 0x12345678, mips::A1, +0xFFF0, mips::T8);
+
+  __ StoreConstToOffset(mips::kStoreWord, 0, mips::T8, -0xFFF0, mips::T8);
+  __ StoreConstToOffset(mips::kStoreWord, 0x12345678, mips::T8, +0xFFF0, mips::T8);
+
+  const char* expected =
+      "ori $t8, $zero, 0xFF\n"
+      "sb $t8, 0($a1)\n"
+      "ori $t8, $zero, 0xFFFF\n"
+      "sh $t8, 0($a1)\n"
+      "lui $t8, 0x1234\n"
+      "ori $t8, $t8, 0x5678\n"
+      "sw $t8, 0($a1)\n"
+      "lui $t8, 0x9ABC\n"
+      "ori $t8, $t8, 0xDEF0\n"
+      "sw $t8, 0($a1)\n"
+      "lui $t8, 0x1234\n"
+      "ori $t8, $t8, 0x5678\n"
+      "sw $t8, 4($a1)\n"
+
+      "sb $zero, 0($a1)\n"
+      "sh $zero, 0($a1)\n"
+      "sw $zero, 0($a1)\n"
+      "sw $zero, 0($a1)\n"
+      "sw $zero, 4($a1)\n"
+
+      "lui $t8, 0x1234\n"
+      "ori $t8, $t8, 0x5678\n"
+      "sw $t8, 0($a1)\n"
+      "sw $t8, 4($a1)\n"
+      "sw $zero, 0($a1)\n"
+      "lui $t8, 0x1234\n"
+      "ori $t8, $t8, 0x5678\n"
+      "sw $t8, 4($a1)\n"
+      "lui $t8, 0x1234\n"
+      "ori $t8, $t8, 0x5678\n"
+      "sw $t8, 0($a1)\n"
+      "sw $zero, 4($a1)\n"
+
+      "sw $zero, 0($t8)\n"
+      "lui $at, 0x1234\n"
+      "ori $at, $at, 0x5678\n"
+      "sw $at, 0($t8)\n"
+
+      "addiu $at, $a1, -0x7FF8\n"
+      "sw $zero, -0x7FF8($at)\n"
+      "addiu $at, $a1, 0x7FF8\n"
+      "lui $t8, 0x1234\n"
+      "ori $t8, $t8, 0x5678\n"
+      "sw $t8, 0x7FF8($at)\n"
+
+      "addiu $at, $t8, -0x7FF8\n"
+      "sw $zero, -0x7FF8($at)\n"
+      "addiu $at, $t8, 0x7FF8\n"
+      "lui $t8, 0x1234\n"
+      "ori $t8, $t8, 0x5678\n"
+      "sw $t8, 0x7FF8($at)\n";
+  DriverStr(expected, "StoreConstToOffset");
+}
+
 TEST_F(AssemblerMIPSTest, B) {
   mips::MipsLabel label1, label2;
   __ B(&label1);
