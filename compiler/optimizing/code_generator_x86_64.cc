@@ -981,7 +981,7 @@ void CodeGeneratorX86_64::InvokeRuntime(QuickEntrypointEnum entrypoint,
                                         HInstruction* instruction,
                                         uint32_t dex_pc,
                                         SlowPathCode* slow_path) {
-  ValidateInvokeRuntime(instruction, slow_path);
+  ValidateInvokeRuntime(entrypoint, instruction, slow_path);
   GenerateInvokeRuntime(GetThreadOffset<kX86_64PointerSize>(entrypoint).Int32Value());
   if (EntrypointRequiresStackMap(entrypoint)) {
     RecordPcInfo(instruction, dex_pc, slow_path);

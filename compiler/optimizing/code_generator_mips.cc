@@ -1224,7 +1224,7 @@ void CodeGeneratorMIPS::InvokeRuntime(QuickEntrypointEnum entrypoint,
                                       HInstruction* instruction,
                                       uint32_t dex_pc,
                                       SlowPathCode* slow_path) {
-  ValidateInvokeRuntime(instruction, slow_path);
+  ValidateInvokeRuntime(entrypoint, instruction, slow_path);
   bool reordering = __ SetReorder(false);
   __ LoadFromOffset(kLoadWord, T9, TR, GetThreadOffset<kMipsPointerSize>(entrypoint).Int32Value());
   __ Jalr(T9);

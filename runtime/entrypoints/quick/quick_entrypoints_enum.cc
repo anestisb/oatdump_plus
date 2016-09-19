@@ -71,4 +71,55 @@ bool EntrypointRequiresStackMap(QuickEntrypointEnum trampoline) {
   }
 }
 
+bool EntrypointCanTriggerGC(QuickEntrypointEnum entrypoint) {
+  switch (entrypoint) {
+    // Listed in the same order as in quick_entrypoints_list.h.
+    case kQuickCmpgDouble:
+    case kQuickCmpgFloat:
+    case kQuickCmplDouble:
+    case kQuickCmplFloat:
+    case kQuickCos:
+    case kQuickSin:
+    case kQuickAcos:
+    case kQuickAsin:
+    case kQuickAtan:
+    case kQuickAtan2:
+    case kQuickCbrt:
+    case kQuickCosh:
+    case kQuickExp:
+    case kQuickExpm1:
+    case kQuickHypot:
+    case kQuickLog:
+    case kQuickLog10:
+    case kQuickNextAfter:
+    case kQuickSinh:
+    case kQuickTan:
+    case kQuickTanh:
+    case kQuickFmod:
+    case kQuickL2d:
+    case kQuickFmodf:
+    case kQuickL2f:
+    case kQuickD2iz:
+    case kQuickF2iz:
+    case kQuickIdivmod:
+    case kQuickD2l:
+    case kQuickF2l:
+    case kQuickLdiv:
+    case kQuickLmod:
+    case kQuickLmul:
+    case kQuickShlLong:
+    case kQuickShrLong:
+    case kQuickUshrLong:
+      return false;
+
+    /* Used by mips for 64bit volatile load/stores. */
+    case kQuickA64Load:
+    case kQuickA64Store:
+      return false;
+
+    default:
+      return true;
+  }
+}
+
 }   // namespace art
