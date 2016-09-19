@@ -35,13 +35,6 @@ ART_TARGET_NATIVETEST_OUT := $(TARGET_OUT_DATA_NATIVE_TESTS)/art
 ART_TARGET_TEST_DIR := /data/art-test
 ART_TARGET_TEST_OUT := $(TARGET_OUT_DATA)/art-test
 
-# Directory used for temporary test files on the host.
-ifneq ($(TMPDIR),)
-ART_HOST_TEST_DIR := $(TMPDIR)/test-art-$(shell echo $$PPID)
-else
-ART_HOST_TEST_DIR := /tmp/$(USER)/test-art-$(shell echo $$PPID)
-endif
-
 # core.oat location on the device.
 TARGET_CORE_OAT := $(ART_TARGET_TEST_DIR)/$(DEX2OAT_TARGET_ARCH)/core.oat
 ifdef TARGET_2ND_ARCH
