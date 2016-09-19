@@ -190,6 +190,14 @@ art_cc_defaults {
     ],
     include_dirs: ["art/disassembler"],
     export_include_dirs: ["."],
+
+    // For SHA-1 checksumming of build ID
+    static: {
+        whole_static_libs: ["libcrypto"],
+    },
+    shared: {
+        shared_libs: ["libcrypto"],
+    },
 }
 
 gensrcs {

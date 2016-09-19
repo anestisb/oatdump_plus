@@ -122,7 +122,8 @@ $$(core_image_name): $$(HOST_CORE_DEX_LOCATIONS) $$(core_dex2oat_dependency)
 	  --oat-location=$$(PRIVATE_CORE_OAT_NAME) --image=$$(PRIVATE_CORE_IMG_NAME) \
 	  --base=$$(LIBART_IMG_HOST_BASE_ADDRESS) --instruction-set=$$($(3)ART_HOST_ARCH) \
 	  $$(LOCAL_$(3)DEX2OAT_HOST_INSTRUCTION_SET_FEATURES_OPTION) \
-	  --host --android-root=$$(HOST_OUT) --include-patch-information --generate-debug-info \
+	  --host --android-root=$$(HOST_OUT) --include-patch-information \
+	  --generate-debug-info --generate-build-id \
 	  $$(PRIVATE_CORE_MULTI_PARAM) $$(PRIVATE_CORE_COMPILE_OPTIONS)
 
 $$(core_oat_name): $$(core_image_name)
@@ -239,7 +240,8 @@ $$(core_image_name): $$(TARGET_CORE_DEX_FILES) $$(core_dex2oat_dependency)
 	  --base=$$(LIBART_IMG_TARGET_BASE_ADDRESS) --instruction-set=$$($(3)TARGET_ARCH) \
 	  --instruction-set-variant=$$($(3)DEX2OAT_TARGET_CPU_VARIANT) \
 	  --instruction-set-features=$$($(3)DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES) \
-	  --android-root=$$(PRODUCT_OUT)/system --include-patch-information --generate-debug-info \
+	  --android-root=$$(PRODUCT_OUT)/system --include-patch-information \
+	  --generate-debug-info --generate-build-id \
 	  $$(PRIVATE_CORE_COMPILE_OPTIONS) || (rm $$(PRIVATE_CORE_OAT_NAME); exit 1)
 
 $$(core_oat_name): $$(core_image_name)
