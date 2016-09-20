@@ -272,6 +272,15 @@ ENTRY \c_name
 END \c_name
 .endm
 
+.macro NO_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING c_name, cxx_name
+    .extern \cxx_name
+ENTRY \c_name
+    SETUP_SAVE_EVERYTHING_FRAME r0  @ save all registers as basis for long jump context
+    mov r0, r9                      @ pass Thread::Current
+    bl  \cxx_name                   @ \cxx_name(Thread*)
+END \c_name
+.endm
+
 .macro ONE_ARG_RUNTIME_EXCEPTION c_name, cxx_name
     .extern \cxx_name
 ENTRY \c_name
@@ -281,10 +290,10 @@ ENTRY \c_name
 END \c_name
 .endm
 
-.macro TWO_ARG_RUNTIME_EXCEPTION c_name, cxx_name
+.macro TWO_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING c_name, cxx_name
     .extern \cxx_name
 ENTRY \c_name
-    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME r2       @ save all registers as basis for long jump context
+    SETUP_SAVE_EVERYTHING_FRAME r2  @ save all registers as basis for long jump context
     mov r2, r9                      @ pass Thread::Current
     bl  \cxx_name                   @ \cxx_name(Thread*)
 END \c_name
@@ -361,7 +370,7 @@ ONE_ARG_RUNTIME_EXCEPTION art_quick_deliver_exception, artDeliverExceptionFromCo
     /*
      * Called by managed code to create and deliver a NullPointerException.
      */
-NO_ARG_RUNTIME_EXCEPTION art_quick_throw_null_pointer_exception, artThrowNullPointerExceptionFromCode
+NO_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING art_quick_throw_null_pointer_exception, artThrowNullPointerExceptionFromCode
 
     /*
      * Call installed by a signal handler to create and deliver a NullPointerException.
@@ -398,19 +407,19 @@ END art_quick_throw_null_pointer_exception_from_signal
     /*
      * Called by managed code to create and deliver an ArithmeticException.
      */
-NO_ARG_RUNTIME_EXCEPTION art_quick_throw_div_zero, artThrowDivZeroFromCode
+NO_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING art_quick_throw_div_zero, artThrowDivZeroFromCode
 
     /*
      * Called by managed code to create and deliver an ArrayIndexOutOfBoundsException. Arg1 holds
      * index, arg2 holds limit.
      */
-TWO_ARG_RUNTIME_EXCEPTION art_quick_throw_array_bounds, artThrowArrayBoundsFromCode
+TWO_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING art_quick_throw_array_bounds, artThrowArrayBoundsFromCode
 
     /*
      * Called by managed code to create and deliver a StringIndexOutOfBoundsException
      * as if thrown from a call to String.charAt(). Arg1 holds index, arg2 holds limit.
      */
-TWO_ARG_RUNTIME_EXCEPTION art_quick_throw_string_bounds, artThrowStringBoundsFromCode
+TWO_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING art_quick_throw_string_bounds, artThrowStringBoundsFromCode
 
     /*
      * Called by managed code to create and deliver a StackOverflowError.

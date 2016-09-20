@@ -26,22 +26,6 @@
 // Register holding Thread::Current().
 #define rSELF $s1
 
-     // Declare a function called name, sets up $gp.
-.macro ENTRY name
-    .type \name, %function
-    .global \name
-    // Cache alignment for function entry.
-    .balign 16
-\name:
-    .cfi_startproc
-     // Ensure we get a sane starting CFA.
-    .cfi_def_cfa $sp,0
-    // Load $gp. We expect that ".set noreorder" is in effect.
-    .cpload $t9
-    // Declare a local convenience label to be branched to when $gp is already set up.
-.L\name\()_gp_set:
-.endm
-
      // Declare a function called name, doesn't set up $gp.
 .macro ENTRY_NO_GP_CUSTOM_CFA name, cfa_offset
     .type \name, %function
@@ -57,6 +41,15 @@
      // Declare a function called name, doesn't set up $gp.
 .macro ENTRY_NO_GP name
     ENTRY_NO_GP_CUSTOM_CFA \name, 0
+.endm
+
+     // Declare a function called name, sets up $gp.
+.macro ENTRY name
+    ENTRY_NO_GP \name
+    // Load $gp. We expect that ".set noreorder" is in effect.
+    .cpload $t9
+    // Declare a local convenience label to be branched to when $gp is already set up.
+.L\name\()_gp_set:
 .endm
 
 .macro END name

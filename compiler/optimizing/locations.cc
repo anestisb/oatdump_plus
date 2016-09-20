@@ -33,8 +33,8 @@ LocationSummary::LocationSummary(HInstruction* instruction,
       output_overlaps_(Location::kOutputOverlap),
       stack_mask_(nullptr),
       register_mask_(0),
-      live_registers_(),
-      custom_slow_path_caller_saves_() {
+      live_registers_(RegisterSet::Empty()),
+      custom_slow_path_caller_saves_(RegisterSet::Empty()) {
   instruction->SetLocations(this);
 
   if (NeedsSafepoint()) {
