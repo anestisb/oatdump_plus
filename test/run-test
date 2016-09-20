@@ -130,6 +130,7 @@ have_image="yes"
 pic_image_suffix=""
 multi_image_suffix=""
 android_root="/system"
+bisection_search="no"
 # By default we will use optimizing.
 image_args=""
 image_suffix=""
@@ -347,6 +348,9 @@ while true; do
         shift
         run_args="${run_args} --instruction-set-features $1"
         shift
+    elif [ "x$1" = "x--bisection-search" ]; then
+        bisection_search="yes"
+        shift
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
         echo "unknown $0 option: $1" 1>&2
         usage="yes"
@@ -519,6 +523,21 @@ if [ "$dev_mode" = "yes" -a "$quiet" = "yes" ]; then
     usage="yes"
 fi
 
+if [ "$bisection_search" = "yes" -a "$prebuild_mode" = "yes" ]; then
+    err_echo "--bisection-search and --prebuild are mutually exclusive"
+    usage="yes"
+fi
+
+if [ "$bisection_search" = "yes" -a "$have_dex2oat" = "no" ]; then
+    err_echo "--bisection-search and --no-dex2oat are mutually exclusive"
+    usage="yes"
+fi
+
+if [ "$bisection_search" = "yes" -a "$have_patchoat" = "no" ]; then
+    err_echo "--bisection-search and --no-patchoat are mutually exclusive"
+    usage="yes"
+fi
+
 if [ "$usage" = "no" ]; then
     if [ "x$1" = "x" -o "x$1" = "x-" ]; then
         test_dir=`basename "$oldwd"`
@@ -613,6 +632,7 @@ if [ "$usage" = "yes" ]; then
         echo "                          the boot class path."
         echo "    --pic-test            Compile the test code position independent."
         echo "    --quiet               Don't print anything except failure messages"
+        echo "    --bisection-search    Perform bisection bug search."
     ) 1>&2  # Direct to stderr so usage is not printed if --quiet is set.
     exit 1
 fi
@@ -880,6 +900,41 @@ fi
     fi
 
 ) 2>&${real_stderr} 1>&2
+
+# Attempt bisection only if the test failed.
+if [ "$bisection_search" = "yes" -a "$good" != "yes" ]; then
+    # Bisecting works by skipping different optimization passes which breaks checker assertions.
+    if [ "$run_checker" == "yes" ]; then
+      echo "${test_dir}: not bisecting, checker test." 1>&2
+    else
+      # Increase file size limit, bisection search can generate large logfiles.
+      if ! ulimit -S unlimited; then
+        err_echo "ulimit file size setting failed"
+      fi
+      echo "${test_dir}: bisecting..." 1>&2
+      cwd=`pwd`
+      maybe_device_mode=""
+      raw_cmd=""
+      if [ "$target_mode" = "yes" ]; then
+        # Produce cmdline.sh in $DEX_LOCATION. "$@" is passed as a runtime option
+        # so that cmdline.sh forwards its arguments to dalvikvm. invoke-with is set
+        # to exec in order to preserve pid when calling dalvikvm. This is required
+        # for bisection search to correctly retrieve logs from device.
+        "./${run}" $run_args --runtime-option '"$@"' --invoke-with exec --dry-run "$@" &> /dev/null
+        adb shell chmod u+x "$DEX_LOCATION/cmdline.sh"
+        maybe_device_mode="--device"
+        raw_cmd="$DEX_LOCATION/cmdline.sh"
+      else
+        raw_cmd="$cwd/${run} --external-log-tags $run_args $@"
+      fi
+      $ANDROID_BUILD_TOP/art/tools/bisection_search/bisection_search.py \
+        $maybe_device_mode \
+        --raw-cmd="$raw_cmd" \
+        --check-script="$cwd/check" \
+        --expected-output="$cwd/expected.txt" \
+        --timeout=300
+    fi
+fi
 
 # Clean up test files.
 if [ "$always_clean" = "yes" -o "$good" = "yes" ] && [ "$never_clean" = "no" ]; then
