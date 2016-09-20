@@ -50,6 +50,18 @@ static constexpr SRegister kRuntimeParameterFpuRegisters[] = { S0, S1, S2, S3 };
 static constexpr size_t kRuntimeParameterFpuRegistersLength =
     arraysize(kRuntimeParameterFpuRegisters);
 
+class SlowPathCodeARM : public SlowPathCode {
+ public:
+  explicit SlowPathCodeARM(HInstruction* instruction) : SlowPathCode(instruction) {}
+
+  void SaveLiveRegisters(CodeGenerator* codegen, LocationSummary* locations) FINAL;
+  void RestoreLiveRegisters(CodeGenerator* codegen, LocationSummary* locations) FINAL;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(SlowPathCodeARM);
+};
+
+
 class InvokeRuntimeCallingConvention : public CallingConvention<Register, SRegister> {
  public:
   InvokeRuntimeCallingConvention()
@@ -216,7 +228,7 @@ class InstructionCodeGeneratorARM : public InstructionCodeGenerator {
   // is the block to branch to if the suspend check is not needed, and after
   // the suspend call.
   void GenerateSuspendCheck(HSuspendCheck* check, HBasicBlock* successor);
-  void GenerateClassInitializationCheck(SlowPathCode* slow_path, Register class_reg);
+  void GenerateClassInitializationCheck(SlowPathCodeARM* slow_path, Register class_reg);
   void GenerateAndConst(Register out, Register first, uint32_t value);
   void GenerateOrrConst(Register out, Register first, uint32_t value);
   void GenerateEorConst(Register out, Register first, uint32_t value);

@@ -63,9 +63,79 @@ static constexpr uint32_t kPackedSwitchCompareJumpThreshold = 7;
 #define __ down_cast<ArmAssembler*>(codegen->GetAssembler())->  // NOLINT
 #define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kArmPointerSize, x).Int32Value()
 
-class NullCheckSlowPathARM : public SlowPathCode {
+static constexpr int kRegListThreshold = 4;
+
+void SlowPathCodeARM::SaveLiveRegisters(CodeGenerator* codegen, LocationSummary* locations) {
+  size_t stack_offset = codegen->GetFirstRegisterSlotInSlowPath();
+  size_t orig_offset = stack_offset;
+
+  const uint32_t core_spills = codegen->GetSlowPathSpills(locations, /* core_registers */ true);
+  for (uint32_t i : LowToHighBits(core_spills)) {
+    // If the register holds an object, update the stack mask.
+    if (locations->RegisterContainsObject(i)) {
+      locations->SetStackBit(stack_offset / kVRegSize);
+    }
+    DCHECK_LT(stack_offset, codegen->GetFrameSize() - codegen->FrameEntrySpillSize());
+    DCHECK_LT(i, kMaximumNumberOfExpectedRegisters);
+    saved_core_stack_offsets_[i] = stack_offset;
+    stack_offset += kArmWordSize;
+  }
+
+  int reg_num = POPCOUNT(core_spills);
+  if (reg_num != 0) {
+    if (reg_num > kRegListThreshold) {
+      __ StoreList(RegList(core_spills), orig_offset);
+    } else {
+      stack_offset = orig_offset;
+      for (uint32_t i : LowToHighBits(core_spills)) {
+        stack_offset += codegen->SaveCoreRegister(stack_offset, i);
+      }
+    }
+  }
+
+  const uint32_t fp_spills = codegen->GetSlowPathSpills(locations, /* core_registers */ false);
+  for (size_t i : LowToHighBits(fp_spills)) {
+    DCHECK_LT(stack_offset, codegen->GetFrameSize() - codegen->FrameEntrySpillSize());
+    DCHECK_LT(i, kMaximumNumberOfExpectedRegisters);
+    saved_fpu_stack_offsets_[i] = stack_offset;
+    stack_offset += codegen->SaveFloatingPointRegister(stack_offset, i);
+  }
+}
+
+void SlowPathCodeARM::RestoreLiveRegisters(CodeGenerator* codegen, LocationSummary* locations) {
+  size_t stack_offset = codegen->GetFirstRegisterSlotInSlowPath();
+  size_t orig_offset = stack_offset;
+
+  const uint32_t core_spills = codegen->GetSlowPathSpills(locations, /* core_registers */ true);
+  for (uint32_t i : LowToHighBits(core_spills)) {
+    DCHECK_LT(stack_offset, codegen->GetFrameSize() - codegen->FrameEntrySpillSize());
+    DCHECK_LT(i, kMaximumNumberOfExpectedRegisters);
+    stack_offset += kArmWordSize;
+  }
+
+  int reg_num = POPCOUNT(core_spills);
+  if (reg_num != 0) {
+    if (reg_num > kRegListThreshold) {
+      __ LoadList(RegList(core_spills), orig_offset);
+    } else {
+      stack_offset = orig_offset;
+      for (uint32_t i : LowToHighBits(core_spills)) {
+        stack_offset += codegen->RestoreCoreRegister(stack_offset, i);
+      }
+    }
+  }
+
+  const uint32_t fp_spills = codegen->GetSlowPathSpills(locations, /* core_registers */ false);
+  for (size_t i : LowToHighBits(fp_spills)) {
+    DCHECK_LT(stack_offset, codegen->GetFrameSize() - codegen->FrameEntrySpillSize());
+    DCHECK_LT(i, kMaximumNumberOfExpectedRegisters);
+    stack_offset += codegen->RestoreFloatingPointRegister(stack_offset, i);
+  }
+}
+
+class NullCheckSlowPathARM : public SlowPathCodeARM {
  public:
-  explicit NullCheckSlowPathARM(HNullCheck* instruction) : SlowPathCode(instruction) {}
+  explicit NullCheckSlowPathARM(HNullCheck* instruction) : SlowPathCodeARM(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
@@ -89,9 +159,9 @@ class NullCheckSlowPathARM : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(NullCheckSlowPathARM);
 };
 
-class DivZeroCheckSlowPathARM : public SlowPathCode {
+class DivZeroCheckSlowPathARM : public SlowPathCodeARM {
  public:
-  explicit DivZeroCheckSlowPathARM(HDivZeroCheck* instruction) : SlowPathCode(instruction) {}
+  explicit DivZeroCheckSlowPathARM(HDivZeroCheck* instruction) : SlowPathCodeARM(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
@@ -112,10 +182,10 @@ class DivZeroCheckSlowPathARM : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(DivZeroCheckSlowPathARM);
 };
 
-class SuspendCheckSlowPathARM : public SlowPathCode {
+class SuspendCheckSlowPathARM : public SlowPathCodeARM {
  public:
   SuspendCheckSlowPathARM(HSuspendCheck* instruction, HBasicBlock* successor)
-      : SlowPathCode(instruction), successor_(successor) {}
+      : SlowPathCodeARM(instruction), successor_(successor) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
@@ -150,10 +220,10 @@ class SuspendCheckSlowPathARM : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(SuspendCheckSlowPathARM);
 };
 
-class BoundsCheckSlowPathARM : public SlowPathCode {
+class BoundsCheckSlowPathARM : public SlowPathCodeARM {
  public:
   explicit BoundsCheckSlowPathARM(HBoundsCheck* instruction)
-      : SlowPathCode(instruction) {}
+      : SlowPathCodeARM(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
@@ -190,13 +260,13 @@ class BoundsCheckSlowPathARM : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(BoundsCheckSlowPathARM);
 };
 
-class LoadClassSlowPathARM : public SlowPathCode {
+class LoadClassSlowPathARM : public SlowPathCodeARM {
  public:
   LoadClassSlowPathARM(HLoadClass* cls,
                        HInstruction* at,
                        uint32_t dex_pc,
                        bool do_clinit)
-      : SlowPathCode(at), cls_(cls), at_(at), dex_pc_(dex_pc), do_clinit_(do_clinit) {
+      : SlowPathCodeARM(at), cls_(cls), at_(at), dex_pc_(dex_pc), do_clinit_(do_clinit) {
     DCHECK(at->IsLoadClass() || at->IsClinitCheck());
   }
 
@@ -247,10 +317,10 @@ class LoadClassSlowPathARM : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(LoadClassSlowPathARM);
 };
 
-class TypeCheckSlowPathARM : public SlowPathCode {
+class TypeCheckSlowPathARM : public SlowPathCodeARM {
  public:
   TypeCheckSlowPathARM(HInstruction* instruction, bool is_fatal)
-      : SlowPathCode(instruction), is_fatal_(is_fatal) {}
+      : SlowPathCodeARM(instruction), is_fatal_(is_fatal) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
@@ -307,10 +377,10 @@ class TypeCheckSlowPathARM : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(TypeCheckSlowPathARM);
 };
 
-class DeoptimizationSlowPathARM : public SlowPathCode {
+class DeoptimizationSlowPathARM : public SlowPathCodeARM {
  public:
   explicit DeoptimizationSlowPathARM(HDeoptimize* instruction)
-    : SlowPathCode(instruction) {}
+    : SlowPathCodeARM(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
@@ -325,9 +395,9 @@ class DeoptimizationSlowPathARM : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(DeoptimizationSlowPathARM);
 };
 
-class ArraySetSlowPathARM : public SlowPathCode {
+class ArraySetSlowPathARM : public SlowPathCodeARM {
  public:
-  explicit ArraySetSlowPathARM(HInstruction* instruction) : SlowPathCode(instruction) {}
+  explicit ArraySetSlowPathARM(HInstruction* instruction) : SlowPathCodeARM(instruction) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
@@ -367,10 +437,10 @@ class ArraySetSlowPathARM : public SlowPathCode {
 };
 
 // Slow path marking an object during a read barrier.
-class ReadBarrierMarkSlowPathARM : public SlowPathCode {
+class ReadBarrierMarkSlowPathARM : public SlowPathCodeARM {
  public:
   ReadBarrierMarkSlowPathARM(HInstruction* instruction, Location obj)
-      : SlowPathCode(instruction), obj_(obj) {
+      : SlowPathCodeARM(instruction), obj_(obj) {
     DCHECK(kEmitCompilerReadBarrier);
   }
 
@@ -434,7 +504,7 @@ class ReadBarrierMarkSlowPathARM : public SlowPathCode {
 };
 
 // Slow path generating a read barrier for a heap reference.
-class ReadBarrierForHeapReferenceSlowPathARM : public SlowPathCode {
+class ReadBarrierForHeapReferenceSlowPathARM : public SlowPathCodeARM {
  public:
   ReadBarrierForHeapReferenceSlowPathARM(HInstruction* instruction,
                                          Location out,
@@ -442,7 +512,7 @@ class ReadBarrierForHeapReferenceSlowPathARM : public SlowPathCode {
                                          Location obj,
                                          uint32_t offset,
                                          Location index)
-      : SlowPathCode(instruction),
+      : SlowPathCodeARM(instruction),
         out_(out),
         ref_(ref),
         obj_(obj),
@@ -614,10 +684,10 @@ class ReadBarrierForHeapReferenceSlowPathARM : public SlowPathCode {
 };
 
 // Slow path generating a read barrier for a GC root.
-class ReadBarrierForRootSlowPathARM : public SlowPathCode {
+class ReadBarrierForRootSlowPathARM : public SlowPathCodeARM {
  public:
   ReadBarrierForRootSlowPathARM(HInstruction* instruction, Location out, Location root)
-      : SlowPathCode(instruction), out_(out), root_(root) {
+      : SlowPathCodeARM(instruction), out_(out), root_(root) {
     DCHECK(kEmitCompilerReadBarrier);
   }
 
@@ -1509,7 +1579,7 @@ void LocationsBuilderARM::VisitDeoptimize(HDeoptimize* deoptimize) {
 }
 
 void InstructionCodeGeneratorARM::VisitDeoptimize(HDeoptimize* deoptimize) {
-  SlowPathCode* slow_path = deopt_slow_paths_.NewSlowPath<DeoptimizationSlowPathARM>(deoptimize);
+  SlowPathCodeARM* slow_path = deopt_slow_paths_.NewSlowPath<DeoptimizationSlowPathARM>(deoptimize);
   GenerateTestAndBranch(deoptimize,
                         /* condition_input_index */ 0,
                         slow_path->GetEntryLabel(),
@@ -3096,7 +3166,7 @@ void LocationsBuilderARM::VisitDivZeroCheck(HDivZeroCheck* instruction) {
 }
 
 void InstructionCodeGeneratorARM::VisitDivZeroCheck(HDivZeroCheck* instruction) {
-  SlowPathCode* slow_path = new (GetGraph()->GetArena()) DivZeroCheckSlowPathARM(instruction);
+  SlowPathCodeARM* slow_path = new (GetGraph()->GetArena()) DivZeroCheckSlowPathARM(instruction);
   codegen_->AddSlowPath(slow_path);
 
   LocationSummary* locations = instruction->GetLocations();
@@ -4265,7 +4335,7 @@ void CodeGeneratorARM::GenerateImplicitNullCheck(HNullCheck* instruction) {
 }
 
 void CodeGeneratorARM::GenerateExplicitNullCheck(HNullCheck* instruction) {
-  SlowPathCode* slow_path = new (GetGraph()->GetArena()) NullCheckSlowPathARM(instruction);
+  SlowPathCodeARM* slow_path = new (GetGraph()->GetArena()) NullCheckSlowPathARM(instruction);
   AddSlowPath(slow_path);
 
   LocationSummary* locations = instruction->GetLocations();
@@ -4683,7 +4753,7 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
       uint32_t super_offset = mirror::Class::SuperClassOffset().Int32Value();
       uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
       Label done;
-      SlowPathCode* slow_path = nullptr;
+      SlowPathCodeARM* slow_path = nullptr;
 
       if (may_need_runtime_call_for_type_check) {
         slow_path = new (GetGraph()->GetArena()) ArraySetSlowPathARM(instruction);
@@ -4901,7 +4971,7 @@ void LocationsBuilderARM::VisitBoundsCheck(HBoundsCheck* instruction) {
 
 void InstructionCodeGeneratorARM::VisitBoundsCheck(HBoundsCheck* instruction) {
   LocationSummary* locations = instruction->GetLocations();
-  SlowPathCode* slow_path =
+  SlowPathCodeARM* slow_path =
       new (GetGraph()->GetArena()) BoundsCheckSlowPathARM(instruction);
   codegen_->AddSlowPath(slow_path);
 
@@ -5370,7 +5440,7 @@ void InstructionCodeGeneratorARM::VisitLoadClass(HLoadClass* cls) {
 
   if (generate_null_check || cls->MustGenerateClinitCheck()) {
     DCHECK(cls->CanCallRuntime());
-    SlowPathCode* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathARM(
+    SlowPathCodeARM* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathARM(
         cls, cls, cls->GetDexPc(), cls->MustGenerateClinitCheck());
     codegen_->AddSlowPath(slow_path);
     if (generate_null_check) {
@@ -5395,7 +5465,7 @@ void LocationsBuilderARM::VisitClinitCheck(HClinitCheck* check) {
 
 void InstructionCodeGeneratorARM::VisitClinitCheck(HClinitCheck* check) {
   // We assume the class is not null.
-  SlowPathCode* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathARM(
+  SlowPathCodeARM* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathARM(
       check->GetLoadClass(), check, check->GetDexPc(), true);
   codegen_->AddSlowPath(slow_path);
   GenerateClassInitializationCheck(slow_path,
@@ -5403,7 +5473,7 @@ void InstructionCodeGeneratorARM::VisitClinitCheck(HClinitCheck* check) {
 }
 
 void InstructionCodeGeneratorARM::GenerateClassInitializationCheck(
-    SlowPathCode* slow_path, Register class_reg) {
+    SlowPathCodeARM* slow_path, Register class_reg) {
   __ LoadFromOffset(kLoadWord, IP, class_reg, mirror::Class::StatusOffset().Int32Value());
   __ cmp(IP, ShifterOperand(mirror::Class::kStatusInitialized));
   __ b(slow_path->GetEntryLabel(), LT);
@@ -5596,7 +5666,7 @@ void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
   uint32_t component_offset = mirror::Class::ComponentTypeOffset().Int32Value();
   uint32_t primitive_offset = mirror::Class::PrimitiveTypeOffset().Int32Value();
   Label done, zero;
-  SlowPathCode* slow_path = nullptr;
+  SlowPathCodeARM* slow_path = nullptr;
 
   // Return 0 if `obj` is null.
   // avoid null check if we know obj is not null.
@@ -5788,7 +5858,7 @@ void InstructionCodeGeneratorARM::VisitCheckCast(HCheckCast* instruction) {
        type_check_kind == TypeCheckKind::kClassHierarchyCheck ||
        type_check_kind == TypeCheckKind::kArrayObjectCheck) &&
       !instruction->CanThrowIntoCatchBlock();
-  SlowPathCode* type_check_slow_path =
+  SlowPathCodeARM* type_check_slow_path =
       new (GetGraph()->GetArena()) TypeCheckSlowPathARM(instruction,
                                                         is_type_check_slow_path_fatal);
   codegen_->AddSlowPath(type_check_slow_path);
@@ -6282,7 +6352,7 @@ void InstructionCodeGeneratorARM::GenerateGcRootFieldLoad(HInstruction* instruct
                     "have different sizes.");
 
       // Slow path marking the GC root `root`.
-      SlowPathCode* slow_path =
+      SlowPathCodeARM* slow_path =
           new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathARM(instruction, root);
       codegen_->AddSlowPath(slow_path);
 
@@ -6423,7 +6493,7 @@ void CodeGeneratorARM::GenerateReferenceLoadWithBakerReadBarrier(HInstruction* i
   __ MaybeUnpoisonHeapReference(ref_reg);
 
   // Slow path marking the object `ref` when it is gray.
-  SlowPathCode* slow_path =
+  SlowPathCodeARM* slow_path =
       new (GetGraph()->GetArena()) ReadBarrierMarkSlowPathARM(instruction, ref);
   AddSlowPath(slow_path);
 
@@ -6459,7 +6529,7 @@ void CodeGeneratorARM::GenerateReadBarrierSlow(HInstruction* instruction,
   // not used by the artReadBarrierSlow entry point.
   //
   // TODO: Unpoison `ref` when it is used by artReadBarrierSlow.
-  SlowPathCode* slow_path = new (GetGraph()->GetArena())
+  SlowPathCodeARM* slow_path = new (GetGraph()->GetArena())
       ReadBarrierForHeapReferenceSlowPathARM(instruction, out, ref, obj, offset, index);
   AddSlowPath(slow_path);
 
@@ -6494,7 +6564,7 @@ void CodeGeneratorARM::GenerateReadBarrierForRootSlow(HInstruction* instruction,
   //
   // Note that GC roots are not affected by heap poisoning, so we do
   // not need to do anything special for this here.
-  SlowPathCode* slow_path =
+  SlowPathCodeARM* slow_path =
       new (GetGraph()->GetArena()) ReadBarrierForRootSlowPathARM(instruction, out, root);
   AddSlowPath(slow_path);
 
