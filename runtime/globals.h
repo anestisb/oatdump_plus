@@ -85,9 +85,9 @@ static constexpr bool kIsTargetLinux = false;
 # endif
 #endif
 
-// Are additional statically-linked ART host binaries (dex2oats,
-// oatdumps, etc.) built and available?
-#if !defined(ART_TARGET) && defined(ART_BUILD_HOST_STATIC)
+// Additional statically-linked ART binaries (dex2oats, oatdumps, etc.) are
+// always available on the host
+#if !defined(ART_TARGET)
 static constexpr bool kHostStaticBuildEnabled = true;
 #else
 static constexpr bool kHostStaticBuildEnabled = false;
