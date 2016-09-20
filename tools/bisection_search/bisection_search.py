@@ -24,18 +24,23 @@ Example usage:
 
 import abc
 import argparse
+import os
 import re
 import shlex
-from subprocess import call
 import sys
+
+from subprocess import call
 from tempfile import NamedTemporaryFile
 
-from common import DeviceTestEnv
-from common import FatalError
-from common import GetEnvVariableOrError
-from common import HostTestEnv
-from common import LogSeverity
-from common import RetCode
+sys.path.append(os.path.dirname(os.path.dirname(
+        os.path.realpath(__file__))))
+
+from common.common import DeviceTestEnv
+from common.common import FatalError
+from common.common import GetEnvVariableOrError
+from common.common import HostTestEnv
+from common.common import LogSeverity
+from common.common import RetCode
 
 
 # Passes that are never disabled during search process because disabling them
@@ -157,8 +162,7 @@ class Dex2OatWrapperTestable(object):
                        'Not recognized output format.')
     return [p for p in match_passes if p not in NON_PASSES]
 
-  def _PrepareCmd(self, compiled_methods=None, passes_to_run=None,
-                  verbose_compiler=False):
+  def _PrepareCmd(self, compiled_methods=None, passes_to_run=None):
     """Prepare command to run."""
     cmd = self._base_cmd[0:self._arguments_position]
     # insert additional arguments before the first argument
