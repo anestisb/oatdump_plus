@@ -29,6 +29,8 @@ else
   ${JAVAC} -d classes src/*.java
 
   # dx needs more memory for that test so do not pass Xmx option here.
-  ${DX} --debug --dex --output=classes.dex classes
-  zip $TEST_NAME.jar classes.dex
+  if [ ${NEED_DEX} = "true" ]; then
+    ${DX} --debug --dex --output=classes.dex classes
+    zip $TEST_NAME.jar classes.dex
+  fi
 fi
