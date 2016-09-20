@@ -21,11 +21,13 @@ There are two supported invocation modes:
 
         ./bisection_search.py -cp classes.dex --expected-output out_int --class Test
 
-2. Raw-cmd invocation, dalvikvm command is accepted as an argument. The command
-   has to start with an executable.
+2. Raw-cmd invocation, dalvikvm command is accepted as an argument.
 
    Extra dalvikvm arguments will be placed on second position in the command
    by default. {ARGS} tag can be used to specify a custom position.
+
+   If used in device mode, the command has to exec a dalvikvm instance. Bisection
+   will fail if pid of the process started by raw-cmd is different than pid of runtime.
 
         ./bisection_search.py --raw-cmd='run.sh -cp classes.dex Test' --expected-retcode SUCCESS
         ./bisection_search.py --raw-cmd='/bin/sh art {ARGS} -cp classes.dex Test' --expected-retcode SUCCESS
