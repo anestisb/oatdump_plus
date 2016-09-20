@@ -65,6 +65,102 @@ static constexpr uint32_t kPackedSwitchCompareJumpThreshold = 7;
 
 static constexpr int kRegListThreshold = 4;
 
+// SaveLiveRegisters and RestoreLiveRegisters from SlowPathCodeARM operate on sets of S registers,
+// for each live D registers they treat two corresponding S registers as live ones.
+//
+// Two following functions (SaveContiguousSRegisterList, RestoreContiguousSRegisterList) build
+// from a list of contiguous S registers a list of contiguous D registers (processing first/last
+// S registers corner cases) and save/restore this new list treating them as D registers.
+// - decreasing code size
+// - avoiding hazards on Cortex-A57, when a pair of S registers for an actual live D register is
+//   restored and then used in regular non SlowPath code as D register.
+//
+// For the following example (v means the S register is live):
+//   D names: |    D0   |    D1   |    D2   |    D4   | ...
+//   S names: | S0 | S1 | S2 | S3 | S4 | S5 | S6 | S7 | ...
+//   Live?    |    |  v |  v |  v |  v |  v |  v |    | ...
+//
+// S1 and S6 will be saved/restored independently; D registers list (D1, D2) will be processed
+// as D registers.
+static size_t SaveContiguousSRegisterList(size_t first,
+                                          size_t last,
+                                          CodeGenerator* codegen,
+                                          size_t stack_offset) {
+  DCHECK_LE(first, last);
+  if ((first == last) && (first == 0)) {
+    stack_offset += codegen->SaveFloatingPointRegister(stack_offset, first);
+    return stack_offset;
+  }
+  if (first % 2 == 1) {
+    stack_offset += codegen->SaveFloatingPointRegister(stack_offset, first++);
+  }
+
+  bool save_last = false;
+  if (last % 2 == 0) {
+    save_last = true;
+    --last;
+  }
+
+  if (first < last) {
+    DRegister d_reg = static_cast<DRegister>(first / 2);
+    DCHECK_EQ((last - first + 1) % 2, 0u);
+    size_t number_of_d_regs = (last - first + 1) / 2;
+
+    if (number_of_d_regs == 1) {
+       __ StoreDToOffset(d_reg, SP, stack_offset);
+    } else if (number_of_d_regs > 1) {
+      __ add(IP, SP, ShifterOperand(stack_offset));
+      __ vstmiad(IP, d_reg, number_of_d_regs);
+    }
+    stack_offset += number_of_d_regs * kArmWordSize * 2;
+  }
+
+  if (save_last) {
+    stack_offset += codegen->SaveFloatingPointRegister(stack_offset, last + 1);
+  }
+
+  return stack_offset;
+}
+
+static size_t RestoreContiguousSRegisterList(size_t first,
+                                             size_t last,
+                                             CodeGenerator* codegen,
+                                             size_t stack_offset) {
+  DCHECK_LE(first, last);
+  if ((first == last) && (first == 0)) {
+    stack_offset += codegen->RestoreFloatingPointRegister(stack_offset, first);
+    return stack_offset;
+  }
+  if (first % 2 == 1) {
+    stack_offset += codegen->RestoreFloatingPointRegister(stack_offset, first++);
+  }
+
+  bool restore_last = false;
+  if (last % 2 == 0) {
+    restore_last = true;
+    --last;
+  }
+
+  if (first < last) {
+    DRegister d_reg = static_cast<DRegister>(first / 2);
+    DCHECK_EQ((last - first + 1) % 2, 0u);
+    size_t number_of_d_regs = (last - first + 1) / 2;
+    if (number_of_d_regs == 1) {
+      __ LoadDFromOffset(d_reg, SP, stack_offset);
+    } else if (number_of_d_regs > 1) {
+      __ add(IP, SP, ShifterOperand(stack_offset));
+      __ vldmiad(IP, d_reg, number_of_d_regs);
+    }
+    stack_offset += number_of_d_regs * kArmWordSize * 2;
+  }
+
+  if (restore_last) {
+    stack_offset += codegen->RestoreFloatingPointRegister(stack_offset, last + 1);
+  }
+
+  return stack_offset;
+}
+
 void SlowPathCodeARM::SaveLiveRegisters(CodeGenerator* codegen, LocationSummary* locations) {
   size_t stack_offset = codegen->GetFirstRegisterSlotInSlowPath();
   size_t orig_offset = stack_offset;
@@ -93,13 +189,23 @@ void SlowPathCodeARM::SaveLiveRegisters(CodeGenerator* codegen, LocationSummary*
     }
   }
 
-  const uint32_t fp_spills = codegen->GetSlowPathSpills(locations, /* core_registers */ false);
+  uint32_t fp_spills = codegen->GetSlowPathSpills(locations, /* core_registers */ false);
+  orig_offset = stack_offset;
   for (size_t i : LowToHighBits(fp_spills)) {
-    DCHECK_LT(stack_offset, codegen->GetFrameSize() - codegen->FrameEntrySpillSize());
     DCHECK_LT(i, kMaximumNumberOfExpectedRegisters);
     saved_fpu_stack_offsets_[i] = stack_offset;
-    stack_offset += codegen->SaveFloatingPointRegister(stack_offset, i);
+    stack_offset += kArmWordSize;
   }
+
+  stack_offset = orig_offset;
+  while (fp_spills != 0u) {
+    uint32_t begin = CTZ(fp_spills);
+    uint32_t tmp = fp_spills + (1u << begin);
+    fp_spills &= tmp;  // Clear the contiguous range of 1s.
+    uint32_t end = (tmp == 0u) ? 32u : CTZ(tmp);  // CTZ(0) is undefined.
+    stack_offset = SaveContiguousSRegisterList(begin, end - 1, codegen, stack_offset);
+  }
+  DCHECK_LE(stack_offset, codegen->GetFrameSize() - codegen->FrameEntrySpillSize());
 }
 
 void SlowPathCodeARM::RestoreLiveRegisters(CodeGenerator* codegen, LocationSummary* locations) {
@@ -125,12 +231,15 @@ void SlowPathCodeARM::RestoreLiveRegisters(CodeGenerator* codegen, LocationSumma
     }
   }
 
-  const uint32_t fp_spills = codegen->GetSlowPathSpills(locations, /* core_registers */ false);
-  for (size_t i : LowToHighBits(fp_spills)) {
-    DCHECK_LT(stack_offset, codegen->GetFrameSize() - codegen->FrameEntrySpillSize());
-    DCHECK_LT(i, kMaximumNumberOfExpectedRegisters);
-    stack_offset += codegen->RestoreFloatingPointRegister(stack_offset, i);
+  uint32_t fp_spills = codegen->GetSlowPathSpills(locations, /* core_registers */ false);
+  while (fp_spills != 0u) {
+    uint32_t begin = CTZ(fp_spills);
+    uint32_t tmp = fp_spills + (1u << begin);
+    fp_spills &= tmp;  // Clear the contiguous range of 1s.
+    uint32_t end = (tmp == 0u) ? 32u : CTZ(tmp);  // CTZ(0) is undefined.
+    stack_offset = RestoreContiguousSRegisterList(begin, end - 1, codegen, stack_offset);
   }
+  DCHECK_LE(stack_offset, codegen->GetFrameSize() - codegen->FrameEntrySpillSize());
 }
 
 class NullCheckSlowPathARM : public SlowPathCodeARM {
