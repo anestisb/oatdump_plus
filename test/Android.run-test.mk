@@ -278,11 +278,11 @@ TEST_ART_BROKEN_TARGET_TESTS :=
 # Tests that require python3.
 TEST_ART_PYTHON3_DEPENDENCY_RUN_TESTS := \
   960-default-smali \
-  961-default-iface-resolut-generated \
-  964-default-iface-init-generated \
-  968-default-part-compile-generated \
+  961-default-iface-resolution-gen \
+  964-default-iface-init-gen \
+  968-default-partial-compile-gen \
   969-iface-super \
-  970-iface-superresolution-generated \
+  970-iface-super-resolution-gen \
   971-iface-super
 
 # Check if we have python3 to run our tests.
@@ -362,13 +362,13 @@ TEST_ART_BROKEN_INTERPRETER_ACCESS_CHECK_TESTS :=
 # Tests that are broken with GC stress.
 # * 137-cfi needs to unwind a second forked process. We're using a primitive sleep to wait till we
 #   hope the second process got into the expected state. The slowness of gcstress makes this bad.
-# * 961-default-iface-resolut-generated and 964-default-iface-init-generated are very long tests
-#   that often will take more than the timeout to run when gcstress is enabled. This is because
-#   gcstress slows down allocations significantly which these tests do a lot.
+# * 961-default-iface-resolution-gen and 964-default-iface-init-genare very long tests that often
+#   will take more than the timeout to run when gcstress is enabled. This is because gcstress
+#   slows down allocations significantly which these tests do a lot.
 TEST_ART_BROKEN_GCSTRESS_RUN_TESTS := \
   137-cfi \
-  961-default-iface-resolut-generated \
-  964-default-iface-init-generated
+  961-default-iface-resolution-gen \
+  964-default-iface-init-gen
 
 ifneq (,$(filter gcstress,$(GC_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
