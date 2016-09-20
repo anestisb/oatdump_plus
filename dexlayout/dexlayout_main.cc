@@ -38,7 +38,7 @@ static const char* kProgramName = "dexlayout";
  */
 static void Usage(void) {
   fprintf(stderr, "Copyright (C) 2007 The Android Open Source Project\n\n");
-  fprintf(stderr, "%s: [-a] [-c] [-d] [-e] [-f] [-h] [-i] [-l layout] [-o outfile]"
+  fprintf(stderr, "%s: [-a] [-c] [-d] [-e] [-f] [-h] [-i] [-l layout] [-o outfile] [-w]"
                   " dexfile...\n\n", kProgramName);
   fprintf(stderr, " -a : display annotations\n");
   fprintf(stderr, " -b : build dex_ir\n");
@@ -51,6 +51,7 @@ static void Usage(void) {
   fprintf(stderr, " -i : ignore checksum failures\n");
   fprintf(stderr, " -l : output layout, either 'plain' or 'xml'\n");
   fprintf(stderr, " -o : output file name (defaults to stdout)\n");
+  fprintf(stderr, " -w : output dex files\n");
 }
 
 /*
@@ -68,7 +69,7 @@ int DexlayoutDriver(int argc, char** argv) {
 
   // Parse all arguments.
   while (1) {
-    const int ic = getopt(argc, argv, "abcdefghil:o:");
+    const int ic = getopt(argc, argv, "abcdefghil:o:w");
     if (ic < 0) {
       break;  // done
     }
@@ -112,6 +113,9 @@ int DexlayoutDriver(int argc, char** argv) {
         break;
       case 'o':  // output file
         options_.output_file_name_ = optarg;
+        break;
+      case 'w':  // output dex files
+        options_.output_dex_files_ = true;
         break;
       default:
         want_usage = true;
