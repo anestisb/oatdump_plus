@@ -45,7 +45,11 @@ else
   mkdir classes
   ${JAVAC} -d classes src/*.java
 
-  ${DX} -JXmx500m --debug --dex --no-optimize --positions=none --no-locals --output=classes.dex classes
+  if [ ${NEED_DEX} = "true" ]; then
+    ${DX} -JXmx500m --debug --dex --no-optimize --positions=none --no-locals --output=classes.dex classes
+  fi
 fi
 
-zip $TEST_NAME.jar classes.dex
+if [ ${NEED_DEX} = "true" ]; then
+  zip $TEST_NAME.jar classes.dex
+fi
