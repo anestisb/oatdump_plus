@@ -41,6 +41,7 @@ struct Options {
   bool disassemble_;
   bool exports_only_;
   bool ignore_bad_checksum_;
+  bool output_dex_files_;
   bool show_annotations_;
   bool show_cfg_;
   bool show_file_headers_;
