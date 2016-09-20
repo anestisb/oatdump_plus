@@ -817,9 +817,10 @@ END art_quick_deliver_exception
      * Called by managed code to create and deliver a NullPointerException
      */
     .extern artThrowNullPointerExceptionFromCode
-ENTRY art_quick_throw_null_pointer_exception
-.Lart_quick_throw_null_pointer_exception_gp_set:
-    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME
+ENTRY_NO_GP art_quick_throw_null_pointer_exception
+    // Note that setting up $gp does not rely on $t9 here, so branching here directly is OK,
+    // even after clobbering any registers we don't need to preserve, such as $gp or $t0.
+    SETUP_SAVE_EVERYTHING_FRAME
     dla  $t9, artThrowNullPointerExceptionFromCode
     jalr $zero, $t9                 # artThrowNullPointerExceptionFromCode(Thread*)
     move $a0, rSELF                 # pass Thread::Current
@@ -842,8 +843,8 @@ END art_quick_throw_null_pointer_exception
      * Called by managed code to create and deliver an ArithmeticException
      */
     .extern artThrowDivZeroFromCode
-ENTRY art_quick_throw_div_zero
-    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME
+ENTRY_NO_GP art_quick_throw_div_zero
+    SETUP_SAVE_EVERYTHING_FRAME
     dla  $t9, artThrowDivZeroFromCode
     jalr $zero, $t9                 # artThrowDivZeroFromCode(Thread*)
     move $a0, rSELF                 # pass Thread::Current
@@ -854,9 +855,10 @@ END art_quick_throw_div_zero
      * ArrayIndexOutOfBoundsException
      */
     .extern artThrowArrayBoundsFromCode
-ENTRY art_quick_throw_array_bounds
-.Lart_quick_throw_array_bounds_gp_set:
-    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME
+ENTRY_NO_GP art_quick_throw_array_bounds
+    // Note that setting up $gp does not rely on $t9 here, so branching here directly is OK,
+    // even after clobbering any registers we don't need to preserve, such as $gp or $t0.
+    SETUP_SAVE_EVERYTHING_FRAME
     dla  $t9, artThrowArrayBoundsFromCode
     jalr $zero, $t9                 # artThrowArrayBoundsFromCode(index, limit, Thread*)
     move $a2, rSELF                 # pass Thread::Current
@@ -867,9 +869,8 @@ END art_quick_throw_array_bounds
      * as if thrown from a call to String.charAt().
      */
     .extern artThrowStringBoundsFromCode
-ENTRY art_quick_throw_string_bounds
-.Lart_quick_throw_string_bounds_gp_set:
-    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME
+ENTRY_NO_GP art_quick_throw_string_bounds
+    SETUP_SAVE_EVERYTHING_FRAME
     dla  $t9, artThrowStringBoundsFromCode
     jalr $zero, $t9                 # artThrowStringBoundsFromCode(index, limit, Thread*)
     move $a2, rSELF                 # pass Thread::Current
@@ -1210,18 +1211,20 @@ END art_quick_handle_fill_data
      * Entry from managed code that calls artLockObjectFromCode, may block for GC.
      */
     .extern artLockObjectFromCode
-ENTRY art_quick_lock_object
-    beq     $a0, $zero, .Lart_quick_throw_null_pointer_exception_gp_set
+ENTRY_NO_GP art_quick_lock_object
+    beq     $a0, $zero, art_quick_throw_null_pointer_exception
     nop
+    .cpsetup $t9, $t8, art_quick_lock_object
     SETUP_SAVE_REFS_ONLY_FRAME            # save callee saves in case we block
     jal     artLockObjectFromCode         # (Object* obj, Thread*)
     move    $a1, rSELF                    # pass Thread::Current
     RETURN_IF_ZERO
 END art_quick_lock_object
 
-ENTRY art_quick_lock_object_no_inline
-    beq     $a0, $zero, .Lart_quick_throw_null_pointer_exception_gp_set
+ENTRY_NO_GP art_quick_lock_object_no_inline
+    beq     $a0, $zero, art_quick_throw_null_pointer_exception
     nop
+    .cpsetup $t9, $t8, art_quick_lock_object_no_inline
     SETUP_SAVE_REFS_ONLY_FRAME            # save callee saves in case we block
     jal     artLockObjectFromCode         # (Object* obj, Thread*)
     move    $a1, rSELF                    # pass Thread::Current
@@ -1232,18 +1235,20 @@ END art_quick_lock_object_no_inline
      * Entry from managed code that calls artUnlockObjectFromCode and delivers exception on failure.
      */
     .extern artUnlockObjectFromCode
-ENTRY art_quick_unlock_object
-    beq     $a0, $zero, .Lart_quick_throw_null_pointer_exception_gp_set
+ENTRY_NO_GP art_quick_unlock_object
+    beq     $a0, $zero, art_quick_throw_null_pointer_exception
     nop
+    .cpsetup $t9, $t8, art_quick_unlock_object
     SETUP_SAVE_REFS_ONLY_FRAME         # save callee saves in case exception allocation triggers GC
     jal     artUnlockObjectFromCode    # (Object* obj, Thread*)
     move    $a1, rSELF                 # pass Thread::Current
     RETURN_IF_ZERO
 END art_quick_unlock_object
 
-ENTRY art_quick_unlock_object_no_inline
-    beq     $a0, $zero, .Lart_quick_throw_null_pointer_exception_gp_set
+ENTRY_NO_GP art_quick_unlock_object_no_inline
+    beq     $a0, $zero, art_quick_throw_null_pointer_exception
     nop
+    .cpsetup $t9, $t8, art_quick_unlock_object_no_inline
     SETUP_SAVE_REFS_ONLY_FRAME         # save callee saves in case exception allocation triggers GC
     jal     artUnlockObjectFromCode    # (Object* obj, Thread*)
     move    $a1, rSELF                 # pass Thread::Current
@@ -1362,7 +1367,7 @@ END art_quick_check_cast
 ENTRY art_quick_aput_obj_with_null_and_bound_check
     bne    $a0, $zero, .Lart_quick_aput_obj_with_bound_check_gp_set
     nop
-    b .Lart_quick_throw_null_pointer_exception_gp_set
+    b art_quick_throw_null_pointer_exception
     nop
 END art_quick_aput_obj_with_null_and_bound_check
 
@@ -1372,7 +1377,7 @@ ENTRY art_quick_aput_obj_with_bound_check
     bne  $t1, $zero, .Lart_quick_aput_obj_gp_set
     nop
     move $a0, $a1
-    b .Lart_quick_throw_array_bounds_gp_set
+    b art_quick_throw_array_bounds
     move $a1, $t0
 END art_quick_aput_obj_with_bound_check
 

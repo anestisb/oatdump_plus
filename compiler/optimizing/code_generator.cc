@@ -1117,7 +1117,8 @@ void CodeGenerator::MaybeRecordImplicitNullCheck(HInstruction* instr) {
   }
 }
 
-LocationSummary* CodeGenerator::CreateNullCheckLocations(HNullCheck* null_check) {
+LocationSummary* CodeGenerator::CreateThrowingSlowPathLocations(HInstruction* instruction,
+                                                                RegisterSet caller_saves) {
   // Note: Using kNoCall allows the method to be treated as leaf (and eliminate the
   // HSuspendCheck from entry block). However, it will still get a valid stack frame
   // because the HNullCheck needs an environment.
@@ -1125,16 +1126,15 @@ LocationSummary* CodeGenerator::CreateNullCheckLocations(HNullCheck* null_check)
   // When throwing from a try block, we may need to retrieve dalvik registers from
   // physical registers and we also need to set up stack mask for GC. This is
   // implicitly achieved by passing kCallOnSlowPath to the LocationSummary.
-  bool can_throw_into_catch_block = null_check->CanThrowIntoCatchBlock();
+  bool can_throw_into_catch_block = instruction->CanThrowIntoCatchBlock();
   if (can_throw_into_catch_block) {
     call_kind = LocationSummary::kCallOnSlowPath;
   }
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(null_check, call_kind);
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
   if (can_throw_into_catch_block && compiler_options_.GetImplicitNullChecks()) {
-    locations->SetCustomSlowPathCallerSaves(RegisterSet());  // No caller-save registers.
+    locations->SetCustomSlowPathCallerSaves(caller_saves);  // Default: no caller-save registers.
   }
-  locations->SetInAt(0, Location::RequiresRegister());
-  DCHECK(!null_check->HasUses());
+  DCHECK(!instruction->HasUses());
   return locations;
 }
 
@@ -1273,7 +1273,7 @@ void SlowPathCode::SaveLiveRegisters(CodeGenerator* codegen, LocationSummary* lo
   }
 
   const uint32_t fp_spills = codegen->GetSlowPathSpills(locations, /* core_registers */ false);
-  for (size_t i : LowToHighBits(fp_spills)) {
+  for (uint32_t i : LowToHighBits(fp_spills)) {
     DCHECK_LT(stack_offset, codegen->GetFrameSize() - codegen->FrameEntrySpillSize());
     DCHECK_LT(i, kMaximumNumberOfExpectedRegisters);
     saved_fpu_stack_offsets_[i] = stack_offset;
@@ -1292,7 +1292,7 @@ void SlowPathCode::RestoreLiveRegisters(CodeGenerator* codegen, LocationSummary*
   }
 
   const uint32_t fp_spills = codegen->GetSlowPathSpills(locations, /* core_registers */ false);
-  for (size_t i : LowToHighBits(fp_spills)) {
+  for (uint32_t i : LowToHighBits(fp_spills)) {
     DCHECK_LT(stack_offset, codegen->GetFrameSize() - codegen->FrameEntrySpillSize());
     DCHECK_LT(i, kMaximumNumberOfExpectedRegisters);
     stack_offset += codegen->RestoreFloatingPointRegister(stack_offset, i);

@@ -27,24 +27,6 @@
 #define rSELF $s1
 
 
-    // Declare a function called name, sets up $gp.
-    // This macro modifies t8.
-.macro ENTRY name
-    .type \name, %function
-    .global \name
-    // Cache alignment for function entry.
-    .balign 16
-\name:
-    .cfi_startproc
-    // Set up $gp and store the previous $gp value to $t8. It will be pushed to the
-    // stack after the frame has been constructed.
-    .cpsetup $t9, $t8, \name
-    // Ensure we get a sane starting CFA.
-    .cfi_def_cfa $sp,0
-    // Declare a local convenience label to be branched to when $gp is already set up.
-.L\name\()_gp_set:
-.endm
-
     // Declare a function called name, doesn't set up $gp.
 .macro ENTRY_NO_GP_CUSTOM_CFA name, cfa_offset
     .type \name, %function
@@ -60,6 +42,17 @@
     // Declare a function called name, doesn't set up $gp.
 .macro ENTRY_NO_GP name
     ENTRY_NO_GP_CUSTOM_CFA \name, 0
+.endm
+
+    // Declare a function called name, sets up $gp.
+    // This macro modifies t8.
+.macro ENTRY name
+    ENTRY_NO_GP \name
+    // Set up $gp and store the previous $gp value to $t8. It will be pushed to the
+    // stack after the frame has been constructed.
+    .cpsetup $t9, $t8, \name
+    // Declare a local convenience label to be branched to when $gp is already set up.
+.L\name\()_gp_set:
 .endm
 
 .macro END name

@@ -91,7 +91,7 @@ bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info, void*
 
   sc->sc_regs[mips64::RA] = sc->sc_pc + 4;      // RA needs to point to gc map location
   sc->sc_pc = reinterpret_cast<uintptr_t>(art_quick_throw_null_pointer_exception_from_signal);
-  sc->sc_regs[mips64::T9] = sc->sc_pc;          // make sure T9 points to the function
+  // Note: This entrypoint does not rely on T9 pointing to it, so we may as well preserve T9.
   VLOG(signals) << "Generating null pointer exception";
   return true;
 }
