@@ -109,6 +109,11 @@ func deviceFlags(ctx android.BaseContext) []string {
 func hostFlags(ctx android.BaseContext) []string {
 	var cflags []string
 	hostFrameSizeLimit := 1736
+	if len(ctx.AConfig().SanitizeHost()) > 0 {
+		// art/test/137-cfi/cfi.cc
+		// error: stack frame size of 1944 bytes in function 'Java_Main_unwindInProcess'
+		hostFrameSizeLimit = 6400
+	}
 	cflags = append(cflags,
 		fmt.Sprintf("-Wframe-larger-than=%d", hostFrameSizeLimit),
 		fmt.Sprintf("-DART_FRAME_SIZE_LIMIT=%d", hostFrameSizeLimit),
