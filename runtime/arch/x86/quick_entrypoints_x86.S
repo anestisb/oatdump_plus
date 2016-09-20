@@ -327,6 +327,19 @@ MACRO2(NO_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
     END_FUNCTION VAR(c_name)
 END_MACRO
 
+MACRO2(NO_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING, c_name, cxx_name)
+    DEFINE_FUNCTION VAR(c_name)
+    SETUP_SAVE_EVERYTHING_FRAME ebx, ebx       // save all registers as basis for long jump context
+    // Outgoing argument set up
+    subl MACRO_LITERAL(12), %esp               // alignment padding
+    CFI_ADJUST_CFA_OFFSET(12)
+    pushl %fs:THREAD_SELF_OFFSET               // pass Thread::Current()
+    CFI_ADJUST_CFA_OFFSET(4)
+    call CALLVAR(cxx_name)                     // cxx_name(Thread*)
+    UNREACHABLE
+    END_FUNCTION VAR(c_name)
+END_MACRO
+
 MACRO2(ONE_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
     DEFINE_FUNCTION VAR(c_name)
     SETUP_SAVE_ALL_CALLEE_SAVES_FRAME ebx, ebx // save all registers as basis for long jump context
@@ -341,9 +354,9 @@ MACRO2(ONE_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
     END_FUNCTION VAR(c_name)
 END_MACRO
 
-MACRO2(TWO_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
+MACRO2(TWO_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING, c_name, cxx_name)
     DEFINE_FUNCTION VAR(c_name)
-    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME ebx, ebx // save all registers as basis for long jump context
+    SETUP_SAVE_EVERYTHING_FRAME ebx, ebx       // save all registers as basis for long jump context
     // Outgoing argument set up
     PUSH eax                                   // alignment padding
     pushl %fs:THREAD_SELF_OFFSET               // pass Thread::Current()
@@ -358,7 +371,7 @@ END_MACRO
     /*
      * Called by managed code to create and deliver a NullPointerException.
      */
-NO_ARG_RUNTIME_EXCEPTION art_quick_throw_null_pointer_exception, artThrowNullPointerExceptionFromCode
+NO_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING art_quick_throw_null_pointer_exception, artThrowNullPointerExceptionFromCode
 
     /*
      * Call installed by a signal handler to create and deliver a NullPointerException.
@@ -384,7 +397,7 @@ END_FUNCTION art_quick_throw_null_pointer_exception
     /*
      * Called by managed code to create and deliver an ArithmeticException.
      */
-NO_ARG_RUNTIME_EXCEPTION art_quick_throw_div_zero, artThrowDivZeroFromCode
+NO_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING art_quick_throw_div_zero, artThrowDivZeroFromCode
 
     /*
      * Called by managed code to create and deliver a StackOverflowError.
@@ -401,13 +414,13 @@ ONE_ARG_RUNTIME_EXCEPTION art_quick_deliver_exception, artDeliverExceptionFromCo
      * Called by managed code to create and deliver an ArrayIndexOutOfBoundsException. Arg1 holds
      * index, arg2 holds limit.
      */
-TWO_ARG_RUNTIME_EXCEPTION art_quick_throw_array_bounds, artThrowArrayBoundsFromCode
+TWO_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING art_quick_throw_array_bounds, artThrowArrayBoundsFromCode
 
     /*
      * Called by managed code to create and deliver a StringIndexOutOfBoundsException
      * as if thrown from a call to String.charAt(). Arg1 holds index, arg2 holds limit.
      */
-TWO_ARG_RUNTIME_EXCEPTION art_quick_throw_string_bounds, artThrowStringBoundsFromCode
+TWO_ARG_RUNTIME_EXCEPTION_SAVE_EVERYTHING art_quick_throw_string_bounds, artThrowStringBoundsFromCode
 
     /*
      * All generated callsites for interface invokes and invocation slow paths will load arguments

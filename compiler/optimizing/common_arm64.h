@@ -273,9 +273,9 @@ inline Location ARM64EncodableConstantOrRegister(HInstruction* constant,
 // only SP/WSP and ZXR/WZR codes are different between art and vixl.
 // Note: This function is only used for debug checks.
 inline bool ArtVixlRegCodeCoherentForRegSet(uint32_t art_core_registers,
-                                                   size_t num_core,
-                                                   uint32_t art_fpu_registers,
-                                                   size_t num_fpu) {
+                                            size_t num_core,
+                                            uint32_t art_fpu_registers,
+                                            size_t num_fpu) {
   // The register masks won't work if the number of register is larger than 32.
   DCHECK_GE(sizeof(art_core_registers) * 8, num_core);
   DCHECK_GE(sizeof(art_fpu_registers) * 8, num_fpu);
