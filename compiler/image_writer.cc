@@ -1992,11 +1992,7 @@ void ImageWriter::FixupObject(Object* orig, Object* copy) {
       auto* dest = down_cast<mirror::AbstractMethod*>(copy);
       auto* src = down_cast<mirror::AbstractMethod*>(orig);
       ArtMethod* src_method = src->GetArtMethod();
-      auto it = native_object_relocations_.find(src_method);
-      CHECK(it != native_object_relocations_.end())
-          << "Missing relocation for AbstractMethod.artMethod " << PrettyMethod(src_method);
-      dest->SetArtMethod(
-          reinterpret_cast<ArtMethod*>(global_image_begin_ + it->second.offset));
+      dest->SetArtMethod(GetImageMethodAddress(src_method));
     } else if (!klass->IsArrayClass()) {
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
       if (klass == class_linker->GetClassRoot(ClassLinker::kJavaLangDexCache)) {
