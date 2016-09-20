@@ -21,6 +21,7 @@ import os
 import signal
 import shlex
 import shutil
+import time
 
 from subprocess import check_call
 from subprocess import PIPE
@@ -49,6 +50,48 @@ class RetCode(Enum):
   ERROR = 2
   NOTCOMPILED = 3
   NOTRUN = 4
+
+
+@unique
+class LogSeverity(Enum):
+  VERBOSE = 0
+  DEBUG = 1
+  INFO = 2
+  WARNING = 3
+  ERROR = 4
+  FATAL = 5
+  SILENT = 6
+
+  @property
+  def symbol(self):
+    return self.name[0]
+
+  @classmethod
+  def FromSymbol(cls, s):
+    for log_severity in LogSeverity:
+      if log_severity.symbol == s:
+        return log_severity
+    raise ValueError("{0} is not a valid log severity symbol".format(s))
+
+  def __ge__(self, other):
+    if self.__class__ is other.__class__:
+      return self.value >= other.value
+    return NotImplemented
+
+  def __gt__(self, other):
+    if self.__class__ is other.__class__:
+      return self.value > other.value
+    return NotImplemented
+
+  def __le__(self, other):
+    if self.__class__ is other.__class__:
+      return self.value <= other.value
+    return NotImplemented
+
+  def __lt__(self, other):
+    if self.__class__ is other.__class__:
+      return self.value < other.value
+      return NotImplemented
 
 
 def GetEnvVariableOrError(variable_name):
@@ -116,23 +159,17 @@ def RunCommandForOutput(cmd, env, stdout, stderr, timeout=60):
   return (output, stderr_output, retcode)
 
 
-def _RunCommandForOutputAndLog(cmd, env, logfile, timeout=60):
-  """Runs command and logs its output. Returns the output.
+def _LogCmdOutput(logfile, cmd, output, retcode):
+  """Logs output of a command.
 
   Args:
-    cmd: list of strings, command to run.
-    env: shell environment to run the command with.
     logfile: file handle to logfile.
-    timeout: int, timeout in seconds.
-
-  Returns:
-    tuple (string, string, RetCode) stdout output, stderr output, normalized
-      return code.
+    cmd: list of strings, command.
+    output: command output.
+    retcode: RetCode, normalized retcode.
   """
-  (output, _, retcode) = RunCommandForOutput(cmd, env, PIPE, STDOUT, timeout)
   logfile.write('Command:\n{0}\n{1}\nReturn code: {2}\n'.format(
       CommandListToCommandString(cmd), output, retcode))
-  return (output, retcode)
 
 
 def CommandListToCommandString(cmd):
@@ -187,15 +224,14 @@ class ITestEnv(object):
     """
 
   @abc.abstractmethod
-  def RunCommand(self, cmd, env_updates=None):
-    """Runs command in environment with updated environmental variables.
+  def RunCommand(self, cmd, log_severity=LogSeverity.ERROR):
+    """Runs command in environment.
 
     Args:
       cmd: list of strings, command to run.
-      env_updates: dict, string to string, maps names of variables to their
-        updated values.
+      log_severity: LogSeverity, minimum severity of logs included in output.
     Returns:
-      tuple (string, string, int) stdout output, stderr output, return code.
+      tuple (string, int) output, return code.
     """
 
   @abc.abstractproperty
@@ -262,13 +298,17 @@ class HostTestEnv(ITestEnv):
       f.writelines('{0}\n'.format(line) for line in lines)
     return
 
-  def RunCommand(self, cmd, env_updates=None):
-    if not env_updates:
-      env_updates = {}
+  def RunCommand(self, cmd, log_severity=LogSeverity.ERROR):
     self._EmptyDexCache()
     env = self._shell_env.copy()
-    env.update(env_updates)
-    return _RunCommandForOutputAndLog(cmd, env, self._logfile, self._timeout)
+    env.update({'ANDROID_LOG_TAGS':'*:' + log_severity.symbol.lower()})
+    (output, err_output, retcode) = RunCommandForOutput(
+        cmd, env, PIPE, PIPE, self._timeout)
+    # We append err_output to output to stay consistent with DeviceTestEnv
+    # implementation.
+    output += err_output
+    _LogCmdOutput(self._logfile, cmd, output, retcode)
+    return (output, retcode)
 
   @property
   def logfile(self):
@@ -341,26 +381,63 @@ class DeviceTestEnv(ITestEnv):
       self._AdbPush(temp_file.name, file_path)
     return
 
-  def RunCommand(self, cmd, env_updates=None):
-    if not env_updates:
-      env_updates = {}
+  def _ExtractPid(self, brief_log_line):
+    """Extracts PID from a single logcat line in brief format."""
+    pid_start_idx = brief_log_line.find('(') + 2
+    if pid_start_idx == -1:
+      return None
+    pid_end_idx = brief_log_line.find(')', pid_start_idx)
+    if pid_end_idx == -1:
+      return None
+    return brief_log_line[pid_start_idx:pid_end_idx]
+
+  def _ExtractSeverity(self, brief_log_line):
+    """Extracts LogSeverity from a single logcat line in brief format."""
+    if not brief_log_line:
+      return None
+    return LogSeverity.FromSymbol(brief_log_line[0])
+
+  def RunCommand(self, cmd, log_severity=LogSeverity.ERROR):
     self._EmptyDexCache()
-    if 'ANDROID_DATA' not in env_updates:
-      env_updates['ANDROID_DATA'] = self._device_env_path
-    env_updates_cmd = ' '.join(['{0}={1}'.format(var, val) for var, val
-                                in env_updates.items()])
-    cmd = CommandListToCommandString(cmd)
-    adb = 'adb'
+    env_vars_cmd = 'ANDROID_DATA={0} ANDROID_LOG_TAGS=*:i'.format(
+        self._device_env_path)
+    adb_cmd = ['adb']
     if self._specific_device:
-      adb += ' -s ' + self._specific_device
-    cmd = '{0} shell "logcat -c && {1} {2}"'.format(
-        adb, env_updates_cmd, cmd)
-    (output, retcode) = _RunCommandForOutputAndLog(
-        shlex.split(cmd), self._shell_env, self._logfile, self._timeout)
-    logcat_cmd = 'adb shell "logcat -d -s -b main dex2oat:* dex2oatd:*"'
-    (err_output, _) = _RunCommandForOutputAndLog(
-        shlex.split(logcat_cmd), self._shell_env, self._logfile)
-    return (output + err_output, retcode)
+      adb_cmd += ['-s', self._specific_device]
+    logcat_cmd = adb_cmd + ['logcat', '-v', 'brief', '-s', '-b', 'main',
+                            '-T', '1', 'dex2oat:*', 'dex2oatd:*']
+    logcat_proc = Popen(logcat_cmd, stdout=PIPE, stderr=STDOUT,
+                        universal_newlines=True)
+    cmd_str = CommandListToCommandString(cmd)
+    # Print PID of the shell and exec command. We later retrieve this PID and
+    # use it to filter dex2oat logs, keeping those with matching parent PID.
+    device_cmd = ('echo $$ && ' + env_vars_cmd + ' exec ' + cmd_str)
+    cmd = adb_cmd + ['shell', device_cmd]
+    (output, _, retcode) = RunCommandForOutput(cmd, self._shell_env, PIPE,
+                                               STDOUT, self._timeout)
+    # We need to make sure to only kill logcat once all relevant logs arrive.
+    # Sleep is used for simplicity.
+    time.sleep(0.5)
+    logcat_proc.kill()
+    end_of_first_line = output.find('\n')
+    if end_of_first_line != -1:
+      parent_pid = output[:end_of_first_line]
+      output = output[end_of_first_line + 1:]
+      logcat_output, _ = logcat_proc.communicate()
+      logcat_lines = logcat_output.splitlines(keepends=True)
+      dex2oat_pids = []
+      for line in logcat_lines:
+        # Dex2oat was started by our runtime instance.
+        if 'Running dex2oat (parent PID = ' + parent_pid in line:
+          dex2oat_pids.append(self._ExtractPid(line))
+          break
+      if dex2oat_pids:
+        for line in logcat_lines:
+          if (self._ExtractPid(line) in dex2oat_pids and
+              self._ExtractSeverity(line) >= log_severity):
+            output += line
+    _LogCmdOutput(self._logfile, cmd, output, retcode)
+    return (output, retcode)
 
   @property
   def logfile(self):
