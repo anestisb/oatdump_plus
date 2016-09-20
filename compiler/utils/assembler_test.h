@@ -331,6 +331,18 @@ class AssemblerTest : public testing::Test {
                                                          fmt);
   }
 
+  std::string RepeatFFR(void (Ass::*f)(FPReg, FPReg, Reg), std::string fmt) {
+    return RepeatTemplatedRegisters<FPReg, FPReg, Reg>(
+        f,
+        GetFPRegisters(),
+        GetFPRegisters(),
+        GetRegisters(),
+        &AssemblerTest::GetFPRegName,
+        &AssemblerTest::GetFPRegName,
+        &AssemblerTest::GetRegName<RegisterView::kUsePrimaryName>,
+        fmt);
+  }
+
   std::string RepeatFFI(void (Ass::*f)(FPReg, FPReg, const Imm&),
                         size_t imm_bytes,
                         std::string fmt) {
