@@ -3372,6 +3372,30 @@ void Thumb2Assembler::PopList(RegList regs, Condition cond) {
   ldm(IA_W, SP, regs, cond);
 }
 
+void Thumb2Assembler::StoreList(RegList regs, size_t stack_offset) {
+  DCHECK_NE(regs, 0u);
+  DCHECK_EQ(regs & (1u << IP), 0u);
+  if (IsPowerOfTwo(regs)) {
+    Register reg = static_cast<Register>(CTZ(static_cast<uint32_t>(regs)));
+    str(reg, Address(SP, stack_offset));
+  } else {
+    add(IP, SP, ShifterOperand(stack_offset));
+    stm(IA, IP, regs);
+  }
+}
+
+void Thumb2Assembler::LoadList(RegList regs, size_t stack_offset) {
+  DCHECK_NE(regs, 0u);
+  DCHECK_EQ(regs & (1u << IP), 0u);
+  if (IsPowerOfTwo(regs)) {
+    Register reg = static_cast<Register>(CTZ(static_cast<uint32_t>(regs)));
+    ldr(reg, Address(SP, stack_offset));
+  } else {
+    Register lowest_reg = static_cast<Register>(CTZ(static_cast<uint32_t>(regs)));
+    add(lowest_reg, SP, ShifterOperand(stack_offset));
+    ldm(IA, lowest_reg, regs);
+  }
+}
 
 void Thumb2Assembler::Mov(Register rd, Register rm, Condition cond) {
   if (cond != AL || rd != rm) {

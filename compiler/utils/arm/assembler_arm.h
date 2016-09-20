@@ -763,6 +763,9 @@ class ArmAssembler : public Assembler {
   virtual void PushList(RegList regs, Condition cond = AL) = 0;
   virtual void PopList(RegList regs, Condition cond = AL) = 0;
 
+  virtual void StoreList(RegList regs, size_t stack_offset) = 0;
+  virtual void LoadList(RegList regs, size_t stack_offset) = 0;
+
   virtual void Mov(Register rd, Register rm, Condition cond = AL) = 0;
 
   // Convenience shift instructions. Use mov instruction with shifter operand
