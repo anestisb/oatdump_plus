@@ -293,6 +293,8 @@ class Thumb2Assembler FINAL : public ArmAssembler {
 
   void PushList(RegList regs, Condition cond = AL) OVERRIDE;
   void PopList(RegList regs, Condition cond = AL) OVERRIDE;
+  void StoreList(RegList regs, size_t stack_offset) OVERRIDE;
+  void LoadList(RegList regs, size_t stack_offset) OVERRIDE;
 
   void Mov(Register rd, Register rm, Condition cond = AL) OVERRIDE;
 
