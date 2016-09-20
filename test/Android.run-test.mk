@@ -47,6 +47,14 @@ ifeq ($(ART_TEST_DEBUG_GC),true)
   ART_TEST_WITH_STRACE := true
 endif
 
+ifeq ($(ART_TEST_BISECTION),true)
+  # Need to keep rebuilding the test to bisection search it.
+  ART_TEST_RUN_TEST_NO_PREBUILD := true
+  ART_TEST_RUN_TEST_PREBUILD := false
+  # Bisection search writes to standard output.
+  ART_TEST_QUIET := false
+endif
+
 # Helper to create individual build targets for tests. Must be called with $(eval).
 # $(1): the test number
 define define-build-art-run-test
@@ -644,6 +652,38 @@ endif
 
 TEST_ART_BROKEN_OPTIMIZING_HEAP_POISONING_RUN_TESTS :=
 
+# Tests incompatible with bisection bug search. Sorted by incompatibility reason.
+# 000 through 595 do not compile anything. 089 tests a build failure. 018 through 137
+# run dalvikvm more than once. 115 and 088 assume they are always compiled.
+# 055 tests performance which is degraded during bisecting.
+TEST_ART_INCOMPATIBLE_BISECTION_SEARCH_RUN_TESTS := \
+  000-nop \
+  134-nodex2oat-nofallback \
+  147-stripped-dex-fallback \
+  595-profile-saving \
+  \
+  089-many-methods \
+  \
+  018-stack-overflow \
+  116-nodex2oat \
+  117-nopatchoat \
+  118-noimage-dex2oat \
+  119-noimage-patchoat \
+  126-miranda-multidex \
+  137-cfi \
+  \
+  115-native-bridge \
+  088-monitor-verification \
+  \
+  055-enum-performance
+
+ifeq ($(ART_TEST_BISECTION),true)
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES), \
+      $(PREBUILD_TYPES),$(OPTIMIZING_COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+      $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), \
+      $(TEST_ART_INCOMPATIBLE_BISECTION_SEARCH_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+endif
+
 # Clear variables ahead of appending to them when defining tests.
 $(foreach target, $(TARGET_TYPES), $(eval ART_RUN_TEST_$(call name-to-var,$(target))_RULES :=))
 $(foreach target, $(TARGET_TYPES), \
@@ -761,6 +801,9 @@ define define-test-art-run-test
   endif
   ifeq ($(ART_TEST_RUN_TEST_ALWAYS_CLEAN),true)
     run_test_options += --always-clean
+  endif
+  ifeq ($(ART_TEST_BISECTION),true)
+    run_test_options += --bisection-search
   endif
   ifeq ($(1),host)
     uc_host_or_target := HOST

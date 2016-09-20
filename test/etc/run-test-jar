@@ -56,6 +56,8 @@ DEX_VERIFY=""
 USE_DEX2OAT_AND_PATCHOAT="y"
 INSTRUCTION_SET_FEATURES=""
 ARGS=""
+EXTERNAL_LOG_TAGS="n" # if y respect externally set ANDROID_LOG_TAGS.
+DRY_RUN="n" # if y prepare to run the test but don't run it.
 
 while true; do
     if [ "x$1" = "x--quiet" ]; then
@@ -235,6 +237,12 @@ while true; do
         fi
         EXPERIMENTAL="$EXPERIMENTAL $2"
         shift 2
+    elif [ "x$1" = "x--external-log-tags" ]; then
+        EXTERNAL_LOG_TAGS="y"
+        shift
+    elif [ "x$1" = "x--dry-run" ]; then
+        DRY_RUN="y"
+        shift
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
         echo "unknown $0 option: $1" 1>&2
         exit 1
@@ -493,12 +501,14 @@ if [ "$HOST" = "n" ]; then
 
     # Create a script with the command. The command can get longer than the longest
     # allowed adb command and there is no way to get the exit status from a adb shell
-    # command.
+    # command. Dalvik cache is cleaned before running to make subsequent executions
+    # of the script follow the same runtime path.
     cmdline="cd $DEX_LOCATION && \
              export ANDROID_DATA=$DEX_LOCATION && \
              export ANDROID_ADDITIONAL_PUBLIC_LIBRARIES=$PUBLIC_LIBS && \
              export DEX_LOCATION=$DEX_LOCATION && \
              export ANDROID_ROOT=$ANDROID_ROOT && \
+             rm -rf ${DEX_LOCATION}/dalvik-cache/ && \
              mkdir -p ${mkdir_locations} && \
              export LD_LIBRARY_PATH=$LD_LIBRARY_PATH && \
              export PATH=$ANDROID_ROOT/bin:$PATH && \
@@ -519,7 +529,9 @@ if [ "$HOST" = "n" ]; then
       adb push $cmdfile $DEX_LOCATION/cmdline.sh > /dev/null 2>&1
     fi
 
-    adb shell sh $DEX_LOCATION/cmdline.sh
+    if [ "$DRY_RUN" != "y" ]; then
+      adb shell sh $DEX_LOCATION/cmdline.sh
+    fi
 
     rm -f $cmdfile
 else
@@ -527,10 +539,12 @@ else
 
     # By default, and for prebuild dex2oat, we are interested in errors being logged. In dev mode
     # we want debug messages.
-    if [ "$DEV_MODE" = "y" ]; then
-        export ANDROID_LOG_TAGS='*:d'
-    else
-        export ANDROID_LOG_TAGS='*:e'
+    if [ "$EXTERNAL_LOG_TAGS" = "n" ]; then
+      if [ "$DEV_MODE" = "y" ]; then
+          export ANDROID_LOG_TAGS='*:d'
+      else
+          export ANDROID_LOG_TAGS='*:e'
+      fi
     fi
 
     export ANDROID_DATA="$DEX_LOCATION"
@@ -584,15 +598,21 @@ else
 
     # For running, we must turn off logging when dex2oat or patchoat are missing. Otherwise we use
     # the same defaults as for prebuilt: everything when --dev, otherwise errors and above only.
-    if [ "$DEV_MODE" = "y" ]; then
-        export ANDROID_LOG_TAGS='*:d'
-    elif [ "$USE_DEX2OAT_AND_PATCHOAT" = "n" ]; then
-        # All tests would log the error of failing dex2oat/patchoat. Be silent here and only
-        # log fatal events.
-        export ANDROID_LOG_TAGS='*:s'
-    else
-        # We are interested in LOG(ERROR) output.
-        export ANDROID_LOG_TAGS='*:e'
+    if [ "$EXTERNAL_LOG_TAGS" = "n" ]; then
+      if [ "$DEV_MODE" = "y" ]; then
+          export ANDROID_LOG_TAGS='*:d'
+      elif [ "$USE_DEX2OAT_AND_PATCHOAT" = "n" ]; then
+          # All tests would log the error of failing dex2oat/patchoat. Be silent here and only
+          # log fatal events.
+          export ANDROID_LOG_TAGS='*:s'
+      else
+          # We are interested in LOG(ERROR) output.
+          export ANDROID_LOG_TAGS='*:e'
+      fi
+    fi
+
+    if [ "$DRY_RUN" = "y" ]; then
+      exit 0
     fi
 
     if [ "$USE_GDB" = "y" ]; then
