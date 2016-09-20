@@ -177,7 +177,8 @@ ART_GTEST_imgdiag_test_TARGET_DEPS := \
 ART_GTEST_oatdump_test_HOST_DEPS := \
   $(HOST_CORE_IMAGE_optimizing_no-pic_64) \
   $(HOST_CORE_IMAGE_optimizing_no-pic_32) \
-  $(HOST_OUT_EXECUTABLES)/oatdumpd
+  $(HOST_OUT_EXECUTABLES)/oatdumpd \
+  $(HOST_OUT_EXECUTABLES)/oatdumpds
 ART_GTEST_oatdump_test_TARGET_DEPS := \
   $(TARGET_CORE_IMAGE_optimizing_no-pic_64) \
   $(TARGET_CORE_IMAGE_optimizing_no-pic_32) \
