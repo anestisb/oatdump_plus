@@ -313,7 +313,8 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
 
   bool CanMoveNullCheckToUser(HNullCheck* null_check);
   void MaybeRecordImplicitNullCheck(HInstruction* instruction);
-  LocationSummary* CreateNullCheckLocations(HNullCheck* null_check);
+  LocationSummary* CreateThrowingSlowPathLocations(
+      HInstruction* instruction, RegisterSet caller_saves = RegisterSet::Empty());
   void GenerateNullCheck(HNullCheck* null_check);
   virtual void GenerateImplicitNullCheck(HNullCheck* null_check) = 0;
   virtual void GenerateExplicitNullCheck(HNullCheck* null_check) = 0;
@@ -579,6 +580,7 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
         core_spill_mask_(0),
         fpu_spill_mask_(0),
         first_register_slot_in_slow_path_(0),
+        allocated_registers_(RegisterSet::Empty()),
         blocked_core_registers_(graph->GetArena()->AllocArray<bool>(number_of_core_registers,
                                                                     kArenaAllocCodeGenerator)),
         blocked_fpu_registers_(graph->GetArena()->AllocArray<bool>(number_of_fpu_registers,
