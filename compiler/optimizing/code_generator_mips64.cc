@@ -150,10 +150,6 @@ class DivZeroCheckSlowPathMIPS64 : public SlowPathCodeMIPS64 {
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorMIPS64* mips64_codegen = down_cast<CodeGeneratorMIPS64*>(codegen);
     __ Bind(GetEntryLabel());
-    if (instruction_->CanThrowIntoCatchBlock()) {
-      // Live registers will be restored in the catch block if caught.
-      SaveLiveRegisters(codegen, instruction_->GetLocations());
-    }
     mips64_codegen->InvokeRuntime(kQuickThrowDivZero, instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickThrowDivZero, void, void>();
   }
@@ -1558,15 +1554,13 @@ void InstructionCodeGeneratorMIPS64::VisitArraySet(HArraySet* instruction) {
 }
 
 void LocationsBuilderMIPS64::VisitBoundsCheck(HBoundsCheck* instruction) {
-  LocationSummary::CallKind call_kind = instruction->CanThrowIntoCatchBlock()
-      ? LocationSummary::kCallOnSlowPath
-      : LocationSummary::kNoCall;
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
+  RegisterSet caller_saves = RegisterSet::Empty();
+  InvokeRuntimeCallingConvention calling_convention;
+  caller_saves.Add(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  caller_saves.Add(Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  LocationSummary* locations = codegen_->CreateThrowingSlowPathLocations(instruction, caller_saves);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
-  if (instruction->HasUses()) {
-    locations->SetOut(Location::SameAsFirstInput());
-  }
 }
 
 void InstructionCodeGeneratorMIPS64::VisitBoundsCheck(HBoundsCheck* instruction) {
@@ -2110,14 +2104,8 @@ void InstructionCodeGeneratorMIPS64::VisitDiv(HDiv* instruction) {
 }
 
 void LocationsBuilderMIPS64::VisitDivZeroCheck(HDivZeroCheck* instruction) {
-  LocationSummary::CallKind call_kind = instruction->CanThrowIntoCatchBlock()
-      ? LocationSummary::kCallOnSlowPath
-      : LocationSummary::kNoCall;
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
+  LocationSummary* locations = codegen_->CreateThrowingSlowPathLocations(instruction);
   locations->SetInAt(0, Location::RegisterOrConstant(instruction->InputAt(0)));
-  if (instruction->HasUses()) {
-    locations->SetOut(Location::SameAsFirstInput());
-  }
 }
 
 void InstructionCodeGeneratorMIPS64::VisitDivZeroCheck(HDivZeroCheck* instruction) {
@@ -2630,7 +2618,7 @@ void InstructionCodeGeneratorMIPS64::VisitIf(HIf* if_instr) {
 void LocationsBuilderMIPS64::VisitDeoptimize(HDeoptimize* deoptimize) {
   LocationSummary* locations = new (GetGraph()->GetArena())
       LocationSummary(deoptimize, LocationSummary::kCallOnSlowPath);
-  locations->SetCustomSlowPathCallerSaves(RegisterSet());  // No caller-save registers.
+  locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
   if (IsBooleanValueOrMaterializedCondition(deoptimize->InputAt(0))) {
     locations->SetInAt(0, Location::RequiresRegister());
   }
@@ -3461,7 +3449,8 @@ void InstructionCodeGeneratorMIPS64::VisitBooleanNot(HBooleanNot* instruction) {
 }
 
 void LocationsBuilderMIPS64::VisitNullCheck(HNullCheck* instruction) {
-  codegen_->CreateNullCheckLocations(instruction);
+  LocationSummary* locations = codegen_->CreateThrowingSlowPathLocations(instruction);
+  locations->SetInAt(0, Location::RequiresRegister());
 }
 
 void CodeGeneratorMIPS64::GenerateImplicitNullCheck(HNullCheck* instruction) {
@@ -3741,7 +3730,7 @@ void InstructionCodeGeneratorMIPS64::VisitUnresolvedStaticFieldSet(
 void LocationsBuilderMIPS64::VisitSuspendCheck(HSuspendCheck* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCallOnSlowPath);
-  locations->SetCustomSlowPathCallerSaves(RegisterSet());  // No caller-save registers.
+  locations->SetCustomSlowPathCallerSaves(RegisterSet::Empty());  // No caller-save registers.
 }
 
 void InstructionCodeGeneratorMIPS64::VisitSuspendCheck(HSuspendCheck* instruction) {
