@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_NATIVE_JAVA_LANG_REFLECT_ABSTRACTMETHOD_H_
-#define ART_RUNTIME_NATIVE_JAVA_LANG_REFLECT_ABSTRACTMETHOD_H_
+#ifndef ART_RUNTIME_NATIVE_JAVA_LANG_REFLECT_EXECUTABLE_H_
+#define ART_RUNTIME_NATIVE_JAVA_LANG_REFLECT_EXECUTABLE_H_
 
 #include <jni.h>
 
 namespace art {
 
-void register_java_lang_reflect_AbstractMethod(JNIEnv* env);
+void register_java_lang_reflect_Executable(JNIEnv* env);
 
 }  // namespace art
 
-#endif  // ART_RUNTIME_NATIVE_JAVA_LANG_REFLECT_ABSTRACTMETHOD_H_
+#endif  // ART_RUNTIME_NATIVE_JAVA_LANG_REFLECT_EXECUTABLE_H_
