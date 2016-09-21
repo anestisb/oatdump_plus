@@ -14,7 +14,7 @@ How to run JFuzz
 ===================
 
     jfuzz [-s seed] [-d expr-depth] [-l stmt-length]
-             [-i if-nest] [-n loop-nest]
+             [-i if-nest] [-n loop-nest] [-v] [-h]
 
 where
 
@@ -28,6 +28,8 @@ where
          (higher values yield deeper nested conditionals)
     -n : defines a fuzzing nest for for/while/do-while loops
          (higher values yield deeper nested loops)
+    -v : prints version number and exits
+    -h : prints help and exits
 
 The current version of JFuzz sends all output to stdout, and uses
 a fixed testing class named Test. So a typical test run looks as follows.
@@ -43,18 +45,22 @@ How to start JFuzz testing
                           [--num_tests=NUM_TESTS]
                           [--device=DEVICE]
                           [--mode1=MODE] [--mode2=MODE]
+                          [--report_script=SCRIPT]
+                          [--jfuzz_arg=ARG]
 
 where
 
-    --num_tests : number of tests to run (10000 by default)
-    --device    : target device serial number (passed to adb -s)
-    --mode1     : m1
-    --mode2     : m2, with m1 != m2, and values one of
+    --num_tests     : number of tests to run (10000 by default)
+    --device        : target device serial number (passed to adb -s)
+    --mode1         : m1
+    --mode2         : m2, with m1 != m2, and values one of
       ri   = reference implementation on host (default for m1)
       hint = Art interpreter on host
       hopt = Art optimizing on host (default for m2)
       tint = Art interpreter on target
       topt = Art optimizing on target
+    --report_script : path to script called for each divergence
+    --jfuzz_arg     : argument for jfuzz
 
 How to start J/DexFuzz testing (multi-layered)
 ==============================================
