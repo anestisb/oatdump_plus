@@ -1261,7 +1261,6 @@ TEST_F(ClassLinkerTest, RegisterDexFileName) {
                                                 old_dex_file->Size(),
                                                 location->ToModifiedUtf8(),
                                                 0u,
-                                                nullptr,
                                                 nullptr));
   {
     WriterMutexLock mu(soa.Self(), *class_linker->DexLock());
