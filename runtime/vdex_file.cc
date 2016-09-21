@@ -34,7 +34,9 @@ bool VdexFile::Header::IsVersionValid() const {
   return (memcmp(version_, kVdexVersion, sizeof(kVdexVersion)) == 0);
 }
 
-VdexFile::Header::Header() {
+VdexFile::Header::Header(uint32_t dex_size, uint32_t verifier_deps_size)
+    : dex_size_(dex_size),
+      verifier_deps_size_(verifier_deps_size) {
   memcpy(magic_, kVdexMagic, sizeof(kVdexMagic));
   memcpy(version_, kVdexVersion, sizeof(kVdexVersion));
   DCHECK(IsMagicValid());

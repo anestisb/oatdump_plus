@@ -64,6 +64,8 @@
 #include "interpreter/unstarted_runtime.h"
 #include "jit/offline_profiling_info.h"
 #include "leb128.h"
+#include "linker/buffered_output_stream.h"
+#include "linker/file_output_stream.h"
 #include "linker/multi_oat_relative_patcher.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
@@ -1753,6 +1755,28 @@ class Dex2Oat FINAL {
       }
     }
 
+    {
+      TimingLogger::ScopedTiming t2("dex2oat Write VDEX", timings_);
+      DCHECK(IsBootImage() || oat_files_.size() == 1u);
+      DCHECK_EQ(IsBootImage(), verifier_deps_ == nullptr);
+      for (size_t i = 0, size = oat_files_.size(); i != size; ++i) {
+        File* vdex_file = vdex_files_[i].get();
+        std::unique_ptr<BufferedOutputStream> vdex_out(
+            MakeUnique<BufferedOutputStream>(MakeUnique<FileOutputStream>(vdex_file)));
+
+        if (!oat_writers_[i]->WriteVerifierDeps(vdex_out.get(), verifier_deps_.get())) {
+          LOG(ERROR) << "Failed to write verifier dependencies into VDEX " << vdex_file->GetPath();
+          return false;
+        }
+
+        // VDEX finalized, seek back to the beginning and write the header.
+        if (!oat_writers_[i]->WriteVdexHeader(vdex_out.get())) {
+          LOG(ERROR) << "Failed to write vdex header into VDEX " << vdex_file->GetPath();
+          return false;
+        }
+      }
+    }
+
     linker::MultiOatRelativePatcher patcher(instruction_set_, instruction_set_features_.get());
     {
       TimingLogger::ScopedTiming t2("dex2oat Write ELF", timings_);
@@ -2604,6 +2628,7 @@ class Dex2Oat FINAL {
   std::vector<std::unique_ptr<ElfWriter>> elf_writers_;
   std::vector<std::unique_ptr<OatWriter>> oat_writers_;
   std::vector<OutputStream*> rodata_;
+  std::vector<std::unique_ptr<OutputStream>> vdex_out_;
   std::unique_ptr<ImageWriter> image_writer_;
   std::unique_ptr<CompilerDriver> driver_;
 
