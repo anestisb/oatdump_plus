@@ -82,8 +82,6 @@ include $(art_path)/tools/ahat/Android.mk
 include $(art_path)/tools/dexfuzz/Android.mk
 include $(art_path)/libart_fake/Android.mk
 
-
-# ART_HOST_DEPENDENCIES depends on Android.executable.mk above for ART_HOST_EXECUTABLES
 ART_HOST_DEPENDENCIES := \
   $(ART_HOST_EXECUTABLES) \
   $(ART_HOST_DEX_DEPENDENCIES) \
