@@ -100,7 +100,6 @@ art_cc_defaults {
                 "linker/arm/relative_patcher_arm_base.cc",
                 "linker/arm/relative_patcher_thumb2.cc",
                 "optimizing/code_generator_arm.cc",
-                "optimizing/code_generator_arm_vixl.cc",
                 "optimizing/dex_cache_array_fixups_arm.cc",
                 "optimizing/instruction_simplifier_arm.cc",
                 "optimizing/instruction_simplifier_shared.cc",
