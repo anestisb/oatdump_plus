@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Java fuzzer tool.
+# Fuzzer tool.
 
 LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
 LOCAL_CPP_EXTENSION := cc
-LOCAL_SRC_FILES := javafuzz.cc
+LOCAL_SRC_FILES := jfuzz.cc
 LOCAL_CFLAGS += -O0 -g -Wall
 LOCAL_MODULE_HOST_OS := darwin linux windows
-LOCAL_MODULE := javafuzz
+LOCAL_MODULE := jfuzz
 include $(BUILD_HOST_EXECUTABLE)

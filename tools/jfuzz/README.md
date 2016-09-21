@@ -1,19 +1,19 @@
-JavaFuzz
-========
+JFuzz
+=====
 
-JavaFuzz is a tool for generating random Java programs with the objective
-of fuzz testing the ART infrastructure. Each randomly generated Java program
+JFuzz is a tool for generating random programs with the objective
+of fuzz testing the ART infrastructure. Each randomly generated program
 can be run under various modes of execution, such as using the interpreter,
 using the optimizing compiler, using an external reference implementation,
 or using various target architectures. Any difference between the outputs
 (**divergence**) may indicate a bug in one of the execution modes.
 
-JavaFuzz can be combined with DexFuzz to get multi-layered fuzz testing.
+JFuzz can be combined with DexFuzz to get multi-layered fuzz testing.
 
-How to run JavaFuzz
+How to run JFuzz
 ===================
 
-    javafuzz [-s seed] [-d expr-depth] [-l stmt-length]
+    jfuzz [-s seed] [-d expr-depth] [-l stmt-length]
              [-i if-nest] [-n loop-nest]
 
 where
@@ -29,17 +29,17 @@ where
     -n : defines a fuzzing nest for for/while/do-while loops
          (higher values yield deeper nested loops)
 
-The current version of JavaFuzz sends all output to stdout, and uses
+The current version of JFuzz sends all output to stdout, and uses
 a fixed testing class named Test. So a typical test run looks as follows.
 
-    javafuzz > Test.java
+    jfuzz > Test.java
     jack -cp ${JACK_CLASSPATH} --output-dex . Test.java
     art -classpath classes.dex Test
 
-How to start JavaFuzz testing
+How to start JFuzz testing
 =============================
 
-    run_java_fuzz_test.py
+    run_jfuzz_test.py
                           [--num_tests=NUM_TESTS]
                           [--device=DEVICE]
                           [--mode1=MODE] [--mode2=MODE]
@@ -56,8 +56,8 @@ where
       tint = Art interpreter on target
       topt = Art optimizing on target
 
-How to start Java/DexFuzz testing (multi-layered)
-=================================================
+How to start J/DexFuzz testing (multi-layered)
+==============================================
 
     run_dex_fuzz_test.py
                           [--num_tests=NUM_TESTS]
@@ -67,7 +67,7 @@ How to start Java/DexFuzz testing (multi-layered)
 where
 
     --num_tests : number of tests to run (10000 by default)
-    --num_inputs: number of JavaFuzz programs to generate
+    --num_inputs: number of JFuzz programs to generate
     --device    : target device serial number (passed to adb -s)
 
 Background
