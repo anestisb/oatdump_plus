@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "java_lang_reflect_AbstractMethod.h"
+#include "java_lang_reflect_Executable.h"
 
 #include "art_method-inl.h"
 #include "dex_file_annotations.h"
@@ -28,7 +28,7 @@
 
 namespace art {
 
-static jobjectArray AbstractMethod_getDeclaredAnnotations(JNIEnv* env, jobject javaMethod) {
+static jobjectArray Executable_getDeclaredAnnotationsNative(JNIEnv* env, jobject javaMethod) {
   ScopedFastNativeObjectAccess soa(env);
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
   if (method->GetDeclaringClass()->IsProxyClass()) {
@@ -42,7 +42,7 @@ static jobjectArray AbstractMethod_getDeclaredAnnotations(JNIEnv* env, jobject j
   return soa.AddLocalReference<jobjectArray>(annotations::GetAnnotationsForMethod(method));
 }
 
-static jobject AbstractMethod_getAnnotationNative(JNIEnv* env,
+static jobject Executable_getAnnotationNative(JNIEnv* env,
                                                   jobject javaMethod,
                                                   jclass annotationType) {
   ScopedFastNativeObjectAccess soa(env);
@@ -56,7 +56,7 @@ static jobject AbstractMethod_getAnnotationNative(JNIEnv* env,
   }
 }
 
-static jobjectArray AbstractMethod_getSignatureAnnotation(JNIEnv* env, jobject javaMethod) {
+static jobjectArray Executable_getSignatureAnnotation(JNIEnv* env, jobject javaMethod) {
   ScopedFastNativeObjectAccess soa(env);
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
   if (method->GetDeclaringClass()->IsProxyClass()) {
@@ -67,7 +67,7 @@ static jobjectArray AbstractMethod_getSignatureAnnotation(JNIEnv* env, jobject j
 }
 
 
-static jobjectArray AbstractMethod_getParameterAnnotationsNative(JNIEnv* env, jobject javaMethod) {
+static jobjectArray Executable_getParameterAnnotationsNative(JNIEnv* env, jobject javaMethod) {
   ScopedFastNativeObjectAccess soa(env);
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
   if (method->IsProxyMethod()) {
@@ -77,7 +77,7 @@ static jobjectArray AbstractMethod_getParameterAnnotationsNative(JNIEnv* env, jo
   }
 }
 
-static jboolean AbstractMethod_isAnnotationPresentNative(JNIEnv* env,
+static jboolean Executable_isAnnotationPresentNative(JNIEnv* env,
                                                          jobject javaMethod,
                                                          jclass annotationType) {
   ScopedFastNativeObjectAccess soa(env);
@@ -91,17 +91,17 @@ static jboolean AbstractMethod_isAnnotationPresentNative(JNIEnv* env,
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(AbstractMethod, getAnnotationNative,
+  NATIVE_METHOD(Executable, getAnnotationNative,
                 "!(Ljava/lang/Class;)Ljava/lang/annotation/Annotation;"),
-  NATIVE_METHOD(AbstractMethod, getDeclaredAnnotations, "!()[Ljava/lang/annotation/Annotation;"),
-  NATIVE_METHOD(AbstractMethod, getParameterAnnotationsNative,
+  NATIVE_METHOD(Executable, getDeclaredAnnotationsNative, "!()[Ljava/lang/annotation/Annotation;"),
+  NATIVE_METHOD(Executable, getParameterAnnotationsNative,
                 "!()[[Ljava/lang/annotation/Annotation;"),
-  NATIVE_METHOD(AbstractMethod, getSignatureAnnotation, "!()[Ljava/lang/String;"),
-  NATIVE_METHOD(AbstractMethod, isAnnotationPresentNative, "!(Ljava/lang/Class;)Z"),
+  NATIVE_METHOD(Executable, getSignatureAnnotation, "!()[Ljava/lang/String;"),
+  NATIVE_METHOD(Executable, isAnnotationPresentNative, "!(Ljava/lang/Class;)Z"),
 };
 
-void register_java_lang_reflect_AbstractMethod(JNIEnv* env) {
-  REGISTER_NATIVE_METHODS("java/lang/reflect/AbstractMethod");
+void register_java_lang_reflect_Executable(JNIEnv* env) {
+  REGISTER_NATIVE_METHODS("java/lang/reflect/Executable");
 }
 
 }  // namespace art

@@ -34,8 +34,8 @@
 #include "jit/jit_code_cache.h"
 #include "jit/profiling_info.h"
 #include "jni_internal.h"
-#include "mirror/abstract_method.h"
 #include "mirror/class-inl.h"
+#include "mirror/executable.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/string.h"
@@ -52,9 +52,9 @@ extern "C" void art_quick_invoke_static_stub(ArtMethod*, uint32_t*, uint32_t, Th
 
 ArtMethod* ArtMethod::FromReflectedMethod(const ScopedObjectAccessAlreadyRunnable& soa,
                                           jobject jlr_method) {
-  auto* abstract_method = soa.Decode<mirror::AbstractMethod*>(jlr_method);
-  DCHECK(abstract_method != nullptr);
-  return abstract_method->GetArtMethod();
+  auto* executable = soa.Decode<mirror::Executable*>(jlr_method);
+  DCHECK(executable != nullptr);
+  return executable->GetArtMethod();
 }
 
 mirror::String* ArtMethod::GetNameAsString(Thread* self) {

@@ -375,7 +375,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT(mid);
     ScopedObjectAccess soa(env);
     ArtMethod* m = soa.DecodeMethod(mid);
-    mirror::AbstractMethod* method;
+    mirror::Executable* method;
     DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), kRuntimePointerSize);
     DCHECK(!Runtime::Current()->IsActiveTransaction());
     if (m->IsConstructor()) {
