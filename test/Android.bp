@@ -40,6 +40,9 @@ art_cc_defaults {
             enabled: false,
         },
     },
+    cflags: [
+        "-Wno-frame-larger-than=",
+    ],
 }
 
 art_cc_defaults {
