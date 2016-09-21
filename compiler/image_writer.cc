@@ -48,12 +48,12 @@
 #include "intern_table.h"
 #include "linear_alloc.h"
 #include "lock_word.h"
-#include "mirror/abstract_method.h"
 #include "mirror/array-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache.h"
 #include "mirror/dex_cache-inl.h"
+#include "mirror/executable.h"
 #include "mirror/method.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
@@ -1989,8 +1989,8 @@ void ImageWriter::FixupObject(Object* orig, Object* copy) {
   } else {
     if (klass == mirror::Method::StaticClass() || klass == mirror::Constructor::StaticClass()) {
       // Need to go update the ArtMethod.
-      auto* dest = down_cast<mirror::AbstractMethod*>(copy);
-      auto* src = down_cast<mirror::AbstractMethod*>(orig);
+      auto* dest = down_cast<mirror::Executable*>(copy);
+      auto* src = down_cast<mirror::Executable*>(orig);
       ArtMethod* src_method = src->GetArtMethod();
       dest->SetArtMethod(GetImageMethodAddress(src_method));
     } else if (!klass->IsArrayClass()) {
