@@ -26,10 +26,6 @@ else
 ART_HOST_TEST_DIR := /tmp/$(USER)/test-art-$(shell echo $$PPID)
 endif
 
-# We need to set a define for the nativetest dir so that common_runtime_test will know the right
-# path. (The problem is being a 32b test on 64b device, which is still located in nativetest64).
-ART_TARGET_CFLAGS += -DART_TARGET_NATIVETEST_DIR=${ART_TARGET_NATIVETEST_DIR}
-
 # List of known broken tests that we won't attempt to execute. The test name must be the full
 # rule name such as test-art-host-oat-optimizing-HelloWorld64.
 ART_TEST_KNOWN_BROKEN :=
