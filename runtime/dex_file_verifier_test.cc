@@ -632,12 +632,8 @@ TEST_F(DexFileVerifierTest, B28552165) {
       "b28552165",
       [](DexFile* dex_file) {
         OrMaskToMethodFlags(dex_file, "foo", kAccPublic | kAccProtected);
-        uint32_t method_idx;
-        FindMethodData(dex_file, "foo", &method_idx);
-        auto* method_id = const_cast<DexFile::MethodId*>(&dex_file->GetMethodId(method_idx));
-        method_id->name_idx_ = dex::StringIndex(dex_file->NumStringIds());
       },
-      "Method may have only one of public/protected/private, LMethodFlags;.(error)");
+      "Method may have only one of public/protected/private, LMethodFlags;.foo");
 }
 
 // Set of dex files for interface method tests. As it's not as easy to mutate method names, it's
@@ -1672,6 +1668,221 @@ TEST_F(DexFileVerifierTest, Checksum) {
                                        /*verify_checksum*/ true,
                                        &error_msg));
   EXPECT_NE(error_msg.find("Bad checksum"), std::string::npos) << error_msg;
+}
+
+TEST_F(DexFileVerifierTest, BadStaticMethodName) {
+  // Generated DEX file version (037) from:
+  //
+  // .class public LBadName;
+  // .super Ljava/lang/Object;
+  //
+  // .method public static <bad_name> (II)V
+  //    .registers 2
+  //    .prologue
+  //    return-void
+  // .end method
+  //
+  // .method public constructor <init>()V
+  //     .registers 1
+  //     .prologue
+  //     .line 1
+  // invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+  //     return-void
+  // .end method
+  //
+  static const char kDexBase64[] =
+      "ZGV4CjAzNwC2NYlwyxEc/h6hv+hMeUVQPtiX6MQBcfgwAgAAcAAAAHhWNBIAAAAAAAAAAJABAAAI"
+      "AAAAcAAAAAQAAACQAAAAAgAAAKAAAAAAAAAAAAAAAAMAAAC4AAAAAQAAANAAAABAAQAA8AAAAPAA"
+      "AAD8AAAABAEAABIBAAAVAQAAIAEAADQBAAA3AQAAAwAAAAQAAAAFAAAABgAAAAYAAAADAAAAAAAA"
+      "AAcAAAADAAAAPAEAAAEAAQAAAAAAAQAAAAEAAAACAAAAAQAAAAEAAAABAAAAAgAAAAAAAAACAAAA"
+      "AAAAAIABAAAAAAAACjxiYWRfbmFtZT4ABjxpbml0PgAMQmFkTmFtZS5qYXZhAAFJAAlMQmFkTmFt"
+      "ZTsAEkxqYXZhL2xhbmcvT2JqZWN0OwABVgADVklJAAIAAAAAAAAAAAAAAAACAAAHAAEABw4AAAIA"
+      "AgAAAAAASAEAAAEAAAAOAAAAAQABAAEAAABOAQAABAAAAHAQAgAAAA4AAAACAAAJ1AIBgYAE6AIA"
+      "AA0AAAAAAAAAAQAAAAAAAAABAAAACAAAAHAAAAACAAAABAAAAJAAAAADAAAAAgAAAKAAAAAFAAAA"
+      "AwAAALgAAAAGAAAAAQAAANAAAAACIAAACAAAAPAAAAABEAAAAQAAADwBAAADEAAAAQAAAEQBAAAD"
+      "IAAAAgAAAEgBAAABIAAAAgAAAFQBAAAAIAAAAQAAAIABAAAAEAAAAQAAAJABAAA=";
+
+  size_t length;
+  std::unique_ptr<uint8_t[]> dex_bytes(DecodeBase64(kDexBase64, &length));
+  CHECK(dex_bytes != nullptr);
+  // Note: `dex_file` will be destroyed before `dex_bytes`.
+  std::unique_ptr<DexFile> dex_file(GetDexFile(dex_bytes.get(), length));
+  std::string error_msg;
+  EXPECT_FALSE(DexFileVerifier::Verify(dex_file.get(),
+                                       dex_file->Begin(),
+                                       dex_file->Size(),
+                                       "bad static method name",
+                                       /*verify_checksum*/ true,
+                                       &error_msg));
+}
+
+TEST_F(DexFileVerifierTest, BadVirtualMethodName) {
+  // Generated DEX file version (037) from:
+  //
+  //  .class public LBadVirtualName;
+  //  .super Ljava/lang/Object;
+  //
+  //  .method public <bad_name> (II)V
+  //     .registers 2
+  //     return-void
+  //  .end method
+  //
+  //  .method public constructor <init>()V
+  //      .registers 1
+  //      invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+  //      return-void
+  //  .end method
+  //
+  static const char kDexBase64[] =
+      "ZGV4CjAzNwDcPC8B2E7kYTZmeHX2u2IqrpWV9EXBHpE8AgAAcAAAAHhWNBIAAAAAAAAAAJwBAAAI"
+      "AAAAcAAAAAQAAACQAAAAAgAAAKAAAAAAAAAAAAAAAAMAAAC4AAAAAQAAANAAAABMAQAA8AAAAPAA"
+      "AAD8AAAABAEAABkBAAAcAQAALgEAAEIBAABFAQAAAwAAAAQAAAAFAAAABgAAAAYAAAADAAAAAAAA"
+      "AAcAAAADAAAATAEAAAEAAQAAAAAAAQAAAAEAAAACAAAAAQAAAAEAAAABAAAAAgAAAAAAAAACAAAA"
+      "AAAAAI4BAAAAAAAACjxiYWRfbmFtZT4ABjxpbml0PgATQmFkVmlydHVhbE5hbWUuamF2YQABSQAQ"
+      "TEJhZFZpcnR1YWxOYW1lOwASTGphdmEvbGFuZy9PYmplY3Q7AAFWAANWSUkAAAACAAAAAAAAAAAA"
+      "AAABAAcOAAACAAAHAAABAAEAAQAAAFgBAAAEAAAAcBACAAAADgADAAMAAAAAAF0BAAABAAAADgAA"
+      "AAEBAYGABOQCAAH8Ag0AAAAAAAAAAQAAAAAAAAABAAAACAAAAHAAAAACAAAABAAAAJAAAAADAAAA"
+      "AgAAAKAAAAAFAAAAAwAAALgAAAAGAAAAAQAAANAAAAACIAAACAAAAPAAAAABEAAAAQAAAEwBAAAD"
+      "EAAAAQAAAFQBAAADIAAAAgAAAFgBAAABIAAAAgAAAGQBAAAAIAAAAQAAAI4BAAAAEAAAAQAAAJwB"
+      "AAA=";
+
+  size_t length;
+  std::unique_ptr<uint8_t[]> dex_bytes(DecodeBase64(kDexBase64, &length));
+  CHECK(dex_bytes != nullptr);
+  // Note: `dex_file` will be destroyed before `dex_bytes`.
+  std::unique_ptr<DexFile> dex_file(GetDexFile(dex_bytes.get(), length));
+  std::string error_msg;
+  EXPECT_FALSE(DexFileVerifier::Verify(dex_file.get(),
+                                       dex_file->Begin(),
+                                       dex_file->Size(),
+                                       "bad virtual method name",
+                                       /*verify_checksum*/ true,
+                                       &error_msg));
+}
+
+TEST_F(DexFileVerifierTest, BadClinitSignature) {
+  // Generated DEX file version (037) from:
+  //
+  //  .class public LOneClinitBadSig;
+  //  .super Ljava/lang/Object;
+  //
+  //  .method public static constructor <clinit>(II)V
+  //     .registers 2
+  //     return-void
+  //  .end method
+  //
+  //  .method public constructor <init>()V
+  //      .registers 1
+  //      invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+  //      return-void
+  //  .end method
+  //
+  static const char kDexBase64[] =
+      "ZGV4CjAzNwBNOwTbfJmWq5eMOlxUY4EICGiEGJMVg8RAAgAAcAAAAHhWNBIAAAAAAAAAAKABAAAI"
+      "AAAAcAAAAAQAAACQAAAAAgAAAKAAAAAAAAAAAAAAAAMAAAC4AAAAAQAAANAAAABQAQAA8AAAAPAA"
+      "AAD6AAAAAgEAAAUBAAAYAQAALAEAAEIBAABFAQAAAgAAAAMAAAAEAAAABgAAAAYAAAADAAAAAAAA"
+      "AAcAAAADAAAATAEAAAEAAQAAAAAAAQAAAAEAAAACAAAAAQAAAAEAAAABAAAAAgAAAAAAAAAFAAAA"
+      "AAAAAJABAAAAAAAACDxjbGluaXQ+AAY8aW5pdD4AAUkAEUxPbmVDbGluaXRCYWRTaWc7ABJMamF2"
+      "YS9sYW5nL09iamVjdDsAFE9uZUNsaW5pdEJhZFNpZy5qYXZhAAFWAANWSUkAAAACAAAAAAAAAAAA"
+      "AAAAAgAABwABAAcOAAACAAIAAAAAAFgBAAABAAAADgAAAAEAAQABAAAAXgEAAAQAAABwEAIAAAAO"
+      "AAAAAgAAiYAE5AIBgYAE+AINAAAAAAAAAAEAAAAAAAAAAQAAAAgAAABwAAAAAgAAAAQAAACQAAAA"
+      "AwAAAAIAAACgAAAABQAAAAMAAAC4AAAABgAAAAEAAADQAAAAAiAAAAgAAADwAAAAARAAAAEAAABM"
+      "AQAAAxAAAAEAAABUAQAAAyAAAAIAAABYAQAAASAAAAIAAABkAQAAACAAAAEAAACQAQAAABAAAAEA"
+      "AACgAQAA";
+
+  size_t length;
+  std::unique_ptr<uint8_t[]> dex_bytes(DecodeBase64(kDexBase64, &length));
+  CHECK(dex_bytes != nullptr);
+  // Note: `dex_file` will be destroyed before `dex_bytes`.
+  std::unique_ptr<DexFile> dex_file(GetDexFile(dex_bytes.get(), length));
+  std::string error_msg;
+  EXPECT_FALSE(DexFileVerifier::Verify(dex_file.get(),
+                                       dex_file->Begin(),
+                                       dex_file->Size(),
+                                       "bad clinit signature",
+                                       /*verify_checksum*/ true,
+                                       &error_msg));
+}
+
+TEST_F(DexFileVerifierTest, BadClinitSignatureAgain) {
+  // Generated DEX file version (037) from:
+  //
+  //  .class public LOneClinitBadSigAgain;
+  //  .super Ljava/lang/Object;
+  //
+  //  .method public static constructor <clinit>()I
+  //     .registers 1
+  //     const/4 v0, 1
+  //     return v0
+  //  .end method
+  //
+  //  .method public constructor <init>()V
+  //      .registers 1
+  //      invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+  //      return-void
+  //  .end method
+  //
+  static const char kDexBase64[] =
+      "ZGV4CjAzNwBfPcPu5NVwKUqZIu/YR8xqVlVD5UzTk0gEAgAAcAAAAHhWNBIAAAAAAAAAAIgBAAAH"
+      "AAAAcAAAAAQAAACMAAAAAgAAAJwAAAAAAAAAAAAAAAMAAAC0AAAAAQAAAMwAAAAYAQAA7AAAAOwA"
+      "AAD2AAAA/gAAAAEBAAAZAQAALQEAAEgBAAACAAAAAwAAAAQAAAAGAAAAAgAAAAAAAAAAAAAABgAA"
+      "AAMAAAAAAAAAAQAAAAAAAAABAAEAAQAAAAIAAQABAAAAAQAAAAEAAAACAAAAAAAAAAUAAAAAAAAA"
+      "eAEAAAAAAAAIPGNsaW5pdD4ABjxpbml0PgABSQAWTE9uZUNsaW5pdEJhZFNpZ0FnYWluOwASTGph"
+      "dmEvbGFuZy9PYmplY3Q7ABlPbmVDbGluaXRCYWRTaWdBZ2Fpbi5qYXZhAAFWAAABAAAAAAAAAAAA"
+      "AAACAAAAEhAPAAEAAQABAAAAAAAAAAQAAABwEAIAAAAOAAAAAgAAiYAEzAIBgYAE4AIKAAAAAAAA"
+      "AAEAAAAAAAAAAQAAAAcAAABwAAAAAgAAAAQAAACMAAAAAwAAAAIAAACcAAAABQAAAAMAAAC0AAAA"
+      "BgAAAAEAAADMAAAAAiAAAAcAAADsAAAAASAAAAIAAABMAQAAACAAAAEAAAB4AQAAABAAAAEAAACI"
+      "AQAA";
+
+  size_t length;
+  std::unique_ptr<uint8_t[]> dex_bytes(DecodeBase64(kDexBase64, &length));
+  CHECK(dex_bytes != nullptr);
+  // Note: `dex_file` will be destroyed before `dex_bytes`.
+  std::unique_ptr<DexFile> dex_file(GetDexFile(dex_bytes.get(), length));
+  std::string error_msg;
+  EXPECT_FALSE(DexFileVerifier::Verify(dex_file.get(),
+                                       dex_file->Begin(),
+                                       dex_file->Size(),
+                                       "bad clinit signature",
+                                       /*verify_checksum*/ true,
+                                       &error_msg));
+}
+
+TEST_F(DexFileVerifierTest, BadInitSignature) {
+  // Generated DEX file version (037) from:
+  //
+  //  .class public LBadInitSig;
+  //  .super Ljava/lang/Object;
+  //
+  //  .method public constructor <init>()I
+  //      .registers 1
+  //      invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+  //      const v0, 1
+  //      return v0
+  //  .end method
+  //
+  static const char kDexBase64[] =
+      "ZGV4CjAzNwCdMdeh1KoHWamF2Prq32LF39YZ78fV7q+wAQAAcAAAAHhWNBIAAAAAAAAAADQBAAAF"
+      "AAAAcAAAAAQAAACEAAAAAgAAAJQAAAAAAAAAAAAAAAIAAACsAAAAAQAAALwAAADUAAAA3AAAANwA"
+      "AADkAAAA5wAAAPUAAAAJAQAAAQAAAAIAAAADAAAABAAAAAEAAAAAAAAAAAAAAAQAAAADAAAAAAAA"
+      "AAEAAAAAAAAAAgABAAAAAAABAAAAAQAAAAIAAAAAAAAA/////wAAAAAqAQAAAAAAAAY8aW5pdD4A"
+      "AUkADExCYWRJbml0U2lnOwASTGphdmEvbGFuZy9PYmplY3Q7AAFWAAEAAQABAAAAAAAAAAcAAABw"
+      "EAEAAAAUAAEAAAAPAAAAAQAAgYAEjAIKAAAAAAAAAAEAAAAAAAAAAQAAAAUAAABwAAAAAgAAAAQA"
+      "AACEAAAAAwAAAAIAAACUAAAABQAAAAIAAACsAAAABgAAAAEAAAC8AAAAAiAAAAUAAADcAAAAASAA"
+      "AAEAAAAMAQAAACAAAAEAAAAqAQAAABAAAAEAAAA0AQAA";
+
+  size_t length;
+  std::unique_ptr<uint8_t[]> dex_bytes(DecodeBase64(kDexBase64, &length));
+  CHECK(dex_bytes != nullptr);
+  // Note: `dex_file` will be destroyed before `dex_bytes`.
+  std::unique_ptr<DexFile> dex_file(GetDexFile(dex_bytes.get(), length));
+  std::string error_msg;
+  EXPECT_FALSE(DexFileVerifier::Verify(dex_file.get(),
+                                       dex_file->Begin(),
+                                       dex_file->Size(),
+                                       "bad init signature",
+                                       /*verify_checksum*/ true,
+                                       &error_msg));
 }
 
 }  // namespace art
