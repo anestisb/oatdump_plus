@@ -50,8 +50,6 @@ class RelativePatcherTest : public testing::Test {
                 Compiler::kQuick,
                 instruction_set,
                 /* instruction_set_features*/ nullptr,
-                /* boot_image */ false,
-                /* app_image */ false,
                 /* image_classes */ nullptr,
                 /* compiled_classes */ nullptr,
                 /* compiled_methods */ nullptr,

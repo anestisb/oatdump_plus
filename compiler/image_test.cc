@@ -263,7 +263,10 @@ void CompilationHelper::Compile(CompilerDriver* driver,
         oat_writer->PrepareLayout(driver, writer.get(), cur_dex_files, &patcher);
         size_t rodata_size = oat_writer->GetOatHeader().GetExecutableOffset();
         size_t text_size = oat_writer->GetOatSize() - rodata_size;
-        elf_writer->SetLoadedSectionSizes(rodata_size, text_size, oat_writer->GetBssSize());
+        elf_writer->PrepareDynamicSection(rodata_size,
+                                          text_size,
+                                          oat_writer->GetBssSize(),
+                                          oat_writer->GetBssRootsOffset());
 
         writer->UpdateOatFileLayout(i,
                                     elf_writer->GetLoadedSize(),

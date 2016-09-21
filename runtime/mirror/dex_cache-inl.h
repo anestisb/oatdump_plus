@@ -25,6 +25,7 @@
 #include "base/enums.h"
 #include "base/logging.h"
 #include "mirror/class.h"
+#include "oat_file.h"
 #include "runtime.h"
 
 #include <atomic>
@@ -166,6 +167,11 @@ inline void DexCache::VisitReferences(mirror::Class* klass, const Visitor& visit
     GcRoot<mirror::Class>* resolved_types = GetResolvedTypes();
     for (size_t i = 0, num_types = NumResolvedTypes(); i != num_types; ++i) {
       visitor.VisitRootIfNonNull(resolved_types[i].AddressWithoutBarrier());
+    }
+    if (GetDexFile() != nullptr && GetDexFile()->GetOatDexFile() != nullptr) {
+      for (GcRoot<Object>& root : OatFile::GetBssRoots(GetDexFile()->GetOatDexFile())) {
+        visitor.VisitRootIfNonNull(root.AddressWithoutBarrier());
+      }
     }
   }
 }
