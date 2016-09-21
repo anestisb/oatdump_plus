@@ -18,7 +18,7 @@ include art/build/Android.common_build.mk
 
 ART_CPPLINT := $(LOCAL_PATH)/tools/cpplint.py
 ART_CPPLINT_FILTER := --filter=-whitespace/line_length,-build/include,-readability/function,-readability/streams,-readability/todo,-runtime/references,-runtime/sizeof,-runtime/threadsafe_fn,-runtime/printf
-ART_CPPLINT_FLAGS := --quiet
+ART_CPPLINT_FLAGS := --quiet --root=$(ANDROID_BUILD_TOP)
 ART_CPPLINT_INGORED := \
     runtime/elf.h \
     runtime/openjdkjvmti/jvmti.h
