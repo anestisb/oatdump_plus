@@ -41,7 +41,6 @@
 #include "register_allocator_linear_scan.h"
 #include "ssa_liveness_analysis.h"
 #include "utils.h"
-#include "utils/arm/assembler_arm_vixl.h"
 #include "utils/arm/managed_register_arm.h"
 #include "utils/mips/managed_register_mips.h"
 #include "utils/mips64/managed_register_mips64.h"
@@ -49,7 +48,6 @@
 
 #ifdef ART_ENABLE_CODEGEN_arm
 #include "code_generator_arm.h"
-#include "code_generator_arm_vixl.h"
 #endif
 
 #ifdef ART_ENABLE_CODEGEN_arm64
@@ -112,28 +110,6 @@ class TestCodeGeneratorARM : public arm::CodeGeneratorARM {
 
   void SetupBlockedRegisters() const OVERRIDE {
     arm::CodeGeneratorARM::SetupBlockedRegisters();
-    blocked_core_registers_[arm::R4] = true;
-    blocked_core_registers_[arm::R6] = false;
-    blocked_core_registers_[arm::R7] = false;
-    // Makes pair R6-R7 available.
-    blocked_register_pairs_[arm::R6_R7] = false;
-  }
-};
-
-// A way to test the VIXL32-based code generator on ARM. This will replace
-// TestCodeGeneratorARM when the VIXL32-based backend replaces the existing one.
-class TestCodeGeneratorARMVIXL : public arm::CodeGeneratorARMVIXL {
- public:
-  TestCodeGeneratorARMVIXL(HGraph* graph,
-                           const ArmInstructionSetFeatures& isa_features,
-                           const CompilerOptions& compiler_options)
-      : arm::CodeGeneratorARMVIXL(graph, isa_features, compiler_options) {
-    AddAllocatedRegister(Location::RegisterLocation(arm::R6));
-    AddAllocatedRegister(Location::RegisterLocation(arm::R7));
-  }
-
-  void SetupBlockedRegisters() const OVERRIDE {
-    arm::CodeGeneratorARMVIXL::SetupBlockedRegisters();
     blocked_core_registers_[arm::R4] = true;
     blocked_core_registers_[arm::R6] = false;
     blocked_core_registers_[arm::R7] = false;
@@ -320,13 +296,6 @@ CodeGenerator* create_codegen_arm(HGraph* graph, const CompilerOptions& compiler
                                                       *features_arm.get(),
                                                       compiler_options);
 }
-
-CodeGenerator* create_codegen_arm_vixl32(HGraph* graph, const CompilerOptions& compiler_options) {
-  std::unique_ptr<const ArmInstructionSetFeatures> features_arm(
-      ArmInstructionSetFeatures::FromCppDefines());
-  return new (graph->GetArena())
-      TestCodeGeneratorARMVIXL(graph, *features_arm.get(), compiler_options);
-}
 #endif
 
 #ifdef ART_ENABLE_CODEGEN_arm64
@@ -382,7 +351,6 @@ static ::std::vector<CodegenTargetConfig> GetTargetConfigs() {
 #ifdef ART_ENABLE_CODEGEN_arm
     CodegenTargetConfig(kArm, create_codegen_arm),
     CodegenTargetConfig(kThumb2, create_codegen_arm),
-    CodegenTargetConfig(kArm, create_codegen_arm_vixl32),
 #endif
 #ifdef ART_ENABLE_CODEGEN_arm64
     CodegenTargetConfig(kArm64, create_codegen_arm64),
