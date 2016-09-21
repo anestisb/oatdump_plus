@@ -28,7 +28,6 @@
 #include "experimental_flags.h"
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "gc/heap.h"
-#include "mirror/abstract_method.h"
 #include "mirror/accessible_object.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
@@ -697,21 +696,15 @@ struct FieldOffsets : public CheckOffsets<mirror::Field> {
 struct ExecutableOffsets : public CheckOffsets<mirror::Executable> {
   ExecutableOffsets() : CheckOffsets<mirror::Executable>(
       false, "Ljava/lang/reflect/Executable;") {
+    addOffset(OFFSETOF_MEMBER(mirror::Executable, access_flags_), "accessFlags");
+    addOffset(OFFSETOF_MEMBER(mirror::Executable, art_method_), "artMethod");
+    addOffset(OFFSETOF_MEMBER(mirror::Executable, declaring_class_), "declaringClass");
+    addOffset(OFFSETOF_MEMBER(mirror::Executable, declaring_class_of_overridden_method_),
+              "declaringClassOfOverriddenMethod");
+    addOffset(OFFSETOF_MEMBER(mirror::Executable, dex_method_index_), "dexMethodIndex");
     addOffset(OFFSETOF_MEMBER(mirror::Executable, has_real_parameter_data_),
               "hasRealParameterData");
     addOffset(OFFSETOF_MEMBER(mirror::Executable, parameters_), "parameters");
-  };
-};
-
-struct AbstractMethodOffsets : public CheckOffsets<mirror::AbstractMethod> {
-  AbstractMethodOffsets() : CheckOffsets<mirror::AbstractMethod>(
-      false, "Ljava/lang/reflect/AbstractMethod;") {
-    addOffset(OFFSETOF_MEMBER(mirror::AbstractMethod, access_flags_), "accessFlags");
-    addOffset(OFFSETOF_MEMBER(mirror::AbstractMethod, art_method_), "artMethod");
-    addOffset(OFFSETOF_MEMBER(mirror::AbstractMethod, declaring_class_), "declaringClass");
-    addOffset(OFFSETOF_MEMBER(mirror::AbstractMethod, declaring_class_of_overridden_method_),
-              "declaringClassOfOverriddenMethod");
-    addOffset(OFFSETOF_MEMBER(mirror::AbstractMethod, dex_method_index_), "dexMethodIndex");
   };
 };
 
@@ -733,7 +726,6 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_TRUE(AccessibleObjectOffsets().Check());
   EXPECT_TRUE(FieldOffsets().Check());
   EXPECT_TRUE(ExecutableOffsets().Check());
-  EXPECT_TRUE(AbstractMethodOffsets().Check());
 }
 
 TEST_F(ClassLinkerTest, FindClassNonexistent) {

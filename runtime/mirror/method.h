@@ -17,8 +17,8 @@
 #ifndef ART_RUNTIME_MIRROR_METHOD_H_
 #define ART_RUNTIME_MIRROR_METHOD_H_
 
-#include "abstract_method.h"
 #include "gc_root.h"
+#include "executable.h"
 
 namespace art {
 namespace mirror {
@@ -26,7 +26,7 @@ namespace mirror {
 class Class;
 
 // C++ mirror of java.lang.reflect.Method.
-class MANAGED Method : public AbstractMethod {
+class MANAGED Method : public Executable {
  public:
   template <PointerSize kPointerSize, bool kTransactionActive>
   static Method* CreateFromArtMethod(Thread* self, ArtMethod* method)
@@ -58,7 +58,7 @@ class MANAGED Method : public AbstractMethod {
 };
 
 // C++ mirror of java.lang.reflect.Constructor.
-class MANAGED Constructor: public AbstractMethod {
+class MANAGED Constructor: public Executable {
  public:
   template <PointerSize kPointerSize, bool kTransactionActive>
   static Constructor* CreateFromArtMethod(Thread* self, ArtMethod* method)

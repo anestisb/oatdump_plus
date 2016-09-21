@@ -3284,7 +3284,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       }
       break;
     // Note: the following instructions encode offsets derived from class linking.
-    // As such they use Class*/Field*/AbstractMethod* as these offsets only have
+    // As such they use Class*/Field*/Executable* as these offsets only have
     // meaning if the class linking and resolution were successful.
     case Instruction::IGET_QUICK:
       VerifyQuickFieldAccess<FieldAccessType::kAccGet>(inst, reg_types_.Integer(), true);
