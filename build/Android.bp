@@ -22,8 +22,6 @@ art_global_defaults {
     name: "art_defaults",
     clang: true,
     cflags: [
-        "-O3",
-
         // Base set of cflags used by all things ART.
         "-fno-rtti",
         "-ggdb3",
@@ -149,10 +147,9 @@ art_global_defaults {
     ],
 }
 
-cc_defaults {
+art_debug_defaults {
     name: "art_debug_defaults",
     cflags: [
-        "-O2",
         "-DDYNAMIC_ANNOTATIONS_ENABLED=1",
         "-DVIXL_DEBUG",
         "-UNDEBUG",
