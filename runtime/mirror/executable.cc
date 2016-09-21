@@ -14,15 +14,14 @@
  * limitations under the License.
  */
 
-#include "abstract_method.h"
-
 #include "art_method-inl.h"
+#include "executable.h"
 
 namespace art {
 namespace mirror {
 
 template <PointerSize kPointerSize, bool kTransactionActive>
-bool AbstractMethod::CreateFromArtMethod(ArtMethod* method) {
+bool Executable::CreateFromArtMethod(ArtMethod* method) {
   auto* interface_method = method->GetInterfaceMethodIfProxy(kPointerSize);
   SetArtMethod<kTransactionActive>(method);
   SetFieldObject<kTransactionActive>(DeclaringClassOffset(), method->GetDeclaringClass());
@@ -33,28 +32,28 @@ bool AbstractMethod::CreateFromArtMethod(ArtMethod* method) {
   return true;
 }
 
-template bool AbstractMethod::CreateFromArtMethod<PointerSize::k32, false>(
+template bool Executable::CreateFromArtMethod<PointerSize::k32, false>(
     ArtMethod* method);
-template bool AbstractMethod::CreateFromArtMethod<PointerSize::k32, true>(
+template bool Executable::CreateFromArtMethod<PointerSize::k32, true>(
     ArtMethod* method);
-template bool AbstractMethod::CreateFromArtMethod<PointerSize::k64, false>(
+template bool Executable::CreateFromArtMethod<PointerSize::k64, false>(
     ArtMethod* method);
-template bool AbstractMethod::CreateFromArtMethod<PointerSize::k64, true>(
+template bool Executable::CreateFromArtMethod<PointerSize::k64, true>(
     ArtMethod* method);
 
-ArtMethod* AbstractMethod::GetArtMethod() {
+ArtMethod* Executable::GetArtMethod() {
   return reinterpret_cast<ArtMethod*>(GetField64(ArtMethodOffset()));
 }
 
 template <bool kTransactionActive>
-void AbstractMethod::SetArtMethod(ArtMethod* method) {
+void Executable::SetArtMethod(ArtMethod* method) {
   SetField64<kTransactionActive>(ArtMethodOffset(), reinterpret_cast<uint64_t>(method));
 }
 
-template void AbstractMethod::SetArtMethod<false>(ArtMethod* method);
-template void AbstractMethod::SetArtMethod<true>(ArtMethod* method);
+template void Executable::SetArtMethod<false>(ArtMethod* method);
+template void Executable::SetArtMethod<true>(ArtMethod* method);
 
-mirror::Class* AbstractMethod::GetDeclaringClass() {
+mirror::Class* Executable::GetDeclaringClass() {
   return GetFieldObject<mirror::Class>(DeclaringClassOffset());
 }
 
