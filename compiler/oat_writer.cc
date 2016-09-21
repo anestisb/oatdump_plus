@@ -55,6 +55,7 @@
 #include "utils/dex_cache_arrays_layout-inl.h"
 #include "vdex_file.h"
 #include "verifier/method_verifier.h"
+#include "verifier/verifier_deps.h"
 #include "zip_archive.h"
 
 namespace art {
@@ -297,6 +298,7 @@ OatWriter::OatWriter(bool compiling_boot_image, TimingLogger* timings)
     dex_files_(nullptr),
     vdex_size_(0u),
     vdex_dex_files_offset_(0u),
+    vdex_verifier_deps_offset_(0u),
     oat_size_(0u),
     bss_size_(0u),
     oat_data_offset_(0u),
@@ -307,6 +309,8 @@ OatWriter::OatWriter(bool compiling_boot_image, TimingLogger* timings)
     size_oat_header_(0),
     size_oat_header_key_value_store_(0),
     size_dex_file_(0),
+    size_verifier_deps_(0),
+    size_verifier_deps_alignment_(0),
     size_interpreter_to_interpreter_bridge_(0),
     size_interpreter_to_compiled_code_bridge_(0),
     size_jni_dlsym_lookup_(0),
@@ -474,11 +478,6 @@ bool OatWriter::WriteAndOpenDexFiles(
     // Write DEX files into VDEX, mmap and open them.
     if (!WriteDexFiles(vdex_out.get(), vdex_file) ||
         !OpenDexFiles(vdex_file, verify, &dex_files_map, &dex_files)) {
-      return false;
-    }
-
-    // VDEX is finalized. Seek to the beginning of the file and write the header.
-    if (!WriteVdexHeader(vdex_out.get())) {
       return false;
     }
   } else {
@@ -1595,6 +1594,52 @@ bool OatWriter::WriteRodata(OutputStream* out) {
   return true;
 }
 
+bool OatWriter::WriteVerifierDeps(OutputStream* vdex_out, verifier::VerifierDeps* verifier_deps) {
+  if (!kIsVdexEnabled) {
+    return true;
+  }
+
+  if (verifier_deps == nullptr) {
+    // Nothing to write. Record the offset, but no need
+    // for alignment.
+    vdex_verifier_deps_offset_ = vdex_size_;
+    return true;
+  }
+
+  size_t initial_offset = vdex_size_;
+  size_t start_offset = RoundUp(initial_offset, 4u);
+
+  vdex_size_ = start_offset;
+  vdex_verifier_deps_offset_ = vdex_size_;
+  size_verifier_deps_alignment_ = start_offset - initial_offset;
+
+  off_t actual_offset = vdex_out->Seek(start_offset, kSeekSet);
+  if (actual_offset != static_cast<off_t>(start_offset)) {
+    PLOG(ERROR) << "Failed to seek to verifier deps section. Actual: " << actual_offset
+                << " Expected: " << start_offset
+                << " Output: " << vdex_out->GetLocation();
+    return false;
+  }
+
+  std::vector<uint8_t> buffer;
+  verifier_deps->Encode(&buffer);
+
+  if (!vdex_out->WriteFully(buffer.data(), buffer.size())) {
+    PLOG(ERROR) << "Failed to write verifier deps."
+                << " File: " << vdex_out->GetLocation();
+    return false;
+  }
+  if (!vdex_out->Flush()) {
+    PLOG(ERROR) << "Failed to flush stream after writing verifier deps."
+                << " File: " << vdex_out->GetLocation();
+    return false;
+  }
+
+  size_verifier_deps_ = buffer.size();
+  vdex_size_ += size_verifier_deps_;
+  return true;
+}
+
 bool OatWriter::WriteCode(OutputStream* out) {
   CHECK(write_state_ == WriteState::kWriteText);
 
@@ -1638,6 +1683,8 @@ bool OatWriter::WriteCode(OutputStream* out) {
     DO_STAT(size_oat_header_);
     DO_STAT(size_oat_header_key_value_store_);
     DO_STAT(size_dex_file_);
+    DO_STAT(size_verifier_deps_);
+    DO_STAT(size_verifier_deps_alignment_);
     DO_STAT(size_interpreter_to_interpreter_bridge_);
     DO_STAT(size_interpreter_to_compiled_code_bridge_);
     DO_STAT(size_jni_dlsym_lookup_);
@@ -2341,6 +2388,9 @@ bool OatWriter::WriteTypeLookupTables(
 }
 
 bool OatWriter::WriteVdexHeader(OutputStream* vdex_out) {
+  if (!kIsVdexEnabled) {
+    return true;
+  }
   off_t actual_offset = vdex_out->Seek(0, kSeekSet);
   if (actual_offset != 0) {
     PLOG(ERROR) << "Failed to seek to the beginning of vdex file. Actual: " << actual_offset
@@ -2348,9 +2398,21 @@ bool OatWriter::WriteVdexHeader(OutputStream* vdex_out) {
     return false;
   }
 
-  VdexFile::Header vdex_header;
+  DCHECK_NE(vdex_dex_files_offset_, 0u);
+  DCHECK_NE(vdex_verifier_deps_offset_, 0u);
+
+  size_t dex_section_size = vdex_verifier_deps_offset_ - vdex_dex_files_offset_;
+  size_t verifier_deps_section_size = vdex_size_ - vdex_verifier_deps_offset_;
+
+  VdexFile::Header vdex_header(dex_section_size, verifier_deps_section_size);
   if (!vdex_out->WriteFully(&vdex_header, sizeof(VdexFile::Header))) {
     PLOG(ERROR) << "Failed to write vdex header. File: " << vdex_out->GetLocation();
+    return false;
+  }
+
+  if (!vdex_out->Flush()) {
+    PLOG(ERROR) << "Failed to flush stream after writing to vdex file."
+                << " File: " << vdex_out->GetLocation();
     return false;
   }
 
