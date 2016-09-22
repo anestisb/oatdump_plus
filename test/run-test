@@ -743,9 +743,7 @@ if [[ "$TEST_NAME" =~ ^[0-9]+-checker- ]]; then
   fi
 fi
 
-if [ "$runtime" != "jvm" ]; then
   run_args="${run_args} --testlib ${testlib}"
-fi
 
 # To cause tests to fail fast, limit the file sizes created by dx, dex2oat and ART output to 2MB.
 build_file_size_limit=2048

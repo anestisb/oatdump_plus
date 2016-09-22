@@ -310,8 +310,9 @@ if [ "$DEBUGGER" = "y" ]; then
 fi
 
 if [ "$USE_JVM" = "y" ]; then
+  export LD_LIBRARY_PATH=${ANDROID_HOST_OUT}/lib64
   # Xmx is necessary since we don't pass down the ART flags to JVM.
-  cmdline="${JAVA} ${DEBUGGER_OPTS} ${JVM_VERIFY_ARG} -Xmx256m -classpath classes ${FLAGS} $MAIN $@"
+  cmdline="${JAVA} ${DEBUGGER_OPTS} ${JVM_VERIFY_ARG} -Xmx256m -classpath classes ${FLAGS} $MAIN $@ ${ARGS}"
   if [ "$DEV_MODE" = "y" ]; then
     echo $cmdline
   fi
