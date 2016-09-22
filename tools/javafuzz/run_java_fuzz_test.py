@@ -17,68 +17,27 @@
 import abc
 import argparse
 import filecmp
-
-from glob import glob
-
 import os
 import shlex
 import shutil
-import subprocess
 import sys
 
+from glob import glob
 from tempfile import mkdtemp
 
 sys.path.append(os.path.dirname(os.path.dirname(
     os.path.realpath(__file__))))
 
-from bisection_search.common import RetCode
-from bisection_search.common import CommandListToCommandString
-from bisection_search.common import FatalError
-from bisection_search.common import GetEnvVariableOrError
-from bisection_search.common import RunCommandForOutput
-from bisection_search.common import DeviceTestEnv
+from common.common import RetCode
+from common.common import CommandListToCommandString
+from common.common import FatalError
+from common.common import GetJackClassPath
+from common.common import GetEnvVariableOrError
+from common.common import RunCommand
+from common.common import DeviceTestEnv
 
 # Return codes supported by bisection bug search.
 BISECTABLE_RET_CODES = (RetCode.SUCCESS, RetCode.ERROR, RetCode.TIMEOUT)
-
-#
-# Utility methods.
-#
-
-
-def RunCommand(cmd, out, err, timeout=5):
-  """Executes a command, and returns its return code.
-
-  Args:
-    cmd: list of strings, a command to execute
-    out: string, file name to open for stdout (or None)
-    err: string, file name to open for stderr (or None)
-    timeout: int, time out in seconds
-  Returns:
-    RetCode, return code of running command (forced RetCode.TIMEOUT
-    on timeout)
-  """
-  devnull = subprocess.DEVNULL
-  outf = devnull
-  if out is not None:
-    outf = open(out, mode='w')
-  errf = devnull
-  if err is not None:
-    errf = open(err, mode='w')
-  (_, _, retcode) = RunCommandForOutput(cmd, None, outf, errf, timeout)
-  if outf != devnull:
-    outf.close()
-  if errf != devnull:
-    errf.close()
-  return retcode
-
-
-def GetJackClassPath():
-  """Returns Jack's classpath."""
-  top = GetEnvVariableOrError('ANDROID_BUILD_TOP')
-  libdir = top + '/out/host/common/obj/JAVA_LIBRARIES'
-  return libdir + '/core-libart-hostdex_intermediates/classes.jack:' \
-       + libdir + '/core-oj-hostdex_intermediates/classes.jack'
 
 
 def GetExecutionModeRunner(device, mode):
@@ -103,6 +62,7 @@ def GetExecutionModeRunner(device, mode):
   if mode == 'topt':
     return TestRunnerArtOptOnTarget(device)
   raise FatalError('Unknown execution mode')
+
 
 #
 # Execution mode classes.
@@ -335,7 +295,7 @@ class TestRunnerArtOptOnTarget(TestRunnerArtOnTarget):
 
 
 #
-# Tester classes.
+# Tester class.
 #
 
 
@@ -356,7 +316,8 @@ class JavaFuzzTester(object):
     self._runner1 = GetExecutionModeRunner(device, mode1)
     self._runner2 = GetExecutionModeRunner(device, mode2)
     self._save_dir = None
-    self._tmp_dir = None
+    self._results_dir = None
+    self._javafuzz_dir = None
     # Statistics.
     self._test = 0
     self._num_success = 0
@@ -373,16 +334,16 @@ class JavaFuzzTester(object):
     """
     self._save_dir = os.getcwd()
     self._results_dir = mkdtemp(dir='/tmp/')
-    self._tmp_dir = mkdtemp(dir=self._results_dir)
-    if self._tmp_dir is None or self._results_dir is None:
+    self._javafuzz_dir = mkdtemp(dir=self._results_dir)
+    if self._results_dir is None or self._javafuzz_dir is None:
       raise FatalError('Cannot obtain temp directory')
-    os.chdir(self._tmp_dir)
+    os.chdir(self._javafuzz_dir)
     return self
 
   def __exit__(self, etype, evalue, etraceback):
     """On exit, re-enters previously saved current directory and cleans up."""
     os.chdir(self._save_dir)
-    shutil.rmtree(self._tmp_dir)
+    shutil.rmtree(self._javafuzz_dir)
     if self._num_divergences == 0:
       shutil.rmtree(self._results_dir)
 
@@ -408,12 +369,13 @@ class JavaFuzzTester(object):
 
   def ShowStats(self):
     """Shows current statistics (on same line) while tester is running."""
-    print('\rTests:', self._test, \
-          'Success:', self._num_success, \
-          'Not-compiled:', self._num_not_compiled, \
-          'Not-run:', self._num_not_run, \
-          'Timed-out:', self._num_timed_out, \
-          'Divergences:', self._num_divergences, end='')
+    print('\rTests:', self._test,
+          'Success:', self._num_success,
+          'Not-compiled:', self._num_not_compiled,
+          'Not-run:', self._num_not_run,
+          'Timed-out:', self._num_timed_out,
+          'Divergences:', self._num_divergences,
+          end='')
     sys.stdout.flush()
 
   def RunJavaFuzzTest(self):
@@ -515,12 +477,12 @@ class JavaFuzzTester(object):
 
   def CleanupTest(self):
     """Cleans up after a single test run."""
-    for file_name in os.listdir(self._tmp_dir):
-        file_path = os.path.join(self._tmp_dir, file_name)
-        if os.path.isfile(file_path):
-          os.unlink(file_path)
-        elif os.path.isdir(file_path):
-          shutil.rmtree(file_path)
+    for file_name in os.listdir(self._javafuzz_dir):
+      file_path = os.path.join(self._javafuzz_dir, file_name)
+      if os.path.isfile(file_path):
+        os.unlink(file_path)
+      elif os.path.isdir(file_path):
+        shutil.rmtree(file_path)
 
 
 def main():
