@@ -1577,6 +1577,18 @@ void InstructionSimplifierVisitor::VisitXor(HXor* instruction) {
     return;
   }
 
+  if ((input_cst != nullptr) && input_cst->IsOne()
+      && input_other->GetType() == Primitive::kPrimBoolean) {
+    // Replace code looking like
+    //    XOR dst, src, 1
+    // with
+    //    BOOLEAN_NOT dst, src
+    HBooleanNot* boolean_not = new (GetGraph()->GetArena()) HBooleanNot(input_other);
+    instruction->GetBlock()->ReplaceAndRemoveInstructionWith(instruction, boolean_not);
+    RecordSimplification();
+    return;
+  }
+
   if ((input_cst != nullptr) && AreAllBitsSet(input_cst)) {
     // Replace code looking like
     //    XOR dst, src, 0xFFF...FF

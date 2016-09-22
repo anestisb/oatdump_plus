@@ -1178,16 +1178,28 @@ public class Main {
    * remove the second.
    */
 
+  /// CHECK-START: boolean Main.$noinline$NotNotBool(boolean) instruction_simplifier (before)
+  /// CHECK-DAG:     <<Arg:z\d+>>       ParameterValue
+  /// CHECK-DAG:     <<Const1:i\d+>>    IntConstant 1
+  /// CHECK-DAG:     <<Result:z\d+>>    InvokeStaticOrDirect
+  /// CHECK-DAG:     <<NotResult:i\d+>> Xor [<<Result>>,<<Const1>>]
+  /// CHECK-DAG:                        Return [<<NotResult>>]
+
+  /// CHECK-START: boolean Main.$noinline$NotNotBool(boolean) instruction_simplifier (after)
+  /// CHECK-DAG:     <<Arg:z\d+>>       ParameterValue
+  /// CHECK-DAG:     <<Result:z\d+>>    InvokeStaticOrDirect
+  /// CHECK-DAG:     <<NotResult:z\d+>> BooleanNot [<<Result>>]
+  /// CHECK-DAG:                        Return [<<NotResult>>]
+
   /// CHECK-START: boolean Main.$noinline$NotNotBool(boolean) instruction_simplifier$after_bce (before)
   /// CHECK-DAG:     <<Arg:z\d+>>       ParameterValue
-  /// CHECK-DAG:     <<Const0:i\d+>>    IntConstant 0
-  /// CHECK-DAG:     <<Const1:i\d+>>    IntConstant 1
-  /// CHECK-DAG:     <<NotArg:i\d+>>    Select [<<Const1>>,<<Const0>>,<<Arg>>]
-  /// CHECK-DAG:     <<NotNotArg:i\d+>> Select [<<Const1>>,<<Const0>>,<<NotArg>>]
+  /// CHECK-DAG:     <<NotArg:z\d+>>    BooleanNot [<<Arg>>]
+  /// CHECK-DAG:     <<NotNotArg:z\d+>> BooleanNot [<<NotArg>>]
   /// CHECK-DAG:                        Return [<<NotNotArg>>]
 
   /// CHECK-START: boolean Main.$noinline$NotNotBool(boolean) instruction_simplifier$after_bce (after)
   /// CHECK-DAG:     <<Arg:z\d+>>       ParameterValue
+  /// CHECK-DAG:     <<NotArg:z\d+>>    BooleanNot [<<Arg>>]
   /// CHECK-DAG:                        Return [<<Arg>>]
 
   public static boolean NegateValue(boolean arg) {
