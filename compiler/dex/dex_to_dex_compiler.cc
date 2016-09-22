@@ -277,39 +277,44 @@ void DexCompiler::CompileInvokeVirtual(Instruction* inst, uint32_t dex_pc,
     return;
   }
   uint32_t method_idx = is_range ? inst->VRegB_3rc() : inst->VRegB_35c();
-  MethodReference target_method(&GetDexFile(), method_idx);
-  InvokeType invoke_type = kVirtual;
-  InvokeType original_invoke_type = invoke_type;
-  int vtable_idx;
-  uintptr_t direct_code;
-  uintptr_t direct_method;
-  // TODO: support devirtualization.
-  const bool kEnableDevirtualization = false;
-  bool fast_path = driver_.ComputeInvokeInfo(&unit_, dex_pc,
-                                             false, kEnableDevirtualization,
-                                             &invoke_type,
-                                             &target_method, &vtable_idx,
-                                             &direct_code, &direct_method);
-  if (fast_path && original_invoke_type == invoke_type) {
-    if (vtable_idx >= 0 && IsUint<16>(vtable_idx)) {
-      VLOG(compiler) << "Quickening " << Instruction::Name(inst->Opcode())
-                     << "(" << PrettyMethod(method_idx, GetDexFile(), true) << ")"
-                     << " to " << Instruction::Name(new_opcode)
-                     << " by replacing method index " << method_idx
-                     << " by vtable index " << vtable_idx
-                     << " at dex pc " << StringPrintf("0x%x", dex_pc) << " in method "
-                     << PrettyMethod(unit_.GetDexMethodIndex(), GetDexFile(), true);
-      // We are modifying 4 consecutive bytes.
-      inst->SetOpcode(new_opcode);
-      // Replace method index by vtable index.
-      if (is_range) {
-        inst->SetVRegB_3rc(static_cast<uint16_t>(vtable_idx));
-      } else {
-        inst->SetVRegB_35c(static_cast<uint16_t>(vtable_idx));
-      }
-      quickened_info_.push_back(QuickenedInfo(dex_pc, method_idx));
-    }
+  ScopedObjectAccess soa(Thread::Current());
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
+      soa.Decode<mirror::ClassLoader*>(unit_.GetClassLoader())));
+
+  ClassLinker* class_linker = unit_.GetClassLinker();
+  ArtMethod* resolved_method = class_linker->ResolveMethod<ClassLinker::kForceICCECheck>(
+      GetDexFile(),
+      method_idx,
+      unit_.GetDexCache(),
+      class_loader,
+      /* referrer */ nullptr,
+      kVirtual);
+
+  if (UNLIKELY(resolved_method == nullptr)) {
+    // Clean up any exception left by type resolution.
+    soa.Self()->ClearException();
+    return;
   }
+
+  uint32_t vtable_idx = resolved_method->GetMethodIndex();
+  DCHECK(IsUint<16>(vtable_idx));
+  VLOG(compiler) << "Quickening " << Instruction::Name(inst->Opcode())
+                 << "(" << PrettyMethod(method_idx, GetDexFile(), true) << ")"
+                 << " to " << Instruction::Name(new_opcode)
+                 << " by replacing method index " << method_idx
+                 << " by vtable index " << vtable_idx
+                 << " at dex pc " << StringPrintf("0x%x", dex_pc) << " in method "
+                 << PrettyMethod(unit_.GetDexMethodIndex(), GetDexFile(), true);
+  // We are modifying 4 consecutive bytes.
+  inst->SetOpcode(new_opcode);
+  // Replace method index by vtable index.
+  if (is_range) {
+    inst->SetVRegB_3rc(static_cast<uint16_t>(vtable_idx));
+  } else {
+    inst->SetVRegB_35c(static_cast<uint16_t>(vtable_idx));
+  }
+  quickened_info_.push_back(QuickenedInfo(dex_pc, method_idx));
 }
 
 CompiledMethod* ArtCompileDEX(

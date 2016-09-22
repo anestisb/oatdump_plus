@@ -4327,7 +4327,7 @@ Register CodeGeneratorMIPS::GetInvokeStaticOrDirectExtraParameter(HInvokeStaticO
 
 HInvokeStaticOrDirect::DispatchInfo CodeGeneratorMIPS::GetSupportedInvokeStaticOrDirectDispatch(
       const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
-      MethodReference target_method ATTRIBUTE_UNUSED) {
+      HInvokeStaticOrDirect* invoke ATTRIBUTE_UNUSED) {
   HInvokeStaticOrDirect::DispatchInfo dispatch_info = desired_dispatch_info;
   // We disable PC-relative load when there is an irreducible loop, as the optimization
   // is incompatible with it.
