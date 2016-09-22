@@ -24,6 +24,7 @@
 #include "base/macros.h"
 
 #include "901-hello-ti-agent/basics.h"
+#include "902-hello-transformation/transform.h"
 
 namespace art {
 
@@ -39,6 +40,7 @@ struct AgentLib {
 // A list of all the agents we have for testing.
 AgentLib agents[] = {
   { "901-hello-ti-agent", Test901HelloTi::OnLoad, nullptr },
+  { "902-hello-transformation", Test902HelloTransformation::OnLoad, nullptr },
 };
 
 static AgentLib* FindAgent(char* name) {

@@ -17,7 +17,8 @@ cc_defaults {
     name: "libopenjdkjvmti_defaults",
     defaults: ["art_defaults"],
     host_supported: true,
-    srcs: ["OpenjdkJvmTi.cc"],
+    srcs: ["OpenjdkJvmTi.cc",
+           "transform.cc"],
     include_dirs: ["art/runtime"],
     shared_libs: ["libnativehelper"],
 }
