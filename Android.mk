@@ -436,12 +436,23 @@ build-art-target: $(TARGET_OUT_EXECUTABLES)/art $(ART_TARGET_DEPENDENCIES) $(TAR
 ########################################################################
 # Phony target for only building what go/lem requires on target.
 .PHONY: build-art-target-golem
+# Also include libartbenchmark, we always include it when running golem.
+ART_TARGET_SHARED_LIBRARY_BENCHMARK := $(TARGET_OUT_SHARED_LIBRARIES)/libartbenchmark.so
 build-art-target-golem: dex2oat dalvikvm patchoat linker \
                         $(TARGET_OUT)/etc/public.libraries.txt \
                         $(ART_TARGET_DEX_DEPENDENCIES) \
                         $(ART_TARGET_SHARED_LIBRARY_DEPENDENCIES) \
+                        $(ART_TARGET_SHARED_LIBRARY_BENCHMARK) \
                         $(TARGET_CORE_IMG_OUT_BASE).art \
                         $(TARGET_CORE_IMG_OUT_BASE)-interpreter.art
+
+########################################################################
+# Phony target for building what go/lem requires on host.
+.PHONY: build-art-host-golem
+# Also include libartbenchmark, we always include it when running golem.
+ART_HOST_SHARED_LIBRARY_BENCHMARK := $(ART_HOST_OUT_SHARED_LIBRARIES)/libartbenchmark.so
+build-art-host-golem: build-art-host \
+                      $(ART_HOST_SHARED_LIBRARY_BENCHMARK)
 
 ########################################################################
 # Rules for building all dependencies for tests.
