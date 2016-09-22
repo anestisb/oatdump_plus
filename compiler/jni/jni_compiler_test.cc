@@ -391,12 +391,12 @@ jobject JniCompilerTest::class_loader_;
 // 3) synchronized keyword
 // -- TODO: We can support (1) if we remove the mutator lock assert during stub lookup.
 # define JNI_TEST_NORMAL_ONLY(TestName)          \
-  TEST_F(JniCompilerTest, TestName ## Default) { \
+  TEST_F(JniCompilerTest, TestName ## NormalCompiler) { \
     SCOPED_TRACE("Normal JNI with compiler");    \
     gCurrentJni = static_cast<uint32_t>(JniKind::kNormal); \
     TestName ## Impl();                          \
   }                                              \
-  TEST_F(JniCompilerTest, TestName ## Generic) { \
+  TEST_F(JniCompilerTest, TestName ## NormalGeneric) { \
     SCOPED_TRACE("Normal JNI with generic");     \
     gCurrentJni = static_cast<uint32_t>(JniKind::kNormal); \
     TEST_DISABLED_FOR_MIPS();                    \
@@ -404,45 +404,40 @@ jobject JniCompilerTest::class_loader_;
     TestName ## Impl();                          \
   }
 
-// Test normal compiler, @FastNative compiler, and normal/@FastNative generic for normal natives.
+// Test (normal, @FastNative) x (compiler, generic).
 #define JNI_TEST(TestName) \
   JNI_TEST_NORMAL_ONLY(TestName)                 \
-  TEST_F(JniCompilerTest, TestName ## Fast) {    \
+  TEST_F(JniCompilerTest, TestName ## FastCompiler) {    \
     SCOPED_TRACE("@FastNative JNI with compiler");  \
     gCurrentJni = static_cast<uint32_t>(JniKind::kFast); \
     TestName ## Impl();                          \
   }                                              \
-                                          \
-
-// TODO: maybe. @FastNative generic JNI support?
-#if 0
+                                                 \
   TEST_F(JniCompilerTest, TestName ## FastGeneric) { \
+    SCOPED_TRACE("@FastNative JNI with generic");  \
     gCurrentJni = static_cast<uint32_t>(JniKind::kFast); \
     TEST_DISABLED_FOR_MIPS();                    \
     SetCheckGenericJni(true);                    \
     TestName ## Impl();                          \
   }
-#endif
 
+// Test (@CriticalNative) x (compiler, generic) only.
 #define JNI_TEST_CRITICAL_ONLY(TestName) \
-  TEST_F(JniCompilerTest, TestName ## DefaultCritical) { \
+  TEST_F(JniCompilerTest, TestName ## CriticalCompiler) { \
     SCOPED_TRACE("@CriticalNative JNI with compiler");  \
     gCurrentJni = static_cast<uint32_t>(JniKind::kCritical); \
     TestName ## Impl();                          \
-  }
-
-// Test everything above and also the @CriticalNative compiler, and @CriticalNative generic JNI.
-#define JNI_TEST_CRITICAL(TestName)              \
-  JNI_TEST(TestName)                             \
-  JNI_TEST_CRITICAL_ONLY(TestName)               \
-
-// TODO: maybe, more likely since calling convention changed. @Criticalnative generic JNI support?
-#if 0
-  TEST_F(JniCompilerTest, TestName ## GenericCritical) { \
+  }                                              \
+  TEST_F(JniCompilerTest, TestName ## CriticalGeneric) { \
+    SCOPED_TRACE("@CriticalNative JNI with generic");  \
     gCurrentJni = static_cast<uint32_t>(JniKind::kCritical); \
     TestName ## Impl();                          \
   }
-#endif
+
+// Test everything: (normal, @FastNative, @CriticalNative) x (compiler, generic).
+#define JNI_TEST_CRITICAL(TestName)              \
+  JNI_TEST(TestName)                             \
+  JNI_TEST_CRITICAL_ONLY(TestName)               \
 
 static void expectValidThreadState() {
   // Normal JNI always transitions to "Native". Other JNIs stay in the "Runnable" state.
@@ -506,6 +501,7 @@ static void expectValidJniEnvAndClass(JNIEnv* env, jclass kls) {
 // Temporarily disable the EXPECT_NUM_STACK_REFERENCES check (for a single test).
 struct ScopedDisableCheckNumStackReferences {
   ScopedDisableCheckNumStackReferences() {
+    CHECK(sCheckNumStackReferences);  // No nested support.
     sCheckNumStackReferences = false;
   }
 
