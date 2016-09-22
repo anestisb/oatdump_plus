@@ -30,6 +30,9 @@ func globalFlags(ctx android.BaseContext) ([]string, []string) {
 	var cflags []string
 	var asflags []string
 
+	opt := envDefault(ctx, "ART_NDEBUG_OPT_FLAG", "-O3")
+	cflags = append(cflags, opt)
+
 	tlab := false
 
 	gcType := envDefault(ctx, "ART_DEFAULT_GC_TYPE", "CMS")
@@ -73,6 +76,15 @@ func globalFlags(ctx android.BaseContext) ([]string, []string) {
 	}
 
 	return cflags, asflags
+}
+
+func debugFlags(ctx android.BaseContext) []string {
+	var cflags []string
+
+	opt := envDefault(ctx, "ART_DEBUG_OPT_FLAG", "-O2")
+	cflags = append(cflags, opt)
+
+	return cflags
 }
 
 func deviceFlags(ctx android.BaseContext) []string {
@@ -143,6 +155,16 @@ func globalDefaults(ctx android.LoadHookContext) {
 	ctx.AppendProperties(p)
 }
 
+func debugDefaults(ctx android.LoadHookContext) {
+	type props struct {
+		Cflags []string
+	}
+
+	p := &props{}
+	p.Cflags = debugFlags(ctx)
+	ctx.AppendProperties(p)
+}
+
 func customLinker(ctx android.LoadHookContext) {
 	linker := envDefault(ctx, "CUSTOM_TARGET_LINKER", "")
 	if linker != "" {
@@ -206,11 +228,19 @@ func init() {
 	soong.RegisterModuleType("art_cc_test_library", artTestLibrary)
 	soong.RegisterModuleType("art_cc_defaults", artDefaultsFactory)
 	soong.RegisterModuleType("art_global_defaults", artGlobalDefaultsFactory)
+	soong.RegisterModuleType("art_debug_defaults", artDebugDefaultsFactory)
 }
 
 func artGlobalDefaultsFactory() (blueprint.Module, []interface{}) {
 	module, props := artDefaultsFactory()
 	android.AddLoadHook(module, globalDefaults)
+
+	return module, props
+}
+
+func artDebugDefaultsFactory() (blueprint.Module, []interface{}) {
+	module, props := artDefaultsFactory()
+	android.AddLoadHook(module, debugDefaults)
 
 	return module, props
 }
