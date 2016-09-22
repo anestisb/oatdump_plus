@@ -26,7 +26,7 @@
 namespace {
 
 /*
- * Java operators.
+ * Operators.
  */
 
 #define EMIT(x) fputs((x)[random0(sizeof(x)/sizeof(const char*))], out_);
@@ -49,33 +49,33 @@ static constexpr const char* kBoolRelOps[] = { "==", "!=" };
 static constexpr const char* kRelOps[]     = { "==", "!=", ">", ">=", "<", "<=" };
 
 /*
- * Version of JavaFuzz. Increase this each time changes are made to the program
- * to preserve the property that a given version of JavaFuzz yields the same
- * fuzzed Java program for a deterministic random seed.
+ * Version of JFuzz. Increase this each time changes are made to the program
+ * to preserve the property that a given version of JFuzz yields the same
+ * fuzzed program for a deterministic random seed.
  */
 const char* VERSION = "1.1";
 
 static const uint32_t MAX_DIMS[11] = { 0, 1000, 32, 10, 6, 4, 3, 3, 2, 2, 2 };
 
 /**
- * A class that generates a random Java program that compiles correctly. The program
+ * A class that generates a random program that compiles correctly. The program
  * is generated using rules that generate various programming constructs. Each rule
  * has a fixed probability to "fire". Running a generated program yields deterministic
  * output, making it suited to test various modes of execution (e.g an interpreter vs.
  * an compiler or two different run times) for divergences.
  *
- * TODO: Due to the original scope of this project, the generated Java program is heavy
- *       on loops, arrays, and basic operations; fuzzing other aspects of Java programs,
- *       like elaborate typing, class hierarchies, and interfaces is still TBD.
+ * TODO: Due to the original scope of this project, the generated program is heavy
+ *       on loops, arrays, and basic operations; fuzzing other aspects, like elaborate
+ *       typing, class hierarchies, and interfaces is still TBD.
  */
-class JavaFuzz {
+class JFuzz {
  public:
-  JavaFuzz(FILE* out,
-           uint32_t seed,
-           uint32_t expr_depth,
-           uint32_t stmt_length,
-           uint32_t if_nest,
-           uint32_t loop_nest)
+  JFuzz(FILE* out,
+        uint32_t seed,
+        uint32_t expr_depth,
+        uint32_t stmt_length,
+        uint32_t if_nest,
+        uint32_t loop_nest)
       : out_(out),
         fuzz_random_engine_(seed),
         fuzz_seed_(seed),
@@ -100,7 +100,7 @@ class JavaFuzz {
         float_local_(0),
         double_local_(0) { }
 
-  ~JavaFuzz() { }
+  ~JFuzz() { }
 
   void emitProgram() {
     emitHeader();
@@ -978,10 +978,10 @@ class JavaFuzz {
 
   // Emit program header. Emit command line options in the comments.
   void emitHeader() {
-    fputs("\n/**\n * AOSP Java Fuzz Tester.\n", out_);
-    fputs(" * Automatically generated Java program.\n", out_);
+    fputs("\n/**\n * AOSP JFuzz Tester.\n", out_);
+    fputs(" * Automatically generated program.\n", out_);
     fprintf(out_,
-            " * javafuzz -s %u -d %u -l %u -i %u -n %u (version %s)\n */\n\n",
+            " * jfuzz -s %u -d %u -l %u -i %u -n %u (version %s)\n */\n\n",
             fuzz_seed_,
             fuzz_expr_depth_,
             fuzz_stmt_length_,
@@ -1101,8 +1101,8 @@ int32_t main(int32_t argc, char** argv) {
   // Seed global random generator.
   srand(seed);
 
-  // Generate fuzzed Java program.
-  JavaFuzz fuzz(stdout, seed, expr_depth, stmt_length, if_nest, loop_nest);
+  // Generate fuzzed program.
+  JFuzz fuzz(stdout, seed, expr_depth, stmt_length, if_nest, loop_nest);
   fuzz.emitProgram();
   return 0;
 }

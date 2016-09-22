@@ -208,7 +208,7 @@ class TestRunnerArtOnTarget(TestRunner):
       device: string, target device serial number (or None)
       extra_args: list of strings, extra arguments for dalvikvm
     """
-    self._test_env = DeviceTestEnv('javafuzz_', specific_device=device)
+    self._test_env = DeviceTestEnv('jfuzz_', specific_device=device)
     self._dalvik_cmd = ['dalvikvm']
     if extra_args is not None:
       self._dalvik_cmd += extra_args
@@ -299,8 +299,8 @@ class TestRunnerArtOptOnTarget(TestRunnerArtOnTarget):
 #
 
 
-class JavaFuzzTester(object):
-  """Tester that runs JavaFuzz many times and report divergences."""
+class JFuzzTester(object):
+  """Tester that runs JFuzz many times and report divergences."""
 
   def  __init__(self, num_tests, device, mode1, mode2):
     """Constructor for the tester.
@@ -317,7 +317,7 @@ class JavaFuzzTester(object):
     self._runner2 = GetExecutionModeRunner(device, mode2)
     self._save_dir = None
     self._results_dir = None
-    self._javafuzz_dir = None
+    self._jfuzz_dir = None
     # Statistics.
     self._test = 0
     self._num_success = 0
@@ -334,23 +334,23 @@ class JavaFuzzTester(object):
     """
     self._save_dir = os.getcwd()
     self._results_dir = mkdtemp(dir='/tmp/')
-    self._javafuzz_dir = mkdtemp(dir=self._results_dir)
-    if self._results_dir is None or self._javafuzz_dir is None:
+    self._jfuzz_dir = mkdtemp(dir=self._results_dir)
+    if self._results_dir is None or self._jfuzz_dir is None:
       raise FatalError('Cannot obtain temp directory')
-    os.chdir(self._javafuzz_dir)
+    os.chdir(self._jfuzz_dir)
     return self
 
   def __exit__(self, etype, evalue, etraceback):
     """On exit, re-enters previously saved current directory and cleans up."""
     os.chdir(self._save_dir)
-    shutil.rmtree(self._javafuzz_dir)
+    shutil.rmtree(self._jfuzz_dir)
     if self._num_divergences == 0:
       shutil.rmtree(self._results_dir)
 
   def Run(self):
-    """Runs JavaFuzz many times and report divergences."""
+    """Runs JFuzz many times and report divergences."""
     print()
-    print('**\n**** JavaFuzz Testing\n**')
+    print('**\n**** JFuzz Testing\n**')
     print()
     print('#Tests    :', self._num_tests)
     print('Device    :', self._device)
@@ -360,7 +360,7 @@ class JavaFuzzTester(object):
     print()
     self.ShowStats()
     for self._test in range(1, self._num_tests + 1):
-      self.RunJavaFuzzTest()
+      self.RunJFuzzTest()
       self.ShowStats()
     if self._num_divergences == 0:
       print('\n\nsuccess (no divergences)\n')
@@ -378,8 +378,8 @@ class JavaFuzzTester(object):
           end='')
     sys.stdout.flush()
 
-  def RunJavaFuzzTest(self):
-    """Runs a single JavaFuzz test, comparing two execution modes."""
+  def RunJFuzzTest(self):
+    """Runs a single JFuzz test, comparing two execution modes."""
     self.ConstructTest()
     retc1 = self._runner1.CompileAndRunTest()
     retc2 = self._runner2.CompileAndRunTest()
@@ -387,13 +387,13 @@ class JavaFuzzTester(object):
     self.CleanupTest()
 
   def ConstructTest(self):
-    """Use JavaFuzz to generate next Test.java test.
+    """Use JFuzz to generate next Test.java test.
 
     Raises:
-      FatalError: error when javafuzz fails
+      FatalError: error when jfuzz fails
     """
-    if RunCommand(['javafuzz'], out='Test.java', err=None) != RetCode.SUCCESS:
-      raise FatalError('Unexpected error while running JavaFuzz')
+    if RunCommand(['jfuzz'], out='Test.java', err=None) != RetCode.SUCCESS:
+      raise FatalError('Unexpected error while running JFuzz')
 
   def CheckForDivergence(self, retc1, retc2):
     """Checks for divergences and updates statistics.
@@ -477,8 +477,8 @@ class JavaFuzzTester(object):
 
   def CleanupTest(self):
     """Cleans up after a single test run."""
-    for file_name in os.listdir(self._javafuzz_dir):
-      file_path = os.path.join(self._javafuzz_dir, file_name)
+    for file_name in os.listdir(self._jfuzz_dir):
+      file_path = os.path.join(self._jfuzz_dir, file_name)
       if os.path.isfile(file_path):
         os.unlink(file_path)
       elif os.path.isdir(file_path):
@@ -498,8 +498,8 @@ def main():
   args = parser.parse_args()
   if args.mode1 == args.mode2:
     raise FatalError('Identical execution modes given')
-  # Run the JavaFuzz tester.
-  with JavaFuzzTester(args.num_tests, args.device,
+  # Run the JFuzz tester.
+  with JFuzzTester(args.num_tests, args.device,
                       args.mode1, args.mode2) as fuzzer:
     fuzzer.Run()
 

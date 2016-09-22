@@ -37,14 +37,14 @@ from common.common import RunCommand
 
 
 class DexFuzzTester(object):
-  """Tester that feeds JavaFuzz programs into DexFuzz testing."""
+  """Tester that feeds JFuzz programs into DexFuzz testing."""
 
   def  __init__(self, num_tests, num_inputs, device):
     """Constructor for the tester.
 
     Args:
       num_tests: int, number of tests to run
-      num_inputs: int, number of JavaFuzz programs to generate
+      num_inputs: int, number of JFuzz programs to generate
       device: string, target device serial number (or None)
     """
     self._num_tests = num_tests
@@ -77,20 +77,20 @@ class DexFuzzTester(object):
     # TODO: detect divergences or shutil.rmtree(self._results_dir)
 
   def Run(self):
-    """Feeds JavaFuzz programs into DexFuzz testing."""
+    """Feeds JFuzz programs into DexFuzz testing."""
     print()
-    print('**\n**** JavaFuzz Testing\n**')
+    print('**\n**** JFuzz Testing\n**')
     print()
     print('#Tests    :', self._num_tests)
     print('Device    :', self._device)
     print('Directory :', self._results_dir)
     print()
-    self.GenerateJavaFuzzPrograms()
+    self.GenerateJFuzzPrograms()
     self.RunDexFuzz()
 
 
-  def GenerateJavaFuzzPrograms(self):
-    """Generates JavaFuzzPrograms.
+  def GenerateJFuzzPrograms(self):
+    """Generates JFuzz programs.
 
     Raises:
       FatalError: error when generation fails
@@ -98,8 +98,8 @@ class DexFuzzTester(object):
     os.chdir(self._inputs_dir)
     for i in range(1, self._num_inputs + 1):
       jack_args = ['-cp', GetJackClassPath(), '--output-dex', '.', 'Test.java']
-      if RunCommand(['javafuzz'], out='Test.java', err=None) != RetCode.SUCCESS:
-        raise FatalError('Unexpected error while running JavaFuzz')
+      if RunCommand(['jfuzz'], out='Test.java', err=None) != RetCode.SUCCESS:
+        raise FatalError('Unexpected error while running JFuzz')
       if RunCommand(['jack'] + jack_args, out=None, err='jackerr.txt',
                     timeout=30) != RetCode.SUCCESS:
         raise FatalError('Unexpected error while running Jack')
@@ -128,7 +128,7 @@ def main():
   parser.add_argument('--num_tests', default=10000,
                       type=int, help='number of tests to run')
   parser.add_argument('--num_inputs', default=50,
-                      type=int, help='number of JavaFuzz program to generate')
+                      type=int, help='number of JFuzz program to generate')
   parser.add_argument('--device', help='target device serial number')
   args = parser.parse_args()
   # Run the DexFuzz tester.
