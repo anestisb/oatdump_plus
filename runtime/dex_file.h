@@ -590,6 +590,9 @@ class DexFile {
                              const DexFile::StringId& name,
                              const DexFile::TypeId& type) const;
 
+  uint32_t FindCodeItemOffset(const DexFile::ClassDef& class_def,
+                              uint32_t dex_method_idx) const;
+
   // Returns the declaring class descriptor string of a field id.
   const char* GetFieldDeclaringClassDescriptor(const FieldId& field_id) const {
     const DexFile::TypeId& type_id = GetTypeId(field_id.class_idx_);
@@ -1059,6 +1062,16 @@ class DexFile {
                                              bool verify_checksum,
                                              std::string* error_msg,
                                              VerifyResult* verify_result = nullptr);
+
+
+  // Opens a .dex file at the given address, optionally backed by a MemMap
+  static std::unique_ptr<const DexFile> OpenMemory(const uint8_t* dex_file,
+                                                   size_t size,
+                                                   const std::string& location,
+                                                   uint32_t location_checksum,
+                                                   std::unique_ptr<MemMap> mem_map,
+                                                   const OatDexFile* oat_dex_file,
+                                                   std::string* error_msg);
 
   DexFile(const uint8_t* base,
           size_t size,

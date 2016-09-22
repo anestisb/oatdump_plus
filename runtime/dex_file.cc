@@ -564,6 +564,34 @@ const DexFile::ClassDef* DexFile::FindClassDef(uint16_t type_idx) const {
   return nullptr;
 }
 
+uint32_t DexFile::FindCodeItemOffset(const DexFile::ClassDef& class_def,
+                                     uint32_t method_idx) const {
+  const uint8_t* class_data = GetClassData(class_def);
+  CHECK(class_data != nullptr);
+  ClassDataItemIterator it(*this, class_data);
+  // Skip fields
+  while (it.HasNextStaticField()) {
+    it.Next();
+  }
+  while (it.HasNextInstanceField()) {
+    it.Next();
+  }
+  while (it.HasNextDirectMethod()) {
+    if (it.GetMemberIndex() == method_idx) {
+      return it.GetMethodCodeItemOffset();
+    }
+    it.Next();
+  }
+  while (it.HasNextVirtualMethod()) {
+    if (it.GetMemberIndex() == method_idx) {
+      return it.GetMethodCodeItemOffset();
+    }
+    it.Next();
+  }
+  LOG(FATAL) << "Unable to find method " << method_idx;
+  UNREACHABLE();
+}
+
 const DexFile::FieldId* DexFile::FindFieldId(const DexFile::TypeId& declaring_klass,
                                              const DexFile::StringId& name,
                                              const DexFile::TypeId& type) const {

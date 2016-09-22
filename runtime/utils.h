@@ -116,6 +116,8 @@ inline typename std::make_unsigned<T>::type MakeUnsigned(T x) {
   return static_cast<typename std::make_unsigned<T>::type>(x);
 }
 
+uint8_t* DecodeBase64(const char* src, size_t* dst_size);
+
 std::string PrintableChar(uint16_t ch);
 
 // Returns an ASCII string corresponding to the given UTF-8 string.
