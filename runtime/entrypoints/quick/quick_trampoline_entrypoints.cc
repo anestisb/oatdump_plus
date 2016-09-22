@@ -1625,7 +1625,8 @@ class ComputeNativeCallFrameSize {
 
 class ComputeGenericJniFrameSize FINAL : public ComputeNativeCallFrameSize {
  public:
-  ComputeGenericJniFrameSize() : num_handle_scope_references_(0) {}
+  explicit ComputeGenericJniFrameSize(bool critical_native)
+    : num_handle_scope_references_(0), critical_native_(critical_native) {}
 
   // Lays out the callee-save frame. Assumes that the incorrect frame corresponding to RefsAndArgs
   // is at *m = sp. Will update to point to the bottom of the save frame.
@@ -1711,6 +1712,7 @@ class ComputeGenericJniFrameSize FINAL : public ComputeNativeCallFrameSize {
 
  private:
   uint32_t num_handle_scope_references_;
+  const bool critical_native_;
 };
 
 uintptr_t ComputeGenericJniFrameSize::PushHandle(mirror::Object* /* ptr */) {
@@ -1720,6 +1722,11 @@ uintptr_t ComputeGenericJniFrameSize::PushHandle(mirror::Object* /* ptr */) {
 
 void ComputeGenericJniFrameSize::WalkHeader(
     BuildNativeCallFrameStateMachine<ComputeNativeCallFrameSize>* sm) {
+  // First 2 parameters are always excluded for @CriticalNative.
+  if (UNLIKELY(critical_native_)) {
+    return;
+  }
+
   // JNIEnv
   sm->AdvancePointer(nullptr);
 
@@ -1778,11 +1785,16 @@ class FillNativeCall {
 // of transitioning into native code.
 class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
  public:
-  BuildGenericJniFrameVisitor(Thread* self, bool is_static, const char* shorty, uint32_t shorty_len,
+  BuildGenericJniFrameVisitor(Thread* self,
+                              bool is_static,
+                              bool critical_native,
+                              const char* shorty,
+                              uint32_t shorty_len,
                               ArtMethod*** sp)
      : QuickArgumentVisitor(*sp, is_static, shorty, shorty_len),
-       jni_call_(nullptr, nullptr, nullptr, nullptr), sm_(&jni_call_) {
-    ComputeGenericJniFrameSize fsc;
+       jni_call_(nullptr, nullptr, nullptr, nullptr, critical_native),
+       sm_(&jni_call_) {
+    ComputeGenericJniFrameSize fsc(critical_native);
     uintptr_t* start_gpr_reg;
     uint32_t* start_fpr_reg;
     uintptr_t* start_stack_arg;
@@ -1793,11 +1805,14 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
 
     jni_call_.Reset(start_gpr_reg, start_fpr_reg, start_stack_arg, handle_scope_);
 
-    // jni environment is always first argument
-    sm_.AdvancePointer(self->GetJniEnv());
+    // First 2 parameters are always excluded for CriticalNative methods.
+    if (LIKELY(!critical_native)) {
+      // jni environment is always first argument
+      sm_.AdvancePointer(self->GetJniEnv());
 
-    if (is_static) {
-      sm_.AdvanceHandleScope((**sp)->GetDeclaringClass());
+      if (is_static) {
+        sm_.AdvanceHandleScope((**sp)->GetDeclaringClass());
+      }  // else "this" reference is already handled by QuickArgumentVisitor.
     }
   }
 
@@ -1822,8 +1837,11 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
   class FillJniCall FINAL : public FillNativeCall {
    public:
     FillJniCall(uintptr_t* gpr_regs, uint32_t* fpr_regs, uintptr_t* stack_args,
-                HandleScope* handle_scope) : FillNativeCall(gpr_regs, fpr_regs, stack_args),
-                                             handle_scope_(handle_scope), cur_entry_(0) {}
+                HandleScope* handle_scope, bool critical_native)
+      : FillNativeCall(gpr_regs, fpr_regs, stack_args),
+                       handle_scope_(handle_scope),
+        cur_entry_(0),
+        critical_native_(critical_native) {}
 
     uintptr_t PushHandle(mirror::Object* ref) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -1839,12 +1857,17 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
       while (cur_entry_ < expected_slots) {
         handle_scope_->GetMutableHandle(cur_entry_++).Assign(nullptr);
       }
-      DCHECK_NE(cur_entry_, 0U);
+
+      if (!critical_native_) {
+        // Non-critical natives have at least the self class (jclass) or this (jobject).
+        DCHECK_NE(cur_entry_, 0U);
+      }
     }
 
    private:
     HandleScope* handle_scope_;
     size_t cur_entry_;
+    const bool critical_native_;
   };
 
   HandleScope* handle_scope_;
@@ -1924,7 +1947,12 @@ extern "C" void* artFindNativeMethod();
 extern "C" void* artFindNativeMethod(Thread* self);
 #endif
 
-uint64_t artQuickGenericJniEndJNIRef(Thread* self, uint32_t cookie, jobject l, jobject lock) {
+static uint64_t artQuickGenericJniEndJNIRef(Thread* self,
+                                            uint32_t cookie,
+                                            bool fast_native ATTRIBUTE_UNUSED,
+                                            jobject l,
+                                            jobject lock) {
+  // TODO: add entrypoints for @FastNative returning objects.
   if (lock != nullptr) {
     return reinterpret_cast<uint64_t>(JniMethodEndWithReferenceSynchronized(l, cookie, lock, self));
   } else {
@@ -1932,11 +1960,19 @@ uint64_t artQuickGenericJniEndJNIRef(Thread* self, uint32_t cookie, jobject l, j
   }
 }
 
-void artQuickGenericJniEndJNINonRef(Thread* self, uint32_t cookie, jobject lock) {
+static void artQuickGenericJniEndJNINonRef(Thread* self,
+                                           uint32_t cookie,
+                                           bool fast_native,
+                                           jobject lock) {
   if (lock != nullptr) {
     JniMethodEndSynchronized(cookie, lock, self);
+    // Ignore "fast_native" here because synchronized functions aren't very fast.
   } else {
-    JniMethodEnd(cookie, self);
+    if (UNLIKELY(fast_native)) {
+      JniMethodFastEnd(cookie, self);
+    } else {
+      JniMethodEnd(cookie, self);
+    }
   }
 }
 
@@ -1958,9 +1994,17 @@ extern "C" TwoWordReturn artQuickGenericJniTrampoline(Thread* self, ArtMethod** 
   DCHECK(called->IsNative()) << PrettyMethod(called, true);
   uint32_t shorty_len = 0;
   const char* shorty = called->GetShorty(&shorty_len);
+  bool critical_native = called->IsAnnotatedWithCriticalNative();
+  bool fast_native = called->IsAnnotatedWithFastNative();
+  bool normal_native = !critical_native && !fast_native;
 
   // Run the visitor and update sp.
-  BuildGenericJniFrameVisitor visitor(self, called->IsStatic(), shorty, shorty_len, &sp);
+  BuildGenericJniFrameVisitor visitor(self,
+                                      called->IsStatic(),
+                                      critical_native,
+                                      shorty,
+                                      shorty_len,
+                                      &sp);
   {
     ScopedAssertNoThreadSuspension sants(__FUNCTION__);
     visitor.VisitArguments();
@@ -1973,20 +2017,30 @@ extern "C" TwoWordReturn artQuickGenericJniTrampoline(Thread* self, ArtMethod** 
 
   self->VerifyStack();
 
-  // Start JNI, save the cookie.
   uint32_t cookie;
-  if (called->IsSynchronized()) {
-    cookie = JniMethodStartSynchronized(visitor.GetFirstHandleScopeJObject(), self);
-    if (self->IsExceptionPending()) {
-      self->PopHandleScope();
-      // A negative value denotes an error.
-      return GetTwoWordFailureValue();
+  uint32_t* sp32;
+  // Skip calling JniMethodStart for @CriticalNative.
+  if (LIKELY(!critical_native)) {
+    // Start JNI, save the cookie.
+    if (called->IsSynchronized()) {
+      DCHECK(normal_native) << " @FastNative and synchronize is not supported";
+      cookie = JniMethodStartSynchronized(visitor.GetFirstHandleScopeJObject(), self);
+      if (self->IsExceptionPending()) {
+        self->PopHandleScope();
+        // A negative value denotes an error.
+        return GetTwoWordFailureValue();
+      }
+    } else {
+      if (fast_native) {
+        cookie = JniMethodFastStart(self);
+      } else {
+        DCHECK(normal_native);
+        cookie = JniMethodStart(self);
+      }
     }
-  } else {
-    cookie = JniMethodStart(self);
+    sp32 = reinterpret_cast<uint32_t*>(sp);
+    *(sp32 - 1) = cookie;
   }
-  uint32_t* sp32 = reinterpret_cast<uint32_t*>(sp);
-  *(sp32 - 1) = cookie;
 
   // Retrieve the stored native code.
   void* nativeCode = called->GetEntryPointFromJni();
@@ -2007,12 +2061,15 @@ extern "C" TwoWordReturn artQuickGenericJniTrampoline(Thread* self, ArtMethod** 
     if (nativeCode == nullptr) {
       DCHECK(self->IsExceptionPending());    // There should be an exception pending now.
 
-      // End JNI, as the assembly will move to deliver the exception.
-      jobject lock = called->IsSynchronized() ? visitor.GetFirstHandleScopeJObject() : nullptr;
-      if (shorty[0] == 'L') {
-        artQuickGenericJniEndJNIRef(self, cookie, nullptr, lock);
-      } else {
-        artQuickGenericJniEndJNINonRef(self, cookie, lock);
+      // @CriticalNative calls do not need to call back into JniMethodEnd.
+      if (LIKELY(!critical_native)) {
+        // End JNI, as the assembly will move to deliver the exception.
+        jobject lock = called->IsSynchronized() ? visitor.GetFirstHandleScopeJObject() : nullptr;
+        if (shorty[0] == 'L') {
+          artQuickGenericJniEndJNIRef(self, cookie, fast_native, nullptr, lock);
+        } else {
+          artQuickGenericJniEndJNINonRef(self, cookie, fast_native, lock);
+        }
       }
 
       return GetTwoWordFailureValue();

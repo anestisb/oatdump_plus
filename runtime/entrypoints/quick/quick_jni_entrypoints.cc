@@ -169,22 +169,33 @@ extern uint64_t GenericJniMethodEnd(Thread* self,
                                     HandleScope* handle_scope)
     // TODO: NO_THREAD_SAFETY_ANALYSIS as GoToRunnable() is NO_THREAD_SAFETY_ANALYSIS
     NO_THREAD_SAFETY_ANALYSIS {
-  GoToRunnable(self);
+  bool critical_native = called->IsAnnotatedWithCriticalNative();
+  bool fast_native = called->IsAnnotatedWithFastNative();
+  bool normal_native = !critical_native && !fast_native;
+
+  // @Fast and @CriticalNative do not do a state transition.
+  if (LIKELY(normal_native)) {
+    GoToRunnable(self);
+  }
   // We need the mutator lock (i.e., calling GoToRunnable()) before accessing the shorty or the
   // locked object.
   jobject locked = called->IsSynchronized() ? handle_scope->GetHandle(0).ToJObject() : nullptr;
   char return_shorty_char = called->GetShorty()[0];
   if (return_shorty_char == 'L') {
     if (locked != nullptr) {
+      DCHECK(normal_native) << " @FastNative and synchronize is not supported";
       UnlockJniSynchronizedMethod(locked, self);
     }
     return reinterpret_cast<uint64_t>(JniMethodEndWithReferenceHandleResult(
         result.l, saved_local_ref_cookie, self));
   } else {
     if (locked != nullptr) {
+      DCHECK(normal_native) << " @FastNative and synchronize is not supported";
       UnlockJniSynchronizedMethod(locked, self);  // Must decode before pop.
     }
-    PopLocalReferences(saved_local_ref_cookie, self);
+    if (LIKELY(!critical_native)) {
+      PopLocalReferences(saved_local_ref_cookie, self);
+    }
     switch (return_shorty_char) {
       case 'F': {
         if (kRuntimeISA == kX86) {
