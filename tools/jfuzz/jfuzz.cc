@@ -21,7 +21,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <time.h>
+
+#include <sys/time.h>
 
 namespace {
 
@@ -53,9 +54,14 @@ static constexpr const char* kRelOps[]     = { "==", "!=", ">", ">=", "<", "<=" 
  * to preserve the property that a given version of JFuzz yields the same
  * fuzzed program for a deterministic random seed.
  */
-const char* VERSION = "1.1";
+const char* VERSION = "1.2";
 
-static const uint32_t MAX_DIMS[11] = { 0, 1000, 32, 10, 6, 4, 3, 3, 2, 2, 2 };
+/*
+ * Maximum number of array dimensions, together with corresponding maximum size
+ * within each dimension (to keep memory/runtime requirements roughly the same).
+ */
+static const uint32_t kMaxDim = 10;
+static const uint32_t kMaxDimSize[kMaxDim + 1] = { 0, 1000, 32, 10, 6, 4, 3, 3, 2, 2, 2 };
 
 /**
  * A class that generates a random program that compiles correctly. The program
@@ -63,10 +69,6 @@ static const uint32_t MAX_DIMS[11] = { 0, 1000, 32, 10, 6, 4, 3, 3, 2, 2, 2 };
  * has a fixed probability to "fire". Running a generated program yields deterministic
  * output, making it suited to test various modes of execution (e.g an interpreter vs.
  * an compiler or two different run times) for divergences.
- *
- * TODO: Due to the original scope of this project, the generated program is heavy
- *       on loops, arrays, and basic operations; fuzzing other aspects, like elaborate
- *       typing, class hierarchies, and interfaces is still TBD.
  */
 class JFuzz {
  public:
@@ -85,8 +87,8 @@ class JFuzz {
         fuzz_loop_nest_(loop_nest),
         return_type_(randomType()),
         array_type_(randomType()),
-        array_dim_(random1(10)),
-        array_size_(random1(MAX_DIMS[array_dim_])),
+        array_dim_(random1(kMaxDim)),
+        array_size_(random1(kMaxDimSize[array_dim_])),
         indentation_(0),
         expr_depth_(0),
         stmt_length_(0),
@@ -98,7 +100,8 @@ class JFuzz {
         int_local_(0),
         long_local_(0),
         float_local_(0),
-        double_local_(0) { }
+        double_local_(0),
+        in_inner_(false) { }
 
   ~JFuzz() { }
 
@@ -378,6 +381,27 @@ class JFuzz {
     }
   }
 
+  // Emit a method call (out type given).
+  void emitMethodCall(Type tp) {
+    if (tp != kBoolean && !in_inner_) {
+      // Accept all numerical types (implicit conversion) and when not
+      // declaring inner classes (to avoid infinite recursion).
+      switch (random1(8)) {
+        case 1: fputs("mA.a()",  out_); break;
+        case 2: fputs("mB.a()",  out_); break;
+        case 3: fputs("mB.x()",  out_); break;
+        case 4: fputs("mBX.x()", out_); break;
+        case 5: fputs("mC.s()",  out_); break;
+        case 6: fputs("mC.c()",  out_); break;
+        case 7: fputs("mC.x()",  out_); break;
+        case 8: fputs("mCX.x()", out_); break;
+      }
+    } else {
+      // Fall back to intrinsic.
+      emitIntrinsic(tp);
+    }
+  }
+
   // Emit unboxing boxed object.
   void emitUnbox(Type tp) {
     fputc('(', out_);
@@ -392,7 +416,7 @@ class JFuzz {
   // Emit miscellaneous constructs.
   void emitMisc(Type tp) {
     if (tp == kBoolean) {
-      fputs("this instanceof Test", out_);
+      fprintf(out_, "this instanceof %s", in_inner_ ? "X" : "Test");
     } else if (isInteger(tp)) {
       const char* prefix = tp == kLong ? "Long" : "Integer";
       switch (random1(2)) {
@@ -572,10 +596,14 @@ class JFuzz {
         emitIntrinsic(tp);
         break;
       case 7:
+        // Method call: mA.a()
+        emitMethodCall(tp);
+        break;
+      case 8:
         // Emit unboxing boxed value: (int) Integer(x)
         emitUnbox(tp);
         break;
-      case 8:
+      case 9:
         // Miscellaneous constructs: a.length
         emitMisc(tp);
         break;
@@ -870,8 +898,52 @@ class JFuzz {
     return true;
   }
 
+  // Emit interface and class declarations.
+  void emitClassDecls() {
+    in_inner_ = true;
+    fputs("  private interface X {\n", out_);
+    fputs("    int x();\n", out_);
+    fputs("  }\n\n", out_);
+    fputs("  private class A {\n", out_);
+    fputs("    public int a() {\n", out_);
+    fputs("      return ", out_);
+    emitExpression(kInt);
+    fputs(";\n    }\n", out_);
+    fputs("  }\n\n", out_);
+    fputs("  private class B extends A implements X {\n", out_);
+    fputs("    public int a() {\n", out_);
+    fputs("      return super.a() + ", out_);
+    emitExpression(kInt);
+    fputs(";\n    }\n", out_);
+    fputs("    public int x() {\n", out_);
+    fputs("      return ", out_);
+    emitExpression(kInt);
+    fputs(";\n    }\n", out_);
+    fputs("  }\n\n", out_);
+    fputs("  private static class C implements X {\n", out_);
+    fputs("    public static int s() {\n", out_);
+    fputs("      return ", out_);
+    emitLiteral(kInt);
+    fputs(";\n    }\n", out_);
+    fputs("    public int c() {\n", out_);
+    fputs("      return ", out_);
+    emitLiteral(kInt);
+    fputs(";\n    }\n", out_);
+    fputs("    public int x() {\n", out_);
+    fputs("      return ", out_);
+    emitLiteral(kInt);
+    fputs(";\n    }\n", out_);
+    fputs("  }\n\n", out_);
+    in_inner_ = false;
+  }
+
   // Emit field declarations.
   void emitFieldDecls() {
+    fputs("  private A mA  = new B();\n", out_);
+    fputs("  private B mB  = new B();\n", out_);
+    fputs("  private X mBX = new B();\n", out_);
+    fputs("  private C mC  = new C();\n", out_);
+    fputs("  private X mCX = new C();\n\n", out_);
     fputs("  private boolean mZ = false;\n", out_);
     fputs("  private int     mI = 0;\n", out_);
     fputs("  private long    mJ = 0;\n", out_);
@@ -995,6 +1067,7 @@ class JFuzz {
   void emitTestClassWithMain() {
     fputs("public class Test {\n\n", out_);
     indentation_ += 2;
+    emitClassDecls();
     emitFieldDecls();
     emitArrayDecl();
     emitTestConstructor();
@@ -1053,13 +1126,18 @@ class JFuzz {
   uint32_t long_local_;
   uint32_t float_local_;
   uint32_t double_local_;
+  bool in_inner_;
 };
 
 }  // anonymous namespace
 
 int32_t main(int32_t argc, char** argv) {
+  // Time-based seed.
+  struct timeval tp;
+  gettimeofday(&tp, NULL);
+
   // Defaults.
-  uint32_t seed = time(NULL);
+  uint32_t seed = (tp.tv_sec * 1000000 + tp.tv_usec);
   uint32_t expr_depth = 1;
   uint32_t stmt_length = 8;
   uint32_t if_nest = 2;
