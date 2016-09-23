@@ -263,42 +263,24 @@ bool HInliner::TryInline(HInvoke* invoke_instruction) {
     return false;  // Don't bother to move further if we know the method is unresolved.
   }
 
-  uint32_t method_index = invoke_instruction->GetDexMethodIndex();
   ScopedObjectAccess soa(Thread::Current());
+  uint32_t method_index = invoke_instruction->GetDexMethodIndex();
   const DexFile& caller_dex_file = *caller_compilation_unit_.GetDexFile();
   VLOG(compiler) << "Try inlining " << PrettyMethod(method_index, caller_dex_file);
 
-  ClassLinker* class_linker = caller_compilation_unit_.GetClassLinker();
   // We can query the dex cache directly. The verifier has populated it already.
-  ArtMethod* resolved_method;
+  ArtMethod* resolved_method = invoke_instruction->GetResolvedMethod();
   ArtMethod* actual_method = nullptr;
-  if (invoke_instruction->IsInvokeStaticOrDirect()) {
-    if (invoke_instruction->AsInvokeStaticOrDirect()->IsStringInit()) {
-      VLOG(compiler) << "Not inlining a String.<init> method";
-      return false;
-    }
-    MethodReference ref = invoke_instruction->AsInvokeStaticOrDirect()->GetTargetMethod();
-    mirror::DexCache* const dex_cache = IsSameDexFile(caller_dex_file, *ref.dex_file)
-        ? caller_compilation_unit_.GetDexCache().Get()
-        : class_linker->FindDexCache(soa.Self(), *ref.dex_file);
-    resolved_method = dex_cache->GetResolvedMethod(
-        ref.dex_method_index, class_linker->GetImagePointerSize());
-    // actual_method == resolved_method for direct or static calls.
+  if (resolved_method == nullptr) {
+    DCHECK(invoke_instruction->IsInvokeStaticOrDirect());
+    DCHECK(invoke_instruction->AsInvokeStaticOrDirect()->IsStringInit());
+    VLOG(compiler) << "Not inlining a String.<init> method";
+    return false;
+  } else if (invoke_instruction->IsInvokeStaticOrDirect()) {
     actual_method = resolved_method;
   } else {
-    resolved_method = caller_compilation_unit_.GetDexCache().Get()->GetResolvedMethod(
-        method_index, class_linker->GetImagePointerSize());
-    if (resolved_method != nullptr) {
-      // Check if we can statically find the method.
-      actual_method = FindVirtualOrInterfaceTarget(invoke_instruction, resolved_method);
-    }
-  }
-
-  if (resolved_method == nullptr) {
-    // TODO: Can this still happen?
-    // Method cannot be resolved if it is in another dex file we do not have access to.
-    VLOG(compiler) << "Method cannot be resolved " << PrettyMethod(method_index, caller_dex_file);
-    return false;
+    // Check if we can statically find the method.
+    actual_method = FindVirtualOrInterfaceTarget(invoke_instruction, resolved_method);
   }
 
   if (actual_method != nullptr) {
@@ -763,9 +745,9 @@ bool HInliner::TryInlineAndReplace(HInvoke* invoke_instruction, ArtMethod* metho
       // 2) We will not go to the conflict trampoline with an invoke-virtual.
       // TODO: Consider sharpening once it is not dependent on the compiler driver.
       const DexFile& caller_dex_file = *caller_compilation_unit_.GetDexFile();
-      uint32_t method_index = FindMethodIndexIn(
+      uint32_t dex_method_index = FindMethodIndexIn(
           method, caller_dex_file, invoke_instruction->GetDexMethodIndex());
-      if (method_index == DexFile::kDexNoIndex) {
+      if (dex_method_index == DexFile::kDexNoIndex) {
         return false;
       }
       HInvokeVirtual* new_invoke = new (graph_->GetArena()) HInvokeVirtual(
@@ -773,7 +755,8 @@ bool HInliner::TryInlineAndReplace(HInvoke* invoke_instruction, ArtMethod* metho
           invoke_instruction->GetNumberOfArguments(),
           invoke_instruction->GetType(),
           invoke_instruction->GetDexPc(),
-          method_index,
+          dex_method_index,
+          method,
           method->GetMethodIndex());
       HInputsRef inputs = invoke_instruction->GetInputs();
       for (size_t index = 0; index != inputs.size(); ++index) {
@@ -1122,7 +1105,7 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
     }
   }
 
-  InvokeType invoke_type = invoke_instruction->GetOriginalInvokeType();
+  InvokeType invoke_type = invoke_instruction->GetInvokeType();
   if (invoke_type == kInterface) {
     // We have statically resolved the dispatch. To please the class linker
     // at runtime, we change this call as if it was a virtual call.
