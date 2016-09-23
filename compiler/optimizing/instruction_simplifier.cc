@@ -1657,7 +1657,7 @@ void InstructionSimplifierVisitor::SimplifyRotate(HInvoke* invoke,
                                                   bool is_left,
                                                   Primitive::Type type) {
   DCHECK(invoke->IsInvokeStaticOrDirect());
-  DCHECK_EQ(invoke->GetOriginalInvokeType(), InvokeType::kStatic);
+  DCHECK_EQ(invoke->GetInvokeType(), InvokeType::kStatic);
   HInstruction* value = invoke->InputAt(0);
   HInstruction* distance = invoke->InputAt(1);
   // Replace the invoke with an HRor.

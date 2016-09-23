@@ -4217,7 +4217,7 @@ void CodeGeneratorX86::GenerateMemoryBarrier(MemBarrierKind kind) {
 
 HInvokeStaticOrDirect::DispatchInfo CodeGeneratorX86::GetSupportedInvokeStaticOrDirectDispatch(
       const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
-      MethodReference target_method ATTRIBUTE_UNUSED) {
+      HInvokeStaticOrDirect* invoke ATTRIBUTE_UNUSED) {
   HInvokeStaticOrDirect::DispatchInfo dispatch_info = desired_dispatch_info;
 
   // We disable pc-relative load when there is an irreducible loop, as the optimization
@@ -4297,7 +4297,7 @@ Location CodeGeneratorX86::GenerateCalleeMethodStaticOrDirectCall(HInvokeStaticO
       __ movl(temp.AsRegister<Register>(), Address(base_reg, kDummy32BitOffset));
       // Bind a new fixup label at the end of the "movl" insn.
       uint32_t offset = invoke->GetDexCacheArrayOffset();
-      __ Bind(NewPcRelativeDexCacheArrayPatch(*invoke->GetTargetMethod().dex_file, offset));
+      __ Bind(NewPcRelativeDexCacheArrayPatch(invoke->GetDexFile(), offset));
       break;
     }
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
