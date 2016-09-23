@@ -163,18 +163,12 @@ static bool TypePhiFromInputs(HPhi* phi) {
 // Replace inputs of `phi` to match its type. Return false if conflict is identified.
 bool SsaBuilder::TypeInputsOfPhi(HPhi* phi, ArenaVector<HPhi*>* worklist) {
   Primitive::Type common_type = phi->GetType();
-  if (common_type == Primitive::kPrimVoid || Primitive::IsIntegralType(common_type)) {
-    // Phi either contains only other untyped phis (common_type == kPrimVoid),
-    // or `common_type` is integral and we do not need to retype ambiguous inputs
-    // because they are always constructed with the integral type candidate.
+  if (Primitive::IsIntegralType(common_type)) {
+    // We do not need to retype ambiguous inputs because they are always constructed
+    // with the integral type candidate.
     if (kIsDebugBuild) {
       for (HInstruction* input : phi->GetInputs()) {
-        if (common_type == Primitive::kPrimVoid) {
-          DCHECK(input->IsPhi() && input->GetType() == Primitive::kPrimVoid);
-        } else {
-          DCHECK((input->IsPhi() && input->GetType() == Primitive::kPrimVoid) ||
-                 HPhi::ToPhiType(input->GetType()) == common_type);
-        }
+        DCHECK(HPhi::ToPhiType(input->GetType()) == common_type);
       }
     }
     // Inputs did not need to be replaced, hence no conflict. Report success.
