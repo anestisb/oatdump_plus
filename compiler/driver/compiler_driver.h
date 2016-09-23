@@ -328,16 +328,6 @@ class CompilerDriver {
       ArtMethod* resolved_method, InvokeType type)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Can we fast-path an INVOKE? If no, returns 0. If yes, returns a non-zero opaque flags value
-  // for ProcessedInvoke() and computes the necessary lowering info.
-  int IsFastInvoke(
-      ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
-      Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
-      mirror::Class* referrer_class, ArtMethod* resolved_method, InvokeType* invoke_type,
-      MethodReference* target_method, const MethodReference* devirt_target,
-      uintptr_t* direct_code, uintptr_t* direct_method)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
   // Is method's class initialized for an invoke?
   // For static invokes to determine whether we need to consider potential call to <clinit>().
   // For non-static invokes, assuming a non-null reference, the class is always initialized.
@@ -370,14 +360,6 @@ class CompilerDriver {
                                              const ScopedObjectAccess& soa)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-
-  // Can we fastpath a interface, super class or virtual method call? Computes method's vtable
-  // index.
-  bool ComputeInvokeInfo(const DexCompilationUnit* mUnit, const uint32_t dex_pc,
-                         bool update_stats, bool enable_devirtualization,
-                         InvokeType* type, MethodReference* target_method, int* vtable_idx,
-                         uintptr_t* direct_code, uintptr_t* direct_method)
-      REQUIRES(!Locks::mutator_lock_);
 
   const VerifiedMethod* GetVerifiedMethod(const DexFile* dex_file, uint32_t method_idx) const;
   bool IsSafeCast(const DexCompilationUnit* mUnit, uint32_t dex_pc);
@@ -538,14 +520,10 @@ class CompilerDriver {
 
  public:  // TODO make private or eliminate.
   // Compute constant code and method pointers when possible.
-  void GetCodeAndMethodForDirectCall(/*out*/InvokeType* type,
-                                     InvokeType sharp_type,
-                                     bool no_guarantee_of_dex_cache_entry,
-                                     const mirror::Class* referrer_class,
+  void GetCodeAndMethodForDirectCall(const mirror::Class* referrer_class,
                                      ArtMethod* method,
-                                     /*out*/int* stats_flags,
-                                     MethodReference* target_method,
-                                     uintptr_t* direct_code, uintptr_t* direct_method)
+                                     /* out */ uintptr_t* direct_code,
+                                     /* out */ uintptr_t* direct_method)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:

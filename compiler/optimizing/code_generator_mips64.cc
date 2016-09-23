@@ -2972,7 +2972,7 @@ HLoadClass::LoadKind CodeGeneratorMIPS64::GetSupportedLoadClassKind(
 
 HInvokeStaticOrDirect::DispatchInfo CodeGeneratorMIPS64::GetSupportedInvokeStaticOrDirectDispatch(
       const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
-      MethodReference target_method ATTRIBUTE_UNUSED) {
+      HInvokeStaticOrDirect* invoke ATTRIBUTE_UNUSED) {
   switch (desired_dispatch_info.method_load_kind) {
     case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddressWithFixup:
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative:

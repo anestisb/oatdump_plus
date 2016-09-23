@@ -447,7 +447,7 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
 
   void VisitInvokeUnresolved(HInvokeUnresolved* invoke) OVERRIDE {
     VisitInvoke(invoke);
-    StartAttributeStream("invoke_type") << invoke->GetOriginalInvokeType();
+    StartAttributeStream("invoke_type") << invoke->GetInvokeType();
   }
 
   void VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) OVERRIDE {

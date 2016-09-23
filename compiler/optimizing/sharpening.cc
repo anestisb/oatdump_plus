@@ -61,44 +61,28 @@ void HSharpening::ProcessInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
     return;
   }
 
-  // TODO: Avoid CompilerDriver.
-  InvokeType original_invoke_type = invoke->GetOriginalInvokeType();
-  InvokeType optimized_invoke_type = original_invoke_type;
-  MethodReference target_method(&graph_->GetDexFile(), invoke->GetDexMethodIndex());
-  int vtable_idx;
-  uintptr_t direct_code, direct_method;
-  bool success = compiler_driver_->ComputeInvokeInfo(
-      &compilation_unit_,
-      invoke->GetDexPc(),
-      false /* update_stats: already updated in builder */,
-      true /* enable_devirtualization */,
-      &optimized_invoke_type,
-      &target_method,
-      &vtable_idx,
-      &direct_code,
-      &direct_method);
-  if (!success) {
-    // TODO: try using kDexCachePcRelative. It's always a valid method load
-    // kind as long as it's supported by the codegen
-    return;
-  }
-  invoke->SetOptimizedInvokeType(optimized_invoke_type);
-  invoke->SetTargetMethod(target_method);
+  HGraph* outer_graph = codegen_->GetGraph();
+  ArtMethod* compiling_method = graph_->GetArtMethod();
 
   HInvokeStaticOrDirect::MethodLoadKind method_load_kind;
   HInvokeStaticOrDirect::CodePtrLocation code_ptr_location;
   uint64_t method_load_data = 0u;
   uint64_t direct_code_ptr = 0u;
 
-  HGraph* outer_graph = codegen_->GetGraph();
-  if (target_method.dex_file == &outer_graph->GetDexFile() &&
-      target_method.dex_method_index == outer_graph->GetMethodIdx()) {
+  if (invoke->GetResolvedMethod() == outer_graph->GetArtMethod()) {
+    DCHECK(outer_graph->GetArtMethod() != nullptr);
     method_load_kind = HInvokeStaticOrDirect::MethodLoadKind::kRecursive;
     code_ptr_location = HInvokeStaticOrDirect::CodePtrLocation::kCallSelf;
   } else {
-    bool use_pc_relative_instructions =
-        ((direct_method == 0u || direct_code == static_cast<uintptr_t>(-1))) &&
-        ContainsElement(compiler_driver_->GetDexFilesForOatFile(), target_method.dex_file);
+    uintptr_t direct_code, direct_method;
+    {
+      ScopedObjectAccess soa(Thread::Current());
+      compiler_driver_->GetCodeAndMethodForDirectCall(
+          (compiling_method == nullptr) ? nullptr : compiling_method->GetDeclaringClass(),
+          invoke->GetResolvedMethod(),
+          &direct_code,
+          &direct_method);
+    }
     if (direct_method != 0u) {  // Should we use a direct pointer to the method?
       // Note: For JIT, kDirectAddressWithFixup doesn't make sense at all and while
       // kDirectAddress would be fine for image methods, we don't support it at the moment.
@@ -110,13 +94,12 @@ void HSharpening::ProcessInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
         method_load_kind = HInvokeStaticOrDirect::MethodLoadKind::kDirectAddressWithFixup;
       }
     } else {  // Use dex cache.
-      DCHECK_EQ(target_method.dex_file, &graph_->GetDexFile());
-      if (use_pc_relative_instructions) {  // Can we use PC-relative access to the dex cache arrays?
-        DCHECK(!Runtime::Current()->UseJitCompilation());
+      if (!Runtime::Current()->UseJitCompilation()) {
+        // Use PC-relative access to the dex cache arrays.
         method_load_kind = HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative;
         DexCacheArraysLayout layout(GetInstructionSetPointerSize(codegen_->GetInstructionSet()),
                                     &graph_->GetDexFile());
-        method_load_data = layout.MethodOffset(target_method.dex_method_index);
+        method_load_data = layout.MethodOffset(invoke->GetDexMethodIndex());
       } else {  // We must go through the ArtMethod's pointer to resolved methods.
         method_load_kind = HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod;
       }
@@ -125,10 +108,11 @@ void HSharpening::ProcessInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
       // Note: For JIT, kCallPCRelative and kCallDirectWithFixup don't make sense at all and
       // while kCallDirect would be fine for image methods, we don't support it at the moment.
       DCHECK(!Runtime::Current()->UseJitCompilation());
+      const DexFile* dex_file_of_callee = invoke->GetTargetMethod().dex_file;
       if (direct_code != static_cast<uintptr_t>(-1)) {  // Is the code pointer known now?
         code_ptr_location = HInvokeStaticOrDirect::CodePtrLocation::kCallDirect;
         direct_code_ptr = direct_code;
-      } else if (use_pc_relative_instructions) {
+      } else if (ContainsElement(compiler_driver_->GetDexFilesForOatFile(), dex_file_of_callee)) {
         // Use PC-relative calls for invokes within a multi-dex oat file.
         code_ptr_location = HInvokeStaticOrDirect::CodePtrLocation::kCallPCRelative;
       } else {  // The direct pointer will be known at link time.
@@ -151,8 +135,7 @@ void HSharpening::ProcessInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
       method_load_kind, code_ptr_location, method_load_data, direct_code_ptr
   };
   HInvokeStaticOrDirect::DispatchInfo dispatch_info =
-      codegen_->GetSupportedInvokeStaticOrDirectDispatch(desired_dispatch_info,
-                                                         invoke->GetTargetMethod());
+      codegen_->GetSupportedInvokeStaticOrDirectDispatch(desired_dispatch_info, invoke);
   invoke->SetDispatchInfo(dispatch_info);
 }
 

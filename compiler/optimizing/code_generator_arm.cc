@@ -6672,7 +6672,7 @@ void CodeGeneratorARM::GenerateReadBarrierForRootSlow(HInstruction* instruction,
 
 HInvokeStaticOrDirect::DispatchInfo CodeGeneratorARM::GetSupportedInvokeStaticOrDirectDispatch(
       const HInvokeStaticOrDirect::DispatchInfo& desired_dispatch_info,
-      MethodReference target_method) {
+      HInvokeStaticOrDirect* invoke) {
   HInvokeStaticOrDirect::DispatchInfo dispatch_info = desired_dispatch_info;
   // We disable pc-relative load when there is an irreducible loop, as the optimization
   // is incompatible with it.
@@ -6686,7 +6686,7 @@ HInvokeStaticOrDirect::DispatchInfo CodeGeneratorARM::GetSupportedInvokeStaticOr
 
   if (dispatch_info.code_ptr_location == HInvokeStaticOrDirect::CodePtrLocation::kCallPCRelative) {
     const DexFile& outer_dex_file = GetGraph()->GetDexFile();
-    if (&outer_dex_file != target_method.dex_file) {
+    if (&outer_dex_file != invoke->GetTargetMethod().dex_file) {
       // Calls across dex files are more likely to exceed the available BL range,
       // so use absolute patch with fixup if available and kCallArtMethod otherwise.
       HInvokeStaticOrDirect::CodePtrLocation code_ptr_location =
