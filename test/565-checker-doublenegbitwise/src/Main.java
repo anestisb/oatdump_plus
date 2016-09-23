@@ -70,20 +70,19 @@ public class Main {
    * same pass.
    */
 
-  /// CHECK-START: boolean Main.$opt$noinline$booleanAndToOr(boolean, boolean) instruction_simplifier$after_bce (before)
+  /// CHECK-START: boolean Main.$opt$noinline$booleanAndToOr(boolean, boolean) instruction_simplifier (before)
   /// CHECK:       <<P1:z\d+>>          ParameterValue
   /// CHECK:       <<P2:z\d+>>          ParameterValue
-  /// CHECK-DAG:   <<Const0:i\d+>>      IntConstant 0
   /// CHECK-DAG:   <<Const1:i\d+>>      IntConstant 1
-  /// CHECK:       <<Select1:i\d+>>     Select [<<Const1>>,<<Const0>>,<<P1>>]
-  /// CHECK:       <<Select2:i\d+>>     Select [<<Const1>>,<<Const0>>,<<P2>>]
-  /// CHECK:       <<And:i\d+>>         And [<<Select2>>,<<Select1>>]
+  /// CHECK-DAG:   <<NotP1:i\d+>>       Xor [<<P1>>,<<Const1>>]
+  /// CHECK-DAG:   <<NotP2:i\d+>>       Xor [<<P2>>,<<Const1>>]
+  /// CHECK:       <<And:i\d+>>         And [<<NotP1>>,<<NotP2>>]
   /// CHECK:                            Return [<<And>>]
 
-  /// CHECK-START: boolean Main.$opt$noinline$booleanAndToOr(boolean, boolean) instruction_simplifier$after_bce (after)
+  /// CHECK-START: boolean Main.$opt$noinline$booleanAndToOr(boolean, boolean) instruction_simplifier (after)
   /// CHECK:       <<Cond1:z\d+>>       ParameterValue
   /// CHECK:       <<Cond2:z\d+>>       ParameterValue
-  /// CHECK:       <<Or:i\d+>>          Or [<<Cond2>>,<<Cond1>>]
+  /// CHECK:       <<Or:i\d+>>          Or [<<Cond1>>,<<Cond2>>]
   /// CHECK:       <<BooleanNot:z\d+>>  BooleanNot [<<Or>>]
   /// CHECK:                            Return [<<BooleanNot>>]
 
@@ -138,20 +137,19 @@ public class Main {
    * same pass.
    */
 
-  /// CHECK-START: boolean Main.$opt$noinline$booleanOrToAnd(boolean, boolean) instruction_simplifier$after_bce (before)
+  /// CHECK-START: boolean Main.$opt$noinline$booleanOrToAnd(boolean, boolean) instruction_simplifier (before)
   /// CHECK:       <<P1:z\d+>>          ParameterValue
   /// CHECK:       <<P2:z\d+>>          ParameterValue
-  /// CHECK-DAG:   <<Const0:i\d+>>      IntConstant 0
   /// CHECK-DAG:   <<Const1:i\d+>>      IntConstant 1
-  /// CHECK:       <<Select1:i\d+>>     Select [<<Const1>>,<<Const0>>,<<P1>>]
-  /// CHECK:       <<Select2:i\d+>>     Select [<<Const1>>,<<Const0>>,<<P2>>]
-  /// CHECK:       <<Or:i\d+>>          Or [<<Select2>>,<<Select1>>]
+  /// CHECK:       <<NotP1:i\d+>>       Xor [<<P1>>,<<Const1>>]
+  /// CHECK:       <<NotP2:i\d+>>       Xor [<<P2>>,<<Const1>>]
+  /// CHECK:       <<Or:i\d+>>          Or [<<NotP1>>,<<NotP2>>]
   /// CHECK:                            Return [<<Or>>]
 
-  /// CHECK-START: boolean Main.$opt$noinline$booleanOrToAnd(boolean, boolean) instruction_simplifier$after_bce (after)
+  /// CHECK-START: boolean Main.$opt$noinline$booleanOrToAnd(boolean, boolean) instruction_simplifier (after)
   /// CHECK:       <<Cond1:z\d+>>       ParameterValue
   /// CHECK:       <<Cond2:z\d+>>       ParameterValue
-  /// CHECK:       <<And:i\d+>>         And [<<Cond2>>,<<Cond1>>]
+  /// CHECK:       <<And:i\d+>>         And [<<Cond1>>,<<Cond2>>]
   /// CHECK:       <<BooleanNot:z\d+>>  BooleanNot [<<And>>]
   /// CHECK:                            Return [<<BooleanNot>>]
 
@@ -246,20 +244,19 @@ public class Main {
    * same pass.
    */
 
-  /// CHECK-START: boolean Main.$opt$noinline$booleanNotXorToXor(boolean, boolean) instruction_simplifier$after_bce (before)
+  /// CHECK-START: boolean Main.$opt$noinline$booleanNotXorToXor(boolean, boolean) instruction_simplifier (before)
   /// CHECK:       <<P1:z\d+>>          ParameterValue
   /// CHECK:       <<P2:z\d+>>          ParameterValue
-  /// CHECK-DAG:   <<Const0:i\d+>>      IntConstant 0
   /// CHECK-DAG:   <<Const1:i\d+>>      IntConstant 1
-  /// CHECK:       <<Select1:i\d+>>     Select [<<Const1>>,<<Const0>>,<<P1>>]
-  /// CHECK:       <<Select2:i\d+>>     Select [<<Const1>>,<<Const0>>,<<P2>>]
-  /// CHECK:       <<Xor:i\d+>>         Xor [<<Select2>>,<<Select1>>]
+  /// CHECK:       <<NotP1:i\d+>>       Xor [<<P1>>,<<Const1>>]
+  /// CHECK:       <<NotP2:i\d+>>       Xor [<<P2>>,<<Const1>>]
+  /// CHECK:       <<Xor:i\d+>>         Xor [<<NotP1>>,<<NotP2>>]
   /// CHECK:                            Return [<<Xor>>]
 
-  /// CHECK-START: boolean Main.$opt$noinline$booleanNotXorToXor(boolean, boolean) instruction_simplifier$after_bce (after)
+  /// CHECK-START: boolean Main.$opt$noinline$booleanNotXorToXor(boolean, boolean) instruction_simplifier (after)
   /// CHECK:       <<Cond1:z\d+>>       ParameterValue
   /// CHECK:       <<Cond2:z\d+>>       ParameterValue
-  /// CHECK:       <<Xor:i\d+>>         Xor [<<Cond2>>,<<Cond1>>]
+  /// CHECK:       <<Xor:i\d+>>         Xor [<<Cond1>>,<<Cond2>>]
   /// CHECK:                            Return [<<Xor>>]
 
   /// CHECK-START: boolean Main.$opt$noinline$booleanNotXorToXor(boolean, boolean) instruction_simplifier$after_bce (after)
