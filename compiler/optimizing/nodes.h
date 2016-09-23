@@ -3742,8 +3742,8 @@ class HInvoke : public HInstruction {
   uint32_t GetDexMethodIndex() const { return dex_method_index_; }
   const DexFile& GetDexFile() const { return GetEnvironment()->GetDexFile(); }
 
-  InvokeType GetOriginalInvokeType() const {
-    return GetPackedField<OriginalInvokeTypeField>();
+  InvokeType GetInvokeType() const {
+    return GetPackedField<InvokeTypeField>();
   }
 
   Intrinsics GetIntrinsic() const {
@@ -3777,21 +3777,22 @@ class HInvoke : public HInstruction {
 
   bool IsIntrinsic() const { return intrinsic_ != Intrinsics::kNone; }
 
+  ArtMethod* GetResolvedMethod() const { return resolved_method_; }
+
   DECLARE_ABSTRACT_INSTRUCTION(Invoke);
 
  protected:
-  static constexpr size_t kFieldOriginalInvokeType = kNumberOfGenericPackedBits;
-  static constexpr size_t kFieldOriginalInvokeTypeSize =
+  static constexpr size_t kFieldInvokeType = kNumberOfGenericPackedBits;
+  static constexpr size_t kFieldInvokeTypeSize =
       MinimumBitsToStore(static_cast<size_t>(kMaxInvokeType));
   static constexpr size_t kFieldReturnType =
-      kFieldOriginalInvokeType + kFieldOriginalInvokeTypeSize;
+      kFieldInvokeType + kFieldInvokeTypeSize;
   static constexpr size_t kFieldReturnTypeSize =
       MinimumBitsToStore(static_cast<size_t>(Primitive::kPrimLast));
   static constexpr size_t kFlagCanThrow = kFieldReturnType + kFieldReturnTypeSize;
   static constexpr size_t kNumberOfInvokePackedBits = kFlagCanThrow + 1;
   static_assert(kNumberOfInvokePackedBits <= kMaxNumberOfPackedBits, "Too many packed fields.");
-  using OriginalInvokeTypeField =
-      BitField<InvokeType, kFieldOriginalInvokeType, kFieldOriginalInvokeTypeSize>;
+  using InvokeTypeField = BitField<InvokeType, kFieldInvokeType, kFieldInvokeTypeSize>;
   using ReturnTypeField = BitField<Primitive::Type, kFieldReturnType, kFieldReturnTypeSize>;
 
   HInvoke(ArenaAllocator* arena,
@@ -3800,23 +3801,26 @@ class HInvoke : public HInstruction {
           Primitive::Type return_type,
           uint32_t dex_pc,
           uint32_t dex_method_index,
-          InvokeType original_invoke_type)
+          ArtMethod* resolved_method,
+          InvokeType invoke_type)
     : HInstruction(
           SideEffects::AllExceptGCDependency(), dex_pc),  // Assume write/read on all fields/arrays.
       number_of_arguments_(number_of_arguments),
+      resolved_method_(resolved_method),
       inputs_(number_of_arguments + number_of_other_inputs,
               arena->Adapter(kArenaAllocInvokeInputs)),
       dex_method_index_(dex_method_index),
       intrinsic_(Intrinsics::kNone),
       intrinsic_optimizations_(0) {
     SetPackedField<ReturnTypeField>(return_type);
-    SetPackedField<OriginalInvokeTypeField>(original_invoke_type);
+    SetPackedField<InvokeTypeField>(invoke_type);
     SetPackedFlag<kFlagCanThrow>(true);
   }
 
   void SetCanThrow(bool can_throw) { SetPackedFlag<kFlagCanThrow>(can_throw); }
 
   uint32_t number_of_arguments_;
+  ArtMethod* const resolved_method_;
   ArenaVector<HUserRecord<HInstruction*>> inputs_;
   const uint32_t dex_method_index_;
   Intrinsics intrinsic_;
@@ -3842,6 +3846,7 @@ class HInvokeUnresolved FINAL : public HInvoke {
                 return_type,
                 dex_pc,
                 dex_method_index,
+                nullptr,
                 invoke_type) {
   }
 
@@ -3935,10 +3940,10 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
                         Primitive::Type return_type,
                         uint32_t dex_pc,
                         uint32_t method_index,
-                        MethodReference target_method,
+                        ArtMethod* resolved_method,
                         DispatchInfo dispatch_info,
-                        InvokeType original_invoke_type,
-                        InvokeType optimized_invoke_type,
+                        InvokeType invoke_type,
+                        MethodReference target_method,
                         ClinitCheckRequirement clinit_check_requirement)
       : HInvoke(arena,
                 number_of_arguments,
@@ -3950,10 +3955,10 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
                 return_type,
                 dex_pc,
                 method_index,
-                original_invoke_type),
+                resolved_method,
+                invoke_type),
         target_method_(target_method),
         dispatch_info_(dispatch_info) {
-    SetPackedField<OptimizedInvokeTypeField>(optimized_invoke_type);
     SetPackedField<ClinitCheckRequirementField>(clinit_check_requirement);
   }
 
@@ -4017,14 +4022,6 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
   uint32_t GetSpecialInputIndex() const { return GetNumberOfArguments(); }
   bool HasSpecialInput() const { return GetNumberOfArguments() != InputCount(); }
 
-  InvokeType GetOptimizedInvokeType() const {
-    return GetPackedField<OptimizedInvokeTypeField>();
-  }
-
-  void SetOptimizedInvokeType(InvokeType invoke_type) {
-    SetPackedField<OptimizedInvokeTypeField>(invoke_type);
-  }
-
   MethodLoadKind GetMethodLoadKind() const { return dispatch_info_.method_load_kind; }
   CodePtrLocation GetCodePtrLocation() const { return dispatch_info_.code_ptr_location; }
   bool IsRecursive() const { return GetMethodLoadKind() == MethodLoadKind::kRecursive; }
@@ -4046,8 +4043,6 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
     }
   }
   bool HasDirectCodePtr() const { return GetCodePtrLocation() == CodePtrLocation::kCallDirect; }
-  MethodReference GetTargetMethod() const { return target_method_; }
-  void SetTargetMethod(MethodReference method) { target_method_ = method; }
 
   int32_t GetStringInitOffset() const {
     DCHECK(IsStringInit());
@@ -4075,7 +4070,11 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
 
   // Is this instruction a call to a static method?
   bool IsStatic() const {
-    return GetOriginalInvokeType() == kStatic;
+    return GetInvokeType() == kStatic;
+  }
+
+  MethodReference GetTargetMethod() const {
+    return target_method_;
   }
 
   // Remove the HClinitCheck or the replacement HLoadClass (set as last input by
@@ -4117,26 +4116,18 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
   void RemoveInputAt(size_t index);
 
  private:
-  static constexpr size_t kFieldOptimizedInvokeType = kNumberOfInvokePackedBits;
-  static constexpr size_t kFieldOptimizedInvokeTypeSize =
-      MinimumBitsToStore(static_cast<size_t>(kMaxInvokeType));
-  static constexpr size_t kFieldClinitCheckRequirement =
-      kFieldOptimizedInvokeType + kFieldOptimizedInvokeTypeSize;
+  static constexpr size_t kFieldClinitCheckRequirement = kNumberOfInvokePackedBits;
   static constexpr size_t kFieldClinitCheckRequirementSize =
       MinimumBitsToStore(static_cast<size_t>(ClinitCheckRequirement::kLast));
   static constexpr size_t kNumberOfInvokeStaticOrDirectPackedBits =
       kFieldClinitCheckRequirement + kFieldClinitCheckRequirementSize;
   static_assert(kNumberOfInvokeStaticOrDirectPackedBits <= kMaxNumberOfPackedBits,
                 "Too many packed fields.");
-  using OptimizedInvokeTypeField =
-      BitField<InvokeType, kFieldOptimizedInvokeType, kFieldOptimizedInvokeTypeSize>;
   using ClinitCheckRequirementField = BitField<ClinitCheckRequirement,
                                                kFieldClinitCheckRequirement,
                                                kFieldClinitCheckRequirementSize>;
 
-  // The target method may refer to different dex file or method index than the original
-  // invoke. This happens for sharpened calls and for calls where a method was redeclared
-  // in derived class to increase visibility.
+  // Cached values of the resolved method, to avoid needing the mutator lock.
   MethodReference target_method_;
   DispatchInfo dispatch_info_;
 
@@ -4152,8 +4143,16 @@ class HInvokeVirtual FINAL : public HInvoke {
                  Primitive::Type return_type,
                  uint32_t dex_pc,
                  uint32_t dex_method_index,
+                 ArtMethod* resolved_method,
                  uint32_t vtable_index)
-      : HInvoke(arena, number_of_arguments, 0u, return_type, dex_pc, dex_method_index, kVirtual),
+      : HInvoke(arena,
+                number_of_arguments,
+                0u,
+                return_type,
+                dex_pc,
+                dex_method_index,
+                resolved_method,
+                kVirtual),
         vtable_index_(vtable_index) {}
 
   bool CanDoImplicitNullCheckOn(HInstruction* obj) const OVERRIDE {
@@ -4166,6 +4165,7 @@ class HInvokeVirtual FINAL : public HInvoke {
   DECLARE_INSTRUCTION(InvokeVirtual);
 
  private:
+  // Cached value of the resolved method, to avoid needing the mutator lock.
   const uint32_t vtable_index_;
 
   DISALLOW_COPY_AND_ASSIGN(HInvokeVirtual);
@@ -4178,8 +4178,16 @@ class HInvokeInterface FINAL : public HInvoke {
                    Primitive::Type return_type,
                    uint32_t dex_pc,
                    uint32_t dex_method_index,
+                   ArtMethod* resolved_method,
                    uint32_t imt_index)
-      : HInvoke(arena, number_of_arguments, 0u, return_type, dex_pc, dex_method_index, kInterface),
+      : HInvoke(arena,
+                number_of_arguments,
+                0u,
+                return_type,
+                dex_pc,
+                dex_method_index,
+                resolved_method,
+                kInterface),
         imt_index_(imt_index) {}
 
   bool CanDoImplicitNullCheckOn(HInstruction* obj) const OVERRIDE {
@@ -4193,6 +4201,7 @@ class HInvokeInterface FINAL : public HInvoke {
   DECLARE_INSTRUCTION(InvokeInterface);
 
  private:
+  // Cached value of the resolved method, to avoid needing the mutator lock.
   const uint32_t imt_index_;
 
   DISALLOW_COPY_AND_ASSIGN(HInvokeInterface);

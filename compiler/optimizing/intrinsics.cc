@@ -532,9 +532,7 @@ static bool CheckInvokeType(Intrinsics intrinsic, HInvoke* invoke, const DexFile
   // inline. If the precise type is known, however, the instruction will be sharpened to an
   // InvokeStaticOrDirect.
   InvokeType intrinsic_type = GetIntrinsicInvokeType(intrinsic);
-  InvokeType invoke_type = invoke->IsInvokeStaticOrDirect() ?
-      invoke->AsInvokeStaticOrDirect()->GetOptimizedInvokeType() :
-      invoke->IsInvokeVirtual() ? kVirtual : kSuper;
+  InvokeType invoke_type = invoke->GetInvokeType();
   switch (intrinsic_type) {
     case kStatic:
       return (invoke_type == kStatic);

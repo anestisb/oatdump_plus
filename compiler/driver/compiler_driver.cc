@@ -1654,12 +1654,8 @@ bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompi
   }
 }
 
-void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType sharp_type,
-                                                   bool no_guarantee_of_dex_cache_entry,
-                                                   const mirror::Class* referrer_class,
+void CompilerDriver::GetCodeAndMethodForDirectCall(const mirror::Class* referrer_class,
                                                    ArtMethod* method,
-                                                   int* stats_flags,
-                                                   MethodReference* target_method,
                                                    uintptr_t* direct_code,
                                                    uintptr_t* direct_method) {
   // For direct and static methods compute possible direct_code and direct_method values, ie
@@ -1671,15 +1667,11 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
   Runtime* const runtime = Runtime::Current();
   gc::Heap* const heap = runtime->GetHeap();
   auto* cl = runtime->GetClassLinker();
-  const auto pointer_size = cl->GetImagePointerSize();
   bool use_dex_cache = GetCompilerOptions().GetCompilePic();  // Off by default
   const bool compiling_boot = heap->IsCompilingBoot();
   // TODO This is somewhat hacky. We should refactor all of this invoke codepath.
   const bool force_relocations = (compiling_boot ||
                                   GetCompilerOptions().GetIncludePatchInformation());
-  if (sharp_type != kStatic && sharp_type != kDirect) {
-    return;
-  }
   // TODO: support patching on all architectures.
   use_dex_cache = use_dex_cache || (force_relocations && !support_boot_image_fixup_);
   mirror::Class* declaring_class = method->GetDeclaringClass();
@@ -1687,14 +1679,12 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
   if (!use_dex_cache) {
     if (!method_code_in_boot) {
       use_dex_cache = true;
-    } else {
-      bool has_clinit_trampoline =
-          method->IsStatic() && !declaring_class->IsInitialized();
-      if (has_clinit_trampoline && declaring_class != referrer_class) {
-        // Ensure we run the clinit trampoline unless we are invoking a static method in the same
-        // class.
-        use_dex_cache = true;
-      }
+    } else if (method->IsStatic() &&
+               declaring_class != referrer_class &&
+               !declaring_class->IsInitialized()) {
+      // Ensure we run the clinit trampoline unless we are invoking a static method in the same
+      // class.
+      use_dex_cache = true;
     }
   }
   if (runtime->UseJitCompilation()) {
@@ -1705,9 +1695,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
       use_dex_cache = true;
     }
   }
-  if (method_code_in_boot) {
-    *stats_flags |= kFlagDirectCallToBoot | kFlagDirectMethodToBoot;
-  }
+
   if (!use_dex_cache && force_relocations) {
     bool is_in_image;
     if (IsBootImage()) {
@@ -1724,39 +1712,8 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
       use_dex_cache = true;
     }
   }
-  // The method is defined not within this dex file. We need a dex cache slot within the current
-  // dex file or direct pointers.
-  bool must_use_direct_pointers = false;
-  mirror::DexCache* dex_cache = declaring_class->GetDexCache();
-  if (target_method->dex_file == dex_cache->GetDexFile() &&
-    !(runtime->UseJitCompilation() && dex_cache->GetResolvedMethod(
-        method->GetDexMethodIndex(), pointer_size) == nullptr)) {
-    target_method->dex_method_index = method->GetDexMethodIndex();
-  } else {
-    if (no_guarantee_of_dex_cache_entry) {
-      // See if the method is also declared in this dex cache.
-      uint32_t dex_method_idx = method->FindDexMethodIndexInOtherDexFile(
-          *target_method->dex_file, target_method->dex_method_index);
-      if (dex_method_idx != DexFile::kDexNoIndex) {
-        target_method->dex_method_index = dex_method_idx;
-      } else {
-        if (force_relocations && !use_dex_cache) {
-          target_method->dex_method_index = method->GetDexMethodIndex();
-          target_method->dex_file = dex_cache->GetDexFile();
-        }
-        must_use_direct_pointers = true;
-      }
-    }
-  }
-  if (use_dex_cache) {
-    if (must_use_direct_pointers) {
-      // Fail. Test above showed the only safe dispatch was via the dex cache, however, the direct
-      // pointers are required as the dex cache lacks an appropriate entry.
-      VLOG(compiler) << "Dex cache devirtualization failed for: " << PrettyMethod(method);
-    } else {
-      *type = sharp_type;
-    }
-  } else {
+
+  if (!use_dex_cache) {
     bool method_in_image = false;
     const std::vector<gc::space::ImageSpace*> image_spaces = heap->GetBootImageSpaces();
     for (gc::space::ImageSpace* image_space : image_spaces) {
@@ -1772,85 +1729,13 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
       // the method and its code are / will be. We don't sharpen to interpreter bridge since we
       // check IsQuickToInterpreterBridge above.
       CHECK(!method->IsAbstract());
-      *type = sharp_type;
       *direct_method = force_relocations ? -1 : reinterpret_cast<uintptr_t>(method);
       *direct_code = force_relocations ? -1 : compiler_->GetEntryPointOf(method);
-      target_method->dex_file = method->GetDeclaringClass()->GetDexCache()->GetDexFile();
-      target_method->dex_method_index = method->GetDexMethodIndex();
-    } else if (!must_use_direct_pointers) {
+    } else {
       // Set the code and rely on the dex cache for the method.
-      *type = sharp_type;
-      if (force_relocations) {
-        *direct_code = -1;
-        target_method->dex_file = method->GetDeclaringClass()->GetDexCache()->GetDexFile();
-        target_method->dex_method_index = method->GetDexMethodIndex();
-      } else {
-        *direct_code = compiler_->GetEntryPointOf(method);
-      }
-    } else {
-      // Direct pointers were required but none were available.
-      VLOG(compiler) << "Dex cache devirtualization failed for: " << PrettyMethod(method);
+      *direct_code = force_relocations ? -1 : compiler_->GetEntryPointOf(method);
     }
   }
-}
-
-bool CompilerDriver::ComputeInvokeInfo(const DexCompilationUnit* mUnit, const uint32_t dex_pc,
-                                       bool update_stats, bool enable_devirtualization,
-                                       InvokeType* invoke_type, MethodReference* target_method,
-                                       int* vtable_idx, uintptr_t* direct_code,
-                                       uintptr_t* direct_method) {
-  InvokeType orig_invoke_type = *invoke_type;
-  int stats_flags = 0;
-  ScopedObjectAccess soa(Thread::Current());
-  // Try to resolve the method and compiling method's class.
-  StackHandleScope<2> hs(soa.Self());
-  Handle<mirror::DexCache> dex_cache(mUnit->GetDexCache());
-  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
-      soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader())));
-  uint32_t method_idx = target_method->dex_method_index;
-  ArtMethod* resolved_method = ResolveMethod(
-      soa, dex_cache, class_loader, mUnit, method_idx, orig_invoke_type);
-  auto h_referrer_class = hs.NewHandle(resolved_method != nullptr ?
-      ResolveCompilingMethodsClass(soa, dex_cache, class_loader, mUnit) : nullptr);
-  bool result = false;
-  if (resolved_method != nullptr) {
-    *vtable_idx = GetResolvedMethodVTableIndex(resolved_method, orig_invoke_type);
-
-    if (enable_devirtualization && mUnit->GetVerifiedMethod() != nullptr) {
-      const MethodReference* devirt_target = mUnit->GetVerifiedMethod()->GetDevirtTarget(dex_pc);
-
-      stats_flags = IsFastInvoke(
-          soa, dex_cache, class_loader, mUnit, h_referrer_class.Get(), resolved_method,
-          invoke_type, target_method, devirt_target, direct_code, direct_method);
-      result = stats_flags != 0;
-    } else {
-      // Devirtualization not enabled. Inline IsFastInvoke(), dropping the devirtualization parts.
-      if (UNLIKELY(h_referrer_class.Get() == nullptr) ||
-          UNLIKELY(!h_referrer_class->CanAccessResolvedMethod(resolved_method->GetDeclaringClass(),
-                                                            resolved_method, dex_cache.Get(),
-                                                            target_method->dex_method_index)) ||
-          *invoke_type == kSuper) {
-        // Slow path. (Without devirtualization, all super calls go slow path as well.)
-      } else {
-        // Sharpening failed so generate a regular resolved method dispatch.
-        stats_flags = kFlagMethodResolved;
-        GetCodeAndMethodForDirectCall(
-            invoke_type, *invoke_type, false, h_referrer_class.Get(), resolved_method, &stats_flags,
-            target_method, direct_code, direct_method);
-        result = true;
-      }
-    }
-  }
-  if (!result) {
-    // Conservative defaults.
-    *vtable_idx = -1;
-    *direct_code = 0u;
-    *direct_method = 0u;
-  }
-  if (update_stats) {
-    ProcessedInvoke(orig_invoke_type, stats_flags);
-  }
-  return result;
 }
 
 const VerifiedMethod* CompilerDriver::GetVerifiedMethod(const DexFile* dex_file,
