@@ -20,9 +20,11 @@ import filecmp
 import os
 import shlex
 import shutil
+import subprocess
 import sys
 
 from glob import glob
+from subprocess import DEVNULL
 from tempfile import mkdtemp
 
 sys.path.append(os.path.dirname(os.path.dirname(
@@ -34,6 +36,7 @@ from common.common import FatalError
 from common.common import GetJackClassPath
 from common.common import GetEnvVariableOrError
 from common.common import RunCommand
+from common.common import RunCommandForOutput
 from common.common import DeviceTestEnv
 
 # Return codes supported by bisection bug search.
@@ -302,7 +305,8 @@ class TestRunnerArtOptOnTarget(TestRunnerArtOnTarget):
 class JFuzzTester(object):
   """Tester that runs JFuzz many times and report divergences."""
 
-  def  __init__(self, num_tests, device, mode1, mode2):
+  def  __init__(self, num_tests, device, mode1, mode2, jfuzz_args,
+                report_script):
     """Constructor for the tester.
 
     Args:
@@ -310,11 +314,15 @@ class JFuzzTester(object):
       device: string, target device serial number (or None)
       mode1: string, execution mode for first runner
       mode2: string, execution mode for second runner
+      jfuzz_args: list of strings, additional arguments for jfuzz
+      report_script: string, path to script called for each divergence
     """
     self._num_tests = num_tests
     self._device = device
     self._runner1 = GetExecutionModeRunner(device, mode1)
     self._runner2 = GetExecutionModeRunner(device, mode2)
+    self._jfuzz_args = jfuzz_args
+    self._report_script = report_script
     self._save_dir = None
     self._results_dir = None
     self._jfuzz_dir = None
@@ -392,7 +400,8 @@ class JFuzzTester(object):
     Raises:
       FatalError: error when jfuzz fails
     """
-    if RunCommand(['jfuzz'], out='Test.java', err=None) != RetCode.SUCCESS:
+    if (RunCommand(['jfuzz'] + self._jfuzz_args, out='Test.java', err=None)
+          != RetCode.SUCCESS):
       raise FatalError('Unexpected error while running JFuzz')
 
   def CheckForDivergence(self, retc1, retc2):
@@ -442,6 +451,44 @@ class JFuzzTester(object):
     # Maybe run bisection bug search.
     if retc1 in BISECTABLE_RET_CODES and retc2 in BISECTABLE_RET_CODES:
       self.MaybeBisectDivergence(retc1, retc2, is_output_divergence)
+    # Call reporting script.
+    if self._report_script:
+      self.RunReportScript(retc1, retc2, is_output_divergence)
+
+  def RunReportScript(self, retc1, retc2, is_output_divergence):
+    """Runs report script."""
+    try:
+      title = "Divergence between {0} and {1} (found with fuzz testing)".format(
+          self._runner1.description, self._runner2.description)
+      # Prepare divergence comment.
+      jfuzz_cmd_and_version = subprocess.check_output(
+          ['grep', '-o', 'jfuzz.*', 'Test.java'], universal_newlines=True)
+      (jfuzz_cmd_str, jfuzz_ver) = jfuzz_cmd_and_version.split('(')
+      # Strip right parenthesis and new line.
+      jfuzz_ver = jfuzz_ver[:-2]
+      jfuzz_args = ['\'-{0}\''.format(arg)
+                    for arg in jfuzz_cmd_str.strip().split(' -')][1:]
+      wrapped_args = ['--jfuzz_arg={0}'.format(opt) for opt in jfuzz_args]
+      repro_cmd_str = (os.path.basename(__file__) + ' --num_tests 1 ' +
+                       ' '.join(wrapped_args))
+      comment = 'jfuzz {0}\nReproduce test:\n{1}\nReproduce divergence:\n{2}\n'.format(
+          jfuzz_ver, jfuzz_cmd_str, repro_cmd_str)
+      if is_output_divergence:
+        (output, _, _) = RunCommandForOutput(
+            ['diff', self._runner1.output_file, self._runner2.output_file],
+            None, subprocess.PIPE, subprocess.STDOUT)
+        comment += 'Diff:\n' + output
+      else:
+        comment += '{0} vs {1}\n'.format(retc1, retc2)
+      # Prepare report script command.
+      script_cmd = [self._report_script, title, comment]
+      ddir = self.GetCurrentDivergenceDir()
+      bisection_out_files = glob(ddir + '/*_bisection_out.txt')
+      if bisection_out_files:
+        script_cmd += ['--bisection_out', bisection_out_files[0]]
+      subprocess.check_call(script_cmd, stdout=DEVNULL, stderr=DEVNULL)
+    except subprocess.CalledProcessError as err:
+      print('Failed to run report script.\n', err)
 
   def RunBisectionSearch(self, args, expected_retcode, expected_output,
                          runner_id):
@@ -495,12 +542,16 @@ def main():
                       help='execution mode 1 (default: ri)')
   parser.add_argument('--mode2', default='hopt',
                       help='execution mode 2 (default: hopt)')
+  parser.add_argument('--report_script', help='script called for each'
+                                              'divergence')
+  parser.add_argument('--jfuzz_arg', default=[], dest='jfuzz_args',
+                      action='append', help='argument for jfuzz')
   args = parser.parse_args()
   if args.mode1 == args.mode2:
     raise FatalError('Identical execution modes given')
   # Run the JFuzz tester.
-  with JFuzzTester(args.num_tests, args.device,
-                      args.mode1, args.mode2) as fuzzer:
+  with JFuzzTester(args.num_tests, args.device, args.mode1, args.mode2,
+                   args.jfuzz_args, args.report_script) as fuzzer:
     fuzzer.Run()
 
 if __name__ == '__main__':
