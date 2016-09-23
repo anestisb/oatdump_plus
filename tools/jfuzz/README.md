@@ -11,7 +11,7 @@ or using various target architectures. Any difference between the outputs
 JFuzz can be combined with DexFuzz to get multi-layered fuzz testing.
 
 How to run JFuzz
-===================
+================
 
     jfuzz [-s seed] [-d expr-depth] [-l stmt-length]
              [-i if-nest] [-n loop-nest] [-v] [-h]
@@ -39,7 +39,7 @@ a fixed testing class named Test. So a typical test run looks as follows.
     art -classpath classes.dex Test
 
 How to start JFuzz testing
-=============================
+==========================
 
     run_jfuzz_test.py
                           [--num_tests=NUM_TESTS]
