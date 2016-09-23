@@ -239,6 +239,7 @@ art_cc_test_library {
     srcs: [
         "ti-agent/common_load.cc",
         "901-hello-ti-agent/basics.cc",
+        "902-hello-transformation/transform.cc",
     ],
     shared_libs: [
         "libart",
@@ -255,6 +256,7 @@ art_cc_test_library {
     srcs: [
         "ti-agent/common_load.cc",
         "901-hello-ti-agent/basics.cc",
+        "902-hello-transformation/transform.cc",
     ],
     shared_libs: [
         "libartd",
