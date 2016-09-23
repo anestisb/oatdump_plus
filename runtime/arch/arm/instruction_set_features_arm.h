@@ -74,20 +74,19 @@ class ArmInstructionSetFeatures FINAL : public InstructionSetFeatures {
  protected:
   // Parse a vector of the form "div", "lpae" adding these to a new ArmInstructionSetFeatures.
   std::unique_ptr<const InstructionSetFeatures>
-      AddFeaturesFromSplitString(const bool smp, const std::vector<std::string>& features,
+      AddFeaturesFromSplitString(const std::vector<std::string>& features,
                                  std::string* error_msg) const OVERRIDE;
 
  private:
-  ArmInstructionSetFeatures(bool smp, bool has_div, bool has_atomic_ldrd_strd)
-      : InstructionSetFeatures(smp),
+  ArmInstructionSetFeatures(bool has_div, bool has_atomic_ldrd_strd)
+      : InstructionSetFeatures(),
         has_div_(has_div), has_atomic_ldrd_strd_(has_atomic_ldrd_strd) {
   }
 
   // Bitmap positions for encoding features as a bitmap.
   enum {
-    kSmpBitfield = 1,
-    kDivBitfield = 2,
-    kAtomicLdrdStrdBitfield = 4,
+    kDivBitfield = 1 << 0,
+    kAtomicLdrdStrdBitfield = 1 << 1,
   };
 
   const bool has_div_;

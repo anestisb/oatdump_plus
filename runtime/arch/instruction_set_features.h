@@ -76,11 +76,6 @@ class InstructionSetFeatures {
   // Return a string of the form "div,lpae" or "none".
   virtual std::string GetFeatureString() const = 0;
 
-  // Does the instruction set variant require instructions for correctness with SMP?
-  bool IsSmp() const {
-    return smp_;
-  }
-
   // Down cast this ArmInstructionFeatures.
   const ArmInstructionSetFeatures* AsArmInstructionSetFeatures() const;
 
@@ -102,7 +97,7 @@ class InstructionSetFeatures {
   virtual ~InstructionSetFeatures() {}
 
  protected:
-  explicit InstructionSetFeatures(bool smp) : smp_(smp) {}
+  InstructionSetFeatures() {}
 
   // Returns true if variant appears in the array variants.
   static bool FindVariantInArray(const char* const variants[], size_t num_variants,
@@ -110,12 +105,10 @@ class InstructionSetFeatures {
 
   // Add architecture specific features in sub-classes.
   virtual std::unique_ptr<const InstructionSetFeatures>
-      AddFeaturesFromSplitString(bool smp, const std::vector<std::string>& features,
+      AddFeaturesFromSplitString(const std::vector<std::string>& features,
                                  std::string* error_msg) const = 0;
 
  private:
-  const bool smp_;
-
   DISALLOW_COPY_AND_ASSIGN(InstructionSetFeatures);
 };
 std::ostream& operator<<(std::ostream& os, const InstructionSetFeatures& rhs);

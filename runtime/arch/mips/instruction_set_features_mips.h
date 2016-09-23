@@ -80,12 +80,12 @@ class MipsInstructionSetFeatures FINAL : public InstructionSetFeatures {
  protected:
   // Parse a vector of the form "fpu32", "mips2" adding these to a new MipsInstructionSetFeatures.
   std::unique_ptr<const InstructionSetFeatures>
-      AddFeaturesFromSplitString(const bool smp, const std::vector<std::string>& features,
+      AddFeaturesFromSplitString(const std::vector<std::string>& features,
                                  std::string* error_msg) const OVERRIDE;
 
  private:
-  MipsInstructionSetFeatures(bool smp, bool fpu_32bit, bool mips_isa_gte2, bool r6)
-      : InstructionSetFeatures(smp),
+  MipsInstructionSetFeatures(bool fpu_32bit, bool mips_isa_gte2, bool r6)
+      : InstructionSetFeatures(),
         fpu_32bit_(fpu_32bit),
         mips_isa_gte2_(mips_isa_gte2),
         r6_(r6) {
@@ -101,10 +101,9 @@ class MipsInstructionSetFeatures FINAL : public InstructionSetFeatures {
 
   // Bitmap positions for encoding features as a bitmap.
   enum {
-    kSmpBitfield = 1,
-    kFpu32Bitfield = 2,
-    kIsaRevGte2Bitfield = 4,
-    kR6 = 8,
+    kFpu32Bitfield = 1 << 0,
+    kIsaRevGte2Bitfield = 1 << 1,
+    kR6 = 1 << 2,
   };
 
   const bool fpu_32bit_;

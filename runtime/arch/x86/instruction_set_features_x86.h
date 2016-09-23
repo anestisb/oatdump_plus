@@ -69,18 +69,23 @@ class X86InstructionSetFeatures : public InstructionSetFeatures {
  protected:
   // Parse a string of the form "ssse3" adding these to a new InstructionSetFeatures.
   virtual std::unique_ptr<const InstructionSetFeatures>
-      AddFeaturesFromSplitString(const bool smp, const std::vector<std::string>& features,
+      AddFeaturesFromSplitString(const std::vector<std::string>& features,
                                  std::string* error_msg) const OVERRIDE {
-    return AddFeaturesFromSplitString(smp, features, false, error_msg);
+    return AddFeaturesFromSplitString(features, false, error_msg);
   }
 
   std::unique_ptr<const InstructionSetFeatures>
-      AddFeaturesFromSplitString(const bool smp, const std::vector<std::string>& features,
-                                 bool x86_64, std::string* error_msg) const;
+      AddFeaturesFromSplitString(const std::vector<std::string>& features,
+                                 bool x86_64,
+                                 std::string* error_msg) const;
 
-  X86InstructionSetFeatures(bool smp, bool has_SSSE3, bool has_SSE4_1, bool has_SSE4_2,
-                            bool has_AVX, bool has_AVX2, bool has_POPCNT)
-      : InstructionSetFeatures(smp),
+  X86InstructionSetFeatures(bool has_SSSE3,
+                            bool has_SSE4_1,
+                            bool has_SSE4_2,
+                            bool has_AVX,
+                            bool has_AVX2,
+                            bool has_POPCNT)
+      : InstructionSetFeatures(),
         has_SSSE3_(has_SSSE3),
         has_SSE4_1_(has_SSE4_1),
         has_SSE4_2_(has_SSE4_2),
@@ -90,7 +95,6 @@ class X86InstructionSetFeatures : public InstructionSetFeatures {
   }
 
   static X86FeaturesUniquePtr Create(bool x86_64,
-                                     bool smp,
                                      bool has_SSSE3,
                                      bool has_SSE4_1,
                                      bool has_SSE4_2,
@@ -101,13 +105,12 @@ class X86InstructionSetFeatures : public InstructionSetFeatures {
  private:
   // Bitmap positions for encoding features as a bitmap.
   enum {
-    kSmpBitfield = 1,
-    kSsse3Bitfield = 2,
-    kSse4_1Bitfield = 4,
-    kSse4_2Bitfield = 8,
-    kAvxBitfield = 16,
-    kAvx2Bitfield = 32,
-    kPopCntBitfield = 64,
+    kSsse3Bitfield = 1 << 0,
+    kSse4_1Bitfield = 1 << 1,
+    kSse4_2Bitfield = 1 << 2,
+    kAvxBitfield = 1 << 3,
+    kAvx2Bitfield = 1 << 4,
+    kPopCntBitfield = 1 << 5,
   };
 
   const bool has_SSSE3_;   // x86 128bit SIMD - Supplemental SSE.
