@@ -1067,7 +1067,7 @@ int32_t main(int32_t argc, char** argv) {
 
   // Parse options.
   while (1) {
-    int32_t option = getopt(argc, argv, "s:d:l:i:n:h");
+    int32_t option = getopt(argc, argv, "s:d:l:i:n:vh");
     if (option < 0) {
       break;  // done
     }
@@ -1087,12 +1087,15 @@ int32_t main(int32_t argc, char** argv) {
       case 'n':
         loop_nest = strtoul(optarg, nullptr, 0);
         break;
+      case 'v':
+        fprintf(stderr, "jfuzz version %s\n", VERSION);
+        return 0;
       case 'h':
       default:
         fprintf(stderr,
                 "usage: %s [-s seed] "
                 "[-d expr-depth] [-l stmt-length] "
-                "[-i if-nest] [-n loop-nest] [-h]\n",
+                "[-i if-nest] [-n loop-nest] [-v] [-h]\n",
                 argv[0]);
         return 1;
     }
