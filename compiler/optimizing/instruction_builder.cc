@@ -785,8 +785,6 @@ bool HInstructionBuilder::BuildInvoke(const Instruction& instruction,
     number_of_arguments++;
   }
 
-  MethodReference target_method(dex_file_, method_idx);
-
   // Special handling for string init.
   int32_t string_init_offset = 0;
   bool is_string_init = compiler_driver_->IsStringInit(method_idx,
@@ -800,16 +798,17 @@ bool HInstructionBuilder::BuildInvoke(const Instruction& instruction,
         dchecked_integral_cast<uint64_t>(string_init_offset),
         0U
     };
+    MethodReference target_method(dex_file_, method_idx);
     HInvoke* invoke = new (arena_) HInvokeStaticOrDirect(
         arena_,
         number_of_arguments - 1,
         Primitive::kPrimNot /*return_type */,
         dex_pc,
         method_idx,
-        target_method,
+        nullptr,
         dispatch_info,
         invoke_type,
-        kStatic /* optimized_invoke_type */,
+        target_method,
         HInvokeStaticOrDirect::ClinitCheckRequirement::kImplicit);
     return HandleStringInit(invoke,
                             number_of_vreg_arguments,
@@ -853,10 +852,9 @@ bool HInstructionBuilder::BuildInvoke(const Instruction& instruction,
           dex_pc, resolved_method, method_idx, &clinit_check_requirement);
     } else if (invoke_type == kSuper) {
       if (IsSameDexFile(*resolved_method->GetDexFile(), *dex_compilation_unit_->GetDexFile())) {
-        // Update the target method to the one resolved. Note that this may be a no-op if
+        // Update the method index to the one resolved. Note that this may be a no-op if
         // we resolved to the method referenced by the instruction.
         method_idx = resolved_method->GetDexMethodIndex();
-        target_method = MethodReference(dex_file_, method_idx);
       }
     }
 
@@ -866,15 +864,17 @@ bool HInstructionBuilder::BuildInvoke(const Instruction& instruction,
         0u,
         0U
     };
+    MethodReference target_method(resolved_method->GetDexFile(),
+                                  resolved_method->GetDexMethodIndex());
     invoke = new (arena_) HInvokeStaticOrDirect(arena_,
                                                 number_of_arguments,
                                                 return_type,
                                                 dex_pc,
                                                 method_idx,
-                                                target_method,
+                                                resolved_method,
                                                 dispatch_info,
                                                 invoke_type,
-                                                invoke_type,
+                                                target_method,
                                                 clinit_check_requirement);
   } else if (invoke_type == kVirtual) {
     ScopedObjectAccess soa(Thread::Current());  // Needed for the method index
@@ -883,15 +883,17 @@ bool HInstructionBuilder::BuildInvoke(const Instruction& instruction,
                                          return_type,
                                          dex_pc,
                                          method_idx,
+                                         resolved_method,
                                          resolved_method->GetMethodIndex());
   } else {
     DCHECK_EQ(invoke_type, kInterface);
-    ScopedObjectAccess soa(Thread::Current());  // Needed for the method index
+    ScopedObjectAccess soa(Thread::Current());  // Needed for the IMT index.
     invoke = new (arena_) HInvokeInterface(arena_,
                                            number_of_arguments,
                                            return_type,
                                            dex_pc,
                                            method_idx,
+                                           resolved_method,
                                            resolved_method->GetImtIndex());
   }
 
@@ -1103,7 +1105,7 @@ bool HInstructionBuilder::HandleInvoke(HInvoke* invoke,
 
   size_t start_index = 0;
   size_t argument_index = 0;
-  if (invoke->GetOriginalInvokeType() != InvokeType::kStatic) {  // Instance call.
+  if (invoke->GetInvokeType() != InvokeType::kStatic) {  // Instance call.
     uint32_t obj_reg = is_range ? register_index : args[0];
     HInstruction* arg = is_unresolved
         ? LoadLocal(obj_reg, Primitive::kPrimNot)
