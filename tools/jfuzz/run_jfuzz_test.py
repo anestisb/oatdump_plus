@@ -306,7 +306,7 @@ class JFuzzTester(object):
   """Tester that runs JFuzz many times and report divergences."""
 
   def  __init__(self, num_tests, device, mode1, mode2, jfuzz_args,
-                report_script):
+                report_script, true_divergence_only):
     """Constructor for the tester.
 
     Args:
@@ -316,6 +316,7 @@ class JFuzzTester(object):
       mode2: string, execution mode for second runner
       jfuzz_args: list of strings, additional arguments for jfuzz
       report_script: string, path to script called for each divergence
+      true_divergence_only: boolean, if True don't bisect timeout divergences
     """
     self._num_tests = num_tests
     self._device = device
@@ -323,6 +324,7 @@ class JFuzzTester(object):
     self._runner2 = GetExecutionModeRunner(device, mode2)
     self._jfuzz_args = jfuzz_args
     self._report_script = report_script
+    self._true_divergence_only = true_divergence_only
     self._save_dir = None
     self._results_dir = None
     self._jfuzz_dir = None
@@ -449,7 +451,8 @@ class JFuzzTester(object):
     for f in glob('*.txt') + ['Test.java']:
       shutil.copy(f, ddir)
     # Maybe run bisection bug search.
-    if retc1 in BISECTABLE_RET_CODES and retc2 in BISECTABLE_RET_CODES:
+    if (retc1 in BISECTABLE_RET_CODES and retc2 in BISECTABLE_RET_CODES and
+        not (self._true_divergence_only and RetCode.TIMEOUT in (retc1, retc2))):
       self.MaybeBisectDivergence(retc1, retc2, is_output_divergence)
     # Call reporting script.
     if self._report_script:
@@ -546,12 +549,15 @@ def main():
                                               'divergence')
   parser.add_argument('--jfuzz_arg', default=[], dest='jfuzz_args',
                       action='append', help='argument for jfuzz')
+  parser.add_argument('--true_divergence', default=False, action='store_true',
+                      help='don\'t bisect timeout divergences')
   args = parser.parse_args()
   if args.mode1 == args.mode2:
     raise FatalError('Identical execution modes given')
   # Run the JFuzz tester.
   with JFuzzTester(args.num_tests, args.device, args.mode1, args.mode2,
-                   args.jfuzz_args, args.report_script) as fuzzer:
+                   args.jfuzz_args, args.report_script,
+                   args.true_divergence) as fuzzer:
     fuzzer.Run()
 
 if __name__ == '__main__':
