@@ -23,6 +23,7 @@
 #include <cstddef>
 #include <memory>
 #include <set>
+#include <stack>
 #include <string>
 #include <ostream>
 
@@ -144,6 +145,8 @@ class ImageWriter FINAL {
   void UpdateOatFileHeader(size_t oat_index, const OatHeader& oat_header);
 
  private:
+  using WorkStack = std::stack<std::pair<mirror::Object*, size_t>>;
+
   bool AllocMemory();
 
   // Mark the objects defined in this space in the given live bitmap.
@@ -321,7 +324,10 @@ class ImageWriter FINAL {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   void PrepareDexCacheArraySlots() REQUIRES_SHARED(Locks::mutator_lock_);
-  void AssignImageBinSlot(mirror::Object* object) REQUIRES_SHARED(Locks::mutator_lock_);
+  void AssignImageBinSlot(mirror::Object* object, size_t oat_index)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  mirror::Object* TryAssignBinSlot(WorkStack& work_stack, mirror::Object* obj, size_t oat_index)
+      REQUIRES_SHARED(Locks::mutator_lock_);
   void SetImageBinSlot(mirror::Object* object, BinSlot bin_slot)
       REQUIRES_SHARED(Locks::mutator_lock_);
   bool IsImageBinSlotAssigned(mirror::Object* object) const
@@ -378,6 +384,8 @@ class ImageWriter FINAL {
   // Lays out where the image objects will be at runtime.
   void CalculateNewObjectOffsets()
       REQUIRES_SHARED(Locks::mutator_lock_);
+  void ProcessWorkStack(WorkStack* work_stack)
+      REQUIRES_SHARED(Locks::mutator_lock_);
   void CreateHeader(size_t oat_index)
       REQUIRES_SHARED(Locks::mutator_lock_);
   mirror::ObjectArray<mirror::Object>* CreateImageRoots(size_t oat_index) const
@@ -387,11 +395,9 @@ class ImageWriter FINAL {
   void UnbinObjectsIntoOffset(mirror::Object* obj)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void WalkInstanceFields(mirror::Object* obj, mirror::Class* klass)
+  static void EnsureBinSlotAssignedCallback(mirror::Object* obj, void* arg)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  void WalkFieldsInOrder(mirror::Object* obj)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  static void WalkFieldsCallback(mirror::Object* obj, void* arg)
+  static void DeflateMonitorCallback(mirror::Object* obj, void* arg)
       REQUIRES_SHARED(Locks::mutator_lock_);
   static void UnbinObjectsIntoOffsetCallback(mirror::Object* obj, void* arg)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -461,6 +467,10 @@ class ImageWriter FINAL {
                                   std::unordered_set<mirror::Class*>* visited)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  bool IsMultiImage() const {
+    return image_infos_.size() > 1;
+  }
+
   static Bin BinTypeForNativeRelocationType(NativeObjectRelocationType type);
 
   uintptr_t NativeOffsetInImage(void* obj) REQUIRES_SHARED(Locks::mutator_lock_);
@@ -519,6 +529,9 @@ class ImageWriter FINAL {
   // forwarding addresses as well as copying over hash codes.
   std::unordered_map<mirror::Object*, uint32_t> saved_hashcode_map_;
 
+  // Oat index map for objects.
+  std::unordered_map<mirror::Object*, uint32_t> oat_index_map_;
+
   // Boolean flags.
   const bool compile_pic_;
   const bool compile_app_image_;
@@ -573,8 +586,10 @@ class ImageWriter FINAL {
   friend class FixupClassVisitor;
   friend class FixupRootVisitor;
   friend class FixupVisitor;
+  class GetRootsVisitor;
   friend class NativeLocationVisitor;
   friend class NonImageClassesVisitor;
+  class VisitReferencesVisitor;
   DISALLOW_COPY_AND_ASSIGN(ImageWriter);
 };
 
