@@ -91,7 +91,7 @@ static bool CheckStack(Backtrace* bt, const std::vector<std::string>& seq) {
 static void MoreErrorInfo(pid_t pid, bool sig_quit_on_fail) {
   printf("Secondary pid is %d\n", pid);
 
-  PrintFileToLog(StringPrintf("/proc/%d/maps", pid), ERROR);
+  PrintFileToLog(StringPrintf("/proc/%d/maps", pid), ::android::base::ERROR);
 
   if (sig_quit_on_fail) {
     int res = kill(pid, SIGQUIT);

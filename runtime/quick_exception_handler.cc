@@ -145,7 +145,7 @@ void QuickExceptionHandler::FindCatch(mirror::Throwable* exception) {
   if (kDebugExceptionDelivery) {
     mirror::String* msg = exception->GetDetailMessage();
     std::string str_msg(msg != nullptr ? msg->ToModifiedUtf8() : "");
-    self_->DumpStack(LOG(INFO) << "Delivering exception: " << PrettyTypeOf(exception)
+    self_->DumpStack(LOG_STREAM(INFO) << "Delivering exception: " << PrettyTypeOf(exception)
                      << ": " << str_msg << "\n");
   }
   StackHandleScope<1> hs(self_);
@@ -218,7 +218,7 @@ void QuickExceptionHandler::SetCatchEnvironmentForOptimizedHandler(StackVisitor*
   DCHECK(handler_method_ != nullptr && handler_method_header_->IsOptimized());
 
   if (kDebugExceptionDelivery) {
-    self_->DumpStack(LOG(INFO) << "Setting catch phis: ");
+    self_->DumpStack(LOG_STREAM(INFO) << "Setting catch phis: ");
   }
 
   const size_t number_of_vregs = handler_method_->GetCodeItem()->registers_size_;
@@ -520,7 +520,7 @@ void QuickExceptionHandler::PrepareForLongJumpToInvokeStubOrInterpreterBridge() 
 void QuickExceptionHandler::DeoptimizeStack() {
   DCHECK(is_deoptimization_);
   if (kDebugExceptionDelivery) {
-    self_->DumpStack(LOG(INFO) << "Deoptimizing: ");
+    self_->DumpStack(LOG_STREAM(INFO) << "Deoptimizing: ");
   }
 
   DeoptimizeStackVisitor visitor(self_, context_, this, false);

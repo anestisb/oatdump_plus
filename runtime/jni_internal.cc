@@ -100,8 +100,9 @@ static void ThrowNoSuchMethodError(ScopedObjectAccess& soa, mirror::Class* c,
 static void ReportInvalidJNINativeMethod(const ScopedObjectAccess& soa, mirror::Class* c,
                                          const char* kind, jint idx, bool return_errors)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  LOG(return_errors ? ERROR : FATAL) << "Failed to register native method in "
-      << PrettyDescriptor(c) << " in " << c->GetDexCache()->GetLocation()->ToModifiedUtf8()
+  LOG(return_errors ? ::android::base::ERROR : ::android::base::FATAL)
+      << "Failed to register native method in " << PrettyDescriptor(c)
+      << " in " << c->GetDexCache()->GetLocation()->ToModifiedUtf8()
       << ": " << kind << " is null at index " << idx;
   soa.Self()->ThrowNewExceptionF("Ljava/lang/NoSuchMethodError;",
                                  "%s is null at index %d", kind, idx);
@@ -2226,16 +2227,20 @@ class JNI {
       }
 
       if (m == nullptr) {
-        LOG(return_errors ? ERROR : INTERNAL_FATAL) << "Failed to register native method "
+        c->DumpClass(
+            LOG_STREAM(return_errors
+                           ? ::android::base::ERROR
+                           : ::android::base::FATAL_WITHOUT_ABORT),
+            mirror::Class::kDumpClassFullDetail);
+        LOG(return_errors ? ::android::base::ERROR : ::android::base::FATAL)
+            << "Failed to register native method "
             << PrettyDescriptor(c) << "." << name << sig << " in "
             << c->GetDexCache()->GetLocation()->ToModifiedUtf8();
-        // Safe to pass in LOG(FATAL) since the log object aborts in destructor and only goes
-        // out of scope after the DumpClass is done executing.
-        c->DumpClass(LOG(return_errors ? ERROR : FATAL), mirror::Class::kDumpClassFullDetail);
         ThrowNoSuchMethodError(soa, c, name, sig, "static or non-static");
         return JNI_ERR;
       } else if (!m->IsNative()) {
-        LOG(return_errors ? ERROR : FATAL) << "Failed to register non-native method "
+        LOG(return_errors ? ::android::base::ERROR : ::android::base::FATAL)
+            << "Failed to register non-native method "
             << PrettyDescriptor(c) << "." << name << sig
             << " as native";
         ThrowNoSuchMethodError(soa, c, name, sig, "native");
@@ -2478,7 +2483,7 @@ class JNI {
       } else if (kWarnJniAbort && memcmp(array_data, elements, bytes) != 0) {
         // Warn if we have JNI_ABORT and the arrays don't match since this is usually an error.
         LOG(WARNING) << "Possible incorrect JNI_ABORT in Release*ArrayElements";
-        soa.Self()->DumpJavaStack(LOG(WARNING));
+        soa.Self()->DumpJavaStack(LOG_STREAM(WARNING));
       }
     }
     if (mode != JNI_COMMIT) {
@@ -3042,7 +3047,7 @@ std::ostream& operator<<(std::ostream& os, const jobjectRefType& rhs) {
     os << "JNIWeakGlobalRefType";
     return os;
   default:
-    LOG(::art::FATAL) << "jobjectRefType[" << static_cast<int>(rhs) << "]";
+    LOG(FATAL) << "jobjectRefType[" << static_cast<int>(rhs) << "]";
     UNREACHABLE();
   }
 }

@@ -37,6 +37,9 @@ static void art_heap_usage_error(const char* function, void* p);
 #pragma GCC diagnostic ignored "-Wempty-body"
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 #include "../../../external/dlmalloc/malloc.c"
+// Note: malloc.c uses a DEBUG define to drive debug code. This interferes with the DEBUG severity
+//       of libbase, so undefine it now.
+#undef DEBUG
 #pragma GCC diagnostic pop
 
 static void* art_heap_morecore(void* m, intptr_t increment) {
@@ -44,11 +47,11 @@ static void* art_heap_morecore(void* m, intptr_t increment) {
 }
 
 static void art_heap_corruption(const char* function) {
-  LOG(::art::FATAL) << "Corrupt heap detected in: " << function;
+  LOG(FATAL) << "Corrupt heap detected in: " << function;
 }
 
 static void art_heap_usage_error(const char* function, void* p) {
-  LOG(::art::FATAL) << "Incorrect use of function '" << function << "' argument " << p
+  LOG(FATAL) << "Incorrect use of function '" << function << "' argument " << p
       << " not expected";
 }
 
@@ -69,7 +72,7 @@ extern "C" void DlmallocMadviseCallback(void* start, void* end, size_t used_byte
     int rc = madvise(start, length, MADV_DONTNEED);
     if (UNLIKELY(rc != 0)) {
       errno = rc;
-      PLOG(::art::FATAL) << "madvise failed during heap trimming";
+      PLOG(FATAL) << "madvise failed during heap trimming";
     }
     size_t* reclaimed = reinterpret_cast<size_t*>(arg);
     *reclaimed += length;

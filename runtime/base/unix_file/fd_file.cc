@@ -64,16 +64,16 @@ FdFile::FdFile(const std::string& path, int flags, mode_t mode, bool check_usage
 void FdFile::Destroy() {
   if (kCheckSafeUsage && (guard_state_ < GuardState::kNoCheck)) {
     if (guard_state_ < GuardState::kFlushed) {
-      LOG(::art::ERROR) << "File " << file_path_ << " wasn't explicitly flushed before destruction.";
+      LOG(ERROR) << "File " << file_path_ << " wasn't explicitly flushed before destruction.";
     }
     if (guard_state_ < GuardState::kClosed) {
-      LOG(::art::ERROR) << "File " << file_path_ << " wasn't explicitly closed before destruction.";
+      LOG(ERROR) << "File " << file_path_ << " wasn't explicitly closed before destruction.";
     }
     CHECK_GE(guard_state_, GuardState::kClosed);
   }
   if (auto_close_ && fd_ != -1) {
     if (Close() != 0) {
-      PLOG(::art::WARNING) << "Failed to close file " << file_path_;
+      PLOG(WARNING) << "Failed to close file " << file_path_;
     }
   }
 }
@@ -104,7 +104,7 @@ void FdFile::moveTo(GuardState target, GuardState warn_threshold, const char* wa
   if (kCheckSafeUsage) {
     if (guard_state_ < GuardState::kNoCheck) {
       if (warn_threshold < GuardState::kNoCheck && guard_state_ >= warn_threshold) {
-        LOG(::art::ERROR) << warning;
+        LOG(ERROR) << warning;
       }
       guard_state_ = target;
     }
@@ -117,7 +117,7 @@ void FdFile::moveUp(GuardState target, const char* warning) {
       if (guard_state_ < target) {
         guard_state_ = target;
       } else if (target < guard_state_) {
-        LOG(::art::ERROR) << warning;
+        LOG(ERROR) << warning;
       }
     }
   }
@@ -350,13 +350,13 @@ int FdFile::FlushCloseOrErase() {
   DCHECK(!read_only_mode_);
   int flush_result = TEMP_FAILURE_RETRY(Flush());
   if (flush_result != 0) {
-    LOG(::art::ERROR) << "CloseOrErase failed while flushing a file.";
+    LOG(ERROR) << "CloseOrErase failed while flushing a file.";
     Erase();
     return flush_result;
   }
   int close_result = TEMP_FAILURE_RETRY(Close());
   if (close_result != 0) {
-    LOG(::art::ERROR) << "CloseOrErase failed while closing a file.";
+    LOG(ERROR) << "CloseOrErase failed while closing a file.";
     Erase();
     return close_result;
   }
@@ -367,11 +367,11 @@ int FdFile::FlushClose() {
   DCHECK(!read_only_mode_);
   int flush_result = TEMP_FAILURE_RETRY(Flush());
   if (flush_result != 0) {
-    LOG(::art::ERROR) << "FlushClose failed while flushing a file.";
+    LOG(ERROR) << "FlushClose failed while flushing a file.";
   }
   int close_result = TEMP_FAILURE_RETRY(Close());
   if (close_result != 0) {
-    LOG(::art::ERROR) << "FlushClose failed while closing a file.";
+    LOG(ERROR) << "FlushClose failed while closing a file.";
   }
   return (flush_result != 0) ? flush_result : close_result;
 }
@@ -383,7 +383,7 @@ void FdFile::MarkUnchecked() {
 bool FdFile::ClearContent() {
   DCHECK(!read_only_mode_);
   if (SetLength(0) < 0) {
-    PLOG(art::ERROR) << "Failed to reset the length";
+    PLOG(ERROR) << "Failed to reset the length";
     return false;
   }
   return ResetOffset();
@@ -393,7 +393,7 @@ bool FdFile::ResetOffset() {
   DCHECK(!read_only_mode_);
   off_t rc =  TEMP_FAILURE_RETRY(lseek(fd_, 0, SEEK_SET));
   if (rc == static_cast<off_t>(-1)) {
-    PLOG(art::ERROR) << "Failed to reset the offset";
+    PLOG(ERROR) << "Failed to reset the offset";
     return false;
   }
   return true;

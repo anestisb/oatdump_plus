@@ -15,6 +15,6 @@
 # limitations under the License.
 
 # Strip error log messages.
-sed -e '/^art E.*\] /d' "$2" > "$2.tmp"
+sed -e '/^dalvikvm\(\|32\|64\) E.*\] /d' "$2" > "$2.tmp"
 
 diff --strip-trailing-cr -q "$1" "$2.tmp" >/dev/null

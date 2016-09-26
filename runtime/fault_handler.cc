@@ -438,7 +438,7 @@ bool JavaStackTraceHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* siginfo,
     // above.
     abort();
 #endif
-    self->DumpJavaStack(LOG(ERROR));
+    self->DumpJavaStack(LOG_STREAM(ERROR));
   }
 
   return false;  // Return false since we want to propagate the fault to the main signal handler.
