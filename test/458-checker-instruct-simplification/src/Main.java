@@ -1202,6 +1202,10 @@ public class Main {
   /// CHECK-DAG:     <<NotArg:z\d+>>    BooleanNot [<<Arg>>]
   /// CHECK-DAG:                        Return [<<Arg>>]
 
+  /// CHECK-START: boolean Main.$noinline$NotNotBool(boolean) dead_code_elimination$final (after)
+  /// CHECK-DAG:     <<Arg:z\d+>>       ParameterValue
+  /// CHECK-DAG:                        Return [<<Arg>>]
+
   public static boolean NegateValue(boolean arg) {
     return !arg;
   }
