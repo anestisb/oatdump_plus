@@ -1815,7 +1815,20 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
     case Instruction::MOVE_OBJECT:
     case Instruction::MOVE_OBJECT_16:
     case Instruction::MOVE_OBJECT_FROM16: {
-      HInstruction* value = LoadLocal(instruction.VRegB(), Primitive::kPrimNot);
+      // The verifier has no notion of a null type, so a move-object of constant 0
+      // will lead to the same constant 0 in the destination register. To mimic
+      // this behavior, we just pretend we haven't seen a type change (int to reference)
+      // for the 0 constant and phis. We rely on our type propagation to eventually get the
+      // types correct.
+      uint32_t reg_number = instruction.VRegB();
+      HInstruction* value = (*current_locals_)[reg_number];
+      if (value->IsIntConstant()) {
+        DCHECK_EQ(value->AsIntConstant()->GetValue(), 0);
+      } else if (value->IsPhi()) {
+        DCHECK(value->GetType() == Primitive::kPrimInt || value->GetType() == Primitive::kPrimNot);
+      } else {
+        value = LoadLocal(reg_number, Primitive::kPrimNot);
+      }
       UpdateLocal(instruction.VRegA(), value);
       break;
     }
