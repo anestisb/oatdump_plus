@@ -288,6 +288,7 @@ art_cc_library {
     shared_libs: [
         "libartd-compiler",
         "libart-runtime-gtest",
+        "libbase",
     ],
 }
 

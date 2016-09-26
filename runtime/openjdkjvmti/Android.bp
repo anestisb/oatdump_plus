@@ -20,7 +20,10 @@ cc_defaults {
     srcs: ["OpenjdkJvmTi.cc",
            "transform.cc"],
     include_dirs: ["art/runtime"],
-    shared_libs: ["libnativehelper"],
+    shared_libs: [
+        "libbase",
+        "libnativehelper",
+    ],
 }
 
 art_cc_library {

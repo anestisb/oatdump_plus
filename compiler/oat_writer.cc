@@ -966,7 +966,7 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
           nullptr,
           invoke_type);
       if (method == nullptr) {
-        LOG(INTERNAL_FATAL) << "Unexpected failure to resolve a method: "
+        LOG(FATAL_WITHOUT_ABORT) << "Unexpected failure to resolve a method: "
             << PrettyMethod(it.GetMemberIndex(), *dex_file_, true);
         soa.Self()->AssertPendingException();
         mirror::Throwable* exc = soa.Self()->GetException();

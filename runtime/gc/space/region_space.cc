@@ -38,7 +38,7 @@ RegionSpace* RegionSpace::Create(const std::string& name, size_t capacity,
   if (mem_map.get() == nullptr) {
     LOG(ERROR) << "Failed to allocate pages for alloc space (" << name << ") of size "
         << PrettySize(capacity) << " with message " << error_msg;
-    MemMap::DumpMaps(LOG(ERROR));
+    MemMap::DumpMaps(LOG_STREAM(ERROR));
     return nullptr;
   }
   return new RegionSpace(name, mem_map.release());

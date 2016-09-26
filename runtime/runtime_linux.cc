@@ -309,7 +309,10 @@ static bool IsTimeoutSignal(int signal_number) {
 void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_context) {
   static bool handlingUnexpectedSignal = false;
   if (handlingUnexpectedSignal) {
-    LogMessage::LogLine(__FILE__, __LINE__, INTERNAL_FATAL, "HandleUnexpectedSignal reentered\n");
+    LogHelper::LogLineLowStack(__FILE__,
+                               __LINE__,
+                               ::android::base::FATAL_WITHOUT_ABORT,
+                               "HandleUnexpectedSignal reentered\n");
     if (IsTimeoutSignal(signal_number)) {
       // Ignore a recursive timeout.
       return;
@@ -334,7 +337,7 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
   UContext thread_context(raw_context);
   Backtrace thread_backtrace(raw_context);
 
-  LOG(INTERNAL_FATAL) << "*** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***\n"
+  LOG(FATAL_WITHOUT_ABORT) << "*** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***\n"
                       << StringPrintf("Fatal signal %d (%s), code %d (%s)",
                                       signal_number, GetSignalName(signal_number),
                                       info->si_code,
@@ -346,7 +349,7 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
                       << "Registers:\n" << Dumpable<UContext>(thread_context) << "\n"
                       << "Backtrace:\n" << Dumpable<Backtrace>(thread_backtrace);
   if (kIsDebugBuild && signal_number == SIGSEGV) {
-    PrintFileToLog("/proc/self/maps", LogSeverity::INTERNAL_FATAL);
+    PrintFileToLog("/proc/self/maps", LogSeverity::FATAL_WITHOUT_ABORT);
   }
   Runtime* runtime = Runtime::Current();
   if (runtime != nullptr) {
@@ -354,17 +357,17 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
       // Special timeout signal. Try to dump all threads.
       // Note: Do not use DumpForSigQuit, as that might disable native unwind, but the native parts
       //       are of value here.
-      runtime->GetThreadList()->Dump(LOG(INTERNAL_FATAL), kDumpNativeStackOnTimeout);
+      runtime->GetThreadList()->Dump(LOG_STREAM(FATAL_WITHOUT_ABORT), kDumpNativeStackOnTimeout);
     }
     gc::Heap* heap = runtime->GetHeap();
-    LOG(INTERNAL_FATAL) << "Fault message: " << runtime->GetFaultMessage();
+    LOG(FATAL_WITHOUT_ABORT) << "Fault message: " << runtime->GetFaultMessage();
     if (kDumpHeapObjectOnSigsevg && heap != nullptr && info != nullptr) {
-      LOG(INTERNAL_FATAL) << "Dump heap object at fault address: ";
-      heap->DumpObject(LOG(INTERNAL_FATAL), reinterpret_cast<mirror::Object*>(info->si_addr));
+      LOG(FATAL_WITHOUT_ABORT) << "Dump heap object at fault address: ";
+      heap->DumpObject(LOG_STREAM(FATAL_WITHOUT_ABORT), reinterpret_cast<mirror::Object*>(info->si_addr));
     }
   }
   if (getenv("debug_db_uid") != nullptr || getenv("art_wait_for_gdb_on_crash") != nullptr) {
-    LOG(INTERNAL_FATAL) << "********************************************************\n"
+    LOG(FATAL_WITHOUT_ABORT) << "********************************************************\n"
                         << "* Process " << getpid() << " thread " << tid << " \"" << thread_name
                         << "\""
                         << " has been suspended while crashing.\n"

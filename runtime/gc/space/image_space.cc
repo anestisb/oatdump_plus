@@ -728,7 +728,7 @@ class ImageSpaceLoader {
 
     VLOG(image) << "ImageSpace::Init exiting " << *space.get();
     if (VLOG_IS_ON(image)) {
-      logger.Dump(LOG(INFO));
+      logger.Dump(LOG_STREAM(INFO));
     }
     return space;
   }
@@ -1298,7 +1298,7 @@ class ImageSpaceLoader {
       }
     }
     if (VLOG_IS_ON(image)) {
-      logger.Dump(LOG(INFO));
+      logger.Dump(LOG_STREAM(INFO));
     }
     return true;
   }

@@ -296,7 +296,7 @@ class SemiSpace::VerifyNoFromSpaceReferencesVisitor {
       REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE {
     mirror::Object* ref = obj->GetFieldObject<mirror::Object>(offset);
     if (from_space_->HasAddress(ref)) {
-      Runtime::Current()->GetHeap()->DumpObject(LOG(INFO), obj);
+      Runtime::Current()->GetHeap()->DumpObject(LOG_STREAM(INFO), obj);
       LOG(FATAL) << ref << " found in from space";
     }
   }

@@ -450,7 +450,11 @@ class WatchDog {
     //       it's rather easy to hang in unwinding.
     //       LogLine also avoids ART logging lock issues, as it's really only a wrapper around
     //       logcat logging or stderr output.
-    LogMessage::LogLine(__FILE__, __LINE__, LogSeverity::FATAL, message.c_str());
+    android::base::LogMessage::LogLine(__FILE__,
+                                       __LINE__,
+                                       android::base::LogId::DEFAULT,
+                                       LogSeverity::FATAL,
+                                       message.c_str());
     exit(1);
   }
 

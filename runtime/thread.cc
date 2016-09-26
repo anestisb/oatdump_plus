@@ -609,7 +609,7 @@ void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_siz
     }
 
     VLOG(threads) << "Creating native thread for " << thread_name;
-    self->Dump(LOG(INFO));
+    self->Dump(LOG_STREAM(INFO));
   }
 
   Runtime* runtime = Runtime::Current();
@@ -804,7 +804,7 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_g
       VLOG(threads) << "Attaching unnamed thread.";
     }
     ScopedObjectAccess soa(self);
-    self->Dump(LOG(INFO));
+    self->Dump(LOG_STREAM(INFO));
   }
 
   {
@@ -911,8 +911,10 @@ bool Thread::InitStackHwm() {
     + 4 * KB;
   if (read_stack_size <= min_stack) {
     // Note, as we know the stack is small, avoid operations that could use a lot of stack.
-    LogMessage::LogLineLowStack(__PRETTY_FUNCTION__, __LINE__, ERROR,
-                                "Attempt to attach a thread with a too-small stack");
+    LogHelper::LogLineLowStack(__PRETTY_FUNCTION__,
+                               __LINE__,
+                               ::android::base::ERROR,
+                               "Attempt to attach a thread with a too-small stack");
     return false;
   }
 
@@ -2382,7 +2384,7 @@ void Thread::ThrowOutOfMemoryError(const char* msg) {
     ThrowNewException("Ljava/lang/OutOfMemoryError;", msg);
     tls32_.throwing_OutOfMemoryError = false;
   } else {
-    Dump(LOG(WARNING));  // The pre-allocated OOME has no stack, so help out and log one.
+    Dump(LOG_STREAM(WARNING));  // The pre-allocated OOME has no stack, so help out and log one.
     SetException(Runtime::Current()->GetPreAllocatedOutOfMemoryError());
   }
 }
@@ -2775,15 +2777,15 @@ class ReferenceMapVisitor : public StackVisitor {
           bool failed = false;
           if (!space->GetLiveBitmap()->Test(klass)) {
             failed = true;
-            LOG(INTERNAL_FATAL) << "Unmarked object in image " << *space;
+            LOG(FATAL_WITHOUT_ABORT) << "Unmarked object in image " << *space;
           } else if (!heap->GetLiveBitmap()->Test(klass)) {
             failed = true;
-            LOG(INTERNAL_FATAL) << "Unmarked object in image through live bitmap " << *space;
+            LOG(FATAL_WITHOUT_ABORT) << "Unmarked object in image through live bitmap " << *space;
           }
           if (failed) {
-            GetThread()->Dump(LOG(INTERNAL_FATAL));
-            space->AsImageSpace()->DumpSections(LOG(INTERNAL_FATAL));
-            LOG(INTERNAL_FATAL) << "Method@" << method->GetDexMethodIndex() << ":" << method
+            GetThread()->Dump(LOG_STREAM(FATAL_WITHOUT_ABORT));
+            space->AsImageSpace()->DumpSections(LOG_STREAM(FATAL_WITHOUT_ABORT));
+            LOG(FATAL_WITHOUT_ABORT) << "Method@" << method->GetDexMethodIndex() << ":" << method
                                 << " klass@" << klass;
             // Pretty info last in case it crashes.
             LOG(FATAL) << "Method " << PrettyMethod(method) << " klass " << PrettyClass(klass);
@@ -2838,7 +2840,7 @@ class ReferenceMapVisitor : public StackVisitor {
           if (kIsDebugBuild && ref_addr == nullptr) {
             std::string thread_name;
             GetThread()->GetThreadName(thread_name);
-            LOG(INTERNAL_FATAL) << "On thread " << thread_name;
+            LOG(FATAL_WITHOUT_ABORT) << "On thread " << thread_name;
             DescribeStack(GetThread());
             LOG(FATAL) << "Found an unsaved callee-save register " << i << " (null GPRAddress) "
                        << "set in register_mask=" << register_mask << " at " << DescribeLocation();
@@ -2953,7 +2955,7 @@ void Thread::SetStackEndForStackOverflow() {
     // However, we seem to have already extended to use the full stack.
     LOG(ERROR) << "Need to increase kStackOverflowReservedBytes (currently "
                << GetStackOverflowReservedBytes(kRuntimeISA) << ")?";
-    DumpStack(LOG(ERROR));
+    DumpStack(LOG_STREAM(ERROR));
     LOG(FATAL) << "Recursive stack overflow.";
   }
 

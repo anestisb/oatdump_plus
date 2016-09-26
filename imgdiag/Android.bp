@@ -26,7 +26,10 @@ cc_defaults {
     // that the image it's analyzing be the same ISA as the runtime ISA.
     compile_multilib: "both",
 
-    shared_libs: ["libbacktrace"],
+    shared_libs: [
+        "libbacktrace",
+        "libbase",
+    ],
     target: {
         android: {
             shared_libs: ["libcutils"],

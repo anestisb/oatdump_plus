@@ -147,8 +147,8 @@ void Class::SetDexCache(DexCache* new_dex_cache) {
 
 void Class::SetClassSize(uint32_t new_class_size) {
   if (kIsDebugBuild && new_class_size < GetClassSize()) {
-    DumpClass(LOG(INTERNAL_FATAL), kDumpClassFullDetail);
-    LOG(INTERNAL_FATAL) << new_class_size << " vs " << GetClassSize();
+    DumpClass(LOG_STREAM(FATAL_WITHOUT_ABORT), kDumpClassFullDetail);
+    LOG(FATAL_WITHOUT_ABORT) << new_class_size << " vs " << GetClassSize();
     LOG(FATAL) << "class=" << PrettyTypeOf(this);
   }
   // Not called within a transaction.

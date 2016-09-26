@@ -457,7 +457,7 @@ static void ThrowIllegalMonitorStateExceptionF(const char* fmt, ...)
   if (!Runtime::Current()->IsStarted() || VLOG_IS_ON(monitor)) {
     std::ostringstream ss;
     self->Dump(ss);
-    LOG(Runtime::Current()->IsStarted() ? INFO : ERROR)
+    LOG(Runtime::Current()->IsStarted() ? ::android::base::INFO : ::android::base::ERROR)
         << self->GetException()->Dump() << "\n" << ss.str();
   }
   va_end(args);
