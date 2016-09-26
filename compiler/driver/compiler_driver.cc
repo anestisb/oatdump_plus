@@ -595,9 +595,14 @@ static void CompileMethod(Thread* self,
               : optimizer::DexToDexCompilationLevel::kRequired);
     }
   } else if ((access_flags & kAccNative) != 0) {
-    // Are we extracting only and have support for generic JNI down calls?
-    if (!driver->GetCompilerOptions().IsJniCompilationEnabled() &&
-        InstructionSetHasGenericJniStub(driver->GetInstructionSet())) {
+    const InstructionSet instruction_set = driver->GetInstructionSet();
+    const bool use_generic_jni =
+        // Are we extracting only and have support for generic JNI down calls?
+        (!driver->GetCompilerOptions().IsJniCompilationEnabled() &&
+             InstructionSetHasGenericJniStub(instruction_set)) ||
+        // Always punt to generic JNI for MIPS because of no support for @CriticalNative. b/31743474
+        (instruction_set == kMips || instruction_set == kMips64);
+    if (use_generic_jni) {
       // Leaving this empty will trigger the generic JNI version
     } else {
       // Look-up the ArtMethod associated with this code_item (if any)
