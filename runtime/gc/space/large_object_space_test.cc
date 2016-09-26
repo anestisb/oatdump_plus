@@ -98,7 +98,9 @@ void LargeObjectSpaceTest::LargeObjectTest() {
       }
     }
     // Test that dump doesn't crash.
-    los->Dump(LOG(INFO));
+    std::ostringstream oss;
+    los->Dump(oss);
+    LOG(INFO) << oss.str();
 
     size_t bytes_allocated = 0, bytes_tl_bulk_allocated;
     // Checks that the coalescing works.

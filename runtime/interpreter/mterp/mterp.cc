@@ -38,8 +38,8 @@ void CheckMterpAsmConstants() {
   int interp_size = (uintptr_t) artMterpAsmInstructionEnd -
                     (uintptr_t) artMterpAsmInstructionStart;
   if ((interp_size == 0) || (interp_size != (art::kNumPackedOpcodes * width))) {
-      LOG(art::FATAL) << "ERROR: unexpected asm interp size " << interp_size
-                      << "(did an instruction handler exceed " << width << " bytes?)";
+      LOG(FATAL) << "ERROR: unexpected asm interp size " << interp_size
+                 << "(did an instruction handler exceed " << width << " bytes?)";
   }
 }
 

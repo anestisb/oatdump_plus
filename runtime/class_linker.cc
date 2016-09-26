@@ -7920,7 +7920,7 @@ class DumpClassVisitor : public ClassVisitor {
   explicit DumpClassVisitor(int flags) : flags_(flags) {}
 
   bool operator()(mirror::Class* klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
-    klass->DumpClass(LOG(ERROR), flags_);
+    klass->DumpClass(LOG_STREAM(ERROR), flags_);
     return true;
   }
 

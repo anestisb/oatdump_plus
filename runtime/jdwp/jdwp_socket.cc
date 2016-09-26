@@ -121,7 +121,7 @@ static JdwpSocketState* SocketStartup(JdwpState* state, uint16_t port, bool prob
 
   netState->listenSock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
   if (netState->listenSock < 0) {
-    PLOG(probe ? ERROR : FATAL) << "Socket create failed";
+    PLOG(probe ? ::android::base::ERROR : ::android::base::FATAL) << "Socket create failed";
     goto fail;
   }
 
@@ -129,7 +129,8 @@ static JdwpSocketState* SocketStartup(JdwpState* state, uint16_t port, bool prob
   {
     int one = 1;
     if (setsockopt(netState->listenSock, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) < 0) {
-      PLOG(probe ? ERROR : FATAL) << "setsockopt(SO_REUSEADDR) failed";
+      PLOG(probe ? ::android::base::ERROR : ::android::base::FATAL)
+          << "setsockopt(SO_REUSEADDR) failed";
       goto fail;
     }
   }
@@ -143,14 +144,15 @@ static JdwpSocketState* SocketStartup(JdwpState* state, uint16_t port, bool prob
   inet_aton("127.0.0.1", &addr.addrInet.sin_addr);
 
   if (bind(netState->listenSock, &addr.addrPlain, sizeof(addr)) != 0) {
-    PLOG(probe ? ERROR : FATAL) << "Attempt to bind to port " << port << " failed";
+    PLOG(probe ? ::android::base::ERROR : ::android::base::FATAL)
+        << "Attempt to bind to port " << port << " failed";
     goto fail;
   }
 
   netState->listenPort = port;
 
   if (listen(netState->listenSock, 5) != 0) {
-    PLOG(probe ? ERROR : FATAL) << "Listen failed";
+    PLOG(probe ? ::android::base::ERROR : ::android::base::FATAL) << "Listen failed";
     goto fail;
   }
 

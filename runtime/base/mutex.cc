@@ -328,14 +328,20 @@ Mutex::~Mutex() {
   bool shutting_down = IsShuttingDown();
 #if ART_USE_FUTEXES
   if (state_.LoadRelaxed() != 0) {
-    LOG(shutting_down ? WARNING : FATAL) << "destroying mutex with owner: " << exclusive_owner_;
+    LOG(shutting_down
+            ? ::android::base::WARNING
+            : ::android::base::FATAL) << "destroying mutex with owner: " << exclusive_owner_;
   } else {
     if (exclusive_owner_ != 0) {
-      LOG(shutting_down ? WARNING : FATAL) << "unexpectedly found an owner on unlocked mutex "
+      LOG(shutting_down
+              ? ::android::base::WARNING
+              : ::android::base::FATAL) << "unexpectedly found an owner on unlocked mutex "
                                            << name_;
     }
     if (num_contenders_.LoadSequentiallyConsistent() != 0) {
-      LOG(shutting_down ? WARNING : FATAL) << "unexpectedly found a contender on mutex " << name_;
+      LOG(shutting_down
+              ? ::android::base::WARNING
+              : ::android::base::FATAL) << "unexpectedly found a contender on mutex " << name_;
     }
   }
 #else
@@ -346,7 +352,9 @@ Mutex::~Mutex() {
     errno = rc;
     // TODO: should we just not log at all if shutting down? this could be the logging mutex!
     MutexLock mu(Thread::Current(), *Locks::runtime_shutdown_lock_);
-    PLOG(shutting_down ? WARNING : FATAL) << "pthread_mutex_destroy failed for " << name_;
+    PLOG(shutting_down
+             ? ::android::base::WARNING
+             : ::android::base::FATAL) << "pthread_mutex_destroy failed for " << name_;
   }
 #endif
 }
@@ -480,9 +488,11 @@ void Mutex::ExclusiveUnlock(Thread* self) {
         if (this != Locks::logging_lock_) {
           LOG(FATAL) << "Unexpected state_ in unlock " << cur_state << " for " << name_;
         } else {
-          LogMessage::LogLine(__FILE__, __LINE__, INTERNAL_FATAL,
-                              StringPrintf("Unexpected state_ %d in unlock for %s",
-                                           cur_state, name_).c_str());
+          LogHelper::LogLineLowStack(__FILE__,
+                                     __LINE__,
+                                     ::android::base::FATAL_WITHOUT_ABORT,
+                                     StringPrintf("Unexpected state_ %d in unlock for %s",
+                                                  cur_state, name_).c_str());
           _exit(1);
         }
       }
@@ -762,7 +772,10 @@ ConditionVariable::~ConditionVariable() {
   if (num_waiters_!= 0) {
     Runtime* runtime = Runtime::Current();
     bool shutting_down = runtime == nullptr || runtime->IsShuttingDown(Thread::Current());
-    LOG(shutting_down ? WARNING : FATAL) << "ConditionVariable::~ConditionVariable for " << name_
+    LOG(shutting_down
+           ? ::android::base::WARNING
+           : ::android::base::FATAL)
+        << "ConditionVariable::~ConditionVariable for " << name_
         << " called with " << num_waiters_ << " waiters.";
   }
 #else
@@ -774,7 +787,9 @@ ConditionVariable::~ConditionVariable() {
     MutexLock mu(Thread::Current(), *Locks::runtime_shutdown_lock_);
     Runtime* runtime = Runtime::Current();
     bool shutting_down = (runtime == nullptr) || runtime->IsShuttingDownLocked();
-    PLOG(shutting_down ? WARNING : FATAL) << "pthread_cond_destroy failed for " << name_;
+    PLOG(shutting_down
+             ? ::android::base::WARNING
+             : ::android::base::FATAL) << "pthread_cond_destroy failed for " << name_;
   }
 #endif
 }

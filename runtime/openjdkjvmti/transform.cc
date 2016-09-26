@@ -201,8 +201,8 @@ static bool FindDalvikSystemDexFileAndLoaderForClass(
   art::Handle<art::mirror::Class> loader_class(hs.NewHandle(h_class_loader->GetClass()));
   // Check if loader is a BaseDexClassLoader
   if (!loader_class->IsSubClass(base_dex_loader_class.Get())) {
-    LOG(art::ERROR) << "The classloader is not a BaseDexClassLoader which is currently the only "
-                    << "supported class loader type!";
+    LOG(ERROR) << "The classloader is not a BaseDexClassLoader which is currently the only "
+               << "supported class loader type!";
     return false;
   }
   art::Handle<art::mirror::Object> path_list(
@@ -333,7 +333,7 @@ jvmtiError MoveTransformedFileIntoRuntime(jclass jklass,
     // Find dalvik.system.DexFile that represents the dex file we are changing.
     if (!FindDalvikSystemDexFileAndLoaderForClass(klass, &dex_file_ptr, &class_loader_ptr)) {
       self->TransitionFromRunnableToSuspended(old_state);
-      LOG(art::ERROR) << "Could not find DexFile.";
+      LOG(ERROR) << "Could not find DexFile.";
       return ERR(INTERNAL);
     }
     art::Handle<art::mirror::Object> dex_file_obj(hs.NewHandle(dex_file_ptr));

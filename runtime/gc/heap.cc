@@ -630,7 +630,7 @@ Heap::Heap(size_t initial_size,
     bool no_gap = MemMap::CheckNoGaps(first_space->GetMemMap(), non_moving_space_->GetMemMap());
     if (!no_gap) {
       PrintFileToLog("/proc/self/maps", LogSeverity::ERROR);
-      MemMap::DumpMaps(LOG(ERROR), true);
+      MemMap::DumpMaps(LOG_STREAM(ERROR), true);
       LOG(FATAL) << "There's a gap between the image space and the non-moving space";
     }
   }
@@ -3157,14 +3157,14 @@ size_t Heap::VerifyHeapReferences(bool verify_referents) {
     // Dump mod-union tables.
     for (const auto& table_pair : mod_union_tables_) {
       accounting::ModUnionTable* mod_union_table = table_pair.second;
-      mod_union_table->Dump(LOG(ERROR) << mod_union_table->GetName() << ": ");
+      mod_union_table->Dump(LOG_STREAM(ERROR) << mod_union_table->GetName() << ": ");
     }
     // Dump remembered sets.
     for (const auto& table_pair : remembered_sets_) {
       accounting::RememberedSet* remembered_set = table_pair.second;
-      remembered_set->Dump(LOG(ERROR) << remembered_set->GetName() << ": ");
+      remembered_set->Dump(LOG_STREAM(ERROR) << remembered_set->GetName() << ": ");
     }
-    DumpSpaces(LOG(ERROR));
+    DumpSpaces(LOG_STREAM(ERROR));
   }
   return visitor.GetFailureCount();
 }

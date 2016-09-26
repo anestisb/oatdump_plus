@@ -24,7 +24,7 @@ enum class HardFailLogMode {
   kLogNone,                               // Don't log hard failures at all.
   kLogVerbose,                            // Log with severity VERBOSE.
   kLogWarning,                            // Log with severity WARNING.
-  kLogInternalFatal,                      // Log with severity INTERNAL_FATAL
+  kLogInternalFatal,                      // Log with severity FATAL_WITHOUT_ABORT
 };
 
 }  // namespace verifier

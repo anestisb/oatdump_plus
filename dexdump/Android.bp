@@ -22,7 +22,10 @@ art_cc_binary {
         "dexdump.cc",
     ],
     cflags: ["-Wall"],
-    shared_libs: ["libart"],
+    shared_libs: [
+        "libart",
+        "libbase",
+    ],
 }
 
 art_cc_test {

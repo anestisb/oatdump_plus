@@ -49,6 +49,7 @@ art_cc_binary {
     shared_libs: [
         "libart",
         "libart-compiler",
+        "libbase",
         "libsigchain",
     ],
 }
@@ -62,6 +63,7 @@ art_cc_binary {
     shared_libs: [
         "libartd",
         "libartd-compiler",
+        "libbase",
         "libsigchain",
     ],
 }

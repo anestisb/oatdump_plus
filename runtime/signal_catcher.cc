@@ -172,7 +172,7 @@ int SignalCatcher::WaitForSignal(Thread* self, SignalSet& signals) {
     LOG(INFO) << *self << ": reacting to signal " << signal_number;
 
     // If anyone's holding locks (which might prevent us from getting back into state Runnable), say so...
-    Runtime::Current()->DumpLockHolders(LOG(INFO));
+    Runtime::Current()->DumpLockHolders(LOG_STREAM(INFO));
   }
 
   return signal_number;

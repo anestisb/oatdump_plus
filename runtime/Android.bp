@@ -470,6 +470,7 @@ art_cc_library {
     srcs: ["common_runtime_test.cc"],
     shared_libs: [
         "libartd",
+        "libbase",
     ],
 }
 

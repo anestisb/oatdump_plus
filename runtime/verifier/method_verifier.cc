@@ -434,14 +434,15 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
             severity = LogSeverity::WARNING;
             break;
           case HardFailLogMode::kLogInternalFatal:
-            severity = LogSeverity::INTERNAL_FATAL;
+            severity = LogSeverity::FATAL_WITHOUT_ABORT;
             break;
           default:
             LOG(FATAL) << "Unsupported log-level " << static_cast<uint32_t>(log_level);
             UNREACHABLE();
         }
-        verifier.DumpFailures(LOG(severity) << "Verification error in "
-                                            << PrettyMethod(method_idx, *dex_file) << "\n");
+        verifier.DumpFailures(LOG_STREAM(severity) << "Verification error in "
+                                                   << PrettyMethod(method_idx, *dex_file)
+                                                   << "\n");
       }
       if (hard_failure_msg != nullptr) {
         CHECK(!verifier.failure_messages_.empty());

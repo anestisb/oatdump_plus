@@ -63,6 +63,7 @@ art_cc_defaults {
         "libvixld-arm64",
         "libart-gtest",
 
+        "libbase",
         "libicuuc",
         "libicui18n",
         "libnativehelper",
@@ -204,6 +205,7 @@ cc_defaults {
     ],
     shared_libs: [
         "libbacktrace",
+        "libbase",
         "libnativehelper",
     ],
     target: {
@@ -246,6 +248,7 @@ art_cc_test_library {
     ],
     shared_libs: [
         "libart",
+        "libbase",
         "libopenjdkjvmti",
     ],
 }
@@ -306,6 +309,7 @@ cc_defaults {
     ],
     shared_libs: [
         "libbacktrace",
+        "libbase",
         "libnativehelper",
     ],
     target: {
