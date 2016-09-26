@@ -34,6 +34,8 @@
 #include "dex_ir_builder.h"
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
+#include "dex_visualize.h"
+#include "jit/offline_profiling_info.h"
 #include "os.h"
 #include "utils.h"
 
@@ -48,6 +50,11 @@ struct Options options_;
  * Output file. Defaults to stdout.
  */
 FILE* out_file_ = stdout;
+
+/*
+ * Profile information file.
+ */
+ProfileCompilationInfo* profile_info_ = nullptr;
 
 /*
  * Flags for use with createAccessFlagStr().
@@ -1587,12 +1594,17 @@ static void OutputDexFile(dex_ir::Header& header, const char* file_name) {
 /*
  * Dumps the requested sections of the file.
  */
-static void ProcessDexFile(const char* file_name, const DexFile* dex_file) {
+static void ProcessDexFile(const char* file_name, const DexFile* dex_file, size_t dex_file_index) {
   if (options_.verbose_) {
     fprintf(out_file_, "Opened '%s', DEX version '%.3s'\n",
             file_name, dex_file->GetHeader().magic_ + 4);
   }
   std::unique_ptr<dex_ir::Header> header(dex_ir::DexIrBuilder(*dex_file));
+
+  if (options_.visualize_pattern_) {
+    VisualizeDexLayout(header.get(), dex_file, dex_file_index);
+    return;
+  }
 
   // Headers.
   if (options_.show_file_headers_) {
@@ -1658,7 +1670,7 @@ int ProcessFile(const char* file_name) {
     fprintf(out_file_, "Checksum verified\n");
   } else {
     for (size_t i = 0; i < dex_files.size(); i++) {
-      ProcessDexFile(file_name, dex_files[i].get());
+      ProcessDexFile(file_name, dex_files[i].get(), i);
     }
   }
   return 0;

@@ -20,6 +20,7 @@ art_cc_binary {
         "dexlayout.cc",
         "dex_ir.cc",
         "dex_ir_builder.cc",
+        "dex_visualize.cc",
     ],
     cflags: ["-Wall"],
     shared_libs: [
