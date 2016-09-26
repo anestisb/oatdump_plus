@@ -430,7 +430,7 @@ void ConcurrentCopying::FlipThreadRoots() {
   TimingLogger::ScopedTiming split("FlipThreadRoots", GetTimings());
   if (kVerboseMode) {
     LOG(INFO) << "time=" << region_space_->Time();
-    region_space_->DumpNonFreeRegions(LOG(INFO));
+    region_space_->DumpNonFreeRegions(LOG_STREAM(INFO));
   }
   Thread* self = Thread::Current();
   Locks::mutator_lock_->AssertNotHeld(self);
@@ -447,7 +447,7 @@ void ConcurrentCopying::FlipThreadRoots() {
   QuasiAtomic::ThreadFenceForConstructor();
   if (kVerboseMode) {
     LOG(INFO) << "time=" << region_space_->Time();
-    region_space_->DumpNonFreeRegions(LOG(INFO));
+    region_space_->DumpNonFreeRegions(LOG_STREAM(INFO));
     LOG(INFO) << "GC end of FlipThreadRoots";
   }
 }
@@ -1622,7 +1622,7 @@ void ConcurrentCopying::AssertToSpaceInvariant(mirror::Object* obj, MemberOffset
       if (obj != nullptr) {
         LogFromSpaceRefHolder(obj, offset);
       }
-      ref->GetLockWord(false).Dump(LOG(INTERNAL_FATAL));
+      ref->GetLockWord(false).Dump(LOG_STREAM(FATAL_WITHOUT_ABORT));
       CHECK(false) << "Found from-space ref " << ref << " " << PrettyTypeOf(ref);
     } else {
       AssertToSpaceInvariantInNonMovingSpace(obj, ref);
@@ -1645,13 +1645,13 @@ class RootPrinter {
   template <class MirrorType>
   void VisitRoot(mirror::Object** root)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    LOG(INTERNAL_FATAL) << "root=" << root << " ref=" << *root;
+    LOG(FATAL_WITHOUT_ABORT) << "root=" << root << " ref=" << *root;
   }
 
   template <class MirrorType>
   void VisitRoot(mirror::CompressedReference<MirrorType>* root)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    LOG(INTERNAL_FATAL) << "root=" << root << " ref=" << root->AsMirrorPtr();
+    LOG(FATAL_WITHOUT_ABORT) << "root=" << root << " ref=" << root->AsMirrorPtr();
   }
 };
 
@@ -1670,19 +1670,19 @@ void ConcurrentCopying::AssertToSpaceInvariant(GcRootSource* gc_root_source,
         // No info.
       } else if (gc_root_source->HasArtField()) {
         ArtField* field = gc_root_source->GetArtField();
-        LOG(INTERNAL_FATAL) << "gc root in field " << field << " " << PrettyField(field);
+        LOG(FATAL_WITHOUT_ABORT) << "gc root in field " << field << " " << PrettyField(field);
         RootPrinter root_printer;
         field->VisitRoots(root_printer);
       } else if (gc_root_source->HasArtMethod()) {
         ArtMethod* method = gc_root_source->GetArtMethod();
-        LOG(INTERNAL_FATAL) << "gc root in method " << method << " " << PrettyMethod(method);
+        LOG(FATAL_WITHOUT_ABORT) << "gc root in method " << method << " " << PrettyMethod(method);
         RootPrinter root_printer;
         method->VisitRoots(root_printer, kRuntimePointerSize);
       }
-      ref->GetLockWord(false).Dump(LOG(INTERNAL_FATAL));
-      region_space_->DumpNonFreeRegions(LOG(INTERNAL_FATAL));
-      PrintFileToLog("/proc/self/maps", LogSeverity::INTERNAL_FATAL);
-      MemMap::DumpMaps(LOG(INTERNAL_FATAL), true);
+      ref->GetLockWord(false).Dump(LOG_STREAM(FATAL_WITHOUT_ABORT));
+      region_space_->DumpNonFreeRegions(LOG_STREAM(FATAL_WITHOUT_ABORT));
+      PrintFileToLog("/proc/self/maps", LogSeverity::FATAL_WITHOUT_ABORT);
+      MemMap::DumpMaps(LOG_STREAM(FATAL_WITHOUT_ABORT), true);
       CHECK(false) << "Found from-space ref " << ref << " " << PrettyTypeOf(ref);
     } else {
       AssertToSpaceInvariantInNonMovingSpace(nullptr, ref);

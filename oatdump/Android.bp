@@ -34,6 +34,7 @@ art_cc_binary {
         "libart",
         "libart-compiler",
         "libart-disassembler",
+        "libbase",
     ],
 }
 
@@ -47,6 +48,7 @@ art_cc_binary {
         "libartd",
         "libartd-compiler",
         "libartd-disassembler",
+        "libbase",
     ],
 }
 
