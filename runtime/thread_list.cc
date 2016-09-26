@@ -828,8 +828,8 @@ Thread* ThreadList::SuspendThreadByPeer(jobject peer,
         if (total_delay >= MsToNs(kThreadSuspendTimeoutMs)) {
           ThreadSuspendByPeerWarning(self,
                                      ::android::base::FATAL,
-                                      "Thread suspension timed out",
-                                      peer);
+                                     "Thread suspension timed out",
+                                     peer);
           if (suspended_thread != nullptr) {
             CHECK_EQ(suspended_thread, thread);
             suspended_thread->ModifySuspendCount(soa.Self(), -1, nullptr, debug_suspension);
