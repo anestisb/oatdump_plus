@@ -1049,6 +1049,7 @@ class DexFile {
                                                               ZipOpenErrorCode* error_code);
 
   enum class VerifyResult {  // private
+    kVerifyNotAttempted,
     kVerifySucceeded,
     kVerifyFailed
   };

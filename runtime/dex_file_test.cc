@@ -112,6 +112,55 @@ static const char kRawDexZeroLength[] =
   "AGNsYXNzZXMuZGV4VVQFAANkDaFXdXgLAAEE5AMBAASIEwAAUEsFBgAAAAABAAEAUQAAAEUAAAAA"
   "AA==";
 
+static const char kRawZipClassesDexPresent[] =
+  "UEsDBBQAAAAIANVRN0ms99lIMQEAACACAAALABwAY2xhc3Nlcy5kZXhVVAkAAwFj5VcUY+VXdXgL"
+  "AAEE5AMBAASIEwAAS0mt4DIwtmDYYdV9csrcks83lpxZN2vD8f/1p1beWX3vabQCEwNDAQMDQ0WY"
+  "iRADFPQwMjBwMEDEWYB4AhADlTEsYEAAZiDeAcRApQwXgNgAyPgApJWAtBYQGwGxGxAHAnEIEEcA"
+  "cS4jRD0T1Fw2KM0ENZMVypZhRLIIqIMdag9CBMFnhtJ1jDA5RrBcMSPE7AIBkIl8UFGgP6Fu4IOa"
+  "wczAZpOZl1lix8Dm45uYmWfNIOSTlViWqJ+TmJeu75+UlZpcYs3ACZLSA4kzMIYxMIX5MAhHIykL"
+  "LinKzEu3ZmDJBSoDOZiPgRlMgv3T2MDygZGRs4OJB8n9MBoWzrAwmQD1Eyy8WZHCmg0pvBkVIGpA"
+  "Yc4oABEHhRuTAsRMUDwwQ9WAwoJBAaIGHE5Q9aB4BgBQSwECHgMUAAAACADVUTdJrPfZSDEBAAAg"
+  "AgAACwAYAAAAAAAAAAAAoIEAAAAAY2xhc3Nlcy5kZXhVVAUAAwFj5Vd1eAsAAQTkAwEABIgTAABQ"
+  "SwUGAAAAAAEAAQBRAAAAdgEAAAAA";
+
+static const char kRawZipClassesDexAbsent[] =
+  "UEsDBBQAAAAIANVRN0ms99lIMQEAACACAAAOABwAbm90Y2xhc3Nlcy5kZXhVVAkAAwFj5VcUY+VX"
+  "dXgLAAEE5AMBAASIEwAAS0mt4DIwtmDYYdV9csrcks83lpxZN2vD8f/1p1beWX3vabQCEwNDAQMD"
+  "Q0WYiRADFPQwMjBwMEDEWYB4AhADlTEsYEAAZiDeAcRApQwXgNgAyPgApJWAtBYQGwGxGxAHAnEI"
+  "EEcAcS4jRD0T1Fw2KM0ENZMVypZhRLIIqIMdag9CBMFnhtJ1jDA5RrBcMSPE7AIBkIl8UFGgP6Fu"
+  "4IOawczAZpOZl1lix8Dm45uYmWfNIOSTlViWqJ+TmJeu75+UlZpcYs3ACZLSA4kzMIYxMIX5MAhH"
+  "IykLLinKzEu3ZmDJBSoDOZiPgRlMgv3T2MDygZGRs4OJB8n9MBoWzrAwmQD1Eyy8WZHCmg0pvBkV"
+  "IGpAYc4oABEHhRuTAsRMUDwwQ9WAwoJBAaIGHE5Q9aB4BgBQSwECHgMUAAAACADVUTdJrPfZSDEB"
+  "AAAgAgAADgAYAAAAAAAAAAAAoIEAAAAAbm90Y2xhc3Nlcy5kZXhVVAUAAwFj5Vd1eAsAAQTkAwEA"
+  "BIgTAABQSwUGAAAAAAEAAQBUAAAAeQEAAAAA";
+
+static const char kRawZipThreeDexFiles[] =
+  "UEsDBBQAAAAIAP1WN0ms99lIMQEAACACAAAMABwAY2xhc3NlczIuZGV4VVQJAAOtbOVXrWzlV3V4"
+  "CwABBOQDAQAEiBMAAEtJreAyMLZg2GHVfXLK3JLPN5acWTdrw/H/9adW3ll972m0AhMDQwEDA0NF"
+  "mIkQAxT0MDIwcDBAxFmAeAIQA5UxLGBAAGYg3gHEQKUMF4DYAMj4AKSVgLQWEBsBsRsQBwJxCBBH"
+  "AHEuI0Q9E9RcNijNBDWTFcqWYUSyCKiDHWoPQgTBZ4bSdYwwOUawXDEjxOwCAZCJfFBRoD+hbuCD"
+  "msHMwGaTmZdZYsfA5uObmJlnzSDkk5VYlqifk5iXru+flJWaXGLNwAmS0gOJMzCGMTCF+TAIRyMp"
+  "Cy4pysxLt2ZgyQUqAzmYj4EZTIL909jA8oGRkbODiQfJ/TAaFs6wMJkA9RMsvFmRwpoNKbwZFSBq"
+  "QGHOKAARB4UbkwLETFA8MEPVgMKCQQGiBhxOUPWgeAYAUEsDBBQAAAAIAABXN0ms99lIMQEAACAC"
+  "AAAMABwAY2xhc3NlczMuZGV4VVQJAAOvbOVXr2zlV3V4CwABBOQDAQAEiBMAAEtJreAyMLZg2GHV"
+  "fXLK3JLPN5acWTdrw/H/9adW3ll972m0AhMDQwEDA0NFmIkQAxT0MDIwcDBAxFmAeAIQA5UxLGBA"
+  "AGYg3gHEQKUMF4DYAMj4AKSVgLQWEBsBsRsQBwJxCBBHAHEuI0Q9E9RcNijNBDWTFcqWYUSyCKiD"
+  "HWoPQgTBZ4bSdYwwOUawXDEjxOwCAZCJfFBRoD+hbuCDmsHMwGaTmZdZYsfA5uObmJlnzSDkk5VY"
+  "lqifk5iXru+flJWaXGLNwAmS0gOJMzCGMTCF+TAIRyMpCy4pysxLt2ZgyQUqAzmYj4EZTIL909jA"
+  "8oGRkbODiQfJ/TAaFs6wMJkA9RMsvFmRwpoNKbwZFSBqQGHOKAARB4UbkwLETFA8MEPVgMKCQQGi"
+  "BhxOUPWgeAYAUEsDBBQAAAAIANVRN0ms99lIMQEAACACAAALABwAY2xhc3Nlcy5kZXhVVAkAAwFj"
+  "5VetbOVXdXgLAAEE5AMBAASIEwAAS0mt4DIwtmDYYdV9csrcks83lpxZN2vD8f/1p1beWX3vabQC"
+  "EwNDAQMDQ0WYiRADFPQwMjBwMEDEWYB4AhADlTEsYEAAZiDeAcRApQwXgNgAyPgApJWAtBYQGwGx"
+  "GxAHAnEIEEcAcS4jRD0T1Fw2KM0ENZMVypZhRLIIqIMdag9CBMFnhtJ1jDA5RrBcMSPE7AIBkIl8"
+  "UFGgP6Fu4IOawczAZpOZl1lix8Dm45uYmWfNIOSTlViWqJ+TmJeu75+UlZpcYs3ACZLSA4kzMIYx"
+  "MIX5MAhHIykLLinKzEu3ZmDJBSoDOZiPgRlMgv3T2MDygZGRs4OJB8n9MBoWzrAwmQD1Eyy8WZHC"
+  "mg0pvBkVIGpAYc4oABEHhRuTAsRMUDwwQ9WAwoJBAaIGHE5Q9aB4BgBQSwECHgMUAAAACAD9VjdJ"
+  "rPfZSDEBAAAgAgAADAAYAAAAAAAAAAAAoIEAAAAAY2xhc3NlczIuZGV4VVQFAAOtbOVXdXgLAAEE"
+  "5AMBAASIEwAAUEsBAh4DFAAAAAgAAFc3Saz32UgxAQAAIAIAAAwAGAAAAAAAAAAAAKCBdwEAAGNs"
+  "YXNzZXMzLmRleFVUBQADr2zlV3V4CwABBOQDAQAEiBMAAFBLAQIeAxQAAAAIANVRN0ms99lIMQEA"
+  "ACACAAALABgAAAAAAAAAAACgge4CAABjbGFzc2VzLmRleFVUBQADAWPlV3V4CwABBOQDAQAEiBMA"
+  "AFBLBQYAAAAAAwADAPUAAABkBAAAAAA=";
+
 static void DecodeAndWriteDexFile(const char* base64, const char* location) {
   // decode base64
   CHECK(base64 != nullptr);
@@ -129,22 +178,36 @@ static void DecodeAndWriteDexFile(const char* base64, const char* location) {
   }
 }
 
-static std::unique_ptr<const DexFile> OpenDexFileBase64(const char* base64,
-                                                        const char* location) {
+static bool OpenDexFilesBase64(const char* base64,
+                               const char* location,
+                               std::vector<std::unique_ptr<const DexFile>>* dex_files,
+                               std::string* error_msg) {
   DecodeAndWriteDexFile(base64, location);
 
-  // read dex file
+  // read dex file(s)
   ScopedObjectAccess soa(Thread::Current());
   static constexpr bool kVerifyChecksum = true;
-  std::string error_msg;
   std::vector<std::unique_ptr<const DexFile>> tmp;
-  bool success = DexFile::Open(location, location, kVerifyChecksum, &error_msg, &tmp);
+  bool success = DexFile::Open(location, location, kVerifyChecksum, error_msg, &tmp);
+  if (success) {
+    for (std::unique_ptr<const DexFile>& dex_file : tmp) {
+      EXPECT_EQ(PROT_READ, dex_file->GetPermissions());
+      EXPECT_TRUE(dex_file->IsReadOnly());
+    }
+    *dex_files = std::move(tmp);
+  }
+  return success;
+}
+
+static std::unique_ptr<const DexFile> OpenDexFileBase64(const char* base64,
+                                                        const char* location) {
+  // read dex files.
+  std::string error_msg;
+  std::vector<std::unique_ptr<const DexFile>> dex_files;
+  bool success = OpenDexFilesBase64(base64, location, &dex_files, &error_msg);
   CHECK(success) << error_msg;
-  EXPECT_EQ(1U, tmp.size());
-  std::unique_ptr<const DexFile> dex_file = std::move(tmp[0]);
-  EXPECT_EQ(PROT_READ, dex_file->GetPermissions());
-  EXPECT_TRUE(dex_file->IsReadOnly());
-  return dex_file;
+  EXPECT_EQ(1U, dex_files.size());
+  return std::move(dex_files[0]);
 }
 
 static std::unique_ptr<const DexFile> OpenDexFileInMemoryBase64(const char* base64,
@@ -454,6 +517,33 @@ TEST(DexFileUtilsTest, GetBaseLocationAndMultiDexSuffix) {
   EXPECT_EQ("", DexFile::GetMultiDexSuffix("/foo/bar/baz.jar"));
   EXPECT_EQ(":classes2.dex", DexFile::GetMultiDexSuffix("/foo/bar/baz.jar:classes2.dex"));
   EXPECT_EQ(":classes8.dex", DexFile::GetMultiDexSuffix("/foo/bar/baz.jar:classes8.dex"));
+}
+
+TEST_F(DexFileTest, ZipOpenClassesPresent) {
+  ScratchFile tmp;
+  std::vector<std::unique_ptr<const DexFile>> dex_files;
+  std::string error_msg;
+  ASSERT_TRUE(OpenDexFilesBase64(kRawZipClassesDexPresent, tmp.GetFilename().c_str(), &dex_files,
+                                 &error_msg));
+  EXPECT_EQ(dex_files.size(), 1u);
+}
+
+TEST_F(DexFileTest, ZipOpenClassesAbsent) {
+  ScratchFile tmp;
+  std::vector<std::unique_ptr<const DexFile>> dex_files;
+  std::string error_msg;
+  ASSERT_FALSE(OpenDexFilesBase64(kRawZipClassesDexAbsent, tmp.GetFilename().c_str(), &dex_files,
+                                  &error_msg));
+  EXPECT_EQ(dex_files.size(), 0u);
+}
+
+TEST_F(DexFileTest, ZipOpenThreeDexFiles) {
+  ScratchFile tmp;
+  std::vector<std::unique_ptr<const DexFile>> dex_files;
+  std::string error_msg;
+  ASSERT_TRUE(OpenDexFilesBase64(kRawZipThreeDexFiles, tmp.GetFilename().c_str(), &dex_files,
+                                 &error_msg));
+  EXPECT_EQ(dex_files.size(), 3u);
 }
 
 }  // namespace art
