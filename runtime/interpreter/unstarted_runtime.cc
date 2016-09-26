@@ -858,7 +858,7 @@ void UnstartedRuntime::UnstartedThreadLocalGet(
       ArtMethod* init_method = h_real_to_string_class->FindDirectMethod(
           "<init>", "()V", cl->GetImagePointerSize());
       if (init_method == nullptr) {
-        h_real_to_string_class->DumpClass(LOG(FATAL), mirror::Class::kDumpClassFullDetail);
+        h_real_to_string_class->DumpClass(LOG_STREAM(FATAL), mirror::Class::kDumpClassFullDetail);
       } else {
         JValue invoke_result;
         EnterInterpreterFromInvoke(self, init_method, h_real_to_string_obj.Get(), nullptr,

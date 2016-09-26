@@ -447,7 +447,7 @@ void ProfileSaver::Stop(bool dump_info) {
     }
     instance_->shutting_down_ = true;
     if (dump_info) {
-      instance_->DumpInfo(LOG(INFO));
+      instance_->DumpInfo(LOG_STREAM(INFO));
     }
   }
 

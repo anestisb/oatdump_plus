@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <sstream>
+
 #include "common_runtime_test.h"
 #include "reference_queue.h"
 #include "handle_scope-inl.h"
@@ -65,7 +67,9 @@ TEST_F(ReferenceQueueTest, Dump) {
   StackHandleScope<20> hs(self);
   Mutex lock("Reference queue lock");
   ReferenceQueue queue(&lock);
-  queue.Dump(LOG(INFO));
+  std::ostringstream oss;
+  queue.Dump(oss);
+  LOG(INFO) << oss.str();
   auto weak_ref_class = hs.NewHandle(
       Runtime::Current()->GetClassLinker()->FindClass(self, "Ljava/lang/ref/WeakReference;",
                                                       ScopedNullHandle<mirror::ClassLoader>()));
@@ -78,10 +82,16 @@ TEST_F(ReferenceQueueTest, Dump) {
   ASSERT_TRUE(ref1.Get() != nullptr);
   auto ref2(hs.NewHandle(finalizer_ref_class->AllocObject(self)->AsReference()));
   ASSERT_TRUE(ref2.Get() != nullptr);
+
   queue.EnqueueReference(ref1.Get());
-  queue.Dump(LOG(INFO));
+  oss.str("");
+  queue.Dump(oss);
+  LOG(INFO) << oss.str();
+
   queue.EnqueueReference(ref2.Get());
-  queue.Dump(LOG(INFO));
+  oss.str("");
+  queue.Dump(oss);
+  LOG(INFO) << oss.str();
 }
 
 }  // namespace gc

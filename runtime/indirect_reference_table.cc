@@ -188,7 +188,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
         ScopedObjectAccess soa(self);
         LOG(WARNING) << "Attempt to remove non-JNI local reference, dumping thread";
         if (kDumpStackOnNonLocalReference) {
-          self->Dump(LOG(WARNING));
+          self->Dump(LOG_STREAM(WARNING));
         }
       }
       return true;

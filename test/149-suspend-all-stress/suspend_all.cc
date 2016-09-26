@@ -42,14 +42,16 @@ extern "C" JNIEXPORT void JNICALL Java_Main_suspendAndResume(JNIEnv*, jclass) {
         break;
       }
       case kOPDumpStack: {
-        Runtime::Current()->GetThreadList()->Dump(LOG(INFO));
+        Runtime::Current()->GetThreadList()->Dump(LOG_STREAM(INFO));
         usleep(500);
         break;
       }
       case kOPSuspendAllDumpStack: {
         // Not yet supported.
-        // ScopedSuspendAll ssa(__FUNCTION__);
-        // Runtime::Current()->GetThreadList()->Dump(LOG(INFO));
+        if ((false)) {
+          ScopedSuspendAll ssa(__FUNCTION__);
+          Runtime::Current()->GetThreadList()->Dump(LOG_STREAM(INFO));
+        }
         break;
       }
       case kOPNumber:
