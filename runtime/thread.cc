@@ -2786,7 +2786,7 @@ class ReferenceMapVisitor : public StackVisitor {
             GetThread()->Dump(LOG_STREAM(FATAL_WITHOUT_ABORT));
             space->AsImageSpace()->DumpSections(LOG_STREAM(FATAL_WITHOUT_ABORT));
             LOG(FATAL_WITHOUT_ABORT) << "Method@" << method->GetDexMethodIndex() << ":" << method
-                                << " klass@" << klass;
+                                     << " klass@" << klass;
             // Pretty info last in case it crashes.
             LOG(FATAL) << "Method " << PrettyMethod(method) << " klass " << PrettyClass(klass);
           }
