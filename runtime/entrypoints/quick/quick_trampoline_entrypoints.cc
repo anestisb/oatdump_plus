@@ -23,6 +23,8 @@
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc/accounting/card_table-inl.h"
+#include "imt_conflict_table.h"
+#include "imtable-inl.h"
 #include "interpreter/interpreter.h"
 #include "linear_alloc.h"
 #include "method_reference.h"
@@ -2239,7 +2241,8 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t deadbeef ATTRIBUT
   if (LIKELY(interface_method->GetDexMethodIndex() != DexFile::kDexNoIndex)) {
     // If the dex cache already resolved the interface method, look whether we have
     // a match in the ImtConflictTable.
-    ArtMethod* conflict_method = imt->Get(interface_method->GetImtIndex(), kRuntimePointerSize);
+    ArtMethod* conflict_method = imt->Get(ImTable::GetImtIndex(interface_method),
+                                          kRuntimePointerSize);
     if (LIKELY(conflict_method->IsRuntimeMethod())) {
       ImtConflictTable* current_table = conflict_method->GetImtConflictTable(kRuntimePointerSize);
       DCHECK(current_table != nullptr);
@@ -2291,7 +2294,7 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t deadbeef ATTRIBUT
 
   // We arrive here if we have found an implementation, and it is not in the ImtConflictTable.
   // We create a new table with the new pair { interface_method, method }.
-  uint32_t imt_index = interface_method->GetImtIndex();
+  uint32_t imt_index = ImTable::GetImtIndex(interface_method);
   ArtMethod* conflict_method = imt->Get(imt_index, kRuntimePointerSize);
   if (conflict_method->IsRuntimeMethod()) {
     ArtMethod* new_conflict_method = Runtime::Current()->GetClassLinker()->AddMethodToConflictTable(
