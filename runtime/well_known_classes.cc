@@ -21,6 +21,7 @@
 #include <sstream>
 
 #include "base/logging.h"
+#include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "mirror/class.h"
 #include "mirror/throwable.h"
 #include "ScopedLocalRef.h"
@@ -89,38 +90,6 @@ jmethodID WellKnownClasses::java_lang_ref_ReferenceQueue_add;
 jmethodID WellKnownClasses::java_lang_reflect_Proxy_invoke;
 jmethodID WellKnownClasses::java_lang_Runtime_nativeLoad;
 jmethodID WellKnownClasses::java_lang_Short_valueOf;
-jmethodID WellKnownClasses::java_lang_String_init;
-jmethodID WellKnownClasses::java_lang_String_init_B;
-jmethodID WellKnownClasses::java_lang_String_init_BI;
-jmethodID WellKnownClasses::java_lang_String_init_BII;
-jmethodID WellKnownClasses::java_lang_String_init_BIII;
-jmethodID WellKnownClasses::java_lang_String_init_BIIString;
-jmethodID WellKnownClasses::java_lang_String_init_BString;
-jmethodID WellKnownClasses::java_lang_String_init_BIICharset;
-jmethodID WellKnownClasses::java_lang_String_init_BCharset;
-jmethodID WellKnownClasses::java_lang_String_init_C;
-jmethodID WellKnownClasses::java_lang_String_init_CII;
-jmethodID WellKnownClasses::java_lang_String_init_IIC;
-jmethodID WellKnownClasses::java_lang_String_init_String;
-jmethodID WellKnownClasses::java_lang_String_init_StringBuffer;
-jmethodID WellKnownClasses::java_lang_String_init_III;
-jmethodID WellKnownClasses::java_lang_String_init_StringBuilder;
-jmethodID WellKnownClasses::java_lang_StringFactory_newEmptyString;
-jmethodID WellKnownClasses::java_lang_StringFactory_newStringFromBytes_B;
-jmethodID WellKnownClasses::java_lang_StringFactory_newStringFromBytes_BI;
-jmethodID WellKnownClasses::java_lang_StringFactory_newStringFromBytes_BII;
-jmethodID WellKnownClasses::java_lang_StringFactory_newStringFromBytes_BIII;
-jmethodID WellKnownClasses::java_lang_StringFactory_newStringFromBytes_BIIString;
-jmethodID WellKnownClasses::java_lang_StringFactory_newStringFromBytes_BString;
-jmethodID WellKnownClasses::java_lang_StringFactory_newStringFromBytes_BIICharset;
-jmethodID WellKnownClasses::java_lang_StringFactory_newStringFromBytes_BCharset;
-jmethodID WellKnownClasses::java_lang_StringFactory_newStringFromChars_C;
-jmethodID WellKnownClasses::java_lang_StringFactory_newStringFromChars_CII;
-jmethodID WellKnownClasses::java_lang_StringFactory_newStringFromChars_IIC;
-jmethodID WellKnownClasses::java_lang_StringFactory_newStringFromString;
-jmethodID WellKnownClasses::java_lang_StringFactory_newStringFromStringBuffer;
-jmethodID WellKnownClasses::java_lang_StringFactory_newStringFromCodePoints;
-jmethodID WellKnownClasses::java_lang_StringFactory_newStringFromStringBuilder;
 jmethodID WellKnownClasses::java_lang_System_runFinalization = nullptr;
 jmethodID WellKnownClasses::java_lang_Thread_dispatchUncaughtException;
 jmethodID WellKnownClasses::java_lang_Thread_init;
@@ -215,6 +184,76 @@ static jmethodID CachePrimitiveBoxingMethod(JNIEnv* env, char prim_name, const c
                      StringPrintf("(%c)L%s;", prim_name, boxed_name).c_str());
 }
 
+#define STRING_INIT_LIST(V) \
+  V(java_lang_String_init, "()V", newEmptyString, "newEmptyString", "()Ljava/lang/String;", NewEmptyString) \
+  V(java_lang_String_init_B, "([B)V", newStringFromBytes_B, "newStringFromBytes", "([B)Ljava/lang/String;", NewStringFromBytes_B) \
+  V(java_lang_String_init_BI, "([BI)V", newStringFromBytes_BI, "newStringFromBytes", "([BI)Ljava/lang/String;", NewStringFromBytes_BI) \
+  V(java_lang_String_init_BII, "([BII)V", newStringFromBytes_BII, "newStringFromBytes", "([BII)Ljava/lang/String;", NewStringFromBytes_BII) \
+  V(java_lang_String_init_BIII, "([BIII)V", newStringFromBytes_BIII, "newStringFromBytes", "([BIII)Ljava/lang/String;", NewStringFromBytes_BIII) \
+  V(java_lang_String_init_BIIString, "([BIILjava/lang/String;)V", newStringFromBytes_BIIString, "newStringFromBytes", "([BIILjava/lang/String;)Ljava/lang/String;", NewStringFromBytes_BIIString) \
+  V(java_lang_String_init_BString, "([BLjava/lang/String;)V", newStringFromBytes_BString, "newStringFromBytes", "([BLjava/lang/String;)Ljava/lang/String;", NewStringFromBytes_BString) \
+  V(java_lang_String_init_BIICharset, "([BIILjava/nio/charset/Charset;)V", newStringFromBytes_BIICharset, "newStringFromBytes", "([BIILjava/nio/charset/Charset;)Ljava/lang/String;", NewStringFromBytes_BIICharset) \
+  V(java_lang_String_init_BCharset, "([BLjava/nio/charset/Charset;)V", newStringFromBytes_BCharset, "newStringFromBytes", "([BLjava/nio/charset/Charset;)Ljava/lang/String;", NewStringFromBytes_BCharset) \
+  V(java_lang_String_init_C, "([C)V", newStringFromChars_C, "newStringFromChars", "([C)Ljava/lang/String;", NewStringFromChars_C) \
+  V(java_lang_String_init_CII, "([CII)V", newStringFromChars_CII, "newStringFromChars", "([CII)Ljava/lang/String;", NewStringFromChars_CII) \
+  V(java_lang_String_init_IIC, "(II[C)V", newStringFromChars_IIC, "newStringFromChars", "(II[C)Ljava/lang/String;", NewStringFromChars_IIC) \
+  V(java_lang_String_init_String, "(Ljava/lang/String;)V", newStringFromString, "newStringFromString", "(Ljava/lang/String;)Ljava/lang/String;", NewStringFromString) \
+  V(java_lang_String_init_StringBuffer, "(Ljava/lang/StringBuffer;)V", newStringFromStringBuffer, "newStringFromStringBuffer", "(Ljava/lang/StringBuffer;)Ljava/lang/String;", NewStringFromStringBuffer) \
+  V(java_lang_String_init_III, "([III)V", newStringFromCodePoints, "newStringFromCodePoints", "([III)Ljava/lang/String;", NewStringFromCodePoints) \
+  V(java_lang_String_init_StringBuilder, "(Ljava/lang/StringBuilder;)V", newStringFromStringBuilder, "newStringFromStringBuilder", "(Ljava/lang/StringBuilder;)Ljava/lang/String;", NewStringFromStringBuilder) \
+
+#define STATIC_STRING_INIT(init_runtime_name, init_signature, new_runtime_name, ...) \
+    static ArtMethod* init_runtime_name; \
+    static ArtMethod* new_runtime_name;
+    STRING_INIT_LIST(STATIC_STRING_INIT)
+#undef STATIC_STRING_INIT
+
+void WellKnownClasses::InitStringInit(JNIEnv* env) {
+  ScopedObjectAccess soa(Thread::Current());
+  #define LOAD_STRING_INIT(init_runtime_name, init_signature, new_runtime_name,             \
+                           new_java_name, new_signature, ...)                               \
+      init_runtime_name = soa.DecodeMethod(                                                 \
+          CacheMethod(env, java_lang_String, false, "<init>", init_signature));             \
+      new_runtime_name = soa.DecodeMethod(                                                  \
+          CacheMethod(env, java_lang_StringFactory, true, new_java_name, new_signature));
+      STRING_INIT_LIST(LOAD_STRING_INIT)
+  #undef LOAD_STRING_INIT
+}
+
+void Thread::InitStringEntryPoints() {
+  QuickEntryPoints* qpoints = &tlsPtr_.quick_entrypoints;
+  #define SET_ENTRY_POINT(init_runtime_name, init_signature, new_runtime_name,              \
+                          new_java_name, new_signature, entry_point_name)                   \
+      qpoints->p ## entry_point_name = reinterpret_cast<void(*)()>(new_runtime_name);
+      STRING_INIT_LIST(SET_ENTRY_POINT)
+  #undef SET_ENTRY_POINT
+}
+
+ArtMethod* WellKnownClasses::StringInitToStringFactory(ArtMethod* string_init) {
+  #define TO_STRING_FACTORY(init_runtime_name, init_signature, new_runtime_name,            \
+                            new_java_name, new_signature, entry_point_name)                 \
+      if (string_init == init_runtime_name) {                                               \
+        return new_runtime_name;                                                            \
+      }
+      STRING_INIT_LIST(TO_STRING_FACTORY)
+  #undef TO_STRING_FACTORY
+  LOG(FATAL) << "Could not find StringFactory method for String.<init>";
+  return nullptr;
+}
+
+uint32_t WellKnownClasses::StringInitToEntryPoint(ArtMethod* string_init) {
+  #define TO_ENTRY_POINT(init_runtime_name, init_signature, new_runtime_name,               \
+                         new_java_name, new_signature, entry_point_name)                    \
+      if (string_init == init_runtime_name) {                                               \
+        return kQuick ## entry_point_name;                                                  \
+      }
+      STRING_INIT_LIST(TO_ENTRY_POINT)
+  #undef TO_STRING_FACTORY
+  LOG(FATAL) << "Could not find StringFactory method for String.<init>";
+  return 0;
+}
+#undef STRING_INIT_LIST
+
 void WellKnownClasses::Init(JNIEnv* env) {
   com_android_dex_Dex = CacheClass(env, "com/android/dex/Dex");
   dalvik_annotation_optimization_CriticalNative =
@@ -284,62 +323,6 @@ void WellKnownClasses::Init(JNIEnv* env) {
   org_apache_harmony_dalvik_ddmc_DdmServer_broadcast = CacheMethod(env, org_apache_harmony_dalvik_ddmc_DdmServer, true, "broadcast", "(I)V");
   org_apache_harmony_dalvik_ddmc_DdmServer_dispatch = CacheMethod(env, org_apache_harmony_dalvik_ddmc_DdmServer, true, "dispatch", "(I[BII)Lorg/apache/harmony/dalvik/ddmc/Chunk;");
 
-  java_lang_String_init = CacheMethod(env, java_lang_String, false, "<init>", "()V");
-  java_lang_String_init_B = CacheMethod(env, java_lang_String, false, "<init>", "([B)V");
-  java_lang_String_init_BI = CacheMethod(env, java_lang_String, false, "<init>", "([BI)V");
-  java_lang_String_init_BII = CacheMethod(env, java_lang_String, false, "<init>", "([BII)V");
-  java_lang_String_init_BIII = CacheMethod(env, java_lang_String, false, "<init>", "([BIII)V");
-  java_lang_String_init_BIIString = CacheMethod(env, java_lang_String, false, "<init>",
-      "([BIILjava/lang/String;)V");
-  java_lang_String_init_BString = CacheMethod(env, java_lang_String, false, "<init>",
-      "([BLjava/lang/String;)V");
-  java_lang_String_init_BIICharset = CacheMethod(env, java_lang_String, false, "<init>",
-      "([BIILjava/nio/charset/Charset;)V");
-  java_lang_String_init_BCharset = CacheMethod(env, java_lang_String, false, "<init>",
-      "([BLjava/nio/charset/Charset;)V");
-  java_lang_String_init_C = CacheMethod(env, java_lang_String, false, "<init>", "([C)V");
-  java_lang_String_init_CII = CacheMethod(env, java_lang_String, false, "<init>", "([CII)V");
-  java_lang_String_init_IIC = CacheMethod(env, java_lang_String, false, "<init>", "(II[C)V");
-  java_lang_String_init_String = CacheMethod(env, java_lang_String, false, "<init>",
-      "(Ljava/lang/String;)V");
-  java_lang_String_init_StringBuffer = CacheMethod(env, java_lang_String, false, "<init>",
-      "(Ljava/lang/StringBuffer;)V");
-  java_lang_String_init_III = CacheMethod(env, java_lang_String, false, "<init>", "([III)V");
-  java_lang_String_init_StringBuilder = CacheMethod(env, java_lang_String, false, "<init>",
-       "(Ljava/lang/StringBuilder;)V");
-  java_lang_StringFactory_newEmptyString = CacheMethod(env, java_lang_StringFactory, true,
-       "newEmptyString", "()Ljava/lang/String;");
-  java_lang_StringFactory_newStringFromBytes_B = CacheMethod(env, java_lang_StringFactory, true,
-       "newStringFromBytes", "([B)Ljava/lang/String;");
-  java_lang_StringFactory_newStringFromBytes_BI = CacheMethod(env, java_lang_StringFactory, true,
-       "newStringFromBytes", "([BI)Ljava/lang/String;");
-  java_lang_StringFactory_newStringFromBytes_BII = CacheMethod(env, java_lang_StringFactory, true,
-       "newStringFromBytes", "([BII)Ljava/lang/String;");
-  java_lang_StringFactory_newStringFromBytes_BIII = CacheMethod(env, java_lang_StringFactory, true,
-       "newStringFromBytes", "([BIII)Ljava/lang/String;");
-  java_lang_StringFactory_newStringFromBytes_BIIString = CacheMethod(env, java_lang_StringFactory,
-       true, "newStringFromBytes", "([BIILjava/lang/String;)Ljava/lang/String;");
-  java_lang_StringFactory_newStringFromBytes_BString = CacheMethod(env, java_lang_StringFactory,
-       true, "newStringFromBytes", "([BLjava/lang/String;)Ljava/lang/String;");
-  java_lang_StringFactory_newStringFromBytes_BIICharset = CacheMethod(env, java_lang_StringFactory,
-       true, "newStringFromBytes", "([BIILjava/nio/charset/Charset;)Ljava/lang/String;");
-  java_lang_StringFactory_newStringFromBytes_BCharset = CacheMethod(env, java_lang_StringFactory,
-       true, "newStringFromBytes", "([BLjava/nio/charset/Charset;)Ljava/lang/String;");
-  java_lang_StringFactory_newStringFromChars_C = CacheMethod(env, java_lang_StringFactory, true,
-       "newStringFromChars", "([C)Ljava/lang/String;");
-  java_lang_StringFactory_newStringFromChars_CII = CacheMethod(env, java_lang_StringFactory, true,
-       "newStringFromChars", "([CII)Ljava/lang/String;");
-  java_lang_StringFactory_newStringFromChars_IIC = CacheMethod(env, java_lang_StringFactory, true,
-       "newStringFromChars", "(II[C)Ljava/lang/String;");
-  java_lang_StringFactory_newStringFromString = CacheMethod(env, java_lang_StringFactory, true,
-       "newStringFromString", "(Ljava/lang/String;)Ljava/lang/String;");
-  java_lang_StringFactory_newStringFromStringBuffer = CacheMethod(env, java_lang_StringFactory,
-       true, "newStringFromStringBuffer", "(Ljava/lang/StringBuffer;)Ljava/lang/String;");
-  java_lang_StringFactory_newStringFromCodePoints = CacheMethod(env, java_lang_StringFactory,
-       true, "newStringFromCodePoints", "([III)Ljava/lang/String;");
-  java_lang_StringFactory_newStringFromStringBuilder = CacheMethod(env, java_lang_StringFactory,
-       true, "newStringFromStringBuilder", "(Ljava/lang/StringBuilder;)Ljava/lang/String;");
-
   dalvik_system_DexFile_cookie = CacheField(env, dalvik_system_DexFile, false, "mCookie", "Ljava/lang/Object;");
   dalvik_system_DexFile_fileName = CacheField(env, dalvik_system_DexFile, false, "mFileName", "Ljava/lang/String;");
   dalvik_system_PathClassLoader_pathList = CacheField(env, dalvik_system_PathClassLoader, false, "pathList", "Ldalvik/system/DexPathList;");
@@ -384,6 +367,7 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_Long_valueOf = CachePrimitiveBoxingMethod(env, 'J', "java/lang/Long");
   java_lang_Short_valueOf = CachePrimitiveBoxingMethod(env, 'S', "java/lang/Short");
 
+  InitStringInit(env);
   Thread::Current()->InitStringEntryPoints();
 }
 
@@ -397,45 +381,6 @@ void WellKnownClasses::LateInit(JNIEnv* env) {
 
 mirror::Class* WellKnownClasses::ToClass(jclass global_jclass) {
   return reinterpret_cast<mirror::Class*>(Thread::Current()->DecodeJObject(global_jclass));
-}
-
-jmethodID WellKnownClasses::StringInitToStringFactoryMethodID(jmethodID string_init) {
-  // TODO: Prioritize ordering.
-  if (string_init == java_lang_String_init) {
-    return java_lang_StringFactory_newEmptyString;
-  } else if (string_init == java_lang_String_init_B) {
-    return java_lang_StringFactory_newStringFromBytes_B;
-  } else if (string_init == java_lang_String_init_BI) {
-    return java_lang_StringFactory_newStringFromBytes_BI;
-  } else if (string_init == java_lang_String_init_BII) {
-    return java_lang_StringFactory_newStringFromBytes_BII;
-  } else if (string_init == java_lang_String_init_BIII) {
-    return java_lang_StringFactory_newStringFromBytes_BIII;
-  } else if (string_init == java_lang_String_init_BIIString) {
-    return java_lang_StringFactory_newStringFromBytes_BIIString;
-  } else if (string_init == java_lang_String_init_BString) {
-    return java_lang_StringFactory_newStringFromBytes_BString;
-  } else if (string_init == java_lang_String_init_BIICharset) {
-    return java_lang_StringFactory_newStringFromBytes_BIICharset;
-  } else if (string_init == java_lang_String_init_BCharset) {
-    return java_lang_StringFactory_newStringFromBytes_BCharset;
-  } else if (string_init == java_lang_String_init_C) {
-    return java_lang_StringFactory_newStringFromChars_C;
-  } else if (string_init == java_lang_String_init_CII) {
-    return java_lang_StringFactory_newStringFromChars_CII;
-  } else if (string_init == java_lang_String_init_IIC) {
-    return java_lang_StringFactory_newStringFromChars_IIC;
-  } else if (string_init == java_lang_String_init_String) {
-    return java_lang_StringFactory_newStringFromString;
-  } else if (string_init == java_lang_String_init_StringBuffer) {
-    return java_lang_StringFactory_newStringFromStringBuffer;
-  } else if (string_init == java_lang_String_init_III) {
-    return java_lang_StringFactory_newStringFromCodePoints;
-  } else if (string_init == java_lang_String_init_StringBuilder) {
-    return java_lang_StringFactory_newStringFromStringBuilder;
-  }
-  LOG(FATAL) << "Could not find StringFactory method for String.<init>";
-  return nullptr;
 }
 
 }  // namespace art

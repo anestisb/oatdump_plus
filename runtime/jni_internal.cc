@@ -618,7 +618,8 @@ class JNI {
     }
     if (c->IsStringClass()) {
       // Replace calls to String.<init> with equivalent StringFactory call.
-      jmethodID sf_mid = WellKnownClasses::StringInitToStringFactoryMethodID(mid);
+      jmethodID sf_mid = soa.EncodeMethod(
+          WellKnownClasses::StringInitToStringFactory(soa.DecodeMethod(mid)));
       return CallStaticObjectMethodV(env, WellKnownClasses::java_lang_StringFactory, sf_mid, args);
     }
     mirror::Object* result = c->AllocObject(soa.Self());
@@ -643,7 +644,8 @@ class JNI {
     }
     if (c->IsStringClass()) {
       // Replace calls to String.<init> with equivalent StringFactory call.
-      jmethodID sf_mid = WellKnownClasses::StringInitToStringFactoryMethodID(mid);
+      jmethodID sf_mid = soa.EncodeMethod(
+          WellKnownClasses::StringInitToStringFactory(soa.DecodeMethod(mid)));
       return CallStaticObjectMethodA(env, WellKnownClasses::java_lang_StringFactory, sf_mid, args);
     }
     mirror::Object* result = c->AllocObject(soa.Self());

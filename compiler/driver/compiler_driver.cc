@@ -2789,18 +2789,6 @@ std::string CompilerDriver::GetMemoryUsageString(bool extended) const {
   return oss.str();
 }
 
-bool CompilerDriver::IsStringTypeIndex(uint16_t type_index, const DexFile* dex_file) {
-  const char* type = dex_file->GetTypeDescriptor(dex_file->GetTypeId(type_index));
-  return strcmp(type, "Ljava/lang/String;") == 0;
-}
-
-bool CompilerDriver::IsStringInit(uint32_t method_index, const DexFile* dex_file, int32_t* offset) {
-  DexFileMethodInliner* inliner = GetMethodInlinerMap()->GetMethodInliner(dex_file);
-  const PointerSize pointer_size = InstructionSetPointerSize(GetInstructionSet());
-  *offset = inliner->GetOffsetForStringInit(method_index, pointer_size);
-  return inliner->IsStringInitMethodIndex(method_index);
-}
-
 bool CompilerDriver::MayInlineInternal(const DexFile* inlined_from,
                                        const DexFile* inlined_into) const {
   // We're not allowed to inline across dex files if we're the no-inline-from dex file.
