@@ -62,6 +62,18 @@ where
     --report_script : path to script called for each divergence
     --jfuzz_arg     : argument for jfuzz
 
+How to start JFuzz nightly testing
+==================================
+
+    run_jfuzz_test_nightly.py
+                          [--num_proc NUM_PROC]
+
+where
+
+    --num_proc      : number of run_jfuzz_test.py instances to run (8 by default)
+
+Remaining arguments are passed to run\_jfuzz_test.py.
+
 How to start J/DexFuzz testing (multi-layered)
 ==============================================
 
