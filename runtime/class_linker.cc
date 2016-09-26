@@ -2378,6 +2378,7 @@ mirror::Class* ClassLinker::FindClass(Thread* self,
   DCHECK_NE(*descriptor, '\0') << "descriptor is empty string";
   DCHECK(self != nullptr);
   self->AssertNoPendingException();
+  self->PoisonObjectPointers();
   if (descriptor[1] == '\0') {
     // only the descriptors of primitive types should be 1 character long, also avoid class lookup
     // for primitive classes that aren't backed by dex files.
