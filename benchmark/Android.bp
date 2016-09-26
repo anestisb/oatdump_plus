@@ -26,6 +26,7 @@ art_cc_library {
     shared_libs: [
         "libart",
         "libbacktrace",
+        "libbase",
         "libnativehelper",
     ],
     clang: true,
