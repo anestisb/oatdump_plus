@@ -323,7 +323,7 @@ std::unique_ptr<const DexFile> DexFile::OpenOneDexFileFromZip(const ZipArchive& 
   ScopedTrace trace("Dex file open from Zip Archive " + std::string(location));
   CHECK(!location.empty());
   std::unique_ptr<ZipEntry> zip_entry(zip_archive.Find(entry_name, error_msg));
-  if (zip_entry.get() == nullptr) {
+  if (zip_entry == nullptr) {
     *error_code = ZipOpenErrorCode::kEntryNotFound;
     return nullptr;
   }
@@ -333,7 +333,7 @@ std::unique_ptr<const DexFile> DexFile::OpenOneDexFileFromZip(const ZipArchive& 
     return nullptr;
   }
   std::unique_ptr<MemMap> map(zip_entry->ExtractToMemMap(location.c_str(), entry_name, error_msg));
-  if (map.get() == nullptr) {
+  if (map == nullptr) {
     *error_msg = StringPrintf("Failed to extract '%s' from '%s': %s", entry_name, location.c_str(),
                               error_msg->c_str());
     *error_code = ZipOpenErrorCode::kExtractToMemoryError;
@@ -349,9 +349,15 @@ std::unique_ptr<const DexFile> DexFile::OpenOneDexFileFromZip(const ZipArchive& 
                                                  verify_checksum,
                                                  error_msg,
                                                  &verify_result);
-  if (dex_file != nullptr) {
-    dex_file->mem_map_.reset(map.release());
+  if (dex_file == nullptr) {
+    if (verify_result == VerifyResult::kVerifyNotAttempted) {
+      *error_code = ZipOpenErrorCode::kDexFileError;
+    } else {
+      *error_code = ZipOpenErrorCode::kVerifyError;
+    }
+    return nullptr;
   }
+  dex_file->mem_map_.reset(map.release());
   if (!dex_file->DisableWrite()) {
     *error_msg = StringPrintf("Failed to make dex file '%s' read only", location.c_str());
     *error_code = ZipOpenErrorCode::kMakeReadOnlyError;
@@ -440,6 +446,9 @@ std::unique_ptr<DexFile> DexFile::OpenCommon(const uint8_t* base,
                                              bool verify_checksum,
                                              std::string* error_msg,
                                              VerifyResult* verify_result) {
+  if (verify_result != nullptr) {
+    *verify_result = VerifyResult::kVerifyNotAttempted;
+  }
   std::unique_ptr<DexFile> dex_file(new DexFile(base,
                                                 size,
                                                 location,
