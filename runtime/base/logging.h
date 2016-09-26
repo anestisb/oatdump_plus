@@ -26,8 +26,8 @@
 namespace art {
 
 // Make libbase's LogSeverity more easily available.
-using LogSeverity = ::android::base::LogSeverity;
-using ScopedLogSeverity = ::android::base::ScopedLogSeverity;
+using ::android::base::LogSeverity;
+using ::android::base::ScopedLogSeverity;
 
 // The members of this struct are the valid arguments to VLOG and VLOG_IS_ON in code,
 // and the "-verbose:" command line argument.
