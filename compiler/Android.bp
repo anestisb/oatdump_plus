@@ -185,6 +185,7 @@ art_cc_defaults {
     },
     generated_sources: ["art_compiler_operator_srcs"],
     shared_libs: [
+        "libbase",
         "liblz4",
         "liblzma",
     ],
