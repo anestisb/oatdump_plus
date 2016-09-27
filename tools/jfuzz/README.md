@@ -47,20 +47,22 @@ How to start JFuzz testing
                           [--mode1=MODE] [--mode2=MODE]
                           [--report_script=SCRIPT]
                           [--jfuzz_arg=ARG]
+                          [--true_divergence]
 
 where
 
-    --num_tests     : number of tests to run (10000 by default)
-    --device        : target device serial number (passed to adb -s)
-    --mode1         : m1
-    --mode2         : m2, with m1 != m2, and values one of
+    --num_tests       : number of tests to run (10000 by default)
+    --device          : target device serial number (passed to adb -s)
+    --mode1           : m1
+    --mode2           : m2, with m1 != m2, and values one of
       ri   = reference implementation on host (default for m1)
       hint = Art interpreter on host
       hopt = Art optimizing on host (default for m2)
       tint = Art interpreter on target
       topt = Art optimizing on target
-    --report_script : path to script called for each divergence
-    --jfuzz_arg     : argument for jfuzz
+    --report_script   : path to script called for each divergence
+    --jfuzz_arg       : argument for jfuzz
+    --true_divergence : don't bisect timeout divergences
 
 How to start JFuzz nightly testing
 ==================================
