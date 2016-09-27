@@ -84,10 +84,10 @@ class HeapTable {
       for (Heap heap : heaps) {
         long size = config.getSize(elem, heap);
         total += size;
-        vals.add(DocString.format("%,14d", size));
+        vals.add(size == 0 ? DocString.text("") : DocString.format("%,14d", size));
       }
       if (showTotal) {
-        vals.add(DocString.format("%,14d", total));
+        vals.add(total == 0 ? DocString.text("") : DocString.format("%,14d", total));
       }
 
       for (ValueConfig<T> value : values) {
