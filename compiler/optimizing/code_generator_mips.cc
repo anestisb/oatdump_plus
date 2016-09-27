@@ -4396,13 +4396,16 @@ void CodeGeneratorMIPS::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke
   }
 
   switch (method_load_kind) {
-    case HInvokeStaticOrDirect::MethodLoadKind::kStringInit:
+    case HInvokeStaticOrDirect::MethodLoadKind::kStringInit: {
       // temp = thread->string_init_entrypoint
+      uint32_t offset =
+          GetThreadOffset<kMipsPointerSize>(invoke->GetStringInitEntryPoint()).Int32Value();
       __ LoadFromOffset(kLoadWord,
                         temp.AsRegister<Register>(),
                         TR,
-                        invoke->GetStringInitOffset());
+                        offset);
       break;
+    }
     case HInvokeStaticOrDirect::MethodLoadKind::kRecursive:
       callee_method = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
       break;

@@ -640,28 +640,6 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
     INTRINSIC(JavaLangLong, RotateLeft, JI_J, kIntrinsicRotateLeft, k64),
 
 #undef INTRINSIC
-
-#define SPECIAL(c, n, p, o, d) \
-    { { kClassCache ## c, kNameCache ## n, kProtoCache ## p }, { o, kInlineSpecial, { d } } }
-
-    SPECIAL(JavaLangString, Init, _V, kInlineStringInit, 0),
-    SPECIAL(JavaLangString, Init, ByteArray_V, kInlineStringInit, 1),
-    SPECIAL(JavaLangString, Init, ByteArrayI_V, kInlineStringInit, 2),
-    SPECIAL(JavaLangString, Init, ByteArrayII_V, kInlineStringInit, 3),
-    SPECIAL(JavaLangString, Init, ByteArrayIII_V, kInlineStringInit, 4),
-    SPECIAL(JavaLangString, Init, ByteArrayIIString_V, kInlineStringInit, 5),
-    SPECIAL(JavaLangString, Init, ByteArrayString_V, kInlineStringInit, 6),
-    SPECIAL(JavaLangString, Init, ByteArrayIICharset_V, kInlineStringInit, 7),
-    SPECIAL(JavaLangString, Init, ByteArrayCharset_V, kInlineStringInit, 8),
-    SPECIAL(JavaLangString, Init, CharArray_V, kInlineStringInit, 9),
-    SPECIAL(JavaLangString, Init, CharArrayII_V, kInlineStringInit, 10),
-    SPECIAL(JavaLangString, Init, IICharArray_V, kInlineStringInit, 11),
-    SPECIAL(JavaLangString, Init, IntArrayII_V, kInlineStringInit, 12),
-    SPECIAL(JavaLangString, Init, String_V, kInlineStringInit, 13),
-    SPECIAL(JavaLangString, Init, StringBuffer_V, kInlineStringInit, 14),
-    SPECIAL(JavaLangString, Init, StringBuilder_V, kInlineStringInit, 15),
-
-#undef SPECIAL
 };
 
 DexFileMethodInliner::DexFileMethodInliner()
@@ -841,24 +819,6 @@ bool DexFileMethodInliner::AddInlineMethod(int32_t method_idx, const InlineMetho
     }
     return false;
   }
-}
-
-uint32_t DexFileMethodInliner::GetOffsetForStringInit(uint32_t method_index,
-                                                      PointerSize pointer_size) {
-  ReaderMutexLock mu(Thread::Current(), lock_);
-  auto it = inline_methods_.find(method_index);
-  if (it != inline_methods_.end() && (it->second.opcode == kInlineStringInit)) {
-    uint32_t string_init_base_offset = Thread::QuickEntryPointOffsetWithSize(
-              OFFSETOF_MEMBER(QuickEntryPoints, pNewEmptyString), pointer_size);
-    return string_init_base_offset + it->second.d.data * static_cast<size_t>(pointer_size);
-  }
-  return 0;
-}
-
-bool DexFileMethodInliner::IsStringInitMethodIndex(uint32_t method_index) {
-  ReaderMutexLock mu(Thread::Current(), lock_);
-  auto it = inline_methods_.find(method_index);
-  return (it != inline_methods_.end()) && (it->second.opcode == kInlineStringInit);
 }
 
 }  // namespace art

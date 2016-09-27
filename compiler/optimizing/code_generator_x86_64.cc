@@ -754,11 +754,13 @@ Location CodeGeneratorX86_64::GenerateCalleeMethodStaticOrDirectCall(HInvokeStat
   // All registers are assumed to be correctly set up.
   Location callee_method = temp;  // For all kinds except kRecursive, callee will be in temp.
   switch (invoke->GetMethodLoadKind()) {
-    case HInvokeStaticOrDirect::MethodLoadKind::kStringInit:
+    case HInvokeStaticOrDirect::MethodLoadKind::kStringInit: {
       // temp = thread->string_init_entrypoint
-      __ gs()->movq(temp.AsRegister<CpuRegister>(),
-                    Address::Absolute(invoke->GetStringInitOffset(), /* no_rip */ true));
+      uint32_t offset =
+          GetThreadOffset<kX86_64PointerSize>(invoke->GetStringInitEntryPoint()).Int32Value();
+      __ gs()->movq(temp.AsRegister<CpuRegister>(), Address::Absolute(offset, /* no_rip */ true));
       break;
+    }
     case HInvokeStaticOrDirect::MethodLoadKind::kRecursive:
       callee_method = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
       break;

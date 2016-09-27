@@ -576,9 +576,7 @@ static inline bool DoCallCommon(ArtMethod* called_method,
   // Replace calls to String.<init> with equivalent StringFactory call.
   if (UNLIKELY(called_method->GetDeclaringClass()->IsStringClass()
                && called_method->IsConstructor())) {
-    ScopedObjectAccessUnchecked soa(self);
-    jmethodID mid = soa.EncodeMethod(called_method);
-    called_method = soa.DecodeMethod(WellKnownClasses::StringInitToStringFactoryMethodID(mid));
+    called_method = WellKnownClasses::StringInitToStringFactory(called_method);
     string_init = true;
   }
 

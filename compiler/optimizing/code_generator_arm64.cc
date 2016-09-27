@@ -3570,10 +3570,13 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
   // Make sure that ArtMethod* is passed in kArtMethodRegister as per the calling convention.
   Location callee_method = temp;  // For all kinds except kRecursive, callee will be in temp.
   switch (invoke->GetMethodLoadKind()) {
-    case HInvokeStaticOrDirect::MethodLoadKind::kStringInit:
+    case HInvokeStaticOrDirect::MethodLoadKind::kStringInit: {
+      uint32_t offset =
+          GetThreadOffset<kArm64PointerSize>(invoke->GetStringInitEntryPoint()).Int32Value();
       // temp = thread->string_init_entrypoint
-      __ Ldr(XRegisterFrom(temp), MemOperand(tr, invoke->GetStringInitOffset()));
+      __ Ldr(XRegisterFrom(temp), MemOperand(tr, offset));
       break;
+    }
     case HInvokeStaticOrDirect::MethodLoadKind::kRecursive:
       callee_method = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
       break;
