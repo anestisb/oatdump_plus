@@ -767,6 +767,11 @@ ArtMethod* HInstructionBuilder::ResolveMethod(uint16_t method_idx, InvokeType in
   return resolved_method;
 }
 
+static bool IsStringConstructor(ArtMethod* method) {
+  ScopedObjectAccess soa(Thread::Current());
+  return method->GetDeclaringClass()->IsStringClass() && method->IsConstructor();
+}
+
 bool HInstructionBuilder::BuildInvoke(const Instruction& instruction,
                                       uint32_t dex_pc,
                                       uint32_t method_idx,
@@ -783,39 +788,6 @@ bool HInstructionBuilder::BuildInvoke(const Instruction& instruction,
   if (invoke_type != kStatic) {  // instance call
     // One extra argument for 'this'.
     number_of_arguments++;
-  }
-
-  // Special handling for string init.
-  int32_t string_init_offset = 0;
-  bool is_string_init = compiler_driver_->IsStringInit(method_idx,
-                                                       dex_file_,
-                                                       &string_init_offset);
-  // Replace calls to String.<init> with StringFactory.
-  if (is_string_init) {
-    HInvokeStaticOrDirect::DispatchInfo dispatch_info = {
-        HInvokeStaticOrDirect::MethodLoadKind::kStringInit,
-        HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod,
-        dchecked_integral_cast<uint64_t>(string_init_offset),
-        0U
-    };
-    MethodReference target_method(dex_file_, method_idx);
-    HInvoke* invoke = new (arena_) HInvokeStaticOrDirect(
-        arena_,
-        number_of_arguments - 1,
-        Primitive::kPrimNot /*return_type */,
-        dex_pc,
-        method_idx,
-        nullptr,
-        dispatch_info,
-        invoke_type,
-        target_method,
-        HInvokeStaticOrDirect::ClinitCheckRequirement::kImplicit);
-    return HandleStringInit(invoke,
-                            number_of_vreg_arguments,
-                            args,
-                            register_index,
-                            is_range,
-                            descriptor);
   }
 
   ArtMethod* resolved_method = ResolveMethod(method_idx, invoke_type);
@@ -836,6 +808,35 @@ bool HInstructionBuilder::BuildInvoke(const Instruction& instruction,
                         descriptor,
                         nullptr, /* clinit_check */
                         true /* is_unresolved */);
+  }
+
+  // Replace calls to String.<init> with StringFactory.
+  if (IsStringConstructor(resolved_method)) {
+    uint32_t string_init_entry_point = WellKnownClasses::StringInitToEntryPoint(resolved_method);
+    HInvokeStaticOrDirect::DispatchInfo dispatch_info = {
+        HInvokeStaticOrDirect::MethodLoadKind::kStringInit,
+        HInvokeStaticOrDirect::CodePtrLocation::kCallArtMethod,
+        dchecked_integral_cast<uint64_t>(string_init_entry_point),
+        0U
+    };
+    MethodReference target_method(dex_file_, method_idx);
+    HInvoke* invoke = new (arena_) HInvokeStaticOrDirect(
+        arena_,
+        number_of_arguments - 1,
+        Primitive::kPrimNot /*return_type */,
+        dex_pc,
+        method_idx,
+        nullptr,
+        dispatch_info,
+        invoke_type,
+        target_method,
+        HInvokeStaticOrDirect::ClinitCheckRequirement::kImplicit);
+    return HandleStringInit(invoke,
+                            number_of_vreg_arguments,
+                            args,
+                            register_index,
+                            is_range,
+                            descriptor);
   }
 
   // Potential class initialization check, in the case of a static method call.

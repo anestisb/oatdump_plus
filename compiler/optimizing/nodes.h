@@ -4044,9 +4044,9 @@ class HInvokeStaticOrDirect FINAL : public HInvoke {
   }
   bool HasDirectCodePtr() const { return GetCodePtrLocation() == CodePtrLocation::kCallDirect; }
 
-  int32_t GetStringInitOffset() const {
+  QuickEntrypointEnum GetStringInitEntryPoint() const {
     DCHECK(IsStringInit());
-    return dispatch_info_.method_load_data;
+    return static_cast<QuickEntrypointEnum>(dispatch_info_.method_load_data);
   }
 
   uint64_t GetMethodAddress() const {

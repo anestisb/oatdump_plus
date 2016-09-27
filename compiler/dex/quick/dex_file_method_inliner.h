@@ -82,17 +82,6 @@ class DexFileMethodInliner {
     bool IsSpecial(uint32_t method_index) REQUIRES(!lock_);
 
     /**
-     * Gets the thread pointer entrypoint offset for a string init method index and pointer size.
-     */
-    uint32_t GetOffsetForStringInit(uint32_t method_index, PointerSize pointer_size)
-        REQUIRES(!lock_);
-
-    /**
-     * Check whether a particular method index is a string init.
-     */
-    bool IsStringInitMethodIndex(uint32_t method_index) REQUIRES(!lock_);
-
-    /**
      * To avoid multiple lookups of a class by its descriptor, we cache its
      * type index in the IndexCache. These are the indexes into the IndexCache
      * class_indexes array.
