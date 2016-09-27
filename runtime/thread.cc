@@ -127,43 +127,6 @@ void Thread::InitTlsEntryPoints() {
   InitEntryPoints(&tlsPtr_.jni_entrypoints, &tlsPtr_.quick_entrypoints);
 }
 
-void Thread::InitStringEntryPoints() {
-  ScopedObjectAccess soa(this);
-  QuickEntryPoints* qpoints = &tlsPtr_.quick_entrypoints;
-  qpoints->pNewEmptyString = reinterpret_cast<void(*)()>(
-      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newEmptyString));
-  qpoints->pNewStringFromBytes_B = reinterpret_cast<void(*)()>(
-      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromBytes_B));
-  qpoints->pNewStringFromBytes_BI = reinterpret_cast<void(*)()>(
-      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromBytes_BI));
-  qpoints->pNewStringFromBytes_BII = reinterpret_cast<void(*)()>(
-      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromBytes_BII));
-  qpoints->pNewStringFromBytes_BIII = reinterpret_cast<void(*)()>(
-      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromBytes_BIII));
-  qpoints->pNewStringFromBytes_BIIString = reinterpret_cast<void(*)()>(
-      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromBytes_BIIString));
-  qpoints->pNewStringFromBytes_BString = reinterpret_cast<void(*)()>(
-      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromBytes_BString));
-  qpoints->pNewStringFromBytes_BIICharset = reinterpret_cast<void(*)()>(
-      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromBytes_BIICharset));
-  qpoints->pNewStringFromBytes_BCharset = reinterpret_cast<void(*)()>(
-      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromBytes_BCharset));
-  qpoints->pNewStringFromChars_C = reinterpret_cast<void(*)()>(
-      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromChars_C));
-  qpoints->pNewStringFromChars_CII = reinterpret_cast<void(*)()>(
-      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromChars_CII));
-  qpoints->pNewStringFromChars_IIC = reinterpret_cast<void(*)()>(
-      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromChars_IIC));
-  qpoints->pNewStringFromCodePoints = reinterpret_cast<void(*)()>(
-      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromCodePoints));
-  qpoints->pNewStringFromString = reinterpret_cast<void(*)()>(
-      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromString));
-  qpoints->pNewStringFromStringBuffer = reinterpret_cast<void(*)()>(
-      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromStringBuffer));
-  qpoints->pNewStringFromStringBuilder = reinterpret_cast<void(*)()>(
-      soa.DecodeMethod(WellKnownClasses::java_lang_StringFactory_newStringFromStringBuilder));
-}
-
 void Thread::ResetQuickAllocEntryPointsForThread() {
   ResetQuickAllocEntryPoints(&tlsPtr_.quick_entrypoints);
 }
