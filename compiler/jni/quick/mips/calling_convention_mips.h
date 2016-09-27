@@ -54,14 +54,17 @@ class MipsManagedRuntimeCallingConvention FINAL : public ManagedRuntimeCallingCo
 
 class MipsJniCallingConvention FINAL : public JniCallingConvention {
  public:
-  MipsJniCallingConvention(bool is_static, bool is_synchronized, const char* shorty);
+  MipsJniCallingConvention(bool is_static,
+                           bool is_synchronized,
+                           bool is_critical_native,
+                           const char* shorty);
   ~MipsJniCallingConvention() OVERRIDE {}
   // Calling convention
   ManagedRegister ReturnRegister() OVERRIDE;
   ManagedRegister IntReturnRegister() OVERRIDE;
   ManagedRegister InterproceduralScratchRegister() OVERRIDE;
   // JNI calling convention
-  void Next() OVERRIDE;  // Override default behavior for AAPCS
+  void Next() OVERRIDE;  // Override default behavior for o32.
   size_t FrameSize() OVERRIDE;
   size_t OutArgSize() OVERRIDE;
   ArrayRef<const ManagedRegister> CalleeSaveRegisters() const OVERRIDE;
@@ -82,8 +85,9 @@ class MipsJniCallingConvention FINAL : public JniCallingConvention {
   size_t NumberOfOutgoingStackArgs() OVERRIDE;
 
  private:
-  // Padding to ensure longs and doubles are not split in AAPCS
+  // Padding to ensure longs and doubles are not split in o32.
   size_t padding_;
+  size_t use_fp_arg_registers_;
 
   DISALLOW_COPY_AND_ASSIGN(MipsJniCallingConvention);
 };

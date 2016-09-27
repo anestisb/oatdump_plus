@@ -370,14 +370,6 @@ class JniCallingConvention : public CallingConvention {
     kObjectOrClass = 1
   };
 
-  // TODO: remove this constructor once all are changed to the below one.
-  JniCallingConvention(bool is_static,
-                       bool is_synchronized,
-                       const char* shorty,
-                       PointerSize frame_pointer_size)
-      : CallingConvention(is_static, is_synchronized, shorty, frame_pointer_size),
-        is_critical_native_(false) {}
-
   JniCallingConvention(bool is_static,
                        bool is_synchronized,
                        bool is_critical_native,
