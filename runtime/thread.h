@@ -471,6 +471,14 @@ class Thread {
   }
   void Notify() REQUIRES(!*wait_mutex_);
 
+  ALWAYS_INLINE void PoisonObjectPointers() {
+    ++poison_object_cookie_;
+  }
+
+  ALWAYS_INLINE uintptr_t GetPoisonObjectCookie() const {
+    return poison_object_cookie_;
+  }
+
  private:
   void NotifyLocked(Thread* self) REQUIRES(wait_mutex_);
 
@@ -1527,6 +1535,9 @@ class Thread {
 
   // Debug disable read barrier count, only is checked for debug builds and only in the runtime.
   uint8_t debug_disallow_read_barrier_ = 0;
+
+  // Note that it is not in the packed struct, may not be accessed for cross compilation.
+  uintptr_t poison_object_cookie_ = 0;
 
   // Pending extra checkpoints if checkpoint_function_ is already used.
   std::list<Closure*> checkpoint_overflow_ GUARDED_BY(Locks::thread_suspend_count_lock_);
