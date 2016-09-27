@@ -3006,13 +3006,16 @@ void CodeGeneratorMIPS64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
 
   Location callee_method = temp;  // For all kinds except kRecursive, callee will be in temp.
   switch (invoke->GetMethodLoadKind()) {
-    case HInvokeStaticOrDirect::MethodLoadKind::kStringInit:
+    case HInvokeStaticOrDirect::MethodLoadKind::kStringInit: {
       // temp = thread->string_init_entrypoint
+      uint32_t offset =
+          GetThreadOffset<kMips64PointerSize>(invoke->GetStringInitEntryPoint()).Int32Value();
       __ LoadFromOffset(kLoadDoubleword,
                         temp.AsRegister<GpuRegister>(),
                         TR,
-                        invoke->GetStringInitOffset());
+                        offset);
       break;
+    }
     case HInvokeStaticOrDirect::MethodLoadKind::kRecursive:
       callee_method = invoke->GetLocations()->InAt(invoke->GetSpecialInputIndex());
       break;

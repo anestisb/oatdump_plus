@@ -455,7 +455,7 @@ JValue InvokeWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa, jobject o
   bool is_string_init = method->GetDeclaringClass()->IsStringClass() && method->IsConstructor();
   if (is_string_init) {
     // Replace calls to String.<init> with equivalent StringFactory call.
-    method = soa.DecodeMethod(WellKnownClasses::StringInitToStringFactoryMethodID(mid));
+    method = WellKnownClasses::StringInitToStringFactory(method);
   }
   mirror::Object* receiver = method->IsStatic() ? nullptr : soa.Decode<mirror::Object*>(obj);
   uint32_t shorty_len = 0;
@@ -486,7 +486,7 @@ JValue InvokeWithJValues(const ScopedObjectAccessAlreadyRunnable& soa, jobject o
   bool is_string_init = method->GetDeclaringClass()->IsStringClass() && method->IsConstructor();
   if (is_string_init) {
     // Replace calls to String.<init> with equivalent StringFactory call.
-    method = soa.DecodeMethod(WellKnownClasses::StringInitToStringFactoryMethodID(mid));
+    method = WellKnownClasses::StringInitToStringFactory(method);
   }
   mirror::Object* receiver = method->IsStatic() ? nullptr : soa.Decode<mirror::Object*>(obj);
   uint32_t shorty_len = 0;
@@ -518,7 +518,7 @@ JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccessAlreadyRunnab
   bool is_string_init = method->GetDeclaringClass()->IsStringClass() && method->IsConstructor();
   if (is_string_init) {
     // Replace calls to String.<init> with equivalent StringFactory call.
-    method = soa.DecodeMethod(WellKnownClasses::StringInitToStringFactoryMethodID(mid));
+    method = WellKnownClasses::StringInitToStringFactory(method);
     receiver = nullptr;
   }
   uint32_t shorty_len = 0;
@@ -550,7 +550,7 @@ JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccessAlreadyRunnab
   bool is_string_init = method->GetDeclaringClass()->IsStringClass() && method->IsConstructor();
   if (is_string_init) {
     // Replace calls to String.<init> with equivalent StringFactory call.
-    method = soa.DecodeMethod(WellKnownClasses::StringInitToStringFactoryMethodID(mid));
+    method = WellKnownClasses::StringInitToStringFactory(method);
     receiver = nullptr;
   }
   uint32_t shorty_len = 0;
@@ -596,8 +596,7 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
   if (!m->IsStatic()) {
     // Replace calls to String.<init> with equivalent StringFactory call.
     if (declaring_class->IsStringClass() && m->IsConstructor()) {
-      jmethodID mid = soa.EncodeMethod(m);
-      m = soa.DecodeMethod(WellKnownClasses::StringInitToStringFactoryMethodID(mid));
+      m = WellKnownClasses::StringInitToStringFactory(m);
       CHECK(javaReceiver == nullptr);
     } else {
       // Check that the receiver is non-null and an instance of the field's declaring class.
