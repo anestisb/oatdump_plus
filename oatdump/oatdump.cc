@@ -2858,10 +2858,17 @@ class IMTDumper {
         std::cerr << "  " << iface->GetDescriptor(&iface_name) << std::endl;
 
         for (ArtMethod& iface_method : iface->GetVirtualMethods(pointer_size)) {
-          uint32_t base_hash = ImTable::GetBaseImtHash(&iface_method);
+          uint32_t class_hash, name_hash, signature_hash;
+          ImTable::GetImtHashComponents(&iface_method, &class_hash, &name_hash, &signature_hash);
           uint32_t imt_slot = ImTable::GetImtIndex(&iface_method);
-          std::cerr << "    " << PrettyMethod(&iface_method, true) << " slot=" << std::dec
-              << imt_slot << " base_hash=0x" << std::hex << base_hash << std::endl;
+          std::cerr << "    " << PrettyMethod(&iface_method, true)
+              << " slot=" << imt_slot
+              << std::hex
+              << " class_hash=0x" << class_hash
+              << " name_hash=0x" << name_hash
+              << " signature_hash=0x" << signature_hash
+              << std::dec
+              << std::endl;
         }
       }
     }
