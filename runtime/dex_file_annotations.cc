@@ -572,7 +572,7 @@ bool ProcessAnnotationValue(Handle<mirror::Class> klass,
   *annotation_ptr = annotation;
 
   if (result_style == DexFile::kAllObjects && primitive_type != Primitive::kPrimVoid) {
-    element_object = BoxPrimitive(primitive_type, annotation_value->value_);
+    element_object = BoxPrimitive(primitive_type, annotation_value->value_).Decode();
     set_object = true;
   }
 
