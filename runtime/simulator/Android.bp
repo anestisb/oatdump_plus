@@ -25,6 +25,7 @@ cc_defaults {
         "code_simulator_arm64.cc",
     ],
     shared_libs: [
+        "libbase",
         "liblog",
     ],
     cflags: ["-DVIXL_INCLUDE_SIMULATOR_AARCH64"],
