@@ -9,7 +9,6 @@ Usage:
        Serve pages on the given port. Defaults to 7100.
 
 TODO:
- * Show GC Root paths.
  * Have a way to diff two heap dumps.
 
  * Add more tips to the help page.
@@ -76,6 +75,7 @@ Things to move to perflib:
 
 Release History:
  0.8 Pending
+   Show sample path from GC root with field names in place of dominator path.
 
  0.7 Aug 16, 2016
    Launch ahat server before processing the heap dump.

@@ -22,7 +22,6 @@ import com.android.tools.perflib.heap.ClassObj;
 import com.android.tools.perflib.heap.Field;
 import com.android.tools.perflib.heap.Heap;
 import com.android.tools.perflib.heap.Instance;
-import com.android.tools.perflib.heap.RootObj;
 import com.android.tools.perflib.heap.RootType;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,6 +30,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static com.android.ahat.InstanceUtils.PathElement;
 
 class ObjectHandler implements AhatHandler {
 
@@ -62,7 +63,7 @@ class ObjectHandler implements AhatHandler {
     doc.big(Value.render(mSnapshot, inst));
 
     printAllocationSite(doc, query, inst);
-    printDominatorPath(doc, query, inst);
+    printGcRootPath(doc, query, inst);
 
     doc.section("Object Info");
     ClassObj cls = inst.getClassObj();
@@ -202,43 +203,43 @@ class ObjectHandler implements AhatHandler {
     }
   }
 
-  private void printDominatorPath(Doc doc, Query query, Instance inst) {
-    doc.section("Dominator Path from Root");
-    List<Instance> path = new ArrayList<Instance>();
-    for (Instance parent = inst;
-        parent != null && !(parent instanceof RootObj);
-        parent = parent.getImmediateDominator()) {
-      path.add(parent);
-    }
+  private void printGcRootPath(Doc doc, Query query, Instance inst) {
+    doc.section("Sample Path from GC Root");
+    List<PathElement> path = InstanceUtils.getPathFromGcRoot(inst);
 
     // Add 'null' as a marker for the root.
-    path.add(null);
-    Collections.reverse(path);
+    path.add(0, null);
 
-    HeapTable.TableConfig<Instance> table = new HeapTable.TableConfig<Instance>() {
+    HeapTable.TableConfig<PathElement> table = new HeapTable.TableConfig<PathElement>() {
       public String getHeapsDescription() {
-        return "Bytes Retained by Heap";
+        return "Bytes Retained by Heap (Dominators Only)";
       }
 
-      public long getSize(Instance element, Heap heap) {
+      public long getSize(PathElement element, Heap heap) {
         if (element == null) {
           return mSnapshot.getHeapSize(heap);
         }
-        int index = mSnapshot.getHeapIndex(heap);
-        return element.getRetainedSize(index);
+        if (element.isDominator) {
+          int index = mSnapshot.getHeapIndex(heap);
+          return element.instance.getRetainedSize(index);
+        }
+        return 0;
       }
 
-      public List<HeapTable.ValueConfig<Instance>> getValueConfigs() {
-        HeapTable.ValueConfig<Instance> value = new HeapTable.ValueConfig<Instance>() {
+      public List<HeapTable.ValueConfig<PathElement>> getValueConfigs() {
+        HeapTable.ValueConfig<PathElement> value = new HeapTable.ValueConfig<PathElement>() {
           public String getDescription() {
-            return "Object";
+            return "Path Element";
           }
 
-          public DocString render(Instance element) {
+          public DocString render(PathElement element) {
             if (element == null) {
               return DocString.link(DocString.uri("rooted"), DocString.text("ROOT"));
             } else {
-              return DocString.text("→ ").append(Value.render(mSnapshot, element));
+              DocString label = DocString.text(" → ");
+              label.append(Value.render(mSnapshot, element.instance));
+              label.append(element.field);
+              return label;
             }
           }
         };
