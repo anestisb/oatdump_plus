@@ -29,6 +29,16 @@ public class Main {
   // collected before we take the heap dump.
   public static DumpedStuff stuff;
 
+  public static class ObjectTree {
+    public ObjectTree left;
+    public ObjectTree right;
+
+    public ObjectTree(ObjectTree left, ObjectTree right) {
+      this.left = left;
+      this.right = right;
+    }
+  }
+
   // We will take a heap dump that includes a single instance of this
   // DumpedStuff class. Objects stored as fields in this class can be easily
   // found in the hprof dump by searching for the instance of the DumpedStuff
@@ -42,6 +52,11 @@ public class Main {
     public PhantomReference aPhantomReference = new PhantomReference(anObject, referenceQueue);
     public WeakReference aWeakReference = new WeakReference(anObject, referenceQueue);
     public byte[] bigArray;
+    public ObjectTree[] gcPathArray = new ObjectTree[]{null, null,
+      new ObjectTree(
+          new ObjectTree(null, new ObjectTree(null, null)),
+          new ObjectTree(null, null)),
+      null};
 
     DumpedStuff() {
       int N = 1000000;
@@ -53,6 +68,8 @@ public class Main {
       NativeAllocationRegistry registry = new NativeAllocationRegistry(
           Main.class.getClassLoader(), 0x12345, 42);
       registry.registerNativeAllocation(anObject, 0xABCDABCD);
+
+      gcPathArray[2].right.left = gcPathArray[2].left.right;
     }
   }
 

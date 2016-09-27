@@ -19,11 +19,17 @@ package com.android.ahat;
 import com.android.tools.perflib.heap.ArrayInstance;
 import com.android.tools.perflib.heap.ClassInstance;
 import com.android.tools.perflib.heap.ClassObj;
+import com.android.tools.perflib.heap.Field;
 import com.android.tools.perflib.heap.Heap;
 import com.android.tools.perflib.heap.Instance;
+import com.android.tools.perflib.heap.RootObj;
 import com.android.tools.perflib.heap.Type;
 
 import java.awt.image.BufferedImage;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Utilities for extracting information from hprof instances.
@@ -179,7 +185,7 @@ class InstanceUtils {
    * Read a reference field of an instance.
    * Returns null if the field value is null, or if the field couldn't be read.
    */
-  private static Instance getRefField(Instance inst, String fieldName) {
+  public static Instance getRefField(Instance inst, String fieldName) {
     Object value = getField(inst, fieldName);
     if (!(value instanceof Instance)) {
       return null;
@@ -356,5 +362,91 @@ class InstanceUtils {
       return null;
     }
     return new NativeAllocation(size, inst.getHeap(), pointer, referent);
+  }
+
+  public static class PathElement {
+    public final Instance instance;
+    public final String field;
+    public boolean isDominator;
+
+    public PathElement(Instance instance, String field) {
+      this.instance = instance;
+      this.field = field;
+      this.isDominator = false;
+    }
+  }
+
+  /**
+   * Returns a sample path from a GC root to this instance.
+   * The given instance is included as the last element of the path with an
+   * empty field description.
+   */
+  public static List<PathElement> getPathFromGcRoot(Instance inst) {
+    List<PathElement> path = new ArrayList<PathElement>();
+
+    Instance dom = inst;
+    for (PathElement elem = new PathElement(inst, ""); elem != null;
+        elem = getNextPathElementToGcRoot(elem.instance)) {
+      if (elem.instance == dom) {
+        elem.isDominator = true;
+        dom = dom.getImmediateDominator();
+      }
+      path.add(elem);
+    }
+    Collections.reverse(path);
+    return path;
+  }
+
+  /**
+   * Returns the next instance to GC root from this object and a string
+   * description of which field of that object refers to the given instance.
+   * Returns null if the given instance has no next instance to the gc root.
+   */
+  private static PathElement getNextPathElementToGcRoot(Instance inst) {
+    Instance parent = inst.getNextInstanceToGcRoot();
+    if (parent == null || parent instanceof RootObj) {
+      return null;
+    }
+
+    // Search the parent for the reference to the child.
+    // TODO: This seems terribly inefficient. Can we use data structures to
+    // help us here?
+    String description = ".???";
+    if (parent instanceof ArrayInstance) {
+      ArrayInstance array = (ArrayInstance)parent;
+      Object[] values = array.getValues();
+      for (int i = 0; i < values.length; i++) {
+        if (values[i] instanceof Instance) {
+          Instance ref = (Instance)values[i];
+          if (ref.getId() == inst.getId()) {
+            description = String.format("[%d]", i);
+            break;
+          }
+        }
+      }
+    } else if (parent instanceof ClassObj) {
+      ClassObj cls = (ClassObj)parent;
+      for (Map.Entry<Field, Object> entries : cls.getStaticFieldValues().entrySet()) {
+        if (entries.getValue() instanceof Instance) {
+          Instance ref = (Instance)entries.getValue();
+          if (ref.getId() == inst.getId()) {
+            description = "." + entries.getKey().getName();
+            break;
+          }
+        }
+      }
+    } else if (parent instanceof ClassInstance) {
+      ClassInstance obj = (ClassInstance)parent;
+      for (ClassInstance.FieldValue fields : obj.getValues()) {
+        if (fields.getValue() instanceof Instance) {
+          Instance ref = (Instance)fields.getValue();
+          if (ref.getId() == inst.getId()) {
+            description = "." + fields.getField().getName();
+            break;
+          }
+        }
+      }
+    }
+    return new PathElement(parent, description);
   }
 }
