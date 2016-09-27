@@ -59,6 +59,7 @@ inline void Thread::AllowThreadSuspension() {
   if (UNLIKELY(TestAllFlags())) {
     CheckSuspend();
   }
+  PoisonObjectPointers();
 }
 
 inline void Thread::CheckSuspend() {
