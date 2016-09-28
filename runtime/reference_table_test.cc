@@ -16,17 +16,54 @@
 
 #include "reference_table.h"
 
+#include "class_linker.h"
 #include "common_runtime_test.h"
+#include "handle_scope-inl.h"
 #include "mirror/array-inl.h"
 #include "mirror/class-inl.h"
+#include "mirror/class_loader.h"
 #include "mirror/string.h"
 #include "primitive.h"
+#include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "thread-inl.h"
 
 namespace art {
 
 class ReferenceTableTest : public CommonRuntimeTest {};
+
+static mirror::Object* CreateWeakReference(mirror::Object* referent)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  Thread* self = Thread::Current();
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+
+  StackHandleScope<3> scope(self);
+  Handle<mirror::Object> h_referent(scope.NewHandle<mirror::Object>(referent));
+
+  Handle<mirror::Class> h_ref_class(scope.NewHandle<mirror::Class>(
+      class_linker->FindClass(self,
+                              "Ljava/lang/ref/WeakReference;",
+                              ScopedNullHandle<mirror::ClassLoader>())));
+  CHECK(h_ref_class.Get() != nullptr);
+  CHECK(class_linker->EnsureInitialized(self, h_ref_class, true, true));
+
+  Handle<mirror::Object> h_ref_instance(scope.NewHandle<mirror::Object>(
+      h_ref_class->AllocObject(self)));
+  CHECK(h_ref_instance.Get() != nullptr);
+
+  ArtMethod* constructor = h_ref_class->FindDeclaredDirectMethod(
+      "<init>", "(Ljava/lang/Object;)V", class_linker->GetImagePointerSize());
+  CHECK(constructor != nullptr);
+
+  uint32_t args[2];
+  args[0] = PointerToLowMemUInt32(h_ref_instance.Get());
+  args[1] = PointerToLowMemUInt32(h_referent.Get());
+  JValue result;
+  constructor->Invoke(self, args, sizeof(uint32_t), &result, constructor->GetShorty());
+  CHECK(!self->IsExceptionPending());
+
+  return h_ref_instance.Get();
+}
 
 TEST_F(ReferenceTableTest, Basics) {
   ScopedObjectAccess soa(Thread::Current());
@@ -103,6 +140,29 @@ TEST_F(ReferenceTableTest, Basics) {
       EXPECT_NE(oss.str().find(StringPrintf("%zd of short[] (1 unique instances)", 10 - i - 1)),
                 std::string::npos) << oss.str();
     }
+  }
+
+  // Add a reference and check that the type of the referent is dumped.
+  {
+    mirror::Object* empty_reference = CreateWeakReference(nullptr);
+    ASSERT_TRUE(empty_reference->IsReferenceInstance());
+    rt.Add(empty_reference);
+    std::ostringstream oss;
+    rt.Dump(oss);
+    EXPECT_NE(oss.str().find("java.lang.ref.WeakReference (referent is null)"), std::string::npos)
+        << oss.str();
+  }
+
+  {
+    mirror::Object* string_referent = mirror::String::AllocFromModifiedUtf8(Thread::Current(), "A");
+    mirror::Object* non_empty_reference = CreateWeakReference(string_referent);
+    ASSERT_TRUE(non_empty_reference->IsReferenceInstance());
+    rt.Add(non_empty_reference);
+    std::ostringstream oss;
+    rt.Dump(oss);
+    EXPECT_NE(oss.str().find("java.lang.ref.WeakReference (referent is a java.lang.String)"),
+              std::string::npos)
+        << oss.str();
   }
 }
 
