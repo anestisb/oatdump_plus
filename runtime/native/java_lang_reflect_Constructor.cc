@@ -73,7 +73,7 @@ static jobject Constructor_newInstance0(JNIEnv* env, jobject javaMethod, jobject
   if (!m->IsAccessible() && !c->IsPublic()) {
     // Go 2 frames back, this method is always called from newInstance0, which is called from
     // Constructor.newInstance(Object... args).
-    auto* caller = GetCallingClass(soa.Self(), 2);
+    ObjPtr<mirror::Class> caller = GetCallingClass(soa.Self(), 2);
     // If caller is null, then we called from JNI, just avoid the check since JNI avoids most
     // access checks anyways. TODO: Investigate if this the correct behavior.
     if (caller != nullptr && !caller->CanAccess(c.Get())) {

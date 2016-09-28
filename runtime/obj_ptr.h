@@ -14,23 +14,18 @@
  * limitations under the License.
  */
 
-#ifndef ART_RUNTIME_MIRROR_OBJ_PTR_H_
-#define ART_RUNTIME_MIRROR_OBJ_PTR_H_
+#ifndef ART_RUNTIME_OBJ_PTR_H_
+#define ART_RUNTIME_OBJ_PTR_H_
 
 #include "base/mutex.h"  // For Locks::mutator_lock_.
 #include "globals.h"
 #include "mirror/object_reference.h"
-#include "utils.h"
 
 namespace art {
-namespace mirror {
-
-class Object;
 
 // Value type representing a pointer to a mirror::Object of type MirrorType
 // Pass kPoison as a template boolean for testing in non-debug builds.
-// Note that the functions are not 100% thread safe and may have spurious positive check passes in
-// these cases.
+// Since the cookie is thread based, it is not safe to share an ObjPtr between threads.
 template<class MirrorType, bool kPoison = kIsDebugBuild>
 class ObjPtr {
   static constexpr size_t kCookieShift =
@@ -44,11 +39,13 @@ class ObjPtr {
  public:
   ALWAYS_INLINE ObjPtr() REQUIRES_SHARED(Locks::mutator_lock_) : reference_(0u) {}
 
-  ALWAYS_INLINE explicit ObjPtr(MirrorType* ptr) REQUIRES_SHARED(Locks::mutator_lock_)
-      : reference_(Encode(ptr)) {}
+  ALWAYS_INLINE ObjPtr(std::nullptr_t) REQUIRES_SHARED(Locks::mutator_lock_) : reference_(0u) {}
 
-  ALWAYS_INLINE explicit ObjPtr(const ObjPtr& other) REQUIRES_SHARED(Locks::mutator_lock_)
-      = default;
+  template <typename Type>
+  ALWAYS_INLINE ObjPtr(Type* ptr) REQUIRES_SHARED(Locks::mutator_lock_)
+      : reference_(Encode(static_cast<MirrorType*>(ptr))) {}
+
+  ALWAYS_INLINE ObjPtr(const ObjPtr& other) REQUIRES_SHARED(Locks::mutator_lock_) = default;
 
   ALWAYS_INLINE ObjPtr& operator=(const ObjPtr& other) {
     reference_ = other.reference_;
@@ -65,30 +62,23 @@ class ObjPtr {
   }
 
   ALWAYS_INLINE MirrorType* operator->() const REQUIRES_SHARED(Locks::mutator_lock_) {
-    return Get();
-  }
-
-  ALWAYS_INLINE MirrorType* Get() const REQUIRES_SHARED(Locks::mutator_lock_) {
     return Decode();
   }
+
 
   ALWAYS_INLINE bool IsNull() const {
     return reference_ == 0;
   }
 
-  ALWAYS_INLINE bool IsValid() const REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (!kPoison || IsNull()) {
-      return true;
-    }
-    return GetCookie() == TrimCookie(Thread::Current()->GetPoisonObjectCookie());
+  // Decode makes sure that the object pointer is valid.
+  ALWAYS_INLINE MirrorType* Decode() const REQUIRES_SHARED(Locks::mutator_lock_) {
+    AssertValid();
+    return DecodeUnchecked();
   }
 
-  ALWAYS_INLINE void AssertValid() const REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (kPoison) {
-      CHECK(IsValid()) << "Stale object pointer, expected cookie "
-          << TrimCookie(Thread::Current()->GetPoisonObjectCookie()) << " but got " << GetCookie();
-    }
-  }
+  ALWAYS_INLINE bool IsValid() const REQUIRES_SHARED(Locks::mutator_lock_);
+
+  ALWAYS_INLINE void AssertValid() const REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE bool operator==(const ObjPtr& ptr) const REQUIRES_SHARED(Locks::mutator_lock_) {
     return Decode() == ptr.Decode();
@@ -124,22 +114,8 @@ class ObjPtr {
     return reference_ >> kCookieShift;
   }
 
-  ALWAYS_INLINE static uintptr_t Encode(MirrorType* ptr) REQUIRES_SHARED(Locks::mutator_lock_) {
-    uintptr_t ref = reinterpret_cast<uintptr_t>(ptr);
-    if (kPoison && ref != 0) {
-      DCHECK_LE(ref, 0xFFFFFFFFU);
-      ref >>= kObjectAlignmentShift;
-      // Put cookie in high bits.
-      Thread* self = Thread::Current();
-      DCHECK(self != nullptr);
-      ref |= self->GetPoisonObjectCookie() << kCookieShift;
-    }
-    return ref;
-  }
-
   // Decode makes sure that the object pointer is valid.
-  ALWAYS_INLINE MirrorType* Decode() const REQUIRES_SHARED(Locks::mutator_lock_) {
-    AssertValid();
+  ALWAYS_INLINE MirrorType* DecodeUnchecked() const REQUIRES_SHARED(Locks::mutator_lock_) {
     if (kPoison) {
       return reinterpret_cast<MirrorType*>(
           static_cast<uintptr_t>(static_cast<uint32_t>(reference_ << kObjectAlignmentShift)));
@@ -148,12 +124,16 @@ class ObjPtr {
     }
   }
 
+  ALWAYS_INLINE static uintptr_t Encode(MirrorType* ptr) REQUIRES_SHARED(Locks::mutator_lock_);
   // The encoded reference and cookie.
   uintptr_t reference_;
 };
 
+template<class MirrorType, bool kPoison = kIsDebugBuild>
+static inline ObjPtr<MirrorType, kPoison> MakeObjPtr(MirrorType* ptr) {
+  return ObjPtr<MirrorType, kPoison>(ptr);
+}
 
-}  // namespace mirror
 }  // namespace art
 
-#endif  // ART_RUNTIME_MIRROR_OBJ_PTR_H_
+#endif  // ART_RUNTIME_OBJ_PTR_H_

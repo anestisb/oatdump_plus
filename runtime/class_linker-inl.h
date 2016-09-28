@@ -70,6 +70,7 @@ inline mirror::String* ClassLinker::ResolveString(uint32_t string_idx, ArtMethod
         mirror::StringDexCachePair::LookupString(declaring_class->GetDexCacheStrings(),
                                                  string_idx,
                                                  mirror::DexCache::kDexCacheStringCacheSize).Read();
+  Thread::PoisonObjectPointersIfDebug();
   if (UNLIKELY(string == nullptr)) {
     StackHandleScope<1> hs(Thread::Current());
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
@@ -84,6 +85,7 @@ inline mirror::String* ClassLinker::ResolveString(uint32_t string_idx, ArtMethod
 
 inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx, ArtMethod* referrer) {
   mirror::Class* resolved_type = referrer->GetDexCacheResolvedType(type_idx, image_pointer_size_);
+  Thread::PoisonObjectPointersIfDebug();
   if (UNLIKELY(resolved_type == nullptr)) {
     mirror::Class* declaring_class = referrer->GetDeclaringClass();
     StackHandleScope<2> hs(Thread::Current());
@@ -101,6 +103,7 @@ inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx, ArtField* refe
   mirror::Class* declaring_class = referrer->GetDeclaringClass();
   mirror::DexCache* dex_cache_ptr = declaring_class->GetDexCache();
   mirror::Class* resolved_type = dex_cache_ptr->GetResolvedType(type_idx);
+  Thread::PoisonObjectPointersIfDebug();
   if (UNLIKELY(resolved_type == nullptr)) {
     StackHandleScope<2> hs(Thread::Current());
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(dex_cache_ptr));
@@ -148,6 +151,7 @@ inline ArtMethod* ClassLinker::ResolveMethod(Thread* self,
                                              ArtMethod* referrer,
                                              InvokeType type) {
   ArtMethod* resolved_method = GetResolvedMethod(method_idx, referrer);
+  Thread::PoisonObjectPointersIfDebug();
   if (UNLIKELY(resolved_method == nullptr)) {
     mirror::Class* declaring_class = referrer->GetDeclaringClass();
     StackHandleScope<2> hs(self);
@@ -179,6 +183,7 @@ inline ArtField* ClassLinker::ResolveField(uint32_t field_idx, ArtMethod* referr
                                            bool is_static) {
   mirror::Class* declaring_class = referrer->GetDeclaringClass();
   ArtField* resolved_field = GetResolvedField(field_idx, declaring_class);
+  Thread::PoisonObjectPointersIfDebug();
   if (UNLIKELY(resolved_field == nullptr)) {
     StackHandleScope<2> hs(Thread::Current());
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
