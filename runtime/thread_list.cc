@@ -441,8 +441,8 @@ size_t ThreadList::FlipThreadRoots(Closure* thread_flip_visitor,
       // runnable (both cases waiting inside Thread::TransitionFromSuspendedToRunnable), or waiting
       // for the thread flip to end at the JNI critical section entry (kWaitingForGcThreadFlip),
       ThreadState state = thread->GetState();
-      if (state == kWaitingForGcThreadFlip ||
-          thread->IsTransitioningToRunnable()) {
+      if ((state == kWaitingForGcThreadFlip || thread->IsTransitioningToRunnable()) &&
+          thread->GetSuspendCount() == 1) {
         // The thread will resume right after the broadcast.
         thread->ModifySuspendCount(self, -1, nullptr, false);
         ++runnable_thread_count;
