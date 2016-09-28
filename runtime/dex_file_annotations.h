@@ -30,6 +30,7 @@ namespace mirror {
 class ArtField;
 class ArtMethod;
 class ClassLinker;
+template<class T> class MutableHandle;
 
 namespace annotations {
 
@@ -57,6 +58,10 @@ mirror::ObjectArray<mirror::Object>* GetParameterAnnotations(ArtMethod* method)
 mirror::Object* GetAnnotationForMethodParameter(ArtMethod* method,
                                                 uint32_t parameter_idx,
                                                 Handle<mirror::Class> annotation_class)
+    REQUIRES_SHARED(Locks::mutator_lock_);
+bool GetParametersMetadataForMethod(ArtMethod* method,
+                                    MutableHandle<mirror::ObjectArray<mirror::String>>* names,
+                                    MutableHandle<mirror::IntArray>* access_flags)
     REQUIRES_SHARED(Locks::mutator_lock_);
 mirror::ObjectArray<mirror::String>* GetSignatureAnnotationForMethod(ArtMethod* method)
     REQUIRES_SHARED(Locks::mutator_lock_);
