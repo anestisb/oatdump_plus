@@ -139,10 +139,9 @@ extern "C" JNIEXPORT void JNICALL Java_Main_ensureJitCompiled(JNIEnv* env,
   }
 
   jit::JitCodeCache* code_cache = jit->GetCodeCache();
-  OatQuickMethodHeader* header = nullptr;
   while (true) {
-    header = OatQuickMethodHeader::FromEntryPoint(method->GetEntryPointFromQuickCompiledCode());
-    if (code_cache->ContainsPc(header->GetCode())) {
+    const void* pc = method->GetEntryPointFromQuickCompiledCode();
+    if (code_cache->ContainsPc(pc)) {
       break;
     } else {
       // Sleep to yield to the compiler thread.
