@@ -26,6 +26,8 @@
 #include "dex_file.h"
 #include "entrypoints/quick/callee_save_frame.h"
 #include "handle_scope-inl.h"
+#include "imt_conflict_table.h"
+#include "imtable-inl.h"
 #include "indirect_reference_table.h"
 #include "invoke_type.h"
 #include "jni_internal.h"
@@ -612,7 +614,7 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx,
       UNREACHABLE();
     }
     case kInterface: {
-      uint32_t imt_index = resolved_method->GetImtIndex();
+      uint32_t imt_index = ImTable::GetImtIndex(resolved_method);
       PointerSize pointer_size = class_linker->GetImagePointerSize();
       ArtMethod* imt_method = (*this_object)->GetClass()->GetImt(pointer_size)->
           Get(imt_index, pointer_size);

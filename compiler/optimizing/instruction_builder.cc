@@ -21,6 +21,7 @@
 #include "class_linker.h"
 #include "dex_instruction-inl.h"
 #include "driver/compiler_options.h"
+#include "imtable-inl.h"
 #include "scoped_thread_state_change.h"
 
 namespace art {
@@ -895,7 +896,7 @@ bool HInstructionBuilder::BuildInvoke(const Instruction& instruction,
                                            dex_pc,
                                            method_idx,
                                            resolved_method,
-                                           resolved_method->GetImtIndex());
+                                           ImTable::GetImtIndex(resolved_method));
   }
 
   return HandleInvoke(invoke,
