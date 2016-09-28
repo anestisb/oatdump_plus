@@ -133,7 +133,7 @@
 #include "reflection.h"
 #include "runtime_options.h"
 #include "ScopedLocalRef.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "sigchain.h"
 #include "signal_catcher.h"
 #include "signal_set.h"
@@ -530,7 +530,7 @@ static jobject CreateSystemClassLoader(Runtime* runtime) {
 
   StackHandleScope<2> hs(soa.Self());
   Handle<mirror::Class> class_loader_class(
-      hs.NewHandle(soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_ClassLoader)));
+      hs.NewHandle(soa.Decode<mirror::Class>(WellKnownClasses::java_lang_ClassLoader)));
   CHECK(cl->EnsureInitialized(soa.Self(), class_loader_class, true, true));
 
   ArtMethod* getSystemClassLoader = class_loader_class->FindDirectMethod(
@@ -545,7 +545,7 @@ static jobject CreateSystemClassLoader(Runtime* runtime) {
   soa.Self()->SetClassLoaderOverride(system_class_loader.get());
 
   Handle<mirror::Class> thread_class(
-      hs.NewHandle(soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_Thread)));
+      hs.NewHandle(soa.Decode<mirror::Class>(WellKnownClasses::java_lang_Thread)));
   CHECK(cl->EnsureInitialized(soa.Self(), thread_class, true, true));
 
   ArtField* contextClassLoader =
@@ -553,8 +553,9 @@ static jobject CreateSystemClassLoader(Runtime* runtime) {
   CHECK(contextClassLoader != nullptr);
 
   // We can't run in a transaction yet.
-  contextClassLoader->SetObject<false>(soa.Self()->GetPeer(),
-                                       soa.Decode<mirror::ClassLoader*>(system_class_loader.get()));
+  contextClassLoader->SetObject<false>(
+      soa.Self()->GetPeer(),
+      soa.Decode<mirror::ClassLoader>(system_class_loader.get()).Decode());
 
   return env->NewGlobalRef(system_class_loader.get());
 }

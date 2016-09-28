@@ -17,7 +17,7 @@
 art_cc_library {
     name: "libartbenchmark",
     host_supported: true,
-    defaults: ["art_defaults", "art_debug_defaults"],
+    defaults: ["art_defaults" ],
     srcs: [
         "jni_loader.cc",
         "jobject-benchmark/jobject_benchmark.cc",

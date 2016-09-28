@@ -25,7 +25,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/field.h"
 #include "reflection-inl.h"
-#include "scoped_fast_native_object_access.h"
+#include "scoped_fast_native_object_access-inl.h"
 #include "utils.h"
 
 namespace art {
@@ -127,7 +127,7 @@ ALWAYS_INLINE inline static bool CheckReceiver(const ScopedFastNativeObjectAcces
     *class_or_rcvr = declaringClass;
     return true;
   }
-  *class_or_rcvr = soa.Decode<mirror::Object*>(j_rcvr);
+  *class_or_rcvr = soa.Decode<mirror::Object>(j_rcvr).Decode();
   if (!VerifyObjectIsClass(MakeObjPtr(*class_or_rcvr), MakeObjPtr(declaringClass))) {
     DCHECK(soa.Self()->IsExceptionPending());
     return false;
@@ -137,7 +137,7 @@ ALWAYS_INLINE inline static bool CheckReceiver(const ScopedFastNativeObjectAcces
 
 static jobject Field_get(JNIEnv* env, jobject javaField, jobject javaObj) {
   ScopedFastNativeObjectAccess soa(env);
-  mirror::Field* f = soa.Decode<mirror::Field*>(javaField);
+  mirror::Field* f = soa.Decode<mirror::Field>(javaField).Decode();
   mirror::Object* o = nullptr;
   if (!CheckReceiver(soa, javaObj, &f, &o)) {
     DCHECK(soa.Self()->IsExceptionPending());
@@ -163,7 +163,7 @@ template<Primitive::Type kPrimitiveType>
 ALWAYS_INLINE inline static JValue GetPrimitiveField(JNIEnv* env, jobject javaField,
                                                      jobject javaObj) {
   ScopedFastNativeObjectAccess soa(env);
-  mirror::Field* f = soa.Decode<mirror::Field*>(javaField);
+  mirror::Field* f = soa.Decode<mirror::Field>(javaField).Decode();
   mirror::Object* o = nullptr;
   if (!CheckReceiver(soa, javaObj, &f, &o)) {
     DCHECK(soa.Self()->IsExceptionPending());
@@ -307,7 +307,7 @@ ALWAYS_INLINE inline static void SetFieldValue(mirror::Object* o, mirror::Field*
 
 static void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject javaValue) {
   ScopedFastNativeObjectAccess soa(env);
-  mirror::Field* f = soa.Decode<mirror::Field*>(javaField);
+  mirror::Field* f = soa.Decode<mirror::Field>(javaField).Decode();
   // Check that the receiver is non-null and an instance of the field's declaring class.
   mirror::Object* o = nullptr;
   if (!CheckReceiver(soa, javaObj, &f, &o)) {
@@ -325,9 +325,9 @@ static void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject j
   }
   // We now don't expect suspension unless an exception is thrown.
   // Unbox the value, if necessary.
-  mirror::Object* boxed_value = soa.Decode<mirror::Object*>(javaValue);
+  ObjPtr<mirror::Object> boxed_value = soa.Decode<mirror::Object>(javaValue);
   JValue unboxed_value;
-  if (!UnboxPrimitiveForField(MakeObjPtr(boxed_value),
+  if (!UnboxPrimitiveForField(boxed_value,
                               MakeObjPtr(field_type),
                               f->GetArtField(),
                               &unboxed_value)) {
@@ -346,7 +346,7 @@ template<Primitive::Type kPrimitiveType>
 static void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj,
                               const JValue& new_value) {
   ScopedFastNativeObjectAccess soa(env);
-  mirror::Field* f = soa.Decode<mirror::Field*>(javaField);
+  mirror::Field* f = soa.Decode<mirror::Field>(javaField).Decode();
   mirror::Object* o = nullptr;
   if (!CheckReceiver(soa, javaObj, &f, &o)) {
     return;
@@ -426,21 +426,22 @@ static void Field_setShort(JNIEnv* env, jobject javaField, jobject javaObj, jsho
 static jobject Field_getAnnotationNative(JNIEnv* env, jobject javaField, jclass annotationType) {
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
-  ArtField* field = soa.Decode<mirror::Field*>(javaField)->GetArtField();
+  ArtField* field = soa.Decode<mirror::Field>(javaField)->GetArtField();
   if (field->GetDeclaringClass()->IsProxyClass()) {
     return nullptr;
   }
-  Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
+  Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class>(annotationType)));
   return soa.AddLocalReference<jobject>(annotations::GetAnnotationForField(field, klass));
 }
 
 static jobjectArray Field_getDeclaredAnnotations(JNIEnv* env, jobject javaField) {
   ScopedFastNativeObjectAccess soa(env);
-  ArtField* field = soa.Decode<mirror::Field*>(javaField)->GetArtField();
+  ArtField* field = soa.Decode<mirror::Field>(javaField)->GetArtField();
   if (field->GetDeclaringClass()->IsProxyClass()) {
     // Return an empty array instead of a null pointer.
     mirror::Class* annotation_array_class =
-        soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_annotation_Annotation__array);
+        soa.Decode<mirror::Class>(
+            WellKnownClasses::java_lang_annotation_Annotation__array).Decode();
     mirror::ObjectArray<mirror::Object>* empty_array =
         mirror::ObjectArray<mirror::Object>::Alloc(soa.Self(), annotation_array_class, 0);
     return soa.AddLocalReference<jobjectArray>(empty_array);
@@ -450,7 +451,7 @@ static jobjectArray Field_getDeclaredAnnotations(JNIEnv* env, jobject javaField)
 
 static jobjectArray Field_getSignatureAnnotation(JNIEnv* env, jobject javaField) {
   ScopedFastNativeObjectAccess soa(env);
-  ArtField* field = soa.Decode<mirror::Field*>(javaField)->GetArtField();
+  ArtField* field = soa.Decode<mirror::Field>(javaField)->GetArtField();
   if (field->GetDeclaringClass()->IsProxyClass()) {
     return nullptr;
   }
@@ -461,11 +462,11 @@ static jboolean Field_isAnnotationPresentNative(JNIEnv* env, jobject javaField,
                                                 jclass annotationType) {
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
-  ArtField* field = soa.Decode<mirror::Field*>(javaField)->GetArtField();
+  ArtField* field = soa.Decode<mirror::Field>(javaField)->GetArtField();
   if (field->GetDeclaringClass()->IsProxyClass()) {
     return false;
   }
-  Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
+  Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class>(annotationType)));
   return annotations::IsFieldAnnotationPresent(field, klass);
 }
 

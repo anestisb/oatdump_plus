@@ -38,7 +38,7 @@
 #include "obj_ptr.h"
 #include "object-inl.h"
 #include "object_array-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "string-inl.h"
 
 namespace art {
@@ -365,7 +365,7 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
   const DexFile* dex_file = GetFirstDexFile(class_loader);
 
   StackHandleScope<2> hs(soa.Self());
-  Handle<mirror::ClassLoader> loader(hs.NewHandle(soa.Decode<ClassLoader*>(class_loader)));
+  Handle<mirror::ClassLoader> loader(hs.NewHandle(soa.Decode<ClassLoader>(class_loader)));
   Class* klass = class_linker_->FindClass(soa.Self(), "LStaticsFromCode;", loader);
   ArtMethod* clinit = klass->FindClassInitializer(kRuntimePointerSize);
   const DexFile::TypeId* klass_type_id = dex_file->FindTypeId("LStaticsFromCode;");
@@ -495,8 +495,8 @@ TEST_F(ObjectTest, DescriptorCompare) {
   jobject jclass_loader_1 = LoadDex("ProtoCompare");
   jobject jclass_loader_2 = LoadDex("ProtoCompare2");
   StackHandleScope<4> hs(soa.Self());
-  Handle<ClassLoader> class_loader_1(hs.NewHandle(soa.Decode<ClassLoader*>(jclass_loader_1)));
-  Handle<ClassLoader> class_loader_2(hs.NewHandle(soa.Decode<ClassLoader*>(jclass_loader_2)));
+  Handle<ClassLoader> class_loader_1(hs.NewHandle(soa.Decode<ClassLoader>(jclass_loader_1)));
+  Handle<ClassLoader> class_loader_2(hs.NewHandle(soa.Decode<ClassLoader>(jclass_loader_2)));
 
   Class* klass1 = linker->FindClass(soa.Self(), "LProtoCompare;", class_loader_1);
   ASSERT_TRUE(klass1 != nullptr);
@@ -538,7 +538,7 @@ TEST_F(ObjectTest, InstanceOf) {
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("XandY");
   StackHandleScope<3> hs(soa.Self());
-  Handle<ClassLoader> class_loader(hs.NewHandle(soa.Decode<ClassLoader*>(jclass_loader)));
+  Handle<ClassLoader> class_loader(hs.NewHandle(soa.Decode<ClassLoader>(jclass_loader)));
 
   Class* X = class_linker_->FindClass(soa.Self(), "LX;", class_loader);
   Class* Y = class_linker_->FindClass(soa.Self(), "LY;", class_loader);
@@ -575,7 +575,7 @@ TEST_F(ObjectTest, IsAssignableFrom) {
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("XandY");
   StackHandleScope<1> hs(soa.Self());
-  Handle<ClassLoader> class_loader(hs.NewHandle(soa.Decode<ClassLoader*>(jclass_loader)));
+  Handle<ClassLoader> class_loader(hs.NewHandle(soa.Decode<ClassLoader>(jclass_loader)));
   Class* X = class_linker_->FindClass(soa.Self(), "LX;", class_loader);
   Class* Y = class_linker_->FindClass(soa.Self(), "LY;", class_loader);
 
@@ -613,7 +613,7 @@ TEST_F(ObjectTest, IsAssignableFromArray) {
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("XandY");
   StackHandleScope<1> hs(soa.Self());
-  Handle<ClassLoader> class_loader(hs.NewHandle(soa.Decode<ClassLoader*>(jclass_loader)));
+  Handle<ClassLoader> class_loader(hs.NewHandle(soa.Decode<ClassLoader>(jclass_loader)));
   Class* X = class_linker_->FindClass(soa.Self(), "LX;", class_loader);
   Class* Y = class_linker_->FindClass(soa.Self(), "LY;", class_loader);
   ASSERT_TRUE(X != nullptr);
@@ -752,7 +752,7 @@ TEST_F(ObjectTest, ObjectPointer) {
   EXPECT_FALSE(null_ptr != null_ptr);
   EXPECT_FALSE(null_ptr != nullptr);
   null_ptr.AssertValid();
-  Handle<ClassLoader> class_loader(hs.NewHandle(soa.Decode<ClassLoader*>(jclass_loader)));
+  Handle<ClassLoader> class_loader(hs.NewHandle(soa.Decode<ClassLoader>(jclass_loader)));
   Handle<mirror::Class> h_X(
       hs.NewHandle(class_linker_->FindClass(soa.Self(), "LX;", class_loader)));
   ObjPtr<Class, /*kPoison*/ true> X(h_X.Get());

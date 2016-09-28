@@ -61,6 +61,7 @@
 #include "intern_table.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
+#include "obj_ptr-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
@@ -69,7 +70,7 @@
 #include "reflection.h"
 #include "runtime.h"
 #include "ScopedLocalRef.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "handle_scope-inl.h"
 #include "thread_list.h"
 #include "well_known_classes.h"
@@ -1507,13 +1508,14 @@ void Heap::TrimSpaces(Thread* self) {
       << static_cast<int>(100 * managed_utilization) << "%.";
 }
 
-bool Heap::IsValidObjectAddress(const mirror::Object* obj) const {
+bool Heap::IsValidObjectAddress(ObjPtr<mirror::Object> obj) const {
   // Note: we deliberately don't take the lock here, and mustn't test anything that would require
   // taking the lock.
   if (obj == nullptr) {
     return true;
   }
-  return IsAligned<kObjectAlignment>(obj) && FindSpaceFromObject(obj, true) != nullptr;
+  return IsAligned<kObjectAlignment>(obj.Decode()) &&
+      FindSpaceFromObject(obj.Decode(), true) != nullptr;
 }
 
 bool Heap::IsNonDiscontinuousSpaceHeapAddress(const mirror::Object* obj) const {
@@ -3565,9 +3567,9 @@ void Heap::SetIdealFootprint(size_t max_allowed_footprint) {
   max_allowed_footprint_ = max_allowed_footprint;
 }
 
-bool Heap::IsMovableObject(const mirror::Object* obj) const {
+bool Heap::IsMovableObject(ObjPtr<mirror::Object> obj) const {
   if (kMovingCollector) {
-    space::Space* space = FindContinuousSpaceFromObject(obj, true);
+    space::Space* space = FindContinuousSpaceFromObject(obj.Decode(), true);
     if (space != nullptr) {
       // TODO: Check large object?
       return space->CanMoveObjects();
@@ -3727,7 +3729,7 @@ void Heap::AddFinalizerReference(Thread* self, mirror::Object** object) {
   args[0].l = arg.get();
   InvokeWithJValues(soa, nullptr, WellKnownClasses::java_lang_ref_FinalizerReference_add, args);
   // Restore object in case it gets moved.
-  *object = soa.Decode<mirror::Object*>(arg.get());
+  *object = soa.Decode<mirror::Object>(arg.get()).Decode();
 }
 
 void Heap::RequestConcurrentGCAndSaveObject(Thread* self, bool force_full, mirror::Object** obj) {

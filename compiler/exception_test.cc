@@ -31,7 +31,7 @@
 #include "oat_quick_method_header.h"
 #include "optimizing/stack_map_stream.h"
 #include "runtime.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "handle_scope-inl.h"
 #include "thread.h"
 
@@ -45,7 +45,7 @@ class ExceptionTest : public CommonRuntimeTest {
     ScopedObjectAccess soa(Thread::Current());
     StackHandleScope<2> hs(soa.Self());
     Handle<mirror::ClassLoader> class_loader(
-        hs.NewHandle(soa.Decode<mirror::ClassLoader*>(LoadDex("ExceptionHandle"))));
+        hs.NewHandle(soa.Decode<mirror::ClassLoader>(LoadDex("ExceptionHandle"))));
     my_klass_ = class_linker_->FindClass(soa.Self(), "LExceptionHandle;", class_loader);
     ASSERT_TRUE(my_klass_ != nullptr);
     Handle<mirror::Class> klass(hs.NewHandle(my_klass_));
@@ -219,7 +219,7 @@ TEST_F(ExceptionTest, StackTraceElement) {
   ASSERT_TRUE(internal != nullptr);
   jobjectArray ste_array = Thread::InternalStackTraceToStackTraceElementArray(soa, internal);
   ASSERT_TRUE(ste_array != nullptr);
-  auto* trace_array = soa.Decode<mirror::ObjectArray<mirror::StackTraceElement>*>(ste_array);
+  auto trace_array = soa.Decode<mirror::ObjectArray<mirror::StackTraceElement>>(ste_array);
 
   ASSERT_TRUE(trace_array != nullptr);
   ASSERT_TRUE(trace_array->Get(0) != nullptr);

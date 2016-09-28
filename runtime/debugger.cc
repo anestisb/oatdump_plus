@@ -48,7 +48,7 @@
 #include "mirror/throwable.h"
 #include "reflection.h"
 #include "safe_map.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "ScopedLocalRef.h"
 #include "ScopedPrimitiveArray.h"
 #include "handle_scope-inl.h"
@@ -390,7 +390,8 @@ static Thread* DecodeThread(ScopedObjectAccessUnchecked& soa, JDWP::ObjectId thr
     return nullptr;
   }
 
-  mirror::Class* java_lang_Thread = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_Thread);
+  ObjPtr<mirror::Class> java_lang_Thread =
+      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_Thread);
   if (!java_lang_Thread->IsAssignableFrom(thread_peer->GetClass())) {
     // This isn't a thread.
     *error = JDWP::ERR_INVALID_THREAD;
@@ -431,21 +432,22 @@ static JDWP::JdwpTag TagFromClass(const ScopedObjectAccessUnchecked& soa, mirror
     return JDWP::JT_CLASS_OBJECT;
   }
   {
-    mirror::Class* thread_class = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_Thread);
+    ObjPtr<mirror::Class> thread_class =
+        soa.Decode<mirror::Class>(WellKnownClasses::java_lang_Thread);
     if (thread_class->IsAssignableFrom(c)) {
       return JDWP::JT_THREAD;
     }
   }
   {
-    mirror::Class* thread_group_class =
-        soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_ThreadGroup);
+    ObjPtr<mirror::Class> thread_group_class =
+        soa.Decode<mirror::Class>(WellKnownClasses::java_lang_ThreadGroup);
     if (thread_group_class->IsAssignableFrom(c)) {
       return JDWP::JT_THREAD_GROUP;
     }
   }
   {
-    mirror::Class* class_loader_class =
-        soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_ClassLoader);
+    ObjPtr<mirror::Class> class_loader_class =
+        soa.Decode<mirror::Class>(WellKnownClasses::java_lang_ClassLoader);
     if (class_loader_class->IsAssignableFrom(c)) {
       return JDWP::JT_CLASS_LOADER;
     }
@@ -1946,7 +1948,8 @@ JDWP::JdwpError Dbg::StringToUtf8(JDWP::ObjectId string_id, std::string* str) {
   }
   {
     ScopedObjectAccessUnchecked soa(Thread::Current());
-    mirror::Class* java_lang_String = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_String);
+    ObjPtr<mirror::Class> java_lang_String =
+        soa.Decode<mirror::Class>(WellKnownClasses::java_lang_String);
     if (!java_lang_String->IsAssignableFrom(obj->GetClass())) {
       // This isn't a string.
       return JDWP::ERR_INVALID_STRING;
@@ -2014,7 +2017,7 @@ JDWP::JdwpError Dbg::GetThreadGroup(JDWP::ObjectId thread_id, JDWP::ExpandBuf* p
     expandBufAddObjectId(pReply, JDWP::ObjectId(0));
     error = JDWP::ERR_NONE;
   } else if (error == JDWP::ERR_NONE) {
-    mirror::Class* c = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_Thread);
+    ObjPtr<mirror::Class> c = soa.Decode<mirror::Class>(WellKnownClasses::java_lang_Thread);
     CHECK(c != nullptr);
     ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_group);
     CHECK(f != nullptr);
@@ -2038,7 +2041,8 @@ static mirror::Object* DecodeThreadGroup(ScopedObjectAccessUnchecked& soa,
     *error = JDWP::ERR_INVALID_OBJECT;
     return nullptr;
   }
-  mirror::Class* c = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_ThreadGroup);
+  ObjPtr<mirror::Class> c =
+      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_ThreadGroup);
   CHECK(c != nullptr);
   if (!c->IsAssignableFrom(thread_group->GetClass())) {
     // This is not a java.lang.ThreadGroup.

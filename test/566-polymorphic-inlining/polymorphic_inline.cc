@@ -20,14 +20,14 @@
 #include "jit/jit_code_cache.h"
 #include "jit/profiling_info.h"
 #include "oat_quick_method_header.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "stack_map.h"
 
 namespace art {
 
 static void do_checks(jclass cls, const char* method_name) {
   ScopedObjectAccess soa(Thread::Current());
-  mirror::Class* klass = soa.Decode<mirror::Class*>(cls);
+  ObjPtr<mirror::Class> klass = soa.Decode<mirror::Class>(cls);
   jit::Jit* jit = Runtime::Current()->GetJit();
   jit::JitCodeCache* code_cache = jit->GetCodeCache();
   ArtMethod* method = klass->FindDeclaredDirectMethodByName(method_name, kRuntimePointerSize);
@@ -53,7 +53,7 @@ static void do_checks(jclass cls, const char* method_name) {
 
 static void allocate_profiling_info(jclass cls, const char* method_name) {
   ScopedObjectAccess soa(Thread::Current());
-  mirror::Class* klass = soa.Decode<mirror::Class*>(cls);
+  ObjPtr<mirror::Class> klass = soa.Decode<mirror::Class>(cls);
   ArtMethod* method = klass->FindDeclaredDirectMethodByName(method_name, kRuntimePointerSize);
   ProfilingInfo::Create(soa.Self(), method, /* retry_allocation */ true);
 }

@@ -21,14 +21,15 @@
 #include "jni_internal.h"
 #include "mirror/object-inl.h"
 #include "mirror/reference-inl.h"
-#include "scoped_fast_native_object_access.h"
+#include "scoped_fast_native_object_access-inl.h"
 
 namespace art {
 
 static jboolean FinalizerReference_makeCircularListIfUnenqueued(JNIEnv* env, jobject javaThis) {
   ScopedFastNativeObjectAccess soa(env);
-  mirror::FinalizerReference* const ref = soa.Decode<mirror::FinalizerReference*>(javaThis);
-  return Runtime::Current()->GetHeap()->GetReferenceProcessor()->MakeCircularListIfUnenqueued(ref);
+  ObjPtr<mirror::FinalizerReference> ref = soa.Decode<mirror::FinalizerReference>(javaThis);
+  return Runtime::Current()->GetHeap()->GetReferenceProcessor()->MakeCircularListIfUnenqueued(
+      ref.Decode());
 }
 
 static JNINativeMethod gMethods[] = {

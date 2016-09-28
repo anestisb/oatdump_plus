@@ -26,7 +26,7 @@
 #include "jni.h"
 #include "mirror/class.h"
 #include "runtime.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 
@@ -48,13 +48,13 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_checkAppImageLoaded(JNIEnv*, jcl
 
 extern "C" JNIEXPORT jboolean JNICALL Java_Main_checkAppImageContains(JNIEnv*, jclass, jclass c) {
   ScopedObjectAccess soa(Thread::Current());
-  mirror::Class* klass_ptr = soa.Decode<mirror::Class*>(c);
+  ObjPtr<mirror::Class> klass_ptr = soa.Decode<mirror::Class>(c);
   for (auto* space : Runtime::Current()->GetHeap()->GetContinuousSpaces()) {
     if (space->IsImageSpace()) {
       auto* image_space = space->AsImageSpace();
       const auto& image_header = image_space->GetImageHeader();
       if (image_header.IsAppImage()) {
-        if (image_space->HasAddress(klass_ptr)) {
+        if (image_space->HasAddress(klass_ptr.Decode())) {
           return JNI_TRUE;
         }
       }

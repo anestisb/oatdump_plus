@@ -19,7 +19,7 @@
 #include "handle_scope-inl.h"
 #include "jni_internal.h"
 #include "mirror/class.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 

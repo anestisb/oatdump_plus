@@ -43,7 +43,7 @@
 #include "thread_list.h"
 #include "runtime.h"
 #include "handle_scope-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "ScopedUtfChars.h"
 #include "mirror/class_loader.h"
 #include "verify_object-inl.h"
@@ -52,7 +52,7 @@
 #include "../../libcore/ojluni/src/main/native/jvm.h"  // TODO(narayan): fix it
 #include "jni_internal.h"
 #include "mirror/string-inl.h"
-#include "native/scoped_fast_native_object_access.h"
+#include "native/scoped_fast_native_object_access-inl.h"
 #include "ScopedLocalRef.h"
 #include <sys/time.h>
 #include <sys/socket.h>
@@ -286,9 +286,8 @@ JNIEXPORT int JVM_GetHostName(char* name, int namelen) {
 
 JNIEXPORT jstring JVM_InternString(JNIEnv* env, jstring jstr) {
   art::ScopedFastNativeObjectAccess soa(env);
-  art::mirror::String* s = soa.Decode<art::mirror::String*>(jstr);
-  art::mirror::String* result = s->Intern();
-  return soa.AddLocalReference<jstring>(result);
+  art::ObjPtr<art::mirror::String> s = soa.Decode<art::mirror::String>(jstr);
+  return soa.AddLocalReference<jstring>(s->Intern());
 }
 
 JNIEXPORT jlong JVM_FreeMemory(void) {
@@ -364,8 +363,8 @@ JNIEXPORT void JVM_Yield(JNIEnv* env ATTRIBUTE_UNUSED, jclass threadClass ATTRIB
 JNIEXPORT void JVM_Sleep(JNIEnv* env, jclass threadClass ATTRIBUTE_UNUSED,
                          jobject java_lock, jlong millis) {
   art::ScopedFastNativeObjectAccess soa(env);
-  art::mirror::Object* lock = soa.Decode<art::mirror::Object*>(java_lock);
-  art::Monitor::Wait(art::Thread::Current(), lock, millis, 0, true, art::kSleeping);
+  art::ObjPtr<art::mirror::Object> lock = soa.Decode<art::mirror::Object>(java_lock);
+  art::Monitor::Wait(art::Thread::Current(), lock.Decode(), millis, 0, true, art::kSleeping);
 }
 
 JNIEXPORT jobject JVM_CurrentThread(JNIEnv* env, jclass unused ATTRIBUTE_UNUSED) {
@@ -395,19 +394,19 @@ JNIEXPORT jboolean JVM_IsInterrupted(JNIEnv* env, jobject jthread, jboolean clea
 
 JNIEXPORT jboolean JVM_HoldsLock(JNIEnv* env, jclass unused ATTRIBUTE_UNUSED, jobject jobj) {
   art::ScopedObjectAccess soa(env);
-  art::mirror::Object* object = soa.Decode<art::mirror::Object*>(jobj);
-  if (object == NULL) {
+  art::ObjPtr<art::mirror::Object> object = soa.Decode<art::mirror::Object>(jobj);
+  if (object == nullptr) {
     art::ThrowNullPointerException("object == null");
     return JNI_FALSE;
   }
-  return soa.Self()->HoldsLock(object);
+  return soa.Self()->HoldsLock(object.Decode());
 }
 
 JNIEXPORT void JVM_SetNativeThreadName(JNIEnv* env, jobject jthread, jstring java_name) {
   ScopedUtfChars name(env, java_name);
   {
     art::ScopedObjectAccess soa(env);
-    if (soa.Decode<art::mirror::Object*>(jthread) == soa.Self()->GetPeer()) {
+    if (soa.Decode<art::mirror::Object>(jthread) == soa.Self()->GetPeer()) {
       soa.Self()->SetThreadName(name.c_str());
       return;
     }

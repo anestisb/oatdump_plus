@@ -23,7 +23,7 @@
 #include "common_compiler_test.h"
 #include "mirror/field-inl.h"
 #include "mirror/method.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 
@@ -108,7 +108,7 @@ TEST_F(ProxyTest, ProxyClassHelper) {
   jobject jclass_loader = LoadDex("Interfaces");
   StackHandleScope<4> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(
-      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(jclass_loader)));
 
   Handle<mirror::Class> I(hs.NewHandle(
       class_linker_->FindClass(soa.Self(), "LInterfaces$I;", class_loader)));
@@ -142,7 +142,7 @@ TEST_F(ProxyTest, ProxyFieldHelper) {
   jobject jclass_loader = LoadDex("Interfaces");
   StackHandleScope<9> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(
-      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(jclass_loader)));
 
   Handle<mirror::Class> I(hs.NewHandle(
       class_linker_->FindClass(soa.Self(), "LInterfaces$I;", class_loader)));
@@ -200,7 +200,7 @@ TEST_F(ProxyTest, CheckArtMirrorFieldsOfProxyStaticFields) {
   jobject jclass_loader = LoadDex("Interfaces");
   StackHandleScope<7> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(
-      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(jclass_loader)));
 
   Handle<mirror::Class> proxyClass0;
   Handle<mirror::Class> proxyClass1;

@@ -24,7 +24,7 @@
 #include "mirror/class_loader-inl.h"
 #include "mirror/dex_cache-inl.h"
 #include "handle_scope-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 namespace mirror {
@@ -56,7 +56,7 @@ TEST_F(DexCacheTest, LinearAlloc) {
   ClassLinker* const class_linker = runtime->GetClassLinker();
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
-      soa.Decode<mirror::ClassLoader*>(jclass_loader)));
+      soa.Decode<mirror::ClassLoader>(jclass_loader)));
   mirror::Class* klass = class_linker->FindClass(soa.Self(), "LMain;", class_loader);
   ASSERT_TRUE(klass != nullptr);
   LinearAlloc* const linear_alloc = klass->GetClassLoader()->GetAllocator();
@@ -72,7 +72,7 @@ TEST_F(DexCacheTest, TestResolvedFieldAccess) {
   ClassLinker* const class_linker = runtime->GetClassLinker();
   StackHandleScope<3> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
-      soa.Decode<mirror::ClassLoader*>(jclass_loader)));
+      soa.Decode<mirror::ClassLoader>(jclass_loader)));
   Handle<mirror::Class> klass1 =
       hs.NewHandle(class_linker->FindClass(soa.Self(), "Lpackage1/Package1;", class_loader));
   ASSERT_TRUE(klass1.Get() != nullptr);

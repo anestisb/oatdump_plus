@@ -18,7 +18,7 @@
 #include "base/logging.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "mirror/object-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread.h"
 
 namespace art {

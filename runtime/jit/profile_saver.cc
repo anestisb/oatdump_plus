@@ -26,7 +26,7 @@
 #include "base/time_utils.h"
 #include "compiler_filter.h"
 #include "oat_file_manager.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 
 
 namespace art {

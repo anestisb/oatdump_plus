@@ -26,7 +26,7 @@
 #include "base/macros.h"
 #include "dex_file-inl.h"
 #include "mirror/class-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "sigchain.h"
 
 namespace art {
@@ -43,7 +43,7 @@ static uint32_t GetNativeMethodCount(JNIEnv* env, jclass clazz) {
   }
 
   ScopedObjectAccess soa(env);
-  mirror::Class* c = soa.Decode<mirror::Class*>(clazz);
+  ObjPtr<mirror::Class> c = soa.Decode<mirror::Class>(clazz);
 
   uint32_t native_method_count = 0;
   for (auto& m : c->GetMethods(kRuntimePointerSize)) {
@@ -58,7 +58,7 @@ static uint32_t GetNativeMethods(JNIEnv* env, jclass clazz, JNINativeMethod* met
     return 0;
   }
   ScopedObjectAccess soa(env);
-  mirror::Class* c = soa.Decode<mirror::Class*>(clazz);
+  ObjPtr<mirror::Class> c = soa.Decode<mirror::Class>(clazz);
 
   uint32_t count = 0;
   for (auto& m : c->GetMethods(kRuntimePointerSize)) {
