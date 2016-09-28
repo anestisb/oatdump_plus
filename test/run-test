@@ -937,6 +937,7 @@ if [ "$bisection_search" = "yes" -a "$good" != "yes" ]; then
         --raw-cmd="$raw_cmd" \
         --check-script="$cwd/check" \
         --expected-output="$cwd/expected.txt" \
+        --logfile="$cwd/bisection_log.txt" \
         --timeout=300
     fi
 fi
