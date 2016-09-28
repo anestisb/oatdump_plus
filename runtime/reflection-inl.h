@@ -23,14 +23,17 @@
 #include "common_throws.h"
 #include "jvalue.h"
 #include "mirror/object-inl.h"
+#include "obj_ptr-inl.h"
 #include "primitive.h"
 #include "utils.h"
 
 namespace art {
 
 inline bool ConvertPrimitiveValue(bool unbox_for_result,
-                                  Primitive::Type srcType, Primitive::Type dstType,
-                                  const JValue& src, JValue* dst) {
+                                  Primitive::Type srcType,
+                                  Primitive::Type dstType,
+                                  const JValue& src,
+                                  JValue* dst) {
   DCHECK(srcType != Primitive::kPrimNot && dstType != Primitive::kPrimNot);
   if (LIKELY(srcType == dstType)) {
     dst->SetJ(src.GetJ());
@@ -100,11 +103,11 @@ inline bool ConvertPrimitiveValue(bool unbox_for_result,
   return false;
 }
 
-inline bool VerifyObjectIsClass(mirror::Object* o, mirror::Class* c) {
+inline bool VerifyObjectIsClass(ObjPtr<mirror::Object> o, ObjPtr<mirror::Class> c) {
   if (UNLIKELY(o == nullptr)) {
     ThrowNullPointerException("null receiver");
     return false;
-  } else if (UNLIKELY(!o->InstanceOf(c))) {
+  } else if (UNLIKELY(!o->InstanceOf(c.Decode()))) {
     InvalidReceiverError(o, c);
     return false;
   }

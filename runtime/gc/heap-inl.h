@@ -50,6 +50,7 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self,
     CHECK_EQ(self->GetState(), kRunnable);
     self->AssertThreadSuspensionIsAllowable();
     self->AssertNoPendingException();
+    self->PoisonObjectPointers();
   }
   // Need to check that we arent the large object allocator since the large object allocation code
   // path this function. If we didn't check we would have an infinite loop.

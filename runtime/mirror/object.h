@@ -20,6 +20,7 @@
 #include "base/casts.h"
 #include "base/enums.h"
 #include "globals.h"
+#include "obj_ptr.h"
 #include "object_reference.h"
 #include "offsets.h"
 #include "verify_object.h"
@@ -120,7 +121,7 @@ class MANAGED LOCKABLE Object {
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool VerifierInstanceOf(Class* klass) REQUIRES_SHARED(Locks::mutator_lock_);
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ALWAYS_INLINE bool InstanceOf(Class* klass) REQUIRES_SHARED(Locks::mutator_lock_);
+  ALWAYS_INLINE bool InstanceOf(ObjPtr<Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>

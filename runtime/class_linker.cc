@@ -2169,6 +2169,7 @@ mirror::Class* ClassLinker::EnsureResolved(Thread* self,
                                            const char* descriptor,
                                            mirror::Class* klass) {
   DCHECK(klass != nullptr);
+  self->PoisonObjectPointers();
 
   // For temporary classes we must wait for them to be retired.
   if (init_done_ && klass->IsTemp()) {
@@ -2380,7 +2381,7 @@ mirror::Class* ClassLinker::FindClass(Thread* self,
   DCHECK_NE(*descriptor, '\0') << "descriptor is empty string";
   DCHECK(self != nullptr);
   self->AssertNoPendingException();
-  self->PoisonObjectPointers();
+  self->PoisonObjectPointers();  // For DefineClass, CreateArrayClass, etc...
   if (descriptor[1] == '\0') {
     // only the descriptors of primitive types should be 1 character long, also avoid class lookup
     // for primitive classes that aren't backed by dex files.
@@ -7526,6 +7527,7 @@ mirror::String* ClassLinker::ResolveString(const DexFile& dex_file,
                                            Handle<mirror::DexCache> dex_cache) {
   DCHECK(dex_cache.Get() != nullptr);
   mirror::String* resolved = dex_cache->GetResolvedString(string_idx);
+  Thread::PoisonObjectPointersIfDebug();
   if (resolved != nullptr) {
     return resolved;
   }
@@ -7568,6 +7570,7 @@ mirror::Class* ClassLinker::ResolveType(const DexFile& dex_file,
                                         Handle<mirror::ClassLoader> class_loader) {
   DCHECK(dex_cache.Get() != nullptr);
   mirror::Class* resolved = dex_cache->GetResolvedType(type_idx);
+  Thread::PoisonObjectPointersIfDebug();
   if (resolved == nullptr) {
     Thread* self = Thread::Current();
     const char* descriptor = dex_file.StringByTypeIdx(type_idx);
@@ -7606,6 +7609,7 @@ ArtMethod* ClassLinker::ResolveMethod(const DexFile& dex_file,
   DCHECK(dex_cache.Get() != nullptr);
   // Check for hit in the dex cache.
   ArtMethod* resolved = dex_cache->GetResolvedMethod(method_idx, image_pointer_size_);
+  Thread::PoisonObjectPointersIfDebug();
   if (resolved != nullptr && !resolved->IsRuntimeMethod()) {
     DCHECK(resolved->GetDeclaringClassUnchecked() != nullptr) << resolved->GetDexMethodIndex();
     if (kResolveMode == ClassLinker::kForceICCECheck) {
@@ -7809,6 +7813,7 @@ ArtMethod* ClassLinker::ResolveMethodWithoutInvokeType(const DexFile& dex_file,
                                                        Handle<mirror::DexCache> dex_cache,
                                                        Handle<mirror::ClassLoader> class_loader) {
   ArtMethod* resolved = dex_cache->GetResolvedMethod(method_idx, image_pointer_size_);
+  Thread::PoisonObjectPointersIfDebug();
   if (resolved != nullptr && !resolved->IsRuntimeMethod()) {
     DCHECK(resolved->GetDeclaringClassUnchecked() != nullptr) << resolved->GetDexMethodIndex();
     return resolved;
@@ -7841,6 +7846,7 @@ ArtField* ClassLinker::ResolveField(const DexFile& dex_file,
                                     bool is_static) {
   DCHECK(dex_cache.Get() != nullptr);
   ArtField* resolved = dex_cache->GetResolvedField(field_idx, image_pointer_size_);
+  Thread::PoisonObjectPointersIfDebug();
   if (resolved != nullptr) {
     return resolved;
   }
@@ -7883,6 +7889,7 @@ ArtField* ClassLinker::ResolveFieldJLS(const DexFile& dex_file,
                                        Handle<mirror::ClassLoader> class_loader) {
   DCHECK(dex_cache.Get() != nullptr);
   ArtField* resolved = dex_cache->GetResolvedField(field_idx, image_pointer_size_);
+  Thread::PoisonObjectPointersIfDebug();
   if (resolved != nullptr) {
     return resolved;
   }

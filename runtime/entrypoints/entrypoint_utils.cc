@@ -160,7 +160,7 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
       } else {
         JValue jv;
         jv.SetJ(args.at(i).j);
-        mirror::Object* val = BoxPrimitive(Primitive::GetType(shorty[i + 1]), jv);
+        mirror::Object* val = BoxPrimitive(Primitive::GetType(shorty[i + 1]), jv).Decode();
         if (val == nullptr) {
           CHECK(soa.Self()->IsExceptionPending());
           return zero;
