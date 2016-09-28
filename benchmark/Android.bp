@@ -19,8 +19,10 @@ art_cc_library {
     host_supported: true,
     defaults: ["art_defaults", "art_debug_defaults"],
     srcs: [
+        "jni_loader.cc",
         "jobject-benchmark/jobject_benchmark.cc",
         "jni-perf/perf_jni.cc",
+        "micro-native/micro_native.cc",
         "scoped-primitive-array/scoped_primitive_array.cc",
     ],
     shared_libs: [
