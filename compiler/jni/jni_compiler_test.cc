@@ -399,7 +399,6 @@ jobject JniCompilerTest::class_loader_;
   TEST_F(JniCompilerTest, TestName ## NormalGeneric) { \
     SCOPED_TRACE("Normal JNI with generic");     \
     gCurrentJni = static_cast<uint32_t>(JniKind::kNormal); \
-    TEST_DISABLED_FOR_MIPS();                    \
     SetCheckGenericJni(true);                    \
     TestName ## Impl();                          \
   }
@@ -416,7 +415,6 @@ jobject JniCompilerTest::class_loader_;
   TEST_F(JniCompilerTest, TestName ## FastGeneric) { \
     SCOPED_TRACE("@FastNative JNI with generic");  \
     gCurrentJni = static_cast<uint32_t>(JniKind::kFast); \
-    TEST_DISABLED_FOR_MIPS();                    \
     SetCheckGenericJni(true);                    \
     TestName ## Impl();                          \
   }
