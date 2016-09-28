@@ -45,6 +45,7 @@
 #include "gc/space/space-inl.h"
 #include "globals.h"
 #include "image.h"
+#include "imt_conflict_table.h"
 #include "intern_table.h"
 #include "linear_alloc.h"
 #include "lock_word.h"
