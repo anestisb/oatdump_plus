@@ -431,6 +431,7 @@ jobject JniCompilerTest::class_loader_;
   TEST_F(JniCompilerTest, TestName ## CriticalGeneric) { \
     SCOPED_TRACE("@CriticalNative JNI with generic");  \
     gCurrentJni = static_cast<uint32_t>(JniKind::kCritical); \
+    SetCheckGenericJni(true);                    \
     TestName ## Impl();                          \
   }
 
