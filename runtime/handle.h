@@ -23,6 +23,7 @@
 #include "base/mutex.h"
 #include "base/value_object.h"
 #include "jni.h"
+#include "obj_ptr.h"
 #include "stack_reference.h"
 
 namespace art {
@@ -129,6 +130,14 @@ class MutableHandle : public Handle<T> {
     ref->Assign(reference);
     return old;
   }
+
+  ALWAYS_INLINE T* Assign(ObjPtr<T> reference) REQUIRES_SHARED(Locks::mutator_lock_) {
+    StackReference<mirror::Object>* ref = Handle<T>::GetReference();
+    T* old = down_cast<T*>(ref->AsMirrorPtr());
+    ref->Assign(reference.Decode());
+    return old;
+  }
+
 
   template<typename S>
   explicit MutableHandle(const MutableHandle<S>& handle) REQUIRES_SHARED(Locks::mutator_lock_)

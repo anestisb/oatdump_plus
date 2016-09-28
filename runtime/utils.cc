@@ -37,6 +37,7 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/string.h"
 #include "oat_quick_method_header.h"
+#include "obj_ptr-inl.h"
 #include "os.h"
 #include "scoped_thread_state_change.h"
 #include "utf-inl.h"
@@ -270,14 +271,14 @@ bool PrintFileToLog(const std::string& file_name, LogSeverity level) {
   }
 }
 
-std::string PrettyDescriptor(mirror::String* java_descriptor) {
+std::string PrettyStringDescriptor(ObjPtr<mirror::String> java_descriptor) {
   if (java_descriptor == nullptr) {
     return "null";
   }
   return PrettyDescriptor(java_descriptor->ToModifiedUtf8().c_str());
 }
 
-std::string PrettyDescriptor(mirror::Class* klass) {
+std::string PrettyDescriptor(ObjPtr<mirror::Class> klass) {
   if (klass == nullptr) {
     return "null";
   }
@@ -456,7 +457,7 @@ std::string PrettyMethod(uint32_t method_idx, const DexFile& dex_file, bool with
   return result;
 }
 
-std::string PrettyTypeOf(mirror::Object* obj) {
+std::string PrettyTypeOf(ObjPtr<mirror::Object> obj) {
   if (obj == nullptr) {
     return "null";
   }
@@ -471,7 +472,7 @@ std::string PrettyTypeOf(mirror::Object* obj) {
   return result;
 }
 
-std::string PrettyClass(mirror::Class* c) {
+std::string PrettyClass(ObjPtr<mirror::Class> c) {
   if (c == nullptr) {
     return "null";
   }
@@ -482,7 +483,7 @@ std::string PrettyClass(mirror::Class* c) {
   return result;
 }
 
-std::string PrettyClassAndClassLoader(mirror::Class* c) {
+std::string PrettyClassAndClassLoader(ObjPtr<mirror::Class> c) {
   if (c == nullptr) {
     return "null";
   }

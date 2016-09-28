@@ -33,6 +33,7 @@
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
+#include "obj_ptr-inl.h"
 #include "reflection.h"
 #include "scoped_thread_state_change.h"
 #include "scoped_fast_native_object_access.h"
@@ -669,7 +670,10 @@ static jobject Class_newInstance(JNIEnv* env, jobject javaThis) {
       caller.Assign(GetCallingClass(soa.Self(), 1));
     }
     if (UNLIKELY(caller.Get() != nullptr && !VerifyAccess(
-        receiver.Get(), declaring_class, constructor->GetAccessFlags(), caller.Get()))) {
+        MakeObjPtr(receiver.Get()),
+        MakeObjPtr(declaring_class),
+        constructor->GetAccessFlags(),
+        MakeObjPtr(caller.Get())))) {
       soa.Self()->ThrowNewExceptionF(
           "Ljava/lang/IllegalAccessException;", "%s is not accessible from %s",
           PrettyMethod(constructor).c_str(), PrettyClass(caller.Get()).c_str());

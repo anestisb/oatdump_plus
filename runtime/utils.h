@@ -33,6 +33,7 @@
 #include "base/mutex.h"
 #include "base/stringpiece.h"
 #include "globals.h"
+#include "obj_ptr.h"
 #include "primitive.h"
 
 class BacktraceMap;
@@ -135,10 +136,10 @@ bool EndsWith(const std::string& s, const char* suffix);
 // Returns a human-readable equivalent of 'descriptor'. So "I" would be "int",
 // "[[I" would be "int[][]", "[Ljava/lang/String;" would be
 // "java.lang.String[]", and so forth.
-std::string PrettyDescriptor(mirror::String* descriptor)
+std::string PrettyStringDescriptor(ObjPtr<mirror::String> descriptor)
     REQUIRES_SHARED(Locks::mutator_lock_);
 std::string PrettyDescriptor(const char* descriptor);
-std::string PrettyDescriptor(mirror::Class* klass)
+std::string PrettyDescriptor(ObjPtr<mirror::Class> klass)
     REQUIRES_SHARED(Locks::mutator_lock_);
 std::string PrettyDescriptor(Primitive::Type type);
 
@@ -158,7 +159,7 @@ std::string PrettyMethod(uint32_t method_idx, const DexFile& dex_file, bool with
 // So given an instance of java.lang.String, the output would
 // be "java.lang.String". Given an array of int, the output would be "int[]".
 // Given String.class, the output would be "java.lang.Class<java.lang.String>".
-std::string PrettyTypeOf(mirror::Object* obj)
+std::string PrettyTypeOf(ObjPtr<mirror::Object> obj)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
 // Returns a human-readable form of the type at an index in the specified dex file.
@@ -167,11 +168,11 @@ std::string PrettyType(uint32_t type_idx, const DexFile& dex_file);
 
 // Returns a human-readable form of the name of the given class.
 // Given String.class, the output would be "java.lang.Class<java.lang.String>".
-std::string PrettyClass(mirror::Class* c)
+std::string PrettyClass(ObjPtr<mirror::Class> c)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
 // Returns a human-readable form of the name of the given class with its class loader.
-std::string PrettyClassAndClassLoader(mirror::Class* c)
+std::string PrettyClassAndClassLoader(ObjPtr<mirror::Class> c)
     REQUIRES_SHARED(Locks::mutator_lock_);
 
 // Returns a human-readable version of the Java part of the access flags, e.g., "private static "
