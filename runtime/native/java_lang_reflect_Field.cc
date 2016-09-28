@@ -43,9 +43,13 @@ ALWAYS_INLINE inline static bool VerifyFieldAccess(Thread* self, mirror::Field* 
                     PrettyClass(field->GetDeclaringClass()).c_str()).c_str());
     return false;
   }
-  mirror::Class* calling_class = nullptr;
-  if (!VerifyAccess(self, obj, field->GetDeclaringClass(), field->GetAccessFlags(),
-                    &calling_class, 1)) {
+  ObjPtr<mirror::Class> calling_class;
+  if (!VerifyAccess(self,
+                    MakeObjPtr(obj),
+                    MakeObjPtr(field->GetDeclaringClass()),
+                    field->GetAccessFlags(),
+                    &calling_class,
+                    1)) {
     ThrowIllegalAccessException(
             StringPrintf("Class %s cannot access %s field %s of class %s",
                 calling_class == nullptr ? "null" : PrettyClass(calling_class).c_str(),
@@ -124,7 +128,7 @@ ALWAYS_INLINE inline static bool CheckReceiver(const ScopedFastNativeObjectAcces
     return true;
   }
   *class_or_rcvr = soa.Decode<mirror::Object*>(j_rcvr);
-  if (!VerifyObjectIsClass(*class_or_rcvr, declaringClass)) {
+  if (!VerifyObjectIsClass(MakeObjPtr(*class_or_rcvr), MakeObjPtr(declaringClass))) {
     DCHECK(soa.Self()->IsExceptionPending());
     return false;
   }
@@ -152,7 +156,7 @@ static jobject Field_get(JNIEnv* env, jobject javaField, jobject javaObj) {
     DCHECK(soa.Self()->IsExceptionPending());
     return nullptr;
   }
-  return soa.AddLocalReference<jobject>(BoxPrimitive(field_type, value));
+  return soa.AddLocalReference<jobject>(BoxPrimitive(field_type, value).Decode());
 }
 
 template<Primitive::Type kPrimitiveType>
@@ -323,7 +327,10 @@ static void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject j
   // Unbox the value, if necessary.
   mirror::Object* boxed_value = soa.Decode<mirror::Object*>(javaValue);
   JValue unboxed_value;
-  if (!UnboxPrimitiveForField(boxed_value, field_type, f->GetArtField(), &unboxed_value)) {
+  if (!UnboxPrimitiveForField(MakeObjPtr(boxed_value),
+                              MakeObjPtr(field_type),
+                              f->GetArtField(),
+                              &unboxed_value)) {
     DCHECK(soa.Self()->IsExceptionPending());
     return;
   }

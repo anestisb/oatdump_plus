@@ -31,6 +31,7 @@
 #include "lock_word-inl.h"
 #include "monitor.h"
 #include "object_array-inl.h"
+#include "obj_ptr-inl.h"
 #include "read_barrier-inl.h"
 #include "reference.h"
 #include "runtime.h"
@@ -281,7 +282,7 @@ inline bool Object::VerifierInstanceOf(Class* klass) {
 }
 
 template<VerifyObjectFlags kVerifyFlags>
-inline bool Object::InstanceOf(Class* klass) {
+inline bool Object::InstanceOf(ObjPtr<Class> klass) {
   DCHECK(klass != nullptr);
   DCHECK(GetClass<kVerifyNone>() != nullptr);
   return klass->IsAssignableFrom(GetClass<kVerifyFlags>());
@@ -509,7 +510,7 @@ inline size_t Object::SizeOf() {
         template GetObjectSize<kNewFlags, kReadBarrierOption>();
   }
   DCHECK_GE(result, sizeof(Object))
-      << " class=" << PrettyTypeOf(GetClass<kNewFlags, kReadBarrierOption>());
+      << " class=" << PrettyClass(GetClass<kNewFlags, kReadBarrierOption>());
   return result;
 }
 

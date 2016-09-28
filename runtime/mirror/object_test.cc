@@ -746,7 +746,7 @@ TEST_F(ObjectTest, ObjectPointer) {
   ObjPtr<mirror::Object, /*kPoison*/ true> null_ptr;
   EXPECT_TRUE(null_ptr.IsNull());
   EXPECT_TRUE(null_ptr.IsValid());
-  EXPECT_TRUE(null_ptr.Get() == nullptr);
+  EXPECT_TRUE(null_ptr.Decode() == nullptr);
   EXPECT_TRUE(null_ptr == nullptr);
   EXPECT_TRUE(null_ptr == null_ptr);
   EXPECT_FALSE(null_ptr != null_ptr);
@@ -758,13 +758,13 @@ TEST_F(ObjectTest, ObjectPointer) {
   ObjPtr<Class, /*kPoison*/ true> X(h_X.Get());
   EXPECT_TRUE(!X.IsNull());
   EXPECT_TRUE(X.IsValid());
-  EXPECT_TRUE(X.Get() != nullptr);
-  EXPECT_EQ(h_X.Get(), X.Get());
+  EXPECT_TRUE(X.Decode() != nullptr);
+  EXPECT_EQ(h_X.Get(), X.Decode());
   // FindClass may cause thread suspension, it should invalidate X.
   ObjPtr<Class, /*kPoison*/ true> Y(class_linker_->FindClass(soa.Self(), "LY;", class_loader));
   EXPECT_TRUE(!Y.IsNull());
   EXPECT_TRUE(Y.IsValid());
-  EXPECT_TRUE(Y.Get() != nullptr);
+  EXPECT_TRUE(Y.Decode() != nullptr);
 
   // Should IsNull be safe to call on null ObjPtr? I'll allow it for now.
   EXPECT_TRUE(!X.IsNull());
@@ -773,7 +773,7 @@ TEST_F(ObjectTest, ObjectPointer) {
   X.Assign(h_X.Get());
   EXPECT_TRUE(!X.IsNull());
   EXPECT_TRUE(X.IsValid());
-  EXPECT_EQ(h_X.Get(), X.Get());
+  EXPECT_EQ(h_X.Get(), X.Decode());
 
   // Allow thread suspension to invalidate Y.
   soa.Self()->AllowThreadSuspension();
@@ -784,7 +784,7 @@ TEST_F(ObjectTest, ObjectPointer) {
   ObjPtr<mirror::Object, /*kPoison*/ false> unpoisoned;
   EXPECT_TRUE(unpoisoned.IsNull());
   EXPECT_TRUE(unpoisoned.IsValid());
-  EXPECT_TRUE(unpoisoned.Get() == nullptr);
+  EXPECT_TRUE(unpoisoned.Decode() == nullptr);
   EXPECT_TRUE(unpoisoned == nullptr);
   EXPECT_TRUE(unpoisoned == unpoisoned);
   EXPECT_FALSE(unpoisoned != unpoisoned);
@@ -793,7 +793,7 @@ TEST_F(ObjectTest, ObjectPointer) {
   unpoisoned = h_X.Get();
   EXPECT_FALSE(unpoisoned.IsNull());
   EXPECT_TRUE(unpoisoned == h_X.Get());
-  EXPECT_EQ(unpoisoned.Get(), h_X.Get());
+  EXPECT_EQ(unpoisoned.Decode(), h_X.Get());
 }
 
 }  // namespace mirror
