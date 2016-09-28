@@ -53,6 +53,8 @@ jclass WellKnownClasses::java_lang_reflect_Constructor;
 jclass WellKnownClasses::java_lang_reflect_Executable;
 jclass WellKnownClasses::java_lang_reflect_Field;
 jclass WellKnownClasses::java_lang_reflect_Method;
+jclass WellKnownClasses::java_lang_reflect_Parameter;
+jclass WellKnownClasses::java_lang_reflect_Parameter__array;
 jclass WellKnownClasses::java_lang_reflect_Proxy;
 jclass WellKnownClasses::java_lang_RuntimeException;
 jclass WellKnownClasses::java_lang_StackOverflowError;
@@ -87,6 +89,7 @@ jmethodID WellKnownClasses::java_lang_Integer_valueOf;
 jmethodID WellKnownClasses::java_lang_Long_valueOf;
 jmethodID WellKnownClasses::java_lang_ref_FinalizerReference_add;
 jmethodID WellKnownClasses::java_lang_ref_ReferenceQueue_add;
+jmethodID WellKnownClasses::java_lang_reflect_Parameter_init;
 jmethodID WellKnownClasses::java_lang_reflect_Proxy_invoke;
 jmethodID WellKnownClasses::java_lang_Runtime_nativeLoad;
 jmethodID WellKnownClasses::java_lang_Short_valueOf;
@@ -280,6 +283,8 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_reflect_Executable = CacheClass(env, "java/lang/reflect/Executable");
   java_lang_reflect_Field = CacheClass(env, "java/lang/reflect/Field");
   java_lang_reflect_Method = CacheClass(env, "java/lang/reflect/Method");
+  java_lang_reflect_Parameter = CacheClass(env, "java/lang/reflect/Parameter");
+  java_lang_reflect_Parameter__array = CacheClass(env, "[Ljava/lang/reflect/Parameter;");
   java_lang_reflect_Proxy = CacheClass(env, "java/lang/reflect/Proxy");
   java_lang_RuntimeException = CacheClass(env, "java/lang/RuntimeException");
   java_lang_StackOverflowError = CacheClass(env, "java/lang/StackOverflowError");
@@ -312,6 +317,7 @@ void WellKnownClasses::Init(JNIEnv* env) {
   ScopedLocalRef<jclass> java_lang_ref_ReferenceQueue(env, env->FindClass("java/lang/ref/ReferenceQueue"));
   java_lang_ref_ReferenceQueue_add = CacheMethod(env, java_lang_ref_ReferenceQueue.get(), true, "add", "(Ljava/lang/ref/Reference;)V");
 
+  java_lang_reflect_Parameter_init = CacheMethod(env, java_lang_reflect_Parameter, false, "<init>", "(Ljava/lang/String;ILjava/lang/reflect/Executable;I)V");
   java_lang_reflect_Proxy_invoke = CacheMethod(env, java_lang_reflect_Proxy, true, "invoke", "(Ljava/lang/reflect/Proxy;Ljava/lang/reflect/Method;[Ljava/lang/Object;)Ljava/lang/Object;");
   java_lang_Thread_dispatchUncaughtException = CacheMethod(env, java_lang_Thread, false, "dispatchUncaughtException", "(Ljava/lang/Throwable;)V");
   java_lang_Thread_init = CacheMethod(env, java_lang_Thread, false, "<init>", "(Ljava/lang/ThreadGroup;Ljava/lang/String;IZ)V");
