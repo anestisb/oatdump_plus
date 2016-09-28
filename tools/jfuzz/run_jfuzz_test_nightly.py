@@ -16,9 +16,14 @@
 
 import argparse
 import os
+import re
+import shutil
 import subprocess
 import sys
 
+from glob import glob
+
+from tempfile import mkdtemp
 from tempfile import TemporaryFile
 
 # Default arguments for run_jfuzz_test.py.
@@ -51,15 +56,29 @@ def main(argv):
     for proc in processes:
       proc.kill()
   # Output results.
+  output_dirs = []
   for i, output_file in enumerate(output_files):
     output_file.seek(0)
     output_str = output_file.read().decode('ascii')
     output_file.close()
+    # Extract output directory. Example match: 'Directory : /tmp/tmp8ltpfjng'.
+    directory_match = re.search(r'Directory[^:]*: ([^\n]+)\n', output_str)
+    if directory_match:
+      output_dirs.append(directory_match.group(1))
     print('Tester', i)
     if output_str.find(SUCCESS_STRING) == NOT_FOUND:
       print(output_str)
     else:
       print(SUCCESS_STRING)
+  # Gather divergences.
+  global_out_dir = mkdtemp('jfuzz_nightly')
+  divergence_nr = 1
+  for out_dir in output_dirs:
+    for divergence_dir in glob(out_dir + '/divergence*/'):
+      shutil.copytree(divergence_dir,
+                      global_out_dir + '/divergence' + str(divergence_nr))
+      divergence_nr += 1
+  print('Global output directory:', global_out_dir)
 
 if __name__ == '__main__':
   main(sys.argv)
