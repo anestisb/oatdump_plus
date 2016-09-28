@@ -475,6 +475,8 @@ class Thread {
     ++poison_object_cookie_;
   }
 
+  ALWAYS_INLINE static void PoisonObjectPointersIfDebug();
+
   ALWAYS_INLINE uintptr_t GetPoisonObjectCookie() const {
     return poison_object_cookie_;
   }
