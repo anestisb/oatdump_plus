@@ -443,6 +443,8 @@ build-art-target-golem: dex2oat dalvikvm patchoat linker \
                         $(ART_TARGET_SHARED_LIBRARY_BENCHMARK) \
                         $(TARGET_CORE_IMG_OUT_BASE).art \
                         $(TARGET_CORE_IMG_OUT_BASE)-interpreter.art
+	sed -i '/libartd.so/d' $(TARGET_OUT)/etc/public.libraries.txt
+	# remove libartd.so from public.libraries.txt because golem builds won't have it.
 
 ########################################################################
 # Phony target for building what go/lem requires on host.
