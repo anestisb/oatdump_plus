@@ -294,8 +294,7 @@ def BugSearch(testable):
   if faulty_method_idx == len(all_methods) + 1:
     return (None, None)
   if faulty_method_idx == 0:
-    raise FatalError('Testable fails with no methods compiled. '
-                     'Perhaps issue lies outside of compiler.')
+    raise FatalError('Testable fails with no methods compiled.')
   faulty_method = all_methods[faulty_method_idx - 1]
   all_passes = testable.GetAllPassesForMethod(faulty_method)
   faulty_pass_idx = BinarySearch(
@@ -415,7 +414,11 @@ def main():
   try:
     testable = Dex2OatWrapperTestable(base_cmd, test_env, args.expected_retcode,
                                       output_checker, args.verbose)
-    (method, opt_pass) = BugSearch(testable)
+    if testable.Test(compiled_methods=[]):
+      (method, opt_pass) = BugSearch(testable)
+    else:
+      print('Testable fails with no methods compiled.')
+      sys.exit(1)
   except Exception as e:
     print('Error occurred.\nLogfile: {0}'.format(test_env.logfile.name))
     test_env.logfile.write('Exception: {0}\n'.format(e))
