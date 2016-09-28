@@ -195,9 +195,9 @@ void ReferenceTable::Dump(std::ostream& os, Table& entries) {
     } else if (ref->IsReferenceInstance()) {
       mirror::Object* referent = ref->AsReference()->GetReferent();
       if (referent == nullptr) {
-        extras = " (storing null)";
+        extras = " (referent is null)";
       } else {
-        extras = StringPrintf(" (storing a %s)", PrettyTypeOf(referent).c_str());
+        extras = StringPrintf(" (referent is a %s)", PrettyTypeOf(referent).c_str());
       }
     }
     os << StringPrintf("    %5d: ", idx) << ref << " " << className << extras << "\n";
