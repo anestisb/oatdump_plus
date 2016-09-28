@@ -21,9 +21,13 @@
 #error IMT_SIZE not defined
 #endif
 
+#include "base/enums.h"
+#include "base/macros.h"
+
 namespace art {
 
 class ArtMethod;
+class DexFile;
 
 class ImTable {
  public:
@@ -69,6 +73,19 @@ class ImTable {
   constexpr static size_t SizeInBytes(PointerSize pointer_size) {
     return kSize * static_cast<size_t>(pointer_size);
   }
+
+  // Converts a method to the base hash used in GetImtIndex.
+  ALWAYS_INLINE static inline uint32_t GetBaseImtHash(ArtMethod* method)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  ALWAYS_INLINE static inline uint32_t GetBaseImtHash(const DexFile* dex_file, uint32_t method_idx)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // The (complete) hashing scheme to map an ArtMethod to a slot in the Interface Method Table
+  // (IMT).
+  ALWAYS_INLINE static inline uint32_t GetImtIndex(ArtMethod* method)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  ALWAYS_INLINE static inline uint32_t GetImtIndex(const DexFile* dex_file, uint32_t method_idx)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 };
 
 }  // namespace art
