@@ -23,6 +23,7 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "arch/instruction_set_features.h"
@@ -42,6 +43,7 @@
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
 #include "image-inl.h"
+#include "imtable-inl.h"
 #include "indenter.h"
 #include "linker/buffered_output_stream.h"
 #include "linker/file_output_stream.h"
@@ -2547,6 +2549,392 @@ static int SymbolizeOat(const char* oat_filename, std::string& output_name, bool
   return EXIT_SUCCESS;
 }
 
+class IMTDumper {
+ public:
+  static bool DumpImt(Runtime* runtime, const std::string& imt_file) {
+    std::vector<std::string> lines = ReadCommentedInputFromFile(imt_file);
+    std::unordered_set<std::string> prepared;
+
+    for (const std::string& line : lines) {
+      // A line should be either a class descriptor, in which case we will dump the complete IMT,
+      // or a class descriptor and an interface method, in which case we will lookup the method,
+      // determine its IMT slot, and check the class' IMT.
+      size_t first_space = line.find(' ');
+      if (first_space == std::string::npos) {
+        DumpIMTForClass(runtime, line, &prepared);
+      } else {
+        DumpIMTForMethod(runtime,
+                         line.substr(0, first_space),
+                         line.substr(first_space + 1, std::string::npos),
+                         &prepared);
+      }
+      std::cerr << std::endl;
+    }
+
+    return true;
+  }
+
+  static bool DumpImtStats(Runtime* runtime, const std::vector<const DexFile*>& dex_files) {
+    size_t wo_imt = 0;
+    size_t w_imt = 0;
+    std::map<size_t, size_t> histogram;
+
+    ClassLinker* class_linker = runtime->GetClassLinker();
+    const PointerSize pointer_size = class_linker->GetImagePointerSize();
+    std::unordered_set<std::string> prepared;
+
+    Thread* self = Thread::Current();
+    ScopedObjectAccess soa(self);
+    StackHandleScope<1> scope(self);
+    MutableHandle<mirror::Class> h_klass(scope.NewHandle<mirror::Class>(nullptr));
+
+    for (const DexFile* dex_file : dex_files) {
+      for (uint32_t class_def_index = 0;
+          class_def_index != dex_file->NumClassDefs();
+          ++class_def_index) {
+        const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
+        const char* descriptor = dex_file->GetClassDescriptor(class_def);
+        h_klass.Assign(class_linker->FindClass(self,
+                                               descriptor,
+                                               ScopedNullHandle<mirror::ClassLoader>()));
+        if (h_klass.Get() == nullptr) {
+          std::cerr << "Warning: could not load " << descriptor << std::endl;
+          continue;
+        }
+
+        if (HasNoIMT(runtime, h_klass, pointer_size, &prepared)) {
+          wo_imt++;
+          continue;
+        }
+
+        ImTable* im_table = PrepareAndGetImTable(runtime, h_klass, pointer_size, &prepared);
+        if (im_table == nullptr) {
+          // Should not happen, but accept.
+          wo_imt++;
+          continue;
+        }
+
+        w_imt++;
+        for (size_t imt_index = 0; imt_index != ImTable::kSize; ++imt_index) {
+          ArtMethod* ptr = im_table->Get(imt_index, pointer_size);
+          if (ptr->IsRuntimeMethod()) {
+            if (ptr->IsImtUnimplementedMethod()) {
+              histogram[0]++;
+            } else {
+              ImtConflictTable* current_table = ptr->GetImtConflictTable(pointer_size);
+              histogram[current_table->NumEntries(pointer_size)]++;
+            }
+          } else {
+            histogram[1]++;
+          }
+        }
+      }
+    }
+
+    std::cerr << "IMT stats:"
+              << std::endl << std::endl;
+
+    std::cerr << "  " << w_imt << " classes with IMT."
+              << std::endl << std::endl;
+    std::cerr << "  " << wo_imt << " classes without IMT (or copy from Object)."
+              << std::endl << std::endl;
+
+    double sum_one = 0;
+    size_t count_one = 0;
+
+    std::cerr << "  " << "IMT histogram" << std::endl;
+    for (auto& bucket : histogram) {
+      std::cerr << "    " << bucket.first << " " << bucket.second << std::endl;
+      if (bucket.first > 0) {
+        sum_one += bucket.second * bucket.first;
+        count_one += bucket.second;
+      }
+    }
+
+    double count_zero = count_one + histogram[0];
+    std::cerr << "   Stats:" << std::endl;
+    std::cerr << "     Average depth (including empty): " << (sum_one / count_zero) << std::endl;
+    std::cerr << "     Average depth (excluding empty): " << (sum_one / count_one) << std::endl;
+
+    return true;
+  }
+
+ private:
+  // Check whether the given class has no IMT (or the one shared with java.lang.Object).
+  static bool HasNoIMT(Runtime* runtime,
+                       Handle<mirror::Class> klass,
+                       const PointerSize pointer_size,
+                       std::unordered_set<std::string>* prepared)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (klass->IsObjectClass() || !klass->ShouldHaveImt()) {
+      return true;
+    }
+
+    if (klass->GetImt(pointer_size) == nullptr) {
+      PrepareClass(runtime, klass, prepared);
+    }
+
+    mirror::Class* object_class = mirror::Class::GetJavaLangClass()->GetSuperClass();
+    DCHECK(object_class->IsObjectClass());
+
+    bool result = klass->GetImt(pointer_size) == object_class->GetImt(pointer_size);
+
+    if (klass->GetIfTable() == nullptr) {
+      DCHECK(result);
+    }
+
+    return result;
+  }
+
+  static void PrintTable(ImtConflictTable* table, PointerSize pointer_size)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (table == nullptr) {
+      std::cerr << "    <No IMT?>" << std::endl;
+      return;
+    }
+    size_t table_index = 0;
+    for (;;) {
+      ArtMethod* ptr = table->GetInterfaceMethod(table_index, pointer_size);
+      if (ptr == nullptr) {
+        return;
+      }
+      table_index++;
+      std::cerr << "    " << PrettyMethod(ptr, true) << std::endl;
+    }
+  }
+
+  static ImTable* PrepareAndGetImTable(Runtime* runtime,
+                                       Thread* self,
+                                       const std::string& class_name,
+                                       const PointerSize pointer_size,
+                                       mirror::Class** klass_out,
+                                       std::unordered_set<std::string>* prepared)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (class_name.empty()) {
+      return nullptr;
+    }
+
+    std::string descriptor;
+    if (class_name[0] == 'L') {
+      descriptor = class_name;
+    } else {
+      descriptor = DotToDescriptor(class_name.c_str());
+    }
+
+    ScopedNullHandle<mirror::ClassLoader> null_handle;
+
+    mirror::Class* klass =
+        runtime->GetClassLinker()->FindClass(self, descriptor.c_str(), null_handle);
+
+    if (klass == nullptr) {
+      self->ClearException();
+      std::cerr << "Did not find " <<  class_name << std::endl;
+      *klass_out = nullptr;
+      return nullptr;
+    }
+
+    StackHandleScope<1> scope(Thread::Current());
+    Handle<mirror::Class> h_klass = scope.NewHandle<mirror::Class>(klass);
+
+    ImTable* ret = PrepareAndGetImTable(runtime, h_klass, pointer_size, prepared);
+    *klass_out = h_klass.Get();
+    return ret;
+  }
+
+  static ImTable* PrepareAndGetImTable(Runtime* runtime,
+                                       Handle<mirror::Class> h_klass,
+                                       const PointerSize pointer_size,
+                                       std::unordered_set<std::string>* prepared)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    PrepareClass(runtime, h_klass, prepared);
+    return h_klass->GetImt(pointer_size);
+  }
+
+  static void DumpIMTForClass(Runtime* runtime,
+                              const std::string& class_name,
+                              std::unordered_set<std::string>* prepared) {
+    Thread* self = Thread::Current();
+    ScopedObjectAccess soa(self);
+
+    const PointerSize pointer_size = runtime->GetClassLinker()->GetImagePointerSize();
+    mirror::Class* klass;
+    ImTable* imt = PrepareAndGetImTable(runtime, self, class_name, pointer_size, &klass, prepared);
+    if (imt == nullptr) {
+      return;
+    }
+
+    std::cerr << class_name << std::endl << " IMT:" << std::endl;
+    for (size_t index = 0; index < ImTable::kSize; ++index) {
+      std::cerr << "  " << index << ":" << std::endl;
+      ArtMethod* ptr = imt->Get(index, pointer_size);
+      if (ptr->IsRuntimeMethod()) {
+        if (ptr->IsImtUnimplementedMethod()) {
+          std::cerr << "    <empty>" << std::endl;
+        } else {
+          ImtConflictTable* current_table = ptr->GetImtConflictTable(pointer_size);
+          PrintTable(current_table, pointer_size);
+        }
+      } else {
+        std::cerr << "    " << PrettyMethod(ptr, true) << std::endl;
+      }
+    }
+
+    std::cerr << " Interfaces:" << std::endl;
+    // Run through iftable, find methods that slot here, see if they fit.
+    mirror::IfTable* if_table = klass->GetIfTable();
+    if (if_table != nullptr) {
+      for (size_t i = 0, num_interfaces = klass->GetIfTableCount(); i < num_interfaces; ++i) {
+        mirror::Class* iface = if_table->GetInterface(i);
+        std::string iface_name;
+        std::cerr << "  " << iface->GetDescriptor(&iface_name) << std::endl;
+
+        for (ArtMethod& iface_method : iface->GetVirtualMethods(pointer_size)) {
+          uint32_t base_hash = ImTable::GetBaseImtHash(&iface_method);
+          uint32_t imt_slot = ImTable::GetImtIndex(&iface_method);
+          std::cerr << "    " << PrettyMethod(&iface_method, true) << " slot=" << std::dec
+              << imt_slot << " base_hash=0x" << std::hex << base_hash << std::endl;
+        }
+      }
+    }
+  }
+
+  static void DumpIMTForMethod(Runtime* runtime,
+                               const std::string& class_name,
+                               const std::string& method,
+                               std::unordered_set<std::string>* prepared) {
+    Thread* self = Thread::Current();
+    ScopedObjectAccess soa(self);
+
+    const PointerSize pointer_size = runtime->GetClassLinker()->GetImagePointerSize();
+    mirror::Class* klass;
+    ImTable* imt = PrepareAndGetImTable(runtime,
+                                        self,
+                                        class_name,
+                                        pointer_size,
+                                        &klass,
+                                        prepared);
+    if (imt == nullptr) {
+      return;
+    }
+
+    std::cerr << class_name << " <" << method << ">" << std::endl;
+    for (size_t index = 0; index < ImTable::kSize; ++index) {
+      ArtMethod* ptr = imt->Get(index, pointer_size);
+      if (ptr->IsRuntimeMethod()) {
+        if (ptr->IsImtUnimplementedMethod()) {
+          continue;
+        }
+
+        ImtConflictTable* current_table = ptr->GetImtConflictTable(pointer_size);
+        if (current_table == nullptr) {
+          continue;
+        }
+
+        size_t table_index = 0;
+        for (;;) {
+          ArtMethod* ptr2 = current_table->GetInterfaceMethod(table_index, pointer_size);
+          if (ptr2 == nullptr) {
+            break;
+          }
+          table_index++;
+
+          std::string p_name = PrettyMethod(ptr2, true);
+          if (StartsWith(p_name, method.c_str())) {
+            std::cerr << "  Slot "
+                      << index
+                      << " ("
+                      << current_table->NumEntries(pointer_size)
+                      << ")"
+                      << std::endl;
+            PrintTable(current_table, pointer_size);
+            return;
+          }
+        }
+      } else {
+        std::string p_name = PrettyMethod(ptr, true);
+        if (StartsWith(p_name, method.c_str())) {
+          std::cerr << "  Slot " << index << " (1)" << std::endl;
+          std::cerr << "    " << p_name << std::endl;
+        } else {
+          // Run through iftable, find methods that slot here, see if they fit.
+          mirror::IfTable* if_table = klass->GetIfTable();
+          if (if_table != nullptr) {
+            for (size_t i = 0, num_interfaces = klass->GetIfTableCount(); i < num_interfaces; ++i) {
+              mirror::Class* iface = if_table->GetInterface(i);
+              size_t num_methods = iface->NumDeclaredVirtualMethods();
+              if (num_methods > 0) {
+                for (ArtMethod& iface_method : iface->GetMethods(pointer_size)) {
+                  if (ImTable::GetImtIndex(&iface_method) == index) {
+                    std::string i_name = PrettyMethod(&iface_method, true);
+                    if (StartsWith(i_name, method.c_str())) {
+                      std::cerr << "  Slot " << index << " (1)" << std::endl;
+                      std::cerr << "    " << p_name << " (" << i_name << ")" << std::endl;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Read lines from the given stream, dropping comments and empty lines
+  static std::vector<std::string> ReadCommentedInputStream(std::istream& in_stream) {
+    std::vector<std::string> output;
+    while (in_stream.good()) {
+      std::string dot;
+      std::getline(in_stream, dot);
+      if (StartsWith(dot, "#") || dot.empty()) {
+        continue;
+      }
+      output.push_back(dot);
+    }
+    return output;
+  }
+
+  // Read lines from the given file, dropping comments and empty lines.
+  static std::vector<std::string> ReadCommentedInputFromFile(const std::string& input_filename) {
+    std::unique_ptr<std::ifstream> input_file(new std::ifstream(input_filename, std::ifstream::in));
+    if (input_file.get() == nullptr) {
+      LOG(ERROR) << "Failed to open input file " << input_filename;
+      return std::vector<std::string>();
+    }
+    std::vector<std::string> result = ReadCommentedInputStream(*input_file);
+    input_file->close();
+    return result;
+  }
+
+  // Prepare a class, i.e., ensure it has a filled IMT. Will do so recursively for superclasses,
+  // and note in the given set that the work was done.
+  static void PrepareClass(Runtime* runtime,
+                           Handle<mirror::Class> h_klass,
+                           std::unordered_set<std::string>* done)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (!h_klass->ShouldHaveImt()) {
+      return;
+    }
+
+    std::string name;
+    name = h_klass->GetDescriptor(&name);
+
+    if (done->find(name) != done->end()) {
+      return;
+    }
+    done->insert(name);
+
+    if (h_klass->HasSuperClass()) {
+      StackHandleScope<1> h(Thread::Current());
+      PrepareClass(runtime, h.NewHandle<mirror::Class>(h_klass->GetSuperClass()), done);
+    }
+
+    if (!h_klass->IsTemp()) {
+      runtime->GetClassLinker()->FillIMTAndConflictTables(h_klass.Get());
+    }
+  }
+};
+
 struct OatdumpArgs : public CmdlineArgs {
  protected:
   using Base = CmdlineArgs;
@@ -2596,6 +2984,10 @@ struct OatdumpArgs : public CmdlineArgs {
       app_image_ = option.substr(strlen("--app-image=")).data();
     } else if (option.starts_with("--app-oat=")) {
       app_oat_ = option.substr(strlen("--app-oat=")).data();
+    } else if (option.starts_with("--dump-imt=")) {
+      imt_dump_ = option.substr(strlen("--dump-imt=")).data();
+    } else if (option == "--dump-imt-stats") {
+      imt_stat_dump_ = true;
     } else {
       return kParseUnknownArgument;
     }
@@ -2692,6 +3084,16 @@ struct OatdumpArgs : public CmdlineArgs {
         "  --addr2instr=<address>: output matching method disassembled code from relative\n"
         "                          address (e.g. PC from crash dump)\n"
         "      Example: --addr2instr=0x00001a3b\n"
+        "\n"
+        "  --dump-imt=<file.txt>: output IMT collisions (if any) for the given receiver\n"
+        "                         types and interface methods in the given file. The file\n"
+        "                         is read line-wise, and each line should either be a class\n"
+        "                         name or descriptor, or a class name/descriptor and a prefix\n"
+        "                         of a complete method name.\n"
+        "      Example: --dump-imt=imt.txt\n"
+        "\n"
+        "  --dump-imt-stats: output IMT statistics for the given boot image\n"
+        "      Example: --dump-imt-stats"
         "\n";
 
     return usage;
@@ -2703,6 +3105,7 @@ struct OatdumpArgs : public CmdlineArgs {
   const char* method_filter_ = "";
   const char* image_location_ = nullptr;
   std::string elf_filename_prefix_;
+  std::string imt_dump_;
   bool dump_vmap_ = true;
   bool dump_code_info_stack_maps_ = false;
   bool disassemble_code_ = true;
@@ -2711,6 +3114,7 @@ struct OatdumpArgs : public CmdlineArgs {
   bool list_classes_ = false;
   bool list_methods_ = false;
   bool dump_header_only_ = false;
+  bool imt_stat_dump_ = false;
   uint32_t addr2instr_ = 0;
   const char* export_dex_location_ = nullptr;
   const char* app_image_ = nullptr;
@@ -2739,7 +3143,9 @@ struct OatdumpMain : public CmdlineMain<OatdumpArgs> {
         args_->app_oat_,
         args_->addr2instr_));
 
-    return (args_->boot_image_location_ != nullptr || args_->image_location_ != nullptr) &&
+    return (args_->boot_image_location_ != nullptr ||
+            args_->image_location_ != nullptr ||
+            !args_->imt_dump_.empty()) &&
           !args_->symbolize_;
   }
 
@@ -2766,6 +3172,14 @@ struct OatdumpMain : public CmdlineMain<OatdumpArgs> {
 
   virtual bool ExecuteWithRuntime(Runtime* runtime) {
     CHECK(args_ != nullptr);
+
+    if (!args_->imt_dump_.empty()) {
+      return IMTDumper::DumpImt(runtime, args_->imt_dump_);
+    }
+
+    if (args_->imt_stat_dump_) {
+      return IMTDumper::DumpImtStats(runtime, runtime->GetClassLinker()->GetBootClassPath());
+    }
 
     if (args_->oat_filename_ != nullptr) {
       return DumpOat(runtime,
