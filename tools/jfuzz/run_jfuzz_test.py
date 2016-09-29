@@ -450,13 +450,13 @@ class JFuzzTester(object):
     os.mkdir(ddir)
     for f in glob('*.txt') + ['Test.java']:
       shutil.copy(f, ddir)
-    # Maybe run bisection bug search.
-    if (retc1 in BISECTABLE_RET_CODES and retc2 in BISECTABLE_RET_CODES and
-        not (self._true_divergence_only and RetCode.TIMEOUT in (retc1, retc2))):
-      self.MaybeBisectDivergence(retc1, retc2, is_output_divergence)
-    # Call reporting script.
-    if self._report_script:
-      self.RunReportScript(retc1, retc2, is_output_divergence)
+    if not (self._true_divergence_only and RetCode.TIMEOUT in (retc1, retc2)):
+      # Maybe run bisection bug search.
+      if retc1 in BISECTABLE_RET_CODES and retc2 in BISECTABLE_RET_CODES:
+        self.MaybeBisectDivergence(retc1, retc2, is_output_divergence)
+      # Call reporting script.
+      if self._report_script:
+        self.RunReportScript(retc1, retc2, is_output_divergence)
 
   def RunReportScript(self, retc1, retc2, is_output_divergence):
     """Runs report script."""
