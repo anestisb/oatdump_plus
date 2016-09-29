@@ -33,6 +33,8 @@
 #include "mirror/dex_cache.h"
 #include "mirror/executable.h"
 #include "mirror/field.h"
+#include "mirror/method_type.h"
+#include "mirror/method_handle_impl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/proxy.h"
@@ -708,6 +710,27 @@ struct ExecutableOffsets : public CheckOffsets<mirror::Executable> {
   };
 };
 
+struct MethodTypeOffsets : public CheckOffsets<mirror::MethodType> {
+  MethodTypeOffsets() : CheckOffsets<mirror::MethodType>(
+      false, "Ljava/lang/invoke/MethodType;") {
+    addOffset(OFFSETOF_MEMBER(mirror::MethodType, form_), "form");
+    addOffset(OFFSETOF_MEMBER(mirror::MethodType, method_descriptor_), "methodDescriptor");
+    addOffset(OFFSETOF_MEMBER(mirror::MethodType, p_types_), "ptypes");
+    addOffset(OFFSETOF_MEMBER(mirror::MethodType, r_type_), "rtype");
+    addOffset(OFFSETOF_MEMBER(mirror::MethodType, wrap_alt_), "wrapAlt");
+  }
+};
+
+struct MethodHandleImplOffsets : public CheckOffsets<mirror::MethodHandleImpl> {
+  MethodHandleImplOffsets() : CheckOffsets<mirror::MethodHandleImpl>(
+      false, "Ljava/lang/invoke/MethodHandle;") {
+    addOffset(OFFSETOF_MEMBER(mirror::MethodHandleImpl, art_field_or_method_), "artFieldOrMethod");
+    addOffset(OFFSETOF_MEMBER(mirror::MethodHandleImpl, as_type_cache_), "asTypeCache");
+    addOffset(OFFSETOF_MEMBER(mirror::MethodHandleImpl, handle_kind_), "handleKind");
+    addOffset(OFFSETOF_MEMBER(mirror::MethodHandleImpl, method_type_), "type");
+  }
+};
+
 // C++ fields must exactly match the fields in the Java classes. If this fails,
 // reorder the fields in the C++ class. Managed class fields are ordered by
 // ClassLinker::LinkFields.
@@ -726,6 +749,8 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_TRUE(AccessibleObjectOffsets().Check());
   EXPECT_TRUE(FieldOffsets().Check());
   EXPECT_TRUE(ExecutableOffsets().Check());
+  EXPECT_TRUE(MethodTypeOffsets().Check());
+  EXPECT_TRUE(MethodHandleImplOffsets().Check());
 }
 
 TEST_F(ClassLinkerTest, FindClassNonexistent) {
