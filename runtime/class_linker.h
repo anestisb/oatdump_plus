@@ -51,6 +51,7 @@ namespace mirror {
   class DexCachePointerArray;
   class DexCacheTest_Open_Test;
   class IfTable;
+  class MethodType;
   template<class T> class ObjectArray;
   class StackTraceElement;
 }  // namespace mirror
@@ -99,6 +100,8 @@ class ClassLinker {
     kJavaLangReflectConstructorArrayClass,
     kJavaLangReflectFieldArrayClass,
     kJavaLangReflectMethodArrayClass,
+    kJavaLangInvokeMethodHandleImpl,
+    kJavaLangInvokeMethodType,
     kJavaLangClassLoader,
     kJavaLangThrowable,
     kJavaLangClassNotFoundException,
