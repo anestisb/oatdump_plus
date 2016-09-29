@@ -41,7 +41,7 @@ public class Main {
         ThreadDeathHandler defHandler = new ThreadDeathHandler("DEFAULT");
         ThreadDeathHandler threadHandler = new ThreadDeathHandler("THREAD");
 
-        System.out.println("Test " + which);
+        System.err.println("Test " + which);
         switch (which) {
             case 1: {
                 Thread.setDefaultUncaughtExceptionHandler(defHandler);
