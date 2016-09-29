@@ -116,8 +116,7 @@ class DisassemblerArm::CustomDisassembler FINAL : public PrintDisassembler {
 
  public:
   CustomDisassembler(std::ostream& os, const DisassemblerOptions* options)
-      // vixl::aarch32::Disassembler::~Disassembler() will delete the stream.
-      : PrintDisassembler(new CustomDisassemblerStream(os, this, options)) {}
+      : PrintDisassembler(&disassembler_stream_), disassembler_stream_(os, this, options) {}
 
   void PrintPc(uint32_t prog_ctr) OVERRIDE {
     os() << "0x" << std::hex << std::setw(8) << std::setfill('0') << prog_ctr << ": ";
@@ -133,6 +132,7 @@ class DisassemblerArm::CustomDisassembler FINAL : public PrintDisassembler {
 
  private:
   bool is_t32_;
+  CustomDisassemblerStream disassembler_stream_;
 };
 
 void DisassemblerArm::CustomDisassembler::CustomDisassemblerStream::PrintLiteral(LocationType type,
