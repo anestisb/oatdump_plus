@@ -35,9 +35,9 @@ namespace mirror {
 
 class String;
 
-struct PACKED(8) StringDexCachePair {
-  GcRoot<String> string_pointer;
-  uint32_t string_index;
+template <typename T> struct PACKED(8) DexCachePair {
+  GcRoot<T> object;
+  uint32_t index;
   // The array is initially [ {0,0}, {0,0}, {0,0} ... ]
   // We maintain the invariant that once a dex cache entry is populated,
   // the pointer is always non-0
@@ -45,47 +45,51 @@ struct PACKED(8) StringDexCachePair {
   // {non-0, non-0} OR {0,0}
   //
   // It's generally sufficiently enough then to check if the
-  // lookup string index matches the stored string index (for a >0 string index)
+  // lookup index matches the stored index (for a >0 lookup index)
   // because if it's true the pointer is also non-null.
   //
   // For the 0th entry which is a special case, the value is either
   // {0,0} (initial state) or {non-0, 0} which indicates
-  // that a valid string is stored at that index for a dex string id of 0.
+  // that a valid object is stored at that index for a dex section id of 0.
   //
-  // As an optimization, we want to avoid branching on the string pointer since
-  // it's always non-null if the string id branch succeeds (except for the 0th string id).
+  // As an optimization, we want to avoid branching on the object pointer since
+  // it's always non-null if the id branch succeeds (except for the 0th id).
   // Set the initial state for the 0th entry to be {0,1} which is guaranteed to fail
-  // the lookup string id == stored id branch.
-  StringDexCachePair(String* string, uint32_t string_idx)
-      : string_pointer(string),
-        string_index(string_idx) {}
-  StringDexCachePair() = default;
-  StringDexCachePair(const StringDexCachePair&) = default;
-  StringDexCachePair& operator=(const StringDexCachePair&) = default;
+  // the lookup id == stored id branch.
+  DexCachePair(T* object, uint32_t index)
+      : object(object),
+        index(index) {}
+  DexCachePair() = default;
+  DexCachePair(const DexCachePair<T>&) = default;
+  DexCachePair& operator=(const DexCachePair<T>&) = default;
 
-  static void Initialize(StringDexCacheType* strings) {
-    mirror::StringDexCachePair first_elem;
-    first_elem.string_pointer = GcRoot<String>(nullptr);
-    first_elem.string_index = InvalidStringIndexForSlot(0);
-    strings[0].store(first_elem, std::memory_order_relaxed);
+  static void Initialize(std::atomic<DexCachePair<T>>* dex_cache) {
+    DexCachePair<T> first_elem;
+    first_elem.object = GcRoot<T>(nullptr);
+    first_elem.index = InvalidIndexForSlot(0);
+    dex_cache[0].store(first_elem, std::memory_order_relaxed);
   }
 
-  static GcRoot<String> LookupString(StringDexCacheType* dex_cache,
-                                     uint32_t string_idx,
-                                     uint32_t cache_size) {
-    StringDexCachePair index_string = dex_cache[string_idx % cache_size]
-        .load(std::memory_order_relaxed);
-    if (string_idx != index_string.string_index) return GcRoot<String>(nullptr);
-    DCHECK(!index_string.string_pointer.IsNull());
-    return index_string.string_pointer;
+  static GcRoot<T> Lookup(std::atomic<DexCachePair<T>>* dex_cache,
+                          uint32_t idx,
+                          uint32_t cache_size) {
+    DexCachePair<T> element = dex_cache[idx % cache_size].load(std::memory_order_relaxed);
+    if (idx != element.index) {
+      return GcRoot<T>(nullptr);
+    }
+
+    DCHECK(!element.object.IsNull());
+    return element.object;
   }
 
-  static uint32_t InvalidStringIndexForSlot(uint32_t slot) {
+  static uint32_t InvalidIndexForSlot(uint32_t slot) {
     // Since the cache size is a power of two, 0 will always map to slot 0.
     // Use 1 for slot 0 and 0 for all other slots.
     return (slot == 0) ? 1u : 0u;
   }
 };
+
+using StringDexCachePair = DexCachePair<mirror::String>;
 using StringDexCacheType = std::atomic<StringDexCachePair>;
 
 // C++ mirror of java.lang.DexCache.
