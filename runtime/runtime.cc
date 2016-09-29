@@ -88,6 +88,8 @@
 #include "mirror/class_loader.h"
 #include "mirror/field.h"
 #include "mirror/method.h"
+#include "mirror/method_handle_impl.h"
+#include "mirror/method_type.h"
 #include "mirror/stack_trace_element.h"
 #include "mirror/throwable.h"
 #include "monitor.h"
@@ -1542,6 +1544,8 @@ void Runtime::VisitConstantRoots(RootVisitor* visitor) {
   mirror::String::VisitRoots(visitor);
   mirror::Throwable::VisitRoots(visitor);
   mirror::Field::VisitRoots(visitor);
+  mirror::MethodType::VisitRoots(visitor);
+  mirror::MethodHandleImpl::VisitRoots(visitor);
   // Visit all the primitive array types classes.
   mirror::PrimitiveArray<uint8_t>::VisitRoots(visitor);   // BooleanArray
   mirror::PrimitiveArray<int8_t>::VisitRoots(visitor);    // ByteArray
