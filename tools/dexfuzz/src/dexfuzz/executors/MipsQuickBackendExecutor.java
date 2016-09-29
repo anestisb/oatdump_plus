@@ -21,15 +21,16 @@ import dexfuzz.listeners.BaseListener;
 public class MipsQuickBackendExecutor extends Executor {
 
   public MipsQuickBackendExecutor(BaseListener listener, Device device) {
-    super("MIPS Quick Backend", 5, listener, Architecture.MIPS, device, true);
+    super("MIPS Quick Backend", 5, listener, Architecture.MIPS, device,
+        /*needsCleanCodeCache*/ true, /*isBisectable*/ false);
   }
 
   @Override
-  public void execute(String programName) {
+  protected String constructCommand(String programName) {
     StringBuilder commandBuilder = new StringBuilder();
     commandBuilder.append("dalvikvm32 -Xcompiler-option --compiler-backend=Quick ");
     commandBuilder.append("-cp ").append(testLocation).append("/").append(programName).append(" ");
     commandBuilder.append(executeClass);
-    executionResult = executeCommandWithTimeout(commandBuilder.toString(), true);
+    return commandBuilder.toString();
   }
 }
