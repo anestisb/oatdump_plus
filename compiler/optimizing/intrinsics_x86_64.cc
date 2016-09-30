@@ -1568,14 +1568,27 @@ void IntrinsicCodeGeneratorX86_64::VisitStringEquals(HInvoke* invoke) {
   __ cmpl(str, arg);
   __ j(kEqual, &return_true);
 
-  // Load length of receiver string.
+  // Load length and compression flag of receiver string.
   __ movl(rcx, Address(str, count_offset));
-  // Check if lengths are equal, return false if they're not.
+  // Check if lengths and compressiond flags are equal, return false if they're not.
+  // Two identical strings will always have same compression style since
+  // compression style is decided on alloc.
   __ cmpl(rcx, Address(arg, count_offset));
   __ j(kNotEqual, &return_false);
+
+  if (mirror::kUseStringCompression) {
+    NearLabel string_uncompressed;
+    // Both string are compressed.
+    __ cmpl(rcx, Immediate(0));
+    __ j(kGreaterEqual, &string_uncompressed);
+    // Divide string length by 2, rounding up, and continue as if uncompressed.
+    // Merge clearing the compression flag with +1 for rounding.
+    __ addl(rcx, Immediate(static_cast<int32_t>(0x80000001)));
+    __ shrl(rcx, Immediate(1));
+    __ Bind(&string_uncompressed);
+  }
   // Return true if both strings are empty.
   __ jrcxz(&return_true);
-
   // Load starting addresses of string values into RSI/RDI as required for repe_cmpsq instruction.
   __ leal(rsi, Address(str, value_offset));
   __ leal(rdi, Address(arg, value_offset));
@@ -1584,7 +1597,8 @@ void IntrinsicCodeGeneratorX86_64::VisitStringEquals(HInvoke* invoke) {
   __ addl(rcx, Immediate(3));
   __ shrl(rcx, Immediate(2));
 
-  // Assertions that must hold in order to compare strings 4 characters at a time.
+  // Assertions that must hold in order to compare strings 4 characters (uncompressed)
+  // or 8 characters (compressed) at a time.
   DCHECK_ALIGNED(value_offset, 8);
   static_assert(IsAligned<8>(kObjectAlignment), "String is not zero padded");
 
@@ -1674,7 +1688,8 @@ static void GenerateStringIndexOf(HInvoke* invoke,
     __ j(kAbove, slow_path->GetEntryLabel());
   }
 
-  // From here down, we know that we are looking for a char that fits in 16 bits.
+  // From here down, we know that we are looking for a char that fits in
+  // 16 bits (uncompressed) or 8 bits (compressed).
   // Location of reference to data array within the String object.
   int32_t value_offset = mirror::String::ValueOffset().Int32Value();
   // Location of count within the String object.
@@ -1682,6 +1697,12 @@ static void GenerateStringIndexOf(HInvoke* invoke,
 
   // Load string length, i.e., the count field of the string.
   __ movl(string_length, Address(string_obj, count_offset));
+  if (mirror::kUseStringCompression) {
+    // Use TMP to keep string_length_flagged.
+    __ movl(CpuRegister(TMP), string_length);
+    // Mask out first bit used as compression flag.
+    __ andl(string_length, Immediate(INT32_MAX));
+  }
 
   // Do a length check.
   // TODO: Support jecxz.
@@ -1692,7 +1713,6 @@ static void GenerateStringIndexOf(HInvoke* invoke,
   if (start_at_zero) {
     // Number of chars to scan is the same as the string length.
     __ movl(counter, string_length);
-
     // Move to the start of the string.
     __ addq(string_obj, Immediate(value_offset));
   } else {
@@ -1707,19 +1727,44 @@ static void GenerateStringIndexOf(HInvoke* invoke,
     __ cmpl(start_index, Immediate(0));
     __ cmov(kGreater, counter, start_index, /* is64bit */ false);  // 32-bit copy is enough.
 
-    // Move to the start of the string: string_obj + value_offset + 2 * start_index.
-    __ leaq(string_obj, Address(string_obj, counter, ScaleFactor::TIMES_2, value_offset));
-
+    if (mirror::kUseStringCompression) {
+      NearLabel modify_counter, offset_uncompressed_label;
+      __ cmpl(CpuRegister(TMP), Immediate(0));
+      __ j(kGreaterEqual, &offset_uncompressed_label);
+      __ leaq(string_obj, Address(string_obj, counter, ScaleFactor::TIMES_1, value_offset));
+      __ jmp(&modify_counter);
+      // Move to the start of the string: string_obj + value_offset + 2 * start_index.
+      __ Bind(&offset_uncompressed_label);
+      __ leaq(string_obj, Address(string_obj, counter, ScaleFactor::TIMES_2, value_offset));
+      __ Bind(&modify_counter);
+    } else {
+      __ leaq(string_obj, Address(string_obj, counter, ScaleFactor::TIMES_2, value_offset));
+    }
     // Now update ecx, the work counter: it's gonna be string.length - start_index.
     __ negq(counter);  // Needs to be 64-bit negation, as the address computation is 64-bit.
     __ leaq(counter, Address(string_length, counter, ScaleFactor::TIMES_1, 0));
   }
 
-  // Everything is set up for repne scasw:
-  //   * Comparison address in RDI.
-  //   * Counter in ECX.
-  __ repne_scasw();
-
+  if (mirror::kUseStringCompression) {
+    NearLabel uncompressed_string_comparison;
+    NearLabel comparison_done;
+    __ cmpl(CpuRegister(TMP), Immediate(0));
+    __ j(kGreater, &uncompressed_string_comparison);
+    // Check if RAX (search_value) is ASCII.
+    __ cmpl(search_value, Immediate(127));
+    __ j(kGreater, &not_found_label);
+    // Comparing byte-per-byte.
+    __ repne_scasb();
+    __ jmp(&comparison_done);
+    // Everything is set up for repne scasw:
+    //   * Comparison address in RDI.
+    //   * Counter in ECX.
+    __ Bind(&uncompressed_string_comparison);
+    __ repne_scasw();
+    __ Bind(&comparison_done);
+  } else {
+    __ repne_scasw();
+  }
   // Did we find a match?
   __ j(kNotEqual, &not_found_label);
 
@@ -1871,32 +1916,54 @@ void IntrinsicCodeGeneratorX86_64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   const size_t char_size = Primitive::ComponentSize(Primitive::kPrimChar);
   DCHECK_EQ(char_size, 2u);
 
-  // Compute the address of the destination buffer.
-  __ leaq(CpuRegister(RDI), Address(dst, dstBegin, ScaleFactor::TIMES_2, data_offset));
-
-  // Compute the address of the source string.
-  if (srcBegin.IsConstant()) {
-    // Compute the address of the source string by adding the number of chars from
-    // the source beginning to the value offset of a string.
-    __ leaq(CpuRegister(RSI), Address(obj, srcBegin_value * char_size + value_offset));
-  } else {
-    __ leaq(CpuRegister(RSI), Address(obj, srcBegin.AsRegister<CpuRegister>(),
-                                      ScaleFactor::TIMES_2, value_offset));
-  }
-
+  NearLabel done;
   // Compute the number of chars (words) to move.
   __ movl(CpuRegister(RCX), srcEnd);
   if (srcBegin.IsConstant()) {
-    if (srcBegin_value != 0) {
-      __ subl(CpuRegister(RCX), Immediate(srcBegin_value));
-    }
+    __ subl(CpuRegister(RCX), Immediate(srcBegin_value));
   } else {
     DCHECK(srcBegin.IsRegister());
     __ subl(CpuRegister(RCX), srcBegin.AsRegister<CpuRegister>());
   }
+  if (mirror::kUseStringCompression) {
+    NearLabel copy_uncompressed, copy_loop;
+    const size_t c_char_size = Primitive::ComponentSize(Primitive::kPrimByte);
+    DCHECK_EQ(c_char_size, 1u);
+    // Location of count in string.
+    const uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
 
+    __ cmpl(Address(obj, count_offset), Immediate(0));
+    __ j(kGreaterEqual, &copy_uncompressed);
+    // Compute the address of the source string by adding the number of chars from
+    // the source beginning to the value offset of a string.
+    __ leaq(CpuRegister(RSI),
+            CodeGeneratorX86_64::ArrayAddress(obj, srcBegin, TIMES_1, value_offset));
+    // Start the loop to copy String's value to Array of Char.
+    __ leaq(CpuRegister(RDI), Address(dst, dstBegin, ScaleFactor::TIMES_2, data_offset));
+
+    __ Bind(&copy_loop);
+    __ jrcxz(&done);
+    // Use TMP as temporary (convert byte from RSI to word).
+    // TODO: Selecting RAX as the temporary and using LODSB/STOSW.
+    __ movzxb(CpuRegister(TMP), Address(CpuRegister(RSI), 0));
+    __ movw(Address(CpuRegister(RDI), 0), CpuRegister(TMP));
+    __ leaq(CpuRegister(RDI), Address(CpuRegister(RDI), char_size));
+    __ leaq(CpuRegister(RSI), Address(CpuRegister(RSI), c_char_size));
+    // TODO: Add support for LOOP to X86_64Assembler.
+    __ subl(CpuRegister(RCX), Immediate(1));
+    __ jmp(&copy_loop);
+
+    __ Bind(&copy_uncompressed);
+  }
+
+  __ leaq(CpuRegister(RSI),
+          CodeGeneratorX86_64::ArrayAddress(obj, srcBegin, TIMES_2, value_offset));
+  // Compute the address of the destination buffer.
+  __ leaq(CpuRegister(RDI), Address(dst, dstBegin, ScaleFactor::TIMES_2, data_offset));
   // Do the move.
   __ rep_movsw();
+
+  __ Bind(&done);
 }
 
 static void GenPeek(LocationSummary* locations, Primitive::Type size, X86_64Assembler* assembler) {

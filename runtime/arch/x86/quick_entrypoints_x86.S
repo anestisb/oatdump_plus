@@ -1986,11 +1986,70 @@ DEFINE_FUNCTION art_quick_string_compareto
     mov MIRROR_STRING_COUNT_OFFSET(%ecx), %ebx
     lea MIRROR_STRING_VALUE_OFFSET(%eax), %esi
     lea MIRROR_STRING_VALUE_OFFSET(%ecx), %edi
+#if (STRING_COMPRESSION_FEATURE)
+    /* Differ cases */
+    cmpl    LITERAL(0), %edx
+    jl      .Lstring_compareto_this_is_compressed
+    cmpl    LITERAL(0), %ebx
+    jl      .Lstring_compareto_that_is_compressed
+    jmp     .Lstring_compareto_both_not_compressed
+.Lstring_compareto_this_is_compressed:
+    andl    LITERAL(0x7FFFFFFF), %edx
+    cmpl    LITERAL(0), %ebx
+    jl      .Lstring_compareto_both_compressed
+    /* If (this->IsCompressed() && that->IsCompressed() == false) */
+    mov     %edx, %eax
+    subl    %ebx, %eax
+    mov     %edx, %ecx
+    cmovg   %ebx, %ecx
+    /* Going into loop to compare each character */
+    jecxz   .Lstring_compareto_keep_length            // check loop counter (if 0, don't compare)
+.Lstring_compareto_loop_comparison_this_compressed:
+    movzbl  (%esi), %edx                              // move *(this_cur_char) byte to long
+    movzwl  (%edi), %ebx                              // move *(that_cur_char) word to long
+    addl    LITERAL(1), %esi                          // ++this_cur_char (8-bit)
+    addl    LITERAL(2), %edi                          // ++that_cur_char (16-bit)
+    subl    %ebx, %edx
+    loope   .Lstring_compareto_loop_comparison_this_compressed
+    cmovne  %edx, %eax                        // return eax = *(this_cur_char) - *(that_cur_char)
+    jmp     .Lstring_compareto_return
+.Lstring_compareto_that_is_compressed:
+    andl    LITERAL(0x7FFFFFFF), %ebx
+    mov     %edx, %eax
+    subl    %ebx, %eax
+    mov     %edx, %ecx
+    cmovg   %ebx, %ecx
+    /* If (this->IsCompressed() == false && that->IsCompressed()) */
+    jecxz   .Lstring_compareto_keep_length            // check loop counter, if 0, don't compare
+.Lstring_compareto_loop_comparison_that_compressed:
+    movzwl  (%esi), %edx                              // move *(this_cur_char) word to long
+    movzbl  (%edi), %ebx                              // move *(that_cur_char) byte to long
+    addl    LITERAL(2), %esi                          // ++this_cur_char (16-bit)
+    addl    LITERAL(1), %edi                          // ++that_cur_char (8-bit)
+    subl    %ebx, %edx
+    loope   .Lstring_compareto_loop_comparison_that_compressed
+    cmovne  %edx, %eax
+    jmp     .Lstring_compareto_return         // return eax = *(this_cur_char) - *(that_cur_char)
+.Lstring_compareto_both_compressed:
+    andl    LITERAL(0x7FFFFFFF), %ebx
     /* Calculate min length and count diff */
-    mov   %edx, %ecx
-    mov   %edx, %eax
-    subl  %ebx, %eax
-    cmovg %ebx, %ecx
+    mov     %edx, %ecx
+    mov     %edx, %eax
+    subl    %ebx, %eax
+    cmovg   %ebx, %ecx
+    jecxz   .Lstring_compareto_keep_length
+    repe    cmpsb
+    je      .Lstring_compareto_keep_length
+    movzbl  -1(%esi), %eax        // get last compared char from this string (8-bit)
+    movzbl  -1(%edi), %ecx        // get last compared char from comp string (8-bit)
+    jmp     .Lstring_compareto_count_difference
+#endif // STRING_COMPRESSION_FEATURE
+.Lstring_compareto_both_not_compressed:
+    /* Calculate min length and count diff */
+    mov     %edx, %ecx
+    mov     %edx, %eax
+    subl    %ebx, %eax
+    cmovg   %ebx, %ecx
     /*
      * At this point we have:
      *   eax: value to return if first part of strings are equal
@@ -1998,18 +2057,15 @@ DEFINE_FUNCTION art_quick_string_compareto
      *   esi: pointer to this string data
      *   edi: pointer to comp string data
      */
-    jecxz .Lkeep_length
-    repe cmpsw                    // find nonmatching chars in [%esi] and [%edi], up to length %ecx
-    jne .Lnot_equal
-.Lkeep_length:
-    POP edi                       // pop callee save reg
-    POP esi                       // pop callee save reg
-    ret
-    .balign 16
-.Lnot_equal:
-    movzwl  -2(%esi), %eax        // get last compared char from this string
-    movzwl  -2(%edi), %ecx        // get last compared char from comp string
-    subl  %ecx, %eax              // return the difference
+    jecxz .Lstring_compareto_keep_length
+    repe  cmpsw                   // find nonmatching chars in [%esi] and [%edi], up to length %ecx
+    je    .Lstring_compareto_keep_length
+    movzwl  -2(%esi), %eax        // get last compared char from this string (16-bit)
+    movzwl  -2(%edi), %ecx        // get last compared char from comp string (16-bit)
+.Lstring_compareto_count_difference:
+    subl    %ecx, %eax
+.Lstring_compareto_keep_length:
+.Lstring_compareto_return:
     POP edi                       // pop callee save reg
     POP esi                       // pop callee save reg
     ret
