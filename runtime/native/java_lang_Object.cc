@@ -18,39 +18,35 @@
 
 #include "jni_internal.h"
 #include "mirror/object-inl.h"
-#include "scoped_fast_native_object_access.h"
+#include "scoped_fast_native_object_access-inl.h"
 
 
 namespace art {
 
 static jobject Object_internalClone(JNIEnv* env, jobject java_this) {
   ScopedFastNativeObjectAccess soa(env);
-  mirror::Object* o = soa.Decode<mirror::Object*>(java_this);
+  ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(java_this);
   return soa.AddLocalReference<jobject>(o->Clone(soa.Self()));
 }
 
 static void Object_notify(JNIEnv* env, jobject java_this) {
   ScopedFastNativeObjectAccess soa(env);
-  mirror::Object* o = soa.Decode<mirror::Object*>(java_this);
-  o->Notify(soa.Self());
+  soa.Decode<mirror::Object>(java_this)->Notify(soa.Self());
 }
 
 static void Object_notifyAll(JNIEnv* env, jobject java_this) {
   ScopedFastNativeObjectAccess soa(env);
-  mirror::Object* o = soa.Decode<mirror::Object*>(java_this);
-  o->NotifyAll(soa.Self());
+  soa.Decode<mirror::Object>(java_this)->NotifyAll(soa.Self());
 }
 
 static void Object_wait(JNIEnv* env, jobject java_this) {
   ScopedFastNativeObjectAccess soa(env);
-  mirror::Object* o = soa.Decode<mirror::Object*>(java_this);
-  o->Wait(soa.Self());
+  soa.Decode<mirror::Object>(java_this)->Wait(soa.Self());
 }
 
 static void Object_waitJI(JNIEnv* env, jobject java_this, jlong ms, jint ns) {
   ScopedFastNativeObjectAccess soa(env);
-  mirror::Object* o = soa.Decode<mirror::Object*>(java_this);
-  o->Wait(soa.Self(), ms, ns);
+  soa.Decode<mirror::Object>(java_this)->Wait(soa.Self(), ms, ns);
 }
 
 static JNINativeMethod gMethods[] = {

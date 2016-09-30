@@ -20,7 +20,7 @@
 #include "base/mutex.h"
 #include "debugger.h"
 #include "jni_internal.h"
-#include "scoped_fast_native_object_access.h"
+#include "scoped_fast_native_object_access-inl.h"
 #include "ScopedLocalRef.h"
 #include "ScopedPrimitiveArray.h"
 #include "thread_list.h"

@@ -22,7 +22,7 @@
 #include "common_compiler_test.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
-#include "handle_scope-inl.h"
+#include "handle_scope.h"
 #include "scoped_thread_state_change.h"
 #include "ssa_builder.h"
 #include "ssa_liveness_analysis.h"

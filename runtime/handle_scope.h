@@ -28,6 +28,9 @@
 #include "verify_object.h"
 
 namespace art {
+
+template<class MirrorType, bool kPoison> class ObjPtr;
+
 namespace mirror {
 class Object;
 }
@@ -125,7 +128,7 @@ class PACKED(4) HandleScope {
 };
 
 // A wrapper which wraps around Object** and restores the pointer in the destructor.
-// TODO: Add more functionality.
+// TODO: Delete
 template<class T>
 class HandleWrapper : public MutableHandle<T> {
  public:
@@ -143,6 +146,26 @@ class HandleWrapper : public MutableHandle<T> {
   T** const obj_;
 };
 
+
+// A wrapper which wraps around ObjPtr<Object>* and restores the pointer in the destructor.
+// TODO: Add more functionality.
+template<class T>
+class HandleWrapperObjPtr : public MutableHandle<T> {
+ public:
+  HandleWrapperObjPtr(ObjPtr<T>* obj, const MutableHandle<T>& handle)
+      : MutableHandle<T>(handle), obj_(obj) {}
+
+  HandleWrapperObjPtr(const HandleWrapperObjPtr&) = default;
+
+  ~HandleWrapperObjPtr() {
+    *obj_ = ObjPtr<T>(MutableHandle<T>::Get());
+  }
+
+ private:
+  ObjPtr<T>* const obj_;
+};
+
+
 // Scoped handle storage of a fixed size that is usually stack allocated.
 template<size_t kNumReferences>
 class PACKED(4) StackHandleScope FINAL : public HandleScope {
@@ -156,6 +179,14 @@ class PACKED(4) StackHandleScope FINAL : public HandleScope {
   template<class T>
   ALWAYS_INLINE HandleWrapper<T> NewHandleWrapper(T** object)
       REQUIRES_SHARED(Locks::mutator_lock_);
+
+  template<class T>
+  ALWAYS_INLINE HandleWrapperObjPtr<T> NewHandleWrapper(ObjPtr<T>* object)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  template<class MirrorType, bool kPoison>
+  ALWAYS_INLINE MutableHandle<MirrorType> NewHandle(ObjPtr<MirrorType, kPoison> object)
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE void SetReference(size_t i, mirror::Object* object)
       REQUIRES_SHARED(Locks::mutator_lock_);

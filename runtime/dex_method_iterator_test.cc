@@ -19,7 +19,7 @@
 #include "base/stl_util.h"
 #include "common_runtime_test.h"
 #include "oat_file.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 
 namespace art {

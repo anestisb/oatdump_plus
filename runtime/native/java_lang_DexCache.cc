@@ -21,14 +21,14 @@
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
 #include "mirror/object-inl.h"
-#include "scoped_fast_native_object_access.h"
+#include "scoped_fast_native_object_access-inl.h"
 #include "well_known_classes.h"
 
 namespace art {
 
 static jobject DexCache_getDexNative(JNIEnv* env, jobject javaDexCache) {
   ScopedFastNativeObjectAccess soa(env);
-  mirror::DexCache* dex_cache = soa.Decode<mirror::DexCache*>(javaDexCache);
+  ObjPtr<mirror::DexCache> dex_cache = soa.Decode<mirror::DexCache>(javaDexCache);
   // Should only be called while holding the lock on the dex cache.
   DCHECK_EQ(dex_cache->GetLockOwnerThreadId(), soa.Self()->GetThreadId());
   const DexFile* dex_file = dex_cache->GetDexFile();
@@ -51,14 +51,14 @@ static jobject DexCache_getDexNative(JNIEnv* env, jobject javaDexCache) {
 
 static jobject DexCache_getResolvedType(JNIEnv* env, jobject javaDexCache, jint type_index) {
   ScopedFastNativeObjectAccess soa(env);
-  mirror::DexCache* dex_cache = soa.Decode<mirror::DexCache*>(javaDexCache);
+  ObjPtr<mirror::DexCache> dex_cache = soa.Decode<mirror::DexCache>(javaDexCache);
   CHECK_LT(static_cast<size_t>(type_index), dex_cache->NumResolvedTypes());
   return soa.AddLocalReference<jobject>(dex_cache->GetResolvedType(type_index));
 }
 
 static jobject DexCache_getResolvedString(JNIEnv* env, jobject javaDexCache, jint string_index) {
   ScopedFastNativeObjectAccess soa(env);
-  mirror::DexCache* dex_cache = soa.Decode<mirror::DexCache*>(javaDexCache);
+  ObjPtr<mirror::DexCache> dex_cache = soa.Decode<mirror::DexCache>(javaDexCache);
   CHECK_LT(static_cast<size_t>(string_index), dex_cache->GetDexFile()->NumStringIds());
   return soa.AddLocalReference<jobject>(dex_cache->GetResolvedString(string_index));
 }
@@ -66,17 +66,17 @@ static jobject DexCache_getResolvedString(JNIEnv* env, jobject javaDexCache, jin
 static void DexCache_setResolvedType(JNIEnv* env, jobject javaDexCache, jint type_index,
                                      jobject type) {
   ScopedFastNativeObjectAccess soa(env);
-  mirror::DexCache* dex_cache = soa.Decode<mirror::DexCache*>(javaDexCache);
+  ObjPtr<mirror::DexCache> dex_cache = soa.Decode<mirror::DexCache>(javaDexCache);
   CHECK_LT(static_cast<size_t>(type_index), dex_cache->NumResolvedTypes());
-  dex_cache->SetResolvedType(type_index, soa.Decode<mirror::Class*>(type));
+  dex_cache->SetResolvedType(type_index, soa.Decode<mirror::Class>(type).Decode());
 }
 
 static void DexCache_setResolvedString(JNIEnv* env, jobject javaDexCache, jint string_index,
                                        jobject string) {
   ScopedFastNativeObjectAccess soa(env);
-  mirror::DexCache* dex_cache = soa.Decode<mirror::DexCache*>(javaDexCache);
+  ObjPtr<mirror::DexCache> dex_cache = soa.Decode<mirror::DexCache>(javaDexCache);
   CHECK_LT(static_cast<size_t>(string_index), dex_cache->GetDexFile()->NumStringIds());
-  dex_cache->SetResolvedString(string_index, soa.Decode<mirror::String*>(string));
+  dex_cache->SetResolvedString(string_index, soa.Decode<mirror::String>(string).Decode());
 }
 
 static JNINativeMethod gMethods[] = {

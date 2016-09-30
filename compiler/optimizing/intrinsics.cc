@@ -25,7 +25,7 @@
 #include "mirror/dex_cache-inl.h"
 #include "nodes.h"
 #include "quick/inline_method_analyser.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 #include "utils.h"
 

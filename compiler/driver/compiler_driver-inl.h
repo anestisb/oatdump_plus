@@ -26,7 +26,7 @@
 #include "dex_compilation_unit.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "handle_scope-inl.h"
 
 namespace art {
@@ -37,7 +37,7 @@ inline mirror::DexCache* CompilerDriver::GetDexCache(const DexCompilationUnit* m
 
 inline mirror::ClassLoader* CompilerDriver::GetClassLoader(const ScopedObjectAccess& soa,
                                                            const DexCompilationUnit* mUnit) {
-  return soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader());
+  return soa.Decode<mirror::ClassLoader>(mUnit->GetClassLoader()).Decode();
 }
 
 inline mirror::Class* CompilerDriver::ResolveClass(
@@ -45,7 +45,7 @@ inline mirror::Class* CompilerDriver::ResolveClass(
     Handle<mirror::ClassLoader> class_loader, uint16_t cls_index,
     const DexCompilationUnit* mUnit) {
   DCHECK_EQ(dex_cache->GetDexFile(), mUnit->GetDexFile());
-  DCHECK_EQ(class_loader.Get(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
+  DCHECK_EQ(class_loader.Get(), GetClassLoader(soa, mUnit));
   mirror::Class* cls = mUnit->GetClassLinker()->ResolveType(
       *mUnit->GetDexFile(), cls_index, dex_cache, class_loader);
   DCHECK_EQ(cls == nullptr, soa.Self()->IsExceptionPending());
@@ -60,7 +60,7 @@ inline mirror::Class* CompilerDriver::ResolveCompilingMethodsClass(
     const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
     Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit) {
   DCHECK_EQ(dex_cache->GetDexFile(), mUnit->GetDexFile());
-  DCHECK_EQ(class_loader.Get(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
+  DCHECK_EQ(class_loader.Get(), GetClassLoader(soa, mUnit));
   const DexFile::MethodId& referrer_method_id =
       mUnit->GetDexFile()->GetMethodId(mUnit->GetDexMethodIndex());
   return ResolveClass(soa, dex_cache, class_loader, referrer_method_id.class_idx_, mUnit);
@@ -95,7 +95,7 @@ inline ArtField* CompilerDriver::ResolveField(
     const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
     Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
     uint32_t field_idx, bool is_static) {
-  DCHECK_EQ(class_loader.Get(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
+  DCHECK_EQ(class_loader.Get(), GetClassLoader(soa, mUnit));
   return ResolveFieldWithDexFile(soa, dex_cache, class_loader, mUnit->GetDexFile(), field_idx,
                                  is_static);
 }
@@ -258,7 +258,7 @@ inline ArtMethod* CompilerDriver::ResolveMethod(
     ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
     Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
     uint32_t method_idx, InvokeType invoke_type, bool check_incompatible_class_change) {
-  DCHECK_EQ(class_loader.Get(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
+  DCHECK_EQ(class_loader.Get(), GetClassLoader(soa, mUnit));
   ArtMethod* resolved_method =
       check_incompatible_class_change
           ? mUnit->GetClassLinker()->ResolveMethod<ClassLinker::kForceICCECheck>(

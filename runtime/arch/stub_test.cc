@@ -26,7 +26,7 @@
 #include "linear_alloc.h"
 #include "mirror/class-inl.h"
 #include "mirror/string-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 
@@ -1796,7 +1796,7 @@ static void TestFields(Thread* self, StubTest* test, Primitive::Type test_type) 
 
   ScopedObjectAccess soa(self);
   StackHandleScope<3> hs(self);
-  Handle<mirror::Object> obj(hs.NewHandle(soa.Decode<mirror::Object*>(o)));
+  Handle<mirror::Object> obj(hs.NewHandle(soa.Decode<mirror::Object>(o)));
   Handle<mirror::Class> c(hs.NewHandle(obj->GetClass()));
   // Need a method as a referrer
   ArtMethod* m = c->GetDirectMethod(0, kRuntimePointerSize);
@@ -1995,11 +1995,11 @@ TEST_F(StubTest, DISABLED_IMT) {
 
   jobject jarray_list = env->NewObject(arraylist_jclass, arraylist_constructor);
   ASSERT_NE(nullptr, jarray_list);
-  Handle<mirror::Object> array_list(hs.NewHandle(soa.Decode<mirror::Object*>(jarray_list)));
+  Handle<mirror::Object> array_list(hs.NewHandle(soa.Decode<mirror::Object>(jarray_list)));
 
   jobject jobj = env->NewObject(obj_jclass, obj_constructor);
   ASSERT_NE(nullptr, jobj);
-  Handle<mirror::Object> obj(hs.NewHandle(soa.Decode<mirror::Object*>(jobj)));
+  Handle<mirror::Object> obj(hs.NewHandle(soa.Decode<mirror::Object>(jobj)));
 
   // Invocation tests.
 

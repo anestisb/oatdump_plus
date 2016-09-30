@@ -30,7 +30,7 @@
 #include "handle_scope-inl.h"
 #include "mirror/class_loader.h"
 #include "oat_file_assistant.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 #include "thread_list.h"
 
@@ -294,8 +294,8 @@ static bool GetDexFilesFromClassLoader(
   }
 
   // Unsupported class-loader?
-  if (class_loader->GetClass() !=
-      soa.Decode<mirror::Class*>(WellKnownClasses::dalvik_system_PathClassLoader)) {
+  if (soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_PathClassLoader) !=
+      class_loader->GetClass()) {
     VLOG(class_linker) << "Unsupported class-loader " << PrettyClass(class_loader->GetClass());
     return false;
   }
@@ -338,10 +338,10 @@ static void GetDexFilesFromDexElementsArray(
   ArtField* const cookie_field = soa.DecodeField(WellKnownClasses::dalvik_system_DexFile_cookie);
   ArtField* const dex_file_field =
       soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
-  const mirror::Class* const element_class = soa.Decode<mirror::Class*>(
+  ObjPtr<mirror::Class> const element_class = soa.Decode<mirror::Class>(
       WellKnownClasses::dalvik_system_DexPathList__Element);
-  const mirror::Class* const dexfile_class = soa.Decode<mirror::Class*>(
-        WellKnownClasses::dalvik_system_DexFile);
+  ObjPtr<mirror::Class> const dexfile_class = soa.Decode<mirror::Class>(
+      WellKnownClasses::dalvik_system_DexFile);
 
   // Collect all the dex files.
   auto GetDexFilesFn = [&] (const DexFile* cp_dex_file)
@@ -361,9 +361,9 @@ static void GetDexFilesFromDexElementsArray(
     // We support this being dalvik.system.DexPathList$Element and dalvik.system.DexFile.
 
     mirror::Object* dex_file;
-    if (element->GetClass() == element_class) {
+    if (element_class == element->GetClass()) {
       dex_file = dex_file_field->GetObject(element);
-    } else if (element->GetClass() == dexfile_class) {
+    } else if (dexfile_class == element->GetClass()) {
       dex_file = element;
     } else {
       LOG(WARNING) << "Unsupported element in dex_elements: " << PrettyClass(element->GetClass());
@@ -442,9 +442,9 @@ bool OatFileManager::HasCollisions(const OatFile* oat_file,
     ScopedObjectAccess soa(Thread::Current());
     StackHandleScope<2> hs(Thread::Current());
     Handle<mirror::ClassLoader> h_class_loader =
-        hs.NewHandle(soa.Decode<mirror::ClassLoader*>(class_loader));
+        hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader));
     Handle<mirror::ObjectArray<mirror::Object>> h_dex_elements =
-        hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::Object>*>(dex_elements));
+        hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::Object>>(dex_elements));
     if (h_class_loader.Get() != nullptr &&
         GetDexFilesFromClassLoader(soa, h_class_loader.Get(), &queue)) {
       class_loader_ok = true;
@@ -638,7 +638,7 @@ std::vector<std::unique_ptr<const DexFile>> OatFileManager::OpenDexFilesFromOat(
         ScopedObjectAccess soa(self);
         StackHandleScope<1> hs(self);
         Handle<mirror::ClassLoader> h_loader(
-            hs.NewHandle(soa.Decode<mirror::ClassLoader*>(class_loader)));
+            hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader)));
         // Can not load app image without class loader.
         if (h_loader.Get() != nullptr) {
           std::string temp_error_msg;

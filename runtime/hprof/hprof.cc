@@ -59,7 +59,7 @@
 #include "mirror/object-inl.h"
 #include "os.h"
 #include "safe_map.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread_list.h"
 
 namespace art {

@@ -17,7 +17,7 @@
 #include "arch/context.h"
 #include "art_method-inl.h"
 #include "jni.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "stack.h"
 #include "thread.h"
 
@@ -70,7 +70,7 @@ class TestVisitor : public StackVisitor {
 extern "C" JNIEXPORT jint JNICALL Java_Main_doNativeCallRef(JNIEnv*, jobject value) {
   ScopedObjectAccess soa(Thread::Current());
   std::unique_ptr<Context> context(Context::Create());
-  TestVisitor visitor(soa.Self(), context.get(), soa.Decode<mirror::Object*>(value));
+  TestVisitor visitor(soa.Self(), context.get(), soa.Decode<mirror::Object>(value).Decode());
   visitor.WalkStack();
   return visitor.found_method_index_;
 }

@@ -36,7 +36,7 @@
 #include "mirror/class.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
-#include "scoped_fast_native_object_access.h"
+#include "scoped_fast_native_object_access-inl.h"
 #include "trace.h"
 #include "well_known_classes.h"
 
@@ -259,11 +259,11 @@ static jlong VMDebug_countInstancesOfClass(JNIEnv* env, jclass, jclass javaClass
   ScopedObjectAccess soa(env);
   gc::Heap* const heap = Runtime::Current()->GetHeap();
   // Caller's responsibility to do GC if desired.
-  mirror::Class* c = soa.Decode<mirror::Class*>(javaClass);
+  ObjPtr<mirror::Class> c = soa.Decode<mirror::Class>(javaClass);
   if (c == nullptr) {
     return 0;
   }
-  std::vector<mirror::Class*> classes {c};
+  std::vector<mirror::Class*> classes {c.Decode()};
   uint64_t count = 0;
   heap->CountInstances(classes, countAssignable, &count);
   return count;
@@ -274,7 +274,8 @@ static jlongArray VMDebug_countInstancesOfClasses(JNIEnv* env, jclass, jobjectAr
   ScopedObjectAccess soa(env);
   gc::Heap* const heap = Runtime::Current()->GetHeap();
   // Caller's responsibility to do GC if desired.
-  auto* decoded_classes = soa.Decode<mirror::ObjectArray<mirror::Class>*>(javaClasses);
+  ObjPtr<mirror::ObjectArray<mirror::Class>> decoded_classes =
+      soa.Decode<mirror::ObjectArray<mirror::Class>>(javaClasses);
   if (decoded_classes == nullptr) {
     return nullptr;
   }

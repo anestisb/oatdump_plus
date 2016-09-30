@@ -28,7 +28,7 @@
 #include "mirror/object-inl.h"
 #include "primitive.h"
 #include "thread-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "well_known_classes.h"
 
 namespace art {

@@ -18,7 +18,7 @@
 #include "mirror/string.h"
 #include "mirror/string-inl.h"
 #include "native/libcore_util_CharsetUtils.h"
-#include "scoped_fast_native_object_access.h"
+#include "scoped_fast_native_object_access-inl.h"
 #include "ScopedPrimitiveArray.h"
 #include "unicode/utf16.h"
 
@@ -154,7 +154,7 @@ static jbyteArray charsToBytes(JNIEnv* env, jstring java_string, jint offset, ji
                                jchar maxValidChar) {
   ScopedObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
-  Handle<mirror::String> string(hs.NewHandle(soa.Decode<mirror::String*>(java_string)));
+  Handle<mirror::String> string(hs.NewHandle(soa.Decode<mirror::String>(java_string)));
   if (string.Get() == nullptr) {
     return nullptr;
   }
@@ -191,7 +191,7 @@ static jbyteArray CharsetUtils_toUtf8Bytes(JNIEnv* env, jclass, jstring java_str
                                            jint length) {
   ScopedObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
-  Handle<mirror::String> string(hs.NewHandle(soa.Decode<mirror::String*>(java_string)));
+  Handle<mirror::String> string(hs.NewHandle(soa.Decode<mirror::String>(java_string)));
   if (string.Get() == nullptr) {
     return nullptr;
   }

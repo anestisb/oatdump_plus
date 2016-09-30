@@ -21,15 +21,15 @@
 #include "jni_internal.h"
 #include "mirror/object-inl.h"
 #include "mirror/reference-inl.h"
-#include "scoped_fast_native_object_access.h"
+#include "scoped_fast_native_object_access-inl.h"
 
 namespace art {
 
 static jobject Reference_getReferent(JNIEnv* env, jobject javaThis) {
   ScopedFastNativeObjectAccess soa(env);
-  mirror::Reference* const ref = soa.Decode<mirror::Reference*>(javaThis);
+  ObjPtr<mirror::Reference> ref = soa.Decode<mirror::Reference>(javaThis);
   mirror::Object* const referent =
-      Runtime::Current()->GetHeap()->GetReferenceProcessor()->GetReferent(soa.Self(), ref);
+      Runtime::Current()->GetHeap()->GetReferenceProcessor()->GetReferent(soa.Self(), ref.Decode());
   return soa.AddLocalReference<jobject>(referent);
 }
 

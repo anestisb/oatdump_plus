@@ -17,7 +17,8 @@
 #ifndef ART_RUNTIME_NATIVE_SCOPED_FAST_NATIVE_OBJECT_ACCESS_H_
 #define ART_RUNTIME_NATIVE_SCOPED_FAST_NATIVE_OBJECT_ACCESS_H_
 
-#include "art_method-inl.h"
+#include <jni.h>
+
 #include "scoped_thread_state_change.h"
 
 namespace art {
@@ -26,18 +27,11 @@ namespace art {
 // JNI methods.
 class ScopedFastNativeObjectAccess : public ScopedObjectAccessAlreadyRunnable {
  public:
-  explicit ScopedFastNativeObjectAccess(JNIEnv* env)
+  ALWAYS_INLINE explicit ScopedFastNativeObjectAccess(JNIEnv* env)
     REQUIRES(!Locks::thread_suspend_count_lock_)
-    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) ALWAYS_INLINE
-     : ScopedObjectAccessAlreadyRunnable(env) {
-    Locks::mutator_lock_->AssertSharedHeld(Self());
-    DCHECK((*Self()->GetManagedStack()->GetTopQuickFrame())->IsFastNative());
-    // Don't work with raw objects in non-runnable states.
-    DCHECK_EQ(Self()->GetState(), kRunnable);
-  }
+    SHARED_LOCK_FUNCTION(Locks::mutator_lock_);
 
-  ~ScopedFastNativeObjectAccess() UNLOCK_FUNCTION(Locks::mutator_lock_) ALWAYS_INLINE {
-  }
+  ALWAYS_INLINE ~ScopedFastNativeObjectAccess() UNLOCK_FUNCTION(Locks::mutator_lock_) {}
 
  private:
   DISALLOW_COPY_AND_ASSIGN(ScopedFastNativeObjectAccess);

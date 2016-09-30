@@ -25,7 +25,7 @@
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "reflection.h"
-#include "scoped_fast_native_object_access.h"
+#include "scoped_fast_native_object_access-inl.h"
 #include "well_known_classes.h"
 
 namespace art {
@@ -35,10 +35,10 @@ static jobjectArray Executable_getDeclaredAnnotationsNative(JNIEnv* env, jobject
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
   if (method->GetDeclaringClass()->IsProxyClass()) {
     // Return an empty array instead of a null pointer.
-    mirror::Class* annotation_array_class =
-        soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_annotation_Annotation__array);
-    mirror::ObjectArray<mirror::Object>* empty_array =
-        mirror::ObjectArray<mirror::Object>::Alloc(soa.Self(), annotation_array_class, 0);
+    ObjPtr<mirror::Class> annotation_array_class =
+        soa.Decode<mirror::Class>(WellKnownClasses::java_lang_annotation_Annotation__array);
+    ObjPtr<mirror::ObjectArray<mirror::Object>> empty_array =
+        mirror::ObjectArray<mirror::Object>::Alloc(soa.Self(), annotation_array_class.Decode(), 0);
     return soa.AddLocalReference<jobjectArray>(empty_array);
   }
   return soa.AddLocalReference<jobjectArray>(annotations::GetAnnotationsForMethod(method));
@@ -53,7 +53,7 @@ static jobject Executable_getAnnotationNative(JNIEnv* env,
   if (method->IsProxyMethod()) {
     return nullptr;
   } else {
-    Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
+    Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class>(annotationType)));
     return soa.AddLocalReference<jobject>(annotations::GetAnnotationForMethod(method, klass));
   }
 }
@@ -84,7 +84,7 @@ static jobjectArray Executable_getParameters0(JNIEnv* env, jobject javaMethod) {
   Thread* self = soa.Self();
   StackHandleScope<8> hs(self);
 
-  Handle<mirror::Method> executable = hs.NewHandle(soa.Decode<mirror::Method*>(javaMethod));
+  Handle<mirror::Method> executable = hs.NewHandle(soa.Decode<mirror::Method>(javaMethod));
   ArtMethod* art_method = executable.Get()->GetArtMethod();
   if (art_method->GetDeclaringClass()->IsProxyClass()) {
     return nullptr;
@@ -122,7 +122,7 @@ static jobjectArray Executable_getParameters0(JNIEnv* env, jobject javaMethod) {
   // Instantiate a Parameter[] to hold the result.
   Handle<mirror::Class> parameter_array_class =
       hs.NewHandle(
-          soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_reflect_Parameter__array));
+          soa.Decode<mirror::Class>(WellKnownClasses::java_lang_reflect_Parameter__array));
   Handle<mirror::ObjectArray<mirror::Object>> parameter_array =
       hs.NewHandle(
           mirror::ObjectArray<mirror::Object>::Alloc(self,
@@ -134,7 +134,7 @@ static jobjectArray Executable_getParameters0(JNIEnv* env, jobject javaMethod) {
   }
 
   Handle<mirror::Class> parameter_class =
-      hs.NewHandle(soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_reflect_Parameter));
+      hs.NewHandle(soa.Decode<mirror::Class>(WellKnownClasses::java_lang_reflect_Parameter));
   ArtMethod* parameter_init =
       soa.DecodeMethod(WellKnownClasses::java_lang_reflect_Parameter_init);
 
@@ -186,7 +186,7 @@ static jboolean Executable_isAnnotationPresentNative(JNIEnv* env,
     return false;
   }
   StackHandleScope<1> hs(soa.Self());
-  Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
+  Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class>(annotationType)));
   return annotations::IsMethodAnnotationPresent(method, klass);
 }
 

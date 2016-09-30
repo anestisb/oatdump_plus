@@ -25,7 +25,7 @@
 #include "handle_scope-inl.h"
 #include "jvalue.h"
 #include "runtime.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread_list.h"
 #include "thread-inl.h"
 
@@ -458,7 +458,7 @@ TEST_F(InstrumentationTest, DeoptimizeDirectMethod) {
   instrumentation::Instrumentation* instr = runtime->GetInstrumentation();
   ClassLinker* class_linker = runtime->GetClassLinker();
   StackHandleScope<1> hs(soa.Self());
-  Handle<mirror::ClassLoader> loader(hs.NewHandle(soa.Decode<mirror::ClassLoader*>(class_loader)));
+  Handle<mirror::ClassLoader> loader(hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader)));
   mirror::Class* klass = class_linker->FindClass(soa.Self(), "LInstrumentation;", loader);
   ASSERT_TRUE(klass != nullptr);
   ArtMethod* method_to_deoptimize = klass->FindDeclaredDirectMethod("instanceMethod", "()V",
@@ -505,7 +505,7 @@ TEST_F(InstrumentationTest, MixedDeoptimization) {
   instrumentation::Instrumentation* instr = runtime->GetInstrumentation();
   ClassLinker* class_linker = runtime->GetClassLinker();
   StackHandleScope<1> hs(soa.Self());
-  Handle<mirror::ClassLoader> loader(hs.NewHandle(soa.Decode<mirror::ClassLoader*>(class_loader)));
+  Handle<mirror::ClassLoader> loader(hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader)));
   mirror::Class* klass = class_linker->FindClass(soa.Self(), "LInstrumentation;", loader);
   ASSERT_TRUE(klass != nullptr);
   ArtMethod* method_to_deoptimize = klass->FindDeclaredDirectMethod("instanceMethod", "()V",

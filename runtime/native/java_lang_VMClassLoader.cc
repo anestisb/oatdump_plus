@@ -20,7 +20,7 @@
 #include "jni_internal.h"
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"
-#include "scoped_fast_native_object_access.h"
+#include "scoped_fast_native_object_access-inl.h"
 #include "ScopedUtfChars.h"
 #include "zip_archive.h"
 
@@ -29,7 +29,7 @@ namespace art {
 static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoader,
                                             jstring javaName) {
   ScopedFastNativeObjectAccess soa(env);
-  mirror::ClassLoader* loader = soa.Decode<mirror::ClassLoader*>(javaLoader);
+  ObjPtr<mirror::ClassLoader> loader = soa.Decode<mirror::ClassLoader>(javaLoader);
   ScopedUtfChars name(env, javaName);
   if (name.c_str() == nullptr) {
     return nullptr;
@@ -37,7 +37,10 @@ static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoa
   ClassLinker* cl = Runtime::Current()->GetClassLinker();
   std::string descriptor(DotToDescriptor(name.c_str()));
   const size_t descriptor_hash = ComputeModifiedUtf8Hash(descriptor.c_str());
-  mirror::Class* c = cl->LookupClass(soa.Self(), descriptor.c_str(), descriptor_hash, loader);
+  mirror::Class* c = cl->LookupClass(soa.Self(),
+                                     descriptor.c_str(),
+                                     descriptor_hash,
+                                     loader.Decode());
   if (c != nullptr && c->IsResolved()) {
     return soa.AddLocalReference<jclass>(c);
   }

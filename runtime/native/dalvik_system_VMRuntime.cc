@@ -46,8 +46,8 @@ extern "C" void android_set_application_target_sdk_version(uint32_t version);
 #include "mirror/dex_cache-inl.h"
 #include "mirror/object-inl.h"
 #include "runtime.h"
-#include "scoped_fast_native_object_access.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_fast_native_object_access-inl.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread.h"
 #include "thread_list.h"
 
@@ -74,7 +74,7 @@ static jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaEle
     ThrowNegativeArraySizeException(length);
     return nullptr;
   }
-  mirror::Class* element_class = soa.Decode<mirror::Class*>(javaElementClass);
+  mirror::Class* element_class = soa.Decode<mirror::Class>(javaElementClass).Decode();
   if (UNLIKELY(element_class == nullptr)) {
     ThrowNullPointerException("element class == null");
     return nullptr;
@@ -99,7 +99,7 @@ static jobject VMRuntime_newUnpaddedArray(JNIEnv* env, jobject, jclass javaEleme
     ThrowNegativeArraySizeException(length);
     return nullptr;
   }
-  mirror::Class* element_class = soa.Decode<mirror::Class*>(javaElementClass);
+  mirror::Class* element_class = soa.Decode<mirror::Class>(javaElementClass).Decode();
   if (UNLIKELY(element_class == nullptr)) {
     ThrowNullPointerException("element class == null");
     return nullptr;
@@ -122,12 +122,12 @@ static jlong VMRuntime_addressOf(JNIEnv* env, jobject, jobject javaArray) {
     return 0;
   }
   ScopedFastNativeObjectAccess soa(env);
-  mirror::Array* array = soa.Decode<mirror::Array*>(javaArray);
+  ObjPtr<mirror::Array> array = soa.Decode<mirror::Array>(javaArray);
   if (!array->IsArrayInstance()) {
     ThrowIllegalArgumentException("not an array");
     return 0;
   }
-  if (Runtime::Current()->GetHeap()->IsMovableObject(array)) {
+  if (Runtime::Current()->GetHeap()->IsMovableObject(array.Decode())) {
     ThrowRuntimeException("Trying to get address of movable array object");
     return 0;
   }

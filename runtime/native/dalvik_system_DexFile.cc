@@ -34,7 +34,7 @@
 #include "oat_file_manager.h"
 #include "os.h"
 #include "runtime.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
 #include "utils.h"
@@ -217,7 +217,7 @@ static jboolean DexFile_closeDexFile(JNIEnv* env, jclass, jobject cookie) {
   bool all_deleted = true;
   {
     ScopedObjectAccess soa(env);
-    mirror::Object* dex_files_object = soa.Decode<mirror::Object*>(cookie);
+    ObjPtr<mirror::Object> dex_files_object = soa.Decode<mirror::Object>(cookie);
     mirror::LongArray* long_dex_files = dex_files_object->AsLongArray();
     // Delete dex files associated with this dalvik.system.DexFile since there should not be running
     // code using it. dex_files is a vector due to multidex.
@@ -277,7 +277,7 @@ static jclass DexFile_defineClassNative(JNIEnv* env,
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
       StackHandleScope<1> hs(soa.Self());
       Handle<mirror::ClassLoader> class_loader(
-          hs.NewHandle(soa.Decode<mirror::ClassLoader*>(javaLoader)));
+          hs.NewHandle(soa.Decode<mirror::ClassLoader>(javaLoader)));
       class_linker->RegisterDexFile(*dex_file, class_loader.Get());
       mirror::Class* result = class_linker->DefineClass(soa.Self(),
                                                         descriptor.c_str(),
@@ -287,7 +287,7 @@ static jclass DexFile_defineClassNative(JNIEnv* env,
                                                         *dex_class_def);
       // Add the used dex file. This only required for the DexFile.loadClass API since normal
       // class loaders already keep their dex files live.
-      class_linker->InsertDexFileInToClassLoader(soa.Decode<mirror::Object*>(dexFile),
+      class_linker->InsertDexFileInToClassLoader(soa.Decode<mirror::Object>(dexFile).Decode(),
                                                  class_loader.Get());
       if (result != nullptr) {
         VLOG(class_linker) << "DexFile_defineClassNative returning " << result
