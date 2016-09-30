@@ -150,11 +150,9 @@ JitCompiler::JitCompiler() {
     instruction_set_features_.reset(InstructionSetFeatures::FromCppDefines());
   }
   cumulative_logger_.reset(new CumulativeLogger("jit times"));
-  method_inliner_map_.reset(new DexFileToMethodInlinerMap);
   compiler_driver_.reset(new CompilerDriver(
       compiler_options_.get(),
       /* verification_results */ nullptr,
-      method_inliner_map_.get(),
       Compiler::kOptimizing,
       instruction_set,
       instruction_set_features_.get(),

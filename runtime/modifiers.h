@@ -67,6 +67,7 @@ static constexpr uint32_t kAccCompileDontBother =     0x01000000;  // method (ru
 
 // Set by the verifier for a method that could not be verified to follow structured locking.
 static constexpr uint32_t kAccMustCountLocks =        0x02000000;  // method (runtime)
+static constexpr uint32_t kAccIntrinsic  =            0x80000000;  // method (runtime)
 
 // Special runtime-only flags.
 // Interface and all its super-interfaces with default methods have been recursively initialized.
@@ -75,6 +76,9 @@ static constexpr uint32_t kAccRecursivelyInitialized    = 0x20000000;
 static constexpr uint32_t kAccHasDefaultMethod          = 0x40000000;
 // class/ancestor overrides finalize()
 static constexpr uint32_t kAccClassIsFinalizable        = 0x80000000;
+
+static constexpr uint32_t kAccFlagsNotUsedByIntrinsic   = 0x007FFFFF;
+static constexpr uint32_t kAccMaxIntrinsic              = 0xFF;
 
 // Valid (meaningful) bits for a field.
 static constexpr uint32_t kAccValidFieldFlags = kAccPublic | kAccPrivate | kAccProtected |

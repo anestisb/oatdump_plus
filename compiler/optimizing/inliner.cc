@@ -1321,7 +1321,7 @@ size_t HInliner::RunOptimizations(HGraph* callee_graph,
   HConstantFolding fold(callee_graph);
   HSharpening sharpening(callee_graph, codegen_, dex_compilation_unit, compiler_driver_);
   InstructionSimplifier simplify(callee_graph, stats_);
-  IntrinsicsRecognizer intrinsics(callee_graph, compiler_driver_, stats_);
+  IntrinsicsRecognizer intrinsics(callee_graph, stats_);
 
   HOptimization* optimizations[] = {
     &intrinsics,

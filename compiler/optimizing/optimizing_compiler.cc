@@ -56,7 +56,6 @@
 #include "dead_code_elimination.h"
 #include "debug/elf_debug_writer.h"
 #include "debug/method_debug_info.h"
-#include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/verification_results.h"
 #include "dex/verified_method.h"
 #include "driver/compiler_driver-inl.h"
@@ -479,7 +478,7 @@ static HOptimization* BuildOptimization(
   } else if (opt_name == InstructionSimplifier::kInstructionSimplifierPassName) {
     return new (arena) InstructionSimplifier(graph, stats, pass_name.c_str());
   } else if (opt_name == IntrinsicsRecognizer::kIntrinsicsRecognizerPassName) {
-    return new (arena) IntrinsicsRecognizer(graph, driver, stats);
+    return new (arena) IntrinsicsRecognizer(graph, stats);
   } else if (opt_name == LICM::kLoopInvariantCodeMotionPassName) {
     CHECK(most_recent_side_effects != nullptr);
     return new (arena) LICM(graph, *most_recent_side_effects, stats);
@@ -743,7 +742,7 @@ void OptimizingCompiler::RunOptimizations(HGraph* graph,
       graph, stats, "instruction_simplifier$after_bce");
   InstructionSimplifier* simplify3 = new (arena) InstructionSimplifier(
       graph, stats, "instruction_simplifier$before_codegen");
-  IntrinsicsRecognizer* intrinsics = new (arena) IntrinsicsRecognizer(graph, driver, stats);
+  IntrinsicsRecognizer* intrinsics = new (arena) IntrinsicsRecognizer(graph, stats);
 
   HOptimization* optimizations1[] = {
     intrinsics,
