@@ -263,16 +263,15 @@ END_MACRO
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveEverything)
-     * when R15 is already saved.
+     * when R14 and R15 are already saved.
      */
-MACRO0(SETUP_SAVE_EVERYTHING_FRAME_R15_SAVED)
+MACRO0(SETUP_SAVE_EVERYTHING_FRAME_R14_R15_SAVED)
 #if defined(__APPLE__)
     int3
     int3
 #else
     // Save core registers from highest to lowest to agree with core spills bitmap.
-    // R15, or at least a placeholder for it, is already on the stack.
-    PUSH r14
+    // R14 and R15, or at least placeholders for them, are already on the stack.
     PUSH r13
     PUSH r12
     PUSH r11
@@ -326,13 +325,23 @@ END_MACRO
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveEverything)
+     * when R15 is already saved.
+     */
+MACRO0(SETUP_SAVE_EVERYTHING_FRAME_R15_SAVED)
+    PUSH r14
+    SETUP_SAVE_EVERYTHING_FRAME_R14_R15_SAVED
+END_MACRO
+
+    /*
+     * Macro that sets up the callee save frame to conform with
+     * Runtime::CreateCalleeSaveMethod(kSaveEverything)
      */
 MACRO0(SETUP_SAVE_EVERYTHING_FRAME)
     PUSH r15
     SETUP_SAVE_EVERYTHING_FRAME_R15_SAVED
 END_MACRO
 
-MACRO0(RESTORE_SAVE_EVERYTHING_FRAME)
+MACRO0(RESTORE_SAVE_EVERYTHING_FRAME_FRPS)
     // Restore FPRs. Method and padding is still on the stack.
     movq 16(%rsp), %xmm0
     movq 24(%rsp), %xmm1
@@ -350,12 +359,10 @@ MACRO0(RESTORE_SAVE_EVERYTHING_FRAME)
     movq 120(%rsp), %xmm13
     movq 128(%rsp), %xmm14
     movq 136(%rsp), %xmm15
+END_MACRO
 
-    // Remove save everything callee save method, stack alignment padding and FPRs.
-    addq MACRO_LITERAL(16 + 16 * 8), %rsp
-    CFI_ADJUST_CFA_OFFSET(-(16 + 16 * 8))
-    // Restore callee and GPR args, mixed together to agree with core spills bitmap.
-    POP rax
+MACRO0(RESTORE_SAVE_EVERYTHING_FRAME_GPRS_EXCEPT_RAX)
+    // Restore callee and GPR args (except RAX), mixed together to agree with core spills bitmap.
     POP rcx
     POP rdx
     POP rbx
@@ -372,17 +379,45 @@ MACRO0(RESTORE_SAVE_EVERYTHING_FRAME)
     POP r15
 END_MACRO
 
+MACRO0(RESTORE_SAVE_EVERYTHING_FRAME)
+    RESTORE_SAVE_EVERYTHING_FRAME_FRPS
+
+    // Remove save everything callee save method, stack alignment padding and FPRs.
+    addq MACRO_LITERAL(16 + 16 * 8), %rsp
+    CFI_ADJUST_CFA_OFFSET(-(16 + 16 * 8))
+
+    POP rax
+    RESTORE_SAVE_EVERYTHING_FRAME_GPRS_EXCEPT_RAX
+END_MACRO
+
+MACRO0(RESTORE_SAVE_EVERYTHING_FRAME_KEEP_RAX)
+    RESTORE_SAVE_EVERYTHING_FRAME_FRPS
+
+    // Remove save everything callee save method, stack alignment padding and FPRs, skip RAX.
+    addq MACRO_LITERAL(16 + 16 * 8 + 8), %rsp
+    CFI_ADJUST_CFA_OFFSET(-(16 + 16 * 8 + 8))
+
+    RESTORE_SAVE_EVERYTHING_FRAME_GPRS_EXCEPT_RAX
+END_MACRO
 
     /*
-     * Macro that set calls through to artDeliverPendingExceptionFromCode, where the pending
-     * exception is Thread::Current()->exception_.
+     * Macro that calls through to artDeliverPendingExceptionFromCode, where the pending
+     * exception is Thread::Current()->exception_ when the runtime method frame is ready.
      */
-MACRO0(DELIVER_PENDING_EXCEPTION)
-    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME        // save callee saves for throw
+MACRO0(DELIVER_PENDING_EXCEPTION_FRAME_READY)
     // (Thread*) setup
     movq %gs:THREAD_SELF_OFFSET, %rdi
     call SYMBOL(artDeliverPendingExceptionFromCode)  // artDeliverPendingExceptionFromCode(Thread*)
     UNREACHABLE
+END_MACRO
+
+    /*
+     * Macro that calls through to artDeliverPendingExceptionFromCode, where the pending
+     * exception is Thread::Current()->exception_.
+     */
+MACRO0(DELIVER_PENDING_EXCEPTION)
+    SETUP_SAVE_ALL_CALLEE_SAVES_FRAME        // save callee saves for throw
+    DELIVER_PENDING_EXCEPTION_FRAME_READY
 END_MACRO
 
 MACRO2(NO_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
@@ -1295,45 +1330,48 @@ DEFINE_FUNCTION art_quick_alloc_object_initialized_region_tlab
 END_FUNCTION art_quick_alloc_object_initialized_region_tlab
 
 DEFINE_FUNCTION art_quick_resolve_string
-    movq 8(%rsp), %rcx                                         // get referrer
-    movl ART_METHOD_DECLARING_CLASS_OFFSET(%rcx), %ecx         // get declaring class
-    movq DECLARING_CLASS_DEX_CACHE_STRINGS_OFFSET(%ecx), %rcx  // get string dex cache
-    movq LITERAL(STRING_DEX_CACHE_SIZE_MINUS_ONE), %rdx
-    andq %rdi, %rdx
-    movq (%rcx, %rdx, STRING_DEX_CACHE_ELEMENT_SIZE), %rdx
-    movl %edx, %eax
-    shrq LITERAL(32), %rdx
-    cmp %rdx, %rdi
+    // Custom calling convention: RAX serves as both input and output.
+    PUSH r15
+    PUSH r14
+    movq 24(%rsp), %r15                                         // get referrer
+    movl ART_METHOD_DECLARING_CLASS_OFFSET(%r15), %r15d         // get declaring class
+    movq DECLARING_CLASS_DEX_CACHE_STRINGS_OFFSET(%r15d), %r15  // get string dex cache
+    movl LITERAL(STRING_DEX_CACHE_SIZE_MINUS_ONE), %r14d
+    andl %eax, %r14d
+    movq (%r15, %r14, STRING_DEX_CACHE_ELEMENT_SIZE), %r14
+    movl %r14d, %r15d
+    shrq LITERAL(32), %r14
+    cmpl %r14d, %eax
     jne .Lart_quick_resolve_string_slow_path
+    movl %r15d, %eax
+    CFI_REMEMBER_STATE
+    POP r14
+    POP r15
 #ifdef USE_READ_BARRIER
     cmpl LITERAL(0), %gs:THREAD_IS_GC_MARKING_OFFSET
-    jne .Lart_quick_resolve_string_marking
+    jne .Lnot_null_art_quick_read_barrier_mark_reg00
 #endif
     ret
-// Slow path, the index did not match
+    CFI_RESTORE_STATE
+    CFI_DEF_CFA(rsp, 24)                        // workaround for clang bug: 31975598
+
+// Slow path, the index did not match.
 .Lart_quick_resolve_string_slow_path:
-    SETUP_SAVE_REFS_ONLY_FRAME
-    movq %rcx, %rax
+    SETUP_SAVE_EVERYTHING_FRAME_R14_R15_SAVED
     // Outgoing argument set up
+    movl %eax, %edi                             // pass string index
     movq %gs:THREAD_SELF_OFFSET, %rsi           // pass Thread::Current()
     call SYMBOL(artResolveStringFromCode)       // artResolveStringFromCode(arg0, referrer, Thread*)
-    RESTORE_SAVE_REFS_ONLY_FRAME                // restore frame up to return address
-    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
-// GC is marking case, need to check the mark bit.
-.Lart_quick_resolve_string_marking:
-    testl LITERAL(LOCK_WORD_MARK_BIT_MASK_SHIFTED), MIRROR_OBJECT_LOCK_WORD_OFFSET(%rax)
-    jnz .Lart_quick_resolve_string_no_rb
-    // Save LR so that we can return, also x1 for alignment purposes
-    PUSH rdi
-    PUSH rsi
-    subq LITERAL(8), %rsp                         // 16 byte alignment
-    movq %rax, %rdi
-    call SYMBOL(artReadBarrierMark)
-    addq LITERAL(8), %rsp
-    POP  rsi
-    POP  rdi
-.Lart_quick_resolve_string_no_rb:
+
+    testl %eax, %eax                            // If result is null, deliver the OOME.
+    jz 1f
+    CFI_REMEMBER_STATE
+    RESTORE_SAVE_EVERYTHING_FRAME_KEEP_RAX      // restore frame up to return address
     ret
+    CFI_RESTORE_STATE
+    CFI_DEF_CFA(rsp, FRAME_SIZE_SAVE_EVERYTHING)  // workaround for clang bug: 31975598
+1:
+    DELIVER_PENDING_EXCEPTION_FRAME_READY
 END_FUNCTION art_quick_resolve_string
 
 ONE_ARG_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
@@ -2228,6 +2266,7 @@ MACRO2(READ_BARRIER_MARK_REG, name, reg)
     // Null check so that we can load the lock word.
     testq REG_VAR(reg), REG_VAR(reg)
     jz .Lret_rb_\name
+.Lnot_null_\name:
     // Check the mark bit, if it is 1 return.
     testl LITERAL(LOCK_WORD_MARK_BIT_MASK_SHIFTED), MIRROR_OBJECT_LOCK_WORD_OFFSET(REG_VAR(reg))
     jz .Lslow_rb_\name

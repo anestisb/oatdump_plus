@@ -429,33 +429,49 @@ class LoadStringSlowPathARM : public SlowPathCodeARM {
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
     DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
+    HLoadString* load = instruction_->AsLoadString();
+    const uint32_t string_index = load->GetStringIndex();
+    Register out = locations->Out().AsRegister<Register>();
+    Register temp = locations->GetTemp(0).AsRegister<Register>();
+    constexpr bool call_saves_everything_except_r0 = (!kUseReadBarrier || kUseBakerReadBarrier);
 
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
     __ Bind(GetEntryLabel());
     SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
-    HLoadString* load = instruction_->AsLoadString();
-    const uint32_t string_index = load->GetStringIndex();
+    // In the unlucky case that the `temp` is R0, we preserve the address in `out` across
+    // the kSaveEverything call (or use `out` for the address after non-kSaveEverything call).
+    bool temp_is_r0 = (temp == calling_convention.GetRegisterAt(0));
+    Register entry_address = temp_is_r0 ? out : temp;
+    DCHECK_NE(entry_address, calling_convention.GetRegisterAt(0));
+    if (call_saves_everything_except_r0 && temp_is_r0) {
+      __ mov(entry_address, ShifterOperand(temp));
+    }
+
     __ LoadImmediate(calling_convention.GetRegisterAt(0), string_index);
     arm_codegen->InvokeRuntime(kQuickResolveString, instruction_, instruction_->GetDexPc(), this);
     CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
+
+    // Store the resolved String to the .bss entry.
+    if (call_saves_everything_except_r0) {
+      // The string entry address was preserved in `entry_address` thanks to kSaveEverything.
+      __ str(R0, Address(entry_address));
+    } else {
+      // For non-Baker read barrier, we need to re-calculate the address of the string entry.
+      CodeGeneratorARM::PcRelativePatchInfo* labels =
+          arm_codegen->NewPcRelativeStringPatch(load->GetDexFile(), string_index);
+      __ BindTrackedLabel(&labels->movw_label);
+      __ movw(entry_address, /* placeholder */ 0u);
+      __ BindTrackedLabel(&labels->movt_label);
+      __ movt(entry_address, /* placeholder */ 0u);
+      __ BindTrackedLabel(&labels->add_pc_label);
+      __ add(entry_address, entry_address, ShifterOperand(PC));
+      __ str(R0, Address(entry_address));
+    }
+
     arm_codegen->Move32(locations->Out(), Location::RegisterLocation(R0));
-
     RestoreLiveRegisters(codegen, locations);
-
-    // Store the resolved String to the BSS entry.
-    // TODO: Change art_quick_resolve_string to kSaveEverything and use a temporary for the
-    // .bss entry address in the fast path, so that we can avoid another calculation here.
-    CodeGeneratorARM::PcRelativePatchInfo* labels =
-        arm_codegen->NewPcRelativeStringPatch(load->GetDexFile(), string_index);
-    __ BindTrackedLabel(&labels->movw_label);
-    __ movw(IP, /* placeholder */ 0u);
-    __ BindTrackedLabel(&labels->movt_label);
-    __ movt(IP, /* placeholder */ 0u);
-    __ BindTrackedLabel(&labels->add_pc_label);
-    __ add(IP, IP, ShifterOperand(PC));
-    __ str(locations->Out().AsRegister<Register>(), Address(IP));
 
     __ b(GetExitLabel());
   }
@@ -5704,10 +5720,25 @@ void LocationsBuilderARM::VisitLoadString(HLoadString* load) {
 
   HLoadString::LoadKind load_kind = load->GetLoadKind();
   if (load_kind == HLoadString::LoadKind::kDexCacheViaMethod) {
-    locations->SetInAt(0, Location::RequiresRegister());
     locations->SetOut(Location::RegisterLocation(R0));
   } else {
     locations->SetOut(Location::RequiresRegister());
+    if (load_kind == HLoadString::LoadKind::kBssEntry) {
+      if (!kUseReadBarrier || kUseBakerReadBarrier) {
+        // Rely on the pResolveString and/or marking to save everything, including temps.
+        // Note that IP may theoretically be clobbered by saving/restoring the live register
+        // (only one thanks to the custom calling convention), so we request a different temp.
+        locations->AddTemp(Location::RequiresRegister());
+        RegisterSet caller_saves = RegisterSet::Empty();
+        InvokeRuntimeCallingConvention calling_convention;
+        caller_saves.Add(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+        // TODO: Add GetReturnLocation() to the calling convention so that we can DCHECK()
+        // that the the kPrimNot result register is the same as the first argument register.
+        locations->SetCustomSlowPathCallerSaves(caller_saves);
+      } else {
+        // For non-Baker read barrier we have a temp-clobbering call.
+      }
+    }
   }
 }
 
@@ -5743,15 +5774,16 @@ void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) {
     }
     case HLoadString::LoadKind::kBssEntry: {
       DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
+      Register temp = locations->GetTemp(0).AsRegister<Register>();
       CodeGeneratorARM::PcRelativePatchInfo* labels =
           codegen_->NewPcRelativeStringPatch(load->GetDexFile(), load->GetStringIndex());
       __ BindTrackedLabel(&labels->movw_label);
-      __ movw(out, /* placeholder */ 0u);
+      __ movw(temp, /* placeholder */ 0u);
       __ BindTrackedLabel(&labels->movt_label);
-      __ movt(out, /* placeholder */ 0u);
+      __ movt(temp, /* placeholder */ 0u);
       __ BindTrackedLabel(&labels->add_pc_label);
-      __ add(out, out, ShifterOperand(PC));
-      GenerateGcRootFieldLoad(load, out_loc, out, 0);
+      __ add(temp, temp, ShifterOperand(PC));
+      GenerateGcRootFieldLoad(load, out_loc, temp, 0);
       SlowPathCode* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathARM(load);
       codegen_->AddSlowPath(slow_path);
       __ CompareAndBranchIfZero(out, slow_path->GetEntryLabel());
@@ -5765,6 +5797,7 @@ void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) {
   // TODO: Consider re-adding the compiler code to do string dex cache lookup again.
   DCHECK(load_kind == HLoadString::LoadKind::kDexCacheViaMethod);
   InvokeRuntimeCallingConvention calling_convention;
+  DCHECK_EQ(calling_convention.GetRegisterAt(0), out);
   __ LoadImmediate(calling_convention.GetRegisterAt(0), load->GetStringIndex());
   codegen_->InvokeRuntime(kQuickResolveString, load, load->GetDexPc());
   CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();

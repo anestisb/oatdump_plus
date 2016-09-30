@@ -6059,8 +6059,7 @@ void LocationsBuilderX86::VisitLoadString(HLoadString* load) {
       : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load, call_kind);
   HLoadString::LoadKind load_kind = load->GetLoadKind();
-  if (load_kind == HLoadString::LoadKind::kDexCacheViaMethod ||
-      load_kind == HLoadString::LoadKind::kBootImageLinkTimePcRelative ||
+  if (load_kind == HLoadString::LoadKind::kBootImageLinkTimePcRelative ||
       load_kind == HLoadString::LoadKind::kBssEntry) {
     locations->SetInAt(0, Location::RequiresRegister());
   }
@@ -6068,6 +6067,17 @@ void LocationsBuilderX86::VisitLoadString(HLoadString* load) {
     locations->SetOut(Location::RegisterLocation(EAX));
   } else {
     locations->SetOut(Location::RequiresRegister());
+    if (load_kind == HLoadString::LoadKind::kBssEntry) {
+      if (!kUseReadBarrier || kUseBakerReadBarrier) {
+        // Rely on the pResolveString and/or marking to save everything.
+        RegisterSet caller_saves = RegisterSet::Empty();
+        InvokeRuntimeCallingConvention calling_convention;
+        caller_saves.Add(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+        locations->SetCustomSlowPathCallerSaves(caller_saves);
+      } else {
+        // For non-Baker read barrier we have a temp-clobbering call.
+      }
+    }
   }
 }
 
@@ -6114,6 +6124,7 @@ void InstructionCodeGeneratorX86::VisitLoadString(HLoadString* load) {
 
   // TODO: Re-add the compiler code to do string dex cache lookup again.
   InvokeRuntimeCallingConvention calling_convention;
+  DCHECK_EQ(calling_convention.GetRegisterAt(0), out);
   __ movl(calling_convention.GetRegisterAt(0), Immediate(load->GetStringIndex()));
   codegen_->InvokeRuntime(kQuickResolveString, load, load->GetDexPc());
   CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
