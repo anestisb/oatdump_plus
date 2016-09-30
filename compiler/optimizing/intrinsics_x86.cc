@@ -1401,23 +1401,39 @@ void IntrinsicCodeGeneratorX86::VisitStringEquals(HInvoke* invoke) {
   __ cmpl(str, arg);
   __ j(kEqual, &return_true);
 
-  // Load length of receiver string.
+  // Load length and compression flag of receiver string.
   __ movl(ecx, Address(str, count_offset));
-  // Check if lengths are equal, return false if they're not.
+  // Check if lengths and compression flags are equal, return false if they're not.
+  // Two identical strings will always have same compression style since
+  // compression style is decided on alloc.
   __ cmpl(ecx, Address(arg, count_offset));
   __ j(kNotEqual, &return_false);
-  // Return true if both strings are empty.
-  __ jecxz(&return_true);
 
+  if (mirror::kUseStringCompression) {
+    NearLabel string_uncompressed;
+    // Differ cases into both compressed or both uncompressed. Different compression style
+    // is cut above.
+    __ cmpl(ecx, Immediate(0));
+    __ j(kGreaterEqual, &string_uncompressed);
+    // Divide string length by 2, rounding up, and continue as if uncompressed.
+    // Merge clearing the compression flag (+0x80000000) with +1 for rounding.
+    __ addl(ecx, Immediate(0x80000001));
+    __ shrl(ecx, Immediate(1));
+    __ Bind(&string_uncompressed);
+  }
+  // Return true if strings are empty.
+  __ jecxz(&return_true);
   // Load starting addresses of string values into ESI/EDI as required for repe_cmpsl instruction.
   __ leal(esi, Address(str, value_offset));
   __ leal(edi, Address(arg, value_offset));
 
-  // Divide string length by 2 to compare characters 2 at a time and adjust for odd lengths.
+  // Divide string length by 2 to compare characters 2 at a time and adjust for lengths not
+  // divisible by 2.
   __ addl(ecx, Immediate(1));
   __ shrl(ecx, Immediate(1));
 
-  // Assertions that must hold in order to compare strings 2 characters at a time.
+  // Assertions that must hold in order to compare strings 2 characters (uncompressed)
+  // or 4 characters (compressed) at a time.
   DCHECK_ALIGNED(value_offset, 4);
   static_assert(IsAligned<4>(kObjectAlignment), "String of odd length is not zero padded");
 
@@ -1461,6 +1477,10 @@ static void CreateStringIndexOfLocations(HInvoke* invoke,
   locations->AddTemp(Location::RegisterLocation(ECX));
   // Need another temporary to be able to compute the result.
   locations->AddTemp(Location::RequiresRegister());
+  if (mirror::kUseStringCompression) {
+    // Need another temporary to be able to save unflagged string length.
+    locations->AddTemp(Location::RequiresRegister());
+  }
 }
 
 static void GenerateStringIndexOf(HInvoke* invoke,
@@ -1478,6 +1498,8 @@ static void GenerateStringIndexOf(HInvoke* invoke,
   Register counter = locations->GetTemp(0).AsRegister<Register>();
   Register string_length = locations->GetTemp(1).AsRegister<Register>();
   Register out = locations->Out().AsRegister<Register>();
+  // Only used when string compression feature is on.
+  Register string_length_flagged;
 
   // Check our assumptions for registers.
   DCHECK_EQ(string_obj, EDI);
@@ -1515,6 +1537,12 @@ static void GenerateStringIndexOf(HInvoke* invoke,
 
   // Load string length, i.e., the count field of the string.
   __ movl(string_length, Address(string_obj, count_offset));
+  if (mirror::kUseStringCompression) {
+    string_length_flagged = locations->GetTemp(2).AsRegister<Register>();
+    __ movl(string_length_flagged, string_length);
+    // Mask out first bit used as compression flag.
+    __ andl(string_length, Immediate(INT32_MAX));
+  }
 
   // Do a zero-length check.
   // TODO: Support jecxz.
@@ -1540,20 +1568,50 @@ static void GenerateStringIndexOf(HInvoke* invoke,
     __ cmpl(start_index, Immediate(0));
     __ cmovl(kGreater, counter, start_index);
 
-    // Move to the start of the string: string_obj + value_offset + 2 * start_index.
-    __ leal(string_obj, Address(string_obj, counter, ScaleFactor::TIMES_2, value_offset));
+    if (mirror::kUseStringCompression) {
+      NearLabel modify_counter, offset_uncompressed_label;
+      __ cmpl(string_length_flagged, Immediate(0));
+      __ j(kGreaterEqual, &offset_uncompressed_label);
+      // Move to the start of the string: string_obj + value_offset + start_index.
+      __ leal(string_obj, Address(string_obj, counter, ScaleFactor::TIMES_1, value_offset));
+      __ jmp(&modify_counter);
 
-    // Now update ecx (the repne scasw work counter). We have string.length - start_index left to
-    // compare.
+      // Move to the start of the string: string_obj + value_offset + 2 * start_index.
+      __ Bind(&offset_uncompressed_label);
+      __ leal(string_obj, Address(string_obj, counter, ScaleFactor::TIMES_2, value_offset));
+
+      // Now update ecx (the repne scasw work counter). We have string.length - start_index left to
+      // compare.
+      __ Bind(&modify_counter);
+    } else {
+      __ leal(string_obj, Address(string_obj, counter, ScaleFactor::TIMES_2, value_offset));
+    }
     __ negl(counter);
     __ leal(counter, Address(string_length, counter, ScaleFactor::TIMES_1, 0));
   }
 
-  // Everything is set up for repne scasw:
-  //   * Comparison address in EDI.
-  //   * Counter in ECX.
-  __ repne_scasw();
+  if (mirror::kUseStringCompression) {
+    NearLabel uncompressed_string_comparison;
+    NearLabel comparison_done;
+    __ cmpl(string_length_flagged, Immediate(0));
+    __ j(kGreater, &uncompressed_string_comparison);
 
+    // Check if EAX (search_value) is ASCII.
+    __ cmpl(search_value, Immediate(127));
+    __ j(kGreater, &not_found_label);
+    // Comparing byte-per-byte.
+    __ repne_scasb();
+    __ jmp(&comparison_done);
+
+    // Everything is set up for repne scasw:
+    //   * Comparison address in EDI.
+    //   * Counter in ECX.
+    __ Bind(&uncompressed_string_comparison);
+    __ repne_scasw();
+    __ Bind(&comparison_done);
+  } else {
+    __ repne_scasw();
+  }
   // Did we find a match?
   __ j(kNotEqual, &not_found_label);
 
@@ -1706,38 +1764,64 @@ void IntrinsicCodeGeneratorX86::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   const size_t char_size = Primitive::ComponentSize(Primitive::kPrimChar);
   DCHECK_EQ(char_size, 2u);
 
-  // Compute the address of the destination buffer.
-  __ leal(EDI, Address(dst, dstBegin, ScaleFactor::TIMES_2, data_offset));
-
-  // Compute the address of the source string.
-  if (srcBegin.IsConstant()) {
-    // Compute the address of the source string by adding the number of chars from
-    // the source beginning to the value offset of a string.
-    __ leal(ESI, Address(obj, srcBegin_value * char_size + value_offset));
-  } else {
-    __ leal(ESI, Address(obj, srcBegin.AsRegister<Register>(),
-                         ScaleFactor::TIMES_2, value_offset));
-  }
-
   // Compute the number of chars (words) to move.
-  // Now is the time to save ECX, since we don't know if it will be used later.
+  // Save ECX, since we don't know if it will be used later.
   __ pushl(ECX);
   int stack_adjust = kX86WordSize;
   __ cfi().AdjustCFAOffset(stack_adjust);
   DCHECK_EQ(srcEnd, ECX);
   if (srcBegin.IsConstant()) {
-    if (srcBegin_value != 0) {
-      __ subl(ECX, Immediate(srcBegin_value));
-    }
+    __ subl(ECX, Immediate(srcBegin_value));
   } else {
     DCHECK(srcBegin.IsRegister());
     __ subl(ECX, srcBegin.AsRegister<Register>());
   }
 
-  // Do the move.
+  NearLabel done;
+  if (mirror::kUseStringCompression) {
+    // Location of count in string
+    const uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
+    const size_t c_char_size = Primitive::ComponentSize(Primitive::kPrimByte);
+    DCHECK_EQ(c_char_size, 1u);
+    __ pushl(EAX);
+    __ cfi().AdjustCFAOffset(stack_adjust);
+
+    NearLabel copy_loop, copy_uncompressed;
+    __ cmpl(Address(obj, count_offset), Immediate(0));
+    __ j(kGreaterEqual, &copy_uncompressed);
+    // Compute the address of the source string by adding the number of chars from
+    // the source beginning to the value offset of a string.
+    __ leal(ESI, CodeGeneratorX86::ArrayAddress(obj, srcBegin, TIMES_1, value_offset));
+
+    // Start the loop to copy String's value to Array of Char.
+    __ leal(EDI, Address(dst, dstBegin, ScaleFactor::TIMES_2, data_offset));
+    __ Bind(&copy_loop);
+    __ jecxz(&done);
+    // Use EAX temporary (convert byte from ESI to word).
+    // TODO: Use LODSB/STOSW (not supported by X86Assembler) with AH initialized to 0.
+    __ movzxb(EAX, Address(ESI, 0));
+    __ movw(Address(EDI, 0), EAX);
+    __ leal(EDI, Address(EDI, char_size));
+    __ leal(ESI, Address(ESI, c_char_size));
+    // TODO: Add support for LOOP to X86Assembler.
+    __ subl(ECX, Immediate(1));
+    __ jmp(&copy_loop);
+    __ Bind(&copy_uncompressed);
+  }
+
+  // Do the copy for uncompressed string.
+  // Compute the address of the destination buffer.
+  __ leal(EDI, Address(dst, dstBegin, ScaleFactor::TIMES_2, data_offset));
+  __ leal(ESI, CodeGeneratorX86::ArrayAddress(obj, srcBegin, TIMES_2, value_offset));
   __ rep_movsw();
 
-  // And restore ECX.
+  __ Bind(&done);
+  if (mirror::kUseStringCompression) {
+    // Restore EAX.
+    __ popl(EAX);
+    __ cfi().AdjustCFAOffset(-stack_adjust);
+  }
+  // Restore ECX.
   __ popl(ECX);
   __ cfi().AdjustCFAOffset(-stack_adjust);
 }
