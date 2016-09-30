@@ -43,3 +43,31 @@ art_cc_library {
         "-Wno-frame-larger-than=",
     ],
 }
+
+art_cc_library {
+    name: "libartbenchmark-micronative-host",
+    host_supported: true,
+    device_supported: false,
+    defaults: ["art_defaults", "art_debug_defaults"],
+    srcs: [
+        "jni_loader.cc",
+        "micro-native/micro_native.cc",
+    ],
+    shared_libs: [
+    ],
+    static_libs: [
+    ],
+    include_dirs: [
+        "libnativehelper/include/nativehelper"  // only for jni.h
+    ],
+    stl: "libc++_static",
+    clang: true,
+    target: {
+        host: {
+            host_ldlibs: ["-ldl", "-lpthread"],
+        },
+    },
+    cflags: [
+        "-Wno-frame-larger-than=",
+    ],
+}
