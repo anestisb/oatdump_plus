@@ -19,7 +19,7 @@
 #include <gtest/gtest.h>
 
 #ifdef ART_TARGET_ANDROID
-#include "cutils/properties.h"
+#include "android-base/properties.h"
 #endif
 
 #include "base/logging.h"
@@ -40,8 +40,8 @@ TEST(InstructionSetFeaturesTest, FeaturesFromSystemPropertyVariant) {
 
   // Read the variant property.
   std::string key = StringPrintf("dalvik.vm.isa.%s.variant", GetInstructionSetString(kRuntimeISA));
-  char dex2oat_isa_variant[PROPERTY_VALUE_MAX];
-  if (property_get(key.c_str(), dex2oat_isa_variant, nullptr) > 0) {
+  std::string dex2oat_isa_variant = android::base::GetProperty(key, "");
+  if (!dex2oat_isa_variant.empty()) {
     // Use features from property to build InstructionSetFeatures and check against build's
     // features.
     std::string error_msg;
@@ -68,13 +68,13 @@ TEST(InstructionSetFeaturesTest, FeaturesFromSystemPropertyString) {
   // Read the variant property.
   std::string variant_key = StringPrintf("dalvik.vm.isa.%s.variant",
                                          GetInstructionSetString(kRuntimeISA));
-  char dex2oat_isa_variant[PROPERTY_VALUE_MAX];
-  if (property_get(variant_key.c_str(), dex2oat_isa_variant, nullptr) > 0) {
+  std::string dex2oat_isa_variant = android::base::GetProperty(variant_key, "");
+  if (!dex2oat_isa_variant.empty()) {
     // Read the features property.
     std::string features_key = StringPrintf("dalvik.vm.isa.%s.features",
                                             GetInstructionSetString(kRuntimeISA));
-    char dex2oat_isa_features[PROPERTY_VALUE_MAX];
-    if (property_get(features_key.c_str(), dex2oat_isa_features, nullptr) > 0) {
+    std::string dex2oat_isa_features = android::base::GetProperty(features_key, "");
+    if (!dex2oat_isa_features.empty()) {
       // Use features from property to build InstructionSetFeatures and check against build's
       // features.
       std::string error_msg;
