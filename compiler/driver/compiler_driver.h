@@ -90,8 +90,6 @@ class CompilerDriver {
                  Compiler::Kind compiler_kind,
                  InstructionSet instruction_set,
                  const InstructionSetFeatures* instruction_set_features,
-                 bool boot_image,
-                 bool app_image,
                  std::unordered_set<std::string>* image_classes,
                  std::unordered_set<std::string>* compiled_classes,
                  std::unordered_set<std::string>* compiled_methods,
@@ -145,11 +143,6 @@ class CompilerDriver {
 
   Compiler* GetCompiler() const {
     return compiler_.get();
-  }
-
-  // Are we compiling and creating an image file?
-  bool IsBootImage() const {
-    return boot_image_;
   }
 
   const std::unordered_set<std::string>* GetImageClasses() const {
@@ -627,9 +620,6 @@ class CompilerDriver {
   // Number of non-relative patches in all compiled methods. These patches need space
   // in the .oat_patches ELF section if requested in the compiler options.
   size_t non_relative_linker_patch_count_ GUARDED_BY(compiled_methods_lock_);
-
-  const bool boot_image_;
-  const bool app_image_;
 
   // If image_ is true, specifies the classes that will be included in the image.
   // Note if image_classes_ is null, all classes are included in the image.
