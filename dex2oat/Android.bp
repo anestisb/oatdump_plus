@@ -31,6 +31,7 @@ cc_defaults {
                 // SANITIZE_TARGET mode.
                 // Bug: 22233158
                 address: false,
+                coverage: false,
             },
         },
     },
