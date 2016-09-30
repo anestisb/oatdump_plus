@@ -435,8 +435,6 @@ class CodeGeneratorMIPS : public CodeGenerator {
   Literal* DeduplicateBootImageTypeLiteral(const DexFile& dex_file, uint32_t type_index);
   Literal* DeduplicateBootImageAddressLiteral(uint32_t address);
 
-  void EmitPcRelativeAddressPlaceholder(PcRelativePatchInfo* info, Register out, Register base);
-
  private:
   Register GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOrDirect* invoke, Register temp);
 
@@ -457,10 +455,6 @@ class CodeGeneratorMIPS : public CodeGenerator {
                                           uint32_t offset_or_index,
                                           ArenaDeque<PcRelativePatchInfo>* patches);
 
-  template <LinkerPatch (*Factory)(size_t, const DexFile*, uint32_t, uint32_t)>
-  void EmitPcRelativeLinkerPatches(const ArenaDeque<PcRelativePatchInfo>& infos,
-                                   ArenaVector<LinkerPatch>* linker_patches);
-
   // Labels for each block that will be compiled.
   MipsLabel* block_labels_;
   MipsLabel frame_entry_label_;
@@ -479,7 +473,7 @@ class CodeGeneratorMIPS : public CodeGenerator {
   ArenaDeque<PcRelativePatchInfo> pc_relative_dex_cache_patches_;
   // Deduplication map for boot string literals for kBootImageLinkTimeAddress.
   BootStringToLiteralMap boot_image_string_patches_;
-  // PC-relative String patch info; type depends on configuration (app .bss or boot image PIC).
+  // PC-relative String patch info.
   ArenaDeque<PcRelativePatchInfo> pc_relative_string_patches_;
   // Deduplication map for boot type literals for kBootImageLinkTimeAddress.
   BootTypeToLiteralMap boot_image_type_patches_;
