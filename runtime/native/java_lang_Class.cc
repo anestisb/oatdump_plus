@@ -317,16 +317,18 @@ static jobject Class_getPublicFieldRecursive(JNIEnv* env, jobject javaThis, jstr
 
 static jobject Class_getDeclaredField(JNIEnv* env, jobject javaThis, jstring name) {
   ScopedFastNativeObjectAccess soa(env);
-  auto name_string = soa.Decode<mirror::String>(name);
-  if (name_string == nullptr) {
+  StackHandleScope<3> hs(soa.Self());
+  Handle<mirror::String> h_string = hs.NewHandle(soa.Decode<mirror::String>(name));
+  if (h_string.Get() == nullptr) {
     ThrowNullPointerException("name == null");
     return nullptr;
   }
-  ObjPtr<mirror::Class> klass = DecodeClass(soa, javaThis);
-  ObjPtr<mirror::Field> result = GetDeclaredField(soa.Self(), klass, name_string);
-  if (result == nullptr) {
-    std::string name_str = name_string->ToModifiedUtf8();
-    if (name_str == "value" && klass->IsStringClass()) {
+  Handle<mirror::Class> h_klass = hs.NewHandle(DecodeClass(soa, javaThis));
+  Handle<mirror::Field> result =
+      hs.NewHandle(GetDeclaredField(soa.Self(), h_klass.Get(), h_string.Get()));
+  if (result.Get() == nullptr) {
+    std::string name_str = h_string->ToModifiedUtf8();
+    if (name_str == "value" && h_klass->IsStringClass()) {
       // We log the error for this specific case, as the user might just swallow the exception.
       // This helps diagnose crashes when applications rely on the String#value field being
       // there.
@@ -337,11 +339,11 @@ static jobject Class_getDeclaredField(JNIEnv* env, jobject javaThis, jstring nam
     }
     // We may have a pending exception if we failed to resolve.
     if (!soa.Self()->IsExceptionPending()) {
-      ThrowNoSuchFieldException(DecodeClass(soa, javaThis).Decode(), name_str.c_str());
+      ThrowNoSuchFieldException(h_klass.Get(), name_str.c_str());
     }
     return nullptr;
   }
-  return soa.AddLocalReference<jobject>(result);
+  return soa.AddLocalReference<jobject>(result.Get());
 }
 
 static jobject Class_getDeclaredConstructorInternal(
