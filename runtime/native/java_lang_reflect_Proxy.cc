@@ -21,7 +21,7 @@
 #include "mirror/class_loader.h"
 #include "mirror/object_array.h"
 #include "mirror/string.h"
-#include "scoped_fast_native_object_access.h"
+#include "scoped_fast_native_object_access-inl.h"
 #include "verify_object-inl.h"
 
 namespace art {

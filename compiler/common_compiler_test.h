@@ -51,7 +51,7 @@ class CommonCompilerTest : public CommonRuntimeTest {
 
   static void MakeExecutable(const void* code_start, size_t code_length);
 
-  void MakeExecutable(mirror::ClassLoader* class_loader, const char* class_name)
+  void MakeExecutable(ObjPtr<mirror::ClassLoader> class_loader, const char* class_name)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
  protected:

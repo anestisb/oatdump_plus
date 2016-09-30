@@ -22,7 +22,7 @@
 #include "common_runtime_test.h"
 #include "dex_file.h"
 #include "mirror/array-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 
@@ -36,7 +36,7 @@ class TransactionTest : public CommonRuntimeTest {
     jobject jclass_loader = LoadDex("Transaction");
     StackHandleScope<2> hs(soa.Self());
     Handle<mirror::ClassLoader> class_loader(
-        hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
+        hs.NewHandle(soa.Decode<mirror::ClassLoader>(jclass_loader)));
     ASSERT_TRUE(class_loader.Get() != nullptr);
 
     // Load and initialize java.lang.ExceptionInInitializerError and the exception class used
@@ -173,7 +173,7 @@ TEST_F(TransactionTest, StaticFieldsTest) {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<4> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(
-      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(LoadDex("Transaction"))));
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(LoadDex("Transaction"))));
   ASSERT_TRUE(class_loader.Get() != nullptr);
 
   Handle<mirror::Class> h_klass(
@@ -271,7 +271,7 @@ TEST_F(TransactionTest, InstanceFieldsTest) {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<5> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(
-      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(LoadDex("Transaction"))));
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(LoadDex("Transaction"))));
   ASSERT_TRUE(class_loader.Get() != nullptr);
 
   Handle<mirror::Class> h_klass(
@@ -373,7 +373,7 @@ TEST_F(TransactionTest, StaticArrayFieldsTest) {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<4> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(
-      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(LoadDex("Transaction"))));
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(LoadDex("Transaction"))));
   ASSERT_TRUE(class_loader.Get() != nullptr);
 
   Handle<mirror::Class> h_klass(
@@ -490,7 +490,7 @@ TEST_F(TransactionTest, ResolveString) {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<3> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(
-      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(LoadDex("Transaction"))));
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(LoadDex("Transaction"))));
   ASSERT_TRUE(class_loader.Get() != nullptr);
 
   Handle<mirror::Class> h_klass(
@@ -539,7 +539,7 @@ TEST_F(TransactionTest, EmptyClass) {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<2> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(
-      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(LoadDex("Transaction"))));
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(LoadDex("Transaction"))));
   ASSERT_TRUE(class_loader.Get() != nullptr);
 
   Handle<mirror::Class> h_klass(
@@ -563,7 +563,7 @@ TEST_F(TransactionTest, StaticFieldClass) {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<2> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(
-      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(LoadDex("Transaction"))));
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(LoadDex("Transaction"))));
   ASSERT_TRUE(class_loader.Get() != nullptr);
 
   Handle<mirror::Class> h_klass(

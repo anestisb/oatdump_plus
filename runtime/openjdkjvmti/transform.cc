@@ -43,7 +43,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/class_loader-inl.h"
 #include "mirror/string-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread_list.h"
 #include "transform.h"
 #include "utf.h"
@@ -259,7 +259,7 @@ jvmtiError GetTransformationData(ArtJvmTiEnv* env,
   JNIEnv* jni_env = *jni_env_ptr;
   art::ScopedObjectAccess soa(jni_env);
   art::StackHandleScope<3> hs(art::Thread::Current());
-  art::Handle<art::mirror::Class> hs_klass(hs.NewHandle(soa.Decode<art::mirror::Class*>(klass)));
+  art::Handle<art::mirror::Class> hs_klass(hs.NewHandle(soa.Decode<art::mirror::Class>(klass)));
   *loader = soa.AddLocalReference<jobject>(hs_klass->GetClassLoader());
   *name = art::mirror::Class::ComputeName(hs_klass)->ToModifiedUtf8();
   // TODO is this always null?

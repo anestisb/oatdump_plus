@@ -24,7 +24,7 @@
 #include "jit/jit.h"
 #include "jni_internal.h"
 #include "JNIHelp.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "ScopedUtfChars.h"
 #include "thread-inl.h"
 #include "trace.h"

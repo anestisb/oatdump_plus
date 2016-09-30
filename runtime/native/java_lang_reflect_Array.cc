@@ -22,7 +22,7 @@
 #include "jni_internal.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
-#include "scoped_fast_native_object_access.h"
+#include "scoped_fast_native_object_access-inl.h"
 #include "handle_scope-inl.h"
 
 namespace art {
@@ -32,15 +32,15 @@ static jobject Array_createMultiArray(
   ScopedFastNativeObjectAccess soa(env);
   DCHECK(javaElementClass != nullptr);
   StackHandleScope<2> hs(soa.Self());
-  Handle<mirror::Class> element_class(hs.NewHandle(soa.Decode<mirror::Class*>(javaElementClass)));
+  Handle<mirror::Class> element_class(hs.NewHandle(soa.Decode<mirror::Class>(javaElementClass)));
   DCHECK(element_class->IsClass());
   DCHECK(javaDimArray != nullptr);
-  mirror::Object* dimensions_obj = soa.Decode<mirror::Object*>(javaDimArray);
+  ObjPtr<mirror::Object> dimensions_obj = soa.Decode<mirror::Object>(javaDimArray);
   DCHECK(dimensions_obj->IsArrayInstance());
   DCHECK_EQ(dimensions_obj->GetClass()->GetComponentType()->GetPrimitiveType(),
             Primitive::kPrimInt);
   Handle<mirror::IntArray> dimensions_array(
-      hs.NewHandle(down_cast<mirror::IntArray*>(dimensions_obj)));
+      hs.NewHandle(down_cast<mirror::IntArray*>(dimensions_obj.Decode())));
   mirror::Array* new_array = mirror::Array::CreateMultiArray(soa.Self(), element_class,
                                                              dimensions_array);
   return soa.AddLocalReference<jobject>(new_array);
@@ -53,7 +53,7 @@ static jobject Array_createObjectArray(JNIEnv* env, jclass, jclass javaElementCl
     ThrowNegativeArraySizeException(length);
     return nullptr;
   }
-  mirror::Class* element_class = soa.Decode<mirror::Class*>(javaElementClass);
+  mirror::Class* element_class = soa.Decode<mirror::Class>(javaElementClass).Decode();
   Runtime* runtime = Runtime::Current();
   ClassLinker* class_linker = runtime->GetClassLinker();
   mirror::Class* array_class = class_linker->FindArrayClass(soa.Self(), &element_class);

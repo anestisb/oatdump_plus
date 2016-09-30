@@ -24,7 +24,7 @@
 #include "dex_file-inl.h"
 #include "mem_map.h"
 #include "os.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 #include "utils.h"
 

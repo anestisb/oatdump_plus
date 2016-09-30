@@ -34,6 +34,7 @@
 #include "gc/collector_type.h"
 #include "gc/space/large_object_space.h"
 #include "globals.h"
+#include "obj_ptr.h"
 #include "object_callbacks.h"
 #include "offsets.h"
 #include "process_state.h"
@@ -274,7 +275,7 @@ class Heap {
   // A weaker test than IsLiveObject or VerifyObject that doesn't require the heap lock,
   // and doesn't abort on error, allowing the caller to report more
   // meaningful diagnostics.
-  bool IsValidObjectAddress(const mirror::Object* obj) const REQUIRES_SHARED(Locks::mutator_lock_);
+  bool IsValidObjectAddress(ObjPtr<mirror::Object> obj) const REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Faster alternative to IsHeapAddress since finding if an object is in the large object space is
   // very slow.
@@ -290,7 +291,7 @@ class Heap {
       REQUIRES_SHARED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   // Returns true if there is any chance that the object (obj) will move.
-  bool IsMovableObject(const mirror::Object* obj) const REQUIRES_SHARED(Locks::mutator_lock_);
+  bool IsMovableObject(ObjPtr<mirror::Object> obj) const REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Enables us to compacting GC until objects are released.
   void IncrementDisableMovingGC(Thread* self) REQUIRES(!*gc_complete_lock_);

@@ -22,7 +22,7 @@
 #include "java_vm_ext.h"
 #include "jni_env_ext.h"
 #include "mirror/string-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "ScopedLocalRef.h"
 
 namespace art {
@@ -58,7 +58,7 @@ class JniInternalTest : public CommonCompilerTest {
   void ExpectException(jclass exception_class) {
     ScopedObjectAccess soa(env_);
     EXPECT_TRUE(env_->ExceptionCheck())
-        << PrettyDescriptor(soa.Decode<mirror::Class*>(exception_class));
+        << PrettyDescriptor(soa.Decode<mirror::Class>(exception_class));
     jthrowable exception = env_->ExceptionOccurred();
     EXPECT_NE(nullptr, exception);
     env_->ExceptionClear();
@@ -619,7 +619,7 @@ class JniInternalTest : public CommonCompilerTest {
         class_loader_ = LoadDex("MyClassNatives");
         StackHandleScope<1> hs(soa.Self());
         Handle<mirror::ClassLoader> loader(
-            hs.NewHandle(soa.Decode<mirror::ClassLoader*>(class_loader_)));
+            hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader_)));
         mirror::Class* c = class_linker_->FindClass(soa.Self(), "LMyClassNatives;", loader);
         const auto pointer_size = class_linker_->GetImagePointerSize();
         ArtMethod* method = direct ? c->FindDirectMethod(method_name, method_sig, pointer_size) :
@@ -1598,7 +1598,7 @@ TEST_F(JniInternalTest, GetStringUTFChars_ReleaseStringUTFChars) {
 TEST_F(JniInternalTest, GetStringChars_ReleaseStringChars) {
   jstring s = env_->NewStringUTF("hello");
   ScopedObjectAccess soa(env_);
-  mirror::String* s_m = soa.Decode<mirror::String*>(s);
+  ObjPtr<mirror::String> s_m = soa.Decode<mirror::String>(s);
   ASSERT_TRUE(s != nullptr);
 
   jchar expected[] = { 'h', 'e', 'l', 'l', 'o' };
@@ -2236,7 +2236,7 @@ TEST_F(JniInternalTest, MonitorExitNotAllUnlocked) {
 
 static bool IsLocked(JNIEnv* env, jobject jobj) {
   ScopedObjectAccess soa(env);
-  LockWord lock_word = soa.Decode<mirror::Object*>(jobj)->GetLockWord(true);
+  LockWord lock_word = soa.Decode<mirror::Object>(jobj)->GetLockWord(true);
   switch (lock_word.GetState()) {
     case LockWord::kHashCode:
     case LockWord::kUnlocked:

@@ -77,7 +77,7 @@
 #include "runtime.h"
 #include "runtime_options.h"
 #include "ScopedLocalRef.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "utils.h"
 #include "verifier/verifier_deps.h"
 #include "well_known_classes.h"
@@ -1567,7 +1567,7 @@ class Dex2Oat FINAL {
       ScopedObjectAccess soa(self);
       dex_caches_.push_back(soa.AddLocalReference<jobject>(
           class_linker->RegisterDexFile(*dex_file,
-                                        soa.Decode<mirror::ClassLoader*>(class_loader_))));
+                                        soa.Decode<mirror::ClassLoader>(class_loader_).Decode())));
     }
 
     return true;

@@ -26,7 +26,7 @@
 #include "base/value_object.h"
 #include "mutex-inl.h"
 #include "runtime.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 
 namespace art {

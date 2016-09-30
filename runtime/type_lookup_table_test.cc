@@ -19,7 +19,7 @@
 
 #include "common_runtime_test.h"
 #include "dex_file-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "type_lookup_table.h"
 #include "utf-inl.h"
 

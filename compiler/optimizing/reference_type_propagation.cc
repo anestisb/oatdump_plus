@@ -20,7 +20,7 @@
 #include "class_linker-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 

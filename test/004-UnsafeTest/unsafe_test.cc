@@ -20,20 +20,20 @@
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 
 extern "C" JNIEXPORT jint JNICALL Java_Main_vmArrayBaseOffset(JNIEnv* env, jclass, jobject classObj) {
   ScopedObjectAccess soa(env);
-  mirror::Class* klass = soa.Decode<mirror::Class*>(classObj);
+  ObjPtr<mirror::Class> klass = soa.Decode<mirror::Class>(classObj);
   return mirror::Array::DataOffset(
       Primitive::ComponentSize(klass->GetComponentType()->GetPrimitiveType())).Int32Value();
 }
 
 extern "C" JNIEXPORT jint JNICALL Java_Main_vmArrayIndexScale(JNIEnv* env, jclass, jobject classObj) {
   ScopedObjectAccess soa(env);
-  mirror::Class* klass = soa.Decode<mirror::Class*>(classObj);
+  ObjPtr<mirror::Class> klass = soa.Decode<mirror::Class>(classObj);
   return Primitive::ComponentSize(klass->GetComponentType()->GetPrimitiveType());
 }
 

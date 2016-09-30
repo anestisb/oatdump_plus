@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_OBJ_PTR_H_
 #define ART_RUNTIME_OBJ_PTR_H_
 
+#include <ostream>
+
 #include "base/mutex.h"  // For Locks::mutator_lock_.
 #include "globals.h"
 #include "mirror/object_reference.h"
@@ -45,10 +47,13 @@ class ObjPtr {
   ALWAYS_INLINE ObjPtr(Type* ptr) REQUIRES_SHARED(Locks::mutator_lock_)
       : reference_(Encode(static_cast<MirrorType*>(ptr))) {}
 
-  ALWAYS_INLINE ObjPtr(const ObjPtr& other) REQUIRES_SHARED(Locks::mutator_lock_) = default;
+  template <typename Type>
+  ALWAYS_INLINE ObjPtr(const ObjPtr<Type>& other) REQUIRES_SHARED(Locks::mutator_lock_)
+      : reference_(Encode(static_cast<MirrorType*>(other.Decode()))) {}
 
+  template <typename Type>
   ALWAYS_INLINE ObjPtr& operator=(const ObjPtr& other) {
-    reference_ = other.reference_;
+    reference_ = Encode(static_cast<MirrorType*>(other.Decode()));
     return *this;
   }
 
@@ -64,7 +69,6 @@ class ObjPtr {
   ALWAYS_INLINE MirrorType* operator->() const REQUIRES_SHARED(Locks::mutator_lock_) {
     return Decode();
   }
-
 
   ALWAYS_INLINE bool IsNull() const {
     return reference_ == 0;
@@ -104,6 +108,16 @@ class ObjPtr {
     return !IsNull();
   }
 
+  // Decode unchecked does not check that object pointer is valid. Do not use if you can avoid it.
+  ALWAYS_INLINE MirrorType* DecodeUnchecked() const REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (kPoison) {
+      return reinterpret_cast<MirrorType*>(
+          static_cast<uintptr_t>(static_cast<uint32_t>(reference_ << kObjectAlignmentShift)));
+    } else {
+      return reinterpret_cast<MirrorType*>(reference_);
+    }
+  }
+
  private:
   // Trim off high bits of thread local cookie.
   ALWAYS_INLINE static uintptr_t TrimCookie(uintptr_t cookie) {
@@ -112,16 +126,6 @@ class ObjPtr {
 
   ALWAYS_INLINE uintptr_t GetCookie() const {
     return reference_ >> kCookieShift;
-  }
-
-  // Decode makes sure that the object pointer is valid.
-  ALWAYS_INLINE MirrorType* DecodeUnchecked() const REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (kPoison) {
-      return reinterpret_cast<MirrorType*>(
-          static_cast<uintptr_t>(static_cast<uint32_t>(reference_ << kObjectAlignmentShift)));
-    } else {
-      return reinterpret_cast<MirrorType*>(reference_);
-    }
   }
 
   ALWAYS_INLINE static uintptr_t Encode(MirrorType* ptr) REQUIRES_SHARED(Locks::mutator_lock_);
@@ -133,6 +137,10 @@ template<class MirrorType, bool kPoison = kIsDebugBuild>
 static inline ObjPtr<MirrorType, kPoison> MakeObjPtr(MirrorType* ptr) {
   return ObjPtr<MirrorType, kPoison>(ptr);
 }
+
+template<class MirrorType, bool kPoison>
+ALWAYS_INLINE std::ostream& operator<<(std::ostream& os, ObjPtr<MirrorType, kPoison> ptr)
+    REQUIRES_SHARED(Locks::mutator_lock_);
 
 }  // namespace art
 

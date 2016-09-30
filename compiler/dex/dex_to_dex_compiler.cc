@@ -280,7 +280,7 @@ void DexCompiler::CompileInvokeVirtual(Instruction* inst, uint32_t dex_pc,
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
-      soa.Decode<mirror::ClassLoader*>(unit_.GetClassLoader())));
+      soa.Decode<mirror::ClassLoader>(unit_.GetClassLoader())));
 
   ClassLinker* class_linker = unit_.GetClassLinker();
   ArtMethod* resolved_method = class_linker->ResolveMethod<ClassLinker::kForceICCECheck>(

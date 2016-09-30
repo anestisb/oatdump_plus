@@ -36,7 +36,7 @@
 #include "nativeloader/native_loader.h"
 #include "runtime.h"
 #include "ScopedLocalRef.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread.h"
 
 extern "C" JNIEXPORT jint JNICALL Java_MyClassNatives_bar(JNIEnv*, jobject, jint count) {
@@ -238,7 +238,7 @@ class JniCompilerTest : public CommonCompilerTest {
     ScopedObjectAccess soa(Thread::Current());
     StackHandleScope<1> hs(soa.Self());
     Handle<mirror::ClassLoader> loader(
-        hs.NewHandle(soa.Decode<mirror::ClassLoader*>(class_loader)));
+        hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader)));
     // Compile the native method before starting the runtime
     mirror::Class* c = class_linker_->FindClass(soa.Self(), "LMyClassNatives;", loader);
     const auto pointer_size = class_linker_->GetImagePointerSize();
@@ -1140,8 +1140,8 @@ jint Java_MyClassNatives_nativeUpCall(JNIEnv* env, jobject thisObj, jint i) {
     // Build stack trace
     jobject internal = Thread::Current()->CreateInternalStackTrace<false>(soa);
     jobjectArray ste_array = Thread::InternalStackTraceToStackTraceElementArray(soa, internal);
-    mirror::ObjectArray<mirror::StackTraceElement>* trace_array =
-        soa.Decode<mirror::ObjectArray<mirror::StackTraceElement>*>(ste_array);
+    ObjPtr<mirror::ObjectArray<mirror::StackTraceElement>> trace_array =
+        soa.Decode<mirror::ObjectArray<mirror::StackTraceElement>>(ste_array);
     EXPECT_TRUE(trace_array != nullptr);
     EXPECT_EQ(11, trace_array->GetLength());
 
@@ -1205,7 +1205,7 @@ jint local_ref_test(JNIEnv* env, jobject thisObj, jint x) {
   // Add 10 local references
   ScopedObjectAccess soa(env);
   for (int i = 0; i < 10; i++) {
-    soa.AddLocalReference<jobject>(soa.Decode<mirror::Object*>(thisObj));
+    soa.AddLocalReference<jobject>(soa.Decode<mirror::Object>(thisObj));
   }
   return x+1;
 }
@@ -1283,7 +1283,7 @@ jarray Java_MyClassNatives_GetSinkProperties(JNIEnv*, jobject thisObj, jstring s
 
   Thread* self = Thread::Current();
   ScopedObjectAccess soa(self);
-  EXPECT_TRUE(self->HoldsLock(soa.Decode<mirror::Object*>(thisObj)));
+  EXPECT_TRUE(self->HoldsLock(soa.Decode<mirror::Object>(thisObj).Decode()));
   return nullptr;
 }
 

@@ -26,7 +26,7 @@
 #include "handle_scope-inl.h"
 #include "heap.h"
 #include "mirror/string.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread_list.h"
 
 namespace art {

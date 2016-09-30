@@ -46,7 +46,7 @@
 #include "reg_type-inl.h"
 #include "register_line-inl.h"
 #include "runtime.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "utils.h"
 #include "verifier_deps.h"
 #include "handle_scope-inl.h"

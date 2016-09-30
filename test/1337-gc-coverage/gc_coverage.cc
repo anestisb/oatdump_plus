@@ -17,7 +17,7 @@
 #include "gc/heap.h"
 #include "jni.h"
 #include "runtime.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 
 namespace art {
@@ -43,7 +43,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_decrementDisableMovingGC(JNIEnv*, jc
 
 extern "C" JNIEXPORT jlong JNICALL Java_Main_objectAddress(JNIEnv* env, jclass, jobject object) {
   ScopedObjectAccess soa(env);
-  return reinterpret_cast<jlong>(soa.Decode<mirror::Object*>(object));
+  return reinterpret_cast<jlong>(soa.Decode<mirror::Object>(object).Decode());
 }
 
 extern "C" JNIEXPORT jboolean JNICALL Java_Main_supportCollectorTransition(JNIEnv*, jclass) {

@@ -26,7 +26,7 @@
 #include "invoke_type.h"
 #include "mirror/object-inl.h"
 #include "oat.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 

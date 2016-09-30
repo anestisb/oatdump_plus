@@ -20,7 +20,7 @@
 #include "dex_instruction.h"
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread.h"
 
 namespace art {

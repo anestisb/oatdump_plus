@@ -22,8 +22,8 @@
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"
-#include "scoped_fast_native_object_access.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_fast_native_object_access-inl.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread_list.h"
 
 namespace art {
@@ -31,7 +31,7 @@ namespace art {
 static jobject GetThreadStack(const ScopedFastNativeObjectAccess& soa, jobject peer)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   jobject trace = nullptr;
-  if (soa.Decode<mirror::Object*>(peer) == soa.Self()->GetPeer()) {
+  if (soa.Decode<mirror::Object>(peer) == soa.Self()->GetPeer()) {
     trace = soa.Self()->CreateInternalStackTrace<false>(soa);
   } else {
     // Suspend thread to build stack trace.
