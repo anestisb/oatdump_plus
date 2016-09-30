@@ -44,10 +44,7 @@ inline mirror::String* DexCache::GetResolvedString(uint32_t string_idx) {
 }
 
 inline void DexCache::SetResolvedString(uint32_t string_idx, mirror::String* resolved) {
-  DCHECK_LT(string_idx % NumStrings(), NumStrings());
-  GetStrings()[string_idx % NumStrings()].store(
-      StringDexCachePair(resolved, string_idx),
-      std::memory_order_relaxed);
+  StringDexCachePair::Assign(GetStrings(), string_idx, resolved, NumStrings());
   Runtime* const runtime = Runtime::Current();
   if (UNLIKELY(runtime->IsActiveTransaction())) {
     DCHECK(runtime->IsAotCompiler());
@@ -94,9 +91,8 @@ inline void DexCache::SetResolvedMethodType(uint32_t proto_idx, MethodType* reso
   DCHECK(Runtime::Current()->IsMethodHandlesEnabled());
   DCHECK_LT(proto_idx, NumResolvedMethodTypes());  // NOTE: Unchecked, i.e. not throwing AIOOB.
 
-  GetResolvedMethodTypes()[proto_idx % NumResolvedMethodTypes()].store(
-      MethodTypeDexCachePair(resolved, proto_idx), std::memory_order_relaxed);
-
+  MethodTypeDexCachePair::Assign(GetResolvedMethodTypes(), proto_idx, resolved,
+                                 NumResolvedMethodTypes());
   // TODO: Fine-grained marking, so that we don't need to go through all arrays in full.
   Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(this);
 }
