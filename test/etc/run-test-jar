@@ -404,6 +404,24 @@ if [ "$HOST" = "n" ]; then
   fi
 fi
 
+# Prevent test from silently falling back to interpreter in no-prebuild mode. This happens
+# when DEX_LOCATION path is too long, because vdex/odex filename is constructed by taking
+# full path to dex, stripping leading '/', appending '@classes.vdex' and changing every
+# remaining '/' into '@'.
+if [ "$HOST" = "y" ]; then
+  max_filename_size=$(getconf NAME_MAX $DEX_LOCATION)
+else
+  # There is no getconf on device, fallback to standard value. See NAME_MAX in kernel <linux/limits.h>
+  max_filename_size=255
+fi
+# Compute VDEX_NAME.
+DEX_LOCATION_STRIPPED="${DEX_LOCATION#/}"
+VDEX_NAME="${DEX_LOCATION_STRIPPED//\//@}@$TEST_NAME.jar@classes.vdex"
+if [ ${#VDEX_NAME} -gt $max_filename_size ]; then
+    echo  "Dex location path too long."
+    exit 1
+fi
+
 dex2oat_cmdline="true"
 mkdir_locations="${DEX_LOCATION}/dalvik-cache/$ISA"
 strip_cmdline="true"
