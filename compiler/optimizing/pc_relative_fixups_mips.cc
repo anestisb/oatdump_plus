@@ -83,7 +83,6 @@ class PCRelativeHandlerVisitor : public HGraphVisitor {
       case HLoadString::LoadKind::kBootImageLinkTimeAddress:
       case HLoadString::LoadKind::kBootImageAddress:
       case HLoadString::LoadKind::kBootImageLinkTimePcRelative:
-      case HLoadString::LoadKind::kBssEntry:
         // Add a base register for PC-relative literals on R2.
         InitializePCRelativeBasePointer();
         load_string->AddSpecialInput(base_);
