@@ -1308,8 +1308,8 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
           mirror::StringDexCacheType* const strings =
               reinterpret_cast<mirror::StringDexCacheType*>(raw_arrays + layout.StringsOffset());
           for (size_t j = 0; j < num_strings; ++j) {
-            DCHECK_EQ(strings[j].load(std::memory_order_relaxed).string_index, 0u);
-            DCHECK(strings[j].load(std::memory_order_relaxed).string_pointer.IsNull());
+            DCHECK_EQ(strings[j].load(std::memory_order_relaxed).index, 0u);
+            DCHECK(strings[j].load(std::memory_order_relaxed).object.IsNull());
             strings[j].store(image_resolved_strings[j].load(std::memory_order_relaxed),
                              std::memory_order_relaxed);
           }
@@ -2127,8 +2127,8 @@ mirror::DexCache* ClassLinker::AllocDexCache(Thread* self,
   if (kIsDebugBuild) {
     // Sanity check to make sure all the dex cache arrays are empty. b/28992179
     for (size_t i = 0; i < num_strings; ++i) {
-      CHECK_EQ(strings[i].load(std::memory_order_relaxed).string_index, 0u);
-      CHECK(strings[i].load(std::memory_order_relaxed).string_pointer.IsNull());
+      CHECK_EQ(strings[i].load(std::memory_order_relaxed).index, 0u);
+      CHECK(strings[i].load(std::memory_order_relaxed).object.IsNull());
     }
     for (size_t i = 0; i < dex_file.NumTypeIds(); ++i) {
       CHECK(types[i].Read<kWithoutReadBarrier>() == nullptr);

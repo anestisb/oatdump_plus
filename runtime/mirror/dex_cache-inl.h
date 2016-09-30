@@ -39,7 +39,7 @@ inline uint32_t DexCache::ClassSize(PointerSize pointer_size) {
 
 inline mirror::String* DexCache::GetResolvedString(uint32_t string_idx) {
   DCHECK_LT(string_idx, GetDexFile()->NumStringIds());
-  return StringDexCachePair::LookupString(GetStrings(), string_idx, NumStrings()).Read();
+  return StringDexCachePair::Lookup(GetStrings(), string_idx, NumStrings()).Read();
 }
 
 inline void DexCache::SetResolvedString(uint32_t string_idx, mirror::String* resolved) {
@@ -61,10 +61,10 @@ inline void DexCache::ClearString(uint32_t string_idx) {
   DCHECK(Runtime::Current()->IsAotCompiler());
   StringDexCacheType* slot = &GetStrings()[slot_idx];
   // This is racy but should only be called from the transactional interpreter.
-  if (slot->load(std::memory_order_relaxed).string_index == string_idx) {
+  if (slot->load(std::memory_order_relaxed).index == string_idx) {
     StringDexCachePair cleared(
         nullptr,
-        StringDexCachePair::InvalidStringIndexForSlot(slot_idx));
+        StringDexCachePair::InvalidIndexForSlot(slot_idx));
     slot->store(cleared, std::memory_order_relaxed);
   }
 }
@@ -155,11 +155,11 @@ inline void DexCache::VisitReferences(mirror::Class* klass, const Visitor& visit
     mirror::StringDexCacheType* strings = GetStrings();
     for (size_t i = 0, num_strings = NumStrings(); i != num_strings; ++i) {
       StringDexCachePair source = strings[i].load(std::memory_order_relaxed);
-      mirror::String* before = source.string_pointer.Read<kReadBarrierOption>();
+      mirror::String* before = source.object.Read<kReadBarrierOption>();
       GcRoot<mirror::String> root(before);
       visitor.VisitRootIfNonNull(root.AddressWithoutBarrier());
       if (root.Read() != before) {
-        source.string_pointer = GcRoot<String>(root.Read());
+        source.object = GcRoot<String>(root.Read());
         strings[i].store(source, std::memory_order_relaxed);
       }
     }
@@ -175,9 +175,9 @@ inline void DexCache::FixupStrings(mirror::StringDexCacheType* dest, const Visit
   mirror::StringDexCacheType* src = GetStrings();
   for (size_t i = 0, count = NumStrings(); i < count; ++i) {
     StringDexCachePair source = src[i].load(std::memory_order_relaxed);
-    mirror::String* ptr = source.string_pointer.Read<kReadBarrierOption>();
+    mirror::String* ptr = source.object.Read<kReadBarrierOption>();
     mirror::String* new_source = visitor(ptr);
-    source.string_pointer = GcRoot<String>(new_source);
+    source.object = GcRoot<String>(new_source);
     dest[i].store(source, std::memory_order_relaxed);
   }
 }
