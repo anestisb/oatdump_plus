@@ -474,6 +474,7 @@ class CodeGeneratorX86 : public CodeGenerator {
 
   // Compare int values. Supports only register locations for `lhs`.
   void GenerateIntCompare(Location lhs, Location rhs);
+  void GenerateIntCompare(Register lhs, Location rhs);
 
   // Construct address for array access.
   static Address ArrayAddress(Register obj,
