@@ -523,8 +523,6 @@ class Dex2Oat FINAL {
       compiled_methods_zip_filename_(nullptr),
       compiled_methods_filename_(nullptr),
       passes_to_run_filename_(nullptr),
-      app_image_(false),
-      boot_image_(false),
       multi_image_(false),
       is_host_(false),
       class_loader_(nullptr),
@@ -691,8 +689,8 @@ class Dex2Oat FINAL {
   }
 
   void ProcessOptions(ParserOptions* parser_options) {
-    boot_image_ = !image_filenames_.empty();
-    app_image_ = app_image_fd_ != -1 || !app_image_file_name_.empty();
+    compiler_options_->boot_image_ = !image_filenames_.empty();
+    compiler_options_->app_image_ = app_image_fd_ != -1 || !app_image_file_name_.empty();
 
     if (IsAppImage() && IsBootImage()) {
       Usage("Can't have both --image and (--app-image-fd or --app-image-file)");
@@ -744,7 +742,7 @@ class Dex2Oat FINAL {
       android_root_ += android_root_env_var;
     }
 
-    if (!boot_image_ && parser_options->boot_image_filename.empty()) {
+    if (!IsBootImage() && parser_options->boot_image_filename.empty()) {
       parser_options->boot_image_filename += android_root_;
       parser_options->boot_image_filename += "/framework/boot.art";
     }
@@ -1325,7 +1323,7 @@ class Dex2Oat FINAL {
   }
 
   void LoadClassProfileDescriptors() {
-    if (profile_compilation_info_ != nullptr && app_image_) {
+    if (profile_compilation_info_ != nullptr && IsAppImage()) {
       Runtime* runtime = Runtime::Current();
       CHECK(runtime != nullptr);
       std::set<DexCacheResolvedClasses> resolved_classes(
@@ -1632,8 +1630,6 @@ class Dex2Oat FINAL {
                                      compiler_kind_,
                                      instruction_set_,
                                      instruction_set_features_.get(),
-                                     IsBootImage(),
-                                     IsAppImage(),
                                      image_classes_.release(),
                                      compiled_classes_.release(),
                                      compiled_methods_.release(),
@@ -1724,7 +1720,7 @@ class Dex2Oat FINAL {
     }
 
     if (IsImage()) {
-      if (app_image_ && image_base_ == 0) {
+      if (IsAppImage() && image_base_ == 0) {
         gc::Heap* const heap = Runtime::Current()->GetHeap();
         for (gc::space::ImageSpace* image_space : heap->GetBootImageSpaces()) {
           image_base_ = std::max(image_base_, RoundUp(
@@ -1792,7 +1788,10 @@ class Dex2Oat FINAL {
 
         size_t rodata_size = oat_writer->GetOatHeader().GetExecutableOffset();
         size_t text_size = oat_writer->GetOatSize() - rodata_size;
-        elf_writer->SetLoadedSectionSizes(rodata_size, text_size, oat_writer->GetBssSize());
+        elf_writer->PrepareDynamicSection(rodata_size,
+                                          text_size,
+                                          oat_writer->GetBssSize(),
+                                          oat_writer->GetBssRootsOffset());
 
         if (IsImage()) {
           // Update oat layout.
@@ -1975,11 +1974,11 @@ class Dex2Oat FINAL {
   }
 
   bool IsAppImage() const {
-    return app_image_;
+    return compiler_options_->IsAppImage();
   }
 
   bool IsBootImage() const {
-    return boot_image_;
+    return compiler_options_->IsBootImage();
   }
 
   bool IsHost() const {
@@ -2573,8 +2572,6 @@ class Dex2Oat FINAL {
   std::unique_ptr<std::unordered_set<std::string>> compiled_classes_;
   std::unique_ptr<std::unordered_set<std::string>> compiled_methods_;
   std::unique_ptr<std::vector<std::string>> passes_to_run_;
-  bool app_image_;
-  bool boot_image_;
   bool multi_image_;
   bool is_host_;
   std::string android_root_;

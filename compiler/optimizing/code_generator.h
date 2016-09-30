@@ -531,40 +531,15 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
   uint32_t GetReferenceDisableFlagOffset() const;
 
  protected:
-  // Method patch info used for recording locations of required linker patches and
-  // target methods. The target method can be used for various purposes, whether for
-  // patching the address of the method or the code pointer or a PC-relative call.
+  // Patch info used for recording locations of required linker patches and their targets,
+  // i.e. target method, string, type or code identified by their dex file and index.
   template <typename LabelType>
-  struct MethodPatchInfo {
-    explicit MethodPatchInfo(MethodReference m) : target_method(m), label() { }
-
-    MethodReference target_method;
-    LabelType label;
-  };
-
-  // String patch info used for recording locations of required linker patches and
-  // target strings. The actual string address can be absolute or PC-relative.
-  template <typename LabelType>
-  struct StringPatchInfo {
-    StringPatchInfo(const DexFile& df, uint32_t index)
-        : dex_file(df), string_index(index), label() { }
+  struct PatchInfo {
+    PatchInfo(const DexFile& target_dex_file, uint32_t target_index)
+        : dex_file(target_dex_file), index(target_index) { }
 
     const DexFile& dex_file;
-    uint32_t string_index;
-    LabelType label;
-  };
-
-  // Type patch info used for recording locations of required linker patches and
-  // target types. The actual type address can be absolute or PC-relative.
-  // TODO: Consider merging with MethodPatchInfo and StringPatchInfo - all these
-  // classes contain the dex file, some index and the label.
-  template <typename LabelType>
-  struct TypePatchInfo {
-    TypePatchInfo(const DexFile& df, uint32_t index)
-        : dex_file(df), type_index(index), label() { }
-
-    const DexFile& dex_file;
-    uint32_t type_index;
+    uint32_t index;
     LabelType label;
   };
 
