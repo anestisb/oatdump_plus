@@ -21,17 +21,14 @@
 #include "compiler_driver.h"
 #include "compiler_options.h"
 #include "dex/verification_results.h"
-#include "dex/quick/dex_file_to_method_inliner_map.h"
 
 namespace art {
 
 TEST(CompiledMethodStorage, Deduplicate) {
   CompilerOptions compiler_options;
   VerificationResults verification_results(&compiler_options);
-  DexFileToMethodInlinerMap method_inliner_map;
   CompilerDriver driver(&compiler_options,
                         &verification_results,
-                        &method_inliner_map,
                         Compiler::kOptimizing,
                         /* instruction_set_ */ kNone,
                         /* instruction_set_features */ nullptr,

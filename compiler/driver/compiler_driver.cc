@@ -44,9 +44,8 @@
 #include "dex/dex_to_dex_compiler.h"
 #include "dex/verification_results.h"
 #include "dex/verified_method.h"
-#include "dex/quick/dex_file_method_inliner.h"
-#include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "driver/compiler_options.h"
+#include "intrinsics_enum.h"
 #include "jni_internal.h"
 #include "object_lock.h"
 #include "runtime.h"
@@ -353,7 +352,6 @@ class CompilerDriver::DexFileMethodSet {
 CompilerDriver::CompilerDriver(
     const CompilerOptions* compiler_options,
     VerificationResults* verification_results,
-    DexFileToMethodInlinerMap* method_inliner_map,
     Compiler::Kind compiler_kind,
     InstructionSet instruction_set,
     const InstructionSetFeatures* instruction_set_features,
@@ -370,7 +368,6 @@ CompilerDriver::CompilerDriver(
     const ProfileCompilationInfo* profile_compilation_info)
     : compiler_options_(compiler_options),
       verification_results_(verification_results),
-      method_inliner_map_(method_inliner_map),
       compiler_(Compiler::Create(this, compiler_kind)),
       compiler_kind_(compiler_kind),
       instruction_set_(instruction_set == kArm ? kThumb2: instruction_set),
@@ -401,7 +398,6 @@ CompilerDriver::CompilerDriver(
       dex_to_dex_references_(),
       current_dex_to_dex_methods_(nullptr) {
   DCHECK(compiler_options_ != nullptr);
-  DCHECK(method_inliner_map_ != nullptr);
 
   compiler_->Init();
 
@@ -463,6 +459,29 @@ std::unique_ptr<const std::vector<uint8_t>> CompilerDriver::CreateQuickToInterpr
 }
 #undef CREATE_TRAMPOLINE
 
+static void SetupIntrinsic(Thread* self,
+                           Intrinsics intrinsic,
+                           InvokeType invoke_type,
+                           const char* class_name,
+                           const char* method_name,
+                           const char* signature)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  PointerSize image_size = class_linker->GetImagePointerSize();
+  mirror::Class* cls = class_linker->FindSystemClass(self, class_name);
+  if (cls == nullptr) {
+    LOG(FATAL) << "Could not find class of intrinsic " << class_name;
+  }
+  ArtMethod* method = (invoke_type == kStatic || invoke_type == kDirect)
+      ? cls->FindDeclaredDirectMethod(method_name, signature, image_size)
+      : cls->FindDeclaredVirtualMethod(method_name, signature, image_size);
+  if (method == nullptr) {
+    LOG(FATAL) << "Could not find method of intrinsic " << class_name << method_name << signature;
+  }
+  DCHECK_EQ(method->GetInvokeType(), invoke_type);
+  method->SetIntrinsic(static_cast<uint32_t>(intrinsic));
+}
+
 void CompilerDriver::CompileAll(jobject class_loader,
                                 const std::vector<const DexFile*>& dex_files,
                                 TimingLogger* timings) {
@@ -477,6 +496,17 @@ void CompilerDriver::CompileAll(jobject class_loader,
   // 3) Attempt to verify all classes
   // 4) Attempt to initialize image classes, and trivially initialized classes
   PreCompile(class_loader, dex_files, timings);
+  if (IsBootImage()) {
+    // We don't need to setup the intrinsics for non boot image compilation, as
+    // those compilations will pick up a boot image that have the ArtMethod already
+    // set with the intrinsics flag.
+    ScopedObjectAccess soa(Thread::Current());
+#define OPTIMIZING_INTRINSICS(Name, InvokeType, NeedsEnvironmentOrCache, SideEffects, Exceptions, ClassName, MethodName, Signature) \
+  SetupIntrinsic(soa.Self(), Intrinsics::k##Name, InvokeType, ClassName, MethodName, Signature);
+#include "intrinsics_list.h"
+INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
+#undef INTRINSICS_LIST
+  }
   // Compile:
   // 1) Compile all classes and methods enabled for compilation. May fall back to dex-to-dex
   //    compilation.

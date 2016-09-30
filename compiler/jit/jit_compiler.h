@@ -19,7 +19,6 @@
 
 #include "base/mutex.h"
 #include "compiled_method.h"
-#include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
 
@@ -49,7 +48,6 @@ class JitCompiler {
  private:
   std::unique_ptr<CompilerOptions> compiler_options_;
   std::unique_ptr<CumulativeLogger> cumulative_logger_;
-  std::unique_ptr<DexFileToMethodInlinerMap> method_inliner_map_;
   std::unique_ptr<CompilerDriver> compiler_driver_;
   std::unique_ptr<const InstructionSetFeatures> instruction_set_features_;
   std::unique_ptr<File> perf_file_;
