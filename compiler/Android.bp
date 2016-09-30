@@ -31,8 +31,6 @@ art_cc_defaults {
         "dex/verified_method.cc",
         "dex/verification_results.cc",
         "dex/quick_compiler_callbacks.cc",
-        "dex/quick/dex_file_method_inliner.cc",
-        "dex/quick/dex_file_to_method_inliner_map.cc",
         "driver/compiled_method_storage.cc",
         "driver/compiler_driver.cc",
         "driver/compiler_options.cc",

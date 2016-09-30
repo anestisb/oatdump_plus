@@ -78,7 +78,6 @@ enum LockLevel {
   kAllocSpaceLock,
   kBumpPointerSpaceBlockLock,
   kArenaPoolLock,
-  kDexFileMethodInlinerLock,
   kDexFileToMethodInlinerMapLock,
   kInternTableLock,
   kOatFileSecondaryLookupLock,

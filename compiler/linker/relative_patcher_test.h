@@ -22,7 +22,6 @@
 #include "base/array_ref.h"
 #include "base/macros.h"
 #include "compiled_method.h"
-#include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/verification_results.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
@@ -43,10 +42,8 @@ class RelativePatcherTest : public testing::Test {
   RelativePatcherTest(InstructionSet instruction_set, const std::string& variant)
       : compiler_options_(),
         verification_results_(&compiler_options_),
-        inliner_map_(),
         driver_(&compiler_options_,
                 &verification_results_,
-                &inliner_map_,
                 Compiler::kQuick,
                 instruction_set,
                 /* instruction_set_features*/ nullptr,
@@ -269,7 +266,6 @@ class RelativePatcherTest : public testing::Test {
 
   CompilerOptions compiler_options_;
   VerificationResults verification_results_;
-  DexFileToMethodInlinerMap inliner_map_;
   CompilerDriver driver_;  // Needed for constructing CompiledMethod.
   std::string error_msg_;
   InstructionSet instruction_set_;
