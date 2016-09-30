@@ -92,7 +92,7 @@ class PCRelativeHandlerVisitor : public HGraphVisitor {
   void VisitLoadString(HLoadString* load_string) OVERRIDE {
     HLoadString::LoadKind load_kind = load_string->GetLoadKind();
     if (load_kind == HLoadString::LoadKind::kBootImageLinkTimePcRelative ||
-        load_kind == HLoadString::LoadKind::kBssEntry) {
+        load_kind == HLoadString::LoadKind::kDexCachePcRelative) {
       InitializePCRelativeBasePointer();
       load_string->AddSpecialInput(base_);
     }

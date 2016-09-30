@@ -262,6 +262,12 @@ class Address : public ValueObject {
     CHECK_NE(rm, PC);
   }
 
+  // LDR(literal) - pc relative load.
+  explicit Address(int32_t offset) :
+               rn_(PC), rm_(R0), offset_(offset),
+               am_(Offset), is_immed_offset_(false), shift_(LSL) {
+  }
+
   static bool CanHoldLoadOffsetArm(LoadOperandType type, int offset);
   static bool CanHoldStoreOffsetArm(StoreOperandType type, int offset);
 

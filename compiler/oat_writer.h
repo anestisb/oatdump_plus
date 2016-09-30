@@ -30,7 +30,6 @@
 #include "oat.h"
 #include "os.h"
 #include "safe_map.h"
-#include "string_reference.h"
 
 namespace art {
 
@@ -195,10 +194,6 @@ class OatWriter {
     return bss_size_;
   }
 
-  size_t GetBssRootsOffset() const {
-    return bss_roots_offset_;
-  }
-
   size_t GetOatDataOffset() const {
     return oat_data_offset_;
   }
@@ -270,7 +265,6 @@ class OatWriter {
   size_t InitOatMaps(size_t offset);
   size_t InitOatCode(size_t offset);
   size_t InitOatCodeDexFiles(size_t offset);
-  void InitBssLayout(InstructionSet instruction_set);
 
   bool WriteClassOffsets(OutputStream* out);
   bool WriteClasses(OutputStream* out);
@@ -328,19 +322,8 @@ class OatWriter {
   // Size required for Oat data structures.
   size_t oat_size_;
 
-  // The start of the required .bss section.
-  size_t bss_start_;
-
-  // The size of the required .bss section holding the DexCache data and GC roots.
+  // The size of the required .bss section holding the DexCache data.
   size_t bss_size_;
-
-  // The offset of the GC roots in .bss section.
-  size_t bss_roots_offset_;
-
-  // Map for allocating String entries in .bss. Indexed by StringReference for the source
-  // string in the dex file with the "string value comparator" for deduplication. The value
-  // is the target offset for patching, starting at `bss_start_ + bss_roots_offset_`.
-  SafeMap<StringReference, size_t, StringReferenceValueComparator> bss_string_entries_;
 
   // Offsets of the dex cache arrays for each app dex file. For the
   // boot image, this information is provided by the ImageWriter.

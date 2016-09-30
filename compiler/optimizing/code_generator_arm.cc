@@ -422,50 +422,6 @@ class LoadClassSlowPathARM : public SlowPathCodeARM {
   DISALLOW_COPY_AND_ASSIGN(LoadClassSlowPathARM);
 };
 
-class LoadStringSlowPathARM : public SlowPathCodeARM {
- public:
-  explicit LoadStringSlowPathARM(HLoadString* instruction) : SlowPathCodeARM(instruction) {}
-
-  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
-    LocationSummary* locations = instruction_->GetLocations();
-    DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
-
-    CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
-    __ Bind(GetEntryLabel());
-    SaveLiveRegisters(codegen, locations);
-
-    InvokeRuntimeCallingConvention calling_convention;
-    HLoadString* load = instruction_->AsLoadString();
-    const uint32_t string_index = load->GetStringIndex();
-    __ LoadImmediate(calling_convention.GetRegisterAt(0), string_index);
-    arm_codegen->InvokeRuntime(kQuickResolveString, instruction_, instruction_->GetDexPc(), this);
-    CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
-    arm_codegen->Move32(locations->Out(), Location::RegisterLocation(R0));
-
-    RestoreLiveRegisters(codegen, locations);
-
-    // Store the resolved String to the BSS entry.
-    // TODO: Change art_quick_resolve_string to kSaveEverything and use a temporary for the
-    // .bss entry address in the fast path, so that we can avoid another calculation here.
-    CodeGeneratorARM::PcRelativePatchInfo* labels =
-        arm_codegen->NewPcRelativeStringPatch(load->GetDexFile(), string_index);
-    __ BindTrackedLabel(&labels->movw_label);
-    __ movw(IP, /* placeholder */ 0u);
-    __ BindTrackedLabel(&labels->movt_label);
-    __ movt(IP, /* placeholder */ 0u);
-    __ BindTrackedLabel(&labels->add_pc_label);
-    __ add(IP, IP, ShifterOperand(PC));
-    __ str(locations->Out().AsRegister<Register>(), Address(IP));
-
-    __ b(GetExitLabel());
-  }
-
-  const char* GetDescription() const OVERRIDE { return "LoadStringSlowPathARM"; }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(LoadStringSlowPathARM);
-};
-
 class TypeCheckSlowPathARM : public SlowPathCodeARM {
  public:
   TypeCheckSlowPathARM(HInstruction* instruction, bool is_fatal)
@@ -5639,8 +5595,15 @@ HLoadString::LoadKind CodeGeneratorARM::GetSupportedLoadStringKind(
     case HLoadString::LoadKind::kDexCacheAddress:
       DCHECK(Runtime::Current()->UseJitCompilation());
       break;
-    case HLoadString::LoadKind::kBssEntry:
+    case HLoadString::LoadKind::kDexCachePcRelative:
       DCHECK(!Runtime::Current()->UseJitCompilation());
+      // We disable pc-relative load when there is an irreducible loop, as the optimization
+      // is incompatible with it.
+      // TODO: Create as many ArmDexCacheArraysBase instructions as needed for methods
+      // with irreducible loops.
+      if (GetGraph()->HasIrreducibleLoops()) {
+        return HLoadString::LoadKind::kDexCacheViaMethod;
+      }
       break;
     case HLoadString::LoadKind::kDexCacheViaMethod:
       break;
@@ -5650,13 +5613,12 @@ HLoadString::LoadKind CodeGeneratorARM::GetSupportedLoadStringKind(
 
 void LocationsBuilderARM::VisitLoadString(HLoadString* load) {
   LocationSummary::CallKind call_kind = load->NeedsEnvironment()
-      ? ((load->GetLoadKind() == HLoadString::LoadKind::kDexCacheViaMethod)
-          ? LocationSummary::kCallOnMainOnly
-          : LocationSummary::kCallOnSlowPath)
+      ? LocationSummary::kCallOnMainOnly
       : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load, call_kind);
 
   HLoadString::LoadKind load_kind = load->GetLoadKind();
+  DCHECK(load_kind != HLoadString::LoadKind::kDexCachePcRelative) << "Not supported";
   if (load_kind == HLoadString::LoadKind::kDexCacheViaMethod) {
     locations->SetInAt(0, Location::RequiresRegister());
     locations->SetOut(Location::RegisterLocation(R0));
@@ -5678,7 +5640,6 @@ void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) {
       return;  // No dex cache slow path.
     }
     case HLoadString::LoadKind::kBootImageLinkTimePcRelative: {
-      DCHECK(codegen_->GetCompilerOptions().IsBootImage());
       CodeGeneratorARM::PcRelativePatchInfo* labels =
           codegen_->NewPcRelativeStringPatch(load->GetDexFile(), load->GetStringIndex());
       __ BindTrackedLabel(&labels->movw_label);
@@ -5694,23 +5655,6 @@ void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) {
       uint32_t address = dchecked_integral_cast<uint32_t>(load->GetAddress());
       __ LoadLiteral(out, codegen_->DeduplicateBootImageAddressLiteral(address));
       return;  // No dex cache slow path.
-    }
-    case HLoadString::LoadKind::kBssEntry: {
-      DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
-      CodeGeneratorARM::PcRelativePatchInfo* labels =
-          codegen_->NewPcRelativeStringPatch(load->GetDexFile(), load->GetStringIndex());
-      __ BindTrackedLabel(&labels->movw_label);
-      __ movw(out, /* placeholder */ 0u);
-      __ BindTrackedLabel(&labels->movt_label);
-      __ movt(out, /* placeholder */ 0u);
-      __ BindTrackedLabel(&labels->add_pc_label);
-      __ add(out, out, ShifterOperand(PC));
-      GenerateGcRootFieldLoad(load, out_loc, out, 0);
-      SlowPathCode* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathARM(load);
-      codegen_->AddSlowPath(slow_path);
-      __ CompareAndBranchIfZero(out, slow_path->GetEntryLabel());
-      __ Bind(slow_path->GetExitLabel());
-      return;
     }
     default:
       break;
@@ -6860,8 +6804,7 @@ void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
       __ bl(GetFrameEntryLabel());
       break;
     case HInvokeStaticOrDirect::CodePtrLocation::kCallPCRelative:
-      relative_call_patches_.emplace_back(*invoke->GetTargetMethod().dex_file,
-                                          invoke->GetTargetMethod().dex_method_index);
+      relative_call_patches_.emplace_back(invoke->GetTargetMethod());
       __ BindTrackedLabel(&relative_call_patches_.back().label);
       // Arbitrarily branch to the BL itself, override at link time.
       __ bl(&relative_call_patches_.back().label);
@@ -6963,37 +6906,17 @@ Literal* CodeGeneratorARM::DeduplicateDexCacheAddressLiteral(uint32_t address) {
   return DeduplicateUint32Literal(address, &uint32_literals_);
 }
 
-template <LinkerPatch (*Factory)(size_t, const DexFile*, uint32_t, uint32_t)>
-inline void CodeGeneratorARM::EmitPcRelativeLinkerPatches(
-    const ArenaDeque<PcRelativePatchInfo>& infos,
-    ArenaVector<LinkerPatch>* linker_patches) {
-  for (const PcRelativePatchInfo& info : infos) {
-    const DexFile& dex_file = info.target_dex_file;
-    size_t offset_or_index = info.offset_or_index;
-    DCHECK(info.add_pc_label.IsBound());
-    uint32_t add_pc_offset = dchecked_integral_cast<uint32_t>(info.add_pc_label.Position());
-    // Add MOVW patch.
-    DCHECK(info.movw_label.IsBound());
-    uint32_t movw_offset = dchecked_integral_cast<uint32_t>(info.movw_label.Position());
-    linker_patches->push_back(Factory(movw_offset, &dex_file, add_pc_offset, offset_or_index));
-    // Add MOVT patch.
-    DCHECK(info.movt_label.IsBound());
-    uint32_t movt_offset = dchecked_integral_cast<uint32_t>(info.movt_label.Position());
-    linker_patches->push_back(Factory(movt_offset, &dex_file, add_pc_offset, offset_or_index));
-  }
-}
-
 void CodeGeneratorARM::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) {
   DCHECK(linker_patches->empty());
   size_t size =
       method_patches_.size() +
       call_patches_.size() +
       relative_call_patches_.size() +
-      /* MOVW+MOVT for each entry */ 2u * pc_relative_dex_cache_patches_.size() +
+      /* MOVW+MOVT for each base */ 2u * pc_relative_dex_cache_patches_.size() +
       boot_image_string_patches_.size() +
-      /* MOVW+MOVT for each entry */ 2u * pc_relative_string_patches_.size() +
+      /* MOVW+MOVT for each base */ 2u * pc_relative_string_patches_.size() +
       boot_image_type_patches_.size() +
-      /* MOVW+MOVT for each entry */ 2u * pc_relative_type_patches_.size() +
+      /* MOVW+MOVT for each base */ 2u * pc_relative_type_patches_.size() +
       boot_image_address_patches_.size();
   linker_patches->reserve(size);
   for (const auto& entry : method_patches_) {
@@ -7014,13 +6937,32 @@ void CodeGeneratorARM::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patche
                                                      target_method.dex_file,
                                                      target_method.dex_method_index));
   }
-  for (const PatchInfo<Label>& info : relative_call_patches_) {
+  for (const MethodPatchInfo<Label>& info : relative_call_patches_) {
     uint32_t literal_offset = info.label.Position();
-    linker_patches->push_back(
-        LinkerPatch::RelativeCodePatch(literal_offset, &info.dex_file, info.index));
+    linker_patches->push_back(LinkerPatch::RelativeCodePatch(literal_offset,
+                                                             info.target_method.dex_file,
+                                                             info.target_method.dex_method_index));
   }
-  EmitPcRelativeLinkerPatches<LinkerPatch::DexCacheArrayPatch>(pc_relative_dex_cache_patches_,
-                                                               linker_patches);
+  for (const PcRelativePatchInfo& info : pc_relative_dex_cache_patches_) {
+    const DexFile& dex_file = info.target_dex_file;
+    size_t base_element_offset = info.offset_or_index;
+    DCHECK(info.add_pc_label.IsBound());
+    uint32_t add_pc_offset = dchecked_integral_cast<uint32_t>(info.add_pc_label.Position());
+    // Add MOVW patch.
+    DCHECK(info.movw_label.IsBound());
+    uint32_t movw_offset = dchecked_integral_cast<uint32_t>(info.movw_label.Position());
+    linker_patches->push_back(LinkerPatch::DexCacheArrayPatch(movw_offset,
+                                                              &dex_file,
+                                                              add_pc_offset,
+                                                              base_element_offset));
+    // Add MOVT patch.
+    DCHECK(info.movt_label.IsBound());
+    uint32_t movt_offset = dchecked_integral_cast<uint32_t>(info.movt_label.Position());
+    linker_patches->push_back(LinkerPatch::DexCacheArrayPatch(movt_offset,
+                                                              &dex_file,
+                                                              add_pc_offset,
+                                                              base_element_offset));
+  }
   for (const auto& entry : boot_image_string_patches_) {
     const StringReference& target_string = entry.first;
     Literal* literal = entry.second;
@@ -7030,12 +6972,25 @@ void CodeGeneratorARM::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patche
                                                        target_string.dex_file,
                                                        target_string.string_index));
   }
-  if (!GetCompilerOptions().IsBootImage()) {
-    EmitPcRelativeLinkerPatches<LinkerPatch::StringBssEntryPatch>(pc_relative_string_patches_,
-                                                                  linker_patches);
-  } else {
-    EmitPcRelativeLinkerPatches<LinkerPatch::RelativeStringPatch>(pc_relative_string_patches_,
-                                                                  linker_patches);
+  for (const PcRelativePatchInfo& info : pc_relative_string_patches_) {
+    const DexFile& dex_file = info.target_dex_file;
+    uint32_t string_index = info.offset_or_index;
+    DCHECK(info.add_pc_label.IsBound());
+    uint32_t add_pc_offset = dchecked_integral_cast<uint32_t>(info.add_pc_label.Position());
+    // Add MOVW patch.
+    DCHECK(info.movw_label.IsBound());
+    uint32_t movw_offset = dchecked_integral_cast<uint32_t>(info.movw_label.Position());
+    linker_patches->push_back(LinkerPatch::RelativeStringPatch(movw_offset,
+                                                               &dex_file,
+                                                               add_pc_offset,
+                                                               string_index));
+    // Add MOVT patch.
+    DCHECK(info.movt_label.IsBound());
+    uint32_t movt_offset = dchecked_integral_cast<uint32_t>(info.movt_label.Position());
+    linker_patches->push_back(LinkerPatch::RelativeStringPatch(movt_offset,
+                                                               &dex_file,
+                                                               add_pc_offset,
+                                                               string_index));
   }
   for (const auto& entry : boot_image_type_patches_) {
     const TypeReference& target_type = entry.first;
@@ -7046,8 +7001,26 @@ void CodeGeneratorARM::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patche
                                                      target_type.dex_file,
                                                      target_type.type_index));
   }
-  EmitPcRelativeLinkerPatches<LinkerPatch::RelativeTypePatch>(pc_relative_type_patches_,
-                                                              linker_patches);
+  for (const PcRelativePatchInfo& info : pc_relative_type_patches_) {
+    const DexFile& dex_file = info.target_dex_file;
+    uint32_t type_index = info.offset_or_index;
+    DCHECK(info.add_pc_label.IsBound());
+    uint32_t add_pc_offset = dchecked_integral_cast<uint32_t>(info.add_pc_label.Position());
+    // Add MOVW patch.
+    DCHECK(info.movw_label.IsBound());
+    uint32_t movw_offset = dchecked_integral_cast<uint32_t>(info.movw_label.Position());
+    linker_patches->push_back(LinkerPatch::RelativeTypePatch(movw_offset,
+                                                             &dex_file,
+                                                             add_pc_offset,
+                                                             type_index));
+    // Add MOVT patch.
+    DCHECK(info.movt_label.IsBound());
+    uint32_t movt_offset = dchecked_integral_cast<uint32_t>(info.movt_label.Position());
+    linker_patches->push_back(LinkerPatch::RelativeTypePatch(movt_offset,
+                                                             &dex_file,
+                                                             add_pc_offset,
+                                                             type_index));
+  }
   for (const auto& entry : boot_image_address_patches_) {
     DCHECK(GetCompilerOptions().GetIncludePatchInformation());
     Literal* literal = entry.second;
