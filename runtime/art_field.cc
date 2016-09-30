@@ -24,7 +24,7 @@
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "runtime.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "utils.h"
 #include "well_known_classes.h"
 

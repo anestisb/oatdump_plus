@@ -21,7 +21,7 @@
 #include "mirror/class-inl.h"
 #include "nth_caller_visitor.h"
 #include "runtime.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "stack.h"
 #include "thread-inl.h"
 
@@ -62,7 +62,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_assertIsInterpreted(JNIEnv* env, jcl
 static jboolean IsManaged(JNIEnv* env, jclass cls, size_t level) {
   ScopedObjectAccess soa(env);
 
-  mirror::Class* klass = soa.Decode<mirror::Class*>(cls);
+  ObjPtr<mirror::Class> klass = soa.Decode<mirror::Class>(cls);
   const DexFile& dex_file = klass->GetDexFile();
   const OatFile::OatDexFile* oat_dex_file = dex_file.GetOatDexFile();
   if (oat_dex_file == nullptr) {

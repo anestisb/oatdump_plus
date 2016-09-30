@@ -24,7 +24,7 @@
 #include "reference_processor-inl.h"
 #include "reflection.h"
 #include "ScopedLocalRef.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "task_processor.h"
 #include "utils.h"
 #include "well_known_classes.h"

@@ -91,7 +91,7 @@
 #include "os.h"
 #include "runtime.h"
 #include "ScopedLocalRef.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 #include "trace.h"
 #include "utils.h"
@@ -1085,8 +1085,8 @@ bool ClassLinker::InitFromBootImage(std::string* error_msg) {
 bool ClassLinker::IsBootClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
                                     mirror::ClassLoader* class_loader) {
   return class_loader == nullptr ||
-      class_loader->GetClass() ==
-          soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_BootClassLoader);
+       soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader) ==
+           class_loader->GetClass();
 }
 
 static mirror::String* GetDexPathListElementName(ScopedObjectAccessUnchecked& soa,
@@ -1125,8 +1125,8 @@ static bool FlattenPathClassLoader(mirror::ClassLoader* class_loader,
   CHECK(dex_path_list_field != nullptr);
   CHECK(dex_elements_field != nullptr);
   while (!ClassLinker::IsBootClassLoader(soa, class_loader)) {
-    if (class_loader->GetClass() !=
-        soa.Decode<mirror::Class*>(WellKnownClasses::dalvik_system_PathClassLoader)) {
+    if (soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_PathClassLoader) !=
+        class_loader->GetClass()) {
       *error_msg = StringPrintf("Unknown class loader type %s", PrettyTypeOf(class_loader).c_str());
       // Unsupported class loader.
       return false;
@@ -1703,7 +1703,7 @@ bool ClassLinker::AddImageSpace(
         return false;
       }
       // Add the temporary dex path list elements at the end.
-      auto* elements = soa.Decode<mirror::ObjectArray<mirror::Object>*>(dex_elements);
+      auto elements = soa.Decode<mirror::ObjectArray<mirror::Object>>(dex_elements);
       for (size_t i = 0, num_elems = elements->GetLength(); i < num_elems; ++i) {
         mirror::Object* element = elements->GetWithoutChecks(i);
         if (element != nullptr) {
@@ -2187,7 +2187,7 @@ mirror::Class* ClassLinker::EnsureResolved(Thread* self,
                                            const char* descriptor,
                                            mirror::Class* klass) {
   DCHECK(klass != nullptr);
-  self->PoisonObjectPointers();
+  Thread::PoisonObjectPointersIfDebug();
 
   // For temporary classes we must wait for them to be retired.
   if (init_done_ && klass->IsTemp()) {
@@ -2304,8 +2304,8 @@ bool ClassLinker::FindClassInPathClassLoader(ScopedObjectAccessAlreadyRunnable& 
   }
 
   // Unsupported class-loader?
-  if (class_loader->GetClass() !=
-      soa.Decode<mirror::Class*>(WellKnownClasses::dalvik_system_PathClassLoader)) {
+  if (soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_PathClassLoader) !=
+      class_loader->GetClass()) {
     *result = nullptr;
     return false;
   }
@@ -2482,7 +2482,7 @@ mirror::Class* ClassLinker::FindClass(Thread* self,
       return nullptr;
     } else {
       // success, return mirror::Class*
-      return soa.Decode<mirror::Class*>(result.get());
+      return soa.Decode<mirror::Class>(result.get()).Decode();
     }
   }
   UNREACHABLE();
@@ -4205,9 +4205,9 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   // Set the class access flags incl. VerificationAttempted, so we do not try to set the flag on
   // the methods.
   klass->SetAccessFlags(kAccClassIsProxy | kAccPublic | kAccFinal | kAccVerificationAttempted);
-  klass->SetClassLoader(soa.Decode<mirror::ClassLoader*>(loader));
+  klass->SetClassLoader(soa.Decode<mirror::ClassLoader>(loader).Decode());
   DCHECK_EQ(klass->GetPrimitiveType(), Primitive::kPrimNot);
-  klass->SetName(soa.Decode<mirror::String*>(name));
+  klass->SetName(soa.Decode<mirror::String>(name).Decode());
   klass->SetDexCache(GetClassRoot(kJavaLangReflectProxy)->GetDexCache());
   mirror::Class::SetStatus(klass, mirror::Class::kStatusIdx, self);
   std::string descriptor(GetDescriptorForProxy(klass.Get()));
@@ -4245,7 +4245,7 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   const size_t num_direct_methods = 1;
 
   // They have as many virtual methods as the array
-  auto h_methods = hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::Method>*>(methods));
+  auto h_methods = hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::Method>>(methods));
   DCHECK_EQ(h_methods->GetClass(), mirror::Method::ArrayClass())
       << PrettyClass(h_methods->GetClass());
   const size_t num_virtual_methods = h_methods->GetLength();
@@ -4287,7 +4287,7 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
     // Link the fields and virtual methods, creating vtable and iftables.
     // The new class will replace the old one in the class table.
     Handle<mirror::ObjectArray<mirror::Class>> h_interfaces(
-        hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::Class>*>(interfaces)));
+        hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::Class>>(interfaces)));
     if (!LinkClass(self, descriptor.c_str(), klass, h_interfaces, &new_class)) {
       mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
       return nullptr;
@@ -4298,11 +4298,13 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   klass.Assign(new_class.Get());
 
   CHECK_EQ(interfaces_sfield.GetDeclaringClass(), klass.Get());
-  interfaces_sfield.SetObject<false>(klass.Get(),
-                                     soa.Decode<mirror::ObjectArray<mirror::Class>*>(interfaces));
+  interfaces_sfield.SetObject<false>(
+      klass.Get(),
+      soa.Decode<mirror::ObjectArray<mirror::Class>>(interfaces).Decode());
   CHECK_EQ(throws_sfield.GetDeclaringClass(), klass.Get());
   throws_sfield.SetObject<false>(
-      klass.Get(), soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class> >*>(throws));
+      klass.Get(),
+      soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class>>>(throws).Decode());
 
   {
     // Lock on klass is released. Lock new class object.
@@ -4322,7 +4324,7 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
     }
 
     StackHandleScope<1> hs2(self);
-    Handle<mirror::String> decoded_name = hs2.NewHandle(soa.Decode<mirror::String*>(name));
+    Handle<mirror::String> decoded_name = hs2.NewHandle(soa.Decode<mirror::String>(name));
     std::string interfaces_field_name(StringPrintf("java.lang.Class[] %s.interfaces",
                                                    decoded_name->ToModifiedUtf8().c_str()));
     CHECK_EQ(PrettyField(klass->GetStaticField(0)), interfaces_field_name);
@@ -4332,9 +4334,9 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
     CHECK_EQ(PrettyField(klass->GetStaticField(1)), throws_field_name);
 
     CHECK_EQ(klass.Get()->GetInterfaces(),
-             soa.Decode<mirror::ObjectArray<mirror::Class>*>(interfaces));
+             soa.Decode<mirror::ObjectArray<mirror::Class>>(interfaces).Decode());
     CHECK_EQ(klass.Get()->GetThrows(),
-             soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class>>*>(throws));
+             soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class>>>(throws).Decode());
   }
   return klass.Get();
 }
@@ -8193,7 +8195,7 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self,
 
   // Create PathClassLoader.
   Handle<mirror::Class> h_path_class_class = hs.NewHandle(
-      soa.Decode<mirror::Class*>(WellKnownClasses::dalvik_system_PathClassLoader));
+      soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_PathClassLoader));
   Handle<mirror::Object> h_path_class_loader = hs.NewHandle(
       h_path_class_class->AllocObject(self));
   DCHECK(h_path_class_loader.Get() != nullptr);
@@ -8210,7 +8212,7 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self,
                                "Ljava/lang/ClassLoader;");
   DCHECK(parent_field != nullptr);
   mirror::Object* boot_cl =
-      soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_BootClassLoader)->AllocObject(self);
+      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader)->AllocObject(self);
   parent_field->SetObject<false>(h_path_class_loader.Get(), boot_cl);
 
   // Make it a global ref and return.

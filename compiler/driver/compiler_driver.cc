@@ -60,7 +60,7 @@
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/throwable.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "ScopedLocalRef.h"
 #include "handle_scope-inl.h"
 #include "thread.h"
@@ -535,7 +535,7 @@ static optimizer::DexToDexCompilationLevel GetDexToDexCompilationLevel(
   ScopedObjectAccess soa(self);
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(
-      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(jclass_loader)));
   return GetDexToDexCompilationLevel(self, driver, class_loader, dex_file, class_def);
 }
 
@@ -610,7 +610,7 @@ static void CompileMethod(Thread* self,
       ScopedObjectAccess soa(self);
       StackHandleScope<1> hs(soa.Self());
       Handle<mirror::ClassLoader> class_loader_handle(hs.NewHandle(
-          soa.Decode<mirror::ClassLoader*>(class_loader)));
+          soa.Decode<mirror::ClassLoader>(class_loader)));
 
       // TODO: Lookup annotation from DexFile directly without resolving method.
       ArtMethod* method =
@@ -1626,7 +1626,7 @@ ArtField* CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx,
   {
     StackHandleScope<1> hs(soa.Self());
     Handle<mirror::ClassLoader> class_loader_handle(
-        hs.NewHandle(soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader())));
+        hs.NewHandle(soa.Decode<mirror::ClassLoader>(mUnit->GetClassLoader())));
     resolved_field = ResolveField(soa, dex_cache, class_loader_handle, mUnit, field_idx, false);
     referrer_class = resolved_field != nullptr
         ? ResolveCompilingMethodsClass(soa, dex_cache, class_loader_handle, mUnit) : nullptr;
@@ -1970,7 +1970,7 @@ class ResolveClassFieldsAndMethodsVisitor : public CompilationVisitor {
     ScopedObjectAccess soa(self);
     StackHandleScope<2> hs(soa.Self());
     Handle<mirror::ClassLoader> class_loader(
-        hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
+        hs.NewHandle(soa.Decode<mirror::ClassLoader>(jclass_loader)));
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(
         soa.Self(), dex_file, false)));
     // Resolve the class.
@@ -2067,7 +2067,7 @@ class ResolveTypeVisitor : public CompilationVisitor {
     const DexFile& dex_file = *manager_->GetDexFile();
     StackHandleScope<2> hs(soa.Self());
     Handle<mirror::ClassLoader> class_loader(
-        hs.NewHandle(soa.Decode<mirror::ClassLoader*>(manager_->GetClassLoader())));
+        hs.NewHandle(soa.Decode<mirror::ClassLoader>(manager_->GetClassLoader())));
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->RegisterDexFile(
         dex_file,
         class_loader.Get())));
@@ -2166,7 +2166,7 @@ class VerifyClassVisitor : public CompilationVisitor {
     jobject jclass_loader = manager_->GetClassLoader();
     StackHandleScope<3> hs(soa.Self());
     Handle<mirror::ClassLoader> class_loader(
-        hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
+        hs.NewHandle(soa.Decode<mirror::ClassLoader>(jclass_loader)));
     Handle<mirror::Class> klass(
         hs.NewHandle(class_linker->FindClass(soa.Self(), descriptor, class_loader)));
     if (klass.Get() == nullptr) {
@@ -2254,7 +2254,7 @@ class SetVerifiedClassVisitor : public CompilationVisitor {
     jobject jclass_loader = manager_->GetClassLoader();
     StackHandleScope<3> hs(soa.Self());
     Handle<mirror::ClassLoader> class_loader(
-        hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
+        hs.NewHandle(soa.Decode<mirror::ClassLoader>(jclass_loader)));
     Handle<mirror::Class> klass(
         hs.NewHandle(class_linker->FindClass(soa.Self(), descriptor, class_loader)));
     // Class might have failed resolution. Then don't set it to verified.
@@ -2316,7 +2316,7 @@ class InitializeClassVisitor : public CompilationVisitor {
     ScopedObjectAccess soa(Thread::Current());
     StackHandleScope<3> hs(soa.Self());
     Handle<mirror::ClassLoader> class_loader(
-        hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
+        hs.NewHandle(soa.Decode<mirror::ClassLoader>(jclass_loader)));
     Handle<mirror::Class> klass(
         hs.NewHandle(manager_->GetClassLinker()->FindClass(soa.Self(), descriptor, class_loader)));
 
@@ -2551,7 +2551,7 @@ class CompileClassVisitor : public CompilationVisitor {
     ScopedObjectAccess soa(Thread::Current());
     StackHandleScope<3> hs(soa.Self());
     Handle<mirror::ClassLoader> class_loader(
-        hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
+        hs.NewHandle(soa.Decode<mirror::ClassLoader>(jclass_loader)));
     Handle<mirror::Class> klass(
         hs.NewHandle(class_linker->FindClass(soa.Self(), descriptor, class_loader)));
     Handle<mirror::DexCache> dex_cache;

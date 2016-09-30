@@ -27,7 +27,7 @@
 #include "common_runtime_test.h"
 #include "dex_file-inl.h"
 #include "leb128.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 #include "utils.h"
 

@@ -34,7 +34,7 @@
 #include "gc/heap.h"
 #include "os.h"
 #include "runtime.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "signal_set.h"
 #include "thread.h"
 #include "thread_list.h"

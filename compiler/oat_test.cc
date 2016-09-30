@@ -38,7 +38,7 @@
 #include "mirror/object_array-inl.h"
 #include "oat_file-inl.h"
 #include "oat_writer.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "utils/test_dex_file_builder.h"
 
 namespace art {
@@ -501,7 +501,8 @@ TEST_F(OatTest, EmptyTextSection) {
   ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
   for (const DexFile* dex_file : dex_files) {
     ScopedObjectAccess soa(Thread::Current());
-    class_linker->RegisterDexFile(*dex_file, soa.Decode<mirror::ClassLoader*>(class_loader));
+    class_linker->RegisterDexFile(*dex_file,
+                                  soa.Decode<mirror::ClassLoader>(class_loader).Decode());
   }
   compiler_driver_->SetDexFilesForOatFile(dex_files);
   compiler_driver_->CompileAll(class_loader, dex_files, &timings);

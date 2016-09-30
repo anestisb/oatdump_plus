@@ -19,7 +19,7 @@
 #include "mirror/array-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 
@@ -32,8 +32,8 @@ bool JobjectComparator::operator()(jobject jobj1, jobject jobj2) const {
   }
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<2> hs(soa.Self());
-  Handle<mirror::Object> obj1(hs.NewHandle(soa.Decode<mirror::Object*>(jobj1)));
-  Handle<mirror::Object> obj2(hs.NewHandle(soa.Decode<mirror::Object*>(jobj2)));
+  Handle<mirror::Object> obj1(hs.NewHandle(soa.Decode<mirror::Object>(jobj1)));
+  Handle<mirror::Object> obj2(hs.NewHandle(soa.Decode<mirror::Object>(jobj2)));
   if (obj1.Get() == nullptr) {
     return true;
   } else if (obj2.Get() == nullptr) {

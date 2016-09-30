@@ -46,7 +46,7 @@
 #include "offsets.h"
 #include "os.h"
 #include "runtime.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread.h"
 #include "utils.h"
 

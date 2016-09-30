@@ -57,7 +57,7 @@
 #include "oat_file_manager.h"
 #include "os.h"
 #include "safe_map.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "ScopedLocalRef.h"
 #include "stack_map.h"
 #include "string_reference.h"
@@ -2474,7 +2474,7 @@ static int DumpOatWithRuntime(Runtime* runtime, OatFile* oat_file, OatDumperOpti
   // Use the class loader while dumping.
   StackHandleScope<1> scope(self);
   Handle<mirror::ClassLoader> loader_handle = scope.NewHandle(
-      soa.Decode<mirror::ClassLoader*>(class_loader));
+      soa.Decode<mirror::ClassLoader>(class_loader));
   options->class_loader_ = &loader_handle;
 
   OatDumper oat_dumper(*oat_file, *options);

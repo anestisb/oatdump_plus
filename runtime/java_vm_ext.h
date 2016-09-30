@@ -22,6 +22,7 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "indirect_reference_table.h"
+#include "obj_ptr.h"
 #include "reference_table.h"
 
 namespace art {
@@ -123,10 +124,10 @@ class JavaVMExt : public JavaVM {
   void BroadcastForNewWeakGlobals() REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!weak_globals_lock_);
 
-  jobject AddGlobalRef(Thread* self, mirror::Object* obj)
+  jobject AddGlobalRef(Thread* self, ObjPtr<mirror::Object> obj)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!globals_lock_);
 
-  jweak AddWeakGlobalRef(Thread* self, mirror::Object* obj)
+  jweak AddWeakGlobalRef(Thread* self, ObjPtr<mirror::Object> obj)
     REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!weak_globals_lock_);
 
   void DeleteGlobalRef(Thread* self, jobject obj) REQUIRES(!globals_lock_);

@@ -52,7 +52,7 @@
 #include "reflection.h"
 #include "runtime.h"
 #include "safe_map.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "ScopedLocalRef.h"
 #include "thread.h"
 #include "utf.h"
@@ -108,7 +108,7 @@ static void ReportInvalidJNINativeMethod(const ScopedObjectAccess& soa, mirror::
                                  "%s is null at index %d", kind, idx);
 }
 
-static mirror::Class* EnsureInitialized(Thread* self, mirror::Class* klass)
+static ObjPtr<mirror::Class> EnsureInitialized(Thread* self, ObjPtr<mirror::Class> klass)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (LIKELY(klass->IsInitialized())) {
     return klass;
@@ -124,7 +124,7 @@ static mirror::Class* EnsureInitialized(Thread* self, mirror::Class* klass)
 static jmethodID FindMethodID(ScopedObjectAccess& soa, jclass jni_class,
                               const char* name, const char* sig, bool is_static)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  mirror::Class* c = EnsureInitialized(soa.Self(), soa.Decode<mirror::Class*>(jni_class));
+  ObjPtr<mirror::Class> c = EnsureInitialized(soa.Self(), soa.Decode<mirror::Class>(jni_class));
   if (c == nullptr) {
     return nullptr;
   }
@@ -143,31 +143,31 @@ static jmethodID FindMethodID(ScopedObjectAccess& soa, jclass jni_class,
     }
   }
   if (method == nullptr || method->IsStatic() != is_static) {
-    ThrowNoSuchMethodError(soa, c, name, sig, is_static ? "static" : "non-static");
+    ThrowNoSuchMethodError(soa, c.Decode(), name, sig, is_static ? "static" : "non-static");
     return nullptr;
   }
   return soa.EncodeMethod(method);
 }
 
-static mirror::ClassLoader* GetClassLoader(const ScopedObjectAccess& soa)
+static ObjPtr<mirror::ClassLoader> GetClassLoader(const ScopedObjectAccess& soa)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ArtMethod* method = soa.Self()->GetCurrentMethod(nullptr);
   // If we are running Runtime.nativeLoad, use the overriding ClassLoader it set.
   if (method == soa.DecodeMethod(WellKnownClasses::java_lang_Runtime_nativeLoad)) {
-    return soa.Decode<mirror::ClassLoader*>(soa.Self()->GetClassLoaderOverride());
+    return soa.Decode<mirror::ClassLoader>(soa.Self()->GetClassLoaderOverride());
   }
   // If we have a method, use its ClassLoader for context.
   if (method != nullptr) {
     return method->GetDeclaringClass()->GetClassLoader();
   }
   // We don't have a method, so try to use the system ClassLoader.
-  mirror::ClassLoader* class_loader =
-      soa.Decode<mirror::ClassLoader*>(Runtime::Current()->GetSystemClassLoader());
+  ObjPtr<mirror::ClassLoader> class_loader =
+      soa.Decode<mirror::ClassLoader>(Runtime::Current()->GetSystemClassLoader());
   if (class_loader != nullptr) {
     return class_loader;
   }
   // See if the override ClassLoader is set for gtests.
-  class_loader = soa.Decode<mirror::ClassLoader*>(soa.Self()->GetClassLoaderOverride());
+  class_loader = soa.Decode<mirror::ClassLoader>(soa.Self()->GetClassLoaderOverride());
   if (class_loader != nullptr) {
     // If so, CommonCompilerTest should have marked the runtime as a compiler not compiling an
     // image.
@@ -184,7 +184,7 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
     REQUIRES_SHARED(Locks::mutator_lock_) {
   StackHandleScope<2> hs(soa.Self());
   Handle<mirror::Class> c(
-      hs.NewHandle(EnsureInitialized(soa.Self(), soa.Decode<mirror::Class*>(jni_class))));
+      hs.NewHandle(EnsureInitialized(soa.Self(), soa.Decode<mirror::Class>(jni_class))));
   if (c.Get() == nullptr) {
     return nullptr;
   }
@@ -272,7 +272,7 @@ int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobj
   if (mid == nullptr) {
     ScopedObjectAccess soa(env);
     LOG(ERROR) << "No <init>" << signature << " in "
-        << PrettyClass(soa.Decode<mirror::Class*>(exception_class));
+        << PrettyClass(soa.Decode<mirror::Class>(exception_class));
     return JNI_ERR;
   }
 
@@ -282,7 +282,7 @@ int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobj
     return JNI_ERR;
   }
   ScopedObjectAccess soa(env);
-  soa.Self()->SetException(soa.Decode<mirror::Throwable*>(exception.get()));
+  soa.Self()->SetException(soa.Decode<mirror::Throwable>(exception.get()).Decode());
   return JNI_OK;
 }
 
@@ -363,12 +363,12 @@ class JNI {
   static jfieldID FromReflectedField(JNIEnv* env, jobject jlr_field) {
     CHECK_NON_NULL_ARGUMENT(jlr_field);
     ScopedObjectAccess soa(env);
-    mirror::Object* obj_field = soa.Decode<mirror::Object*>(jlr_field);
+    ObjPtr<mirror::Object> obj_field = soa.Decode<mirror::Object>(jlr_field);
     if (obj_field->GetClass() != mirror::Field::StaticClass()) {
       // Not even a java.lang.reflect.Field, return null. TODO, is this check necessary?
       return nullptr;
     }
-    auto* field = static_cast<mirror::Field*>(obj_field);
+    ObjPtr<mirror::Field> field = down_cast<mirror::Field*>(obj_field.Decode());
     return soa.EncodeField(field->GetArtField());
   }
 
@@ -398,14 +398,14 @@ class JNI {
   static jclass GetObjectClass(JNIEnv* env, jobject java_object) {
     CHECK_NON_NULL_ARGUMENT(java_object);
     ScopedObjectAccess soa(env);
-    mirror::Object* o = soa.Decode<mirror::Object*>(java_object);
+    ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(java_object);
     return soa.AddLocalReference<jclass>(o->GetClass());
   }
 
   static jclass GetSuperclass(JNIEnv* env, jclass java_class) {
     CHECK_NON_NULL_ARGUMENT(java_class);
     ScopedObjectAccess soa(env);
-    mirror::Class* c = soa.Decode<mirror::Class*>(java_class);
+    ObjPtr<mirror::Class> c = soa.Decode<mirror::Class>(java_class);
     return soa.AddLocalReference<jclass>(c->IsInterface() ? nullptr : c->GetSuperClass());
   }
 
@@ -415,9 +415,9 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN(java_class1, JNI_FALSE);
     CHECK_NON_NULL_ARGUMENT_RETURN(java_class2, JNI_FALSE);
     ScopedObjectAccess soa(env);
-    mirror::Class* c1 = soa.Decode<mirror::Class*>(java_class1);
-    mirror::Class* c2 = soa.Decode<mirror::Class*>(java_class2);
-    return c2->IsAssignableFrom(c1) ? JNI_TRUE : JNI_FALSE;
+    ObjPtr<mirror::Class> c1 = soa.Decode<mirror::Class>(java_class1);
+    ObjPtr<mirror::Class> c2 = soa.Decode<mirror::Class>(java_class2);
+    return c2->IsAssignableFrom(c1.Decode()) ? JNI_TRUE : JNI_FALSE;
   }
 
   static jboolean IsInstanceOf(JNIEnv* env, jobject jobj, jclass java_class) {
@@ -427,19 +427,19 @@ class JNI {
       return JNI_TRUE;
     } else {
       ScopedObjectAccess soa(env);
-      mirror::Object* obj = soa.Decode<mirror::Object*>(jobj);
-      mirror::Class* c = soa.Decode<mirror::Class*>(java_class);
+      ObjPtr<mirror::Object> obj = soa.Decode<mirror::Object>(jobj);
+      ObjPtr<mirror::Class> c = soa.Decode<mirror::Class>(java_class);
       return obj->InstanceOf(c) ? JNI_TRUE : JNI_FALSE;
     }
   }
 
   static jint Throw(JNIEnv* env, jthrowable java_exception) {
     ScopedObjectAccess soa(env);
-    mirror::Throwable* exception = soa.Decode<mirror::Throwable*>(java_exception);
+    ObjPtr<mirror::Throwable> exception = soa.Decode<mirror::Throwable>(java_exception);
     if (exception == nullptr) {
       return JNI_ERR;
     }
-    soa.Self()->SetException(exception);
+    soa.Self()->SetException(exception.Decode());
     return JNI_OK;
   }
 
@@ -509,7 +509,7 @@ class JNI {
 
   static jobject PopLocalFrame(JNIEnv* env, jobject java_survivor) {
     ScopedObjectAccess soa(env);
-    mirror::Object* survivor = soa.Decode<mirror::Object*>(java_survivor);
+    ObjPtr<mirror::Object> survivor = soa.Decode<mirror::Object>(java_survivor);
     soa.Env()->PopFrame();
     return soa.AddLocalReference<jobject>(survivor);
   }
@@ -522,8 +522,8 @@ class JNI {
 
   static jobject NewGlobalRef(JNIEnv* env, jobject obj) {
     ScopedObjectAccess soa(env);
-    mirror::Object* decoded_obj = soa.Decode<mirror::Object*>(obj);
-    return soa.Vm()->AddGlobalRef(soa.Self(), decoded_obj);
+    ObjPtr<mirror::Object> decoded_obj = soa.Decode<mirror::Object>(obj);
+    return soa.Vm()->AddGlobalRef(soa.Self(), decoded_obj.Decode());
   }
 
   static void DeleteGlobalRef(JNIEnv* env, jobject obj) {
@@ -534,8 +534,8 @@ class JNI {
 
   static jweak NewWeakGlobalRef(JNIEnv* env, jobject obj) {
     ScopedObjectAccess soa(env);
-    mirror::Object* decoded_obj = soa.Decode<mirror::Object*>(obj);
-    return soa.Vm()->AddWeakGlobalRef(soa.Self(), decoded_obj);
+    ObjPtr<mirror::Object> decoded_obj = soa.Decode<mirror::Object>(obj);
+    return soa.Vm()->AddWeakGlobalRef(soa.Self(), decoded_obj.Decode());
   }
 
   static void DeleteWeakGlobalRef(JNIEnv* env, jweak obj) {
@@ -546,7 +546,7 @@ class JNI {
 
   static jobject NewLocalRef(JNIEnv* env, jobject obj) {
     ScopedObjectAccess soa(env);
-    mirror::Object* decoded_obj = soa.Decode<mirror::Object*>(obj);
+    ObjPtr<mirror::Object> decoded_obj = soa.Decode<mirror::Object>(obj);
     // Check for null after decoding the object to handle cleared weak globals.
     if (decoded_obj == nullptr) {
       return nullptr;
@@ -579,7 +579,7 @@ class JNI {
       return JNI_TRUE;
     } else {
       ScopedObjectAccess soa(env);
-      return (soa.Decode<mirror::Object*>(obj1) == soa.Decode<mirror::Object*>(obj2))
+      return (soa.Decode<mirror::Object>(obj1) == soa.Decode<mirror::Object>(obj2))
               ? JNI_TRUE : JNI_FALSE;
     }
   }
@@ -587,7 +587,7 @@ class JNI {
   static jobject AllocObject(JNIEnv* env, jclass java_class) {
     CHECK_NON_NULL_ARGUMENT(java_class);
     ScopedObjectAccess soa(env);
-    mirror::Class* c = EnsureInitialized(soa.Self(), soa.Decode<mirror::Class*>(java_class));
+    ObjPtr<mirror::Class> c = EnsureInitialized(soa.Self(), soa.Decode<mirror::Class>(java_class));
     if (c == nullptr) {
       return nullptr;
     }
@@ -613,7 +613,8 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT(java_class);
     CHECK_NON_NULL_ARGUMENT(mid);
     ScopedObjectAccess soa(env);
-    mirror::Class* c = EnsureInitialized(soa.Self(), soa.Decode<mirror::Class*>(java_class));
+    ObjPtr<mirror::Class> c = EnsureInitialized(soa.Self(),
+                                                soa.Decode<mirror::Class>(java_class));
     if (c == nullptr) {
       return nullptr;
     }
@@ -639,7 +640,8 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT(java_class);
     CHECK_NON_NULL_ARGUMENT(mid);
     ScopedObjectAccess soa(env);
-    mirror::Class* c = EnsureInitialized(soa.Self(), soa.Decode<mirror::Class*>(java_class));
+    ObjPtr<mirror::Class> c = EnsureInitialized(soa.Self(),
+                                                soa.Decode<mirror::Class>(java_class));
     if (c == nullptr) {
       return nullptr;
     }
@@ -1223,9 +1225,9 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT(obj);
     CHECK_NON_NULL_ARGUMENT(fid);
     ScopedObjectAccess soa(env);
-    mirror::Object* o = soa.Decode<mirror::Object*>(obj);
+    ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(obj);
     ArtField* f = soa.DecodeField(fid);
-    return soa.AddLocalReference<jobject>(f->GetObject(o));
+    return soa.AddLocalReference<jobject>(f->GetObject(o.Decode()));
   }
 
   static jobject GetStaticObjectField(JNIEnv* env, jclass, jfieldID fid) {
@@ -1239,27 +1241,27 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(java_object);
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(fid);
     ScopedObjectAccess soa(env);
-    mirror::Object* o = soa.Decode<mirror::Object*>(java_object);
-    mirror::Object* v = soa.Decode<mirror::Object*>(java_value);
+    ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(java_object);
+    ObjPtr<mirror::Object> v = soa.Decode<mirror::Object>(java_value);
     ArtField* f = soa.DecodeField(fid);
-    f->SetObject<false>(o, v);
+    f->SetObject<false>(o.Decode(), v.Decode());
   }
 
   static void SetStaticObjectField(JNIEnv* env, jclass, jfieldID fid, jobject java_value) {
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(fid);
     ScopedObjectAccess soa(env);
-    mirror::Object* v = soa.Decode<mirror::Object*>(java_value);
+    ObjPtr<mirror::Object> v = soa.Decode<mirror::Object>(java_value);
     ArtField* f = soa.DecodeField(fid);
-    f->SetObject<false>(f->GetDeclaringClass(), v);
+    f->SetObject<false>(f->GetDeclaringClass(), v.Decode());
   }
 
 #define GET_PRIMITIVE_FIELD(fn, instance) \
   CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(instance); \
   CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(fid); \
   ScopedObjectAccess soa(env); \
-  mirror::Object* o = soa.Decode<mirror::Object*>(instance); \
+  ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(instance); \
   ArtField* f = soa.DecodeField(fid); \
-  return f->Get ##fn (o)
+  return f->Get ##fn (o.Decode())
 
 #define GET_STATIC_PRIMITIVE_FIELD(fn) \
   CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(fid); \
@@ -1271,9 +1273,9 @@ class JNI {
   CHECK_NON_NULL_ARGUMENT_RETURN_VOID(instance); \
   CHECK_NON_NULL_ARGUMENT_RETURN_VOID(fid); \
   ScopedObjectAccess soa(env); \
-  mirror::Object* o = soa.Decode<mirror::Object*>(instance); \
+  ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(instance); \
   ArtField* f = soa.DecodeField(fid); \
-  f->Set ##fn <false>(o, value)
+  f->Set ##fn <false>(o.Decode(), value)
 
 #define SET_STATIC_PRIMITIVE_FIELD(fn, value) \
   CHECK_NON_NULL_ARGUMENT_RETURN_VOID(fid); \
@@ -1657,20 +1659,20 @@ class JNI {
   static jsize GetStringLength(JNIEnv* env, jstring java_string) {
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(java_string);
     ScopedObjectAccess soa(env);
-    return soa.Decode<mirror::String*>(java_string)->GetLength();
+    return soa.Decode<mirror::String>(java_string)->GetLength();
   }
 
   static jsize GetStringUTFLength(JNIEnv* env, jstring java_string) {
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(java_string);
     ScopedObjectAccess soa(env);
-    return soa.Decode<mirror::String*>(java_string)->GetUtfLength();
+    return soa.Decode<mirror::String>(java_string)->GetUtfLength();
   }
 
   static void GetStringRegion(JNIEnv* env, jstring java_string, jsize start, jsize length,
                               jchar* buf) {
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(java_string);
     ScopedObjectAccess soa(env);
-    mirror::String* s = soa.Decode<mirror::String*>(java_string);
+    ObjPtr<mirror::String> s = soa.Decode<mirror::String>(java_string);
     if (start < 0 || length < 0 || length > s->GetLength() - start) {
       ThrowSIOOBE(soa, start, length, s->GetLength());
     } else {
@@ -1690,7 +1692,7 @@ class JNI {
                                  char* buf) {
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(java_string);
     ScopedObjectAccess soa(env);
-    mirror::String* s = soa.Decode<mirror::String*>(java_string);
+    ObjPtr<mirror::String> s = soa.Decode<mirror::String>(java_string);
     if (start < 0 || length < 0 || length > s->GetLength() - start) {
       ThrowSIOOBE(soa, start, length, s->GetLength());
     } else {
@@ -1710,7 +1712,7 @@ class JNI {
   static const jchar* GetStringChars(JNIEnv* env, jstring java_string, jboolean* is_copy) {
     CHECK_NON_NULL_ARGUMENT(java_string);
     ScopedObjectAccess soa(env);
-    mirror::String* s = soa.Decode<mirror::String*>(java_string);
+    ObjPtr<mirror::String> s = soa.Decode<mirror::String>(java_string);
     gc::Heap* heap = Runtime::Current()->GetHeap();
     if (heap->IsMovableObject(s) || s->IsCompressed()) {
       jchar* chars = new jchar[s->GetLength()];
@@ -1736,7 +1738,7 @@ class JNI {
   static void ReleaseStringChars(JNIEnv* env, jstring java_string, const jchar* chars) {
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(java_string);
     ScopedObjectAccess soa(env);
-    mirror::String* s = soa.Decode<mirror::String*>(java_string);
+    ObjPtr<mirror::String> s = soa.Decode<mirror::String>(java_string);
     if (s->IsCompressed() || (s->IsCompressed() == false && chars != s->GetValue())) {
       delete[] chars;
     }
@@ -1745,11 +1747,11 @@ class JNI {
   static const jchar* GetStringCritical(JNIEnv* env, jstring java_string, jboolean* is_copy) {
     CHECK_NON_NULL_ARGUMENT(java_string);
     ScopedObjectAccess soa(env);
-    mirror::String* s = soa.Decode<mirror::String*>(java_string);
+    ObjPtr<mirror::String> s = soa.Decode<mirror::String>(java_string);
     gc::Heap* heap = Runtime::Current()->GetHeap();
     if (heap->IsMovableObject(s)) {
       StackHandleScope<1> hs(soa.Self());
-      HandleWrapper<mirror::String> h(hs.NewHandleWrapper(&s));
+      HandleWrapperObjPtr<mirror::String> h(hs.NewHandleWrapper(&s));
       if (!kUseReadBarrier) {
         heap->IncrementDisableMovingGC(soa.Self());
       } else {
@@ -1782,7 +1784,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(java_string);
     ScopedObjectAccess soa(env);
     gc::Heap* heap = Runtime::Current()->GetHeap();
-    mirror::String* s = soa.Decode<mirror::String*>(java_string);
+    ObjPtr<mirror::String> s = soa.Decode<mirror::String>(java_string);
     if (heap->IsMovableObject(s)) {
       if (!kUseReadBarrier) {
         heap->DecrementDisableMovingGC(soa.Self());
@@ -1803,7 +1805,7 @@ class JNI {
       *is_copy = JNI_TRUE;
     }
     ScopedObjectAccess soa(env);
-    mirror::String* s = soa.Decode<mirror::String*>(java_string);
+    ObjPtr<mirror::String> s = soa.Decode<mirror::String>(java_string);
     size_t byte_count = s->GetUtfLength();
     char* bytes = new char[byte_count + 1];
     CHECK(bytes != nullptr);  // bionic aborts anyway.
@@ -1826,7 +1828,7 @@ class JNI {
   static jsize GetArrayLength(JNIEnv* env, jarray java_array) {
     CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(java_array);
     ScopedObjectAccess soa(env);
-    mirror::Object* obj = soa.Decode<mirror::Object*>(java_array);
+    ObjPtr<mirror::Object> obj = soa.Decode<mirror::Object>(java_array);
     if (UNLIKELY(!obj->IsArrayInstance())) {
       soa.Vm()->JniAbortF("GetArrayLength", "not an array: %s", PrettyTypeOf(obj).c_str());
       return 0;
@@ -1838,8 +1840,8 @@ class JNI {
   static jobject GetObjectArrayElement(JNIEnv* env, jobjectArray java_array, jsize index) {
     CHECK_NON_NULL_ARGUMENT(java_array);
     ScopedObjectAccess soa(env);
-    mirror::ObjectArray<mirror::Object>* array =
-        soa.Decode<mirror::ObjectArray<mirror::Object>*>(java_array);
+    ObjPtr<mirror::ObjectArray<mirror::Object>> array =
+        soa.Decode<mirror::ObjectArray<mirror::Object>>(java_array);
     return soa.AddLocalReference<jobject>(array->Get(index));
   }
 
@@ -1847,10 +1849,10 @@ class JNI {
                                     jobject java_value) {
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(java_array);
     ScopedObjectAccess soa(env);
-    mirror::ObjectArray<mirror::Object>* array =
-        soa.Decode<mirror::ObjectArray<mirror::Object>*>(java_array);
-    mirror::Object* value = soa.Decode<mirror::Object*>(java_value);
-    array->Set<false>(index, value);
+    ObjPtr<mirror::ObjectArray<mirror::Object>> array =
+        soa.Decode<mirror::ObjectArray<mirror::Object>>(java_array);
+    ObjPtr<mirror::Object> value = soa.Decode<mirror::Object>(java_value);
+    array->Set<false>(index, value.Decode());
   }
 
   static jbooleanArray NewBooleanArray(JNIEnv* env, jsize length) {
@@ -1893,7 +1895,7 @@ class JNI {
     ScopedObjectAccess soa(env);
     mirror::Class* array_class;
     {
-      mirror::Class* element_class = soa.Decode<mirror::Class*>(element_jclass);
+      mirror::Class* element_class = soa.Decode<mirror::Class>(element_jclass).Decode();
       if (UNLIKELY(element_class->IsPrimitive())) {
         soa.Vm()->JniAbortF("NewObjectArray", "not an object type: %s",
                             PrettyDescriptor(element_class).c_str());
@@ -1910,7 +1912,7 @@ class JNI {
     mirror::ObjectArray<mirror::Object>* result =
         mirror::ObjectArray<mirror::Object>::Alloc(soa.Self(), array_class, length);
     if (result != nullptr && initial_element != nullptr) {
-      mirror::Object* initial_object = soa.Decode<mirror::Object*>(initial_element);
+      ObjPtr<mirror::Object> initial_object = soa.Decode<mirror::Object>(initial_element);
       if (initial_object != nullptr) {
         mirror::Class* element_class = result->GetClass()->GetComponentType();
         if (UNLIKELY(!element_class->IsAssignableFrom(initial_object->GetClass()))) {
@@ -1921,7 +1923,7 @@ class JNI {
           return nullptr;
         } else {
           for (jsize i = 0; i < length; ++i) {
-            result->SetWithoutChecks<false>(i, initial_object);
+            result->SetWithoutChecks<false>(i, initial_object.Decode());
           }
         }
       }
@@ -1936,7 +1938,7 @@ class JNI {
   static void* GetPrimitiveArrayCritical(JNIEnv* env, jarray java_array, jboolean* is_copy) {
     CHECK_NON_NULL_ARGUMENT(java_array);
     ScopedObjectAccess soa(env);
-    mirror::Array* array = soa.Decode<mirror::Array*>(java_array);
+    ObjPtr<mirror::Array> array = soa.Decode<mirror::Array>(java_array);
     if (UNLIKELY(!array->GetClass()->IsPrimitiveArray())) {
       soa.Vm()->JniAbortF("GetPrimitiveArrayCritical", "expected primitive array, given %s",
                           PrettyDescriptor(array->GetClass()).c_str());
@@ -1952,7 +1954,7 @@ class JNI {
         heap->IncrementDisableThreadFlip(soa.Self());
       }
       // Re-decode in case the object moved since IncrementDisableGC waits for GC to complete.
-      array = soa.Decode<mirror::Array*>(java_array);
+      array = soa.Decode<mirror::Array>(java_array);
     }
     if (is_copy != nullptr) {
       *is_copy = JNI_FALSE;
@@ -1964,14 +1966,14 @@ class JNI {
                                             jint mode) {
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(java_array);
     ScopedObjectAccess soa(env);
-    mirror::Array* array = soa.Decode<mirror::Array*>(java_array);
+    ObjPtr<mirror::Array> array = soa.Decode<mirror::Array>(java_array);
     if (UNLIKELY(!array->GetClass()->IsPrimitiveArray())) {
       soa.Vm()->JniAbortF("ReleasePrimitiveArrayCritical", "expected primitive array, given %s",
                           PrettyDescriptor(array->GetClass()).c_str());
       return;
     }
     const size_t component_size = array->GetClass()->GetComponentSize();
-    ReleasePrimitiveArray(soa, array, component_size, elements, mode);
+    ReleasePrimitiveArray(soa, array.Decode(), component_size, elements, mode);
   }
 
   static jboolean* GetBooleanArrayElements(JNIEnv* env, jbooleanArray array, jboolean* is_copy) {
@@ -2145,7 +2147,7 @@ class JNI {
     }
     CHECK_NON_NULL_ARGUMENT_FN_NAME("RegisterNatives", java_class, JNI_ERR);
     ScopedObjectAccess soa(env);
-    mirror::Class* c = soa.Decode<mirror::Class*>(java_class);
+    ObjPtr<mirror::Class> c = soa.Decode<mirror::Class>(java_class);
     if (UNLIKELY(method_count == 0)) {
       LOG(WARNING) << "JNI RegisterNativeMethods: attempt to register 0 native methods for "
           << PrettyDescriptor(c);
@@ -2157,13 +2159,13 @@ class JNI {
       const char* sig = methods[i].signature;
       const void* fnPtr = methods[i].fnPtr;
       if (UNLIKELY(name == nullptr)) {
-        ReportInvalidJNINativeMethod(soa, c, "method name", i, return_errors);
+        ReportInvalidJNINativeMethod(soa, c.Decode(), "method name", i, return_errors);
         return JNI_ERR;
       } else if (UNLIKELY(sig == nullptr)) {
-        ReportInvalidJNINativeMethod(soa, c, "method signature", i, return_errors);
+        ReportInvalidJNINativeMethod(soa, c.Decode(), "method signature", i, return_errors);
         return JNI_ERR;
       } else if (UNLIKELY(fnPtr == nullptr)) {
-        ReportInvalidJNINativeMethod(soa, c, "native function", i, return_errors);
+        ReportInvalidJNINativeMethod(soa, c.Decode(), "native function", i, return_errors);
         return JNI_ERR;
       }
       bool is_fast = false;
@@ -2206,17 +2208,17 @@ class JNI {
       // the parent.
       ArtMethod* m = nullptr;
       bool warn_on_going_to_parent = down_cast<JNIEnvExt*>(env)->vm->IsCheckJniEnabled();
-      for (mirror::Class* current_class = c;
+      for (ObjPtr<mirror::Class> current_class = c;
            current_class != nullptr;
            current_class = current_class->GetSuperClass()) {
         // Search first only comparing methods which are native.
-        m = FindMethod<true>(current_class, name, sig);
+        m = FindMethod<true>(current_class.Decode(), name, sig);
         if (m != nullptr) {
           break;
         }
 
         // Search again comparing to all methods, to find non-native methods that match.
-        m = FindMethod<false>(current_class, name, sig);
+        m = FindMethod<false>(current_class.Decode(), name, sig);
         if (m != nullptr) {
           break;
         }
@@ -2238,14 +2240,14 @@ class JNI {
             << "Failed to register native method "
             << PrettyDescriptor(c) << "." << name << sig << " in "
             << c->GetDexCache()->GetLocation()->ToModifiedUtf8();
-        ThrowNoSuchMethodError(soa, c, name, sig, "static or non-static");
+        ThrowNoSuchMethodError(soa, c.Decode(), name, sig, "static or non-static");
         return JNI_ERR;
       } else if (!m->IsNative()) {
         LOG(return_errors ? ::android::base::ERROR : ::android::base::FATAL)
             << "Failed to register non-native method "
             << PrettyDescriptor(c) << "." << name << sig
             << " as native";
-        ThrowNoSuchMethodError(soa, c, name, sig, "native");
+        ThrowNoSuchMethodError(soa, c.Decode(), name, sig, "native");
         return JNI_ERR;
       }
 
@@ -2260,7 +2262,7 @@ class JNI {
   static jint UnregisterNatives(JNIEnv* env, jclass java_class) {
     CHECK_NON_NULL_ARGUMENT_RETURN(java_class, JNI_ERR);
     ScopedObjectAccess soa(env);
-    mirror::Class* c = soa.Decode<mirror::Class*>(java_class);
+    ObjPtr<mirror::Class> c = soa.Decode<mirror::Class>(java_class);
 
     VLOG(jni) << "[Unregistering JNI native methods for " << PrettyClass(c) << "]";
 
@@ -2283,24 +2285,24 @@ class JNI {
   static jint MonitorEnter(JNIEnv* env, jobject java_object) NO_THREAD_SAFETY_ANALYSIS {
     CHECK_NON_NULL_ARGUMENT_RETURN(java_object, JNI_ERR);
     ScopedObjectAccess soa(env);
-    mirror::Object* o = soa.Decode<mirror::Object*>(java_object);
+    ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(java_object);
     o = o->MonitorEnter(soa.Self());
     if (soa.Self()->IsExceptionPending()) {
       return JNI_ERR;
     }
-    soa.Env()->monitors.Add(o);
+    soa.Env()->monitors.Add(o.Decode());
     return JNI_OK;
   }
 
   static jint MonitorExit(JNIEnv* env, jobject java_object) NO_THREAD_SAFETY_ANALYSIS {
     CHECK_NON_NULL_ARGUMENT_RETURN(java_object, JNI_ERR);
     ScopedObjectAccess soa(env);
-    mirror::Object* o = soa.Decode<mirror::Object*>(java_object);
+    ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(java_object);
     o->MonitorExit(soa.Self());
     if (soa.Self()->IsExceptionPending()) {
       return JNI_ERR;
     }
-    soa.Env()->monitors.Remove(o);
+    soa.Env()->monitors.Remove(o.Decode());
     return JNI_OK;
   }
 
@@ -2409,7 +2411,7 @@ class JNI {
   static ArtArrayT* DecodeAndCheckArrayType(ScopedObjectAccess& soa, JArrayT java_array,
                                            const char* fn_name, const char* operation)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    ArtArrayT* array = soa.Decode<ArtArrayT*>(java_array);
+    ObjPtr<ArtArrayT> array = soa.Decode<ArtArrayT>(java_array);
     if (UNLIKELY(ArtArrayT::GetArrayClass() != array->GetClass())) {
       soa.Vm()->JniAbortF(fn_name,
                           "attempt to %s %s primitive array elements with an object of type %s",
@@ -2419,7 +2421,7 @@ class JNI {
       return nullptr;
     }
     DCHECK_EQ(sizeof(ElementT), array->GetClass()->GetComponentSize());
-    return array;
+    return array.Decode();
   }
 
   template <typename ArrayT, typename ElementT, typename ArtArrayT>

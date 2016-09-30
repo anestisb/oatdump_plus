@@ -17,7 +17,7 @@
 #include <assert.h>
 
 #include "jni.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread.h"
 
 namespace art {

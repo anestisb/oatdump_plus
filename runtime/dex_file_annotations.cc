@@ -255,7 +255,7 @@ mirror::Object* ProcessEncodedAnnotation(Handle<mirror::Class> klass, const uint
   }
 
   mirror::Class* annotation_member_class =
-      soa.Decode<mirror::Class*>(WellKnownClasses::libcore_reflect_AnnotationMember);
+      soa.Decode<mirror::Class>(WellKnownClasses::libcore_reflect_AnnotationMember).Decode();
   mirror::Class* annotation_member_array_class =
       class_linker->FindArrayClass(self, &annotation_member_class);
   if (annotation_member_array_class == nullptr) {
@@ -782,7 +782,7 @@ mirror::ObjectArray<mirror::Object>* ProcessAnnotationSet(
   ScopedObjectAccessUnchecked soa(self);
   StackHandleScope<2> hs(self);
   Handle<mirror::Class> annotation_array_class(hs.NewHandle(
-      soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_annotation_Annotation__array)));
+      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_annotation_Annotation__array)));
   if (annotation_set == nullptr) {
     return mirror::ObjectArray<mirror::Object>::Alloc(self, annotation_array_class.Get(), 0);
   }
@@ -840,7 +840,7 @@ mirror::ObjectArray<mirror::Object>* ProcessAnnotationSetRefList(
   ScopedObjectAccessUnchecked soa(self);
   StackHandleScope<1> hs(self);
   mirror::Class* annotation_array_class =
-      soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_annotation_Annotation__array);
+      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_annotation_Annotation__array).Decode();
   mirror::Class* annotation_array_array_class =
       Runtime::Current()->GetClassLinker()->FindArrayClass(self, &annotation_array_class);
   if (annotation_array_array_class == nullptr) {

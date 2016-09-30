@@ -366,7 +366,7 @@ class Thread {
   void AssertNoPendingException() const;
   void AssertNoPendingExceptionForNewException(const char* msg) const;
 
-  void SetException(mirror::Throwable* new_exception) REQUIRES_SHARED(Locks::mutator_lock_);
+  void SetException(ObjPtr<mirror::Throwable> new_exception) REQUIRES_SHARED(Locks::mutator_lock_);
 
   void ClearException() REQUIRES_SHARED(Locks::mutator_lock_) {
     tlsPtr_.exception = nullptr;
@@ -902,7 +902,9 @@ class Thread {
 
   // Returns the fake exception used to activate deoptimization.
   static mirror::Throwable* GetDeoptimizationException() {
-    return reinterpret_cast<mirror::Throwable*>(-1);
+    // Note that the mirror::Throwable must be aligned to kObjectAlignment or else it cannot be
+    // represented by ObjPtr.
+    return reinterpret_cast<mirror::Throwable*>(0x100);
   }
 
   // Currently deoptimization invokes verifier which can trigger class loading

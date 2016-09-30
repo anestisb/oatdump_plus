@@ -33,7 +33,7 @@
 #include "nth_caller_visitor.h"
 #include "oat_quick_method_header.h"
 #include "reflection.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "well_known_classes.h"
 
 namespace art {
@@ -165,7 +165,7 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
           CHECK(soa.Self()->IsExceptionPending());
           return zero;
         }
-        soa.Decode<mirror::ObjectArray<mirror::Object>* >(args_jobj)->Set<false>(i, val);
+        soa.Decode<mirror::ObjectArray<mirror::Object>>(args_jobj)->Set<false>(i, val);
       }
     }
   }
@@ -187,13 +187,13 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
       return zero;
     } else {
       ArtMethod* interface_method =
-          soa.Decode<mirror::Method*>(interface_method_jobj)->GetArtMethod();
+          soa.Decode<mirror::Method>(interface_method_jobj)->GetArtMethod();
       // This can cause thread suspension.
       PointerSize pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
       mirror::Class* result_type = interface_method->GetReturnType(true /* resolve */, pointer_size);
-      mirror::Object* result_ref = soa.Decode<mirror::Object*>(result);
+      ObjPtr<mirror::Object> result_ref = soa.Decode<mirror::Object>(result);
       JValue result_unboxed;
-      if (!UnboxPrimitiveForResult(result_ref, result_type, &result_unboxed)) {
+      if (!UnboxPrimitiveForResult(result_ref.Decode(), result_type, &result_unboxed)) {
         DCHECK(soa.Self()->IsExceptionPending());
         return zero;
       }
@@ -207,9 +207,9 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
       bool declares_exception = false;
       {
         ScopedAssertNoThreadSuspension ants(__FUNCTION__);
-        mirror::Object* rcvr = soa.Decode<mirror::Object*>(rcvr_jobj);
+        ObjPtr<mirror::Object> rcvr = soa.Decode<mirror::Object>(rcvr_jobj);
         mirror::Class* proxy_class = rcvr->GetClass();
-        mirror::Method* interface_method = soa.Decode<mirror::Method*>(interface_method_jobj);
+        ObjPtr<mirror::Method> interface_method = soa.Decode<mirror::Method>(interface_method_jobj);
         ArtMethod* proxy_method = rcvr->GetClass()->FindVirtualMethodForInterface(
             interface_method->GetArtMethod(), kRuntimePointerSize);
         auto virtual_methods = proxy_class->GetVirtualMethodsSlice(kRuntimePointerSize);

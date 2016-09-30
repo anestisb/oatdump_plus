@@ -18,7 +18,7 @@
 
 #include "dlmalloc_space.h"
 #include "rosalloc_space.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 namespace gc {

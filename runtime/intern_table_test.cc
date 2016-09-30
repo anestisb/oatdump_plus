@@ -20,7 +20,7 @@
 #include "mirror/object.h"
 #include "handle_scope-inl.h"
 #include "mirror/string.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 

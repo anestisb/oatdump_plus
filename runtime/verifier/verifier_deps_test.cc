@@ -25,7 +25,7 @@
 #include "mirror/class_loader.h"
 #include "runtime.h"
 #include "thread.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 namespace verifier {
@@ -58,7 +58,7 @@ class VerifierDepsTest : public CommonRuntimeTest {
       REQUIRES_SHARED(Locks::mutator_lock_) {
     StackHandleScope<1> hs(Thread::Current());
     Handle<mirror::ClassLoader> class_loader_handle(
-        hs.NewHandle(soa->Decode<mirror::ClassLoader*>(class_loader_)));
+        hs.NewHandle(soa->Decode<mirror::ClassLoader>(class_loader_)));
     mirror::Class* klass = class_linker_->FindClass(Thread::Current(),
                                                     name.c_str(),
                                                     class_loader_handle);
@@ -84,8 +84,8 @@ class VerifierDepsTest : public CommonRuntimeTest {
 
     SetVerifierDeps(dex_files);
 
-    mirror::ClassLoader* loader = soa->Decode<mirror::ClassLoader*>(class_loader_);
-    class_linker_->RegisterDexFile(*dex_file_, loader);
+    ObjPtr<mirror::ClassLoader> loader = soa->Decode<mirror::ClassLoader>(class_loader_);
+    class_linker_->RegisterDexFile(*dex_file_, loader.Decode());
 
     klass_Main_ = FindClassByName("LMain;", soa);
     CHECK(klass_Main_ != nullptr);
@@ -97,7 +97,7 @@ class VerifierDepsTest : public CommonRuntimeTest {
 
     StackHandleScope<2> hs(Thread::Current());
     Handle<mirror::ClassLoader> class_loader_handle(
-        hs.NewHandle(soa.Decode<mirror::ClassLoader*>(class_loader_)));
+        hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader_)));
     Handle<mirror::DexCache> dex_cache_handle(hs.NewHandle(klass_Main_->GetDexCache()));
 
     const DexFile::ClassDef* class_def = klass_Main_->GetClassDef();

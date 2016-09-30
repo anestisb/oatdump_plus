@@ -47,7 +47,7 @@
 #include "os.h"
 #include "primitive.h"
 #include "runtime-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread.h"
 #include "well_known_classes.h"
 
@@ -511,12 +511,12 @@ std::vector<const DexFile*> CommonRuntimeTestImpl::GetDexFiles(jobject jclass_lo
 
   StackHandleScope<2> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader = hs.NewHandle(
-      soa.Decode<mirror::ClassLoader*>(jclass_loader));
+      soa.Decode<mirror::ClassLoader>(jclass_loader));
 
   DCHECK_EQ(class_loader->GetClass(),
-            soa.Decode<mirror::Class*>(WellKnownClasses::dalvik_system_PathClassLoader));
+            soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_PathClassLoader).Decode());
   DCHECK_EQ(class_loader->GetParent()->GetClass(),
-            soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_BootClassLoader));
+            soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader).Decode());
 
   // The class loader is a PathClassLoader which inherits from BaseDexClassLoader.
   // We need to get the DexPathList and loop through it.

@@ -26,7 +26,7 @@
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "reflection.h"
-#include "scoped_fast_native_object_access.h"
+#include "scoped_fast_native_object_access-inl.h"
 #include "well_known_classes.h"
 
 namespace art {

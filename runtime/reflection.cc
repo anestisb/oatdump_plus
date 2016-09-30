@@ -28,7 +28,7 @@
 #include "mirror/executable.h"
 #include "mirror/object_array-inl.h"
 #include "nth_caller_visitor.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "stack_reference.h"
 #include "well_known_classes.h"
 
@@ -115,7 +115,7 @@ class ArgArray {
           AppendFloat(va_arg(ap, jdouble));
           break;
         case 'L':
-          Append(soa.Decode<mirror::Object*>(va_arg(ap, jobject)));
+          Append(soa.Decode<mirror::Object>(va_arg(ap, jobject)));
           break;
         case 'D':
           AppendDouble(va_arg(ap, jdouble));
@@ -157,7 +157,7 @@ class ArgArray {
           Append(args[args_offset].i);
           break;
         case 'L':
-          Append(soa.Decode<mirror::Object*>(args[args_offset].l));
+          Append(soa.Decode<mirror::Object>(args[args_offset].l));
           break;
         case 'D':
         case 'J':
@@ -459,7 +459,7 @@ JValue InvokeWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa, jobject o
     // Replace calls to String.<init> with equivalent StringFactory call.
     method = WellKnownClasses::StringInitToStringFactory(method);
   }
-  ObjPtr<mirror::Object> receiver = method->IsStatic() ? nullptr : soa.Decode<mirror::Object*>(obj);
+  ObjPtr<mirror::Object> receiver = method->IsStatic() ? nullptr : soa.Decode<mirror::Object>(obj);
   uint32_t shorty_len = 0;
   const char* shorty =
       method->GetInterfaceMethodIfProxy(kRuntimePointerSize)->GetShorty(&shorty_len);
@@ -490,7 +490,7 @@ JValue InvokeWithJValues(const ScopedObjectAccessAlreadyRunnable& soa, jobject o
     // Replace calls to String.<init> with equivalent StringFactory call.
     method = WellKnownClasses::StringInitToStringFactory(method);
   }
-  ObjPtr<mirror::Object> receiver = method->IsStatic() ? nullptr : soa.Decode<mirror::Object*>(obj);
+  ObjPtr<mirror::Object> receiver = method->IsStatic() ? nullptr : soa.Decode<mirror::Object>(obj);
   uint32_t shorty_len = 0;
   const char* shorty =
       method->GetInterfaceMethodIfProxy(kRuntimePointerSize)->GetShorty(&shorty_len);
@@ -515,7 +515,7 @@ JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccessAlreadyRunnab
     return JValue();
   }
 
-  ObjPtr<mirror::Object> receiver = soa.Decode<mirror::Object*>(obj);
+  ObjPtr<mirror::Object> receiver = soa.Decode<mirror::Object>(obj);
   ArtMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
   bool is_string_init = method->GetDeclaringClass()->IsStringClass() && method->IsConstructor();
   if (is_string_init) {
@@ -547,7 +547,7 @@ JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccessAlreadyRunnab
     return JValue();
   }
 
-  ObjPtr<mirror::Object> receiver = soa.Decode<mirror::Object*>(obj);
+  ObjPtr<mirror::Object> receiver = soa.Decode<mirror::Object>(obj);
   ArtMethod* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
   bool is_string_init = method->GetDeclaringClass()->IsStringClass() && method->IsConstructor();
   if (is_string_init) {
@@ -580,18 +580,17 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
     return nullptr;
   }
 
-  ObjPtr<mirror::Executable> executable = soa.Decode<mirror::Executable*>(javaMethod);
+  ObjPtr<mirror::Executable> executable = soa.Decode<mirror::Executable>(javaMethod);
   const bool accessible = executable->IsAccessible();
   ArtMethod* m = executable->GetArtMethod();
 
   ObjPtr<mirror::Class> declaring_class = m->GetDeclaringClass();
   if (UNLIKELY(!declaring_class->IsInitialized())) {
     StackHandleScope<1> hs(soa.Self());
-    Handle<mirror::Class> h_class(hs.NewHandle(declaring_class.Decode()));
+    HandleWrapperObjPtr<mirror::Class> h_class(hs.NewHandleWrapper(&declaring_class));
     if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(soa.Self(), h_class, true, true)) {
       return nullptr;
     }
-    declaring_class = h_class.Get();
   }
 
   ObjPtr<mirror::Object> receiver;
@@ -602,7 +601,7 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
       CHECK(javaReceiver == nullptr);
     } else {
       // Check that the receiver is non-null and an instance of the field's declaring class.
-      receiver = soa.Decode<mirror::Object*>(javaReceiver);
+      receiver = soa.Decode<mirror::Object>(javaReceiver);
       if (!VerifyObjectIsClass(receiver, declaring_class)) {
         return nullptr;
       }
@@ -613,7 +612,8 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
   }
 
   // Get our arrays of arguments and their types, and check they're the same size.
-  auto* objects = soa.Decode<mirror::ObjectArray<mirror::Object>*>(javaArgs);
+  ObjPtr<mirror::ObjectArray<mirror::Object>> objects =
+      soa.Decode<mirror::ObjectArray<mirror::Object>>(javaArgs);
   auto* np_method = m->GetInterfaceMethodIfProxy(kRuntimePointerSize);
   const DexFile::TypeList* classes = np_method->GetParameterTypeList();
   uint32_t classes_size = (classes == nullptr) ? 0 : classes->Size();
@@ -682,7 +682,7 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
 
 ObjPtr<mirror::Object> BoxPrimitive(Primitive::Type src_class, const JValue& value) {
   if (src_class == Primitive::kPrimNot) {
-    return value.GetL();
+    return MakeObjPtr(value.GetL());
   }
   if (src_class == Primitive::kPrimVoid) {
     // There's no such thing as a void field, and void methods invoked via reflection return null.

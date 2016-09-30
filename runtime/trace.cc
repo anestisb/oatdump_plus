@@ -37,7 +37,7 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
 #include "os.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "ScopedLocalRef.h"
 #include "thread.h"
 #include "thread_list.h"
