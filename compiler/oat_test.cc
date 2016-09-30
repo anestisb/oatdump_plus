@@ -23,7 +23,6 @@
 #include "compiled_method.h"
 #include "compiler.h"
 #include "debug/method_debug_info.h"
-#include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/quick_compiler_callbacks.h"
 #include "dex/verification_results.h"
 #include "driver/compiler_driver.h"
@@ -100,15 +99,12 @@ class OatTest : public CommonCompilerTest {
       compiler_options_->ParseCompilerOption(option, Usage);
     }
     verification_results_.reset(new VerificationResults(compiler_options_.get()));
-    method_inliner_map_.reset(new DexFileToMethodInlinerMap);
     callbacks_.reset(new QuickCompilerCallbacks(verification_results_.get(),
-                                                method_inliner_map_.get(),
                                                 CompilerCallbacks::CallbackMode::kCompileApp));
     Runtime::Current()->SetCompilerCallbacks(callbacks_.get());
     timer_.reset(new CumulativeLogger("Compilation times"));
     compiler_driver_.reset(new CompilerDriver(compiler_options_.get(),
                                               verification_results_.get(),
-                                              method_inliner_map_.get(),
                                               compiler_kind,
                                               insn_set,
                                               insn_features_.get(),
