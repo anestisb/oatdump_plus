@@ -39,7 +39,7 @@
 #include "oat_quick_method_header.h"
 #include "obj_ptr-inl.h"
 #include "os.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "utf-inl.h"
 
 #if defined(__APPLE__)

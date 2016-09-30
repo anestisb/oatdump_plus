@@ -17,7 +17,7 @@
 #include "gc/heap.h"
 #include "jni.h"
 #include "runtime.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 
 namespace art {
@@ -35,7 +35,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_MovingGCThread_supportHomogeneousSpac
 
 extern "C" JNIEXPORT jlong JNICALL Java_MovingGCThread_objectAddress(JNIEnv* env, jclass, jobject object) {
   ScopedObjectAccess soa(env);
-  return reinterpret_cast<jlong>(soa.Decode<mirror::Object*>(object));
+  return reinterpret_cast<jlong>(soa.Decode<mirror::Object>(object).Decode());
 }
 
 }  // namespace

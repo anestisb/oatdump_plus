@@ -899,7 +899,7 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
     ScopedObjectAccess soa(Thread::Current());
     StackHandleScope<1> hs(soa.Self());
     Handle<mirror::ClassLoader> loader(hs.NewHandle(
-        soa.Decode<mirror::ClassLoader*>(class_loader)));
+        soa.Decode<mirror::ClassLoader>(class_loader)));
     method = compiler_driver->ResolveMethod(
         soa, dex_cache, loader, &dex_compilation_unit, method_idx, invoke_type);
   }

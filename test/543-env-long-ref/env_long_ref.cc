@@ -17,7 +17,7 @@
 #include "arch/context.h"
 #include "art_method-inl.h"
 #include "jni.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "stack.h"
 #include "thread.h"
 
@@ -43,7 +43,7 @@ class TestVisitor : public StackVisitor {
       uint32_t value = 0;
       CHECK(GetVReg(m, 1, kReferenceVReg, &value));
       CHECK_EQ(reinterpret_cast<mirror::Object*>(value),
-               soa_.Decode<mirror::Object*>(expected_value_));
+               soa_.Decode<mirror::Object>(expected_value_).Decode());
     }
     return true;
   }

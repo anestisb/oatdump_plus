@@ -17,7 +17,7 @@
 #include "oat_quick_method_header.h"
 
 #include "art_method.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread.h"
 
 namespace art {

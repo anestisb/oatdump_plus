@@ -36,7 +36,7 @@
 #include "lock_word.h"
 #include "monitor.h"
 #include "native_stack_dump.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread.h"
 #include "trace.h"
 #include "well_known_classes.h"

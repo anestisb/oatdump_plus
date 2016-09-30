@@ -42,7 +42,7 @@
 #include "mirror/stack_trace_element.h"
 #include "mirror/string-inl.h"
 #include "handle_scope-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 
 namespace art {
@@ -777,7 +777,7 @@ TEST_F(ClassLinkerTest, FindClassNested) {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(
-      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(LoadDex("Nested"))));
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(LoadDex("Nested"))));
 
   mirror::Class* outer = class_linker_->FindClass(soa.Self(), "LNested;", class_loader);
   ASSERT_TRUE(outer != nullptr);
@@ -811,7 +811,7 @@ TEST_F(ClassLinkerTest, FindClass) {
 
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(
-      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(LoadDex("MyClass"))));
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(LoadDex("MyClass"))));
   AssertNonExistentClass("LMyClass;");
   mirror::Class* MyClass = class_linker_->FindClass(soa.Self(), "LMyClass;", class_loader);
   ASSERT_TRUE(MyClass != nullptr);
@@ -937,9 +937,9 @@ TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<2> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader_1(
-      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(LoadDex("MyClass"))));
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(LoadDex("MyClass"))));
   Handle<mirror::ClassLoader> class_loader_2(
-      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(LoadDex("MyClass"))));
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(LoadDex("MyClass"))));
   mirror::Class* MyClass_1 = class_linker_->FindClass(soa.Self(), "LMyClass;", class_loader_1);
   mirror::Class* MyClass_2 = class_linker_->FindClass(soa.Self(), "LMyClass;", class_loader_2);
   EXPECT_TRUE(MyClass_1 != nullptr);
@@ -951,7 +951,7 @@ TEST_F(ClassLinkerTest, StaticFields) {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<2> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(
-      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(LoadDex("Statics"))));
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(LoadDex("Statics"))));
   Handle<mirror::Class> statics(
       hs.NewHandle(class_linker_->FindClass(soa.Self(), "LStatics;", class_loader)));
   class_linker_->EnsureInitialized(soa.Self(), statics, true, true);
@@ -1028,7 +1028,7 @@ TEST_F(ClassLinkerTest, Interfaces) {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<6> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(
-      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(LoadDex("Interfaces"))));
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(LoadDex("Interfaces"))));
   Handle<mirror::Class> I(
       hs.NewHandle(class_linker_->FindClass(soa.Self(), "LInterfaces$I;", class_loader)));
   Handle<mirror::Class> J(
@@ -1097,7 +1097,7 @@ TEST_F(ClassLinkerTest, ResolveVerifyAndClinit) {
   const DexFile* dex_file = GetFirstDexFile(jclass_loader);
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(
-      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(jclass_loader)));
   mirror::Class* klass = class_linker_->FindClass(soa.Self(), "LStaticsFromCode;", class_loader);
   ArtMethod* clinit = klass->FindClassInitializer(kRuntimePointerSize);
   ArtMethod* getS0 = klass->FindDirectMethod("getS0", "()Ljava/lang/Object;", kRuntimePointerSize);
@@ -1227,7 +1227,7 @@ TEST_F(ClassLinkerTest, Preverified_App) {
 
   StackHandleScope<2> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(
-      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(LoadDex("Statics"))));
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(LoadDex("Statics"))));
   Handle<mirror::Class> statics(
       hs.NewHandle(class_linker_->FindClass(soa.Self(), "LStatics;", class_loader)));
 
@@ -1242,7 +1242,7 @@ TEST_F(ClassLinkerTest, IsBootStrapClassLoaded) {
 
   StackHandleScope<3> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(
-      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(LoadDex("Statics"))));
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(LoadDex("Statics"))));
 
   // java.lang.Object is a bootstrap class.
   Handle<mirror::Class> jlo_class(

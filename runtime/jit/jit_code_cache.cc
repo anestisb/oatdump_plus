@@ -32,7 +32,7 @@
 #include "linear_alloc.h"
 #include "mem_map.h"
 #include "oat_file-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread_list.h"
 
 namespace art {

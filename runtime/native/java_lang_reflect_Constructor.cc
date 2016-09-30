@@ -26,7 +26,7 @@
 #include "mirror/method.h"
 #include "mirror/object-inl.h"
 #include "reflection.h"
-#include "scoped_fast_native_object_access.h"
+#include "scoped_fast_native_object_access-inl.h"
 #include "well_known_classes.h"
 
 namespace art {
@@ -60,7 +60,7 @@ static jobjectArray Constructor_getExceptionTypes(JNIEnv* env, jobject javaMetho
  */
 static jobject Constructor_newInstance0(JNIEnv* env, jobject javaMethod, jobjectArray javaArgs) {
   ScopedFastNativeObjectAccess soa(env);
-  mirror::Constructor* m = soa.Decode<mirror::Constructor*>(javaMethod);
+  ObjPtr<mirror::Constructor> m = soa.Decode<mirror::Constructor>(javaMethod);
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::Class> c(hs.NewHandle(m->GetDeclaringClass()));
   if (UNLIKELY(c->IsAbstract())) {

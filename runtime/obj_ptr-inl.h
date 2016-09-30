@@ -41,6 +41,7 @@ inline void ObjPtr<MirrorType, kPoison>::AssertValid() const {
 template<class MirrorType, bool kPoison>
 inline uintptr_t ObjPtr<MirrorType, kPoison>::Encode(MirrorType* ptr) {
   uintptr_t ref = reinterpret_cast<uintptr_t>(ptr);
+  DCHECK_ALIGNED(ref, kObjectAlignment);
   if (kPoison && ref != 0) {
     DCHECK_LE(ref, 0xFFFFFFFFU);
     ref >>= kObjectAlignmentShift;
@@ -50,6 +51,12 @@ inline uintptr_t ObjPtr<MirrorType, kPoison>::Encode(MirrorType* ptr) {
     ref |= self->GetPoisonObjectCookie() << kCookieShift;
   }
   return ref;
+}
+
+template<class MirrorType, bool kPoison>
+inline std::ostream& operator<<(std::ostream& os, ObjPtr<MirrorType, kPoison> ptr) {
+  // May be used for dumping bad pointers, do not use the checked version.
+  return os << ptr.DecodeUnchecked();
 }
 
 }  // namespace art

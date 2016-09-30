@@ -31,7 +31,7 @@
 #include "jdwp/jdwp_expand_buf.h"
 #include "jdwp/jdwp_priv.h"
 #include "runtime.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 #include "utils.h"
 

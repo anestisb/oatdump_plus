@@ -21,7 +21,7 @@
 #include "nth_caller_visitor.h"
 #include "reference_table.h"
 #include "runtime.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread.h"
 #include "utils.h"
 #include "verify_object-inl.h"

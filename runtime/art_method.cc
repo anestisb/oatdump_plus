@@ -40,7 +40,7 @@
 #include "mirror/object-inl.h"
 #include "mirror/string.h"
 #include "oat_file-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "well_known_classes.h"
 
 namespace art {
@@ -52,7 +52,7 @@ extern "C" void art_quick_invoke_static_stub(ArtMethod*, uint32_t*, uint32_t, Th
 
 ArtMethod* ArtMethod::FromReflectedMethod(const ScopedObjectAccessAlreadyRunnable& soa,
                                           jobject jlr_method) {
-  auto* executable = soa.Decode<mirror::Executable*>(jlr_method);
+  ObjPtr<mirror::Executable> executable = soa.Decode<mirror::Executable>(jlr_method);
   DCHECK(executable != nullptr);
   return executable->GetArtMethod();
 }
@@ -350,7 +350,7 @@ bool ArtMethod::IsAnnotatedWith(jclass klass, uint32_t visibility) {
   ScopedObjectAccess soa(self);
   StackHandleScope<1> shs(self);
 
-  mirror::Class* annotation = soa.Decode<mirror::Class*>(klass);
+  ObjPtr<mirror::Class> annotation = soa.Decode<mirror::Class>(klass);
   DCHECK(annotation->IsAnnotation());
   Handle<mirror::Class> annotation_handle(shs.NewHandle(annotation));
 

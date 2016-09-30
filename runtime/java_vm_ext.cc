@@ -36,7 +36,7 @@
 #include "runtime-inl.h"
 #include "runtime_options.h"
 #include "ScopedLocalRef.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 #include "thread_list.h"
 
@@ -532,17 +532,17 @@ bool JavaVMExt::ShouldTrace(ArtMethod* method) {
   return true;
 }
 
-jobject JavaVMExt::AddGlobalRef(Thread* self, mirror::Object* obj) {
+jobject JavaVMExt::AddGlobalRef(Thread* self, ObjPtr<mirror::Object> obj) {
   // Check for null after decoding the object to handle cleared weak globals.
   if (obj == nullptr) {
     return nullptr;
   }
   WriterMutexLock mu(self, globals_lock_);
-  IndirectRef ref = globals_.Add(IRT_FIRST_SEGMENT, obj);
+  IndirectRef ref = globals_.Add(IRT_FIRST_SEGMENT, obj.Decode());
   return reinterpret_cast<jobject>(ref);
 }
 
-jweak JavaVMExt::AddWeakGlobalRef(Thread* self, mirror::Object* obj) {
+jweak JavaVMExt::AddWeakGlobalRef(Thread* self, ObjPtr<mirror::Object> obj) {
   if (obj == nullptr) {
     return nullptr;
   }
@@ -550,7 +550,7 @@ jweak JavaVMExt::AddWeakGlobalRef(Thread* self, mirror::Object* obj) {
   while (UNLIKELY(!MayAccessWeakGlobals(self))) {
     weak_globals_add_condition_.WaitHoldingLocks(self);
   }
-  IndirectRef ref = weak_globals_.Add(IRT_FIRST_SEGMENT, obj);
+  IndirectRef ref = weak_globals_.Add(IRT_FIRST_SEGMENT, obj.Decode());
   return reinterpret_cast<jweak>(ref);
 }
 
@@ -755,15 +755,15 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env,
     ScopedObjectAccess soa(env);
     // As the incoming class loader is reachable/alive during the call of this function,
     // it's okay to decode it without worrying about unexpectedly marking it alive.
-    mirror::ClassLoader* loader = soa.Decode<mirror::ClassLoader*>(class_loader);
+    ObjPtr<mirror::ClassLoader> loader = soa.Decode<mirror::ClassLoader>(class_loader);
 
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    if (class_linker->IsBootClassLoader(soa, loader)) {
+    if (class_linker->IsBootClassLoader(soa, loader.Decode())) {
       loader = nullptr;
       class_loader = nullptr;
     }
 
-    class_loader_allocator = class_linker->GetAllocatorForClassLoader(loader);
+    class_loader_allocator = class_linker->GetAllocatorForClassLoader(loader.Decode());
     CHECK(class_loader_allocator != nullptr);
   }
   if (library != nullptr) {

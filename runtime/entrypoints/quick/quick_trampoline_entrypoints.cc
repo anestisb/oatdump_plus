@@ -36,7 +36,7 @@
 #include "oat_quick_method_header.h"
 #include "quick_exception_handler.h"
 #include "runtime.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "stack.h"
 #include "debugger.h"
 
@@ -834,7 +834,7 @@ void BuildQuickArgumentVisitor::Visit() {
 void BuildQuickArgumentVisitor::FixupReferences() {
   // Fixup any references which may have changed.
   for (const auto& pair : references_) {
-    pair.second->Assign(soa_->Decode<mirror::Object*>(pair.first));
+    pair.second->Assign(soa_->Decode<mirror::Object>(pair.first).Decode());
     soa_->Env()->DeleteLocalRef(pair.first);
   }
 }
@@ -926,7 +926,7 @@ void RememberForGcArgumentVisitor::Visit() {
 void RememberForGcArgumentVisitor::FixupReferences() {
   // Fixup any references which may have changed.
   for (const auto& pair : references_) {
-    pair.second->Assign(soa_->Decode<mirror::Object*>(pair.first));
+    pair.second->Assign(soa_->Decode<mirror::Object>(pair.first).Decode());
     soa_->Env()->DeleteLocalRef(pair.first);
   }
 }

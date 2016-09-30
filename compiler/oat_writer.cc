@@ -50,7 +50,7 @@
 #include "oat_quick_method_header.h"
 #include "os.h"
 #include "safe_map.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "type_lookup_table.h"
 #include "utils/dex_cache_arrays_layout-inl.h"
 #include "vdex_file.h"

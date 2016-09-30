@@ -32,7 +32,7 @@
 #include "mirror/object-inl.h"
 #include "handle_scope-inl.h"
 #include "jit/offline_profiling_info.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 
@@ -83,7 +83,7 @@ class CompilerDriverTest : public CommonCompilerTest {
       ScopedObjectAccess soa(Thread::Current());
       StackHandleScope<1> hs(soa.Self());
       Handle<mirror::ClassLoader> loader(
-          hs.NewHandle(soa.Decode<mirror::ClassLoader*>(class_loader)));
+          hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader)));
       mirror::Class* c = class_linker->FindClass(soa.Self(), descriptor, loader);
       CHECK(c != nullptr);
       const auto pointer_size = class_linker->GetImagePointerSize();

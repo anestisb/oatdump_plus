@@ -24,7 +24,7 @@
 #include "mirror/class_loader.h"
 #include "mirror/object-inl.h"
 #include "oat_file.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "ScopedUtfChars.h"
 
 namespace art {
@@ -148,7 +148,7 @@ static jclass InMemoryDexClassLoader_DexData_findClass(
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     StackHandleScope<1> handle_scope(soa.Self());
     Handle<mirror::ClassLoader> class_loader(
-        handle_scope.NewHandle(soa.Decode<mirror::ClassLoader*>(loader)));
+        handle_scope.NewHandle(soa.Decode<mirror::ClassLoader>(loader)));
     class_linker->RegisterDexFile(*dex_file, class_loader.Get());
     mirror::Class* result = class_linker->DefineClass(
         soa.Self(), class_descriptor, hash, class_loader, *dex_file, *dex_class_def);
@@ -157,7 +157,7 @@ static jclass InMemoryDexClassLoader_DexData_findClass(
       // InMemoryClassLoader/DexData instance now that a class has
       // been loaded.
       class_linker->InsertDexFileInToClassLoader(
-          soa.Decode<mirror::Object*>(dexData), class_loader.Get());
+          soa.Decode<mirror::Object>(dexData).Decode(), class_loader.Get());
       return soa.AddLocalReference<jclass>(result);
     }
   }
