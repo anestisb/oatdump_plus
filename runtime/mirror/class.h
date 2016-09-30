@@ -1287,14 +1287,17 @@ class MANAGED Class FINAL : public Object {
   void SetVerifyError(Object* klass) REQUIRES_SHARED(Locks::mutator_lock_);
 
   template <bool throw_on_failure, bool use_referrers_cache>
-  bool ResolvedFieldAccessTest(Class* access_to,
+  bool ResolvedFieldAccessTest(ObjPtr<Class> access_to,
                                ArtField* field,
                                uint32_t field_idx,
-                               DexCache* dex_cache)
+                               ObjPtr<DexCache> dex_cache)
       REQUIRES_SHARED(Locks::mutator_lock_);
+
   template <bool throw_on_failure, bool use_referrers_cache, InvokeType throw_invoke_type>
-  bool ResolvedMethodAccessTest(Class* access_to, ArtMethod* resolved_method,
-                                uint32_t method_idx, DexCache* dex_cache)
+  bool ResolvedMethodAccessTest(ObjPtr<Class> access_to,
+                                ArtMethod* resolved_method,
+                                uint32_t method_idx,
+                                ObjPtr<DexCache> dex_cache)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool Implements(Class* klass) REQUIRES_SHARED(Locks::mutator_lock_);
