@@ -45,6 +45,7 @@
 #include "image-inl.h"
 #include "imtable-inl.h"
 #include "indenter.h"
+#include "interpreter/unstarted_runtime.h"
 #include "linker/buffered_output_stream.h"
 #include "linker/file_output_stream.h"
 #include "mirror/array-inl.h"
@@ -2445,39 +2446,55 @@ static int DumpImages(Runtime* runtime, OatDumperOptions* options, std::ostream*
   return EXIT_SUCCESS;
 }
 
-static int DumpOatWithRuntime(Runtime* runtime, OatFile* oat_file, OatDumperOptions* options,
-                              std::ostream* os) {
-  CHECK(runtime != nullptr && oat_file != nullptr && options != nullptr);
-
+static jobject InstallOatFile(Runtime* runtime,
+                              std::unique_ptr<OatFile> oat_file,
+                              std::vector<const DexFile*>* class_path)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
   Thread* self = Thread::Current();
   CHECK(self != nullptr);
   // Need well-known-classes.
   WellKnownClasses::Init(self->GetJniEnv());
 
   // Need to register dex files to get a working dex cache.
-  ScopedObjectAccess soa(self);
+  OatFile* oat_file_ptr = oat_file.get();
   ClassLinker* class_linker = runtime->GetClassLinker();
-  runtime->GetOatFileManager().RegisterOatFile(std::unique_ptr<const OatFile>(oat_file));
-  std::vector<const DexFile*> class_path;
-  for (const OatFile::OatDexFile* odf : oat_file->GetOatDexFiles()) {
+  runtime->GetOatFileManager().RegisterOatFile(std::move(oat_file));
+  for (const OatFile::OatDexFile* odf : oat_file_ptr->GetOatDexFiles()) {
     std::string error_msg;
     const DexFile* const dex_file = OpenDexFile(odf, &error_msg);
     CHECK(dex_file != nullptr) << error_msg;
     class_linker->RegisterDexFile(*dex_file, nullptr);
-    class_path.push_back(dex_file);
+    class_path->push_back(dex_file);
   }
 
-  // Need a class loader.
-  // Fake that we're a compiler.
-  jobject class_loader = class_linker->CreatePathClassLoader(self, class_path);
+  // Need a class loader. Fake that we're a compiler.
+  // Note: this will run initializers through the unstarted runtime, so make sure it's
+  //       initialized.
+  interpreter::UnstartedRuntime::Initialize();
+
+  jobject class_loader = class_linker->CreatePathClassLoader(self, *class_path);
+
+  return class_loader;
+}
+
+static int DumpOatWithRuntime(Runtime* runtime,
+                              std::unique_ptr<OatFile> oat_file,
+                              OatDumperOptions* options,
+                              std::ostream* os) {
+  CHECK(runtime != nullptr && oat_file != nullptr && options != nullptr);
+  ScopedObjectAccess soa(Thread::Current());
+
+  OatFile* oat_file_ptr = oat_file.get();
+  std::vector<const DexFile*> class_path;
+  jobject class_loader = InstallOatFile(runtime, std::move(oat_file), &class_path);
 
   // Use the class loader while dumping.
-  StackHandleScope<1> scope(self);
+  StackHandleScope<1> scope(soa.Self());
   Handle<mirror::ClassLoader> loader_handle = scope.NewHandle(
       soa.Decode<mirror::ClassLoader>(class_loader));
   options->class_loader_ = &loader_handle;
 
-  OatDumper oat_dumper(*oat_file, *options);
+  OatDumper oat_dumper(*oat_file_ptr, *options);
   bool success = oat_dumper.Dump(*os);
   return (success) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
@@ -2496,23 +2513,23 @@ static int DumpOatWithoutRuntime(OatFile* oat_file, OatDumperOptions* options, s
 static int DumpOat(Runtime* runtime, const char* oat_filename, OatDumperOptions* options,
                    std::ostream* os) {
   std::string error_msg;
-  OatFile* oat_file = OatFile::Open(oat_filename,
-                                    oat_filename,
-                                    nullptr,
-                                    nullptr,
-                                    false,
-                                    /*low_4gb*/false,
-                                    nullptr,
-                                    &error_msg);
+  std::unique_ptr<OatFile> oat_file(OatFile::Open(oat_filename,
+                                                  oat_filename,
+                                                  nullptr,
+                                                  nullptr,
+                                                  false,
+                                                  /*low_4gb*/false,
+                                                  nullptr,
+                                                  &error_msg));
   if (oat_file == nullptr) {
     fprintf(stderr, "Failed to open oat file from '%s': %s\n", oat_filename, error_msg.c_str());
     return EXIT_FAILURE;
   }
 
   if (runtime != nullptr) {
-    return DumpOatWithRuntime(runtime, oat_file, options, os);
+    return DumpOatWithRuntime(runtime, std::move(oat_file), options, os);
   } else {
-    return DumpOatWithoutRuntime(oat_file, options, os);
+    return DumpOatWithoutRuntime(oat_file.get(), options, os);
   }
 }
 
@@ -2551,7 +2568,56 @@ static int SymbolizeOat(const char* oat_filename, std::string& output_name, bool
 
 class IMTDumper {
  public:
-  static bool DumpImt(Runtime* runtime, const std::string& imt_file) {
+  static bool Dump(Runtime* runtime,
+                   const std::string& imt_file,
+                   bool dump_imt_stats,
+                   const char* oat_filename) {
+    Thread* self = Thread::Current();
+
+    ScopedObjectAccess soa(self);
+    StackHandleScope<1> scope(self);
+    MutableHandle<mirror::ClassLoader> class_loader = scope.NewHandle<mirror::ClassLoader>(nullptr);
+    std::vector<const DexFile*> class_path;
+
+    if (oat_filename != nullptr) {
+      std::string error_msg;
+      std::unique_ptr<OatFile> oat_file(OatFile::Open(oat_filename,
+                                                      oat_filename,
+                                                      nullptr,
+                                                      nullptr,
+                                                      false,
+                                                      /*low_4gb*/false,
+                                                      nullptr,
+                                                      &error_msg));
+      if (oat_file == nullptr) {
+        fprintf(stderr, "Failed to open oat file from '%s': %s\n", oat_filename, error_msg.c_str());
+        return false;
+      }
+
+      class_loader.Assign(soa.Decode<mirror::ClassLoader>(
+          InstallOatFile(runtime, std::move(oat_file), &class_path)));
+    } else {
+      class_loader.Assign(nullptr);  // Boot classloader. Just here for explicit documentation.
+      class_path = runtime->GetClassLinker()->GetBootClassPath();
+    }
+
+    if (!imt_file.empty()) {
+      return DumpImt(runtime, imt_file, class_loader);
+    }
+
+    if (dump_imt_stats) {
+      return DumpImtStats(runtime, class_path, class_loader);
+    }
+
+    LOG(FATAL) << "Should not reach here";
+    UNREACHABLE();
+  }
+
+ private:
+  static bool DumpImt(Runtime* runtime,
+                      const std::string& imt_file,
+                      Handle<mirror::ClassLoader> h_class_loader)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     std::vector<std::string> lines = ReadCommentedInputFromFile(imt_file);
     std::unordered_set<std::string> prepared;
 
@@ -2561,11 +2627,12 @@ class IMTDumper {
       // determine its IMT slot, and check the class' IMT.
       size_t first_space = line.find(' ');
       if (first_space == std::string::npos) {
-        DumpIMTForClass(runtime, line, &prepared);
+        DumpIMTForClass(runtime, line, h_class_loader, &prepared);
       } else {
         DumpIMTForMethod(runtime,
                          line.substr(0, first_space),
                          line.substr(first_space + 1, std::string::npos),
+                         h_class_loader,
                          &prepared);
       }
       std::cerr << std::endl;
@@ -2574,9 +2641,12 @@ class IMTDumper {
     return true;
   }
 
-  static bool DumpImtStats(Runtime* runtime, const std::vector<const DexFile*>& dex_files) {
-    size_t wo_imt = 0;
-    size_t w_imt = 0;
+  static bool DumpImtStats(Runtime* runtime,
+                           const std::vector<const DexFile*>& dex_files,
+                           Handle<mirror::ClassLoader> h_class_loader)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    size_t without_imt = 0;
+    size_t with_imt = 0;
     std::map<size_t, size_t> histogram;
 
     ClassLinker* class_linker = runtime->GetClassLinker();
@@ -2584,37 +2654,34 @@ class IMTDumper {
     std::unordered_set<std::string> prepared;
 
     Thread* self = Thread::Current();
-    ScopedObjectAccess soa(self);
     StackHandleScope<1> scope(self);
     MutableHandle<mirror::Class> h_klass(scope.NewHandle<mirror::Class>(nullptr));
 
     for (const DexFile* dex_file : dex_files) {
       for (uint32_t class_def_index = 0;
-          class_def_index != dex_file->NumClassDefs();
-          ++class_def_index) {
+           class_def_index != dex_file->NumClassDefs();
+           ++class_def_index) {
         const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
         const char* descriptor = dex_file->GetClassDescriptor(class_def);
-        h_klass.Assign(class_linker->FindClass(self,
-                                               descriptor,
-                                               ScopedNullHandle<mirror::ClassLoader>()));
+        h_klass.Assign(class_linker->FindClass(self, descriptor, h_class_loader));
         if (h_klass.Get() == nullptr) {
           std::cerr << "Warning: could not load " << descriptor << std::endl;
           continue;
         }
 
         if (HasNoIMT(runtime, h_klass, pointer_size, &prepared)) {
-          wo_imt++;
+          without_imt++;
           continue;
         }
 
         ImTable* im_table = PrepareAndGetImTable(runtime, h_klass, pointer_size, &prepared);
         if (im_table == nullptr) {
           // Should not happen, but accept.
-          wo_imt++;
+          without_imt++;
           continue;
         }
 
-        w_imt++;
+        with_imt++;
         for (size_t imt_index = 0; imt_index != ImTable::kSize; ++imt_index) {
           ArtMethod* ptr = im_table->Get(imt_index, pointer_size);
           if (ptr->IsRuntimeMethod()) {
@@ -2634,9 +2701,9 @@ class IMTDumper {
     std::cerr << "IMT stats:"
               << std::endl << std::endl;
 
-    std::cerr << "  " << w_imt << " classes with IMT."
+    std::cerr << "  " << with_imt << " classes with IMT."
               << std::endl << std::endl;
-    std::cerr << "  " << wo_imt << " classes without IMT (or copy from Object)."
+    std::cerr << "  " << without_imt << " classes without IMT (or copy from Object)."
               << std::endl << std::endl;
 
     double sum_one = 0;
@@ -2659,8 +2726,7 @@ class IMTDumper {
     return true;
   }
 
- private:
-  // Check whether the given class has no IMT (or the one shared with java.lang.Object).
+  // Return whether the given class has no IMT (or the one shared with java.lang.Object).
   static bool HasNoIMT(Runtime* runtime,
                        Handle<mirror::Class> klass,
                        const PointerSize pointer_size,
@@ -2705,6 +2771,7 @@ class IMTDumper {
 
   static ImTable* PrepareAndGetImTable(Runtime* runtime,
                                        Thread* self,
+                                       Handle<mirror::ClassLoader> h_loader,
                                        const std::string& class_name,
                                        const PointerSize pointer_size,
                                        mirror::Class** klass_out,
@@ -2721,10 +2788,7 @@ class IMTDumper {
       descriptor = DotToDescriptor(class_name.c_str());
     }
 
-    ScopedNullHandle<mirror::ClassLoader> null_handle;
-
-    mirror::Class* klass =
-        runtime->GetClassLinker()->FindClass(self, descriptor.c_str(), null_handle);
+    mirror::Class* klass = runtime->GetClassLinker()->FindClass(self, descriptor.c_str(), h_loader);
 
     if (klass == nullptr) {
       self->ClearException();
@@ -2752,13 +2816,18 @@ class IMTDumper {
 
   static void DumpIMTForClass(Runtime* runtime,
                               const std::string& class_name,
-                              std::unordered_set<std::string>* prepared) {
-    Thread* self = Thread::Current();
-    ScopedObjectAccess soa(self);
-
+                              Handle<mirror::ClassLoader> h_loader,
+                              std::unordered_set<std::string>* prepared)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     const PointerSize pointer_size = runtime->GetClassLinker()->GetImagePointerSize();
     mirror::Class* klass;
-    ImTable* imt = PrepareAndGetImTable(runtime, self, class_name, pointer_size, &klass, prepared);
+    ImTable* imt = PrepareAndGetImTable(runtime,
+                                        Thread::Current(),
+                                        h_loader,
+                                        class_name,
+                                        pointer_size,
+                                        &klass,
+                                        prepared);
     if (imt == nullptr) {
       return;
     }
@@ -2801,14 +2870,14 @@ class IMTDumper {
   static void DumpIMTForMethod(Runtime* runtime,
                                const std::string& class_name,
                                const std::string& method,
-                               std::unordered_set<std::string>* prepared) {
-    Thread* self = Thread::Current();
-    ScopedObjectAccess soa(self);
-
+                               Handle<mirror::ClassLoader> h_loader,
+                               std::unordered_set<std::string>* prepared)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     const PointerSize pointer_size = runtime->GetClassLinker()->GetImagePointerSize();
     mirror::Class* klass;
     ImTable* imt = PrepareAndGetImTable(runtime,
-                                        self,
+                                        Thread::Current(),
+                                        h_loader,
                                         class_name,
                                         pointer_size,
                                         &klass,
@@ -3087,9 +3156,9 @@ struct OatdumpArgs : public CmdlineArgs {
         "\n"
         "  --dump-imt=<file.txt>: output IMT collisions (if any) for the given receiver\n"
         "                         types and interface methods in the given file. The file\n"
-        "                         is read line-wise, and each line should either be a class\n"
+        "                         is read line-wise, where each line should either be a class\n"
         "                         name or descriptor, or a class name/descriptor and a prefix\n"
-        "                         of a complete method name.\n"
+        "                         of a complete method name (separated by a whitespace).\n"
         "      Example: --dump-imt=imt.txt\n"
         "\n"
         "  --dump-imt-stats: output IMT statistics for the given boot image\n"
@@ -3173,12 +3242,11 @@ struct OatdumpMain : public CmdlineMain<OatdumpArgs> {
   virtual bool ExecuteWithRuntime(Runtime* runtime) {
     CHECK(args_ != nullptr);
 
-    if (!args_->imt_dump_.empty()) {
-      return IMTDumper::DumpImt(runtime, args_->imt_dump_);
-    }
-
-    if (args_->imt_stat_dump_) {
-      return IMTDumper::DumpImtStats(runtime, runtime->GetClassLinker()->GetBootClassPath());
+    if (!args_->imt_dump_.empty() || args_->imt_stat_dump_) {
+      return IMTDumper::Dump(runtime,
+                             args_->imt_dump_,
+                             args_->imt_stat_dump_,
+                             args_->oat_filename_);
     }
 
     if (args_->oat_filename_ != nullptr) {
