@@ -1245,6 +1245,22 @@ TEST_F(Thumb2AssemblerTest, LoadStoreRegOffset) {
   EmitAndCheck(&assembler, "LoadStoreRegOffset");
 }
 
+TEST_F(Thumb2AssemblerTest, LoadStoreLiteral) {
+  __ ldr(R0, Address(4));
+  __ str(R0, Address(4));
+
+  __ ldr(R0, Address(-8));
+  __ str(R0, Address(-8));
+
+  // Limits.
+  __ ldr(R0, Address(0x3ff));       // 10 bits (16 bit).
+  __ ldr(R0, Address(0x7ff));       // 11 bits (32 bit).
+  __ str(R0, Address(0x3ff));       // 32 bit (no 16 bit str(literal)).
+  __ str(R0, Address(0x7ff));       // 11 bits (32 bit).
+
+  EmitAndCheck(&assembler, "LoadStoreLiteral");
+}
+
 TEST_F(Thumb2AssemblerTest, LoadStoreLimits) {
   __ ldr(R0, Address(R4, 124));     // 16 bit.
   __ ldr(R0, Address(R4, 128));     // 32 bit.
