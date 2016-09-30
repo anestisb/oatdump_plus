@@ -1223,6 +1223,11 @@ void IntrinsicLocationsBuilderARM64::VisitStringCompareTo(HInvoke* invoke) {
   locations->AddTemp(Location::RequiresRegister());
   locations->AddTemp(Location::RequiresRegister());
   locations->AddTemp(Location::RequiresRegister());
+  // Need temporary registers for String compression's feature.
+  if (mirror::kUseStringCompression) {
+    locations->AddTemp(Location::RequiresRegister());
+    locations->AddTemp(Location::RequiresRegister());
+  }
   locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
 }
 
@@ -1239,10 +1244,16 @@ void IntrinsicCodeGeneratorARM64::VisitStringCompareTo(HInvoke* invoke) {
   Register temp0 = WRegisterFrom(locations->GetTemp(0));
   Register temp1 = WRegisterFrom(locations->GetTemp(1));
   Register temp2 = WRegisterFrom(locations->GetTemp(2));
+  Register temp3, temp5;
+  if (mirror::kUseStringCompression) {
+    temp3 = WRegisterFrom(locations->GetTemp(3));
+    temp5 = WRegisterFrom(locations->GetTemp(4));
+  }
 
   vixl::aarch64::Label loop;
   vixl::aarch64::Label find_char_diff;
   vixl::aarch64::Label end;
+  vixl::aarch64::Label different_compression;
 
   // Get offsets of count and value fields within a string object.
   const int32_t count_offset = mirror::String::CountOffset().Int32Value();
@@ -1263,9 +1274,18 @@ void IntrinsicCodeGeneratorARM64::VisitStringCompareTo(HInvoke* invoke) {
   // Reference equality check, return 0 if same reference.
   __ Subs(out, str, arg);
   __ B(&end, eq);
-  // Load lengths of this and argument strings.
-  __ Ldr(temp0, HeapOperand(str, count_offset));
-  __ Ldr(temp1, HeapOperand(arg, count_offset));
+  if (mirror::kUseStringCompression) {
+    // Load lengths of this and argument strings.
+    __ Ldr(temp3, HeapOperand(str, count_offset));
+    __ Ldr(temp5, HeapOperand(arg, count_offset));
+    // Clean out compression flag from lengths.
+    __ Bic(temp0, temp3, Operand(static_cast<int32_t>(0x80000000)));
+    __ Bic(temp1, temp5, Operand(static_cast<int32_t>(0x80000000)));
+  } else {
+    // Load lengths of this and argument strings.
+    __ Ldr(temp0, HeapOperand(str, count_offset));
+    __ Ldr(temp1, HeapOperand(arg, count_offset));
+  }
   // Return zero if both strings are empty.
   __ Orr(out, temp0, temp1);
   __ Cbz(out, &end);
@@ -1276,8 +1296,22 @@ void IntrinsicCodeGeneratorARM64::VisitStringCompareTo(HInvoke* invoke) {
   // Shorter string is empty?
   __ Cbz(temp2, &end);
 
+  if (mirror::kUseStringCompression) {
+    // Check if both strings using same compression style to use this comparison loop.
+    __ Eor(temp3.W(), temp3, Operand(temp5));
+    __ Tbnz(temp3.W(), kWRegSize - 1, &different_compression);
+  }
   // Store offset of string value in preparation for comparison loop.
   __ Mov(temp1, value_offset);
+  if (mirror::kUseStringCompression) {
+    // For string compression, calculate the number of bytes to compare (not chars).
+    // This could be in theory exceed INT32_MAX, so treat temp2 as unsigned.
+    vixl::aarch64::Label let_it_signed;
+    __ Cmp(temp5, Operand(0));
+    __ B(lt, &let_it_signed);
+    __ Add(temp2, temp2, Operand(temp2));
+    __ Bind(&let_it_signed);
+  }
 
   UseScratchRegisterScope scratch_scope(masm);
   Register temp4 = scratch_scope.AcquireX();
@@ -1299,29 +1333,90 @@ void IntrinsicCodeGeneratorARM64::VisitStringCompareTo(HInvoke* invoke) {
   __ Cmp(temp4, temp0);
   __ B(ne, &find_char_diff);
   __ Add(temp1, temp1, char_size * 4);
-  __ Subs(temp2, temp2, 4);
-  __ B(gt, &loop);
+  // With string compression, we have compared 8 bytes, otherwise 4 chars.
+  __ Subs(temp2, temp2, (mirror::kUseStringCompression) ? 8 : 4);
+  __ B(hi, &loop);
   __ B(&end);
 
   // Promote temp1 to an X reg, ready for EOR.
   temp1 = temp1.X();
 
-  // Find the single 16-bit character difference.
+  // Find the single character difference.
   __ Bind(&find_char_diff);
   // Get the bit position of the first character that differs.
   __ Eor(temp1, temp0, temp4);
   __ Rbit(temp1, temp1);
   __ Clz(temp1, temp1);
-  // If the number of 16-bit chars remaining <= the index where the difference occurs (0-3), then
+  // If the number of chars remaining <= the index where the difference occurs (0-3), then
   // the difference occurs outside the remaining string data, so just return length diff (out).
-  __ Cmp(temp2, Operand(temp1.W(), LSR, 4));
-  __ B(le, &end);
+  // Unlike ARM, we're doing the comparison in one go here, without the subtraction at the
+  // find_char_diff_2nd_cmp path, so it doesn't matter whether the comparison is signed or
+  // unsigned when string compression is disabled.
+  // When it's enabled, the comparison must be unsigned.
+  __ Cmp(temp2, Operand(temp1.W(), LSR, (mirror::kUseStringCompression) ? 3 : 4));
+  __ B(ls, &end);
   // Extract the characters and calculate the difference.
+  vixl::aarch64::Label uncompressed_string, continue_process;
+  if (mirror:: kUseStringCompression) {
+    __ Tbz(temp5, kWRegSize - 1, &uncompressed_string);
+    __ Bic(temp1, temp1, 0x7);
+    __ B(&continue_process);
+  }
+  __ Bind(&uncompressed_string);
   __ Bic(temp1, temp1, 0xf);
+  __ Bind(&continue_process);
+
   __ Lsr(temp0, temp0, temp1);
   __ Lsr(temp4, temp4, temp1);
+  vixl::aarch64::Label uncompressed_string_extract_chars;
+  if (mirror::kUseStringCompression) {
+    __ Tbz(temp5, kWRegSize - 1, &uncompressed_string_extract_chars);
+    __ And(temp4, temp4, 0xff);
+    __ Sub(out, temp4.W(), Operand(temp0.W(), UXTB));
+    __ B(&end);
+  }
+  __ Bind(&uncompressed_string_extract_chars);
   __ And(temp4, temp4, 0xffff);
   __ Sub(out, temp4.W(), Operand(temp0.W(), UXTH));
+  __ B(&end);
+
+  if (mirror::kUseStringCompression) {
+    vixl::aarch64::Label loop_this_compressed, loop_arg_compressed, find_diff;
+    const size_t c_char_size = Primitive::ComponentSize(Primitive::kPrimByte);
+    DCHECK_EQ(c_char_size, 1u);
+    temp0 = temp0.W();
+    temp1 = temp1.W();
+    // Comparison for different compression style.
+    // This part is when THIS is compressed and ARG is not.
+    __ Bind(&different_compression);
+    __ Add(temp0, str, Operand(value_offset));
+    __ Add(temp1, arg, Operand(value_offset));
+    __ Cmp(temp5, Operand(0));
+    __ B(lt, &loop_arg_compressed);
+
+    __ Bind(&loop_this_compressed);
+    __ Ldrb(temp3, MemOperand(temp0.X(), c_char_size, PostIndex));
+    __ Ldrh(temp5, MemOperand(temp1.X(), char_size, PostIndex));
+    __ Cmp(temp3, Operand(temp5));
+    __ B(ne, &find_diff);
+    __ Subs(temp2, temp2, 1);
+    __ B(gt, &loop_this_compressed);
+    __ B(&end);
+
+    // This part is when THIS is not compressed and ARG is.
+    __ Bind(&loop_arg_compressed);
+    __ Ldrh(temp3, MemOperand(temp0.X(), char_size, PostIndex));
+    __ Ldrb(temp5, MemOperand(temp1.X(), c_char_size, PostIndex));
+    __ Cmp(temp3, Operand(temp5));
+    __ B(ne, &find_diff);
+    __ Subs(temp2, temp2, 1);
+    __ B(gt, &loop_arg_compressed);
+    __ B(&end);
+
+    // Calculate the difference.
+    __ Bind(&find_diff);
+    __ Sub(out, temp3.W(), Operand(temp5.W(), UXTH));
+  }
 
   __ Bind(&end);
 
@@ -1356,7 +1451,7 @@ void IntrinsicCodeGeneratorARM64::VisitStringEquals(HInvoke* invoke) {
   Register temp1 = WRegisterFrom(locations->GetTemp(0));
   Register temp2 = WRegisterFrom(locations->GetTemp(1));
 
-  vixl::aarch64::Label loop;
+  vixl::aarch64::Label loop, preloop;
   vixl::aarch64::Label end;
   vixl::aarch64::Label return_true;
   vixl::aarch64::Label return_false;
@@ -1394,22 +1489,37 @@ void IntrinsicCodeGeneratorARM64::VisitStringEquals(HInvoke* invoke) {
   __ Ldr(temp, MemOperand(str.X(), count_offset));
   __ Ldr(temp1, MemOperand(arg.X(), count_offset));
   // Check if lengths are equal, return false if they're not.
+  // Also compares the compression style, if differs return false.
   __ Cmp(temp, temp1);
   __ B(&return_false, ne);
-  // Store offset of string value in preparation for comparison loop
-  __ Mov(temp1, value_offset);
   // Return true if both strings are empty.
+  if (mirror::kUseStringCompression) {
+    // Length needs to be masked out first because 0 is treated as compressed.
+    __ Bic(temp, temp, Operand(static_cast<int32_t>(0x80000000)));
+  }
   __ Cbz(temp, &return_true);
 
   // Assertions that must hold in order to compare strings 4 characters at a time.
   DCHECK_ALIGNED(value_offset, 8);
   static_assert(IsAligned<8>(kObjectAlignment), "String of odd length is not zero padded");
 
+  if (mirror::kUseStringCompression) {
+    // If not compressed, directly to fast compare. Else do preprocess on length.
+    __ Cmp(temp1, Operand(0));
+    __ B(&preloop, gt);
+    // Mask out compression flag and adjust length for compressed string (8-bit)
+    // as if it is a 16-bit data, new_length = (length + 1) / 2
+    __ Add(temp, temp, 1);
+    __ Lsr(temp, temp, 1);
+  }
+
   temp1 = temp1.X();
   temp2 = temp2.X();
-
   // Loop to compare strings 4 characters at a time starting at the beginning of the string.
   // Ok to do this because strings are zero-padded to be 8-byte aligned.
+  // Store offset of string value in preparation for comparison loop
+  __ Bind(&preloop);
+  __ Mov(temp1, value_offset);
   __ Bind(&loop);
   __ Ldr(out, MemOperand(str.X(), temp1));
   __ Ldr(temp2, MemOperand(arg.X(), temp1));
@@ -1773,6 +1883,10 @@ void IntrinsicLocationsBuilderARM64::VisitStringGetCharsNoCheck(HInvoke* invoke)
   locations->AddTemp(Location::RequiresRegister());
   locations->AddTemp(Location::RequiresRegister());
   locations->AddTemp(Location::RequiresRegister());
+  // Need temporary register for String compression feature.
+  if (mirror::kUseStringCompression) {
+    locations->AddTemp(Location::RequiresRegister());
+  }
 }
 
 void IntrinsicCodeGeneratorARM64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
@@ -1800,28 +1914,40 @@ void IntrinsicCodeGeneratorARM64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   Register src_ptr = XRegisterFrom(locations->GetTemp(0));
   Register num_chr = XRegisterFrom(locations->GetTemp(1));
   Register tmp1 = XRegisterFrom(locations->GetTemp(2));
+  Register tmp3;
+  if (mirror::kUseStringCompression) {
+    tmp3 = WRegisterFrom(locations->GetTemp(3));
+  }
 
   UseScratchRegisterScope temps(masm);
   Register dst_ptr = temps.AcquireX();
   Register tmp2 = temps.AcquireX();
 
-  // src address to copy from.
-  __ Add(src_ptr, srcObj, Operand(value_offset));
-  __ Add(src_ptr, src_ptr, Operand(srcBegin, LSL, 1));
+  vixl::aarch64::Label done;
+  vixl::aarch64::Label compressed_string_loop;
+  __ Sub(num_chr, srcEnd, srcBegin);
+  // Early out for valid zero-length retrievals.
+  __ Cbz(num_chr, &done);
 
   // dst address start to copy to.
   __ Add(dst_ptr, dstObj, Operand(data_offset));
   __ Add(dst_ptr, dst_ptr, Operand(dstBegin, LSL, 1));
 
-  __ Sub(num_chr, srcEnd, srcBegin);
+  // src address to copy from.
+  __ Add(src_ptr, srcObj, Operand(value_offset));
+  vixl::aarch64::Label compressed_string_preloop;
+  if (mirror::kUseStringCompression) {
+    // Location of count in string.
+    const uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
+    // String's length.
+    __ Ldr(tmp3, MemOperand(srcObj, count_offset));
+    __ Tbnz(tmp3, kWRegSize - 1, &compressed_string_preloop);
+  }
+  __ Add(src_ptr, src_ptr, Operand(srcBegin, LSL, 1));
 
   // Do the copy.
   vixl::aarch64::Label loop;
-  vixl::aarch64::Label done;
   vixl::aarch64::Label remainder;
-
-  // Early out for valid zero-length retrievals.
-  __ Cbz(num_chr, &done);
 
   // Save repairing the value of num_chr on the < 8 character path.
   __ Subs(tmp1, num_chr, 8);
@@ -1848,6 +1974,20 @@ void IntrinsicCodeGeneratorARM64::VisitStringGetCharsNoCheck(HInvoke* invoke) {
   __ Subs(num_chr, num_chr, 1);
   __ Strh(tmp1, MemOperand(dst_ptr, char_size, PostIndex));
   __ B(gt, &remainder);
+  __ B(&done);
+
+  if (mirror::kUseStringCompression) {
+    const size_t c_char_size = Primitive::ComponentSize(Primitive::kPrimByte);
+    DCHECK_EQ(c_char_size, 1u);
+    __ Bind(&compressed_string_preloop);
+    __ Add(src_ptr, src_ptr, Operand(srcBegin));
+    // Copy loop for compressed src, copying 1 character (8-bit) to (16-bit) at a time.
+    __ Bind(&compressed_string_loop);
+    __ Ldrb(tmp1, MemOperand(src_ptr, c_char_size, PostIndex));
+    __ Strh(tmp1, MemOperand(dst_ptr, char_size, PostIndex));
+    __ Subs(num_chr, num_chr, Operand(1));
+    __ B(gt, &compressed_string_loop);
+  }
 
   __ Bind(&done);
 }

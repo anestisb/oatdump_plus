@@ -1710,7 +1710,11 @@ ENTRY art_quick_indexof
     .cfi_rel_offset lr, 12
     ldr   r3, [r0, #MIRROR_STRING_COUNT_OFFSET]
     add   r0, #MIRROR_STRING_VALUE_OFFSET
-
+#if (STRING_COMPRESSION_FEATURE)
+    /* r4 count (with flag) and r3 holds actual length */
+    mov   r4, r3
+    bic   r3, #2147483648
+#endif
     /* Clamp start to [0..count] */
     cmp   r2, #0
     it    lt
@@ -1723,6 +1727,10 @@ ENTRY art_quick_indexof
     mov   r12, r0
 
     /* Build pointer to start of data to compare and pre-bias */
+#if (STRING_COMPRESSION_FEATURE)
+    cmp   r4, #0
+    blt   .Lstring_indexof_compressed
+#endif
     add   r0, r0, r2, lsl #1
     sub   r0, #2
 
@@ -1734,6 +1742,7 @@ ENTRY art_quick_indexof
      *   r0: start of data to test
      *   r1: char to compare
      *   r2: iteration count
+     *   r4: compression style (used temporarily)
      *   r12: original start of string data
      *   r3, r4, r10, r11 available for loading string data
      */
@@ -1791,6 +1800,22 @@ ENTRY art_quick_indexof
     sub   r0, r12
     asr   r0, r0, #1
     pop {r4, r10-r11, pc}
+#if (STRING_COMPRESSION_FEATURE)
+.Lstring_indexof_compressed:
+    add   r0, r0, r2
+    sub   r0, #1
+    sub   r2, r3, r2
+.Lstring_indexof_compressed_loop:
+    subs  r2, #1
+    blt   .Lindexof_nomatch
+    ldrb  r3, [r0, #1]!
+    cmp   r3, r1
+    beq   .Lstring_indexof_compressed_matched
+    b     .Lstring_indexof_compressed_loop
+.Lstring_indexof_compressed_matched:
+    sub   r0, r12
+    pop {r4, r10-r11, pc}
+#endif
 END art_quick_indexof
 
     /* Assembly routines used to handle ABI differences. */
