@@ -329,55 +329,6 @@ class LoadClassSlowPathARM64 : public SlowPathCodeARM64 {
   DISALLOW_COPY_AND_ASSIGN(LoadClassSlowPathARM64);
 };
 
-class LoadStringSlowPathARM64 : public SlowPathCodeARM64 {
- public:
-  explicit LoadStringSlowPathARM64(HLoadString* instruction) : SlowPathCodeARM64(instruction) {}
-
-  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
-    LocationSummary* locations = instruction_->GetLocations();
-    DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
-    CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
-
-    __ Bind(GetEntryLabel());
-    SaveLiveRegisters(codegen, locations);
-
-    InvokeRuntimeCallingConvention calling_convention;
-    const uint32_t string_index = instruction_->AsLoadString()->GetStringIndex();
-    __ Mov(calling_convention.GetRegisterAt(0).W(), string_index);
-    arm64_codegen->InvokeRuntime(kQuickResolveString, instruction_, instruction_->GetDexPc(), this);
-    CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
-    Primitive::Type type = instruction_->GetType();
-    arm64_codegen->MoveLocation(locations->Out(), calling_convention.GetReturnLocation(type), type);
-
-    RestoreLiveRegisters(codegen, locations);
-
-    // Store the resolved String to the BSS entry.
-    UseScratchRegisterScope temps(arm64_codegen->GetVIXLAssembler());
-    Register temp = temps.AcquireX();
-    const DexFile& dex_file = instruction_->AsLoadString()->GetDexFile();
-    // TODO: Change art_quick_resolve_string to kSaveEverything and use a temporary
-    // for the ADRP in the fast path, so that we can avoid the ADRP here.
-    vixl::aarch64::Label* adrp_label =
-        arm64_codegen->NewPcRelativeStringPatch(dex_file, string_index);
-    arm64_codegen->EmitAdrpPlaceholder(adrp_label, temp);
-    vixl::aarch64::Label* strp_label =
-        arm64_codegen->NewPcRelativeStringPatch(dex_file, string_index, adrp_label);
-    {
-      SingleEmissionCheckScope guard(arm64_codegen->GetVIXLAssembler());
-      __ Bind(strp_label);
-      __ str(RegisterFrom(locations->Out(), Primitive::kPrimNot),
-             MemOperand(temp, /* offset placeholder */ 0));
-    }
-
-    __ B(GetExitLabel());
-  }
-
-  const char* GetDescription() const OVERRIDE { return "LoadStringSlowPathARM64"; }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(LoadStringSlowPathARM64);
-};
-
 class NullCheckSlowPathARM64 : public SlowPathCodeARM64 {
  public:
   explicit NullCheckSlowPathARM64(HNullCheck* instr) : SlowPathCodeARM64(instr) {}
@@ -3643,11 +3594,19 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
       const DexFile& dex_file = invoke->GetDexFile();
       uint32_t element_offset = invoke->GetDexCacheArrayOffset();
       vixl::aarch64::Label* adrp_label = NewPcRelativeDexCacheArrayPatch(dex_file, element_offset);
-      EmitAdrpPlaceholder(adrp_label, XRegisterFrom(temp));
+      {
+        SingleEmissionCheckScope guard(GetVIXLAssembler());
+        __ Bind(adrp_label);
+        __ adrp(XRegisterFrom(temp), /* offset placeholder */ 0);
+      }
       // Add LDR with its PC-relative DexCache access patch.
       vixl::aarch64::Label* ldr_label =
           NewPcRelativeDexCacheArrayPatch(dex_file, element_offset, adrp_label);
-      EmitLdrOffsetPlaceholder(ldr_label, XRegisterFrom(temp), XRegisterFrom(temp));
+      {
+        SingleEmissionCheckScope guard(GetVIXLAssembler());
+        __ Bind(ldr_label);
+        __ ldr(XRegisterFrom(temp), MemOperand(XRegisterFrom(temp), /* offset placeholder */ 0));
+      }
       break;
     }
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCacheViaMethod: {
@@ -3680,8 +3639,7 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
       __ Bl(&frame_entry_label_);
       break;
     case HInvokeStaticOrDirect::CodePtrLocation::kCallPCRelative: {
-      relative_call_patches_.emplace_back(*invoke->GetTargetMethod().dex_file,
-                                          invoke->GetTargetMethod().dex_method_index);
+      relative_call_patches_.emplace_back(invoke->GetTargetMethod());
       vixl::aarch64::Label* label = &relative_call_patches_.back().label;
       SingleEmissionCheckScope guard(GetVIXLAssembler());
       __ Bind(label);
@@ -3803,45 +3761,6 @@ vixl::aarch64::Literal<uint64_t>* CodeGeneratorARM64::DeduplicateDexCacheAddress
   return DeduplicateUint64Literal(address);
 }
 
-void CodeGeneratorARM64::EmitAdrpPlaceholder(vixl::aarch64::Label* fixup_label,
-                                             vixl::aarch64::Register reg) {
-  DCHECK(reg.IsX());
-  SingleEmissionCheckScope guard(GetVIXLAssembler());
-  __ Bind(fixup_label);
-  __ adrp(reg, /* offset placeholder */ 0);
-}
-
-void CodeGeneratorARM64::EmitAddPlaceholder(vixl::aarch64::Label* fixup_label,
-                                            vixl::aarch64::Register out,
-                                            vixl::aarch64::Register base) {
-  DCHECK(out.IsX());
-  DCHECK(base.IsX());
-  SingleEmissionCheckScope guard(GetVIXLAssembler());
-  __ Bind(fixup_label);
-  __ add(out, base, Operand(/* offset placeholder */ 0));
-}
-
-void CodeGeneratorARM64::EmitLdrOffsetPlaceholder(vixl::aarch64::Label* fixup_label,
-                                                  vixl::aarch64::Register out,
-                                                  vixl::aarch64::Register base) {
-  DCHECK(base.IsX());
-  SingleEmissionCheckScope guard(GetVIXLAssembler());
-  __ Bind(fixup_label);
-  __ ldr(out, MemOperand(base, /* offset placeholder */ 0));
-}
-
-template <LinkerPatch (*Factory)(size_t, const DexFile*, uint32_t, uint32_t)>
-inline void CodeGeneratorARM64::EmitPcRelativeLinkerPatches(
-    const ArenaDeque<PcRelativePatchInfo>& infos,
-    ArenaVector<LinkerPatch>* linker_patches) {
-  for (const PcRelativePatchInfo& info : infos) {
-    linker_patches->push_back(Factory(info.label.GetLocation(),
-                                      &info.target_dex_file,
-                                      info.pc_insn_label->GetLocation(),
-                                      info.offset_or_index));
-  }
-}
-
 void CodeGeneratorARM64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) {
   DCHECK(linker_patches->empty());
   size_t size =
@@ -3869,9 +3788,10 @@ void CodeGeneratorARM64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patc
                                                      target_method.dex_file,
                                                      target_method.dex_method_index));
   }
-  for (const PatchInfo<vixl::aarch64::Label>& info : relative_call_patches_) {
-    linker_patches->push_back(
-        LinkerPatch::RelativeCodePatch(info.label.GetLocation(), &info.dex_file, info.index));
+  for (const MethodPatchInfo<vixl::aarch64::Label>& info : relative_call_patches_) {
+    linker_patches->push_back(LinkerPatch::RelativeCodePatch(info.label.GetLocation(),
+                                                             info.target_method.dex_file,
+                                                             info.target_method.dex_method_index));
   }
   for (const PcRelativePatchInfo& info : pc_relative_dex_cache_patches_) {
     linker_patches->push_back(LinkerPatch::DexCacheArrayPatch(info.label.GetLocation(),
@@ -3886,12 +3806,11 @@ void CodeGeneratorARM64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patc
                                                        target_string.dex_file,
                                                        target_string.string_index));
   }
-  if (!GetCompilerOptions().IsBootImage()) {
-    EmitPcRelativeLinkerPatches<LinkerPatch::StringBssEntryPatch>(pc_relative_string_patches_,
-                                                                  linker_patches);
-  } else {
-    EmitPcRelativeLinkerPatches<LinkerPatch::RelativeStringPatch>(pc_relative_string_patches_,
-                                                                  linker_patches);
+  for (const PcRelativePatchInfo& info : pc_relative_string_patches_) {
+    linker_patches->push_back(LinkerPatch::RelativeStringPatch(info.label.GetLocation(),
+                                                               &info.target_dex_file,
+                                                               info.pc_insn_label->GetLocation(),
+                                                               info.offset_or_index));
   }
   for (const auto& entry : boot_image_type_patches_) {
     const TypeReference& target_type = entry.first;
@@ -3900,8 +3819,12 @@ void CodeGeneratorARM64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patc
                                                      target_type.dex_file,
                                                      target_type.type_index));
   }
-  EmitPcRelativeLinkerPatches<LinkerPatch::RelativeTypePatch>(pc_relative_type_patches_,
-                                                                linker_patches);
+  for (const PcRelativePatchInfo& info : pc_relative_type_patches_) {
+    linker_patches->push_back(LinkerPatch::RelativeTypePatch(info.label.GetLocation(),
+                                                             &info.target_dex_file,
+                                                             info.pc_insn_label->GetLocation(),
+                                                             info.offset_or_index));
+  }
   for (const auto& entry : boot_image_address_patches_) {
     DCHECK(GetCompilerOptions().GetIncludePatchInformation());
     vixl::aarch64::Literal<uint32_t>* literal = entry.second;
@@ -4058,11 +3981,19 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
       const DexFile& dex_file = cls->GetDexFile();
       uint32_t type_index = cls->GetTypeIndex();
       vixl::aarch64::Label* adrp_label = codegen_->NewPcRelativeTypePatch(dex_file, type_index);
-      codegen_->EmitAdrpPlaceholder(adrp_label, out.X());
+      {
+        SingleEmissionCheckScope guard(GetVIXLAssembler());
+        __ Bind(adrp_label);
+        __ adrp(out.X(), /* offset placeholder */ 0);
+      }
       // Add ADD with its PC-relative type patch.
       vixl::aarch64::Label* add_label =
           codegen_->NewPcRelativeTypePatch(dex_file, type_index, adrp_label);
-      codegen_->EmitAddPlaceholder(add_label, out.X(), out.X());
+      {
+        SingleEmissionCheckScope guard(GetVIXLAssembler());
+        __ Bind(add_label);
+        __ add(out.X(), out.X(), Operand(/* offset placeholder */ 0));
+      }
       break;
     }
     case HLoadClass::LoadKind::kBootImageAddress: {
@@ -4099,7 +4030,11 @@ void InstructionCodeGeneratorARM64::VisitLoadClass(HLoadClass* cls) {
       uint32_t element_offset = cls->GetDexCacheElementOffset();
       vixl::aarch64::Label* adrp_label =
           codegen_->NewPcRelativeDexCacheArrayPatch(dex_file, element_offset);
-      codegen_->EmitAdrpPlaceholder(adrp_label, out.X());
+      {
+        SingleEmissionCheckScope guard(GetVIXLAssembler());
+        __ Bind(adrp_label);
+        __ adrp(out.X(), /* offset placeholder */ 0);
+      }
       // Add LDR with its PC-relative DexCache access patch.
       vixl::aarch64::Label* ldr_label =
           codegen_->NewPcRelativeDexCacheArrayPatch(dex_file, element_offset, adrp_label);
@@ -4184,7 +4119,7 @@ HLoadString::LoadKind CodeGeneratorARM64::GetSupportedLoadStringKind(
     case HLoadString::LoadKind::kDexCacheAddress:
       DCHECK(Runtime::Current()->UseJitCompilation());
       break;
-    case HLoadString::LoadKind::kBssEntry:
+    case HLoadString::LoadKind::kDexCachePcRelative:
       DCHECK(!Runtime::Current()->UseJitCompilation());
       break;
     case HLoadString::LoadKind::kDexCacheViaMethod:
@@ -4195,9 +4130,7 @@ HLoadString::LoadKind CodeGeneratorARM64::GetSupportedLoadStringKind(
 
 void LocationsBuilderARM64::VisitLoadString(HLoadString* load) {
   LocationSummary::CallKind call_kind = load->NeedsEnvironment()
-      ? ((load->GetLoadKind() == HLoadString::LoadKind::kDexCacheViaMethod)
-          ? LocationSummary::kCallOnMainOnly
-          : LocationSummary::kCallOnSlowPath)
+      ? LocationSummary::kCallOnMainOnly
       : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load, call_kind);
   if (load->GetLoadKind() == HLoadString::LoadKind::kDexCacheViaMethod) {
@@ -4221,41 +4154,26 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
       // Add ADRP with its PC-relative String patch.
       const DexFile& dex_file = load->GetDexFile();
       uint32_t string_index = load->GetStringIndex();
-      DCHECK(codegen_->GetCompilerOptions().IsBootImage());
       vixl::aarch64::Label* adrp_label = codegen_->NewPcRelativeStringPatch(dex_file, string_index);
-      codegen_->EmitAdrpPlaceholder(adrp_label, out.X());
+      {
+        SingleEmissionCheckScope guard(GetVIXLAssembler());
+        __ Bind(adrp_label);
+        __ adrp(out.X(), /* offset placeholder */ 0);
+      }
       // Add ADD with its PC-relative String patch.
       vixl::aarch64::Label* add_label =
           codegen_->NewPcRelativeStringPatch(dex_file, string_index, adrp_label);
-      codegen_->EmitAddPlaceholder(add_label, out.X(), out.X());
+      {
+        SingleEmissionCheckScope guard(GetVIXLAssembler());
+        __ Bind(add_label);
+        __ add(out.X(), out.X(), Operand(/* offset placeholder */ 0));
+      }
       return;  // No dex cache slow path.
     }
     case HLoadString::LoadKind::kBootImageAddress: {
       DCHECK(load->GetAddress() != 0u && IsUint<32>(load->GetAddress()));
       __ Ldr(out.W(), codegen_->DeduplicateBootImageAddressLiteral(load->GetAddress()));
       return;  // No dex cache slow path.
-    }
-    case HLoadString::LoadKind::kBssEntry: {
-      // Add ADRP with its PC-relative String .bss entry patch.
-      const DexFile& dex_file = load->GetDexFile();
-      uint32_t string_index = load->GetStringIndex();
-      DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
-      vixl::aarch64::Label* adrp_label = codegen_->NewPcRelativeStringPatch(dex_file, string_index);
-      codegen_->EmitAdrpPlaceholder(adrp_label, out.X());
-      // Add LDR with its PC-relative String patch.
-      vixl::aarch64::Label* ldr_label =
-          codegen_->NewPcRelativeStringPatch(dex_file, string_index, adrp_label);
-      // /* GcRoot<mirror::Class> */ out = *(base_address + offset)  /* PC-relative */
-      GenerateGcRootFieldLoad(load,
-                              load->GetLocations()->Out(),
-                              out.X(),
-                              /* placeholder */ 0u,
-                              ldr_label);
-      SlowPathCodeARM64* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathARM64(load);
-      codegen_->AddSlowPath(slow_path);
-      __ Cbz(out.X(), slow_path->GetEntryLabel());
-      __ Bind(slow_path->GetExitLabel());
-      return;
     }
     default:
       break;
@@ -5026,7 +4944,6 @@ void InstructionCodeGeneratorARM64::GenerateGcRootFieldLoad(HInstruction* instru
                                                             uint32_t offset,
                                                             vixl::aarch64::Label* fixup_label,
                                                             bool requires_read_barrier) {
-  DCHECK(fixup_label == nullptr || offset == 0u);
   Register root_reg = RegisterFrom(root, Primitive::kPrimNot);
   if (requires_read_barrier) {
     DCHECK(kEmitCompilerReadBarrier);
@@ -5043,7 +4960,9 @@ void InstructionCodeGeneratorARM64::GenerateGcRootFieldLoad(HInstruction* instru
       if (fixup_label == nullptr) {
         __ Ldr(root_reg, MemOperand(obj, offset));
       } else {
-        codegen_->EmitLdrOffsetPlaceholder(fixup_label, root_reg, obj);
+        SingleEmissionCheckScope guard(GetVIXLAssembler());
+        __ Bind(fixup_label);
+        __ ldr(root_reg, MemOperand(obj, offset));
       }
       static_assert(
           sizeof(mirror::CompressedReference<mirror::Object>) == sizeof(GcRoot<mirror::Object>),
@@ -5072,7 +4991,9 @@ void InstructionCodeGeneratorARM64::GenerateGcRootFieldLoad(HInstruction* instru
       if (fixup_label == nullptr) {
         __ Add(root_reg.X(), obj.X(), offset);
       } else {
-        codegen_->EmitAddPlaceholder(fixup_label, root_reg.X(), obj.X());
+        SingleEmissionCheckScope guard(GetVIXLAssembler());
+        __ Bind(fixup_label);
+        __ add(root_reg.X(), obj.X(), offset);
       }
       // /* mirror::Object* */ root = root->Read()
       codegen_->GenerateReadBarrierForRootSlow(instruction, root, root);
@@ -5083,7 +5004,9 @@ void InstructionCodeGeneratorARM64::GenerateGcRootFieldLoad(HInstruction* instru
     if (fixup_label == nullptr) {
       __ Ldr(root_reg, MemOperand(obj, offset));
     } else {
-      codegen_->EmitLdrOffsetPlaceholder(fixup_label, root_reg, obj.X());
+      SingleEmissionCheckScope guard(GetVIXLAssembler());
+      __ Bind(fixup_label);
+      __ ldr(root_reg, MemOperand(obj, offset));
     }
     // Note that GC roots are not affected by heap poisoning, thus we
     // do not have to unpoison `root_reg` here.

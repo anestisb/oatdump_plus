@@ -406,9 +406,8 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp) OVERRIDE;
 
   void RecordSimplePatch();
-  void RecordBootStringPatch(HLoadString* load_string);
+  void RecordStringPatch(HLoadString* load_string);
   void RecordTypePatch(HLoadClass* load_class);
-  Label* NewStringBssEntryPatch(HLoadString* load_string);
   Label* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file, uint32_t element_offset);
 
   void MoveFromReturnRegister(Location trg, Primitive::Type type) OVERRIDE;
@@ -555,9 +554,14 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   static constexpr int32_t kDummy32BitOffset = 256;
 
  private:
-  template <LinkerPatch (*Factory)(size_t, const DexFile*, uint32_t, uint32_t)>
-  static void EmitPcRelativeLinkerPatches(const ArenaDeque<PatchInfo<Label>>& infos,
-                                          ArenaVector<LinkerPatch>* linker_patches);
+  struct PcRelativeDexCacheAccessInfo {
+    PcRelativeDexCacheAccessInfo(const DexFile& dex_file, uint32_t element_off)
+        : target_dex_file(dex_file), element_offset(element_off), label() { }
+
+    const DexFile& target_dex_file;
+    uint32_t element_offset;
+    Label label;
+  };
 
   // Labels for each block that will be compiled.
   Label* block_labels_;  // Indexed by block id.
@@ -573,16 +577,16 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   int constant_area_start_;
 
   // Method patch info. Using ArenaDeque<> which retains element addresses on push/emplace_back().
-  ArenaDeque<PatchInfo<Label>> method_patches_;
-  ArenaDeque<PatchInfo<Label>> relative_call_patches_;
+  ArenaDeque<MethodPatchInfo<Label>> method_patches_;
+  ArenaDeque<MethodPatchInfo<Label>> relative_call_patches_;
   // PC-relative DexCache access info.
-  ArenaDeque<PatchInfo<Label>> pc_relative_dex_cache_patches_;
+  ArenaDeque<PcRelativeDexCacheAccessInfo> pc_relative_dex_cache_patches_;
   // Patch locations for patchoat where the linker doesn't do any other work.
   ArenaDeque<Label> simple_patches_;
-  // String patch locations; type depends on configuration (app .bss or boot image PIC).
-  ArenaDeque<PatchInfo<Label>> string_patches_;
+  // String patch locations.
+  ArenaDeque<StringPatchInfo<Label>> string_patches_;
   // Type patch locations.
-  ArenaDeque<PatchInfo<Label>> type_patches_;
+  ArenaDeque<TypePatchInfo<Label>> type_patches_;
 
   // Fixups for jump tables need to be handled specially.
   ArenaVector<JumpTableRIPFixup*> fixups_to_jump_tables_;

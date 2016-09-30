@@ -233,9 +233,11 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),
 
 # Disable 149-suspend-all-stress, its output is flaky (b/28988206).
 # Disable 577-profile-foreign-dex (b/27454772).
+# Disable 552-checker-sharpening, until compiler component of new string dex cache is added (@cwadsworth, @vmarko)
 TEST_ART_BROKEN_ALL_TARGET_TESTS := \
   149-suspend-all-stress \
   577-profile-foreign-dex \
+  552-checker-sharpening \
 
 ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
     $(COMPILER_TYPES), $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
