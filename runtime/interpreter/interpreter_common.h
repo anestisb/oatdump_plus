@@ -254,9 +254,9 @@ static inline String* ResolveString(Thread* self, ShadowFrame& shadow_frame, uin
   DCHECK_LT(string_idx % mirror::DexCache::kDexCacheStringCacheSize,
             declaring_class->GetDexFile().NumStringIds());
   mirror::String* string_ptr =
-      mirror::StringDexCachePair::LookupString(declaring_class->GetDexCacheStrings(),
-                                               string_idx,
-                                               mirror::DexCache::kDexCacheStringCacheSize).Read();
+      mirror::StringDexCachePair::Lookup(declaring_class->GetDexCacheStrings(),
+                                         string_idx,
+                                         mirror::DexCache::kDexCacheStringCacheSize).Read();
   if (UNLIKELY(string_ptr == nullptr)) {
     StackHandleScope<1> hs(self);
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
