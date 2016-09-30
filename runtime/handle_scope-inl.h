@@ -21,6 +21,7 @@
 
 #include "base/mutex.h"
 #include "handle.h"
+#include "obj_ptr-inl.h"
 #include "thread-inl.h"
 #include "verify_object-inl.h"
 
@@ -107,12 +108,21 @@ inline MutableHandle<T> StackHandleScope<kNumReferences>::NewHandle(T* object) {
   return h;
 }
 
+template<size_t kNumReferences> template<class MirrorType, bool kPoison>
+inline MutableHandle<MirrorType> StackHandleScope<kNumReferences>::NewHandle(
+    ObjPtr<MirrorType, kPoison> object) {
+  return NewHandle(object.Decode());
+}
+
 template<size_t kNumReferences> template<class T>
 inline HandleWrapper<T> StackHandleScope<kNumReferences>::NewHandleWrapper(T** object) {
-  SetReference(pos_, *object);
-  MutableHandle<T> h(GetHandle<T>(pos_));
-  pos_++;
-  return HandleWrapper<T>(object, h);
+  return HandleWrapper<T>(object, NewHandle(*object));
+}
+
+template<size_t kNumReferences> template<class T>
+inline HandleWrapperObjPtr<T> StackHandleScope<kNumReferences>::NewHandleWrapper(
+    ObjPtr<T>* object) {
+  return HandleWrapperObjPtr<T>(object, NewHandle(*object));
 }
 
 template<size_t kNumReferences>

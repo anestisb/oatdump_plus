@@ -16,8 +16,9 @@
 
 #include "jni.h"
 
+#include "java_vm_ext.h"
 #include "mirror/class-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 namespace {
@@ -25,10 +26,10 @@ namespace {
 extern "C" JNIEXPORT void JNICALL Java_JObjectBenchmark_timeAddRemoveLocal(
     JNIEnv* env, jobject jobj, jint reps) {
   ScopedObjectAccess soa(env);
-  mirror::Object* obj = soa.Decode<mirror::Object*>(jobj);
+  ObjPtr<mirror::Object> obj = soa.Decode<mirror::Object>(jobj);
   CHECK(obj != nullptr);
   for (jint i = 0; i < reps; ++i) {
-    jobject ref = soa.Env()->AddLocalReference<jobject>(obj);
+    jobject ref = soa.Env()->AddLocalReference<jobject>(obj.Decode());
     soa.Env()->DeleteLocalRef(ref);
   }
 }
@@ -36,11 +37,11 @@ extern "C" JNIEXPORT void JNICALL Java_JObjectBenchmark_timeAddRemoveLocal(
 extern "C" JNIEXPORT void JNICALL Java_JObjectBenchmark_timeDecodeLocal(
     JNIEnv* env, jobject jobj, jint reps) {
   ScopedObjectAccess soa(env);
-  mirror::Object* obj = soa.Decode<mirror::Object*>(jobj);
+  ObjPtr<mirror::Object> obj = soa.Decode<mirror::Object>(jobj);
   CHECK(obj != nullptr);
-  jobject ref = soa.Env()->AddLocalReference<jobject>(obj);
+  jobject ref = soa.Env()->AddLocalReference<jobject>(obj.Decode());
   for (jint i = 0; i < reps; ++i) {
-    CHECK_EQ(soa.Decode<mirror::Object*>(ref), obj);
+    CHECK_EQ(soa.Decode<mirror::Object>(ref), obj);
   }
   soa.Env()->DeleteLocalRef(ref);
 }
@@ -48,7 +49,7 @@ extern "C" JNIEXPORT void JNICALL Java_JObjectBenchmark_timeDecodeLocal(
 extern "C" JNIEXPORT void JNICALL Java_JObjectBenchmark_timeAddRemoveGlobal(
     JNIEnv* env, jobject jobj, jint reps) {
   ScopedObjectAccess soa(env);
-  mirror::Object* obj = soa.Decode<mirror::Object*>(jobj);
+  ObjPtr<mirror::Object> obj = soa.Decode<mirror::Object>(jobj);
   CHECK(obj != nullptr);
   for (jint i = 0; i < reps; ++i) {
     jobject ref = soa.Vm()->AddGlobalRef(soa.Self(), obj);
@@ -59,11 +60,11 @@ extern "C" JNIEXPORT void JNICALL Java_JObjectBenchmark_timeAddRemoveGlobal(
 extern "C" JNIEXPORT void JNICALL Java_JObjectBenchmark_timeDecodeGlobal(
     JNIEnv* env, jobject jobj, jint reps) {
   ScopedObjectAccess soa(env);
-  mirror::Object* obj = soa.Decode<mirror::Object*>(jobj);
+  ObjPtr<mirror::Object> obj = soa.Decode<mirror::Object>(jobj);
   CHECK(obj != nullptr);
   jobject ref = soa.Vm()->AddGlobalRef(soa.Self(), obj);
   for (jint i = 0; i < reps; ++i) {
-    CHECK_EQ(soa.Decode<mirror::Object*>(ref), obj);
+    CHECK_EQ(soa.Decode<mirror::Object>(ref), obj);
   }
   soa.Vm()->DeleteGlobalRef(soa.Self(), ref);
 }
@@ -71,7 +72,7 @@ extern "C" JNIEXPORT void JNICALL Java_JObjectBenchmark_timeDecodeGlobal(
 extern "C" JNIEXPORT void JNICALL Java_JObjectBenchmark_timeAddRemoveWeakGlobal(
     JNIEnv* env, jobject jobj, jint reps) {
   ScopedObjectAccess soa(env);
-  mirror::Object* obj = soa.Decode<mirror::Object*>(jobj);
+  ObjPtr<mirror::Object> obj = soa.Decode<mirror::Object>(jobj);
   CHECK(obj != nullptr);
   for (jint i = 0; i < reps; ++i) {
     jobject ref = soa.Vm()->AddWeakGlobalRef(soa.Self(), obj);
@@ -82,11 +83,11 @@ extern "C" JNIEXPORT void JNICALL Java_JObjectBenchmark_timeAddRemoveWeakGlobal(
 extern "C" JNIEXPORT void JNICALL Java_JObjectBenchmark_timeDecodeWeakGlobal(
     JNIEnv* env, jobject jobj, jint reps) {
   ScopedObjectAccess soa(env);
-  mirror::Object* obj = soa.Decode<mirror::Object*>(jobj);
+  ObjPtr<mirror::Object> obj = soa.Decode<mirror::Object>(jobj);
   CHECK(obj != nullptr);
   jobject ref = soa.Vm()->AddWeakGlobalRef(soa.Self(), obj);
   for (jint i = 0; i < reps; ++i) {
-    CHECK_EQ(soa.Decode<mirror::Object*>(ref), obj);
+    CHECK_EQ(soa.Decode<mirror::Object>(ref), obj);
   }
   soa.Vm()->DeleteWeakGlobalRef(soa.Self(), ref);
 }
@@ -95,7 +96,7 @@ extern "C" JNIEXPORT void JNICALL Java_JObjectBenchmark_timeDecodeHandleScopeRef
     JNIEnv* env, jobject jobj, jint reps) {
   ScopedObjectAccess soa(env);
   for (jint i = 0; i < reps; ++i) {
-    soa.Decode<mirror::Object*>(jobj);
+    soa.Decode<mirror::Object>(jobj);
   }
 }
 

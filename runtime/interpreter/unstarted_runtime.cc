@@ -1619,9 +1619,9 @@ void UnstartedRuntime::UnstartedJNIThrowableNativeFillInStackTrace(
     uint32_t* args ATTRIBUTE_UNUSED, JValue* result) {
   ScopedObjectAccessUnchecked soa(self);
   if (Runtime::Current()->IsActiveTransaction()) {
-    result->SetL(soa.Decode<mirror::Object*>(self->CreateInternalStackTrace<true>(soa)));
+    result->SetL(soa.Decode<mirror::Object>(self->CreateInternalStackTrace<true>(soa)).Decode());
   } else {
-    result->SetL(soa.Decode<mirror::Object*>(self->CreateInternalStackTrace<false>(soa)));
+    result->SetL(soa.Decode<mirror::Object>(self->CreateInternalStackTrace<false>(soa)).Decode());
   }
 }
 

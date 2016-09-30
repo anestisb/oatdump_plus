@@ -14,23 +14,24 @@
  * limitations under the License.
  */
 
-#include <iostream>
+#ifndef ART_RUNTIME_NATIVE_SCOPED_FAST_NATIVE_OBJECT_ACCESS_INL_H_
+#define ART_RUNTIME_NATIVE_SCOPED_FAST_NATIVE_OBJECT_ACCESS_INL_H_
 
-#include "jni.h"
-#include "mirror/string.h"
-#include "mirror/throwable.h"
+#include "scoped_fast_native_object_access.h"
+
+#include "art_method-inl.h"
 #include "scoped_thread_state_change-inl.h"
 
 namespace art {
 
-extern "C" JNIEXPORT void JNICALL Java_Main_printString(JNIEnv*, jclass, jstring s) {
-  ScopedObjectAccess soa(Thread::Current());
-  std::cout << soa.Decode<mirror::String>(s)->ToModifiedUtf8();
-}
-
-extern "C" JNIEXPORT void JNICALL Java_Main_printThrowable(JNIEnv*, jclass, jthrowable t) {
-  ScopedObjectAccess soa(Thread::Current());
-  std::cout << soa.Decode<mirror::Throwable>(t)->Dump();
+inline ScopedFastNativeObjectAccess::ScopedFastNativeObjectAccess(JNIEnv* env)
+    : ScopedObjectAccessAlreadyRunnable(env) {
+  Locks::mutator_lock_->AssertSharedHeld(Self());
+  DCHECK((*Self()->GetManagedStack()->GetTopQuickFrame())->IsFastNative());
+  // Don't work with raw objects in non-runnable states.
+  DCHECK_EQ(Self()->GetState(), kRunnable);
 }
 
 }  // namespace art
+
+#endif  // ART_RUNTIME_NATIVE_SCOPED_FAST_NATIVE_OBJECT_ACCESS_INL_H_

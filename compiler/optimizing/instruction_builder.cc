@@ -22,7 +22,7 @@
 #include "dex_instruction-inl.h"
 #include "driver/compiler_options.h"
 #include "imtable-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 
@@ -675,7 +675,7 @@ ArtMethod* HInstructionBuilder::ResolveMethod(uint16_t method_idx, InvokeType in
 
   ClassLinker* class_linker = dex_compilation_unit_->GetClassLinker();
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
-      soa.Decode<mirror::ClassLoader*>(dex_compilation_unit_->GetClassLoader())));
+      soa.Decode<mirror::ClassLoader>(dex_compilation_unit_->GetClassLoader())));
   Handle<mirror::Class> compiling_class(hs.NewHandle(GetCompilingClass()));
   // We fetch the referenced class eagerly (that is, the class pointed by in the MethodId
   // at method_idx), as `CanAccessResolvedMethod` expects it be be in the dex cache.
@@ -1284,7 +1284,7 @@ static mirror::Class* GetClassFrom(CompilerDriver* driver,
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
-      soa.Decode<mirror::ClassLoader*>(compilation_unit.GetClassLoader())));
+      soa.Decode<mirror::ClassLoader>(compilation_unit.GetClassLoader())));
   Handle<mirror::DexCache> dex_cache = compilation_unit.GetDexCache();
 
   return driver->ResolveCompilingMethodsClass(soa, dex_cache, class_loader, &compilation_unit);
@@ -1303,7 +1303,7 @@ bool HInstructionBuilder::IsOutermostCompilingClass(uint16_t type_index) const {
   StackHandleScope<3> hs(soa.Self());
   Handle<mirror::DexCache> dex_cache = dex_compilation_unit_->GetDexCache();
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
-      soa.Decode<mirror::ClassLoader*>(dex_compilation_unit_->GetClassLoader())));
+      soa.Decode<mirror::ClassLoader>(dex_compilation_unit_->GetClassLoader())));
   Handle<mirror::Class> cls(hs.NewHandle(compiler_driver_->ResolveClass(
       soa, dex_cache, class_loader, type_index, dex_compilation_unit_)));
   Handle<mirror::Class> outer_class(hs.NewHandle(GetOutermostCompilingClass()));
@@ -1344,7 +1344,7 @@ bool HInstructionBuilder::BuildStaticFieldAccess(const Instruction& instruction,
   StackHandleScope<3> hs(soa.Self());
   Handle<mirror::DexCache> dex_cache = dex_compilation_unit_->GetDexCache();
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
-      soa.Decode<mirror::ClassLoader*>(dex_compilation_unit_->GetClassLoader())));
+      soa.Decode<mirror::ClassLoader>(dex_compilation_unit_->GetClassLoader())));
   ArtField* resolved_field = compiler_driver_->ResolveField(
       soa, dex_cache, class_loader, dex_compilation_unit_, field_index, true);
 

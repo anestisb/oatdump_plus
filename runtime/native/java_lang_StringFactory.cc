@@ -20,8 +20,8 @@
 #include "jni_internal.h"
 #include "mirror/object-inl.h"
 #include "mirror/string.h"
-#include "scoped_fast_native_object_access.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_fast_native_object_access-inl.h"
+#include "scoped_thread_state_change-inl.h"
 #include "ScopedLocalRef.h"
 #include "ScopedPrimitiveArray.h"
 
@@ -35,7 +35,7 @@ static jstring StringFactory_newStringFromBytes(JNIEnv* env, jclass, jbyteArray 
     return nullptr;
   }
   StackHandleScope<1> hs(soa.Self());
-  Handle<mirror::ByteArray> byte_array(hs.NewHandle(soa.Decode<mirror::ByteArray*>(java_data)));
+  Handle<mirror::ByteArray> byte_array(hs.NewHandle(soa.Decode<mirror::ByteArray>(java_data)));
   int32_t data_size = byte_array->GetLength();
   if ((offset | byte_count) < 0 || byte_count > data_size - offset) {
     soa.Self()->ThrowNewExceptionF("Ljava/lang/StringIndexOutOfBoundsException;",
@@ -56,7 +56,7 @@ static jstring StringFactory_newStringFromChars(JNIEnv* env, jclass, jint offset
   DCHECK(java_data != nullptr);
   ScopedFastNativeObjectAccess soa(env);
   StackHandleScope<1> hs(soa.Self());
-  Handle<mirror::CharArray> char_array(hs.NewHandle(soa.Decode<mirror::CharArray*>(java_data)));
+  Handle<mirror::CharArray> char_array(hs.NewHandle(soa.Decode<mirror::CharArray>(java_data)));
   gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
   mirror::String* result = mirror::String::AllocFromCharArray<true>(soa.Self(), char_count,
                                                                     char_array, offset,
@@ -71,7 +71,7 @@ static jstring StringFactory_newStringFromString(JNIEnv* env, jclass, jstring to
     return nullptr;
   }
   StackHandleScope<1> hs(soa.Self());
-  Handle<mirror::String> string(hs.NewHandle(soa.Decode<mirror::String*>(to_copy)));
+  Handle<mirror::String> string(hs.NewHandle(soa.Decode<mirror::String>(to_copy)));
   gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
   mirror::String* result = mirror::String::AllocFromString<true>(soa.Self(), string->GetLength(),
                                                                  string, 0, allocator_type);

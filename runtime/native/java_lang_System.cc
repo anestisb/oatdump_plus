@@ -24,7 +24,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
-#include "scoped_fast_native_object_access.h"
+#include "scoped_fast_native_object_access-inl.h"
 
 namespace art {
 
@@ -60,14 +60,14 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
   }
 
   // Make sure source and destination are both arrays.
-  mirror::Object* srcObject = soa.Decode<mirror::Object*>(javaSrc);
+  ObjPtr<mirror::Object> srcObject = soa.Decode<mirror::Object>(javaSrc);
   if (UNLIKELY(!srcObject->IsArrayInstance())) {
-    ThrowArrayStoreException_NotAnArray("source", srcObject);
+    ThrowArrayStoreException_NotAnArray("source", srcObject.Decode());
     return;
   }
-  mirror::Object* dstObject = soa.Decode<mirror::Object*>(javaDst);
+  ObjPtr<mirror::Object> dstObject = soa.Decode<mirror::Object>(javaDst);
   if (UNLIKELY(!dstObject->IsArrayInstance())) {
-    ThrowArrayStoreException_NotAnArray("destination", dstObject);
+    ThrowArrayStoreException_NotAnArray("destination", dstObject.Decode());
     return;
   }
   mirror::Array* srcArray = srcObject->AsArray();
@@ -164,8 +164,8 @@ template <typename T, Primitive::Type kPrimType>
 inline void System_arraycopyTUnchecked(JNIEnv* env, jobject javaSrc, jint srcPos,
                                        jobject javaDst, jint dstPos, jint count) {
   ScopedFastNativeObjectAccess soa(env);
-  mirror::Object* srcObject = soa.Decode<mirror::Object*>(javaSrc);
-  mirror::Object* dstObject = soa.Decode<mirror::Object*>(javaDst);
+  ObjPtr<mirror::Object> srcObject = soa.Decode<mirror::Object>(javaSrc);
+  ObjPtr<mirror::Object> dstObject = soa.Decode<mirror::Object>(javaDst);
   DCHECK(dstObject != nullptr);
   mirror::Array* srcArray = srcObject->AsArray();
   mirror::Array* dstArray = dstObject->AsArray();
@@ -228,7 +228,7 @@ static jint System_identityHashCode(JNIEnv* env, jclass, jobject javaObject) {
     return 0;
   }
   ScopedFastNativeObjectAccess soa(env);
-  mirror::Object* o = soa.Decode<mirror::Object*>(javaObject);
+  ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(javaObject);
   return static_cast<jint>(o->IdentityHashCode());
 }
 

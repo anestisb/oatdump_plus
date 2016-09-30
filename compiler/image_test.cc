@@ -33,7 +33,7 @@
 #include "lock_word.h"
 #include "mirror/object-inl.h"
 #include "oat_writer.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "signal_catcher.h"
 #include "utils.h"
 

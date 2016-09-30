@@ -33,7 +33,7 @@
 #include "mirror/dex_cache.h"
 #include "mirror/object-inl.h"
 #include "oat_quick_method_header.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 #include "utils.h"
 
@@ -109,7 +109,8 @@ void CommonCompilerTest::MakeExecutable(const void* code_start, size_t code_leng
   FlushInstructionCache(reinterpret_cast<char*>(base), reinterpret_cast<char*>(base + len));
 }
 
-void CommonCompilerTest::MakeExecutable(mirror::ClassLoader* class_loader, const char* class_name) {
+void CommonCompilerTest::MakeExecutable(ObjPtr<mirror::ClassLoader> class_loader,
+                                        const char* class_name) {
   std::string class_descriptor(DotToDescriptor(class_name));
   Thread* self = Thread::Current();
   StackHandleScope<1> hs(self);

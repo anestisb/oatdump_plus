@@ -36,7 +36,7 @@
 #include "mirror/string-inl.h"
 #include "mirror/throwable.h"
 #include "runtime.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "thread.h"
 #include "well_known_classes.h"
 
@@ -269,12 +269,12 @@ class ScopedCheck {
    */
   bool CheckInstanceFieldID(ScopedObjectAccess& soa, jobject java_object, jfieldID fid)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    mirror::Object* o = soa.Decode<mirror::Object*>(java_object);
+    ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(java_object);
     if (o == nullptr) {
       AbortF("field operation on NULL object: %p", java_object);
       return false;
     }
-    if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(o)) {
+    if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(o.Decode())) {
       Runtime::Current()->GetHeap()->DumpSpaces(LOG_STREAM(ERROR));
       AbortF("field operation on invalid %s: %p",
              ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(),
@@ -333,15 +333,15 @@ class ScopedCheck {
       return false;
     }
     if (invoke != kVirtual) {
-      mirror::Class* c = soa.Decode<mirror::Class*>(jc);
-      if (!m->GetDeclaringClass()->IsAssignableFrom(c)) {
+      ObjPtr<mirror::Class> c = soa.Decode<mirror::Class>(jc);
+      if (!m->GetDeclaringClass()->IsAssignableFrom(c.Decode())) {
         AbortF("can't call %s %s with class %s", invoke == kStatic ? "static" : "nonvirtual",
             PrettyMethod(m).c_str(), PrettyClass(c).c_str());
         return false;
       }
     }
     if (invoke != kStatic) {
-      mirror::Object* o = soa.Decode<mirror::Object*>(jobj);
+      ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(jobj);
       if (o == nullptr) {
         AbortF("can't call %s on null object", PrettyMethod(m).c_str());
         return false;
@@ -360,12 +360,12 @@ class ScopedCheck {
    */
   bool CheckStaticFieldID(ScopedObjectAccess& soa, jclass java_class, jfieldID fid)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    mirror::Class* c = soa.Decode<mirror::Class*>(java_class);
+    ObjPtr<mirror::Class> c = soa.Decode<mirror::Class>(java_class);
     ArtField* f = CheckFieldID(soa, fid);
     if (f == nullptr) {
       return false;
     }
-    if (f->GetDeclaringClass() != c) {
+    if (c != f->GetDeclaringClass()) {
       AbortF("static jfieldID %p not valid for class %s", fid, PrettyClass(c).c_str());
       return false;
     }
@@ -387,8 +387,8 @@ class ScopedCheck {
     if (m == nullptr) {
       return false;
     }
-    mirror::Class* c = soa.Decode<mirror::Class*>(java_class);
-    if (!m->GetDeclaringClass()->IsAssignableFrom(c)) {
+    ObjPtr<mirror::Class> c = soa.Decode<mirror::Class>(java_class);
+    if (!m->GetDeclaringClass()->IsAssignableFrom(c.Decode())) {
       AbortF("can't call static %s on class %s", PrettyMethod(m).c_str(), PrettyClass(c).c_str());
       return false;
     }
@@ -408,7 +408,7 @@ class ScopedCheck {
     if (m == nullptr) {
       return false;
     }
-    mirror::Object* o = soa.Decode<mirror::Object*>(java_object);
+    ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(java_object);
     if (o == nullptr) {
       AbortF("can't call %s on null object", PrettyMethod(m).c_str());
       return false;
@@ -557,14 +557,14 @@ class ScopedCheck {
 
   bool CheckReflectedMethod(ScopedObjectAccess& soa, jobject jmethod)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    mirror::Object* method = soa.Decode<mirror::Object*>(jmethod);
+    ObjPtr<mirror::Object> method = soa.Decode<mirror::Object>(jmethod);
     if (method == nullptr) {
       AbortF("expected non-null method");
       return false;
     }
     mirror::Class* c = method->GetClass();
-    if (soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_reflect_Method) != c &&
-        soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_reflect_Constructor) != c) {
+    if (soa.Decode<mirror::Class>(WellKnownClasses::java_lang_reflect_Method) != c &&
+        soa.Decode<mirror::Class>(WellKnownClasses::java_lang_reflect_Constructor) != c) {
       AbortF("expected java.lang.reflect.Method or "
           "java.lang.reflect.Constructor but got object of type %s: %p",
           PrettyTypeOf(method).c_str(), jmethod);
@@ -589,13 +589,13 @@ class ScopedCheck {
 
   bool CheckReflectedField(ScopedObjectAccess& soa, jobject jfield)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    mirror::Object* field = soa.Decode<mirror::Object*>(jfield);
+    ObjPtr<mirror::Object> field = soa.Decode<mirror::Object>(jfield);
     if (field == nullptr) {
       AbortF("expected non-null java.lang.reflect.Field");
       return false;
     }
     mirror::Class* c = field->GetClass();
-    if (soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_reflect_Field) != c) {
+    if (soa.Decode<mirror::Class>(WellKnownClasses::java_lang_reflect_Field) != c) {
       AbortF("expected java.lang.reflect.Field but got object of type %s: %p",
              PrettyTypeOf(field).c_str(), jfield);
       return false;
@@ -605,10 +605,10 @@ class ScopedCheck {
 
   bool CheckThrowable(ScopedObjectAccess& soa, jthrowable jobj)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    mirror::Object* obj = soa.Decode<mirror::Object*>(jobj);
+    ObjPtr<mirror::Object> obj = soa.Decode<mirror::Object>(jobj);
     if (!obj->GetClass()->IsThrowableClass()) {
       AbortF("expected java.lang.Throwable but got object of type "
-             "%s: %p", PrettyTypeOf(obj).c_str(), obj);
+             "%s: %p", PrettyTypeOf(obj).c_str(), obj.Decode());
       return false;
     }
     return true;
@@ -616,10 +616,10 @@ class ScopedCheck {
 
   bool CheckThrowableClass(ScopedObjectAccess& soa, jclass jc)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    mirror::Class* c = soa.Decode<mirror::Class*>(jc);
+    ObjPtr<mirror::Class> c = soa.Decode<mirror::Class>(jc);
     if (!c->IsThrowableClass()) {
       AbortF("expected java.lang.Throwable class but got object of "
-             "type %s: %p", PrettyDescriptor(c).c_str(), c);
+             "type %s: %p", PrettyDescriptor(c).c_str(), c.Decode());
       return false;
     }
     return true;
@@ -647,9 +647,9 @@ class ScopedCheck {
 
   bool CheckInstantiableNonArray(ScopedObjectAccess& soa, jclass jc)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    mirror::Class* c = soa.Decode<mirror::Class*>(jc);
+    ObjPtr<mirror::Class> c = soa.Decode<mirror::Class>(jc);
     if (!c->IsInstantiableNonArray()) {
-      AbortF("can't make objects of type %s: %p", PrettyDescriptor(c).c_str(), c);
+      AbortF("can't make objects of type %s: %p", PrettyDescriptor(c).c_str(), c.Decode());
       return false;
     }
     return true;
@@ -660,7 +660,7 @@ class ScopedCheck {
     if (!CheckArray(soa, array)) {
       return false;
     }
-    mirror::Array* a = soa.Decode<mirror::Array*>(array);
+    ObjPtr<mirror::Array> a = soa.Decode<mirror::Array>(array);
     if (a->GetClass()->GetComponentType()->GetPrimitiveType() != type) {
       AbortF("incompatible array type %s expected %s[]: %p",
              PrettyDescriptor(a->GetClass()).c_str(), PrettyDescriptor(type).c_str(), array);
@@ -692,20 +692,20 @@ class ScopedCheck {
       return false;
     }
     if (is_static) {
-      mirror::Object* o = soa.Decode<mirror::Object*>(obj);
+      ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(obj);
       if (o == nullptr || !o->IsClass()) {
         AbortF("attempt to access static field %s with a class argument of type %s: %p",
                PrettyField(field).c_str(), PrettyTypeOf(o).c_str(), fid);
         return false;
       }
-      mirror::Class* c = o->AsClass();
-      if (field->GetDeclaringClass() != c) {
+      ObjPtr<mirror::Class> c = o->AsClass();
+      if (c != field->GetDeclaringClass()) {
         AbortF("attempt to access static field %s with an incompatible class argument of %s: %p",
                PrettyField(field).c_str(), PrettyDescriptor(c).c_str(), fid);
         return false;
       }
     } else {
-      mirror::Object* o = soa.Decode<mirror::Object*>(obj);
+      ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(obj);
       if (o == nullptr || !field->GetDeclaringClass()->IsAssignableFrom(o->GetClass())) {
         AbortF("attempt to access field %s from an object argument of type %s: %p",
                PrettyField(field).c_str(), PrettyTypeOf(o).c_str(), fid);
@@ -763,7 +763,7 @@ class ScopedCheck {
       }
     }
 
-    mirror::Object* obj = soa.Decode<mirror::Object*>(java_object);
+    ObjPtr<mirror::Object> obj = soa.Decode<mirror::Object>(java_object);
     if (obj == nullptr) {
       // Either java_object is invalid or is a cleared weak.
       IndirectRef ref = reinterpret_cast<IndirectRef>(java_object);
@@ -772,12 +772,12 @@ class ScopedCheck {
         okay = false;
       } else {
         obj = soa.Vm()->DecodeWeakGlobal(soa.Self(), ref);
-        okay = Runtime::Current()->IsClearedJniWeakGlobal(obj);
+        okay = Runtime::Current()->IsClearedJniWeakGlobal(obj.Decode());
       }
       if (!okay) {
         AbortF("%s is an invalid %s: %p (%p)",
                what, ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(),
-               java_object, obj);
+               java_object, obj.Decode());
         return false;
       }
     }
@@ -786,7 +786,7 @@ class ScopedCheck {
       Runtime::Current()->GetHeap()->DumpSpaces(LOG_STREAM(ERROR));
       AbortF("%s is an invalid %s: %p (%p)",
              what, ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(),
-             java_object, obj);
+             java_object, obj.Decode());
       return false;
     }
 
@@ -936,10 +936,10 @@ class ScopedCheck {
         break;
       case 'c': {  // jclass
         jclass jc = arg.c;
-        mirror::Class* c = soa.Decode<mirror::Class*>(jc);
+        ObjPtr<mirror::Class> c = soa.Decode<mirror::Class>(jc);
         if (c == nullptr) {
           *msg += "NULL";
-        } else if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(c)) {
+        } else if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(c.Decode())) {
           StringAppendF(msg, "INVALID POINTER:%p", jc);
         } else if (!c->IsClass()) {
           *msg += "INVALID NON-CLASS OBJECT OF TYPE:" + PrettyTypeOf(c);
@@ -1107,12 +1107,12 @@ class ScopedCheck {
       return false;
     }
 
-    mirror::Array* a = soa.Decode<mirror::Array*>(java_array);
-    if (UNLIKELY(!Runtime::Current()->GetHeap()->IsValidObjectAddress(a))) {
+    ObjPtr<mirror::Array> a = soa.Decode<mirror::Array>(java_array);
+    if (UNLIKELY(!Runtime::Current()->GetHeap()->IsValidObjectAddress(a.Decode()))) {
       Runtime::Current()->GetHeap()->DumpSpaces(LOG_STREAM(ERROR));
       AbortF("jarray is an invalid %s: %p (%p)",
              ToStr<IndirectRefKind>(GetIndirectRefKind(java_array)).c_str(),
-             java_array, a);
+             java_array, a.Decode());
       return false;
     } else if (!a->IsArrayInstance()) {
       AbortF("jarray argument has non-array type: %s", PrettyTypeOf(a).c_str());
@@ -1411,7 +1411,7 @@ class GuardedCopy {
                                    void* original_ptr) {
     ScopedObjectAccess soa(env);
 
-    mirror::Array* a = soa.Decode<mirror::Array*>(java_array);
+    ObjPtr<mirror::Array> a = soa.Decode<mirror::Array>(java_array);
     size_t component_size = a->GetClass()->GetComponentSize();
     size_t byte_count = a->GetLength() * component_size;
     void* result = Create(original_ptr, byte_count, true);

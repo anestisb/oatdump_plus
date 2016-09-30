@@ -23,7 +23,7 @@
 #include "art_method-inl.h"
 #include "base/enums.h"
 #include "common_compiler_test.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 
@@ -93,16 +93,12 @@ class ReflectionTest : public CommonCompilerTest {
     StackHandleScope<2> hs(self);
     Handle<mirror::ClassLoader> class_loader(
         hs.NewHandle(
-            ScopedObjectAccessUnchecked(self).Decode<mirror::ClassLoader*>(jclass_loader)));
-    if (is_static) {
-      MakeExecutable(ScopedObjectAccessUnchecked(self).Decode<mirror::ClassLoader*>(jclass_loader),
-                     class_name);
-    } else {
+            ScopedObjectAccessUnchecked(self).Decode<mirror::ClassLoader>(jclass_loader)));
+    if (!is_static) {
       MakeExecutable(nullptr, "java.lang.Class");
       MakeExecutable(nullptr, "java.lang.Object");
-      MakeExecutable(ScopedObjectAccessUnchecked(self).Decode<mirror::ClassLoader*>(jclass_loader),
-                     class_name);
     }
+    MakeExecutable(class_loader.Get(), class_name);
 
     mirror::Class* c = class_linker_->FindClass(self, DotToDescriptor(class_name).c_str(),
                                                 class_loader);
@@ -512,7 +508,7 @@ TEST_F(ReflectionTest, StaticMainMethod) {
   jobject jclass_loader = LoadDex("Main");
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(
-      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(jclass_loader)));
   CompileDirectMethod(class_loader, "Main", "main", "([Ljava/lang/String;)V");
 
   mirror::Class* klass = class_linker_->FindClass(soa.Self(), "LMain;", class_loader);

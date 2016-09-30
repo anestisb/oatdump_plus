@@ -19,7 +19,7 @@
 #include "class_linker-inl.h"
 #include "common_runtime_test.h"
 #include "mirror/object-inl.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 
 namespace art {
 

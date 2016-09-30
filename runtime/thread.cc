@@ -59,12 +59,13 @@
 #include "native_stack_dump.h"
 #include "nth_caller_visitor.h"
 #include "oat_quick_method_header.h"
+#include "obj_ptr-inl.h"
 #include "object_lock.h"
 #include "quick_exception_handler.h"
 #include "quick/quick_method_frame_info.h"
 #include "reflection.h"
 #include "runtime.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
 #include "stack.h"
@@ -406,7 +407,7 @@ void* Thread::CreateCallback(void* arg) {
 
     // Copy peer into self, deleting global reference when done.
     CHECK(self->tlsPtr_.jpeer != nullptr);
-    self->tlsPtr_.opeer = soa.Decode<mirror::Object*>(self->tlsPtr_.jpeer);
+    self->tlsPtr_.opeer = soa.Decode<mirror::Object>(self->tlsPtr_.jpeer).Decode();
     self->GetJniEnv()->DeleteGlobalRef(self->tlsPtr_.jpeer);
     self->tlsPtr_.jpeer = nullptr;
     self->SetThreadName(self->GetThreadName(soa)->ToModifiedUtf8().c_str());
@@ -444,7 +445,7 @@ Thread* Thread::FromManagedThread(const ScopedObjectAccessAlreadyRunnable& soa,
 
 Thread* Thread::FromManagedThread(const ScopedObjectAccessAlreadyRunnable& soa,
                                   jobject java_thread) {
-  return FromManagedThread(soa, soa.Decode<mirror::Object*>(java_thread));
+  return FromManagedThread(soa, soa.Decode<mirror::Object>(java_thread).Decode());
 }
 
 static size_t FixStackSize(size_t stack_size) {
@@ -563,7 +564,7 @@ void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_siz
 
     ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_name);
     mirror::String* java_name = reinterpret_cast<mirror::String*>(f->GetObject(
-        soa.Decode<mirror::Object*>(java_peer)));
+        soa.Decode<mirror::Object>(java_peer).Decode()));
     std::string thread_name;
     if (java_name != nullptr) {
       thread_name = java_name->ToModifiedUtf8();
@@ -802,7 +803,7 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
   }
   {
     ScopedObjectAccess soa(this);
-    tlsPtr_.opeer = soa.Decode<mirror::Object*>(peer.get());
+    tlsPtr_.opeer = soa.Decode<mirror::Object>(peer.get()).Decode();
   }
   env->CallNonvirtualVoidMethod(peer.get(),
                                 WellKnownClasses::java_lang_Thread,
@@ -844,9 +845,11 @@ void Thread::InitPeer(ScopedObjectAccess& soa, jboolean thread_is_daemon, jobjec
   soa.DecodeField(WellKnownClasses::java_lang_Thread_daemon)->
       SetBoolean<kTransactionActive>(tlsPtr_.opeer, thread_is_daemon);
   soa.DecodeField(WellKnownClasses::java_lang_Thread_group)->
-      SetObject<kTransactionActive>(tlsPtr_.opeer, soa.Decode<mirror::Object*>(thread_group));
+      SetObject<kTransactionActive>(tlsPtr_.opeer,
+                                    soa.Decode<mirror::Object>(thread_group).Decode());
   soa.DecodeField(WellKnownClasses::java_lang_Thread_name)->
-      SetObject<kTransactionActive>(tlsPtr_.opeer, soa.Decode<mirror::Object*>(thread_name));
+      SetObject<kTransactionActive>(tlsPtr_.opeer,
+                                    soa.Decode<mirror::Object>(thread_name).Decode());
   soa.DecodeField(WellKnownClasses::java_lang_Thread_priority)->
       SetInt<kTransactionActive>(tlsPtr_.opeer, thread_priority);
 }
@@ -2123,7 +2126,7 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
     int* stack_depth) {
   // Decode the internal stack trace into the depth, method trace and PC trace.
   // Subtract one for the methods and PC trace.
-  int32_t depth = soa.Decode<mirror::Array*>(internal)->GetLength() - 1;
+  int32_t depth = soa.Decode<mirror::Array>(internal)->GetLength() - 1;
   DCHECK_GE(depth, 0);
 
   ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
@@ -2135,7 +2138,7 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
     result = output_array;
     // ...adjusting the number of frames we'll write to not exceed the array length.
     const int32_t traces_length =
-        soa.Decode<mirror::ObjectArray<mirror::StackTraceElement>*>(result)->GetLength();
+        soa.Decode<mirror::ObjectArray<mirror::StackTraceElement>>(result)->GetLength();
     depth = std::min(depth, traces_length);
   } else {
     // Create java_trace array and place in local reference table
@@ -2153,7 +2156,7 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
 
   for (int32_t i = 0; i < depth; ++i) {
     mirror::ObjectArray<mirror::Object>* decoded_traces =
-        soa.Decode<mirror::Object*>(internal)->AsObjectArray<mirror::Object>();
+        soa.Decode<mirror::Object>(internal)->AsObjectArray<mirror::Object>();
     // Methods and dex PC trace is element 0.
     DCHECK(decoded_traces->Get(0)->IsIntArray() || decoded_traces->Get(0)->IsLongArray());
     mirror::PointerArray* const method_trace =
@@ -2205,7 +2208,7 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
       return nullptr;
     }
     // We are called from native: use non-transactional mode.
-    soa.Decode<mirror::ObjectArray<mirror::StackTraceElement>*>(result)->Set<false>(i, obj);
+    soa.Decode<mirror::ObjectArray<mirror::StackTraceElement>>(result)->Set<false>(i, obj);
   }
   return result;
 }
@@ -3044,11 +3047,10 @@ void Thread::DeoptimizeWithDeoptimizationException(JValue* result) {
   interpreter::EnterInterpreterFromDeoptimize(this, shadow_frame, from_code, result);
 }
 
-void Thread::SetException(mirror::Throwable* new_exception) {
+void Thread::SetException(ObjPtr<mirror::Throwable> new_exception) {
   CHECK(new_exception != nullptr);
   // TODO: DCHECK(!IsExceptionPending());
-  tlsPtr_.exception = new_exception;
-  // LOG(ERROR) << new_exception->Dump();
+  tlsPtr_.exception = new_exception.Decode();
 }
 
 }  // namespace art

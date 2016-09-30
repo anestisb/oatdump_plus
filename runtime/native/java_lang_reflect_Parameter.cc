@@ -21,7 +21,7 @@
 #include "dex_file-inl.h"
 #include "dex_file_annotations.h"
 #include "jni_internal.h"
-#include "scoped_fast_native_object_access.h"
+#include "scoped_fast_native_object_access-inl.h"
 #include "utils.h"
 
 namespace art {
@@ -53,7 +53,7 @@ static jobject Parameter_getAnnotationNative(JNIEnv* env,
   }
 
   StackHandleScope<1> hs(soa.Self());
-  Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class*>(annotationType)));
+  Handle<mirror::Class> klass(hs.NewHandle(soa.Decode<mirror::Class>(annotationType)));
   return soa.AddLocalReference<jobject>(
       annotations::GetAnnotationForMethodParameter(method, parameterIndex, klass));
 }

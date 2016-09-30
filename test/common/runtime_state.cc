@@ -24,7 +24,7 @@
 #include "mirror/class-inl.h"
 #include "oat_quick_method_header.h"
 #include "runtime.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "ScopedUtfChars.h"
 #include "thread-inl.h"
 
@@ -35,7 +35,7 @@ namespace art {
 extern "C" JNIEXPORT jboolean JNICALL Java_Main_hasOatFile(JNIEnv* env, jclass cls) {
   ScopedObjectAccess soa(env);
 
-  mirror::Class* klass = soa.Decode<mirror::Class*>(cls);
+  ObjPtr<mirror::Class> klass = soa.Decode<mirror::Class>(cls);
   const DexFile& dex_file = klass->GetDexFile();
   const OatFile::OatDexFile* oat_dex_file = dex_file.GetOatDexFile();
   return (oat_dex_file != nullptr) ? JNI_TRUE : JNI_FALSE;
@@ -75,7 +75,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_isImageDex2OatEnabled(JNIEnv* en
 extern "C" JNIEXPORT jboolean JNICALL Java_Main_compiledWithOptimizing(JNIEnv* env, jclass cls) {
   ScopedObjectAccess soa(env);
 
-  mirror::Class* klass = soa.Decode<mirror::Class*>(cls);
+  ObjPtr<mirror::Class> klass = soa.Decode<mirror::Class>(cls);
   const DexFile& dex_file = klass->GetDexFile();
   const OatFile::OatDexFile* oat_dex_file = dex_file.GetOatDexFile();
   if (oat_dex_file == nullptr) {
@@ -134,7 +134,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_ensureJitCompiled(JNIEnv* env,
 
     ScopedUtfChars chars(env, method_name);
     CHECK(chars.c_str() != nullptr);
-    method = soa.Decode<mirror::Class*>(cls)->FindDeclaredDirectMethodByName(
+    method = soa.Decode<mirror::Class>(cls)->FindDeclaredDirectMethodByName(
         chars.c_str(), kRuntimePointerSize);
   }
 

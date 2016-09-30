@@ -27,7 +27,7 @@
 #include "base/stl_util.h"
 #include "image.h"
 #include "os.h"
-#include "scoped_thread_state_change.h"
+#include "scoped_thread_state_change-inl.h"
 #include "space-inl.h"
 #include "thread-inl.h"
 
