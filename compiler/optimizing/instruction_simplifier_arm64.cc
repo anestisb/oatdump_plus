@@ -140,6 +140,13 @@ void InstructionSimplifierArm64Visitor::VisitAnd(HAnd* instruction) {
 
 void InstructionSimplifierArm64Visitor::VisitArrayGet(HArrayGet* instruction) {
   size_t data_offset = CodeGenerator::GetArrayDataOffset(instruction);
+  // Don't move the array pointer if it is charAt because we need to take the count first.
+  // TODO: Implement reading (length + compression) for String compression feature from
+  // negative offset (count_offset - data_offset) using LDP and clobbering an extra temporary.
+  // Note that "LDR (Immediate)" does not have a "signed offset" encoding.
+  if (mirror::kUseStringCompression && instruction->IsStringCharAt()) {
+    return;
+  }
   if (TryExtractArrayAccessAddress(instruction,
                                    instruction->GetArray(),
                                    instruction->GetIndex(),
