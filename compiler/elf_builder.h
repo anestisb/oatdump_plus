@@ -619,7 +619,8 @@ class ElfBuilder FINAL {
   void PrepareDynamicSection(const std::string& elf_file_path,
                              Elf_Word rodata_size,
                              Elf_Word text_size,
-                             Elf_Word bss_size) {
+                             Elf_Word bss_size,
+                             Elf_Word bss_roots_offset) {
     std::string soname(elf_file_path);
     size_t directory_separator_pos = soname.rfind('/');
     if (directory_separator_pos != std::string::npos) {
@@ -659,10 +660,20 @@ class ElfBuilder FINAL {
       Elf_Word oatlastword_address = rodata_address + rodata_size - 4;
       dynsym_.Add(oatlastword, rodata_index, oatlastword_address, 4, STB_GLOBAL, STT_OBJECT);
     }
+    DCHECK_LE(bss_roots_offset, bss_size);
     if (bss_size != 0u) {
       Elf_Word bss_index = rodata_index + 1u + (text_size != 0 ? 1u : 0u);
       Elf_Word oatbss = dynstr_.Add("oatbss");
-      dynsym_.Add(oatbss, bss_index, bss_address, bss_size, STB_GLOBAL, STT_OBJECT);
+      dynsym_.Add(oatbss, bss_index, bss_address, bss_roots_offset, STB_GLOBAL, STT_OBJECT);
+      // Add a symbol marking the start of the GC roots part of the .bss, if not empty.
+      if (bss_roots_offset != bss_size) {
+        DCHECK_LT(bss_roots_offset, bss_size);
+        Elf_Word bss_roots_address = bss_address + bss_roots_offset;
+        Elf_Word bss_roots_size = bss_size - bss_roots_offset;
+        Elf_Word oatbssroots = dynstr_.Add("oatbssroots");
+        dynsym_.Add(
+            oatbssroots, bss_index, bss_roots_address, bss_roots_size, STB_GLOBAL, STT_OBJECT);
+      }
       Elf_Word oatbsslastword = dynstr_.Add("oatbsslastword");
       Elf_Word bsslastword_address = bss_address + bss_size - 4;
       dynsym_.Add(oatbsslastword, bss_index, bsslastword_address, 4, STB_GLOBAL, STT_OBJECT);

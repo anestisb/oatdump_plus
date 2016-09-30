@@ -2607,12 +2607,8 @@ bool HLoadString::InstructionDataEquals(const HInstruction* other) const {
   LoadKind load_kind = GetLoadKind();
   if (HasAddress(load_kind)) {
     return GetAddress() == other_load_string->GetAddress();
-  } else if (HasStringReference(load_kind)) {
-    return IsSameDexFile(GetDexFile(), other_load_string->GetDexFile());
   } else {
-    DCHECK(HasDexCacheReference(load_kind)) << load_kind;
-    // If the string indexes and dex files are the same, dex cache element offsets
-    // must also be the same, so we don't need to compare them.
+    DCHECK(HasStringReference(load_kind)) << load_kind;
     return IsSameDexFile(GetDexFile(), other_load_string->GetDexFile());
   }
 }
@@ -2642,8 +2638,8 @@ std::ostream& operator<<(std::ostream& os, HLoadString::LoadKind rhs) {
       return os << "BootImageAddress";
     case HLoadString::LoadKind::kDexCacheAddress:
       return os << "DexCacheAddress";
-    case HLoadString::LoadKind::kDexCachePcRelative:
-      return os << "DexCachePcRelative";
+    case HLoadString::LoadKind::kBssEntry:
+      return os << "BssEntry";
     case HLoadString::LoadKind::kDexCacheViaMethod:
       return os << "DexCacheViaMethod";
     default:
