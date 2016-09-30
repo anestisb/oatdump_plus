@@ -411,8 +411,9 @@ class CodeGeneratorX86 : public CodeGenerator {
   void GenerateVirtualCall(HInvokeVirtual* invoke, Location temp) OVERRIDE;
 
   void RecordSimplePatch();
-  void RecordStringPatch(HLoadString* load_string);
+  void RecordBootStringPatch(HLoadString* load_string);
   void RecordTypePatch(HLoadClass* load_class);
+  Label* NewStringBssEntryPatch(HLoadString* load_string);
   Label* NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file, uint32_t element_offset);
 
   void MoveFromReturnRegister(Location trg, Primitive::Type type) OVERRIDE;
@@ -579,15 +580,9 @@ class CodeGeneratorX86 : public CodeGenerator {
  private:
   Register GetInvokeStaticOrDirectExtraParameter(HInvokeStaticOrDirect* invoke, Register temp);
 
-  struct PcRelativeDexCacheAccessInfo {
-    PcRelativeDexCacheAccessInfo(const DexFile& dex_file, uint32_t element_off)
-        : target_dex_file(dex_file), element_offset(element_off), label() { }
-
-    const DexFile& target_dex_file;
-    uint32_t element_offset;
-    // NOTE: Label is bound to the end of the instruction that has an embedded 32-bit offset.
-    Label label;
-  };
+  template <LinkerPatch (*Factory)(size_t, const DexFile*, uint32_t, uint32_t)>
+  void EmitPcRelativeLinkerPatches(const ArenaDeque<PatchInfo<Label>>& infos,
+                                   ArenaVector<LinkerPatch>* linker_patches);
 
   // Labels for each block that will be compiled.
   Label* block_labels_;  // Indexed by block id.
@@ -599,16 +594,16 @@ class CodeGeneratorX86 : public CodeGenerator {
   const X86InstructionSetFeatures& isa_features_;
 
   // Method patch info. Using ArenaDeque<> which retains element addresses on push/emplace_back().
-  ArenaDeque<MethodPatchInfo<Label>> method_patches_;
-  ArenaDeque<MethodPatchInfo<Label>> relative_call_patches_;
+  ArenaDeque<PatchInfo<Label>> method_patches_;
+  ArenaDeque<PatchInfo<Label>> relative_call_patches_;
   // PC-relative DexCache access info.
-  ArenaDeque<PcRelativeDexCacheAccessInfo> pc_relative_dex_cache_patches_;
+  ArenaDeque<PatchInfo<Label>> pc_relative_dex_cache_patches_;
   // Patch locations for patchoat where the linker doesn't do any other work.
   ArenaDeque<Label> simple_patches_;
-  // String patch locations.
-  ArenaDeque<StringPatchInfo<Label>> string_patches_;
+  // String patch locations; type depends on configuration (app .bss or boot image PIC/non-PIC).
+  ArenaDeque<PatchInfo<Label>> string_patches_;
   // Type patch locations.
-  ArenaDeque<TypePatchInfo<Label>> type_patches_;
+  ArenaDeque<PatchInfo<Label>> type_patches_;
 
   // Offset to the start of the constant area in the assembled code.
   // Used for fixups to the constant area.

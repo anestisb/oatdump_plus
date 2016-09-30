@@ -222,9 +222,10 @@ void Arm64RelativePatcher::PatchPcRelativeReference(std::vector<uint8_t>* code,
       }
       shift = 0u;  // No shift for ADD.
     } else {
-      // LDR 32-bit or 64-bit with imm12 == 0 (unset).
-      DCHECK(patch.GetType() == LinkerPatch::Type::kDexCacheArray) << patch.GetType();
-      DCHECK_EQ(insn & 0xbffffc00, 0xb9400000) << std::hex << insn;
+      // LDR/STR 32-bit or 64-bit with imm12 == 0 (unset).
+      DCHECK(patch.GetType() == LinkerPatch::Type::kDexCacheArray ||
+             patch.GetType() == LinkerPatch::Type::kStringBssEntry) << patch.GetType();
+      DCHECK_EQ(insn & 0xbfbffc00, 0xb9000000) << std::hex << insn;
     }
     if (kIsDebugBuild) {
       uint32_t adrp = GetInsn(code, pc_insn_offset);

@@ -108,8 +108,6 @@ class OatTest : public CommonCompilerTest {
                                               compiler_kind,
                                               insn_set,
                                               insn_features_.get(),
-                                              /* boot_image */ false,
-                                              /* app_image */ false,
                                               /* image_classes */ nullptr,
                                               /* compiled_classes */ nullptr,
                                               /* compiled_methods */ nullptr,
@@ -207,7 +205,10 @@ class OatTest : public CommonCompilerTest {
     oat_writer.PrepareLayout(compiler_driver_.get(), nullptr, dex_files, &patcher);
     size_t rodata_size = oat_writer.GetOatHeader().GetExecutableOffset();
     size_t text_size = oat_writer.GetOatSize() - rodata_size;
-    elf_writer->SetLoadedSectionSizes(rodata_size, text_size, oat_writer.GetBssSize());
+    elf_writer->PrepareDynamicSection(rodata_size,
+                                      text_size,
+                                      oat_writer.GetBssSize(),
+                                      oat_writer.GetBssRootsOffset());
 
     if (!oat_writer.WriteRodata(oat_rodata)) {
       return false;
