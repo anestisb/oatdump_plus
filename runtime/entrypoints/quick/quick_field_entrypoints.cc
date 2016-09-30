@@ -151,14 +151,14 @@ extern "C" mirror::Object* artGetObjStaticFromCode(uint32_t field_idx,
                                   StaticObjectRead,
                                   sizeof(mirror::HeapReference<mirror::Object>));
   if (LIKELY(field != nullptr)) {
-    return field->GetObj(field->GetDeclaringClass());
+    return field->GetObj(field->GetDeclaringClass()).Decode();
   }
   field = FindFieldFromCode<StaticObjectRead, true>(field_idx,
                                                     referrer,
                                                     self,
                                                     sizeof(mirror::HeapReference<mirror::Object>));
   if (LIKELY(field != nullptr)) {
-    return field->GetObj(field->GetDeclaringClass());
+    return field->GetObj(field->GetDeclaringClass()).Decode();
   }
   return nullptr;  // Will throw exception by checking with Thread::Current.
 }
@@ -299,7 +299,7 @@ extern "C" mirror::Object* artGetObjInstanceFromCode(uint32_t field_idx,
                                   InstanceObjectRead,
                                   sizeof(mirror::HeapReference<mirror::Object>));
   if (LIKELY(field != nullptr && obj != nullptr)) {
-    return field->GetObj(obj);
+    return field->GetObj(obj).Decode();
   }
   field = FindInstanceField<InstanceObjectRead, true>(field_idx,
                                                       referrer,
@@ -307,7 +307,7 @@ extern "C" mirror::Object* artGetObjInstanceFromCode(uint32_t field_idx,
                                                       sizeof(mirror::HeapReference<mirror::Object>),
                                                       &obj);
   if (LIKELY(field != nullptr)) {
-    return field->GetObj(obj);
+    return field->GetObj(obj).Decode();
   }
   return nullptr;  // Will throw exception by checking with Thread::Current.
 }

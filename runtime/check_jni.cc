@@ -274,7 +274,7 @@ class ScopedCheck {
       AbortF("field operation on NULL object: %p", java_object);
       return false;
     }
-    if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(o.Decode())) {
+    if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(o)) {
       Runtime::Current()->GetHeap()->DumpSpaces(LOG_STREAM(ERROR));
       AbortF("field operation on invalid %s: %p",
              ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(),
@@ -334,7 +334,7 @@ class ScopedCheck {
     }
     if (invoke != kVirtual) {
       ObjPtr<mirror::Class> c = soa.Decode<mirror::Class>(jc);
-      if (!m->GetDeclaringClass()->IsAssignableFrom(c.Decode())) {
+      if (!m->GetDeclaringClass()->IsAssignableFrom(c)) {
         AbortF("can't call %s %s with class %s", invoke == kStatic ? "static" : "nonvirtual",
             PrettyMethod(m).c_str(), PrettyClass(c).c_str());
         return false;
@@ -388,7 +388,7 @@ class ScopedCheck {
       return false;
     }
     ObjPtr<mirror::Class> c = soa.Decode<mirror::Class>(java_class);
-    if (!m->GetDeclaringClass()->IsAssignableFrom(c.Decode())) {
+    if (!m->GetDeclaringClass()->IsAssignableFrom(c)) {
       AbortF("can't call static %s on class %s", PrettyMethod(m).c_str(), PrettyClass(c).c_str());
       return false;
     }
@@ -939,7 +939,7 @@ class ScopedCheck {
         ObjPtr<mirror::Class> c = soa.Decode<mirror::Class>(jc);
         if (c == nullptr) {
           *msg += "NULL";
-        } else if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(c.Decode())) {
+        } else if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(c)) {
           StringAppendF(msg, "INVALID POINTER:%p", jc);
         } else if (!c->IsClass()) {
           *msg += "INVALID NON-CLASS OBJECT OF TYPE:" + PrettyTypeOf(c);
@@ -1108,7 +1108,7 @@ class ScopedCheck {
     }
 
     ObjPtr<mirror::Array> a = soa.Decode<mirror::Array>(java_array);
-    if (UNLIKELY(!Runtime::Current()->GetHeap()->IsValidObjectAddress(a.Decode()))) {
+    if (UNLIKELY(!Runtime::Current()->GetHeap()->IsValidObjectAddress(a))) {
       Runtime::Current()->GetHeap()->DumpSpaces(LOG_STREAM(ERROR));
       AbortF("jarray is an invalid %s: %p (%p)",
              ToStr<IndirectRefKind>(GetIndirectRefKind(java_array)).c_str(),

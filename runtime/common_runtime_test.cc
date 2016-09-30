@@ -523,12 +523,12 @@ std::vector<const DexFile*> CommonRuntimeTestImpl::GetDexFiles(jobject jclass_lo
   ArtField* cookie_field = soa.DecodeField(WellKnownClasses::dalvik_system_DexFile_cookie);
   ArtField* dex_file_field =
       soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
-  mirror::Object* dex_path_list =
+  ObjPtr<mirror::Object> dex_path_list =
       soa.DecodeField(WellKnownClasses::dalvik_system_PathClassLoader_pathList)->
       GetObject(class_loader.Get());
   if (dex_path_list != nullptr && dex_file_field!= nullptr && cookie_field != nullptr) {
     // DexPathList has an array dexElements of Elements[] which each contain a dex file.
-    mirror::Object* dex_elements_obj =
+    ObjPtr<mirror::Object> dex_elements_obj =
         soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList_dexElements)->
         GetObject(dex_path_list);
     // Loop through each dalvik.system.DexPathList$Element's dalvik.system.DexFile and look
@@ -537,14 +537,14 @@ std::vector<const DexFile*> CommonRuntimeTestImpl::GetDexFiles(jobject jclass_lo
       Handle<mirror::ObjectArray<mirror::Object>> dex_elements =
           hs.NewHandle(dex_elements_obj->AsObjectArray<mirror::Object>());
       for (int32_t i = 0; i < dex_elements->GetLength(); ++i) {
-        mirror::Object* element = dex_elements->GetWithoutChecks(i);
+        ObjPtr<mirror::Object> element = dex_elements->GetWithoutChecks(i);
         if (element == nullptr) {
           // Should never happen, fall back to java code to throw a NPE.
           break;
         }
-        mirror::Object* dex_file = dex_file_field->GetObject(element);
+        ObjPtr<mirror::Object> dex_file = dex_file_field->GetObject(element);
         if (dex_file != nullptr) {
-          mirror::LongArray* long_array = cookie_field->GetObject(dex_file)->AsLongArray();
+          ObjPtr<mirror::LongArray> long_array = cookie_field->GetObject(dex_file)->AsLongArray();
           DCHECK(long_array != nullptr);
           int32_t long_array_size = long_array->GetLength();
           for (int32_t j = kDexFileIndexStart; j < long_array_size; ++j) {

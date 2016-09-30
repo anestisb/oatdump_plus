@@ -611,50 +611,28 @@ class MANAGED Class FINAL : public Object {
   }
 
   // Returns true if this class is in the same packages as that class.
-  bool IsInSamePackage(Class* that) REQUIRES_SHARED(Locks::mutator_lock_);
+  bool IsInSamePackage(ObjPtr<Class> that) REQUIRES_SHARED(Locks::mutator_lock_);
 
   static bool IsInSamePackage(const StringPiece& descriptor1, const StringPiece& descriptor2);
 
   // Returns true if this class can access that class.
-  bool CanAccess(Class* that) REQUIRES_SHARED(Locks::mutator_lock_) {
-    return that->IsPublic() || this->IsInSamePackage(that);
-  }
+  bool CanAccess(ObjPtr<Class> that) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Can this class access a member in the provided class with the provided member access flags?
   // Note that access to the class isn't checked in case the declaring class is protected and the
   // method has been exposed by a public sub-class
-  bool CanAccessMember(Class* access_to, uint32_t member_flags)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
-    // Classes can access all of their own members
-    if (this == access_to) {
-      return true;
-    }
-    // Public members are trivially accessible
-    if (member_flags & kAccPublic) {
-      return true;
-    }
-    // Private members are trivially not accessible
-    if (member_flags & kAccPrivate) {
-      return false;
-    }
-    // Check for protected access from a sub-class, which may or may not be in the same package.
-    if (member_flags & kAccProtected) {
-      if (!this->IsInterface() && this->IsSubClass(access_to)) {
-        return true;
-      }
-    }
-    // Allow protected access from other classes in the same package.
-    return this->IsInSamePackage(access_to);
-  }
+  bool CanAccessMember(ObjPtr<Class> access_to, uint32_t member_flags)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Can this class access a resolved field?
   // Note that access to field's class is checked and this may require looking up the class
   // referenced by the FieldId in the DexFile in case the declaring class is inaccessible.
-  bool CanAccessResolvedField(Class* access_to, ArtField* field,
-                              DexCache* dex_cache, uint32_t field_idx)
+  bool CanAccessResolvedField(ObjPtr<Class> access_to,
+                              ArtField* field,
+                              ObjPtr<DexCache> dex_cache,
+                              uint32_t field_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  bool CheckResolvedFieldAccess(Class* access_to, ArtField* field,
-                                uint32_t field_idx)
+  bool CheckResolvedFieldAccess(ObjPtr<Class> access_to, ArtField* field, uint32_t field_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Can this class access a resolved method?
@@ -668,14 +646,14 @@ class MANAGED Class FINAL : public Object {
                                  uint32_t method_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  bool IsSubClass(Class* klass) REQUIRES_SHARED(Locks::mutator_lock_);
+  bool IsSubClass(ObjPtr<Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Can src be assigned to this class? For example, String can be assigned to Object (by an
   // upcast), however, an Object cannot be assigned to a String as a potentially exception throwing
   // downcast would be necessary. Similarly for interfaces, a class that implements (or an interface
   // that extends) another can be assigned to its parent, but not vice-versa. All Classes may assign
   // to themselves. Classes for primitive types may not assign to each other.
-  ALWAYS_INLINE bool IsAssignableFrom(Class* src) REQUIRES_SHARED(Locks::mutator_lock_);
+  ALWAYS_INLINE bool IsAssignableFrom(ObjPtr<Class> src) REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
@@ -1309,8 +1287,10 @@ class MANAGED Class FINAL : public Object {
   void SetVerifyError(Object* klass) REQUIRES_SHARED(Locks::mutator_lock_);
 
   template <bool throw_on_failure, bool use_referrers_cache>
-  bool ResolvedFieldAccessTest(Class* access_to, ArtField* field,
-                               uint32_t field_idx, DexCache* dex_cache)
+  bool ResolvedFieldAccessTest(Class* access_to,
+                               ArtField* field,
+                               uint32_t field_idx,
+                               DexCache* dex_cache)
       REQUIRES_SHARED(Locks::mutator_lock_);
   template <bool throw_on_failure, bool use_referrers_cache, InvokeType throw_invoke_type>
   bool ResolvedMethodAccessTest(Class* access_to, ArtMethod* resolved_method,
@@ -1318,8 +1298,8 @@ class MANAGED Class FINAL : public Object {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool Implements(Class* klass) REQUIRES_SHARED(Locks::mutator_lock_);
-  bool IsArrayAssignableFromArray(Class* klass) REQUIRES_SHARED(Locks::mutator_lock_);
-  bool IsAssignableFromArray(Class* klass) REQUIRES_SHARED(Locks::mutator_lock_);
+  bool IsArrayAssignableFromArray(ObjPtr<Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
+  bool IsAssignableFromArray(ObjPtr<Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
 
   void CheckObjectAlloc() REQUIRES_SHARED(Locks::mutator_lock_);
 
