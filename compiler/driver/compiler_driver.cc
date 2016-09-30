@@ -492,7 +492,7 @@ void CompilerDriver::CompileAll(jobject class_loader,
   // 3) Attempt to verify all classes
   // 4) Attempt to initialize image classes, and trivially initialized classes
   PreCompile(class_loader, dex_files, timings);
-  if (IsBootImage()) {
+  if (GetCompilerOptions().IsBootImage()) {
     // We don't need to setup the intrinsics for non boot image compilation, as
     // those compilations will pick up a boot image that have the ArtMethod already
     // set with the intrinsics flag.
