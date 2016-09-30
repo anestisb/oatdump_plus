@@ -2461,36 +2461,58 @@ void Thumb2Assembler::EmitLoadStore(Condition cond,
     }
   } else {
     // Register shift.
-    CHECK_NE(ad.GetRegister(), PC);
-    if (ad.GetShiftCount() != 0) {
-      // If there is a shift count this must be 32 bit.
-      must_be_32bit = true;
-    } else if (IsHighRegister(ad.GetRegisterOffset())) {
-      must_be_32bit = true;
-    }
-
-    if (must_be_32bit) {
-      int32_t encoding = 0x1f << 27 | (load ? B20 : 0) | static_cast<uint32_t>(rd) << 12 |
-          ad.encodingThumb(true);
-      if (half) {
-        encoding |= B21;
-      } else if (!byte) {
-        encoding |= B22;
+    if (ad.GetRegister() == PC) {
+       // PC relative literal encoding.
+      int32_t offset = ad.GetOffset();
+      if (must_be_32bit || offset < 0 || offset >= (1 << 10) || !load) {
+        int32_t up = B23;
+        if (offset < 0) {
+          offset = -offset;
+          up = 0;
+        }
+        CHECK_LT(offset, (1 << 12));
+        int32_t encoding = 0x1f << 27 | 0xf << 16 | B22 | (load ? B20 : 0) |
+            offset | up |
+            static_cast<uint32_t>(rd) << 12;
+        Emit32(encoding);
+      } else {
+        // 16 bit literal load.
+        CHECK_GE(offset, 0);
+        CHECK_LT(offset, (1 << 10));
+        int32_t encoding = B14 | (load ? B11 : 0) | static_cast<uint32_t>(rd) << 8 | offset >> 2;
+        Emit16(encoding);
       }
-      if (load && is_signed && (byte || half)) {
-        encoding |= B24;
-      }
-      Emit32(encoding);
     } else {
-      // 16 bit register offset.
-      int32_t encoding = B14 | B12 | (load ? B11 : 0) | static_cast<uint32_t>(rd) |
-          ad.encodingThumb(false);
-      if (byte) {
-        encoding |= B10;
-      } else if (half) {
-        encoding |= B9;
+      if (ad.GetShiftCount() != 0) {
+        // If there is a shift count this must be 32 bit.
+        must_be_32bit = true;
+      } else if (IsHighRegister(ad.GetRegisterOffset())) {
+        must_be_32bit = true;
       }
-      Emit16(encoding);
+
+      if (must_be_32bit) {
+        int32_t encoding = 0x1f << 27 | (load ? B20 : 0) | static_cast<uint32_t>(rd) << 12 |
+            ad.encodingThumb(true);
+        if (half) {
+          encoding |= B21;
+        } else if (!byte) {
+          encoding |= B22;
+        }
+        if (load && is_signed && (byte || half)) {
+          encoding |= B24;
+        }
+        Emit32(encoding);
+      } else {
+        // 16 bit register offset.
+        int32_t encoding = B14 | B12 | (load ? B11 : 0) | static_cast<uint32_t>(rd) |
+            ad.encodingThumb(false);
+        if (byte) {
+          encoding |= B10;
+        } else if (half) {
+          encoding |= B9;
+        }
+        Emit16(encoding);
+      }
     }
   }
 }

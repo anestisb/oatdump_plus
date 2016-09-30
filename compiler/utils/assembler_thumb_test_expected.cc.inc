@@ -5012,6 +5012,17 @@ const char* const LoadStoreRegOffsetResults[] = {
   "  28:	f841 0008 	str.w	r0, [r1, r8]\n",
   nullptr
 };
+const char* const LoadStoreLiteralResults[] = {
+  "   0:   4801            ldr     r0, [pc, #4]    ; (8 <LoadStoreLiteral+0x8>)\n",
+  "   2:   f8cf 0004       str.w   r0, [pc, #4]    ; 8 <LoadStoreLiteral+0x8>\n",
+  "   6:   f85f 0008       ldr.w   r0, [pc, #-8]   ; 0 <LoadStoreLiteral>\n",
+  "   a:   f84f 0008       str.w   r0, [pc, #-8]   ; 4 <LoadStoreLiteral+0x4>\n",
+  "   e:   48ff            ldr     r0, [pc, #1020] ; (40c <LoadStoreLiteral+0x40c>)\n",
+  "  10:   f8df 07ff       ldr.w   r0, [pc, #2047] ; 813 <LoadStoreLiteral+0x813>\n",
+  "  14:   f8cf 03ff       str.w   r0, [pc, #1023] ; 417 <LoadStoreLiteral+0x417>\n",
+  "  18:   f8cf 07ff       str.w   r0, [pc, #2047] ; 81b <LoadStoreLiteral+0x81b>\n",
+  nullptr
+};
 const char* const LoadStoreLimitsResults[] = {
   "   0:   6fe0            ldr     r0, [r4, #124]  ; 0x7c\n",
   "   2:   f8d4 0080       ldr.w   r0, [r4, #128]  ; 0x80\n",
@@ -5697,6 +5708,7 @@ void setup_results() {
     test_results["MixedBranch32"] = MixedBranch32Results;
     test_results["Shifts"] = ShiftsResults;
     test_results["LoadStoreRegOffset"] = LoadStoreRegOffsetResults;
+    test_results["LoadStoreLiteral"] = LoadStoreLiteralResults;
     test_results["LoadStoreLimits"] = LoadStoreLimitsResults;
     test_results["CompareAndBranch"] = CompareAndBranchResults;
     test_results["AddConstant"] = AddConstantResults;

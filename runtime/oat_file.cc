@@ -40,7 +40,6 @@
 #include "base/unix_file/fd_file.h"
 #include "elf_file.h"
 #include "elf_utils.h"
-#include "gc_root.h"
 #include "oat.h"
 #include "mem_map.h"
 #include "mirror/class.h"
@@ -240,8 +239,6 @@ bool OatFileBase::ComputeFields(uint8_t* requested_base,
     }
     // Readjust to be non-inclusive upper bound.
     bss_end_ += sizeof(uint32_t);
-    // Find bss roots if present.
-    bss_roots_ = const_cast<uint8_t*>(FindDynamicSymbolAddress("oatbssroots", &symbol_error_msg));
   }
 
   return true;
@@ -294,31 +291,8 @@ bool OatFileBase::Setup(const char* abs_dex_location, std::string* error_msg) {
     return false;
   }
 
-  if (!IsAligned<alignof(GcRoot<mirror::Object>)>(bss_begin_) ||
-      !IsAligned<alignof(GcRoot<mirror::Object>)>(bss_roots_) ||
-      !IsAligned<alignof(GcRoot<mirror::Object>)>(bss_end_)) {
-    *error_msg = StringPrintf("In oat file '%s' found unaligned bss symbol(s): "
-                                  "begin = %p, roots = %p, end = %p",
-                              GetLocation().c_str(),
-                              bss_begin_,
-                              bss_roots_,
-                              bss_end_);
-    return false;
-  }
-
-  if (bss_roots_ != nullptr && (bss_roots_ < bss_begin_ || bss_roots_ > bss_end_)) {
-    *error_msg = StringPrintf("In oat file '%s' found bss roots outside .bss: "
-                                  "%p is outside range [%p, %p]",
-                              GetLocation().c_str(),
-                              bss_roots_,
-                              bss_begin_,
-                              bss_end_);
-    return false;
-  }
-
   PointerSize pointer_size = GetInstructionSetPointerSize(GetOatHeader().GetInstructionSet());
   uint8_t* dex_cache_arrays = bss_begin_;
-  uint8_t* dex_cache_arrays_end = (bss_roots_ != nullptr) ? bss_roots_ : bss_end_;
   uint32_t dex_file_count = GetOatHeader().GetDexFileCount();
   oat_dex_files_storage_.reserve(dex_file_count);
   for (size_t i = 0; i < dex_file_count; i++) {
@@ -495,13 +469,13 @@ bool OatFileBase::Setup(const char* abs_dex_location, std::string* error_msg) {
     if (dex_cache_arrays != nullptr) {
       DexCacheArraysLayout layout(pointer_size, *header);
       if (layout.Size() != 0u) {
-        if (static_cast<size_t>(dex_cache_arrays_end - dex_cache_arrays) < layout.Size()) {
+        if (static_cast<size_t>(bss_end_ - dex_cache_arrays) < layout.Size()) {
           *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zu for '%s' with "
                                         "truncated dex cache arrays, %zu < %zu.",
                                     GetLocation().c_str(),
                                     i,
                                     dex_file_location.c_str(),
-                                    static_cast<size_t>(dex_cache_arrays_end - dex_cache_arrays),
+                                    static_cast<size_t>(bss_end_ - dex_cache_arrays),
                                     layout.Size());
           return false;
         }
@@ -532,9 +506,9 @@ bool OatFileBase::Setup(const char* abs_dex_location, std::string* error_msg) {
     }
   }
 
-  if (dex_cache_arrays != dex_cache_arrays_end) {
+  if (dex_cache_arrays != bss_end_) {
     // We expect the bss section to be either empty (dex_cache_arrays and bss_end_
-    // both null) or contain just the dex cache arrays and optionally some GC roots.
+    // both null) or contain just the dex cache arrays and nothing else.
     *error_msg = StringPrintf("In oat file '%s' found unexpected bss size bigger by %zu bytes.",
                               GetLocation().c_str(),
                               static_cast<size_t>(bss_end_ - dex_cache_arrays));
@@ -1108,7 +1082,6 @@ OatFile::OatFile(const std::string& location, bool is_executable)
       end_(nullptr),
       bss_begin_(nullptr),
       bss_end_(nullptr),
-      bss_roots_(nullptr),
       is_executable_(is_executable),
       secondary_lookup_lock_("OatFile secondary lookup lock", kOatFileSecondaryLookupLock) {
   CHECK(!location_.empty());
@@ -1522,20 +1495,6 @@ bool OatFile::GetDexLocationsFromDependencies(const char* dex_dependencies,
   }
 
   return true;
-}
-
-ArrayRef<GcRoot<mirror::Object>> OatFile::GetBssRoots(const OatDexFile* oat_dex_file) {
-  const OatFile* oat_file = oat_dex_file->GetOatFile();
-  DCHECK(ContainsElement(oat_file->oat_dex_files_storage_, oat_dex_file));
-  // Arbitrarily attribute all the roots to the first oat_dex_file.
-  if (oat_file->bss_roots_ != nullptr &&
-      oat_file->oat_dex_files_storage_.front() == oat_dex_file) {
-    auto* roots = reinterpret_cast<GcRoot<mirror::Object>*>(oat_file->bss_roots_);
-    auto* roots_end = reinterpret_cast<GcRoot<mirror::Object>*>(oat_file->bss_end_);
-    return ArrayRef<GcRoot<mirror::Object>>(roots, roots_end - roots);
-  } else {
-    return ArrayRef<GcRoot<mirror::Object>>();
-  }
 }
 
 }  // namespace art

@@ -93,10 +93,7 @@ class ElfWriterQuick FINAL : public ElfWriter {
   ~ElfWriterQuick();
 
   void Start() OVERRIDE;
-  void PrepareDynamicSection(size_t rodata_size,
-                             size_t text_size,
-                             size_t bss_size,
-                             size_t bss_roots_offset) OVERRIDE;
+  void SetLoadedSectionSizes(size_t rodata_size, size_t text_size, size_t bss_size) OVERRIDE;
   void PrepareDebugInfo(const ArrayRef<const debug::MethodDebugInfo>& method_infos) OVERRIDE;
   OutputStream* StartRoData() OVERRIDE;
   void EndRoData(OutputStream* rodata) OVERRIDE;
@@ -170,21 +167,16 @@ void ElfWriterQuick<ElfTypes>::Start() {
 }
 
 template <typename ElfTypes>
-void ElfWriterQuick<ElfTypes>::PrepareDynamicSection(size_t rodata_size,
+void ElfWriterQuick<ElfTypes>::SetLoadedSectionSizes(size_t rodata_size,
                                                      size_t text_size,
-                                                     size_t bss_size,
-                                                     size_t bss_roots_offset) {
+                                                     size_t bss_size) {
   DCHECK_EQ(rodata_size_, 0u);
   rodata_size_ = rodata_size;
   DCHECK_EQ(text_size_, 0u);
   text_size_ = text_size;
   DCHECK_EQ(bss_size_, 0u);
   bss_size_ = bss_size;
-  builder_->PrepareDynamicSection(elf_file_->GetPath(),
-                                  rodata_size_,
-                                  text_size_,
-                                  bss_size_,
-                                  bss_roots_offset);
+  builder_->PrepareDynamicSection(elf_file_->GetPath(), rodata_size_, text_size_, bss_size_);
 }
 
 template <typename ElfTypes>

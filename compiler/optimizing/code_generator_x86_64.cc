@@ -284,44 +284,6 @@ class LoadClassSlowPathX86_64 : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(LoadClassSlowPathX86_64);
 };
 
-class LoadStringSlowPathX86_64 : public SlowPathCode {
- public:
-  explicit LoadStringSlowPathX86_64(HLoadString* instruction) : SlowPathCode(instruction) {}
-
-  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
-    LocationSummary* locations = instruction_->GetLocations();
-    DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
-
-    CodeGeneratorX86_64* x86_64_codegen = down_cast<CodeGeneratorX86_64*>(codegen);
-    __ Bind(GetEntryLabel());
-    SaveLiveRegisters(codegen, locations);
-
-    InvokeRuntimeCallingConvention calling_convention;
-    const uint32_t string_index = instruction_->AsLoadString()->GetStringIndex();
-    __ movl(CpuRegister(calling_convention.GetRegisterAt(0)), Immediate(string_index));
-    x86_64_codegen->InvokeRuntime(kQuickResolveString,
-                                  instruction_,
-                                  instruction_->GetDexPc(),
-                                  this);
-    CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
-    x86_64_codegen->Move(locations->Out(), Location::RegisterLocation(RAX));
-    RestoreLiveRegisters(codegen, locations);
-
-    // Store the resolved String to the BSS entry.
-    __ movl(Address::Absolute(CodeGeneratorX86_64::kDummy32BitOffset, /* no_rip */ false),
-            locations->Out().AsRegister<CpuRegister>());
-    Label* fixup_label = x86_64_codegen->NewStringBssEntryPatch(instruction_->AsLoadString());
-    __ Bind(fixup_label);
-
-    __ jmp(GetExitLabel());
-  }
-
-  const char* GetDescription() const OVERRIDE { return "LoadStringSlowPathX86_64"; }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(LoadStringSlowPathX86_64);
-};
-
 class TypeCheckSlowPathX86_64 : public SlowPathCode {
  public:
   TypeCheckSlowPathX86_64(HInstruction* instruction, bool is_fatal)
@@ -807,8 +769,7 @@ Location CodeGeneratorX86_64::GenerateCalleeMethodStaticOrDirectCall(HInvokeStat
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDirectAddressWithFixup:
       __ movl(temp.AsRegister<CpuRegister>(), Immediate(0));  // Placeholder.
-      method_patches_.emplace_back(*invoke->GetTargetMethod().dex_file,
-                                   invoke->GetTargetMethod().dex_method_index);
+      method_patches_.emplace_back(invoke->GetTargetMethod());
       __ Bind(&method_patches_.back().label);  // Bind the label at the end of the "movl" insn.
       break;
     case HInvokeStaticOrDirect::MethodLoadKind::kDexCachePcRelative: {
@@ -855,8 +816,7 @@ void CodeGeneratorX86_64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invo
       __ call(&frame_entry_label_);
       break;
     case HInvokeStaticOrDirect::CodePtrLocation::kCallPCRelative: {
-      relative_call_patches_.emplace_back(*invoke->GetTargetMethod().dex_file,
-                                          invoke->GetTargetMethod().dex_method_index);
+      relative_call_patches_.emplace_back(invoke->GetTargetMethod());
       Label* label = &relative_call_patches_.back().label;
       __ call(label);  // Bind to the patch label, override at link time.
       __ Bind(label);  // Bind the label at the end of the "call" insn.
@@ -916,8 +876,7 @@ void CodeGeneratorX86_64::RecordSimplePatch() {
   }
 }
 
-void CodeGeneratorX86_64::RecordBootStringPatch(HLoadString* load_string) {
-  DCHECK(GetCompilerOptions().IsBootImage());
+void CodeGeneratorX86_64::RecordStringPatch(HLoadString* load_string) {
   string_patches_.emplace_back(load_string->GetDexFile(), load_string->GetStringIndex());
   __ Bind(&string_patches_.back().label);
 }
@@ -927,32 +886,11 @@ void CodeGeneratorX86_64::RecordTypePatch(HLoadClass* load_class) {
   __ Bind(&type_patches_.back().label);
 }
 
-Label* CodeGeneratorX86_64::NewStringBssEntryPatch(HLoadString* load_string) {
-  DCHECK(!GetCompilerOptions().IsBootImage());
-  string_patches_.emplace_back(load_string->GetDexFile(), load_string->GetStringIndex());
-  return &string_patches_.back().label;
-}
-
 Label* CodeGeneratorX86_64::NewPcRelativeDexCacheArrayPatch(const DexFile& dex_file,
                                                             uint32_t element_offset) {
   // Add a patch entry and return the label.
   pc_relative_dex_cache_patches_.emplace_back(dex_file, element_offset);
   return &pc_relative_dex_cache_patches_.back().label;
-}
-
-// The label points to the end of the "movl" or another instruction but the literal offset
-// for method patch needs to point to the embedded constant which occupies the last 4 bytes.
-constexpr uint32_t kLabelPositionToLiteralOffsetAdjustment = 4u;
-
-template <LinkerPatch (*Factory)(size_t, const DexFile*, uint32_t, uint32_t)>
-inline void CodeGeneratorX86_64::EmitPcRelativeLinkerPatches(
-    const ArenaDeque<PatchInfo<Label>>& infos,
-    ArenaVector<LinkerPatch>* linker_patches) {
-  for (const PatchInfo<Label>& info : infos) {
-    uint32_t literal_offset = info.label.Position() - kLabelPositionToLiteralOffsetAdjustment;
-    linker_patches->push_back(
-        Factory(literal_offset, &info.dex_file, info.label.Position(), info.index));
-  }
 }
 
 void CodeGeneratorX86_64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) {
@@ -965,29 +903,48 @@ void CodeGeneratorX86_64::EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_pat
       string_patches_.size() +
       type_patches_.size();
   linker_patches->reserve(size);
-  for (const PatchInfo<Label>& info : method_patches_) {
+  // The label points to the end of the "movl" insn but the literal offset for method
+  // patch needs to point to the embedded constant which occupies the last 4 bytes.
+  constexpr uint32_t kLabelPositionToLiteralOffsetAdjustment = 4u;
+  for (const MethodPatchInfo<Label>& info : method_patches_) {
     uint32_t literal_offset = info.label.Position() - kLabelPositionToLiteralOffsetAdjustment;
-    linker_patches->push_back(LinkerPatch::MethodPatch(literal_offset, &info.dex_file, info.index));
+    linker_patches->push_back(LinkerPatch::MethodPatch(literal_offset,
+                                                       info.target_method.dex_file,
+                                                       info.target_method.dex_method_index));
   }
-  for (const PatchInfo<Label>& info : relative_call_patches_) {
+  for (const MethodPatchInfo<Label>& info : relative_call_patches_) {
     uint32_t literal_offset = info.label.Position() - kLabelPositionToLiteralOffsetAdjustment;
-    linker_patches->push_back(
-        LinkerPatch::RelativeCodePatch(literal_offset, &info.dex_file, info.index));
+    linker_patches->push_back(LinkerPatch::RelativeCodePatch(literal_offset,
+                                                             info.target_method.dex_file,
+                                                             info.target_method.dex_method_index));
   }
-  EmitPcRelativeLinkerPatches<LinkerPatch::DexCacheArrayPatch>(pc_relative_dex_cache_patches_,
-                                                               linker_patches);
+  for (const PcRelativeDexCacheAccessInfo& info : pc_relative_dex_cache_patches_) {
+    uint32_t literal_offset = info.label.Position() - kLabelPositionToLiteralOffsetAdjustment;
+    linker_patches->push_back(LinkerPatch::DexCacheArrayPatch(literal_offset,
+                                                              &info.target_dex_file,
+                                                              info.label.Position(),
+                                                              info.element_offset));
+  }
   for (const Label& label : simple_patches_) {
     uint32_t literal_offset = label.Position() - kLabelPositionToLiteralOffsetAdjustment;
     linker_patches->push_back(LinkerPatch::RecordPosition(literal_offset));
   }
-  if (!GetCompilerOptions().IsBootImage()) {
-    EmitPcRelativeLinkerPatches<LinkerPatch::StringBssEntryPatch>(string_patches_, linker_patches);
-  } else {
+  for (const StringPatchInfo<Label>& info : string_patches_) {
     // These are always PC-relative, see GetSupportedLoadStringKind().
-    EmitPcRelativeLinkerPatches<LinkerPatch::RelativeStringPatch>(string_patches_, linker_patches);
+    uint32_t literal_offset = info.label.Position() - kLabelPositionToLiteralOffsetAdjustment;
+    linker_patches->push_back(LinkerPatch::RelativeStringPatch(literal_offset,
+                                                               &info.dex_file,
+                                                               info.label.Position(),
+                                                               info.string_index));
   }
-  // These are always PC-relative, see GetSupportedLoadClassKind().
-  EmitPcRelativeLinkerPatches<LinkerPatch::RelativeTypePatch>(type_patches_, linker_patches);
+  for (const TypePatchInfo<Label>& info : type_patches_) {
+    // These are always PC-relative, see GetSupportedLoadClassKind().
+    uint32_t literal_offset = info.label.Position() - kLabelPositionToLiteralOffsetAdjustment;
+    linker_patches->push_back(LinkerPatch::RelativeTypePatch(literal_offset,
+                                                             &info.dex_file,
+                                                             info.label.Position(),
+                                                             info.type_index));
+  }
 }
 
 void CodeGeneratorX86_64::DumpCoreRegister(std::ostream& stream, int reg) const {
@@ -5402,7 +5359,7 @@ HLoadString::LoadKind CodeGeneratorX86_64::GetSupportedLoadStringKind(
     case HLoadString::LoadKind::kDexCacheAddress:
       DCHECK(Runtime::Current()->UseJitCompilation());
       break;
-    case HLoadString::LoadKind::kBssEntry:
+    case HLoadString::LoadKind::kDexCachePcRelative:
       DCHECK(!Runtime::Current()->UseJitCompilation());
       break;
     case HLoadString::LoadKind::kDexCacheViaMethod:
@@ -5413,9 +5370,7 @@ HLoadString::LoadKind CodeGeneratorX86_64::GetSupportedLoadStringKind(
 
 void LocationsBuilderX86_64::VisitLoadString(HLoadString* load) {
   LocationSummary::CallKind call_kind = load->NeedsEnvironment()
-      ? ((load->GetLoadKind() == HLoadString::LoadKind::kDexCacheViaMethod)
-          ? LocationSummary::kCallOnMainOnly
-          : LocationSummary::kCallOnSlowPath)
+      ? LocationSummary::kCallOnMainOnly
       : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load, call_kind);
   if (load->GetLoadKind() == HLoadString::LoadKind::kDexCacheViaMethod) {
@@ -5434,7 +5389,7 @@ void InstructionCodeGeneratorX86_64::VisitLoadString(HLoadString* load) {
   switch (load->GetLoadKind()) {
     case HLoadString::LoadKind::kBootImageLinkTimePcRelative: {
       __ leal(out, Address::Absolute(CodeGeneratorX86_64::kDummy32BitOffset, /* no_rip */ false));
-      codegen_->RecordBootStringPatch(load);
+      codegen_->RecordStringPatch(load);
       return;  // No dex cache slow path.
     }
     case HLoadString::LoadKind::kBootImageAddress: {
@@ -5443,19 +5398,6 @@ void InstructionCodeGeneratorX86_64::VisitLoadString(HLoadString* load) {
       __ movl(out, Immediate(address));  // Zero-extended.
       codegen_->RecordSimplePatch();
       return;  // No dex cache slow path.
-    }
-    case HLoadString::LoadKind::kBssEntry: {
-      Address address = Address::Absolute(CodeGeneratorX86_64::kDummy32BitOffset,
-                                          /* no_rip */ false);
-      Label* fixup_label = codegen_->NewStringBssEntryPatch(load);
-      // /* GcRoot<mirror::Class> */ out = *address  /* PC-relative */
-      GenerateGcRootFieldLoad(load, out_loc, address, fixup_label);
-      SlowPathCode* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathX86_64(load);
-      codegen_->AddSlowPath(slow_path);
-      __ testl(out, out);
-      __ j(kEqual, slow_path->GetEntryLabel());
-      __ Bind(slow_path->GetExitLabel());
-      return;
     }
     default:
       break;
