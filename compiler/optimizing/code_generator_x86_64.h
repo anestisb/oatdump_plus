@@ -510,8 +510,9 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   void Compare32BitValue(CpuRegister dest, int32_t value);
   void Compare64BitValue(CpuRegister dest, int64_t value);
 
-  // Compare int values. Supports only register locations for `lhs`.
+  // Compare int values. Supports register locations for `lhs`.
   void GenerateIntCompare(Location lhs, Location rhs);
+  void GenerateIntCompare(CpuRegister lhs, Location rhs);
 
   // Compare long values. Supports only register locations for `lhs`.
   void GenerateLongCompare(Location lhs, Location rhs);
