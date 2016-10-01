@@ -21,15 +21,16 @@ import dexfuzz.listeners.BaseListener;
 public class MipsInterpreterExecutor extends Executor {
 
   public MipsInterpreterExecutor(BaseListener listener, Device device) {
-    super("MIPS Interpreter", 30, listener, Architecture.MIPS, device, false);
+    super("MIPS Interpreter", 30, listener, Architecture.MIPS, device,
+        /*needsCleanCodeCache*/ false, /*isBisectable*/ false);
   }
 
   @Override
-  public void execute(String programName) {
+  protected String constructCommand(String programName) {
     StringBuilder commandBuilder = new StringBuilder();
     commandBuilder.append("dalvikvm32 -Xint ");
     commandBuilder.append("-cp ").append(testLocation).append("/").append(programName).append(" ");
     commandBuilder.append(executeClass);
-    executionResult = executeCommandWithTimeout(commandBuilder.toString(), true);
+    return commandBuilder.toString();
   }
 }
