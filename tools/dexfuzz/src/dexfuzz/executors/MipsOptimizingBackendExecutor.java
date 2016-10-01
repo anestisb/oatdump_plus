@@ -21,15 +21,16 @@ import dexfuzz.listeners.BaseListener;
 public class MipsOptimizingBackendExecutor extends Executor {
 
   public MipsOptimizingBackendExecutor(BaseListener listener, Device device) {
-    super("MIPS Optimizing Backend", 5, listener, Architecture.MIPS, device, true);
+    super("MIPS Optimizing Backend", 5, listener, Architecture.MIPS, device,
+        /*needsCleanCodeCache*/ true, /*isBisectable*/ true);
   }
 
   @Override
-  public void execute(String programName) {
+  protected String constructCommand(String programName) {
     StringBuilder commandBuilder = new StringBuilder();
     commandBuilder.append("dalvikvm32 -Xcompiler-option --compiler-backend=Optimizing ");
     commandBuilder.append("-cp ").append(testLocation).append("/").append(programName).append(" ");
     commandBuilder.append(executeClass);
-    executionResult = executeCommandWithTimeout(commandBuilder.toString(), true);
+    return commandBuilder.toString();
   }
 }

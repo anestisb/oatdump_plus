@@ -31,6 +31,7 @@ public class ExecutionResult {
   private String flattenedError;
   private String flattenedErrorWithNewlines;
   private String flattenedAll;
+  private String flattenedAllWithNewlines;
 
   private static final int TIMEOUT_RETURN_VALUE = 124;
   private static final int SIGABORT_RETURN_VALUE = 134;
@@ -99,6 +100,16 @@ public class ExecutionResult {
       flattenedAll = getFlattenedOutput() + getFlattenedError();
     }
     return flattenedAll;
+  }
+
+  /**
+   * Get both the output and error, concatenated together, including newline characters.
+   */
+  public String getFlattenedAllWithNewlines() {
+    if (flattenedAllWithNewlines == null) {
+      flattenedAllWithNewlines = getFlattenedOutputWithNewlines() + getFlattenedErrorWithNewlines();
+    }
+    return flattenedAllWithNewlines;
   }
 
   public boolean isTimeout() {
