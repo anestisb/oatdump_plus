@@ -22,6 +22,7 @@ import dexfuzz.fuzzers.FuzzerMultipleNoExecute;
 import dexfuzz.fuzzers.FuzzerSingleExecute;
 import dexfuzz.fuzzers.FuzzerSingleNoExecute;
 import dexfuzz.listeners.BaseListener;
+import dexfuzz.listeners.BisectionSearchListener;
 import dexfuzz.listeners.ConsoleLoggerListener;
 import dexfuzz.listeners.LogFileListener;
 import dexfuzz.listeners.MultiplexerListener;
@@ -66,6 +67,10 @@ public class DexFuzz {
       }
       // Add the file logging listener.
       multipleListener.addListener(new LogFileListener(Options.reportLogFile));
+      if (Options.runBisectionSearch) {
+        // Add the bisection search listener.
+        multipleListener.addListener(new BisectionSearchListener());
+      }
       // Add the unique program tracker.
       multipleListener.addListener(new UniqueProgramTrackerListener(Options.uniqueDatabaseFile));
       listener = multipleListener;
