@@ -4589,7 +4589,9 @@ void LocationsBuilderARM::VisitArrayGet(HArrayGet* instruction) {
   }
   // We need a temporary register for the read barrier marking slow
   // path in CodeGeneratorARM::GenerateArrayLoadWithBakerReadBarrier.
-  if (object_array_get_with_read_barrier && kUseBakerReadBarrier) {
+  // Also need for String compression feature.
+  if ((object_array_get_with_read_barrier && kUseBakerReadBarrier)
+      || (mirror::kUseStringCompression && instruction->IsStringCharAt())) {
     locations->AddTemp(Location::RequiresRegister());
   }
 }
@@ -4602,6 +4604,8 @@ void InstructionCodeGeneratorARM::VisitArrayGet(HArrayGet* instruction) {
   Location out_loc = locations->Out();
   uint32_t data_offset = CodeGenerator::GetArrayDataOffset(instruction);
   Primitive::Type type = instruction->GetType();
+  const bool maybe_compressed_char_at = mirror::kUseStringCompression &&
+                                        instruction->IsStringCharAt();
   HInstruction* array_instr = instruction->GetArray();
   bool has_intermediate_address = array_instr->IsIntermediateAddress();
   // The read barrier instrumentation does not support the HIntermediateAddress instruction yet.
@@ -4615,10 +4619,31 @@ void InstructionCodeGeneratorARM::VisitArrayGet(HArrayGet* instruction) {
     case Primitive::kPrimInt: {
       if (index.IsConstant()) {
         int32_t const_index = index.GetConstant()->AsIntConstant()->GetValue();
-        uint32_t full_offset = data_offset + (const_index << Primitive::ComponentSizeShift(type));
+        if (maybe_compressed_char_at) {
+          Register length = IP;
+          Label uncompressed_load, done;
+          uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
+          __ LoadFromOffset(kLoadWord, length, obj, count_offset);
+          codegen_->MaybeRecordImplicitNullCheck(instruction);
+          __ cmp(length, ShifterOperand(0));
+          __ b(&uncompressed_load, GE);
+          __ LoadFromOffset(kLoadUnsignedByte,
+                            out_loc.AsRegister<Register>(),
+                            obj,
+                            data_offset + const_index);
+          __ b(&done);
+          __ Bind(&uncompressed_load);
+          __ LoadFromOffset(GetLoadOperandType(Primitive::kPrimChar),
+                            out_loc.AsRegister<Register>(),
+                            obj,
+                            data_offset + (const_index << 1));
+          __ Bind(&done);
+        } else {
+          uint32_t full_offset = data_offset + (const_index << Primitive::ComponentSizeShift(type));
 
-        LoadOperandType load_type = GetLoadOperandType(type);
-        __ LoadFromOffset(load_type, out_loc.AsRegister<Register>(), obj, full_offset);
+          LoadOperandType load_type = GetLoadOperandType(type);
+          __ LoadFromOffset(load_type, out_loc.AsRegister<Register>(), obj, full_offset);
+        }
       } else {
         Register temp = IP;
 
@@ -4634,7 +4659,24 @@ void InstructionCodeGeneratorARM::VisitArrayGet(HArrayGet* instruction) {
         } else {
           __ add(temp, obj, ShifterOperand(data_offset));
         }
-        codegen_->LoadFromShiftedRegOffset(type, out_loc, temp, index.AsRegister<Register>());
+        if (maybe_compressed_char_at) {
+          Label uncompressed_load, done;
+          uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
+          Register length = locations->GetTemp(0).AsRegister<Register>();
+          __ LoadFromOffset(kLoadWord, length, obj, count_offset);
+          codegen_->MaybeRecordImplicitNullCheck(instruction);
+          __ cmp(length, ShifterOperand(0));
+          __ b(&uncompressed_load, GE);
+          __ ldrb(out_loc.AsRegister<Register>(),
+                  Address(temp, index.AsRegister<Register>(), Shift::LSL, 0));
+          __ b(&done);
+          __ Bind(&uncompressed_load);
+          __ ldrh(out_loc.AsRegister<Register>(),
+                  Address(temp, index.AsRegister<Register>(), Shift::LSL, 1));
+          __ Bind(&done);
+        } else {
+          codegen_->LoadFromShiftedRegOffset(type, out_loc, temp, index.AsRegister<Register>());
+        }
       }
       break;
     }
@@ -4734,7 +4776,7 @@ void InstructionCodeGeneratorARM::VisitArrayGet(HArrayGet* instruction) {
   if (type == Primitive::kPrimNot) {
     // Potential implicit null checks, in the case of reference
     // arrays, are handled in the previous switch statement.
-  } else {
+  } else if (!maybe_compressed_char_at) {
     codegen_->MaybeRecordImplicitNullCheck(instruction);
   }
 }
@@ -5024,6 +5066,10 @@ void InstructionCodeGeneratorARM::VisitArrayLength(HArrayLength* instruction) {
   Register out = locations->Out().AsRegister<Register>();
   __ LoadFromOffset(kLoadWord, out, obj, offset);
   codegen_->MaybeRecordImplicitNullCheck(instruction);
+  // Mask out compression flag from String's array length.
+  if (mirror::kUseStringCompression && instruction->IsStringLength()) {
+    __ bic(out, out, ShifterOperand(1u << 31));
+  }
 }
 
 void LocationsBuilderARM::VisitIntermediateAddress(HIntermediateAddress* instruction) {
