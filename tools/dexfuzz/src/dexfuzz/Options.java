@@ -78,6 +78,7 @@ public class Options {
   public static boolean skipMutation;
   public static boolean dumpMutations;
   public static boolean loadMutations;
+  public static boolean runBisectionSearch;
 
   /**
    * Print out usage information about dexfuzz, and then exit.
@@ -138,6 +139,7 @@ public class Options {
     Log.always("  --report-unique        : Print out information about unique programs generated");
     Log.always("  --unique-db=<file>     : Use <file> store results about unique programs");
     Log.always("                           (Default: unique_progs.db)");
+    Log.always("  --bisection-search     : Run bisection search for divergences");
     Log.always("");
     System.exit(0);
   }
@@ -197,6 +199,8 @@ public class Options {
       methodMutations = 1;
       minMethods = 1;
       maxMethods = 1;
+    } else if (flag.equals("bisection-search")) {
+      runBisectionSearch = true;
     } else if (flag.equals("help")) {
       usage();
     } else {

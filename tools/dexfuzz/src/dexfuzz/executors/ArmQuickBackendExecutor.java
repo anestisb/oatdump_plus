@@ -21,11 +21,12 @@ import dexfuzz.listeners.BaseListener;
 public class ArmQuickBackendExecutor extends Executor {
 
   public ArmQuickBackendExecutor(BaseListener listener, Device device) {
-    super("ARM Quick Backend", 5, listener, Architecture.ARM, device, true);
+    super("ARM Quick Backend", 5, listener, Architecture.ARM, device,
+        /*needsCleanCodeCache*/ true, /*isBisectable*/ false);
   }
 
   @Override
-  public void execute(String programName) {
+  protected String constructCommand(String programName) {
     StringBuilder commandBuilder = new StringBuilder();
     commandBuilder.append("dalvikvm32 -Xcompiler-option --compiler-backend=Quick ");
     if (device.noBootImageAvailable()) {
@@ -33,6 +34,6 @@ public class ArmQuickBackendExecutor extends Executor {
     }
     commandBuilder.append("-cp ").append(testLocation).append("/").append(programName).append(" ");
     commandBuilder.append(executeClass);
-    executionResult = executeCommandWithTimeout(commandBuilder.toString(), true);
+    return commandBuilder.toString();
   }
 }
