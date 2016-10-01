@@ -18,7 +18,11 @@ package dexfuzz.executors;
 
 import java.io.IOException;
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import dexfuzz.ExecutionResult;
 import dexfuzz.Log;
@@ -139,6 +143,10 @@ public class Device {
     return isHost;
   }
 
+  public boolean isUsingSpecificDevice() {
+    return usingSpecificDevice;
+  }
+
   /**
    * Certain AOSP builds of Android may not have a full boot.art built. This will be set if
    * we use --no-boot-image, and is used by Executors when deciding the arguments for dalvikvm
@@ -186,7 +194,7 @@ public class Device {
     Log.info("Executing: " + command);
 
     try {
-      ProcessBuilder processBuilder = new ProcessBuilder(command.split(" "));
+      ProcessBuilder processBuilder = new ProcessBuilder(splitCommand(command));
       processBuilder.environment().put("ANDROID_ROOT", androidHostOut);
       if (Options.executeOnHost) {
         processBuilder.environment().put("ANDROID_DATA", androidData);
@@ -227,6 +235,17 @@ public class Device {
     }
 
     return result;
+  }
+
+  /**
+   * Splits command respecting single quotes.
+   */
+  private List<String> splitCommand(String command) {
+    List<String> ret = new ArrayList<String>();
+    Matcher m = Pattern.compile("(\'[^\']+\'| *[^ ]+ *)").matcher(command);
+    while (m.find())
+      ret.add(m.group(1).trim().replace("\'", ""));
+    return ret;
   }
 
   private String getExecutionPrefixWithAdb(String command) {
