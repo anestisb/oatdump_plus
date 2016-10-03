@@ -27,7 +27,7 @@
 
 // Headers for LogMessage::LogLine.
 #ifdef ART_TARGET_ANDROID
-#include "cutils/log.h"
+#include <android/log.h>
 #include <android/set_abort_message.h>
 #else
 #include <sys/types.h>
