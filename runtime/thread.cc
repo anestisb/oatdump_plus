@@ -987,8 +987,10 @@ static void UnsafeLogFatalForSuspendCount(Thread* self, Thread* thread) NO_THREA
   LOG(FATAL) << ss.str();
 }
 
-bool Thread::ModifySuspendCount(Thread* self, int delta, AtomicInteger* suspend_barrier,
-                                bool for_debugger) {
+bool Thread::ModifySuspendCountInternal(Thread* self,
+                                        int delta,
+                                        AtomicInteger* suspend_barrier,
+                                        bool for_debugger) {
   if (kIsDebugBuild) {
     DCHECK(delta == -1 || delta == +1 || delta == -tls32_.debug_suspend_count)
           << delta << " " << tls32_.debug_suspend_count << " " << this;
@@ -1000,6 +1002,12 @@ bool Thread::ModifySuspendCount(Thread* self, int delta, AtomicInteger* suspend_
   }
   if (UNLIKELY(delta < 0 && tls32_.suspend_count <= 0)) {
     UnsafeLogFatalForSuspendCount(self, this);
+    return false;
+  }
+
+  if (kUseReadBarrier && delta > 0 && this != self && tlsPtr_.flip_function != nullptr) {
+    // Force retry of a suspend request if it's in the middle of a thread flip to avoid a
+    // deadlock. b/31683379.
     return false;
   }
 
