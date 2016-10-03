@@ -1328,7 +1328,7 @@ TEST_F(ClassLinkerMethodHandlesTest, TestResolveMethodTypes) {
   // This is the MethodType corresponding to the prototype of
   // String MethodTypes# method1(String).
   // Its RType = Ljava/lang/String;
-  // Its PTypes = { Ljava/langString; }
+  // Its PTypes = { Ljava/lang/String; }
   Handle<mirror::MethodType> method1_type = hs.NewHandle(
       class_linker_->ResolveMethodType(dex_file, method1_id.proto_idx_, dex_cache, class_loader));
 

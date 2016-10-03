@@ -92,7 +92,7 @@ inline MethodType* DexCache::GetResolvedMethodType(uint32_t proto_idx) {
 
 inline void DexCache::SetResolvedMethodType(uint32_t proto_idx, MethodType* resolved) {
   DCHECK(Runtime::Current()->IsMethodHandlesEnabled());
-  DCHECK_LT(proto_idx, NumResolvedMethodTypes());  // NOTE: Unchecked, i.e. not throwing AIOOB.
+  DCHECK_LT(proto_idx, GetDexFile()->NumProtoIds());
 
   GetResolvedMethodTypes()[proto_idx % NumResolvedMethodTypes()].store(
       MethodTypeDexCachePair(resolved, proto_idx), std::memory_order_relaxed);
