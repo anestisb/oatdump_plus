@@ -21,7 +21,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include "cutils/log.h"
+#include <android/log.h>
 
 #define EVENT_LOG_TAG_dvm_lock_sample 20003
 
