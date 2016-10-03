@@ -314,6 +314,10 @@ class Runtime {
     return "2.1.0";
   }
 
+  bool IsMethodHandlesEnabled() const {
+    return experimental_flags_ & ExperimentalFlags::kMethodHandles;
+  }
+
   void DisallowNewSystemWeaks() REQUIRES_SHARED(Locks::mutator_lock_);
   void AllowNewSystemWeaks() REQUIRES_SHARED(Locks::mutator_lock_);
   void BroadcastForNewSystemWeaks() REQUIRES_SHARED(Locks::mutator_lock_);
