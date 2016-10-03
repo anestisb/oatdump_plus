@@ -14,12 +14,26 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "NativeMethods"
+#include <stdio.h>
+#include <jni.h>
+
+#ifndef NATIVE_METHOD
+#define NATIVE_METHOD(className, functionName, signature) \
+    { #functionName, signature, reinterpret_cast<void*>(className ## _ ## functionName) }
+#endif
+#define NELEM(x) (sizeof(x)/sizeof((x)[0]))
+
+#define GLUE4(a, b, c, d) a ## b ## c ## d
+#define GLUE4_(a, b, c, d) GLUE4(a, b, c, d)
 
 #define CLASS_NAME "benchmarks/MicroNative/java/NativeMethods"
+#define CLASS_INFIX benchmarks_MicroNative_java_NativeMethods
 
-#include "JNIHelp.h"
-#include "JniConstants.h"
+#define NAME_NORMAL_JNI_METHOD(name) GLUE4_(Java_, CLASS_INFIX, _, name)
+#define NAME_CRITICAL_JNI_METHOD(name) GLUE4_(JavaCritical_, CLASS_INFIX, _, name)
+
+#define DEFINE_NORMAL_JNI_METHOD(ret, name) extern "C" JNIEXPORT ret JNICALL GLUE4_(Java_, CLASS_INFIX, _, name)
+#define DEFINE_CRITICAL_JNI_METHOD(ret, name) extern "C" JNIEXPORT ret JNICALL GLUE4_(JavaCritical_, CLASS_INFIX, _, name)
 
 static void NativeMethods_emptyJniStaticSynchronizedMethod0(JNIEnv*, jclass) { }
 static void NativeMethods_emptyJniSynchronizedMethod0(JNIEnv*, jclass) { }
@@ -67,17 +81,66 @@ static JNINativeMethod gMethods_Fast[] = {
   NATIVE_METHOD(NativeMethods, emptyJniStaticMethod6_Fast, "(IIIIII)V"),
 };
 
-static void NativeMethods_emptyJniStaticMethod0_Critical() { }
-static void NativeMethods_emptyJniStaticMethod6_Critical(int, int, int, int, int, int) { }
+// Have both a Java_ and a JavaCritical_ version of the same empty method.
+// The runtime automatically selects the right one when doing a dlsym-based native lookup.
+DEFINE_NORMAL_JNI_METHOD(void,   emptyJniStaticMethod0_1Critical)(JNIEnv*, jclass) { }
+DEFINE_CRITICAL_JNI_METHOD(void, emptyJniStaticMethod0_1Critical)() { }
+DEFINE_NORMAL_JNI_METHOD(void,   emptyJniStaticMethod6_1Critical)(JNIEnv*, jclass, int, int, int, int, int, int) { }
+DEFINE_CRITICAL_JNI_METHOD(void, emptyJniStaticMethod6_1Critical)(int, int, int, int, int, int) { }
 
 static JNINativeMethod gMethods_Critical[] = {
-  NATIVE_METHOD(NativeMethods, emptyJniStaticMethod0_Critical, "()V"),
-  NATIVE_METHOD(NativeMethods, emptyJniStaticMethod6_Critical, "(IIIIII)V"),
+  // Don't use NATIVE_METHOD because the name is mangled differently.
+  { "emptyJniStaticMethod0_Critical", "()V",
+        reinterpret_cast<void*>(NAME_CRITICAL_JNI_METHOD(emptyJniStaticMethod0_1Critical)) },
+  { "emptyJniStaticMethod6_Critical", "(IIIIII)V",
+        reinterpret_cast<void*>(NAME_CRITICAL_JNI_METHOD(emptyJniStaticMethod6_1Critical)) }
 };
+
+void jniRegisterNativeMethods(JNIEnv* env,
+                              const char* className,
+                              const JNINativeMethod* methods,
+                              int numMethods) {
+    jclass c = env->FindClass(className);
+    if (c == nullptr) {
+        char* tmp;
+        const char* msg;
+        if (asprintf(&tmp,
+                     "Native registration unable to find class '%s'; aborting...",
+                     className) == -1) {
+            // Allocation failed, print default warning.
+            msg = "Native registration unable to find class; aborting...";
+        } else {
+            msg = tmp;
+        }
+        env->FatalError(msg);
+    }
+
+    if (env->RegisterNatives(c, methods, numMethods) < 0) {
+        char* tmp;
+        const char* msg;
+        if (asprintf(&tmp, "RegisterNatives failed for '%s'; aborting...", className) == -1) {
+            // Allocation failed, print default warning.
+            msg = "RegisterNatives failed; aborting...";
+        } else {
+            msg = tmp;
+        }
+        env->FatalError(msg);
+    }
+}
 
 void register_micro_native_methods(JNIEnv* env) {
   jniRegisterNativeMethods(env, CLASS_NAME, gMethods_NormalOnly, NELEM(gMethods_NormalOnly));
   jniRegisterNativeMethods(env, CLASS_NAME, gMethods, NELEM(gMethods));
   jniRegisterNativeMethods(env, CLASS_NAME, gMethods_Fast, NELEM(gMethods_Fast));
-  jniRegisterNativeMethods(env, CLASS_NAME, gMethods_Critical, NELEM(gMethods_Critical));
+
+  if (env->FindClass("dalvik/annotation/optimization/CriticalNative") != nullptr) {
+    // Only register them explicitly if the annotation is present.
+    jniRegisterNativeMethods(env, CLASS_NAME, gMethods_Critical, NELEM(gMethods_Critical));
+  } else {
+    if (env->ExceptionCheck()) {
+      // It will throw NoClassDefFoundError
+      env->ExceptionClear();
+    }
+  }
+  // else let them be registered implicitly.
 }
