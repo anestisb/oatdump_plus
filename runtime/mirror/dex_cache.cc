@@ -41,6 +41,8 @@ void DexCache::Init(const DexFile* dex_file,
                     uint32_t num_resolved_methods,
                     ArtField** resolved_fields,
                     uint32_t num_resolved_fields,
+                    MethodTypeDexCacheType* resolved_method_types,
+                    uint32_t num_resolved_method_types,
                     PointerSize pointer_size) {
   CHECK(dex_file != nullptr);
   CHECK(location != nullptr);
@@ -48,6 +50,7 @@ void DexCache::Init(const DexFile* dex_file,
   CHECK_EQ(num_resolved_types != 0u, resolved_types != nullptr);
   CHECK_EQ(num_resolved_methods != 0u, resolved_methods != nullptr);
   CHECK_EQ(num_resolved_fields != 0u, resolved_fields != nullptr);
+  CHECK_EQ(num_resolved_method_types != 0u, resolved_method_types != nullptr);
 
   SetDexFile(dex_file);
   SetLocation(location);
@@ -55,10 +58,12 @@ void DexCache::Init(const DexFile* dex_file,
   SetResolvedTypes(resolved_types);
   SetResolvedMethods(resolved_methods);
   SetResolvedFields(resolved_fields);
+  SetResolvedMethodTypes(resolved_method_types);
   SetField32<false>(NumStringsOffset(), num_strings);
   SetField32<false>(NumResolvedTypesOffset(), num_resolved_types);
   SetField32<false>(NumResolvedMethodsOffset(), num_resolved_methods);
   SetField32<false>(NumResolvedFieldsOffset(), num_resolved_fields);
+  SetField32<false>(NumResolvedMethodTypesOffset(), num_resolved_method_types);
 
   Runtime* const runtime = Runtime::Current();
   if (runtime->HasResolutionMethod()) {
