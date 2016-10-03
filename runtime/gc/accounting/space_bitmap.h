@@ -133,11 +133,6 @@ class SpaceBitmap {
   void Walk(ObjectCallback* callback, void* arg)
       REQUIRES_SHARED(Locks::heap_bitmap_lock_);
 
-  // Visits set bits with an in order traversal.  The callback is not permitted to change the bitmap
-  // bits or max during the traversal.
-  void InOrderWalk(ObjectCallback* callback, void* arg)
-      REQUIRES_SHARED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
-
   // Walk through the bitmaps in increasing address order, and find the object pointers that
   // correspond to garbage objects.  Call <callback> zero or more times with lists of these object
   // pointers. The callback is not permitted to increase the max of either bitmap.
@@ -201,15 +196,6 @@ class SpaceBitmap {
 
   template<bool kSetBit>
   bool Modify(const mirror::Object* obj);
-
-  // For an unvisited object, visit it then all its children found via fields.
-  static void WalkFieldsInOrder(SpaceBitmap* visited, ObjectCallback* callback, mirror::Object* obj,
-                                void* arg) REQUIRES_SHARED(Locks::mutator_lock_);
-  // Walk instance fields of the given Class. Separate function to allow recursion on the super
-  // class.
-  static void WalkInstanceFields(SpaceBitmap<kAlignment>* visited, ObjectCallback* callback,
-                                 mirror::Object* obj, mirror::Class* klass, void* arg)
-      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Backing storage for bitmap.
   std::unique_ptr<MemMap> mem_map_;
