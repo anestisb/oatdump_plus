@@ -165,6 +165,16 @@ bool ClassTable::InsertStrongRoot(mirror::Object* obj) {
     }
   }
   strong_roots_.push_back(GcRoot<mirror::Object>(obj));
+  // If `obj` is a dex cache associated with a new oat file with GC roots, add it to oat_files_.
+  if (obj->IsDexCache()) {
+    const DexFile* dex_file = down_cast<mirror::DexCache*>(obj)->GetDexFile();
+    if (dex_file != nullptr && dex_file->GetOatDexFile() != nullptr) {
+      const OatFile* oat_file = dex_file->GetOatDexFile()->GetOatFile();
+      if (!oat_file->GetBssGcRoots().empty() && !ContainsElement(oat_files_, oat_file)) {
+        oat_files_.push_back(oat_file);
+      }
+    }
+  }
   return true;
 }
 
@@ -201,6 +211,7 @@ void ClassTable::AddClassSet(ClassSet&& set) {
 
 void ClassTable::ClearStrongRoots() {
   WriterMutexLock mu(Thread::Current(), lock_);
+  oat_files_.clear();
   strong_roots_.clear();
 }
 }  // namespace art

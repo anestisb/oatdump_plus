@@ -32,6 +32,8 @@
 
 namespace art {
 
+class OatFile;
+
 namespace mirror {
   class ClassLoader;
 }  // namespace mirror
@@ -173,6 +175,8 @@ class ClassTable {
   // loader which may not be owned by the class loader must be held strongly live. Also dex caches
   // are held live to prevent them being unloading once they have classes in them.
   std::vector<GcRoot<mirror::Object>> strong_roots_ GUARDED_BY(lock_);
+  // Keep track of oat files with GC roots associated with dex caches in `strong_roots_`.
+  std::vector<const OatFile*> oat_files_ GUARDED_BY(lock_);
 
   friend class ImageWriter;  // for InsertWithoutLocks.
 };

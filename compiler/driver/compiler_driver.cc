@@ -264,8 +264,6 @@ CompilerDriver::CompilerDriver(
     Compiler::Kind compiler_kind,
     InstructionSet instruction_set,
     const InstructionSetFeatures* instruction_set_features,
-    bool boot_image,
-    bool app_image,
     std::unordered_set<std::string>* image_classes,
     std::unordered_set<std::string>* compiled_classes,
     std::unordered_set<std::string>* compiled_methods,
@@ -286,8 +284,6 @@ CompilerDriver::CompilerDriver(
       compiled_methods_lock_("compiled method lock"),
       compiled_methods_(MethodTable::key_compare()),
       non_relative_linker_patch_count_(0u),
-      boot_image_(boot_image),
-      app_image_(app_image),
       image_classes_(image_classes),
       classes_to_compile_(compiled_classes),
       methods_to_compile_(compiled_methods),
@@ -313,7 +309,7 @@ CompilerDriver::CompilerDriver(
   if (compiler_options->VerifyOnlyProfile()) {
     CHECK(profile_compilation_info_ != nullptr) << "Requires profile";
   }
-  if (boot_image_) {
+  if (GetCompilerOptions().IsBootImage()) {
     CHECK(image_classes_.get() != nullptr) << "Expected image classes for boot image";
   }
 }
@@ -405,7 +401,7 @@ void CompilerDriver::CompileAll(jobject class_loader,
   // 3) Attempt to verify all classes
   // 4) Attempt to initialize image classes, and trivially initialized classes
   PreCompile(class_loader, dex_files, timings);
-  if (IsBootImage()) {
+  if (GetCompilerOptions().IsBootImage()) {
     // We don't need to setup the intrinsics for non boot image compilation, as
     // those compilations will pick up a boot image that have the ArtMethod already
     // set with the intrinsics flag.
@@ -899,7 +895,7 @@ void CompilerDriver::PreCompile(jobject class_loader,
     return;
   }
 
-  if (GetCompilerOptions().IsForceDeterminism() && IsBootImage()) {
+  if (GetCompilerOptions().IsForceDeterminism() && GetCompilerOptions().IsBootImage()) {
     // Resolve strings from const-string. Do this now to have a deterministic image.
     ResolveConstStrings(this, dex_files, timings);
     VLOG(compiler) << "Resolve const-strings: " << GetMemoryUsageString(false);
@@ -927,7 +923,7 @@ bool CompilerDriver::IsImageClass(const char* descriptor) const {
   }
   // No set of image classes, assume we include all the classes.
   // NOTE: Currently only reachable from InitImageMethodVisitor for the app image case.
-  return !IsBootImage();
+  return !GetCompilerOptions().IsBootImage();
 }
 
 bool CompilerDriver::IsClassToCompile(const char* descriptor) const {
@@ -1051,7 +1047,7 @@ class RecordImageClassesVisitor : public ClassVisitor {
 // Make a list of descriptors for classes to include in the image
 void CompilerDriver::LoadImageClasses(TimingLogger* timings) {
   CHECK(timings != nullptr);
-  if (!IsBootImage()) {
+  if (!GetCompilerOptions().IsBootImage()) {
     return;
   }
 
@@ -1279,7 +1275,7 @@ class ClinitImageUpdate {
 };
 
 void CompilerDriver::UpdateImageClasses(TimingLogger* timings) {
-  if (IsBootImage()) {
+  if (GetCompilerOptions().IsBootImage()) {
     TimingLogger::ScopedTiming t("UpdateImageClasses", timings);
 
     Runtime* runtime = Runtime::Current();
@@ -1306,7 +1302,7 @@ bool CompilerDriver::CanAssumeClassIsLoaded(mirror::Class* klass) {
     // Having the klass reference here implies that the klass is already loaded.
     return true;
   }
-  if (!IsBootImage()) {
+  if (!GetCompilerOptions().IsBootImage()) {
     // Assume loaded only if klass is in the boot image. App classes cannot be assumed
     // loaded because we don't even know what class loader will be used to load them.
     bool class_in_image = runtime->GetHeap()->FindSpaceFromObject(klass, false)->IsImageSpace();
@@ -1496,7 +1492,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(const mirror::Class* referrer
 
   if (!use_dex_cache && force_relocations) {
     bool is_in_image;
-    if (IsBootImage()) {
+    if (GetCompilerOptions().IsBootImage()) {
       is_in_image = IsImageClass(method->GetDeclaringClassDescriptor());
     } else {
       is_in_image = instruction_set_ != kX86 && instruction_set_ != kX86_64 &&
@@ -1895,7 +1891,7 @@ void CompilerDriver::ResolveDexFile(jobject class_loader,
 
   ParallelCompilationManager context(class_linker, class_loader, this, &dex_file, dex_files,
                                      thread_pool);
-  if (IsBootImage()) {
+  if (GetCompilerOptions().IsBootImage()) {
     // For images we resolve all types, such as array, whereas for applications just those with
     // classdefs are resolved by ResolveClassFieldsAndMethods.
     TimingLogger::ScopedTiming t("Resolve Types", timings);
@@ -2005,7 +2001,7 @@ class VerifyClassVisitor : public CompilationVisitor {
       // It is *very* problematic if there are verification errors in the boot classpath. For example,
       // we rely on things working OK without verification when the decryption dialog is brought up.
       // So abort in a debug build if we find this violated.
-      DCHECK(!manager_->GetCompiler()->IsBootImage() || klass->IsVerified())
+      DCHECK(!manager_->GetCompiler()->GetCompilerOptions().IsBootImage() || klass->IsVerified())
           << "Boot classpath class " << PrettyClass(klass.Get()) << " failed to fully verify.";
     }
     soa.Self()->AssertNoPendingException();
@@ -2136,7 +2132,8 @@ class InitializeClassVisitor : public CompilationVisitor {
           if (!klass->IsInitialized()) {
             // We need to initialize static fields, we only do this for image classes that aren't
             // marked with the $NoPreloadHolder (which implies this should not be initialized early).
-            bool can_init_static_fields = manager_->GetCompiler()->IsBootImage() &&
+            bool can_init_static_fields =
+                manager_->GetCompiler()->GetCompilerOptions().IsBootImage() &&
                 manager_->GetCompiler()->IsImageClass(descriptor) &&
                 !StringPiece(descriptor).ends_with("$NoPreloadHolder;");
             if (can_init_static_fields) {
@@ -2208,7 +2205,7 @@ void CompilerDriver::InitializeClasses(jobject jni_class_loader,
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   ParallelCompilationManager context(class_linker, jni_class_loader, this, &dex_file, dex_files,
                                      init_thread_pool);
-  if (IsBootImage()) {
+  if (GetCompilerOptions().IsBootImage()) {
     // TODO: remove this when transactional mode supports multithreading.
     init_thread_count = 1U;
   }
@@ -2262,7 +2259,7 @@ void CompilerDriver::InitializeClasses(jobject class_loader,
     CHECK(dex_file != nullptr);
     InitializeClasses(class_loader, *dex_file, dex_files, timings);
   }
-  if (boot_image_ || app_image_) {
+  if (GetCompilerOptions().IsBootImage() || GetCompilerOptions().IsAppImage()) {
     // Make sure that we call EnsureIntiailized on all the array classes to call
     // SetVerificationAttempted so that the access flags are set. If we do not do this they get
     // changed at runtime resulting in more dirty image pages.
@@ -2272,7 +2269,7 @@ void CompilerDriver::InitializeClasses(jobject class_loader,
     InitializeArrayClassesAndCreateConflictTablesVisitor visitor;
     Runtime::Current()->GetClassLinker()->VisitClassesWithoutClassesLock(&visitor);
   }
-  if (IsBootImage()) {
+  if (GetCompilerOptions().IsBootImage()) {
     // Prune garbage objects created during aborted transactions.
     Runtime::Current()->GetHeap()->CollectGarbage(true);
   }

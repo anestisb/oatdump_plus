@@ -564,6 +564,14 @@ class CodeGeneratorARM64 : public CodeGenerator {
   vixl::aarch64::Literal<uint32_t>* DeduplicateBootImageAddressLiteral(uint64_t address);
   vixl::aarch64::Literal<uint64_t>* DeduplicateDexCacheAddressLiteral(uint64_t address);
 
+  void EmitAdrpPlaceholder(vixl::aarch64::Label* fixup_label, vixl::aarch64::Register reg);
+  void EmitAddPlaceholder(vixl::aarch64::Label* fixup_label,
+                          vixl::aarch64::Register out,
+                          vixl::aarch64::Register base);
+  void EmitLdrOffsetPlaceholder(vixl::aarch64::Label* fixup_label,
+                                vixl::aarch64::Register out,
+                                vixl::aarch64::Register base);
+
   void EmitLinkerPatches(ArenaVector<LinkerPatch>* linker_patches) OVERRIDE;
 
   // Fast path implementation of ReadBarrier::Barrier for a heap
@@ -691,6 +699,10 @@ class CodeGeneratorARM64 : public CodeGenerator {
 
   void EmitJumpTables();
 
+  template <LinkerPatch (*Factory)(size_t, const DexFile*, uint32_t, uint32_t)>
+  static void EmitPcRelativeLinkerPatches(const ArenaDeque<PcRelativePatchInfo>& infos,
+                                          ArenaVector<LinkerPatch>* linker_patches);
+
   // Labels for each block that will be compiled.
   // We use a deque so that the `vixl::aarch64::Label` objects do not move in memory.
   ArenaDeque<vixl::aarch64::Label> block_labels_;  // Indexed by block id.
@@ -713,12 +725,12 @@ class CodeGeneratorARM64 : public CodeGenerator {
   MethodToLiteralMap call_patches_;
   // Relative call patch info.
   // Using ArenaDeque<> which retains element addresses on push/emplace_back().
-  ArenaDeque<MethodPatchInfo<vixl::aarch64::Label>> relative_call_patches_;
+  ArenaDeque<PatchInfo<vixl::aarch64::Label>> relative_call_patches_;
   // PC-relative DexCache access info.
   ArenaDeque<PcRelativePatchInfo> pc_relative_dex_cache_patches_;
   // Deduplication map for boot string literals for kBootImageLinkTimeAddress.
   BootStringToLiteralMap boot_image_string_patches_;
-  // PC-relative String patch info.
+  // PC-relative String patch info; type depends on configuration (app .bss or boot image PIC).
   ArenaDeque<PcRelativePatchInfo> pc_relative_string_patches_;
   // Deduplication map for boot type literals for kBootImageLinkTimeAddress.
   BootTypeToLiteralMap boot_image_type_patches_;
