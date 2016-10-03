@@ -26,6 +26,7 @@ sys.path.append(os.path.dirname(os.path.dirname(
         os.path.realpath(__file__))))
 
 from common.common import FatalError
+from common.common import GetEnvVariableOrError
 from common.common import GetJackClassPath
 from common.common import RetCode
 from common.common import RunCommand
@@ -54,6 +55,7 @@ class DexFuzzTester(object):
     self._results_dir = None
     self._dexfuzz_dir = None
     self._inputs_dir = None
+    self._dexfuzz_env = None
 
   def __enter__(self):
     """On entry, enters new temp directory after saving current directory.
@@ -68,7 +70,14 @@ class DexFuzzTester(object):
     if self._results_dir is None or self._dexfuzz_dir is None or \
         self._inputs_dir is None:
       raise FatalError('Cannot obtain temp directory')
+    self._dexfuzz_env = os.environ.copy()
+    self._dexfuzz_env['ANDROID_DATA'] = self._dexfuzz_dir
+    top = GetEnvVariableOrError('ANDROID_BUILD_TOP')
+    self._dexfuzz_env['PATH'] = (top + '/art/tools/bisection_search:' +
+                                 self._dexfuzz_env['PATH'])
     os.chdir(self._dexfuzz_dir)
+    os.mkdir('divergent_programs')
+    os.mkdir('bisection_outputs')
     return self
 
   def __exit__(self, etype, evalue, etraceback):
@@ -110,15 +119,15 @@ class DexFuzzTester(object):
   def RunDexFuzz(self):
     """Starts the DexFuzz testing."""
     os.chdir(self._dexfuzz_dir)
-    os.environ['ANDROID_DATA'] = self._dexfuzz_dir
     dexfuzz_args = ['--inputs=' + self._inputs_dir, '--execute',
                     '--execute-class=Test', '--repeat=' + str(self._num_tests),
-                    '--dump-output', '--interpreter', '--optimizing']
+                    '--dump-output', '--interpreter', '--optimizing',
+                    '--bisection-search']
     if self._device is not None:
       dexfuzz_args += ['--device=' + self._device, '--allarm']
     else:
       dexfuzz_args += ['--host']  # Assume host otherwise.
-    check_call(['dexfuzz'] + dexfuzz_args)
+    check_call(['dexfuzz'] + dexfuzz_args, env=self._dexfuzz_env)
     # TODO: summarize findings.
 
 
