@@ -49,6 +49,7 @@ namespace mirror {
   class ClassLoader;
   class DexCache;
   class DexCachePointerArray;
+  class DexCacheMethodHandlesTest_Open_Test;
   class DexCacheTest_Open_Test;
   class IfTable;
   class MethodType;
@@ -359,6 +360,15 @@ class ClassLinker {
                             uint32_t field_idx,
                             Handle<mirror::DexCache> dex_cache,
                             Handle<mirror::ClassLoader> class_loader)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!dex_lock_, !Roles::uninterruptible_);
+
+  // Resolve a method type with a given ID from the DexFile, storing
+  // the result in the DexCache.
+  mirror::MethodType* ResolveMethodType(const DexFile& dex_file,
+                                        uint32_t proto_idx,
+                                        Handle<mirror::DexCache> dex_cache,
+                                        Handle<mirror::ClassLoader> class_loader)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
@@ -1181,6 +1191,7 @@ class ClassLinker {
   friend class JniCompilerTest;  // for GetRuntimeQuickGenericJniStub
   friend class JniInternalTest;  // for GetRuntimeQuickGenericJniStub
   ART_FRIEND_TEST(ClassLinkerTest, RegisterDexFileName);  // for DexLock, and RegisterDexFileLocked
+  ART_FRIEND_TEST(mirror::DexCacheMethodHandlesTest, Open);  // for AllocDexCache
   ART_FRIEND_TEST(mirror::DexCacheTest, Open);  // for AllocDexCache
   DISALLOW_COPY_AND_ASSIGN(ClassLinker);
 };

@@ -451,6 +451,14 @@ class ClassLinkerTest : public CommonRuntimeTest {
   };
 };
 
+class ClassLinkerMethodHandlesTest : public ClassLinkerTest {
+ protected:
+  virtual void SetUpRuntimeOptions(RuntimeOptions* options) OVERRIDE {
+    CommonRuntimeTest::SetUpRuntimeOptions(options);
+    options->push_back(std::make_pair("-Xexperimental:method-handles", nullptr));
+  }
+};
+
 struct CheckOffset {
   size_t cpp_offset;
   const char* java_name;
@@ -650,10 +658,12 @@ struct DexCacheOffsets : public CheckOffsets<mirror::DexCache> {
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, dex_file_), "dexFile");
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, location_), "location");
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, num_resolved_fields_), "numResolvedFields");
+    addOffset(OFFSETOF_MEMBER(mirror::DexCache, num_resolved_method_types_), "numResolvedMethodTypes");
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, num_resolved_methods_), "numResolvedMethods");
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, num_resolved_types_), "numResolvedTypes");
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, num_strings_), "numStrings");
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, resolved_fields_), "resolvedFields");
+    addOffset(OFFSETOF_MEMBER(mirror::DexCache, resolved_method_types_), "resolvedMethodTypes");
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, resolved_methods_), "resolvedMethods");
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, resolved_types_), "resolvedTypes");
     addOffset(OFFSETOF_MEMBER(mirror::DexCache, strings_), "strings");
@@ -1292,6 +1302,61 @@ TEST_F(ClassLinkerTest, RegisterDexFileName) {
     // Check that inserting with a UTF16 name works.
     class_linker->RegisterDexFileLocked(*dex_file, dex_cache);
   }
+}
+
+TEST_F(ClassLinkerMethodHandlesTest, TestResolveMethodTypes) {
+  ScopedObjectAccess soa(Thread::Current());
+
+  StackHandleScope<7> hs(soa.Self());
+
+  Handle<mirror::ClassLoader> class_loader(
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(LoadDex("MethodTypes"))));
+  Handle<mirror::Class> method_types(
+      hs.NewHandle(class_linker_->FindClass(soa.Self(), "LMethodTypes;", class_loader)));
+  class_linker_->EnsureInitialized(soa.Self(), method_types, true, true);
+
+  ArtMethod* method1 = method_types->FindVirtualMethod("method1",
+                                                       "(Ljava/lang/String;)Ljava/lang/String;",
+                                                       kRuntimePointerSize);
+
+  const DexFile& dex_file = *(method1->GetDexFile());
+  Handle<mirror::DexCache> dex_cache = hs.NewHandle(
+      class_linker_->FindDexCache(Thread::Current(), dex_file));
+
+  const DexFile::MethodId& method1_id = dex_file.GetMethodId(method1->GetDexMethodIndex());
+
+  // This is the MethodType corresponding to the prototype of
+  // String MethodTypes# method1(String).
+  // Its RType = Ljava/lang/String;
+  // Its PTypes = { Ljava/langString; }
+  Handle<mirror::MethodType> method1_type = hs.NewHandle(
+      class_linker_->ResolveMethodType(dex_file, method1_id.proto_idx_, dex_cache, class_loader));
+
+  // Assert that the method type was resolved successfully.
+  ASSERT_TRUE(method1_type.Get() != nullptr);
+
+  // Assert that the return type and the method arguments are as we expect.
+  Handle<mirror::Class> string_class(
+      hs.NewHandle(class_linker_->FindClass(soa.Self(), "Ljava/lang/String;", class_loader)));
+  ASSERT_EQ(string_class.Get(), method1_type->GetRType());
+  ASSERT_EQ(string_class.Get(), method1_type->GetPTypes()->Get(0));
+
+  // Resolve the method type again and assert that we get back the same value.
+  Handle<mirror::MethodType> method1_type2 = hs.NewHandle(
+      class_linker_->ResolveMethodType(dex_file, method1_id.proto_idx_, dex_cache, class_loader));
+  ASSERT_EQ(method1_type.Get(), method1_type2.Get());
+
+  // Resolve the MethodType associated with a different method signature
+  // and assert it's different.
+  ArtMethod* method2 = method_types->FindVirtualMethod(
+      "method2",
+      "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+      kRuntimePointerSize);
+  const DexFile::MethodId& method2_id = dex_file.GetMethodId(method2->GetDexMethodIndex());
+  Handle<mirror::MethodType> method2_type = hs.NewHandle(
+      class_linker_->ResolveMethodType(dex_file, method2_id.proto_idx_, dex_cache, class_loader));
+
+  ASSERT_TRUE(method1_type.Get() != method2_type.Get());
 }
 
 }  // namespace art
