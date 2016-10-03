@@ -37,11 +37,6 @@ inline dwarf::Reg DWARFReg(vixl::aarch32::SRegister reg) {
   return dwarf::Reg::ArmFp(static_cast<int>(reg.GetCode()));
 }
 
-inline vixl::aarch32::DRegister FromLowSToD(vixl::aarch32::SRegister reg) {
-  DCHECK_EQ(reg.GetCode() % 2, 0u) << reg;
-  return vixl::aarch32::DRegister(reg.GetCode() / 2);
-}
-
 inline vixl::aarch32::Register HighRegisterFrom(Location location) {
   DCHECK(location.IsRegisterPair()) << location;
   return vixl::aarch32::Register(location.AsRegisterPairHigh<vixl32::Register>());
@@ -133,6 +128,11 @@ inline vixl::aarch32::Register OutputRegister(HInstruction* instr) {
 inline vixl::aarch32::Register InputRegisterAt(HInstruction* instr, int input_index) {
   return RegisterFrom(instr->GetLocations()->InAt(input_index),
                       instr->InputAt(input_index)->GetType());
+}
+
+inline vixl::aarch32::Register InputRegister(HInstruction* instr) {
+  DCHECK_EQ(instr->InputCount(), 1u);
+  return InputRegisterAt(instr, 0);
 }
 
 inline int64_t Int64ConstantFrom(Location location) {
