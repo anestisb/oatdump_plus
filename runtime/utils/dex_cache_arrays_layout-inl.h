@@ -38,8 +38,10 @@ inline DexCacheArraysLayout::DexCacheArraysLayout(PointerSize pointer_size,
           RoundUp(methods_offset_ + MethodsSize(header.method_ids_size_), StringsAlignment())),
       fields_offset_(
           RoundUp(strings_offset_ + StringsSize(header.string_ids_size_), FieldsAlignment())),
+      method_types_offset_(
+          RoundUp(fields_offset_ + FieldsSize(header.field_ids_size_), Alignment())),
       size_(
-          RoundUp(fields_offset_ + FieldsSize(header.field_ids_size_), Alignment())) {
+          RoundUp(method_types_offset_ + MethodTypesSize(header.proto_ids_size_), Alignment())) {
 }
 
 inline DexCacheArraysLayout::DexCacheArraysLayout(PointerSize pointer_size, const DexFile* dex_file)
@@ -116,6 +118,27 @@ inline size_t DexCacheArraysLayout::FieldsSize(size_t num_elements) const {
 
 inline size_t DexCacheArraysLayout::FieldsAlignment() const {
   return static_cast<size_t>(pointer_size_);
+}
+
+inline size_t DexCacheArraysLayout::MethodTypeOffset(uint32_t proto_idx) const {
+  return strings_offset_
+      + ElementOffset(PointerSize::k64,
+                      proto_idx % mirror::DexCache::kDexCacheMethodTypeCacheSize);
+}
+
+inline size_t DexCacheArraysLayout::MethodTypesSize(size_t num_elements) const {
+  size_t cache_size = mirror::DexCache::kDexCacheMethodTypeCacheSize;
+  if (num_elements < cache_size) {
+    cache_size = num_elements;
+  }
+
+  return ArraySize(PointerSize::k64, cache_size);
+}
+
+inline size_t DexCacheArraysLayout::MethodTypesAlignment() const {
+  static_assert(alignof(mirror::MethodTypeDexCacheType) == 8,
+                "alignof(MethodTypeDexCacheType) != 8");
+  return alignof(mirror::MethodTypeDexCacheType);
 }
 
 inline size_t DexCacheArraysLayout::ElementOffset(PointerSize element_size, uint32_t idx) {

@@ -1287,7 +1287,7 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
       const DexFile* const dex_file = dex_cache->GetDexFile();
       const OatFile::OatDexFile* oat_dex_file = dex_file->GetOatDexFile();
       if (oat_dex_file != nullptr && oat_dex_file->GetDexCacheArrays() != nullptr) {
-      // If the oat file expects the dex cache arrays to be in the BSS, then allocate there and
+        // If the oat file expects the dex cache arrays to be in the BSS, then allocate there and
         // copy over the arrays.
         DCHECK(dex_file != nullptr);
         size_t num_strings = mirror::DexCache::kDexCacheStringCacheSize;
@@ -1297,10 +1297,19 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
         const size_t num_types = dex_file->NumTypeIds();
         const size_t num_methods = dex_file->NumMethodIds();
         const size_t num_fields = dex_file->NumFieldIds();
+        size_t num_method_types = 0;
+        if (Runtime::Current()->IsMethodHandlesEnabled()) {
+          num_method_types = mirror::DexCache::kDexCacheMethodTypeCacheSize;
+          if (dex_file->NumProtoIds() < num_method_types) {
+            num_method_types = dex_file->NumProtoIds();
+          }
+        }
+
         CHECK_EQ(num_strings, dex_cache->NumStrings());
         CHECK_EQ(num_types, dex_cache->NumResolvedTypes());
         CHECK_EQ(num_methods, dex_cache->NumResolvedMethods());
         CHECK_EQ(num_fields, dex_cache->NumResolvedFields());
+        CHECK_EQ(num_method_types, dex_cache->NumResolvedMethodTypes());
         DexCacheArraysLayout layout(image_pointer_size_, dex_file);
         uint8_t* const raw_arrays = oat_dex_file->GetDexCacheArrays();
         if (num_strings != 0u) {
@@ -1350,6 +1359,25 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
           }
           std::copy_n(dex_cache->GetResolvedFields(), num_fields, fields);
           dex_cache->SetResolvedFields(fields);
+        }
+        if (num_method_types != 0u) {
+          // NOTE: We currently (Sep 2016) do not resolve any method types at
+          // compile time, but plan to in the future. This code exists for the
+          // sake of completeness.
+          mirror::MethodTypeDexCacheType* const image_resolved_method_types =
+              dex_cache->GetResolvedMethodTypes();
+          mirror::MethodTypeDexCacheType* const method_types =
+              reinterpret_cast<mirror::MethodTypeDexCacheType*>(
+                  raw_arrays + layout.MethodTypesOffset());
+          for (size_t j = 0; j < num_method_types; ++j) {
+            DCHECK_EQ(method_types[j].load(std::memory_order_relaxed).index, 0u);
+            DCHECK(method_types[j].load(std::memory_order_relaxed).object.IsNull());
+            method_types[j].store(
+                image_resolved_method_types[j].load(std::memory_order_relaxed),
+                std::memory_order_relaxed);
+          }
+
+          dex_cache->SetResolvedMethodTypes(method_types);
         }
       }
       {
@@ -2104,6 +2132,7 @@ mirror::DexCache* ClassLinker::AllocDexCache(Thread* self,
     // Zero-initialized.
     raw_arrays = reinterpret_cast<uint8_t*>(linear_alloc->Alloc(self, layout.Size()));
   }
+
   mirror::StringDexCacheType* strings = (dex_file.NumStringIds() == 0u) ? nullptr :
       reinterpret_cast<mirror::StringDexCacheType*>(raw_arrays + layout.StringsOffset());
   GcRoot<mirror::Class>* types = (dex_file.NumTypeIds() == 0u) ? nullptr :
@@ -2112,10 +2141,35 @@ mirror::DexCache* ClassLinker::AllocDexCache(Thread* self,
       reinterpret_cast<ArtMethod**>(raw_arrays + layout.MethodsOffset());
   ArtField** fields = (dex_file.NumFieldIds() == 0u) ? nullptr :
       reinterpret_cast<ArtField**>(raw_arrays + layout.FieldsOffset());
+
   size_t num_strings = mirror::DexCache::kDexCacheStringCacheSize;
   if (dex_file.NumStringIds() < num_strings) {
     num_strings = dex_file.NumStringIds();
   }
+
+  // Note that we allocate the method type dex caches regardless of this flag,
+  // and we make sure here that they're not used by the runtime. This is in the
+  // interest of simplicity and to avoid extensive compiler and layout class changes.
+  //
+  // If this needs to be mitigated in a production system running this code,
+  // DexCache::kDexCacheMethodTypeCacheSize can be set to zero.
+  const bool is_method_handles_enabled = Runtime::Current()->IsMethodHandlesEnabled();
+  mirror::MethodTypeDexCacheType* method_types = nullptr;
+  size_t num_method_types = 0;
+
+  if (is_method_handles_enabled) {
+    if (dex_file.NumProtoIds() < mirror::DexCache::kDexCacheMethodTypeCacheSize) {
+      num_method_types = dex_file.NumProtoIds();
+    } else {
+      num_method_types = mirror::DexCache::kDexCacheMethodTypeCacheSize;
+    }
+
+    if (num_method_types > 0) {
+      method_types = reinterpret_cast<mirror::MethodTypeDexCacheType*>(
+          raw_arrays + layout.MethodTypesOffset());
+    }
+  }
+
   DCHECK_ALIGNED(raw_arrays, alignof(mirror::StringDexCacheType)) <<
                  "Expected raw_arrays to align to StringDexCacheType.";
   DCHECK_ALIGNED(layout.StringsOffset(), alignof(mirror::StringDexCacheType)) <<
@@ -2139,9 +2193,16 @@ mirror::DexCache* ClassLinker::AllocDexCache(Thread* self,
     for (size_t i = 0; i < dex_file.NumFieldIds(); ++i) {
       CHECK(mirror::DexCache::GetElementPtrSize(fields, i, image_pointer_size_) == nullptr);
     }
+    for (size_t i = 0; i < num_method_types; ++i) {
+      CHECK_EQ(method_types[i].load(std::memory_order_relaxed).index, 0u);
+      CHECK(method_types[i].load(std::memory_order_relaxed).object.IsNull());
+    }
   }
   if (strings != nullptr) {
     mirror::StringDexCachePair::Initialize(strings);
+  }
+  if (method_types != nullptr) {
+    mirror::MethodTypeDexCachePair::Initialize(method_types);
   }
   dex_cache->Init(&dex_file,
                   location.Get(),
@@ -2153,6 +2214,8 @@ mirror::DexCache* ClassLinker::AllocDexCache(Thread* self,
                   dex_file.NumMethodIds(),
                   fields,
                   dex_file.NumFieldIds(),
+                  method_types,
+                  num_method_types,
                   image_pointer_size_);
   return dex_cache.Get();
 }
@@ -7933,6 +7996,68 @@ ArtField* ClassLinker::ResolveFieldJLS(const DexFile& dex_file,
     ThrowNoSuchFieldError("", klass.Get(), type, name);
   }
   return resolved;
+}
+
+mirror::MethodType* ClassLinker::ResolveMethodType(const DexFile& dex_file,
+                                                   uint32_t proto_idx,
+                                                   Handle<mirror::DexCache> dex_cache,
+                                                   Handle<mirror::ClassLoader> class_loader) {
+  DCHECK(Runtime::Current()->IsMethodHandlesEnabled());
+  DCHECK(dex_cache.Get() != nullptr);
+
+  mirror::MethodType* resolved = dex_cache->GetResolvedMethodType(proto_idx);
+  if (resolved != nullptr) {
+    return resolved;
+  }
+
+  Thread* const self = Thread::Current();
+  StackHandleScope<4> hs(self);
+
+  // First resolve the return type.
+  const DexFile::ProtoId& proto_id = dex_file.GetProtoId(proto_idx);
+  Handle<mirror::Class> return_type(hs.NewHandle(
+      ResolveType(dex_file, proto_id.return_type_idx_, dex_cache, class_loader)));
+  if (return_type.Get() == nullptr) {
+    DCHECK(self->IsExceptionPending());
+    return nullptr;
+  }
+
+  // Then resolve the argument types.
+  //
+  // TODO: Is there a better way to figure out the number of method arguments
+  // other than by looking at the shorty ?
+  const size_t num_method_args = strlen(dex_file.StringDataByIdx(proto_id.shorty_idx_)) - 1;
+
+  mirror::Class* class_type = mirror::Class::GetJavaLangClass();
+  mirror::Class* array_of_class = FindArrayClass(self, &class_type);
+  Handle<mirror::ObjectArray<mirror::Class>> method_params(hs.NewHandle(
+      mirror::ObjectArray<mirror::Class>::Alloc(self, array_of_class, num_method_args)));
+  if (method_params.Get() == nullptr) {
+    DCHECK(self->IsExceptionPending());
+    return nullptr;
+  }
+
+  DexFileParameterIterator it(dex_file, proto_id);
+  int32_t i = 0;
+  MutableHandle<mirror::Class> param_class = hs.NewHandle<mirror::Class>(nullptr);
+  for (; it.HasNext(); it.Next()) {
+    const uint16_t type_idx = it.GetTypeIdx();
+    param_class.Assign(ResolveType(dex_file, type_idx, dex_cache, class_loader));
+    if (param_class.Get() == nullptr) {
+      DCHECK(self->IsExceptionPending());
+      return nullptr;
+    }
+
+    method_params->Set(i++, param_class.Get());
+  }
+
+  DCHECK(!it.HasNext());
+
+  Handle<mirror::MethodType> type = hs.NewHandle(
+      mirror::MethodType::Create(self, return_type, method_params));
+  dex_cache->SetResolvedMethodType(proto_idx, type.Get());
+
+  return type.Get();
 }
 
 const char* ClassLinker::MethodShorty(uint32_t method_idx,
