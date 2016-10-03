@@ -990,6 +990,8 @@ class Dex2Oat FINAL {
       }
     }
 
+    char_backing_storage_.reserve((dex_locations_.size() - 1) * 2);
+
     // Now create the other names. Use a counted loop to skip the first one.
     for (size_t i = 1; i < dex_locations_.size(); ++i) {
       // TODO: Make everything properly std::string.
