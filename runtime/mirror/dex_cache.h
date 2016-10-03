@@ -83,6 +83,15 @@ template <typename T> struct PACKED(8) DexCachePair {
     return element.object;
   }
 
+  static void Assign(std::atomic<DexCachePair<T>>* dex_cache,
+                     uint32_t idx,
+                     T* object,
+                     uint32_t cache_size) {
+    DCHECK_LT(idx % cache_size, cache_size);
+    dex_cache[idx % cache_size].store(
+        DexCachePair<T>(object, idx), std::memory_order_relaxed);
+  }
+
   static uint32_t InvalidIndexForSlot(uint32_t slot) {
     // Since the cache size is a power of two, 0 will always map to slot 0.
     // Use 1 for slot 0 and 0 for all other slots.
