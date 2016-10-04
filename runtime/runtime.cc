@@ -555,7 +555,7 @@ static jobject CreateSystemClassLoader(Runtime* runtime) {
   // We can't run in a transaction yet.
   contextClassLoader->SetObject<false>(
       soa.Self()->GetPeer(),
-      soa.Decode<mirror::ClassLoader>(system_class_loader.get()).Decode());
+      soa.Decode<mirror::ClassLoader>(system_class_loader.get()).Ptr());
 
   return env->NewGlobalRef(system_class_loader.get());
 }

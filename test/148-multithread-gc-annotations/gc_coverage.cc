@@ -35,7 +35,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_MovingGCThread_supportHomogeneousSpac
 
 extern "C" JNIEXPORT jlong JNICALL Java_MovingGCThread_objectAddress(JNIEnv* env, jclass, jobject object) {
   ScopedObjectAccess soa(env);
-  return reinterpret_cast<jlong>(soa.Decode<mirror::Object>(object).Decode());
+  return reinterpret_cast<jlong>(soa.Decode<mirror::Object>(object).Ptr());
 }
 
 }  // namespace

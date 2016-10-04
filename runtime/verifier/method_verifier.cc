@@ -4566,7 +4566,7 @@ ArtField* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_id
     ObjPtr<mirror::Class> klass = field->GetDeclaringClass();
     const RegType& field_klass =
         FromClass(klass->GetDescriptor(&temp),
-                  klass.Decode(),
+                  klass.Ptr(),
                   klass->CannotBeAssignedFromOtherTypes());
     if (obj_type.IsUninitializedTypes()) {
       // Field accesses through uninitialized references are only allowable for constructors where
@@ -4668,7 +4668,7 @@ void MethodVerifier::VerifyISFieldAccess(const Instruction* inst, const RegType&
         can_load_classes_ ? field->GetType<true>() : field->GetType<false>();
     if (field_type_class != nullptr) {
       field_type = &FromClass(field->GetTypeDescriptor(),
-                              field_type_class.Decode(),
+                              field_type_class.Ptr(),
                               field_type_class->CannotBeAssignedFromOtherTypes());
     } else {
       DCHECK(!can_load_classes_ || self_->IsExceptionPending());
@@ -4793,7 +4793,7 @@ void MethodVerifier::VerifyQuickFieldAccess(const Instruction* inst, const RegTy
 
     if (field_type_class != nullptr) {
       field_type = &FromClass(field->GetTypeDescriptor(),
-                              field_type_class.Decode(),
+                              field_type_class.Ptr(),
                               field_type_class->CannotBeAssignedFromOtherTypes());
     } else {
       Thread* self = Thread::Current();

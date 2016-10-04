@@ -263,7 +263,7 @@ static jlong VMDebug_countInstancesOfClass(JNIEnv* env, jclass, jclass javaClass
   if (c == nullptr) {
     return 0;
   }
-  std::vector<mirror::Class*> classes {c.Decode()};
+  std::vector<mirror::Class*> classes {c.Ptr()};
   uint64_t count = 0;
   heap->CountInstances(classes, countAssignable, &count);
   return count;

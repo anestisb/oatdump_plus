@@ -1702,7 +1702,7 @@ class ImageDumper {
       mirror::Class* klass = value->AsClass();
       os << StringPrintf("%p   Class: %s\n", klass, PrettyDescriptor(klass).c_str());
     } else {
-      os << StringPrintf("%p   %s\n", value.Decode(), PrettyDescriptor(type).c_str());
+      os << StringPrintf("%p   %s\n", value.Ptr(), PrettyDescriptor(type).c_str());
     }
   }
 
@@ -1748,7 +1748,7 @@ class ImageDumper {
             PrettyObjectValue(os, field_type, value);
           } else {
             os << StringPrintf("%p   %s\n",
-                               value.Decode(),
+                               value.Ptr(),
                                PrettyDescriptor(field->GetTypeDescriptor()).c_str());
           }
         }

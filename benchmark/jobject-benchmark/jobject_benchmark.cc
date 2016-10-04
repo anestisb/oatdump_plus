@@ -29,7 +29,7 @@ extern "C" JNIEXPORT void JNICALL Java_JObjectBenchmark_timeAddRemoveLocal(
   ObjPtr<mirror::Object> obj = soa.Decode<mirror::Object>(jobj);
   CHECK(obj != nullptr);
   for (jint i = 0; i < reps; ++i) {
-    jobject ref = soa.Env()->AddLocalReference<jobject>(obj.Decode());
+    jobject ref = soa.Env()->AddLocalReference<jobject>(obj.Ptr());
     soa.Env()->DeleteLocalRef(ref);
   }
 }
@@ -39,7 +39,7 @@ extern "C" JNIEXPORT void JNICALL Java_JObjectBenchmark_timeDecodeLocal(
   ScopedObjectAccess soa(env);
   ObjPtr<mirror::Object> obj = soa.Decode<mirror::Object>(jobj);
   CHECK(obj != nullptr);
-  jobject ref = soa.Env()->AddLocalReference<jobject>(obj.Decode());
+  jobject ref = soa.Env()->AddLocalReference<jobject>(obj.Ptr());
   for (jint i = 0; i < reps; ++i) {
     CHECK_EQ(soa.Decode<mirror::Object>(ref), obj);
   }

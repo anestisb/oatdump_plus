@@ -157,7 +157,7 @@ static jclass InMemoryDexClassLoader_DexData_findClass(
       // InMemoryClassLoader/DexData instance now that a class has
       // been loaded.
       class_linker->InsertDexFileInToClassLoader(
-          soa.Decode<mirror::Object>(dexData).Decode(), class_loader.Get());
+          soa.Decode<mirror::Object>(dexData).Ptr(), class_loader.Get());
       return soa.AddLocalReference<jclass>(result);
     }
   }
