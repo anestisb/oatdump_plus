@@ -177,6 +177,7 @@ class LinkerPatch {
     kTypeRelative,     // NOTE: Actual patching is instruction_set-dependent.
     kString,
     kStringRelative,   // NOTE: Actual patching is instruction_set-dependent.
+    kStringBssEntry,   // NOTE: Actual patching is instruction_set-dependent.
     kDexCacheArray,    // NOTE: Actual patching is instruction_set-dependent.
   };
 
@@ -244,10 +245,20 @@ class LinkerPatch {
     return patch;
   }
 
+  static LinkerPatch StringBssEntryPatch(size_t literal_offset,
+                                         const DexFile* target_dex_file,
+                                         uint32_t pc_insn_offset,
+                                         uint32_t target_string_idx) {
+    LinkerPatch patch(literal_offset, Type::kStringBssEntry, target_dex_file);
+    patch.string_idx_ = target_string_idx;
+    patch.pc_insn_offset_ = pc_insn_offset;
+    return patch;
+  }
+
   static LinkerPatch DexCacheArrayPatch(size_t literal_offset,
                                         const DexFile* target_dex_file,
                                         uint32_t pc_insn_offset,
-                                        size_t element_offset) {
+                                        uint32_t element_offset) {
     DCHECK(IsUint<32>(element_offset));
     LinkerPatch patch(literal_offset, Type::kDexCacheArray, target_dex_file);
     patch.pc_insn_offset_ = pc_insn_offset;
@@ -271,6 +282,7 @@ class LinkerPatch {
       case Type::kCallRelative:
       case Type::kTypeRelative:
       case Type::kStringRelative:
+      case Type::kStringBssEntry:
       case Type::kDexCacheArray:
         return true;
       default:
@@ -296,12 +308,16 @@ class LinkerPatch {
   }
 
   const DexFile* TargetStringDexFile() const {
-    DCHECK(patch_type_ == Type::kString || patch_type_ == Type::kStringRelative);
+    DCHECK(patch_type_ == Type::kString ||
+           patch_type_ == Type::kStringRelative ||
+           patch_type_ == Type::kStringBssEntry);
     return target_dex_file_;
   }
 
   uint32_t TargetStringIndex() const {
-    DCHECK(patch_type_ == Type::kString || patch_type_ == Type::kStringRelative);
+    DCHECK(patch_type_ == Type::kString ||
+           patch_type_ == Type::kStringRelative ||
+           patch_type_ == Type::kStringBssEntry);
     return string_idx_;
   }
 
@@ -318,6 +334,7 @@ class LinkerPatch {
   uint32_t PcInsnOffset() const {
     DCHECK(patch_type_ == Type::kTypeRelative ||
            patch_type_ == Type::kStringRelative ||
+           patch_type_ == Type::kStringBssEntry ||
            patch_type_ == Type::kDexCacheArray);
     return pc_insn_offset_;
   }

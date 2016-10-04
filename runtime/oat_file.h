@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 
+#include "base/array_ref.h"
 #include "base/mutex.h"
 #include "base/stringpiece.h"
 #include "dex_file.h"
@@ -38,6 +39,7 @@ namespace art {
 
 class BitVector;
 class ElfFile;
+template <class MirrorType> class GcRoot;
 class MemMap;
 class OatMethodOffsets;
 class OatHeader;
@@ -253,6 +255,10 @@ class OatFile {
     return BssEnd() - BssBegin();
   }
 
+  size_t BssRootsOffset() const {
+    return bss_roots_ - BssBegin();
+  }
+
   size_t DexSize() const {
     return DexEnd() - DexBegin();
   }
@@ -265,6 +271,8 @@ class OatFile {
 
   const uint8_t* DexBegin() const;
   const uint8_t* DexEnd() const;
+
+  ArrayRef<GcRoot<mirror::Object>> GetBssGcRoots() const;
 
   // Returns the absolute dex location for the encoded relative dex location.
   //
@@ -313,6 +321,9 @@ class OatFile {
 
   // Pointer to the end of the .bss section, if present, otherwise null.
   uint8_t* bss_end_;
+
+  // Pointer to the beginning of the GC roots in .bss section, if present, otherwise null.
+  uint8_t* bss_roots_;
 
   // Was this oat_file loaded executable?
   const bool is_executable_;
