@@ -23,16 +23,14 @@
 
 #include "base/mutex.h"
 #include "base/stringpiece.h"
+#include "compiler_filter.h"
 #include "dex_file.h"
-#include "invoke_type.h"
-#include "mem_map.h"
 #include "mirror/class.h"
 #include "oat.h"
 #include "os.h"
 #include "type_lookup_table.h"
 #include "utf.h"
 #include "utils.h"
-#include "vdex_file.h"
 
 namespace art {
 
@@ -42,6 +40,7 @@ class MemMap;
 class OatMethodOffsets;
 class OatHeader;
 class OatDexFile;
+class VdexFile;
 
 namespace gc {
 namespace collector {
@@ -200,7 +199,7 @@ class OatFile {
     uint32_t GetOatMethodOffsetsOffset(uint32_t method_index) const;
 
     // A representation of an invalid OatClass, used when an OatClass can't be found.
-    // See ClassLinker::FindOatClass.
+    // See FindOatClass().
     static OatClass Invalid() {
       return OatClass(nullptr, mirror::Class::kStatusError, kOatClassNoneCompiled, 0, nullptr,
                       nullptr);
@@ -289,6 +288,10 @@ class OatFile {
   // locations of multidex files.
   static bool GetDexLocationsFromDependencies(const char* dex_dependencies,
                                               std::vector<std::string>* locations);
+
+  // Finds the associated oat class for a dex_file and descriptor. Returns an invalid OatClass on
+  // error and sets found to false.
+  static OatClass FindOatClass(const DexFile& dex_file, uint16_t class_def_idx, bool* found);
 
  protected:
   OatFile(const std::string& filename, bool executable);

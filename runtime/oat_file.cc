@@ -52,6 +52,7 @@
 #include "utf-inl.h"
 #include "utils.h"
 #include "utils/dex_cache_arrays_layout-inl.h"
+#include "vdex_file.h"
 
 namespace art {
 
@@ -1495,6 +1496,19 @@ bool OatFile::GetDexLocationsFromDependencies(const char* dex_dependencies,
   }
 
   return true;
+}
+
+OatFile::OatClass OatFile::FindOatClass(const DexFile& dex_file,
+                                        uint16_t class_def_idx,
+                                        bool* found) {
+  DCHECK_NE(class_def_idx, DexFile::kDexNoIndex16);
+  const OatFile::OatDexFile* oat_dex_file = dex_file.GetOatDexFile();
+  if (oat_dex_file == nullptr) {
+    *found = false;
+    return OatFile::OatClass::Invalid();
+  }
+  *found = true;
+  return oat_dex_file->GetOatClass(class_def_idx);
 }
 
 }  // namespace art

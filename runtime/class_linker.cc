@@ -2750,122 +2750,21 @@ uint32_t ClassLinker::SizeOfClassWithoutEmbeddedTables(const DexFile& dex_file,
                                          image_pointer_size_);
 }
 
-OatFile::OatClass ClassLinker::FindOatClass(const DexFile& dex_file,
-                                            uint16_t class_def_idx,
-                                            bool* found) {
-  DCHECK_NE(class_def_idx, DexFile::kDexNoIndex16);
-  const OatFile::OatDexFile* oat_dex_file = dex_file.GetOatDexFile();
-  if (oat_dex_file == nullptr) {
-    *found = false;
-    return OatFile::OatClass::Invalid();
-  }
-  *found = true;
-  return oat_dex_file->GetOatClass(class_def_idx);
-}
-
-static uint32_t GetOatMethodIndexFromMethodIndex(const DexFile& dex_file,
-                                                 uint16_t class_def_idx,
-                                                 uint32_t method_idx) {
-  const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_idx);
-  const uint8_t* class_data = dex_file.GetClassData(class_def);
-  CHECK(class_data != nullptr);
-  ClassDataItemIterator it(dex_file, class_data);
-  // Skip fields
-  while (it.HasNextStaticField()) {
-    it.Next();
-  }
-  while (it.HasNextInstanceField()) {
-    it.Next();
-  }
-  // Process methods
-  size_t class_def_method_index = 0;
-  while (it.HasNextDirectMethod()) {
-    if (it.GetMemberIndex() == method_idx) {
-      return class_def_method_index;
-    }
-    class_def_method_index++;
-    it.Next();
-  }
-  while (it.HasNextVirtualMethod()) {
-    if (it.GetMemberIndex() == method_idx) {
-      return class_def_method_index;
-    }
-    class_def_method_index++;
-    it.Next();
-  }
-  DCHECK(!it.HasNext());
-  LOG(FATAL) << "Failed to find method index " << method_idx << " in " << dex_file.GetLocation();
-  UNREACHABLE();
-}
-
-const OatFile::OatMethod ClassLinker::FindOatMethodFor(ArtMethod* method, bool* found) {
-  // Although we overwrite the trampoline of non-static methods, we may get here via the resolution
-  // method for direct methods (or virtual methods made direct).
-  mirror::Class* declaring_class = method->GetDeclaringClass();
-  size_t oat_method_index;
-  if (method->IsStatic() || method->IsDirect()) {
-    // Simple case where the oat method index was stashed at load time.
-    oat_method_index = method->GetMethodIndex();
-  } else {
-    // We're invoking a virtual method directly (thanks to sharpening), compute the oat_method_index
-    // by search for its position in the declared virtual methods.
-    oat_method_index = declaring_class->NumDirectMethods();
-    bool found_virtual = false;
-    for (ArtMethod& art_method : declaring_class->GetVirtualMethods(image_pointer_size_)) {
-      // Check method index instead of identity in case of duplicate method definitions.
-      if (method->GetDexMethodIndex() == art_method.GetDexMethodIndex()) {
-        found_virtual = true;
-        break;
-      }
-      oat_method_index++;
-    }
-    CHECK(found_virtual) << "Didn't find oat method index for virtual method: "
-                         << PrettyMethod(method);
-  }
-  DCHECK_EQ(oat_method_index,
-            GetOatMethodIndexFromMethodIndex(*declaring_class->GetDexCache()->GetDexFile(),
-                                             method->GetDeclaringClass()->GetDexClassDefIndex(),
-                                             method->GetDexMethodIndex()));
-  OatFile::OatClass oat_class = FindOatClass(*declaring_class->GetDexCache()->GetDexFile(),
-                                             declaring_class->GetDexClassDefIndex(),
-                                             found);
-  if (!(*found)) {
-    return OatFile::OatMethod::Invalid();
-  }
-  return oat_class.GetOatMethod(oat_method_index);
-}
-
 // Special case to get oat code without overwriting a trampoline.
 const void* ClassLinker::GetQuickOatCodeFor(ArtMethod* method) {
   CHECK(method->IsInvokable()) << PrettyMethod(method);
   if (method->IsProxyMethod()) {
     return GetQuickProxyInvokeHandler();
   }
-  bool found;
-  OatFile::OatMethod oat_method = FindOatMethodFor(method, &found);
-  if (found) {
-    auto* code = oat_method.GetQuickCode();
-    if (code != nullptr) {
-      return code;
-    }
+  auto* code = method->GetOatMethodQuickCode(GetImagePointerSize());
+  if (code != nullptr) {
+    return code;
   }
   if (method->IsNative()) {
     // No code and native? Use generic trampoline.
     return GetQuickGenericJniStub();
   }
   return GetQuickToInterpreterBridge();
-}
-
-const void* ClassLinker::GetOatMethodQuickCodeFor(ArtMethod* method) {
-  if (method->IsNative() || !method->IsInvokable() || method->IsProxyMethod()) {
-    return nullptr;
-  }
-  bool found;
-  OatFile::OatMethod oat_method = FindOatMethodFor(method, &found);
-  if (found) {
-    return oat_method.GetQuickCode();
-  }
-  return nullptr;
 }
 
 bool ClassLinker::ShouldUseInterpreterEntrypoint(ArtMethod* method, const void* quick_code) {
@@ -2938,9 +2837,9 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
     it.Next();
   }
   bool has_oat_class;
-  OatFile::OatClass oat_class = FindOatClass(dex_file,
-                                             klass->GetDexClassDefIndex(),
-                                             &has_oat_class);
+  OatFile::OatClass oat_class = OatFile::FindOatClass(dex_file,
+                                                      klass->GetDexClassDefIndex(),
+                                                      &has_oat_class);
   // Link the code of methods skipped by LinkCode.
   for (size_t method_index = 0; it.HasNextDirectMethod(); ++method_index, it.Next()) {
     ArtMethod* method = klass->GetDirectMethod(method_index, image_pointer_size_);
@@ -2965,15 +2864,20 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
   // Ignore virtual methods on the iterator.
 }
 
-void ClassLinker::EnsureThrowsInvocationError(ArtMethod* method) {
+// Does anything needed to make sure that the compiler will not generate a direct invoke to this
+// method. Should only be called on non-invokable methods.
+inline void EnsureThrowsInvocationError(ClassLinker* class_linker, ArtMethod* method) {
   DCHECK(method != nullptr);
   DCHECK(!method->IsInvokable());
-  method->SetEntryPointFromQuickCompiledCodePtrSize(quick_to_interpreter_bridge_trampoline_,
-                                                    image_pointer_size_);
+  method->SetEntryPointFromQuickCompiledCodePtrSize(
+      class_linker->GetQuickToInterpreterBridgeTrampoline(),
+      class_linker->GetImagePointerSize());
 }
 
-void ClassLinker::LinkCode(ArtMethod* method, const OatFile::OatClass* oat_class,
-                           uint32_t class_def_method_index) {
+static void LinkCode(ClassLinker* class_linker,
+                     ArtMethod* method,
+                     const OatFile::OatClass* oat_class,
+                     uint32_t class_def_method_index) REQUIRES_SHARED(Locks::mutator_lock_) {
   Runtime* const runtime = Runtime::Current();
   if (runtime->IsAotCompiler()) {
     // The following code only applies to a non-compiler runtime.
@@ -2990,10 +2894,10 @@ void ClassLinker::LinkCode(ArtMethod* method, const OatFile::OatClass* oat_class
 
   // Install entry point from interpreter.
   const void* quick_code = method->GetEntryPointFromQuickCompiledCode();
-  bool enter_interpreter = ShouldUseInterpreterEntrypoint(method, quick_code);
+  bool enter_interpreter = class_linker->ShouldUseInterpreterEntrypoint(method, quick_code);
 
   if (!method->IsInvokable()) {
-    EnsureThrowsInvocationError(method);
+    EnsureThrowsInvocationError(class_linker, method);
     return;
   }
 
@@ -3018,7 +2922,8 @@ void ClassLinker::LinkCode(ArtMethod* method, const OatFile::OatClass* oat_class
       // trampoline as entrypoint (non-static), or the resolution trampoline (static).
       // TODO: this doesn't handle all the cases where trampolines may be installed.
       const void* entry_point = method->GetEntryPointFromQuickCompiledCode();
-      DCHECK(IsQuickGenericJniStub(entry_point) || IsQuickResolutionStub(entry_point));
+      DCHECK(class_linker->IsQuickGenericJniStub(entry_point) ||
+             class_linker->IsQuickResolutionStub(entry_point));
     }
   }
 }
@@ -3054,17 +2959,7 @@ void ClassLinker::LoadClass(Thread* self,
   if (class_data == nullptr) {
     return;  // no fields or methods - for example a marker interface
   }
-  bool has_oat_class = false;
-  if (Runtime::Current()->IsStarted() && !Runtime::Current()->IsAotCompiler()) {
-    OatFile::OatClass oat_class = FindOatClass(dex_file, klass->GetDexClassDefIndex(),
-                                               &has_oat_class);
-    if (has_oat_class) {
-      LoadClassMembers(self, dex_file, class_data, klass, &oat_class);
-    }
-  }
-  if (!has_oat_class) {
-    LoadClassMembers(self, dex_file, class_data, klass, nullptr);
-  }
+  LoadClassMembers(self, dex_file, class_data, klass);
 }
 
 LengthPrefixedArray<ArtField>* ClassLinker::AllocArtFieldArray(Thread* self,
@@ -3128,8 +3023,7 @@ LinearAlloc* ClassLinker::GetOrCreateAllocatorForClassLoader(mirror::ClassLoader
 void ClassLinker::LoadClassMembers(Thread* self,
                                    const DexFile& dex_file,
                                    const uint8_t* class_data,
-                                   Handle<mirror::Class> klass,
-                                   const OatFile::OatClass* oat_class) {
+                                   Handle<mirror::Class> klass) {
   {
     // Note: We cannot have thread suspension until the field and method arrays are setup or else
     // Class::VisitFieldRoots may miss some fields or methods.
@@ -3189,6 +3083,12 @@ void ClassLinker::LoadClassMembers(Thread* self,
     klass->SetIFieldsPtr(ifields);
     DCHECK_EQ(klass->NumInstanceFields(), num_ifields);
     // Load methods.
+    bool has_oat_class = false;
+    const OatFile::OatClass oat_class =
+        (Runtime::Current()->IsStarted() && !Runtime::Current()->IsAotCompiler())
+            ? OatFile::FindOatClass(dex_file, klass->GetDexClassDefIndex(), &has_oat_class)
+            : OatFile::OatClass::Invalid();
+    const OatFile::OatClass* oat_class_ptr = has_oat_class ? &oat_class : nullptr;
     klass->SetMethodsPtr(
         AllocArtMethodArray(self, allocator, it.NumDirectMethods() + it.NumVirtualMethods()),
         it.NumDirectMethods(),
@@ -3200,7 +3100,7 @@ void ClassLinker::LoadClassMembers(Thread* self,
     for (size_t i = 0; it.HasNextDirectMethod(); i++, it.Next()) {
       ArtMethod* method = klass->GetDirectMethodUnchecked(i, image_pointer_size_);
       LoadMethod(dex_file, it, klass, method);
-      LinkCode(method, oat_class, class_def_method_index);
+      LinkCode(this, method, oat_class_ptr, class_def_method_index);
       uint32_t it_method_index = it.GetMemberIndex();
       if (last_dex_method_index == it_method_index) {
         // duplicate case
@@ -3216,7 +3116,7 @@ void ClassLinker::LoadClassMembers(Thread* self,
       ArtMethod* method = klass->GetVirtualMethodUnchecked(i, image_pointer_size_);
       LoadMethod(dex_file, it, klass, method);
       DCHECK_EQ(class_def_method_index, it.NumDirectMethods() + i);
-      LinkCode(method, oat_class, class_def_method_index);
+      LinkCode(this, method, oat_class_ptr, class_def_method_index);
       class_def_method_index++;
     }
     DCHECK(!it.HasNext());
@@ -7185,7 +7085,7 @@ bool ClassLinker::LinkInterfaceMethods(
         // The actual method might or might not be marked abstract since we just copied it from a
         // (possibly default) interface method. We need to set it entry point to be the bridge so
         // that the compiler will not invoke the implementation of whatever method we copied from.
-        EnsureThrowsInvocationError(&new_method);
+        EnsureThrowsInvocationError(this, &new_method);
         move_table.emplace(conf_method, &new_method);
         ++out;
       }

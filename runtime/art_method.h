@@ -600,11 +600,15 @@ class ArtMethod FINAL {
     return hotness_count_;
   }
 
-  const uint8_t* GetQuickenedInfo() REQUIRES_SHARED(Locks::mutator_lock_);
+  const uint8_t* GetQuickenedInfo(PointerSize pointer_size) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns the method header for the compiled code containing 'pc'. Note that runtime
   // methods will return null for this method, as they are not oat based.
   const OatQuickMethodHeader* GetOatQuickMethodHeader(uintptr_t pc)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  // Get compiled code for the method, return null if no code exists.
+  const void* GetOatMethodQuickCode(PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns whether the method has any compiled code, JIT or AOT.
