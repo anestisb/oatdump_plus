@@ -25,8 +25,12 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include "base/logging.h"
+#include "jit/offline_profiling_info.h"
 #include "mem_map.h"
 
 namespace art {
@@ -37,9 +41,9 @@ static const char* kProgramName = "dexlayout";
  * Shows usage.
  */
 static void Usage(void) {
-  fprintf(stderr, "Copyright (C) 2007 The Android Open Source Project\n\n");
-  fprintf(stderr, "%s: [-a] [-c] [-d] [-e] [-f] [-h] [-i] [-l layout] [-o outfile] [-w]"
-                  " dexfile...\n\n", kProgramName);
+  fprintf(stderr, "Copyright (C) 2016 The Android Open Source Project\n\n");
+  fprintf(stderr, "%s: [-a] [-c] [-d] [-e] [-f] [-h] [-i] [-l layout] [-o outfile] [-p profile]"
+                  " [-s] [-w] dexfile...\n\n", kProgramName);
   fprintf(stderr, " -a : display annotations\n");
   fprintf(stderr, " -b : build dex_ir\n");
   fprintf(stderr, " -c : verify checksum and exit\n");
@@ -51,6 +55,8 @@ static void Usage(void) {
   fprintf(stderr, " -i : ignore checksum failures\n");
   fprintf(stderr, " -l : output layout, either 'plain' or 'xml'\n");
   fprintf(stderr, " -o : output file name (defaults to stdout)\n");
+  fprintf(stderr, " -p : profile file name (defaults to no profile)\n");
+  fprintf(stderr, " -s : visualize reference pattern\n");
   fprintf(stderr, " -w : output dex files\n");
 }
 
@@ -69,7 +75,7 @@ int DexlayoutDriver(int argc, char** argv) {
 
   // Parse all arguments.
   while (1) {
-    const int ic = getopt(argc, argv, "abcdefghil:o:w");
+    const int ic = getopt(argc, argv, "abcdefghil:o:p:sw");
     if (ic < 0) {
       break;  // done
     }
@@ -114,6 +120,13 @@ int DexlayoutDriver(int argc, char** argv) {
       case 'o':  // output file
         options_.output_file_name_ = optarg;
         break;
+      case 'p':  // profile file
+        options_.profile_file_name_ = optarg;
+        break;
+      case 's':  // visualize access pattern
+        options_.visualize_pattern_ = true;
+        options_.verbose_ = false;
+        break;
       case 'w':  // output dex files
         options_.output_dex_files_ = true;
         break;
@@ -142,6 +155,20 @@ int DexlayoutDriver(int argc, char** argv) {
     out_file_ = fopen(options_.output_file_name_, "w");
     if (!out_file_) {
       fprintf(stderr, "Can't open %s\n", options_.output_file_name_);
+      return 1;
+    }
+  }
+
+  // Open profile file.
+  if (options_.profile_file_name_) {
+    int profile_fd = open(options_.profile_file_name_, O_RDONLY);
+    if (profile_fd < 0) {
+      fprintf(stderr, "Can't open %s\n", options_.profile_file_name_);
+      return 1;
+    }
+    profile_info_ = new ProfileCompilationInfo();
+    if (!profile_info_->Load(profile_fd)) {
+      fprintf(stderr, "Can't read profile info from %s\n", options_.profile_file_name_);
       return 1;
     }
   }

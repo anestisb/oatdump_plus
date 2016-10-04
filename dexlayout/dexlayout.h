@@ -28,6 +28,8 @@
 
 namespace art {
 
+class ProfileCompilationInfo;
+
 /* Supported output formats. */
 enum OutputFormat {
   kOutputPlain = 0,  // default
@@ -47,13 +49,16 @@ struct Options {
   bool show_file_headers_;
   bool show_section_headers_;
   bool verbose_;
+  bool visualize_pattern_;
   OutputFormat output_format_;
   const char* output_file_name_;
+  const char* profile_file_name_;
 };
 
 /* Prototypes. */
 extern struct Options options_;
 extern FILE* out_file_;
+extern ProfileCompilationInfo* profile_info_;
 int ProcessFile(const char* file_name);
 
 }  // namespace art
