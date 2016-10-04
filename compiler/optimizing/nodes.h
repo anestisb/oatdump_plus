@@ -366,8 +366,8 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   // is a throw-catch loop, i.e. the header is a catch block.
   GraphAnalysisResult AnalyzeLoops() const;
 
-  // Computes the linear order (should be called before using HLinearOrderIterator).
-  // Linearizes the graph such that:
+  // Computes a linear order for the current graph (should be called before
+  // using HLinearOrderIterator). Linearizes the graph such that:
   // (1): a block is always after its dominator,
   // (2): blocks of loops are contiguous.
   // This creates a natural and efficient ordering when visualizing live ranges.
@@ -586,7 +586,8 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   // List of blocks to perform a reverse post order tree traversal.
   ArenaVector<HBasicBlock*> reverse_post_order_;
 
-  // List of blocks to perform a linear order tree traversal.
+  // List of blocks to perform a linear order tree traversal. Unlike the reverse
+  // post order, this order is not incrementally kept up-to-date.
   ArenaVector<HBasicBlock*> linear_order_;
 
   HBasicBlock* entry_block_;
