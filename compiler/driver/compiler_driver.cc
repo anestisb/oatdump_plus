@@ -1410,7 +1410,7 @@ void CompilerDriver::MarkForDexToDexCompilation(Thread* self, const MethodRefere
 bool CompilerDriver::CanAssumeTypeIsPresentInDexCache(Handle<mirror::DexCache> dex_cache,
                                                       uint32_t type_idx) {
   bool result = false;
-  if ((IsBootImage() &&
+  if ((GetCompilerOptions().IsBootImage() &&
        IsImageClass(dex_cache->GetDexFile()->StringDataByIdx(
            dex_cache->GetDexFile()->GetTypeId(type_idx).descriptor_idx_))) ||
       Runtime::Current()->UseJitCompilation()) {
@@ -1431,13 +1431,13 @@ bool CompilerDriver::CanAssumeStringIsPresentInDexCache(const DexFile& dex_file,
   // See also Compiler::ResolveDexFile
 
   bool result = false;
-  if (IsBootImage() || Runtime::Current()->UseJitCompilation()) {
+  if (GetCompilerOptions().IsBootImage() || Runtime::Current()->UseJitCompilation()) {
     ScopedObjectAccess soa(Thread::Current());
     StackHandleScope<1> hs(soa.Self());
     ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(
         soa.Self(), dex_file, false)));
-    if (IsBootImage()) {
+    if (GetCompilerOptions().IsBootImage()) {
       // We resolve all const-string strings when building for the image.
       class_linker->ResolveString(dex_file, string_idx, dex_cache);
       result = true;
@@ -1540,7 +1540,7 @@ bool CompilerDriver::CanEmbedTypeInCode(const DexFile& dex_file, uint32_t type_i
   if (compiling_boot) {
     // boot -> boot class pointers.
     // True if the class is in the image at boot compiling time.
-    const bool is_image_class = IsBootImage() && IsImageClass(
+    const bool is_image_class = GetCompilerOptions().IsBootImage() && IsImageClass(
         dex_file.StringDataByIdx(dex_file.GetTypeId(type_idx).descriptor_idx_));
     // True if pc relative load works.
     if (is_image_class && support_boot_image_fixup) {
