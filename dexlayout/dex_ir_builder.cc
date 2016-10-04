@@ -24,6 +24,8 @@
 namespace art {
 namespace dex_ir {
 
+static void CheckAndSetRemainingOffsets(const DexFile& dex_file, Collections* collections);
+
 Header* DexIrBuilder(const DexFile& dex_file) {
   const DexFile::Header& disk_header = dex_file.GetHeader();
   Header* header = new Header(disk_header.magic_,
@@ -69,7 +71,86 @@ Header* DexIrBuilder(const DexFile& dex_file) {
     collections.CreateClassDef(dex_file, i);
   }
 
+  CheckAndSetRemainingOffsets(dex_file, &collections);
+
   return header;
+}
+
+static void CheckAndSetRemainingOffsets(const DexFile& dex_file, Collections* collections) {
+  const DexFile::Header& disk_header = dex_file.GetHeader();
+  // Read MapItems and validate/set remaining offsets.
+  const DexFile::MapList* map =
+      reinterpret_cast<const DexFile::MapList*>(dex_file.Begin() + disk_header.map_off_);
+  const uint32_t count = map->size_;
+  for (uint32_t i = 0; i < count; ++i) {
+    const DexFile::MapItem* item = map->list_ + i;
+    switch (item->type_) {
+      case DexFile::kDexTypeHeaderItem:
+        CHECK_EQ(item->size_, 1u);
+        CHECK_EQ(item->offset_, 0u);
+        break;
+      case DexFile::kDexTypeStringIdItem:
+        CHECK_EQ(item->size_, collections->StringIdsSize());
+        CHECK_EQ(item->offset_, collections->StringIdsOffset());
+        break;
+      case DexFile::kDexTypeTypeIdItem:
+        CHECK_EQ(item->size_, collections->TypeIdsSize());
+        CHECK_EQ(item->offset_, collections->TypeIdsOffset());
+        break;
+      case DexFile::kDexTypeProtoIdItem:
+        CHECK_EQ(item->size_, collections->ProtoIdsSize());
+        CHECK_EQ(item->offset_, collections->ProtoIdsOffset());
+        break;
+      case DexFile::kDexTypeFieldIdItem:
+        CHECK_EQ(item->size_, collections->FieldIdsSize());
+        CHECK_EQ(item->offset_, collections->FieldIdsOffset());
+        break;
+      case DexFile::kDexTypeMethodIdItem:
+        CHECK_EQ(item->size_, collections->MethodIdsSize());
+        CHECK_EQ(item->offset_, collections->MethodIdsOffset());
+        break;
+      case DexFile::kDexTypeClassDefItem:
+        CHECK_EQ(item->size_, collections->ClassDefsSize());
+        CHECK_EQ(item->offset_, collections->ClassDefsOffset());
+        break;
+      case DexFile::kDexTypeMapList:
+        CHECK_EQ(item->size_, 1u);
+        CHECK_EQ(item->offset_, disk_header.map_off_);
+        break;
+      case DexFile::kDexTypeTypeList:
+        collections->SetTypeListsOffset(item->offset_);
+        break;
+      case DexFile::kDexTypeAnnotationSetRefList:
+        collections->SetAnnotationSetRefListsOffset(item->offset_);
+        break;
+      case DexFile::kDexTypeAnnotationSetItem:
+        collections->SetAnnotationSetOffset(item->offset_);
+        break;
+      case DexFile::kDexTypeClassDataItem:
+        collections->SetClassDatasOffset(item->offset_);
+        break;
+      case DexFile::kDexTypeCodeItem:
+        collections->SetCodeItemsOffset(item->offset_);
+        break;
+      case DexFile::kDexTypeStringDataItem:
+        collections->SetStringDatasOffset(item->offset_);
+        break;
+      case DexFile::kDexTypeDebugInfoItem:
+        collections->SetDebugInfoOffset(item->offset_);
+        break;
+      case DexFile::kDexTypeAnnotationItem:
+        collections->SetAnnotationOffset(item->offset_);
+        break;
+      case DexFile::kDexTypeEncodedArrayItem:
+        collections->SetEncodedArrayOffset(item->offset_);
+        break;
+      case DexFile::kDexTypeAnnotationsDirectoryItem:
+        collections->SetAnnotationsDirectoryOffset(item->offset_);
+        break;
+      default:
+        LOG(ERROR) << "Unknown map list item type.";
+    }
+  }
 }
 
 }  // namespace dex_ir
