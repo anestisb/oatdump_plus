@@ -22,7 +22,7 @@
 #include "art_method-inl.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
-#include "jvalue.h"
+#include "jvalue-inl.h"
 #include "mirror/field.h"
 #include "mirror/method.h"
 #include "reflection.h"

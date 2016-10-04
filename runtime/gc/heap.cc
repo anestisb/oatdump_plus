@@ -3702,7 +3702,7 @@ void Heap::AddFinalizerReference(Thread* self, ObjPtr<mirror::Object>* object) {
   args[0].l = arg.get();
   InvokeWithJValues(soa, nullptr, WellKnownClasses::java_lang_ref_FinalizerReference_add, args);
   // Restore object in case it gets moved.
-  *object = soa.Decode<mirror::Object>(arg.get()).Ptr();
+  *object = soa.Decode<mirror::Object>(arg.get());
 }
 
 void Heap::RequestConcurrentGCAndSaveObject(Thread* self,

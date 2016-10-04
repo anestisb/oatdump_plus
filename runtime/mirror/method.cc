@@ -54,12 +54,12 @@ void Method::ResetArrayClass() {
 template <PointerSize kPointerSize, bool kTransactionActive>
 Method* Method::CreateFromArtMethod(Thread* self, ArtMethod* method) {
   DCHECK(!method->IsConstructor()) << PrettyMethod(method);
-  auto* ret = down_cast<Method*>(StaticClass()->AllocObject(self));
+  ObjPtr<Method> ret = ObjPtr<Method>::DownCast(StaticClass()->AllocObject(self));
   if (LIKELY(ret != nullptr)) {
-    static_cast<Executable*>(ret)->
+    ObjPtr<Executable>(ret)->
         CreateFromArtMethod<kPointerSize, kTransactionActive>(method);
   }
-  return ret;
+  return ret.Ptr();
 }
 
 template Method* Method::CreateFromArtMethod<PointerSize::k32, false>(Thread* self,
@@ -106,12 +106,12 @@ void Constructor::VisitRoots(RootVisitor* visitor) {
 template <PointerSize kPointerSize, bool kTransactionActive>
 Constructor* Constructor::CreateFromArtMethod(Thread* self, ArtMethod* method) {
   DCHECK(method->IsConstructor()) << PrettyMethod(method);
-  auto* ret = down_cast<Constructor*>(StaticClass()->AllocObject(self));
+  ObjPtr<Constructor> ret = ObjPtr<Constructor>::DownCast(StaticClass()->AllocObject(self));
   if (LIKELY(ret != nullptr)) {
-    static_cast<Executable*>(ret)->
+    ObjPtr<Executable>(ret)->
         CreateFromArtMethod<kPointerSize, kTransactionActive>(method);
   }
-  return ret;
+  return ret.Ptr();
 }
 
 template Constructor* Constructor::CreateFromArtMethod<PointerSize::k32, false>(

@@ -48,7 +48,7 @@ inline mirror::Field* Field::CreateFromArtField(Thread* self, ArtField* field, b
       self->ClearException();
     }
   }
-  auto ret = hs.NewHandle(static_cast<Field*>(StaticClass()->AllocObject(self)));
+  auto ret = hs.NewHandle(static_cast<Field*>(StaticClass()->AllocObject(self).Ptr()));
   if (UNLIKELY(ret.Get() == nullptr)) {
     self->AssertPendingOOMException();
     return nullptr;
