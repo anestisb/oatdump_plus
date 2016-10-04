@@ -504,15 +504,14 @@ void AbortTransactionV(Thread* self, const char* fmt, va_list args) {
 
 // Separate declaration is required solely for the attributes.
 template <bool is_range,
-          bool do_assignability_check,
-          size_t kVarArgMax>
+          bool do_assignability_check>
     REQUIRES_SHARED(Locks::mutator_lock_)
 static inline bool DoCallCommon(ArtMethod* called_method,
                                 Thread* self,
                                 ShadowFrame& shadow_frame,
                                 JValue* result,
                                 uint16_t number_of_inputs,
-                                uint32_t (&arg)[kVarArgMax],
+                                uint32_t (&arg)[Instruction::kMaxVarArgRegs],
                                 uint32_t vregC) ALWAYS_INLINE;
 
 void ArtInterpreterToCompiledCodeBridge(Thread* self,
@@ -578,14 +577,13 @@ void SetStringInitValueToAllAliases(ShadowFrame* shadow_frame,
 }
 
 template <bool is_range,
-          bool do_assignability_check,
-          size_t kVarArgMax>
+          bool do_assignability_check>
 static inline bool DoCallCommon(ArtMethod* called_method,
                                 Thread* self,
                                 ShadowFrame& shadow_frame,
                                 JValue* result,
                                 uint16_t number_of_inputs,
-                                uint32_t (&arg)[kVarArgMax],
+                                uint32_t (&arg)[Instruction::kMaxVarArgRegs],
                                 uint32_t vregC) {
   bool string_init = false;
   // Replace calls to String.<init> with equivalent StringFactory call.
