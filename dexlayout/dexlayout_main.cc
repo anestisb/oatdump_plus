@@ -43,7 +43,7 @@ static const char* kProgramName = "dexlayout";
 static void Usage(void) {
   fprintf(stderr, "Copyright (C) 2016 The Android Open Source Project\n\n");
   fprintf(stderr, "%s: [-a] [-c] [-d] [-e] [-f] [-h] [-i] [-l layout] [-o outfile] [-p profile]"
-                  " [-s] [-w] dexfile...\n\n", kProgramName);
+                  " [-s] [-w directory] dexfile...\n\n", kProgramName);
   fprintf(stderr, " -a : display annotations\n");
   fprintf(stderr, " -b : build dex_ir\n");
   fprintf(stderr, " -c : verify checksum and exit\n");
@@ -57,7 +57,7 @@ static void Usage(void) {
   fprintf(stderr, " -o : output file name (defaults to stdout)\n");
   fprintf(stderr, " -p : profile file name (defaults to no profile)\n");
   fprintf(stderr, " -s : visualize reference pattern\n");
-  fprintf(stderr, " -w : output dex files\n");
+  fprintf(stderr, " -w : output dex directory \n");
 }
 
 /*
@@ -75,7 +75,7 @@ int DexlayoutDriver(int argc, char** argv) {
 
   // Parse all arguments.
   while (1) {
-    const int ic = getopt(argc, argv, "abcdefghil:o:p:sw");
+    const int ic = getopt(argc, argv, "abcdefghil:o:p:sw:");
     if (ic < 0) {
       break;  // done
     }
@@ -127,8 +127,8 @@ int DexlayoutDriver(int argc, char** argv) {
         options_.visualize_pattern_ = true;
         options_.verbose_ = false;
         break;
-      case 'w':  // output dex files
-        options_.output_dex_files_ = true;
+      case 'w':  // output dex files directory
+        options_.output_dex_directory_ = optarg;
         break;
       default:
         want_usage = true;
