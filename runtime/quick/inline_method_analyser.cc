@@ -738,8 +738,8 @@ bool InlineMethodAnalyser::ComputeSpecialAccessorInfo(ArtMethod* method,
   if (field == nullptr || field->IsStatic()) {
     return false;
   }
-  mirror::Class* method_class = method->GetDeclaringClass();
-  mirror::Class* field_class = field->GetDeclaringClass();
+  ObjPtr<mirror::Class> method_class = method->GetDeclaringClass();
+  ObjPtr<mirror::Class> field_class = field->GetDeclaringClass();
   if (!method_class->CanAccessResolvedField(field_class, field, dex_cache, field_idx) ||
       (is_put && field->IsFinal() && method_class != field_class)) {
     return false;

@@ -21,6 +21,7 @@
 #include "driver/dex_compilation_unit.h"
 #include "handle_scope-inl.h"
 #include "nodes.h"
+#include "obj_ptr.h"
 #include "optimization.h"
 #include "optimizing_compiler_stats.h"
 
@@ -59,6 +60,11 @@ class ReferenceTypePropagation : public HOptimization {
 
     template <typename T>
     MutableHandle<T> NewHandle(T* object) REQUIRES_SHARED(Locks::mutator_lock_) {
+      return handles_->NewHandle(object);
+    }
+
+    template <typename T>
+    MutableHandle<T> NewHandle(ObjPtr<T> object) REQUIRES_SHARED(Locks::mutator_lock_) {
       return handles_->NewHandle(object);
     }
 

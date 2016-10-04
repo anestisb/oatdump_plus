@@ -1688,7 +1688,7 @@ static void set_and_check_instance(ArtField* f, mirror::Object* trg,
 
   EXPECT_EQ(res, reinterpret_cast<size_t>(val)) << "Value " << val;
 
-  EXPECT_EQ(val, f->GetObj(trg));
+  EXPECT_OBJ_PTR_EQ(val, f->GetObj(trg));
 }
 #endif
 

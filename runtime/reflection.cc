@@ -244,13 +244,13 @@ class ArgArray {
 #define DO_FIRST_ARG(match_descriptor, get_fn, append) { \
           if (LIKELY(arg != nullptr && arg->GetClass()->DescriptorEquals(match_descriptor))) { \
             ArtField* primitive_field = arg->GetClass()->GetInstanceField(0); \
-            append(primitive_field-> get_fn(arg.Decode()));
+            append(primitive_field-> get_fn(arg));
 
 #define DO_ARG(match_descriptor, get_fn, append) \
           } else if (LIKELY(arg != nullptr && \
                             arg->GetClass<>()->DescriptorEquals(match_descriptor))) { \
             ArtField* primitive_field = arg->GetClass()->GetInstanceField(0); \
-            append(primitive_field-> get_fn(arg.Decode()));
+            append(primitive_field-> get_fn(arg));
 
 #define DO_FAIL(expected) \
           } else { \
@@ -801,28 +801,28 @@ static bool UnboxPrimitive(ObjPtr<mirror::Object> o,
   ArtField* primitive_field = &klass->GetIFieldsPtr()->At(0);
   if (klass->DescriptorEquals("Ljava/lang/Boolean;")) {
     src_class = class_linker->FindPrimitiveClass('Z');
-    boxed_value.SetZ(primitive_field->GetBoolean(o.Decode()));
+    boxed_value.SetZ(primitive_field->GetBoolean(o));
   } else if (klass->DescriptorEquals("Ljava/lang/Byte;")) {
     src_class = class_linker->FindPrimitiveClass('B');
-    boxed_value.SetB(primitive_field->GetByte(o.Decode()));
+    boxed_value.SetB(primitive_field->GetByte(o));
   } else if (klass->DescriptorEquals("Ljava/lang/Character;")) {
     src_class = class_linker->FindPrimitiveClass('C');
-    boxed_value.SetC(primitive_field->GetChar(o.Decode()));
+    boxed_value.SetC(primitive_field->GetChar(o));
   } else if (klass->DescriptorEquals("Ljava/lang/Float;")) {
     src_class = class_linker->FindPrimitiveClass('F');
-    boxed_value.SetF(primitive_field->GetFloat(o.Decode()));
+    boxed_value.SetF(primitive_field->GetFloat(o));
   } else if (klass->DescriptorEquals("Ljava/lang/Double;")) {
     src_class = class_linker->FindPrimitiveClass('D');
-    boxed_value.SetD(primitive_field->GetDouble(o.Decode()));
+    boxed_value.SetD(primitive_field->GetDouble(o));
   } else if (klass->DescriptorEquals("Ljava/lang/Integer;")) {
     src_class = class_linker->FindPrimitiveClass('I');
-    boxed_value.SetI(primitive_field->GetInt(o.Decode()));
+    boxed_value.SetI(primitive_field->GetInt(o));
   } else if (klass->DescriptorEquals("Ljava/lang/Long;")) {
     src_class = class_linker->FindPrimitiveClass('J');
-    boxed_value.SetJ(primitive_field->GetLong(o.Decode()));
+    boxed_value.SetJ(primitive_field->GetLong(o));
   } else if (klass->DescriptorEquals("Ljava/lang/Short;")) {
     src_class = class_linker->FindPrimitiveClass('S');
-    boxed_value.SetS(primitive_field->GetShort(o.Decode()));
+    boxed_value.SetS(primitive_field->GetShort(o));
   } else {
     std::string temp;
     ThrowIllegalArgumentException(
@@ -888,13 +888,13 @@ bool VerifyAccess(ObjPtr<mirror::Object> obj,
   }
   if ((access_flags & kAccProtected) != 0) {
     if (obj != nullptr && !obj->InstanceOf(calling_class) &&
-        !declaring_class->IsInSamePackage(calling_class.Decode())) {
+        !declaring_class->IsInSamePackage(calling_class)) {
       return false;
-    } else if (declaring_class->IsAssignableFrom(calling_class.Decode())) {
+    } else if (declaring_class->IsAssignableFrom(calling_class)) {
       return true;
     }
   }
-  return declaring_class->IsInSamePackage(calling_class.Decode());
+  return declaring_class->IsInSamePackage(calling_class);
 }
 
 void InvalidReceiverError(ObjPtr<mirror::Object> o, ObjPtr<mirror::Class> c) {

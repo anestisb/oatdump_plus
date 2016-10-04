@@ -384,12 +384,12 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
 
   ArtField* field = FindFieldFromCode<StaticObjectRead, true>(field_idx, clinit, Thread::Current(),
                                                               sizeof(HeapReference<Object>));
-  Object* s0 = field->GetObj(klass);
+  ObjPtr<Object> s0 = field->GetObj(klass);
   EXPECT_TRUE(s0 != nullptr);
 
   Handle<CharArray> char_array(hs.NewHandle(CharArray::Alloc(soa.Self(), 0)));
   field->SetObj<false>(field->GetDeclaringClass(), char_array.Get());
-  EXPECT_EQ(char_array.Get(), field->GetObj(klass));
+  EXPECT_OBJ_PTR_EQ(char_array.Get(), field->GetObj(klass));
 
   field->SetObj<false>(field->GetDeclaringClass(), nullptr);
   EXPECT_EQ(nullptr, field->GetObj(klass));
@@ -759,7 +759,7 @@ TEST_F(ObjectTest, ObjectPointer) {
   EXPECT_TRUE(!X.IsNull());
   EXPECT_TRUE(X.IsValid());
   EXPECT_TRUE(X.Decode() != nullptr);
-  EXPECT_EQ(h_X.Get(), X.Decode());
+  EXPECT_OBJ_PTR_EQ(h_X.Get(), X);
   // FindClass may cause thread suspension, it should invalidate X.
   ObjPtr<Class, /*kPoison*/ true> Y(class_linker_->FindClass(soa.Self(), "LY;", class_loader));
   EXPECT_TRUE(!Y.IsNull());
@@ -773,7 +773,7 @@ TEST_F(ObjectTest, ObjectPointer) {
   X.Assign(h_X.Get());
   EXPECT_TRUE(!X.IsNull());
   EXPECT_TRUE(X.IsValid());
-  EXPECT_EQ(h_X.Get(), X.Decode());
+  EXPECT_OBJ_PTR_EQ(h_X.Get(), X);
 
   // Allow thread suspension to invalidate Y.
   soa.Self()->AllowThreadSuspension();
@@ -793,7 +793,7 @@ TEST_F(ObjectTest, ObjectPointer) {
   unpoisoned = h_X.Get();
   EXPECT_FALSE(unpoisoned.IsNull());
   EXPECT_TRUE(unpoisoned == h_X.Get());
-  EXPECT_EQ(unpoisoned.Decode(), h_X.Get());
+  EXPECT_OBJ_PTR_EQ(unpoisoned, h_X.Get());
 }
 
 }  // namespace mirror
