@@ -243,10 +243,10 @@ class ClassLinkerTest : public CommonRuntimeTest {
         kRuntimePointerSize));
   }
 
-  void AssertField(mirror::Class* klass, ArtField* field)
+  void AssertField(ObjPtr<mirror::Class> klass, ArtField* field)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     EXPECT_TRUE(field != nullptr);
-    EXPECT_EQ(klass, field->GetDeclaringClass());
+    EXPECT_OBJ_PTR_EQ(klass, field->GetDeclaringClass());
     EXPECT_TRUE(field->GetName() != nullptr);
     EXPECT_TRUE(field->GetType<true>() != nullptr);
   }
@@ -358,7 +358,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     MemberOffset current_ref_offset = start_ref_offset;
     for (size_t i = 0; i < klass->NumInstanceFields(); i++) {
       ArtField* field = klass->GetInstanceField(i);
-      mirror::Class* field_type = field->GetType<true>();
+      ObjPtr<mirror::Class> field_type = field->GetType<true>();
       ASSERT_TRUE(field_type != nullptr);
       if (!field->IsPrimitiveType()) {
         ASSERT_TRUE(!field_type->IsPrimitive());
@@ -865,6 +865,28 @@ TEST_F(ClassLinkerTest, FindClass) {
   AssertNonExistentClass("[[[[LNonExistentClass;");
 }
 
+TEST_F(ClassLinkerTest, LookupResolvedType) {
+  ScopedObjectAccess soa(Thread::Current());
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader(
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(LoadDex("MyClass"))));
+  AssertNonExistentClass("LMyClass;");
+  ObjPtr<mirror::Class> klass = class_linker_->FindClass(soa.Self(), "LMyClass;", class_loader);
+  uint32_t type_idx = klass->GetClassDef()->class_idx_;
+  ObjPtr<mirror::DexCache> dex_cache = klass->GetDexCache();
+  const DexFile& dex_file = klass->GetDexFile();
+  EXPECT_EQ(dex_cache->GetResolvedType(type_idx), klass.Decode());
+  EXPECT_OBJ_PTR_EQ(
+      class_linker_->LookupResolvedType(dex_file, type_idx, dex_cache, class_loader.Get()),
+      klass);
+  // Zero out the resolved type and make sure LookupResolvedType still finds it.
+  dex_cache->SetResolvedType(type_idx, nullptr);
+  EXPECT_TRUE(dex_cache->GetResolvedType(type_idx) == nullptr);
+  EXPECT_OBJ_PTR_EQ(
+      class_linker_->LookupResolvedType(dex_file, type_idx, dex_cache, class_loader.Get()),
+      klass);
+}
+
 TEST_F(ClassLinkerTest, LibCore) {
   ScopedObjectAccess soa(Thread::Current());
   ASSERT_TRUE(java_lang_dex_file_ != nullptr);
@@ -1018,8 +1040,8 @@ TEST_F(ClassLinkerTest, StaticFields) {
                                                         "Ljava/lang/String;");
   EXPECT_EQ(s8->GetTypeAsPrimitiveType(), Primitive::kPrimNot);
   EXPECT_TRUE(s8->GetObject(statics.Get())->AsString()->Equals("android"));
-  s8->SetObject<false>(s8->GetDeclaringClass(),
-                       mirror::String::AllocFromModifiedUtf8(soa.Self(), "robot"));
+  mirror::String* str_value = mirror::String::AllocFromModifiedUtf8(soa.Self(), "robot");
+  s8->SetObject<false>(s8->GetDeclaringClass(), str_value);
 
   // TODO: Remove EXPECT_FALSE when GCC can handle EXPECT_EQ
   // http://code.google.com/p/googletest/issues/detail?id=322

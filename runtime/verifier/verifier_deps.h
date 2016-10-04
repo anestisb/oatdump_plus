@@ -26,6 +26,7 @@
 #include "base/array_ref.h"
 #include "base/mutex.h"
 #include "method_resolution_kind.h"
+#include "obj_ptr.h"
 #include "os.h"
 
 namespace art {
@@ -176,7 +177,7 @@ class VerifierDeps {
 
   // Returns true if `klass` is null or not defined in any of dex files which
   // were reported as being compiled.
-  bool IsInClassPath(mirror::Class* klass)
+  bool IsInClassPath(ObjPtr<mirror::Class> klass)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns the index of `str`. If it is defined in `dex_file_`, this is the dex

@@ -20,6 +20,7 @@
 #include "accessible_object.h"
 #include "base/enums.h"
 #include "gc_root.h"
+#include "obj_ptr.h"
 #include "object.h"
 #include "object_callbacks.h"
 #include "read_barrier_option.h"
@@ -109,9 +110,7 @@ class MANAGED Field : public AccessibleObject {
   int32_t offset_;
 
   template<bool kTransactionActive>
-  void SetDeclaringClass(mirror::Class* c) REQUIRES_SHARED(Locks::mutator_lock_) {
-    SetFieldObject<kTransactionActive>(OFFSET_OF_OBJECT_MEMBER(Field, declaring_class_), c);
-  }
+  void SetDeclaringClass(ObjPtr<mirror::Class> c) REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<bool kTransactionActive>
   void SetType(mirror::Class* type) REQUIRES_SHARED(Locks::mutator_lock_) {

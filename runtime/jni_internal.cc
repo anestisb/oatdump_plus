@@ -97,15 +97,20 @@ static void ThrowNoSuchMethodError(ScopedObjectAccess& soa, mirror::Class* c,
                                  kind, c->GetDescriptor(&temp), name, sig);
 }
 
-static void ReportInvalidJNINativeMethod(const ScopedObjectAccess& soa, mirror::Class* c,
-                                         const char* kind, jint idx, bool return_errors)
+static void ReportInvalidJNINativeMethod(const ScopedObjectAccess& soa,
+                                         ObjPtr<mirror::Class> c,
+                                         const char* kind,
+                                         jint idx,
+                                         bool return_errors)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   LOG(return_errors ? ::android::base::ERROR : ::android::base::FATAL)
       << "Failed to register native method in " << PrettyDescriptor(c)
       << " in " << c->GetDexCache()->GetLocation()->ToModifiedUtf8()
       << ": " << kind << " is null at index " << idx;
   soa.Self()->ThrowNewExceptionF("Ljava/lang/NoSuchMethodError;",
-                                 "%s is null at index %d", kind, idx);
+                                 "%s is null at index %d",
+                                 kind,
+                                 idx);
 }
 
 static ObjPtr<mirror::Class> EnsureInitialized(Thread* self, ObjPtr<mirror::Class> klass)
@@ -282,7 +287,7 @@ int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobj
     return JNI_ERR;
   }
   ScopedObjectAccess soa(env);
-  soa.Self()->SetException(soa.Decode<mirror::Throwable>(exception.get()).Decode());
+  soa.Self()->SetException(soa.Decode<mirror::Throwable>(exception.get()));
   return JNI_OK;
 }
 
@@ -417,7 +422,7 @@ class JNI {
     ScopedObjectAccess soa(env);
     ObjPtr<mirror::Class> c1 = soa.Decode<mirror::Class>(java_class1);
     ObjPtr<mirror::Class> c2 = soa.Decode<mirror::Class>(java_class2);
-    return c2->IsAssignableFrom(c1.Decode()) ? JNI_TRUE : JNI_FALSE;
+    return c2->IsAssignableFrom(c1) ? JNI_TRUE : JNI_FALSE;
   }
 
   static jboolean IsInstanceOf(JNIEnv* env, jobject jobj, jclass java_class) {
@@ -439,7 +444,7 @@ class JNI {
     if (exception == nullptr) {
       return JNI_ERR;
     }
-    soa.Self()->SetException(exception.Decode());
+    soa.Self()->SetException(exception);
     return JNI_OK;
   }
 
@@ -1227,7 +1232,7 @@ class JNI {
     ScopedObjectAccess soa(env);
     ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(obj);
     ArtField* f = soa.DecodeField(fid);
-    return soa.AddLocalReference<jobject>(f->GetObject(o.Decode()));
+    return soa.AddLocalReference<jobject>(f->GetObject(o));
   }
 
   static jobject GetStaticObjectField(JNIEnv* env, jclass, jfieldID fid) {
@@ -1244,7 +1249,7 @@ class JNI {
     ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(java_object);
     ObjPtr<mirror::Object> v = soa.Decode<mirror::Object>(java_value);
     ArtField* f = soa.DecodeField(fid);
-    f->SetObject<false>(o.Decode(), v.Decode());
+    f->SetObject<false>(o, v);
   }
 
   static void SetStaticObjectField(JNIEnv* env, jclass, jfieldID fid, jobject java_value) {
@@ -1252,7 +1257,7 @@ class JNI {
     ScopedObjectAccess soa(env);
     ObjPtr<mirror::Object> v = soa.Decode<mirror::Object>(java_value);
     ArtField* f = soa.DecodeField(fid);
-    f->SetObject<false>(f->GetDeclaringClass(), v.Decode());
+    f->SetObject<false>(f->GetDeclaringClass(), v);
   }
 
 #define GET_PRIMITIVE_FIELD(fn, instance) \
@@ -1261,7 +1266,7 @@ class JNI {
   ScopedObjectAccess soa(env); \
   ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(instance); \
   ArtField* f = soa.DecodeField(fid); \
-  return f->Get ##fn (o.Decode())
+  return f->Get ##fn (o)
 
 #define GET_STATIC_PRIMITIVE_FIELD(fn) \
   CHECK_NON_NULL_ARGUMENT_RETURN_ZERO(fid); \
@@ -1275,7 +1280,7 @@ class JNI {
   ScopedObjectAccess soa(env); \
   ObjPtr<mirror::Object> o = soa.Decode<mirror::Object>(instance); \
   ArtField* f = soa.DecodeField(fid); \
-  f->Set ##fn <false>(o.Decode(), value)
+  f->Set ##fn <false>(o, value)
 
 #define SET_STATIC_PRIMITIVE_FIELD(fn, value) \
   CHECK_NON_NULL_ARGUMENT_RETURN_VOID(fid); \
@@ -2159,13 +2164,13 @@ class JNI {
       const char* sig = methods[i].signature;
       const void* fnPtr = methods[i].fnPtr;
       if (UNLIKELY(name == nullptr)) {
-        ReportInvalidJNINativeMethod(soa, c.Decode(), "method name", i, return_errors);
+        ReportInvalidJNINativeMethod(soa, c, "method name", i, return_errors);
         return JNI_ERR;
       } else if (UNLIKELY(sig == nullptr)) {
-        ReportInvalidJNINativeMethod(soa, c.Decode(), "method signature", i, return_errors);
+        ReportInvalidJNINativeMethod(soa, c, "method signature", i, return_errors);
         return JNI_ERR;
       } else if (UNLIKELY(fnPtr == nullptr)) {
-        ReportInvalidJNINativeMethod(soa, c.Decode(), "native function", i, return_errors);
+        ReportInvalidJNINativeMethod(soa, c, "native function", i, return_errors);
         return JNI_ERR;
       }
       bool is_fast = false;

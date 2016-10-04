@@ -30,6 +30,7 @@
 #include "handle_scope-inl.h"
 #include "mirror/class_loader.h"
 #include "oat_file_assistant.h"
+#include "obj_ptr-inl.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
 #include "thread_list.h"
@@ -223,7 +224,7 @@ static void AddNext(/*inout*/DexFileAndClassPair* original,
   }
 }
 
-static void IterateOverJavaDexFile(mirror::Object* dex_file,
+static void IterateOverJavaDexFile(ObjPtr<mirror::Object> dex_file,
                                    ArtField* const cookie_field,
                                    std::function<bool(const DexFile*)> fn)
     REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -258,12 +259,12 @@ static void IterateOverPathClassLoader(
   ArtField* const cookie_field = soa.DecodeField(WellKnownClasses::dalvik_system_DexFile_cookie);
   ArtField* const dex_file_field =
       soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
-  mirror::Object* dex_path_list =
+  ObjPtr<mirror::Object> dex_path_list =
       soa.DecodeField(WellKnownClasses::dalvik_system_PathClassLoader_pathList)->
       GetObject(class_loader.Get());
   if (dex_path_list != nullptr && dex_file_field != nullptr && cookie_field != nullptr) {
     // DexPathList has an array dexElements of Elements[] which each contain a dex file.
-    mirror::Object* dex_elements_obj =
+    ObjPtr<mirror::Object> dex_elements_obj =
         soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList_dexElements)->
         GetObject(dex_path_list);
     // Loop through each dalvik.system.DexPathList$Element's dalvik.system.DexFile and look
@@ -276,7 +277,7 @@ static void IterateOverPathClassLoader(
           // Should never happen, fall back to java code to throw a NPE.
           break;
         }
-        mirror::Object* dex_file = dex_file_field->GetObject(element);
+        ObjPtr<mirror::Object> dex_file = dex_file_field->GetObject(element);
         IterateOverJavaDexFile(dex_file, cookie_field, fn);
       }
     }
@@ -360,7 +361,7 @@ static void GetDexFilesFromDexElementsArray(
 
     // We support this being dalvik.system.DexPathList$Element and dalvik.system.DexFile.
 
-    mirror::Object* dex_file;
+    ObjPtr<mirror::Object> dex_file;
     if (element_class == element->GetClass()) {
       dex_file = dex_file_field->GetObject(element);
     } else if (dexfile_class == element->GetClass()) {

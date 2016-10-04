@@ -29,6 +29,7 @@
 #include "base/stringpiece.h"
 #include "gc_root.h"
 #include "handle_scope.h"
+#include "obj_ptr.h"
 #include "object_callbacks.h"
 #include "primitive.h"
 
@@ -205,7 +206,7 @@ class RegType {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Can this type access a member with the given properties?
-  bool CanAccessMember(mirror::Class* klass, uint32_t access_flags) const
+  bool CanAccessMember(ObjPtr<mirror::Class> klass, uint32_t access_flags) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Can this type be assigned by src?

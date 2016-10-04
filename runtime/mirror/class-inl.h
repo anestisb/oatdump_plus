@@ -341,13 +341,13 @@ inline bool Class::Implements(Class* klass) {
 // Don't forget about primitive types.
 //   Object[]         = int[] --> false
 //
-inline bool Class::IsArrayAssignableFromArray(Class* src) {
+inline bool Class::IsArrayAssignableFromArray(ObjPtr<Class> src) {
   DCHECK(IsArrayClass())  << PrettyClass(this);
   DCHECK(src->IsArrayClass()) << PrettyClass(src);
   return GetComponentType()->IsAssignableFrom(src->GetComponentType());
 }
 
-inline bool Class::IsAssignableFromArray(Class* src) {
+inline bool Class::IsAssignableFromArray(ObjPtr<Class> src) {
   DCHECK(!IsInterface()) << PrettyClass(this);  // handled first in IsAssignableFrom
   DCHECK(src->IsArrayClass()) << PrettyClass(src);
   if (!IsArrayClass()) {
@@ -362,34 +362,29 @@ inline bool Class::IsAssignableFromArray(Class* src) {
 }
 
 template <bool throw_on_failure, bool use_referrers_cache>
-inline bool Class::ResolvedFieldAccessTest(Class* access_to, ArtField* field,
-                                           uint32_t field_idx, DexCache* dex_cache) {
+inline bool Class::ResolvedFieldAccessTest(ObjPtr<Class> access_to,
+                                           ArtField* field,
+                                           uint32_t field_idx,
+                                           ObjPtr<DexCache> dex_cache) {
   DCHECK_EQ(use_referrers_cache, dex_cache == nullptr);
   if (UNLIKELY(!this->CanAccess(access_to))) {
     // The referrer class can't access the field's declaring class but may still be able
     // to access the field if the FieldId specifies an accessible subclass of the declaring
     // class rather than the declaring class itself.
-    DexCache* referrer_dex_cache = use_referrers_cache ? this->GetDexCache() : dex_cache;
+    ObjPtr<DexCache> referrer_dex_cache = use_referrers_cache ? this->GetDexCache() : dex_cache;
     uint32_t class_idx = referrer_dex_cache->GetDexFile()->GetFieldId(field_idx).class_idx_;
     // The referenced class has already been resolved with the field, but may not be in the dex
-    // cache. Using ResolveType here without handles in the caller should be safe since there
+    // cache. Use LookupResolveType here to search the class table if it is not in the dex cache.
     // should be no thread suspension due to the class being resolved.
-    // TODO: Clean this up to use handles in the caller.
-    Class* dex_access_to;
-    {
-      StackHandleScope<2> hs(Thread::Current());
-      Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(referrer_dex_cache));
-      Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(access_to->GetClassLoader()));
-      dex_access_to = Runtime::Current()->GetClassLinker()->ResolveType(
-          *referrer_dex_cache->GetDexFile(),
-          class_idx,
-          h_dex_cache,
-          h_class_loader);
-    }
+    ObjPtr<Class> dex_access_to = Runtime::Current()->GetClassLinker()->LookupResolvedType(
+        *referrer_dex_cache->GetDexFile(),
+        class_idx,
+        referrer_dex_cache,
+        access_to->GetClassLoader());
     DCHECK(dex_access_to != nullptr);
     if (UNLIKELY(!this->CanAccess(dex_access_to))) {
       if (throw_on_failure) {
-        ThrowIllegalAccessErrorClass(this, dex_access_to);
+        ThrowIllegalAccessErrorClass(this, dex_access_to.Decode());
       }
       return false;
     }
@@ -404,36 +399,32 @@ inline bool Class::ResolvedFieldAccessTest(Class* access_to, ArtField* field,
 }
 
 template <bool throw_on_failure, bool use_referrers_cache, InvokeType throw_invoke_type>
-inline bool Class::ResolvedMethodAccessTest(Class* access_to, ArtMethod* method,
-                                            uint32_t method_idx, DexCache* dex_cache) {
+inline bool Class::ResolvedMethodAccessTest(ObjPtr<Class> access_to,
+                                            ArtMethod* method,
+                                            uint32_t method_idx,
+                                            ObjPtr<DexCache> dex_cache) {
   static_assert(throw_on_failure || throw_invoke_type == kStatic, "Non-default throw invoke type");
   DCHECK_EQ(use_referrers_cache, dex_cache == nullptr);
   if (UNLIKELY(!this->CanAccess(access_to))) {
     // The referrer class can't access the method's declaring class but may still be able
     // to access the method if the MethodId specifies an accessible subclass of the declaring
     // class rather than the declaring class itself.
-    DexCache* referrer_dex_cache = use_referrers_cache ? this->GetDexCache() : dex_cache;
+    ObjPtr<DexCache> referrer_dex_cache = use_referrers_cache ? this->GetDexCache() : dex_cache;
     uint32_t class_idx = referrer_dex_cache->GetDexFile()->GetMethodId(method_idx).class_idx_;
     // The referenced class has already been resolved with the method, but may not be in the dex
-    // cache. Using ResolveType here without handles in the caller should be safe since there
-    // should be no thread suspension due to the class being resolved.
-    // TODO: Clean this up to use handles in the caller.
-    Class* dex_access_to;
-    {
-      StackHandleScope<2> hs(Thread::Current());
-      Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(referrer_dex_cache));
-      Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(access_to->GetClassLoader()));
-      dex_access_to = Runtime::Current()->GetClassLinker()->ResolveType(
-          *referrer_dex_cache->GetDexFile(),
-          class_idx,
-          h_dex_cache,
-          h_class_loader);
-    }
+    // cache.
+    ObjPtr<Class> dex_access_to = Runtime::Current()->GetClassLinker()->LookupResolvedType(
+        *referrer_dex_cache->GetDexFile(),
+        class_idx,
+        referrer_dex_cache,
+        access_to->GetClassLoader());
     DCHECK(dex_access_to != nullptr);
     if (UNLIKELY(!this->CanAccess(dex_access_to))) {
       if (throw_on_failure) {
-        ThrowIllegalAccessErrorClassForMethodDispatch(this, dex_access_to,
-                                                      method, throw_invoke_type);
+        ThrowIllegalAccessErrorClassForMethodDispatch(this,
+                                                      dex_access_to.Decode(),
+                                                      method,
+                                                      throw_invoke_type);
       }
       return false;
     }
@@ -447,14 +438,17 @@ inline bool Class::ResolvedMethodAccessTest(Class* access_to, ArtMethod* method,
   return false;
 }
 
-inline bool Class::CanAccessResolvedField(Class* access_to, ArtField* field,
-                                          DexCache* dex_cache, uint32_t field_idx) {
+inline bool Class::CanAccessResolvedField(ObjPtr<Class> access_to,
+                                          ArtField* field,
+                                          ObjPtr<DexCache> dex_cache,
+                                          uint32_t field_idx) {
   return ResolvedFieldAccessTest<false, false>(access_to, field, field_idx, dex_cache);
 }
 
-inline bool Class::CheckResolvedFieldAccess(Class* access_to, ArtField* field,
+inline bool Class::CheckResolvedFieldAccess(ObjPtr<Class> access_to,
+                                            ArtField* field,
                                             uint32_t field_idx) {
-  return ResolvedFieldAccessTest<true, true>(access_to, field, field_idx, nullptr);
+  return ResolvedFieldAccessTest<true, true>(access_to.Decode(), field, field_idx, nullptr);
 }
 
 inline bool Class::CanAccessResolvedMethod(Class* access_to, ArtMethod* method,
@@ -469,10 +463,10 @@ inline bool Class::CheckResolvedMethodAccess(Class* access_to, ArtMethod* method
                                                                  nullptr);
 }
 
-inline bool Class::IsSubClass(Class* klass) {
+inline bool Class::IsSubClass(ObjPtr<Class> klass) {
   DCHECK(!IsInterface()) << PrettyClass(this);
   DCHECK(!IsArrayClass()) << PrettyClass(this);
-  Class* current = this;
+  ObjPtr<Class> current = this;
   do {
     if (current == klass) {
       return true;
@@ -1032,7 +1026,7 @@ inline bool Class::IsArrayClass() {
   return GetComponentType<kVerifyFlags, kReadBarrierOption>() != nullptr;
 }
 
-inline bool Class::IsAssignableFrom(Class* src) {
+inline bool Class::IsAssignableFrom(ObjPtr<Class> src) {
   DCHECK(src != nullptr);
   if (this == src) {
     // Can always assign to things of the same type.
@@ -1111,6 +1105,34 @@ inline void Class::FixupNativePointers(mirror::Class* dest,
   if (!IsTemp() && ShouldHaveImt<kVerifyNone, kReadBarrierOption>()) {
     dest->SetImt(visitor(GetImt(pointer_size)), pointer_size);
   }
+}
+
+inline bool Class::CanAccess(ObjPtr<Class> that) {
+  return that->IsPublic() || this->IsInSamePackage(that);
+}
+
+
+inline bool Class::CanAccessMember(ObjPtr<Class> access_to, uint32_t member_flags) {
+  // Classes can access all of their own members
+  if (this == access_to) {
+    return true;
+  }
+  // Public members are trivially accessible
+  if (member_flags & kAccPublic) {
+    return true;
+  }
+  // Private members are trivially not accessible
+  if (member_flags & kAccPrivate) {
+    return false;
+  }
+  // Check for protected access from a sub-class, which may or may not be in the same package.
+  if (member_flags & kAccProtected) {
+    if (!this->IsInterface() && this->IsSubClass(access_to)) {
+      return true;
+    }
+  }
+  // Allow protected access from other classes in the same package.
+  return this->IsInSamePackage(access_to);
 }
 
 }  // namespace mirror

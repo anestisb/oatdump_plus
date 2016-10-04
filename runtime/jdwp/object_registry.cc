@@ -19,6 +19,7 @@
 #include "handle_scope-inl.h"
 #include "jni_internal.h"
 #include "mirror/class.h"
+#include "obj_ptr-inl.h"
 #include "scoped_thread_state_change-inl.h"
 
 namespace art {
@@ -35,7 +36,7 @@ ObjectRegistry::ObjectRegistry()
     : lock_("ObjectRegistry lock", kJdwpObjectRegistryLock), next_id_(1) {
 }
 
-JDWP::RefTypeId ObjectRegistry::AddRefType(mirror::Class* c) {
+JDWP::RefTypeId ObjectRegistry::AddRefType(ObjPtr<mirror::Class> c) {
   return Add(c);
 }
 
@@ -43,7 +44,7 @@ JDWP::RefTypeId ObjectRegistry::AddRefType(Handle<mirror::Class> c_h) {
   return Add(c_h);
 }
 
-JDWP::ObjectId ObjectRegistry::Add(mirror::Object* o) {
+JDWP::ObjectId ObjectRegistry::Add(ObjPtr<mirror::Object> o) {
   if (o == nullptr) {
     return 0;
   }
@@ -118,7 +119,9 @@ JDWP::ObjectId ObjectRegistry::InternalAdd(Handle<T> obj_h) {
   return entry->id;
 }
 
-bool ObjectRegistry::ContainsLocked(Thread* self, mirror::Object* o, int32_t identity_hash_code,
+bool ObjectRegistry::ContainsLocked(Thread* self,
+                                    ObjPtr<mirror::Object> o,
+                                    int32_t identity_hash_code,
                                     ObjectRegistryEntry** out_entry) {
   DCHECK(o != nullptr);
   for (auto it = object_to_entry_.lower_bound(identity_hash_code), end = object_to_entry_.end();

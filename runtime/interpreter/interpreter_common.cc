@@ -46,7 +46,7 @@ bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst
     CHECK(self->IsExceptionPending());
     return false;
   }
-  Object* obj;
+  ObjPtr<Object> obj;
   if (is_static) {
     obj = f->GetDeclaringClass();
   } else {
@@ -60,9 +60,15 @@ bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst
   // Report this field access to instrumentation if needed.
   instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
   if (UNLIKELY(instrumentation->HasFieldReadListeners())) {
-    Object* this_object = f->IsStatic() ? nullptr : obj;
-    instrumentation->FieldReadEvent(self, this_object, shadow_frame.GetMethod(),
-                                    shadow_frame.GetDexPC(), f);
+    ObjPtr<Object> this_object;
+    if (!f->IsStatic()) {
+      this_object = obj;
+    }
+    instrumentation->FieldReadEvent(self,
+                                    this_object.Decode(),
+                                    shadow_frame.GetMethod(),
+                                    shadow_frame.GetDexPC(),
+                                    f);
   }
   uint32_t vregA = is_static ? inst->VRegA_21c(inst_data) : inst->VRegA_22c(inst_data);
   switch (field_type) {
@@ -85,7 +91,7 @@ bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst
       shadow_frame.SetVRegLong(vregA, f->GetLong(obj));
       break;
     case Primitive::kPrimNot:
-      shadow_frame.SetVRegReference(vregA, f->GetObject(obj));
+      shadow_frame.SetVRegReference(vregA, f->GetObject(obj).Decode());
       break;
     default:
       LOG(FATAL) << "Unreachable: " << field_type;
@@ -241,7 +247,7 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
     CHECK(self->IsExceptionPending());
     return false;
   }
-  Object* obj;
+  ObjPtr<Object> obj;
   if (is_static) {
     obj = f->GetDeclaringClass();
   } else {
@@ -258,9 +264,12 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
   instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
   if (UNLIKELY(instrumentation->HasFieldWriteListeners())) {
     JValue field_value = GetFieldValue<field_type>(shadow_frame, vregA);
-    Object* this_object = f->IsStatic() ? nullptr : obj;
-    instrumentation->FieldWriteEvent(self, this_object, shadow_frame.GetMethod(),
-                                     shadow_frame.GetDexPC(), f, field_value);
+    ObjPtr<Object> this_object = f->IsStatic() ? nullptr : obj;
+    instrumentation->FieldWriteEvent(self, this_object.Decode(),
+                                     shadow_frame.GetMethod(),
+                                     shadow_frame.GetDexPC(),
+                                     f,
+                                     field_value);
   }
   switch (field_type) {
     case Primitive::kPrimBoolean:
@@ -286,14 +295,14 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
       if (do_assignability_check && reg != nullptr) {
         // FieldHelper::GetType can resolve classes, use a handle wrapper which will restore the
         // object in the destructor.
-        Class* field_class;
+        ObjPtr<Class> field_class;
         {
           StackHandleScope<2> hs(self);
           HandleWrapper<mirror::Object> h_reg(hs.NewHandleWrapper(&reg));
-          HandleWrapper<mirror::Object> h_obj(hs.NewHandleWrapper(&obj));
+          HandleWrapperObjPtr<mirror::Object> h_obj(hs.NewHandleWrapper(&obj));
           field_class = f->GetType<true>();
         }
-        if (!reg->VerifierInstanceOf(field_class)) {
+        if (!reg->VerifierInstanceOf(field_class.Decode())) {
           // This should never happen.
           std::string temp1, temp2, temp3;
           self->ThrowNewExceptionF("Ljava/lang/VirtualMachineError;",
