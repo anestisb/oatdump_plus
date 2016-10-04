@@ -32,6 +32,20 @@ namespace art {
 
 static constexpr bool kDumpStackOnNonLocalReference = false;
 
+const char* GetIndirectRefKindString(const IndirectRefKind& kind) {
+  switch (kind) {
+    case kHandleScopeOrInvalid:
+      return "HandleScopeOrInvalid";
+    case kLocal:
+      return "Local";
+    case kGlobal:
+      return "Global";
+    case kWeakGlobal:
+      return "WeakGlobal";
+  }
+  return "IndirectRefKind Error";
+}
+
 template<typename T>
 class MutatorLockedDumpable {
  public:
@@ -58,12 +72,14 @@ std::ostream& operator<<(std::ostream& os, const MutatorLockedDumpable<T>& rhs)
   return os;
 }
 
-void IndirectReferenceTable::AbortIfNoCheckJNI() {
+void IndirectReferenceTable::AbortIfNoCheckJNI(const std::string& msg) {
   // If -Xcheck:jni is on, it'll give a more detailed error before aborting.
   JavaVMExt* vm = Runtime::Current()->GetJavaVM();
   if (!vm->IsCheckJniEnabled()) {
     // Otherwise, we want to abort rather than hand back a bad reference.
-    LOG(FATAL) << "JNI ERROR (app bug): see above.";
+    LOG(FATAL) << msg;
+  } else {
+    LOG(ERROR) << msg;
   }
 }
 
