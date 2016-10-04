@@ -60,6 +60,9 @@ bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst
   // Report this field access to instrumentation if needed.
   instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
   if (UNLIKELY(instrumentation->HasFieldReadListeners())) {
+    StackHandleScope<1> hs(self);
+    // Wrap in handle wrapper in case the listener does thread suspension.
+    HandleWrapperObjPtr<mirror::Object> h(hs.NewHandleWrapper(&obj));
     ObjPtr<Object> this_object;
     if (!f->IsStatic()) {
       this_object = obj;
@@ -263,6 +266,9 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
   // the field from the base of the object, we need to look for it first.
   instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
   if (UNLIKELY(instrumentation->HasFieldWriteListeners())) {
+    StackHandleScope<1> hs(self);
+    // Wrap in handle wrapper in case the listener does thread suspension.
+    HandleWrapperObjPtr<mirror::Object> h(hs.NewHandleWrapper(&obj));
     JValue field_value = GetFieldValue<field_type>(shadow_frame, vregA);
     ObjPtr<Object> this_object = f->IsStatic() ? nullptr : obj;
     instrumentation->FieldWriteEvent(self, this_object.Decode(),
