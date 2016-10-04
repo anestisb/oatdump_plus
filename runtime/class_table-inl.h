@@ -18,6 +18,7 @@
 #define ART_RUNTIME_CLASS_TABLE_INL_H_
 
 #include "class_table.h"
+#include "oat_file.h"
 
 namespace art {
 
@@ -32,6 +33,11 @@ void ClassTable::VisitRoots(Visitor& visitor) {
   for (GcRoot<mirror::Object>& root : strong_roots_) {
     visitor.VisitRoot(root.AddressWithoutBarrier());
   }
+  for (const OatFile* oat_file : oat_files_) {
+    for (GcRoot<mirror::Object>& root : oat_file->GetBssGcRoots()) {
+      visitor.VisitRootIfNonNull(root.AddressWithoutBarrier());
+    }
+  }
 }
 
 template<class Visitor>
@@ -44,6 +50,11 @@ void ClassTable::VisitRoots(const Visitor& visitor) {
   }
   for (GcRoot<mirror::Object>& root : strong_roots_) {
     visitor.VisitRoot(root.AddressWithoutBarrier());
+  }
+  for (const OatFile* oat_file : oat_files_) {
+    for (GcRoot<mirror::Object>& root : oat_file->GetBssGcRoots()) {
+      visitor.VisitRootIfNonNull(root.AddressWithoutBarrier());
+    }
   }
 }
 
