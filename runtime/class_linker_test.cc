@@ -865,6 +865,28 @@ TEST_F(ClassLinkerTest, FindClass) {
   AssertNonExistentClass("[[[[LNonExistentClass;");
 }
 
+TEST_F(ClassLinkerTest, LookupResolvedType) {
+  ScopedObjectAccess soa(Thread::Current());
+  StackHandleScope<1> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader(
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(LoadDex("MyClass"))));
+  AssertNonExistentClass("LMyClass;");
+  ObjPtr<mirror::Class> klass = class_linker_->FindClass(soa.Self(), "LMyClass;", class_loader);
+  uint32_t type_idx = klass->GetClassDef()->class_idx_;
+  ObjPtr<mirror::DexCache> dex_cache = klass->GetDexCache();
+  const DexFile& dex_file = klass->GetDexFile();
+  EXPECT_EQ(dex_cache->GetResolvedType(type_idx), klass.Decode());
+  EXPECT_OBJ_PTR_EQ(
+      class_linker_->LookupResolvedType(dex_file, type_idx, dex_cache, class_loader.Get()),
+      klass);
+  // Zero out the resolved type and make sure LookupResolvedType still finds it.
+  dex_cache->SetResolvedType(type_idx, nullptr);
+  EXPECT_TRUE(dex_cache->GetResolvedType(type_idx) == nullptr);
+  EXPECT_OBJ_PTR_EQ(
+      class_linker_->LookupResolvedType(dex_file, type_idx, dex_cache, class_loader.Get()),
+      klass);
+}
+
 TEST_F(ClassLinkerTest, LibCore) {
   ScopedObjectAccess soa(Thread::Current());
   ASSERT_TRUE(java_lang_dex_file_ != nullptr);
