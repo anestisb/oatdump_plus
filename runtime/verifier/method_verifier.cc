@@ -4563,9 +4563,11 @@ ArtField* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_id
     return nullptr;
   } else {
     std::string temp;
-    mirror::Class* klass = field->GetDeclaringClass();
+    ObjPtr<mirror::Class> klass = field->GetDeclaringClass();
     const RegType& field_klass =
-        FromClass(klass->GetDescriptor(&temp), klass, klass->CannotBeAssignedFromOtherTypes());
+        FromClass(klass->GetDescriptor(&temp),
+                  klass.Decode(),
+                  klass->CannotBeAssignedFromOtherTypes());
     if (obj_type.IsUninitializedTypes()) {
       // Field accesses through uninitialized references are only allowable for constructors where
       // the field is declared in this class.
@@ -4662,10 +4664,11 @@ void MethodVerifier::VerifyISFieldAccess(const Instruction* inst, const RegType&
       }
     }
 
-    mirror::Class* field_type_class =
+    ObjPtr<mirror::Class> field_type_class =
         can_load_classes_ ? field->GetType<true>() : field->GetType<false>();
     if (field_type_class != nullptr) {
-      field_type = &FromClass(field->GetTypeDescriptor(), field_type_class,
+      field_type = &FromClass(field->GetTypeDescriptor(),
+                              field_type_class.Decode(),
                               field_type_class->CannotBeAssignedFromOtherTypes());
     } else {
       DCHECK(!can_load_classes_ || self_->IsExceptionPending());
@@ -4785,12 +4788,12 @@ void MethodVerifier::VerifyQuickFieldAccess(const Instruction* inst, const RegTy
   // Get the field type.
   const RegType* field_type;
   {
-    mirror::Class* field_type_class = can_load_classes_ ? field->GetType<true>() :
+    ObjPtr<mirror::Class> field_type_class = can_load_classes_ ? field->GetType<true>() :
         field->GetType<false>();
 
     if (field_type_class != nullptr) {
       field_type = &FromClass(field->GetTypeDescriptor(),
-                              field_type_class,
+                              field_type_class.Decode(),
                               field_type_class->CannotBeAssignedFromOtherTypes());
     } else {
       Thread* self = Thread::Current();

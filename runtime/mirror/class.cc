@@ -308,9 +308,9 @@ bool Class::IsInSamePackage(const StringPiece& descriptor1, const StringPiece& d
   }
 }
 
-bool Class::IsInSamePackage(Class* that) {
-  Class* klass1 = this;
-  Class* klass2 = that;
+bool Class::IsInSamePackage(ObjPtr<Class> that) {
+  ObjPtr<Class> klass1 = this;
+  ObjPtr<Class> klass2 = that;
   if (klass1 == klass2) {
     return true;
   }

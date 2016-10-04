@@ -25,9 +25,17 @@
 #include "arch/instruction_set.h"
 #include "base/mutex.h"
 #include "globals.h"
+// TODO: Add inl file and avoid including inl.
+#include "obj_ptr-inl.h"
 #include "os.h"
 
 namespace art {
+
+// OBJ pointer helpers to avoid needing .Decode everywhere.
+#define EXPECT_OBJ_PTR_EQ(a, b) EXPECT_EQ(MakeObjPtr(a).Decode(), MakeObjPtr(b).Decode());
+#define ASSERT_OBJ_PTR_EQ(a, b) ASSERT_EQ(MakeObjPtr(a).Decode(), MakeObjPtr(b).Decode());
+#define EXPECT_OBJ_PTR_NE(a, b) EXPECT_NE(MakeObjPtr(a).Decode(), MakeObjPtr(b).Decode());
+#define ASSERT_OBJ_PTR_NE(a, b) ASSERT_NE(MakeObjPtr(a).Decode(), MakeObjPtr(b).Decode());
 
 class ClassLinker;
 class CompilerCallbacks;

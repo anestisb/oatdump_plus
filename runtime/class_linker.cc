@@ -1090,7 +1090,7 @@ bool ClassLinker::IsBootClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
 }
 
 static mirror::String* GetDexPathListElementName(ScopedObjectAccessUnchecked& soa,
-                                                 mirror::Object* element)
+                                                 ObjPtr<mirror::Object> element)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ArtField* const dex_file_field =
       soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
@@ -1100,11 +1100,11 @@ static mirror::String* GetDexPathListElementName(ScopedObjectAccessUnchecked& so
   DCHECK(dex_file_name_field != nullptr);
   DCHECK(element != nullptr);
   CHECK_EQ(dex_file_field->GetDeclaringClass(), element->GetClass()) << PrettyTypeOf(element);
-  mirror::Object* dex_file = dex_file_field->GetObject(element);
+  ObjPtr<mirror::Object> dex_file = dex_file_field->GetObject(element);
   if (dex_file == nullptr) {
     return nullptr;
   }
-  mirror::Object* const name_object = dex_file_name_field->GetObject(dex_file);
+  ObjPtr<mirror::Object> name_object = dex_file_name_field->GetObject(dex_file);
   if (name_object != nullptr) {
     return name_object->AsString();
   }
@@ -1131,28 +1131,28 @@ static bool FlattenPathClassLoader(mirror::ClassLoader* class_loader,
       // Unsupported class loader.
       return false;
     }
-    mirror::Object* dex_path_list = dex_path_list_field->GetObject(class_loader);
+    ObjPtr<mirror::Object> dex_path_list = dex_path_list_field->GetObject(class_loader);
     if (dex_path_list != nullptr) {
       // DexPathList has an array dexElements of Elements[] which each contain a dex file.
-      mirror::Object* dex_elements_obj = dex_elements_field->GetObject(dex_path_list);
+      ObjPtr<mirror::Object> dex_elements_obj = dex_elements_field->GetObject(dex_path_list);
       // Loop through each dalvik.system.DexPathList$Element's dalvik.system.DexFile and look
       // at the mCookie which is a DexFile vector.
       if (dex_elements_obj != nullptr) {
-        mirror::ObjectArray<mirror::Object>* dex_elements =
+        ObjPtr<mirror::ObjectArray<mirror::Object>> dex_elements =
             dex_elements_obj->AsObjectArray<mirror::Object>();
         // Reverse order since we insert the parent at the front.
         for (int32_t i = dex_elements->GetLength() - 1; i >= 0; --i) {
-          mirror::Object* const element = dex_elements->GetWithoutChecks(i);
+          ObjPtr<mirror::Object> element = dex_elements->GetWithoutChecks(i);
           if (element == nullptr) {
             *error_msg = StringPrintf("Null dex element at index %d", i);
             return false;
           }
-          mirror::String* const name = GetDexPathListElementName(soa, element);
+          ObjPtr<mirror::String> const name = GetDexPathListElementName(soa, element);
           if (name == nullptr) {
             *error_msg = StringPrintf("Null name for dex element at index %d", i);
             return false;
           }
-          out_dex_file_names->push_front(name);
+          out_dex_file_names->push_front(name.Decode());
         }
       }
     }
@@ -2395,12 +2395,12 @@ bool ClassLinker::FindClassInPathClassLoader(ScopedObjectAccessAlreadyRunnable& 
   ArtField* const cookie_field = soa.DecodeField(WellKnownClasses::dalvik_system_DexFile_cookie);
   ArtField* const dex_file_field =
       soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
-  mirror::Object* dex_path_list =
+  ObjPtr<mirror::Object> dex_path_list =
       soa.DecodeField(WellKnownClasses::dalvik_system_PathClassLoader_pathList)->
       GetObject(class_loader.Get());
   if (dex_path_list != nullptr && dex_file_field != nullptr && cookie_field != nullptr) {
     // DexPathList has an array dexElements of Elements[] which each contain a dex file.
-    mirror::Object* dex_elements_obj =
+    ObjPtr<mirror::Object> dex_elements_obj =
         soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList_dexElements)->
         GetObject(dex_path_list);
     // Loop through each dalvik.system.DexPathList$Element's dalvik.system.DexFile and look
@@ -2409,14 +2409,14 @@ bool ClassLinker::FindClassInPathClassLoader(ScopedObjectAccessAlreadyRunnable& 
       Handle<mirror::ObjectArray<mirror::Object>> dex_elements =
           hs.NewHandle(dex_elements_obj->AsObjectArray<mirror::Object>());
       for (int32_t i = 0; i < dex_elements->GetLength(); ++i) {
-        mirror::Object* element = dex_elements->GetWithoutChecks(i);
+        ObjPtr<mirror::Object> element = dex_elements->GetWithoutChecks(i);
         if (element == nullptr) {
           // Should never happen, fall back to java code to throw a NPE.
           break;
         }
-        mirror::Object* dex_file = dex_file_field->GetObject(element);
+        ObjPtr<mirror::Object> dex_file = dex_file_field->GetObject(element);
         if (dex_file != nullptr) {
-          mirror::LongArray* long_array = cookie_field->GetObject(dex_file)->AsLongArray();
+          ObjPtr<mirror::LongArray> long_array = cookie_field->GetObject(dex_file)->AsLongArray();
           if (long_array == nullptr) {
             // This should never happen so log a warning.
             LOG(WARNING) << "Null DexFile::mCookie for " << descriptor;
@@ -8256,16 +8256,18 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self,
   ScopedObjectAccessUnchecked soa(self);
 
   // For now, create a libcore-level DexFile for each ART DexFile. This "explodes" multidex.
-  StackHandleScope<10> hs(self);
+  StackHandleScope<11> hs(self);
 
   ArtField* dex_elements_field =
       soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList_dexElements);
 
-  mirror::Class* dex_elements_class = dex_elements_field->GetType<true>();
-  DCHECK(dex_elements_class != nullptr);
+  Handle<mirror::Class> dex_elements_class(hs.NewHandle(dex_elements_field->GetType<true>()));
+  DCHECK(dex_elements_class.Get() != nullptr);
   DCHECK(dex_elements_class->IsArrayClass());
   Handle<mirror::ObjectArray<mirror::Object>> h_dex_elements(hs.NewHandle(
-      mirror::ObjectArray<mirror::Object>::Alloc(self, dex_elements_class, dex_files.size())));
+      mirror::ObjectArray<mirror::Object>::Alloc(self,
+                                                 dex_elements_class.Get(),
+                                                 dex_files.size())));
   Handle<mirror::Class> h_dex_element_class =
       hs.NewHandle(dex_elements_class->GetComponentType());
 
