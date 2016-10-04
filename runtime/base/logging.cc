@@ -64,7 +64,7 @@ static void RuntimeAborter(const char* abort_message) {
 #else
   UNUSED(abort_message);
 #endif
-  Runtime::Abort();
+  Runtime::Abort(abort_message);
 }
 
 void InitLogging(char* argv[]) {
