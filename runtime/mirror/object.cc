@@ -213,7 +213,7 @@ void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, Object* new_val
       if (field.GetOffset().Int32Value() == field_offset.Int32Value()) {
         CHECK_NE(field.GetTypeAsPrimitiveType(), Primitive::kPrimNot);
         // TODO: resolve the field type for moving GC.
-        mirror::Class* field_type = field.GetType<!kMovingCollector>();
+        ObjPtr<mirror::Class> field_type = field.GetType<!kMovingCollector>();
         if (field_type != nullptr) {
           CHECK(field_type->IsAssignableFrom(new_value->GetClass()));
         }
@@ -230,7 +230,7 @@ void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, Object* new_val
       if (field.GetOffset().Int32Value() == field_offset.Int32Value()) {
         CHECK_NE(field.GetTypeAsPrimitiveType(), Primitive::kPrimNot);
         // TODO: resolve the field type for moving GC.
-        mirror::Class* field_type = field.GetType<!kMovingCollector>();
+        ObjPtr<mirror::Class> field_type = field.GetType<!kMovingCollector>();
         if (field_type != nullptr) {
           CHECK(field_type->IsAssignableFrom(new_value->GetClass()));
         }

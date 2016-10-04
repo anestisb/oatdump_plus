@@ -46,6 +46,7 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
 #include "mirror/throwable.h"
+#include "obj_ptr-inl.h"
 #include "reflection.h"
 #include "safe_map.h"
 #include "scoped_thread_state_change-inl.h"
@@ -985,7 +986,7 @@ void Dbg::DisposeObject(JDWP::ObjectId object_id, uint32_t reference_count) {
   gRegistry->DisposeObject(object_id, reference_count);
 }
 
-JDWP::JdwpTypeTag Dbg::GetTypeTag(mirror::Class* klass) {
+JDWP::JdwpTypeTag Dbg::GetTypeTag(ObjPtr<mirror::Class> klass) {
   DCHECK(klass != nullptr);
   if (klass->IsArrayClass()) {
     return JDWP::TT_ARRAY;
@@ -1367,12 +1368,12 @@ bool Dbg::MatchLocation(const JDWP::JdwpLocation& expected_location,
   return m == event_location.method;
 }
 
-bool Dbg::MatchType(mirror::Class* event_class, JDWP::RefTypeId class_id) {
+bool Dbg::MatchType(ObjPtr<mirror::Class> event_class, JDWP::RefTypeId class_id) {
   if (event_class == nullptr) {
     return false;
   }
   JDWP::JdwpError error;
-  mirror::Class* expected_class = DecodeClass(class_id, &error);
+  ObjPtr<mirror::Class> expected_class = DecodeClass(class_id, &error);
   CHECK(expected_class != nullptr);
   return expected_class->IsAssignableFrom(event_class);
 }
@@ -1742,7 +1743,7 @@ static JValue GetArtFieldValue(ArtField* f, mirror::Object* o)
       return field_value;
 
     case Primitive::kPrimNot:
-      field_value.SetL(f->GetObject(o));
+      field_value.SetL(f->GetObject(o).Decode());
       return field_value;
 
     case Primitive::kPrimVoid:
@@ -1868,7 +1869,7 @@ static JDWP::JdwpError SetArtFieldValue(ArtField* f, mirror::Object* o, uint64_t
         return JDWP::ERR_INVALID_OBJECT;
       }
       if (v != nullptr) {
-        mirror::Class* field_type;
+        ObjPtr<mirror::Class> field_type;
         {
           StackHandleScope<2> hs(Thread::Current());
           HandleWrapper<mirror::Object> h_v(hs.NewHandleWrapper(&v));
@@ -1994,8 +1995,7 @@ JDWP::JdwpError Dbg::GetThreadName(JDWP::ObjectId thread_id, std::string* name) 
   CHECK(thread_object != nullptr) << error;
   ArtField* java_lang_Thread_name_field =
       soa.DecodeField(WellKnownClasses::java_lang_Thread_name);
-  mirror::String* s =
-      reinterpret_cast<mirror::String*>(java_lang_Thread_name_field->GetObject(thread_object));
+  ObjPtr<mirror::String> s(java_lang_Thread_name_field->GetObject(thread_object));
   if (s != nullptr) {
     *name = s->ToModifiedUtf8();
   }
@@ -2021,7 +2021,7 @@ JDWP::JdwpError Dbg::GetThreadGroup(JDWP::ObjectId thread_id, JDWP::ExpandBuf* p
     CHECK(c != nullptr);
     ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_group);
     CHECK(f != nullptr);
-    mirror::Object* group = f->GetObject(thread_object);
+    ObjPtr<mirror::Object> group = f->GetObject(thread_object);
     CHECK(group != nullptr);
     JDWP::ObjectId thread_group_id = gRegistry->Add(group);
     expandBufAddObjectId(pReply, thread_group_id);
@@ -2063,7 +2063,7 @@ JDWP::JdwpError Dbg::GetThreadGroupName(JDWP::ObjectId thread_group_id, JDWP::Ex
   ScopedAssertNoThreadSuspension ants("Debugger: GetThreadGroupName");
   ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_name);
   CHECK(f != nullptr);
-  mirror::String* s = reinterpret_cast<mirror::String*>(f->GetObject(thread_group));
+  ObjPtr<mirror::String> s = f->GetObject(thread_group)->AsString();
 
   std::string thread_group_name(s->ToModifiedUtf8());
   expandBufAddUtf8String(pReply, thread_group_name);
@@ -2077,7 +2077,7 @@ JDWP::JdwpError Dbg::GetThreadGroupParent(JDWP::ObjectId thread_group_id, JDWP::
   if (error != JDWP::ERR_NONE) {
     return error;
   }
-  mirror::Object* parent;
+  ObjPtr<mirror::Object> parent;
   {
     ScopedAssertNoThreadSuspension ants("Debugger: GetThreadGroupParent");
     ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_parent);
@@ -2104,12 +2104,12 @@ static void GetChildThreadGroups(ScopedObjectAccessUnchecked& soa, mirror::Objec
 
   // Get the ThreadGroup[] "groups" out of this thread group...
   ArtField* groups_field = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_groups);
-  mirror::Object* groups_array = groups_field->GetObject(thread_group);
+  ObjPtr<mirror::Object> groups_array = groups_field->GetObject(thread_group);
 
   CHECK(groups_array != nullptr);
   CHECK(groups_array->IsObjectArray());
 
-  mirror::ObjectArray<mirror::Object>* groups_array_as_array =
+  ObjPtr<mirror::ObjectArray<mirror::Object>> groups_array_as_array =
       groups_array->AsObjectArray<mirror::Object>();
 
   // Copy the first 'size' elements out of the array into the result.
@@ -2154,7 +2154,7 @@ JDWP::JdwpError Dbg::GetThreadGroupChildren(JDWP::ObjectId thread_group_id,
 JDWP::ObjectId Dbg::GetSystemThreadGroupId() {
   ScopedObjectAccessUnchecked soa(Thread::Current());
   ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup);
-  mirror::Object* group = f->GetObject(f->GetDeclaringClass());
+  ObjPtr<mirror::Object> group = f->GetObject(f->GetDeclaringClass());
   return gRegistry->Add(group);
 }
 
@@ -2252,7 +2252,7 @@ static bool IsInDesiredThreadGroup(ScopedObjectAccessUnchecked& soa,
   }
   ArtField* thread_group_field = soa.DecodeField(WellKnownClasses::java_lang_Thread_group);
   DCHECK(thread_group_field != nullptr);
-  mirror::Object* group = thread_group_field->GetObject(peer);
+  ObjPtr<mirror::Object> group = thread_group_field->GetObject(peer);
   return (group == desired_thread_group);
 }
 

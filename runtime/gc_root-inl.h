@@ -21,6 +21,7 @@
 
 #include <sstream>
 
+#include "obj_ptr-inl.h"
 #include "read_barrier-inl.h"
 
 namespace art {
@@ -31,9 +32,14 @@ inline MirrorType* GcRoot<MirrorType>::Read(GcRootSource* gc_root_source) const 
   return down_cast<MirrorType*>(
       ReadBarrier::BarrierForRoot<mirror::Object, kReadBarrierOption>(&root_, gc_root_source));
 }
+
 template<class MirrorType>
 inline GcRoot<MirrorType>::GcRoot(MirrorType* ref)
     : root_(mirror::CompressedReference<mirror::Object>::FromMirrorPtr(ref)) { }
+
+template<class MirrorType>
+inline GcRoot<MirrorType>::GcRoot(ObjPtr<MirrorType, kIsDebugBuild> ref)
+    : GcRoot(ref.Decode()) { }
 
 inline std::string RootInfo::ToString() const {
   std::ostringstream oss;

@@ -63,6 +63,7 @@ inline mirror::Class* ClassLinker::FindArrayClass(Thread* self, mirror::Class** 
 }
 
 inline mirror::String* ClassLinker::ResolveString(uint32_t string_idx, ArtMethod* referrer) {
+  Thread::PoisonObjectPointersIfDebug();
   mirror::Class* declaring_class = referrer->GetDeclaringClass();
   // MethodVerifier refuses methods with string_idx out of bounds.
   DCHECK_LT(string_idx, declaring_class->GetDexFile().NumStringIds());;
@@ -70,7 +71,6 @@ inline mirror::String* ClassLinker::ResolveString(uint32_t string_idx, ArtMethod
         mirror::StringDexCachePair::Lookup(declaring_class->GetDexCacheStrings(),
                                            string_idx,
                                            mirror::DexCache::kDexCacheStringCacheSize).Read();
-  Thread::PoisonObjectPointersIfDebug();
   if (UNLIKELY(string == nullptr)) {
     StackHandleScope<1> hs(Thread::Current());
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
@@ -84,8 +84,8 @@ inline mirror::String* ClassLinker::ResolveString(uint32_t string_idx, ArtMethod
 }
 
 inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx, ArtMethod* referrer) {
-  mirror::Class* resolved_type = referrer->GetDexCacheResolvedType(type_idx, image_pointer_size_);
   Thread::PoisonObjectPointersIfDebug();
+  mirror::Class* resolved_type = referrer->GetDexCacheResolvedType(type_idx, image_pointer_size_);
   if (UNLIKELY(resolved_type == nullptr)) {
     mirror::Class* declaring_class = referrer->GetDeclaringClass();
     StackHandleScope<2> hs(Thread::Current());
@@ -100,10 +100,10 @@ inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx, ArtMethod* ref
 }
 
 inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx, ArtField* referrer) {
-  mirror::Class* declaring_class = referrer->GetDeclaringClass();
+  Thread::PoisonObjectPointersIfDebug();
+  ObjPtr<mirror::Class> declaring_class = referrer->GetDeclaringClass();
   mirror::DexCache* dex_cache_ptr = declaring_class->GetDexCache();
   mirror::Class* resolved_type = dex_cache_ptr->GetResolvedType(type_idx);
-  Thread::PoisonObjectPointersIfDebug();
   if (UNLIKELY(resolved_type == nullptr)) {
     StackHandleScope<2> hs(Thread::Current());
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(dex_cache_ptr));

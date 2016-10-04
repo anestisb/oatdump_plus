@@ -209,9 +209,9 @@ static bool FindDalvikSystemDexFileAndLoaderForClass(
       hs.NewHandle(path_list_field->GetObject(h_class_loader.Get())));
   CHECK(path_list.Get() != nullptr);
   CHECK(!self->IsExceptionPending());
-  art::Handle<art::mirror::ObjectArray<art::mirror::Object>> dex_elements_list(
-      hs.NewHandle(art::down_cast<art::mirror::ObjectArray<art::mirror::Object>*>(
-          dex_path_list_element_field->GetObject(path_list.Get()))));
+  art::Handle<art::mirror::ObjectArray<art::mirror::Object>> dex_elements_list(hs.NewHandle(
+      dex_path_list_element_field->GetObject(path_list.Get())->
+      AsObjectArray<art::mirror::Object>()));
   CHECK(!self->IsExceptionPending());
   CHECK(dex_elements_list.Get() != nullptr);
   size_t num_elements = dex_elements_list->GetLength();

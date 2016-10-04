@@ -252,6 +252,10 @@ class StackHandleScopeCollection {
     return scopes_.top()->NewHandle(object);
   }
 
+  template<class MirrorType, bool kPoison>
+  MutableHandle<MirrorType> NewHandle(ObjPtr<MirrorType, kPoison> ptr)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
  private:
   static constexpr size_t kNumReferencesPerScope = 4;
 
