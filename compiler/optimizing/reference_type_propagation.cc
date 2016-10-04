@@ -84,7 +84,7 @@ class ReferenceTypePropagation::RTPVisitor : public HGraphDelegateVisitor {
   void VisitNewArray(HNewArray* instr) OVERRIDE;
   void VisitParameterValue(HParameterValue* instr) OVERRIDE;
   void UpdateFieldAccessTypeInfo(HInstruction* instr, const FieldInfo& info);
-  void SetClassAsTypeInfo(HInstruction* instr, mirror::Class* klass, bool is_exact)
+  void SetClassAsTypeInfo(HInstruction* instr, ObjPtr<mirror::Class> klass, bool is_exact)
       REQUIRES_SHARED(Locks::mutator_lock_);
   void VisitInstanceFieldGet(HInstanceFieldGet* instr) OVERRIDE;
   void VisitStaticFieldGet(HStaticFieldGet* instr) OVERRIDE;
@@ -427,7 +427,7 @@ void ReferenceTypePropagation::BoundTypeForIfInstanceOf(HBasicBlock* block) {
 }
 
 void ReferenceTypePropagation::RTPVisitor::SetClassAsTypeInfo(HInstruction* instr,
-                                                              mirror::Class* klass,
+                                                              ObjPtr<mirror::Class> klass,
                                                               bool is_exact) {
   if (instr->IsInvokeStaticOrDirect() && instr->AsInvokeStaticOrDirect()->IsStringInit()) {
     // Calls to String.<init> are replaced with a StringFactory.
@@ -454,7 +454,7 @@ void ReferenceTypePropagation::RTPVisitor::SetClassAsTypeInfo(HInstruction* inst
     }
     instr->SetReferenceTypeInfo(
         ReferenceTypeInfo::Create(handle_cache_->GetStringClassHandle(), /* is_exact */ true));
-  } else if (IsAdmissible(klass)) {
+  } else if (IsAdmissible(klass.Decode())) {
     ReferenceTypeInfo::TypeHandle handle = handle_cache_->NewHandle(klass);
     is_exact = is_exact || handle->CannotBeAssignedFromOtherTypes();
     instr->SetReferenceTypeInfo(ReferenceTypeInfo::Create(handle, is_exact));
@@ -512,7 +512,7 @@ void ReferenceTypePropagation::RTPVisitor::UpdateFieldAccessTypeInfo(HInstructio
   }
 
   ScopedObjectAccess soa(Thread::Current());
-  mirror::Class* klass = nullptr;
+  ObjPtr<mirror::Class> klass;
 
   // The field index is unknown only during tests.
   if (info.GetFieldIndex() != kUnknownFieldIndex) {

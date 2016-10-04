@@ -31,6 +31,7 @@
 #include "jdwp/jdwp.h"
 #include "jni.h"
 #include "jvalue.h"
+#include "obj_ptr.h"
 #include "thread.h"
 #include "thread_state.h"
 
@@ -317,7 +318,7 @@ class Dbg {
                             const JDWP::EventLocation& event_location)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  static bool MatchType(mirror::Class* event_class, JDWP::RefTypeId class_id)
+  static bool MatchType(ObjPtr<mirror::Class> event_class, JDWP::RefTypeId class_id)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   static bool MatchField(JDWP::RefTypeId expected_type_id, JDWP::FieldId expected_field_id,
@@ -689,7 +690,7 @@ class Dbg {
   static JDWP::JdwpTag TagFromObject(const ScopedObjectAccessUnchecked& soa, mirror::Object* o)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  static JDWP::JdwpTypeTag GetTypeTag(mirror::Class* klass)
+  static JDWP::JdwpTypeTag GetTypeTag(ObjPtr<mirror::Class> klass)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   static JDWP::FieldId ToFieldId(const ArtField* f)

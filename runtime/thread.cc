@@ -563,8 +563,8 @@ void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_siz
     ScopedObjectAccess soa(env);
 
     ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_name);
-    mirror::String* java_name = reinterpret_cast<mirror::String*>(f->GetObject(
-        soa.Decode<mirror::Object>(java_peer).Decode()));
+    ObjPtr<mirror::String> java_name =
+        f->GetObject(soa.Decode<mirror::Object>(java_peer))->AsString();
     std::string thread_name;
     if (java_name != nullptr) {
       thread_name = java_name->ToModifiedUtf8();
@@ -845,11 +845,9 @@ void Thread::InitPeer(ScopedObjectAccess& soa, jboolean thread_is_daemon, jobjec
   soa.DecodeField(WellKnownClasses::java_lang_Thread_daemon)->
       SetBoolean<kTransactionActive>(tlsPtr_.opeer, thread_is_daemon);
   soa.DecodeField(WellKnownClasses::java_lang_Thread_group)->
-      SetObject<kTransactionActive>(tlsPtr_.opeer,
-                                    soa.Decode<mirror::Object>(thread_group).Decode());
+      SetObject<kTransactionActive>(tlsPtr_.opeer, soa.Decode<mirror::Object>(thread_group));
   soa.DecodeField(WellKnownClasses::java_lang_Thread_name)->
-      SetObject<kTransactionActive>(tlsPtr_.opeer,
-                                    soa.Decode<mirror::Object>(thread_name).Decode());
+      SetObject<kTransactionActive>(tlsPtr_.opeer, soa.Decode<mirror::Object>(thread_name));
   soa.DecodeField(WellKnownClasses::java_lang_Thread_priority)->
       SetInt<kTransactionActive>(tlsPtr_.opeer, thread_priority);
 }
@@ -948,8 +946,11 @@ void Thread::Dump(std::ostream& os, bool dump_native_stack, BacktraceMap* backtr
 
 mirror::String* Thread::GetThreadName(const ScopedObjectAccessAlreadyRunnable& soa) const {
   ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_name);
-  return (tlsPtr_.opeer != nullptr) ?
-      reinterpret_cast<mirror::String*>(f->GetObject(tlsPtr_.opeer)) : nullptr;
+  if (tlsPtr_.opeer == nullptr) {
+    return nullptr;
+  }
+  ObjPtr<mirror::Object> name = f->GetObject(tlsPtr_.opeer);
+  return name == nullptr ? nullptr : name->AsString();
 }
 
 void Thread::GetThreadName(std::string& name) const {
@@ -1220,14 +1221,14 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
     is_daemon = soa.DecodeField(WellKnownClasses::java_lang_Thread_daemon)
         ->GetBoolean(thread->tlsPtr_.opeer);
 
-    mirror::Object* thread_group =
+    ObjPtr<mirror::Object> thread_group =
         soa.DecodeField(WellKnownClasses::java_lang_Thread_group)->GetObject(thread->tlsPtr_.opeer);
 
     if (thread_group != nullptr) {
       ArtField* group_name_field =
           soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_name);
-      mirror::String* group_name_string =
-          reinterpret_cast<mirror::String*>(group_name_field->GetObject(thread_group));
+      ObjPtr<mirror::String> group_name_string =
+          group_name_field->GetObject(thread_group)->AsString();
       group_name = (group_name_string != nullptr) ? group_name_string->ToModifiedUtf8() : "<null>";
     }
   } else {
@@ -1711,7 +1712,7 @@ void Thread::Destroy() {
 
     // Thread.join() is implemented as an Object.wait() on the Thread.lock object. Signal anyone
     // who is waiting.
-    mirror::Object* lock =
+    ObjPtr<mirror::Object> lock =
         soa.DecodeField(WellKnownClasses::java_lang_Thread_lock)->GetObject(tlsPtr_.opeer);
     // (This conditional is only needed for tests, where Thread.lock won't have been set.)
     if (lock != nullptr) {
@@ -1803,7 +1804,7 @@ void Thread::HandleUncaughtExceptions(ScopedObjectAccess& soa) {
 void Thread::RemoveFromThreadGroup(ScopedObjectAccess& soa) {
   // this.group.removeThread(this);
   // group can be null if we're in the compiler or a test.
-  mirror::Object* ogroup = soa.DecodeField(WellKnownClasses::java_lang_Thread_group)
+  ObjPtr<mirror::Object> ogroup = soa.DecodeField(WellKnownClasses::java_lang_Thread_group)
       ->GetObject(tlsPtr_.opeer);
   if (ogroup != nullptr) {
     ScopedLocalRef<jobject> group(soa.Env(), soa.AddLocalReference<jobject>(ogroup));

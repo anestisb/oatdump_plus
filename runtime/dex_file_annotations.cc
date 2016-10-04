@@ -54,7 +54,7 @@ bool IsVisibilityCompatible(uint32_t actual, uint32_t expected) {
 const DexFile::AnnotationSetItem* FindAnnotationSetForField(ArtField* field)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   const DexFile* dex_file = field->GetDexFile();
-  mirror::Class* klass = field->GetDeclaringClass();
+  ObjPtr<mirror::Class> klass = field->GetDeclaringClass();
   const DexFile::AnnotationsDirectoryItem* annotations_dir =
       dex_file->GetAnnotationsDirectory(*klass->GetClassDef());
   if (annotations_dir == nullptr) {
@@ -302,7 +302,7 @@ bool ProcessAnnotationValue(Handle<mirror::Class> klass,
     REQUIRES_SHARED(Locks::mutator_lock_) {
   const DexFile& dex_file = klass->GetDexFile();
   Thread* self = Thread::Current();
-  mirror::Object* element_object = nullptr;
+  ObjPtr<mirror::Object> element_object = nullptr;
   bool set_object = false;
   Primitive::Type primitive_type = Primitive::kPrimVoid;
   const uint8_t* annotation = *annotation_ptr;
@@ -577,7 +577,7 @@ bool ProcessAnnotationValue(Handle<mirror::Class> klass,
   }
 
   if (set_object) {
-    annotation_value->value_.SetL(element_object);
+    annotation_value->value_.SetL(element_object.Decode());
   }
 
   return true;

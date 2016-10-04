@@ -135,6 +135,12 @@ inline void StackHandleScope<kNumReferences>::SetReference(size_t i, mirror::Obj
   GetReferences()[i].Assign(object);
 }
 
+template<class MirrorType, bool kPoison>
+inline MutableHandle<MirrorType> StackHandleScopeCollection::NewHandle(
+    ObjPtr<MirrorType, kPoison> ptr) {
+  return NewHandle(ptr.Decode());
+}
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_HANDLE_SCOPE_INL_H_

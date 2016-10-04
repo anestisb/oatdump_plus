@@ -908,7 +908,7 @@ void ImageWriter::PruneNonImageClasses() {
     ArtField** resolved_fields = dex_cache->GetResolvedFields();
     for (size_t i = 0; i < dex_cache->NumResolvedFields(); i++) {
       ArtField* field = mirror::DexCache::GetElementPtrSize(resolved_fields, i, target_ptr_size_);
-      if (field != nullptr && !KeepClass(field->GetDeclaringClass())) {
+      if (field != nullptr && !KeepClass(field->GetDeclaringClass().Decode())) {
         dex_cache->SetResolvedField(i, nullptr, target_ptr_size_);
       }
     }
@@ -1742,7 +1742,7 @@ void ImageWriter::CopyAndFixupNativeData(size_t oat_index) {
       case kNativeObjectRelocationTypeArtField: {
         memcpy(dest, pair.first, sizeof(ArtField));
         reinterpret_cast<ArtField*>(dest)->SetDeclaringClass(
-            GetImageAddress(reinterpret_cast<ArtField*>(pair.first)->GetDeclaringClass()));
+            GetImageAddress(reinterpret_cast<ArtField*>(pair.first)->GetDeclaringClass().Decode()));
         break;
       }
       case kNativeObjectRelocationTypeRuntimeMethod:

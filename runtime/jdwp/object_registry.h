@@ -25,6 +25,7 @@
 #include "base/casts.h"
 #include "handle.h"
 #include "jdwp/jdwp.h"
+#include "obj_ptr.h"
 #include "safe_map.h"
 
 namespace art {
@@ -62,11 +63,11 @@ class ObjectRegistry {
  public:
   ObjectRegistry();
 
-  JDWP::ObjectId Add(mirror::Object* o)
+  JDWP::ObjectId Add(ObjPtr<mirror::Object> o)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_, !lock_);
 
-  JDWP::RefTypeId AddRefType(mirror::Class* c)
+  JDWP::RefTypeId AddRefType(ObjPtr<mirror::Class> c)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_, !lock_);
 
@@ -121,7 +122,9 @@ class ObjectRegistry {
   void Promote(ObjectRegistryEntry& entry)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(lock_);
 
-  bool ContainsLocked(Thread* self, mirror::Object* o, int32_t identity_hash_code,
+  bool ContainsLocked(Thread* self,
+                      ObjPtr<mirror::Object> o,
+                      int32_t identity_hash_code,
                       ObjectRegistryEntry** out_entry)
       REQUIRES(lock_) REQUIRES_SHARED(Locks::mutator_lock_);
 

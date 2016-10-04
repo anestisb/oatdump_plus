@@ -1687,7 +1687,9 @@ class ImageDumper {
     ImageDumper* const image_dumper_;
   };
 
-  static void PrettyObjectValue(std::ostream& os, mirror::Class* type, mirror::Object* value)
+  static void PrettyObjectValue(std::ostream& os,
+                                ObjPtr<mirror::Class> type,
+                                ObjPtr<mirror::Object> value)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     CHECK(type != nullptr);
     if (value == nullptr) {
@@ -1700,11 +1702,11 @@ class ImageDumper {
       mirror::Class* klass = value->AsClass();
       os << StringPrintf("%p   Class: %s\n", klass, PrettyDescriptor(klass).c_str());
     } else {
-      os << StringPrintf("%p   %s\n", value, PrettyDescriptor(type).c_str());
+      os << StringPrintf("%p   %s\n", value.Decode(), PrettyDescriptor(type).c_str());
     }
   }
 
-  static void PrintField(std::ostream& os, ArtField* field, mirror::Object* obj)
+  static void PrintField(std::ostream& os, ArtField* field, ObjPtr<mirror::Object> obj)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     os << StringPrintf("%s: ", field->GetName());
     switch (field->GetTypeAsPrimitiveType()) {
@@ -1736,16 +1738,17 @@ class ImageDumper {
       case Primitive::kPrimNot: {
         // Get the value, don't compute the type unless it is non-null as we don't want
         // to cause class loading.
-        mirror::Object* value = field->GetObj(obj);
+        ObjPtr<mirror::Object> value = field->GetObj(obj);
         if (value == nullptr) {
           os << StringPrintf("null   %s\n", PrettyDescriptor(field->GetTypeDescriptor()).c_str());
         } else {
           // Grab the field type without causing resolution.
-          mirror::Class* field_type = field->GetType<false>();
+          ObjPtr<mirror::Class> field_type = field->GetType<false>();
           if (field_type != nullptr) {
             PrettyObjectValue(os, field_type, value);
           } else {
-            os << StringPrintf("%p   %s\n", value,
+            os << StringPrintf("%p   %s\n",
+                               value.Decode(),
                                PrettyDescriptor(field->GetTypeDescriptor()).c_str());
           }
         }

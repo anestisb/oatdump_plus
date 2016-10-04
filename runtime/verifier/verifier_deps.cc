@@ -19,6 +19,7 @@
 #include "compiler_callbacks.h"
 #include "leb128.h"
 #include "mirror/class-inl.h"
+#include "obj_ptr-inl.h"
 #include "runtime.h"
 
 namespace art {
@@ -107,10 +108,10 @@ std::string VerifierDeps::GetStringFromId(const DexFile& dex_file, uint32_t stri
   }
 }
 
-bool VerifierDeps::IsInClassPath(mirror::Class* klass) {
+bool VerifierDeps::IsInClassPath(ObjPtr<mirror::Class> klass) {
   DCHECK(klass != nullptr);
 
-  mirror::DexCache* dex_cache = klass->GetDexCache();
+  ObjPtr<mirror::DexCache> dex_cache = klass->GetDexCache();
   if (dex_cache == nullptr) {
     // This is a synthesized class, in this case always an array. They are not
     // defined in the compiled DEX files and therefore are part of the classpath.

@@ -410,14 +410,15 @@ inline ArtField* FindFieldFromCode(uint32_t field_idx,
     DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
     return nullptr;  // Failure.
   }
-  mirror::Class* fields_class = resolved_field->GetDeclaringClass();
+  ObjPtr<mirror::Class> fields_class = resolved_field->GetDeclaringClass();
   if (access_check) {
     if (UNLIKELY(resolved_field->IsStatic() != is_static)) {
       ThrowIncompatibleClassChangeErrorField(resolved_field, is_static, referrer);
       return nullptr;
     }
     mirror::Class* referring_class = referrer->GetDeclaringClass();
-    if (UNLIKELY(!referring_class->CheckResolvedFieldAccess(fields_class, resolved_field,
+    if (UNLIKELY(!referring_class->CheckResolvedFieldAccess(fields_class,
+                                                            resolved_field,
                                                             field_idx))) {
       DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
       return nullptr;  // Failure.
@@ -696,7 +697,7 @@ inline ArtField* FindFieldFast(uint32_t field_idx, ArtMethod* referrer, FindFiel
     // Incompatible class change.
     return nullptr;
   }
-  mirror::Class* fields_class = resolved_field->GetDeclaringClass();
+  ObjPtr<mirror::Class> fields_class = resolved_field->GetDeclaringClass();
   if (is_static) {
     // Check class is initialized else fail so that we can contend to initialize the class with
     // other threads that may be racing to do this.
