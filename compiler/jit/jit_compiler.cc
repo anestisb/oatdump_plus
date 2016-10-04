@@ -156,8 +156,6 @@ JitCompiler::JitCompiler() {
       Compiler::kOptimizing,
       instruction_set,
       instruction_set_features_.get(),
-      /* boot_image */ false,
-      /* app_image */ false,
       /* image_classes */ nullptr,
       /* compiled_classes */ nullptr,
       /* compiled_methods */ nullptr,
