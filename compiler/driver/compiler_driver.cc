@@ -95,6 +95,8 @@ class CompilerDriver::AOTCompilationStats {
  public:
   AOTCompilationStats()
       : stats_lock_("AOT compilation statistics lock"),
+        types_in_dex_cache_(0), types_not_in_dex_cache_(0),
+        strings_in_dex_cache_(0), strings_not_in_dex_cache_(0),
         resolved_types_(0), unresolved_types_(0),
         resolved_instance_fields_(0), unresolved_instance_fields_(0),
         resolved_local_static_fields_(0), resolved_static_fields_(0), unresolved_static_fields_(0),
@@ -110,6 +112,8 @@ class CompilerDriver::AOTCompilationStats {
   }
 
   void Dump() {
+    DumpStat(types_in_dex_cache_, types_not_in_dex_cache_, "types known to be in dex cache");
+    DumpStat(strings_in_dex_cache_, strings_not_in_dex_cache_, "strings known to be in dex cache");
     DumpStat(resolved_types_, unresolved_types_, "types resolved");
     DumpStat(resolved_instance_fields_, unresolved_instance_fields_, "instance fields resolved");
     DumpStat(resolved_local_static_fields_ + resolved_static_fields_, unresolved_static_fields_,
@@ -160,6 +164,26 @@ class CompilerDriver::AOTCompilationStats {
 #define STATS_LOCK()
 #endif
 
+  void TypeInDexCache() REQUIRES(!stats_lock_) {
+    STATS_LOCK();
+    types_in_dex_cache_++;
+  }
+
+  void TypeNotInDexCache() REQUIRES(!stats_lock_) {
+    STATS_LOCK();
+    types_not_in_dex_cache_++;
+  }
+
+  void StringInDexCache() REQUIRES(!stats_lock_) {
+    STATS_LOCK();
+    strings_in_dex_cache_++;
+  }
+
+  void StringNotInDexCache() REQUIRES(!stats_lock_) {
+    STATS_LOCK();
+    strings_not_in_dex_cache_++;
+  }
+
   void TypeDoesntNeedAccessCheck() REQUIRES(!stats_lock_) {
     STATS_LOCK();
     resolved_types_++;
@@ -201,6 +225,67 @@ class CompilerDriver::AOTCompilationStats {
     type_based_devirtualization_++;
   }
 
+  // Indicate that a method of the given type was resolved at compile time.
+  void ResolvedMethod(InvokeType type) REQUIRES(!stats_lock_) {
+    DCHECK_LE(type, kMaxInvokeType);
+    STATS_LOCK();
+    resolved_methods_[type]++;
+  }
+
+  // Indicate that a method of the given type was unresolved at compile time as it was in an
+  // unknown dex file.
+  void UnresolvedMethod(InvokeType type) REQUIRES(!stats_lock_) {
+    DCHECK_LE(type, kMaxInvokeType);
+    STATS_LOCK();
+    unresolved_methods_[type]++;
+  }
+
+  // Indicate that a type of virtual method dispatch has been converted into a direct method
+  // dispatch.
+  void VirtualMadeDirect(InvokeType type) REQUIRES(!stats_lock_) {
+    DCHECK(type == kVirtual || type == kInterface || type == kSuper);
+    STATS_LOCK();
+    virtual_made_direct_[type]++;
+  }
+
+  // Indicate that a method of the given type was able to call directly into boot.
+  void DirectCallsToBoot(InvokeType type) REQUIRES(!stats_lock_) {
+    DCHECK_LE(type, kMaxInvokeType);
+    STATS_LOCK();
+    direct_calls_to_boot_[type]++;
+  }
+
+  // Indicate that a method of the given type was able to be resolved directly from boot.
+  void DirectMethodsToBoot(InvokeType type) REQUIRES(!stats_lock_) {
+    DCHECK_LE(type, kMaxInvokeType);
+    STATS_LOCK();
+    direct_methods_to_boot_[type]++;
+  }
+
+  void ProcessedInvoke(InvokeType type, int flags) REQUIRES(!stats_lock_) {
+    STATS_LOCK();
+    if (flags == 0) {
+      unresolved_methods_[type]++;
+    } else {
+      DCHECK_NE((flags & kFlagMethodResolved), 0);
+      resolved_methods_[type]++;
+      if ((flags & kFlagVirtualMadeDirect) != 0) {
+        virtual_made_direct_[type]++;
+        if ((flags & kFlagPreciseTypeDevirtualization) != 0) {
+          type_based_devirtualization_++;
+        }
+      } else {
+        DCHECK_EQ((flags & kFlagPreciseTypeDevirtualization), 0);
+      }
+      if ((flags & kFlagDirectCallToBoot) != 0) {
+        direct_calls_to_boot_[type]++;
+      }
+      if ((flags & kFlagDirectMethodToBoot) != 0) {
+        direct_methods_to_boot_[type]++;
+      }
+    }
+  }
+
   // A check-cast could be eliminated due to verifier type analysis.
   void SafeCast() REQUIRES(!stats_lock_) {
     STATS_LOCK();
@@ -215,6 +300,12 @@ class CompilerDriver::AOTCompilationStats {
 
  private:
   Mutex stats_lock_;
+
+  size_t types_in_dex_cache_;
+  size_t types_not_in_dex_cache_;
+
+  size_t strings_in_dex_cache_;
+  size_t strings_not_in_dex_cache_;
 
   size_t resolved_types_;
   size_t unresolved_types_;
@@ -758,10 +849,9 @@ void CompilerDriver::Resolve(jobject class_loader,
 // TODO: Collect the relevant string indices in parallel, then allocate them sequentially in a
 //       stable order.
 
-static void ResolveConstStrings(Handle<mirror::DexCache> dex_cache,
+static void ResolveConstStrings(CompilerDriver* driver,
                                 const DexFile& dex_file,
-                                const DexFile::CodeItem* code_item)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
+                                const DexFile::CodeItem* code_item) {
   if (code_item == nullptr) {
     // Abstract or native method.
     return;
@@ -769,19 +859,18 @@ static void ResolveConstStrings(Handle<mirror::DexCache> dex_cache,
 
   const uint16_t* code_ptr = code_item->insns_;
   const uint16_t* code_end = code_item->insns_ + code_item->insns_size_in_code_units_;
-  ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
 
   while (code_ptr < code_end) {
     const Instruction* inst = Instruction::At(code_ptr);
     switch (inst->Opcode()) {
       case Instruction::CONST_STRING: {
         uint32_t string_index = inst->VRegB_21c();
-        class_linker->ResolveString(dex_file, string_index, dex_cache);
+        driver->CanAssumeStringIsPresentInDexCache(dex_file, string_index);
         break;
       }
       case Instruction::CONST_STRING_JUMBO: {
         uint32_t string_index = inst->VRegB_31c();
-        class_linker->ResolveString(dex_file, string_index, dex_cache);
+        driver->CanAssumeStringIsPresentInDexCache(dex_file, string_index);
         break;
       }
 
@@ -796,13 +885,7 @@ static void ResolveConstStrings(Handle<mirror::DexCache> dex_cache,
 static void ResolveConstStrings(CompilerDriver* driver,
                                 const std::vector<const DexFile*>& dex_files,
                                 TimingLogger* timings) {
-  ScopedObjectAccess soa(Thread::Current());
-  StackHandleScope<1> hs(soa.Self());
-  ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
-  MutableHandle<mirror::DexCache> dex_cache(hs.NewHandle<mirror::DexCache>(nullptr));
-
   for (const DexFile* dex_file : dex_files) {
-    dex_cache.Assign(class_linker->FindDexCache(soa.Self(), *dex_file, false));
     TimingLogger::ScopedTiming t("Resolve const-string Strings", timings);
 
     size_t class_def_count = dex_file->NumClassDefs();
@@ -843,7 +926,7 @@ static void ResolveConstStrings(CompilerDriver* driver,
           continue;
         }
         previous_direct_method_idx = method_idx;
-        ResolveConstStrings(dex_cache, *dex_file, it.GetMethodCodeItem());
+        ResolveConstStrings(driver, *dex_file, it.GetMethodCodeItem());
         it.Next();
       }
       // Virtual methods.
@@ -857,7 +940,7 @@ static void ResolveConstStrings(CompilerDriver* driver,
           continue;
         }
         previous_virtual_method_idx = method_idx;
-        ResolveConstStrings(dex_cache, *dex_file, it.GetMethodCodeItem());
+        ResolveConstStrings(driver, *dex_file, it.GetMethodCodeItem());
         it.Next();
       }
       DCHECK(!it.HasNext());
@@ -1328,6 +1411,54 @@ void CompilerDriver::MarkForDexToDexCompilation(Thread* self, const MethodRefere
   dex_to_dex_references_.back().GetMethodIndexes().SetBit(method_ref.dex_method_index);
 }
 
+bool CompilerDriver::CanAssumeTypeIsPresentInDexCache(Handle<mirror::DexCache> dex_cache,
+                                                      uint32_t type_idx) {
+  bool result = false;
+  if ((IsBootImage() &&
+       IsImageClass(dex_cache->GetDexFile()->StringDataByIdx(
+           dex_cache->GetDexFile()->GetTypeId(type_idx).descriptor_idx_))) ||
+      Runtime::Current()->UseJitCompilation()) {
+    mirror::Class* resolved_class = dex_cache->GetResolvedType(type_idx);
+    result = (resolved_class != nullptr);
+  }
+
+  if (result) {
+    stats_->TypeInDexCache();
+  } else {
+    stats_->TypeNotInDexCache();
+  }
+  return result;
+}
+
+bool CompilerDriver::CanAssumeStringIsPresentInDexCache(const DexFile& dex_file,
+                                                        uint32_t string_idx) {
+  // See also Compiler::ResolveDexFile
+
+  bool result = false;
+  if (IsBootImage() || Runtime::Current()->UseJitCompilation()) {
+    ScopedObjectAccess soa(Thread::Current());
+    StackHandleScope<1> hs(soa.Self());
+    ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(
+        soa.Self(), dex_file, false)));
+    if (IsBootImage()) {
+      // We resolve all const-string strings when building for the image.
+      class_linker->ResolveString(dex_file, string_idx, dex_cache);
+      result = true;
+    } else {
+      // Just check whether the dex cache already has the string.
+      DCHECK(Runtime::Current()->UseJitCompilation());
+      result = (dex_cache->GetResolvedString(string_idx) != nullptr);
+    }
+  }
+  if (result) {
+    stats_->StringInDexCache();
+  } else {
+    stats_->StringNotInDexCache();
+  }
+  return result;
+}
+
 bool CompilerDriver::CanAccessTypeWithoutChecks(uint32_t referrer_idx,
                                                 Handle<mirror::DexCache> dex_cache,
                                                 uint32_t type_idx) {
@@ -1391,6 +1522,108 @@ bool CompilerDriver::CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_id
   return result;
 }
 
+bool CompilerDriver::CanEmbedTypeInCode(const DexFile& dex_file, uint32_t type_idx,
+                                        bool* is_type_initialized, bool* use_direct_type_ptr,
+                                        uintptr_t* direct_type_ptr, bool* out_is_finalizable) {
+  ScopedObjectAccess soa(Thread::Current());
+  Runtime* runtime = Runtime::Current();
+  mirror::DexCache* dex_cache = runtime->GetClassLinker()->FindDexCache(
+      soa.Self(), dex_file, false);
+  mirror::Class* resolved_class = dex_cache->GetResolvedType(type_idx);
+  if (resolved_class == nullptr) {
+    return false;
+  }
+  if (GetCompilerOptions().GetCompilePic()) {
+    // Do not allow a direct class pointer to be used when compiling for position-independent
+    return false;
+  }
+  *out_is_finalizable = resolved_class->IsFinalizable();
+  gc::Heap* heap = runtime->GetHeap();
+  const bool compiling_boot = heap->IsCompilingBoot();
+  const bool support_boot_image_fixup = GetSupportBootImageFixup();
+  if (compiling_boot) {
+    // boot -> boot class pointers.
+    // True if the class is in the image at boot compiling time.
+    const bool is_image_class = IsBootImage() && IsImageClass(
+        dex_file.StringDataByIdx(dex_file.GetTypeId(type_idx).descriptor_idx_));
+    // True if pc relative load works.
+    if (is_image_class && support_boot_image_fixup) {
+      *is_type_initialized = resolved_class->IsInitialized();
+      *use_direct_type_ptr = false;
+      *direct_type_ptr = 0;
+      return true;
+    } else {
+      return false;
+    }
+  } else if (runtime->UseJitCompilation() && !heap->IsMovableObject(resolved_class)) {
+    *is_type_initialized = resolved_class->IsInitialized();
+    // If the class may move around, then don't embed it as a direct pointer.
+    *use_direct_type_ptr = true;
+    *direct_type_ptr = reinterpret_cast<uintptr_t>(resolved_class);
+    return true;
+  } else {
+    // True if the class is in the image at app compiling time.
+    const bool class_in_image = heap->FindSpaceFromObject(resolved_class, false)->IsImageSpace();
+    if (class_in_image && support_boot_image_fixup) {
+      // boot -> app class pointers.
+      *is_type_initialized = resolved_class->IsInitialized();
+      // TODO This is somewhat hacky. We should refactor all of this invoke codepath.
+      *use_direct_type_ptr = !GetCompilerOptions().GetIncludePatchInformation();
+      *direct_type_ptr = reinterpret_cast<uintptr_t>(resolved_class);
+      return true;
+    } else {
+      // app -> app class pointers.
+      // Give up because app does not have an image and class
+      // isn't created at compile time.  TODO: implement this
+      // if/when each app gets an image.
+      return false;
+    }
+  }
+}
+
+bool CompilerDriver::CanEmbedReferenceTypeInCode(ClassReference* ref,
+                                                 bool* use_direct_ptr,
+                                                 uintptr_t* direct_type_ptr) {
+  CHECK(ref != nullptr);
+  CHECK(use_direct_ptr != nullptr);
+  CHECK(direct_type_ptr != nullptr);
+
+  ScopedObjectAccess soa(Thread::Current());
+  mirror::Class* reference_class = mirror::Reference::GetJavaLangRefReference();
+  bool is_initialized = false;
+  bool unused_finalizable;
+  // Make sure we have a finished Reference class object before attempting to use it.
+  if (!CanEmbedTypeInCode(*reference_class->GetDexCache()->GetDexFile(),
+                          reference_class->GetDexTypeIndex(), &is_initialized,
+                          use_direct_ptr, direct_type_ptr, &unused_finalizable) ||
+      !is_initialized) {
+    return false;
+  }
+  ref->first = &reference_class->GetDexFile();
+  ref->second = reference_class->GetDexClassDefIndex();
+  return true;
+}
+
+uint32_t CompilerDriver::GetReferenceSlowFlagOffset() const {
+  ScopedObjectAccess soa(Thread::Current());
+  mirror::Class* klass = mirror::Reference::GetJavaLangRefReference();
+  DCHECK(klass->IsInitialized());
+  return klass->GetSlowPathFlagOffset().Uint32Value();
+}
+
+uint32_t CompilerDriver::GetReferenceDisableFlagOffset() const {
+  ScopedObjectAccess soa(Thread::Current());
+  mirror::Class* klass = mirror::Reference::GetJavaLangRefReference();
+  DCHECK(klass->IsInitialized());
+  return klass->GetDisableIntrinsicFlagOffset().Uint32Value();
+}
+
+DexCacheArraysLayout CompilerDriver::GetDexCacheArraysLayout(const DexFile* dex_file) {
+  return ContainsElement(GetDexFilesForOatFile(), dex_file)
+      ? DexCacheArraysLayout(GetInstructionSetPointerSize(instruction_set_), dex_file)
+      : DexCacheArraysLayout();
+}
+
 void CompilerDriver::ProcessedInstanceField(bool resolved) {
   if (!resolved) {
     stats_->UnresolvedInstanceField();
@@ -1407,6 +1640,10 @@ void CompilerDriver::ProcessedStaticField(bool resolved, bool local) {
   } else {
     stats_->ResolvedStaticField();
   }
+}
+
+void CompilerDriver::ProcessedInvoke(InvokeType invoke_type, int flags) {
+  stats_->ProcessedInvoke(invoke_type, flags);
 }
 
 ArtField* CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx,
