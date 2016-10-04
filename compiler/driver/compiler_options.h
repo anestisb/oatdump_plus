@@ -203,6 +203,14 @@ class CompilerOptions FINAL {
     return include_patch_information_;
   }
 
+  bool IsBootImage() const {
+    return boot_image_;
+  }
+
+  bool IsAppImage() const {
+    return app_image_;
+  }
+
   // Should the code be compiled as position independent?
   bool GetCompilePic() const {
     return compile_pic_;
@@ -281,6 +289,8 @@ class CompilerOptions FINAL {
   // prefer vector<> over a lookup-oriented container, such as set<>.
   const std::vector<const DexFile*>* no_inline_from_;
 
+  bool boot_image_;
+  bool app_image_;
   bool include_patch_information_;
   // When using a profile file only the top K% of the profiled samples will be compiled.
   double top_k_profile_threshold_;
@@ -305,7 +315,7 @@ class CompilerOptions FINAL {
   std::string dump_cfg_file_name_;
   bool dump_cfg_append_;
 
-  // Whether the compiler should trade performance for determinism to guarantee exactly reproducable
+  // Whether the compiler should trade performance for determinism to guarantee exactly reproducible
   // outcomes.
   bool force_determinism_;
 
@@ -320,6 +330,7 @@ class CompilerOptions FINAL {
   const std::vector<std::string>* passes_to_run_;
 
   friend class Dex2Oat;
+  friend class CommonCompilerTest;
 
   DISALLOW_COPY_AND_ASSIGN(CompilerOptions);
 };

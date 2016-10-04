@@ -163,7 +163,7 @@ void HSharpening::ProcessLoadClass(HLoadClass* load_class) {
         : hs.NewHandle(class_linker->FindDexCache(soa.Self(), dex_file));
     mirror::Class* klass = dex_cache->GetResolvedType(type_index);
 
-    if (compiler_driver_->IsBootImage()) {
+    if (codegen_->GetCompilerOptions().IsBootImage()) {
       // Compiling boot image. Check if the class is a boot image class.
       DCHECK(!runtime->UseJitCompilation());
       if (!compiler_driver_->GetSupportBootImageFixup()) {
@@ -281,7 +281,7 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
         ? compilation_unit_.GetDexCache()
         : hs.NewHandle(class_linker->FindDexCache(soa.Self(), dex_file));
 
-    if (compiler_driver_->IsBootImage()) {
+    if (codegen_->GetCompilerOptions().IsBootImage()) {
       // Compiling boot image. Resolve the string and allocate it if needed.
       DCHECK(!runtime->UseJitCompilation());
       mirror::String* string = class_linker->ResolveString(dex_file, string_index, dex_cache);
@@ -311,6 +311,8 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
           !codegen_->GetCompilerOptions().GetCompilePic()) {
         desired_load_kind = HLoadString::LoadKind::kBootImageAddress;
         address = reinterpret_cast64<uint64_t>(string);
+      } else {
+        desired_load_kind = HLoadString::LoadKind::kBssEntry;
       }
     }
   }
@@ -319,6 +321,7 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
   switch (load_kind) {
     case HLoadString::LoadKind::kBootImageLinkTimeAddress:
     case HLoadString::LoadKind::kBootImageLinkTimePcRelative:
+    case HLoadString::LoadKind::kBssEntry:
     case HLoadString::LoadKind::kDexCacheViaMethod:
       load_string->SetLoadKindWithStringReference(load_kind, dex_file, string_index);
       break;
@@ -327,13 +330,6 @@ void HSharpening::ProcessLoadString(HLoadString* load_string) {
       DCHECK_NE(address, 0u);
       load_string->SetLoadKindWithAddress(load_kind, address);
       break;
-    case HLoadString::LoadKind::kDexCachePcRelative: {
-      PointerSize pointer_size = InstructionSetPointerSize(codegen_->GetInstructionSet());
-      DexCacheArraysLayout layout(pointer_size, &dex_file);
-      size_t element_index = layout.StringOffset(string_index);
-      load_string->SetLoadKindWithDexCacheReference(load_kind, dex_file, element_index);
-      break;
-    }
   }
 }
 
