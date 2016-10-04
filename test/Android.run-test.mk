@@ -1040,7 +1040,7 @@ define define-test-art-run-test
     endif
   endif
   run_test_rule_name := test-art-$(1)-run-test-$(2)-$(3)-$(4)-$(5)-$(6)-$(7)-$(8)-$(9)-$(10)-$(11)-$(12)$(13)
-  run_test_options := --output-path $$(ART_HOST_TEST_DIR)/run-test-output/$$(run_test_rule_name) \
+  run_test_options := --output-path $(ART_HOST_TEST_DIR)/run-test-output/$$(run_test_rule_name) \
       $$(run_test_options)
   ifneq ($(ART_TEST_ANDROID_ROOT),)
     run_test_options := --android-root $(ART_TEST_ANDROID_ROOT) $$(run_test_options)
