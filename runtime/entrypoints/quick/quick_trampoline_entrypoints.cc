@@ -1866,6 +1866,10 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
       }
     }
 
+    bool CriticalNative() const {
+      return critical_native_;
+    }
+
    private:
     HandleScope* handle_scope_;
     size_t cur_entry_;
@@ -1939,8 +1943,10 @@ void BuildGenericJniFrameVisitor::Visit() {
 void BuildGenericJniFrameVisitor::FinalizeHandleScope(Thread* self) {
   // Clear out rest of the scope.
   jni_call_.ResetRemainingScopeSlots();
-  // Install HandleScope.
-  self->PushHandleScope(handle_scope_);
+  if (!jni_call_.CriticalNative()) {
+    // Install HandleScope.
+    self->PushHandleScope(handle_scope_);
+  }
 }
 
 #if defined(__arm__) || defined(__aarch64__)
