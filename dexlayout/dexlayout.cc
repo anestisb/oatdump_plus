@@ -30,10 +30,11 @@
 #include <sstream>
 #include <vector>
 
+#include "base/unix_file/fd_file.h"
 #include "dex_ir_builder.h"
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
-#include "dex_writer.h"
+#include "os.h"
 #include "utils.h"
 
 namespace art {
@@ -243,12 +244,10 @@ static std::string GetSignatureForProtoId(const dex_ir::ProtoId* proto) {
     return "<no signature>";
   }
 
+  const std::vector<const dex_ir::TypeId*>& params = proto->Parameters();
   std::string result("(");
-  const dex_ir::TypeList* type_list = proto->Parameters();
-  if (type_list != nullptr) {
-    for (const dex_ir::TypeId* type_id : *type_list->GetTypeList()) {
-      result += type_id->GetStringId()->Data();
-    }
+  for (uint32_t i = 0; i < params.size(); ++i) {
+    result += params[i]->GetStringId()->Data();
   }
   result += ")";
   result += proto->ReturnType()->GetStringId()->Data();
@@ -667,7 +666,7 @@ static void DumpCatches(const dex_ir::CodeItem* code) {
     const uint32_t start = try_item->StartAddr();
     const uint32_t end = start + try_item->InsnCount();
     fprintf(out_file_, "        0x%04x - 0x%04x\n", start, end);
-    for (auto& handler : *try_item->GetHandlers()->GetHandlers()) {
+    for (auto& handler : try_item->GetHandlers()) {
       const dex_ir::TypeId* type_id = handler->GetTypeId();
       const char* descriptor = (type_id == nullptr) ? "<any>" : type_id->GetStringId()->Data();
       fprintf(out_file_, "          %s -> 0x%04x\n", descriptor, handler->GetAddress());
@@ -1496,6 +1495,96 @@ static void DumpClass(const DexFile* dex_file,
 }
 
 /*
+static uint32_t GetDataSectionOffset(dex_ir::Header& header) {
+  return dex_ir::Header::ItemSize() +
+      header.GetCollections().StringIdsSize() * dex_ir::StringId::ItemSize() +
+      header.GetCollections().TypeIdsSize() * dex_ir::TypeId::ItemSize() +
+      header.GetCollections().ProtoIdsSize() * dex_ir::ProtoId::ItemSize() +
+      header.GetCollections().FieldIdsSize() * dex_ir::FieldId::ItemSize() +
+      header.GetCollections().MethodIdsSize() * dex_ir::MethodId::ItemSize() +
+      header.GetCollections().ClassDefsSize() * dex_ir::ClassDef::ItemSize();
+}
+
+static bool Align(File* file, uint32_t& offset) {
+  uint8_t zero_buffer[] = { 0, 0, 0 };
+  uint32_t zeroes = (-offset) & 3;
+  if (zeroes > 0) {
+    if (!file->PwriteFully(zero_buffer, zeroes, offset)) {
+      return false;
+    }
+    offset += zeroes;
+  }
+  return true;
+}
+
+static bool WriteStrings(File* dex_file, dex_ir::Header& header,
+                         uint32_t& index_offset, uint32_t& data_offset) {
+  uint32_t index = 0;
+  uint32_t index_buffer[1];
+  uint32_t string_length;
+  uint32_t length_length;
+  uint8_t length_buffer[8];
+  for (std::unique_ptr<dex_ir::StringId>& string_id : header.GetCollections().StringIds()) {
+    string_id->SetOffset(index);
+    index_buffer[0] = data_offset;
+    string_length = strlen(string_id->Data());
+    length_length = UnsignedLeb128Size(string_length);
+    EncodeUnsignedLeb128(length_buffer, string_length);
+
+    if (!dex_file->PwriteFully(index_buffer, 4, index_offset) ||
+        !dex_file->PwriteFully(length_buffer, length_length, data_offset) ||
+        !dex_file->PwriteFully(string_id->Data(), string_length, data_offset + length_length)) {
+      return false;
+    }
+
+    index++;
+    index_offset += 4;
+    data_offset += string_length + length_length;
+  }
+  return true;
+}
+
+static bool WriteTypes(File* dex_file, dex_ir::Header& header, uint32_t& index_offset) {
+  uint32_t index = 0;
+  uint32_t index_buffer[1];
+  for (std::unique_ptr<dex_ir::TypeId>& type_id : header.GetCollections().TypeIds()) {
+    type_id->SetIndex(index);
+    index_buffer[0] = type_id->GetStringId()->GetOffset();
+
+    if (!dex_file->PwriteFully(index_buffer, 4, index_offset)) {
+      return false;
+    }
+
+    index++;
+    index_offset += 4;
+  }
+  return true;
+}
+
+static bool WriteTypeLists(File* dex_file, dex_ir::Header& header, uint32_t& data_offset) {
+  if (!Align(dex_file, data_offset)) {
+    return false;
+  }
+
+  return true;
+}
+
+static void OutputDexFile(dex_ir::Header& header, const char* file_name) {
+  LOG(INFO) << "FILE NAME: " << file_name;
+  std::unique_ptr<File> dex_file(OS::CreateEmptyFileWriteOnly(file_name));
+  if (dex_file == nullptr) {
+    fprintf(stderr, "Can't open %s\n", file_name);
+    return;
+  }
+
+  uint32_t index_offset = dex_ir::Header::ItemSize();
+  uint32_t data_offset = GetDataSectionOffset(header);
+  WriteStrings(dex_file.get(), header, index_offset, data_offset);
+  WriteTypes(dex_file.get(), header, index_offset);
+}
+*/
+
+/*
  * Dumps the requested sections of the file.
  */
 static void ProcessDexFile(const char* file_name, const DexFile* dex_file) {
@@ -1533,11 +1622,13 @@ static void ProcessDexFile(const char* file_name, const DexFile* dex_file) {
     fprintf(out_file_, "</api>\n");
   }
 
+  /*
   // Output dex file.
   if (options_.output_dex_files_) {
     std::string output_dex_filename = dex_file->GetLocation() + ".out";
-    DexWriter::OutputDexFile(*header, output_dex_filename.c_str());
+    OutputDexFile(*header, output_dex_filename.c_str());
   }
+  */
 }
 
 /*
