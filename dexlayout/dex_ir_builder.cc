@@ -68,8 +68,6 @@ Header* DexIrBuilder(const DexFile& dex_file) {
   for (uint32_t i = 0; i < dex_file.NumClassDefs(); ++i) {
     collections.CreateClassDef(dex_file, i);
   }
-  // MapItem.
-  collections.SetMapItemOffset(disk_header.map_off_);
 
   return header;
 }
