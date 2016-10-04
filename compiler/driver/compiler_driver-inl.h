@@ -31,6 +31,10 @@
 
 namespace art {
 
+inline mirror::DexCache* CompilerDriver::GetDexCache(const DexCompilationUnit* mUnit) {
+  return mUnit->GetClassLinker()->FindDexCache(Thread::Current(), *mUnit->GetDexFile(), false);
+}
+
 inline mirror::ClassLoader* CompilerDriver::GetClassLoader(const ScopedObjectAccess& soa,
                                                            const DexCompilationUnit* mUnit) {
   return soa.Decode<mirror::ClassLoader>(mUnit->GetClassLoader()).Decode();
@@ -83,6 +87,10 @@ inline ArtField* CompilerDriver::ResolveFieldWithDexFile(
   return resolved_field;
 }
 
+inline mirror::DexCache* CompilerDriver::FindDexCache(const DexFile* dex_file) {
+  return Runtime::Current()->GetClassLinker()->FindDexCache(Thread::Current(), *dex_file, false);
+}
+
 inline ArtField* CompilerDriver::ResolveField(
     const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
     Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
@@ -90,6 +98,23 @@ inline ArtField* CompilerDriver::ResolveField(
   DCHECK_EQ(class_loader.Get(), GetClassLoader(soa, mUnit));
   return ResolveFieldWithDexFile(soa, dex_cache, class_loader, mUnit->GetDexFile(), field_idx,
                                  is_static);
+}
+
+inline void CompilerDriver::GetResolvedFieldDexFileLocation(
+    ArtField* resolved_field, const DexFile** declaring_dex_file,
+    uint16_t* declaring_class_idx, uint16_t* declaring_field_idx) {
+  ObjPtr<mirror::Class> declaring_class = resolved_field->GetDeclaringClass();
+  *declaring_dex_file = declaring_class->GetDexCache()->GetDexFile();
+  *declaring_class_idx = declaring_class->GetDexTypeIndex();
+  *declaring_field_idx = resolved_field->GetDexFieldIndex();
+}
+
+inline bool CompilerDriver::IsFieldVolatile(ArtField* field) {
+  return field->IsVolatile();
+}
+
+inline MemberOffset CompilerDriver::GetFieldOffset(ArtField* field) {
+  return field->GetOffset();
 }
 
 inline std::pair<bool, bool> CompilerDriver::IsFastInstanceField(
@@ -194,6 +219,43 @@ inline bool CompilerDriver::IsClassOfStaticMethodAvailableToReferrer(
   return result.first;
 }
 
+inline bool CompilerDriver::IsStaticFieldInReferrerClass(mirror::Class* referrer_class,
+                                                         ArtField* resolved_field) {
+  DCHECK(resolved_field->IsStatic());
+  ObjPtr<mirror::Class> fields_class = resolved_field->GetDeclaringClass();
+  return referrer_class == fields_class;
+}
+
+inline bool CompilerDriver::CanAssumeClassIsInitialized(mirror::Class* klass) {
+  // Being loaded is a pre-requisite for being initialized but let's do the cheap check first.
+  //
+  // NOTE: When AOT compiling an app, we eagerly initialize app classes (and potentially their
+  // super classes in the boot image) but only those that have a trivial initialization, i.e.
+  // without <clinit>() or static values in the dex file for that class or any of its super
+  // classes. So while we could see the klass as initialized during AOT compilation and have
+  // it only loaded at runtime, the needed initialization would have to be trivial and
+  // unobservable from Java, so we may as well treat it as initialized.
+  if (!klass->IsInitialized()) {
+    return false;
+  }
+  return CanAssumeClassIsLoaded(klass);
+}
+
+inline bool CompilerDriver::CanReferrerAssumeClassIsInitialized(mirror::Class* referrer_class,
+                                                                mirror::Class* klass) {
+  return (referrer_class != nullptr
+          && !referrer_class->IsInterface()
+          && referrer_class->IsSubClass(klass))
+      || CanAssumeClassIsInitialized(klass);
+}
+
+inline bool CompilerDriver::IsStaticFieldsClassInitialized(mirror::Class* referrer_class,
+                                                           ArtField* resolved_field) {
+  DCHECK(resolved_field->IsStatic());
+  ObjPtr<mirror::Class> fields_class = resolved_field->GetDeclaringClass();
+  return CanReferrerAssumeClassIsInitialized(referrer_class, fields_class.Decode());
+}
+
 inline ArtMethod* CompilerDriver::ResolveMethod(
     ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
     Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
@@ -211,6 +273,35 @@ inline ArtMethod* CompilerDriver::ResolveMethod(
     soa.Self()->ClearException();
   }
   return resolved_method;
+}
+
+inline void CompilerDriver::GetResolvedMethodDexFileLocation(
+    ArtMethod* resolved_method, const DexFile** declaring_dex_file,
+    uint16_t* declaring_class_idx, uint16_t* declaring_method_idx) {
+  mirror::Class* declaring_class = resolved_method->GetDeclaringClass();
+  *declaring_dex_file = declaring_class->GetDexCache()->GetDexFile();
+  *declaring_class_idx = declaring_class->GetDexTypeIndex();
+  *declaring_method_idx = resolved_method->GetDexMethodIndex();
+}
+
+inline uint16_t CompilerDriver::GetResolvedMethodVTableIndex(
+    ArtMethod* resolved_method, InvokeType type) {
+  if (type == kVirtual || type == kSuper) {
+    return resolved_method->GetMethodIndex();
+  } else if (type == kInterface) {
+    return resolved_method->GetDexMethodIndex();
+  } else {
+    return DexFile::kDexNoIndex16;
+  }
+}
+
+inline bool CompilerDriver::IsMethodsClassInitialized(mirror::Class* referrer_class,
+                                                      ArtMethod* resolved_method) {
+  if (!resolved_method->IsStatic()) {
+    return true;
+  }
+  mirror::Class* methods_class = resolved_method->GetDeclaringClass();
+  return CanReferrerAssumeClassIsInitialized(referrer_class, methods_class);
 }
 
 }  // namespace art
