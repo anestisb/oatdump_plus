@@ -42,6 +42,7 @@ art_cc_defaults {
         "linker/vector_output_stream.cc",
         "linker/relative_patcher.cc",
         "jit/jit_compiler.cc",
+        "jit/jit_logger.cc",
         "jni/quick/calling_convention.cc",
         "jni/quick/jni_compiler.cc",
         "optimizing/block_builder.cc",
