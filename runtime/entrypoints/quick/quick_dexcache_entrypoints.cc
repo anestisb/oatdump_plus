@@ -18,10 +18,15 @@
 #include "callee_save_frame.h"
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "class_linker-inl.h"
+#include "class_table-inl.h"
 #include "dex_file-inl.h"
-#include "gc/accounting/card_table-inl.h"
+#include "gc/heap.h"
+#include "mirror/class-inl.h"
+#include "mirror/class_loader.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
+#include "oat_file.h"
+#include "runtime.h"
 
 namespace art {
 
@@ -56,7 +61,20 @@ extern "C" mirror::String* artResolveStringFromCode(int32_t string_idx, Thread* 
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
   auto* caller = GetCalleeSaveMethodCaller(self, Runtime::kSaveRefsOnly);
-  return ResolveStringFromCode(caller, string_idx);
+  mirror::String* result = ResolveStringFromCode(caller, string_idx);
+  if (LIKELY(result != nullptr)) {
+    // For AOT code, we need a write barrier for the dex cache that holds the GC roots in the .bss.
+    const DexFile* dex_file = caller->GetDexFile();
+    if (dex_file != nullptr &&
+        dex_file->GetOatDexFile() != nullptr &&
+        !dex_file->GetOatDexFile()->GetOatFile()->GetBssGcRoots().empty()) {
+      mirror::ClassLoader* class_loader = caller->GetDeclaringClass()->GetClassLoader();
+      // Note that we emit the barrier before the compiled code stores the string as GC root.
+      // This is OK as there is no suspend point point in between.
+      Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader);
+    }
+  }
+  return result;
 }
 
 }  // namespace art

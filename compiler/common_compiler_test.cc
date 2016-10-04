@@ -174,13 +174,12 @@ void CommonCompilerTest::SetUp() {
 void CommonCompilerTest::CreateCompilerDriver(Compiler::Kind kind,
                                               InstructionSet isa,
                                               size_t number_of_threads) {
+  compiler_options_->boot_image_ = true;
   compiler_driver_.reset(new CompilerDriver(compiler_options_.get(),
                                             verification_results_.get(),
                                             kind,
                                             isa,
                                             instruction_set_features_.get(),
-                                            /* boot_image */ true,
-                                            /* app_image */ false,
                                             GetImageClasses(),
                                             GetCompiledClasses(),
                                             GetCompiledMethods(),

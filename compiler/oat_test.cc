@@ -108,8 +108,6 @@ class OatTest : public CommonCompilerTest {
                                               compiler_kind,
                                               insn_set,
                                               insn_features_.get(),
-                                              /* boot_image */ false,
-                                              /* app_image */ false,
                                               /* image_classes */ nullptr,
                                               /* compiled_classes */ nullptr,
                                               /* compiled_methods */ nullptr,
@@ -194,6 +192,7 @@ class OatTest : public CommonCompilerTest {
                                          &opened_dex_files)) {
       return false;
     }
+
     Runtime* runtime = Runtime::Current();
     ClassLinker* const class_linker = runtime->GetClassLinker();
     std::vector<const DexFile*> dex_files;
@@ -207,7 +206,10 @@ class OatTest : public CommonCompilerTest {
     oat_writer.PrepareLayout(compiler_driver_.get(), nullptr, dex_files, &patcher);
     size_t rodata_size = oat_writer.GetOatHeader().GetExecutableOffset();
     size_t text_size = oat_writer.GetOatSize() - rodata_size;
-    elf_writer->SetLoadedSectionSizes(rodata_size, text_size, oat_writer.GetBssSize());
+    elf_writer->PrepareDynamicSection(rodata_size,
+                                      text_size,
+                                      oat_writer.GetBssSize(),
+                                      oat_writer.GetBssRootsOffset());
 
     if (!oat_writer.WriteRodata(oat_rodata)) {
       return false;
@@ -228,7 +230,15 @@ class OatTest : public CommonCompilerTest {
     elf_writer->WriteDebugInfo(oat_writer.GetMethodDebugInfo());
     elf_writer->WritePatchLocations(oat_writer.GetAbsolutePatchLocations());
 
-    return elf_writer->End();
+    if (!elf_writer->End()) {
+      return false;
+    }
+
+    opened_dex_files_maps_.emplace_back(std::move(opened_dex_files_map));
+    for (std::unique_ptr<const DexFile>& dex_file : opened_dex_files) {
+      opened_dex_files_.emplace_back(dex_file.release());
+    }
+    return true;
   }
 
   void TestDexFileInput(bool verify, bool low_4gb);
@@ -236,6 +246,9 @@ class OatTest : public CommonCompilerTest {
 
   std::unique_ptr<const InstructionSetFeatures> insn_features_;
   std::unique_ptr<QuickCompilerCallbacks> callbacks_;
+
+  std::vector<std::unique_ptr<MemMap>> opened_dex_files_maps_;
+  std::vector<std::unique_ptr<const DexFile>> opened_dex_files_;
 };
 
 class ZipBuilder {

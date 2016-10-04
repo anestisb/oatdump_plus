@@ -5650,10 +5650,9 @@ class HLoadString FINAL : public HInstruction {
     // Used for strings outside the boot image referenced by JIT-compiled code.
     kDexCacheAddress,
 
-    // Load from resolved strings array in the dex cache using a PC-relative load.
-    // Used for strings outside boot image when we know that we can access
-    // the dex cache arrays using a PC-relative load.
-    kDexCachePcRelative,
+    // Load from an entry in the .bss section using a PC-relative load.
+    // Used for strings outside boot image when .bss is accessible with a PC-relative load.
+    kBssEntry,
 
     // Load from resolved strings array accessed through the class loaded from
     // the compiled method's own ArtMethod*. This is the default access type when
@@ -5672,7 +5671,7 @@ class HLoadString FINAL : public HInstruction {
         string_index_(string_index) {
     SetPackedFlag<kFlagIsInDexCache>(false);
     SetPackedField<LoadKindField>(LoadKind::kDexCacheViaMethod);
-    load_data_.ref.dex_file = &dex_file;
+    load_data_.dex_file_ = &dex_file;
   }
 
   void SetLoadKindWithAddress(LoadKind load_kind, uint64_t address) {
@@ -5685,17 +5684,8 @@ class HLoadString FINAL : public HInstruction {
                                       const DexFile& dex_file,
                                       uint32_t string_index) {
     DCHECK(HasStringReference(load_kind));
-    load_data_.ref.dex_file = &dex_file;
+    load_data_.dex_file_ = &dex_file;
     string_index_ = string_index;
-    SetLoadKindInternal(load_kind);
-  }
-
-  void SetLoadKindWithDexCacheReference(LoadKind load_kind,
-                                        const DexFile& dex_file,
-                                        uint32_t element_index) {
-    DCHECK(HasDexCacheReference(load_kind));
-    load_data_.ref.dex_file = &dex_file;
-    load_data_.ref.dex_cache_element_index = element_index;
     SetLoadKindInternal(load_kind);
   }
 
@@ -5709,8 +5699,6 @@ class HLoadString FINAL : public HInstruction {
     DCHECK(HasStringReference(GetLoadKind()) || /* For slow paths. */ !IsInDexCache());
     return string_index_;
   }
-
-  uint32_t GetDexCacheElementOffset() const;
 
   uint64_t GetAddress() const {
     DCHECK(HasAddress(GetLoadKind()));
@@ -5781,15 +5769,12 @@ class HLoadString FINAL : public HInstruction {
   static bool HasStringReference(LoadKind load_kind) {
     return load_kind == LoadKind::kBootImageLinkTimeAddress ||
         load_kind == LoadKind::kBootImageLinkTimePcRelative ||
+        load_kind == LoadKind::kBssEntry ||
         load_kind == LoadKind::kDexCacheViaMethod;
   }
 
   static bool HasAddress(LoadKind load_kind) {
     return load_kind == LoadKind::kBootImageAddress || load_kind == LoadKind::kDexCacheAddress;
-  }
-
-  static bool HasDexCacheReference(LoadKind load_kind) {
-    return load_kind == LoadKind::kDexCachePcRelative;
   }
 
   void SetLoadKindInternal(LoadKind load_kind);
@@ -5804,10 +5789,7 @@ class HLoadString FINAL : public HInstruction {
   uint32_t string_index_;
 
   union {
-    struct {
-      const DexFile* dex_file;            // For string reference and dex cache reference.
-      uint32_t dex_cache_element_index;   // Only for dex cache reference.
-    } ref;
+    const DexFile* dex_file_;            // For string reference.
     uint64_t address;  // Up to 64-bit, needed for kDexCacheAddress on 64-bit targets.
   } load_data_;
 
@@ -5817,15 +5799,8 @@ std::ostream& operator<<(std::ostream& os, HLoadString::LoadKind rhs);
 
 // Note: defined outside class to see operator<<(., HLoadString::LoadKind).
 inline const DexFile& HLoadString::GetDexFile() const {
-  DCHECK(HasStringReference(GetLoadKind()) || HasDexCacheReference(GetLoadKind()))
-      << GetLoadKind();
-  return *load_data_.ref.dex_file;
-}
-
-// Note: defined outside class to see operator<<(., HLoadString::LoadKind).
-inline uint32_t HLoadString::GetDexCacheElementOffset() const {
-  DCHECK(HasDexCacheReference(GetLoadKind())) << GetLoadKind();
-  return load_data_.ref.dex_cache_element_index;
+  DCHECK(HasStringReference(GetLoadKind())) << GetLoadKind();
+  return *load_data_.dex_file_;
 }
 
 // Note: defined outside class to see operator<<(., HLoadString::LoadKind).
@@ -5833,7 +5808,7 @@ inline void HLoadString::AddSpecialInput(HInstruction* special_input) {
   // The special input is used for PC-relative loads on some architectures,
   // including literal pool loads, which are PC-relative too.
   DCHECK(GetLoadKind() == LoadKind::kBootImageLinkTimePcRelative ||
-         GetLoadKind() == LoadKind::kDexCachePcRelative ||
+         GetLoadKind() == LoadKind::kBssEntry ||
          GetLoadKind() == LoadKind::kBootImageLinkTimeAddress ||
          GetLoadKind() == LoadKind::kBootImageAddress) << GetLoadKind();
   // HLoadString::GetInputRecords() returns an empty array at this point,
