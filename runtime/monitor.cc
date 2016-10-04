@@ -1123,6 +1123,13 @@ void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
     wait_message = "  - waiting to lock ";
     pretty_object = thread->GetMonitorEnterObject();
     if (pretty_object != nullptr) {
+      if (kUseReadBarrier && Thread::Current()->GetIsGcMarking()) {
+        // We may call Thread::Dump() in the middle of the CC thread flip and this thread's stack
+        // may have not been flipped yet and "pretty_object" may be a from-space (stale) ref, in
+        // which case the GetLockOwnerThreadId() call below will crash. So explicitly mark/forward
+        // it here.
+        pretty_object = ReadBarrier::Mark(pretty_object);
+      }
       lock_owner = pretty_object->GetLockOwnerThreadId();
     }
   }
