@@ -217,6 +217,17 @@ class Collections {
   uint32_t MethodIdsSize() const { return method_ids_.Size(); }
   uint32_t ClassDefsSize() const { return class_defs_.Size(); }
 
+  uint32_t StringDatasSize() const { return string_datas_.Size(); }
+  uint32_t TypeListsSize() const { return type_lists_.Size(); }
+  uint32_t EncodedArraySize() const { return encoded_array_items_.Size(); }
+  uint32_t AnnotationSize() const { return annotation_items_.Size(); }
+  uint32_t AnnotationSetSize() const { return annotation_set_items_.Size(); }
+  uint32_t AnnotationSetRefListsSize() const { return annotation_set_ref_lists_.Size(); }
+  uint32_t AnnotationsDirectorySize() const { return annotations_directory_items_.Size(); }
+  uint32_t DebugInfoSize() const { return debug_info_items_.Size(); }
+  uint32_t CodeItemsSize() const { return code_items_.Size(); }
+  uint32_t ClassDatasSize() const { return class_datas_.Size(); }
+
  private:
   EncodedValue* ReadEncodedValue(const uint8_t** data);
   EncodedValue* ReadEncodedValue(const uint8_t** data, uint8_t type, uint8_t length);
