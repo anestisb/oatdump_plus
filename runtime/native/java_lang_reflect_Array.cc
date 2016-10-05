@@ -40,7 +40,7 @@ static jobject Array_createMultiArray(
   DCHECK_EQ(dimensions_obj->GetClass()->GetComponentType()->GetPrimitiveType(),
             Primitive::kPrimInt);
   Handle<mirror::IntArray> dimensions_array(
-      hs.NewHandle(down_cast<mirror::IntArray*>(dimensions_obj.Decode())));
+      hs.NewHandle(down_cast<mirror::IntArray*>(dimensions_obj.Ptr())));
   mirror::Array* new_array = mirror::Array::CreateMultiArray(soa.Self(), element_class,
                                                              dimensions_array);
   return soa.AddLocalReference<jobject>(new_array);
@@ -53,7 +53,7 @@ static jobject Array_createObjectArray(JNIEnv* env, jclass, jclass javaElementCl
     ThrowNegativeArraySizeException(length);
     return nullptr;
   }
-  mirror::Class* element_class = soa.Decode<mirror::Class>(javaElementClass).Decode();
+  mirror::Class* element_class = soa.Decode<mirror::Class>(javaElementClass).Ptr();
   Runtime* runtime = Runtime::Current();
   ClassLinker* class_linker = runtime->GetClassLinker();
   mirror::Class* array_class = class_linker->FindArrayClass(soa.Self(), &element_class);

@@ -354,8 +354,8 @@ static jobject Class_getDeclaredConstructorInternal(
   ObjPtr<mirror::Constructor> result =
       mirror::Class::GetDeclaredConstructorInternal<kRuntimePointerSize, false>(
       soa.Self(),
-      DecodeClass(soa, javaThis).Decode(),
-      soa.Decode<mirror::ObjectArray<mirror::Class>>(args).Decode());
+      DecodeClass(soa, javaThis).Ptr(),
+      soa.Decode<mirror::ObjectArray<mirror::Class>>(args).Ptr());
   return soa.AddLocalReference<jobject>(result);
 }
 
@@ -405,9 +405,9 @@ static jobject Class_getDeclaredMethodInternal(JNIEnv* env, jobject javaThis,
   DCHECK(!Runtime::Current()->IsActiveTransaction());
   mirror::Method* result = mirror::Class::GetDeclaredMethodInternal<kRuntimePointerSize, false>(
       soa.Self(),
-      DecodeClass(soa, javaThis).Decode(),
-      soa.Decode<mirror::String>(name).Decode(),
-      soa.Decode<mirror::ObjectArray<mirror::Class>>(args).Decode());
+      DecodeClass(soa, javaThis).Ptr(),
+      soa.Decode<mirror::String>(name).Ptr(),
+      soa.Decode<mirror::ObjectArray<mirror::Class>>(args).Ptr());
   return soa.AddLocalReference<jobject>(result);
 }
 
@@ -475,7 +475,7 @@ static jobjectArray Class_getDeclaredAnnotations(JNIEnv* env, jobject javaThis) 
         soa.Decode<mirror::Class>(WellKnownClasses::java_lang_annotation_Annotation__array);
     mirror::ObjectArray<mirror::Object>* empty_array =
         mirror::ObjectArray<mirror::Object>::Alloc(soa.Self(),
-                                                   annotation_array_class.Decode(),
+                                                   annotation_array_class.Ptr(),
                                                    0);
     return soa.AddLocalReference<jobjectArray>(empty_array);
   }

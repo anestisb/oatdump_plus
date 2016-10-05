@@ -80,7 +80,7 @@ inline mirror::Field* Field::CreateFromArtField(Thread* self, ArtField* field, b
 
 template<bool kTransactionActive>
 void Field::SetDeclaringClass(ObjPtr<mirror::Class> c) {
-  SetFieldObject<kTransactionActive>(OFFSET_OF_OBJECT_MEMBER(Field, declaring_class_), c.Decode());
+  SetFieldObject<kTransactionActive>(OFFSET_OF_OBJECT_MEMBER(Field, declaring_class_), c.Ptr());
 }
 
 }  // namespace mirror

@@ -54,7 +54,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_checkAppImageContains(JNIEnv*, j
       auto* image_space = space->AsImageSpace();
       const auto& image_header = image_space->GetImageHeader();
       if (image_header.IsAppImage()) {
-        if (image_space->HasAddress(klass_ptr.Decode())) {
+        if (image_space->HasAddress(klass_ptr.Ptr())) {
           return JNI_TRUE;
         }
       }

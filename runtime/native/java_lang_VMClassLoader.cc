@@ -40,7 +40,7 @@ static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoa
   mirror::Class* c = cl->LookupClass(soa.Self(),
                                      descriptor.c_str(),
                                      descriptor_hash,
-                                     loader.Decode());
+                                     loader.Ptr());
   if (c != nullptr && c->IsResolved()) {
     return soa.AddLocalReference<jclass>(c);
   }

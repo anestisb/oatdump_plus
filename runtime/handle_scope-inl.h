@@ -111,7 +111,7 @@ inline MutableHandle<T> StackHandleScope<kNumReferences>::NewHandle(T* object) {
 template<size_t kNumReferences> template<class MirrorType, bool kPoison>
 inline MutableHandle<MirrorType> StackHandleScope<kNumReferences>::NewHandle(
     ObjPtr<MirrorType, kPoison> object) {
-  return NewHandle(object.Decode());
+  return NewHandle(object.Ptr());
 }
 
 template<size_t kNumReferences> template<class T>
@@ -138,7 +138,7 @@ inline void StackHandleScope<kNumReferences>::SetReference(size_t i, mirror::Obj
 template<class MirrorType, bool kPoison>
 inline MutableHandle<MirrorType> StackHandleScopeCollection::NewHandle(
     ObjPtr<MirrorType, kPoison> ptr) {
-  return NewHandle(ptr.Decode());
+  return NewHandle(ptr.Ptr());
 }
 
 }  // namespace art
