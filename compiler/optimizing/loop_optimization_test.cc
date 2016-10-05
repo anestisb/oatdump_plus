@@ -31,7 +31,7 @@ class LoopOptimizationTest : public CommonCompilerTest {
         allocator_(&pool_),
         graph_(CreateGraph(&allocator_)),
         iva_(new (&allocator_) HInductionVarAnalysis(graph_)),
-        loop_opt_(new (&allocator_) HLoopOptimization(graph_, iva_, &allocator_)) {
+        loop_opt_(new (&allocator_) HLoopOptimization(graph_, iva_)) {
     BuildGraph();
   }
 
@@ -76,7 +76,9 @@ class LoopOptimizationTest : public CommonCompilerTest {
   void PerformAnalysis() {
     graph_->BuildDominatorTree();
     iva_->Run();
-    loop_opt_->Run();
+    // Do not release the loop hierarchy.
+    loop_opt_->loop_allocator_ = &allocator_;
+    loop_opt_->LocalRun();
   }
 
   /** Constructs string representation of computed loop hierarchy. */
