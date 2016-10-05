@@ -69,6 +69,7 @@ const char* const ArenaAllocatorStatsImpl<kCount>::kAllocNames[] = {
   "DCE          ",
   "LSE          ",
   "LICM         ",
+  "LoopOpt      ",
   "SsaLiveness  ",
   "SsaPhiElim   ",
   "RefTypeProp  ",
