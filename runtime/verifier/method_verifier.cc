@@ -3040,6 +3040,13 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       just_set_result = true;
       break;
     }
+    case Instruction::INVOKE_POLYMORPHIC:
+    case Instruction::INVOKE_POLYMORPHIC_RANGE: {
+      Fail(VERIFY_ERROR_FORCE_INTERPRETER)
+          << "instruction is not supported by verifier; skipping verification";
+      have_pending_experimental_failure_ = true;
+      return false;
+    }
     case Instruction::NEG_INT:
     case Instruction::NOT_INT:
       work_line_->CheckUnaryOp(this, inst, reg_types_.Integer(), reg_types_.Integer());
@@ -3352,8 +3359,6 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::UNUSED_FC ... Instruction::UNUSED_FF:
     case Instruction::UNUSED_79:
     case Instruction::UNUSED_7A:
-    case Instruction::INVOKE_POLYMORPHIC:
-    case Instruction::INVOKE_POLYMORPHIC_RANGE:
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Unexpected opcode " << inst->DumpString(dex_file_);
       break;
 

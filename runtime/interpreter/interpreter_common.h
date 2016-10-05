@@ -123,7 +123,7 @@ template<bool is_range, bool do_assignability_check>
 bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
             const Instruction* inst, uint16_t inst_data, JValue* result);
 
-// Handles invoke-XXX/range instructions.
+// Handles all invoke-XXX/range instructions except for invoke-polymorphic[/range].
 // Returns true on success, otherwise throws an exception and returns false.
 template<InvokeType type, bool is_range, bool do_access_check>
 static inline bool DoInvoke(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst,
@@ -163,6 +163,12 @@ static inline bool DoInvoke(Thread* self, ShadowFrame& shadow_frame, const Instr
                                              result);
   }
 }
+
+// Performs a signature polymorphic invoke (invoke-polymorphic/invoke-polymorphic-range).
+template<bool is_range, bool do_access_check>
+bool DoInvokePolymorphic(Thread* self, ShadowFrame& shadow_frame,
+                         const Instruction* inst, uint16_t inst_data,
+                         JValue* result);
 
 // Handles invoke-virtual-quick and invoke-virtual-quick-range instructions.
 // Returns true on success, otherwise throws an exception and returns false.

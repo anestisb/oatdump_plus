@@ -20,6 +20,7 @@
 #include "class.h"
 #include "gc_root.h"
 #include "object.h"
+#include "method_handles.h"
 #include "method_type.h"
 
 namespace art {
@@ -38,6 +39,13 @@ class MANAGED MethodHandle : public Object {
   ArtMethod* GetTargetMethod() REQUIRES_SHARED(Locks::mutator_lock_) {
     return reinterpret_cast<ArtMethod*>(
         GetField64(OFFSET_OF_OBJECT_MEMBER(MethodHandle, art_field_or_method_)));
+  }
+
+  MethodHandleKind GetHandleKind() REQUIRES_SHARED(Locks::mutator_lock_) {
+    const int32_t handle_kind = GetField32(OFFSET_OF_OBJECT_MEMBER(MethodHandle, handle_kind_));
+
+    DCHECK(handle_kind >= 0 && handle_kind <= MethodHandleKind::kLastValidKind);
+    return static_cast<MethodHandleKind>(handle_kind);
   }
 
  private:
