@@ -72,7 +72,7 @@ class HLoopOptimization : public HOptimization {
 
   // Phase-local heap memory allocator for the loop optimizer. Storage obtained
   // through this allocator is released when the loop optimizer is done.
-  ArenaAllocator loop_allocator_;
+  ArenaAllocator* loop_allocator_;
 
   // Entries into the loop hierarchy representation.
   LoopNode* top_loop_;
