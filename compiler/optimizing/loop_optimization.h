@@ -17,8 +17,6 @@
 #ifndef ART_COMPILER_OPTIMIZING_LOOP_OPTIMIZATION_H_
 #define ART_COMPILER_OPTIMIZING_LOOP_OPTIMIZATION_H_
 
-#include <string>
-
 #include "induction_var_range.h"
 #include "nodes.h"
 #include "optimization.h"
@@ -32,9 +30,6 @@ namespace art {
 class HLoopOptimization : public HOptimization {
  public:
   HLoopOptimization(HGraph* graph, HInductionVarAnalysis* induction_analysis);
-  HLoopOptimization(HGraph* graph,
-                    HInductionVarAnalysis* induction_analysis,
-                    ArenaAllocator* allocator);
 
   void Run() OVERRIDE;
 
@@ -44,7 +39,7 @@ class HLoopOptimization : public HOptimization {
   /**
    * A single loop inside the loop hierarchy representation.
    */
-  struct LoopNode : public ArenaObject<kArenaAllocInductionVarAnalysis> {
+  struct LoopNode : public ArenaObject<kArenaAllocLoopOptimization> {
     explicit LoopNode(HLoopInformation* lp_info)
         : loop_info(lp_info),
           outer(nullptr),
@@ -58,6 +53,8 @@ class HLoopOptimization : public HOptimization {
     LoopNode* next;
   };
 
+  void LocalRun();
+
   void AddLoop(HLoopInformation* loop_info);
   void RemoveLoop(LoopNode* node);
 
@@ -70,14 +67,15 @@ class HLoopOptimization : public HOptimization {
                       HInstruction* replacement,
                       HInstruction* exclusion);
 
-  // Range analysis based on induction variables.
+  // Range information based on prior induction variable analysis.
   InductionVarRange induction_range_;
 
   // Phase-local heap memory allocator for the loop optimizer. Storage obtained
-  // through this allocator is released when the loop optimizer is done.
+  // through this allocator is immediately released when the loop optimizer is done.
   ArenaAllocator* loop_allocator_;
 
-  // Entries into the loop hierarchy representation.
+  // Entries into the loop hierarchy representation. The hierarchy resides
+  // in phase-local heap memory.
   LoopNode* top_loop_;
   LoopNode* last_loop_;
 

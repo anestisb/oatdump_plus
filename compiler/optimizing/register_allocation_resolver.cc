@@ -17,6 +17,7 @@
 #include "register_allocation_resolver.h"
 
 #include "code_generator.h"
+#include "linear_order.h"
 #include "ssa_liveness_analysis.h"
 
 namespace art {
@@ -141,8 +142,7 @@ void RegisterAllocationResolver::Resolve(ArrayRef<HInstruction* const> safepoint
   }
 
   // Resolve non-linear control flow across branches. Order does not matter.
-  for (HLinearOrderIterator it(*codegen_->GetGraph()); !it.Done(); it.Advance()) {
-    HBasicBlock* block = it.Current();
+  for (HBasicBlock* block : codegen_->GetGraph()->GetLinearOrder()) {
     if (block->IsCatchBlock() ||
         (block->IsLoopHeader() && block->GetLoopInformation()->IsIrreducible())) {
       // Instructions live at the top of catch blocks or irreducible loop header
@@ -172,15 +172,14 @@ void RegisterAllocationResolver::Resolve(ArrayRef<HInstruction* const> safepoint
   }
 
   // Resolve phi inputs. Order does not matter.
-  for (HLinearOrderIterator it(*codegen_->GetGraph()); !it.Done(); it.Advance()) {
-    HBasicBlock* current = it.Current();
-    if (current->IsCatchBlock()) {
+  for (HBasicBlock* block : codegen_->GetGraph()->GetLinearOrder()) {
+    if (block->IsCatchBlock()) {
       // Catch phi values are set at runtime by the exception delivery mechanism.
     } else {
-      for (HInstructionIterator inst_it(current->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
+      for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
         HInstruction* phi = inst_it.Current();
-        for (size_t i = 0, e = current->GetPredecessors().size(); i < e; ++i) {
-          HBasicBlock* predecessor = current->GetPredecessors()[i];
+        for (size_t i = 0, e = block->GetPredecessors().size(); i < e; ++i) {
+          HBasicBlock* predecessor = block->GetPredecessors()[i];
           DCHECK_EQ(predecessor->GetNormalSuccessors().size(), 1u);
           HInstruction* input = phi->InputAt(i);
           Location source = input->GetLiveInterval()->GetLocationAt(
