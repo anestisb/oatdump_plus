@@ -488,6 +488,8 @@ static HOptimization* BuildOptimization(
     return new (arena) LoadStoreElimination(graph, *most_recent_side_effects);
   } else if (opt_name == SideEffectsAnalysis::kSideEffectsAnalysisPassName) {
     return new (arena) SideEffectsAnalysis(graph);
+  } else if (opt_name == HLoopOptimization::kLoopOptimizationPassName) {
+    return new (arena) HLoopOptimization(graph, most_recent_induction);
 #ifdef ART_ENABLE_CODEGEN_arm
   } else if (opt_name == arm::DexCacheArrayFixups::kDexCacheArrayFixupsArmPassName) {
     return new (arena) arm::DexCacheArrayFixups(graph, codegen, stats);
