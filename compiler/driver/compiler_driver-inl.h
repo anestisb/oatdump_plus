@@ -253,7 +253,7 @@ inline bool CompilerDriver::IsStaticFieldsClassInitialized(mirror::Class* referr
                                                            ArtField* resolved_field) {
   DCHECK(resolved_field->IsStatic());
   ObjPtr<mirror::Class> fields_class = resolved_field->GetDeclaringClass();
-  return CanReferrerAssumeClassIsInitialized(referrer_class, fields_class.Decode());
+  return CanReferrerAssumeClassIsInitialized(referrer_class, fields_class.Ptr());
 }
 
 inline ArtMethod* CompilerDriver::ResolveMethod(
