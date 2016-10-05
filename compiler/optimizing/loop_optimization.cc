@@ -128,7 +128,7 @@ HLoopOptimization::HLoopOptimization(HGraph* graph,
                                      HInductionVarAnalysis* induction_analysis)
     : HOptimization(graph, kLoopOptimizationPassName),
       induction_range_(induction_analysis),
-      loop_allocator_(graph_->GetArena()->GetArenaPool()),  // phase-local allocator on global pool
+      loop_allocator_(nullptr),
       top_loop_(nullptr),
       last_loop_(nullptr) {
 }
@@ -140,6 +140,9 @@ void HLoopOptimization::Run() {
     return;
   }
 
+  ArenaAllocator allocator(graph_->GetArena()->GetArenaPool());
+  loop_allocator_ = &allocator;
+
   // Build the linear order. This step enables building a loop hierarchy that
   // properly reflects the outer-inner and previous-next relation.
   graph_->Linearize();
@@ -150,16 +153,16 @@ void HLoopOptimization::Run() {
       AddLoop(block->GetLoopInformation());
     }
   }
-  if (top_loop_ == nullptr) {
-    return;  // no loops
+  if (top_loop_ != nullptr) {
+    // Traverse the loop hierarchy inner-to-outer and optimize.
+    TraverseLoopsInnerToOuter(top_loop_);
   }
-  // Traverse the loop hierarchy inner-to-outer and optimize.
-  TraverseLoopsInnerToOuter(top_loop_);
+  loop_allocator_ = nullptr;
 }
 
 void HLoopOptimization::AddLoop(HLoopInformation* loop_info) {
   DCHECK(loop_info != nullptr);
-  LoopNode* node = new (&loop_allocator_) LoopNode(loop_info);  // phase-local allocator
+  LoopNode* node = new (loop_allocator_) LoopNode(loop_info);  // phase-local allocator
   if (last_loop_ == nullptr) {
     // First loop.
     DCHECK(top_loop_ == nullptr);
