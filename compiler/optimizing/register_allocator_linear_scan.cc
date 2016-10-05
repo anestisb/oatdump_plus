@@ -22,6 +22,7 @@
 #include "base/bit_vector-inl.h"
 #include "base/enums.h"
 #include "code_generator.h"
+#include "linear_order.h"
 #include "register_allocation_resolver.h"
 #include "ssa_liveness_analysis.h"
 
@@ -108,8 +109,7 @@ void RegisterAllocatorLinearScan::AllocateRegisters() {
     // Since only parallel moves have been inserted during the register allocation,
     // these checks are mostly for making sure these moves have been added correctly.
     size_t current_liveness = 0;
-    for (HLinearOrderIterator it(*codegen_->GetGraph()); !it.Done(); it.Advance()) {
-      HBasicBlock* block = it.Current();
+    for (HBasicBlock* block : codegen_->GetGraph()->GetLinearOrder()) {
       for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
         HInstruction* instruction = inst_it.Current();
         DCHECK_LE(current_liveness, instruction->GetLifetimePosition());
@@ -163,8 +163,7 @@ void RegisterAllocatorLinearScan::BlockRegisters(size_t start, size_t end, bool 
 void RegisterAllocatorLinearScan::AllocateRegistersInternal() {
   // Iterate post-order, to ensure the list is sorted, and the last added interval
   // is the one with the lowest start position.
-  for (HLinearPostOrderIterator it(*codegen_->GetGraph()); !it.Done(); it.Advance()) {
-    HBasicBlock* block = it.Current();
+  for (HBasicBlock* block : LinearPostOrder(codegen_->GetGraph()->GetLinearOrder())) {
     for (HBackwardInstructionIterator back_it(block->GetInstructions()); !back_it.Done();
          back_it.Advance()) {
       ProcessInstruction(back_it.Current());
