@@ -1514,8 +1514,8 @@ bool Heap::IsValidObjectAddress(ObjPtr<mirror::Object> obj) const {
   if (obj == nullptr) {
     return true;
   }
-  return IsAligned<kObjectAlignment>(obj.Decode()) &&
-      FindSpaceFromObject(obj.Decode(), true) != nullptr;
+  return IsAligned<kObjectAlignment>(obj.Ptr()) &&
+      FindSpaceFromObject(obj.Ptr(), true) != nullptr;
 }
 
 bool Heap::IsNonDiscontinuousSpaceHeapAddress(const mirror::Object* obj) const {
@@ -3569,7 +3569,7 @@ void Heap::SetIdealFootprint(size_t max_allowed_footprint) {
 
 bool Heap::IsMovableObject(ObjPtr<mirror::Object> obj) const {
   if (kMovingCollector) {
-    space::Space* space = FindContinuousSpaceFromObject(obj.Decode(), true);
+    space::Space* space = FindContinuousSpaceFromObject(obj.Ptr(), true);
     if (space != nullptr) {
       // TODO: Check large object?
       return space->CanMoveObjects();
@@ -3729,7 +3729,7 @@ void Heap::AddFinalizerReference(Thread* self, mirror::Object** object) {
   args[0].l = arg.get();
   InvokeWithJValues(soa, nullptr, WellKnownClasses::java_lang_ref_FinalizerReference_add, args);
   // Restore object in case it gets moved.
-  *object = soa.Decode<mirror::Object>(arg.get()).Decode();
+  *object = soa.Decode<mirror::Object>(arg.get()).Ptr();
 }
 
 void Heap::RequestConcurrentGCAndSaveObject(Thread* self, bool force_full, mirror::Object** obj) {

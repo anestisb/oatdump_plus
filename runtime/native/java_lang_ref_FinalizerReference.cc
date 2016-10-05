@@ -29,7 +29,7 @@ static jboolean FinalizerReference_makeCircularListIfUnenqueued(JNIEnv* env, job
   ScopedFastNativeObjectAccess soa(env);
   ObjPtr<mirror::FinalizerReference> ref = soa.Decode<mirror::FinalizerReference>(javaThis);
   return Runtime::Current()->GetHeap()->GetReferenceProcessor()->MakeCircularListIfUnenqueued(
-      ref.Decode());
+      ref.Ptr());
 }
 
 static JNINativeMethod gMethods[] = {

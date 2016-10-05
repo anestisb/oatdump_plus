@@ -255,7 +255,7 @@ mirror::Object* ProcessEncodedAnnotation(Handle<mirror::Class> klass, const uint
   }
 
   mirror::Class* annotation_member_class =
-      soa.Decode<mirror::Class>(WellKnownClasses::libcore_reflect_AnnotationMember).Decode();
+      soa.Decode<mirror::Class>(WellKnownClasses::libcore_reflect_AnnotationMember).Ptr();
   mirror::Class* annotation_member_array_class =
       class_linker->FindArrayClass(self, &annotation_member_class);
   if (annotation_member_array_class == nullptr) {
@@ -572,12 +572,12 @@ bool ProcessAnnotationValue(Handle<mirror::Class> klass,
   *annotation_ptr = annotation;
 
   if (result_style == DexFile::kAllObjects && primitive_type != Primitive::kPrimVoid) {
-    element_object = BoxPrimitive(primitive_type, annotation_value->value_).Decode();
+    element_object = BoxPrimitive(primitive_type, annotation_value->value_).Ptr();
     set_object = true;
   }
 
   if (set_object) {
-    annotation_value->value_.SetL(element_object.Decode());
+    annotation_value->value_.SetL(element_object.Ptr());
   }
 
   return true;
@@ -840,7 +840,7 @@ mirror::ObjectArray<mirror::Object>* ProcessAnnotationSetRefList(
   ScopedObjectAccessUnchecked soa(self);
   StackHandleScope<1> hs(self);
   mirror::Class* annotation_array_class =
-      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_annotation_Annotation__array).Decode();
+      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_annotation_Annotation__array).Ptr();
   mirror::Class* annotation_array_array_class =
       Runtime::Current()->GetClassLinker()->FindArrayClass(self, &annotation_array_class);
   if (annotation_array_array_class == nullptr) {

@@ -68,7 +68,7 @@ bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst
       this_object = obj;
     }
     instrumentation->FieldReadEvent(self,
-                                    this_object.Decode(),
+                                    this_object.Ptr(),
                                     shadow_frame.GetMethod(),
                                     shadow_frame.GetDexPC(),
                                     f);
@@ -94,7 +94,7 @@ bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst
       shadow_frame.SetVRegLong(vregA, f->GetLong(obj));
       break;
     case Primitive::kPrimNot:
-      shadow_frame.SetVRegReference(vregA, f->GetObject(obj).Decode());
+      shadow_frame.SetVRegReference(vregA, f->GetObject(obj).Ptr());
       break;
     default:
       LOG(FATAL) << "Unreachable: " << field_type;
@@ -271,7 +271,7 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
     HandleWrapperObjPtr<mirror::Object> h(hs.NewHandleWrapper(&obj));
     JValue field_value = GetFieldValue<field_type>(shadow_frame, vregA);
     ObjPtr<Object> this_object = f->IsStatic() ? nullptr : obj;
-    instrumentation->FieldWriteEvent(self, this_object.Decode(),
+    instrumentation->FieldWriteEvent(self, this_object.Ptr(),
                                      shadow_frame.GetMethod(),
                                      shadow_frame.GetDexPC(),
                                      f,
@@ -308,7 +308,7 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
           HandleWrapperObjPtr<mirror::Object> h_obj(hs.NewHandleWrapper(&obj));
           field_class = f->GetType<true>();
         }
-        if (!reg->VerifierInstanceOf(field_class.Decode())) {
+        if (!reg->VerifierInstanceOf(field_class.Ptr())) {
           // This should never happen.
           std::string temp1, temp2, temp3;
           self->ThrowNewExceptionF("Ljava/lang/VirtualMachineError;",

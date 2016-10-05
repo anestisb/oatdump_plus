@@ -116,7 +116,7 @@ static jboolean Thread_nativeHoldsLock(JNIEnv* env, jobject java_thread, jobject
   }
   MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
   Thread* thread = Thread::FromManagedThread(soa, java_thread);
-  return thread->HoldsLock(object.Decode());
+  return thread->HoldsLock(object.Ptr());
 }
 
 static void Thread_nativeInterrupt(JNIEnv* env, jobject java_thread) {
@@ -173,7 +173,7 @@ static void Thread_nativeSetPriority(JNIEnv* env, jobject java_thread, jint new_
 static void Thread_sleep(JNIEnv* env, jclass, jobject java_lock, jlong ms, jint ns) {
   ScopedFastNativeObjectAccess soa(env);
   ObjPtr<mirror::Object> lock = soa.Decode<mirror::Object>(java_lock);
-  Monitor::Wait(Thread::Current(), lock.Decode(), ms, ns, true, kSleeping);
+  Monitor::Wait(Thread::Current(), lock.Ptr(), ms, ns, true, kSleeping);
 }
 
 /*

@@ -384,7 +384,7 @@ inline bool Class::ResolvedFieldAccessTest(ObjPtr<Class> access_to,
     DCHECK(dex_access_to != nullptr);
     if (UNLIKELY(!this->CanAccess(dex_access_to))) {
       if (throw_on_failure) {
-        ThrowIllegalAccessErrorClass(this, dex_access_to.Decode());
+        ThrowIllegalAccessErrorClass(this, dex_access_to.Ptr());
       }
       return false;
     }
@@ -422,7 +422,7 @@ inline bool Class::ResolvedMethodAccessTest(ObjPtr<Class> access_to,
     if (UNLIKELY(!this->CanAccess(dex_access_to))) {
       if (throw_on_failure) {
         ThrowIllegalAccessErrorClassForMethodDispatch(this,
-                                                      dex_access_to.Decode(),
+                                                      dex_access_to.Ptr(),
                                                       method,
                                                       throw_invoke_type);
       }
@@ -448,7 +448,7 @@ inline bool Class::CanAccessResolvedField(ObjPtr<Class> access_to,
 inline bool Class::CheckResolvedFieldAccess(ObjPtr<Class> access_to,
                                             ArtField* field,
                                             uint32_t field_idx) {
-  return ResolvedFieldAccessTest<true, true>(access_to.Decode(), field, field_idx, nullptr);
+  return ResolvedFieldAccessTest<true, true>(access_to.Ptr(), field, field_idx, nullptr);
 }
 
 inline bool Class::CanAccessResolvedMethod(Class* access_to, ArtMethod* method,

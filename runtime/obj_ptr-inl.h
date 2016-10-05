@@ -33,7 +33,7 @@ inline bool ObjPtr<MirrorType, kPoison>::IsValid() const {
 template<class MirrorType, bool kPoison>
 inline void ObjPtr<MirrorType, kPoison>::AssertValid() const {
   if (kPoison) {
-    CHECK(IsValid()) << "Stale object pointer " << DecodeUnchecked() << " , expected cookie "
+    CHECK(IsValid()) << "Stale object pointer " << Ptr() << " , expected cookie "
         << TrimCookie(Thread::Current()->GetPoisonObjectCookie()) << " but got " << GetCookie();
   }
 }
@@ -56,7 +56,7 @@ inline uintptr_t ObjPtr<MirrorType, kPoison>::Encode(MirrorType* ptr) {
 template<class MirrorType, bool kPoison>
 inline std::ostream& operator<<(std::ostream& os, ObjPtr<MirrorType, kPoison> ptr) {
   // May be used for dumping bad pointers, do not use the checked version.
-  return os << ptr.DecodeUnchecked();
+  return os << ptr.PtrUnchecked();
 }
 
 }  // namespace art

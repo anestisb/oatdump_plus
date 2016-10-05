@@ -85,7 +85,7 @@ class VerifierDepsTest : public CommonRuntimeTest {
     SetVerifierDeps(dex_files);
 
     ObjPtr<mirror::ClassLoader> loader = soa->Decode<mirror::ClassLoader>(class_loader_);
-    class_linker_->RegisterDexFile(*dex_file_, loader.Decode());
+    class_linker_->RegisterDexFile(*dex_file_, loader.Ptr());
 
     klass_Main_ = FindClassByName("LMain;", soa);
     CHECK(klass_Main_ != nullptr);

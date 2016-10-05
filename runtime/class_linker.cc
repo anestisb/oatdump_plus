@@ -1152,7 +1152,7 @@ static bool FlattenPathClassLoader(mirror::ClassLoader* class_loader,
             *error_msg = StringPrintf("Null name for dex element at index %d", i);
             return false;
           }
-          out_dex_file_names->push_front(name.Decode());
+          out_dex_file_names->push_front(name.Ptr());
         }
       }
     }
@@ -2545,7 +2545,7 @@ mirror::Class* ClassLinker::FindClass(Thread* self,
       return nullptr;
     } else {
       // success, return mirror::Class*
-      return soa.Decode<mirror::Class>(result.get()).Decode();
+      return soa.Decode<mirror::Class>(result.get()).Ptr();
     }
   }
   UNREACHABLE();
@@ -4268,9 +4268,9 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   // Set the class access flags incl. VerificationAttempted, so we do not try to set the flag on
   // the methods.
   klass->SetAccessFlags(kAccClassIsProxy | kAccPublic | kAccFinal | kAccVerificationAttempted);
-  klass->SetClassLoader(soa.Decode<mirror::ClassLoader>(loader).Decode());
+  klass->SetClassLoader(soa.Decode<mirror::ClassLoader>(loader).Ptr());
   DCHECK_EQ(klass->GetPrimitiveType(), Primitive::kPrimNot);
-  klass->SetName(soa.Decode<mirror::String>(name).Decode());
+  klass->SetName(soa.Decode<mirror::String>(name).Ptr());
   klass->SetDexCache(GetClassRoot(kJavaLangReflectProxy)->GetDexCache());
   mirror::Class::SetStatus(klass, mirror::Class::kStatusIdx, self);
   std::string descriptor(GetDescriptorForProxy(klass.Get()));
@@ -4363,11 +4363,11 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   CHECK_EQ(interfaces_sfield.GetDeclaringClass(), klass.Get());
   interfaces_sfield.SetObject<false>(
       klass.Get(),
-      soa.Decode<mirror::ObjectArray<mirror::Class>>(interfaces).Decode());
+      soa.Decode<mirror::ObjectArray<mirror::Class>>(interfaces).Ptr());
   CHECK_EQ(throws_sfield.GetDeclaringClass(), klass.Get());
   throws_sfield.SetObject<false>(
       klass.Get(),
-      soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class>>>(throws).Decode());
+      soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class>>>(throws).Ptr());
 
   {
     // Lock on klass is released. Lock new class object.
@@ -4397,9 +4397,9 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
     CHECK_EQ(PrettyField(klass->GetStaticField(1)), throws_field_name);
 
     CHECK_EQ(klass.Get()->GetInterfaces(),
-             soa.Decode<mirror::ObjectArray<mirror::Class>>(interfaces).Decode());
+             soa.Decode<mirror::ObjectArray<mirror::Class>>(interfaces).Ptr());
     CHECK_EQ(klass.Get()->GetThrows(),
-             soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class>>>(throws).Decode());
+             soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class>>>(throws).Ptr());
   }
   return klass.Get();
 }
@@ -7655,7 +7655,7 @@ ObjPtr<mirror::Class> ClassLinker::LookupResolvedType(const DexFile& dex_file,
       DCHECK(self != nullptr);
       const size_t hash = ComputeModifiedUtf8Hash(descriptor);
       // Find the class in the loaded classes table.
-      type = LookupClass(self, descriptor, hash, class_loader.Decode());
+      type = LookupClass(self, descriptor, hash, class_loader.Ptr());
     }
   }
   if (type != nullptr || type->IsResolved()) {

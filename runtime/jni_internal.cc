@@ -148,7 +148,7 @@ static jmethodID FindMethodID(ScopedObjectAccess& soa, jclass jni_class,
     }
   }
   if (method == nullptr || method->IsStatic() != is_static) {
-    ThrowNoSuchMethodError(soa, c.Decode(), name, sig, is_static ? "static" : "non-static");
+    ThrowNoSuchMethodError(soa, c.Ptr(), name, sig, is_static ? "static" : "non-static");
     return nullptr;
   }
   return soa.EncodeMethod(method);
@@ -373,7 +373,7 @@ class JNI {
       // Not even a java.lang.reflect.Field, return null. TODO, is this check necessary?
       return nullptr;
     }
-    ObjPtr<mirror::Field> field = down_cast<mirror::Field*>(obj_field.Decode());
+    ObjPtr<mirror::Field> field = down_cast<mirror::Field*>(obj_field.Ptr());
     return soa.EncodeField(field->GetArtField());
   }
 
@@ -528,7 +528,7 @@ class JNI {
   static jobject NewGlobalRef(JNIEnv* env, jobject obj) {
     ScopedObjectAccess soa(env);
     ObjPtr<mirror::Object> decoded_obj = soa.Decode<mirror::Object>(obj);
-    return soa.Vm()->AddGlobalRef(soa.Self(), decoded_obj.Decode());
+    return soa.Vm()->AddGlobalRef(soa.Self(), decoded_obj.Ptr());
   }
 
   static void DeleteGlobalRef(JNIEnv* env, jobject obj) {
@@ -540,7 +540,7 @@ class JNI {
   static jweak NewWeakGlobalRef(JNIEnv* env, jobject obj) {
     ScopedObjectAccess soa(env);
     ObjPtr<mirror::Object> decoded_obj = soa.Decode<mirror::Object>(obj);
-    return soa.Vm()->AddWeakGlobalRef(soa.Self(), decoded_obj.Decode());
+    return soa.Vm()->AddWeakGlobalRef(soa.Self(), decoded_obj.Ptr());
   }
 
   static void DeleteWeakGlobalRef(JNIEnv* env, jweak obj) {
@@ -1857,7 +1857,7 @@ class JNI {
     ObjPtr<mirror::ObjectArray<mirror::Object>> array =
         soa.Decode<mirror::ObjectArray<mirror::Object>>(java_array);
     ObjPtr<mirror::Object> value = soa.Decode<mirror::Object>(java_value);
-    array->Set<false>(index, value.Decode());
+    array->Set<false>(index, value.Ptr());
   }
 
   static jbooleanArray NewBooleanArray(JNIEnv* env, jsize length) {
@@ -1900,7 +1900,7 @@ class JNI {
     ScopedObjectAccess soa(env);
     mirror::Class* array_class;
     {
-      mirror::Class* element_class = soa.Decode<mirror::Class>(element_jclass).Decode();
+      mirror::Class* element_class = soa.Decode<mirror::Class>(element_jclass).Ptr();
       if (UNLIKELY(element_class->IsPrimitive())) {
         soa.Vm()->JniAbortF("NewObjectArray", "not an object type: %s",
                             PrettyDescriptor(element_class).c_str());
@@ -1928,7 +1928,7 @@ class JNI {
           return nullptr;
         } else {
           for (jsize i = 0; i < length; ++i) {
-            result->SetWithoutChecks<false>(i, initial_object.Decode());
+            result->SetWithoutChecks<false>(i, initial_object.Ptr());
           }
         }
       }
@@ -1978,7 +1978,7 @@ class JNI {
       return;
     }
     const size_t component_size = array->GetClass()->GetComponentSize();
-    ReleasePrimitiveArray(soa, array.Decode(), component_size, elements, mode);
+    ReleasePrimitiveArray(soa, array.Ptr(), component_size, elements, mode);
   }
 
   static jboolean* GetBooleanArrayElements(JNIEnv* env, jbooleanArray array, jboolean* is_copy) {
@@ -2217,13 +2217,13 @@ class JNI {
            current_class != nullptr;
            current_class = current_class->GetSuperClass()) {
         // Search first only comparing methods which are native.
-        m = FindMethod<true>(current_class.Decode(), name, sig);
+        m = FindMethod<true>(current_class.Ptr(), name, sig);
         if (m != nullptr) {
           break;
         }
 
         // Search again comparing to all methods, to find non-native methods that match.
-        m = FindMethod<false>(current_class.Decode(), name, sig);
+        m = FindMethod<false>(current_class.Ptr(), name, sig);
         if (m != nullptr) {
           break;
         }
@@ -2245,14 +2245,14 @@ class JNI {
             << "Failed to register native method "
             << PrettyDescriptor(c) << "." << name << sig << " in "
             << c->GetDexCache()->GetLocation()->ToModifiedUtf8();
-        ThrowNoSuchMethodError(soa, c.Decode(), name, sig, "static or non-static");
+        ThrowNoSuchMethodError(soa, c.Ptr(), name, sig, "static or non-static");
         return JNI_ERR;
       } else if (!m->IsNative()) {
         LOG(return_errors ? ::android::base::ERROR : ::android::base::FATAL)
             << "Failed to register non-native method "
             << PrettyDescriptor(c) << "." << name << sig
             << " as native";
-        ThrowNoSuchMethodError(soa, c.Decode(), name, sig, "native");
+        ThrowNoSuchMethodError(soa, c.Ptr(), name, sig, "native");
         return JNI_ERR;
       }
 
@@ -2295,7 +2295,7 @@ class JNI {
     if (soa.Self()->IsExceptionPending()) {
       return JNI_ERR;
     }
-    soa.Env()->monitors.Add(o.Decode());
+    soa.Env()->monitors.Add(o.Ptr());
     return JNI_OK;
   }
 
@@ -2307,7 +2307,7 @@ class JNI {
     if (soa.Self()->IsExceptionPending()) {
       return JNI_ERR;
     }
-    soa.Env()->monitors.Remove(o.Decode());
+    soa.Env()->monitors.Remove(o.Ptr());
     return JNI_OK;
   }
 
@@ -2426,7 +2426,7 @@ class JNI {
       return nullptr;
     }
     DCHECK_EQ(sizeof(ElementT), array->GetClass()->GetComponentSize());
-    return array.Decode();
+    return array.Ptr();
   }
 
   template <typename ArrayT, typename ElementT, typename ArtArrayT>
