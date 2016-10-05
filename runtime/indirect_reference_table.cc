@@ -16,6 +16,7 @@
 
 #include "indirect_reference_table-inl.h"
 
+#include "base/dumpable-inl.h"
 #include "base/systrace.h"
 #include "jni_internal.h"
 #include "nth_caller_visitor.h"
@@ -44,32 +45,6 @@ const char* GetIndirectRefKindString(const IndirectRefKind& kind) {
       return "WeakGlobal";
   }
   return "IndirectRefKind Error";
-}
-
-template<typename T>
-class MutatorLockedDumpable {
- public:
-  explicit MutatorLockedDumpable(T& value)
-      REQUIRES_SHARED(Locks::mutator_lock_) : value_(value) {
-  }
-
-  void Dump(std::ostream& os) const REQUIRES_SHARED(Locks::mutator_lock_) {
-    value_.Dump(os);
-  }
-
- private:
-  T& value_;
-
-  DISALLOW_COPY_AND_ASSIGN(MutatorLockedDumpable);
-};
-
-template<typename T>
-std::ostream& operator<<(std::ostream& os, const MutatorLockedDumpable<T>& rhs)
-// TODO: should be REQUIRES_SHARED(Locks::mutator_lock_) however annotalysis
-//       currently fails for this.
-    NO_THREAD_SAFETY_ANALYSIS {
-  rhs.Dump(os);
-  return os;
 }
 
 void IndirectReferenceTable::AbortIfNoCheckJNI(const std::string& msg) {
@@ -118,13 +93,13 @@ bool IndirectReferenceTable::IsValid() const {
   return table_mem_map_.get() != nullptr;
 }
 
-IndirectRef IndirectReferenceTable::Add(uint32_t cookie, mirror::Object* obj) {
+IndirectRef IndirectReferenceTable::Add(uint32_t cookie, ObjPtr<mirror::Object> obj) {
   IRTSegmentState prevState;
   prevState.all = cookie;
   size_t topIndex = segment_state_.parts.topIndex;
 
   CHECK(obj != nullptr);
-  VerifyObject(obj);
+  VerifyObject(obj.Ptr());
   DCHECK(table_ != nullptr);
   DCHECK_GE(segment_state_.parts.numHoles, prevState.parts.numHoles);
 
@@ -171,9 +146,9 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, mirror::Object* obj) {
 void IndirectReferenceTable::AssertEmpty() {
   for (size_t i = 0; i < Capacity(); ++i) {
     if (!table_[i].GetReference()->IsNull()) {
-      ScopedObjectAccess soa(Thread::Current());
       LOG(FATAL) << "Internal Error: non-empty local reference table\n"
                  << MutatorLockedDumpable<IndirectReferenceTable>(*this);
+      UNREACHABLE();
     }
   }
 }
@@ -299,7 +274,7 @@ void IndirectReferenceTable::Dump(std::ostream& os) const {
   os << kind_ << " table dump:\n";
   ReferenceTable::Table entries;
   for (size_t i = 0; i < Capacity(); ++i) {
-    mirror::Object* obj = table_[i].GetReference()->Read<kWithoutReadBarrier>();
+    ObjPtr<mirror::Object> obj = table_[i].GetReference()->Read<kWithoutReadBarrier>();
     if (obj != nullptr) {
       obj = table_[i].GetReference()->Read();
       entries.push_back(GcRoot<mirror::Object>(obj));

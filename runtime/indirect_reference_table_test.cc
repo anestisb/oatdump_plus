@@ -81,9 +81,9 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
   EXPECT_TRUE(iref2 != nullptr);
   CheckDump(&irt, 3, 3);
 
-  EXPECT_EQ(obj0, irt.Get(iref0));
-  EXPECT_EQ(obj1, irt.Get(iref1));
-  EXPECT_EQ(obj2, irt.Get(iref2));
+  EXPECT_OBJ_PTR_EQ(obj0, irt.Get(iref0));
+  EXPECT_OBJ_PTR_EQ(obj1, irt.Get(iref1));
+  EXPECT_OBJ_PTR_EQ(obj2, irt.Get(iref2));
 
   EXPECT_TRUE(irt.Remove(cookie, iref0));
   CheckDump(&irt, 2, 2);
