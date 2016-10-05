@@ -39,7 +39,7 @@ inline GcRoot<MirrorType>::GcRoot(MirrorType* ref)
 
 template<class MirrorType>
 inline GcRoot<MirrorType>::GcRoot(ObjPtr<MirrorType, kIsDebugBuild> ref)
-    : GcRoot(ref.Decode()) { }
+    : GcRoot(ref.Ptr()) { }
 
 inline std::string RootInfo::ToString() const {
   std::ostringstream oss;

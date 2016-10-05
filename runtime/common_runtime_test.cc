@@ -514,9 +514,9 @@ std::vector<const DexFile*> CommonRuntimeTestImpl::GetDexFiles(jobject jclass_lo
       soa.Decode<mirror::ClassLoader>(jclass_loader));
 
   DCHECK_EQ(class_loader->GetClass(),
-            soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_PathClassLoader).Decode());
+            soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_PathClassLoader).Ptr());
   DCHECK_EQ(class_loader->GetParent()->GetClass(),
-            soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader).Decode());
+            soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader).Ptr());
 
   // The class loader is a PathClassLoader which inherits from BaseDexClassLoader.
   // We need to get the DexPathList and loop through it.

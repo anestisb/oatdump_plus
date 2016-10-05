@@ -43,7 +43,7 @@ class TestVisitor : public StackVisitor {
       uint32_t value = 0;
       CHECK(GetVReg(m, 1, kReferenceVReg, &value));
       CHECK_EQ(reinterpret_cast<mirror::Object*>(value),
-               soa_.Decode<mirror::Object>(expected_value_).Decode());
+               soa_.Decode<mirror::Object>(expected_value_).Ptr());
     }
     return true;
   }

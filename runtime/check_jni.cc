@@ -608,7 +608,7 @@ class ScopedCheck {
     ObjPtr<mirror::Object> obj = soa.Decode<mirror::Object>(jobj);
     if (!obj->GetClass()->IsThrowableClass()) {
       AbortF("expected java.lang.Throwable but got object of type "
-             "%s: %p", PrettyTypeOf(obj).c_str(), obj.Decode());
+             "%s: %p", PrettyTypeOf(obj).c_str(), obj.Ptr());
       return false;
     }
     return true;
@@ -619,7 +619,7 @@ class ScopedCheck {
     ObjPtr<mirror::Class> c = soa.Decode<mirror::Class>(jc);
     if (!c->IsThrowableClass()) {
       AbortF("expected java.lang.Throwable class but got object of "
-             "type %s: %p", PrettyDescriptor(c).c_str(), c.Decode());
+             "type %s: %p", PrettyDescriptor(c).c_str(), c.Ptr());
       return false;
     }
     return true;
@@ -649,7 +649,7 @@ class ScopedCheck {
       REQUIRES_SHARED(Locks::mutator_lock_) {
     ObjPtr<mirror::Class> c = soa.Decode<mirror::Class>(jc);
     if (!c->IsInstantiableNonArray()) {
-      AbortF("can't make objects of type %s: %p", PrettyDescriptor(c).c_str(), c.Decode());
+      AbortF("can't make objects of type %s: %p", PrettyDescriptor(c).c_str(), c.Ptr());
       return false;
     }
     return true;
@@ -772,12 +772,12 @@ class ScopedCheck {
         okay = false;
       } else {
         obj = soa.Vm()->DecodeWeakGlobal(soa.Self(), ref);
-        okay = Runtime::Current()->IsClearedJniWeakGlobal(obj.Decode());
+        okay = Runtime::Current()->IsClearedJniWeakGlobal(obj.Ptr());
       }
       if (!okay) {
         AbortF("%s is an invalid %s: %p (%p)",
                what, ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(),
-               java_object, obj.Decode());
+               java_object, obj.Ptr());
         return false;
       }
     }
@@ -786,7 +786,7 @@ class ScopedCheck {
       Runtime::Current()->GetHeap()->DumpSpaces(LOG_STREAM(ERROR));
       AbortF("%s is an invalid %s: %p (%p)",
              what, ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(),
-             java_object, obj.Decode());
+             java_object, obj.Ptr());
       return false;
     }
 
@@ -1112,7 +1112,7 @@ class ScopedCheck {
       Runtime::Current()->GetHeap()->DumpSpaces(LOG_STREAM(ERROR));
       AbortF("jarray is an invalid %s: %p (%p)",
              ToStr<IndirectRefKind>(GetIndirectRefKind(java_array)).c_str(),
-             java_array, a.Decode());
+             java_array, a.Ptr());
       return false;
     } else if (!a->IsArrayInstance()) {
       AbortF("jarray argument has non-array type: %s", PrettyTypeOf(a).c_str());

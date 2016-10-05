@@ -123,7 +123,7 @@ class TestVisitor : public StackVisitor {
 extern "C" JNIEXPORT jint JNICALL Java_Main_doNativeCall(JNIEnv*, jobject value) {
   ScopedObjectAccess soa(Thread::Current());
   std::unique_ptr<Context> context(Context::Create());
-  TestVisitor visitor(soa.Self(), context.get(), soa.Decode<mirror::Object>(value).Decode());
+  TestVisitor visitor(soa.Self(), context.get(), soa.Decode<mirror::Object>(value).Ptr());
   visitor.WalkStack();
   return visitor.found_method_index_;
 }

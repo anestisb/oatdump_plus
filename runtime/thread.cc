@@ -407,7 +407,7 @@ void* Thread::CreateCallback(void* arg) {
 
     // Copy peer into self, deleting global reference when done.
     CHECK(self->tlsPtr_.jpeer != nullptr);
-    self->tlsPtr_.opeer = soa.Decode<mirror::Object>(self->tlsPtr_.jpeer).Decode();
+    self->tlsPtr_.opeer = soa.Decode<mirror::Object>(self->tlsPtr_.jpeer).Ptr();
     self->GetJniEnv()->DeleteGlobalRef(self->tlsPtr_.jpeer);
     self->tlsPtr_.jpeer = nullptr;
     self->SetThreadName(self->GetThreadName(soa)->ToModifiedUtf8().c_str());
@@ -445,7 +445,7 @@ Thread* Thread::FromManagedThread(const ScopedObjectAccessAlreadyRunnable& soa,
 
 Thread* Thread::FromManagedThread(const ScopedObjectAccessAlreadyRunnable& soa,
                                   jobject java_thread) {
-  return FromManagedThread(soa, soa.Decode<mirror::Object>(java_thread).Decode());
+  return FromManagedThread(soa, soa.Decode<mirror::Object>(java_thread).Ptr());
 }
 
 static size_t FixStackSize(size_t stack_size) {
@@ -803,7 +803,7 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
   }
   {
     ScopedObjectAccess soa(this);
-    tlsPtr_.opeer = soa.Decode<mirror::Object>(peer.get()).Decode();
+    tlsPtr_.opeer = soa.Decode<mirror::Object>(peer.get()).Ptr();
   }
   env->CallNonvirtualVoidMethod(peer.get(),
                                 WellKnownClasses::java_lang_Thread,
@@ -3051,7 +3051,7 @@ void Thread::DeoptimizeWithDeoptimizationException(JValue* result) {
 void Thread::SetException(ObjPtr<mirror::Throwable> new_exception) {
   CHECK(new_exception != nullptr);
   // TODO: DCHECK(!IsExceptionPending());
-  tlsPtr_.exception = new_exception.Decode();
+  tlsPtr_.exception = new_exception.Ptr();
 }
 
 }  // namespace art

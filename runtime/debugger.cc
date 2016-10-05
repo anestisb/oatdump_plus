@@ -1743,7 +1743,7 @@ static JValue GetArtFieldValue(ArtField* f, mirror::Object* o)
       return field_value;
 
     case Primitive::kPrimNot:
-      field_value.SetL(f->GetObject(o).Decode());
+      field_value.SetL(f->GetObject(o).Ptr());
       return field_value;
 
     case Primitive::kPrimVoid:

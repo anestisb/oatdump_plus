@@ -505,7 +505,7 @@ class PatchOatArtFieldVisitor : public ArtFieldVisitor {
   void Visit(ArtField* field) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     ArtField* const dest = patch_oat_->RelocatedCopyOf(field);
     dest->SetDeclaringClass(
-        patch_oat_->RelocatedAddressOfPointer(field->GetDeclaringClass().Decode()));
+        patch_oat_->RelocatedAddressOfPointer(field->GetDeclaringClass().Ptr()));
   }
 
  private:

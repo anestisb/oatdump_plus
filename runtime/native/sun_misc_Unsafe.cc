@@ -64,15 +64,15 @@ static jboolean Unsafe_compareAndSwapObject(JNIEnv* env, jobject, jobject javaOb
     // CAS or the CAS could fail incorrectly.
     mirror::HeapReference<mirror::Object>* field_addr =
         reinterpret_cast<mirror::HeapReference<mirror::Object>*>(
-            reinterpret_cast<uint8_t*>(obj.Decode()) + static_cast<size_t>(offset));
+            reinterpret_cast<uint8_t*>(obj.Ptr()) + static_cast<size_t>(offset));
     ReadBarrier::Barrier<mirror::Object, kWithReadBarrier, /*kAlwaysUpdateField*/true>(
-        obj.Decode(),
+        obj.Ptr(),
         MemberOffset(offset),
         field_addr);
   }
   bool success = obj->CasFieldStrongSequentiallyConsistentObject<false>(MemberOffset(offset),
-                                                                        expectedValue.Decode(),
-                                                                        newValue.Decode());
+                                                                        expectedValue.Ptr(),
+                                                                        newValue.Ptr());
   return success ? JNI_TRUE : JNI_FALSE;
 }
 
@@ -168,7 +168,7 @@ static void Unsafe_putObject(JNIEnv* env, jobject, jobject javaObj, jlong offset
   ObjPtr<mirror::Object> obj = soa.Decode<mirror::Object>(javaObj);
   ObjPtr<mirror::Object> newValue = soa.Decode<mirror::Object>(javaNewValue);
   // JNI must use non transactional mode.
-  obj->SetFieldObject<false>(MemberOffset(offset), newValue.Decode());
+  obj->SetFieldObject<false>(MemberOffset(offset), newValue.Ptr());
 }
 
 static void Unsafe_putObjectVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset,
@@ -177,7 +177,7 @@ static void Unsafe_putObjectVolatile(JNIEnv* env, jobject, jobject javaObj, jlon
   ObjPtr<mirror::Object> obj = soa.Decode<mirror::Object>(javaObj);
   ObjPtr<mirror::Object> newValue = soa.Decode<mirror::Object>(javaNewValue);
   // JNI must use non transactional mode.
-  obj->SetFieldObjectVolatile<false>(MemberOffset(offset), newValue.Decode());
+  obj->SetFieldObjectVolatile<false>(MemberOffset(offset), newValue.Ptr());
 }
 
 static void Unsafe_putOrderedObject(JNIEnv* env, jobject, jobject javaObj, jlong offset,
@@ -187,7 +187,7 @@ static void Unsafe_putOrderedObject(JNIEnv* env, jobject, jobject javaObj, jlong
   ObjPtr<mirror::Object> newValue = soa.Decode<mirror::Object>(javaNewValue);
   QuasiAtomic::ThreadFenceRelease();
   // JNI must use non transactional mode.
-  obj->SetFieldObject<false>(MemberOffset(offset), newValue.Decode());
+  obj->SetFieldObject<false>(MemberOffset(offset), newValue.Ptr());
 }
 
 static jint Unsafe_getArrayBaseOffsetForComponentType(JNIEnv* env, jclass, jobject component_class) {

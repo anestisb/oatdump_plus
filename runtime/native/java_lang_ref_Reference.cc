@@ -29,7 +29,7 @@ static jobject Reference_getReferent(JNIEnv* env, jobject javaThis) {
   ScopedFastNativeObjectAccess soa(env);
   ObjPtr<mirror::Reference> ref = soa.Decode<mirror::Reference>(javaThis);
   mirror::Object* const referent =
-      Runtime::Current()->GetHeap()->GetReferenceProcessor()->GetReferent(soa.Self(), ref.Decode());
+      Runtime::Current()->GetHeap()->GetReferenceProcessor()->GetReferent(soa.Self(), ref.Ptr());
   return soa.AddLocalReference<jobject>(referent);
 }
 
