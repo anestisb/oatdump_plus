@@ -73,7 +73,7 @@ class ArgArray {
   }
 
   void Append(ObjPtr<mirror::Object> obj) REQUIRES_SHARED(Locks::mutator_lock_) {
-    Append(StackReference<mirror::Object>::FromMirrorPtr(obj.Decode()).AsVRegValue());
+    Append(StackReference<mirror::Object>::FromMirrorPtr(obj.Ptr()).AsVRegValue());
   }
 
   void AppendWide(uint64_t value) {
@@ -677,7 +677,7 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
 
   // Box if necessary and return.
   return soa.AddLocalReference<jobject>(
-      BoxPrimitive(Primitive::GetType(shorty[0]), result).Decode());
+      BoxPrimitive(Primitive::GetType(shorty[0]), result).Ptr());
 }
 
 ObjPtr<mirror::Object> BoxPrimitive(Primitive::Type src_class, const JValue& value) {
@@ -773,7 +773,7 @@ static bool UnboxPrimitive(ObjPtr<mirror::Object> o,
       }
       return false;
     }
-    unboxed_value->SetL(o.Decode());
+    unboxed_value->SetL(o.Ptr());
     return true;
   }
   if (UNLIKELY(dst_class->GetPrimitiveType() == Primitive::kPrimVoid)) {
@@ -911,14 +911,14 @@ void UpdateReference(Thread* self, jobject obj, ObjPtr<mirror::Object> result) {
   IndirectRef ref = reinterpret_cast<IndirectRef>(obj);
   IndirectRefKind kind = GetIndirectRefKind(ref);
   if (kind == kLocal) {
-    self->GetJniEnv()->locals.Update(obj, result.Decode());
+    self->GetJniEnv()->locals.Update(obj, result.Ptr());
   } else if (kind == kHandleScopeOrInvalid) {
     LOG(FATAL) << "Unsupported UpdateReference for kind kHandleScopeOrInvalid";
   } else if (kind == kGlobal) {
-    self->GetJniEnv()->vm->UpdateGlobal(self, ref, result.Decode());
+    self->GetJniEnv()->vm->UpdateGlobal(self, ref, result.Ptr());
   } else {
     DCHECK_EQ(kind, kWeakGlobal);
-    self->GetJniEnv()->vm->UpdateWeakGlobal(self, ref, result.Decode());
+    self->GetJniEnv()->vm->UpdateWeakGlobal(self, ref, result.Ptr());
   }
 }
 

@@ -62,12 +62,12 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
   // Make sure source and destination are both arrays.
   ObjPtr<mirror::Object> srcObject = soa.Decode<mirror::Object>(javaSrc);
   if (UNLIKELY(!srcObject->IsArrayInstance())) {
-    ThrowArrayStoreException_NotAnArray("source", srcObject.Decode());
+    ThrowArrayStoreException_NotAnArray("source", srcObject.Ptr());
     return;
   }
   ObjPtr<mirror::Object> dstObject = soa.Decode<mirror::Object>(javaDst);
   if (UNLIKELY(!dstObject->IsArrayInstance())) {
-    ThrowArrayStoreException_NotAnArray("destination", dstObject.Decode());
+    ThrowArrayStoreException_NotAnArray("destination", dstObject.Ptr());
     return;
   }
   mirror::Array* srcArray = srcObject->AsArray();

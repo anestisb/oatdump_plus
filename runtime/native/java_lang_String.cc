@@ -41,7 +41,7 @@ static jint String_compareTo(JNIEnv* env, jobject java_this, jobject java_rhs) {
     return -1;
   } else {
     return soa.Decode<mirror::String>(java_this)->CompareTo(
-        soa.Decode<mirror::String>(java_rhs).Decode());
+        soa.Decode<mirror::String>(java_rhs).Ptr());
   }
 }
 

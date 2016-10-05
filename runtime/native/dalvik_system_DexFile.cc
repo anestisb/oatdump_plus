@@ -287,7 +287,7 @@ static jclass DexFile_defineClassNative(JNIEnv* env,
                                                         *dex_class_def);
       // Add the used dex file. This only required for the DexFile.loadClass API since normal
       // class loaders already keep their dex files live.
-      class_linker->InsertDexFileInToClassLoader(soa.Decode<mirror::Object>(dexFile).Decode(),
+      class_linker->InsertDexFileInToClassLoader(soa.Decode<mirror::Object>(dexFile).Ptr(),
                                                  class_loader.Get());
       if (result != nullptr) {
         VLOG(class_linker) << "DexFile_defineClassNative returning " << result

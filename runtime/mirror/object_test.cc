@@ -746,7 +746,7 @@ TEST_F(ObjectTest, ObjectPointer) {
   ObjPtr<mirror::Object, /*kPoison*/ true> null_ptr;
   EXPECT_TRUE(null_ptr.IsNull());
   EXPECT_TRUE(null_ptr.IsValid());
-  EXPECT_TRUE(null_ptr.Decode() == nullptr);
+  EXPECT_TRUE(null_ptr.Ptr() == nullptr);
   EXPECT_TRUE(null_ptr == nullptr);
   EXPECT_TRUE(null_ptr == null_ptr);
   EXPECT_FALSE(null_ptr != null_ptr);
@@ -758,13 +758,13 @@ TEST_F(ObjectTest, ObjectPointer) {
   ObjPtr<Class, /*kPoison*/ true> X(h_X.Get());
   EXPECT_TRUE(!X.IsNull());
   EXPECT_TRUE(X.IsValid());
-  EXPECT_TRUE(X.Decode() != nullptr);
+  EXPECT_TRUE(X.Ptr() != nullptr);
   EXPECT_OBJ_PTR_EQ(h_X.Get(), X);
   // FindClass may cause thread suspension, it should invalidate X.
   ObjPtr<Class, /*kPoison*/ true> Y(class_linker_->FindClass(soa.Self(), "LY;", class_loader));
   EXPECT_TRUE(!Y.IsNull());
   EXPECT_TRUE(Y.IsValid());
-  EXPECT_TRUE(Y.Decode() != nullptr);
+  EXPECT_TRUE(Y.Ptr() != nullptr);
 
   // Should IsNull be safe to call on null ObjPtr? I'll allow it for now.
   EXPECT_TRUE(!X.IsNull());
@@ -784,7 +784,7 @@ TEST_F(ObjectTest, ObjectPointer) {
   ObjPtr<mirror::Object, /*kPoison*/ false> unpoisoned;
   EXPECT_TRUE(unpoisoned.IsNull());
   EXPECT_TRUE(unpoisoned.IsValid());
-  EXPECT_TRUE(unpoisoned.Decode() == nullptr);
+  EXPECT_TRUE(unpoisoned.Ptr() == nullptr);
   EXPECT_TRUE(unpoisoned == nullptr);
   EXPECT_TRUE(unpoisoned == unpoisoned);
   EXPECT_FALSE(unpoisoned != unpoisoned);

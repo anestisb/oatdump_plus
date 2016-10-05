@@ -538,7 +538,7 @@ jobject JavaVMExt::AddGlobalRef(Thread* self, ObjPtr<mirror::Object> obj) {
     return nullptr;
   }
   WriterMutexLock mu(self, globals_lock_);
-  IndirectRef ref = globals_.Add(IRT_FIRST_SEGMENT, obj.Decode());
+  IndirectRef ref = globals_.Add(IRT_FIRST_SEGMENT, obj.Ptr());
   return reinterpret_cast<jobject>(ref);
 }
 
@@ -550,7 +550,7 @@ jweak JavaVMExt::AddWeakGlobalRef(Thread* self, ObjPtr<mirror::Object> obj) {
   while (UNLIKELY(!MayAccessWeakGlobals(self))) {
     weak_globals_add_condition_.WaitHoldingLocks(self);
   }
-  IndirectRef ref = weak_globals_.Add(IRT_FIRST_SEGMENT, obj.Decode());
+  IndirectRef ref = weak_globals_.Add(IRT_FIRST_SEGMENT, obj.Ptr());
   return reinterpret_cast<jweak>(ref);
 }
 
@@ -758,12 +758,12 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env,
     ObjPtr<mirror::ClassLoader> loader = soa.Decode<mirror::ClassLoader>(class_loader);
 
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    if (class_linker->IsBootClassLoader(soa, loader.Decode())) {
+    if (class_linker->IsBootClassLoader(soa, loader.Ptr())) {
       loader = nullptr;
       class_loader = nullptr;
     }
 
-    class_loader_allocator = class_linker->GetAllocatorForClassLoader(loader.Decode());
+    class_loader_allocator = class_linker->GetAllocatorForClassLoader(loader.Ptr());
     CHECK(class_loader_allocator != nullptr);
   }
   if (library != nullptr) {

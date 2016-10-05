@@ -51,7 +51,7 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
         ScopedThreadStateChange tsc(self, kNative);
         jresult = fn(soa.Env(), klass.get());
       }
-      result->SetL(soa.Decode<Object>(jresult).Decode());
+      result->SetL(soa.Decode<Object>(jresult).Ptr());
     } else if (shorty == "V") {
       typedef void (fntype)(JNIEnv*, jclass);
       fntype* const fn = reinterpret_cast<fntype*>(method->GetEntryPointFromJni());
@@ -93,7 +93,7 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
         ScopedThreadStateChange tsc(self, kNative);
         jresult = fn(soa.Env(), klass.get(), arg0.get());
       }
-      result->SetL(soa.Decode<Object>(jresult).Decode());
+      result->SetL(soa.Decode<Object>(jresult).Ptr());
     } else if (shorty == "IIZ") {
       typedef jint (fntype)(JNIEnv*, jclass, jint, jboolean);
       fntype* const fn = reinterpret_cast<fntype*>(method->GetEntryPointFromJni());
@@ -191,7 +191,7 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
         ScopedThreadStateChange tsc(self, kNative);
         jresult = fn(soa.Env(), rcvr.get());
       }
-      result->SetL(soa.Decode<Object>(jresult).Decode());
+      result->SetL(soa.Decode<Object>(jresult).Ptr());
     } else if (shorty == "V") {
       typedef void (fntype)(JNIEnv*, jobject);
       fntype* const fn = reinterpret_cast<fntype*>(method->GetEntryPointFromJni());
@@ -212,7 +212,7 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
         ScopedThreadStateChange tsc(self, kNative);
         jresult = fn(soa.Env(), rcvr.get(), arg0.get());
       }
-      result->SetL(soa.Decode<Object>(jresult).Decode());
+      result->SetL(soa.Decode<Object>(jresult).Ptr());
       ScopedThreadStateChange tsc(self, kNative);
     } else if (shorty == "III") {
       typedef jint (fntype)(JNIEnv*, jobject, jint, jint);

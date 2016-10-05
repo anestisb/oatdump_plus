@@ -37,7 +37,7 @@ inline mirror::DexCache* CompilerDriver::GetDexCache(const DexCompilationUnit* m
 
 inline mirror::ClassLoader* CompilerDriver::GetClassLoader(const ScopedObjectAccess& soa,
                                                            const DexCompilationUnit* mUnit) {
-  return soa.Decode<mirror::ClassLoader>(mUnit->GetClassLoader()).Decode();
+  return soa.Decode<mirror::ClassLoader>(mUnit->GetClassLoader()).Ptr();
 }
 
 inline mirror::Class* CompilerDriver::ResolveClass(
@@ -123,7 +123,7 @@ inline std::pair<bool, bool> CompilerDriver::IsFastInstanceField(
   DCHECK(!resolved_field->IsStatic());
   ObjPtr<mirror::Class> fields_class = resolved_field->GetDeclaringClass();
   bool fast_get = referrer_class != nullptr &&
-      referrer_class->CanAccessResolvedField(fields_class.Decode(),
+      referrer_class->CanAccessResolvedField(fields_class.Ptr(),
                                              resolved_field,
                                              dex_cache,
                                              field_idx);
@@ -175,7 +175,7 @@ inline std::pair<bool, bool> CompilerDriver::IsClassOfStaticMemberAvailableToRef
       return std::make_pair(true, true);
     }
     if (CanAccessResolvedMember<ArtMember>(
-        referrer_class, members_class.Decode(), resolved_member, dex_cache, member_idx)) {
+        referrer_class, members_class.Ptr(), resolved_member, dex_cache, member_idx)) {
       // We have the resolved member, we must make it into a index for the referrer
       // in its static storage (which may fail if it doesn't have a slot for it)
       // TODO: for images we can elide the static storage base null check

@@ -134,7 +134,7 @@ class MutableHandle : public Handle<T> {
   ALWAYS_INLINE T* Assign(ObjPtr<T> reference) REQUIRES_SHARED(Locks::mutator_lock_) {
     StackReference<mirror::Object>* ref = Handle<T>::GetReference();
     T* old = down_cast<T*>(ref->AsMirrorPtr());
-    ref->Assign(reference.Decode());
+    ref->Assign(reference.Ptr());
     return old;
   }
 
