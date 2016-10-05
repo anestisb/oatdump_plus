@@ -233,9 +233,11 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),
 
 # Disable 149-suspend-all-stress, its output is flaky (b/28988206).
 # Disable 577-profile-foreign-dex (b/27454772).
+# Disable 955-methodhandles-smali until the accompanying smali change has been landed.
 TEST_ART_BROKEN_ALL_TARGET_TESTS := \
   149-suspend-all-stress \
   577-profile-foreign-dex \
+  955-methodhandles-smali \
 
 ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
     $(COMPILER_TYPES), $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
