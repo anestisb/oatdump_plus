@@ -25,6 +25,7 @@
 #include "base/logging.h"
 #include "base/mutex.h"
 #include "gc_root.h"
+#include "obj_ptr.h"
 #include "object_callbacks.h"
 #include "offsets.h"
 #include "read_barrier_option.h"
@@ -200,24 +201,18 @@ union IRTSegmentState {
 static const size_t kIRTPrevCount = kIsDebugBuild ? 7 : 3;
 class IrtEntry {
  public:
-  void Add(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_) {
-    ++serial_;
-    if (serial_ == kIRTPrevCount) {
-      serial_ = 0;
-    }
-    references_[serial_] = GcRoot<mirror::Object>(obj);
-  }
+  void Add(ObjPtr<mirror::Object> obj) REQUIRES_SHARED(Locks::mutator_lock_);
+
   GcRoot<mirror::Object>* GetReference() {
     DCHECK_LT(serial_, kIRTPrevCount);
     return &references_[serial_];
   }
+
   uint32_t GetSerial() const {
     return serial_;
   }
-  void SetReference(mirror::Object* obj) {
-    DCHECK_LT(serial_, kIRTPrevCount);
-    references_[serial_] = GcRoot<mirror::Object>(obj);
-  }
+
+  void SetReference(ObjPtr<mirror::Object> obj) REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   uint32_t serial_;
@@ -237,7 +232,7 @@ class IrtIterator {
     return *this;
   }
 
-  GcRoot<mirror::Object>* operator*() {
+  GcRoot<mirror::Object>* operator*() REQUIRES_SHARED(Locks::mutator_lock_) {
     // This does not have a read barrier as this is used to visit roots.
     return table_[i_].GetReference();
   }
@@ -277,7 +272,7 @@ class IndirectReferenceTable {
    * Returns nullptr if the table is full (max entries reached, or alloc
    * failed during expansion).
    */
-  IndirectRef Add(uint32_t cookie, mirror::Object* obj)
+  IndirectRef Add(uint32_t cookie, ObjPtr<mirror::Object> obj)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
@@ -286,12 +281,13 @@ class IndirectReferenceTable {
    * Returns kInvalidIndirectRefObject if iref is invalid.
    */
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  mirror::Object* Get(IndirectRef iref) const REQUIRES_SHARED(Locks::mutator_lock_)
+  ObjPtr<mirror::Object> Get(IndirectRef iref) const REQUIRES_SHARED(Locks::mutator_lock_)
       ALWAYS_INLINE;
 
   // Synchronized get which reads a reference, acquiring a lock if necessary.
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  mirror::Object* SynchronizedGet(IndirectRef iref) const REQUIRES_SHARED(Locks::mutator_lock_) {
+  ObjPtr<mirror::Object> SynchronizedGet(IndirectRef iref) const
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     return Get<kReadBarrierOption>(iref);
   }
 
@@ -300,7 +296,7 @@ class IndirectReferenceTable {
    *
    * Updates an existing indirect reference to point to a new object.
    */
-  void Update(IndirectRef iref, mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_);
+  void Update(IndirectRef iref, ObjPtr<mirror::Object> obj) REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
    * Remove an existing entry.
@@ -313,7 +309,7 @@ class IndirectReferenceTable {
    */
   bool Remove(uint32_t cookie, IndirectRef iref);
 
-  void AssertEmpty();
+  void AssertEmpty() REQUIRES_SHARED(Locks::mutator_lock_);
 
   void Dump(std::ostream& os) const REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -377,7 +373,7 @@ class IndirectReferenceTable {
   static void AbortIfNoCheckJNI(const std::string& msg);
 
   /* extra debugging checks */
-  bool GetChecked(IndirectRef) const;
+  bool GetChecked(IndirectRef) const REQUIRES_SHARED(Locks::mutator_lock_);
   bool CheckEntry(const char*, IndirectRef, int) const;
 
   /* semi-public - read/write by jni down calls */

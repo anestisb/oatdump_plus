@@ -33,6 +33,7 @@
 #include "instrumentation.h"
 #include "jobject_comparator.h"
 #include "method_reference.h"
+#include "obj_ptr.h"
 #include "object_callbacks.h"
 #include "offsets.h"
 #include "process_state.h"
@@ -292,7 +293,7 @@ class Runtime {
   }
 
   // Is the given object the special object used to mark a cleared JNI weak global?
-  bool IsClearedJniWeakGlobal(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_);
+  bool IsClearedJniWeakGlobal(ObjPtr<mirror::Object> obj) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Get the special object used to mark a cleared JNI weak global.
   mirror::Object* GetClearedJniWeakGlobal() REQUIRES_SHARED(Locks::mutator_lock_);
