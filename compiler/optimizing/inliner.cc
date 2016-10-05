@@ -1138,7 +1138,7 @@ bool HInliner::TryBuildAndInlineHelper(HInvoke* invoke_instruction,
                         *code_item,
                         compiler_driver_,
                         inline_stats.get(),
-                        resolved_method->GetQuickenedInfo(),
+                        resolved_method->GetQuickenedInfo(class_linker->GetImagePointerSize()),
                         dex_cache,
                         handles_);
 

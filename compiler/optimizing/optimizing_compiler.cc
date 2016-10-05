@@ -872,9 +872,10 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
     return nullptr;
   }
 
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   DexCompilationUnit dex_compilation_unit(
       class_loader,
-      Runtime::Current()->GetClassLinker(),
+      class_linker,
       dex_file,
       code_item,
       class_def_idx,
@@ -913,7 +914,7 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
   if (method != nullptr) {
     graph->SetArtMethod(method);
     ScopedObjectAccess soa(Thread::Current());
-    interpreter_metadata = method->GetQuickenedInfo();
+    interpreter_metadata = method->GetQuickenedInfo(class_linker->GetImagePointerSize());
     uint16_t type_index = method->GetDeclaringClass()->GetDexTypeIndex();
 
     // Update the dex cache if the type is not in it yet. Note that under AOT,

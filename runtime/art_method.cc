@@ -283,7 +283,9 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
       // Ensure that we won't be accidentally calling quick compiled code when -Xint.
       if (kIsDebugBuild && runtime->GetInstrumentation()->IsForcedInterpretOnly()) {
         CHECK(!runtime->UseJitCompilation());
-        const void* oat_quick_code = runtime->GetClassLinker()->GetOatMethodQuickCodeFor(this);
+        const void* oat_quick_code = (IsNative() || !IsInvokable() || IsProxyMethod())
+            ? nullptr
+            : GetOatMethodQuickCode(runtime->GetClassLinker()->GetImagePointerSize());
         CHECK(oat_quick_code == nullptr || oat_quick_code != GetEntryPointFromQuickCompiledCode())
             << "Don't call compiled code when -Xint " << PrettyMethod(this);
       }
@@ -360,6 +362,80 @@ bool ArtMethod::IsAnnotatedWith(jclass klass, uint32_t visibility) {
   return annotations::IsMethodAnnotationPresent(this, annotation_handle, visibility);
 }
 
+static uint32_t GetOatMethodIndexFromMethodIndex(const DexFile& dex_file,
+                                                 uint16_t class_def_idx,
+                                                 uint32_t method_idx) {
+  const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_idx);
+  const uint8_t* class_data = dex_file.GetClassData(class_def);
+  CHECK(class_data != nullptr);
+  ClassDataItemIterator it(dex_file, class_data);
+  // Skip fields
+  while (it.HasNextStaticField()) {
+    it.Next();
+  }
+  while (it.HasNextInstanceField()) {
+    it.Next();
+  }
+  // Process methods
+  size_t class_def_method_index = 0;
+  while (it.HasNextDirectMethod()) {
+    if (it.GetMemberIndex() == method_idx) {
+      return class_def_method_index;
+    }
+    class_def_method_index++;
+    it.Next();
+  }
+  while (it.HasNextVirtualMethod()) {
+    if (it.GetMemberIndex() == method_idx) {
+      return class_def_method_index;
+    }
+    class_def_method_index++;
+    it.Next();
+  }
+  DCHECK(!it.HasNext());
+  LOG(FATAL) << "Failed to find method index " << method_idx << " in " << dex_file.GetLocation();
+  UNREACHABLE();
+}
+
+static const OatFile::OatMethod FindOatMethodFor(ArtMethod* method,
+                                                 PointerSize pointer_size,
+                                                 bool* found)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  // Although we overwrite the trampoline of non-static methods, we may get here via the resolution
+  // method for direct methods (or virtual methods made direct).
+  mirror::Class* declaring_class = method->GetDeclaringClass();
+  size_t oat_method_index;
+  if (method->IsStatic() || method->IsDirect()) {
+    // Simple case where the oat method index was stashed at load time.
+    oat_method_index = method->GetMethodIndex();
+  } else {
+    // Compute the oat_method_index by search for its position in the declared virtual methods.
+    oat_method_index = declaring_class->NumDirectMethods();
+    bool found_virtual = false;
+    for (ArtMethod& art_method : declaring_class->GetVirtualMethods(pointer_size)) {
+      // Check method index instead of identity in case of duplicate method definitions.
+      if (method->GetDexMethodIndex() == art_method.GetDexMethodIndex()) {
+        found_virtual = true;
+        break;
+      }
+      oat_method_index++;
+    }
+    CHECK(found_virtual) << "Didn't find oat method index for virtual method: "
+                         << PrettyMethod(method);
+  }
+  DCHECK_EQ(oat_method_index,
+            GetOatMethodIndexFromMethodIndex(*declaring_class->GetDexCache()->GetDexFile(),
+                                             method->GetDeclaringClass()->GetDexClassDefIndex(),
+                                             method->GetDexMethodIndex()));
+  OatFile::OatClass oat_class = OatFile::FindOatClass(*declaring_class->GetDexCache()->GetDexFile(),
+                                                      declaring_class->GetDexClassDefIndex(),
+                                                      found);
+  if (!(*found)) {
+    return OatFile::OatMethod::Invalid();
+  }
+  return oat_class.GetOatMethod(oat_method_index);
+}
+
 bool ArtMethod::EqualParameters(Handle<mirror::ObjectArray<mirror::Class>> params) {
   auto* dex_cache = GetDexCache();
   auto* dex_file = dex_cache->GetDexFile();
@@ -386,10 +462,9 @@ bool ArtMethod::EqualParameters(Handle<mirror::ObjectArray<mirror::Class>> param
   return true;
 }
 
-const uint8_t* ArtMethod::GetQuickenedInfo() {
+const uint8_t* ArtMethod::GetQuickenedInfo(PointerSize pointer_size) {
   bool found = false;
-  OatFile::OatMethod oat_method =
-      Runtime::Current()->GetClassLinker()->FindOatMethodFor(this, &found);
+  OatFile::OatMethod oat_method = FindOatMethodFor(this, pointer_size, &found);
   if (!found || (oat_method.GetQuickCode() != nullptr)) {
     return nullptr;
   }
@@ -433,7 +508,7 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
   }
 
   // Check whether the pc is in the JIT code cache.
-  jit::Jit* jit = Runtime::Current()->GetJit();
+  jit::Jit* jit = runtime->GetJit();
   if (jit != nullptr) {
     jit::JitCodeCache* code_cache = jit->GetCodeCache();
     OatQuickMethodHeader* method_header = code_cache->LookupMethodHeader(pc, this);
@@ -452,7 +527,8 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
 
   // The code has to be in an oat file.
   bool found;
-  OatFile::OatMethod oat_method = class_linker->FindOatMethodFor(this, &found);
+  OatFile::OatMethod oat_method =
+      FindOatMethodFor(this, class_linker->GetImagePointerSize(), &found);
   if (!found) {
     if (class_linker->IsQuickResolutionStub(existing_entry_point)) {
       // We are running the generic jni stub, but the entry point of the method has not
@@ -491,15 +567,29 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
   return method_header;
 }
 
+const void* ArtMethod::GetOatMethodQuickCode(PointerSize pointer_size) {
+  bool found;
+  OatFile::OatMethod oat_method = FindOatMethodFor(this, pointer_size, &found);
+  if (found) {
+    return oat_method.GetQuickCode();
+  }
+  return nullptr;
+}
+
 bool ArtMethod::HasAnyCompiledCode() {
+  if (IsNative() || !IsInvokable() || IsProxyMethod()) {
+    return false;
+  }
+
   // Check whether the JIT has compiled it.
-  jit::Jit* jit = Runtime::Current()->GetJit();
+  Runtime* runtime = Runtime::Current();
+  jit::Jit* jit = runtime->GetJit();
   if (jit != nullptr && jit->GetCodeCache()->ContainsMethod(this)) {
     return true;
   }
 
   // Check whether we have AOT code.
-  return Runtime::Current()->GetClassLinker()->GetOatMethodQuickCodeFor(this) != nullptr;
+  return GetOatMethodQuickCode(runtime->GetClassLinker()->GetImagePointerSize()) != nullptr;
 }
 
 void ArtMethod::CopyFrom(ArtMethod* src, PointerSize image_pointer_size) {
