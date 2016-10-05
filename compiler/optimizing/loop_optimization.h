@@ -32,6 +32,9 @@ namespace art {
 class HLoopOptimization : public HOptimization {
  public:
   HLoopOptimization(HGraph* graph, HInductionVarAnalysis* induction_analysis);
+  HLoopOptimization(HGraph* graph,
+                    HInductionVarAnalysis* induction_analysis,
+                    ArenaAllocator* allocator);
 
   void Run() OVERRIDE;
 
