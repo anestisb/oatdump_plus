@@ -180,7 +180,7 @@ TEST_F(ProxyTest, ProxyFieldHelper) {
   ArtField* field = &static_fields->At(0);
   EXPECT_STREQ("interfaces", field->GetName());
   EXPECT_STREQ("[Ljava/lang/Class;", field->GetTypeDescriptor());
-  EXPECT_OBJ_PTR_EQ(MakeObjPtr(interfacesFieldClass.Get()), field->GetType<true>());
+  EXPECT_OBJ_PTR_EQ(interfacesFieldClass.Get(), field->GetType<true>());
   std::string temp;
   EXPECT_STREQ("L$Proxy1234;", field->GetDeclaringClass()->GetDescriptor(&temp));
   EXPECT_FALSE(field->IsPrimitiveType());
@@ -189,7 +189,7 @@ TEST_F(ProxyTest, ProxyFieldHelper) {
   field = &static_fields->At(1);
   EXPECT_STREQ("throws", field->GetName());
   EXPECT_STREQ("[[Ljava/lang/Class;", field->GetTypeDescriptor());
-  EXPECT_OBJ_PTR_EQ(MakeObjPtr(throwsFieldClass.Get()), field->GetType<true>());
+  EXPECT_OBJ_PTR_EQ(throwsFieldClass.Get(), field->GetType<true>());
   EXPECT_STREQ("L$Proxy1234;", field->GetDeclaringClass()->GetDescriptor(&temp));
   EXPECT_FALSE(field->IsPrimitiveType());
 }
@@ -224,10 +224,10 @@ TEST_F(ProxyTest, CheckArtMirrorFieldsOfProxyStaticFields) {
   ASSERT_TRUE(static_fields1 != nullptr);
   ASSERT_EQ(2u, static_fields1->size());
 
-  EXPECT_OBJ_PTR_EQ(static_fields0->At(0).GetDeclaringClass(), MakeObjPtr(proxyClass0.Get()));
-  EXPECT_OBJ_PTR_EQ(static_fields0->At(1).GetDeclaringClass(), MakeObjPtr(proxyClass0.Get()));
-  EXPECT_OBJ_PTR_EQ(static_fields1->At(0).GetDeclaringClass(), MakeObjPtr(proxyClass1.Get()));
-  EXPECT_OBJ_PTR_EQ(static_fields1->At(1).GetDeclaringClass(), MakeObjPtr(proxyClass1.Get()));
+  EXPECT_OBJ_PTR_EQ(static_fields0->At(0).GetDeclaringClass(), proxyClass0.Get());
+  EXPECT_OBJ_PTR_EQ(static_fields0->At(1).GetDeclaringClass(), proxyClass0.Get());
+  EXPECT_OBJ_PTR_EQ(static_fields1->At(0).GetDeclaringClass(), proxyClass1.Get());
+  EXPECT_OBJ_PTR_EQ(static_fields1->At(1).GetDeclaringClass(), proxyClass1.Get());
 
   ASSERT_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), kRuntimePointerSize);
   ASSERT_FALSE(Runtime::Current()->IsActiveTransaction());
