@@ -82,7 +82,7 @@ inline T ScopedObjectAccessAlreadyRunnable::AddLocalReference(mirror::Object* ob
 template<typename T, typename MirrorType, bool kPoison>
 inline T ScopedObjectAccessAlreadyRunnable::AddLocalReference(
     ObjPtr<MirrorType, kPoison> obj) const {
-  return AddLocalReference<T>(obj.Decode());
+  return AddLocalReference<T>(obj.Ptr());
 }
 
 template<typename T, bool kPoison>

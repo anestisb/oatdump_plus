@@ -160,7 +160,7 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
       } else {
         JValue jv;
         jv.SetJ(args.at(i).j);
-        mirror::Object* val = BoxPrimitive(Primitive::GetType(shorty[i + 1]), jv).Decode();
+        mirror::Object* val = BoxPrimitive(Primitive::GetType(shorty[i + 1]), jv).Ptr();
         if (val == nullptr) {
           CHECK(soa.Self()->IsExceptionPending());
           return zero;
@@ -193,7 +193,7 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
       mirror::Class* result_type = interface_method->GetReturnType(true /* resolve */, pointer_size);
       ObjPtr<mirror::Object> result_ref = soa.Decode<mirror::Object>(result);
       JValue result_unboxed;
-      if (!UnboxPrimitiveForResult(result_ref.Decode(), result_type, &result_unboxed)) {
+      if (!UnboxPrimitiveForResult(result_ref.Ptr(), result_type, &result_unboxed)) {
         DCHECK(soa.Self()->IsExceptionPending());
         return zero;
       }

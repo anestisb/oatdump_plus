@@ -43,7 +43,7 @@ extern "C" JNIEXPORT jobject JNICALL Java_Main_cloneResolvedMethods(JNIEnv* env,
     array = env->NewLongArray(num_methods);
   }
   CHECK(array != nullptr);
-  mirror::PointerArray* pointer_array = soa.Decode<mirror::PointerArray>(array).Decode();
+  mirror::PointerArray* pointer_array = soa.Decode<mirror::PointerArray>(array).Ptr();
   for (size_t i = 0; i != num_methods; ++i) {
     ArtMethod* method = mirror::DexCache::GetElementPtrSize(methods, i, kRuntimePointerSize);
     pointer_array->SetElementPtrSize(i, method, kRuntimePointerSize);

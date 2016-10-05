@@ -43,7 +43,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_decrementDisableMovingGC(JNIEnv*, jc
 
 extern "C" JNIEXPORT jlong JNICALL Java_Main_objectAddress(JNIEnv* env, jclass, jobject object) {
   ScopedObjectAccess soa(env);
-  return reinterpret_cast<jlong>(soa.Decode<mirror::Object>(object).Decode());
+  return reinterpret_cast<jlong>(soa.Decode<mirror::Object>(object).Ptr());
 }
 
 extern "C" JNIEXPORT jboolean JNICALL Java_Main_supportCollectorTransition(JNIEnv*, jclass) {

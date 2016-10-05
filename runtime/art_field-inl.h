@@ -116,9 +116,9 @@ inline void ArtField::SetObj(ObjPtr<mirror::Object> object, ObjPtr<mirror::Objec
   DCHECK(object != nullptr) << PrettyField(this);
   DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   if (UNLIKELY(IsVolatile())) {
-    object->SetFieldObjectVolatile<kTransactionActive>(GetOffset(), new_value.Decode());
+    object->SetFieldObjectVolatile<kTransactionActive>(GetOffset(), new_value.Ptr());
   } else {
-    object->SetFieldObject<kTransactionActive>(GetOffset(), new_value.Decode());
+    object->SetFieldObject<kTransactionActive>(GetOffset(), new_value.Ptr());
   }
 }
 
@@ -339,7 +339,7 @@ inline void ArtField::VisitRoots(RootVisitorType& visitor) {
 template <typename Visitor>
 inline void ArtField::UpdateObjects(const Visitor& visitor) {
   ObjPtr<mirror::Class> old_class = DeclaringClassRoot().Read<kWithoutReadBarrier>();
-  ObjPtr<mirror::Class> new_class = visitor(old_class.Decode());
+  ObjPtr<mirror::Class> new_class = visitor(old_class.Ptr());
   if (old_class != new_class) {
     SetDeclaringClass(new_class);
   }

@@ -74,7 +74,7 @@ static jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaEle
     ThrowNegativeArraySizeException(length);
     return nullptr;
   }
-  mirror::Class* element_class = soa.Decode<mirror::Class>(javaElementClass).Decode();
+  mirror::Class* element_class = soa.Decode<mirror::Class>(javaElementClass).Ptr();
   if (UNLIKELY(element_class == nullptr)) {
     ThrowNullPointerException("element class == null");
     return nullptr;
@@ -99,7 +99,7 @@ static jobject VMRuntime_newUnpaddedArray(JNIEnv* env, jobject, jclass javaEleme
     ThrowNegativeArraySizeException(length);
     return nullptr;
   }
-  mirror::Class* element_class = soa.Decode<mirror::Class>(javaElementClass).Decode();
+  mirror::Class* element_class = soa.Decode<mirror::Class>(javaElementClass).Ptr();
   if (UNLIKELY(element_class == nullptr)) {
     ThrowNullPointerException("element class == null");
     return nullptr;
@@ -127,7 +127,7 @@ static jlong VMRuntime_addressOf(JNIEnv* env, jobject, jobject javaArray) {
     ThrowIllegalArgumentException("not an array");
     return 0;
   }
-  if (Runtime::Current()->GetHeap()->IsMovableObject(array.Decode())) {
+  if (Runtime::Current()->GetHeap()->IsMovableObject(array.Ptr())) {
     ThrowRuntimeException("Trying to get address of movable array object");
     return 0;
   }
