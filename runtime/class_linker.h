@@ -731,11 +731,28 @@ class ClassLinker {
   mirror::Class* AllocClass(Thread* self, uint32_t class_size)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
-  mirror::DexCache* AllocDexCache(Thread* self,
-                                  const DexFile& dex_file,
-                                  LinearAlloc* linear_alloc)
+
+  mirror::DexCache* AllocDexCache(mirror::String** out_location,
+                                  Thread* self,
+                                  const DexFile& dex_file)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
+
+  // Used for tests and AppendToBootClassPath.
+  mirror::DexCache* AllocAndInitializeDexCache(Thread* self,
+                                               const DexFile& dex_file,
+                                               LinearAlloc* linear_alloc)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!dex_lock_)
+      REQUIRES(!Roles::uninterruptible_);
+
+  void InitializeDexCache(Thread* self,
+                          mirror::DexCache* dex_cache,
+                          mirror::String* location,
+                          const DexFile& dex_file,
+                          LinearAlloc* linear_alloc)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(dex_lock_);
 
   mirror::Class* CreatePrimitiveClass(Thread* self, Primitive::Type type)
       REQUIRES_SHARED(Locks::mutator_lock_)
