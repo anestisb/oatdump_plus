@@ -126,9 +126,14 @@ static void RemoveFromCycle(HInstruction* instruction) {
 
 HLoopOptimization::HLoopOptimization(HGraph* graph,
                                      HInductionVarAnalysis* induction_analysis)
+    : HLoopOptimization(graph, induction_analysis, nullptr) {}
+
+HLoopOptimization::HLoopOptimization(HGraph* graph,
+                                     HInductionVarAnalysis* induction_analysis,
+                                     ArenaAllocator* allocator)
     : HOptimization(graph, kLoopOptimizationPassName),
       induction_range_(induction_analysis),
-      loop_allocator_(nullptr),
+      loop_allocator_(allocator),
       top_loop_(nullptr),
       last_loop_(nullptr) {
 }
@@ -141,7 +146,9 @@ void HLoopOptimization::Run() {
   }
 
   ArenaAllocator allocator(graph_->GetArena()->GetArenaPool());
-  loop_allocator_ = &allocator;
+  if (loop_allocator_ == nullptr) {
+    loop_allocator_ = &allocator;
+  }
 
   // Build the linear order. This step enables building a loop hierarchy that
   // properly reflects the outer-inner and previous-next relation.
@@ -157,7 +164,9 @@ void HLoopOptimization::Run() {
     // Traverse the loop hierarchy inner-to-outer and optimize.
     TraverseLoopsInnerToOuter(top_loop_);
   }
-  loop_allocator_ = nullptr;
+  if (loop_allocator_ == &allocator) {
+    loop_allocator_ = nullptr;
+  }
 }
 
 void HLoopOptimization::AddLoop(HLoopInformation* loop_info) {
