@@ -22,7 +22,13 @@
 #include "debugger.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "jit/jit.h"
+#include "jvalue.h"
+#include "method_handles.h"
 #include "mirror/array-inl.h"
+#include "mirror/class.h"
+#include "mirror/method_handle_impl.h"
+#include "reflection.h"
+#include "reflection-inl.h"
 #include "stack.h"
 #include "unstarted_runtime.h"
 #include "verifier/method_verifier.h"
@@ -503,8 +509,7 @@ void AbortTransactionV(Thread* self, const char* fmt, va_list args) {
 }
 
 // Separate declaration is required solely for the attributes.
-template <bool is_range,
-          bool do_assignability_check>
+template <bool is_range, bool do_assignability_check>
     REQUIRES_SHARED(Locks::mutator_lock_)
 static inline bool DoCallCommon(ArtMethod* called_method,
                                 Thread* self,
@@ -573,6 +578,130 @@ void SetStringInitValueToAllAliases(ShadowFrame* shadow_frame,
       DCHECK_EQ(shadow_frame->GetVRegReference(i),
                 reinterpret_cast<mirror::Object*>(shadow_frame->GetVReg(i)));
     }
+  }
+}
+
+template<bool is_range, bool do_access_check>
+    REQUIRES_SHARED(Locks::mutator_lock_)
+inline bool DoInvokePolymorphic(Thread* self, ShadowFrame& shadow_frame,
+                                const Instruction* inst, uint16_t inst_data,
+                                JValue* result) {
+  // Invoke-polymorphic instructions always take a receiver. i.e, they are never static.
+  const uint32_t vRegC = (is_range) ? inst->VRegC_4rcc() : inst->VRegC_45cc();
+
+  // The method_idx here is the name of the signature polymorphic method that
+  // was symbolically invoked in bytecode (say MethodHandle.invoke or MethodHandle.invokeExact)
+  // and not the method that we'll dispatch to in the end.
+  //
+  // TODO(narayan) We'll have to check in the verifier that this is in fact a
+  // signature polymorphic method so that we disallow calls via invoke-polymorphic
+  // to non sig-poly methods. This would also have the side effect of verifying
+  // that vRegC really is a reference type.
+  mirror::MethodHandleImpl* const method_handle =
+      reinterpret_cast<mirror::MethodHandleImpl*>(shadow_frame.GetVRegReference(vRegC));
+  if (UNLIKELY(method_handle == nullptr)) {
+    const int method_idx = (is_range) ? inst->VRegB_4rcc() : inst->VRegB_45cc();
+    // Note that the invoke type is kVirtual here because a call to a signature
+    // polymorphic method is shaped like a virtual call at the bytecode level.
+    ThrowNullPointerExceptionForMethodAccess(method_idx, InvokeType::kVirtual);
+
+    result->SetJ(0);
+    return false;
+  }
+
+  // The vRegH value gives the index of the proto_id associated with this
+  // signature polymorphic callsite.
+  const uint32_t callsite_proto_id = (is_range) ? inst->VRegH_4rcc() : inst->VRegH_45cc();
+
+  // Call through to the classlinker and ask it to resolve the static type associated
+  // with the callsite. This information is stored in the dex cache so it's
+  // guaranteed to be fast after the first resolution.
+  StackHandleScope<2> hs(self);
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  mirror::Class* caller_class = shadow_frame.GetMethod()->GetDeclaringClass();
+  mirror::MethodType* callsite_type = class_linker->ResolveMethodType(
+      caller_class->GetDexFile(), callsite_proto_id,
+      hs.NewHandle<mirror::DexCache>(caller_class->GetDexCache()),
+      hs.NewHandle<mirror::ClassLoader>(caller_class->GetClassLoader()));
+
+  // This implies we couldn't resolve one or more types in this method handle.
+  if (UNLIKELY(callsite_type == nullptr)) {
+    CHECK(self->IsExceptionPending());
+    result->SetJ(0);
+    return false;
+  }
+
+  const char* old_cause = self->StartAssertNoThreadSuspension("DoInvokePolymorphic");
+
+  // Get the method we're actually invoking along with the kind of
+  // invoke that is desired. We don't need to perform access checks at this
+  // point because they would have been performed on our behalf at the point
+  // of creation of the method handle.
+  ArtMethod* called_method = method_handle->GetTargetMethod();
+  const MethodHandleKind handle_kind = method_handle->GetHandleKind();
+  mirror::MethodType* const handle_type = method_handle->GetMethodType();
+  CHECK(called_method != nullptr);
+  CHECK(handle_type != nullptr);
+
+  // We now have to massage the number of inputs to the target function.
+  // It's always one less than the number of inputs to the signature polymorphic
+  // invoke, the first input being a reference to the MethodHandle itself.
+  const uint16_t number_of_inputs =
+      ((is_range) ? inst->VRegA_4rcc(inst_data) : inst->VRegA_45cc(inst_data)) - 1;
+
+  uint32_t arg[Instruction::kMaxVarArgRegs] = {};
+  uint32_t receiver_vregC = 0;
+  if (is_range) {
+    receiver_vregC = (inst->VRegC_4rcc() + 1);
+  } else {
+    inst->GetVarArgs(arg, inst_data);
+    arg[0] = arg[1];
+    arg[1] = arg[2];
+    arg[2] = arg[3];
+    arg[3] = arg[4];
+    arg[4] = 0;
+    receiver_vregC = arg[0];
+  }
+
+  if (IsInvoke(handle_kind)) {
+    if (handle_kind == kInvokeVirtual || handle_kind == kInvokeInterface) {
+      mirror::Object* receiver = shadow_frame.GetVRegReference(receiver_vregC);
+      mirror::Class* declaring_class = called_method->GetDeclaringClass();
+      // Verify that _vRegC is an object reference and of the type expected by
+      // the receiver.
+      called_method = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(
+          called_method, kRuntimePointerSize);
+      if (!VerifyObjectIsClass(receiver, declaring_class)) {
+        self->EndAssertNoThreadSuspension(old_cause);
+        return false;
+      }
+    } else if (handle_kind == kInvokeDirect) {
+      // TODO(narayan) : We need to handle the case where the target method is a
+      // constructor here. Also the case where we don't want to dynamically
+      // dispatch based on the type of the receiver.
+      self->EndAssertNoThreadSuspension(old_cause);
+      UNIMPLEMENTED(FATAL) << "Direct invokes are not implemented yet.";
+      return false;
+    }
+
+    // NOTE: handle_kind == kInvokeStatic needs no special treatment here. We
+    // can directly make the call. handle_kind == kInvokeSuper doesn't have any
+    // particular use and can probably be dropped.
+    if (callsite_type->IsExactMatch(handle_type)) {
+      self->EndAssertNoThreadSuspension(old_cause);
+      return DoCallCommon<is_range, do_access_check>(
+          called_method, self, shadow_frame, result, number_of_inputs,
+          arg, receiver_vregC);
+    }
+
+    self->EndAssertNoThreadSuspension(old_cause);
+    UNIMPLEMENTED(FATAL) << "Non exact invokes are not implemented yet.";
+    return false;
+  } else {
+    // TODO(narayan): Implement field getters and setters.
+    self->EndAssertNoThreadSuspension(old_cause);
+    UNIMPLEMENTED(FATAL) << "Field references in method handles are not implemented yet.";
+    return false;
   }
 }
 
@@ -925,6 +1054,19 @@ EXPLICIT_DO_CALL_TEMPLATE_DECL(false, true);
 EXPLICIT_DO_CALL_TEMPLATE_DECL(true, false);
 EXPLICIT_DO_CALL_TEMPLATE_DECL(true, true);
 #undef EXPLICIT_DO_CALL_TEMPLATE_DECL
+
+// Explicit DoInvokePolymorphic template function declarations.
+#define EXPLICIT_DO_INVOKE_POLYMORPHIC_TEMPLATE_DECL(_is_range, _do_assignability_check)  \
+  template REQUIRES_SHARED(Locks::mutator_lock_)                                          \
+  bool DoInvokePolymorphic<_is_range, _do_assignability_check>(                           \
+      Thread* self, ShadowFrame& shadow_frame, const Instruction* inst,                   \
+      uint16_t inst_data, JValue* result)
+
+EXPLICIT_DO_INVOKE_POLYMORPHIC_TEMPLATE_DECL(false, false);
+EXPLICIT_DO_INVOKE_POLYMORPHIC_TEMPLATE_DECL(false, true);
+EXPLICIT_DO_INVOKE_POLYMORPHIC_TEMPLATE_DECL(true, false);
+EXPLICIT_DO_INVOKE_POLYMORPHIC_TEMPLATE_DECL(true, true);
+#undef EXPLICIT_DO_INVOKE_POLYMORPHIC_TEMPLATE_DECL
 
 // Explicit DoFilledNewArray template function declarations.
 #define EXPLICIT_DO_FILLED_NEW_ARRAY_TEMPLATE_DECL(_is_range_, _check, _transaction_active)       \
