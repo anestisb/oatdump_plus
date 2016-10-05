@@ -20,6 +20,7 @@
 #include <ostream>
 
 #include "base/macros.h"
+#include "base/mutex.h"
 
 namespace art {
 
@@ -49,6 +50,27 @@ std::ostream& operator<<(std::ostream& os, const Dumpable<T>& rhs) {
   rhs.Dump(os);
   return os;
 }
+
+template<typename T>
+class MutatorLockedDumpable {
+ public:
+  explicit MutatorLockedDumpable(T& value) REQUIRES_SHARED(Locks::mutator_lock_) : value_(value) {}
+
+  void Dump(std::ostream& os) const REQUIRES_SHARED(Locks::mutator_lock_) {
+    value_.Dump(os);
+  }
+
+ private:
+  const T& value_;
+
+  DISALLOW_COPY_AND_ASSIGN(MutatorLockedDumpable);
+};
+
+template<typename T>
+std::ostream& operator<<(std::ostream& os, const MutatorLockedDumpable<T>& rhs)
+  // TODO: should be REQUIRES_SHARED(Locks::mutator_lock_) however annotalysis
+  //       currently fails for this.
+    NO_THREAD_SAFETY_ANALYSIS;
 
 }  // namespace art
 

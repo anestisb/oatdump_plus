@@ -72,17 +72,11 @@ inline ScopedThreadStateChange::~ScopedThreadStateChange() {
 }
 
 template<typename T>
-inline T ScopedObjectAccessAlreadyRunnable::AddLocalReference(mirror::Object* obj) const {
+inline T ScopedObjectAccessAlreadyRunnable::AddLocalReference(ObjPtr<mirror::Object> obj) const {
   Locks::mutator_lock_->AssertSharedHeld(Self());
   DCHECK(IsRunnable());  // Don't work with raw objects in non-runnable states.
   DCHECK_NE(obj, Runtime::Current()->GetClearedJniWeakGlobal());
   return obj == nullptr ? nullptr : Env()->AddLocalReference<T>(obj);
-}
-
-template<typename T, typename MirrorType, bool kPoison>
-inline T ScopedObjectAccessAlreadyRunnable::AddLocalReference(
-    ObjPtr<MirrorType, kPoison> obj) const {
-  return AddLocalReference<T>(obj.Ptr());
 }
 
 template<typename T, bool kPoison>

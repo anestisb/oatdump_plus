@@ -1441,15 +1441,15 @@ void UnstartedRuntime::UnstartedMethodInvoke(
   JNIEnvExt* env = self->GetJniEnv();
   ScopedObjectAccessUnchecked soa(self);
 
-  mirror::Object* java_method_obj = shadow_frame->GetVRegReference(arg_offset);
+  ObjPtr<mirror::Object> java_method_obj = shadow_frame->GetVRegReference(arg_offset);
   ScopedLocalRef<jobject> java_method(env,
       java_method_obj == nullptr ? nullptr :env->AddLocalReference<jobject>(java_method_obj));
 
-  mirror::Object* java_receiver_obj = shadow_frame->GetVRegReference(arg_offset + 1);
+  ObjPtr<mirror::Object> java_receiver_obj = shadow_frame->GetVRegReference(arg_offset + 1);
   ScopedLocalRef<jobject> java_receiver(env,
       java_receiver_obj == nullptr ? nullptr : env->AddLocalReference<jobject>(java_receiver_obj));
 
-  mirror::Object* java_args_obj = shadow_frame->GetVRegReference(arg_offset + 2);
+  ObjPtr<mirror::Object> java_args_obj = shadow_frame->GetVRegReference(arg_offset + 2);
   ScopedLocalRef<jobject> java_args(env,
       java_args_obj == nullptr ? nullptr : env->AddLocalReference<jobject>(java_args_obj));
 

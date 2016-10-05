@@ -19,7 +19,9 @@
 
 #include "indirect_reference_table.h"
 
+#include "base/dumpable.h"
 #include "gc_root-inl.h"
+#include "obj_ptr-inl.h"
 #include "runtime-inl.h"
 #include "verify_object-inl.h"
 
@@ -82,23 +84,36 @@ inline bool IndirectReferenceTable::CheckEntry(const char* what, IndirectRef ire
 }
 
 template<ReadBarrierOption kReadBarrierOption>
-inline mirror::Object* IndirectReferenceTable::Get(IndirectRef iref) const {
+inline ObjPtr<mirror::Object> IndirectReferenceTable::Get(IndirectRef iref) const {
   if (!GetChecked(iref)) {
     return nullptr;
   }
   uint32_t idx = ExtractIndex(iref);
-  mirror::Object* obj = table_[idx].GetReference()->Read<kReadBarrierOption>();
-  VerifyObject(obj);
+  ObjPtr<mirror::Object> obj = table_[idx].GetReference()->Read<kReadBarrierOption>();
+  VerifyObject(obj.Ptr());
   return obj;
 }
 
-inline void IndirectReferenceTable::Update(IndirectRef iref, mirror::Object* obj) {
+inline void IndirectReferenceTable::Update(IndirectRef iref, ObjPtr<mirror::Object> obj) {
   if (!GetChecked(iref)) {
     LOG(WARNING) << "IndirectReferenceTable Update failed to find reference " << iref;
     return;
   }
   uint32_t idx = ExtractIndex(iref);
   table_[idx].SetReference(obj);
+}
+
+inline void IrtEntry::Add(ObjPtr<mirror::Object> obj) {
+  ++serial_;
+  if (serial_ == kIRTPrevCount) {
+    serial_ = 0;
+  }
+  references_[serial_] = GcRoot<mirror::Object>(obj);
+}
+
+inline void IrtEntry::SetReference(ObjPtr<mirror::Object> obj) {
+  DCHECK_LT(serial_, kIRTPrevCount);
+  references_[serial_] = GcRoot<mirror::Object>(obj);
 }
 
 }  // namespace art
