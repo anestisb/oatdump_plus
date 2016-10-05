@@ -31,7 +31,7 @@ class LoopOptimizationTest : public CommonCompilerTest {
         allocator_(&pool_),
         graph_(CreateGraph(&allocator_)),
         iva_(new (&allocator_) HInductionVarAnalysis(graph_)),
-        loop_opt_(new (&allocator_) HLoopOptimization(graph_, iva_)) {
+        loop_opt_(new (&allocator_) HLoopOptimization(graph_, iva_, &allocator_)) {
     BuildGraph();
   }
 
