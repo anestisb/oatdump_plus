@@ -19,6 +19,7 @@
 #include "gc/heap.h"
 #include "gc/space/image_space.h"
 #include "mirror/class-inl.h"
+#include "oat_file.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread.h"

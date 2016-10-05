@@ -887,11 +887,10 @@ void Instrumentation::DisableMethodTracing(const char* key) {
 }
 
 const void* Instrumentation::GetQuickCodeFor(ArtMethod* method, PointerSize pointer_size) const {
-  Runtime* runtime = Runtime::Current();
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   if (LIKELY(!instrumentation_stubs_installed_)) {
     const void* code = method->GetEntryPointFromQuickCompiledCodePtrSize(pointer_size);
     DCHECK(code != nullptr);
-    ClassLinker* class_linker = runtime->GetClassLinker();
     if (LIKELY(!class_linker->IsQuickResolutionStub(code) &&
                !class_linker->IsQuickToInterpreterBridge(code)) &&
                !class_linker->IsQuickResolutionStub(code) &&
@@ -899,7 +898,7 @@ const void* Instrumentation::GetQuickCodeFor(ArtMethod* method, PointerSize poin
       return code;
     }
   }
-  return runtime->GetClassLinker()->GetQuickOatCodeFor(method);
+  return class_linker->GetQuickOatCodeFor(method);
 }
 
 void Instrumentation::MethodEnterEventImpl(Thread* thread, mirror::Object* this_object,

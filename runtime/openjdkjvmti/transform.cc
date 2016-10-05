@@ -43,6 +43,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/class_loader-inl.h"
 #include "mirror/string-inl.h"
+#include "oat_file.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread_list.h"
 #include "transform.h"
