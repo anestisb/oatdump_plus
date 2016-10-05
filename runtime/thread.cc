@@ -1854,7 +1854,7 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
   }
   IndirectRef ref = reinterpret_cast<IndirectRef>(obj);
   IndirectRefKind kind = GetIndirectRefKind(ref);
-  mirror::Object* result;
+  ObjPtr<mirror::Object> result;
   bool expect_null = false;
   // The "kinds" below are sorted by the frequency we expect to encounter them.
   if (kind == kLocal) {
@@ -1867,7 +1867,7 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
     if (LIKELY(HandleScopeContains(obj))) {
       // Read from handle scope.
       result = reinterpret_cast<StackReference<mirror::Object>*>(obj)->AsMirrorPtr();
-      VerifyObject(result);
+      VerifyObject(result.Ptr());
     } else {
       tlsPtr_.jni_env->vm->JniAbortF(nullptr, "use of invalid jobject %p", obj);
       expect_null = true;
@@ -1889,7 +1889,7 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
     tlsPtr_.jni_env->vm->JniAbortF(nullptr, "use of deleted %s %p",
                                    ToStr<IndirectRefKind>(kind).c_str(), obj);
   }
-  return result;
+  return result.Ptr();
 }
 
 bool Thread::IsJWeakCleared(jweak obj) const {

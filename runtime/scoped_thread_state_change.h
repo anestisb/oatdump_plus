@@ -87,13 +87,8 @@ class ScopedObjectAccessAlreadyRunnable : public ValueObject {
    * This will be called on otherwise unreferenced objects. We cannot do GC allocations here, and
    * it's best if we don't grab a mutex.
    */
-  template<typename T, typename MirrorType, bool kPoison = kIsDebugBuild>
-  T AddLocalReference(ObjPtr<MirrorType, kPoison> obj) const
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // TODO: Delete
   template<typename T>
-  T AddLocalReference(mirror::Object* obj) const
+  T AddLocalReference(ObjPtr<mirror::Object> obj) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<typename T, bool kPoison = kIsDebugBuild>

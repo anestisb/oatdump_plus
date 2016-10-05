@@ -21,11 +21,12 @@
 
 #include "art_method.h"
 #include "class_linker.h"
+#include "obj_ptr-inl.h"
 #include "read_barrier-inl.h"
 
 namespace art {
 
-inline bool Runtime::IsClearedJniWeakGlobal(mirror::Object* obj) {
+inline bool Runtime::IsClearedJniWeakGlobal(ObjPtr<mirror::Object> obj) {
   return obj == GetClearedJniWeakGlobal();
 }
 

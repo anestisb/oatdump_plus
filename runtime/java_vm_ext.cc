@@ -641,7 +641,7 @@ void JavaVMExt::BroadcastForNewWeakGlobals() {
 }
 
 mirror::Object* JavaVMExt::DecodeGlobal(IndirectRef ref) {
-  return globals_.SynchronizedGet(ref);
+  return globals_.SynchronizedGet(ref).Ptr();
 }
 
 void JavaVMExt::UpdateGlobal(Thread* self, IndirectRef ref, mirror::Object* result) {
@@ -669,7 +669,7 @@ mirror::Object* JavaVMExt::DecodeWeakGlobal(Thread* self, IndirectRef ref) {
   // if MayAccessWeakGlobals is false.
   DCHECK_EQ(GetIndirectRefKind(ref), kWeakGlobal);
   if (LIKELY(MayAccessWeakGlobalsUnlocked(self))) {
-    return weak_globals_.SynchronizedGet(ref);
+    return weak_globals_.SynchronizedGet(ref).Ptr();
   }
   MutexLock mu(self, weak_globals_lock_);
   return DecodeWeakGlobalLocked(self, ref);
@@ -682,7 +682,7 @@ mirror::Object* JavaVMExt::DecodeWeakGlobalLocked(Thread* self, IndirectRef ref)
   while (UNLIKELY(!MayAccessWeakGlobals(self))) {
     weak_globals_add_condition_.WaitHoldingLocks(self);
   }
-  return weak_globals_.Get(ref);
+  return weak_globals_.Get(ref).Ptr();
 }
 
 mirror::Object* JavaVMExt::DecodeWeakGlobalDuringShutdown(Thread* self, IndirectRef ref) {
@@ -695,7 +695,7 @@ mirror::Object* JavaVMExt::DecodeWeakGlobalDuringShutdown(Thread* self, Indirect
   if (!kUseReadBarrier) {
     DCHECK(allow_accessing_weak_globals_.LoadSequentiallyConsistent());
   }
-  return weak_globals_.SynchronizedGet(ref);
+  return weak_globals_.SynchronizedGet(ref).Ptr();
 }
 
 bool JavaVMExt::IsWeakGlobalCleared(Thread* self, IndirectRef ref) {

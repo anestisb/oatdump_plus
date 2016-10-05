@@ -8270,7 +8270,7 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self,
 
   // Make it a global ref and return.
   ScopedLocalRef<jobject> local_ref(
-      soa.Env(), soa.Env()->AddLocalReference<jobject>(h_path_class_loader.Get()));
+      soa.Env(), soa.Env()->AddLocalReference<jobject>(MakeObjPtr(h_path_class_loader.Get())));
   return soa.Env()->NewGlobalRef(local_ref.get());
 }
 
