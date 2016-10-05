@@ -20,6 +20,7 @@
 #include "dex_file-inl.h"
 #include "mirror/class-inl.h"
 #include "nth_caller_visitor.h"
+#include "oat_file.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
 #include "stack.h"

@@ -34,7 +34,7 @@
 #include "dex_file.h"
 #include "gc_root.h"
 #include "jni.h"
-#include "oat_file.h"
+#include "mirror/class.h"
 #include "object_callbacks.h"
 #include "verifier/verifier_log_mode.h"
 
@@ -57,8 +57,9 @@ namespace mirror {
   class StackTraceElement;
 }  // namespace mirror
 
-class ImtConflictTable;
 template<class T> class Handle;
+class ImtConflictTable;
+template<typename T> class LengthPrefixedArray;
 template<class T> class MutableHandle;
 class InternTable;
 template<class T> class ObjectLock;
@@ -511,17 +512,8 @@ class ClassLinker {
       REQUIRES(!dex_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  // Get the oat code for a method when its class isn't yet initialized
+  // Get the oat code for a method when its class isn't yet initialized.
   const void* GetQuickOatCodeFor(ArtMethod* method)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // Get compiled code for a method, return null if no code
-  // exists. This is unlike Get..OatCodeFor which will return a bridge
-  // or interpreter entrypoint.
-  const void* GetOatMethodQuickCodeFor(ArtMethod* method)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  const OatFile::OatMethod FindOatMethodFor(ArtMethod* method, bool* found)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   pid_t GetClassesLockOwner();  // For SignalCatcher.
@@ -539,6 +531,10 @@ class ClassLinker {
 
   // Is the given entry point quick code to run the generic JNI stub?
   bool IsQuickGenericJniStub(const void* entry_point) const;
+
+  const void* GetQuickToInterpreterBridgeTrampoline() const {
+    return quick_to_interpreter_bridge_trampoline_;
+  }
 
   InternTable* GetInternTable() const {
     return intern_table_;
@@ -783,8 +779,7 @@ class ClassLinker {
   void LoadClassMembers(Thread* self,
                         const DexFile& dex_file,
                         const uint8_t* class_data,
-                        Handle<mirror::Class> klass,
-                        const OatFile::OatClass* oat_class)
+                        Handle<mirror::Class> klass)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   void LoadField(const ClassDataItemIterator& it, Handle<mirror::Class> klass, ArtField* dst)
@@ -796,11 +791,6 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   void FixupStaticTrampolines(mirror::Class* klass) REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // Finds the associated oat class for a dex_file and descriptor. Returns an invalid OatClass on
-  // error and sets found to false.
-  OatFile::OatClass FindOatClass(const DexFile& dex_file, uint16_t class_def_idx, bool* found)
-      REQUIRES_SHARED(Locks::mutator_lock_);
 
   void RegisterDexFileLocked(const DexFile& dex_file, Handle<mirror::DexCache> dex_cache)
       REQUIRES(dex_lock_)
@@ -859,11 +849,6 @@ class ClassLinker {
                    Handle<mirror::ObjectArray<mirror::Class>> interfaces,
                    bool* out_new_conflict,
                    ArtMethod** out_imt)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-
-  // Does anything needed to make sure that the compiler will not generate a direct invoke to this
-  // method. Should only be called on non-invokable methods.
-  void EnsureThrowsInvocationError(ArtMethod* method)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // A wrapper class representing the result of a method translation used for linking methods and
@@ -1014,10 +999,6 @@ class ClassLinker {
   bool LinkInstanceFields(Thread* self, Handle<mirror::Class> klass)
       REQUIRES_SHARED(Locks::mutator_lock_);
   bool LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_static, size_t* class_size)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  void LinkCode(ArtMethod* method,
-                const OatFile::OatClass* oat_class,
-                uint32_t class_def_method_index)
       REQUIRES_SHARED(Locks::mutator_lock_);
   void CreateReferenceInstanceOffsets(Handle<mirror::Class> klass)
       REQUIRES_SHARED(Locks::mutator_lock_);
