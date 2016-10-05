@@ -392,11 +392,13 @@ jobject JniCompilerTest::class_loader_;
 // -- TODO: We can support (1) if we remove the mutator lock assert during stub lookup.
 # define JNI_TEST_NORMAL_ONLY(TestName)          \
   TEST_F(JniCompilerTest, TestName ## NormalCompiler) { \
+    ScopedCheckHandleScope top_handle_scope_check;  \
     SCOPED_TRACE("Normal JNI with compiler");    \
     gCurrentJni = static_cast<uint32_t>(JniKind::kNormal); \
     TestName ## Impl();                          \
   }                                              \
   TEST_F(JniCompilerTest, TestName ## NormalGeneric) { \
+    ScopedCheckHandleScope top_handle_scope_check;  \
     SCOPED_TRACE("Normal JNI with generic");     \
     gCurrentJni = static_cast<uint32_t>(JniKind::kNormal); \
     TEST_DISABLED_FOR_MIPS();                    \
@@ -408,12 +410,14 @@ jobject JniCompilerTest::class_loader_;
 #define JNI_TEST(TestName) \
   JNI_TEST_NORMAL_ONLY(TestName)                 \
   TEST_F(JniCompilerTest, TestName ## FastCompiler) {    \
+    ScopedCheckHandleScope top_handle_scope_check;  \
     SCOPED_TRACE("@FastNative JNI with compiler");  \
     gCurrentJni = static_cast<uint32_t>(JniKind::kFast); \
     TestName ## Impl();                          \
   }                                              \
                                                  \
   TEST_F(JniCompilerTest, TestName ## FastGeneric) { \
+    ScopedCheckHandleScope top_handle_scope_check;  \
     SCOPED_TRACE("@FastNative JNI with generic");  \
     gCurrentJni = static_cast<uint32_t>(JniKind::kFast); \
     TEST_DISABLED_FOR_MIPS();                    \
@@ -424,11 +428,13 @@ jobject JniCompilerTest::class_loader_;
 // Test (@CriticalNative) x (compiler, generic) only.
 #define JNI_TEST_CRITICAL_ONLY(TestName) \
   TEST_F(JniCompilerTest, TestName ## CriticalCompiler) { \
+    ScopedCheckHandleScope top_handle_scope_check;  \
     SCOPED_TRACE("@CriticalNative JNI with compiler");  \
     gCurrentJni = static_cast<uint32_t>(JniKind::kCritical); \
     TestName ## Impl();                          \
   }                                              \
   TEST_F(JniCompilerTest, TestName ## CriticalGeneric) { \
+    ScopedCheckHandleScope top_handle_scope_check;  \
     SCOPED_TRACE("@CriticalNative JNI with generic");  \
     gCurrentJni = static_cast<uint32_t>(JniKind::kCritical); \
     SetCheckGenericJni(true);                    \
@@ -514,6 +520,21 @@ struct ScopedDisableCheckNumStackReferences {
 };
 
 bool ScopedDisableCheckNumStackReferences::sCheckNumStackReferences = true;
+
+// Check that the handle scope at the start of this block is the same as the handle scope at the end of the block.
+struct ScopedCheckHandleScope {
+  ScopedCheckHandleScope() {
+    handle_scope_ = Thread::Current()->GetTopHandleScope();
+  }
+
+  ~ScopedCheckHandleScope() {
+    EXPECT_EQ(handle_scope_, Thread::Current()->GetTopHandleScope())
+        << "Top-most handle scope must be the same after all the JNI "
+        << "invocations have finished (as before they were invoked).";
+  }
+
+  HandleScope* handle_scope_;
+};
 
 static void expectNumStackReferences(size_t val1, size_t val2) {
   // In rare cases when JNI functions call themselves recursively,
