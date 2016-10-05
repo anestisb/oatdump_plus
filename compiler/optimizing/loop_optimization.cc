@@ -16,10 +16,7 @@
 
 #include "loop_optimization.h"
 
-#include "base/arena_containers.h"
-#include "induction_var_range.h"
-#include "ssa_liveness_analysis.h"
-#include "nodes.h"
+#include "linear_order.h"
 
 namespace art {
 
@@ -126,14 +123,9 @@ static void RemoveFromCycle(HInstruction* instruction) {
 
 HLoopOptimization::HLoopOptimization(HGraph* graph,
                                      HInductionVarAnalysis* induction_analysis)
-    : HLoopOptimization(graph, induction_analysis, nullptr) {}
-
-HLoopOptimization::HLoopOptimization(HGraph* graph,
-                                     HInductionVarAnalysis* induction_analysis,
-                                     ArenaAllocator* allocator)
     : HOptimization(graph, kLoopOptimizationPassName),
       induction_range_(induction_analysis),
-      loop_allocator_(allocator),
+      loop_allocator_(nullptr),
       top_loop_(nullptr),
       last_loop_(nullptr) {
 }
@@ -141,32 +133,39 @@ HLoopOptimization::HLoopOptimization(HGraph* graph,
 void HLoopOptimization::Run() {
   // Well-behaved loops only.
   // TODO: make this less of a sledgehammer.
-  if (graph_-> HasTryCatch() || graph_->HasIrreducibleLoops()) {
+  if (graph_->HasTryCatch() || graph_->HasIrreducibleLoops()) {
     return;
   }
 
+  // Phase-local allocator that draws from the global pool. Since the allocator
+  // itself resides on the stack, it is destructed on exiting Run(), which
+  // implies its underlying memory is released immediately.
   ArenaAllocator allocator(graph_->GetArena()->GetArenaPool());
-  if (loop_allocator_ == nullptr) {
-    loop_allocator_ = &allocator;
-  }
+  loop_allocator_ = &allocator;
 
-  // Build the linear order. This step enables building a loop hierarchy that
-  // properly reflects the outer-inner and previous-next relation.
-  graph_->Linearize();
+  // Perform loop optimizations.
+  LocalRun();
+
+  // Detach.
+  loop_allocator_ = nullptr;
+  last_loop_ = top_loop_ = nullptr;
+}
+
+void HLoopOptimization::LocalRun() {
+  // Build the linear order using the phase-local allocator. This step enables building
+  // a loop hierarchy that properly reflects the outer-inner and previous-next relation.
+  ArenaVector<HBasicBlock*> linear_order(loop_allocator_->Adapter(kArenaAllocLinearOrder));
+  LinearizeGraph(graph_, loop_allocator_, &linear_order);
+
   // Build the loop hierarchy.
-  for (HLinearOrderIterator it_graph(*graph_); !it_graph.Done(); it_graph.Advance()) {
-    HBasicBlock* block = it_graph.Current();
+  for (HBasicBlock* block : linear_order) {
     if (block->IsLoopHeader()) {
       AddLoop(block->GetLoopInformation());
     }
   }
-  if (top_loop_ != nullptr) {
-    // Traverse the loop hierarchy inner-to-outer and optimize.
-    TraverseLoopsInnerToOuter(top_loop_);
-  }
-  if (loop_allocator_ == &allocator) {
-    loop_allocator_ = nullptr;
-  }
+
+  // Traverse the loop hierarchy inner-to-outer and optimize.
+  TraverseLoopsInnerToOuter(top_loop_);
 }
 
 void HLoopOptimization::AddLoop(HLoopInformation* loop_info) {
