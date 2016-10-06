@@ -38,7 +38,11 @@
 
 #include "art_jvmti.h"
 #include "jni_env_ext-inl.h"
+#include "object_tagging.h"
+#include "obj_ptr-inl.h"
 #include "runtime.h"
+#include "scoped_thread_state_change-inl.h"
+#include "thread_list.h"
 #include "transform.h"
 
 // TODO Remove this at some point by annotating all the methods. It was put in to make the skeleton
@@ -46,6 +50,8 @@
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
 namespace openjdkjvmti {
+
+ObjectTagTable gObjectTagTable;
 
 class JvmtiFunctions {
  private:
@@ -270,11 +276,42 @@ class JvmtiFunctions {
   }
 
   static jvmtiError GetTag(jvmtiEnv* env, jobject object, jlong* tag_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    if (object == nullptr || tag_ptr == nullptr) {
+      return ERR(NULL_POINTER);
+    }
+
+    JNIEnv* jni_env = GetJniEnv(env);
+    if (jni_env == nullptr) {
+      return ERR(INTERNAL);
+    }
+
+    art::ScopedObjectAccess soa(jni_env);
+    art::ObjPtr<art::mirror::Object> obj = soa.Decode<art::mirror::Object>(object);
+    if (!gObjectTagTable.GetTag(obj.Ptr(), tag_ptr)) {
+      *tag_ptr = 0;
+    }
+
+    return ERR(NONE);
   }
 
   static jvmtiError SetTag(jvmtiEnv* env, jobject object, jlong tag) {
-    return ERR(NOT_IMPLEMENTED);
+    if (object == nullptr) {
+      return ERR(NULL_POINTER);
+    }
+
+    JNIEnv* jni_env = GetJniEnv(env);
+    if (jni_env == nullptr) {
+      return ERR(INTERNAL);
+    }
+
+    art::ScopedObjectAccess soa(jni_env);
+    art::ObjPtr<art::mirror::Object> obj = soa.Decode<art::mirror::Object>(object);
+    gObjectTagTable.Remove(obj.Ptr(), /* tag* */ nullptr);
+    if (tag != 0) {
+      gObjectTagTable.Add(obj.Ptr(), tag);
+    }
+
+    return ERR(NONE);
   }
 
   static jvmtiError GetObjectsWithTags(jvmtiEnv* env,
