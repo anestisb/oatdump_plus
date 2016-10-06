@@ -312,6 +312,37 @@ inline void Thread::PoisonObjectPointersIfDebug() {
   }
 }
 
+inline bool Thread::ModifySuspendCount(Thread* self,
+                                       int delta,
+                                       AtomicInteger* suspend_barrier,
+                                       bool for_debugger) {
+  if (delta > 0 && ((kUseReadBarrier && this != self) || suspend_barrier != nullptr)) {
+    // When delta > 0 (requesting a suspend), ModifySuspendCountInternal() may fail either if
+    // active_suspend_barriers is full or we are in the middle of a thread flip. Retry in a loop.
+    while (true) {
+      if (LIKELY(ModifySuspendCountInternal(self, delta, suspend_barrier, for_debugger))) {
+        return true;
+      } else {
+        // Failure means the list of active_suspend_barriers is full or we are in the middle of a
+        // thread flip, we should release the thread_suspend_count_lock_ (to avoid deadlock) and
+        // wait till the target thread has executed or Thread::PassActiveSuspendBarriers() or the
+        // flip function. Note that we could not simply wait for the thread to change to a suspended
+        // state, because it might need to run checkpoint function before the state change or
+        // resumes from the resume_cond_, which also needs thread_suspend_count_lock_.
+        //
+        // The list of active_suspend_barriers is very unlikely to be full since more than
+        // kMaxSuspendBarriers threads need to execute SuspendAllInternal() simultaneously, and
+        // target thread stays in kRunnable in the mean time.
+        Locks::thread_suspend_count_lock_->ExclusiveUnlock(self);
+        NanoSleep(100000);
+        Locks::thread_suspend_count_lock_->ExclusiveLock(self);
+      }
+    }
+  } else {
+    return ModifySuspendCountInternal(self, delta, suspend_barrier, for_debugger);
+  }
+}
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_THREAD_INL_H_
