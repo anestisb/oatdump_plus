@@ -676,8 +676,7 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
   }
 
   // Box if necessary and return.
-  return soa.AddLocalReference<jobject>(
-      BoxPrimitive(Primitive::GetType(shorty[0]), result).Ptr());
+  return soa.AddLocalReference<jobject>(BoxPrimitive(Primitive::GetType(shorty[0]), result));
 }
 
 ObjPtr<mirror::Object> BoxPrimitive(Primitive::Type src_class, const JValue& value) {
@@ -911,7 +910,7 @@ void UpdateReference(Thread* self, jobject obj, ObjPtr<mirror::Object> result) {
   IndirectRef ref = reinterpret_cast<IndirectRef>(obj);
   IndirectRefKind kind = GetIndirectRefKind(ref);
   if (kind == kLocal) {
-    self->GetJniEnv()->locals.Update(obj, result.Ptr());
+    self->GetJniEnv()->locals.Update(obj, result);
   } else if (kind == kHandleScopeOrInvalid) {
     LOG(FATAL) << "Unsupported UpdateReference for kind kHandleScopeOrInvalid";
   } else if (kind == kGlobal) {

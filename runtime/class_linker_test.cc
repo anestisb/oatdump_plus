@@ -875,7 +875,7 @@ TEST_F(ClassLinkerTest, LookupResolvedType) {
   uint32_t type_idx = klass->GetClassDef()->class_idx_;
   ObjPtr<mirror::DexCache> dex_cache = klass->GetDexCache();
   const DexFile& dex_file = klass->GetDexFile();
-  EXPECT_EQ(dex_cache->GetResolvedType(type_idx), klass.Ptr());
+  EXPECT_OBJ_PTR_EQ(dex_cache->GetResolvedType(type_idx), klass);
   EXPECT_OBJ_PTR_EQ(
       class_linker_->LookupResolvedType(dex_file, type_idx, dex_cache, class_loader.Get()),
       klass);
