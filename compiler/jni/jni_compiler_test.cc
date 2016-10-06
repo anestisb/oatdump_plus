@@ -523,8 +523,7 @@ bool ScopedDisableCheckNumStackReferences::sCheckNumStackReferences = true;
 
 // Check that the handle scope at the start of this block is the same as the handle scope at the end of the block.
 struct ScopedCheckHandleScope {
-  ScopedCheckHandleScope() {
-    handle_scope_ = Thread::Current()->GetTopHandleScope();
+  ScopedCheckHandleScope() : handle_scope_(Thread::Current()->GetTopHandleScope()) {
   }
 
   ~ScopedCheckHandleScope() {
@@ -533,7 +532,7 @@ struct ScopedCheckHandleScope {
         << "invocations have finished (as before they were invoked).";
   }
 
-  HandleScope* handle_scope_;
+  HandleScope* const handle_scope_;
 };
 
 static void expectNumStackReferences(size_t val1, size_t val2) {
