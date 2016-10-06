@@ -102,7 +102,7 @@ class ObjectTagTable : public art::gc::SystemWeakHolder {
 
     for (auto it = tagged_objects_.begin(); it != tagged_objects_.end(); ++it) {
       if (!it->first.IsNull()) {
-        art::mirror::Object* original_obj = it->first.Read();
+        art::mirror::Object* original_obj = it->first.Read<art::kWithoutReadBarrier>();
         art::mirror::Object* target_obj = visitor->IsMarked(original_obj);
         if (original_obj != target_obj) {
           it->first = art::GcRoot<art::mirror::Object>(target_obj);
