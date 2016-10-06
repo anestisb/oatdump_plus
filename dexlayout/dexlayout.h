@@ -43,7 +43,6 @@ struct Options {
   bool disassemble_;
   bool exports_only_;
   bool ignore_bad_checksum_;
-  bool output_dex_files_;
   bool show_annotations_;
   bool show_cfg_;
   bool show_file_headers_;
@@ -51,6 +50,7 @@ struct Options {
   bool verbose_;
   bool visualize_pattern_;
   OutputFormat output_format_;
+  const char* output_dex_directory_;
   const char* output_file_name_;
   const char* profile_file_name_;
 };
