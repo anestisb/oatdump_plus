@@ -155,7 +155,7 @@ public class Main {
   /// CHECK-DAG:               Return [<<Phi1>>] loop:none
   //
   /// CHECK-START: int Main.closedFormInductionUp() loop_optimization (after)
-  /// CHECK-NOT:               Phi    loop:B\d+ outer_loop:none
+  /// CHECK-NOT:               Phi    loop:{{B\d+}} outer_loop:none
   /// CHECK-DAG:               Return loop:none
   static int closedFormInductionUp() {
     int closed = 12345;
@@ -171,13 +171,24 @@ public class Main {
   /// CHECK-DAG:               Return [<<Phi2>>] loop:none
   //
   /// CHECK-START: int Main.closedFormInductionInAndDown(int) loop_optimization (after)
-  /// CHECK-NOT:               Phi    loop:B\d+ outer_loop:none
+  /// CHECK-NOT:               Phi    loop:{{B\d+}} outer_loop:none
   /// CHECK-DAG:               Return loop:none
   static int closedFormInductionInAndDown(int closed) {
     for (int i = 0; i < 10; i++) {
       closed -= 5;
     }
     return closed;  // only needs last value
+  }
+
+  // TODO: move closed form even further out?
+  static int closedFormNested() {
+    int closed = 0;
+    for (int i = 0; i < 10; i++) {
+      for (int j = 0; j < 10; j++) {
+        closed++;
+      }
+    }
+    return closed;  // only needs last-value
   }
 
   // TODO: taken test around closed form?
@@ -198,7 +209,7 @@ public class Main {
   }
 
   // TODO: move closed form even further out?
-  static int closedFormNested(int n) {
+  static int closedFormNestedN(int n) {
     int closed = 0;
     for (int i = 0; i < n; i++) {
       for (int j = 0; j < 10; j++) {
@@ -208,34 +219,40 @@ public class Main {
     return closed;  // only needs last-value
   }
 
-  // TODO: handle as closed/empty eventually?
-  static int mainIndexReturned(int n) {
+  // TODO: move closed form even further out?
+  static int closedFormNestedNN(int n) {
+    int closed = 0;
+    for (int i = 0; i < n; i++) {
+      for (int j = 0; j < n; j++) {
+        closed++;
+      }
+    }
+    return closed;  // only needs last-value
+  }
+
+  /// CHECK-START: int Main.mainIndexReturned() loop_optimization (before)
+  /// CHECK-DAG: <<Phi:i\d+>> Phi              loop:{{B\d+}} outer_loop:none
+  /// CHECK-DAG:              Return [<<Phi>>] loop:none
+  //
+  /// CHECK-START: int Main.mainIndexReturned() loop_optimization (after)
+  /// CHECK-NOT:              Phi    loop:{{B\d+}} outer_loop:none
+  /// CHECK-DAG:              Return loop:none
+  static int mainIndexReturned() {
     int i;
-    for (i = 0; i < n; i++);
+    for (i = 0; i < 10; i++);
     return i;
   }
 
   // If ever replaced by closed form, last value should be correct!
-  static int periodicReturned(int n) {
+  static int periodicReturned() {
     int k = 0;
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < 9; i++) {
       k = 1 - k;
     }
     return k;
   }
 
-  // Same here.
-  private static int getSum(int n) {
-    int k = 0;
-    int sum = 0;
-    for (int i = 0; i < n; i++) {
-      k++;
-      sum += k;
-    }
-    return sum;
-  }
-
-  // Same here.
+  // If ever replaced by closed form, last value should be correct!
   private static int getSum21() {
     int k = 0;
     int sum = 0;
@@ -246,7 +263,34 @@ public class Main {
     return sum;
   }
 
-  // Same here.
+  // TODO: handle as closed/empty eventually?
+  static int mainIndexReturnedN(int n) {
+    int i;
+    for (i = 0; i < n; i++);
+    return i;
+  }
+
+  // If ever replaced by closed form, last value should be correct!
+  static int periodicReturnedN(int n) {
+    int k = 0;
+    for (int i = 0; i < n; i++) {
+      k = 1 - k;
+    }
+    return k;
+  }
+
+  // If ever replaced by closed form, last value should be correct!
+  private static int getSumN(int n) {
+    int k = 0;
+    int sum = 0;
+    for (int i = 0; i < n; i++) {
+      k++;
+      sum += k;
+    }
+    return sum;
+  }
+
+  // If ever replaced by closed form, last value should be correct!
   private static int closedTwice() {
     int closed = 0;
     for (int i = 0; i < 10; i++) {
@@ -269,7 +313,7 @@ public class Main {
   /// CHECK-EVAL: "<<Loop1>>" != "<<Loop2>>"
   //
   /// CHECK-START: int Main.closedFeed() loop_optimization (after)
-  /// CHECK-NOT:               Phi    loop:B\d+ outer_loop:none
+  /// CHECK-NOT:               Phi    loop:{{B\d+}} outer_loop:none
   /// CHECK-DAG:               Return loop:none
   private static int closedFeed() {
     int closed = 0;
@@ -314,6 +358,27 @@ public class Main {
       closed -= 0x7fffffff;
     }
     return closed;
+  }
+
+  /// CHECK-START: int Main.waterFall() loop_optimization (before)
+  /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop1:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Phi2:i\d+>> Phi               loop:<<Loop2:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Phi3:i\d+>> Phi               loop:<<Loop3:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Phi4:i\d+>> Phi               loop:<<Loop4:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Phi5:i\d+>> Phi               loop:<<Loop5:B\d+>> outer_loop:none
+  /// CHECK-DAG:               Return [<<Phi5>>] loop:none
+  //
+  /// CHECK-START: int Main.waterFall() loop_optimization (after)
+  /// CHECK-NOT:               Phi    loop:B\d+ outer_loop:none
+  /// CHECK-DAG:               Return loop:none
+  private static int waterFall() {
+    int i = 0;
+    for (; i < 10; i++);
+    for (; i < 20; i++);
+    for (; i < 30; i++);
+    for (; i < 40; i++);
+    for (; i < 50; i++);
+    return i;  // this should become just 50
   }
 
   private static int exceptionExitBeforeAdd() {
@@ -376,31 +441,32 @@ public class Main {
       expectEquals(4, a[i]);
     }
 
-    int c = closedFormInductionUp();
-    expectEquals(12395, c);
-    c = closedFormInductionInAndDown(12345);
-    expectEquals(12295, c);
+    expectEquals(12395, closedFormInductionUp());
+    expectEquals(12295, closedFormInductionInAndDown(12345));
+    expectEquals(10 * 10, closedFormNested());
     for (int n = -4; n < 10; n++) {
       int tc = (n <= 0) ? 0 : n;
-      c = closedFormInductionUpN(n);
-      expectEquals(12345 + tc * 5, c);
-      c = closedFormInductionInAndDownN(12345, n);
-      expectEquals(12345 - tc * 5, c);
-      c = closedFormNested(n);
-      expectEquals(tc * 10, c);
+      expectEquals(12345 + tc * 5, closedFormInductionUpN(n));
+      expectEquals(12345 - tc * 5, closedFormInductionInAndDownN(12345, n));
+      expectEquals(tc * 10, closedFormNestedN(n));
+      expectEquals(tc * tc, closedFormNestedNN(n));
     }
 
+    expectEquals(10, mainIndexReturned());
+    expectEquals(1, periodicReturned());
+    expectEquals(21, getSum21());
     for (int n = -4; n < 4; n++) {
       int tc = (n <= 0) ? 0 : n;
-      expectEquals(tc, mainIndexReturned(n));
-      expectEquals(tc & 1, periodicReturned(n));
-      expectEquals((tc * (tc + 1)) / 2, getSum(n));
+      expectEquals(tc, mainIndexReturnedN(n));
+      expectEquals(tc & 1, periodicReturnedN(n));
+      expectEquals((tc * (tc + 1)) / 2, getSumN(n));
     }
-    expectEquals(21, getSum21());
+
     expectEquals(10, closedTwice());
     expectEquals(20, closedFeed());
     expectEquals(-10, closedLargeUp());
     expectEquals(10, closedLargeDown());
+    expectEquals(50, waterFall());
 
     expectEquals(100, exceptionExitBeforeAdd());
     expectEquals(100, exceptionExitAfterAdd());
