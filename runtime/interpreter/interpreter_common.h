@@ -185,6 +185,13 @@ static inline bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
     return false;
   }
   const uint32_t vtable_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
+  // Debug code for b/31357497. To be removed.
+  if (kUseReadBarrier) {
+    CHECK(receiver->GetClass() != nullptr)
+        << "Null class found in object " << receiver << " in region type "
+        << Runtime::Current()->GetHeap()->ConcurrentCopyingCollector()->
+            RegionSpace()->GetRegionType(receiver);
+  }
   CHECK(receiver->GetClass()->ShouldHaveEmbeddedVTable());
   ArtMethod* const called_method = receiver->GetClass()->GetEmbeddedVTableEntry(
       vtable_idx, kRuntimePointerSize);
