@@ -677,11 +677,10 @@ static jobject Class_newInstance(JNIEnv* env, jobject javaThis) {
     if (caller.Get() == nullptr) {
       caller.Assign(GetCallingClass(soa.Self(), 1));
     }
-    if (UNLIKELY(caller.Get() != nullptr && !VerifyAccess(
-        MakeObjPtr(receiver.Get()),
-        MakeObjPtr(declaring_class),
-        constructor->GetAccessFlags(),
-        MakeObjPtr(caller.Get())))) {
+    if (UNLIKELY(caller.Get() != nullptr && !VerifyAccess(receiver.Get(),
+                                                          declaring_class,
+                                                          constructor->GetAccessFlags(),
+                                                          caller.Get()))) {
       soa.Self()->ThrowNewExceptionF(
           "Ljava/lang/IllegalAccessException;", "%s is not accessible from %s",
           PrettyMethod(constructor).c_str(), PrettyClass(caller.Get()).c_str());

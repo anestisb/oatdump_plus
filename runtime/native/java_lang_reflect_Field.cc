@@ -46,8 +46,8 @@ ALWAYS_INLINE inline static bool VerifyFieldAccess(Thread* self,
   }
   ObjPtr<mirror::Class> calling_class;
   if (!VerifyAccess(self,
-                    MakeObjPtr(obj),
-                    MakeObjPtr(field->GetDeclaringClass()),
+                    obj,
+                    field->GetDeclaringClass(),
                     field->GetAccessFlags(),
                     &calling_class,
                     1)) {
@@ -335,7 +335,7 @@ static void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject j
   ObjPtr<mirror::Object> boxed_value = soa.Decode<mirror::Object>(javaValue);
   JValue unboxed_value;
   if (!UnboxPrimitiveForField(boxed_value,
-                              MakeObjPtr(field_type),
+                              field_type,
                               f->GetArtField(),
                               &unboxed_value)) {
     DCHECK(soa.Self()->IsExceptionPending());
