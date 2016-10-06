@@ -87,18 +87,18 @@ static const std::vector<FileSection> kFileSections = {
   }, {
     "EncArr",
     DexFile::kDexTypeEncodedArrayItem,
-    &dex_ir::Collections::EncodedArraySize,
-    &dex_ir::Collections::EncodedArrayOffset
+    &dex_ir::Collections::EncodedArrayItemsSize,
+    &dex_ir::Collections::EncodedArrayItemsOffset
   }, {
     "Annotation",
     DexFile::kDexTypeAnnotationItem,
-    &dex_ir::Collections::AnnotationSize,
-    &dex_ir::Collections::AnnotationOffset
+    &dex_ir::Collections::AnnotationItemsSize,
+    &dex_ir::Collections::AnnotationItemsOffset
   }, {
     "AnnoSet",
     DexFile::kDexTypeAnnotationSetItem,
-    &dex_ir::Collections::AnnotationSetSize,
-    &dex_ir::Collections::AnnotationSetOffset
+    &dex_ir::Collections::AnnotationSetItemsSize,
+    &dex_ir::Collections::AnnotationSetItemsOffset
   }, {
     "AnnoSetRL",
     DexFile::kDexTypeAnnotationSetRefList,
@@ -107,13 +107,13 @@ static const std::vector<FileSection> kFileSections = {
   }, {
     "AnnoDir",
     DexFile::kDexTypeAnnotationsDirectoryItem,
-    &dex_ir::Collections::AnnotationsDirectorySize,
-    &dex_ir::Collections::AnnotationsDirectoryOffset
+    &dex_ir::Collections::AnnotationsDirectoryItemsSize,
+    &dex_ir::Collections::AnnotationsDirectoryItemsOffset
   }, {
     "DebugInfo",
     DexFile::kDexTypeDebugInfoItem,
-    &dex_ir::Collections::DebugInfoSize,
-    &dex_ir::Collections::DebugInfoOffset
+    &dex_ir::Collections::DebugInfoItemsSize,
+    &dex_ir::Collections::DebugInfoItemsOffset
   }, {
     "CodeItem",
     DexFile::kDexTypeCodeItem,
@@ -244,9 +244,11 @@ class Dumper {
       return;
     }
     DumpStringId(proto_id->Shorty(), class_index);
-    const dex_ir::TypeIdVector& parameters = proto_id->Parameters();
-    for (const dex_ir::TypeId* t : parameters) {
-      DumpTypeId(t, class_index);
+    const dex_ir::TypeList* type_list = proto_id->Parameters();
+    if (type_list != nullptr) {
+      for (const dex_ir::TypeId* t : *type_list->GetTypeList()) {
+        DumpTypeId(t, class_index);
+      }
     }
     DumpTypeId(proto_id->ReturnType(), class_index);
   }
