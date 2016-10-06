@@ -25,6 +25,7 @@
 
 #include "901-hello-ti-agent/basics.h"
 #include "902-hello-transformation/transform.h"
+#include "903-hello-tagging/tagging.h"
 
 namespace art {
 
@@ -41,6 +42,7 @@ struct AgentLib {
 AgentLib agents[] = {
   { "901-hello-ti-agent", Test901HelloTi::OnLoad, nullptr },
   { "902-hello-transformation", Test902HelloTransformation::OnLoad, nullptr },
+  { "903-hello-tagging", Test903HelloTagging::OnLoad, nullptr },
 };
 
 static AgentLib* FindAgent(char* name) {
