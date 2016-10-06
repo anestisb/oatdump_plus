@@ -199,7 +199,7 @@ int32_t Object::IdentityHashCode() const {
   UNREACHABLE();
 }
 
-void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, Object* new_value) {
+void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, ObjPtr<Object> new_value) {
   Class* c = GetClass();
   Runtime* runtime = Runtime::Current();
   if (runtime->GetClassLinker() == nullptr || !runtime->IsStarted() ||

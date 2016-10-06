@@ -22,7 +22,6 @@
 
 #include "base/mutex.h"  // For Locks::mutator_lock_.
 #include "globals.h"
-#include "mirror/object_reference.h"
 
 namespace art {
 
@@ -32,7 +31,7 @@ namespace art {
 template<class MirrorType, bool kPoison = kIsDebugBuild>
 class ObjPtr {
   static constexpr size_t kCookieShift =
-      sizeof(mirror::HeapReference<mirror::Object>) * kBitsPerByte - kObjectAlignmentShift;
+      sizeof(kHeapReferenceSize) * kBitsPerByte - kObjectAlignmentShift;
   static constexpr size_t kCookieBits = sizeof(uintptr_t) * kBitsPerByte - kCookieShift;
   static constexpr uintptr_t kCookieMask = (static_cast<uintptr_t>(1u) << kCookieBits) - 1;
 

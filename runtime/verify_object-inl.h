@@ -21,31 +21,32 @@
 
 #include "gc/heap.h"
 #include "mirror/object-inl.h"
+#include "obj_ptr-inl.h"
 
 namespace art {
 
-inline void VerifyObject(mirror::Object* obj) {
+inline void VerifyObject(ObjPtr<mirror::Object> obj) {
   if (kVerifyObjectSupport > kVerifyObjectModeDisabled && obj != nullptr) {
     if (kVerifyObjectSupport > kVerifyObjectModeFast) {
       // Slow object verification, try the heap right away.
-      Runtime::Current()->GetHeap()->VerifyObjectBody(obj);
+      Runtime::Current()->GetHeap()->VerifyObjectBody(obj.Ptr());
     } else {
       // Fast object verification, only call the heap if our quick sanity tests fail. The heap will
       // print the diagnostic message.
-      bool failed = !IsAligned<kObjectAlignment>(obj);
+      bool failed = !IsAligned<kObjectAlignment>(obj.Ptr());
       if (!failed) {
         mirror::Class* c = obj->GetClass<kVerifyNone>();
         failed = failed || !IsAligned<kObjectAlignment>(c);
         failed = failed || !VerifyClassClass(c);
       }
       if (UNLIKELY(failed)) {
-        Runtime::Current()->GetHeap()->VerifyObjectBody(obj);
+        Runtime::Current()->GetHeap()->VerifyObjectBody(obj.Ptr());
       }
     }
   }
 }
 
-inline bool VerifyClassClass(mirror::Class* c) {
+inline bool VerifyClassClass(ObjPtr<mirror::Class> c) {
   if (UNLIKELY(c == nullptr)) {
     return false;
   }
