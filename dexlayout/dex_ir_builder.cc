@@ -70,6 +70,8 @@ Header* DexIrBuilder(const DexFile& dex_file) {
   for (uint32_t i = 0; i < dex_file.NumClassDefs(); ++i) {
     collections.CreateClassDef(dex_file, i);
   }
+  // MapItem.
+  collections.SetMapItemOffset(disk_header.map_off_);
 
   CheckAndSetRemainingOffsets(dex_file, &collections);
 
@@ -124,7 +126,7 @@ static void CheckAndSetRemainingOffsets(const DexFile& dex_file, Collections* co
         collections->SetAnnotationSetRefListsOffset(item->offset_);
         break;
       case DexFile::kDexTypeAnnotationSetItem:
-        collections->SetAnnotationSetOffset(item->offset_);
+        collections->SetAnnotationSetItemsOffset(item->offset_);
         break;
       case DexFile::kDexTypeClassDataItem:
         collections->SetClassDatasOffset(item->offset_);
@@ -136,16 +138,16 @@ static void CheckAndSetRemainingOffsets(const DexFile& dex_file, Collections* co
         collections->SetStringDatasOffset(item->offset_);
         break;
       case DexFile::kDexTypeDebugInfoItem:
-        collections->SetDebugInfoOffset(item->offset_);
+        collections->SetDebugInfoItemsOffset(item->offset_);
         break;
       case DexFile::kDexTypeAnnotationItem:
-        collections->SetAnnotationOffset(item->offset_);
+        collections->SetAnnotationItemsOffset(item->offset_);
         break;
       case DexFile::kDexTypeEncodedArrayItem:
-        collections->SetEncodedArrayOffset(item->offset_);
+        collections->SetEncodedArrayItemsOffset(item->offset_);
         break;
       case DexFile::kDexTypeAnnotationsDirectoryItem:
-        collections->SetAnnotationsDirectoryOffset(item->offset_);
+        collections->SetAnnotationsDirectoryItemsOffset(item->offset_);
         break;
       default:
         LOG(ERROR) << "Unknown map list item type.";
