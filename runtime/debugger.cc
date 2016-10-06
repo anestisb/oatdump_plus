@@ -1995,7 +1995,7 @@ JDWP::JdwpError Dbg::GetThreadName(JDWP::ObjectId thread_id, std::string* name) 
   CHECK(thread_object != nullptr) << error;
   ArtField* java_lang_Thread_name_field =
       soa.DecodeField(WellKnownClasses::java_lang_Thread_name);
-  ObjPtr<mirror::String> s(java_lang_Thread_name_field->GetObject(thread_object));
+  ObjPtr<mirror::String> s(java_lang_Thread_name_field->GetObject(thread_object)->AsString());
   if (s != nullptr) {
     *name = s->ToModifiedUtf8();
   }
