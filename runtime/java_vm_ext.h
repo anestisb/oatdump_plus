@@ -137,23 +137,23 @@ class JavaVMExt : public JavaVM {
   void SweepJniWeakGlobals(IsMarkedVisitor* visitor)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!weak_globals_lock_);
 
-  mirror::Object* DecodeGlobal(IndirectRef ref)
+  ObjPtr<mirror::Object> DecodeGlobal(IndirectRef ref)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void UpdateGlobal(Thread* self, IndirectRef ref, mirror::Object* result)
+  void UpdateGlobal(Thread* self, IndirectRef ref, ObjPtr<mirror::Object> result)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!globals_lock_);
 
-  mirror::Object* DecodeWeakGlobal(Thread* self, IndirectRef ref)
+  ObjPtr<mirror::Object> DecodeWeakGlobal(Thread* self, IndirectRef ref)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!weak_globals_lock_);
 
-  mirror::Object* DecodeWeakGlobalLocked(Thread* self, IndirectRef ref)
+  ObjPtr<mirror::Object> DecodeWeakGlobalLocked(Thread* self, IndirectRef ref)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(weak_globals_lock_);
 
   // Like DecodeWeakGlobal() but to be used only during a runtime shutdown where self may be
   // null.
-  mirror::Object* DecodeWeakGlobalDuringShutdown(Thread* self, IndirectRef ref)
+  ObjPtr<mirror::Object> DecodeWeakGlobalDuringShutdown(Thread* self, IndirectRef ref)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!weak_globals_lock_);
 
@@ -166,7 +166,7 @@ class JavaVMExt : public JavaVM {
     return weak_globals_lock_;
   }
 
-  void UpdateWeakGlobal(Thread* self, IndirectRef ref, mirror::Object* result)
+  void UpdateWeakGlobal(Thread* self, IndirectRef ref, ObjPtr<mirror::Object> result)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!weak_globals_lock_);
 
   const JNIInvokeInterface* GetUncheckedFunctions() const {

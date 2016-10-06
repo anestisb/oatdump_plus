@@ -25,6 +25,7 @@
 #include "base/allocator.h"
 #include "base/mutex.h"
 #include "gc_root.h"
+#include "obj_ptr.h"
 #include "object_callbacks.h"
 
 namespace art {
@@ -41,9 +42,9 @@ class ReferenceTable {
   ReferenceTable(const char* name, size_t initial_size, size_t max_size);
   ~ReferenceTable();
 
-  void Add(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_);
+  void Add(ObjPtr<mirror::Object> obj) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void Remove(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_);
+  void Remove(ObjPtr<mirror::Object> obj) REQUIRES_SHARED(Locks::mutator_lock_);
 
   size_t Size() const;
 

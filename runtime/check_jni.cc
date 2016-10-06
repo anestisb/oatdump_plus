@@ -772,7 +772,7 @@ class ScopedCheck {
         okay = false;
       } else {
         obj = soa.Vm()->DecodeWeakGlobal(soa.Self(), ref);
-        okay = Runtime::Current()->IsClearedJniWeakGlobal(obj.Ptr());
+        okay = Runtime::Current()->IsClearedJniWeakGlobal(obj);
       }
       if (!okay) {
         AbortF("%s is an invalid %s: %p (%p)",

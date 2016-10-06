@@ -1856,7 +1856,7 @@ void Thread::HandleScopeVisitRoots(RootVisitor* visitor, uint32_t thread_id) {
   }
 }
 
-mirror::Object* Thread::DecodeJObject(jobject obj) const {
+ObjPtr<mirror::Object> Thread::DecodeJObject(jobject obj) const {
   if (obj == nullptr) {
     return nullptr;
   }
@@ -1897,7 +1897,7 @@ mirror::Object* Thread::DecodeJObject(jobject obj) const {
     tlsPtr_.jni_env->vm->JniAbortF(nullptr, "use of deleted %s %p",
                                    ToStr<IndirectRefKind>(kind).c_str(), obj);
   }
-  return result.Ptr();
+  return result;
 }
 
 bool Thread::IsJWeakCleared(jweak obj) const {
@@ -2318,17 +2318,17 @@ void Thread::ThrowNewWrappedException(const char* exception_class_descriptor,
     // case in the compiler. We won't be able to invoke the constructor of the exception, so set
     // the exception fields directly.
     if (msg != nullptr) {
-      exception->SetDetailMessage(down_cast<mirror::String*>(DecodeJObject(msg_string.get())));
+      exception->SetDetailMessage(DecodeJObject(msg_string.get())->AsString());
     }
     if (cause.get() != nullptr) {
-      exception->SetCause(down_cast<mirror::Throwable*>(DecodeJObject(cause.get())));
+      exception->SetCause(DecodeJObject(cause.get())->AsThrowable());
     }
     ScopedLocalRef<jobject> trace(GetJniEnv(),
                                   Runtime::Current()->IsActiveTransaction()
                                       ? CreateInternalStackTrace<true>(soa)
                                       : CreateInternalStackTrace<false>(soa));
     if (trace.get() != nullptr) {
-      exception->SetStackState(down_cast<mirror::Throwable*>(DecodeJObject(trace.get())));
+      exception->SetStackState(DecodeJObject(trace.get()).Ptr());
     }
     SetException(exception.Get());
   } else {
