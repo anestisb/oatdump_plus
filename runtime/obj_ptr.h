@@ -18,6 +18,7 @@
 #define ART_RUNTIME_OBJ_PTR_H_
 
 #include <ostream>
+#include <type_traits>
 
 #include "base/mutex.h"  // For Locks::mutator_lock_.
 #include "globals.h"
@@ -45,14 +46,23 @@ class ObjPtr {
 
   template <typename Type>
   ALWAYS_INLINE ObjPtr(Type* ptr) REQUIRES_SHARED(Locks::mutator_lock_)
-      : reference_(Encode(static_cast<MirrorType*>(ptr))) {}
+      : reference_(Encode(static_cast<MirrorType*>(ptr))) {
+    static_assert(std::is_base_of<MirrorType, Type>::value,
+                  "Input type must be a subtype of the ObjPtr type");
+  }
 
   template <typename Type>
-  ALWAYS_INLINE ObjPtr(const ObjPtr<Type>& other) REQUIRES_SHARED(Locks::mutator_lock_)
-      : reference_(Encode(static_cast<MirrorType*>(other.Ptr()))) {}
+  ALWAYS_INLINE ObjPtr(const ObjPtr<Type, kPoison>& other) REQUIRES_SHARED(Locks::mutator_lock_)
+      : reference_(Encode(static_cast<MirrorType*>(other.Ptr()))) {
+    static_assert(std::is_base_of<MirrorType, Type>::value,
+                  "Input type must be a subtype of the ObjPtr type");
+  }
 
   template <typename Type>
-  ALWAYS_INLINE ObjPtr& operator=(const ObjPtr& other) {
+  ALWAYS_INLINE ObjPtr& operator=(const ObjPtr<Type, kPoison>& other)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
+    static_assert(std::is_base_of<MirrorType, Type>::value,
+                  "Input type must be a subtype of the ObjPtr type");
     reference_ = Encode(static_cast<MirrorType*>(other.Ptr()));
     return *this;
   }
