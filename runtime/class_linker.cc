@@ -4297,11 +4297,11 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   CHECK_EQ(interfaces_sfield.GetDeclaringClass(), klass.Get());
   interfaces_sfield.SetObject<false>(
       klass.Get(),
-      soa.Decode<mirror::ObjectArray<mirror::Class>>(interfaces).Ptr());
+      soa.Decode<mirror::ObjectArray<mirror::Class>>(interfaces));
   CHECK_EQ(throws_sfield.GetDeclaringClass(), klass.Get());
   throws_sfield.SetObject<false>(
       klass.Get(),
-      soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class>>>(throws).Ptr());
+      soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class>>>(throws));
 
   {
     // Lock on klass is released. Lock new class object.
@@ -4331,9 +4331,9 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
     CHECK_EQ(PrettyField(klass->GetStaticField(1)), throws_field_name);
 
     CHECK_EQ(klass.Get()->GetInterfaces(),
-             soa.Decode<mirror::ObjectArray<mirror::Class>>(interfaces).Ptr());
+             soa.Decode<mirror::ObjectArray<mirror::Class>>(interfaces));
     CHECK_EQ(klass.Get()->GetThrows(),
-             soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class>>>(throws).Ptr());
+             soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class>>>(throws));
   }
   return klass.Get();
 }
@@ -8304,7 +8304,7 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self,
 
   // Make it a global ref and return.
   ScopedLocalRef<jobject> local_ref(
-      soa.Env(), soa.Env()->AddLocalReference<jobject>(MakeObjPtr(h_path_class_loader.Get())));
+      soa.Env(), soa.Env()->AddLocalReference<jobject>(h_path_class_loader.Get()));
   return soa.Env()->NewGlobalRef(local_ref.get());
 }
 

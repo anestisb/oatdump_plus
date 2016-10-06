@@ -448,7 +448,7 @@ inline bool Class::CanAccessResolvedField(ObjPtr<Class> access_to,
 inline bool Class::CheckResolvedFieldAccess(ObjPtr<Class> access_to,
                                             ArtField* field,
                                             uint32_t field_idx) {
-  return ResolvedFieldAccessTest<true, true>(access_to.Ptr(), field, field_idx, nullptr);
+  return ResolvedFieldAccessTest<true, true>(access_to, field, field_idx, nullptr);
 }
 
 inline bool Class::CanAccessResolvedMethod(Class* access_to, ArtMethod* method,
