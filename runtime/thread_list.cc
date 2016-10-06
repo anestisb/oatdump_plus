@@ -584,24 +584,7 @@ void ThreadList::SuspendAllInternal(Thread* self,
         continue;
       }
       VLOG(threads) << "requesting thread suspend: " << *thread;
-      while (true) {
-        if (LIKELY(thread->ModifySuspendCount(self, +1, &pending_threads, debug_suspend))) {
-          break;
-        } else {
-          // Failure means the list of active_suspend_barriers is full, we should release the
-          // thread_suspend_count_lock_ (to avoid deadlock) and wait till the target thread has
-          // executed Thread::PassActiveSuspendBarriers(). Note that we could not simply wait for
-          // the thread to change to a suspended state, because it might need to run checkpoint
-          // function before the state change, which also needs thread_suspend_count_lock_.
-
-          // This is very unlikely to happen since more than kMaxSuspendBarriers threads need to
-          // execute SuspendAllInternal() simultaneously, and target thread stays in kRunnable
-          // in the mean time.
-          Locks::thread_suspend_count_lock_->ExclusiveUnlock(self);
-          NanoSleep(100000);
-          Locks::thread_suspend_count_lock_->ExclusiveLock(self);
-        }
-      }
+      thread->ModifySuspendCount(self, +1, &pending_threads, debug_suspend);
 
       // Must install the pending_threads counter first, then check thread->IsSuspend() and clear
       // the counter. Otherwise there's a race with Thread::TransitionFromRunnableToSuspended()
