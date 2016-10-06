@@ -1035,7 +1035,9 @@ static jint GetEnvHandler(art::JavaVMExt* vm, /*out*/void** env, jint version) {
 
 // The plugin initialization function. This adds the jvmti environment.
 extern "C" bool ArtPlugin_Initialize() {
-  art::Runtime::Current()->GetJavaVM()->AddEnvironmentHook(GetEnvHandler);
+  art::Runtime* runtime = art::Runtime::Current();
+  runtime->GetJavaVM()->AddEnvironmentHook(GetEnvHandler);
+  runtime->AddSystemWeakHolder(&gObjectTagTable);
   return true;
 }
 
