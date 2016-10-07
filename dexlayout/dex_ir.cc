@@ -21,6 +21,7 @@
  */
 
 #include "dex_ir.h"
+#include "dex_instruction-inl.h"
 #include "dex_ir_builder.h"
 
 namespace art {
@@ -101,6 +102,102 @@ static uint32_t GetDebugInfoStreamSize(const uint8_t* debug_info_stream) {
       }
     }
   }
+}
+
+static bool GetIdFromInstruction(Collections& collections,
+                                 const Instruction* dec_insn,
+                                 std::vector<TypeId*>* type_ids,
+                                 std::vector<StringId*>* string_ids,
+                                 std::vector<MethodId*>* method_ids,
+                                 std::vector<FieldId*>* field_ids) {
+  // Determine index and width of the string.
+  uint32_t index = 0;
+  switch (Instruction::FormatOf(dec_insn->Opcode())) {
+    // SOME NOT SUPPORTED:
+    // case Instruction::k20bc:
+    case Instruction::k21c:
+    case Instruction::k35c:
+    // case Instruction::k35ms:
+    case Instruction::k3rc:
+    // case Instruction::k3rms:
+    // case Instruction::k35mi:
+    // case Instruction::k3rmi:
+      index = dec_insn->VRegB();
+      break;
+    case Instruction::k31c:
+      index = dec_insn->VRegB();
+      break;
+    case Instruction::k22c:
+    // case Instruction::k22cs:
+      index = dec_insn->VRegC();
+      break;
+    default:
+      break;
+  }  // switch
+
+  // Determine index type, and add reference to the appropriate collection.
+  switch (Instruction::IndexTypeOf(dec_insn->Opcode())) {
+    case Instruction::kIndexTypeRef:
+      if (index < collections.TypeIdsSize()) {
+        type_ids->push_back(collections.GetTypeId(index));
+        return true;
+      }
+      break;
+    case Instruction::kIndexStringRef:
+      if (index < collections.StringIdsSize()) {
+        string_ids->push_back(collections.GetStringId(index));
+        return true;
+      }
+      break;
+    case Instruction::kIndexMethodRef:
+      if (index < collections.MethodIdsSize()) {
+        method_ids->push_back(collections.GetMethodId(index));
+        return true;
+      }
+      break;
+    case Instruction::kIndexFieldRef:
+      if (index < collections.FieldIdsSize()) {
+        field_ids->push_back(collections.GetFieldId(index));
+        return true;
+      }
+      break;
+    case Instruction::kIndexUnknown:
+    case Instruction::kIndexNone:
+    case Instruction::kIndexVtableOffset:
+    case Instruction::kIndexFieldOffset:
+    default:
+      break;
+  }  // switch
+  return false;
+}
+
+/*
+ * Get all the types, strings, methods, and fields referred to from bytecode.
+ */
+static bool GetIdsFromByteCode(Collections& collections,
+                               const CodeItem* code,
+                               std::vector<TypeId*>* type_ids,
+                               std::vector<StringId*>* string_ids,
+                               std::vector<MethodId*>* method_ids,
+                               std::vector<FieldId*>* field_ids) {
+  bool has_id = false;
+  // Iterate over all instructions.
+  const uint16_t* insns = code->Insns();
+  for (uint32_t insn_idx = 0; insn_idx < code->InsnsSize();) {
+    const Instruction* instruction = Instruction::At(&insns[insn_idx]);
+    const uint32_t insn_width = instruction->SizeInCodeUnits();
+    if (insn_width == 0) {
+      break;
+    }
+    has_id |= GetIdFromInstruction(collections,
+                                   instruction,
+                                   type_ids,
+                                   string_ids,
+                                   method_ids,
+                                   field_ids);
+    insn_idx += insn_width;
+  }  // for
+  return has_id;
 }
 
 EncodedValue* Collections::ReadEncodedValue(const uint8_t** data) {
@@ -514,6 +611,26 @@ CodeItem* Collections::CreateCodeItem(const DexFile& dex_file,
   CodeItem* code_item = new CodeItem(
       registers_size, ins_size, outs_size, debug_info, insns_size, insns, tries, handler_list);
   code_items_.AddItem(code_item, offset);
+  // Add "fixup" references to types, strings, methods, and fields.
+  // This is temporary, as we will probably want more detailed parsing of the
+  // instructions here.
+  std::unique_ptr<std::vector<TypeId*>> type_ids(new std::vector<TypeId*>());
+  std::unique_ptr<std::vector<StringId*>> string_ids(new std::vector<StringId*>());
+  std::unique_ptr<std::vector<MethodId*>> method_ids(new std::vector<MethodId*>());
+  std::unique_ptr<std::vector<FieldId*>> field_ids(new std::vector<FieldId*>());
+  if (GetIdsFromByteCode(*this,
+                         code_item,
+                         type_ids.get(),
+                         string_ids.get(),
+                         method_ids.get(),
+                         field_ids.get())) {
+    CodeFixups* fixups = new CodeFixups(type_ids.release(),
+                                        string_ids.release(),
+                                        method_ids.release(),
+                                        field_ids.release());
+    code_item->SetCodeFixups(fixups);
+  }
+
   return code_item;
 }
 
