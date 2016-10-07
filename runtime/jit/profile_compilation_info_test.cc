@@ -38,8 +38,8 @@ class ProfileCompilationInfoTest : public CommonRuntimeTest {
     Thread* self = Thread::Current();
     ScopedObjectAccess soa(self);
     StackHandleScope<1> hs(self);
-    Handle<mirror::ClassLoader> h_loader(hs.NewHandle(
-        reinterpret_cast<mirror::ClassLoader*>(self->DecodeJObject(class_loader))));
+    Handle<mirror::ClassLoader> h_loader(
+        hs.NewHandle(self->DecodeJObject(class_loader)->AsClassLoader()));
     mirror::Class* klass = class_linker->FindClass(self, clazz.c_str(), h_loader);
 
     const auto pointer_size = class_linker->GetImagePointerSize();
