@@ -1368,7 +1368,7 @@ ENTRY art_quick_aput_obj_with_null_and_bound_check
     bne    $a0, $zero, .Lart_quick_aput_obj_with_bound_check_gp_set
     nop
     b art_quick_throw_null_pointer_exception
-    nop
+    .cpreturn                       # Restore gp from t8 in branch delay slot.
 END art_quick_aput_obj_with_null_and_bound_check
 
 ENTRY art_quick_aput_obj_with_bound_check
@@ -1377,8 +1377,9 @@ ENTRY art_quick_aput_obj_with_bound_check
     bne  $t1, $zero, .Lart_quick_aput_obj_gp_set
     nop
     move $a0, $a1
-    b art_quick_throw_array_bounds
     move $a1, $t0
+    b art_quick_throw_array_bounds
+    .cpreturn                       # Restore gp from t8 in branch delay slot.
 END art_quick_aput_obj_with_bound_check
 
 ENTRY art_quick_aput_obj
