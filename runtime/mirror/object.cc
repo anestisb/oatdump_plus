@@ -72,18 +72,45 @@ class CopyReferenceFieldsWithReadBarrierVisitor {
   Object* const dest_obj_;
 };
 
-Object* Object::CopyObject(Thread* self, mirror::Object* dest, mirror::Object* src,
+Object* Object::CopyObject(Thread* self,
+                           mirror::Object* dest,
+                           mirror::Object* src,
                            size_t num_bytes) {
-  // Copy instance data.  We assume memcpy copies by words.
-  // TODO: expose and use move32.
-  uint8_t* src_bytes = reinterpret_cast<uint8_t*>(src);
-  uint8_t* dst_bytes = reinterpret_cast<uint8_t*>(dest);
-  size_t offset = sizeof(Object);
-  memcpy(dst_bytes + offset, src_bytes + offset, num_bytes - offset);
+  // Copy instance data.  Don't assume memcpy copies by words (b/32012820).
+  {
+    const size_t offset = sizeof(Object);
+    uint8_t* src_bytes = reinterpret_cast<uint8_t*>(src) + offset;
+    uint8_t* dst_bytes = reinterpret_cast<uint8_t*>(dest) + offset;
+    num_bytes -= offset;
+    DCHECK_ALIGNED(src_bytes, sizeof(uintptr_t));
+    DCHECK_ALIGNED(dst_bytes, sizeof(uintptr_t));
+    // Use word sized copies to begin.
+    while (num_bytes >= sizeof(uintptr_t)) {
+      *reinterpret_cast<uintptr_t*>(dst_bytes) = *reinterpret_cast<uintptr_t*>(src_bytes);
+      src_bytes += sizeof(uintptr_t);
+      dst_bytes += sizeof(uintptr_t);
+      num_bytes -= sizeof(uintptr_t);
+    }
+    // Copy possible 32 bit word.
+    if (sizeof(uintptr_t) != sizeof(uint32_t) && num_bytes >= sizeof(uint32_t)) {
+      *reinterpret_cast<uint32_t*>(dst_bytes) = *reinterpret_cast<uint32_t*>(src_bytes);
+      src_bytes += sizeof(uint32_t);
+      dst_bytes += sizeof(uint32_t);
+      num_bytes -= sizeof(uint32_t);
+    }
+    // Copy remaining bytes, avoid going past the end of num_bytes since there may be a redzone
+    // there.
+    while (num_bytes > 0) {
+      *reinterpret_cast<uint8_t*>(dst_bytes) = *reinterpret_cast<uint8_t*>(src_bytes);
+      src_bytes += sizeof(uint8_t);
+      dst_bytes += sizeof(uint8_t);
+      num_bytes -= sizeof(uint8_t);
+    }
+  }
+
   if (kUseReadBarrier) {
-    // We need a RB here. After the memcpy that covers the whole
-    // object above, copy references fields one by one again with a
-    // RB. TODO: Optimize this later?
+    // We need a RB here. After copying the whole object above, copy references fields one by one
+    // again with a RB to make sure there are no from space refs. TODO: Optimize this later?
     CopyReferenceFieldsWithReadBarrierVisitor visitor(dest);
     src->VisitReferences(visitor, visitor);
   }
