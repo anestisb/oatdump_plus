@@ -68,9 +68,13 @@ class SpaceBitmap {
     return static_cast<T>(index * kAlignment * kBitsPerIntPtrT);
   }
 
+  ALWAYS_INLINE static constexpr uintptr_t OffsetBitIndex(uintptr_t offset) {
+    return (offset / kAlignment) % kBitsPerIntPtrT;
+  }
+
   // Bits are packed in the obvious way.
   static constexpr uintptr_t OffsetToMask(uintptr_t offset) {
-    return (static_cast<size_t>(1)) << ((offset / kAlignment) % kBitsPerIntPtrT);
+    return static_cast<size_t>(1) << OffsetBitIndex(offset);
   }
 
   bool Set(const mirror::Object* obj) ALWAYS_INLINE {
@@ -86,6 +90,9 @@ class SpaceBitmap {
 
   // Fill the bitmap with zeroes.  Returns the bitmap's memory to the system as a side-effect.
   void Clear();
+
+  // Clear a covered by the bitmap using madvise if possible.
+  void ClearRange(const mirror::Object* begin, const mirror::Object* end);
 
   bool Test(const mirror::Object* obj) const;
 
