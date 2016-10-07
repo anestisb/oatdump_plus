@@ -802,6 +802,31 @@ class TryItem : public Item {
 
 using TryItemVector = std::vector<std::unique_ptr<const TryItem>>;
 
+class CodeFixups {
+ public:
+  CodeFixups(std::vector<TypeId*>* type_ids,
+             std::vector<StringId*>* string_ids,
+             std::vector<MethodId*>* method_ids,
+             std::vector<FieldId*>* field_ids)
+      : type_ids_(type_ids),
+        string_ids_(string_ids),
+        method_ids_(method_ids),
+        field_ids_(field_ids) { }
+
+  std::vector<TypeId*>* TypeIds() const { return type_ids_.get(); }
+  std::vector<StringId*>* StringIds() const { return string_ids_.get(); }
+  std::vector<MethodId*>* MethodIds() const { return method_ids_.get(); }
+  std::vector<FieldId*>* FieldIds() const { return field_ids_.get(); }
+
+ private:
+  std::unique_ptr<std::vector<TypeId*>> type_ids_;
+  std::unique_ptr<std::vector<StringId*>> string_ids_;
+  std::unique_ptr<std::vector<MethodId*>> method_ids_;
+  std::unique_ptr<std::vector<FieldId*>> field_ids_;
+
+  DISALLOW_COPY_AND_ASSIGN(CodeFixups);
+};
+
 class CodeItem : public Item {
  public:
   CodeItem(uint16_t registers_size,
@@ -833,6 +858,9 @@ class CodeItem : public Item {
   TryItemVector* Tries() const { return tries_.get(); }
   CatchHandlerVector* Handlers() const { return handlers_.get(); }
 
+  void SetCodeFixups(CodeFixups* fixups) { fixups_.reset(fixups); }
+  CodeFixups* GetCodeFixups() const { return fixups_.get(); }
+
   void Accept(AbstractDispatcher* dispatch) { dispatch->Dispatch(this); }
 
  private:
@@ -844,6 +872,7 @@ class CodeItem : public Item {
   std::unique_ptr<uint16_t[]> insns_;
   std::unique_ptr<TryItemVector> tries_;  // This can be nullptr.
   std::unique_ptr<CatchHandlerVector> handlers_;  // This can be nullptr.
+  std::unique_ptr<CodeFixups> fixups_;  // This can be nullptr.
 
   DISALLOW_COPY_AND_ASSIGN(CodeItem);
 };
