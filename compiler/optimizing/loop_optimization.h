@@ -63,9 +63,13 @@ class HLoopOptimization : public HOptimization {
   void SimplifyInduction(LoopNode* node);
   void RemoveIfEmptyLoop(LoopNode* node);
 
-  void ReplaceAllUses(HInstruction* instruction,
-                      HInstruction* replacement,
-                      HInstruction* exclusion);
+  bool IsOnlyUsedAfterLoop(const HLoopInformation& loop_info,
+                           HInstruction* instruction,
+                           /*out*/ int32_t* use_count);
+  void ReplaceAllUses(HInstruction* instruction, HInstruction* replacement);
+  bool TryReplaceWithLastValue(HInstruction* instruction,
+                               int32_t use_count,
+                               HBasicBlock* block);
 
   // Range information based on prior induction variable analysis.
   InductionVarRange induction_range_;
@@ -78,6 +82,10 @@ class HLoopOptimization : public HOptimization {
   // in phase-local heap memory.
   LoopNode* top_loop_;
   LoopNode* last_loop_;
+
+  // Temporary bookkeeping of a set of instructions.
+  // Contents reside in phase-local heap memory.
+  ArenaSet<HInstruction*>* iset_;
 
   friend class LoopOptimizationTest;
 

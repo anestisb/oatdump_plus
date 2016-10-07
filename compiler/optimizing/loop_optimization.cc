@@ -21,13 +21,15 @@
 namespace art {
 
 // TODO: Generalize to cycles, as found by induction analysis?
-static bool IsPhiAddSub(HPhi* phi, /*out*/ HInstruction** addsub_out) {
+static bool IsPhiInduction(HPhi* phi, ArenaSet<HInstruction*>* iset) {
+  DCHECK(iset->empty());
   HInputsRef inputs = phi->GetInputs();
   if (inputs.size() == 2 && (inputs[1]->IsAdd() || inputs[1]->IsSub())) {
     HInstruction* addsub = inputs[1];
     if (addsub->InputAt(0) == phi || addsub->InputAt(1) == phi) {
       if (addsub->GetUses().HasExactlyOneElement()) {
-        *addsub_out = addsub;
+        iset->insert(phi);
+        iset->insert(addsub);
         return true;
       }
     }
@@ -35,39 +37,23 @@ static bool IsPhiAddSub(HPhi* phi, /*out*/ HInstruction** addsub_out) {
   return false;
 }
 
-static bool IsOnlyUsedAfterLoop(const HLoopInformation& loop_info,
-                                HPhi* phi, HInstruction* addsub) {
-  for (const HUseListNode<HInstruction*>& use : phi->GetUses()) {
-    if (use.GetUser() != addsub) {
-      HLoopInformation* other_loop_info = use.GetUser()->GetBlock()->GetLoopInformation();
-      if (other_loop_info != nullptr && other_loop_info->IsIn(loop_info)) {
-        return false;
-      }
-    }
-  }
-  return true;
-}
-
 // Find: phi: Phi(init, addsub)
 //       s:   SuspendCheck
 //       c:   Condition(phi, bound)
 //       i:   If(c)
 // TODO: Find a less pattern matching approach?
-static bool IsEmptyHeader(HBasicBlock* block, /*out*/ HInstruction** addsub) {
+static bool IsEmptyHeader(HBasicBlock* block, ArenaSet<HInstruction*>* iset) {
+  DCHECK(iset->empty());
   HInstruction* phi = block->GetFirstPhi();
-  if (phi != nullptr && phi->GetNext() == nullptr && IsPhiAddSub(phi->AsPhi(), addsub)) {
+  if (phi != nullptr && phi->GetNext() == nullptr && IsPhiInduction(phi->AsPhi(), iset)) {
     HInstruction* s = block->GetFirstInstruction();
     if (s != nullptr && s->IsSuspendCheck()) {
       HInstruction* c = s->GetNext();
       if (c != nullptr && c->IsCondition() && c->GetUses().HasExactlyOneElement()) {
         HInstruction* i = c->GetNext();
         if (i != nullptr && i->IsIf() && i->InputAt(0) == c) {
-          // Check that phi is only used inside loop as expected.
-          for (const HUseListNode<HInstruction*>& use : phi->GetUses()) {
-            if (use.GetUser() != *addsub && use.GetUser() != c) {
-              return false;
-            }
-          }
+          iset->insert(c);
+          iset->insert(s);
           return true;
         }
       }
@@ -76,10 +62,11 @@ static bool IsEmptyHeader(HBasicBlock* block, /*out*/ HInstruction** addsub) {
   return false;
 }
 
-static bool IsEmptyBody(HBasicBlock* block, HInstruction* addsub) {
+static bool IsEmptyBody(HBasicBlock* block, ArenaSet<HInstruction*>* iset) {
   HInstruction* phi = block->GetFirstPhi();
   HInstruction* i = block->GetFirstInstruction();
-  return phi == nullptr && i == addsub && i->GetNext() != nullptr && i->GetNext()->IsGoto();
+  return phi == nullptr && iset->find(i) != iset->end() &&
+      i->GetNext() != nullptr && i->GetNext()->IsGoto();
 }
 
 static HBasicBlock* TryRemovePreHeader(HBasicBlock* preheader, HBasicBlock* entry_block) {
@@ -127,7 +114,8 @@ HLoopOptimization::HLoopOptimization(HGraph* graph,
       induction_range_(induction_analysis),
       loop_allocator_(nullptr),
       top_loop_(nullptr),
-      last_loop_(nullptr) {
+      last_loop_(nullptr),
+      iset_(nullptr) {
 }
 
 void HLoopOptimization::Run() {
@@ -164,8 +152,14 @@ void HLoopOptimization::LocalRun() {
     }
   }
 
-  // Traverse the loop hierarchy inner-to-outer and optimize.
-  TraverseLoopsInnerToOuter(top_loop_);
+  // Traverse the loop hierarchy inner-to-outer and optimize. Traversal can use
+  // a temporary set that stores instructions using the phase-local allocator.
+  if (top_loop_ != nullptr) {
+    ArenaSet<HInstruction*> iset(loop_allocator_->Adapter(kArenaAllocLoopOptimization));
+    iset_ = &iset;
+    TraverseLoopsInnerToOuter(top_loop_);
+    iset_ = nullptr;  // detach
+  }
 }
 
 void HLoopOptimization::AddLoop(HLoopInformation* loop_info) {
@@ -194,9 +188,25 @@ void HLoopOptimization::AddLoop(HLoopInformation* loop_info) {
 
 void HLoopOptimization::RemoveLoop(LoopNode* node) {
   DCHECK(node != nullptr);
-  // TODO: implement when needed (for current set of optimizations, we don't
-  // need to keep recorded loop hierarchy up to date, but as we get different
-  // traversal, we may want to remove the node from the hierarchy here.
+  DCHECK(node->inner == nullptr);
+  if (node->previous != nullptr) {
+    // Within sequence.
+    node->previous->next = node->next;
+    if (node->next != nullptr) {
+      node->next->previous = node->previous;
+    }
+  } else {
+    // First of sequence.
+    if (node->outer != nullptr) {
+      node->outer->inner = node->next;
+    } else {
+      top_loop_ = node->next;
+    }
+    if (node->next != nullptr) {
+      node->next->outer = node->outer;
+      node->next->previous = nullptr;
+    }
+  }
 }
 
 void HLoopOptimization::TraverseLoopsInnerToOuter(LoopNode* node) {
@@ -213,34 +223,20 @@ void HLoopOptimization::TraverseLoopsInnerToOuter(LoopNode* node) {
 void HLoopOptimization::SimplifyInduction(LoopNode* node) {
   HBasicBlock* header = node->loop_info->GetHeader();
   HBasicBlock* preheader = node->loop_info->GetPreHeader();
-  // Scan the phis in the header to find opportunities to optimize induction.
+  // Scan the phis in the header to find opportunities to simplify an induction
+  // cycle that is only used outside the loop. Replace these uses, if any, with
+  // the last value and remove the induction cycle.
+  // Examples: for (int i = 0; x != null;   i++) { .... no i .... }
+  //           for (int i = 0; i < 10; i++, k++) { .... no k .... } return k;
   for (HInstructionIterator it(header->GetPhis()); !it.Done(); it.Advance()) {
     HPhi* phi = it.Current()->AsPhi();
-    HInstruction* addsub = nullptr;
-    // Find phi-add/sub cycle.
-    if (IsPhiAddSub(phi, &addsub)) {
-      // Simple case, the induction is only used by itself. Although redundant,
-      // later phases do not easily detect this property. Thus, eliminate here.
-      // Example: for (int i = 0; x != null; i++) { .... no i .... }
-      if (phi->GetUses().HasExactlyOneElement()) {
-        // Remove the cycle, including all uses. Even environment uses can be removed,
-        // since these computations have no effect at all.
-        RemoveFromCycle(phi);  // removes environment uses too
-        RemoveFromCycle(addsub);
-        continue;
-      }
-      // Closed form case. Only the last value of the induction is needed. Remove all
-      // overhead from the loop, and replace subsequent uses with the last value.
-      // Example: for (int i = 0; i < 10; i++, k++) { .... no k .... } return k;
-      if (IsOnlyUsedAfterLoop(*node->loop_info, phi, addsub) &&
-          induction_range_.CanGenerateLastValue(phi)) {
-        HInstruction* last = induction_range_.GenerateLastValue(phi, graph_, preheader);
-        // Remove the cycle, replacing all uses. Even environment uses can consume the final
-        // value, since any first real use is outside the loop (although this may imply
-        // that deopting may look "ahead" a bit on the phi value).
-        ReplaceAllUses(phi, last, addsub);
-        RemoveFromCycle(phi);  // removes environment uses too
-        RemoveFromCycle(addsub);
+    iset_->clear();
+    int32_t use_count = 0;
+    if (IsPhiInduction(phi, iset_) &&
+        IsOnlyUsedAfterLoop(*node->loop_info, phi, &use_count) &&
+        TryReplaceWithLastValue(phi, use_count, preheader)) {
+      for (HInstruction* i : *iset_) {
+        RemoveFromCycle(i);
       }
     }
   }
@@ -266,14 +262,18 @@ void HLoopOptimization::RemoveIfEmptyLoop(LoopNode* node) {
   HBasicBlock* exit = (header->GetSuccessors()[0] == body)
       ? header->GetSuccessors()[1]
       : header->GetSuccessors()[0];
-  // Ensure exit can only be reached by exiting loop (this seems typically the
-  // case anyway, and simplifies code generation below; TODO: perhaps relax?).
+  // Ensure exit can only be reached by exiting loop.
   if (exit->GetPredecessors().size() != 1) {
     return;
   }
-  // Detect an empty loop: no side effects other than plain iteration.
-  HInstruction* addsub = nullptr;
-  if (IsEmptyHeader(header, &addsub) && IsEmptyBody(body, addsub)) {
+  // Detect an empty loop: no side effects other than plain iteration. Replace
+  // subsequent index uses, if any, with the last value and remove the loop.
+  iset_->clear();
+  int32_t use_count = 0;
+  if (IsEmptyHeader(header, iset_) &&
+      IsEmptyBody(body, iset_) &&
+      IsOnlyUsedAfterLoop(*node->loop_info, header->GetFirstPhi(), &use_count) &&
+      TryReplaceWithLastValue(header->GetFirstPhi(), use_count, preheader)) {
     HBasicBlock* entry = TryRemovePreHeader(preheader, graph_->GetEntryBlock());
     body->DisconnectAndDelete();
     exit->RemovePredecessor(header);
@@ -299,15 +299,29 @@ void HLoopOptimization::RemoveIfEmptyLoop(LoopNode* node) {
   }
 }
 
-void HLoopOptimization::ReplaceAllUses(HInstruction* instruction,
-                                       HInstruction* replacement,
-                                       HInstruction* exclusion) {
+bool HLoopOptimization::IsOnlyUsedAfterLoop(const HLoopInformation& loop_info,
+                                            HInstruction* instruction,
+                                            /*out*/ int32_t* use_count) {
+  for (const HUseListNode<HInstruction*>& use : instruction->GetUses()) {
+    HInstruction* user = use.GetUser();
+    if (iset_->find(user) == iset_->end()) {  // not excluded?
+      HLoopInformation* other_loop_info = user->GetBlock()->GetLoopInformation();
+      if (other_loop_info != nullptr && other_loop_info->IsIn(loop_info)) {
+        return false;
+      }
+      ++*use_count;
+    }
+  }
+  return true;
+}
+
+void HLoopOptimization::ReplaceAllUses(HInstruction* instruction, HInstruction* replacement) {
   const HUseList<HInstruction*>& uses = instruction->GetUses();
   for (auto it = uses.begin(), end = uses.end(); it != end;) {
     HInstruction* user = it->GetUser();
     size_t index = it->GetIndex();
     ++it;  // increment before replacing
-    if (user != exclusion) {
+    if (iset_->find(user) == iset_->end()) {  // not excluded?
       user->ReplaceInput(replacement, index);
       induction_range_.Replace(user, instruction, replacement);  // update induction
     }
@@ -317,12 +331,28 @@ void HLoopOptimization::ReplaceAllUses(HInstruction* instruction,
     HEnvironment* user = it->GetUser();
     size_t index = it->GetIndex();
     ++it;  // increment before replacing
-    if (user->GetHolder() != exclusion) {
+    if (iset_->find(user->GetHolder()) == iset_->end()) {  // not excluded?
       user->RemoveAsUserOfInput(index);
       user->SetRawEnvAt(index, replacement);
       replacement->AddEnvUseAt(user, index);
     }
   }
+}
+
+bool HLoopOptimization::TryReplaceWithLastValue(HInstruction* instruction,
+                                                int32_t use_count,
+                                                HBasicBlock* block) {
+  // If true uses appear after the loop, replace these uses with the last value. Environment
+  // uses can consume this value too, since any first true use is outside the loop (although
+  // this may imply that de-opting may look "ahead" a bit on the phi value). If there are only
+  // environment uses, the value is dropped altogether, since the computations have no effect.
+  if (use_count > 0) {
+    if (!induction_range_.CanGenerateLastValue(instruction)) {
+      return false;
+    }
+    ReplaceAllUses(instruction, induction_range_.GenerateLastValue(instruction, graph_, block));
+  }
+  return true;
 }
 
 }  // namespace art
