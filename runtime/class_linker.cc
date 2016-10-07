@@ -3341,13 +3341,12 @@ mirror::DexCache* ClassLinker::FindDexCacheLocked(Thread* self,
   for (const DexCacheData& data : dex_caches_) {
     // Avoid decoding (and read barriers) other unrelated dex caches.
     if (data.dex_file == &dex_file) {
-      mirror::DexCache* dex_cache =
-          down_cast<mirror::DexCache*>(self->DecodeJObject(data.weak_root));
+      ObjPtr<mirror::DexCache> dex_cache =
+          ObjPtr<mirror::DexCache>::DownCast(self->DecodeJObject(data.weak_root));
       if (dex_cache != nullptr) {
-        return dex_cache;
-      } else {
-        break;
+        return dex_cache.Ptr();
       }
+      break;
     }
   }
   if (allow_failure) {
@@ -3356,7 +3355,8 @@ mirror::DexCache* ClassLinker::FindDexCacheLocked(Thread* self,
   std::string location(dex_file.GetLocation());
   // Failure, dump diagnostic and abort.
   for (const DexCacheData& data : dex_caches_) {
-    mirror::DexCache* dex_cache = down_cast<mirror::DexCache*>(self->DecodeJObject(data.weak_root));
+    ObjPtr<mirror::DexCache> dex_cache =
+        ObjPtr<mirror::DexCache>::DownCast(self->DecodeJObject(data.weak_root));
     if (dex_cache != nullptr) {
       LOG(ERROR) << "Registered dex file " << dex_cache->GetDexFile()->GetLocation();
     }
@@ -3370,7 +3370,7 @@ void ClassLinker::FixupDexCaches(ArtMethod* resolution_method) {
   ReaderMutexLock mu(self, dex_lock_);
   for (const DexCacheData& data : dex_caches_) {
     if (!self->IsJWeakCleared(data.weak_root)) {
-      mirror::DexCache* dex_cache = down_cast<mirror::DexCache*>(
+      ObjPtr<mirror::DexCache> dex_cache = ObjPtr<mirror::DexCache>::DownCast(
           self->DecodeJObject(data.weak_root));
       if (dex_cache != nullptr) {
         dex_cache->Fixup(resolution_method, image_pointer_size_);
@@ -8341,9 +8341,10 @@ void ClassLinker::VisitClassLoaders(ClassLoaderVisitor* visitor) const {
   Thread* const self = Thread::Current();
   for (const ClassLoaderData& data : class_loaders_) {
     // Need to use DecodeJObject so that we get null for cleared JNI weak globals.
-    auto* const class_loader = down_cast<mirror::ClassLoader*>(self->DecodeJObject(data.weak_root));
+    ObjPtr<mirror::ClassLoader> class_loader = ObjPtr<mirror::ClassLoader>::DownCast(
+        self->DecodeJObject(data.weak_root));
     if (class_loader != nullptr) {
-      visitor->Visit(class_loader);
+      visitor->Visit(class_loader.Ptr());
     }
   }
 }
@@ -8371,8 +8372,8 @@ void ClassLinker::CleanupClassLoaders() {
     for (auto it = class_loaders_.begin(); it != class_loaders_.end(); ) {
       const ClassLoaderData& data = *it;
       // Need to use DecodeJObject so that we get null for cleared JNI weak globals.
-      auto* const class_loader =
-          down_cast<mirror::ClassLoader*>(self->DecodeJObject(data.weak_root));
+      ObjPtr<mirror::ClassLoader> class_loader =
+          ObjPtr<mirror::ClassLoader>::DownCast(self->DecodeJObject(data.weak_root));
       if (class_loader != nullptr) {
         ++it;
       } else {
@@ -8400,8 +8401,7 @@ std::set<DexCacheResolvedClasses> ClassLinker::GetResolvedClasses(bool ignore_bo
     if (soa.Self()->IsJWeakCleared(data.weak_root)) {
       continue;
     }
-    mirror::DexCache* dex_cache =
-        down_cast<mirror::DexCache*>(soa.Self()->DecodeJObject(data.weak_root));
+    ObjPtr<mirror::DexCache> dex_cache = soa.Decode<mirror::DexCache>(data.weak_root);
     if (dex_cache == nullptr) {
       continue;
     }
@@ -8468,8 +8468,7 @@ std::unordered_set<std::string> ClassLinker::GetClassDescriptorsForProfileKeys(
   ReaderMutexLock mu(self, *DexLock());
   for (const ClassLinker::DexCacheData& data : GetDexCachesData()) {
     if (!self->IsJWeakCleared(data.weak_root)) {
-      mirror::DexCache* dex_cache =
-          down_cast<mirror::DexCache*>(soa.Self()->DecodeJObject(data.weak_root));
+      ObjPtr<mirror::DexCache> dex_cache = soa.Decode<mirror::DexCache>(data.weak_root);
       if (dex_cache != nullptr) {
         const DexFile* dex_file = dex_cache->GetDexFile();
         // There could be duplicates if two dex files with the same location are mapped.

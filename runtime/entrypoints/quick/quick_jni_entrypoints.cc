@@ -132,17 +132,20 @@ static mirror::Object* JniMethodEndWithReferenceHandleResult(jobject result,
                                                              Thread* self)
     NO_THREAD_SAFETY_ANALYSIS {
   // Must decode before pop. The 'result' may not be valid in case of an exception, though.
-  mirror::Object* o = self->IsExceptionPending() ? nullptr : self->DecodeJObject(result);
+  ObjPtr<mirror::Object> o;
+  if (!self->IsExceptionPending()) {
+    o = self->DecodeJObject(result);
+  }
   PopLocalReferences(saved_local_ref_cookie, self);
   // Process result.
   if (UNLIKELY(self->GetJniEnv()->check_jni)) {
     // CheckReferenceResult can resolve types.
     StackHandleScope<1> hs(self);
-    HandleWrapper<mirror::Object> h_obj(hs.NewHandleWrapper(&o));
+    HandleWrapperObjPtr<mirror::Object> h_obj(hs.NewHandleWrapper(&o));
     CheckReferenceResult(h_obj, self);
   }
-  VerifyObject(o);
-  return o;
+  VerifyObject(o.Ptr());
+  return o.Ptr();
 }
 
 extern mirror::Object* JniMethodEndWithReference(jobject result,

@@ -528,7 +528,7 @@ class JNI {
   static jobject NewGlobalRef(JNIEnv* env, jobject obj) {
     ScopedObjectAccess soa(env);
     ObjPtr<mirror::Object> decoded_obj = soa.Decode<mirror::Object>(obj);
-    return soa.Vm()->AddGlobalRef(soa.Self(), decoded_obj.Ptr());
+    return soa.Vm()->AddGlobalRef(soa.Self(), decoded_obj);
   }
 
   static void DeleteGlobalRef(JNIEnv* env, jobject obj) {
@@ -540,7 +540,7 @@ class JNI {
   static jweak NewWeakGlobalRef(JNIEnv* env, jobject obj) {
     ScopedObjectAccess soa(env);
     ObjPtr<mirror::Object> decoded_obj = soa.Decode<mirror::Object>(obj);
-    return soa.Vm()->AddWeakGlobalRef(soa.Self(), decoded_obj.Ptr());
+    return soa.Vm()->AddWeakGlobalRef(soa.Self(), decoded_obj);
   }
 
   static void DeleteWeakGlobalRef(JNIEnv* env, jweak obj) {
@@ -2295,7 +2295,7 @@ class JNI {
     if (soa.Self()->IsExceptionPending()) {
       return JNI_ERR;
     }
-    soa.Env()->monitors.Add(o.Ptr());
+    soa.Env()->monitors.Add(o);
     return JNI_OK;
   }
 
@@ -2307,7 +2307,7 @@ class JNI {
     if (soa.Self()->IsExceptionPending()) {
       return JNI_ERR;
     }
-    soa.Env()->monitors.Remove(o.Ptr());
+    soa.Env()->monitors.Remove(o);
     return JNI_OK;
   }
 
