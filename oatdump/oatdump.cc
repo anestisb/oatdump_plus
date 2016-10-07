@@ -1575,10 +1575,10 @@ class ImageDumper {
       {
         ReaderMutexLock mu(self, *class_linker->DexLock());
         for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
-          mirror::DexCache* dex_cache =
-              down_cast<mirror::DexCache*>(self->DecodeJObject(data.weak_root));
+          ObjPtr<mirror::DexCache> dex_cache =
+              ObjPtr<mirror::DexCache>::DownCast(self->DecodeJObject(data.weak_root));
           if (dex_cache != nullptr) {
-            dex_caches_.insert(dex_cache);
+            dex_caches_.insert(dex_cache.Ptr());
           }
         }
       }

@@ -611,7 +611,7 @@ mirror::Object* CreateAnnotationMember(Handle<mirror::Class> klass,
   }
   Handle<mirror::Object> value_object(hs.NewHandle(annotation_value.value_.GetL()));
 
-  mirror::Class* annotation_member_class =
+  ObjPtr<mirror::Class> annotation_member_class =
       WellKnownClasses::ToClass(WellKnownClasses::libcore_reflect_AnnotationMember);
   Handle<mirror::Object> new_member(hs.NewHandle(annotation_member_class->AllocObject(self)));
   mirror::Method* method_obj_ptr;

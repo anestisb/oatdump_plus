@@ -19,6 +19,7 @@
 
 #include "base/mutex.h"
 #include "jni.h"
+#include "obj_ptr.h"
 
 namespace art {
 
@@ -41,8 +42,7 @@ struct WellKnownClasses {
   static ArtMethod* StringInitToStringFactory(ArtMethod* method);
   static uint32_t StringInitToEntryPoint(ArtMethod* method);
 
-  static mirror::Class* ToClass(jclass global_jclass)
-      REQUIRES_SHARED(Locks::mutator_lock_);
+  static ObjPtr<mirror::Class> ToClass(jclass global_jclass) REQUIRES_SHARED(Locks::mutator_lock_);
 
   static jclass com_android_dex_Dex;
   static jclass dalvik_annotation_optimization_CriticalNative;

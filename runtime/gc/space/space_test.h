@@ -62,7 +62,7 @@ class SpaceTest : public Super {
       byte_array_class_ = self->GetJniEnv()->NewLocalRef(byte_array_class);
       EXPECT_TRUE(byte_array_class_ != nullptr);
     }
-    return reinterpret_cast<mirror::Class*>(self->DecodeJObject(byte_array_class_));
+    return self->DecodeJObject(byte_array_class_)->AsClass();
   }
 
   mirror::Object* Alloc(space::MallocSpace* alloc_space,
