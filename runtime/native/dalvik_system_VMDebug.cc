@@ -482,6 +482,31 @@ static jobjectArray VMDebug_getRuntimeStatsInternal(JNIEnv* env, jclass) {
   return result;
 }
 
+static void VMDebug_attachAgent(JNIEnv* env, jclass, jstring agent) {
+  if (agent == nullptr) {
+    ScopedObjectAccess soa(env);
+    ThrowNullPointerException("agent is null");
+    return;
+  }
+
+  if (!Dbg::IsJdwpAllowed()) {
+    ScopedObjectAccess soa(env);
+    ThrowSecurityException("Can't attach agent, process is not debuggable.");
+    return;
+  }
+
+  std::string filename;
+  {
+    ScopedUtfChars chars(env, agent);
+    if (env->ExceptionCheck()) {
+      return;
+    }
+    filename = chars.c_str();
+  }
+
+  Runtime::Current()->AttachAgent(filename);
+}
+
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMDebug, countInstancesOfClass, "(Ljava/lang/Class;Z)J"),
   NATIVE_METHOD(VMDebug, countInstancesOfClasses, "([Ljava/lang/Class;Z)[J"),
@@ -514,7 +539,8 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMDebug, stopMethodTracing, "()V"),
   NATIVE_METHOD(VMDebug, threadCpuTimeNanos, "!()J"),
   NATIVE_METHOD(VMDebug, getRuntimeStatInternal, "(I)Ljava/lang/String;"),
-  NATIVE_METHOD(VMDebug, getRuntimeStatsInternal, "()[Ljava/lang/String;")
+  NATIVE_METHOD(VMDebug, getRuntimeStatsInternal, "()[Ljava/lang/String;"),
+  NATIVE_METHOD(VMDebug, attachAgent, "(Ljava/lang/String;)V"),
 };
 
 void register_dalvik_system_VMDebug(JNIEnv* env) {

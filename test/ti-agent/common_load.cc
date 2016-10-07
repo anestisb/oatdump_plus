@@ -32,6 +32,7 @@
 #include "906-iterate-heap/iterate_heap.h"
 #include "907-get-loaded-classes/get_loaded_classes.h"
 #include "908-gc-start-finish/gc_callbacks.h"
+#include "909-attach-agent/attach.h"
 
 namespace art {
 
@@ -56,6 +57,7 @@ AgentLib agents[] = {
   { "906-iterate-heap", Test906IterateHeap::OnLoad, nullptr },
   { "907-get-loaded-classes", Test907GetLoadedClasses::OnLoad, nullptr },
   { "908-gc-start-finish", Test908GcStartFinish::OnLoad, nullptr },
+  { "909-attach-agent", nullptr, Test909AttachAgent::OnAttach },
 };
 
 static AgentLib* FindAgent(char* name) {
@@ -104,7 +106,6 @@ extern "C" JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM* vm, char* options, void* 
   }
   return lib->load(vm, remaining_options, reserved);
 }
-
 
 extern "C" JNIEXPORT jint JNICALL Agent_OnAttach(JavaVM* vm, char* options, void* reserved) {
   char* remaining_options = nullptr;
