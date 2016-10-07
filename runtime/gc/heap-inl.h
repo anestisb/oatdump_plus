@@ -28,6 +28,7 @@
 #include "gc/space/large_object_space.h"
 #include "gc/space/region_space-inl.h"
 #include "gc/space/rosalloc_space-inl.h"
+#include "obj_ptr-inl.h"
 #include "runtime.h"
 #include "handle_scope-inl.h"
 #include "thread-inl.h"
@@ -431,6 +432,12 @@ inline void Heap::CheckConcurrentGC(Thread* self,
   if (UNLIKELY(new_num_bytes_allocated >= concurrent_start_bytes_)) {
     RequestConcurrentGCAndSaveObject(self, false, obj);
   }
+}
+
+inline void Heap::WriteBarrierField(ObjPtr<mirror::Object> dst,
+                                    MemberOffset offset ATTRIBUTE_UNUSED,
+                                    ObjPtr<mirror::Object> new_value ATTRIBUTE_UNUSED) {
+  card_table_->MarkCard(dst.Ptr());
 }
 
 }  // namespace gc

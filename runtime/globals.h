@@ -172,6 +172,9 @@ static constexpr bool kIsVdexEnabled = true;
 static constexpr bool kIsVdexEnabled = false;
 #endif
 
+// Size of a heap reference.
+static constexpr size_t kHeapReferenceSize = sizeof(uint32_t);
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_GLOBALS_H_

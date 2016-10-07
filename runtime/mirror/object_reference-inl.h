@@ -1,0 +1,36 @@
+/*
+ * Copyright (C) 2016 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef ART_RUNTIME_MIRROR_OBJECT_REFERENCE_INL_H_
+#define ART_RUNTIME_MIRROR_OBJECT_REFERENCE_INL_H_
+
+#include "object_reference.h"
+
+#include "obj_ptr-inl.h"
+
+namespace art {
+namespace mirror {
+
+// References between objects within the managed heap.
+template<class MirrorType>
+HeapReference<MirrorType> HeapReference<MirrorType>::FromObjPtr(ObjPtr<MirrorType> ptr) {
+  return HeapReference<MirrorType>(ptr.Ptr());
+}
+
+}  // namespace mirror
+}  // namespace art
+
+#endif  // ART_RUNTIME_MIRROR_OBJECT_REFERENCE_INL_H_
