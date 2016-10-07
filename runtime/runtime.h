@@ -502,8 +502,11 @@ class Runtime {
                           bool is_volatile) const;
   void RecordWriteField64(mirror::Object* obj, MemberOffset field_offset, uint64_t value,
                           bool is_volatile) const;
-  void RecordWriteFieldReference(mirror::Object* obj, MemberOffset field_offset,
-                                 mirror::Object* value, bool is_volatile) const;
+  void RecordWriteFieldReference(mirror::Object* obj,
+                                 MemberOffset field_offset,
+                                 ObjPtr<mirror::Object> value,
+                                 bool is_volatile) const
+      REQUIRES_SHARED(Locks::mutator_lock_);
   void RecordWriteArray(mirror::Array* array, size_t index, uint64_t value) const
       REQUIRES_SHARED(Locks::mutator_lock_);
   void RecordStrongStringInsertion(mirror::String* s) const
