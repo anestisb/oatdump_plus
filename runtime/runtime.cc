@@ -1899,11 +1899,16 @@ void Runtime::RecordWriteField64(mirror::Object* obj, MemberOffset field_offset,
   preinitialization_transaction_->RecordWriteField64(obj, field_offset, value, is_volatile);
 }
 
-void Runtime::RecordWriteFieldReference(mirror::Object* obj, MemberOffset field_offset,
-                                        mirror::Object* value, bool is_volatile) const {
+void Runtime::RecordWriteFieldReference(mirror::Object* obj,
+                                        MemberOffset field_offset,
+                                        ObjPtr<mirror::Object> value,
+                                        bool is_volatile) const {
   DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
-  preinitialization_transaction_->RecordWriteFieldReference(obj, field_offset, value, is_volatile);
+  preinitialization_transaction_->RecordWriteFieldReference(obj,
+                                                            field_offset,
+                                                            value.Ptr(),
+                                                            is_volatile);
 }
 
 void Runtime::RecordWriteArray(mirror::Array* array, size_t index, uint64_t value) const {

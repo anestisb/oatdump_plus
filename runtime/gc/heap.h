@@ -438,11 +438,10 @@ class Heap {
 
   // Must be called if a field of an Object in the heap changes, and before any GC safe-point.
   // The call is not needed if null is stored in the field.
-  ALWAYS_INLINE void WriteBarrierField(const mirror::Object* dst,
-                                       MemberOffset offset ATTRIBUTE_UNUSED,
-                                       const mirror::Object* new_value ATTRIBUTE_UNUSED) {
-    card_table_->MarkCard(dst);
-  }
+  ALWAYS_INLINE void WriteBarrierField(ObjPtr<mirror::Object> dst,
+                                       MemberOffset offset,
+                                       ObjPtr<mirror::Object> new_value)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Write barrier for array operations that update many field positions
   ALWAYS_INLINE void WriteBarrierArray(const mirror::Object* dst,
