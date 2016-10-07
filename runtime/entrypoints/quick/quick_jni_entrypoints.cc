@@ -144,7 +144,7 @@ static mirror::Object* JniMethodEndWithReferenceHandleResult(jobject result,
     HandleWrapperObjPtr<mirror::Object> h_obj(hs.NewHandleWrapper(&o));
     CheckReferenceResult(h_obj, self);
   }
-  VerifyObject(o.Ptr());
+  VerifyObject(o);
   return o.Ptr();
 }
 

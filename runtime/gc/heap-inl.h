@@ -41,7 +41,7 @@ namespace gc {
 
 template <bool kInstrumented, bool kCheckLargeObject, typename PreFenceVisitor>
 inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self,
-                                                      mirror::Class* klass,
+                                                      ObjPtr<mirror::Class> klass,
                                                       size_t byte_count,
                                                       AllocatorType allocator,
                                                       const PreFenceVisitor& pre_fence_visitor) {
@@ -52,16 +52,19 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self,
     CHECK_EQ(self->GetState(), kRunnable);
     self->AssertThreadSuspensionIsAllowable();
     self->AssertNoPendingException();
+    // Make sure to preserve klass.
+    StackHandleScope<1> hs(self);
+    HandleWrapperObjPtr<mirror::Class> h = hs.NewHandleWrapper(&klass);
     self->PoisonObjectPointers();
   }
   // Need to check that we arent the large object allocator since the large object allocation code
   // path this function. If we didn't check we would have an infinite loop.
-  mirror::Object* obj;
+  ObjPtr<mirror::Object> obj;
   if (kCheckLargeObject && UNLIKELY(ShouldAllocLargeObject(klass, byte_count))) {
     obj = AllocLargeObject<kInstrumented, PreFenceVisitor>(self, &klass, byte_count,
                                                            pre_fence_visitor);
     if (obj != nullptr) {
-      return obj;
+      return obj.Ptr();
     } else {
       // There should be an OOM exception, since we are retrying, clear it.
       self->ClearException();
@@ -85,7 +88,7 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self,
     obj->SetClass(klass);
     if (kUseBakerOrBrooksReadBarrier) {
       if (kUseBrooksReadBarrier) {
-        obj->SetReadBarrierPointer(obj);
+        obj->SetReadBarrierPointer(obj.Ptr());
       }
       obj->AssertReadBarrierPointer();
     }
@@ -93,14 +96,15 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self,
     usable_size = bytes_allocated;
     pre_fence_visitor(obj, usable_size);
     QuasiAtomic::ThreadFenceForConstructor();
-  } else if (!kInstrumented && allocator == kAllocatorTypeRosAlloc &&
-             (obj = rosalloc_space_->AllocThreadLocal(self, byte_count, &bytes_allocated)) &&
-             LIKELY(obj != nullptr)) {
+  } else if (
+      !kInstrumented && allocator == kAllocatorTypeRosAlloc &&
+      (obj = rosalloc_space_->AllocThreadLocal(self, byte_count, &bytes_allocated)) != nullptr &&
+      LIKELY(obj != nullptr)) {
     DCHECK(!is_running_on_memory_tool_);
     obj->SetClass(klass);
     if (kUseBakerOrBrooksReadBarrier) {
       if (kUseBrooksReadBarrier) {
-        obj->SetReadBarrierPointer(obj);
+        obj->SetReadBarrierPointer(obj.Ptr());
       }
       obj->AssertReadBarrierPointer();
     }
@@ -141,7 +145,7 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self,
     obj->SetClass(klass);
     if (kUseBakerOrBrooksReadBarrier) {
       if (kUseBrooksReadBarrier) {
-        obj->SetReadBarrierPointer(obj);
+        obj->SetReadBarrierPointer(obj.Ptr());
       }
       obj->AssertReadBarrierPointer();
     }
@@ -213,25 +217,25 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self,
   }
   VerifyObject(obj);
   self->VerifyStack();
-  return obj;
+  return obj.Ptr();
 }
 
 // The size of a thread-local allocation stack in the number of references.
 static constexpr size_t kThreadLocalAllocationStackSize = 128;
 
-inline void Heap::PushOnAllocationStack(Thread* self, mirror::Object** obj) {
+inline void Heap::PushOnAllocationStack(Thread* self, ObjPtr<mirror::Object>* obj) {
   if (kUseThreadLocalAllocationStack) {
-    if (UNLIKELY(!self->PushOnThreadLocalAllocationStack(*obj))) {
+    if (UNLIKELY(!self->PushOnThreadLocalAllocationStack(obj->Ptr()))) {
       PushOnThreadLocalAllocationStackWithInternalGC(self, obj);
     }
-  } else if (UNLIKELY(!allocation_stack_->AtomicPushBack(*obj))) {
+  } else if (UNLIKELY(!allocation_stack_->AtomicPushBack(obj->Ptr()))) {
     PushOnAllocationStackWithInternalGC(self, obj);
   }
 }
 
 template <bool kInstrumented, typename PreFenceVisitor>
 inline mirror::Object* Heap::AllocLargeObject(Thread* self,
-                                              mirror::Class** klass,
+                                              ObjPtr<mirror::Class>* klass,
                                               size_t byte_count,
                                               const PreFenceVisitor& pre_fence_visitor) {
   // Save and restore the class in case it moves.
@@ -405,7 +409,7 @@ inline mirror::Object* Heap::TryToAllocate(Thread* self,
   return ret;
 }
 
-inline bool Heap::ShouldAllocLargeObject(mirror::Class* c, size_t byte_count) const {
+inline bool Heap::ShouldAllocLargeObject(ObjPtr<mirror::Class> c, size_t byte_count) const {
   // We need to have a zygote space or else our newly allocated large object can end up in the
   // Zygote resulting in it being prematurely freed.
   // We can only do this for primitive objects since large objects will not be within the card table
@@ -435,7 +439,7 @@ inline bool Heap::IsOutOfMemoryOnAllocation(AllocatorType allocator_type, size_t
 
 inline void Heap::CheckConcurrentGC(Thread* self,
                                     size_t new_num_bytes_allocated,
-                                    mirror::Object** obj) {
+                                    ObjPtr<mirror::Object>* obj) {
   if (UNLIKELY(new_num_bytes_allocated >= concurrent_start_bytes_)) {
     RequestConcurrentGCAndSaveObject(self, false, obj);
   }
@@ -445,6 +449,16 @@ inline void Heap::WriteBarrierField(ObjPtr<mirror::Object> dst,
                                     MemberOffset offset ATTRIBUTE_UNUSED,
                                     ObjPtr<mirror::Object> new_value ATTRIBUTE_UNUSED) {
   card_table_->MarkCard(dst.Ptr());
+}
+
+inline void Heap::WriteBarrierArray(ObjPtr<mirror::Object> dst,
+                                    int start_offset ATTRIBUTE_UNUSED,
+                                    size_t length ATTRIBUTE_UNUSED) {
+  card_table_->MarkCard(dst.Ptr());
+}
+
+inline void Heap::WriteBarrierEveryFieldOf(ObjPtr<mirror::Object> obj) {
+  card_table_->MarkCard(obj.Ptr());
 }
 
 }  // namespace gc

@@ -43,10 +43,10 @@ Atomic<uint32_t> Object::hash_code_seed(987654321U + std::time(nullptr));
 
 class CopyReferenceFieldsWithReadBarrierVisitor {
  public:
-  explicit CopyReferenceFieldsWithReadBarrierVisitor(Object* dest_obj)
+  explicit CopyReferenceFieldsWithReadBarrierVisitor(ObjPtr<Object> dest_obj)
       : dest_obj_(dest_obj) {}
 
-  void operator()(Object* obj, MemberOffset offset, bool /* is_static */) const
+  void operator()(ObjPtr<Object> obj, MemberOffset offset, bool /* is_static */) const
       ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
     // GetFieldObject() contains a RB.
     Object* ref = obj->GetFieldObject<Object>(offset);
@@ -55,7 +55,7 @@ class CopyReferenceFieldsWithReadBarrierVisitor {
     dest_obj_->SetFieldObjectWithoutWriteBarrier<false, false>(offset, ref);
   }
 
-  void operator()(mirror::Class* klass, mirror::Reference* ref) const
+  void operator()(ObjPtr<mirror::Class> klass, mirror::Reference* ref) const
       ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
     // Copy java.lang.ref.Reference.referent which isn't visited in
     // Object::VisitReferences().
@@ -69,18 +69,18 @@ class CopyReferenceFieldsWithReadBarrierVisitor {
   void VisitRoot(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED) const {}
 
  private:
-  Object* const dest_obj_;
+  ObjPtr<Object> const dest_obj_;
 };
 
 Object* Object::CopyObject(Thread* self,
-                           mirror::Object* dest,
-                           mirror::Object* src,
+                           ObjPtr<mirror::Object> dest,
+                           ObjPtr<mirror::Object> src,
                            size_t num_bytes) {
   // Copy instance data.  Don't assume memcpy copies by words (b/32012820).
   {
     const size_t offset = sizeof(Object);
-    uint8_t* src_bytes = reinterpret_cast<uint8_t*>(src) + offset;
-    uint8_t* dst_bytes = reinterpret_cast<uint8_t*>(dest) + offset;
+    uint8_t* src_bytes = reinterpret_cast<uint8_t*>(src.Ptr()) + offset;
+    uint8_t* dst_bytes = reinterpret_cast<uint8_t*>(dest.Ptr()) + offset;
     num_bytes -= offset;
     DCHECK_ALIGNED(src_bytes, sizeof(uintptr_t));
     DCHECK_ALIGNED(dst_bytes, sizeof(uintptr_t));
@@ -131,7 +131,7 @@ Object* Object::CopyObject(Thread* self,
   if (c->IsFinalizable()) {
     heap->AddFinalizerReference(self, &dest);
   }
-  return dest;
+  return dest.Ptr();
 }
 
 // An allocation pre-fence visitor that copies the object.
@@ -141,7 +141,7 @@ class CopyObjectVisitor {
       : self_(self), orig_(orig), num_bytes_(num_bytes) {
   }
 
-  void operator()(Object* obj, size_t usable_size ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<Object> obj, size_t usable_size ATTRIBUTE_UNUSED) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     Object::CopyObject(self_, obj, orig_->Get(), num_bytes_);
   }
@@ -161,14 +161,14 @@ Object* Object::Clone(Thread* self) {
   size_t num_bytes = SizeOf();
   StackHandleScope<1> hs(self);
   Handle<Object> this_object(hs.NewHandle(this));
-  Object* copy;
+  ObjPtr<Object> copy;
   CopyObjectVisitor visitor(self, &this_object, num_bytes);
   if (heap->IsMovableObject(this)) {
     copy = heap->AllocObject<true>(self, GetClass(), num_bytes, visitor);
   } else {
     copy = heap->AllocNonMovableObject<true>(self, GetClass(), num_bytes, visitor);
   }
-  return copy;
+  return copy.Ptr();
 }
 
 uint32_t Object::GenerateIdentityHashCode() {
