@@ -207,8 +207,8 @@ TEST_F(CompilerDriverMethodsTest, Selection) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   ScopedObjectAccess soa(self);
   StackHandleScope<1> hs(self);
-  Handle<mirror::ClassLoader> h_loader(hs.NewHandle(
-      reinterpret_cast<mirror::ClassLoader*>(self->DecodeJObject(class_loader))));
+  Handle<mirror::ClassLoader> h_loader(
+      hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader)));
   mirror::Class* klass = class_linker->FindClass(self, "LStaticLeafMethods;", h_loader);
   ASSERT_NE(klass, nullptr);
 
@@ -265,8 +265,8 @@ class CompilerDriverProfileTest : public CompilerDriverTest {
     Thread* self = Thread::Current();
     ScopedObjectAccess soa(self);
     StackHandleScope<1> hs(self);
-    Handle<mirror::ClassLoader> h_loader(hs.NewHandle(
-        reinterpret_cast<mirror::ClassLoader*>(self->DecodeJObject(class_loader))));
+    Handle<mirror::ClassLoader> h_loader(
+        hs.NewHandle(soa.Decode<mirror::ClassLoader>(class_loader)));
     mirror::Class* klass = class_linker->FindClass(self, clazz.c_str(), h_loader);
     ASSERT_NE(klass, nullptr);
 

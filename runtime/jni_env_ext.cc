@@ -176,13 +176,13 @@ void JNIEnvExt::RecordMonitorEnter(jobject obj) {
 
 static std::string ComputeMonitorDescription(Thread* self,
                                              jobject obj) REQUIRES_SHARED(Locks::mutator_lock_) {
-  mirror::Object* o = self->DecodeJObject(obj);
+  ObjPtr<mirror::Object> o = self->DecodeJObject(obj);
   if ((o->GetLockWord(false).GetState() == LockWord::kThinLocked) &&
       Locks::mutator_lock_->IsExclusiveHeld(self)) {
     // Getting the identity hashcode here would result in lock inflation and suspension of the
     // current thread, which isn't safe if this is the only runnable thread.
     return StringPrintf("<@addr=0x%" PRIxPTR "> (a %s)",
-                        reinterpret_cast<intptr_t>(o),
+                        reinterpret_cast<intptr_t>(o.Ptr()),
                         PrettyTypeOf(o).c_str());
   } else {
     // IdentityHashCode can cause thread suspension, which would invalidate o if it moved. So
@@ -203,7 +203,7 @@ static void RemoveMonitors(Thread* self,
       [self, frame, monitors](const std::pair<uintptr_t, jobject>& pair)
           REQUIRES_SHARED(Locks::mutator_lock_) {
         if (frame == pair.first) {
-          mirror::Object* o = self->DecodeJObject(pair.second);
+          ObjPtr<mirror::Object> o = self->DecodeJObject(pair.second);
           monitors->Remove(o);
           return true;
         }
@@ -221,7 +221,7 @@ void JNIEnvExt::CheckMonitorRelease(jobject obj) {
     locked_objects_.erase(it);
   } else {
     // Check whether this monitor was locked in another JNI "session."
-    mirror::Object* mirror_obj = self->DecodeJObject(obj);
+    ObjPtr<mirror::Object> mirror_obj = self->DecodeJObject(obj);
     for (std::pair<uintptr_t, jobject>& pair : locked_objects_) {
       if (self->DecodeJObject(pair.second) == mirror_obj) {
         std::string monitor_descr = ComputeMonitorDescription(self, pair.second);

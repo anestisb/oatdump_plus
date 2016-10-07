@@ -914,7 +914,7 @@ void UnstartedRuntime::UnstartedDoubleDoubleToRawLongBits(
   result->SetJ(bit_cast<int64_t, double>(in));
 }
 
-static mirror::Object* GetDexFromDexCache(Thread* self, mirror::DexCache* dex_cache)
+static ObjPtr<mirror::Object> GetDexFromDexCache(Thread* self, mirror::DexCache* dex_cache)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   const DexFile* dex_file = dex_cache->GetDexFile();
   if (dex_file == nullptr) {
@@ -949,10 +949,10 @@ void UnstartedRuntime::UnstartedDexCacheGetDexNative(
   mirror::Object* src = shadow_frame->GetVRegReference(arg_offset);
   bool have_dex = false;
   if (src != nullptr) {
-    mirror::Object* dex = GetDexFromDexCache(self, reinterpret_cast<mirror::DexCache*>(src));
+    ObjPtr<mirror::Object> dex = GetDexFromDexCache(self, src->AsDexCache());
     if (dex != nullptr) {
       have_dex = true;
-      result->SetL(dex);
+      result->SetL(dex.Ptr());
     }
   }
   if (!have_dex) {
@@ -1456,7 +1456,7 @@ void UnstartedRuntime::UnstartedMethodInvoke(
   ScopedLocalRef<jobject> result_jobj(env,
       InvokeMethod(soa, java_method.get(), java_receiver.get(), java_args.get()));
 
-  result->SetL(self->DecodeJObject(result_jobj.get()));
+  result->SetL(self->DecodeJObject(result_jobj.get()).Ptr());
 
   // Conservatively flag all exceptions as transaction aborts. This way we don't need to unwrap
   // InvocationTargetExceptions.

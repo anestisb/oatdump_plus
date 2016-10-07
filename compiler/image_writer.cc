@@ -433,9 +433,9 @@ void ImageWriter::PrepareDexCacheArraySlots() {
   Thread* const self = Thread::Current();
   ReaderMutexLock mu(self, *class_linker->DexLock());
   for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
-    mirror::DexCache* dex_cache =
-        down_cast<mirror::DexCache*>(self->DecodeJObject(data.weak_root));
-    if (dex_cache == nullptr || IsInBootImage(dex_cache)) {
+    ObjPtr<mirror::DexCache> dex_cache =
+        ObjPtr<mirror::DexCache>::DownCast(self->DecodeJObject(data.weak_root));
+    if (dex_cache == nullptr || IsInBootImage(dex_cache.Ptr())) {
       continue;
     }
     const DexFile* dex_file = dex_cache->GetDexFile();
@@ -464,7 +464,9 @@ void ImageWriter::PrepareDexCacheArraySlots() {
   }
 }
 
-void ImageWriter::AddDexCacheArrayRelocation(void* array, size_t offset, DexCache* dex_cache) {
+void ImageWriter::AddDexCacheArrayRelocation(void* array,
+                                             size_t offset,
+                                             ObjPtr<mirror::DexCache> dex_cache) {
   if (array != nullptr) {
     DCHECK(!IsInBootImage(array));
     size_t oat_index = GetOatIndexForDexCache(dex_cache);
@@ -878,7 +880,7 @@ void ImageWriter::PruneNonImageClasses() {
     if (self->IsJWeakCleared(data.weak_root)) {
       continue;
     }
-    mirror::DexCache* dex_cache = self->DecodeJObject(data.weak_root)->AsDexCache();
+    ObjPtr<mirror::DexCache> dex_cache = self->DecodeJObject(data.weak_root)->AsDexCache();
     for (size_t i = 0; i < dex_cache->NumResolvedTypes(); i++) {
       Class* klass = dex_cache->GetResolvedType(i);
       if (klass != nullptr && !KeepClass(klass)) {
@@ -1005,13 +1007,13 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots(size_t oat_index) const {
     ReaderMutexLock mu(self, *class_linker->DexLock());
     // Count number of dex caches not in the boot image.
     for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
-      mirror::DexCache* dex_cache =
-          down_cast<mirror::DexCache*>(self->DecodeJObject(data.weak_root));
+      ObjPtr<mirror::DexCache> dex_cache =
+          ObjPtr<mirror::DexCache>::DownCast(self->DecodeJObject(data.weak_root));
       if (dex_cache == nullptr) {
         continue;
       }
       const DexFile* dex_file = dex_cache->GetDexFile();
-      if (!IsInBootImage(dex_cache)) {
+      if (!IsInBootImage(dex_cache.Ptr())) {
         dex_cache_count += image_dex_files.find(dex_file) != image_dex_files.end() ? 1u : 0u;
       }
     }
@@ -1024,13 +1026,13 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots(size_t oat_index) const {
     size_t non_image_dex_caches = 0;
     // Re-count number of non image dex caches.
     for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
-      mirror::DexCache* dex_cache =
-          down_cast<mirror::DexCache*>(self->DecodeJObject(data.weak_root));
+      ObjPtr<mirror::DexCache> dex_cache =
+          ObjPtr<mirror::DexCache>::DownCast(self->DecodeJObject(data.weak_root));
       if (dex_cache == nullptr) {
         continue;
       }
       const DexFile* dex_file = dex_cache->GetDexFile();
-      if (!IsInBootImage(dex_cache)) {
+      if (!IsInBootImage(dex_cache.Ptr())) {
         non_image_dex_caches += image_dex_files.find(dex_file) != image_dex_files.end() ? 1u : 0u;
       }
     }
@@ -1038,14 +1040,15 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots(size_t oat_index) const {
         << "The number of non-image dex caches changed.";
     size_t i = 0;
     for (const ClassLinker::DexCacheData& data : class_linker->GetDexCachesData()) {
-      mirror::DexCache* dex_cache =
-          down_cast<mirror::DexCache*>(self->DecodeJObject(data.weak_root));
+      ObjPtr<mirror::DexCache> dex_cache =
+          ObjPtr<mirror::DexCache>::DownCast(self->DecodeJObject(data.weak_root));
       if (dex_cache == nullptr) {
         continue;
       }
       const DexFile* dex_file = dex_cache->GetDexFile();
-      if (!IsInBootImage(dex_cache) && image_dex_files.find(dex_file) != image_dex_files.end()) {
-        dex_caches->Set<false>(i, dex_cache);
+      if (!IsInBootImage(dex_cache.Ptr()) &&
+          image_dex_files.find(dex_file) != image_dex_files.end()) {
+        dex_caches->Set<false>(i, dex_cache.Ptr());
         ++i;
       }
     }
@@ -2384,12 +2387,10 @@ size_t ImageWriter::GetOatIndexForDexFile(const DexFile* dex_file) const {
   return it->second;
 }
 
-size_t ImageWriter::GetOatIndexForDexCache(mirror::DexCache* dex_cache) const {
-  if (dex_cache == nullptr) {
-    return GetDefaultOatIndex();
-  } else {
-    return GetOatIndexForDexFile(dex_cache->GetDexFile());
-  }
+size_t ImageWriter::GetOatIndexForDexCache(ObjPtr<mirror::DexCache> dex_cache) const {
+  return (dex_cache == nullptr)
+      ? GetDefaultOatIndex()
+      : GetOatIndexForDexFile(dex_cache->GetDexFile());
 }
 
 void ImageWriter::UpdateOatFileLayout(size_t oat_index,

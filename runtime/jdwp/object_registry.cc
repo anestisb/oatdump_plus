@@ -180,7 +180,7 @@ mirror::Object* ObjectRegistry::InternalGet(JDWP::ObjectId id, JDWP::JdwpError* 
   }
   ObjectRegistryEntry& entry = *it->second;
   *error = JDWP::ERR_NONE;
-  return self->DecodeJObject(entry.jni_reference);
+  return self->DecodeJObject(entry.jni_reference).Ptr();
 }
 
 jobject ObjectRegistry::GetJObject(JDWP::ObjectId id) {
