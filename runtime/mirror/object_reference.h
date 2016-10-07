@@ -19,6 +19,7 @@
 
 #include "base/mutex.h"  // For Locks::mutator_lock_.
 #include "globals.h"
+#include "obj_ptr.h"
 
 namespace art {
 namespace mirror {
@@ -86,10 +87,17 @@ class MANAGED HeapReference : public ObjectReference<kPoisonHeapReferences, Mirr
       REQUIRES_SHARED(Locks::mutator_lock_) {
     return HeapReference<MirrorType>(mirror_ptr);
   }
+
+  static HeapReference<MirrorType> FromObjPtr(ObjPtr<MirrorType> ptr)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
  private:
   explicit HeapReference(MirrorType* mirror_ptr) REQUIRES_SHARED(Locks::mutator_lock_)
       : ObjectReference<kPoisonHeapReferences, MirrorType>(mirror_ptr) {}
 };
+
+static_assert(sizeof(mirror::HeapReference<mirror::Object>) == kHeapReferenceSize,
+              "heap reference size does not match");
 
 // Standard compressed reference used in the runtime. Used for StackReference and GC roots.
 template<class MirrorType>
