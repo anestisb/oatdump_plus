@@ -24,6 +24,7 @@
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "mirror/class.h"
 #include "mirror/throwable.h"
+#include "obj_ptr-inl.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread-inl.h"
@@ -385,8 +386,8 @@ void WellKnownClasses::LateInit(JNIEnv* env) {
                       "Ljava/lang/String;");
 }
 
-mirror::Class* WellKnownClasses::ToClass(jclass global_jclass) {
-  return reinterpret_cast<mirror::Class*>(Thread::Current()->DecodeJObject(global_jclass));
+ObjPtr<mirror::Class> WellKnownClasses::ToClass(jclass global_jclass) {
+  return ObjPtr<mirror::Class>::DownCast(Thread::Current()->DecodeJObject(global_jclass));
 }
 
 }  // namespace art

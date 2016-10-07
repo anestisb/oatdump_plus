@@ -132,7 +132,7 @@ class ImageWriter FINAL {
   size_t GetOatIndexForDexFile(const DexFile* dex_file) const;
 
   // Get the index of the oat file containing the dex file served by the dex cache.
-  size_t GetOatIndexForDexCache(mirror::DexCache* dex_cache) const
+  size_t GetOatIndexForDexCache(ObjPtr<mirror::DexCache> dex_cache) const
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Update the oat layout for the given oat file.
@@ -334,7 +334,7 @@ class ImageWriter FINAL {
       REQUIRES_SHARED(Locks::mutator_lock_);
   BinSlot GetImageBinSlot(mirror::Object* object) const REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void AddDexCacheArrayRelocation(void* array, size_t offset, mirror::DexCache* dex_cache)
+  void AddDexCacheArrayRelocation(void* array, size_t offset, ObjPtr<mirror::DexCache> dex_cache)
       REQUIRES_SHARED(Locks::mutator_lock_);
   void AddMethodPointerArray(mirror::PointerArray* arr) REQUIRES_SHARED(Locks::mutator_lock_);
 

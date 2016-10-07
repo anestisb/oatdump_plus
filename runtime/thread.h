@@ -452,7 +452,7 @@ class Thread {
   }
 
   // Convert a jobject into a Object*
-  mirror::Object* DecodeJObject(jobject obj) const REQUIRES_SHARED(Locks::mutator_lock_);
+  ObjPtr<mirror::Object> DecodeJObject(jobject obj) const REQUIRES_SHARED(Locks::mutator_lock_);
   // Checks if the weak global ref has been cleared by the GC without decoding it.
   bool IsJWeakCleared(jweak obj) const REQUIRES_SHARED(Locks::mutator_lock_);
 

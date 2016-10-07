@@ -39,9 +39,9 @@ ReferenceTable::ReferenceTable(const char* name, size_t initial_size, size_t max
 ReferenceTable::~ReferenceTable() {
 }
 
-void ReferenceTable::Add(mirror::Object* obj) {
+void ReferenceTable::Add(ObjPtr<mirror::Object> obj) {
   DCHECK(obj != nullptr);
-  VerifyObject(obj);
+  VerifyObject(obj.Ptr());
   if (entries_.size() >= max_size_) {
     LOG(FATAL) << "ReferenceTable '" << name_ << "' "
                << "overflowed (" << max_size_ << " entries)";
@@ -49,10 +49,10 @@ void ReferenceTable::Add(mirror::Object* obj) {
   entries_.push_back(GcRoot<mirror::Object>(obj));
 }
 
-void ReferenceTable::Remove(mirror::Object* obj) {
+void ReferenceTable::Remove(ObjPtr<mirror::Object> obj) {
   // We iterate backwards on the assumption that references are LIFO.
   for (int i = entries_.size() - 1; i >= 0; --i) {
-    mirror::Object* entry = entries_[i].Read();
+    ObjPtr<mirror::Object> entry = entries_[i].Read();
     if (entry == obj) {
       entries_.erase(entries_.begin() + i);
       return;
@@ -62,7 +62,7 @@ void ReferenceTable::Remove(mirror::Object* obj) {
 
 // If "obj" is an array, return the number of elements in the array.
 // Otherwise, return zero.
-static size_t GetElementCount(mirror::Object* obj) REQUIRES_SHARED(Locks::mutator_lock_) {
+static size_t GetElementCount(ObjPtr<mirror::Object> obj) REQUIRES_SHARED(Locks::mutator_lock_) {
   // We assume the special cleared value isn't an array in the if statement below.
   DCHECK(!Runtime::Current()->GetClearedJniWeakGlobal()->IsArrayInstance());
   if (obj == nullptr || !obj->IsArrayInstance()) {
@@ -76,7 +76,7 @@ static size_t GetElementCount(mirror::Object* obj) REQUIRES_SHARED(Locks::mutato
 // Pass in the number of elements in the array (or 0 if this is not an
 // array object), and the number of additional objects that are identical
 // or equivalent to the original.
-static void DumpSummaryLine(std::ostream& os, mirror::Object* obj, size_t element_count,
+static void DumpSummaryLine(std::ostream& os, ObjPtr<mirror::Object> obj, size_t element_count,
                             int identical, int equiv)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (obj == nullptr) {
@@ -126,8 +126,8 @@ void ReferenceTable::Dump(std::ostream& os, Table& entries) {
       // are no suspend points which can happen during the sorting process. This works since
       // we are guaranteed that the addresses of obj1, obj2, obj1->GetClass, obj2->GetClass wont
       // change during the sorting process. The classes are forwarded by ref->GetClass().
-      mirror::Object* obj1 = root1.Read<kWithoutReadBarrier>();
-      mirror::Object* obj2 = root2.Read<kWithoutReadBarrier>();
+      ObjPtr<mirror::Object> obj1 = root1.Read<kWithoutReadBarrier>();
+      ObjPtr<mirror::Object> obj2 = root2.Read<kWithoutReadBarrier>();
       DCHECK(obj1 != nullptr);
       DCHECK(obj2 != nullptr);
       Runtime* runtime = Runtime::Current();
@@ -144,7 +144,7 @@ void ReferenceTable::Dump(std::ostream& os, Table& entries) {
         return size1 < size2;
       }
       // ...and finally by address.
-      return obj1 < obj2;
+      return obj1.Ptr() < obj2.Ptr();
     }
   };
 
@@ -163,7 +163,7 @@ void ReferenceTable::Dump(std::ostream& os, Table& entries) {
   os << "  Last " << (count - first) << " entries (of " << count << "):\n";
   Runtime* runtime = Runtime::Current();
   for (int idx = count - 1; idx >= first; --idx) {
-    mirror::Object* ref = entries[idx].Read();
+    ObjPtr<mirror::Object> ref = entries[idx].Read();
     if (ref == nullptr) {
       continue;
     }
@@ -174,7 +174,7 @@ void ReferenceTable::Dump(std::ostream& os, Table& entries) {
     if (ref->GetClass() == nullptr) {
       // should only be possible right after a plain dvmMalloc().
       size_t size = ref->SizeOf();
-      os << StringPrintf("    %5d: %p (raw) (%zd bytes)\n", idx, ref, size);
+      os << StringPrintf("    %5d: %p (raw) (%zd bytes)\n", idx, ref.Ptr(), size);
       continue;
     }
 
@@ -185,7 +185,7 @@ void ReferenceTable::Dump(std::ostream& os, Table& entries) {
     if (element_count != 0) {
       StringAppendF(&extras, " (%zd elements)", element_count);
     } else if (ref->GetClass()->IsStringClass()) {
-      mirror::String* s = ref->AsString();
+      ObjPtr<mirror::String> s = ref->AsString();
       std::string utf8(s->ToModifiedUtf8());
       if (s->GetLength() <= 16) {
         StringAppendF(&extras, " \"%s\"", utf8.c_str());
@@ -193,7 +193,7 @@ void ReferenceTable::Dump(std::ostream& os, Table& entries) {
         StringAppendF(&extras, " \"%.16s... (%d chars)", utf8.c_str(), s->GetLength());
       }
     } else if (ref->IsReferenceInstance()) {
-      mirror::Object* referent = ref->AsReference()->GetReferent();
+      ObjPtr<mirror::Object> referent = ref->AsReference()->GetReferent();
       if (referent == nullptr) {
         extras = " (referent is null)";
       } else {
@@ -219,9 +219,9 @@ void ReferenceTable::Dump(std::ostream& os, Table& entries) {
   os << "  Summary:\n";
   size_t equiv = 0;
   size_t identical = 0;
-  mirror::Object* prev = nullptr;
+  ObjPtr<mirror::Object> prev = nullptr;
   for (GcRoot<mirror::Object>& root : sorted_entries) {
-    mirror::Object* current = root.Read<kWithoutReadBarrier>();
+    ObjPtr<mirror::Object> current = root.Read<kWithoutReadBarrier>();
     if (prev != nullptr) {
       const size_t element_count = GetElementCount(prev);
       if (current == prev) {

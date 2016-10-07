@@ -327,8 +327,7 @@ jvmtiError MoveTransformedFileIntoRuntime(jclass jklass,
         class_linker->FindClass(self, dex_file_name, null_loader)
           ->FindDeclaredInstanceField("mInternalCookie", "Ljava/lang/Object;");
     CHECK(dex_file_cookie_field != nullptr);
-    art::Handle<art::mirror::Class> klass(
-        hs.NewHandle(art::down_cast<art::mirror::Class*>(self->DecodeJObject(jklass))));
+    art::Handle<art::mirror::Class> klass(hs.NewHandle(self->DecodeJObject(jklass)->AsClass()));
     art::mirror::Object* dex_file_ptr = nullptr;
     art::mirror::ClassLoader* class_loader_ptr = nullptr;
     // Find dalvik.system.DexFile that represents the dex file we are changing.

@@ -26,6 +26,7 @@
 #include "mirror/iftable.h"
 #include "mirror/object_array.h"
 #include "handle_scope-inl.h"
+#include "scoped_thread_state_change-inl.h"
 
 #include <atomic>
 
@@ -247,8 +248,8 @@ ArtMethod* ClassLinker::FindMethodForProxy(mirror::Class* proxy_class, ArtMethod
       if (!self->IsJWeakCleared(data.weak_root) &&
           proxy_method->HasSameDexCacheResolvedTypes(data.resolved_types,
                                                      image_pointer_size_)) {
-        mirror::DexCache* dex_cache = down_cast<mirror::DexCache*>(
-            self->DecodeJObject(data.weak_root));
+        ObjPtr<mirror::DexCache> dex_cache =
+            ObjPtr<mirror::DexCache>::DownCast(self->DecodeJObject(data.weak_root));
         if (dex_cache != nullptr) {
           ArtMethod* resolved_method = dex_cache->GetResolvedMethod(
               proxy_method->GetDexMethodIndex(), image_pointer_size_);

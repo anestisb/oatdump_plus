@@ -914,10 +914,10 @@ void UpdateReference(Thread* self, jobject obj, ObjPtr<mirror::Object> result) {
   } else if (kind == kHandleScopeOrInvalid) {
     LOG(FATAL) << "Unsupported UpdateReference for kind kHandleScopeOrInvalid";
   } else if (kind == kGlobal) {
-    self->GetJniEnv()->vm->UpdateGlobal(self, ref, result.Ptr());
+    self->GetJniEnv()->vm->UpdateGlobal(self, ref, result);
   } else {
     DCHECK_EQ(kind, kWeakGlobal);
-    self->GetJniEnv()->vm->UpdateWeakGlobal(self, ref, result.Ptr());
+    self->GetJniEnv()->vm->UpdateWeakGlobal(self, ref, result);
   }
 }
 

@@ -752,7 +752,7 @@ void ThrowStackOverflowError(Thread* self) {
         error_msg = "Could not create stack trace.";
       }
       // Throw the exception.
-      self->SetException(reinterpret_cast<mirror::Throwable*>(self->DecodeJObject(exc.get())));
+      self->SetException(self->DecodeJObject(exc.get())->AsThrowable());
     } else {
       // Could not allocate a string object.
       error_msg = "Couldn't throw new StackOverflowError because JNI NewStringUTF failed.";

@@ -132,6 +132,14 @@ class ObjPtr {
     }
   }
 
+  // Static function to be friendly with null pointers.
+  template <typename SourceType>
+  static ObjPtr<MirrorType> DownCast(ObjPtr<SourceType> ptr) REQUIRES_SHARED(Locks::mutator_lock_) {
+    static_assert(std::is_base_of<SourceType, MirrorType>::value,
+                  "Target type must be a subtype of source type");
+    return static_cast<MirrorType*>(ptr.Ptr());
+  }
+
  private:
   // Trim off high bits of thread local cookie.
   ALWAYS_INLINE static uintptr_t TrimCookie(uintptr_t cookie) {
