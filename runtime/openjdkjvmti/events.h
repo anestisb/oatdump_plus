@@ -27,6 +27,7 @@
 namespace openjdkjvmti {
 
 struct ArtJvmTiEnv;
+class JvmtiAllocationListener;
 
 struct EventMask {
   static constexpr size_t kEventsSize = JVMTI_MAX_EVENT_TYPE_VAL - JVMTI_MIN_EVENT_TYPE_VAL + 1;
@@ -71,12 +72,10 @@ struct EventMasks {
 };
 
 // Helper class for event handling.
-struct EventHandler {
-  // List of all JvmTiEnv objects that have been created, in their creation order.
-  std::vector<ArtJvmTiEnv*> envs;
-
-  // A union of all enabled events, anywhere.
-  EventMask global_mask;
+class EventHandler {
+ public:
+  EventHandler();
+  ~EventHandler();
 
   // Register an env. It is assumed that this happens on env creation, that is, no events are
   // enabled, yet.
@@ -93,6 +92,17 @@ struct EventHandler {
 
   template <typename ...Args>
   ALWAYS_INLINE inline void DispatchEvent(art::Thread* thread, jvmtiEvent event, Args... args);
+
+ private:
+  void HandleEventType(jvmtiEvent event, bool enable);
+
+  // List of all JvmTiEnv objects that have been created, in their creation order.
+  std::vector<ArtJvmTiEnv*> envs;
+
+  // A union of all enabled events, anywhere.
+  EventMask global_mask;
+
+  std::unique_ptr<JvmtiAllocationListener> alloc_listener_;
 };
 
 }  // namespace openjdkjvmti
