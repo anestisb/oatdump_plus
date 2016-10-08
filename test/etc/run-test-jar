@@ -44,7 +44,7 @@ SECONDARY_DEX=""
 TIME_OUT="gdb"  # "n" (disabled), "timeout" (use timeout), "gdb" (use gdb)
 # Value in seconds
 if [ "$ART_USE_READ_BARRIER" = "true" ]; then
-  TIME_OUT_VALUE=1800  # 30 minutes.
+  TIME_OUT_VALUE=2400  # 40 minutes.
 else
   TIME_OUT_VALUE=1200  # 20 minutes.
 fi
