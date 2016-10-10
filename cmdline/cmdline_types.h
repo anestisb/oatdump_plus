@@ -507,7 +507,8 @@ struct XGcOption {
   bool verify_pre_gc_rosalloc_ = kIsDebugBuild;
   bool verify_pre_sweeping_rosalloc_ = false;
   bool verify_post_gc_rosalloc_ = false;
-  bool measure_ = kIsDebugBuild;
+  // Do no measurements for kUseTableLookupReadBarrier to avoid test timeouts. b/31679493
+  bool measure_ = kIsDebugBuild && !kUseTableLookupReadBarrier;
   bool gcstress_ = false;
 };
 
