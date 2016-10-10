@@ -32,8 +32,12 @@
 #ifndef ART_RUNTIME_OPENJDKJVMTI_ART_JVMTI_H_
 #define ART_RUNTIME_OPENJDKJVMTI_ART_JVMTI_H_
 
+#include <memory>
+
 #include <jni.h>
 
+#include "base/casts.h"
+#include "events.h"
 #include "java_vm_ext.h"
 #include "jni_env_ext.h"
 #include "jvmti.h"
@@ -47,8 +51,15 @@ struct ArtJvmTiEnv : public jvmtiEnv {
   art::JavaVMExt* art_vm;
   void* local_data;
 
+  EventMasks event_masks;
+  std::unique_ptr<jvmtiEventCallbacks> event_callbacks;
+
   explicit ArtJvmTiEnv(art::JavaVMExt* runtime) : art_vm(runtime), local_data(nullptr) {
     functions = &gJvmtiInterface;
+  }
+
+  static ArtJvmTiEnv* AsArtJvmTiEnv(jvmtiEnv* env) {
+    return art::down_cast<ArtJvmTiEnv*>(env);
   }
 };
 
