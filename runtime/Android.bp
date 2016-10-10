@@ -536,6 +536,7 @@ art_cc_test {
         "gc/task_processor_test.cc",
         "gtest_test.cc",
         "handle_scope_test.cc",
+        "imtable_test.cc",
         "indenter_test.cc",
         "indirect_reference_table_test.cc",
         "instrumentation_test.cc",

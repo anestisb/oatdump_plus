@@ -23,6 +23,7 @@
 
 #include "base/enums.h"
 #include "base/macros.h"
+#include "base/mutex.h"
 
 namespace art {
 
@@ -74,17 +75,16 @@ class ImTable {
     return kSize * static_cast<size_t>(pointer_size);
   }
 
-  // Converts a method to the base hash used in GetImtIndex.
-  ALWAYS_INLINE static inline uint32_t GetBaseImtHash(ArtMethod* method)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  ALWAYS_INLINE static inline uint32_t GetBaseImtHash(const DexFile* dex_file, uint32_t method_idx)
+  // Converts a method to the base hash components used in GetImtIndex.
+  ALWAYS_INLINE static inline void GetImtHashComponents(ArtMethod* method,
+                                                        uint32_t* class_hash,
+                                                        uint32_t* name_hash,
+                                                        uint32_t* signature_hash)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // The (complete) hashing scheme to map an ArtMethod to a slot in the Interface Method Table
   // (IMT).
   ALWAYS_INLINE static inline uint32_t GetImtIndex(ArtMethod* method)
-      REQUIRES_SHARED(Locks::mutator_lock_);
-  ALWAYS_INLINE static inline uint32_t GetImtIndex(const DexFile* dex_file, uint32_t method_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
 };
 
