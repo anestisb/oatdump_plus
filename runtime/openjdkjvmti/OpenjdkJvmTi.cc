@@ -37,12 +37,15 @@
 #include "openjdkjvmti/jvmti.h"
 
 #include "art_jvmti.h"
+#include "base/mutex.h"
+#include "events-inl.h"
 #include "jni_env_ext-inl.h"
 #include "object_tagging.h"
 #include "obj_ptr-inl.h"
 #include "runtime.h"
 #include "scoped_thread_state_change-inl.h"
 #include "thread_list.h"
+#include "thread-inl.h"
 #include "transform.h"
 
 // TODO Remove this at some point by annotating all the methods. It was put in to make the skeleton
@@ -52,6 +55,7 @@
 namespace openjdkjvmti {
 
 ObjectTagTable gObjectTagTable;
+EventHandler gEventHandler;
 
 class JvmtiFunctions {
  private:
@@ -731,10 +735,33 @@ class JvmtiFunctions {
     return ERR(NOT_IMPLEMENTED);
   }
 
+  // TODO: This will require locking, so that an agent can't remove callbacks when we're dispatching
+  //       an event.
   static jvmtiError SetEventCallbacks(jvmtiEnv* env,
                                       const jvmtiEventCallbacks* callbacks,
                                       jint size_of_callbacks) {
-    return ERR(NOT_IMPLEMENTED);
+    if (env == nullptr) {
+      return ERR(NULL_POINTER);
+    }
+    if (size_of_callbacks < 0) {
+      return ERR(ILLEGAL_ARGUMENT);
+    }
+
+    if (callbacks == nullptr) {
+      ArtJvmTiEnv::AsArtJvmTiEnv(env)->event_callbacks.reset();
+      return ERR(NONE);
+    }
+
+    std::unique_ptr<jvmtiEventCallbacks> tmp(new jvmtiEventCallbacks());
+    memset(tmp.get(), 0, sizeof(jvmtiEventCallbacks));
+    size_t copy_size = std::min(sizeof(jvmtiEventCallbacks),
+                                static_cast<size_t>(size_of_callbacks));
+    copy_size = art::RoundDown(copy_size, sizeof(void*));
+    memcpy(tmp.get(), callbacks, copy_size);
+
+    ArtJvmTiEnv::AsArtJvmTiEnv(env)->event_callbacks = std::move(tmp);
+
+    return ERR(NONE);
   }
 
   static jvmtiError SetEventNotificationMode(jvmtiEnv* env,
@@ -742,7 +769,21 @@ class JvmtiFunctions {
                                              jvmtiEvent event_type,
                                              jthread event_thread,
                                              ...) {
-    return ERR(NOT_IMPLEMENTED);
+    art::Thread* art_thread = nullptr;
+    if (event_thread != nullptr) {
+      // TODO: Need non-aborting call here, to return JVMTI_ERROR_INVALID_THREAD.
+      art::ScopedObjectAccess soa(art::Thread::Current());
+      art::MutexLock mu(soa.Self(), *art::Locks::thread_list_lock_);
+      art_thread = art::Thread::FromManagedThread(soa, event_thread);
+
+      if (art_thread == nullptr ||  // The thread hasn't been started or is already dead.
+          art_thread->IsStillStarting()) {
+        // TODO: We may want to let the EventHandler know, so it could clean up masks, potentially.
+        return ERR(THREAD_NOT_ALIVE);
+      }
+    }
+
+    return gEventHandler.SetEvent(ArtJvmTiEnv::AsArtJvmTiEnv(env), art_thread, event_type, mode);
   }
 
   static jvmtiError GenerateEvents(jvmtiEnv* env, jvmtiEvent event_type) {
@@ -1018,6 +1059,8 @@ static bool IsJvmtiVersion(jint version) {
 static void CreateArtJvmTiEnv(art::JavaVMExt* vm, /*out*/void** new_jvmtiEnv) {
   struct ArtJvmTiEnv* env = new ArtJvmTiEnv(vm);
   *new_jvmtiEnv = env;
+
+  gEventHandler.RegisterArtJvmTiEnv(env);
 }
 
 // A hook that the runtime uses to allow plugins to handle GetEnv calls. It returns true and
