@@ -286,8 +286,8 @@ op-start mips
     # op op_unused_f7 FALLBACK
     # op op_unused_f8 FALLBACK
     # op op_unused_f9 FALLBACK
-    # op op_unused_fa FALLBACK
-    # op op_unused_fb FALLBACK
+    op op_invoke_polymorphic FALLBACK
+    op op_invoke_polymorphic_range FALLBACK
     # op op_unused_fc FALLBACK
     # op op_unused_fd FALLBACK
     # op op_unused_fe FALLBACK
