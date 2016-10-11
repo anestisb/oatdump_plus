@@ -23,7 +23,20 @@ public class Main {
     // Use a list to ensure objects must be allocated.
     ArrayList<Object> l = new ArrayList<>(100);
 
+    prefetchClassNames();
+
     doTest(l);
+  }
+
+  // Pre-resolve class names so the strings don't have to be allocated as a side effect of
+  // callback printing.
+  private static void prefetchClassNames() {
+      Object.class.getName();
+      Integer.class.getName();
+      Float.class.getName();
+      Short.class.getName();
+      Byte.class.getName();
+      Double.class.getName();
   }
 
   public static void doTest(ArrayList<Object> l) throws Exception {
