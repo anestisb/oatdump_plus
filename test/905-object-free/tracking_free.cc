@@ -14,46 +14,54 @@
  * limitations under the License.
  */
 
-#include "tagging.h"
+#include "tracking_free.h"
 
 #include <iostream>
 #include <pthread.h>
 #include <stdio.h>
 #include <vector>
 
-#include "art_method-inl.h"
 #include "base/logging.h"
 #include "jni.h"
 #include "openjdkjvmti/jvmti.h"
+#include "ScopedLocalRef.h"
+#include "ScopedUtfChars.h"
 #include "ti-agent/common_load.h"
 #include "utils.h"
 
 namespace art {
-namespace Test903HelloTagging {
+namespace Test905ObjectFree {
 
-extern "C" JNIEXPORT void JNICALL Java_Main_setTag(JNIEnv* env ATTRIBUTE_UNUSED,
-                                                   jclass,
-                                                   jobject obj,
-                                                   jlong tag) {
-  jvmtiError ret = jvmti_env->SetTag(obj, tag);
+static void JNICALL ObjectFree(jvmtiEnv* ti_env ATTRIBUTE_UNUSED, jlong tag) {
+  printf("ObjectFree tag=%zu\n", static_cast<size_t>(tag));
+}
+
+extern "C" JNIEXPORT void JNICALL Java_Main_setupObjectFreeCallback(
+    JNIEnv* env ATTRIBUTE_UNUSED, jclass klass ATTRIBUTE_UNUSED) {
+  jvmtiEventCallbacks callbacks;
+  memset(&callbacks, 0, sizeof(jvmtiEventCallbacks));
+  callbacks.ObjectFree = ObjectFree;
+
+  jvmtiError ret = jvmti_env->SetEventCallbacks(&callbacks, sizeof(callbacks));
   if (ret != JVMTI_ERROR_NONE) {
     char* err;
     jvmti_env->GetErrorName(ret, &err);
-    printf("Error setting tag: %s\n", err);
+    printf("Error setting callbacks: %s\n", err);
   }
 }
 
-extern "C" JNIEXPORT jlong JNICALL Java_Main_getTag(JNIEnv* env ATTRIBUTE_UNUSED,
-                                                    jclass,
-                                                    jobject obj) {
-  jlong tag = 0;
-  jvmtiError ret = jvmti_env->GetTag(obj, &tag);
+extern "C" JNIEXPORT void JNICALL Java_Main_enableFreeTracking(JNIEnv* env ATTRIBUTE_UNUSED,
+                                                               jclass klass ATTRIBUTE_UNUSED,
+                                                               jboolean enable) {
+  jvmtiError ret = jvmti_env->SetEventNotificationMode(
+      enable ? JVMTI_ENABLE : JVMTI_DISABLE,
+      JVMTI_EVENT_OBJECT_FREE,
+      nullptr);
   if (ret != JVMTI_ERROR_NONE) {
     char* err;
     jvmti_env->GetErrorName(ret, &err);
-    printf("Error getting tag: %s\n", err);
+    printf("Error enabling/disabling object-free callbacks: %s\n", err);
   }
-  return tag;
 }
 
 // Don't do anything
@@ -67,6 +75,5 @@ jint OnLoad(JavaVM* vm,
   return 0;
 }
 
-}  // namespace Test903HelloTagging
+}  // namespace Test905ObjectFree
 }  // namespace art
-

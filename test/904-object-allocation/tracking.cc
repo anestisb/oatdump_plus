@@ -26,12 +26,11 @@
 #include "openjdkjvmti/jvmti.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
+#include "ti-agent/common_load.h"
 #include "utils.h"
 
 namespace art {
 namespace Test904ObjectAllocation {
-
-static jvmtiEnv* jvmti_env;
 
 static std::string GetClassName(JNIEnv* jni_env, jclass cls) {
   ScopedLocalRef<jclass> class_class(jni_env, jni_env->GetObjectClass(cls));
@@ -58,7 +57,8 @@ static void JNICALL ObjectAllocated(jvmtiEnv* ti_env ATTRIBUTE_UNUSED,
          static_cast<size_t>(size));
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_setupCallback(JNIEnv* env ATTRIBUTE_UNUSED, jclass) {
+extern "C" JNIEXPORT void JNICALL Java_Main_setupObjectAllocCallback(
+    JNIEnv* env ATTRIBUTE_UNUSED, jclass klass ATTRIBUTE_UNUSED) {
   jvmtiEventCallbacks callbacks;
   memset(&callbacks, 0, sizeof(jvmtiEventCallbacks));
   callbacks.VMObjectAlloc = ObjectAllocated;
@@ -82,7 +82,7 @@ extern "C" JNIEXPORT void JNICALL Java_Main_enableAllocationTracking(JNIEnv* env
   if (ret != JVMTI_ERROR_NONE) {
     char* err;
     jvmti_env->GetErrorName(ret, &err);
-    printf("Error getting tag: %s\n", err);
+    printf("Error enabling/disabling allocation tracking: %s\n", err);
   }
 }
 
