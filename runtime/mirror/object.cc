@@ -86,14 +86,16 @@ Object* Object::CopyObject(Thread* self,
     DCHECK_ALIGNED(dst_bytes, sizeof(uintptr_t));
     // Use word sized copies to begin.
     while (num_bytes >= sizeof(uintptr_t)) {
-      *reinterpret_cast<uintptr_t*>(dst_bytes) = *reinterpret_cast<uintptr_t*>(src_bytes);
+      reinterpret_cast<Atomic<uintptr_t>*>(dst_bytes)->StoreRelaxed(
+          reinterpret_cast<Atomic<uintptr_t>*>(src_bytes)->LoadRelaxed());
       src_bytes += sizeof(uintptr_t);
       dst_bytes += sizeof(uintptr_t);
       num_bytes -= sizeof(uintptr_t);
     }
     // Copy possible 32 bit word.
     if (sizeof(uintptr_t) != sizeof(uint32_t) && num_bytes >= sizeof(uint32_t)) {
-      *reinterpret_cast<uint32_t*>(dst_bytes) = *reinterpret_cast<uint32_t*>(src_bytes);
+      reinterpret_cast<Atomic<uint32_t>*>(dst_bytes)->StoreRelaxed(
+          reinterpret_cast<Atomic<uint32_t>*>(src_bytes)->LoadRelaxed());
       src_bytes += sizeof(uint32_t);
       dst_bytes += sizeof(uint32_t);
       num_bytes -= sizeof(uint32_t);
@@ -101,7 +103,8 @@ Object* Object::CopyObject(Thread* self,
     // Copy remaining bytes, avoid going past the end of num_bytes since there may be a redzone
     // there.
     while (num_bytes > 0) {
-      *reinterpret_cast<uint8_t*>(dst_bytes) = *reinterpret_cast<uint8_t*>(src_bytes);
+      reinterpret_cast<Atomic<uint8_t>*>(dst_bytes)->StoreRelaxed(
+          reinterpret_cast<Atomic<uint8_t>*>(src_bytes)->LoadRelaxed());
       src_bytes += sizeof(uint8_t);
       dst_bytes += sizeof(uint8_t);
       num_bytes -= sizeof(uint8_t);
