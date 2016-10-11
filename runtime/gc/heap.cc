@@ -21,6 +21,7 @@
 #include <unwind.h>  // For GC verification.
 #include <vector>
 
+#include "allocation_listener.h"
 #include "art_field-inl.h"
 #include "base/allocator.h"
 #include "base/arena_allocator.h"
@@ -1287,6 +1288,16 @@ void Heap::DumpBlockingGcCountRateHistogram(std::ostream& os) const {
   }
 }
 
+ALWAYS_INLINE
+static inline AllocationListener* GetAndOverwriteAllocationListener(
+    Atomic<AllocationListener*>* storage, AllocationListener* new_value) {
+  AllocationListener* old;
+  do {
+    old = storage->LoadSequentiallyConsistent();
+  } while (!storage->CompareExchangeStrongSequentiallyConsistent(old, new_value));
+  return old;
+}
+
 Heap::~Heap() {
   VLOG(heap) << "Starting ~Heap()";
   STLDeleteElements(&garbage_collectors_);
@@ -1307,6 +1318,10 @@ Heap::~Heap() {
         << " total=" << seen_backtrace_count_.LoadRelaxed() +
             unique_backtrace_count_.LoadRelaxed();
   }
+  // Delete any still registered allocation listener.
+  AllocationListener* l = GetAndOverwriteAllocationListener(&alloc_listener_, nullptr);
+  delete l;
+
   VLOG(heap) << "Finished ~Heap()";
 }
 
@@ -4222,6 +4237,23 @@ void Heap::GetBootImagesSize(uint32_t* boot_image_begin,
     *boot_oat_end = std::max(*boot_oat_end, oat_begin + oat_size);
   }
 }
+
+void Heap::SetAllocationListener(AllocationListener* l) {
+  AllocationListener* old = GetAndOverwriteAllocationListener(&alloc_listener_, l);
+
+  if (old == nullptr) {
+    Runtime::Current()->GetInstrumentation()->InstrumentQuickAllocEntryPoints();
+  }
+}
+
+void Heap::RemoveAllocationListener() {
+  AllocationListener* old = GetAndOverwriteAllocationListener(&alloc_listener_, nullptr);
+
+  if (old != nullptr) {
+    Runtime::Current()->GetInstrumentation()->InstrumentQuickAllocEntryPoints();
+  }
+}
+
 
 }  // namespace gc
 }  // namespace art
