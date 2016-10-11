@@ -18,6 +18,7 @@ cc_defaults {
     defaults: ["art_defaults"],
     host_supported: true,
     srcs: ["events.cc",
+           "object_tagging.cc",
            "OpenjdkJvmTi.cc",
            "transform.cc"],
     include_dirs: ["art/runtime"],
