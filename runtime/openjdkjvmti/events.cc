@@ -29,9 +29,17 @@
  * questions.
  */
 
-#include "events.h"
+#include "events-inl.h"
 
 #include "art_jvmti.h"
+#include "base/logging.h"
+#include "gc/allocation_listener.h"
+#include "instrumentation.h"
+#include "jni_env_ext-inl.h"
+#include "mirror/class.h"
+#include "mirror/object.h"
+#include "runtime.h"
+#include "ScopedLocalRef.h"
 
 namespace openjdkjvmti {
 
@@ -116,8 +124,65 @@ static bool IsThreadControllable(jvmtiEvent event) {
   }
 }
 
+class JvmtiAllocationListener : public art::gc::AllocationListener {
+ public:
+  explicit JvmtiAllocationListener(EventHandler* handler) : handler_(handler) {}
+
+  void ObjectAllocated(art::Thread* self, art::mirror::Object** obj, size_t byte_count)
+      REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    DCHECK_EQ(self, art::Thread::Current());
+
+    if (handler_->IsEventEnabledAnywhere(JVMTI_EVENT_VM_OBJECT_ALLOC)) {
+      // jvmtiEventVMObjectAlloc parameters:
+      //      jvmtiEnv *jvmti_env,
+      //      JNIEnv* jni_env,
+      //      jthread thread,
+      //      jobject object,
+      //      jclass object_klass,
+      //      jlong size
+      art::JNIEnvExt* jni_env = self->GetJniEnv();
+
+      jthread thread_peer;
+      if (self->IsStillStarting()) {
+        thread_peer = nullptr;
+      } else {
+        thread_peer = jni_env->AddLocalReference<jthread>(self->GetPeer());
+      }
+
+      ScopedLocalRef<jthread> thread(jni_env, thread_peer);
+      ScopedLocalRef<jobject> object(
+          jni_env, jni_env->AddLocalReference<jobject>(*obj));
+      ScopedLocalRef<jclass> klass(
+          jni_env, jni_env->AddLocalReference<jclass>((*obj)->GetClass()));
+
+      handler_->DispatchEvent(self,
+                              JVMTI_EVENT_VM_OBJECT_ALLOC,
+                              jni_env,
+                              thread.get(),
+                              object.get(),
+                              klass.get(),
+                              byte_count);
+    }
+  }
+
+ private:
+  EventHandler* handler_;
+};
+
+static void SetupObjectAllocationTracking(art::gc::AllocationListener* listener, bool enable) {
+  if (enable) {
+    art::Runtime::Current()->GetHeap()->SetAllocationListener(listener);
+  } else {
+    art::Runtime::Current()->GetHeap()->RemoveAllocationListener();
+  }
+}
+
 // Handle special work for the given event type, if necessary.
-static void HandleEventType(jvmtiEvent event ATTRIBUTE_UNUSED, bool enable ATTRIBUTE_UNUSED) {
+void EventHandler::HandleEventType(jvmtiEvent event, bool enable) {
+  if (event == JVMTI_EVENT_VM_OBJECT_ALLOC) {
+    SetupObjectAllocationTracking(alloc_listener_.get(), enable);
+    return;
+  }
 }
 
 jvmtiError EventHandler::SetEvent(ArtJvmTiEnv* env,
@@ -170,6 +235,13 @@ jvmtiError EventHandler::SetEvent(ArtJvmTiEnv* env,
   HandleEventType(event, mode == JVMTI_ENABLE);
 
   return ERR(NONE);
+}
+
+EventHandler::EventHandler() {
+  alloc_listener_.reset(new JvmtiAllocationListener(this));
+}
+
+EventHandler::~EventHandler() {
 }
 
 }  // namespace openjdkjvmti

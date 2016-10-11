@@ -29,6 +29,9 @@ ALWAYS_INLINE static inline FnType* GetCallback(ArtJvmTiEnv* env, jvmtiEvent eve
     return nullptr;
   }
 
+  // TODO: Add a type check. Can be done, for example, by an explicitly instantiated template
+  //       function.
+
   switch (event) {
     case JVMTI_EVENT_VM_INIT:
       return reinterpret_cast<FnType*>(env->event_callbacks->VMInit);
