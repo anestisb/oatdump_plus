@@ -57,6 +57,7 @@ namespace mirror {
 
 namespace gc {
 
+class AllocationListener;
 class AllocRecordObjectMap;
 class ReferenceProcessor;
 class TaskProcessor;
@@ -784,6 +785,12 @@ class Heap {
   HomogeneousSpaceCompactResult PerformHomogeneousSpaceCompact() REQUIRES(!*gc_complete_lock_);
   bool SupportHomogeneousSpaceCompactAndCollectorTransitions() const;
 
+  // Install an allocation listener.
+  void SetAllocationListener(AllocationListener* l);
+  // Remove an allocation listener. Note: the listener must not be deleted, as for performance
+  // reasons, we assume it stays valid when we read it (so that we don't require a lock).
+  void RemoveAllocationListener();
+
  private:
   class ConcurrentGCTask;
   class CollectorTransitionTask;
@@ -1351,6 +1358,9 @@ class Heap {
 
   // Boot image spaces.
   std::vector<space::ImageSpace*> boot_image_spaces_;
+
+  // An installed allocation listener.
+  Atomic<AllocationListener*> alloc_listener_;
 
   friend class CollectorTransitionTask;
   friend class collector::GarbageCollector;

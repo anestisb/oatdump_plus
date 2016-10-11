@@ -19,6 +19,7 @@
 
 #include "heap.h"
 
+#include "allocation_listener.h"
 #include "base/time_utils.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/allocation_record.h"
@@ -183,6 +184,12 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self,
       // enabled.
       DCHECK(allocation_records_ != nullptr);
       allocation_records_->RecordAllocation(self, &obj, bytes_allocated);
+    }
+    AllocationListener* l = alloc_listener_.LoadSequentiallyConsistent();
+    if (l != nullptr) {
+      // Same as above. We assume that a listener that was once stored will never be deleted.
+      // Otherwise we'd have to perform this under a lock.
+      l->ObjectAllocated(self, &obj, bytes_allocated);
     }
   } else {
     DCHECK(!IsAllocTrackingEnabled());
