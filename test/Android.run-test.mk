@@ -263,14 +263,14 @@ endif
 # 147-stripped-dex-fallback isn't supported on device because --strip-dex
 # requires the zip command.
 # 569-checker-pattern-replacement tests behaviour present only on host.
-# 902-hello-transformation and 903-hello-tagging
-# isn't supported in current form due to linker
+# 90{2,3,4} are not supported in current form due to linker
 # restrictions. See b/31681198
 TEST_ART_BROKEN_TARGET_TESTS := \
   147-stripped-dex-fallback \
   569-checker-pattern-replacement \
   902-hello-transformation \
-  903-hello-tagging
+  903-hello-tagging \
+  904-object-allocation \
 
 ifneq (,$(filter target,$(TARGET_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
