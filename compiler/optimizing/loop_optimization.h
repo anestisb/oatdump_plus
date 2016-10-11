@@ -46,7 +46,7 @@ class HLoopOptimization : public HOptimization {
           inner(nullptr),
           previous(nullptr),
           next(nullptr) {}
-    const HLoopInformation* const loop_info;
+    HLoopInformation* const loop_info;
     LoopNode* outer;
     LoopNode* inner;
     LoopNode* previous;
@@ -61,9 +61,10 @@ class HLoopOptimization : public HOptimization {
   void TraverseLoopsInnerToOuter(LoopNode* node);
 
   void SimplifyInduction(LoopNode* node);
+  void SimplifyBlocks(LoopNode* node);
   void RemoveIfEmptyLoop(LoopNode* node);
 
-  bool IsOnlyUsedAfterLoop(const HLoopInformation& loop_info,
+  bool IsOnlyUsedAfterLoop(HLoopInformation* loop_info,
                            HInstruction* instruction,
                            /*out*/ int32_t* use_count);
   void ReplaceAllUses(HInstruction* instruction, HInstruction* replacement);
@@ -86,6 +87,11 @@ class HLoopOptimization : public HOptimization {
   // Temporary bookkeeping of a set of instructions.
   // Contents reside in phase-local heap memory.
   ArenaSet<HInstruction*>* iset_;
+
+  // Counter that tracks how many induction cycles have been simplified. Useful
+  // to trigger incremental updates of induction variable analysis of outer loops
+  // when the induction of inner loops has changed.
+  int32_t induction_simplication_count_;
 
   friend class LoopOptimizationTest;
 

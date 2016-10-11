@@ -69,33 +69,6 @@ static bool IsEmptyBody(HBasicBlock* block, ArenaSet<HInstruction*>* iset) {
       i->GetNext() != nullptr && i->GetNext()->IsGoto();
 }
 
-static HBasicBlock* TryRemovePreHeader(HBasicBlock* preheader, HBasicBlock* entry_block) {
-  if (preheader->GetPredecessors().size() == 1) {
-    HBasicBlock* entry = preheader->GetSinglePredecessor();
-    HInstruction* anchor = entry->GetLastInstruction();
-    // If the pre-header has a single predecessor we can remove it too if
-    // either the pre-header just contains a goto, or if the predecessor
-    // is not the entry block so we can push instructions backward
-    // (moving computation into the entry block is too dangerous!).
-    if (preheader->GetFirstInstruction() == nullptr ||
-        preheader->GetFirstInstruction()->IsGoto() ||
-        (entry != entry_block && anchor->IsGoto())) {
-      // Push non-goto statements backward to empty the pre-header.
-      for (HInstructionIterator it(preheader->GetInstructions()); !it.Done(); it.Advance()) {
-        HInstruction* instruction = it.Current();
-        if (!instruction->IsGoto()) {
-          if (!instruction->CanBeMoved()) {
-            return nullptr;  // pushing failed to move all
-          }
-          it.Current()->MoveBefore(anchor);
-        }
-      }
-      return entry;
-    }
-  }
-  return nullptr;
-}
-
 static void RemoveFromCycle(HInstruction* instruction) {
   // A bit more elaborate than the usual instruction removal,
   // since there may be a cycle in the use structure.
@@ -115,7 +88,8 @@ HLoopOptimization::HLoopOptimization(HGraph* graph,
       loop_allocator_(nullptr),
       top_loop_(nullptr),
       last_loop_(nullptr),
-      iset_(nullptr) {
+      iset_(nullptr),
+      induction_simplication_count_(0) {
 }
 
 void HLoopOptimization::Run() {
@@ -211,11 +185,17 @@ void HLoopOptimization::RemoveLoop(LoopNode* node) {
 
 void HLoopOptimization::TraverseLoopsInnerToOuter(LoopNode* node) {
   for ( ; node != nullptr; node = node->next) {
+    int current_induction_simplification_count = induction_simplication_count_;
     if (node->inner != nullptr) {
       TraverseLoopsInnerToOuter(node->inner);
     }
-    // Visit loop after its inner loops have been visited.
+    // Visit loop after its inner loops have been visited. If the induction of any inner
+    // loop has been simplified, recompute the induction information of this loop first.
+    if (current_induction_simplification_count != induction_simplication_count_) {
+      induction_range_.ReVisit(node->loop_info);
+    }
     SimplifyInduction(node);
+    SimplifyBlocks(node);
     RemoveIfEmptyLoop(node);
   }
 }
@@ -233,10 +213,40 @@ void HLoopOptimization::SimplifyInduction(LoopNode* node) {
     iset_->clear();
     int32_t use_count = 0;
     if (IsPhiInduction(phi, iset_) &&
-        IsOnlyUsedAfterLoop(*node->loop_info, phi, &use_count) &&
+        IsOnlyUsedAfterLoop(node->loop_info, phi, &use_count) &&
         TryReplaceWithLastValue(phi, use_count, preheader)) {
       for (HInstruction* i : *iset_) {
         RemoveFromCycle(i);
+      }
+      induction_simplication_count_++;
+    }
+  }
+}
+
+void HLoopOptimization::SimplifyBlocks(LoopNode* node) {
+  for (HBlocksInLoopIterator it(*node->loop_info); !it.Done(); it.Advance()) {
+    HBasicBlock* block = it.Current();
+    // Remove instructions that are dead, usually resulting from eliminating induction cycles.
+    for (HBackwardInstructionIterator i(block->GetInstructions()); !i.Done(); i.Advance()) {
+      HInstruction* instruction = i.Current();
+      if (instruction->IsDeadAndRemovable()) {
+        block->RemoveInstruction(instruction);
+      }
+    }
+    // Remove trivial control flow blocks from the loop body, again usually resulting
+    // from eliminating induction cycles.
+    if (block->GetPredecessors().size() == 1 &&
+        block->GetSuccessors().size() == 1 &&
+        block->GetFirstInstruction()->IsGoto()) {
+      HBasicBlock* pred = block->GetSinglePredecessor();
+      HBasicBlock* succ = block->GetSingleSuccessor();
+      if (succ->GetPredecessors().size() == 1) {
+        pred->ReplaceSuccessor(block, succ);
+        block->ClearDominanceInformation();
+        block->SetDominator(pred);  // needed by next disconnect.
+        block->DisconnectAndDelete();
+        pred->AddDominatedBlock(succ);
+        succ->SetDominator(pred);
       }
     }
   }
@@ -272,41 +282,31 @@ void HLoopOptimization::RemoveIfEmptyLoop(LoopNode* node) {
   int32_t use_count = 0;
   if (IsEmptyHeader(header, iset_) &&
       IsEmptyBody(body, iset_) &&
-      IsOnlyUsedAfterLoop(*node->loop_info, header->GetFirstPhi(), &use_count) &&
+      IsOnlyUsedAfterLoop(node->loop_info, header->GetFirstPhi(), &use_count) &&
       TryReplaceWithLastValue(header->GetFirstPhi(), use_count, preheader)) {
-    HBasicBlock* entry = TryRemovePreHeader(preheader, graph_->GetEntryBlock());
     body->DisconnectAndDelete();
     exit->RemovePredecessor(header);
     header->RemoveSuccessor(exit);
     header->ClearDominanceInformation();
     header->SetDominator(preheader);  // needed by next disconnect.
     header->DisconnectAndDelete();
-    // If allowed, remove preheader too, which may expose next outer empty loop
-    // Otherwise, link preheader directly to exit to restore the flow graph.
-    if (entry != nullptr) {
-      entry->ReplaceSuccessor(preheader, exit);
-      entry->AddDominatedBlock(exit);
-      exit->SetDominator(entry);
-      preheader->DisconnectAndDelete();
-    } else {
-      preheader->AddSuccessor(exit);
-      preheader->AddInstruction(new (graph_->GetArena()) HGoto());  // global allocator
-      preheader->AddDominatedBlock(exit);
-      exit->SetDominator(preheader);
-    }
+    preheader->AddSuccessor(exit);
+    preheader->AddInstruction(new (graph_->GetArena()) HGoto());  // global allocator
+    preheader->AddDominatedBlock(exit);
+    exit->SetDominator(preheader);
     // Update hierarchy.
     RemoveLoop(node);
   }
 }
 
-bool HLoopOptimization::IsOnlyUsedAfterLoop(const HLoopInformation& loop_info,
+bool HLoopOptimization::IsOnlyUsedAfterLoop(HLoopInformation* loop_info,
                                             HInstruction* instruction,
                                             /*out*/ int32_t* use_count) {
   for (const HUseListNode<HInstruction*>& use : instruction->GetUses()) {
     HInstruction* user = use.GetUser();
     if (iset_->find(user) == iset_->end()) {  // not excluded?
       HLoopInformation* other_loop_info = user->GetBlock()->GetLoopInformation();
-      if (other_loop_info != nullptr && other_loop_info->IsIn(loop_info)) {
+      if (other_loop_info != nullptr && other_loop_info->IsIn(*loop_info)) {
         return false;
       }
       ++*use_count;

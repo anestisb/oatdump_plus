@@ -1931,6 +1931,19 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
     return !HasEnvironmentUses() && GetUses().HasExactlyOneElement();
   }
 
+  bool IsDeadAndRemovable() const {
+    return
+        !HasSideEffects() &&
+        !CanThrow() &&
+        !IsSuspendCheck() &&
+        !IsControlFlow() &&
+        !IsNativeDebugInfo() &&
+        !IsParameterValue() &&
+        !HasUses() &&
+        // If we added an explicit barrier then we should keep it.
+        !IsMemoryBarrier();
+  }
+
   // Does this instruction strictly dominate `other_instruction`?
   // Returns false if this instruction and `other_instruction` are the same.
   // Aborts if this instruction and `other_instruction` are both phis.
