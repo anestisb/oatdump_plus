@@ -343,14 +343,7 @@ void HDeadCodeElimination::RemoveDeadInstructions() {
     for (i.Advance(); !i.Done(); i.Advance()) {
       HInstruction* inst = i.Current();
       DCHECK(!inst->IsControlFlow());
-      if (!inst->HasSideEffects()
-          && !inst->CanThrow()
-          && !inst->IsSuspendCheck()
-          && !inst->IsNativeDebugInfo()
-          // If we added an explicit barrier then we should keep it.
-          && !inst->IsMemoryBarrier()
-          && !inst->IsParameterValue()
-          && !inst->HasUses()) {
+      if (inst->IsDeadAndRemovable()) {
         block->RemoveInstruction(inst);
         MaybeRecordStat(MethodCompilationStat::kRemovedDeadInstruction);
       }

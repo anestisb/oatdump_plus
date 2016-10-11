@@ -134,17 +134,20 @@ public class Main {
   /// CHECK-DAG: Phi      loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: ArraySet loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: ArrayGet loop:<<Loop>>      outer_loop:none
+  /// CHECK-NOT: BoundsCheck
   //
   /// CHECK-START: void Main.deadCycleWithException(int) loop_optimization (after)
   /// CHECK-DAG: Phi      loop:<<Loop:B\d+>> outer_loop:none
   /// CHECK-NOT: Phi      loop:<<Loop>>      outer_loop:none
   /// CHECK-DAG: ArraySet loop:<<Loop>>      outer_loop:none
-  /// CHECK-DAG: ArrayGet loop:<<Loop>>      outer_loop:none
+  /// CHECK-NOT: ArrayGet loop:<<Loop>>      outer_loop:none
   static void deadCycleWithException(int k) {
     int dead = 0;
     for (int i = 0; i < a.length; i++) {
       a[i] = 4;
-      // Increment value of dead cycle may throw exception.
+      // Increment value of dead cycle may throw exception. Dynamic
+      // BCE takes care of the bounds check though, which enables
+      // removing the ArrayGet after removing the dead cycle.
       dead += a[k];
     }
   }
@@ -180,12 +183,43 @@ public class Main {
     return closed;  // only needs last value
   }
 
-  // TODO: move closed form even further out?
+  /// CHECK-START: int Main.closedFormNested() loop_optimization (before)
+  /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop1:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Phi2:i\d+>> Phi               loop:<<Loop1>>      outer_loop:none
+  /// CHECK-DAG: <<Phi3:i\d+>> Phi               loop:<<Loop2:B\d+>> outer_loop:<<Loop1>>
+  /// CHECK-DAG: <<Phi4:i\d+>> Phi               loop:<<Loop2>>      outer_loop:<<Loop1>>
+  /// CHECK-DAG:               Return [<<Phi1>>] loop:none
+  //
+  /// CHECK-START: int Main.closedFormNested() loop_optimization (after)
+  /// CHECK-NOT:               Phi    loop:{{B\d+}} outer_loop:none
+  /// CHECK-NOT:               Phi    loop:{{B\d+}} outer_loop:loop{{B\d+}}
+  /// CHECK-DAG:               Return loop:none
   static int closedFormNested() {
     int closed = 0;
     for (int i = 0; i < 10; i++) {
       for (int j = 0; j < 10; j++) {
         closed++;
+      }
+    }
+    return closed;  // only needs last-value
+  }
+
+  /// CHECK-START: int Main.closedFormNestedAlt() loop_optimization (before)
+  /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop1:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Phi2:i\d+>> Phi               loop:<<Loop1>>      outer_loop:none
+  /// CHECK-DAG: <<Phi3:i\d+>> Phi               loop:<<Loop2:B\d+>> outer_loop:<<Loop1>>
+  /// CHECK-DAG: <<Phi4:i\d+>> Phi               loop:<<Loop2>>      outer_loop:<<Loop1>>
+  /// CHECK-DAG:               Return [<<Phi1>>] loop:none
+  //
+  /// CHECK-START: int Main.closedFormNestedAlt() loop_optimization (after)
+  /// CHECK-NOT:               Phi    loop:{{B\d+}} outer_loop:none
+  /// CHECK-NOT:               Phi    loop:{{B\d+}} outer_loop:loop{{B\d+}}
+  /// CHECK-DAG:               Return loop:none
+  static int closedFormNestedAlt() {
+    int closed = 12345;
+    for (int i = 0; i < 17; i++) {
+      for (int j = 0; j < 23; j++) {
+        closed += 7;
       }
     }
     return closed;  // only needs last-value
@@ -220,11 +254,33 @@ public class Main {
   }
 
   // TODO: move closed form even further out?
-  static int closedFormNestedNN(int n) {
-    int closed = 0;
+  static int closedFormNestedNAlt(int n) {
+    int closed = 12345;
     for (int i = 0; i < n; i++) {
+      for (int j = 0; j < 23; j++) {
+        closed += 7;
+      }
+    }
+    return closed;  // only needs last-value
+  }
+
+  // TODO: move closed form even further out?
+  static int closedFormNestedMN(int m, int n) {
+    int closed = 0;
+    for (int i = 0; i < m; i++) {
       for (int j = 0; j < n; j++) {
         closed++;
+      }
+    }
+    return closed;  // only needs last-value
+  }
+
+  // TODO: move closed form even further out?
+  static int closedFormNestedMNAlt(int m, int n) {
+    int closed = 12345;
+    for (int i = 0; i < m; i++) {
+      for (int j = 0; j < n; j++) {
+        closed += 7;
       }
     }
     return closed;  // only needs last-value
@@ -444,12 +500,15 @@ public class Main {
     expectEquals(12395, closedFormInductionUp());
     expectEquals(12295, closedFormInductionInAndDown(12345));
     expectEquals(10 * 10, closedFormNested());
+    expectEquals(12345 + 17 * 23 * 7, closedFormNestedAlt());
     for (int n = -4; n < 10; n++) {
       int tc = (n <= 0) ? 0 : n;
       expectEquals(12345 + tc * 5, closedFormInductionUpN(n));
       expectEquals(12345 - tc * 5, closedFormInductionInAndDownN(12345, n));
       expectEquals(tc * 10, closedFormNestedN(n));
-      expectEquals(tc * tc, closedFormNestedNN(n));
+      expectEquals(12345 + tc * 23 * 7, closedFormNestedNAlt(n));
+      expectEquals(tc * (tc + 1), closedFormNestedMN(n, n + 1));
+      expectEquals(12345 + tc * (tc + 1) * 7, closedFormNestedMNAlt(n, n + 1));
     }
 
     expectEquals(10, mainIndexReturned());
