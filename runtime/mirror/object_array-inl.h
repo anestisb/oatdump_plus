@@ -131,28 +131,24 @@ inline void ObjectArray<T>::AssignableMemmove(int32_t dst_pos, ObjectArray<T>* s
   // Perform the memmove using int memmove then perform the write barrier.
   static_assert(sizeof(HeapReference<T>) == sizeof(uint32_t),
                 "art::mirror::HeapReference<T> and uint32_t have different sizes.");
-  IntArray* dstAsIntArray = reinterpret_cast<IntArray*>(this);
-  IntArray* srcAsIntArray = reinterpret_cast<IntArray*>(src);
-  if (kUseReadBarrier) {
-    // TODO: Optimize this later?
-    const bool copy_forward = (src != this) || (dst_pos < src_pos) || (dst_pos - src_pos >= count);
-    if (copy_forward) {
-      // Forward copy.
-      for (int i = 0; i < count; ++i) {
-        // We need a RB here. ObjectArray::GetWithoutChecks() contains a RB.
-        Object* obj = src->GetWithoutChecks(src_pos + i);
-        SetWithoutChecks<false>(dst_pos + i, obj);
-      }
-    } else {
-      // Backward copy.
-      for (int i = count - 1; i >= 0; --i) {
-        // We need a RB here. ObjectArray::GetWithoutChecks() contains a RB.
-        Object* obj = src->GetWithoutChecks(src_pos + i);
-        SetWithoutChecks<false>(dst_pos + i, obj);
-      }
+  // TODO: Optimize this later?
+  // We can't use memmove since it does not handle read barriers and may do by per byte copying.
+  // See b/32012820.
+  const bool copy_forward = (src != this) || (dst_pos < src_pos) || (dst_pos - src_pos >= count);
+  if (copy_forward) {
+    // Forward copy.
+    for (int i = 0; i < count; ++i) {
+      // We need a RB here. ObjectArray::GetWithoutChecks() contains a RB.
+      Object* obj = src->GetWithoutChecks(src_pos + i);
+      SetWithoutChecksAndWriteBarrier<false>(dst_pos + i, obj);
     }
   } else {
-    dstAsIntArray->Memmove(dst_pos, srcAsIntArray, src_pos, count);
+    // Backward copy.
+    for (int i = count - 1; i >= 0; --i) {
+      // We need a RB here. ObjectArray::GetWithoutChecks() contains a RB.
+      Object* obj = src->GetWithoutChecks(src_pos + i);
+      SetWithoutChecksAndWriteBarrier<false>(dst_pos + i, obj);
+    }
   }
   Runtime::Current()->GetHeap()->WriteBarrierArray(this, dst_pos, count);
   if (kIsDebugBuild) {
@@ -175,17 +171,13 @@ inline void ObjectArray<T>::AssignableMemcpy(int32_t dst_pos, ObjectArray<T>* sr
   // Perform the memmove using int memcpy then perform the write barrier.
   static_assert(sizeof(HeapReference<T>) == sizeof(uint32_t),
                 "art::mirror::HeapReference<T> and uint32_t have different sizes.");
-  IntArray* dstAsIntArray = reinterpret_cast<IntArray*>(this);
-  IntArray* srcAsIntArray = reinterpret_cast<IntArray*>(src);
-  if (kUseReadBarrier) {
-    // TODO: Optimize this later?
-    for (int i = 0; i < count; ++i) {
-      // We need a RB here. ObjectArray::GetWithoutChecks() contains a RB.
-      T* obj = src->GetWithoutChecks(src_pos + i);
-      SetWithoutChecks<false>(dst_pos + i, obj);
-    }
-  } else {
-    dstAsIntArray->Memcpy(dst_pos, srcAsIntArray, src_pos, count);
+  // TODO: Optimize this later?
+  // We can't use memmove since it does not handle read barriers and may do by per byte copying.
+  // See b/32012820.
+  for (int i = 0; i < count; ++i) {
+    // We need a RB here. ObjectArray::GetWithoutChecks() contains a RB.
+    T* obj = src->GetWithoutChecks(src_pos + i);
+    SetWithoutChecksAndWriteBarrier<false>(dst_pos + i, obj);
   }
   Runtime::Current()->GetHeap()->WriteBarrierArray(this, dst_pos, count);
   if (kIsDebugBuild) {
