@@ -94,6 +94,7 @@ TEST_F(QuickTrampolineEntrypointsTest, FrameSize) {
   CHECK_FRAME_SIZE(kArm);
   CHECK_FRAME_SIZE(kArm64);
   CHECK_FRAME_SIZE(kMips);
+  CHECK_FRAME_SIZE(kMips64);
   CHECK_FRAME_SIZE(kX86);
   CHECK_FRAME_SIZE(kX86_64);
 }
@@ -104,6 +105,7 @@ TEST_F(QuickTrampolineEntrypointsTest, PointerSize) {
   EXPECT_EQ(GetInstructionSetPointerSize(kArm), GetConstExprPointerSize(kArm));
   EXPECT_EQ(GetInstructionSetPointerSize(kArm64), GetConstExprPointerSize(kArm64));
   EXPECT_EQ(GetInstructionSetPointerSize(kMips), GetConstExprPointerSize(kMips));
+  EXPECT_EQ(GetInstructionSetPointerSize(kMips64), GetConstExprPointerSize(kMips64));
   EXPECT_EQ(GetInstructionSetPointerSize(kX86), GetConstExprPointerSize(kX86));
   EXPECT_EQ(GetInstructionSetPointerSize(kX86_64), GetConstExprPointerSize(kX86_64));
 }
