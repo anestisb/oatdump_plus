@@ -257,12 +257,24 @@ bool inline operator!=(const IrtIterator& lhs, const IrtIterator& rhs) {
 
 class IndirectReferenceTable {
  public:
-  // WARNING: When using with abort_on_error = false, the object may be in a partially
-  //          initialized state. Use IsValid() to check.
-  IndirectReferenceTable(size_t max_count, IndirectRefKind kind, bool abort_on_error = true);
+  /*
+   * WARNING: Construction of the IndirectReferenceTable may fail.
+   * error_msg must not be null. If error_msg is set by the constructor, then
+   * construction has failed and the IndirectReferenceTable will be in an
+   * invalid state. Use IsValid to check whether the object is in an invalid
+   * state.
+   */
+  IndirectReferenceTable(size_t max_count, IndirectRefKind kind, std::string* error_msg);
 
   ~IndirectReferenceTable();
 
+  /*
+   * Checks whether construction of the IndirectReferenceTable succeeded.
+   *
+   * This object must only be used if IsValid() returns true. It is safe to
+   * call IsValid from multiple threads without locking or other explicit
+   * synchronization.
+   */
   bool IsValid() const;
 
   /*

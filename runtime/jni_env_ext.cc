@@ -57,19 +57,19 @@ jint JNIEnvExt::GetEnvHandler(JavaVMExt* vm, /*out*/void** env, jint version) {
   return JNI_OK;
 }
 
-JNIEnvExt* JNIEnvExt::Create(Thread* self_in, JavaVMExt* vm_in) {
-  std::unique_ptr<JNIEnvExt> ret(new JNIEnvExt(self_in, vm_in));
+JNIEnvExt* JNIEnvExt::Create(Thread* self_in, JavaVMExt* vm_in, std::string* error_msg) {
+  std::unique_ptr<JNIEnvExt> ret(new JNIEnvExt(self_in, vm_in, error_msg));
   if (CheckLocalsValid(ret.get())) {
     return ret.release();
   }
   return nullptr;
 }
 
-JNIEnvExt::JNIEnvExt(Thread* self_in, JavaVMExt* vm_in)
+JNIEnvExt::JNIEnvExt(Thread* self_in, JavaVMExt* vm_in, std::string* error_msg)
     : self(self_in),
       vm(vm_in),
       local_ref_cookie(IRT_FIRST_SEGMENT),
-      locals(kLocalsInitial, kLocal, false),
+      locals(kLocalsInitial, kLocal, error_msg),
       check_jni(false),
       runtime_deleted(false),
       critical(0),

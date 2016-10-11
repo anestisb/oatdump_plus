@@ -347,13 +347,13 @@ Runtime::~Runtime() {
   delete class_linker_;
   delete heap_;
   delete intern_table_;
-  delete java_vm_;
   delete oat_file_manager_;
   Thread::Shutdown();
   QuasiAtomic::Shutdown();
   verifier::MethodVerifier::Shutdown();
 
   // Destroy allocators before shutting down the MemMap because they may use it.
+  java_vm_.reset();
   linear_alloc_.reset();
   low_4gb_arena_pool_.reset();
   arena_pool_.reset();
@@ -1120,7 +1120,12 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
     }
   }
 
-  java_vm_ = new JavaVMExt(this, runtime_options);
+  std::string error_msg;
+  java_vm_ = JavaVMExt::Create(this, runtime_options, &error_msg);
+  if (java_vm_.get() == nullptr) {
+    LOG(ERROR) << "Could not initialize JavaVMExt: " << error_msg;
+    return false;
+  }
 
   // Add the JniEnv handler.
   // TODO Refactor this stuff.
@@ -1144,7 +1149,6 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
   CHECK_GE(GetHeap()->GetContinuousSpaces().size(), 1U);
   class_linker_ = new ClassLinker(intern_table_);
   if (GetHeap()->HasBootImageSpace()) {
-    std::string error_msg;
     bool result = class_linker_->InitFromBootImage(&error_msg);
     if (!result) {
       LOG(ERROR) << "Could not initialize from image: " << error_msg;
@@ -1191,7 +1195,6 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
                    &boot_class_path);
     }
     instruction_set_ = runtime_options.GetOrDefault(Opt::ImageInstructionSet);
-    std::string error_msg;
     if (!class_linker_->InitWithoutImage(std::move(boot_class_path), &error_msg)) {
       LOG(ERROR) << "Could not initialize without image: " << error_msg;
       return false;
