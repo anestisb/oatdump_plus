@@ -131,6 +131,14 @@ class InductionVarRange {
    */
   void Replace(HInstruction* instruction, HInstruction* fetch, HInstruction* replacement);
 
+  /**
+   * Incrementally updates induction information for just the given loop.
+   */
+  void ReVisit(HLoopInformation* loop) {
+    induction_analysis_->induction_.erase(loop);
+    induction_analysis_->VisitLoop(loop);
+  }
+
  private:
   /*
    * Enum used in IsConstant() request.
