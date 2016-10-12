@@ -892,15 +892,16 @@ JDWP::JdwpError Dbg::GetInstanceCounts(const std::vector<JDWP::RefTypeId>& class
                                        std::vector<uint64_t>* counts) {
   gc::Heap* heap = Runtime::Current()->GetHeap();
   heap->CollectGarbage(false);
-  std::vector<mirror::Class*> classes;
+  StackHandleScopeCollection hs(Thread::Current());
+  std::vector<Handle<mirror::Class>> classes;
   counts->clear();
   for (size_t i = 0; i < class_ids.size(); ++i) {
     JDWP::JdwpError error;
-    mirror::Class* c = DecodeClass(class_ids[i], &error);
+    ObjPtr<mirror::Class> c = DecodeClass(class_ids[i], &error);
     if (c == nullptr) {
       return error;
     }
-    classes.push_back(c);
+    classes.push_back(hs.NewHandle(c));
     counts->push_back(0);
   }
   heap->CountInstances(classes, false, &(*counts)[0]);
@@ -913,12 +914,13 @@ JDWP::JdwpError Dbg::GetInstances(JDWP::RefTypeId class_id, int32_t max_count,
   // We only want reachable instances, so do a GC.
   heap->CollectGarbage(false);
   JDWP::JdwpError error;
-  mirror::Class* c = DecodeClass(class_id, &error);
+  ObjPtr<mirror::Class> c = DecodeClass(class_id, &error);
   if (c == nullptr) {
     return error;
   }
-  std::vector<mirror::Object*> raw_instances;
-  Runtime::Current()->GetHeap()->GetInstances(c, max_count, raw_instances);
+  std::vector<ObjPtr<mirror::Object>> raw_instances;
+  StackHandleScope<1> hs(Thread::Current());
+  Runtime::Current()->GetHeap()->GetInstances(hs.NewHandle(c), max_count, raw_instances);
   for (size_t i = 0; i < raw_instances.size(); ++i) {
     instances->push_back(gRegistry->Add(raw_instances[i]));
   }
@@ -930,11 +932,11 @@ JDWP::JdwpError Dbg::GetReferringObjects(JDWP::ObjectId object_id, int32_t max_c
   gc::Heap* heap = Runtime::Current()->GetHeap();
   heap->CollectGarbage(false);
   JDWP::JdwpError error;
-  mirror::Object* o = gRegistry->Get<mirror::Object*>(object_id, &error);
+  ObjPtr<mirror::Object> o = gRegistry->Get<mirror::Object*>(object_id, &error);
   if (o == nullptr) {
     return JDWP::ERR_INVALID_OBJECT;
   }
-  std::vector<mirror::Object*> raw_instances;
+  std::vector<ObjPtr<mirror::Object>> raw_instances;
   heap->GetReferringObjects(o, max_count, raw_instances);
   for (size_t i = 0; i < raw_instances.size(); ++i) {
     referring_objects->push_back(gRegistry->Add(raw_instances[i]));

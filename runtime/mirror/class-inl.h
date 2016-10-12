@@ -707,9 +707,13 @@ inline Object* Class::Alloc(Thread* self, gc::AllocatorType allocator_type) {
   if (!kCheckAddFinalizer) {
     DCHECK(!IsFinalizable());
   }
-  mirror::Object* obj =
-      heap->AllocObjectWithAllocator<kIsInstrumented, false>(self, this, this->object_size_,
-                                                             allocator_type, VoidFunctor());
+  // Note that the this pointer may be invalidated after the allocation.
+  ObjPtr<mirror::Object> obj =
+      heap->AllocObjectWithAllocator<kIsInstrumented, false>(self,
+                                                             this,
+                                                             this->object_size_,
+                                                             allocator_type,
+                                                             VoidFunctor());
   if (add_finalizer && LIKELY(obj != nullptr)) {
     heap->AddFinalizerReference(self, &obj);
     if (UNLIKELY(self->IsExceptionPending())) {
@@ -717,7 +721,7 @@ inline Object* Class::Alloc(Thread* self, gc::AllocatorType allocator_type) {
       obj = nullptr;
     }
   }
-  return obj;
+  return obj.Ptr();
 }
 
 inline Object* Class::AllocObject(Thread* self) {
@@ -879,11 +883,11 @@ inline void Class::SetSlowPath(bool enabled) {
   SetFieldBoolean<false, false>(GetSlowPathFlagOffset(), enabled);
 }
 
-inline void Class::InitializeClassVisitor::operator()(
-    mirror::Object* obj, size_t usable_size) const {
+inline void Class::InitializeClassVisitor::operator()(ObjPtr<mirror::Object> obj,
+                                                      size_t usable_size) const {
   DCHECK_LE(class_size_, usable_size);
   // Avoid AsClass as object is not yet in live bitmap or allocation stack.
-  mirror::Class* klass = down_cast<mirror::Class*>(obj);
+  ObjPtr<mirror::Class> klass = ObjPtr<mirror::Class>::DownCast(obj);
   // DCHECK(klass->IsClass());
   klass->SetClassSize(class_size_);
   klass->SetPrimitiveType(Primitive::kPrimNot);  // Default to not being primitive.
