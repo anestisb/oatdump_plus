@@ -47,6 +47,7 @@
 #include "gc/collector/semi_space.h"
 #include "gc/collector/sticky_mark_sweep.h"
 #include "gc/reference_processor.h"
+#include "gc/scoped_gc_critical_section.h"
 #include "gc/space/bump_pointer_space.h"
 #include "gc/space/dlmalloc_space-inl.h"
 #include "gc/space/image_space.h"
@@ -1370,6 +1371,8 @@ void Heap::Trim(Thread* self) {
     // Deflate the monitors, this can cause a pause but shouldn't matter since we don't care
     // about pauses.
     ScopedTrace trace("Deflating monitors");
+    // Avoid race conditions on the lock word for CC.
+    ScopedGCCriticalSection gcs(self, kGcCauseTrim, kCollectorTypeHeapTrim);
     ScopedSuspendAll ssa(__FUNCTION__);
     uint64_t start_time = NanoTime();
     size_t count = runtime->GetMonitorList()->DeflateMonitors();
