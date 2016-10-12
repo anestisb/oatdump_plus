@@ -525,6 +525,8 @@ InductionVarRange::Value InductionVarRange::GetVal(HInductionVarAnalysis::Induct
             return GetMul(info->op_a, info->op_b, trip, in_body, is_min);
           case HInductionVarAnalysis::kDiv:
             return GetDiv(info->op_a, info->op_b, trip, in_body, is_min);
+          case HInductionVarAnalysis::kXor:
+            return GetXor(info->op_a, info->op_b);
           case HInductionVarAnalysis::kFetch:
             return GetFetch(info->fetch, trip, in_body, is_min);
           case HInductionVarAnalysis::kTripCountInLoop:
@@ -621,6 +623,21 @@ InductionVarRange::Value InductionVarRange::GetDiv(HInductionVarAnalysis::Induct
       return is_min ? DivValue(v1_min, v2_min) : DivValue(v1_max, v2_max);
     } else if (IsConstantValue(v2_max) && v2_max.b_constant <= 0) {
       return is_min ? DivValue(v1_max, v2_min) : DivValue(v1_min, v2_max);
+    }
+  }
+  return Value();
+}
+
+InductionVarRange::Value InductionVarRange::GetXor(
+    HInductionVarAnalysis::InductionInfo* info1,
+    HInductionVarAnalysis::InductionInfo* info2) const {
+  int64_t v1 = 0;
+  int64_t v2 = 0;
+  // Only accept exact values.
+  if (IsConstant(info1, kExact, &v1) && IsConstant(info2, kExact, &v2)) {
+    int64_t value = v1 ^ v2;
+    if (CanLongValueFitIntoInt(value)) {
+      return Value(static_cast<int32_t>(value));
     }
   }
   return Value();
