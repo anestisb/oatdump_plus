@@ -38,7 +38,7 @@ class HInliner : public HOptimization {
            const DexCompilationUnit& outer_compilation_unit,
            const DexCompilationUnit& caller_compilation_unit,
            CompilerDriver* compiler_driver,
-           StackHandleScopeCollection* handles,
+           VariableSizedHandleScope* handles,
            OptimizingCompilerStats* stats,
            size_t total_number_of_dex_registers,
            size_t depth)
@@ -197,7 +197,7 @@ class HInliner : public HOptimization {
   const size_t total_number_of_dex_registers_;
   const size_t depth_;
   size_t number_of_inlined_instructions_;
-  StackHandleScopeCollection* const handles_;
+  VariableSizedHandleScope* const handles_;
 
   DISALLOW_COPY_AND_ASSIGN(HInliner);
 };

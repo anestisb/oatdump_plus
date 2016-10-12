@@ -35,7 +35,7 @@ class ReferenceTypePropagationTest : public CommonCompilerTest {
 
   ~ReferenceTypePropagationTest() { }
 
-  void SetupPropagation(StackHandleScopeCollection* handles) {
+  void SetupPropagation(VariableSizedHandleScope* handles) {
     graph_->InitializeInexactObjectRTI(handles);
     propagation_ = new (&allocator_) ReferenceTypePropagation(graph_,
                                                               Handle<mirror::DexCache>(),
@@ -79,7 +79,7 @@ class ReferenceTypePropagationTest : public CommonCompilerTest {
 
 TEST_F(ReferenceTypePropagationTest, ProperSetup) {
   ScopedObjectAccess soa(Thread::Current());
-  StackHandleScopeCollection handles(soa.Self());
+  VariableSizedHandleScope handles(soa.Self());
   SetupPropagation(&handles);
 
   EXPECT_TRUE(propagation_ != nullptr);
@@ -88,7 +88,7 @@ TEST_F(ReferenceTypePropagationTest, ProperSetup) {
 
 TEST_F(ReferenceTypePropagationTest, MergeInvalidTypes) {
   ScopedObjectAccess soa(Thread::Current());
-  StackHandleScopeCollection handles(soa.Self());
+  VariableSizedHandleScope handles(soa.Self());
   SetupPropagation(&handles);
 
   // Two invalid types.
@@ -120,7 +120,7 @@ TEST_F(ReferenceTypePropagationTest, MergeInvalidTypes) {
 
 TEST_F(ReferenceTypePropagationTest, MergeValidTypes) {
   ScopedObjectAccess soa(Thread::Current());
-  StackHandleScopeCollection handles(soa.Self());
+  VariableSizedHandleScope handles(soa.Self());
   SetupPropagation(&handles);
 
   // Same types.

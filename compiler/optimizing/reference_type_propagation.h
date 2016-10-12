@@ -34,7 +34,7 @@ class ReferenceTypePropagation : public HOptimization {
  public:
   ReferenceTypePropagation(HGraph* graph,
                            Handle<mirror::DexCache> hint_dex_cache,
-                           StackHandleScopeCollection* handles,
+                           VariableSizedHandleScope* handles,
                            bool is_first_run,
                            const char* name = kReferenceTypePropagationPassName);
 
@@ -56,7 +56,7 @@ class ReferenceTypePropagation : public HOptimization {
  private:
   class HandleCache {
    public:
-    explicit HandleCache(StackHandleScopeCollection* handles) : handles_(handles) { }
+    explicit HandleCache(VariableSizedHandleScope* handles) : handles_(handles) { }
 
     template <typename T>
     MutableHandle<T> NewHandle(T* object) REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -74,7 +74,7 @@ class ReferenceTypePropagation : public HOptimization {
     ReferenceTypeInfo::TypeHandle GetThrowableClassHandle();
 
    private:
-    StackHandleScopeCollection* handles_;
+    VariableSizedHandleScope* handles_;
 
     ReferenceTypeInfo::TypeHandle object_class_handle_;
     ReferenceTypeInfo::TypeHandle class_class_handle_;
