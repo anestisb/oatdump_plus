@@ -72,8 +72,7 @@ class CopyReferenceFieldsWithReadBarrierVisitor {
   ObjPtr<Object> const dest_obj_;
 };
 
-Object* Object::CopyObject(Thread* self,
-                           ObjPtr<mirror::Object> dest,
+Object* Object::CopyObject(ObjPtr<mirror::Object> dest,
                            ObjPtr<mirror::Object> src,
                            size_t num_bytes) {
   // Copy instance data.  Don't assume memcpy copies by words (b/32012820).
@@ -128,26 +127,21 @@ Object* Object::CopyObject(Thread* self,
   } else {
     heap->WriteBarrierEveryFieldOf(dest);
   }
-  if (c->IsFinalizable()) {
-    heap->AddFinalizerReference(self, &dest);
-  }
   return dest.Ptr();
 }
 
 // An allocation pre-fence visitor that copies the object.
 class CopyObjectVisitor {
  public:
-  CopyObjectVisitor(Thread* self, Handle<Object>* orig, size_t num_bytes)
-      : self_(self), orig_(orig), num_bytes_(num_bytes) {
-  }
+  CopyObjectVisitor(Handle<Object>* orig, size_t num_bytes)
+      : orig_(orig), num_bytes_(num_bytes) {}
 
   void operator()(ObjPtr<Object> obj, size_t usable_size ATTRIBUTE_UNUSED) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    Object::CopyObject(self_, obj, orig_->Get(), num_bytes_);
+    Object::CopyObject(obj, orig_->Get(), num_bytes_);
   }
 
  private:
-  Thread* const self_;
   Handle<Object>* const orig_;
   const size_t num_bytes_;
   DISALLOW_COPY_AND_ASSIGN(CopyObjectVisitor);
@@ -162,11 +156,14 @@ Object* Object::Clone(Thread* self) {
   StackHandleScope<1> hs(self);
   Handle<Object> this_object(hs.NewHandle(this));
   ObjPtr<Object> copy;
-  CopyObjectVisitor visitor(self, &this_object, num_bytes);
+  CopyObjectVisitor visitor(&this_object, num_bytes);
   if (heap->IsMovableObject(this)) {
     copy = heap->AllocObject<true>(self, GetClass(), num_bytes, visitor);
   } else {
     copy = heap->AllocNonMovableObject<true>(self, GetClass(), num_bytes, visitor);
+  }
+  if (this_object->GetClass()->IsFinalizable()) {
+    heap->AddFinalizerReference(self, &copy);
   }
   return copy.Ptr();
 }
