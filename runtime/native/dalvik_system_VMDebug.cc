@@ -254,7 +254,9 @@ static void VMDebug_infopoint(JNIEnv*, jclass, jint id) {
   LOG(INFO) << "VMDebug infopoint " << id << " hit";
 }
 
-static jlong VMDebug_countInstancesOfClass(JNIEnv* env, jclass, jclass javaClass,
+static jlong VMDebug_countInstancesOfClass(JNIEnv* env,
+                                           jclass,
+                                           jclass javaClass,
                                            jboolean countAssignable) {
   ScopedObjectAccess soa(env);
   gc::Heap* const heap = Runtime::Current()->GetHeap();
@@ -263,13 +265,16 @@ static jlong VMDebug_countInstancesOfClass(JNIEnv* env, jclass, jclass javaClass
   if (c == nullptr) {
     return 0;
   }
-  std::vector<mirror::Class*> classes {c.Ptr()};
+  StackHandleScopeCollection hs(soa.Self());
+  std::vector<Handle<mirror::Class>> classes {hs.NewHandle(c)};
   uint64_t count = 0;
   heap->CountInstances(classes, countAssignable, &count);
   return count;
 }
 
-static jlongArray VMDebug_countInstancesOfClasses(JNIEnv* env, jclass, jobjectArray javaClasses,
+static jlongArray VMDebug_countInstancesOfClasses(JNIEnv* env,
+                                                  jclass,
+                                                  jobjectArray javaClasses,
                                                   jboolean countAssignable) {
   ScopedObjectAccess soa(env);
   gc::Heap* const heap = Runtime::Current()->GetHeap();
@@ -279,14 +284,15 @@ static jlongArray VMDebug_countInstancesOfClasses(JNIEnv* env, jclass, jobjectAr
   if (decoded_classes == nullptr) {
     return nullptr;
   }
-  std::vector<mirror::Class*> classes;
+  StackHandleScopeCollection hs(soa.Self());
+  std::vector<Handle<mirror::Class>> classes;
   for (size_t i = 0, count = decoded_classes->GetLength(); i < count; ++i) {
-    classes.push_back(decoded_classes->Get(i));
+    classes.push_back(hs.NewHandle(decoded_classes->Get(i)));
   }
   std::vector<uint64_t> counts(classes.size(), 0u);
   // Heap::CountInstances can handle null and will put 0 for these classes.
   heap->CountInstances(classes, countAssignable, &counts[0]);
-  auto* long_counts = mirror::LongArray::Alloc(soa.Self(), counts.size());
+  ObjPtr<mirror::LongArray> long_counts = mirror::LongArray::Alloc(soa.Self(), counts.size());
   if (long_counts == nullptr) {
     soa.Self()->AssertPendingOOMException();
     return nullptr;

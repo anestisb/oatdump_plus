@@ -21,6 +21,7 @@
 #include <memory>
 
 #include "base/mutex.h"
+#include "obj_ptr.h"
 #include "object_callbacks.h"
 #include "gc_root.h"
 
@@ -210,7 +211,7 @@ class AllocRecordObjectMap {
   // Caller needs to check that it is enabled before calling since we read the stack trace before
   // checking the enabled boolean.
   void RecordAllocation(Thread* self,
-                        mirror::Object** obj,
+                        ObjPtr<mirror::Object>* obj,
                         size_t byte_count)
       REQUIRES(!Locks::alloc_tracker_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);

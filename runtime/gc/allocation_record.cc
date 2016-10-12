@@ -19,6 +19,7 @@
 #include "art_method-inl.h"
 #include "base/enums.h"
 #include "base/stl_util.h"
+#include "obj_ptr-inl.h"
 #include "stack.h"
 
 #ifdef ART_TARGET_ANDROID
@@ -263,7 +264,7 @@ void AllocRecordObjectMap::SetAllocTrackingEnabled(bool enable) {
 }
 
 void AllocRecordObjectMap::RecordAllocation(Thread* self,
-                                            mirror::Object** obj,
+                                            ObjPtr<mirror::Object>* obj,
                                             size_t byte_count) {
   // Get stack trace outside of lock in case there are allocations during the stack walk.
   // b/27858645.
@@ -305,7 +306,7 @@ void AllocRecordObjectMap::RecordAllocation(Thread* self,
   trace.SetTid(self->GetTid());
 
   // Add the record.
-  Put(*obj, AllocRecord(byte_count, (*obj)->GetClass(), std::move(trace)));
+  Put(obj->Ptr(), AllocRecord(byte_count, (*obj)->GetClass(), std::move(trace)));
   DCHECK_LE(Size(), alloc_record_max_);
 }
 

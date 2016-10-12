@@ -274,7 +274,7 @@ class ScopedCheck {
       AbortF("field operation on NULL object: %p", java_object);
       return false;
     }
-    if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(o)) {
+    if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(o.Ptr())) {
       Runtime::Current()->GetHeap()->DumpSpaces(LOG_STREAM(ERROR));
       AbortF("field operation on invalid %s: %p",
              ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(),
@@ -782,7 +782,7 @@ class ScopedCheck {
       }
     }
 
-    if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(obj)) {
+    if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(obj.Ptr())) {
       Runtime::Current()->GetHeap()->DumpSpaces(LOG_STREAM(ERROR));
       AbortF("%s is an invalid %s: %p (%p)",
              what, ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(),
@@ -939,7 +939,7 @@ class ScopedCheck {
         ObjPtr<mirror::Class> c = soa.Decode<mirror::Class>(jc);
         if (c == nullptr) {
           *msg += "NULL";
-        } else if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(c)) {
+        } else if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(c.Ptr())) {
           StringAppendF(msg, "INVALID POINTER:%p", jc);
         } else if (!c->IsClass()) {
           *msg += "INVALID NON-CLASS OBJECT OF TYPE:" + PrettyTypeOf(c);
@@ -1108,7 +1108,7 @@ class ScopedCheck {
     }
 
     ObjPtr<mirror::Array> a = soa.Decode<mirror::Array>(java_array);
-    if (UNLIKELY(!Runtime::Current()->GetHeap()->IsValidObjectAddress(a))) {
+    if (UNLIKELY(!Runtime::Current()->GetHeap()->IsValidObjectAddress(a.Ptr()))) {
       Runtime::Current()->GetHeap()->DumpSpaces(LOG_STREAM(ERROR));
       AbortF("jarray is an invalid %s: %p (%p)",
              ToStr<IndirectRefKind>(GetIndirectRefKind(java_array)).c_str(),
@@ -1145,7 +1145,7 @@ class ScopedCheck {
     }
     ArtField* f = soa.DecodeField(fid);
     // TODO: Better check here.
-    if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(f->GetDeclaringClass())) {
+    if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(f->GetDeclaringClass().Ptr())) {
       Runtime::Current()->GetHeap()->DumpSpaces(LOG_STREAM(ERROR));
       AbortF("invalid jfieldID: %p", fid);
       return nullptr;

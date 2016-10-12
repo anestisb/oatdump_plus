@@ -90,7 +90,7 @@ inline ObjPtr<mirror::Object> IndirectReferenceTable::Get(IndirectRef iref) cons
   }
   uint32_t idx = ExtractIndex(iref);
   ObjPtr<mirror::Object> obj = table_[idx].GetReference()->Read<kReadBarrierOption>();
-  VerifyObject(obj.Ptr());
+  VerifyObject(obj);
   return obj;
 }
 

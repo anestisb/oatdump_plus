@@ -22,6 +22,7 @@
 
 #include "base/macros.h"
 #include "base/mutex.h"
+#include "obj_ptr.h"
 #include "object_callbacks.h"
 #include "gc_root.h"
 
@@ -39,7 +40,7 @@ class AllocationListener {
  public:
   virtual ~AllocationListener() {}
 
-  virtual void ObjectAllocated(Thread* self, mirror::Object** obj, size_t byte_count)
+  virtual void ObjectAllocated(Thread* self, ObjPtr<mirror::Object>* obj, size_t byte_count)
       REQUIRES_SHARED(Locks::mutator_lock_) = 0;
 };
 
