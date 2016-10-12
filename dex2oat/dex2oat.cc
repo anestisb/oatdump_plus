@@ -988,7 +988,18 @@ class Dex2Oat FINAL {
       }
     }
 
-    char_backing_storage_.reserve((dex_locations_.size() - 1) * 2);
+    std::string base_symbol_oat;
+    if (!oat_unstripped_.empty()) {
+      base_symbol_oat = oat_unstripped_[0];
+      size_t last_symbol_oat_slash = base_symbol_oat.rfind('/');
+      if (last_symbol_oat_slash == std::string::npos) {
+        Usage("--multi-image used with unusable symbol filename %s", base_symbol_oat.c_str());
+      }
+      base_symbol_oat = base_symbol_oat.substr(0, last_symbol_oat_slash + 1);
+    }
+
+    const size_t num_expanded_files = 2 + (base_symbol_oat.empty() ? 0 : 1);
+    char_backing_storage_.reserve((dex_locations_.size() - 1) * num_expanded_files);
 
     // Now create the other names. Use a counted loop to skip the first one.
     for (size_t i = 1; i < dex_locations_.size(); ++i) {
@@ -1000,6 +1011,11 @@ class Dex2Oat FINAL {
       std::string oat_name = CreateMultiImageName(dex_locations_[i], prefix, infix, ".oat");
       char_backing_storage_.push_back(base_oat + oat_name);
       oat_filenames_.push_back((char_backing_storage_.end() - 1)->c_str());
+
+      if (!base_symbol_oat.empty()) {
+        char_backing_storage_.push_back(base_symbol_oat + oat_name);
+        oat_unstripped_.push_back((char_backing_storage_.end() - 1)->c_str());
+      }
     }
   }
 
