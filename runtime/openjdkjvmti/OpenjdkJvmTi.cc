@@ -39,6 +39,7 @@
 #include "art_jvmti.h"
 #include "base/mutex.h"
 #include "events-inl.h"
+#include "heap.h"
 #include "jni_env_ext-inl.h"
 #include "object_tagging.h"
 #include "obj_ptr-inl.h"
@@ -276,7 +277,8 @@ class JvmtiFunctions {
                                        jclass klass,
                                        const jvmtiHeapCallbacks* callbacks,
                                        const void* user_data) {
-    return ERR(NOT_IMPLEMENTED);
+    HeapUtil heap_util(&gObjectTagTable);
+    return heap_util.IterateThroughHeap(env, heap_filter, klass, callbacks, user_data);
   }
 
   static jvmtiError GetTag(jvmtiEnv* env, jobject object, jlong* tag_ptr) {

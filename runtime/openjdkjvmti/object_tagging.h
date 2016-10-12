@@ -42,6 +42,10 @@ class ObjectTagTable : public art::gc::SystemWeakHolder {
       REQUIRES_SHARED(art::Locks::mutator_lock_)
       REQUIRES(!allow_disallow_lock_);
 
+  bool Set(art::mirror::Object* obj, jlong tag)
+      REQUIRES_SHARED(art::Locks::mutator_lock_)
+      REQUIRES(!allow_disallow_lock_);
+
   bool GetTag(art::mirror::Object* obj, jlong* result)
       REQUIRES_SHARED(art::Locks::mutator_lock_)
       REQUIRES(!allow_disallow_lock_) {
