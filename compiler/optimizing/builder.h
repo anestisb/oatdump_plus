@@ -43,7 +43,7 @@ class HGraphBuilder : public ValueObject {
                 OptimizingCompilerStats* compiler_stats,
                 const uint8_t* interpreter_metadata,
                 Handle<mirror::DexCache> dex_cache,
-                StackHandleScopeCollection* handles)
+                VariableSizedHandleScope* handles)
       : graph_(graph),
         dex_file_(dex_file),
         code_item_(code_item),
@@ -68,7 +68,7 @@ class HGraphBuilder : public ValueObject {
   // Only for unit testing.
   HGraphBuilder(HGraph* graph,
                 const DexFile::CodeItem& code_item,
-                StackHandleScopeCollection* handles,
+                VariableSizedHandleScope* handles,
                 Primitive::Type return_type = Primitive::kPrimInt)
       : graph_(graph),
         dex_file_(nullptr),
