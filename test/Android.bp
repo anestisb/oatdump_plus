@@ -238,8 +238,8 @@ art_cc_test_library {
     shared_libs: ["libartd"],
 }
 
-art_cc_test_library {
-    name: "libtiagent",
+art_cc_defaults {
+    name: "libtiagent-defaults",
     defaults: ["libartagent-defaults"],
     srcs: [
         "ti-agent/common_load.cc",
@@ -248,10 +248,18 @@ art_cc_test_library {
         "903-hello-tagging/tagging.cc",
         "904-object-allocation/tracking.cc",
         "905-object-free/tracking_free.cc",
+        "906-iterate-heap/iterate_heap.cc",
     ],
     shared_libs: [
-        "libart",
         "libbase",
+    ],
+}
+
+art_cc_test_library {
+    name: "libtiagent",
+    defaults: ["libtiagent-defaults"],
+    shared_libs: [
+        "libart",
         "libopenjdkjvmti",
     ],
 }
@@ -259,20 +267,11 @@ art_cc_test_library {
 art_cc_test_library {
     name: "libtiagentd",
     defaults: [
-        "libartagent-defaults",
+        "libtiagent-defaults",
         "art_debug_defaults",
-    ],
-    srcs: [
-        "ti-agent/common_load.cc",
-        "901-hello-ti-agent/basics.cc",
-        "902-hello-transformation/transform.cc",
-        "903-hello-tagging/tagging.cc",
-        "904-object-allocation/tracking.cc",
-        "905-object-free/tracking_free.cc",
     ],
     shared_libs: [
         "libartd",
-        "libbase",
         "libopenjdkjvmtid",
     ],
 }
