@@ -193,6 +193,8 @@ class InductionVarRange {
                HInductionVarAnalysis::InductionInfo* trip,
                bool in_body,
                bool is_min) const;
+  Value GetXor(HInductionVarAnalysis::InductionInfo* info1,
+               HInductionVarAnalysis::InductionInfo* info2) const;
 
   Value MulRangeAndConstant(int64_t value,
                             HInductionVarAnalysis::InductionInfo* info,
