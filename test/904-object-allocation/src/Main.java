@@ -40,7 +40,7 @@ public class Main {
   }
 
   public static void doTest(ArrayList<Object> l) throws Exception {
-    setupCallback();
+    setupObjectAllocCallback();
 
     enableAllocationTracking(null, true);
 
@@ -127,6 +127,6 @@ public class Main {
     }
   }
 
-  private static native void setupCallback();
+  private static native void setupObjectAllocCallback();
   private static native void enableAllocationTracking(Thread thread, boolean enable);
 }

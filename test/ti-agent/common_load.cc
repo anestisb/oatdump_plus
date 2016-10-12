@@ -22,13 +22,17 @@
 #include "art_method-inl.h"
 #include "base/logging.h"
 #include "base/macros.h"
+#include "common_load.h"
 
 #include "901-hello-ti-agent/basics.h"
 #include "902-hello-transformation/transform.h"
 #include "903-hello-tagging/tagging.h"
 #include "904-object-allocation/tracking.h"
+#include "905-object-free/tracking_free.h"
 
 namespace art {
+
+jvmtiEnv* jvmti_env;
 
 using OnLoad   = jint (*)(JavaVM* vm, char* options, void* reserved);
 using OnAttach = jint (*)(JavaVM* vm, char* options, void* reserved);
@@ -45,6 +49,7 @@ AgentLib agents[] = {
   { "902-hello-transformation", Test902HelloTransformation::OnLoad, nullptr },
   { "903-hello-tagging", Test903HelloTagging::OnLoad, nullptr },
   { "904-object-allocation", Test904ObjectAllocation::OnLoad, nullptr },
+  { "905-object-free", Test905ObjectFree::OnLoad, nullptr },
 };
 
 static AgentLib* FindAgent(char* name) {

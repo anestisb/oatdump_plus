@@ -23,6 +23,7 @@
 #include "base/logging.h"
 #include "jni.h"
 #include "openjdkjvmti/jvmti.h"
+#include "ti-agent/common_load.h"
 #include "utils.h"
 
 namespace art {
@@ -30,7 +31,6 @@ namespace Test902HelloTransformation {
 
 static bool RuntimeIsJvm = false;
 
-jvmtiEnv* jvmti_env;
 bool IsJVM() {
   return RuntimeIsJvm;
 }
