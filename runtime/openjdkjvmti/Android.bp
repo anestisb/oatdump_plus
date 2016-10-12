@@ -18,6 +18,7 @@ cc_defaults {
     defaults: ["art_defaults"],
     host_supported: true,
     srcs: ["events.cc",
+           "heap.cc",
            "object_tagging.cc",
            "OpenjdkJvmTi.cc",
            "transform.cc"],
