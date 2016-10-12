@@ -472,7 +472,8 @@ static void SetupIntrinsic(Thread* self,
       ? cls->FindDeclaredDirectMethod(method_name, signature, image_size)
       : cls->FindDeclaredVirtualMethod(method_name, signature, image_size);
   if (method == nullptr) {
-    LOG(FATAL) << "Could not find method of intrinsic " << class_name << method_name << signature;
+    LOG(FATAL) << "Could not find method of intrinsic "
+               << class_name << " " << method_name << " " << signature;
   }
   DCHECK_EQ(method->GetInvokeType(), invoke_type);
   method->SetIntrinsic(static_cast<uint32_t>(intrinsic));
@@ -497,11 +498,13 @@ void CompilerDriver::CompileAll(jobject class_loader,
     // those compilations will pick up a boot image that have the ArtMethod already
     // set with the intrinsics flag.
     ScopedObjectAccess soa(Thread::Current());
-#define OPTIMIZING_INTRINSICS(Name, InvokeType, NeedsEnvironmentOrCache, SideEffects, Exceptions, ClassName, MethodName, Signature) \
+#define SETUP_INTRINSICS(Name, InvokeType, NeedsEnvironmentOrCache, SideEffects, Exceptions, \
+                         ClassName, MethodName, Signature) \
   SetupIntrinsic(soa.Self(), Intrinsics::k##Name, InvokeType, ClassName, MethodName, Signature);
 #include "intrinsics_list.h"
-INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
+INTRINSICS_LIST(SETUP_INTRINSICS)
 #undef INTRINSICS_LIST
+#undef SETUP_INTRINSICS
   }
   // Compile:
   // 1) Compile all classes and methods enabled for compilation. May fall back to dex-to-dex
