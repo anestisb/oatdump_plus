@@ -54,8 +54,8 @@
 
 namespace openjdkjvmti {
 
-ObjectTagTable gObjectTagTable;
 EventHandler gEventHandler;
+ObjectTagTable gObjectTagTable(&gEventHandler);
 
 class JvmtiFunctions {
  private:
