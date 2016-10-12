@@ -133,6 +133,8 @@ class JvmtiAllocationListener : public art::gc::AllocationListener {
     DCHECK_EQ(self, art::Thread::Current());
 
     if (handler_->IsEventEnabledAnywhere(JVMTI_EVENT_VM_OBJECT_ALLOC)) {
+      art::StackHandleScope<1> hs(self);
+      auto h = hs.NewHandleWrapper(obj);
       // jvmtiEventVMObjectAlloc parameters:
       //      jvmtiEnv *jvmti_env,
       //      JNIEnv* jni_env,
