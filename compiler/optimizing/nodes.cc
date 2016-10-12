@@ -35,7 +35,7 @@ namespace art {
 // double).
 static constexpr bool kEnableFloatingPointStaticEvaluation = (FLT_EVAL_METHOD == 0);
 
-void HGraph::InitializeInexactObjectRTI(StackHandleScopeCollection* handles) {
+void HGraph::InitializeInexactObjectRTI(VariableSizedHandleScope* handles) {
   ScopedObjectAccess soa(Thread::Current());
   // Create the inexact Object reference type and store it in the HGraph.
   ClassLinker* linker = Runtime::Current()->GetClassLinker();

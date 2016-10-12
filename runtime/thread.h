@@ -799,17 +799,17 @@ class Thread {
   void HandleScopeVisitRoots(RootVisitor* visitor, uint32_t thread_id)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  HandleScope* GetTopHandleScope() {
+  BaseHandleScope* GetTopHandleScope() {
     return tlsPtr_.top_handle_scope;
   }
 
-  void PushHandleScope(HandleScope* handle_scope) {
+  void PushHandleScope(BaseHandleScope* handle_scope) {
     DCHECK_EQ(handle_scope->GetLink(), tlsPtr_.top_handle_scope);
     tlsPtr_.top_handle_scope = handle_scope;
   }
 
-  HandleScope* PopHandleScope() {
-    HandleScope* handle_scope = tlsPtr_.top_handle_scope;
+  BaseHandleScope* PopHandleScope() {
+    BaseHandleScope* handle_scope = tlsPtr_.top_handle_scope;
     DCHECK(handle_scope != nullptr);
     tlsPtr_.top_handle_scope = tlsPtr_.top_handle_scope->GetLink();
     return handle_scope;
@@ -1446,7 +1446,7 @@ class Thread {
     mirror::Object* monitor_enter_object;
 
     // Top of linked list of handle scopes or null for none.
-    HandleScope* top_handle_scope;
+    BaseHandleScope* top_handle_scope;
 
     // Needed to get the right ClassLoader in JNI_OnLoad, but also
     // useful for testing.

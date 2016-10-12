@@ -265,7 +265,7 @@ static jlong VMDebug_countInstancesOfClass(JNIEnv* env,
   if (c == nullptr) {
     return 0;
   }
-  StackHandleScopeCollection hs(soa.Self());
+  VariableSizedHandleScope hs(soa.Self());
   std::vector<Handle<mirror::Class>> classes {hs.NewHandle(c)};
   uint64_t count = 0;
   heap->CountInstances(classes, countAssignable, &count);
@@ -284,7 +284,7 @@ static jlongArray VMDebug_countInstancesOfClasses(JNIEnv* env,
   if (decoded_classes == nullptr) {
     return nullptr;
   }
-  StackHandleScopeCollection hs(soa.Self());
+  VariableSizedHandleScope hs(soa.Self());
   std::vector<Handle<mirror::Class>> classes;
   for (size_t i = 0, count = decoded_classes->GetLength(); i < count; ++i) {
     classes.push_back(hs.NewHandle(decoded_classes->Get(i)));

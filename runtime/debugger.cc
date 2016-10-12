@@ -892,7 +892,7 @@ JDWP::JdwpError Dbg::GetInstanceCounts(const std::vector<JDWP::RefTypeId>& class
                                        std::vector<uint64_t>* counts) {
   gc::Heap* heap = Runtime::Current()->GetHeap();
   heap->CollectGarbage(false);
-  StackHandleScopeCollection hs(Thread::Current());
+  VariableSizedHandleScope hs(Thread::Current());
   std::vector<Handle<mirror::Class>> classes;
   counts->clear();
   for (size_t i = 0; i < class_ids.size(); ++i) {

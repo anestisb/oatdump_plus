@@ -35,7 +35,7 @@ static inline mirror::DexCache* FindDexCacheWithHint(Thread* self,
   }
 }
 
-static inline ReferenceTypeInfo::TypeHandle GetRootHandle(StackHandleScopeCollection* handles,
+static inline ReferenceTypeInfo::TypeHandle GetRootHandle(VariableSizedHandleScope* handles,
                                                           ClassLinker::ClassRoot class_root,
                                                           ReferenceTypeInfo::TypeHandle* cache) {
   if (!ReferenceTypeInfo::IsValidHandle(*cache)) {
@@ -109,7 +109,7 @@ class ReferenceTypePropagation::RTPVisitor : public HGraphDelegateVisitor {
 
 ReferenceTypePropagation::ReferenceTypePropagation(HGraph* graph,
                                                    Handle<mirror::DexCache> hint_dex_cache,
-                                                   StackHandleScopeCollection* handles,
+                                                   VariableSizedHandleScope* handles,
                                                    bool is_first_run,
                                                    const char* name)
     : HOptimization(graph, name),
