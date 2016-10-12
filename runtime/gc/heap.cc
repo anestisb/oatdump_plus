@@ -4196,7 +4196,7 @@ void Heap::RemoveAllocationListener() {
   AllocationListener* old = GetAndOverwriteAllocationListener(&alloc_listener_, nullptr);
 
   if (old != nullptr) {
-    Runtime::Current()->GetInstrumentation()->InstrumentQuickAllocEntryPoints();
+    Runtime::Current()->GetInstrumentation()->UninstrumentQuickAllocEntryPoints();
   }
 }
 
