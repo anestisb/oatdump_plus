@@ -1,0 +1,2 @@
+[{tag=1, class-tag=0, size=8, length=-1}, {tag=2, class-tag=100, size=8, length=-1}, {tag=3, class-tag=100, size=8, length=-1}, {tag=4, class-tag=0, size=32, length=5}, {tag=100, class-tag=0, size=<class>, length=-1}]
+[{tag=11, class-tag=0, size=8, length=-1}, {tag=12, class-tag=110, size=8, length=-1}, {tag=13, class-tag=110, size=8, length=-1}, {tag=14, class-tag=0, size=32, length=5}, {tag=110, class-tag=0, size=<class>, length=-1}]
