@@ -29,7 +29,7 @@ inline void VerifyObject(ObjPtr<mirror::Object> obj) {
   if (kVerifyObjectSupport > kVerifyObjectModeDisabled && obj != nullptr) {
     if (kVerifyObjectSupport > kVerifyObjectModeFast) {
       // Slow object verification, try the heap right away.
-      Runtime::Current()->GetHeap()->VerifyObjectBody(obj.Ptr());
+      Runtime::Current()->GetHeap()->VerifyObjectBody(obj);
     } else {
       // Fast object verification, only call the heap if our quick sanity tests fail. The heap will
       // print the diagnostic message.
@@ -40,7 +40,7 @@ inline void VerifyObject(ObjPtr<mirror::Object> obj) {
         failed = failed || !VerifyClassClass(c);
       }
       if (UNLIKELY(failed)) {
-        Runtime::Current()->GetHeap()->VerifyObjectBody(obj.Ptr());
+        Runtime::Current()->GetHeap()->VerifyObjectBody(obj);
       }
     }
   }

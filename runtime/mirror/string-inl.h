@@ -43,10 +43,10 @@ class SetStringCountVisitor {
   explicit SetStringCountVisitor(int32_t count) : count_(count) {
   }
 
-  void operator()(Object* obj, size_t usable_size ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<Object> obj, size_t usable_size ATTRIBUTE_UNUSED) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     // Avoid AsString as object is not yet in live bitmap or allocation stack.
-    String* string = down_cast<String*>(obj);
+    ObjPtr<String> string = ObjPtr<String>::DownCast(obj);
     string->SetCount(count_);
     DCHECK(!string->IsCompressed() || kUseStringCompression);
   }
@@ -63,10 +63,10 @@ class SetStringCountAndBytesVisitor {
       : count_(count), src_array_(src_array), offset_(offset), high_byte_(high_byte) {
   }
 
-  void operator()(Object* obj, size_t usable_size ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<Object> obj, size_t usable_size ATTRIBUTE_UNUSED) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     // Avoid AsString as object is not yet in live bitmap or allocation stack.
-    String* string = down_cast<String*>(obj);
+    ObjPtr<String> string = ObjPtr<String>::DownCast(obj);
     string->SetCount(count_);
     DCHECK(!string->IsCompressed() || kUseStringCompression);
     int32_t length = String::GetLengthFromCount(count_);
@@ -99,10 +99,10 @@ class SetStringCountAndValueVisitorFromCharArray {
     count_(count), src_array_(src_array), offset_(offset) {
   }
 
-  void operator()(Object* obj, size_t usable_size ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<Object> obj, size_t usable_size ATTRIBUTE_UNUSED) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     // Avoid AsString as object is not yet in live bitmap or allocation stack.
-    String* string = down_cast<String*>(obj);
+    ObjPtr<String> string = ObjPtr<String>::DownCast(obj);
     string->SetCount(count_);
     const uint16_t* const src = src_array_->GetData() + offset_;
     const int32_t length = String::GetLengthFromCount(count_);
@@ -131,10 +131,10 @@ class SetStringCountAndValueVisitorFromString {
     count_(count), src_string_(src_string), offset_(offset) {
   }
 
-  void operator()(Object* obj, size_t usable_size ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<Object> obj, size_t usable_size ATTRIBUTE_UNUSED) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     // Avoid AsString as object is not yet in live bitmap or allocation stack.
-    String* string = down_cast<String*>(obj);
+    ObjPtr<String> string = ObjPtr<String>::DownCast(obj);
     string->SetCount(count_);
     const int32_t length = String::GetLengthFromCount(count_);
     bool compressible = kUseStringCompression && String::GetCompressionFlagFromCount(count_);

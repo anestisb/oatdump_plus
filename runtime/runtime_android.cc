@@ -27,7 +27,6 @@
 
 namespace art {
 
-static constexpr bool kDumpHeapObjectOnSigsevg = false;
 static constexpr bool kUseSignalHandler = false;
 
 struct sigaction old_action;
@@ -48,11 +47,6 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
   if (runtime != nullptr) {
     // Print this out first in case DumpObject faults.
     LOG(FATAL_WITHOUT_ABORT) << "Fault message: " << runtime->GetFaultMessage();
-    gc::Heap* heap = runtime->GetHeap();
-    if (kDumpHeapObjectOnSigsevg && heap != nullptr && info != nullptr) {
-      LOG(FATAL_WITHOUT_ABORT) << "Dump heap object at fault address: ";
-      heap->DumpObject(LOG_STREAM(FATAL_WITHOUT_ABORT), reinterpret_cast<mirror::Object*>(info->si_addr));
-    }
   }
   // Run the old signal handler.
   old_action.sa_sigaction(signal_number, info, raw_context);

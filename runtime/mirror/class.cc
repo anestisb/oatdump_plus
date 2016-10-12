@@ -998,7 +998,7 @@ class CopyClassVisitor {
         copy_bytes_(copy_bytes), imt_(imt), pointer_size_(pointer_size) {
   }
 
-  void operator()(mirror::Object* obj, size_t usable_size ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<mirror::Object> obj, size_t usable_size ATTRIBUTE_UNUSED) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     StackHandleScope<1> hs(self_);
     Handle<mirror::Class> h_new_class_obj(hs.NewHandle(obj->AsClass()));
