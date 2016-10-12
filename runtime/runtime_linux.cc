@@ -21,6 +21,7 @@
 #include <sys/utsname.h>
 #include <inttypes.h>
 
+#include <iostream>
 #include <sstream>
 
 #include "base/dumpable.h"
@@ -337,17 +338,21 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
   UContext thread_context(raw_context);
   Backtrace thread_backtrace(raw_context);
 
-  LOG(FATAL_WITHOUT_ABORT) << "*** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***\n"
-                      << StringPrintf("Fatal signal %d (%s), code %d (%s)",
-                                      signal_number, GetSignalName(signal_number),
-                                      info->si_code,
-                                      GetSignalCodeName(signal_number, info->si_code))
-                      << (has_address ? StringPrintf(" fault addr %p", info->si_addr) : "") << "\n"
-                      << "OS: " << Dumpable<OsInfo>(os_info) << "\n"
-                      << "Cmdline: " << cmd_line << "\n"
-                      << "Thread: " << tid << " \"" << thread_name << "\"\n"
-                      << "Registers:\n" << Dumpable<UContext>(thread_context) << "\n"
-                      << "Backtrace:\n" << Dumpable<Backtrace>(thread_backtrace);
+  // Note: We are using cerr directly instead of LOG macros to ensure even just partial output
+  //       makes it out. That means we lose the "dalvikvm..." prefix, but that is acceptable
+  //       considering this is an abort situation.
+
+  std::cerr << "*** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***\n"
+            << StringPrintf("Fatal signal %d (%s), code %d (%s)",
+                            signal_number, GetSignalName(signal_number),
+                            info->si_code,
+                            GetSignalCodeName(signal_number, info->si_code))
+            << (has_address ? StringPrintf(" fault addr %p", info->si_addr) : "") << std::endl
+            << "OS: " << Dumpable<OsInfo>(os_info) << std::endl
+            << "Cmdline: " << cmd_line << std::endl
+            << "Thread: " << tid << " \"" << thread_name << "\"" << std::endl
+            << "Registers:\n" << Dumpable<UContext>(thread_context) << std::endl
+            << "Backtrace:\n" << Dumpable<Backtrace>(thread_backtrace) << std::endl;
   if (kIsDebugBuild && signal_number == SIGSEGV) {
     PrintFileToLog("/proc/self/maps", LogSeverity::FATAL_WITHOUT_ABORT);
   }
@@ -357,23 +362,26 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
       // Special timeout signal. Try to dump all threads.
       // Note: Do not use DumpForSigQuit, as that might disable native unwind, but the native parts
       //       are of value here.
-      runtime->GetThreadList()->Dump(LOG_STREAM(FATAL_WITHOUT_ABORT), kDumpNativeStackOnTimeout);
+      runtime->GetThreadList()->Dump(std::cerr, kDumpNativeStackOnTimeout);
+      std::cerr << std::endl;
     }
     gc::Heap* heap = runtime->GetHeap();
-    LOG(FATAL_WITHOUT_ABORT) << "Fault message: " << runtime->GetFaultMessage();
+    std::cerr << "Fault message: " << runtime->GetFaultMessage() << std::endl;
     if (kDumpHeapObjectOnSigsevg && heap != nullptr && info != nullptr) {
-      LOG(FATAL_WITHOUT_ABORT) << "Dump heap object at fault address: ";
-      heap->DumpObject(LOG_STREAM(FATAL_WITHOUT_ABORT), reinterpret_cast<mirror::Object*>(info->si_addr));
+      std::cerr << "Dump heap object at fault address: " << std::endl;
+      heap->DumpObject(std::cerr, reinterpret_cast<mirror::Object*>(info->si_addr));
+      std::cerr << std::endl;
     }
   }
   if (getenv("debug_db_uid") != nullptr || getenv("art_wait_for_gdb_on_crash") != nullptr) {
-    LOG(FATAL_WITHOUT_ABORT) << "********************************************************\n"
-                        << "* Process " << getpid() << " thread " << tid << " \"" << thread_name
-                        << "\""
-                        << " has been suspended while crashing.\n"
-                        << "* Attach gdb:\n"
-                        << "*     gdb -p " << tid << "\n"
-                        << "********************************************************\n";
+    std::cerr << "********************************************************\n"
+              << "* Process " << getpid() << " thread " << tid << " \"" << thread_name
+              << "\""
+              << " has been suspended while crashing.\n"
+              << "* Attach gdb:\n"
+              << "*     gdb -p " << tid << "\n"
+              << "********************************************************"
+              << std::endl;
     // Wait for debugger to attach.
     while (true) {
     }

@@ -296,10 +296,10 @@ void DumpNativeStack(std::ostream& os,
   std::unique_ptr<Backtrace> backtrace(Backtrace::Create(BACKTRACE_CURRENT_PROCESS, tid, map));
   if (!backtrace->Unwind(0, reinterpret_cast<ucontext*>(ucontext_ptr))) {
     os << prefix << "(backtrace::Unwind failed for thread " << tid
-       << ": " <<  backtrace->GetErrorString(backtrace->GetError()) << ")\n";
+       << ": " <<  backtrace->GetErrorString(backtrace->GetError()) << ")" << std::endl;
     return;
   } else if (backtrace->NumFrames() == 0) {
-    os << prefix << "(no native stack frames for thread " << tid << ")\n";
+    os << prefix << "(no native stack frames for thread " << tid << ")" << std::endl;
     return;
   }
 
@@ -354,7 +354,7 @@ void DumpNativeStack(std::ostream& os,
       }
       os << ")";
     }
-    os << "\n";
+    os << std::endl;
     if (try_addr2line && use_addr2line) {
       Addr2line(it->map.name, it->pc - it->map.start, os, prefix, &addr2line_state);
     }
@@ -395,7 +395,7 @@ void DumpKernelStack(std::ostream& os, pid_t tid, const char* prefix, bool inclu
     if (include_count) {
       os << StringPrintf("#%02zd ", i);
     }
-    os << text << "\n";
+    os << text << std::endl;
   }
 }
 
