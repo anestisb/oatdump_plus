@@ -612,7 +612,9 @@ class MANAGED LOCKABLE Object {
   // A utility function that copies an object in a read barrier and
   // write barrier-aware way. This is internally used by Clone() and
   // Class::CopyOf().
-  static Object* CopyObject(Thread* self, mirror::Object* dest, mirror::Object* src,
+  static Object* CopyObject(Thread* self,
+                            ObjPtr<mirror::Object> dest,
+                            ObjPtr<mirror::Object> src,
                             size_t num_bytes)
       REQUIRES_SHARED(Locks::mutator_lock_);
 

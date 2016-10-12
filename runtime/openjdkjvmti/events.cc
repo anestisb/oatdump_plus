@@ -128,7 +128,7 @@ class JvmtiAllocationListener : public art::gc::AllocationListener {
  public:
   explicit JvmtiAllocationListener(EventHandler* handler) : handler_(handler) {}
 
-  void ObjectAllocated(art::Thread* self, art::mirror::Object** obj, size_t byte_count)
+  void ObjectAllocated(art::Thread* self, art::ObjPtr<art::mirror::Object>* obj, size_t byte_count)
       REQUIRES_SHARED(art::Locks::mutator_lock_) {
     DCHECK_EQ(self, art::Thread::Current());
 
@@ -153,7 +153,7 @@ class JvmtiAllocationListener : public art::gc::AllocationListener {
       ScopedLocalRef<jobject> object(
           jni_env, jni_env->AddLocalReference<jobject>(*obj));
       ScopedLocalRef<jclass> klass(
-          jni_env, jni_env->AddLocalReference<jclass>((*obj)->GetClass()));
+          jni_env, jni_env->AddLocalReference<jclass>(obj->Ptr()->GetClass()));
 
       handler_->DispatchEvent(self,
                               JVMTI_EVENT_VM_OBJECT_ALLOC,

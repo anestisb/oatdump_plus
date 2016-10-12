@@ -99,7 +99,7 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, ObjPtr<mirror::Object> 
   size_t topIndex = segment_state_.parts.topIndex;
 
   CHECK(obj != nullptr);
-  VerifyObject(obj.Ptr());
+  VerifyObject(obj);
   DCHECK(table_ != nullptr);
   DCHECK_GE(segment_state_.parts.numHoles, prevState.parts.numHoles);
 
