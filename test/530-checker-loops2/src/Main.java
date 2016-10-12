@@ -111,6 +111,24 @@ public class Main {
     return result;
   }
 
+  /// CHECK-START: int Main.periodicXorSequence(int) BCE (before)
+  /// CHECK-DAG: BoundsCheck
+  //
+  /// CHECK-START: int Main.periodicXorSequence(int) BCE (after)
+  /// CHECK-NOT: BoundsCheck
+  /// CHECK-NOT: Deoptimize
+  private static int periodicXorSequence(int tc) {
+    int[] x = { 1, 3 };
+    // Loop with periodic sequence (0, 1).
+    int k = 0;
+    int result = 0;
+    for (int i = 0; i < tc; i++) {
+      result += x[k];
+      k ^= 1;
+    }
+    return result;
+  }
+
   /// CHECK-START: int Main.justRightUp1() BCE (before)
   /// CHECK-DAG: BoundsCheck
   //
@@ -895,8 +913,9 @@ public class Main {
     expectEquals(0, periodicIdiom(-1));
     for (int tc = 0; tc < 32; tc++) {
       int expected = (tc >> 1) << 2;
-      if ((tc & 1) != 0)
+      if ((tc & 1) != 0) {
         expected += 1;
+      }
       expectEquals(expected, periodicIdiom(tc));
     }
 
@@ -904,8 +923,9 @@ public class Main {
     expectEquals(0, periodicSequence2(-1));
     for (int tc = 0; tc < 32; tc++) {
       int expected = (tc >> 1) << 2;
-      if ((tc & 1) != 0)
+      if ((tc & 1) != 0) {
         expected += 1;
+      }
       expectEquals(expected, periodicSequence2(tc));
     }
 
@@ -913,6 +933,16 @@ public class Main {
     expectEquals(0, periodicSequence4(-1));
     for (int tc = 0; tc < 32; tc++) {
       expectEquals(tc * 16, periodicSequence4(tc));
+    }
+
+    // Periodic adds (1, 3), one at the time.
+    expectEquals(0, periodicXorSequence(-1));
+    for (int tc = 0; tc < 32; tc++) {
+      int expected = (tc >> 1) << 2;
+      if ((tc & 1) != 0) {
+        expected += 1;
+      }
+      expectEquals(expected, periodicXorSequence(tc));
     }
 
     // Large bounds.
