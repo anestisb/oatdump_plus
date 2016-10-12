@@ -898,7 +898,12 @@ void CodeGeneratorX86::GenerateFrameEntry() {
   int adjust = GetFrameSize() - FrameEntrySpillSize();
   __ subl(ESP, Immediate(adjust));
   __ cfi().AdjustCFAOffset(adjust);
-  __ movl(Address(ESP, kCurrentMethodStackOffset), kMethodRegisterArgument);
+  // Save the current method if we need it. Note that we do not
+  // do this in HCurrentMethod, as the instruction might have been removed
+  // in the SSA graph.
+  if (RequiresCurrentMethod()) {
+    __ movl(Address(ESP, kCurrentMethodStackOffset), kMethodRegisterArgument);
+  }
 }
 
 void CodeGeneratorX86::GenerateFrameExit() {

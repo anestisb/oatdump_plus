@@ -2093,10 +2093,10 @@ class HInstruction : public ArenaObject<kArenaAllocInstruction> {
   // to the current method. Such instructions are:
   // (1): Instructions that require an environment, as calling the runtime requires
   //      to walk the stack and have the current method stored at a specific stack address.
-  // (2): Object literals like classes and strings, that are loaded from the dex cache
-  //      fields of the current method.
+  // (2): HCurrentMethod, potentially used by HInvokeStaticOrDirect, HLoadString, or HLoadClass
+  //      to access the dex cache.
   bool NeedsCurrentMethod() const {
-    return NeedsEnvironment() || IsLoadClass() || IsLoadString();
+    return NeedsEnvironment() || IsCurrentMethod();
   }
 
   // Returns whether the code generation of the instruction will require to have access
