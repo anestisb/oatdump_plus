@@ -2481,7 +2481,7 @@ class JNI {
       // Sanity check: If elements is not the same as the java array's data, it better not be a
       // heap address. TODO: This might be slow to check, may be worth keeping track of which
       // copies we make?
-      if (heap->IsNonDiscontinuousSpaceHeapAddress(reinterpret_cast<mirror::Object*>(elements))) {
+      if (heap->IsNonDiscontinuousSpaceHeapAddress(elements)) {
         soa.Vm()->JniAbortF("ReleaseArrayElements",
                             "invalid element pointer %p, array elements are %p",
                             reinterpret_cast<void*>(elements), array_data);

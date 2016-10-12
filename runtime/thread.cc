@@ -1875,7 +1875,7 @@ ObjPtr<mirror::Object> Thread::DecodeJObject(jobject obj) const {
     if (LIKELY(HandleScopeContains(obj))) {
       // Read from handle scope.
       result = reinterpret_cast<StackReference<mirror::Object>*>(obj)->AsMirrorPtr();
-      VerifyObject(result.Ptr());
+      VerifyObject(result);
     } else {
       tlsPtr_.jni_env->vm->JniAbortF(nullptr, "use of invalid jobject %p", obj);
       expect_null = true;

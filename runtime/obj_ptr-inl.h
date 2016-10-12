@@ -33,7 +33,7 @@ inline bool ObjPtr<MirrorType, kPoison>::IsValid() const {
 template<class MirrorType, bool kPoison>
 inline void ObjPtr<MirrorType, kPoison>::AssertValid() const {
   if (kPoison) {
-    CHECK(IsValid()) << "Stale object pointer " << Ptr() << " , expected cookie "
+    CHECK(IsValid()) << "Stale object pointer " << PtrUnchecked() << " , expected cookie "
         << TrimCookie(Thread::Current()->GetPoisonObjectCookie()) << " but got " << GetCookie();
   }
 }

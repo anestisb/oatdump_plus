@@ -36,7 +36,6 @@
 
 namespace art {
 
-static constexpr bool kDumpHeapObjectOnSigsevg = false;
 static constexpr bool kUseSigRTTimeout = true;
 static constexpr bool kDumpNativeStackOnTimeout = true;
 
@@ -365,13 +364,7 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
       runtime->GetThreadList()->Dump(std::cerr, kDumpNativeStackOnTimeout);
       std::cerr << std::endl;
     }
-    gc::Heap* heap = runtime->GetHeap();
     std::cerr << "Fault message: " << runtime->GetFaultMessage() << std::endl;
-    if (kDumpHeapObjectOnSigsevg && heap != nullptr && info != nullptr) {
-      std::cerr << "Dump heap object at fault address: " << std::endl;
-      heap->DumpObject(std::cerr, reinterpret_cast<mirror::Object*>(info->si_addr));
-      std::cerr << std::endl;
-    }
   }
   if (getenv("debug_db_uid") != nullptr || getenv("art_wait_for_gdb_on_crash") != nullptr) {
     std::cerr << "********************************************************\n"
