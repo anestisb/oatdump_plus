@@ -87,6 +87,33 @@ bool ObjectTagTable::Remove(art::mirror::Object* obj, jlong* tag) {
   return false;
 }
 
+bool ObjectTagTable::Set(art::mirror::Object* obj, jlong new_tag) {
+  art::Thread* self = art::Thread::Current();
+  art::MutexLock mu(self, allow_disallow_lock_);
+  Wait(self);
+
+  for (auto& pair : tagged_objects_) {
+    if (pair.first.Read(nullptr) == obj) {
+      pair.second = new_tag;
+      return true;
+    }
+  }
+
+  // TODO refactor with Add.
+  if (first_free_ == tagged_objects_.size()) {
+    tagged_objects_.push_back(Entry(art::GcRoot<art::mirror::Object>(obj), new_tag));
+    first_free_++;
+  } else {
+    DCHECK_LT(first_free_, tagged_objects_.size());
+    DCHECK(tagged_objects_[first_free_].first.IsNull());
+    tagged_objects_[first_free_] = Entry(art::GcRoot<art::mirror::Object>(obj), new_tag);
+    // TODO: scan for free elements.
+    first_free_ = tagged_objects_.size();
+  }
+
+  return false;
+}
+
 void ObjectTagTable::Sweep(art::IsMarkedVisitor* visitor) {
   if (event_handler_->IsEventEnabledAnywhere(JVMTI_EVENT_OBJECT_FREE)) {
     SweepImpl<true>(visitor);
