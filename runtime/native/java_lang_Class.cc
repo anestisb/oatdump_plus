@@ -278,7 +278,7 @@ static mirror::Field* GetPublicFieldRecursive(
 
     uint32_t num_direct_interfaces = h_clazz->NumDirectInterfaces();
     for (uint32_t i = 0; i < num_direct_interfaces; i++) {
-      mirror::Class *iface = mirror::Class::GetDirectInterface(self, h_clazz, i);
+      ObjPtr<mirror::Class> iface = mirror::Class::GetDirectInterface(self, h_clazz, i);
       if (UNLIKELY(iface == nullptr)) {
         self->AssertPendingException();
         return nullptr;
@@ -403,11 +403,12 @@ static jobject Class_getDeclaredMethodInternal(JNIEnv* env, jobject javaThis,
   ScopedFastNativeObjectAccess soa(env);
   DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), kRuntimePointerSize);
   DCHECK(!Runtime::Current()->IsActiveTransaction());
-  mirror::Method* result = mirror::Class::GetDeclaredMethodInternal<kRuntimePointerSize, false>(
-      soa.Self(),
-      DecodeClass(soa, javaThis).Ptr(),
-      soa.Decode<mirror::String>(name).Ptr(),
-      soa.Decode<mirror::ObjectArray<mirror::Class>>(args).Ptr());
+  ObjPtr<mirror::Method> result =
+      mirror::Class::GetDeclaredMethodInternal<kRuntimePointerSize, false>(
+          soa.Self(),
+          DecodeClass(soa, javaThis),
+          soa.Decode<mirror::String>(name),
+          soa.Decode<mirror::ObjectArray<mirror::Class>>(args));
   return soa.AddLocalReference<jobject>(result);
 }
 

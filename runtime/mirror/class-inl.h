@@ -306,14 +306,14 @@ inline void Class::SetEmbeddedVTableEntry(uint32_t i, ArtMethod* method, Pointer
   SetEmbeddedVTableEntryUnchecked(i, method, pointer_size);
 }
 
-inline bool Class::Implements(Class* klass) {
+inline bool Class::Implements(ObjPtr<Class> klass) {
   DCHECK(klass != nullptr);
   DCHECK(klass->IsInterface()) << PrettyClass(this);
   // All interfaces implemented directly and by our superclass, and
   // recursively all super-interfaces of those interfaces, are listed
   // in iftable_, so we can just do a linear scan through that.
   int32_t iftable_count = GetIfTableCount();
-  IfTable* iftable = GetIfTable();
+  ObjPtr<IfTable> iftable = GetIfTable();
   for (int32_t i = 0; i < iftable_count; i++) {
     if (iftable->GetInterface(i) == klass) {
       return true;
@@ -353,7 +353,7 @@ inline bool Class::IsAssignableFromArray(ObjPtr<Class> src) {
   if (!IsArrayClass()) {
     // If "this" is not also an array, it must be Object.
     // src's super should be java_lang_Object, since it is an array.
-    Class* java_lang_Object = src->GetSuperClass();
+    ObjPtr<Class> java_lang_Object = src->GetSuperClass();
     DCHECK(java_lang_Object != nullptr) << PrettyClass(src);
     DCHECK(java_lang_Object->GetSuperClass() == nullptr) << PrettyClass(src);
     return this == java_lang_Object;
@@ -451,15 +451,20 @@ inline bool Class::CheckResolvedFieldAccess(ObjPtr<Class> access_to,
   return ResolvedFieldAccessTest<true, true>(access_to, field, field_idx, nullptr);
 }
 
-inline bool Class::CanAccessResolvedMethod(Class* access_to, ArtMethod* method,
-                                           DexCache* dex_cache, uint32_t method_idx) {
+inline bool Class::CanAccessResolvedMethod(ObjPtr<Class> access_to,
+                                           ArtMethod* method,
+                                           ObjPtr<DexCache> dex_cache,
+                                           uint32_t method_idx) {
   return ResolvedMethodAccessTest<false, false, kStatic>(access_to, method, method_idx, dex_cache);
 }
 
 template <InvokeType throw_invoke_type>
-inline bool Class::CheckResolvedMethodAccess(Class* access_to, ArtMethod* method,
+inline bool Class::CheckResolvedMethodAccess(ObjPtr<Class> access_to,
+                                             ArtMethod* method,
                                              uint32_t method_idx) {
-  return ResolvedMethodAccessTest<true, true, throw_invoke_type>(access_to, method, method_idx,
+  return ResolvedMethodAccessTest<true, true, throw_invoke_type>(access_to,
+                                                                 method,
+                                                                 method_idx,
                                                                  nullptr);
 }
 
@@ -478,13 +483,13 @@ inline bool Class::IsSubClass(ObjPtr<Class> klass) {
 
 inline ArtMethod* Class::FindVirtualMethodForInterface(ArtMethod* method,
                                                        PointerSize pointer_size) {
-  Class* declaring_class = method->GetDeclaringClass();
+  ObjPtr<Class> declaring_class = method->GetDeclaringClass();
   DCHECK(declaring_class != nullptr) << PrettyClass(this);
   DCHECK(declaring_class->IsInterface()) << PrettyMethod(method);
   DCHECK(!method->IsCopied());
   // TODO cache to improve lookup speed
   const int32_t iftable_count = GetIfTableCount();
-  IfTable* iftable = GetIfTable();
+  ObjPtr<IfTable> iftable = GetIfTable();
   for (int32_t i = 0; i < iftable_count; i++) {
     if (iftable->GetInterface(i) == declaring_class) {
       return iftable->GetMethodArray(i)->GetElementPtrSize<ArtMethod*>(
@@ -526,14 +531,14 @@ inline IfTable* Class::GetIfTable() {
 }
 
 inline int32_t Class::GetIfTableCount() {
-  IfTable* iftable = GetIfTable();
+  ObjPtr<IfTable> iftable = GetIfTable();
   if (iftable == nullptr) {
     return 0;
   }
   return iftable->Count();
 }
 
-inline void Class::SetIfTable(IfTable* new_iftable) {
+inline void Class::SetIfTable(ObjPtr<IfTable> new_iftable) {
   SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, iftable_), new_iftable);
 }
 
@@ -544,20 +549,20 @@ inline LengthPrefixedArray<ArtField>* Class::GetIFieldsPtr() {
 
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline MemberOffset Class::GetFirstReferenceInstanceFieldOffset() {
-  Class* super_class = GetSuperClass<kVerifyFlags, kReadBarrierOption>();
+  ObjPtr<Class> super_class = GetSuperClass<kVerifyFlags, kReadBarrierOption>();
   return (super_class != nullptr)
       ? MemberOffset(RoundUp(super_class->GetObjectSize<kVerifyFlags, kReadBarrierOption>(),
-                             sizeof(mirror::HeapReference<mirror::Object>)))
+                             kHeapReferenceSize))
       : ClassOffset();
 }
 
 template <VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline MemberOffset Class::GetFirstReferenceStaticFieldOffset(PointerSize pointer_size) {
   DCHECK(IsResolved());
-  uint32_t base = sizeof(mirror::Class);  // Static fields come after the class.
+  uint32_t base = sizeof(Class);  // Static fields come after the class.
   if (ShouldHaveEmbeddedVTable<kVerifyFlags, kReadBarrierOption>()) {
     // Static fields come after the embedded tables.
-    base = mirror::Class::ComputeClassSize(
+    base = Class::ComputeClassSize(
         true, GetEmbeddedVTableLength(), 0, 0, 0, 0, 0, pointer_size);
   }
   return MemberOffset(base);
@@ -566,10 +571,10 @@ inline MemberOffset Class::GetFirstReferenceStaticFieldOffset(PointerSize pointe
 inline MemberOffset Class::GetFirstReferenceStaticFieldOffsetDuringLinking(
     PointerSize pointer_size) {
   DCHECK(IsLoaded());
-  uint32_t base = sizeof(mirror::Class);  // Static fields come after the class.
+  uint32_t base = sizeof(Class);  // Static fields come after the class.
   if (ShouldHaveEmbeddedVTable()) {
     // Static fields come after the embedded tables.
-    base = mirror::Class::ComputeClassSize(true, GetVTableDuringLinking()->GetLength(),
+    base = Class::ComputeClassSize(true, GetVTableDuringLinking()->GetLength(),
                                            0, 0, 0, 0, 0, pointer_size);
   }
   return MemberOffset(base);
@@ -700,7 +705,7 @@ inline void Class::CheckObjectAlloc() {
 }
 
 template<bool kIsInstrumented, bool kCheckAddFinalizer>
-inline Object* Class::Alloc(Thread* self, gc::AllocatorType allocator_type) {
+inline ObjPtr<Object> Class::Alloc(Thread* self, gc::AllocatorType allocator_type) {
   CheckObjectAlloc();
   gc::Heap* heap = Runtime::Current()->GetHeap();
   const bool add_finalizer = kCheckAddFinalizer && IsFinalizable();
@@ -708,7 +713,7 @@ inline Object* Class::Alloc(Thread* self, gc::AllocatorType allocator_type) {
     DCHECK(!IsFinalizable());
   }
   // Note that the this pointer may be invalidated after the allocation.
-  ObjPtr<mirror::Object> obj =
+  ObjPtr<Object> obj =
       heap->AllocObjectWithAllocator<kIsInstrumented, false>(self,
                                                              this,
                                                              this->object_size_,
@@ -724,11 +729,11 @@ inline Object* Class::Alloc(Thread* self, gc::AllocatorType allocator_type) {
   return obj.Ptr();
 }
 
-inline Object* Class::AllocObject(Thread* self) {
+inline ObjPtr<Object> Class::AllocObject(Thread* self) {
   return Alloc<true>(self, Runtime::Current()->GetHeap()->GetCurrentAllocator());
 }
 
-inline Object* Class::AllocNonMovableObject(Thread* self) {
+inline ObjPtr<Object> Class::AllocNonMovableObject(Thread* self) {
   return Alloc<true>(self, Runtime::Current()->GetHeap()->GetCurrentNonMovingAllocator());
 }
 
@@ -750,7 +755,7 @@ inline uint32_t Class::ComputeClassSize(bool has_embedded_vtable,
   }
 
   // Space used by reference statics.
-  size += num_ref_static_fields * sizeof(HeapReference<Object>);
+  size += num_ref_static_fields * kHeapReferenceSize;
   if (!IsAligned<8>(size) && num_64bit_static_fields > 0) {
     uint32_t gap = 8 - (size & 0x7);
     size += gap;  // will be padded
@@ -781,8 +786,8 @@ template <bool kVisitNativeRoots,
           VerifyObjectFlags kVerifyFlags,
           ReadBarrierOption kReadBarrierOption,
           typename Visitor>
-inline void Class::VisitReferences(mirror::Class* klass, const Visitor& visitor) {
-  VisitInstanceFieldsReferences<kVerifyFlags, kReadBarrierOption>(klass, visitor);
+inline void Class::VisitReferences(ObjPtr<Class> klass, const Visitor& visitor) {
+  VisitInstanceFieldsReferences<kVerifyFlags, kReadBarrierOption>(klass.Ptr(), visitor);
   // Right after a class is allocated, but not yet loaded
   // (kStatusNotReady, see ClassLinker::LoadClass()), GC may find it
   // and scan it. IsTemp() may call Class::GetAccessFlags() but may
@@ -810,7 +815,7 @@ inline bool Class::IsReferenceClass() const {
 
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline bool Class::IsClassClass() {
-  Class* java_lang_Class = GetClass<kVerifyFlags, kReadBarrierOption>()->
+  ObjPtr<Class> java_lang_Class = GetClass<kVerifyFlags, kReadBarrierOption>()->
       template GetClass<kVerifyFlags, kReadBarrierOption>();
   return this == java_lang_Class;
 }
@@ -883,12 +888,11 @@ inline void Class::SetSlowPath(bool enabled) {
   SetFieldBoolean<false, false>(GetSlowPathFlagOffset(), enabled);
 }
 
-inline void Class::InitializeClassVisitor::operator()(ObjPtr<mirror::Object> obj,
+inline void Class::InitializeClassVisitor::operator()(ObjPtr<Object> obj,
                                                       size_t usable_size) const {
   DCHECK_LE(class_size_, usable_size);
   // Avoid AsClass as object is not yet in live bitmap or allocation stack.
-  ObjPtr<mirror::Class> klass = ObjPtr<mirror::Class>::DownCast(obj);
-  // DCHECK(klass->IsClass());
+  ObjPtr<Class> klass = ObjPtr<Class>::DownCast(obj);
   klass->SetClassSize(class_size_);
   klass->SetPrimitiveType(Primitive::kPrimNot);  // Default to not being primitive.
   klass->SetDexClassDefIndex(DexFile::kDexNoIndex16);  // Default to no valid class def index.
@@ -920,7 +924,7 @@ inline uint32_t Class::NumDirectInterfaces() {
   } else if (IsArrayClass()) {
     return 2;
   } else if (IsProxyClass()) {
-    mirror::ObjectArray<mirror::Class>* interfaces = GetInterfaces();
+    ObjectArray<Class>* interfaces = GetInterfaces();
     return interfaces != nullptr ? interfaces->GetLength() : 0;
   } else {
     const DexFile::TypeList* interfaces = GetInterfaceTypeList();
@@ -941,7 +945,7 @@ inline StringDexCacheType* Class::GetDexCacheStrings() {
 }
 
 template<ReadBarrierOption kReadBarrierOption, class Visitor>
-void mirror::Class::VisitNativeRoots(Visitor& visitor, PointerSize pointer_size) {
+void Class::VisitNativeRoots(Visitor& visitor, PointerSize pointer_size) {
   for (ArtField& field : GetSFieldsUnchecked()) {
     // Visit roots first in case the declaring class gets moved.
     field.VisitRoots(visitor);
@@ -1070,7 +1074,7 @@ inline uint32_t Class::NumStaticFields() {
 }
 
 template <VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption, typename Visitor>
-inline void Class::FixupNativePointers(mirror::Class* dest,
+inline void Class::FixupNativePointers(Class* dest,
                                        PointerSize pointer_size,
                                        const Visitor& visitor) {
   // Update the field arrays.
@@ -1137,6 +1141,14 @@ inline bool Class::CanAccessMember(ObjPtr<Class> access_to, uint32_t member_flag
   }
   // Allow protected access from other classes in the same package.
   return this->IsInSamePackage(access_to);
+}
+
+inline bool Class::CannotBeAssignedFromOtherTypes() {
+  if (!IsArrayClass()) {
+    return IsFinal();
+  }
+  ObjPtr<Class> component = GetComponentType();
+  return component->IsPrimitive() || component->CannotBeAssignedFromOtherTypes();
 }
 
 }  // namespace mirror

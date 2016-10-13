@@ -40,12 +40,12 @@ namespace mirror {
 
 GcRoot<Class> Class::java_lang_Class_;
 
-void Class::SetClassClass(Class* java_lang_Class) {
+void Class::SetClassClass(ObjPtr<Class> java_lang_Class) {
   CHECK(java_lang_Class_.IsNull())
       << java_lang_Class_.Read()
       << " " << java_lang_Class;
   CHECK(java_lang_Class != nullptr);
-  java_lang_Class->SetClassFlags(mirror::kClassFlagClass);
+  java_lang_Class->SetClassFlags(kClassFlagClass);
   java_lang_Class_ = GcRoot<Class>(java_lang_Class);
 }
 
@@ -58,7 +58,7 @@ void Class::VisitRoots(RootVisitor* visitor) {
   java_lang_Class_.VisitRootIfNonNull(visitor, RootInfo(kRootStickyClass));
 }
 
-inline void Class::SetVerifyError(mirror::Object* error) {
+inline void Class::SetVerifyError(ObjPtr<Object> error) {
   CHECK(error != nullptr) << PrettyClass(this);
   if (Runtime::Current()->IsActiveTransaction()) {
     SetFieldObject<true>(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_), error);
@@ -140,7 +140,7 @@ void Class::SetStatus(Handle<Class> h_this, Status new_status, Thread* self) {
   }
 }
 
-void Class::SetDexCache(DexCache* new_dex_cache) {
+void Class::SetDexCache(ObjPtr<DexCache> new_dex_cache) {
   SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, dex_cache_), new_dex_cache);
   SetDexCacheStrings(new_dex_cache != nullptr ? new_dex_cache->GetStrings() : nullptr);
 }
@@ -209,8 +209,8 @@ void Class::DumpClass(std::ostream& os, int flags) {
 
   Thread* const self = Thread::Current();
   StackHandleScope<2> hs(self);
-  Handle<mirror::Class> h_this(hs.NewHandle(this));
-  Handle<mirror::Class> h_super(hs.NewHandle(GetSuperClass()));
+  Handle<Class> h_this(hs.NewHandle(this));
+  Handle<Class> h_super(hs.NewHandle(GetSuperClass()));
   auto image_pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
 
   std::string temp;
@@ -231,12 +231,12 @@ void Class::DumpClass(std::ostream& os, int flags) {
   if (num_direct_interfaces > 0) {
     os << "  interfaces (" << num_direct_interfaces << "):\n";
     for (size_t i = 0; i < num_direct_interfaces; ++i) {
-      Class* interface = GetDirectInterface(self, h_this, i);
+      ObjPtr<Class> interface = GetDirectInterface(self, h_this, i);
       if (interface == nullptr) {
         os << StringPrintf("    %2zd: nullptr!\n", i);
       } else {
-        const ClassLoader* cl = interface->GetClassLoader();
-        os << StringPrintf("    %2zd: %s (cl=%p)\n", i, PrettyClass(interface).c_str(), cl);
+        ObjPtr<ClassLoader> cl = interface->GetClassLoader();
+        os << StringPrintf("    %2zd: %s (cl=%p)\n", i, PrettyClass(interface).c_str(), cl.Ptr());
       }
     }
   }
@@ -283,7 +283,7 @@ void Class::SetReferenceInstanceOffsets(uint32_t new_reference_offsets) {
     // Sanity check that the number of bits set in the reference offset bitmap
     // agrees with the number of references
     uint32_t count = 0;
-    for (Class* c = this; c != nullptr; c = c->GetSuperClass()) {
+    for (ObjPtr<Class> c = this; c != nullptr; c = c->GetSuperClass()) {
       count += c->NumReferenceInstanceFieldsDuringLinking();
     }
     // +1 for the Class in Object.
@@ -338,7 +338,7 @@ bool Class::IsThrowableClass() {
   return WellKnownClasses::ToClass(WellKnownClasses::java_lang_Throwable)->IsAssignableFrom(this);
 }
 
-void Class::SetClassLoader(ClassLoader* new_class_loader) {
+void Class::SetClassLoader(ObjPtr<ClassLoader> new_class_loader) {
   if (Runtime::Current()->IsActiveTransaction()) {
     SetFieldObject<true>(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), new_class_loader);
   } else {
@@ -356,7 +356,7 @@ ArtMethod* Class::FindInterfaceMethod(const StringPiece& name,
   }
 
   int32_t iftable_count = GetIfTableCount();
-  IfTable* iftable = GetIfTable();
+  ObjPtr<IfTable> iftable = GetIfTable();
   for (int32_t i = 0; i < iftable_count; ++i) {
     method = iftable->GetInterface(i)->FindDeclaredVirtualMethod(name, signature, pointer_size);
     if (method != nullptr) {
@@ -376,7 +376,7 @@ ArtMethod* Class::FindInterfaceMethod(const StringPiece& name,
   }
 
   int32_t iftable_count = GetIfTableCount();
-  IfTable* iftable = GetIfTable();
+  ObjPtr<IfTable> iftable = GetIfTable();
   for (int32_t i = 0; i < iftable_count; ++i) {
     method = iftable->GetInterface(i)->FindDeclaredVirtualMethod(name, signature, pointer_size);
     if (method != nullptr) {
@@ -386,7 +386,7 @@ ArtMethod* Class::FindInterfaceMethod(const StringPiece& name,
   return nullptr;
 }
 
-ArtMethod* Class::FindInterfaceMethod(const DexCache* dex_cache,
+ArtMethod* Class::FindInterfaceMethod(ObjPtr<DexCache> dex_cache,
                                       uint32_t dex_method_idx,
                                       PointerSize pointer_size) {
   // Check the current class before checking the interfaces.
@@ -396,7 +396,7 @@ ArtMethod* Class::FindInterfaceMethod(const DexCache* dex_cache,
   }
 
   int32_t iftable_count = GetIfTableCount();
-  IfTable* iftable = GetIfTable();
+  ObjPtr<IfTable> iftable = GetIfTable();
   for (int32_t i = 0; i < iftable_count; ++i) {
     method = iftable->GetInterface(i)->FindDeclaredVirtualMethod(
         dex_cache, dex_method_idx, pointer_size);
@@ -429,7 +429,7 @@ ArtMethod* Class::FindDeclaredDirectMethod(const StringPiece& name,
   return nullptr;
 }
 
-ArtMethod* Class::FindDeclaredDirectMethod(const DexCache* dex_cache,
+ArtMethod* Class::FindDeclaredDirectMethod(ObjPtr<DexCache> dex_cache,
                                            uint32_t dex_method_idx,
                                            PointerSize pointer_size) {
   if (GetDexCache() == dex_cache) {
@@ -445,7 +445,7 @@ ArtMethod* Class::FindDeclaredDirectMethod(const DexCache* dex_cache,
 ArtMethod* Class::FindDirectMethod(const StringPiece& name,
                                    const StringPiece& signature,
                                    PointerSize pointer_size) {
-  for (Class* klass = this; klass != nullptr; klass = klass->GetSuperClass()) {
+  for (ObjPtr<Class> klass = this; klass != nullptr; klass = klass->GetSuperClass()) {
     ArtMethod* method = klass->FindDeclaredDirectMethod(name, signature, pointer_size);
     if (method != nullptr) {
       return method;
@@ -457,7 +457,7 @@ ArtMethod* Class::FindDirectMethod(const StringPiece& name,
 ArtMethod* Class::FindDirectMethod(const StringPiece& name,
                                    const Signature& signature,
                                    PointerSize pointer_size) {
-  for (Class* klass = this; klass != nullptr; klass = klass->GetSuperClass()) {
+  for (ObjPtr<Class> klass = this; klass != nullptr; klass = klass->GetSuperClass()) {
     ArtMethod* method = klass->FindDeclaredDirectMethod(name, signature, pointer_size);
     if (method != nullptr) {
       return method;
@@ -466,9 +466,10 @@ ArtMethod* Class::FindDirectMethod(const StringPiece& name,
   return nullptr;
 }
 
-ArtMethod* Class::FindDirectMethod(
-    const DexCache* dex_cache, uint32_t dex_method_idx, PointerSize pointer_size) {
-  for (Class* klass = this; klass != nullptr; klass = klass->GetSuperClass()) {
+ArtMethod* Class::FindDirectMethod(ObjPtr<DexCache> dex_cache,
+                                   uint32_t dex_method_idx,
+                                   PointerSize pointer_size) {
+  for (ObjPtr<Class> klass = this; klass != nullptr; klass = klass->GetSuperClass()) {
     ArtMethod* method = klass->FindDeclaredDirectMethod(dex_cache, dex_method_idx, pointer_size);
     if (method != nullptr) {
       return method;
@@ -516,7 +517,7 @@ ArtMethod* Class::FindDeclaredVirtualMethod(const StringPiece& name,
   return nullptr;
 }
 
-ArtMethod* Class::FindDeclaredVirtualMethod(const DexCache* dex_cache,
+ArtMethod* Class::FindDeclaredVirtualMethod(ObjPtr<DexCache> dex_cache,
                                             uint32_t dex_method_idx,
                                             PointerSize pointer_size) {
   if (GetDexCache() == dex_cache) {
@@ -540,9 +541,10 @@ ArtMethod* Class::FindDeclaredVirtualMethodByName(const StringPiece& name,
   return nullptr;
 }
 
-ArtMethod* Class::FindVirtualMethod(
-    const StringPiece& name, const StringPiece& signature, PointerSize pointer_size) {
-  for (Class* klass = this; klass != nullptr; klass = klass->GetSuperClass()) {
+ArtMethod* Class::FindVirtualMethod(const StringPiece& name,
+                                    const StringPiece& signature,
+                                    PointerSize pointer_size) {
+  for (ObjPtr<Class> klass = this; klass != nullptr; klass = klass->GetSuperClass()) {
     ArtMethod* method = klass->FindDeclaredVirtualMethod(name, signature, pointer_size);
     if (method != nullptr) {
       return method;
@@ -551,9 +553,10 @@ ArtMethod* Class::FindVirtualMethod(
   return nullptr;
 }
 
-ArtMethod* Class::FindVirtualMethod(
-    const StringPiece& name, const Signature& signature, PointerSize pointer_size) {
-  for (Class* klass = this; klass != nullptr; klass = klass->GetSuperClass()) {
+ArtMethod* Class::FindVirtualMethod(const StringPiece& name,
+                                    const Signature& signature,
+                                    PointerSize pointer_size) {
+  for (ObjPtr<Class> klass = this; klass != nullptr; klass = klass->GetSuperClass()) {
     ArtMethod* method = klass->FindDeclaredVirtualMethod(name, signature, pointer_size);
     if (method != nullptr) {
       return method;
@@ -562,9 +565,10 @@ ArtMethod* Class::FindVirtualMethod(
   return nullptr;
 }
 
-ArtMethod* Class::FindVirtualMethod(
-    const DexCache* dex_cache, uint32_t dex_method_idx, PointerSize pointer_size) {
-  for (Class* klass = this; klass != nullptr; klass = klass->GetSuperClass()) {
+ArtMethod* Class::FindVirtualMethod(ObjPtr<DexCache> dex_cache,
+                                    uint32_t dex_method_idx,
+                                    PointerSize pointer_size) {
+  for (ObjPtr<Class> klass = this; klass != nullptr; klass = klass->GetSuperClass()) {
     ArtMethod* method = klass->FindDeclaredVirtualMethod(dex_cache, dex_method_idx, pointer_size);
     if (method != nullptr) {
       return method;
@@ -591,8 +595,8 @@ ArtMethod* Class::FindVirtualMethodForInterfaceSuper(ArtMethod* method, PointerS
 
   Thread* self = Thread::Current();
   StackHandleScope<2> hs(self);
-  MutableHandle<mirror::IfTable> iftable(hs.NewHandle(GetIfTable()));
-  MutableHandle<mirror::Class> iface(hs.NewHandle<mirror::Class>(nullptr));
+  MutableHandle<IfTable> iftable(hs.NewHandle(GetIfTable()));
+  MutableHandle<Class> iface(hs.NewHandle<Class>(nullptr));
   size_t iftable_count = GetIfTableCount();
   // Find the method. We don't need to check for conflicts because they would have been in the
   // copied virtuals of this interface.  Order matters, traverse in reverse topological order; most
@@ -696,7 +700,7 @@ ArtField* Class::FindDeclaredInstanceField(const StringPiece& name, const String
   return FindFieldByNameAndType(GetIFieldsPtr(), name, type);
 }
 
-ArtField* Class::FindDeclaredInstanceField(const DexCache* dex_cache, uint32_t dex_field_idx) {
+ArtField* Class::FindDeclaredInstanceField(ObjPtr<DexCache> dex_cache, uint32_t dex_field_idx) {
   if (GetDexCache() == dex_cache) {
     for (ArtField& field : GetIFields()) {
       if (field.GetDexFieldIndex() == dex_field_idx) {
@@ -710,7 +714,7 @@ ArtField* Class::FindDeclaredInstanceField(const DexCache* dex_cache, uint32_t d
 ArtField* Class::FindInstanceField(const StringPiece& name, const StringPiece& type) {
   // Is the field in this class, or any of its superclasses?
   // Interfaces are not relevant because they can't contain instance fields.
-  for (Class* c = this; c != nullptr; c = c->GetSuperClass()) {
+  for (ObjPtr<Class> c = this; c != nullptr; c = c->GetSuperClass()) {
     ArtField* f = c->FindDeclaredInstanceField(name, type);
     if (f != nullptr) {
       return f;
@@ -719,10 +723,10 @@ ArtField* Class::FindInstanceField(const StringPiece& name, const StringPiece& t
   return nullptr;
 }
 
-ArtField* Class::FindInstanceField(const DexCache* dex_cache, uint32_t dex_field_idx) {
+ArtField* Class::FindInstanceField(ObjPtr<DexCache> dex_cache, uint32_t dex_field_idx) {
   // Is the field in this class, or any of its superclasses?
   // Interfaces are not relevant because they can't contain instance fields.
-  for (Class* c = this; c != nullptr; c = c->GetSuperClass()) {
+  for (ObjPtr<Class> c = this; c != nullptr; c = c->GetSuperClass()) {
     ArtField* f = c->FindDeclaredInstanceField(dex_cache, dex_field_idx);
     if (f != nullptr) {
       return f;
@@ -736,7 +740,7 @@ ArtField* Class::FindDeclaredStaticField(const StringPiece& name, const StringPi
   return FindFieldByNameAndType(GetSFieldsPtr(), name, type);
 }
 
-ArtField* Class::FindDeclaredStaticField(const DexCache* dex_cache, uint32_t dex_field_idx) {
+ArtField* Class::FindDeclaredStaticField(ObjPtr<DexCache> dex_cache, uint32_t dex_field_idx) {
   if (dex_cache == GetDexCache()) {
     for (ArtField& field : GetSFields()) {
       if (field.GetDexFieldIndex() == dex_field_idx) {
@@ -747,11 +751,13 @@ ArtField* Class::FindDeclaredStaticField(const DexCache* dex_cache, uint32_t dex
   return nullptr;
 }
 
-ArtField* Class::FindStaticField(Thread* self, Handle<Class> klass, const StringPiece& name,
+ArtField* Class::FindStaticField(Thread* self,
+                                 Handle<Class> klass,
+                                 const StringPiece& name,
                                  const StringPiece& type) {
   // Is the field in this class (or its interfaces), or any of its
   // superclasses (or their interfaces)?
-  for (Class* k = klass.Get(); k != nullptr; k = k->GetSuperClass()) {
+  for (ObjPtr<Class> k = klass.Get(); k != nullptr; k = k->GetSuperClass()) {
     // Is the field in this class?
     ArtField* f = k->FindDeclaredStaticField(name, type);
     if (f != nullptr) {
@@ -759,11 +765,11 @@ ArtField* Class::FindStaticField(Thread* self, Handle<Class> klass, const String
     }
     // Wrap k incase it moves during GetDirectInterface.
     StackHandleScope<1> hs(self);
-    HandleWrapper<mirror::Class> h_k(hs.NewHandleWrapper(&k));
+    HandleWrapperObjPtr<Class> h_k(hs.NewHandleWrapper(&k));
     // Is this field in any of this class' interfaces?
     for (uint32_t i = 0; i < h_k->NumDirectInterfaces(); ++i) {
       StackHandleScope<1> hs2(self);
-      Handle<mirror::Class> interface(hs2.NewHandle(GetDirectInterface(self, h_k, i)));
+      Handle<Class> interface(hs2.NewHandle(GetDirectInterface(self, h_k, i)));
       f = FindStaticField(self, interface, name, type);
       if (f != nullptr) {
         return f;
@@ -774,10 +780,10 @@ ArtField* Class::FindStaticField(Thread* self, Handle<Class> klass, const String
 }
 
 ArtField* Class::FindStaticField(Thread* self,
-                                 Class* klass,
-                                 const DexCache* dex_cache,
+                                 ObjPtr<Class> klass,
+                                 ObjPtr<DexCache> dex_cache,
                                  uint32_t dex_field_idx) {
-  for (Class* k = klass; k != nullptr; k = k->GetSuperClass()) {
+  for (ObjPtr<Class> k = klass; k != nullptr; k = k->GetSuperClass()) {
     // Is the field in this class?
     ArtField* f = k->FindDeclaredStaticField(dex_cache, dex_field_idx);
     if (f != nullptr) {
@@ -787,10 +793,10 @@ ArtField* Class::FindStaticField(Thread* self,
     // from here, it takes a Handle as an argument, so we need to wrap `k`.
     ScopedAssertNoThreadSuspension ants(__FUNCTION__);
     StackHandleScope<1> hs(self);
-    Handle<mirror::Class> h_k(hs.NewHandle(k));
+    Handle<Class> h_k(hs.NewHandle(k));
     // Is this field in any of this class' interfaces?
     for (uint32_t i = 0; i < h_k->NumDirectInterfaces(); ++i) {
-      mirror::Class* interface = GetDirectInterface(self, h_k, i);
+      ObjPtr<Class> interface = GetDirectInterface(self, h_k, i);
       f = FindStaticField(self, interface, dex_cache, dex_field_idx);
       if (f != nullptr) {
         return f;
@@ -800,10 +806,12 @@ ArtField* Class::FindStaticField(Thread* self,
   return nullptr;
 }
 
-ArtField* Class::FindField(Thread* self, Handle<Class> klass, const StringPiece& name,
+ArtField* Class::FindField(Thread* self,
+                           Handle<Class> klass,
+                           const StringPiece& name,
                            const StringPiece& type) {
   // Find a field using the JLS field resolution order
-  for (Class* k = klass.Get(); k != nullptr; k = k->GetSuperClass()) {
+  for (ObjPtr<Class> k = klass.Get(); k != nullptr; k = k->GetSuperClass()) {
     // Is the field in this class?
     ArtField* f = k->FindDeclaredInstanceField(name, type);
     if (f != nullptr) {
@@ -815,10 +823,10 @@ ArtField* Class::FindField(Thread* self, Handle<Class> klass, const StringPiece&
     }
     // Is this field in any of this class' interfaces?
     StackHandleScope<1> hs(self);
-    HandleWrapper<mirror::Class> h_k(hs.NewHandleWrapper(&k));
+    HandleWrapperObjPtr<Class> h_k(hs.NewHandleWrapper(&k));
     for (uint32_t i = 0; i < h_k->NumDirectInterfaces(); ++i) {
       StackHandleScope<1> hs2(self);
-      Handle<mirror::Class> interface(hs2.NewHandle(GetDirectInterface(self, h_k, i)));
+      Handle<Class> interface(hs2.NewHandle(GetDirectInterface(self, h_k, i)));
       f = interface->FindStaticField(self, interface, name, type);
       if (f != nullptr) {
         return f;
@@ -874,8 +882,9 @@ uint16_t Class::GetDirectInterfaceTypeIdx(uint32_t idx) {
   return GetInterfaceTypeList()->GetTypeItem(idx).type_idx_;
 }
 
-mirror::Class* Class::GetDirectInterface(Thread* self, Handle<mirror::Class> klass,
-                                         uint32_t idx) {
+ObjPtr<Class> Class::GetDirectInterface(Thread* self,
+                                        Handle<Class> klass,
+                                        uint32_t idx) {
   DCHECK(klass.Get() != nullptr);
   DCHECK(!klass->IsPrimitive());
   if (klass->IsArrayClass()) {
@@ -887,12 +896,12 @@ mirror::Class* Class::GetDirectInterface(Thread* self, Handle<mirror::Class> kla
       return class_linker->FindSystemClass(self, "Ljava/io/Serializable;");
     }
   } else if (klass->IsProxyClass()) {
-    mirror::ObjectArray<mirror::Class>* interfaces = klass.Get()->GetInterfaces();
+    ObjPtr<ObjectArray<Class>> interfaces = klass.Get()->GetInterfaces();
     DCHECK(interfaces != nullptr);
     return interfaces->Get(idx);
   } else {
     uint16_t type_idx = klass->GetDirectInterfaceTypeIdx(idx);
-    mirror::Class* interface = klass->GetDexCache()->GetResolvedType(type_idx);
+    ObjPtr<Class> interface = klass->GetDexCache()->GetResolvedType(type_idx);
     if (interface == nullptr) {
       interface = Runtime::Current()->GetClassLinker()->ResolveType(klass->GetDexFile(), type_idx,
                                                                     klass.Get());
@@ -902,13 +911,13 @@ mirror::Class* Class::GetDirectInterface(Thread* self, Handle<mirror::Class> kla
   }
 }
 
-mirror::Class* Class::GetCommonSuperClass(Handle<Class> klass) {
+ObjPtr<Class> Class::GetCommonSuperClass(Handle<Class> klass) {
   DCHECK(klass.Get() != nullptr);
   DCHECK(!klass->IsInterface());
   DCHECK(!IsInterface());
-  mirror::Class* common_super_class = this;
+  ObjPtr<Class> common_super_class = this;
   while (!common_super_class->IsAssignableFrom(klass.Get())) {
-    mirror::Class* old_common = common_super_class;
+    ObjPtr<Class> old_common = common_super_class;
     common_super_class = old_common->GetSuperClass();
     DCHECK(common_super_class != nullptr) << PrettyClass(old_common);
   }
@@ -926,7 +935,7 @@ const char* Class::GetSourceFile() {
 }
 
 std::string Class::GetLocation() {
-  mirror::DexCache* dex_cache = GetDexCache();
+  ObjPtr<DexCache> dex_cache = GetDexCache();
   if (dex_cache != nullptr && !IsProxyClass()) {
     return dex_cache->GetLocation()->ToModifiedUtf8();
   }
@@ -959,28 +968,28 @@ void Class::PopulateEmbeddedVTable(PointerSize pointer_size) {
 
 class ReadBarrierOnNativeRootsVisitor {
  public:
-  void operator()(mirror::Object* obj ATTRIBUTE_UNUSED,
+  void operator()(ObjPtr<Object> obj ATTRIBUTE_UNUSED,
                   MemberOffset offset ATTRIBUTE_UNUSED,
                   bool is_static ATTRIBUTE_UNUSED) const {}
 
-  void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root) const
+  void VisitRootIfNonNull(CompressedReference<Object>* root) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     if (!root->IsNull()) {
       VisitRoot(root);
     }
   }
 
-  void VisitRoot(mirror::CompressedReference<mirror::Object>* root) const
+  void VisitRoot(CompressedReference<Object>* root) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    mirror::Object* old_ref = root->AsMirrorPtr();
-    mirror::Object* new_ref = ReadBarrier::BarrierForRoot(root);
+    ObjPtr<Object> old_ref = root->AsMirrorPtr();
+    ObjPtr<Object> new_ref = ReadBarrier::BarrierForRoot(root);
     if (old_ref != new_ref) {
       // Update the field atomically. This may fail if mutator updates before us, but it's ok.
       auto* atomic_root =
-          reinterpret_cast<Atomic<mirror::CompressedReference<mirror::Object>>*>(root);
+          reinterpret_cast<Atomic<CompressedReference<Object>>*>(root);
       atomic_root->CompareExchangeStrongSequentiallyConsistent(
-          mirror::CompressedReference<mirror::Object>::FromMirrorPtr(old_ref),
-          mirror::CompressedReference<mirror::Object>::FromMirrorPtr(new_ref));
+          CompressedReference<Object>::FromMirrorPtr(old_ref.Ptr()),
+          CompressedReference<Object>::FromMirrorPtr(new_ref.Ptr()));
     }
   }
 };
@@ -989,7 +998,7 @@ class ReadBarrierOnNativeRootsVisitor {
 class CopyClassVisitor {
  public:
   CopyClassVisitor(Thread* self,
-                   Handle<mirror::Class>* orig,
+                   Handle<Class>* orig,
                    size_t new_length,
                    size_t copy_bytes,
                    ImTable* imt,
@@ -998,24 +1007,24 @@ class CopyClassVisitor {
         copy_bytes_(copy_bytes), imt_(imt), pointer_size_(pointer_size) {
   }
 
-  void operator()(ObjPtr<mirror::Object> obj, size_t usable_size ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<Object> obj, size_t usable_size ATTRIBUTE_UNUSED) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     StackHandleScope<1> hs(self_);
     Handle<mirror::Class> h_new_class_obj(hs.NewHandle(obj->AsClass()));
-    mirror::Object::CopyObject(h_new_class_obj.Get(), orig_->Get(), copy_bytes_);
-    mirror::Class::SetStatus(h_new_class_obj, Class::kStatusResolving, self_);
+    Object::CopyObject(h_new_class_obj.Get(), orig_->Get(), copy_bytes_);
+    Class::SetStatus(h_new_class_obj, Class::kStatusResolving, self_);
     h_new_class_obj->PopulateEmbeddedVTable(pointer_size_);
     h_new_class_obj->SetImt(imt_, pointer_size_);
     h_new_class_obj->SetClassSize(new_length_);
     // Visit all of the references to make sure there is no from space references in the native
     // roots.
-    static_cast<mirror::Object*>(h_new_class_obj.Get())->VisitReferences(
+    ObjPtr<Object>(h_new_class_obj.Get())->VisitReferences(
         ReadBarrierOnNativeRootsVisitor(), VoidFunctor());
   }
 
  private:
   Thread* const self_;
-  Handle<mirror::Class>* const orig_;
+  Handle<Class>* const orig_;
   const size_t new_length_;
   const size_t copy_bytes_;
   ImTable* imt_;
@@ -1027,12 +1036,12 @@ Class* Class::CopyOf(Thread* self, int32_t new_length, ImTable* imt, PointerSize
   DCHECK_GE(new_length, static_cast<int32_t>(sizeof(Class)));
   // We may get copied by a compacting GC.
   StackHandleScope<1> hs(self);
-  Handle<mirror::Class> h_this(hs.NewHandle(this));
+  Handle<Class> h_this(hs.NewHandle(this));
   gc::Heap* heap = Runtime::Current()->GetHeap();
   // The num_bytes (3rd param) is sizeof(Class) as opposed to SizeOf()
   // to skip copying the tail part that we will overwrite here.
   CopyClassVisitor visitor(self, &h_this, new_length, sizeof(Class), imt, pointer_size);
-  mirror::Object* new_class = kMovingClasses ?
+  ObjPtr<Object> new_class = kMovingClasses ?
       heap->AllocObject<true>(self, java_lang_Class_.Read(), new_length, visitor) :
       heap->AllocNonMovableObject<true>(self, java_lang_Class_.Read(), new_length, visitor);
   if (UNLIKELY(new_class == nullptr)) {
@@ -1049,7 +1058,7 @@ bool Class::ProxyDescriptorEquals(const char* match) {
 
 // TODO: Move this to java_lang_Class.cc?
 ArtMethod* Class::GetDeclaredConstructor(
-    Thread* self, Handle<mirror::ObjectArray<mirror::Class>> args, PointerSize pointer_size) {
+    Thread* self, Handle<ObjectArray<Class>> args, PointerSize pointer_size) {
   for (auto& m : GetDirectMethods(pointer_size)) {
     // Skip <clinit> which is a static constructor, as well as non constructors.
     if (m.IsStatic() || !m.IsConstructor()) {
@@ -1068,7 +1077,7 @@ ArtMethod* Class::GetDeclaredConstructor(
 
 uint32_t Class::Depth() {
   uint32_t depth = 0;
-  for (Class* klass = this; klass->GetSuperClass() != nullptr; klass = klass->GetSuperClass()) {
+  for (ObjPtr<Class> klass = this; klass->GetSuperClass() != nullptr; klass = klass->GetSuperClass()) {
     depth++;
   }
   return depth;
@@ -1081,10 +1090,11 @@ uint32_t Class::FindTypeIndexInOtherDexFile(const DexFile& dex_file) {
 }
 
 template <PointerSize kPointerSize, bool kTransactionActive>
-mirror::Method* Class::GetDeclaredMethodInternal(Thread* self,
-                                                 mirror::Class* klass,
-                                                 mirror::String* name,
-                                                 mirror::ObjectArray<mirror::Class>* args) {
+ObjPtr<Method> Class::GetDeclaredMethodInternal(
+    Thread* self,
+    ObjPtr<Class> klass,
+    ObjPtr<String> name,
+    ObjPtr<ObjectArray<Class>> args) {
   // Covariant return types permit the class to define multiple
   // methods with the same name and parameter types. Prefer to
   // return a non-synthetic method in such situations. We may
@@ -1099,12 +1109,12 @@ mirror::Method* Class::GetDeclaredMethodInternal(Thread* self,
     return nullptr;
   }
   auto h_args = hs.NewHandle(args);
-  Handle<mirror::Class> h_klass = hs.NewHandle(klass);
+  Handle<Class> h_klass = hs.NewHandle(klass);
   ArtMethod* result = nullptr;
   for (auto& m : h_klass->GetDeclaredVirtualMethods(kPointerSize)) {
     auto* np_method = m.GetInterfaceMethodIfProxy(kPointerSize);
     // May cause thread suspension.
-    mirror::String* np_name = np_method->GetNameAsString(self);
+    ObjPtr<String> np_name = np_method->GetNameAsString(self);
     if (!np_name->Equals(h_method_name.Get()) || !np_method->EqualParameters(h_args)) {
       if (UNLIKELY(self->IsExceptionPending())) {
         return nullptr;
@@ -1113,7 +1123,7 @@ mirror::Method* Class::GetDeclaredMethodInternal(Thread* self,
     }
     auto modifiers = m.GetAccessFlags();
     if ((modifiers & kSkipModifiers) == 0) {
-      return mirror::Method::CreateFromArtMethod<kPointerSize, kTransactionActive>(self, &m);
+      return Method::CreateFromArtMethod<kPointerSize, kTransactionActive>(self, &m);
     }
     if ((modifiers & kAccMiranda) == 0) {
       result = &m;  // Remember as potential result if it's not a miranda method.
@@ -1127,7 +1137,7 @@ mirror::Method* Class::GetDeclaredMethodInternal(Thread* self,
       }
       auto* np_method = m.GetInterfaceMethodIfProxy(kPointerSize);
       // May cause thread suspension.
-      mirror::String* np_name = np_method->GetNameAsString(self);
+      ObjPtr<String> np_name = np_method->GetNameAsString(self);
       if (np_name == nullptr) {
         self->AssertPendingException();
         return nullptr;
@@ -1139,76 +1149,76 @@ mirror::Method* Class::GetDeclaredMethodInternal(Thread* self,
         continue;
       }
       if ((modifiers & kSkipModifiers) == 0) {
-        return mirror::Method::CreateFromArtMethod<kPointerSize, kTransactionActive>(self, &m);
+        return Method::CreateFromArtMethod<kPointerSize, kTransactionActive>(self, &m);
       }
       // Direct methods cannot be miranda methods, so this potential result must be synthetic.
       result = &m;
     }
   }
   return result != nullptr
-      ? mirror::Method::CreateFromArtMethod<kPointerSize, kTransactionActive>(self, result)
+      ? Method::CreateFromArtMethod<kPointerSize, kTransactionActive>(self, result)
       : nullptr;
 }
 
 template
-mirror::Method* Class::GetDeclaredMethodInternal<PointerSize::k32, false>(
+ObjPtr<Method> Class::GetDeclaredMethodInternal<PointerSize::k32, false>(
     Thread* self,
-    mirror::Class* klass,
-    mirror::String* name,
-    mirror::ObjectArray<mirror::Class>* args);
+    ObjPtr<Class> klass,
+    ObjPtr<String> name,
+    ObjPtr<ObjectArray<Class>> args);
 template
-mirror::Method* Class::GetDeclaredMethodInternal<PointerSize::k32, true>(
+ObjPtr<Method> Class::GetDeclaredMethodInternal<PointerSize::k32, true>(
     Thread* self,
-    mirror::Class* klass,
-    mirror::String* name,
-    mirror::ObjectArray<mirror::Class>* args);
+    ObjPtr<Class> klass,
+    ObjPtr<String> name,
+    ObjPtr<ObjectArray<Class>> args);
 template
-mirror::Method* Class::GetDeclaredMethodInternal<PointerSize::k64, false>(
+ObjPtr<Method> Class::GetDeclaredMethodInternal<PointerSize::k64, false>(
     Thread* self,
-    mirror::Class* klass,
-    mirror::String* name,
-    mirror::ObjectArray<mirror::Class>* args);
+    ObjPtr<Class> klass,
+    ObjPtr<String> name,
+    ObjPtr<ObjectArray<Class>> args);
 template
-mirror::Method* Class::GetDeclaredMethodInternal<PointerSize::k64, true>(
+ObjPtr<Method> Class::GetDeclaredMethodInternal<PointerSize::k64, true>(
     Thread* self,
-    mirror::Class* klass,
-    mirror::String* name,
-    mirror::ObjectArray<mirror::Class>* args);
+    ObjPtr<Class> klass,
+    ObjPtr<String> name,
+    ObjPtr<ObjectArray<Class>> args);
 
 template <PointerSize kPointerSize, bool kTransactionActive>
-mirror::Constructor* Class::GetDeclaredConstructorInternal(
+ObjPtr<Constructor> Class::GetDeclaredConstructorInternal(
     Thread* self,
-    mirror::Class* klass,
-    mirror::ObjectArray<mirror::Class>* args) {
+    ObjPtr<Class> klass,
+    ObjPtr<ObjectArray<Class>> args) {
   StackHandleScope<1> hs(self);
   ArtMethod* result = klass->GetDeclaredConstructor(self, hs.NewHandle(args), kPointerSize);
   return result != nullptr
-      ? mirror::Constructor::CreateFromArtMethod<kPointerSize, kTransactionActive>(self, result)
+      ? Constructor::CreateFromArtMethod<kPointerSize, kTransactionActive>(self, result)
       : nullptr;
 }
 
-// mirror::Constructor::CreateFromArtMethod<kTransactionActive>(self, result)
+// Constructor::CreateFromArtMethod<kTransactionActive>(self, result)
 
 template
-mirror::Constructor* Class::GetDeclaredConstructorInternal<PointerSize::k32, false>(
+ObjPtr<Constructor> Class::GetDeclaredConstructorInternal<PointerSize::k32, false>(
     Thread* self,
-    mirror::Class* klass,
-    mirror::ObjectArray<mirror::Class>* args);
+    ObjPtr<Class> klass,
+    ObjPtr<ObjectArray<Class>> args);
 template
-mirror::Constructor* Class::GetDeclaredConstructorInternal<PointerSize::k32, true>(
+ObjPtr<Constructor> Class::GetDeclaredConstructorInternal<PointerSize::k32, true>(
     Thread* self,
-    mirror::Class* klass,
-    mirror::ObjectArray<mirror::Class>* args);
+    ObjPtr<Class> klass,
+    ObjPtr<ObjectArray<Class>> args);
 template
-mirror::Constructor* Class::GetDeclaredConstructorInternal<PointerSize::k64, false>(
+ObjPtr<Constructor> Class::GetDeclaredConstructorInternal<PointerSize::k64, false>(
     Thread* self,
-    mirror::Class* klass,
-    mirror::ObjectArray<mirror::Class>* args);
+    ObjPtr<Class> klass,
+    ObjPtr<ObjectArray<Class>> args);
 template
-mirror::Constructor* Class::GetDeclaredConstructorInternal<PointerSize::k64, true>(
+ObjPtr<Constructor> Class::GetDeclaredConstructorInternal<PointerSize::k64, true>(
     Thread* self,
-    mirror::Class* klass,
-    mirror::ObjectArray<mirror::Class>* args);
+    ObjPtr<Class> klass,
+    ObjPtr<ObjectArray<Class>> args);
 
 int32_t Class::GetInnerClassFlags(Handle<Class> h_this, int32_t default_value) {
   if (h_this->IsProxyClass() || h_this->GetDexCache() == nullptr) {

@@ -38,6 +38,7 @@
 #include "gc/reference_processor.h"
 #include "handle_scope-inl.h"
 #include "interpreter/interpreter_common.h"
+#include "jvalue-inl.h"
 #include "mirror/array-inl.h"
 #include "mirror/class.h"
 #include "mirror/field-inl.h"
@@ -340,7 +341,7 @@ void UnstartedRuntime::UnstartedClassGetDeclaredMethod(
   Runtime* runtime = Runtime::Current();
   bool transaction = runtime->IsActiveTransaction();
   PointerSize pointer_size = runtime->GetClassLinker()->GetImagePointerSize();
-  mirror::Method* method;
+  ObjPtr<mirror::Method> method;
   if (transaction) {
     if (pointer_size == PointerSize::k64) {
       method = mirror::Class::GetDeclaredMethodInternal<PointerSize::k64, true>(
@@ -374,7 +375,7 @@ void UnstartedRuntime::UnstartedClassGetDeclaredConstructor(
   Runtime* runtime = Runtime::Current();
   bool transaction = runtime->IsActiveTransaction();
   PointerSize pointer_size = runtime->GetClassLinker()->GetImagePointerSize();
-  mirror::Constructor* constructor;
+  ObjPtr<mirror::Constructor> constructor;
   if (transaction) {
     if (pointer_size == PointerSize::k64) {
       constructor = mirror::Class::GetDeclaredConstructorInternal<PointerSize::k64,
