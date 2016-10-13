@@ -556,9 +556,14 @@ void CodeGeneratorMIPS64::GenerateFrameEntry() {
 
   __ IncreaseFrameSize(GetFrameSize() - FrameEntrySpillSize());
 
-  static_assert(IsInt<16>(kCurrentMethodStackOffset),
-                "kCurrentMethodStackOffset must fit into int16_t");
-  __ Sd(kMethodRegisterArgument, SP, kCurrentMethodStackOffset);
+  // Save the current method if we need it. Note that we do not
+  // do this in HCurrentMethod, as the instruction might have been removed
+  // in the SSA graph.
+  if (RequiresCurrentMethod()) {
+    static_assert(IsInt<16>(kCurrentMethodStackOffset),
+                  "kCurrentMethodStackOffset must fit into int16_t");
+    __ Sd(kMethodRegisterArgument, SP, kCurrentMethodStackOffset);
+  }
 }
 
 void CodeGeneratorMIPS64::GenerateFrameExit() {

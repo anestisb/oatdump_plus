@@ -1046,7 +1046,13 @@ void CodeGeneratorARM64::GenerateFrameEntry() {
     //      ...                       : other preserved fp registers.
     //      ...                       : reserved frame space.
     //      sp[0]                     : current method.
-    __ Str(kArtMethodRegister, MemOperand(sp, -frame_size, PreIndex));
+
+    // Save the current method if we need it. Note that we do not
+    // do this in HCurrentMethod, as the instruction might have been removed
+    // in the SSA graph.
+    if (RequiresCurrentMethod()) {
+      __ Str(kArtMethodRegister, MemOperand(sp, -frame_size, PreIndex));
+    }
     GetAssembler()->cfi().AdjustCFAOffset(frame_size);
     GetAssembler()->SpillRegisters(GetFramePreservedCoreRegisters(),
         frame_size - GetCoreSpillSize());
