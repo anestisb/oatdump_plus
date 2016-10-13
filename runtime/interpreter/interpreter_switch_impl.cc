@@ -20,6 +20,7 @@
 #include "experimental_flags.h"
 #include "interpreter_common.h"
 #include "jit/jit.h"
+#include "jvalue-inl.h"
 #include "safe_math.h"
 
 namespace art {

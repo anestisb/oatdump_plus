@@ -21,7 +21,7 @@
 
 #include "base/stringprintf.h"
 #include "common_throws.h"
-#include "jvalue.h"
+#include "jvalue-inl.h"
 #include "mirror/object-inl.h"
 #include "obj_ptr-inl.h"
 #include "primitive.h"

@@ -22,6 +22,7 @@
 #include "interpreter_common.h"
 #include "interpreter_mterp_impl.h"
 #include "interpreter_switch_impl.h"
+#include "jvalue-inl.h"
 #include "mirror/string-inl.h"
 #include "scoped_thread_state_change-inl.h"
 #include "ScopedLocalRef.h"
