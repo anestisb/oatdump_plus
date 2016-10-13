@@ -104,7 +104,7 @@ static jobject Constructor_newInstance0(JNIEnv* env, jobject javaMethod, jobject
     return InvokeMethod(soa, javaMethod, nullptr, javaArgs, 2);
   }
 
-  mirror::Object* receiver =
+  ObjPtr<mirror::Object> receiver =
       movable ? c->AllocObject(soa.Self()) : c->AllocNonMovableObject(soa.Self());
   if (receiver == nullptr) {
     return nullptr;

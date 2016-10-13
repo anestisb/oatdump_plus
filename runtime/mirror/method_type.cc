@@ -29,7 +29,7 @@ mirror::MethodType* MethodType::Create(Thread* const self,
                                        Handle<ObjectArray<Class>> param_types) {
   StackHandleScope<1> hs(self);
   Handle<mirror::MethodType> mt(
-      hs.NewHandle(static_cast<MethodType*>(StaticClass()->AllocObject(self))));
+      hs.NewHandle(ObjPtr<MethodType>::DownCast(StaticClass()->AllocObject(self))));
 
   // TODO: Do we ever create a MethodType during a transaction ? There doesn't
   // seem like a good reason to do a polymorphic invoke that results in the

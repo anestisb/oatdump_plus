@@ -83,14 +83,15 @@ class ReflectionTest : public CommonCompilerTest {
   }
 
   void ReflectionTestMakeExecutable(ArtMethod** method,
-                                    mirror::Object** receiver,
-                                    bool is_static, const char* method_name,
+                                    ObjPtr<mirror::Object>* receiver,
+                                    bool is_static,
+                                    const char* method_name,
                                     const char* method_signature)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     const char* class_name = is_static ? "StaticLeafMethods" : "NonStaticLeafMethods";
     jobject jclass_loader(LoadDex(class_name));
     Thread* self = Thread::Current();
-    StackHandleScope<2> hs(self);
+    StackHandleScope<3> hs(self);
     Handle<mirror::ClassLoader> class_loader(
         hs.NewHandle(
             ScopedObjectAccessUnchecked(self).Decode<mirror::ClassLoader>(jclass_loader)));
@@ -100,8 +101,9 @@ class ReflectionTest : public CommonCompilerTest {
     }
     MakeExecutable(class_loader.Get(), class_name);
 
-    mirror::Class* c = class_linker_->FindClass(self, DotToDescriptor(class_name).c_str(),
-                                                class_loader);
+    ObjPtr<mirror::Class> c = class_linker_->FindClass(self,
+                                                       DotToDescriptor(class_name).c_str(),
+                                                       class_loader);
     CHECK(c != nullptr);
 
     *method = is_static ? c->FindDirectMethod(method_name, method_signature, kRuntimePointerSize)
@@ -112,14 +114,17 @@ class ReflectionTest : public CommonCompilerTest {
       *receiver = nullptr;
     } else {
       // Ensure class is initialized before allocating object
-      StackHandleScope<1> hs2(self);
-      Handle<mirror::Class> h_class(hs2.NewHandle(c));
-      bool initialized = class_linker_->EnsureInitialized(self, h_class, true, true);
-      CHECK(initialized);
+      {
+        StackHandleScope<1> hs2(self);
+        HandleWrapperObjPtr<mirror::Class> h_class(hs2.NewHandleWrapper(&c));
+        bool initialized = class_linker_->EnsureInitialized(self, h_class, true, true);
+        CHECK(initialized);
+      }
       *receiver = c->AllocObject(self);
     }
 
     // Start runtime.
+    HandleWrapperObjPtr<mirror::Object> h(hs.NewHandleWrapper(receiver));
     bool started = runtime_->Start();
     CHECK(started);
     self->TransitionFromSuspendedToRunnable();
@@ -128,7 +133,7 @@ class ReflectionTest : public CommonCompilerTest {
   void InvokeNopMethod(bool is_static) {
     ScopedObjectAccess soa(env_);
     ArtMethod* method;
-    mirror::Object* receiver;
+    ObjPtr<mirror::Object> receiver;
     ReflectionTestMakeExecutable(&method, &receiver, is_static, "nop", "()V");
     ScopedLocalRef<jobject> receiver_ref(soa.Env(), soa.AddLocalReference<jobject>(receiver));
     InvokeWithJValues(soa, receiver_ref.get(), soa.EncodeMethod(method), nullptr);
@@ -137,7 +142,7 @@ class ReflectionTest : public CommonCompilerTest {
   void InvokeIdentityByteMethod(bool is_static) {
     ScopedObjectAccess soa(env_);
     ArtMethod* method;
-    mirror::Object* receiver;
+    ObjPtr<mirror::Object> receiver;
     ReflectionTestMakeExecutable(&method, &receiver, is_static, "identity", "(B)B");
     ScopedLocalRef<jobject> receiver_ref(soa.Env(), soa.AddLocalReference<jobject>(receiver));
     jvalue args[1];
@@ -163,7 +168,7 @@ class ReflectionTest : public CommonCompilerTest {
   void InvokeIdentityIntMethod(bool is_static) {
     ScopedObjectAccess soa(env_);
     ArtMethod* method;
-    mirror::Object* receiver;
+    ObjPtr<mirror::Object> receiver;
     ReflectionTestMakeExecutable(&method, &receiver, is_static, "identity", "(I)I");
     ScopedLocalRef<jobject> receiver_ref(soa.Env(), soa.AddLocalReference<jobject>(receiver));
     jvalue args[1];
@@ -188,7 +193,7 @@ class ReflectionTest : public CommonCompilerTest {
   void InvokeIdentityDoubleMethod(bool is_static) {
     ScopedObjectAccess soa(env_);
     ArtMethod* method;
-    mirror::Object* receiver;
+    ObjPtr<mirror::Object> receiver;
     ReflectionTestMakeExecutable(&method, &receiver, is_static, "identity", "(D)D");
     ScopedLocalRef<jobject> receiver_ref(soa.Env(), soa.AddLocalReference<jobject>(receiver));
     jvalue args[1];
@@ -213,7 +218,7 @@ class ReflectionTest : public CommonCompilerTest {
   void InvokeSumIntIntMethod(bool is_static) {
     ScopedObjectAccess soa(env_);
     ArtMethod* method;
-    mirror::Object* receiver;
+    ObjPtr<mirror::Object> receiver;
     ReflectionTestMakeExecutable(&method, &receiver, is_static, "sum", "(II)I");
     ScopedLocalRef<jobject> receiver_ref(soa.Env(), soa.AddLocalReference<jobject>(receiver));
     jvalue args[2];
@@ -242,7 +247,7 @@ class ReflectionTest : public CommonCompilerTest {
   void InvokeSumIntIntIntMethod(bool is_static) {
     ScopedObjectAccess soa(env_);
     ArtMethod* method;
-    mirror::Object* receiver;
+    ObjPtr<mirror::Object> receiver;
     ReflectionTestMakeExecutable(&method, &receiver, is_static, "sum", "(III)I");
     ScopedLocalRef<jobject> receiver_ref(soa.Env(), soa.AddLocalReference<jobject>(receiver));
     jvalue args[3];
@@ -281,7 +286,7 @@ class ReflectionTest : public CommonCompilerTest {
   void InvokeSumIntIntIntIntMethod(bool is_static) {
     ScopedObjectAccess soa(env_);
     ArtMethod* method;
-    mirror::Object* receiver;
+    ObjPtr<mirror::Object> receiver;
     ReflectionTestMakeExecutable(&method, &receiver, is_static, "sum", "(IIII)I");
     ScopedLocalRef<jobject> receiver_ref(soa.Env(), soa.AddLocalReference<jobject>(receiver));
     jvalue args[4];
@@ -325,7 +330,7 @@ class ReflectionTest : public CommonCompilerTest {
   void InvokeSumIntIntIntIntIntMethod(bool is_static) {
     ScopedObjectAccess soa(env_);
     ArtMethod* method;
-    mirror::Object* receiver;
+    ObjPtr<mirror::Object> receiver;
     ReflectionTestMakeExecutable(&method, &receiver, is_static, "sum", "(IIIII)I");
     ScopedLocalRef<jobject> receiver_ref(soa.Env(), soa.AddLocalReference<jobject>(receiver));
     jvalue args[5];
@@ -374,7 +379,7 @@ class ReflectionTest : public CommonCompilerTest {
   void InvokeSumDoubleDoubleMethod(bool is_static) {
     ScopedObjectAccess soa(env_);
     ArtMethod* method;
-    mirror::Object* receiver;
+    ObjPtr<mirror::Object> receiver;
     ReflectionTestMakeExecutable(&method, &receiver, is_static, "sum", "(DD)D");
     ScopedLocalRef<jobject> receiver_ref(soa.Env(), soa.AddLocalReference<jobject>(receiver));
     jvalue args[2];
@@ -408,7 +413,7 @@ class ReflectionTest : public CommonCompilerTest {
   void InvokeSumDoubleDoubleDoubleMethod(bool is_static) {
     ScopedObjectAccess soa(env_);
     ArtMethod* method;
-    mirror::Object* receiver;
+    ObjPtr<mirror::Object> receiver;
     ReflectionTestMakeExecutable(&method, &receiver, is_static, "sum", "(DDD)D");
     ScopedLocalRef<jobject> receiver_ref(soa.Env(), soa.AddLocalReference<jobject>(receiver));
     jvalue args[3];
@@ -435,7 +440,7 @@ class ReflectionTest : public CommonCompilerTest {
   void InvokeSumDoubleDoubleDoubleDoubleMethod(bool is_static) {
     ScopedObjectAccess soa(env_);
     ArtMethod* method;
-    mirror::Object* receiver;
+    ObjPtr<mirror::Object> receiver;
     ReflectionTestMakeExecutable(&method, &receiver, is_static, "sum", "(DDDD)D");
     ScopedLocalRef<jobject> receiver_ref(soa.Env(), soa.AddLocalReference<jobject>(receiver));
     jvalue args[4];
@@ -465,7 +470,7 @@ class ReflectionTest : public CommonCompilerTest {
   void InvokeSumDoubleDoubleDoubleDoubleDoubleMethod(bool is_static) {
     ScopedObjectAccess soa(env_);
     ArtMethod* method;
-    mirror::Object* receiver;
+    ObjPtr<mirror::Object> receiver;
     ReflectionTestMakeExecutable(&method, &receiver, is_static, "sum", "(DDDDD)D");
     ScopedLocalRef<jobject> receiver_ref(soa.Env(), soa.AddLocalReference<jobject>(receiver));
     jvalue args[5];
