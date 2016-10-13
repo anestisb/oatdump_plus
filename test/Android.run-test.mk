@@ -488,8 +488,11 @@ TEST_ART_BROKEN_INTERPRETER_RUN_TESTS :=
 # Known broken tests for the JIT.
 # CFI unwinding expects managed frames, and the test does not iterate enough to even compile. JIT
 # also uses Generic JNI instead of the JNI compiler.
+# Test 906 iterates the heap filtering with different options. No instances should be created
+# between those runs to be able to have precise checks.
 TEST_ART_BROKEN_JIT_RUN_TESTS := \
-  137-cfi
+  137-cfi \
+  906-iterate-heap \
 
 ifneq (,$(filter jit,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
