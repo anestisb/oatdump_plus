@@ -457,7 +457,8 @@ class ReadBarrierMarkSlowPathX86_64 : public SlowPathCode {
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
-    Register reg = obj_.AsRegister<Register>();
+    CpuRegister cpu_reg = obj_.AsRegister<CpuRegister>();
+    Register reg = cpu_reg.AsRegister();
     DCHECK(locations->CanCall());
     DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(reg));
     DCHECK(instruction_->IsInstanceFieldGet() ||
@@ -476,7 +477,7 @@ class ReadBarrierMarkSlowPathX86_64 : public SlowPathCode {
     __ Bind(GetEntryLabel());
     if (unpoison_) {
       // Object* ref = ref_addr->AsMirrorPtr()
-      __ MaybeUnpoisonHeapReference(obj_.AsRegister<CpuRegister>());
+      __ MaybeUnpoisonHeapReference(cpu_reg);
     }
     // No need to save live registers; it's taken care of by the
     // entrypoint. Also, there is no need to update the stack mask,
