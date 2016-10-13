@@ -22,6 +22,9 @@
 
 namespace art {
 
+template <bool kDynamicFast>
+static inline void GoToRunnableFast(Thread* self) NO_THREAD_SAFETY_ANALYSIS;
+
 extern void ReadBarrierJni(mirror::CompressedReference<mirror::Object>* handle_on_stack,
                            Thread* self ATTRIBUTE_UNUSED) {
   DCHECK(kUseReadBarrier);
@@ -78,7 +81,28 @@ static void GoToRunnable(Thread* self) NO_THREAD_SAFETY_ANALYSIS {
   bool is_fast = native_method->IsFastNative();
   if (!is_fast) {
     self->TransitionFromSuspendedToRunnable();
-  } else if (UNLIKELY(self->TestAllFlags())) {
+  } else {
+    GoToRunnableFast</*kDynamicFast*/true>(self);
+  }
+}
+
+// TODO: NO_THREAD_SAFETY_ANALYSIS due to different control paths depending on fast JNI.
+template <bool kDynamicFast>
+ALWAYS_INLINE static inline void GoToRunnableFast(Thread* self) NO_THREAD_SAFETY_ANALYSIS {
+  if (kIsDebugBuild) {
+    // Should only enter here if the method is !Fast JNI or @FastNative.
+    ArtMethod* native_method = *self->GetManagedStack()->GetTopQuickFrame();
+
+    if (kDynamicFast) {
+      CHECK(native_method->IsFastNative()) << native_method->PrettyMethod();
+    } else {
+      CHECK(native_method->IsAnnotatedWithFastNative()) << native_method->PrettyMethod();
+    }
+  }
+
+  // When we are in "fast" JNI or @FastNative, we are already Runnable.
+  // Only do a suspend check on the way out of JNI.
+  if (UNLIKELY(self->TestAllFlags())) {
     // In fast JNI mode we never transitioned out of runnable. Perform a suspend check if there
     // is a flag raised.
     DCHECK(Locks::mutator_lock_->IsSharedHeld(self));
@@ -106,20 +130,7 @@ extern void JniMethodEnd(uint32_t saved_local_ref_cookie, Thread* self) {
 }
 
 extern void JniMethodFastEnd(uint32_t saved_local_ref_cookie, Thread* self) {
-  // inlined fast version of GoToRunnable(self);
-
-  if (kIsDebugBuild) {
-    ArtMethod* native_method = *self->GetManagedStack()->GetTopQuickFrame();
-    CHECK(native_method->IsAnnotatedWithFastNative()) << native_method->PrettyMethod();
-  }
-
-  if (UNLIKELY(self->TestAllFlags())) {
-    // In fast JNI mode we never transitioned out of runnable. Perform a suspend check if there
-    // is a flag raised.
-    DCHECK(Locks::mutator_lock_->IsSharedHeld(self));
-    self->CheckSuspend();
-  }
-
+  GoToRunnableFast</*kDynamicFast*/false>(self);
   PopLocalReferences(saved_local_ref_cookie, self);
 }
 
@@ -130,10 +141,6 @@ extern void JniMethodEndSynchronized(uint32_t saved_local_ref_cookie,
   UnlockJniSynchronizedMethod(locked, self);  // Must decode before pop.
   PopLocalReferences(saved_local_ref_cookie, self);
 }
-
-// TODO: JniMethodFastEndWithReference
-// (Probably don't need to have a synchronized variant since
-// it already has to do atomic operations)
 
 // Common result handling for EndWithReference.
 static mirror::Object* JniMethodEndWithReferenceHandleResult(jobject result,
@@ -155,6 +162,13 @@ static mirror::Object* JniMethodEndWithReferenceHandleResult(jobject result,
   }
   VerifyObject(o);
   return o.Ptr();
+}
+
+extern mirror::Object* JniMethodFastEndWithReference(jobject result,
+                                                     uint32_t saved_local_ref_cookie,
+                                                     Thread* self) {
+  GoToRunnableFast</*kDynamicFast*/false>(self);
+  return JniMethodEndWithReferenceHandleResult(result, saved_local_ref_cookie, self);
 }
 
 extern mirror::Object* JniMethodEndWithReference(jobject result,

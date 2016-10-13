@@ -65,6 +65,11 @@ extern void JniMethodEndSynchronized(uint32_t saved_local_ref_cookie, jobject lo
 extern mirror::Object* JniMethodEndWithReference(jobject result, uint32_t saved_local_ref_cookie,
                                                  Thread* self)
     NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
+extern mirror::Object* JniMethodFastEndWithReference(jobject result,
+                                                     uint32_t saved_local_ref_cookie,
+                                                     Thread* self)
+    NO_THREAD_SAFETY_ANALYSIS HOT_ATTR;
+
 
 extern mirror::Object* JniMethodEndWithReferenceSynchronized(jobject result,
                                                              uint32_t saved_local_ref_cookie,

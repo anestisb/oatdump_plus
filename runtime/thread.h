@@ -1392,7 +1392,7 @@ class Thread {
       stacked_shadow_frame_record(nullptr), deoptimization_context_stack(nullptr),
       frame_id_to_shadow_frame(nullptr), name(nullptr), pthread_self(0),
       last_no_thread_suspension_cause(nullptr), checkpoint_function(nullptr),
-      thread_local_start(nullptr), thread_local_pos(nullptr), thread_local_end(nullptr),
+      thread_local_pos(nullptr), thread_local_end(nullptr), thread_local_start(nullptr),
       thread_local_objects(0), mterp_current_ibase(nullptr), mterp_default_ibase(nullptr),
       mterp_alt_ibase(nullptr), thread_local_alloc_stack_top(nullptr),
       thread_local_alloc_stack_end(nullptr), nested_signal_state(nullptr),
@@ -1506,12 +1506,13 @@ class Thread {
     JniEntryPoints jni_entrypoints;
     QuickEntryPoints quick_entrypoints;
 
-    // Thread-local allocation pointer.
-    uint8_t* thread_local_start;
     // thread_local_pos and thread_local_end must be consecutive for ldrd and are 8 byte aligned for
     // potentially better performance.
     uint8_t* thread_local_pos;
     uint8_t* thread_local_end;
+    // Thread-local allocation pointer.
+    uint8_t* thread_local_start;
+
     size_t thread_local_objects;
 
     // Mterp jump table bases.
