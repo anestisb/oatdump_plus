@@ -101,6 +101,25 @@ TEST_F(ElfWriterTest, dlsym) {
   }
 }
 
+TEST_F(ElfWriterTest, CheckBuildIdPresent) {
+  std::string elf_location = GetCoreOatLocation();
+  std::string elf_filename = GetSystemImageFilename(elf_location.c_str(), kRuntimeISA);
+  LOG(INFO) << "elf_filename=" << elf_filename;
+
+  std::unique_ptr<File> file(OS::OpenFileForReading(elf_filename.c_str()));
+  ASSERT_TRUE(file.get() != nullptr);
+  {
+    std::string error_msg;
+    std::unique_ptr<ElfFile> ef(ElfFile::Open(file.get(),
+                                              false,
+                                              false,
+                                              /*low_4gb*/false,
+                                              &error_msg));
+    CHECK(ef.get() != nullptr) << error_msg;
+    EXPECT_TRUE(ef->HasSection(".note.gnu.build-id"));
+  }
+}
+
 TEST_F(ElfWriterTest, EncodeDecodeOatPatches) {
   const std::vector<std::vector<uintptr_t>> test_data {
       { 0, 4, 8, 15, 128, 200 },

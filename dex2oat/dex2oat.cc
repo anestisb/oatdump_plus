@@ -339,6 +339,11 @@ NO_RETURN static void Usage(const char* fmt, ...) {
   UsageError("");
   UsageError("  --no-generate-mini-debug-info: Do not generate backtrace info.");
   UsageError("");
+  UsageError("  --generate-build-id: Generate GNU-compatible linker build ID ELF section with");
+  UsageError("      SHA-1 of the file content (and thus stable across identical builds)");
+  UsageError("");
+  UsageError("  --no-generate-build-id: Do not generate the build ID ELF section.");
+  UsageError("");
   UsageError("  --debuggable: Produce code debuggable with Java debugger.");
   UsageError("");
   UsageError("  --runtime-arg <argument>: used to specify various arguments for the runtime,");
