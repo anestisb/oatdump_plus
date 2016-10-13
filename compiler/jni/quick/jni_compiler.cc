@@ -348,7 +348,7 @@ static CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
     ThreadOffset<kPointerSize> jni_start =
         is_synchronized
             ? QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodStartSynchronized)
-            : ((is_fast_native && !reference_return)  // TODO: support @FastNative returning obj
+            : (is_fast_native
                    ? QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodFastStart)
                    : QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodStart));
 
