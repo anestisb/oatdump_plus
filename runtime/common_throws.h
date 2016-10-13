@@ -19,6 +19,7 @@
 
 #include "base/mutex.h"
 #include "invoke_type.h"
+#include "obj_ptr.h"
 
 namespace art {
 namespace mirror {
@@ -50,20 +51,21 @@ void ThrowArrayIndexOutOfBoundsException(int index, int length)
 
 // ArrayStoreException
 
-void ThrowArrayStoreException(mirror::Class* element_class, mirror::Class* array_class)
+void ThrowArrayStoreException(ObjPtr<mirror::Class> element_class,
+                              ObjPtr<mirror::Class> array_class)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
 // ClassCircularityError
 
-void ThrowClassCircularityError(mirror::Class* c)
+void ThrowClassCircularityError(ObjPtr<mirror::Class> c)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowClassCircularityError(mirror::Class* c, const char* fmt, ...)
+void ThrowClassCircularityError(ObjPtr<mirror::Class> c, const char* fmt, ...)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
 // ClassCastException
 
-void ThrowClassCastException(mirror::Class* dest_type, mirror::Class* src_type)
+void ThrowClassCastException(ObjPtr<mirror::Class> dest_type, ObjPtr<mirror::Class> src_type)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
 void ThrowClassCastException(const char* msg)
@@ -71,30 +73,31 @@ void ThrowClassCastException(const char* msg)
 
 // ClassFormatError
 
-void ThrowClassFormatError(mirror::Class* referrer, const char* fmt, ...)
+void ThrowClassFormatError(ObjPtr<mirror::Class> referrer, const char* fmt, ...)
     __attribute__((__format__(__printf__, 2, 3)))
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
 // IllegalAccessError
 
-void ThrowIllegalAccessErrorClass(mirror::Class* referrer, mirror::Class* accessed)
+void ThrowIllegalAccessErrorClass(ObjPtr<mirror::Class> referrer, ObjPtr<mirror::Class> accessed)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowIllegalAccessErrorClassForMethodDispatch(mirror::Class* referrer, mirror::Class* accessed,
+void ThrowIllegalAccessErrorClassForMethodDispatch(ObjPtr<mirror::Class> referrer,
+                                                   ObjPtr<mirror::Class> accessed,
                                                    ArtMethod* called,
                                                    InvokeType type)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowIllegalAccessErrorMethod(mirror::Class* referrer, ArtMethod* accessed)
+void ThrowIllegalAccessErrorMethod(ObjPtr<mirror::Class> referrer, ArtMethod* accessed)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowIllegalAccessErrorField(mirror::Class* referrer, ArtField* accessed)
+void ThrowIllegalAccessErrorField(ObjPtr<mirror::Class> referrer, ArtField* accessed)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
 void ThrowIllegalAccessErrorFinalField(ArtMethod* referrer, ArtField* accessed)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowIllegalAccessError(mirror::Class* referrer, const char* fmt, ...)
+void ThrowIllegalAccessError(ObjPtr<mirror::Class> referrer, const char* fmt, ...)
     __attribute__((__format__(__printf__, 2, 3)))
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
@@ -110,26 +113,29 @@ void ThrowIllegalArgumentException(const char* msg)
 
 // IncompatibleClassChangeError
 
-void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType found_type,
-                                       ArtMethod* method, ArtMethod* referrer)
+void ThrowIncompatibleClassChangeError(InvokeType expected_type,
+                                       InvokeType found_type,
+                                       ArtMethod* method,
+                                       ArtMethod* referrer)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
 void ThrowIncompatibleClassChangeErrorClassForInterfaceSuper(ArtMethod* method,
-                                                             mirror::Class* target_class,
-                                                             mirror::Object* this_object,
+                                                             ObjPtr<mirror::Class> target_class,
+                                                             ObjPtr<mirror::Object> this_object,
                                                              ArtMethod* referrer)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
 void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(ArtMethod* interface_method,
-                                                                mirror::Object* this_object,
+                                                                ObjPtr<mirror::Object> this_object,
                                                                 ArtMethod* referrer)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowIncompatibleClassChangeErrorField(ArtField* resolved_field, bool is_static,
+void ThrowIncompatibleClassChangeErrorField(ArtField* resolved_field,
+                                            bool is_static,
                                             ArtMethod* referrer)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowIncompatibleClassChangeError(mirror::Class* referrer, const char* fmt, ...)
+void ThrowIncompatibleClassChangeError(ObjPtr<mirror::Class> referrer, const char* fmt, ...)
     __attribute__((__format__(__printf__, 2, 3)))
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
@@ -146,11 +152,11 @@ void ThrowWrappedIOException(const char* fmt, ...) __attribute__((__format__(__p
 
 // LinkageError
 
-void ThrowLinkageError(mirror::Class* referrer, const char* fmt, ...)
+void ThrowLinkageError(ObjPtr<mirror::Class> referrer, const char* fmt, ...)
     __attribute__((__format__(__printf__, 2, 3)))
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowWrappedLinkageError(mirror::Class* referrer, const char* fmt, ...)
+void ThrowWrappedLinkageError(ObjPtr<mirror::Class> referrer, const char* fmt, ...)
     __attribute__((__format__(__printf__, 2, 3)))
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
@@ -165,16 +171,20 @@ void ThrowNegativeArraySizeException(const char* msg)
 
 // NoSuchFieldError
 
-void ThrowNoSuchFieldError(const StringPiece& scope, mirror::Class* c,
-                           const StringPiece& type, const StringPiece& name)
+void ThrowNoSuchFieldError(const StringPiece& scope,
+                           ObjPtr<mirror::Class> c,
+                           const StringPiece& type,
+                           const StringPiece& name)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowNoSuchFieldException(mirror::Class* c, const StringPiece& name)
+void ThrowNoSuchFieldException(ObjPtr<mirror::Class> c, const StringPiece& name)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
 // NoSuchMethodError
 
-void ThrowNoSuchMethodError(InvokeType type, mirror::Class* c, const StringPiece& name,
+void ThrowNoSuchMethodError(InvokeType type,
+                            ObjPtr<mirror::Class> c,
+                            const StringPiece& name,
                             const Signature& signature)
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
@@ -215,7 +225,7 @@ void ThrowStringIndexOutOfBoundsException(int index, int length)
 
 // VerifyError
 
-void ThrowVerifyError(mirror::Class* referrer, const char* fmt, ...)
+void ThrowVerifyError(ObjPtr<mirror::Class> referrer, const char* fmt, ...)
     __attribute__((__format__(__printf__, 2, 3)))
     REQUIRES_SHARED(Locks::mutator_lock_) COLD_ATTR;
 
