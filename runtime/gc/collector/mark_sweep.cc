@@ -423,7 +423,7 @@ class MarkSweep::MarkObjectSlowPath {
                             << (mark_sweep_->GetHeap()->IsLiveObjectLocked(holder_)
                                 ? "alive" : "dead")
                             << " holder_size=" << holder_size
-                            << " holder_type=" << PrettyTypeOf(holder_)
+                            << " holder_type=" << holder_->PrettyTypeOf()
                             << " offset=" << offset_.Uint32Value()
                             << " field=" << (field != nullptr ? field->GetName() : "nullptr")
                             << " field_type="

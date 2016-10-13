@@ -337,7 +337,7 @@ TEST_F(ObjectTest, CreateMultiArray) {
   dims->Set<false>(0, -1);
   multi = Array::CreateMultiArray(soa.Self(), c, dims);
   EXPECT_TRUE(soa.Self()->IsExceptionPending());
-  EXPECT_EQ(PrettyDescriptor(soa.Self()->GetException()->GetClass()),
+  EXPECT_EQ(mirror::Class::PrettyDescriptor(soa.Self()->GetException()->GetClass()),
             "java.lang.NegativeArraySizeException");
   soa.Self()->ClearException();
 

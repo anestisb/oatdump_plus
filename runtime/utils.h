@@ -40,15 +40,7 @@ class BacktraceMap;
 
 namespace art {
 
-class ArtField;
-class ArtMethod;
 class DexFile;
-
-namespace mirror {
-class Class;
-class Object;
-class String;
-}  // namespace mirror
 
 template <typename T>
 bool ParseUint(const char *in, T* out) {
@@ -136,44 +128,12 @@ bool EndsWith(const std::string& s, const char* suffix);
 // Returns a human-readable equivalent of 'descriptor'. So "I" would be "int",
 // "[[I" would be "int[][]", "[Ljava/lang/String;" would be
 // "java.lang.String[]", and so forth.
-std::string PrettyStringDescriptor(ObjPtr<mirror::String> descriptor)
-    REQUIRES_SHARED(Locks::mutator_lock_);
 std::string PrettyDescriptor(const char* descriptor);
-std::string PrettyDescriptor(ObjPtr<mirror::Class> klass)
-    REQUIRES_SHARED(Locks::mutator_lock_);
 std::string PrettyDescriptor(Primitive::Type type);
 
-// Returns a human-readable signature for 'f'. Something like "a.b.C.f" or
-// "int a.b.C.f" (depending on the value of 'with_type').
-std::string PrettyField(ArtField* f, bool with_type = true)
-    REQUIRES_SHARED(Locks::mutator_lock_);
-std::string PrettyField(uint32_t field_idx, const DexFile& dex_file, bool with_type = true);
-
-// Returns a human-readable signature for 'm'. Something like "a.b.C.m" or
-// "a.b.C.m(II)V" (depending on the value of 'with_signature').
-std::string PrettyMethod(ArtMethod* m, bool with_signature = true)
-    REQUIRES_SHARED(Locks::mutator_lock_);
-std::string PrettyMethod(uint32_t method_idx, const DexFile& dex_file, bool with_signature = true);
-
-// Returns a human-readable form of the name of the *class* of the given object.
-// So given an instance of java.lang.String, the output would
-// be "java.lang.String". Given an array of int, the output would be "int[]".
-// Given String.class, the output would be "java.lang.Class<java.lang.String>".
-std::string PrettyTypeOf(ObjPtr<mirror::Object> obj)
-    REQUIRES_SHARED(Locks::mutator_lock_);
-
-// Returns a human-readable form of the type at an index in the specified dex file.
-// Example outputs: char[], java.lang.String.
-std::string PrettyType(uint32_t type_idx, const DexFile& dex_file);
-
-// Returns a human-readable form of the name of the given class.
-// Given String.class, the output would be "java.lang.Class<java.lang.String>".
-std::string PrettyClass(ObjPtr<mirror::Class> c)
-    REQUIRES_SHARED(Locks::mutator_lock_);
-
-// Returns a human-readable form of the name of the given class with its class loader.
-std::string PrettyClassAndClassLoader(ObjPtr<mirror::Class> c)
-    REQUIRES_SHARED(Locks::mutator_lock_);
+// Utilities for printing the types for method signatures.
+std::string PrettyArguments(const char* signature);
+std::string PrettyReturnType(const char* signature);
 
 // Returns a human-readable version of the Java part of the access flags, e.g., "private static "
 // (note the trailing whitespace).
@@ -205,13 +165,6 @@ bool IsValidDescriptor(const char* s);       // "Ljava/lang/String;"
 // Returns whether the given string is a valid field or method name,
 // additionally allowing names that begin with '<' and end with '>'.
 bool IsValidMemberName(const char* s);
-
-// Returns the JNI native function name for the non-overloaded method 'm'.
-std::string JniShortName(ArtMethod* m)
-    REQUIRES_SHARED(Locks::mutator_lock_);
-// Returns the JNI native function name for the overloaded method 'm'.
-std::string JniLongName(ArtMethod* m)
-    REQUIRES_SHARED(Locks::mutator_lock_);
 
 bool ReadFileToString(const std::string& file_name, std::string* result);
 bool PrintFileToLog(const std::string& file_name, LogSeverity level);
@@ -321,7 +274,6 @@ static inline constexpr bool ValidPointerSize(size_t pointer_size) {
   return pointer_size == 4 || pointer_size == 8;
 }
 
-void DumpMethodCFG(ArtMethod* method, std::ostream& os) REQUIRES_SHARED(Locks::mutator_lock_);
 void DumpMethodCFG(const DexFile* dex_file, uint32_t dex_method_idx, std::ostream& os);
 
 static inline const void* EntryPointToCodePointer(const void* entry_point) {

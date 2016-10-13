@@ -201,6 +201,13 @@ class ArtField FINAL {
     return declaring_class_;
   }
 
+  // Returns a human-readable signature. Something like "a.b.C.f" or
+  // "int a.b.C.f" (depending on the value of 'with_type').
+  static std::string PrettyField(ArtField* f, bool with_type = true)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  std::string PrettyField(bool with_type = true)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   // Update the declaring class with the passed in visitor. Does not use read barrier.
   template <typename Visitor>
   ALWAYS_INLINE void UpdateObjects(const Visitor& visitor)

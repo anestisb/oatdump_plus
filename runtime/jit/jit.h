@@ -34,6 +34,11 @@ class ClassLinker;
 struct RuntimeArgumentMap;
 union JValue;
 
+namespace mirror {
+class Object;
+class Class;
+}   // namespace mirror
+
 namespace jit {
 
 class JitCodeCache;

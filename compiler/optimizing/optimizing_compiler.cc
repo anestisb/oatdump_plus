@@ -173,7 +173,7 @@ class PassObserver : public ValueObject {
   const char* GetMethodName() {
     // PrettyMethod() is expensive, so we delay calling it until we actually have to.
     if (cached_method_name_.empty()) {
-      cached_method_name_ = PrettyMethod(graph_->GetMethodIdx(), graph_->GetDexFile());
+      cached_method_name_ = graph_->GetDexFile().PrettyMethod(graph_->GetMethodIdx());
     }
     return cached_method_name_.c_str();
   }
@@ -1044,7 +1044,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
       if (kArenaAllocatorCountAllocations) {
         if (arena.BytesAllocated() > kArenaAllocatorMemoryReportThreshold) {
           MemStats mem_stats(arena.GetMemStats());
-          LOG(INFO) << PrettyMethod(method_idx, dex_file) << " " << Dumpable<MemStats>(mem_stats);
+          LOG(INFO) << dex_file.PrettyMethod(method_idx) << " " << Dumpable<MemStats>(mem_stats);
         }
       }
     }
@@ -1066,7 +1066,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
     // instruction set is supported -- and has support for read
     // barriers, if they are enabled). This makes sure we're not
     // regressing.
-    std::string method_name = PrettyMethod(method_idx, dex_file);
+    std::string method_name = dex_file.PrettyMethod(method_idx);
     bool shouldCompile = method_name.find("$opt$") != std::string::npos;
     DCHECK((method != nullptr) || !shouldCompile) << "Didn't compile " << method_name;
   }
@@ -1131,7 +1131,7 @@ bool OptimizingCompiler::JitCompile(Thread* self,
     if (kArenaAllocatorCountAllocations) {
       if (arena.BytesAllocated() > kArenaAllocatorMemoryReportThreshold) {
         MemStats mem_stats(arena.GetMemStats());
-        LOG(INFO) << PrettyMethod(method_idx, *dex_file) << " " << Dumpable<MemStats>(mem_stats);
+        LOG(INFO) << dex_file->PrettyMethod(method_idx) << " " << Dumpable<MemStats>(mem_stats);
       }
     }
   }

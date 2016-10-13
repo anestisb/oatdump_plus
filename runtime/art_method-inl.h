@@ -55,7 +55,7 @@ inline mirror::Class* ArtMethod::GetDeclaringClass() {
     if (!IsRuntimeMethod()) {
       CHECK(result != nullptr) << this;
       CHECK(result->IsIdxLoaded() || result->IsErroneous())
-          << result->GetStatus() << " " << PrettyClass(result);
+          << result->GetStatus() << " " << result->PrettyClass();
     } else {
       CHECK(result == nullptr) << this;
     }

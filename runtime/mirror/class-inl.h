@@ -42,14 +42,14 @@ namespace mirror {
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline uint32_t Class::GetObjectSize() {
   // Note: Extra parentheses to avoid the comma being interpreted as macro parameter separator.
-  DCHECK((!IsVariableSize<kVerifyFlags, kReadBarrierOption>())) << "class=" << PrettyTypeOf(this);
+  DCHECK((!IsVariableSize<kVerifyFlags, kReadBarrierOption>())) << "class=" << PrettyTypeOf();
   return GetField32(ObjectSizeOffset());
 }
 
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline uint32_t Class::GetObjectSizeAllocFastPath() {
   // Note: Extra parentheses to avoid the comma being interpreted as macro parameter separator.
-  DCHECK((!IsVariableSize<kVerifyFlags, kReadBarrierOption>())) << "class=" << PrettyTypeOf(this);
+  DCHECK((!IsVariableSize<kVerifyFlags, kReadBarrierOption>())) << "class=" << PrettyTypeOf();
   return GetField32(ObjectSizeAllocFastPathOffset());
 }
 
@@ -218,7 +218,7 @@ template<VerifyObjectFlags kVerifyFlags>
 inline ArtMethod* Class::GetVirtualMethod(size_t i, PointerSize pointer_size) {
   CheckPointerSize(pointer_size);
   DCHECK(IsResolved<kVerifyFlags>() || IsErroneous<kVerifyFlags>())
-      << PrettyClass(this) << " status=" << GetStatus();
+      << Class::PrettyClass() << " status=" << GetStatus();
   return GetVirtualMethodUnchecked(i, pointer_size);
 }
 
@@ -308,7 +308,7 @@ inline void Class::SetEmbeddedVTableEntry(uint32_t i, ArtMethod* method, Pointer
 
 inline bool Class::Implements(ObjPtr<Class> klass) {
   DCHECK(klass != nullptr);
-  DCHECK(klass->IsInterface()) << PrettyClass(this);
+  DCHECK(klass->IsInterface()) << PrettyClass();
   // All interfaces implemented directly and by our superclass, and
   // recursively all super-interfaces of those interfaces, are listed
   // in iftable_, so we can just do a linear scan through that.
@@ -342,20 +342,20 @@ inline bool Class::Implements(ObjPtr<Class> klass) {
 //   Object[]         = int[] --> false
 //
 inline bool Class::IsArrayAssignableFromArray(ObjPtr<Class> src) {
-  DCHECK(IsArrayClass())  << PrettyClass(this);
-  DCHECK(src->IsArrayClass()) << PrettyClass(src);
+  DCHECK(IsArrayClass())  << PrettyClass();
+  DCHECK(src->IsArrayClass()) << src->PrettyClass();
   return GetComponentType()->IsAssignableFrom(src->GetComponentType());
 }
 
 inline bool Class::IsAssignableFromArray(ObjPtr<Class> src) {
-  DCHECK(!IsInterface()) << PrettyClass(this);  // handled first in IsAssignableFrom
-  DCHECK(src->IsArrayClass()) << PrettyClass(src);
+  DCHECK(!IsInterface()) << PrettyClass();  // handled first in IsAssignableFrom
+  DCHECK(src->IsArrayClass()) << src->PrettyClass();
   if (!IsArrayClass()) {
     // If "this" is not also an array, it must be Object.
     // src's super should be java_lang_Object, since it is an array.
     ObjPtr<Class> java_lang_Object = src->GetSuperClass();
-    DCHECK(java_lang_Object != nullptr) << PrettyClass(src);
-    DCHECK(java_lang_Object->GetSuperClass() == nullptr) << PrettyClass(src);
+    DCHECK(java_lang_Object != nullptr) << src->PrettyClass();
+    DCHECK(java_lang_Object->GetSuperClass() == nullptr) << src->PrettyClass();
     return this == java_lang_Object;
   }
   return IsArrayAssignableFromArray(src);
@@ -469,8 +469,8 @@ inline bool Class::CheckResolvedMethodAccess(ObjPtr<Class> access_to,
 }
 
 inline bool Class::IsSubClass(ObjPtr<Class> klass) {
-  DCHECK(!IsInterface()) << PrettyClass(this);
-  DCHECK(!IsArrayClass()) << PrettyClass(this);
+  DCHECK(!IsInterface()) << PrettyClass();
+  DCHECK(!IsArrayClass()) << PrettyClass();
   ObjPtr<Class> current = this;
   do {
     if (current == klass) {
@@ -484,8 +484,8 @@ inline bool Class::IsSubClass(ObjPtr<Class> klass) {
 inline ArtMethod* Class::FindVirtualMethodForInterface(ArtMethod* method,
                                                        PointerSize pointer_size) {
   ObjPtr<Class> declaring_class = method->GetDeclaringClass();
-  DCHECK(declaring_class != nullptr) << PrettyClass(this);
-  DCHECK(declaring_class->IsInterface()) << PrettyMethod(method);
+  DCHECK(declaring_class != nullptr) << PrettyClass();
+  DCHECK(declaring_class->IsInterface()) << method->PrettyMethod();
   DCHECK(!method->IsCopied());
   // TODO cache to improve lookup speed
   const int32_t iftable_count = GetIfTableCount();
@@ -647,7 +647,7 @@ inline uint32_t Class::GetAccessFlags() {
           IsErroneous<static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis)>()
       << " IsString=" << (this == String::GetJavaLangString())
       << " status= " << GetStatus<kVerifyFlags>()
-      << " descriptor=" << PrettyDescriptor(this);
+      << " descriptor=" << PrettyDescriptor();
   return GetField32<kVerifyFlags>(AccessFlagsOffset());
 }
 
@@ -687,20 +687,20 @@ inline size_t Class::GetPrimitiveTypeSizeShift() {
 
 inline void Class::CheckObjectAlloc() {
   DCHECK(!IsArrayClass())
-      << PrettyClass(this)
+      << PrettyClass()
       << "A array shouldn't be allocated through this "
       << "as it requires a pre-fence visitor that sets the class size.";
   DCHECK(!IsClassClass())
-      << PrettyClass(this)
+      << PrettyClass()
       << "A class object shouldn't be allocated through this "
       << "as it requires a pre-fence visitor that sets the class size.";
   DCHECK(!IsStringClass())
-      << PrettyClass(this)
+      << PrettyClass()
       << "A string shouldn't be allocated through this "
       << "as it requires a pre-fence visitor that sets the class size.";
-  DCHECK(IsInstantiable()) << PrettyClass(this);
+  DCHECK(IsInstantiable()) << PrettyClass();
   // TODO: decide whether we want this check. It currently fails during bootstrap.
-  // DCHECK(!Runtime::Current()->IsStarted() || IsInitializing()) << PrettyClass(this);
+  // DCHECK(!Runtime::Current()->IsStarted() || IsInitializing()) << PrettyClass();
   DCHECK_GE(this->object_size_, sizeof(Object));
 }
 
@@ -840,8 +840,8 @@ inline bool Class::DescriptorEquals(const char* match) {
 
 inline void Class::AssertInitializedOrInitializingInThread(Thread* self) {
   if (kIsDebugBuild && !IsInitialized()) {
-    CHECK(IsInitializing()) << PrettyClass(this) << " is not initializing: " << GetStatus();
-    CHECK_EQ(GetClinitThreadId(), self->GetTid()) << PrettyClass(this)
+    CHECK(IsInitializing()) << PrettyClass() << " is not initializing: " << GetStatus();
+    CHECK_EQ(GetClinitThreadId(), self->GetTid()) << PrettyClass()
                                                   << " is initializing in a different thread";
   }
 }

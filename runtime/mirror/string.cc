@@ -365,5 +365,16 @@ bool String::IsValueNull() {
   return (IsCompressed()) ? (GetValueCompressed() == nullptr) : (GetValue() == nullptr);
 }
 
+std::string String::PrettyStringDescriptor(ObjPtr<mirror::String> java_descriptor) {
+  if (java_descriptor == nullptr) {
+    return "null";
+  }
+  return java_descriptor->PrettyStringDescriptor();
+}
+
+std::string String::PrettyStringDescriptor() {
+  return PrettyDescriptor(ToModifiedUtf8().c_str());
+}
+
 }  // namespace mirror
 }  // namespace art

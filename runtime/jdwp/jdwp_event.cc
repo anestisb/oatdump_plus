@@ -1142,7 +1142,7 @@ void JdwpState::PostException(const EventLocation* pThrowLoc, mirror::Throwable*
   SetJdwpLocationFromEventLocation(pCatchLoc, &jdwp_catch_location);
 
   if (VLOG_IS_ON(jdwp)) {
-    std::string exceptionClassName(PrettyDescriptor(exception_object->GetClass()));
+    std::string exceptionClassName(mirror::Class::PrettyDescriptor(exception_object->GetClass()));
 
     LogMatchingEventsAndThread(match_list, thread_id);
     VLOG(jdwp) << "  throwLocation=" << jdwp_throw_location;

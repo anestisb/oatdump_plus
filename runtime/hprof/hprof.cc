@@ -654,7 +654,7 @@ class Hprof : public SingleRootVisitor {
   }
 
   HprofStringId LookupClassNameId(mirror::Class* c) REQUIRES_SHARED(Locks::mutator_lock_) {
-    return LookupStringId(PrettyDescriptor(c));
+    return LookupStringId(c->PrettyDescriptor());
   }
 
   void WriteFixedHeader() {

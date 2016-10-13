@@ -183,11 +183,11 @@ static std::string ComputeMonitorDescription(Thread* self,
     // current thread, which isn't safe if this is the only runnable thread.
     return StringPrintf("<@addr=0x%" PRIxPTR "> (a %s)",
                         reinterpret_cast<intptr_t>(o.Ptr()),
-                        PrettyTypeOf(o).c_str());
+                        o->PrettyTypeOf().c_str());
   } else {
     // IdentityHashCode can cause thread suspension, which would invalidate o if it moved. So
     // we get the pretty type before we call IdentityHashCode.
-    const std::string pretty_type(PrettyTypeOf(o));
+    const std::string pretty_type(o->PrettyTypeOf());
     return StringPrintf("<0x%08x> (a %s)", o->IdentityHashCode(), pretty_type.c_str());
   }
 }

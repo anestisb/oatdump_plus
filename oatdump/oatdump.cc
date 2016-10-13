@@ -940,7 +940,7 @@ class OatDumper {
       return success;
     }
 
-    std::string pretty_method = PrettyMethod(dex_method_idx, dex_file, true);
+    std::string pretty_method = dex_file.PrettyMethod(dex_method_idx, true);
     vios->Stream() << StringPrintf("%d: %s (dex_method_idx=%d)\n",
                                    class_method_index, pretty_method.c_str(),
                                    dex_method_idx);
@@ -1681,7 +1681,7 @@ class ImageDumper {
 
     virtual void Visit(ArtMethod* method) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
       std::ostream& indent_os = image_dumper_->vios_.Stream();
-      indent_os << method << " " << " ArtMethod: " << PrettyMethod(method) << "\n";
+      indent_os << method << " " << " ArtMethod: " << ArtMethod::PrettyMethod(method) << "\n";
       image_dumper_->DumpMethod(method, indent_os);
       indent_os << "\n";
     }
@@ -1696,16 +1696,16 @@ class ImageDumper {
       REQUIRES_SHARED(Locks::mutator_lock_) {
     CHECK(type != nullptr);
     if (value == nullptr) {
-      os << StringPrintf("null   %s\n", PrettyDescriptor(type).c_str());
+      os << StringPrintf("null   %s\n", type->PrettyDescriptor().c_str());
     } else if (type->IsStringClass()) {
       mirror::String* string = value->AsString();
       os << StringPrintf("%p   String: %s\n", string,
                          PrintableString(string->ToModifiedUtf8().c_str()).c_str());
     } else if (type->IsClassClass()) {
       mirror::Class* klass = value->AsClass();
-      os << StringPrintf("%p   Class: %s\n", klass, PrettyDescriptor(klass).c_str());
+      os << StringPrintf("%p   Class: %s\n", klass, mirror::Class::PrettyDescriptor(klass).c_str());
     } else {
-      os << StringPrintf("%p   %s\n", value.Ptr(), PrettyDescriptor(type).c_str());
+      os << StringPrintf("%p   %s\n", value.Ptr(), type->PrettyDescriptor().c_str());
     }
   }
 
@@ -1825,17 +1825,18 @@ class ImageDumper {
 
     mirror::Class* obj_class = obj->GetClass();
     if (obj_class->IsArrayClass()) {
-      os << StringPrintf("%p: %s length:%d\n", obj, PrettyDescriptor(obj_class).c_str(),
+      os << StringPrintf("%p: %s length:%d\n", obj, obj_class->PrettyDescriptor().c_str(),
                          obj->AsArray()->GetLength());
     } else if (obj->IsClass()) {
       mirror::Class* klass = obj->AsClass();
-      os << StringPrintf("%p: java.lang.Class \"%s\" (", obj, PrettyDescriptor(klass).c_str())
+      os << StringPrintf("%p: java.lang.Class \"%s\" (", obj,
+                         mirror::Class::PrettyDescriptor(klass).c_str())
          << klass->GetStatus() << ")\n";
     } else if (obj_class->IsStringClass()) {
       os << StringPrintf("%p: java.lang.String %s\n", obj,
                          PrintableString(obj->AsString()->ToModifiedUtf8().c_str()).c_str());
     } else {
-      os << StringPrintf("%p: %s\n", obj, PrettyDescriptor(obj_class).c_str());
+      os << StringPrintf("%p: %s\n", obj, obj_class->PrettyDescriptor().c_str());
     }
     ScopedIndentation indent1(&state->vios_);
     DumpFields(os, obj, obj_class);
@@ -1906,7 +1907,7 @@ class ImageDumper {
               msg = "null";
             } else if (method_section.Contains(
                 reinterpret_cast<uint8_t*>(elem) - state->image_space_.Begin())) {
-              msg = PrettyMethod(reinterpret_cast<ArtMethod*>(elem));
+              msg = reinterpret_cast<ArtMethod*>(elem)->PrettyMethod();
             } else {
               msg = "<not in method section>";
             }
@@ -1940,7 +1941,7 @@ class ImageDumper {
               msg = "null";
             } else if (field_section.Contains(
                 reinterpret_cast<uint8_t*>(elem) - state->image_space_.Begin())) {
-              msg = PrettyField(reinterpret_cast<ArtField*>(elem));
+              msg = reinterpret_cast<ArtField*>(elem)->PrettyField();
             } else {
               msg = "<not in field section>";
             }
@@ -1968,7 +1969,7 @@ class ImageDumper {
             if (elem == nullptr) {
               msg = "null";
             } else {
-              msg = PrettyClass(elem);
+              msg = elem->PrettyClass();
             }
             os << StringPrintf("%p   %s\n", elem, msg.c_str());
           }
@@ -2005,7 +2006,8 @@ class ImageDumper {
       if (table != nullptr) {
         indent_os << "IMT conflict table " << table << " method: ";
         for (size_t i = 0, count = table->NumEntries(pointer_size); i < count; ++i) {
-          indent_os << PrettyMethod(table->GetImplementationMethod(i, pointer_size)) << " ";
+          indent_os << ArtMethod::PrettyMethod(table->GetImplementationMethod(i, pointer_size))
+                    << " ";
         }
       }
     } else {
@@ -2207,7 +2209,7 @@ class ImageDumper {
                   os << "\nBig methods (size > " << i << " standard deviations the norm):\n";
                   first = false;
                 }
-                os << PrettyMethod(method_outlier[j]) << " requires storage of "
+                os << ArtMethod::PrettyMethod(method_outlier[j]) << " requires storage of "
                     << PrettySize(cur_size) << "\n";
                 method_outlier_size[j] = 0;  // don't consider this method again
                 dumped_values++;
@@ -2247,7 +2249,7 @@ class ImageDumper {
                       << " standard deviations the norm):\n";
                   first = false;
                 }
-                os << PrettyMethod(method_outlier[j]) << " expanded code by "
+                os << ArtMethod::PrettyMethod(method_outlier[j]) << " expanded code by "
                    << cur_expansion << "\n";
                 method_outlier_expansion[j] = 0.0;  // don't consider this method again
                 dumped_values++;
@@ -2771,7 +2773,7 @@ class IMTDumper {
         return;
       }
       table_index++;
-      std::cerr << "    " << PrettyMethod(ptr, true) << std::endl;
+      std::cerr << "    " << ptr->PrettyMethod(true) << std::endl;
     }
   }
 
@@ -2850,7 +2852,7 @@ class IMTDumper {
           PrintTable(current_table, pointer_size);
         }
       } else {
-        std::cerr << "    " << PrettyMethod(ptr, true) << std::endl;
+        std::cerr << "    " << ptr->PrettyMethod(true) << std::endl;
       }
     }
 
@@ -2867,7 +2869,7 @@ class IMTDumper {
           uint32_t class_hash, name_hash, signature_hash;
           ImTable::GetImtHashComponents(&iface_method, &class_hash, &name_hash, &signature_hash);
           uint32_t imt_slot = ImTable::GetImtIndex(&iface_method);
-          std::cerr << "    " << PrettyMethod(&iface_method, true)
+          std::cerr << "    " << iface_method.PrettyMethod(true)
               << " slot=" << imt_slot
               << std::hex
               << " class_hash=0x" << class_hash
@@ -2920,7 +2922,7 @@ class IMTDumper {
           }
           table_index++;
 
-          std::string p_name = PrettyMethod(ptr2, true);
+          std::string p_name = ptr2->PrettyMethod(true);
           if (StartsWith(p_name, method.c_str())) {
             std::cerr << "  Slot "
                       << index
@@ -2933,7 +2935,7 @@ class IMTDumper {
           }
         }
       } else {
-        std::string p_name = PrettyMethod(ptr, true);
+        std::string p_name = ptr->PrettyMethod(true);
         if (StartsWith(p_name, method.c_str())) {
           std::cerr << "  Slot " << index << " (1)" << std::endl;
           std::cerr << "    " << p_name << std::endl;
@@ -2947,7 +2949,7 @@ class IMTDumper {
               if (num_methods > 0) {
                 for (ArtMethod& iface_method : iface->GetMethods(pointer_size)) {
                   if (ImTable::GetImtIndex(&iface_method) == index) {
-                    std::string i_name = PrettyMethod(&iface_method, true);
+                    std::string i_name = iface_method.PrettyMethod(true);
                     if (StartsWith(i_name, method.c_str())) {
                       std::cerr << "  Slot " << index << " (1)" << std::endl;
                       std::cerr << "    " << p_name << " (" << i_name << ")" << std::endl;

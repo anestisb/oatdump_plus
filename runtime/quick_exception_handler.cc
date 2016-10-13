@@ -145,7 +145,7 @@ void QuickExceptionHandler::FindCatch(mirror::Throwable* exception) {
   if (kDebugExceptionDelivery) {
     mirror::String* msg = exception->GetDetailMessage();
     std::string str_msg(msg != nullptr ? msg->ToModifiedUtf8() : "");
-    self_->DumpStack(LOG_STREAM(INFO) << "Delivering exception: " << PrettyTypeOf(exception)
+    self_->DumpStack(LOG_STREAM(INFO) << "Delivering exception: " << exception->PrettyTypeOf()
                      << ": " << str_msg << "\n");
   }
   StackHandleScope<1> hs(self_);
@@ -162,7 +162,8 @@ void QuickExceptionHandler::FindCatch(mirror::Throwable* exception) {
     if (handler_method_ != nullptr) {
       const DexFile* dex_file = handler_method_->GetDeclaringClass()->GetDexCache()->GetDexFile();
       int line_number = annotations::GetLineNumFromPC(dex_file, handler_method_, handler_dex_pc_);
-      LOG(INFO) << "Handler: " << PrettyMethod(handler_method_) << " (line: " << line_number << ")";
+      LOG(INFO) << "Handler: " << handler_method_->PrettyMethod() << " (line: "
+                << line_number << ")";
     }
   }
   if (clear_exception_) {
@@ -262,8 +263,8 @@ void QuickExceptionHandler::SetCatchEnvironmentForOptimizedHandler(StackVisitor*
                                                    vreg_kind,
                                                    &vreg_value);
     CHECK(get_vreg_success) << "VReg " << vreg << " was optimized out ("
-                            << "method=" << PrettyMethod(stack_visitor->GetMethod()) << ", "
-                            << "dex_pc=" << stack_visitor->GetDexPc() << ", "
+                            << "method=" << ArtMethod::PrettyMethod(stack_visitor->GetMethod())
+                            << ", dex_pc=" << stack_visitor->GetDexPc() << ", "
                             << "native_pc_offset=" << stack_visitor->GetNativePcOffset() << ")";
 
     // Copy value to the catch phi's stack slot.
@@ -323,7 +324,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
     if (GetMethod() == nullptr) {
       exception_handler_->SetFullFragmentDone(true);
     } else {
-      CHECK(callee_method_ != nullptr) << art::PrettyMethod(GetMethod(), false);
+      CHECK(callee_method_ != nullptr) << GetMethod()->PrettyMethod(false);
       exception_handler_->SetHandlerQuickArg0(reinterpret_cast<uintptr_t>(callee_method_));
     }
   }
@@ -669,7 +670,7 @@ class DumpFramesWithTypeStackVisitor FINAL : public StackVisitor {
       return true;
     } else if (method->IsRuntimeMethod()) {
       if (show_details_) {
-        LOG(INFO) << "R  " << PrettyMethod(method, true);
+        LOG(INFO) << "R  " << method->PrettyMethod(true);
       }
       return true;
     } else {
@@ -677,7 +678,7 @@ class DumpFramesWithTypeStackVisitor FINAL : public StackVisitor {
       LOG(INFO) << (is_shadow ? "S" : "Q")
                 << ((!is_shadow && IsInInlinedFrame()) ? "i" : " ")
                 << " "
-                << PrettyMethod(method, true);
+                << method->PrettyMethod(true);
       return true;  // Go on.
     }
   }

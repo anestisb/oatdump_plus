@@ -38,7 +38,7 @@ namespace art {
 static void ThrowArrayStoreException_NotAnArray(const char* identifier,
                                                 ObjPtr<mirror::Object> array)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  std::string actualType(PrettyTypeOf(array));
+  std::string actualType(mirror::Object::PrettyTypeOf(array));
   Thread* self = Thread::Current();
   self->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
                            "%s of type %s is not an array", identifier, actualType.c_str());
@@ -128,15 +128,15 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
         return;
       }
       default:
-        LOG(FATAL) << "Unknown array type: " << PrettyTypeOf(srcArray);
+        LOG(FATAL) << "Unknown array type: " << srcArray->PrettyTypeOf();
         UNREACHABLE();
     }
   }
   // If one of the arrays holds a primitive type the other array must hold the exact same type.
   if (UNLIKELY((dstComponentPrimitiveType != Primitive::kPrimNot) ||
                srcComponentType->IsPrimitive())) {
-    std::string srcType(PrettyTypeOf(srcArray));
-    std::string dstType(PrettyTypeOf(dstArray));
+    std::string srcType(srcArray->PrettyTypeOf());
+    std::string dstType(dstArray->PrettyTypeOf());
     soa.Self()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
                                    "Incompatible types: src=%s, dst=%s",
                                    srcType.c_str(), dstType.c_str());

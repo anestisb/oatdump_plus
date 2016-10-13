@@ -53,7 +53,7 @@ void Method::ResetArrayClass() {
 
 template <PointerSize kPointerSize, bool kTransactionActive>
 Method* Method::CreateFromArtMethod(Thread* self, ArtMethod* method) {
-  DCHECK(!method->IsConstructor()) << PrettyMethod(method);
+  DCHECK(!method->IsConstructor()) << method->PrettyMethod();
   ObjPtr<Method> ret = ObjPtr<Method>::DownCast(StaticClass()->AllocObject(self));
   if (LIKELY(ret != nullptr)) {
     ObjPtr<Executable>(ret)->
@@ -105,7 +105,7 @@ void Constructor::VisitRoots(RootVisitor* visitor) {
 
 template <PointerSize kPointerSize, bool kTransactionActive>
 Constructor* Constructor::CreateFromArtMethod(Thread* self, ArtMethod* method) {
-  DCHECK(method->IsConstructor()) << PrettyMethod(method);
+  DCHECK(method->IsConstructor()) << method->PrettyMethod();
   ObjPtr<Constructor> ret = ObjPtr<Constructor>::DownCast(StaticClass()->AllocObject(self));
   if (LIKELY(ret != nullptr)) {
     ObjPtr<Executable>(ret)->

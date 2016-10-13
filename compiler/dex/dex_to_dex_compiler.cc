@@ -212,7 +212,7 @@ void DexCompiler::CompileReturnVoid(Instruction* inst, uint32_t dex_pc) {
   VLOG(compiler) << "Replacing " << Instruction::Name(inst->Opcode())
                  << " by " << Instruction::Name(Instruction::RETURN_VOID_NO_BARRIER)
                  << " at dex pc " << StringPrintf("0x%x", dex_pc) << " in method "
-                 << PrettyMethod(unit_.GetDexMethodIndex(), GetDexFile(), true);
+                 << GetDexFile().PrettyMethod(unit_.GetDexMethodIndex(), true);
   inst->SetOpcode(Instruction::RETURN_VOID_NO_BARRIER);
 }
 
@@ -232,7 +232,7 @@ Instruction* DexCompiler::CompileCheckCast(Instruction* inst, uint32_t dex_pc) {
   VLOG(compiler) << "Removing " << Instruction::Name(inst->Opcode())
                  << " by replacing it with 2 NOPs at dex pc "
                  << StringPrintf("0x%x", dex_pc) << " in method "
-                 << PrettyMethod(unit_.GetDexMethodIndex(), GetDexFile(), true);
+                 << GetDexFile().PrettyMethod(unit_.GetDexMethodIndex(), true);
   // We are modifying 4 consecutive bytes.
   inst->SetOpcode(Instruction::NOP);
   inst->SetVRegA_10x(0u);  // keep compliant with verifier.
@@ -262,7 +262,7 @@ void DexCompiler::CompileInstanceFieldAccess(Instruction* inst,
                    << " by replacing field index " << field_idx
                    << " by field offset " << field_offset.Int32Value()
                    << " at dex pc " << StringPrintf("0x%x", dex_pc) << " in method "
-                   << PrettyMethod(unit_.GetDexMethodIndex(), GetDexFile(), true);
+                   << GetDexFile().PrettyMethod(unit_.GetDexMethodIndex(), true);
     // We are modifying 4 consecutive bytes.
     inst->SetOpcode(new_opcode);
     // Replace field index by field offset.
@@ -300,12 +300,12 @@ void DexCompiler::CompileInvokeVirtual(Instruction* inst, uint32_t dex_pc,
   uint32_t vtable_idx = resolved_method->GetMethodIndex();
   DCHECK(IsUint<16>(vtable_idx));
   VLOG(compiler) << "Quickening " << Instruction::Name(inst->Opcode())
-                 << "(" << PrettyMethod(method_idx, GetDexFile(), true) << ")"
+                 << "(" << GetDexFile().PrettyMethod(method_idx, true) << ")"
                  << " to " << Instruction::Name(new_opcode)
                  << " by replacing method index " << method_idx
                  << " by vtable index " << vtable_idx
                  << " at dex pc " << StringPrintf("0x%x", dex_pc) << " in method "
-                 << PrettyMethod(unit_.GetDexMethodIndex(), GetDexFile(), true);
+                 << GetDexFile().PrettyMethod(unit_.GetDexMethodIndex(), true);
   // We are modifying 4 consecutive bytes.
   inst->SetOpcode(new_opcode);
   // Replace method index by vtable index.

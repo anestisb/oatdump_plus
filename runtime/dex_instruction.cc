@@ -209,7 +209,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case NEW_INSTANCE:
           if (file != nullptr) {
             uint32_t type_idx = VRegB_21c();
-            os << opcode << " v" << static_cast<int>(VRegA_21c()) << ", " << PrettyType(type_idx, *file)
+            os << opcode << " v" << static_cast<int>(VRegA_21c()) << ", " << file->PrettyType(type_idx)
                << " // type@" << type_idx;
             break;
           }
@@ -223,7 +223,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case SGET_SHORT:
           if (file != nullptr) {
             uint32_t field_idx = VRegB_21c();
-            os << opcode << "  v" << static_cast<int>(VRegA_21c()) << ", " << PrettyField(field_idx, *file, true)
+            os << opcode << "  v" << static_cast<int>(VRegA_21c()) << ", " << file->PrettyField(field_idx, true)
                << " // field@" << field_idx;
             break;
           }
@@ -237,7 +237,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case SPUT_SHORT:
           if (file != nullptr) {
             uint32_t field_idx = VRegB_21c();
-            os << opcode << " v" << static_cast<int>(VRegA_21c()) << ", " << PrettyField(field_idx, *file, true)
+            os << opcode << " v" << static_cast<int>(VRegA_21c()) << ", " << file->PrettyField(field_idx, true)
                << " // field@" << field_idx;
             break;
           }
@@ -264,7 +264,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
           if (file != nullptr) {
             uint32_t field_idx = VRegC_22c();
             os << opcode << " v" << static_cast<int>(VRegA_22c()) << ", v" << static_cast<int>(VRegB_22c()) << ", "
-               << PrettyField(field_idx, *file, true) << " // field@" << field_idx;
+               << file->PrettyField(field_idx, true) << " // field@" << field_idx;
             break;
           }
           FALLTHROUGH_INTENDED;
@@ -287,7 +287,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
           if (file != nullptr) {
             uint32_t field_idx = VRegC_22c();
             os << opcode << " v" << static_cast<int>(VRegA_22c()) << ", v" << static_cast<int>(VRegB_22c()) << ", "
-               << PrettyField(field_idx, *file, true) << " // field@" << field_idx;
+               << file->PrettyField(field_idx, true) << " // field@" << field_idx;
             break;
           }
           FALLTHROUGH_INTENDED;
@@ -304,7 +304,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
           if (file != nullptr) {
             uint32_t type_idx = VRegC_22c();
             os << opcode << " v" << static_cast<int>(VRegA_22c()) << ", v" << static_cast<int>(VRegB_22c()) << ", "
-               << PrettyType(type_idx, *file) << " // type@" << type_idx;
+               << file->PrettyType(type_idx) << " // type@" << type_idx;
             break;
           }
           FALLTHROUGH_INTENDED;
@@ -312,7 +312,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
           if (file != nullptr) {
             uint32_t type_idx = VRegC_22c();
             os << opcode << " v" << static_cast<int>(VRegA_22c()) << ", v" << static_cast<int>(VRegB_22c()) << ", "
-               << PrettyType(type_idx, *file) << " // type@" << type_idx;
+               << file->PrettyType(type_idx) << " // type@" << type_idx;
             break;
           }
           FALLTHROUGH_INTENDED;
@@ -382,7 +382,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
               }
               os << "v" << arg[i];
             }
-            os << "}, " << PrettyMethod(method_idx, *file) << " // method@" << method_idx;
+            os << "}, " << file->PrettyMethod(method_idx) << " // method@" << method_idx;
             break;
           }
           FALLTHROUGH_INTENDED;
@@ -417,7 +417,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
           if (file != nullptr) {
             uint32_t method_idx = VRegB_3rc();
             os << StringPrintf("%s, {v%d .. v%d}, ", opcode, VRegC_3rc(), (VRegC_3rc() + VRegA_3rc() - 1))
-               << PrettyMethod(method_idx, *file) << " // method@" << method_idx;
+               << file->PrettyMethod(method_idx) << " // method@" << method_idx;
             break;
           }
           FALLTHROUGH_INTENDED;

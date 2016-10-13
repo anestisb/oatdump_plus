@@ -276,7 +276,7 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
     if (LIKELY(have_quick_code)) {
       if (kLogInvocationStartAndReturn) {
         LOG(INFO) << StringPrintf(
-            "Invoking '%s' quick code=%p static=%d", PrettyMethod(this).c_str(),
+            "Invoking '%s' quick code=%p static=%d", PrettyMethod().c_str(),
             GetEntryPointFromQuickCompiledCode(), static_cast<int>(IsStatic() ? 1 : 0));
       }
 
@@ -287,7 +287,7 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
             ? nullptr
             : GetOatMethodQuickCode(runtime->GetClassLinker()->GetImagePointerSize());
         CHECK(oat_quick_code == nullptr || oat_quick_code != GetEntryPointFromQuickCompiledCode())
-            << "Don't call compiled code when -Xint " << PrettyMethod(this);
+            << "Don't call compiled code when -Xint " << PrettyMethod();
       }
 
       if (!IsStatic()) {
@@ -302,11 +302,11 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
         self->DeoptimizeWithDeoptimizationException(result);
       }
       if (kLogInvocationStartAndReturn) {
-        LOG(INFO) << StringPrintf("Returned '%s' quick code=%p", PrettyMethod(this).c_str(),
+        LOG(INFO) << StringPrintf("Returned '%s' quick code=%p", PrettyMethod().c_str(),
                                   GetEntryPointFromQuickCompiledCode());
       }
     } else {
-      LOG(INFO) << "Not invoking '" << PrettyMethod(this) << "' code=null";
+      LOG(INFO) << "Not invoking '" << PrettyMethod() << "' code=null";
       if (result != nullptr) {
         result->SetJ(0);
       }
@@ -318,9 +318,9 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
 }
 
 void ArtMethod::RegisterNative(const void* native_method, bool is_fast) {
-  CHECK(IsNative()) << PrettyMethod(this);
-  CHECK(!IsFastNative()) << PrettyMethod(this);
-  CHECK(native_method != nullptr) << PrettyMethod(this);
+  CHECK(IsNative()) << PrettyMethod();
+  CHECK(!IsFastNative()) << PrettyMethod();
+  CHECK(native_method != nullptr) << PrettyMethod();
   if (is_fast) {
     SetAccessFlags(GetAccessFlags() | kAccFastNative);
   }
@@ -328,7 +328,7 @@ void ArtMethod::RegisterNative(const void* native_method, bool is_fast) {
 }
 
 void ArtMethod::UnregisterNative() {
-  CHECK(IsNative() && !IsFastNative()) << PrettyMethod(this);
+  CHECK(IsNative() && !IsFastNative()) << PrettyMethod();
   // restore stub to lookup native pointer via dlsym
   RegisterNative(GetJniDlsymLookupStub(), false);
 }
@@ -421,7 +421,7 @@ static const OatFile::OatMethod FindOatMethodFor(ArtMethod* method,
       oat_method_index++;
     }
     CHECK(found_virtual) << "Didn't find oat method index for virtual method: "
-                         << PrettyMethod(method);
+                         << method->PrettyMethod();
   }
   DCHECK_EQ(oat_method_index,
             GetOatMethodIndexFromMethodIndex(*declaring_class->GetDexCache()->GetDexFile(),
@@ -482,7 +482,7 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
 
   Runtime* runtime = Runtime::Current();
   const void* existing_entry_point = GetEntryPointFromQuickCompiledCode();
-  CHECK(existing_entry_point != nullptr) << PrettyMethod(this) << "@" << this;
+  CHECK(existing_entry_point != nullptr) << PrettyMethod() << "@" << this;
   ClassLinker* class_linker = runtime->GetClassLinker();
 
   if (class_linker->IsQuickGenericJniStub(existing_entry_point)) {
@@ -517,7 +517,7 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
       return method_header;
     } else {
       DCHECK(!code_cache->ContainsPc(reinterpret_cast<const void*>(pc)))
-          << PrettyMethod(this)
+          << PrettyMethod()
           << ", pc=" << std::hex << pc
           << ", entry_point=" << std::hex << reinterpret_cast<uintptr_t>(existing_entry_point)
           << ", copy=" << std::boolalpha << IsCopied()
@@ -549,7 +549,7 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
   }
   const void* oat_entry_point = oat_method.GetQuickCode();
   if (oat_entry_point == nullptr || class_linker->IsQuickGenericJniStub(oat_entry_point)) {
-    DCHECK(IsNative()) << PrettyMethod(this);
+    DCHECK(IsNative()) << PrettyMethod();
     return nullptr;
   }
 
@@ -561,7 +561,7 @@ const OatQuickMethodHeader* ArtMethod::GetOatQuickMethodHeader(uintptr_t pc) {
   }
 
   DCHECK(method_header->Contains(pc))
-      << PrettyMethod(this)
+      << PrettyMethod()
       << " " << std::hex << pc << " " << oat_entry_point
       << " " << (uintptr_t)(method_header->code_ + method_header->code_size_);
   return method_header;
@@ -635,6 +635,68 @@ bool ArtMethod::IsImagePointerSize(PointerSize pointer_size) {
     return true;
   }
   return runtime->GetClassLinker()->GetImagePointerSize() == pointer_size;
+}
+
+std::string ArtMethod::PrettyMethod(ArtMethod* m, bool with_signature) {
+  if (m == nullptr) {
+    return "null";
+  }
+  return m->PrettyMethod(with_signature);
+}
+
+std::string ArtMethod::PrettyMethod(bool with_signature) {
+  ArtMethod* m = this;
+  if (!m->IsRuntimeMethod()) {
+    m = m->GetInterfaceMethodIfProxy(Runtime::Current()->GetClassLinker()->GetImagePointerSize());
+  }
+  std::string result(PrettyDescriptor(m->GetDeclaringClassDescriptor()));
+  result += '.';
+  result += m->GetName();
+  if (UNLIKELY(m->IsFastNative())) {
+    result += "!";
+  }
+  if (with_signature) {
+    const Signature signature = m->GetSignature();
+    std::string sig_as_string(signature.ToString());
+    if (signature == Signature::NoSignature()) {
+      return result + sig_as_string;
+    }
+    result = PrettyReturnType(sig_as_string.c_str()) + " " + result +
+        PrettyArguments(sig_as_string.c_str());
+  }
+  return result;
+}
+
+std::string ArtMethod::JniShortName() {
+  std::string class_name(GetDeclaringClassDescriptor());
+  // Remove the leading 'L' and trailing ';'...
+  CHECK_EQ(class_name[0], 'L') << class_name;
+  CHECK_EQ(class_name[class_name.size() - 1], ';') << class_name;
+  class_name.erase(0, 1);
+  class_name.erase(class_name.size() - 1, 1);
+
+  std::string method_name(GetName());
+
+  std::string short_name;
+  short_name += "Java_";
+  short_name += MangleForJni(class_name);
+  short_name += "_";
+  short_name += MangleForJni(method_name);
+  return short_name;
+}
+
+std::string ArtMethod::JniLongName() {
+  std::string long_name;
+  long_name += JniShortName();
+  long_name += "__";
+
+  std::string signature(GetSignature().ToString());
+  signature.erase(0, 1);
+  signature.erase(signature.begin() + signature.find(')'), signature.end());
+
+  long_name += MangleForJni(signature);
+
+  return long_name;
 }
 
 }  // namespace art

@@ -235,8 +235,8 @@ class Libraries {
   void* FindNativeMethod(ArtMethod* m, std::string& detail)
       REQUIRES(Locks::jni_libraries_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    std::string jni_short_name(JniShortName(m));
-    std::string jni_long_name(JniLongName(m));
+    std::string jni_short_name(m->JniShortName());
+    std::string jni_long_name(m->JniLongName());
     mirror::ClassLoader* const declaring_class_loader = m->GetDeclaringClass()->GetClassLoader();
     ScopedObjectAccessUnchecked soa(Thread::Current());
     void* const declaring_class_loader_allocator =
@@ -258,13 +258,13 @@ class Libraries {
         fn = library->FindSymbol(jni_long_name, shorty);
       }
       if (fn != nullptr) {
-        VLOG(jni) << "[Found native code for " << PrettyMethod(m)
+        VLOG(jni) << "[Found native code for " << m->PrettyMethod()
                   << " in \"" << library->GetPath() << "\"]";
         return fn;
       }
     }
     detail += "No implementation found for ";
-    detail += PrettyMethod(m);
+    detail += m->PrettyMethod();
     detail += " (tried " + jni_short_name + " and " + jni_long_name + ")";
     LOG(ERROR) << detail;
     return nullptr;
@@ -471,7 +471,7 @@ void JavaVMExt::JniAbort(const char* jni_function_name, const char* msg) {
   }
   // TODO: is this useful given that we're about to dump the calling thread's stack?
   if (current_method != nullptr) {
-    os << "\n    from " << PrettyMethod(current_method);
+    os << "\n    from " << current_method->PrettyMethod();
   }
   os << "\n";
   self->Dump(os);
@@ -904,7 +904,7 @@ void* JavaVMExt::FindCodeForNativeMethod(ArtMethod* m) {
   CHECK(m->IsNative());
   mirror::Class* c = m->GetDeclaringClass();
   // If this is a static method, it could be called before the class has been initialized.
-  CHECK(c->IsInitializing()) << c->GetStatus() << " " << PrettyMethod(m);
+  CHECK(c->IsInitializing()) << c->GetStatus() << " " << m->PrettyMethod();
   std::string detail;
   void* native_method;
   Thread* self = Thread::Current();
