@@ -56,7 +56,7 @@ class IfTable;
 class Method;
 template <typename T> struct PACKED(8) DexCachePair;
 
-using StringDexCachePair = DexCachePair<mirror::String>;
+using StringDexCachePair = DexCachePair<String>;
 using StringDexCacheType = std::atomic<StringDexCachePair>;
 
 // C++ mirror of java.lang.Class
@@ -337,18 +337,7 @@ class MANAGED Class FINAL : public Object {
   // For array classes, where all the classes are final due to there being no sub-classes, an
   // Object[] may be assigned to by a String[] but a String[] may not be assigned to by other
   // types as the component is final.
-  bool CannotBeAssignedFromOtherTypes() REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (!IsArrayClass()) {
-      return IsFinal();
-    } else {
-      Class* component = GetComponentType();
-      if (component->IsPrimitive()) {
-        return true;
-      } else {
-        return component->CannotBeAssignedFromOtherTypes();
-      }
-    }
-  }
+  bool CannotBeAssignedFromOtherTypes() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns true if this class is the placeholder and should retire and
   // be replaced with a class with the right size for embedded imt/vtable.
@@ -473,7 +462,7 @@ class MANAGED Class FINAL : public Object {
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   Class* GetComponentType() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void SetComponentType(Class* new_component_type) REQUIRES_SHARED(Locks::mutator_lock_) {
+  void SetComponentType(ObjPtr<Class> new_component_type) REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(GetComponentType() == nullptr);
     DCHECK(new_component_type != nullptr);
     // Component type is invariant: use non-transactional mode without check.
@@ -508,7 +497,7 @@ class MANAGED Class FINAL : public Object {
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   bool IsObjectArrayClass() REQUIRES_SHARED(Locks::mutator_lock_) {
-    mirror::Class* const component_type = GetComponentType<kVerifyFlags, kReadBarrierOption>();
+    ObjPtr<Class> const component_type = GetComponentType<kVerifyFlags, kReadBarrierOption>();
     return component_type != nullptr && !component_type->IsPrimitive();
   }
 
@@ -528,12 +517,12 @@ class MANAGED Class FINAL : public Object {
 
   // Creates a raw object instance but does not invoke the default constructor.
   template<bool kIsInstrumented, bool kCheckAddFinalizer = true>
-  ALWAYS_INLINE Object* Alloc(Thread* self, gc::AllocatorType allocator_type)
+  ALWAYS_INLINE ObjPtr<Object> Alloc(Thread* self, gc::AllocatorType allocator_type)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
-  Object* AllocObject(Thread* self)
+  ObjPtr<Object> AllocObject(Thread* self)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
-  Object* AllocNonMovableObject(Thread* self)
+  ObjPtr<Object> AllocNonMovableObject(Thread* self)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
@@ -638,11 +627,14 @@ class MANAGED Class FINAL : public Object {
   // Can this class access a resolved method?
   // Note that access to methods's class is checked and this may require looking up the class
   // referenced by the MethodId in the DexFile in case the declaring class is inaccessible.
-  bool CanAccessResolvedMethod(Class* access_to, ArtMethod* resolved_method,
-                               DexCache* dex_cache, uint32_t method_idx)
+  bool CanAccessResolvedMethod(ObjPtr<Class> access_to,
+                               ArtMethod* resolved_method,
+                               ObjPtr<DexCache> dex_cache,
+                               uint32_t method_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
   template <InvokeType throw_invoke_type>
-  bool CheckResolvedMethodAccess(Class* access_to, ArtMethod* resolved_method,
+  bool CheckResolvedMethodAccess(ObjPtr<Class> access_to,
+                                 ArtMethod* resolved_method,
                                  uint32_t method_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -661,11 +653,12 @@ class MANAGED Class FINAL : public Object {
 
   // Get first common super class. It will never return null.
   // `This` and `klass` must be classes.
-  Class* GetCommonSuperClass(Handle<Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
+  ObjPtr<Class> GetCommonSuperClass(Handle<Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void SetSuperClass(Class* new_super_class) REQUIRES_SHARED(Locks::mutator_lock_) {
+  void SetSuperClass(ObjPtr<Class> new_super_class) REQUIRES_SHARED(Locks::mutator_lock_) {
     // Super class is assigned once, except during class linker initialization.
-    Class* old_super_class = GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(Class, super_class_));
+    ObjPtr<Class> old_super_class =
+        GetFieldObject<Class>(OFFSET_OF_OBJECT_MEMBER(Class, super_class_));
     DCHECK(old_super_class == nullptr || old_super_class == new_super_class);
     DCHECK(new_super_class != nullptr);
     SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, super_class_), new_super_class);
@@ -681,7 +674,7 @@ class MANAGED Class FINAL : public Object {
 
   ClassLoader* GetClassLoader() ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void SetClassLoader(ClassLoader* new_cl) REQUIRES_SHARED(Locks::mutator_lock_);
+  void SetClassLoader(ObjPtr<ClassLoader> new_cl) REQUIRES_SHARED(Locks::mutator_lock_);
 
   static MemberOffset DexCacheOffset() {
     return MemberOffset(OFFSETOF_MEMBER(Class, dex_cache_));
@@ -699,7 +692,7 @@ class MANAGED Class FINAL : public Object {
   DexCache* GetDexCache() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Also updates the dex_cache_strings_ variable from new_dex_cache.
-  void SetDexCache(DexCache* new_dex_cache) REQUIRES_SHARED(Locks::mutator_lock_);
+  void SetDexCache(ObjPtr<DexCache> new_dex_cache) REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE IterationRange<StrideIterator<ArtMethod>> GetDirectMethods(PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -753,15 +746,16 @@ class MANAGED Class FINAL : public Object {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   template <PointerSize kPointerSize, bool kTransactionActive>
-  static Method* GetDeclaredMethodInternal(Thread* self,
-                                           mirror::Class* klass,
-                                           mirror::String* name,
-                                           mirror::ObjectArray<mirror::Class>* args)
+  static ObjPtr<Method> GetDeclaredMethodInternal(Thread* self,
+                                                  ObjPtr<Class> klass,
+                                                  ObjPtr<String> name,
+                                                  ObjPtr<ObjectArray<Class>> args)
       REQUIRES_SHARED(Locks::mutator_lock_);
+
   template <PointerSize kPointerSize, bool kTransactionActive>
-  static Constructor* GetDeclaredConstructorInternal(Thread* self,
-                                                     mirror::Class* klass,
-                                                     mirror::ObjectArray<mirror::Class>* args)
+  static ObjPtr<Constructor> GetDeclaredConstructorInternal(Thread* self,
+                                                            ObjPtr<Class> klass,
+                                                            ObjPtr<ObjectArray<Class>> args)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
@@ -894,69 +888,86 @@ class MANAGED Class FINAL : public Object {
   ArtMethod* FindVirtualMethodForVirtualOrInterface(ArtMethod* method, PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtMethod* FindInterfaceMethod(const StringPiece& name, const StringPiece& signature,
+  ArtMethod* FindInterfaceMethod(const StringPiece& name,
+                                 const StringPiece& signature,
                                  PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtMethod* FindInterfaceMethod(const StringPiece& name, const Signature& signature,
+  ArtMethod* FindInterfaceMethod(const StringPiece& name,
+                                 const Signature& signature,
                                  PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtMethod* FindInterfaceMethod(const DexCache* dex_cache, uint32_t dex_method_idx,
+  ArtMethod* FindInterfaceMethod(ObjPtr<DexCache> dex_cache,
+                                 uint32_t dex_method_idx,
                                  PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtMethod* FindDeclaredDirectMethod(const StringPiece& name, const StringPiece& signature,
+  ArtMethod* FindDeclaredDirectMethod(const StringPiece& name,
+                                      const StringPiece& signature,
                                       PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtMethod* FindDeclaredDirectMethod(const StringPiece& name, const Signature& signature,
+  ArtMethod* FindDeclaredDirectMethod(const StringPiece& name,
+                                      const Signature& signature,
                                       PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtMethod* FindDeclaredDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx,
+  ArtMethod* FindDeclaredDirectMethod(ObjPtr<DexCache> dex_cache,
+                                      uint32_t dex_method_idx,
                                       PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtMethod* FindDirectMethod(const StringPiece& name, const StringPiece& signature,
+  ArtMethod* FindDirectMethod(const StringPiece& name,
+                              const StringPiece& signature,
                               PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtMethod* FindDirectMethod(const StringPiece& name, const Signature& signature,
+  ArtMethod* FindDirectMethod(const StringPiece& name,
+                              const Signature& signature,
                               PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtMethod* FindDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx,
+  ArtMethod* FindDirectMethod(ObjPtr<DexCache> dex_cache,
+                              uint32_t dex_method_idx,
                               PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtMethod* FindDeclaredVirtualMethod(const StringPiece& name, const StringPiece& signature,
+  ArtMethod* FindDeclaredVirtualMethod(const StringPiece& name,
+                                       const StringPiece& signature,
                                        PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtMethod* FindDeclaredVirtualMethod(const StringPiece& name, const Signature& signature,
+  ArtMethod* FindDeclaredVirtualMethod(const StringPiece& name,
+                                       const Signature& signature,
                                        PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtMethod* FindDeclaredVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx,
+  ArtMethod* FindDeclaredVirtualMethod(ObjPtr<DexCache> dex_cache,
+                                       uint32_t dex_method_idx,
                                        PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtMethod* FindDeclaredVirtualMethodByName(const StringPiece& name, PointerSize pointer_size)
+  ArtMethod* FindDeclaredVirtualMethodByName(const StringPiece& name,
+                                             PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtMethod* FindDeclaredDirectMethodByName(const StringPiece& name, PointerSize pointer_size)
+  ArtMethod* FindDeclaredDirectMethodByName(const StringPiece& name,
+                                            PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtMethod* FindVirtualMethod(const StringPiece& name, const StringPiece& signature,
+  ArtMethod* FindVirtualMethod(const StringPiece& name,
+                               const StringPiece& signature,
                                PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtMethod* FindVirtualMethod(const StringPiece& name, const Signature& signature,
+  ArtMethod* FindVirtualMethod(const StringPiece& name,
+                               const Signature& signature,
                                PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtMethod* FindVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx,
+  ArtMethod* FindVirtualMethod(ObjPtr<DexCache> dex_cache,
+                               uint32_t dex_method_idx,
                                PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -976,7 +987,8 @@ class MANAGED Class FINAL : public Object {
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ALWAYS_INLINE IfTable* GetIfTable() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ALWAYS_INLINE void SetIfTable(IfTable* new_iftable) REQUIRES_SHARED(Locks::mutator_lock_);
+  ALWAYS_INLINE void SetIfTable(ObjPtr<IfTable> new_iftable)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Get instance fields of the class (See also GetSFields).
   LengthPrefixedArray<ArtField>* GetIFieldsPtr() REQUIRES_SHARED(Locks::mutator_lock_);
@@ -1077,32 +1089,34 @@ class MANAGED Class FINAL : public Object {
 
   // Finds the given instance field in this class or a superclass, only searches classes that
   // have the same dex cache.
-  ArtField* FindInstanceField(const DexCache* dex_cache, uint32_t dex_field_idx)
+  ArtField* FindInstanceField(ObjPtr<DexCache> dex_cache, uint32_t dex_field_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   ArtField* FindDeclaredInstanceField(const StringPiece& name, const StringPiece& type)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtField* FindDeclaredInstanceField(const DexCache* dex_cache, uint32_t dex_field_idx)
+  ArtField* FindDeclaredInstanceField(ObjPtr<DexCache> dex_cache, uint32_t dex_field_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Finds the given static field in this class or a superclass.
-  static ArtField* FindStaticField(Thread* self, Handle<Class> klass, const StringPiece& name,
+  static ArtField* FindStaticField(Thread* self,
+                                   Handle<Class> klass,
+                                   const StringPiece& name,
                                    const StringPiece& type)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Finds the given static field in this class or superclass, only searches classes that
   // have the same dex cache.
   static ArtField* FindStaticField(Thread* self,
-                                   Class* klass,
-                                   const DexCache* dex_cache,
+                                   ObjPtr<Class> klass,
+                                   ObjPtr<DexCache> dex_cache,
                                    uint32_t dex_field_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   ArtField* FindDeclaredStaticField(const StringPiece& name, const StringPiece& type)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtField* FindDeclaredStaticField(const DexCache* dex_cache, uint32_t dex_field_idx)
+  ArtField* FindDeclaredStaticField(ObjPtr<DexCache> dex_cache, uint32_t dex_field_idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   pid_t GetClinitThreadId() REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -1148,7 +1162,7 @@ class MANAGED Class FINAL : public Object {
   }
 
   // Can't call this SetClass or else gets called instead of Object::SetClass in places.
-  static void SetClassClass(Class* java_lang_Class) REQUIRES_SHARED(Locks::mutator_lock_);
+  static void SetClassClass(ObjPtr<Class> java_lang_Class) REQUIRES_SHARED(Locks::mutator_lock_);
   static void ResetClass();
   static void VisitRoots(RootVisitor* visitor)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -1178,8 +1192,9 @@ class MANAGED Class FINAL : public Object {
 
   uint16_t GetDirectInterfaceTypeIdx(uint32_t idx) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  static mirror::Class* GetDirectInterface(Thread* self, Handle<mirror::Class> klass,
-                                           uint32_t idx)
+  static ObjPtr<Class> GetDirectInterface(Thread* self,
+                                          Handle<Class> klass,
+                                          uint32_t idx)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   const char* GetSourceFile() REQUIRES_SHARED(Locks::mutator_lock_);
@@ -1194,7 +1209,9 @@ class MANAGED Class FINAL : public Object {
   void AssertInitializedOrInitializingInThread(Thread* self)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  Class* CopyOf(Thread* self, int32_t new_length, ImTable* imt,
+  Class* CopyOf(Thread* self,
+                int32_t new_length,
+                ImTable* imt,
                 PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
@@ -1218,8 +1235,9 @@ class MANAGED Class FINAL : public Object {
   }
 
   // May cause thread suspension due to EqualParameters.
-  ArtMethod* GetDeclaredConstructor(
-      Thread* self, Handle<mirror::ObjectArray<mirror::Class>> args, PointerSize pointer_size)
+  ArtMethod* GetDeclaredConstructor(Thread* self,
+                                    Handle<ObjectArray<Class>> args,
+                                    PointerSize pointer_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   static int32_t GetInnerClassFlags(Handle<Class> h_this, int32_t default_value)
@@ -1232,7 +1250,7 @@ class MANAGED Class FINAL : public Object {
     explicit InitializeClassVisitor(uint32_t class_size) : class_size_(class_size) {
     }
 
-    void operator()(ObjPtr<mirror::Object> obj, size_t usable_size) const
+    void operator()(ObjPtr<Object> obj, size_t usable_size) const
         REQUIRES_SHARED(Locks::mutator_lock_);
 
    private:
@@ -1277,14 +1295,14 @@ class MANAGED Class FINAL : public Object {
   template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
             ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
             typename Visitor>
-  void FixupNativePointers(mirror::Class* dest, PointerSize pointer_size, const Visitor& visitor)
+  void FixupNativePointers(Class* dest, PointerSize pointer_size, const Visitor& visitor)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:
   ALWAYS_INLINE void SetMethodsPtrInternal(LengthPrefixedArray<ArtMethod>* new_methods)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void SetVerifyError(Object* klass) REQUIRES_SHARED(Locks::mutator_lock_);
+  void SetVerifyError(ObjPtr<Object> klass) REQUIRES_SHARED(Locks::mutator_lock_);
 
   template <bool throw_on_failure, bool use_referrers_cache>
   bool ResolvedFieldAccessTest(ObjPtr<Class> access_to,
@@ -1300,7 +1318,7 @@ class MANAGED Class FINAL : public Object {
                                 ObjPtr<DexCache> dex_cache)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  bool Implements(Class* klass) REQUIRES_SHARED(Locks::mutator_lock_);
+  bool Implements(ObjPtr<Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
   bool IsArrayAssignableFromArray(ObjPtr<Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
   bool IsAssignableFromArray(ObjPtr<Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -1333,7 +1351,7 @@ class MANAGED Class FINAL : public Object {
             VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
             ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
             typename Visitor>
-  void VisitReferences(mirror::Class* klass, const Visitor& visitor)
+  void VisitReferences(ObjPtr<Class> klass, const Visitor& visitor)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // 'Class' Object Fields

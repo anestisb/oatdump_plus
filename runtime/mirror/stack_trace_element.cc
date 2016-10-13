@@ -42,8 +42,8 @@ void StackTraceElement::ResetClass() {
 StackTraceElement* StackTraceElement::Alloc(Thread* self, Handle<String> declaring_class,
                                             Handle<String> method_name, Handle<String> file_name,
                                             int32_t line_number) {
-  StackTraceElement* trace =
-      down_cast<StackTraceElement*>(GetStackTraceElement()->AllocObject(self));
+  ObjPtr<StackTraceElement> trace =
+      ObjPtr<StackTraceElement>::DownCast(GetStackTraceElement()->AllocObject(self));
   if (LIKELY(trace != nullptr)) {
     if (Runtime::Current()->IsActiveTransaction()) {
       trace->Init<true>(declaring_class, method_name, file_name, line_number);
@@ -51,7 +51,7 @@ StackTraceElement* StackTraceElement::Alloc(Thread* self, Handle<String> declari
       trace->Init<false>(declaring_class, method_name, file_name, line_number);
     }
   }
-  return trace;
+  return trace.Ptr();
 }
 
 template<bool kTransactionActive>

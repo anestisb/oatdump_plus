@@ -231,10 +231,10 @@ inline mirror::Object* AllocObjectFromCode(uint32_t type_idx,
     // CheckObjectAlloc can cause thread suspension which means we may now be instrumented.
     return klass->Alloc</*kInstrumented*/true>(
         self,
-        Runtime::Current()->GetHeap()->GetCurrentAllocator());
+        Runtime::Current()->GetHeap()->GetCurrentAllocator()).Ptr();
   }
   DCHECK(klass != nullptr);
-  return klass->Alloc<kInstrumented>(self, allocator_type);
+  return klass->Alloc<kInstrumented>(self, allocator_type).Ptr();
 }
 
 // Given the context of a calling Method and a resolved class, create an instance.
@@ -254,10 +254,10 @@ inline mirror::Object* AllocObjectFromCodeResolved(mirror::Class* klass,
     // Pass in false since the object cannot be finalizable.
     // CheckClassInitializedForObjectAlloc can cause thread suspension which means we may now be
     // instrumented.
-    return klass->Alloc</*kInstrumented*/true, false>(self, heap->GetCurrentAllocator());
+    return klass->Alloc</*kInstrumented*/true, false>(self, heap->GetCurrentAllocator()).Ptr();
   }
   // Pass in false since the object cannot be finalizable.
-  return klass->Alloc<kInstrumented, false>(self, allocator_type);
+  return klass->Alloc<kInstrumented, false>(self, allocator_type).Ptr();
 }
 
 // Given the context of a calling Method and an initialized class, create an instance.
@@ -268,7 +268,7 @@ inline mirror::Object* AllocObjectFromCodeInitialized(mirror::Class* klass,
                                                       gc::AllocatorType allocator_type) {
   DCHECK(klass != nullptr);
   // Pass in false since the object cannot be finalizable.
-  return klass->Alloc<kInstrumented, false>(self, allocator_type);
+  return klass->Alloc<kInstrumented, false>(self, allocator_type).Ptr();
 }
 
 

@@ -2272,7 +2272,7 @@ void Thread::ThrowNewWrappedException(const char* exception_class_descriptor,
   }
   DCHECK(!runtime->IsStarted() || exception_class->IsThrowableClass());
   Handle<mirror::Throwable> exception(
-      hs.NewHandle(down_cast<mirror::Throwable*>(exception_class->AllocObject(this))));
+      hs.NewHandle(ObjPtr<mirror::Throwable>::DownCast(exception_class->AllocObject(this))));
 
   // If we couldn't allocate the exception, throw the pre-allocated out of memory exception.
   if (exception.Get() == nullptr) {
