@@ -1052,6 +1052,8 @@ void CodeGeneratorARM64::GenerateFrameEntry() {
     // in the SSA graph.
     if (RequiresCurrentMethod()) {
       __ Str(kArtMethodRegister, MemOperand(sp, -frame_size, PreIndex));
+    } else {
+      __ Claim(frame_size);
     }
     GetAssembler()->cfi().AdjustCFAOffset(frame_size);
     GetAssembler()->SpillRegisters(GetFramePreservedCoreRegisters(),
