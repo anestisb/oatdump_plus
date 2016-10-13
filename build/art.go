@@ -15,7 +15,6 @@
 package art
 
 import (
-	"android/soong"
 	"android/soong/android"
 	"android/soong/cc"
 	"fmt"
@@ -222,13 +221,13 @@ func testInstall(ctx android.InstallHookContext) {
 var artTestMutex sync.Mutex
 
 func init() {
-	soong.RegisterModuleType("art_cc_library", artLibrary)
-	soong.RegisterModuleType("art_cc_binary", artBinary)
-	soong.RegisterModuleType("art_cc_test", artTest)
-	soong.RegisterModuleType("art_cc_test_library", artTestLibrary)
-	soong.RegisterModuleType("art_cc_defaults", artDefaultsFactory)
-	soong.RegisterModuleType("art_global_defaults", artGlobalDefaultsFactory)
-	soong.RegisterModuleType("art_debug_defaults", artDebugDefaultsFactory)
+	android.RegisterModuleType("art_cc_library", artLibrary)
+	android.RegisterModuleType("art_cc_binary", artBinary)
+	android.RegisterModuleType("art_cc_test", artTest)
+	android.RegisterModuleType("art_cc_test_library", artTestLibrary)
+	android.RegisterModuleType("art_cc_defaults", artDefaultsFactory)
+	android.RegisterModuleType("art_global_defaults", artGlobalDefaultsFactory)
+	android.RegisterModuleType("art_debug_defaults", artDebugDefaultsFactory)
 }
 
 func artGlobalDefaultsFactory() (blueprint.Module, []interface{}) {
