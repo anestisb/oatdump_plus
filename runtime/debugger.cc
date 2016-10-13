@@ -936,10 +936,11 @@ JDWP::JdwpError Dbg::GetReferringObjects(JDWP::ObjectId object_id, int32_t max_c
   if (o == nullptr) {
     return JDWP::ERR_INVALID_OBJECT;
   }
-  std::vector<ObjPtr<mirror::Object>> raw_instances;
-  heap->GetReferringObjects(o, max_count, raw_instances);
+  VariableSizedHandleScope hs(Thread::Current());
+  std::vector<Handle<mirror::Object>> raw_instances;
+  heap->GetReferringObjects(hs, hs.NewHandle(o), max_count, raw_instances);
   for (size_t i = 0; i < raw_instances.size(); ++i) {
-    referring_objects->push_back(gRegistry->Add(raw_instances[i]));
+    referring_objects->push_back(gRegistry->Add(raw_instances[i].Get()));
   }
   return JDWP::ERR_NONE;
 }

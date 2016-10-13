@@ -50,6 +50,7 @@ class StackVisitor;
 class Thread;
 class ThreadPool;
 class TimingLogger;
+class VariableSizedHandleScope;
 
 namespace mirror {
   class Class;
@@ -348,9 +349,10 @@ class Heap {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Implements JDWP OR_ReferringObjects.
-  void GetReferringObjects(ObjPtr<mirror::Object> o,
+  void GetReferringObjects(VariableSizedHandleScope& scope,
+                           Handle<mirror::Object> o,
                            int32_t max_count,
-                           std::vector<ObjPtr<mirror::Object>>& referring_objects)
+                           std::vector<Handle<mirror::Object>>& referring_objects)
       REQUIRES(!Locks::heap_bitmap_lock_, !*gc_complete_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
