@@ -1129,7 +1129,13 @@ void CodeGeneratorARM::GenerateFrameEntry() {
   int adjust = GetFrameSize() - FrameEntrySpillSize();
   __ AddConstant(SP, -adjust);
   __ cfi().AdjustCFAOffset(adjust);
-  __ StoreToOffset(kStoreWord, kMethodRegisterArgument, SP, 0);
+
+  // Save the current method if we need it. Note that we do not
+  // do this in HCurrentMethod, as the instruction might have been removed
+  // in the SSA graph.
+  if (RequiresCurrentMethod()) {
+    __ StoreToOffset(kStoreWord, kMethodRegisterArgument, SP, 0);
+  }
 }
 
 void CodeGeneratorARM::GenerateFrameExit() {

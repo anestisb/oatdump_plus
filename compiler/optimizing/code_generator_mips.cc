@@ -743,9 +743,12 @@ void CodeGeneratorMIPS::GenerateFrameEntry() {
     // TODO: __ cfi().RelOffset(DWARFReg(reg), ofs);
   }
 
-  // Store the current method pointer.
-  // TODO: can we not do this if RequiresCurrentMethod() returns false?
-  __ StoreToOffset(kStoreWord, kMethodRegisterArgument, SP, kCurrentMethodStackOffset);
+  // Save the current method if we need it. Note that we do not
+  // do this in HCurrentMethod, as the instruction might have been removed
+  // in the SSA graph.
+  if (RequiresCurrentMethod()) {
+    __ StoreToOffset(kStoreWord, kMethodRegisterArgument, SP, kCurrentMethodStackOffset);
+  }
 }
 
 void CodeGeneratorMIPS::GenerateFrameExit() {
