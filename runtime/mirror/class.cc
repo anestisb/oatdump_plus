@@ -1002,7 +1002,7 @@ class CopyClassVisitor {
       REQUIRES_SHARED(Locks::mutator_lock_) {
     StackHandleScope<1> hs(self_);
     Handle<mirror::Class> h_new_class_obj(hs.NewHandle(obj->AsClass()));
-    mirror::Object::CopyObject(self_, h_new_class_obj.Get(), orig_->Get(), copy_bytes_);
+    mirror::Object::CopyObject(h_new_class_obj.Get(), orig_->Get(), copy_bytes_);
     mirror::Class::SetStatus(h_new_class_obj, Class::kStatusResolving, self_);
     h_new_class_obj->PopulateEmbeddedVTable(pointer_size_);
     h_new_class_obj->SetImt(imt_, pointer_size_);
