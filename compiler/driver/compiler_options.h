@@ -187,6 +187,10 @@ class CompilerOptions FINAL {
     return generate_mini_debug_info_;
   }
 
+  bool GetGenerateBuildId() const {
+    return generate_build_id_;
+  }
+
   bool GetImplicitNullChecks() const {
     return implicit_null_checks_;
   }
@@ -297,6 +301,7 @@ class CompilerOptions FINAL {
   bool debuggable_;
   bool generate_debug_info_;
   bool generate_mini_debug_info_;
+  bool generate_build_id_;
   bool implicit_null_checks_;
   bool implicit_so_checks_;
   bool implicit_suspend_checks_;

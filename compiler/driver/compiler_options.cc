@@ -37,6 +37,7 @@ CompilerOptions::CompilerOptions()
       debuggable_(false),
       generate_debug_info_(kDefaultGenerateDebugInfo),
       generate_mini_debug_info_(kDefaultGenerateMiniDebugInfo),
+      generate_build_id_(false),
       implicit_null_checks_(true),
       implicit_so_checks_(true),
       implicit_suspend_checks_(false),
@@ -97,6 +98,7 @@ CompilerOptions::CompilerOptions(CompilerFilter::Filter compiler_filter,
       debuggable_(debuggable),
       generate_debug_info_(generate_debug_info),
       generate_mini_debug_info_(kDefaultGenerateMiniDebugInfo),
+      generate_build_id_(false),
       implicit_null_checks_(implicit_null_checks),
       implicit_so_checks_(implicit_so_checks),
       implicit_suspend_checks_(implicit_suspend_checks),
@@ -196,6 +198,10 @@ bool CompilerOptions::ParseCompilerOption(const StringPiece& option, UsageFn Usa
     generate_mini_debug_info_ = true;
   } else if (option == "--no-generate-mini-debug-info") {
     generate_mini_debug_info_ = false;
+  } else if (option == "--generate-build-id") {
+    generate_build_id_ = true;
+  } else if (option == "--no-generate-build-id") {
+    generate_build_id_ = false;
   } else if (option == "--debuggable") {
     debuggable_ = true;
   } else if (option.starts_with("--top-k-profile-threshold=")) {
