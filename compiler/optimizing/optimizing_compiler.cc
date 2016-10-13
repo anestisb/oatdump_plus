@@ -319,7 +319,7 @@ class OptimizingCompiler FINAL : public Compiler {
                         CompilerDriver* driver,
                         const DexCompilationUnit& dex_compilation_unit,
                         PassObserver* pass_observer,
-                        StackHandleScopeCollection* handles) const;
+                        VariableSizedHandleScope* handles) const;
 
   void RunOptimizations(HOptimization* optimizations[],
                         size_t length,
@@ -358,7 +358,7 @@ class OptimizingCompiler FINAL : public Compiler {
                        CompilerDriver* driver,
                        const DexCompilationUnit& dex_compilation_unit,
                        PassObserver* pass_observer,
-                       StackHandleScopeCollection* handles) const;
+                       VariableSizedHandleScope* handles) const;
 
   void RunArchOptimizations(InstructionSet instruction_set,
                             HGraph* graph,
@@ -442,7 +442,7 @@ static HOptimization* BuildOptimization(
     CodeGenerator* codegen,
     CompilerDriver* driver,
     const DexCompilationUnit& dex_compilation_unit,
-    StackHandleScopeCollection* handles,
+    VariableSizedHandleScope* handles,
     SideEffectsAnalysis* most_recent_side_effects,
     HInductionVarAnalysis* most_recent_induction) {
   std::string opt_name = ConvertPassNameToOptimizationName(pass_name);
@@ -524,7 +524,7 @@ static ArenaVector<HOptimization*> BuildOptimizations(
     CodeGenerator* codegen,
     CompilerDriver* driver,
     const DexCompilationUnit& dex_compilation_unit,
-    StackHandleScopeCollection* handles) {
+    VariableSizedHandleScope* handles) {
   // Few HOptimizations constructors require SideEffectsAnalysis or HInductionVarAnalysis
   // instances. This method assumes that each of them expects the nearest instance preceeding it
   // in the pass name list.
@@ -570,7 +570,7 @@ void OptimizingCompiler::MaybeRunInliner(HGraph* graph,
                                          CompilerDriver* driver,
                                          const DexCompilationUnit& dex_compilation_unit,
                                          PassObserver* pass_observer,
-                                         StackHandleScopeCollection* handles) const {
+                                         VariableSizedHandleScope* handles) const {
   OptimizingCompilerStats* stats = compilation_stats_.get();
   const CompilerOptions& compiler_options = driver->GetCompilerOptions();
   bool should_inline = (compiler_options.GetInlineDepthLimit() > 0)
@@ -707,7 +707,7 @@ void OptimizingCompiler::RunOptimizations(HGraph* graph,
                                           CompilerDriver* driver,
                                           const DexCompilationUnit& dex_compilation_unit,
                                           PassObserver* pass_observer,
-                                          StackHandleScopeCollection* handles) const {
+                                          VariableSizedHandleScope* handles) const {
   OptimizingCompilerStats* stats = compilation_stats_.get();
   ArenaAllocator* arena = graph->GetArena();
   if (driver->GetCompilerOptions().GetPassesToRun() != nullptr) {
@@ -949,7 +949,7 @@ CodeGenerator* OptimizingCompiler::TryCompile(ArenaAllocator* arena,
 
   {
     ScopedObjectAccess soa(Thread::Current());
-    StackHandleScopeCollection handles(soa.Self());
+    VariableSizedHandleScope handles(soa.Self());
     // Do not hold `mutator_lock_` between optimizations.
     ScopedThreadSuspension sts(soa.Self(), kNative);
 

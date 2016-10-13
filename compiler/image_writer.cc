@@ -1389,7 +1389,7 @@ void ImageWriter::ProcessWorkStack(WorkStack* work_stack) {
 
 void ImageWriter::CalculateNewObjectOffsets() {
   Thread* const self = Thread::Current();
-  StackHandleScopeCollection handles(self);
+  VariableSizedHandleScope handles(self);
   std::vector<Handle<ObjectArray<Object>>> image_roots;
   for (size_t i = 0, size = oat_filenames_.size(); i != size; ++i) {
     image_roots.push_back(handles.NewHandle(CreateImageRoots(i)));
