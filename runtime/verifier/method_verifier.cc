@@ -41,6 +41,7 @@
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
+#include "mirror/method_handle_impl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "reg_type-inl.h"
@@ -1184,6 +1185,11 @@ bool MethodVerifier::VerifyInstruction(const Instruction* inst, uint32_t code_of
       result = result && CheckWideRegisterIndex(inst->VRegC());
       break;
   }
+  switch (inst->GetVerifyTypeArgumentH()) {
+    case Instruction::kVerifyRegHPrototype:
+      result = result && CheckPrototypeIndex(inst->VRegH());
+      break;
+  }
   switch (inst->GetVerifyExtraFlags()) {
     case Instruction::kVerifyArrayData:
       result = result && CheckArrayData(code_offset);
@@ -1285,6 +1291,15 @@ inline bool MethodVerifier::CheckNewInstance(dex::TypeIndex idx) {
     // An unlikely new instance on Class is not allowed. Fall back to interpreter to ensure an
     // exception is thrown when this statement is executed (compiled code would not do that).
     Fail(VERIFY_ERROR_INSTANTIATION);
+  }
+  return true;
+}
+
+inline bool MethodVerifier::CheckPrototypeIndex(uint32_t idx) {
+  if (idx >= dex_file_->GetHeader().proto_ids_size_) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad prototype index " << idx << " (max "
+                                      << dex_file_->GetHeader().proto_ids_size_ << ")";
+    return false;
   }
   return true;
 }
@@ -2934,7 +2949,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
          * allowing the latter only if the "this" argument is the same as the "this" argument to
          * this method (which implies that we're in a constructor ourselves).
          */
-        const RegType& this_type = work_line_->GetInvocationThis(this, inst, is_range);
+        const RegType& this_type = work_line_->GetInvocationThis(this, inst);
         if (this_type.IsConflict())  // failure.
           break;
 
@@ -3015,7 +3030,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       /* Get the type of the "this" arg, which should either be a sub-interface of called
        * interface or Object (see comments in RegType::JoinClass).
        */
-      const RegType& this_type = work_line_->GetInvocationThis(this, inst, is_range);
+      const RegType& this_type = work_line_->GetInvocationThis(this, inst);
       if (this_type.IsZero()) {
         /* null pointer always passes (and always fails at runtime) */
       } else {
@@ -3057,10 +3072,37 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     }
     case Instruction::INVOKE_POLYMORPHIC:
     case Instruction::INVOKE_POLYMORPHIC_RANGE: {
+      bool is_range = (inst->Opcode() == Instruction::INVOKE_POLYMORPHIC_RANGE);
+      ArtMethod* called_method = VerifyInvocationArgs(inst, METHOD_POLYMORPHIC, is_range);
+      if (called_method == nullptr) {
+        // Convert potential soft failures in VerifyInvocationArgs() to hard errors.
+        if (failure_messages_.size() > 0) {
+          std::string message = failure_messages_.back()->str();
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << message;
+        } else {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invoke-polymorphic verification failure.";
+        }
+        break;
+      }
+      if (!CheckSignaturePolymorphicMethod(called_method) ||
+          !CheckSignaturePolymorphicReceiver(inst)) {
+        break;
+      }
+      const uint32_t proto_idx = (is_range) ? inst->VRegH_4rcc() : inst->VRegH_45cc();
+      const char* descriptor =
+          dex_file_->GetReturnTypeDescriptor(dex_file_->GetProtoId(proto_idx));
+      const RegType& return_type =
+          reg_types_.FromDescriptor(GetClassLoader(), descriptor, false);
+      if (!return_type.IsLowHalf()) {
+        work_line_->SetResultRegisterType(this, return_type);
+      } else {
+        work_line_->SetResultRegisterTypeWide(return_type, return_type.HighHalf(&reg_types_));
+      }
+      // TODO(oth): remove when compiler support is available.
       Fail(VERIFY_ERROR_FORCE_INTERPRETER)
-          << "instruction is not supported by verifier; skipping verification";
+          << "invoke-polymorphic is not supported by compiler";
       have_pending_experimental_failure_ = true;
-      return false;
+      break;
     }
     case Instruction::NEG_INT:
     case Instruction::NOT_INT:
@@ -3416,8 +3458,6 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     work_line_->SetResultTypeToUnknown(this);
   }
 
-
-
   /*
    * Handle "branch". Tag the branch target.
    *
@@ -3740,7 +3780,8 @@ inline static MethodResolutionKind GetMethodResolutionKind(
   } else if (method_type == METHOD_SUPER && is_interface) {
     return kInterfaceMethodResolution;
   } else {
-    DCHECK(method_type == METHOD_VIRTUAL || method_type == METHOD_SUPER);
+    DCHECK(method_type == METHOD_VIRTUAL || method_type == METHOD_SUPER
+           || method_type == METHOD_POLYMORPHIC);
     return kVirtualMethodResolution;
   }
 }
@@ -3868,15 +3909,18 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
     return nullptr;
   }
   // See if the method type implied by the invoke instruction matches the access flags for the
-  // target method.
+  // target method. The flags for METHOD_POLYMORPHIC are based on there being precisely two
+  // signature polymorphic methods supported by the run-time which are native methods with variable
+  // arguments.
   if ((method_type == METHOD_DIRECT && (!res_method->IsDirect() || res_method->IsStatic())) ||
       (method_type == METHOD_STATIC && !res_method->IsStatic()) ||
       ((method_type == METHOD_SUPER ||
         method_type == METHOD_VIRTUAL ||
-        method_type == METHOD_INTERFACE) && res_method->IsDirect())
-      ) {
+        method_type == METHOD_INTERFACE) && res_method->IsDirect()) ||
+      ((method_type == METHOD_POLYMORPHIC) &&
+       (!res_method->IsNative() || !res_method->IsVarargs()))) {
     Fail(VERIFY_ERROR_CLASS_CHANGE) << "invoke type (" << method_type << ") does not match method "
-                                       " type of " << res_method->PrettyMethod();
+                                       "type of " << res_method->PrettyMethod();
     return nullptr;
   }
   return res_method;
@@ -3888,20 +3932,18 @@ ArtMethod* MethodVerifier::VerifyInvocationArgsFromIterator(
   // We use vAA as our expected arg count, rather than res_method->insSize, because we need to
   // match the call to the signature. Also, we might be calling through an abstract method
   // definition (which doesn't have register count values).
-  const size_t expected_args = (is_range) ? inst->VRegA_3rc() : inst->VRegA_35c();
+  const size_t expected_args = inst->VRegA();
   /* caught by static verifier */
   DCHECK(is_range || expected_args <= 5);
-  if (expected_args > code_item_->outs_size_) {
-    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid argument count (" << expected_args
-        << ") exceeds outsSize (" << code_item_->outs_size_ << ")";
-    return nullptr;
-  }
 
-  uint32_t arg[5];
-  if (!is_range) {
-    inst->GetVarArgs(arg);
+  // TODO(oth): Enable this path for invoke-polymorphic when b/33099829 is resolved.
+  if (method_type != METHOD_POLYMORPHIC) {
+    if (expected_args > code_item_->outs_size_) {
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid argument count (" << expected_args
+                                        << ") exceeds outsSize (" << code_item_->outs_size_ << ")";
+      return nullptr;
+    }
   }
-  uint32_t sig_registers = 0;
 
   /*
    * Check the "this" argument, which must be an instance of the class that declared the method.
@@ -3909,7 +3951,7 @@ ArtMethod* MethodVerifier::VerifyInvocationArgsFromIterator(
    * rigorous check here (which is okay since we have to do it at runtime).
    */
   if (method_type != METHOD_STATIC) {
-    const RegType& actual_arg_type = work_line_->GetInvocationThis(this, inst, is_range);
+    const RegType& actual_arg_type = work_line_->GetInvocationThis(this, inst);
     if (actual_arg_type.IsConflict()) {  // GetInvocationThis failed.
       CHECK(have_pending_hard_failure_);
       return nullptr;
@@ -3945,7 +3987,7 @@ ArtMethod* MethodVerifier::VerifyInvocationArgsFromIterator(
         res_method_class = &FromClass(klass->GetDescriptor(&temp), klass,
                                       klass->CannotBeAssignedFromOtherTypes());
       } else {
-        const uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
+        const uint32_t method_idx = inst->VRegB();
         const dex::TypeIndex class_idx = dex_file_->GetMethodId(method_idx).class_idx_;
         res_method_class = &reg_types_.FromDescriptor(
             GetClassLoader(),
@@ -3965,13 +4007,17 @@ ArtMethod* MethodVerifier::VerifyInvocationArgsFromIterator(
         }
       }
     }
-    sig_registers = 1;
   }
 
+  uint32_t arg[5];
+  if (!is_range) {
+    inst->GetVarArgs(arg);
+  }
+  uint32_t sig_registers = (method_type == METHOD_STATIC) ? 0 : 1;
   for ( ; it->HasNext(); it->Next()) {
     if (sig_registers >= expected_args) {
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Rejecting invocation, expected " << inst->VRegA() <<
-          " arguments, found " << sig_registers << " or more.";
+          " argument registers, method signature has " << sig_registers + 1 << " or more";
       return nullptr;
     }
 
@@ -3984,7 +4030,7 @@ ArtMethod* MethodVerifier::VerifyInvocationArgsFromIterator(
     }
 
     const RegType& reg_type = reg_types_.FromDescriptor(GetClassLoader(), param_descriptor, false);
-    uint32_t get_reg = is_range ? inst->VRegC_3rc() + static_cast<uint32_t>(sig_registers) :
+    uint32_t get_reg = is_range ? inst->VRegC() + static_cast<uint32_t>(sig_registers) :
         arg[sig_registers];
     if (reg_type.IsIntegralTypes()) {
       const RegType& src_type = work_line_->GetRegisterType(this, get_reg);
@@ -4020,7 +4066,7 @@ ArtMethod* MethodVerifier::VerifyInvocationArgsFromIterator(
   }
   if (expected_args != sig_registers) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Rejecting invocation, expected " << expected_args <<
-        " arguments, found " << sig_registers;
+        " argument registers, method signature has " << sig_registers;
     return nullptr;
   }
   return res_method;
@@ -4032,11 +4078,10 @@ void MethodVerifier::VerifyInvocationArgsUnresolvedMethod(const Instruction* ins
   // As the method may not have been resolved, make this static check against what we expect.
   // The main reason for this code block is to fail hard when we find an illegal use, e.g.,
   // wrong number of arguments or wrong primitive types, even if the method could not be resolved.
-  const uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
+  const uint32_t method_idx = inst->VRegB();
   DexFileParameterIterator it(*dex_file_,
                               dex_file_->GetProtoId(dex_file_->GetMethodId(method_idx).proto_idx_));
-  VerifyInvocationArgsFromIterator<DexFileParameterIterator>(&it, inst, method_type, is_range,
-                                                             nullptr);
+  VerifyInvocationArgsFromIterator(&it, inst, method_type, is_range, nullptr);
 }
 
 class MethodParamListDescriptorIterator {
@@ -4069,8 +4114,7 @@ ArtMethod* MethodVerifier::VerifyInvocationArgs(
     const Instruction* inst, MethodType method_type, bool is_range) {
   // Resolve the method. This could be an abstract or concrete method depending on what sort of call
   // we're making.
-  const uint32_t method_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();
-
+  const uint32_t method_idx = inst->VRegB();
   ArtMethod* res_method = ResolveMethodAndCheckAccess(method_idx, method_type);
   if (res_method == nullptr) {  // error or class is unresolved
     // Check what we can statically.
@@ -4133,10 +4177,84 @@ ArtMethod* MethodVerifier::VerifyInvocationArgs(
     }
   }
 
-  // Process the target method's signature. This signature may or may not
-  MethodParamListDescriptorIterator it(res_method);
-  return VerifyInvocationArgsFromIterator<MethodParamListDescriptorIterator>(&it, inst, method_type,
-                                                                             is_range, res_method);
+  if (method_type == METHOD_POLYMORPHIC) {
+    // Process the signature of the calling site that is invoking the method handle.
+    DexFileParameterIterator it(*dex_file_, dex_file_->GetProtoId(inst->VRegH()));
+    return VerifyInvocationArgsFromIterator(&it, inst, method_type, is_range, res_method);
+  } else {
+    // Process the target method's signature.
+    MethodParamListDescriptorIterator it(res_method);
+    return VerifyInvocationArgsFromIterator(&it, inst, method_type, is_range, res_method);
+  }
+}
+
+bool MethodVerifier::CheckSignaturePolymorphicMethod(ArtMethod* method) {
+  mirror::Class* klass = method->GetDeclaringClass();
+  if (klass != mirror::MethodHandle::StaticClass()) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+        << "Signature polymorphic method must be declared in java.lang.invoke.MethodClass";
+    return false;
+  }
+
+  const char* method_name = method->GetName();
+  if (strcmp(method_name, "invoke") != 0 && strcmp(method_name, "invokeExact") != 0) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+        << "Signature polymorphic method name invalid: " << method_name;
+    return false;
+  }
+
+  const DexFile::TypeList* types = method->GetParameterTypeList();
+  if (types->Size() != 1) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+        << "Signature polymorphic method has too many arguments " << types->Size() << " != 1";
+    return false;
+  }
+
+  const dex::TypeIndex argument_type_index = types->GetTypeItem(0).type_idx_;
+  const char* argument_descriptor = method->GetTypeDescriptorFromTypeIdx(argument_type_index);
+  if (strcmp(argument_descriptor, "[Ljava/lang/Object;") != 0) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+        << "Signature polymorphic method has unexpected argument type: " << argument_descriptor;
+    return false;
+  }
+
+  const char* return_descriptor = method->GetReturnTypeDescriptor();
+  if (strcmp(return_descriptor, "Ljava/lang/Object;") != 0) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+        << "Signature polymorphic method has unexpected return type: " << return_descriptor;
+    return false;
+  }
+
+  return true;
+}
+
+bool MethodVerifier::CheckSignaturePolymorphicReceiver(const Instruction* inst) {
+  const RegType& this_type = work_line_->GetInvocationThis(this, inst);
+  if (this_type.IsZero()) {
+    /* null pointer always passes (and always fails at run time) */
+    return true;
+  } else if (!this_type.IsNonZeroReferenceTypes()) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+        << "invoke-polymorphic receiver is not a reference: "
+        << this_type;
+    return false;
+  } else if (this_type.IsUninitializedReference()) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+        << "invoke-polymorphic receiver is uninitialized: "
+        << this_type;
+    return false;
+  } else if (!this_type.HasClass()) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+        << "invoke-polymorphic receiver has no class: "
+        << this_type;
+    return false;
+  } else if (!this_type.GetClass()->IsSubClass(mirror::MethodHandle::StaticClass())) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+        << "invoke-polymorphic receiver is not a subclass of MethodHandle: "
+        << this_type;
+    return false;
+  }
+  return true;
 }
 
 ArtMethod* MethodVerifier::GetQuickInvokedMethod(const Instruction* inst, RegisterLine* reg_line,
@@ -4146,7 +4264,7 @@ ArtMethod* MethodVerifier::GetQuickInvokedMethod(const Instruction* inst, Regist
   } else {
     DCHECK_EQ(inst->Opcode(), Instruction::INVOKE_VIRTUAL_QUICK);
   }
-  const RegType& actual_arg_type = reg_line->GetInvocationThis(this, inst, is_range, allow_failure);
+  const RegType& actual_arg_type = reg_line->GetInvocationThis(this, inst, allow_failure);
   if (!actual_arg_type.HasClass()) {
     VLOG(verifier) << "Failed to get mirror::Class* from '" << actual_arg_type << "'";
     return nullptr;
@@ -4208,7 +4326,7 @@ ArtMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instruction* inst,
   // We use vAA as our expected arg count, rather than res_method->insSize, because we need to
   // match the call to the signature. Also, we might be calling through an abstract method
   // definition (which doesn't have register count values).
-  const RegType& actual_arg_type = work_line_->GetInvocationThis(this, inst, is_range);
+  const RegType& actual_arg_type = work_line_->GetInvocationThis(this, inst);
   if (actual_arg_type.IsConflict()) {  // GetInvocationThis failed.
     return nullptr;
   }
