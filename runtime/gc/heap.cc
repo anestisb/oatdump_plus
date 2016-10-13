@@ -1923,11 +1923,15 @@ void Heap::CountInstances(const std::vector<Handle<mirror::Class>>& classes,
 
 class InstanceCollector {
  public:
-  InstanceCollector(Handle<mirror::Class> c,
+  InstanceCollector(VariableSizedHandleScope& scope,
+                    Handle<mirror::Class> c,
                     int32_t max_count,
-                    std::vector<ObjPtr<mirror::Object>>& instances)
+                    std::vector<Handle<mirror::Object>>& instances)
       REQUIRES_SHARED(Locks::mutator_lock_)
-      : class_(c), max_count_(max_count), instances_(instances) {}
+      : scope_(scope),
+        class_(c),
+        max_count_(max_count),
+        instances_(instances) {}
 
   static void Callback(mirror::Object* obj, void* arg)
       REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
@@ -1936,22 +1940,24 @@ class InstanceCollector {
     if (obj->GetClass() == instance_collector->class_.Get()) {
       if (instance_collector->max_count_ == 0 ||
           instance_collector->instances_.size() < instance_collector->max_count_) {
-        instance_collector->instances_.push_back(obj);
+        instance_collector->instances_.push_back(instance_collector->scope_.NewHandle(obj));
       }
     }
   }
 
  private:
+  VariableSizedHandleScope& scope_;
   Handle<mirror::Class> const class_;
   const uint32_t max_count_;
-  std::vector<ObjPtr<mirror::Object>>& instances_;
+  std::vector<Handle<mirror::Object>>& instances_;
   DISALLOW_COPY_AND_ASSIGN(InstanceCollector);
 };
 
-void Heap::GetInstances(Handle<mirror::Class> c,
+void Heap::GetInstances(VariableSizedHandleScope& scope,
+                        Handle<mirror::Class> c,
                         int32_t max_count,
-                        std::vector<ObjPtr<mirror::Object>>& instances) {
-  InstanceCollector collector(c, max_count, instances);
+                        std::vector<Handle<mirror::Object>>& instances) {
+  InstanceCollector collector(scope, c, max_count, instances);
   VisitObjects(&InstanceCollector::Callback, &collector);
 }
 
