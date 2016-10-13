@@ -2326,13 +2326,22 @@ void InstructionCodeGeneratorARM64::VisitArrayGet(HArrayGet* instruction) {
     if (maybe_compressed_char_at) {
       uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
       length = temps.AcquireW();
-      __ Ldr(length, HeapOperand(obj, count_offset));
+      if (instruction->GetArray()->IsIntermediateAddress()) {
+        DCHECK_LT(count_offset, offset);
+        int64_t adjusted_offset = static_cast<int64_t>(count_offset) - static_cast<int64_t>(offset);
+        // Note that `adjusted_offset` is negative, so this will be a LDUR.
+        __ Ldr(length, MemOperand(obj.X(), adjusted_offset));
+      } else {
+        __ Ldr(length, HeapOperand(obj, count_offset));
+      }
       codegen_->MaybeRecordImplicitNullCheck(instruction);
     }
     if (index.IsConstant()) {
       if (maybe_compressed_char_at) {
         vixl::aarch64::Label uncompressed_load, done;
-        __ Tbz(length.W(), kWRegSize - 1, &uncompressed_load);
+        static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
+                      "Expecting 0=compressed, 1=uncompressed");
+        __ Tbnz(length.W(), 0, &uncompressed_load);
         __ Ldrb(Register(OutputCPURegister(instruction)),
                 HeapOperand(obj, offset + Int64ConstantFrom(index)));
         __ B(&done);
@@ -2360,7 +2369,9 @@ void InstructionCodeGeneratorARM64::VisitArrayGet(HArrayGet* instruction) {
       }
       if (maybe_compressed_char_at) {
         vixl::aarch64::Label uncompressed_load, done;
-        __ Tbz(length.W(), kWRegSize - 1, &uncompressed_load);
+        static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
+                      "Expecting 0=compressed, 1=uncompressed");
+        __ Tbnz(length.W(), 0, &uncompressed_load);
         __ Ldrb(Register(OutputCPURegister(instruction)),
                 HeapOperand(temp, XRegisterFrom(index), LSL, 0));
         __ B(&done);
@@ -2405,7 +2416,7 @@ void InstructionCodeGeneratorARM64::VisitArrayLength(HArrayLength* instruction) 
   codegen_->MaybeRecordImplicitNullCheck(instruction);
   // Mask out compression flag from String's array length.
   if (mirror::kUseStringCompression && instruction->IsStringLength()) {
-    __ And(out.W(), out.W(), Operand(static_cast<int32_t>(INT32_MAX)));
+    __ Lsr(out.W(), out.W(), 1u);
   }
 }
 

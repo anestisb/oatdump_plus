@@ -151,7 +151,7 @@ class BoundsCheckSlowPathX86 : public SlowPathCode {
       }
       __ movl(length_loc.AsRegister<Register>(), array_len);
       if (mirror::kUseStringCompression) {
-        __ andl(length_loc.AsRegister<Register>(), Immediate(INT32_MAX));
+        __ shrl(length_loc.AsRegister<Register>(), Immediate(1));
       }
     }
     x86_codegen->EmitParallelMoves(
@@ -5237,9 +5237,11 @@ void InstructionCodeGeneratorX86::VisitArrayGet(HArrayGet* instruction) {
         // Branch cases into compressed and uncompressed for each index's type.
         uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
         NearLabel done, not_compressed;
-        __ cmpl(Address(obj, count_offset), Immediate(0));
+        __ testl(Address(obj, count_offset), Immediate(1));
         codegen_->MaybeRecordImplicitNullCheck(instruction);
-        __ j(kGreaterEqual, &not_compressed);
+        static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
+                      "Expecting 0=compressed, 1=uncompressed");
+        __ j(kNotZero, &not_compressed);
         __ movzxb(out, CodeGeneratorX86::ArrayAddress(obj, index, TIMES_1, data_offset));
         __ jmp(&done);
         __ Bind(&not_compressed);
@@ -5589,7 +5591,7 @@ void InstructionCodeGeneratorX86::VisitArrayLength(HArrayLength* instruction) {
   codegen_->MaybeRecordImplicitNullCheck(instruction);
   // Mask out most significant bit in case the array is String's array of char.
   if (mirror::kUseStringCompression && instruction->IsStringLength()) {
-    __ andl(out, Immediate(INT32_MAX));
+    __ shrl(out, Immediate(1));
   }
 }
 
@@ -5648,10 +5650,12 @@ void InstructionCodeGeneratorX86::VisitBoundsCheck(HBoundsCheck* instruction) {
       Location array_loc = array_length->GetLocations()->InAt(0);
       Address array_len(array_loc.AsRegister<Register>(), len_offset);
       if (is_string_compressed_char_at) {
+        // TODO: if index_loc.IsConstant(), compare twice the index (to compensate for
+        // the string compression flag) with the in-memory length and avoid the temporary.
         Register length_reg = locations->GetTemp(0).AsRegister<Register>();
         __ movl(length_reg, array_len);
         codegen_->MaybeRecordImplicitNullCheck(array_length);
-        __ andl(length_reg, Immediate(INT32_MAX));
+        __ shrl(length_reg, Immediate(1));
         codegen_->GenerateIntCompare(length_reg, index_loc);
       } else {
         // Checking bounds for general case:

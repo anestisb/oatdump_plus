@@ -3790,16 +3790,21 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayGet(HArrayGet* instruction) {
     case Primitive::kPrimShort:
     case Primitive::kPrimChar:
     case Primitive::kPrimInt: {
+      vixl32::Register length;
+      if (maybe_compressed_char_at) {
+        length = RegisterFrom(locations->GetTemp(0));
+        uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
+        GetAssembler()->LoadFromOffset(kLoadWord, length, obj, count_offset);
+        codegen_->MaybeRecordImplicitNullCheck(instruction);
+      }
       if (index.IsConstant()) {
         int32_t const_index = index.GetConstant()->AsIntConstant()->GetValue();
         if (maybe_compressed_char_at) {
-          vixl32::Register length = temps.Acquire();
           vixl32::Label uncompressed_load, done;
-          uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
-          GetAssembler()->LoadFromOffset(kLoadWord, length, obj, count_offset);
-          codegen_->MaybeRecordImplicitNullCheck(instruction);
-          __ Cmp(length, 0);
-          __ B(ge, &uncompressed_load);
+          __ Lsrs(length, length, 1u);  // LSRS has a 16-bit encoding, TST (immediate) does not.
+          static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
+                        "Expecting 0=compressed, 1=uncompressed");
+          __ B(cs, &uncompressed_load);
           GetAssembler()->LoadFromOffset(kLoadUnsignedByte,
                                          RegisterFrom(out_loc),
                                          obj,
@@ -3827,12 +3832,10 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayGet(HArrayGet* instruction) {
         }
         if (maybe_compressed_char_at) {
           vixl32::Label uncompressed_load, done;
-          uint32_t count_offset = mirror::String::CountOffset().Uint32Value();
-          vixl32::Register length = RegisterFrom(locations->GetTemp(0));
-          GetAssembler()->LoadFromOffset(kLoadWord, length, obj, count_offset);
-          codegen_->MaybeRecordImplicitNullCheck(instruction);
-          __ Cmp(length, 0);
-          __ B(ge, &uncompressed_load);
+          __ Lsrs(length, length, 1u);  // LSRS has a 16-bit encoding, TST (immediate) does not.
+          static_assert(static_cast<uint32_t>(mirror::StringCompressionFlag::kCompressed) == 0u,
+                        "Expecting 0=compressed, 1=uncompressed");
+          __ B(cs, &uncompressed_load);
           __ Ldrb(RegisterFrom(out_loc), MemOperand(temp, RegisterFrom(index), vixl32::LSL, 0));
           __ B(&done);
           __ Bind(&uncompressed_load);
@@ -4211,7 +4214,7 @@ void InstructionCodeGeneratorARMVIXL::VisitArrayLength(HArrayLength* instruction
   codegen_->MaybeRecordImplicitNullCheck(instruction);
   // Mask out compression flag from String's array length.
   if (mirror::kUseStringCompression && instruction->IsStringLength()) {
-    __ Bic(out, out, 1u << 31);
+    __ Lsr(out, out, 1u);
   }
 }
 
