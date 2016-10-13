@@ -23,6 +23,7 @@
 #include "compiled_method.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "gc/accounting/card_table.h"
+#include "intrinsics_arm_vixl.h"
 #include "mirror/array-inl.h"
 #include "mirror/class-inl.h"
 #include "thread.h"
@@ -1474,11 +1475,26 @@ void LocationsBuilderARMVIXL::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* i
   // art::PrepareForRegisterAllocation.
   DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
 
-  // TODO(VIXL): TryDispatch
+  IntrinsicLocationsBuilderARMVIXL intrinsic(codegen_);
+  if (intrinsic.TryDispatch(invoke)) {
+    if (invoke->GetLocations()->CanCall() && invoke->HasPcRelativeDexCache()) {
+      invoke->GetLocations()->SetInAt(invoke->GetSpecialInputIndex(), Location::Any());
+    }
+    return;
+  }
 
   HandleInvoke(invoke);
 
   // TODO(VIXL): invoke->HasPcRelativeDexCache()
+}
+
+static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorARMVIXL* codegen) {
+  if (invoke->GetLocations()->Intrinsified()) {
+    IntrinsicCodeGeneratorARMVIXL intrinsic(codegen);
+    intrinsic.Dispatch(invoke);
+    return true;
+  }
+  return false;
 }
 
 void InstructionCodeGeneratorARMVIXL::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
@@ -1486,7 +1502,9 @@ void InstructionCodeGeneratorARMVIXL::VisitInvokeStaticOrDirect(HInvokeStaticOrD
   // art::PrepareForRegisterAllocation.
   DCHECK(!invoke->IsStaticWithExplicitClinitCheck());
 
-  // TODO(VIXL): TryGenerateIntrinsicCode
+  if (TryGenerateIntrinsicCode(invoke, codegen_)) {
+    return;
+  }
 
   LocationSummary* locations = invoke->GetLocations();
   DCHECK(locations->HasTemps());
@@ -1502,13 +1520,18 @@ void LocationsBuilderARMVIXL::HandleInvoke(HInvoke* invoke) {
 }
 
 void LocationsBuilderARMVIXL::VisitInvokeVirtual(HInvokeVirtual* invoke) {
-  // TODO(VIXL): TryDispatch
+  IntrinsicLocationsBuilderARMVIXL intrinsic(codegen_);
+  if (intrinsic.TryDispatch(invoke)) {
+    return;
+  }
 
   HandleInvoke(invoke);
 }
 
 void InstructionCodeGeneratorARMVIXL::VisitInvokeVirtual(HInvokeVirtual* invoke) {
-  // TODO(VIXL): TryGenerateIntrinsicCode
+  if (TryGenerateIntrinsicCode(invoke, codegen_)) {
+    return;
+  }
 
   codegen_->GenerateVirtualCall(invoke, invoke->GetLocations()->GetTemp(0));
   DCHECK(!codegen_->IsLeafMethod());

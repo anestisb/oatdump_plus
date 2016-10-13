@@ -105,6 +105,7 @@ art_cc_defaults {
                 "optimizing/instruction_simplifier_arm.cc",
                 "optimizing/instruction_simplifier_shared.cc",
                 "optimizing/intrinsics_arm.cc",
+                "optimizing/intrinsics_arm_vixl.cc",
                 "utils/arm/assembler_arm.cc",
                 "utils/arm/assembler_arm_vixl.cc",
                 "utils/arm/assembler_thumb2.cc",
