@@ -1140,8 +1140,13 @@ void CodeGeneratorX86_64::GenerateFrameEntry() {
     }
   }
 
-  __ movq(Address(CpuRegister(RSP), kCurrentMethodStackOffset),
-          CpuRegister(kMethodRegisterArgument));
+  // Save the current method if we need it. Note that we do not
+  // do this in HCurrentMethod, as the instruction might have been removed
+  // in the SSA graph.
+  if (RequiresCurrentMethod()) {
+    __ movq(Address(CpuRegister(RSP), kCurrentMethodStackOffset),
+            CpuRegister(kMethodRegisterArgument));
+  }
 }
 
 void CodeGeneratorX86_64::GenerateFrameExit() {
