@@ -98,7 +98,7 @@ inline std::pair<bool, bool> CompilerDriver::IsFastInstanceField(
   DCHECK(!resolved_field->IsStatic());
   ObjPtr<mirror::Class> fields_class = resolved_field->GetDeclaringClass();
   bool fast_get = referrer_class != nullptr &&
-      referrer_class->CanAccessResolvedField(fields_class.Ptr(),
+      referrer_class->CanAccessResolvedField(fields_class,
                                              resolved_field,
                                              dex_cache,
                                              field_idx);

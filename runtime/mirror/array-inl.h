@@ -25,6 +25,7 @@
 #include "base/stringprintf.h"
 #include "class-inl.h"
 #include "gc/heap-inl.h"
+#include "obj_ptr-inl.h"
 #include "thread.h"
 
 namespace art {

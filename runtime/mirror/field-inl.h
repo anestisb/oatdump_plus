@@ -48,7 +48,7 @@ inline mirror::Field* Field::CreateFromArtField(Thread* self, ArtField* field, b
       self->ClearException();
     }
   }
-  auto ret = hs.NewHandle(static_cast<Field*>(StaticClass()->AllocObject(self).Ptr()));
+  auto ret = hs.NewHandle(ObjPtr<Field>::DownCast(StaticClass()->AllocObject(self)));
   if (UNLIKELY(ret.Get() == nullptr)) {
     self->AssertPendingOOMException();
     return nullptr;
@@ -80,7 +80,7 @@ inline mirror::Field* Field::CreateFromArtField(Thread* self, ArtField* field, b
 
 template<bool kTransactionActive>
 void Field::SetDeclaringClass(ObjPtr<mirror::Class> c) {
-  SetFieldObject<kTransactionActive>(OFFSET_OF_OBJECT_MEMBER(Field, declaring_class_), c.Ptr());
+  SetFieldObject<kTransactionActive>(OFFSET_OF_OBJECT_MEMBER(Field, declaring_class_), c);
 }
 
 }  // namespace mirror

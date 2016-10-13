@@ -83,7 +83,7 @@ template<typename T, bool kPoison>
 inline ObjPtr<T, kPoison> ScopedObjectAccessAlreadyRunnable::Decode(jobject obj) const {
   Locks::mutator_lock_->AssertSharedHeld(Self());
   DCHECK(IsRunnable());  // Don't work with raw objects in non-runnable states.
-  return down_cast<T*>(Self()->DecodeJObject(obj).Ptr());
+  return ObjPtr<T, kPoison>::DownCast(Self()->DecodeJObject(obj));
 }
 
 inline ArtField* ScopedObjectAccessAlreadyRunnable::DecodeField(jfieldID fid) const {

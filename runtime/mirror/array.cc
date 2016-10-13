@@ -121,7 +121,7 @@ void Array::ThrowArrayIndexOutOfBoundsException(int32_t index) {
   art::ThrowArrayIndexOutOfBoundsException(index, GetLength());
 }
 
-void Array::ThrowArrayStoreException(Object* object) {
+void Array::ThrowArrayStoreException(ObjPtr<Object> object) {
   art::ThrowArrayStoreException(object->GetClass(), this->GetClass());
 }
 

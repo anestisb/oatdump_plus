@@ -347,7 +347,7 @@ class MANAGED Class FINAL : public Object {
   }
 
   String* GetName() REQUIRES_SHARED(Locks::mutator_lock_);  // Returns the cached name.
-  void SetName(String* name) REQUIRES_SHARED(Locks::mutator_lock_);  // Sets the cached name.
+  void SetName(ObjPtr<String> name) REQUIRES_SHARED(Locks::mutator_lock_);  // Sets the cached name.
   // Computes the name, then sets the cached value.
   static String* ComputeName(Handle<Class> h_this) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
