@@ -1826,7 +1826,7 @@ void Thread::RemoveFromThreadGroup(ScopedObjectAccess& soa) {
 
 size_t Thread::NumHandleReferences() {
   size_t count = 0;
-  for (HandleScope* cur = tlsPtr_.top_handle_scope; cur != nullptr; cur = cur->GetLink()) {
+  for (BaseHandleScope* cur = tlsPtr_.top_handle_scope; cur != nullptr; cur = cur->GetLink()) {
     count += cur->NumberOfReferences();
   }
   return count;
@@ -1835,7 +1835,7 @@ size_t Thread::NumHandleReferences() {
 bool Thread::HandleScopeContains(jobject obj) const {
   StackReference<mirror::Object>* hs_entry =
       reinterpret_cast<StackReference<mirror::Object>*>(obj);
-  for (HandleScope* cur = tlsPtr_.top_handle_scope; cur!= nullptr; cur = cur->GetLink()) {
+  for (BaseHandleScope* cur = tlsPtr_.top_handle_scope; cur!= nullptr; cur = cur->GetLink()) {
     if (cur->Contains(hs_entry)) {
       return true;
     }
@@ -1847,12 +1847,8 @@ bool Thread::HandleScopeContains(jobject obj) const {
 void Thread::HandleScopeVisitRoots(RootVisitor* visitor, uint32_t thread_id) {
   BufferedRootVisitor<kDefaultBufferedRootCount> buffered_visitor(
       visitor, RootInfo(kRootNativeStack, thread_id));
-  for (HandleScope* cur = tlsPtr_.top_handle_scope; cur; cur = cur->GetLink()) {
-    for (size_t j = 0, count = cur->NumberOfReferences(); j < count; ++j) {
-      // GetReference returns a pointer to the stack reference within the handle scope. If this
-      // needs to be updated, it will be done by the root visitor.
-      buffered_visitor.VisitRootIfNonNull(cur->GetHandle(j).GetReference());
-    }
+  for (BaseHandleScope* cur = tlsPtr_.top_handle_scope; cur; cur = cur->GetLink()) {
+    cur->VisitRoots(buffered_visitor);
   }
 }
 

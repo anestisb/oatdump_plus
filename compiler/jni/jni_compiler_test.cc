@@ -530,7 +530,7 @@ struct ScopedCheckHandleScope {
         << "invocations have finished (as before they were invoked).";
   }
 
-  HandleScope* const handle_scope_;
+  BaseHandleScope* const handle_scope_;
 };
 
 static void expectNumStackReferences(size_t val1, size_t val2) {

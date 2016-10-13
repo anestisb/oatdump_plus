@@ -336,7 +336,7 @@ class HGraph : public ArenaObject<kArenaAllocGraph> {
   }
 
   // Acquires and stores RTI of inexact Object to be used when creating HNullConstant.
-  void InitializeInexactObjectRTI(StackHandleScopeCollection* handles);
+  void InitializeInexactObjectRTI(VariableSizedHandleScope* handles);
 
   ArenaAllocator* GetArena() const { return arena_; }
   const ArenaVector<HBasicBlock*>& GetBlocks() const { return blocks_; }

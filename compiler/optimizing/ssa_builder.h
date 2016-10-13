@@ -49,7 +49,7 @@ class SsaBuilder : public ValueObject {
  public:
   SsaBuilder(HGraph* graph,
              Handle<mirror::DexCache> dex_cache,
-             StackHandleScopeCollection* handles)
+             VariableSizedHandleScope* handles)
       : graph_(graph),
         dex_cache_(dex_cache),
         handles_(handles),
@@ -116,7 +116,7 @@ class SsaBuilder : public ValueObject {
 
   HGraph* graph_;
   Handle<mirror::DexCache> dex_cache_;
-  StackHandleScopeCollection* const handles_;
+  VariableSizedHandleScope* const handles_;
 
   // True if types of ambiguous ArrayGets have been resolved.
   bool agets_fixed_;
