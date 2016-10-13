@@ -629,7 +629,7 @@ class JNI {
           WellKnownClasses::StringInitToStringFactory(soa.DecodeMethod(mid)));
       return CallStaticObjectMethodV(env, WellKnownClasses::java_lang_StringFactory, sf_mid, args);
     }
-    mirror::Object* result = c->AllocObject(soa.Self());
+    ObjPtr<mirror::Object> result = c->AllocObject(soa.Self());
     if (result == nullptr) {
       return nullptr;
     }
@@ -656,7 +656,7 @@ class JNI {
           WellKnownClasses::StringInitToStringFactory(soa.DecodeMethod(mid)));
       return CallStaticObjectMethodA(env, WellKnownClasses::java_lang_StringFactory, sf_mid, args);
     }
-    mirror::Object* result = c->AllocObject(soa.Self());
+    ObjPtr<mirror::Object> result = c->AllocObject(soa.Self());
     if (result == nullptr) {
       return nullptr;
     }

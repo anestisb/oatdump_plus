@@ -139,10 +139,10 @@ TEST_F(ObjectTest, AllocObjectArray) {
   ASSERT_TRUE(oa->GetClass() != nullptr);
   Handle<mirror::Class> klass(hs.NewHandle(oa->GetClass()));
   ASSERT_EQ(2U, klass->NumDirectInterfaces());
-  EXPECT_EQ(class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Cloneable;"),
-            mirror::Class::GetDirectInterface(soa.Self(), klass, 0));
-  EXPECT_EQ(class_linker_->FindSystemClass(soa.Self(), "Ljava/io/Serializable;"),
-            mirror::Class::GetDirectInterface(soa.Self(), klass, 1));
+  EXPECT_OBJ_PTR_EQ(class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Cloneable;"),
+                    mirror::Class::GetDirectInterface(soa.Self(), klass, 0));
+  EXPECT_OBJ_PTR_EQ(class_linker_->FindSystemClass(soa.Self(), "Ljava/io/Serializable;"),
+                    mirror::Class::GetDirectInterface(soa.Self(), klass, 1));
 }
 
 TEST_F(ObjectTest, AllocArray) {

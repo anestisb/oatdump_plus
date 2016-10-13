@@ -53,15 +53,16 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
   IndirectReferenceTable irt(kTableInitial, kTableMax, kGlobal);
 
   mirror::Class* c = class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;");
+  StackHandleScope<4> hs(soa.Self());
   ASSERT_TRUE(c != nullptr);
-  mirror::Object* obj0 = c->AllocObject(soa.Self());
-  ASSERT_TRUE(obj0 != nullptr);
-  mirror::Object* obj1 = c->AllocObject(soa.Self());
-  ASSERT_TRUE(obj1 != nullptr);
-  mirror::Object* obj2 = c->AllocObject(soa.Self());
-  ASSERT_TRUE(obj2 != nullptr);
-  mirror::Object* obj3 = c->AllocObject(soa.Self());
-  ASSERT_TRUE(obj3 != nullptr);
+  Handle<mirror::Object> obj0 = hs.NewHandle(c->AllocObject(soa.Self()));
+  ASSERT_TRUE(obj0.Get() != nullptr);
+  Handle<mirror::Object> obj1 = hs.NewHandle(c->AllocObject(soa.Self()));
+  ASSERT_TRUE(obj1.Get() != nullptr);
+  Handle<mirror::Object> obj2 = hs.NewHandle(c->AllocObject(soa.Self()));
+  ASSERT_TRUE(obj2.Get() != nullptr);
+  Handle<mirror::Object> obj3 = hs.NewHandle(c->AllocObject(soa.Self()));
+  ASSERT_TRUE(obj3.Get() != nullptr);
 
   const uint32_t cookie = IRT_FIRST_SEGMENT;
 
@@ -71,19 +72,19 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
   EXPECT_FALSE(irt.Remove(cookie, iref0)) << "unexpectedly successful removal";
 
   // Add three, check, remove in the order in which they were added.
-  iref0 = irt.Add(cookie, obj0);
+  iref0 = irt.Add(cookie, obj0.Get());
   EXPECT_TRUE(iref0 != nullptr);
   CheckDump(&irt, 1, 1);
-  IndirectRef iref1 = irt.Add(cookie, obj1);
+  IndirectRef iref1 = irt.Add(cookie, obj1.Get());
   EXPECT_TRUE(iref1 != nullptr);
   CheckDump(&irt, 2, 2);
-  IndirectRef iref2 = irt.Add(cookie, obj2);
+  IndirectRef iref2 = irt.Add(cookie, obj2.Get());
   EXPECT_TRUE(iref2 != nullptr);
   CheckDump(&irt, 3, 3);
 
-  EXPECT_OBJ_PTR_EQ(obj0, irt.Get(iref0));
-  EXPECT_OBJ_PTR_EQ(obj1, irt.Get(iref1));
-  EXPECT_OBJ_PTR_EQ(obj2, irt.Get(iref2));
+  EXPECT_OBJ_PTR_EQ(obj0.Get(), irt.Get(iref0));
+  EXPECT_OBJ_PTR_EQ(obj1.Get(), irt.Get(iref1));
+  EXPECT_OBJ_PTR_EQ(obj2.Get(), irt.Get(iref2));
 
   EXPECT_TRUE(irt.Remove(cookie, iref0));
   CheckDump(&irt, 2, 2);
@@ -99,11 +100,11 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
   EXPECT_TRUE(irt.Get(iref0) == nullptr);
 
   // Add three, remove in the opposite order.
-  iref0 = irt.Add(cookie, obj0);
+  iref0 = irt.Add(cookie, obj0.Get());
   EXPECT_TRUE(iref0 != nullptr);
-  iref1 = irt.Add(cookie, obj1);
+  iref1 = irt.Add(cookie, obj1.Get());
   EXPECT_TRUE(iref1 != nullptr);
-  iref2 = irt.Add(cookie, obj2);
+  iref2 = irt.Add(cookie, obj2.Get());
   EXPECT_TRUE(iref2 != nullptr);
   CheckDump(&irt, 3, 3);
 
@@ -119,11 +120,11 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
 
   // Add three, remove middle / middle / bottom / top.  (Second attempt
   // to remove middle should fail.)
-  iref0 = irt.Add(cookie, obj0);
+  iref0 = irt.Add(cookie, obj0.Get());
   EXPECT_TRUE(iref0 != nullptr);
-  iref1 = irt.Add(cookie, obj1);
+  iref1 = irt.Add(cookie, obj1.Get());
   EXPECT_TRUE(iref1 != nullptr);
-  iref2 = irt.Add(cookie, obj2);
+  iref2 = irt.Add(cookie, obj2.Get());
   EXPECT_TRUE(iref2 != nullptr);
   CheckDump(&irt, 3, 3);
 
@@ -148,20 +149,20 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
   // Add four entries.  Remove #1, add new entry, verify that table size
   // is still 4 (i.e. holes are getting filled).  Remove #1 and #3, verify
   // that we delete one and don't hole-compact the other.
-  iref0 = irt.Add(cookie, obj0);
+  iref0 = irt.Add(cookie, obj0.Get());
   EXPECT_TRUE(iref0 != nullptr);
-  iref1 = irt.Add(cookie, obj1);
+  iref1 = irt.Add(cookie, obj1.Get());
   EXPECT_TRUE(iref1 != nullptr);
-  iref2 = irt.Add(cookie, obj2);
+  iref2 = irt.Add(cookie, obj2.Get());
   EXPECT_TRUE(iref2 != nullptr);
-  IndirectRef iref3 = irt.Add(cookie, obj3);
+  IndirectRef iref3 = irt.Add(cookie, obj3.Get());
   EXPECT_TRUE(iref3 != nullptr);
   CheckDump(&irt, 4, 4);
 
   ASSERT_TRUE(irt.Remove(cookie, iref1));
   CheckDump(&irt, 3, 3);
 
-  iref1 = irt.Add(cookie, obj1);
+  iref1 = irt.Add(cookie, obj1.Get());
   EXPECT_TRUE(iref1 != nullptr);
 
   ASSERT_EQ(4U, irt.Capacity()) << "hole not filled";
@@ -184,12 +185,12 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
   // Add an entry, remove it, add a new entry, and try to use the original
   // iref.  They have the same slot number but are for different objects.
   // With the extended checks in place, this should fail.
-  iref0 = irt.Add(cookie, obj0);
+  iref0 = irt.Add(cookie, obj0.Get());
   EXPECT_TRUE(iref0 != nullptr);
   CheckDump(&irt, 1, 1);
   ASSERT_TRUE(irt.Remove(cookie, iref0));
   CheckDump(&irt, 0, 0);
-  iref1 = irt.Add(cookie, obj1);
+  iref1 = irt.Add(cookie, obj1.Get());
   EXPECT_TRUE(iref1 != nullptr);
   CheckDump(&irt, 1, 1);
   ASSERT_FALSE(irt.Remove(cookie, iref0)) << "mismatched del succeeded";
@@ -200,12 +201,12 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
 
   // Same as above, but with the same object.  A more rigorous checker
   // (e.g. with slot serialization) will catch this.
-  iref0 = irt.Add(cookie, obj0);
+  iref0 = irt.Add(cookie, obj0.Get());
   EXPECT_TRUE(iref0 != nullptr);
   CheckDump(&irt, 1, 1);
   ASSERT_TRUE(irt.Remove(cookie, iref0));
   CheckDump(&irt, 0, 0);
-  iref1 = irt.Add(cookie, obj0);
+  iref1 = irt.Add(cookie, obj0.Get());
   EXPECT_TRUE(iref1 != nullptr);
   CheckDump(&irt, 1, 1);
   if (iref0 != iref1) {
@@ -220,7 +221,7 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
   ASSERT_TRUE(irt.Get(nullptr) == nullptr);
 
   // Stale lookup.
-  iref0 = irt.Add(cookie, obj0);
+  iref0 = irt.Add(cookie, obj0.Get());
   EXPECT_TRUE(iref0 != nullptr);
   CheckDump(&irt, 1, 1);
   ASSERT_TRUE(irt.Remove(cookie, iref0));
@@ -231,12 +232,12 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
   // These ones fit...
   IndirectRef manyRefs[kTableInitial];
   for (size_t i = 0; i < kTableInitial; i++) {
-    manyRefs[i] = irt.Add(cookie, obj0);
+    manyRefs[i] = irt.Add(cookie, obj0.Get());
     ASSERT_TRUE(manyRefs[i] != nullptr) << "Failed adding " << i;
     CheckDump(&irt, i + 1, 1);
   }
   // ...this one causes overflow.
-  iref0 = irt.Add(cookie, obj0);
+  iref0 = irt.Add(cookie, obj0.Get());
   ASSERT_TRUE(iref0 != nullptr);
   ASSERT_EQ(kTableInitial + 1, irt.Capacity());
   CheckDump(&irt, kTableInitial + 1, 1);

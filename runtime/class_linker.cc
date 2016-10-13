@@ -2218,7 +2218,7 @@ mirror::DexCache* ClassLinker::AllocDexCache(mirror::String** out_location,
                                              const DexFile& dex_file) {
   StackHandleScope<1> hs(self);
   DCHECK(out_location != nullptr);
-  auto dex_cache(hs.NewHandle(down_cast<mirror::DexCache*>(
+  auto dex_cache(hs.NewHandle(ObjPtr<mirror::DexCache>::DownCast(
       GetClassRoot(kJavaLangDexCache)->AllocObject(self))));
   if (dex_cache.Get() == nullptr) {
     self->AssertPendingOOMException();
@@ -4749,7 +4749,7 @@ bool ClassLinker::InitializeDefaultInterfaceRecursive(Thread* self,
     MutableHandle<mirror::Class> handle_super_iface(hs.NewHandle<mirror::Class>(nullptr));
     // First we initialize all of iface's super-interfaces recursively.
     for (size_t i = 0; i < num_direct_ifaces; i++) {
-      mirror::Class* super_iface = mirror::Class::GetDirectInterface(self, iface, i);
+      ObjPtr<mirror::Class> super_iface = mirror::Class::GetDirectInterface(self, iface, i);
       if (!super_iface->HasBeenRecursivelyInitialized()) {
         // Recursive step
         handle_super_iface.Assign(super_iface);
@@ -6493,7 +6493,7 @@ bool ClassLinker::SetupInterfaceLookupTable(Thread* self, Handle<mirror::Class> 
   size_t ifcount = super_ifcount + num_interfaces;
   // Check that every class being implemented is an interface.
   for (size_t i = 0; i < num_interfaces; i++) {
-    mirror::Class* interface = have_interfaces
+    ObjPtr<mirror::Class> interface = have_interfaces
         ? interfaces->GetWithoutChecks(i)
         : mirror::Class::GetDirectInterface(self, klass, i);
     DCHECK(interface != nullptr);
@@ -6532,9 +6532,9 @@ bool ClassLinker::SetupInterfaceLookupTable(Thread* self, Handle<mirror::Class> 
     ScopedAssertNoThreadSuspension nts("Copying mirror::Class*'s for FillIfTable");
     std::vector<mirror::Class*> to_add;
     for (size_t i = 0; i < num_interfaces; i++) {
-      mirror::Class* interface = have_interfaces ? interfaces->Get(i) :
+      ObjPtr<mirror::Class> interface = have_interfaces ? interfaces->Get(i) :
           mirror::Class::GetDirectInterface(self, klass, i);
-      to_add.push_back(interface);
+      to_add.push_back(interface.Ptr());
     }
 
     new_ifcount = FillIfTable(iftable.Get(), super_ifcount, std::move(to_add));
@@ -8298,7 +8298,7 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self,
       mirror::Class::FindField(self, hs.NewHandle(h_path_class_loader->GetClass()), "parent",
                                "Ljava/lang/ClassLoader;");
   DCHECK(parent_field != nullptr);
-  mirror::Object* boot_cl =
+  ObjPtr<mirror::Object> boot_cl =
       soa.Decode<mirror::Class>(WellKnownClasses::java_lang_BootClassLoader)->AllocObject(self);
   parent_field->SetObject<false>(h_path_class_loader.Get(), boot_cl);
 

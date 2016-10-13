@@ -39,6 +39,7 @@
 #include "handle_scope.h"
 #include "jdwp/jdwp_priv.h"
 #include "jdwp/object_registry.h"
+#include "jvalue-inl.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
@@ -1289,7 +1290,7 @@ JDWP::JdwpError Dbg::CreateObject(JDWP::RefTypeId class_id, JDWP::ObjectId* new_
     return error;
   }
   Thread* self = Thread::Current();
-  mirror::Object* new_object;
+  ObjPtr<mirror::Object> new_object;
   if (c->IsStringClass()) {
     // Special case for java.lang.String.
     gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
@@ -1304,7 +1305,7 @@ JDWP::JdwpError Dbg::CreateObject(JDWP::RefTypeId class_id, JDWP::ObjectId* new_
     *new_object_id = 0;
     return JDWP::ERR_OUT_OF_MEMORY;
   }
-  *new_object_id = gRegistry->Add(new_object);
+  *new_object_id = gRegistry->Add(new_object.Ptr());
   return JDWP::ERR_NONE;
 }
 

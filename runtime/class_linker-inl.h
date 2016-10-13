@@ -200,7 +200,7 @@ inline ArtField* ClassLinker::ResolveField(uint32_t field_idx, ArtMethod* referr
 inline mirror::Object* ClassLinker::AllocObject(Thread* self) {
   return GetClassRoot(kJavaLangObject)->Alloc<true, false>(
       self,
-      Runtime::Current()->GetHeap()->GetCurrentAllocator());
+      Runtime::Current()->GetHeap()->GetCurrentAllocator()).Ptr();
 }
 
 template <class T>

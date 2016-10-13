@@ -211,13 +211,13 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_TRUE(array->ShouldHaveEmbeddedVTable());
     EXPECT_EQ(2, array->GetIfTableCount());
     ASSERT_TRUE(array->GetIfTable() != nullptr);
-    mirror::Class* direct_interface0 = mirror::Class::GetDirectInterface(self, array, 0);
+    ObjPtr<mirror::Class> direct_interface0 = mirror::Class::GetDirectInterface(self, array, 0);
     EXPECT_TRUE(direct_interface0 != nullptr);
     EXPECT_STREQ(direct_interface0->GetDescriptor(&temp), "Ljava/lang/Cloneable;");
-    mirror::Class* direct_interface1 = mirror::Class::GetDirectInterface(self, array, 1);
+    ObjPtr<mirror::Class> direct_interface1 = mirror::Class::GetDirectInterface(self, array, 1);
     EXPECT_STREQ(direct_interface1->GetDescriptor(&temp), "Ljava/io/Serializable;");
     mirror::Class* array_ptr = array->GetComponentType();
-    EXPECT_EQ(class_linker_->FindArrayClass(self, &array_ptr), array.Get());
+    EXPECT_OBJ_PTR_EQ(class_linker_->FindArrayClass(self, &array_ptr), array.Get());
 
     PointerSize pointer_size = class_linker_->GetImagePointerSize();
     mirror::Class* JavaLangObject =
