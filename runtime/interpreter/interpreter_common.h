@@ -463,6 +463,24 @@ static inline bool IsBackwardBranch(int32_t branch_offset) {
   return branch_offset <= 0;
 }
 
+// Assign register 'src_reg' from shadow_frame to register 'dest_reg' into new_shadow_frame.
+static inline void AssignRegister(ShadowFrame* new_shadow_frame, const ShadowFrame& shadow_frame,
+                                  size_t dest_reg, size_t src_reg)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  // Uint required, so that sign extension does not make this wrong on 64b systems
+  uint32_t src_value = shadow_frame.GetVReg(src_reg);
+  mirror::Object* o = shadow_frame.GetVRegReference<kVerifyNone>(src_reg);
+
+  // If both register locations contains the same value, the register probably holds a reference.
+  // Note: As an optimization, non-moving collectors leave a stale reference value
+  // in the references array even after the original vreg was overwritten to a non-reference.
+  if (src_value == reinterpret_cast<uintptr_t>(o)) {
+    new_shadow_frame->SetVRegReference(dest_reg, o);
+  } else {
+    new_shadow_frame->SetVReg(dest_reg, src_value);
+  }
+}
+
 void ArtInterpreterToCompiledCodeBridge(Thread* self,
                                         ArtMethod* caller,
                                         const DexFile::CodeItem* code_item,
