@@ -24,6 +24,15 @@ namespace art {
 
 extern void ReadBarrierJni(mirror::CompressedReference<mirror::Object>* handle_on_stack,
                            Thread* self ATTRIBUTE_UNUSED) {
+  DCHECK(kUseReadBarrier);
+  if (kUseBakerReadBarrier) {
+    DCHECK(handle_on_stack->AsMirrorPtr() != nullptr)
+        << "The class of a static jni call must not be null";
+    // Check the mark bit and return early if it's already marked.
+    if (LIKELY(handle_on_stack->AsMirrorPtr()->GetMarkBit() != 0)) {
+      return;
+    }
+  }
   // Call the read barrier and update the handle.
   mirror::Object* to_ref = ReadBarrier::BarrierForRoot(handle_on_stack);
   handle_on_stack->Assign(to_ref);
