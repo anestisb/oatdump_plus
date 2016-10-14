@@ -772,7 +772,7 @@ static bool UnboxPrimitive(ObjPtr<mirror::Object> o,
       }
       return false;
     }
-    unboxed_value->SetL(o.Ptr());
+    unboxed_value->SetL(o);
     return true;
   }
   if (UNLIKELY(dst_class->GetPrimitiveType() == Primitive::kPrimVoid)) {

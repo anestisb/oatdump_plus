@@ -953,7 +953,7 @@ void UnstartedRuntime::UnstartedDexCacheGetDexNative(
     ObjPtr<mirror::Object> dex = GetDexFromDexCache(self, src->AsDexCache());
     if (dex != nullptr) {
       have_dex = true;
-      result->SetL(dex.Ptr());
+      result->SetL(dex);
     }
   }
   if (!have_dex) {
@@ -1457,7 +1457,7 @@ void UnstartedRuntime::UnstartedMethodInvoke(
   ScopedLocalRef<jobject> result_jobj(env,
       InvokeMethod(soa, java_method.get(), java_receiver.get(), java_args.get()));
 
-  result->SetL(self->DecodeJObject(result_jobj.get()).Ptr());
+  result->SetL(self->DecodeJObject(result_jobj.get()));
 
   // Conservatively flag all exceptions as transaction aborts. This way we don't need to unwrap
   // InvocationTargetExceptions.
@@ -1620,9 +1620,9 @@ void UnstartedRuntime::UnstartedJNIThrowableNativeFillInStackTrace(
     uint32_t* args ATTRIBUTE_UNUSED, JValue* result) {
   ScopedObjectAccessUnchecked soa(self);
   if (Runtime::Current()->IsActiveTransaction()) {
-    result->SetL(soa.Decode<mirror::Object>(self->CreateInternalStackTrace<true>(soa)).Ptr());
+    result->SetL(soa.Decode<mirror::Object>(self->CreateInternalStackTrace<true>(soa)));
   } else {
-    result->SetL(soa.Decode<mirror::Object>(self->CreateInternalStackTrace<false>(soa)).Ptr());
+    result->SetL(soa.Decode<mirror::Object>(self->CreateInternalStackTrace<false>(soa)));
   }
 }
 
