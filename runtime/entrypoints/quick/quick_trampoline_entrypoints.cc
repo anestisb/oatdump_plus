@@ -834,7 +834,7 @@ void BuildQuickArgumentVisitor::Visit() {
 void BuildQuickArgumentVisitor::FixupReferences() {
   // Fixup any references which may have changed.
   for (const auto& pair : references_) {
-    pair.second->Assign(soa_->Decode<mirror::Object>(pair.first).Ptr());
+    pair.second->Assign(soa_->Decode<mirror::Object>(pair.first));
     soa_->Env()->DeleteLocalRef(pair.first);
   }
 }
@@ -926,7 +926,7 @@ void RememberForGcArgumentVisitor::Visit() {
 void RememberForGcArgumentVisitor::FixupReferences() {
   // Fixup any references which may have changed.
   for (const auto& pair : references_) {
-    pair.second->Assign(soa_->Decode<mirror::Object>(pair.first).Ptr());
+    pair.second->Assign(soa_->Decode<mirror::Object>(pair.first));
     soa_->Env()->DeleteLocalRef(pair.first);
   }
 }

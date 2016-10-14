@@ -379,7 +379,7 @@ class JNI {
       // Not even a java.lang.reflect.Field, return null. TODO, is this check necessary?
       return nullptr;
     }
-    ObjPtr<mirror::Field> field = down_cast<mirror::Field*>(obj_field.Ptr());
+    ObjPtr<mirror::Field> field = ObjPtr<mirror::Field>::DownCast(obj_field);
     return soa.EncodeField(field->GetArtField());
   }
 
