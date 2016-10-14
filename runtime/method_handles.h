@@ -19,7 +19,16 @@
 
 #include <ostream>
 
+#include "dex_instruction.h"
+#include "jvalue.h"
+
 namespace art {
+
+namespace mirror {
+  class MethodType;
+}
+
+class ShadowFrame;
 
 // Defines the behaviour of a given method handle. The behaviour
 // of a handle of a given kind is identical to the dex bytecode behaviour
@@ -45,6 +54,22 @@ enum MethodHandleKind {
 inline bool IsInvoke(const MethodHandleKind handle_kind) {
   return handle_kind <= kLastInvokeKind;
 }
+
+// Perform argument conversions between |callsite_type| (the type of the
+// incoming arguments) and |callee_type| (the type of the method being
+// invoked). These include widening and narrowing conversions as well as
+// boxing and unboxing. Returns true on success, on false on failure. A
+// pending exception will always be set on failure.
+template <bool is_range> REQUIRES_SHARED(Locks::mutator_lock_)
+bool PerformArgumentConversions(Thread* self,
+                                Handle<mirror::MethodType> callsite_type,
+                                Handle<mirror::MethodType> callee_type,
+                                const ShadowFrame& caller_frame,
+                                uint32_t first_src_reg,
+                                uint32_t first_dest_reg,
+                                const uint32_t (&arg)[Instruction::kMaxVarArgRegs],
+                                ShadowFrame* callee_frame,
+                                JValue* result);
 
 }  // namespace art
 

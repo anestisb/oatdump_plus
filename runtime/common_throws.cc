@@ -28,6 +28,7 @@
 #include "dex_instruction-inl.h"
 #include "invoke_type.h"
 #include "mirror/class-inl.h"
+#include "mirror/method_type.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "obj_ptr-inl.h"
@@ -796,6 +797,19 @@ void ThrowVerifyError(ObjPtr<mirror::Class> referrer, const char* fmt, ...) {
   va_start(args, fmt);
   ThrowException("Ljava/lang/VerifyError;", referrer, fmt, &args);
   va_end(args);
+}
+
+// WrongMethodTypeException
+
+void ThrowWrongMethodTypeException(mirror::MethodType* callee_type,
+                                   mirror::MethodType* callsite_type) {
+  // TODO(narayan): Should we provide more detail here ? The RI doesn't bother.
+  UNUSED(callee_type);
+  UNUSED(callsite_type);
+
+  ThrowException("Ljava/lang/invoke/WrongMethodTypeException;",
+                 nullptr,
+                 "Invalid method type for signature polymorphic call");
 }
 
 }  // namespace art
