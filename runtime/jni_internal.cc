@@ -88,13 +88,19 @@ static std::string NormalizeJniClassDescriptor(const char* name) {
   return result;
 }
 
-static void ThrowNoSuchMethodError(ScopedObjectAccess& soa, mirror::Class* c,
-                                   const char* name, const char* sig, const char* kind)
+static void ThrowNoSuchMethodError(ScopedObjectAccess& soa,
+                                   ObjPtr<mirror::Class> c,
+                                   const char* name,
+                                   const char* sig,
+                                   const char* kind)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   std::string temp;
   soa.Self()->ThrowNewExceptionF("Ljava/lang/NoSuchMethodError;",
                                  "no %s method \"%s.%s%s\"",
-                                 kind, c->GetDescriptor(&temp), name, sig);
+                                 kind,
+                                 c->GetDescriptor(&temp),
+                                 name,
+                                 sig);
 }
 
 static void ReportInvalidJNINativeMethod(const ScopedObjectAccess& soa,
@@ -148,7 +154,7 @@ static jmethodID FindMethodID(ScopedObjectAccess& soa, jclass jni_class,
     }
   }
   if (method == nullptr || method->IsStatic() != is_static) {
-    ThrowNoSuchMethodError(soa, c.Ptr(), name, sig, is_static ? "static" : "non-static");
+    ThrowNoSuchMethodError(soa, c, name, sig, is_static ? "static" : "non-static");
     return nullptr;
   }
   return soa.EncodeMethod(method);
@@ -2245,14 +2251,14 @@ class JNI {
             << "Failed to register native method "
             << PrettyDescriptor(c) << "." << name << sig << " in "
             << c->GetDexCache()->GetLocation()->ToModifiedUtf8();
-        ThrowNoSuchMethodError(soa, c.Ptr(), name, sig, "static or non-static");
+        ThrowNoSuchMethodError(soa, c, name, sig, "static or non-static");
         return JNI_ERR;
       } else if (!m->IsNative()) {
         LOG(return_errors ? ::android::base::ERROR : ::android::base::FATAL)
             << "Failed to register non-native method "
             << PrettyDescriptor(c) << "." << name << sig
             << " as native";
-        ThrowNoSuchMethodError(soa, c.Ptr(), name, sig, "native");
+        ThrowNoSuchMethodError(soa, c, name, sig, "native");
         return JNI_ERR;
       }
 

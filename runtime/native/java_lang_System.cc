@@ -35,7 +35,8 @@ namespace art {
  * References are never torn regardless of the number of bits used to represent them.
  */
 
-static void ThrowArrayStoreException_NotAnArray(const char* identifier, mirror::Object* array)
+static void ThrowArrayStoreException_NotAnArray(const char* identifier,
+                                                ObjPtr<mirror::Object> array)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   std::string actualType(PrettyTypeOf(array));
   Thread* self = Thread::Current();
@@ -62,12 +63,12 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
   // Make sure source and destination are both arrays.
   ObjPtr<mirror::Object> srcObject = soa.Decode<mirror::Object>(javaSrc);
   if (UNLIKELY(!srcObject->IsArrayInstance())) {
-    ThrowArrayStoreException_NotAnArray("source", srcObject.Ptr());
+    ThrowArrayStoreException_NotAnArray("source", srcObject);
     return;
   }
   ObjPtr<mirror::Object> dstObject = soa.Decode<mirror::Object>(javaDst);
   if (UNLIKELY(!dstObject->IsArrayInstance())) {
-    ThrowArrayStoreException_NotAnArray("destination", dstObject.Ptr());
+    ThrowArrayStoreException_NotAnArray("destination", dstObject);
     return;
   }
   mirror::Array* srcArray = srcObject->AsArray();
