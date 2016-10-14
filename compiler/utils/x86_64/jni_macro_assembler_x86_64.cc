@@ -260,8 +260,12 @@ void X86_64JNIMacroAssembler::LoadFromThread(ManagedRegister mdest,
   if (dest.IsNoRegister()) {
     CHECK_EQ(0u, size);
   } else if (dest.IsCpuRegister()) {
-    CHECK_EQ(4u, size);
-    __ gs()->movl(dest.AsCpuRegister(), Address::Absolute(src, true));
+    if (size == 1u) {
+      __ gs()->movzxb(dest.AsCpuRegister(), Address::Absolute(src, true));
+    } else {
+      CHECK_EQ(4u, size);
+      __ gs()->movl(dest.AsCpuRegister(), Address::Absolute(src, true));
+    }
   } else if (dest.IsRegisterPair()) {
     CHECK_EQ(8u, size);
     __ gs()->movq(dest.AsRegisterPairLow(), Address::Absolute(src, true));
@@ -583,6 +587,44 @@ void X86_64JNIMacroAssembler::ExceptionPoll(ManagedRegister /*scratch*/, size_t 
   __ GetBuffer()->EnqueueSlowPath(slow);
   __ gs()->cmpl(Address::Absolute(Thread::ExceptionOffset<kX86_64PointerSize>(), true), Immediate(0));
   __ j(kNotEqual, slow->Entry());
+}
+
+std::unique_ptr<JNIMacroLabel> X86_64JNIMacroAssembler::CreateLabel() {
+  return std::unique_ptr<JNIMacroLabel>(new X86_64JNIMacroLabel());
+}
+
+void X86_64JNIMacroAssembler::Jump(JNIMacroLabel* label) {
+  CHECK(label != nullptr);
+  __ jmp(X86_64JNIMacroLabel::Cast(label)->AsX86_64());
+}
+
+void X86_64JNIMacroAssembler::Jump(JNIMacroLabel* label,
+                                   JNIMacroUnaryCondition condition,
+                                   ManagedRegister test) {
+  CHECK(label != nullptr);
+
+  art::x86_64::Condition x86_64_cond;
+  switch (condition) {
+    case JNIMacroUnaryCondition::kZero:
+      x86_64_cond = art::x86_64::kZero;
+      break;
+    case JNIMacroUnaryCondition::kNotZero:
+      x86_64_cond = art::x86_64::kNotZero;
+      break;
+    default:
+      LOG(FATAL) << "Not implemented condition: " << static_cast<int>(condition);
+      UNREACHABLE();
+  }
+
+  // TEST reg, reg
+  // Jcc <Offset>
+  __ testq(test.AsX86_64().AsCpuRegister(), test.AsX86_64().AsCpuRegister());
+  __ j(x86_64_cond, X86_64JNIMacroLabel::Cast(label)->AsX86_64());
+}
+
+void X86_64JNIMacroAssembler::Bind(JNIMacroLabel* label) {
+  CHECK(label != nullptr);
+  __ Bind(X86_64JNIMacroLabel::Cast(label)->AsX86_64());
 }
 
 #undef __
