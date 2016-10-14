@@ -254,10 +254,10 @@ void ArmVIXLJNIMacroAssembler::Load(ManagedRegister m_dst, FrameOffset src, size
   return Load(m_dst.AsArm(), sp, src.Int32Value(), size);
 }
 
-void ArmVIXLJNIMacroAssembler::LoadFromThread(ManagedRegister m_dst ATTRIBUTE_UNUSED,
-                                              ThreadOffset32 src ATTRIBUTE_UNUSED,
-                                              size_t size ATTRIBUTE_UNUSED) {
-  UNIMPLEMENTED(FATAL);
+void ArmVIXLJNIMacroAssembler::LoadFromThread(ManagedRegister m_dst,
+                                              ThreadOffset32 src,
+                                              size_t size) {
+  return Load(m_dst.AsArm(), tr, src.Int32Value(), size);
 }
 
 void ArmVIXLJNIMacroAssembler::LoadRawPtrFromThread(ManagedRegister m_dst, ThreadOffset32 offs) {
@@ -558,6 +558,38 @@ void ArmVIXLJNIMacroAssembler::ExceptionPoll(ManagedRegister m_scratch, size_t s
   // TODO: think about using CBNZ here.
 }
 
+std::unique_ptr<JNIMacroLabel> ArmVIXLJNIMacroAssembler::CreateLabel() {
+  return std::unique_ptr<JNIMacroLabel>(new ArmVIXLJNIMacroLabel());
+}
+
+void ArmVIXLJNIMacroAssembler::Jump(JNIMacroLabel* label) {
+  CHECK(label != nullptr);
+  ___ B(ArmVIXLJNIMacroLabel::Cast(label)->AsArm());
+}
+
+void ArmVIXLJNIMacroAssembler::Jump(JNIMacroLabel* label,
+                                    JNIMacroUnaryCondition condition,
+                                    ManagedRegister test) {
+  CHECK(label != nullptr);
+
+  switch (condition) {
+    case JNIMacroUnaryCondition::kZero:
+      ___ Cbz(test.AsArm().AsVIXLRegister(), ArmVIXLJNIMacroLabel::Cast(label)->AsArm());
+      break;
+    case JNIMacroUnaryCondition::kNotZero:
+      ___ Cbnz(test.AsArm().AsVIXLRegister(), ArmVIXLJNIMacroLabel::Cast(label)->AsArm());
+      break;
+    default:
+      LOG(FATAL) << "Not implemented unary condition: " << static_cast<int>(condition);
+      UNREACHABLE();
+  }
+}
+
+void ArmVIXLJNIMacroAssembler::Bind(JNIMacroLabel* label) {
+  CHECK(label != nullptr);
+  ___ Bind(ArmVIXLJNIMacroLabel::Cast(label)->AsArm());
+}
+
 void ArmVIXLJNIMacroAssembler::EmitExceptionPoll(
     ArmVIXLJNIMacroAssembler::ArmException* exception) {
   ___ Bind(exception->Entry());
@@ -588,9 +620,14 @@ void ArmVIXLJNIMacroAssembler::Load(ArmManagedRegister
   if (dest.IsNoRegister()) {
     CHECK_EQ(0u, size) << dest;
   } else if (dest.IsCoreRegister()) {
-    CHECK_EQ(4u, size) << dest;
     CHECK(!dest.AsVIXLRegister().Is(sp)) << dest;
-    ___ Ldr(dest.AsVIXLRegister(), MemOperand(base, offset));
+
+    if (size == 1u) {
+      ___ Ldrb(dest.AsVIXLRegister(), MemOperand(base, offset));
+    } else {
+      CHECK_EQ(4u, size) << dest;
+      ___ Ldr(dest.AsVIXLRegister(), MemOperand(base, offset));
+    }
   } else if (dest.IsRegisterPair()) {
     CHECK_EQ(8u, size) << dest;
     ___ Ldr(dest.AsVIXLRegisterPairLow(),  MemOperand(base, offset));
