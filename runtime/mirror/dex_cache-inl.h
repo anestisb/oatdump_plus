@@ -207,6 +207,19 @@ inline void DexCache::FixupResolvedTypes(GcRoot<mirror::Class>* dest, const Visi
   }
 }
 
+template <ReadBarrierOption kReadBarrierOption, typename Visitor>
+inline void DexCache::FixupResolvedMethodTypes(mirror::MethodTypeDexCacheType* dest,
+                                               const Visitor& visitor) {
+  mirror::MethodTypeDexCacheType* src = GetResolvedMethodTypes();
+  for (size_t i = 0, count = NumResolvedMethodTypes(); i < count; ++i) {
+    MethodTypeDexCachePair source = src[i].load(std::memory_order_relaxed);
+    mirror::MethodType* ptr = source.object.Read<kReadBarrierOption>();
+    mirror::MethodType* new_source = visitor(ptr);
+    source.object = GcRoot<MethodType>(new_source);
+    dest[i].store(source, std::memory_order_relaxed);
+  }
+}
+
 }  // namespace mirror
 }  // namespace art
 

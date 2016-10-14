@@ -39,7 +39,7 @@ inline DexCacheArraysLayout::DexCacheArraysLayout(PointerSize pointer_size,
       fields_offset_(
           RoundUp(strings_offset_ + StringsSize(header.string_ids_size_), FieldsAlignment())),
       method_types_offset_(
-          RoundUp(fields_offset_ + FieldsSize(header.field_ids_size_), Alignment())),
+          RoundUp(fields_offset_ + FieldsSize(header.field_ids_size_), MethodTypesAlignment())),
       size_(
           RoundUp(method_types_offset_ + MethodTypesSize(header.proto_ids_size_), Alignment())) {
 }
@@ -51,7 +51,11 @@ inline DexCacheArraysLayout::DexCacheArraysLayout(PointerSize pointer_size, cons
 inline constexpr size_t DexCacheArraysLayout::Alignment() {
   // GcRoot<> alignment is 4, i.e. lower than or equal to the pointer alignment.
   static_assert(alignof(GcRoot<mirror::Class>) == 4, "Expecting alignof(GcRoot<>) == 4");
-  static_assert(alignof(mirror::StringDexCacheType) == 8, "Expecting alignof(StringDexCacheType) == 8");
+  static_assert(alignof(mirror::StringDexCacheType) == 8,
+                "Expecting alignof(StringDexCacheType) == 8");
+  static_assert(alignof(mirror::MethodTypeDexCacheType) == 8,
+                "Expecting alignof(MethodTypeDexCacheType) == 8");
+  // This is the same as alignof(MethodTypeDexCacheType).
   return alignof(mirror::StringDexCacheType);
 }
 
@@ -118,12 +122,6 @@ inline size_t DexCacheArraysLayout::FieldsSize(size_t num_elements) const {
 
 inline size_t DexCacheArraysLayout::FieldsAlignment() const {
   return static_cast<size_t>(pointer_size_);
-}
-
-inline size_t DexCacheArraysLayout::MethodTypeOffset(uint32_t proto_idx) const {
-  return strings_offset_
-      + ElementOffset(PointerSize::k64,
-                      proto_idx % mirror::DexCache::kDexCacheMethodTypeCacheSize);
 }
 
 inline size_t DexCacheArraysLayout::MethodTypesSize(size_t num_elements) const {
