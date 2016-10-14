@@ -30,6 +30,8 @@
 namespace art {
 namespace x86 {
 
+class X86JNIMacroLabel;
+
 class X86JNIMacroAssembler FINAL : public JNIMacroAssemblerFwd<X86Assembler, PointerSize::k32> {
  public:
   explicit X86JNIMacroAssembler(ArenaAllocator* arena) : JNIMacroAssemblerFwd(arena) {}
@@ -152,8 +154,27 @@ class X86JNIMacroAssembler FINAL : public JNIMacroAssemblerFwd<X86Assembler, Poi
   // and branch to a ExceptionSlowPath if it is.
   void ExceptionPoll(ManagedRegister scratch, size_t stack_adjust) OVERRIDE;
 
+  // Create a new label that can be used with Jump/Bind calls.
+  std::unique_ptr<JNIMacroLabel> CreateLabel() OVERRIDE;
+  // Emit an unconditional jump to the label.
+  void Jump(JNIMacroLabel* label) OVERRIDE;
+  // Emit a conditional jump to the label by applying a unary condition test to the register.
+  void Jump(JNIMacroLabel* label, JNIMacroUnaryCondition cond, ManagedRegister test) OVERRIDE;
+  // Code at this offset will serve as the target for the Jump call.
+  void Bind(JNIMacroLabel* label) OVERRIDE;
+
  private:
   DISALLOW_COPY_AND_ASSIGN(X86JNIMacroAssembler);
+};
+
+class X86JNIMacroLabel FINAL
+    : public JNIMacroLabelCommon<X86JNIMacroLabel,
+                                 art::Label,
+                                 kX86> {
+ public:
+  art::Label* AsX86() {
+    return AsPlatformLabel();
+  }
 };
 
 }  // namespace x86

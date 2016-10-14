@@ -179,6 +179,8 @@ class MipsExceptionSlowPath {
 
 class MipsAssembler FINAL : public Assembler, public JNIMacroAssembler<PointerSize::k32> {
  public:
+  using JNIBase = JNIMacroAssembler<PointerSize::k32>;
+
   explicit MipsAssembler(ArenaAllocator* arena,
                          const MipsInstructionSetFeatures* instruction_set_features = nullptr)
       : Assembler(arena),
@@ -721,6 +723,34 @@ class MipsAssembler FINAL : public Assembler, public JNIMacroAssembler<PointerSi
   }
   void Jump(Label* label ATTRIBUTE_UNUSED) OVERRIDE {
     UNIMPLEMENTED(FATAL) << "Do not use Jump for MIPS";
+  }
+
+  // Don't warn about a different virtual Bind/Jump in the base class.
+  using JNIBase::Bind;
+  using JNIBase::Jump;
+
+  // Create a new label that can be used with Jump/Bind calls.
+  std::unique_ptr<JNIMacroLabel> CreateLabel() OVERRIDE {
+    LOG(FATAL) << "Not implemented on MIPS32";
+    UNREACHABLE();
+  }
+  // Emit an unconditional jump to the label.
+  void Jump(JNIMacroLabel* label ATTRIBUTE_UNUSED) OVERRIDE {
+    LOG(FATAL) << "Not implemented on MIPS32";
+    UNREACHABLE();
+  }
+  // Emit a conditional jump to the label by applying a unary condition test to the register.
+  void Jump(JNIMacroLabel* label ATTRIBUTE_UNUSED,
+            JNIMacroUnaryCondition cond ATTRIBUTE_UNUSED,
+            ManagedRegister test ATTRIBUTE_UNUSED) OVERRIDE {
+    LOG(FATAL) << "Not implemented on MIPS32";
+    UNREACHABLE();
+  }
+
+  // Code at this offset will serve as the target for the Jump call.
+  void Bind(JNIMacroLabel* label ATTRIBUTE_UNUSED) OVERRIDE {
+    LOG(FATAL) << "Not implemented on MIPS32";
+    UNREACHABLE();
   }
 
   // Create a new literal with a given value.
