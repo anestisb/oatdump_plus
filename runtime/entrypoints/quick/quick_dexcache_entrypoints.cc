@@ -63,12 +63,14 @@ extern "C" mirror::String* artResolveStringFromCode(int32_t string_idx, Thread* 
   auto* caller = GetCalleeSaveMethodCaller(self, Runtime::kSaveRefsOnly);
   mirror::String* result = ResolveStringFromCode(caller, string_idx);
   if (LIKELY(result != nullptr)) {
-    // For AOT code, we need a write barrier for the dex cache that holds the GC roots in the .bss.
+    // For AOT code, we need a write barrier for the class loader that holds
+    // the GC roots in the .bss.
     const DexFile* dex_file = caller->GetDexFile();
     if (dex_file != nullptr &&
         dex_file->GetOatDexFile() != nullptr &&
         !dex_file->GetOatDexFile()->GetOatFile()->GetBssGcRoots().empty()) {
       mirror::ClassLoader* class_loader = caller->GetDeclaringClass()->GetClassLoader();
+      DCHECK(class_loader != nullptr);  // We do not use .bss GC roots for boot image.
       // Note that we emit the barrier before the compiled code stores the string as GC root.
       // This is OK as there is no suspend point point in between.
       Runtime::Current()->GetHeap()->WriteBarrierEveryFieldOf(class_loader);
