@@ -1186,13 +1186,13 @@ void UnstartedRuntime::UnstartedStringToCharArray(
 // This allows statically initializing ConcurrentHashMap and SynchronousQueue.
 void UnstartedRuntime::UnstartedReferenceGetReferent(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
-  mirror::Reference* const ref = down_cast<mirror::Reference*>(
+  ObjPtr<mirror::Reference> const ref = down_cast<mirror::Reference*>(
       shadow_frame->GetVRegReference(arg_offset));
   if (ref == nullptr) {
     AbortTransactionOrFail(self, "Reference.getReferent() with null object");
     return;
   }
-  mirror::Object* const referent =
+  ObjPtr<mirror::Object> const referent =
       Runtime::Current()->GetHeap()->GetReferenceProcessor()->GetReferent(self, ref);
   result->SetL(referent);
 }

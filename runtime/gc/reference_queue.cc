@@ -29,7 +29,7 @@ namespace gc {
 ReferenceQueue::ReferenceQueue(Mutex* lock) : lock_(lock), list_(nullptr) {
 }
 
-void ReferenceQueue::AtomicEnqueueIfNotEnqueued(Thread* self, mirror::Reference* ref) {
+void ReferenceQueue::AtomicEnqueueIfNotEnqueued(Thread* self, ObjPtr<mirror::Reference> ref) {
   DCHECK(ref != nullptr);
   MutexLock mu(self, *lock_);
   if (ref->IsUnprocessed()) {
@@ -37,16 +37,16 @@ void ReferenceQueue::AtomicEnqueueIfNotEnqueued(Thread* self, mirror::Reference*
   }
 }
 
-void ReferenceQueue::EnqueueReference(mirror::Reference* ref) {
+void ReferenceQueue::EnqueueReference(ObjPtr<mirror::Reference> ref) {
   DCHECK(ref != nullptr);
   CHECK(ref->IsUnprocessed());
   if (IsEmpty()) {
     // 1 element cyclic queue, ie: Reference ref = ..; ref.pendingNext = ref;
-    list_ = ref;
+    list_ = ref.Ptr();
   } else {
     // The list is owned by the GC, everything that has been inserted must already be at least
     // gray.
-    mirror::Reference* head = list_->GetPendingNext<kWithoutReadBarrier>();
+    ObjPtr<mirror::Reference> head = list_->GetPendingNext<kWithoutReadBarrier>();
     DCHECK(head != nullptr);
     ref->SetPendingNext(head);
   }
@@ -54,16 +54,16 @@ void ReferenceQueue::EnqueueReference(mirror::Reference* ref) {
   list_->SetPendingNext(ref);
 }
 
-mirror::Reference* ReferenceQueue::DequeuePendingReference() {
+ObjPtr<mirror::Reference> ReferenceQueue::DequeuePendingReference() {
   DCHECK(!IsEmpty());
-  mirror::Reference* ref = list_->GetPendingNext<kWithoutReadBarrier>();
+  ObjPtr<mirror::Reference> ref = list_->GetPendingNext<kWithoutReadBarrier>();
   DCHECK(ref != nullptr);
   // Note: the following code is thread-safe because it is only called from ProcessReferences which
   // is single threaded.
   if (list_ == ref) {
     list_ = nullptr;
   } else {
-    mirror::Reference* next = ref->GetPendingNext<kWithoutReadBarrier>();
+    ObjPtr<mirror::Reference> next = ref->GetPendingNext<kWithoutReadBarrier>();
     list_->SetPendingNext(next);
   }
   ref->SetPendingNext(nullptr);
@@ -83,10 +83,10 @@ mirror::Reference* ReferenceQueue::DequeuePendingReference() {
       // In ConcurrentCopying::ProcessMarkStackRef() we may leave a white reference in the queue and
       // find it here, which is OK.
       CHECK_EQ(rb_ptr, ReadBarrier::WhitePtr()) << "ref=" << ref << " rb_ptr=" << rb_ptr;
-      mirror::Object* referent = ref->GetReferent<kWithoutReadBarrier>();
+      ObjPtr<mirror::Object> referent = ref->GetReferent<kWithoutReadBarrier>();
       // The referent could be null if it's cleared by a mutator (Reference.clear()).
       if (referent != nullptr) {
-        CHECK(concurrent_copying->IsInToSpace(referent))
+        CHECK(concurrent_copying->IsInToSpace(referent.Ptr()))
             << "ref=" << ref << " rb_ptr=" << ref->GetReadBarrierPointer()
             << " referent=" << referent;
       }
@@ -96,13 +96,13 @@ mirror::Reference* ReferenceQueue::DequeuePendingReference() {
 }
 
 void ReferenceQueue::Dump(std::ostream& os) const {
-  mirror::Reference* cur = list_;
+  ObjPtr<mirror::Reference> cur = list_;
   os << "Reference starting at list_=" << list_ << "\n";
   if (cur == nullptr) {
     return;
   }
   do {
-    mirror::Reference* pending_next = cur->GetPendingNext();
+    ObjPtr<mirror::Reference> pending_next = cur->GetPendingNext();
     os << "Reference= " << cur << " PendingNext=" << pending_next;
     if (cur->IsFinalizerReferenceInstance()) {
       os << " Zombie=" << cur->AsFinalizerReference()->GetZombie();
@@ -114,7 +114,7 @@ void ReferenceQueue::Dump(std::ostream& os) const {
 
 size_t ReferenceQueue::GetLength() const {
   size_t count = 0;
-  mirror::Reference* cur = list_;
+  ObjPtr<mirror::Reference> cur = list_;
   if (cur != nullptr) {
     do {
       ++count;
@@ -127,7 +127,7 @@ size_t ReferenceQueue::GetLength() const {
 void ReferenceQueue::ClearWhiteReferences(ReferenceQueue* cleared_references,
                                           collector::GarbageCollector* collector) {
   while (!IsEmpty()) {
-    mirror::Reference* ref = DequeuePendingReference();
+    ObjPtr<mirror::Reference> ref = DequeuePendingReference();
     mirror::HeapReference<mirror::Object>* referent_addr = ref->GetReferentReferenceAddr();
     if (referent_addr->AsMirrorPtr() != nullptr &&
         !collector->IsMarkedHeapReference(referent_addr)) {
@@ -145,11 +145,11 @@ void ReferenceQueue::ClearWhiteReferences(ReferenceQueue* cleared_references,
 void ReferenceQueue::EnqueueFinalizerReferences(ReferenceQueue* cleared_references,
                                                 collector::GarbageCollector* collector) {
   while (!IsEmpty()) {
-    mirror::FinalizerReference* ref = DequeuePendingReference()->AsFinalizerReference();
+    ObjPtr<mirror::FinalizerReference> ref = DequeuePendingReference()->AsFinalizerReference();
     mirror::HeapReference<mirror::Object>* referent_addr = ref->GetReferentReferenceAddr();
     if (referent_addr->AsMirrorPtr() != nullptr &&
         !collector->IsMarkedHeapReference(referent_addr)) {
-      mirror::Object* forward_address = collector->MarkObject(referent_addr->AsMirrorPtr());
+      ObjPtr<mirror::Object> forward_address = collector->MarkObject(referent_addr->AsMirrorPtr());
       // Move the updated referent to the zombie field.
       if (Runtime::Current()->IsActiveTransaction()) {
         ref->SetZombie<true>(forward_address);
@@ -167,8 +167,8 @@ void ReferenceQueue::ForwardSoftReferences(MarkObjectVisitor* visitor) {
   if (UNLIKELY(IsEmpty())) {
     return;
   }
-  mirror::Reference* const head = list_;
-  mirror::Reference* ref = head;
+  ObjPtr<mirror::Reference> const head = list_;
+  ObjPtr<mirror::Reference> ref = head;
   do {
     mirror::HeapReference<mirror::Object>* referent_addr = ref->GetReferentReferenceAddr();
     if (referent_addr->AsMirrorPtr() != nullptr) {
