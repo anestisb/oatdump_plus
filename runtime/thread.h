@@ -570,6 +570,10 @@ class Thread {
         OFFSETOF_MEMBER(tls_32bit_sized_values, is_gc_marking));
   }
 
+  static constexpr size_t IsGcMarkingSize() {
+    return sizeof(tls32_.is_gc_marking);
+  }
+
   // Deoptimize the Java stack.
   void DeoptimizeWithDeoptimizationException(JValue* result) REQUIRES_SHARED(Locks::mutator_lock_);
 

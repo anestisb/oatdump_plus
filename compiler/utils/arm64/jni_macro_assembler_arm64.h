@@ -168,6 +168,15 @@ class Arm64JNIMacroAssembler FINAL : public JNIMacroAssemblerFwd<Arm64Assembler,
   // and branch to a ExceptionSlowPath if it is.
   void ExceptionPoll(ManagedRegister scratch, size_t stack_adjust) OVERRIDE;
 
+  // Create a new label that can be used with Jump/Bind calls.
+  std::unique_ptr<JNIMacroLabel> CreateLabel() OVERRIDE;
+  // Emit an unconditional jump to the label.
+  void Jump(JNIMacroLabel* label) OVERRIDE;
+  // Emit a conditional jump to the label by applying a unary condition test to the register.
+  void Jump(JNIMacroLabel* label, JNIMacroUnaryCondition cond, ManagedRegister test) OVERRIDE;
+  // Code at this offset will serve as the target for the Jump call.
+  void Bind(JNIMacroLabel* label) OVERRIDE;
+
  private:
   class Arm64Exception {
    public:
@@ -220,6 +229,16 @@ class Arm64JNIMacroAssembler FINAL : public JNIMacroAssemblerFwd<Arm64Assembler,
 
   // List of exception blocks to generate at the end of the code cache.
   ArenaVector<std::unique_ptr<Arm64Exception>> exception_blocks_;
+};
+
+class Arm64JNIMacroLabel FINAL
+    : public JNIMacroLabelCommon<Arm64JNIMacroLabel,
+                                 vixl::aarch64::Label,
+                                 kArm64> {
+ public:
+  vixl::aarch64::Label* AsArm64() {
+    return AsPlatformLabel();
+  }
 };
 
 }  // namespace arm64
