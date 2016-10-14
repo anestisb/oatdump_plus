@@ -20,6 +20,7 @@
 #include "base/enums.h"
 #include "class.h"
 #include "gc_root.h"
+#include "obj_ptr.h"
 #include "object.h"
 #include "object_callbacks.h"
 #include "read_barrier_option.h"
@@ -69,9 +70,7 @@ class MANAGED Reference : public Object {
         ReferentOffset());
   }
   template<bool kTransactionActive>
-  void SetReferent(Object* referent) REQUIRES_SHARED(Locks::mutator_lock_) {
-    SetFieldObjectVolatile<kTransactionActive>(ReferentOffset(), referent);
-  }
+  void SetReferent(ObjPtr<Object> referent) REQUIRES_SHARED(Locks::mutator_lock_);
   template<bool kTransactionActive>
   void ClearReferent() REQUIRES_SHARED(Locks::mutator_lock_) {
     SetFieldObjectVolatile<kTransactionActive>(ReferentOffset(), nullptr);
@@ -82,14 +81,7 @@ class MANAGED Reference : public Object {
     return GetFieldObject<Reference, kDefaultVerifyFlags, kReadBarrierOption>(PendingNextOffset());
   }
 
-  void SetPendingNext(Reference* pending_next)
-      REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (Runtime::Current()->IsActiveTransaction()) {
-      SetFieldObject<true>(PendingNextOffset(), pending_next);
-    } else {
-      SetFieldObject<false>(PendingNextOffset(), pending_next);
-    }
-  }
+  void SetPendingNext(ObjPtr<Reference> pending_next) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Returns true if the reference's pendingNext is null, indicating it is
   // okay to process this reference.
@@ -112,7 +104,7 @@ class MANAGED Reference : public Object {
     DCHECK(!java_lang_ref_Reference_.IsNull());
     return java_lang_ref_Reference_.Read<kReadBarrierOption>();
   }
-  static void SetClass(Class* klass);
+  static void SetClass(ObjPtr<Class> klass);
   static void ResetClass();
   static void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -144,9 +136,8 @@ class MANAGED FinalizerReference : public Reference {
   }
 
   template<bool kTransactionActive>
-  void SetZombie(Object* zombie) REQUIRES_SHARED(Locks::mutator_lock_) {
-    return SetFieldObjectVolatile<kTransactionActive>(ZombieOffset(), zombie);
-  }
+  void SetZombie(ObjPtr<Object> zombie) REQUIRES_SHARED(Locks::mutator_lock_);
+
   Object* GetZombie() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetFieldObjectVolatile<Object>(ZombieOffset());
   }

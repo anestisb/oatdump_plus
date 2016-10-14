@@ -26,6 +26,7 @@
 #include "base/timing_logger.h"
 #include "globals.h"
 #include "jni.h"
+#include "obj_ptr.h"
 #include "object_callbacks.h"
 #include "offsets.h"
 #include "thread_pool.h"
@@ -54,15 +55,15 @@ class ReferenceQueue {
   // Enqueue a reference if it is unprocessed. Thread safe to call from multiple
   // threads since it uses a lock to avoid a race between checking for the references presence and
   // adding it.
-  void AtomicEnqueueIfNotEnqueued(Thread* self, mirror::Reference* ref)
+  void AtomicEnqueueIfNotEnqueued(Thread* self, ObjPtr<mirror::Reference> ref)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!*lock_);
 
   // Enqueue a reference. The reference must be unprocessed.
   // Not thread safe, used when mutators are paused to minimize lock overhead.
-  void EnqueueReference(mirror::Reference* ref) REQUIRES_SHARED(Locks::mutator_lock_);
+  void EnqueueReference(ObjPtr<mirror::Reference> ref) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Dequeue a reference from the queue and return that dequeued reference.
-  mirror::Reference* DequeuePendingReference() REQUIRES_SHARED(Locks::mutator_lock_);
+  ObjPtr<mirror::Reference> DequeuePendingReference() REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Enqueues finalizer references with white referents.  White referents are blackened, moved to
   // the zombie field, and the referent field is cleared.
@@ -104,7 +105,7 @@ class ReferenceQueue {
   // calling AtomicEnqueueIfNotEnqueued.
   Mutex* const lock_;
   // The actual reference list. Only a root for the mark compact GC since it will be null for other
-  // GC types.
+  // GC types. Not an ObjPtr since it is accessed from multiple threads.
   mirror::Reference* list_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(ReferenceQueue);
