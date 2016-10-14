@@ -384,7 +384,7 @@ inline bool Class::ResolvedFieldAccessTest(ObjPtr<Class> access_to,
     DCHECK(dex_access_to != nullptr);
     if (UNLIKELY(!this->CanAccess(dex_access_to))) {
       if (throw_on_failure) {
-        ThrowIllegalAccessErrorClass(this, dex_access_to.Ptr());
+        ThrowIllegalAccessErrorClass(this, dex_access_to);
       }
       return false;
     }
