@@ -20,6 +20,7 @@
 #include "base/enums.h"
 #include "gc_root.h"
 #include "gc/allocator_type.h"
+#include "obj_ptr.h"
 #include "object.h"
 #include "object_callbacks.h"
 
@@ -89,7 +90,7 @@ class MANAGED Array : public Object {
       REQUIRES(!Roles::uninterruptible_);
 
  protected:
-  void ThrowArrayStoreException(Object* object) REQUIRES_SHARED(Locks::mutator_lock_)
+  void ThrowArrayStoreException(ObjPtr<Object> object) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 
  private:

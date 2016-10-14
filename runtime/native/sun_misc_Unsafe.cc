@@ -71,8 +71,8 @@ static jboolean Unsafe_compareAndSwapObject(JNIEnv* env, jobject, jobject javaOb
         field_addr);
   }
   bool success = obj->CasFieldStrongSequentiallyConsistentObject<false>(MemberOffset(offset),
-                                                                        expectedValue.Ptr(),
-                                                                        newValue.Ptr());
+                                                                        expectedValue,
+                                                                        newValue);
   return success ? JNI_TRUE : JNI_FALSE;
 }
 
@@ -168,7 +168,7 @@ static void Unsafe_putObject(JNIEnv* env, jobject, jobject javaObj, jlong offset
   ObjPtr<mirror::Object> obj = soa.Decode<mirror::Object>(javaObj);
   ObjPtr<mirror::Object> newValue = soa.Decode<mirror::Object>(javaNewValue);
   // JNI must use non transactional mode.
-  obj->SetFieldObject<false>(MemberOffset(offset), newValue.Ptr());
+  obj->SetFieldObject<false>(MemberOffset(offset), newValue);
 }
 
 static void Unsafe_putObjectVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset,
@@ -177,7 +177,7 @@ static void Unsafe_putObjectVolatile(JNIEnv* env, jobject, jobject javaObj, jlon
   ObjPtr<mirror::Object> obj = soa.Decode<mirror::Object>(javaObj);
   ObjPtr<mirror::Object> newValue = soa.Decode<mirror::Object>(javaNewValue);
   // JNI must use non transactional mode.
-  obj->SetFieldObjectVolatile<false>(MemberOffset(offset), newValue.Ptr());
+  obj->SetFieldObjectVolatile<false>(MemberOffset(offset), newValue);
 }
 
 static void Unsafe_putOrderedObject(JNIEnv* env, jobject, jobject javaObj, jlong offset,
@@ -187,7 +187,7 @@ static void Unsafe_putOrderedObject(JNIEnv* env, jobject, jobject javaObj, jlong
   ObjPtr<mirror::Object> newValue = soa.Decode<mirror::Object>(javaNewValue);
   QuasiAtomic::ThreadFenceRelease();
   // JNI must use non transactional mode.
-  obj->SetFieldObject<false>(MemberOffset(offset), newValue.Ptr());
+  obj->SetFieldObject<false>(MemberOffset(offset), newValue);
 }
 
 static jint Unsafe_getArrayBaseOffsetForComponentType(JNIEnv* env, jclass, jobject component_class) {
