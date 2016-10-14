@@ -655,7 +655,7 @@ inline String* Class::GetName() {
   return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(Class, name_));
 }
 
-inline void Class::SetName(String* name) {
+inline void Class::SetName(ObjPtr<String> name) {
   if (Runtime::Current()->IsActiveTransaction()) {
     SetFieldObject<true>(OFFSET_OF_OBJECT_MEMBER(Class, name_), name);
   } else {

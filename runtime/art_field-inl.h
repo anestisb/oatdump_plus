@@ -116,9 +116,9 @@ inline void ArtField::SetObj(ObjPtr<mirror::Object> object, ObjPtr<mirror::Objec
   DCHECK(object != nullptr) << PrettyField(this);
   DCHECK(!IsStatic() || (object == GetDeclaringClass()) || !Runtime::Current()->IsStarted());
   if (UNLIKELY(IsVolatile())) {
-    object->SetFieldObjectVolatile<kTransactionActive>(GetOffset(), new_value.Ptr());
+    object->SetFieldObjectVolatile<kTransactionActive>(GetOffset(), new_value);
   } else {
-    object->SetFieldObject<kTransactionActive>(GetOffset(), new_value.Ptr());
+    object->SetFieldObject<kTransactionActive>(GetOffset(), new_value);
   }
 }
 

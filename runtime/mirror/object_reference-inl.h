@@ -24,7 +24,11 @@
 namespace art {
 namespace mirror {
 
-// References between objects within the managed heap.
+template<bool kPoisonReferences, class MirrorType>
+void ObjectReference<kPoisonReferences, MirrorType>::Assign(ObjPtr<MirrorType> ptr) {
+  Assign(ptr.Ptr());
+}
+
 template<class MirrorType>
 HeapReference<MirrorType> HeapReference<MirrorType>::FromObjPtr(ObjPtr<MirrorType> ptr) {
   return HeapReference<MirrorType>(ptr.Ptr());

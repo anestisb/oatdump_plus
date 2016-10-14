@@ -42,6 +42,9 @@ class MANAGED ObjectReference {
     reference_ = Compress(other);
   }
 
+  void Assign(ObjPtr<MirrorType> ptr)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   void Clear() {
     reference_ = 0;
     DCHECK(IsNull());

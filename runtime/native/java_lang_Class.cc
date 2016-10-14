@@ -354,8 +354,8 @@ static jobject Class_getDeclaredConstructorInternal(
   ObjPtr<mirror::Constructor> result =
       mirror::Class::GetDeclaredConstructorInternal<kRuntimePointerSize, false>(
       soa.Self(),
-      DecodeClass(soa, javaThis).Ptr(),
-      soa.Decode<mirror::ObjectArray<mirror::Class>>(args).Ptr());
+      DecodeClass(soa, javaThis),
+      soa.Decode<mirror::ObjectArray<mirror::Class>>(args));
   return soa.AddLocalReference<jobject>(result);
 }
 
