@@ -52,10 +52,10 @@ TEST_F(ReferenceQueueTest, EnqueueDequeue) {
 
   std::set<mirror::Reference*> refs = {ref1.Get(), ref2.Get()};
   std::set<mirror::Reference*> dequeued;
-  dequeued.insert(queue.DequeuePendingReference());
+  dequeued.insert(queue.DequeuePendingReference().Ptr());
   ASSERT_TRUE(!queue.IsEmpty());
   ASSERT_EQ(queue.GetLength(), 1U);
-  dequeued.insert(queue.DequeuePendingReference());
+  dequeued.insert(queue.DequeuePendingReference().Ptr());
   ASSERT_EQ(queue.GetLength(), 0U);
   ASSERT_TRUE(queue.IsEmpty());
   ASSERT_EQ(refs, dequeued);
