@@ -30,12 +30,13 @@
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
+#include "obj_ptr-inl.h"
 #include "thread.h"
 #include "verifier/method_verifier.h"
 
 namespace art {
 
-static void AddReferrerLocation(std::ostream& os, mirror::Class* referrer)
+static void AddReferrerLocation(std::ostream& os, ObjPtr<mirror::Class> referrer)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (referrer != nullptr) {
     std::string location(referrer->GetLocation());
@@ -47,7 +48,9 @@ static void AddReferrerLocation(std::ostream& os, mirror::Class* referrer)
 }
 
 static void ThrowException(const char* exception_descriptor,
-                           mirror::Class* referrer, const char* fmt, va_list* args = nullptr)
+                           ObjPtr<mirror::Class> referrer,
+                           const char* fmt,
+                           va_list* args = nullptr)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   std::ostringstream msg;
   if (args != nullptr) {
@@ -63,7 +66,9 @@ static void ThrowException(const char* exception_descriptor,
 }
 
 static void ThrowWrappedException(const char* exception_descriptor,
-                                  mirror::Class* referrer, const char* fmt, va_list* args = nullptr)
+                                  ObjPtr<mirror::Class> referrer,
+                                  const char* fmt,
+                                  va_list* args = nullptr)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   std::ostringstream msg;
   if (args != nullptr) {
@@ -109,7 +114,8 @@ void ThrowArrayIndexOutOfBoundsException(int index, int length) {
 
 // ArrayStoreException
 
-void ThrowArrayStoreException(mirror::Class* element_class, mirror::Class* array_class) {
+void ThrowArrayStoreException(ObjPtr<mirror::Class> element_class,
+                              ObjPtr<mirror::Class> array_class) {
   ThrowException("Ljava/lang/ArrayStoreException;", nullptr,
                  StringPrintf("%s cannot be stored in an array of type %s",
                               PrettyDescriptor(element_class).c_str(),
@@ -118,7 +124,7 @@ void ThrowArrayStoreException(mirror::Class* element_class, mirror::Class* array
 
 // ClassCastException
 
-void ThrowClassCastException(mirror::Class* dest_type, mirror::Class* src_type) {
+void ThrowClassCastException(ObjPtr<mirror::Class> dest_type, ObjPtr<mirror::Class> src_type) {
   ThrowException("Ljava/lang/ClassCastException;", nullptr,
                  StringPrintf("%s cannot be cast to %s",
                               PrettyDescriptor(src_type).c_str(),
@@ -131,13 +137,13 @@ void ThrowClassCastException(const char* msg) {
 
 // ClassCircularityError
 
-void ThrowClassCircularityError(mirror::Class* c) {
+void ThrowClassCircularityError(ObjPtr<mirror::Class> c) {
   std::ostringstream msg;
   msg << PrettyDescriptor(c);
   ThrowException("Ljava/lang/ClassCircularityError;", c, msg.str().c_str());
 }
 
-void ThrowClassCircularityError(mirror::Class* c, const char* fmt, ...) {
+void ThrowClassCircularityError(ObjPtr<mirror::Class> c, const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
   ThrowException("Ljava/lang/ClassCircularityError;", c, fmt, &args);
@@ -146,7 +152,7 @@ void ThrowClassCircularityError(mirror::Class* c, const char* fmt, ...) {
 
 // ClassFormatError
 
-void ThrowClassFormatError(mirror::Class* referrer, const char* fmt, ...) {
+void ThrowClassFormatError(ObjPtr<mirror::Class> referrer, const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
   ThrowException("Ljava/lang/ClassFormatError;", referrer, fmt, &args);
@@ -155,14 +161,15 @@ void ThrowClassFormatError(mirror::Class* referrer, const char* fmt, ...) {
 
 // IllegalAccessError
 
-void ThrowIllegalAccessErrorClass(mirror::Class* referrer, mirror::Class* accessed) {
+void ThrowIllegalAccessErrorClass(ObjPtr<mirror::Class> referrer, ObjPtr<mirror::Class> accessed) {
   std::ostringstream msg;
   msg << "Illegal class access: '" << PrettyDescriptor(referrer) << "' attempting to access '"
       << PrettyDescriptor(accessed) << "'";
   ThrowException("Ljava/lang/IllegalAccessError;", referrer, msg.str().c_str());
 }
 
-void ThrowIllegalAccessErrorClassForMethodDispatch(mirror::Class* referrer, mirror::Class* accessed,
+void ThrowIllegalAccessErrorClassForMethodDispatch(ObjPtr<mirror::Class> referrer,
+                                                   ObjPtr<mirror::Class> accessed,
                                                    ArtMethod* called,
                                                    InvokeType type) {
   std::ostringstream msg;
@@ -172,14 +179,14 @@ void ThrowIllegalAccessErrorClassForMethodDispatch(mirror::Class* referrer, mirr
   ThrowException("Ljava/lang/IllegalAccessError;", referrer, msg.str().c_str());
 }
 
-void ThrowIllegalAccessErrorMethod(mirror::Class* referrer, ArtMethod* accessed) {
+void ThrowIllegalAccessErrorMethod(ObjPtr<mirror::Class> referrer, ArtMethod* accessed) {
   std::ostringstream msg;
   msg << "Method '" << PrettyMethod(accessed) << "' is inaccessible to class '"
       << PrettyDescriptor(referrer) << "'";
   ThrowException("Ljava/lang/IllegalAccessError;", referrer, msg.str().c_str());
 }
 
-void ThrowIllegalAccessErrorField(mirror::Class* referrer, ArtField* accessed) {
+void ThrowIllegalAccessErrorField(ObjPtr<mirror::Class> referrer, ArtField* accessed) {
   std::ostringstream msg;
   msg << "Field '" << PrettyField(accessed, false) << "' is inaccessible to class '"
       << PrettyDescriptor(referrer) << "'";
@@ -195,7 +202,7 @@ void ThrowIllegalAccessErrorFinalField(ArtMethod* referrer, ArtField* accessed) 
                  msg.str().c_str());
 }
 
-void ThrowIllegalAccessError(mirror::Class* referrer, const char* fmt, ...) {
+void ThrowIllegalAccessError(ObjPtr<mirror::Class> referrer, const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
   ThrowException("Ljava/lang/IllegalAccessError;", referrer, fmt, &args);
@@ -228,8 +235,8 @@ void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType foun
 }
 
 void ThrowIncompatibleClassChangeErrorClassForInterfaceSuper(ArtMethod* method,
-                                                             mirror::Class* target_class,
-                                                             mirror::Object* this_object,
+                                                             ObjPtr<mirror::Class> target_class,
+                                                             ObjPtr<mirror::Object> this_object,
                                                              ArtMethod* referrer) {
   // Referrer is calling interface_method on this_object, however, the interface_method isn't
   // implemented by this_object.
@@ -244,7 +251,7 @@ void ThrowIncompatibleClassChangeErrorClassForInterfaceSuper(ArtMethod* method,
 }
 
 void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(ArtMethod* interface_method,
-                                                                mirror::Object* this_object,
+                                                                ObjPtr<mirror::Object> this_object,
                                                                 ArtMethod* referrer) {
   // Referrer is calling interface_method on this_object, however, the interface_method isn't
   // implemented by this_object.
@@ -269,7 +276,7 @@ void ThrowIncompatibleClassChangeErrorField(ArtField* resolved_field, bool is_st
                  msg.str().c_str());
 }
 
-void ThrowIncompatibleClassChangeError(mirror::Class* referrer, const char* fmt, ...) {
+void ThrowIncompatibleClassChangeError(ObjPtr<mirror::Class> referrer, const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
   ThrowException("Ljava/lang/IncompatibleClassChangeError;", referrer, fmt, &args);
@@ -303,14 +310,14 @@ void ThrowWrappedIOException(const char* fmt, ...) {
 
 // LinkageError
 
-void ThrowLinkageError(mirror::Class* referrer, const char* fmt, ...) {
+void ThrowLinkageError(ObjPtr<mirror::Class> referrer, const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
   ThrowException("Ljava/lang/LinkageError;", referrer, fmt, &args);
   va_end(args);
 }
 
-void ThrowWrappedLinkageError(mirror::Class* referrer, const char* fmt, ...) {
+void ThrowWrappedLinkageError(ObjPtr<mirror::Class> referrer, const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
   ThrowWrappedException("Ljava/lang/LinkageError;", referrer, fmt, &args);
@@ -330,7 +337,7 @@ void ThrowNegativeArraySizeException(const char* msg) {
 
 // NoSuchFieldError
 
-void ThrowNoSuchFieldError(const StringPiece& scope, mirror::Class* c,
+void ThrowNoSuchFieldError(const StringPiece& scope, ObjPtr<mirror::Class> c,
                            const StringPiece& type, const StringPiece& name) {
   std::ostringstream msg;
   std::string temp;
@@ -339,7 +346,7 @@ void ThrowNoSuchFieldError(const StringPiece& scope, mirror::Class* c,
   ThrowException("Ljava/lang/NoSuchFieldError;", c, msg.str().c_str());
 }
 
-void ThrowNoSuchFieldException(mirror::Class* c, const StringPiece& name) {
+void ThrowNoSuchFieldException(ObjPtr<mirror::Class> c, const StringPiece& name) {
   std::ostringstream msg;
   std::string temp;
   msg << "No field " << name << " in class " << c->GetDescriptor(&temp);
@@ -348,7 +355,7 @@ void ThrowNoSuchFieldException(mirror::Class* c, const StringPiece& name) {
 
 // NoSuchMethodError
 
-void ThrowNoSuchMethodError(InvokeType type, mirror::Class* c, const StringPiece& name,
+void ThrowNoSuchMethodError(InvokeType type, ObjPtr<mirror::Class> c, const StringPiece& name,
                             const Signature& signature) {
   std::ostringstream msg;
   std::string temp;
@@ -378,7 +385,7 @@ static void ThrowNullPointerExceptionForMethodAccessImpl(uint32_t method_idx,
 
 void ThrowNullPointerExceptionForMethodAccess(uint32_t method_idx,
                                               InvokeType type) {
-  mirror::DexCache* dex_cache =
+  ObjPtr<mirror::DexCache> dex_cache =
       Thread::Current()->GetCurrentMethod(nullptr)->GetDeclaringClass()->GetDexCache();
   const DexFile& dex_file = *dex_cache->GetDexFile();
   ThrowNullPointerExceptionForMethodAccessImpl(method_idx, dex_file, type);
@@ -386,7 +393,7 @@ void ThrowNullPointerExceptionForMethodAccess(uint32_t method_idx,
 
 void ThrowNullPointerExceptionForMethodAccess(ArtMethod* method,
                                               InvokeType type) {
-  mirror::DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
+  ObjPtr<mirror::DexCache> dex_cache = method->GetDeclaringClass()->GetDexCache();
   const DexFile& dex_file = *dex_cache->GetDexFile();
   ThrowNullPointerExceptionForMethodAccessImpl(method->GetDexMethodIndex(),
                                                dex_file, type);
@@ -784,7 +791,7 @@ void ThrowStringIndexOutOfBoundsException(int index, int length) {
 
 // VerifyError
 
-void ThrowVerifyError(mirror::Class* referrer, const char* fmt, ...) {
+void ThrowVerifyError(ObjPtr<mirror::Class> referrer, const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
   ThrowException("Ljava/lang/VerifyError;", referrer, fmt, &args);
