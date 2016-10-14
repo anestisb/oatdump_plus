@@ -60,12 +60,13 @@ void ReferenceProcessor::BroadcastForSlowPath(Thread* self) {
   condition_.Broadcast(self);
 }
 
-mirror::Object* ReferenceProcessor::GetReferent(Thread* self, mirror::Reference* reference) {
+ObjPtr<mirror::Object> ReferenceProcessor::GetReferent(Thread* self,
+                                                       ObjPtr<mirror::Reference> reference) {
   if (!kUseReadBarrier || self->GetWeakRefAccessEnabled()) {
     // Under read barrier / concurrent copying collector, it's not safe to call GetReferent() when
     // weak ref access is disabled as the call includes a read barrier which may push a ref onto the
     // mark stack and interfere with termination of marking.
-    mirror::Object* const referent = reference->GetReferent();
+    ObjPtr<mirror::Object> const referent = reference->GetReferent();
     // If the referent is null then it is already cleared, we can just return null since there is no
     // scenario where it becomes non-null during the reference processing phase.
     if (UNLIKELY(!SlowPathEnabled()) || referent == nullptr) {
@@ -116,7 +117,8 @@ void ReferenceProcessor::StopPreservingReferences(Thread* self) {
 }
 
 // Process reference class instances and schedule finalizations.
-void ReferenceProcessor::ProcessReferences(bool concurrent, TimingLogger* timings,
+void ReferenceProcessor::ProcessReferences(bool concurrent,
+                                           TimingLogger* timings,
                                            bool clear_soft_references,
                                            collector::GarbageCollector* collector) {
   TimingLogger::ScopedTiming t(concurrent ? __FUNCTION__ : "(Paused)ProcessReferences", timings);
@@ -188,7 +190,8 @@ void ReferenceProcessor::ProcessReferences(bool concurrent, TimingLogger* timing
 
 // Process the "referent" field in a java.lang.ref.Reference.  If the referent has not yet been
 // marked, put it on the appropriate list in the heap for later processing.
-void ReferenceProcessor::DelayReferenceReferent(mirror::Class* klass, mirror::Reference* ref,
+void ReferenceProcessor::DelayReferenceReferent(ObjPtr<mirror::Class> klass,
+                                                ObjPtr<mirror::Reference> ref,
                                                 collector::GarbageCollector* collector) {
   // klass can be the class of the old object if the visitor already updated the class of ref.
   DCHECK(klass != nullptr);
@@ -260,7 +263,8 @@ void ReferenceProcessor::EnqueueClearedReferences(Thread* self) {
   }
 }
 
-bool ReferenceProcessor::MakeCircularListIfUnenqueued(mirror::FinalizerReference* reference) {
+bool ReferenceProcessor::MakeCircularListIfUnenqueued(
+    ObjPtr<mirror::FinalizerReference> reference) {
   Thread* self = Thread::Current();
   MutexLock mu(self, *Locks::reference_processor_lock_);
   // Wait untul we are done processing reference.

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "reference.h"
+#include "reference-inl.h"
 
 #include "art_method.h"
 #include "gc_root-inl.h"
@@ -24,7 +24,7 @@ namespace mirror {
 
 GcRoot<Class> Reference::java_lang_ref_Reference_;
 
-void Reference::SetClass(Class* java_lang_ref_Reference) {
+void Reference::SetClass(ObjPtr<Class> java_lang_ref_Reference) {
   CHECK(java_lang_ref_Reference_.IsNull());
   CHECK(java_lang_ref_Reference != nullptr);
   java_lang_ref_Reference_ = GcRoot<Class>(java_lang_ref_Reference);

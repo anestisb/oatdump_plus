@@ -46,7 +46,9 @@ class Heap;
 class ReferenceProcessor {
  public:
   explicit ReferenceProcessor();
-  void ProcessReferences(bool concurrent, TimingLogger* timings, bool clear_soft_references,
+  void ProcessReferences(bool concurrent,
+                         TimingLogger* timings,
+                         bool clear_soft_references,
                          gc::collector::GarbageCollector* collector)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::heap_bitmap_lock_)
@@ -57,16 +59,17 @@ class ReferenceProcessor {
   void EnableSlowPath() REQUIRES_SHARED(Locks::mutator_lock_);
   void BroadcastForSlowPath(Thread* self);
   // Decode the referent, may block if references are being processed.
-  mirror::Object* GetReferent(Thread* self, mirror::Reference* reference)
+  ObjPtr<mirror::Object> GetReferent(Thread* self, ObjPtr<mirror::Reference> reference)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Locks::reference_processor_lock_);
   void EnqueueClearedReferences(Thread* self) REQUIRES(!Locks::mutator_lock_);
-  void DelayReferenceReferent(mirror::Class* klass, mirror::Reference* ref,
+  void DelayReferenceReferent(ObjPtr<mirror::Class> klass,
+                              ObjPtr<mirror::Reference> ref,
                               collector::GarbageCollector* collector)
       REQUIRES_SHARED(Locks::mutator_lock_);
   void UpdateRoots(IsMarkedVisitor* visitor)
       REQUIRES_SHARED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
   // Make a circular list with reference if it is not enqueued. Uses the finalizer queue lock.
-  bool MakeCircularListIfUnenqueued(mirror::FinalizerReference* reference)
+  bool MakeCircularListIfUnenqueued(ObjPtr<mirror::FinalizerReference> reference)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::reference_processor_lock_,
                !Locks::reference_queue_finalizer_references_lock_);
