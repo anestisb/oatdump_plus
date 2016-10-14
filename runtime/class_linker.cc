@@ -4202,9 +4202,9 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   // Set the class access flags incl. VerificationAttempted, so we do not try to set the flag on
   // the methods.
   klass->SetAccessFlags(kAccClassIsProxy | kAccPublic | kAccFinal | kAccVerificationAttempted);
-  klass->SetClassLoader(soa.Decode<mirror::ClassLoader>(loader).Ptr());
+  klass->SetClassLoader(soa.Decode<mirror::ClassLoader>(loader));
   DCHECK_EQ(klass->GetPrimitiveType(), Primitive::kPrimNot);
-  klass->SetName(soa.Decode<mirror::String>(name).Ptr());
+  klass->SetName(soa.Decode<mirror::String>(name));
   klass->SetDexCache(GetClassRoot(kJavaLangReflectProxy)->GetDexCache());
   mirror::Class::SetStatus(klass, mirror::Class::kStatusIdx, self);
   std::string descriptor(GetDescriptorForProxy(klass.Get()));
