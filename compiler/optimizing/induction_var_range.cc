@@ -162,17 +162,17 @@ bool InductionVarRange::CanGenerateRange(HInstruction* context,
                                          /*out*/bool* needs_taken_test) {
   bool is_last_value = false;
   int64_t stride_value = 0;
-  return GenerateCode(context,
-                      instruction,
-                      is_last_value,
-                      nullptr,
-                      nullptr,
-                      nullptr,
-                      nullptr,
-                      nullptr,  // nothing generated yet
-                      &stride_value,
-                      needs_finite_test,
-                      needs_taken_test)
+  return GenerateRangeOrLastValue(context,
+                                  instruction,
+                                  is_last_value,
+                                  nullptr,
+                                  nullptr,
+                                  nullptr,
+                                  nullptr,
+                                  nullptr,  // nothing generated yet
+                                  &stride_value,
+                                  needs_finite_test,
+                                  needs_taken_test)
       && (stride_value == -1 ||
           stride_value == 0 ||
           stride_value == 1);  // avoid wrap-around anomalies.
@@ -187,17 +187,17 @@ void InductionVarRange::GenerateRange(HInstruction* context,
   bool is_last_value = false;
   int64_t stride_value = 0;
   bool b1, b2;  // unused
-  if (!GenerateCode(context,
-                    instruction,
-                    is_last_value,
-                    graph,
-                    block,
-                    lower,
-                    upper,
-                    nullptr,
-                    &stride_value,
-                    &b1,
-                    &b2)) {
+  if (!GenerateRangeOrLastValue(context,
+                                instruction,
+                                is_last_value,
+                                graph,
+                                block,
+                                lower,
+                                upper,
+                                nullptr,
+                                &stride_value,
+                                &b1,
+                                &b2)) {
     LOG(FATAL) << "Failed precondition: CanGenerateRange()";
   }
 }
@@ -209,17 +209,17 @@ HInstruction* InductionVarRange::GenerateTakenTest(HInstruction* context,
   bool is_last_value = false;
   int64_t stride_value = 0;
   bool b1, b2;  // unused
-  if (!GenerateCode(context,
-                    context,
-                    is_last_value,
-                    graph,
-                    block,
-                    nullptr,
-                    nullptr,
-                    &taken_test,
-                    &stride_value,
-                    &b1,
-                    &b2)) {
+  if (!GenerateRangeOrLastValue(context,
+                                context,
+                                is_last_value,
+                                graph,
+                                block,
+                                nullptr,
+                                nullptr,
+                                &taken_test,
+                                &stride_value,
+                                &b1,
+                                &b2)) {
     LOG(FATAL) << "Failed precondition: CanGenerateRange()";
   }
   return taken_test;
@@ -230,17 +230,17 @@ bool InductionVarRange::CanGenerateLastValue(HInstruction* instruction) {
   int64_t stride_value = 0;
   bool needs_finite_test = false;
   bool needs_taken_test = false;
-  return GenerateCode(instruction,
-                      instruction,
-                      is_last_value,
-                      nullptr,
-                      nullptr,
-                      nullptr,
-                      nullptr,
-                      nullptr,  // nothing generated yet
-                      &stride_value,
-                      &needs_finite_test,
-                      &needs_taken_test)
+  return GenerateRangeOrLastValue(instruction,
+                                  instruction,
+                                  is_last_value,
+                                  nullptr,
+                                  nullptr,
+                                  nullptr,
+                                  nullptr,
+                                  nullptr,  // nothing generated yet
+                                  &stride_value,
+                                  &needs_finite_test,
+                                  &needs_taken_test)
       && !needs_finite_test && !needs_taken_test;
 }
 
@@ -251,17 +251,17 @@ HInstruction* InductionVarRange::GenerateLastValue(HInstruction* instruction,
   bool is_last_value = true;
   int64_t stride_value = 0;
   bool b1, b2;  // unused
-  if (!GenerateCode(instruction,
-                    instruction,
-                    is_last_value,
-                    graph,
-                    block,
-                    &last_value,
-                    &last_value,
-                    nullptr,
-                    &stride_value,
-                    &b1,
-                    &b2)) {
+  if (!GenerateRangeOrLastValue(instruction,
+                                instruction,
+                                is_last_value,
+                                graph,
+                                block,
+                                &last_value,
+                                &last_value,
+                                nullptr,
+                                &stride_value,
+                                &b1,
+                                &b2)) {
     LOG(FATAL) << "Failed precondition: CanGenerateLastValue()";
   }
   return last_value;
@@ -278,6 +278,12 @@ void InductionVarRange::Replace(HInstruction* instruction,
     // Update loop's trip-count information.
     ReplaceInduction(induction_analysis_->LookupInfo(lp, GetLoopControl(lp)), fetch, replacement);
   }
+}
+
+bool InductionVarRange::IsFinite(HLoopInformation* loop) const {
+  HInductionVarAnalysis::InductionInfo *trip =
+      induction_analysis_->LookupInfo(loop, GetLoopControl(loop));
+  return trip != nullptr && !IsUnsafeTripCount(trip);
 }
 
 //
@@ -732,17 +738,17 @@ InductionVarRange::Value InductionVarRange::MergeVal(Value v1, Value v2, bool is
   return Value();
 }
 
-bool InductionVarRange::GenerateCode(HInstruction* context,
-                                     HInstruction* instruction,
-                                     bool is_last_value,
-                                     HGraph* graph,
-                                     HBasicBlock* block,
-                                     /*out*/HInstruction** lower,
-                                     /*out*/HInstruction** upper,
-                                     /*out*/HInstruction** taken_test,
-                                     /*out*/int64_t* stride_value,
-                                     /*out*/bool* needs_finite_test,
-                                     /*out*/bool* needs_taken_test) const {
+bool InductionVarRange::GenerateRangeOrLastValue(HInstruction* context,
+                                                 HInstruction* instruction,
+                                                 bool is_last_value,
+                                                 HGraph* graph,
+                                                 HBasicBlock* block,
+                                                 /*out*/HInstruction** lower,
+                                                 /*out*/HInstruction** upper,
+                                                 /*out*/HInstruction** taken_test,
+                                                 /*out*/int64_t* stride_value,
+                                                 /*out*/bool* needs_finite_test,
+                                                 /*out*/bool* needs_taken_test) const {
   HLoopInformation* loop = nullptr;
   HInductionVarAnalysis::InductionInfo* info = nullptr;
   HInductionVarAnalysis::InductionInfo* trip = nullptr;
@@ -760,12 +766,17 @@ bool InductionVarRange::GenerateCode(HInstruction* context,
   *needs_taken_test = IsBodyTripCount(trip);
   // Handle last value request.
   if (is_last_value) {
-    if (info->induction_class != HInductionVarAnalysis::kLinear) {
-      return false;
-    } else if (*stride_value > 0) {
-      lower = nullptr;
+    if (info->induction_class == HInductionVarAnalysis::kLinear) {
+      if (*stride_value > 0) {
+        lower = nullptr;
+      } else {
+        upper = nullptr;
+      }
+    } else if (info->induction_class == HInductionVarAnalysis::kPeriodic) {
+      DCHECK(!in_body);
+      return GenerateLastValuePeriodic(info, trip, graph, block, lower, needs_taken_test);
     } else {
-      upper = nullptr;
+      return false;
     }
   }
   // Code generation for taken test: generate the code when requested or otherwise analyze
@@ -785,6 +796,56 @@ bool InductionVarRange::GenerateCode(HInstruction* context,
           GenerateCode(info, trip, graph, block, lower, in_body, /* is_min */ true)) &&
       // And success on upper.
       GenerateCode(info, trip, graph, block, upper, in_body, /* is_min */ false);
+}
+
+bool InductionVarRange::GenerateLastValuePeriodic(HInductionVarAnalysis::InductionInfo* info,
+                                                  HInductionVarAnalysis::InductionInfo* trip,
+                                                  HGraph* graph,
+                                                  HBasicBlock* block,
+                                                  /*out*/HInstruction** result,
+                                                  /*out*/bool* needs_taken_test) const {
+  DCHECK(info->induction_class == HInductionVarAnalysis::kPeriodic);
+  // Count period.
+  int32_t period = 1;
+  for (HInductionVarAnalysis::InductionInfo* p = info;
+       p->induction_class == HInductionVarAnalysis::kPeriodic;
+       p = p->op_b, ++period) {}
+  // Handle periodic(x, y) case for restricted types.
+  if (period != 2 ||
+      trip->op_a->type != Primitive::kPrimInt ||
+      (info->type != Primitive::kPrimInt && info->type != Primitive::kPrimBoolean)) {
+    return false;  // TODO: easy to generalize
+  }
+  HInstruction* x_instr = nullptr;
+  HInstruction* y_instr = nullptr;
+  HInstruction* trip_expr = nullptr;
+  if (GenerateCode(info->op_a, nullptr, graph, block, graph ? &x_instr   : nullptr, false, false) &&
+      GenerateCode(info->op_b, nullptr, graph, block, graph ? &y_instr   : nullptr, false, false) &&
+      GenerateCode(trip->op_a, nullptr, graph, block, graph ? &trip_expr : nullptr, false, false)) {
+    // During actual code generation (graph != nullptr),
+    // generate is_even ? x : y select instruction.
+    if (graph != nullptr) {
+      HInstruction* is_even = Insert(block, new (graph->GetArena()) HEqual(
+          Insert(block, new (graph->GetArena()) HAnd(
+              Primitive::kPrimInt, trip_expr, graph->GetIntConstant(1))),
+          graph->GetIntConstant(0), kNoDexPc));
+      *result = Insert(block, new (graph->GetArena()) HSelect(is_even, x_instr, y_instr, kNoDexPc));
+    }
+    // Guard select with taken test if needed.
+    if (*needs_taken_test) {
+      HInstruction* taken_test = nullptr;
+      if (!GenerateCode(
+          trip->op_b, nullptr, graph, block, graph ? &taken_test : nullptr, false, false)) {
+        return false;
+      } else if (graph != nullptr) {
+         *result = Insert(block,
+                          new (graph->GetArena()) HSelect(taken_test, *result, x_instr, kNoDexPc));
+      }
+      *needs_taken_test = false;  // taken care of
+    }
+    return true;
+  }
+  return false;
 }
 
 bool InductionVarRange::GenerateCode(HInductionVarAnalysis::InductionInfo* info,
@@ -812,6 +873,7 @@ bool InductionVarRange::GenerateCode(HInductionVarAnalysis::InductionInfo* info,
         // Invariants.
         switch (info->operation) {
           case HInductionVarAnalysis::kAdd:
+          case HInductionVarAnalysis::kXor:
           case HInductionVarAnalysis::kLT:
           case HInductionVarAnalysis::kLE:
           case HInductionVarAnalysis::kGT:
@@ -823,6 +885,8 @@ bool InductionVarRange::GenerateCode(HInductionVarAnalysis::InductionInfo* info,
                 switch (info->operation) {
                   case HInductionVarAnalysis::kAdd:
                     operation = new (graph->GetArena()) HAdd(type, opa, opb); break;
+                  case HInductionVarAnalysis::kXor:
+                    operation = new (graph->GetArena()) HXor(type, opa, opb); break;
                   case HInductionVarAnalysis::kLT:
                     operation = new (graph->GetArena()) HLessThan(opa, opb); break;
                   case HInductionVarAnalysis::kLE:

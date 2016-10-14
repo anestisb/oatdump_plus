@@ -31,6 +31,26 @@ public class Main {
     }
   }
 
+  /// CHECK-START: void Main.deadSingleLoop() loop_optimization (before)
+  /// CHECK-DAG: Phi loop:{{B\d+}} outer_loop:none
+  //
+  /// CHECK-START: void Main.deadSingleLoop() loop_optimization (after)
+  /// CHECK-NOT: Phi loop:{{B\d+}} outer_loop:none
+  static void deadSingleLoopN(int n) {
+    for (int i = 0; i < n; i++) {
+    }
+  }
+
+  /// CHECK-START: void Main.potentialInfiniteLoop(int) loop_optimization (before)
+  /// CHECK-DAG: Phi loop:{{B\d+}} outer_loop:none
+  //
+  /// CHECK-START: void Main.potentialInfiniteLoop(int) loop_optimization (after)
+  /// CHECK-DAG: Phi loop:{{B\d+}} outer_loop:none
+  static void potentialInfiniteLoop(int n) {
+    for (int i = 0; i <= n; i++) {  // loops forever when n = MAX_INT
+    }
+  }
+
   /// CHECK-START: void Main.deadNestedLoops() loop_optimization (before)
   /// CHECK-DAG: Phi loop:<<Loop:B\d+>> outer_loop:none
   /// CHECK-DAG: Phi loop:{{B\d+}}      outer_loop:<<Loop>>
@@ -160,6 +180,10 @@ public class Main {
   /// CHECK-START: int Main.closedFormInductionUp() loop_optimization (after)
   /// CHECK-NOT:               Phi    loop:{{B\d+}} outer_loop:none
   /// CHECK-DAG:               Return loop:none
+  //
+  /// CHECK-START: int Main.closedFormInductionUp() instruction_simplifier$after_bce (after)
+  /// CHECK-DAG: <<Int:i\d+>>  IntConstant 12395
+  /// CHECK-DAG:               Return [<<Int>>] loop:none
   static int closedFormInductionUp() {
     int closed = 12345;
     for (int i = 0; i < 10; i++) {
@@ -194,6 +218,10 @@ public class Main {
   /// CHECK-NOT:               Phi    loop:{{B\d+}} outer_loop:none
   /// CHECK-NOT:               Phi    loop:{{B\d+}} outer_loop:loop{{B\d+}}
   /// CHECK-DAG:               Return loop:none
+  //
+  /// CHECK-START: int Main.closedFormNested() instruction_simplifier$after_bce (after)
+  /// CHECK-DAG: <<Int:i\d+>>  IntConstant 100
+  /// CHECK-DAG:               Return [<<Int>>] loop:none
   static int closedFormNested() {
     int closed = 0;
     for (int i = 0; i < 10; i++) {
@@ -215,6 +243,10 @@ public class Main {
   /// CHECK-NOT:               Phi    loop:{{B\d+}} outer_loop:none
   /// CHECK-NOT:               Phi    loop:{{B\d+}} outer_loop:loop{{B\d+}}
   /// CHECK-DAG:               Return loop:none
+  //
+  /// CHECK-START: int Main.closedFormNestedAlt() instruction_simplifier$after_bce (after)
+  /// CHECK-DAG: <<Int:i\d+>>  IntConstant 15082
+  /// CHECK-DAG:               Return [<<Int>>] loop:none
   static int closedFormNestedAlt() {
     int closed = 12345;
     for (int i = 0; i < 17; i++) {
@@ -293,16 +325,51 @@ public class Main {
   /// CHECK-START: int Main.mainIndexReturned() loop_optimization (after)
   /// CHECK-NOT:              Phi    loop:{{B\d+}} outer_loop:none
   /// CHECK-DAG:              Return loop:none
+  //
+  /// CHECK-START: int Main.mainIndexReturned() instruction_simplifier$after_bce (after)
+  /// CHECK-DAG: <<Int:i\d+>>  IntConstant 10
+  /// CHECK-DAG:               Return [<<Int>>] loop:none
   static int mainIndexReturned() {
     int i;
     for (i = 0; i < 10; i++);
     return i;
   }
 
-  // If ever replaced by closed form, last value should be correct!
-  static int periodicReturned() {
+  /// CHECK-START: int Main.periodicReturned9() loop_optimization (before)
+  /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Phi2:i\d+>> Phi               loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:               Return [<<Phi2>>] loop:none
+  //
+  /// CHECK-START: int Main.periodicReturned9() loop_optimization (after)
+  /// CHECK-NOT:               Phi    loop:{{B\d+}} outer_loop:none
+  /// CHECK-DAG:               Return loop:none
+  //
+  /// CHECK-START: int Main.periodicReturned9() instruction_simplifier$after_bce (after)
+  /// CHECK-DAG: <<Int:i\d+>>  IntConstant 1
+  /// CHECK-DAG:               Return [<<Int>>] loop:none
+  static int periodicReturned9() {
     int k = 0;
     for (int i = 0; i < 9; i++) {
+      k = 1 - k;
+    }
+    return k;
+  }
+
+  /// CHECK-START: int Main.periodicReturned10() loop_optimization (before)
+  /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Phi2:i\d+>> Phi               loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:               Return [<<Phi2>>] loop:none
+  //
+  /// CHECK-START: int Main.periodicReturned10() loop_optimization (after)
+  /// CHECK-NOT:               Phi    loop:{{B\d+}} outer_loop:none
+  /// CHECK-DAG:               Return loop:none
+  //
+  /// CHECK-START: int Main.periodicReturned10() instruction_simplifier$after_bce (after)
+  /// CHECK-DAG: <<Int:i\d+>>  IntConstant 0
+  /// CHECK-DAG:               Return [<<Int>>] loop:none
+  static int periodicReturned10() {
+    int k = 0;
+    for (int i = 0; i < 10; i++) {
       k = 1 - k;
     }
     return k;
@@ -326,7 +393,14 @@ public class Main {
     return i;
   }
 
-  // If ever replaced by closed form, last value should be correct!
+  /// CHECK-START: int Main.periodicReturnedN(int) loop_optimization (before)
+  /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Phi2:i\d+>> Phi               loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:               Return [<<Phi2>>] loop:none
+  //
+  /// CHECK-START: int Main.periodicReturnedN(int) loop_optimization (after)
+  /// CHECK-NOT:               Phi    loop:{{B\d+}} outer_loop:none
+  /// CHECK-DAG:               Return loop:none
   static int periodicReturnedN(int n) {
     int k = 0;
     for (int i = 0; i < n; i++) {
@@ -371,6 +445,10 @@ public class Main {
   /// CHECK-START: int Main.closedFeed() loop_optimization (after)
   /// CHECK-NOT:               Phi    loop:{{B\d+}} outer_loop:none
   /// CHECK-DAG:               Return loop:none
+  //
+  /// CHECK-START: int Main.closedFeed() instruction_simplifier$after_bce (after)
+  /// CHECK-DAG: <<Int:i\d+>>  IntConstant 20
+  /// CHECK-DAG:               Return [<<Int>>] loop:none
   private static int closedFeed() {
     int closed = 0;
     for (int i = 0; i < 10; i++) {
@@ -392,6 +470,10 @@ public class Main {
   /// CHECK-START: int Main.closedLargeUp() loop_optimization (after)
   /// CHECK-NOT:               Phi    loop:B\d+ outer_loop:none
   /// CHECK-DAG:               Return loop:none
+  //
+  /// CHECK-START: int Main.closedLargeUp() instruction_simplifier$after_bce (after)
+  /// CHECK-DAG: <<Int:i\d+>>  IntConstant -10
+  /// CHECK-DAG:               Return [<<Int>>] loop:none
   private static int closedLargeUp() {
     int closed = 0;
     for (int i = 0; i < 10; i++) {
@@ -408,6 +490,10 @@ public class Main {
   /// CHECK-START: int Main.closedLargeDown() loop_optimization (after)
   /// CHECK-NOT:               Phi    loop:B\d+ outer_loop:none
   /// CHECK-DAG:               Return loop:none
+  //
+  /// CHECK-START: int Main.closedLargeDown() instruction_simplifier$after_bce (after)
+  /// CHECK-DAG: <<Int:i\d+>>  IntConstant 10
+  /// CHECK-DAG:               Return [<<Int>>] loop:none
   private static int closedLargeDown() {
     int closed = 0;
     for (int i = 0; i < 10; i++) {
@@ -427,6 +513,10 @@ public class Main {
   /// CHECK-START: int Main.waterFall() loop_optimization (after)
   /// CHECK-NOT:               Phi    loop:B\d+ outer_loop:none
   /// CHECK-DAG:               Return loop:none
+  //
+  /// CHECK-START: int Main.waterFall() instruction_simplifier$after_bce (after)
+  /// CHECK-DAG: <<Int:i\d+>>  IntConstant 50
+  /// CHECK-DAG:               Return [<<Int>>] loop:none
   private static int waterFall() {
     int i = 0;
     for (; i < 10; i++);
@@ -469,6 +559,8 @@ public class Main {
 
   public static void main(String[] args) {
     deadSingleLoop();
+    deadSingleLoopN(4);
+    potentialInfiniteLoop(4);
     deadNestedLoops();
     deadNestedAndFollowingLoops();
 
@@ -512,7 +604,8 @@ public class Main {
     }
 
     expectEquals(10, mainIndexReturned());
-    expectEquals(1, periodicReturned());
+    expectEquals(1, periodicReturned9());
+    expectEquals(0, periodicReturned10());
     expectEquals(21, getSum21());
     for (int n = -4; n < 4; n++) {
       int tc = (n <= 0) ? 0 : n;

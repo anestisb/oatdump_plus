@@ -139,6 +139,11 @@ class InductionVarRange {
     induction_analysis_->VisitLoop(loop);
   }
 
+  /**
+   * Checks if header logic of a loop terminates.
+   */
+  bool IsFinite(HLoopInformation* loop) const;
+
  private:
   /*
    * Enum used in IsConstant() request.
@@ -218,17 +223,24 @@ class InductionVarRange {
    * success. With values nullptr, the method can be used to determine if code generation
    * would be successful without generating actual code yet.
    */
-  bool GenerateCode(HInstruction* context,
-                    HInstruction* instruction,
-                    bool is_last_val,
-                    HGraph* graph,
-                    HBasicBlock* block,
-                    /*out*/ HInstruction** lower,
-                    /*out*/ HInstruction** upper,
-                    /*out*/ HInstruction** taken_test,
-                    /*out*/ int64_t* stride_value,
-                    /*out*/ bool* needs_finite_test,
-                    /*out*/ bool* needs_taken_test) const;
+  bool GenerateRangeOrLastValue(HInstruction* context,
+                                HInstruction* instruction,
+                                bool is_last_val,
+                                HGraph* graph,
+                                HBasicBlock* block,
+                                /*out*/ HInstruction** lower,
+                                /*out*/ HInstruction** upper,
+                                /*out*/ HInstruction** taken_test,
+                                /*out*/ int64_t* stride_value,
+                                /*out*/ bool* needs_finite_test,
+                                /*out*/ bool* needs_taken_test) const;
+
+  bool GenerateLastValuePeriodic(HInductionVarAnalysis::InductionInfo* info,
+                                 HInductionVarAnalysis::InductionInfo* trip,
+                                 HGraph* graph,
+                                 HBasicBlock* block,
+                                 /*out*/HInstruction** result,
+                                 /*out*/ bool* needs_taken_test) const;
 
   bool GenerateCode(HInductionVarAnalysis::InductionInfo* info,
                     HInductionVarAnalysis::InductionInfo* trip,
