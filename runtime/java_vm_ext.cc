@@ -422,14 +422,14 @@ JavaVMExt::JavaVMExt(Runtime* runtime, const RuntimeArgumentMap& runtime_options
       tracing_enabled_(runtime_options.Exists(RuntimeArgumentMap::JniTrace)
                        || VLOG_IS_ON(third_party_jni)),
       trace_(runtime_options.GetOrDefault(RuntimeArgumentMap::JniTrace)),
-      globals_lock_("JNI global reference table lock"),
       globals_(gGlobalsInitial, gGlobalsMax, kGlobal),
       libraries_(new Libraries),
       unchecked_functions_(&gJniInvokeInterface),
-      weak_globals_lock_("JNI weak global reference table lock", kJniWeakGlobalsLock),
       weak_globals_(kWeakGlobalsInitial, kWeakGlobalsMax, kWeakGlobal),
       allow_accessing_weak_globals_(true),
-      weak_globals_add_condition_("weak globals add condition", weak_globals_lock_),
+      weak_globals_add_condition_("weak globals add condition",
+                                  (CHECK(Locks::jni_weak_globals_lock_ != nullptr),
+                                   *Locks::jni_weak_globals_lock_)),
       env_hooks_() {
   functions = unchecked_functions_;
   SetCheckJniEnabled(runtime_options.Exists(RuntimeArgumentMap::CheckJni));
@@ -537,7 +537,7 @@ jobject JavaVMExt::AddGlobalRef(Thread* self, ObjPtr<mirror::Object> obj) {
   if (obj == nullptr) {
     return nullptr;
   }
-  WriterMutexLock mu(self, globals_lock_);
+  WriterMutexLock mu(self, *Locks::jni_globals_lock_);
   IndirectRef ref = globals_.Add(IRT_FIRST_SEGMENT, obj);
   return reinterpret_cast<jobject>(ref);
 }
@@ -546,7 +546,7 @@ jweak JavaVMExt::AddWeakGlobalRef(Thread* self, ObjPtr<mirror::Object> obj) {
   if (obj == nullptr) {
     return nullptr;
   }
-  MutexLock mu(self, weak_globals_lock_);
+  MutexLock mu(self, *Locks::jni_weak_globals_lock_);
   while (UNLIKELY(!MayAccessWeakGlobals(self))) {
     weak_globals_add_condition_.WaitHoldingLocks(self);
   }
@@ -558,7 +558,7 @@ void JavaVMExt::DeleteGlobalRef(Thread* self, jobject obj) {
   if (obj == nullptr) {
     return;
   }
-  WriterMutexLock mu(self, globals_lock_);
+  WriterMutexLock mu(self, *Locks::jni_globals_lock_);
   if (!globals_.Remove(IRT_FIRST_SEGMENT, obj)) {
     LOG(WARNING) << "JNI WARNING: DeleteGlobalRef(" << obj << ") "
                  << "failed to find entry";
@@ -569,7 +569,7 @@ void JavaVMExt::DeleteWeakGlobalRef(Thread* self, jweak obj) {
   if (obj == nullptr) {
     return;
   }
-  MutexLock mu(self, weak_globals_lock_);
+  MutexLock mu(self, *Locks::jni_weak_globals_lock_);
   if (!weak_globals_.Remove(IRT_FIRST_SEGMENT, obj)) {
     LOG(WARNING) << "JNI WARNING: DeleteWeakGlobalRef(" << obj << ") "
                  << "failed to find entry";
@@ -597,11 +597,11 @@ void JavaVMExt::DumpForSigQuit(std::ostream& os) {
   }
   Thread* self = Thread::Current();
   {
-    ReaderMutexLock mu(self, globals_lock_);
+    ReaderMutexLock mu(self, *Locks::jni_globals_lock_);
     os << "; globals=" << globals_.Capacity();
   }
   {
-    MutexLock mu(self, weak_globals_lock_);
+    MutexLock mu(self, *Locks::jni_weak_globals_lock_);
     if (weak_globals_.Capacity() > 0) {
       os << " (plus " << weak_globals_.Capacity() << " weak)";
     }
@@ -617,7 +617,7 @@ void JavaVMExt::DumpForSigQuit(std::ostream& os) {
 void JavaVMExt::DisallowNewWeakGlobals() {
   CHECK(!kUseReadBarrier);
   Thread* const self = Thread::Current();
-  MutexLock mu(self, weak_globals_lock_);
+  MutexLock mu(self, *Locks::jni_weak_globals_lock_);
   // DisallowNewWeakGlobals is only called by CMS during the pause. It is required to have the
   // mutator lock exclusively held so that we don't have any threads in the middle of
   // DecodeWeakGlobal.
@@ -628,7 +628,7 @@ void JavaVMExt::DisallowNewWeakGlobals() {
 void JavaVMExt::AllowNewWeakGlobals() {
   CHECK(!kUseReadBarrier);
   Thread* self = Thread::Current();
-  MutexLock mu(self, weak_globals_lock_);
+  MutexLock mu(self, *Locks::jni_weak_globals_lock_);
   allow_accessing_weak_globals_.StoreSequentiallyConsistent(true);
   weak_globals_add_condition_.Broadcast(self);
 }
@@ -636,7 +636,7 @@ void JavaVMExt::AllowNewWeakGlobals() {
 void JavaVMExt::BroadcastForNewWeakGlobals() {
   CHECK(kUseReadBarrier);
   Thread* self = Thread::Current();
-  MutexLock mu(self, weak_globals_lock_);
+  MutexLock mu(self, *Locks::jni_weak_globals_lock_);
   weak_globals_add_condition_.Broadcast(self);
 }
 
@@ -645,7 +645,7 @@ ObjPtr<mirror::Object> JavaVMExt::DecodeGlobal(IndirectRef ref) {
 }
 
 void JavaVMExt::UpdateGlobal(Thread* self, IndirectRef ref, ObjPtr<mirror::Object> result) {
-  WriterMutexLock mu(self, globals_lock_);
+  WriterMutexLock mu(self, *Locks::jni_globals_lock_);
   globals_.Update(ref, result);
 }
 
@@ -671,13 +671,13 @@ ObjPtr<mirror::Object> JavaVMExt::DecodeWeakGlobal(Thread* self, IndirectRef ref
   if (LIKELY(MayAccessWeakGlobalsUnlocked(self))) {
     return weak_globals_.SynchronizedGet(ref);
   }
-  MutexLock mu(self, weak_globals_lock_);
+  MutexLock mu(self, *Locks::jni_weak_globals_lock_);
   return DecodeWeakGlobalLocked(self, ref);
 }
 
 ObjPtr<mirror::Object> JavaVMExt::DecodeWeakGlobalLocked(Thread* self, IndirectRef ref) {
   if (kDebugLocking) {
-    weak_globals_lock_.AssertHeld(self);
+    Locks::jni_weak_globals_lock_->AssertHeld(self);
   }
   while (UNLIKELY(!MayAccessWeakGlobals(self))) {
     weak_globals_add_condition_.WaitHoldingLocks(self);
@@ -700,7 +700,7 @@ ObjPtr<mirror::Object> JavaVMExt::DecodeWeakGlobalDuringShutdown(Thread* self, I
 
 bool JavaVMExt::IsWeakGlobalCleared(Thread* self, IndirectRef ref) {
   DCHECK_EQ(GetIndirectRefKind(ref), kWeakGlobal);
-  MutexLock mu(self, weak_globals_lock_);
+  MutexLock mu(self, *Locks::jni_weak_globals_lock_);
   while (UNLIKELY(!MayAccessWeakGlobals(self))) {
     weak_globals_add_condition_.WaitHoldingLocks(self);
   }
@@ -712,18 +712,18 @@ bool JavaVMExt::IsWeakGlobalCleared(Thread* self, IndirectRef ref) {
 }
 
 void JavaVMExt::UpdateWeakGlobal(Thread* self, IndirectRef ref, ObjPtr<mirror::Object> result) {
-  MutexLock mu(self, weak_globals_lock_);
+  MutexLock mu(self, *Locks::jni_weak_globals_lock_);
   weak_globals_.Update(ref, result);
 }
 
 void JavaVMExt::DumpReferenceTables(std::ostream& os) {
   Thread* self = Thread::Current();
   {
-    ReaderMutexLock mu(self, globals_lock_);
+    ReaderMutexLock mu(self, *Locks::jni_globals_lock_);
     globals_.Dump(os);
   }
   {
-    MutexLock mu(self, weak_globals_lock_);
+    MutexLock mu(self, *Locks::jni_weak_globals_lock_);
     weak_globals_.Dump(os);
   }
 }
@@ -920,7 +920,7 @@ void* JavaVMExt::FindCodeForNativeMethod(ArtMethod* m) {
 }
 
 void JavaVMExt::SweepJniWeakGlobals(IsMarkedVisitor* visitor) {
-  MutexLock mu(Thread::Current(), weak_globals_lock_);
+  MutexLock mu(Thread::Current(), *Locks::jni_weak_globals_lock_);
   Runtime* const runtime = Runtime::Current();
   for (auto* entry : weak_globals_) {
     // Need to skip null here to distinguish between null entries and cleared weak ref entries.
@@ -937,13 +937,13 @@ void JavaVMExt::SweepJniWeakGlobals(IsMarkedVisitor* visitor) {
 }
 
 void JavaVMExt::TrimGlobals() {
-  WriterMutexLock mu(Thread::Current(), globals_lock_);
+  WriterMutexLock mu(Thread::Current(), *Locks::jni_globals_lock_);
   globals_.Trim();
 }
 
 void JavaVMExt::VisitRoots(RootVisitor* visitor) {
   Thread* self = Thread::Current();
-  ReaderMutexLock mu(self, globals_lock_);
+  ReaderMutexLock mu(self, *Locks::jni_globals_lock_);
   globals_.VisitRoots(visitor, RootInfo(kRootJNIGlobal));
   // The weak_globals table is visited by the GC itself (because it mutates the table).
 }

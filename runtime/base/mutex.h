@@ -68,6 +68,7 @@ enum LockLevel {
   kMarkSweepMarkStackLock,
   kTransactionLogLock,
   kJniWeakGlobalsLock,
+  kJniGlobalsLock,
   kReferenceQueueSoftReferencesLock,
   kReferenceQueuePhantomReferencesLock,
   kReferenceQueueFinalizerReferencesLock,
@@ -678,8 +679,14 @@ class Locks {
   // Guards soft references queue.
   static Mutex* reference_queue_soft_references_lock_ ACQUIRED_AFTER(reference_queue_phantom_references_lock_);
 
+  // Guard accesses to the JNI Global Reference table.
+  static ReaderWriterMutex* jni_globals_lock_ ACQUIRED_AFTER(reference_queue_soft_references_lock_);
+
+  // Guard accesses to the JNI Weak Global Reference table.
+  static Mutex* jni_weak_globals_lock_ ACQUIRED_AFTER(jni_globals_lock_);
+
   // Have an exclusive aborting thread.
-  static Mutex* abort_lock_ ACQUIRED_AFTER(reference_queue_soft_references_lock_);
+  static Mutex* abort_lock_ ACQUIRED_AFTER(jni_weak_globals_lock_);
 
   // Allow mutual exclusion when manipulating Thread::suspend_count_.
   // TODO: Does the trade-off of a per-thread lock make sense?

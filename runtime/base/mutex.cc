@@ -64,6 +64,8 @@ Mutex* Locks::thread_suspend_count_lock_ = nullptr;
 Mutex* Locks::trace_lock_ = nullptr;
 Mutex* Locks::unexpected_signal_lock_ = nullptr;
 Uninterruptible Roles::uninterruptible_;
+ReaderWriterMutex* Locks::jni_globals_lock_ = nullptr;
+Mutex* Locks::jni_weak_globals_lock_ = nullptr;
 
 struct AllMutexData {
   // A guard for all_mutexes_ that's not a mutex (Mutexes must CAS to acquire and busy wait).
@@ -1087,6 +1089,15 @@ void Locks::Init() {
     UPDATE_CURRENT_LOCK_LEVEL(kReferenceQueueSoftReferencesLock);
     DCHECK(reference_queue_soft_references_lock_ == nullptr);
     reference_queue_soft_references_lock_ = new Mutex("ReferenceQueue soft references lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kJniGlobalsLock);
+    DCHECK(jni_globals_lock_ == nullptr);
+    jni_globals_lock_ =
+        new ReaderWriterMutex("JNI global reference table lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kJniWeakGlobalsLock);
+    DCHECK(jni_weak_globals_lock_ == nullptr);
+    jni_weak_globals_lock_ = new Mutex("JNI weak global reference table lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kAbortLock);
     DCHECK(abort_lock_ == nullptr);
