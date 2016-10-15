@@ -249,6 +249,7 @@ art_cc_defaults {
         "904-object-allocation/tracking.cc",
         "905-object-free/tracking_free.cc",
         "906-iterate-heap/iterate_heap.cc",
+        "907-get-loaded-classes/get_loaded_classes.cc",
     ],
     shared_libs: [
         "libbase",
