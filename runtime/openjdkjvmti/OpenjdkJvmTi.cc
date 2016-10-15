@@ -476,7 +476,8 @@ class JvmtiFunctions {
   }
 
   static jvmtiError GetLoadedClasses(jvmtiEnv* env, jint* class_count_ptr, jclass** classes_ptr) {
-    return ERR(NOT_IMPLEMENTED);
+    HeapUtil heap_util(&gObjectTagTable);
+    return heap_util.GetLoadedClasses(env, class_count_ptr, classes_ptr);
   }
 
   static jvmtiError GetClassLoaderClasses(jvmtiEnv* env,

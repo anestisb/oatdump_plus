@@ -19,7 +19,9 @@
 #include "art_jvmti.h"
 #include "base/macros.h"
 #include "base/mutex.h"
+#include "class_linker.h"
 #include "gc/heap.h"
+#include "jni_env_ext.h"
 #include "mirror/class.h"
 #include "object_callbacks.h"
 #include "object_tagging.h"
@@ -159,6 +161,50 @@ jvmtiError HeapUtil::IterateThroughHeap(jvmtiEnv* env ATTRIBUTE_UNUSED,
                               user_data);
 
   art::Runtime::Current()->GetHeap()->VisitObjects(IterateThroughHeapObjectCallback, &ithd);
+
+  return ERR(NONE);
+}
+
+jvmtiError HeapUtil::GetLoadedClasses(jvmtiEnv* env,
+                                      jint* class_count_ptr,
+                                      jclass** classes_ptr) {
+  if (class_count_ptr == nullptr || classes_ptr == nullptr) {
+    return ERR(NULL_POINTER);
+  }
+
+  class ReportClassVisitor : public art::ClassVisitor {
+   public:
+    explicit ReportClassVisitor(art::Thread* self) : self_(self) {}
+
+    bool operator()(art::mirror::Class* klass) OVERRIDE REQUIRES_SHARED(art::Locks::mutator_lock_) {
+      classes_.push_back(self_->GetJniEnv()->AddLocalReference<jclass>(klass));
+      return true;
+    }
+
+    art::Thread* self_;
+    std::vector<jclass> classes_;
+  };
+
+  art::Thread* self = art::Thread::Current();
+  ReportClassVisitor rcv(self);
+  {
+    art::ScopedObjectAccess soa(self);
+    art::Runtime::Current()->GetClassLinker()->VisitClasses(&rcv);
+  }
+
+  size_t size = rcv.classes_.size();
+  jclass* classes = nullptr;
+  jvmtiError alloc_ret = env->Allocate(static_cast<jlong>(size * sizeof(jclass)),
+                                       reinterpret_cast<unsigned char**>(&classes));
+  if (alloc_ret != ERR(NONE)) {
+    return alloc_ret;
+  }
+
+  for (size_t i = 0; i < size; ++i) {
+    classes[i] = rcv.classes_[i];
+  }
+  *classes_ptr = classes;
+  *class_count_ptr = static_cast<jint>(size);
 
   return ERR(NONE);
 }

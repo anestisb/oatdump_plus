@@ -28,6 +28,8 @@ class HeapUtil {
   explicit HeapUtil(ObjectTagTable* tags) : tags_(tags) {
   }
 
+  jvmtiError GetLoadedClasses(jvmtiEnv* env, jint* class_count_ptr, jclass** classes_ptr);
+
   jvmtiError IterateThroughHeap(jvmtiEnv* env,
                                 jint heap_filter,
                                 jclass klass,
