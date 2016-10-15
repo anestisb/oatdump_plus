@@ -150,8 +150,11 @@ class SetLengthToUsableSizeVisitor {
 };
 
 template <bool kIsInstrumented, bool kFillUsable>
-inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_count,
-                           size_t component_size_shift, gc::AllocatorType allocator_type) {
+inline Array* Array::Alloc(Thread* self,
+                           ObjPtr<Class> array_class,
+                           int32_t component_count,
+                           size_t component_size_shift,
+                           gc::AllocatorType allocator_type) {
   DCHECK(allocator_type != gc::kAllocatorTypeLOS);
   DCHECK(array_class != nullptr);
   DCHECK(array_class->IsArrayClass());
@@ -204,7 +207,9 @@ inline void PrimitiveArray<T>::VisitRoots(RootVisitor* visitor) {
 
 template<typename T>
 inline PrimitiveArray<T>* PrimitiveArray<T>::Alloc(Thread* self, size_t length) {
-  Array* raw_array = Array::Alloc<true>(self, GetArrayClass(), length,
+  Array* raw_array = Array::Alloc<true>(self,
+                                        GetArrayClass(),
+                                        length,
                                         ComponentSizeShiftWidth(sizeof(T)),
                                         Runtime::Current()->GetHeap()->GetCurrentAllocator());
   return down_cast<PrimitiveArray<T>*>(raw_array);
@@ -275,7 +280,9 @@ static inline void ArrayForwardCopy(T* d, const T* s, int32_t count) {
 }
 
 template<class T>
-inline void PrimitiveArray<T>::Memmove(int32_t dst_pos, PrimitiveArray<T>* src, int32_t src_pos,
+inline void PrimitiveArray<T>::Memmove(int32_t dst_pos,
+                                       ObjPtr<PrimitiveArray<T>> src,
+                                       int32_t src_pos,
                                        int32_t count) {
   if (UNLIKELY(count == 0)) {
     return;
@@ -335,7 +342,9 @@ inline void PrimitiveArray<T>::Memmove(int32_t dst_pos, PrimitiveArray<T>* src, 
 }
 
 template<class T>
-inline void PrimitiveArray<T>::Memcpy(int32_t dst_pos, PrimitiveArray<T>* src, int32_t src_pos,
+inline void PrimitiveArray<T>::Memcpy(int32_t dst_pos,
+                                      ObjPtr<PrimitiveArray<T>> src,
+                                      int32_t src_pos,
                                       int32_t count) {
   if (UNLIKELY(count == 0)) {
     return;
@@ -413,6 +422,13 @@ inline void PointerArray::Fixup(mirror::PointerArray* dest,
       dest->SetElementPtrSize<false, true>(i, new_ptr, pointer_size);
     }
   }
+}
+
+template<typename T>
+inline void PrimitiveArray<T>::SetArrayClass(ObjPtr<Class> array_class) {
+  CHECK(array_class_.IsNull());
+  CHECK(array_class != nullptr);
+  array_class_ = GcRoot<Class>(array_class);
 }
 
 }  // namespace mirror

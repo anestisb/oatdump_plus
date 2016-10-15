@@ -220,7 +220,8 @@ class MANAGED DexCache FINAL : public Object {
 
   Class* GetResolvedType(uint32_t type_idx) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void SetResolvedType(uint32_t type_idx, Class* resolved) REQUIRES_SHARED(Locks::mutator_lock_);
+  void SetResolvedType(uint32_t type_idx, ObjPtr<Class> resolved)
+      REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE ArtMethod* GetResolvedMethod(uint32_t method_idx, PointerSize ptr_size)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -337,7 +338,7 @@ class MANAGED DexCache FINAL : public Object {
             VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
             ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
             typename Visitor>
-  void VisitReferences(mirror::Class* klass, const Visitor& visitor)
+  void VisitReferences(ObjPtr<mirror::Class> klass, const Visitor& visitor)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_);
 
   HeapReference<Object> dex_;

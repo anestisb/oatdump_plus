@@ -66,7 +66,9 @@ class RememberedSetReferenceVisitor {
       : collector_(collector), target_space_(target_space),
         contains_reference_to_target_space_(contains_reference_to_target_space) {}
 
-  void operator()(mirror::Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<mirror::Object> obj,
+                  MemberOffset offset,
+                  bool is_static ATTRIBUTE_UNUSED) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     DCHECK(obj != nullptr);
     mirror::HeapReference<mirror::Object>* ref_ptr = obj->GetFieldObjectReferenceAddr(offset);
@@ -77,7 +79,7 @@ class RememberedSetReferenceVisitor {
     }
   }
 
-  void operator()(mirror::Class* klass, mirror::Reference* ref) const
+  void operator()(ObjPtr<mirror::Class> klass, ObjPtr<mirror::Reference> ref) const
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_) {
     if (target_space_->HasAddress(ref->GetReferent())) {
       *contains_reference_to_target_space_ = true;
@@ -115,7 +117,7 @@ class RememberedSetObjectVisitor {
       : collector_(collector), target_space_(target_space),
         contains_reference_to_target_space_(contains_reference_to_target_space) {}
 
-  void operator()(mirror::Object* obj) const REQUIRES(Locks::heap_bitmap_lock_)
+  void operator()(ObjPtr<mirror::Object> obj) const REQUIRES(Locks::heap_bitmap_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     RememberedSetReferenceVisitor visitor(target_space_, contains_reference_to_target_space_,
                                           collector_);

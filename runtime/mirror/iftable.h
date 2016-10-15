@@ -31,7 +31,7 @@ class MANAGED IfTable FINAL : public ObjectArray<Object> {
     return interface;
   }
 
-  ALWAYS_INLINE void SetInterface(int32_t i, Class* interface)
+  ALWAYS_INLINE void SetInterface(int32_t i, ObjPtr<Class> interface)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
@@ -51,12 +51,7 @@ class MANAGED IfTable FINAL : public ObjectArray<Object> {
     return method_array == nullptr ? 0u : method_array->GetLength();
   }
 
-  void SetMethodArray(int32_t i, PointerArray* arr) REQUIRES_SHARED(Locks::mutator_lock_) {
-    DCHECK(arr != nullptr);
-    auto idx = i * kMax + kMethodArray;
-    DCHECK(Get(idx) == nullptr);
-    Set<false>(idx, arr);
-  }
+  void SetMethodArray(int32_t i, ObjPtr<PointerArray> arr) REQUIRES_SHARED(Locks::mutator_lock_);
 
   size_t Count() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetLength() / kMax;

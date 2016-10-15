@@ -392,8 +392,8 @@ inline ShortArray* Object::AsShortSizedArray() {
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline bool Object::IsIntArray() {
   constexpr auto kNewFlags = static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis);
-  mirror::Class* klass = GetClass<kVerifyFlags, kReadBarrierOption>();
-  mirror::Class* component_type = klass->GetComponentType<kVerifyFlags, kReadBarrierOption>();
+  ObjPtr<Class> klass = GetClass<kVerifyFlags, kReadBarrierOption>();
+  ObjPtr<Class> component_type = klass->GetComponentType<kVerifyFlags, kReadBarrierOption>();
   return component_type != nullptr && component_type->template IsPrimitiveInt<kNewFlags>();
 }
 
@@ -406,8 +406,8 @@ inline IntArray* Object::AsIntArray() {
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption>
 inline bool Object::IsLongArray() {
   constexpr auto kNewFlags = static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis);
-  mirror::Class* klass = GetClass<kVerifyFlags, kReadBarrierOption>();
-  mirror::Class* component_type = klass->GetComponentType<kVerifyFlags, kReadBarrierOption>();
+  ObjPtr<Class> klass = GetClass<kVerifyFlags, kReadBarrierOption>();
+  ObjPtr<Class> component_type = klass->GetComponentType<kVerifyFlags, kReadBarrierOption>();
   return component_type != nullptr && component_type->template IsPrimitiveLong<kNewFlags>();
 }
 
@@ -1117,7 +1117,7 @@ inline void Object::VisitFieldsReferences(uint32_t ref_offsets, const Visitor& v
     // There is no reference offset bitmap. In the non-static case, walk up the class
     // inheritance hierarchy and find reference offsets the hard way. In the static case, just
     // consider this class.
-    for (mirror::Class* klass = kIsStatic
+    for (ObjPtr<Class> klass = kIsStatic
             ? AsClass<kVerifyFlags, kReadBarrierOption>()
             : GetClass<kVerifyFlags, kReadBarrierOption>();
         klass != nullptr;
@@ -1146,13 +1146,13 @@ inline void Object::VisitFieldsReferences(uint32_t ref_offsets, const Visitor& v
 }
 
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption, typename Visitor>
-inline void Object::VisitInstanceFieldsReferences(mirror::Class* klass, const Visitor& visitor) {
+inline void Object::VisitInstanceFieldsReferences(ObjPtr<Class> klass, const Visitor& visitor) {
   VisitFieldsReferences<false, kVerifyFlags, kReadBarrierOption>(
       klass->GetReferenceInstanceOffsets<kVerifyFlags>(), visitor);
 }
 
 template<VerifyObjectFlags kVerifyFlags, ReadBarrierOption kReadBarrierOption, typename Visitor>
-inline void Object::VisitStaticFieldsReferences(mirror::Class* klass, const Visitor& visitor) {
+inline void Object::VisitStaticFieldsReferences(ObjPtr<Class> klass, const Visitor& visitor) {
   DCHECK(!klass->IsTemp());
   klass->VisitFieldsReferences<true, kVerifyFlags, kReadBarrierOption>(0, visitor);
 }
@@ -1186,7 +1186,7 @@ template <bool kVisitNativeRoots,
           typename JavaLangRefVisitor>
 inline void Object::VisitReferences(const Visitor& visitor,
                                     const JavaLangRefVisitor& ref_visitor) {
-  mirror::Class* klass = GetClass<kVerifyFlags, kReadBarrierOption>();
+  ObjPtr<Class> klass = GetClass<kVerifyFlags, kReadBarrierOption>();
   visitor(this, ClassOffset(), false);
   const uint32_t class_flags = klass->GetClassFlags<kVerifyNone>();
   if (LIKELY(class_flags == kClassFlagNormal)) {
@@ -1201,7 +1201,7 @@ inline void Object::VisitReferences(const Visitor& visitor,
       DCHECK(!klass->IsStringClass());
       if (class_flags == kClassFlagClass) {
         DCHECK((klass->IsClassClass<kVerifyFlags, kReadBarrierOption>()));
-        mirror::Class* as_klass = AsClass<kVerifyNone, kReadBarrierOption>();
+        ObjPtr<Class> as_klass = AsClass<kVerifyNone, kReadBarrierOption>();
         as_klass->VisitReferences<kVisitNativeRoots, kVerifyFlags, kReadBarrierOption>(klass,
                                                                                        visitor);
       } else if (class_flags == kClassFlagObjectArray) {
@@ -1228,7 +1228,7 @@ inline void Object::VisitReferences(const Visitor& visitor,
       // actual string instances.
       if (!klass->IsStringClass()) {
         size_t total_reference_instance_fields = 0;
-        mirror::Class* super_class = klass;
+        ObjPtr<Class> super_class = klass;
         do {
           total_reference_instance_fields += super_class->NumReferenceInstanceFields();
           super_class = super_class->GetSuperClass<kVerifyFlags, kReadBarrierOption>();

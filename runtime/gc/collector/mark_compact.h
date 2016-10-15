@@ -122,7 +122,7 @@ class MarkCompact : public GarbageCollector {
       OVERRIDE REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
   // Schedules an unmarked object for reference processing.
-  void DelayReferenceReferent(mirror::Class* klass, mirror::Reference* reference)
+  void DelayReferenceReferent(ObjPtr<mirror::Class> klass, ObjPtr<mirror::Reference> reference)
       REQUIRES_SHARED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
  protected:

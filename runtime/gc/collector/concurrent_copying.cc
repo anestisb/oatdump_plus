@@ -354,14 +354,14 @@ class ConcurrentCopying::VerifyGrayImmuneObjectsVisitor {
   explicit VerifyGrayImmuneObjectsVisitor(ConcurrentCopying* collector)
       : collector_(collector) {}
 
-  void operator()(mirror::Object* obj, MemberOffset offset, bool /* is_static */)
+  void operator()(ObjPtr<mirror::Object> obj, MemberOffset offset, bool /* is_static */)
       const ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES_SHARED(Locks::heap_bitmap_lock_) {
     CheckReference(obj->GetFieldObject<mirror::Object, kVerifyNone, kWithoutReadBarrier>(offset),
                    obj, offset);
   }
 
-  void operator()(mirror::Class* klass, mirror::Reference* ref) const
+  void operator()(ObjPtr<mirror::Class> klass, ObjPtr<mirror::Reference> ref) const
       REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE {
     CHECK(klass->IsTypeOfReferenceClass());
     CheckReference(ref->GetReferent<kWithoutReadBarrier>(),
@@ -386,13 +386,15 @@ class ConcurrentCopying::VerifyGrayImmuneObjectsVisitor {
  private:
   ConcurrentCopying* const collector_;
 
-  void CheckReference(mirror::Object* ref, mirror::Object* holder, MemberOffset offset) const
+  void CheckReference(ObjPtr<mirror::Object> ref,
+                      ObjPtr<mirror::Object> holder,
+                      MemberOffset offset) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     if (ref != nullptr) {
-      if (!collector_->immune_spaces_.ContainsObject(ref)) {
+      if (!collector_->immune_spaces_.ContainsObject(ref.Ptr())) {
         // Not immune, must be a zygote large object.
         CHECK(Runtime::Current()->GetHeap()->GetLargeObjectsSpace()->IsZygoteLargeObject(
-            Thread::Current(), ref))
+            Thread::Current(), ref.Ptr()))
             << "Non gray object references non immune, non zygote large object "<< ref << " "
             << PrettyTypeOf(ref) << " in holder " << holder << " " << PrettyTypeOf(holder)
             << " offset=" << offset.Uint32Value();
@@ -969,14 +971,17 @@ class ConcurrentCopying::VerifyNoFromSpaceRefsFieldVisitor {
   explicit VerifyNoFromSpaceRefsFieldVisitor(ConcurrentCopying* collector)
       : collector_(collector) {}
 
-  void operator()(mirror::Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<mirror::Object> obj,
+                  MemberOffset offset,
+                  bool is_static ATTRIBUTE_UNUSED) const
       REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE {
     mirror::Object* ref =
         obj->GetFieldObject<mirror::Object, kDefaultVerifyFlags, kWithoutReadBarrier>(offset);
     VerifyNoFromSpaceRefsVisitor visitor(collector_);
     visitor(ref);
   }
-  void operator()(mirror::Class* klass, mirror::Reference* ref) const
+  void operator()(ObjPtr<mirror::Class> klass,
+                  ObjPtr<mirror::Reference> ref) const
       REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE {
     CHECK(klass->IsTypeOfReferenceClass());
     this->operator()(ref, mirror::Reference::ReferentOffset(), false);
@@ -1091,14 +1096,16 @@ class ConcurrentCopying::AssertToSpaceInvariantFieldVisitor {
   explicit AssertToSpaceInvariantFieldVisitor(ConcurrentCopying* collector)
       : collector_(collector) {}
 
-  void operator()(mirror::Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<mirror::Object> obj,
+                  MemberOffset offset,
+                  bool is_static ATTRIBUTE_UNUSED) const
       REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE {
     mirror::Object* ref =
         obj->GetFieldObject<mirror::Object, kDefaultVerifyFlags, kWithoutReadBarrier>(offset);
     AssertToSpaceInvariantRefsVisitor visitor(collector_);
     visitor(ref);
   }
-  void operator()(mirror::Class* klass, mirror::Reference* ref ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<mirror::Class> klass, ObjPtr<mirror::Reference> ref ATTRIBUTE_UNUSED) const
       REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE {
     CHECK(klass->IsTypeOfReferenceClass());
   }
@@ -1780,13 +1787,13 @@ class ConcurrentCopying::RefFieldsVisitor {
   explicit RefFieldsVisitor(ConcurrentCopying* collector)
       : collector_(collector) {}
 
-  void operator()(mirror::Object* obj, MemberOffset offset, bool /* is_static */)
+  void operator()(ObjPtr<mirror::Object> obj, MemberOffset offset, bool /* is_static */)
       const ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES_SHARED(Locks::heap_bitmap_lock_) {
-    collector_->Process(obj, offset);
+    collector_->Process(obj.Ptr(), offset);
   }
 
-  void operator()(mirror::Class* klass, mirror::Reference* ref) const
+  void operator()(ObjPtr<mirror::Class> klass, ObjPtr<mirror::Reference> ref) const
       REQUIRES_SHARED(Locks::mutator_lock_) ALWAYS_INLINE {
     CHECK(klass->IsTypeOfReferenceClass());
     collector_->DelayReferenceReferent(klass, ref);
@@ -2377,7 +2384,8 @@ mirror::Object* ConcurrentCopying::MarkObject(mirror::Object* from_ref) {
   return Mark(from_ref);
 }
 
-void ConcurrentCopying::DelayReferenceReferent(mirror::Class* klass, mirror::Reference* reference) {
+void ConcurrentCopying::DelayReferenceReferent(ObjPtr<mirror::Class> klass,
+                                               ObjPtr<mirror::Reference> reference) {
   heap_->GetReferenceProcessor()->DelayReferenceReferent(klass, reference, this);
 }
 
