@@ -679,7 +679,8 @@ void SemiSpace::SweepLargeObjects(bool swap_bitmaps) {
 
 // Process the "referent" field in a java.lang.ref.Reference.  If the referent has not yet been
 // marked, put it on the appropriate list in the heap for later processing.
-void SemiSpace::DelayReferenceReferent(mirror::Class* klass, mirror::Reference* reference) {
+void SemiSpace::DelayReferenceReferent(ObjPtr<mirror::Class> klass,
+                                       ObjPtr<mirror::Reference> reference) {
   heap_->GetReferenceProcessor()->DelayReferenceReferent(klass, reference, this);
 }
 
@@ -687,13 +688,13 @@ class SemiSpace::MarkObjectVisitor {
  public:
   explicit MarkObjectVisitor(SemiSpace* collector) : collector_(collector) {}
 
-  void operator()(Object* obj, MemberOffset offset, bool /* is_static */) const ALWAYS_INLINE
+  void operator()(ObjPtr<Object> obj, MemberOffset offset, bool /* is_static */) const ALWAYS_INLINE
       REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     // Object was already verified when we scanned it.
     collector_->MarkObject(obj->GetFieldObjectReferenceAddr<kVerifyNone>(offset));
   }
 
-  void operator()(mirror::Class* klass, mirror::Reference* ref) const
+  void operator()(ObjPtr<mirror::Class> klass, ObjPtr<mirror::Reference> ref) const
       REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     collector_->DelayReferenceReferent(klass, ref);
   }

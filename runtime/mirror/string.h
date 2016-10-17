@@ -146,7 +146,7 @@ class MANAGED String FINAL : public Object {
   bool Equals(const StringPiece& modified_utf8)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  bool Equals(String* that) REQUIRES_SHARED(Locks::mutator_lock_);
+  bool Equals(ObjPtr<String> that) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Compare UTF-16 code point values not in a locale-sensitive manner
   int Compare(int32_t utf16_length, const char* utf8_data_in);
@@ -165,7 +165,7 @@ class MANAGED String FINAL : public Object {
   int32_t FastIndexOf(MemoryType* chars, int32_t ch, int32_t start)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  int32_t CompareTo(String* other) REQUIRES_SHARED(Locks::mutator_lock_);
+  int32_t CompareTo(ObjPtr<String> other) REQUIRES_SHARED(Locks::mutator_lock_);
 
   CharArray* ToCharArray(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
@@ -200,7 +200,7 @@ class MANAGED String FINAL : public Object {
     return java_lang_String_.Read();
   }
 
-  static void SetClass(Class* java_lang_String) REQUIRES_SHARED(Locks::mutator_lock_);
+  static void SetClass(ObjPtr<Class> java_lang_String) REQUIRES_SHARED(Locks::mutator_lock_);
   static void ResetClass() REQUIRES_SHARED(Locks::mutator_lock_);
   static void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 

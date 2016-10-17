@@ -1134,6 +1134,7 @@ static void MaybeAddToImageClasses(Handle<mirror::Class> c,
     VLOG(compiler) << "Adding " << descriptor << " to image classes";
     for (size_t i = 0; i < klass->NumDirectInterfaces(); ++i) {
       StackHandleScope<1> hs2(self);
+      // May cause thread suspension.
       MaybeAddToImageClasses(hs2.NewHandle(mirror::Class::GetDirectInterface(self, klass, i)),
                              image_classes);
     }
@@ -1153,15 +1154,14 @@ static void MaybeAddToImageClasses(Handle<mirror::Class> c,
 // Note: we can use object pointers because we suspend all threads.
 class ClinitImageUpdate {
  public:
-  static ClinitImageUpdate* Create(std::unordered_set<std::string>* image_class_descriptors,
-                                   Thread* self, ClassLinker* linker, std::string* error_msg) {
-    std::unique_ptr<ClinitImageUpdate> res(new ClinitImageUpdate(image_class_descriptors, self,
+  static ClinitImageUpdate* Create(VariableSizedHandleScope& hs,
+                                   std::unordered_set<std::string>* image_class_descriptors,
+                                   Thread* self,
+                                   ClassLinker* linker) {
+    std::unique_ptr<ClinitImageUpdate> res(new ClinitImageUpdate(hs,
+                                                                 image_class_descriptors,
+                                                                 self,
                                                                  linker));
-    if (res->dex_cache_class_ == nullptr) {
-      *error_msg = "Could not find DexCache class.";
-      return nullptr;
-    }
-
     return res.release();
   }
 
@@ -1171,7 +1171,9 @@ class ClinitImageUpdate {
   }
 
   // Visitor for VisitReferences.
-  void operator()(mirror::Object* object, MemberOffset field_offset, bool /* is_static */) const
+  void operator()(ObjPtr<mirror::Object> object,
+                  MemberOffset field_offset,
+                  bool /* is_static */) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     mirror::Object* ref = object->GetFieldObject<mirror::Object>(field_offset);
     if (ref != nullptr) {
@@ -1180,8 +1182,8 @@ class ClinitImageUpdate {
   }
 
   // java.lang.Reference visitor for VisitReferences.
-  void operator()(mirror::Class* klass ATTRIBUTE_UNUSED, mirror::Reference* ref ATTRIBUTE_UNUSED)
-      const {}
+  void operator()(ObjPtr<mirror::Class> klass ATTRIBUTE_UNUSED,
+                  ObjPtr<mirror::Reference> ref ATTRIBUTE_UNUSED) const {}
 
   // Ignore class native roots.
   void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED)
@@ -1192,6 +1194,9 @@ class ClinitImageUpdate {
     // Use the initial classes as roots for a search.
     for (mirror::Class* klass_root : image_classes_) {
       VisitClinitClassesObject(klass_root);
+    }
+    for (Handle<mirror::Class> h_klass : to_insert_) {
+      MaybeAddToImageClasses(h_klass, image_class_descriptors_);
     }
   }
 
@@ -1219,19 +1224,18 @@ class ClinitImageUpdate {
     ClinitImageUpdate* const data_;
   };
 
-  ClinitImageUpdate(std::unordered_set<std::string>* image_class_descriptors, Thread* self,
-                    ClassLinker* linker)
-      REQUIRES_SHARED(Locks::mutator_lock_) :
-      image_class_descriptors_(image_class_descriptors), self_(self) {
+  ClinitImageUpdate(VariableSizedHandleScope& hs,
+                    std::unordered_set<std::string>* image_class_descriptors,
+                    Thread* self,
+                    ClassLinker* linker) REQUIRES_SHARED(Locks::mutator_lock_)
+      : hs_(hs),
+        image_class_descriptors_(image_class_descriptors),
+        self_(self) {
     CHECK(linker != nullptr);
     CHECK(image_class_descriptors != nullptr);
 
     // Make sure nobody interferes with us.
     old_cause_ = self->StartAssertNoThreadSuspension("Boot image closure");
-
-    // Find the interesting classes.
-    dex_cache_class_ = linker->LookupClass(self, "Ljava/lang/DexCache;",
-        ComputeModifiedUtf8Hash("Ljava/lang/DexCache;"), nullptr);
 
     // Find all the already-marked classes.
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
@@ -1251,25 +1255,25 @@ class ClinitImageUpdate {
     marked_objects_.insert(object);
 
     if (object->IsClass()) {
-      // If it is a class, add it.
-      StackHandleScope<1> hs(self_);
-      MaybeAddToImageClasses(hs.NewHandle(object->AsClass()), image_class_descriptors_);
+      // Add to the TODO list since MaybeAddToImageClasses may cause thread suspension. Thread
+      // suspensionb is not safe to do in VisitObjects or VisitReferences.
+      to_insert_.push_back(hs_.NewHandle(object->AsClass()));
     } else {
       // Else visit the object's class.
       VisitClinitClassesObject(object->GetClass());
     }
 
     // If it is not a DexCache, visit all references.
-    mirror::Class* klass = object->GetClass();
-    if (klass != dex_cache_class_) {
+    if (!object->IsDexCache()) {
       object->VisitReferences(*this, *this);
     }
   }
 
+  VariableSizedHandleScope& hs_;
+  mutable std::vector<Handle<mirror::Class>> to_insert_;
   mutable std::unordered_set<mirror::Object*> marked_objects_;
   std::unordered_set<std::string>* const image_class_descriptors_;
   std::vector<mirror::Class*> image_classes_;
-  const mirror::Class* dex_cache_class_;
   Thread* const self_;
   const char* old_cause_;
 
@@ -1285,12 +1289,12 @@ void CompilerDriver::UpdateImageClasses(TimingLogger* timings) {
     // Suspend all threads.
     ScopedSuspendAll ssa(__FUNCTION__);
 
+    VariableSizedHandleScope hs(Thread::Current());
     std::string error_msg;
-    std::unique_ptr<ClinitImageUpdate> update(ClinitImageUpdate::Create(image_classes_.get(),
+    std::unique_ptr<ClinitImageUpdate> update(ClinitImageUpdate::Create(hs,
+                                                                        image_classes_.get(),
                                                                         Thread::Current(),
-                                                                        runtime->GetClassLinker(),
-                                                                        &error_msg));
-    CHECK(update.get() != nullptr) << error_msg;  // TODO: Soft failure?
+                                                                        runtime->GetClassLinker()));
 
     // Do the marking.
     update->Walk();

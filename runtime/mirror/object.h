@@ -130,9 +130,10 @@ class MANAGED LOCKABLE Object {
   Object* Clone(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 
-  int32_t IdentityHashCode() const
+  int32_t IdentityHashCode()
       REQUIRES_SHARED(Locks::mutator_lock_)
-      REQUIRES(!Locks::thread_list_lock_, !Locks::thread_suspend_count_lock_);
+      REQUIRES(!Locks::thread_list_lock_,
+               !Locks::thread_suspend_count_lock_);
 
   static MemberOffset MonitorOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Object, monitor_);
@@ -578,12 +579,12 @@ class MANAGED LOCKABLE Object {
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
            typename Visitor>
-  void VisitInstanceFieldsReferences(mirror::Class* klass, const Visitor& visitor) HOT_ATTR
+  void VisitInstanceFieldsReferences(ObjPtr<mirror::Class> klass, const Visitor& visitor) HOT_ATTR
       REQUIRES_SHARED(Locks::mutator_lock_);
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
            typename Visitor>
-  void VisitStaticFieldsReferences(mirror::Class* klass, const Visitor& visitor) HOT_ATTR
+  void VisitStaticFieldsReferences(ObjPtr<mirror::Class> klass, const Visitor& visitor) HOT_ATTR
       REQUIRES_SHARED(Locks::mutator_lock_);
 
  private:

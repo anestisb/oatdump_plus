@@ -1323,7 +1323,7 @@ class ImageWriter::VisitReferencesVisitor {
     root->Assign(VisitReference(root->AsMirrorPtr()));
   }
 
-  ALWAYS_INLINE void operator() (mirror::Object* obj,
+  ALWAYS_INLINE void operator() (ObjPtr<mirror::Object> obj,
                                  MemberOffset offset,
                                  bool is_static ATTRIBUTE_UNUSED) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -1332,8 +1332,8 @@ class ImageWriter::VisitReferencesVisitor {
     obj->SetFieldObject</*kTransactionActive*/false>(offset, VisitReference(ref));
   }
 
-  ALWAYS_INLINE void operator() (mirror::Class* klass ATTRIBUTE_UNUSED,
-                                 mirror::Reference* ref) const
+  ALWAYS_INLINE void operator() (ObjPtr<mirror::Class> klass ATTRIBUTE_UNUSED,
+                                 ObjPtr<mirror::Reference> ref) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     ref->SetReferent</*kTransactionActive*/false>(
         VisitReference(ref->GetReferent<kWithoutReadBarrier>()));
@@ -1946,18 +1946,19 @@ class FixupVisitor {
   void VisitRoot(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED) const {}
 
 
-  void operator()(Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<Object> obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
       REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
-    Object* ref = obj->GetFieldObject<Object, kVerifyNone>(offset);
+    ObjPtr<Object> ref = obj->GetFieldObject<Object, kVerifyNone>(offset);
     // Use SetFieldObjectWithoutWriteBarrier to avoid card marking since we are writing to the
     // image.
     copy_->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(
         offset,
-        image_writer_->GetImageAddress(ref));
+        image_writer_->GetImageAddress(ref.Ptr()));
   }
 
   // java.lang.ref.Reference visitor.
-  void operator()(mirror::Class* klass ATTRIBUTE_UNUSED, mirror::Reference* ref) const
+  void operator()(ObjPtr<mirror::Class> klass ATTRIBUTE_UNUSED,
+                  ObjPtr<mirror::Reference> ref) const
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_) {
     copy_->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(
         mirror::Reference::ReferentOffset(),
@@ -1974,14 +1975,14 @@ class FixupClassVisitor FINAL : public FixupVisitor {
   FixupClassVisitor(ImageWriter* image_writer, Object* copy) : FixupVisitor(image_writer, copy) {
   }
 
-  void operator()(Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<Object> obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
       REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     DCHECK(obj->IsClass());
     FixupVisitor::operator()(obj, offset, /*is_static*/false);
   }
 
-  void operator()(mirror::Class* klass ATTRIBUTE_UNUSED,
-                  mirror::Reference* ref ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<mirror::Class> klass ATTRIBUTE_UNUSED,
+                  ObjPtr<mirror::Reference> ref ATTRIBUTE_UNUSED) const
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_) {
     LOG(FATAL) << "Reference not expected here.";
   }
@@ -2050,7 +2051,7 @@ class NativeLocationVisitor {
 void ImageWriter::FixupClass(mirror::Class* orig, mirror::Class* copy) {
   orig->FixupNativePointers(copy, target_ptr_size_, NativeLocationVisitor(this));
   FixupClassVisitor visitor(this, copy);
-  static_cast<mirror::Object*>(orig)->VisitReferences(visitor, visitor);
+  ObjPtr<mirror::Object>(orig)->VisitReferences(visitor, visitor);
 
   // Remove the clinitThreadId. This is required for image determinism.
   copy->SetClinitThreadId(static_cast<pid_t>(0));
