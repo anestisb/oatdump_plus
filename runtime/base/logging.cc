@@ -21,14 +21,12 @@
 #include <sstream>
 
 #include "base/mutex.h"
-#include "runtime.h"
 #include "thread-inl.h"
 #include "utils.h"
 
 // Headers for LogMessage::LogLine.
 #ifdef ART_TARGET_ANDROID
 #include <android/log.h>
-#include <android/set_abort_message.h>
 #else
 #include <sys/types.h>
 #include <unistd.h>
@@ -57,17 +55,7 @@ const char* ProgramInvocationShortName() {
                                                         : "art";
 }
 
-NO_RETURN
-static void RuntimeAborter(const char* abort_message) {
-#ifdef __ANDROID__
-  android_set_abort_message(abort_message);
-#else
-  UNUSED(abort_message);
-#endif
-  Runtime::Abort(abort_message);
-}
-
-void InitLogging(char* argv[]) {
+void InitLogging(char* argv[], AbortFunction& abort_function) {
   if (gCmdLine.get() != nullptr) {
     return;
   }
@@ -97,7 +85,8 @@ void InitLogging(char* argv[]) {
 #else
 #define INIT_LOGGING_DEFAULT_LOGGER android::base::StderrLogger
 #endif
-  android::base::InitLogging(argv, INIT_LOGGING_DEFAULT_LOGGER, RuntimeAborter);
+  android::base::InitLogging(argv, INIT_LOGGING_DEFAULT_LOGGER,
+                             std::move<AbortFunction>(abort_function));
 #undef INIT_LOGGING_DEFAULT_LOGGER
 }
 
