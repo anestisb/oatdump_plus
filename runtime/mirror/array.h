@@ -39,13 +39,19 @@ class MANAGED Array : public Object {
   // least component_count size, however, if there's usable space at the end of the allocation the
   // array will fill it.
   template <bool kIsInstrumented, bool kFillUsable = false>
-  ALWAYS_INLINE static Array* Alloc(Thread* self, Class* array_class, int32_t component_count,
-                                    size_t component_size_shift, gc::AllocatorType allocator_type)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
+  ALWAYS_INLINE static Array* Alloc(Thread* self,
+                                    ObjPtr<Class> array_class,
+                                    int32_t component_count,
+                                    size_t component_size_shift,
+                                    gc::AllocatorType allocator_type)
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!Roles::uninterruptible_);
 
-  static Array* CreateMultiArray(Thread* self, Handle<Class> element_class,
+  static Array* CreateMultiArray(Thread* self,
+                                 Handle<Class> element_class,
                                  Handle<IntArray> dimensions)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
+      REQUIRES_SHARED(Locks::mutator_lock_)
+      REQUIRES(!Roles::uninterruptible_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
@@ -147,7 +153,7 @@ class MANAGED PrimitiveArray : public Array {
    * smaller than element size copies). Arguments are assumed to be within the bounds of the array
    * and the arrays non-null.
    */
-  void Memmove(int32_t dst_pos, PrimitiveArray<T>* src, int32_t src_pos, int32_t count)
+  void Memmove(int32_t dst_pos, ObjPtr<PrimitiveArray<T>> src, int32_t src_pos, int32_t count)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   /*
@@ -155,14 +161,10 @@ class MANAGED PrimitiveArray : public Array {
    * smaller than element size copies). Arguments are assumed to be within the bounds of the array
    * and the arrays non-null.
    */
-  void Memcpy(int32_t dst_pos, PrimitiveArray<T>* src, int32_t src_pos, int32_t count)
+  void Memcpy(int32_t dst_pos, ObjPtr<PrimitiveArray<T>> src, int32_t src_pos, int32_t count)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  static void SetArrayClass(Class* array_class) {
-    CHECK(array_class_.IsNull());
-    CHECK(array_class != nullptr);
-    array_class_ = GcRoot<Class>(array_class);
-  }
+  static void SetArrayClass(ObjPtr<Class> array_class);
 
   template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   static Class* GetArrayClass() REQUIRES_SHARED(Locks::mutator_lock_) {

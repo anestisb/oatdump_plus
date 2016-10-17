@@ -21,6 +21,7 @@
 
 #include "base/mutex-inl.h"
 #include "class_table-inl.h"
+#include "obj_ptr-inl.h"
 
 namespace art {
 namespace mirror {
@@ -29,7 +30,7 @@ template <bool kVisitClasses,
           VerifyObjectFlags kVerifyFlags,
           ReadBarrierOption kReadBarrierOption,
           typename Visitor>
-inline void ClassLoader::VisitReferences(mirror::Class* klass, const Visitor& visitor) {
+inline void ClassLoader::VisitReferences(ObjPtr<mirror::Class> klass, const Visitor& visitor) {
   // Visit instance fields first.
   VisitInstanceFieldsReferences<kVerifyFlags, kReadBarrierOption>(klass, visitor);
   if (kVisitClasses) {

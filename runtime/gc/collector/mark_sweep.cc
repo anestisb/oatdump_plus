@@ -272,7 +272,7 @@ class MarkSweep::ScanObjectVisitor {
   explicit ScanObjectVisitor(MarkSweep* const mark_sweep) ALWAYS_INLINE
       : mark_sweep_(mark_sweep) {}
 
-  void operator()(mirror::Object* obj) const
+  void operator()(ObjPtr<mirror::Object> obj) const
       ALWAYS_INLINE
       REQUIRES(Locks::heap_bitmap_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -280,7 +280,7 @@ class MarkSweep::ScanObjectVisitor {
       Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
       Locks::heap_bitmap_lock_->AssertExclusiveHeld(Thread::Current());
     }
-    mark_sweep_->ScanObject(obj);
+    mark_sweep_->ScanObject(obj.Ptr());
   }
 
  private:
@@ -616,7 +616,7 @@ class MarkSweep::DelayReferenceReferentVisitor {
  public:
   explicit DelayReferenceReferentVisitor(MarkSweep* collector) : collector_(collector) {}
 
-  void operator()(mirror::Class* klass, mirror::Reference* ref) const
+  void operator()(ObjPtr<mirror::Class> klass, ObjPtr<mirror::Reference> ref) const
       REQUIRES(Locks::heap_bitmap_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     collector_->DelayReferenceReferent(klass, ref);
@@ -1297,9 +1297,9 @@ void MarkSweep::SweepLargeObjects(bool swap_bitmaps) {
   }
 }
 
-// Process the "referent" field in a java.lang.ref.Reference.  If the referent has not yet been
+// Process the "referent" field lin a java.lang.ref.Reference.  If the referent has not yet been
 // marked, put it on the appropriate list in the heap for later processing.
-void MarkSweep::DelayReferenceReferent(mirror::Class* klass, mirror::Reference* ref) {
+void MarkSweep::DelayReferenceReferent(ObjPtr<mirror::Class> klass, ObjPtr<mirror::Reference> ref) {
   heap_->GetReferenceProcessor()->DelayReferenceReferent(klass, ref, this);
 }
 

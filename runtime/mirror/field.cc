@@ -27,7 +27,7 @@ namespace mirror {
 GcRoot<Class> Field::static_class_;
 GcRoot<Class> Field::array_class_;
 
-void Field::SetClass(Class* klass) {
+void Field::SetClass(ObjPtr<Class> klass) {
   CHECK(static_class_.IsNull()) << static_class_.Read() << " " << klass;
   CHECK(klass != nullptr);
   static_class_ = GcRoot<Class>(klass);
@@ -38,7 +38,7 @@ void Field::ResetClass() {
   static_class_ = GcRoot<Class>(nullptr);
 }
 
-void Field::SetArrayClass(Class* klass) {
+void Field::SetArrayClass(ObjPtr<Class> klass) {
   CHECK(array_class_.IsNull()) << array_class_.Read() << " " << klass;
   CHECK(klass != nullptr);
   array_class_ = GcRoot<Class>(klass);

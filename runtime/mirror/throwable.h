@@ -31,7 +31,7 @@ namespace mirror {
 // C++ mirror of java.lang.Throwable
 class MANAGED Throwable : public Object {
  public:
-  void SetDetailMessage(String* new_detail_message) REQUIRES_SHARED(Locks::mutator_lock_);
+  void SetDetailMessage(ObjPtr<String> new_detail_message) REQUIRES_SHARED(Locks::mutator_lock_);
 
   String* GetDetailMessage() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_));
@@ -42,8 +42,8 @@ class MANAGED Throwable : public Object {
   // This is a runtime version of initCause, you shouldn't use it if initCause may have been
   // overridden. Also it asserts rather than throwing exceptions. Currently this is only used
   // in cases like the verifier where the checks cannot fail and initCause isn't overridden.
-  void SetCause(Throwable* cause) REQUIRES_SHARED(Locks::mutator_lock_);
-  void SetStackState(Object* state) REQUIRES_SHARED(Locks::mutator_lock_);
+  void SetCause(ObjPtr<Throwable> cause) REQUIRES_SHARED(Locks::mutator_lock_);
+  void SetStackState(ObjPtr<Object> state) REQUIRES_SHARED(Locks::mutator_lock_);
   bool IsCheckedException() REQUIRES_SHARED(Locks::mutator_lock_);
 
   static Class* GetJavaLangThrowable() REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -53,7 +53,7 @@ class MANAGED Throwable : public Object {
 
   int32_t GetStackDepth() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  static void SetClass(Class* java_lang_Throwable);
+  static void SetClass(ObjPtr<Class> java_lang_Throwable);
   static void ResetClass();
   static void VisitRoots(RootVisitor* visitor)
       REQUIRES_SHARED(Locks::mutator_lock_);

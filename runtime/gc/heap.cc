@@ -2894,19 +2894,21 @@ class VerifyReferenceVisitor : public SingleRootVisitor {
     return fail_count_->LoadSequentiallyConsistent();
   }
 
-  void operator()(mirror::Class* klass ATTRIBUTE_UNUSED, mirror::Reference* ref) const
+  void operator()(ObjPtr<mirror::Class> klass ATTRIBUTE_UNUSED, ObjPtr<mirror::Reference> ref) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
     if (verify_referent_) {
-      VerifyReference(ref, ref->GetReferent(), mirror::Reference::ReferentOffset());
+      VerifyReference(ref.Ptr(), ref->GetReferent(), mirror::Reference::ReferentOffset());
     }
   }
 
-  void operator()(mirror::Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
+  void operator()(ObjPtr<mirror::Object> obj,
+                  MemberOffset offset,
+                  bool is_static ATTRIBUTE_UNUSED) const
       REQUIRES_SHARED(Locks::mutator_lock_) {
-    VerifyReference(obj, obj->GetFieldObject<mirror::Object>(offset), offset);
+    VerifyReference(obj.Ptr(), obj->GetFieldObject<mirror::Object>(offset), offset);
   }
 
-  bool IsLive(mirror::Object* obj) const NO_THREAD_SAFETY_ANALYSIS {
+  bool IsLive(ObjPtr<mirror::Object> obj) const NO_THREAD_SAFETY_ANALYSIS {
     return heap_->IsLiveObjectLocked(obj, true, false, true);
   }
 
