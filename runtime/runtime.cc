@@ -147,6 +147,10 @@
 #include "verifier/method_verifier.h"
 #include "well_known_classes.h"
 
+#ifdef ART_TARGET_ANDROID
+#include <android/set_abort_message.h>
+#endif
+
 namespace art {
 
 // If a signal isn't handled properly, enable a handler that attempts to dump the Java stack.
@@ -495,7 +499,7 @@ void Runtime::SweepSystemWeaks(IsMarkedVisitor* visitor) {
 bool Runtime::ParseOptions(const RuntimeOptions& raw_options,
                            bool ignore_unrecognized,
                            RuntimeArgumentMap* runtime_options) {
-  InitLogging(/* argv */ nullptr);  // Calls Locks::Init() as a side effect.
+  InitLogging(/* argv */ nullptr, Aborter);  // Calls Locks::Init() as a side effect.
   bool parsed = ParsedOptions::Parse(raw_options, ignore_unrecognized, runtime_options);
   if (!parsed) {
     LOG(ERROR) << "Failed to parse options";
@@ -2093,6 +2097,14 @@ void Runtime::RemoveSystemWeakHolder(gc::AbstractSystemWeakHolder* holder) {
   if (it != system_weak_holders_.end()) {
     system_weak_holders_.erase(it);
   }
+}
+
+NO_RETURN
+void Runtime::Aborter(const char* abort_message) {
+#ifdef __ANDROID__
+  android_set_abort_message(abort_message);
+#endif
+  Runtime::Abort(abort_message);
 }
 
 }  // namespace art

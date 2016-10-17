@@ -29,6 +29,9 @@ namespace art {
 using ::android::base::LogSeverity;
 using ::android::base::ScopedLogSeverity;
 
+// Abort function.
+using AbortFunction = void(const char*);
+
 // The members of this struct are the valid arguments to VLOG and VLOG_IS_ON in code,
 // and the "-verbose:" command line argument.
 struct LogVerbosity {
@@ -71,7 +74,7 @@ extern unsigned int gAborting;
 // The tag (or '*' for the global level) comes first, followed by a colon
 // and a letter indicating the minimum priority level we're expected to log.
 // This can be used to reveal or conceal logs with specific tags.
-extern void InitLogging(char* argv[]);
+extern void InitLogging(char* argv[], AbortFunction& default_aborter);
 
 // Returns the command line used to invoke the current tool or null if InitLogging hasn't been
 // performed.

@@ -1359,14 +1359,12 @@ static int ParseFd(const StringPiece& option, const char* cmdline_arg) {
 }
 
 static int patchoat(int argc, char **argv) {
-  InitLogging(argv);
+  InitLogging(argv, Runtime::Aborter);
   MemMap::Init();
   const bool debug = kIsDebugBuild;
   orig_argc = argc;
   orig_argv = argv;
   TimingLogger timings("patcher", false, false);
-
-  InitLogging(argv);
 
   // Skip over the command name.
   argv++;

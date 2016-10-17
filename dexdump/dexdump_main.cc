@@ -29,6 +29,7 @@
 #include <unistd.h>
 
 #include "base/logging.h"
+#include "runtime.h"
 #include "mem_map.h"
 
 namespace art {
@@ -59,7 +60,7 @@ static void usage(void) {
  */
 int dexdumpDriver(int argc, char** argv) {
   // Art specific set up.
-  InitLogging(argv);
+  InitLogging(argv, Runtime::Aborter);
   MemMap::Init();
 
   // Reset options.
