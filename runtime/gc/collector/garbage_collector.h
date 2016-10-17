@@ -196,7 +196,8 @@ class GarbageCollector : public RootVisitor, public IsMarkedVisitor, public Mark
       REQUIRES_SHARED(Locks::mutator_lock_) = 0;
   virtual void MarkHeapReference(mirror::HeapReference<mirror::Object>* obj)
       REQUIRES_SHARED(Locks::mutator_lock_) = 0;
-  virtual void DelayReferenceReferent(mirror::Class* klass, mirror::Reference* reference)
+  virtual void DelayReferenceReferent(ObjPtr<mirror::Class> klass,
+                                      ObjPtr<mirror::Reference> reference)
       REQUIRES_SHARED(Locks::mutator_lock_) = 0;
 
  protected:

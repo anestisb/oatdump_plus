@@ -27,6 +27,7 @@
 #include "mirror/class.h"
 #include "mirror/method_type.h"
 #include "runtime.h"
+#include "obj_ptr.h"
 
 #include <atomic>
 
@@ -72,7 +73,7 @@ inline Class* DexCache::GetResolvedType(uint32_t type_idx) {
   return GetResolvedTypes()[type_idx].Read();
 }
 
-inline void DexCache::SetResolvedType(uint32_t type_idx, Class* resolved) {
+inline void DexCache::SetResolvedType(uint32_t type_idx, ObjPtr<Class> resolved) {
   DCHECK_LT(type_idx, NumResolvedTypes());  // NOTE: Unchecked, i.e. not throwing AIOOB.
   // TODO default transaction support.
   GetResolvedTypes()[type_idx] = GcRoot<Class>(resolved);
@@ -162,7 +163,7 @@ template <bool kVisitNativeRoots,
           VerifyObjectFlags kVerifyFlags,
           ReadBarrierOption kReadBarrierOption,
           typename Visitor>
-inline void DexCache::VisitReferences(mirror::Class* klass, const Visitor& visitor) {
+inline void DexCache::VisitReferences(ObjPtr<Class> klass, const Visitor& visitor) {
   // Visit instance fields first.
   VisitInstanceFieldsReferences<kVerifyFlags, kReadBarrierOption>(klass, visitor);
   // Visit arrays after.

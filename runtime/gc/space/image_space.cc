@@ -912,7 +912,7 @@ class ImageSpaceLoader {
     ALWAYS_INLINE void VisitRoot(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED)
         const {}
 
-    ALWAYS_INLINE void operator()(mirror::Object* obj,
+    ALWAYS_INLINE void operator()(ObjPtr<mirror::Object> obj,
                                   MemberOffset offset,
                                   bool is_static ATTRIBUTE_UNUSED) const
         NO_THREAD_SAFETY_ANALYSIS {
@@ -949,7 +949,8 @@ class ImageSpaceLoader {
     }
 
     // java.lang.ref.Reference visitor.
-    void operator()(mirror::Class* klass ATTRIBUTE_UNUSED, mirror::Reference* ref) const
+    void operator()(ObjPtr<mirror::Class> klass ATTRIBUTE_UNUSED,
+                    ObjPtr<mirror::Reference> ref) const
         REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_) {
       mirror::Object* obj = ref->GetReferent<kWithoutReadBarrier>();
       ref->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(

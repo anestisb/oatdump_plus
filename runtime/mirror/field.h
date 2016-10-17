@@ -83,10 +83,10 @@ class MANAGED Field : public AccessibleObject {
     return GetField32(OFFSET_OF_OBJECT_MEMBER(Field, offset_));
   }
 
-  static void SetClass(Class* klass) REQUIRES_SHARED(Locks::mutator_lock_);
+  static void SetClass(ObjPtr<Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
   static void ResetClass() REQUIRES_SHARED(Locks::mutator_lock_);
 
-  static void SetArrayClass(Class* klass) REQUIRES_SHARED(Locks::mutator_lock_);
+  static void SetArrayClass(ObjPtr<Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
   static void ResetArrayClass() REQUIRES_SHARED(Locks::mutator_lock_);
 
   static void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
@@ -113,9 +113,7 @@ class MANAGED Field : public AccessibleObject {
   void SetDeclaringClass(ObjPtr<mirror::Class> c) REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<bool kTransactionActive>
-  void SetType(mirror::Class* type) REQUIRES_SHARED(Locks::mutator_lock_) {
-    SetFieldObject<kTransactionActive>(OFFSET_OF_OBJECT_MEMBER(Field, type_), type);
-  }
+  void SetType(ObjPtr<mirror::Class> type) REQUIRES_SHARED(Locks::mutator_lock_);
 
   template<bool kTransactionActive>
   void SetAccessFlags(uint32_t flags) REQUIRES_SHARED(Locks::mutator_lock_) {

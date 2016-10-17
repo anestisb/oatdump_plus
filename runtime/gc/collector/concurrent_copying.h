@@ -169,7 +169,8 @@ class ConcurrentCopying : public GarbageCollector {
   void SwitchToSharedMarkStackMode() REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!mark_stack_lock_);
   void SwitchToGcExclusiveMarkStackMode() REQUIRES_SHARED(Locks::mutator_lock_);
-  virtual void DelayReferenceReferent(mirror::Class* klass, mirror::Reference* reference) OVERRIDE
+  virtual void DelayReferenceReferent(ObjPtr<mirror::Class> klass,
+                                      ObjPtr<mirror::Reference> reference) OVERRIDE
       REQUIRES_SHARED(Locks::mutator_lock_);
   void ProcessReferences(Thread* self) REQUIRES_SHARED(Locks::mutator_lock_);
   virtual mirror::Object* MarkObject(mirror::Object* from_ref) OVERRIDE

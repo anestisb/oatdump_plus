@@ -18,16 +18,24 @@
 #define ART_RUNTIME_MIRROR_IFTABLE_INL_H_
 
 #include "iftable.h"
+#include "obj_ptr-inl.h"
 
 namespace art {
 namespace mirror {
 
-inline void IfTable::SetInterface(int32_t i, Class* interface) {
+inline void IfTable::SetInterface(int32_t i, ObjPtr<Class> interface) {
   DCHECK(interface != nullptr);
   DCHECK(interface->IsInterface());
   const size_t idx = i * kMax + kInterface;
   DCHECK_EQ(Get(idx), static_cast<Object*>(nullptr));
   SetWithoutChecks<false>(idx, interface);
+}
+
+inline void IfTable::SetMethodArray(int32_t i, ObjPtr<PointerArray> arr) {
+  DCHECK(arr != nullptr);
+  auto idx = i * kMax + kMethodArray;
+  DCHECK(Get(idx) == nullptr);
+  Set<false>(idx, arr);
 }
 
 }  // namespace mirror
