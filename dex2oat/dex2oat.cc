@@ -1920,15 +1920,14 @@ class Dex2Oat FINAL {
         TimingLogger::ScopedTiming t("dex2oat OatFile copy", timings_);
         std::unique_ptr<File> in(OS::OpenFileForReading(oat_filenames_[i]));
         std::unique_ptr<File> out(OS::CreateEmptyFile(oat_unstripped_[i]));
-        size_t buffer_size = 8192;
-        std::unique_ptr<uint8_t[]> buffer(new uint8_t[buffer_size]);
-        while (true) {
-          int bytes_read = TEMP_FAILURE_RETRY(read(in->Fd(), buffer.get(), buffer_size));
-          if (bytes_read <= 0) {
-            break;
-          }
-          bool write_ok = out->WriteFully(buffer.get(), bytes_read);
-          CHECK(write_ok);
+        int64_t in_length = in->GetLength();
+        if (in_length < 0) {
+          PLOG(ERROR) << "Failed to get the length of oat file: " << in->GetPath();
+          return false;
+        }
+        if (!out->Copy(in.get(), 0, in_length)) {
+          PLOG(ERROR) << "Failed to copy oat file to file: " << out->GetPath();
+          return false;
         }
         if (out->FlushCloseOrErase() != 0) {
           PLOG(ERROR) << "Failed to flush and close copied oat file: " << oat_unstripped_[i];
