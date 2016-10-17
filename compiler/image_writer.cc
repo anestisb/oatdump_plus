@@ -1492,10 +1492,15 @@ void ImageWriter::CalculateNewObjectOffsets() {
     // Calculate how big the intern table will be after being serialized.
     InternTable* const intern_table = image_info.intern_table_.get();
     CHECK_EQ(intern_table->WeakSize(), 0u) << " should have strong interned all the strings";
-    image_info.intern_table_bytes_ = intern_table->WriteToMemory(nullptr);
+    if (intern_table->StrongSize() != 0u) {
+      image_info.intern_table_bytes_ = intern_table->WriteToMemory(nullptr);
+    }
     // Calculate the size of the class table.
     ReaderMutexLock mu(self, *Locks::classlinker_classes_lock_);
-    image_info.class_table_bytes_ += image_info.class_table_->WriteToMemory(nullptr);
+    DCHECK_EQ(image_info.class_table_->NumZygoteClasses(), 0u);
+    if (image_info.class_table_->NumNonZygoteClasses() != 0u) {
+      image_info.class_table_bytes_ += image_info.class_table_->WriteToMemory(nullptr);
+    }
   }
 
   // Calculate bin slot offsets.

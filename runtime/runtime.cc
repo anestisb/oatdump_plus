@@ -1165,10 +1165,6 @@ bool Runtime::Init(RuntimeArgumentMap&& runtime_options_in) {
       ScopedTrace trace2("AddImageStringsToTable");
       GetInternTable()->AddImagesStringsToTable(heap_->GetBootImageSpaces());
     }
-    {
-      ScopedTrace trace2("MoveImageClassesToClassTable");
-      GetClassLinker()->AddBootImageClassesToClassTable();
-    }
   } else {
     std::vector<std::string> dex_filenames;
     Split(boot_class_path_string_, ':', &dex_filenames);
