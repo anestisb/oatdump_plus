@@ -48,7 +48,7 @@ int32_t String::FastIndexOf(int32_t ch, int32_t start) {
   }
 }
 
-void String::SetClass(Class* java_lang_String) {
+void String::SetClass(ObjPtr<Class> java_lang_String) {
   CHECK(java_lang_String_.IsNull());
   CHECK(java_lang_String != nullptr);
   CHECK(java_lang_String->IsStringClass());
@@ -93,12 +93,13 @@ String* String::AllocFromStrings(Thread* self, Handle<String> string, Handle<Str
   int32_t length = string->GetLength();
   int32_t length2 = string2->GetLength();
   gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
-  const bool compressible = kUseStringCompression && (string->IsCompressed() && string2->IsCompressed());
-  const int32_t length_with_flag = (compressible) ? String::GetFlaggedCount(length + length2)
-                                                  : (length + length2);
+  const bool compressible = kUseStringCompression &&
+      (string->IsCompressed() && string2->IsCompressed());
+  const int32_t length_with_flag = compressible ? String::GetFlaggedCount(length + length2)
+                                                : (length + length2);
 
   SetStringCountVisitor visitor(length_with_flag);
-  String* new_string = Alloc<true>(self, length_with_flag, allocator_type, visitor);
+  ObjPtr<String> new_string = Alloc<true>(self, length_with_flag, allocator_type, visitor);
   if (UNLIKELY(new_string == nullptr)) {
     return nullptr;
   }
@@ -123,7 +124,7 @@ String* String::AllocFromStrings(Thread* self, Handle<String> string, Handle<Str
       memcpy(new_value + length, string2->GetValue(), length2 * sizeof(uint16_t));
     }
   }
-  return new_string;
+  return new_string.Ptr();
 }
 
 String* String::AllocFromUtf16(Thread* self, int32_t utf16_length, const uint16_t* utf16_data_in) {
@@ -134,7 +135,7 @@ String* String::AllocFromUtf16(Thread* self, int32_t utf16_length, const uint16_
   int32_t length_with_flag = (compressible) ? String::GetFlaggedCount(utf16_length)
                                             : utf16_length;
   SetStringCountVisitor visitor(length_with_flag);
-  String* string = Alloc<true>(self, length_with_flag, allocator_type, visitor);
+  ObjPtr<String> string = Alloc<true>(self, length_with_flag, allocator_type, visitor);
   if (UNLIKELY(string == nullptr)) {
     return nullptr;
   }
@@ -146,7 +147,7 @@ String* String::AllocFromUtf16(Thread* self, int32_t utf16_length, const uint16_
     uint16_t* array = string->GetValue();
     memcpy(array, utf16_data_in, utf16_length * sizeof(uint16_t));
   }
-  return string;
+  return string.Ptr();
 }
 
 String* String::AllocFromModifiedUtf8(Thread* self, const char* utf) {
@@ -156,18 +157,22 @@ String* String::AllocFromModifiedUtf8(Thread* self, const char* utf) {
   return AllocFromModifiedUtf8(self, char_count, utf, byte_count);
 }
 
-String* String::AllocFromModifiedUtf8(Thread* self, int32_t utf16_length, const char* utf8_data_in) {
+String* String::AllocFromModifiedUtf8(Thread* self,
+                                      int32_t utf16_length,
+                                      const char* utf8_data_in) {
   return AllocFromModifiedUtf8(self, utf16_length, utf8_data_in, strlen(utf8_data_in));
 }
 
-String* String::AllocFromModifiedUtf8(Thread* self, int32_t utf16_length,
-                                      const char* utf8_data_in, int32_t utf8_length) {
+String* String::AllocFromModifiedUtf8(Thread* self,
+                                      int32_t utf16_length,
+                                      const char* utf8_data_in,
+                                      int32_t utf8_length) {
   gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
   const bool compressible = kUseStringCompression && (utf16_length == utf8_length);
   const int32_t utf16_length_with_flag = (compressible) ? String::GetFlaggedCount(utf16_length)
                                                         : utf16_length;
   SetStringCountVisitor visitor(utf16_length_with_flag);
-  String* string = Alloc<true>(self, utf16_length_with_flag, allocator_type, visitor);
+  ObjPtr<String> string = Alloc<true>(self, utf16_length_with_flag, allocator_type, visitor);
   if (UNLIKELY(string == nullptr)) {
     return nullptr;
   }
@@ -177,10 +182,10 @@ String* String::AllocFromModifiedUtf8(Thread* self, int32_t utf16_length,
     uint16_t* utf16_data_out = string->GetValue();
     ConvertModifiedUtf8ToUtf16(utf16_data_out, utf16_length, utf8_data_in, utf8_length);
   }
-  return string;
+  return string.Ptr();
 }
 
-bool String::Equals(String* that) {
+bool String::Equals(ObjPtr<String> that) {
   if (this == that) {
     // Quick reference equality test
     return true;
@@ -281,9 +286,9 @@ std::string String::ToModifiedUtf8() {
   return result;
 }
 
-int32_t String::CompareTo(String* rhs) {
+int32_t String::CompareTo(ObjPtr<String> rhs) {
   // Quick test for comparison of a string with itself.
-  String* lhs = this;
+  ObjPtr<String> lhs = this;
   if (lhs == rhs) {
     return 0;
   }
@@ -298,7 +303,9 @@ int32_t String::CompareTo(String* rhs) {
   int32_t countDiff = lhsCount - rhsCount;
   int32_t minCount = (countDiff < 0) ? lhsCount : rhsCount;
   if (lhs->IsCompressed() && rhs->IsCompressed()) {
-    int32_t comparison = memcmp(lhs->GetValueCompressed(), rhs->GetValueCompressed(), minCount * sizeof(uint8_t));
+    int32_t comparison = memcmp(lhs->GetValueCompressed(),
+                                rhs->GetValueCompressed(),
+                                minCount * sizeof(uint8_t));
     if (comparison != 0) {
       return comparison;
     }
@@ -326,7 +333,7 @@ void String::VisitRoots(RootVisitor* visitor) {
 CharArray* String::ToCharArray(Thread* self) {
   StackHandleScope<1> hs(self);
   Handle<String> string(hs.NewHandle(this));
-  CharArray* result = CharArray::Alloc(self, GetLength());
+  ObjPtr<CharArray> result = CharArray::Alloc(self, GetLength());
   if (result != nullptr) {
     if (string->IsCompressed()) {
       int32_t length = string->GetLength();
@@ -339,7 +346,7 @@ CharArray* String::ToCharArray(Thread* self) {
   } else {
     self->AssertPendingOOMException();
   }
-  return result;
+  return result.Ptr();
 }
 
 void String::GetChars(int32_t start, int32_t end, Handle<CharArray> array, int32_t index) {

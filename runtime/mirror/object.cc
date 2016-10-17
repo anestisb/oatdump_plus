@@ -49,7 +49,7 @@ class CopyReferenceFieldsWithReadBarrierVisitor {
   void operator()(ObjPtr<Object> obj, MemberOffset offset, bool /* is_static */) const
       ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
     // GetFieldObject() contains a RB.
-    Object* ref = obj->GetFieldObject<Object>(offset);
+    ObjPtr<Object> ref = obj->GetFieldObject<Object>(offset);
     // No WB here as a large object space does not have a card table
     // coverage. Instead, cards will be marked separately.
     dest_obj_->SetFieldObjectWithoutWriteBarrier<false, false>(offset, ref);
@@ -118,7 +118,7 @@ Object* Object::CopyObject(ObjPtr<mirror::Object> dest,
   }
   gc::Heap* heap = Runtime::Current()->GetHeap();
   // Perform write barriers on copied object references.
-  Class* c = src->GetClass();
+  ObjPtr<Class> c = src->GetClass();
   if (c->IsArrayClass()) {
     if (!c->GetComponentType()->IsPrimitive()) {
       ObjectArray<Object>* array = dest->AsObjectArray<Object>();
@@ -182,8 +182,8 @@ void Object::SetHashCodeSeed(uint32_t new_seed) {
   hash_code_seed.StoreRelaxed(new_seed);
 }
 
-int32_t Object::IdentityHashCode() const {
-  mirror::Object* current_this = const_cast<mirror::Object*>(this);
+int32_t Object::IdentityHashCode() {
+  ObjPtr<Object> current_this = this;  // The this pointer may get invalidated by thread suspension.
   while (true) {
     LockWord lw = current_this->GetLockWord(false);
     switch (lw.GetState()) {
@@ -192,7 +192,7 @@ int32_t Object::IdentityHashCode() const {
         // loop iteration.
         LockWord hash_word = LockWord::FromHashCode(GenerateIdentityHashCode(), lw.GCState());
         DCHECK_EQ(hash_word.GetState(), LockWord::kHashCode);
-        if (const_cast<Object*>(this)->CasLockWordWeakRelaxed(lw, hash_word)) {
+        if (current_this->CasLockWordWeakRelaxed(lw, hash_word)) {
           return hash_word.GetHashCode();
         }
         break;
@@ -227,13 +227,13 @@ int32_t Object::IdentityHashCode() const {
 }
 
 void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, ObjPtr<Object> new_value) {
-  Class* c = GetClass();
+  ObjPtr<Class> c = GetClass();
   Runtime* runtime = Runtime::Current();
   if (runtime->GetClassLinker() == nullptr || !runtime->IsStarted() ||
       !runtime->GetHeap()->IsObjectValidationEnabled() || !c->IsResolved()) {
     return;
   }
-  for (Class* cur = c; cur != nullptr; cur = cur->GetSuperClass()) {
+  for (ObjPtr<Class> cur = c; cur != nullptr; cur = cur->GetSuperClass()) {
     for (ArtField& field : cur->GetIFields()) {
       StackHandleScope<1> hs(Thread::Current());
       Handle<Object> h_object(hs.NewHandle(new_value));

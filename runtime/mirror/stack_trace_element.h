@@ -47,12 +47,14 @@ class MANAGED StackTraceElement FINAL : public Object {
     return GetField32(OFFSET_OF_OBJECT_MEMBER(StackTraceElement, line_number_));
   }
 
-  static StackTraceElement* Alloc(Thread* self, Handle<String> declaring_class,
-                                  Handle<String> method_name, Handle<String> file_name,
+  static StackTraceElement* Alloc(Thread* self,
+                                  Handle<String> declaring_class,
+                                  Handle<String> method_name,
+                                  Handle<String> file_name,
                                   int32_t line_number)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(!Roles::uninterruptible_);
 
-  static void SetClass(Class* java_lang_StackTraceElement);
+  static void SetClass(ObjPtr<Class> java_lang_StackTraceElement);
   static void ResetClass();
   static void VisitRoots(RootVisitor* visitor)
       REQUIRES_SHARED(Locks::mutator_lock_);
@@ -69,7 +71,9 @@ class MANAGED StackTraceElement FINAL : public Object {
   int32_t line_number_;
 
   template<bool kTransactionActive>
-  void Init(Handle<String> declaring_class, Handle<String> method_name, Handle<String> file_name,
+  void Init(ObjPtr<String> declaring_class,
+            ObjPtr<String> method_name,
+            ObjPtr<String> file_name,
             int32_t line_number)
       REQUIRES_SHARED(Locks::mutator_lock_);
 

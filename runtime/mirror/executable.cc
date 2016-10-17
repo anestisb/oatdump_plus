@@ -32,14 +32,10 @@ bool Executable::CreateFromArtMethod(ArtMethod* method) {
   return true;
 }
 
-template bool Executable::CreateFromArtMethod<PointerSize::k32, false>(
-    ArtMethod* method);
-template bool Executable::CreateFromArtMethod<PointerSize::k32, true>(
-    ArtMethod* method);
-template bool Executable::CreateFromArtMethod<PointerSize::k64, false>(
-    ArtMethod* method);
-template bool Executable::CreateFromArtMethod<PointerSize::k64, true>(
-    ArtMethod* method);
+template bool Executable::CreateFromArtMethod<PointerSize::k32, false>(ArtMethod* method);
+template bool Executable::CreateFromArtMethod<PointerSize::k32, true>(ArtMethod* method);
+template bool Executable::CreateFromArtMethod<PointerSize::k64, false>(ArtMethod* method);
+template bool Executable::CreateFromArtMethod<PointerSize::k64, true>(ArtMethod* method);
 
 ArtMethod* Executable::GetArtMethod() {
   return reinterpret_cast<ArtMethod*>(GetField64(ArtMethodOffset()));

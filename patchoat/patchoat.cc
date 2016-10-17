@@ -715,15 +715,16 @@ bool PatchOat::PatchImage(bool primary_image) {
 }
 
 
-void PatchOat::PatchVisitor::operator() (mirror::Object* obj, MemberOffset off,
+void PatchOat::PatchVisitor::operator() (ObjPtr<mirror::Object> obj,
+                                         MemberOffset off,
                                          bool is_static_unused ATTRIBUTE_UNUSED) const {
   mirror::Object* referent = obj->GetFieldObject<mirror::Object, kVerifyNone>(off);
   mirror::Object* moved_object = patcher_->RelocatedAddressOfPointer(referent);
   copy_->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(off, moved_object);
 }
 
-void PatchOat::PatchVisitor::operator() (mirror::Class* cls ATTRIBUTE_UNUSED,
-                                         mirror::Reference* ref) const {
+void PatchOat::PatchVisitor::operator() (ObjPtr<mirror::Class> cls ATTRIBUTE_UNUSED,
+                                         ObjPtr<mirror::Reference> ref) const {
   MemberOffset off = mirror::Reference::ReferentOffset();
   mirror::Object* referent = ref->GetReferent();
   DCHECK(referent == nullptr ||

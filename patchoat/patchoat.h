@@ -198,10 +198,10 @@ class PatchOat {
   public:
     PatchVisitor(PatchOat* patcher, mirror::Object* copy) : patcher_(patcher), copy_(copy) {}
     ~PatchVisitor() {}
-    void operator() (mirror::Object* obj, MemberOffset off, bool b) const
+    void operator() (ObjPtr<mirror::Object> obj, MemberOffset off, bool b) const
         REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
     // For reference classes.
-    void operator() (mirror::Class* cls, mirror::Reference* ref) const
+    void operator() (ObjPtr<mirror::Class> cls, ObjPtr<mirror::Reference>  ref) const
         REQUIRES(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
     // TODO: Consider using these for updating native class roots?
     void VisitRootIfNonNull(mirror::CompressedReference<mirror::Object>* root ATTRIBUTE_UNUSED)
