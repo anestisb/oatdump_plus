@@ -1904,11 +1904,12 @@ class JNI {
 
     // Compute the array class corresponding to the given element class.
     ScopedObjectAccess soa(env);
-    mirror::Class* array_class;
+    ObjPtr<mirror::Class> array_class;
     {
-      mirror::Class* element_class = soa.Decode<mirror::Class>(element_jclass).Ptr();
+      ObjPtr<mirror::Class> element_class = soa.Decode<mirror::Class>(element_jclass).Ptr();
       if (UNLIKELY(element_class->IsPrimitive())) {
-        soa.Vm()->JniAbortF("NewObjectArray", "not an object type: %s",
+        soa.Vm()->JniAbortF("NewObjectArray",
+                            "not an object type: %s",
                             PrettyDescriptor(element_class).c_str());
         return nullptr;
       }

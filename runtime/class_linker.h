@@ -181,7 +181,7 @@ class ClassLinker {
                                   const char* descriptor,
                                   size_t hash,
                                   Handle<mirror::ClassLoader> class_loader,
-                                  mirror::Class** result)
+                                  ObjPtr<mirror::Class>* result)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!dex_lock_);
 
@@ -192,7 +192,7 @@ class ClassLinker {
       REQUIRES(!dex_lock_);
 
   // Finds the array class given for the element class.
-  mirror::Class* FindArrayClass(Thread* self, mirror::Class** element_class)
+  mirror::Class* FindArrayClass(Thread* self, ObjPtr<mirror::Class>* element_class)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!dex_lock_);
 
@@ -606,7 +606,8 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // May be called with null class_loader due to legacy code. b/27954959
-  void InsertDexFileInToClassLoader(mirror::Object* dex_file, mirror::ClassLoader* class_loader)
+  void InsertDexFileInToClassLoader(ObjPtr<mirror::Object> dex_file,
+                                    ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES(!Locks::classlinker_classes_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 

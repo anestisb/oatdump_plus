@@ -44,8 +44,8 @@ inline mirror::String* DexCache::GetResolvedString(uint32_t string_idx) {
   return StringDexCachePair::Lookup(GetStrings(), string_idx, NumStrings()).Read();
 }
 
-inline void DexCache::SetResolvedString(uint32_t string_idx, mirror::String* resolved) {
-  StringDexCachePair::Assign(GetStrings(), string_idx, resolved, NumStrings());
+inline void DexCache::SetResolvedString(uint32_t string_idx, ObjPtr<mirror::String> resolved) {
+  StringDexCachePair::Assign(GetStrings(), string_idx, resolved.Ptr(), NumStrings());
   Runtime* const runtime = Runtime::Current();
   if (UNLIKELY(runtime->IsActiveTransaction())) {
     DCHECK(runtime->IsAotCompiler());

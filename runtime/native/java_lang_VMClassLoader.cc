@@ -37,24 +37,24 @@ static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoa
   ClassLinker* cl = Runtime::Current()->GetClassLinker();
   std::string descriptor(DotToDescriptor(name.c_str()));
   const size_t descriptor_hash = ComputeModifiedUtf8Hash(descriptor.c_str());
-  mirror::Class* c = cl->LookupClass(soa.Self(),
-                                     descriptor.c_str(),
-                                     descriptor_hash,
-                                     loader.Ptr());
+  ObjPtr<mirror::Class>  c = cl->LookupClass(soa.Self(),
+                                             descriptor.c_str(),
+                                             descriptor_hash,
+                                             loader.Ptr());
   if (c != nullptr && c->IsResolved()) {
     return soa.AddLocalReference<jclass>(c);
   }
   // If class is erroneous, throw the earlier failure, wrapped in certain cases. See b/28787733.
   if (c != nullptr && c->IsErroneous()) {
-    cl->ThrowEarlierClassFailure(c);
+    cl->ThrowEarlierClassFailure(c.Ptr());
     Thread* self = soa.Self();
-    mirror::Class* eiie_class =
+    ObjPtr<mirror::Class> eiie_class =
         self->DecodeJObject(WellKnownClasses::java_lang_ExceptionInInitializerError)->AsClass();
-    mirror::Class* iae_class =
+    ObjPtr<mirror::Class> iae_class =
         self->DecodeJObject(WellKnownClasses::java_lang_IllegalAccessError)->AsClass();
-    mirror::Class* ncdfe_class =
+    ObjPtr<mirror::Class> ncdfe_class =
         self->DecodeJObject(WellKnownClasses::java_lang_NoClassDefFoundError)->AsClass();
-    mirror::Class* exception = self->GetException()->GetClass();
+    ObjPtr<mirror::Class> exception = self->GetException()->GetClass();
     if (exception == eiie_class || exception == iae_class || exception == ncdfe_class) {
       self->ThrowNewWrappedException("Ljava/lang/ClassNotFoundException;",
                                      PrettyDescriptor(c).c_str());

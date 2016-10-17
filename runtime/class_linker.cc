@@ -1961,7 +1961,7 @@ void ClassLinker::VisitClassesWithoutClassesLock(ClassVisitor* visitor) {
         // Add 100 in case new classes get loaded when we are filling in the object array.
         class_table_size = NumZygoteClasses() + NumNonZygoteClasses() + 100;
       }
-      mirror::Class* class_type = mirror::Class::GetJavaLangClass();
+      ObjPtr<mirror::Class> class_type = mirror::Class::GetJavaLangClass();
       mirror::Class* array_of_class = FindArrayClass(self, &class_type);
       classes.Assign(
           mirror::ObjectArray<mirror::Class>::Alloc(self, array_of_class, class_table_size));
@@ -2293,7 +2293,7 @@ bool ClassLinker::FindClassInPathClassLoader(ScopedObjectAccessAlreadyRunnable& 
                                              const char* descriptor,
                                              size_t hash,
                                              Handle<mirror::ClassLoader> class_loader,
-                                             mirror::Class** result) {
+                                             ObjPtr<mirror::Class>* result) {
   // Termination case: boot class-loader.
   if (IsBootClassLoader(soa, class_loader.Get())) {
     // The boot class loader, search the boot class path.
@@ -2451,12 +2451,12 @@ mirror::Class* ClassLinker::FindClass(Thread* self,
     }
   } else {
     ScopedObjectAccessUnchecked soa(self);
-    mirror::Class* cp_klass;
+    ObjPtr<mirror::Class> cp_klass;
     if (FindClassInPathClassLoader(soa, self, descriptor, hash, class_loader, &cp_klass)) {
       // The chain was understood. So the value in cp_klass is either the class we were looking
       // for, or not found.
       if (cp_klass != nullptr) {
-        return cp_klass;
+        return cp_klass.Ptr();
       }
       // TODO: We handle the boot classpath loader in FindClassInPathClassLoader. Try to unify this
       //       and the branch above. TODO: throw the right exception here.
@@ -7797,7 +7797,7 @@ mirror::MethodType* ClassLinker::ResolveMethodType(const DexFile& dex_file,
   // other than by looking at the shorty ?
   const size_t num_method_args = strlen(dex_file.StringDataByIdx(proto_id.shorty_idx_)) - 1;
 
-  mirror::Class* class_type = mirror::Class::GetJavaLangClass();
+  ObjPtr<mirror::Class> class_type = mirror::Class::GetJavaLangClass();
   mirror::Class* array_of_class = FindArrayClass(self, &class_type);
   Handle<mirror::ObjectArray<mirror::Class>> method_params(hs.NewHandle(
       mirror::ObjectArray<mirror::Class>::Alloc(self, array_of_class, num_method_args)));
@@ -8152,12 +8152,12 @@ void ClassLinker::VisitClassLoaders(ClassLoaderVisitor* visitor) const {
   }
 }
 
-void ClassLinker::InsertDexFileInToClassLoader(mirror::Object* dex_file,
-                                               mirror::ClassLoader* class_loader) {
+void ClassLinker::InsertDexFileInToClassLoader(ObjPtr<mirror::Object> dex_file,
+                                               ObjPtr<mirror::ClassLoader> class_loader) {
   DCHECK(dex_file != nullptr);
   Thread* const self = Thread::Current();
   WriterMutexLock mu(self, *Locks::classlinker_classes_lock_);
-  ClassTable* const table = ClassTableForClassLoader(class_loader);
+  ClassTable* const table = ClassTableForClassLoader(class_loader.Ptr());
   DCHECK(table != nullptr);
   if (table->InsertStrongRoot(dex_file) && class_loader != nullptr) {
     // It was not already inserted, perform the write barrier to let the GC know the class loader's

@@ -44,9 +44,12 @@ static jstring StringFactory_newStringFromBytes(JNIEnv* env, jclass, jbyteArray 
     return nullptr;
   }
   gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
-  mirror::String* result = mirror::String::AllocFromByteArray<true>(soa.Self(), byte_count,
-                                                                    byte_array, offset, high,
-                                                                    allocator_type);
+  ObjPtr<mirror::String> result = mirror::String::AllocFromByteArray<true>(soa.Self(),
+                                                                           byte_count,
+                                                                           byte_array,
+                                                                           offset,
+                                                                           high,
+                                                                           allocator_type);
   return soa.AddLocalReference<jstring>(result);
 }
 
@@ -58,9 +61,11 @@ static jstring StringFactory_newStringFromChars(JNIEnv* env, jclass, jint offset
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::CharArray> char_array(hs.NewHandle(soa.Decode<mirror::CharArray>(java_data)));
   gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
-  mirror::String* result = mirror::String::AllocFromCharArray<true>(soa.Self(), char_count,
-                                                                    char_array, offset,
-                                                                    allocator_type);
+  ObjPtr<mirror::String> result = mirror::String::AllocFromCharArray<true>(soa.Self(),
+                                                                           char_count,
+                                                                           char_array,
+                                                                           offset,
+                                                                           allocator_type);
   return soa.AddLocalReference<jstring>(result);
 }
 
@@ -73,8 +78,11 @@ static jstring StringFactory_newStringFromString(JNIEnv* env, jclass, jstring to
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::String> string(hs.NewHandle(soa.Decode<mirror::String>(to_copy)));
   gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
-  mirror::String* result = mirror::String::AllocFromString<true>(soa.Self(), string->GetLength(),
-                                                                 string, 0, allocator_type);
+  ObjPtr<mirror::String> result = mirror::String::AllocFromString<true>(soa.Self(),
+                                                                        string->GetLength(),
+                                                                        string,
+                                                                        0,
+                                                                        allocator_type);
   return soa.AddLocalReference<jstring>(result);
 }
 

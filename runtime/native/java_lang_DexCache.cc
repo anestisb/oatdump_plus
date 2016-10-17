@@ -68,7 +68,7 @@ static void DexCache_setResolvedType(JNIEnv* env, jobject javaDexCache, jint typ
   ScopedFastNativeObjectAccess soa(env);
   ObjPtr<mirror::DexCache> dex_cache = soa.Decode<mirror::DexCache>(javaDexCache);
   CHECK_LT(static_cast<size_t>(type_index), dex_cache->NumResolvedTypes());
-  dex_cache->SetResolvedType(type_index, soa.Decode<mirror::Class>(type).Ptr());
+  dex_cache->SetResolvedType(type_index, soa.Decode<mirror::Class>(type));
 }
 
 static void DexCache_setResolvedString(JNIEnv* env, jobject javaDexCache, jint string_index,
@@ -76,7 +76,7 @@ static void DexCache_setResolvedString(JNIEnv* env, jobject javaDexCache, jint s
   ScopedFastNativeObjectAccess soa(env);
   ObjPtr<mirror::DexCache> dex_cache = soa.Decode<mirror::DexCache>(javaDexCache);
   CHECK_LT(static_cast<size_t>(string_index), dex_cache->GetDexFile()->NumStringIds());
-  dex_cache->SetResolvedString(string_index, soa.Decode<mirror::String>(string).Ptr());
+  dex_cache->SetResolvedString(string_index, soa.Decode<mirror::String>(string));
 }
 
 static JNINativeMethod gMethods[] = {

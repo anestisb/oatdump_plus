@@ -254,7 +254,7 @@ mirror::Object* ProcessEncodedAnnotation(Handle<mirror::Class> klass, const uint
     return nullptr;
   }
 
-  mirror::Class* annotation_member_class =
+  ObjPtr<mirror::Class> annotation_member_class =
       soa.Decode<mirror::Class>(WellKnownClasses::libcore_reflect_AnnotationMember).Ptr();
   mirror::Class* annotation_member_array_class =
       class_linker->FindArrayClass(self, &annotation_member_class);
@@ -731,7 +731,7 @@ mirror::ObjectArray<mirror::String>* GetSignatureValue(Handle<mirror::Class> kla
   if (annotation_item == nullptr) {
     return nullptr;
   }
-  mirror::Class* string_class = mirror::String::GetJavaLangString();
+  ObjPtr<mirror::Class> string_class = mirror::String::GetJavaLangString();
   Handle<mirror::Class> string_array_class(hs.NewHandle(
       Runtime::Current()->GetClassLinker()->FindArrayClass(Thread::Current(), &string_class)));
   if (string_array_class.Get() == nullptr) {
@@ -757,7 +757,7 @@ mirror::ObjectArray<mirror::Class>* GetThrowsValue(Handle<mirror::Class> klass,
   if (annotation_item == nullptr) {
     return nullptr;
   }
-  mirror::Class* class_class = mirror::Class::GetJavaLangClass();
+  ObjPtr<mirror::Class> class_class = mirror::Class::GetJavaLangClass();
   Handle<mirror::Class> class_array_class(hs.NewHandle(
       Runtime::Current()->GetClassLinker()->FindArrayClass(Thread::Current(), &class_class)));
   if (class_array_class.Get() == nullptr) {
@@ -839,8 +839,8 @@ mirror::ObjectArray<mirror::Object>* ProcessAnnotationSetRefList(
   Thread* self = Thread::Current();
   ScopedObjectAccessUnchecked soa(self);
   StackHandleScope<1> hs(self);
-  mirror::Class* annotation_array_class =
-      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_annotation_Annotation__array).Ptr();
+  ObjPtr<mirror::Class> annotation_array_class =
+      soa.Decode<mirror::Class>(WellKnownClasses::java_lang_annotation_Annotation__array);
   mirror::Class* annotation_array_array_class =
       Runtime::Current()->GetClassLinker()->FindArrayClass(self, &annotation_array_class);
   if (annotation_array_array_class == nullptr) {
@@ -1049,7 +1049,7 @@ bool GetParametersMetadataForMethod(ArtMethod* method,
   StackHandleScope<5> hs(Thread::Current());
 
   // Extract the parameters' names String[].
-  mirror::Class* string_class = mirror::String::GetJavaLangString();
+  ObjPtr<mirror::Class> string_class = mirror::String::GetJavaLangString();
   Handle<mirror::Class> string_array_class(hs.NewHandle(
       Runtime::Current()->GetClassLinker()->FindArrayClass(Thread::Current(), &string_class)));
   if (UNLIKELY(string_array_class.Get() == nullptr)) {
@@ -1139,7 +1139,7 @@ mirror::ObjectArray<mirror::Class>* GetDeclaredClasses(Handle<mirror::Class> kla
     return nullptr;
   }
   StackHandleScope<1> hs(Thread::Current());
-  mirror::Class* class_class = mirror::Class::GetJavaLangClass();
+  ObjPtr<mirror::Class> class_class = mirror::Class::GetJavaLangClass();
   Handle<mirror::Class> class_array_class(hs.NewHandle(
       Runtime::Current()->GetClassLinker()->FindArrayClass(hs.Self(), &class_class)));
   if (class_array_class.Get() == nullptr) {
