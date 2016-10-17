@@ -34,8 +34,6 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   011-array-copy \
   012-math \
   015-switch \
-  017-float \
-  018-stack-overflow \
   019-wrong-array-type \
   020-string \
   021-string2 \
@@ -50,7 +48,6 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   035-enum \
   036-finalizer \
   037-inherit \
-  041-narrowing \
   042-new-instance \
   044-proxy \
   045-reflect-array \
@@ -133,20 +130,16 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   146-bad-interface \
   150-loadlibrary \
   201-built-in-except-detail-messages \
-  302-float-conversion \
   304-method-tracing \
-  406-fields \
   407-arrays \
   410-floats \
   411-optimizing-arith-mul \
   412-new-array \
   413-regalloc-regression \
-  414-optimizing-arith-sub \
   414-static-fields \
   415-optimizing-arith-neg \
   416-optimizing-arith-not \
   417-optimizing-arith-div \
-  419-long-parameter \
   421-exceptions \
   422-instanceof \
   422-type-conversion \
@@ -157,7 +150,6 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   427-bitwise \
   427-bounds \
   428-optimizing-arith-rem \
-  429-ssa-builder \
   430-live-register-slow-path \
   431-optimizing-arith-shifts \
   431-type-propagation \
@@ -168,8 +160,6 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   437-inline \
   438-volatile \
   439-npe \
-  439-swap-double \
-  440-stmp \
   441-checker-inliner \
   442-checker-constant-folding \
   444-checker-nce \
@@ -201,7 +191,6 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   474-fp-sub-neg \
   475-regression-inliner-ids \
   477-checker-bound-type \
-  477-long-2-float-convers-precision \
   478-checker-clinit-check-pruning \
   483-dce-block \
   484-checker-register-hints \
@@ -271,7 +260,6 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   550-checker-multiply-accumulate \
   550-checker-regression-wide-store \
   551-checker-shifter-operand \
-  551-implicit-null-checks \
   551-invoke-super \
   552-checker-primitive-typeprop \
   552-checker-sharpening \
@@ -294,7 +282,6 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   564-checker-bitcount \
   564-checker-irreducible-loop \
   564-checker-negbitwise \
-  565-checker-condition-liveness \
   565-checker-doublenegbitwise \
   565-checker-irreducible-loop \
   565-checker-rotate \
@@ -314,7 +301,6 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   580-checker-string-fact-intrinsics \
   581-rtp \
   582-checker-bce-length \
-  583-checker-zero \
   584-checker-div-bool \
   586-checker-null-array-get \
   587-inline-class-error \
@@ -352,9 +338,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS := \
   700-LoadArgRegs \
   701-easy-div-rem \
   702-LargeBranchOffset \
-  703-floating-point-div \
   704-multiply-accumulate \
-  705-register-conflict \
   800-smali \
   802-deoptimization \
   960-default-smali \

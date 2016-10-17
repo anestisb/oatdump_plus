@@ -37,6 +37,7 @@ namespace arm {
 namespace vixl32 = vixl::aarch32;
 using namespace vixl32;  // NOLINT(build/namespaces)
 
+using helpers::DRegisterFrom;
 using helpers::DWARFReg;
 using helpers::FromLowSToD;
 using helpers::HighDRegisterFrom;
@@ -1344,6 +1345,26 @@ void LocationsBuilderARMVIXL::VisitLongConstant(HLongConstant* constant) {
 }
 
 void InstructionCodeGeneratorARMVIXL::VisitLongConstant(HLongConstant* constant ATTRIBUTE_UNUSED) {
+  // Will be generated at use site.
+}
+
+void LocationsBuilderARMVIXL::VisitFloatConstant(HFloatConstant* constant) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(constant, LocationSummary::kNoCall);
+  locations->SetOut(Location::ConstantLocation(constant));
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitFloatConstant(HFloatConstant* constant ATTRIBUTE_UNUSED) {
+  // Will be generated at use site.
+}
+
+void LocationsBuilderARMVIXL::VisitDoubleConstant(HDoubleConstant* constant) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(constant, LocationSummary::kNoCall);
+  locations->SetOut(Location::ConstantLocation(constant));
+}
+
+void InstructionCodeGeneratorARMVIXL::VisitDoubleConstant(HDoubleConstant* constant ATTRIBUTE_UNUSED) {
   // Will be generated at use site.
 }
 
@@ -3101,7 +3122,14 @@ void ParallelMoveResolverARMVIXL::EmitMove(size_t index) {
       GetAssembler()->StoreToOffset(kStoreWord, temp, sp, destination.GetStackIndex());
     }
   } else if (source.IsFpuRegister()) {
-    TODO_VIXL32(FATAL);
+    if (destination.IsRegister()) {
+      TODO_VIXL32(FATAL);
+    } else if (destination.IsFpuRegister()) {
+      __ Vmov(SRegisterFrom(destination), SRegisterFrom(source));
+    } else {
+      DCHECK(destination.IsStackSlot());
+      GetAssembler()->StoreSToOffset(SRegisterFrom(source), sp, destination.GetStackIndex());
+    }
   } else if (source.IsDoubleStackSlot()) {
     if (destination.IsDoubleStackSlot()) {
       vixl32::DRegister temp = temps.AcquireD();
@@ -3112,7 +3140,8 @@ void ParallelMoveResolverARMVIXL::EmitMove(size_t index) {
       GetAssembler()->LoadFromOffset(
           kLoadWordPair, LowRegisterFrom(destination), sp, source.GetStackIndex());
     } else {
-      TODO_VIXL32(FATAL);
+      DCHECK(destination.IsFpuRegisterPair()) << destination;
+      GetAssembler()->LoadDFromOffset(DRegisterFrom(destination), sp, source.GetStackIndex());
     }
   } else if (source.IsRegisterPair()) {
     if (destination.IsRegisterPair()) {
@@ -3131,7 +3160,14 @@ void ParallelMoveResolverARMVIXL::EmitMove(size_t index) {
                                     destination.GetStackIndex());
     }
   } else if (source.IsFpuRegisterPair()) {
-    TODO_VIXL32(FATAL);
+    if (destination.IsRegisterPair()) {
+      TODO_VIXL32(FATAL);
+    } else if (destination.IsFpuRegisterPair()) {
+      __ Vmov(DRegisterFrom(destination), DRegisterFrom(source));
+    } else {
+      DCHECK(destination.IsDoubleStackSlot()) << destination;
+      GetAssembler()->StoreDToOffset(DRegisterFrom(source), sp, destination.GetStackIndex());
+    }
   } else {
     DCHECK(source.IsConstant()) << source;
     HConstant* constant = source.GetConstant();
