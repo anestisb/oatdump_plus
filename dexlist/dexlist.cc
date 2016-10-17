@@ -213,7 +213,7 @@ static void usage(void) {
  */
 int dexlistDriver(int argc, char** argv) {
   // Art specific set up.
-  InitLogging(argv);
+  InitLogging(argv, Runtime::Aborter);
   MemMap::Init();
 
   // Reset options.

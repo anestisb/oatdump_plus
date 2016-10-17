@@ -31,6 +31,7 @@
 
 #include "base/logging.h"
 #include "jit/offline_profiling_info.h"
+#include "runtime.h"
 #include "mem_map.h"
 
 namespace art {
@@ -65,7 +66,7 @@ static void Usage(void) {
  */
 int DexlayoutDriver(int argc, char** argv) {
   // Art specific set up.
-  InitLogging(argv);
+  InitLogging(argv, Runtime::Aborter);
   MemMap::Init();
 
   // Reset options.

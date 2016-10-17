@@ -662,6 +662,9 @@ class Runtime {
   void AddSystemWeakHolder(gc::AbstractSystemWeakHolder* holder);
   void RemoveSystemWeakHolder(gc::AbstractSystemWeakHolder* holder);
 
+  NO_RETURN
+  static void Aborter(const char* abort_message);
+
  private:
   static void InitPlatformSignalHandlers();
 

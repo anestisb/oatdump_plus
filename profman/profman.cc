@@ -33,6 +33,7 @@
 #include "base/unix_file/fd_file.h"
 #include "dex_file.h"
 #include "jit/offline_profiling_info.h"
+#include "runtime.h"
 #include "utils.h"
 #include "zip_archive.h"
 #include "profile_assistant.h"
@@ -143,7 +144,7 @@ class ProfMan FINAL {
     original_argc = argc;
     original_argv = argv;
 
-    InitLogging(argv);
+    InitLogging(argv, Runtime::Aborter);
 
     // Skip over the command name.
     argv++;
