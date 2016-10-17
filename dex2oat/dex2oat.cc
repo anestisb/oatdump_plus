@@ -1090,7 +1090,7 @@ class Dex2Oat FINAL {
     original_argc = argc;
     original_argv = argv;
 
-    InitLogging(argv);
+    InitLogging(argv, Runtime::Aborter);
 
     // Skip over argv[0].
     argv++;
