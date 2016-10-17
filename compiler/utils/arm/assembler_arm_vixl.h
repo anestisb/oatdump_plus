@@ -90,6 +90,9 @@ class ArmVIXLAssembler FINAL : public Assembler {
   void LoadSFromOffset(vixl32::SRegister reg, vixl32::Register base, int32_t offset);
   void LoadDFromOffset(vixl32::DRegister reg, vixl32::Register base, int32_t offset);
 
+  void LoadRegisterList(RegList regs, size_t stack_offset);
+  void StoreRegisterList(RegList regs, size_t stack_offset);
+
   bool ShifterOperandCanAlwaysHold(uint32_t immediate);
   bool ShifterOperandCanHold(Opcode opcode, uint32_t immediate, SetCc set_cc);
   bool CanSplitLoadStoreOffset(int32_t allowed_offset_bits,
