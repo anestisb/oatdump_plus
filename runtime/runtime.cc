@@ -829,7 +829,7 @@ static bool OpenDexFilesFromImage(const std::string& image_location,
     if (file.get() == nullptr) {
       return false;
     }
-    std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file.release(),
+    std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file.get(),
                                                     false /* writable */,
                                                     false /* program_header_only */,
                                                     false /* low_4gb */,
