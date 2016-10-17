@@ -238,8 +238,6 @@ class InternTable {
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
 
   // Transaction rollback access.
-  mirror::String* LookupStringFromImage(mirror::String* s)
-      REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
   mirror::String* InsertStrongFromTransaction(mirror::String* s)
       REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::intern_table_lock_);
   mirror::String* InsertWeakFromTransaction(mirror::String* s)
@@ -260,7 +258,6 @@ class InternTable {
   void WaitUntilAccessible(Thread* self)
       REQUIRES(Locks::intern_table_lock_) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  bool images_added_to_intern_table_ GUARDED_BY(Locks::intern_table_lock_);
   bool log_new_roots_ GUARDED_BY(Locks::intern_table_lock_);
   ConditionVariable weak_intern_condition_ GUARDED_BY(Locks::intern_table_lock_);
   // Since this contains (strong) roots, they need a read barrier to

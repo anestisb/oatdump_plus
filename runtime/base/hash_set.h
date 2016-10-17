@@ -296,7 +296,7 @@ class HashSet {
     return const_iterator(this, NumBuckets());
   }
 
-  bool Empty() {
+  bool Empty() const {
     return Size() == 0;
   }
 
