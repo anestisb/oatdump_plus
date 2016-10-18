@@ -2394,13 +2394,13 @@ class JNI {
                                           const char* caller)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     // TODO: we should try to expand the table if necessary.
-    if (desired_capacity < 0 || desired_capacity > static_cast<jint>(kLocalsMax)) {
+    if (desired_capacity < 0 || desired_capacity > static_cast<jint>(kLocalsInitial)) {
       LOG(ERROR) << "Invalid capacity given to " << caller << ": " << desired_capacity;
       return JNI_ERR;
     }
     // TODO: this isn't quite right, since "capacity" includes holes.
     const size_t capacity = soa.Env()->locals.Capacity();
-    bool okay = (static_cast<jint>(kLocalsMax - capacity) >= desired_capacity);
+    bool okay = (static_cast<jint>(kLocalsInitial - capacity) >= desired_capacity);
     if (!okay) {
       soa.Self()->ThrowOutOfMemoryError(caller);
     }
