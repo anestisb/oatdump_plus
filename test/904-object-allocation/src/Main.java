@@ -40,7 +40,11 @@ public class Main {
   }
 
   public static void doTest(ArrayList<Object> l) throws Exception {
-    setupObjectAllocCallback();
+    // Disable the global registration from OnLoad, to get into a known state.
+    enableAllocationTracking(null, false);
+
+    // Enable actual logging callback.
+    setupObjectAllocCallback(true);
 
     enableAllocationTracking(null, true);
 
@@ -74,6 +78,11 @@ public class Main {
     testThread(l, false, true);
 
     l.add(new Byte((byte)0));
+
+    // Disable actual logging callback and re-enable tracking, so we can keep the event enabled and
+    // check that shutdown works correctly.
+    setupObjectAllocCallback(false);
+    enableAllocationTracking(null, true);
   }
 
   private static void testThread(final ArrayList<Object> l, final boolean sameThread,
@@ -81,6 +90,8 @@ public class Main {
     final SimpleBarrier startBarrier = new SimpleBarrier(1);
     final SimpleBarrier trackBarrier = new SimpleBarrier(1);
     final SimpleBarrier disableBarrier = new SimpleBarrier(1);
+
+    final Thread thisThread = Thread.currentThread();
 
     Thread t = new Thread() {
       public void run() {
@@ -95,7 +106,7 @@ public class Main {
         l.add(new Double(0.0));
 
         if (disableTracking) {
-          enableAllocationTracking(sameThread ? this : Thread.currentThread(), false);
+          enableAllocationTracking(sameThread ? this : thisThread, false);
         }
       }
     };
@@ -127,6 +138,6 @@ public class Main {
     }
   }
 
-  private static native void setupObjectAllocCallback();
+  private static native void setupObjectAllocCallback(boolean enable);
   private static native void enableAllocationTracking(Thread thread, boolean enable);
 }
