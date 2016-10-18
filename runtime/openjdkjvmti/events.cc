@@ -219,6 +219,8 @@ jvmtiError EventHandler::SetEvent(ArtJvmTiEnv* env,
     return ERR(INVALID_EVENT_TYPE);
   }
 
+  bool old_state = global_mask.Test(event);
+
   if (mode == JVMTI_ENABLE) {
     env->event_masks.EnableEvent(thread, event);
     global_mask.Set(event);
@@ -239,8 +241,12 @@ jvmtiError EventHandler::SetEvent(ArtJvmTiEnv* env,
     global_mask.Set(event, union_value);
   }
 
+  bool new_state = global_mask.Test(event);
+
   // Handle any special work required for the event type.
-  HandleEventType(event, mode == JVMTI_ENABLE);
+  if (new_state != old_state) {
+    HandleEventType(event, mode == JVMTI_ENABLE);
+  }
 
   return ERR(NONE);
 }
