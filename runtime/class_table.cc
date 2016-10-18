@@ -156,7 +156,7 @@ uint32_t ClassTable::ClassDescriptorHashEquals::operator()(const char* descripto
   return ComputeModifiedUtf8Hash(descriptor);
 }
 
-bool ClassTable::InsertStrongRoot(mirror::Object* obj) {
+bool ClassTable::InsertStrongRoot(ObjPtr<mirror::Object> obj) {
   WriterMutexLock mu(Thread::Current(), lock_);
   DCHECK(obj != nullptr);
   for (GcRoot<mirror::Object>& root : strong_roots_) {
@@ -167,7 +167,7 @@ bool ClassTable::InsertStrongRoot(mirror::Object* obj) {
   strong_roots_.push_back(GcRoot<mirror::Object>(obj));
   // If `obj` is a dex cache associated with a new oat file with GC roots, add it to oat_files_.
   if (obj->IsDexCache()) {
-    const DexFile* dex_file = down_cast<mirror::DexCache*>(obj)->GetDexFile();
+    const DexFile* dex_file = ObjPtr<mirror::DexCache>::DownCast(obj)->GetDexFile();
     if (dex_file != nullptr && dex_file->GetOatDexFile() != nullptr) {
       const OatFile* oat_file = dex_file->GetOatDexFile()->GetOatFile();
       if (!oat_file->GetBssGcRoots().empty() && !ContainsElement(oat_files_, oat_file)) {

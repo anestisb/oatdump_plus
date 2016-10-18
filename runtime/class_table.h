@@ -27,6 +27,7 @@
 #include "base/mutex.h"
 #include "dex_file.h"
 #include "gc_root.h"
+#include "obj_ptr.h"
 #include "object_callbacks.h"
 #include "runtime.h"
 
@@ -136,7 +137,7 @@ class ClassTable {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Return true if we inserted the strong root, false if it already exists.
-  bool InsertStrongRoot(mirror::Object* obj)
+  bool InsertStrongRoot(ObjPtr<mirror::Object> obj)
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 

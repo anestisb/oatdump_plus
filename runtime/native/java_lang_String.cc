@@ -57,7 +57,8 @@ static jstring String_concat(JNIEnv* env, jobject java_this, jobject java_string
   int32_t length_this = string_this->GetLength();
   int32_t length_arg = string_arg->GetLength();
   if (length_arg > 0 && length_this > 0) {
-    mirror::String* result = mirror::String::AllocFromStrings(soa.Self(), string_this, string_arg);
+    ObjPtr<mirror::String> result =
+        mirror::String::AllocFromStrings(soa.Self(), string_this, string_arg);
     return soa.AddLocalReference<jstring>(result);
   }
   jobject string_original = (length_this == 0) ? java_string_arg : java_this;
@@ -76,8 +77,11 @@ static jstring String_fastSubstring(JNIEnv* env, jobject java_this, jint start, 
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::String> string_this(hs.NewHandle(soa.Decode<mirror::String>(java_this)));
   gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
-  mirror::String* result = mirror::String::AllocFromString<true>(soa.Self(), length, string_this,
-                                                                 start, allocator_type);
+  ObjPtr<mirror::String> result = mirror::String::AllocFromString<true>(soa.Self(),
+                                                                        length,
+                                                                        string_this,
+                                                                        start,
+                                                                        allocator_type);
   return soa.AddLocalReference<jstring>(result);
 }
 
