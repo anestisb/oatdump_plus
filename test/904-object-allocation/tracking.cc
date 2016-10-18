@@ -58,10 +58,10 @@ static void JNICALL ObjectAllocated(jvmtiEnv* ti_env ATTRIBUTE_UNUSED,
 }
 
 extern "C" JNIEXPORT void JNICALL Java_Main_setupObjectAllocCallback(
-    JNIEnv* env ATTRIBUTE_UNUSED, jclass klass ATTRIBUTE_UNUSED) {
+    JNIEnv* env ATTRIBUTE_UNUSED, jclass klass ATTRIBUTE_UNUSED, jboolean enable) {
   jvmtiEventCallbacks callbacks;
   memset(&callbacks, 0, sizeof(jvmtiEventCallbacks));
-  callbacks.VMObjectAlloc = ObjectAllocated;
+  callbacks.VMObjectAlloc = enable ? ObjectAllocated : nullptr;
 
   jvmtiError ret = jvmti_env->SetEventCallbacks(&callbacks, sizeof(callbacks));
   if (ret != JVMTI_ERROR_NONE) {
@@ -94,6 +94,7 @@ jint OnLoad(JavaVM* vm,
     printf("Unable to get jvmti env!\n");
     return 1;
   }
+  jvmti_env->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_VM_OBJECT_ALLOC, nullptr);
   return 0;
 }
 
