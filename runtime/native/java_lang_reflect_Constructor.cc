@@ -39,13 +39,13 @@ static jobjectArray Constructor_getExceptionTypes(JNIEnv* env, jobject javaMetho
       annotations::GetExceptionTypesForMethod(method);
   if (result_array == nullptr) {
     // Return an empty array instead of a null pointer.
-    mirror::Class* class_class = mirror::Class::GetJavaLangClass();
-    mirror::Class* class_array_class =
+    ObjPtr<mirror::Class> class_class = mirror::Class::GetJavaLangClass();
+    ObjPtr<mirror::Class> class_array_class =
         Runtime::Current()->GetClassLinker()->FindArrayClass(soa.Self(), &class_class);
     if (class_array_class == nullptr) {
       return nullptr;
     }
-    mirror::ObjectArray<mirror::Class>* empty_array =
+    ObjPtr<mirror::ObjectArray<mirror::Class>> empty_array =
         mirror::ObjectArray<mirror::Class>::Alloc(soa.Self(), class_array_class, 0);
     return soa.AddLocalReference<jobjectArray>(empty_array);
   } else {

@@ -87,10 +87,10 @@ static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass) {
 
     bool VisitFrame() REQUIRES_SHARED(Locks::mutator_lock_) {
       DCHECK(class_loader == nullptr);
-      mirror::Class* c = GetMethod()->GetDeclaringClass();
+      ObjPtr<mirror::Class> c = GetMethod()->GetDeclaringClass();
       // c is null for runtime methods.
       if (c != nullptr) {
-        mirror::Object* cl = c->GetClassLoader();
+        ObjPtr<mirror::Object> cl = c->GetClassLoader();
         if (cl != nullptr) {
           class_loader = cl;
           return false;
@@ -99,7 +99,7 @@ static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass) {
       return true;
     }
 
-    mirror::Object* class_loader;
+    ObjPtr<mirror::Object> class_loader;
   };
   ScopedFastNativeObjectAccess soa(env);
   ClosestUserClassLoaderVisitor visitor(soa.Self());

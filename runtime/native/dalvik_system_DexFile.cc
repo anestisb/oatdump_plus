@@ -218,7 +218,7 @@ static jboolean DexFile_closeDexFile(JNIEnv* env, jclass, jobject cookie) {
   {
     ScopedObjectAccess soa(env);
     ObjPtr<mirror::Object> dex_files_object = soa.Decode<mirror::Object>(cookie);
-    mirror::LongArray* long_dex_files = dex_files_object->AsLongArray();
+    ObjPtr<mirror::LongArray> long_dex_files = dex_files_object->AsLongArray();
     // Delete dex files associated with this dalvik.system.DexFile since there should not be running
     // code using it. dex_files is a vector due to multidex.
     ClassLinker* const class_linker = runtime->GetClassLinker();
@@ -279,15 +279,15 @@ static jclass DexFile_defineClassNative(JNIEnv* env,
       Handle<mirror::ClassLoader> class_loader(
           hs.NewHandle(soa.Decode<mirror::ClassLoader>(javaLoader)));
       class_linker->RegisterDexFile(*dex_file, class_loader.Get());
-      mirror::Class* result = class_linker->DefineClass(soa.Self(),
-                                                        descriptor.c_str(),
-                                                        hash,
-                                                        class_loader,
-                                                        *dex_file,
-                                                        *dex_class_def);
+      ObjPtr<mirror::Class> result = class_linker->DefineClass(soa.Self(),
+                                                               descriptor.c_str(),
+                                                               hash,
+                                                               class_loader,
+                                                               *dex_file,
+                                                               *dex_class_def);
       // Add the used dex file. This only required for the DexFile.loadClass API since normal
       // class loaders already keep their dex files live.
-      class_linker->InsertDexFileInToClassLoader(soa.Decode<mirror::Object>(dexFile).Ptr(),
+      class_linker->InsertDexFileInToClassLoader(soa.Decode<mirror::Object>(dexFile),
                                                  class_loader.Get());
       if (result != nullptr) {
         VLOG(class_linker) << "DexFile_defineClassNative returning " << result

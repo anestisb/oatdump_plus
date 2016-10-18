@@ -74,21 +74,23 @@ static jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaEle
     ThrowNegativeArraySizeException(length);
     return nullptr;
   }
-  mirror::Class* element_class = soa.Decode<mirror::Class>(javaElementClass).Ptr();
+  ObjPtr<mirror::Class> element_class = soa.Decode<mirror::Class>(javaElementClass);
   if (UNLIKELY(element_class == nullptr)) {
     ThrowNullPointerException("element class == null");
     return nullptr;
   }
   Runtime* runtime = Runtime::Current();
-  mirror::Class* array_class =
+  ObjPtr<mirror::Class> array_class =
       runtime->GetClassLinker()->FindArrayClass(soa.Self(), &element_class);
   if (UNLIKELY(array_class == nullptr)) {
     return nullptr;
   }
   gc::AllocatorType allocator = runtime->GetHeap()->GetCurrentNonMovingAllocator();
-  mirror::Array* result = mirror::Array::Alloc<true>(soa.Self(), array_class, length,
-                                                     array_class->GetComponentSizeShift(),
-                                                     allocator);
+  ObjPtr<mirror::Array> result = mirror::Array::Alloc<true>(soa.Self(),
+                                                            array_class,
+                                                            length,
+                                                            array_class->GetComponentSizeShift(),
+                                                            allocator);
   return soa.AddLocalReference<jobject>(result);
 }
 
@@ -99,21 +101,24 @@ static jobject VMRuntime_newUnpaddedArray(JNIEnv* env, jobject, jclass javaEleme
     ThrowNegativeArraySizeException(length);
     return nullptr;
   }
-  mirror::Class* element_class = soa.Decode<mirror::Class>(javaElementClass).Ptr();
+  ObjPtr<mirror::Class> element_class = soa.Decode<mirror::Class>(javaElementClass);
   if (UNLIKELY(element_class == nullptr)) {
     ThrowNullPointerException("element class == null");
     return nullptr;
   }
   Runtime* runtime = Runtime::Current();
-  mirror::Class* array_class = runtime->GetClassLinker()->FindArrayClass(soa.Self(),
-                                                                         &element_class);
+  ObjPtr<mirror::Class> array_class = runtime->GetClassLinker()->FindArrayClass(soa.Self(),
+                                                                                &element_class);
   if (UNLIKELY(array_class == nullptr)) {
     return nullptr;
   }
   gc::AllocatorType allocator = runtime->GetHeap()->GetCurrentAllocator();
-  mirror::Array* result = mirror::Array::Alloc<true, true>(soa.Self(), array_class, length,
-                                                           array_class->GetComponentSizeShift(),
-                                                           allocator);
+  ObjPtr<mirror::Array> result = mirror::Array::Alloc<true, true>(
+      soa.Self(),
+      array_class,
+      length,
+      array_class->GetComponentSizeShift(),
+      allocator);
   return soa.AddLocalReference<jobject>(result);
 }
 
@@ -127,7 +132,7 @@ static jlong VMRuntime_addressOf(JNIEnv* env, jobject, jobject javaArray) {
     ThrowIllegalArgumentException("not an array");
     return 0;
   }
-  if (Runtime::Current()->GetHeap()->IsMovableObject(array.Ptr())) {
+  if (Runtime::Current()->GetHeap()->IsMovableObject(array)) {
     ThrowRuntimeException("Trying to get address of movable array object");
     return 0;
   }
@@ -263,7 +268,7 @@ static void VMRuntime_runHeapTasks(JNIEnv* env, jobject) {
   Runtime::Current()->GetHeap()->GetTaskProcessor()->RunAllTasks(ThreadForEnv(env));
 }
 
-typedef std::map<std::string, mirror::String*> StringTable;
+typedef std::map<std::string, ObjPtr<mirror::String>> StringTable;
 
 class PreloadDexCachesStringsVisitor : public SingleRootVisitor {
  public:
@@ -271,7 +276,7 @@ class PreloadDexCachesStringsVisitor : public SingleRootVisitor {
 
   void VisitRoot(mirror::Object* root, const RootInfo& info ATTRIBUTE_UNUSED)
       OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
-    mirror::String* string = root->AsString();
+    ObjPtr<mirror::String> string = root->AsString();
     table_->operator[](string->ToModifiedUtf8()) = string;
   }
 
@@ -283,7 +288,7 @@ class PreloadDexCachesStringsVisitor : public SingleRootVisitor {
 static void PreloadDexCachesResolveString(
     Handle<mirror::DexCache> dex_cache, uint32_t string_idx, StringTable& strings)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  mirror::String* string = dex_cache->GetResolvedString(string_idx);
+  ObjPtr<mirror::String>  string = dex_cache->GetResolvedString(string_idx);
   if (string != nullptr) {
     return;
   }
@@ -298,10 +303,11 @@ static void PreloadDexCachesResolveString(
 }
 
 // Based on ClassLinker::ResolveType.
-static void PreloadDexCachesResolveType(
-    Thread* self, mirror::DexCache* dex_cache, uint32_t type_idx)
+static void PreloadDexCachesResolveType(Thread* self,
+                                        ObjPtr<mirror::DexCache> dex_cache,
+                                        uint32_t type_idx)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  mirror::Class* klass = dex_cache->GetResolvedType(type_idx);
+  ObjPtr<mirror::Class> klass = dex_cache->GetResolvedType(type_idx);
   if (klass != nullptr) {
     return;
   }
@@ -364,7 +370,7 @@ static void PreloadDexCachesResolveMethod(Handle<mirror::DexCache> dex_cache, ui
   }
   const DexFile* dex_file = dex_cache->GetDexFile();
   const DexFile::MethodId& method_id = dex_file->GetMethodId(method_idx);
-  mirror::Class* klass = dex_cache->GetResolvedType(method_id.class_idx_);
+  ObjPtr<mirror::Class> klass = dex_cache->GetResolvedType(method_id.class_idx_);
   if (klass == nullptr) {
     return;
   }
@@ -439,25 +445,25 @@ static void PreloadDexCachesStatsFilled(DexCacheStats* filled)
   Thread* const self = Thread::Current();
   for (const DexFile* dex_file : class_linker->GetBootClassPath()) {
     CHECK(dex_file != nullptr);
-    mirror::DexCache* const dex_cache = class_linker->FindDexCache(self, *dex_file, true);
+    ObjPtr<mirror::DexCache> const dex_cache = class_linker->FindDexCache(self, *dex_file, true);
     // If dex cache was deallocated, just continue.
     if (dex_cache == nullptr) {
       continue;
     }
     for (size_t j = 0; j < dex_cache->NumStrings(); j++) {
-      mirror::String* string = dex_cache->GetResolvedString(j);
+      ObjPtr<mirror::String> string = dex_cache->GetResolvedString(j);
       if (string != nullptr) {
         filled->num_strings++;
       }
     }
     for (size_t j = 0; j < dex_cache->NumResolvedTypes(); j++) {
-      mirror::Class* klass = dex_cache->GetResolvedType(j);
+      ObjPtr<mirror::Class> klass = dex_cache->GetResolvedType(j);
       if (klass != nullptr) {
         filled->num_types++;
       }
     }
     for (size_t j = 0; j < dex_cache->NumResolvedFields(); j++) {
-      ArtField* field = class_linker->GetResolvedField(j, dex_cache);
+      ArtField* field = class_linker->GetResolvedField(j, dex_cache.Ptr());
       if (field != nullptr) {
         filled->num_fields++;
       }

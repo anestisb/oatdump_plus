@@ -36,7 +36,8 @@ inline mirror::Class* ClassLinker::FindSystemClass(Thread* self, const char* des
   return FindClass(self, descriptor, ScopedNullHandle<mirror::ClassLoader>());
 }
 
-inline mirror::Class* ClassLinker::FindArrayClass(Thread* self, mirror::Class** element_class) {
+inline mirror::Class* ClassLinker::FindArrayClass(Thread* self,
+                                                  ObjPtr<mirror::Class>* element_class) {
   for (size_t i = 0; i < kFindArrayCacheSize; ++i) {
     // Read the cached array class once to avoid races with other threads setting it.
     mirror::Class* array_class = find_array_class_cache_[i].Read();
@@ -49,7 +50,7 @@ inline mirror::Class* ClassLinker::FindArrayClass(Thread* self, mirror::Class** 
   descriptor += (*element_class)->GetDescriptor(&temp);
   StackHandleScope<2> hs(Thread::Current());
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle((*element_class)->GetClassLoader()));
-  HandleWrapper<mirror::Class> h_element_class(hs.NewHandleWrapper(element_class));
+  HandleWrapperObjPtr<mirror::Class> h_element_class(hs.NewHandleWrapper(element_class));
   mirror::Class* array_class = FindClass(self, descriptor.c_str(), class_loader);
   if (array_class != nullptr) {
     // Benign races in storing array class and incrementing index.
