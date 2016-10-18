@@ -305,7 +305,8 @@ static void Unsafe_copyMemory(JNIEnv *env, jobject unsafe ATTRIBUTE_UNUSED, jlon
 }
 
 template<typename T>
-static void copyToArray(jlong srcAddr, mirror::PrimitiveArray<T>* array,
+static void copyToArray(jlong srcAddr,
+                        ObjPtr<mirror::PrimitiveArray<T>> array,
                         size_t array_offset,
                         size_t size)
         REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -318,7 +319,8 @@ static void copyToArray(jlong srcAddr, mirror::PrimitiveArray<T>* array,
 }
 
 template<typename T>
-static void copyFromArray(jlong dstAddr, mirror::PrimitiveArray<T>* array,
+static void copyFromArray(jlong dstAddr,
+                          ObjPtr<mirror::PrimitiveArray<T>> array,
                           size_t array_offset,
                           size_t size)
         REQUIRES_SHARED(Locks::mutator_lock_) {
@@ -347,15 +349,15 @@ static void Unsafe_copyMemoryToPrimitiveArray(JNIEnv *env,
   size_t sz = (size_t)size;
   size_t dst_offset = (size_t)dstOffset;
   ObjPtr<mirror::Object> dst = soa.Decode<mirror::Object>(dstObj);
-  mirror::Class* component_type = dst->GetClass()->GetComponentType();
+  ObjPtr<mirror::Class> component_type = dst->GetClass()->GetComponentType();
   if (component_type->IsPrimitiveByte() || component_type->IsPrimitiveBoolean()) {
-    copyToArray(srcAddr, dst->AsByteSizedArray(), dst_offset, sz);
+    copyToArray(srcAddr, MakeObjPtr(dst->AsByteSizedArray()), dst_offset, sz);
   } else if (component_type->IsPrimitiveShort() || component_type->IsPrimitiveChar()) {
-    copyToArray(srcAddr, dst->AsShortSizedArray(), dst_offset, sz);
+    copyToArray(srcAddr, MakeObjPtr(dst->AsShortSizedArray()), dst_offset, sz);
   } else if (component_type->IsPrimitiveInt() || component_type->IsPrimitiveFloat()) {
-    copyToArray(srcAddr, dst->AsIntArray(), dst_offset, sz);
+    copyToArray(srcAddr, MakeObjPtr(dst->AsIntArray()), dst_offset, sz);
   } else if (component_type->IsPrimitiveLong() || component_type->IsPrimitiveDouble()) {
-    copyToArray(srcAddr, dst->AsLongArray(), dst_offset, sz);
+    copyToArray(srcAddr, MakeObjPtr(dst->AsLongArray()), dst_offset, sz);
   } else {
     ThrowIllegalAccessException("not a primitive array");
   }
@@ -378,15 +380,15 @@ static void Unsafe_copyMemoryFromPrimitiveArray(JNIEnv *env,
   size_t sz = (size_t)size;
   size_t src_offset = (size_t)srcOffset;
   ObjPtr<mirror::Object> src = soa.Decode<mirror::Object>(srcObj);
-  mirror::Class* component_type = src->GetClass()->GetComponentType();
+  ObjPtr<mirror::Class> component_type = src->GetClass()->GetComponentType();
   if (component_type->IsPrimitiveByte() || component_type->IsPrimitiveBoolean()) {
-    copyFromArray(dstAddr, src->AsByteSizedArray(), src_offset, sz);
+    copyFromArray(dstAddr, MakeObjPtr(src->AsByteSizedArray()), src_offset, sz);
   } else if (component_type->IsPrimitiveShort() || component_type->IsPrimitiveChar()) {
-    copyFromArray(dstAddr, src->AsShortSizedArray(), src_offset, sz);
+    copyFromArray(dstAddr, MakeObjPtr(src->AsShortSizedArray()), src_offset, sz);
   } else if (component_type->IsPrimitiveInt() || component_type->IsPrimitiveFloat()) {
-    copyFromArray(dstAddr, src->AsIntArray(), src_offset, sz);
+    copyFromArray(dstAddr, MakeObjPtr(src->AsIntArray()), src_offset, sz);
   } else if (component_type->IsPrimitiveLong() || component_type->IsPrimitiveDouble()) {
-    copyFromArray(dstAddr, src->AsLongArray(), src_offset, sz);
+    copyFromArray(dstAddr, MakeObjPtr(src->AsLongArray()), src_offset, sz);
   } else {
     ThrowIllegalAccessException("not a primitive array");
   }

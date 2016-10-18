@@ -497,13 +497,13 @@ static jobjectArray Class_getDeclaredClasses(JNIEnv* env, jobject javaThis) {
       // Pending exception from GetDeclaredClasses.
       return nullptr;
     }
-    mirror::Class* class_class = mirror::Class::GetJavaLangClass();
-    mirror::Class* class_array_class =
+    ObjPtr<mirror::Class> class_class = mirror::Class::GetJavaLangClass();
+    ObjPtr<mirror::Class> class_array_class =
         Runtime::Current()->GetClassLinker()->FindArrayClass(soa.Self(), &class_class);
     if (class_array_class == nullptr) {
       return nullptr;
     }
-    mirror::ObjectArray<mirror::Class>* empty_array =
+    ObjPtr<mirror::ObjectArray<mirror::Class>> empty_array =
         mirror::ObjectArray<mirror::Class>::Alloc(soa.Self(), class_array_class, 0);
     return soa.AddLocalReference<jobjectArray>(empty_array);
   }
@@ -527,7 +527,7 @@ static jobject Class_getEnclosingConstructorNative(JNIEnv* env, jobject javaThis
   if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
     return nullptr;
   }
-  mirror::Object* method = annotations::GetEnclosingMethod(klass);
+  ObjPtr<mirror::Object> method = annotations::GetEnclosingMethod(klass);
   if (method != nullptr) {
     if (soa.Decode<mirror::Class>(WellKnownClasses::java_lang_reflect_Constructor) ==
         method->GetClass()) {
@@ -544,7 +544,7 @@ static jobject Class_getEnclosingMethodNative(JNIEnv* env, jobject javaThis) {
   if (klass->IsProxyClass() || klass->GetDexCache() == nullptr) {
     return nullptr;
   }
-  mirror::Object* method = annotations::GetEnclosingMethod(klass);
+  ObjPtr<mirror::Object> method = annotations::GetEnclosingMethod(klass);
   if (method != nullptr) {
     if (soa.Decode<mirror::Class>(WellKnownClasses::java_lang_reflect_Method) ==
         method->GetClass()) {
@@ -660,7 +660,7 @@ static jobject Class_newInstance(JNIEnv* env, jobject javaThis) {
   // Invoke the string allocator to return an empty string for the string class.
   if (klass->IsStringClass()) {
     gc::AllocatorType allocator_type = Runtime::Current()->GetHeap()->GetCurrentAllocator();
-    mirror::Object* obj = mirror::String::AllocEmptyString<true>(soa.Self(), allocator_type);
+    ObjPtr<mirror::Object> obj = mirror::String::AllocEmptyString<true>(soa.Self(), allocator_type);
     if (UNLIKELY(soa.Self()->IsExceptionPending())) {
       return nullptr;
     } else {

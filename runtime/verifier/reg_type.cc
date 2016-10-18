@@ -748,7 +748,7 @@ mirror::Class* RegType::ClassJoin(mirror::Class* s, mirror::Class* t) {
       DCHECK(result->IsObjectClass());
       return result;
     }
-    mirror::Class* common_elem = ClassJoin(s_ct, t_ct);
+    ObjPtr<mirror::Class> common_elem = ClassJoin(s_ct, t_ct);
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     mirror::Class* array_class = class_linker->FindArrayClass(Thread::Current(), &common_elem);
     DCHECK(array_class != nullptr);
