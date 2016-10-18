@@ -650,7 +650,11 @@ void Instrumentation::SetEntrypointsInstrumented(bool instrumented) {
 
     // Note: ResetQuickAllocEntryPoints only works when the runtime is started. Manually run the
     //       update for just this thread.
-    ResetQuickAllocEntryPointsForThread(self, nullptr);
+    // Note: self may be null. One of those paths is setting instrumentation in the Heap
+    //       constructor for gcstress mode.
+    if (self != nullptr) {
+      ResetQuickAllocEntryPointsForThread(self, nullptr);
+    }
 
     alloc_entrypoints_instrumented_ = instrumented;
   }
