@@ -155,11 +155,12 @@ mirror::Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes,
   large_objects_.Put(obj, LargeObject {mem_map, false /* not zygote */});
   const size_t allocation_size = mem_map->BaseSize();
   DCHECK(bytes_allocated != nullptr);
-  begin_ = std::min(begin_, reinterpret_cast<uint8_t*>(obj));
-  uint8_t* obj_end = reinterpret_cast<uint8_t*>(obj) + allocation_size;
-  if (end_ == nullptr || obj_end > end_) {
-    end_ = obj_end;
+
+  if (begin_ == nullptr || begin_ > reinterpret_cast<uint8_t*>(obj)) {
+    begin_ = reinterpret_cast<uint8_t*>(obj);
   }
+  end_ = std::max(end_, reinterpret_cast<uint8_t*>(obj) + allocation_size);
+
   *bytes_allocated = allocation_size;
   if (usable_size != nullptr) {
     *usable_size = allocation_size;
