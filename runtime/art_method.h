@@ -28,6 +28,7 @@
 #include "method_reference.h"
 #include "modifiers.h"
 #include "mirror/object.h"
+#include "obj_ptr.h"
 #include "read_barrier_option.h"
 #include "utils.h"
 
@@ -69,7 +70,7 @@ class ArtMethod FINAL {
   ALWAYS_INLINE mirror::Class* GetDeclaringClassUnchecked()
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void SetDeclaringClass(mirror::Class *new_declaring_class)
+  void SetDeclaringClass(ObjPtr<mirror::Class> new_declaring_class)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool CASDeclaringClass(mirror::Class* expected_class, mirror::Class* desired_class)

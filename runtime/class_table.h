@@ -73,7 +73,7 @@ class ClassTable {
   ClassTable();
 
   // Used by image writer for checking.
-  bool Contains(mirror::Class* klass)
+  bool Contains(ObjPtr<mirror::Class> klass)
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -119,15 +119,15 @@ class ClassTable {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Return the first class that matches the descriptor of klass. Returns null if there are none.
-  mirror::Class* LookupByDescriptor(mirror::Class* klass)
+  mirror::Class* LookupByDescriptor(ObjPtr<mirror::Class> klass)
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void Insert(mirror::Class* klass)
+  void Insert(ObjPtr<mirror::Class> klass)
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void InsertWithHash(mirror::Class* klass, size_t hash)
+  void InsertWithHash(ObjPtr<mirror::Class> klass, size_t hash)
       REQUIRES(!lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -166,7 +166,7 @@ class ClassTable {
   }
 
  private:
-  void InsertWithoutLocks(mirror::Class* klass) NO_THREAD_SAFETY_ANALYSIS;
+  void InsertWithoutLocks(ObjPtr<mirror::Class> klass) NO_THREAD_SAFETY_ANALYSIS;
 
   // Lock to guard inserting and removing.
   mutable ReaderWriterMutex lock_;

@@ -189,7 +189,7 @@ class GetMethodsVisitor : public ClassVisitor {
     : methods_(methods),
       startup_method_samples_(startup_method_samples) {}
 
-  virtual bool operator()(mirror::Class* klass) REQUIRES_SHARED(Locks::mutator_lock_) {
+  virtual bool operator()(ObjPtr<mirror::Class> klass) REQUIRES_SHARED(Locks::mutator_lock_) {
     if (Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(klass)) {
       return true;
     }
