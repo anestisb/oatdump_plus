@@ -122,6 +122,8 @@ static bool GetIdFromInstruction(Collections& collections,
     // case Instruction::k3rms:
     // case Instruction::k35mi:
     // case Instruction::k3rmi:
+    case Instruction::k45cc:
+    case Instruction::k4rcc:
       index = dec_insn->VRegB();
       break;
     case Instruction::k31c:
@@ -150,6 +152,7 @@ static bool GetIdFromInstruction(Collections& collections,
       }
       break;
     case Instruction::kIndexMethodRef:
+    case Instruction::kIndexMethodAndProtoRef:
       if (index < collections.MethodIdsSize()) {
         method_ids->push_back(collections.GetMethodId(index));
         return true;

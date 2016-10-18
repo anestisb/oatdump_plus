@@ -90,6 +90,10 @@ inline const Signature DexFile::GetMethodSignature(const MethodId& method_id) co
   return Signature(this, GetProtoId(method_id.proto_idx_));
 }
 
+inline const Signature DexFile::GetProtoSignature(const ProtoId& proto_id) const {
+  return Signature(this, proto_id);
+}
+
 inline const char* DexFile::GetMethodName(const MethodId& method_id) const {
   return StringDataByIdx(method_id.name_idx_);
 }
