@@ -1246,9 +1246,6 @@ Heap::~Heap() {
         << " total=" << seen_backtrace_count_.LoadRelaxed() +
             unique_backtrace_count_.LoadRelaxed();
   }
-  // Delete any still registered allocation listener.
-  AllocationListener* l = GetAndOverwriteAllocationListener(&alloc_listener_, nullptr);
-  delete l;
 
   VLOG(heap) << "Finished ~Heap()";
 }
