@@ -40,6 +40,8 @@
 #include "mirror/object.h"
 #include "runtime.h"
 #include "ScopedLocalRef.h"
+#include "scoped_thread_state_change-inl.h"
+#include "thread-inl.h"
 
 namespace openjdkjvmti {
 
@@ -172,6 +174,10 @@ class JvmtiAllocationListener : public art::gc::AllocationListener {
 };
 
 static void SetupObjectAllocationTracking(art::gc::AllocationListener* listener, bool enable) {
+  // We must not hold the mutator lock here, but if we're in FastJNI, for example, we might. For
+  // now, do a workaround: (possibly) acquire and release.
+  art::ScopedObjectAccess soa(art::Thread::Current());
+  art::ScopedThreadSuspension sts(soa.Self(), art::ThreadState::kSuspended);
   if (enable) {
     art::Runtime::Current()->GetHeap()->SetAllocationListener(listener);
   } else {
