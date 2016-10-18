@@ -71,8 +71,8 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
     ThrowArrayStoreException_NotAnArray("destination", dstObject);
     return;
   }
-  mirror::Array* srcArray = srcObject->AsArray();
-  mirror::Array* dstArray = dstObject->AsArray();
+  ObjPtr<mirror::Array> srcArray = srcObject->AsArray();
+  ObjPtr<mirror::Array> dstArray = dstObject->AsArray();
 
   // Bounds checking.
   if (UNLIKELY(srcPos < 0) || UNLIKELY(dstPos < 0) || UNLIKELY(count < 0) ||
@@ -85,8 +85,8 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
     return;
   }
 
-  mirror::Class* dstComponentType = dstArray->GetClass()->GetComponentType();
-  mirror::Class* srcComponentType = srcArray->GetClass()->GetComponentType();
+  ObjPtr<mirror::Class> dstComponentType = dstArray->GetClass()->GetComponentType();
+  ObjPtr<mirror::Class> srcComponentType = srcArray->GetClass()->GetComponentType();
   Primitive::Type dstComponentPrimitiveType = dstComponentType->GetPrimitiveType();
 
   if (LIKELY(srcComponentType == dstComponentType)) {
@@ -143,8 +143,10 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
     return;
   }
   // Arrays hold distinct types and so therefore can't alias - use memcpy instead of memmove.
-  mirror::ObjectArray<mirror::Object>* dstObjArray = dstArray->AsObjectArray<mirror::Object>();
-  mirror::ObjectArray<mirror::Object>* srcObjArray = srcArray->AsObjectArray<mirror::Object>();
+  ObjPtr<mirror::ObjectArray<mirror::Object>> dstObjArray =
+      dstArray->AsObjectArray<mirror::Object>();
+  ObjPtr<mirror::ObjectArray<mirror::Object>> srcObjArray =
+      srcArray->AsObjectArray<mirror::Object>();
   // If we're assigning into say Object[] then we don't need per element checks.
   if (dstComponentType->IsAssignableFrom(srcComponentType)) {
     dstObjArray->AssignableMemcpy(dstPos, srcObjArray, srcPos, count);
@@ -157,8 +159,9 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
 
 // Template to convert general array to that of its specific primitive type.
 template <typename T>
-inline T* AsPrimitiveArray(mirror::Array* array) {
-  return down_cast<T*>(array);
+inline ObjPtr<T> AsPrimitiveArray(ObjPtr<mirror::Array> array)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  return ObjPtr<T>::DownCast(array);
 }
 
 template <typename T, Primitive::Type kPrimType>
@@ -168,8 +171,8 @@ inline void System_arraycopyTUnchecked(JNIEnv* env, jobject javaSrc, jint srcPos
   ObjPtr<mirror::Object> srcObject = soa.Decode<mirror::Object>(javaSrc);
   ObjPtr<mirror::Object> dstObject = soa.Decode<mirror::Object>(javaDst);
   DCHECK(dstObject != nullptr);
-  mirror::Array* srcArray = srcObject->AsArray();
-  mirror::Array* dstArray = dstObject->AsArray();
+  ObjPtr<mirror::Array> srcArray = srcObject->AsArray();
+  ObjPtr<mirror::Array> dstArray = dstObject->AsArray();
   DCHECK_GE(count, 0);
   DCHECK_EQ(srcArray->GetClass(), dstArray->GetClass());
   DCHECK_EQ(srcArray->GetClass()->GetComponentType()->GetPrimitiveType(), kPrimType);

@@ -150,14 +150,18 @@ static jclass InMemoryDexClassLoader_DexData_findClass(
     Handle<mirror::ClassLoader> class_loader(
         handle_scope.NewHandle(soa.Decode<mirror::ClassLoader>(loader)));
     class_linker->RegisterDexFile(*dex_file, class_loader.Get());
-    mirror::Class* result = class_linker->DefineClass(
-        soa.Self(), class_descriptor, hash, class_loader, *dex_file, *dex_class_def);
+    ObjPtr<mirror::Class> result = class_linker->DefineClass(
+        soa.Self(),
+        class_descriptor,
+        hash, class_loader,
+        *dex_file,
+        *dex_class_def);
     if (result != nullptr) {
       // Ensure the class table has a strong reference to the
       // InMemoryClassLoader/DexData instance now that a class has
       // been loaded.
-      class_linker->InsertDexFileInToClassLoader(
-          soa.Decode<mirror::Object>(dexData).Ptr(), class_loader.Get());
+      class_linker->InsertDexFileInToClassLoader(soa.Decode<mirror::Object>(dexData),
+                                                 class_loader.Get());
       return soa.AddLocalReference<jclass>(result);
     }
   }

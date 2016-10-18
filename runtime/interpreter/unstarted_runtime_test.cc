@@ -81,20 +81,21 @@ class UnstartedRuntimeTest : public CommonRuntimeTest {
 
   static mirror::ObjectArray<mirror::Object>* CreateObjectArray(
       Thread* self,
-      mirror::Class* component_type,
+      ObjPtr<mirror::Class> component_type,
       const StackHandleScope<3>& data)
       REQUIRES_SHARED(Locks::mutator_lock_) {
     Runtime* runtime = Runtime::Current();
-    mirror::Class* array_type = runtime->GetClassLinker()->FindArrayClass(self, &component_type);
+    ObjPtr<mirror::Class> array_type =
+        runtime->GetClassLinker()->FindArrayClass(self, &component_type);
     CHECK(array_type != nullptr);
-    mirror::ObjectArray<mirror::Object>* result =
+    ObjPtr<mirror::ObjectArray<mirror::Object>> result =
         mirror::ObjectArray<mirror::Object>::Alloc(self, array_type, 3);
     CHECK(result != nullptr);
     for (size_t i = 0; i < 3; ++i) {
       result->Set(static_cast<int32_t>(i), data.GetReference(i));
       CHECK(!self->IsExceptionPending());
     }
-    return result;
+    return result.Ptr();
   }
 
   static void CheckObjectArray(mirror::ObjectArray<mirror::Object>* array,

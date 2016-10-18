@@ -44,7 +44,7 @@ static jobjectArray Method_getExceptionTypes(JNIEnv* env, jobject javaMethod) {
   ScopedFastNativeObjectAccess soa(env);
   ArtMethod* method = ArtMethod::FromReflectedMethod(soa, javaMethod);
   if (method->GetDeclaringClass()->IsProxyClass()) {
-    mirror::Class* klass = method->GetDeclaringClass();
+    ObjPtr<mirror::Class> klass = method->GetDeclaringClass();
     int throws_index = -1;
     size_t i = 0;
     for (const auto& m : klass->GetDeclaredVirtualMethods(kRuntimePointerSize)) {
@@ -62,8 +62,8 @@ static jobjectArray Method_getExceptionTypes(JNIEnv* env, jobject javaMethod) {
         annotations::GetExceptionTypesForMethod(method);
     if (result_array == nullptr) {
       // Return an empty array instead of a null pointer
-      mirror::Class* class_class = mirror::Class::GetJavaLangClass();
-      mirror::Class* class_array_class =
+      ObjPtr<mirror::Class> class_class = mirror::Class::GetJavaLangClass();
+      ObjPtr<mirror::Class> class_array_class =
           Runtime::Current()->GetClassLinker()->FindArrayClass(soa.Self(), &class_class);
       if (class_array_class == nullptr) {
         return nullptr;

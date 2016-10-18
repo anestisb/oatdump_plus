@@ -1472,13 +1472,17 @@ void UnstartedRuntime::UnstartedJNIVMRuntimeNewUnpaddedArray(
     uint32_t* args, JValue* result) {
   int32_t length = args[1];
   DCHECK_GE(length, 0);
-  mirror::Class* element_class = reinterpret_cast<mirror::Object*>(args[0])->AsClass();
+  ObjPtr<mirror::Class> element_class = reinterpret_cast<mirror::Object*>(args[0])->AsClass();
   Runtime* runtime = Runtime::Current();
-  mirror::Class* array_class = runtime->GetClassLinker()->FindArrayClass(self, &element_class);
+  ObjPtr<mirror::Class> array_class =
+      runtime->GetClassLinker()->FindArrayClass(self, &element_class);
   DCHECK(array_class != nullptr);
   gc::AllocatorType allocator = runtime->GetHeap()->GetCurrentAllocator();
-  result->SetL(mirror::Array::Alloc<true, true>(self, array_class, length,
-                                                array_class->GetComponentSizeShift(), allocator));
+  result->SetL(mirror::Array::Alloc<true, true>(self,
+                                                array_class,
+                                                length,
+                                                array_class->GetComponentSizeShift(),
+                                                allocator));
 }
 
 void UnstartedRuntime::UnstartedJNIVMStackGetCallingClassLoader(
@@ -1601,10 +1605,10 @@ void UnstartedRuntime::UnstartedJNIArrayCreateObjectArray(
     ThrowNegativeArraySizeException(length);
     return;
   }
-  mirror::Class* element_class = reinterpret_cast<mirror::Class*>(args[0])->AsClass();
+  ObjPtr<mirror::Class> element_class = reinterpret_cast<mirror::Class*>(args[0])->AsClass();
   Runtime* runtime = Runtime::Current();
   ClassLinker* class_linker = runtime->GetClassLinker();
-  mirror::Class* array_class = class_linker->FindArrayClass(self, &element_class);
+  ObjPtr<mirror::Class> array_class = class_linker->FindArrayClass(self, &element_class);
   if (UNLIKELY(array_class == nullptr)) {
     CHECK(self->IsExceptionPending());
     return;
