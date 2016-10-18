@@ -99,8 +99,6 @@ class DexCacheArraysLayout {
     return method_types_offset_;
   }
 
-  size_t MethodTypeOffset(uint32_t method_type_idx) const;
-
   size_t MethodTypesSize(size_t num_elements) const;
 
   size_t MethodTypesAlignment() const;
