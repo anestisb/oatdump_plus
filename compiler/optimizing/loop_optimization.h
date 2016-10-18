@@ -62,7 +62,7 @@ class HLoopOptimization : public HOptimization {
 
   void SimplifyInduction(LoopNode* node);
   void SimplifyBlocks(LoopNode* node);
-  void RemoveIfEmptyLoop(LoopNode* node);
+  void RemoveIfEmptyInnerLoop(LoopNode* node);
 
   bool IsOnlyUsedAfterLoop(HLoopInformation* loop_info,
                            HInstruction* instruction,
