@@ -80,6 +80,7 @@ art_cc_defaults {
         "optimizing/register_allocator_graph_color.cc",
         "optimizing/register_allocator_linear_scan.cc",
         "optimizing/select_generator.cc",
+        "optimizing/scheduler.cc",
         "optimizing/sharpening.cc",
         "optimizing/side_effects_analysis.cc",
         "optimizing/ssa_builder.cc",
@@ -123,6 +124,7 @@ art_cc_defaults {
                 "jni/quick/arm64/calling_convention_arm64.cc",
                 "linker/arm64/relative_patcher_arm64.cc",
                 "optimizing/code_generator_arm64.cc",
+                "optimizing/scheduler_arm64.cc",
                 "optimizing/instruction_simplifier_arm64.cc",
                 "optimizing/intrinsics_arm64.cc",
                 "optimizing/nodes_arm64.cc",
@@ -362,6 +364,7 @@ art_cc_test {
         "jni/jni_cfi_test.cc",
         "optimizing/codegen_test.cc",
         "optimizing/optimizing_cfi_test.cc",
+        "optimizing/scheduler_test.cc",
     ],
 
     codegen: {
