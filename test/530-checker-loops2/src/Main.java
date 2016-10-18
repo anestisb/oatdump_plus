@@ -890,6 +890,18 @@ public class Main {
     return result;
   }
 
+  static int shortIndex(int[] a) {
+    int r = 0;
+    // Make sure short/int conversions compiles well (b/32193474).
+    // TODO: investigate type implications and whether we can use
+    //       constant range to apply dyn BCE on all subscripts.
+    for (short i = 1; i < 10; i++) {
+      int ki = i - 1;
+      r += a[ki] + a[i];
+    }
+    return r;
+  }
+
   //
   // Verifier.
   //
@@ -1223,6 +1235,8 @@ public class Main {
         dynamicBCEAndConstantIndicesAllPrimTypes(x, x1, x2, x3, x4, x5, x6, x7, x8, 0, 10));
     Integer[] x9 = { 9 };
     expectEquals(145, dynamicBCEAndConstantIndexRefType(x, x9, 0, 10));
+
+    expectEquals(99, shortIndex(x));
 
     System.out.println("passed");
   }

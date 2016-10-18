@@ -1361,6 +1361,11 @@ class BCEVisitor : public HGraphVisitor {
         ValueBound other_value = ValueBound::AsValueBound(other_index);
         int32_t other_c = other_value.GetConstant();
         if (array_length == other_array_length && base == other_value.GetInstruction()) {
+          // Ensure every candidate could be picked for code generation.
+          bool b1 = false, b2 = false;
+          if (!induction_range_.CanGenerateRange(other_bounds_check, other_index, &b1, &b2)) {
+            continue;
+          }
           // Does the current basic block dominate all back edges? If not,
           // add this candidate later only if it falls into the range.
           if (!loop->DominatesAllBackEdges(user->GetBlock())) {
