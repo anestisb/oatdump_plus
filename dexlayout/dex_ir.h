@@ -741,7 +741,7 @@ class ClassDef : public IndexedItem {
   uint32_t GetAccessFlags() const { return access_flags_; }
   const TypeId* Superclass() const { return superclass_; }
   const TypeIdVector* Interfaces()
-      { return interfaces_ == nullptr ? nullptr: interfaces_->GetTypeList(); }
+      { return interfaces_ == nullptr ? nullptr : interfaces_->GetTypeList(); }
   uint32_t InterfacesOffset() { return interfaces_ == nullptr ? 0 : interfaces_->GetOffset(); }
   const StringId* SourceFile() const { return source_file_; }
   AnnotationsDirectoryItem* Annotations() const { return annotations_; }

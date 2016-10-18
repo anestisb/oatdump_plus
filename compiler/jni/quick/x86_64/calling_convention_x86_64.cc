@@ -160,7 +160,7 @@ const ManagedRegisterEntrySpills& X86_64ManagedRuntimeCallingConvention::EntrySp
     while (HasNext()) {
       ManagedRegister in_reg = CurrentParamRegister();
       if (!in_reg.IsNoRegister()) {
-        int32_t size = IsParamALongOrDouble(itr_args_)? 8 : 4;
+        int32_t size = IsParamALongOrDouble(itr_args_) ? 8 : 4;
         int32_t spill_offset = CurrentParamStackOffset().Uint32Value();
         ManagedRegisterSpill spill(in_reg, size, spill_offset);
         entry_spills_.push_back(spill);

@@ -3336,7 +3336,7 @@ void LocationsBuilderARMVIXL::VisitDiv(HDiv* div) {
         InvokeRuntimeCallingConventionARMVIXL calling_convention;
         locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(0)));
         locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(1)));
-        // Note: divrem will compute both the quotient and the remainder as the pair R0 and R1, but
+        // Note: divmod will compute both the quotient and the remainder as the pair R0 and R1, but
         //       we only need the former.
         locations->SetOut(LocationFrom(r0));
       }
@@ -3450,7 +3450,7 @@ void LocationsBuilderARMVIXL::VisitRem(HRem* rem) {
         InvokeRuntimeCallingConventionARMVIXL calling_convention;
         locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(0)));
         locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(1)));
-        // Note: divrem will compute both the quotient and the remainder as the pair R0 and R1, but
+        // Note: divmod will compute both the quotient and the remainder as the pair R0 and R1, but
         //       we only need the latter.
         locations->SetOut(LocationFrom(r1));
       }

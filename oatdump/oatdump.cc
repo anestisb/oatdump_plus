@@ -1784,7 +1784,7 @@ class ImageDumper {
         os << StringPrintf("%d (0x%x)\n", field->GetShort(obj), field->GetShort(obj));
         break;
       case Primitive::kPrimBoolean:
-        os << StringPrintf("%s (0x%x)\n", field->GetBoolean(obj)? "true" : "false",
+        os << StringPrintf("%s (0x%x)\n", field->GetBoolean(obj) ? "true" : "false",
             field->GetBoolean(obj));
         break;
       case Primitive::kPrimByte:

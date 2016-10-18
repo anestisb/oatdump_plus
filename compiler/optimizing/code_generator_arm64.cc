@@ -4655,7 +4655,7 @@ void LocationsBuilderARM64::VisitMonitorOperation(HMonitorOperation* instruction
 }
 
 void InstructionCodeGeneratorARM64::VisitMonitorOperation(HMonitorOperation* instruction) {
-  codegen_->InvokeRuntime(instruction->IsEnter() ? kQuickLockObject: kQuickUnlockObject,
+  codegen_->InvokeRuntime(instruction->IsEnter() ? kQuickLockObject : kQuickUnlockObject,
                           instruction,
                           instruction->GetDexPc());
   if (instruction->IsEnter()) {

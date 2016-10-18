@@ -1443,7 +1443,7 @@ void UnstartedRuntime::UnstartedMethodInvoke(
 
   ObjPtr<mirror::Object> java_method_obj = shadow_frame->GetVRegReference(arg_offset);
   ScopedLocalRef<jobject> java_method(env,
-      java_method_obj == nullptr ? nullptr :env->AddLocalReference<jobject>(java_method_obj));
+      java_method_obj == nullptr ? nullptr : env->AddLocalReference<jobject>(java_method_obj));
 
   ObjPtr<mirror::Object> java_receiver_obj = shadow_frame->GetVRegReference(arg_offset + 1);
   ScopedLocalRef<jobject> java_receiver(env,
