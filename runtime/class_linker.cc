@@ -1374,6 +1374,7 @@ bool ClassLinker::UpdateAppImageClassLoadersAndDexCaches(
                 std::memory_order_relaxed);
           }
 
+          mirror::MethodTypeDexCachePair::Initialize(method_types);
           dex_cache->SetResolvedMethodTypes(method_types);
         }
       }

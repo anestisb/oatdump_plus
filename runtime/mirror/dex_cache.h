@@ -160,6 +160,10 @@ class MANAGED DexCache FINAL : public Object {
   void FixupResolvedTypes(GcRoot<mirror::Class>* dest, const Visitor& visitor)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
+  template <ReadBarrierOption kReadBarrierOption = kWithReadBarrier, typename Visitor>
+  void FixupResolvedMethodTypes(MethodTypeDexCacheType* dest, const Visitor& visitor)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
   String* GetLocation() REQUIRES_SHARED(Locks::mutator_lock_) {
     return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(DexCache, location_));
   }
@@ -283,7 +287,7 @@ class MANAGED DexCache FINAL : public Object {
 
   MethodTypeDexCacheType* GetResolvedMethodTypes()
       ALWAYS_INLINE REQUIRES_SHARED(Locks::mutator_lock_) {
-    return GetFieldPtr<MethodTypeDexCacheType*>(ResolvedMethodTypesOffset());
+    return GetFieldPtr64<MethodTypeDexCacheType*>(ResolvedMethodTypesOffset());
   }
 
   void SetResolvedMethodTypes(MethodTypeDexCacheType* resolved_method_types)
