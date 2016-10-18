@@ -1255,6 +1255,16 @@ class ImageSpaceLoader {
             }
           }
         }
+
+        mirror::MethodTypeDexCacheType* method_types = dex_cache->GetResolvedMethodTypes();
+        if (method_types != nullptr) {
+          mirror::MethodTypeDexCacheType* new_method_types =
+              fixup_adapter.ForwardObject(method_types);
+          if (method_types != new_method_types) {
+            dex_cache->SetResolvedMethodTypes(new_method_types);
+          }
+          dex_cache->FixupResolvedMethodTypes<kWithoutReadBarrier>(new_method_types, fixup_adapter);
+        }
       }
     }
     {
