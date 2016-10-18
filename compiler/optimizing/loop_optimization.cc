@@ -20,17 +20,37 @@
 
 namespace art {
 
-// TODO: Generalize to cycles, as found by induction analysis?
+// Detects a potential induction cycle. Note that the actual induction
+// information is queried later if its last value is really needed.
 static bool IsPhiInduction(HPhi* phi, ArenaSet<HInstruction*>* iset) {
   DCHECK(iset->empty());
   HInputsRef inputs = phi->GetInputs();
-  if (inputs.size() == 2 && (inputs[1]->IsAdd() || inputs[1]->IsSub())) {
-    HInstruction* addsub = inputs[1];
-    if (addsub->InputAt(0) == phi || addsub->InputAt(1) == phi) {
-      if (addsub->GetUses().HasExactlyOneElement()) {
-        iset->insert(phi);
-        iset->insert(addsub);
-        return true;
+  if (inputs.size() == 2) {
+    HLoopInformation* loop_info = phi->GetBlock()->GetLoopInformation();
+    HInstruction* op = inputs[1];
+    if (op->GetBlock()->GetLoopInformation() == loop_info) {
+      // Chase a simple chain back to phi.
+      while (!op->IsPhi()) {
+        // Binary operation with single use in same loop.
+        if (!op->IsBinaryOperation() || !op->GetUses().HasExactlyOneElement()) {
+          return false;
+        }
+        // Chase back either through left or right operand.
+        iset->insert(op);
+        HInstruction* a = op->InputAt(0);
+        HInstruction* b = op->InputAt(1);
+        if (a->GetBlock()->GetLoopInformation() == loop_info && b != phi) {
+          op = a;
+        } else if (b->GetBlock()->GetLoopInformation() == loop_info) {
+          op = b;
+        } else {
+          return false;
+        }
+      }
+      // Closed the cycle?
+      if (op == phi) {
+       iset->insert(phi);
+       return true;
       }
     }
   }
@@ -62,16 +82,23 @@ static bool IsEmptyHeader(HBasicBlock* block, ArenaSet<HInstruction*>* iset) {
   return false;
 }
 
+// Does the loop-body consist of induction cycle and direct control flow only?
 static bool IsEmptyBody(HBasicBlock* block, ArenaSet<HInstruction*>* iset) {
-  HInstruction* phi = block->GetFirstPhi();
-  HInstruction* i = block->GetFirstInstruction();
-  return phi == nullptr && iset->find(i) != iset->end() &&
-      i->GetNext() != nullptr && i->GetNext()->IsGoto();
+  if (block->GetFirstPhi() == nullptr) {
+    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+      HInstruction* instruction = it.Current();
+      if (!instruction->IsGoto() && iset->find(instruction) == iset->end()) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
 }
 
+// Remove the instruction from the graph. A bit more elaborate than the usual
+// instruction removal, since there may be a cycle in the use structure.
 static void RemoveFromCycle(HInstruction* instruction) {
-  // A bit more elaborate than the usual instruction removal,
-  // since there may be a cycle in the use structure.
   instruction->RemoveAsUserOfAllInputs();
   instruction->RemoveEnvironmentUsers();
   instruction->GetBlock()->RemoveInstructionOrPhi(instruction, /*ensure_safety=*/ false);
@@ -196,7 +223,9 @@ void HLoopOptimization::TraverseLoopsInnerToOuter(LoopNode* node) {
     }
     SimplifyInduction(node);
     SimplifyBlocks(node);
-    RemoveIfEmptyLoop(node);
+    if (node->inner == nullptr) {
+      RemoveIfEmptyInnerLoop(node);
+    }
   }
 }
 
@@ -233,7 +262,7 @@ void HLoopOptimization::SimplifyBlocks(LoopNode* node) {
         block->RemoveInstruction(instruction);
       }
     }
-    // Remove trivial control flow blocks from the loop body, again usually resulting
+    // Remove trivial control flow blocks from the loop-body, again usually resulting
     // from eliminating induction cycles.
     if (block->GetPredecessors().size() == 1 &&
         block->GetSuccessors().size() == 1 &&
@@ -252,9 +281,13 @@ void HLoopOptimization::SimplifyBlocks(LoopNode* node) {
   }
 }
 
-void HLoopOptimization::RemoveIfEmptyLoop(LoopNode* node) {
+void HLoopOptimization::RemoveIfEmptyInnerLoop(LoopNode* node) {
   HBasicBlock* header = node->loop_info->GetHeader();
   HBasicBlock* preheader = node->loop_info->GetPreHeader();
+  // Ensure loop header logic is finite.
+  if (!induction_range_.IsFinite(node->loop_info)) {
+    return;
+  }
   // Ensure there is only a single loop-body (besides the header).
   HBasicBlock* body = nullptr;
   for (HBlocksInLoopIterator it(*node->loop_info); !it.Done(); it.Advance()) {
