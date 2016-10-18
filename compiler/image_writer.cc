@@ -461,6 +461,12 @@ void ImageWriter::PrepareDexCacheArraySlots() {
                                dex_cache);
     DCHECK_EQ(dex_file->NumStringIds() != 0u, dex_cache->GetStrings() != nullptr);
     AddDexCacheArrayRelocation(dex_cache->GetStrings(), start + layout.StringsOffset(), dex_cache);
+
+    if (dex_cache->GetResolvedMethodTypes() != nullptr) {
+      AddDexCacheArrayRelocation(dex_cache->GetResolvedMethodTypes(),
+                                 start + layout.MethodTypesOffset(),
+                                 dex_cache);
+    }
   }
 }
 
@@ -2169,6 +2175,14 @@ void ImageWriter::FixupDexCache(mirror::DexCache* orig_dex_cache,
       ArtField* copy = NativeLocationInImage(orig);
       mirror::DexCache::SetElementPtrSize(copy_fields, i, copy, target_ptr_size_);
     }
+  }
+  mirror::MethodTypeDexCacheType* orig_method_types = orig_dex_cache->GetResolvedMethodTypes();
+  if (orig_method_types != nullptr) {
+    copy_dex_cache->SetFieldPtrWithSize<false>(mirror::DexCache::ResolvedMethodTypesOffset(),
+                                               NativeLocationInImage(orig_method_types),
+                                               PointerSize::k64);
+    orig_dex_cache->FixupResolvedMethodTypes(NativeCopyLocation(orig_method_types, orig_dex_cache),
+                                             ImageAddressVisitor(this));
   }
 
   // Remove the DexFile pointers. They will be fixed up when the runtime loads the oat file. Leaving

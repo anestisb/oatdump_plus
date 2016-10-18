@@ -677,6 +677,16 @@ void PatchOat::PatchDexFileArrays(mirror::ObjectArray<mirror::Object>* img_roots
         mirror::DexCache::SetElementPtrSize(copy_fields, j, copy, pointer_size);
       }
     }
+    mirror::MethodTypeDexCacheType* orig_method_types = orig_dex_cache->GetResolvedMethodTypes();
+    mirror::MethodTypeDexCacheType* relocated_method_types =
+        RelocatedAddressOfPointer(orig_method_types);
+    copy_dex_cache->SetField64<false>(
+        mirror::DexCache::ResolvedMethodTypesOffset(),
+        static_cast<int64_t>(reinterpret_cast<uintptr_t>(relocated_method_types)));
+    if (orig_method_types != nullptr) {
+      orig_dex_cache->FixupResolvedMethodTypes(RelocatedCopyOf(orig_method_types),
+                                               RelocatedPointerVisitor(this));
+    }
   }
 }
 
