@@ -717,6 +717,33 @@ public class Main {
     return sumWithFilter(array, filter);
   }
 
+  private static int mI = 0;
+  private static float mF = 0f;
+
+  /// CHECK-START: float Main.testAllocationEliminationWithLoops() load_store_elimination (before)
+  /// CHECK: NewInstance
+  /// CHECK: NewInstance
+  /// CHECK: NewInstance
+
+  /// CHECK-START: float Main.testAllocationEliminationWithLoops() load_store_elimination (after)
+  /// CHECK-NOT: NewInstance
+
+  private static float testAllocationEliminationWithLoops() {
+    for (int i0 = 0; i0 < 5; i0++) {
+      for (int i1 = 0; i1 < 5; i1++) {
+        for (int i2 = 0; i2 < 5; i2++) {
+          int lI0 = ((int) new Integer(((int) new Integer(mI))));
+          if (((boolean) new Boolean(false))) {
+            for (int i3 = 576 - 1; i3 >= 0; i3--) {
+              mF -= 976981405.0f;
+            }
+          }
+        }
+      }
+    }
+    return 1.0f;
+  }
+
   static void assertIntEquals(int result, int expected) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
@@ -779,6 +806,8 @@ public class Main {
     assertIntEquals($noinline$testHSelect(true), 0xdead);
     int[] array = {2, 5, 9, -1, -3, 10, 8, 4};
     assertIntEquals(sumWithinRange(array, 1, 5), 11);
+    assertFloatEquals(testAllocationEliminationWithLoops(), 1.0f);
+    assertFloatEquals(mF, 0f);
   }
 
   static boolean sFlag;
