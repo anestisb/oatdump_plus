@@ -19,4 +19,5 @@ package p1;
 public class BaseClass {
   public void run() { foo(); }
   void foo() { System.out.println("passed"); } // It should not be possible to override this.
+  void bar() { System.out.println("FAILED: This should not be called!"); }
 }
