@@ -647,7 +647,11 @@ void Instrumentation::SetEntrypointsInstrumented(bool instrumented) {
   } else {
     MutexLock mu(self, *Locks::runtime_shutdown_lock_);
     SetQuickAllocEntryPointsInstrumented(instrumented);
-    ResetQuickAllocEntryPoints();
+
+    // Note: ResetQuickAllocEntryPoints only works when the runtime is started. Manually run the
+    //       update for just this thread.
+    ResetQuickAllocEntryPointsForThread(self, nullptr);
+
     alloc_entrypoints_instrumented_ = instrumented;
   }
 }
