@@ -32,7 +32,7 @@ namespace art {
 namespace mirror {
 
 void DexCache::Init(const DexFile* dex_file,
-                    String* location,
+                    ObjPtr<String> location,
                     StringDexCacheType* strings,
                     uint32_t num_strings,
                     GcRoot<Class>* resolved_types,
@@ -84,7 +84,7 @@ void DexCache::Fixup(ArtMethod* trampoline, PointerSize pointer_size) {
   }
 }
 
-void DexCache::SetLocation(mirror::String* location) {
+void DexCache::SetLocation(ObjPtr<mirror::String> location) {
   SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(DexCache, location_), location);
 }
 
