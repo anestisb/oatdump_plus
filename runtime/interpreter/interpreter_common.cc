@@ -42,6 +42,59 @@ void ThrowNullPointerExceptionFromInterpreter() {
   ThrowNullPointerExceptionFromDexPC();
 }
 
+template<Primitive::Type field_type>
+static ALWAYS_INLINE void DoFieldGetCommon(Thread* self,
+                                           const ShadowFrame& shadow_frame,
+                                           ObjPtr<mirror::Object>& obj,
+                                           ArtField* field,
+                                           JValue* result) REQUIRES_SHARED(Locks::mutator_lock_) {
+  field->GetDeclaringClass()->AssertInitializedOrInitializingInThread(self);
+
+  // Report this field access to instrumentation if needed.
+  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
+  if (UNLIKELY(instrumentation->HasFieldReadListeners())) {
+    StackHandleScope<1> hs(self);
+    // Wrap in handle wrapper in case the listener does thread suspension.
+    HandleWrapperObjPtr<mirror::Object> h(hs.NewHandleWrapper(&obj));
+    ObjPtr<mirror::Object> this_object;
+    if (!field->IsStatic()) {
+      this_object = obj;
+    }
+    instrumentation->FieldReadEvent(self,
+                                    this_object.Ptr(),
+                                    shadow_frame.GetMethod(),
+                                    shadow_frame.GetDexPC(),
+                                    field);
+  }
+
+  switch (field_type) {
+    case Primitive::kPrimBoolean:
+      result->SetZ(field->GetBoolean(obj));
+      break;
+    case Primitive::kPrimByte:
+      result->SetB(field->GetByte(obj));
+      break;
+    case Primitive::kPrimChar:
+      result->SetC(field->GetChar(obj));
+      break;
+    case Primitive::kPrimShort:
+      result->SetS(field->GetShort(obj));
+      break;
+    case Primitive::kPrimInt:
+      result->SetI(field->GetInt(obj));
+      break;
+    case Primitive::kPrimLong:
+      result->SetJ(field->GetLong(obj));
+      break;
+    case Primitive::kPrimNot:
+      result->SetL(field->GetObject(obj));
+      break;
+    default:
+      LOG(FATAL) << "Unreachable: " << field_type;
+      UNREACHABLE();
+  }
+}
+
 template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check>
 bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst,
                 uint16_t inst_data) {
@@ -64,45 +117,31 @@ bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst
       return false;
     }
   }
-  f->GetDeclaringClass()->AssertInitializedOrInitializingInThread(self);
-  // Report this field access to instrumentation if needed.
-  instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
-  if (UNLIKELY(instrumentation->HasFieldReadListeners())) {
-    StackHandleScope<1> hs(self);
-    // Wrap in handle wrapper in case the listener does thread suspension.
-    HandleWrapperObjPtr<mirror::Object> h(hs.NewHandleWrapper(&obj));
-    ObjPtr<mirror::Object> this_object;
-    if (!f->IsStatic()) {
-      this_object = obj;
-    }
-    instrumentation->FieldReadEvent(self,
-                                    this_object.Ptr(),
-                                    shadow_frame.GetMethod(),
-                                    shadow_frame.GetDexPC(),
-                                    f);
-  }
+
+  JValue result;
+  DoFieldGetCommon<field_type>(self, shadow_frame, obj, f, &result);
   uint32_t vregA = is_static ? inst->VRegA_21c(inst_data) : inst->VRegA_22c(inst_data);
   switch (field_type) {
     case Primitive::kPrimBoolean:
-      shadow_frame.SetVReg(vregA, f->GetBoolean(obj));
+      shadow_frame.SetVReg(vregA, result.GetZ());
       break;
     case Primitive::kPrimByte:
-      shadow_frame.SetVReg(vregA, f->GetByte(obj));
+      shadow_frame.SetVReg(vregA, result.GetB());
       break;
     case Primitive::kPrimChar:
-      shadow_frame.SetVReg(vregA, f->GetChar(obj));
+      shadow_frame.SetVReg(vregA, result.GetC());
       break;
     case Primitive::kPrimShort:
-      shadow_frame.SetVReg(vregA, f->GetShort(obj));
+      shadow_frame.SetVReg(vregA, result.GetS());
       break;
     case Primitive::kPrimInt:
-      shadow_frame.SetVReg(vregA, f->GetInt(obj));
+      shadow_frame.SetVReg(vregA, result.GetI());
       break;
     case Primitive::kPrimLong:
-      shadow_frame.SetVRegLong(vregA, f->GetLong(obj));
+      shadow_frame.SetVRegLong(vregA, result.GetJ());
       break;
     case Primitive::kPrimNot:
-      shadow_frame.SetVRegReference(vregA, f->GetObject(obj).Ptr());
+      shadow_frame.SetVRegReference(vregA, result.GetL());
       break;
     default:
       LOG(FATAL) << "Unreachable: " << field_type;
@@ -142,6 +181,48 @@ EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL(StaticObjectRead, Primitive::kPrimNot)
 
 #undef EXPLICIT_DO_FIELD_GET_ALL_TEMPLATE_DECL
 #undef EXPLICIT_DO_FIELD_GET_TEMPLATE_DECL
+
+// Helper for getters in invoke-polymorphic.
+inline static void DoFieldGetForInvokePolymorphic(Thread* self,
+                                                  const ShadowFrame& shadow_frame,
+                                                  ObjPtr<mirror::Object>& obj,
+                                                  ArtField* field,
+                                                  Primitive::Type field_type,
+                                                  JValue* result)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  switch (field_type) {
+    case Primitive::kPrimBoolean:
+      DoFieldGetCommon<Primitive::kPrimBoolean>(self, shadow_frame, obj, field, result);
+      break;
+    case Primitive::kPrimByte:
+      DoFieldGetCommon<Primitive::kPrimByte>(self, shadow_frame, obj, field, result);
+      break;
+    case Primitive::kPrimChar:
+      DoFieldGetCommon<Primitive::kPrimChar>(self, shadow_frame, obj, field, result);
+      break;
+    case Primitive::kPrimShort:
+      DoFieldGetCommon<Primitive::kPrimShort>(self, shadow_frame, obj, field, result);
+      break;
+    case Primitive::kPrimInt:
+      DoFieldGetCommon<Primitive::kPrimInt>(self, shadow_frame, obj, field, result);
+      break;
+    case Primitive::kPrimLong:
+      DoFieldGetCommon<Primitive::kPrimLong>(self, shadow_frame, obj, field, result);
+      break;
+    case Primitive::kPrimFloat:
+      DoFieldGetCommon<Primitive::kPrimInt>(self, shadow_frame, obj, field, result);
+      break;
+    case Primitive::kPrimDouble:
+      DoFieldGetCommon<Primitive::kPrimLong>(self, shadow_frame, obj, field, result);
+      break;
+    case Primitive::kPrimNot:
+      DoFieldGetCommon<Primitive::kPrimNot>(self, shadow_frame, obj, field, result);
+      break;
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "Unreachable: " << field_type;
+      UNREACHABLE();
+  }
+}
 
 // Handles iget-quick, iget-wide-quick and iget-object-quick instructions.
 // Returns true on success, otherwise throws an exception and returns false.
@@ -250,32 +331,14 @@ static JValue GetFieldValue(const ShadowFrame& shadow_frame, uint32_t vreg)
   return field_value;
 }
 
-template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check,
-         bool transaction_active>
-bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction* inst,
-                uint16_t inst_data) {
-  bool do_assignability_check = do_access_check;
-  bool is_static = (find_type == StaticObjectWrite) || (find_type == StaticPrimitiveWrite);
-  uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
-  ArtField* f =
-      FindFieldFromCode<find_type, do_access_check>(field_idx, shadow_frame.GetMethod(), self,
-                                                    Primitive::ComponentSize(field_type));
-  if (UNLIKELY(f == nullptr)) {
-    CHECK(self->IsExceptionPending());
-    return false;
-  }
-  ObjPtr<mirror::Object> obj;
-  if (is_static) {
-    obj = f->GetDeclaringClass();
-  } else {
-    obj = shadow_frame.GetVRegReference(inst->VRegB_22c(inst_data));
-    if (UNLIKELY(obj == nullptr)) {
-      ThrowNullPointerExceptionForFieldAccess(f, false);
-      return false;
-    }
-  }
+template<Primitive::Type field_type, bool do_assignability_check, bool transaction_active>
+static inline bool DoFieldPutCommon(Thread* self,
+                                    const ShadowFrame& shadow_frame,
+                                    ObjPtr<mirror::Object>& obj,
+                                    ArtField* f,
+                                    size_t vregA) REQUIRES_SHARED(Locks::mutator_lock_) {
   f->GetDeclaringClass()->AssertInitializedOrInitializingInThread(self);
-  uint32_t vregA = is_static ? inst->VRegA_21c(inst_data) : inst->VRegA_22c(inst_data);
+
   // Report this field access to instrumentation if needed. Since we only have the offset of
   // the field from the base of the object, we need to look for it first.
   instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
@@ -291,6 +354,7 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
                                      f,
                                      field_value);
   }
+
   switch (field_type) {
     case Primitive::kPrimBoolean:
       f->SetBoolean<transaction_active>(obj, shadow_frame.GetVReg(vregA));
@@ -343,6 +407,39 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
   return true;
 }
 
+template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check,
+         bool transaction_active>
+bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction* inst,
+                uint16_t inst_data) {
+  const bool do_assignability_check = do_access_check;
+  bool is_static = (find_type == StaticObjectWrite) || (find_type == StaticPrimitiveWrite);
+  uint32_t field_idx = is_static ? inst->VRegB_21c() : inst->VRegC_22c();
+  ArtField* f =
+      FindFieldFromCode<find_type, do_access_check>(field_idx, shadow_frame.GetMethod(), self,
+                                                    Primitive::ComponentSize(field_type));
+  if (UNLIKELY(f == nullptr)) {
+    CHECK(self->IsExceptionPending());
+    return false;
+  }
+  ObjPtr<mirror::Object> obj;
+  if (is_static) {
+    obj = f->GetDeclaringClass();
+  } else {
+    obj = shadow_frame.GetVRegReference(inst->VRegB_22c(inst_data));
+    if (UNLIKELY(obj == nullptr)) {
+      ThrowNullPointerExceptionForFieldAccess(f, false);
+      return false;
+    }
+  }
+
+  uint32_t vregA = is_static ? inst->VRegA_21c(inst_data) : inst->VRegA_22c(inst_data);
+  return DoFieldPutCommon<field_type, do_assignability_check, transaction_active>(self,
+                                                                                  shadow_frame,
+                                                                                  obj,
+                                                                                  f,
+                                                                                  vregA);
+}
+
 // Explicitly instantiate all DoFieldPut functions.
 #define EXPLICIT_DO_FIELD_PUT_TEMPLATE_DECL(_find_type, _field_type, _do_check, _transaction_active) \
   template bool DoFieldPut<_find_type, _field_type, _do_check, _transaction_active>(Thread* self, \
@@ -374,6 +471,49 @@ EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL(StaticObjectWrite, Primitive::kPrimNot)
 
 #undef EXPLICIT_DO_FIELD_PUT_ALL_TEMPLATE_DECL
 #undef EXPLICIT_DO_FIELD_PUT_TEMPLATE_DECL
+
+// Helper for setters in invoke-polymorphic.
+bool DoFieldPutForInvokePolymorphic(Thread* self,
+                                    ShadowFrame& shadow_frame,
+                                    ObjPtr<mirror::Object>& obj,
+                                    ArtField* field,
+                                    Primitive::Type field_type,
+                                    size_t vregA) REQUIRES_SHARED(Locks::mutator_lock_) {
+  static const bool kDoCheckAssignability = false;
+  static const bool kTransaction = false;
+  switch (field_type) {
+    case Primitive::kPrimBoolean:
+      return DoFieldPutCommon<Primitive::kPrimBoolean, kDoCheckAssignability, kTransaction>(
+          self, shadow_frame, obj, field, vregA);
+    case Primitive::kPrimByte:
+      return DoFieldPutCommon<Primitive::kPrimByte, kDoCheckAssignability, kTransaction>(
+          self, shadow_frame, obj, field, vregA);
+    case Primitive::kPrimChar:
+      return DoFieldPutCommon<Primitive::kPrimChar, kDoCheckAssignability, kTransaction>(
+          self, shadow_frame, obj, field, vregA);
+    case Primitive::kPrimShort:
+      return DoFieldPutCommon<Primitive::kPrimShort, kDoCheckAssignability, kTransaction>(
+          self, shadow_frame, obj, field, vregA);
+    case Primitive::kPrimInt:
+      return DoFieldPutCommon<Primitive::kPrimInt, kDoCheckAssignability, kTransaction>(
+          self, shadow_frame, obj, field, vregA);
+    case Primitive::kPrimLong:
+      return DoFieldPutCommon<Primitive::kPrimLong, kDoCheckAssignability, kTransaction>(
+          self, shadow_frame, obj, field, vregA);
+    case Primitive::kPrimFloat:
+      return DoFieldPutCommon<Primitive::kPrimInt, kDoCheckAssignability, kTransaction>(
+          self, shadow_frame, obj, field, vregA);
+    case Primitive::kPrimDouble:
+      return DoFieldPutCommon<Primitive::kPrimLong, kDoCheckAssignability, kTransaction>(
+          self, shadow_frame, obj, field, vregA);
+    case Primitive::kPrimNot:
+      return DoFieldPutCommon<Primitive::kPrimNot, kDoCheckAssignability, kTransaction>(
+          self, shadow_frame, obj, field, vregA);
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "Unreachable: " << field_type;
+      UNREACHABLE();
+  }
+}
 
 template<Primitive::Type field_type, bool transaction_active>
 bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instruction* inst, uint16_t inst_data) {
@@ -620,6 +760,17 @@ void SetStringInitValueToAllAliases(ShadowFrame* shadow_frame,
   }
 }
 
+inline static bool IsInvokeExact(const DexFile& dex_file, int invoke_method_idx) {
+  // This check uses string comparison as it needs less code and data
+  // to do than fetching the associated ArtMethod from the DexCache
+  // and checking against ArtMethods in the well known classes. The
+  // verifier needs to perform a more rigorous check.
+  const char* method_name = dex_file.GetMethodName(dex_file.GetMethodId(invoke_method_idx));
+  bool is_invoke_exact = (0 == strcmp(method_name, "invokeExact"));
+  DCHECK(is_invoke_exact || (0 == strcmp(method_name, "invoke")));
+  return is_invoke_exact;
+}
+
 template<bool is_range, bool do_access_check>
 inline bool DoInvokePolymorphic(Thread* self,
                                 ShadowFrame& shadow_frame,
@@ -628,8 +779,14 @@ inline bool DoInvokePolymorphic(Thread* self,
                                 JValue* result) REQUIRES_SHARED(Locks::mutator_lock_) {
   // Invoke-polymorphic instructions always take a receiver. i.e, they are never static.
   const uint32_t vRegC = (is_range) ? inst->VRegC_4rcc() : inst->VRegC_45cc();
+  const int invoke_method_idx = (is_range) ? inst->VRegB_4rcc() : inst->VRegB_45cc();
 
-  // The method_idx here is the name of the signature polymorphic method that
+  // Determine if this invocation is MethodHandle.invoke() or
+  // MethodHandle.invokeExact().
+  bool is_invoke_exact = IsInvokeExact(shadow_frame.GetMethod()->GetDeclaringClass()->GetDexFile(),
+                                       invoke_method_idx);
+
+  // The invoke_method_idx here is the name of the signature polymorphic method that
   // was symbolically invoked in bytecode (say MethodHandle.invoke or MethodHandle.invokeExact)
   // and not the method that we'll dispatch to in the end.
   //
@@ -642,11 +799,9 @@ inline bool DoInvokePolymorphic(Thread* self,
       ObjPtr<mirror::MethodHandleImpl>::DownCast(
           MakeObjPtr(shadow_frame.GetVRegReference(vRegC)))));
   if (UNLIKELY(method_handle.Get() == nullptr)) {
-    const int method_idx = (is_range) ? inst->VRegB_4rcc() : inst->VRegB_45cc();
     // Note that the invoke type is kVirtual here because a call to a signature
     // polymorphic method is shaped like a virtual call at the bytecode level.
-    ThrowNullPointerExceptionForMethodAccess(method_idx, InvokeType::kVirtual);
-
+    ThrowNullPointerExceptionForMethodAccess(invoke_method_idx, InvokeType::kVirtual);
     result->SetJ(0);
     return false;
   }
@@ -672,15 +827,13 @@ inline bool DoInvokePolymorphic(Thread* self,
     return false;
   }
 
-  // Get the method we're actually invoking along with the kind of
-  // invoke that is desired. We don't need to perform access checks at this
-  // point because they would have been performed on our behalf at the point
-  // of creation of the method handle.
-  ArtMethod* called_method = method_handle->GetTargetMethod();
   const MethodHandleKind handle_kind = method_handle->GetHandleKind();
   Handle<mirror::MethodType> handle_type(hs.NewHandle(method_handle->GetMethodType()));
-  CHECK(called_method != nullptr);
   CHECK(handle_type.Get() != nullptr);
+  if (UNLIKELY(is_invoke_exact && !callsite_type->IsExactMatch(handle_type.Get()))) {
+    ThrowWrongMethodTypeException(callsite_type.Get(), handle_type.Get());
+    return false;
+  }
 
   uint32_t arg[Instruction::kMaxVarArgRegs] = {};
   uint32_t receiver_vregC = 0;
@@ -697,6 +850,13 @@ inline bool DoInvokePolymorphic(Thread* self,
   }
 
   if (IsInvoke(handle_kind)) {
+    // Get the method we're actually invoking along with the kind of
+    // invoke that is desired. We don't need to perform access checks at this
+    // point because they would have been performed on our behalf at the point
+    // of creation of the method handle.
+    ArtMethod* called_method = method_handle->GetTargetMethod();
+    CHECK(called_method != nullptr);
+
     if (handle_kind == kInvokeVirtual || handle_kind == kInvokeInterface) {
       ObjPtr<mirror::Object> receiver = shadow_frame.GetVRegReference(receiver_vregC);
       ObjPtr<mirror::Class> declaring_class = called_method->GetDeclaringClass();
@@ -761,9 +921,38 @@ inline bool DoInvokePolymorphic(Thread* self,
                                          receiver_vregC);
     }
   } else {
-    // TODO(narayan): Implement field getters and setters.
-    UNIMPLEMENTED(FATAL) << "Field references in method handles are not implemented yet.";
-    return false;
+    DCHECK(!is_range);
+    ArtField* field = method_handle->GetTargetField();
+    Primitive::Type field_type = field->GetTypeAsPrimitiveType();;
+
+    if (!is_invoke_exact) {
+      // TODO(oth): conversion plumbing for invoke().
+      UNIMPLEMENTED(FATAL);
+    }
+
+    switch (handle_kind) {
+      case kInstanceGet: {
+        ObjPtr<mirror::Object> obj = shadow_frame.GetVRegReference(receiver_vregC);
+        DoFieldGetForInvokePolymorphic(self, shadow_frame, obj, field, field_type, result);
+        return true;
+      }
+      case kInstancePut: {
+        ObjPtr<mirror::Object> obj = shadow_frame.GetVRegReference(receiver_vregC);
+        return DoFieldPutForInvokePolymorphic(self, shadow_frame, obj, field, field_type, arg[1]);
+      }
+      case kStaticGet: {
+        ObjPtr<mirror::Object> obj = field->GetDeclaringClass();
+        DoFieldGetForInvokePolymorphic(self, shadow_frame, obj, field, field_type, result);
+        return true;
+      }
+      case kStaticPut: {
+        ObjPtr<mirror::Object> obj = field->GetDeclaringClass();
+        return DoFieldPutForInvokePolymorphic(self, shadow_frame, obj, field, field_type, arg[0]);
+      }
+      default:
+        LOG(FATAL) << "Unreachable: " << handle_kind;
+        UNREACHABLE();
+    }
   }
 }
 
