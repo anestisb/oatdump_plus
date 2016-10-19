@@ -57,6 +57,8 @@ public class Main {
   public static void main(String[] args) throws Throwable {
     testfindSpecial_invokeSuperBehaviour();
     testfindSpecial_invokeDirectBehaviour();
+
+    testThrowException();
   }
 
   public static void testfindSpecial_invokeSuperBehaviour() throws Throwable {
@@ -129,6 +131,21 @@ public class Main {
       E.lookup.findSpecial(D.class, "privateRyan", MethodType.methodType(void.class), E.class);
       System.out.println("findSpecial(privateRyan, E.class) unexpectedly succeeded");
     } catch (IllegalAccessException expected) {
+    }
+  }
+
+  public static void testThrowException() throws Throwable {
+    MethodHandle handle = MethodHandles.throwException(String.class,
+        IllegalArgumentException.class);
+    if (handle.type().returnType() != String.class) {
+      System.out.println("Unexpected return type for handle: " + handle
+          + " [ " + handle.type() + "]");
+    }
+
+    try {
+      handle.invoke();
+      System.out.println("Expected an exception of type: java.lang.IllegalArgumentException");
+    } catch (IllegalArgumentException expected) {
     }
   }
 }

@@ -33,6 +33,7 @@
 #include "stack.h"
 #include "unstarted_runtime.h"
 #include "verifier/method_verifier.h"
+#include "well_known_classes.h"
 
 namespace art {
 namespace interpreter {
@@ -491,7 +492,12 @@ void AbortTransactionV(Thread* self, const char* fmt, va_list args) {
   Runtime::Current()->AbortTransactionAndThrowAbortError(self, abort_msg);
 }
 
-// Separate declaration is required solely for the attributes.
+// START DECLARATIONS :
+//
+// These additional declarations are required because clang complains
+// about ALWAYS_INLINE (-Werror, -Wgcc-compat) in definitions.
+//
+
 template <bool is_range, bool do_assignability_check>
     REQUIRES_SHARED(Locks::mutator_lock_)
 static inline bool DoCallCommon(ArtMethod* called_method,
@@ -502,7 +508,6 @@ static inline bool DoCallCommon(ArtMethod* called_method,
                                 uint32_t (&arg)[Instruction::kMaxVarArgRegs],
                                 uint32_t vregC) ALWAYS_INLINE;
 
-// Separate declaration is required solely for the attributes.
 template <bool is_range> REQUIRES_SHARED(Locks::mutator_lock_)
 static inline bool DoCallPolymorphic(ArtMethod* called_method,
                                      Handle<mirror::MethodType> callsite_type,
@@ -512,6 +517,33 @@ static inline bool DoCallPolymorphic(ArtMethod* called_method,
                                      JValue* result,
                                      uint32_t (&arg)[Instruction::kMaxVarArgRegs],
                                      uint32_t vregC) ALWAYS_INLINE;
+
+REQUIRES_SHARED(Locks::mutator_lock_)
+static inline bool DoCallTransform(ArtMethod* called_method,
+                                   Handle<mirror::MethodType> callsite_type,
+                                   Thread* self,
+                                   ShadowFrame& shadow_frame,
+                                   Handle<mirror::MethodHandleImpl> receiver,
+                                   JValue* result) ALWAYS_INLINE;
+
+REQUIRES_SHARED(Locks::mutator_lock_)
+inline void PerformCall(Thread* self,
+                        const DexFile::CodeItem* code_item,
+                        ArtMethod* caller_method,
+                        const size_t first_dest_reg,
+                        ShadowFrame* callee_frame,
+                        JValue* result) ALWAYS_INLINE;
+
+template <bool is_range>
+REQUIRES_SHARED(Locks::mutator_lock_)
+inline void CopyRegisters(ShadowFrame& caller_frame,
+                          ShadowFrame* callee_frame,
+                          const uint32_t (&arg)[Instruction::kMaxVarArgRegs],
+                          const size_t first_src_reg,
+                          const size_t first_dest_reg,
+                          const size_t num_regs) ALWAYS_INLINE;
+
+// END DECLARATIONS.
 
 void ArtInterpreterToCompiledCodeBridge(Thread* self,
                                         ArtMethod* caller,
@@ -635,12 +667,6 @@ inline bool DoInvokePolymorphic(Thread* self, ShadowFrame& shadow_frame,
   CHECK(called_method != nullptr);
   CHECK(handle_type.Get() != nullptr);
 
-  // We now have to massage the number of inputs to the target function.
-  // It's always one less than the number of inputs to the signature polymorphic
-  // invoke, the first input being a reference to the MethodHandle itself.
-  const uint16_t number_of_inputs =
-      ((is_range) ? inst->VRegA_4rcc(inst_data) : inst->VRegA_45cc(inst_data)) - 1;
-
   uint32_t arg[Instruction::kMaxVarArgRegs] = {};
   uint32_t receiver_vregC = 0;
   if (is_range) {
@@ -702,18 +728,22 @@ inline bool DoInvokePolymorphic(Thread* self, ShadowFrame& shadow_frame,
       CHECK(called_method != nullptr);
     }
 
-    // NOTE: handle_kind == kInvokeStatic needs no special treatment here. We
-    // can directly make the call. handle_kind == kInvokeSuper doesn't have any
-    // particular use and can probably be dropped.
-
-    if (callsite_type->IsExactMatch(handle_type.Get())) {
-      return DoCallCommon<is_range, do_access_check>(
-          called_method, self, shadow_frame, result, number_of_inputs,
-          arg, receiver_vregC);
+    if (handle_kind == kInvokeTransform) {
+      return DoCallTransform(called_method,
+                             callsite_type,
+                             self,
+                             shadow_frame,
+                             method_handle /* receiver */,
+                             result);
     } else {
-      return DoCallPolymorphic<is_range>(
-          called_method, callsite_type, handle_type, self, shadow_frame,
-          result, arg, receiver_vregC);
+      return DoCallPolymorphic<is_range>(called_method,
+                                         callsite_type,
+                                         handle_type,
+                                         self,
+                                         shadow_frame,
+                                         result,
+                                         arg,
+                                         receiver_vregC);
     }
   } else {
     // TODO(narayan): Implement field getters and setters.
@@ -749,6 +779,64 @@ static inline size_t GetInsForProxyOrNativeMethod(ArtMethod* method)
   return num_ins;
 }
 
+
+inline void PerformCall(Thread* self,
+                        const DexFile::CodeItem* code_item,
+                        ArtMethod* caller_method,
+                        const size_t first_dest_reg,
+                        ShadowFrame* callee_frame,
+                        JValue* result) {
+  if (LIKELY(Runtime::Current()->IsStarted())) {
+    ArtMethod* target = callee_frame->GetMethod();
+    if (ClassLinker::ShouldUseInterpreterEntrypoint(
+        target,
+        target->GetEntryPointFromQuickCompiledCode())) {
+      ArtInterpreterToInterpreterBridge(self, code_item, callee_frame, result);
+    } else {
+      ArtInterpreterToCompiledCodeBridge(
+          self, caller_method, code_item, callee_frame, result);
+    }
+  } else {
+    UnstartedRuntime::Invoke(self, code_item, callee_frame, result, first_dest_reg);
+  }
+}
+
+template <bool is_range>
+inline void CopyRegisters(ShadowFrame& caller_frame,
+                          ShadowFrame* callee_frame,
+                          const uint32_t (&arg)[Instruction::kMaxVarArgRegs],
+                          const size_t first_src_reg,
+                          const size_t first_dest_reg,
+                          const size_t num_regs) {
+  if (is_range) {
+    const size_t dest_reg_bound = first_dest_reg + num_regs;
+    for (size_t src_reg = first_src_reg, dest_reg = first_dest_reg; dest_reg < dest_reg_bound;
+        ++dest_reg, ++src_reg) {
+      AssignRegister(callee_frame, caller_frame, dest_reg, src_reg);
+    }
+  } else {
+    DCHECK_LE(num_regs, arraysize(arg));
+
+    for (size_t arg_index = 0; arg_index < num_regs; ++arg_index) {
+      AssignRegister(callee_frame, caller_frame, first_dest_reg + arg_index, arg[arg_index]);
+    }
+  }
+}
+
+// Returns true iff. the callsite type for a polymorphic invoke is transformer
+// like, i.e that it has a single input argument whose type is
+// dalvik.system.EmulatedStackFrame.
+static inline bool IsCallerTransformer(Handle<mirror::MethodType> callsite_type)
+    REQUIRES_SHARED(Locks::mutator_lock_) {
+  ObjPtr<mirror::ObjectArray<mirror::Class>> param_types(callsite_type->GetPTypes());
+  if (param_types->GetLength() == 1) {
+    ObjPtr<mirror::Class> param(param_types->GetWithoutChecks(0));
+    return param == WellKnownClasses::ToClass(WellKnownClasses::dalvik_system_EmulatedStackFrame);
+  }
+
+  return false;
+}
+
 template <bool is_range>
 static inline bool DoCallPolymorphic(ArtMethod* called_method,
                                      Handle<mirror::MethodType> callsite_type,
@@ -757,7 +845,7 @@ static inline bool DoCallPolymorphic(ArtMethod* called_method,
                                      ShadowFrame& shadow_frame,
                                      JValue* result,
                                      uint32_t (&arg)[Instruction::kMaxVarArgRegs],
-                                     uint32_t vregC) {
+                                     uint32_t first_src_reg) {
   // TODO(narayan): Wire in the String.init hacks.
 
   // Compute method information.
@@ -770,16 +858,18 @@ static inline bool DoCallPolymorphic(ArtMethod* called_method,
   // some transformations (such as boxing a long -> Long or wideining an
   // int -> long will change that number.
   uint16_t num_regs;
+  size_t num_input_regs;
   size_t first_dest_reg;
   if (LIKELY(code_item != nullptr)) {
     num_regs = code_item->registers_size_;
     first_dest_reg = num_regs - code_item->ins_size_;
+    num_input_regs = code_item->ins_size_;
     // Parameter registers go at the end of the shadow frame.
     DCHECK_NE(first_dest_reg, (size_t)-1);
   } else {
     // No local regs for proxy and native methods.
     DCHECK(called_method->IsNative() || called_method->IsProxyMethod());
-    num_regs = GetInsForProxyOrNativeMethod(called_method);
+    num_regs = num_input_regs = GetInsForProxyOrNativeMethod(called_method);
     first_dest_reg = 0;
   }
 
@@ -793,31 +883,105 @@ static inline bool DoCallPolymorphic(ArtMethod* called_method,
   {
     ScopedStackedShadowFramePusher pusher(
         self, new_shadow_frame, StackedShadowFrameType::kShadowFrameUnderConstruction);
-    if (!PerformArgumentConversions<is_range>(self, callsite_type, target_type,
-                                              shadow_frame, vregC, first_dest_reg,
-                                              arg, new_shadow_frame)) {
-      DCHECK(self->IsExceptionPending());
-      result->SetL(0);
-      return false;
+    if (callsite_type->IsExactMatch(target_type.Get())) {
+      // This is an exact invoke, we can take the fast path of just copying all
+      // registers without performing any argument conversions.
+      CopyRegisters<is_range>(shadow_frame,
+                              new_shadow_frame,
+                              arg,
+                              first_src_reg,
+                              first_dest_reg,
+                              num_input_regs);
+    } else {
+      // This includes the case where we're entering this invoke-polymorphic
+      // from a transformer method. In that case, the callsite_type will contain
+      // a single argument of type dalvik.system.EmulatedStackFrame. In that
+      // case, we'll have to unmarshal the EmulatedStackFrame into the
+      // new_shadow_frame and perform argument conversions on it.
+      if (IsCallerTransformer(callsite_type)) {
+        // The emulated stack frame will be the first ahnd only argument
+        // when we're coming through from a transformer.
+        //
+        // TODO(narayan): This should be a mirror::EmulatedStackFrame after that
+        // type is introduced.
+        ObjPtr<mirror::Object> emulated_stack_frame(
+            shadow_frame.GetVRegReference(first_src_reg));
+        if (!ConvertAndCopyArgumentsFromEmulatedStackFrame<is_range>(self,
+                                                                     emulated_stack_frame,
+                                                                     target_type,
+                                                                     first_dest_reg,
+                                                                     new_shadow_frame)) {
+          DCHECK(self->IsExceptionPending());
+          result->SetL(0);
+          return false;
+        }
+      } else if (!ConvertAndCopyArgumentsFromCallerFrame<is_range>(self,
+                                                                   callsite_type,
+                                                                   target_type,
+                                                                   shadow_frame,
+                                                                   first_src_reg,
+                                                                   first_dest_reg,
+                                                                   arg,
+                                                                   new_shadow_frame)) {
+        DCHECK(self->IsExceptionPending());
+        result->SetL(0);
+        return false;
+      }
     }
   }
 
-  // Do the call now.
-  if (LIKELY(Runtime::Current()->IsStarted())) {
-    ArtMethod* target = new_shadow_frame->GetMethod();
-    if (ClassLinker::ShouldUseInterpreterEntrypoint(
-        target,
-        target->GetEntryPointFromQuickCompiledCode())) {
-      ArtInterpreterToInterpreterBridge(self, code_item, new_shadow_frame, result);
-    } else {
-      ArtInterpreterToCompiledCodeBridge(
-          self, shadow_frame.GetMethod(), code_item, new_shadow_frame, result);
-    }
-  } else {
-    UnstartedRuntime::Invoke(self, code_item, new_shadow_frame, result, first_dest_reg);
-  }
+  PerformCall(self, code_item, shadow_frame.GetMethod(), first_dest_reg, new_shadow_frame, result);
 
   // TODO(narayan): Perform return value conversions.
+
+  return !self->IsExceptionPending();
+}
+
+static inline bool DoCallTransform(ArtMethod* called_method,
+                                   Handle<mirror::MethodType> callsite_type,
+                                   Thread* self,
+                                   ShadowFrame& shadow_frame,
+                                   Handle<mirror::MethodHandleImpl> receiver,
+                                   JValue* result) {
+  // This can be fixed, because the method we're calling here
+  // (MethodHandle.transformInternal) doesn't have any locals and the signature
+  // is known :
+  //
+  // private MethodHandle.transformInternal(EmulatedStackFrame sf);
+  //
+  // This means we need only two vregs :
+  // - One for the receiver object.
+  // - One for the only method argument (an EmulatedStackFrame).
+  static constexpr size_t kNumRegsForTransform = 2;
+
+  const DexFile::CodeItem* code_item = called_method->GetCodeItem();
+  DCHECK(code_item != nullptr);
+  DCHECK_EQ(kNumRegsForTransform, code_item->registers_size_);
+  DCHECK_EQ(kNumRegsForTransform, code_item->ins_size_);
+
+  ShadowFrameAllocaUniquePtr shadow_frame_unique_ptr =
+      CREATE_SHADOW_FRAME(kNumRegsForTransform, &shadow_frame, called_method, /* dex pc */ 0);
+  ShadowFrame* new_shadow_frame = shadow_frame_unique_ptr.get();
+
+  // TODO(narayan): Perform argument conversions first (if this is an inexact invoke), and
+  // then construct an argument list object that's passed through to the
+  // method. Note that the ArgumentList reference is currently a nullptr.
+  //
+  // NOTE(narayan): If the caller is a transformer method (i.e, there is only
+  // one argument and its type is EmulatedStackFrame), we can directly pass that
+  // through without having to do any additional work.
+  UNUSED(callsite_type);
+
+  new_shadow_frame->SetVRegReference(0, receiver.Get());
+  // TODO(narayan): This is the EmulatedStackFrame, currently nullptr.
+  new_shadow_frame->SetVRegReference(1, nullptr);
+
+  PerformCall(self,
+              code_item,
+              shadow_frame.GetMethod(),
+              0 /* first dest reg */,
+              new_shadow_frame,
+              result);
 
   return !self->IsExceptionPending();
 }
@@ -982,40 +1146,20 @@ static inline bool DoCallCommon(ArtMethod* called_method,
       }
     }
   } else {
-    size_t arg_index = 0;
-
-    // Fast path: no extra checks.
     if (is_range) {
-      uint16_t first_src_reg = vregC;
-
-      for (size_t src_reg = first_src_reg, dest_reg = first_dest_reg; dest_reg < num_regs;
-          ++dest_reg, ++src_reg) {
-        AssignRegister(new_shadow_frame, shadow_frame, dest_reg, src_reg);
-      }
-    } else {
-      DCHECK_LE(number_of_inputs, arraysize(arg));
-
-      for (; arg_index < number_of_inputs; ++arg_index) {
-        AssignRegister(new_shadow_frame, shadow_frame, first_dest_reg + arg_index, arg[arg_index]);
-      }
+      DCHECK_EQ(num_regs, first_dest_reg + number_of_inputs);
     }
+
+    CopyRegisters<is_range>(shadow_frame,
+                            new_shadow_frame,
+                            arg,
+                            vregC,
+                            first_dest_reg,
+                            number_of_inputs);
     self->EndAssertNoThreadSuspension(old_cause);
   }
 
-  // Do the call now.
-  if (LIKELY(Runtime::Current()->IsStarted())) {
-    ArtMethod* target = new_shadow_frame->GetMethod();
-    if (ClassLinker::ShouldUseInterpreterEntrypoint(
-        target,
-        target->GetEntryPointFromQuickCompiledCode())) {
-      ArtInterpreterToInterpreterBridge(self, code_item, new_shadow_frame, result);
-    } else {
-      ArtInterpreterToCompiledCodeBridge(
-          self, shadow_frame.GetMethod(), code_item, new_shadow_frame, result);
-    }
-  } else {
-    UnstartedRuntime::Invoke(self, code_item, new_shadow_frame, result, first_dest_reg);
-  }
+  PerformCall(self, code_item, shadow_frame.GetMethod(), first_dest_reg, new_shadow_frame, result);
 
   if (string_init && !self->IsExceptionPending()) {
     SetStringInitValueToAllAliases(&shadow_frame, string_init_vreg_this, *result);
