@@ -24,6 +24,7 @@
 #include "base/casts.h"
 #include "base/enums.h"
 #include "base/logging.h"
+#include "gc_root.h"
 #include "mirror/class.h"
 #include "mirror/method_type.h"
 #include "runtime.h"
@@ -159,6 +160,33 @@ inline void DexCache::SetElementPtrSize(PtrType* ptr_array,
   }
 }
 
+template <typename T,
+          ReadBarrierOption kReadBarrierOption,
+          typename Visitor>
+inline void VisitDexCachePairs(std::atomic<DexCachePair<T>>* pairs,
+                               size_t num_pairs,
+                               const Visitor& visitor)
+    REQUIRES_SHARED(Locks::mutator_lock_) REQUIRES(Locks::heap_bitmap_lock_) {
+  for (size_t i = 0; i < num_pairs; ++i) {
+    DexCachePair<T> source = pairs[i].load(std::memory_order_relaxed);
+    // NOTE: We need the "template" keyword here to avoid a compilation
+    // failure. GcRoot<T> is a template argument-dependent type and we need to
+    // tell the compiler to treat "Read" as a template rather than a field or
+    // function. Otherwise, on encountering the "<" token, the compiler would
+    // treat "Read" as a field.
+    T* before = source.object.template Read<kReadBarrierOption>();
+    // TODO(narayan): This additional GC root construction and assignment
+    // is unnecessary. We're already operating on a copy of the DexCachePair
+    // that's in the cache.
+    GcRoot<T> root(before);
+    visitor.VisitRootIfNonNull(root.AddressWithoutBarrier());
+    if (root.Read() != before) {
+      source.object = GcRoot<T>(root.Read());
+      pairs[i].store(source, std::memory_order_relaxed);
+    }
+  }
+}
+
 template <bool kVisitNativeRoots,
           VerifyObjectFlags kVerifyFlags,
           ReadBarrierOption kReadBarrierOption,
@@ -168,21 +196,16 @@ inline void DexCache::VisitReferences(ObjPtr<Class> klass, const Visitor& visito
   VisitInstanceFieldsReferences<kVerifyFlags, kReadBarrierOption>(klass, visitor);
   // Visit arrays after.
   if (kVisitNativeRoots) {
-    mirror::StringDexCacheType* strings = GetStrings();
-    for (size_t i = 0, num_strings = NumStrings(); i != num_strings; ++i) {
-      StringDexCachePair source = strings[i].load(std::memory_order_relaxed);
-      mirror::String* before = source.object.Read<kReadBarrierOption>();
-      GcRoot<mirror::String> root(before);
-      visitor.VisitRootIfNonNull(root.AddressWithoutBarrier());
-      if (root.Read() != before) {
-        source.object = GcRoot<String>(root.Read());
-        strings[i].store(source, std::memory_order_relaxed);
-      }
-    }
+    VisitDexCachePairs<mirror::String, kReadBarrierOption, Visitor>(
+        GetStrings(), NumStrings(), visitor);
+
     GcRoot<mirror::Class>* resolved_types = GetResolvedTypes();
     for (size_t i = 0, num_types = NumResolvedTypes(); i != num_types; ++i) {
       visitor.VisitRootIfNonNull(resolved_types[i].AddressWithoutBarrier());
     }
+
+    VisitDexCachePairs<mirror::MethodType, kReadBarrierOption, Visitor>(
+        GetResolvedMethodTypes(), NumResolvedMethodTypes(), visitor);
   }
 }
 
