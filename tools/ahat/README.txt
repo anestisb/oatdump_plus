@@ -74,7 +74,9 @@ Things to move to perflib:
  * Instance.isRoot and Instance.getRootTypes.
 
 Release History:
- 0.8 Pending
+ 0.9 Pending
+
+ 0.8 Oct 18, 2016
    Show sample path from GC root with field names in place of dominator path.
 
  0.7 Aug 16, 2016
