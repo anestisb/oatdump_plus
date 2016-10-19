@@ -491,6 +491,7 @@ TEST_ART_BROKEN_INTERPRETER_RUN_TESTS :=
 # between those runs to be able to have precise checks.
 TEST_ART_BROKEN_JIT_RUN_TESTS := \
   137-cfi \
+  904-object-allocation \
   906-iterate-heap \
 
 ifneq (,$(filter jit,$(COMPILER_TYPES)))
