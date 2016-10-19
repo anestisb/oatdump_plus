@@ -23,7 +23,10 @@ include art/build/Android.common_path.mk
 ifneq ($(TMPDIR),)
 ART_HOST_TEST_DIR := $(TMPDIR)/test-art-$(shell echo $$PPID)
 else
-ART_HOST_TEST_DIR := /tmp/$(USER)/test-art-$(shell echo $$PPID)
+# Use a BSD checksum calculated from ANDROID_BUILD_TOP and USER as one of the
+# path components for the test output. This should allow us to run tests from multiple
+# repositories at the same time.
+ART_HOST_TEST_DIR := /tmp/test-art-$(shell echo ${ANDROID_BUILD_TOP}-${USER} | sum | cut -d ' ' -f1)
 endif
 
 # List of known broken tests that we won't attempt to execute. The test name must be the full
