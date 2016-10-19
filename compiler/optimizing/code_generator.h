@@ -560,8 +560,6 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
                                                                     kArenaAllocCodeGenerator)),
         blocked_fpu_registers_(graph->GetArena()->AllocArray<bool>(number_of_fpu_registers,
                                                                    kArenaAllocCodeGenerator)),
-        blocked_register_pairs_(graph->GetArena()->AllocArray<bool>(number_of_register_pairs,
-                                                                    kArenaAllocCodeGenerator)),
         number_of_core_registers_(number_of_core_registers),
         number_of_fpu_registers_(number_of_fpu_registers),
         number_of_register_pairs_(number_of_register_pairs),
@@ -649,7 +647,6 @@ class CodeGenerator : public DeletableArenaObject<kArenaAllocCodeGenerator> {
   // arrays.
   bool* const blocked_core_registers_;
   bool* const blocked_fpu_registers_;
-  bool* const blocked_register_pairs_;
   size_t number_of_core_registers_;
   size_t number_of_fpu_registers_;
   size_t number_of_register_pairs_;
