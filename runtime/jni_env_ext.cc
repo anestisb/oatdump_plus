@@ -33,8 +33,6 @@ namespace art {
 static constexpr size_t kMonitorsInitial = 32;  // Arbitrary.
 static constexpr size_t kMonitorsMax = 4096;  // Arbitrary sanity check.
 
-static constexpr size_t kLocalsInitial = 64;  // Arbitrary.
-
 // Checking "locals" requires the mutator lock, but at creation time we're really only interested
 // in validity, which isn't changing. To avoid grabbing the mutator lock, factored out and tagged
 // with NO_THREAD_SAFETY_ANALYSIS.
@@ -71,7 +69,7 @@ JNIEnvExt::JNIEnvExt(Thread* self_in, JavaVMExt* vm_in)
     : self(self_in),
       vm(vm_in),
       local_ref_cookie(IRT_FIRST_SEGMENT),
-      locals(kLocalsInitial, kLocalsMax, kLocal, false),
+      locals(kLocalsInitial, kLocal, false),
       check_jni(false),
       runtime_deleted(false),
       critical(0),

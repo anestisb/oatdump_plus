@@ -48,9 +48,8 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
   ScopedLogSeverity sls(LogSeverity::FATAL);
 
   ScopedObjectAccess soa(Thread::Current());
-  static const size_t kTableInitial = 10;
   static const size_t kTableMax = 20;
-  IndirectReferenceTable irt(kTableInitial, kTableMax, kGlobal);
+  IndirectReferenceTable irt(kTableMax, kGlobal);
 
   mirror::Class* c = class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;");
   StackHandleScope<4> hs(soa.Self());
@@ -230,6 +229,7 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
 
   // Test table resizing.
   // These ones fit...
+  static const size_t kTableInitial = kTableMax / 2;
   IndirectRef manyRefs[kTableInitial];
   for (size_t i = 0; i < kTableInitial; i++) {
     manyRefs[i] = irt.Add(cookie, obj0.Get());
