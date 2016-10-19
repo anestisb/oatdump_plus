@@ -2926,7 +2926,7 @@ class VerifyReferenceVisitor : public SingleRootVisitor {
     if (root == nullptr) {
       LOG(ERROR) << "Root is null with info " << root_info.GetType();
     } else if (!VerifyReference(nullptr, root, MemberOffset(0))) {
-      LOG(ERROR) << "Root " << root << " is dead with type " << PrettyTypeOf(root)
+      LOG(ERROR) << "Root " << root << " is dead with type " << mirror::Object::PrettyTypeOf(root)
           << " thread_id= " << root_info.GetThreadId() << " root_type= " << root_info.GetType();
     }
   }
@@ -2953,7 +2953,7 @@ class VerifyReferenceVisitor : public SingleRootVisitor {
       LOG(ERROR) << "Object " << obj << " references dead object " << ref << " at offset "
                  << offset << "\n card value = " << static_cast<int>(*card_addr);
       if (heap_->IsValidObjectAddress(obj->GetClass())) {
-        LOG(ERROR) << "Obj type " << PrettyTypeOf(obj);
+        LOG(ERROR) << "Obj type " << obj->PrettyTypeOf();
       } else {
         LOG(ERROR) << "Object " << obj << " class(" << obj->GetClass() << ") not a heap address";
       }
@@ -2965,7 +2965,7 @@ class VerifyReferenceVisitor : public SingleRootVisitor {
         mirror::Class* ref_class = space->FindRecentFreedObject(ref);
         if (ref_class != nullptr) {
           LOG(ERROR) << "Reference " << ref << " found as a recently freed object with class "
-                     << PrettyClass(ref_class);
+                     << ref_class->PrettyClass();
         } else {
           LOG(ERROR) << "Reference " << ref << " not found as a recently freed object";
         }
@@ -2973,7 +2973,7 @@ class VerifyReferenceVisitor : public SingleRootVisitor {
 
       if (ref->GetClass() != nullptr && heap_->IsValidObjectAddress(ref->GetClass()) &&
           ref->GetClass()->IsClass()) {
-        LOG(ERROR) << "Ref type " << PrettyTypeOf(ref);
+        LOG(ERROR) << "Ref type " << ref->PrettyTypeOf();
       } else {
         LOG(ERROR) << "Ref " << ref << " class(" << ref->GetClass()
                    << ") is not a valid heap address";
@@ -3182,8 +3182,9 @@ class VerifyReferenceCardVisitor {
           if (heap_->GetLiveBitmap()->Test(obj)) {
             LOG(ERROR) << "Object " << obj << " found in live bitmap";
           }
-          LOG(ERROR) << "Object " << obj << " " << PrettyTypeOf(obj)
-                    << " references " << ref << " " << PrettyTypeOf(ref) << " in live stack";
+          LOG(ERROR) << "Object " << obj << " " << mirror::Object::PrettyTypeOf(obj)
+                    << " references " << ref << " " << mirror::Object::PrettyTypeOf(ref)
+                    << " in live stack";
 
           // Print which field of the object is dead.
           if (!obj->IsObjectArray()) {
@@ -3192,7 +3193,7 @@ class VerifyReferenceCardVisitor {
             for (ArtField& field : (is_static ? klass->GetSFields() : klass->GetIFields())) {
               if (field.GetOffset().Int32Value() == offset.Int32Value()) {
                 LOG(ERROR) << (is_static ? "Static " : "") << "field in the live stack is "
-                           << PrettyField(&field);
+                           << field.PrettyField();
                 break;
               }
             }

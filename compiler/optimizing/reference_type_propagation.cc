@@ -448,9 +448,9 @@ void ReferenceTypePropagation::RTPVisitor::SetClassAsTypeInfo(HInstruction* inst
       mirror::Class* declaring_class = method->GetDeclaringClass();
       DCHECK(declaring_class != nullptr);
       DCHECK(declaring_class->IsStringClass())
-          << "Expected String class: " << PrettyDescriptor(declaring_class);
+          << "Expected String class: " << declaring_class->PrettyDescriptor();
       DCHECK(method->IsConstructor())
-          << "Expected String.<init>: " << PrettyMethod(method);
+          << "Expected String.<init>: " << method->PrettyMethod();
     }
     instr->SetReferenceTypeInfo(
         ReferenceTypeInfo::Create(handle_cache_->GetStringClassHandle(), /* is_exact */ true));

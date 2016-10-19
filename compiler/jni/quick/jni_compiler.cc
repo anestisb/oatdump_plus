@@ -96,24 +96,24 @@ static CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   bool is_critical_native = (optimization_flags == Compiler::kCriticalNative);
 
   VLOG(jni) << "JniCompile: Method :: "
-              << art::PrettyMethod(method_idx, dex_file, /* with signature */ true)
+              << dex_file.PrettyMethod(method_idx, /* with signature */ true)
               << " :: access_flags = " << std::hex << access_flags << std::dec;
 
   if (UNLIKELY(is_fast_native)) {
     VLOG(jni) << "JniCompile: Fast native method detected :: "
-              << art::PrettyMethod(method_idx, dex_file, /* with signature */ true);
+              << dex_file.PrettyMethod(method_idx, /* with signature */ true);
   }
 
   if (UNLIKELY(is_critical_native)) {
     VLOG(jni) << "JniCompile: Critical native method detected :: "
-              << art::PrettyMethod(method_idx, dex_file, /* with signature */ true);
+              << dex_file.PrettyMethod(method_idx, /* with signature */ true);
   }
 
   if (kIsDebugBuild) {
     // Don't allow both @FastNative and @CriticalNative. They are mutually exclusive.
     if (UNLIKELY(is_fast_native && is_critical_native)) {
       LOG(FATAL) << "JniCompile: Method cannot be both @CriticalNative and @FastNative"
-                 << art::PrettyMethod(method_idx, dex_file, /* with_signature */ true);
+                 << dex_file.PrettyMethod(method_idx, /* with_signature */ true);
     }
 
     // @CriticalNative - extra checks:
@@ -124,15 +124,15 @@ static CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
       CHECK(is_static)
           << "@CriticalNative functions cannot be virtual since that would"
           << "require passing a reference parameter (this), which is illegal "
-          << art::PrettyMethod(method_idx, dex_file, /* with_signature */ true);
+          << dex_file.PrettyMethod(method_idx, /* with_signature */ true);
       CHECK(!is_synchronized)
           << "@CriticalNative functions cannot be synchronized since that would"
           << "require passing a (class and/or this) reference parameter, which is illegal "
-          << art::PrettyMethod(method_idx, dex_file, /* with_signature */ true);
+          << dex_file.PrettyMethod(method_idx, /* with_signature */ true);
       for (size_t i = 0; i < strlen(shorty); ++i) {
         CHECK_NE(Primitive::kPrimNot, Primitive::GetType(shorty[i]))
             << "@CriticalNative methods' shorty types must not have illegal references "
-            << art::PrettyMethod(method_idx, dex_file, /* with_signature */ true);
+            << dex_file.PrettyMethod(method_idx, /* with_signature */ true);
       }
     }
   }

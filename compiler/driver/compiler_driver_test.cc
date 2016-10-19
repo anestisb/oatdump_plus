@@ -216,7 +216,7 @@ TEST_F(CompilerDriverMethodsTest, Selection) {
 
   const auto pointer_size = class_linker->GetImagePointerSize();
   for (auto& m : klass->GetDirectMethods(pointer_size)) {
-    std::string name = PrettyMethod(&m, true);
+    std::string name = m.PrettyMethod(true);
     const void* code = m.GetEntryPointFromQuickCompiledCodePtrSize(pointer_size);
     ASSERT_NE(code, nullptr);
     if (expected->find(name) != expected->end()) {
@@ -273,7 +273,7 @@ class CompilerDriverProfileTest : public CompilerDriverTest {
     const auto pointer_size = class_linker->GetImagePointerSize();
     size_t number_of_compiled_methods = 0;
     for (auto& m : klass->GetVirtualMethods(pointer_size)) {
-      std::string name = PrettyMethod(&m, true);
+      std::string name = m.PrettyMethod(true);
       const void* code = m.GetEntryPointFromQuickCompiledCodePtrSize(pointer_size);
       ASSERT_NE(code, nullptr);
       if (expected_methods.find(name) != expected_methods.end()) {

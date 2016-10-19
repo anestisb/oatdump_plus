@@ -368,7 +368,7 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
     last_update_time_ns_.StoreRelease(NanoTime());
     VLOG(jit)
         << "JIT added (osr=" << std::boolalpha << osr << std::noboolalpha << ") "
-        << PrettyMethod(method) << "@" << method
+        << ArtMethod::PrettyMethod(method) << "@" << method
         << " ccache_size=" << PrettySize(CodeCacheSizeLocked()) << ": "
         << " dcache_size=" << PrettySize(DataCacheSizeLocked()) << ": "
         << reinterpret_cast<const void*>(method_header->GetEntryPoint()) << ","
@@ -378,7 +378,7 @@ uint8_t* JitCodeCache::CommitCodeInternal(Thread* self,
       LOG(INFO) << "JIT allocated "
                 << PrettySize(code_size)
                 << " for compiled code of "
-                << PrettyMethod(method);
+                << ArtMethod::PrettyMethod(method);
     }
   }
 
@@ -434,7 +434,7 @@ uint8_t* JitCodeCache::ReserveData(Thread* self, size_t size, ArtMethod* method)
     LOG(INFO) << "JIT allocated "
               << PrettySize(size)
               << " for stack maps of "
-              << PrettyMethod(method);
+              << ArtMethod::PrettyMethod(method);
   }
   return result;
 }
@@ -806,7 +806,8 @@ OatQuickMethodHeader* JitCodeCache::LookupMethodHeader(uintptr_t pc, ArtMethod* 
   }
   if (kIsDebugBuild && method != nullptr) {
     DCHECK_EQ(it->second, method)
-        << PrettyMethod(method) << " " << PrettyMethod(it->second) << " " << std::hex << pc;
+        << ArtMethod::PrettyMethod(method) << " " << ArtMethod::PrettyMethod(it->second) << " "
+        << std::hex << pc;
   }
   return method_header;
 }
@@ -927,7 +928,7 @@ bool JitCodeCache::NotifyCompilationOf(ArtMethod* method, Thread* self, bool osr
 
   ProfilingInfo* info = method->GetProfilingInfo(kRuntimePointerSize);
   if (info == nullptr) {
-    VLOG(jit) << PrettyMethod(method) << " needs a ProfilingInfo to be compiled";
+    VLOG(jit) << method->PrettyMethod() << " needs a ProfilingInfo to be compiled";
     // Because the counter is not atomic, there are some rare cases where we may not
     // hit the threshold for creating the ProfilingInfo. Reset the counter now to
     // "correct" this.

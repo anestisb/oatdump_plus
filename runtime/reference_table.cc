@@ -88,7 +88,7 @@ static void DumpSummaryLine(std::ostream& os, ObjPtr<mirror::Object> obj, size_t
     return;
   }
 
-  std::string className(PrettyTypeOf(obj));
+  std::string className(obj->PrettyTypeOf());
   if (obj->IsClass()) {
     // We're summarizing multiple instances, so using the exemplar
     // Class' type parameter here would be misleading.
@@ -178,7 +178,7 @@ void ReferenceTable::Dump(std::ostream& os, Table& entries) {
       continue;
     }
 
-    std::string className(PrettyTypeOf(ref));
+    std::string className(ref->PrettyTypeOf());
 
     std::string extras;
     size_t element_count = GetElementCount(ref);
@@ -197,7 +197,7 @@ void ReferenceTable::Dump(std::ostream& os, Table& entries) {
       if (referent == nullptr) {
         extras = " (referent is null)";
       } else {
-        extras = StringPrintf(" (referent is a %s)", PrettyTypeOf(referent).c_str());
+        extras = StringPrintf(" (referent is a %s)", referent->PrettyTypeOf().c_str());
       }
     }
     os << StringPrintf("    %5d: ", idx) << ref << " " << className << extras << "\n";

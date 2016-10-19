@@ -109,51 +109,52 @@ TEST_F(UtilsTest, PrettyReturnType) {
 
 TEST_F(UtilsTest, PrettyTypeOf) {
   ScopedObjectAccess soa(Thread::Current());
-  EXPECT_EQ("null", PrettyTypeOf(nullptr));
+  EXPECT_EQ("null", mirror::Object::PrettyTypeOf(nullptr));
 
   StackHandleScope<2> hs(soa.Self());
   Handle<mirror::String> s(hs.NewHandle(mirror::String::AllocFromModifiedUtf8(soa.Self(), "")));
-  EXPECT_EQ("java.lang.String", PrettyTypeOf(s.Get()));
+  EXPECT_EQ("java.lang.String", mirror::Object::PrettyTypeOf(s.Get()));
 
   Handle<mirror::ShortArray> a(hs.NewHandle(mirror::ShortArray::Alloc(soa.Self(), 2)));
-  EXPECT_EQ("short[]", PrettyTypeOf(a.Get()));
+  EXPECT_EQ("short[]", mirror::Object::PrettyTypeOf(a.Get()));
 
   mirror::Class* c = class_linker_->FindSystemClass(soa.Self(), "[Ljava/lang/String;");
   ASSERT_TRUE(c != nullptr);
   mirror::Object* o = mirror::ObjectArray<mirror::String>::Alloc(soa.Self(), c, 0);
-  EXPECT_EQ("java.lang.String[]", PrettyTypeOf(o));
-  EXPECT_EQ("java.lang.Class<java.lang.String[]>", PrettyTypeOf(o->GetClass()));
+  EXPECT_EQ("java.lang.String[]", mirror::Object::PrettyTypeOf(o));
+  EXPECT_EQ("java.lang.Class<java.lang.String[]>", mirror::Object::PrettyTypeOf(o->GetClass()));
 }
 
 TEST_F(UtilsTest, PrettyClass) {
   ScopedObjectAccess soa(Thread::Current());
-  EXPECT_EQ("null", PrettyClass(nullptr));
+  EXPECT_EQ("null", mirror::Class::PrettyClass(nullptr));
   mirror::Class* c = class_linker_->FindSystemClass(soa.Self(), "[Ljava/lang/String;");
   ASSERT_TRUE(c != nullptr);
   mirror::Object* o = mirror::ObjectArray<mirror::String>::Alloc(soa.Self(), c, 0);
-  EXPECT_EQ("java.lang.Class<java.lang.String[]>", PrettyClass(o->GetClass()));
+  EXPECT_EQ("java.lang.Class<java.lang.String[]>", mirror::Class::PrettyClass(o->GetClass()));
 }
 
 TEST_F(UtilsTest, PrettyClassAndClassLoader) {
   ScopedObjectAccess soa(Thread::Current());
-  EXPECT_EQ("null", PrettyClassAndClassLoader(nullptr));
+  EXPECT_EQ("null", mirror::Class::PrettyClassAndClassLoader(nullptr));
   mirror::Class* c = class_linker_->FindSystemClass(soa.Self(), "[Ljava/lang/String;");
   ASSERT_TRUE(c != nullptr);
   mirror::Object* o = mirror::ObjectArray<mirror::String>::Alloc(soa.Self(), c, 0);
-  EXPECT_EQ("java.lang.Class<java.lang.String[],null>", PrettyClassAndClassLoader(o->GetClass()));
+  EXPECT_EQ("java.lang.Class<java.lang.String[],null>",
+            mirror::Class::PrettyClassAndClassLoader(o->GetClass()));
 }
 
 TEST_F(UtilsTest, PrettyField) {
   ScopedObjectAccess soa(Thread::Current());
-  EXPECT_EQ("null", PrettyField(nullptr));
+  EXPECT_EQ("null", ArtField::PrettyField(nullptr));
 
   mirror::Class* java_lang_String = class_linker_->FindSystemClass(soa.Self(),
                                                                    "Ljava/lang/String;");
 
   ArtField* f;
   f = java_lang_String->FindDeclaredInstanceField("count", "I");
-  EXPECT_EQ("int java.lang.String.count", PrettyField(f));
-  EXPECT_EQ("java.lang.String.count", PrettyField(f, false));
+  EXPECT_EQ("int java.lang.String.count", f->PrettyField());
+  EXPECT_EQ("java.lang.String.count", f->PrettyField(false));
 }
 
 TEST_F(UtilsTest, PrettySize) {
@@ -192,18 +193,18 @@ TEST_F(UtilsTest, JniShortName_JniLongName) {
 
   m = c->FindVirtualMethod("charAt", "(I)C", kRuntimePointerSize);
   ASSERT_TRUE(m != nullptr);
-  EXPECT_EQ("Java_java_lang_String_charAt", JniShortName(m));
-  EXPECT_EQ("Java_java_lang_String_charAt__I", JniLongName(m));
+  EXPECT_EQ("Java_java_lang_String_charAt", m->JniShortName());
+  EXPECT_EQ("Java_java_lang_String_charAt__I", m->JniLongName());
 
   m = c->FindVirtualMethod("indexOf", "(Ljava/lang/String;I)I", kRuntimePointerSize);
   ASSERT_TRUE(m != nullptr);
-  EXPECT_EQ("Java_java_lang_String_indexOf", JniShortName(m));
-  EXPECT_EQ("Java_java_lang_String_indexOf__Ljava_lang_String_2I", JniLongName(m));
+  EXPECT_EQ("Java_java_lang_String_indexOf", m->JniShortName());
+  EXPECT_EQ("Java_java_lang_String_indexOf__Ljava_lang_String_2I", m->JniLongName());
 
   m = c->FindDirectMethod("copyValueOf", "([CII)Ljava/lang/String;", kRuntimePointerSize);
   ASSERT_TRUE(m != nullptr);
-  EXPECT_EQ("Java_java_lang_String_copyValueOf", JniShortName(m));
-  EXPECT_EQ("Java_java_lang_String_copyValueOf___3CII", JniLongName(m));
+  EXPECT_EQ("Java_java_lang_String_copyValueOf", m->JniShortName());
+  EXPECT_EQ("Java_java_lang_String_copyValueOf___3CII", m->JniLongName());
 }
 
 TEST_F(UtilsTest, Split) {

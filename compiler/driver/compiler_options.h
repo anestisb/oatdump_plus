@@ -29,6 +29,8 @@
 
 namespace art {
 
+class DexFile;
+
 class CompilerOptions FINAL {
  public:
   // Guide heuristics to determine whether to compile method if profile data not available.

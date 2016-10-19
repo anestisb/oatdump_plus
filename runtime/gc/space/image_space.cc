@@ -398,7 +398,7 @@ void ImageSpace::VerifyImageAllocations() {
     CHECK_ALIGNED(current, kObjectAlignment);
     auto* obj = reinterpret_cast<mirror::Object*>(current);
     CHECK(obj->GetClass() != nullptr) << "Image object at address " << obj << " has null class";
-    CHECK(live_bitmap_->Test(obj)) << PrettyTypeOf(obj);
+    CHECK(live_bitmap_->Test(obj)) << obj->PrettyTypeOf();
     if (kUseBakerOrBrooksReadBarrier) {
       obj->AssertReadBarrierPointer();
     }

@@ -276,8 +276,9 @@ class CheckReferenceVisitor {
       Heap* heap = mod_union_table_->GetHeap();
       space::ContinuousSpace* from_space = heap->FindContinuousSpaceFromObject(obj, false);
       space::ContinuousSpace* to_space = heap->FindContinuousSpaceFromObject(ref, false);
-      LOG(INFO) << "Object " << reinterpret_cast<const void*>(obj) << "(" << PrettyTypeOf(obj)
-          << ")" << "References " << reinterpret_cast<const void*>(ref) << "(" << PrettyTypeOf(ref)
+      LOG(INFO) << "Object " << reinterpret_cast<const void*>(obj) << "(" << obj->PrettyTypeOf()
+                << ")" << "References "
+                << reinterpret_cast<const void*>(ref) << "(" << mirror::Object::PrettyTypeOf(ref)
           << ") without being in mod-union table";
       LOG(INFO) << "FromSpace " << from_space->GetName() << " type "
           << from_space->GetGcRetentionPolicy();

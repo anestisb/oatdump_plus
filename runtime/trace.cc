@@ -641,7 +641,7 @@ void Trace::DumpBuf(uint8_t* buf, size_t buf_size, TraceClockSource clock_source
     uint32_t tmid = ReadBytes(ptr + 2, sizeof(tmid));
     ArtMethod* method = DecodeTraceMethod(tmid);
     TraceAction action = DecodeTraceAction(tmid);
-    LOG(INFO) << PrettyMethod(method) << " " << static_cast<int>(action);
+    LOG(INFO) << ArtMethod::PrettyMethod(method) << " " << static_cast<int>(action);
     ptr += GetRecordSize(clock_source);
   }
 }
@@ -739,7 +739,8 @@ void Trace::DexPcMoved(Thread* thread ATTRIBUTE_UNUSED,
                        ArtMethod* method,
                        uint32_t new_dex_pc) {
   // We're not recorded to listen to this kind of event, so complain.
-  LOG(ERROR) << "Unexpected dex PC event in tracing " << PrettyMethod(method) << " " << new_dex_pc;
+  LOG(ERROR) << "Unexpected dex PC event in tracing " << ArtMethod::PrettyMethod(method)
+             << " " << new_dex_pc;
 }
 
 void Trace::FieldRead(Thread* thread ATTRIBUTE_UNUSED,
@@ -749,7 +750,8 @@ void Trace::FieldRead(Thread* thread ATTRIBUTE_UNUSED,
                       ArtField* field ATTRIBUTE_UNUSED)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   // We're not recorded to listen to this kind of event, so complain.
-  LOG(ERROR) << "Unexpected field read event in tracing " << PrettyMethod(method) << " " << dex_pc;
+  LOG(ERROR) << "Unexpected field read event in tracing " << ArtMethod::PrettyMethod(method)
+             << " " << dex_pc;
 }
 
 void Trace::FieldWritten(Thread* thread ATTRIBUTE_UNUSED,
@@ -760,7 +762,8 @@ void Trace::FieldWritten(Thread* thread ATTRIBUTE_UNUSED,
                          const JValue& field_value ATTRIBUTE_UNUSED)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   // We're not recorded to listen to this kind of event, so complain.
-  LOG(ERROR) << "Unexpected field write event in tracing " << PrettyMethod(method) << " " << dex_pc;
+  LOG(ERROR) << "Unexpected field write event in tracing " << ArtMethod::PrettyMethod(method)
+             << " " << dex_pc;
 }
 
 void Trace::MethodEntered(Thread* thread, mirror::Object* this_object ATTRIBUTE_UNUSED,
@@ -800,7 +803,7 @@ void Trace::ExceptionCaught(Thread* thread ATTRIBUTE_UNUSED,
 void Trace::Branch(Thread* /*thread*/, ArtMethod* method,
                    uint32_t /*dex_pc*/, int32_t /*dex_pc_offset*/)
       REQUIRES_SHARED(Locks::mutator_lock_) {
-  LOG(ERROR) << "Unexpected branch event in tracing" << PrettyMethod(method);
+  LOG(ERROR) << "Unexpected branch event in tracing" << ArtMethod::PrettyMethod(method);
 }
 
 void Trace::InvokeVirtualOrInterface(Thread*,
@@ -808,7 +811,7 @@ void Trace::InvokeVirtualOrInterface(Thread*,
                                      ArtMethod* method,
                                      uint32_t dex_pc,
                                      ArtMethod*) {
-  LOG(ERROR) << "Unexpected invoke event in tracing" << PrettyMethod(method)
+  LOG(ERROR) << "Unexpected invoke event in tracing" << ArtMethod::PrettyMethod(method)
              << " " << dex_pc;
 }
 

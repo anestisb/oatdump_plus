@@ -134,7 +134,8 @@ class Breakpoint : public ValueObject {
 
 static std::ostream& operator<<(std::ostream& os, const Breakpoint& rhs)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  os << StringPrintf("Breakpoint[%s @%#x]", PrettyMethod(rhs.Method()).c_str(), rhs.DexPc());
+  os << StringPrintf("Breakpoint[%s @%#x]", ArtMethod::PrettyMethod(rhs.Method()).c_str(),
+                     rhs.DexPc());
   return os;
 }
 
@@ -190,7 +191,7 @@ class DebugInstrumentationListener FINAL : public instrumentation::Instrumentati
                     ArtMethod* method, uint32_t dex_pc)
       OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     // We're not recorded to listen to this kind of event, so complain.
-    LOG(ERROR) << "Unexpected method unwind event in debugger " << PrettyMethod(method)
+    LOG(ERROR) << "Unexpected method unwind event in debugger " << ArtMethod::PrettyMethod(method)
                << " " << dex_pc;
   }
 
@@ -236,7 +237,7 @@ class DebugInstrumentationListener FINAL : public instrumentation::Instrumentati
   // We only care about branches in the Jit.
   void Branch(Thread* /*thread*/, ArtMethod* method, uint32_t dex_pc, int32_t dex_pc_offset)
       OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
-    LOG(ERROR) << "Unexpected branch event in debugger " << PrettyMethod(method)
+    LOG(ERROR) << "Unexpected branch event in debugger " << ArtMethod::PrettyMethod(method)
                << " " << dex_pc << ", " << dex_pc_offset;
   }
 
@@ -247,7 +248,7 @@ class DebugInstrumentationListener FINAL : public instrumentation::Instrumentati
                                 uint32_t dex_pc,
                                 ArtMethod*)
       OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
-    LOG(ERROR) << "Unexpected invoke event in debugger " << PrettyMethod(method)
+    LOG(ERROR) << "Unexpected invoke event in debugger " << ArtMethod::PrettyMethod(method)
                << " " << dex_pc;
   }
 
@@ -1301,7 +1302,7 @@ JDWP::JdwpError Dbg::CreateObject(JDWP::RefTypeId class_id, JDWP::ObjectId* new_
   if (new_object == nullptr) {
     DCHECK(self->IsExceptionPending());
     self->ClearException();
-    LOG(ERROR) << "Could not allocate object of type " << PrettyDescriptor(c);
+    LOG(ERROR) << "Could not allocate object of type " << mirror::Class::PrettyDescriptor(c);
     *new_object_id = 0;
     return JDWP::ERR_OUT_OF_MEMORY;
   }
@@ -1328,7 +1329,7 @@ JDWP::JdwpError Dbg::CreateArrayObject(JDWP::RefTypeId array_class_id, uint32_t 
   if (new_array == nullptr) {
     DCHECK(self->IsExceptionPending());
     self->ClearException();
-    LOG(ERROR) << "Could not allocate array of type " << PrettyDescriptor(c);
+    LOG(ERROR) << "Could not allocate array of type " << mirror::Class::PrettyDescriptor(c);
     *new_array_id = 0;
     return JDWP::ERR_OUT_OF_MEMORY;
   }
@@ -1449,7 +1450,7 @@ static uint16_t MangleSlot(uint16_t slot, ArtMethod* m)
   if (code_item == nullptr) {
     // We should not get here for a method without code (native, proxy or abstract). Log it and
     // return the slot as is since all registers are arguments.
-    LOG(WARNING) << "Trying to mangle slot for method without code " << PrettyMethod(m);
+    LOG(WARNING) << "Trying to mangle slot for method without code " << m->PrettyMethod();
     return slot;
   }
   uint16_t ins_size = code_item->ins_size_;
@@ -1480,7 +1481,8 @@ static uint16_t DemangleSlot(uint16_t slot, ArtMethod* m, JDWP::JdwpError* error
   if (code_item == nullptr) {
     // We should not get here for a method without code (native, proxy or abstract). Log it and
     // return the slot as is since all registers are arguments.
-    LOG(WARNING) << "Trying to demangle slot for method without code " << PrettyMethod(m);
+    LOG(WARNING) << "Trying to demangle slot for method without code "
+                 << m->PrettyMethod();
     uint16_t vreg_count = GetMethodNumArgRegistersIncludingThis(m);
     if (slot < vreg_count) {
       *error = JDWP::ERR_NONE;
@@ -1496,7 +1498,7 @@ static uint16_t DemangleSlot(uint16_t slot, ArtMethod* m, JDWP::JdwpError* error
   }
 
   // Slot is invalid in the method.
-  LOG(ERROR) << "Invalid local slot " << slot << " for method " << PrettyMethod(m);
+  LOG(ERROR) << "Invalid local slot " << slot << " for method " << m->PrettyMethod();
   *error = JDWP::ERR_INVALID_SLOT;
   return DexFile::kDexNoIndex16;
 }
@@ -1784,14 +1786,16 @@ static JDWP::JdwpError GetFieldValueImpl(JDWP::RefTypeId ref_type_id, JDWP::Obje
 
   // TODO: should we give up now if receiver_class is null?
   if (receiver_class != nullptr && !f->GetDeclaringClass()->IsAssignableFrom(receiver_class)) {
-    LOG(INFO) << "ERR_INVALID_FIELDID: " << PrettyField(f) << " " << PrettyClass(receiver_class);
+    LOG(INFO) << "ERR_INVALID_FIELDID: " << f->PrettyField() << " "
+              << receiver_class->PrettyClass();
     return JDWP::ERR_INVALID_FIELDID;
   }
 
   // Ensure the field's class is initialized.
   Handle<mirror::Class> klass(hs.NewHandle(f->GetDeclaringClass()));
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(self, klass, true, false)) {
-    LOG(WARNING) << "Not able to initialize class for SetValues: " << PrettyClass(klass.Get());
+    LOG(WARNING) << "Not able to initialize class for SetValues: "
+                 << mirror::Class::PrettyClass(klass.Get());
   }
 
   // The RI only enforces the static/non-static mismatch in one direction.
@@ -1803,7 +1807,7 @@ static JDWP::JdwpError GetFieldValueImpl(JDWP::RefTypeId ref_type_id, JDWP::Obje
   } else {
     if (f->IsStatic()) {
       LOG(WARNING) << "Ignoring non-nullptr receiver for ObjectReference.GetValues"
-                   << " on static field " << PrettyField(f);
+                   << " on static field " << f->PrettyField();
     }
   }
   if (f->IsStatic()) {
@@ -1912,7 +1916,8 @@ static JDWP::JdwpError SetFieldValueImpl(JDWP::ObjectId object_id, JDWP::FieldId
   // Ensure the field's class is initialized.
   Handle<mirror::Class> klass(hs.NewHandle(f->GetDeclaringClass()));
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(self, klass, true, false)) {
-    LOG(WARNING) << "Not able to initialize class for SetValues: " << PrettyClass(klass.Get());
+    LOG(WARNING) << "Not able to initialize class for SetValues: "
+                 << mirror::Class::PrettyClass(klass.Get());
   }
 
   // The RI only enforces the static/non-static mismatch in one direction.
@@ -1924,7 +1929,7 @@ static JDWP::JdwpError SetFieldValueImpl(JDWP::ObjectId object_id, JDWP::FieldId
   } else {
     if (f->IsStatic()) {
       LOG(WARNING) << "Ignoring non-nullptr receiver for ObjectReference.SetValues"
-                   << " on static field " << PrettyField(f);
+                   << " on static field " << f->PrettyField();
     }
   }
   if (f->IsStatic()) {
@@ -2581,7 +2586,7 @@ constexpr JDWP::JdwpError kStackFrameLocalAccessError = JDWP::ERR_ABSENT_INFORMA
 static std::string GetStackContextAsString(const StackVisitor& visitor)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   return StringPrintf(" at DEX pc 0x%08x in method %s", visitor.GetDexPc(false),
-                      PrettyMethod(visitor.GetMethod()).c_str());
+                      ArtMethod::PrettyMethod(visitor.GetMethod()).c_str());
 }
 
 static JDWP::JdwpError FailGetLocalValue(const StackVisitor& visitor, uint16_t vreg,
@@ -3150,14 +3155,14 @@ void Dbg::ProcessDeoptimizationRequest(const DeoptimizationRequest& request) {
       VLOG(jdwp) << "Undeoptimize the world DONE";
       break;
     case DeoptimizationRequest::kSelectiveDeoptimization:
-      VLOG(jdwp) << "Deoptimize method " << PrettyMethod(request.Method()) << " ...";
+      VLOG(jdwp) << "Deoptimize method " << ArtMethod::PrettyMethod(request.Method()) << " ...";
       instrumentation->Deoptimize(request.Method());
-      VLOG(jdwp) << "Deoptimize method " << PrettyMethod(request.Method()) << " DONE";
+      VLOG(jdwp) << "Deoptimize method " << ArtMethod::PrettyMethod(request.Method()) << " DONE";
       break;
     case DeoptimizationRequest::kSelectiveUndeoptimization:
-      VLOG(jdwp) << "Undeoptimize method " << PrettyMethod(request.Method()) << " ...";
+      VLOG(jdwp) << "Undeoptimize method " << ArtMethod::PrettyMethod(request.Method()) << " ...";
       instrumentation->Undeoptimize(request.Method());
-      VLOG(jdwp) << "Undeoptimize method " << PrettyMethod(request.Method()) << " DONE";
+      VLOG(jdwp) << "Undeoptimize method " << ArtMethod::PrettyMethod(request.Method()) << " DONE";
       break;
     default:
       LOG(FATAL) << "Unsupported deoptimization request kind " << request.GetKind();
@@ -3226,14 +3231,14 @@ void Dbg::RequestDeoptimizationLocked(const DeoptimizationRequest& req) {
     case DeoptimizationRequest::kSelectiveDeoptimization: {
       DCHECK(req.Method() != nullptr);
       VLOG(jdwp) << "Queue request #" << deoptimization_requests_.size()
-                 << " for deoptimization of " << PrettyMethod(req.Method());
+                 << " for deoptimization of " << req.Method()->PrettyMethod();
       deoptimization_requests_.push_back(req);
       break;
     }
     case DeoptimizationRequest::kSelectiveUndeoptimization: {
       DCHECK(req.Method() != nullptr);
       VLOG(jdwp) << "Queue request #" << deoptimization_requests_.size()
-                 << " for undeoptimization of " << PrettyMethod(req.Method());
+                 << " for undeoptimization of " << req.Method()->PrettyMethod();
       deoptimization_requests_.push_back(req);
       break;
     }
@@ -3325,7 +3330,7 @@ static DeoptimizationRequest::Kind GetRequiredDeoptimizationKind(Thread* self,
   if (!Dbg::RequiresDeoptimization()) {
     // We already run in interpreter-only mode so we don't need to deoptimize anything.
     VLOG(jdwp) << "No need for deoptimization when fully running with interpreter for method "
-               << PrettyMethod(m);
+               << ArtMethod::PrettyMethod(m);
     return DeoptimizationRequest::kNothing;
   }
   const Breakpoint* first_breakpoint;
@@ -3344,17 +3349,19 @@ static DeoptimizationRequest::Kind GetRequiredDeoptimizationKind(Thread* self,
     bool need_full_deoptimization = m->IsDefault();
     if (need_full_deoptimization) {
       VLOG(jdwp) << "Need full deoptimization because of copying of method "
-                 << PrettyMethod(m);
+                 << ArtMethod::PrettyMethod(m);
       return DeoptimizationRequest::kFullDeoptimization;
     } else {
       // We don't need to deoptimize if the method has not been compiled.
       const bool is_compiled = m->HasAnyCompiledCode();
       if (is_compiled) {
-        VLOG(jdwp) << "Need selective deoptimization for compiled method " << PrettyMethod(m);
+        VLOG(jdwp) << "Need selective deoptimization for compiled method "
+                   << ArtMethod::PrettyMethod(m);
         return DeoptimizationRequest::kSelectiveDeoptimization;
       } else {
         // Method is not compiled: we don't need to deoptimize.
-        VLOG(jdwp) << "No need for deoptimization for non-compiled method " << PrettyMethod(m);
+        VLOG(jdwp) << "No need for deoptimization for non-compiled method "
+                   << ArtMethod::PrettyMethod(m);
         return DeoptimizationRequest::kNothing;
       }
     }
@@ -3584,7 +3591,8 @@ class NeedsDeoptimizationVisitor : public StackVisitor {
 
   bool VisitFrame() OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     // The visitor is meant to be used when handling exception from compiled code only.
-    CHECK(!IsShadowFrame()) << "We only expect to visit compiled frame: " << PrettyMethod(GetMethod());
+    CHECK(!IsShadowFrame()) << "We only expect to visit compiled frame: "
+                            << ArtMethod::PrettyMethod(GetMethod());
     ArtMethod* method = GetMethod();
     if (method == nullptr) {
       // We reach an upcall and don't need to deoptimize this part of the stack (ManagedFragment)
@@ -3810,7 +3818,8 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize 
     VLOG(jdwp) << "Single-step thread: " << *thread;
     VLOG(jdwp) << "Single-step step size: " << single_step_control->GetStepSize();
     VLOG(jdwp) << "Single-step step depth: " << single_step_control->GetStepDepth();
-    VLOG(jdwp) << "Single-step current method: " << PrettyMethod(single_step_control->GetMethod());
+    VLOG(jdwp) << "Single-step current method: "
+               << ArtMethod::PrettyMethod(single_step_control->GetMethod());
     VLOG(jdwp) << "Single-step current line: " << line_number;
     VLOG(jdwp) << "Single-step current stack depth: " << single_step_control->GetStackDepth();
     VLOG(jdwp) << "Single-step dex_pc values:";
@@ -4066,12 +4075,12 @@ void Dbg::ExecuteMethodWithoutPendingException(ScopedObjectAccess& soa, DebugInv
     ArtMethod* actual_method =
         pReq->klass.Read()->FindVirtualMethodForVirtualOrInterface(m, image_pointer_size);
     if (actual_method != m) {
-      VLOG(jdwp) << "ExecuteMethod translated " << PrettyMethod(m)
-                 << " to " << PrettyMethod(actual_method);
+      VLOG(jdwp) << "ExecuteMethod translated " << ArtMethod::PrettyMethod(m)
+                 << " to " << ArtMethod::PrettyMethod(actual_method);
       m = actual_method;
     }
   }
-  VLOG(jdwp) << "ExecuteMethod " << PrettyMethod(m)
+  VLOG(jdwp) << "ExecuteMethod " << ArtMethod::PrettyMethod(m)
              << " receiver=" << pReq->receiver.Read()
              << " arg_count=" << pReq->arg_count;
   CHECK(m != nullptr);
@@ -4873,12 +4882,13 @@ void Dbg::DumpRecentAllocations() {
     const gc::AllocRecord* record = &it->second;
 
     LOG(INFO) << StringPrintf(" Thread %-2d %6zd bytes ", record->GetTid(), record->ByteCount())
-              << PrettyClass(record->GetClass());
+              << mirror::Class::PrettyClass(record->GetClass());
 
     for (size_t stack_frame = 0, depth = record->GetDepth(); stack_frame < depth; ++stack_frame) {
       const gc::AllocRecordStackTraceElement& stack_element = record->StackElement(stack_frame);
       ArtMethod* m = stack_element.GetMethod();
-      LOG(INFO) << "    " << PrettyMethod(m) << " line " << stack_element.ComputeLineNumber();
+      LOG(INFO) << "    " << ArtMethod::PrettyMethod(m) << " line "
+                << stack_element.ComputeLineNumber();
     }
 
     // pause periodically to help logcat catch up

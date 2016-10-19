@@ -114,7 +114,7 @@ bool ImageWriter::IsInBootOatFile(const void* ptr) const {
 static void CheckNoDexObjectsCallback(Object* obj, void* arg ATTRIBUTE_UNUSED)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   Class* klass = obj->GetClass();
-  CHECK_NE(PrettyClass(klass), "com.android.dex.Dex");
+  CHECK_NE(Class::PrettyClass(klass), "com.android.dex.Dex");
 }
 
 static void CheckNoDexObjects() {
@@ -489,7 +489,7 @@ void ImageWriter::AddMethodPointerArray(mirror::PointerArray* arr) {
       if (method != nullptr && !method->IsRuntimeMethod()) {
         mirror::Class* klass = method->GetDeclaringClass();
         CHECK(klass == nullptr || KeepClass(klass))
-            << PrettyClass(klass) << " should be a kept class";
+            << Class::PrettyClass(klass) << " should be a kept class";
       }
     }
   }
@@ -757,7 +757,7 @@ bool ImageWriter::PruneAppImageClassInternal(
   if (klass->GetStatus() == mirror::Class::kStatusError) {
     result = true;
   } else {
-    CHECK(klass->GetVerifyError() == nullptr) << PrettyClass(klass);
+    CHECK(klass->GetVerifyError() == nullptr) << klass->PrettyClass();
   }
   if (!result) {
     // Check interfaces since these wont be visited through VisitReferences.)
@@ -910,7 +910,7 @@ void ImageWriter::PruneNonImageClasses() {
       } else {
         // Check that the class is still in the classes table.
         DCHECK(class_linker->ClassInClassTable(declaring_class)) << "Class "
-            << PrettyClass(declaring_class) << " not in class linker table";
+            << Class::PrettyClass(declaring_class) << " not in class linker table";
       }
     }
     ArtField** resolved_fields = dex_cache->GetResolvedFields();
@@ -947,7 +947,7 @@ void ImageWriter::CheckNonImageClassesRemovedCallback(Object* obj, void* arg) {
       image_writer->DumpImageClasses();
       std::string temp;
       CHECK(image_writer->KeepClass(klass)) << klass->GetDescriptor(&temp)
-                                            << " " << PrettyDescriptor(klass);
+                                            << " " << klass->PrettyDescriptor();
     }
   }
 }
@@ -1100,7 +1100,7 @@ mirror::Object* ImageWriter::TryAssignBinSlot(WorkStack& work_stack,
       DCHECK_NE(as_klass->GetStatus(), mirror::Class::kStatusError);
       if (compile_app_image_) {
         // Extra sanity, no boot loader classes should be left!
-        CHECK(!IsBootClassLoaderClass(as_klass)) << PrettyClass(as_klass);
+        CHECK(!IsBootClassLoaderClass(as_klass)) << as_klass->PrettyClass();
       }
       LengthPrefixedArray<ArtField>* fields[] = {
           as_klass->GetSFieldsPtr(), as_klass->GetIFieldsPtr(),
@@ -1136,7 +1136,7 @@ mirror::Object* ImageWriter::TryAssignBinSlot(WorkStack& work_stack,
             ArtField* field = &cur_fields->At(i);
             auto it2 = native_object_relocations_.find(field);
             CHECK(it2 == native_object_relocations_.end()) << "Field at index=" << i
-                << " already assigned " << PrettyField(field) << " static=" << field->IsStatic();
+                << " already assigned " << field->PrettyField() << " static=" << field->IsStatic();
             DCHECK(!IsInBootImage(field));
             native_object_relocations_.emplace(
                 field,
@@ -1268,7 +1268,7 @@ void ImageWriter::AssignMethodOffset(ArtMethod* method,
                                      size_t oat_index) {
   DCHECK(!IsInBootImage(method));
   CHECK(!NativeRelocationAssigned(method)) << "Method " << method << " already assigned "
-      << PrettyMethod(method);
+      << ArtMethod::PrettyMethod(method);
   if (method->IsRuntimeMethod()) {
     TryAssignConflictTableOffset(method->GetImtConflictTable(target_ptr_size_), oat_index);
   }
@@ -1282,7 +1282,7 @@ void ImageWriter::EnsureBinSlotAssignedCallback(mirror::Object* obj, void* arg) 
   ImageWriter* writer = reinterpret_cast<ImageWriter*>(arg);
   DCHECK(writer != nullptr);
   if (!Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(obj)) {
-    CHECK(writer->IsImageBinSlotAssigned(obj)) << PrettyTypeOf(obj) << " " << obj;
+    CHECK(writer->IsImageBinSlotAssigned(obj)) << mirror::Object::PrettyTypeOf(obj) << " " << obj;
   }
 }
 
@@ -1690,7 +1690,8 @@ void ImageWriter::CreateHeader(size_t oat_index) {
 
 ArtMethod* ImageWriter::GetImageMethodAddress(ArtMethod* method) {
   auto it = native_object_relocations_.find(method);
-  CHECK(it != native_object_relocations_.end()) << PrettyMethod(method) << " @ " << method;
+  CHECK(it != native_object_relocations_.end()) << ArtMethod::PrettyMethod(method) << " @ "
+                                                << method;
   size_t oat_index = GetOatIndex(method->GetDexCache());
   ImageInfo& image_info = GetImageInfo(oat_index);
   CHECK_GE(it->second.offset, image_info.image_end_) << "ArtMethods should be after Objects";
@@ -1877,7 +1878,7 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object* obj, void* arg) {
 void ImageWriter::FixupPointerArray(mirror::Object* dst, mirror::PointerArray* arr,
                                     mirror::Class* klass, Bin array_type) {
   CHECK(klass->IsArrayClass());
-  CHECK(arr->IsIntArray() || arr->IsLongArray()) << PrettyClass(klass) << " " << arr;
+  CHECK(arr->IsIntArray() || arr->IsLongArray()) << klass->PrettyClass() << " " << arr;
   // Fixup int and long pointers for the ArtMethod or ArtField arrays.
   const size_t num_elements = arr->GetLength();
   dst->SetClass(GetImageAddress(arr->GetClass()));
@@ -1889,15 +1890,15 @@ void ImageWriter::FixupPointerArray(mirror::Object* dst, mirror::PointerArray* a
       if (UNLIKELY(it == native_object_relocations_.end())) {
         if (it->second.IsArtMethodRelocation()) {
           auto* method = reinterpret_cast<ArtMethod*>(elem);
-          LOG(FATAL) << "No relocation entry for ArtMethod " << PrettyMethod(method) << " @ "
-              << method << " idx=" << i << "/" << num_elements << " with declaring class "
-              << PrettyClass(method->GetDeclaringClass());
+          LOG(FATAL) << "No relocation entry for ArtMethod " << method->PrettyMethod() << " @ "
+                     << method << " idx=" << i << "/" << num_elements << " with declaring class "
+                     << Class::PrettyClass(method->GetDeclaringClass());
         } else {
           CHECK_EQ(array_type, kBinArtField);
           auto* field = reinterpret_cast<ArtField*>(elem);
-          LOG(FATAL) << "No relocation entry for ArtField " << PrettyField(field) << " @ "
+          LOG(FATAL) << "No relocation entry for ArtField " << field->PrettyField() << " @ "
               << field << " idx=" << i << "/" << num_elements << " with declaring class "
-              << PrettyClass(field->GetDeclaringClass());
+              << Class::PrettyClass(field->GetDeclaringClass());
         }
         UNREACHABLE();
       } else {
@@ -2013,7 +2014,7 @@ std::string PrettyPrint(T* ptr) REQUIRES_SHARED(Locks::mutator_lock_) {
 
 template <>
 std::string PrettyPrint(ArtMethod* method) REQUIRES_SHARED(Locks::mutator_lock_) {
-  return PrettyMethod(method);
+  return ArtMethod::PrettyMethod(method);
 }
 
 template <typename T>
@@ -2228,11 +2229,11 @@ const uint8_t* ImageWriter::GetOatAddress(OatAddress type) const {
 const uint8_t* ImageWriter::GetQuickCode(ArtMethod* method,
                                          const ImageInfo& image_info,
                                          bool* quick_is_interpreted) {
-  DCHECK(!method->IsResolutionMethod()) << PrettyMethod(method);
-  DCHECK_NE(method, Runtime::Current()->GetImtConflictMethod()) << PrettyMethod(method);
-  DCHECK(!method->IsImtUnimplementedMethod()) << PrettyMethod(method);
-  DCHECK(method->IsInvokable()) << PrettyMethod(method);
-  DCHECK(!IsInBootImage(method)) << PrettyMethod(method);
+  DCHECK(!method->IsResolutionMethod()) << method->PrettyMethod();
+  DCHECK_NE(method, Runtime::Current()->GetImtConflictMethod()) << method->PrettyMethod();
+  DCHECK(!method->IsImtUnimplementedMethod()) << method->PrettyMethod();
+  DCHECK(method->IsInvokable()) << method->PrettyMethod();
+  DCHECK(!IsInBootImage(method)) << method->PrettyMethod();
 
   // Use original code if it exists. Otherwise, set the code pointer to the resolution
   // trampoline.
@@ -2310,7 +2311,7 @@ void ImageWriter::CopyAndFixupMethod(ArtMethod* orig,
           break;
         }
       }
-      CHECK(found_one) << "Expected to find callee save method but got " << PrettyMethod(orig);
+      CHECK(found_one) << "Expected to find callee save method but got " << orig->PrettyMethod();
       CHECK(copy->IsRuntimeMethod());
     }
   } else {

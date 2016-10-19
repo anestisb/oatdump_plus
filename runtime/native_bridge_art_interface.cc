@@ -69,7 +69,8 @@ static uint32_t GetNativeMethods(JNIEnv* env, jclass clazz, JNINativeMethod* met
         methods[count].fnPtr = m.GetEntryPointFromJni();
         count++;
       } else {
-        LOG(WARNING) << "Output native method array too small. Skipping " << PrettyMethod(&m);
+        LOG(WARNING) << "Output native method array too small. Skipping "
+                     << m.PrettyMethod();
       }
     }
   }

@@ -495,7 +495,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           // be finalized without a started runtime.
           if (transaction_active && obj->GetClass()->IsFinalizable()) {
             AbortTransactionF(self, "Allocating finalizable object in transaction: %s",
-                              PrettyTypeOf(obj).c_str());
+                              obj->PrettyTypeOf().c_str());
             HANDLE_PENDING_EXCEPTION();
             break;
           }
@@ -990,7 +990,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           break;
         }
         int32_t index = shadow_frame.GetVReg(inst->VRegC_23x());
-        DCHECK(a->IsIntArray() || a->IsFloatArray()) << PrettyTypeOf(a);
+        DCHECK(a->IsIntArray() || a->IsFloatArray()) << a->PrettyTypeOf();
         auto* array = down_cast<IntArray*>(a);
         if (array->CheckIsValidIndex(index)) {
           shadow_frame.SetVReg(inst->VRegA_23x(inst_data), array->GetWithoutChecks(index));
@@ -1009,7 +1009,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           break;
         }
         int32_t index = shadow_frame.GetVReg(inst->VRegC_23x());
-        DCHECK(a->IsLongArray() || a->IsDoubleArray()) << PrettyTypeOf(a);
+        DCHECK(a->IsLongArray() || a->IsDoubleArray()) << a->PrettyTypeOf();
         auto* array = down_cast<LongArray*>(a);
         if (array->CheckIsValidIndex(index)) {
           shadow_frame.SetVRegLong(inst->VRegA_23x(inst_data), array->GetWithoutChecks(index));
@@ -1123,7 +1123,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         }
         int32_t val = shadow_frame.GetVReg(inst->VRegA_23x(inst_data));
         int32_t index = shadow_frame.GetVReg(inst->VRegC_23x());
-        DCHECK(a->IsIntArray() || a->IsFloatArray()) << PrettyTypeOf(a);
+        DCHECK(a->IsIntArray() || a->IsFloatArray()) << a->PrettyTypeOf();
         auto* array = down_cast<IntArray*>(a);
         if (array->CheckIsValidIndex(index)) {
           array->SetWithoutChecks<transaction_active>(index, val);
@@ -1143,7 +1143,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         }
         int64_t val = shadow_frame.GetVRegLong(inst->VRegA_23x(inst_data));
         int32_t index = shadow_frame.GetVReg(inst->VRegC_23x());
-        DCHECK(a->IsLongArray() || a->IsDoubleArray()) << PrettyTypeOf(a);
+        DCHECK(a->IsLongArray() || a->IsDoubleArray()) << a->PrettyTypeOf();
         LongArray* array = down_cast<LongArray*>(a);
         if (array->CheckIsValidIndex(index)) {
           array->SetWithoutChecks<transaction_active>(index, val);

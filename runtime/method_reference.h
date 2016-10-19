@@ -18,14 +18,17 @@
 #define ART_RUNTIME_METHOD_REFERENCE_H_
 
 #include <stdint.h>
+#include <string>
+#include "dex_file.h"
 
 namespace art {
-
-class DexFile;
 
 // A method is uniquely located by its DexFile and the method_ids_ table index into that DexFile
 struct MethodReference {
   MethodReference(const DexFile* file, uint32_t index) : dex_file(file), dex_method_index(index) {
+  }
+  std::string PrettyMethod(bool with_signature = true) {
+    return dex_file->PrettyMethod(dex_method_index, with_signature);
   }
   const DexFile* dex_file;
   uint32_t dex_method_index;

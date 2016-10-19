@@ -933,7 +933,7 @@ bool DexFile::DecodeDebugLocalInfo(const CodeItem* code_item, bool is_static, ui
   }
   if (i != parameters_size || it.HasNext()) {
     LOG(ERROR) << "invalid stream - problem with parameter iterator in " << GetLocation()
-               << " for method " << PrettyMethod(method_idx, *this);
+               << " for method " << this->PrettyMethod(method_idx);
     return false;
   }
 
@@ -1195,6 +1195,50 @@ uint64_t DexFile::ReadUnsignedLong(const uint8_t* ptr, int zwidth, bool fill_on_
     val >>= (7 - zwidth) * 8;
   }
   return val;
+}
+
+std::string DexFile::PrettyMethod(uint32_t method_idx, bool with_signature) const {
+  if (method_idx >= NumMethodIds()) {
+    return StringPrintf("<<invalid-method-idx-%d>>", method_idx);
+  }
+  const DexFile::MethodId& method_id = GetMethodId(method_idx);
+  std::string result(PrettyDescriptor(GetMethodDeclaringClassDescriptor(method_id)));
+  result += '.';
+  result += GetMethodName(method_id);
+  if (with_signature) {
+    const Signature signature = GetMethodSignature(method_id);
+    std::string sig_as_string(signature.ToString());
+    if (signature == Signature::NoSignature()) {
+      return result + sig_as_string;
+    }
+    result = PrettyReturnType(sig_as_string.c_str()) + " " + result +
+        PrettyArguments(sig_as_string.c_str());
+  }
+  return result;
+}
+
+std::string DexFile::PrettyField(uint32_t field_idx, bool with_type) const {
+  if (field_idx >= NumFieldIds()) {
+    return StringPrintf("<<invalid-field-idx-%d>>", field_idx);
+  }
+  const DexFile::FieldId& field_id = GetFieldId(field_idx);
+  std::string result;
+  if (with_type) {
+    result += GetFieldTypeDescriptor(field_id);
+    result += ' ';
+  }
+  result += PrettyDescriptor(GetFieldDeclaringClassDescriptor(field_id));
+  result += '.';
+  result += GetFieldName(field_id);
+  return result;
+}
+
+std::string DexFile::PrettyType(uint32_t type_idx) const {
+  if (type_idx >= NumTypeIds()) {
+    return StringPrintf("<<invalid-type-idx-%d>>", type_idx);
+  }
+  const DexFile::TypeId& type_id = GetTypeId(type_idx);
+  return PrettyDescriptor(GetTypeDescriptor(type_id));
 }
 
 // Checks that visibility is as expected. Includes special behavior for M and

@@ -1120,7 +1120,7 @@ class MANAGED Class FINAL : public Object {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   pid_t GetClinitThreadId() REQUIRES_SHARED(Locks::mutator_lock_) {
-    DCHECK(IsIdxLoaded() || IsErroneous()) << PrettyClass(this);
+    DCHECK(IsIdxLoaded() || IsErroneous()) << PrettyClass();
     return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, clinit_thread_id_));
   }
 
@@ -1286,6 +1286,22 @@ class MANAGED Class FINAL : public Object {
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   ALWAYS_INLINE ArraySlice<ArtMethod> GetCopiedMethodsSliceUnchecked(PointerSize pointer_size)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+  static std::string PrettyDescriptor(ObjPtr<mirror::Class> klass)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  std::string PrettyDescriptor()
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  // Returns a human-readable form of the name of the given class.
+  // Given String.class, the output would be "java.lang.Class<java.lang.String>".
+  static std::string PrettyClass(ObjPtr<mirror::Class> c)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  std::string PrettyClass()
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  // Returns a human-readable form of the name of the given class with its class loader.
+  static std::string PrettyClassAndClassLoader(ObjPtr<mirror::Class> c)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  std::string PrettyClassAndClassLoader()
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Fix up all of the native pointers in the class by running them through the visitor. Only sets

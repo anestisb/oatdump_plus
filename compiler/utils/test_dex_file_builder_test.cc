@@ -66,14 +66,14 @@ TEST(TestDexFileBuilderTest, SimpleTest) {
   }
 
   ASSERT_EQ(1u, dex_file->NumFieldIds());
-  EXPECT_STREQ("[I TestClass.intField", PrettyField(0u, *dex_file).c_str());
+  EXPECT_STREQ("[I TestClass.intField", dex_file->PrettyField(0u).c_str());
 
   ASSERT_EQ(2u, dex_file->NumProtoIds());
   ASSERT_EQ(2u, dex_file->NumMethodIds());
   EXPECT_STREQ("TestClass TestClass.bar(java.lang.Object, java.lang.Object[])",
-               PrettyMethod(0u, *dex_file).c_str());
+               dex_file->PrettyMethod(0u).c_str());
   EXPECT_STREQ("int TestClass.foo()",
-               PrettyMethod(1u, *dex_file).c_str());
+               dex_file->PrettyMethod(1u).c_str());
 
   EXPECT_EQ(0u, builder.GetStringIdx("Arbitrary string"));
   EXPECT_EQ(2u, builder.GetTypeIdx("Ljava/lang/Class;"));

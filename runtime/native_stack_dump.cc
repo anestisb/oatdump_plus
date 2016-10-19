@@ -347,7 +347,7 @@ void DumpNativeStack(std::ostream& os,
           Locks::mutator_lock_->IsSharedHeld(Thread::Current()) &&
           PcIsWithinQuickCode(current_method, it->pc)) {
         const void* start_of_code = current_method->GetEntryPointFromQuickCompiledCode();
-        os << JniLongName(current_method) << "+"
+        os << current_method->JniLongName() << "+"
            << (it->pc - reinterpret_cast<uintptr_t>(start_of_code));
       } else {
         os << "???";

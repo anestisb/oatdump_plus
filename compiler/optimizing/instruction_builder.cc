@@ -1065,7 +1065,7 @@ bool HInstructionBuilder::SetupInvokeArguments(HInvoke* invoke,
       // reject any class where this is violated. However, the verifier only does these checks
       // on non trivially dead instructions, so we just bailout the compilation.
       VLOG(compiler) << "Did not compile "
-                     << PrettyMethod(dex_compilation_unit_->GetDexMethodIndex(), *dex_file_)
+                     << dex_file_->PrettyMethod(dex_compilation_unit_->GetDexMethodIndex())
                      << " because of non-sequential dex register pair in wide argument";
       MaybeRecordStat(MethodCompilationStat::kNotCompiledMalformedOpcode);
       return false;
@@ -1079,7 +1079,7 @@ bool HInstructionBuilder::SetupInvokeArguments(HInvoke* invoke,
 
   if (*argument_index != invoke->GetNumberOfArguments()) {
     VLOG(compiler) << "Did not compile "
-                   << PrettyMethod(dex_compilation_unit_->GetDexMethodIndex(), *dex_file_)
+                   << dex_file_->PrettyMethod(dex_compilation_unit_->GetDexMethodIndex())
                    << " because of wrong number of arguments in invoke instruction";
     MaybeRecordStat(MethodCompilationStat::kNotCompiledMalformedOpcode);
     return false;
@@ -2716,7 +2716,7 @@ bool HInstructionBuilder::ProcessDexInstruction(const Instruction& instruction, 
 
     default:
       VLOG(compiler) << "Did not compile "
-                     << PrettyMethod(dex_compilation_unit_->GetDexMethodIndex(), *dex_file_)
+                     << dex_file_->PrettyMethod(dex_compilation_unit_->GetDexMethodIndex())
                      << " because of unhandled instruction "
                      << instruction.Name();
       MaybeRecordStat(MethodCompilationStat::kNotCompiledUnhandledInstruction);
