@@ -292,38 +292,41 @@ int32_t String::CompareTo(ObjPtr<String> rhs) {
   if (lhs == rhs) {
     return 0;
   }
-  // TODO: is this still true?
-  // The annoying part here is that 0x00e9 - 0xffff != 0x00ea,
-  // because the interpreter converts the characters to 32-bit integers
-  // *without* sign extension before it subtracts them (which makes some
-  // sense since "char" is unsigned).  So what we get is the result of
-  // 0x000000e9 - 0x0000ffff, which is 0xffff00ea.
-  int32_t lhsCount = lhs->GetLength();
-  int32_t rhsCount = rhs->GetLength();
-  int32_t countDiff = lhsCount - rhsCount;
-  int32_t minCount = (countDiff < 0) ? lhsCount : rhsCount;
+  int32_t lhs_count = lhs->GetLength();
+  int32_t rhs_count = rhs->GetLength();
+  int32_t count_diff = lhs_count - rhs_count;
+  int32_t min_count = (count_diff < 0) ? lhs_count : rhs_count;
   if (lhs->IsCompressed() && rhs->IsCompressed()) {
-    int32_t comparison = memcmp(lhs->GetValueCompressed(),
-                                rhs->GetValueCompressed(),
-                                minCount * sizeof(uint8_t));
-    if (comparison != 0) {
-      return comparison;
+    const uint8_t* lhs_chars = lhs->GetValueCompressed();
+    const uint8_t* rhs_chars = rhs->GetValueCompressed();
+    for (int32_t i = 0; i < min_count; ++i) {
+      int32_t char_diff = static_cast<int32_t>(lhs_chars[i]) - static_cast<int32_t>(rhs_chars[i]);
+      if (char_diff != 0) {
+        return char_diff;
+      }
     }
   } else if (lhs->IsCompressed() || rhs->IsCompressed()) {
-    for (int32_t i = 0; i < minCount; ++i) {
-      if (lhs->CharAt(i) != rhs->CharAt(i)) {
-        return static_cast<int32_t>(lhs->CharAt(i)) - static_cast<int32_t>(rhs->CharAt(i));
+    const uint8_t* compressed_chars =
+        lhs->IsCompressed() ? lhs->GetValueCompressed() : rhs->GetValueCompressed();
+    const uint16_t* uncompressed_chars = lhs->IsCompressed() ? rhs->GetValue() : lhs->GetValue();
+    for (int32_t i = 0; i < min_count; ++i) {
+      int32_t char_diff =
+          static_cast<int32_t>(compressed_chars[i]) - static_cast<int32_t>(uncompressed_chars[i]);
+      if (char_diff != 0) {
+        return lhs->IsCompressed() ? char_diff : -char_diff;
       }
     }
   } else {
-    const uint16_t* lhsChars = lhs->GetValue();
-    const uint16_t* rhsChars = rhs->GetValue();
-    int32_t otherRes = MemCmp16(lhsChars, rhsChars, minCount);
-    if (otherRes != 0) {
-      return otherRes;
+    const uint16_t* lhs_chars = lhs->GetValue();
+    const uint16_t* rhs_chars = rhs->GetValue();
+    // FIXME: The MemCmp16() name is misleading. It returns the char difference on mismatch
+    // where memcmp() only guarantees that the returned value has the same sign.
+    int32_t char_diff = MemCmp16(lhs_chars, rhs_chars, min_count);
+    if (char_diff != 0) {
+      return char_diff;
     }
   }
-  return countDiff;
+  return count_diff;
 }
 
 void String::VisitRoots(RootVisitor* visitor) {
