@@ -234,8 +234,8 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
         CHECK_LT(instrumentation_stack_depth_, instrumentation_stack_->size());
         const InstrumentationStackFrame& frame =
             instrumentation_stack_->at(instrumentation_stack_depth_);
-        CHECK_EQ(m, frame.method_) << "Expected " << PrettyMethod(m)
-                                   << ", Found " << PrettyMethod(frame.method_);
+        CHECK_EQ(m, frame.method_) << "Expected " << ArtMethod::PrettyMethod(m)
+                                   << ", Found " << ArtMethod::PrettyMethod(frame.method_);
         return_pc = frame.return_pc_;
         if (kVerboseInstrumentation) {
           LOG(INFO) << "Ignoring already instrumented " << frame.Dump();
@@ -337,7 +337,7 @@ static void InstrumentationRestoreStack(Thread* thread, void* arg)
       if (GetCurrentQuickFrame() == nullptr) {
         if (kVerboseInstrumentation) {
           LOG(INFO) << "  Ignoring a shadow frame. Frame " << GetFrameId()
-              << " Method=" << PrettyMethod(m);
+              << " Method=" << ArtMethod::PrettyMethod(m);
         }
         return true;  // Ignore shadow frames.
       }
@@ -358,7 +358,7 @@ static void InstrumentationRestoreStack(Thread* thread, void* arg)
           if (instrumentation_frame.interpreter_entry_) {
             CHECK(m == Runtime::Current()->GetCalleeSaveMethod(Runtime::kSaveRefsAndArgs));
           } else {
-            CHECK(m == instrumentation_frame.method_) << PrettyMethod(m);
+            CHECK(m == instrumentation_frame.method_) << ArtMethod::PrettyMethod(m);
           }
           SetReturnPc(instrumentation_frame.return_pc_);
           if (instrumentation_->ShouldNotifyMethodEnterExitEvents()) {
@@ -773,7 +773,7 @@ void Instrumentation::Deoptimize(ArtMethod* method) {
   {
     WriterMutexLock mu(self, deoptimized_methods_lock_);
     bool has_not_been_deoptimized = AddDeoptimizedMethod(method);
-    CHECK(has_not_been_deoptimized) << "Method " << PrettyMethod(method)
+    CHECK(has_not_been_deoptimized) << "Method " << ArtMethod::PrettyMethod(method)
         << " is already deoptimized";
   }
   if (!interpreter_stubs_installed_) {
@@ -797,7 +797,7 @@ void Instrumentation::Undeoptimize(ArtMethod* method) {
   {
     WriterMutexLock mu(self, deoptimized_methods_lock_);
     bool found_and_erased = RemoveDeoptimizedMethod(method);
-    CHECK(found_and_erased) << "Method " << PrettyMethod(method)
+    CHECK(found_and_erased) << "Method " << ArtMethod::PrettyMethod(method)
         << " is not deoptimized";
     empty = IsDeoptimizedMethodsEmpty();
   }
@@ -1043,7 +1043,8 @@ void Instrumentation::PushInstrumentationStackFrame(Thread* self, mirror::Object
   size_t frame_id = StackVisitor::ComputeNumFrames(self, kInstrumentationStackWalk);
   std::deque<instrumentation::InstrumentationStackFrame>* stack = self->GetInstrumentationStack();
   if (kVerboseInstrumentation) {
-    LOG(INFO) << "Entering " << PrettyMethod(method) << " from PC " << reinterpret_cast<void*>(lr);
+    LOG(INFO) << "Entering " << ArtMethod::PrettyMethod(method) << " from PC "
+              << reinterpret_cast<void*>(lr);
   }
   instrumentation::InstrumentationStackFrame instrumentation_frame(this_object, method, lr,
                                                                    frame_id, interpreter_entry);
@@ -1098,8 +1099,8 @@ TwoWordReturn Instrumentation::PopInstrumentationStackFrame(Thread* self, uintpt
   if (deoptimize && Runtime::Current()->IsDeoptimizeable(*return_pc)) {
     if (kVerboseInstrumentation) {
       LOG(INFO) << StringPrintf("Deoptimizing %s by returning from %s with result %#" PRIx64 " in ",
-                                PrettyMethod(visitor.caller).c_str(),
-                                PrettyMethod(method).c_str(),
+                                visitor.caller->PrettyMethod().c_str(),
+                                method->PrettyMethod().c_str(),
                                 return_value.GetJ()) << *self;
     }
     self->PushDeoptimizationContext(return_value,
@@ -1110,7 +1111,7 @@ TwoWordReturn Instrumentation::PopInstrumentationStackFrame(Thread* self, uintpt
                                   reinterpret_cast<uintptr_t>(GetQuickDeoptimizationEntryPoint()));
   } else {
     if (kVerboseInstrumentation) {
-      LOG(INFO) << "Returning from " << PrettyMethod(method)
+      LOG(INFO) << "Returning from " << method->PrettyMethod()
                 << " to PC " << reinterpret_cast<void*>(*return_pc);
     }
     return GetTwoWordSuccessValue(0, *return_pc);
@@ -1128,11 +1129,11 @@ uintptr_t Instrumentation::PopMethodForUnwind(Thread* self, bool is_deoptimizati
   ArtMethod* method = instrumentation_frame.method_;
   if (is_deoptimization) {
     if (kVerboseInstrumentation) {
-      LOG(INFO) << "Popping for deoptimization " << PrettyMethod(method);
+      LOG(INFO) << "Popping for deoptimization " << ArtMethod::PrettyMethod(method);
     }
   } else {
     if (kVerboseInstrumentation) {
-      LOG(INFO) << "Popping for unwind " << PrettyMethod(method);
+      LOG(INFO) << "Popping for unwind " << ArtMethod::PrettyMethod(method);
     }
 
     // Notify listeners of method unwind.
@@ -1146,7 +1147,7 @@ uintptr_t Instrumentation::PopMethodForUnwind(Thread* self, bool is_deoptimizati
 
 std::string InstrumentationStackFrame::Dump() const {
   std::ostringstream os;
-  os << "Frame " << frame_id_ << " " << PrettyMethod(method_) << ":"
+  os << "Frame " << frame_id_ << " " << ArtMethod::PrettyMethod(method_) << ":"
       << reinterpret_cast<void*>(return_pc_) << " this=" << reinterpret_cast<void*>(this_object_);
   return os.str();
 }

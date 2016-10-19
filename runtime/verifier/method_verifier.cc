@@ -141,13 +141,13 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
     failure_message = " that has no super class";
   } else if (super != nullptr && super->IsFinal()) {
     early_failure = true;
-    failure_message = " that attempts to sub-class final class " + PrettyDescriptor(super);
+    failure_message = " that attempts to sub-class final class " + super->PrettyDescriptor();
   } else if (class_def == nullptr) {
     early_failure = true;
     failure_message = " that isn't present in dex file " + dex_file.GetLocation();
   }
   if (early_failure) {
-    *error = "Verifier rejected class " + PrettyDescriptor(klass) + failure_message;
+    *error = "Verifier rejected class " + klass->PrettyDescriptor() + failure_message;
     if (callbacks != nullptr) {
       ClassReference ref(&dex_file, klass->GetDexClassDefIndex());
       callbacks->ClassRejected(ref);
@@ -395,7 +395,7 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
     if (verifier.failures_.size() != 0) {
       if (VLOG_IS_ON(verifier)) {
         verifier.DumpFailures(VLOG_STREAM(verifier) << "Soft verification failures in "
-                                                    << PrettyMethod(method_idx, *dex_file) << "\n");
+                                                    << dex_file->PrettyMethod(method_idx) << "\n");
       }
       result.kind = kSoftFailure;
       if (method != nullptr &&
@@ -441,7 +441,7 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
             UNREACHABLE();
         }
         verifier.DumpFailures(LOG_STREAM(severity) << "Verification error in "
-                                                   << PrettyMethod(method_idx, *dex_file)
+                                                   << dex_file->PrettyMethod(method_idx)
                                                    << "\n");
       }
       if (hard_failure_msg != nullptr) {
@@ -465,7 +465,7 @@ MethodVerifier::FailureData MethodVerifier::VerifyMethod(Thread* self,
   if (kTimeVerifyMethod) {
     uint64_t duration_ns = NanoTime() - start_ns;
     if (duration_ns > MsToNs(100)) {
-      LOG(WARNING) << "Verification of " << PrettyMethod(method_idx, *dex_file)
+      LOG(WARNING) << "Verification of " << dex_file->PrettyMethod(method_idx)
                    << " took " << PrettyDuration(duration_ns)
                    << (IsLargeMethod(code_item) ? " (large method)" : "");
     }
@@ -722,7 +722,7 @@ bool MethodVerifier::Verify() {
     }
     is_constructor_ = true;
   } else if (constructor_by_name) {
-    LOG(WARNING) << "Method " << PrettyMethod(dex_method_idx_, *dex_file_)
+    LOG(WARNING) << "Method " << dex_file_->PrettyMethod(dex_method_idx_)
                  << " not marked as constructor.";
     is_constructor_ = true;
   }
@@ -935,7 +935,7 @@ std::ostream& MethodVerifier::Fail(VerifyError error) {
     }
   }
   failures_.push_back(error);
-  std::string location(StringPrintf("%s: [0x%X] ", PrettyMethod(dex_method_idx_, *dex_file_).c_str(),
+  std::string location(StringPrintf("%s: [0x%X] ", dex_file_->PrettyMethod(dex_method_idx_).c_str(),
                                     work_insn_idx_));
   std::ostringstream* failure_message = new std::ostringstream(location, std::ostringstream::ate);
   failure_messages_.push_back(failure_message);
@@ -943,7 +943,7 @@ std::ostream& MethodVerifier::Fail(VerifyError error) {
 }
 
 std::ostream& MethodVerifier::LogVerifyInfo() {
-  return info_messages_ << "VFY: " << PrettyMethod(dex_method_idx_, *dex_file_)
+  return info_messages_ << "VFY: " << dex_file_->PrettyMethod(dex_method_idx_)
                         << '[' << reinterpret_cast<void*>(work_insn_idx_) << "] : ";
 }
 
@@ -1589,7 +1589,7 @@ bool MethodVerifier::VerifyCodeFlow() {
   if (!SetTypesFromSignature()) {
     DCHECK_NE(failures_.size(), 0U);
     std::string prepend("Bad signature in ");
-    prepend += PrettyMethod(dex_method_idx_, *dex_file_);
+    prepend += dex_file_->PrettyMethod(dex_method_idx_);
     PrependToLastFailMessage(prepend);
     return false;
   }
@@ -1866,7 +1866,7 @@ bool MethodVerifier::CodeFlowVerifyMethod() {
         if (work_line_->CompareLine(register_line) != 0) {
           Dump(std::cout);
           std::cout << info_messages_.str();
-          LOG(FATAL) << "work_line diverged in " << PrettyMethod(dex_method_idx_, *dex_file_)
+          LOG(FATAL) << "work_line diverged in " << dex_file_->PrettyMethod(dex_method_idx_)
                      << "@" << reinterpret_cast<void*>(work_insn_idx_) << "\n"
                      << " work_line=" << work_line_->Dump(this) << "\n"
                      << "  expected=" << register_line->Dump(this);
@@ -1874,7 +1874,7 @@ bool MethodVerifier::CodeFlowVerifyMethod() {
       }
     }
     if (!CodeFlowVerifyInstruction(&start_guess)) {
-      std::string prepend(PrettyMethod(dex_method_idx_, *dex_file_));
+      std::string prepend(dex_file_->PrettyMethod(dex_method_idx_));
       prepend += " failed to verify: ";
       PrependToLastFailMessage(prepend);
       return false;
@@ -1925,7 +1925,7 @@ bool MethodVerifier::CodeFlowVerifyMethod() {
                       << "-" << reinterpret_cast<void*>(insn_idx - 1);
     }
     // To dump the state of the verify after a method, do something like:
-    // if (PrettyMethod(dex_method_idx_, *dex_file_) ==
+    // if (dex_file_->PrettyMethod(dex_method_idx_) ==
     //     "boolean java.lang.String.equals(java.lang.Object)") {
     //   LOG(INFO) << info_messages_.str();
     // }
@@ -2994,7 +2994,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         mirror::Class* called_interface = abs_method->GetDeclaringClass();
         if (!called_interface->IsInterface() && !called_interface->IsObjectClass()) {
           Fail(VERIFY_ERROR_CLASS_CHANGE) << "expected interface class in invoke-interface '"
-              << PrettyMethod(abs_method) << "'";
+              << abs_method->PrettyMethod() << "'";
           break;
         }
       }
@@ -3278,7 +3278,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         for (uint32_t i = 0, num_fields = klass->NumInstanceFields(); i < num_fields; ++i) {
           if (klass->GetInstanceField(i)->IsFinal()) {
             Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "return-void-no-barrier not expected for "
-                << PrettyField(klass->GetInstanceField(i));
+                << klass->GetInstanceField(i)->PrettyField();
             break;
           }
         }
@@ -3787,7 +3787,7 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
 
   if (res_method == nullptr) {
     Fail(VERIFY_ERROR_NO_METHOD) << "couldn't find method "
-                                 << PrettyDescriptor(klass) << "."
+                                 << klass->PrettyDescriptor() << "."
                                  << dex_file_->GetMethodName(method_id) << " "
                                  << dex_file_->GetMethodSignature(method_id);
     return nullptr;
@@ -3797,13 +3797,13 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
   // enforce them here.
   if (res_method->IsConstructor() && method_type != METHOD_DIRECT) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "rejecting non-direct call to constructor "
-                                      << PrettyMethod(res_method);
+                                      << res_method->PrettyMethod();
     return nullptr;
   }
   // Disallow any calls to class initializers.
   if (res_method->IsClassInitializer()) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "rejecting call to class initializer "
-                                      << PrettyMethod(res_method);
+                                      << res_method->PrettyMethod();
     return nullptr;
   }
 
@@ -3821,15 +3821,15 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
          method_type != METHOD_DIRECT) &&
         method_type != METHOD_SUPER) {
       Fail(VERIFY_ERROR_CLASS_CHANGE)
-          << "non-interface method " << PrettyMethod(dex_method_idx, *dex_file_)
-          << " is in an interface class " << PrettyClass(klass);
+          << "non-interface method " << dex_file_->PrettyMethod(dex_method_idx)
+          << " is in an interface class " << klass->PrettyClass();
       return nullptr;
     }
   } else {
     if (method_type == METHOD_INTERFACE) {
       Fail(VERIFY_ERROR_CLASS_CHANGE)
-          << "interface method " << PrettyMethod(dex_method_idx, *dex_file_)
-          << " is in a non-interface class " << PrettyClass(klass);
+          << "interface method " << dex_file_->PrettyMethod(dex_method_idx)
+          << " is in a non-interface class " << klass->PrettyClass();
       return nullptr;
     }
   }
@@ -3841,14 +3841,15 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
 
   // Check if access is allowed.
   if (!referrer.CanAccessMember(res_method->GetDeclaringClass(), res_method->GetAccessFlags())) {
-    Fail(VERIFY_ERROR_ACCESS_METHOD) << "illegal method access (call " << PrettyMethod(res_method)
+    Fail(VERIFY_ERROR_ACCESS_METHOD) << "illegal method access (call "
+                                     << res_method->PrettyMethod()
                                      << " from " << referrer << ")";
     return res_method;
   }
   // Check that invoke-virtual and invoke-super are not used on private methods of the same class.
   if (res_method->IsPrivate() && (method_type == METHOD_VIRTUAL || method_type == METHOD_SUPER)) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invoke-super/virtual can't be used on private method "
-                                      << PrettyMethod(res_method);
+                                      << res_method->PrettyMethod();
     return nullptr;
   }
   // See if the method type implied by the invoke instruction matches the access flags for the
@@ -3860,7 +3861,7 @@ ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(
         method_type == METHOD_INTERFACE) && res_method->IsDirect())
       ) {
     Fail(VERIFY_ERROR_CLASS_CHANGE) << "invoke type (" << method_type << ") does not match method "
-                                       " type of " << PrettyMethod(res_method);
+                                       " type of " << res_method->PrettyMethod();
     return nullptr;
   }
   return res_method;
@@ -4090,24 +4091,25 @@ ArtMethod* MethodVerifier::VerifyInvocationArgs(
         return nullptr;
       } else if (!reference_type.IsStrictlyAssignableFrom(GetDeclaringClass(), this)) {
         Fail(VERIFY_ERROR_CLASS_CHANGE)
-            << "invoke-super in " << PrettyClass(GetDeclaringClass().GetClass()) << " in method "
-            << PrettyMethod(dex_method_idx_, *dex_file_) << " to method "
-            << PrettyMethod(method_idx, *dex_file_) << " references "
-            << "non-super-interface type " << PrettyClass(reference_type.GetClass());
+            << "invoke-super in " << mirror::Class::PrettyClass(GetDeclaringClass().GetClass())
+            << " in method "
+            << dex_file_->PrettyMethod(dex_method_idx_) << " to method "
+            << dex_file_->PrettyMethod(method_idx) << " references "
+            << "non-super-interface type " << mirror::Class::PrettyClass(reference_type.GetClass());
         return nullptr;
       }
     } else {
       const RegType& super = GetDeclaringClass().GetSuperClass(&reg_types_);
       if (super.IsUnresolvedTypes()) {
         Fail(VERIFY_ERROR_NO_METHOD) << "unknown super class in invoke-super from "
-                                    << PrettyMethod(dex_method_idx_, *dex_file_)
-                                    << " to super " << PrettyMethod(res_method);
+                                    << dex_file_->PrettyMethod(dex_method_idx_)
+                                    << " to super " << res_method->PrettyMethod();
         return nullptr;
       }
       if (!reference_type.IsStrictlyAssignableFrom(GetDeclaringClass(), this) ||
           (res_method->GetMethodIndex() >= super.GetClass()->GetVTableLength())) {
         Fail(VERIFY_ERROR_NO_METHOD) << "invalid invoke-super from "
-                                    << PrettyMethod(dex_method_idx_, *dex_file_)
+                                    << dex_file_->PrettyMethod(dex_method_idx_)
                                     << " to super " << super
                                     << "." << res_method->GetName()
                                     << res_method->GetSignature();
@@ -4172,7 +4174,7 @@ ArtMethod* MethodVerifier::GetQuickInvokedMethod(const Instruction* inst, Regist
 
 ArtMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instruction* inst, bool is_range) {
   DCHECK(Runtime::Current()->IsStarted() || verify_to_dump_)
-      << PrettyMethod(dex_method_idx_, *dex_file_, true) << "@" << work_insn_idx_;
+      << dex_file_->PrettyMethod(dex_method_idx_, true) << "@" << work_insn_idx_;
 
   ArtMethod* res_method = GetQuickInvokedMethod(inst, work_line_.get(), is_range, false);
   if (res_method == nullptr) {
@@ -4242,7 +4244,8 @@ ArtMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instruction* inst,
   size_t actual_args = 1;
   for (size_t param_index = 0; param_index < params_size; param_index++) {
     if (actual_args >= expected_args) {
-      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Rejecting invalid call to '" << PrettyMethod(res_method)
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Rejecting invalid call to '"
+                                        << res_method->PrettyMethod()
                                         << "'. Expected " << expected_args
                                          << " arguments, processing argument " << actual_args
                                         << " (where longs/doubles count twice).";
@@ -4251,7 +4254,8 @@ ArtMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instruction* inst,
     const char* descriptor =
         res_method->GetTypeDescriptorFromTypeIdx(params->GetTypeItem(param_index).type_idx_);
     if (descriptor == nullptr) {
-      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Rejecting invocation of " << PrettyMethod(res_method)
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Rejecting invocation of "
+                                        << res_method->PrettyMethod()
                                         << " missing signature component";
       return nullptr;
     }
@@ -4263,8 +4267,9 @@ ArtMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instruction* inst,
     actual_args = reg_type.IsLongOrDoubleTypes() ? actual_args + 2 : actual_args + 1;
   }
   if (actual_args != expected_args) {
-    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Rejecting invocation of " << PrettyMethod(res_method)
-              << " expected " << expected_args << " arguments, found " << actual_args;
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Rejecting invocation of "
+                                      << res_method->PrettyMethod() << " expected "
+                                      << expected_args << " arguments, found " << actual_args;
     return nullptr;
   } else {
     return res_method;
@@ -4522,11 +4527,11 @@ ArtField* MethodVerifier::GetStaticField(int field_idx) {
     return nullptr;
   } else if (!GetDeclaringClass().CanAccessMember(field->GetDeclaringClass(),
                                                   field->GetAccessFlags())) {
-    Fail(VERIFY_ERROR_ACCESS_FIELD) << "cannot access static field " << PrettyField(field)
+    Fail(VERIFY_ERROR_ACCESS_FIELD) << "cannot access static field " << field->PrettyField()
                                     << " from " << GetDeclaringClass();
     return nullptr;
   } else if (!field->IsStatic()) {
-    Fail(VERIFY_ERROR_CLASS_CHANGE) << "expected field " << PrettyField(field) << " to be static";
+    Fail(VERIFY_ERROR_CLASS_CHANGE) << "expected field " << field->PrettyField() << " to be static";
     return nullptr;
   }
   return field;
@@ -4581,9 +4586,9 @@ ArtField* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_id
       if (!obj_type.IsUninitializedThisReference() ||
           !IsConstructor() ||
           !field_klass.Equals(GetDeclaringClass())) {
-        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "cannot access instance field " << PrettyField(field)
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "cannot access instance field " << field->PrettyField()
                                           << " of a not fully initialized object within the context"
-                                          << " of " << PrettyMethod(dex_method_idx_, *dex_file_);
+                                          << " of " << dex_file_->PrettyMethod(dex_method_idx_);
         return nullptr;
       }
     } else if (!field_klass.IsAssignableFrom(obj_type, this)) {
@@ -4600,7 +4605,7 @@ ArtField* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_id
         // and still missing classes. This is a hard failure.
         type = VerifyError::VERIFY_ERROR_BAD_CLASS_HARD;
       }
-      Fail(type) << "cannot access instance field " << PrettyField(field)
+      Fail(type) << "cannot access instance field " << field->PrettyField()
                  << " from object of type " << obj_type;
       return nullptr;
     }
@@ -4609,11 +4614,11 @@ ArtField* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_id
   // Few last soft failure checks.
   if (!GetDeclaringClass().CanAccessMember(field->GetDeclaringClass(),
                                            field->GetAccessFlags())) {
-    Fail(VERIFY_ERROR_ACCESS_FIELD) << "cannot access instance field " << PrettyField(field)
+    Fail(VERIFY_ERROR_ACCESS_FIELD) << "cannot access instance field " << field->PrettyField()
                                     << " from " << GetDeclaringClass();
     return nullptr;
   } else if (field->IsStatic()) {
-    Fail(VERIFY_ERROR_CLASS_CHANGE) << "expected field " << PrettyField(field)
+    Fail(VERIFY_ERROR_CLASS_CHANGE) << "expected field " << field->PrettyField()
                                     << " to not be static";
     return nullptr;
   }
@@ -4649,12 +4654,12 @@ void MethodVerifier::VerifyISFieldAccess(const Instruction* inst, const RegType&
       if (field == nullptr) {
         Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "Might be accessing a superclass instance field prior "
                                           << "to the superclass being initialized in "
-                                          << PrettyMethod(dex_method_idx_, *dex_file_);
+                                          << dex_file_->PrettyMethod(dex_method_idx_);
       } else if (field->GetDeclaringClass() != GetDeclaringClass().GetClass()) {
         Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "cannot access superclass instance field "
-                                          << PrettyField(field) << " of a not fully initialized "
+                                          << field->PrettyField() << " of a not fully initialized "
                                           << "object within the context of "
-                                          << PrettyMethod(dex_method_idx_, *dex_file_);
+                                          << dex_file_->PrettyMethod(dex_method_idx_);
         return;
       }
     }
@@ -4663,7 +4668,7 @@ void MethodVerifier::VerifyISFieldAccess(const Instruction* inst, const RegType&
   if (field != nullptr) {
     if (kAccType == FieldAccessType::kAccPut) {
       if (field->IsFinal() && field->GetDeclaringClass() != GetDeclaringClass().GetClass()) {
-        Fail(VERIFY_ERROR_ACCESS_FIELD) << "cannot modify final field " << PrettyField(field)
+        Fail(VERIFY_ERROR_ACCESS_FIELD) << "cannot modify final field " << field->PrettyField()
                                         << " from other class " << GetDeclaringClass();
         // Keep hunting for possible hard fails.
       }
@@ -4700,7 +4705,7 @@ void MethodVerifier::VerifyISFieldAccess(const Instruction* inst, const RegType&
         // should have been consistent within the same file at compile time.
         VerifyError error = field_type->IsReferenceTypes() ? VERIFY_ERROR_BAD_CLASS_SOFT
                                                            : VERIFY_ERROR_BAD_CLASS_HARD;
-        Fail(error) << "expected field " << PrettyField(field)
+        Fail(error) << "expected field " << ArtField::PrettyField(field)
                     << " to be compatible with type '" << insn_type
                     << "' but found type '" << *field_type
                     << "' in put-object";
@@ -4720,7 +4725,7 @@ void MethodVerifier::VerifyISFieldAccess(const Instruction* inst, const RegType&
         // This is a global failure rather than a class change failure as the instructions and
         // the descriptors for the type should have been consistent within the same file at
         // compile time
-        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected field " << PrettyField(field)
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected field " << ArtField::PrettyField(field)
                                           << " to be of type '" << insn_type
                                           << "' but found type '" << *field_type << "' in get";
         return;
@@ -4732,7 +4737,7 @@ void MethodVerifier::VerifyISFieldAccess(const Instruction* inst, const RegType&
         // should have been consistent within the same file at compile time.
         VerifyError error = field_type->IsReferenceTypes() ? VERIFY_ERROR_BAD_CLASS_SOFT
                                                            : VERIFY_ERROR_BAD_CLASS_HARD;
-        Fail(error) << "expected field " << PrettyField(field)
+        Fail(error) << "expected field " << ArtField::PrettyField(field)
                     << " to be compatible with type '" << insn_type
                     << "' but found type '" << *field_type
                     << "' in get-object";
@@ -4765,7 +4770,7 @@ ArtField* MethodVerifier::GetQuickFieldAccess(const Instruction* inst,
   DCHECK_EQ(f->GetOffset().Uint32Value(), field_offset);
   if (f == nullptr) {
     VLOG(verifier) << "Failed to find instance field at offset '" << field_offset
-                   << "' from '" << PrettyDescriptor(object_type.GetClass()) << "'";
+                   << "' from '" << mirror::Class::PrettyDescriptor(object_type.GetClass()) << "'";
   }
   return f;
 }
@@ -4784,7 +4789,7 @@ void MethodVerifier::VerifyQuickFieldAccess(const Instruction* inst, const RegTy
   // For an IPUT_QUICK, we now test for final flag of the field.
   if (kAccType == FieldAccessType::kAccPut) {
     if (field->IsFinal() && field->GetDeclaringClass() != GetDeclaringClass().GetClass()) {
-      Fail(VERIFY_ERROR_ACCESS_FIELD) << "cannot modify final field " << PrettyField(field)
+      Fail(VERIFY_ERROR_ACCESS_FIELD) << "cannot modify final field " << field->PrettyField()
                                       << " from other class " << GetDeclaringClass();
       return;
     }
@@ -4843,7 +4848,7 @@ void MethodVerifier::VerifyQuickFieldAccess(const Instruction* inst, const RegTy
         // This is a global failure rather than a class change failure as the instructions and
         // the descriptors for the type should have been consistent within the same file at
         // compile time
-        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected field " << PrettyField(field)
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected field " << ArtField::PrettyField(field)
                                           << " to be of type '" << insn_type
                                           << "' but found type '" << *field_type
                                           << "' in put";
@@ -4853,12 +4858,12 @@ void MethodVerifier::VerifyQuickFieldAccess(const Instruction* inst, const RegTy
         Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unexpected value in v" << vregA
             << " of type " << value_type
             << " but expected " << *field_type
-            << " for store to " << PrettyField(field) << " in put";
+            << " for store to " << ArtField::PrettyField(field) << " in put";
         return;
       }
     } else {
       if (!insn_type.IsAssignableFrom(*field_type, this)) {
-        Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "expected field " << PrettyField(field)
+        Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "expected field " << ArtField::PrettyField(field)
                                           << " to be compatible with type '" << insn_type
                                           << "' but found type '" << *field_type
                                           << "' in put-object";
@@ -4877,14 +4882,14 @@ void MethodVerifier::VerifyQuickFieldAccess(const Instruction* inst, const RegTy
         // This is a global failure rather than a class change failure as the instructions and
         // the descriptors for the type should have been consistent within the same file at
         // compile time
-        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected field " << PrettyField(field)
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected field " << ArtField::PrettyField(field)
                                           << " to be of type '" << insn_type
                                           << "' but found type '" << *field_type << "' in Get";
         return;
       }
     } else {
       if (!insn_type.IsAssignableFrom(*field_type, this)) {
-        Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "expected field " << PrettyField(field)
+        Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "expected field " << ArtField::PrettyField(field)
                                           << " to be compatible with type '" << insn_type
                                           << "' but found type '" << *field_type
                                           << "' in get-object";

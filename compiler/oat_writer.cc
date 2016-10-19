@@ -759,7 +759,7 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
         if (writer_->relative_patcher_->GetOffset(method_ref) != 0u) {
           // TODO: Should this be a hard failure?
           LOG(WARNING) << "Multiple definitions of "
-              << PrettyMethod(method_ref.dex_method_index, *method_ref.dex_file)
+              << method_ref.dex_file->PrettyMethod(method_ref.dex_method_index)
               << " offsets " << writer_->relative_patcher_->GetOffset(method_ref)
               << " " << quick_code_offset;
         } else {
@@ -967,7 +967,7 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
           invoke_type);
       if (method == nullptr) {
         LOG(FATAL_WITHOUT_ABORT) << "Unexpected failure to resolve a method: "
-            << PrettyMethod(it.GetMemberIndex(), *dex_file_, true);
+            << dex_file_->PrettyMethod(it.GetMemberIndex(), true);
         soa.Self()->AssertPendingException();
         mirror::Throwable* exc = soa.Self()->GetException();
         std::string dump = exc->Dump();
@@ -1073,7 +1073,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
                              GetInstructionSetAlignment(compiled_method->GetInstructionSet()));
         DCHECK_EQ(method_offsets.code_offset_,
                   offset_ + sizeof(OatQuickMethodHeader) + compiled_method->CodeDelta())
-            << PrettyMethod(it.GetMemberIndex(), *dex_file_);
+            << dex_file_->PrettyMethod(it.GetMemberIndex());
         const OatQuickMethodHeader& method_header =
             oat_class->method_headers_[method_offsets_index_];
         if (!out->WriteFully(&method_header, sizeof(method_header))) {
@@ -1185,7 +1185,7 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
 
   void ReportWriteFailure(const char* what, const ClassDataItemIterator& it) {
     PLOG(ERROR) << "Failed to write " << what << " for "
-        << PrettyMethod(it.GetMemberIndex(), *dex_file_) << " to " << out_->GetLocation();
+        << dex_file_->PrettyMethod(it.GetMemberIndex()) << " to " << out_->GetLocation();
   }
 
   ArtMethod* GetTargetMethod(const LinkerPatch& patch)
@@ -1370,13 +1370,13 @@ class OatWriter::WriteMapMethodVisitor : public OatDexMethodVisitor {
       DCHECK((compiled_method->GetVmapTable().size() == 0u && map_offset == 0u) ||
              (compiled_method->GetVmapTable().size() != 0u && map_offset != 0u))
           << compiled_method->GetVmapTable().size() << " " << map_offset << " "
-          << PrettyMethod(it.GetMemberIndex(), *dex_file_);
+          << dex_file_->PrettyMethod(it.GetMemberIndex());
 
       if (map_offset != 0u) {
         // Transform map_offset to actual oat data offset.
         map_offset = (code_offset - compiled_method->CodeDelta()) - map_offset;
         DCHECK_NE(map_offset, 0u);
-        DCHECK_LE(map_offset, offset_) << PrettyMethod(it.GetMemberIndex(), *dex_file_);
+        DCHECK_LE(map_offset, offset_) << dex_file_->PrettyMethod(it.GetMemberIndex());
 
         ArrayRef<const uint8_t> map = compiled_method->GetVmapTable();
         size_t map_size = map.size() * sizeof(map[0]);
@@ -1401,7 +1401,7 @@ class OatWriter::WriteMapMethodVisitor : public OatDexMethodVisitor {
 
   void ReportWriteFailure(const ClassDataItemIterator& it) {
     PLOG(ERROR) << "Failed to write map for "
-        << PrettyMethod(it.GetMemberIndex(), *dex_file_) << " to " << out_->GetLocation();
+        << dex_file_->PrettyMethod(it.GetMemberIndex()) << " to " << out_->GetLocation();
   }
 };
 

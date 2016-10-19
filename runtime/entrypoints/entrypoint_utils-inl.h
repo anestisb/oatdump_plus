@@ -148,12 +148,13 @@ inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
   }
   if (kAccessCheck) {
     if (UNLIKELY(!klass->IsInstantiable())) {
-      self->ThrowNewException("Ljava/lang/InstantiationError;", PrettyDescriptor(klass).c_str());
+      self->ThrowNewException("Ljava/lang/InstantiationError;", klass->PrettyDescriptor().c_str());
       *slow_path = true;
       return nullptr;  // Failure
     }
     if (UNLIKELY(klass->IsClassClass())) {
-      ThrowIllegalAccessError(nullptr, "Class %s is inaccessible", PrettyDescriptor(klass).c_str());
+      ThrowIllegalAccessError(nullptr, "Class %s is inaccessible",
+                              klass->PrettyDescriptor().c_str());
       *slow_path = true;
       return nullptr;  // Failure
     }
@@ -293,7 +294,7 @@ inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
       DCHECK(Thread::Current()->IsExceptionPending());
       return nullptr;  // Failure
     }
-    CHECK(klass->IsArrayClass()) << PrettyClass(klass);
+    CHECK(klass->IsArrayClass()) << klass->PrettyClass();
   }
   if (kAccessCheck) {
     mirror::Class* referrer = method->GetDeclaringClass();
@@ -433,7 +434,7 @@ inline ArtField* FindFieldFromCode(uint32_t field_idx,
                                  "Attempted read of %zd-bit %s on field '%s'",
                                  expected_size * (32 / sizeof(int32_t)),
                                  is_primitive ? "primitive" : "non-primitive",
-                                 PrettyField(resolved_field, true).c_str());
+                                 resolved_field->PrettyField(true).c_str());
         return nullptr;  // Failure.
       }
     }
@@ -549,7 +550,7 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx,
                                resolved_method->GetName(), resolved_method->GetSignature());
         return nullptr;  // Failure.
       }
-      DCHECK(klass->HasVTable()) << PrettyClass(klass);
+      DCHECK(klass->HasVTable()) << klass->PrettyClass();
       return klass->GetVTableEntry(vtable_index, class_linker->GetImagePointerSize());
     }
     case kSuper: {
@@ -624,9 +625,10 @@ inline ArtMethod* FindMethodFromCode(uint32_t method_idx,
           mirror::Class* klass = (*this_object)->GetClass();
           ArtMethod* method = klass->FindVirtualMethodForInterface(
               resolved_method, class_linker->GetImagePointerSize());
-          CHECK_EQ(imt_method, method) << PrettyMethod(resolved_method) << " / " <<
-              PrettyMethod(imt_method) << " / " << PrettyMethod(method) << " / " <<
-              PrettyClass(klass);
+          CHECK_EQ(imt_method, method) << ArtMethod::PrettyMethod(resolved_method) << " / "
+                                       << imt_method->PrettyMethod() << " / "
+                                       << ArtMethod::PrettyMethod(method) << " / "
+                                       << klass->PrettyClass();
         }
         return imt_method;
       } else {

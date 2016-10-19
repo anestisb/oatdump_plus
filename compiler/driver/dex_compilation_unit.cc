@@ -45,7 +45,7 @@ DexCompilationUnit::DexCompilationUnit(jobject class_loader,
 const std::string& DexCompilationUnit::GetSymbol() {
   if (symbol_.empty()) {
     symbol_ = "dex_";
-    symbol_ += MangleForJni(PrettyMethod(dex_method_idx_, *dex_file_));
+    symbol_ += MangleForJni(dex_file_->PrettyMethod(dex_method_idx_));
   }
   return symbol_;
 }

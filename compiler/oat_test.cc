@@ -65,14 +65,14 @@ class OatTest : public CommonCompilerTest {
                                                             method->GetDexMethodIndex()));
 
     if (compiled_method == nullptr) {
-      EXPECT_TRUE(oat_method.GetQuickCode() == nullptr) << PrettyMethod(method) << " "
+      EXPECT_TRUE(oat_method.GetQuickCode() == nullptr) << method->PrettyMethod() << " "
                                                         << oat_method.GetQuickCode();
       EXPECT_EQ(oat_method.GetFrameSizeInBytes(), 0U);
       EXPECT_EQ(oat_method.GetCoreSpillMask(), 0U);
       EXPECT_EQ(oat_method.GetFpSpillMask(), 0U);
     } else {
       const void* quick_oat_code = oat_method.GetQuickCode();
-      EXPECT_TRUE(quick_oat_code != nullptr) << PrettyMethod(method);
+      EXPECT_TRUE(quick_oat_code != nullptr) << method->PrettyMethod();
       EXPECT_EQ(oat_method.GetFrameSizeInBytes(), compiled_method->GetFrameSizeInBytes());
       EXPECT_EQ(oat_method.GetCoreSpillMask(), compiled_method->GetCoreSpillMask());
       EXPECT_EQ(oat_method.GetFpSpillMask(), compiled_method->GetFpSpillMask());
@@ -82,7 +82,7 @@ class OatTest : public CommonCompilerTest {
       EXPECT_FALSE(quick_code.empty());
       size_t code_size = quick_code.size() * sizeof(quick_code[0]);
       EXPECT_EQ(0, memcmp(quick_oat_code, &quick_code[0], code_size))
-          << PrettyMethod(method) << " " << code_size;
+          << method->PrettyMethod() << " " << code_size;
       CHECK_EQ(0, memcmp(quick_oat_code, &quick_code[0], code_size));
     }
   }

@@ -42,8 +42,8 @@ static void AddReferrerLocation(std::ostream& os, ObjPtr<mirror::Class> referrer
   if (referrer != nullptr) {
     std::string location(referrer->GetLocation());
     if (!location.empty()) {
-      os << " (declaration of '" << PrettyDescriptor(referrer)
-            << "' appears in " << location << ")";
+      os << " (declaration of '" << referrer->PrettyDescriptor()
+         << "' appears in " << location << ")";
     }
   }
 }
@@ -89,15 +89,14 @@ static void ThrowWrappedException(const char* exception_descriptor,
 void ThrowAbstractMethodError(ArtMethod* method) {
   ThrowException("Ljava/lang/AbstractMethodError;", nullptr,
                  StringPrintf("abstract method \"%s\"",
-                              PrettyMethod(method).c_str()).c_str());
+                              ArtMethod::PrettyMethod(method).c_str()).c_str());
 }
 
 void ThrowAbstractMethodError(uint32_t method_idx, const DexFile& dex_file) {
   ThrowException("Ljava/lang/AbstractMethodError;", /* referrer */ nullptr,
                  StringPrintf("abstract method \"%s\"",
-                              PrettyMethod(method_idx,
-                                           dex_file,
-                                           /* with_signature */ true).c_str()).c_str());
+                              dex_file.PrettyMethod(method_idx,
+                                                    /* with_signature */ true).c_str()).c_str());
 }
 
 // ArithmeticException
@@ -119,8 +118,8 @@ void ThrowArrayStoreException(ObjPtr<mirror::Class> element_class,
                               ObjPtr<mirror::Class> array_class) {
   ThrowException("Ljava/lang/ArrayStoreException;", nullptr,
                  StringPrintf("%s cannot be stored in an array of type %s",
-                              PrettyDescriptor(element_class).c_str(),
-                              PrettyDescriptor(array_class).c_str()).c_str());
+                              mirror::Class::PrettyDescriptor(element_class).c_str(),
+                              mirror::Class::PrettyDescriptor(array_class).c_str()).c_str());
 }
 
 // ClassCastException
@@ -128,8 +127,8 @@ void ThrowArrayStoreException(ObjPtr<mirror::Class> element_class,
 void ThrowClassCastException(ObjPtr<mirror::Class> dest_type, ObjPtr<mirror::Class> src_type) {
   ThrowException("Ljava/lang/ClassCastException;", nullptr,
                  StringPrintf("%s cannot be cast to %s",
-                              PrettyDescriptor(src_type).c_str(),
-                              PrettyDescriptor(dest_type).c_str()).c_str());
+                              mirror::Class::PrettyDescriptor(src_type).c_str(),
+                              mirror::Class::PrettyDescriptor(dest_type).c_str()).c_str());
 }
 
 void ThrowClassCastException(const char* msg) {
@@ -140,7 +139,7 @@ void ThrowClassCastException(const char* msg) {
 
 void ThrowClassCircularityError(ObjPtr<mirror::Class> c) {
   std::ostringstream msg;
-  msg << PrettyDescriptor(c);
+  msg << mirror::Class::PrettyDescriptor(c);
   ThrowException("Ljava/lang/ClassCircularityError;", c, msg.str().c_str());
 }
 
@@ -164,8 +163,8 @@ void ThrowClassFormatError(ObjPtr<mirror::Class> referrer, const char* fmt, ...)
 
 void ThrowIllegalAccessErrorClass(ObjPtr<mirror::Class> referrer, ObjPtr<mirror::Class> accessed) {
   std::ostringstream msg;
-  msg << "Illegal class access: '" << PrettyDescriptor(referrer) << "' attempting to access '"
-      << PrettyDescriptor(accessed) << "'";
+  msg << "Illegal class access: '" << mirror::Class::PrettyDescriptor(referrer)
+      << "' attempting to access '" << mirror::Class::PrettyDescriptor(accessed) << "'";
   ThrowException("Ljava/lang/IllegalAccessError;", referrer, msg.str().c_str());
 }
 
@@ -174,30 +173,31 @@ void ThrowIllegalAccessErrorClassForMethodDispatch(ObjPtr<mirror::Class> referre
                                                    ArtMethod* called,
                                                    InvokeType type) {
   std::ostringstream msg;
-  msg << "Illegal class access ('" << PrettyDescriptor(referrer) << "' attempting to access '"
-      << PrettyDescriptor(accessed) << "') in attempt to invoke " << type
-      << " method " << PrettyMethod(called).c_str();
+  msg << "Illegal class access ('" << mirror::Class::PrettyDescriptor(referrer)
+      << "' attempting to access '"
+      << mirror::Class::PrettyDescriptor(accessed) << "') in attempt to invoke " << type
+      << " method " << ArtMethod::PrettyMethod(called).c_str();
   ThrowException("Ljava/lang/IllegalAccessError;", referrer, msg.str().c_str());
 }
 
 void ThrowIllegalAccessErrorMethod(ObjPtr<mirror::Class> referrer, ArtMethod* accessed) {
   std::ostringstream msg;
-  msg << "Method '" << PrettyMethod(accessed) << "' is inaccessible to class '"
-      << PrettyDescriptor(referrer) << "'";
+  msg << "Method '" << ArtMethod::PrettyMethod(accessed) << "' is inaccessible to class '"
+      << mirror::Class::PrettyDescriptor(referrer) << "'";
   ThrowException("Ljava/lang/IllegalAccessError;", referrer, msg.str().c_str());
 }
 
 void ThrowIllegalAccessErrorField(ObjPtr<mirror::Class> referrer, ArtField* accessed) {
   std::ostringstream msg;
-  msg << "Field '" << PrettyField(accessed, false) << "' is inaccessible to class '"
-      << PrettyDescriptor(referrer) << "'";
+  msg << "Field '" << ArtField::PrettyField(accessed, false) << "' is inaccessible to class '"
+      << mirror::Class::PrettyDescriptor(referrer) << "'";
   ThrowException("Ljava/lang/IllegalAccessError;", referrer, msg.str().c_str());
 }
 
 void ThrowIllegalAccessErrorFinalField(ArtMethod* referrer, ArtField* accessed) {
   std::ostringstream msg;
-  msg << "Final field '" << PrettyField(accessed, false) << "' cannot be written to by method '"
-      << PrettyMethod(referrer) << "'";
+  msg << "Final field '" << ArtField::PrettyField(accessed, false)
+      << "' cannot be written to by method '" << ArtMethod::PrettyMethod(referrer) << "'";
   ThrowException("Ljava/lang/IllegalAccessError;",
                  referrer != nullptr ? referrer->GetDeclaringClass() : nullptr,
                  msg.str().c_str());
@@ -228,7 +228,7 @@ void ThrowIllegalArgumentException(const char* msg) {
 void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType found_type,
                                        ArtMethod* method, ArtMethod* referrer) {
   std::ostringstream msg;
-  msg << "The method '" << PrettyMethod(method) << "' was expected to be of type "
+  msg << "The method '" << ArtMethod::PrettyMethod(method) << "' was expected to be of type "
       << expected_type << " but instead was found to be of type " << found_type;
   ThrowException("Ljava/lang/IncompatibleClassChangeError;",
                  referrer != nullptr ? referrer->GetDeclaringClass() : nullptr,
@@ -243,9 +243,10 @@ void ThrowIncompatibleClassChangeErrorClassForInterfaceSuper(ArtMethod* method,
   // implemented by this_object.
   CHECK(this_object != nullptr);
   std::ostringstream msg;
-  msg << "Class '" << PrettyDescriptor(this_object->GetClass())
-      << "' does not implement interface '" << PrettyDescriptor(target_class) << "' in call to '"
-      << PrettyMethod(method) << "'";
+  msg << "Class '" << mirror::Class::PrettyDescriptor(this_object->GetClass())
+      << "' does not implement interface '" << mirror::Class::PrettyDescriptor(target_class)
+      << "' in call to '"
+      << ArtMethod::PrettyMethod(method) << "'";
   ThrowException("Ljava/lang/IncompatibleClassChangeError;",
                  referrer != nullptr ? referrer->GetDeclaringClass() : nullptr,
                  msg.str().c_str());
@@ -258,10 +259,10 @@ void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(ArtMethod* inter
   // implemented by this_object.
   CHECK(this_object != nullptr);
   std::ostringstream msg;
-  msg << "Class '" << PrettyDescriptor(this_object->GetClass())
+  msg << "Class '" << mirror::Class::PrettyDescriptor(this_object->GetClass())
       << "' does not implement interface '"
-      << PrettyDescriptor(interface_method->GetDeclaringClass())
-      << "' in call to '" << PrettyMethod(interface_method) << "'";
+      << mirror::Class::PrettyDescriptor(interface_method->GetDeclaringClass())
+      << "' in call to '" << ArtMethod::PrettyMethod(interface_method) << "'";
   ThrowException("Ljava/lang/IncompatibleClassChangeError;",
                  referrer != nullptr ? referrer->GetDeclaringClass() : nullptr,
                  msg.str().c_str());
@@ -270,7 +271,7 @@ void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(ArtMethod* inter
 void ThrowIncompatibleClassChangeErrorField(ArtField* resolved_field, bool is_static,
                                             ArtMethod* referrer) {
   std::ostringstream msg;
-  msg << "Expected '" << PrettyField(resolved_field) << "' to be a "
+  msg << "Expected '" << ArtField::PrettyField(resolved_field) << "' to be a "
       << (is_static ? "static" : "instance") << " field" << " rather than a "
       << (is_static ? "instance" : "static") << " field";
   ThrowException("Ljava/lang/IncompatibleClassChangeError;", referrer->GetDeclaringClass(),
@@ -289,7 +290,7 @@ void ThrowIncompatibleClassChangeErrorForMethodConflict(ArtMethod* method) {
   ThrowException("Ljava/lang/IncompatibleClassChangeError;",
                  /*referrer*/nullptr,
                  StringPrintf("Conflicting default method implementations %s",
-                              PrettyMethod(method).c_str()).c_str());
+                              ArtMethod::PrettyMethod(method).c_str()).c_str());
 }
 
 
@@ -370,7 +371,7 @@ void ThrowNoSuchMethodError(InvokeType type, ObjPtr<mirror::Class> c, const Stri
 void ThrowNullPointerExceptionForFieldAccess(ArtField* field, bool is_read) {
   std::ostringstream msg;
   msg << "Attempt to " << (is_read ? "read from" : "write to")
-      << " field '" << PrettyField(field, true) << "' on a null object reference";
+      << " field '" << ArtField::PrettyField(field, true) << "' on a null object reference";
   ThrowException("Ljava/lang/NullPointerException;", nullptr, msg.str().c_str());
 }
 
@@ -380,7 +381,7 @@ static void ThrowNullPointerExceptionForMethodAccessImpl(uint32_t method_idx,
     REQUIRES_SHARED(Locks::mutator_lock_) {
   std::ostringstream msg;
   msg << "Attempt to invoke " << type << " method '"
-      << PrettyMethod(method_idx, dex_file, true) << "' on a null object reference";
+      << dex_file.PrettyMethod(method_idx, true) << "' on a null object reference";
   ThrowException("Ljava/lang/NullPointerException;", nullptr, msg.str().c_str());
 }
 
@@ -524,7 +525,7 @@ void ThrowNullPointerExceptionFromDexPC(bool check_address, uintptr_t addr) {
                << ", at "
                << instr->DumpString(dex_file)
                << " in "
-               << PrettyMethod(method);
+               << method->PrettyMethod();
   }
 
   switch (instr->Opcode()) {
@@ -666,7 +667,7 @@ void ThrowNullPointerExceptionFromDexPC(bool check_address, uintptr_t addr) {
       LOG(FATAL) << "NullPointerException at an unexpected instruction: "
                  << instr->DumpString(dex_file)
                  << " in "
-                 << PrettyMethod(method);
+                 << method->PrettyMethod();
       break;
     }
   }

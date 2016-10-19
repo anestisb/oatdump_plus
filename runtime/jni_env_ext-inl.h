@@ -36,7 +36,7 @@ inline T JNIEnvExt::AddLocalReference(ObjPtr<mirror::Object> obj) {
       if (entry_count > 16) {
         locals.Dump(LOG_STREAM(WARNING) << "Warning: more than 16 JNI local references: "
                                         << entry_count << " (most recent was a "
-                                        << PrettyTypeOf(obj) << ")\n");
+                                        << mirror::Object::PrettyTypeOf(obj) << ")\n");
       // TODO: LOG(FATAL) in a later release?
       }
     }

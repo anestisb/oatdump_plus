@@ -66,7 +66,7 @@ static jobject Constructor_newInstance0(JNIEnv* env, jobject javaMethod, jobject
   if (UNLIKELY(c->IsAbstract())) {
     soa.Self()->ThrowNewExceptionF("Ljava/lang/InstantiationException;", "Can't instantiate %s %s",
                                    c->IsInterface() ? "interface" : "abstract class",
-                                   PrettyDescriptor(c.Get()).c_str());
+                                   c->PrettyDescriptor().c_str());
     return nullptr;
   }
   // Verify that we can access the class.
@@ -77,7 +77,7 @@ static jobject Constructor_newInstance0(JNIEnv* env, jobject javaMethod, jobject
     // If caller is null, then we called from JNI, just avoid the check since JNI avoids most
     // access checks anyways. TODO: Investigate if this the correct behavior.
     if (caller != nullptr && !caller->CanAccess(c.Get())) {
-      if (PrettyDescriptor(c.Get()) == "dalvik.system.DexPathList$Element") {
+      if (c->PrettyDescriptor() == "dalvik.system.DexPathList$Element") {
         // b/20699073.
         LOG(WARNING) << "The dalvik.system.DexPathList$Element constructor is not accessible by "
                         "default. This is a temporary workaround for backwards compatibility "
@@ -85,7 +85,8 @@ static jobject Constructor_newInstance0(JNIEnv* env, jobject javaMethod, jobject
       } else {
         soa.Self()->ThrowNewExceptionF(
             "Ljava/lang/IllegalAccessException;", "%s is not accessible from %s",
-            PrettyClass(c.Get()).c_str(), PrettyClass(caller).c_str());
+            c->PrettyClass().c_str(),
+            caller->PrettyClass().c_str());
         return nullptr;
       }
     }

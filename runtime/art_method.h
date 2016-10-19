@@ -614,6 +614,20 @@ class ArtMethod FINAL {
   // Returns whether the method has any compiled code, JIT or AOT.
   bool HasAnyCompiledCode() REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Returns a human-readable signature for 'm'. Something like "a.b.C.m" or
+  // "a.b.C.m(II)V" (depending on the value of 'with_signature').
+  static std::string PrettyMethod(ArtMethod* m, bool with_signature = true)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  std::string PrettyMethod(bool with_signature = true)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  // Returns the JNI native function name for the non-overloaded method 'm'.
+  std::string JniShortName()
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  // Returns the JNI native function name for the overloaded method 'm'.
+  std::string JniLongName()
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
+
 
   // Update heap objects and non-entrypoint pointers by the passed in visitor for image relocation.
   // Does not use read barrier.

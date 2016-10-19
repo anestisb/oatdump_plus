@@ -356,7 +356,6 @@ static void PreloadDexCachesResolveField(Handle<mirror::DexCache> dex_cache, uin
   if (field == nullptr) {
     return;
   }
-  // LOG(INFO) << "VMRuntime.preloadDexCaches resolved field " << PrettyField(field);
   dex_cache->SetResolvedField(field_idx, field, kRuntimePointerSize);
 }
 
@@ -393,7 +392,6 @@ static void PreloadDexCachesResolveMethod(Handle<mirror::DexCache> dex_cache, ui
   if (method == nullptr) {
     return;
   }
-  // LOG(INFO) << "VMRuntime.preloadDexCaches resolved method " << PrettyMethod(method);
   dex_cache->SetResolvedMethod(method_idx, method, kRuntimePointerSize);
 }
 

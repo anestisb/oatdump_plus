@@ -222,9 +222,9 @@ class ImgDiagDumper {
     // Attempt to find fields for all dirty bytes.
     mirror::Class* klass = obj->GetClass();
     if (obj->IsClass()) {
-      os << tabs << "Class " << PrettyClass(obj->AsClass()) << " " << obj << "\n";
+      os << tabs << "Class " << mirror::Class::PrettyClass(obj->AsClass()) << " " << obj << "\n";
     } else {
-      os << tabs << "Instance of " << PrettyClass(klass) << " " << obj << "\n";
+      os << tabs << "Instance of " << mirror::Class::PrettyClass(klass) << " " << obj << "\n";
     }
 
     std::unordered_set<ArtField*> dirty_instance_fields;
@@ -263,7 +263,7 @@ class ImgDiagDumper {
     if (!dirty_instance_fields.empty()) {
       os << tabs << "Dirty instance fields " << dirty_instance_fields.size() << "\n";
       for (ArtField* field : dirty_instance_fields) {
-        os << tabs << PrettyField(field)
+        os << tabs << ArtField::PrettyField(field)
            << " original=" << PrettyFieldValue(field, obj)
            << " remote=" << PrettyFieldValue(field, remote_obj) << "\n";
       }
@@ -271,7 +271,7 @@ class ImgDiagDumper {
     if (!dirty_static_fields.empty()) {
       os << tabs << "Dirty static fields " << dirty_static_fields.size() << "\n";
       for (ArtField* field : dirty_static_fields) {
-        os << tabs << PrettyField(field)
+        os << tabs << ArtField::PrettyField(field)
            << " original=" << PrettyFieldValue(field, obj)
            << " remote=" << PrettyFieldValue(field, remote_obj) << "\n";
       }
@@ -681,7 +681,7 @@ class ImgDiagDumper {
           class_data[klass].dirty_object_byte_count * 1.0f / object_sizes;
       float avg_object_size = object_sizes * 1.0f / dirty_object_count;
       const std::string& descriptor = class_data[klass].descriptor;
-      os << "    " << PrettyClass(klass) << " ("
+      os << "    " << mirror::Class::PrettyClass(klass) << " ("
          << "objects: " << dirty_object_count << ", "
          << "avg dirty bytes: " << avg_dirty_bytes_per_class << ", "
          << "avg object size: " << avg_object_size << ", "
@@ -789,7 +789,7 @@ class ImgDiagDumper {
       int object_sizes = class_data[klass].false_dirty_byte_count;
       float avg_object_size = object_sizes * 1.0f / object_count;
       const std::string& descriptor = class_data[klass].descriptor;
-      os << "    " << PrettyClass(klass) << " ("
+      os << "    " << mirror::Class::PrettyClass(klass) << " ("
          << "objects: " << object_count << ", "
          << "avg object size: " << avg_object_size << ", "
          << "total bytes: " << object_sizes << ", "
@@ -824,7 +824,7 @@ class ImgDiagDumper {
 
     os << "\n" << "  Clean object count by class:\n";
     for (const auto& vk_pair : clean_object_class_values) {
-      os << "    " << PrettyClass(vk_pair.second) << " (" << vk_pair.first << ")\n";
+      os << "    " << mirror::Class::PrettyClass(vk_pair.second) << " (" << vk_pair.first << ")\n";
     }
 
     return true;

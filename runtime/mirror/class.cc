@@ -59,7 +59,7 @@ void Class::VisitRoots(RootVisitor* visitor) {
 }
 
 inline void Class::SetVerifyError(ObjPtr<Object> error) {
-  CHECK(error != nullptr) << PrettyClass(this);
+  CHECK(error != nullptr) << PrettyClass();
   if (Runtime::Current()->IsActiveTransaction()) {
     SetFieldObject<true>(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_), error);
   } else {
@@ -74,22 +74,22 @@ void Class::SetStatus(Handle<Class> h_this, Status new_status, Thread* self) {
   if (LIKELY(class_linker_initialized)) {
     if (UNLIKELY(new_status <= old_status && new_status != kStatusError &&
                  new_status != kStatusRetired)) {
-      LOG(FATAL) << "Unexpected change back of class status for " << PrettyClass(h_this.Get())
+      LOG(FATAL) << "Unexpected change back of class status for " << h_this->PrettyClass()
                  << " " << old_status << " -> " << new_status;
     }
     if (new_status >= kStatusResolved || old_status >= kStatusResolved) {
       // When classes are being resolved the resolution code should hold the lock.
       CHECK_EQ(h_this->GetLockOwnerThreadId(), self->GetThreadId())
             << "Attempt to change status of class while not holding its lock: "
-            << PrettyClass(h_this.Get()) << " " << old_status << " -> " << new_status;
+            << h_this->PrettyClass() << " " << old_status << " -> " << new_status;
     }
   }
   if (UNLIKELY(new_status == kStatusError)) {
     CHECK_NE(h_this->GetStatus(), kStatusError)
         << "Attempt to set as erroneous an already erroneous class "
-        << PrettyClass(h_this.Get());
+        << h_this->PrettyClass();
     if (VLOG_IS_ON(class_linker)) {
-      LOG(ERROR) << "Setting " << PrettyDescriptor(h_this.Get()) << " to erroneous.";
+      LOG(ERROR) << "Setting " << h_this->PrettyDescriptor() << " to erroneous.";
       if (self->IsExceptionPending()) {
         LOG(ERROR) << "Exception: " << self->GetException()->Dump();
       }
@@ -127,7 +127,7 @@ void Class::SetStatus(Handle<Class> h_this, Status new_status, Thread* self) {
     if (h_this->IsTemp()) {
       // Class is a temporary one, ensure that waiters for resolution get notified of retirement
       // so that they can grab the new version of the class from the class linker's table.
-      CHECK_LT(new_status, kStatusResolved) << PrettyDescriptor(h_this.Get());
+      CHECK_LT(new_status, kStatusResolved) << h_this->PrettyDescriptor();
       if (new_status == kStatusRetired || new_status == kStatusError) {
         h_this->NotifyAll(self);
       }
@@ -149,7 +149,7 @@ void Class::SetClassSize(uint32_t new_class_size) {
   if (kIsDebugBuild && new_class_size < GetClassSize()) {
     DumpClass(LOG_STREAM(FATAL_WITHOUT_ABORT), kDumpClassFullDetail);
     LOG(FATAL_WITHOUT_ABORT) << new_class_size << " vs " << GetClassSize();
-    LOG(FATAL) << "class=" << PrettyTypeOf(this);
+    LOG(FATAL) << "class=" << PrettyTypeOf();
   }
   // Not called within a transaction.
   SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, class_size_), new_class_size);
@@ -196,7 +196,7 @@ String* Class::ComputeName(Handle<Class> h_this) {
 
 void Class::DumpClass(std::ostream& os, int flags) {
   if ((flags & kDumpClassFullDetail) == 0) {
-    os << PrettyClass(this);
+    os << PrettyClass();
     if ((flags & kDumpClassClassLoader) != 0) {
       os << ' ' << GetClassLoader();
     }
@@ -221,7 +221,7 @@ void Class::DumpClass(std::ostream& os, int flags) {
   os << StringPrintf("  access=0x%04x.%04x\n",
       GetAccessFlags() >> 16, GetAccessFlags() & kAccJavaFlagsMask);
   if (h_super.Get() != nullptr) {
-    os << "  super='" << PrettyClass(h_super.Get()) << "' (cl=" << h_super->GetClassLoader()
+    os << "  super='" << h_super->PrettyClass() << "' (cl=" << h_super->GetClassLoader()
        << ")\n";
   }
   if (IsArrayClass()) {
@@ -247,19 +247,20 @@ void Class::DumpClass(std::ostream& os, int flags) {
     os << "  vtable (" << h_this->NumVirtualMethods() << " entries, "
         << (h_super.Get() != nullptr ? h_super->NumVirtualMethods() : 0) << " in super):\n";
     for (size_t i = 0; i < NumVirtualMethods(); ++i) {
-      os << StringPrintf("    %2zd: %s\n", i, PrettyMethod(
+      os << StringPrintf("    %2zd: %s\n", i, ArtMethod::PrettyMethod(
           h_this->GetVirtualMethodDuringLinking(i, image_pointer_size)).c_str());
     }
     os << "  direct methods (" << h_this->NumDirectMethods() << " entries):\n";
     for (size_t i = 0; i < h_this->NumDirectMethods(); ++i) {
-      os << StringPrintf("    %2zd: %s\n", i, PrettyMethod(
+      os << StringPrintf("    %2zd: %s\n", i, ArtMethod::PrettyMethod(
           h_this->GetDirectMethod(i, image_pointer_size)).c_str());
     }
     if (h_this->NumStaticFields() > 0) {
       os << "  static fields (" << h_this->NumStaticFields() << " entries):\n";
       if (h_this->IsResolved() || h_this->IsErroneous()) {
         for (size_t i = 0; i < h_this->NumStaticFields(); ++i) {
-          os << StringPrintf("    %2zd: %s\n", i, PrettyField(h_this->GetStaticField(i)).c_str());
+          os << StringPrintf("    %2zd: %s\n", i,
+                             ArtField::PrettyField(h_this->GetStaticField(i)).c_str());
         }
       } else {
         os << "    <not yet available>";
@@ -269,7 +270,8 @@ void Class::DumpClass(std::ostream& os, int flags) {
       os << "  instance fields (" << h_this->NumInstanceFields() << " entries):\n";
       if (h_this->IsResolved() || h_this->IsErroneous()) {
         for (size_t i = 0; i < h_this->NumInstanceFields(); ++i) {
-          os << StringPrintf("    %2zd: %s\n", i, PrettyField(h_this->GetInstanceField(i)).c_str());
+          os << StringPrintf("    %2zd: %s\n", i,
+                             ArtField::PrettyField(h_this->GetInstanceField(i)).c_str());
         }
       } else {
         os << "    <not yet available>";
@@ -690,7 +692,7 @@ static ArtField* FindFieldByNameAndType(LengthPrefixedArray<ArtField>* fields,
         break;
       }
     }
-    CHECK_EQ(found, ret) << "Found " << PrettyField(found) << " vs  " << PrettyField(ret);
+    CHECK_EQ(found, ret) << "Found " << found->PrettyField() << " vs  " << ret->PrettyField();
   }
   return ret;
 }
@@ -919,7 +921,7 @@ ObjPtr<Class> Class::GetCommonSuperClass(Handle<Class> klass) {
   while (!common_super_class->IsAssignableFrom(klass.Get())) {
     ObjPtr<Class> old_common = common_super_class;
     common_super_class = old_common->GetSuperClass();
-    DCHECK(common_super_class != nullptr) << PrettyClass(old_common);
+    DCHECK(common_super_class != nullptr) << old_common->PrettyClass();
   }
   return common_super_class;
 }
@@ -953,7 +955,7 @@ const DexFile::TypeList* Class::GetInterfaceTypeList() {
 
 void Class::PopulateEmbeddedVTable(PointerSize pointer_size) {
   PointerArray* table = GetVTableDuringLinking();
-  CHECK(table != nullptr) << PrettyClass(this);
+  CHECK(table != nullptr) << PrettyClass();
   const size_t table_length = table->GetLength();
   SetEmbeddedVTableLength(table_length);
   for (size_t i = 0; i < table_length; i++) {
@@ -1237,6 +1239,51 @@ void Class::SetObjectSizeAllocFastPath(uint32_t new_object_size) {
   } else {
     SetField32Volatile<false>(ObjectSizeAllocFastPathOffset(), new_object_size);
   }
+}
+
+std::string Class::PrettyDescriptor(ObjPtr<mirror::Class> klass) {
+  if (klass == nullptr) {
+    return "null";
+  }
+  return klass->PrettyDescriptor();
+}
+
+std::string Class::PrettyDescriptor() {
+  std::string temp;
+  return art::PrettyDescriptor(GetDescriptor(&temp));
+}
+
+std::string Class::PrettyClass(ObjPtr<mirror::Class> c) {
+  if (c == nullptr) {
+    return "null";
+  }
+  return c->PrettyClass();
+}
+
+std::string Class::PrettyClass() {
+  std::string result;
+  result += "java.lang.Class<";
+  result += PrettyDescriptor();
+  result += ">";
+  return result;
+}
+
+std::string Class::PrettyClassAndClassLoader(ObjPtr<mirror::Class> c) {
+  if (c == nullptr) {
+    return "null";
+  }
+  return c->PrettyClassAndClassLoader();
+}
+
+std::string Class::PrettyClassAndClassLoader() {
+  std::string result;
+  result += "java.lang.Class<";
+  result += PrettyDescriptor();
+  result += ",";
+  result += mirror::Object::PrettyTypeOf(GetClassLoader());
+  // TODO: add an identifying hash value for the loader
+  result += ">";
+  return result;
 }
 
 }  // namespace mirror

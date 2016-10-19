@@ -62,4 +62,25 @@ ObjPtr<mirror::String> ArtField::ResolveGetStringName(Thread* self,
                                                              hs.NewHandle(dex_cache));
 }
 
+std::string ArtField::PrettyField(ArtField* f, bool with_type) {
+  if (f == nullptr) {
+    return "null";
+  }
+  return f->PrettyField(with_type);
+}
+
+std::string ArtField::PrettyField(bool with_type) {
+  std::string result;
+  if (with_type) {
+    result += PrettyDescriptor(GetTypeDescriptor());
+    result += ' ';
+  }
+  std::string temp;
+  result += PrettyDescriptor(GetDeclaringClass()->GetDescriptor(&temp));
+  result += '.';
+  result += GetName();
+  return result;
+}
+
+
 }  // namespace art

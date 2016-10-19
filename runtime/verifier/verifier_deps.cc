@@ -118,7 +118,7 @@ bool VerifierDeps::IsInClassPath(ObjPtr<mirror::Class> klass) {
     // We could avoid recording dependencies on arrays with component types in
     // the compiled DEX files but we choose to record them anyway so as to
     // record the access flags VM sets for array classes.
-    DCHECK(klass->IsArrayClass()) << PrettyDescriptor(klass);
+    DCHECK(klass->IsArrayClass()) << klass->PrettyDescriptor();
     return true;
   }
 
