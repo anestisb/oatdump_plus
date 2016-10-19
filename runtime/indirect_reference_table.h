@@ -259,8 +259,7 @@ class IndirectReferenceTable {
  public:
   // WARNING: When using with abort_on_error = false, the object may be in a partially
   //          initialized state. Use IsValid() to check.
-  IndirectReferenceTable(size_t initialCount, size_t maxCount, IndirectRefKind kind,
-                         bool abort_on_error = true);
+  IndirectReferenceTable(size_t max_count, IndirectRefKind kind, bool abort_on_error = true);
 
   ~IndirectReferenceTable();
 

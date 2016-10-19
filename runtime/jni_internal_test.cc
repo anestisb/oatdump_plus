@@ -865,6 +865,11 @@ TEST_F(JniInternalTest, GetStaticMethodID) {
   GetStaticMethodIdBadArgumentTest(true);
 }
 
+static size_t GetLocalsCapacity(JNIEnv* env) {
+  ScopedObjectAccess soa(Thread::Current());
+  return reinterpret_cast<JNIEnvExt*>(env)->locals.Capacity();
+}
+
 TEST_F(JniInternalTest, FromReflectedField_ToReflectedField) {
   jclass jlrField = env_->FindClass("java/lang/reflect/Field");
   jclass c = env_->FindClass("java/lang/String");
@@ -873,11 +878,15 @@ TEST_F(JniInternalTest, FromReflectedField_ToReflectedField) {
   ASSERT_NE(fid, nullptr);
   // Turn the fid into a java.lang.reflect.Field...
   jobject field = env_->ToReflectedField(c, fid, JNI_FALSE);
-  for (size_t i = 0; i <= kLocalsMax; ++i) {
+  size_t capacity_before = GetLocalsCapacity(env_);
+  for (size_t i = 0; i <= 10; ++i) {
     // Regression test for b/18396311, ToReflectedField leaking local refs causing a local
     // reference table overflows with 512 references to ArtField
     env_->DeleteLocalRef(env_->ToReflectedField(c, fid, JNI_FALSE));
   }
+  size_t capacity_after = GetLocalsCapacity(env_);
+  ASSERT_EQ(capacity_before, capacity_after);
+
   ASSERT_NE(c, nullptr);
   ASSERT_TRUE(env_->IsInstanceOf(field, jlrField));
   // ...and back again.
@@ -911,11 +920,14 @@ TEST_F(JniInternalTest, FromReflectedMethod_ToReflectedMethod) {
   ASSERT_NE(mid, nullptr);
   // Turn the mid into a java.lang.reflect.Constructor...
   jobject method = env_->ToReflectedMethod(c, mid, JNI_FALSE);
-  for (size_t i = 0; i <= kLocalsMax; ++i) {
+  size_t capacity_before = GetLocalsCapacity(env_);
+  for (size_t i = 0; i <= 10; ++i) {
     // Regression test for b/18396311, ToReflectedMethod leaking local refs causing a local
     // reference table overflows with 512 references to ArtMethod
     env_->DeleteLocalRef(env_->ToReflectedMethod(c, mid, JNI_FALSE));
   }
+  size_t capacity_after = GetLocalsCapacity(env_);
+  ASSERT_EQ(capacity_before, capacity_after);
   ASSERT_NE(method, nullptr);
   ASSERT_TRUE(env_->IsInstanceOf(method, jlrConstructor));
   // ...and back again.
@@ -2295,7 +2307,7 @@ TEST_F(JniInternalTest, IndirectReferenceTableOffsets) {
   // The segment_state_ field is private, and we want to avoid friend declaration. So we'll check
   // by modifying memory.
   // The parameters don't really matter here.
-  IndirectReferenceTable irt(5, 5, IndirectRefKind::kGlobal, true);
+  IndirectReferenceTable irt(5, IndirectRefKind::kGlobal, true);
   uint32_t old_state = irt.GetSegmentState();
 
   // Write some new state directly. We invert parts of old_state to ensure a new value.
