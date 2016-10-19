@@ -1168,9 +1168,6 @@ void CodeGeneratorMIPS::MarkGCCard(Register object, Register value) {
 }
 
 void CodeGeneratorMIPS::SetupBlockedRegisters() const {
-  // Don't allocate the dalvik style register pair passing.
-  blocked_register_pairs_[A1_A2] = true;
-
   // ZERO, K0, K1, GP, SP, RA are always reserved and can't be allocated.
   blocked_core_registers_[ZERO] = true;
   blocked_core_registers_[K0] = true;
@@ -1203,19 +1200,6 @@ void CodeGeneratorMIPS::SetupBlockedRegisters() const {
     // now, just block them.
     for (size_t i = 0; i < arraysize(kFpuCalleeSaves); ++i) {
       blocked_fpu_registers_[kFpuCalleeSaves[i]] = true;
-    }
-  }
-
-  UpdateBlockedPairRegisters();
-}
-
-void CodeGeneratorMIPS::UpdateBlockedPairRegisters() const {
-  for (int i = 0; i < kNumberOfRegisterPairs; i++) {
-    MipsManagedRegister current =
-        MipsManagedRegister::FromRegisterPair(static_cast<RegisterPair>(i));
-    if (blocked_core_registers_[current.AsRegisterPairLow()]
-        || blocked_core_registers_[current.AsRegisterPairHigh()]) {
-      blocked_register_pairs_[i] = true;
     }
   }
 }

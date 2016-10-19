@@ -211,9 +211,6 @@ void CodeGeneratorARMVIXL::Finalize(CodeAllocator* allocator) {
 }
 
 void CodeGeneratorARMVIXL::SetupBlockedRegisters() const {
-  // Don't allocate the dalvik style register pair passing.
-  blocked_register_pairs_[R1_R2] = true;
-
   // Stack register, LR and PC are always reserved.
   blocked_core_registers_[SP] = true;
   blocked_core_registers_[LR] = true;
@@ -233,20 +230,6 @@ void CodeGeneratorARMVIXL::SetupBlockedRegisters() const {
          i <= kFpuCalleeSaves.GetLastSRegister().GetCode();
          ++i) {
       blocked_fpu_registers_[i] = true;
-    }
-  }
-
-  UpdateBlockedPairRegisters();
-}
-
-// Blocks all register pairs containing blocked core registers.
-void CodeGeneratorARMVIXL::UpdateBlockedPairRegisters() const {
-  for (int i = 0; i < kNumberOfRegisterPairs; i++) {
-    ArmManagedRegister current =
-        ArmManagedRegister::FromRegisterPair(static_cast<RegisterPair>(i));
-    if (blocked_core_registers_[current.AsRegisterPairLow()]
-        || blocked_core_registers_[current.AsRegisterPairHigh()]) {
-      blocked_register_pairs_[i] = true;
     }
   }
 }

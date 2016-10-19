@@ -284,9 +284,6 @@ class CodeGeneratorARMVIXL : public CodeGenerator {
   void Finalize(CodeAllocator* allocator) OVERRIDE;
   void SetupBlockedRegisters() const OVERRIDE;
 
-  // Blocks all register pairs made out of blocked core registers.
-  void UpdateBlockedPairRegisters() const;
-
   void DumpCoreRegister(std::ostream& stream, int reg) const OVERRIDE;
   void DumpFloatingPointRegister(std::ostream& stream, int reg) const OVERRIDE;
 
