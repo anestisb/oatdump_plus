@@ -33,6 +33,7 @@
 #include "debug/method_debug_info.h"
 #include "dex/verification_results.h"
 #include "dex_file-inl.h"
+#include "dexlayout.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
 #include "gc/space/image_space.h"
@@ -276,7 +277,7 @@ class OatWriter::OatDexFile {
   DCHECK_EQ(static_cast<off_t>(file_offset + offset_), out->Seek(0, kSeekCurrent)) \
     << "file_offset=" << file_offset << " offset_=" << offset_
 
-OatWriter::OatWriter(bool compiling_boot_image, TimingLogger* timings)
+OatWriter::OatWriter(bool compiling_boot_image, TimingLogger* timings, ProfileCompilationInfo* info)
   : write_state_(WriteState::kAddingDexFileSources),
     timings_(timings),
     raw_dex_files_(),
@@ -337,7 +338,8 @@ OatWriter::OatWriter(bool compiling_boot_image, TimingLogger* timings)
     size_oat_class_method_bitmaps_(0),
     size_oat_class_method_offsets_(0),
     relative_patcher_(nullptr),
-    absolute_patch_locations_() {
+    absolute_patch_locations_(),
+    profile_compilation_info_(info) {
 }
 
 bool OatWriter::AddDexFileSource(const char* filename,
@@ -2081,7 +2083,11 @@ bool OatWriter::WriteDexFile(OutputStream* out, File* file, OatDexFile* oat_dex_
   if (!SeekToDexFile(out, file, oat_dex_file)) {
     return false;
   }
-  if (oat_dex_file->source_.IsZipEntry()) {
+  if (profile_compilation_info_ != nullptr) {
+    if (!LayoutAndWriteDexFile(out, oat_dex_file)) {
+      return false;
+    }
+  } else if (oat_dex_file->source_.IsZipEntry()) {
     if (!WriteDexFile(out, file, oat_dex_file, oat_dex_file->source_.GetZipEntry())) {
       return false;
     }
@@ -2143,6 +2149,39 @@ bool OatWriter::SeekToDexFile(OutputStream* out, File* file, OatDexFile* oat_dex
     oat_size_ = start_offset;
   }
   oat_dex_file->dex_file_offset_ = start_offset;
+  return true;
+}
+
+bool OatWriter::LayoutAndWriteDexFile(OutputStream* out, OatDexFile* oat_dex_file) {
+  TimingLogger::ScopedTiming split("Dex Layout", timings_);
+  std::string error_msg;
+  std::string location(oat_dex_file->GetLocation());
+  std::unique_ptr<const DexFile> dex_file;
+  if (oat_dex_file->source_.IsZipEntry()) {
+    ZipEntry* zip_entry = oat_dex_file->source_.GetZipEntry();
+    std::unique_ptr<MemMap> mem_map(
+        zip_entry->ExtractToMemMap(location.c_str(), "classes.dex", &error_msg));
+    dex_file = DexFile::Open(location,
+                             zip_entry->GetCrc32(),
+                             std::move(mem_map),
+                             /* verify */ true,
+                             /* verify_checksum */ true,
+                             &error_msg);
+  } else {
+    DCHECK(oat_dex_file->source_.IsRawFile());
+    File* raw_file = oat_dex_file->source_.GetRawFile();
+    dex_file = DexFile::OpenDex(raw_file->Fd(), location, /* verify_checksum */ true, &error_msg);
+  }
+  Options options;
+  options.output_to_memmap_ = true;
+  DexLayout dex_layout(options, profile_compilation_info_, nullptr);
+  dex_layout.ProcessDexFile(location.c_str(), dex_file.get(), 0);
+  std::unique_ptr<MemMap> mem_map(dex_layout.GetAndReleaseMemMap());
+  if (!WriteDexFile(out, oat_dex_file, mem_map->Begin())) {
+    return false;
+  }
+  // Set the checksum of the new oat dex file to be the original file's checksum.
+  oat_dex_file->dex_file_location_checksum_ = dex_file->GetLocationChecksum();
   return true;
 }
 

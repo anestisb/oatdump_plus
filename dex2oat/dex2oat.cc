@@ -270,6 +270,7 @@ NO_RETURN static void Usage(const char* fmt, ...) {
                 "|balanced"
                 "|speed-profile"
                 "|speed"
+                "|layout-profile"
                 "|everything-profile"
                 "|everything):");
   UsageError("      select compiler filter.");
@@ -2273,7 +2274,9 @@ class Dex2Oat FINAL {
                                                      compiler_options_.get(),
                                                      oat_file.get()));
       elf_writers_.back()->Start();
-      oat_writers_.emplace_back(new OatWriter(IsBootImage(), timings_));
+      bool do_dexlayout = compiler_options_->GetCompilerFilter() == CompilerFilter::kLayoutProfile;
+      oat_writers_.emplace_back(new OatWriter(
+          IsBootImage(), timings_, do_dexlayout ? profile_compilation_info_.get() : nullptr));
     }
   }
 
