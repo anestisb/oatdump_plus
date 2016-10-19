@@ -177,7 +177,8 @@ jvmtiError HeapUtil::GetLoadedClasses(jvmtiEnv* env,
    public:
     explicit ReportClassVisitor(art::Thread* self) : self_(self) {}
 
-    bool operator()(art::mirror::Class* klass) OVERRIDE REQUIRES_SHARED(art::Locks::mutator_lock_) {
+    bool operator()(art::ObjPtr<art::mirror::Class> klass)
+        OVERRIDE REQUIRES_SHARED(art::Locks::mutator_lock_) {
       art::JNIEnvExt* jni_env = self_->GetJniEnv();
       classes_.push_back(reinterpret_cast<jclass>(jni_env->vm->AddGlobalRef(self_, klass)));
       return true;
