@@ -297,7 +297,8 @@ static bool GetDexFilesFromClassLoader(
   // Unsupported class-loader?
   if (soa.Decode<mirror::Class>(WellKnownClasses::dalvik_system_PathClassLoader) !=
       class_loader->GetClass()) {
-    VLOG(class_linker) << "Unsupported class-loader " << PrettyClass(class_loader->GetClass());
+    VLOG(class_linker) << "Unsupported class-loader "
+                       << mirror::Class::PrettyClass(class_loader->GetClass());
     return false;
   }
 
@@ -367,7 +368,8 @@ static void GetDexFilesFromDexElementsArray(
     } else if (dexfile_class == element->GetClass()) {
       dex_file = element;
     } else {
-      LOG(WARNING) << "Unsupported element in dex_elements: " << PrettyClass(element->GetClass());
+      LOG(WARNING) << "Unsupported element in dex_elements: "
+                   << mirror::Class::PrettyClass(element->GetClass());
       continue;
     }
 
@@ -455,7 +457,7 @@ bool OatFileManager::HasCollisions(const OatFile* oat_file,
       GetDexFilesFromDexElementsArray(soa, h_dex_elements, &queue);
     } else if (h_class_loader.Get() != nullptr) {
       VLOG(class_linker) << "Something unsupported with "
-                         << PrettyClass(h_class_loader->GetClass());
+                         << mirror::Class::PrettyClass(h_class_loader->GetClass());
     }
   }
 

@@ -127,7 +127,8 @@ static void UnstartedRuntimeFindClass(Thread* self, Handle<mirror::String> class
   if (found == nullptr && abort_if_not_found) {
     if (!self->IsExceptionPending()) {
       AbortTransactionOrFail(self, "%s failed in un-started runtime for class: %s",
-                             method_name.c_str(), PrettyDescriptor(descriptor.c_str()).c_str());
+                             method_name.c_str(),
+                             PrettyDescriptor(descriptor.c_str()).c_str());
     }
     return;
   }
@@ -151,7 +152,7 @@ static void CheckExceptionGenerateClassNotFound(Thread* self)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (self->IsExceptionPending()) {
     // If it is not the transaction abort exception, wrap it.
-    std::string type(PrettyTypeOf(self->GetException()));
+    std::string type(mirror::Object::PrettyTypeOf(self->GetException()));
     if (type != Transaction::kAbortExceptionDescriptor) {
       self->ThrowNewWrappedException("Ljava/lang/ClassNotFoundException;",
                                      "ClassNotFoundException");
@@ -242,7 +243,7 @@ void UnstartedRuntime::UnstartedClassNewInstance(
   if (Runtime::Current()->IsActiveTransaction()) {
     if (h_klass.Get()->IsFinalizable()) {
       AbortTransactionF(self, "Class for newInstance is finalizable: '%s'",
-                        PrettyClass(h_klass.Get()).c_str());
+                        h_klass->PrettyClass().c_str());
       return;
     }
   }
@@ -266,13 +267,13 @@ void UnstartedRuntime::UnstartedClassNewInstance(
     } else {
       self->ThrowNewExceptionF("Ljava/lang/InternalError;",
                                "Could not find default constructor for '%s'",
-                               PrettyClass(h_klass.Get()).c_str());
+                               h_klass->PrettyClass().c_str());
     }
   }
   if (!ok) {
     AbortTransactionOrFail(self, "Failed in Class.newInstance for '%s' with %s",
-                           PrettyClass(h_klass.Get()).c_str(),
-                           PrettyTypeOf(self->GetException()).c_str());
+                           h_klass->PrettyClass().c_str(),
+                           mirror::Object::PrettyTypeOf(self->GetException()).c_str());
   }
 }
 
@@ -300,7 +301,7 @@ void UnstartedRuntime::UnstartedClassGetDeclaredField(
   if (found == nullptr) {
     AbortTransactionOrFail(self, "Failed to find field in Class.getDeclaredField in un-started "
                            " runtime. name=%s class=%s", name2->ToModifiedUtf8().c_str(),
-                           PrettyDescriptor(klass).c_str());
+                           klass->PrettyDescriptor().c_str());
     return;
   }
   Runtime* runtime = Runtime::Current();
@@ -562,8 +563,8 @@ void UnstartedRuntime::UnstartedClassLoaderGetResourceAsStream(
     if (self->DecodeJObject(WellKnownClasses::java_lang_BootClassLoader) !=
             this_classloader_class.Get()) {
       AbortTransactionOrFail(self,
-                            "Unsupported classloader type %s for getResourceAsStream",
-                            PrettyClass(this_classloader_class.Get()).c_str());
+                             "Unsupported classloader type %s for getResourceAsStream",
+                             Class::PrettyClass(this_classloader_class.Get()).c_str());
       return;
     }
   }
@@ -584,7 +585,7 @@ void UnstartedRuntime::UnstartedVmClassLoaderFindLoadedClass(
   // This might have an error pending. But semantics are to just return null.
   if (self->IsExceptionPending()) {
     // If it is an InternalError, keep it. See CheckExceptionGenerateClassNotFound.
-    std::string type(PrettyTypeOf(self->GetException()));
+    std::string type(mirror::Object::PrettyTypeOf(self->GetException()));
     if (type != "java.lang.InternalError") {
       self->ClearException();
     }
@@ -608,8 +609,10 @@ static void PrimitiveArrayCopy(Thread* self,
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (src_array->GetClass()->GetComponentType() != dst_array->GetClass()->GetComponentType()) {
     AbortTransactionOrFail(self, "Types mismatched in arraycopy: %s vs %s.",
-                           PrettyDescriptor(src_array->GetClass()->GetComponentType()).c_str(),
-                           PrettyDescriptor(dst_array->GetClass()->GetComponentType()).c_str());
+                           Class::PrettyDescriptor(
+                               src_array->GetClass()->GetComponentType()).c_str(),
+                           Class::PrettyDescriptor(
+                               dst_array->GetClass()->GetComponentType()).c_str());
     return;
   }
   mirror::PrimitiveArray<T>* src = down_cast<mirror::PrimitiveArray<T>*>(src_array);
@@ -674,8 +677,10 @@ void UnstartedRuntime::UnstartedSystemArraycopy(
         GetComponentType();
     if (trg_type->IsPrimitiveInt()) {
       AbortTransactionOrFail(self, "Type mismatch in arraycopy: %s vs %s",
-                             PrettyDescriptor(src_array->GetClass()->GetComponentType()).c_str(),
-                             PrettyDescriptor(dst_array->GetClass()->GetComponentType()).c_str());
+                             Class::PrettyDescriptor(
+                                 src_array->GetClass()->GetComponentType()).c_str(),
+                             Class::PrettyDescriptor(
+                                 dst_array->GetClass()->GetComponentType()).c_str());
       return;
     }
 
@@ -714,7 +719,7 @@ void UnstartedRuntime::UnstartedSystemArraycopy(
     PrimitiveArrayCopy<int32_t>(self, src_array, src_pos, dst_array, dst_pos, length);
   } else {
     AbortTransactionOrFail(self, "Unimplemented System.arraycopy for type '%s'",
-                           PrettyDescriptor(src_type).c_str());
+                           src_type->PrettyDescriptor().c_str());
   }
 }
 
@@ -839,7 +844,7 @@ void UnstartedRuntime::UnstartedSystemGetPropertyWithDefault(
 
 void UnstartedRuntime::UnstartedThreadLocalGet(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset ATTRIBUTE_UNUSED) {
-  std::string caller(PrettyMethod(shadow_frame->GetLink()->GetMethod()));
+  std::string caller(ArtMethod::PrettyMethod(shadow_frame->GetLink()->GetMethod()));
   bool ok = false;
   if (caller == "void java.lang.FloatingDecimal.developLongDigits(int, long, long)" ||
       caller == "java.lang.String java.lang.FloatingDecimal.toJavaFormatString()") {
@@ -1204,7 +1209,7 @@ void UnstartedRuntime::UnstartedReferenceGetReferent(
 //       initialization of other classes, so will *use* the value.
 void UnstartedRuntime::UnstartedRuntimeAvailableProcessors(
     Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset ATTRIBUTE_UNUSED) {
-  std::string caller(PrettyMethod(shadow_frame->GetLink()->GetMethod()));
+  std::string caller(ArtMethod::PrettyMethod(shadow_frame->GetLink()->GetMethod()));
   if (caller == "void java.util.concurrent.SynchronousQueue.<clinit>()") {
     // SynchronousQueue really only separates between single- and multiprocessor case. Return
     // 8 as a conservative upper approximation.
@@ -1748,7 +1753,7 @@ void UnstartedRuntime::Invoke(Thread* self, const DexFile::CodeItem* code_item,
   // problems in core libraries.
   CHECK(tables_initialized_);
 
-  std::string name(PrettyMethod(shadow_frame->GetMethod()));
+  std::string name(ArtMethod::PrettyMethod(shadow_frame->GetMethod()));
   const auto& iter = invoke_handlers_.find(name);
   if (iter != invoke_handlers_.end()) {
     // Clear out the result in case it's not zeroed out.
@@ -1769,7 +1774,7 @@ void UnstartedRuntime::Invoke(Thread* self, const DexFile::CodeItem* code_item,
 // Hand select a number of methods to be run in a not yet started runtime without using JNI.
 void UnstartedRuntime::Jni(Thread* self, ArtMethod* method, mirror::Object* receiver,
                            uint32_t* args, JValue* result) {
-  std::string name(PrettyMethod(method));
+  std::string name(ArtMethod::PrettyMethod(method));
   const auto& iter = jni_handlers_.find(name);
   if (iter != jni_handlers_.end()) {
     // Clear out the result in case it's not zeroed out.
@@ -1779,7 +1784,7 @@ void UnstartedRuntime::Jni(Thread* self, ArtMethod* method, mirror::Object* rece
     AbortTransactionF(self, "Attempt to invoke native method in non-started runtime: %s",
                       name.c_str());
   } else {
-    LOG(FATAL) << "Calling native method " << PrettyMethod(method) << " in an unstarted "
+    LOG(FATAL) << "Calling native method " << ArtMethod::PrettyMethod(method) << " in an unstarted "
         "non-transactional runtime";
   }
 }

@@ -438,7 +438,7 @@ static inline void TraceExecution(const ShadowFrame& shadow_frame, const Instruc
   if (kTraceExecutionEnabled) {
 #define TRACE_LOG std::cerr
     std::ostringstream oss;
-    oss << PrettyMethod(shadow_frame.GetMethod())
+    oss << shadow_frame.GetMethod()->PrettyMethod()
         << StringPrintf("\n0x%x: ", dex_pc)
         << inst->DumpString(shadow_frame.GetMethod()->GetDexFile()) << "\n";
     for (uint32_t i = 0; i < shadow_frame.NumberOfVRegs(); ++i) {
@@ -450,7 +450,7 @@ static inline void TraceExecution(const ShadowFrame& shadow_frame, const Instruc
             !ref_value->AsString()->IsValueNull()) {
           oss << "/java.lang.String \"" << ref_value->AsString()->ToModifiedUtf8() << "\"";
         } else {
-          oss << "/" << PrettyTypeOf(ref_value);
+          oss << "/" << ref_value->PrettyTypeOf();
         }
       }
     }

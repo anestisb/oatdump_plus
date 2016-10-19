@@ -233,10 +233,10 @@ class ArgArray {
         if (UNLIKELY(arg == nullptr || !arg->InstanceOf(dst_class))) {
           ThrowIllegalArgumentException(
               StringPrintf("method %s argument %zd has type %s, got %s",
-                  PrettyMethod(m, false).c_str(),
+                  m->PrettyMethod(false).c_str(),
                   args_offset + 1,  // Humans don't count from 0.
-                  PrettyDescriptor(dst_class).c_str(),
-                  PrettyTypeOf(arg).c_str()).c_str());
+                  mirror::Class::PrettyDescriptor(dst_class).c_str(),
+                  mirror::Object::PrettyTypeOf(arg).c_str()).c_str());
           return false;
         }
       }
@@ -261,10 +261,10 @@ class ArgArray {
             } else { \
               ThrowIllegalArgumentException(\
                   StringPrintf("method %s argument %zd has type %s, got %s", \
-                      PrettyMethod(m, false).c_str(), \
+                      ArtMethod::PrettyMethod(m, false).c_str(), \
                       args_offset + 1, \
                       expected, \
-                      PrettyTypeOf(arg).c_str()).c_str()); \
+                      mirror::Object::PrettyTypeOf(arg).c_str()).c_str()); \
             } \
             return false; \
           } }
@@ -382,8 +382,8 @@ static void CheckMethodArguments(JavaVMExt* vm, ArtMethod* m, uint32_t* args)
           (reinterpret_cast<StackReference<mirror::Object>*>(&args[i + offset]))->AsMirrorPtr();
       if (argument != nullptr && !argument->InstanceOf(param_type)) {
         LOG(ERROR) << "JNI ERROR (app bug): attempt to pass an instance of "
-                   << PrettyTypeOf(argument) << " as argument " << (i + 1)
-                   << " to " << PrettyMethod(m);
+                   << argument->PrettyTypeOf() << " as argument " << (i + 1)
+                   << " to " << m->PrettyMethod();
         ++error_count;
       }
     } else if (param_type->IsPrimitiveLong() || param_type->IsPrimitiveDouble()) {
@@ -393,25 +393,25 @@ static void CheckMethodArguments(JavaVMExt* vm, ArtMethod* m, uint32_t* args)
       if (param_type->IsPrimitiveBoolean()) {
         if (arg != JNI_TRUE && arg != JNI_FALSE) {
           LOG(ERROR) << "JNI ERROR (app bug): expected jboolean (0/1) but got value of "
-              << arg << " as argument " << (i + 1) << " to " << PrettyMethod(m);
+              << arg << " as argument " << (i + 1) << " to " << m->PrettyMethod();
           ++error_count;
         }
       } else if (param_type->IsPrimitiveByte()) {
         if (arg < -128 || arg > 127) {
           LOG(ERROR) << "JNI ERROR (app bug): expected jbyte but got value of "
-              << arg << " as argument " << (i + 1) << " to " << PrettyMethod(m);
+              << arg << " as argument " << (i + 1) << " to " << m->PrettyMethod();
           ++error_count;
         }
       } else if (param_type->IsPrimitiveChar()) {
         if (args[i + offset] > 0xFFFF) {
           LOG(ERROR) << "JNI ERROR (app bug): expected jchar but got value of "
-              << arg << " as argument " << (i + 1) << " to " << PrettyMethod(m);
+              << arg << " as argument " << (i + 1) << " to " << m->PrettyMethod();
           ++error_count;
         }
       } else if (param_type->IsPrimitiveShort()) {
         if (arg < -32768 || arg > 0x7FFF) {
           LOG(ERROR) << "JNI ERROR (app bug): expected jshort but got value of "
-              << arg << " as argument " << (i + 1) << " to " << PrettyMethod(m);
+              << arg << " as argument " << (i + 1) << " to " << m->PrettyMethod();
           ++error_count;
         }
       }
@@ -421,7 +421,7 @@ static void CheckMethodArguments(JavaVMExt* vm, ArtMethod* m, uint32_t* args)
     // TODO: pass the JNI function name (such as "CallVoidMethodV") through so we can call JniAbort
     // with an argument.
     vm->JniAbortF(nullptr, "bad arguments passed to %s (see above for details)",
-                  PrettyMethod(m).c_str());
+                  m->PrettyMethod().c_str());
   }
 }
 
@@ -634,11 +634,11 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
                                    num_frames)) {
     ThrowIllegalAccessException(
         StringPrintf("Class %s cannot access %s method %s of class %s",
-            calling_class == nullptr ? "null" : PrettyClass(calling_class).c_str(),
+            calling_class == nullptr ? "null" : calling_class->PrettyClass().c_str(),
             PrettyJavaAccessFlags(m->GetAccessFlags()).c_str(),
-            PrettyMethod(m).c_str(),
+            m->PrettyMethod().c_str(),
             m->GetDeclaringClass() == nullptr ? "null" :
-                PrettyClass(m->GetDeclaringClass()).c_str()).c_str());
+                m->GetDeclaringClass()->PrettyClass().c_str()).c_str());
     return nullptr;
   }
 
@@ -747,7 +747,7 @@ ObjPtr<mirror::Object> BoxPrimitive(Primitive::Type src_class, const JValue& val
 static std::string UnboxingFailureKind(ArtField* f)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (f != nullptr) {
-    return "field " + PrettyField(f, false);
+    return "field " + f->PrettyField(false);
   }
   return "result";
 }
@@ -761,14 +761,16 @@ static bool UnboxPrimitive(ObjPtr<mirror::Object> o,
   if (!dst_class->IsPrimitive()) {
     if (UNLIKELY(o != nullptr && !o->InstanceOf(dst_class))) {
       if (!unbox_for_result) {
-        ThrowIllegalArgumentException(StringPrintf("%s has type %s, got %s",
-                                                   UnboxingFailureKind(f).c_str(),
-                                                   PrettyDescriptor(dst_class).c_str(),
-                                                   PrettyTypeOf(o).c_str()).c_str());
+        ThrowIllegalArgumentException(
+            StringPrintf("%s has type %s, got %s",
+                         UnboxingFailureKind(f).c_str(),
+                         dst_class->PrettyDescriptor().c_str(),
+                         o->PrettyTypeOf().c_str()).c_str());
       } else {
-        ThrowClassCastException(StringPrintf("Couldn't convert result of type %s to %s",
-                                             PrettyTypeOf(o).c_str(),
-                                             PrettyDescriptor(dst_class).c_str()).c_str());
+        ThrowClassCastException(
+            StringPrintf("Couldn't convert result of type %s to %s",
+                         o->PrettyTypeOf().c_str(),
+                         dst_class->PrettyDescriptor().c_str()).c_str());
       }
       return false;
     }
@@ -782,13 +784,14 @@ static bool UnboxPrimitive(ObjPtr<mirror::Object> o,
   }
   if (UNLIKELY(o == nullptr)) {
     if (!unbox_for_result) {
-      ThrowIllegalArgumentException(StringPrintf("%s has type %s, got null",
-                                                 UnboxingFailureKind(f).c_str(),
-                                                 PrettyDescriptor(dst_class).c_str()).c_str());
+      ThrowIllegalArgumentException(
+          StringPrintf("%s has type %s, got null",
+                       UnboxingFailureKind(f).c_str(),
+                       dst_class->PrettyDescriptor().c_str()).c_str());
     } else {
       ThrowNullPointerException(
           StringPrintf("Expected to unbox a '%s' primitive type but was returned null",
-                       PrettyDescriptor(dst_class).c_str()).c_str());
+                       dst_class->PrettyDescriptor().c_str()).c_str());
     }
     return false;
   }
@@ -826,7 +829,7 @@ static bool UnboxPrimitive(ObjPtr<mirror::Object> o,
     std::string temp;
     ThrowIllegalArgumentException(
         StringPrintf("%s has type %s, got %s", UnboxingFailureKind(f).c_str(),
-            PrettyDescriptor(dst_class).c_str(),
+            dst_class->PrettyDescriptor().c_str(),
             PrettyDescriptor(o->GetClass()->GetDescriptor(&temp)).c_str()).c_str());
     return false;
   }
@@ -897,8 +900,8 @@ bool VerifyAccess(ObjPtr<mirror::Object> obj,
 }
 
 void InvalidReceiverError(ObjPtr<mirror::Object> o, ObjPtr<mirror::Class> c) {
-  std::string expected_class_name(PrettyDescriptor(c));
-  std::string actual_class_name(PrettyTypeOf(o));
+  std::string expected_class_name(mirror::Class::PrettyDescriptor(c));
+  std::string actual_class_name(mirror::Object::PrettyTypeOf(o));
   ThrowIllegalArgumentException(StringPrintf("Expected receiver of type %s, but got %s",
                                              expected_class_name.c_str(),
                                              actual_class_name.c_str()).c_str());

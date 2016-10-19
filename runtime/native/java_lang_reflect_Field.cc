@@ -39,9 +39,9 @@ ALWAYS_INLINE inline static bool VerifyFieldAccess(Thread* self,
     ThrowIllegalAccessException(
             StringPrintf("Cannot set %s field %s of class %s",
                 PrettyJavaAccessFlags(field->GetAccessFlags()).c_str(),
-                PrettyField(field->GetArtField()).c_str(),
+                ArtField::PrettyField(field->GetArtField()).c_str(),
                 field->GetDeclaringClass() == nullptr ? "null" :
-                    PrettyClass(field->GetDeclaringClass()).c_str()).c_str());
+                    field->GetDeclaringClass()->PrettyClass().c_str()).c_str());
     return false;
   }
   ObjPtr<mirror::Class> calling_class;
@@ -53,11 +53,11 @@ ALWAYS_INLINE inline static bool VerifyFieldAccess(Thread* self,
                     1)) {
     ThrowIllegalAccessException(
             StringPrintf("Class %s cannot access %s field %s of class %s",
-                calling_class == nullptr ? "null" : PrettyClass(calling_class).c_str(),
+                calling_class == nullptr ? "null" : calling_class->PrettyClass().c_str(),
                 PrettyJavaAccessFlags(field->GetAccessFlags()).c_str(),
-                PrettyField(field->GetArtField()).c_str(),
+                ArtField::PrettyField(field->GetArtField()).c_str(),
                 field->GetDeclaringClass() == nullptr ? "null" :
-                    PrettyClass(field->GetDeclaringClass()).c_str()).c_str());
+                    field->GetDeclaringClass()->PrettyClass().c_str()).c_str());
     return false;
   }
   return true;
@@ -106,7 +106,8 @@ ALWAYS_INLINE inline static bool GetFieldValue(ObjPtr<mirror::Object> o,
       break;
   }
   ThrowIllegalArgumentException(
-      StringPrintf("Not a primitive field: %s", PrettyField(f->GetArtField()).c_str()).c_str());
+      StringPrintf("Not a primitive field: %s",
+                   ArtField::PrettyField(f->GetArtField()).c_str()).c_str());
   return false;
 }
 
@@ -306,8 +307,9 @@ ALWAYS_INLINE inline static void SetFieldValue(ObjPtr<mirror::Object> o,
     FALLTHROUGH_INTENDED;
   case Primitive::kPrimVoid:
     // Never okay.
-    ThrowIllegalArgumentException(StringPrintf("Not a primitive field: %s",
-                                               PrettyField(f->GetArtField()).c_str()).c_str());
+    ThrowIllegalArgumentException(
+        StringPrintf("Not a primitive field: %s",
+                     ArtField::PrettyField(f->GetArtField()).c_str()).c_str());
     return;
   }
 }
@@ -362,8 +364,9 @@ static void SetPrimitiveField(JNIEnv* env,
   }
   Primitive::Type field_type = f->GetTypeAsPrimitiveType();
   if (UNLIKELY(field_type == Primitive::kPrimNot)) {
-    ThrowIllegalArgumentException(StringPrintf("Not a primitive field: %s",
-                                               PrettyField(f->GetArtField()).c_str()).c_str());
+    ThrowIllegalArgumentException(
+        StringPrintf("Not a primitive field: %s",
+                     ArtField::PrettyField(f->GetArtField()).c_str()).c_str());
     return;
   }
 

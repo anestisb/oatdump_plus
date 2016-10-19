@@ -1016,6 +1016,13 @@ class DexFile {
   static int64_t ReadSignedLong(const uint8_t* ptr, int zwidth);
   static uint64_t ReadUnsignedLong(const uint8_t* ptr, int zwidth, bool fill_on_right);
 
+  // Returns a human-readable form of the method at an index.
+  std::string PrettyMethod(uint32_t method_idx, bool with_signature = true) const;
+  // Returns a human-readable form of the field at an index.
+  std::string PrettyField(uint32_t field_idx, bool with_type = true) const;
+  // Returns a human-readable form of the type at an index.
+  std::string PrettyType(uint32_t type_idx) const;
+
  private:
   static std::unique_ptr<const DexFile> OpenFile(int fd,
                                                  const std::string& location,

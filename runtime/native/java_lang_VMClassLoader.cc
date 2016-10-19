@@ -57,7 +57,7 @@ static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoa
     ObjPtr<mirror::Class> exception = self->GetException()->GetClass();
     if (exception == eiie_class || exception == iae_class || exception == ncdfe_class) {
       self->ThrowNewWrappedException("Ljava/lang/ClassNotFoundException;",
-                                     PrettyDescriptor(c).c_str());
+                                     c->PrettyDescriptor().c_str());
     }
     return nullptr;
   }

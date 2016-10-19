@@ -332,9 +332,9 @@ class ClassLinkerTest : public CommonRuntimeTest {
       EXPECT_FALSE(method.IsDirect());
       EXPECT_TRUE(method.IsCopied());
       EXPECT_TRUE(method.GetDeclaringClass()->IsInterface())
-          << "declaring class: " << PrettyClass(method.GetDeclaringClass());
+          << "declaring class: " << method.GetDeclaringClass()->PrettyClass();
       EXPECT_TRUE(method.GetDeclaringClass()->IsAssignableFrom(klass.Get()))
-          << "declaring class: " << PrettyClass(method.GetDeclaringClass());
+          << "declaring class: " << method.GetDeclaringClass()->PrettyClass();
     }
 
     for (size_t i = 0; i < klass->NumInstanceFields(); i++) {
@@ -366,8 +366,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
         if (current_ref_offset.Uint32Value() == end_ref_offset.Uint32Value()) {
           // While Reference.referent is not primitive, the ClassLinker
           // treats it as such so that the garbage collector won't scan it.
-          EXPECT_EQ(PrettyField(field),
-                    "java.lang.Object java.lang.ref.Reference.referent");
+          EXPECT_EQ(field->PrettyField(), "java.lang.Object java.lang.ref.Reference.referent");
         } else {
           current_ref_offset = MemberOffset(current_ref_offset.Uint32Value() +
                                             sizeof(mirror::HeapReference<mirror::Object>));
@@ -1215,14 +1214,14 @@ static void CheckMethod(ArtMethod* method, bool verified)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   if (!method->IsNative() && !method->IsAbstract()) {
     EXPECT_EQ((method->GetAccessFlags() & kAccSkipAccessChecks) != 0U, verified)
-        << PrettyMethod(method, true);
+        << method->PrettyMethod(true);
   }
 }
 
 static void CheckVerificationAttempted(mirror::Class* c, bool preverified)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   EXPECT_EQ((c->GetAccessFlags() & kAccVerificationAttempted) != 0U, preverified)
-      << "Class " << PrettyClass(c) << " not as expected";
+      << "Class " << mirror::Class::PrettyClass(c) << " not as expected";
   for (auto& m : c->GetMethods(kRuntimePointerSize)) {
     CheckMethod(&m, preverified);
   }

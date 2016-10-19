@@ -41,10 +41,10 @@ class CheckReferenceMapVisitor : public StackVisitor {
       return true;
     }
 
-    LOG(INFO) << "At " << PrettyMethod(m, false);
+    LOG(INFO) << "At " << m->PrettyMethod(false);
 
     if (m->IsCalleeSaveMethod()) {
-      LOG(WARNING) << "no PC for " << PrettyMethod(m);
+      LOG(WARNING) << "no PC for " << m->PrettyMethod();
       return true;
     }
 

@@ -178,7 +178,7 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
       ScopedThreadStateChange tsc(self, kNative);
       fn(soa.Env(), klass.get(), arg0.get(), args[1], arg2.get(), args[3], args[4]);
     } else {
-      LOG(FATAL) << "Do something with static native method: " << PrettyMethod(method)
+      LOG(FATAL) << "Do something with static native method: " << method->PrettyMethod()
           << " shorty: " << shorty;
     }
   } else {
@@ -223,7 +223,7 @@ static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& s
       ScopedThreadStateChange tsc(self, kNative);
       result->SetI(fn(soa.Env(), rcvr.get(), args[0], args[1]));
     } else {
-      LOG(FATAL) << "Do something with native method: " << PrettyMethod(method)
+      LOG(FATAL) << "Do something with native method: " << method->PrettyMethod()
           << " shorty: " << shorty;
     }
   }
@@ -546,7 +546,7 @@ void EnterInterpreterFromDeoptimize(Thread* self,
       } else {
         CHECK(false) << "Unexpected instruction opcode " << instr->Opcode()
                      << " at dex_pc " << dex_pc
-                     << " of method: " << PrettyMethod(shadow_frame->GetMethod(), false);
+                     << " of method: " << ArtMethod::PrettyMethod(shadow_frame->GetMethod(), false);
       }
     } else {
       // Nothing to do, the dex_pc is the one at which the code requested

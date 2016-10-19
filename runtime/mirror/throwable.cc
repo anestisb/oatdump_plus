@@ -83,7 +83,7 @@ int32_t Throwable::GetStackDepth() {
 }
 
 std::string Throwable::Dump() {
-  std::string result(PrettyTypeOf(this));
+  std::string result(PrettyTypeOf());
   result += ": ";
   ObjPtr<String> msg = GetDetailMessage();
   if (msg != nullptr) {
@@ -112,7 +112,7 @@ std::string Throwable::Dump() {
         uintptr_t dex_pc = method_trace->GetElementPtrSize<uintptr_t>(i + depth, ptr_size);
         int32_t line_number = method->GetLineNumFromDexPC(dex_pc);
         const char* source_file = method->GetDeclaringClassSourceFile();
-        result += StringPrintf("  at %s (%s:%d)\n", PrettyMethod(method, true).c_str(),
+        result += StringPrintf("  at %s (%s:%d)\n", method->PrettyMethod(true).c_str(),
                                source_file, line_number);
       }
     }

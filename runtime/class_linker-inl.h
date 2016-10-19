@@ -260,8 +260,8 @@ ArtMethod* ClassLinker::FindMethodForProxy(mirror::Class* proxy_class, ArtMethod
       }
     }
   }
-  LOG(FATAL) << "Didn't find dex cache for " << PrettyClass(proxy_class) << " "
-      << PrettyMethod(proxy_method);
+  LOG(FATAL) << "Didn't find dex cache for " << proxy_class->PrettyClass() << " "
+      << proxy_method->PrettyMethod();
   UNREACHABLE();
 }
 

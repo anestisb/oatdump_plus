@@ -544,6 +544,15 @@ class MANAGED LOCKABLE Object {
   // Generate an identity hash code. Public for object test.
   static uint32_t GenerateIdentityHashCode();
 
+  // Returns a human-readable form of the name of the *class* of the given object.
+  // So given an instance of java.lang.String, the output would
+  // be "java.lang.String". Given an array of int, the output would be "int[]".
+  // Given String.class, the output would be "java.lang.Class<java.lang.String>".
+  static std::string PrettyTypeOf(ObjPtr<mirror::Object> obj)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  std::string PrettyTypeOf()
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
  protected:
   // Accessors for non-Java type fields
   template<class T, VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kIsVolatile = false>

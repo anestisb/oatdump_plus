@@ -629,7 +629,7 @@ std::string ProfileCompilationInfo::DumpInfo(const std::vector<const DexFile*>* 
     os << "\n\tmethods: ";
     for (const auto method_it : dex_data.method_set) {
       if (dex_file != nullptr) {
-        os << "\n\t\t" << PrettyMethod(method_it, *dex_file, true);
+        os << "\n\t\t" << dex_file->PrettyMethod(method_it, true);
       } else {
         os << method_it << ",";
       }

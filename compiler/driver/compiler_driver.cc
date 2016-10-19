@@ -617,7 +617,7 @@ static void CompileMethod(Thread* self,
   if (kTimeCompileMethod) {
     uint64_t duration_ns = NanoTime() - start_ns;
     if (duration_ns > MsToNs(driver->GetCompiler()->GetMaximumCompilationTimeBeforeWarning())) {
-      LOG(WARNING) << "Compilation of " << PrettyMethod(method_idx, dex_file)
+      LOG(WARNING) << "Compilation of " << dex_file.PrettyMethod(method_idx)
                    << " took " << PrettyDuration(duration_ns);
     }
   }
@@ -639,7 +639,7 @@ static void CompileMethod(Thread* self,
 
   if (self->IsExceptionPending()) {
     ScopedObjectAccess soa(self);
-    LOG(FATAL) << "Unexpected exception compiling: " << PrettyMethod(method_idx, dex_file) << "\n"
+    LOG(FATAL) << "Unexpected exception compiling: " << dex_file.PrettyMethod(method_idx) << "\n"
         << self->GetException()->Dump();
   }
 }
@@ -940,7 +940,7 @@ bool CompilerDriver::IsMethodToCompile(const MethodReference& method_ref) const 
     return true;
   }
 
-  std::string tmp = PrettyMethod(method_ref.dex_method_index, *method_ref.dex_file, true);
+  std::string tmp = method_ref.dex_file->PrettyMethod(method_ref.dex_method_index, true);
   return methods_to_compile_->find(tmp.c_str()) != methods_to_compile_->end();
 }
 
@@ -955,7 +955,7 @@ bool CompilerDriver::ShouldCompileBasedOnProfile(const MethodReference& method_r
   if (kDebugProfileGuidedCompilation) {
     LOG(INFO) << "[ProfileGuidedCompilation] "
         << (result ? "Compiled" : "Skipped") << " method:"
-        << PrettyMethod(method_ref.dex_method_index, *method_ref.dex_file, true);
+        << method_ref.dex_file->PrettyMethod(method_ref.dex_method_index, true);
   }
   return result;
 }
@@ -1679,7 +1679,7 @@ static bool SkipClass(jobject class_loader, const DexFile& dex_file, mirror::Cla
   const DexFile& original_dex_file = *klass->GetDexCache()->GetDexFile();
   if (&dex_file != &original_dex_file) {
     if (class_loader == nullptr) {
-      LOG(WARNING) << "Skipping class " << PrettyDescriptor(klass) << " from "
+      LOG(WARNING) << "Skipping class " << klass->PrettyDescriptor() << " from "
                    << dex_file.GetLocation() << " previously found in "
                    << original_dex_file.GetLocation();
     }
@@ -1991,7 +1991,7 @@ class VerifyClassVisitor : public CompilationVisitor {
         manager_->GetCompiler()->SetHadHardVerifierFailure();
       }
     } else if (!SkipClass(jclass_loader, dex_file, klass.Get())) {
-      CHECK(klass->IsResolved()) << PrettyClass(klass.Get());
+      CHECK(klass->IsResolved()) << klass->PrettyClass();
       class_linker->VerifyClass(soa.Self(), klass, log_level_);
 
       if (klass->IsErroneous()) {
@@ -2002,13 +2002,14 @@ class VerifyClassVisitor : public CompilationVisitor {
       }
 
       CHECK(klass->IsCompileTimeVerified() || klass->IsErroneous())
-          << PrettyDescriptor(klass.Get()) << ": state=" << klass->GetStatus();
+          << klass->PrettyDescriptor() << ": state=" << klass->GetStatus();
 
       // It is *very* problematic if there are verification errors in the boot classpath. For example,
       // we rely on things working OK without verification when the decryption dialog is brought up.
       // So abort in a debug build if we find this violated.
       DCHECK(!manager_->GetCompiler()->GetCompilerOptions().IsBootImage() || klass->IsVerified())
-          << "Boot classpath class " << PrettyClass(klass.Get()) << " failed to fully verify.";
+          << "Boot classpath class " << klass->PrettyClass()
+          << " failed to fully verify.";
     }
     soa.Self()->AssertNoPendingException();
   }
@@ -2446,14 +2447,14 @@ void CompilerDriver::AddCompiledMethod(const MethodReference& method_ref,
                                        CompiledMethod* const compiled_method,
                                        size_t non_relative_linker_patch_count) {
   DCHECK(GetCompiledMethod(method_ref) == nullptr)
-      << PrettyMethod(method_ref.dex_method_index, *method_ref.dex_file);
+      << method_ref.dex_file->PrettyMethod(method_ref.dex_method_index);
   {
     MutexLock mu(Thread::Current(), compiled_methods_lock_);
     compiled_methods_.Put(method_ref, compiled_method);
     non_relative_linker_patch_count_ += non_relative_linker_patch_count;
   }
   DCHECK(GetCompiledMethod(method_ref) != nullptr)
-      << PrettyMethod(method_ref.dex_method_index, *method_ref.dex_file);
+      << method_ref.dex_file->PrettyMethod(method_ref.dex_method_index);
 }
 
 void CompilerDriver::RemoveCompiledMethod(const MethodReference& method_ref) {

@@ -102,7 +102,7 @@ static jobjectArray Executable_getParameters0(JNIEnv* env, jobject javaMethod) {
   if (UNLIKELY(names.Get() == nullptr || access_flags.Get() == nullptr)) {
     ThrowIllegalArgumentException(
         StringPrintf("Missing parameter metadata for names or access flags for %s",
-                     PrettyMethod(art_method).c_str()).c_str());
+                     art_method->PrettyMethod().c_str()).c_str());
     return nullptr;
   }
 
@@ -113,7 +113,7 @@ static jobjectArray Executable_getParameters0(JNIEnv* env, jobject javaMethod) {
     ThrowIllegalArgumentException(
         StringPrintf(
             "Inconsistent parameter metadata for %s. names length: %d, access flags length: %d",
-            PrettyMethod(art_method).c_str(),
+            art_method->PrettyMethod().c_str(),
             names_count,
             access_flags_count).c_str());
     return nullptr;

@@ -51,7 +51,7 @@ bool HGraphBuilder::SkipCompilation(size_t number_of_branches) {
 
   if (compiler_options.IsHugeMethod(code_item_.insns_size_in_code_units_)) {
     VLOG(compiler) << "Skip compilation of huge method "
-                   << PrettyMethod(dex_compilation_unit_->GetDexMethodIndex(), *dex_file_)
+                   << dex_file_->PrettyMethod(dex_compilation_unit_->GetDexMethodIndex())
                    << ": " << code_item_.insns_size_in_code_units_ << " code units";
     MaybeRecordStat(MethodCompilationStat::kNotCompiledHugeMethod);
     return true;
@@ -61,7 +61,7 @@ bool HGraphBuilder::SkipCompilation(size_t number_of_branches) {
   if (compiler_options.IsLargeMethod(code_item_.insns_size_in_code_units_)
       && (number_of_branches == 0)) {
     VLOG(compiler) << "Skip compilation of large method with no branch "
-                   << PrettyMethod(dex_compilation_unit_->GetDexMethodIndex(), *dex_file_)
+                   << dex_file_->PrettyMethod(dex_compilation_unit_->GetDexMethodIndex())
                    << ": " << code_item_.insns_size_in_code_units_ << " code units";
     MaybeRecordStat(MethodCompilationStat::kNotCompiledLargeMethodNoBranches);
     return true;

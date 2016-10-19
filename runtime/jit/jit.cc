@@ -246,14 +246,14 @@ bool Jit::CompileMethod(ArtMethod* method, Thread* self, bool osr) {
 
   // Don't compile the method if it has breakpoints.
   if (Dbg::IsDebuggerActive() && Dbg::MethodHasAnyBreakpoints(method)) {
-    VLOG(jit) << "JIT not compiling " << PrettyMethod(method) << " due to breakpoint";
+    VLOG(jit) << "JIT not compiling " << method->PrettyMethod() << " due to breakpoint";
     return false;
   }
 
   // Don't compile the method if we are supposed to be deoptimized.
   instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
   if (instrumentation->AreAllMethodsDeoptimized() || instrumentation->IsDeoptimized(method)) {
-    VLOG(jit) << "JIT not compiling " << PrettyMethod(method) << " due to deoptimization";
+    VLOG(jit) << "JIT not compiling " << method->PrettyMethod() << " due to deoptimization";
     return false;
   }
 
@@ -265,13 +265,13 @@ bool Jit::CompileMethod(ArtMethod* method, Thread* self, bool osr) {
   }
 
   VLOG(jit) << "Compiling method "
-            << PrettyMethod(method_to_compile)
+            << ArtMethod::PrettyMethod(method_to_compile)
             << " osr=" << std::boolalpha << osr;
   bool success = jit_compile_method_(jit_compiler_handle_, method_to_compile, self, osr);
   code_cache_->DoneCompiling(method_to_compile, self, osr);
   if (!success) {
     VLOG(jit) << "Failed to compile method "
-              << PrettyMethod(method_to_compile)
+              << ArtMethod::PrettyMethod(method_to_compile)
               << " osr=" << std::boolalpha << osr;
   }
   return success;
@@ -424,7 +424,7 @@ bool Jit::MaybeDoOnStackReplacement(Thread* thread,
   // method while we are being suspended.
   const size_t number_of_vregs = method->GetCodeItem()->registers_size_;
   const char* shorty = method->GetShorty();
-  std::string method_name(VLOG_IS_ON(jit) ? PrettyMethod(method) : "");
+  std::string method_name(VLOG_IS_ON(jit) ? method->PrettyMethod() : "");
   void** memory = nullptr;
   size_t frame_size = 0;
   ShadowFrame* shadow_frame = nullptr;
@@ -539,7 +539,7 @@ void Jit::AddMemoryUsage(ArtMethod* method, size_t bytes) {
     LOG(INFO) << "Compiler allocated "
               << PrettySize(bytes)
               << " to compile "
-              << PrettyMethod(method);
+              << ArtMethod::PrettyMethod(method);
   }
   MutexLock mu(Thread::Current(), lock_);
   memory_use_.AddValue(bytes);
@@ -574,7 +574,7 @@ class JitCompileTask FINAL : public Task {
     } else {
       DCHECK(kind_ == kAllocateProfile);
       if (ProfilingInfo::Create(self, method_, /* retry_allocation */ true)) {
-        VLOG(jit) << "Start profiling " << PrettyMethod(method_);
+        VLOG(jit) << "Start profiling " << ArtMethod::PrettyMethod(method_);
       }
     }
     ProfileSaver::NotifyJitActivity();
@@ -620,7 +620,7 @@ void Jit::AddSamples(Thread* self, ArtMethod* method, uint16_t count, bool with_
         (method->GetProfilingInfo(kRuntimePointerSize) == nullptr)) {
       bool success = ProfilingInfo::Create(self, method, /* retry_allocation */ false);
       if (success) {
-        VLOG(jit) << "Start profiling " << PrettyMethod(method);
+        VLOG(jit) << "Start profiling " << method->PrettyMethod();
       }
 
       if (thread_pool_ == nullptr) {

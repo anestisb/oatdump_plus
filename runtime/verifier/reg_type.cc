@@ -355,26 +355,26 @@ std::string UnresolvedUninitializedThisRefType::Dump() const {
 
 std::string ReferenceType::Dump() const {
   std::stringstream result;
-  result << "Reference" << ": " << PrettyDescriptor(GetClass());
+  result << "Reference" << ": " << mirror::Class::PrettyDescriptor(GetClass());
   return result.str();
 }
 
 std::string PreciseReferenceType::Dump() const {
   std::stringstream result;
-  result << "Precise Reference" << ": "<< PrettyDescriptor(GetClass());
+  result << "Precise Reference" << ": "<< mirror::Class::PrettyDescriptor(GetClass());
   return result.str();
 }
 
 std::string UninitializedReferenceType::Dump() const {
   std::stringstream result;
-  result << "Uninitialized Reference" << ": " << PrettyDescriptor(GetClass());
+  result << "Uninitialized Reference" << ": " << mirror::Class::PrettyDescriptor(GetClass());
   result << " Allocation PC: " << GetAllocationPc();
   return result.str();
 }
 
 std::string UninitializedThisReferenceType::Dump() const {
   std::stringstream result;
-  result << "Uninitialized This Reference" << ": " << PrettyDescriptor(GetClass());
+  result << "Uninitialized This Reference" << ": " << mirror::Class::PrettyDescriptor(GetClass());
   result << "Allocation PC: " << GetAllocationPc();
   return result.str();
 }
@@ -730,8 +730,8 @@ const RegType& RegType::Merge(const RegType& incoming_type,
 
 // See comment in reg_type.h
 mirror::Class* RegType::ClassJoin(mirror::Class* s, mirror::Class* t) {
-  DCHECK(!s->IsPrimitive()) << PrettyClass(s);
-  DCHECK(!t->IsPrimitive()) << PrettyClass(t);
+  DCHECK(!s->IsPrimitive()) << s->PrettyClass();
+  DCHECK(!t->IsPrimitive()) << t->PrettyClass();
   if (s == t) {
     return s;
   } else if (s->IsAssignableFrom(t)) {

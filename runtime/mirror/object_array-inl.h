@@ -238,8 +238,8 @@ inline void ObjectArray<T>::AssignableCheckingMemcpy(int32_t dst_pos,
   }
   Runtime::Current()->GetHeap()->WriteBarrierArray(this, dst_pos, count);
   if (UNLIKELY(i != count)) {
-    std::string actualSrcType(PrettyTypeOf(o));
-    std::string dstType(PrettyTypeOf(this));
+    std::string actualSrcType(mirror::Object::PrettyTypeOf(o));
+    std::string dstType(PrettyTypeOf());
     Thread* self = Thread::Current();
     if (throw_exception) {
       self->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",

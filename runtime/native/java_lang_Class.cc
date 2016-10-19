@@ -633,7 +633,8 @@ static jobject Class_newInstance(JNIEnv* env, jobject javaThis) {
   if (UNLIKELY(klass->GetPrimitiveType() != 0 || klass->IsInterface() || klass->IsArrayClass() ||
                klass->IsAbstract())) {
     soa.Self()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
-                                   "%s cannot be instantiated", PrettyClass(klass.Get()).c_str());
+                                   "%s cannot be instantiated",
+                                   klass->PrettyClass().c_str());
     return nullptr;
   }
   auto caller = hs.NewHandle<mirror::Class>(nullptr);
@@ -643,7 +644,7 @@ static jobject Class_newInstance(JNIEnv* env, jobject javaThis) {
     if (caller.Get() != nullptr && !caller->CanAccess(klass.Get())) {
       soa.Self()->ThrowNewExceptionF(
           "Ljava/lang/IllegalAccessException;", "%s is not accessible from %s",
-          PrettyClass(klass.Get()).c_str(), PrettyClass(caller.Get()).c_str());
+          klass->PrettyClass().c_str(), caller->PrettyClass().c_str());
       return nullptr;
     }
   }
@@ -654,7 +655,7 @@ static jobject Class_newInstance(JNIEnv* env, jobject javaThis) {
   if (UNLIKELY(constructor == nullptr)) {
     soa.Self()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
                                    "%s has no zero argument constructor",
-                                   PrettyClass(klass.Get()).c_str());
+                                   klass->PrettyClass().c_str());
     return nullptr;
   }
   // Invoke the string allocator to return an empty string for the string class.
@@ -684,7 +685,7 @@ static jobject Class_newInstance(JNIEnv* env, jobject javaThis) {
                                                           caller.Get()))) {
       soa.Self()->ThrowNewExceptionF(
           "Ljava/lang/IllegalAccessException;", "%s is not accessible from %s",
-          PrettyMethod(constructor).c_str(), PrettyClass(caller.Get()).c_str());
+          constructor->PrettyMethod().c_str(), caller->PrettyClass().c_str());
       return nullptr;
     }
   }

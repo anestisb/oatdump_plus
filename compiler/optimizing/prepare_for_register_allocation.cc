@@ -44,7 +44,7 @@ void PrepareForRegisterAllocation::VisitBoundsCheck(HBoundsCheck* check) {
     // Add a fake environment for String.charAt() inline info as we want
     // the exception to appear as being thrown from there.
     const DexFile& dex_file = check->GetEnvironment()->GetDexFile();
-    DCHECK_STREQ(PrettyMethod(check->GetStringCharAtMethodIndex(), dex_file).c_str(),
+    DCHECK_STREQ(dex_file.PrettyMethod(check->GetStringCharAtMethodIndex()).c_str(),
                  "char java.lang.String.charAt(int)");
     ArenaAllocator* arena = GetGraph()->GetArena();
     HEnvironment* environment = new (arena) HEnvironment(arena,

@@ -231,7 +231,7 @@ inline bool ReadBarrier::HasGrayReadBarrierPointer(mirror::Object* obj,
   if (kEnableReadBarrierInvariantChecks) {
     CHECK(rb_ptr_low_bits == white_ptr_ || rb_ptr_low_bits == gray_ptr_ ||
           rb_ptr_low_bits == black_ptr_)
-        << "obj=" << obj << " rb_ptr=" << rb_ptr << " " << PrettyTypeOf(obj);
+        << "obj=" << obj << " rb_ptr=" << rb_ptr << " " << obj->PrettyTypeOf();
   }
   bool is_gray = rb_ptr_low_bits == gray_ptr_;
   // The high bits are supposed to be zero. We check this on the caller side.
