@@ -29,9 +29,9 @@ namespace art {
 
 class JavaVMExt;
 
-// Maximum number of local references in the indirect reference table. The value is arbitrary but
+// Number of local references in the indirect reference table. The value is arbitrary but
 // low enough that it forces sanity checks.
-static constexpr size_t kLocalsMax = 512;
+static constexpr size_t kLocalsInitial = 512;
 
 struct JNIEnvExt : public JNIEnv {
   static JNIEnvExt* Create(Thread* self, JavaVMExt* vm);

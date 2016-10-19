@@ -58,17 +58,15 @@ void IndirectReferenceTable::AbortIfNoCheckJNI(const std::string& msg) {
   }
 }
 
-IndirectReferenceTable::IndirectReferenceTable(size_t initialCount,
-                                               size_t maxCount, IndirectRefKind desiredKind,
+IndirectReferenceTable::IndirectReferenceTable(size_t max_count,
+                                               IndirectRefKind desired_kind,
                                                bool abort_on_error)
-    : kind_(desiredKind),
-      max_entries_(maxCount) {
-  CHECK_GT(initialCount, 0U);
-  CHECK_LE(initialCount, maxCount);
-  CHECK_NE(desiredKind, kHandleScopeOrInvalid);
+    : kind_(desired_kind),
+      max_entries_(max_count) {
+  CHECK_NE(desired_kind, kHandleScopeOrInvalid);
 
   std::string error_str;
-  const size_t table_bytes = maxCount * sizeof(IrtEntry);
+  const size_t table_bytes = max_count * sizeof(IrtEntry);
   table_mem_map_.reset(MemMap::MapAnonymous("indirect ref table", nullptr, table_bytes,
                                             PROT_READ | PROT_WRITE, false, false, &error_str));
   if (abort_on_error) {
