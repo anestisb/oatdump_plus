@@ -31,7 +31,7 @@ void ClassTable::FreezeSnapshot() {
   classes_.push_back(ClassSet());
 }
 
-bool ClassTable::Contains(mirror::Class* klass) {
+bool ClassTable::Contains(ObjPtr<mirror::Class> klass) {
   ReaderMutexLock mu(Thread::Current(), lock_);
   for (ClassSet& class_set : classes_) {
     auto it = class_set.Find(GcRoot<mirror::Class>(klass));
@@ -42,7 +42,7 @@ bool ClassTable::Contains(mirror::Class* klass) {
   return false;
 }
 
-mirror::Class* ClassTable::LookupByDescriptor(mirror::Class* klass) {
+mirror::Class* ClassTable::LookupByDescriptor(ObjPtr<mirror::Class> klass) {
   ReaderMutexLock mu(Thread::Current(), lock_);
   for (ClassSet& class_set : classes_) {
     auto it = class_set.Find(GcRoot<mirror::Class>(klass));
@@ -108,16 +108,16 @@ mirror::Class* ClassTable::Lookup(const char* descriptor, size_t hash) {
   return nullptr;
 }
 
-void ClassTable::Insert(mirror::Class* klass) {
+void ClassTable::Insert(ObjPtr<mirror::Class> klass) {
   WriterMutexLock mu(Thread::Current(), lock_);
   classes_.back().Insert(GcRoot<mirror::Class>(klass));
 }
 
-void ClassTable::InsertWithoutLocks(mirror::Class* klass) {
+void ClassTable::InsertWithoutLocks(ObjPtr<mirror::Class> klass) {
   classes_.back().Insert(GcRoot<mirror::Class>(klass));
 }
 
-void ClassTable::InsertWithHash(mirror::Class* klass, size_t hash) {
+void ClassTable::InsertWithHash(ObjPtr<mirror::Class> klass, size_t hash) {
   WriterMutexLock mu(Thread::Current(), lock_);
   classes_.back().InsertWithHash(GcRoot<mirror::Class>(klass), hash);
 }

@@ -582,7 +582,7 @@ class UpdateEntryPointsClassVisitor : public ClassVisitor {
   explicit UpdateEntryPointsClassVisitor(instrumentation::Instrumentation* instrumentation)
       : instrumentation_(instrumentation) {}
 
-  bool operator()(mirror::Class* klass) OVERRIDE REQUIRES(Locks::mutator_lock_) {
+  bool operator()(ObjPtr<mirror::Class> klass) OVERRIDE REQUIRES(Locks::mutator_lock_) {
     auto pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
     for (auto& m : klass->GetMethods(pointer_size)) {
       const void* code = m.GetEntryPointFromQuickCompiledCode();
@@ -1022,7 +1022,7 @@ class ClassListCreator : public ClassVisitor {
  public:
   explicit ClassListCreator(std::vector<JDWP::RefTypeId>* classes) : classes_(classes) {}
 
-  bool operator()(mirror::Class* c) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
+  bool operator()(ObjPtr<mirror::Class> c) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     if (!c->IsPrimitive()) {
       classes_->push_back(Dbg::GetObjectRegistry()->AddRefType(c));
     }
@@ -1066,11 +1066,11 @@ JDWP::JdwpError Dbg::GetClassInfo(JDWP::RefTypeId class_id, JDWP::JdwpTypeTag* p
 }
 
 void Dbg::FindLoadedClassBySignature(const char* descriptor, std::vector<JDWP::RefTypeId>* ids) {
-  std::vector<mirror::Class*> classes;
+  std::vector<ObjPtr<mirror::Class>> classes;
   Runtime::Current()->GetClassLinker()->LookupClasses(descriptor, classes);
   ids->clear();
-  for (size_t i = 0; i < classes.size(); ++i) {
-    ids->push_back(gRegistry->Add(classes[i]));
+  for (ObjPtr<mirror::Class> c : classes) {
+    ids->push_back(gRegistry->Add(c));
   }
 }
 

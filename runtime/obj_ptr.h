@@ -154,6 +154,15 @@ class ObjPtr {
   uintptr_t reference_;
 };
 
+// Hash function for stl data structures.
+class HashObjPtr {
+ public:
+  template<class MirrorType, bool kPoison>
+  size_t operator()(const ObjPtr<MirrorType, kPoison>& ptr) const NO_THREAD_SAFETY_ANALYSIS {
+    return std::hash<MirrorType*>()(ptr.Ptr());
+  }
+};
+
 template<class MirrorType, bool kPoison, typename PointerType>
 ALWAYS_INLINE bool operator==(const PointerType* a, const ObjPtr<MirrorType, kPoison>& b)
     REQUIRES_SHARED(Locks::mutator_lock_) {

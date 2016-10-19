@@ -982,7 +982,7 @@ class ResolveCatchBlockExceptionsClassVisitor : public ClassVisitor {
       std::set<std::pair<uint16_t, const DexFile*>>& exceptions_to_resolve)
      : exceptions_to_resolve_(exceptions_to_resolve) {}
 
-  virtual bool operator()(mirror::Class* c) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
+  virtual bool operator()(ObjPtr<mirror::Class> c) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     const auto pointer_size = Runtime::Current()->GetClassLinker()->GetImagePointerSize();
     for (auto& m : c->GetMethods(pointer_size)) {
       ResolveExceptionsForMethod(&m, pointer_size);
@@ -1036,7 +1036,7 @@ class RecordImageClassesVisitor : public ClassVisitor {
   explicit RecordImageClassesVisitor(std::unordered_set<std::string>* image_classes)
       : image_classes_(image_classes) {}
 
-  bool operator()(mirror::Class* klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
+  bool operator()(ObjPtr<mirror::Class> klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     std::string temp;
     image_classes_->insert(klass->GetDescriptor(&temp));
     return true;
@@ -1192,8 +1192,8 @@ class ClinitImageUpdate {
 
   void Walk() REQUIRES_SHARED(Locks::mutator_lock_) {
     // Use the initial classes as roots for a search.
-    for (mirror::Class* klass_root : image_classes_) {
-      VisitClinitClassesObject(klass_root);
+    for (Handle<mirror::Class> klass_root : image_classes_) {
+      VisitClinitClassesObject(klass_root.Get());
     }
     for (Handle<mirror::Class> h_klass : to_insert_) {
       MaybeAddToImageClasses(h_klass, image_class_descriptors_);
@@ -1203,18 +1203,21 @@ class ClinitImageUpdate {
  private:
   class FindImageClassesVisitor : public ClassVisitor {
    public:
-    explicit FindImageClassesVisitor(ClinitImageUpdate* data) : data_(data) {}
+    explicit FindImageClassesVisitor(VariableSizedHandleScope& hs,
+                                     ClinitImageUpdate* data)
+        : data_(data),
+          hs_(hs) {}
 
-    bool operator()(mirror::Class* klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
+    bool operator()(ObjPtr<mirror::Class> klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
       std::string temp;
       const char* name = klass->GetDescriptor(&temp);
       if (data_->image_class_descriptors_->find(name) != data_->image_class_descriptors_->end()) {
-        data_->image_classes_.push_back(klass);
+        data_->image_classes_.push_back(hs_.NewHandle(klass));
       } else {
         // Check whether it is initialized and has a clinit. They must be kept, too.
         if (klass->IsInitialized() && klass->FindClassInitializer(
             Runtime::Current()->GetClassLinker()->GetImagePointerSize()) != nullptr) {
-          data_->image_classes_.push_back(klass);
+          data_->image_classes_.push_back(hs_.NewHandle(klass));
         }
       }
       return true;
@@ -1222,6 +1225,7 @@ class ClinitImageUpdate {
 
    private:
     ClinitImageUpdate* const data_;
+    VariableSizedHandleScope& hs_;
   };
 
   ClinitImageUpdate(VariableSizedHandleScope& hs,
@@ -1239,7 +1243,7 @@ class ClinitImageUpdate {
 
     // Find all the already-marked classes.
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-    FindImageClassesVisitor visitor(this);
+    FindImageClassesVisitor visitor(hs_, this);
     linker->VisitClasses(&visitor);
   }
 
@@ -1273,7 +1277,7 @@ class ClinitImageUpdate {
   mutable std::vector<Handle<mirror::Class>> to_insert_;
   mutable std::unordered_set<mirror::Object*> marked_objects_;
   std::unordered_set<std::string>* const image_class_descriptors_;
-  std::vector<mirror::Class*> image_classes_;
+  std::vector<Handle<mirror::Class>> image_classes_;
   Thread* const self_;
   const char* old_cause_;
 
@@ -2222,24 +2226,34 @@ void CompilerDriver::InitializeClasses(jobject jni_class_loader,
 
 class InitializeArrayClassesAndCreateConflictTablesVisitor : public ClassVisitor {
  public:
-  virtual bool operator()(mirror::Class* klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
+  explicit InitializeArrayClassesAndCreateConflictTablesVisitor(VariableSizedHandleScope& hs)
+      : hs_(hs) {}
+
+  virtual bool operator()(ObjPtr<mirror::Class> klass) OVERRIDE
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     if (Runtime::Current()->GetHeap()->ObjectIsInBootImageSpace(klass)) {
       return true;
     }
     if (klass->IsArrayClass()) {
       StackHandleScope<1> hs(Thread::Current());
-      Runtime::Current()->GetClassLinker()->EnsureInitialized(hs.Self(),
-                                                              hs.NewHandle(klass),
-                                                              true,
-                                                              true);
+      auto h_klass = hs.NewHandleWrapper(&klass);
+      Runtime::Current()->GetClassLinker()->EnsureInitialized(hs.Self(), h_klass, true, true);
     }
-    // Create the conflict tables.
-    FillIMTAndConflictTables(klass);
+    // Collect handles since there may be thread suspension in future EnsureInitialized.
+    to_visit_.push_back(hs_.NewHandle(klass));
     return true;
   }
 
+  void FillAllIMTAndConflictTables() REQUIRES_SHARED(Locks::mutator_lock_) {
+    for (Handle<mirror::Class> c : to_visit_) {
+      // Create the conflict tables.
+      FillIMTAndConflictTables(c.Get());
+    }
+  }
+
  private:
-  void FillIMTAndConflictTables(mirror::Class* klass) REQUIRES_SHARED(Locks::mutator_lock_) {
+  void FillIMTAndConflictTables(ObjPtr<mirror::Class> klass)
+      REQUIRES_SHARED(Locks::mutator_lock_) {
     if (!klass->ShouldHaveImt()) {
       return;
     }
@@ -2255,7 +2269,9 @@ class InitializeArrayClassesAndCreateConflictTablesVisitor : public ClassVisitor
     visited_classes_.insert(klass);
   }
 
-  std::set<mirror::Class*> visited_classes_;
+  VariableSizedHandleScope& hs_;
+  std::vector<Handle<mirror::Class>> to_visit_;
+  std::unordered_set<ObjPtr<mirror::Class>, HashObjPtr> visited_classes_;
 };
 
 void CompilerDriver::InitializeClasses(jobject class_loader,
@@ -2273,8 +2289,10 @@ void CompilerDriver::InitializeClasses(jobject class_loader,
     // Also create conflict tables.
     // Only useful if we are compiling an image (image_classes_ is not null).
     ScopedObjectAccess soa(Thread::Current());
-    InitializeArrayClassesAndCreateConflictTablesVisitor visitor;
+    VariableSizedHandleScope hs(soa.Self());
+    InitializeArrayClassesAndCreateConflictTablesVisitor visitor(hs);
     Runtime::Current()->GetClassLinker()->VisitClassesWithoutClassesLock(&visitor);
+    visitor.FillAllIMTAndConflictTables();
   }
   if (GetCompilerOptions().IsBootImage()) {
     // Prune garbage objects created during aborted transactions.

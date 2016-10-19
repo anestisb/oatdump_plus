@@ -33,6 +33,7 @@
 #include "mirror/object-inl.h"
 #include "mirror/object_array.h"
 #include "oat.h"
+#include "obj_ptr-inl.h"
 #include "quick/quick_method_frame_info.h"
 #include "read_barrier-inl.h"
 #include "runtime-inl.h"
@@ -63,7 +64,7 @@ inline mirror::Class* ArtMethod::GetDeclaringClass() {
   return result;
 }
 
-inline void ArtMethod::SetDeclaringClass(mirror::Class* new_declaring_class) {
+inline void ArtMethod::SetDeclaringClass(ObjPtr<mirror::Class> new_declaring_class) {
   declaring_class_ = GcRoot<mirror::Class>(new_declaring_class);
 }
 

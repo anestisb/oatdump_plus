@@ -73,13 +73,13 @@ class ClassVisitor {
  public:
   virtual ~ClassVisitor() {}
   // Return true to continue visiting.
-  virtual bool operator()(mirror::Class* klass) = 0;
+  virtual bool operator()(ObjPtr<mirror::Class> klass) = 0;
 };
 
 class ClassLoaderVisitor {
  public:
   virtual ~ClassLoaderVisitor() {}
-  virtual void Visit(mirror::ClassLoader* class_loader)
+  virtual void Visit(ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES_SHARED(Locks::classlinker_classes_lock_, Locks::mutator_lock_) = 0;
 };
 
@@ -216,12 +216,12 @@ class ClassLinker {
   mirror::Class* LookupClass(Thread* self,
                              const char* descriptor,
                              size_t hash,
-                             mirror::ClassLoader* class_loader)
+                             ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES(!Locks::classlinker_classes_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Finds all the classes with the given descriptor, regardless of ClassLoader.
-  void LookupClasses(const char* descriptor, std::vector<mirror::Class*>& classes)
+  void LookupClasses(const char* descriptor, std::vector<ObjPtr<mirror::Class>>& classes)
       REQUIRES(!Locks::classlinker_classes_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -229,7 +229,7 @@ class ClassLinker {
 
   // General class unloading is not supported, this is used to prune
   // unwanted classes during image writing.
-  bool RemoveClass(const char* descriptor, mirror::ClassLoader* class_loader)
+  bool RemoveClass(const char* descriptor, ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES(!Locks::classlinker_classes_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -264,7 +264,9 @@ class ClassLinker {
   // Resolve a Type with the given index from the DexFile, storing the
   // result in the DexCache. The referrer is used to identify the
   // target DexCache and ClassLoader to use for resolution.
-  mirror::Class* ResolveType(const DexFile& dex_file, uint16_t type_idx, mirror::Class* referrer)
+  mirror::Class* ResolveType(const DexFile& dex_file,
+                             uint16_t type_idx,
+                             ObjPtr<mirror::Class> referrer)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
@@ -342,9 +344,9 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
-  ArtField* GetResolvedField(uint32_t field_idx, mirror::Class* field_declaring_class)
+  ArtField* GetResolvedField(uint32_t field_idx, ObjPtr<mirror::Class> field_declaring_class)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  ArtField* GetResolvedField(uint32_t field_idx, mirror::DexCache* dex_cache)
+  ArtField* GetResolvedField(uint32_t field_idx, ObjPtr<mirror::DexCache> dex_cache)
       REQUIRES_SHARED(Locks::mutator_lock_);
   ArtField* ResolveField(uint32_t field_idx, ArtMethod* referrer, bool is_static)
       REQUIRES_SHARED(Locks::mutator_lock_)
@@ -402,7 +404,7 @@ class ClassLinker {
       REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
   mirror::DexCache* RegisterDexFile(const DexFile& dex_file,
-                                    mirror::ClassLoader* class_loader)
+                                    ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES(!dex_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
   void RegisterDexFile(const DexFile& dex_file, Handle<mirror::DexCache> dex_cache)
@@ -487,7 +489,7 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!dex_lock_);
   bool VerifyClassUsingOatFile(const DexFile& dex_file,
-                               mirror::Class* klass,
+                               ObjPtr<mirror::Class> klass,
                                mirror::Class::Status& oat_file_class_status)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!dex_lock_);
@@ -505,10 +507,10 @@ class ClassLinker {
                                   jobjectArray methods,
                                   jobjectArray throws)
       REQUIRES_SHARED(Locks::mutator_lock_);
-  std::string GetDescriptorForProxy(mirror::Class* proxy_class)
+  std::string GetDescriptorForProxy(ObjPtr<mirror::Class> proxy_class)
       REQUIRES_SHARED(Locks::mutator_lock_);
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
-  ArtMethod* FindMethodForProxy(mirror::Class* proxy_class, ArtMethod* proxy_method)
+  ArtMethod* FindMethodForProxy(ObjPtr<mirror::Class> proxy_class, ArtMethod* proxy_method)
       REQUIRES(!dex_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -551,7 +553,7 @@ class ClassLinker {
   // Attempts to insert a class into a class table.  Returns null if
   // the class was inserted, otherwise returns an existing class with
   // the same descriptor and ClassLoader.
-  mirror::Class* InsertClass(const char* descriptor, mirror::Class* klass, size_t hash)
+  mirror::Class* InsertClass(const char* descriptor, ObjPtr<mirror::Class> klass, size_t hash)
       REQUIRES(!Locks::classlinker_classes_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -579,7 +581,7 @@ class ClassLinker {
   }
 
   // Used by image writer for checking.
-  bool ClassInClassTable(mirror::Class* klass)
+  bool ClassInClassTable(ObjPtr<mirror::Class> klass)
       REQUIRES(Locks::classlinker_classes_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -596,12 +598,12 @@ class ClassLinker {
 
   // Unlike GetOrCreateAllocatorForClassLoader, GetAllocatorForClassLoader asserts that the
   // allocator for this class loader is already created.
-  LinearAlloc* GetAllocatorForClassLoader(mirror::ClassLoader* class_loader)
+  LinearAlloc* GetAllocatorForClassLoader(ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Return the linear alloc for a class loader if it is already allocated, otherwise allocate and
   // set it. TODO: Consider using a lock other than classlinker_classes_lock_.
-  LinearAlloc* GetOrCreateAllocatorForClassLoader(mirror::ClassLoader* class_loader)
+  LinearAlloc* GetOrCreateAllocatorForClassLoader(ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES(!Locks::classlinker_classes_lock_)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
@@ -622,10 +624,10 @@ class ClassLinker {
       REQUIRES(!dex_lock_);
 
   static bool IsBootClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
-                                mirror::ClassLoader* class_loader)
+                                ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  ArtMethod* AddMethodToConflictTable(mirror::Class* klass,
+  ArtMethod* AddMethodToConflictTable(ObjPtr<mirror::Class> klass,
                                       ArtMethod* conflict_method,
                                       ArtMethod* interface_method,
                                       ArtMethod* method,
@@ -642,7 +644,7 @@ class ClassLinker {
 
 
   // Create the IMT and conflict tables for a class.
-  void FillIMTAndConflictTables(mirror::Class* klass) REQUIRES_SHARED(Locks::mutator_lock_);
+  void FillIMTAndConflictTables(ObjPtr<mirror::Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Clear class table strong roots (other than classes themselves). This is done by dex2oat to
   // allow pruning dex caches.
@@ -652,7 +654,7 @@ class ClassLinker {
 
   // Throw the class initialization failure recorded when first trying to initialize the given
   // class.
-  void ThrowEarlierClassFailure(mirror::Class* c, bool wrap_in_no_class_def = false)
+  void ThrowEarlierClassFailure(ObjPtr<mirror::Class> c, bool wrap_in_no_class_def = false)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!dex_lock_);
 
@@ -711,7 +713,9 @@ class ClassLinker {
       REQUIRES(!dex_lock_, !Roles::uninterruptible_);
 
   // For early bootstrapping by Init
-  mirror::Class* AllocClass(Thread* self, mirror::Class* java_lang_Class, uint32_t class_size)
+  mirror::Class* AllocClass(Thread* self,
+                            ObjPtr<mirror::Class> java_lang_Class,
+                            uint32_t class_size)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 
@@ -722,7 +726,7 @@ class ClassLinker {
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 
-  mirror::DexCache* AllocDexCache(mirror::String** out_location,
+  mirror::DexCache* AllocDexCache(ObjPtr<mirror::String>* out_location,
                                   Thread* self,
                                   const DexFile& dex_file)
       REQUIRES_SHARED(Locks::mutator_lock_)
@@ -737,8 +741,8 @@ class ClassLinker {
       REQUIRES(!Roles::uninterruptible_);
 
   void InitializeDexCache(Thread* self,
-                          mirror::DexCache* dex_cache,
-                          mirror::String* location,
+                          ObjPtr<mirror::DexCache> dex_cache,
+                          ObjPtr<mirror::String> location,
                           const DexFile& dex_file,
                           LinearAlloc* linear_alloc)
       REQUIRES_SHARED(Locks::mutator_lock_)
@@ -747,7 +751,8 @@ class ClassLinker {
   mirror::Class* CreatePrimitiveClass(Thread* self, Primitive::Type type)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
-  mirror::Class* InitializePrimitiveClass(mirror::Class* primitive_class, Primitive::Type type)
+  mirror::Class* InitializePrimitiveClass(ObjPtr<mirror::Class> primitive_class,
+                                          Primitive::Type type)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Roles::uninterruptible_);
 
@@ -775,7 +780,7 @@ class ClassLinker {
   void SetupClass(const DexFile& dex_file,
                   const DexFile::ClassDef& dex_class_def,
                   Handle<mirror::Class> klass,
-                  mirror::ClassLoader* class_loader)
+                  ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   void LoadClass(Thread* self,
@@ -797,7 +802,7 @@ class ClassLinker {
                   Handle<mirror::Class> klass, ArtMethod* dst)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void FixupStaticTrampolines(mirror::Class* klass) REQUIRES_SHARED(Locks::mutator_lock_);
+  void FixupStaticTrampolines(ObjPtr<mirror::Class> klass) REQUIRES_SHARED(Locks::mutator_lock_);
 
   void RegisterDexFileLocked(const DexFile& dex_file, Handle<mirror::DexCache> dex_cache)
       REQUIRES(dex_lock_)
@@ -832,8 +837,8 @@ class ClassLinker {
 
   bool IsSameMethodSignatureInDifferentClassContexts(Thread* self,
                                                      ArtMethod* method,
-                                                     mirror::Class* klass1,
-                                                     mirror::Class* klass2)
+                                                     ObjPtr<mirror::Class> klass1,
+                                                     ObjPtr<mirror::Class> klass2)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   bool LinkClass(Thread* self,
@@ -1042,16 +1047,16 @@ class ClassLinker {
 
   // Register a class loader and create its class table and allocator. Should not be called if
   // these are already created.
-  void RegisterClassLoader(mirror::ClassLoader* class_loader)
+  void RegisterClassLoader(ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::classlinker_classes_lock_);
 
   // Returns null if not found.
-  ClassTable* ClassTableForClassLoader(mirror::ClassLoader* class_loader)
+  ClassTable* ClassTableForClassLoader(ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Insert a new class table if not found.
-  ClassTable* InsertClassTableForClassLoader(mirror::ClassLoader* class_loader)
+  ClassTable* InsertClassTableForClassLoader(ObjPtr<mirror::ClassLoader> class_loader)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(Locks::classlinker_classes_lock_);
 
@@ -1061,24 +1066,27 @@ class ClassLinker {
   // when resolution has occurred. This happens in mirror::Class::SetStatus. As resolution may
   // retire a class, the version of the class in the table is returned and this may differ from
   // the class passed in.
-  mirror::Class* EnsureResolved(Thread* self, const char* descriptor, mirror::Class* klass)
+  mirror::Class* EnsureResolved(Thread* self, const char* descriptor, ObjPtr<mirror::Class> klass)
       WARN_UNUSED
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!dex_lock_);
 
-  void FixupTemporaryDeclaringClass(mirror::Class* temp_class, mirror::Class* new_class)
+  void FixupTemporaryDeclaringClass(ObjPtr<mirror::Class> temp_class,
+                                    ObjPtr<mirror::Class> new_class)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void SetClassRoot(ClassRoot class_root, mirror::Class* klass)
+  void SetClassRoot(ClassRoot class_root, ObjPtr<mirror::Class> klass)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
   // Return the quick generic JNI stub for testing.
   const void* GetRuntimeQuickGenericJniStub() const;
 
-  bool CanWeInitializeClass(mirror::Class* klass, bool can_init_statics, bool can_init_parents)
+  bool CanWeInitializeClass(ObjPtr<mirror::Class> klass,
+                            bool can_init_statics,
+                            bool can_init_parents)
       REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void UpdateClassMethods(mirror::Class* klass,
+  void UpdateClassMethods(ObjPtr<mirror::Class> klass,
                           LengthPrefixedArray<ArtMethod>* new_methods)
       REQUIRES_SHARED(Locks::mutator_lock_)
       REQUIRES(!Locks::classlinker_classes_lock_);
@@ -1110,10 +1118,10 @@ class ClassLinker {
                  /*out*/bool* new_conflict,
                  /*out*/ArtMethod** imt_ref) REQUIRES_SHARED(Locks::mutator_lock_);
 
-  void FillIMTFromIfTable(mirror::IfTable* if_table,
+  void FillIMTFromIfTable(ObjPtr<mirror::IfTable> if_table,
                           ArtMethod* unimplemented_method,
                           ArtMethod* imt_conflict_method,
-                          mirror::Class* klass,
+                          ObjPtr<mirror::Class> klass,
                           bool create_conflict_tables,
                           bool ignore_copied_methods,
                           /*out*/bool* new_conflict,

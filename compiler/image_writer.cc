@@ -698,7 +698,7 @@ bool ImageWriter::AllocMemory() {
 
 class ComputeLazyFieldsForClassesVisitor : public ClassVisitor {
  public:
-  bool operator()(Class* c) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
+  bool operator()(ObjPtr<Class> c) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
     StackHandleScope<1> hs(Thread::Current());
     mirror::Class::ComputeName(hs.NewHandle(c));
     return true;
@@ -839,9 +839,9 @@ class NonImageClassesVisitor : public ClassVisitor {
  public:
   explicit NonImageClassesVisitor(ImageWriter* image_writer) : image_writer_(image_writer) {}
 
-  bool operator()(Class* klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
-    if (!image_writer_->KeepClass(klass)) {
-      classes_to_prune_.insert(klass);
+  bool operator()(ObjPtr<Class> klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
+    if (!image_writer_->KeepClass(klass.Ptr())) {
+      classes_to_prune_.insert(klass.Ptr());
     }
     return true;
   }
