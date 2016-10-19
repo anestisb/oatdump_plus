@@ -307,7 +307,7 @@ std::string Monitor::PrettyContentionInfo(const std::string& owner_name,
   std::ostringstream oss;
   oss << "monitor contention with owner " << owner_name << " (" << owner_tid << ")";
   if (owners_method != nullptr) {
-    oss << " at " << PrettyMethod(owners_method);
+    oss << " at " << owners_method->PrettyMethod();
     oss << "(" << owners_filename << ":" << owners_line_number << ")";
   }
   oss << " waiters=" << num_waiters;
@@ -377,8 +377,8 @@ void Monitor::Lock(Thread* self) {
             int32_t line_number;
             TranslateLocation(m, pc, &filename, &line_number);
             oss << " blocking from "
-                << PrettyMethod(m) << "(" << (filename != nullptr ? filename : "null") << ":"
-                << line_number << ")";
+                << ArtMethod::PrettyMethod(m) << "(" << (filename != nullptr ? filename : "null")
+                << ":" << line_number << ")";
             ATRACE_BEGIN(oss.str().c_str());
           }
           monitor_contenders_.Wait(self);  // Still contended so wait.
@@ -420,7 +420,8 @@ void Monitor::Lock(Thread* self) {
                                             owners_method,
                                             owners_dex_pc,
                                             num_waiters)
-                    << " in " << PrettyMethod(m) << " for " << PrettyDuration(MsToNs(wait_ms));
+                    << " in " << ArtMethod::PrettyMethod(m) << " for "
+                    << PrettyDuration(MsToNs(wait_ms));
               }
               const char* owners_filename;
               int32_t owners_line_number;
@@ -503,14 +504,14 @@ void Monitor::FailedUnlock(mirror::Object* o,
     if (found_owner_thread_id == 0u) {
       ThrowIllegalMonitorStateExceptionF("unlock of unowned monitor on object of type '%s'"
                                          " on thread '%s'",
-                                         PrettyTypeOf(o).c_str(),
+                                         mirror::Object::PrettyTypeOf(o).c_str(),
                                          expected_owner_string.c_str());
     } else {
       // Race: the original read found an owner but now there is none
       ThrowIllegalMonitorStateExceptionF("unlock of monitor owned by '%s' on object of type '%s'"
                                          " (where now the monitor appears unowned) on thread '%s'",
                                          found_owner_string.c_str(),
-                                         PrettyTypeOf(o).c_str(),
+                                         mirror::Object::PrettyTypeOf(o).c_str(),
                                          expected_owner_string.c_str());
     }
   } else {
@@ -519,7 +520,7 @@ void Monitor::FailedUnlock(mirror::Object* o,
       ThrowIllegalMonitorStateExceptionF("unlock of monitor owned by '%s' on object of type '%s'"
                                          " (originally believed to be unowned) on thread '%s'",
                                          current_owner_string.c_str(),
-                                         PrettyTypeOf(o).c_str(),
+                                         mirror::Object::PrettyTypeOf(o).c_str(),
                                          expected_owner_string.c_str());
     } else {
       if (found_owner_thread_id != current_owner_thread_id) {
@@ -528,13 +529,13 @@ void Monitor::FailedUnlock(mirror::Object* o,
                                            " owned by '%s') on object of type '%s' on thread '%s'",
                                            found_owner_string.c_str(),
                                            current_owner_string.c_str(),
-                                           PrettyTypeOf(o).c_str(),
+                                           mirror::Object::PrettyTypeOf(o).c_str(),
                                            expected_owner_string.c_str());
       } else {
         ThrowIllegalMonitorStateExceptionF("unlock of monitor owned by '%s' on object of type '%s'"
                                            " on thread '%s",
                                            current_owner_string.c_str(),
-                                           PrettyTypeOf(o).c_str(),
+                                           mirror::Object::PrettyTypeOf(o).c_str(),
                                            expected_owner_string.c_str());
       }
     }
@@ -1144,12 +1145,12 @@ void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
         // current thread, which isn't safe if this is the only runnable thread.
         os << wait_message << StringPrintf("<@addr=0x%" PRIxPTR "> (a %s)",
                                            reinterpret_cast<intptr_t>(pretty_object),
-                                           PrettyTypeOf(pretty_object).c_str());
+                                           pretty_object->PrettyTypeOf().c_str());
       } else {
         // - waiting on <0x6008c468> (a java.lang.Class<java.lang.ref.ReferenceQueue>)
         // Call PrettyTypeOf before IdentityHashCode since IdentityHashCode can cause thread
         // suspension and move pretty_object.
-        const std::string pretty_type(PrettyTypeOf(pretty_object));
+        const std::string pretty_type(pretty_object->PrettyTypeOf());
         os << wait_message << StringPrintf("<0x%08x> (a %s)", pretty_object->IdentityHashCode(),
                                            pretty_type.c_str());
       }
@@ -1201,7 +1202,7 @@ void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::O
 
   // Is there any reason to believe there's any synchronization in this method?
   const DexFile::CodeItem* code_item = m->GetCodeItem();
-  CHECK(code_item != nullptr) << PrettyMethod(m);
+  CHECK(code_item != nullptr) << m->PrettyMethod();
   if (code_item->tries_size_ == 0) {
     return;  // No "tries" implies no synchronization, so no held locks to report.
   }
@@ -1211,7 +1212,7 @@ void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::O
   // inconsistent stack anyways.
   uint32_t dex_pc = stack_visitor->GetDexPc(abort_on_failure);
   if (!abort_on_failure && dex_pc == DexFile::kDexNoIndex) {
-    LOG(ERROR) << "Could not find dex_pc for " << PrettyMethod(m);
+    LOG(ERROR) << "Could not find dex_pc for " << m->PrettyMethod();
     return;
   }
 
@@ -1234,7 +1235,7 @@ void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::O
     uint32_t value;
     bool success = stack_visitor->GetVReg(m, monitor_register, kReferenceVReg, &value);
     CHECK(success) << "Failed to read v" << monitor_register << " of kind "
-                   << kReferenceVReg << " in method " << PrettyMethod(m);
+                   << kReferenceVReg << " in method " << m->PrettyMethod();
     mirror::Object* o = reinterpret_cast<mirror::Object*>(value);
     callback(o, callback_context);
   }

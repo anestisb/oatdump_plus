@@ -266,13 +266,32 @@ void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, ObjPtr<Object> 
     }
   }
   LOG(FATAL) << "Failed to find field for assignment to " << reinterpret_cast<void*>(this)
-      << " of type " << PrettyDescriptor(c) << " at offset " << field_offset;
+      << " of type " << c->PrettyDescriptor() << " at offset " << field_offset;
   UNREACHABLE();
 }
 
 ArtField* Object::FindFieldByOffset(MemberOffset offset) {
   return IsClass() ? ArtField::FindStaticFieldWithOffset(AsClass(), offset.Uint32Value())
       : ArtField::FindInstanceFieldWithOffset(GetClass(), offset.Uint32Value());
+}
+
+std::string Object::PrettyTypeOf(ObjPtr<mirror::Object> obj) {
+  if (obj == nullptr) {
+    return "null";
+  }
+  return obj->PrettyTypeOf();
+}
+
+std::string Object::PrettyTypeOf() {
+  if (GetClass() == nullptr) {
+    return "(raw)";
+  }
+  std::string temp;
+  std::string result(PrettyDescriptor(GetClass()->GetDescriptor(&temp)));
+  if (IsClass()) {
+    result += "<" + PrettyDescriptor(AsClass()->GetDescriptor(&temp)) + ">";
+  }
+  return result;
 }
 
 }  // namespace mirror

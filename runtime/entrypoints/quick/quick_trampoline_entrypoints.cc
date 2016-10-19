@@ -660,11 +660,11 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
       StackedShadowFrameType::kDeoptimizationShadowFrame, false);
   ManagedStack fragment;
 
-  DCHECK(!method->IsNative()) << PrettyMethod(method);
+  DCHECK(!method->IsNative()) << method->PrettyMethod();
   uint32_t shorty_len = 0;
   ArtMethod* non_proxy_method = method->GetInterfaceMethodIfProxy(kRuntimePointerSize);
   const DexFile::CodeItem* code_item = non_proxy_method->GetCodeItem();
-  DCHECK(code_item != nullptr) << PrettyMethod(method);
+  DCHECK(code_item != nullptr) << method->PrettyMethod();
   const char* shorty = non_proxy_method->GetShorty(&shorty_len);
 
   JValue result;
@@ -679,8 +679,8 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
       while (linked->GetLink() != nullptr) {
         linked = linked->GetLink();
       }
-      CHECK_EQ(method, linked->GetMethod()) << PrettyMethod(method) << " "
-          << PrettyMethod(linked->GetMethod());
+      CHECK_EQ(method, linked->GetMethod()) << method->PrettyMethod() << " "
+          << ArtMethod::PrettyMethod(linked->GetMethod());
     }
 
     if (VLOG_IS_ON(deopt)) {
@@ -743,7 +743,8 @@ extern "C" uint64_t artQuickToInterpreterBridge(ArtMethod* method, Thread* self,
       StackHandleScope<1> hs(self);
       Handle<mirror::Class> h_class(hs.NewHandle(shadow_frame->GetMethod()->GetDeclaringClass()));
       if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(self, h_class, true, true)) {
-        DCHECK(Thread::Current()->IsExceptionPending()) << PrettyMethod(shadow_frame->GetMethod());
+        DCHECK(Thread::Current()->IsExceptionPending())
+            << shadow_frame->GetMethod()->PrettyMethod();
         self->PopManagedStackFragment(fragment);
         return 0;
       }
@@ -846,13 +847,13 @@ void BuildQuickArgumentVisitor::FixupReferences() {
 extern "C" uint64_t artQuickProxyInvokeHandler(
     ArtMethod* proxy_method, mirror::Object* receiver, Thread* self, ArtMethod** sp)
     REQUIRES_SHARED(Locks::mutator_lock_) {
-  DCHECK(proxy_method->IsProxyMethod()) << PrettyMethod(proxy_method);
-  DCHECK(receiver->GetClass()->IsProxyClass()) << PrettyMethod(proxy_method);
+  DCHECK(proxy_method->IsProxyMethod()) << proxy_method->PrettyMethod();
+  DCHECK(receiver->GetClass()->IsProxyClass()) << proxy_method->PrettyMethod();
   // Ensure we don't get thread suspension until the object arguments are safely in jobjects.
   const char* old_cause =
       self->StartAssertNoThreadSuspension("Adding to IRT proxy object arguments");
   // Register the top of the managed stack, making stack crawlable.
-  DCHECK_EQ((*sp), proxy_method) << PrettyMethod(proxy_method);
+  DCHECK_EQ((*sp), proxy_method) << proxy_method->PrettyMethod();
   self->VerifyStack();
   // Start new JNI local reference state.
   JNIEnvExt* env = self->GetJniEnv();
@@ -863,21 +864,21 @@ extern "C" uint64_t artQuickProxyInvokeHandler(
 
   // Placing arguments into args vector and remove the receiver.
   ArtMethod* non_proxy_method = proxy_method->GetInterfaceMethodIfProxy(kRuntimePointerSize);
-  CHECK(!non_proxy_method->IsStatic()) << PrettyMethod(proxy_method) << " "
-                                       << PrettyMethod(non_proxy_method);
+  CHECK(!non_proxy_method->IsStatic()) << proxy_method->PrettyMethod() << " "
+                                       << non_proxy_method->PrettyMethod();
   std::vector<jvalue> args;
   uint32_t shorty_len = 0;
   const char* shorty = non_proxy_method->GetShorty(&shorty_len);
   BuildQuickArgumentVisitor local_ref_visitor(sp, false, shorty, shorty_len, &soa, &args);
 
   local_ref_visitor.VisitArguments();
-  DCHECK_GT(args.size(), 0U) << PrettyMethod(proxy_method);
+  DCHECK_GT(args.size(), 0U) << proxy_method->PrettyMethod();
   args.erase(args.begin());
 
   // Convert proxy method into expected interface method.
   ArtMethod* interface_method = proxy_method->FindOverriddenMethod(kRuntimePointerSize);
-  DCHECK(interface_method != nullptr) << PrettyMethod(proxy_method);
-  DCHECK(!interface_method->IsProxyMethod()) << PrettyMethod(interface_method);
+  DCHECK(interface_method != nullptr) << proxy_method->PrettyMethod();
+  DCHECK(!interface_method->IsProxyMethod()) << interface_method->PrettyMethod();
   self->EndAssertNoThreadSuspension(old_cause);
   DCHECK_EQ(Runtime::Current()->GetClassLinker()->GetImagePointerSize(), kRuntimePointerSize);
   DCHECK(!Runtime::Current()->IsActiveTransaction());
@@ -1034,7 +1035,7 @@ extern "C" const void* artQuickResolutionTrampoline(
   if (LIKELY(!self->IsExceptionPending())) {
     // Incompatible class change should have been handled in resolve method.
     CHECK(!called->CheckIncompatibleClassChange(invoke_type))
-        << PrettyMethod(called) << " " << invoke_type;
+        << called->PrettyMethod() << " " << invoke_type;
     if (virtual_or_interface || invoke_type == kSuper) {
       // Refine called method based on receiver for kVirtual/kInterface, and
       // caller for kSuper.
@@ -1064,8 +1065,8 @@ extern "C" const void* artQuickResolutionTrampoline(
         }
       }
 
-      CHECK(called != nullptr) << PrettyMethod(orig_called) << " "
-                               << PrettyTypeOf(receiver) << " "
+      CHECK(called != nullptr) << orig_called->PrettyMethod() << " "
+                               << mirror::Object::PrettyTypeOf(receiver) << " "
                                << invoke_type << " " << orig_called->GetVtableIndex();
 
       // We came here because of sharpening. Ensure the dex cache is up-to-date on the method index
@@ -1999,7 +2000,7 @@ static void artQuickGenericJniEndJNINonRef(Thread* self,
 extern "C" TwoWordReturn artQuickGenericJniTrampoline(Thread* self, ArtMethod** sp)
     REQUIRES_SHARED(Locks::mutator_lock_) {
   ArtMethod* called = *sp;
-  DCHECK(called->IsNative()) << PrettyMethod(called, true);
+  DCHECK(called->IsNative()) << called->PrettyMethod(true);
   uint32_t shorty_len = 0;
   const char* shorty = called->GetShorty(&shorty_len);
   bool critical_native = called->IsAnnotatedWithCriticalNative();
@@ -2149,7 +2150,7 @@ static TwoWordReturn artInvokeCommon(uint32_t method_idx, mirror::Object* this_o
   const void* code = method->GetEntryPointFromQuickCompiledCode();
 
   // When we return, the caller will branch to this address, so it had better not be 0!
-  DCHECK(code != nullptr) << "Code was null in method: " << PrettyMethod(method)
+  DCHECK(code != nullptr) << "Code was null in method: " << method->PrettyMethod()
                           << " location: "
                           << method->GetDexFile()->GetLocation();
 
@@ -2240,7 +2241,7 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t deadbeef ATTRIBUT
 
   ArtMethod* interface_method = caller_method->GetDexCacheResolvedMethod(
       dex_method_idx, kRuntimePointerSize);
-  DCHECK(interface_method != nullptr) << dex_method_idx << " " << PrettyMethod(caller_method);
+  DCHECK(interface_method != nullptr) << dex_method_idx << " " << caller_method->PrettyMethod();
   ArtMethod* method = nullptr;
   ImTable* imt = cls->GetImt(kRuntimePointerSize);
 
@@ -2321,7 +2322,7 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(uint32_t deadbeef ATTRIBUT
   const void* code = method->GetEntryPointFromQuickCompiledCode();
 
   // When we return, the caller will branch to this address, so it had better not be 0!
-  DCHECK(code != nullptr) << "Code was null in method: " << PrettyMethod(method)
+  DCHECK(code != nullptr) << "Code was null in method: " << method->PrettyMethod()
                           << " location: " << method->GetDexFile()->GetLocation();
 
   return GetTwoWordSuccessValue(reinterpret_cast<uintptr_t>(code),

@@ -44,7 +44,7 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(ArtMethod* method,
   bool interpreter_entry = (result == GetQuickToInterpreterBridge());
   instrumentation->PushInstrumentationStackFrame(self, method->IsStatic() ? nullptr : this_object,
                                                  method, lr, interpreter_entry);
-  CHECK(result != nullptr) << PrettyMethod(method);
+  CHECK(result != nullptr) << method->PrettyMethod();
   return result;
 }
 

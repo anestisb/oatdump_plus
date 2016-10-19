@@ -58,7 +58,7 @@ class JniInternalTest : public CommonCompilerTest {
   void ExpectException(jclass exception_class) {
     ScopedObjectAccess soa(env_);
     EXPECT_TRUE(env_->ExceptionCheck())
-        << PrettyDescriptor(soa.Decode<mirror::Class>(exception_class));
+        << mirror::Class::PrettyDescriptor(soa.Decode<mirror::Class>(exception_class));
     jthrowable exception = env_->ExceptionOccurred();
     EXPECT_NE(nullptr, exception);
     env_->ExceptionClear();

@@ -47,7 +47,7 @@ static jobject Parameter_getAnnotationNative(JNIEnv* env,
     ThrowIllegalArgumentException(
         StringPrintf("Illegal parameterIndex %d for %s, parameter_count is %d",
                      parameterIndex,
-                     PrettyMethod(method).c_str(),
+                     method->PrettyMethod().c_str(),
                      parameter_count).c_str());
     return nullptr;
   }

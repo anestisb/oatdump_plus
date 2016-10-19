@@ -204,6 +204,14 @@ class MANAGED String FINAL : public Object {
   static void ResetClass() REQUIRES_SHARED(Locks::mutator_lock_);
   static void VisitRoots(RootVisitor* visitor) REQUIRES_SHARED(Locks::mutator_lock_);
 
+  // Returns a human-readable equivalent of 'descriptor'. So "I" would be "int",
+  // "[[I" would be "int[][]", "[Ljava/lang/String;" would be
+  // "java.lang.String[]", and so forth.
+  static std::string PrettyStringDescriptor(ObjPtr<mirror::String> descriptor)
+      REQUIRES_SHARED(Locks::mutator_lock_);
+  std::string PrettyStringDescriptor()
+      REQUIRES_SHARED(Locks::mutator_lock_);
+
  private:
   void SetHashCode(int32_t new_hash_code) REQUIRES_SHARED(Locks::mutator_lock_) {
     // Hash code is invariant so use non-transactional mode. Also disable check as we may run inside

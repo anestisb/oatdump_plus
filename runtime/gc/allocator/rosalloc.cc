@@ -1966,7 +1966,7 @@ void RosAlloc::Run::Verify(Thread* self, RosAlloc* rosalloc, bool running_on_mem
       CHECK_LE(obj_size + memory_tool_modifier, kLargeSizeThreshold)
           << "A run slot contains a large object " << Dump();
       CHECK_EQ(SizeToIndex(obj_size + memory_tool_modifier), idx)
-          << PrettyTypeOf(obj) << " "
+          << obj->PrettyTypeOf() << " "
           << "obj_size=" << obj_size << "(" << obj_size + memory_tool_modifier << "), idx=" << idx
           << " A run slot contains an object with wrong size " << Dump();
     }

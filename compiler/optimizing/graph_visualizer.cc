@@ -441,8 +441,8 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
 
   void VisitInvoke(HInvoke* invoke) OVERRIDE {
     StartAttributeStream("dex_file_index") << invoke->GetDexMethodIndex();
-    StartAttributeStream("method_name") << PrettyMethod(
-        invoke->GetDexMethodIndex(), GetGraph()->GetDexFile(), /* with_signature */ false);
+    StartAttributeStream("method_name") << GetGraph()->GetDexFile().PrettyMethod(
+        invoke->GetDexMethodIndex(), /* with_signature */ false);
   }
 
   void VisitInvokeUnresolved(HInvokeUnresolved* invoke) OVERRIDE {
@@ -465,15 +465,15 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
   }
 
   void VisitInstanceFieldGet(HInstanceFieldGet* iget) OVERRIDE {
-    StartAttributeStream("field_name") << PrettyField(iget->GetFieldInfo().GetFieldIndex(),
-                                                      iget->GetFieldInfo().GetDexFile(),
+    StartAttributeStream("field_name") <<
+        iget->GetFieldInfo().GetDexFile().PrettyField(iget->GetFieldInfo().GetFieldIndex(),
                                                       /* with type */ false);
     StartAttributeStream("field_type") << iget->GetFieldType();
   }
 
   void VisitInstanceFieldSet(HInstanceFieldSet* iset) OVERRIDE {
-    StartAttributeStream("field_name") << PrettyField(iset->GetFieldInfo().GetFieldIndex(),
-                                                      iset->GetFieldInfo().GetDexFile(),
+    StartAttributeStream("field_name") <<
+        iset->GetFieldInfo().GetDexFile().PrettyField(iset->GetFieldInfo().GetFieldIndex(),
                                                       /* with type */ false);
     StartAttributeStream("field_type") << iset->GetFieldType();
   }
@@ -604,7 +604,8 @@ class HGraphVisualizerPrinter : public HGraphDelegateVisitor {
         : instruction->GetReferenceTypeInfo();
       ScopedObjectAccess soa(Thread::Current());
       if (info.IsValid()) {
-        StartAttributeStream("klass") << PrettyDescriptor(info.GetTypeHandle().Get());
+        StartAttributeStream("klass")
+            << mirror::Class::PrettyDescriptor(info.GetTypeHandle().Get());
         StartAttributeStream("can_be_null")
             << std::boolalpha << instruction->CanBeNull() << std::noboolalpha;
         StartAttributeStream("exact") << std::boolalpha << info.IsExact() << std::noboolalpha;

@@ -69,7 +69,7 @@ static void WriteDebugSymbols(ElfBuilder<ElfTypes>* builder,
       name_offset = strtab->Write(info.trampoline_name);
     } else {
       DCHECK(info.dex_file != nullptr);
-      std::string name = PrettyMethod(info.dex_method_index, *info.dex_file, with_signature);
+      std::string name = info.dex_file->PrettyMethod(info.dex_method_index, with_signature);
       if (deduped_addresses.find(info.code_address) != deduped_addresses.end()) {
         name += " [DEDUPED]";
       }

@@ -332,7 +332,7 @@ ShadowFrame* Thread::FindOrCreateDebuggerShadowFrame(size_t frame_id,
   if (shadow_frame != nullptr) {
     return shadow_frame;
   }
-  VLOG(deopt) << "Create pre-deopted ShadowFrame for " << PrettyMethod(method);
+  VLOG(deopt) << "Create pre-deopted ShadowFrame for " << ArtMethod::PrettyMethod(method);
   shadow_frame = ShadowFrame::CreateDeoptimizedFrame(num_vregs, nullptr, method, dex_pc);
   FrameIdToShadowFrame* record = FrameIdToShadowFrame::Create(frame_id,
                                                               shadow_frame,
@@ -1380,7 +1380,7 @@ struct StackDumpVisitor : public StackVisitor {
       last_method = m;
     }
     if (repetition_count < kMaxRepetition) {
-      os << "  at " << PrettyMethod(m, false);
+      os << "  at " << m->PrettyMethod(false);
       if (m->IsNative()) {
         os << "(Native method)";
       } else {
@@ -1420,11 +1420,11 @@ struct StackDumpVisitor : public StackVisitor {
         // Getting the identity hashcode here would result in lock inflation and suspension of the
         // current thread, which isn't safe if this is the only runnable thread.
         os << StringPrintf("<@addr=0x%" PRIxPTR "> (a %s)", reinterpret_cast<intptr_t>(o),
-                           PrettyTypeOf(o).c_str());
+                           o->PrettyTypeOf().c_str());
       } else {
         // IdentityHashCode can cause thread suspension, which would invalidate o if it moved. So
         // we get the pretty type beofre we call IdentityHashCode.
-        const std::string pretty_type(PrettyTypeOf(o));
+        const std::string pretty_type(o->PrettyTypeOf());
         os << StringPrintf("<0x%08x> (a %s)", o->IdentityHashCode(), pretty_type.c_str());
       }
     }
@@ -1668,7 +1668,7 @@ class MonitorExitVisitor : public SingleRootVisitor {
       OVERRIDE NO_THREAD_SAFETY_ANALYSIS {
     if (self_->HoldsLock(entered_monitor)) {
       LOG(WARNING) << "Calling MonitorExit on object "
-                   << entered_monitor << " (" << PrettyTypeOf(entered_monitor) << ")"
+                   << entered_monitor << " (" << entered_monitor->PrettyTypeOf() << ")"
                    << " left locked by native thread "
                    << *Thread::Current() << " which is detaching";
       entered_monitor->MonitorExit(self_);
@@ -2697,7 +2697,7 @@ class ReferenceMapVisitor : public StackVisitor {
 
   bool VisitFrame() REQUIRES_SHARED(Locks::mutator_lock_) {
     if (false) {
-      LOG(INFO) << "Visiting stack roots in " << PrettyMethod(GetMethod())
+      LOG(INFO) << "Visiting stack roots in " << ArtMethod::PrettyMethod(GetMethod())
                 << StringPrintf("@ PC:%04x", GetDexPc());
     }
     ShadowFrame* shadow_frame = GetCurrentShadowFrame();
@@ -2759,7 +2759,8 @@ class ReferenceMapVisitor : public StackVisitor {
             LOG(FATAL_WITHOUT_ABORT) << "Method@" << method->GetDexMethodIndex() << ":" << method
                                      << " klass@" << klass;
             // Pretty info last in case it crashes.
-            LOG(FATAL) << "Method " << PrettyMethod(method) << " klass " << PrettyClass(klass);
+            LOG(FATAL) << "Method " << method->PrettyMethod() << " klass "
+                       << klass->PrettyClass();
           }
         }
       }

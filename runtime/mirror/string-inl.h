@@ -232,7 +232,7 @@ inline String* String::Alloc(Thread* self, int32_t utf16_length_with_flag,
   const size_t max_length = RoundDown(max_alloc_length, kObjectAlignment / block_size);
   if (UNLIKELY(length > max_length)) {
     self->ThrowOutOfMemoryError(StringPrintf("%s of length %d would overflow",
-                                             PrettyDescriptor(string_class).c_str(),
+                                             Class::PrettyDescriptor(string_class).c_str(),
                                              static_cast<int>(length)).c_str());
     return nullptr;
   }

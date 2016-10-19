@@ -25,19 +25,11 @@
 #include <unistd.h>
 #include <memory>
 
-#include "art_field-inl.h"
-#include "art_method-inl.h"
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
-#include "mirror/class-inl.h"
-#include "mirror/class_loader.h"
-#include "mirror/object-inl.h"
-#include "mirror/object_array-inl.h"
-#include "mirror/string.h"
 #include "oat_quick_method_header.h"
-#include "obj_ptr-inl.h"
 #include "os.h"
 #include "scoped_thread_state_change-inl.h"
 #include "utf-inl.h"
@@ -271,21 +263,6 @@ bool PrintFileToLog(const std::string& file_name, LogSeverity level) {
   }
 }
 
-std::string PrettyStringDescriptor(ObjPtr<mirror::String> java_descriptor) {
-  if (java_descriptor == nullptr) {
-    return "null";
-  }
-  return PrettyDescriptor(java_descriptor->ToModifiedUtf8().c_str());
-}
-
-std::string PrettyDescriptor(ObjPtr<mirror::Class> klass) {
-  if (klass == nullptr) {
-    return "null";
-  }
-  std::string temp;
-  return PrettyDescriptor(klass->GetDescriptor(&temp));
-}
-
 std::string PrettyDescriptor(const char* descriptor) {
   // Count the number of '['s to get the dimensionality.
   const char* c = descriptor;
@@ -335,46 +312,6 @@ std::string PrettyDescriptor(const char* descriptor) {
   return result;
 }
 
-std::string PrettyField(ArtField* f, bool with_type) {
-  if (f == nullptr) {
-    return "null";
-  }
-  std::string result;
-  if (with_type) {
-    result += PrettyDescriptor(f->GetTypeDescriptor());
-    result += ' ';
-  }
-  std::string temp;
-  result += PrettyDescriptor(f->GetDeclaringClass()->GetDescriptor(&temp));
-  result += '.';
-  result += f->GetName();
-  return result;
-}
-
-std::string PrettyField(uint32_t field_idx, const DexFile& dex_file, bool with_type) {
-  if (field_idx >= dex_file.NumFieldIds()) {
-    return StringPrintf("<<invalid-field-idx-%d>>", field_idx);
-  }
-  const DexFile::FieldId& field_id = dex_file.GetFieldId(field_idx);
-  std::string result;
-  if (with_type) {
-    result += dex_file.GetFieldTypeDescriptor(field_id);
-    result += ' ';
-  }
-  result += PrettyDescriptor(dex_file.GetFieldDeclaringClassDescriptor(field_id));
-  result += '.';
-  result += dex_file.GetFieldName(field_id);
-  return result;
-}
-
-std::string PrettyType(uint32_t type_idx, const DexFile& dex_file) {
-  if (type_idx >= dex_file.NumTypeIds()) {
-    return StringPrintf("<<invalid-type-idx-%d>>", type_idx);
-  }
-  const DexFile::TypeId& type_id = dex_file.GetTypeId(type_idx);
-  return PrettyDescriptor(dex_file.GetTypeDescriptor(type_id));
-}
-
 std::string PrettyArguments(const char* signature) {
   std::string result;
   result += '(';
@@ -410,91 +347,6 @@ std::string PrettyReturnType(const char* signature) {
   CHECK(return_type != nullptr);
   ++return_type;  // Skip ')'.
   return PrettyDescriptor(return_type);
-}
-
-std::string PrettyMethod(ArtMethod* m, bool with_signature) {
-  if (m == nullptr) {
-    return "null";
-  }
-  if (!m->IsRuntimeMethod()) {
-    m = m->GetInterfaceMethodIfProxy(Runtime::Current()->GetClassLinker()->GetImagePointerSize());
-  }
-  std::string result(PrettyDescriptor(m->GetDeclaringClassDescriptor()));
-  result += '.';
-  result += m->GetName();
-  if (UNLIKELY(m->IsFastNative())) {
-    result += "!";
-  }
-  if (with_signature) {
-    const Signature signature = m->GetSignature();
-    std::string sig_as_string(signature.ToString());
-    if (signature == Signature::NoSignature()) {
-      return result + sig_as_string;
-    }
-    result = PrettyReturnType(sig_as_string.c_str()) + " " + result +
-        PrettyArguments(sig_as_string.c_str());
-  }
-  return result;
-}
-
-std::string PrettyMethod(uint32_t method_idx, const DexFile& dex_file, bool with_signature) {
-  if (method_idx >= dex_file.NumMethodIds()) {
-    return StringPrintf("<<invalid-method-idx-%d>>", method_idx);
-  }
-  const DexFile::MethodId& method_id = dex_file.GetMethodId(method_idx);
-  std::string result(PrettyDescriptor(dex_file.GetMethodDeclaringClassDescriptor(method_id)));
-  result += '.';
-  result += dex_file.GetMethodName(method_id);
-  if (with_signature) {
-    const Signature signature = dex_file.GetMethodSignature(method_id);
-    std::string sig_as_string(signature.ToString());
-    if (signature == Signature::NoSignature()) {
-      return result + sig_as_string;
-    }
-    result = PrettyReturnType(sig_as_string.c_str()) + " " + result +
-        PrettyArguments(sig_as_string.c_str());
-  }
-  return result;
-}
-
-std::string PrettyTypeOf(ObjPtr<mirror::Object> obj) {
-  if (obj == nullptr) {
-    return "null";
-  }
-  if (obj->GetClass() == nullptr) {
-    return "(raw)";
-  }
-  std::string temp;
-  std::string result(PrettyDescriptor(obj->GetClass()->GetDescriptor(&temp)));
-  if (obj->IsClass()) {
-    result += "<" + PrettyDescriptor(obj->AsClass()->GetDescriptor(&temp)) + ">";
-  }
-  return result;
-}
-
-std::string PrettyClass(ObjPtr<mirror::Class> c) {
-  if (c == nullptr) {
-    return "null";
-  }
-  std::string result;
-  result += "java.lang.Class<";
-  result += PrettyDescriptor(c);
-  result += ">";
-  return result;
-}
-
-std::string PrettyClassAndClassLoader(ObjPtr<mirror::Class> c) {
-  if (c == nullptr) {
-    return "null";
-  }
-  std::string result;
-  result += "java.lang.Class<";
-  result += PrettyDescriptor(c);
-  result += ",";
-  result += PrettyTypeOf(c->GetClassLoader());
-  // TODO: add an identifying hash value for the loader
-  result += ">";
-  return result;
 }
 
 std::string PrettyJavaAccessFlags(uint32_t access_flags) {
@@ -670,38 +522,6 @@ std::string DescriptorToName(const char* descriptor) {
     return result;
   }
   return descriptor;
-}
-
-std::string JniShortName(ArtMethod* m) {
-  std::string class_name(m->GetDeclaringClassDescriptor());
-  // Remove the leading 'L' and trailing ';'...
-  CHECK_EQ(class_name[0], 'L') << class_name;
-  CHECK_EQ(class_name[class_name.size() - 1], ';') << class_name;
-  class_name.erase(0, 1);
-  class_name.erase(class_name.size() - 1, 1);
-
-  std::string method_name(m->GetName());
-
-  std::string short_name;
-  short_name += "Java_";
-  short_name += MangleForJni(class_name);
-  short_name += "_";
-  short_name += MangleForJni(method_name);
-  return short_name;
-}
-
-std::string JniLongName(ArtMethod* m) {
-  std::string long_name;
-  long_name += JniShortName(m);
-  long_name += "__";
-
-  std::string signature(m->GetSignature().ToString());
-  signature.erase(0, 1);
-  signature.erase(signature.begin() + signature.find(')'), signature.end());
-
-  long_name += MangleForJni(signature);
-
-  return long_name;
 }
 
 // Helper for IsValidPartOfMemberNameUtf8(), a bit vector indicating valid low ascii.
@@ -1309,7 +1129,7 @@ static void DumpMethodCFGImpl(const DexFile* dex_file,
                               const DexFile::CodeItem* code_item,
                               std::ostream& os) {
   os << "digraph {\n";
-  os << "  # /* " << PrettyMethod(dex_method_idx, *dex_file, true) << " */\n";
+  os << "  # /* " << dex_file->PrettyMethod(dex_method_idx, true) << " */\n";
 
   std::set<uint32_t> dex_pc_is_branch_target;
   {
@@ -1625,13 +1445,6 @@ static void DumpMethodCFGImpl(const DexFile* dex_file,
   }
 
   os << "}\n";
-}
-
-void DumpMethodCFG(ArtMethod* method, std::ostream& os) {
-  const DexFile* dex_file = method->GetDexFile();
-  const DexFile::CodeItem* code_item = dex_file->GetCodeItem(method->GetCodeItemOffset());
-
-  DumpMethodCFGImpl(dex_file, method->GetDexMethodIndex(), code_item, os);
 }
 
 void DumpMethodCFG(const DexFile* dex_file, uint32_t dex_method_idx, std::ostream& os) {

@@ -208,7 +208,7 @@ bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method, bool osr) {
   // Ensure the class is initialized.
   Handle<mirror::Class> h_class(hs.NewHandle(method->GetDeclaringClass()));
   if (!runtime->GetClassLinker()->EnsureInitialized(self, h_class, true, true)) {
-    VLOG(jit) << "JIT failed to initialize " << PrettyMethod(method);
+    VLOG(jit) << "JIT failed to initialize " << method->PrettyMethod();
     return false;
   }
 
@@ -226,7 +226,7 @@ bool JitCompiler::CompileMethod(Thread* self, ArtMethod* method, bool osr) {
              << " "
              << code_cache->GetMemorySizeOfCodePointer(ptr)
              << " "
-             << PrettyMethod(method)
+             << method->PrettyMethod()
              << std::endl;
       std::string str = stream.str();
       bool res = perf_file_->WriteFully(str.c_str(), str.size());

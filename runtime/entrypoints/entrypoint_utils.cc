@@ -61,12 +61,12 @@ static inline mirror::Class* CheckFilledNewArrayAlloc(uint32_t type_idx,
   if (UNLIKELY(klass->IsPrimitive() && !klass->IsPrimitiveInt())) {
     if (klass->IsPrimitiveLong() || klass->IsPrimitiveDouble()) {
       ThrowRuntimeException("Bad filled array request for type %s",
-                            PrettyDescriptor(klass).c_str());
+                            klass->PrettyDescriptor().c_str());
     } else {
       self->ThrowNewExceptionF(
           "Ljava/lang/InternalError;",
           "Found type %s; filled-new-array not implemented for anything but 'int'",
-          PrettyDescriptor(klass).c_str());
+          klass->PrettyDescriptor().c_str());
     }
     return nullptr;  // Failure
   }
@@ -77,7 +77,7 @@ static inline mirror::Class* CheckFilledNewArrayAlloc(uint32_t type_idx,
       return nullptr;  // Failure
     }
   }
-  DCHECK(klass->IsArrayClass()) << PrettyClass(klass);
+  DCHECK(klass->IsArrayClass()) << klass->PrettyClass();
   return klass;
 }
 
@@ -131,8 +131,8 @@ void CheckReferenceResult(Handle<mirror::Object> o, Thread* self) {
   if (!o->InstanceOf(return_type)) {
     Runtime::Current()->GetJavaVM()->JniAbortF(nullptr,
                                                "attempt to return an instance of %s from %s",
-                                               PrettyTypeOf(o.Get()).c_str(),
-                                               PrettyMethod(method).c_str());
+                                               o->PrettyTypeOf().c_str(),
+                                               method->PrettyMethod().c_str());
   }
 }
 
