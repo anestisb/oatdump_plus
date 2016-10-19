@@ -2117,7 +2117,7 @@ DEFINE_FUNCTION art_quick_string_compareto
     mov     %r8d, %ecx
     cmovg   %r9d, %ecx
     /* Going into loop to compare each character */
-    jecxz   .Lstring_compareto_keep_length      // check loop counter (if 0 then stop)
+    jecxz   .Lstring_compareto_keep_length1     // check loop counter (if 0 then stop)
 .Lstring_compareto_loop_comparison_this_compressed:
     movzbl  (%edi), %r8d                        // move *(this_cur_char) byte to long
     movzwl  (%esi), %r9d                        // move *(that_cur_char) word to long
@@ -2126,6 +2126,7 @@ DEFINE_FUNCTION art_quick_string_compareto
     subl    %r9d, %r8d
     loope   .Lstring_compareto_loop_comparison_this_compressed
     cmovne  %r8d, %eax                          // return eax = *(this_cur_char) - *(that_cur_char)
+.Lstring_compareto_keep_length1:
     ret
 .Lstring_compareto_that_is_compressed:
     andl    LITERAL(0x7FFFFFFF), %r9d
@@ -2134,7 +2135,7 @@ DEFINE_FUNCTION art_quick_string_compareto
     mov     %r8d, %ecx
     cmovg   %r9d, %ecx
     /* Comparison this (8-bit) and that (16-bit) */
-    jecxz   .Lstring_compareto_keep_length      // check loop counter (if 0, don't compare)
+    jecxz   .Lstring_compareto_keep_length2     // check loop counter (if 0, don't compare)
 .Lstring_compareto_loop_comparison_that_compressed:
     movzwl  (%edi), %r8d                        // move *(this_cur_char) word to long
     movzbl  (%esi), %r9d                        // move *(that_cur_chat) byte to long
@@ -2143,6 +2144,7 @@ DEFINE_FUNCTION art_quick_string_compareto
     subl    %r9d, %r8d
     loope   .Lstring_compareto_loop_comparison_that_compressed
     cmovne  %r8d, %eax                          // return eax = *(this_cur_char) - *(that_cur_char)
+.Lstring_compareto_keep_length2:
     ret
 .Lstring_compareto_both_compressed:
     andl    LITERAL(0x7FFFFFFF), %r9d
@@ -2151,9 +2153,9 @@ DEFINE_FUNCTION art_quick_string_compareto
     movl    %r8d, %eax
     subl    %r9d, %eax
     cmovg   %r9d, %ecx
-    jecxz   .Lstring_compareto_keep_length
+    jecxz   .Lstring_compareto_keep_length3
     repe    cmpsb
-    je      .Lstring_compareto_keep_length
+    je      .Lstring_compareto_keep_length3
     movzbl  -1(%edi), %eax        // get last compared char from this string (8-bit)
     movzbl  -1(%esi), %ecx        // get last compared char from comp string (8-bit)
     jmp     .Lstring_compareto_count_difference
@@ -2171,14 +2173,14 @@ DEFINE_FUNCTION art_quick_string_compareto
      *   esi: pointer to comp string data
      *   edi: pointer to this string data
      */
-    jecxz .Lstring_compareto_keep_length
+    jecxz .Lstring_compareto_keep_length3
     repe  cmpsw                   // find nonmatching chars in [%esi] and [%edi], up to length %ecx
-    je    .Lstring_compareto_keep_length
+    je    .Lstring_compareto_keep_length3
     movzwl  -2(%edi), %eax        // get last compared char from this string (16-bit)
     movzwl  -2(%esi), %ecx        // get last compared char from comp string (16-bit)
 .Lstring_compareto_count_difference:
     subl  %ecx, %eax              // return the difference
-.Lstring_compareto_keep_length:
+.Lstring_compareto_keep_length3:
     ret
 END_FUNCTION art_quick_string_compareto
 
