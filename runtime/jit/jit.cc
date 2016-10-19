@@ -364,8 +364,8 @@ void Jit::NewTypeLoadedIfUsingJit(mirror::Class* type) {
 
 void Jit::DumpTypeInfoForLoadedTypes(ClassLinker* linker) {
   struct CollectClasses : public ClassVisitor {
-    bool operator()(mirror::Class* klass) override {
-      classes_.push_back(klass);
+    bool operator()(ObjPtr<mirror::Class> klass) OVERRIDE REQUIRES_SHARED(Locks::mutator_lock_) {
+      classes_.push_back(klass.Ptr());
       return true;
     }
     std::vector<mirror::Class*> classes_;

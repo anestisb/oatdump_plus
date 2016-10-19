@@ -55,8 +55,8 @@ class InstallStubsClassVisitor : public ClassVisitor {
   explicit InstallStubsClassVisitor(Instrumentation* instrumentation)
       : instrumentation_(instrumentation) {}
 
-  bool operator()(mirror::Class* klass) OVERRIDE REQUIRES(Locks::mutator_lock_) {
-    instrumentation_->InstallStubsForClass(klass);
+  bool operator()(ObjPtr<mirror::Class> klass) OVERRIDE REQUIRES(Locks::mutator_lock_) {
+    instrumentation_->InstallStubsForClass(klass.Ptr());
     return true;  // we visit all classes.
   }
 
