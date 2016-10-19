@@ -841,24 +841,8 @@ CodeGeneratorX86::CodeGeneratorX86(HGraph* graph,
 }
 
 void CodeGeneratorX86::SetupBlockedRegisters() const {
-  // Don't allocate the dalvik style register pair passing.
-  blocked_register_pairs_[ECX_EDX] = true;
-
   // Stack register is always reserved.
   blocked_core_registers_[ESP] = true;
-
-  UpdateBlockedPairRegisters();
-}
-
-void CodeGeneratorX86::UpdateBlockedPairRegisters() const {
-  for (int i = 0; i < kNumberOfRegisterPairs; i++) {
-    X86ManagedRegister current =
-        X86ManagedRegister::FromRegisterPair(static_cast<RegisterPair>(i));
-    if (blocked_core_registers_[current.AsRegisterPairLow()]
-        || blocked_core_registers_[current.AsRegisterPairHigh()]) {
-      blocked_register_pairs_[i] = true;
-    }
-  }
 }
 
 InstructionCodeGeneratorX86::InstructionCodeGeneratorX86(HGraph* graph, CodeGeneratorX86* codegen)

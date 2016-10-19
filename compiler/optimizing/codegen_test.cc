@@ -115,8 +115,6 @@ class TestCodeGeneratorARM : public arm::CodeGeneratorARM {
     blocked_core_registers_[arm::R4] = true;
     blocked_core_registers_[arm::R6] = false;
     blocked_core_registers_[arm::R7] = false;
-    // Makes pair R6-R7 available.
-    blocked_register_pairs_[arm::R6_R7] = false;
   }
 };
 
@@ -137,8 +135,6 @@ class TestCodeGeneratorARMVIXL : public arm::CodeGeneratorARMVIXL {
     blocked_core_registers_[arm::R4] = true;
     blocked_core_registers_[arm::R6] = false;
     blocked_core_registers_[arm::R7] = false;
-    // Makes pair R6-R7 available.
-    blocked_register_pairs_[arm::R6_R7] = false;
   }
 };
 #endif
@@ -158,14 +154,9 @@ class TestCodeGeneratorX86 : public x86::CodeGeneratorX86 {
     x86::CodeGeneratorX86::SetupBlockedRegisters();
     // ebx is a callee-save register in C, but caller-save for ART.
     blocked_core_registers_[x86::EBX] = true;
-    blocked_register_pairs_[x86::EAX_EBX] = true;
-    blocked_register_pairs_[x86::EDX_EBX] = true;
-    blocked_register_pairs_[x86::ECX_EBX] = true;
-    blocked_register_pairs_[x86::EBX_EDI] = true;
 
     // Make edi available.
     blocked_core_registers_[x86::EDI] = false;
-    blocked_register_pairs_[x86::ECX_EDI] = false;
   }
 };
 #endif

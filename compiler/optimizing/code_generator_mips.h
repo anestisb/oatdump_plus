@@ -342,9 +342,6 @@ class CodeGeneratorMIPS : public CodeGenerator {
   void DumpCoreRegister(std::ostream& stream, int reg) const OVERRIDE;
   void DumpFloatingPointRegister(std::ostream& stream, int reg) const OVERRIDE;
 
-  // Blocks all register pairs made out of blocked core registers.
-  void UpdateBlockedPairRegisters() const;
-
   InstructionSet GetInstructionSet() const OVERRIDE { return InstructionSet::kMips; }
 
   const MipsInstructionSetFeatures& GetInstructionSetFeatures() const {
