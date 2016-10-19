@@ -42,11 +42,9 @@
 
 namespace art {
 
-static size_t gGlobalsInitial = 512;  // Arbitrary.
-static size_t gGlobalsMax = 51200;  // Arbitrary sanity check. (Must fit in 16 bits.)
+static constexpr size_t kGlobalsMax = 51200;  // Arbitrary sanity check. (Must fit in 16 bits.)
 
-static const size_t kWeakGlobalsInitial = 16;  // Arbitrary.
-static const size_t kWeakGlobalsMax = 51200;  // Arbitrary sanity check. (Must fit in 16 bits.)
+static constexpr size_t kWeakGlobalsMax = 51200;  // Arbitrary sanity check. (Must fit in 16 bits.)
 
 bool JavaVMExt::IsBadJniVersion(int version) {
   // We don't support JNI_VERSION_1_1. These are the only other valid versions.
@@ -422,10 +420,10 @@ JavaVMExt::JavaVMExt(Runtime* runtime, const RuntimeArgumentMap& runtime_options
       tracing_enabled_(runtime_options.Exists(RuntimeArgumentMap::JniTrace)
                        || VLOG_IS_ON(third_party_jni)),
       trace_(runtime_options.GetOrDefault(RuntimeArgumentMap::JniTrace)),
-      globals_(gGlobalsInitial, gGlobalsMax, kGlobal),
+      globals_(kGlobalsMax, kGlobal),
       libraries_(new Libraries),
       unchecked_functions_(&gJniInvokeInterface),
-      weak_globals_(kWeakGlobalsInitial, kWeakGlobalsMax, kWeakGlobal),
+      weak_globals_(kWeakGlobalsMax, kWeakGlobal),
       allow_accessing_weak_globals_(true),
       weak_globals_add_condition_("weak globals add condition",
                                   (CHECK(Locks::jni_weak_globals_lock_ != nullptr),
