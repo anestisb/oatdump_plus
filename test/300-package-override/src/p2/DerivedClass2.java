@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Android Open Source Project
+ * Copyright (C) 2016 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 package p2;
 
-public class DerivedClass extends p1.BaseClass {
-  void foo() { System.out.println("DerivedClass overrode package-private method!"); } // This should not override BaseClass.foo.
-  public void bar() { System.out.println("This should be visible!"); }
+// Regression test for b/32193118
+public class DerivedClass2 extends p2.DerivedClass {
+  public void bar() { System.out.println("This should override!"); }
 }
