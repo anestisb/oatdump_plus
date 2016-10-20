@@ -215,9 +215,24 @@ define create-core-oat-target-rules
       $(4)TARGET_CORE_IMAGE_$(1)_$(2)_64 := $$(core_image_name)
     else
       $(4)TARGET_CORE_IMAGE_$(1)_$(2)_32 := $$(core_image_name)
+      ifdef ART_USE_VIXL_ARM_BACKEND
+        ifeq ($(1),optimizing)
+          # TODO(VIXL): The ARM VIXL backend is still work in progress. Therefore for now we do not
+          # compile the core image with the Optimizing backend when ART_USE_VIXL_ARM_BACKEND is
+          # defined.
+          core_compile_options += --compiler-filter=interpret-only
+        endif
+      endif
     endif
   else
     $(4)TARGET_CORE_IMAGE_$(1)_$(2)_32 := $$(core_image_name)
+    ifdef ART_USE_VIXL_ARM_BACKEND
+      ifeq ($(1),optimizing)
+      # TODO(VIXL): The ARM VIXL backend is still work in progress. Therefore for now we do not
+      # compile the core image with the Optimizing backend when ART_USE_VIXL_ARM_BACKEND is defined.
+      core_compile_options += --compiler-filter=interpret-only
+      endif
+    endif
   endif
   $(4)TARGET_CORE_IMG_OUTS += $$(core_image_name)
   $(4)TARGET_CORE_OAT_OUTS += $$(core_oat_name)
