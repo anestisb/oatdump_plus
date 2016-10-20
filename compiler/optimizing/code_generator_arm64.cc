@@ -331,12 +331,19 @@ class LoadClassSlowPathARM64 : public SlowPathCodeARM64 {
 
 class LoadStringSlowPathARM64 : public SlowPathCodeARM64 {
  public:
-  explicit LoadStringSlowPathARM64(HLoadString* instruction) : SlowPathCodeARM64(instruction) {}
+  LoadStringSlowPathARM64(HLoadString* instruction, Register temp, vixl::aarch64::Label* adrp_label)
+      : SlowPathCodeARM64(instruction),
+        temp_(temp),
+        adrp_label_(adrp_label) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
     DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
     CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
+
+    // temp_ is a scratch register. Make sure it's not used for saving/restoring registers.
+    UseScratchRegisterScope temps(arm64_codegen->GetVIXLAssembler());
+    temps.Exclude(temp_);
 
     __ Bind(GetEntryLabel());
     SaveLiveRegisters(codegen, locations);
@@ -352,21 +359,21 @@ class LoadStringSlowPathARM64 : public SlowPathCodeARM64 {
     RestoreLiveRegisters(codegen, locations);
 
     // Store the resolved String to the BSS entry.
-    UseScratchRegisterScope temps(arm64_codegen->GetVIXLAssembler());
-    Register temp = temps.AcquireX();
     const DexFile& dex_file = instruction_->AsLoadString()->GetDexFile();
-    // TODO: Change art_quick_resolve_string to kSaveEverything and use a temporary
-    // for the ADRP in the fast path, so that we can avoid the ADRP here.
-    vixl::aarch64::Label* adrp_label =
-        arm64_codegen->NewPcRelativeStringPatch(dex_file, string_index);
-    arm64_codegen->EmitAdrpPlaceholder(adrp_label, temp);
+    if (!kUseReadBarrier || kUseBakerReadBarrier) {
+      // The string entry page address was preserved in temp_ thanks to kSaveEverything.
+    } else {
+      // For non-Baker read barrier, we need to re-calculate the address of the string entry page.
+      adrp_label_ = arm64_codegen->NewPcRelativeStringPatch(dex_file, string_index);
+      arm64_codegen->EmitAdrpPlaceholder(adrp_label_, temp_);
+    }
     vixl::aarch64::Label* strp_label =
-        arm64_codegen->NewPcRelativeStringPatch(dex_file, string_index, adrp_label);
+        arm64_codegen->NewPcRelativeStringPatch(dex_file, string_index, adrp_label_);
     {
       SingleEmissionCheckScope guard(arm64_codegen->GetVIXLAssembler());
       __ Bind(strp_label);
       __ str(RegisterFrom(locations->Out(), Primitive::kPrimNot),
-             MemOperand(temp, /* offset placeholder */ 0));
+             MemOperand(temp_, /* offset placeholder */ 0));
     }
 
     __ B(GetExitLabel());
@@ -375,6 +382,9 @@ class LoadStringSlowPathARM64 : public SlowPathCodeARM64 {
   const char* GetDescription() const OVERRIDE { return "LoadStringSlowPathARM64"; }
 
  private:
+  const Register temp_;
+  vixl::aarch64::Label* adrp_label_;
+
   DISALLOW_COPY_AND_ASSIGN(LoadStringSlowPathARM64);
 };
 
@@ -4246,11 +4256,24 @@ void LocationsBuilderARM64::VisitLoadString(HLoadString* load) {
       : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(load, call_kind);
   if (load->GetLoadKind() == HLoadString::LoadKind::kDexCacheViaMethod) {
-    locations->SetInAt(0, Location::RequiresRegister());
     InvokeRuntimeCallingConvention calling_convention;
     locations->SetOut(calling_convention.GetReturnLocation(load->GetType()));
   } else {
     locations->SetOut(Location::RequiresRegister());
+    if (load->GetLoadKind() == HLoadString::LoadKind::kBssEntry) {
+      if (!kUseReadBarrier || kUseBakerReadBarrier) {
+        // Rely on the pResolveString and/or marking to save everything, including temps.
+        RegisterSet caller_saves = RegisterSet::Empty();
+        InvokeRuntimeCallingConvention calling_convention;
+        caller_saves.Add(Location::RegisterLocation(calling_convention.GetRegisterAt(0).GetCode()));
+        DCHECK_EQ(calling_convention.GetRegisterAt(0).GetCode(),
+                  RegisterFrom(calling_convention.GetReturnLocation(Primitive::kPrimNot),
+                               Primitive::kPrimNot).GetCode());
+        locations->SetCustomSlowPathCallerSaves(caller_saves);
+      } else {
+        // For non-Baker read barrier we have a temp-clobbering call.
+      }
+    }
   }
 }
 
@@ -4285,18 +4308,21 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
       const DexFile& dex_file = load->GetDexFile();
       uint32_t string_index = load->GetStringIndex();
       DCHECK(!codegen_->GetCompilerOptions().IsBootImage());
+      UseScratchRegisterScope temps(codegen_->GetVIXLAssembler());
+      Register temp = temps.AcquireX();
       vixl::aarch64::Label* adrp_label = codegen_->NewPcRelativeStringPatch(dex_file, string_index);
-      codegen_->EmitAdrpPlaceholder(adrp_label, out.X());
+      codegen_->EmitAdrpPlaceholder(adrp_label, temp);
       // Add LDR with its PC-relative String patch.
       vixl::aarch64::Label* ldr_label =
           codegen_->NewPcRelativeStringPatch(dex_file, string_index, adrp_label);
       // /* GcRoot<mirror::Class> */ out = *(base_address + offset)  /* PC-relative */
       GenerateGcRootFieldLoad(load,
                               load->GetLocations()->Out(),
-                              out.X(),
+                              temp,
                               /* placeholder */ 0u,
                               ldr_label);
-      SlowPathCodeARM64* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathARM64(load);
+      SlowPathCodeARM64* slow_path =
+          new (GetGraph()->GetArena()) LoadStringSlowPathARM64(load, temp, adrp_label);
       codegen_->AddSlowPath(slow_path);
       __ Cbz(out.X(), slow_path->GetEntryLabel());
       __ Bind(slow_path->GetExitLabel());
@@ -4308,6 +4334,7 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
 
   // TODO: Re-add the compiler code to do string dex cache lookup again.
   InvokeRuntimeCallingConvention calling_convention;
+  DCHECK_EQ(calling_convention.GetRegisterAt(0).GetCode(), out.GetCode());
   __ Mov(calling_convention.GetRegisterAt(0).W(), load->GetStringIndex());
   codegen_->InvokeRuntime(kQuickResolveString, load, load->GetDexPc());
   CheckEntrypointTypes<kQuickResolveString, void*, uint32_t>();
