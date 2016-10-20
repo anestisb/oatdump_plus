@@ -516,6 +516,26 @@ ifneq (,$(filter regalloc_gc,$(COMPILER_TYPES)))
       $(TEST_ART_BROKEN_OPTIMIZING_GRAPH_COLOR),$(ALL_ADDRESS_SIZES))
 endif
 
+# Known broken tests for the ARM VIXL backend.
+# Android.arm_vixl.mk defines TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS.
+include $(LOCAL_PATH)/Android.arm_vixl.mk
+
+ifdef ART_USE_VIXL_ARM_BACKEND
+  ifeq (arm,$(filter arm,$(TARGET_ARCH) $(TARGET_2ND_ARCH)))
+    ifneq (,$(filter $(OPTIMIZING_COMPILER_TYPES),$(COMPILER_TYPES)))
+      ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
+          $(OPTIMIZING_COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+          $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), \
+          $(TEST_ART_BROKEN_OPTIMIZING_ARM_VIXL_RUN_TESTS),32)
+    endif
+  endif
+  # TODO(VIXL): These two tests currently fail, but adding them to `ART_TEST_KNOWN_BROKEN` breaks
+  # `export ART_USE_VIXL_ARM_BACKEND=true && mma -j6 test-art-target-gtest dist`
+  #ART_TEST_KNOWN_BROKEN += test-art-target-gtest-dex2oat_test32
+  #ART_TEST_KNOWN_BROKEN += test-art-target-gtest-image_test32
+endif
+
+
 # Known broken tests for the mips32 optimizing compiler backend.
 TEST_ART_BROKEN_OPTIMIZING_MIPS_RUN_TESTS := \
 

@@ -346,6 +346,51 @@ void ArmVIXLAssembler::LoadDFromOffset(vixl32::DRegister reg,
   ___ Vldr(reg, MemOperand(base, offset));
 }
 
+// Prefer Str to Add/Stm in ArmVIXLAssembler::StoreRegisterList and
+// ArmVIXLAssembler::LoadRegisterList where this generates less code (size).
+static constexpr int kRegListThreshold = 4;
+
+void ArmVIXLAssembler::StoreRegisterList(RegList regs, size_t stack_offset) {
+  int number_of_regs = POPCOUNT(static_cast<uint32_t>(regs));
+  if (number_of_regs != 0) {
+    if (number_of_regs > kRegListThreshold) {
+      UseScratchRegisterScope temps(GetVIXLAssembler());
+      vixl32::Register base = sp;
+      if (stack_offset != 0) {
+        base = temps.Acquire();
+        DCHECK_EQ(regs & (1u << base.GetCode()), 0u);
+        ___ Add(base, sp, stack_offset);
+      }
+      ___ Stm(base, NO_WRITE_BACK, RegisterList(regs));
+    } else {
+      for (uint32_t i : LowToHighBits(static_cast<uint32_t>(regs))) {
+        ___ Str(vixl32::Register(i), MemOperand(sp, stack_offset));
+        stack_offset += kRegSizeInBytes;
+      }
+    }
+  }
+}
+
+void ArmVIXLAssembler::LoadRegisterList(RegList regs, size_t stack_offset) {
+  int number_of_regs = POPCOUNT(static_cast<uint32_t>(regs));
+  if (number_of_regs != 0) {
+    if (number_of_regs > kRegListThreshold) {
+      UseScratchRegisterScope temps(GetVIXLAssembler());
+      vixl32::Register base = sp;
+      if (stack_offset != 0) {
+        base = temps.Acquire();
+        ___ Add(base, sp, stack_offset);
+      }
+      ___ Ldm(base, NO_WRITE_BACK, RegisterList(regs));
+    } else {
+      for (uint32_t i : LowToHighBits(static_cast<uint32_t>(regs))) {
+        ___ Ldr(vixl32::Register(i), MemOperand(sp, stack_offset));
+        stack_offset += kRegSizeInBytes;
+      }
+    }
+  }
+}
+
 void ArmVIXLAssembler::AddConstant(vixl32::Register rd, int32_t value) {
   AddConstant(rd, rd, value);
 }

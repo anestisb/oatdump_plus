@@ -602,8 +602,13 @@ void OptimizingCompiler::RunArchOptimizations(InstructionSet instruction_set,
   UNUSED(codegen);  // To avoid compilation error when compiling for svelte
   OptimizingCompilerStats* stats = compilation_stats_.get();
   ArenaAllocator* arena = graph->GetArena();
+#ifdef ART_USE_VIXL_ARM_BACKEND
+  UNUSED(arena);
+  UNUSED(pass_observer);
+  UNUSED(stats);
+#endif
   switch (instruction_set) {
-#ifdef ART_ENABLE_CODEGEN_arm
+#if defined(ART_ENABLE_CODEGEN_arm) && !defined(ART_USE_VIXL_ARM_BACKEND)
     case kThumb2:
     case kArm: {
       arm::DexCacheArrayFixups* fixups =

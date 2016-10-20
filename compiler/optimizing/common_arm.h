@@ -42,6 +42,26 @@ inline vixl::aarch32::DRegister FromLowSToD(vixl::aarch32::SRegister reg) {
   return vixl::aarch32::DRegister(reg.GetCode() / 2);
 }
 
+inline vixl::aarch32::Register HighRegisterFrom(Location location) {
+  DCHECK(location.IsRegisterPair()) << location;
+  return vixl::aarch32::Register(location.AsRegisterPairHigh<vixl32::Register>());
+}
+
+inline vixl::aarch32::DRegister HighDRegisterFrom(Location location) {
+  DCHECK(location.IsFpuRegisterPair()) << location;
+  return vixl::aarch32::DRegister(location.AsFpuRegisterPairHigh<vixl32::DRegister>());
+}
+
+inline vixl::aarch32::Register LowRegisterFrom(Location location) {
+  DCHECK(location.IsRegisterPair()) << location;
+  return vixl::aarch32::Register(location.AsRegisterPairLow<vixl32::Register>());
+}
+
+inline vixl::aarch32::SRegister LowSRegisterFrom(Location location) {
+  DCHECK(location.IsFpuRegisterPair()) << location;
+  return vixl::aarch32::SRegister(location.AsFpuRegisterPairLow<vixl32::SRegister>());
+}
+
 inline vixl::aarch32::Register RegisterFrom(Location location) {
   DCHECK(location.IsRegister()) << location;
   return vixl::aarch32::Register(location.reg());
@@ -53,8 +73,10 @@ inline vixl::aarch32::Register RegisterFrom(Location location, Primitive::Type t
 }
 
 inline vixl::aarch32::DRegister DRegisterFrom(Location location) {
-  DCHECK(location.IsFpuRegister()) << location;
-  return vixl::aarch32::DRegister(location.reg());
+  DCHECK(location.IsFpuRegisterPair()) << location;
+  int reg_code = location.low();
+  DCHECK_EQ(reg_code % 2, 0) << reg_code;
+  return vixl::aarch32::DRegister(reg_code / 2);
 }
 
 inline vixl::aarch32::SRegister SRegisterFrom(Location location) {
@@ -74,6 +96,15 @@ inline vixl::aarch32::DRegister OutputDRegister(HInstruction* instr) {
   return DRegisterFrom(instr->GetLocations()->Out());
 }
 
+inline vixl::aarch32::VRegister OutputVRegister(HInstruction* instr) {
+  Primitive::Type type = instr->GetType();
+  if (type == Primitive::kPrimFloat) {
+    return OutputSRegister(instr);
+  } else {
+    return OutputDRegister(instr);
+  }
+}
+
 inline vixl::aarch32::SRegister InputSRegisterAt(HInstruction* instr, int input_index) {
   Primitive::Type type = instr->InputAt(input_index)->GetType();
   DCHECK_EQ(type, Primitive::kPrimFloat) << type;
@@ -84,6 +115,15 @@ inline vixl::aarch32::DRegister InputDRegisterAt(HInstruction* instr, int input_
   Primitive::Type type = instr->InputAt(input_index)->GetType();
   DCHECK_EQ(type, Primitive::kPrimDouble) << type;
   return DRegisterFrom(instr->GetLocations()->InAt(input_index));
+}
+
+inline vixl::aarch32::VRegister InputVRegisterAt(HInstruction* instr, int input_index) {
+  Primitive::Type type = instr->InputAt(input_index)->GetType();
+  if (type == Primitive::kPrimFloat) {
+    return InputSRegisterAt(instr, input_index);
+  } else {
+    return InputDRegisterAt(instr, input_index);
+  }
 }
 
 inline vixl::aarch32::Register OutputRegister(HInstruction* instr) {
@@ -118,6 +158,24 @@ inline vixl::aarch32::Operand OperandFrom(Location location, Primitive::Type typ
 inline vixl::aarch32::Operand InputOperandAt(HInstruction* instr, int input_index) {
   return OperandFrom(instr->GetLocations()->InAt(input_index),
                      instr->InputAt(input_index)->GetType());
+}
+
+inline Location LocationFrom(const vixl::aarch32::Register& reg) {
+  return Location::RegisterLocation(reg.GetCode());
+}
+
+inline Location LocationFrom(const vixl::aarch32::SRegister& reg) {
+  return Location::FpuRegisterLocation(reg.GetCode());
+}
+
+inline Location LocationFrom(const vixl::aarch32::Register& low,
+                             const vixl::aarch32::Register& high) {
+  return Location::RegisterPairLocation(low.GetCode(), high.GetCode());
+}
+
+inline Location LocationFrom(const vixl::aarch32::SRegister& low,
+                             const vixl::aarch32::SRegister& high) {
+  return Location::FpuRegisterPairLocation(low.GetCode(), high.GetCode());
 }
 
 }  // namespace helpers
