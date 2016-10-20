@@ -221,6 +221,7 @@ void HLoopOptimization::TraverseLoopsInnerToOuter(LoopNode* node) {
     if (current_induction_simplification_count != induction_simplication_count_) {
       induction_range_.ReVisit(node->loop_info);
     }
+    SimplifyBlocks(node);
     SimplifyInduction(node);
     SimplifyBlocks(node);
     if (node->inner == nullptr) {

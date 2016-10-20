@@ -527,22 +527,108 @@ TEST_F(InductionVarAnalysisTest, FindXorPeriodicInduction) {
   EXPECT_STREQ("periodic((1), (0)):PrimInt", GetInductionInfo(x, 0).c_str());
 }
 
+TEST_F(InductionVarAnalysisTest, FindXorConstantLeftPeriodicInduction) {
+  // Setup:
+  // k = 1;
+  // for (int i = 0; i < 100; i++) {
+  //   k = 1 ^ k;
+  // }
+  BuildLoopNest(1);
+  HPhi* k = InsertLoopPhi(0, 0);
+  k->AddInput(constant1_);
+
+  HInstruction* x = InsertInstruction(
+      new (&allocator_) HXor(Primitive::kPrimInt, constant1_, k), 0);
+  k->AddInput(x);
+  PerformInductionVarAnalysis();
+
+  EXPECT_STREQ("periodic(((1) ^ (1)), (1)):PrimInt", GetInductionInfo(x, 0).c_str());
+}
+
 TEST_F(InductionVarAnalysisTest, FindXor100PeriodicInduction) {
   // Setup:
-  // k = 100;
+  // k = 1;
   // for (int i = 0; i < 100; i++) {
   //   k = k ^ 100;
   // }
   BuildLoopNest(1);
   HPhi* k = InsertLoopPhi(0, 0);
-  k->AddInput(constant100_);
+  k->AddInput(constant1_);
 
   HInstruction* x = InsertInstruction(
       new (&allocator_) HXor(Primitive::kPrimInt, k, constant100_), 0);
   k->AddInput(x);
   PerformInductionVarAnalysis();
 
-  EXPECT_STREQ("periodic(((100) ^ (100)), (100)):PrimInt", GetInductionInfo(x, 0).c_str());
+  EXPECT_STREQ("periodic(((1) ^ (100)), (1)):PrimInt", GetInductionInfo(x, 0).c_str());
+}
+
+TEST_F(InductionVarAnalysisTest, FindBooleanEqPeriodicInduction) {
+  // Setup:
+  // k = 0;
+  // for (int i = 0; i < 100; i++) {
+  //   k = (k == 0);
+  // }
+  BuildLoopNest(1);
+  HPhi* k = InsertLoopPhi(0, 0);
+  k->AddInput(constant0_);
+
+  HInstruction* x = InsertInstruction(new (&allocator_) HEqual(k, constant0_), 0);
+  k->AddInput(x);
+  PerformInductionVarAnalysis();
+
+  EXPECT_STREQ("periodic((1), (0)):PrimBoolean", GetInductionInfo(x, 0).c_str());
+}
+
+TEST_F(InductionVarAnalysisTest, FindBooleanEqConstantLeftPeriodicInduction) {
+  // Setup:
+  // k = 0;
+  // for (int i = 0; i < 100; i++) {
+  //   k = (0 == k);
+  // }
+  BuildLoopNest(1);
+  HPhi* k = InsertLoopPhi(0, 0);
+  k->AddInput(constant0_);
+
+  HInstruction* x = InsertInstruction(new (&allocator_) HEqual(constant0_, k), 0);
+  k->AddInput(x);
+  PerformInductionVarAnalysis();
+
+  EXPECT_STREQ("periodic((1), (0)):PrimBoolean", GetInductionInfo(x, 0).c_str());
+}
+
+TEST_F(InductionVarAnalysisTest, FindBooleanNePeriodicInduction) {
+  // Setup:
+  // k = 0;
+  // for (int i = 0; i < 100; i++) {
+  //   k = (k != 1);
+  // }
+  BuildLoopNest(1);
+  HPhi* k = InsertLoopPhi(0, 0);
+  k->AddInput(constant0_);
+
+  HInstruction* x = InsertInstruction(new (&allocator_) HNotEqual(k, constant1_), 0);
+  k->AddInput(x);
+  PerformInductionVarAnalysis();
+
+  EXPECT_STREQ("periodic((1), (0)):PrimBoolean", GetInductionInfo(x, 0).c_str());
+}
+
+TEST_F(InductionVarAnalysisTest, FindBooleanNeConstantLeftPeriodicInduction) {
+  // Setup:
+  // k = 0;
+  // for (int i = 0; i < 100; i++) {
+  //   k = (1 != k);
+  // }
+  BuildLoopNest(1);
+  HPhi* k = InsertLoopPhi(0, 0);
+  k->AddInput(constant0_);
+
+  HInstruction* x = InsertInstruction(new (&allocator_) HNotEqual(constant1_, k), 0);
+  k->AddInput(x);
+  PerformInductionVarAnalysis();
+
+  EXPECT_STREQ("periodic((1), (0)):PrimBoolean", GetInductionInfo(x, 0).c_str());
 }
 
 TEST_F(InductionVarAnalysisTest, FindDerivedPeriodicInduction) {
