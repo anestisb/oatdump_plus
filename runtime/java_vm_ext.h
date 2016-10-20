@@ -43,7 +43,14 @@ using GetEnvHook = jint (*)(JavaVMExt* vm, /*out*/void** new_env, jint version);
 
 class JavaVMExt : public JavaVM {
  public:
-  JavaVMExt(Runtime* runtime, const RuntimeArgumentMap& runtime_options);
+  // Creates a new JavaVMExt object.
+  // Returns nullptr on error, in which case error_msg is set to a message
+  // describing the error.
+  static std::unique_ptr<JavaVMExt> Create(Runtime* runtime,
+                                           const RuntimeArgumentMap& runtime_options,
+                                           std::string* error_msg);
+
+
   ~JavaVMExt();
 
   bool ForceCopy() const {
@@ -192,6 +199,10 @@ class JavaVMExt : public JavaVM {
   static bool IsBadJniVersion(int version);
 
  private:
+  // The constructor should not be called directly. It may leave the object in
+  // an erroneous state, and the result needs to be checked.
+  JavaVMExt(Runtime* runtime, const RuntimeArgumentMap& runtime_options, std::string* error_msg);
+
   // Return true if self can currently access weak globals.
   bool MayAccessWeakGlobalsUnlocked(Thread* self) const REQUIRES_SHARED(Locks::mutator_lock_);
   bool MayAccessWeakGlobals(Thread* self) const

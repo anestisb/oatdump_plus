@@ -60,27 +60,24 @@ void IndirectReferenceTable::AbortIfNoCheckJNI(const std::string& msg) {
 
 IndirectReferenceTable::IndirectReferenceTable(size_t max_count,
                                                IndirectRefKind desired_kind,
-                                               bool abort_on_error)
+                                               std::string* error_msg)
     : kind_(desired_kind),
       max_entries_(max_count) {
+  CHECK(error_msg != nullptr);
   CHECK_NE(desired_kind, kHandleScopeOrInvalid);
 
-  std::string error_str;
   const size_t table_bytes = max_count * sizeof(IrtEntry);
   table_mem_map_.reset(MemMap::MapAnonymous("indirect ref table", nullptr, table_bytes,
-                                            PROT_READ | PROT_WRITE, false, false, &error_str));
-  if (abort_on_error) {
-    CHECK(table_mem_map_.get() != nullptr) << error_str;
-    CHECK_EQ(table_mem_map_->Size(), table_bytes);
-    CHECK(table_mem_map_->Begin() != nullptr);
-  } else if (table_mem_map_.get() == nullptr ||
-             table_mem_map_->Size() != table_bytes ||
-             table_mem_map_->Begin() == nullptr) {
-    table_mem_map_.reset();
-    LOG(ERROR) << error_str;
-    return;
+                                            PROT_READ | PROT_WRITE, false, false, error_msg));
+  if (table_mem_map_.get() == nullptr && error_msg->empty()) {
+    *error_msg = "Unable to map memory for indirect ref table";
   }
-  table_ = reinterpret_cast<IrtEntry*>(table_mem_map_->Begin());
+
+  if (table_mem_map_.get() != nullptr) {
+    table_ = reinterpret_cast<IrtEntry*>(table_mem_map_->Begin());
+  } else {
+    table_ = nullptr;
+  }
   segment_state_.all = IRT_FIRST_SEGMENT;
 }
 
