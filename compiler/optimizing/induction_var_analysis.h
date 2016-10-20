@@ -177,8 +177,11 @@ class HInductionVarAnalysis : public HOptimization {
                           HInstruction* entry_phi,
                           HInstruction* instruction,
                           HInstruction* x,
-                          HInstruction* y,
-                          bool is_first_call);  // possibly swaps x and y to try again
+                          HInstruction* y);
+  InductionInfo* SolveTest(HLoopInformation* loop,
+                           HInstruction* entry_phi,
+                           HInstruction* instruction,
+                           int64_t oppositive_value);
   InductionInfo* SolveCnv(HTypeConversion* conversion);
 
   // Trip count information.
