@@ -18,6 +18,7 @@ art_cc_binary {
     name: "dexdump2",
     host_supported: true,
     srcs: [
+        "dexdump_cfg.cc",
         "dexdump_main.cc",
         "dexdump.cc",
     ],
