@@ -232,9 +232,11 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),
 
 
 # Disable 149-suspend-all-stress, its output is flaky (b/28988206).
+# Disable 151-OpenFileLimit (b/32302133)
 # Disable 577-profile-foreign-dex (b/27454772).
 TEST_ART_BROKEN_ALL_TARGET_TESTS := \
   149-suspend-all-stress \
+  151-OpenFileLimit \
   577-profile-foreign-dex \
 
 ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
