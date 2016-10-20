@@ -87,6 +87,12 @@ public class Main {
     }
 
     public static void main(String[] args) throws Exception {
+        testBasicDump();
+        testAllocationTrackingAndClassUnloading();
+        testGcAndDump();
+    }
+
+    private static void testBasicDump() throws Exception {
         // Create some data.
         Object data[] = new Object[TEST_LENGTH];
         for (int i = 0; i < data.length; i++) {
@@ -103,8 +109,10 @@ public class Main {
             }
         }
         System.out.println("Generated data.");
-
         createDumpAndConv();
+    }
+
+    private static void testAllocationTrackingAndClassUnloading() throws Exception {
         Class<?> klass = Class.forName("org.apache.harmony.dalvik.ddmc.DdmVmInternal");
         if (klass == null) {
             throw new AssertionError("Couldn't find path class loader class");
@@ -121,6 +129,57 @@ public class Main {
         createDumpAndConv();
         // TODO: Somehow check contents of hprof file.
         enableMethod.invoke(null, false);
+    }
+
+    private static void testGcAndDump() throws Exception {
+        Allocator allocator = new Allocator();
+        Dumper dumper = new Dumper(allocator);
+        allocator.start();
+        dumper.start();
+        try {
+            allocator.join();
+            dumper.join();
+        } catch (InterruptedException e) {
+            System.err.println("join interrupted");
+        }
+    }
+
+    private static class Allocator extends Thread {
+        private static int ARRAY_SIZE = 1024;
+        public volatile boolean running = true;
+        public void run() {
+            Object[] array = new Object[ARRAY_SIZE];
+            int i = 0;
+            while (running) {
+                array[i] = new byte[1024];
+                if (i % ARRAY_SIZE == 0) {
+                    Main.sleep(100L);
+                }
+                i = (i + 1) % ARRAY_SIZE;
+            }
+        }
+    }
+
+    private static class Dumper extends Thread {
+        Dumper(Allocator allocator) {
+            this.allocator = allocator;
+        }
+        Allocator allocator;
+        public void run() {
+            for (int i = 0; i < 10; ++i) {
+                Main.sleep(1000L);
+                createDumpAndConv();
+            }
+            allocator.running = false;
+        }
+    }
+
+    public static void sleep(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {
+            System.err.println("sleep interrupted");
+        }
     }
 
     private static File getHprofConf() {
