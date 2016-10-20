@@ -62,7 +62,7 @@ TEST_F(SpaceBitmapTest, ScanRange) {
 
   std::unique_ptr<ContinuousSpaceBitmap> space_bitmap(
       ContinuousSpaceBitmap::Create("test bitmap", heap_begin, heap_capacity));
-  EXPECT_TRUE(space_bitmap.get() != nullptr);
+  EXPECT_TRUE(space_bitmap != nullptr);
 
   // Set all the odd bits in the first BitsPerIntPtrT * 3 to one.
   for (size_t j = 0; j < kBitsPerIntPtrT * 3; ++j) {
@@ -86,6 +86,48 @@ TEST_F(SpaceBitmapTest, ScanRange) {
     }
   }
 }
+
+TEST_F(SpaceBitmapTest, ClearRange) {
+  uint8_t* heap_begin = reinterpret_cast<uint8_t*>(0x10000000);
+  size_t heap_capacity = 16 * MB;
+
+  std::unique_ptr<ContinuousSpaceBitmap> bitmap(
+      ContinuousSpaceBitmap::Create("test bitmap", heap_begin, heap_capacity));
+  EXPECT_TRUE(bitmap != nullptr);
+
+  // Set all of the bits in the bitmap.
+  for (size_t j = 0; j < heap_capacity; j += kObjectAlignment) {
+    const mirror::Object* obj = reinterpret_cast<mirror::Object*>(heap_begin + j);
+    bitmap->Set(obj);
+  }
+
+  std::vector<std::pair<uintptr_t, uintptr_t>> ranges = {
+      {0, 10 * KB + kObjectAlignment},
+      {kObjectAlignment, kObjectAlignment},
+      {kObjectAlignment, 2 * kObjectAlignment},
+      {kObjectAlignment, 5 * kObjectAlignment},
+      {1 * KB + kObjectAlignment, 2 * KB + 5 * kObjectAlignment},
+  };
+  // Try clearing a few ranges.
+  for (const std::pair<uintptr_t, uintptr_t>& range : ranges) {
+    const mirror::Object* obj_begin = reinterpret_cast<mirror::Object*>(heap_begin + range.first);
+    const mirror::Object* obj_end = reinterpret_cast<mirror::Object*>(heap_begin + range.second);
+    bitmap->ClearRange(obj_begin, obj_end);
+    // Boundaries should still be marked.
+    for (uintptr_t i = 0; i < range.first; i += kObjectAlignment) {
+      EXPECT_TRUE(bitmap->Test(reinterpret_cast<mirror::Object*>(heap_begin + i)));
+    }
+    for (uintptr_t i = range.second; i < range.second + kPageSize; i += kObjectAlignment) {
+      EXPECT_TRUE(bitmap->Test(reinterpret_cast<mirror::Object*>(heap_begin + i)));
+    }
+    // Everything inside should be cleared.
+    for (uintptr_t i = range.first; i < range.second; i += kObjectAlignment) {
+      EXPECT_FALSE(bitmap->Test(reinterpret_cast<mirror::Object*>(heap_begin + i)));
+      bitmap->Set(reinterpret_cast<mirror::Object*>(heap_begin + i));
+    }
+  }
+}
+
 
 class SimpleCounter {
  public:

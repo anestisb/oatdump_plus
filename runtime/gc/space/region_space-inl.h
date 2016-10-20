@@ -241,15 +241,28 @@ void RegionSpace::WalkInternal(ObjectCallback* callback, void* arg) {
     } else if (r->IsLargeTail()) {
       // Do nothing.
     } else {
+      // For newly allocated and evacuated regions, live bytes will be -1.
       uint8_t* pos = r->Begin();
       uint8_t* top = r->Top();
-      while (pos < top) {
-        mirror::Object* obj = reinterpret_cast<mirror::Object*>(pos);
-        if (obj->GetClass<kDefaultVerifyFlags, kWithoutReadBarrier>() != nullptr) {
+      const bool need_bitmap =
+          r->LiveBytes() != static_cast<size_t>(-1) &&
+          r->LiveBytes() != static_cast<size_t>(top - pos);
+      if (need_bitmap) {
+        GetLiveBitmap()->VisitMarkedRange(
+            reinterpret_cast<uintptr_t>(pos),
+            reinterpret_cast<uintptr_t>(top),
+            [callback, arg](mirror::Object* obj) {
           callback(obj, arg);
-          pos = reinterpret_cast<uint8_t*>(GetNextObject(obj));
-        } else {
-          break;
+        });
+      } else {
+        while (pos < top) {
+          mirror::Object* obj = reinterpret_cast<mirror::Object*>(pos);
+          if (obj->GetClass<kDefaultVerifyFlags, kWithoutReadBarrier>() != nullptr) {
+            callback(obj, arg);
+            pos = reinterpret_cast<uint8_t*>(GetNextObject(obj));
+          } else {
+            break;
+          }
         }
       }
     }
