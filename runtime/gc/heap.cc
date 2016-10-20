@@ -2490,6 +2490,8 @@ void Heap::PreZygoteFork() {
     } else {
       if (collector_type_ == kCollectorTypeCC) {
         region_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
+        // Evacuated everything out of the region space, clear the mark bitmap.
+        region_space_->GetMarkBitmap()->Clear();
       } else {
         bump_pointer_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
       }

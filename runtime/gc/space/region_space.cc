@@ -59,6 +59,8 @@ RegionSpace::RegionSpace(const std::string& name, MemMap* mem_map)
   for (size_t i = 0; i < num_regions_; ++i, region_addr += kRegionSize) {
     regions_[i] = Region(i, region_addr, region_addr + kRegionSize);
   }
+  mark_bitmap_.reset(
+      accounting::ContinuousSpaceBitmap::Create("region space live bitmap", Begin(), Capacity()));
   if (kIsDebugBuild) {
     CHECK_EQ(regions_[0].Begin(), Begin());
     for (size_t i = 0; i < num_regions_; ++i) {
@@ -215,7 +217,28 @@ void RegionSpace::ClearFromSpace() {
       r->Clear();
       --num_non_free_regions_;
     } else if (r->IsInUnevacFromSpace()) {
+      size_t full_count = 0;
+      while (r->IsInUnevacFromSpace()) {
+        Region* const cur = &regions_[i + full_count];
+        if (i + full_count >= num_regions_ ||
+            cur->LiveBytes() != static_cast<size_t>(cur->Top() - cur->Begin())) {
+          break;
+        }
+        if (full_count != 0) {
+          cur->SetUnevacFromSpaceAsToSpace();
+        }
+        ++full_count;
+      }
+      // Note that r is the full_count == 0 iteration since it is not handled by the loop.
       r->SetUnevacFromSpaceAsToSpace();
+      if (full_count >= 1) {
+        GetLiveBitmap()->ClearRange(
+            reinterpret_cast<mirror::Object*>(r->Begin()),
+            reinterpret_cast<mirror::Object*>(r->Begin() + full_count * kRegionSize));
+        // Skip over extra regions we cleared.
+        // Subtract one for the for loop.
+        i += full_count - 1;
+      }
     }
   }
   evac_region_ = nullptr;
