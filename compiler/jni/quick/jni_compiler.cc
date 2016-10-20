@@ -70,6 +70,47 @@ static std::unique_ptr<JNIMacroAssembler<kPointerSize>> GetMacroAssembler(
   return JNIMacroAssembler<kPointerSize>::Create(arena, isa, features);
 }
 
+enum class JniEntrypoint {
+  kStart,
+  kEnd
+};
+
+template <PointerSize kPointerSize>
+static ThreadOffset<kPointerSize> GetJniEntrypointThreadOffset(JniEntrypoint which,
+                                                               bool reference_return,
+                                                               bool is_synchronized,
+                                                               bool is_fast_native) {
+  if (which == JniEntrypoint::kStart) {  // JniMethodStart
+    ThreadOffset<kPointerSize> jni_start =
+        is_synchronized
+            ? QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodStartSynchronized)
+            : (is_fast_native
+                   ? QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodFastStart)
+                   : QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodStart));
+
+    return jni_start;
+  } else {  // JniMethodEnd
+    ThreadOffset<kPointerSize> jni_end(-1);
+    if (reference_return) {
+      // Pass result.
+      jni_end = is_synchronized
+                    ? QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodEndWithReferenceSynchronized)
+                    : (is_fast_native
+                           ? QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodFastEndWithReference)
+                           : QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodEndWithReference));
+    } else {
+      jni_end = is_synchronized
+                    ? QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodEndSynchronized)
+                    : (is_fast_native
+                           ? QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodFastEnd)
+                           : QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodEnd));
+    }
+
+    return jni_end;
+  }
+}
+
+
 // Generate the JNI bridge for the given method, general contract:
 // - Arguments are in the managed runtime format, either on stack or in
 //   registers, a reference to the method object is supplied as part of this
@@ -345,13 +386,11 @@ static CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   FrameOffset locked_object_handle_scope_offset(0xBEEFDEAD);
   if (LIKELY(!is_critical_native)) {
     // Skip this for @CriticalNative methods. They do not call JniMethodStart.
-    ThreadOffset<kPointerSize> jni_start =
-        is_synchronized
-            ? QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodStartSynchronized)
-            : ((is_fast_native && !reference_return)  // TODO: support @FastNative returning obj
-                   ? QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodFastStart)
-                   : QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodStart));
-
+    ThreadOffset<kPointerSize> jni_start(
+        GetJniEntrypointThreadOffset<kPointerSize>(JniEntrypoint::kStart,
+                                                   reference_return,
+                                                   is_synchronized,
+                                                   is_fast_native).SizeValue());
     main_jni_conv->ResetIterator(FrameOffset(main_out_arg_size));
     locked_object_handle_scope_offset = FrameOffset(0);
     if (is_synchronized) {
@@ -543,20 +582,15 @@ static CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
 
   if (LIKELY(!is_critical_native)) {
     // 12. Call JniMethodEnd
-    ThreadOffset<kPointerSize> jni_end(-1);
+    ThreadOffset<kPointerSize> jni_end(
+        GetJniEntrypointThreadOffset<kPointerSize>(JniEntrypoint::kEnd,
+                                                   reference_return,
+                                                   is_synchronized,
+                                                   is_fast_native).SizeValue());
     if (reference_return) {
       // Pass result.
-      jni_end = is_synchronized
-                    ? QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodEndWithReferenceSynchronized)
-                    : QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodEndWithReference);
       SetNativeParameter(jni_asm.get(), end_jni_conv.get(), end_jni_conv->ReturnRegister());
       end_jni_conv->Next();
-    } else {
-      jni_end = is_synchronized
-                    ? QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodEndSynchronized)
-                    : (is_fast_native
-                           ? QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodFastEnd)
-                           : QUICK_ENTRYPOINT_OFFSET(kPointerSize, pJniMethodEnd));
     }
     // Pass saved local reference state.
     if (end_jni_conv->IsCurrentParamOnStack()) {

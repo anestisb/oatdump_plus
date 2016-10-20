@@ -78,6 +78,7 @@
   V(JniMethodFastEnd, void, uint32_t, Thread*) \
   V(JniMethodEndSynchronized, void, uint32_t, jobject, Thread*) \
   V(JniMethodEndWithReference, mirror::Object*, jobject, uint32_t, Thread*) \
+  V(JniMethodFastEndWithReference, mirror::Object*, jobject, uint32_t, Thread*) \
   V(JniMethodEndWithReferenceSynchronized, mirror::Object*, jobject, uint32_t, jobject, Thread*) \
   V(QuickGenericJniTrampoline, void, ArtMethod*) \
 \

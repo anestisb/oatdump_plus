@@ -78,6 +78,7 @@ void DefaultInitEntryPoints(JniEntryPoints* jpoints, QuickEntryPoints* qpoints) 
   qpoints->pJniMethodEnd = JniMethodEnd;
   qpoints->pJniMethodEndSynchronized = JniMethodEndSynchronized;
   qpoints->pJniMethodEndWithReference = JniMethodEndWithReference;
+  qpoints->pJniMethodFastEndWithReference = JniMethodFastEndWithReference;
   qpoints->pJniMethodEndWithReferenceSynchronized = JniMethodEndWithReferenceSynchronized;
   qpoints->pJniMethodFastEnd = JniMethodFastEnd;
   qpoints->pQuickGenericJniTrampoline = art_quick_generic_jni_trampoline;
