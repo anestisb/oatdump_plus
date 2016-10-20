@@ -77,12 +77,10 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
     return 0;
   }
   accounting::ContinuousSpaceBitmap* GetLiveBitmap() const OVERRIDE {
-    // No live bitmap.
-    return nullptr;
+    return mark_bitmap_.get();
   }
   accounting::ContinuousSpaceBitmap* GetMarkBitmap() const OVERRIDE {
-    // No mark bitmap.
-    return nullptr;
+    return mark_bitmap_.get();
   }
 
   void Clear() OVERRIDE REQUIRES(!region_lock_);
@@ -515,6 +513,9 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
   Region* current_region_;         // The region that's being allocated currently.
   Region* evac_region_;            // The region that's being evacuated to currently.
   Region full_region_;             // The dummy/sentinel region that looks full.
+
+  // Mark bitmap used by the GC.
+  std::unique_ptr<accounting::ContinuousSpaceBitmap> mark_bitmap_;
 
   DISALLOW_COPY_AND_ASSIGN(RegionSpace);
 };

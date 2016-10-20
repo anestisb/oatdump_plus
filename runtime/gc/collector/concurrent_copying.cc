@@ -170,10 +170,10 @@ void ConcurrentCopying::BindBitmaps() {
       CHECK(space->IsZygoteSpace() || space->IsImageSpace());
       immune_spaces_.AddSpace(space);
     } else if (space == region_space_) {
-      accounting::ContinuousSpaceBitmap* bitmap =
-          accounting::ContinuousSpaceBitmap::Create("cc region space bitmap",
-                                                    space->Begin(), space->Capacity());
-      region_space_bitmap_ = bitmap;
+      // It is OK to clear the bitmap with mutators running since the only place it is read is
+      // VisitObjects which has exclusion with CC.
+      region_space_bitmap_ = region_space_->GetMarkBitmap();
+      region_space_bitmap_->Clear();
     }
   }
 }
@@ -1601,9 +1601,8 @@ void ConcurrentCopying::ReclaimPhase() {
     SwapBitmaps();
     heap_->UnBindBitmaps();
 
-    // Delete the region bitmap.
+    // The bitmap was cleared at the start of the GC, there is nothing we need to do here.
     DCHECK(region_space_bitmap_ != nullptr);
-    delete region_space_bitmap_;
     region_space_bitmap_ = nullptr;
   }
 
