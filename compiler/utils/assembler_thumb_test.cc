@@ -158,7 +158,7 @@ void DumpAndCheck(std::vector<uint8_t>& code, const char* testname, const char* 
       }
       if (CompareIgnoringSpace(results[lineindex], testline) != 0) {
         LOG(FATAL) << "Output is not as expected at line: " << lineindex
-          << results[lineindex] << "/" << testline;
+          << results[lineindex] << "/" << testline << ", test name: " << testname;
       }
       ++lineindex;
     }

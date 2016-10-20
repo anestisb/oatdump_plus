@@ -387,8 +387,7 @@ jobject JniCompilerTest::class_loader_;
 // Test the normal compiler and normal generic JNI only.
 // The following features are unsupported in @FastNative:
 // 1) JNI stubs (lookup via dlsym) when methods aren't explicitly registered
-// 2) Returning objects from the JNI function
-// 3) synchronized keyword
+// 2) synchronized keyword
 // -- TODO: We can support (1) if we remove the mutator lock assert during stub lookup.
 # define JNI_TEST_NORMAL_ONLY(TestName)          \
   TEST_F(JniCompilerTest, TestName ## NormalCompiler) { \
@@ -826,8 +825,7 @@ void JniCompilerTest::CompileAndRunIntObjectObjectMethodImpl() {
   gJava_MyClassNatives_fooIOO_calls[gCurrentJni] = 0;
 }
 
-// TODO: Maybe. @FastNative support for returning Objects?
-JNI_TEST_NORMAL_ONLY(CompileAndRunIntObjectObjectMethod)
+JNI_TEST(CompileAndRunIntObjectObjectMethod)
 
 int gJava_MyClassNatives_fooSII_calls[kJniKindCount] = {};
 jint Java_MyClassNatives_fooSII(JNIEnv* env ATTRIBUTE_UNUSED,
@@ -1047,8 +1045,7 @@ void JniCompilerTest::CompileAndRunStaticIntObjectObjectMethodImpl() {
   gJava_MyClassNatives_fooSIOO_calls[gCurrentJni] = 0;
 }
 
-// TODO: Maybe. @FastNative support for returning Objects?
-JNI_TEST_NORMAL_ONLY(CompileAndRunStaticIntObjectObjectMethod)
+JNI_TEST(CompileAndRunStaticIntObjectObjectMethod)
 
 int gJava_MyClassNatives_fooSSIOO_calls[kJniKindCount] = {};
 jobject Java_MyClassNatives_fooSSIOO(JNIEnv*, jclass klass, jint x, jobject y, jobject z) {
@@ -1216,8 +1213,7 @@ void JniCompilerTest::ReturnGlobalRefImpl() {
   EXPECT_TRUE(env_->IsSameObject(result, jobj_));
 }
 
-// TODO: Maybe. @FastNative support for returning objects?
-JNI_TEST_NORMAL_ONLY(ReturnGlobalRef)
+JNI_TEST(ReturnGlobalRef)
 
 jint local_ref_test(JNIEnv* env, jobject thisObj, jint x) {
   // Add 10 local references
@@ -1357,8 +1353,7 @@ void JniCompilerTest::UpcallReturnTypeChecking_InstanceImpl() {
                                     CurrentJniStringSuffix() + "() with CallStaticObjectMethodV");
 }
 
-// TODO: Maybe support returning objects for @FastNative?
-JNI_TEST_NORMAL_ONLY(UpcallReturnTypeChecking_Instance)
+JNI_TEST(UpcallReturnTypeChecking_Instance)
 
 void JniCompilerTest::UpcallReturnTypeChecking_StaticImpl() {
   SetUpForTest(true, "staticMethodThatShouldReturnClass", "()Ljava/lang/Class;",
@@ -1385,8 +1380,7 @@ void JniCompilerTest::UpcallReturnTypeChecking_StaticImpl() {
                                     CurrentJniStringSuffix() + "() with CallObjectMethodV");
 }
 
-// TODO: Maybe support returning objects for @FastNative?
-JNI_TEST_NORMAL_ONLY(UpcallReturnTypeChecking_Static)
+JNI_TEST(UpcallReturnTypeChecking_Static)
 
 // This should take jclass, but we're imitating a bug pattern.
 void Java_MyClassNatives_instanceMethodThatShouldTakeClass(JNIEnv*, jobject, jclass) {
