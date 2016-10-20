@@ -18,5 +18,11 @@ public class Main {
   public static void main(String args[]) throws Exception {
     p1.BaseClass c = new p2.DerivedClass();
     c.run();
+    p2.DerivedClass d = new p2.DerivedClass();
+    d.bar();
+    p2.DerivedClass d2 = new p2.DerivedClass2();
+    d2.bar();
+    p2.DerivedClass2 d3 = new p2.DerivedClass2();
+    d3.bar();
   }
 }
