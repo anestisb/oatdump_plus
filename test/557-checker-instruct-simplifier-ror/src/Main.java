@@ -175,7 +175,7 @@ public class Main {
 
   //  (i >>> #distance) | (i << #-distance)
 
-  /// CHECK-START: int Main.ror_int_constant_c_negc(int) instruction_simplifier$after_bce (before)
+  /// CHECK-START: int Main.ror_int_constant_c_negc(int) instruction_simplifier$after_inlining (before)
   /// CHECK:          <<ArgValue:i\d+>>     ParameterValue
   /// CHECK:          <<Const2:i\d+>>       IntConstant 2
   /// CHECK:          <<ConstNeg2:i\d+>>    IntConstant -2
@@ -184,13 +184,13 @@ public class Main {
   /// CHECK:          <<Or:i\d+>>           Or [<<UShr>>,<<Shl>>]
   /// CHECK:                                Return [<<Or>>]
 
-  /// CHECK-START: int Main.ror_int_constant_c_negc(int) instruction_simplifier$after_bce (after)
+  /// CHECK-START: int Main.ror_int_constant_c_negc(int) instruction_simplifier$after_inlining (after)
   /// CHECK:          <<ArgValue:i\d+>>     ParameterValue
   /// CHECK:          <<Const2:i\d+>>       IntConstant 2
   /// CHECK:          <<Ror:i\d+>>          Ror [<<ArgValue>>,<<Const2>>]
   /// CHECK:                                Return [<<Ror>>]
 
-  /// CHECK-START: int Main.ror_int_constant_c_negc(int) instruction_simplifier$after_bce (after)
+  /// CHECK-START: int Main.ror_int_constant_c_negc(int) instruction_simplifier$after_inlining (after)
   /// CHECK-NOT:      UShr
   /// CHECK-NOT:      Shl
   public static int ror_int_constant_c_negc(int value) {

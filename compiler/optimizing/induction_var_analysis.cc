@@ -286,8 +286,11 @@ void HInductionVarAnalysis::ClassifyNonTrivial(HLoopInformation* loop) {
       update = SolveAddSub(
           loop, phi, instruction, instruction->InputAt(0), instruction->InputAt(1), kSub, true);
     } else if (instruction->IsXor()) {
-      update = SolveXor(
-          loop, phi, instruction, instruction->InputAt(0), instruction->InputAt(1), true);
+      update = SolveXor(loop, phi, instruction, instruction->InputAt(0), instruction->InputAt(1));
+    } else if (instruction->IsEqual()) {
+      update = SolveTest(loop, phi, instruction, 0);
+    } else if (instruction->IsNotEqual()) {
+      update = SolveTest(loop, phi, instruction, 1);
     } else if (instruction->IsTypeConversion()) {
       update = SolveCnv(instruction->AsTypeConversion());
     }
@@ -560,19 +563,34 @@ HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolveXor(HLoopInfor
                                                                       HInstruction* entry_phi,
                                                                       HInstruction* instruction,
                                                                       HInstruction* x,
-                                                                      HInstruction* y,
-                                                                      bool is_first_call) {
-  InductionInfo* b = LookupInfo(loop, y);
-  // Solve within a tight cycle on x = x ^ c.
-  if (b != nullptr && b->induction_class == kInvariant) {
-    if (x == entry_phi && entry_phi->InputCount() == 2 && instruction == entry_phi->InputAt(1)) {
-      InductionInfo* initial = LookupInfo(loop, entry_phi->InputAt(0));
+                                                                      HInstruction* y) {
+  // Solve within a tight cycle on x = c ^ x or x = x ^ c.
+  if (entry_phi->InputCount() == 2 && instruction == entry_phi->InputAt(1)) {
+    InductionInfo* initial = LookupInfo(loop, entry_phi->InputAt(0));
+    InductionInfo* a = LookupInfo(loop, x);
+    if (a != nullptr && a->induction_class == kInvariant && entry_phi == y) {
+      return CreateInduction(kPeriodic, CreateInvariantOp(kXor, a, initial), initial, type_);
+    }
+    InductionInfo* b = LookupInfo(loop, y);
+    if (b != nullptr && b->induction_class == kInvariant && entry_phi == x) {
       return CreateInduction(kPeriodic, CreateInvariantOp(kXor, initial, b), initial, type_);
     }
   }
-  // Try the other way around if considered for first time.
-  if (is_first_call) {
-    return SolveXor(loop, entry_phi, instruction, y, x, false);
+  return nullptr;
+}
+
+HInductionVarAnalysis::InductionInfo* HInductionVarAnalysis::SolveTest(HLoopInformation* loop,
+                                                                       HInstruction* entry_phi,
+                                                                       HInstruction* instruction,
+                                                                       int64_t opposite_value) {
+  // Detect hidden XOR construction in tight cycles on x = (x == 0) or x = (x != 1).
+  int64_t value = -1;
+  HInstruction* x = instruction->InputAt(0);
+  HInstruction* y = instruction->InputAt(1);
+  if (IsExact(LookupInfo(loop, x), &value) && value == opposite_value) {
+    return SolveXor(loop, entry_phi, instruction, graph_->GetIntConstant(1), y);
+  } else if (IsExact(LookupInfo(loop, y), &value) && value == opposite_value) {
+    return SolveXor(loop, entry_phi, instruction, x, graph_->GetIntConstant(1));
   }
   return nullptr;
 }

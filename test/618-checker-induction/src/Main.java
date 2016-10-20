@@ -527,6 +527,111 @@ public class Main {
     return i;  // this should become just 50
   }
 
+  /// CHECK-START: boolean Main.periodicBoolIdiom1() loop_optimization (before)
+  /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Phi2:i\d+>> Phi               loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:               Return [<<Phi2>>] loop:none
+  //
+  /// CHECK-START: boolean Main.periodicBoolIdiom1() loop_optimization (after)
+  /// CHECK-NOT:               Phi    loop:{{B\d+}} outer_loop:none
+  /// CHECK-DAG:               Return loop:none
+  //
+  /// CHECK-START: boolean Main.periodicBoolIdiom1() instruction_simplifier$after_bce (after)
+  /// CHECK-DAG: <<Int:i\d+>>  IntConstant 0
+  /// CHECK-DAG:               Return [<<Int>>] loop:none
+  private static boolean periodicBoolIdiom1() {
+    boolean x = true;
+    for (int i = 0; i < 7; i++) {
+      x = !x;
+    }
+    return x;
+  }
+
+  /// CHECK-START: boolean Main.periodicBoolIdiom2() loop_optimization (before)
+  /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Phi2:i\d+>> Phi               loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:               Return [<<Phi2>>] loop:none
+  //
+  /// CHECK-START: boolean Main.periodicBoolIdiom2() loop_optimization (after)
+  /// CHECK-NOT:               Phi    loop:{{B\d+}} outer_loop:none
+  /// CHECK-DAG:               Return loop:none
+  //
+  /// CHECK-START: boolean Main.periodicBoolIdiom2() instruction_simplifier$after_bce (after)
+  /// CHECK-DAG: <<Int:i\d+>>  IntConstant 0
+  /// CHECK-DAG:               Return [<<Int>>] loop:none
+  private static boolean periodicBoolIdiom2() {
+    boolean x = true;
+    for (int i = 0; i < 7; i++) {
+      x = (x != true);
+    }
+    return x;
+  }
+
+  /// CHECK-START: boolean Main.periodicBoolIdiom3() loop_optimization (before)
+  /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Phi2:i\d+>> Phi               loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:               Return [<<Phi2>>] loop:none
+  //
+  /// CHECK-START: boolean Main.periodicBoolIdiom3() loop_optimization (after)
+  /// CHECK-NOT:               Phi    loop:{{B\d+}} outer_loop:none
+  /// CHECK-DAG:               Return loop:none
+  //
+  /// CHECK-START: boolean Main.periodicBoolIdiom3() instruction_simplifier$after_bce (after)
+  /// CHECK-DAG: <<Int:i\d+>>  IntConstant 0
+  /// CHECK-DAG:               Return [<<Int>>] loop:none
+  private static boolean periodicBoolIdiom3() {
+    boolean x = true;
+    for (int i = 0; i < 7; i++) {
+      x = (x == false);
+    }
+    return x;
+  }
+
+  /// CHECK-START: boolean Main.periodicBoolIdiom1N(boolean, int) loop_optimization (before)
+  /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Phi2:i\d+>> Phi               loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:               Return [<<Phi2>>] loop:none
+  //
+  /// CHECK-START: boolean Main.periodicBoolIdiom1N(boolean, int) loop_optimization (after)
+  /// CHECK-NOT:               Phi    loop:{{B\d+}} outer_loop:none
+  /// CHECK-DAG:               Return loop:none
+  private static boolean periodicBoolIdiom1N(boolean x, int n) {
+    for (int i = 0; i < n; i++) {
+      x = !x;
+    }
+    return x;
+  }
+
+  /// CHECK-START: boolean Main.periodicBoolIdiom2N(boolean, int) loop_optimization (before)
+  /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Phi2:i\d+>> Phi               loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:               Return [<<Phi2>>] loop:none
+  //
+  /// CHECK-START: boolean Main.periodicBoolIdiom2N(boolean, int) loop_optimization (after)
+  /// CHECK-NOT:               Phi    loop:{{B\d+}} outer_loop:none
+  /// CHECK-DAG:               Return loop:none
+  private static boolean periodicBoolIdiom2N(boolean x, int n) {
+    for (int i = 0; i < n; i++) {
+      x = (x != true);
+    }
+    return x;
+  }
+
+  /// CHECK-START: boolean Main.periodicBoolIdiom3N(boolean, int) loop_optimization (before)
+  /// CHECK-DAG: <<Phi1:i\d+>> Phi               loop:<<Loop:B\d+>> outer_loop:none
+  /// CHECK-DAG: <<Phi2:i\d+>> Phi               loop:<<Loop>>      outer_loop:none
+  /// CHECK-DAG:               Return [<<Phi2>>] loop:none
+  //
+  /// CHECK-START: boolean Main.periodicBoolIdiom3N(boolean, int) loop_optimization (after)
+  /// CHECK-NOT:               Phi    loop:{{B\d+}} outer_loop:none
+  /// CHECK-DAG:               Return loop:none
+  private static boolean periodicBoolIdiom3N(boolean x, int n) {
+    for (int i = 0; i < n; i++) {
+      x = (x == false);
+    }
+    return x;
+  }
+
   private static int exceptionExitBeforeAdd() {
     int k = 0;
     try {
@@ -620,6 +725,20 @@ public class Main {
     expectEquals(10, closedLargeDown());
     expectEquals(50, waterFall());
 
+    expectEquals(false, periodicBoolIdiom1());
+    expectEquals(false, periodicBoolIdiom2());
+    expectEquals(false, periodicBoolIdiom3());
+    for (int n = -4; n < 10; n++) {
+      int tc = (n <= 0) ? 0 : n;
+      boolean even = (tc & 1) == 0;
+      expectEquals(even, periodicBoolIdiom1N(true, n));
+      expectEquals(!even, periodicBoolIdiom1N(false, n));
+      expectEquals(even, periodicBoolIdiom2N(true, n));
+      expectEquals(!even, periodicBoolIdiom2N(false, n));
+      expectEquals(even, periodicBoolIdiom3N(true, n));
+      expectEquals(!even, periodicBoolIdiom3N(false, n));
+    }
+
     expectEquals(100, exceptionExitBeforeAdd());
     expectEquals(100, exceptionExitAfterAdd());
     a = null;
@@ -633,6 +752,12 @@ public class Main {
   }
 
   private static void expectEquals(int expected, int result) {
+    if (expected != result) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
+  private static void expectEquals(boolean expected, boolean result) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
     }
