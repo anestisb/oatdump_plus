@@ -53,6 +53,49 @@ static inline uint32_t DecodeUnsignedLeb128(const uint8_t** data) {
   return static_cast<uint32_t>(result);
 }
 
+static inline bool DecodeUnsignedLeb128Checked(const uint8_t** data,
+                                               const void* end,
+                                               uint32_t* out) {
+  const uint8_t* ptr = *data;
+  if (ptr >= end) {
+    return false;
+  }
+  int result = *(ptr++);
+  if (UNLIKELY(result > 0x7f)) {
+    if (ptr >= end) {
+      return false;
+    }
+    int cur = *(ptr++);
+    result = (result & 0x7f) | ((cur & 0x7f) << 7);
+    if (cur > 0x7f) {
+      if (ptr >= end) {
+        return false;
+      }
+      cur = *(ptr++);
+      result |= (cur & 0x7f) << 14;
+      if (cur > 0x7f) {
+        if (ptr >= end) {
+          return false;
+        }
+        cur = *(ptr++);
+        result |= (cur & 0x7f) << 21;
+        if (cur > 0x7f) {
+          if (ptr >= end) {
+            return false;
+          }
+          // Note: We don't check to see if cur is out of range here,
+          // meaning we tolerate garbage in the four high-order bits.
+          cur = *(ptr++);
+          result |= cur << 28;
+        }
+      }
+    }
+  }
+  *data = ptr;
+  *out = static_cast<uint32_t>(result);
+  return true;
+}
+
 // Reads an unsigned LEB128 + 1 value. updating the given pointer to point
 // just past the end of the read value. This function tolerates
 // non-zero high-order bits in the fifth encoded byte.
@@ -95,6 +138,57 @@ static inline int32_t DecodeSignedLeb128(const uint8_t** data) {
   }
   *data = ptr;
   return result;
+}
+
+static inline bool DecodeSignedLeb128Checked(const uint8_t** data,
+                                             const void* end,
+                                             int32_t* out) {
+  const uint8_t* ptr = *data;
+  if (ptr >= end) {
+    return false;
+  }
+  int32_t result = *(ptr++);
+  if (result <= 0x7f) {
+    result = (result << 25) >> 25;
+  } else {
+    if (ptr >= end) {
+      return false;
+    }
+    int cur = *(ptr++);
+    result = (result & 0x7f) | ((cur & 0x7f) << 7);
+    if (cur <= 0x7f) {
+      result = (result << 18) >> 18;
+    } else {
+      if (ptr >= end) {
+        return false;
+      }
+      cur = *(ptr++);
+      result |= (cur & 0x7f) << 14;
+      if (cur <= 0x7f) {
+        result = (result << 11) >> 11;
+      } else {
+        if (ptr >= end) {
+          return false;
+        }
+        cur = *(ptr++);
+        result |= (cur & 0x7f) << 21;
+        if (cur <= 0x7f) {
+          result = (result << 4) >> 4;
+        } else {
+          if (ptr >= end) {
+            return false;
+          }
+          // Note: We don't check to see if cur is out of range here,
+          // meaning we tolerate garbage in the four high-order bits.
+          cur = *(ptr++);
+          result |= cur << 28;
+        }
+      }
+    }
+  }
+  *data = ptr;
+  *out = static_cast<uint32_t>(result);
+  return true;
 }
 
 // Returns the number of bytes needed to encode the value in unsigned LEB128.
