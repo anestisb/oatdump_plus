@@ -862,7 +862,7 @@ bool InductionVarRange::GenerateCode(HInductionVarAnalysis::InductionInfo* info,
     }
     // Verify type safety.
     Primitive::Type type = Primitive::kPrimInt;
-    if (info->type != type) {
+    if (info->type != Primitive::kPrimInt && info->type != Primitive::kPrimBoolean) {
       return false;
     }
     // Handle current operation.
