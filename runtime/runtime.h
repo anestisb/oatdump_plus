@@ -277,7 +277,7 @@ class Runtime {
   }
 
   JavaVMExt* GetJavaVM() const {
-    return java_vm_;
+    return java_vm_.get();
   }
 
   size_t GetMaxSpinsBeforeThinkLockInflation() const {
@@ -757,7 +757,7 @@ class Runtime {
   SignalCatcher* signal_catcher_;
   std::string stack_trace_file_;
 
-  JavaVMExt* java_vm_;
+  std::unique_ptr<JavaVMExt> java_vm_;
 
   std::unique_ptr<jit::Jit> jit_;
   std::unique_ptr<jit::JitOptions> jit_options_;
